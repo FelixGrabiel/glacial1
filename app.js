@@ -37,12 +37,12 @@
 */
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBrFP-fQr7TI7J-18SpbNwAZevOB0XHhSw",
-  authDomain: "jefaturaopglacial.firebaseapp.com",
-  projectId: "jefaturaopglacial",
-  storageBucket: "jefaturaopglacial.firebasestorage.app",
-  messagingSenderId: "804501030713",
-  appId: "1:804501030713:web:b3656e2ef970a812c8cae8"
+  apiKey: "AIzaSyAO86_KLoblDvHq-65q2xbD53-zj_L0tUY",
+  authDomain: "jefaturaopglacial-fdb95.firebaseapp.com",
+  projectId: "jefaturaopglacial-fdb95",
+  storageBucket: "jefaturaopglacial-fdb95.firebasestorage.app",
+  messagingSenderId: "949615984456",
+  appId: "1:949615984456:web:6664bb183ee09930ad3d7d"
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
