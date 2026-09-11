@@ -1,0 +1,2616 @@
+<!DOCTYPE html>
+
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<meta
+    name="theme-color"
+    content="#005B96"
+>
+
+<meta
+    name="description"
+    content="Sistema interno de control operativo y seguimiento de producción GLACIAL."
+>
+
+<title>Reporte Diario de Producción | GLACIAL</title>
+
+
+<!-- =====================================================
+     FUENTES
+====================================================== -->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+
+<link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+>
+
+<link
+    href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap"
+    rel="stylesheet"
+>
+
+
+<!-- =====================================================
+     CHART.JS
+====================================================== -->
+
+<script
+    src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+</script>
+
+
+<!-- =====================================================
+     SHEETJS / XLSX
+====================================================== -->
+
+<script
+    src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js">
+</script>
+
+
+<!-- =====================================================
+     CSS PRINCIPAL
+====================================================== -->
+
+<link
+    rel="stylesheet"
+    href="styles.css"
+>
+
+<!-- =====================================================
+     ESTILOS COMPLEMENTARIOS
+====================================================== -->
+
+<style>
+
+    /* =====================================================
+       VARIABLES
+    ====================================================== */
+
+    :root {
+        --glacial-blue: #005B96;
+        --glacial-blue-light: #0077B6;
+        --glacial-blue-dark: #003B5C;
+
+        --white: #ffffff;
+        --bg: #f3f6f9;
+        --border: #dce4ea;
+
+        --text: #17232d;
+        --text-soft: #667784;
+
+        --success: #159957;
+        --danger: #d64545;
+
+        --shadow-sm:
+            0 4px 14px rgba(0, 0, 0, 0.06);
+
+        --shadow-md:
+            0 12px 30px rgba(0, 0, 0, 0.10);
+
+        --shadow-lg:
+            0 20px 60px rgba(0, 0, 0, 0.18);
+    }
+
+
+    /* =====================================================
+       BASE
+    ====================================================== */
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+
+        font-family:
+            "IBM Plex Sans",
+            Arial,
+            sans-serif;
+
+        color: var(--text);
+
+        background: var(--bg);
+    }
+
+    button,
+    input {
+        font-family: inherit;
+    }
+
+    button {
+        cursor: pointer;
+    }
+
+
+    /* =====================================================
+       LOGIN
+    ====================================================== */
+
+    #login-screen {
+
+        min-height: 100vh;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        padding: 30px;
+
+        position: relative;
+
+        background:
+            linear-gradient(
+                135deg,
+                rgba(0, 28, 52, 0.92),
+                rgba(0, 91, 150, 0.82)
+            ),
+            url("/img/fondo_glacial.jpg");
+
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+
+    /* Decoración */
+
+    #login-screen::before {
+
+        content: "";
+
+        position: absolute;
+
+        width: 420px;
+        height: 420px;
+
+        border-radius: 50%;
+
+        right: -150px;
+        top: -150px;
+
+        background:
+            rgba(255, 255, 255, 0.05);
+    }
+
+    #login-screen::after {
+
+        content: "";
+
+        position: absolute;
+
+        width: 320px;
+        height: 320px;
+
+        border-radius: 50%;
+
+        left: -140px;
+        bottom: -140px;
+
+        background:
+            rgba(255, 255, 255, 0.04);
+    }
+
+
+    /* =====================================================
+       LOGIN CARD
+    ====================================================== */
+
+    .login-card {
+
+        width: 100%;
+        max-width: 470px;
+
+        position: relative;
+        z-index: 2;
+
+        background:
+            rgba(255, 255, 255, 0.98);
+
+        border:
+            1px solid rgba(255, 255, 255, 0.60);
+
+        border-radius: 20px;
+
+        overflow: hidden;
+
+        box-shadow:
+            var(--shadow-lg);
+    }
+
+
+    /* =====================================================
+       LOGIN LOGO
+    ====================================================== */
+
+    .login-logo-container {
+
+        width: 100%;
+
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        padding:
+            32px 30px 18px;
+    }
+
+    .login-logo {
+
+        display: block;
+
+        width: auto;
+        height: 92px;
+
+        max-width: 80%;
+
+        object-fit: contain;
+    }
+
+
+    /* =====================================================
+       LOGIN HEADER
+    ====================================================== */
+
+    .login-head {
+
+        text-align: center;
+
+        padding:
+            0 38px 24px;
+    }
+
+    .plant-tag {
+
+        display: inline-flex;
+
+        align-items: center;
+
+        padding:
+            6px 11px;
+
+        margin-bottom: 13px;
+
+        border:
+            1px solid #cddce6;
+
+        border-radius: 5px;
+
+        background:
+            #f1f6f9;
+
+        color:
+            var(--glacial-blue);
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 10px;
+        font-weight: 600;
+
+        letter-spacing: 0.8px;
+    }
+
+    .login-head h1 {
+
+        margin:
+            0 0 9px;
+
+        color:
+            #10202c;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 31px;
+        font-weight: 600;
+
+        letter-spacing: 0.4px;
+    }
+
+    .login-head h1 span {
+
+        color:
+            var(--glacial-blue);
+    }
+
+    .login-description {
+
+        margin: 0;
+
+        color:
+            var(--text-soft);
+
+        font-size: 14px;
+
+        line-height: 1.55;
+    }
+
+
+    /* =====================================================
+       LOGIN BODY
+    ====================================================== */
+
+    .login-body {
+
+        padding:
+            0 38px 30px;
+    }
+
+
+    /* =====================================================
+       ERROR
+    ====================================================== */
+
+    .login-error {
+
+        display: none;
+
+        margin-bottom: 16px;
+
+        padding:
+            11px 13px;
+
+        border:
+            1px solid #efb5b5;
+
+        border-radius: 7px;
+
+        background:
+            #fff4f4;
+
+        color:
+            var(--danger);
+
+        font-size: 13px;
+    }
+
+    .login-error:not(:empty) {
+        display: block;
+    }
+
+
+    /* =====================================================
+       FORM FIELDS
+    ====================================================== */
+
+    .field {
+
+        margin-bottom: 17px;
+    }
+
+    .field label {
+
+        display: block;
+
+        margin-bottom: 7px;
+
+        color:
+            #344653;
+
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .input-wrap {
+
+        position: relative;
+
+        display: flex;
+        align-items: center;
+    }
+
+    .input-icon {
+
+        position: absolute;
+
+        left: 14px;
+
+        width: 20px;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        color:
+            var(--glacial-blue);
+
+        font-size: 15px;
+
+        z-index: 2;
+    }
+
+    .input-wrap input {
+
+        width: 100%;
+
+        height: 46px;
+
+        padding:
+            0 44px 0 42px;
+
+        border:
+            1px solid #cbd7df;
+
+        border-radius: 8px;
+
+        outline: none;
+
+        background:
+            #ffffff;
+
+        color:
+            #182731;
+
+        font-size: 14px;
+
+        transition:
+            border-color 0.2s ease,
+            box-shadow 0.2s ease,
+            background 0.2s ease;
+    }
+
+    .input-wrap input::placeholder {
+        color: #9aa8b2;
+    }
+
+    .input-wrap input:focus {
+
+        border-color:
+            var(--glacial-blue);
+
+        background:
+            #fbfdff;
+
+        box-shadow:
+            0 0 0 3px rgba(0, 91, 150, 0.10);
+    }
+
+
+    /* =====================================================
+       PASSWORD TOGGLE
+    ====================================================== */
+
+    .password-toggle {
+
+        position: absolute;
+
+        right: 9px;
+
+        width: 32px;
+        height: 32px;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        border: none;
+
+        border-radius: 6px;
+
+        background: transparent;
+
+        color:
+            #71818c;
+
+        font-size: 15px;
+    }
+
+    .password-toggle:hover {
+
+        background:
+            #edf4f8;
+
+        color:
+            var(--glacial-blue);
+    }
+
+
+    /* =====================================================
+       BOTÓN GLACIAL
+    ====================================================== */
+
+    .btn-glacial {
+
+        min-height: 47px;
+
+        background:
+            linear-gradient(
+                135deg,
+                var(--glacial-blue),
+                var(--glacial-blue-light)
+            );
+
+        color:
+            #ffffff;
+
+        border:
+            none;
+
+        border-radius: 8px;
+
+        box-shadow:
+            0 6px 18px rgba(0, 91, 150, 0.23);
+
+        transition:
+            background 0.2s ease,
+            transform 0.2s ease,
+            box-shadow 0.2s ease;
+    }
+
+    .btn-glacial:hover {
+
+        background:
+            linear-gradient(
+                135deg,
+                #004875,
+                var(--glacial-blue)
+            );
+
+        transform:
+            translateY(-1px);
+
+        box-shadow:
+            0 9px 24px rgba(0, 91, 150, 0.30);
+    }
+
+    .btn-glacial:active {
+
+        transform:
+            translateY(0);
+    }
+
+    .btn-block {
+
+        width: 100%;
+    }
+
+    .login-submit {
+
+        display: flex;
+
+        align-items: center;
+        justify-content: space-between;
+
+        padding:
+            0 17px 0 20px;
+
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .btn-arrow {
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        width: 28px;
+        height: 28px;
+
+        border-radius: 50%;
+
+        background:
+            rgba(255, 255, 255, 0.14);
+
+        font-size: 18px;
+
+        transition:
+            transform 0.2s ease;
+    }
+
+    .login-submit:hover .btn-arrow {
+
+        transform:
+            translateX(3px);
+    }
+
+
+    /* =====================================================
+       DEMO USERS
+    ====================================================== */
+
+    .login-hint {
+
+        margin-top: 23px;
+
+        padding:
+            15px;
+
+        border:
+            1px solid #dce5eb;
+
+        border-radius: 9px;
+
+        background:
+            #f7f9fb;
+    }
+
+    .login-hint-title {
+
+        margin-bottom: 10px;
+
+        color:
+            #71818c;
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 9px;
+        font-weight: 600;
+
+        letter-spacing: 0.8px;
+    }
+
+    .demo-user {
+
+        display: grid;
+
+        grid-template-columns:
+            1fr auto;
+
+        gap:
+            2px 12px;
+
+        padding:
+            8px 0;
+
+        border-bottom:
+            1px solid #e4eaee;
+    }
+
+    .demo-user:last-child {
+        border-bottom: none;
+    }
+
+    .demo-user strong {
+
+        color:
+            #253642;
+
+        font-size: 12px;
+    }
+
+    .demo-user span {
+
+        color:
+            var(--glacial-blue);
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 11px;
+    }
+
+    .demo-user small {
+
+        grid-column:
+            1 / -1;
+
+        color:
+            #87959e;
+
+        font-size: 10px;
+    }
+
+
+    /* =====================================================
+       LOGIN FOOTER
+    ====================================================== */
+
+    .login-footer {
+
+        min-height: 45px;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        gap: 8px;
+
+        padding:
+            10px 20px;
+
+        border-top:
+            1px solid #e5eaee;
+
+        background:
+            #fafcfd;
+
+        color:
+            #7a8992;
+
+        font-size: 11px;
+    }
+
+    .status-dot {
+
+        display: inline-block;
+
+        width: 7px;
+        height: 7px;
+
+        border-radius: 50%;
+
+        background:
+            var(--success);
+
+        box-shadow:
+            0 0 0 3px rgba(21, 153, 87, 0.10);
+    }
+
+    .login-footer-separator {
+        color: #c4cdd2;
+    }
+
+
+    /* =====================================================
+       APP SCREEN
+    ====================================================== */
+
+    #app-screen {
+
+        min-height: 100vh;
+
+        background:
+            var(--bg);
+    }
+
+
+    /* =====================================================
+       TOPBAR
+    ====================================================== */
+
+    .topbar {
+
+        min-height: 70px;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: space-between;
+
+        padding:
+            0 24px;
+
+        background:
+            #ffffff;
+
+        border-bottom:
+            1px solid #dce4e9;
+
+        box-shadow:
+            0 2px 10px rgba(0, 0, 0, 0.04);
+
+        position: relative;
+        z-index: 10;
+    }
+
+    .topbar-left,
+    .topbar-right {
+
+        display: flex;
+
+        align-items: center;
+    }
+
+    .topbar-left {
+        min-width: 0;
+    }
+
+    .topbar-brand {
+
+        display: flex;
+
+        align-items: center;
+    }
+
+    .topbar-logo-wrap {
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        min-width: 108px;
+    }
+
+    .topbar-logo {
+
+        width: auto;
+
+        height: 43px;
+
+        max-width: 110px;
+
+        object-fit: contain;
+    }
+
+    .topbar-separator {
+
+        width: 1px;
+        height: 32px;
+
+        margin:
+            0 18px;
+
+        background:
+            #dce3e8;
+    }
+
+    .topbar-title {
+
+        display: flex;
+
+        flex-direction: column;
+
+        gap: 2px;
+
+        min-width: 0;
+    }
+
+    .topbar-title strong {
+
+        color:
+            #1b2b35;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 18px;
+        font-weight: 500;
+
+        white-space: nowrap;
+    }
+
+    .topbar-title small {
+
+        color:
+            #7b8992;
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 9px;
+        font-weight: 500;
+
+        letter-spacing: 0.7px;
+
+        white-space: nowrap;
+    }
+
+
+    /* =====================================================
+       USER CHIP
+    ====================================================== */
+
+    .user-chip {
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 10px;
+
+        margin-right: 14px;
+    }
+
+    .user-avatar {
+
+        width: 38px;
+        height: 38px;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        border-radius: 50%;
+
+        background:
+            linear-gradient(
+                135deg,
+                var(--glacial-blue),
+                var(--glacial-blue-light)
+            );
+
+        color:
+            #ffffff;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .user-info {
+
+        display: flex;
+
+        flex-direction: column;
+
+        gap: 2px;
+
+        min-width: 100px;
+    }
+
+    .user-name {
+
+        color:
+            #263842;
+
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .user-role {
+
+        color:
+            #7b8992;
+
+        font-size: 10px;
+    }
+
+
+    /* =====================================================
+       TOPBAR BUTTON
+    ====================================================== */
+
+    .btn-topbar {
+
+        height: 37px;
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 7px;
+
+        padding:
+            0 13px;
+
+        border:
+            1px solid #d6e0e6;
+
+        border-radius: 7px;
+
+        background:
+            #ffffff;
+
+        color:
+            #52636e;
+
+        font-size: 12px;
+        font-weight: 600;
+
+        transition:
+            all 0.2s ease;
+    }
+
+    .btn-topbar:hover {
+
+        border-color:
+            #b8cbd7;
+
+        background:
+            #f5f9fb;
+
+        color:
+            var(--glacial-blue);
+    }
+
+    .logout-icon {
+        font-size: 16px;
+    }
+
+
+    /* =====================================================
+       SHELL
+    ====================================================== */
+
+    .shell {
+
+        min-height:
+            calc(100vh - 70px);
+
+        display: flex;
+    }
+
+
+    /* =====================================================
+       SIDEBAR
+    ====================================================== */
+
+    .sidebar {
+
+        width: 250px;
+
+        flex-shrink: 0;
+
+        display: flex;
+
+        flex-direction: column;
+
+        padding:
+            22px 14px;
+
+        background:
+            #ffffff;
+
+        border-right:
+            1px solid #dce4e9;
+    }
+
+
+    /* =====================================================
+       SIDEBAR BRAND
+    ====================================================== */
+
+    .sidebar-brand {
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 11px;
+
+        padding:
+            3px 9px 21px;
+    }
+
+    .sidebar-brand-mark {
+
+        width: 36px;
+        height: 36px;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        border-radius: 8px;
+
+        background:
+            linear-gradient(
+                135deg,
+                var(--glacial-blue),
+                var(--glacial-blue-light)
+            );
+
+        color:
+            #ffffff;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+    .sidebar-brand strong {
+
+        display: block;
+
+        color:
+            #1c2c36;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 16px;
+        font-weight: 600;
+
+        letter-spacing: 0.5px;
+    }
+
+    .sidebar-brand span {
+
+        display: block;
+
+        margin-top: 1px;
+
+        color:
+            #8a979f;
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 8px;
+        font-weight: 500;
+
+        letter-spacing: 0.6px;
+    }
+
+
+    /* =====================================================
+       SIDEBAR LABEL
+    ====================================================== */
+
+    .sidebar-label,
+    .sidebar-section-title {
+
+        padding:
+            0 10px;
+
+        margin-bottom: 8px;
+
+        color:
+            #89969f;
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 9px;
+        font-weight: 600;
+
+        letter-spacing: 0.7px;
+
+        text-transform: uppercase;
+    }
+
+
+    /* =====================================================
+       LINE NAV
+    ====================================================== */
+
+    #line-list {
+
+        display: flex;
+
+        flex-direction: column;
+
+        gap: 4px;
+    }
+
+
+    /* =====================================================
+       SIDEBAR ACTIONS
+    ====================================================== */
+
+    .side-action {
+
+        width: 100%;
+
+        min-height: 41px;
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 10px;
+
+        padding:
+            0 10px;
+
+        margin-bottom: 3px;
+
+        border:
+            1px solid transparent;
+
+        border-radius: 7px;
+
+        background:
+            transparent;
+
+        color:
+            #52636e;
+
+        text-align: left;
+
+        font-size: 12px;
+        font-weight: 500;
+
+        transition:
+            background 0.2s ease,
+            color 0.2s ease,
+            border-color 0.2s ease;
+    }
+
+    .side-action:hover {
+
+        background:
+            #edf5f9;
+
+        color:
+            var(--glacial-blue);
+
+        border-color:
+            #dbeaf2;
+    }
+
+    .side-action-icon {
+
+        width: 25px;
+        height: 25px;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        border-radius: 6px;
+
+        background:
+            #f1f5f7;
+
+        color:
+            #647782;
+
+        font-size: 14px;
+    }
+
+    .side-action:hover .side-action-icon {
+
+        background:
+            #ffffff;
+
+        color:
+            var(--glacial-blue);
+    }
+
+
+    /* =====================================================
+       DIVIDER
+    ====================================================== */
+
+    .sidebar-divider {
+
+        height: 1px;
+
+        margin:
+            17px 8px;
+
+        background:
+            #e3e9ed;
+    }
+
+
+    /* =====================================================
+       SIDEBAR FOOTER
+    ====================================================== */
+
+    .sidebar-footer {
+
+        margin-top: auto;
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 9px;
+
+        padding:
+            12px 10px;
+
+        border:
+            1px solid #e1e8ec;
+
+        border-radius: 8px;
+
+        background:
+            #f7f9fa;
+    }
+
+    .sidebar-footer .status-dot {
+
+        width: 8px;
+        height: 8px;
+
+        flex-shrink: 0;
+    }
+
+    .sidebar-footer strong {
+
+        display: block;
+
+        color:
+            #40515c;
+
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .sidebar-footer small {
+
+        display: block;
+
+        margin-top: 2px;
+
+        color:
+            #89969f;
+
+        font-size: 9px;
+    }
+
+
+    /* =====================================================
+       MAIN
+    ====================================================== */
+
+    .main {
+
+        flex: 1;
+
+        min-width: 0;
+
+        padding:
+            26px;
+
+        overflow-x: hidden;
+    }
+
+
+    /* =====================================================
+       WELCOME PANEL
+    ====================================================== */
+
+    .welcome-panel {
+
+        min-height: 275px;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: space-between;
+
+        gap: 35px;
+
+        margin-bottom: 24px;
+
+        padding:
+            42px 48px;
+
+        position: relative;
+
+        overflow: hidden;
+
+        border-radius: 16px;
+
+        background:
+            linear-gradient(
+                135deg,
+                #005B96 0%,
+                #0077B6 55%,
+                #003B5C 100%
+            );
+
+        color:
+            #ffffff;
+
+        box-shadow:
+            0 12px 30px rgba(0, 70, 110, 0.17);
+    }
+
+
+    /* Decoraciones */
+
+    .welcome-panel::before {
+
+        content: "";
+
+        position: absolute;
+
+        width: 330px;
+        height: 330px;
+
+        border-radius: 50%;
+
+        right: 40px;
+        top: -210px;
+
+        background:
+            rgba(255, 255, 255, 0.055);
+    }
+
+    .welcome-panel::after {
+
+        content: "";
+
+        position: absolute;
+
+        width: 240px;
+        height: 240px;
+
+        border-radius: 50%;
+
+        right: -100px;
+        bottom: -130px;
+
+        background:
+            rgba(255, 255, 255, 0.045);
+    }
+
+    .welcome-content {
+
+        position: relative;
+
+        z-index: 2;
+
+        max-width: 760px;
+    }
+
+    .welcome-tag {
+
+        display: inline-block;
+
+        padding:
+            6px 11px;
+
+        margin-bottom: 13px;
+
+        border:
+            1px solid rgba(255, 255, 255, 0.30);
+
+        border-radius: 5px;
+
+        background:
+            rgba(255, 255, 255, 0.08);
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 9px;
+        font-weight: 600;
+
+        letter-spacing: 0.8px;
+    }
+
+    .welcome-panel h1 {
+
+        margin:
+            0 0 9px;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 38px;
+        font-weight: 600;
+
+        letter-spacing: 0.7px;
+    }
+
+    .welcome-message {
+
+        margin:
+            0 0 10px;
+
+        font-size: 23px;
+
+        line-height: 1.35;
+    }
+
+    .welcome-message strong {
+        font-weight: 700;
+    }
+
+    .welcome-description {
+
+        max-width: 650px;
+
+        margin: 0;
+
+        color:
+            rgba(255, 255, 255, 0.82);
+
+        font-size: 14px;
+
+        line-height: 1.6;
+    }
+
+
+    /* =====================================================
+       WELCOME LOGO
+    ====================================================== */
+
+    .welcome-logo {
+
+        width: 175px;
+        height: 175px;
+
+        flex-shrink: 0;
+
+        position: relative;
+        z-index: 2;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        border-radius: 50%;
+
+        background:
+            rgba(255, 255, 255, 0.09);
+
+        border:
+            1px solid rgba(255, 255, 255, 0.19);
+
+        box-shadow:
+            inset 0 0 30px rgba(255, 255, 255, 0.035);
+    }
+
+    .welcome-logo img {
+
+        width: 125px;
+        max-height: 125px;
+
+        object-fit: contain;
+    }
+
+
+    /* =====================================================
+       FUTURO CONTENEDOR KPI
+       Compatible con contenido generado por app.js
+    ====================================================== */
+
+    .dashboard-kpis {
+
+        display: grid;
+
+        grid-template-columns:
+            repeat(4, minmax(0, 1fr));
+
+        gap: 15px;
+
+        margin-bottom: 22px;
+    }
+
+    .kpi-card {
+
+        min-height: 120px;
+
+        padding: 18px;
+
+        border:
+            1px solid #dfe7ec;
+
+        border-radius: 11px;
+
+        background:
+            #ffffff;
+
+        box-shadow:
+            var(--shadow-sm);
+    }
+
+    .kpi-card-title {
+
+        color:
+            #7b8992;
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 9px;
+        font-weight: 600;
+
+        letter-spacing: 0.5px;
+
+        text-transform: uppercase;
+    }
+
+    .kpi-card-value {
+
+        margin-top: 9px;
+
+        color:
+            #1e303b;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 29px;
+        font-weight: 600;
+    }
+
+    .kpi-card-meta {
+
+        margin-top: 4px;
+
+        color:
+            #829099;
+
+        font-size: 10px;
+    }
+
+
+    /* =====================================================
+       RESPONSIVE TABLET
+    ====================================================== */
+
+    @media (max-width: 1050px) {
+
+        .sidebar {
+            width: 220px;
+        }
+
+        .main {
+            padding: 20px;
+        }
+
+        .welcome-panel {
+            padding:
+                35px 35px;
+        }
+
+        .welcome-panel h1 {
+            font-size: 33px;
+        }
+
+        .welcome-logo {
+            width: 145px;
+            height: 145px;
+        }
+
+        .welcome-logo img {
+            width: 105px;
+            max-height: 105px;
+        }
+
+        .dashboard-kpis {
+            grid-template-columns:
+                repeat(2, 1fr);
+        }
+    }
+
+
+    /* =====================================================
+       RESPONSIVE
+    ====================================================== */
+
+    @media (max-width: 800px) {
+
+        .topbar {
+            padding:
+                0 15px;
+        }
+
+        .topbar-separator,
+        .topbar-title small {
+            display: none;
+        }
+
+        .topbar-title strong {
+            font-size: 15px;
+        }
+
+        .user-info {
+            display: none;
+        }
+
+        .user-chip {
+            margin-right: 8px;
+        }
+
+        .sidebar {
+            width: 205px;
+        }
+
+        .welcome-panel {
+
+            flex-direction: column;
+
+            text-align: center;
+
+            justify-content: center;
+
+            padding:
+                35px 25px;
+
+            gap: 25px;
+        }
+
+        .welcome-content {
+            max-width: 100%;
+        }
+
+        .welcome-panel h1 {
+            font-size: 29px;
+        }
+
+        .welcome-message {
+            font-size: 20px;
+        }
+
+        .welcome-description {
+            font-size: 13px;
+        }
+
+        .welcome-logo {
+            width: 125px;
+            height: 125px;
+        }
+
+        .welcome-logo img {
+            width: 90px;
+            max-height: 90px;
+        }
+    }
+
+
+    /* =====================================================
+       RESPONSIVE MÓVIL
+    ====================================================== */
+
+    @media (max-width: 600px) {
+
+        #login-screen {
+            padding: 15px;
+        }
+
+        .login-card {
+            border-radius: 15px;
+        }
+
+        .login-logo-container {
+            padding-top: 25px;
+        }
+
+        .login-logo {
+            height: 78px;
+        }
+
+        .login-head {
+            padding:
+                0 24px 20px;
+        }
+
+        .login-head h1 {
+            font-size: 27px;
+        }
+
+        .login-body {
+            padding:
+                0 24px 25px;
+        }
+
+        .topbar {
+            min-height: 62px;
+        }
+
+        .topbar-logo {
+            height: 36px;
+        }
+
+        .btn-topbar {
+            padding:
+                0 10px;
+        }
+
+        .shell {
+            display: block;
+        }
+
+        .sidebar {
+
+            width: 100%;
+
+            min-height: auto;
+
+            padding:
+                12px;
+
+            border-right: none;
+
+            border-bottom:
+                1px solid #dce4e9;
+        }
+
+        .sidebar-brand {
+            padding:
+                4px 8px 12px;
+        }
+
+        .sidebar-footer {
+            display: none;
+        }
+
+        .sidebar-divider {
+            margin:
+                10px 8px;
+        }
+
+        .main {
+            padding:
+                15px;
+        }
+
+        .welcome-panel {
+            margin-bottom: 15px;
+        }
+
+        .dashboard-kpis {
+            grid-template-columns:
+                1fr;
+        }
+    }
+
+
+    /* =====================================================
+       MÓVIL PEQUEÑO
+    ====================================================== */
+
+    @media (max-width: 420px) {
+
+        .topbar {
+            padding:
+                0 10px;
+        }
+
+        .topbar-logo-wrap {
+            min-width: 80px;
+        }
+
+        .topbar-logo {
+            max-width: 85px;
+        }
+
+        .btn-topbar {
+            font-size: 0;
+        }
+
+        .logout-icon {
+            font-size: 17px;
+        }
+
+        .welcome-panel {
+            padding:
+                30px 20px;
+        }
+
+        .welcome-panel h1 {
+            font-size: 25px;
+        }
+
+        .welcome-message {
+            font-size: 18px;
+        }
+    }
+
+
+    /* =====================================================
+       REDUCIR MOVIMIENTO
+    ====================================================== */
+
+    @media (prefers-reduced-motion: reduce) {
+
+        *,
+        *::before,
+        *::after {
+
+            scroll-behavior: auto !important;
+
+            transition-duration:
+                0.01ms !important;
+        }
+    }
+
+</style>
+
+
+</head>
+
+<body>
+
+<!-- =====================================================
+     LOGIN
+====================================================== -->
+
+<div id="login-screen">
+
+    <div class="login-card">
+
+
+        <!-- LOGO -->
+
+        <div class="login-logo-container">
+
+            <img
+                src="/img/logo_glacial.png"
+                alt="Logo GLACIAL"
+                class="login-logo"
+            >
+
+        </div>
+
+
+        <!-- CABECERA -->
+
+        <div class="login-head">
+
+            <div class="plant-tag">
+                SISTEMA INTERNO · PLANTA DE ENVASADO
+            </div>
+
+            <h1>
+                Reporte Diario de
+                <span>Producción</span>
+            </h1>
+
+            <p class="login-description">
+                Control operativo y seguimiento del desempeño de planta.
+            </p>
+
+        </div>
+
+
+        <!-- CUERPO -->
+
+        <div class="login-body">
+
+
+            <!-- ERROR -->
+
+            <div
+                class="login-error"
+                id="login-error"
+                role="alert"
+                aria-live="polite"
+            ></div>
+
+
+            <!-- USUARIO -->
+
+            <div class="field">
+
+                <label for="login-user">
+                    Usuario
+                </label>
+
+                <div class="input-wrap">
+
+                    <span
+                        class="input-icon"
+                        aria-hidden="true"
+                    >
+                        👤
+                    </span>
+
+                    <input
+                        id="login-user"
+                        type="text"
+                        autocomplete="username"
+                        placeholder="Ingrese su usuario"
+                        aria-label="Usuario"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <!-- CONTRASEÑA -->
+
+            <div class="field">
+
+                <label for="login-pass">
+                    Contraseña
+                </label>
+
+                <div class="input-wrap">
+
+                    <span
+                        class="input-icon"
+                        aria-hidden="true"
+                    >
+                        🔒
+                    </span>
+
+                    <input
+                        id="login-pass"
+                        type="password"
+                        autocomplete="current-password"
+                        placeholder="Ingrese su contraseña"
+                        aria-label="Contraseña"
+                    >
+
+                    <button
+                        type="button"
+                        class="password-toggle"
+                        id="password-toggle"
+                        aria-label="Mostrar contraseña"
+                        onclick="togglePassword()"
+                    >
+                        👁
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- INGRESAR -->
+
+            <button
+                type="button"
+                class="btn btn-glacial btn-block login-submit"
+                onclick="handleLogin()"
+            >
+
+                <span>
+                    Ingresar al sistema
+                </span>
+
+                <span
+                    class="btn-arrow"
+                    aria-hidden="true"
+                >
+                    →
+                </span>
+
+            </button>
+
+
+            <!-- DEMOSTRACIÓN -->
+
+            <div class="login-hint">
+
+                <div class="login-hint-title">
+                    ACCESOS DE DEMOSTRACIÓN
+                </div>
+
+
+                <div class="demo-user">
+
+                    <strong>
+                        admin
+                    </strong>
+
+                    <span>
+                        admin123
+                    </span>
+
+                    <small>
+                        Administrador
+                    </small>
+
+                </div>
+
+
+                <div class="demo-user">
+
+                    <strong>
+                        jefe
+                    </strong>
+
+                    <span>
+                        jefe123
+                    </span>
+
+                    <small>
+                        Jefe de Producción
+                    </small>
+
+                </div>
+
+
+                <div class="demo-user">
+
+                    <strong>
+                        supervisor
+                    </strong>
+
+                    <span>
+                        supervisor123
+                    </span>
+
+                    <small>
+                        Supervisor — PET 1
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- FOOTER -->
+
+        <div class="login-footer">
+
+            <span
+                class="status-dot"
+                aria-hidden="true"
+            ></span>
+
+            <span>
+                Sistema operativo
+            </span>
+
+            <span class="login-footer-separator">
+                |
+            </span>
+
+            <span>
+                GLACIAL
+            </span>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     APLICACIÓN PRINCIPAL
+====================================================== -->
+
+<div id="app-screen">
+
+
+    <!-- =================================================
+         TOPBAR
+    ================================================== -->
+
+    <header class="topbar">
+
+
+        <!-- IZQUIERDA -->
+
+        <div class="topbar-left">
+
+            <div class="topbar-brand">
+
+                <div class="topbar-logo-wrap">
+
+                    <img
+                        src="/img/logo_glacial.png"
+                        alt="Logo GLACIAL"
+                        class="topbar-logo"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <div class="topbar-separator"></div>
+
+
+            <div class="topbar-title">
+
+                <strong>
+                    Reporte Diario de Producción
+                </strong>
+
+                <small>
+                    CONTROL OPERATIVO · PLANTA DE ENVASADO
+                </small>
+
+            </div>
+
+        </div>
+
+
+        <!-- DERECHA -->
+
+        <div class="topbar-right">
+
+
+            <!-- USUARIO -->
+
+            <div class="user-chip">
+
+                <div
+                    class="user-avatar"
+                    id="user-avatar"
+                >
+                    ?
+                </div>
+
+                <div class="user-info">
+
+                    <div
+                        id="user-name"
+                        class="user-name"
+                    >
+                        —
+                    </div>
+
+                    <div
+                        class="user-role"
+                        id="user-role"
+                    >
+                        —
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- SALIR -->
+
+            <button
+                type="button"
+                class="btn btn-topbar"
+                onclick="handleLogout()"
+                aria-label="Cerrar sesión"
+            >
+
+                <span
+                    class="logout-icon"
+                    aria-hidden="true"
+                >
+                    ↪
+                </span>
+
+                <span>
+                    Salir
+                </span>
+
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- =================================================
+         SHELL
+    ================================================== -->
+
+    <div class="shell">
+
+
+        <!-- =================================================
+             SIDEBAR
+        ================================================== -->
+
+        <aside class="sidebar">
+
+
+            <!-- MARCA -->
+
+            <div class="sidebar-brand">
+
+                <div class="sidebar-brand-mark">
+                    G
+                </div>
+
+                <div>
+
+                    <strong>
+                        GLACIAL
+                    </strong>
+
+                    <span>
+                        PRODUCCIÓN
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <!-- LÍNEAS -->
+
+            <div class="sidebar-label">
+                Líneas de producción
+            </div>
+
+
+            <nav
+                id="line-list"
+                aria-label="Líneas de producción"
+            ></nav>
+
+
+            <!-- DIVISOR -->
+
+            <div class="sidebar-divider"></div>
+
+
+            <!-- GESTIÓN -->
+
+            <div class="sidebar-section-title">
+                Gestión
+            </div>
+
+
+            <!-- RESUMEN -->
+
+            <button
+                type="button"
+                class="side-action"
+                id="btn-resumen"
+                onclick="goResumen()"
+            >
+
+                <span class="side-action-icon">
+                    ▦
+                </span>
+
+                <span>
+                    Resumen general
+                </span>
+
+            </button>
+
+
+            <!-- USUARIOS -->
+
+            <button
+                type="button"
+                class="side-action"
+                id="btn-usuarios"
+                onclick="openUsersModal()"
+                style="display: none;"
+            >
+
+                <span class="side-action-icon">
+                    ⚙
+                </span>
+
+                <span>
+                    Gestionar usuarios
+                </span>
+
+            </button>
+
+
+            <!-- TRABAJADORES -->
+
+            <button
+                type="button"
+                class="side-action"
+                id="btn-trabajadores"
+                onclick="openWorkersModal()"
+                style="display: none;"
+            >
+
+                <span class="side-action-icon">
+                    👷
+                </span>
+
+                <span>
+                    Gestionar trabajadores
+                </span>
+
+            </button>
+
+
+            <!-- PIE -->
+
+            <div class="sidebar-footer">
+
+                <span
+                    class="status-dot"
+                    aria-hidden="true"
+                ></span>
+
+                <div>
+
+                    <strong>
+                        Sistema activo
+                    </strong>
+
+                    <small>
+                        Control de planta
+                    </small>
+
+                </div>
+
+            </div>
+
+        </aside>
+
+
+        <!-- =================================================
+             CONTENIDO PRINCIPAL
+        ================================================== -->
+
+        <main
+            class="main"
+            id="main"
+        >
+
+
+            <!-- =================================================
+                 BIENVENIDA
+            ================================================== -->
+
+            <section class="welcome-panel">
+
+
+                <div class="welcome-content">
+
+                    <div class="welcome-tag">
+                        SISTEMA INTERNO · GLACIAL
+                    </div>
+
+
+                    <h1>
+                        JEFATURA DE PRODUCCIÓN
+                    </h1>
+
+
+                    <p class="welcome-message">
+
+                        ¡Bienvenido,
+
+                        <strong id="welcome-user">
+                            USUARIO
+                        </strong>!
+
+                    </p>
+
+
+                    <p class="welcome-description">
+
+                        Has ingresado correctamente al sistema de
+                        control operativo y seguimiento de producción.
+                        Desde este panel podrás consultar las líneas,
+                        registrar información y realizar seguimiento
+                        de los principales indicadores de planta.
+
+                    </p>
+
+                </div>
+
+
+                <!-- LOGO -->
+
+                <div class="welcome-logo">
+
+                    <img
+                        src="/img/logo_glacial.png"
+                        alt="GLACIAL"
+                    >
+
+                </div>
+
+            </section>
+
+
+        </main>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     MODALES
+====================================================== -->
+
+<div id="modal-root"></div>
+
+
+<!-- =====================================================
+     FUNCIONES AUXILIARES
+====================================================== -->
+
+<script>
+
+    /*
+     * Mostrar / ocultar contraseña.
+     *
+     * Esta función es independiente de app.js.
+     */
+
+    function togglePassword() {
+
+        const password =
+            document.getElementById("login-pass");
+
+        const button =
+            document.getElementById("password-toggle");
+
+        if (!password || !button) {
+            return;
+        }
+
+        if (password.type === "password") {
+
+            password.type = "text";
+
+            button.textContent = "🙈";
+
+            button.setAttribute(
+                "aria-label",
+                "Ocultar contraseña"
+            );
+
+        } else {
+
+            password.type = "password";
+
+            button.textContent = "👁";
+
+            button.setAttribute(
+                "aria-label",
+                "Mostrar contraseña"
+            );
+
+        }
+
+    }
+
+
+    /*
+     * Permitir ingresar presionando ENTER.
+     */
+
+    document.addEventListener(
+        "keydown",
+        function(event) {
+
+            if (event.key !== "Enter") {
+                return;
+            }
+
+            const active =
+                document.activeElement;
+
+            if (
+                active &&
+                (
+                    active.id === "login-user" ||
+                    active.id === "login-pass"
+                )
+            ) {
+
+                if (
+                    typeof handleLogin === "function"
+                ) {
+
+                    handleLogin();
+
+                }
+
+            }
+
+        }
+    );
+
+</script>
+
+
+<!-- =====================================================
+     APP.JS
+====================================================== -->
+
+<script src="app.js"></script>
+```
+
+</body>
+
+</html>
