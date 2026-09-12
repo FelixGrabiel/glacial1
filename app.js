@@ -2580,182 +2580,86 @@ function badgeClass(v){
    CÁLCULOS OEE
    ========================================================= */
 
+function calcDerivedLegacy(r){
+
+  const horasTurno = num(r.horasTurno);
+  const pProg = num((r.paradasProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
+  const pNoProg = num((r.paradasNoProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
+  const horasEfectivas = Math.max(horasTurno - pProg - pNoProg, 0);
+  const ratio = num(r.ratioNominal);
+  const produccionNominal = ratio * horasEfectivas;
+  const efectiva = num(r.produccion?.efectiva);
+  const programada = num(r.produccion?.programada);
+  const sopladas = num(r.produccion?.sopladas);
+  const calidadBot = num(r.produccion?.calidad);
+  const disponibilidad = horasTurno > 0 ? horasEfectivas / horasTurno : 0;
+  const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
+  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+  const oee = disponibilidad * rendimiento * calidad;
+  const cumplimiento = programada > 0 ? efectiva / programada : 0;
+  const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
+  const noCumplida = Math.max(produccionNominal - efectiva, 0);
+  const ratioEfectivo = horasEfectivas > 0 ? efectiva / horasEfectivas : 0;
+
+  return { horasEfectivas, produccionNominal, disponibilidad, rendimiento, calidad, oee,
+    cumplimiento, eficiencia, noCumplida, ratioEfectivo, pProg, pNoProg };
+}
+
+function calcDerivedCuadro(cuadro){
+
+  const horasTurno = num(cuadro?.horasTurno);
+  const pProg = num((cuadro?.paradasProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
+  const pNoProg = num((cuadro?.paradasNoProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
+  const horasEfectivas = Math.max(horasTurno - pProg - pNoProg, 0);
+  const ratio = num(cuadro?.ratioNominal);
+  const produccionNominal = ratio * horasEfectivas;
+  const efectiva = num(cuadro?.produccion?.efectiva);
+  const programada = num(cuadro?.produccion?.programada);
+  const sopladas = num(cuadro?.produccion?.sopladas);
+  const calidadBot = num(cuadro?.produccion?.calidad);
+  const disponibilidad = horasTurno > 0 ? horasEfectivas / horasTurno : 0;
+  const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
+  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+  const oee = disponibilidad * rendimiento * calidad;
+  const cumplimiento = programada > 0 ? efectiva / programada : 0;
+  const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
+  const noCumplida = Math.max(produccionNominal - efectiva, 0);
+  const ratioEfectivo = horasEfectivas > 0 ? efectiva / horasEfectivas : 0;
+
+  return { horasEfectivas, produccionNominal, disponibilidad, rendimiento, calidad, oee,
+    cumplimiento, eficiencia, noCumplida, ratioEfectivo, pProg, pNoProg };
+}
+
+function calcDerivedMulti(r){
+
+  const cuadros = Array.isArray(r?.cuadros) ? r.cuadros : [];
+  const ds = cuadros.map(calcDerivedCuadro);
+
+  const horasTurno = ds.reduce((a,d) => a + num(d.horasEfectivas + d.pProg + d.pNoProg), 0);
+  const horasEfectivas = ds.reduce((a,d) => a + num(d.horasEfectivas), 0);
+  const produccionNominal = ds.reduce((a,d) => a + num(d.produccionNominal), 0);
+  const efectiva = cuadros.reduce((a,c) => a + num(c?.produccion?.efectiva), 0);
+  const programada = cuadros.reduce((a,c) => a + num(c?.produccion?.programada), 0);
+  const sopladas = cuadros.reduce((a,c) => a + num(c?.produccion?.sopladas), 0);
+  const calidadBot = cuadros.reduce((a,c) => a + num(c?.produccion?.calidad), 0);
+  const pProg = ds.reduce((a,d) => a + num(d.pProg), 0);
+  const pNoProg = ds.reduce((a,d) => a + num(d.pNoProg), 0);
+  const disponibilidad = horasTurno > 0 ? horasEfectivas / horasTurno : 0;
+  const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
+  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+  const oee = disponibilidad * rendimiento * calidad;
+  const cumplimiento = programada > 0 ? efectiva / programada : 0;
+  const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
+  const noCumplida = Math.max(produccionNominal - efectiva, 0);
+  const ratioEfectivo = horasEfectivas > 0 ? efectiva / horasEfectivas : 0;
+
+  return { horasTurno, horasEfectivas, produccionNominal, disponibilidad, rendimiento, calidad,
+    oee, cumplimiento, eficiencia, noCumplida, ratioEfectivo, pProg, pNoProg,
+    efectiva, programada, sopladas, calidadBot, cuadros: ds };
+}
+
 function calcDerived(r){
-
-  const horasTurno =
-    num(r.horasTurno);
-
-
-  const pProg =
-
-    num(
-
-      (r.paradasProgramadas || []).reduce(
-
-        (a,p) => a + num(p.tiempoMin),
-
-        0
-
-      )
-
-    ) / 60;
-
-
-  const pNoProg =
-
-    num(
-
-      (r.paradasNoProgramadas || []).reduce(
-
-        (a,p) => a + num(p.tiempoMin),
-
-        0
-
-      )
-
-    ) / 60;
-
-
-  const horasEfectivas =
-
-    Math.max(
-
-      horasTurno -
-      pProg -
-      pNoProg,
-
-      0
-
-    );
-
-
-  const ratio =
-    num(r.ratioNominal);
-
-
-  const produccionNominal =
-    ratio * horasEfectivas;
-
-
-  const efectiva =
-    num(r.produccion?.efectiva);
-
-
-  const programada =
-    num(r.produccion?.programada);
-
-
-  const sopladas =
-    num(r.produccion?.sopladas);
-
-
-  const calidadBot =
-    num(r.produccion?.calidad);
-
-
-  const disponibilidad =
-
-    horasTurno > 0
-
-      ? horasEfectivas / horasTurno
-
-      : 0;
-
-
-  const rendimiento =
-
-    produccionNominal > 0
-
-      ? Math.min(
-          efectiva / produccionNominal,
-          1
-        )
-
-      : 0;
-
-
-  const calidad =
-
-    sopladas > 0
-
-      ? Math.min(
-          calidadBot / sopladas,
-          1
-        )
-
-      : (efectiva > 0 ? 1 : 0);
-
-
-  const oee =
-
-    disponibilidad *
-    rendimiento *
-    calidad;
-
-
-  const cumplimiento =
-
-    programada > 0
-
-      ? efectiva / programada
-
-      : 0;
-
-
-  const eficiencia =
-
-    produccionNominal > 0
-
-      ? efectiva / produccionNominal
-
-      : 0;
-
-
-  const noCumplida =
-
-    Math.max(
-      produccionNominal - efectiva,
-      0
-    );
-
-
-  const ratioEfectivo =
-
-    horasEfectivas > 0
-
-      ? efectiva / horasEfectivas
-
-      : 0;
-
-
-  return {
-
-    horasEfectivas,
-
-    produccionNominal,
-
-    disponibilidad,
-
-    rendimiento,
-
-    calidad,
-
-    oee,
-
-    cumplimiento,
-
-    eficiencia,
-
-    noCumplida,
-
-    ratioEfectivo,
-
-    pProg,
-
-    pNoProg
-
-  };
-
+  return Array.isArray(r?.cuadros) ? calcDerivedMulti(r) : calcDerivedLegacy(r);
 }
 
 
@@ -2763,235 +2667,216 @@ function calcDerived(r){
    REGISTRO VACÍO
    ========================================================= */
 
-function blankRecord(lineKey){
+function blankCuadro(lineKey, numero){
 
-  const line =
-    LINES.find(
-      l => l.key === lineKey
-    );
+  const marcas = MARCAS_POR_LINEA[lineKey] || [];
+  const presentaciones = PRESENTACIONES_POR_LINEA[lineKey] || [];
+  const activo = numero === 1;
+  const marca = activo && marcas.length ? marcas[0] : '';
+  const presentacion = activo && presentaciones.length ? presentaciones[0] : '';
+  const horaInicio = activo ? '07:00' : '';
+  const horaFin = activo ? '19:00' : '';
 
-
-  const ahora =
-    new Date();
-
-
-  const today =
-
-    ahora.getFullYear() +
-
-    '-' +
-
-    String(
-      ahora.getMonth() + 1
-    ).padStart(2,'0') +
-
-    '-' +
-
-    String(
-      ahora.getDate()
-    ).padStart(2,'0');
-
-
-  const diaDelAño =
-    obtenerDiaDelAño(today);
-
-
-  const semana =
-    obtenerSemana(today);
-
-
-  const marcas =
-    MARCAS_POR_LINEA[lineKey] || [];
-
-
-  const presentaciones =
-    PRESENTACIONES_POR_LINEA[lineKey] || [];
-
-
-  const presentacionInicial =
-    presentaciones.length
-      ? presentaciones[0]
-      : '';
-
-
-  const marcaInicial =
-    marcas.length
-      ? marcas[0]
-      : '';
-
-
-  const record = {
-
-    id: null,
-
-    linea: lineKey,
-
-    fecha: today,
-
-    diaJuliano:
-      diaDelAño,
-
-    semana:
-      semana,
-
-    turno: 'DÍA',
-
-    marca:
-      marcaInicial,
-
-    presentacion:
-      presentacionInicial,
-
-    /*
-       Gramaje de preforma en gramos.
-       Se usa para calcular las unidades de merma
-       en PET1 y PET2.
-    */
+  return {
+    numero,
+    marca,
+    presentacion,
     gramajePreforma: 0,
-
-    /*
-       Ratio nominal automático,
-       según línea, presentación y marca
-       (algunas líneas, como B7L, tienen
-       casos especiales por marca).
-    */
-
-    ratioNominal:
-      obtenerRatioNominal(
-        lineKey,
-        presentacionInicial,
-        marcaInicial
-      ),
-
+    ratioNominal: activo ? obtenerRatioNominal(lineKey, presentacion, marca) : 0,
     lote: '',
-
     fechaVencimiento: '',
-
-    horaInicio: '07:00',
-
-    horaFin: '19:00',
-
-    horasTurno:
-      calcularHorasTurno(
-        '07:00',
-        '19:00'
-      ),
-
-
-    personal:
-
-      PERSONAL_POSICIONES.map(
-
-        p => ({
-
-          posicion: p,
-
-          nombre: '',
-
-          cargo: ''
-
-        })
-
-      ),
-
-
-    produccion: {
-
-      programada: 0,
-
-      efectiva: 0,
-
-      sopladas: 0,
-
-      calidad: 0,
-
-      paletas: 0
-
-    },
-
-
-    paradasProgramadas: [
-
-      {
-
-        descripcion: '',
-
-        tiempoMin: 0
-
-      }
-
-    ],
-
-
-    paradasNoProgramadas: [
-
-      {
-
-        descripcion: '',
-
-        tiempoMin: 0
-
-      }
-
-    ],
-
-
-    insumos: {
-
-      cajasPreformas: 0,
-
-      planchasCarton: 0,
-
-      polietilenoKg: 0,
-
-      stretchFilmKg: 0
-
-    },
-
-
-    mermas:
-
-      MERMA_ITEMS.map(
-
-        m => ({
-
-          item: m,
-
-          peso: 0,
-
-          unidades: 0
-
-        })
-
-      ),
-
-
-    observaciones: '',
-
-
-    registradoPor:
-
-      state.user
-
-        ? state.user.nombre
-
-        : '',
-
-
-    timestamp: null
-
+    horaInicio,
+    horaFin,
+    horasTurno: horaInicio && horaFin ? calcularHorasTurno(horaInicio, horaFin) : 0,
+    produccion: { programada:0, efectiva:0, sopladas:0, calidad:0, paletas:0 },
+    paradasProgramadas: [{ descripcion:'', tiempoMin:0 }],
+    paradasNoProgramadas: [{ descripcion:'', tiempoMin:0 }],
+    insumos: { cajasPreformas:0, planchasCarton:0, polietilenoKg:0, stretchFilmKg:0 },
+    mermas: MERMA_ITEMS.map(m => ({item:m, peso:0, unidades:0})),
+    observaciones: ''
   };
+}
 
+function normalizarCuadros(record){
 
+  if(!record) return [];
+
+  if(!Array.isArray(record.cuadros) || record.cuadros.length !== 4){
+    const cuadros = [1,2,3,4].map(n => blankCuadro(record.linea, n));
+    const legacy = cuadros[0];
+
+    legacy.marca = record.marca || legacy.marca;
+    legacy.presentacion = record.presentacion || legacy.presentacion;
+    legacy.gramajePreforma = record.gramajePreforma ?? 0;
+    legacy.ratioNominal = record.ratioNominal ?? obtenerRatioNominal(record.linea, legacy.presentacion, legacy.marca);
+    legacy.lote = record.lote || '';
+    legacy.fechaVencimiento = record.fechaVencimiento || '';
+    legacy.horaInicio = record.horaInicio || '07:00';
+    legacy.horaFin = record.horaFin || '19:00';
+    legacy.horasTurno = num(record.horasTurno) || calcularHorasTurno(legacy.horaInicio, legacy.horaFin);
+    legacy.produccion = JSON.parse(JSON.stringify(record.produccion || legacy.produccion));
+    legacy.paradasProgramadas = JSON.parse(JSON.stringify(record.paradasProgramadas || legacy.paradasProgramadas));
+    legacy.paradasNoProgramadas = JSON.parse(JSON.stringify(record.paradasNoProgramadas || legacy.paradasNoProgramadas));
+    legacy.insumos = JSON.parse(JSON.stringify(record.insumos || legacy.insumos));
+    legacy.mermas = JSON.parse(JSON.stringify(record.mermas || legacy.mermas));
+    legacy.observaciones = record.observaciones || '';
+    record.cuadros = cuadros;
+  }
+
+  record.cuadros = record.cuadros.slice(0,4).map((c,i) => {
+    const base = blankCuadro(record.linea, i+1);
+    return {
+      ...base,
+      ...(c || {}),
+      numero:i+1,
+      produccion:{...base.produccion, ...(c?.produccion || {})},
+      insumos:{...base.insumos, ...(c?.insumos || {})},
+      paradasProgramadas:Array.isArray(c?.paradasProgramadas) && c.paradasProgramadas.length ? c.paradasProgramadas : base.paradasProgramadas,
+      paradasNoProgramadas:Array.isArray(c?.paradasNoProgramadas) && c.paradasNoProgramadas.length ? c.paradasNoProgramadas : base.paradasNoProgramadas,
+      mermas:Array.isArray(c?.mermas) && c.mermas.length ? c.mermas : base.mermas
+    };
+  });
+
+  return record.cuadros;
+}
+
+function syncLegacyFromCuadro1(){
+  if(!draft) return;
+  const c = normalizarCuadros(draft)[0];
+  draft.marca = c.marca;
+  draft.presentacion = c.presentacion;
+  draft.gramajePreforma = c.gramajePreforma;
+  draft.ratioNominal = c.ratioNominal;
+  draft.lote = c.lote;
+  draft.fechaVencimiento = c.fechaVencimiento;
+  draft.horaInicio = c.horaInicio;
+  draft.horaFin = c.horaFin;
+  draft.horasTurno = c.horasTurno;
+  draft.produccion = c.produccion;
+  draft.paradasProgramadas = c.paradasProgramadas;
+  draft.paradasNoProgramadas = c.paradasNoProgramadas;
+  draft.insumos = c.insumos;
+  draft.mermas = c.mermas;
+  draft.observaciones = c.observaciones;
+}
+
+function generarLoteCuadro(cuadro){
+  if(!draft || !cuadro) return '';
+  const codigoMarca = obtenerCodigoMarca(draft.linea, cuadro.marca, cuadro.presentacion);
+  const esAlfanumerico = codigoMarca !== '' && !/^\d+$/.test(String(codigoMarca));
+  if(esAlfanumerico) return String(codigoMarca);
+  const diaJuliano = obtenerDiaDelAño(draft.fecha);
+  const semana = obtenerSemana(draft.fecha);
+  const codigoTurno = obtenerCodigoTurno(draft.turno);
+  if(diaJuliano === '' || semana === '' || codigoTurno === '') return '';
+  return String(diaJuliano) + '-' + String(codigoTurno) + String(codigoMarca) + String(semana);
+}
+
+function actualizarLotesCuadros(){
+  if(!draft) return;
+  normalizarCuadros(draft).forEach(c => { c.lote = generarLoteCuadro(c); });
+  syncLegacyFromCuadro1();
+}
+
+function calcularPaletasCuadro(cuadro){
+  if(!draft || !cuadro) return 0;
+  const upp = obtenerUnidadesPorPalet(draft.linea, cuadro.marca, cuadro.presentacion);
+  if(!upp) return 0;
+  return Math.round((num(cuadro.produccion?.efectiva) / upp) * 100) / 100;
+}
+
+function calcularCajasPreformasCuadro(cuadro){
+  if(!draft || !cuadro) return 0;
+  const efectiva = num(cuadro.produccion?.efectiva);
+  if(draft.linea === 'PET1' || draft.linea === 'PET2'){
+    const divisor = obtenerDivisorCajasPreformas(cuadro.presentacion);
+    return divisor ? Math.round((efectiva/divisor)*100)/100 : 0;
+  }
+  if(draft.linea === 'B7L') return Math.round((efectiva/2900)*100)/100;
+  return 0;
+}
+
+function calcularPlanchasCartonCuadro(cuadro){
+  if(!draft || !cuadro) return 0;
+  const paletas = num(cuadro.produccion?.paletas);
+  if(draft.linea === 'PET1' || draft.linea === 'PET2'){
+    const factor = obtenerFactorCartonPET(cuadro.presentacion);
+    return factor ? Math.round(paletas*factor*100)/100 : 0;
+  }
+  if(draft.linea === 'B7L') return Math.round(paletas*CARTON_FIJO_B7L*100)/100;
+  if(draft.linea === 'C20L'){
+    const factor = normalizarTexto(cuadro.marca)==='san fernando' ? CARTON_C20L_SAN_FERNANDO : CARTON_C20L_DEFAULT;
+    return Math.round(paletas*factor*100)/100;
+  }
+  if(draft.linea === 'B20L') return Math.round(paletas*CARTON_FIJO_B20L*100)/100;
+  return 0;
+}
+
+function calcularPolietilenoCuadro(cuadro){
+  if(!draft || !cuadro) return 0;
+  const paletas = num(cuadro.produccion?.paletas);
+  if(draft.linea === 'PET1' || draft.linea === 'PET2'){
+    const factor = obtenerFactorPolietileno(cuadro.presentacion);
+    return factor ? Math.round(paletas*factor*100)/100 : 0;
+  }
+  if(draft.linea === 'B7L'){
+    const m = normalizarTexto(cuadro.marca);
+    return MARCAS_POLIETILENO_B7L_SI.includes(m) ? Math.round(paletas*POLIETILENO_B7L_FACTOR*100)/100 : 0;
+  }
+  if(draft.linea === 'C20L') return Math.round(paletas*POLIETILENO_C20L_FACTOR*100)/100;
+  return 0;
+}
+
+function calcularStretchFilmCuadro(cuadro){
+  if(!draft || !cuadro) return 0;
+  const paletas = num(cuadro.produccion?.paletas);
+  if(draft.linea === 'PET1' || draft.linea === 'PET2'){
+    const factor = obtenerFactorStretchFilm(cuadro.presentacion);
+    return factor ? Math.round(paletas*factor*100)/100 : 0;
+  }
+  if(draft.linea === 'B7L') return Math.round(paletas*STRETCHFILM_B7L_FACTOR*100)/100;
+  if(draft.linea === 'C20L') return Math.round(paletas*STRETCHFILM_C20L_FACTOR*100)/100;
+  if(draft.linea === 'B20L') return Math.round(paletas*STRETCHFILM_B20L_FACTOR*100)/100;
+  return 0;
+}
+
+function actualizarCuadro(i){
+  if(!draft) return null;
+  const c = normalizarCuadros(draft)[i];
+  if(!c) return null;
+  c.ratioNominal = obtenerRatioNominal(draft.linea, c.presentacion, c.marca);
+  c.horasTurno = c.horaInicio && c.horaFin ? calcularHorasTurno(c.horaInicio,c.horaFin) : 0;
+  c.produccion.paletas = calcularPaletasCuadro(c);
+  c.insumos.cajasPreformas = calcularCajasPreformasCuadro(c);
+  c.insumos.planchasCarton = calcularPlanchasCartonCuadro(c);
+  c.insumos.polietilenoKg = calcularPolietilenoCuadro(c);
+  c.insumos.stretchFilmKg = calcularStretchFilmCuadro(c);
+  c.lote = generarLoteCuadro(c);
+  actualizarMermasAutomaticasCuadro(i);
+  return c;
+}
+
+function actualizarTodosCuadros(){
+  if(!draft) return;
+  normalizarCuadros(draft).forEach((_,i) => actualizarCuadro(i));
+  syncLegacyFromCuadro1();
+}
+
+function blankRecord(lineKey){
+  const ahora = new Date();
+  const today = ahora.getFullYear() + '-' + String(ahora.getMonth()+1).padStart(2,'0') + '-' + String(ahora.getDate()).padStart(2,'0');
+  const diaDelAño = obtenerDiaDelAño(today);
+  const semana = obtenerSemana(today);
+  const record = {
+    id:null, linea:lineKey, fecha:today, diaJuliano:diaDelAño, semana,
+    turno:'DÍA',
+    cuadros:[1,2,3,4].map(n => blankCuadro(lineKey,n)),
+    personal:PERSONAL_POSICIONES.map(p => ({posicion:p,nombre:'',cargo:''})),
+    observaciones:'', registradoPor:state.user ? state.user.nombre : '', timestamp:null
+  };
   draft = record;
-
-  actualizarLote();
-
-  actualizarPaletas();
-
-
+  actualizarTodosCuadros();
   return draft;
-
 }
 
 
@@ -3218,547 +3103,138 @@ function setTab(t){
 
 function renderFormTab(){
 
-  if(
-    !draft ||
-    draft.linea !== state.currentLine
-  ){
-
-    draft =
-      blankRecord(
-        state.currentLine
-      );
-
+  if(!draft || draft.linea !== state.currentLine){
+    draft = blankRecord(state.currentLine);
   }
 
+  normalizarCuadros(draft);
+  actualizarTodosCuadros();
+  const c = document.getElementById('tab-content');
+  const d = calcDerivedMulti(draft);
+  const cuadros = draft.cuadros;
+  const line = LINES.find(l => l.key === state.currentLine) || {name:state.currentLine,ratioDefault:0};
 
-  actualizarLote();
+  const cuadroCard = (q, i) => {
+    const dq = calcDerivedCuadro(q);
+    const paradaProg = (q.paradasProgramadas||[]).reduce((a,p)=>a+num(p.tiempoMin),0);
+    const paradaNoProg = (q.paradasNoProgramadas||[]).reduce((a,p)=>a+num(p.tiempoMin),0);
+    const tieneDatos = !!(q.marca || q.presentacion || q.horaInicio || num(q.produccion?.efectiva)>0);
+    const marcas = MARCAS_POR_LINEA[state.currentLine] || [];
+    const presentaciones = PRESENTACIONES_POR_LINEA[state.currentLine] || [];
+    const optionList = arr => arr.length ? arr.map(o=>`<option value="${o}" ${o===q.presentacion?'selected':''}>${o}</option>`).join('') : '<option value="">Sin opciones</option>';
+    const marcaList = arr => arr.length ? arr.map(o=>`<option value="${o}" ${o===q.marca?'selected':''}>${o}</option>`).join('') : '<option value="">Sin opciones</option>';
+    const field = (label, type, value, handler, extra='') => `<div class="field-sm"><label>${label}</label><input type="${type}" value="${value ?? ''}" ${extra} oninput="${handler}"></div>`;
+    const readonly = 'readonly style="background:#f1f3f5;font-weight:700;color:#243746;cursor:not-allowed;"';
 
-  actualizarPaletas();
-  actualizarCajasPreformas();
-  actualizarPlanchasCarton();
-  actualizarPolietileno();
-  actualizarStretchFilm();
-  actualizarMermasAutomaticas();
+    return `
+      <div class="production-card" style="border:1px solid #D7DBD4;border-radius:10px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);min-width:0;">
+        <div style="background:linear-gradient(135deg,#0f8fc8,#14b8c4);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <strong style="font-size:16px;">Cuadro ${i+1}</strong>
+          <span style="font-size:12px;opacity:.95;">${tieneDatos ? 'Producción' : 'Sin producción'}</span>
+        </div>
+        <div style="padding:12px;">
+          <div class="grid grid-2">
+            <div class="field-sm"><label>Marca</label><select onchange="updateCuadroField(${i},'marca',this.value)"><option value="">Seleccione...</option>${marcaList(marcas)}</select></div>
+            <div class="field-sm"><label>Presentación</label><select onchange="updateCuadroField(${i},'presentacion',this.value)"><option value="">Seleccione...</option>${optionList(presentaciones)}</select></div>
+            <div class="field-sm"><label>Lote automático</label><input type="text" value="${q.lote||''}" ${readonly}></div>
+            <div class="field-sm"><label for="gramaje_preforma_${i}">Gramaje preforma (g)</label><select id="gramaje_preforma_${i}" name="gramaje_preforma_${i}" class="gramaje-preforma-select" style="width:100%;min-height:38px;display:block;cursor:pointer;" onchange="updateCuadroField(${i},'gramajePreforma',this.value)"><option value="">Seleccione...</option>${['42.7','43.7','45.7','33.7','21.7','23.7','17.7','15.7','13.8','12.7'].map(g=>`<option value="${g}" ${String(q.gramajePreforma ?? '')===g?'selected':''}>${g} g</option>`).join('')}</select></div>
+            <div class="field-sm"><label>Hora inicio</label><input type="time" value="${q.horaInicio||''}" onchange="updateCuadroField(${i},'horaInicio',this.value)"></div>
+            <div class="field-sm"><label>Hora fin</label><input type="time" value="${q.horaFin||''}" onchange="updateCuadroField(${i},'horaFin',this.value)"></div>
+          </div>
 
+          <div style="margin:10px 0;padding:10px;border-radius:8px;background:#EEF8FC;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+            <div><small>Ratio nominal</small><br><strong>${num(q.ratioNominal).toLocaleString('es-PE')} BPH</strong></div>
+            <div><small>Horas turno</small><br><strong>${num(q.horasTurno).toFixed(2)} h</strong></div>
+            <div><small>Horas efectivas</small><br><strong style="font-size:18px;">${num(dq.horasEfectivas).toFixed(2)} h</strong></div>
+          </div>
 
-  const c =
-    document.getElementById(
-      'tab-content'
-    );
+          <div class="panel" style="margin:10px 0 0;border-left:4px solid #20a86b;">
+            <div class="panel-head"><h4 style="margin:0;">Producción</h4></div>
+            <div class="panel-body grid grid-2">
+              ${field('Programada (bot)','number',q.produccion.programada,`updateCuadroPath(${i},'produccion.programada',this.value)`)}
+              ${field('Efectiva (bot)','number',q.produccion.efectiva,`updateCuadroPath(${i},'produccion.efectiva',this.value)`)}
+              ${field('Botellas sopladas','number',q.produccion.sopladas,`updateCuadroPath(${i},'produccion.sopladas',this.value)`)}
+              ${field('Botellas calidad','number',q.produccion.calidad,`updateCuadroPath(${i},'produccion.calidad',this.value)`)}
+              <div class="field-sm"><label>Paletas (automático)</label><input type="text" value="${q.produccion.paletas ?? 0}" ${readonly}></div>
+            </div>
+          </div>
 
+          <div class="panel accent-amber" style="margin:10px 0 0;">
+            <div class="panel-head"><h4 style="margin:0;">Paradas programadas</h4><button class="btn btn-ghost btn-sm" onclick="addParadaCuadro(${i},'paradasProgramadas')">+ Agregar</button></div>
+            <div class="panel-body">${paradasTableCuadro('paradasProgramadas',q.paradasProgramadas,i)}</div>
+          </div>
 
-  const d =
-    calcDerived(draft);
+          <div class="panel accent-bad" style="margin:10px 0 0;">
+            <div class="panel-head"><h4 style="margin:0;">Paradas no programadas</h4><button class="btn btn-ghost btn-sm" onclick="addParadaCuadro(${i},'paradasNoProgramadas')">+ Agregar</button></div>
+            <div class="panel-body">${paradasTableCuadro('paradasNoProgramadas',q.paradasNoProgramadas,i)}</div>
+          </div>
 
+          <div class="panel" style="margin:10px 0 0;">
+            <div class="panel-head"><h4 style="margin:0;">Mermas</h4></div>
+            <div class="panel-body">${mermasTableCuadro(q.mermas,q.produccion.efectiva,draft.linea,i)}</div>
+          </div>
+
+          <div class="panel" style="margin:10px 0 0;">
+            <div class="panel-head"><h4 style="margin:0;">Insumos automáticos</h4></div>
+            <div class="panel-body" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
+              <div class="field-sm"><label>Cajas preformas</label><input type="text" value="${q.insumos.cajasPreformas ?? 0}" ${readonly}></div>
+              <div class="field-sm"><label>Planchas cartón</label><input type="text" value="${q.insumos.planchasCarton ?? 0}" ${readonly}></div>
+              <div class="field-sm"><label>Polietileno (kg)</label><input type="text" value="${q.insumos.polietilenoKg ?? 0}" ${readonly}></div>
+              <div class="field-sm"><label>Stretch film (kg)</label><input type="text" value="${q.insumos.stretchFilmKg ?? 0}" ${readonly}></div>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;padding:9px;border-radius:8px;background:#F5F8FA;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;font-size:12px;">
+            <div><small>Prod. nominal</small><br><strong>${Math.round(dq.produccionNominal).toLocaleString('es-PE')}</strong></div>
+            <div><small>Disponibilidad</small><br><strong>${pct(dq.disponibilidad)}</strong></div>
+            <div><small>OEE</small><br><strong>${pct(dq.oee)}</strong></div>
+            <div><small>Paradas</small><br><strong>${paradaProg+paradaNoProg} min</strong></div>
+          </div>
+        </div>
+      </div>`;
+  };
 
   c.innerHTML = `
-
     <div class="kpi-row">
-
-      ${kpi(
-        'Disponibilidad',
-        pct(d.disponibilidad),
-        d.disponibilidad
-      )}
-
-      ${kpi(
-        'Rendimiento',
-        pct(d.rendimiento),
-        d.rendimiento
-      )}
-
-      ${kpi(
-        'Calidad',
-        pct(d.calidad),
-        d.calidad
-      )}
-
-      ${kpi(
-        'OEE',
-        pct(d.oee),
-        d.oee
-      )}
-
-      ${kpi(
-        'Cumplimiento',
-        pct(d.cumplimiento),
-        d.cumplimiento
-      )}
-
-      ${kpi(
-        'Producción nominal',
-        Math.round(
-          d.produccionNominal
-        ).toLocaleString('es-PE'),
-        1
-      )}
-
+      ${kpi('Disponibilidad',pct(d.disponibilidad),d.disponibilidad)}
+      ${kpi('Rendimiento',pct(d.rendimiento),d.rendimiento)}
+      ${kpi('Calidad',pct(d.calidad),d.calidad)}
+      ${kpi('OEE',pct(d.oee),d.oee)}
+      ${kpi('Cumplimiento',pct(d.cumplimiento),d.cumplimiento)}
+      ${kpi('Producción efectiva',Math.round(d.efectiva||0).toLocaleString('es-PE'),1)}
     </div>
 
-
-    <div class="panel">
-
-      <div class="panel-head">
-
-        <h3>Datos generales</h3>
-
-      </div>
-
-
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="panel-head"><h3>Datos generales · ${line.name}</h3></div>
       <div class="panel-body grid grid-4">
-
-        ${inp(
-          'fecha',
-          'Fecha',
-          'date',
-          draft.fecha
-        )}
-
-
-        ${inp(
-          'diaJuliano',
-          'Día juliano',
-          'number',
-          draft.diaJuliano
-        )}
-
-
-        ${inp(
-          'semana',
-          'Semana',
-          'number',
-          draft.semana
-        )}
-
-
-        ${sel(
-          'turno',
-          'Turno',
-          ['DÍA','NOCHE'],
-          draft.turno
-        )}
-
-
-        ${sel(
-          'marca',
-          'Marca',
-          MARCAS_POR_LINEA[state.currentLine] || [],
-          draft.marca
-        )}
-
-
-        ${sel(
-          'presentacion',
-          'Presentación',
-          PRESENTACIONES_POR_LINEA[state.currentLine] || [],
-          draft.presentacion
-        )}
-
-
-        ${
-          (state.currentLine === 'PET1' || state.currentLine === 'PET2')
-            ? inp(
-                'gramajePreforma',
-                'Gramaje de preforma (g)',
-                'number',
-                draft.gramajePreforma
-              )
-            : ''
-        }
-
-
-        ${inp(
-          'ratioNominal',
-          'Ratio nominal (BPH)',
-          'number',
-          draft.ratioNominal
-        )}
-
-
-        <div class="field-sm">
-
-          <label>
-            Lote automático
-          </label>
-
-          <input
-            id="f_lote"
-            type="text"
-            value="${draft.lote ?? ''}"
-            readonly
-            style="
-              background:#f1f3f5;
-              font-weight:700;
-              color:#243746;
-              cursor:not-allowed;
-            "
-          >
-
-        </div>
-
-
-        ${inp(
-          'fechaVencimiento',
-          'Fecha de vencimiento',
-          'date',
-          draft.fechaVencimiento
-        )}
-
-
-        ${inp(
-          'horaInicio',
-          'Hora inicio',
-          'time',
-          draft.horaInicio
-        )}
-
-
-        ${inp(
-          'horaFin',
-          'Hora fin',
-          'time',
-          draft.horaFin
-        )}
-
-
-        ${inp(
-          'horasTurno',
-          'Horas turno',
-          'number',
-          draft.horasTurno
-        )}
-
+        ${inp('fecha','Fecha','date',draft.fecha)}
+        ${inp('diaJuliano','Día juliano','number',draft.diaJuliano)}
+        ${inp('semana','Semana','number',draft.semana)}
+        ${sel('turno','Turno',['DÍA','NOCHE'],draft.turno)}
       </div>
-
     </div>
 
-
-    <div class="panel accent-good">
-
-      <div class="panel-head">
-
-        <h3>Producción</h3>
-
-      </div>
-
-
-      <div class="panel-body grid grid-4">
-
-        ${inpPath(
-          'produccion.programada',
-          'Producción programada (bot)',
-          'number',
-          draft.produccion.programada
-        )}
-
-
-        ${inpPath(
-          'produccion.efectiva',
-          'Producción efectiva (bot)',
-          'number',
-          draft.produccion.efectiva
-        )}
-
-
-        ${inpPath(
-          'produccion.sopladas',
-          'Botellas sopladas',
-          'number',
-          draft.produccion.sopladas
-        )}
-
-
-        ${inpPath(
-          'produccion.calidad',
-          'Botellas calidad',
-          'number',
-          draft.produccion.calidad
-        )}
-
-
-        <div class="field-sm">
-
-          <label>
-            N° de paletas (automático)
-          </label>
-
-          <input
-            id="f_paletas"
-            type="text"
-            value="${draft.produccion.paletas ?? 0}"
-            readonly
-            style="
-              background:#f1f3f5;
-              font-weight:700;
-              color:#243746;
-              cursor:not-allowed;
-            "
-          >
-
-        </div>
-
-      </div>
-
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:start;">
+      ${cuadros.map((q,i)=>cuadroCard(q,i)).join('')}
     </div>
 
-
-    <div class="panel accent-amber">
-
-      <div class="panel-head">
-
-        <h3>Paradas programadas</h3>
-
-        <button
-          class="btn btn-ghost btn-sm"
-          onclick="addParada('paradasProgramadas')"
-        >
-          + Agregar
-        </button>
-
-      </div>
-
-
-      <div class="panel-body">
-
-        ${paradasTable(
-          'paradasProgramadas',
-          draft.paradasProgramadas
-        )}
-
-      </div>
-
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head"><h3>Personal del turno</h3></div>
+      <div class="panel-body">${personalTable(draft.personal,draft.linea)}</div>
     </div>
-
-
-    <div class="panel accent-bad">
-
-      <div class="panel-head">
-
-        <h3>Paradas no programadas</h3>
-
-        <button
-          class="btn btn-ghost btn-sm"
-          onclick="addParada('paradasNoProgramadas')"
-        >
-          + Agregar
-        </button>
-
-      </div>
-
-
-      <div class="panel-body">
-
-        ${paradasTable(
-          'paradasNoProgramadas',
-          draft.paradasNoProgramadas
-        )}
-
-      </div>
-
-    </div>
-
 
     <div class="panel">
-
-      <div class="panel-head">
-
-        <h3>Consumo de insumos</h3>
-
-      </div>
-
-
-      <div class="panel-body grid grid-4">
-
-        <div class="field-sm">
-
-  <label>
-    Cajas de preformas (automático)
-  </label>
-
-  <input
-    id="f_cajaspreformas"
-    type="text"
-    value="${draft.insumos.cajasPreformas ?? 0}"
-    readonly
-    style="
-      background:#f1f3f5;
-      font-weight:700;
-      color:#243746;
-      cursor:not-allowed;
-    "
-  >
-
-</div>
-
-        <div class="field-sm">
-
-          <label>
-            Planchas de cartón (automático)
-          </label>
-
-          <input
-            id="f_planchascarton"
-            type="text"
-            value="${draft.insumos.planchasCarton ?? 0}"
-            readonly
-            style="
-              background:#f1f3f5;
-              font-weight:700;
-              color:#243746;
-              cursor:not-allowed;
-            "
-          >
-
-        </div>
-
-
-        <div class="field-sm">
-
-          <label>
-            Polietileno kg (automático)
-          </label>
-
-          <input
-            id="f_polietileno"
-            type="text"
-            value="${draft.insumos.polietilenoKg ?? 0}"
-            readonly
-            style="
-              background:#f1f3f5;
-              font-weight:700;
-              color:#243746;
-              cursor:not-allowed;
-            "
-          >
-
-        </div>
-
-
-        <div class="field-sm">
-
-          <label>
-            Stretch film kg (automático)
-          </label>
-
-          <input
-            id="f_stretchfilm"
-            type="text"
-            value="${draft.insumos.stretchFilmKg ?? 0}"
-            readonly
-            style="
-              background:#f1f3f5;
-              font-weight:700;
-              color:#243746;
-              cursor:not-allowed;
-            "
-          >
-
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="panel">
-
-      <div class="panel-head">
-
-        <h3>Mermas</h3>
-
-      </div>
-
-
+      <div class="panel-head"><h3>Observaciones generales</h3></div>
       <div class="panel-body">
-
-        ${mermasTable(
-          draft.mermas,
-          draft.produccion.efectiva,
-          draft.linea
-        )}
-
+        <textarea id="f_observaciones" rows="3" style="width:100%;border:1px solid var(--line-strong);border-radius:3px;padding:10px;font-family:inherit;font-size:14px;" oninput="updateField('observaciones',this.value)">${draft.observaciones||''}</textarea>
       </div>
-
     </div>
-
-
-    <div class="panel">
-
-      <div class="panel-head">
-
-        <h3>Personal</h3>
-
-      </div>
-
-
-      <div class="panel-body">
-
-        ${personalTable(
-          draft.personal,
-          draft.linea
-        )}
-
-      </div>
-
-    </div>
-
-
-    <div class="panel">
-
-      <div class="panel-head">
-
-        <h3>Observaciones</h3>
-
-      </div>
-
-
-      <div class="panel-body">
-
-        <textarea
-          id="f_observaciones"
-          rows="3"
-          style="
-            width:100%;
-            border:1px solid var(--line-strong);
-            border-radius:3px;
-            padding:10px;
-            font-family:inherit;
-            font-size:14px;
-          "
-          oninput="
-            updateField(
-              'observaciones',
-              this.value
-            )
-          "
-        >${draft.observaciones}</textarea>
-
-      </div>
-
-    </div>
-
 
     <div class="actions-row">
-
-      <button
-        class="btn btn-ghost"
-        onclick="resetDraft()"
-      >
-        Limpiar formulario
-      </button>
-
-
-      <button
-        class="btn btn-primary"
-        onclick="saveDraft()"
-      >
-        Guardar registro
-      </button>
-
+      <button class="btn btn-ghost" onclick="resetDraft()">Limpiar formulario</button>
+      <button class="btn btn-primary" onclick="saveDraft()">Guardar registro</button>
     </div>
-
   `;
-
 }
 
 
@@ -3952,6 +3428,49 @@ function sel(
 }
 
 
+
+function updateCuadroField(i,name,val){
+  const q=normalizarCuadros(draft)[i];
+  if(!q) return;
+  q[name]=val;
+  if(name==='marca'||name==='presentacion'){
+    q.ratioNominal=obtenerRatioNominal(draft.linea,q.presentacion,q.marca);
+    q.lote=generarLoteCuadro(q);
+    actualizarCuadro(i);
+    renderFormTab();
+    return;
+  }
+  if(name==='horaInicio'||name==='horaFin'){
+    actualizarCuadro(i);
+    renderFormTab();
+    return;
+  }
+  if(name==='gramajePreforma'){
+    q.gramajePreforma=val;
+    draft.gramajePreforma=val;
+    actualizarMermasAutomaticasCuadro(i);
+    return;
+  }
+  actualizarCuadro(i);
+  refreshKpisOnly();
+}
+
+function updateCuadroPath(i,path,val){
+  const q=normalizarCuadros(draft)[i];
+  if(!q) return;
+  const [a,b]=path.split('.');
+  if(!q[a]) q[a]={};
+  q[a][b]=val;
+  actualizarCuadro(i);
+  if(path==='produccion.efectiva'){
+    const scrollY=window.scrollY;
+    renderFormTab();
+    requestAnimationFrame(()=>window.scrollTo(0,scrollY));
+    return;
+  }
+  refreshKpisOnly();
+}
+
 /* =========================================================
    ACTUALIZAR CAMPO
    ========================================================= */
@@ -3973,6 +3492,7 @@ function updateField(
       obtenerSemana(val);
 
     actualizarLote();
+    actualizarLotesCuadros();
 
     renderFormTab();
 
@@ -3984,6 +3504,7 @@ function updateField(
   if(name === 'turno'){
 
     actualizarLote();
+    actualizarLotesCuadros();
 
     renderFormTab();
 
@@ -4215,65 +3736,140 @@ if(path === 'produccion.efectiva'){
    ========================================================= */
 
 function refreshKpisOnly(){
-
-  const d =
-    calcDerived(draft);
-
-
-  const row =
-    document.querySelector(
-      '.kpi-row'
-    );
-
-
+  if(!draft) return;
+  const d = calcDerived(draft);
+  const row=document.querySelector('.kpi-row');
   if(row){
-
-    row.innerHTML = `
-
-      ${kpi(
-        'Disponibilidad',
-        pct(d.disponibilidad),
-        d.disponibilidad
-      )}
-
-      ${kpi(
-        'Rendimiento',
-        pct(d.rendimiento),
-        d.rendimiento
-      )}
-
-      ${kpi(
-        'Calidad',
-        pct(d.calidad),
-        d.calidad
-      )}
-
-      ${kpi(
-        'OEE',
-        pct(d.oee),
-        d.oee
-      )}
-
-      ${kpi(
-        'Cumplimiento',
-        pct(d.cumplimiento),
-        d.cumplimiento
-      )}
-
-      ${kpi(
-        'Producción nominal',
-        Math.round(
-          d.produccionNominal
-        ).toLocaleString('es-PE'),
-        1
-      )}
-
-    `;
-
+    row.innerHTML=`${kpi('Disponibilidad',pct(d.disponibilidad),d.disponibilidad)}${kpi('Rendimiento',pct(d.rendimiento),d.rendimiento)}${kpi('Calidad',pct(d.calidad),d.calidad)}${kpi('OEE',pct(d.oee),d.oee)}${kpi('Cumplimiento',pct(d.cumplimiento),d.cumplimiento)}${kpi('Producción efectiva',Math.round(d.efectiva ?? num(draft.produccion?.efectiva)).toLocaleString('es-PE'),1)}`;
   }
-
 }
 
+
+
+/* =========================================================
+   CUADROS DE PRODUCCIÓN — PARADAS
+   ========================================================= */
+
+function paradasTableCuadro(key, rows, cuadroIndex){
+  const esProgramada = key === 'paradasProgramadas';
+  const safeRows = Array.isArray(rows) && rows.length
+    ? rows
+    : [{descripcion:'', tiempoMin:0}];
+
+  return `
+    <div class="paradas-cuadro-table" style="width:100%;overflow-x:auto;">
+      <table style="width:100%;min-width:0;border-collapse:collapse;table-layout:fixed;">
+        <thead>
+          <tr>
+            <th style="width:58%;text-align:left;">Descripción</th>
+            <th style="width:27%;text-align:center;">Tiempo (min)</th>
+            <th style="width:15%;text-align:center;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${safeRows.map((r,i)=>`
+            <tr>
+              <td style="padding:5px;">
+                ${esProgramada
+                  ? `<select style="width:100%;box-sizing:border-box;" onchange="updateArrItemCuadro(${cuadroIndex},'${key}',${i},'descripcion',this.value)">
+                       <option value="">Seleccione...</option>
+                       ${PARADAS_PROGRAMADAS.map(o=>`<option value="${o}" ${o===r.descripcion?'selected':''}>${o}</option>`).join('')}
+                     </select>`
+                  : `<input type="text" value="${r.descripcion||''}" placeholder="Motivo de la parada" style="width:100%;box-sizing:border-box;" oninput="updateArrItemCuadro(${cuadroIndex},'${key}',${i},'descripcion',this.value)">`}
+              </td>
+              <td style="padding:5px;">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                  value="${r.tiempoMin ?? 0}"
+                  placeholder="0"
+                  title="Ingrese los minutos de la parada"
+                  style="width:100%;box-sizing:border-box;text-align:center;font-weight:600;"
+                  oninput="updateArrItemCuadro(${cuadroIndex},'${key}',${i},'tiempoMin',this.value)"
+                >
+              </td>
+              <td style="padding:5px;text-align:center;">
+                <button type="button" class="row-del" onclick="removeArrItemCuadro(${cuadroIndex},'${key}',${i})">✕</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function addParadaCuadro(cuadroIndex,key){
+  const q=normalizarCuadros(draft)[cuadroIndex];
+  if(!q) return;
+  q[key].push({descripcion:'',tiempoMin:0});
+  renderFormTab();
+}
+
+function updateArrItemCuadro(cuadroIndex,key,i,field,val){
+  const q=normalizarCuadros(draft)[cuadroIndex];
+  if(!q || !q[key]?.[i]) return;
+  q[key][i][field]=field==='tiempoMin' ? Number(val||0) : val;
+  actualizarCuadro(cuadroIndex);
+  refreshKpisOnly();
+}
+
+function removeArrItemCuadro(cuadroIndex,key,i){
+  const q=normalizarCuadros(draft)[cuadroIndex];
+  if(!q) return;
+  q[key].splice(i,1);
+  if(!q[key].length) q[key].push({descripcion:'',tiempoMin:0});
+  actualizarCuadro(cuadroIndex);
+  renderFormTab();
+}
+
+/* =========================================================
+   CUADROS DE PRODUCCIÓN — MERMAS
+   ========================================================= */
+
+function obtenerValoresMermaCuadro(r,linea,cuadro){
+  const pesoIngresado=num(r.peso);
+  const unidadesIngresadas=Math.round(num(r.unidades));
+  if((linea==='PET1'||linea==='PET2') && (r.item==='Botellas'||r.item==='Preformas')){
+    const gramaje=num(cuadro?.gramajePreforma);
+    return {peso:pesoIngresado,unidades:gramaje>0?Math.round((pesoIngresado*1000)/gramaje):0};
+  }
+  if((linea==='PET1'||linea==='PET2') && (r.item==='Tapa Plana'||r.item==='Tapa Sport Cap')) return {peso:pesoIngresado,unidades:Math.round((pesoIngresado*1000)/1.34)};
+  if((linea==='PET1'||linea==='PET2') && r.item==='Etiqueta') return {peso:pesoIngresado,unidades:Math.round(pesoIngresado/0.00064)};
+  if((linea==='PET1'||linea==='PET2') && r.item==='Polietileno') return {peso:pesoIngresado,unidades:Number((pesoIngresado/28).toFixed(2))};
+  if(linea==='B7L' && (r.item==='Botellas'||r.item==='Preformas')) return {peso:pesoIngresado,unidades:Math.round((pesoIngresado*1000)/90)};
+  if(linea==='B7L' && r.item==='Tapas') return {peso:pesoIngresado,unidades:Math.round((pesoIngresado*1000)/4.72)};
+  if(linea==='B7L' && r.item==='Etiqueta') return {peso:pesoIngresado,unidades:Math.round((pesoIngresado*1000)/2.9)};
+  if(linea==='B7L' && r.item==='Polietileno') return {peso:pesoIngresado,unidades:Number((pesoIngresado/28).toFixed(2))};
+  if(linea==='C20L') return {peso:unidadesIngresadas*0.0906,unidades:unidadesIngresadas};
+  return {peso:pesoIngresado,unidades:unidadesIngresadas};
+}
+
+function actualizarMermasAutomaticasCuadro(i){
+  if(!draft) return;
+  const q=normalizarCuadros(draft)[i];
+  if(!q || !Array.isArray(q.mermas)) return;
+  q.mermas.forEach(r=>{const v=obtenerValoresMermaCuadro(r,draft.linea,q);r.peso=v.peso;r.unidades=Number(num(v.unidades).toFixed(2));});
+}
+
+function mermasTableCuadro(rows,produccionEfectiva,linea,cuadroIndex){
+  const efectiva=num(produccionEfectiva)||0;
+  const q=normalizarCuadros(draft)[cuadroIndex];
+  return `<div class="mermas-cuadro-scroll" style="width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border:1px solid #D7DBD4;border-radius:8px;background:#fff;"><table style="width:520px;min-width:520px;table-layout:fixed;border-collapse:collapse;font-size:12px;margin:0;"><thead><tr><th style="width:34%;text-align:left;">Componente</th><th style="width:22%;text-align:center;">Peso (kg)</th><th style="width:24%;text-align:center;">Unidades</th><th style="width:20%;text-align:center;">%</th></tr></thead><tbody>
+  ${(rows||[]).map((r,i)=>{const v=obtenerValoresMermaCuadro(r,linea,q);const porcentaje=efectiva>0?((v.unidades/efectiva)*100).toFixed(2)+'%':'—';const pesoEdit=linea==='C20L';const unidadesEdit=linea==='C20L'||linea==='B20L';return `<tr><td>${r.item}</td><td><input type="number" min="0" step="0.01" value="${v.peso}" ${pesoEdit?'readonly style="width:100%;box-sizing:border-box;background:#f1f3f5;font-weight:700;cursor:not-allowed;text-align:center;"':'onchange="updateMermaCuadro('+cuadroIndex+','+i+',\'peso\',this.value)" style="width:100%;box-sizing:border-box;text-align:center;"'}></td><td><input type="number" min="0" step="${r.item==='Polietileno'?'0.01':'1'}" value="${r.item==='Polietileno'?Number(v.unidades).toFixed(2):v.unidades}" ${unidadesEdit?'oninput="updateMermaCuadro('+cuadroIndex+','+i+',\'unidades\',this.value)" style="width:100%;box-sizing:border-box;text-align:center;"':'readonly style="width:100%;box-sizing:border-box;background:#f1f3f5;font-weight:700;cursor:not-allowed;text-align:center;"'}></td><td class="small-muted">${porcentaje}</td></tr>`;}).join('')}
+  </tbody></table></div>`;
+}
+
+function updateMermaCuadro(cuadroIndex,i,field,val){
+  const q=normalizarCuadros(draft)[cuadroIndex];
+  if(!q?.mermas?.[i]) return;
+  if((draft.linea==='PET1'||draft.linea==='PET2'||draft.linea==='B7L')&&field!=='peso') return;
+  if(draft.linea==='C20L'&&field!=='unidades') return;
+  q.mermas[i][field]=val===''?'':Number(val);
+  actualizarMermasAutomaticasCuadro(cuadroIndex);
+  renderFormTab();
+}
 
 /* =========================================================
    TABLA DE PARADAS
@@ -4379,6 +3975,7 @@ function paradasTable(
                   : `
 
                     <input
+                      style="width:500%;"
                       value="${r.descripcion}"
                       oninput="
                         updateArrItem(
@@ -4670,27 +4267,17 @@ function obtenerValoresMerma(r, linea){
 
 
 function actualizarMermasAutomaticas(){
-
-  if(!draft || !Array.isArray(draft.mermas)){
+  if(!draft) return;
+  if(Array.isArray(draft.cuadros)){
+    normalizarCuadros(draft).forEach((_,i)=>actualizarMermasAutomaticasCuadro(i));
+    syncLegacyFromCuadro1();
     return;
   }
-
-  draft.mermas.forEach(r => {
-
-    const valores =
-      obtenerValoresMerma(
-        r,
-        draft.linea
-      );
-
-    r.peso =
-      valores.peso;
-
-    r.unidades =
-      Number(
-        num(valores.unidades).toFixed(2)
-      );
-
+  if(!Array.isArray(draft.mermas)) return;
+  draft.mermas.forEach(r=>{
+    const valores=obtenerValoresMerma(r,draft.linea);
+    r.peso=valores.peso;
+    r.unidades=Number(num(valores.unidades).toFixed(2));
   });
 }
 
@@ -5166,15 +4753,8 @@ function updatePersonal(
    ========================================================= */
 
 function resetDraft(){
-
-  draft =
-    blankRecord(
-      state.currentLine
-    );
-
-
+  draft=blankRecord(state.currentLine);
   renderFormTab();
-
 }
 
 
@@ -5183,68 +4763,23 @@ function resetDraft(){
    ========================================================= */
 
 function saveDraft(){
-
+  if(!draft) return;
+  normalizarCuadros(draft);
+  actualizarTodosCuadros();
   actualizarMermasAutomaticas();
-
-  const records =
-    loadRecords();
-
-
-  draft.diaJuliano =
-    obtenerDiaDelAño(
-      draft.fecha
-    );
-
-
-  draft.semana =
-    obtenerSemana(
-      draft.fecha
-    );
-
-
-  actualizarLote();
-
-  actualizarPaletas();
-  actualizarCajasPreformas();
-  actualizarPlanchasCarton();
-  actualizarPolietileno();
-  actualizarStretchFilm();
-
-
-  draft.id =
-    'r_' + Date.now();
-
-
-  draft.timestamp =
-    new Date().toISOString();
-
-
-  draft.registradoPor =
-    state.user.nombre;
-
-
-  records.push(
-    JSON.parse(
-      JSON.stringify(draft)
-    )
-  );
-
-
+  draft.diaJuliano=obtenerDiaDelAño(draft.fecha);
+  draft.semana=obtenerSemana(draft.fecha);
+  actualizarLotesCuadros();
+  syncLegacyFromCuadro1();
+  draft.id='r_'+Date.now();
+  draft.timestamp=new Date().toISOString();
+  draft.registradoPor=state.user.nombre;
+  const records=loadRecords();
+  records.push(JSON.parse(JSON.stringify(draft)));
   saveRecords(records);
-
-
-  draft =
-    blankRecord(
-      state.currentLine
-    );
-
-
-  state.currentTab =
-    'historial';
-
-
+  draft=blankRecord(state.currentLine);
+  state.currentTab='historial';
   renderMain();
-
 }
 
 
@@ -5378,8 +4913,9 @@ function renderHistorialTab(){
 
                 r => {
 
-                  const d =
-                    calcDerived(r);
+                  normalizarCuadros(r);
+                  const d = calcDerived(r);
+                  const q1 = r.cuadros?.find(q => num(q.produccion?.efectiva) > 0 || q.marca || q.presentacion) || r.cuadros?.[0] || {};
 
 
                   const diaAño =
@@ -5440,8 +4976,7 @@ function renderHistorialTab(){
                       <td>
                         <strong>
                           ${
-                            r.lote ||
-                            '—'
+                            q1.lote || r.lote || '—'
                           }
                         </strong>
                       </td>
@@ -5449,9 +4984,7 @@ function renderHistorialTab(){
 
                       <td>
                         ${
-                          num(
-                            r.produccion.efectiva
-                          )
+                          num(d.efectiva ?? r.produccion?.efectiva)
                           .toLocaleString(
                             'es-PE'
                           )
