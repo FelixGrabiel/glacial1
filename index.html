@@ -163,7 +163,7 @@
                 rgba(0, 28, 52, 0.92),
                 rgba(0, 91, 150, 0.82)
             ),
-            url("/img/fondo_glacial.jpg");
+            url("img/fondo_glacial.jpg");
 
         background-size: cover;
         background-position: center;
@@ -207,6 +207,239 @@
 
         background:
             rgba(255, 255, 255, 0.04);
+    }
+
+
+    /* =====================================================
+       SELECCIÓN DE TIPO DE REPORTE
+    ====================================================== */
+
+    #report-select-screen {
+
+        display: none;
+
+        min-height: 100vh;
+
+        align-items: center;
+        justify-content: center;
+
+        padding: 30px;
+
+        position: relative;
+
+        background:
+            linear-gradient(
+                135deg,
+                rgba(0, 28, 52, 0.92),
+                rgba(0, 91, 150, 0.82)
+            ),
+            url("img/fondo_glacial.jpg");
+
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    .report-select-card {
+
+        width: 100%;
+        max-width: 640px;
+
+        position: relative;
+        z-index: 2;
+
+        background:
+            rgba(255, 255, 255, 0.98);
+
+        border:
+            1px solid rgba(255, 255, 255, 0.60);
+
+        border-radius: 20px;
+
+        overflow: hidden;
+
+        box-shadow:
+            var(--shadow-lg);
+
+        padding: 34px 38px 30px;
+    }
+
+    .report-select-logo-container {
+
+        width: 100%;
+
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        padding-bottom: 16px;
+    }
+
+    .report-select-logo {
+
+        display: block;
+
+        width: auto;
+        height: 78px;
+
+        max-width: 70%;
+
+        object-fit: contain;
+    }
+
+    .report-select-head {
+
+        text-align: center;
+
+        padding-bottom: 26px;
+    }
+
+    .report-select-head h1 {
+
+        margin:
+            10px 0 14px;
+
+        color:
+            #10202c;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 26px;
+        font-weight: 600;
+
+        letter-spacing: 0.4px;
+    }
+
+    .report-select-welcome {
+
+        margin:
+            0 0 6px;
+
+        color:
+            var(--glacial-blue);
+
+        font-family:
+            "IBM Plex Mono",
+            monospace;
+
+        font-size: 13px;
+        font-weight: 700;
+
+        letter-spacing: 1.4px;
+    }
+
+    .report-select-description {
+
+        margin: 0;
+
+        color:
+            var(--text-soft);
+
+        font-size: 14px;
+
+        line-height: 1.55;
+    }
+
+    .report-type-grid {
+
+        display: grid;
+
+        grid-template-columns:
+            repeat(2, 1fr);
+
+        gap: 18px;
+    }
+
+    @media (max-width: 560px) {
+
+        .report-type-grid {
+            grid-template-columns: 1fr;
+        }
+
+    }
+
+    .report-type-card {
+
+        display: flex;
+
+        flex-direction: column;
+        align-items: center;
+
+        gap: 10px;
+
+        padding: 30px 20px;
+
+        border:
+            1px solid var(--border);
+
+        border-radius: 16px;
+
+        background:
+            var(--white);
+
+        box-shadow:
+            var(--shadow-sm);
+
+        transition:
+            transform 0.15s ease,
+            box-shadow 0.15s ease,
+            border-color 0.15s ease;
+    }
+
+    .report-type-card:hover {
+
+        transform:
+            translateY(-3px);
+
+        border-color:
+            var(--glacial-blue-light);
+
+        box-shadow:
+            var(--shadow-md);
+    }
+
+    .report-type-icon {
+        font-size: 40px;
+        line-height: 1;
+    }
+
+    .report-type-title {
+
+        color:
+            #10202c;
+
+        font-family:
+            "Oswald",
+            sans-serif;
+
+        font-size: 18px;
+        font-weight: 600;
+
+        letter-spacing: 0.3px;
+    }
+
+    .report-type-desc {
+
+        color:
+            var(--text-soft);
+
+        font-size: 12.5px;
+
+        text-align: center;
+    }
+
+    .report-select-footer {
+
+        margin-top: 26px;
+
+        text-align: center;
+
+        color:
+            var(--text-soft);
+
+        font-size: 12px;
     }
 
 
@@ -1942,7 +2175,7 @@
         <div class="login-logo-container">
 
             <img
-                src="logo_glacial.png"
+                src="img/logo_glacial.png"
                 alt="Logo GLACIAL"
                 class="login-logo"
             >
@@ -2170,6 +2403,114 @@
 
 
 <!-- =====================================================
+     SELECCIÓN DE TIPO DE REPORTE (PANTALLA DE INICIO)
+====================================================== -->
+
+<div id="report-select-screen">
+
+    <div class="report-select-card">
+
+        <!-- LOGO -->
+
+        <div class="report-select-logo-container">
+
+            <img
+                src="img/logo_glacial.png"
+                alt="GLACIAL"
+                class="report-select-logo"
+            >
+
+        </div>
+
+
+        <!-- ENCABEZADO -->
+
+        <div class="report-select-head">
+
+            <div class="plant-tag">
+                SISTEMA DE PRODUCCIÓN
+            </div>
+
+            <h1>
+                Gestión y control operativo
+            </h1>
+
+            <p class="report-select-welcome">
+                BIENVENIDO
+            </p>
+
+            <p class="report-select-description">
+                Seleccione el tipo de reporte que desea ingresar
+            </p>
+
+        </div>
+
+
+        <!-- TARJETAS -->
+
+        <div class="report-type-grid">
+
+            <button
+                type="button"
+                class="report-type-card"
+                onclick="goReporteAgua()"
+            >
+
+                <span class="report-type-icon">
+                    💧
+                </span>
+
+                <span class="report-type-title">
+                    Reporte Agua
+                </span>
+
+                <span class="report-type-desc">
+                    Ingreso de datos de producción
+                </span>
+
+            </button>
+
+            <button
+                type="button"
+                class="report-type-card"
+                onclick="goReporteHielo()"
+            >
+
+                <span class="report-type-icon">
+                    ❄️
+                </span>
+
+                <span class="report-type-title">
+                    Reporte Hielo
+                </span>
+
+                <span class="report-type-desc">
+                    Ingreso de datos de producción
+                </span>
+
+            </button>
+
+        </div>
+
+
+        <!-- PIE -->
+
+        <div class="report-select-footer">
+
+            Usuario: <strong id="report-select-username">—</strong>
+
+            <span class="login-footer-separator">|</span>
+
+            Sistema v1.0
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
      APLICACIÓN PRINCIPAL
 ====================================================== -->
 
@@ -2192,7 +2533,7 @@
                 <div class="topbar-logo-wrap">
 
                     <img
-                        src="logo_glacial.png"
+                        src="img/logo_glacial.png"
                         alt="Logo GLACIAL"
                         class="topbar-logo"
                     >
@@ -2255,6 +2596,26 @@
                 </div>
 
             </div>
+
+
+            <!-- INICIO -->
+
+            <button
+                type="button"
+                class="btn btn-topbar"
+                onclick="goReportSelect()"
+                aria-label="Volver a selección de reporte"
+            >
+
+                <span aria-hidden="true">
+                    ⌂
+                </span>
+
+                <span>
+                    Inicio
+                </span>
+
+            </button>
 
 
             <!-- SALIR -->
@@ -2492,7 +2853,7 @@
                 <div class="welcome-logo">
 
                     <img
-                        src="logo_glacial.png"
+                        src="img/logo_glacial.png"
                         alt="GLACIAL"
                     >
 
@@ -2614,11 +2975,21 @@
 
 
 <!-- =====================================================
-     APP.JS
+     APP.JS (dividido en módulos por responsabilidad)
 ====================================================== -->
 
-<script src="app.js?v=20260912-gramaje"></script>
-```
+<script src="js/01-config.js?v=20260912-modular"></script>
+<script src="js/02-estado.js?v=20260912-modular"></script>
+<script src="js/03-auth.js?v=20260912-modular"></script>
+<script src="js/04-sidebar.js?v=20260912-modular"></script>
+<script src="js/05-utils.js?v=20260912-modular"></script>
+<script src="js/06-registro.js?v=20260912-modular"></script>
+<script src="js/07-historial.js?v=20260912-modular"></script>
+<script src="js/08-graficos.js?v=20260912-modular"></script>
+<script src="js/09-resumen.js?v=20260912-modular"></script>
+<script src="js/10-usuarios.js?v=20260912-modular"></script>
+<script src="js/11-trabajadores.js?v=20260912-modular"></script>
+<script src="js/12-init.js?v=20260912-modular"></script>
 
 </body>
 
