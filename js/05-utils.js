@@ -1469,3 +1469,117 @@ function actualizarPaletas(){
 
 }
 
+
+/* =========================================================
+   SEGURIDAD DE CONTRASEÑAS (HASH + SALT)
+   =========================================================
+
+   Las contraseñas ya NO se guardan en texto plano.
+
+   Cada usuario guarda:
+     - salt: 16 bytes aleatorios (en hexadecimal), distinto
+       por usuario.
+     - passwordHash: resultado de aplicar PBKDF2 (SHA-256,
+       100 000 iteraciones) a la contraseña + su salt.
+
+   Esto usa la Web Crypto API del navegador (crypto.subtle),
+   que solo funciona en un "contexto seguro": localhost o
+   un sitio servido por HTTPS. Si el sistema se aloja en un
+   servidor sin HTTPS, esta parte dejará de funcionar y habrá
+   que activar HTTPS (por ejemplo con Firebase Hosting, que
+   lo trae incluido gratis).
+   ========================================================= */
+
+const PBKDF2_ITERACIONES = 100000;
+
+function bytesAHex(bytes){
+
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+}
+
+function hexABytes(hex){
+
+  const bytes = new Uint8Array(hex.length / 2);
+
+  for(let i = 0; i < bytes.length; i++){
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+
+  return bytes;
+
+}
+
+async function generarSalt(){
+
+  return bytesAHex(
+    crypto.getRandomValues(new Uint8Array(16))
+  );
+
+}
+
+async function calcularHashPassword(password, saltHex){
+
+  const enc = new TextEncoder();
+
+  const material = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(password),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits']
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: hexABytes(saltHex),
+      iterations: PBKDF2_ITERACIONES,
+      hash: 'SHA-256'
+    },
+    material,
+    256
+  );
+
+  return bytesAHex(new Uint8Array(bits));
+
+}
+
+/*
+   A partir de una contraseña en texto plano, genera un
+   salt nuevo y devuelve {salt, passwordHash} listos para
+   guardar en Firestore. Usar siempre que se cree o cambie
+   una contraseña.
+*/
+
+async function crearCredencialPassword(password){
+
+  const salt = await generarSalt();
+
+  const passwordHash =
+    await calcularHashPassword(password, salt);
+
+  return { salt, passwordHash };
+
+}
+
+/*
+   Quita cualquier dato de contraseña (texto plano, hash o
+   salt) de un objeto de usuario, para que nunca terminen en
+   sessionStorage ni en el "state" de la app en memoria.
+*/
+
+function usuarioSinCredenciales(u){
+
+  const {
+    password,
+    passwordHash,
+    salt,
+    ...resto
+  } = u;
+
+  return resto;
+
+}

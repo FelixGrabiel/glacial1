@@ -8,7 +8,7 @@
    SESIÓN / LOGIN
    ========================================================= */
 
-function handleLogin(){
+async function handleLogin(){
 
   const username =
     document.getElementById('login-user').value.trim();
@@ -43,13 +43,47 @@ function handleLogin(){
   const found = users.find(
 
     u =>
-      u.username.toLowerCase() === username.toLowerCase() &&
-      u.password === pass
+      u.username.toLowerCase() === username.toLowerCase()
 
   );
 
 
-  if(!found){
+  let passwordCorrecta = false;
+
+  if(found){
+
+    if(found.passwordHash && found.salt){
+
+      /* Formato nuevo: comparar contra el hash guardado. */
+
+      const intento =
+        await calcularHashPassword(pass, found.salt);
+
+      passwordCorrecta =
+        (intento === found.passwordHash);
+
+    } else if(found.password){
+
+      /*
+         Formato antiguo (texto plano), todavía sin migrar.
+         Se acepta por compatibilidad, y de inmediato se
+         migra este usuario a hash + salt para no dejarlo
+         en texto plano ni un minuto más.
+      */
+
+      passwordCorrecta =
+        (found.password === pass);
+
+      if(passwordCorrecta){
+        await migrarUsuarioAPasswordSeguro(found);
+      }
+
+    }
+
+  }
+
+
+  if(!found || !passwordCorrecta){
 
     errBox.textContent =
       'Usuario o contraseña incorrectos.';
@@ -63,14 +97,17 @@ function handleLogin(){
 
   errBox.style.display = 'none';
 
-  state.user = found;
+  const usuarioLimpio =
+    usuarioSinCredenciales(found);
+
+  state.user = usuarioLimpio;
 
 
   sessionStorage.setItem(
 
     DB_SESSION,
 
-    JSON.stringify(found)
+    JSON.stringify(usuarioLimpio)
 
   );
 
@@ -109,6 +146,51 @@ function handleLogin(){
   enterApp();
 
 }
+
+
+/* =========================================================
+   MIGRAR UN USUARIO A CONTRASEÑA CON HASH + SALT
+   =========================================================
+
+   Se llama automáticamente la primera vez que un usuario
+   con contraseña antigua (texto plano) inicia sesión
+   correctamente. Reemplaza el campo "password" por
+   "salt" + "passwordHash" tanto en Firestore como en el
+   objeto que ya tenemos en memoria.
+   ========================================================= */
+
+async function migrarUsuarioAPasswordSeguro(usuario){
+
+  const cred =
+    await crearCredencialPassword(usuario.password);
+
+  const users = loadUsers();
+
+  const idx = users.findIndex(
+    u => u.username === usuario.username
+  );
+
+  if(idx === -1){
+    return;
+  }
+
+  delete users[idx].password;
+
+  users[idx].salt = cred.salt;
+  users[idx].passwordHash = cred.passwordHash;
+
+  saveUsers(users);
+
+
+  /* Reflejar el cambio también en el objeto en memoria. */
+
+  delete usuario.password;
+
+  usuario.salt = cred.salt;
+  usuario.passwordHash = cred.passwordHash;
+
+}
+
 
 /* =========================================================
    CERRAR SESIÓN
@@ -303,4 +385,3 @@ function enterApp(){
   renderMain();
 
 }
-

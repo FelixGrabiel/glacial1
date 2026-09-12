@@ -1,3 +1,56 @@
+/* =============================================================
+   CONFIGURACIÓN Y LISTAS MAESTRAS (Firebase, líneas, marcas, ratios)
+   Parte del sistema GLACIAL — dividido a partir de app.js
+   ============================================================= */
+
+/* VERSION: usuarios-puestos-permisos-v2-20260912 */
+/* =========================================================
+   CONFIGURACIÓN DE FIREBASE (BASE DE DATOS EN LA NUBE)
+   =========================================================
+
+   Esto es lo que permite que los datos (usuarios, reportes
+   y trabajadores) se vean EN TIEMPO REAL en cualquier
+   computadora, y no solo en la que los registró.
+
+   PASOS PARA ACTIVARLO (una sola vez):
+
+   1. Ve a https://console.firebase.google.com y crea un
+      proyecto gratuito (plan "Spark").
+   2. Dentro del proyecto: Compilación > Firestore Database >
+      Crear base de datos (modo producción, la región más
+      cercana, ej. "southamerica-east1").
+   3. En Firestore > Reglas, pega:
+
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /sync/{doc} {
+              allow read, write: if doc in ['users', 'records', 'workers'];
+            }
+            match /{document=**} {
+              allow read, write: if false;
+            }
+          }
+        }
+
+      ⚠ SEGURIDAD (parche intermedio, 20260912): esta regla
+      solo limita las reglas a los 3 documentos que usa la
+      app (users/records/workers) — sigue sin exigir haber
+      iniciado sesión, porque el sistema todavía no usa
+      Firebase Authentication. Mientras tanto, las contraseñas
+      YA se guardan con hash + salt (nunca en texto plano), y
+      se recomienda activar Firebase App Check (App Check >
+      reCAPTCHA v3) y luego "Enforce" para Firestore, para que
+      solo esta página pueda leer/escribir estos documentos.
+      La solución definitiva a futuro es migrar el login a
+      Firebase Authentication.
+
+   4. Ve a Configuración del proyecto (ícono de engranaje) >
+      "Tus apps" > icono web (</>) > registra la app.
+   5. Copia el objeto "firebaseConfig" que te muestra y
+      pégalo reemplazando el de abajo.
+*/
+
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAO86_KLoblDvHq-65q2xbD53-zj_L0tUY",
   authDomain: "jefaturaopglacial-fdb95.firebaseapp.com",
@@ -10,6 +63,38 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 
 const db = firebase.firestore();
+
+
+/* =========================================================
+   FIREBASE APP CHECK (OPCIONAL, RECOMENDADO)
+   =========================================================
+
+   Restringe el acceso a Firestore para que solo esta página
+   web pueda usarlo (bloquea scripts o herramientas externas
+   que intenten conectarse directo con la configuración de
+   arriba). No sustituye un login real, pero reduce mucho el
+   riesgo mientras se migra a Firebase Authentication.
+
+   CÓMO ACTIVARLO:
+   1. En la consola de Firebase: App Check > Apps > registra
+      esta app web > proveedor "reCAPTCHA v3" > copia la
+      "Site key" que te entrega.
+   2. Agrega este script en index.html, ANTES de este archivo:
+        <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-check-compat.js"></script>
+   3. Reemplaza 'TU_SITE_KEY_DE_RECAPTCHA_V3' abajo por la
+      Site key del paso 1, y descomenta las líneas.
+   4. Prueba el sistema normalmente unos días con la app
+      registrada (en modo "no forzado").
+   5. Cuando confirmes que todo funciona bien, en la consola:
+      App Check > Firestore > "Aplicar" (Enforce). Desde ese
+      momento, Firestore rechazará cualquier lectura/escritura
+      que no venga de esta página.
+*/
+
+// firebase.appCheck().activate(
+//   'TU_SITE_KEY_DE_RECAPTCHA_V3',
+//   true // refresca el token automáticamente
+// );
 
 
 const LINES = [
@@ -337,4 +422,3 @@ const PARADAS_PROGRAMADAS = [
   'Cierre de turno',
   'Encendido de máquinas'
 ];
-

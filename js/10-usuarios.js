@@ -27,6 +27,12 @@ function openUsersModal(){
         <div class="modal-body">
           <div class="userlist" id="userlist"></div>
 
+          <div class="actions-row" style="margin-top:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="migrarTodasLasPasswords()">
+              🔒 Migrar contraseñas antiguas a formato seguro
+            </button>
+          </div>
+
           <div class="section-title">Nuevo usuario</div>
 
           <div class="grid grid-2">
@@ -140,7 +146,7 @@ function toggleLineaField(){
   wrap.style.display=rol.value==='Supervisor'?'block':'none';
 }
 
-function addUser(){
+async function addUser(){
   if(!tienePermiso('usuarios')){
     alert('No tienes permiso para crear usuarios.');
     return;
@@ -179,8 +185,12 @@ function addUser(){
     return;
   }
 
+  const cred = await crearCredencialPassword(password);
+
   users.push({
-    nombre,username,password,
+    nombre,username,
+    salt:cred.salt,
+    passwordHash:cred.passwordHash,
     puesto,rol,
     permisos:todos?'todos':seleccionados,
     linea
@@ -196,6 +206,58 @@ function addUser(){
   document.querySelectorAll('.permiso-check').forEach(c=>c.checked=false);
   const master=document.getElementById('nu-permisos-todos');
   if(master)master.checked=false;
+}
+
+
+/* =========================================================
+   MIGRAR TODAS LAS CONTRASEÑAS ANTIGUAS A HASH + SALT
+   =========================================================
+
+   Recorre a todos los usuarios y, a los que todavía tengan
+   la contraseña en texto plano (formato antiguo), les genera
+   un salt + hash y borra el texto plano. Los usuarios que ya
+   se migraron solos al iniciar sesión se dejan intactos.
+   ========================================================= */
+
+async function migrarTodasLasPasswords(){
+
+  if(!tienePermiso('usuarios')){
+    alert('No tienes permiso para hacer esto.');
+    return;
+  }
+
+  const users = loadUsers();
+
+  let migrados = 0;
+
+  for(const u of users){
+
+    if(!u.passwordHash && u.password){
+
+      const cred = await crearCredencialPassword(u.password);
+
+      delete u.password;
+
+      u.salt = cred.salt;
+      u.passwordHash = cred.passwordHash;
+
+      migrados++;
+
+    }
+
+  }
+
+  if(migrados === 0){
+    alert('Todas las contraseñas ya están en formato seguro (hash + salt).');
+    return;
+  }
+
+  saveUsers(users);
+
+  alert(`Listo: se migraron ${migrados} contraseña(s) a formato seguro.`);
+
+  renderUserList();
+
 }
 
 /* =========================================================
