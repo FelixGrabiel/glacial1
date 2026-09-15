@@ -71,6 +71,21 @@ function openWorkersModal(){
           </div>
 
 
+          <div class="field-sm">
+
+            <label>
+              Importar desde archivo (JSON exportado de Excel/Sheets)
+            </label>
+
+            <input
+              type="file"
+              id="tw-import-file"
+              accept=".json,application/json"
+              onchange="importarTrabajadoresDesdeArchivo(event)"
+            >
+          </div>
+
+
           <div
             class="userlist"
             id="workerlist"
@@ -574,3 +589,191 @@ function removeWorker(id){
 
 }
 
+
+
+
+function limpiarCeldaExcel(valor){
+
+  if(typeof valor !== 'string'){
+    return valor;
+  }
+
+  const m = valor.match(/^="?(.*?)"?$/);
+
+  return (m ? m[1] : valor).trim();
+
+}
+
+function limpiarEspacios(valor){
+
+  return String(valor || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+}
+
+function obtenerCampoFilaImportada(fila, nombreColuna){
+
+  for(const key in fila){
+
+    const keyLimpio =
+      limpiarCeldaExcel(key).toUpperCase();
+
+    if(keyLimpio === nombreColuna.toUpperCase()){
+      return limpiarCeldaExcel(fila[key]);
+    }
+
+  }
+
+  return '';
+
+}
+
+function importarTrabajadoresDesdeArchivo(event){
+
+  const input = event.target;
+  const archivo = input.files[0];
+
+  if(!archivo){
+    return;
+  }
+
+
+  const lector = new FileReader();
+
+  lector.onload = () => {
+
+    let filas;
+
+    try{
+
+      filas = JSON.parse(lector.result);
+
+    } catch(e){
+
+      alert(
+        'No se pudo leer el archivo: no es un JSON válido.'
+      );
+
+      input.value = '';
+
+      return;
+
+    }
+
+
+    if(!Array.isArray(filas)){
+
+      alert(
+        'El archivo debe contener una lista (array) de registros.'
+      );
+
+      input.value = '';
+
+      return;
+
+    }
+
+
+    const workers = loadWorkers();
+
+    let agregados = 0;
+    let actualizados = 0;
+    let omitidos = 0;
+
+
+    filas.forEach(fila => {
+
+      const nombre = limpiarEspacios(
+        obtenerCampoFilaImportada(fila, 'APELLIDOS Y NOMBRES')
+      );
+
+      const dni = limpiarEspacios(
+        obtenerCampoFilaImportada(fila, 'DETALLE')
+      );
+
+      const cargo = limpiarEspacios(
+        obtenerCampoFilaImportada(fila, 'CARGO')
+      );
+
+
+      /* Filas basura del Excel: totales, filas vacías, etc. */
+
+      if(
+        !nombre ||
+        normalizarTexto(nombre) === normalizarTexto('TOTALES S/.')
+      ){
+
+        omitidos++;
+
+        return;
+
+      }
+
+
+      const nombreNormalizado =
+        normalizarTexto(nombre);
+
+      const existente = workers.find(w =>
+
+        (dni && w.dni && limpiarEspacios(w.dni) === dni) ||
+
+        (
+          !dni &&
+          normalizarTexto(w.nombre) === nombreNormalizado
+        )
+
+      );
+
+
+      if(existente){
+
+        existente.nombre = nombre;
+        existente.cargo = cargo || existente.cargo;
+
+        if(dni){
+          existente.dni = dni;
+        }
+
+        actualizados++;
+
+      } else {
+
+        workers.push({
+
+          id:
+            'w_' + Date.now() + '_' +
+            Math.random().toString(36).slice(2,8),
+
+          nombre,
+          dni,
+          cargo,
+          linea: null,
+          estado: 'Activo'
+
+        });
+
+        agregados++;
+
+      }
+
+    });
+
+
+    saveWorkers(workers);
+    renderWorkerList();
+
+    input.value = '';
+
+    alert(
+      `Importación lista.\n\n` +
+      `Nuevos: ${agregados}\n` +
+      `Actualizados: ${actualizados}\n` +
+      `Omitidos (filas vacías/inválidas): ${omitidos}`
+    );
+
+  };
+
+  lector.readAsText(archivo, 'utf-8');
+
+}   

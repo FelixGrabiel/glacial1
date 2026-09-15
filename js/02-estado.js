@@ -80,7 +80,10 @@ const PERMISOS_APP=[
   {key:'exportarExcel',label:'Exportar Excel'},
   {key:'exportarJPG',label:'Exportar JPG'},
   {key:'todasLasLineas',label:'Todas las líneas'},
-  {key:'eliminarRegistros',label:'Eliminar registros'}
+  {key:'eliminarRegistros',label:'Eliminar registros'},
+  {key:'configuracion',label:'Configuración'},
+  {key:'administracion',label:'Administración'},
+  {key:'Gestionar de usuarios',label:'Gestión de usuarios'},
 ];
 
 function permisosPorRolAnterior(rol){

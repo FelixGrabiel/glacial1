@@ -1,0 +1,530 @@
+[
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"47965502\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"ALPELIMA SALAZAR CESAR DAVID\"",
+    "=\"CARGO\"": "=\"TECNICO DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"60923905\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"AMASIFEN RICOPA MOISES ANDRES\"",
+    "=\"CARGO\"": "=\"LIDER DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"72619098\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"ARVELAIS LOMA LESLY KAREM\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"72619096\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"ARVELAIS LOMAS WENINGER ERASMO\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"71266400\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"ARVI TAMAYO ELISEO\"",
+    "=\"CARGO\"": "=\"TECNICO DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006879797\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"BARRERO DE RIVAS FRANCELYS DEL CARMEN\"",
+    "=\"CARGO\"": "=\"MAQUINISTA SOPLADOR T1\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"60875578\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"BARRIAL MORENO JUAN ALDAHIR\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"75914551\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"BARRIAL MORENO ELVIS SEBASTIAN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"003300596\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"BETANCOURT LONGARES JOSE LUIS\"",
+    "=\"CARGO\"": "=\"TECNICO DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006589545\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CAMPOS BARCO YELITZA CAROLINA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"46597504\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CARDENAS BERNABE JACKELINE KAREN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"007292950\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CARDENAS DIAZ MOISES ANDRES\"",
+    "=\"CARGO\"": "=\"MAQUINISTA EMPAQUETADOR\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006376075\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CARMONA BARCOS HEIDY GRACIELA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"71415903\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CERAS CASTILLO PITER OLIVER\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"61306848\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CERNA GALARZA CARLOS LUIS ALFREDO\"",
+    "=\"CARGO\"": "=\"LIDER JUNIOR  DE PRODUCCION                  \""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"70295748\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CESPEDES ALEJO MADELAINE NICOL\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"09488042\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CESPEDES CHILON MARIA ELENA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"008013206\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CHAGUAN RAMIREZ YUSBELIS JOHANA\"",
+    "=\"CARGO\"": "=\"MAQUINISTA SOPLADOR T2\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"47101628\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CHAVEZ VILCHEZ PABLO\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"72864658\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CHOTA SHAPIAMA ULISES\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"61356841\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CRIOLLO LUJAN ANTONY IRWIN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"72781432\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CLEMENTE SILLOCA ANDERSON JESUS\"",
+    "=\"CARGO\"": "=\"TECNICO DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"00127225\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"CORDERO CASTILLO HERLY DARLY\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"76758170\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"DEL AGUILA RIMACHI JAUREL\"",
+    "=\"CARGO\"": "=\"LIDER DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"77438376\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"DEL AGUILA RIMACHI IMELDA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"003124396\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"DELPIANI RIVAS EMILY ESTHER\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"47698908\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"FERNANDEZ GONZALES OSWALDO\"",
+    "=\"CARGO\"": "=\"TECNICO DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"71123857\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"GARCIA RIVERA OWAR \"",
+    "=\"CARGO\"": "=\"SUPERVISOR  DE PRODUCCION                  \""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006736552\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"GOMEZ JIMENEZ WILCARLYS DEL VALLE\"",
+    "=\"CARGO\"": "=\"MAQUINISTA ETIQUETADOR SENIOR\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006403406\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"GOMEZ LEAL YOSELIS JOSEFINA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"72745440\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"GONZALES CHOTA PIER LUIGGI\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"09273031\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"GONZALES MIRANDA SERGIO ADRIAN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"71078927\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"GUERRERO LOPEZ MARLO JAXSON\"",
+    "=\"CARGO\"": "=\"MAQUINISTA SOPLADOR T2\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E \"",
+    "=\"DETALLE\"": "=\"005899273\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"GUZMAN ROMERO YOSELIN KARINA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006203205\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"HERNANDEZ HERNANDEZ YASMELYS JOSEFINA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"62539554\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"HILARIO MAMANI PAOLA BETSY\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"61023247\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"HUALLPA REYNA CIELO ANTONELLA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"73604435\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"INTUSCCA PILCO ALICIA EVARISTA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006675004\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"JIMENEZ FIGUEROA LUISA BELTRANA\"",
+    "=\"CARGO\"": "=\"LIDER JUNIOR  DE PRODUCCION                  \""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"60291007\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"JIMENEZ MONDRAGON JEAN CARLOS\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"72119573\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"LEGUA CAMPOS CARLOS ANTONIO\"",
+    "=\"CARGO\"": "=\"SUPERVISOR  DE PRODUCCION JR   \""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"60370711\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"LOPEZ JIMENEZ LEONAR\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"74939818\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"LOPEZ ROMAN FELIX GRABIEL\"",
+    "=\"CARGO\"": "=\"SUPERVISOR  DE PRODUCCION JR   \""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"74939819\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"LOPEZ ROMAN IRWING LEANDRO\"",
+    "=\"CARGO\"": "=\"SUPERVISOR DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"007272922\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"LUCES MAZA ELIBETH DANIELA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"003778652\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"MARQUEZ GIL YEIKARI DEL CARMEN\"",
+    "=\"CARGO\"": "=\"SUPERVISOR  DE PRODUCCION JR   \""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"002787110\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"MARTINEZ MUÑOZ ABEL DE JESUS\"",
+    "=\"CARGO\"": "=\"LIDER DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"72410561\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"MEZA RAMOS CRISTIAN JOSUE\"",
+    "=\"CARGO\"": "=\"SUPERVISOR DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E \"",
+    "=\"DETALLE\"": "=\"008137990\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"MIJARES CEDEÑO ANGELICA CAROLINA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"76227800\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"MURAYARI ARIMUYA JACK MARVIN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"70735408\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"MURAYARI ARIMUYA MARK STIVEN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"001766390\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"OVALLES MATERAN ELEAZAR MOISES\"",
+    "=\"CARGO\"": "=\"MAQUINISTA SOPLADOR T3\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"004431274\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"OVALLES MEDINA ALKIN JOSE \"",
+    "=\"CARGO\"": "=\"MAQUINISTA DE PRODUCTORA DE HIELO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\" 005238710\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"PACHECO MIERES LUIS MANUEL\"",
+    "=\"CARGO\"": "=\"MAQUINISTA ENVASADOR\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"004671184\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"PEREZ MEDINA KATIMAR DEL VALLE\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"72528737\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"POMA ALVARADO HUGO LEON\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"40522812\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"PORRAS ORE GLORIA HERMINIA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION \""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"60488378\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"PRADO MENDOZA CARLOS IVAN\"",
+    "=\"CARGO\"": "=\"SUPERVISOR DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"70460450\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"PUMAYLLE PARIAPAZA SANTIAGO\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"74144338\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"PUMAYLLE PARIAPAZA SARA JIMENA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"70763916\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"QUEZADA BALCAZAR ERNESTO ALONSO\"",
+    "=\"CARGO\"": "=\"TECNICO DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"41159962\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"QUISPE HUALLPATUERO JOSE FRANCISCO\"",
+    "=\"CARGO\"": "=\"MAQUINISTA EMPAQUETADOR JR\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006285225\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"RATIA GUEDEZ MARIANGEL\"",
+    "=\"CARGO\"": "=\"SUPERVISOR DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"009738146\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"REIS MORISET EMERSON\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"10026761\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"REQUENA EQUIZABAL FREDDY NICANOR \"",
+    "=\"CARGO\"": "=\"MAQUINISTA ENVASADOR JR\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"77287562\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"REY TUME JOEL MARTIN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"75506413\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"RIVERA CHOQUEMAMANI JHON MAX\"",
+    "=\"CARGO\"": "=\"TECNICO DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"70431456\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"ROMERO BABILONIA GREYSI HELLEN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"004359538\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"RONDON RIVAS ANDERSON JOSE\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"70546283\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"SALAZAR PAREDES SAUL NEHEMIAS\"",
+    "=\"CARGO\"": "=\"TECNICO DE MANTENIMIENTO\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"60162812\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"SALVADOR PEÑA EDUAR\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"71555477\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"SAMAME ALEJANDRIA JAN REINERIO\"",
+    "=\"CARGO\"": "=\"MAQUINISTA ENVASADOR SR\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"71064892\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"SAMAME ALEJANDRIA JEFERSON FARFAN\"",
+    "=\"CARGO\"": "=\"MAQUINISTA SOPLADOR\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"40769634\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"SANCHEZ LESCANO ELVIS DANILO\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"71098628\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"SANDOVAL PEÑA LUIS ANGEL\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"60943760\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"SILVANO RENGIFO PATRICK ANDRE\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"61155965\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"TAMANI AHUANARI KARINA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"45673511\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"TINA PEREZ RONAL JESUS\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"00122781\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"TRUJILLO DOMINGUEZ CARMEN YHOVANA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"74940125\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"VASQUEZ CARRASCO ESMERALDA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"70370771\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"VASQUEZ CHUQUIZUTA DANNY NICOLLE\"",
+    "=\"CARGO\"": "=\"MAQUINISTA SOPLADOR T1\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"49032296\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"VELASQUEZ RIOS ROLANDO\"",
+    "=\"CARGO\"": "=\"MAQUINISTA EMPAQUETADOR \""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"46920817\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"VILCA PAYTAN JONATAN\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"DNI\"",
+    "=\"DETALLE\"": "=\"74907568\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"VILCAMASCO CASTILLO KEVIN ALEX\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"C.E\"",
+    "=\"DETALLE\"": "=\"006708290\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"YANES MACHADO KEILA MARIA\"",
+    "=\"CARGO\"": "=\"OPERARIO DE PRODUCCION\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"\"",
+    "=\"DETALLE\"": "=\"\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"TOTALES S/.\"",
+    "=\"CARGO\"": "=\"\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"\"",
+    "=\"DETALLE\"": "=\"\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"\"",
+    "=\"CARGO\"": "=\"\""
+  },
+  {
+    "=\"DNI / C.E\"": "=\"\"",
+    "=\"DETALLE\"": "=\"\"",
+    "=\"APELLIDOS Y NOMBRES\"": "=\"\"",
+    "=\"CARGO\"": "=\"\""
+  }
+]
