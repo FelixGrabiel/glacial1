@@ -138,6 +138,16 @@ function obtenerCodigoTurno(turno){
     return '2';
   }
 
+  /*
+     ⚠ Código asumido para el turno "Intermedio" (no existía
+     antes en el sistema). Si en planta ya usan otro dígito
+     para el turno intermedio en las etiquetas de lote,
+     cambia el '3' de esta línea por el que corresponda.
+  */
+  if(t === 'intermedio'){
+    return '3';
+  }
+
   if(t === 'noche'){
     return '1';
   }

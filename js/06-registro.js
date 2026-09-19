@@ -153,7 +153,7 @@ function blankCuadro(lineKey, numero){
     produccion: { programada:0, efectiva:0, sopladas:0, calidad:0, paletas:0 },
     paradasProgramadas: [{ descripcion:'', tiempoMin:0 }],
     paradasNoProgramadas: [{ descripcion:'', tiempoMin:0 }],
-    insumos: { cajasPreformas:0, planchasCarton:0, polietilenoKg:0, stretchFilmKg:0 },
+    insumos: { cajasPreformas:0, planchasCarton:0, polietilenoKg:0, stretchFilmKg:0, cartonReciclado:0, cartonRealUtilizado:0 },
     mermas: MERMA_ITEMS.map(m => ({item:m, peso:0, unidades:0})),
     observaciones: ''
   };
@@ -638,12 +638,14 @@ function renderFormTab(){
           </div>
 
           <div class="panel" style="margin:10px 0 0;">
-            <div class="panel-head"><h4 style="margin:0;">Insumos automáticos</h4></div>
+            <div class="panel-head"><h4 style="margin:0;">Insumos</h4></div>
             <div class="panel-body" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
-              <div class="field-sm"><label>Cajas preformas</label><input type="text" value="${q.insumos.cajasPreformas ?? 0}" ${readonly}></div>
-              <div class="field-sm"><label>Planchas cartón</label><input type="text" value="${q.insumos.planchasCarton ?? 0}" ${readonly}></div>
-              <div class="field-sm"><label>Polietileno (kg)</label><input type="text" value="${q.insumos.polietilenoKg ?? 0}" ${readonly}></div>
-              <div class="field-sm"><label>Stretch film (kg)</label><input type="text" value="${q.insumos.stretchFilmKg ?? 0}" ${readonly}></div>
+              <div class="field-sm"><label>Cajas preformas (auto)</label><input type="text" value="${q.insumos.cajasPreformas ?? 0}" ${readonly}></div>
+              <div class="field-sm"><label>Planchas cartón (auto)</label><input type="text" value="${q.insumos.planchasCarton ?? 0}" ${readonly}></div>
+              <div class="field-sm"><label>Polietileno (kg) (auto)</label><input type="text" value="${q.insumos.polietilenoKg ?? 0}" ${readonly}></div>
+              <div class="field-sm"><label>Stretch film (kg) (auto)</label><input type="text" value="${q.insumos.stretchFilmKg ?? 0}" ${readonly}></div>
+              ${field('Cartón reciclado (Und)','number',q.insumos.cartonReciclado,`updateCuadroPath(${i},'insumos.cartonReciclado',this.value)`)}
+              ${field('Cartón real utilizado (Und)','number',q.insumos.cartonRealUtilizado,`updateCuadroPath(${i},'insumos.cartonRealUtilizado',this.value)`)}
             </div>
           </div>
 
@@ -673,7 +675,7 @@ function renderFormTab(){
         ${inp('fecha','Fecha','date',draft.fecha)}
         ${inp('diaJuliano','Día juliano','number',draft.diaJuliano)}
         ${inp('semana','Semana','number',draft.semana)}
-        ${sel('turno','Turno',['DÍA','NOCHE'],draft.turno)}
+        ${sel('turno','Turno',['DÍA','INTERMEDIO','NOCHE'],draft.turno)}
       </div>
     </div>
 
@@ -2244,4 +2246,3 @@ function saveDraft(){
   state.currentTab='historial';
   renderMain();
 }
-

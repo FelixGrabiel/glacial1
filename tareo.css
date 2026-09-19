@@ -1,0 +1,850 @@
+
+/* =========================================================
+   GLACIAL - TAREO
+   ESTILOS ESPECÍFICOS
+   ========================================================= */
+
+
+/* =========================================================
+   CABECERA TAREO
+   ========================================================= */
+
+.tareo-head-actions{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+}
+
+
+/* =========================================================
+   TABS
+   ========================================================= */
+
+.tareo-tabs{
+    display:flex;
+    align-items:center;
+    gap:0;
+    margin-bottom:20px;
+    border-bottom:1px solid var(--line-strong);
+    overflow-x:auto;
+}
+
+.tareo-tab{
+    border:none;
+    border-bottom:3px solid transparent;
+    background:transparent;
+    color:var(--steel);
+    padding:10px 17px;
+    font-size:13px;
+    font-weight:600;
+    white-space:nowrap;
+    cursor:pointer;
+    transition:
+        color .15s ease,
+        background .15s ease,
+        border-color .15s ease;
+}
+
+.tareo-tab:hover{
+    color:var(--blue);
+    background:var(--blue-light);
+}
+
+.tareo-tab.active{
+    color:var(--blue-deep);
+    border-bottom-color:var(--amber);
+}
+
+
+/* =========================================================
+   KPI TAREO
+   ========================================================= */
+
+.tareo-kpi-grid{
+    display:grid;
+    grid-template-columns:
+        repeat(4,1fr);
+    gap:12px;
+    margin-bottom:20px;
+}
+
+.tareo-kpi{
+    position:relative;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-top:4px solid var(--blue);
+    border-radius:5px;
+    padding:15px 16px;
+    box-shadow:var(--shadow-sm);
+    overflow:hidden;
+}
+
+.tareo-kpi::after{
+    content:"";
+    position:absolute;
+    width:80px;
+    height:80px;
+    right:-30px;
+    bottom:-35px;
+    border-radius:50%;
+    background:rgba(0,91,150,.035);
+}
+
+.tareo-kpi-label{
+    display:block;
+    color:var(--steel);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.07em;
+    font-weight:600;
+    margin-bottom:7px;
+}
+
+.tareo-kpi strong{
+    display:block;
+    color:var(--blue-deep);
+    font-family:var(--font-display);
+    font-size:27px;
+    font-weight:600;
+    line-height:1;
+}
+
+.tareo-kpi small{
+    display:block;
+    color:var(--muted);
+    font-size:10.5px;
+    margin-top:7px;
+}
+
+.tareo-good{
+    color:var(--good) !important;
+}
+
+.tareo-warn{
+    color:var(--warn) !important;
+}
+
+.tareo-bad{
+    color:var(--bad) !important;
+}
+
+
+/* =========================================================
+   TABLA
+   ========================================================= */
+
+.tareo-table-wrap,
+.tareo-table-scroll{
+    width:100%;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+}
+
+.tareo-table{
+    width:100%;
+    min-width:900px;
+    border-collapse:collapse;
+}
+
+.tareo-table th{
+    position:sticky;
+    top:0;
+    z-index:2;
+    background:#F2F6F8;
+}
+
+.tareo-table td{
+    white-space:nowrap;
+}
+
+.tareo-table tbody tr{
+    transition:
+        background .12s ease;
+}
+
+.tareo-table tbody tr:hover{
+    background:#F8FBFC;
+}
+
+.tareo-table .tareo-row-no-asistencia{
+    background:#FBFCFD;
+}
+
+.tareo-table .tareo-row-no-asistencia:hover{
+    background:#F5F7F8;
+}
+
+
+/* =========================================================
+   TRABAJADOR
+   ========================================================= */
+
+.tareo-worker{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+}
+
+.tareo-worker strong{
+    color:var(--ink);
+    font-size:13px;
+}
+
+.tareo-worker small{
+    color:var(--muted);
+    font-family:var(--font-mono);
+    font-size:9.5px;
+}
+
+
+/* =========================================================
+   NÚMERO DE FILA
+   ========================================================= */
+
+.tareo-row-number{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:25px;
+    height:25px;
+    border-radius:50%;
+    background:var(--blue-light);
+    color:var(--blue-deep);
+    font-family:var(--font-mono);
+    font-size:10px;
+    font-weight:600;
+}
+
+
+/* =========================================================
+   SELECT ASISTENCIA
+   ========================================================= */
+
+.tareo-asistencia-select{
+    min-width:145px;
+    min-height:35px;
+    padding:6px 9px;
+    border:1px solid var(--line-strong);
+    border-radius:4px;
+    background:#fff;
+    color:var(--ink);
+    font-family:var(--font-body);
+    font-size:12px;
+    font-weight:600;
+}
+
+.tareo-asistencia-select:focus{
+    outline:none;
+    border-color:var(--blue);
+    box-shadow:
+        0 0 0 3px rgba(0,91,150,.08);
+}
+
+
+/* =========================================================
+   CAMPOS TABLA
+   ========================================================= */
+
+.tareo-edit-table td input{
+    min-width:100px;
+    min-height:34px;
+}
+
+.tareo-edit-table td input[type="number"]{
+    min-width:85px;
+}
+
+.tareo-edit-table td input:disabled{
+    background:#EEF2F4;
+    color:var(--muted);
+    cursor:not-allowed;
+}
+
+.tareo-hours{
+    color:var(--blue-deep);
+    font-family:var(--font-mono);
+    font-size:12px;
+}
+
+.tareo-hours-extra{
+    color:var(--amber-deep);
+    font-family:var(--font-mono);
+    font-size:12px;
+}
+
+.tareo-late{
+    color:var(--bad);
+    font-weight:600;
+    font-size:11px;
+}
+
+.tareo-on-time{
+    color:var(--good);
+    font-size:11px;
+}
+
+
+/* =========================================================
+   ESTADOS DE ASISTENCIA
+   ========================================================= */
+
+.tareo-status{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:24px;
+    padding:3px 9px;
+    border-radius:20px;
+    font-size:10px;
+    font-weight:600;
+    white-space:nowrap;
+}
+
+.tareo-status.asistio{
+    background:var(--good-bg);
+    color:var(--good);
+}
+
+.tareo-status.neutral{
+    background:#EEF2F4;
+    color:var(--steel);
+}
+
+.tareo-status.warn{
+    background:var(--warn-bg);
+    color:var(--warn);
+}
+
+.tareo-status.falta{
+    background:var(--bad-bg);
+    color:var(--bad);
+}
+
+
+/* =========================================================
+   TURNOS
+   ========================================================= */
+
+.tareo-shift-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:65px;
+    padding:4px 9px;
+    border-radius:20px;
+    font-size:10px;
+    font-weight:600;
+}
+
+.tareo-shift-badge.day{
+    background:var(--blue-light);
+    color:var(--blue-deep);
+}
+
+.tareo-shift-badge.night{
+    background:#EDECF8;
+    color:#4B477D;
+}
+
+
+/* =========================================================
+   NÚMEROS
+   ========================================================= */
+
+.tareo-number-good{
+    color:var(--good);
+    font-weight:700;
+}
+
+.tareo-number-warn{
+    color:var(--warn);
+    font-weight:700;
+}
+
+
+/* =========================================================
+   CONFIGURACIÓN
+   ========================================================= */
+
+.tareo-config-panel{
+    overflow:visible;
+}
+
+.tareo-rotation-active,
+.tareo-rotation-pending{
+    display:inline-flex;
+    align-items:center;
+    min-height:25px;
+    padding:4px 9px;
+    border-radius:20px;
+    font-family:var(--font-mono);
+    font-size:9px;
+    font-weight:600;
+    letter-spacing:.04em;
+}
+
+.tareo-rotation-active{
+    background:var(--good-bg);
+    color:var(--good);
+}
+
+.tareo-rotation-pending{
+    background:var(--warn-bg);
+    color:var(--warn);
+}
+
+.tareo-rotation-note{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:15px;
+    padding:11px 13px;
+    border:1px solid var(--line);
+    border-left:4px solid var(--blue);
+    border-radius:4px;
+    background:#F8FAFB;
+    color:var(--steel);
+    font-size:11.5px;
+}
+
+.tareo-rotation-note strong{
+    color:var(--ink);
+}
+
+
+/* =========================================================
+   CONTADOR
+   ========================================================= */
+
+.tareo-count-badge{
+    display:inline-flex;
+    align-items:center;
+    min-height:25px;
+    padding:4px 10px;
+    border-radius:20px;
+    background:var(--blue-light);
+    color:var(--blue-deep);
+    font-family:var(--font-mono);
+    font-size:9.5px;
+    font-weight:600;
+}
+
+
+/* =========================================================
+   OBSERVACIONES
+   ========================================================= */
+
+.tareo-observaciones{
+    display:block;
+    width:100%;
+    resize:vertical;
+    padding:11px 12px;
+    border:1px solid var(--line-strong);
+    border-radius:var(--radius);
+    background:#fff;
+    color:var(--ink);
+    font-size:13px;
+    line-height:1.5;
+}
+
+.tareo-observaciones:focus{
+    outline:none;
+    border-color:var(--blue);
+    box-shadow:
+        0 0 0 3px rgba(0,91,150,.08);
+}
+
+.tareo-observations-read{
+    margin:0;
+    color:var(--ink-soft);
+    font-size:13px;
+    line-height:1.6;
+    white-space:pre-wrap;
+}
+
+
+/* =========================================================
+   ACCIONES
+   ========================================================= */
+
+.tareo-actions{
+    margin-top:4px;
+}
+
+.tareo-action-buttons{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    flex-wrap:nowrap;
+}
+
+.tareo-action-buttons .btn{
+    flex-shrink:0;
+}
+
+
+/* =========================================================
+   ROTACIÓN - UPLOAD
+   ========================================================= */
+
+.tareo-rotation-upload{
+    overflow:visible;
+}
+
+.tareo-upload-box{
+    min-height:210px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:25px;
+    border:2px dashed var(--line-strong);
+    border-radius:6px;
+    background:
+        linear-gradient(
+            180deg,
+            #FCFDFD,
+            #F7FAFB
+        );
+    text-align:center;
+    transition:
+        border-color .15s ease,
+        background .15s ease;
+}
+
+.tareo-upload-box:hover{
+    border-color:var(--blue);
+    background:var(--blue-light);
+}
+
+.tareo-upload-icon{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:52px;
+    height:52px;
+    margin-bottom:4px;
+    border-radius:50%;
+    background:var(--blue-light);
+    color:var(--blue);
+    font-size:27px;
+    font-weight:600;
+}
+
+.tareo-upload-box strong{
+    color:var(--blue-deep);
+    font-family:var(--font-display);
+    font-size:18px;
+    font-weight:600;
+}
+
+.tareo-upload-box > span{
+    max-width:560px;
+    color:var(--steel);
+    font-size:12px;
+    line-height:1.5;
+}
+
+
+/* =========================================================
+   PREVIEW
+   ========================================================= */
+
+.tareo-rotation-preview{
+    margin-top:18px;
+}
+
+.tareo-preview-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:15px;
+    padding:14px 16px;
+    border:1px solid var(--line);
+    border-left:5px solid var(--blue);
+    border-radius:5px;
+    background:#FBFCFD;
+}
+
+.tareo-preview-head > div{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+}
+
+.tareo-preview-label{
+    color:var(--muted);
+    font-family:var(--font-mono);
+    font-size:9px;
+    letter-spacing:.09em;
+}
+
+.tareo-preview-head strong{
+    color:var(--blue-deep);
+    font-family:var(--font-display);
+    font-size:18px;
+}
+
+.tareo-preview-status{
+    display:inline-flex;
+    align-items:center;
+    min-height:28px;
+    padding:5px 10px;
+    border-radius:20px;
+    font-family:var(--font-mono);
+    font-size:9px;
+    font-weight:600;
+}
+
+.tareo-preview-status.valid{
+    background:var(--good-bg);
+    color:var(--good);
+}
+
+.tareo-preview-status.warning{
+    background:var(--warn-bg);
+    color:var(--warn);
+}
+
+
+/* =========================================================
+   PREVIEW KPIs
+   ========================================================= */
+
+.tareo-preview-kpis{
+    display:grid;
+    grid-template-columns:
+        repeat(6,1fr);
+    gap:9px;
+    margin:12px 0;
+}
+
+.tareo-preview-kpis > div{
+    padding:11px 12px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    background:#fff;
+}
+
+.tareo-preview-kpis span{
+    display:block;
+    color:var(--steel);
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    margin-bottom:5px;
+}
+
+.tareo-preview-kpis strong{
+    color:var(--blue-deep);
+    font-family:var(--font-display);
+    font-size:21px;
+}
+
+.tareo-preview-kpis strong.good{
+    color:var(--good);
+}
+
+.tareo-preview-kpis strong.bad{
+    color:var(--bad);
+}
+
+
+/* =========================================================
+   PREVIEW TABLE
+   ========================================================= */
+
+.tareo-preview-table-wrap{
+    max-height:390px;
+    overflow:auto;
+    border:1px solid var(--line);
+    border-radius:5px;
+    margin-top:12px;
+}
+
+
+/* =========================================================
+   IMPORTACIÓN
+   ========================================================= */
+
+.tareo-import-warning{
+    margin:12px 0;
+    padding:13px 15px;
+    border:1px solid #E9D39D;
+    border-left:4px solid var(--warn);
+    border-radius:4px;
+    background:var(--warn-bg);
+    color:var(--ink-soft);
+    font-size:12px;
+}
+
+.tareo-import-warning strong{
+    display:block;
+    color:var(--warn);
+    margin-bottom:7px;
+}
+
+.tareo-import-warning ul,
+.tareo-import-error ul{
+    margin:6px 0 0 18px;
+    padding:0;
+}
+
+.tareo-import-warning li,
+.tareo-import-error li{
+    margin:3px 0;
+}
+
+.tareo-import-warning small{
+    display:block;
+    margin-top:8px;
+    color:var(--muted);
+}
+
+.tareo-import-error{
+    margin:12px 0;
+    padding:13px 15px;
+    border:1px solid #E8C5BF;
+    border-left:4px solid var(--bad);
+    border-radius:4px;
+    background:var(--bad-bg);
+    color:var(--ink-soft);
+    font-size:12px;
+}
+
+.tareo-import-error strong{
+    display:block;
+    color:var(--bad);
+    margin-bottom:7px;
+}
+
+.tareo-loading{
+    padding:25px;
+    text-align:center;
+    color:var(--steel);
+    font-size:13px;
+}
+
+
+/* =========================================================
+   RESPONSIVE 1100
+   ========================================================= */
+
+@media (max-width:1100px){
+
+    .tareo-kpi-grid{
+        grid-template-columns:
+            repeat(2,1fr);
+    }
+
+    .tareo-preview-kpis{
+        grid-template-columns:
+            repeat(3,1fr);
+    }
+
+}
+
+
+/* =========================================================
+   RESPONSIVE 700
+   ========================================================= */
+
+@media (max-width:700px){
+
+    .tareo-head-actions{
+        width:100%;
+    }
+
+    .tareo-head-actions .btn{
+        width:100%;
+    }
+
+    .tareo-tabs{
+        width:100%;
+    }
+
+    .tareo-tab{
+        padding:9px 12px;
+        font-size:12px;
+    }
+
+    .tareo-kpi-grid{
+        grid-template-columns:
+            repeat(2,1fr);
+        gap:8px;
+    }
+
+    .tareo-kpi{
+        padding:11px;
+    }
+
+    .tareo-kpi strong{
+        font-size:22px;
+    }
+
+    .tareo-rotation-note{
+        align-items:flex-start;
+        flex-direction:column;
+    }
+
+    .tareo-rotation-note .btn{
+        width:100%;
+    }
+
+    .tareo-preview-head{
+        align-items:flex-start;
+        flex-direction:column;
+    }
+
+    .tareo-preview-status{
+        width:100%;
+        justify-content:center;
+    }
+
+    .tareo-preview-kpis{
+        grid-template-columns:
+            repeat(2,1fr);
+    }
+
+    .tareo-action-buttons{
+        flex-wrap:wrap;
+    }
+
+    .tareo-action-buttons .btn{
+        min-height:34px;
+    }
+
+}
+
+
+/* =========================================================
+   CELULARES PEQUEÑOS
+   ========================================================= */
+
+@media (max-width:400px){
+
+    .tareo-kpi-grid{
+        gap:6px;
+    }
+
+    .tareo-kpi{
+        padding:9px;
+    }
+
+    .tareo-kpi strong{
+        font-size:20px;
+    }
+
+    .tareo-preview-kpis{
+        gap:6px;
+    }
+
+    .tareo-preview-kpis > div{
+        padding:9px;
+    }
+
+}
+
