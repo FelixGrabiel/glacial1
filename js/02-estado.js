@@ -78,6 +78,7 @@ const PERMISOS_APP=[
   {key:'trabajadores',label:'Trabajadores'},
   {key:'usuarios',label:'Usuarios'},
   {key:'exportarExcel',label:'Exportar Excel'},
+  {key:'exportarExcelGeneral',label:'Exportar Excel general de planta'},
   {key:'exportarJPG',label:'Exportar JPG'},
   {key:'todasLasLineas',label:'Todas las líneas'},
   {key:'eliminarRegistros',label:'Eliminar registros'},
@@ -342,14 +343,12 @@ function loadRecords(){
 
 
 function saveRecords(r){
-
   _recordsCache = r;
 
-  db.collection('sync').doc('records').set({
+  return db.collection('sync').doc('records').set({
     items: r,
     updatedAt: Date.now()
   });
-
 }
 
 
@@ -425,4 +424,3 @@ function findWorkersForLine(linea){
   );
 
 }
-

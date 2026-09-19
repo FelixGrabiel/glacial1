@@ -506,6 +506,22 @@ function renderResumen(main){
           `).join('')
         }
 
+        ${
+          tienePermiso('exportarExcelGeneral')
+            ? `
+              <button
+                type="button"
+                id="btn-exportar-general"
+                class="btn btn-sm btn-primary"
+                style="margin-left:8px;"
+                onclick="exportarExcelGeneral(this)"
+              >
+                Exportar Excel general
+              </button>
+            `
+            : ''
+        }
+
       </div>
 
     </div>

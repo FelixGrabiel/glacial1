@@ -1246,6 +1246,105 @@ function xlAgregarImagen(wb, ws, dataUrl, col, fila, ancho, alto){
 }
 
 
+/* =========================================================
+   GAUGE (ANILLO) DE OEE — DIBUJADO EN CANVAS
+   =========================================================
+
+   Medio anillo tipo velocímetro: el arco de fondo (gris) va
+   de 180° a 360° y el arco de color avanza según "valor"
+   (0-1). Se marca la meta con una línea radial y el % queda
+   en grande al centro.
+   ========================================================= */
+
+function xlGraficoGaugeOEE(cfg){
+
+  const valor = Math.max(0, Math.min(1, num(cfg.valor)));
+  const meta = num(cfg.meta);
+
+  const ancho = cfg.ancho || 220;
+  const alto = cfg.alto || 190;
+  const grosor = cfg.grosor || 20;
+  const esc = 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = ancho * esc;
+  canvas.height = alto * esc;
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(esc, esc);
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, ancho, alto);
+
+  const padding = 18;
+  const r = ancho / 2 - padding;
+  const cx = ancho / 2;
+  const cy = padding + r;
+
+  const inicio = Math.PI;
+  const fin = 2 * Math.PI;
+
+  /* Fondo del arco */
+  ctx.beginPath();
+  ctx.lineWidth = grosor;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#' + XL.grisClaro;
+  ctx.arc(cx, cy, r, inicio, fin, false);
+  ctx.stroke();
+
+  const colorValor = '#' + xlColorFuerteSegunMeta(valor, meta);
+
+  /* Arco de valor */
+  if(valor > 0.003){
+
+    ctx.beginPath();
+    ctx.lineWidth = grosor;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = colorValor;
+    ctx.arc(cx, cy, r, inicio, inicio + valor * Math.PI, false);
+    ctx.stroke();
+
+  }
+
+  /* Marca de meta */
+  if(meta > 0 && meta < 1){
+
+    const anguloMeta = inicio + meta * Math.PI;
+    const x1 = cx + (r - grosor / 2 - 3) * Math.cos(anguloMeta);
+    const y1 = cy + (r - grosor / 2 - 3) * Math.sin(anguloMeta);
+    const x2 = cx + (r + grosor / 2 + 3) * Math.cos(anguloMeta);
+    const y2 = cy + (r + grosor / 2 + 3) * Math.sin(anguloMeta);
+
+    ctx.beginPath();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#' + XL.negro;
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+  }
+
+  /* Texto central */
+  ctx.textAlign = 'center';
+
+  ctx.fillStyle = colorValor;
+  ctx.font = 'bold 28px Arial';
+  ctx.fillText(Math.round(valor * 100) + '%', cx, cy + 6);
+
+  ctx.fillStyle = '#' + XL.grisTexto;
+  ctx.font = '600 12px Arial';
+  ctx.fillText(cfg.titulo || 'OEE', cx, cy + 27);
+
+  if(meta > 0){
+    ctx.font = '10px Arial';
+    ctx.fillText('Meta ' + Math.round(meta * 100) + '%', cx, cy + 43);
+  }
+
+  return canvas.toDataURL('image/png');
+
+}
+
+
 /* ---------- hoja genérica tipo tabla ---------- */
 
 /*
@@ -1578,7 +1677,7 @@ function xlHojaReporte(wb, ctx){
   xlEncabezados(ws, r, 2, [
     'N°', 'Marca', 'Presentación', 'Lote', 'Vencimiento', 'Horario',
     'Horas turno', 'Horas efect.', 'Prod. programada', 'Prod. efectiva',
-    'Bot. sopladas', 'Bot. conformes', 'Paletas',
+    'Bot. sopladas', 'Bot. rechazadas', 'Paletas',
     'Ratio nominal (B/H)', 'Ratio efectivo (B/H)',
     'Disponib.', 'Rendim.', 'Calidad', 'OEE', 'Cumplim.'
   ]);
@@ -1618,7 +1717,7 @@ function xlHojaReporte(wb, ctx){
       xlFx(`IF(O${f}*I${f}>0,MIN(K${f}/(O${f}*I${f}),1),0)`, dc.rendimiento),
       par('0.0%'));
     xlSet(ws, f, 19,
-      xlFx(`IF(L${f}>0,MIN(M${f}/L${f},1),IF(K${f}>0,1,0))`, dc.calidad),
+      xlFx(`IF(L${f}>0,MAX(L${f}-M${f},0)/L${f},IF(K${f}>0,1,0))`, dc.calidad),
       par('0.0%'));
     xlSet(ws, f, 20,
       xlFx(`Q${f}*R${f}*S${f}`, dc.oee), { numFmt:'0.0%', align:'right', bold:true });
@@ -1679,7 +1778,7 @@ function xlHojaReporte(wb, ctx){
       num(d.rendimiento)),
     { ...totalFmt, numFmt:'0.0%' });
   xlSet(ws, rt, 19,
-    xlFx(`IF(L${rt}>0,MIN(M${rt}/L${rt},1),IF(K${rt}>0,1,0))`,
+    xlFx(`IF(L${rt}>0,MAX(L${rt}-M${rt},0)/L${rt},IF(K${rt}>0,1,0))`,
       num(d.calidad)),
     { ...totalFmt, numFmt:'0.0%' });
   xlSet(ws, rt, 20,
@@ -2582,6 +2681,375 @@ function xlHojaResumenLineas(wb, ctx){
    DESCARGA
    ========================================================= */
 
+/* =========================================================
+   COLOR SEMÁFORO CONTRA UNA META DINÁMICA (versión Excel)
+   ========================================================= */
+
+function xlColorSegunMeta(valor, meta){
+  const v = num(valor);
+  if(v >= meta) return XL.verdeClaro;
+  if(v >= meta * 0.85) return XL.amarilloClaro;
+  return XL.rojoClaro;
+}
+
+/*
+   Misma lógica, pero con los colores "fuertes" de la paleta
+   (no la versión clara de relleno) — para el gauge y para
+   los íconos de estado junto a cada KPI de la portada.
+*/
+function xlColorFuerteSegunMeta(valor, meta){
+  const v = num(valor);
+  if(v >= meta) return XL.verde;
+  if(v >= meta * 0.85) return XL.amarillo;
+  return XL.rojo;
+}
+
+/*
+   Ícono de estado (✓ / ⚠ / ✕) para que la portada siga
+   siendo legible si se imprime o se ve en blanco y negro.
+*/
+function xlIconoSegunMeta(valor, meta){
+  const v = num(valor);
+  if(v >= meta) return '✓';
+  if(v >= meta * 0.85) return '⚠';
+  return '✕';
+}
+
+
+/* =========================================================
+   TURNO ANTERIOR DE LA MISMA LÍNEA
+   =========================================================
+
+   'all' ya viene ordenado de más antiguo a más reciente
+   (obtenerRegistroExportacion). Se busca el registro
+   inmediatamente anterior al que se está exportando.
+   ========================================================= */
+
+function xlTurnoAnterior(rec, all){
+
+  const idx = (all || []).findIndex(r => r.id === rec.id);
+
+  if(idx > 0){
+    return all[idx - 1];
+  }
+
+  return null;
+
+}
+
+
+/* =========================================================
+   CONCLUSIONES AUTOMÁTICAS DEL TURNO
+   ========================================================= */
+
+function generarConclusionesTurno(d, dPrev){
+
+  const txt = [];
+
+  txt.push(
+    d.oee >= METAS.oee
+      ? `El turno cumplió la meta de OEE (${pct(d.oee)} vs. meta ${pct(METAS.oee)}).`
+      : `El turno quedó por debajo de la meta de OEE: ${pct(d.oee)} vs. meta ${pct(METAS.oee)}.`
+  );
+
+  txt.push(
+    d.cumplimiento >= 1
+      ? `Se cumplió o superó lo programado (${pct(d.cumplimiento)} de la producción programada).`
+      : `Se alcanzó ${pct(d.cumplimiento)} de la producción programada.`
+  );
+
+  const mayorPerdida =
+    d.disponibilidad <= d.rendimiento && d.disponibilidad <= d.calidad
+      ? 'disponibilidad (paradas)'
+      : (d.rendimiento <= d.calidad ? 'rendimiento (velocidad)' : 'calidad (rechazos)');
+
+  txt.push(`El componente con mayor oportunidad de mejora en el turno es ${mayorPerdida}.`);
+
+  if(dPrev){
+
+    const deltaOEE = (d.oee - dPrev.oee) * 100;
+    const deltaProd =
+      num(dPrev.efectiva) > 0
+        ? ((num(d.efectiva) - num(dPrev.efectiva)) / num(dPrev.efectiva)) * 100
+        : null;
+
+    txt.push(
+      `OEE ${deltaOEE >= 0 ? '▲' : '▼'} ${xlN1(Math.abs(deltaOEE))} pts vs. el turno anterior de esta línea` +
+      (deltaProd !== null
+        ? `, producción ${deltaProd >= 0 ? '▲' : '▼'} ${xlN1(Math.abs(deltaProd))} %.`
+        : '.')
+    );
+
+  }
+
+  return txt;
+
+}
+
+
+/* =========================================================
+   HOJA — PORTADA EJECUTIVA (PRIMERA HOJA DEL LIBRO)
+   ========================================================= */
+
+function xlHojaPortadaEjecutiva(wb, ctx){
+
+  const { rec, all, d, lineaNombre, usuario, generado } = ctx;
+
+  const cascada = calcCascada(rec);
+
+  const ws = wb.addWorksheet('Portada', { views:[{ showGridLines:false }] });
+
+  ws.columns = [
+    { width:3 }, { width:24 }, { width:18 }, { width:18 }, { width:18 }, { width:3 }
+  ];
+
+  if(typeof GLACIAL_LOGO_BASE64 !== 'undefined'){
+    try{
+      const altoLogo = 42;
+      const anchoLogo = Math.round(altoLogo * GLACIAL_LOGO_RATIO);
+      const idLogo = wb.addImage({ base64:GLACIAL_LOGO_BASE64, extension:'png' });
+      ws.addImage(idLogo, { tl:{ col:3.8, row:0.2 }, ext:{ width:anchoLogo, height:altoLogo } });
+    } catch(e){
+      console.warn('No se pudo insertar el logo:', e);
+    }
+  }
+
+  let fila = 2;
+
+  ws.mergeCells(`B${fila}:E${fila}`);
+  ws.getCell(`B${fila}`).value = 'GLACIAL — Reporte Diario de Producción';
+  ws.getCell(`B${fila}`).font = xlFont({ size:15, bold:true, color:XL.azul });
+  fila += 1;
+
+  ws.mergeCells(`B${fila}:E${fila}`);
+  ws.getCell(`B${fila}`).value =
+    `${lineaNombre} · ${xlFechaTexto(rec.fecha)} · Turno ${rec.turno}`;
+  ws.getCell(`B${fila}`).font = xlFont({ size:11, color:XL.grisTexto });
+  fila += 2;
+
+  const kpis = [
+    ['OEE del turno', pct(d.oee), METAS.oee, d.oee],
+    ['Disponibilidad', pct(d.disponibilidad), METAS.disponibilidad, d.disponibilidad],
+    ['Rendimiento', pct(d.rendimiento), METAS.rendimiento, d.rendimiento],
+    ['Calidad', pct(d.calidad), METAS.calidad, d.calidad],
+    ['Cumplimiento vs. programado', pct(d.cumplimiento), 1, d.cumplimiento],
+    ['Producción efectiva', xlN(d.efectiva) + ' und.', null, null]
+  ];
+
+  const filaKpiInicio = fila;
+
+  kpis.forEach((k, i) => {
+
+    const col = 2 + (i % 2) * 2;
+    const filaK = filaKpiInicio + Math.floor(i / 2) * 3;
+
+    ws.mergeCells(filaK, col, filaK, col + 1);
+    ws.getCell(filaK, col).value = k[0];
+    ws.getCell(filaK, col).font = xlFont({ size:9, color:XL.grisTexto });
+
+    ws.mergeCells(filaK + 1, col, filaK + 1, col + 1);
+    const celda = ws.getCell(filaK + 1, col);
+
+    /*
+       Ícono de estado (✓/⚠/✕) delante del valor, además del
+       color: así el KPI se entiende aunque se imprima o se
+       lea en blanco y negro.
+    */
+    const valorTexto =
+      k[2] !== null
+        ? xlIconoSegunMeta(k[3], k[2]) + '  ' + k[1]
+        : k[1];
+
+    celda.value = valorTexto;
+    celda.font = xlFont({
+      size:15, bold:true,
+      color: k[2] !== null ? xlColorFuerteSegunMeta(k[3], k[2]) : XL.azul
+    });
+
+    if(k[2] !== null){
+      const fill = xlColorSegunMeta(k[3], k[2]);
+      for(let c = col; c <= col + 1; c++){
+        ws.getCell(filaK, c).fill = xlFill(fill);
+        ws.getCell(filaK + 1, c).fill = xlFill(fill);
+      }
+    }
+
+  });
+
+  fila = filaKpiInicio + Math.ceil(kpis.length / 2) * 3 + 1;
+
+  /* =====================================================
+     ANILLO DE OEE + CASCADA DE PÉRDIDAS (MINIATURA)
+     =====================================================
+
+     Mismo truco de "dibujar en canvas e insertar como
+     imagen" que ya se usa en xlGraficoBarras: así la
+     portada muestra de un vistazo el % de OEE y por qué
+     quedó ahí, sin tener que abrir la hoja de detalle.
+  ===================================================== */
+
+  fila += 1;
+
+  ws.mergeCells(`B${fila}:E${fila}`);
+  ws.getCell(`B${fila}`).value = 'OEE del turno';
+  ws.getCell(`B${fila}`).font = xlFont({ size:11, bold:true, color:XL.azul });
+  fila += 1;
+
+  const filaGraficosPortada = fila;
+
+  const dataGauge = xlGraficoGaugeOEE({
+    valor:d.oee,
+    meta:METAS.oee,
+    titulo:'OEE',
+    ancho:210,
+    alto:180
+  });
+
+  xlAgregarImagen(wb, ws, dataGauge, 0.9, filaGraficosPortada - 1 + 0.1, 210, 180);
+
+  const dataCascadaMini = xlGraficoBarras({
+    titulo:'Cascada de pérdidas (botellas)',
+    ancho:330,
+    alto:180,
+    filas:[
+      { etiqueta:'Capacidad teórica', valor:cascada.capacidadTeorica,
+        color:'#' + XL.celeste,
+        texto:xlN(cascada.capacidadTeorica) },
+      { etiqueta:'− Paradas', valor:cascada.perdidaDisponibilidad,
+        color:'#' + XL.rojo,
+        texto:'− ' + xlN(cascada.perdidaDisponibilidad) },
+      { etiqueta:'− Ritmo lento', valor:cascada.perdidaRendimiento,
+        color:'#E69F00',
+        texto:'− ' + xlN(cascada.perdidaRendimiento) },
+      { etiqueta:'− Calidad', valor:cascada.perdidaCalidad,
+        color:'#7F3F98',
+        texto:'− ' + xlN(cascada.perdidaCalidad) },
+      { etiqueta:'Producción buena', valor:cascada.buena,
+        color:'#' + XL.verde,
+        texto:xlN(cascada.buena) }
+    ]
+  });
+
+  xlAgregarImagen(wb, ws, dataCascadaMini, 2.55, filaGraficosPortada - 1 + 0.1, 330, 180);
+
+  /* Alto de fila estándar ≈ 20px: se saltan filas equivalentes
+     a la altura de las imágenes (180px) para no pisar el texto
+     de abajo. */
+  fila = filaGraficosPortada + 10;
+
+  const dPrev = (() => {
+    const prev = xlTurnoAnterior(rec, all);
+    return prev ? calcDerived(prev) : null;
+  })();
+
+  ws.mergeCells(`B${fila}:E${fila}`);
+  ws.getCell(`B${fila}`).value = 'Conclusiones';
+  ws.getCell(`B${fila}`).font = xlFont({ size:12, bold:true, color:XL.azul });
+  fila += 1;
+
+  generarConclusionesTurno(d, dPrev).forEach(txt => {
+    ws.mergeCells(`B${fila}:E${fila}`);
+    ws.getCell(`B${fila}`).value = '• ' + txt;
+    ws.getCell(`B${fila}`).font = xlFont({ size:10 });
+    ws.getCell(`B${fila}`).alignment = { wrapText:true };
+    fila += 1;
+  });
+
+  fila += 1;
+  ws.mergeCells(`B${fila}:E${fila}`);
+  ws.getCell(`B${fila}`).value = generado + ' · ' + usuario;
+  ws.getCell(`B${fila}`).font = xlFont({ size:8, italic:true, color:XL.grisTexto });
+
+  /* =====================================================
+     IMPRESIÓN: A4 vertical, ajustada a una sola página, con
+     pie de página (fecha/usuario + línea + numeración).
+  ===================================================== */
+
+  fila += 2;
+
+  ws.pageSetup = {
+    orientation:'portrait',
+    paperSize:9,
+    fitToPage:true,
+    fitToWidth:1,
+    fitToHeight:1,
+    horizontalCentered:true,
+    printArea:`A1:F${fila}`,
+    margins:{
+      left:0.4, right:0.4, top:0.5, bottom:0.5,
+      header:0.2, footer:0.25
+    }
+  };
+
+  const esc = t => String(t || '').replace(/&/g, '&&');
+
+  ws.headerFooter.oddFooter =
+    `&L&8${esc(generado)} · ${esc(usuario)}` +
+    `&C&8Página &P de &N` +
+    `&R&8GLACIAL · ${esc(lineaNombre)}`;
+
+}
+
+
+/* =========================================================
+   HOJA — DEFINICIONES Y METAS
+   ========================================================= */
+
+function xlHojaDefiniciones(wb, ctx){
+
+  const ws = wb.addWorksheet('Definiciones y metas', { views:[{ showGridLines:false }] });
+
+  ws.columns = [{ width:3 }, { width:30 }, { width:60 }, { width:3 }];
+
+  let fila = 2;
+
+  ws.mergeCells(`B${fila}:C${fila}`);
+  ws.getCell(`B${fila}`).value = 'Cómo se calcula el OEE';
+  ws.getCell(`B${fila}`).font = xlFont({ size:13, bold:true, color:XL.azul });
+  fila += 2;
+
+  const definiciones = [
+    ['OEE', 'Disponibilidad × Rendimiento × Calidad. Mide qué tan bien se aprovechó el tiempo de turno para producir botellas/bidones/cajas conformes.'],
+    ['Disponibilidad', 'Horas efectivas ÷ Horas de turno. Horas efectivas = horas de turno menos las paradas programadas y no programadas.'],
+    ['Rendimiento', 'Producción efectiva ÷ Producción nominal. Producción nominal = ratio nominal (BPH) × horas efectivas.'],
+    ['Calidad', '(Botellas sopladas − Botellas rechazadas) ÷ Botellas sopladas.'],
+    ['Cumplimiento', 'Producción efectiva ÷ Producción programada.'],
+    ['Merma', 'Unidades de merma (botellas, preformas, tapas, etiqueta, polietileno) sobre la producción efectiva del turno.']
+  ];
+
+  definiciones.forEach(([term, def]) => {
+    ws.getCell(fila, 2).value = term;
+    ws.getCell(fila, 2).font = xlFont({ bold:true });
+    ws.getCell(fila, 3).value = def;
+    ws.getCell(fila, 3).font = xlFont({});
+    ws.getCell(fila, 3).alignment = { wrapText:true };
+    fila += 1;
+  });
+
+  fila += 2;
+
+  ws.mergeCells(`B${fila}:C${fila}`);
+  ws.getCell(`B${fila}`).value = 'Metas de planta';
+  ws.getCell(`B${fila}`).font = xlFont({ size:13, bold:true, color:XL.azul });
+  fila += 1;
+
+  [
+    ['OEE', pct(METAS.oee)],
+    ['Disponibilidad', pct(METAS.disponibilidad)],
+    ['Rendimiento', pct(METAS.rendimiento)],
+    ['Calidad', pct(METAS.calidad)],
+    ['Merma (máximo aceptable)', pct(METAS.merma)]
+  ].forEach(([term, val]) => {
+    ws.getCell(fila, 2).value = term;
+    ws.getCell(fila, 2).font = xlFont({});
+    ws.getCell(fila, 3).value = val;
+    ws.getCell(fila, 3).font = xlFont({ bold:true, color:XL.azul });
+    fila += 1;
+  });
+
+}
+
+
 async function exportarExcel(){
 
   const data = obtenerRegistroExportacion();
@@ -2633,6 +3101,7 @@ async function exportarExcel(){
     wb.title = 'Reporte Diario de Producción GLACIAL — ' + lineaNombre;
     wb.company = 'GLACIAL';
 
+    xlHojaPortadaEjecutiva(wb, ctx);
     xlHojaReporte(wb, ctx);
     xlHojaParadas(wb, ctx);
     xlHojaMermas(wb, ctx);
@@ -2640,6 +3109,7 @@ async function exportarExcel(){
     xlHojaPersonal(wb, ctx);
     xlHojaHistorial(wb, ctx);
     xlHojaResumenLineas(wb, ctx);
+    xlHojaDefiniciones(wb, ctx);
 
     const fechaArchivo =
       nombreArchivoSeguro(
@@ -3701,6 +4171,15 @@ function renderGraficosTab(){
 
         options:{
 
+          /*
+             Espacio arriba del gráfico para que la etiqueta de
+             la barra más alta no se corte contra el borde.
+          */
+
+          layout:{
+            padding:{ top:24 }
+          },
+
           plugins:{
 
             legend:{
@@ -3734,6 +4213,13 @@ function renderGraficosTab(){
             y:{
 
               beginAtZero:true,
+
+              /* ~18 % de holgura sobre la barra más alta. */
+
+              suggestedMax:
+                Math.max(prodNominal, prodProgramada, prodEfectiva) > 0
+                  ? Math.max(prodNominal, prodProgramada, prodEfectiva) * 1.18
+                  : undefined,
 
               grid:{ color:'#EFF2F4' },
 

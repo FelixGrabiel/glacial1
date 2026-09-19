@@ -129,6 +129,7 @@ function openUsersModal(){
 
               <input
                 id="nu-nombre"
+                
                 placeholder="Ej. Jesus Garcia">
 
             </div>
