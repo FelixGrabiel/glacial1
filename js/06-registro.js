@@ -1170,7 +1170,7 @@ function blankCuadro(lineKey, numero){
     },
 
     mermas:
-      MERMA_ITEMS.map(
+      obtenerItemsMerma(lineKey).map(
         m => ({
           item:m,
           peso:0,
@@ -4928,7 +4928,7 @@ function obtenerValoresMermaCuadro(
   if(
     linea === 'B7L' &&
     (
-      r.item === 'Botellas' ||
+      r.item === 'Bidones' ||
       r.item === 'Preformas'
     )
   ){
@@ -4954,7 +4954,7 @@ function obtenerValoresMermaCuadro(
 
   if(
     linea === 'B7L' &&
-    r.item === 'Tapas'
+    r.item === 'Tapa'
   ){
 
     return {
@@ -4969,6 +4969,30 @@ function obtenerValoresMermaCuadro(
             1000
           ) /
           4.72
+        )
+
+    };
+
+  }
+
+
+  if(
+    linea === 'B7L' &&
+    r.item === 'Asa'
+  ){
+
+    return {
+
+      peso:
+        pesoIngresado,
+
+      unidades:
+        Math.round(
+          (
+            pesoIngresado *
+            1000
+          ) /
+          6.6
         )
 
     };
@@ -5002,7 +5026,7 @@ function obtenerValoresMermaCuadro(
 
   if(
     linea === 'B7L' &&
-    r.item === 'Polietileno'
+    r.item === 'Polietileno 54cm'
   ){
 
     return {
@@ -5021,6 +5045,7 @@ function obtenerValoresMermaCuadro(
     };
 
   }
+
 
 
   if(
@@ -5296,12 +5321,12 @@ function mermasTableCuadro(
                           type="number"
                           min="0"
                           step="${
-                            r.item === 'Polietileno'
+                            r.item.startsWith('Polietileno')
                               ? '0.01'
                               : '1'
                           }"
                           value="${
-                            r.item === 'Polietileno'
+                            r.item.startsWith('Polietileno')
                               ? Number(
                                   v.unidades
                                 ).toFixed(2)
@@ -5820,7 +5845,7 @@ function obtenerValoresMerma(
   if(
     linea === 'B7L' &&
     (
-      r.item === 'Botellas' ||
+      r.item === 'Bidones' ||
       r.item === 'Preformas'
     )
   ){
@@ -5846,7 +5871,7 @@ function obtenerValoresMerma(
 
   if(
     linea === 'B7L' &&
-    r.item === 'Tapas'
+    r.item === 'Tapa'
   ){
 
     return {
@@ -5861,6 +5886,30 @@ function obtenerValoresMerma(
             1000
           ) /
           4.72
+        )
+
+    };
+
+  }
+
+
+  if(
+    linea === 'B7L' &&
+    r.item === 'Asa'
+  ){
+
+    return {
+
+      peso:
+        pesoIngresado,
+
+      unidades:
+        Math.round(
+          (
+            pesoIngresado *
+            1000
+          ) /
+          6.6
         )
 
     };
@@ -5894,7 +5943,7 @@ function obtenerValoresMerma(
 
   if(
     linea === 'B7L' &&
-    r.item === 'Polietileno'
+    r.item === 'Polietileno 54cm'
   ){
 
     return {
@@ -5913,6 +5962,7 @@ function obtenerValoresMerma(
     };
 
   }
+
 
 
   /* =====================================================
@@ -6231,7 +6281,7 @@ function mermasTable(
                       min="0"
                       step="1"
                       value="${
-                        r.item === 'Polietileno'
+                        r.item.startsWith('Polietileno')
                           ? Number(
                               valores.unidades
                             ).toFixed(2)
