@@ -262,39 +262,536 @@ function generarIdPersonalRotacion(indice) {
 
 
 /* =========================================================
-   ALMACENAMIENTO
+   ALMACENAMIENTO (FIREBASE + RESPALDO LOCAL)
+   =========================================================
+
+   - Firebase es la fuente principal: todos los supervisores
+     ven y editan la misma rotación en tiempo real.
+   - localStorage queda como copia local (si no hay internet
+     se sigue viendo lo último sincronizado).
+   - Cada cambio de un campo se guarda de forma puntual
+     (solo ese campo), así dos supervisores no se pisan.
+
+   Estructura en Firebase (Realtime Database o Firestore):
+
+   tareo_rotaciones / {rotacionId}
+     id, fechaInicio, fechaFin, creadoEn, archivoFilas
+     personal / {personalId}
+       id, nombre, dni, turno, fecha, orden,
+       area, horaIngreso, horaSalida, asistencia, observaciones
    ========================================================= */
 
-function obtenerRotaciones() {
+/* Nombre de la colección / nodo en Firebase */
+const TAREO_FB_COLECCION = "tareo_rotaciones";
 
-  try {
+/*
+ * Si tu proyecto carga Realtime Database Y Firestore y quieres
+ * elegir uno, escribe "rtdb" o "firestore". Vacío = automático.
+ */
+const TAREO_FB_FORZAR = "";
 
-    const datos = localStorage.getItem(TAREO_ROTACION_STORAGE_KEY);
+let _tareoRotacionesCache = null;
+let _tareoFbPrimeraCarga = true;
+let _tareoFbErrorAvisado = false;
 
-    if (!datos) {
-      return [];
-    }
 
-    const rotaciones = JSON.parse(datos);
+/* ---------- Detección de Firebase ---------- */
 
-    return Array.isArray(rotaciones) ? rotaciones : [];
+function tareoFbBackend() {
 
-  } catch (error) {
+  if (typeof firebase === "undefined") {
+    return null;
+  }
 
-    console.error("TAREO: Error leyendo rotaciones:", error);
+  if (!firebase.apps || !firebase.apps.length) {
+    return null;
+  }
 
-    return [];
+  if (TAREO_FB_FORZAR === "rtdb" || TAREO_FB_FORZAR === "firestore") {
+    return TAREO_FB_FORZAR;
+  }
+
+  if (typeof firebase.database === "function") {
+    return "rtdb";
+  }
+
+  if (typeof firebase.firestore === "function") {
+    return "firestore";
+  }
+
+  return null;
+
+}
+
+function tareoFbError(error) {
+
+  console.error("TAREO: Error con Firebase:", error);
+
+  if (!_tareoFbErrorAvisado) {
+
+    _tareoFbErrorAvisado = true;
+
+    alert(
+      "No se pudo sincronizar con Firebase.\n\n" +
+      "Los cambios quedaron solo en este equipo. " +
+      "Revise la conexión o las reglas de la base de datos."
+    );
 
   }
 
 }
 
+
+/* ---------- Conversión personal: arreglo <-> mapa ---------- */
+
+function tareoRotacionAFirebase(rotacion) {
+
+  const personal = {};
+
+  (rotacion.personal || []).forEach((p, indice) => {
+    personal[p.id] = { ...p, orden: indice };
+  });
+
+  return { ...rotacion, personal };
+
+}
+
+function tareoRotacionDesdeFirebase(data, id) {
+
+  const mapa = data.personal || {};
+
+  const personal = Object.keys(mapa)
+    .map(clave => ({
+      ...TAREO_CAMPOS_SUPERVISOR,
+      ...mapa[clave],
+      id: mapa[clave].id || clave
+    }))
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+  return { ...data, id: data.id || id, personal };
+
+}
+
+
+/* ---------- Copia local ---------- */
+
+function obtenerRotaciones() {
+
+  if (Array.isArray(_tareoRotacionesCache)) {
+    return _tareoRotacionesCache;
+  }
+
+  try {
+
+    const datos = localStorage.getItem(TAREO_ROTACION_STORAGE_KEY);
+
+    const rotaciones = datos ? JSON.parse(datos) : [];
+
+    _tareoRotacionesCache = Array.isArray(rotaciones) ? rotaciones : [];
+
+  } catch (error) {
+
+    console.error("TAREO: Error leyendo rotaciones:", error);
+
+    _tareoRotacionesCache = [];
+
+  }
+
+  return _tareoRotacionesCache;
+
+}
+
 function guardarRotaciones(rotaciones) {
 
-  localStorage.setItem(
-    TAREO_ROTACION_STORAGE_KEY,
-    JSON.stringify(rotaciones)
+  _tareoRotacionesCache = rotaciones;
+
+  try {
+
+    localStorage.setItem(
+      TAREO_ROTACION_STORAGE_KEY,
+      JSON.stringify(rotaciones)
+    );
+
+  } catch (error) {
+
+    console.error("TAREO: Error guardando copia local:", error);
+
+  }
+
+}
+
+
+/* ---------- Escrituras en Firebase ---------- */
+
+/*
+ * Ejecuta una operación de Firebase sin dejar que un error
+ * rompa el Tareo: el dato ya quedó guardado en local.
+ */
+function tareoFbSeguro(operacion) {
+
+  const backend = tareoFbBackend();
+
+  if (!backend) {
+    return Promise.resolve(false);
+  }
+
+  try {
+
+    return Promise.resolve(operacion(backend))
+      .then(() => true)
+      .catch(error => {
+        tareoFbError(error);
+        return false;
+      });
+
+  } catch (error) {
+
+    tareoFbError(error);
+
+    return Promise.resolve(false);
+
+  }
+
+}
+
+function tareoFbGuardarRotacion(rotacion) {
+
+  return tareoFbSeguro(backend => {
+
+    const data = tareoRotacionAFirebase(rotacion);
+
+    return backend === "rtdb"
+      ? firebase.database()
+          .ref(`${TAREO_FB_COLECCION}/${rotacion.id}`)
+          .set(data)
+      : firebase.firestore()
+          .collection(TAREO_FB_COLECCION)
+          .doc(rotacion.id)
+          .set(data);
+
+  });
+
+}
+
+function tareoFbActualizarCampo(rotacionId, personalId, campo, valor) {
+
+  return tareoFbSeguro(backend =>
+    backend === "rtdb"
+      ? firebase.database()
+          .ref(
+            `${TAREO_FB_COLECCION}/${rotacionId}/personal/${personalId}/${campo}`
+          )
+          .set(valor)
+      : firebase.firestore()
+          .collection(TAREO_FB_COLECCION)
+          .doc(rotacionId)
+          .update({ [`personal.${personalId}.${campo}`]: valor })
   );
+
+}
+
+function tareoFbAgregarPersona(rotacionId, persona) {
+
+  return tareoFbSeguro(backend =>
+    backend === "rtdb"
+      ? firebase.database()
+          .ref(`${TAREO_FB_COLECCION}/${rotacionId}/personal/${persona.id}`)
+          .set(persona)
+      : firebase.firestore()
+          .collection(TAREO_FB_COLECCION)
+          .doc(rotacionId)
+          .update({ [`personal.${persona.id}`]: persona })
+  );
+
+}
+
+function tareoFbEliminarPersona(rotacionId, personalId) {
+
+  return tareoFbSeguro(backend =>
+    backend === "rtdb"
+      ? firebase.database()
+          .ref(`${TAREO_FB_COLECCION}/${rotacionId}/personal/${personalId}`)
+          .remove()
+      : firebase.firestore()
+          .collection(TAREO_FB_COLECCION)
+          .doc(rotacionId)
+          .update({
+            [`personal.${personalId}`]:
+              firebase.firestore.FieldValue.delete()
+          })
+  );
+
+}
+
+
+/* ---------- Sincronización en tiempo real ---------- */
+
+function tareoFbProcesarSnapshot(lista) {
+
+  /*
+   * Primera carga: si Firebase está vacío pero este equipo
+   * ya tenía rotaciones guardadas, se suben una sola vez.
+   */
+  if (_tareoFbPrimeraCarga) {
+
+    _tareoFbPrimeraCarga = false;
+
+    const locales = obtenerRotaciones();
+
+    if (!lista.length && locales.length) {
+
+      locales.forEach(rotacion => tareoFbGuardarRotacion(rotacion));
+
+      return;
+
+    }
+
+  }
+
+  guardarRotaciones(lista);
+
+  /*
+   * No redibujar mientras el supervisor está escribiendo
+   * dentro de la tabla (se le borraría lo que teclea).
+   */
+  const contenedor = tareoContenedorSemanaActivo();
+
+  const editando =
+    contenedor &&
+    document.activeElement &&
+    contenedor.contains(document.activeElement);
+
+  if (contenedor && !editando) {
+    renderRotacionSemanal(window._tareoRotacionVista);
+  }
+
+}
+
+function tareoIniciarSyncRotacion() {
+
+  const backend = tareoFbBackend();
+
+  if (!backend) {
+
+    console.warn(
+      "TAREO: Firebase no está disponible. " +
+      "La rotación se guardará solo en este equipo."
+    );
+
+    return;
+
+  }
+
+  try {
+
+    if (backend === "rtdb") {
+
+      firebase.database()
+        .ref(TAREO_FB_COLECCION)
+        .on(
+          "value",
+          snapshot => {
+
+            const valor = snapshot.val() || {};
+
+            const lista = Object.keys(valor).map(id =>
+              tareoRotacionDesdeFirebase(valor[id], id)
+            );
+
+            tareoFbProcesarSnapshot(lista);
+
+          },
+          tareoFbError
+        );
+
+    } else {
+
+      firebase.firestore()
+        .collection(TAREO_FB_COLECCION)
+        .onSnapshot(
+          consulta => {
+
+            const lista = consulta.docs.map(doc =>
+              tareoRotacionDesdeFirebase(doc.data(), doc.id)
+            );
+
+            tareoFbProcesarSnapshot(lista);
+
+          },
+          tareoFbError
+        );
+
+    }
+
+  } catch (error) {
+
+    tareoFbError(error);
+
+  }
+
+}
+
+/* Arranca solo al cargar la página */
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", tareoIniciarSyncRotacion);
+} else {
+  tareoIniciarSyncRotacion();
+}
+
+
+/* =========================================================
+   LECTURA DEL LIBRO DE EXCEL
+   =========================================================
+
+   - Si una hoja se llama como "21-09 AL 27-09", esa hoja se usa
+     y de su nombre se toma la semana (inicio y fin).
+   - Si hay varias así, se usa la de fecha más reciente.
+   - Si no, se usa la primera hoja.
+   - La fila de encabezados (Trabajador / Turno) se busca sola,
+     aunque no esté en la fila 1.
+   ========================================================= */
+
+function tareoRangoDesdeNombreHoja(nombre) {
+
+  const m = String(nombre || "").match(
+    /(\d{1,2})[-/.](\d{1,2})\s*(?:al|a|-)\s*(\d{1,2})[-/.](\d{1,2})/i
+  );
+
+  if (!m) {
+    return null;
+  }
+
+  const hoy = new Date();
+
+  let anio = hoy.getFullYear();
+
+  let inicio = new Date(anio, Number(m[2]) - 1, Number(m[1]));
+
+  if (
+    inicio.getMonth() !== Number(m[2]) - 1 ||
+    inicio.getDate() !== Number(m[1])
+  ) {
+    return null;
+  }
+
+  /* Rotación de enero cargada en diciembre, etc. */
+  if (inicio.getTime() < hoy.getTime() - 180 * 86400000) {
+    anio++;
+    inicio = new Date(anio, Number(m[2]) - 1, Number(m[1]));
+  }
+
+  let fin = new Date(anio, Number(m[4]) - 1, Number(m[3]));
+
+  if (fin.getTime() < inicio.getTime()) {
+    fin = new Date(anio + 1, Number(m[4]) - 1, Number(m[3]));
+  }
+
+  return {
+    fechaInicio: tareoFormatearFecha(inicio),
+    fechaFin: tareoFormatearFecha(fin)
+  };
+
+}
+
+function tareoFilasDesdeHoja(hoja) {
+
+  const matriz = XLSX.utils.sheet_to_json(hoja, {
+    header: 1,
+    defval: ""
+  });
+
+  const alternativasNombre = [
+    "apellidos y nombres",
+    "apellidos nombres",
+    "nombre completo",
+    "trabajador",
+    "personal",
+    "empleado",
+    "colaborador",
+    "nombre",
+    "apellidos"
+  ].map(tareoNormalizarTexto);
+
+  let filaCabecera = -1;
+
+  for (let i = 0; i < Math.min(matriz.length, 30); i++) {
+
+    const celdas = (matriz[i] || []).map(tareoNormalizarTexto);
+
+    const tieneTurno = celdas.some(c => c && c.includes("turno"));
+
+    const tieneNombre = celdas.some(c =>
+      c && alternativasNombre.some(a => c.includes(a))
+    );
+
+    if (tieneTurno && tieneNombre) {
+      filaCabecera = i;
+      break;
+    }
+
+  }
+
+  if (filaCabecera < 0) {
+    throw new Error(
+      "No se encontró la fila de encabezados (Trabajador y Turno)."
+    );
+  }
+
+  const cabecera = matriz[filaCabecera].map((celda, indice) =>
+    tareoLimpiarEspacios(celda) || ("__col" + indice)
+  );
+
+  const filas = matriz.slice(filaCabecera + 1).map(fila => {
+
+    const objeto = {};
+
+    cabecera.forEach((columna, indice) => {
+      objeto[columna] = fila[indice] === undefined ? "" : fila[indice];
+    });
+
+    return objeto;
+
+  });
+
+  return {
+    filas,
+    primeraFila: filaCabecera + 2
+  };
+
+}
+
+function tareoLeerRotacionDeLibro(workbook) {
+
+  let elegida = null;
+
+  workbook.SheetNames.forEach(nombreHoja => {
+
+    const rango = tareoRangoDesdeNombreHoja(nombreHoja);
+
+    if (
+      rango &&
+      (!elegida || rango.fechaInicio > elegida.rango.fechaInicio)
+    ) {
+      elegida = { nombreHoja, rango };
+    }
+
+  });
+
+  const nombreHoja = elegida
+    ? elegida.nombreHoja
+    : workbook.SheetNames[0];
+
+  const { filas, primeraFila } = tareoFilasDesdeHoja(
+    workbook.Sheets[nombreHoja]
+  );
+
+  return {
+    filas,
+    primeraFila,
+    nombreHoja,
+    fechaInicio: elegida ? elegida.rango.fechaInicio : "",
+    fechaFin: elegida ? elegida.rango.fechaFin : ""
+  };
 
 }
 
@@ -324,15 +821,13 @@ async function previsualizarRotacionExcel(event) {
       throw new Error("El archivo no contiene hojas.");
     }
 
-    const hoja = workbook.Sheets[workbook.SheetNames[0]];
+    const lectura = tareoLeerRotacionDeLibro(workbook);
 
-    const filas = XLSX.utils.sheet_to_json(hoja, { defval: "" });
-
-    if (!filas.length) {
+    if (!lectura.filas.length) {
       throw new Error("El archivo Excel no contiene registros.");
     }
 
-    const resultado = interpretarRotacionExcel(filas);
+    const resultado = interpretarRotacionExcel(lectura.filas, lectura);
 
     window._tareoRotacionPendiente = resultado;
 
@@ -370,7 +865,25 @@ async function previsualizarRotacionExcel(event) {
    vacíos para que los llene el supervisor.
    ========================================================= */
 
-function interpretarRotacionExcel(filas) {
+/* Quita asteriscos y marcas "NUEVO" del nombre */
+function tareoLimpiarNombreRotacion(valor) {
+
+  let texto = String(valor || "");
+
+  const nuevo = /\bnuevo\b/i.test(texto);
+
+  texto = texto
+    .replace(/\(?\bnuevo\b\)?/gi, " ")
+    .replace(/\*/g, " ");
+
+  return {
+    nombre: tareoLimpiarEspacios(texto),
+    nuevo
+  };
+
+}
+
+function interpretarRotacionExcel(filas, opciones = {}) {
 
   const columnaDNI = encontrarColumna(filas, [
     "dni",
@@ -421,11 +934,10 @@ function interpretarRotacionExcel(filas) {
     "horario"
   ]);
 
-  const columnaFecha = encontrarColumna(filas, [
-    "fecha",
-    "dia",
-    "día"
-  ]);
+  /* Columna de fecha: solo si se llama exactamente Fecha o Día */
+  const columnaFecha = Object.keys(filas[0]).find(columna =>
+    ["fecha", "dia"].includes(tareoNormalizarTexto(columna))
+  ) || null;
 
   if (!columnaNombre && !usarColumnasSeparadas) {
     throw new Error(
@@ -444,7 +956,7 @@ function interpretarRotacionExcel(filas) {
 
   filas.forEach((fila, indice) => {
 
-    const numeroFila = indice + 2;
+    const numeroFila = indice + (opciones.primeraFila || 2);
 
     let nombre;
 
@@ -461,6 +973,10 @@ function interpretarRotacionExcel(filas) {
       nombre = tareoLimpiarEspacios(fila[columnaNombre]);
 
     }
+
+    const limpio = tareoLimpiarNombreRotacion(nombre);
+
+    nombre = limpio.nombre;
 
     const dni = columnaDNI
       ? tareoNormalizarDNI(fila[columnaDNI])
@@ -520,18 +1036,33 @@ function interpretarRotacionExcel(filas) {
       fecha,
 
       /* Los completa el supervisor */
-      ...TAREO_CAMPOS_SUPERVISOR
+      ...TAREO_CAMPOS_SUPERVISOR,
+
+      observaciones: limpio.nuevo ? "Nuevo" : ""
 
     });
 
   });
 
-  if (!fechaDetectada) {
-    fechaDetectada = obtenerInicioSemana(obtenerFechaHoy());
-  }
+  let fechaInicio;
+  let fechaFin;
 
-  const fechaInicio = obtenerInicioSemana(fechaDetectada);
-  const fechaFin = obtenerFinSemana(fechaInicio);
+  if (opciones.fechaInicio && opciones.fechaFin) {
+
+    /* Semana tomada del nombre de la hoja */
+    fechaInicio = opciones.fechaInicio;
+    fechaFin = opciones.fechaFin;
+
+  } else {
+
+    if (!fechaDetectada) {
+      fechaDetectada = obtenerInicioSemana(obtenerFechaHoy());
+    }
+
+    fechaInicio = obtenerInicioSemana(fechaDetectada);
+    fechaFin = obtenerFinSemana(fechaInicio);
+
+  }
 
   /* Duplicados: mismo DNI (o nombre) + mismo turno */
   const claves = new Set();
@@ -564,6 +1095,7 @@ function interpretarRotacionExcel(filas) {
     duplicados,
     fechaInicio,
     fechaFin,
+    nombreHoja: opciones.nombreHoja || "",
     columnaDNI,
     columnaNombre: usarColumnasSeparadas
       ? `${columnaApellidos} + ${columnaNombres}`
@@ -585,7 +1117,7 @@ function interpretarRotacionExcel(filas) {
 
 function renderPreviewRotacion(resultado) {
 
-  const contenedor = document.getElementById("tareoRotacionPreview");
+  const contenedor = tareoContenedorPreview();
 
   if (!contenedor) {
     return;
@@ -621,7 +1153,7 @@ function renderPreviewRotacion(resultado) {
 
   contenedor.innerHTML = `
     <p>
-      Semana ${tareoEscapeHTML(resultado.fechaInicio)}
+      ${resultado.nombreHoja ? "Hoja «" + tareoEscapeHTML(resultado.nombreHoja) + "» — " : ""}Semana ${tareoEscapeHTML(resultado.fechaInicio)}
       al ${tareoEscapeHTML(resultado.fechaFin)} —
       ${resultado.registros.length} trabajador(es)
     </p>
@@ -699,6 +1231,9 @@ function aplicarRotacionPendiente() {
       return;
     }
 
+    /* Se conserva el id para que Firebase reemplace la misma rotación */
+    nuevaRotacion.id = rotaciones[existente].id;
+
     rotaciones[existente] = nuevaRotacion;
 
   } else {
@@ -709,12 +1244,16 @@ function aplicarRotacionPendiente() {
 
   guardarRotaciones(rotaciones);
 
+  tareoFbGuardarRotacion(nuevaRotacion);
+
   window._tareoRotacionPendiente = null;
 
-  const preview = document.getElementById("tareoRotacionPreview");
-  if (preview) {
-    preview.innerHTML = "";
-  }
+  ["tareoRotacionPreview", "tareoPanelPreview"].forEach(id => {
+    const preview = document.getElementById(id);
+    if (preview) {
+      preview.innerHTML = "";
+    }
+  });
 
   alert("Rotación semanal aplicada correctamente.");
 
@@ -751,6 +1290,8 @@ function actualizarCampoRotacion(rotacionId, personalId, campo, valor) {
 
   guardarRotaciones(rotaciones);
 
+  tareoFbActualizarCampo(rotacionId, personalId, campo, valor);
+
 }
 
 /* Permite al supervisor agregar a alguien que no venía en el Excel */
@@ -781,16 +1322,26 @@ function agregarPersonalRotacion(rotacionId) {
     return;
   }
 
-  rotacion.personal.push({
+  const ordenMax = rotacion.personal.reduce(
+    (max, p) => Math.max(max, p.orden || 0),
+    -1
+  );
+
+  const persona = {
     id: generarIdPersonalRotacion(rotacion.personal.length),
     nombre,
     dni: "",
     turno,
     fecha: "",
-    ...TAREO_CAMPOS_SUPERVISOR
-  });
+    ...TAREO_CAMPOS_SUPERVISOR,
+    orden: Math.max(ordenMax, rotacion.personal.length - 1) + 1
+  };
+
+  rotacion.personal.push(persona);
 
   guardarRotaciones(rotaciones);
+
+  tareoFbAgregarPersona(rotacionId, persona);
 
   renderRotacionSemanal(rotacionId);
 
@@ -813,6 +1364,8 @@ function eliminarPersonalRotacion(rotacionId, personalId) {
   rotacion.personal = rotacion.personal.filter(p => p.id !== personalId);
 
   guardarRotaciones(rotaciones);
+
+  tareoFbEliminarPersona(rotacionId, personalId);
 
   renderRotacionSemanal(rotacionId);
 
@@ -839,7 +1392,7 @@ function eliminarPersonalRotacion(rotacionId, personalId) {
 
 function renderRotacionSemanal(rotacionId) {
 
-  const contenedor = document.getElementById("tareoRotacionSemana");
+  const contenedor = tareoContenedorSemanaActivo();
 
   if (!contenedor) {
     return;
@@ -853,15 +1406,17 @@ function renderRotacionSemanal(rotacionId) {
     return;
   }
 
-  /* Rotación indicada, o la de la semana actual, o la más reciente */
-  const inicioActual = obtenerInicioSemana(obtenerFechaHoy());
+  /* Rotación indicada, o la de esta semana, o la más reciente */
+  const hoy = obtenerFechaHoy();
 
   const rotacion =
     rotaciones.find(r => r.id === rotacionId) ||
-    rotaciones.find(r => r.fechaInicio === inicioActual) ||
+    rotaciones.find(r => r.fechaInicio <= hoy && hoy <= r.fechaFin) ||
     [...rotaciones].sort((a, b) =>
       b.fechaInicio.localeCompare(a.fechaInicio)
     )[0];
+
+  window._tareoRotacionVista = rotacion.id;
 
   const idRot = tareoEscapeHTML(rotacion.id);
 
@@ -958,4 +1513,163 @@ function renderRotacionSemanal(rotacionId) {
     </button>
   `;
 
+}
+
+
+
+/* =========================================================
+   PANEL PROPIO DE ROTACIÓN (FUNCIONA SIN TOCAR TU HTML)
+   =========================================================
+
+   Si tu página no tiene los contenedores
+   #tareoRotacionPreview y #tareoRotacionSemana, la rotación
+   se muestra en un panel emergente propio.
+
+   - Botón flotante "Rotación semanal" (abajo a la derecha).
+     Para ocultarlo: TAREO_BOTON_FLOTANTE = false.
+   - Puedes abrirlo desde cualquier botón tuyo con:
+     abrirRotacionSemanal()
+   ========================================================= */
+
+const TAREO_BOTON_FLOTANTE = true;
+
+function tareoPanelAbierto() {
+
+  const panel = document.getElementById("tareoPanelRotacion");
+
+  return !!panel && panel.style.display !== "none";
+
+}
+
+function tareoContenedorSemanaActivo() {
+
+  if (tareoPanelAbierto()) {
+    return document.getElementById("tareoPanelSemana");
+  }
+
+  return document.getElementById("tareoRotacionSemana");
+
+}
+
+function tareoContenedorPreview() {
+
+  if (tareoPanelAbierto()) {
+    return document.getElementById("tareoPanelPreview");
+  }
+
+  const host = document.getElementById("tareoRotacionPreview");
+
+  if (host) {
+    return host;
+  }
+
+  /* No existe contenedor en la página: usar el panel propio */
+  abrirRotacionSemanal();
+
+  return document.getElementById("tareoPanelPreview");
+
+}
+
+function tareoCrearPanelRotacion() {
+
+  let panel = document.getElementById("tareoPanelRotacion");
+
+  if (panel) {
+    return panel;
+  }
+
+  panel = document.createElement("div");
+
+  panel.id = "tareoPanelRotacion";
+
+  panel.style.cssText =
+    "display:none;position:fixed;top:0;left:0;right:0;bottom:0;" +
+    "z-index:99999;background:rgba(0,0,0,.55);overflow:auto;padding:12px;";
+
+  panel.innerHTML = `
+    <style>
+      #tareoPanelRotacion table { border-collapse:collapse; width:100%; }
+      #tareoPanelRotacion th,
+      #tareoPanelRotacion td {
+        border:1px solid #ccc; padding:4px 6px; font-size:13px;
+        text-align:left; vertical-align:middle;
+      }
+      #tareoPanelRotacion th { background:#f0f4f8; }
+      #tareoPanelRotacion input[type="text"] { width:100%; min-width:110px; }
+      #tareoPanelRotacion button { cursor:pointer; padding:6px 10px; margin:4px 0; }
+    </style>
+    <div style="background:#fff;color:#111;max-width:1150px;margin:0 auto;
+                border-radius:10px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;
+                  align-items:center;gap:8px;flex-wrap:wrap;">
+        <h2 style="margin:0;font-size:18px;">Tareo — Rotación semanal</h2>
+        <button type="button" onclick="cerrarRotacionSemanal()">Cerrar ✕</button>
+      </div>
+      <p>
+        Subir Excel de rotación:
+        <input type="file" accept=".xlsx,.xls"
+               onchange="previsualizarRotacionExcel(event)">
+      </p>
+      <div id="tareoPanelPreview"></div>
+      <hr>
+      <div id="tareoPanelSemana"></div>
+    </div>
+  `;
+
+  document.body.appendChild(panel);
+
+  return panel;
+
+}
+
+function abrirRotacionSemanal() {
+
+  const panel = tareoCrearPanelRotacion();
+
+  panel.style.display = "block";
+
+  renderRotacionSemanal(window._tareoRotacionVista);
+
+}
+
+function cerrarRotacionSemanal() {
+
+  const panel = document.getElementById("tareoPanelRotacion");
+
+  if (panel) {
+    panel.style.display = "none";
+  }
+
+}
+
+function tareoCrearBotonFlotante() {
+
+  if (
+    !TAREO_BOTON_FLOTANTE ||
+    document.getElementById("tareoBotonRotacion")
+  ) {
+    return;
+  }
+
+  const boton = document.createElement("button");
+
+  boton.id = "tareoBotonRotacion";
+  boton.type = "button";
+  boton.textContent = "📋 Rotación semanal";
+  boton.onclick = abrirRotacionSemanal;
+
+  boton.style.cssText =
+    "position:fixed;right:16px;bottom:16px;z-index:99998;" +
+    "padding:10px 14px;border:none;border-radius:24px;" +
+    "background:#0b5ed7;color:#fff;font-size:14px;" +
+    "box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;";
+
+  document.body.appendChild(boton);
+
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", tareoCrearBotonFlotante);
+} else {
+  tareoCrearBotonFlotante();
 }
