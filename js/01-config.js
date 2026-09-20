@@ -435,6 +435,86 @@ function obtenerItemsMerma(linea){
 }
 
 
+/*
+   DIVISORES DE CONVERSIÓN DE MERMA (peso en kg -> unidades)
+   =========================================================
+
+   ÚNICO lugar donde se define, por línea y componente, el
+   número usado para convertir el peso ingresado (en kg) a
+   unidades de merma. Si cambia el peso unitario de algún
+   componente (por ejemplo, si la Tapa de B7L ya no pesa
+   4.72 g), este es el único valor que hay que actualizar
+   — 06-registro.js ya no repite estos números en ningún
+   otro lado, los toma de aquí.
+
+   Formas de definir cada componente:
+
+   - Un número → fórmula estándar:
+       unidades = round((peso × 1000) / número)
+
+   - La palabra 'gramajePreforma' → el divisor no es fijo,
+     es el gramaje de la preforma que se ingresa a mano en
+     el cuadro de producción (Botellas/Preformas de PET).
+
+   - Un objeto { divisor, sinMultiplicarPor1000, decimales }
+     → para componentes cuyo peso ya viene expresado en la
+     unidad que se necesita (ej. Polietileno, que se pesa en
+     rollos de ~28 kg y no hay que multiplicar por 1000).
+*/
+
+const MERMA_DIVISORES_POR_LINEA = {
+
+  PET1: {
+
+    'Botellas':
+      'gramajePreforma',
+
+    'Preformas':
+      'gramajePreforma',
+
+    'Tapa Plana':
+      1.34,
+
+    'Tapa Sport Cap':
+      1.34,
+
+    'Etiqueta':
+      { divisor: 0.00064, sinMultiplicarPor1000: true },
+
+    'Polietileno':
+      { divisor: 28, sinMultiplicarPor1000: true, decimales: 2 }
+
+  },
+
+  B7L: {
+
+    'Bidones':
+      90,
+
+    'Preformas':
+      90,
+
+    'Tapa':
+      4.72,
+
+    'Asa':
+      6.6,
+
+    'Etiqueta':
+      2.9,
+
+    'Polietileno 54cm':
+      { divisor: 28, sinMultiplicarPor1000: true, decimales: 2 }
+
+  }
+
+};
+
+/* PET2 usa exactamente las mismas fórmulas que PET1. */
+MERMA_DIVISORES_POR_LINEA.PET2 =
+  MERMA_DIVISORES_POR_LINEA.PET1;
+
+
 /* =========================================================
    PARADAS PROGRAMADAS (LISTA MAESTRA)
    ========================================================= */
