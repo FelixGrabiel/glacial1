@@ -4789,38 +4789,85 @@ function removeArrItemCuadro(
    CUADROS DE PRODUCCIÓN — MERMAS
    ========================================================= */
 
-function obtenerValoresMermaCuadro(
+/*
+   =========================================================
+   CÁLCULO CENTRAL DE MERMAS (peso en kg -> unidades)
+   =========================================================
+
+   Única función que sabe CÓMO convertir el peso ingresado
+   (en kg) a unidades de merma, para cualquier línea y
+   componente. Los números de conversión (divisores) NO
+   están aquí — viven en MERMA_DIVISORES_POR_LINEA
+   (01-config.js), que es el único lugar que hay que tocar
+   si cambia el peso unitario de un componente.
+
+   obtenerValoresMermaCuadro() y obtenerValoresMerma() son
+   apenas dos envoltorios que solo resuelven de dónde sale
+   el gramaje de preforma (del cuadro, o del draft) y le
+   pasan todo a esta función.
+*/
+
+function calcularValoresMerma(
   r,
   linea,
-  cuadro
+  gramajePreforma
 ){
 
   const pesoIngresado =
     num(r.peso);
-
 
   const unidadesIngresadas =
     Math.round(
       num(r.unidades)
     );
 
+  const config =
+    (MERMA_DIVISORES_POR_LINEA[linea] || {})[r.item];
 
-  if(
-    (
-      linea === 'PET1' ||
-      linea === 'PET2'
-    ) &&
-    (
-      r.item === 'Botellas' ||
-      r.item === 'Preformas'
-    )
-  ){
+
+  /* =====================================================
+     SIN CONFIGURACIÓN PARA ESTE ÍTEM/LÍNEA
+     ===================================================== */
+
+  if(config === undefined){
+
+    if(linea === 'C20L'){
+
+      return {
+
+        peso:
+          unidadesIngresadas *
+          0.0906,
+
+        unidades:
+          unidadesIngresadas
+
+      };
+
+    }
+
+    return {
+
+      peso:
+        pesoIngresado,
+
+      unidades:
+        unidadesIngresadas
+
+    };
+
+  }
+
+
+  /* =====================================================
+     DIVISOR VARIABLE: GRAMAJE DE LA PREFORMA
+     (Botellas/Preformas de PET1/PET2)
+     ===================================================== */
+
+  if(config === 'gramajePreforma'){
 
     const gramaje =
-      num(
-        cuadro?.gramajePreforma
-      );
-
+      num(gramajePreforma);
 
     return {
 
@@ -4845,16 +4892,12 @@ function obtenerValoresMermaCuadro(
   }
 
 
-  if(
-    (
-      linea === 'PET1' ||
-      linea === 'PET2'
-    ) &&
-    (
-      r.item === 'Tapa Plana' ||
-      r.item === 'Tapa Sport Cap'
-    )
-  ){
+  /* =====================================================
+     DIVISOR FIJO — FÓRMULA ESTÁNDAR
+     unidades = round((peso × 1000) / divisor)
+     ===================================================== */
+
+  if(typeof config === 'number'){
 
     return {
 
@@ -4867,7 +4910,7 @@ function obtenerValoresMermaCuadro(
             pesoIngresado *
             1000
           ) /
-          1.34
+          config
         )
 
     };
@@ -4875,196 +4918,22 @@ function obtenerValoresMermaCuadro(
   }
 
 
-  if(
-    (
-      linea === 'PET1' ||
-      linea === 'PET2'
-    ) &&
-    r.item === 'Etiqueta'
-  ){
+  /* =====================================================
+     DIVISOR FIJO — CASO ESPECIAL
+     (peso ya viene en la unidad que se necesita,
+     ej. Polietileno; y/o unidades con decimales)
+     ===================================================== */
 
-    return {
+  const base =
+    config.sinMultiplicarPor1000
 
-      peso:
-        pesoIngresado,
+      ? pesoIngresado
 
-      unidades:
-        Math.round(
-          pesoIngresado /
-          0.00064
-        )
+      : pesoIngresado * 1000;
 
-    };
-
-  }
-
-
-  if(
-    (
-      linea === 'PET1' ||
-      linea === 'PET2'
-    ) &&
-    r.item === 'Polietileno'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Number(
-          (
-            pesoIngresado /
-            28
-          ).toFixed(2)
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    (
-      r.item === 'Bidones' ||
-      r.item === 'Preformas'
-    )
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          90
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    r.item === 'Tapa'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          4.72
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    r.item === 'Asa'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          6.6
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    r.item === 'Etiqueta'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          2.9
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    r.item === 'Polietileno 54cm'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Number(
-          (
-            pesoIngresado /
-            28
-          ).toFixed(2)
-        )
-
-    };
-
-  }
-
-
-
-  if(
-    linea === 'C20L'
-  ){
-
-    return {
-
-      peso:
-        unidadesIngresadas *
-        0.0906,
-
-      unidades:
-        unidadesIngresadas
-
-    };
-
-  }
-
+  const valor =
+    base /
+    config.divisor;
 
   return {
 
@@ -5072,9 +4941,32 @@ function obtenerValoresMermaCuadro(
       pesoIngresado,
 
     unidades:
-      unidadesIngresadas
+      config.decimales !== undefined
+
+        ? Number(
+            valor.toFixed(
+              config.decimales
+            )
+          )
+
+        : Math.round(valor)
 
   };
+
+}
+
+
+function obtenerValoresMermaCuadro(
+  r,
+  linea,
+  cuadro
+){
+
+  return calcularValoresMerma(
+    r,
+    linea,
+    cuadro?.gramajePreforma
+  );
 
 }
 
@@ -5704,330 +5596,11 @@ function obtenerValoresMerma(
   linea
 ){
 
-  const pesoIngresado =
-    num(r.peso);
-
-
-  const unidadesIngresadas =
-    Math.round(
-      num(r.unidades)
-    );
-
-
-  /* =====================================================
-     PET1 / PET2
-     ===================================================== */
-
-  if(
-    (
-      linea === 'PET1' ||
-      linea === 'PET2'
-    ) &&
-    (
-      r.item === 'Botellas' ||
-      r.item === 'Preformas'
-    )
-  ){
-
-    const gramaje =
-      num(
-        draft.gramajePreforma
-      );
-
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        gramaje > 0
-
-          ? Math.round(
-              (
-                pesoIngresado *
-                1000
-              ) /
-              gramaje
-            )
-
-          : 0
-
-    };
-
-  }
-
-
-  if(
-    (
-      linea === 'PET1' ||
-      linea === 'PET2'
-    ) &&
-    (
-      r.item === 'Tapa Plana' ||
-      r.item === 'Tapa Sport Cap'
-    )
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          1.34
-        )
-
-    };
-
-  }
-
-
-  if(
-    (
-      linea === 'PET1' ||
-      linea === 'PET2'
-    ) &&
-    r.item === 'Etiqueta'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          pesoIngresado /
-          0.00064
-        )
-
-    };
-
-  }
-
-
-  if(
-    (
-      linea === 'PET1' ||
-      linea === 'PET2'
-    ) &&
-    r.item === 'Polietileno'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Number(
-          (
-            pesoIngresado /
-            28
-          ).toFixed(2)
-        )
-
-    };
-
-  }
-
-
-  /* =====================================================
-     B7L
-     ===================================================== */
-
-  if(
-    linea === 'B7L' &&
-    (
-      r.item === 'Bidones' ||
-      r.item === 'Preformas'
-    )
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          90
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    r.item === 'Tapa'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          4.72
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    r.item === 'Asa'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          6.6
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    r.item === 'Etiqueta'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          2.9
-        )
-
-    };
-
-  }
-
-
-  if(
-    linea === 'B7L' &&
-    r.item === 'Polietileno 54cm'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Number(
-          (
-            pesoIngresado /
-            28
-          ).toFixed(2)
-        )
-
-    };
-
-  }
-
-
-
-  /* =====================================================
-     BL7
-     ===================================================== */
-
-  if(
-    linea === 'BL7' &&
-    r.item === 'Tapas'
-  ){
-
-    return {
-
-      peso:
-        pesoIngresado,
-
-      unidades:
-        Math.round(
-          (
-            pesoIngresado *
-            1000
-          ) /
-          4.72
-        )
-
-    };
-
-  }
-
-
-  /* =====================================================
-     C20L
-     ===================================================== */
-
-  if(
-    linea === 'C20L'
-  ){
-
-    return {
-
-      peso:
-        unidadesIngresadas *
-        0.0906,
-
-      unidades:
-        unidadesIngresadas
-
-    };
-
-  }
-
-
-  /* =====================================================
-     CASO GENERAL
-     ===================================================== */
-
-  return {
-
-    peso:
-      pesoIngresado,
-
-    unidades:
-      unidadesIngresadas
-
-  };
+  return calcularValoresMerma(
+    r,
+    linea,
+    draft?.gramajePreforma
+  );
 
 }
 
