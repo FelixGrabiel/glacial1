@@ -136,7 +136,8 @@ const MARCAS_POR_LINEA = {
     'San Jorgue',
     'Yaqua Farmacias',
     'Cuisine',
-    'Merkat'
+    'Merkat',
+    'Fontlife'
   ],
 
   B7L: [
