@@ -1,4 +1,3 @@
-
 /* =========================================================
    GLACIAL - TAREO DE PERSONAL
    =========================================================
@@ -221,40 +220,98 @@ function guardarTareoEnMemoria(tareo) {
    ROTACIÓN SEMANAL
    ========================================================= */
 
+/*
+   La rotación semanal se guarda en Firestore (igual que
+   usuarios/reportes/trabajadores), a través de
+   loadRotaciones()/saveRotaciones() definidas en
+   02-estado.js. Así queda disponible en tiempo real en
+   cualquier computadora, y no solo en la que la cargó.
+
+   TAREO_ROTACION_STORAGE_KEY se mantiene solo para migrar,
+   una única vez, una rotación que haya quedado guardada
+   localmente en este navegador antes de este cambio.
+*/
+
 function obtenerRotaciones() {
 
-    try {
+    if (typeof loadRotaciones !== 'function') {
 
-        const datos = localStorage.getItem(
-            TAREO_ROTACION_STORAGE_KEY
+        console.error(
+            'TAREO: No se encontró loadRotaciones().'
         );
 
-        if (!datos) return [];
+        return [];
+    }
 
-        const rotaciones = JSON.parse(datos);
+    let rotaciones = [];
 
-        return Array.isArray(rotaciones)
-            ? rotaciones
-            : [];
-
+    try {
+        rotaciones = loadRotaciones();
     } catch (error) {
 
         console.error(
-            'TAREO: Error leyendo rotaciones:',
+            'TAREO: Error al cargar rotaciones:',
             error
         );
 
         return [];
     }
+
+    if (Array.isArray(rotaciones) && rotaciones.length) {
+        return rotaciones;
+    }
+
+    /* Migración única de una rotación guardada localmente. */
+
+    try {
+
+        const datosLocales = localStorage.getItem(
+            TAREO_ROTACION_STORAGE_KEY
+        );
+
+        if (datosLocales) {
+
+            const rotacionesLocales = JSON.parse(datosLocales);
+
+            if (
+                Array.isArray(rotacionesLocales) &&
+                rotacionesLocales.length
+            ) {
+
+                guardarRotaciones(rotacionesLocales);
+
+                localStorage.removeItem(
+                    TAREO_ROTACION_STORAGE_KEY
+                );
+
+                return rotacionesLocales;
+            }
+        }
+
+    } catch (error) {
+
+        console.error(
+            'TAREO: Error migrando rotaciones locales:',
+            error
+        );
+    }
+
+    return Array.isArray(rotaciones) ? rotaciones : [];
 }
 
 
 function guardarRotaciones(rotaciones) {
 
-    localStorage.setItem(
-        TAREO_ROTACION_STORAGE_KEY,
-        JSON.stringify(rotaciones)
-    );
+    if (typeof saveRotaciones !== 'function') {
+
+        console.error(
+            'TAREO: No se encontró saveRotaciones().'
+        );
+
+        return;
+    }
+
+    saveRotaciones(rotaciones);
 }
 
 
@@ -443,7 +500,22 @@ function obtenerPersonalPorRotacion(
             ? rotacion.personal
             : [];
 
-    const idsPermitidos = new Set();
+    /*
+       El personal del tareo se arma directamente con los
+       datos guardados en la rotación (nombre, DNI, cargo,
+       línea), sin depender de que exista un trabajador con
+       ese mismo DNI en la base de Trabajadores.
+
+       Si sí existe una coincidencia en la base de
+       Trabajadores, se usa para completar/actualizar cargo
+       y línea con el dato más reciente; si no existe, se
+       usa tal cual vino en la rotación (y por lo tanto en
+       el Excel original).
+    */
+
+    const vistos = new Set();
+
+    const personalDeRotacion = [];
 
     registros.forEach(registro => {
 
@@ -455,49 +527,85 @@ function obtenerPersonalPorRotacion(
             return;
         }
 
+        let trabajador = null;
+
         if (registro.trabajadorId) {
 
-            idsPermitidos.add(
-                String(registro.trabajadorId)
-            );
+            trabajador =
+                personalBase.find(
+                    persona =>
+                        String(persona.id) ===
+                        String(registro.trabajadorId)
+                );
+        }
 
+        if (
+            !trabajador &&
+            registro.dni
+        ) {
+
+            const dni =
+                tareoNormalizarDNI(
+                    registro.dni
+                );
+
+            if (dni) {
+
+                trabajador =
+                    personalBase.find(
+                        persona =>
+                            tareoNormalizarDNI(
+                                persona.dni
+                            ) === dni
+                    );
+            }
+        }
+
+        const id =
+            registro.trabajadorId ||
+            (trabajador ? trabajador.id : null) ||
+            registro.dni ||
+            registro.nombre;
+
+        const clave = String(id);
+
+        if (vistos.has(clave)) {
             return;
         }
 
-        const dni = tareoNormalizarDNI(
-            registro.dni
-        );
+        vistos.add(clave);
 
-        if (!dni) return;
+        personalDeRotacion.push({
 
-        const trabajador =
-            personalBase.find(
-                persona =>
-                    tareoNormalizarDNI(
-                        persona.dni
-                    ) === dni
-            );
+            id,
 
-        if (trabajador) {
+            nombre:
+                (trabajador && trabajador.nombre) ||
+                registro.nombre ||
+                '',
 
-            idsPermitidos.add(
-                String(trabajador.id)
-            );
-        }
+            dni:
+                (trabajador && trabajador.dni) ||
+                registro.dni ||
+                '',
+
+            cargo:
+                (trabajador && trabajador.cargo) ||
+                registro.cargo ||
+                '',
+
+            linea:
+                (trabajador && trabajador.linea) ||
+                registro.linea ||
+                ''
+
+        });
     });
-
-    const personalFiltrado =
-        personalBase.filter(
-            trabajador =>
-                idsPermitidos.has(
-                    String(trabajador.id)
-                )
-        );
 
     return {
         tieneRotacion: true,
         rotacion,
-        personal: personalFiltrado
+        personal: personalDeRotacion
     };
 }
 
@@ -3417,6 +3525,28 @@ function interpretarRotacionExcel(
             ]
         );
 
+    const columnaCargo =
+        encontrarColumna(
+            filas,
+            [
+                'cargo',
+                'puesto',
+                'posicion',
+                'posición'
+            ]
+        );
+
+    const columnaLinea =
+        encontrarColumna(
+            filas,
+            [
+                'linea',
+                'línea',
+                'area',
+                'área'
+            ]
+        );
+
     if (
         !columnaDNI &&
         !columnaNombre
@@ -3433,6 +3563,17 @@ function interpretarRotacionExcel(
             'No se encontró la columna de Turno.'
         );
     }
+
+    /*
+       La base de trabajadores (11-trabajadores.js) ya NO es
+       requisito para poder subir la rotación: cada fila del
+       Excel se importa con sus propios datos (nombre, DNI,
+       cargo, línea). Si el DNI o el nombre coinciden con un
+       trabajador registrado, se usa para completar datos que
+       falten en el Excel (cargo/línea) y para mantener el
+       mismo identificador entre semanas — pero la ausencia
+       de coincidencia ya no descarta la fila.
+    */
 
     const personalBase =
         obtenerPersonalTareo();
@@ -3475,7 +3616,7 @@ function interpretarRotacionExcel(
     let fechaDetectada = '';
 
     const registros = [];
-    const noEncontrados = [];
+    const sinCoincidencia = [];
     const invalidos = [];
 
     filas.forEach(
@@ -3518,6 +3659,27 @@ function interpretarRotacionExcel(
                 return;
             }
 
+            if (
+                !dni &&
+                !nombre
+            ) {
+
+                invalidos.push({
+
+                    fila:
+                        indice + 2,
+
+                    nombre,
+                    dni,
+
+                    motivo:
+                        'Falta el nombre y el DNI del trabajador'
+
+                });
+
+                return;
+            }
+
             let trabajador = null;
 
             if (dni) {
@@ -3543,7 +3705,7 @@ function interpretarRotacionExcel(
 
             if (!trabajador) {
 
-                noEncontrados.push({
+                sinCoincidencia.push({
 
                     fila:
                         indice + 2,
@@ -3555,9 +3717,21 @@ function interpretarRotacionExcel(
                     turno
 
                 });
-
-                return;
             }
+
+            const cargoExcel =
+                columnaCargo
+                    ? String(
+                        fila[columnaCargo] || ''
+                      ).trim()
+                    : '';
+
+            const lineaExcel =
+                columnaLinea
+                    ? String(
+                        fila[columnaLinea] || ''
+                      ).trim()
+                    : '';
 
             let fecha =
                 columnaFecha
@@ -3574,19 +3748,27 @@ function interpretarRotacionExcel(
             registros.push({
 
                 trabajadorId:
-                    trabajador.id,
+                    trabajador
+                        ? trabajador.id
+                        : ('EXCEL-' + (dni || tareoNormalizarTexto(nombre))),
 
                 nombre:
-                    trabajador.nombre,
+                    nombre ||
+                    (trabajador ? trabajador.nombre : ''),
 
                 dni:
-                    trabajador.dni,
+                    dni ||
+                    (trabajador ? trabajador.dni : ''),
 
                 cargo:
-                    trabajador.cargo,
+                    cargoExcel ||
+                    (trabajador ? trabajador.cargo : '') ||
+                    '',
 
                 linea:
-                    trabajador.linea || '',
+                    lineaExcel ||
+                    (trabajador ? trabajador.linea : '') ||
+                    '',
 
                 turno,
 
@@ -3667,7 +3849,7 @@ function interpretarRotacionExcel(
         registros:
             registrosUnicos,
 
-        noEncontrados,
+        sinCoincidencia,
 
         invalidos,
 
@@ -3872,14 +4054,14 @@ function renderPreviewRotacion(
 
             <div>
                 <span>
-                    No encontrados
+                    Sin coincidencia en Trabajadores
                 </span>
                 <strong class="${
-                    resultado.noEncontrados.length
+                    resultado.sinCoincidencia.length
                         ? 'bad'
                         : 'good'
                 }">
-                    ${resultado.noEncontrados.length}
+                    ${resultado.sinCoincidencia.length}
                 </strong>
             </div>
 
@@ -3900,18 +4082,25 @@ function renderPreviewRotacion(
 
 
         ${
-            resultado.noEncontrados.length
+            resultado.sinCoincidencia.length
                 ? `
 
                 <div class="tareo-import-warning">
 
                     <strong>
-                        Trabajadores no encontrados
+                        Sin coincidencia en la base de Trabajadores
                     </strong>
+
+                    <p style="margin:4px 0 8px;font-size:13px;color:var(--text-soft);">
+                        Estos registros no están en la base de
+                        Trabajadores (11-trabajadores.js), pero
+                        de todas formas se importarán con los
+                        datos tal como vienen del Excel.
+                    </p>
 
                     <ul>
 
-                        ${resultado.noEncontrados
+                        ${resultado.sinCoincidencia
                             .slice(0, 20)
                             .map(
                                 item => `
@@ -3936,7 +4125,7 @@ function renderPreviewRotacion(
                     </ul>
 
                     ${
-                        resultado.noEncontrados.length > 20
+                        resultado.sinCoincidencia.length > 20
                             ? `
                             <small>
                                 Se muestran los primeros
