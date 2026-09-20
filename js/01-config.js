@@ -405,6 +405,36 @@ const MERMA_ITEMS = [
 ];
 
 
+/*
+   COMPONENTES DE MERMA POR LÍNEA
+
+   B7L tiene sus propios componentes (distintos a los de
+   PET1/PET2): Bidones, Preformas, Tapa, Asa, Etiqueta y
+   Polietileno 54cm. Las líneas que no aparecen aquí siguen
+   usando la lista genérica (MERMA_ITEMS) de arriba.
+*/
+
+const MERMA_ITEMS_POR_LINEA = {
+
+  B7L: [
+    'Bidones',
+    'Preformas',
+    'Tapa',
+    'Asa',
+    'Etiqueta',
+    'Polietileno 54cm'
+  ]
+
+};
+
+
+function obtenerItemsMerma(linea){
+
+  return MERMA_ITEMS_POR_LINEA[linea] || MERMA_ITEMS;
+
+}
+
+
 /* =========================================================
    PARADAS PROGRAMADAS (LISTA MAESTRA)
    ========================================================= */
