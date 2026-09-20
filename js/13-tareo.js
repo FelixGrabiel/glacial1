@@ -2559,6 +2559,19 @@ function renderHistorialTareo() {
                                                                 PNG
                                                             </button>
 
+                                                            ${
+                                                                tienePermiso('eliminarRegistros')
+                                                                    ? `
+                                                                    <button
+                                                                        class="btn btn-sm btn-danger"
+                                                                        onclick="eliminarTareo('${tareo.id}')"
+                                                                    >
+                                                                        Eliminar
+                                                                    </button>
+                                                                    `
+                                                                    : ''
+                                                            }
+
                                                         </div>
 
                                                     </td>
@@ -2634,6 +2647,60 @@ function editarTareo(id) {
     renderTareoFormulario(
         tareo
     );
+}
+
+
+/* =========================================================
+   ELIMINAR TAREO
+   ========================================================= */
+
+function eliminarTareo(id) {
+
+    if (
+        !tienePermiso(
+            'eliminarRegistros'
+        )
+    ) {
+
+        alert(
+            'No tienes permiso para eliminar tareos.'
+        );
+
+        return;
+    }
+
+    const tareo =
+        obtenerTareos().find(
+            item => item.id === id
+        );
+
+    if (!tareo) return;
+
+    const confirmar =
+        confirm(
+            `¿Eliminar el tareo del ${formatearFecha(tareo.fecha)} ` +
+            `(${tareo.turno})? Esta acción no se puede deshacer.`
+        );
+
+    if (!confirmar) {
+        return;
+    }
+
+    guardarTareos(
+        obtenerTareos().filter(
+            item => item.id !== id
+        )
+    );
+
+    if (tareoActualId === id) {
+        tareoActualId = null;
+    }
+
+    alert(
+        'Tareo eliminado correctamente.'
+    );
+
+    renderHistorialTareo();
 }
 
 
@@ -2731,6 +2798,19 @@ function renderTareoLectura(tareo) {
                 >
                     Editar
                 </button>
+
+                ${
+                    tienePermiso('eliminarRegistros')
+                        ? `
+                        <button
+                            class="btn btn-danger"
+                            onclick="eliminarTareo('${tareo.id}')"
+                        >
+                            Eliminar
+                        </button>
+                        `
+                        : ''
+                }
 
             </div>
 
@@ -6159,6 +6239,9 @@ window.verTareo =
 
 window.editarTareo =
     editarTareo;
+
+window.eliminarTareo =
+    eliminarTareo;
 
 window.renderHistorialTareo =
     renderHistorialTareo;
