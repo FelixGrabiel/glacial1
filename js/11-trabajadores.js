@@ -1,1110 +1,779 @@
 /* =============================================================
-   GLACIAL — TAREO DE PERSONAL
-   IMPORTACIÓN DE ROTACIÓN DESDE EXCEL
+   GESTIÓN DE TRABAJADORES
+   Parte del sistema GLACIAL — dividido a partir de app.js
    ============================================================= */
 
 
 /* =========================================================
-   CONFIGURACIÓN
+   GESTIÓN DE TRABAJADORES
+   (Operarios, Supervisores, Técnicos de Mtto., etc.)
    ========================================================= */
 
-const TAREO_STORAGE_KEY = "GLACIAL_TAREOS";
-const TAREO_ROTACION_STORAGE_KEY = "GLACIAL_ROTACION_SEMANAL";
+let workerEditId = null;
+let workerSearchTerm = '';
 
 
-/* =========================================================
-   NORMALIZACIÓN DE TEXTO
-   ========================================================= */
+function openWorkersModal(){
 
-function tareoNormalizarTexto(valor) {
-
-  return String(valor || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-}
-
-
-/* =========================================================
-   NORMALIZACIÓN DE DNI
-   ========================================================= */
-
-function tareoNormalizarDNI(valor) {
-
-  return String(valor || "")
-    .replace(/\D/g, "")
-    .trim();
-
-}
-
-
-/* =========================================================
-   LIMPIAR ESPACIOS
-   ========================================================= */
-
-function tareoLimpiarEspacios(valor) {
-
-  return String(valor || "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-}
-
-
-/* =========================================================
-   NORMALIZAR TURNO
-   ========================================================= */
-
-function normalizarTurno(valor) {
-
-  const texto =
-    tareoNormalizarTexto(valor);
-
-
-  if (!texto) {
-    return "";
-  }
-
-
-  /* NOCHE */
-
-  if (
-    texto === "n" ||
-    texto.includes("noche")
-  ) {
-
-    return "Noche";
-
-  }
-
-
-  /* DÍA */
-
-  if (
-    texto === "d" ||
-    texto === "dia" ||
-    texto.includes("dia")
-  ) {
-
-    return "Día";
-
-  }
-
-
-  return "";
-
-}
-
-
-/* =========================================================
-   ENCONTRAR COLUMNA DEL EXCEL
-   ========================================================= */
-
-function encontrarColumna(filas, alternativas) {
-
-  if (
-    !Array.isArray(filas) ||
-    !filas.length
-  ) {
-
-    return null;
-
-  }
-
-
-  const columnas =
-    Object.keys(
-      filas[0]
+  const root =
+    document.getElementById(
+      'modal-root'
     );
 
 
-  for (const columna of columnas) {
-
-    const normalizada =
-      tareoNormalizarTexto(
-        columna
-      );
+  workerEditId = null;
+  workerSearchTerm = '';
 
 
-    const encontrada =
-      alternativas.some(
-        alternativa => {
+  root.innerHTML = `
 
-          return normalizada.includes(
-            tareoNormalizarTexto(
-              alternativa
-            )
-          );
+    <div
+      class="modal-backdrop"
+      onclick="
+        if(event.target===this)
+          closeModal()
+      "
+    >
 
+      <div class="modal">
+
+        <div class="modal-head">
+
+          <h3>
+            Gestionar trabajadores
+          </h3>
+
+
+          <button
+            class="modal-close"
+            onclick="closeModal()"
+          >
+            ✕
+          </button>
+
+        </div>
+
+
+        <div class="modal-body">
+
+          <div class="field-sm">
+
+            <label>
+              Buscar
+            </label>
+
+            <input
+              id="tw-search"
+              placeholder="Nombre, cargo o DNI..."
+              oninput="filterWorkerList(this.value)"
+            >
+
+          </div>
+
+
+          <div class="field-sm">
+
+            <label>
+              Importar desde archivo (JSON exportado de Excel/Sheets)
+            </label>
+
+            <input
+              type="file"
+              id="tw-import-file"
+              accept=".json,application/json"
+              onchange="importarTrabajadoresDesdeArchivo(event)"
+            >
+          </div>
+
+
+          <div
+            class="userlist"
+            id="workerlist"
+          ></div>
+
+
+          <div
+            class="section-title"
+            id="worker-form-title"
+          >
+            Nuevo trabajador
+          </div>
+
+
+          <div class="grid grid-2">
+
+
+            <div class="field-sm">
+
+              <label>
+                Nombre completo
+              </label>
+
+              <input
+                id="tw-nombre"
+              >
+
+            </div>
+
+
+            <div class="field-sm">
+
+              <label>
+                DNI / N° documento
+              </label>
+
+              <input
+                id="tw-dni"
+              >
+
+            </div>
+
+
+            <div class="field-sm">
+
+              <label>
+                Cargo
+              </label>
+
+              <input
+                id="tw-cargo"
+                list="cargos-trabajador-datalist"
+              >
+
+              <datalist id="cargos-trabajador-datalist">
+
+                ${
+                  CARGOS_TRABAJADOR.map(
+
+                    c => `
+                      <option value="${c}"></option>
+                    `
+
+                  ).join('')
+                }
+
+              </datalist>
+
+            </div>
+
+
+            <div class="field-sm">
+
+              <label>
+                Línea / área asignada
+              </label>
+
+              <select id="tw-linea">
+
+                <option value="">
+                  Todas las líneas
+                </option>
+
+                ${
+                  LINES.map(
+
+                    l => `
+                      <option value="${l.key}">
+                        ${l.name}
+                      </option>
+                    `
+
+                  ).join('')
+                }
+
+              </select>
+
+            </div>
+
+
+            <div class="field-sm">
+
+              <label>
+                Estado
+              </label>
+
+              <select id="tw-estado">
+
+                <option value="Activo">
+                  Activo
+                </option>
+
+                <option value="Inactivo">
+                  Inactivo
+                </option>
+
+              </select>
+
+            </div>
+
+
+          </div>
+
+
+          <div class="actions-row">
+
+            <button
+              class="btn btn-primary"
+              id="worker-form-btn"
+              onclick="saveWorkerForm()"
+            >
+              Registrar trabajador
+            </button>
+
+            <button
+              class="btn btn-ghost btn-sm"
+              id="worker-form-cancel"
+              onclick="cancelWorkerEdit()"
+              style="display:none;"
+            >
+              Cancelar edición
+            </button>
+
+          </div>
+
+
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  renderWorkerList();
+
+}
+
+
+/* =========================================================
+   LISTA DE TRABAJADORES (con filtro de búsqueda)
+   ========================================================= */
+
+function filterWorkerList(term){
+
+  workerSearchTerm = term;
+
+  renderWorkerList();
+
+}
+
+
+function renderWorkerList(){
+
+  const container =
+    document.getElementById(
+      'workerlist'
+    );
+
+  if(!container){
+    return;
+  }
+
+
+  const term =
+    normalizarTexto(
+      (workerSearchTerm || '').trim()
+    );
+
+
+  const workers =
+    loadWorkers().filter(
+
+      w => {
+
+        if(!term){
+          return true;
         }
+
+        return (
+          normalizarTexto(w.nombre || '').includes(term) ||
+          normalizarTexto(w.cargo || '').includes(term) ||
+          normalizarTexto(w.dni || '').includes(term)
+        );
+
+      }
+
+    );
+
+
+  if(!workers.length){
+
+    container.innerHTML = `
+      <div class="small-muted" style="padding:10px 0;">
+        No hay trabajadores registrados.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML =
+
+    workers.map(
+
+      w => {
+
+        const lineaInfo =
+          LINES.find(l => l.key === w.linea);
+
+        const lineaNombre =
+          w.linea
+            ? (lineaInfo ? lineaInfo.name : w.linea)
+            : 'Todas las líneas';
+
+        return `
+
+          <div class="userlist-row">
+
+            <div>
+
+              <div style="font-weight:600;">
+
+                ${w.nombre}
+
+                ${
+                  w.estado === 'Inactivo'
+                    ? ' · <span style="color:var(--danger);">Inactivo</span>'
+                    : ''
+                }
+
+              </div>
+
+
+              <div class="small-muted">
+
+                ${w.cargo || 'Sin cargo'}
+                ·
+                ${lineaNombre}
+                ${w.dni ? ' · DNI ' + w.dni : ''}
+
+              </div>
+
+            </div>
+
+
+            <div style="display:flex; gap:6px;">
+
+              <button
+                class="btn btn-ghost btn-sm"
+                onclick="startEditWorker('${w.id}')"
+              >
+                Editar
+              </button>
+
+              <button
+                class="btn btn-danger btn-sm"
+                onclick="removeWorker('${w.id}')"
+              >
+                Eliminar
+              </button>
+
+            </div>
+
+          </div>
+
+        `;
+
+      }
+
+    ).join('');
+
+}
+
+
+/* =========================================================
+   CREAR / ACTUALIZAR TRABAJADOR
+   ========================================================= */
+
+function saveWorkerForm(){
+
+  const nombre =
+    document.getElementById('tw-nombre').value.trim();
+
+  const dni =
+    document.getElementById('tw-dni').value.trim();
+
+  const cargo =
+    document.getElementById('tw-cargo').value.trim();
+
+  const linea =
+    document.getElementById('tw-linea').value;
+
+  const estado =
+    document.getElementById('tw-estado').value;
+
+
+  if(!nombre){
+
+    alert(
+      'Ingresa el nombre y apellido del trabajador.'
+    );
+
+    return;
+
+  }
+
+
+  const workers =
+    loadWorkers();
+
+
+  if(workerEditId){
+
+    const idx =
+      workers.findIndex(w => w.id === workerEditId);
+
+    if(idx > -1){
+
+      workers[idx] = {
+        ...workers[idx],
+        nombre,
+        dni,
+        cargo,
+        linea,
+        estado
+      };
+
+    }
+
+  } else {
+
+    const nombreNormalizado =
+      normalizarTexto(nombre);
+
+    if(
+      workers.some(
+        w => normalizarTexto(w.nombre) === nombreNormalizado
+      )
+    ){
+
+      alert(
+        'Ya existe un trabajador registrado con ese nombre.'
       );
 
-
-    if (encontrada) {
-
-      return columna;
+      return;
 
     }
 
+
+    workers.push({
+
+      id:
+        'w_' + Date.now() + '_' +
+        Math.random().toString(36).slice(2,8),
+
+      nombre,
+      dni,
+      cargo,
+      linea,
+      estado: estado || 'Activo'
+
+    });
+
   }
 
 
-  return null;
+  saveWorkers(workers);
+
+  cancelWorkerEdit();
+
+  renderWorkerList();
 
 }
 
 
 /* =========================================================
-   INTERPRETAR FECHA DE EXCEL
+   EDITAR TRABAJADOR
    ========================================================= */
 
-function normalizarFechaExcel(valor) {
+function startEditWorker(id){
 
-  if (!valor) {
-    return "";
+  const worker =
+    loadWorkers().find(w => w.id === id);
+
+  if(!worker){
+    return;
   }
 
 
-  /* Si SheetJS ya entregó Date */
-
-  if (
-    Object.prototype.toString.call(valor) ===
-    "[object Date]"
-  ) {
-
-    if (isNaN(valor.getTime())) {
-      return "";
-    }
+  workerEditId = id;
 
 
-    const year =
-      valor.getFullYear();
+  document.getElementById('tw-nombre').value = worker.nombre || '';
+  document.getElementById('tw-dni').value = worker.dni || '';
+  document.getElementById('tw-cargo').value = worker.cargo || '';
+  document.getElementById('tw-linea').value = worker.linea || '';
+  document.getElementById('tw-estado').value = worker.estado || 'Activo';
 
 
-    const month =
-      String(
-        valor.getMonth() + 1
-      ).padStart(2, "0");
+  document.getElementById('worker-form-title').textContent =
+    'Editando: ' + worker.nombre;
+
+  document.getElementById('worker-form-btn').textContent =
+    'Guardar cambios';
+
+  document.getElementById('worker-form-cancel').style.display =
+    'inline-flex';
+
+}
 
 
-    const day =
-      String(
-        valor.getDate()
-      ).padStart(2, "0");
+function cancelWorkerEdit(){
+
+  workerEditId = null;
 
 
-    return `${year}-${month}-${day}`;
+  const nombreField = document.getElementById('tw-nombre');
 
+  if(!nombreField){
+    return;
   }
 
 
-  const texto =
-    String(valor)
-      .trim();
+  nombreField.value = '';
+  document.getElementById('tw-dni').value = '';
+  document.getElementById('tw-cargo').value = '';
+  document.getElementById('tw-linea').value = '';
+  document.getElementById('tw-estado').value = 'Activo';
 
 
-  if (!texto) {
-    return "";
-  }
+  document.getElementById('worker-form-title').textContent =
+    'Nuevo trabajador';
 
+  document.getElementById('worker-form-btn').textContent =
+    'Registrar trabajador';
 
-  /* YYYY-MM-DD */
-
-  let match =
-    texto.match(
-      /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/
-    );
-
-
-  if (match) {
-
-    return (
-      `${match[1]}-` +
-      `${String(match[2]).padStart(2, "0")}-` +
-      `${String(match[3]).padStart(2, "0")}`
-    );
-
-  }
-
-
-  /* DD/MM/YYYY */
-
-  match =
-    texto.match(
-      /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/
-    );
-
-
-  if (match) {
-
-    return (
-      `${match[3]}-` +
-      `${String(match[2]).padStart(2, "0")}-` +
-      `${String(match[1]).padStart(2, "0")}`
-    );
-
-  }
-
-
-  return "";
+  document.getElementById('worker-form-cancel').style.display =
+    'none';
 
 }
 
 
 /* =========================================================
-   INICIO DE SEMANA
+   ELIMINAR TRABAJADOR
    ========================================================= */
 
-function obtenerInicioSemana(fecha) {
+function removeWorker(id){
 
-  const fechaObj =
-    new Date(
-      fecha + "T00:00:00"
-    );
+  if(
+    !confirm(
+      '¿Eliminar este trabajador de la base de datos?'
+    )
+  ){
 
-
-  if (isNaN(fechaObj.getTime())) {
-
-    const hoy =
-      new Date();
-
-
-    fechaObj.setTime(
-      hoy.getTime()
-    );
+    return;
 
   }
 
 
-  const dia =
-    fechaObj.getDay();
+  saveWorkers(
 
-
-  /*
-   * Domingo = 0
-   * Lunes = 1
-   */
-
-  const diferencia =
-    dia === 0
-      ? 6
-      : dia - 1;
-
-
-  fechaObj.setDate(
-    fechaObj.getDate() -
-    diferencia
-  );
-
-
-  const year =
-    fechaObj.getFullYear();
-
-
-  const month =
-    String(
-      fechaObj.getMonth() + 1
-    ).padStart(2, "0");
-
-
-  const day =
-    String(
-      fechaObj.getDate()
-    ).padStart(2, "0");
-
-
-  return `${year}-${month}-${day}`;
-
-}
-
-
-/* =========================================================
-   FIN DE SEMANA
-   ========================================================= */
-
-function obtenerFinSemana(fechaInicio) {
-
-  const fecha =
-    new Date(
-      fechaInicio + "T00:00:00"
-    );
-
-
-  fecha.setDate(
-    fecha.getDate() + 6
-  );
-
-
-  const year =
-    fecha.getFullYear();
-
-
-  const month =
-    String(
-      fecha.getMonth() + 1
-    ).padStart(2, "0");
-
-
-  const day =
-    String(
-      fecha.getDate()
-    ).padStart(2, "0");
-
-
-  return `${year}-${month}-${day}`;
-
-}
-
-
-/* =========================================================
-   FECHA DE HOY
-   ========================================================= */
-
-function obtenerFechaHoy() {
-
-  const hoy =
-    new Date();
-
-
-  const year =
-    hoy.getFullYear();
-
-
-  const month =
-    String(
-      hoy.getMonth() + 1
-    ).padStart(2, "0");
-
-
-  const day =
-    String(
-      hoy.getDate()
-    ).padStart(2, "0");
-
-
-  return `${year}-${month}-${day}`;
-
-}
-
-
-/* =========================================================
-   ID DE ROTACIÓN
-   ========================================================= */
-
-function generarIdRotacion() {
-
-  return (
-    "rotacion_" +
-    Date.now() +
-    "_" +
-    Math.random()
-      .toString(36)
-      .slice(2, 8)
-  );
-
-}
-
-
-/* =========================================================
-   OBTENER ROTACIONES
-   ========================================================= */
-
-function obtenerRotaciones() {
-
-  try {
-
-    const datos =
-      localStorage.getItem(
-        TAREO_ROTACION_STORAGE_KEY
-      );
-
-
-    if (!datos) {
-      return [];
-    }
-
-
-    const rotaciones =
-      JSON.parse(datos);
-
-
-    return Array.isArray(rotaciones)
-      ? rotaciones
-      : [];
-
-  } catch (error) {
-
-    console.error(
-      "TAREO: Error leyendo rotaciones:",
-      error
-    );
-
-
-    return [];
-
-  }
-
-}
-
-
-/* =========================================================
-   GUARDAR ROTACIONES
-   ========================================================= */
-
-function guardarRotaciones(rotaciones) {
-
-  localStorage.setItem(
-
-    TAREO_ROTACION_STORAGE_KEY,
-
-    JSON.stringify(
-      rotaciones
+    loadWorkers().filter(
+      w => w.id !== id
     )
 
   );
 
+
+  if(workerEditId === id){
+
+    cancelWorkerEdit();
+
+  }
+
+
+  renderWorkerList();
+
 }
 
 
-/* =========================================================
-   PREVISUALIZAR EXCEL
-   ========================================================= */
-
-async function previsualizarRotacionExcel(event) {
-
-  const archivo =
-    event.target.files[0];
 
 
-  if (!archivo) {
+function limpiarCeldaExcel(valor){
+
+  if(typeof valor !== 'string'){
+    return valor;
+  }
+
+  const m = valor.match(/^="?(.*?)"?$/);
+
+  return (m ? m[1] : valor).trim();
+
+}
+
+function limpiarEspacios(valor){
+
+  return String(valor || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+}
+
+function obtenerCampoFilaImportada(fila, nombreColuna){
+
+  for(const key in fila){
+
+    const keyLimpio =
+      limpiarCeldaExcel(key).toUpperCase();
+
+    if(keyLimpio === nombreColuna.toUpperCase()){
+      return limpiarCeldaExcel(fila[key]);
+    }
+
+  }
+
+  return '';
+
+}
+
+function importarTrabajadoresDesdeArchivo(event){
+
+  const input = event.target;
+  const archivo = input.files[0];
+
+  if(!archivo){
     return;
   }
 
 
-  try {
+  const lector = new FileReader();
 
-    const datos =
-      await archivo.arrayBuffer();
+  lector.onload = () => {
 
+    let filas;
 
-    const workbook =
-      XLSX.read(
-        datos,
-        {
-          type: "array",
-          cellDates: true
-        }
+    try{
+
+      filas = JSON.parse(lector.result);
+
+    } catch(e){
+
+      alert(
+        'No se pudo leer el archivo: no es un JSON válido.'
       );
 
+      input.value = '';
 
-    if (
-      !workbook.SheetNames ||
-      !workbook.SheetNames.length
-    ) {
-
-      throw new Error(
-        "El archivo no contiene hojas."
-      );
+      return;
 
     }
 
 
-    const nombreHoja =
-      workbook.SheetNames[0];
+    if(!Array.isArray(filas)){
 
-
-    const hoja =
-      workbook.Sheets[
-        nombreHoja
-      ];
-
-
-    const filas =
-      XLSX.utils.sheet_to_json(
-        hoja,
-        {
-          defval: ""
-        }
+      alert(
+        'El archivo debe contener una lista (array) de registros.'
       );
 
+      input.value = '';
 
-    if (!filas.length) {
-
-      throw new Error(
-        "El archivo Excel no contiene registros."
-      );
+      return;
 
     }
 
 
-    const resultado =
-      interpretarRotacionExcel(
-        filas
+    const workers = loadWorkers();
+
+    let agregados = 0;
+    let actualizados = 0;
+    let omitidos = 0;
+
+
+    filas.forEach(fila => {
+
+      const nombre = limpiarEspacios(
+        obtenerCampoFilaImportada(fila, 'APELLIDOS Y NOMBRES')
+      );
+
+      const dni = limpiarEspacios(
+        obtenerCampoFilaImportada(fila, 'DETALLE')
+      );
+
+      const cargo = limpiarEspacios(
+        obtenerCampoFilaImportada(fila, 'CARGO')
       );
 
 
-    window._tareoRotacionPendiente =
-      resultado;
+      /* Filas basura del Excel: totales, filas vacías, etc. */
 
+      if(
+        !nombre ||
+        normalizarTexto(nombre) === normalizarTexto('TOTALES S/.')
+      ){
 
-    renderPreviewRotacion(
-      resultado
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "TAREO: Error al importar Excel:",
-      error
-    );
-
-
-    alert(
-      "No se pudo leer la rotación.\n\n" +
-      error.message
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   INTERPRETAR ROTACIÓN
-   =========================================================
-
-   IMPORTANTE:
-
-   NO utiliza loadWorkers().
-
-   El Excel es la fuente del personal.
-
-   No importa si la persona pertenece a:
-   - Producción
-   - Mantenimiento
-   - Almacén
-   - Limpieza
-   - Calidad
-   - Administración
-   - etc.
-
-   Si aparece en el Excel, entra al Tareo.
-   ========================================================= */
-
-function interpretarRotacionExcel(filas) {
-
-  const columnaDNI =
-    encontrarColumna(
-      filas,
-      [
-        "dni",
-        "documento",
-        "n documento",
-        "nº documento",
-        "numero documento",
-        "nro documento",
-        "nro. documento"
-      ]
-    );
-
-
-  const columnaNombre =
-    encontrarColumna(
-      filas,
-      [
-        "trabajador",
-        "nombre",
-        "personal",
-        "empleado",
-        "colaborador",
-        "apellidos y nombres",
-        "apellidos nombres",
-        "nombre completo"
-      ]
-    );
-
-
-  const columnaTurno =
-    encontrarColumna(
-      filas,
-      [
-        "turno",
-        "jornada",
-        "horario"
-      ]
-    );
-
-
-  const columnaFecha =
-    encontrarColumna(
-      filas,
-      [
-        "fecha",
-        "dia",
-        "día"
-      ]
-    );
-
-
-  if (!columnaNombre) {
-
-    throw new Error(
-      "No se encontró la columna de nombre del trabajador."
-    );
-
-  }
-
-
-  if (!columnaTurno) {
-
-    throw new Error(
-      "No se encontró la columna de Turno."
-    );
-
-  }
-
-
-  const registros = [];
-
-  const invalidos = [];
-
-  let fechaDetectada = "";
-
-
-  filas.forEach(
-    (fila, indice) => {
-
-      const numeroFila =
-        indice + 2;
-
-
-      const nombre =
-        tareoLimpiarEspacios(
-          fila[columnaNombre]
-        );
-
-
-      const dni =
-        columnaDNI
-          ? tareoNormalizarDNI(
-              fila[columnaDNI]
-            )
-          : "";
-
-
-      const turno =
-        normalizarTurno(
-          fila[columnaTurno]
-        );
-
-
-      const turnoOriginal =
-        String(
-          fila[columnaTurno] || ""
-        ).trim();
-
-
-      /*
-       * Ignorar filas completamente vacías.
-       */
-
-      if (
-        !nombre &&
-        !dni &&
-        !turnoOriginal
-      ) {
+        omitidos++;
 
         return;
 
       }
 
 
-      /*
-       * Validar nombre.
-       */
+      const nombreNormalizado =
+        normalizarTexto(nombre);
 
-      if (!nombre) {
+      const existente = workers.find(w =>
 
-        invalidos.push({
+        (dni && w.dni && limpiarEspacios(w.dni) === dni) ||
 
-          fila:
-            numeroFila,
+        (
+          !dni &&
+          normalizarTexto(w.nombre) === nombreNormalizado
+        )
 
-          nombre:
-            "",
-
-          dni,
-
-          turno,
-
-          motivo:
-            "No se encontró el nombre del trabajador."
-
-        });
-
-        return;
-
-      }
+      );
 
 
-      /*
-       * Validar turno.
-       */
+      if(existente){
 
-      if (!turno) {
+        existente.nombre = nombre;
+        existente.cargo = cargo || existente.cargo;
 
-        invalidos.push({
+        if(dni){
+          existente.dni = dni;
+        }
 
-          fila:
-            numeroFila,
+        actualizados++;
+
+      } else {
+
+        workers.push({
+
+          id:
+            'w_' + Date.now() + '_' +
+            Math.random().toString(36).slice(2,8),
 
           nombre,
-
           dni,
-
-          turno:
-            "",
-
-          motivo:
-            "Turno no reconocido."
+          cargo,
+          linea: null,
+          estado: 'Activo'
 
         });
 
-        return;
+        agregados++;
 
       }
 
-
-      /*
-       * Fecha.
-       */
-
-      let fecha = "";
+    });
 
 
-      if (columnaFecha) {
+    saveWorkers(workers);
+    renderWorkerList();
 
-        fecha =
-          normalizarFechaExcel(
-            fila[columnaFecha]
-          );
+    input.value = '';
 
-
-        if (fecha) {
-
-          fechaDetectada =
-            fecha;
-
-        }
-
-      }
-
-
-      /*
-       * CREAR DIRECTAMENTE
-       *
-       * No se llama loadWorkers().
-       */
-
-      registros.push({
-
-        id:
-          "rot_" +
-          Date.now() +
-          "_" +
-          indice +
-          "_" +
-          Math.random()
-            .toString(36)
-            .slice(2, 7),
-
-        nombre,
-
-        dni,
-
-        turno,
-
-        fecha
-
-      });
-
-    }
-  );
-
-
-  /*
-   * Si no vino fecha desde Excel,
-   * utilizar la semana actual.
-   */
-
-  if (!fechaDetectada) {
-
-    fechaDetectada =
-      obtenerInicioSemana(
-        obtenerFechaHoy()
-      );
-
-  }
-
-
-  const fechaInicio =
-    obtenerInicioSemana(
-      fechaDetectada
+    alert(
+      `Importación lista.\n\n` +
+      `Nuevos: ${agregados}\n` +
+      `Actualizados: ${actualizados}\n` +
+      `Omitidos (filas vacías/inválidas): ${omitidos}`
     );
-
-
-  const fechaFin =
-    obtenerFinSemana(
-      fechaInicio
-    );
-
-
-  /*
-   * DUPLICADOS
-   */
-
-  const claves =
-    new Set();
-
-
-  const duplicados = [];
-
-
-  const registrosUnicos =
-    registros.filter(
-      registro => {
-
-        let identificador;
-
-
-        if (registro.dni) {
-
-          identificador =
-            "dni-" +
-            registro.dni;
-
-        } else {
-
-          identificador =
-            "nombre-" +
-            tareoNormalizarTexto(
-              registro.nombre
-            );
-
-        }
-
-
-        const clave =
-          identificador +
-          "-" +
-          tareoNormalizarTexto(
-            registro.turno
-          );
-
-
-        if (
-          claves.has(
-            clave
-          )
-        ) {
-
-          duplicados.push(
-            registro
-          );
-
-          return false;
-
-        }
-
-
-        claves.add(
-          clave
-        );
-
-
-        return true;
-
-      }
-    );
-
-
-  return {
-
-    archivoFilas:
-      filas.length,
-
-    registros:
-      registrosUnicos,
-
-    /*
-     * Se mantiene por compatibilidad
-     * con el resto del Tareo,
-     * pero ya NO se utiliza.
-     */
-
-    noEncontrados:
-      [],
-
-    invalidos,
-
-    duplicados,
-
-    fechaInicio,
-
-    fechaFin,
-
-    columnaDNI,
-
-    columnaNombre,
-
-    columnaTurno,
-
-    columnaFecha
 
   };
 
-}
+  lector.readAsText(archivo, 'utf-8');
 
-
-/* =========================================================
-   APLICAR ROTACIÓN
-   ========================================================= */
-
-function aplicarRotacionPendiente() {
-
-  const resultado =
-    window._tareoRotacionPendiente;
-
-
-  if (!resultado) {
-
-    alert(
-      "No existe una rotación pendiente de aplicar."
-    );
-
-    return;
-
-  }
-
-
-  if (
-    !resultado.registros ||
-    !resultado.registros.length
-  ) {
-
-    alert(
-      "No existen registros válidos para aplicar."
-    );
-
-    return;
-
-  }
-
-
-  if (
-    resultado.invalidos &&
-    resultado.invalidos.length
-  ) {
-
-    alert(
-      "Corrija los registros inválidos antes de aplicar la rotación."
-    );
-
-    return;
-
-  }
-
-
-  const rotaciones =
-    obtenerRotaciones();
-
-
-  const nuevaRotacion = {
-
-    id:
-      generarIdRotacion(),
-
-    fechaInicio:
-      resultado.fechaInicio,
-
-    fechaFin:
-      resultado.fechaFin,
-
-    personal:
-      resultado.registros.map(
-        registro => {
-
-          return {
-            ...registro
-          };
-
-        }
-      ),
-
-    creadoEn:
-      new Date().toISOString(),
-
-    archivoFilas:
-      resultado.archivoFilas
-
-  };
-
-
-  const existente =
-    rotaciones.findIndex(
-      rotacion =>
-
-        rotacion.fechaInicio ===
-          nuevaRotacion.fechaInicio &&
-
-        rotacion.fechaFin ===
-          nuevaRotacion.fechaFin
-
-    );
-
-
-  if (existente >= 0) {
-
-    const confirmar =
-      confirm(
-        "Ya existe una rotación para esta semana. ¿Desea reemplazarla?"
-      );
-
-
-    if (!confirmar) {
-      return;
-    }
-
-
-    rotaciones[existente] =
-      nuevaRotacion;
-
-  } else {
-
-    rotaciones.push(
-      nuevaRotacion
-    );
-
-  }
-
-
-  guardarRotaciones(
-    rotaciones
-  );
-
-
-  window._tareoRotacionPendiente =
-    null;
-
-
-  alert(
-    "Rotación semanal aplicada correctamente."
-  );
-
-
-  renderRotacionSemanal();
-
-}
+}   
