@@ -61,10 +61,12 @@ let draft = null;
 let _usersCache = [];
 let _recordsCache = [];
 let _workersCache = [];
+let _rotacionesCache = [];
 
 let _usersReady = false;
 let _recordsReady = false;
 let _workersReady = false;
+let _rotacionesReady = false;
 
 
 /* =========================================================
@@ -240,6 +242,46 @@ function initRealtimeSync(){
 
     );
 
+
+  /*
+     ROTACIÓN SEMANAL (TAREO)
+
+     Se sincroniza igual que usuarios/reportes/trabajadores:
+     un solo documento en Firestore con un campo "items" que
+     contiene el arreglo completo de rotaciones cargadas
+     (cada una con su semana y su lista de personal, tal
+     como viene del Excel). Así la rotación queda visible
+     en tiempo real en cualquier computadora, sin depender
+     de guardarse solo en este navegador.
+  */
+
+  db.collection('sync').doc('rotaciones')
+
+    .onSnapshot(
+
+      snap => {
+
+        _rotacionesCache =
+          (snap.exists && snap.data().items)
+            ? snap.data().items
+            : [];
+
+        _rotacionesReady = true;
+
+        onRotacionesUpdated();
+
+      },
+
+      err => {
+
+        console.error(
+          'Error de sincronización (rotación semanal):', err
+        );
+
+      }
+
+    );
+
 }
 
 
@@ -285,6 +327,28 @@ function onWorkersUpdated(){
         `
 
       ).join('');
+
+  }
+
+}
+
+
+function onRotacionesUpdated(){
+
+  /*
+     Si la persona tiene abierta la pantalla de "Rotación
+     semanal" del Tareo (identificada por el contenedor de
+     la vista previa de importación), se refresca la lista
+     de rotaciones para reflejar lo que se acaba de cargar
+     desde esta u otra computadora.
+  */
+
+  if(
+    document.getElementById('tareo-rotacion-preview') &&
+    typeof renderRotacionSemanal === 'function'
+  ){
+
+    renderRotacionSemanal();
 
   }
 
@@ -369,6 +433,29 @@ function saveWorkers(w){
 
   db.collection('sync').doc('workers').set({
     items: w,
+    updatedAt: Date.now()
+  });
+
+}
+
+
+/* =========================================================
+   ROTACIÓN SEMANAL (TAREO)
+   ========================================================= */
+
+function loadRotaciones(){
+
+  return _rotacionesCache;
+
+}
+
+
+function saveRotaciones(r){
+
+  _rotacionesCache = r;
+
+  db.collection('sync').doc('rotaciones').set({
+    items: r,
     updatedAt: Date.now()
   });
 
