@@ -51,6 +51,13 @@ function renderSidebar(){
 
 function selectLine(key){
 
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
+
   state.currentLine = key;
 
   state.currentTab = 'nuevo';
@@ -71,8 +78,13 @@ function goResumen(){
     alert('No tienes permiso para ver Resumen / Reportes.');
     return;
   }
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
   state.currentTab='resumen';
   renderSidebar();
   renderMain();
 }
-

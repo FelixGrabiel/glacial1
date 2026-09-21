@@ -2912,11 +2912,20 @@ function renderFormTab(){
                     'number',
                     q.produccion.efectiva,
                     `
-                      updateCuadroPath(
+                      updateCuadroPathLigero(
                         ${i},
                         'produccion.efectiva',
                         this.value
                       )
+                    `,
+                    `
+                      onchange="
+                        updateCuadroPath(
+                          ${i},
+                          'produccion.efectiva',
+                          this.value
+                        )
+                      "
                     `
                   )
                 }
@@ -2962,6 +2971,7 @@ function renderFormTab(){
 
                   <input
                     type="text"
+                    id="f_paletas_${i}"
                     value="${
                       q.produccion.paletas ??
                       0
@@ -3891,6 +3901,81 @@ function updateCuadroField(
 
 
   actualizarCuadro(i);
+
+
+  refreshKpisOnly();
+
+}
+
+
+/* =========================================================
+   ACTUALIZACIÓN "LIGERA" DE UN CAMPO DE CUADRO
+   =========================================================
+
+   Se usa en el oninput (cada tecla) de "Botellas efectivas"
+   en vez de updateCuadroPath(), que hace un renderFormTab()
+   completo — eso destruye y vuelve a crear el <input>, por
+   lo que el campo pierde el foco en cada tecla y hay que
+   hacer clic de nuevo para seguir escribiendo (y, si el
+   re-render llega a mitad de un tecleo rápido, una tecla
+   puede terminar aterrizando en el campo equivocado).
+
+   Aquí, en cambio, solo se actualiza el dato en memoria, se
+   recalculan los derivados (paletas, insumos) y se pisa el
+   valor del campo "Paletas (automático)" directamente por
+   su id — sin tocar el <input> donde la persona está
+   escribiendo. El re-render completo (que si necesita la
+   tabla de Mermas, que depende de la producción efectiva)
+   sigue ocurriendo, pero recién cuando la persona sale del
+   campo (onchange), no en cada tecla.
+   ========================================================= */
+
+function updateCuadroPathLigero(
+  i,
+  path,
+  val
+){
+
+  const q =
+    normalizarCuadros(
+      draft
+    )[i];
+
+
+  if(!q) return;
+
+
+  const [
+    a,
+    b
+  ] =
+    path.split('.');
+
+
+  if(!q[a]){
+    q[a] = {};
+  }
+
+
+  q[a][b] =
+    val;
+
+
+  actualizarCuadro(i);
+
+
+  const campoPaletas =
+    document.getElementById(
+      'f_paletas_' + i
+    );
+
+  if(campoPaletas){
+
+    campoPaletas.value =
+      q.produccion.paletas ??
+      0;
+
+  }
 
 
   refreshKpisOnly();

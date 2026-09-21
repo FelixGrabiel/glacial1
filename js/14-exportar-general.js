@@ -2,8 +2,8 @@
    EXPORTACIÓN A EXCEL — GENERAL DE PLANTA (TODAS LAS LÍNEAS)
    Parte del sistema GLACIAL
 
-   Reutiliza el mismo motor y estilo visual que ya usa el Excel
-   por línea (XL, xlFill, xlFont, xlColorSemaforo, xlN, xlN1,
+   Reutiliza el mismo motor que ya usa el Excel por línea
+   (xlFill, xlFont, xlN, xlN1,
    xlFechaTexto, cargarScriptExterno, descargarArchivo, etc. —
    definidos en 08-graficos.js).
 
@@ -25,6 +25,65 @@
    Permiso requerido: 'exportarExcelGeneral' (distinto del
    permiso 'exportarExcel' del reporte por línea).
    ============================================================= */
+
+
+/* =========================================================
+   PALETA SUAVE DEL EXCEL GENERAL
+   =========================================================
+
+   Tonos sobrios y de baja saturación, solo para este
+   archivo (el Excel por línea de 08-graficos.js sigue con
+   su paleta XL). Encabezados en azul apagado, semáforo en
+   tonos pastel y bordes casi imperceptibles.
+   ========================================================= */
+
+const XLG = {
+  azul: '4B7396',
+  celeste: '8FB3CF',
+  azulClaro: 'DCE8F1',
+  azulMuyClaro: 'F1F6FA',
+  grisClaro: 'F5F7F9',
+  grisTexto: '66727F',
+  blanco: 'FFFFFF',
+  negro: '2E3A46',
+  verde: '8CBFA2',
+  verdeClaro: 'E4F1E9',
+  amarillo: 'EBCB90',
+  amarilloClaro: 'FBF3DF',
+  rojo: 'D9948A',
+  rojoClaro: 'F8E4E0',
+  borde: 'DDE5EB'
+};
+
+const XLG_BORDER = {
+  top:    { style:'thin', color:{ argb:'FF' + XLG.borde } },
+  left:   { style:'thin', color:{ argb:'FF' + XLG.borde } },
+  bottom: { style:'thin', color:{ argb:'FF' + XLG.borde } },
+  right:  { style:'thin', color:{ argb:'FF' + XLG.borde } }
+};
+
+/* Colores de línea para el gráfico de tendencia (suaves pero legibles). */
+const XLG_SERIES = [
+  '4B7396', '6FB08F', 'E0B25E', 'B08FC4', 'D9847A', '6DBBBF', '9AA7D6'
+];
+
+function xlgFont(o = {}){
+  return xlFont({ ...o, color:o.color || XLG.negro });
+}
+
+function xlgColorSemaforo(v){
+  const n = num(v);
+  if(n >= 0.85) return XLG.verdeClaro;
+  if(n >= 0.60) return XLG.amarilloClaro;
+  return XLG.rojoClaro;
+}
+
+function xlgColorFuerteSegunMeta(valor, meta){
+  const v = num(valor);
+  if(v >= meta) return XLG.verde;
+  if(v >= meta * 0.85) return XLG.amarillo;
+  return XLG.rojo;
+}
 
 
 /* =========================================================
@@ -243,7 +302,7 @@ function xlgGraficoLineas(cfg){
   ctx.fillRect(0, 0, ancho, alto);
 
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#' + XL.azul;
+  ctx.fillStyle = '#' + XLG.azul;
   ctx.font = 'bold 15px Arial';
   ctx.textAlign = 'left';
   ctx.fillText(cfg.titulo || '', 16, 22);
@@ -253,8 +312,8 @@ function xlgGraficoLineas(cfg){
   const anchoGrafico = ancho - izq - der;
 
   /* Ejes y grilla (0-100%) */
-  ctx.strokeStyle = '#EFF2F4';
-  ctx.fillStyle = '#' + XL.grisTexto;
+  ctx.strokeStyle = '#E9EEF2';
+  ctx.fillStyle = '#' + XLG.grisTexto;
   ctx.font = '10px Arial';
   ctx.textAlign = 'right';
 
@@ -269,7 +328,7 @@ function xlgGraficoLineas(cfg){
 
   /* Línea de meta */
   const yMeta = top + alturaGrafico * (1 - METAS.oee);
-  ctx.strokeStyle = '#' + XL.rojo;
+  ctx.strokeStyle = '#' + XLG.rojo;
   ctx.setLineDash([5,3]);
   ctx.beginPath();
   ctx.moveTo(izq, yMeta);
@@ -277,9 +336,15 @@ function xlgGraficoLineas(cfg){
   ctx.stroke();
   ctx.setLineDash([]);
 
+  ctx.fillStyle = '#' + XLG.rojo;
+  ctx.font = 'bold 10px Arial';
+  ctx.textAlign = 'right';
+  ctx.fillText('Meta ' + pct(METAS.oee), izq + anchoGrafico - 4, yMeta - 7);
+  ctx.font = '10px Arial';
+
   /* Etiquetas de fecha en X (máx. ~12, para no amontonar) */
   const paso = Math.max(1, Math.ceil(fechas.length / 12));
-  ctx.fillStyle = '#' + XL.negro;
+  ctx.fillStyle = '#' + XLG.negro;
   ctx.textAlign = 'center';
 
   fechas.forEach((f, i) => {
@@ -295,7 +360,9 @@ function xlgGraficoLineas(cfg){
 
     ctx.strokeStyle = serie.color;
     ctx.fillStyle = serie.color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.4;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.beginPath();
 
     serie.valores.forEach((v, i) => {
@@ -318,6 +385,25 @@ function xlgGraficoLineas(cfg){
 
     ctx.stroke();
 
+    /* Puntos pequeños sobre cada valor */
+    serie.valores.forEach((v, i) => {
+
+      if(v === null || v === undefined){
+        return;
+      }
+
+      const x = izq + (fechas.length > 1 ? (i / (fechas.length - 1)) * anchoGrafico : 0);
+      const y = top + alturaGrafico * (1 - Math.min(v, 1));
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+    });
+
   });
 
   /* Leyenda */
@@ -332,7 +418,7 @@ function xlgGraficoLineas(cfg){
     ctx.fillStyle = serie.color;
     ctx.fillRect(xLeyenda, yLeyenda - 6, 10, 10);
 
-    ctx.fillStyle = '#' + XL.negro;
+    ctx.fillStyle = '#' + XLG.negro;
     ctx.fillText(serie.nombre, xLeyenda + 14, yLeyenda - 1);
 
     xLeyenda += 14 + ctx.measureText(serie.nombre).width + 18;
@@ -393,7 +479,7 @@ function xlgGraficoSparkline(cfg){
 
   /* Línea de meta, tenue */
   const yMeta = alto - pad - ((meta - min) / rango) * (alto - pad * 2);
-  ctx.strokeStyle = '#' + XL.grisClaro;
+  ctx.strokeStyle = '#C9D3DA';
   ctx.setLineDash([2,2]);
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -404,7 +490,7 @@ function xlgGraficoSparkline(cfg){
 
   /* Línea de tendencia, coloreada según el último valor */
   const ultimo = usables[usables.length - 1];
-  const color = '#' + xlColorFuerteSegunMeta(ultimo, meta);
+  const color = '#' + xlgColorFuerteSegunMeta(ultimo, meta);
 
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.6;
@@ -474,12 +560,22 @@ function xlgHojaPortada(wb, ctx){
 
   ws.mergeCells(`B${fila}:G${fila}`);
   ws.getCell(`B${fila}`).value = 'GLACIAL — Reporte General de Planta';
-  ws.getCell(`B${fila}`).font = xlFont({ size:16, bold:true, color:XL.azul });
+  ws.getCell(`B${fila}`).font = xlgFont({ size:16, bold:true, color:XLG.azul });
   fila += 1;
 
   ws.mergeCells(`B${fila}:G${fila}`);
   ws.getCell(`B${fila}`).value = rangoLabel + ' · Todas las líneas visibles';
-  ws.getCell(`B${fila}`).font = xlFont({ size:11, color:XL.grisTexto });
+  ws.getCell(`B${fila}`).font = xlgFont({ size:11, color:XLG.grisTexto });
+
+  /* Línea de acento bajo el título */
+  for(let c = 2; c <= 8; c++){
+    ws.getCell(fila, c).border = {
+      bottom:{ style:'medium', color:{ argb:'FF' + XLG.celeste } }
+    };
+  }
+
+  ws.getRow(2).height = 26;
+
   fila += 2;
 
   /* KPIs de planta */
@@ -498,15 +594,28 @@ function xlgHojaPortada(wb, ctx){
   const mermaPctPlanta = efectivaPlanta > 0 ? mermaPlanta / efectivaPlanta : 0;
   const minutosParadasPlanta = lineasAgg.reduce((a,l) => a + l.minutosParadas, 0);
 
+  const estadoMeta =
+    (v, meta) => v >= meta ? 'ok' : (v >= meta * 0.85 ? 'warn' : 'bad');
+
+  const estadoMetaInverso =
+    (v, meta) => v <= meta ? 'ok' : (v <= meta * 1.15 ? 'warn' : 'bad');
+
   const kpis = [
-    ['OEE de planta', pct(oeePlanta), METAS.oee, oeePlanta],
-    ['Disponibilidad', pct(dispPlanta), METAS.disponibilidad, dispPlanta],
-    ['Cumplimiento vs. programado', pct(cumplimientoPlanta), 1, cumplimientoPlanta],
-    ['Producción efectiva', xlN(efectivaPlanta) + ' und.', null, null],
-    ['Producción en litros', xlN(litrosPlanta) + ' L', null, null],
-    ['Paradas totales', Math.round(minutosParadasPlanta / 60) + ' h', null, null],
-    ['Merma sobre producción', pct(mermaPctPlanta), METAS.merma, 1 - Math.min(mermaPctPlanta / (METAS.merma * 2), 1)]
+    { label:'OEE de planta', valor:pct(oeePlanta),
+      estado:estadoMeta(oeePlanta, METAS.oee), meta:'Meta ' + pct(METAS.oee) },
+    { label:'Disponibilidad', valor:pct(dispPlanta),
+      estado:estadoMeta(dispPlanta, METAS.disponibilidad), meta:'Meta ' + pct(METAS.disponibilidad) },
+    { label:'Cumplimiento vs. programado', valor:pct(cumplimientoPlanta),
+      estado:estadoMeta(cumplimientoPlanta, 1), meta:'Meta 100%' },
+    { label:'Producción efectiva', valor:xlN(efectivaPlanta) + ' und.' },
+    { label:'Producción en litros', valor:xlN(litrosPlanta) + ' L' },
+    { label:'Paradas totales', valor:Math.round(minutosParadasPlanta / 60) + ' h' },
+    { label:'Merma sobre producción', valor:pct(mermaPctPlanta),
+      estado:estadoMetaInverso(mermaPctPlanta, METAS.merma), meta:'Meta ≤ ' + pct(METAS.merma) }
   ];
+
+  const acentosKpi = { ok:XLG.verde, warn:XLG.amarillo, bad:XLG.rojo };
+  const rellenosKpi = { ok:XLG.verdeClaro, warn:XLG.amarilloClaro, bad:XLG.rojoClaro };
 
   const filaKpiInicio = fila;
 
@@ -515,25 +624,35 @@ function xlgHojaPortada(wb, ctx){
     const col = 2 + (i % 3) * 2;
     const filaK = filaKpiInicio + Math.floor(i / 3) * 3;
 
-    const letraLabel = xlLetra(col);
-    const letraValor = xlLetra(col);
+    const relleno = k.estado ? rellenosKpi[k.estado] : XLG.azulMuyClaro;
+    const acento = k.estado ? acentosKpi[k.estado] : XLG.celeste;
 
     ws.mergeCells(filaK, col, filaK, col + 1);
-    ws.getCell(filaK, col).value = k[0];
-    ws.getCell(filaK, col).font = xlFont({ size:9, color:XL.grisTexto });
-
     ws.mergeCells(filaK + 1, col, filaK + 1, col + 1);
-    const celdaValor = ws.getCell(filaK + 1, col);
-    celdaValor.value = k[1];
-    celdaValor.font = xlFont({ size:15, bold:true, color:XL.azul });
 
-    if(k[2] !== null){
-      const fill = k[3] >= k[2] ? XL.verdeClaro : (k[3] >= k[2] * 0.85 ? XL.amarilloClaro : XL.rojoClaro);
-      for(let c = col; c <= col + 1; c++){
-        ws.getCell(filaK, c).fill = xlFill(fill);
-        ws.getCell(filaK + 1, c).fill = xlFill(fill);
-      }
+    const celdaLabel = ws.getCell(filaK, col);
+    celdaLabel.value = k.label + (k.meta ? '   ·   ' + k.meta : '');
+    celdaLabel.font = xlgFont({ size:9, color:XLG.grisTexto });
+    celdaLabel.alignment = { vertical:'middle', indent:1 };
+
+    const celdaValor = ws.getCell(filaK + 1, col);
+    celdaValor.value = k.valor;
+    celdaValor.font = xlgFont({ size:16, bold:true, color:XLG.azul });
+    celdaValor.alignment = { vertical:'middle', indent:1 };
+
+    for(let c = col; c <= col + 1; c++){
+      [filaK, filaK + 1].forEach(f => {
+        const cel = ws.getCell(f, c);
+        cel.fill = xlFill(relleno);
+        cel.border = c === col
+          ? { ...XLG_BORDER, left:{ style:'medium', color:{ argb:'FF' + acento } } }
+          : XLG_BORDER;
+      });
     }
+
+    ws.getRow(filaK).height = 18;
+    ws.getRow(filaK + 1).height = 30;
+    ws.getRow(filaK + 2).height = 8;
 
   });
 
@@ -542,16 +661,16 @@ function xlgHojaPortada(wb, ctx){
   /* Ranking de líneas por OEE */
   ws.mergeCells(`B${fila}:G${fila}`);
   ws.getCell(`B${fila}`).value = 'Ranking de líneas por OEE';
-  ws.getCell(`B${fila}`).font = xlFont({ size:12, bold:true, color:XL.azul });
+  ws.getCell(`B${fila}`).font = xlgFont({ size:12, bold:true, color:XLG.azul });
   fila += 1;
 
   const encabezados = ['#', 'Línea', 'OEE', 'Producción (und.)', 'Litros', 'Estado', 'Tendencia (7d)'];
   encabezados.forEach((h, i) => {
     const c = ws.getCell(fila, 2 + i);
     c.value = h;
-    c.font = xlFont({ bold:true, color:XL.blanco });
-    c.fill = xlFill(XL.azul);
-    c.border = XL_BORDER;
+    c.font = xlgFont({ bold:true, color:XLG.blanco });
+    c.fill = xlFill(XLG.azul);
+    c.border = XLG_BORDER;
   });
   fila += 1;
 
@@ -566,15 +685,18 @@ function xlgHojaPortada(wb, ctx){
   const fechasTendencia = tendenciaDiaria.fechas.slice(-7);
 
   ranking.forEach((l, i) => {
+    ws.getRow(fila).height = 22;
+
     const valores = [i + 1, l.linea, pct(l.oee), xlN(l.efectiva), xlN(l.litros), xlEstado(l.oee), ''];
 
     valores.forEach((v, j) => {
       const c = ws.getCell(fila, 2 + j);
       c.value = v;
-      c.font = xlFont({});
-      c.border = XL_BORDER;
-      if(j === 2){
-        c.fill = xlFill(xlColorSemaforo(l.oee));
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
+      c.alignment = { horizontal: j === 1 ? 'left' : 'center', vertical:'middle' };
+      if(j === 2 || j === 5){
+        c.fill = xlFill(xlgColorSemaforo(l.oee));
       }
     });
 
@@ -591,7 +713,6 @@ function xlgHojaPortada(wb, ctx){
     });
 
     if(imgTendencia){
-      ws.getRow(fila).height = 20;
       xlAgregarImagen(wb, ws, imgTendencia, 7.05, fila - 1 + 0.05, 95, 18);
     }
 
@@ -603,7 +724,7 @@ function xlgHojaPortada(wb, ctx){
   /* Conclusiones automáticas */
   ws.mergeCells(`B${fila}:G${fila}`);
   ws.getCell(`B${fila}`).value = 'Conclusiones';
-  ws.getCell(`B${fila}`).font = xlFont({ size:12, bold:true, color:XL.azul });
+  ws.getCell(`B${fila}`).font = xlgFont({ size:12, bold:true, color:XLG.azul });
   fila += 1;
 
   const conclusiones = generarConclusiones({
@@ -613,15 +734,19 @@ function xlgHojaPortada(wb, ctx){
   conclusiones.forEach(txt => {
     ws.mergeCells(`B${fila}:G${fila}`);
     ws.getCell(`B${fila}`).value = '• ' + txt;
-    ws.getCell(`B${fila}`).font = xlFont({ size:10 });
-    ws.getCell(`B${fila}`).alignment = { wrapText:true };
+    ws.getCell(`B${fila}`).font = xlgFont({ size:10 });
+    ws.getCell(`B${fila}`).alignment = { wrapText:true, vertical:'middle', indent:1 };
+    for(let c = 2; c <= 7; c++){
+      ws.getCell(fila, c).fill = xlFill(XLG.azulMuyClaro);
+    }
+    ws.getRow(fila).height = txt.length > 110 ? 32 : 20;
     fila += 1;
   });
 
   fila += 1;
   ws.mergeCells(`B${fila}:G${fila}`);
   ws.getCell(`B${fila}`).value = generado + ' · ' + usuario;
-  ws.getCell(`B${fila}`).font = xlFont({ size:8, italic:true, color:XL.grisTexto });
+  ws.getCell(`B${fila}`).font = xlgFont({ size:8, italic:true, color:XLG.grisTexto });
 
 }
 
@@ -689,9 +814,9 @@ function xlgHojaMatrizLineas(wb, ctx){
   encabezados.forEach((h, i) => {
     const c = ws.getCell(1, i + 1);
     c.value = h;
-    c.font = xlFont({ bold:true, color:XL.blanco });
-    c.fill = xlFill(XL.azul);
-    c.border = XL_BORDER;
+    c.font = xlgFont({ bold:true, color:XLG.blanco });
+    c.fill = xlFill(XLG.azul);
+    c.border = XLG_BORDER;
     c.alignment = { horizontal:'center', wrapText:true };
   });
 
@@ -714,13 +839,14 @@ function xlgHojaMatrizLineas(wb, ctx){
     valores.forEach((v, j) => {
       const c = ws.getCell(fila, j + 1);
       c.value = v;
-      c.font = xlFont({});
-      c.border = XL_BORDER;
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
+      c.alignment = { horizontal: j === 0 ? 'left' : 'center', vertical:'middle' };
     });
 
-    ws.getCell(fila, 8).fill = xlFill(l.sinDatos ? XL.grisClaro : xlColorSemaforo(l.oee));
+    ws.getCell(fila, 8).fill = xlFill(l.sinDatos ? XLG.grisClaro : xlgColorSemaforo(l.oee));
     ws.getCell(fila, 11).fill = xlFill(
-      l.mermaPct <= METAS.merma ? XL.verdeClaro : (l.mermaPct <= METAS.merma * 1.5 ? XL.amarilloClaro : XL.rojoClaro)
+      l.mermaPct <= METAS.merma ? XLG.verdeClaro : (l.mermaPct <= METAS.merma * 1.5 ? XLG.amarilloClaro : XLG.rojoClaro)
     );
 
     fila += 1;
@@ -753,9 +879,10 @@ function xlgHojaMatrizLineas(wb, ctx){
   filaTotal.forEach((v, j) => {
     const c = ws.getCell(fila, j + 1);
     c.value = v;
-    c.font = xlFont({ bold:true, color:XL.blanco });
-    c.fill = xlFill(XL.grisTexto);
-    c.border = XL_BORDER;
+    c.font = xlgFont({ bold:true, color:XLG.azul });
+    c.fill = xlFill(XLG.azulClaro);
+    c.border = XLG_BORDER;
+    c.alignment = { horizontal: j === 0 ? 'left' : 'center', vertical:'middle' };
   });
 
 }
@@ -792,9 +919,9 @@ function xlgHojaProduccionDiaLinea(wb, ctx){
   encabezados.forEach((h, i) => {
     const c = ws.getCell(1, i + 1);
     c.value = h;
-    c.font = xlFont({ bold:true, color:XL.blanco });
-    c.fill = xlFill(XL.azul);
-    c.border = XL_BORDER;
+    c.font = xlgFont({ bold:true, color:XLG.blanco });
+    c.fill = xlFill(XLG.azul);
+    c.border = XLG_BORDER;
     c.alignment = { horizontal:'center' };
   });
 
@@ -809,8 +936,8 @@ function xlgHojaProduccionDiaLinea(wb, ctx){
     const fila = i + 2;
 
     ws.getCell(fila, 1).value = xlFechaTexto(f);
-    ws.getCell(fila, 1).font = xlFont({});
-    ws.getCell(fila, 1).border = XL_BORDER;
+    ws.getCell(fila, 1).font = xlgFont({});
+    ws.getCell(fila, 1).border = XLG_BORDER;
 
     let totalDia = 0;
 
@@ -821,8 +948,9 @@ function xlgHojaProduccionDiaLinea(wb, ctx){
 
       const c = ws.getCell(fila, j + 2);
       c.value = val || '';
-      c.font = xlFont({});
-      c.border = XL_BORDER;
+      c.numFmt = '#,##0';
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
 
       if(val > 0 && maxValor > 0){
         const intensidad = val / maxValor;
@@ -833,16 +961,17 @@ function xlgHojaProduccionDiaLinea(wb, ctx){
 
     const cTotal = ws.getCell(fila, lineas.length + 2);
     cTotal.value = totalDia;
-    cTotal.font = xlFont({ bold:true });
-    cTotal.border = XL_BORDER;
-    cTotal.fill = xlFill(XL.azulMuyClaro);
+    cTotal.numFmt = '#,##0';
+    cTotal.font = xlgFont({ bold:true });
+    cTotal.border = XLG_BORDER;
+    cTotal.fill = xlFill(XLG.azulMuyClaro);
 
   });
 
 }
 
 /*
-   Interpola entre azul muy claro (poco) y azul fuerte (mucho),
+   Interpola entre azul muy claro (poco) y azul suave (mucho),
    para un mapa de calor simple sin depender de "Conditional
    Formatting" nativo de Excel.
 */
@@ -850,8 +979,8 @@ function colorMapaCalor(intensidad){
 
   const t = Math.max(0, Math.min(1, intensidad));
 
-  const c1 = { r:0xEE, g:0xF5, b:0xFB }; /* XL.azulMuyClaro */
-  const c2 = { r:0x5B, g:0x9B, b:0xD5 }; /* XL.celeste */
+  const c1 = { r:0xF1, g:0xF6, b:0xFA }; /* XLG.azulMuyClaro */
+  const c2 = { r:0x8F, g:0xB3, b:0xCF }; /* XLG.celeste */
 
   const r = Math.round(c1.r + (c2.r - c1.r) * t);
   const g = Math.round(c1.g + (c2.g - c1.g) * t);
@@ -885,7 +1014,7 @@ function xlgHojaCortes(wb, ctx){
   function tituloSeccion(texto){
     ws.mergeCells(`B${fila}:E${fila}`);
     ws.getCell(`B${fila}`).value = texto;
-    ws.getCell(`B${fila}`).font = xlFont({ size:12, bold:true, color:XL.azul });
+    ws.getCell(`B${fila}`).font = xlgFont({ size:12, bold:true, color:XLG.azul });
     fila += 1;
   }
 
@@ -893,9 +1022,9 @@ function xlgHojaCortes(wb, ctx){
     cols.forEach((h, i) => {
       const c = ws.getCell(fila, 2 + i);
       c.value = h;
-      c.font = xlFont({ bold:true, color:XL.blanco });
-      c.fill = xlFill(XL.azul);
-      c.border = XL_BORDER;
+      c.font = xlgFont({ bold:true, color:XLG.blanco });
+      c.fill = xlFill(XLG.azul);
+      c.border = XLG_BORDER;
     });
     fila += 1;
   }
@@ -912,8 +1041,8 @@ function xlgHojaCortes(wb, ctx){
     valores.forEach((v, j) => {
       const c = ws.getCell(fila, 2 + j);
       c.value = v;
-      c.font = xlFont({});
-      c.border = XL_BORDER;
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
     });
     fila += 1;
   });
@@ -940,8 +1069,8 @@ function xlgHojaCortes(wb, ctx){
       valores.forEach((v, j) => {
         const c = ws.getCell(fila, 2 + j);
         c.value = v;
-        c.font = xlFont({});
-        c.border = XL_BORDER;
+        c.font = xlgFont({});
+        c.border = XLG_BORDER;
       });
       fila += 1;
     });
@@ -960,8 +1089,8 @@ function xlgHojaCortes(wb, ctx){
     valores.forEach((v, j) => {
       const c = ws.getCell(fila, 2 + j);
       c.value = v;
-      c.font = xlFont({});
-      c.border = XL_BORDER;
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
     });
     fila += 1;
   });
@@ -990,7 +1119,7 @@ function xlgHojaParadasMermas(wb, ctx){
   function tituloSeccion(texto){
     ws.mergeCells(`B${fila}:E${fila}`);
     ws.getCell(`B${fila}`).value = texto;
-    ws.getCell(`B${fila}`).font = xlFont({ size:12, bold:true, color:XL.azul });
+    ws.getCell(`B${fila}`).font = xlgFont({ size:12, bold:true, color:XLG.azul });
     fila += 1;
   }
 
@@ -998,9 +1127,9 @@ function xlgHojaParadasMermas(wb, ctx){
     cols.forEach((h, i) => {
       const c = ws.getCell(fila, 2 + i);
       c.value = h;
-      c.font = xlFont({ bold:true, color:XL.blanco });
-      c.fill = xlFill(XL.azul);
-      c.border = XL_BORDER;
+      c.font = xlgFont({ bold:true, color:XLG.blanco });
+      c.fill = xlFill(XLG.azul);
+      c.border = XLG_BORDER;
     });
     fila += 1;
   }
@@ -1034,8 +1163,8 @@ function xlgHojaParadasMermas(wb, ctx){
     valores.forEach((v, j) => {
       const c = ws.getCell(fila, 2 + j);
       c.value = v;
-      c.font = xlFont({});
-      c.border = XL_BORDER;
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
     });
     fila += 1;
   });
@@ -1059,8 +1188,8 @@ function xlgHojaParadasMermas(wb, ctx){
     valores.forEach((v, j) => {
       const c = ws.getCell(fila, 2 + j);
       c.value = v;
-      c.font = xlFont({});
-      c.border = XL_BORDER;
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
     });
     fila += 1;
   });
@@ -1098,8 +1227,8 @@ function xlgHojaParadasMermas(wb, ctx){
     valores.forEach((v, j) => {
       const c = ws.getCell(fila, 2 + j);
       c.value = v;
-      c.font = xlFont({});
-      c.border = XL_BORDER;
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
     });
     fila += 1;
   });
@@ -1121,11 +1250,11 @@ function xlgHojaTendencia(wb, ctx){
 
   if(!fechas.length){
     ws.getCell('B2').value = 'No hay suficientes datos para la tendencia en el rango elegido.';
-    ws.getCell('B2').font = xlFont({ italic:true, color:XL.grisTexto });
+    ws.getCell('B2').font = xlgFont({ italic:true, color:XLG.grisTexto });
     return;
   }
 
-  const colores = coloresResumen(lineas.length);
+  const colores = lineas.map((l, i) => '#' + XLG_SERIES[i % XLG_SERIES.length]);
 
   const seriesOEE = lineas.map((l, i) => ({
     nombre: l.name,
@@ -1144,26 +1273,26 @@ function xlgHojaTendencia(wb, ctx){
   encabezados.forEach((h, i) => {
     const c = ws.getCell(1, i + 1);
     c.value = h;
-    c.font = xlFont({ bold:true, color:XL.blanco });
-    c.fill = xlFill(XL.azul);
-    c.border = XL_BORDER;
+    c.font = xlgFont({ bold:true, color:XLG.blanco });
+    c.fill = xlFill(XLG.azul);
+    c.border = XLG_BORDER;
   });
 
   fechas.forEach((f, i) => {
 
     const fila = i + 2;
     ws.getCell(fila, 1).value = xlFechaTexto(f);
-    ws.getCell(fila, 1).font = xlFont({});
-    ws.getCell(fila, 1).border = XL_BORDER;
+    ws.getCell(fila, 1).font = xlgFont({});
+    ws.getCell(fila, 1).border = XLG_BORDER;
 
     lineas.forEach((l, j) => {
       const v = seriesOEE[j].valores[i];
       const c = ws.getCell(fila, j + 2);
       c.value = v === null ? '—' : pct(v);
-      c.font = xlFont({});
-      c.border = XL_BORDER;
+      c.font = xlgFont({});
+      c.border = XLG_BORDER;
       if(v !== null){
-        c.fill = xlFill(xlColorSemaforo(v));
+        c.fill = xlFill(xlgColorSemaforo(v));
       }
     });
 
@@ -1172,11 +1301,11 @@ function xlgHojaTendencia(wb, ctx){
   /* Gráfico */
   const imagen = xlgGraficoLineas({
     titulo: 'OEE diario por línea (línea punteada = meta ' + pct(METAS.oee) + ')',
-    fechas, series: seriesOEE
+    fechas, series: seriesOEE, ancho: 760, alto: 340
   });
 
   if(imagen){
-    xlAgregarImagen(wb, ws, imagen, lineas.length + 3, 0, 620, 260);
+    xlAgregarImagen(wb, ws, imagen, lineas.length + 3, 0, 700, 313);
   }
 
 }
@@ -1205,9 +1334,9 @@ function xlgHojaDatos(wb, ctx){
   ws.columns = XLG_COLUMNAS_DATOS.map(h => ({ header:h, width:16 }));
 
   ws.getRow(1).eachCell(c => {
-    c.font = xlFont({ bold:true, color:XL.blanco });
-    c.fill = xlFill(XL.azul);
-    c.border = XL_BORDER;
+    c.font = xlgFont({ bold:true, color:XLG.blanco });
+    c.fill = xlFill(XLG.azul);
+    c.border = XLG_BORDER;
   });
 
   records.forEach(r => {
@@ -1251,7 +1380,7 @@ function xlgHojaDatos(wb, ctx){
 
   ws.eachRow((row, i) => {
     if(i === 1) return;
-    row.eachCell(c => { c.font = xlFont({}); c.border = XL_BORDER; });
+    row.eachCell(c => { c.font = xlgFont({}); c.border = XLG_BORDER; });
   });
 
 }
@@ -1274,9 +1403,9 @@ function xlgHojaAlertas(wb, ctx){
   ];
 
   ws.getRow(1).eachCell(c => {
-    c.font = xlFont({ bold:true, color:XL.blanco });
-    c.fill = xlFill(XL.azul);
-    c.border = XL_BORDER;
+    c.font = xlgFont({ bold:true, color:XLG.blanco });
+    c.fill = xlFill(XLG.azul);
+    c.border = XLG_BORDER;
   });
 
   const lineaNombre = key => (LINES.find(l => l.key === key) || {}).name || key || '';
@@ -1325,9 +1454,9 @@ function xlgHojaAlertas(wb, ctx){
         ]);
 
         row.eachCell(cel => {
-          cel.font = xlFont({});
-          cel.border = XL_BORDER;
-          cel.fill = xlFill(XL.rojoClaro);
+          cel.font = xlgFont({});
+          cel.border = XLG_BORDER;
+          cel.fill = xlFill(XLG.rojoClaro);
         });
 
       });
@@ -1339,8 +1468,113 @@ function xlgHojaAlertas(wb, ctx){
   if(ws.rowCount === 1){
     ws.mergeCells('A2:F2');
     ws.getCell('A2').value = 'No se detectaron inconsistencias en los registros del rango elegido.';
-    ws.getCell('A2').font = xlFont({ italic:true, color:XL.grisTexto });
+    ws.getCell('A2').font = xlgFont({ italic:true, color:XLG.grisTexto });
   }
+
+}
+
+
+/* =========================================================
+   ACABADO VISUAL DEL LIBRO
+   =========================================================
+
+   Se aplica al final, sobre todas las hojas ya armadas:
+
+   - color de pestaña
+   - encabezados centrados y con altura cómoda
+   - filas alternas (cebra) muy suaves en las tablas, sin
+     tocar las celdas que ya tienen color de semáforo
+   - primera fila fija en las tablas largas
+   - filtro en la hoja Datos
+   - impresión horizontal ajustada al ancho de la página
+   ========================================================= */
+
+function xlgEmbellecerLibro(wb){
+
+  const argbEncabezado = 'FF' + XLG.azul;
+
+  wb.worksheets.forEach(ws => {
+
+    const esDatos =
+      ws.name === 'Datos' || ws.name === 'Alertas de datos';
+
+    ws.properties.tabColor = {
+      argb:'FF' + (esDatos ? 'C9D3DA' : XLG.celeste)
+    };
+
+    ws.eachRow({ includeEmpty:false }, (row, nroFila) => {
+
+      let esFilaEncabezado = false;
+
+      row.eachCell({ includeEmpty:false }, cel => {
+
+        const fg =
+          cel.fill && cel.fill.fgColor && cel.fill.fgColor.argb;
+
+        if(fg === argbEncabezado){
+
+          esFilaEncabezado = true;
+
+          cel.alignment = {
+            horizontal:'center',
+            vertical:'middle',
+            wrapText:true,
+            ...(cel.alignment || {})
+          };
+
+        } else if(
+          !cel.fill &&
+          cel.border && cel.border.top &&
+          nroFila % 2 === 0
+        ){
+
+          cel.fill = xlFill(XLG.grisClaro);
+
+        }
+
+      });
+
+      if(esFilaEncabezado){
+        row.height = ws.name === 'Portada' ? 22 : 30;
+      }
+
+    });
+
+    if(
+      ['Matriz de líneas', 'Producción diaria', 'Tendencia', 'Alertas de datos']
+        .includes(ws.name)
+    ){
+      ws.views = [{ showGridLines:false, state:'frozen', ySplit:1 }];
+    }
+
+    if(ws.name === 'Datos'){
+      ws.autoFilter = {
+        from:{ row:1, column:1 },
+        to:{ row:1, column:XLG_COLUMNAS_DATOS.length }
+      };
+    }
+
+    if(!esDatos){
+
+      ws.pageSetup = {
+        orientation:'landscape',
+        paperSize:9,
+        fitToPage:true,
+        fitToWidth:1,
+        fitToHeight:0,
+        margins:{
+          left:0.4, right:0.4, top:0.5, bottom:0.5,
+          header:0.3, footer:0.3
+        }
+      };
+
+      ws.headerFooter = {
+        oddFooter:'&L&8GLACIAL · Reporte General de Planta&R&8Página &P de &N'
+      };
+
+    }
+
+  });
 
 }
 
@@ -1461,6 +1695,8 @@ async function exportarExcelGeneral(btn){
     xlgHojaTendencia(wb, ctx);
     xlgHojaAlertas(wb, ctx);
     xlgHojaDatos(wb, ctx);
+
+    xlgEmbellecerLibro(wb);
 
     /* Deja pintar el aviso "Generando..." antes de la parte
        más pesada (proteger 8 hojas + serializar el .xlsx). */

@@ -198,6 +198,13 @@ async function migrarUsuarioAPasswordSeguro(usuario){
 
 function handleLogout(){
 
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
+
   sessionStorage.removeItem(DB_SESSION);
 
   state.user = null;
@@ -259,6 +266,13 @@ function goReporteHielo(){
    ========================================================= */
 
 function goReportSelect(){
+
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
 
   document.getElementById('app-screen').style.display = 'none';
 

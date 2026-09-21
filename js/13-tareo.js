@@ -48,6 +48,56 @@ let tareoActualId = null;
 
 
 /* =========================================================
+   AVISO DE ROTACIÓN CARGADA SIN APLICAR
+   =========================================================
+
+   El Excel de rotación, al subirse, solo se procesa y se
+   muestra como VISTA PREVIA en window._tareoRotacionPendiente
+   (una variable en memoria). Nada se guarda de verdad hasta
+   que la persona hace clic en "Validar y aplicar rotación"
+   (aplicarRotacionPendiente(), que sí escribe en Firestore).
+
+   Esto avisa dos veces si hay una vista previa sin aplicar:
+   1) al intentar cerrar/recargar la pestaña (beforeunload)
+   2) al intentar navegar a otra sección dentro del propio
+      sistema (Tareo, Historial, otras líneas, cerrar sesión,
+      etc.) mediante confirmarAbandonoRotacionPendiente()
+   ========================================================= */
+
+window.addEventListener('beforeunload', function(evento){
+
+    if(window._tareoRotacionPendiente){
+
+        evento.preventDefault();
+        evento.returnValue = '';
+
+        return '';
+    }
+
+});
+
+
+function confirmarAbandonoRotacionPendiente(){
+
+    if(!window._tareoRotacionPendiente){
+        return true;
+    }
+
+    return confirm(
+        'Cargaste un Excel de rotación semanal que todavía ' +
+        'NO se ha aplicado.\n\n' +
+        'Si sales de esta pantalla ahora, se perderá y ' +
+        'tendrás que volver a subirlo.\n\n' +
+        '¿Deseas salir de todas formas sin aplicar la rotación?'
+    );
+
+}
+
+window.confirmarAbandonoRotacionPendiente =
+    confirmarAbandonoRotacionPendiente;
+
+
+/* =========================================================
    UTILIDADES
    ========================================================= */
 
@@ -3131,7 +3181,7 @@ function renderRotacionSemanal() {
 
             <button
                 class="btn btn-ghost"
-                onclick="renderTareoPrincipal()"
+                onclick="if(confirmarAbandonoRotacionPendiente())renderTareoPrincipal()"
             >
                 ← Volver
             </button>
@@ -3143,21 +3193,21 @@ function renderRotacionSemanal() {
 
             <button
                 class="tareo-tab"
-                onclick="renderTareoPrincipal()"
+                onclick="if(confirmarAbandonoRotacionPendiente())renderTareoPrincipal()"
             >
                 Tareo
             </button>
 
             <button
                 class="tareo-tab"
-                onclick="renderHistorialTareo()"
+                onclick="if(confirmarAbandonoRotacionPendiente())renderHistorialTareo()"
             >
                 Historial
             </button>
 
             <button
                 class="tareo-tab"
-                onclick="renderResumenMensualTareoUI()"
+                onclick="if(confirmarAbandonoRotacionPendiente())renderResumenMensualTareoUI()"
             >
                 Resumen mensual
             </button>
@@ -4057,6 +4107,30 @@ function renderPreviewRotacion(
 
     contenedor.innerHTML = `
 
+        <div
+            style="
+                display:flex;
+                align-items:center;
+                gap:10px;
+                background:#FFF4E5;
+                border:2px solid #F5A623;
+                border-radius:8px;
+                padding:12px 14px;
+                margin-bottom:14px;
+                font-weight:600;
+                color:#7A4A00;
+            "
+        >
+            <span style="font-size:20px;">⚠</span>
+            <span>
+                Este archivo todavía NO está guardado.
+                Debes hacer clic en <u>"Validar y aplicar rotación"</u>
+                más abajo, o se perderá si sales de esta pantalla,
+                recargas o cierras la página.
+            </span>
+        </div>
+
+
         <div class="tareo-preview-head">
 
             <div>
@@ -4342,7 +4416,17 @@ function renderPreviewRotacion(
         </div>
 
 
-        <div class="actions-row">
+        <div
+            class="actions-row"
+            style="
+                position:sticky;
+                bottom:0;
+                background:#fff;
+                padding:14px 0 4px;
+                border-top:1px solid #E3E8EC;
+                margin-top:10px;
+            "
+        >
 
             <button
                 class="btn btn-ghost"
@@ -4353,6 +4437,12 @@ function renderPreviewRotacion(
 
             <button
                 class="btn btn-primary"
+                style="
+                    font-size:16px;
+                    font-weight:700;
+                    padding:12px 26px;
+                    box-shadow:0 0 0 3px rgba(245,166,35,0.35);
+                "
                 ${
                     !valido
                         ? 'disabled'
@@ -4360,7 +4450,7 @@ function renderPreviewRotacion(
                 }
                 onclick="aplicarRotacionPendiente()"
             >
-                Validar y aplicar rotación
+                ✓ Validar y aplicar rotación (guardar)
             </button>
 
         </div>
@@ -6289,4 +6379,8 @@ window.cambiarTurnoTareo =
     cambiarTurnoTareo;
 
 window.exportarResumenMensualTareo =
+<<<<<<< HEAD
     exportarResumenMensualTareo;
+=======
+    exportarResumenMensualTareo;
+>>>>>>> 49d4ce5 (Cambios recientes app GLACIAL)
