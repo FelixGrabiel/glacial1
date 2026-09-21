@@ -6379,8 +6379,4 @@ window.cambiarTurnoTareo =
     cambiarTurnoTareo;
 
 window.exportarResumenMensualTareo =
-<<<<<<< HEAD
     exportarResumenMensualTareo;
-=======
-    exportarResumenMensualTareo;
->>>>>>> 49d4ce5 (Cambios recientes app GLACIAL)
