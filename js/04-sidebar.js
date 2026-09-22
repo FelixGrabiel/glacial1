@@ -31,7 +31,8 @@ function renderSidebar(){
         <button
           class="line-btn ${
             state.currentLine === l.key &&
-            state.currentTab !== 'resumen'
+            state.currentTab !== 'resumen' &&
+            state.currentTab !== 'perdidas'
               ? 'active'
               : ''
           }"
@@ -85,6 +86,29 @@ function goResumen(){
     return;
   }
   state.currentTab='resumen';
+  renderSidebar();
+  renderMain();
+}
+
+
+/*
+   "Impacto Económico" (antes "Pérdidas en S/.") — igual que
+   goResumen(), pero con su propio permiso ('perdidasSoles')
+   para que el Administrador decida por separado quién ve
+   este reporte de dinero.
+*/
+function goPerdidasSoles(){
+  if(!tienePermiso('perdidasSoles')){
+    alert('No tienes permiso para ver Impacto Económico.');
+    return;
+  }
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
+  state.currentTab='perdidas';
   renderSidebar();
   renderMain();
 }

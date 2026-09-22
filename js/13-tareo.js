@@ -209,42 +209,117 @@ function obtenerPersonalTareo() {
 
 /* =========================================================
    STORAGE TAREOS
-   ========================================================= */
+   =========================================================
+
+   Antes, los tareos se guardaban SOLO con localStorage
+   (únicamente en el navegador de la computadora donde se
+   creaban). Por eso al entrar desde otra PC o celular no
+   aparecían: nunca habían salido de ese navegador.
+
+   Ahora se guardan en Firestore (igual que usuarios,
+   reportes, trabajadores y rotación semanal), a través de
+   loadTareos()/saveTareos() definidas en 02-estado.js — así
+   quedan disponibles en tiempo real en cualquier equipo.
+
+   TAREO_STORAGE_KEY se mantiene solo para migrar, una única
+   vez, los tareos que hayan quedado guardados localmente en
+   este navegador antes de este cambio (para no perderlos).
+*/
 
 function obtenerTareos() {
 
-    try {
+    if (typeof loadTareos !== 'function') {
 
-        const datos = localStorage.getItem(
-            TAREO_STORAGE_KEY
+        console.error(
+            'TAREO: No se encontró loadTareos().'
         );
 
-        if (!datos) return [];
+        return [];
+    }
 
-        const tareos = JSON.parse(datos);
+    let tareos = [];
 
-        return Array.isArray(tareos)
-            ? tareos
-            : [];
-
+    try {
+        tareos = loadTareos();
     } catch (error) {
 
         console.error(
-            'TAREO: Error leyendo almacenamiento:',
+            'TAREO: Error al cargar tareos:',
             error
         );
 
         return [];
     }
+
+    if (Array.isArray(tareos) && tareos.length) {
+        return tareos;
+    }
+
+    /*
+       Solo se intenta la migración desde localStorage una
+       vez que Firestore YA confirmó (_tareosReady) que de
+       verdad no hay datos en la nube. Si se migrara antes de
+       esa confirmación, se correría el riesgo de pisar datos
+       recién llegados de Firestore con una copia local vieja,
+       apenas por haber consultado unos milisegundos antes de
+       que llegara la respuesta real.
+    */
+
+    if (typeof _tareosReady !== 'undefined' && !_tareosReady) {
+        return Array.isArray(tareos) ? tareos : [];
+    }
+
+    /* Migración única de tareos guardados localmente. */
+
+    try {
+
+        const datosLocales = localStorage.getItem(
+            TAREO_STORAGE_KEY
+        );
+
+        if (datosLocales) {
+
+            const tareosLocales = JSON.parse(datosLocales);
+
+            if (
+                Array.isArray(tareosLocales) &&
+                tareosLocales.length
+            ) {
+
+                guardarTareos(tareosLocales);
+
+                localStorage.removeItem(
+                    TAREO_STORAGE_KEY
+                );
+
+                return tareosLocales;
+            }
+        }
+
+    } catch (error) {
+
+        console.error(
+            'TAREO: Error migrando tareos locales:',
+            error
+        );
+    }
+
+    return Array.isArray(tareos) ? tareos : [];
 }
 
 
 function guardarTareos(tareos) {
 
-    localStorage.setItem(
-        TAREO_STORAGE_KEY,
-        JSON.stringify(tareos)
-    );
+    if (typeof saveTareos !== 'function') {
+
+        console.error(
+            'TAREO: No se encontró saveTareos().'
+        );
+
+        return;
+    }
+
+    saveTareos(tareos);
 }
 
 
@@ -309,6 +384,20 @@ function obtenerRotaciones() {
 
     if (Array.isArray(rotaciones) && rotaciones.length) {
         return rotaciones;
+    }
+
+    /*
+       Solo se intenta la migración desde localStorage una
+       vez que Firestore YA confirmó (_rotacionesReady) que
+       de verdad no hay datos en la nube. Si se migrara antes
+       de esa confirmación, se correría el riesgo de pisar
+       datos recién llegados de Firestore con una copia local
+       vieja, apenas por haber consultado unos milisegundos
+       antes de que llegara la respuesta real.
+    */
+
+    if (typeof _rotacionesReady !== 'undefined' && !_rotacionesReady) {
+        return Array.isArray(rotaciones) ? rotaciones : [];
     }
 
     /* Migración única de una rotación guardada localmente. */
@@ -995,7 +1084,7 @@ function renderTareoPrincipal() {
 
     main.innerHTML = `
 
-        <div class="main-head">
+        <div class="main-head" id="tareo-principal-view">
 
             <div>
 
@@ -2373,7 +2462,7 @@ function renderHistorialTareo() {
 
     main.innerHTML = `
 
-        <div class="main-head">
+        <div class="main-head" id="tareo-historial-view">
 
             <div>
 
@@ -6380,3 +6469,6 @@ window.cambiarTurnoTareo =
 
 window.exportarResumenMensualTareo =
     exportarResumenMensualTareo;
+=======
+    exportarResumenMensualTareo;
+>>>>>>> 49d4ce5 (Cambios recientes app GLACIAL)

@@ -25,7 +25,7 @@
         service cloud.firestore {
           match /databases/{database}/documents {
             match /sync/{doc} {
-              allow read, write: if doc in ['users', 'records', 'workers'];
+              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'tareos', 'precios'];
             }
             match /{document=**} {
               allow read, write: if false;
@@ -33,17 +33,39 @@
           }
         }
 
+      ⚠⚠ ACCIÓN REQUERIDA AHORA (20260921, actualizado): la
+      regla que hay publicada hoy en la consola de Firebase
+      todavía dice "if doc in ['users', 'records', 'workers']"
+      — SIN 'rotaciones', 'tareos' NI 'precios' (este último es
+      nuevo: lo usa el reporte "Impacto Económico" para guardar el
+      precio por unidad de cada línea). Eso es exactamente lo que
+      causaba que el Excel de rotación semanal y los tareos
+      creados en Tareo "se borraran" al abrir el sistema
+      desde otra computadora o celular: Firestore rechazaba
+      en silencio cualquier intento de guardar esos dos
+      documentos (el navegador que los creó los mostraba
+      igual, porque los guarda primero en memoria, pero nunca
+      llegaban de verdad a la nube, así que ningún otro
+      equipo — ni ese mismo tras recargar la página — podía
+      verlos).
+
+      Copiar y pegar la regla de arriba en el código NO alcanza:
+      hay que ir a Firebase Console > Firestore Database > Reglas,
+      reemplazar la regla publicada por la de arriba (agregando
+      'rotaciones' y 'tareos') y hacer clic en "Publicar". Es un
+      cambio de una sola vez.
+
       ⚠ SEGURIDAD (parche intermedio, 20260912): esta regla
-      solo limita las reglas a los 3 documentos que usa la
-      app (users/records/workers) — sigue sin exigir haber
-      iniciado sesión, porque el sistema todavía no usa
-      Firebase Authentication. Mientras tanto, las contraseñas
-      YA se guardan con hash + salt (nunca en texto plano), y
-      se recomienda activar Firebase App Check (App Check >
-      reCAPTCHA v3) y luego "Enforce" para Firestore, para que
-      solo esta página pueda leer/escribir estos documentos.
-      La solución definitiva a futuro es migrar el login a
-      Firebase Authentication.
+      solo limita las reglas a los documentos que usa la
+      app (users/records/workers/rotaciones/tareos) — sigue
+      sin exigir haber iniciado sesión, porque el sistema
+      todavía no usa Firebase Authentication. Mientras tanto,
+      las contraseñas YA se guardan con hash + salt (nunca en
+      texto plano), y se recomienda activar Firebase App Check
+      (App Check > reCAPTCHA v3) y luego "Enforce" para
+      Firestore, para que solo esta página pueda leer/escribir
+      estos documentos. La solución definitiva a futuro es
+      migrar el login a Firebase Authentication.
 
    4. Ve a Configuración del proyecto (ícono de engranaje) >
       "Tus apps" > icono web (</>) > registra la app.
@@ -426,6 +448,20 @@ const MERMA_ITEMS_POR_LINEA = {
     'Asa',
     'Etiqueta',
     'Polietileno 54cm'
+  ],
+
+  /*
+     C20L (Caja 20 Litros): solo estos 4 componentes de
+     merma, según lo indicado — antes usaba por error la
+     lista genérica de PET (Botellas, Preformas, Tapa Plana,
+     Tapa Sport Cap, Etiqueta, Polietileno), que no aplica a
+     esta línea.
+  */
+  C20L: [
+    'Cajas',
+    'Bolsas Trilaminadas',
+    'Tapa',
+    'Polietileno 54 cm'
   ]
 
 };
@@ -536,3 +572,79 @@ const PARADAS_PROGRAMADAS = [
   'Cierre de turno',
   'Encendido de máquinas'
 ];
+
+
+/* =========================================================
+   CAUSA DE LA PARADA NO PROGRAMADA (LISTA MAESTRA)
+   =========================================================
+
+   Solo aplica a "Paradas no programadas" (las programadas ya
+   son siempre administrativas: charlas, refrigerio, limpieza,
+   cambios de formato, etc., así que no necesitan causa).
+
+   Se agrega esta clasificación porque Gráficos/Excel la usan
+   para desglosar minutos de parada por motivo. El reporte
+   "Impacto Económico" (15-perdidas-soles.js) YA NO depende de
+   este campo: desde el 20260922 valoriza en dinero TODAS las
+   paradas no programadas, agrupándolas por la máquina/área que
+   detecta en el texto de la descripción (Etiquetadora,
+   Empaquetadora, Sopladora, Envasadora, Calidad, Producción),
+   sin importar la "Causa" que tengan asignada aquí.
+
+   Los registros guardados ANTES de este cambio no tienen
+   "causa" en sus paradas no programadas, pero eso ya no importa
+   para Impacto Económico: como ahora agrupa por texto de la
+   descripción (no por este campo), esas paradas antiguas SÍ se
+   cuentan en el total de soles — solo caen en "Otros / sin
+   clasificar" si su descripción no menciona ninguna máquina
+   conocida (se avisa esto en la propia pantalla).
+   ========================================================= */
+
+const CAUSAS_PARADA_NO_PROGRAMADA = [
+  'Falla de máquina',
+  'Falta de insumos',
+  'Falta de personal',
+  'Calidad / producto no conforme',
+  'Otro'
+];
+
+
+/* =========================================================
+   PRECIO UNITARIO POR LÍNEA (PARA VALORIZAR IMPACTO ECONÓMICO)
+   =========================================================
+
+   Precio de venta aproximado, en soles, de UNA unidad
+   producida en cada línea (botella/bidón/caja/etc., según
+   corresponda). Se usa SOLO para convertir a dinero las
+   unidades que se dejaron de producir por paradas de máquina
+   (15-perdidas-soles.js) — no afecta ningún cálculo de OEE.
+
+   Estos son los valores INICIALES indicados por jefatura
+   (dentro de los rangos que dieron):
+     PET (PET1/PET2)........ S/ 1.00
+     B7L (Bidón 7L)......... S/ 1.00 a S/ 2.00 -> se deja en 1.50
+     C20L (Caja 20L)........ S/ 1.00 a S/ 9.00 -> se deja en 5.00
+     B20L (Bidón 20L)....... no indicado -> se deja en 1.00
+     Hielo (a futuro)........ S/ 0.00 a S/ 1.00 -> se deja en 0.50
+
+   Un Administrador puede ajustar estos valores desde la
+   pestaña "Impacto Económico" (quedan guardados en Firestore,
+   documento sync/precios, y se sincronizan en tiempo real
+   igual que usuarios/reportes/trabajadores).
+   ========================================================= */
+
+const PRECIOS_UNITARIOS_DEFAULT = {
+  PET1: 1.00,
+  PET2: 1.00,
+  B7L: 1.50,
+  C20L: 5.00,
+  B20L: 1.00,
+
+  /*
+     HIELO no es una línea de LINES (todavía no existe el
+     "Reporte Hielo", ver goReporteHielo en 03-auth.js) — se
+     deja el precio ya cargado para cuando se implemente, pero
+     hoy no se usa en ningún cálculo.
+  */
+  HIELO: 0.50
+};

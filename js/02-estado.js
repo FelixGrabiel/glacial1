@@ -62,11 +62,54 @@ let _usersCache = [];
 let _recordsCache = [];
 let _workersCache = [];
 let _rotacionesCache = [];
+let _tareosCache = [];
+let _preciosCache = {};
 
 let _usersReady = false;
 let _recordsReady = false;
 let _workersReady = false;
 let _rotacionesReady = false;
+let _tareosReady = false;
+let _preciosReady = false;
+
+
+/*
+   AVISO DE ERROR AL GUARDAR EN FIRESTORE
+   =========================================================
+
+   Antes, si Firestore rechazaba una escritura (por ejemplo,
+   por permisos), el error solo quedaba en la consola del
+   navegador (F12) y la persona veía el mensaje de "guardado
+   con éxito" igual, porque el caché local sí se actualiza
+   al instante. Eso hacía that un registro pareciera guardado
+   en la computadora que lo creó, pero nunca llegara a existir
+   de verdad en la nube — y por lo tanto no apareciera en
+   ninguna otra computadora o celular, ni sobreviviera a un
+   refresco de página.
+
+   Esta función se usa en TODOS los save*() de abajo para que,
+   si Firestore rechaza el guardado, la persona se entere en
+   el momento (con una alerta clara) en vez de que el dato
+   "desaparezca" silenciosamente más tarde.
+*/
+
+function _avisarErrorGuardado(nombreDato, error){
+
+  console.error(
+    'Error guardando "' + nombreDato + '" en Firestore:',
+    error
+  );
+
+  alert(
+    'No se pudo guardar "' + nombreDato + '" en la nube.\n\n' +
+    'Motivo: ' + (error && error.message ? error.message : error) + '\n\n' +
+    'Es probable que falte permiso en las reglas de Firestore ' +
+    '(revisa 01-config.js) o que no haya conexión a internet.\n\n' +
+    'Lo que acabas de hacer solo quedó guardado en ESTA computadora ' +
+    'y se perderá si recargas la página o la abres desde otro equipo.'
+  );
+
+}
 
 
 /* =========================================================
@@ -77,6 +120,7 @@ const PERMISOS_APP=[
   {key:'historial',label:'Historial'},
   {key:'graficos',label:'Gráficos'},
   {key:'resumen',label:'Resumen / Reportes'},
+  {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
   {key:'trabajadores',label:'Trabajadores'},
   {key:'usuarios',label:'Usuarios'},
   {key:'exportarExcel',label:'Exportar Excel'},
@@ -282,6 +326,99 @@ function initRealtimeSync(){
 
     );
 
+
+  /*
+     TAREOS (ASISTENCIA DIARIA DE PERSONAL)
+
+     Antes, cada tareo creado se guardaba SOLO con
+     localStorage.setItem(...) (13-tareo.js), es decir,
+     únicamente en el navegador de la computadora donde se
+     creó. Por eso al abrir el sistema desde otra PC o
+     celular el tareo "desaparecía": nunca había viajado a
+     Firestore, así que no había forma de que otro equipo lo
+     viera.
+
+     Se sincroniza ahora exactamente igual que usuarios,
+     reportes, trabajadores y rotación semanal: un solo
+     documento en Firestore con un campo "items" con el
+     arreglo completo de tareos.
+  */
+
+  db.collection('sync').doc('tareos')
+
+    .onSnapshot(
+
+      snap => {
+
+        _tareosCache =
+          (snap.exists && snap.data().items)
+            ? snap.data().items
+            : [];
+
+        _tareosReady = true;
+
+        onTareosUpdated();
+
+      },
+
+      err => {
+
+        console.error(
+          'Error de sincronización (tareos):', err
+        );
+
+      }
+
+    );
+
+
+  /*
+     PRECIOS UNITARIOS POR LÍNEA (PARA "IMPACTO ECONÓMICO")
+
+     Un solo documento en Firestore con el precio (S/.) por
+     unidad de cada línea, editable por un Administrador desde
+     la pestaña "Impacto Económico" (15-perdidas-soles.js). Si el
+     documento todavía no existe, se siembra con los valores
+     iniciales de PRECIOS_UNITARIOS_DEFAULT (01-config.js).
+  */
+
+  db.collection('sync').doc('precios')
+
+    .onSnapshot(
+
+      snap => {
+
+        if(snap.exists && snap.data().items){
+
+          _preciosCache = snap.data().items;
+
+        } else {
+
+          _preciosCache = { ...PRECIOS_UNITARIOS_DEFAULT };
+
+          db.collection('sync').doc('precios').set({
+            items: _preciosCache,
+            updatedAt: Date.now()
+          });
+
+        }
+
+        _preciosReady = true;
+
+        onPreciosUpdated();
+
+      },
+
+      err => {
+
+        console.error(
+          'Error de sincronización (precios):', err
+        );
+
+      }
+
+    );
+
 }
 
 
@@ -355,6 +492,70 @@ function onRotacionesUpdated(){
 }
 
 
+function onTareosUpdated(){
+
+  /*
+     Si la persona tiene abierta la lista principal de Tareo
+     o el Historial de Tareo (identificadas por el id que
+     lleva su contenedor), se refresca para mostrar los
+     tareos tal como quedaron en Firestore — incluyendo los
+     creados desde otra computadora o celular.
+  */
+
+  if(
+    document.getElementById('tareo-principal-view') &&
+    typeof renderTareoPrincipal === 'function'
+  ){
+
+    renderTareoPrincipal();
+
+  }
+
+  if(
+    document.getElementById('tareo-historial-view') &&
+    typeof renderHistorialTareo === 'function'
+  ){
+
+    renderHistorialTareo();
+
+  }
+
+}
+
+
+function onPreciosUpdated(){
+
+  /*
+     Si la persona tiene abierta la pestaña "Impacto Económico"
+     se refresca para reflejar el precio recién guardado —
+     desde esta u otra computadora.
+
+     ANTES esto se decidía buscando el contenedor
+     'perdidas-soles-view' en el DOM, pero ese id solo existe
+     DESPUÉS de que la vista ya se dibujó con datos completos.
+     Si _preciosReady se volvía true mientras la vista todavía
+     mostraba "Cargando datos..." (sin ese id todavía), este
+     chequeo fallaba y la pantalla se quedaba cargando para
+     siempre. Ahora se decide por state.currentTab, igual que
+     onRecordsUpdated/onTareosUpdated, así el refresco ocurre
+     sin importar qué se esté mostrando en ese momento.
+  */
+
+  if(
+    state.user &&
+    state.currentTab === 'perdidas' &&
+    typeof renderPerdidasSoles === 'function'
+  ){
+
+    renderPerdidasSoles(
+      document.getElementById('main')
+    );
+
+  }
+
+}
+
+
 function onRecordsUpdated(){
 
   if(!state.user){
@@ -363,14 +564,20 @@ function onRecordsUpdated(){
 
   /*
      Solo se refresca si la persona está viendo resumen,
-     historial o gráficos — así no se interrumpe a nadie
-     que esté llenando un registro nuevo.
+     historial, gráficos o Impacto Económico — así no se
+     interrumpe a nadie que esté llenando un registro nuevo.
+
+     'perdidas' (Impacto Económico) se agrega aquí porque esa
+     vista también depende de _recordsReady: si el usuario la
+     abre antes de que lleguen los reportes desde Firestore,
+     necesita este refresco para salir de "Cargando datos...".
   */
 
   if(
     state.currentTab === 'resumen' ||
     state.currentTab === 'historial' ||
-    state.currentTab === 'graficos'
+    state.currentTab === 'graficos' ||
+    state.currentTab === 'perdidas'
   ){
 
     renderMain();
@@ -394,7 +601,7 @@ function saveUsers(u){
   db.collection('sync').doc('users').set({
     items: u,
     updatedAt: Date.now()
-  });
+  }).catch(err => _avisarErrorGuardado('usuarios', err));
 
 }
 
@@ -412,7 +619,7 @@ function saveRecords(r){
   return db.collection('sync').doc('records').set({
     items: r,
     updatedAt: Date.now()
-  });
+  }).catch(err => _avisarErrorGuardado('reportes', err));
 }
 
 
@@ -434,7 +641,7 @@ function saveWorkers(w){
   db.collection('sync').doc('workers').set({
     items: w,
     updatedAt: Date.now()
-  });
+  }).catch(err => _avisarErrorGuardado('trabajadores', err));
 
 }
 
@@ -457,7 +664,74 @@ function saveRotaciones(r){
   db.collection('sync').doc('rotaciones').set({
     items: r,
     updatedAt: Date.now()
-  });
+  }).catch(err => _avisarErrorGuardado('rotación semanal', err));
+
+}
+
+
+/* =========================================================
+   TAREOS (ASISTENCIA DIARIA DE PERSONAL)
+   ========================================================= */
+
+function loadTareos(){
+
+  return _tareosCache;
+
+}
+
+
+function saveTareos(t){
+
+  _tareosCache = t;
+
+  db.collection('sync').doc('tareos').set({
+    items: t,
+    updatedAt: Date.now()
+  }).catch(err => _avisarErrorGuardado('tareo', err));
+
+}
+
+
+/* =========================================================
+   PRECIOS UNITARIOS POR LÍNEA (IMPACTO ECONÓMICO)
+   ========================================================= */
+
+function loadPrecios(){
+
+  return Object.keys(_preciosCache).length
+    ? _preciosCache
+    : { ...PRECIOS_UNITARIOS_DEFAULT };
+
+}
+
+
+function savePrecios(p){
+
+  _preciosCache = p;
+
+  db.collection('sync').doc('precios').set({
+    items: p,
+    updatedAt: Date.now()
+  }).catch(err => _avisarErrorGuardado('precios por línea', err));
+
+}
+
+
+/*
+   Precio a usar para una línea: el que haya guardado el
+   Administrador, o si todavía no lo tocó, el valor inicial
+   de PRECIOS_UNITARIOS_DEFAULT (01-config.js).
+*/
+
+function precioUnitarioLinea(lineKey){
+
+  const precios = loadPrecios();
+
+  return num(
+    precios[lineKey] ??
+    PRECIOS_UNITARIOS_DEFAULT[lineKey] ??
+    0
+  );
 
 }
 

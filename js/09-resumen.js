@@ -31,6 +31,135 @@ function cambiarRangoResumen(dias){
 }
 
 
+/* =========================================================
+   VISTA DEL PANEL "PRODUCCIÓN POR PRESENTACIÓN Y MARCA"
+   =========================================================
+
+   Independiente del rango de arriba (7/30/90 días / Todo):
+   el panel puede mostrarse por:
+
+   - 'rango' → el mismo rango de fechas elegido arriba
+               (comportamiento original).
+   - 'mes'   → un mes calendario puntual — resumen mensual
+               de marcas × presentación.
+   - 'anio'  → un año completo (2026, 2027, ...) — el cierre
+               de año con las cantidades producidas por
+               presentación y marca.
+
+   Los meses/años del selector salen de TODO el historial
+   visible (no del rango de días de arriba), así siempre se
+   pueden elegir períodos con datos aunque el rango de 7/30/90
+   días esté vacío.
+   ========================================================= */
+
+let resumenPresentacionModo = 'rango';
+let resumenPresentacionMes = null;
+let resumenPresentacionAnio = null;
+
+function cambiarModoPresentacionMarca(modo){
+
+  resumenPresentacionModo = modo;
+
+  renderResumen(
+    document.getElementById('main')
+  );
+
+}
+
+function cambiarMesPresentacionMarca(mes){
+
+  resumenPresentacionMes = mes;
+
+  renderResumen(
+    document.getElementById('main')
+  );
+
+}
+
+function cambiarAnioPresentacionMarca(anio){
+
+  resumenPresentacionAnio = anio;
+
+  renderResumen(
+    document.getElementById('main')
+  );
+
+}
+
+
+const NOMBRES_MES_RESUMEN = [
+  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'
+];
+
+function etiquetaMesResumen(mesKey){
+
+  const partes = String(mesKey || '').split('-');
+
+  const anio = partes[0] || '';
+  const idx = parseInt(partes[1], 10) - 1;
+
+  return (NOMBRES_MES_RESUMEN[idx] || partes[1] || '') + ' ' + anio;
+
+}
+
+function obtenerMesesDisponiblesResumen(records){
+
+  const set = new Set();
+
+  records.forEach(r => {
+
+    if(r.fecha && r.fecha.length >= 7){
+      set.add(r.fecha.slice(0,7));
+    }
+
+  });
+
+  return Array.from(set).sort((a,b) => b.localeCompare(a));
+
+}
+
+function obtenerAniosDisponiblesResumen(records){
+
+  const set = new Set();
+
+  records.forEach(r => {
+
+    if(r.fecha && r.fecha.length >= 4){
+      set.add(r.fecha.slice(0,4));
+    }
+
+  });
+
+  return Array.from(set).sort((a,b) => b.localeCompare(a));
+
+}
+
+function filtrarRecordsPorMesResumen(records, mesKey){
+
+  if(!mesKey){
+    return [];
+  }
+
+  return records.filter(
+    r => (r.fecha || '').slice(0,7) === mesKey
+  );
+
+}
+
+function filtrarRecordsPorAnioResumen(records, anioKey){
+
+  if(!anioKey){
+    return [];
+  }
+
+  return records.filter(
+    r => (r.fecha || '').slice(0,4) === anioKey
+  );
+
+}
+
+
 /*
    Clasificación "menor es mejor" (para la merma), en
    contraste con statusClass() que asume "mayor es mejor"
@@ -479,6 +608,646 @@ function sumarProduccionPorDiaYPresentacion(records){
       .sort((a,b) => a.localeCompare(b));
 
   return { fechas, presentaciones, acumulado };
+
+}
+
+
+/* =========================================================
+   PRODUCCIÓN POR PRESENTACIÓN (AGRUPADA) Y MARCA
+   =========================================================
+
+   Panel fijo del Resumen general (siempre visible, no depende
+   de ningún filtro aparte del rango de fechas ya elegido
+   arriba): agrupa TODA la producción efectiva del rango en
+   las categorías que pide Gerencia — 380ml, 625ml Regular,
+   625ml Gasificada, 1L, 1.5L, 2.5L, 7L, 10L, Cajas 20L y
+   B20L — cruzadas por marca, sumando los días del rango (no
+   se muestra por día, solo el total acumulado).
+
+   "625ml Gasificada" se distingue por la MARCA, porque el
+   sistema no tiene un campo aparte para esto: Bells_Gas,
+   Bells_Manzana, Scala_Gas, scala_Manzana, Scala_Maracuya y
+   Scala_Piña_Kion (ver MARCAS_POR_LINEA.PET2 en 01-config.js)
+   son variantes gasificadas/saborizadas de Bells y Scala. Acá
+   se muestran bajo su marca base (Bells / Scala) pero su
+   producción entra en "625ml Gasificada" en vez de
+   "625ml Regular". Cualquier otra presentación (380ml, 1L,
+   1.5L, 2.5L) no se divide por gas/regular, solo por marca.
+   ========================================================= */
+
+const CATEGORIAS_PRESENTACION_ORDEN = [
+  '380ml',
+  '625ml Regular',
+  '625ml Gasificada',
+  '1L',
+  '1.5L',
+  '2.5L',
+  '7L',
+  '10L',
+  'Cajas 20L',
+  'B20L'
+];
+
+const MARCA_BASE_GASIFICADA = {
+  'bells gas': 'Bells',
+  'bells manzana': 'Bells',
+  'scala gas': 'Scala',
+  'scala manzana': 'Scala',
+  'scala maracuya': 'Scala',
+  'scala pina kion': 'Scala'
+};
+
+function marcaEsGasificada(marca){
+
+  return Object.prototype.hasOwnProperty.call(
+    MARCA_BASE_GASIFICADA,
+    normalizarTexto(marca)
+  );
+
+}
+
+function marcaBasePresentacion(marca){
+
+  const original = String(marca || '').trim();
+
+  if(!original){
+    return 'Sin marca';
+  }
+
+  return (
+    MARCA_BASE_GASIFICADA[normalizarTexto(original)] ||
+    original
+  );
+
+}
+
+function categoriaPresentacion(linea, presentacion, marca){
+
+  const p = normalizarTexto(presentacion);
+
+  if(linea === 'B7L'){
+
+    if(p.includes('10 litro')) return '10L';
+    if(p.includes('7 litro')) return '7L';
+
+    return null;
+
+  }
+
+  if(linea === 'C20L'){
+    return 'Cajas 20L';
+  }
+
+  if(linea === 'B20L'){
+    return 'B20L';
+  }
+
+  if(linea === 'PET1' || linea === 'PET2'){
+
+    if(p.includes('380ml')) return '380ml';
+
+    if(p.includes('625ml')){
+
+      return marcaEsGasificada(marca)
+        ? '625ml Gasificada'
+        : '625ml Regular';
+
+    }
+
+    if(p.includes('1.5l')) return '1.5L';
+
+    if(p.includes('2.5l')) return '2.5L';
+
+    if(p.includes('1l')) return '1L';
+
+    return null;
+
+  }
+
+  return null;
+
+}
+
+function sumarProduccionPorPresentacionYMarca(records){
+
+  const matriz = {};
+  const totalesCategoria = {};
+  const marcasSet = new Set();
+  const categoriasConDatos = new Set();
+
+  records.forEach(r => {
+
+    const cuadros = normalizarCuadros(r);
+
+    cuadros.forEach(c => {
+
+      const efectiva = num(c.produccion?.efectiva);
+
+      if(efectiva <= 0){
+        return;
+      }
+
+      const categoria =
+        categoriaPresentacion(r.linea, c.presentacion, c.marca);
+
+      if(!categoria){
+        return;
+      }
+
+      const marca = marcaBasePresentacion(c.marca);
+
+      marcasSet.add(marca);
+      categoriasConDatos.add(categoria);
+
+      if(!matriz[marca]){
+        matriz[marca] = {};
+      }
+
+      matriz[marca][categoria] =
+        (matriz[marca][categoria] || 0) + efectiva;
+
+      totalesCategoria[categoria] =
+        (totalesCategoria[categoria] || 0) + efectiva;
+
+    });
+
+  });
+
+  const categorias =
+    CATEGORIAS_PRESENTACION_ORDEN.filter(
+      c => categoriasConDatos.has(c)
+    );
+
+  const totalesMarca = {};
+
+  marcasSet.forEach(m => {
+
+    totalesMarca[m] =
+      Object.values(matriz[m] || {})
+        .reduce((a,v) => a + v, 0);
+
+  });
+
+  const marcas =
+    Array.from(marcasSet)
+      .sort((a,b) => totalesMarca[b] - totalesMarca[a]);
+
+  const totalGeneral =
+    Object.values(totalesCategoria)
+      .reduce((a,v) => a + v, 0);
+
+  return {
+    categorias,
+    marcas,
+    matriz,
+    totalesCategoria,
+    totalesMarca,
+    totalGeneral
+  };
+
+}
+
+
+function generarInsightPresentacionMarca(datos, rangoLabel){
+
+  if(!datos.categorias.length || datos.totalGeneral <= 0){
+
+    return (
+      'No hay producción registrada por presentación en ' +
+      rangoLabel + '.'
+    );
+
+  }
+
+  const categoriaLider =
+    Object.entries(datos.totalesCategoria)
+      .sort((a,b) => b[1] - a[1])[0];
+
+  const participacionCategoria =
+    pct(categoriaLider[1] / datos.totalGeneral);
+
+  const marcaLider = datos.marcas[0];
+
+  const participacionMarca =
+    pct(datos.totalesMarca[marcaLider] / datos.totalGeneral);
+
+  return (
+    `<strong>${categoriaLider[0]}</strong> es la presentación con más volumen de ${rangoLabel} ` +
+    `(${participacionCategoria} del total). Por marca, <strong>${marcaLider}</strong> lidera con ` +
+    `${participacionMarca} de las unidades producidas.`
+  );
+
+}
+
+
+/* =========================================================
+   RENDER DEL PANEL "PRODUCCIÓN POR PRESENTACIÓN Y MARCA"
+   =========================================================
+
+   Se llama desde renderResumen() en los dos caminos posibles
+   (con y sin registros en el rango de 7/30/90 días de
+   arriba), porque este panel tiene su propio selector de
+   vista (rango actual / mes / año) que usa TODO el historial
+   visible — no el rango de días — así que puede tener datos
+   aunque el resto del resumen esté vacío.
+
+   - todos: registros de las líneas visibles, SIN el filtro
+     de rango de días (para poblar los selectores de mes/año
+     y para las vistas 'mes' y 'anio').
+   - records: registros ya filtrados por el rango de días de
+     arriba (para la vista 'rango', el comportamiento original).
+   - rangoLabel: etiqueta del rango de arriba ('últimos 30
+     días', 'todo el historial', etc.), solo se usa en modo
+     'rango'.
+   ========================================================= */
+
+function renderPanelPresentacionMarca(todos, records, rangoLabel){
+
+  const mesesDisponibles =
+    obtenerMesesDisponiblesResumen(todos);
+
+  const aniosDisponibles =
+    obtenerAniosDisponiblesResumen(todos);
+
+  if(
+    resumenPresentacionModo === 'mes' &&
+    !resumenPresentacionMes
+  ){
+    resumenPresentacionMes = mesesDisponibles[0] || null;
+  }
+
+  if(
+    resumenPresentacionModo === 'anio' &&
+    !resumenPresentacionAnio
+  ){
+    resumenPresentacionAnio = aniosDisponibles[0] || null;
+  }
+
+
+  let recordsPanel = records;
+  let etiquetaPanel = rangoLabel;
+
+  if(resumenPresentacionModo === 'mes'){
+
+    recordsPanel =
+      filtrarRecordsPorMesResumen(todos, resumenPresentacionMes);
+
+    etiquetaPanel =
+      resumenPresentacionMes
+        ? etiquetaMesResumen(resumenPresentacionMes)
+        : 'el mes seleccionado';
+
+  } else if(resumenPresentacionModo === 'anio'){
+
+    recordsPanel =
+      filtrarRecordsPorAnioResumen(todos, resumenPresentacionAnio);
+
+    etiquetaPanel =
+      resumenPresentacionAnio
+        ? 'el año ' + resumenPresentacionAnio
+        : 'el año seleccionado';
+
+  }
+
+
+  /* ---------------------------------------------------
+     CONTROLES (segmentos rango/mes/año + selector)
+  --------------------------------------------------- */
+
+  const controlesBox =
+    document.getElementById('presentacion-marca-controles');
+
+  if(controlesBox){
+
+    controlesBox.innerHTML = `
+
+      <div class="rs-seg">
+
+        <button
+          type="button"
+          class="${resumenPresentacionModo === 'rango' ? 'active' : ''}"
+          onclick="cambiarModoPresentacionMarca('rango')"
+        >Rango actual</button>
+
+        <button
+          type="button"
+          class="${resumenPresentacionModo === 'mes' ? 'active' : ''}"
+          onclick="cambiarModoPresentacionMarca('mes')"
+        >Por mes</button>
+
+        <button
+          type="button"
+          class="${resumenPresentacionModo === 'anio' ? 'active' : ''}"
+          onclick="cambiarModoPresentacionMarca('anio')"
+        >Por año</button>
+
+      </div>
+
+      ${
+        resumenPresentacionModo === 'mes'
+          ? `
+            <select class="rs-mes-select" onchange="cambiarMesPresentacionMarca(this.value)">
+              ${
+                mesesDisponibles.length
+                  ? mesesDisponibles.map(m => `
+                      <option value="${m}" ${m === resumenPresentacionMes ? 'selected' : ''}>
+                        ${etiquetaMesResumen(m)}
+                      </option>
+                    `).join('')
+                  : `<option value="">Sin datos</option>`
+              }
+            </select>
+          `
+          : ''
+      }
+
+      ${
+        resumenPresentacionModo === 'anio'
+          ? `
+            <select class="rs-mes-select" onchange="cambiarAnioPresentacionMarca(this.value)">
+              ${
+                aniosDisponibles.length
+                  ? aniosDisponibles.map(a => `
+                      <option value="${a}" ${a === resumenPresentacionAnio ? 'selected' : ''}>
+                        ${a}
+                      </option>
+                    `).join('')
+                  : `<option value="">Sin datos</option>`
+              }
+            </select>
+          `
+          : ''
+      }
+
+    `;
+
+  }
+
+
+  const descBox =
+    document.getElementById('presentacion-marca-desc');
+
+  if(descBox){
+
+    descBox.textContent =
+      'Suma de unidades efectivas producidas en ' + etiquetaPanel +
+      ' (todos los días de ese período sumados en un solo total), ' +
+      'por presentación — 380ml, 625ml Regular, 625ml Gasificada, ' +
+      '1L, 1.5L, 2.5L, 7L, 10L, Cajas 20L y B20L — y por marca.';
+
+  }
+
+
+  /* ---------------------------------------------------
+     CÁLCULO
+  --------------------------------------------------- */
+
+  const datos =
+    sumarProduccionPorPresentacionYMarca(recordsPanel);
+
+
+  /* ---------------------------------------------------
+     GRÁFICO
+  --------------------------------------------------- */
+
+  if(state.charts.presentacionMarca){
+    state.charts.presentacionMarca.destroy();
+    state.charts.presentacionMarca = null;
+  }
+
+  const canvasPresentacionMarca =
+    document.getElementById('chart-presentacion-marca');
+
+  if(canvasPresentacionMarca && datos.categorias.length){
+
+    const coloresMarcasPresentacion =
+      coloresResumen(datos.marcas.length);
+
+    state.charts.presentacionMarca =
+
+      new Chart(
+
+        canvasPresentacionMarca,
+
+        {
+
+          type:'bar',
+
+          data:{
+
+            labels:
+              datos.categorias,
+
+            datasets:
+
+              datos.marcas.map((marca, idx) => ({
+
+                label: marca,
+
+                data:
+                  datos.categorias.map(
+                    categoria =>
+                      (datos.matriz[marca] || {})[categoria] || 0
+                  ),
+
+                backgroundColor: coloresMarcasPresentacion[idx],
+
+                borderRadius:2,
+
+                barPercentage:0.7,
+
+                stack:'presentacion'
+
+              }))
+
+          },
+
+          options:{
+
+            maintainAspectRatio:false,
+
+            plugins:{
+
+              legend:{
+                display:true,
+                position:'bottom',
+                labels:{ boxWidth:9, boxHeight:9, usePointStyle:true, pointStyle:'rectRounded', padding:14, font:{ size:11 } }
+              },
+
+              tooltip:{
+
+                ...TOOLTIP_R,
+
+                callbacks:{
+
+                  label:ctx =>
+                    ctx.dataset.label + ': ' +
+                    formatearNumero(ctx.parsed.y) +
+                    ' unidades',
+
+                  footer:items => {
+
+                    const total =
+                      items.reduce((a,it) => a + it.parsed.y, 0);
+
+                    return 'Total: ' +
+                      formatearNumero(total) + ' unidades';
+
+                  }
+
+                }
+
+              }
+
+            },
+
+            scales:{
+
+              x:{
+                stacked:true,
+                grid:{ display:false }
+              },
+
+              y:{
+
+                stacked:true,
+
+                beginAtZero:true,
+
+                grid:{ color:GRID_R },
+
+                ticks:{
+                  callback:v => formatearNumero(v)
+                }
+
+              }
+
+            }
+
+          }
+
+        }
+
+      );
+
+  }
+
+
+  /* ---------------------------------------------------
+     TABLA
+  --------------------------------------------------- */
+
+  const boxPresentacionMarca =
+    document.getElementById('resumen-presentacion-marca');
+
+  if(boxPresentacionMarca){
+
+    if(!datos.categorias.length){
+
+      boxPresentacionMarca.innerHTML = `
+
+        <div class="small-muted" style="padding:10px 0;">
+          No hay producción por presentación en ${escaparHtml(etiquetaPanel)}.
+        </div>
+
+      `;
+
+    } else {
+
+      boxPresentacionMarca.innerHTML = `
+
+        <table class="rs-table">
+
+          <thead>
+
+            <tr>
+
+              <th>Marca</th>
+
+              ${
+                datos.categorias.map(
+                  cat => `<th class="rs-num">${escaparHtml(cat)}</th>`
+                ).join('')
+              }
+
+              <th class="rs-num">Total</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            ${
+              datos.marcas.map(marca => `
+
+                <tr>
+
+                  <td><strong>${escaparHtml(marca)}</strong></td>
+
+                  ${
+                    datos.categorias.map(cat => `
+                      <td class="rs-num">${
+                        formatearNumero(
+                          (datos.matriz[marca] || {})[cat] || 0
+                        )
+                      }</td>
+                    `).join('')
+                  }
+
+                  <td class="rs-num"><strong>${
+                    formatearNumero(datos.totalesMarca[marca])
+                  }</strong></td>
+
+                </tr>
+
+              `).join('')
+            }
+
+            <tr>
+
+              <td><strong>Total</strong></td>
+
+              ${
+                datos.categorias.map(cat => `
+                  <td class="rs-num"><strong>${
+                    formatearNumero(datos.totalesCategoria[cat])
+                  }</strong></td>
+                `).join('')
+              }
+
+              <td class="rs-num"><strong>${
+                formatearNumero(datos.totalGeneral)
+              }</strong></td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      `;
+
+    }
+
+  }
+
+
+  /* ---------------------------------------------------
+     INSIGHT
+  --------------------------------------------------- */
+
+  const insightPresentacionMarcaBox =
+    document.getElementById('insight-presentacion-marca');
+
+  if(insightPresentacionMarcaBox){
+
+    insightPresentacionMarcaBox.innerHTML =
+      cajaInsight(
+        generarInsightPresentacionMarca(datos, etiquetaPanel)
+      );
+
+  }
 
 }
 
@@ -1333,6 +2102,17 @@ function renderResumen(main){
         box-shadow:0 1px 3px rgba(40,60,80,.14);
       }
 
+      .resumen-pro .rs-mes-select{
+        border:1px solid var(--rs-line);
+        border-radius:8px;
+        padding:6px 10px;
+        font:inherit;
+        font-size:12.5px;
+        color:var(--rs-ink);
+        background:#fff;
+        cursor:pointer;
+      }
+
       .resumen-pro .rs-export{
         background:#5E84A6;
         border:1px solid #5E84A6;
@@ -1770,6 +2550,39 @@ function renderResumen(main){
       ></div>
 
 
+      <div class="rs-panel" id="panel-presentacion-marca">
+
+        <div class="rs-panel-head">
+
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+
+            <h3>Producción por presentación y marca</h3>
+
+            <div id="presentacion-marca-controles" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;"></div>
+
+          </div>
+
+          <div class="chart-desc" id="presentacion-marca-desc"></div>
+
+        </div>
+
+        <div style="padding:0 20px 6px;">
+          <div class="rs-canvas tall"><canvas id="chart-presentacion-marca"></canvas></div>
+        </div>
+
+        <div
+          class="rs-table-wrap"
+          id="resumen-presentacion-marca"
+        ></div>
+
+        <div
+          style="padding:4px 20px 18px;"
+          id="insight-presentacion-marca"
+        ></div>
+
+      </div>
+
+
       <div class="chart-grid">
 
         <div class="rs-section">Producción</div>
@@ -1995,6 +2808,14 @@ function renderResumen(main){
 
     destroyCharts();
 
+    /*
+       El panel de presentación/marca se maneja aparte: si
+       está en modo 'mes' o 'anio' puede tener datos aunque
+       el rango de 7/30/90 días de arriba esté vacío (usa
+       TODO el historial visible, no el rango).
+    */
+    renderPanelPresentacionMarca(todos, records, rangoLabel);
+
     return;
 
   }
@@ -2055,6 +2876,14 @@ function renderResumen(main){
 
 
   destroyCharts();
+
+
+  /* =====================================================
+     PRODUCCIÓN POR PRESENTACIÓN Y MARCA (SIEMPRE VISIBLE —
+     GRÁFICO + TABLA — VER renderPanelPresentacionMarca)
+  ===================================================== */
+
+  renderPanelPresentacionMarca(todos, records, rangoLabel);
 
 
   /* =====================================================

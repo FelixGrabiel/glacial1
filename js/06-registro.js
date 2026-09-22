@@ -1153,10 +1153,17 @@ function blankCuadro(lineKey, numero){
       }
     ],
 
+    /*
+       "causa" solo se usa/muestra para las NO programadas
+       (ver CAUSAS_PARADA_NO_PROGRAMADA en 01-config.js) —
+       es lo que permite que "Impacto Económico" sepa cuáles
+       paradas fueron por falla de máquina.
+    */
     paradasNoProgramadas: [
       {
         descripcion:'',
-        tiempoMin:0
+        tiempoMin:0,
+        causa:''
       }
     ],
 
@@ -2161,6 +2168,21 @@ function renderMain(){
   ){
 
     renderResumen(main);
+
+    return;
+
+  }
+
+
+  /* =====================================================
+     IMPACTO ECONÓMICO (SOLO PARADAS DE MÁQUINA)
+     ===================================================== */
+
+  if(
+    state.currentTab === 'perdidas'
+  ){
+
+    renderPerdidasSoles(main);
 
     return;
 
@@ -4534,7 +4556,8 @@ function paradasTableCuadro(
       : [
           {
             descripcion:'',
-            tiempoMin:0
+            tiempoMin:0,
+            causa:''
           }
         ];
 
@@ -4564,7 +4587,7 @@ function paradasTableCuadro(
 
             <th
               style="
-                width:58%;
+                width:${esProgramada ? '58%' : '38%'};
                 text-align:left;
               "
             >
@@ -4572,9 +4595,25 @@ function paradasTableCuadro(
             </th>
 
 
+            ${
+              esProgramada
+                ? ''
+                : `
+                  <th
+                    style="
+                      width:27%;
+                      text-align:left;
+                    "
+                  >
+                    Causa
+                  </th>
+                `
+            }
+
+
             <th
               style="
-                width:27%;
+                width:${esProgramada ? '27%' : '20%'};
                 text-align:center;
               "
             >
@@ -4584,7 +4623,7 @@ function paradasTableCuadro(
 
             <th
               style="
-                width:15%;
+                width:${esProgramada ? '15%' : '15%'};
                 text-align:center;
               "
             >
@@ -4686,6 +4725,72 @@ function paradasTableCuadro(
                     </td>
 
 
+                    ${
+                      esProgramada
+                        ? ''
+                        : `
+                          <td style="padding:5px;">
+
+                            <select
+                              style="
+                                width:100%;
+                                box-sizing:border-box;
+                                ${
+                                  r.causa === 'Falla de máquina'
+                                    ? 'font-weight:600;'
+                                    : ''
+                                }
+                              "
+                              title="
+                                Ayuda a Gráficos/Excel a clasificar la
+                                parada. El reporte 'Impacto Económico'
+                                ya NO depende de esta causa: valoriza
+                                TODAS las paradas no programadas,
+                                agrupándolas por la máquina que
+                                menciona la descripción.
+                              "
+                              onchange="
+                                updateArrItemCuadro(
+                                  ${cuadroIndex},
+                                  '${key}',
+                                  ${i},
+                                  'causa',
+                                  this.value
+                                )
+                              "
+                            >
+
+                              <option value="">
+                                Sin clasificar
+                              </option>
+
+                              ${
+                                CAUSAS_PARADA_NO_PROGRAMADA
+                                  .map(
+                                    o =>
+                                      `
+                                        <option
+                                          value="${o}"
+                                          ${
+                                            o === r.causa
+                                              ? 'selected'
+                                              : ''
+                                          }
+                                        >
+                                          ${o}
+                                        </option>
+                                      `
+                                  )
+                                  .join('')
+                              }
+
+                            </select>
+
+                          </td>
+                        `
+                    }
+
+
                     <td style="padding:5px;">
 
                       <input
@@ -4776,7 +4881,8 @@ function addParadaCuadro(
 
   q[key].push({
     descripcion:'',
-    tiempoMin:0
+    tiempoMin:0,
+    causa:''
   });
 
 
@@ -4854,7 +4960,8 @@ function removeArrItemCuadro(
 
     q[key].push({
       descripcion:'',
-      tiempoMin:0
+      tiempoMin:0,
+      causa:''
     });
 
   }

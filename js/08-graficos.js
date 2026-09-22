@@ -743,6 +743,74 @@ function agruparOEEPorMarca(all){
 
 
 /* =========================================================
+   PRODUCCIÓN POR MARCA (DE UN SOLO REGISTRO)
+   =========================================================
+
+   A diferencia de agruparOEEPorMarca (que compara el
+   histórico completo de la línea), esta junta los cuadros
+   de UN registro puntual y suma cuántas unidades efectivas
+   se produjeron de cada marca — lo que se necesita en la
+   cabecera del PNG exportado (07-graficos.js > exportarPNG).
+   ========================================================= */
+
+function agruparProduccionPorMarca(rec){
+
+  const acumulado = {};
+
+  const sumar = (marca, efectiva) => {
+
+    const nombre =
+      String(marca || '').trim() || 'Sin marca';
+
+    if(!acumulado[nombre]){
+
+      acumulado[nombre] = {
+        marca: nombre,
+        efectiva: 0
+      };
+
+    }
+
+    acumulado[nombre].efectiva += num(efectiva);
+
+  };
+
+
+  if(Array.isArray(rec?.cuadros) && rec.cuadros.length){
+
+    rec.cuadros.forEach(c => {
+
+      const efectiva = num(c?.produccion?.efectiva);
+
+      if(efectiva > 0 || (c?.marca && c.marca.trim())){
+
+        sumar(c?.marca, efectiva);
+
+      }
+
+    });
+
+  } else {
+
+    sumar(rec?.marca, rec?.produccion?.efectiva);
+
+  }
+
+
+  const filas =
+    Object.values(acumulado)
+      .filter(f => f.efectiva > 0)
+      .sort((a,b) => b.efectiva - a.efectiva);
+
+  const total =
+    filas.reduce((a,f) => a + f.efectiva, 0);
+
+  return { filas, total };
+
+}
+
+
+/* =========================================================
    GRÁFICOS
    ========================================================= */
 
@@ -3158,6 +3226,167 @@ function cargarImagenCanvas(src){
 }
 
 
+/* =========================================================
+   TEXTO CON SALTO DE LÍNEA AUTOMÁTICO (CANVAS)
+   =========================================================
+
+   canvas no tiene wrap de texto nativo: esta función corta
+   "texto" en varias líneas para que quepa en "maxWidth",
+   hasta un máximo de "maxLineas" (la última se recorta con
+   "…" si sobra contenido), y devuelve cuántas líneas dibujó.
+   ========================================================= */
+
+function xlDibujarTextoAjustado(ctx, texto, x, y, maxWidth, lineHeight, maxLineas){
+
+  const palabras =
+    String(texto || '').split(' ').filter(Boolean);
+
+  if(!palabras.length){
+    return 0;
+  }
+
+  const lineas = [];
+  let actual = '';
+
+  palabras.forEach(palabra => {
+
+    const prueba = actual ? actual + ' ' + palabra : palabra;
+
+    if(ctx.measureText(prueba).width > maxWidth && actual){
+
+      lineas.push(actual);
+      actual = palabra;
+
+    } else {
+
+      actual = prueba;
+
+    }
+
+  });
+
+  if(actual){
+    lineas.push(actual);
+  }
+
+  const visibles = lineas.slice(0, maxLineas);
+
+  if(lineas.length > maxLineas){
+
+    let ultima = visibles[maxLineas - 1];
+
+    while(
+      ultima.length > 1 &&
+      ctx.measureText(ultima + '…').width > maxWidth
+    ){
+      ultima = ultima.slice(0, -1);
+    }
+
+    visibles[maxLineas - 1] = ultima.trimEnd() + '…';
+
+  }
+
+  visibles.forEach((linea, i) => {
+    ctx.fillText(linea, x, y + i * lineHeight);
+  });
+
+  return visibles.length;
+
+}
+
+
+/* =========================================================
+   MINI RESÚMENES POR GRÁFICO (EXPORTACIÓN PNG)
+   =========================================================
+
+   Una frase corta por gráfico, calculada con los MISMOS
+   datos que arman cada gráfico (calcCascada, agruparParadas,
+   agruparMermas, agruparInsumos, agruparPorDia,
+   agruparOEEPorTurno, agruparOEEPorMarca) — así el resumen
+   de texto nunca queda desincronizado del gráfico que
+   acompaña.
+   ========================================================= */
+
+function construirResumenesGraficos(rec, d, all){
+
+  const cascada = calcCascada(rec);
+  const paradas = agruparParadas(rec);
+  const mermas = agruparMermas(rec);
+  const insumos = agruparInsumos(rec);
+
+  const serieDiaria = agruparPorDia(all);
+  const serieRango = serieDiaria.slice(-tendenciaRangoDias);
+
+  const porTurno = agruparOEEPorTurno(all);
+  const porMarcaHist = agruparOEEPorMarca(all);
+
+
+  return {
+
+    'chart-oee':
+      `OEE ${pct(d.oee)} frente a la meta de ${pct(METAS.oee)} · ` +
+      (d.oee >= METAS.oee ? 'cumple la meta.' : 'por debajo de la meta.'),
+
+    'chart-componentes':
+      `Disponibilidad ${pct(d.disponibilidad)} · Rendimiento ${pct(d.rendimiento)} ` +
+      `· Calidad ${pct(d.calidad)} (metas ${pct(METAS.disponibilidad)} / ${pct(METAS.rendimiento)} / ${pct(METAS.calidad)}).`,
+
+    'chart-cascada':
+      `Capacidad teórica ${formatearNumero(cascada.capacidadTeorica)} u. → ` +
+      `producción buena ${formatearNumero(cascada.buena)} u. Pérdidas: paradas ${formatearNumero(cascada.perdidaDisponibilidad)}, ` +
+      `ritmo ${formatearNumero(cascada.perdidaRendimiento)}, calidad ${formatearNumero(cascada.perdidaCalidad)}.`,
+
+    'chart-prod':
+      `Efectiva ${formatearNumero(d.efectiva ?? rec.produccion?.efectiva)} u. / ` +
+      `Programada ${formatearNumero(d.programada ?? rec.produccion?.programada)} u. · Cumplimiento ${pct(d.cumplimiento)}.`,
+
+    'chart-paradas':
+      paradas.filas.length
+        ? `Mayor parada: ${paradas.filas[0].descripcion} (${Math.round(paradas.filas[0].minutos)} min) ` +
+          `· Total del turno: ${Math.round(paradas.total)} min.`
+        : 'Sin paradas registradas en este turno.',
+
+    'chart-mermas':
+      mermas.filas.length
+        ? `Mayor merma: ${mermas.filas[0].item} (${formatearNumero(mermas.filas[0].unidades)} u.) ` +
+          `· Total del turno: ${formatearNumero(mermas.totalUnidades)} u.`
+        : 'Sin mermas registradas en este turno.',
+
+    'chart-insumos':
+      `Preformas/cajas: ${formatearNumero(insumos.cajasPreformas)} · Planchas de cartón: ${formatearNumero(insumos.planchasCarton)} ` +
+      `· Polietileno: ${insumos.polietilenoKg.toFixed(1)} kg · Stretch film: ${insumos.stretchFilmKg.toFixed(1)} kg.`,
+
+    'chart-tendencia':
+      serieRango.length
+        ? `Promedio OEE de los últimos ${tendenciaRangoDias} días: ` +
+          `${pct(serieRango.reduce((a,p) => a + p.oee, 0) / serieRango.length)} sobre ${serieRango.length} turno(s) con datos.`
+        : 'Aún no hay suficiente historial para calcular la tendencia.',
+
+    'chart-turno':
+      porTurno.length
+        ? `Mejor turno histórico de la línea: ${porTurno[0].etiqueta} (${pct(porTurno[0].oee)}).`
+        : 'Aún no hay historial suficiente para comparar por turno.',
+
+    'chart-marca':
+      porMarcaHist.length
+        ? `Mejor marca histórica de la línea: ${porMarcaHist[0].etiqueta} (${pct(porMarcaHist[0].oee)}).`
+        : 'Aún no hay historial suficiente para comparar por marca.'
+
+  };
+
+}
+
+
+/* =========================================================
+   EXPORTACIÓN A PNG (DASHBOARD DE UN SOLO TURNO)
+   =========================================================
+
+   Portada profesional (logo, línea/fecha/turno/lote,
+   supervisor que registró el turno, KPIs y producción por
+   marca) + cada gráfico de Chart.js con un mini resumen de
+   texto debajo, calculado con los mismos datos del gráfico.
+   ========================================================= */
+
 async function exportarPNG(){
 
   const data = obtenerRegistroExportacion();
@@ -3166,7 +3395,7 @@ async function exportarPNG(){
     return;
   }
 
-  const { rec, d } = data;
+  const { rec, d, all } = data;
 
   try{
 
@@ -3207,13 +3436,38 @@ async function exportarPNG(){
 
     }
 
+    const resumenes = construirResumenesGraficos(rec, d, all);
+    const marcaProd = agruparProduccionPorMarca(rec);
+
+    let logoImg = null;
+
+    try{
+      logoImg = await cargarImagenCanvas(
+        'data:image/png;base64,' + GLACIAL_LOGO_BASE64
+      );
+    } catch(e){
+      logoImg = null;
+    }
+
+
+    /* ---------- medidas generales ---------- */
+
     const W = 1800;
-    const headerH = 300;
     const boxW = 840;
-    const boxH = 390;
+    const boxH = 460;
     const gap = 40;
     const rows = Math.ceil(imagenes.length / 2);
-    const H = headerH + rows * (boxH + gap) + gap;
+
+    /* Franja de marcas: una fila cada 4 marcas, mínimo una fila. */
+    const filasMarca = Math.max(1, Math.ceil(marcaProd.filas.length / 4));
+    const marcaSeccionH = marcaProd.filas.length
+      ? 46 + filasMarca * 40
+      : 0;
+
+    const headerH = 300 + marcaSeccionH;
+    const footerH = 46;
+
+    const H = headerH + rows * (boxH + gap) + gap + footerH;
 
     const canvas = document.createElement('canvas');
     canvas.width = W;
@@ -3221,34 +3475,76 @@ async function exportarPNG(){
 
     const ctx = canvas.getContext('2d');
 
+    /* ---------- fondo ---------- */
+
     ctx.fillStyle = '#F5F7F9';
     ctx.fillRect(0, 0, W, H);
 
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(40, 35, W - 80, headerH - 50);
 
+    /* Barra superior de acento (color de marca GLACIAL). */
+    ctx.fillStyle = PAL.azul;
+    ctx.fillRect(40, 35, W - 80, 6);
+
+
+    /* ---------- logo ---------- */
+
+    let tituloX = 75;
+
+    if(logoImg){
+
+      const logoAlto = 56;
+      const logoAncho = logoAlto * GLACIAL_LOGO_RATIO;
+
+      ctx.drawImage(
+        logoImg,
+        W - 40 - 30 - logoAncho,
+        55,
+        logoAncho,
+        logoAlto
+      );
+
+    }
+
+
+    /* ---------- título y subtítulos ---------- */
+
+    ctx.textAlign = 'left';
+
     ctx.fillStyle = '#1F2933';
     ctx.font = 'bold 34px Arial';
-    ctx.fillText('REPORTE DIARIO DE PRODUCCIÓN', 75, 85);
+    ctx.fillText('REPORTE DIARIO DE PRODUCCIÓN', tituloX, 90);
 
     ctx.font = '22px Arial';
     ctx.fillStyle = '#52606D';
     ctx.fillText(
       `${rec.linea || ''} · ${rec.fecha || ''} · ${rec.turno || ''} · Lote: ${rec.lote || '—'}`,
-      75,
-      125
+      tituloX,
+      130
     );
 
+    ctx.font = '17px Arial';
+    ctx.fillStyle = '#7B8794';
+    ctx.fillText(
+      `Supervisor / responsable del turno: ${rec.registradoPor || '—'}`,
+      tituloX,
+      160
+    );
+
+
+    /* ---------- tarjetas KPI ---------- */
+
     const kpis = [
-      ['OEE', `${(num(d.oee) * 100).toFixed(1)}%`],
-      ['Disponibilidad', `${(num(d.disponibilidad) * 100).toFixed(1)}%`],
-      ['Rendimiento', `${(num(d.rendimiento) * 100).toFixed(1)}%`],
-      ['Calidad', `${(num(d.calidad) * 100).toFixed(1)}%`],
-      ['Producción efectiva', `${num(rec.produccion?.efectiva).toLocaleString('es-PE')}`]
+      ['OEE', pct(d.oee), d.oee, METAS.oee],
+      ['Disponibilidad', pct(d.disponibilidad), d.disponibilidad, METAS.disponibilidad],
+      ['Rendimiento', pct(d.rendimiento), d.rendimiento, METAS.rendimiento],
+      ['Calidad', pct(d.calidad), d.calidad, METAS.calidad],
+      ['Producción total', `${formatearNumero(d.efectiva ?? rec.produccion?.efectiva)} u.`, null, null]
     ];
 
     const cardW = 315;
-    const cardY = 165;
+    const cardY = 185;
     const cardGap = 20;
 
     kpis.forEach((k, i) => {
@@ -3261,15 +3557,90 @@ async function exportarPNG(){
       ctx.strokeStyle = '#D9E2EC';
       ctx.strokeRect(x, cardY, cardW, 85);
 
+      /* Franja de color a la izquierda según semáforo (solo KPIs con meta). */
+      ctx.fillStyle =
+        k[2] !== null
+          ? colorSegunMeta(k[2], k[3])
+          : PAL.azul;
+
+      ctx.fillRect(x, cardY, 5, 85);
+
       ctx.fillStyle = '#7B8794';
       ctx.font = '16px Arial';
-      ctx.fillText(k[0], x + 15, cardY + 28);
+      ctx.fillText(k[0], x + 18, cardY + 28);
 
       ctx.fillStyle = '#1F2933';
       ctx.font = 'bold 25px Arial';
-      ctx.fillText(k[1], x + 15, cardY + 62);
+      ctx.fillText(k[1], x + 18, cardY + 62);
 
     });
+
+
+    /* ---------- producción por marca ---------- */
+
+    if(marcaProd.filas.length){
+
+      const seccY = cardY + 85 + 34;
+
+      ctx.fillStyle = '#1F2933';
+      ctx.font = 'bold 16px Arial';
+      ctx.fillText(
+        `PRODUCCIÓN POR MARCA · Total del turno: ${formatearNumero(marcaProd.total)} u.`,
+        tituloX,
+        seccY
+      );
+
+      const filaW = (W - 80 - 70) / 4;
+      const maxVal = Math.max(...marcaProd.filas.map(f => f.efectiva), 1);
+
+      marcaProd.filas.forEach((f, i) => {
+
+        const col = i % 4;
+        const fila = Math.floor(i / 4);
+
+        const x = tituloX + col * filaW;
+        const y = seccY + 26 + fila * 40;
+
+        const pctMarca =
+          marcaProd.total > 0
+            ? Math.round((f.efectiva / marcaProd.total) * 100)
+            : 0;
+
+        /* barra mini de proporción */
+        const barMaxW = filaW - 20;
+        const barW = Math.max(4, barMaxW * (f.efectiva / maxVal));
+
+        ctx.fillStyle = '#E8EAE4';
+        ctx.fillRect(x, y, barMaxW, 8);
+
+        ctx.fillStyle = PAL.azul;
+        ctx.fillRect(x, y, barW, 8);
+
+        ctx.fillStyle = '#1F2933';
+        ctx.font = '600 14px Arial';
+        ctx.textAlign = 'left';
+
+        let etiqueta = `${f.marca}: ${formatearNumero(f.efectiva)} u. (${pctMarca}%)`;
+
+        while(
+          etiqueta.length > 1 &&
+          ctx.measureText(etiqueta).width > barMaxW
+        ){
+          etiqueta = etiqueta.slice(0, -1);
+        }
+
+        if(etiqueta.length < `${f.marca}: ${formatearNumero(f.efectiva)} u. (${pctMarca}%)`.length){
+          etiqueta = etiqueta.trimEnd() + '…';
+        }
+
+        ctx.fillText(etiqueta, x, y - 6);
+
+      });
+
+    }
+
+
+    /* ---------- cuadros de gráficos + mini resumen ---------- */
 
     for(let i = 0; i < imagenes.length; i++){
 
@@ -3285,12 +3656,18 @@ async function exportarPNG(){
       ctx.strokeStyle = '#D9E2EC';
       ctx.strokeRect(x, y, boxW, boxH);
 
+      ctx.fillStyle = PAL.azul;
+      ctx.fillRect(x, y, boxW, 4);
+
       ctx.fillStyle = '#1F2933';
       ctx.font = 'bold 20px Arial';
-      ctx.fillText(item.titulo, x + 20, y + 32);
+      ctx.textAlign = 'left';
+      ctx.fillText(item.titulo, x + 20, y + 36);
 
+      const resumenH = 64;
       const maxW = boxW - 40;
-      const maxH = boxH - 65;
+      const maxH = boxH - 65 - resumenH;
+
       const scale = Math.min(
         maxW / item.img.width,
         maxH / item.img.height
@@ -3299,11 +3676,63 @@ async function exportarPNG(){
       const iw = item.img.width * scale;
       const ih = item.img.height * scale;
       const ix = x + (boxW - iw) / 2;
-      const iy = y + 45 + (maxH - ih) / 2;
+      const iy = y + 48 + (maxH - ih) / 2;
 
       ctx.drawImage(item.img, ix, iy, iw, ih);
 
+      /* franja de resumen, abajo del gráfico */
+
+      const resumenY = y + boxH - resumenH;
+
+      ctx.fillStyle = '#F8FAFB';
+      ctx.fillRect(x + 1, resumenY, boxW - 2, resumenH - 1);
+
+      ctx.strokeStyle = '#EAEEF1';
+      ctx.beginPath();
+      ctx.moveTo(x, resumenY);
+      ctx.lineTo(x + boxW, resumenY);
+      ctx.stroke();
+
+      ctx.fillStyle = '#3A4551';
+      ctx.font = '13px Arial';
+      ctx.textAlign = 'left';
+
+      xlDibujarTextoAjustado(
+        ctx,
+        resumenes[item.id] || '',
+        x + 20,
+        resumenY + 24,
+        boxW - 40,
+        20,
+        2
+      );
+
     }
+
+
+    /* ---------- pie de página ---------- */
+
+    const ahora = new Date();
+    const generadoPor =
+      (state.user && (state.user.nombre || state.user.username)) || 'GLACIAL';
+
+    ctx.fillStyle = '#9AA5B1';
+    ctx.font = '13px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(
+      `Generado el ${ahora.toLocaleDateString('es-PE')} ${ahora.toLocaleTimeString('es-PE')} por ${generadoPor} · Sistema GLACIAL`,
+      40,
+      H - 18
+    );
+
+    ctx.textAlign = 'right';
+    ctx.fillText(
+      'Documento de uso interno',
+      W - 40,
+      H - 18
+    );
+    ctx.textAlign = 'left';
+
 
     canvas.toBlob(blob => {
 
