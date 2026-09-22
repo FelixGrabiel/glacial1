@@ -118,7 +118,9 @@ const MARCAS_POR_LINEA = {
     'Scala',
     'Glacial',
     'Aro',
-    'Cuisine'
+    'Cuisine',
+    'Fontlife'
+     
   ],
 
   PET2: [
