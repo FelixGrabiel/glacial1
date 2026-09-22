@@ -385,8 +385,88 @@ const PRESENTACIONES_HIELO = [
 
 /* =========================================================
    PERSONAL
+   =========================================================
+
+   Cada línea tiene su propio set de posiciones/estaciones de
+   trabajo, en el orden en que deben aparecer en la tabla de
+   "Personal del turno". Cuando una posición se repite (p.ej.
+   "Paletizado" dos o tres veces) es porque hay más de una
+   persona asignada a esa misma estación en esa línea.
+
+   Usa posicionesPersonalLinea(lineKey) para obtenerlas — cae
+   en PERSONAL_POSICIONES (genérico) si la línea no está en
+   este mapa (por ejemplo, una línea nueva que todavía no se
+   ha configurado aquí).
    ========================================================= */
 
+const PERSONAL_POSICIONES_POR_LINEA = {
+
+  PET1: [
+    'Sopladora',
+    'Envasadora',
+    'Etiquetadora',
+    'Empaquetadora',
+    'Apoyo Sopladora',
+    'Revisión de tapas',
+    'Pantallista',
+    'Paletizado',
+    'Paletizado'
+  ],
+
+  PET2: [
+    'Sopladora',
+    'Envasadora',
+    'Etiquetadora',
+    'Empaquetadora',
+    'Apoyo Sopladora',
+    'Revisión de tapas',
+    'Pantallista',
+    'Paletizado',
+    'Paletizado'
+  ],
+
+  B7L: [
+    'Sopladora 1',
+    'Sopladora 2',
+    'Rinser',
+    'Envasadora',
+    'Tapado',
+    'Pase de Bidones',
+    'Etiquetado 1',
+    'Etiquetado 2',
+    'Empaquetadora',
+    'Paletizado',
+    'Paletizado',
+    'Paletizado'
+  ],
+
+  C20L: [
+    'Armado de Cajas',
+    'Pegado de Cajas Armadas',
+    'Envasadora 1',
+    'Envasadora 2',
+    'Recepción de bolsas',
+    'Pegado de Cajas con Bolsas',
+    'Empaquetadora',
+    'Paletizado',
+    'Paletizado'
+  ],
+
+  B20L: [
+    'Lavado Primario',
+    'Lavado Secundario',
+    'Envasadora',
+    'Paletizado',
+    'Paletizado'
+  ]
+
+};
+
+/*
+   Lista genérica de respaldo (fallback), por si en el futuro
+   se agrega una línea que todavía no tiene sus posiciones
+   definidas arriba.
+*/
 const PERSONAL_POSICIONES = [
   'Sopladora',
   'Envasadora',
@@ -397,6 +477,15 @@ const PERSONAL_POSICIONES = [
   'Pantallista',
   'Paletizado'
 ];
+
+function posicionesPersonalLinea(lineKey){
+
+  return (
+    PERSONAL_POSICIONES_POR_LINEA[lineKey] ||
+    PERSONAL_POSICIONES
+  );
+
+}
 
 
 /* =========================================================

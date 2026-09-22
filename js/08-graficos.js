@@ -2085,15 +2085,17 @@ function xlHojaReporte(wb, ctx){
 
   r++;
 
+  const posicionesLinea = posicionesPersonalLinea(rec.linea);
+
   const personal = Array.isArray(rec.personal) && rec.personal.length
     ? rec.personal
-    : PERSONAL_POSICIONES.map(p => ({ posicion:p, nombre:'', cargo:'' }));
+    : posicionesLinea.map(p => ({ posicion:p, nombre:'', cargo:'' }));
 
   personal.forEach((p,i) => {
 
     const fila = r + i;
 
-    xlMerge(ws, fila, 2, 4, p.posicion || PERSONAL_POSICIONES[i] || '',
+    xlMerge(ws, fila, 2, 4, p.posicion || posicionesLinea[i] || '',
       { bold:true, fill:XL.azulMuyClaro });
     xlMerge(ws, fila, 5, 12, p.nombre || '');
     xlMerge(ws, fila, 13, 21, p.cargo || '');
@@ -2434,9 +2436,11 @@ function xlHojaPersonal(wb, ctx){
 
   const { rec, lineaNombre } = ctx;
 
+  const posicionesLinea = posicionesPersonalLinea(rec.linea);
+
   const personal = Array.isArray(rec.personal) && rec.personal.length
     ? rec.personal
-    : PERSONAL_POSICIONES.map(p => ({ posicion:p, nombre:'', cargo:'' }));
+    : posicionesLinea.map(p => ({ posicion:p, nombre:'', cargo:'' }));
 
   xlHojaTabla(wb, ctx, {
     nombre:'Personal',
@@ -2450,7 +2454,7 @@ function xlHojaPersonal(wb, ctx){
       { h:'Cargo', w:32 }
     ],
     filas:personal.map((p,i) => [
-      p.posicion || PERSONAL_POSICIONES[i] || '',
+      p.posicion || posicionesLinea[i] || '',
       p.nombre || '',
       p.cargo || ''
     ])

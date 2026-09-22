@@ -25,8 +25,18 @@
    Cárgalo en index.html DESPUÉS de 02-estado.js (usa
    loadPrecios/savePrecios/precioUnitarioLinea), 05-utils.js
    (num/pct), 06-registro.js (normalizarCuadros) y 08-graficos.js
-   (formatearNumero) — el orden exacto sugerido es justo antes
+   (formatearNumero, PAL, colorSegunMeta, el plugin valorBarra
+   y state.charts/destroyCharts(), usados por los gráficos de
+   más abajo — Chart.js también debe estar cargado ya para
+   entonces) — el orden exacto sugerido es justo antes
    de 12-init.js, después de 14-exportar-general.js.
+
+   NUEVO (20260922): se agregaron 4 gráficos con Chart.js al
+   final de renderPerdidasSoles() — impacto por línea (barras),
+   por máquina/área (barras horizontales), distribución % por
+   categoría (dona) y evolución diaria del impacto (línea) —
+   usando datos.filasLinea/filasCategoria/filasFecha, ya
+   calculados por agruparParadasNoProgramadas().
    ============================================================= */
 
 
@@ -166,6 +176,7 @@ function agruparParadasNoProgramadas(records){
   const porLinea = {};
   const porCategoria = {};
   const porCausa = {};
+  const porFecha = {};
 
   let totalMinutos = 0;
   let totalUnidades = 0;
@@ -269,6 +280,25 @@ function agruparParadasNoProgramadas(records){
         porCausa[clave].dinero += dinero;
         porCausa[clave].veces += 1;
 
+        /* ---------- por fecha (para la tendencia) ---------- */
+
+        const fecha = rec.fecha || 'Sin fecha';
+
+        if(!porFecha[fecha]){
+
+          porFecha[fecha] = {
+            fecha,
+            minutos: 0,
+            unidades: 0,
+            dinero: 0
+          };
+
+        }
+
+        porFecha[fecha].minutos += minutos;
+        porFecha[fecha].unidades += unidades;
+        porFecha[fecha].dinero += dinero;
+
         totalMinutos += minutos;
         totalUnidades += unidades;
         totalDinero += dinero;
@@ -291,6 +321,15 @@ function agruparParadasNoProgramadas(records){
 
     filasCausa:
       Object.values(porCausa).sort((a,b) => b.dinero - a.dinero),
+
+    /* Orden CRONOLÓGICO (no por dinero) — es la que necesita
+       el gráfico de tendencia para que el eje X avance en el
+       tiempo. Las fechas ya vienen como 'YYYY-MM-DD', así que
+       el orden alfabético coincide con el cronológico. */
+    filasFecha:
+      Object.values(porFecha)
+        .filter(f => f.fecha !== 'Sin fecha')
+        .sort((a,b) => a.fecha.localeCompare(b.fecha)),
 
     totalMinutos,
     totalUnidades,
@@ -416,9 +455,11 @@ function renderPerdidasSoles(main){
     filtrarPorRangoPerdidas(todos);
 
   const rangoLabel =
-    perdidasRangoDias
-      ? `últimos ${perdidasRangoDias} días`
-      : 'todo el historial';
+    !perdidasRangoDias
+      ? 'todo el historial'
+      : perdidasRangoDias === 1
+        ? 'el último día con datos (turno más reciente)'
+        : `últimos ${perdidasRangoDias} días`;
 
   const datos =
     agruparParadasNoProgramadas(records);
@@ -623,6 +664,7 @@ function renderPerdidasSoles(main){
 
           ${
             [
+              { v:1, l:'Diario' },
               { v:7, l:'7 días' },
               { v:30, l:'30 días' },
               { v:90, l:'90 días' },
@@ -666,6 +708,31 @@ function renderPerdidasSoles(main){
         <div class="pd-kpi">
           <div class="pd-kpi-label">Paradas no programadas contabilizadas</div>
           <div class="pd-kpi-value">${formatearNumero(datos.totalParadas)}</div>
+        </div>
+
+      </div>
+
+
+      <div class="chart-grid" style="margin-bottom:16px;">
+
+        <div class="chart-box">
+          <h4>Impacto económico por línea</h4>
+          <canvas id="chart-pd-linea"></canvas>
+        </div>
+
+        <div class="chart-box">
+          <h4>Impacto por máquina / área</h4>
+          <canvas id="chart-pd-categoria"></canvas>
+        </div>
+
+        <div class="chart-box">
+          <h4>Distribución del impacto por categoría</h4>
+          <canvas id="chart-pd-dona"></canvas>
+        </div>
+
+        <div class="chart-box" style="grid-column:1 / -1;">
+          <h4>Evolución diaria del impacto económico</h4>
+          <canvas id="chart-pd-tendencia"></canvas>
         </div>
 
       </div>
@@ -936,5 +1003,303 @@ function renderPerdidasSoles(main){
     </div>
 
   `;
+
+
+  /* =====================================================
+     GRÁFICOS DE IMPACTO ECONÓMICO
+     =====================================================
+
+     Reutilizan la misma infraestructura de Chart.js que el
+     resto del tablero: PAL, colorSegunMeta, formatearNumero,
+     el plugin valorBarra y el bucket state.charts /
+     destroyCharts() (todos definidos en 08-graficos.js, que
+     debe cargarse ANTES que este archivo).
+
+     destroyCharts() limpia TODOS los gráficos activos (los
+     de Resumen/Gráficos por línea y los de aquí), lo cual es
+     seguro: solo hay uno de los dos tableros visible a la
+     vez, así que nunca se destruye un canvas que sigue en
+     pantalla.
+  ===================================================== */
+
+  destroyCharts();
+
+  const PALETA_CATEGORIAS_PD = [
+    PAL.rojo, PAL.ambar, PAL.azul, PAL.verde, PAL.azulSuave, PAL.gris
+  ];
+
+  function formatearFechaCortaPd(f){
+
+    const p = String(f || '').split('-');
+
+    return p.length === 3 ? (p[2] + '/' + p[1]) : f;
+
+  }
+
+
+  /* ---------- impacto económico por línea ---------- */
+
+  const cajaPdLinea =
+    document.getElementById('chart-pd-linea')?.closest('.chart-box');
+
+  if(!datos.filasLinea.length){
+
+    if(cajaPdLinea){
+
+      cajaPdLinea.querySelector('canvas').style.display = 'none';
+
+      cajaPdLinea.innerHTML += `
+        <div class="small-muted" style="text-align:center;padding:20px 0;">
+          Sin datos en ${rangoLabel}.
+        </div>
+      `;
+
+    }
+
+  } else {
+
+    state.charts.pdLinea =
+
+      new Chart(
+        document.getElementById('chart-pd-linea'),
+        {
+          type:'bar',
+          data:{
+            labels: datos.filasLinea.map(f => f.nombre),
+            datasets:[{
+              label:'Impacto económico',
+              data: datos.filasLinea.map(f => f.dinero),
+              backgroundColor: PAL.rojo,
+              borderRadius:4,
+              barPercentage:0.6
+            }]
+          },
+          options:{
+            plugins:{
+              legend:{ display:false },
+              valorBarra:{
+                activo:true,
+                formato:v => formatearSoles(v)
+              },
+              tooltip:{
+                callbacks:{
+                  label:ctx => formatearSoles(ctx.parsed.y)
+                }
+              }
+            },
+            scales:{
+              x:{ grid:{ display:false } },
+              y:{
+                beginAtZero:true,
+                grid:{ color:'#EFF2F4' },
+                ticks:{ callback:v => 'S/ ' + formatearNumero(v) }
+              }
+            }
+          }
+        }
+      );
+
+  }
+
+
+  /* ---------- impacto económico por máquina/área ---------- */
+
+  const cajaPdCategoria =
+    document.getElementById('chart-pd-categoria')?.closest('.chart-box');
+
+  if(!datos.filasCategoria.length){
+
+    if(cajaPdCategoria){
+
+      cajaPdCategoria.querySelector('canvas').style.display = 'none';
+
+      cajaPdCategoria.innerHTML += `
+        <div class="small-muted" style="text-align:center;padding:20px 0;">
+          Sin datos en ${rangoLabel}.
+        </div>
+      `;
+
+    }
+
+  } else {
+
+    state.charts.pdCategoria =
+
+      new Chart(
+        document.getElementById('chart-pd-categoria'),
+        {
+          type:'bar',
+          data:{
+            labels: datos.filasCategoria.map(f => f.categoria),
+            datasets:[{
+              label:'Impacto económico',
+              data: datos.filasCategoria.map(f => f.dinero),
+              backgroundColor: datos.filasCategoria.map(
+                (f,i) => PALETA_CATEGORIAS_PD[i % PALETA_CATEGORIAS_PD.length]
+              ),
+              borderRadius:4,
+              barPercentage:0.6
+            }]
+          },
+          options:{
+            indexAxis:'y',
+            plugins:{
+              legend:{ display:false },
+              valorBarra:{
+                activo:true,
+                formato:v => formatearSoles(v)
+              },
+              tooltip:{
+                callbacks:{
+                  label:ctx => formatearSoles(ctx.parsed.x)
+                }
+              }
+            },
+            scales:{
+              x:{
+                beginAtZero:true,
+                grid:{ color:'#EFF2F4' },
+                ticks:{ callback:v => 'S/ ' + formatearNumero(v) }
+              },
+              y:{ grid:{ display:false } }
+            }
+          }
+        }
+      );
+
+  }
+
+
+  /* ---------- distribución % del impacto por categoría ---------- */
+
+  const cajaPdDona =
+    document.getElementById('chart-pd-dona')?.closest('.chart-box');
+
+  if(!datos.filasCategoria.length){
+
+    if(cajaPdDona){
+
+      cajaPdDona.querySelector('canvas').style.display = 'none';
+
+      cajaPdDona.innerHTML += `
+        <div class="small-muted" style="text-align:center;padding:20px 0;">
+          Sin datos en ${rangoLabel}.
+        </div>
+      `;
+
+    }
+
+  } else {
+
+    state.charts.pdDona =
+
+      new Chart(
+        document.getElementById('chart-pd-dona'),
+        {
+          type:'doughnut',
+          data:{
+            labels: datos.filasCategoria.map(f => f.categoria),
+            datasets:[{
+              data: datos.filasCategoria.map(f => f.dinero),
+              backgroundColor: datos.filasCategoria.map(
+                (f,i) => PALETA_CATEGORIAS_PD[i % PALETA_CATEGORIAS_PD.length]
+              ),
+              borderWidth:0
+            }]
+          },
+          options:{
+            plugins:{
+              legend:{
+                position:'bottom',
+                labels:{ boxWidth:10, padding:10, usePointStyle:true }
+              },
+              tooltip:{
+                callbacks:{
+                  label:ctx => {
+
+                    const total = datos.totalDinero || 1;
+
+                    const pctVal =
+                      (ctx.parsed / total) * 100;
+
+                    return (
+                      ctx.label + ': ' +
+                      formatearSoles(ctx.parsed) +
+                      ' (' + (Math.round(pctVal * 10) / 10) + '%)'
+                    );
+
+                  }
+                }
+              }
+            }
+          }
+        }
+      );
+
+  }
+
+
+  /* ---------- evolución diaria del impacto económico ---------- */
+
+  const cajaPdTendencia =
+    document.getElementById('chart-pd-tendencia')?.closest('.chart-box');
+
+  if(datos.filasFecha.length < 2){
+
+    if(cajaPdTendencia){
+
+      cajaPdTendencia.querySelector('canvas').style.display = 'none';
+
+      cajaPdTendencia.innerHTML += `
+        <div class="small-muted" style="text-align:center;padding:20px 0;">
+          Aún no hay suficiente historial en ${rangoLabel} para
+          trazar una tendencia.
+        </div>
+      `;
+
+    }
+
+  } else {
+
+    state.charts.pdTendencia =
+
+      new Chart(
+        document.getElementById('chart-pd-tendencia'),
+        {
+          type:'line',
+          data:{
+            labels:
+              datos.filasFecha.map(f => formatearFechaCortaPd(f.fecha)),
+            datasets:[{
+              label:'Impacto económico diario',
+              data: datos.filasFecha.map(f => f.dinero),
+              borderColor: PAL.rojo,
+              tension:0.25,
+              pointRadius:3,
+              borderWidth:2
+            }]
+          },
+          options:{
+            plugins:{
+              legend:{ display:false },
+              tooltip:{
+                callbacks:{
+                  label:ctx => formatearSoles(ctx.parsed.y)
+                }
+              }
+            },
+            scales:{
+              x:{ grid:{ display:false } },
+              y:{
+                beginAtZero:true,
+                grid:{ color:'#EFF2F4' },
+                ticks:{ callback:v => 'S/ ' + formatearNumero(v) }
+              }
+            }
+          }
+        }
+      );
+
+  }
 
 }

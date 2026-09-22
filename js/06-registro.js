@@ -2032,7 +2032,7 @@ function blankRecord(lineKey){
       ),
 
     personal:
-      PERSONAL_POSICIONES.map(
+      posicionesPersonalLinea(lineKey).map(
         p => ({
           posicion:p,
           nombre:'',
