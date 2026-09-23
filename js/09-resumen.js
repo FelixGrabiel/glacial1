@@ -624,15 +624,26 @@ function sumarProduccionPorDiaYPresentacion(records){
    B20L — cruzadas por marca, sumando los días del rango (no
    se muestra por día, solo el total acumulado).
 
+   Las 10 categorías de la lista SIEMPRE se muestran, en ese
+   orden fijo, aunque alguna tenga 0 unidades en el rango
+   elegido — así ninguna columna "desaparece" del gráfico/tabla
+   de un período a otro y Gerencia siempre ve el mismo esqueleto
+   de columnas (ver CATEGORIAS_PRESENTACION_ORDEN más abajo).
+
    "625ml Gasificada" se distingue por la MARCA, porque el
    sistema no tiene un campo aparte para esto: Bells_Gas,
-   Bells_Manzana, Scala_Gas, scala_Manzana, Scala_Maracuya y
-   Scala_Piña_Kion (ver MARCAS_POR_LINEA.PET2 en 01-config.js)
-   son variantes gasificadas/saborizadas de Bells y Scala. Acá
-   se muestran bajo su marca base (Bells / Scala) pero su
-   producción entra en "625ml Gasificada" en vez de
-   "625ml Regular". Cualquier otra presentación (380ml, 1L,
-   1.5L, 2.5L) no se divide por gas/regular, solo por marca.
+   Bells_Manzana, Bells_Maracuya, Bells_Piña_Kion, Scala_Gas,
+   Scala_Manzana, Scala_Maracuya, Scala_Piña_Kion y Cuisine_Gas
+   (ver MARCA_BASE_GASIFICADA más abajo) son variantes
+   gasificadas/saborizadas de Bells, Scala y Cuisine. A
+   diferencia del resto de categorías (donde las variantes se
+   agrupan bajo su marca base, ej. "Bells"), DENTRO de "625ml
+   Gasificada" cada variante se muestra como su propia barra
+   (Bells Gas, Bells Manzana, Scala Gas, etc.) — ver
+   nombreMarcaGasificada() — para poder comparar el avance de
+   cada sabor por separado. Cualquier otra presentación (380ml,
+   1L, 1.5L, 2.5L) no se divide por gas/regular ni por sabor,
+   solo por marca base.
    ========================================================= */
 
 const CATEGORIAS_PRESENTACION_ORDEN = [
@@ -651,10 +662,36 @@ const CATEGORIAS_PRESENTACION_ORDEN = [
 const MARCA_BASE_GASIFICADA = {
   'bells gas': 'Bells',
   'bells manzana': 'Bells',
+  'bells maracuya': 'Bells',
+  'bells pina kion': 'Bells',
   'scala gas': 'Scala',
   'scala manzana': 'Scala',
   'scala maracuya': 'Scala',
-  'scala pina kion': 'Scala'
+  'scala pina kion': 'Scala',
+  'cuisine gas': 'Cuisine'
+};
+
+/*
+   Nombre "bonito" de cada variante gasificada/saborizada, para
+   mostrarla como su propia barra DENTRO de "625ml Gasificada"
+   (a diferencia de MARCA_BASE_GASIFICADA, que agrupa bajo la
+   marca base y se usa en el resto de categorías). Cualquier
+   marca que no esté en esta lista se muestra tal cual llegó
+   (String(marca).trim()), así que una variante nueva que se
+   agregue más adelante en MARCAS_POR_LINEA (01-config.js) no
+   se pierde: solo no tendrá el nombre "bonito" hasta que se
+   agregue aquí también.
+*/
+const NOMBRE_MARCA_GASIFICADA = {
+  'bells gas': 'Bells Gas',
+  'bells manzana': 'Bells Manzana',
+  'bells maracuya': 'Bells Maracuya',
+  'bells pina kion': 'Bells Piña Kion',
+  'scala gas': 'Scala Gas',
+  'scala manzana': 'Scala Manzana',
+  'scala maracuya': 'Scala Maracuya',
+  'scala pina kion': 'Scala Piña Kion',
+  'cuisine gas': 'Cuisine Gas'
 };
 
 function marcaEsGasificada(marca){
@@ -676,6 +713,21 @@ function marcaBasePresentacion(marca){
 
   return (
     MARCA_BASE_GASIFICADA[normalizarTexto(original)] ||
+    original
+  );
+
+}
+
+function nombreMarcaGasificada(marca){
+
+  const original = String(marca || '').trim();
+
+  if(!original){
+    return 'Sin marca';
+  }
+
+  return (
+    NOMBRE_MARCA_GASIFICADA[normalizarTexto(original)] ||
     original
   );
 
@@ -754,7 +806,10 @@ function sumarProduccionPorPresentacionYMarca(records){
         return;
       }
 
-      const marca = marcaBasePresentacion(c.marca);
+      const marca =
+        categoria === '625ml Gasificada'
+          ? nombreMarcaGasificada(c.marca)
+          : marcaBasePresentacion(c.marca);
 
       marcasSet.add(marca);
       categoriasConDatos.add(categoria);
@@ -773,10 +828,15 @@ function sumarProduccionPorPresentacionYMarca(records){
 
   });
 
+  /*
+     Las 10 categorías se muestran siempre, en el orden fijo de
+     CATEGORIAS_PRESENTACION_ORDEN, tengan o no producción en
+     el rango — ver nota al inicio del archivo. categoriasConDatos
+     ya no se usa para filtrar, solo queda calculada arriba por si
+     algún otro reporte la necesita más adelante.
+  */
   const categorias =
-    CATEGORIAS_PRESENTACION_ORDEN.filter(
-      c => categoriasConDatos.has(c)
-    );
+    CATEGORIAS_PRESENTACION_ORDEN;
 
   const totalesMarca = {};
 
@@ -810,7 +870,7 @@ function sumarProduccionPorPresentacionYMarca(records){
 
 function generarInsightPresentacionMarca(datos, rangoLabel){
 
-  if(!datos.categorias.length || datos.totalGeneral <= 0){
+  if(datos.totalGeneral <= 0){
 
     return (
       'No hay producción registrada por presentación en ' +
@@ -1018,7 +1078,7 @@ function renderPanelPresentacionMarca(todos, records, rangoLabel){
   const canvasPresentacionMarca =
     document.getElementById('chart-presentacion-marca');
 
-  if(canvasPresentacionMarca && datos.categorias.length){
+  if(canvasPresentacionMarca && datos.totalGeneral > 0){
 
     const coloresMarcasPresentacion =
       coloresResumen(datos.marcas.length);
@@ -1054,9 +1114,9 @@ function renderPanelPresentacionMarca(todos, records, rangoLabel){
 
                 borderRadius:2,
 
-                barPercentage:0.7,
+                barPercentage:0.85,
 
-                stack:'presentacion'
+                categoryPercentage:0.8
 
               }))
 
@@ -1066,12 +1126,33 @@ function renderPanelPresentacionMarca(todos, records, rangoLabel){
 
             maintainAspectRatio:false,
 
+            interaction:{
+              mode:'index',
+              intersect:false
+            },
+
             plugins:{
 
               legend:{
                 display:true,
                 position:'bottom',
                 labels:{ boxWidth:9, boxHeight:9, usePointStyle:true, pointStyle:'rectRounded', padding:14, font:{ size:11 } }
+              },
+
+              valorBarra:{
+
+                activo:true,
+
+                color:PAL_R.texto,
+
+                /*
+                   Sin esto, cada barra en 0 (categoría/marca sin
+                   producción, ahora que las 10 categorías siempre
+                   se muestran) dibujaría un "0" pegado al eje —
+                   se omite la etiqueta en ese caso.
+                */
+                formato:v => v ? formatearNumero(v) : ''
+
               },
 
               tooltip:{
@@ -1090,7 +1171,7 @@ function renderPanelPresentacionMarca(todos, records, rangoLabel){
                     const total =
                       items.reduce((a,it) => a + it.parsed.y, 0);
 
-                    return 'Total: ' +
+                    return 'Total presentación: ' +
                       formatearNumero(total) + ' unidades';
 
                   }
@@ -1104,13 +1185,13 @@ function renderPanelPresentacionMarca(todos, records, rangoLabel){
             scales:{
 
               x:{
-                stacked:true,
+                stacked:false,
                 grid:{ display:false }
               },
 
               y:{
 
-                stacked:true,
+                stacked:false,
 
                 beginAtZero:true,
 
@@ -1142,7 +1223,7 @@ function renderPanelPresentacionMarca(todos, records, rangoLabel){
 
   if(boxPresentacionMarca){
 
-    if(!datos.categorias.length){
+    if(!datos.totalGeneral){
 
       boxPresentacionMarca.innerHTML = `
 

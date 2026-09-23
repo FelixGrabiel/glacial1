@@ -2190,6 +2190,27 @@ function renderMain(){
 
 
   /* =====================================================
+     PRODUCCIÓN ACTUAL (TODAS LAS LÍNEAS — VENTAS)
+     =====================================================
+
+     Igual que resumen/perdidas: es una vista global, no
+     depende de state.currentLine. Vive en 16-paletas.js
+     porque reutiliza toda la lógica de programación/
+     comparación de ese módulo.
+     ===================================================== */
+
+  if(
+    state.currentTab === 'produccion-actual'
+  ){
+
+    renderProduccionActualTab();
+
+    return;
+
+  }
+
+
+  /* =====================================================
      BUSCAR LÍNEA ACTUAL
      ===================================================== */
 
@@ -2278,6 +2299,21 @@ function renderMain(){
         Gráficos
       </button>
 
+
+      <button
+        class="
+          tab
+          ${
+            state.currentTab === 'paletas'
+              ? 'active'
+              : ''
+          }
+        "
+        onclick="setTab('paletas')"
+      >
+        Paletas
+      </button>
+
     </div>
 
 
@@ -2306,6 +2342,14 @@ function renderMain(){
 
   }
 
+  else if(
+    state.currentTab === 'paletas'
+  ){
+
+    renderPaletasTab();
+
+  }
+
   else{
 
     renderGraficosTab();
@@ -2321,6 +2365,7 @@ function setTab(t){
     nuevo:'nuevo',
     historial:'historial',
     graficos:'graficos',
+    paletas:'paletas',
     resumen:'resumen'
   }[t];
 
@@ -6271,9 +6316,7 @@ function personalTable(
                 <td>
 
                   <input
-                    list="
-                      personal-workers-datalist
-                    "
+                    list="personal-workers-datalist"
                     value="${r.nombre}"
                     oninput="
                       updatePersonal(
@@ -6290,9 +6333,7 @@ function personalTable(
                 <td>
 
                   <input
-                    id="
-                      personal-cargo-${i}
-                    "
+                    id="personal-cargo-${i}"
                     value="${r.cargo}"
                     oninput="
                       updatePersonal(

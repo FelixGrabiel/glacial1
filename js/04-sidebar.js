@@ -32,7 +32,8 @@ function renderSidebar(){
           class="line-btn ${
             state.currentLine === l.key &&
             state.currentTab !== 'resumen' &&
-            state.currentTab !== 'perdidas'
+            state.currentTab !== 'perdidas' &&
+            state.currentTab !== 'produccion-actual'
               ? 'active'
               : ''
           }"
@@ -109,6 +110,33 @@ function goPerdidasSoles(){
     return;
   }
   state.currentTab='perdidas';
+  renderSidebar();
+  renderMain();
+}
+
+
+/*
+   "Producción Actual" — pestaña de solo lectura pensada para
+   Ventas: a diferencia de la pestaña "Paletas" (que vive
+   DENTRO de cada línea y muestra solo la línea seleccionada),
+   esta junta en una sola vista lo que cada supervisor va
+   registrando en "Paletas" de TODAS las líneas a la vez, con
+   su propio permiso ('produccionActual') para que el
+   Administrador decida por separado quién la ve — igual que
+   goResumen()/goPerdidasSoles().
+*/
+function goProduccionActual(){
+  if(!tienePermiso('produccionActual')){
+    alert('No tienes permiso para ver Producción Actual.');
+    return;
+  }
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
+  state.currentTab='produccion-actual';
   renderSidebar();
   renderMain();
 }

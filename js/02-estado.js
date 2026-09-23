@@ -64,6 +64,8 @@ let _workersCache = [];
 let _rotacionesCache = [];
 let _tareosCache = [];
 let _preciosCache = {};
+let _paletasCache = [];
+let _programacionesCache = [];
 
 let _usersReady = false;
 let _recordsReady = false;
@@ -71,6 +73,8 @@ let _workersReady = false;
 let _rotacionesReady = false;
 let _tareosReady = false;
 let _preciosReady = false;
+let _paletasReady = false;
+let _programacionesReady = false;
 
 
 /*
@@ -121,6 +125,8 @@ const PERMISOS_APP=[
   {key:'graficos',label:'Gráficos'},
   {key:'resumen',label:'Resumen / Reportes'},
   {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
+  {key:'paletas',label:'Paletas (registro en tiempo real)'},
+  {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
   {key:'trabajadores',label:'Trabajadores'},
   {key:'usuarios',label:'Usuarios'},
   {key:'exportarExcel',label:'Exportar Excel'},
@@ -135,8 +141,8 @@ const PERMISOS_APP=[
 
 function permisosPorRolAnterior(rol){
   if(rol==='Administrador'||rol==='Jefe de Producción') return 'todos';
-  if(rol==='Supervisor') return ['nuevo','historial','graficos','trabajadores'];
-  return ['nuevo','historial','graficos'];
+  if(rol==='Supervisor') return ['nuevo','historial','graficos','paletas','trabajadores'];
+  return ['nuevo','historial','graficos','paletas'];
 }
 
 function normalizarPermisosUsuario(u){
@@ -182,7 +188,7 @@ function usuariosPorDefecto(){
     {
       username:'supervisor',password:'supervisor123',rol:'Supervisor',
       puesto:'Supervisor',
-      permisos:['nuevo','historial','graficos','trabajadores'],
+      permisos:['nuevo','historial','graficos','paletas','trabajadores'],
       linea:null,nombre:'Supervisor'
     }
   ];
@@ -419,6 +425,90 @@ function initRealtimeSync(){
 
     );
 
+
+  /*
+     PALETAS (REGISTRO EN TIEMPO REAL DE PALETAS PRODUCIDAS)
+
+     Un solo documento en Firestore con el arreglo completo de
+     registros de paletas (cada uno: línea, fecha, turno, marca,
+     presentación, hora, cantidad de paletas y unidades, usuario
+     y observaciones — ver 16-paletas.js). Se sincroniza igual
+     que el resto: en cuanto un supervisor guarda "+N paletas"
+     desde una computadora o celular, aparece de inmediato en
+     cualquier otro equipo conectado (incluyendo, a futuro, una
+     vista de solo lectura para Ventas).
+  */
+
+  db.collection('sync').doc('paletas')
+
+    .onSnapshot(
+
+      snap => {
+
+        _paletasCache =
+          (snap.exists && snap.data().items)
+            ? snap.data().items
+            : [];
+
+        _paletasReady = true;
+
+        onPaletasUpdated();
+
+      },
+
+      err => {
+
+        console.error(
+          'Error de sincronización (paletas):', err
+        );
+
+      }
+
+    );
+
+
+  /*
+     PROGRAMACIÓN DE PALETAS POR TURNO (CANTIDAD PROGRAMADA)
+
+     Un solo documento en Firestore con el arreglo completo de
+     "cuánto se debe producir" por cada combinación de línea +
+     fecha + turno + marca + presentación (ver 16-paletas.js).
+
+     Es un documento APARTE de 'paletas': mientras 'paletas' es
+     un historial que se acumula (cada +N queda como un registro
+     nuevo), aquí cada combinación tiene UNA sola cantidad
+     programada, que se reemplaza (no se duplica) cada vez que
+     el supervisor la actualiza, y contra la cual se compara la
+     suma de los registros de 'paletas' de esa misma combinación.
+  */
+
+  db.collection('sync').doc('programaciones')
+
+    .onSnapshot(
+
+      snap => {
+
+        _programacionesCache =
+          (snap.exists && snap.data().items)
+            ? snap.data().items
+            : [];
+
+        _programacionesReady = true;
+
+        onProgramacionesUpdated();
+
+      },
+
+      err => {
+
+        console.error(
+          'Error de sincronización (programación de paletas):', err
+        );
+
+      }
+
+    );
+
 }
 
 
@@ -550,6 +640,86 @@ function onPreciosUpdated(){
     renderPerdidasSoles(
       document.getElementById('main')
     );
+
+  }
+
+}
+
+
+function onPaletasUpdated(){
+
+  /*
+     A diferencia de onRecordsUpdated (que vuelve a dibujar
+     toda la pestaña), aquí NO se llama a renderMain()/
+     renderPaletasTab(): eso reconstruiría también el
+     formulario y le haría perder el foco a quien esté
+     escribiendo una cantidad en ese momento.
+
+     En su lugar, se delega a actualizarVistaPaletas()
+     (16-paletas.js), que solo reemplaza el bloque de
+     resultados (KPIs + agrupado + tabla) si la pestaña
+     Paletas está abierta ahora mismo.
+  */
+
+  if(
+    state.user &&
+    state.currentTab === 'paletas' &&
+    typeof actualizarVistaPaletas === 'function'
+  ){
+
+    actualizarVistaPaletas();
+
+  }
+
+  /*
+     "Producción Actual" (Ventas) no tiene ningún campo de
+     tipeo libre que se pueda interrumpir — solo fecha/turno
+     por select — así que ahí sí se puede volver a dibujar la
+     pestaña completa cada vez que llega un cambio.
+  */
+
+  if(
+    state.user &&
+    state.currentTab === 'produccion-actual' &&
+    typeof renderProduccionActualTab === 'function'
+  ){
+
+    renderProduccionActualTab();
+
+  }
+
+}
+
+
+function onProgramacionesUpdated(){
+
+  /*
+     Igual que onPaletasUpdated: NO se reconstruye todo el
+     formulario (eso le haría perder el foco a quien esté
+     escribiendo). Solo se refresca el bloque de resultados
+     (que incluye programado/producido/pendiente/cumplimiento)
+     si la pestaña Paletas está abierta ahora mismo — así una
+     programación cargada desde otra computadora se refleja de
+     inmediato en la vista de "Producción del turno".
+  */
+
+  if(
+    state.user &&
+    state.currentTab === 'paletas' &&
+    typeof actualizarVistaPaletas === 'function'
+  ){
+
+    actualizarVistaPaletas();
+
+  }
+
+  if(
+    state.user &&
+    state.currentTab === 'produccion-actual' &&
+    typeof renderProduccionActualTab === 'function'
+  ){
+
+    renderProduccionActualTab();
 
   }
 
@@ -732,6 +902,52 @@ function precioUnitarioLinea(lineKey){
     PRECIOS_UNITARIOS_DEFAULT[lineKey] ??
     0
   );
+
+}
+
+
+/* =========================================================
+   PALETAS (REGISTRO EN TIEMPO REAL DE PALETAS PRODUCIDAS)
+   ========================================================= */
+
+function loadPaletas(){
+
+  return _paletasCache;
+
+}
+
+
+function savePaletas(p){
+
+  _paletasCache = p;
+
+  return db.collection('sync').doc('paletas').set({
+    items: p,
+    updatedAt: Date.now()
+  }).catch(err => _avisarErrorGuardado('paletas', err));
+
+}
+
+
+/* =========================================================
+   PROGRAMACIÓN DE PALETAS POR TURNO (CANTIDAD PROGRAMADA)
+   ========================================================= */
+
+function loadProgramaciones(){
+
+  return _programacionesCache;
+
+}
+
+
+function saveProgramaciones(p){
+
+  _programacionesCache = p;
+
+  return db.collection('sync').doc('programaciones').set({
+    items: p,
+    updatedAt: Date.now()
+  }).catch(err => _avisarErrorGuardado('programación de paletas', err));
 
 }
 

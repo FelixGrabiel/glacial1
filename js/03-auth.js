@@ -394,6 +394,30 @@ function enterApp(){
       : 'none';
 
 
+  /*
+     "Producción actual" (16-paletas.js) es la vista de solo
+     lectura para Ventas: en vez de atarla a un rol por nombre
+     (como arriba), se muestra según el permiso 'produccionActual'
+     que el Administrador asigna desde Gestión de usuarios — así
+     puede dárselo a cualquier usuario, no solo a uno con rol
+     "Ventas" literal.
+  */
+  const btnProduccionActual =
+    document.getElementById('btn-produccion-actual');
+
+  if(btnProduccionActual){
+
+    btnProduccionActual.style.display =
+
+      tienePermiso('produccionActual')
+
+        ? 'block'
+
+        : 'none';
+
+  }
+
+
   renderSidebar();
 
   renderMain();

@@ -348,7 +348,7 @@ function obtenerSemana(fecha){
 
    PET2:
    - Scala Gas / Manzana / Maracuya / Piña Kion = 3
-   - Bells Gas / Manzana / Maracuya = 6
+   - Bells Gas / Manzana / Maracuya / Piña Kion = 6
    - Cuisine = 2
    - CF4: SCALA, FONTLIFE, BELLS, GLACIAL (presentación regular,
      sin gas/sabor)
@@ -452,7 +452,8 @@ function obtenerCodigoMarca(linea, marca, presentacion){
     if(
       combinado.includes('bells gas') ||
       combinado.includes('bells manzana') ||
-      combinado.includes('bells maracuya')
+      combinado.includes('bells maracuya') ||
+      combinado.includes('bells pina kion')
     ){
 
       return '6';
@@ -716,7 +717,8 @@ function actualizarLote(){
    - 625ml (Scala, Aro, Merkat, Bells,
      Glacial, Cuisine — sin sabor)           : 1500 x palet
    - 625ml (Scala Gas/Manzana/Maracuya/
-     Piña Kion, Bells Gas/Manzana/Maracuya)  : 1350 x palet
+     Piña Kion, Bells Gas/Manzana/Maracuya/
+     Piña Kion, Cuisine Gas)                  : 1350 x palet
    - 380ml                                   : 2184 x palet
    - 1.5L                                    : 600 x palet
 
@@ -1299,7 +1301,9 @@ function obtenerUnidadesPorPalet(linea, marca, presentacion){
         m.includes('scala pina kion') ||
         m.includes('bells gas') ||
         m.includes('bells manzana') ||
-        m.includes('bells maracuya');
+        m.includes('bells maracuya') ||
+        m.includes('bells pina kion') ||
+        m.includes('cuisine gas');
 
 
       return esSaborizada

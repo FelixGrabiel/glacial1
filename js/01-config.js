@@ -25,7 +25,7 @@
         service cloud.firestore {
           match /databases/{database}/documents {
             match /sync/{doc} {
-              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'tareos', 'precios'];
+              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'tareos', 'precios', 'paletas', 'programaciones'];
             }
             match /{document=**} {
               allow read, write: if false;
@@ -33,27 +33,33 @@
           }
         }
 
-      ⚠⚠ ACCIÓN REQUERIDA AHORA (20260921, actualizado): la
+      ⚠⚠ ACCIÓN REQUERIDA AHORA (20260922, actualizado): la
       regla que hay publicada hoy en la consola de Firebase
       todavía dice "if doc in ['users', 'records', 'workers']"
-      — SIN 'rotaciones', 'tareos' NI 'precios' (este último es
-      nuevo: lo usa el reporte "Impacto Económico" para guardar el
-      precio por unidad de cada línea). Eso es exactamente lo que
-      causaba que el Excel de rotación semanal y los tareos
-      creados en Tareo "se borraran" al abrir el sistema
-      desde otra computadora o celular: Firestore rechazaba
-      en silencio cualquier intento de guardar esos dos
-      documentos (el navegador que los creó los mostraba
-      igual, porque los guarda primero en memoria, pero nunca
-      llegaban de verdad a la nube, así que ningún otro
-      equipo — ni ese mismo tras recargar la página — podía
-      verlos).
+      — SIN 'rotaciones', 'tareos', 'precios', 'paletas' NI
+      'programaciones' (este último es nuevo: lo usa el módulo
+      "Paletas" para guardar la CANTIDAD PROGRAMADA de cada
+      combinación línea+fecha+turno+marca+presentación, contra
+      la cual se compara lo registrado en 'paletas' —
+      16-paletas.js). Eso es exactamente lo que causaba que el
+      Excel de rotación semanal y los tareos creados en Tareo
+      "se borraran" al abrir el sistema desde otra computadora
+      o celular: Firestore rechazaba en silencio cualquier
+      intento de guardar esos dos documentos (el navegador que
+      los creó los mostraba igual, porque los guarda primero en
+      memoria, pero nunca llegaban de verdad a la nube, así que
+      ningún otro equipo — ni ese mismo tras recargar la página —
+      podía verlos). Si no se agrega 'paletas' y 'programaciones'
+      a esta regla, pasará exactamente lo mismo: se verán en la
+      computadora que los creó, pero desaparecerán al recargar o
+      al abrir el sistema desde otro equipo.
 
       Copiar y pegar la regla de arriba en el código NO alcanza:
       hay que ir a Firebase Console > Firestore Database > Reglas,
       reemplazar la regla publicada por la de arriba (agregando
-      'rotaciones' y 'tareos') y hacer clic en "Publicar". Es un
-      cambio de una sola vez.
+      'rotaciones', 'tareos', 'precios', 'paletas' y
+      'programaciones') y hacer clic en "Publicar". Es un cambio
+      de una sola vez.
 
       ⚠ SEGURIDAD (parche intermedio, 20260912): esta regla
       solo limita las reglas a los documentos que usa la
@@ -148,6 +154,8 @@ const MARCAS_POR_LINEA = {
   PET2: [
     'Bells_Gas',
     'Bells_Manzana',
+    'Bells_Maracuya',
+    'Bells_Piña_Kion',
     'Scala_Gas',
     'Bells',
     'Scala',
@@ -155,6 +163,7 @@ const MARCAS_POR_LINEA = {
     'Scala_Maracuya',
     'Scala_Piña_Kion',
     'Cuisine',
+    'Cuisine_Gas',
     'Glacial',
     'Aro',
     'San Jorgue',
