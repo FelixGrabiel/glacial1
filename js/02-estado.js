@@ -127,6 +127,11 @@ const PERMISOS_APP=[
   {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
   {key:'paletas',label:'Paletas (registro en tiempo real)'},
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
+  {key:'verLineasProduccion',label:'Ver líneas de producción en el menú lateral'},
+  {key:'tareoProduccion',label:'Tareo de Producción (registrar asistencia)'},
+  {key:'tareoGeneral',label:'Tareo General (solo lectura — RRHH)'},
+  {key:'moduloMantenimiento',label:'Módulo de Mantenimiento (Tareo y demás secciones del área)'},
+  {key:'moduloRRHH',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},
   {key:'trabajadores',label:'Trabajadores'},
   {key:'usuarios',label:'Usuarios'},
   {key:'exportarExcel',label:'Exportar Excel'},
@@ -531,6 +536,8 @@ function onUsersUpdated(){
 
 function onWorkersUpdated(){
 
+  if(typeof tareoControlActualizar === 'function') tareoControlActualizar();
+
   if(document.getElementById('workerlist')){
 
     renderWorkerList();
@@ -584,6 +591,8 @@ function onRotacionesUpdated(){
 
 function onTareosUpdated(){
 
+  if(typeof tareoControlActualizar === 'function') tareoControlActualizar();
+
   /*
      Si la persona tiene abierta la lista principal de Tareo
      o el Historial de Tareo (identificadas por el id que
@@ -607,6 +616,34 @@ function onTareosUpdated(){
   ){
 
     renderHistorialTareo();
+
+  }
+
+
+  /*
+     Tareo en tiempo real: si la persona tiene abierto el
+     formulario de asistencia (supervisor) o el Tareo General
+     (RRHH), se actualiza con lo que marcaron desde otros
+     equipos. El formulario no se redibuja mientras la persona
+     está escribiendo en un campo, ni mientras haya un guardado
+     propio en camino (ver tareoRefrescarFormularioRemoto).
+  */
+
+  if(
+    document.getElementById('tareo-form-view') &&
+    typeof tareoRefrescarFormularioRemoto === 'function'
+  ){
+
+    tareoRefrescarFormularioRemoto();
+
+  }
+
+  if(
+    document.getElementById('tareo-general-view') &&
+    typeof renderTareoGeneral === 'function'
+  ){
+
+    renderTareoGeneral();
 
   }
 

@@ -27,11 +27,21 @@
             match /sync/{doc} {
               allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'tareos', 'precios', 'paletas', 'programaciones'];
             }
+            match /auditoriaTareos/{evento} {
+              allow read, create: if true;
+              allow update, delete: if false;
+            }
             match /{document=**} {
               allow read, write: if false;
             }
           }
         }
+
+      Para activar la auditoría, publicar también la regla
+      /auditoriaTareos/{evento} mostrada arriba. Esta regla solo
+      bloquea edición/borrado de eventos; sin Firebase Authentication
+      no puede verificar quién escribió un evento ni restringir su
+      lectura a RRHH. La identidad/rol del navegador no es seguridad.
 
       ⚠⚠ ACCIÓN REQUERIDA AHORA (20260922, actualizado): la
       regla que hay publicada hoy en la consola de Firebase

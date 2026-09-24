@@ -2074,11 +2074,41 @@ function blankRecord(lineKey){
 /* =========================================================
    RENDER PRINCIPAL
    ========================================================= */
+if (typeof globalThis.puedeProgramarPaletas !== 'function') {
+  globalThis.puedeProgramarPaletas = function () {
+    return !!state.user && (
+      tienePermiso('programarPaletas') ||
+      ['Administrador', 'Gerente General', 'Jefe de Producción', 'Jefe de Operaciones']
+        .includes(state.user.rol)
+    );
+  };
+}
 
+if (typeof globalThis.puedeAccederPaletas !== 'function') {
+  globalThis.puedeAccederPaletas = function () {
+    return tienePermiso('paletas') || puedeProgramarPaletas();
+  };
+}
+
+if (typeof globalThis.permisoPestanaLinea !== 'function') {
+  globalThis.permisoPestanaLinea = function (permiso) {
+    return permiso === 'paletas'
+      ? puedeAccederPaletas()
+      : tienePermiso(permiso);
+  };
+}
 function renderMain(){
 
   const main =
     document.getElementById('main');
+
+  // Una sesión sin acceso a líneas jamás debe caer en la primera línea
+  // por el valor inicial currentTab='nuevo'.
+  ajustarVistaSegunPermisos();
+  if(!state.currentTab){
+    main.innerHTML='<div class="empty-state"><h4>Sin secciones habilitadas</h4><p>Solicita permisos al administrador.</p></div>';
+    return;
+  }
 
 
   /* =====================================================
@@ -2211,6 +2241,55 @@ function renderMain(){
 
 
   /* =====================================================
+     MÓDULO DE MANTENIMIENTO
+     =====================================================
+
+     Igual que resumen/perdidas/produccion-actual: es una
+     vista global que no depende de state.currentLine. Vive
+     en 18-mantenimiento.js. Por ahora abre directo el Tareo
+     de Mantenimiento (única sección del módulo hasta hoy);
+     cuando se agreguen más secciones de Mantenimiento, este
+     mismo bloque seguirá sirviendo como su punto de entrada.
+     ===================================================== */
+
+  if(
+    state.currentTab === 'mantenimiento'
+  ){
+
+    renderMantenimientoModulo();
+
+    return;
+
+  }
+
+
+  /* =====================================================
+     MÓDULO DE RRHH
+     =====================================================
+
+     Igual que el de Mantenimiento: vista global, vive en
+     19-rrhh.js y delega en openTareo() (13-tareo.js), que ya
+     arma Tareo, Tareo General, Historial y Resumen mensual de
+     ambas áreas según el permiso 'moduloRRHH'.
+     ===================================================== */
+
+  if(
+    state.currentTab === 'rrhh'
+  ){
+
+    renderRRHHModulo();
+
+    return;
+
+  }
+
+  if(state.currentTab === 'tareo'){
+    openTareo();
+    return;
+  }
+
+
+  /* =====================================================
      BUSCAR LÍNEA ACTUAL
      ===================================================== */
 
@@ -2256,6 +2335,7 @@ function renderMain(){
     <div class="tabs">
 
       <button
+        data-requires-permission="nuevo"
         class="
           tab
           ${
@@ -2271,6 +2351,7 @@ function renderMain(){
 
 
       <button
+        data-requires-permission="historial"
         class="
           tab
           ${
@@ -2286,6 +2367,7 @@ function renderMain(){
 
 
       <button
+        data-requires-permission="graficos"
         class="
           tab
           ${
@@ -2301,6 +2383,7 @@ function renderMain(){
 
 
       <button
+        data-requires-permission="paletas"
         class="
           tab
           ${
@@ -2320,6 +2403,10 @@ function renderMain(){
     <div id="tab-content"></div>
 
   `;
+
+  main.querySelectorAll('[data-requires-permission]').forEach(boton=>{
+    if(!permisoPestanaLinea(boton.dataset.requiresPermission))boton.remove();
+  });
 
 
   /* =====================================================
@@ -2345,8 +2432,26 @@ function renderMain(){
   else if(
     state.currentTab === 'paletas'
   ){
-
-    renderPaletasTab();
+    const contenidoPaletas = document.getElementById('tab-content');
+    if(typeof renderPaletasTab !== 'function'){
+      console.error('No se cargó js/16-paletas.js. Comprueba la ruta y el nombre del archivo.');
+      if(contenidoPaletas){
+        contenidoPaletas.textContent =
+          'No se pudo abrir Paletas: falta cargar js/16-paletas.js. ' +
+          'Comprueba que el archivo tenga extensión .js y esté dentro de la carpeta js.';
+      }
+    } else {
+      try {
+        renderPaletasTab();
+      } catch(error){
+        console.error('Error al mostrar Paletas:',error);
+        if(contenidoPaletas){
+          contenidoPaletas.textContent =
+            'No se pudo abrir Paletas: ' + (error?.message || 'error desconocido') +
+            '. Comunica este mensaje al administrador.';
+        }
+      }
+    }
 
   }
 
@@ -2361,6 +2466,8 @@ function renderMain(){
 
 function setTab(t){
 
+  if(!visibleLines().some(l=>l.key===state.currentLine))return;
+
   const permiso = {
     nuevo:'nuevo',
     historial:'historial',
@@ -2372,7 +2479,7 @@ function setTab(t){
 
   if(
     permiso &&
-    !tienePermiso(permiso)
+    !permisoPestanaLinea(permiso)
   ){
 
     alert(

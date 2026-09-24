@@ -29,7 +29,8 @@
    Desde esta versión, los dos conceptos se manejan por
    separado y en su unidad natural:
 
-   - PROGRAMACIÓN: siempre en UNIDADES (UND). El supervisor
+   - PROGRAMACIÓN: siempre en UNIDADES (UND). Jefatura o una persona
+     con el permiso programarPaletas
      ingresa la cantidad programada y las "unidades por
      paleta" de esa combinación; el sistema calcula solo las
      paletas programadas (cantidad / unidades por paleta).
@@ -138,7 +139,7 @@ function obtenerProgramacionPaleta(linea, fecha, turno, marca, presentacion){
 
 /*
    Unidades por paleta que rige AHORA MISMO para una
-   combinación: primero la que el supervisor haya guardado en
+   combinación: primero la que el usuario autorizado haya guardado en
    su propia programación (sección "Cantidad programada"); si
    todavía no hay ninguna, cae al catálogo general
    (obtenerUnidadesPorPalet, 05-utils.js) — la misma tasa que
@@ -224,25 +225,32 @@ function datosProgramacionCombinacion(linea, fecha, turno, marca, presentacion){
    combinación: si ya existe una con la misma clave, se
    reemplaza ese mismo registro; si no existe, se crea uno
    nuevo. "cantidadUnidades" es SIEMPRE en UND;
-   "unidadesPorPaleta" es la que el supervisor definió para
+   "unidadesPorPaleta" es la que planificación definió para
    esa combinación (producto + presentación).
 */
 async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacion, cantidadUnidades, unidadesPorPaleta){
 
+  if(!puedeProgramarPaletas() ||
+     !visibleLines().some(l => l.key === linea)){
+    throw new Error('No tienes permiso para programar esta línea.');
+  }
+
   const clave =
     claveProgramacionPaleta(linea, fecha, turno, marca, presentacion);
-
-  const programaciones =
-    loadProgramaciones();
-
-  const idx =
-    programaciones.findIndex(p => p.clave === clave);
 
   const cantidadNum =
     Math.max(0, num(cantidadUnidades));
 
   const uppNum =
     Math.max(0, num(unidadesPorPaleta));
+
+  if(!Number.isInteger(Number(cantidadUnidades)) ||
+     !Number.isInteger(Number(unidadesPorPaleta)) ||
+     Number(cantidadUnidades) < 0 ||
+     Number(unidadesPorPaleta) < 0 ||
+     (cantidadNum > 0 && uppNum === 0)){
+    throw new Error('La programación requiere unidades enteras y unidades por paleta válidas.');
+  }
 
   const campos = {
     cantidadProgramada: cantidadNum,
@@ -252,38 +260,27 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
     actualizadoEn: Date.now()
   };
 
-  if(idx > -1){
-
-    programaciones[idx] = {
-      ...programaciones[idx],
-      ...campos
-    };
-
-  } else {
-
-    programaciones.push({
-
-      id:
-        'prog_' + Date.now() + '_' +
-        Math.random().toString(36).slice(2, 8),
-
-      clave,
-      linea,
-      fecha,
-      turno,
-      marca,
-      presentacion,
-
-      ...campos,
-
-      creadoPor: nombreUsuarioActualPaletas(),
-      creadoEn: Date.now()
-
-    });
-
-  }
-
-  await saveProgramaciones(programaciones);
+  // Se fusiona una sola combinación en la transacción. Dos jefes que
+  // programen líneas diferentes no se borran entre sí.
+  const ref = db.collection('sync').doc('programaciones');
+  const items = await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const actuales = snap.exists && Array.isArray(snap.data().items)
+      ? snap.data().items.slice() : [];
+    const idx = actuales.findIndex(p => p.clave === clave);
+    if(idx > -1){
+      actuales[idx] = {...actuales[idx], ...campos};
+    } else {
+      actuales.push({
+        id:'prog_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+        clave, linea, fecha, turno, marca, presentacion, ...campos,
+        creadoPor:nombreUsuarioActualPaletas(), creadoEn:Date.now()
+      });
+    }
+    tx.set(ref,{items:actuales,updatedAt:Date.now()});
+    return actuales;
+  });
+  _programacionesCache = items;
 
 }
 
@@ -556,7 +553,7 @@ function textoPreviaUnidadesPaleta(){
   }
 
   if(!unidadesPorPaleta){
-    return 'No hay "unidades por paleta" configuradas para esta combinación. Complétalas en "Cantidad programada", arriba.';
+    return 'Sin unidades por paleta configuradas. Solicita a jefatura que configure esta presentación.';
   }
 
   return (
@@ -695,6 +692,13 @@ function actualizarPaletaCampo(name, valor){
 
 async function guardarPaleta(){
 
+  if(!tienePermiso('paletas') ||
+     !draftPaleta ||
+     !visibleLines().some(l => l.key === draftPaleta.linea)){
+    alert('No tienes permiso para registrar paletas en esta línea.');
+    return;
+  }
+
   if(_guardandoPaleta){
     return;
   }
@@ -742,7 +746,7 @@ async function guardarPaleta(){
     if(!unidadesPorPaleta){
       alert(
         'No hay "unidades por paleta" configuradas para esta combinación. ' +
-        'Completa la cantidad programada con sus unidades por paleta antes de registrar paletas completas.'
+        'Solicita a jefatura que configure las unidades por paleta de esta presentación.'
       );
       return;
     }
@@ -779,51 +783,10 @@ async function guardarPaleta(){
 
 
   try{
-
-    const registros = loadPaletas();
-
-    if(paletaEditId){
-
-      /* =================================================
-         ACTUALIZAR UN REGISTRO EXISTENTE
-         ================================================= */
-
-      const idx =
-        registros.findIndex(p => p.id === paletaEditId);
-
-      if(idx > -1){
-
-        registros[idx] = {
-          ...registros[idx],
-          fecha: draftPaleta.fecha,
-          turno: draftPaleta.turno,
-          marca: draftPaleta.marca,
-          presentacion: draftPaleta.presentacion,
-          hora: draftPaleta.hora,
-          tipoPaleta: esCompleta ? 'COMPLETA' : 'INCOMPLETA',
-          paletas: cantidadPaletas,
-          unidadesPorPaleta,
-          unidadesIncompleta,
-          totalUnidades,
-          observaciones: draftPaleta.observaciones || '',
-          actualizadoPor: nombreUsuarioActualPaletas(),
-          actualizadoEn: Date.now()
-        };
-
-      }
-
-    } else {
-
-      /* =================================================
-         CREAR UN REGISTRO NUEVO
-         ================================================= */
-
-      registros.push({
-
-        id:
-          'pal_' + Date.now() + '_' +
-          Math.random().toString(36).slice(2, 8),
-
+    const idRegistro = paletaEditId ||
+      'pal_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    const cambio = {
+        id:idRegistro,
         linea: draftPaleta.linea,
         fecha: draftPaleta.fecha,
         turno: draftPaleta.turno,
@@ -840,13 +803,33 @@ async function guardarPaleta(){
         usuario: nombreUsuarioActualPaletas(),
         usuarioUsername: (state.user && state.user.username) || '',
 
-        creadoEn: Date.now()
+        creadoEn: Date.now(),
+        actualizadoPor: nombreUsuarioActualPaletas(),
+        actualizadoEn: Date.now()
+    };
 
-      });
-
-    }
-
-    await savePaletas(registros);
+    // Fusiona solo este registro; los supervisores de otras líneas
+    // pueden guardar al mismo tiempo sin perder sus anotaciones.
+    const ref = db.collection('sync').doc('paletas');
+    const registros = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const items = snap.exists && Array.isArray(snap.data().items)
+        ? snap.data().items.slice() : [];
+      const idx = items.findIndex(p => p.id === idRegistro);
+      if(paletaEditId && idx < 0){
+        throw new Error('El registro que intentas editar ya no existe.');
+      }
+      if(idx > -1)items[idx] = {
+        ...items[idx],...cambio,
+        usuario:items[idx].usuario,
+        usuarioUsername:items[idx].usuarioUsername,
+        creadoEn:items[idx].creadoEn
+      };
+      else items.push(cambio);
+      tx.set(ref,{items,updatedAt:Date.now()});
+      return items;
+    });
+    _paletasCache = registros;
 
     /*
        Se mantienen fecha/turno/marca/presentación (para
@@ -870,9 +853,19 @@ async function guardarPaleta(){
 
     renderPaletasTab();
 
+  } catch(error){
+    if(typeof _avisarErrorGuardado === 'function'){
+      _avisarErrorGuardado('paletas',error);
+    } else {
+      console.error('Error guardando paletas:',error);
+    }
   } finally {
 
     _guardandoPaleta = false;
+    if(btn && btn.isConnected !== false){
+      btn.disabled = false;
+      btn.textContent = textoOriginalBtn;
+    }
 
   }
 
@@ -918,6 +911,11 @@ function cancelarEdicionPaleta(){
 
 async function guardarProgramacionDesdeFormulario(){
 
+  if(!puedeProgramarPaletas()){
+    alert('No tienes permiso para registrar producción programada.');
+    return;
+  }
+
   if(!draftPaleta){
     return;
   }
@@ -939,8 +937,9 @@ async function guardarProgramacionDesdeFormulario(){
   const unidadesPorPaleta =
     num(inputUpp ? inputUpp.value : 0);
 
-  if(cantidad < 0){
-    alert('La cantidad programada no puede ser negativa.');
+  if(!Number.isInteger(cantidad) || cantidad < 0 ||
+     !Number.isInteger(unidadesPorPaleta) || unidadesPorPaleta < 0){
+    alert('Ingresa valores enteros y no negativos en unidades.');
     return;
   }
 
@@ -969,6 +968,13 @@ async function guardarProgramacionDesdeFormulario(){
     );
 
     renderPaletasTab();
+
+  } catch(error){
+    if(typeof _avisarErrorGuardado === 'function'){
+      _avisarErrorGuardado('programación de paletas',error);
+    } else {
+      console.error('Error guardando programación de paletas:',error);
+    }
 
   } finally {
 
@@ -1035,7 +1041,7 @@ function editarPaleta(id){
    permiso paralelo para lo mismo.
    ========================================================= */
 
-function eliminarPaleta(id){
+async function eliminarPaleta(id){
 
   if(!tienePermiso('eliminarRegistros')){
     alert('No tienes permiso para eliminar registros.');
@@ -1046,10 +1052,24 @@ function eliminarPaleta(id){
     return;
   }
 
-  const registros =
-    loadPaletas().filter(p => p.id !== id);
-
-  savePaletas(registros);
+  try{
+    const ref=db.collection('sync').doc('paletas');
+    const registros=await db.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      const items=snap.exists && Array.isArray(snap.data().items)
+        ? snap.data().items.filter(p=>p.id!==id) : [];
+      tx.set(ref,{items,updatedAt:Date.now()});
+      return items;
+    });
+    _paletasCache=registros;
+  } catch(error){
+    if(typeof _avisarErrorGuardado === 'function'){
+      _avisarErrorGuardado('eliminación de paletas',error);
+    } else {
+      console.error('Error eliminando paleta:',error);
+    }
+    return;
+  }
 
   if(paletaEditId === id){
     cancelarEdicionPaleta();
@@ -1458,7 +1478,7 @@ function renderPaletasResultados(){
             <th>Unidades</th>
             <th>Usuario</th>
             <th>Observaciones</th>
-            <th></th>
+            <th>${tienePermiso('paletas') || tienePermiso('eliminarRegistros') ? 'Acciones' : ''}</th>
           </tr>
         </thead>
 
@@ -1485,19 +1505,16 @@ function renderPaletasResultados(){
                   <td>${escaparHtml(r.observaciones || '')}</td>
                   <td style="white-space:nowrap;">
 
-                    <button
-                      class="btn btn-ghost btn-sm"
-                      onclick="editarPaleta('${r.id}')"
-                    >
-                      Editar
-                    </button>
-
-                    <button
-                      class="btn btn-danger btn-sm"
-                      onclick="eliminarPaleta('${r.id}')"
-                    >
-                      Eliminar
-                    </button>
+                    ${tienePermiso('paletas') ? `
+                      <button class="btn btn-ghost btn-sm" onclick="editarPaleta('${r.id}')">
+                        Editar
+                      </button>
+                    ` : ''}
+                    ${tienePermiso('eliminarRegistros') ? `
+                      <button class="btn btn-danger btn-sm" onclick="eliminarPaleta('${r.id}')">
+                        Eliminar
+                      </button>
+                    ` : ''}
 
                   </td>
                 </tr>
@@ -1542,6 +1559,27 @@ function actualizarVistaPaletas(){
   cont.innerHTML =
     renderPaletasResultados();
 
+  const estado = document.getElementById('paleta-programacion-estado');
+  if(estado){
+    estado.textContent = textoEstadoProgramacionPaletas();
+  }
+
+}
+
+function textoEstadoProgramacionPaletas(){
+  if(!draftPaleta)return '';
+  const prog = resumenProgramacionCombinacion(
+    draftPaleta.linea,draftPaleta.fecha,draftPaleta.turno,
+    draftPaleta.marca,draftPaleta.presentacion
+  );
+  if(!prog.cantidadProgramada){
+    return 'Todavía no se registró una cantidad programada para esta combinación.';
+  }
+  const paletas = Number.isInteger(prog.paletasProgramadas)
+    ? prog.paletasProgramadas : prog.paletasProgramadas.toFixed(1);
+  return 'Programado: ' + prog.cantidadProgramada.toLocaleString('es-PE') +
+    ' UND ≈ ' + paletas + ' paletas · ' +
+    prog.unidadesPorPaleta + ' UND por paleta completa.';
 }
 
 
@@ -1854,6 +1892,12 @@ const PALETAS_CSS = `
 
 function renderPaletasTab(){
 
+  if(!puedeAccederPaletas()){
+    const cont = document.getElementById('tab-content');
+    if(cont)cont.textContent = 'No tienes permiso para ver Paletas.';
+    return;
+  }
+
   if(
     !draftPaleta ||
     draftPaleta.linea !== state.currentLine
@@ -1902,10 +1946,8 @@ function renderPaletasTab(){
     obtenerUnidadesPorPalet(state.currentLine, draftPaleta.marca, draftPaleta.presentacion) ||
     '';
 
-  const paletasProgramadasTexto =
-    Number.isInteger(programacionForm.paletasProgramadas)
-      ? programacionForm.paletasProgramadas
-      : programacionForm.paletasProgramadas.toFixed(1);
+  const puedeProgramar = puedeProgramarPaletas();
+  const puedeRegistrar = tienePermiso('paletas');
 
   c.innerHTML = `
 
@@ -1916,7 +1958,9 @@ function renderPaletasTab(){
 
       <div class="panel-head">
         <h3>
-          ${paletaEditId ? 'Editar registro de paletas' : 'Registrar paletas'}
+          ${puedeRegistrar
+            ? (paletaEditId ? 'Editar registro de paletas' : 'Registrar paletas')
+            : 'Programar producción'}
           · ${line.name}
         </h3>
       </div>
@@ -1978,6 +2022,7 @@ function renderPaletasTab(){
       </div>
 
 
+      ${puedeProgramar ? `
       <div class="panel-body grid grid-4" style="align-items:end;">
 
         <div class="field-sm">
@@ -2016,18 +2061,20 @@ function renderPaletasTab(){
           </button>
         </div>
 
-        <div class="small-muted" style="align-self:center;">
-          ${
-            programacionForm.cantidadProgramada
-              ? 'Programado: ' + programacionForm.cantidadProgramada.toLocaleString('es-PE') +
-                ' UND ≈ ' + paletasProgramadasTexto + ' paletas'
-              : 'Todavía no se registró una cantidad programada para esta combinación.'
-          }
+        <div class="small-muted" id="paleta-programacion-estado" style="align-self:center;">
+          ${textoEstadoProgramacionPaletas()}
         </div>
 
       </div>
+      ` : `
+      <div class="panel-body">
+        <div class="small-muted" id="paleta-programacion-estado">
+          ${textoEstadoProgramacionPaletas()}
+        </div>
+      </div>
+      `}
 
-
+      ${puedeRegistrar ? `
       <div class="panel-body grid grid-4">
 
         <div class="field-sm">
@@ -2144,6 +2191,7 @@ function renderPaletasTab(){
         }
 
       </div>
+      ` : ''}
 
     </div>
 
@@ -2927,3 +2975,588 @@ function renderProduccionActualTab(){
   `;
 
 }
+/* Pegar al FINAL de js/16-paletas.js */
+(function instalarSaldoYConteoAcumulado(){
+  if(typeof estadoActualRegistrosPaletas === 'function' &&
+     typeof equivalenciaSaldoPaleta === 'function') return;
+
+  function equivalencia(linea, marca, presentacion){
+    const p = normalizarTexto(presentacion);
+    const m = normalizarTexto(marca);
+    const paquete = factor => ({factor, singular:'paquete', plural:'paquetes'});
+
+    if(linea === 'PET1' || linea === 'PET2'){
+      if(p.includes('2.5l')) return paquete(6);
+      if(p.includes('380ml')) return paquete(24);
+      if(p.includes('625ml')) return paquete(15);
+      if(p.includes('1.5l')) return paquete(6);
+      if(p.includes('1l')) return paquete(12);
+    }
+
+    if(linea === 'B7L'){
+      if(m.includes('bells') || m.includes('fontlife') || m.includes('fontilfe'))
+        return {factor:1, singular:'bidón', plural:'bidones'};
+
+      if(['scala','glacial','merkat','merkta','cuisine','aro']
+          .some(x => m.includes(x)))
+        return paquete(2);
+    }
+
+    if(linea === 'C20L')
+      return {factor:1, singular:'caja', plural:'cajas'};
+
+    if(linea === 'B20L')
+      return {factor:1, singular:'bidón', plural:'bidones'};
+
+    return null;
+  }
+
+  function ultimoEstado(registros){
+    let completas = null;
+    let saldo = null;
+
+    registros.forEach((r, indice) => {
+      const actual = r.tipoPaleta === 'INCOMPLETA' ? saldo : completas;
+      const creado = Number(r.creadoEn) || 0;
+      const anterior = Number(actual?.registro.creadoEn) || 0;
+      const hora = String(r.hora || '');
+      const horaAnterior = String(actual?.registro.hora || '');
+
+      if(!actual || creado > anterior ||
+         (creado === anterior &&
+          (hora > horaAnterior ||
+           (hora === horaAnterior && indice > actual.indice)))){
+        if(r.tipoPaleta === 'INCOMPLETA')
+          saldo = {registro:r, indice};
+        else
+          completas = {registro:r, indice};
+      }
+    });
+
+    return {
+      paletas: num(completas?.registro.paletas),
+      unidadesCompletas: num(completas?.registro.totalUnidades),
+      unidadesSaldo: num(saldo?.registro.totalUnidades)
+    };
+  }
+
+  const resumenTurnosOriginal =
+    resumenProgramacionCombinacionTurnos;
+
+  resumenProgramacionCombinacionTurnos =
+    function(linea, fecha, turnos, marca, presentacion){
+
+      const resultado = resumenTurnosOriginal(
+        linea, fecha, turnos, marca, presentacion
+      );
+
+      let completas = 0;
+      let unidadesCompletas = 0;
+      let saldo = 0;
+      let saldosPositivos = 0;
+
+      turnos.forEach(turno => {
+        const registros = loadPaletas().filter(r =>
+          r.linea === linea &&
+          r.fecha === fecha &&
+          r.turno === turno &&
+          r.marca === marca &&
+          r.presentacion === presentacion
+        );
+
+        const actual = ultimoEstado(registros);
+
+        completas += actual.paletas;
+        unidadesCompletas += actual.unidadesCompletas;
+        saldo += actual.unidadesSaldo;
+
+        if(actual.unidadesSaldo > 0)
+          saldosPositivos++;
+      });
+
+      const upp = resultado.unidadesPorPaleta || 0;
+
+      resultado.paletasCompletas = completas;
+      resultado.paletasIncompletasCount = saldosPositivos;
+      resultado.unidadesIncompletas = saldo;
+      resultado.unidadesProducidas = unidadesCompletas + saldo;
+      resultado.paletasEquivalentes =
+        completas + (upp ? saldo / upp : 0);
+
+      resultado.unidadesPendientes = Math.max(
+        0,
+        resultado.cantidadProgramada - resultado.unidadesProducidas
+      );
+
+      resultado.porcentajeAvance =
+        resultado.cantidadProgramada > 0
+          ? resultado.unidadesProducidas /
+            resultado.cantidadProgramada * 100
+          : 0;
+
+      resultado.sobreproduccion =
+        resultado.cantidadProgramada > 0 &&
+        resultado.unidadesProducidas >
+        resultado.cantidadProgramada;
+
+      resultado.producido = resultado.paletasEquivalentes;
+
+      resultado.pendiente = Math.max(
+        0,
+        resultado.paletasProgramadas -
+        resultado.paletasEquivalentes
+      );
+
+      resultado.cumplimiento = resultado.porcentajeAvance;
+
+      return resultado;
+    };
+
+  const resumenOriginal = resumenPaletas;
+
+  resumenPaletas = function(linea, fecha, turno){
+    const resultado = resumenOriginal(linea, fecha, turno);
+
+    let completas = 0;
+    let saldo = 0;
+    let saldosPositivos = 0;
+
+    resultado.grupos.forEach(g => {
+      const actual = ultimoEstado(g.eventos);
+
+      g.paletasCompletas = actual.paletas;
+      g.paletasIncompletas =
+        actual.unidadesSaldo > 0 ? 1 : 0;
+      g.unidadesIncompletas = actual.unidadesSaldo;
+      g.paletas = actual.paletas;
+      g.unidades =
+        actual.unidadesCompletas +
+        actual.unidadesSaldo;
+
+      completas += g.paletas;
+      saldo += g.unidadesIncompletas;
+      saldosPositivos += g.paletasIncompletas;
+    });
+
+    resultado.totalPaletas = completas;
+    resultado.totalPaletasCompletas = completas;
+    resultado.totalPaletasIncompletas = saldosPositivos;
+    resultado.totalUnidadesIncompletas = saldo;
+    resultado.totalUnidades = resultado.grupos.reduce(
+      (n, g) => n + g.unidades, 0
+    );
+
+    return resultado;
+  };
+
+  const blankOriginal = blankPaleta;
+
+  blankPaleta = function(linea){
+    const d = blankOriginal(linea);
+    d.paletas = 0;
+    d.paquetesIncompleta = '';
+    return d;
+  };
+
+  const renderOriginal = renderPaletasTab;
+
+  renderPaletasTab = function(){
+    renderOriginal();
+
+    const panel =
+      document.getElementById('paletas-form-panel');
+
+    if(!panel || !draftPaleta)
+      return;
+
+    const eq = equivalencia(
+      draftPaleta.linea,
+      draftPaleta.marca,
+      draftPaleta.presentacion
+    );
+
+    const radio = panel.querySelector(
+      'input[name="pl-tipo"][value="INCOMPLETA"]'
+    );
+
+    if(radio && radio.parentElement){
+      radio.parentElement.lastChild.textContent =
+        ' Saldo (' + (eq?.plural || 'paquetes') + ')';
+    }
+
+    const campo = Array.from(
+      panel.querySelectorAll('.field-sm')
+    ).find(el =>
+      /Unidades de esta paleta|Saldo de (paquetes|cajas|bidones)/
+        .test(el.querySelector('label')?.textContent || '')
+    );
+
+    if(campo && draftPaleta.tipoPaleta === 'INCOMPLETA'){
+      const input =
+        campo.querySelector('input[type="number"]');
+
+      const previa =
+        document.getElementById('paleta-preview-unidades');
+
+      campo.querySelector('label').textContent =
+        'Saldo de ' + (eq?.plural || 'paquetes');
+
+      if(draftPaleta.paquetesIncompleta === undefined){
+        const antes = num(
+          draftPaleta.unidadesIncompleta
+        );
+
+        draftPaleta.saldoAnteriorUnidades =
+          paletaEditId && antes > 0 ? antes : 0;
+
+        draftPaleta.paquetesIncompleta =
+          eq &&
+          antes > 0 &&
+          Number.isSafeInteger(antes / eq.factor)
+            ? antes / eq.factor
+            : '';
+      }
+
+      if(!input)
+        return;
+
+      input.value = draftPaleta.paquetesIncompleta;
+      input.min = '0';
+      input.step = '1';
+
+      const actualizar = () => {
+        if(!previa)
+          return;
+
+        const entrada = String(
+          draftPaleta.paquetesIncompleta ?? ''
+        ).trim();
+
+        previa.textContent = !eq
+          ? 'No hay equivalencia configurada.'
+          : entrada === ''
+            ? (
+                draftPaleta.saldoAnteriorUnidades
+                  ? 'Registro anterior: ' +
+                    draftPaleta.saldoAnteriorUnidades +
+                    ' UND.'
+                  : 'Ingresa un saldo de ' +
+                    eq.plural +
+                    '. Puedes usar 0.'
+              )
+            : entrada + ' ' + eq.plural +
+              ' × ' + eq.factor +
+              ' UND = ' +
+              (Number(entrada) * eq.factor) +
+              ' UND';
+      };
+
+      input.oninput = function(){
+        draftPaleta.paquetesIncompleta = this.value;
+        actualizar();
+      };
+
+      actualizar();
+    }
+
+    const campoPaletas = Array.from(
+      panel.querySelectorAll('.field-sm')
+    ).find(el =>
+      /Cantidad de paletas completas|Paletas completas acumuladas/
+        .test(el.querySelector('label')?.textContent || '')
+    );
+
+    if(campoPaletas){
+      campoPaletas.querySelector('label').textContent =
+        'Paletas completas acumuladas';
+
+      const input =
+        campoPaletas.querySelector('input[type="number"]');
+
+      if(input)
+        input.min = '0';
+    }
+  };
+
+  const resultadosOriginal = renderPaletasResultados;
+
+  renderPaletasResultados = function(){
+    return resultadosOriginal()
+      .replace(
+        'Total paletas del turno',
+        'Paletas completas actuales'
+      )
+      .replace(
+        'Total unidades del turno',
+        'Unidades actuales del turno'
+      )
+      .replace(
+        /(\d+) completas\s*(?:\+ (\d+) incompletas)?/,
+        (_, n, saldos) =>
+          n + ' completas' +
+          (saldos ? ' + ' + saldos + ' saldos' : '')
+      )
+      .replaceAll('Incompleta</span>', 'Saldo</span>')
+      .replace(
+        /\+(\d+) paleta\(s\) =/g,
+        '$1 paletas acumuladas ='
+      )
+      .replaceAll(
+        'TOTAL: <strong>',
+        'ACTUAL: <strong>'
+      )
+      .replaceAll(
+        ' paletas</strong>',
+        ' paletas completas</strong>'
+      );
+  };
+
+  guardarPaleta = async function(){
+    if(!tienePermiso('paletas') ||
+       !draftPaleta ||
+       !visibleLines().some(
+         l => l.key === draftPaleta.linea
+       )){
+      alert(
+        'No tienes permiso para registrar paletas en esta línea.'
+      );
+      return;
+    }
+
+    if(_guardandoPaleta)
+      return;
+
+    if(!draftPaleta.marca ||
+       !draftPaleta.presentacion){
+      alert(
+        'Selecciona una marca y una presentación.'
+      );
+      return;
+    }
+
+    const esCompleta =
+      draftPaleta.tipoPaleta !== 'INCOMPLETA';
+
+    const upp = unidadesPorPaletaActiva(
+      draftPaleta.linea,
+      draftPaleta.fecha,
+      draftPaleta.turno,
+      draftPaleta.marca,
+      draftPaleta.presentacion
+    );
+
+    let paletas = 0;
+    let paquetesIncompleta = null;
+    let unidadesSaldo = 0;
+
+    if(esCompleta){
+      paletas = Number(draftPaleta.paletas);
+
+      if(!Number.isSafeInteger(paletas) ||
+         paletas < 0 ||
+         !upp){
+        alert(
+          !upp
+            ? 'Faltan unidades por paleta para esta presentación.'
+            : 'Ingresa las paletas completas acumuladas (0 o más).'
+        );
+        return;
+      }
+    } else {
+      const eq = equivalencia(
+        draftPaleta.linea,
+        draftPaleta.marca,
+        draftPaleta.presentacion
+      );
+
+      if(!eq){
+        alert(
+          'Falta equivalencia para esta marca y presentación.'
+        );
+        return;
+      }
+
+      const entrada = String(
+        draftPaleta.paquetesIncompleta ?? ''
+      ).trim();
+
+      if(
+        entrada === '' &&
+        paletaEditId &&
+        draftPaleta.saldoAnteriorUnidades
+      ){
+        unidadesSaldo = num(
+          draftPaleta.saldoAnteriorUnidades
+        );
+      } else {
+        const cantidad = Number(entrada);
+
+        if(
+          entrada === '' ||
+          !Number.isSafeInteger(cantidad) ||
+          cantidad < 0 ||
+          !Number.isSafeInteger(
+            cantidad * eq.factor
+          )
+        ){
+          alert(
+            'Ingresa un saldo entero de ' +
+            eq.plural +
+            ' (0 o más).'
+          );
+          return;
+        }
+
+        paquetesIncompleta = cantidad;
+        unidadesSaldo = cantidad * eq.factor;
+      }
+    }
+
+    _guardandoPaleta = true;
+
+    const btn =
+      document.getElementById('btn-guardar-paleta');
+
+    const textoAnterior =
+      btn?.textContent || '';
+
+    if(btn){
+      btn.disabled = true;
+      btn.textContent = 'Guardando...';
+    }
+
+    try {
+      const id =
+        paletaEditId ||
+        'pal_' +
+        Date.now() +
+        '_' +
+        Math.random().toString(36).slice(2, 8);
+
+      const ahora = Date.now();
+
+      const cambio = {
+        id,
+        linea: draftPaleta.linea,
+        fecha: draftPaleta.fecha,
+        turno: draftPaleta.turno,
+        marca: draftPaleta.marca,
+        presentacion: draftPaleta.presentacion,
+        hora: draftPaleta.hora,
+        tipoPaleta: esCompleta
+          ? 'COMPLETA'
+          : 'INCOMPLETA',
+        paletas,
+        unidadesPorPaleta: upp,
+        paquetesIncompleta,
+        unidadesIncompleta: unidadesSaldo,
+        totalUnidades: esCompleta
+          ? Math.round(paletas * upp)
+          : unidadesSaldo,
+        observaciones:
+          draftPaleta.observaciones || '',
+        usuario: nombreUsuarioActualPaletas(),
+        usuarioUsername:
+          state.user?.username || '',
+        creadoEn: ahora,
+        actualizadoPor:
+          nombreUsuarioActualPaletas(),
+        actualizadoEn: ahora
+      };
+
+      const ref =
+        db.collection('sync').doc('paletas');
+
+      _paletasCache = await db.runTransaction(
+        async tx => {
+          const snap = await tx.get(ref);
+
+          const items =
+            snap.exists &&
+            Array.isArray(snap.data().items)
+              ? snap.data().items.slice()
+              : [];
+
+          const idx = items.findIndex(
+            r => r.id === id
+          );
+
+          if(paletaEditId && idx < 0){
+            throw new Error(
+              'El registro que intentas editar ya no existe.'
+            );
+          }
+
+          if(idx >= 0){
+            items[idx] = {
+              ...items[idx],
+              ...cambio,
+              usuario: items[idx].usuario,
+              usuarioUsername:
+                items[idx].usuarioUsername,
+              creadoEn: items[idx].creadoEn
+            };
+          } else {
+            items.push(cambio);
+          }
+
+          tx.set(ref, {
+            items,
+            updatedAt: Date.now()
+          });
+
+          return items;
+        }
+      );
+
+      const {
+        fecha,
+        turno,
+        marca,
+        presentacion
+      } = draftPaleta;
+
+      paletaEditId = null;
+      draftPaleta = blankPaleta(
+        state.currentLine
+      );
+
+      Object.assign(draftPaleta, {
+        fecha,
+        turno,
+        marca,
+        presentacion
+      });
+
+      renderPaletasTab();
+
+    } catch(error){
+      if(
+        typeof _avisarErrorGuardado ===
+        'function'
+      ){
+        _avisarErrorGuardado(
+          'paletas',
+          error
+        );
+      } else {
+        console.error(
+          'Error guardando paletas:',
+          error
+        );
+        alert(error.message);
+      }
+    } finally {
+      _guardandoPaleta = false;
+
+      if(
+        btn &&
+        btn.isConnected !== false
+      ){
+        btn.disabled = false;
+        btn.textContent =
+          textoAnterior;
+      }
+    }
+  };
+})();

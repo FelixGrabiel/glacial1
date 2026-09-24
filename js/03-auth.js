@@ -418,6 +418,47 @@ function enterApp(){
   }
 
 
+  /*
+     Botón "Mantenimiento" (18-mantenimiento.js): mismo patrón
+     que btnProduccionActual — visible solo con el permiso
+     'moduloMantenimiento' que asigna el Administrador.
+  */
+  const btnMantenimiento =
+    document.getElementById('btn-mantenimiento');
+
+  if(btnMantenimiento){
+
+    btnMantenimiento.style.display =
+
+      tienePermiso('moduloMantenimiento')
+
+        ? 'block'
+
+        : 'none';
+
+  }
+
+
+  /*
+     Botón "RRHH" (19-rrhh.js): mismo patrón que
+     btnMantenimiento, gateado por el permiso 'moduloRRHH'.
+  */
+  const btnRRHH =
+    document.getElementById('btn-rrhh');
+
+  if(btnRRHH){
+
+    btnRRHH.style.display =
+
+      tienePermiso('moduloRRHH')
+
+        ? 'block'
+
+        : 'none';
+
+  }
+
+
   renderSidebar();
 
   renderMain();

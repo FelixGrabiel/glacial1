@@ -71,9 +71,11 @@
             href="styles.css"
         >
         <link rel="stylesheet" 
-            href="css/tareo.css"
+            href="tareo.css"
         >
-
+        <link rel="stylesheet" 
+            href="sidebar-glacial.css"
+        >
         <!-- =====================================================
             ESTILOS COMPLEMENTARIOS
         ====================================================== -->
@@ -2192,6 +2194,250 @@
                 }
             }
 
+
+            /* =====================================================
+            MODO VISUALIZAR / TRABAJAR + CRONÓMETRO DE TURNO
+            (17-modo-trabajo.js)
+            ====================================================== */
+
+            .modo-turno-box {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-right: 8px;
+            }
+
+            .modo-switch {
+                display: flex;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                overflow: hidden;
+                background: var(--white);
+            }
+
+            .modo-btn {
+                border: none;
+                background: transparent;
+                padding: 8px 12px;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                color: var(--text-soft);
+                white-space: nowrap;
+            }
+
+            .modo-btn + .modo-btn {
+                border-left: 1px solid var(--border);
+            }
+
+            .modo-btn.activo[data-modo="visualizar"] {
+                background: #eef3f8;
+                color: var(--glacial-blue-dark);
+            }
+
+            .modo-btn.activo[data-modo="trabajar"] {
+                background: var(--success);
+                color: #fff;
+            }
+
+            .cronometro-turno {
+                display: none;
+                flex-direction: column;
+                gap: 2px;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 6px 12px;
+                background: var(--white);
+                min-width: 190px;
+            }
+
+            .cro-turno-nombre {
+                font-size: 12px;
+                font-weight: 700;
+                color: var(--glacial-blue-dark);
+                text-transform: uppercase;
+                letter-spacing: .03em;
+            }
+
+            .cro-fila {
+                display: flex;
+                justify-content: space-between;
+                font-size: 11.5px;
+                color: var(--text-soft);
+                gap: 10px;
+            }
+
+            .cro-fila b {
+                color: var(--text);
+                font-variant-numeric: tabular-nums;
+            }
+
+            .cro-estado {
+                margin-top: 2px;
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--success);
+            }
+
+            .cro-estado-tolerancia {
+                color: #b8860b;
+            }
+
+            body.modo-visualizar #tab-content.gc-bloqueado {
+                position: relative;
+            }
+
+            body.modo-visualizar #tab-content.gc-bloqueado::before {
+                content: "👁️ Modo VISUALIZAR — solo consulta. Cambia a TRABAJAR para registrar datos.";
+                display: block;
+                background: #fff4d6;
+                color: #7a5b00;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 10px 14px;
+                border: 1px solid #f0d98c;
+                border-radius: 10px;
+                margin-bottom: 12px;
+            }
+
+            body.modo-visualizar #tab-content.gc-bloqueado input,
+            body.modo-visualizar #tab-content.gc-bloqueado select,
+            body.modo-visualizar #tab-content.gc-bloqueado textarea {
+                pointer-events: none;
+                background: #eef1f4 !important;
+                cursor: not-allowed;
+            }
+
+            body.modo-visualizar #tab-content.gc-bloqueado button:not(.btn-ghost):not(.modal-close) {
+                pointer-events: none;
+                opacity: .5;
+                cursor: not-allowed;
+            }
+
+            .autoguardado-indicator {
+                display: none;
+                position: fixed;
+                right: 18px;
+                bottom: 18px;
+                z-index: 500;
+                align-items: center;
+                gap: 8px;
+                background: var(--text);
+                color: #fff;
+                padding: 8px 14px;
+                border-radius: 999px;
+                font-size: 12.5px;
+                font-weight: 600;
+                box-shadow: var(--shadow-md);
+            }
+
+            .ag-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--success);
+                flex: none;
+            }
+
+            .ag-dot-busy {
+                background: #f2b705;
+                animation: ag-pulse 1s infinite;
+            }
+
+            .ag-dot-error {
+                background: var(--danger);
+            }
+
+            @keyframes ag-pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: .35; }
+            }
+
+            .modo-modal-opciones {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 14px;
+                margin-top: 6px;
+            }
+
+            .modo-modal-card {
+                border: 1.5px solid var(--border);
+                border-radius: 12px;
+                padding: 16px 14px;
+                background: var(--white);
+                cursor: pointer;
+                text-align: left;
+                font-family: inherit;
+            }
+
+            .modo-modal-card:hover {
+                border-color: var(--glacial-blue-light);
+                box-shadow: var(--shadow-sm);
+            }
+
+            .modo-modal-card .mm-icon {
+                font-size: 26px;
+            }
+
+            .modo-modal-card .mm-titulo {
+                font-weight: 700;
+                margin: 8px 0 4px;
+                color: var(--text);
+            }
+
+            .modo-modal-card .mm-desc {
+                font-size: 12.5px;
+                color: var(--text-soft);
+                line-height: 1.5;
+            }
+
+            @media (max-width: 760px) {
+
+                .modo-turno-box {
+                    order: 3;
+                    width: 100%;
+                    margin: 8px 0 0;
+                    justify-content: space-between;
+                }
+
+                .modo-modal-opciones {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+        </style>
+        <link rel="stylesheet" href="css/sidebar-glacial.css?v=20260924-sidebar-scroll">
+        <style id="sidebar-independent-scroll">
+            /* El menú lateral se desplaza sin mover el contenido principal. */
+            @media (min-width: 801px) {
+                .shell > .sidebar {
+                    position: sticky;
+                    top: 0;
+                    display: flex;
+                    flex-direction: column;
+                    height: calc(100vh - 70px);
+                    height: calc(100dvh - 70px);
+                    max-height: calc(100dvh - 70px);
+                    min-height: 0;
+                    overflow: hidden;
+                }
+                .shell > .sidebar > .sidebar-brand,
+                .shell > .sidebar > .sidebar-footer {
+                    flex: 0 0 auto;
+                }
+                .shell > .sidebar > .sidebar-scroll {
+                    flex: 1 1 auto;
+                    min-height: 0;
+                    overflow-x: hidden;
+                    overflow-y: scroll;
+                    overscroll-behavior-y: contain;
+                    scrollbar-width: thin;
+                    scrollbar-color: #9bb5c5 #f4f8fa;
+                }
+                .shell > .sidebar > .sidebar-footer {
+                    position: static;
+                }
+            }
         </style>
 
     </head>
@@ -2519,6 +2765,41 @@
             <div class="topbar-right">
 
 
+                <div
+                    class="modo-turno-box"
+                    id="modo-turno-box"
+                    style="display:none;"
+                >
+
+                    <div class="cronometro-turno" id="cronometro-turno"></div>
+
+                    <div class="modo-switch" id="modo-switch">
+
+                        <button
+                            type="button"
+                            class="modo-btn"
+                            data-modo="visualizar"
+                            onclick="establecerModoTrabajo('visualizar')"
+                            title="Solo consulta: reportes, indicadores, producción y gráficos"
+                        >
+                            👁️ Visualizar
+                        </button>
+
+                        <button
+                            type="button"
+                            class="modo-btn"
+                            data-modo="trabajar"
+                            onclick="establecerModoTrabajo('trabajar')"
+                            title="Modo operativo: registrar producción, paradas y observaciones"
+                        >
+                            ⚙️ Trabajar
+                        </button>
+
+                    </div>
+
+                </div>
+
+
                 <div class="user-chip">
 
                     <div
@@ -2627,15 +2908,18 @@
                 </div>
 
 
-                <div class="sidebar-label">
-                    Líneas de producción
+                <div class="sidebar-scroll">
+                <div id="sidebar-lines">
+                    <div class="sidebar-label">
+                        Líneas de producción
+                    </div>
+
+
+                    <nav
+                        id="line-list"
+                        aria-label="Líneas de producción"
+                    ></nav>
                 </div>
-
-
-                <nav
-                    id="line-list"
-                    aria-label="Líneas de producción"
-                ></nav>
 
 
                 <div class="sidebar-divider"></div>
@@ -2645,6 +2929,7 @@
                     GESTIÓN
                 ================================================== -->
 
+                <div id="sidebar-management">
                 <div class="sidebar-section-title">
                     Gestión
                 </div>
@@ -2676,11 +2961,11 @@
                     type="button"
                     class="side-action"
                     id="btn-tareo"
-                    onclick="openTareo()"
+                    onclick="goTareo()"
                 >
 
                     <span class="side-action-icon">
-                        🕒
+                        ◷
                     </span>
 
                     <span>
@@ -2698,8 +2983,8 @@
                 onclick="goPerdidasSoles()"
             >
 
-                <span class="side-action-icon">
-                    📉
+                    <span class="side-action-icon">
+                    ↘
                 </span>
 
                 <span>
@@ -2718,11 +3003,53 @@
                 >
 
                     <span class="side-action-icon">
-                        📦
+                        ▣
                     </span>
 
                     <span>
                         Producción actual
+                    </span>
+
+                </button>
+
+
+                <!-- MANTENIMIENTO -->
+
+                <button
+                    type="button"
+                    class="side-action"
+                    id="btn-mantenimiento"
+                    onclick="goMantenimiento()"
+                    style="display: none;"
+                >
+
+                    <span class="side-action-icon">
+                        ⚒
+                    </span>
+
+                    <span>
+                        Mantenimiento
+                    </span>
+
+                </button>
+
+
+                <!-- RRHH -->
+
+                <button
+                    type="button"
+                    class="side-action"
+                    id="btn-rrhh"
+                    onclick="goRRHH()"
+                    style="display: none;"
+                >
+
+                    <span class="side-action-icon">
+                        ◫
+                    </span>
+
+                    <span>
+                        RRHH
                     </span>
 
                 </button>
@@ -2760,7 +3087,7 @@
                 >
 
                     <span class="side-action-icon">
-                        👷
+                        ☷
                     </span>
 
                     <span>
@@ -2769,6 +3096,8 @@
 
                 </button>
 
+                </div>
+                </div>
 
                 <div class="sidebar-footer">
 
@@ -2780,11 +3109,11 @@
                     <div>
 
                         <strong>
-                            Sistema activo
+                            Panel GLACIAL
                         </strong>
 
                         <small>
-                            Control de planta
+                            Accesos según permisos
                         </small>
 
                     </div>
@@ -2969,17 +3298,17 @@
         MÓDULOS PRINCIPALES
     ====================================================== -->
 
-    <script src="js/01-config.js?v=20260921-sync-fix"></script>
+    <script src="js/01-config.js?v=20260924-control"></script>
 
-    <script src="js/02-estado.js?v=20260921-sync-fix"></script>
+    <script src="js/02-estado.js?v=20260924-sidebar"></script>
 
-    <script src="js/03-auth.js?v=20260918-resumen"></script>
+    <script src="js/03-auth.js?v=20260924-sidebar"></script>
 
-    <script src="js/04-sidebar.js?v=20260918-resumen"></script>
+    <script src="js/04-sidebar.js?v=20260924-sidebar"></script>
 
     <script src="js/05-utils.js?v=20260918-resumen"></script>
 
-    <script src="js/06-registro.js?v=20260918-resumen"></script>
+    <script src="js/06-registro.js?v=20260924-sidebar"></script>
 
     <script src="js/07-historial.js?v=20260918-resumen"></script>
 
@@ -2987,20 +3316,26 @@
 
     <script src="js/09-resumen.js?v=20260918-resumen"></script>
 
-    <script src="js/10-usuarios.js?v=20260918-resumen"></script>
+    <script src="js/10-usuarios.js?v=20260924-sidebar"></script>
 
     <script src="js/11-trabajadores.js?v=20260918-resumen"></script>
     <script src="js/15-perdidas-soles.js"></script>
+    <script src="js/22-impacto-para-pegar.js?v=20260924-graficos-2"></script>
     <script src="js/16-paletas.js?v=20260922"></script>
-    <script src="js/12-init.js?v=20260918-resumen"></script>
+    <script src="js/17-modo-trabajo.js?v=20260923"></script>
+    <script src="js/18-mantenimiento.js"></script>
+    <script src="js/19-rrhh.js"></script>
     <script src="js/14-exportar-general.js"></script>
-
+    
 
     <!-- =====================================================
         TAREO
     ====================================================== -->
 
-    <script src="js/13-tareo.js?v=20260921-sync-fix"></script>
+    <script src="js/13-tareo.js?v=20260924-control"></script>
+    <script src="js/20-tareo-control.js?v=20260924"></script>
+    <script src="js/21-programacion-turno.js?v=20260924"></script>
+    <script src="js/12-init.js?v=20260924-sidebar"></script>
 
 
     </body>

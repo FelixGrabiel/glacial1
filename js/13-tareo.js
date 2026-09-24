@@ -3,6 +3,14 @@
    =========================================================
 
    Funciones principales:
+   - Tareo por ÁREA: Producción y Mantenimiento (cada
+     supervisor gestiona solo su área) + Tareo General de
+     solo lectura para RRHH
+   - Asistencia en tiempo real: estados ASISTIÓ, FALTA POR
+     JUSTIFICAR, FALTA JUSTIFICADA, DESCANSO, DESCANSO MÉDICO
+     y VACACIONES; al marcar ASISTIÓ se registra sola la hora
+     de ingreso y se detecta la tardanza
+   - Ficha de la persona al tocar su nombre
    - Tareo Día / Noche
    - Personal proveniente de 11-trabajadores.js
    - Cargos permitidos
@@ -29,22 +37,31 @@ const TAREO_CARGOS_PERMITIDOS = [
 
 const TAREO_ESTADOS_ASISTENCIA = [
     'Asistió',
-    'Permiso',
+    'Falta por justificar',
+    'Falta justificada',
     'Descanso',
-    'Vacaciones',
     'Descanso médico',
-    'Falta'
+    'Vacaciones'
 ];
 
-const TAREO_ESTADOS_FINAL = [
-    'Permiso',
-    'Descanso',
-    'Vacaciones',
-    'Descanso médico',
-    'Falta'
-];
+const TAREO_ESTADOS_FINAL =
+    TAREO_ESTADOS_ASISTENCIA.filter(
+        estado => estado !== 'Asistió'
+    );
 
 let tareoActualId = null;
+
+/* Estado de pantalla del módulo (filtros y área que se está viendo). */
+
+let tareoAreaVista = null;
+let tareoFiltroTexto = '';
+let tareoFiltroAreaHistorial = '';
+
+let tareoGeneralFiltros = {
+    fecha: '',
+    turno: '',
+    area: ''
+};
 
 
 /* =========================================================
@@ -117,8 +134,18 @@ function tareoNormalizarDNI(valor) {
 }
 
 
-function tareoCargoPermitido(cargo) {
+function tareoCargoPermitido(cargo, area) {
     const cargoNormalizado = tareoNormalizarTexto(cargo);
+
+    /*
+       Mantenimiento: cualquier cargo que mencione
+       "mantenimiento" (Técnico de Mantenimiento, Supervisor de
+       Mantenimiento, etc.). Producción: lista TAREO_CARGOS_PERMITIDOS.
+    */
+
+    if (area === 'Mantenimiento') {
+        return cargoNormalizado.includes('mantenimiento');
+    }
 
     return TAREO_CARGOS_PERMITIDOS.some(cargoPermitido =>
         tareoNormalizarTexto(cargoPermitido) === cargoNormalizado
@@ -159,10 +186,705 @@ function formatearFecha(fecha) {
 
 
 /* =========================================================
+   ÁREAS DEL TAREO (PRODUCCIÓN / MANTENIMIENTO) Y PERMISOS
+   =========================================================
+
+   Cada tareo pertenece a un ÁREA (tareo.area). Los tareos
+   guardados antes de este cambio no tienen ese campo y se
+   tratan como "Producción".
+
+   Quién puede qué (permisos que asigna el Administrador en
+   Gestión de usuarios, ver PERMISOS_APP en 02-estado.js):
+
+   - tareoProduccion     → registra el Tareo de Producción
+                            (aquí, en la pantalla "Tareo" de
+                            siempre)
+   - moduloMantenimiento → registra el Tareo de Mantenimiento,
+                            pero SOLO desde el módulo de
+                            Mantenimiento propio (sidebar →
+                            "Mantenimiento" → Tareo, ver
+                            18-mantenimiento.js). Este permiso
+                            reutiliza toda esta lógica de área
+                            "Mantenimiento" tal cual, así que
+                            un usuario con moduloMantenimiento
+                            SÍ aparece aquí como área editable
+                            — la diferencia es de dónde se
+                            entra, no de qué se ve.
+   - tareoGeneral        → RRHH (solo lectura): ve ambos tareos
+                            (Producción y Mantenimiento), pero
+                            no puede editar ni eliminar
+   - moduloRRHH          → módulo de RRHH completo (19-rrhh.js):
+                            además de ver Tareo General, edita y
+                            elimina el Tareo de AMBAS áreas. No
+                            trae Rotación semanal (eso sigue
+                            siendo solo de tareoProduccion)
+   - "Todos los permisos" → todo lo anterior
+
+   NOTA (antes tareoMantenimiento): el Tareo de Mantenimiento
+   se movió por completo al módulo de Mantenimiento. Ya NO se
+   registra desde la pantalla genérica de Tareo aunque el
+   usuario tenga tareoProduccion — solo desde el módulo nuevo,
+   y solo con el permiso moduloMantenimiento.
+
+   COMPATIBILIDAD: un usuario que todavía NO tiene ninguno de
+   esos permisos conserva el comportamiento anterior: si su
+   puesto/rol menciona RRHH / recursos humanos ve el Tareo
+   General (solo lectura); en cualquier otro caso registra
+   Producción. Ya NO se asigna Mantenimiento por texto del
+   puesto — ese acceso ahora depende siempre del permiso
+   moduloMantenimiento, y la edición/eliminación por parte de
+   RRHH depende siempre del permiso moduloRRHH.
+   ========================================================= */
+
+const TAREO_AREAS = ['Producción', 'Mantenimiento'];
+
+function tareoAreaDe(tareo) {
+    const area = tareoNormalizarTexto(tareo && tareo.area);
+
+    return area === 'mantenimiento'
+        ? 'Mantenimiento'
+        : 'Producción';
+}
+
+
+function tareoAccesoUsuario() {
+
+    const acceso = { editar: [], general: false };
+
+    if (typeof state === 'undefined' || !state.user) {
+        return acceso;
+    }
+
+    const permisos = normalizarPermisosUsuario(state.user);
+
+    if (permisos === 'todos') {
+        return { editar: [...TAREO_AREAS], general: true };
+    }
+
+    if (permisos.includes('tareoProduccion')) {
+        acceso.editar.push('Producción');
+    }
+
+    /*
+       moduloMantenimiento da acceso de edición al área
+       "Mantenimiento" dentro de esta misma lógica (por eso el
+       Tareo de Mantenimiento sigue funcionando igual: mismo
+       storage, mismo historial, mismo resumen, misma
+       exportación). Lo único que cambió es la puerta de
+       entrada: ya no hay un permiso "tareoMantenimiento" que
+       lo habilite desde la pantalla genérica de Tareo, solo
+       moduloMantenimiento desde 18-mantenimiento.js.
+    */
+
+    if (permisos.includes('moduloMantenimiento')) {
+        acceso.editar.push('Mantenimiento');
+    }
+
+    /*
+       moduloRRHH: el módulo de RRHH (19-rrhh.js). A diferencia
+       de tareoGeneral (que solo VE, de solo lectura), moduloRRHH
+       puede editar y eliminar el Tareo de cualquiera de las dos
+       áreas — por eso agrega ambas a acceso.editar y también
+       prende acceso.general (para la pestaña "Tareo General").
+       No agrega por sí solo la pestaña "Rotación semanal": esa
+       sigue reservada a quien tenga tareoProduccion de verdad
+       (ver tareoRenderTabs).
+    */
+    if (permisos.includes('moduloRRHH')) {
+
+        if (!acceso.editar.includes('Producción')) {
+            acceso.editar.push('Producción');
+        }
+
+        if (!acceso.editar.includes('Mantenimiento')) {
+            acceso.editar.push('Mantenimiento');
+        }
+
+    }
+
+    acceso.general =
+        permisos.includes('tareoGeneral') ||
+        permisos.includes('moduloRRHH');
+
+    if (acceso.editar.length || acceso.general) {
+        return acceso;
+    }
+
+    /* Usuario sin permisos de Tareo asignados: regla anterior. */
+
+    const texto = tareoNormalizarTexto(
+        (state.user.puesto || '') + ' ' + (state.user.rol || '')
+    );
+
+    if (
+        texto.includes('rrhh') ||
+        texto.includes('recursos humanos') ||
+        texto.includes('gestion humana') ||
+        texto.includes('talento humano')
+    ) {
+        acceso.general = true;
+    } else {
+        acceso.editar.push('Producción');
+    }
+
+    return acceso;
+}
+
+
+function tareoAreasEditables() {
+    return tareoAccesoUsuario().editar;
+}
+
+
+function tareoAreasVisibles() {
+
+    const acceso = tareoAccesoUsuario();
+
+    return acceso.general
+        ? [...TAREO_AREAS]
+        : [...acceso.editar];
+}
+
+
+function tareoPuedeEditar(tareo) {
+    return tareoAreasEditables().includes(tareoAreaDe(tareo));
+}
+
+
+function tareoTareosVisibles() {
+
+    const visibles = tareoAreasVisibles();
+
+    return obtenerTareos().filter(
+        tareo => visibles.includes(tareoAreaDe(tareo))
+    );
+}
+
+
+/* =========================================================
+   ESTADOS DE ASISTENCIA
+   =========================================================
+
+   Valor guardado ('' = todavía sin registrar / pendiente):
+
+     Asistió · Falta por justificar · Falta justificada ·
+     Descanso · Descanso médico · Vacaciones
+
+   Los tareos antiguos usaban "Falta" y "Permiso": se leen
+   como "Falta por justificar" y "Falta justificada".
+   ========================================================= */
+
+function tareoEstadoCanonico(valor) {
+
+    const texto = tareoNormalizarTexto(valor);
+
+    if (!texto) return '';
+    if (texto === 'asistio') return 'Asistió';
+
+    if (
+        texto === 'falta' ||
+        texto === 'falta por justificar'
+    ) {
+        return 'Falta por justificar';
+    }
+
+    if (
+        texto === 'permiso' ||
+        texto === 'falta justificada'
+    ) {
+        return 'Falta justificada';
+    }
+
+    if (texto === 'descanso') return 'Descanso';
+    if (texto === 'descanso medico') return 'Descanso médico';
+    if (texto === 'vacaciones') return 'Vacaciones';
+
+    return String(valor);
+}
+
+
+function tareoEtiquetaEstado(estado) {
+
+    const canonico = tareoEstadoCanonico(estado);
+
+    return canonico
+        ? canonico.toUpperCase()
+        : 'PENDIENTE';
+}
+
+
+function tareoNormalizarRegistro(tareo) {
+
+    if (!tareo) return tareo;
+
+    if (!tareo.area) {
+        tareo.area = 'Producción';
+    }
+
+    if (Array.isArray(tareo.personal)) {
+
+        tareo.personal.forEach(persona => {
+
+            const canonico =
+                tareoEstadoCanonico(persona.asistencia);
+
+            if (canonico !== persona.asistencia) {
+                persona.asistencia = canonico;
+            }
+
+            if (!persona.area) {
+                persona.area = tareo.area;
+            }
+        });
+
+        tareo.personal =
+            ordenarPersonalTareo(tareo.personal);
+    }
+
+    return tareo;
+}
+
+
+/* =========================================================
+   FECHA / HORA EN TIEMPO REAL
+   ========================================================= */
+
+function tareoFechaISO(fecha) {
+
+    const año = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+
+    return `${año}-${mes}-${dia}`;
+}
+
+
+function tareoHoraActual() {
+
+    const ahora = new Date();
+
+    return (
+        String(ahora.getHours()).padStart(2, '0') +
+        ':' +
+        String(ahora.getMinutes()).padStart(2, '0')
+    );
+}
+
+
+/*
+   La hora de ingreso solo se toma sola cuando el tareo es
+   "de ahora": el del día de hoy, o el turno Noche de ayer
+   mientras todavía es de madrugada. En un tareo de otra
+   fecha la hora del reloj no tiene sentido, así que se
+   deja para escribirla a mano.
+*/
+
+function tareoEsEnTiempoReal(tareo) {
+
+    const ahora = new Date();
+
+    if (tareo.fecha === tareoFechaISO(ahora)) {
+        return true;
+    }
+
+    if (normalizarTurno(tareo.turno) === 'Noche') {
+
+        const ayer = new Date(
+            ahora.getFullYear(),
+            ahora.getMonth(),
+            ahora.getDate() - 1
+        );
+
+        return (
+            tareo.fecha === tareoFechaISO(ayer) &&
+            ahora.getHours() < 12
+        );
+    }
+
+    return false;
+}
+
+
+/* =========================================================
+   CONTADORES DE UN TAREO
+   ========================================================= */
+
+function tareoContadores(personal) {
+
+    const c = {
+        total: personal.length,
+        asistieron: 0,
+        pendientes: 0,
+        ausencias: 0,
+        tardanzas: 0,
+        horas: 0,
+        extras: 0
+    };
+
+    personal.forEach(persona => {
+
+        const estado = tareoEstadoCanonico(persona.asistencia);
+
+        if (!estado) {
+            c.pendientes++;
+        } else if (estado === 'Asistió') {
+            c.asistieron++;
+        } else {
+            c.ausencias++;
+        }
+
+        if (Number(persona.tardanzaMinutos) > 0) {
+            c.tardanzas++;
+        }
+
+        c.horas += Number(persona.horasTrabajadas || 0);
+        c.extras += Number(persona.horasExtras || 0);
+    });
+
+    c.registrados = c.total - c.pendientes;
+
+    return c;
+}
+
+
+function tareoBuscar(area, fecha, turno) {
+
+    return obtenerTareos().find(
+        tareo =>
+            tareoAreaDe(tareo) === area &&
+            tareo.fecha === fecha &&
+            normalizarTurno(tareo.turno) === normalizarTurno(turno)
+    ) || null;
+}
+
+
+/* =========================================================
+   GUARDADO EN TIEMPO REAL SIN PISAR A OTROS
+   =========================================================
+
+   Todos los tareos viven en UN solo documento de Firestore
+   (sync/tareos). Guardar el arreglo completo desde cada
+   navegador haría que, si dos supervisores marcan asistencia
+   casi a la vez (Producción y Mantenimiento), el último en
+   guardar borre lo que marcó el otro.
+
+   Por eso cada guardado se hace en una TRANSACCIÓN: se lee
+   el documento tal como está en la nube, se combina SOLO el
+   tareo modificado (persona por persona, gana el cambio más
+   reciente según "actualizadoEn") y recién entonces se
+   escribe. Los tareos de los demás no se tocan.
+   ========================================================= */
+
+window._tareoEscriturasPendientes = 0;
+
+
+function tareoFusionar(remoto, local) {
+
+    const localMasNuevo =
+        Number(local.actualizadoEn || 0) >=
+        Number(remoto.actualizadoEn || 0);
+
+    const base = localMasNuevo ? local : remoto;
+    const otro = localMasNuevo ? remoto : local;
+
+    const configLocal =
+        Number(local.configActualizadoEn || 0) >=
+        Number(remoto.configActualizadoEn || 0);
+
+    const config = configLocal ? local : remoto;
+
+    const clave = persona => String(
+        persona.trabajadorId ?? persona.dni ?? persona.nombre
+    );
+
+    const mapa = new Map();
+
+    (otro.personal || []).forEach(
+        persona => mapa.set(clave(persona), persona)
+    );
+
+    (base.personal || []).forEach(persona => {
+
+        const previo = mapa.get(clave(persona));
+
+        if (
+            !previo ||
+            Number(persona.actualizadoEn || 0) >=
+            Number(previo.actualizadoEn || 0)
+        ) {
+            mapa.set(clave(persona), persona);
+        }
+    });
+
+    return {
+        ...base,
+
+        observaciones: config.observaciones || '',
+        horaProgramadaIngreso: config.horaProgramadaIngreso,
+        jornadaNormal: config.jornadaNormal,
+        configActualizadoEn: config.configActualizadoEn || 0,
+
+        actualizadoEn: Math.max(
+            Number(local.actualizadoEn || 0),
+            Number(remoto.actualizadoEn || 0)
+        ),
+
+        personal: ordenarPersonalTareo(
+            Array.from(mapa.values())
+        )
+    };
+}
+
+
+function tareoGuardarEnNube(tareo) {
+
+    if (
+        typeof db === 'undefined' ||
+        typeof db.runTransaction !== 'function'
+    ) {
+
+        /* Respaldo: comportamiento anterior. */
+
+        guardarTareos(obtenerTareos());
+
+        return;
+    }
+
+    const referencia = db.collection('sync').doc('tareos');
+
+    const copia = JSON.parse(JSON.stringify(tareo));
+
+    window._tareoEscriturasPendientes++;
+
+    db.runTransaction(async transaccion => {
+
+        const snap = await transaccion.get(referencia);
+
+        const items =
+            (snap.exists && Array.isArray(snap.data().items))
+                ? snap.data().items.slice()
+                : [];
+
+        const indice = items.findIndex(
+            item => item.id === copia.id
+        );
+
+        if (indice >= 0) {
+            items[indice] = tareoFusionar(items[indice], copia);
+        } else {
+            items.push(copia);
+        }
+
+        transaccion.set(referencia, {
+            items,
+            updatedAt: Date.now()
+        });
+    })
+    .catch(error => {
+
+        if (typeof _avisarErrorGuardado === 'function') {
+            _avisarErrorGuardado('tareo', error);
+        } else {
+            console.error('TAREO: error guardando', error);
+        }
+    })
+    .finally(() => {
+
+        window._tareoEscriturasPendientes--;
+
+        if (window._tareoEscriturasPendientes <= 0) {
+
+            window._tareoEscriturasPendientes = 0;
+
+            tareoRefrescarFormularioRemoto();
+        }
+    });
+}
+
+
+/* =========================================================
+   TABS DEL MÓDULO
+   ========================================================= */
+
+function tareoRenderTabs(activa) {
+
+    const acceso = tareoAccesoUsuario();
+
+    const tabs = [];
+
+    if (acceso.editar.length) {
+        tabs.push(['tareo', 'Tareo', 'renderTareoPrincipal()']);
+    }
+
+    if (acceso.general) {
+        tabs.push(['general', 'Tareo General', 'renderTareoGeneral()']);
+    }
+
+    tabs.push(['historial', 'Historial', 'renderHistorialTareo()']);
+    tabs.push(['resumen', 'Resumen mensual', 'renderResumenMensualTareoUI()']);
+
+    /*
+       Rotación semanal: atada al permiso tareoProduccion en sí
+       (no a "editar incluye Producción" en general), para que
+       moduloRRHH — que también edita Producción, pero desde el
+       módulo de RRHH — no la herede sin que se la asignen aparte.
+    */
+    if (tienePermiso('tareoProduccion')) {
+        tabs.push(['rotacion', 'Rotación semanal', 'renderRotacionSemanal()']);
+    }
+
+    return `
+        <div class="tareo-tabs">
+            ${tabs.map(([clave, texto, accion]) => `
+                <button
+                    class="tareo-tab ${clave === activa ? 'active' : ''}"
+                    onclick="${
+                        clave === activa
+                            ? accion
+                            : 'if(confirmarAbandonoRotacionPendiente())' + accion
+                    }"
+                >
+                    ${texto}
+                </button>
+            `).join('')}
+        </div>
+    `;
+}
+
+
+/* =========================================================
+   ESTILOS PROPIOS DE LAS PANTALLAS DE ÁREAS
+   ========================================================= */
+
+function tareoInyectarEstilos() {
+
+    if (
+        typeof document === 'undefined' ||
+        document.getElementById('tareo-areas-css')
+    ) {
+        return;
+    }
+
+    const estilo = document.createElement('style');
+
+    estilo.id = 'tareo-areas-css';
+
+    estilo.textContent = `
+        .tar2-live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-soft,#5a6b78);}
+        .tar2-live::before{content:'';width:8px;height:8px;border-radius:50%;background:#1e9e5a;box-shadow:0 0 0 3px rgba(30,158,90,.18);}
+        .tar2-area-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;}
+        .tar2-area-pill{border:1px solid var(--line,#d9e2e8);background:#fff;border-radius:999px;padding:7px 16px;font-weight:600;font-size:13px;cursor:pointer;color:var(--text-soft,#405261);}
+        .tar2-area-pill.active{background:#003B5C;border-color:#003B5C;color:#fff;}
+        .tar2-turno-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;}
+        .tar2-card{border:1px solid var(--line,#d9e2e8);border-radius:10px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:10px;}
+        .tar2-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+        .tar2-card-title{font-weight:700;font-size:14px;}
+        .tar2-card-state{font-size:12px;font-weight:600;}
+        .tar2-card-state.open{color:#1e7f4e;}
+        .tar2-card-state.none{color:#8a6d1d;}
+        .tar2-card-meta{font-size:13px;color:var(--text-soft,#5a6b78);line-height:1.5;}
+        .tar2-progress{height:8px;border-radius:999px;background:#e8eef2;overflow:hidden;}
+        .tar2-progress span{display:block;height:100%;background:#2f8f6b;border-radius:999px;transition:width .3s;}
+        .tar2-name-btn{background:none;border:0;padding:2px 0;margin:0;font:inherit;font-weight:700;color:#005B96;cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:rgba(0,91,150,.35);text-underline-offset:3px;min-height:28px;}
+        .tar2-name-btn:hover,.tar2-name-btn:focus-visible{text-decoration-color:currentColor;outline:none;}
+        .tar2-quick{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+        .tar2-quick select{max-width:160px;}
+        .tar2-auto{display:block;font-size:11px;color:#1e7f4e;margin-top:2px;}
+        .tar2-inline-btn{border:1px solid var(--line,#d9e2e8);background:#fff;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;margin-left:4px;}
+        .tar2-row-pendiente td{background:#fffdf3;}
+        .tareo-status.pendiente{background:#fff4d6;color:#8a6d1d;}
+        .tar2-area-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;background:#e6f0f7;color:#003B5C;}
+        .tar2-area-badge.mant{background:#fdf0e1;color:#8a4b0f;}
+        .tar2-toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+        .tar2-toolbar .field-sm{min-width:150px;}
+        .tar2-ficha-head{margin-bottom:6px;}
+        .tar2-ficha-head strong{font-size:17px;display:block;}
+        .tar2-ficha-head span{font-size:13px;color:var(--text-soft,#5a6b78);}
+        .tar2-ficha-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0 16px;}
+        .tar2-ficha-item{border:1px solid var(--line,#d9e2e8);border-radius:8px;padding:9px 11px;}
+        .tar2-ficha-item span{display:block;font-size:11px;color:var(--text-soft,#5a6b78);}
+        .tar2-ficha-item strong{font-size:15px;}
+        .tar2-ficha-sub{font-weight:700;font-size:13px;margin:14px 0 4px;}
+        @media (max-width:640px){.tar2-ficha-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    `;
+
+    document.head.appendChild(estilo);
+}
+
+
+/*
+   Tocar / hacer clic en el nombre de una persona (en cualquier
+   tabla del Tareo) abre su ficha. Un solo listener para toda
+   la página: los nombres llevan data-tareo-ficha.
+*/
+
+document.addEventListener('click', function(evento) {
+
+    const boton = evento.target.closest
+        ? evento.target.closest('[data-tareo-ficha]')
+        : null;
+
+    if (boton) {
+        tareoAbrirFicha(
+            boton.getAttribute('data-tareo-ficha'),
+            boton.getAttribute('data-tareo-id') || ''
+        );
+    }
+});
+
+
+function tareoBotonNombre(persona, tareoId) {
+
+    return `
+        <button
+            type="button"
+            class="tar2-name-btn"
+            data-tareo-ficha="${escaparHTML(persona.trabajadorId ?? persona.id ?? '')}"
+            data-tareo-id="${escaparHTML(tareoId || '')}"
+        >
+            ${escaparHTML(persona.nombre)}
+        </button>
+    `;
+}
+
+
+function tareoInsigniaArea(area) {
+
+    return `
+        <span class="tar2-area-badge ${area === 'Mantenimiento' ? 'mant' : ''}">
+            ${escaparHTML(area)}
+        </span>
+    `;
+}
+
+
+/* Identificador estable de una persona dentro de un tareo. */
+
+function tareoClavePersona(persona) {
+
+    return String(
+        persona.trabajadorId ?? persona.dni ?? persona.nombre
+    );
+}
+
+
+/* Valor listo para usarse como argumento dentro de un onclick="...". */
+
+function tareoArg(valor) {
+
+    return escaparHTML(
+        JSON.stringify(String(valor))
+    );
+}
+
+
+/* =========================================================
    PERSONAL
    ========================================================= */
 
-function obtenerPersonalTareo() {
+function obtenerPersonalTareo(area) {
+
+    const areaBuscada = area || 'Producción';
 
     if (typeof loadWorkers !== 'function') {
 
@@ -201,7 +923,7 @@ function obtenerPersonalTareo() {
 
         return (
             estado === 'activo' &&
-            tareoCargoPermitido(trabajador.cargo)
+            tareoCargoPermitido(trabajador.cargo, areaBuscada)
         );
     });
 }
@@ -226,7 +948,7 @@ function obtenerPersonalTareo() {
    este navegador antes de este cambio (para no perderlos).
 */
 
-function obtenerTareos() {
+function _obtenerTareosBase() {
 
     if (typeof loadTareos !== 'function') {
 
@@ -308,6 +1030,23 @@ function obtenerTareos() {
 }
 
 
+/*
+   Lectura de tareos con normalización: los tareos anteriores a
+   las áreas se leen como "Producción" y sus estados antiguos
+   ("Falta", "Permiso") se leen con los nombres nuevos.
+*/
+
+function obtenerTareos() {
+
+    const tareos = _obtenerTareosBase();
+
+    tareos.forEach(tareoNormalizarRegistro);
+
+    return tareos;
+}
+
+
+
 function guardarTareos(tareos) {
 
     if (typeof saveTareos !== 'function') {
@@ -325,6 +1064,16 @@ function guardarTareos(tareos) {
 
 function guardarTareoEnMemoria(tareo) {
 
+    tareo.actualizadoEn = Date.now();
+
+    /*
+       1) Se actualiza de inmediato la copia local, para que
+          la pantalla responda al instante.
+       2) Se guarda en la nube con una transacción que combina
+          este tareo con lo que otros hayan marcado mientras
+          tanto (ver tareoGuardarEnNube).
+    */
+
     const tareos = obtenerTareos();
 
     const indice = tareos.findIndex(
@@ -337,7 +1086,7 @@ function guardarTareoEnMemoria(tareo) {
         tareos.push(tareo);
     }
 
-    guardarTareos(tareos);
+    tareoGuardarEnNube(tareo);
 }
 
 
@@ -759,15 +1508,20 @@ function obtenerPrioridadAsistencia(
 
     const estado =
         tareoNormalizarTexto(
-            asistencia
+            tareoEstadoCanonico(
+                asistencia
+            )
         );
 
+    /* Sin registrar primero: es lo que el supervisor debe atender. */
+
+    if (!estado) return 0;
     if (estado === 'asistio') return 1;
-    if (estado === 'permiso') return 2;
-    if (estado === 'descanso') return 3;
-    if (estado === 'vacaciones') return 4;
-    if (estado === 'descanso medico') return 5;
-    if (estado === 'falta') return 6;
+    if (estado === 'descanso') return 2;
+    if (estado === 'vacaciones') return 3;
+    if (estado === 'descanso medico') return 4;
+    if (estado === 'falta justificada') return 5;
+    if (estado === 'falta por justificar') return 6;
 
     return 7;
 }
@@ -809,64 +1563,95 @@ function ordenarPersonalTareo(personal) {
 
 function crearPersonalTareo(
     fecha,
-    turno
+    turno,
+    area
 ) {
 
-    const resultado =
-        obtenerPersonalPorRotacion(
-            fecha,
-            turno
-        );
+    const areaTareo = area || 'Producción';
+
+    /*
+       Producción: el personal sale de la rotación semanal.
+       Mantenimiento: todos los trabajadores activos con cargo
+       de mantenimiento (no usa la rotación del Excel).
+    */
+
+    const base =
+        areaTareo === 'Mantenimiento'
+            ? obtenerPersonalTareo('Mantenimiento')
+            : obtenerPersonalPorRotacion(
+                fecha,
+                turno
+            ).personal;
 
     const personal =
-        resultado.personal.map(
-            trabajador => ({
-
-                trabajadorId:
-                    trabajador.id,
-
-                nombre:
-                    trabajador.nombre || '',
-
-                dni:
-                    trabajador.dni || '',
-
-                cargo:
-                    trabajador.cargo || '',
-
-                area:
-                    'Producción',
-
-                linea:
-                    trabajador.linea || '',
-
-                asistencia:
-                    'Asistió',
-
-                horaIngreso:
-                    '',
-
-                refrigerio:
-                    0,
-
-                horaSalida:
-                    '',
-
-                horasTrabajadas:
-                    0,
-
-                horasExtras:
-                    0,
-
-                tardanzaMinutos:
-                    0
-
-            })
+        base.map(
+            trabajador => tareoNuevaPersona(
+                trabajador,
+                areaTareo
+            )
         );
 
     return ordenarPersonalTareo(
         personal
     );
+}
+
+
+/*
+   Persona nueva dentro de un tareo: arranca SIN REGISTRAR
+   (asistencia vacía). El supervisor la marca conforme llega.
+*/
+
+function tareoNuevaPersona(
+    trabajador,
+    area
+) {
+
+    return {
+
+        trabajadorId:
+            trabajador.trabajadorId ??
+            trabajador.id,
+
+        nombre:
+            trabajador.nombre || '',
+
+        dni:
+            trabajador.dni || '',
+
+        cargo:
+            trabajador.cargo || '',
+
+        area,
+
+        linea:
+            trabajador.linea || '',
+
+        asistencia:
+            '',
+
+        horaIngreso:
+            '',
+
+        refrigerio:
+            0,
+
+        horaSalida:
+            '',
+
+        horasTrabajadas:
+            0,
+
+        horasExtras:
+            0,
+
+        tardanzaMinutos:
+            0,
+
+        actualizadoEn:
+            0
+
+    };
 }
 
 
@@ -1052,13 +1837,115 @@ function openTareo() {
 
     tareoActualId = null;
 
-    renderTareoPrincipal();
+    const acceso = tareoAccesoUsuario();
+
+    if (!acceso.editar.length && !acceso.general) {
+
+        alert(
+            'No tienes acceso al Tareo. Pide al Administrador que te asigne un permiso de Tareo (Producción, Mantenimiento o General).'
+        );
+
+        return;
+    }
+
+    if (acceso.editar.length) {
+        renderTareoPrincipal();
+    } else {
+        renderTareoGeneral();
+    }
 }
 
 
 /* =========================================================
    PRINCIPAL
    ========================================================= */
+
+function tareoAreaActiva() {
+
+    const editables = tareoAreasEditables();
+
+    if (
+        !tareoAreaVista ||
+        !editables.includes(tareoAreaVista)
+    ) {
+        tareoAreaVista = editables[0] || null;
+    }
+
+    return tareoAreaVista;
+}
+
+
+function tareoCambiarAreaVista(area) {
+
+    tareoAreaVista = area;
+
+    renderTareoPrincipal();
+}
+
+
+function tareoTarjetaTurnoHTML(area, fecha, turno) {
+
+    const tareo = tareoBuscar(area, fecha, turno);
+
+    const c = tareo
+        ? tareoContadores(tareo.personal || [])
+        : null;
+
+    const porcentaje = c && c.total
+        ? Math.round(c.registrados * 100 / c.total)
+        : 0;
+
+    return `
+        <div class="tar2-card">
+
+            <div class="tar2-card-head">
+
+                <span class="tareo-shift-badge ${turno === 'Noche' ? 'night' : 'day'}">
+                    ${turno}
+                </span>
+
+                <span class="tar2-card-state ${tareo ? 'open' : 'none'}">
+                    ${tareo ? 'Tareo abierto' : 'Sin iniciar'}
+                </span>
+
+            </div>
+
+            ${
+                tareo
+                    ? `
+                    <div class="tar2-progress">
+                        <span style="width:${porcentaje}%"></span>
+                    </div>
+
+                    <div class="tar2-card-meta">
+                        <strong>${c.registrados}/${c.total}</strong> registrados ·
+                        ${c.asistieron} asistieron ·
+                        ${c.pendientes} pendientes
+                        ${
+                            c.tardanzas
+                                ? ` · <span class="tareo-late">${c.tardanzas} con tardanza</span>`
+                                : ''
+                        }
+                    </div>
+                    `
+                    : `
+                    <div class="tar2-card-meta">
+                        Aún no se registra la asistencia de este turno.
+                    </div>
+                    `
+            }
+
+            <button
+                class="btn btn-primary btn-sm"
+                onclick="tareoAbrir('${area}','${fecha}','${turno}')"
+            >
+                ${tareo ? 'Continuar registro' : 'Iniciar tareo'}
+            </button>
+
+        </div>
+    `;
+}
+
 
 function renderTareoPrincipal() {
 
@@ -1067,20 +1954,35 @@ function renderTareoPrincipal() {
 
     if (!main) return;
 
-    const tareos =
-        obtenerTareos();
+    const area = tareoAreaActiva();
 
-    const personal =
-        obtenerPersonalTareo();
+    /* Usuario que solo tiene Tareo General (RRHH). */
 
-    const ultima =
-        [...tareos].sort(
-            (a, b) =>
-                String(b.fecha || '')
-                    .localeCompare(
-                        String(a.fecha || '')
-                    )
-        )[0];
+    if (!area) {
+        renderTareoGeneral();
+        return;
+    }
+
+    const editables = tareoAreasEditables();
+
+    const hoy = obtenerFechaHoy();
+
+    const personal = obtenerPersonalTareo(area);
+
+    const tareosArea = obtenerTareos().filter(
+        tareo => tareoAreaDe(tareo) === area
+    );
+
+    const ultima = [...tareosArea].sort(
+        (a, b) =>
+            String(b.fecha || '')
+                .localeCompare(String(a.fecha || ''))
+    )[0];
+
+    const rotacionVigente =
+        area === 'Producción'
+            ? obtenerRotacionVigente(hoy)
+            : null;
 
     main.innerHTML = `
 
@@ -1088,12 +1990,12 @@ function renderTareoPrincipal() {
 
             <div>
 
-                <h2>Tareo de Personal</h2>
+                <h2>Tareo de ${escaparHTML(area)}</h2>
 
                 <div class="sub">
-                    Control de asistencia,
-                    jornada y horas del personal
-                    de producción
+                    Registro de asistencia en tiempo real
+                    del personal de ${escaparHTML(area.toLowerCase())}
+                    <span class="tar2-live">En vivo</span>
                 </div>
 
             </div>
@@ -1112,35 +2014,47 @@ function renderTareoPrincipal() {
         </div>
 
 
-        <div class="tareo-tabs">
+        ${tareoRenderTabs('tareo')}
 
-            <button
-                class="tareo-tab active"
-                onclick="renderTareoPrincipal()"
-            >
-                Tareo
-            </button>
 
-            <button
-                class="tareo-tab"
-                onclick="renderHistorialTareo()"
-            >
-                Historial
-            </button>
+        ${
+            editables.length > 1
+                ? `
+                <div class="tar2-area-tabs">
+                    ${editables.map(item => `
+                        <button
+                            class="tar2-area-pill ${item === area ? 'active' : ''}"
+                            onclick="tareoCambiarAreaVista('${item}')"
+                        >
+                            ${item}
+                        </button>
+                    `).join('')}
+                </div>
+                `
+                : ''
+        }
 
-            <button
-                class="tareo-tab"
-                onclick="renderResumenMensualTareoUI()"
-            >
-                Resumen mensual
-            </button>
 
-            <button
-                class="tareo-tab"
-                onclick="renderRotacionSemanal()"
-            >
-                Rotación semanal
-            </button>
+        <div class="panel">
+
+            <div class="panel-head">
+
+                <h3>Turnos de hoy · ${formatearFecha(hoy)}</h3>
+
+                <span class="small-muted">
+                    Toca un turno para registrar a quienes van llegando
+                </span>
+
+            </div>
+
+            <div class="panel-body">
+
+                <div class="tar2-turno-grid">
+                    ${tareoTarjetaTurnoHTML(area, hoy, 'Día')}
+                    ${tareoTarjetaTurnoHTML(area, hoy, 'Noche')}
+                </div>
+
+            </div>
 
         </div>
 
@@ -1148,97 +2062,40 @@ function renderTareoPrincipal() {
         <div class="tareo-kpi-grid">
 
             <div class="tareo-kpi">
-
-                <span class="tareo-kpi-label">
-                    Personal activo
-                </span>
-
-                <strong>
-                    ${personal.length}
-                </strong>
-
-                <small>
-                    Producción
-                </small>
-
+                <span class="tareo-kpi-label">Personal activo</span>
+                <strong>${personal.length}</strong>
+                <small>${escaparHTML(area)}</small>
             </div>
-
 
             <div class="tareo-kpi">
-
-                <span class="tareo-kpi-label">
-                    Tareos registrados
-                </span>
-
-                <strong>
-                    ${tareos.length}
-                </strong>
-
-                <small>
-                    Histórico
-                </small>
-
+                <span class="tareo-kpi-label">Tareos registrados</span>
+                <strong>${tareosArea.length}</strong>
+                <small>Histórico</small>
             </div>
-
 
             <div class="tareo-kpi">
-
-                <span class="tareo-kpi-label">
-                    Último tareo
-                </span>
-
+                <span class="tareo-kpi-label">Último tareo</span>
                 <strong>
-                    ${
-                        ultima
-                            ? formatearFecha(
-                                ultima.fecha
-                              )
-                            : '-'
-                    }
+                    ${ultima ? formatearFecha(ultima.fecha) : '-'}
                 </strong>
-
                 <small>
-                    ${
-                        ultima
-                            ? escaparHTML(
-                                ultima.turno
-                              )
-                            : 'Sin registros'
-                    }
+                    ${ultima ? escaparHTML(ultima.turno) : 'Sin registros'}
                 </small>
-
             </div>
 
-
-            <div class="tareo-kpi">
-
-                <span class="tareo-kpi-label">
-                    Rotación vigente
-                </span>
-
-                <strong
-                    class="${
-                        obtenerRotacionVigente(
-                            obtenerFechaHoy()
-                        )
-                        ? 'tareo-good'
-                        : 'tareo-warn'
-                    }"
-                >
-                    ${
-                        obtenerRotacionVigente(
-                            obtenerFechaHoy()
-                        )
-                        ? 'ACTIVA'
-                        : 'PENDIENTE'
-                    }
-                </strong>
-
-                <small>
-                    Semana actual
-                </small>
-
-            </div>
+            ${
+                area === 'Producción'
+                    ? `
+                    <div class="tareo-kpi">
+                        <span class="tareo-kpi-label">Rotación vigente</span>
+                        <strong class="${rotacionVigente ? 'tareo-good' : 'tareo-warn'}">
+                            ${rotacionVigente ? 'ACTIVA' : 'PENDIENTE'}
+                        </strong>
+                        <small>Semana actual</small>
+                    </div>
+                    `
+                    : ''
+            }
 
         </div>
 
@@ -1247,9 +2104,7 @@ function renderTareoPrincipal() {
 
             <div class="panel-head">
 
-                <h3>
-                    Personal de producción
-                </h3>
+                <h3>Personal de ${escaparHTML(area.toLowerCase())}</h3>
 
                 <span class="small-muted">
                     ${personal.length} trabajadores
@@ -1267,74 +2122,32 @@ function renderTareoPrincipal() {
                             <table class="tareo-table">
 
                                 <thead>
-
                                     <tr>
-
                                         <th>Trabajador</th>
                                         <th>DNI</th>
                                         <th>Cargo</th>
                                         <th>Línea</th>
-                                        <th>Estado</th>
-
                                     </tr>
-
                                 </thead>
 
                                 <tbody>
 
-                                    ${ordenarPersonalTareo(
-                                        personal.map(
-                                            trabajador => ({
-                                                ...trabajador,
-                                                asistencia:
-                                                    'Asistió'
-                                            })
-                                        )
+                                    ${[...personal].sort(
+                                        (a, b) => String(a.nombre || '')
+                                            .localeCompare(
+                                                String(b.nombre || ''),
+                                                'es',
+                                                { sensitivity: 'base' }
+                                            )
                                     ).map(
                                         trabajador => `
-
                                         <tr>
-
-                                            <td>
-                                                <strong>
-                                                    ${escaparHTML(
-                                                        trabajador.nombre
-                                                    )}
-                                                </strong>
-                                            </td>
-
-                                            <td>
-                                                ${escaparHTML(
-                                                    trabajador.dni
-                                                )}
-                                            </td>
-
-                                            <td>
-                                                ${escaparHTML(
-                                                    trabajador.cargo
-                                                )}
-                                            </td>
-
-                                            <td>
-                                                ${
-                                                    trabajador.linea
-                                                        ? escaparHTML(
-                                                            trabajador.linea
-                                                          )
-                                                        : 'Sin línea'
-                                                }
-                                            </td>
-
-                                            <td>
-                                                <span class="tareo-status asistio">
-                                                    Activo
-                                                </span>
-                                            </td>
-
+                                            <td>${tareoBotonNombre(trabajador, '')}</td>
+                                            <td>${escaparHTML(trabajador.dni)}</td>
+                                            <td>${escaparHTML(trabajador.cargo)}</td>
+                                            <td>${trabajador.linea ? escaparHTML(trabajador.linea) : 'Sin línea'}</td>
                                         </tr>
-
-                                    `
-                                    ).join('')}
+                                    `).join('')}
 
                                 </tbody>
 
@@ -1345,13 +2158,14 @@ function renderTareoPrincipal() {
                         : `
                         <div class="empty-state">
 
-                            <h4>
-                                No hay personal disponible
-                            </h4>
+                            <h4>No hay personal disponible</h4>
 
                             <p>
-                                Verifica los trabajadores
-                                activos registrados.
+                                ${
+                                    area === 'Mantenimiento'
+                                        ? 'Registra trabajadores activos con un cargo de mantenimiento (por ejemplo "Técnico de Mantenimiento") en Gestionar trabajadores.'
+                                        : 'Verifica los trabajadores activos registrados.'
+                                }
                             </p>
 
                         </div>
@@ -1372,39 +2186,194 @@ function renderTareoPrincipal() {
 
 function nuevoTareo() {
 
-    const fecha =
-        obtenerFechaHoy();
+    const editables = tareoAreasEditables();
 
-    const turno = 'Día';
-
-    const resultado =
-        obtenerPersonalPorRotacion(
-            fecha,
-            turno
-        );
-
-    if (
-        resultado.tieneRotacion &&
-        resultado.personal.length === 0
-    ) {
+    if (!editables.length) {
 
         alert(
-            'La rotación semanal está activa, pero no se encontraron trabajadores asignados al turno Día para esta fecha.'
+            'No tienes permiso para registrar tareos.'
         );
 
         return;
     }
 
+    const root =
+        document.getElementById('modal-root');
+
+    if (!root) return;
+
+    const areaInicial = tareoAreaActiva() || editables[0];
+
+    root.innerHTML = `
+        <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+            <div class="modal">
+
+                <div class="modal-head">
+                    <h3>Nuevo tareo</h3>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="grid grid-2">
+
+                        <div class="field-sm">
+                            <label>Área</label>
+                            <select id="tareo-nuevo-area">
+                                ${editables.map(item => `
+                                    <option value="${item}" ${item === areaInicial ? 'selected' : ''}>
+                                        ${item}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+
+                        <div class="field-sm">
+                            <label>Turno</label>
+                            <select id="tareo-nuevo-turno">
+                                <option value="Día">Día</option>
+                                <option value="Noche">Noche</option>
+                            </select>
+                        </div>
+
+                        <div class="field-sm">
+                            <label>Fecha</label>
+                            <input
+                                type="date"
+                                id="tareo-nuevo-fecha"
+                                value="${obtenerFechaHoy()}"
+                            >
+                        </div>
+
+                    </div>
+
+                    <p class="small-muted" style="margin:12px 0 0;">
+                        Si ya existe el tareo de esa área, fecha y turno,
+                        se abre el mismo (no se crea uno duplicado).
+                    </p>
+
+                    <div class="actions-row">
+                        <button class="btn btn-primary" onclick="tareoConfirmarNuevo()">
+                            Abrir tareo
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    `;
+}
+
+
+function tareoConfirmarNuevo() {
+
+    const area =
+        document.getElementById('tareo-nuevo-area')?.value;
+
+    const turno =
+        document.getElementById('tareo-nuevo-turno')?.value;
+
+    const fecha =
+        document.getElementById('tareo-nuevo-fecha')?.value;
+
+    closeModal();
+
+    tareoAbrir(area, fecha, turno);
+}
+
+
+function tareoGenerarIdDeterministico(area, fecha, turno) {
+
+    return (
+        'TAR-' +
+        (area === 'Mantenimiento' ? 'MAN' : 'PRO') +
+        '-' + fecha +
+        '-' + (normalizarTurno(turno) === 'Noche' ? 'N' : 'D')
+    );
+}
+
+
+/*
+   Abre el tareo de un área / fecha / turno. Si todavía no
+   existe, lo crea con el personal del área (todos "sin
+   registrar"). El identificador es siempre el mismo para la
+   misma combinación, así que dos supervisores que lo abran
+   a la vez terminan en el MISMO tareo, no en dos.
+*/
+
+function tareoAbrir(area, fecha, turno) {
+
+    if (!tareoAreasEditables().includes(area)) {
+
+        alert(
+            'No tienes permiso para registrar el Tareo de ' + area + '.'
+        );
+
+        return;
+    }
+
+    if (!fecha) {
+
+        alert('Elige una fecha.');
+
+        return;
+    }
+
+    const turnoTareo = normalizarTurno(turno) || 'Día';
+
+    const existente = tareoBuscar(area, fecha, turnoTareo);
+
+    if (existente) {
+
+        tareoActualId = existente.id;
+
+        renderTareoFormulario(existente);
+
+        return;
+    }
+
+    let rotacionId = null;
+
+    if (area === 'Producción') {
+
+        const resultado =
+            obtenerPersonalPorRotacion(
+                fecha,
+                turnoTareo
+            );
+
+        if (
+            resultado.tieneRotacion &&
+            resultado.personal.length === 0
+        ) {
+
+            alert(
+                'La rotación semanal está activa, pero no se encontraron trabajadores asignados al turno ' +
+                turnoTareo + ' para esta fecha.'
+            );
+
+            return;
+        }
+
+        rotacionId = resultado.rotacion
+            ? resultado.rotacion.id
+            : null;
+    }
+
     const personal =
         crearPersonalTareo(
             fecha,
-            turno
+            turnoTareo,
+            area
         );
 
     if (!personal.length) {
 
         alert(
-            'No hay personal activo de producción disponible para crear el tareo.'
+            area === 'Mantenimiento'
+                ? 'No hay personal activo de Mantenimiento. Registra trabajadores con un cargo de mantenimiento (por ejemplo "Técnico de Mantenimiento") en Gestionar trabajadores.'
+                : 'No hay personal activo de producción disponible para crear el tareo.'
         );
 
         return;
@@ -1413,14 +2382,20 @@ function nuevoTareo() {
     const tareo = {
 
         id:
-            generarIdTareo(),
+            tareoGenerarIdDeterministico(
+                area,
+                fecha,
+                turnoTareo
+            ),
+
+        area,
 
         fecha,
 
-        turno,
+        turno: turnoTareo,
 
         horaProgramadaIngreso:
-            turno === 'Noche'
+            turnoTareo === 'Noche'
                 ? '19:00'
                 : '07:00',
 
@@ -1433,10 +2408,13 @@ function nuevoTareo() {
         observaciones:
             '',
 
-        rotacionId:
-            resultado.rotacion
-                ? resultado.rotacion.id
-                : null,
+        rotacionId,
+
+        creadoPor:
+            (state.user && state.user.username) || '',
+
+        configActualizadoEn:
+            Date.now(),
 
         personal
 
@@ -1469,31 +2447,43 @@ function renderTareoFormulario(tareo) {
     tareoActualId =
         tareo.id;
 
-    const personal =
-        ordenarPersonalTareo(
-            tareo.personal || []
-        );
+    /* Quien no gestiona esta área solo puede verla. */
+
+    if (!tareoPuedeEditar(tareo)) {
+
+        renderTareoLectura(tareo);
+
+        return;
+    }
+
+    const area = tareoAreaDe(tareo);
+
+    const personal = tareo.personal || [];
 
     const rotacion =
-        obtenerRotacionVigente(
-            tareo.fecha
-        );
+        area === 'Producción'
+            ? obtenerRotacionVigente(tareo.fecha)
+            : null;
+
+    const c = tareoContadores(personal);
+
+    const filtro = tareoNormalizarTexto(tareoFiltroTexto);
+
+    const scrollY = window.scrollY;
+    const scrollMain = main.scrollTop;
 
     main.innerHTML = `
 
-        <div class="main-head">
+        <div class="main-head" id="tareo-form-view">
 
             <div>
 
-                <h2>
-                    ${tareo.id
-                        ? 'Registro de Tareo'
-                        : 'Nuevo Tareo'}
-                </h2>
+                <h2>Tareo de ${escaparHTML(area)}</h2>
 
                 <div class="sub">
-                    Control diario del personal
-                    de producción
+                    ${formatearFecha(tareo.fecha)}
+                    · Turno ${escaparHTML(tareo.turno)}
+                    <span class="tar2-live">En vivo</span>
                 </div>
 
             </div>
@@ -1508,158 +2498,107 @@ function renderTareoFormulario(tareo) {
         </div>
 
 
+        <div class="tareo-kpi-grid">
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Registrados</span>
+                <strong>${c.registrados}/${c.total}</strong>
+                <small>${c.pendientes} pendientes</small>
+            </div>
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Asistieron</span>
+                <strong class="tareo-good">${c.asistieron}</strong>
+                <small>Con hora de ingreso</small>
+            </div>
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Tardanzas</span>
+                <strong class="${c.tardanzas ? 'tareo-warn' : ''}">${c.tardanzas}</strong>
+                <small>Ingreso después de la hora programada</small>
+            </div>
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Ausencias / descansos</span>
+                <strong>${c.ausencias}</strong>
+                <small>Faltas, descansos, vacaciones</small>
+            </div>
+
+        </div>
+
+
         <div class="panel tareo-config-panel">
 
             <div class="panel-head">
 
-                <h3>
-                    Configuración del turno
-                </h3>
+                <h3>Configuración del turno</h3>
 
                 ${
-                    rotacion
-                        ? `
-                        <span class="tareo-rotation-active">
-                            ROTACIÓN VIGENTE
-                        </span>
-                        `
-                        : `
-                        <span class="tareo-rotation-pending">
-                            SIN ROTACIÓN
-                        </span>
-                        `
+                    area === 'Producción'
+                        ? (
+                            rotacion
+                                ? '<span class="tareo-rotation-active">ROTACIÓN VIGENTE</span>'
+                                : '<span class="tareo-rotation-pending">SIN ROTACIÓN</span>'
+                        )
+                        : tareoInsigniaArea(area)
                 }
 
             </div>
-
 
             <div class="panel-body">
 
                 <div class="grid grid-4">
 
                     <div class="field-sm">
-
-                        <label>
-                            Fecha
-                        </label>
-
+                        <label>Fecha</label>
                         <input
                             type="date"
                             id="tareo-fecha"
-                            value="${escaparHTML(
-                                tareo.fecha
-                            )}"
+                            value="${escaparHTML(tareo.fecha)}"
+                            disabled
                         >
-
                     </div>
 
-
                     <div class="field-sm">
-
-                        <label>
-                            Turno
-                        </label>
-
-                        <select
-                            id="tareo-turno"
-                            onchange="cambiarTurnoTareo()"
-                        >
-
-                            <option
-                                value="Día"
-                                ${
-                                    tareo.turno === 'Día'
-                                        ? 'selected'
-                                        : ''
-                                }
-                            >
-                                Día
-                            </option>
-
-                            <option
-                                value="Noche"
-                                ${
-                                    tareo.turno === 'Noche'
-                                        ? 'selected'
-                                        : ''
-                                }
-                            >
-                                Noche
-                            </option>
-
+                        <label>Turno</label>
+                        <select id="tareo-turno" disabled>
+                            <option value="Día" ${tareo.turno === 'Día' ? 'selected' : ''}>Día</option>
+                            <option value="Noche" ${tareo.turno === 'Noche' ? 'selected' : ''}>Noche</option>
                         </select>
-
                     </div>
 
-
                     <div class="field-sm">
-
-                        <label>
-                            Hora programada
-                        </label>
-
+                        <label>Hora programada</label>
                         <input
                             type="time"
                             id="tareo-hora-programada"
-                            value="${escaparHTML(
-                                tareo.horaProgramadaIngreso
-                            )}"
+                            value="${escaparHTML(tareo.horaProgramadaIngreso)}"
+                            onchange="tareoActualizarConfig()"
                         >
-
                     </div>
 
-
                     <div class="field-sm">
-
-                        <label>
-                            Jornada normal
-                        </label>
-
+                        <label>Jornada normal</label>
                         <input
                             type="number"
                             id="tareo-jornada"
                             min="1"
                             max="24"
                             step="0.5"
-                            value="${Number(
-                                tareo.jornadaNormal || 8
-                            )}"
+                            value="${Number(tareo.jornadaNormal || 8)}"
+                            onchange="tareoActualizarConfig()"
                         >
-
                     </div>
 
                 </div>
 
-
                 <div class="tareo-rotation-note">
 
                     ${
-                        rotacion
+                        area === 'Producción' && !rotacion
                             ? `
                             <span>
-                                ✓ Rotación:
-                                <strong>
-                                    ${formatearFecha(
-                                        rotacion.fechaInicio
-                                    )}
-                                    —
-                                    ${formatearFecha(
-                                        rotacion.fechaFin
-                                    )}
-                                </strong>
-                            </span>
-
-                            <span>
-                                Personal cargado:
-                                <strong>
-                                    ${personal.length}
-                                </strong>
-                            </span>
-                            `
-                            : `
-                            <span>
-                                ⚠ No existe una rotación semanal
-                                vigente para esta fecha.
+                                ⚠ No existe una rotación semanal vigente para esta fecha.
                             </span>
 
                             <button
@@ -1669,6 +2608,20 @@ function renderTareoFormulario(tareo) {
                             >
                                 Cargar rotación
                             </button>
+                            `
+                            : `
+                            <span>
+                                ${
+                                    area === 'Producción'
+                                        ? `✓ Rotación: <strong>${formatearFecha(rotacion.fechaInicio)} — ${formatearFecha(rotacion.fechaFin)}</strong>`
+                                        : 'Personal: técnicos activos de mantenimiento'
+                                }
+                            </span>
+
+                            <span>
+                                Personal cargado:
+                                <strong>${personal.length}</strong>
+                            </span>
                             `
                     }
 
@@ -1685,19 +2638,36 @@ function renderTareoFormulario(tareo) {
 
                 <div>
 
-                    <h3>
-                        Personal
-                    </h3>
+                    <h3>Personal</h3>
 
                     <div class="small-muted">
-                        Asistencia y jornada del turno
+                        Marca ASISTIÓ al llegar: la hora de ingreso se registra sola.
+                        Toca un nombre para ver su ficha.
                     </div>
 
                 </div>
 
-                <span class="tareo-count-badge">
-                    ${personal.length} personas
-                </span>
+                <div class="tar2-quick">
+
+                    <input
+                        type="search"
+                        placeholder="Buscar nombre o DNI..."
+                        value="${escaparHTML(tareoFiltroTexto)}"
+                        oninput="tareoFiltrarPersonal(this.value)"
+                    >
+
+                    <button
+                        class="btn btn-ghost btn-sm"
+                        onclick="tareoAbrirAgregarPersonal()"
+                    >
+                        + Agregar personal
+                    </button>
+
+                    <span class="tareo-count-badge">
+                        ${personal.length} personas
+                    </span>
+
+                </div>
 
             </div>
 
@@ -1706,14 +2676,11 @@ function renderTareoFormulario(tareo) {
 
                 <div class="tareo-table-scroll">
 
-                    <table
-                        class="tareo-table tareo-edit-table"
-                    >
+                    <table class="tareo-table tareo-edit-table">
 
                         <thead>
 
                             <tr>
-
                                 <th>#</th>
                                 <th>Trabajador</th>
                                 <th>Cargo</th>
@@ -1725,7 +2692,6 @@ function renderTareoFormulario(tareo) {
                                 <th>Horas</th>
                                 <th>Extras</th>
                                 <th>Tardanza</th>
-
                             </tr>
 
                         </thead>
@@ -1736,7 +2702,9 @@ function renderTareoFormulario(tareo) {
                                 (persona, index) =>
                                     renderFilaPersonalTareo(
                                         persona,
-                                        index
+                                        index,
+                                        tareo.id,
+                                        filtro
                                     )
                             ).join('')}
 
@@ -1754,11 +2722,7 @@ function renderTareoFormulario(tareo) {
         <div class="panel">
 
             <div class="panel-head">
-
-                <h3>
-                    Observaciones
-                </h3>
-
+                <h3>Observaciones</h3>
             </div>
 
             <div class="panel-body">
@@ -1768,9 +2732,8 @@ function renderTareoFormulario(tareo) {
                     class="tareo-observaciones"
                     rows="3"
                     placeholder="Ingrese observaciones del turno..."
-                >${escaparHTML(
-                    tareo.observaciones || ''
-                )}</textarea>
+                    onchange="tareoActualizarConfig()"
+                >${escaparHTML(tareo.observaciones || '')}</textarea>
 
             </div>
 
@@ -1783,7 +2746,7 @@ function renderTareoFormulario(tareo) {
                 class="btn btn-ghost"
                 onclick="renderTareoPrincipal()"
             >
-                Cancelar
+                Volver
             </button>
 
             <button
@@ -1796,6 +2759,176 @@ function renderTareoFormulario(tareo) {
         </div>
 
     `;
+
+    window.scrollTo(0, scrollY);
+    main.scrollTop = scrollMain;
+}
+
+
+/* Buscador: oculta filas sin volver a dibujar (no pierde el cursor). */
+
+function tareoFiltrarPersonal(valor) {
+
+    tareoFiltroTexto = valor || '';
+
+    const filtro = tareoNormalizarTexto(tareoFiltroTexto);
+
+    document.querySelectorAll('tr[data-tareo-buscar]').forEach(fila => {
+
+        fila.style.display =
+            !filtro ||
+            fila.getAttribute('data-tareo-buscar').includes(filtro)
+                ? ''
+                : 'none';
+    });
+}
+
+
+/* Vuelve a dibujar el formulario cuando otro equipo cambió el tareo. */
+
+function tareoRefrescarFormularioRemoto() {
+
+    if (!document.getElementById('tareo-form-view')) return;
+
+    if (window._tareoEscriturasPendientes > 0) return;
+
+    const main = document.getElementById('main');
+
+    const activo = document.activeElement;
+
+    if (
+        main && activo && main.contains(activo) &&
+        /^(INPUT|TEXTAREA|SELECT)$/.test(activo.tagName)
+    ) {
+        return;
+    }
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo) return;
+
+    renderTareoFormulario(tareo);
+}
+
+
+/* =========================================================
+   AGREGAR PERSONAL A UN TAREO
+   ========================================================= */
+
+function tareoAbrirAgregarPersonal() {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const root =
+        document.getElementById('modal-root');
+
+    if (!root) return;
+
+    const yaEstan = new Set(
+        (tareo.personal || []).map(
+            persona => String(persona.trabajadorId)
+        )
+    );
+
+    const candidatos = (
+        typeof loadWorkers === 'function'
+            ? loadWorkers()
+            : []
+    ).filter(
+        trabajador =>
+            trabajador &&
+            tareoNormalizarTexto(trabajador.estado) === 'activo' &&
+            !yaEstan.has(String(trabajador.id))
+    ).sort(
+        (a, b) => String(a.nombre || '')
+            .localeCompare(String(b.nombre || ''), 'es', { sensitivity: 'base' })
+    );
+
+    root.innerHTML = `
+        <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+            <div class="modal">
+
+                <div class="modal-head">
+                    <h3>Agregar personal</h3>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+
+                <div class="modal-body">
+
+                    ${
+                        candidatos.length
+                            ? `
+                            <div class="field-sm">
+                                <label>Trabajador</label>
+                                <select id="tareo-agregar-select">
+                                    ${candidatos.map(trabajador => `
+                                        <option value="${escaparHTML(trabajador.id)}">
+                                            ${escaparHTML(trabajador.nombre)}
+                                            — ${escaparHTML(trabajador.cargo || 'Sin cargo')}
+                                        </option>
+                                    `).join('')}
+                                </select>
+                            </div>
+
+                            <p class="small-muted" style="margin:10px 0 0;">
+                                Se agrega solo a este tareo, como pendiente de registrar.
+                            </p>
+
+                            <div class="actions-row">
+                                <button class="btn btn-primary" onclick="tareoAgregarPersonal()">
+                                    Agregar
+                                </button>
+                            </div>
+                            `
+                            : `
+                            <p class="small-muted" style="margin:0;">
+                                No hay más trabajadores activos para agregar.
+                            </p>
+                            `
+                    }
+
+                </div>
+
+            </div>
+        </div>
+    `;
+}
+
+
+function tareoAgregarPersonal() {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const id = document.getElementById('tareo-agregar-select')?.value;
+
+    const trabajador = (
+        typeof loadWorkers === 'function'
+            ? loadWorkers()
+            : []
+    ).find(item => String(item.id) === String(id));
+
+    if (!trabajador) return;
+
+    const persona = tareoNuevaPersona(
+        trabajador,
+        tareoAreaDe(tareo)
+    );
+
+    persona.actualizadoEn = Date.now();
+
+    tareo.personal.push(persona);
+
+    tareo.personal = ordenarPersonalTareo(tareo.personal);
+
+    guardarTareoEnMemoria(tareo);
+
+    closeModal();
+
+    renderTareoFormulario(tareo);
 }
 
 
@@ -1805,26 +2938,49 @@ function renderTareoFormulario(tareo) {
 
 function renderFilaPersonalTareo(
     persona,
-    index
+    index,
+    tareoId,
+    filtro
 ) {
 
     const asistencia =
-        persona.asistencia ||
-        'Asistió';
+        tareoEstadoCanonico(persona.asistencia);
+
+    const pendiente = !asistencia;
+
+    const asistio = asistencia === 'Asistió';
 
     const deshabilitado =
-        asistencia !== 'Asistió'
+        !asistio
             ? 'disabled'
+            : '';
+
+    const tarde =
+        Number(persona.tardanzaMinutos || 0) > 0;
+
+    const clave =
+        tareoArg(tareoClavePersona(persona));
+
+    const textoBusqueda =
+        tareoNormalizarTexto(
+            (persona.nombre || '') + ' ' + (persona.dni || '')
+        );
+
+    const oculta =
+        filtro && !textoBusqueda.includes(filtro)
+            ? 'display:none;'
             : '';
 
     return `
 
         <tr
             data-tareo-persona="${index}"
+            data-tareo-buscar="${escaparHTML(textoBusqueda)}"
+            style="${oculta}"
             class="${
-                asistencia !== 'Asistió'
-                    ? 'tareo-row-no-asistencia'
-                    : ''
+                pendiente
+                    ? 'tar2-row-pendiente'
+                    : (!asistio ? 'tareo-row-no-asistencia' : '')
             }"
         >
 
@@ -1839,17 +2995,11 @@ function renderFilaPersonalTareo(
 
                 <div class="tareo-worker">
 
-                    <strong>
-                        ${escaparHTML(
-                            persona.nombre
-                        )}
-                    </strong>
+                    ${tareoBotonNombre(persona, tareoId)}
 
                     <small>
                         DNI:
-                        ${escaparHTML(
-                            persona.dni
-                        )}
+                        ${escaparHTML(persona.dni)}
                     </small>
 
                 </div>
@@ -1858,18 +3008,14 @@ function renderFilaPersonalTareo(
 
 
             <td>
-                ${escaparHTML(
-                    persona.cargo
-                )}
+                ${escaparHTML(persona.cargo)}
             </td>
 
 
             <td>
                 ${
                     persona.linea
-                        ? escaparHTML(
-                            persona.linea
-                          )
+                        ? escaparHTML(persona.linea)
                         : 'Sin línea'
                 }
             </td>
@@ -1877,36 +3023,49 @@ function renderFilaPersonalTareo(
 
             <td>
 
-                <select
-                    class="tareo-asistencia-select"
-                    onchange="
-                        actualizarAsistenciaTareo(
-                            ${index},
-                            this.value
-                        )
-                    "
-                >
+                <div class="tar2-quick">
 
-                    ${TAREO_ESTADOS_ASISTENCIA.map(
-                        estado => `
-                        <option
-                            value="${escaparHTML(
-                                estado
-                            )}"
-                            ${
-                                asistencia === estado
-                                    ? 'selected'
-                                    : ''
-                            }
-                        >
-                            ${escaparHTML(
-                                estado
-                            )}
-                        </option>
-                        `
-                    ).join('')}
+                    ${
+                        pendiente
+                            ? `
+                            <button
+                                type="button"
+                                class="btn btn-primary btn-sm"
+                                onclick="tareoMarcarAsistio(${clave})"
+                            >
+                                ✔ ASISTIÓ
+                            </button>
+                            `
+                            : ''
+                    }
 
-                </select>
+                    <select
+                        class="tareo-asistencia-select"
+                        onchange="actualizarAsistenciaTareo(${clave}, this.value)"
+                    >
+
+                        ${
+                            pendiente
+                                ? '<option value="" selected>Otro estado…</option>'
+                                : '<option value="">PENDIENTE</option>'
+                        }
+
+                        ${TAREO_ESTADOS_ASISTENCIA
+                            .filter(estado => !pendiente || estado !== 'Asistió')
+                            .map(
+                                estado => `
+                                <option
+                                    value="${escaparHTML(estado)}"
+                                    ${asistencia === estado ? 'selected' : ''}
+                                >
+                                    ${escaparHTML(estado.toUpperCase())}
+                                </option>
+                                `
+                            ).join('')}
+
+                    </select>
+
+                </div>
 
             </td>
 
@@ -1915,17 +3074,16 @@ function renderFilaPersonalTareo(
 
                 <input
                     type="time"
-                    value="${escaparHTML(
-                        persona.horaIngreso || ''
-                    )}"
+                    value="${escaparHTML(persona.horaIngreso || '')}"
                     ${deshabilitado}
-                    onchange="
-                        actualizarHoraIngresoTareo(
-                            ${index},
-                            this.value
-                        )
-                    "
+                    onchange="actualizarHoraIngresoTareo(${clave}, this.value)"
                 >
+
+                ${
+                    asistio && persona.horaIngresoAuto
+                        ? '<span class="tar2-auto">registrada al marcar</span>'
+                        : ''
+                }
 
             </td>
 
@@ -1937,18 +3095,9 @@ function renderFilaPersonalTareo(
                     min="0"
                     max="4"
                     step="0.25"
-                    value="${
-                        Number(
-                            persona.refrigerio || 0
-                        )
-                    }"
+                    value="${Number(persona.refrigerio || 0)}"
                     ${deshabilitado}
-                    onchange="
-                        actualizarRefrigerioTareo(
-                            ${index},
-                            this.value
-                        )
-                    "
+                    onchange="actualizarRefrigerioTareo(${clave}, this.value)"
                 >
 
             </td>
@@ -1958,17 +3107,25 @@ function renderFilaPersonalTareo(
 
                 <input
                     type="time"
-                    value="${escaparHTML(
-                        persona.horaSalida || ''
-                    )}"
+                    value="${escaparHTML(persona.horaSalida || '')}"
                     ${deshabilitado}
-                    onchange="
-                        actualizarHoraSalidaTareo(
-                            ${index},
-                            this.value
-                        )
-                    "
+                    onchange="actualizarHoraSalidaTareo(${clave}, this.value)"
                 >
+
+                ${
+                    asistio && persona.horaIngreso && !persona.horaSalida
+                        ? `
+                        <button
+                            type="button"
+                            class="tar2-inline-btn"
+                            title="Registrar la hora actual como salida"
+                            onclick="tareoSalidaAhora(${clave})"
+                        >
+                            Ahora
+                        </button>
+                        `
+                        : ''
+                }
 
             </td>
 
@@ -1976,9 +3133,7 @@ function renderFilaPersonalTareo(
             <td>
 
                 <strong class="tareo-hours">
-                    ${formatearHoras(
-                        persona.horasTrabajadas
-                    )}
+                    ${formatearHoras(persona.horasTrabajadas)}
                 </strong>
 
             </td>
@@ -1987,9 +3142,7 @@ function renderFilaPersonalTareo(
             <td>
 
                 <strong class="tareo-hours-extra">
-                    ${formatearHoras(
-                        persona.horasExtras
-                    )}
+                    ${formatearHoras(persona.horasExtras)}
                 </strong>
 
             </td>
@@ -1997,23 +3150,11 @@ function renderFilaPersonalTareo(
 
             <td>
 
-                <span
-                    class="${
-                        Number(
-                            persona.tardanzaMinutos || 0
-                        ) > 0
-                            ? 'tareo-late'
-                            : 'tareo-on-time'
-                    }"
-                >
+                <span class="${tarde ? 'tareo-late' : 'tareo-on-time'}">
                     ${
-                        Number(
-                            persona.tardanzaMinutos || 0
-                        ) > 0
-                            ? formatearMinutos(
-                                persona.tardanzaMinutos
-                              )
-                            : '—'
+                        tarde
+                            ? formatearMinutos(persona.tardanzaMinutos)
+                            : (asistio && persona.horaIngreso ? 'A tiempo' : '—')
                     }
                 </span>
 
@@ -2029,111 +3170,118 @@ function renderFilaPersonalTareo(
    CAMBIAR TURNO
    ========================================================= */
 
-function cambiarTurnoTareo() {
+function tareoObtenerActual() {
 
-    const tareos =
-        obtenerTareos();
+    return obtenerTareos().find(
+        item => item.id === tareoActualId
+    ) || null;
+}
 
-    const tareo =
-        tareos.find(
-            item =>
-                item.id === tareoActualId
-        );
+
+/*
+   Aplica un cambio a UNA persona del tareo abierto, recalcula
+   sus horas/tardanza, guarda (en la nube, en el momento) y
+   vuelve a dibujar la pantalla.
+*/
+
+function tareoEditarPersona(clave, cambiar) {
+
+    const tareo = tareoObtenerActual();
 
     if (!tareo) return;
 
-    const turno =
-        document.getElementById(
-            'tareo-turno'
-        )?.value || 'Día';
+    if (!tareoPuedeEditar(tareo)) {
 
-    const fecha =
-        document.getElementById(
-            'tareo-fecha'
-        )?.value || tareo.fecha;
-
-    const resultado =
-        obtenerPersonalPorRotacion(
-            fecha,
-            turno
+        alert(
+            'No tienes permiso para modificar el Tareo de ' + tareoAreaDe(tareo) + '.'
         );
 
-    tareo.fecha = fecha;
-    tareo.turno = turno;
-
-    tareo.horaProgramadaIngreso =
-        turno === 'Noche'
-            ? '19:00'
-            : '07:00';
-
-    if (resultado.personal.length) {
-
-        const personalActual =
-            tareo.personal || [];
-
-        tareo.personal =
-            resultado.personal.map(
-                trabajador => {
-
-                    const anterior =
-                        personalActual.find(
-                            persona =>
-                                String(
-                                    persona.trabajadorId
-                                ) ===
-                                String(
-                                    trabajador.id
-                                )
-                        );
-
-                    if (anterior) {
-                        return anterior;
-                    }
-
-                    return {
-                        trabajadorId:
-                            trabajador.id,
-                        nombre:
-                            trabajador.nombre || '',
-                        dni:
-                            trabajador.dni || '',
-                        cargo:
-                            trabajador.cargo || '',
-                        area:
-                            'Producción',
-                        linea:
-                            trabajador.linea || '',
-                        asistencia:
-                            'Asistió',
-                        horaIngreso:
-                            '',
-                        refrigerio:
-                            0,
-                        horaSalida:
-                            '',
-                        horasTrabajadas:
-                            0,
-                        horasExtras:
-                            0,
-                        tardanzaMinutos:
-                            0
-                    };
-                }
-            );
+        return;
     }
 
-    tareo.personal =
-        ordenarPersonalTareo(
-            tareo.personal
-        );
-
-    guardarTareoEnMemoria(
-        tareo
+    const persona = tareo.personal.find(
+        item => tareoClavePersona(item) === String(clave)
     );
 
-    renderTareoFormulario(
-        tareo
-    );
+    if (!persona) return;
+
+    cambiar(persona, tareo);
+
+    persona.actualizadoEn = Date.now();
+
+    recalcularPersonaTareo(persona, tareo);
+
+    tareo.personal = ordenarPersonalTareo(tareo.personal);
+
+    guardarTareoEnMemoria(tareo);
+
+    renderTareoFormulario(tareo);
+}
+
+
+function tareoMarcarAsistio(clave) {
+    actualizarAsistenciaTareo(clave, 'Asistió');
+}
+
+
+/*
+   Cambia el estado. Al marcar ASISTIÓ se toma la hora actual
+   como hora de ingreso (si el tareo es de ahora) y el sistema
+   calcula si llegó tarde respecto a la hora programada.
+*/
+
+function actualizarAsistenciaTareo(
+    clave,
+    asistencia
+) {
+
+    const estado =
+        tareoEstadoCanonico(asistencia);
+
+    tareoEditarPersona(clave, (persona, tareo) => {
+
+        const anterior =
+            tareoEstadoCanonico(persona.asistencia);
+
+        persona.asistencia = estado;
+
+        persona.registradoEn =
+            estado
+                ? new Date().toISOString()
+                : '';
+
+        persona.registradoPor =
+            estado
+                ? ((state.user && state.user.username) || '')
+                : '';
+
+        if (estado === 'Asistió') {
+
+            if (anterior !== 'Asistió') {
+
+                if (tareoEsEnTiempoReal(tareo)) {
+
+                    persona.horaIngreso = tareoHoraActual();
+                    persona.horaIngresoAuto = true;
+
+                } else {
+
+                    persona.horaIngreso = '';
+                    persona.horaIngresoAuto = false;
+                }
+            }
+
+            return;
+        }
+
+        persona.horaIngreso = '';
+        persona.horaIngresoAuto = false;
+        persona.refrigerio = 0;
+        persona.horaSalida = '';
+        persona.horasTrabajadas = 0;
+        persona.horasExtras = 0;
+        persona.tardanzaMinutos = 0;
+    });
 }
 
 
@@ -2141,53 +3289,7 @@ function cambiarTurnoTareo() {
    ACTUALIZACIONES
    ========================================================= */
 
-function actualizarAsistenciaTareo(
-    index,
-    asistencia
-) {
 
-    const tareos =
-        obtenerTareos();
-
-    const tareo =
-        tareos.find(
-            item =>
-                item.id === tareoActualId
-        );
-
-    if (!tareo) return;
-
-    const persona =
-        tareo.personal[index];
-
-    if (!persona) return;
-
-    persona.asistencia =
-        asistencia;
-
-    if (asistencia !== 'Asistió') {
-
-        persona.horaIngreso = '';
-        persona.refrigerio = 0;
-        persona.horaSalida = '';
-        persona.horasTrabajadas = 0;
-        persona.horasExtras = 0;
-        persona.tardanzaMinutos = 0;
-    }
-
-    tareo.personal =
-        ordenarPersonalTareo(
-            tareo.personal
-        );
-
-    guardarTareoEnMemoria(
-        tareo
-    );
-
-    renderTareoFormulario(
-        tareo
-    );
-}
 
 
 function recalcularPersonaTareo(
@@ -2228,110 +3330,101 @@ function recalcularPersonaTareo(
 
 
 function actualizarHoraIngresoTareo(
-    index,
+    clave,
     hora
 ) {
 
-    const tareo =
-        obtenerTareos().find(
-            item =>
-                item.id === tareoActualId
-        );
+    tareoEditarPersona(clave, persona => {
 
-    if (!tareo) return;
+        persona.horaIngreso = hora;
 
-    const persona =
-        tareo.personal[index];
+        /* Corregida a mano: ya no es la hora automática. */
 
-    if (!persona) return;
-
-    persona.horaIngreso =
-        hora;
-
-    recalcularPersonaTareo(
-        persona,
-        tareo
-    );
-
-    guardarTareoEnMemoria(
-        tareo
-    );
-
-    renderTareoFormulario(
-        tareo
-    );
+        persona.horaIngresoAuto = false;
+    });
 }
 
 
 function actualizarRefrigerioTareo(
-    index,
+    clave,
     valor
 ) {
 
-    const tareo =
-        obtenerTareos().find(
-            item =>
-                item.id === tareoActualId
-        );
+    tareoEditarPersona(clave, persona => {
 
-    if (!tareo) return;
-
-    const persona =
-        tareo.personal[index];
-
-    if (!persona) return;
-
-    persona.refrigerio =
-        Number(valor) || 0;
-
-    recalcularPersonaTareo(
-        persona,
-        tareo
-    );
-
-    guardarTareoEnMemoria(
-        tareo
-    );
-
-    renderTareoFormulario(
-        tareo
-    );
+        persona.refrigerio =
+            Number(valor) || 0;
+    });
 }
 
 
 function actualizarHoraSalidaTareo(
-    index,
+    clave,
     hora
 ) {
 
-    const tareo =
-        obtenerTareos().find(
-            item =>
-                item.id === tareoActualId
-        );
+    tareoEditarPersona(clave, persona => {
 
-    if (!tareo) return;
+        persona.horaSalida = hora;
+    });
+}
 
-    const persona =
-        tareo.personal[index];
 
-    if (!persona) return;
+function tareoSalidaAhora(clave) {
 
-    persona.horaSalida =
-        hora;
+    tareoEditarPersona(clave, persona => {
 
-    recalcularPersonaTareo(
-        persona,
-        tareo
-    );
+        persona.horaSalida = tareoHoraActual();
+    });
+}
 
-    guardarTareoEnMemoria(
-        tareo
-    );
 
-    renderTareoFormulario(
-        tareo
-    );
+/*
+   Cambios de configuración del turno (hora programada,
+   jornada, observaciones): se guardan al momento y las
+   tardanzas / horas ya registradas se recalculan.
+*/
+
+function tareoActualizarConfig() {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    tareo.horaProgramadaIngreso =
+        document.getElementById('tareo-hora-programada')?.value ||
+        tareo.horaProgramadaIngreso;
+
+    tareo.jornadaNormal =
+        Number(document.getElementById('tareo-jornada')?.value) || 8;
+
+    tareo.observaciones =
+        document.getElementById('tareo-observaciones')?.value || '';
+
+    tareo.configActualizadoEn = Date.now();
+
+    tareo.personal.forEach(persona => {
+
+        const antes =
+            persona.tardanzaMinutos + '|' +
+            persona.horasTrabajadas + '|' +
+            persona.horasExtras;
+
+        recalcularPersonaTareo(persona, tareo);
+
+        const despues =
+            persona.tardanzaMinutos + '|' +
+            persona.horasTrabajadas + '|' +
+            persona.horasExtras;
+
+        if (antes !== despues) {
+            persona.actualizadoEn = Date.now();
+        }
+    });
+
+    guardarTareoEnMemoria(tareo);
+
+    renderTareoFormulario(tareo);
 }
 
 
@@ -2341,14 +3434,8 @@ function actualizarHoraSalidaTareo(
 
 function guardarTareoActual() {
 
-    const tareos =
-        obtenerTareos();
-
     const tareo =
-        tareos.find(
-            item =>
-                item.id === tareoActualId
-        );
+        tareoObtenerActual();
 
     if (!tareo) {
 
@@ -2359,74 +3446,72 @@ function guardarTareoActual() {
         return;
     }
 
-    const fecha =
-        document.getElementById(
-            'tareo-fecha'
-        )?.value;
+    if (!tareoPuedeEditar(tareo)) {
 
-    const turno =
-        document.getElementById(
-            'tareo-turno'
-        )?.value;
+        alert(
+            'No tienes permiso para modificar este tareo.'
+        );
 
-    const horaProgramada =
-        document.getElementById(
-            'tareo-hora-programada'
-        )?.value;
+        return;
+    }
 
-    const jornada =
-        Number(
-            document.getElementById(
-                'tareo-jornada'
-            )?.value
-        ) || 8;
-
-    const observaciones =
-        document.getElementById(
-            'tareo-observaciones'
-        )?.value || '';
-
-    tareo.fecha =
-        fecha || tareo.fecha;
-
-    tareo.turno =
-        turno || tareo.turno;
+    /*
+       La asistencia ya se va guardando en la nube en el momento
+       en que se marca. Este botón guarda además la configuración
+       y las observaciones que estén en pantalla.
+    */
 
     tareo.horaProgramadaIngreso =
-        horaProgramada ||
+        document.getElementById('tareo-hora-programada')?.value ||
         tareo.horaProgramadaIngreso;
 
     tareo.jornadaNormal =
-        jornada;
+        Number(document.getElementById('tareo-jornada')?.value) || 8;
 
     tareo.observaciones =
-        observaciones;
+        document.getElementById('tareo-observaciones')?.value || '';
+
+    tareo.configActualizadoEn = Date.now();
+
+    tareo.personal.forEach(persona => {
+
+        const antes =
+            persona.tardanzaMinutos + '|' +
+            persona.horasTrabajadas + '|' +
+            persona.horasExtras;
+
+        recalcularPersonaTareo(persona, tareo);
+
+        const despues =
+            persona.tardanzaMinutos + '|' +
+            persona.horasTrabajadas + '|' +
+            persona.horasExtras;
+
+        if (antes !== despues) {
+            persona.actualizadoEn = Date.now();
+        }
+    });
 
     tareo.personal =
         ordenarPersonalTareo(
             tareo.personal
         );
 
-    tareo.personal.forEach(
-        persona =>
-            recalcularPersonaTareo(
-                persona,
-                tareo
-            )
-    );
-
     tareo.estado =
         'Abierto';
 
-    const rotacion =
-        obtenerRotacionVigente(
-            tareo.fecha
-        );
+    if (tareoAreaDe(tareo) === 'Producción') {
 
-    tareo.rotacionId =
-        rotacion
-            ? rotacion.id
-            : null;
+        const rotacion =
+            obtenerRotacionVigente(
+                tareo.fecha
+            );
+
+        tareo.rotacionId =
+            rotacion
+                ? rotacion.id
+                : null;
+    }
 
     guardarTareoEnMemoria(
         tareo
@@ -2451,14 +3536,31 @@ function renderHistorialTareo() {
 
     if (!main) return;
 
+    const areasVisibles = tareoAreasVisibles();
+
+    if (
+        tareoFiltroAreaHistorial &&
+        !areasVisibles.includes(tareoFiltroAreaHistorial)
+    ) {
+        tareoFiltroAreaHistorial = '';
+    }
+
     const tareos =
-        [...obtenerTareos()].sort(
-            (a, b) =>
-                String(b.fecha || '')
-                    .localeCompare(
-                        String(a.fecha || '')
-                    )
-        );
+        tareoTareosVisibles()
+            .filter(
+                tareo =>
+                    !tareoFiltroAreaHistorial ||
+                    tareoAreaDe(tareo) === tareoFiltroAreaHistorial
+            )
+            .sort(
+                (a, b) =>
+                    String(b.fecha || '')
+                        .localeCompare(String(a.fecha || '')) ||
+                    String(a.turno || '')
+                        .localeCompare(String(b.turno || ''))
+            );
+
+    const puedeCrear = tareoAreasEditables().length > 0;
 
     main.innerHTML = `
 
@@ -2471,53 +3573,28 @@ function renderHistorialTareo() {
                 </h2>
 
                 <div class="sub">
-                    Registros históricos
-                    del personal de producción
+                    Registros históricos del personal
                 </div>
 
             </div>
 
-            <button
-                class="btn btn-primary"
-                onclick="nuevoTareo()"
-            >
-                + Nuevo Tareo
-            </button>
+            ${
+                puedeCrear
+                    ? `
+                    <button
+                        class="btn btn-primary"
+                        onclick="nuevoTareo()"
+                    >
+                        + Nuevo Tareo
+                    </button>
+                    `
+                    : ''
+            }
 
         </div>
 
 
-        <div class="tareo-tabs">
-
-            <button
-                class="tareo-tab"
-                onclick="renderTareoPrincipal()"
-            >
-                Tareo
-            </button>
-
-            <button
-                class="tareo-tab active"
-                onclick="renderHistorialTareo()"
-            >
-                Historial
-            </button>
-
-            <button
-                class="tareo-tab"
-                onclick="renderResumenMensualTareoUI()"
-            >
-                Resumen mensual
-            </button>
-
-            <button
-                class="tareo-tab"
-                onclick="renderRotacionSemanal()"
-            >
-                Rotación semanal
-            </button>
-
-        </div>
+        ${tareoRenderTabs('historial')}
 
 
         <div class="panel">
@@ -2528,9 +3605,26 @@ function renderHistorialTareo() {
                     Registros
                 </h3>
 
-                <span class="small-muted">
-                    ${tareos.length} tareos
-                </span>
+                <div class="tar2-quick">
+
+                    ${
+                        areasVisibles.length > 1
+                            ? `
+                            <select onchange="tareoFiltroAreaHistorial = this.value; renderHistorialTareo();">
+                                <option value="">Todas las áreas</option>
+                                ${areasVisibles.map(item => `
+                                    <option value="${item}" ${tareoFiltroAreaHistorial === item ? 'selected' : ''}>${item}</option>
+                                `).join('')}
+                            </select>
+                            `
+                            : ''
+                    }
+
+                    <span class="small-muted">
+                        ${tareos.length} tareos
+                    </span>
+
+                </div>
 
             </div>
 
@@ -2548,13 +3642,14 @@ function renderHistorialTareo() {
                                     <tr>
 
                                         <th>Fecha</th>
+                                        <th>Área</th>
                                         <th>Turno</th>
                                         <th>Personal</th>
                                         <th>Asistieron</th>
                                         <th>Ausencias</th>
+                                        <th>Sin registrar</th>
                                         <th>Tardanzas</th>
                                         <th>Horas extra</th>
-                                        <th>Estado</th>
                                         <th>Acciones</th>
 
                                     </tr>
@@ -2566,44 +3661,12 @@ function renderHistorialTareo() {
                                     ${tareos.map(
                                         tareo => {
 
-                                            const personal =
-                                                tareo.personal || [];
+                                            const c = tareoContadores(
+                                                tareo.personal || []
+                                            );
 
-                                            const asistieron =
-                                                personal.filter(
-                                                    persona =>
-                                                        persona.asistencia ===
-                                                        'Asistió'
-                                                ).length;
-
-                                            const ausencias =
-                                                personal.filter(
-                                                    persona =>
-                                                        persona.asistencia !==
-                                                        'Asistió'
-                                                ).length;
-
-                                            const tardanzas =
-                                                personal.filter(
-                                                    persona =>
-                                                        Number(
-                                                            persona.tardanzaMinutos
-                                                        ) > 0
-                                                ).length;
-
-                                            const horasExtra =
-                                                personal.reduce(
-                                                    (
-                                                        total,
-                                                        persona
-                                                    ) =>
-                                                        total +
-                                                        Number(
-                                                            persona.horasExtras ||
-                                                            0
-                                                        ),
-                                                    0
-                                                );
+                                            const puedeEditar =
+                                                tareoPuedeEditar(tareo);
 
                                             return `
 
@@ -2611,59 +3674,48 @@ function renderHistorialTareo() {
 
                                                     <td>
                                                         <strong>
-                                                            ${formatearFecha(
-                                                                tareo.fecha
-                                                            )}
+                                                            ${formatearFecha(tareo.fecha)}
                                                         </strong>
                                                     </td>
 
                                                     <td>
-                                                        <span class="tareo-shift-badge ${tareo.turno === 'Noche' ? 'night' : 'day'}">
-                                                            ${escaparHTML(
-                                                                tareo.turno
-                                                            )}
-                                                        </span>
+                                                        ${tareoInsigniaArea(tareoAreaDe(tareo))}
                                                     </td>
 
                                                     <td>
-                                                        ${personal.length}
+                                                        <span class="tareo-shift-badge ${tareo.turno === 'Noche' ? 'night' : 'day'}">
+                                                            ${escaparHTML(tareo.turno)}
+                                                        </span>
                                                     </td>
+
+                                                    <td>${c.total}</td>
 
                                                     <td>
                                                         <span class="tareo-number-good">
-                                                            ${asistieron}
+                                                            ${c.asistieron}
                                                         </span>
                                                     </td>
 
-                                                    <td>
-                                                        ${ausencias}
-                                                    </td>
+                                                    <td>${c.ausencias}</td>
 
                                                     <td>
                                                         ${
-                                                            tardanzas
-                                                                ? `
-                                                                <span class="tareo-number-warn">
-                                                                    ${tardanzas}
-                                                                </span>
-                                                                `
+                                                            c.pendientes
+                                                                ? `<span class="tareo-number-warn">${c.pendientes}</span>`
                                                                 : '—'
                                                         }
                                                     </td>
 
                                                     <td>
-                                                        ${formatearHoras(
-                                                            horasExtra
-                                                        )} h
+                                                        ${
+                                                            c.tardanzas
+                                                                ? `<span class="tareo-number-warn">${c.tardanzas}</span>`
+                                                                : '—'
+                                                        }
                                                     </td>
 
                                                     <td>
-                                                        <span class="badge good">
-                                                            ${escaparHTML(
-                                                                tareo.estado ||
-                                                                'Abierto'
-                                                            )}
-                                                        </span>
+                                                        ${formatearHoras(c.extras)} h
                                                     </td>
 
                                                     <td>
@@ -2677,12 +3729,18 @@ function renderHistorialTareo() {
                                                                 Ver
                                                             </button>
 
-                                                            <button
-                                                                class="btn btn-sm btn-ghost"
-                                                                onclick="editarTareo('${tareo.id}')"
-                                                            >
-                                                                Editar
-                                                            </button>
+                                                            ${
+                                                                puedeEditar
+                                                                    ? `
+                                                                    <button
+                                                                        class="btn btn-sm btn-ghost"
+                                                                        onclick="editarTareo('${tareo.id}')"
+                                                                    >
+                                                                        Editar
+                                                                    </button>
+                                                                    `
+                                                                    : ''
+                                                            }
 
                                                             <button
                                                                 class="btn btn-sm btn-primary"
@@ -2699,7 +3757,10 @@ function renderHistorialTareo() {
                                                             </button>
 
                                                             ${
-                                                                tienePermiso('eliminarRegistros')
+                                                                (
+                                                                    tienePermiso('eliminarRegistros') ||
+                                                                    tienePermiso('moduloRRHH')
+                                                                )
                                                                     ? `
                                                                     <button
                                                                         class="btn btn-sm btn-danger"
@@ -2781,6 +3842,15 @@ function editarTareo(id) {
 
     if (!tareo) return;
 
+    if (!tareoPuedeEditar(tareo)) {
+
+        alert(
+            'No tienes permiso para modificar el Tareo de ' + tareoAreaDe(tareo) + '.'
+        );
+
+        return;
+    }
+
     tareoActualId = id;
 
     renderTareoFormulario(
@@ -2790,15 +3860,204 @@ function editarTareo(id) {
 
 
 /* =========================================================
+   CONFIRMACIÓN PERSONALIZADA PARA ELIMINAR TAREO
+   Evita el confirm() nativo ("127.0.0.1:5500 dice") y reutiliza
+   el contenedor global #modal-root de GLACIAL.
+   ========================================================= */
+
+function confirmarEliminacionTareo(tareo) {
+
+    return new Promise(resolve => {
+
+        const root = document.getElementById('modal-root');
+
+        if (!root) {
+            console.error('No se encontró #modal-root para confirmar la eliminación del tareo.');
+            resolve(false);
+            return;
+        }
+
+        const area = tareoAreaDe(tareo);
+        const fecha = formatearFecha(tareo.fecha);
+        const turno = tareo.turno || '—';
+
+        let resuelto = false;
+
+        const terminar = valor => {
+
+            if (resuelto) return;
+            resuelto = true;
+
+            document.removeEventListener('keydown', manejarTecla);
+            root.innerHTML = '';
+            resolve(valor);
+        };
+
+        const manejarTecla = evento => {
+
+            if (evento.key === 'Escape') {
+                terminar(false);
+            }
+        };
+
+        root.innerHTML = `
+            <div
+                class="modal-backdrop"
+                id="tareo-confirm-backdrop"
+                role="presentation"
+            >
+                <div
+                    class="modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="tareo-confirm-title"
+                    aria-describedby="tareo-confirm-desc"
+                    style="max-width:500px;"
+                >
+                    <div class="modal-head">
+                        <h3 id="tareo-confirm-title">
+                            Confirmar eliminación
+                        </h3>
+
+                        <button
+                            type="button"
+                            class="modal-close"
+                            id="tareo-confirm-close"
+                            aria-label="Cerrar"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+
+                        <div style="text-align:center;padding:8px 8px 4px;">
+
+                            <div
+                                aria-hidden="true"
+                                style="
+                                    width:58px;
+                                    height:58px;
+                                    margin:0 auto 16px;
+                                    display:flex;
+                                    align-items:center;
+                                    justify-content:center;
+                                    border-radius:50%;
+                                    background:#fff3e8;
+                                    border:1px solid #efc1a8;
+                                    color:#b6532d;
+                                    font-size:27px;
+                                    font-weight:700;
+                                "
+                            >
+                                !
+                            </div>
+
+                            <p
+                                id="tareo-confirm-desc"
+                                style="
+                                    margin:0;
+                                    color:#344653;
+                                    font-size:14px;
+                                    line-height:1.6;
+                                "
+                            >
+                                ¿Eliminar el tareo de
+                                <strong>${area}</strong>
+                                del <strong>${fecha}</strong>
+                                (<strong>${turno}</strong>)?
+                            </p>
+
+                            <div
+                                style="
+                                    margin-top:16px;
+                                    padding:11px 13px;
+                                    border:1px solid #f0d5c7;
+                                    border-radius:8px;
+                                    background:#fff8f4;
+                                    color:#8c4a30;
+                                    font-size:12.5px;
+                                    font-weight:600;
+                                "
+                            >
+                                Esta acción no se puede deshacer.
+                            </div>
+
+                        </div>
+
+                        <div
+                            class="actions-row"
+                            style="
+                                margin-top:22px;
+                                display:flex;
+                                justify-content:flex-end;
+                                gap:10px;
+                            "
+                        >
+                            <button
+                                type="button"
+                                class="btn btn-ghost"
+                                id="tareo-confirm-cancelar"
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                type="button"
+                                class="btn"
+                                id="tareo-confirm-eliminar"
+                                style="
+                                    background:#b6532d;
+                                    border-color:#b6532d;
+                                    color:#fff;
+                                "
+                            >
+                                Eliminar tareo
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const backdrop = document.getElementById('tareo-confirm-backdrop');
+        const cancelar = document.getElementById('tareo-confirm-cancelar');
+        const eliminar = document.getElementById('tareo-confirm-eliminar');
+        const cerrar = document.getElementById('tareo-confirm-close');
+
+        cancelar?.addEventListener('click', () => terminar(false));
+        cerrar?.addEventListener('click', () => terminar(false));
+        eliminar?.addEventListener('click', () => terminar(true));
+
+        backdrop?.addEventListener('click', evento => {
+            if (evento.target === backdrop) {
+                terminar(false);
+            }
+        });
+
+        document.addEventListener('keydown', manejarTecla);
+
+        setTimeout(() => eliminar?.focus(), 0);
+    });
+}
+
+
+/* =========================================================
    ELIMINAR TAREO
    ========================================================= */
 
-function eliminarTareo(id) {
+async function eliminarTareo(id) {
 
+    /*
+       Eliminar un tareo: con el permiso general 'eliminarRegistros'
+       (igual que siempre) O con 'moduloRRHH' — este último solo
+       para tareos, no habilita eliminar reportes de producción ni
+       paletas (esos siguen exigiendo 'eliminarRegistros').
+    */
     if (
-        !tienePermiso(
-            'eliminarRegistros'
-        )
+        !tienePermiso('eliminarRegistros') &&
+        !tienePermiso('moduloRRHH')
     ) {
 
         alert(
@@ -2815,11 +4074,16 @@ function eliminarTareo(id) {
 
     if (!tareo) return;
 
-    const confirmar =
-        confirm(
-            `¿Eliminar el tareo del ${formatearFecha(tareo.fecha)} ` +
-            `(${tareo.turno})? Esta acción no se puede deshacer.`
+    if (!tareoAreasVisibles().includes(tareoAreaDe(tareo))) {
+
+        alert(
+            'No tienes acceso al Tareo de ' + tareoAreaDe(tareo) + '.'
         );
+
+        return;
+    }
+
+    const confirmar = await confirmarEliminacionTareo(tareo);
 
     if (!confirmar) {
         return;
@@ -2854,49 +4118,16 @@ function renderTareoLectura(tareo) {
 
     if (!main) return;
 
+    const area = tareoAreaDe(tareo);
+
     const personal =
         ordenarPersonalTareo(
             tareo.personal || []
         );
 
-    const asistieron =
-        personal.filter(
-            persona =>
-                persona.asistencia ===
-                'Asistió'
-        ).length;
+    const c = tareoContadores(personal);
 
-    const ausencias =
-        personal.length -
-        asistieron;
-
-    const horas =
-        personal.reduce(
-            (
-                total,
-                persona
-            ) =>
-                total +
-                Number(
-                    persona.horasTrabajadas ||
-                    0
-                ),
-            0
-        );
-
-    const extras =
-        personal.reduce(
-            (
-                total,
-                persona
-            ) =>
-                total +
-                Number(
-                    persona.horasExtras ||
-                    0
-                ),
-            0
-        );
+    const puedeEditar = tareoPuedeEditar(tareo);
 
     main.innerHTML = `
 
@@ -2905,19 +4136,12 @@ function renderTareoLectura(tareo) {
             <div>
 
                 <h2>
-                    Tareo ${formatearFecha(
-                        tareo.fecha
-                    )}
+                    Tareo de ${escaparHTML(area)} · ${formatearFecha(tareo.fecha)}
                 </h2>
 
                 <div class="sub">
-                    ${escaparHTML(
-                        tareo.turno
-                    )}
-                    ·
-                    ${escaparHTML(
-                        tareo.id
-                    )}
+                    ${escaparHTML(tareo.turno)}
+                    · ${escaparHTML(tareo.id)}
                 </div>
 
             </div>
@@ -2931,15 +4155,24 @@ function renderTareoLectura(tareo) {
                     ← Historial
                 </button>
 
-                <button
-                    class="btn btn-primary"
-                    onclick="editarTareo('${tareo.id}')"
-                >
-                    Editar
-                </button>
+                ${
+                    puedeEditar
+                        ? `
+                        <button
+                            class="btn btn-primary"
+                            onclick="editarTareo('${tareo.id}')"
+                        >
+                            Editar
+                        </button>
+                        `
+                        : ''
+                }
 
                 ${
-                    tienePermiso('eliminarRegistros')
+                    (
+                        tienePermiso('eliminarRegistros') ||
+                        tienePermiso('moduloRRHH')
+                    )
                         ? `
                         <button
                             class="btn btn-danger"
@@ -2959,53 +4192,33 @@ function renderTareoLectura(tareo) {
         <div class="tareo-kpi-grid">
 
             <div class="tareo-kpi">
-
-                <span class="tareo-kpi-label">
-                    Personal
-                </span>
-
-                <strong>
-                    ${personal.length}
-                </strong>
-
+                <span class="tareo-kpi-label">Personal</span>
+                <strong>${c.total}</strong>
             </div>
 
             <div class="tareo-kpi">
-
-                <span class="tareo-kpi-label">
-                    Asistieron
-                </span>
-
-                <strong class="tareo-good">
-                    ${asistieron}
-                </strong>
-
+                <span class="tareo-kpi-label">Asistieron</span>
+                <strong class="tareo-good">${c.asistieron}</strong>
             </div>
 
             <div class="tareo-kpi">
-
-                <span class="tareo-kpi-label">
-                    Ausencias
-                </span>
-
-                <strong>
-                    ${ausencias}
-                </strong>
-
+                <span class="tareo-kpi-label">Ausencias</span>
+                <strong>${c.ausencias}</strong>
             </div>
 
             <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Sin registrar</span>
+                <strong class="${c.pendientes ? 'tareo-warn' : ''}">${c.pendientes}</strong>
+            </div>
 
-                <span class="tareo-kpi-label">
-                    Horas extra
-                </span>
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Tardanzas</span>
+                <strong>${c.tardanzas}</strong>
+            </div>
 
-                <strong>
-                    ${formatearHoras(
-                        extras
-                    )} h
-                </strong>
-
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Horas extra</span>
+                <strong>${formatearHoras(c.extras)} h</strong>
             </div>
 
         </div>
@@ -3015,14 +4228,10 @@ function renderTareoLectura(tareo) {
 
             <div class="panel-head">
 
-                <h3>
-                    Registro del personal
-                </h3>
+                <h3>Registro del personal</h3>
 
                 <span class="small-muted">
-                    ${formatearHoras(
-                        horas
-                    )} horas acumuladas
+                    ${formatearHoras(c.horas)} horas acumuladas
                 </span>
 
             </div>
@@ -3034,9 +4243,7 @@ function renderTareoLectura(tareo) {
                     <table class="tareo-table">
 
                         <thead>
-
                             <tr>
-
                                 <th>Trabajador</th>
                                 <th>Cargo</th>
                                 <th>Línea</th>
@@ -3047,110 +4254,58 @@ function renderTareoLectura(tareo) {
                                 <th>Horas</th>
                                 <th>Extras</th>
                                 <th>Tardanza</th>
-
                             </tr>
-
                         </thead>
 
                         <tbody>
 
                             ${personal.map(
                                 persona => `
-
                                 <tr>
 
                                     <td>
-
                                         <div class="tareo-worker">
-
-                                            <strong>
-                                                ${escaparHTML(
-                                                    persona.nombre
-                                                )}
-                                            </strong>
-
-                                            <small>
-                                                DNI:
-                                                ${escaparHTML(
-                                                    persona.dni
-                                                )}
-                                            </small>
-
+                                            ${tareoBotonNombre(persona, tareo.id)}
+                                            <small>DNI: ${escaparHTML(persona.dni)}</small>
                                         </div>
-
                                     </td>
 
-                                    <td>
-                                        ${escaparHTML(
-                                            persona.cargo
-                                        )}
-                                    </td>
+                                    <td>${escaparHTML(persona.cargo)}</td>
 
-                                    <td>
-                                        ${
-                                            persona.linea
-                                                ? escaparHTML(
-                                                    persona.linea
-                                                  )
-                                                : 'Sin línea'
-                                        }
-                                    </td>
+                                    <td>${persona.linea ? escaparHTML(persona.linea) : 'Sin línea'}</td>
 
                                     <td>
                                         <span class="tareo-status ${tareoClaseEstado(persona.asistencia)}">
-                                            ${escaparHTML(
-                                                persona.asistencia
-                                            )}
+                                            ${escaparHTML(tareoEtiquetaEstado(persona.asistencia))}
                                         </span>
                                     </td>
 
-                                    <td>
-                                        ${persona.horaIngreso || '—'}
-                                    </td>
+                                    <td>${persona.horaIngreso || '—'}</td>
 
                                     <td>
                                         ${
-                                            Number(
-                                                persona.refrigerio || 0
-                                            ) > 0
+                                            Number(persona.refrigerio || 0) > 0
                                                 ? `${persona.refrigerio} h`
                                                 : '—'
                                         }
                                     </td>
 
-                                    <td>
-                                        ${persona.horaSalida || '—'}
-                                    </td>
+                                    <td>${persona.horaSalida || '—'}</td>
 
-                                    <td>
-                                        ${formatearHoras(
-                                            persona.horasTrabajadas
-                                        )} h
-                                    </td>
+                                    <td>${formatearHoras(persona.horasTrabajadas)} h</td>
 
-                                    <td>
-                                        ${formatearHoras(
-                                            persona.horasExtras
-                                        )} h
-                                    </td>
+                                    <td>${formatearHoras(persona.horasExtras)} h</td>
 
                                     <td>
                                         ${
-                                            Number(
-                                                persona.tardanzaMinutos ||
-                                                0
-                                            ) > 0
-                                                ? formatearMinutos(
-                                                    persona.tardanzaMinutos
-                                                  )
+                                            Number(persona.tardanzaMinutos || 0) > 0
+                                                ? formatearMinutos(persona.tardanzaMinutos)
                                                 : '—'
                                         }
                                     </td>
 
                                 </tr>
-
-                            `
-                            ).join('')}
+                            `).join('')}
 
                         </tbody>
 
@@ -3169,21 +4324,13 @@ function renderTareoLectura(tareo) {
                 <div class="panel">
 
                     <div class="panel-head">
-
-                        <h3>
-                            Observaciones
-                        </h3>
-
+                        <h3>Observaciones</h3>
                     </div>
 
                     <div class="panel-body">
-
                         <p class="tareo-observations-read">
-                            ${escaparHTML(
-                                tareo.observaciones
-                            )}
+                            ${escaparHTML(tareo.observaciones)}
                         </p>
-
                     </div>
 
                 </div>
@@ -3195,35 +4342,710 @@ function renderTareoLectura(tareo) {
 }
 
 
+/* =========================================================
+   FICHA DE UNA PERSONA (al tocar su nombre)
+   ========================================================= */
+
+const TAREO_MESES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+
+function tareoResumenDeRegistros(registros, año, mes) {
+
+    const r = {
+        turnos: 0,
+        asistencias: 0,
+        faltasPorJustificar: 0,
+        faltasJustificadas: 0,
+        descansos: 0,
+        descansosMedicos: 0,
+        vacaciones: 0,
+        tardanzas: 0,
+        minutosTardanza: 0,
+        horas: 0,
+        extras: 0
+    };
+
+    registros.forEach(({ tareo, persona }) => {
+
+        const partes = String(tareo.fecha || '').split('-');
+
+        if (
+            Number(partes[0]) !== Number(año) ||
+            Number(partes[1]) !== Number(mes)
+        ) {
+            return;
+        }
+
+        const estado = tareoEstadoCanonico(persona.asistencia);
+
+        if (!estado) return;
+
+        r.turnos++;
+
+        if (estado === 'Asistió') r.asistencias++;
+        else if (estado === 'Falta por justificar') r.faltasPorJustificar++;
+        else if (estado === 'Falta justificada') r.faltasJustificadas++;
+        else if (estado === 'Descanso') r.descansos++;
+        else if (estado === 'Descanso médico') r.descansosMedicos++;
+        else if (estado === 'Vacaciones') r.vacaciones++;
+
+        r.horas += Number(persona.horasTrabajadas || 0);
+        r.extras += Number(persona.horasExtras || 0);
+
+        if (Number(persona.tardanzaMinutos || 0) > 0) {
+            r.tardanzas++;
+            r.minutosTardanza += Number(persona.tardanzaMinutos);
+        }
+    });
+
+    return r;
+}
+
+
+function tareoAbrirFicha(clave, tareoId) {
+
+    const root =
+        document.getElementById('modal-root');
+
+    if (!root) return;
+
+    const registros = [];
+
+    tareoTareosVisibles().forEach(tareo => {
+
+        (tareo.personal || []).forEach(persona => {
+
+            if (String(persona.trabajadorId) === String(clave)) {
+                registros.push({ tareo, persona });
+            }
+        });
+    });
+
+    registros.sort(
+        (a, b) =>
+            String(b.tareo.fecha).localeCompare(String(a.tareo.fecha)) ||
+            String(b.tareo.turno).localeCompare(String(a.tareo.turno))
+    );
+
+    const seleccionado = tareoId
+        ? registros.find(item => item.tareo.id === tareoId)
+        : null;
+
+    const referencia = seleccionado || registros[0] || null;
+
+    let datos = referencia ? referencia.persona : null;
+
+    if (!datos && typeof loadWorkers === 'function') {
+
+        const trabajador = loadWorkers().find(
+            item => String(item.id) === String(clave)
+        );
+
+        if (trabajador) {
+            datos = {
+                nombre: trabajador.nombre,
+                dni: trabajador.dni,
+                cargo: trabajador.cargo,
+                linea: trabajador.linea,
+                area: ''
+            };
+        }
+    }
+
+    if (!datos) return;
+
+    const fechaReferencia = referencia
+        ? referencia.tareo.fecha
+        : obtenerFechaHoy();
+
+    const [año, mes] = fechaReferencia.split('-').map(Number);
+
+    const resumen =
+        tareoResumenDeRegistros(registros, año, mes);
+
+    const area = referencia
+        ? tareoAreaDe(referencia.tareo)
+        : (datos.area || '');
+
+    const turnoActual = seleccionado
+        ? seleccionado.persona
+        : null;
+
+    const dato = (etiqueta, valor) => `
+        <div class="tar2-ficha-item">
+            <span>${etiqueta}</span>
+            <strong>${valor}</strong>
+        </div>
+    `;
+
+    root.innerHTML = `
+        <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+            <div class="modal">
+
+                <div class="modal-head">
+                    <h3>Ficha de Tareo</h3>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="tar2-ficha-head">
+
+                        <strong>${escaparHTML(datos.nombre)}</strong>
+
+                        <span>
+                            ${datos.dni ? 'DNI ' + escaparHTML(datos.dni) + ' · ' : ''}
+                            ${escaparHTML(datos.cargo || 'Sin cargo')}
+                            ${datos.linea ? ' · ' + escaparHTML(datos.linea) : ''}
+                        </span>
+
+                        ${area ? `<div style="margin-top:6px;">${tareoInsigniaArea(area)}</div>` : ''}
+
+                    </div>
+
+
+                    ${
+                        turnoActual
+                            ? `
+                            <div class="tar2-ficha-sub">
+                                Registro del ${formatearFecha(seleccionado.tareo.fecha)} · ${escaparHTML(seleccionado.tareo.turno)}
+                            </div>
+
+                            <div class="tar2-ficha-grid">
+                                ${dato('Estado', `<span class="tareo-status ${tareoClaseEstado(turnoActual.asistencia)}">${escaparHTML(tareoEtiquetaEstado(turnoActual.asistencia))}</span>`)}
+                                ${dato('Ingreso', turnoActual.horaIngreso ? escaparHTML(turnoActual.horaIngreso) : '—')}
+                                ${dato('Hora programada', escaparHTML(seleccionado.tareo.horaProgramadaIngreso || '—'))}
+                                ${dato('Tardanza', Number(turnoActual.tardanzaMinutos || 0) > 0 ? formatearMinutos(turnoActual.tardanzaMinutos) : (turnoActual.horaIngreso ? 'A tiempo' : '—'))}
+                                ${dato('Salida', turnoActual.horaSalida ? escaparHTML(turnoActual.horaSalida) : '—')}
+                                ${dato('Horas / extras', `${formatearHoras(turnoActual.horasTrabajadas)} / ${formatearHoras(turnoActual.horasExtras)}`)}
+                            </div>
+
+                            ${
+                                turnoActual.registradoEn
+                                    ? `
+                                    <div class="small-muted">
+                                        Registrado el ${escaparHTML(new Date(turnoActual.registradoEn).toLocaleString('es-PE'))}
+                                        ${turnoActual.registradoPor ? ' por ' + escaparHTML(turnoActual.registradoPor) : ''}
+                                    </div>
+                                    `
+                                    : ''
+                            }
+                            `
+                            : ''
+                    }
+
+
+                    <div class="tar2-ficha-sub">
+                        Resumen de ${TAREO_MESES[mes - 1]} ${año}
+                    </div>
+
+                    <div class="tar2-ficha-grid">
+                        ${dato('Asistencias', resumen.asistencias)}
+                        ${dato('Faltas por justificar', resumen.faltasPorJustificar)}
+                        ${dato('Faltas justificadas', resumen.faltasJustificadas)}
+                        ${dato('Descansos', resumen.descansos)}
+                        ${dato('Descanso médico', resumen.descansosMedicos)}
+                        ${dato('Vacaciones', resumen.vacaciones)}
+                        ${dato('Tardanzas', resumen.tardanzas ? `${resumen.tardanzas} (${formatearMinutos(resumen.minutosTardanza)})` : '0')}
+                        ${dato('Horas trabajadas', `${formatearHoras(resumen.horas)} h`)}
+                        ${dato('Horas extra', `${formatearHoras(resumen.extras)} h`)}
+                    </div>
+
+
+                    <div class="tar2-ficha-sub">
+                        Últimos registros
+                    </div>
+
+                    ${
+                        registros.length
+                            ? `
+                            <div class="tareo-table-scroll">
+
+                                <table class="tareo-table">
+
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Turno</th>
+                                            <th>Estado</th>
+                                            <th>Ingreso</th>
+                                            <th>Tardanza</th>
+                                            <th>Horas</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        ${registros.slice(0, 10).map(({ tareo, persona }) => `
+                                            <tr>
+                                                <td>${formatearFecha(tareo.fecha)}</td>
+                                                <td>${escaparHTML(tareo.turno)}</td>
+                                                <td>
+                                                    <span class="tareo-status ${tareoClaseEstado(persona.asistencia)}">
+                                                        ${escaparHTML(tareoEtiquetaEstado(persona.asistencia))}
+                                                    </span>
+                                                </td>
+                                                <td>${persona.horaIngreso || '—'}</td>
+                                                <td>${Number(persona.tardanzaMinutos || 0) > 0 ? formatearMinutos(persona.tardanzaMinutos) : '—'}</td>
+                                                <td>${formatearHoras(persona.horasTrabajadas)} h</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+                            `
+                            : `
+                            <p class="small-muted" style="margin:0;">
+                                Todavía no tiene registros de tareo.
+                            </p>
+                            `
+                    }
+
+                </div>
+
+            </div>
+        </div>
+    `;
+}
+
+
+/* =========================================================
+   TAREO GENERAL (RRHH · SOLO LECTURA · AMBAS ÁREAS)
+   ========================================================= */
+
+function tareoGeneralFiltrar() {
+
+    tareoGeneralFiltros.fecha =
+        document.getElementById('tareo-general-fecha')?.value ||
+        obtenerFechaHoy();
+
+    tareoGeneralFiltros.turno =
+        document.getElementById('tareo-general-turno')?.value || '';
+
+    tareoGeneralFiltros.area =
+        document.getElementById('tareo-general-area')?.value || '';
+
+    renderTareoGeneral();
+}
+
+
+function tareoGeneralDatos() {
+
+    const { fecha, turno, area } = tareoGeneralFiltros;
+
+    const areas = tareoAreasVisibles().filter(
+        item => !area || item === area
+    );
+
+    const turnos = turno ? [turno] : ['Día', 'Noche'];
+
+    const tareos = obtenerTareos().filter(
+        tareo =>
+            tareo.fecha === fecha &&
+            areas.includes(tareoAreaDe(tareo)) &&
+            turnos.includes(normalizarTurno(tareo.turno))
+    );
+
+    const filas = [];
+
+    tareos.forEach(tareo => {
+
+        (tareo.personal || []).forEach(persona => {
+            filas.push({ tareo, persona });
+        });
+    });
+
+    filas.sort((a, b) =>
+        tareoAreaDe(a.tareo).localeCompare(tareoAreaDe(b.tareo)) ||
+        String(a.tareo.turno).localeCompare(String(b.tareo.turno)) ||
+        obtenerPrioridadAsistencia(a.persona.asistencia) -
+            obtenerPrioridadAsistencia(b.persona.asistencia) ||
+        String(a.persona.nombre || '').localeCompare(
+            String(b.persona.nombre || ''), 'es', { sensitivity: 'base' }
+        )
+    );
+
+    return { areas, turnos, tareos, filas };
+}
+
+
+function renderTareoGeneral() {
+
+    const main =
+        document.getElementById('main');
+
+    if (!main) return;
+
+    if (!tareoAccesoUsuario().general) {
+
+        alert('No tienes acceso al Tareo General.');
+
+        return;
+    }
+
+    if (!tareoGeneralFiltros.fecha) {
+        tareoGeneralFiltros.fecha = obtenerFechaHoy();
+    }
+
+    const { fecha, turno, area } = tareoGeneralFiltros;
+
+    const { areas, turnos, filas } = tareoGeneralDatos();
+
+    const c = tareoContadores(filas.map(item => item.persona));
+
+    main.innerHTML = `
+
+        <div class="main-head" id="tareo-general-view">
+
+            <div>
+
+                <h2>Tareo General</h2>
+
+                <div class="sub">
+                    Producción y Mantenimiento en una sola vista
+                    <span class="tar2-live">En vivo</span>
+                </div>
+
+            </div>
+
+            <div class="tareo-head-actions">
+
+                <button
+                    class="btn btn-primary"
+                    onclick="exportarTareoGeneralExcel()"
+                >
+                    Exportar Excel
+                </button>
+
+            </div>
+
+        </div>
+
+
+        ${tareoRenderTabs('general')}
+
+
+        <div class="panel">
+
+            <div class="panel-body">
+
+                <div class="tar2-toolbar">
+
+                    <div class="field-sm">
+                        <label>Fecha</label>
+                        <input
+                            type="date"
+                            id="tareo-general-fecha"
+                            value="${escaparHTML(fecha)}"
+                            onchange="tareoGeneralFiltrar()"
+                        >
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Turno</label>
+                        <select id="tareo-general-turno" onchange="tareoGeneralFiltrar()">
+                            <option value="">Todos</option>
+                            <option value="Día" ${turno === 'Día' ? 'selected' : ''}>Día</option>
+                            <option value="Noche" ${turno === 'Noche' ? 'selected' : ''}>Noche</option>
+                        </select>
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Área</label>
+                        <select id="tareo-general-area" onchange="tareoGeneralFiltrar()">
+                            <option value="">Ambas</option>
+                            ${TAREO_AREAS.map(item => `
+                                <option value="${item}" ${area === item ? 'selected' : ''}>${item}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="panel">
+
+            <div class="panel-head">
+                <h3>Estado por área y turno</h3>
+            </div>
+
+            <div class="panel-body">
+
+                <div class="tar2-turno-grid">
+
+                    ${areas.map(itemArea => turnos.map(itemTurno => {
+
+                        const tareo = tareoBuscar(itemArea, fecha, itemTurno);
+
+                        const k = tareo
+                            ? tareoContadores(tareo.personal || [])
+                            : null;
+
+                        const porcentaje = k && k.total
+                            ? Math.round(k.registrados * 100 / k.total)
+                            : 0;
+
+                        return `
+                            <div class="tar2-card">
+
+                                <div class="tar2-card-head">
+
+                                    <span class="tar2-card-title">
+                                        ${tareoInsigniaArea(itemArea)}
+                                        · ${itemTurno}
+                                    </span>
+
+                                    <span class="tar2-card-state ${tareo ? 'open' : 'none'}">
+                                        ${tareo ? 'Con tareo' : 'Sin tareo'}
+                                    </span>
+
+                                </div>
+
+                                ${
+                                    tareo
+                                        ? `
+                                        <div class="tar2-progress">
+                                            <span style="width:${porcentaje}%"></span>
+                                        </div>
+
+                                        <div class="tar2-card-meta">
+                                            <strong>${k.registrados}/${k.total}</strong> registrados ·
+                                            ${k.asistieron} asistieron ·
+                                            ${k.ausencias} ausentes ·
+                                            ${k.pendientes} pendientes
+                                            ${
+                                                k.tardanzas
+                                                    ? ` · <span class="tareo-late">${k.tardanzas} con tardanza</span>`
+                                                    : ''
+                                            }
+                                        </div>
+                                        `
+                                        : `
+                                        <div class="tar2-card-meta">
+                                            El supervisor aún no abre el tareo de este turno.
+                                        </div>
+                                        `
+                                }
+
+                            </div>
+                        `;
+
+                    }).join('')).join('')}
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="tareo-kpi-grid">
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Personal</span>
+                <strong>${c.total}</strong>
+            </div>
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Asistieron</span>
+                <strong class="tareo-good">${c.asistieron}</strong>
+            </div>
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Ausencias</span>
+                <strong>${c.ausencias}</strong>
+            </div>
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Sin registrar</span>
+                <strong class="${c.pendientes ? 'tareo-warn' : ''}">${c.pendientes}</strong>
+            </div>
+
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Tardanzas</span>
+                <strong>${c.tardanzas}</strong>
+            </div>
+
+        </div>
+
+
+        <div class="panel">
+
+            <div class="panel-head">
+
+                <h3>Personal del día</h3>
+
+                <span class="small-muted">
+                    ${filas.length} personas · toca un nombre para ver su ficha
+                </span>
+
+            </div>
+
+            <div class="panel-body">
+
+                ${
+                    filas.length
+                        ? `
+                        <div class="tareo-table-scroll">
+
+                            <table class="tareo-table">
+
+                                <thead>
+                                    <tr>
+                                        <th>Área</th>
+                                        <th>Turno</th>
+                                        <th>Trabajador</th>
+                                        <th>Cargo</th>
+                                        <th>Asistencia</th>
+                                        <th>Ingreso</th>
+                                        <th>Tardanza</th>
+                                        <th>Salida</th>
+                                        <th>Horas</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+
+                                    ${filas.map(({ tareo, persona }) => `
+                                        <tr>
+                                            <td>${tareoInsigniaArea(tareoAreaDe(tareo))}</td>
+                                            <td>${escaparHTML(tareo.turno)}</td>
+                                            <td>${tareoBotonNombre(persona, tareo.id)}</td>
+                                            <td>${escaparHTML(persona.cargo)}</td>
+                                            <td>
+                                                <span class="tareo-status ${tareoClaseEstado(persona.asistencia)}">
+                                                    ${escaparHTML(tareoEtiquetaEstado(persona.asistencia))}
+                                                </span>
+                                            </td>
+                                            <td>${persona.horaIngreso || '—'}</td>
+                                            <td>
+                                                ${
+                                                    Number(persona.tardanzaMinutos || 0) > 0
+                                                        ? `<span class="tareo-late">${formatearMinutos(persona.tardanzaMinutos)}</span>`
+                                                        : '—'
+                                                }
+                                            </td>
+                                            <td>${persona.horaSalida || '—'}</td>
+                                            <td>${formatearHoras(persona.horasTrabajadas)} h</td>
+                                        </tr>
+                                    `).join('')}
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+                        `
+                        : `
+                        <div class="empty-state">
+
+                            <h4>Sin registros para esta fecha</h4>
+
+                            <p>
+                                Cuando los supervisores abran sus tareos,
+                                aparecerán aquí en tiempo real.
+                            </p>
+
+                        </div>
+                        `
+                }
+
+            </div>
+
+        </div>
+
+    `;
+}
+
+
+function exportarTareoGeneralExcel() {
+
+    if (typeof XLSX === 'undefined') {
+
+        alert('SheetJS no está disponible.');
+
+        return;
+    }
+
+    const { filas } = tareoGeneralDatos();
+
+    if (!filas.length) {
+
+        alert('No hay registros para exportar en esta fecha.');
+
+        return;
+    }
+
+    const datos = filas.map(({ tareo, persona }) => ({
+        'Fecha': tareo.fecha,
+        'Área': tareoAreaDe(tareo),
+        'Turno': tareo.turno,
+        'DNI': persona.dni,
+        'Trabajador': persona.nombre,
+        'Cargo': persona.cargo,
+        'Línea': persona.linea || 'Sin línea',
+        'Asistencia': tareoEtiquetaEstado(persona.asistencia),
+        'Hora programada': tareo.horaProgramadaIngreso || '',
+        'Hora ingreso': persona.horaIngreso || '',
+        'Tardanza (min)': Number(persona.tardanzaMinutos || 0),
+        'Hora salida': persona.horaSalida || '',
+        'Horas trabajadas': Number(Number(persona.horasTrabajadas || 0).toFixed(2)),
+        'Horas extras': Number(Number(persona.horasExtras || 0).toFixed(2)),
+        'Registrado por': persona.registradoPor || ''
+    }));
+
+    const hoja = XLSX.utils.json_to_sheet(datos);
+
+    aplicarEstiloExcelTareo(hoja, Object.keys(datos[0]));
+
+    hoja['!autofilter'] = { ref: hoja['!ref'] };
+
+    hoja['!cols'] = [
+        { wch: 12 }, { wch: 15 }, { wch: 8 }, { wch: 12 },
+        { wch: 32 }, { wch: 28 }, { wch: 12 }, { wch: 22 },
+        { wch: 15 }, { wch: 13 }, { wch: 14 }, { wch: 12 },
+        { wch: 16 }, { wch: 13 }, { wch: 16 }
+    ];
+
+    const libro = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(libro, hoja, 'Tareo General');
+
+    XLSX.writeFile(
+        libro,
+        `Tareo_General_${tareoGeneralFiltros.fecha}.xlsx`
+    );
+}
+
+
 function tareoClaseEstado(
     estado
 ) {
 
     const texto =
         tareoNormalizarTexto(
-            estado
+            tareoEstadoCanonico(
+                estado
+            )
         );
 
-    if (texto === 'asistio') {
-        return 'asistio';
-    }
+    if (!texto) return 'pendiente';
+    if (texto === 'asistio') return 'asistio';
+    if (texto === 'falta por justificar') return 'falta';
 
     if (
-        texto === 'permiso' ||
-        texto === 'descanso'
-    ) {
-        return 'neutral';
-    }
-
-    if (
-        texto === 'vacaciones' ||
+        texto === 'falta justificada' ||
         texto === 'descanso medico'
     ) {
         return 'warn';
-    }
-
-    if (texto === 'falta') {
-        return 'falta';
     }
 
     return 'neutral';
@@ -3240,6 +5062,15 @@ function renderRotacionSemanal() {
         document.getElementById('main');
 
     if (!main) return;
+
+    if (!tareoAreasEditables().includes('Producción')) {
+
+        alert(
+            'La rotación semanal la gestiona el área de Producción.'
+        );
+
+        return;
+    }
 
     const rotaciones =
         [...obtenerRotaciones()].sort(
@@ -3278,37 +5109,7 @@ function renderRotacionSemanal() {
         </div>
 
 
-        <div class="tareo-tabs">
-
-            <button
-                class="tareo-tab"
-                onclick="if(confirmarAbandonoRotacionPendiente())renderTareoPrincipal()"
-            >
-                Tareo
-            </button>
-
-            <button
-                class="tareo-tab"
-                onclick="if(confirmarAbandonoRotacionPendiente())renderHistorialTareo()"
-            >
-                Historial
-            </button>
-
-            <button
-                class="tareo-tab"
-                onclick="if(confirmarAbandonoRotacionPendiente())renderResumenMensualTareoUI()"
-            >
-                Resumen mensual
-            </button>
-
-            <button
-                class="tareo-tab active"
-                onclick="renderRotacionSemanal()"
-            >
-                Rotación semanal
-            </button>
-
-        </div>
+        ${tareoRenderTabs('rotacion')}
 
 
         <div class="panel tareo-rotation-upload">
@@ -4700,253 +6501,138 @@ function cancelarRotacionPendiente() {
 
 function obtenerResumenMensualTareo(
     año,
-    mes
+    mes,
+    area
 ) {
 
-    const tareos =
-        obtenerTareos();
+    /*
+       area vacía = todas las áreas que la persona puede ver.
+       Cada fila lleva su área; una misma persona no se mezcla
+       entre áreas.
+    */
 
-    const personal =
-        obtenerPersonalTareo();
-
-    const mapa =
-        new Map();
-
-    personal.forEach(
-        trabajador => {
-
-            mapa.set(
-                String(
-                    trabajador.id
-                ),
-                {
-
-                    trabajadorId:
-                        trabajador.id,
-
-                    nombre:
-                        trabajador.nombre || '',
-
-                    dni:
-                        trabajador.dni || '',
-
-                    cargo:
-                        trabajador.cargo || '',
-
-                    linea:
-                        trabajador.linea || '',
-
-                    asistencias:
-                        0,
-
-                    faltas:
-                        0,
-
-                    permisos:
-                        0,
-
-                    descansos:
-                        0,
-
-                    vacaciones:
-                        0,
-
-                    descansosMedicos:
-                        0,
-
-                    tardanzas:
-                        0,
-
-                    minutosTardanza:
-                        0,
-
-                    horasTrabajadas:
-                        0,
-
-                    horasExtras:
-                        0
-
-                }
-            );
-        }
+    const areas = tareoAreasVisibles().filter(
+        item => !area || item === area
     );
 
-    tareos
-        .filter(
-            tareo => {
+    const mapa = new Map();
 
-                const fecha =
-                    String(
-                        tareo.fecha || ''
-                    );
+    const nuevaFila = (persona, areaFila) => ({
+        trabajadorId: persona.trabajadorId ?? persona.id,
+        nombre: persona.nombre || '',
+        dni: persona.dni || '',
+        cargo: persona.cargo || '',
+        linea: persona.linea || '',
+        area: areaFila,
+        asistencias: 0,
+        faltas: 0,
+        permisos: 0,
+        descansos: 0,
+        vacaciones: 0,
+        descansosMedicos: 0,
+        tardanzas: 0,
+        minutosTardanza: 0,
+        horasTrabajadas: 0,
+        horasExtras: 0
+    });
 
-                if (!fecha) return false;
+    areas.forEach(areaFila => {
 
-                const partes =
-                    fecha.split('-');
+        obtenerPersonalTareo(areaFila).forEach(trabajador => {
 
-                if (
-                    partes.length !== 3
-                ) {
-                    return false;
+            mapa.set(
+                areaFila + '|' + String(trabajador.id),
+                nuevaFila(trabajador, areaFila)
+            );
+        });
+    });
+
+    obtenerTareos()
+        .filter(tareo => {
+
+            if (!areas.includes(tareoAreaDe(tareo))) {
+                return false;
+            }
+
+            const partes = String(tareo.fecha || '').split('-');
+
+            return (
+                partes.length === 3 &&
+                Number(partes[0]) === Number(año) &&
+                Number(partes[1]) === Number(mes)
+            );
+        })
+        .forEach(tareo => {
+
+            const areaFila = tareoAreaDe(tareo);
+
+            (tareo.personal || []).forEach(persona => {
+
+                const clave =
+                    areaFila + '|' + String(persona.trabajadorId);
+
+                if (!mapa.has(clave)) {
+                    mapa.set(clave, nuevaFila(persona, areaFila));
                 }
 
-                return (
-                    Number(partes[0]) ===
-                        Number(año) &&
-                    Number(partes[1]) ===
-                        Number(mes)
-                );
-            }
-        )
-        .forEach(
-            tareo => {
+                const resumen = mapa.get(clave);
 
-                (
-                    tareo.personal || []
-                ).forEach(
-                    persona => {
+                /*
+                   faltas   = Falta por justificar
+                   permisos = Falta justificada
+                   (los nombres de campo se conservan; en pantalla y
+                   en el Excel se muestran con su nombre real)
+                */
 
-                        const clave =
-                            String(
-                                persona.trabajadorId
-                            );
+                switch (tareoEstadoCanonico(persona.asistencia)) {
 
-                        if (
-                            !mapa.has(
-                                clave
-                            )
-                        ) {
+                    case 'Asistió':
+                        resumen.asistencias++;
+                        break;
 
-                            mapa.set(
-                                clave,
-                                {
+                    case 'Falta por justificar':
+                        resumen.faltas++;
+                        break;
 
-                                    trabajadorId:
-                                        persona.trabajadorId,
+                    case 'Falta justificada':
+                        resumen.permisos++;
+                        break;
 
-                                    nombre:
-                                        persona.nombre || '',
+                    case 'Descanso':
+                        resumen.descansos++;
+                        break;
 
-                                    dni:
-                                        persona.dni || '',
+                    case 'Vacaciones':
+                        resumen.vacaciones++;
+                        break;
 
-                                    cargo:
-                                        persona.cargo || '',
+                    case 'Descanso médico':
+                        resumen.descansosMedicos++;
+                        break;
+                }
 
-                                    linea:
-                                        persona.linea || '',
+                resumen.horasTrabajadas +=
+                    Number(persona.horasTrabajadas || 0);
 
-                                    asistencias:
-                                        0,
+                resumen.horasExtras +=
+                    Number(persona.horasExtras || 0);
 
-                                    faltas:
-                                        0,
+                if (Number(persona.tardanzaMinutos || 0) > 0) {
 
-                                    permisos:
-                                        0,
+                    resumen.tardanzas++;
 
-                                    descansos:
-                                        0,
+                    resumen.minutosTardanza +=
+                        Number(persona.tardanzaMinutos);
+                }
+            });
+        });
 
-                                    vacaciones:
-                                        0,
-
-                                    descansosMedicos:
-                                        0,
-
-                                    tardanzas:
-                                        0,
-
-                                    minutosTardanza:
-                                        0,
-
-                                    horasTrabajadas:
-                                        0,
-
-                                    horasExtras:
-                                        0
-
-                                }
-                            );
-                        }
-
-                        const resumen =
-                            mapa.get(
-                                clave
-                            );
-
-                        switch (
-                            persona.asistencia
-                        ) {
-
-                            case 'Asistió':
-                                resumen.asistencias++;
-                                break;
-
-                            case 'Falta':
-                                resumen.faltas++;
-                                break;
-
-                            case 'Permiso':
-                                resumen.permisos++;
-                                break;
-
-                            case 'Descanso':
-                                resumen.descansos++;
-                                break;
-
-                            case 'Vacaciones':
-                                resumen.vacaciones++;
-                                break;
-
-                            case 'Descanso médico':
-                                resumen.descansosMedicos++;
-                                break;
-
-                        }
-
-                        resumen.horasTrabajadas +=
-                            Number(
-                                persona.horasTrabajadas ||
-                                0
-                            );
-
-                        resumen.horasExtras +=
-                            Number(
-                                persona.horasExtras ||
-                                0
-                            );
-
-                        if (
-                            Number(
-                                persona.tardanzaMinutos ||
-                                0
-                            ) > 0
-                        ) {
-
-                            resumen.tardanzas++;
-
-                            resumen.minutosTardanza +=
-                                Number(
-                                    persona.tardanzaMinutos
-                                );
-                        }
-                    }
-                );
-            }
-        );
-
-    return ordenarPersonalTareo(
-        Array.from(
-            mapa.values()
-        ).map(
-            item => ({
-                ...item,
-                asistencia:
-                    'Asistió'
-            })
-        )
+    return Array.from(mapa.values()).sort(
+        (a, b) =>
+            a.area.localeCompare(b.area) ||
+            String(a.nombre).localeCompare(
+                String(b.nombre), 'es', { sensitivity: 'base' }
+            )
     );
 }
 
@@ -4971,6 +6657,8 @@ function renderResumenMensualTareoUI() {
 
     if (!main) return;
 
+    const areasVisibles = tareoAreasVisibles();
+
     main.innerHTML = `
 
         <div class="main-head">
@@ -4982,15 +6670,14 @@ function renderResumenMensualTareoUI() {
                 </h2>
 
                 <div class="sub">
-                    Consolidado del personal
-                    de producción
+                    Consolidado del personal por área
                 </div>
 
             </div>
 
             <button
                 class="btn btn-ghost"
-                onclick="renderTareoPrincipal()"
+                onclick="${tareoAreasEditables().length ? 'renderTareoPrincipal()' : 'renderTareoGeneral()'}"
             >
                 ← Volver
             </button>
@@ -4998,37 +6685,7 @@ function renderResumenMensualTareoUI() {
         </div>
 
 
-        <div class="tareo-tabs">
-
-            <button
-                class="tareo-tab"
-                onclick="renderTareoPrincipal()"
-            >
-                Tareo
-            </button>
-
-            <button
-                class="tareo-tab"
-                onclick="renderHistorialTareo()"
-            >
-                Historial
-            </button>
-
-            <button
-                class="tareo-tab active"
-                onclick="renderResumenMensualTareoUI()"
-            >
-                Resumen mensual
-            </button>
-
-            <button
-                class="tareo-tab"
-                onclick="renderRotacionSemanal()"
-            >
-                Rotación semanal
-            </button>
-
-        </div>
+        ${tareoRenderTabs('resumen')}
 
 
         <div class="panel">
@@ -5038,11 +6695,7 @@ function renderResumenMensualTareoUI() {
                 <div class="grid grid-2">
 
                     <div class="field-sm">
-
-                        <label>
-                            Año
-                        </label>
-
+                        <label>Año</label>
                         <input
                             type="number"
                             id="tareo-resumen-año"
@@ -5051,54 +6704,45 @@ function renderResumenMensualTareoUI() {
                             max="2100"
                             onchange="actualizarResumenMensualTareo()"
                         >
-
                     </div>
 
-
                     <div class="field-sm">
-
-                        <label>
-                            Mes
-                        </label>
-
+                        <label>Mes</label>
                         <select
                             id="tareo-resumen-mes"
                             onchange="actualizarResumenMensualTareo()"
                         >
-
-                            ${[
-                                'Enero',
-                                'Febrero',
-                                'Marzo',
-                                'Abril',
-                                'Mayo',
-                                'Junio',
-                                'Julio',
-                                'Agosto',
-                                'Septiembre',
-                                'Octubre',
-                                'Noviembre',
-                                'Diciembre'
-                            ].map(
+                            ${TAREO_MESES.map(
                                 (nombre, indice) => `
-
                                 <option
                                     value="${indice + 1}"
-                                    ${
-                                        indice + 1 === mes
-                                            ? 'selected'
-                                            : ''
-                                    }
+                                    ${indice + 1 === mes ? 'selected' : ''}
                                 >
                                     ${nombre}
                                 </option>
-
                             `
                             ).join('')}
-
                         </select>
-
                     </div>
+
+                    ${
+                        areasVisibles.length > 1
+                            ? `
+                            <div class="field-sm">
+                                <label>Área</label>
+                                <select
+                                    id="tareo-resumen-area"
+                                    onchange="actualizarResumenMensualTareo()"
+                                >
+                                    <option value="">Todas</option>
+                                    ${areasVisibles.map(item => `
+                                        <option value="${item}">${item}</option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                            `
+                            : ''
+                    }
 
                 </div>
 
@@ -5131,6 +6775,11 @@ function actualizarResumenMensualTareo() {
             )?.value
         );
 
+    const area =
+        document.getElementById(
+            'tareo-resumen-area'
+        )?.value || '';
+
     const contenedor =
         document.getElementById(
             'tareo-resumen-contenido'
@@ -5141,42 +6790,24 @@ function actualizarResumenMensualTareo() {
     const resumen =
         obtenerResumenMensualTareo(
             año,
-            mes
+            mes,
+            area
         );
 
     const totales =
         resumen.reduce(
-            (
-                total,
-                item
-            ) => {
+            (total, item) => {
 
-                total.asistencias +=
-                    item.asistencias;
-
-                total.faltas +=
-                    item.faltas;
-
-                total.permisos +=
-                    item.permisos;
-
-                total.descansos +=
-                    item.descansos;
-
-                total.vacaciones +=
-                    item.vacaciones;
-
-                total.medicos +=
-                    item.descansosMedicos;
-
-                total.horas +=
-                    item.horasTrabajadas;
-
-                total.extras +=
-                    item.horasExtras;
+                total.asistencias += item.asistencias;
+                total.faltas += item.faltas;
+                total.permisos += item.permisos;
+                total.descansos += item.descansos;
+                total.vacaciones += item.vacaciones;
+                total.medicos += item.descansosMedicos;
+                total.horas += item.horasTrabajadas;
+                total.extras += item.horasExtras;
 
                 return total;
-
             },
             {
                 asistencias: 0,
@@ -5195,61 +6826,33 @@ function actualizarResumenMensualTareo() {
         <div class="tareo-kpi-grid">
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">
-                    Asistencias
-                </span>
-                <strong class="tareo-good">
-                    ${totales.asistencias}
-                </strong>
+                <span class="tareo-kpi-label">Asistencias</span>
+                <strong class="tareo-good">${totales.asistencias}</strong>
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">
-                    Faltas
-                </span>
-                <strong class="tareo-bad">
-                    ${totales.faltas}
-                </strong>
+                <span class="tareo-kpi-label">Faltas por justificar</span>
+                <strong class="tareo-bad">${totales.faltas}</strong>
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">
-                    Permisos
-                </span>
-                <strong>
-                    ${totales.permisos}
-                </strong>
+                <span class="tareo-kpi-label">Faltas justificadas</span>
+                <strong>${totales.permisos}</strong>
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">
-                    Descansos
-                </span>
-                <strong>
-                    ${totales.descansos}
-                </strong>
+                <span class="tareo-kpi-label">Descansos</span>
+                <strong>${totales.descansos}</strong>
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">
-                    Horas trabajadas
-                </span>
-                <strong>
-                    ${formatearHoras(
-                        totales.horas
-                    )} h
-                </strong>
+                <span class="tareo-kpi-label">Horas trabajadas</span>
+                <strong>${formatearHoras(totales.horas)} h</strong>
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">
-                    Horas extra
-                </span>
-                <strong>
-                    ${formatearHoras(
-                        totales.extras
-                    )} h
-                </strong>
+                <span class="tareo-kpi-label">Horas extra</span>
+                <strong>${formatearHoras(totales.extras)} h</strong>
             </div>
 
         </div>
@@ -5259,9 +6862,7 @@ function actualizarResumenMensualTareo() {
 
             <div class="panel-head">
 
-                <h3>
-                    Personal
-                </h3>
+                <h3>Personal</h3>
 
                 <span class="small-muted">
                     ${resumen.length} trabajadores
@@ -5276,99 +6877,56 @@ function actualizarResumenMensualTareo() {
                     <table class="tareo-table">
 
                         <thead>
-
                             <tr>
-
                                 <th>Trabajador</th>
+                                <th>Área</th>
                                 <th>DNI</th>
                                 <th>Cargo</th>
                                 <th>Asist.</th>
-                                <th>Faltas</th>
-                                <th>Permisos</th>
+                                <th>F. por justif.</th>
+                                <th>F. justif.</th>
                                 <th>Descansos</th>
                                 <th>Vacaciones</th>
                                 <th>Médico</th>
                                 <th>Tardanzas</th>
                                 <th>Horas</th>
                                 <th>Extras</th>
-
                             </tr>
-
                         </thead>
 
                         <tbody>
 
                             ${resumen.map(
                                 item => `
-
                                 <tr>
 
-                                    <td>
-                                        <strong>
-                                            ${escaparHTML(
-                                                item.nombre
-                                            )}
-                                        </strong>
-                                    </td>
+                                    <td>${tareoBotonNombre(item, '')}</td>
 
-                                    <td>
-                                        ${escaparHTML(
-                                            item.dni
-                                        )}
-                                    </td>
+                                    <td>${tareoInsigniaArea(item.area)}</td>
 
-                                    <td>
-                                        ${escaparHTML(
-                                            item.cargo
-                                        )}
-                                    </td>
+                                    <td>${escaparHTML(item.dni)}</td>
 
-                                    <td class="tareo-number-good">
-                                        ${item.asistencias}
-                                    </td>
+                                    <td>${escaparHTML(item.cargo)}</td>
 
-                                    <td>
-                                        ${item.faltas}
-                                    </td>
+                                    <td class="tareo-number-good">${item.asistencias}</td>
 
-                                    <td>
-                                        ${item.permisos}
-                                    </td>
+                                    <td>${item.faltas}</td>
 
-                                    <td>
-                                        ${item.descansos}
-                                    </td>
+                                    <td>${item.permisos}</td>
 
-                                    <td>
-                                        ${item.vacaciones}
-                                    </td>
+                                    <td>${item.descansos}</td>
 
-                                    <td>
-                                        ${item.descansosMedicos}
-                                    </td>
+                                    <td>${item.vacaciones}</td>
 
-                                    <td>
-                                        ${
-                                            item.tardanzas
-                                                ? `${item.tardanzas}`
-                                                : '—'
-                                        }
-                                    </td>
+                                    <td>${item.descansosMedicos}</td>
 
-                                    <td>
-                                        ${formatearHoras(
-                                            item.horasTrabajadas
-                                        )} h
-                                    </td>
+                                    <td>${item.tardanzas ? `${item.tardanzas}` : '—'}</td>
 
-                                    <td>
-                                        ${formatearHoras(
-                                            item.horasExtras
-                                        )} h
-                                    </td>
+                                    <td>${formatearHoras(item.horasTrabajadas)} h</td>
+
+                                    <td>${formatearHoras(item.horasExtras)} h</td>
 
                                 </tr>
-
                             `
                             ).join('')}
 
@@ -5445,8 +7003,7 @@ function exportarTareoExcel(id) {
                 'Trabajador':
                     persona.nombre,
 
-                'Área':
-                    'Producción',
+                'Área': tareoAreaDe(tareo),
 
                 'Cargo':
                     persona.cargo,
@@ -5456,7 +7013,7 @@ function exportarTareoExcel(id) {
                     'Sin línea',
 
                 'Asistencia':
-                    persona.asistencia,
+                    tareoEtiquetaEstado(persona.asistencia),
 
                 'Hora ingreso':
                     persona.horaIngreso ||
@@ -5513,14 +7070,14 @@ function exportarTareoExcel(id) {
         personal.filter(
             persona =>
                 persona.asistencia ===
-                'Falta'
+                'Falta por justificar'
         ).length;
 
     const permisos =
         personal.filter(
             persona =>
                 persona.asistencia ===
-                'Permiso'
+                'Falta justificada'
         ).length;
 
     const descansos =
@@ -5582,6 +7139,12 @@ function exportarTareoExcel(id) {
         );
 
     const datosResumen = [
+        {
+            'Indicador':
+                'Área',
+            'Valor':
+                tareoAreaDe(tareo)
+        },
 
         {
             'Indicador':
@@ -5636,7 +7199,7 @@ function exportarTareoExcel(id) {
 
         {
             'Indicador':
-                'Faltas',
+                'Faltas por justificar',
 
             'Valor':
                 faltas
@@ -5644,7 +7207,7 @@ function exportarTareoExcel(id) {
 
         {
             'Indicador':
-                'Permisos',
+                'Faltas justificadas',
 
             'Valor':
                 permisos
@@ -5719,8 +7282,7 @@ function exportarTareoExcel(id) {
                 'Trabajador':
                     persona.nombre,
 
-                'Área':
-                    'Producción',
+                'Área': tareoAreaDe(tareo),
 
                 'Cargo':
                     persona.cargo,
@@ -5730,7 +7292,7 @@ function exportarTareoExcel(id) {
                     'Sin línea',
 
                 'Estado':
-                    persona.asistencia,
+                    tareoEtiquetaEstado(persona.asistencia),
 
                 'Hora ingreso':
                     persona.horaIngreso ||
@@ -5917,7 +7479,7 @@ function exportarTareoExcel(id) {
 
     XLSX.writeFile(
         workbook,
-        `Tareo_${tareo.fecha}_${tareo.turno}.xlsx`
+        `Tareo_${tareoNormalizarTexto(tareoAreaDe(tareo))}_${tareo.fecha}_${tareo.turno}.xlsx`
     );
 }
 
@@ -6056,7 +7618,7 @@ function exportarTareoPNG(id) {
         'bold 38px Arial';
 
     ctx.fillText(
-        'GLACIAL — TAREO DE PERSONAL',
+        `GLACIAL — TAREO DE PERSONAL · ${tareoAreaDe(tareo).toUpperCase()}`,
         50,
         58
     );
@@ -6189,12 +7751,10 @@ function exportarTareoPNG(id) {
             );
 
             ctx.fillText(
-                String(
-                    persona.asistencia ||
-                    ''
-                ),
+                tareoEtiquetaEstado(persona.asistencia),
                 posiciones[3],
-                y
+                y,
+                200
             );
 
             ctx.fillText(
@@ -6235,7 +7795,7 @@ function exportarTareoPNG(id) {
         );
 
     enlace.download =
-        `Tareo_${tareo.fecha}_${tareo.turno}.png`;
+        `Tareo_${tareoNormalizarTexto(tareoAreaDe(tareo))}_${tareo.fecha}_${tareo.turno}.png`;
 
     enlace.href =
         canvas.toDataURL(
@@ -6266,10 +7826,16 @@ function exportarResumenMensualTareo() {
             )?.value
         );
 
+    const area =
+        document.getElementById(
+            'tareo-resumen-area'
+        )?.value || '';
+
     const resumen =
         obtenerResumenMensualTareo(
             año,
-            mes
+            mes,
+            area
         );
 
     if (
@@ -6287,56 +7853,21 @@ function exportarResumenMensualTareo() {
     const datos =
         resumen.map(
             item => ({
-
-                'DNI':
-                    item.dni,
-
-                'Trabajador':
-                    item.nombre,
-
-                'Cargo':
-                    item.cargo,
-
-                'Línea':
-                    item.linea ||
-                    'Sin línea',
-
-                'Asistencias':
-                    item.asistencias,
-
-                'Faltas':
-                    item.faltas,
-
-                'Permisos':
-                    item.permisos,
-
-                'Descansos':
-                    item.descansos,
-
-                'Vacaciones':
-                    item.vacaciones,
-
-                'Descanso médico':
-                    item.descansosMedicos,
-
-                'Tardanzas':
-                    item.tardanzas,
-
-                'Minutos tardanza':
-                    item.minutosTardanza,
-
-                'Horas trabajadas':
-                    Number(
-                        item.horasTrabajadas
-                            .toFixed(2)
-                    ),
-
-                'Horas extras':
-                    Number(
-                        item.horasExtras
-                            .toFixed(2)
-                    )
-
+                'DNI': item.dni,
+                'Trabajador': item.nombre,
+                'Área': item.area,
+                'Cargo': item.cargo,
+                'Línea': item.linea || 'Sin línea',
+                'Asistencias': item.asistencias,
+                'Faltas por justificar': item.faltas,
+                'Faltas justificadas': item.permisos,
+                'Descansos': item.descansos,
+                'Vacaciones': item.vacaciones,
+                'Descanso médico': item.descansosMedicos,
+                'Tardanzas': item.tardanzas,
+                'Minutos tardanza': item.minutosTardanza,
+                'Horas trabajadas': Number(item.horasTrabajadas.toFixed(2)),
+                'Horas extras': Number(item.horasExtras.toFixed(2))
             })
         );
 
@@ -6368,11 +7899,12 @@ function exportarResumenMensualTareo() {
     hoja['!cols'] = [
         { wch: 14 },
         { wch: 30 },
+        { wch: 15 },
         { wch: 28 },
         { wch: 16 },
         { wch: 13 },
-        { wch: 10 },
-        { wch: 12 },
+        { wch: 20 },
+        { wch: 18 },
         { wch: 12 },
         { wch: 14 },
         { wch: 18 },
@@ -6390,7 +7922,7 @@ function exportarResumenMensualTareo() {
 
     XLSX.writeFile(
         workbook,
-        `Resumen_Tareo_${año}_${String(
+        `Resumen_Tareo${area ? '_' + tareoNormalizarTexto(area) : ''}_${año}_${String(
             mes
         ).padStart(2, '0')}.xlsx`
     );
@@ -6464,9 +7996,38 @@ window.aplicarRotacionPendiente =
 window.cancelarRotacionPendiente =
     cancelarRotacionPendiente;
 
-window.cambiarTurnoTareo =
-    cambiarTurnoTareo;
+window.renderTareoGeneral =
+    renderTareoGeneral;
+window.exportarTareoGeneralExcel =
+    exportarTareoGeneralExcel;
+window.tareoGeneralFiltrar =
+    tareoGeneralFiltrar;
+window.tareoAbrir =
+    tareoAbrir;
+window.tareoConfirmarNuevo =
+    tareoConfirmarNuevo;
+window.tareoCambiarAreaVista =
+    tareoCambiarAreaVista;
+window.tareoMarcarAsistio =
+    tareoMarcarAsistio;
+window.tareoSalidaAhora =
+    tareoSalidaAhora;
+window.tareoActualizarConfig =
+    tareoActualizarConfig;
+window.tareoFiltrarPersonal =
+    tareoFiltrarPersonal;
+window.tareoAbrirAgregarPersonal =
+    tareoAbrirAgregarPersonal;
+window.tareoAgregarPersonal =
+    tareoAgregarPersonal;
+window.tareoAbrirFicha =
+    tareoAbrirFicha;
+window.tareoRefrescarFormularioRemoto =
+    tareoRefrescarFormularioRemoto;
 
 window.exportarResumenMensualTareo =
     exportarResumenMensualTareo;
     exportarResumenMensualTareo;
+
+
+tareoInyectarEstilos();

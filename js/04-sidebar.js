@@ -9,10 +9,59 @@
    ========================================================= */
 
 function visibleLines(){
-  if(!state.user)return [];
+  if(!puedeVerLineasProduccion())return [];
+  if(!['nuevo','historial','graficos','paletas'].some(p=>tienePermiso(p)))return [];
   if(tienePermiso('todasLasLineas'))return LINES;
   if(state.user.linea)return LINES.filter(l=>l.key===state.user.linea);
   return LINES;
+}
+
+/* Los cargos operativos conservan su acceso. Otros usuarios requieren
+   el permiso explícito verLineasProduccion, asignado por administración. */
+function puedeVerLineasProduccion(){
+  if(!state.user)return false;
+  return tienePermiso('verLineasProduccion') || [
+    'Supervisor', 'Jefe de Producción', 'Jefe de Operaciones',
+    'Gerente General', 'Administrador'
+  ].includes(state.user.rol);
+}
+
+const PESTANAS_LINEA=['nuevo','historial','graficos','paletas'];
+
+function primeraVistaAutorizada(){
+  if(visibleLines().length){
+    const pestana=PESTANAS_LINEA.find(p=>tienePermiso(p));
+    if(pestana)return pestana;
+  }
+  const globales=[
+    ['moduloRRHH','rrhh'], ['moduloMantenimiento','mantenimiento'],
+    ['produccionActual','produccion-actual'], ['resumen','resumen'],
+    ['perdidasSoles','perdidas'], ['tareoProduccion','tareo'],
+    ['tareoGeneral','tareo']
+  ];
+  return globales.find(([permiso])=>tienePermiso(permiso))?.[1] || '';
+}
+
+function ajustarVistaSegunPermisos(){
+  const globales={
+    resumen:'resumen',perdidas:'perdidasSoles',
+    'produccion-actual':'produccionActual',
+    mantenimiento:'moduloMantenimiento',rrhh:'moduloRRHH',
+    tareo:'tareoProduccion'
+  };
+  const tab=state.currentTab;
+  const vistaLinea=PESTANAS_LINEA.includes(tab);
+  const lineaVisible=visibleLines().some(l=>l.key===state.currentLine);
+  const permitido=vistaLinea
+    ? lineaVisible && tienePermiso(tab)
+    : tab==='tareo'
+      ? tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral')
+      : globales[tab] && tienePermiso(globales[tab]);
+
+  if(!permitido)state.currentTab=primeraVistaAutorizada();
+  if(visibleLines().length && !lineaVisible){
+    state.currentLine=visibleLines()[0].key;
+  }
 }
 
 
@@ -22,22 +71,27 @@ function renderSidebar(){
     document.getElementById('line-list');
 
 
+  if(!list)return;
+  const lineas=visibleLines();
+  const grupoLineas=document.getElementById('sidebar-lines');
+  if(grupoLineas)grupoLineas.hidden=!lineas.length;
+
   list.innerHTML =
 
-    visibleLines()
+    lineas
 
       .map(l => `
 
         <button
           class="line-btn ${
             state.currentLine === l.key &&
-            state.currentTab !== 'resumen' &&
-            state.currentTab !== 'perdidas' &&
-            state.currentTab !== 'produccion-actual'
+            PESTANAS_LINEA.includes(state.currentTab)
               ? 'active'
               : ''
           }"
           onclick="selectLine('${l.key}')"
+          ${state.currentLine === l.key && PESTANAS_LINEA.includes(state.currentTab)
+            ? 'aria-current="page"' : ''}
         >
 
           ${l.name}
@@ -48,10 +102,45 @@ function renderSidebar(){
 
       .join('');
 
+  const acciones={
+    'btn-resumen':['resumen','resumen'],
+    'btn-tareo':['tareoProduccion','tareo'],
+    'btn-perdidas':['perdidasSoles','perdidas'],
+    'btn-produccion-actual':['produccionActual','produccion-actual'],
+    'btn-mantenimiento':['moduloMantenimiento','mantenimiento'],
+    'btn-rrhh':['moduloRRHH','rrhh'],
+    'btn-usuarios':['usuarios',''],
+    'btn-trabajadores':['trabajadores','']
+  };
+  let visibles=0;
+  Object.entries(acciones).forEach(([id,[permiso,vista]])=>{
+    const boton=document.getElementById(id);
+    if(!boton)return;
+    const mostrar=id==='btn-tareo'
+      ? tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral')
+      : id==='btn-usuarios'
+        ? tienePermiso('usuarios') || tienePermiso('gestionarUsuarios')
+        : tienePermiso(permiso);
+    boton.hidden=!mostrar;
+    boton.style.display=mostrar?'':'none';
+    if(mostrar)visibles++;
+    const activo=mostrar && !!vista && state.currentTab===vista;
+    boton.classList.toggle('active',activo);
+    if(activo)boton.setAttribute('aria-current','page');
+    else boton.removeAttribute('aria-current');
+  });
+  const gestion=document.getElementById('sidebar-management');
+  if(gestion)gestion.hidden=!visibles;
+
 }
 
 
 function selectLine(key){
+
+  if(!visibleLines().some(linea=>linea.key===key))return;
+
+  const pestana=PESTANAS_LINEA.find(p=>tienePermiso(p));
+  if(!pestana)return;
 
   if(
     typeof confirmarAbandonoRotacionPendiente === 'function' &&
@@ -62,7 +151,7 @@ function selectLine(key){
 
   state.currentLine = key;
 
-  state.currentTab = 'nuevo';
+  state.currentTab = pestana;
 
   state.viewingRecordId = null;
 
@@ -139,4 +228,62 @@ function goProduccionActual(){
   state.currentTab='produccion-actual';
   renderSidebar();
   renderMain();
+}
+
+
+/*
+   "Mantenimiento" — punto de entrada al módulo dedicado al
+   área de Mantenimiento (18-mantenimiento.js). Por ahora ese
+   módulo solo tiene el Tareo de Mantenimiento, pero vivirá
+   aquí todo lo demás que se agregue después para esa área.
+   Requiere el permiso 'moduloMantenimiento' que el
+   Administrador asigna aparte, igual que produccionActual.
+*/
+function goMantenimiento(){
+  if(!tienePermiso('moduloMantenimiento')){
+    alert('No tienes permiso para ver el módulo de Mantenimiento.');
+    return;
+  }
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
+  state.currentTab='mantenimiento';
+  renderSidebar();
+  renderMain();
+}
+
+
+/*
+   "RRHH" — punto de entrada al módulo de Recursos Humanos
+   (19-rrhh.js): Tareo, Tareo General, Historial y Resumen
+   mensual de ambas áreas, con edición y eliminación. Requiere
+   el permiso 'moduloRRHH', igual de independiente que
+   'moduloMantenimiento'.
+*/
+function goRRHH(){
+  if(!tienePermiso('moduloRRHH')){
+    alert('No tienes permiso para ver el módulo de RRHH.');
+    return;
+  }
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
+  state.currentTab='rrhh';
+  renderSidebar();
+  renderMain();
+}
+
+function goTareo(){
+  if(!tienePermiso('tareoProduccion') && !tienePermiso('tareoGeneral'))return;
+  if(typeof confirmarAbandonoRotacionPendiente==='function' &&
+     !confirmarAbandonoRotacionPendiente())return;
+  state.currentTab='tareo';
+  renderSidebar();
+  openTareo();
 }

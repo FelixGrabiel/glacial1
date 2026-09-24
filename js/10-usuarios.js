@@ -204,6 +204,12 @@ function openUsersModal(){
                   Gerente General
                 </option>
 
+                <option value="Mantenimiento">Mantenimiento</option>
+                <option value="RRHH">RRHH</option>
+                <option value="Ventas">Ventas</option>
+                <option value="Planificación">Planificación</option>
+                <option value="Ventas y Planificación">Ventas y Planificación</option>
+
               </select>
 
             </div>
@@ -435,7 +441,16 @@ function cambiarRolNuevoUsuario(){
 
     checks.forEach(
       c=>{
-        c.checked=false;
+        const sugeridos = {
+          'Supervisor': ['verLineasProduccion','nuevo','historial','graficos','paletas','trabajadores'],
+          'Gerente General': ['verLineasProduccion','todasLasLineas','resumen','historial','graficos','produccionActual'],
+          'Mantenimiento': ['moduloMantenimiento'],
+          'RRHH': ['moduloRRHH'],
+          'Ventas': ['produccionActual'],
+          'Planificación': ['produccionActual'],
+          'Ventas y Planificación': ['produccionActual']
+        };
+        c.checked=(sugeridos[rol] || []).includes(c.value);
         c.disabled=false;
       }
     );
