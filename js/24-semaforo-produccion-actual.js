@@ -28,11 +28,12 @@
       inicio:t.inicio.getTime(),fin:t.fin.getTime(),
       activo:ahora.getTime() >= t.inicio.getTime() && ahora.getTime() < t.fin.getTime()};
   };
-  function horario(fecha,turno){
+  function horario(fecha,turno,compartida){
     const [y,m,d] = String(fecha).split('-').map(Number);
     if(!y || !m || !d)return null;
     const h = turno === 'DÍA' ? [7,15] :
-      turno === 'INTERMEDIO' ? [15,22] : turno === 'NOCHE' ? [22,7] : null;
+      turno === 'INTERMEDIO' ? (compartida ? [7,22] : [15,22]) :
+      turno === 'NOCHE' ? [22,7] : null;
     if(!h)return null;
     const inicio=new Date(y,m-1,d,h[0]).getTime();
     const fin=new Date(y,m-1,d+(turno==='NOCHE'?1:0),h[1]).getTime();
@@ -57,18 +58,47 @@
         (state.user.rol==='Mantenimiento' && tienePermiso('moduloMantenimiento'))))return true;
     return permisoAnterior.apply(this,arguments);
   };
+  // DÍA e INTERMEDIO comparten plan y producción; NOCHE mantiene plan propio.
+  // Conserva programaciones INTERMEDIO antiguas si aún no existe plan de DÍA.
+  const resumenTurnosAnterior=resumenProgramacionCombinacionTurnos;
+  resumenProgramacionCombinacionTurnos=function(linea,fecha,turnos,marca,presentacion){
+    const dia=turnos.includes('INTERMEDIO')
+      ? obtenerProgramacionPaleta(linea,fecha,'DÍA',marca,presentacion) : null;
+    if(!dia || num(dia.cantidadProgramada)<=0)
+      return resumenTurnosAnterior.apply(this,arguments);
+    const efectivos=turnos.includes('DÍA') ? turnos : ['DÍA',...turnos];
+    const r=resumenTurnosAnterior(linea,fecha,efectivos,marca,presentacion);
+    const inter=datosProgramacionCombinacion(linea,fecha,'INTERMEDIO',marca,presentacion);
+    const programada=Math.max(0,r.cantidadProgramada-inter.cantidadProgramada);
+    const paletas=Math.max(0,r.paletasProgramadas-inter.paletasProgramadas);
+    return {...r,cantidadProgramada:programada,paletasProgramadas:paletas,
+      unidadesPorPaleta:num(dia.unidadesPorPaleta) || r.unidadesPorPaleta,
+      unidadesPendientes:Math.max(0,programada-r.unidadesProducidas),
+      sobreproduccion:programada>0 && r.unidadesProducidas>programada,
+      porcentajeAvance:programada>0 ? r.unidadesProducidas/programada*100 : 0};
+  };
+  const uppAnterior=unidadesPorPaletaActiva;
+  unidadesPorPaletaActiva=function(linea,fecha,turno,marca,presentacion){
+    const dia=turno==='INTERMEDIO'
+      ? obtenerProgramacionPaleta(linea,fecha,'DÍA',marca,presentacion) : null;
+    return dia && num(dia.unidadesPorPaleta)>0 ? num(dia.unidadesPorPaleta)
+      : uppAnterior.apply(this,arguments);
+  };
   const llave = (l,f,t,m,p) => claveProgramacionPaleta(l,f,t,m,p);
   const turnoActivo = (fecha,turno) => {
     const t=turnoVigente();return t.activo && t.fecha===fecha && t.turno===turno;
   };
   function estadoFila(l,f,t,m,p,ahora){
-    const prog=obtenerProgramacionPaleta(l,f,t,m,p);
+    const dia=t==='INTERMEDIO' ? obtenerProgramacionPaleta(l,f,'DÍA',m,p) : null;
+    const compartida=!!dia && num(dia.cantidadProgramada)>0;
+    const turnoPlan=compartida ? 'DÍA' : t;
+    const prog=compartida ? dia : obtenerProgramacionPaleta(l,f,t,m,p);
     const r=resumenProgramacionCombinacionTurnos(l,f,[t],m,p);
     const op=prog?.estadoOperacion;
     const actual=num(r.unidadesProducidas);
     const inicio=Number(op?.inicio || 0);
     const ratio=num(obtenerRatioNominal(l,p,m));
-    const rango=horario(f,t);
+    const rango=horario(f,t,compartida);
     const vivo=turnoActivo(f,t);
     const pausa=Number(op?.pausaDesde || 0);
     const pausaMs=Number(op?.pausaAcumuladaMs || 0)+
@@ -95,7 +125,8 @@
     } else if(op?.estado==='EN_PRODUCCION'){
       nivel='verde';texto='Avanzando';
     }
-    return {linea:l,fecha:f,turno:t,marca:m,presentacion:p,prog,op,
+    return {linea:l,fecha:f,turno:t,turnoPlan,compartida,
+      marca:m,presentacion:p,prog,op,
       nivel,texto,horas,ratio,esperado,real:desdeInicio,vivo,
       puede:quienControla(l)};
   }
@@ -133,7 +164,7 @@
   function semaforo(x){return renderSemaforoWidget({nivel:x.nivel,texto:x.texto});}
   function ultimoRegistro(x){
     const registros=loadPaletas().filter(p=>p.linea===x.linea &&
-      p.fecha===x.fecha && p.turno===x.turno &&
+      p.fecha===x.fecha && (p.turno===x.turno || (x.compartida && p.turno==='DÍA')) &&
       p.marca===x.marca && p.presentacion===x.presentacion);
     if(!registros.length)return 'Sin registros de paletas';
     const valorOrden=r=>{
@@ -160,12 +191,31 @@
     const ahora=Date.now();
     const turnoReal=turnoVigente();
     filasActuales=[];
-    LINES.forEach(line=>combinacionesConDatosPaletas(line.key,fecha,turnos)
-      .forEach(combo=>turnos.forEach(turno=>{
-        const x=estadoFila(line.key,fecha,turno,combo.marca,combo.presentacion,ahora);
-        if(x.prog || num(resumenProgramacionCombinacionTurnos(line.key,fecha,[turno],
-          combo.marca,combo.presentacion).unidadesProducidas))filasActuales.push(x);
-      })));
+    LINES.forEach(line=>{
+      const turnosConDatos=new Set();
+      combinacionesConDatosPaletas(line.key,fecha,
+        turnos.includes('INTERMEDIO') && !turnos.includes('DÍA') ? ['DÍA',...turnos] : turnos)
+        .forEach(combo=>turnos.forEach(turno=>{
+          const x=estadoFila(line.key,fecha,turno,combo.marca,combo.presentacion,ahora);
+          if(x.prog || num(resumenProgramacionCombinacionTurnos(line.key,fecha,[turno],
+            combo.marca,combo.presentacion).unidadesProducidas)){
+            filasActuales.push(x);
+            turnosConDatos.add(turno);
+          }
+        }));
+      // Muestra la línea incluso cuando el turno seleccionado todavía no
+      // tiene una programación ni paletas. En "Todos", prioriza el turno vivo.
+      const turnosVisibles=turnos.length===1 ? turnos :
+        (fecha===turnoReal.fecha && turnos.includes(turnoReal.turno)
+          ? [turnoReal.turno] : []);
+      turnosVisibles.forEach(turno=>{
+        if(turnosConDatos.has(turno))return;
+        filasActuales.push({linea:line.key,fecha,turno,marca:'',presentacion:'',
+          prog:null,op:null,nivel:'gris',texto:'Sin programación',ratio:0,
+          real:0,vivo:turnoActivo(fecha,turno),puede:quienControla(line.key),
+          sinDatos:true});
+      });
+    });
     cont.classList.add('pa-live-active');
     cont.querySelectorAll('.pl-semaforo-wrap,.pl-resumen-semaforo').forEach(e=>e.remove());
     // El chip antiguo era un porcentaje del total, no un estado de operación.
@@ -198,13 +248,17 @@
       <div class="pa-live-grid">${filasActuales.map((x,i)=>`
         <article class="pa-live-card"><div class="pa-live-head"><strong>${esc(
           LINES.find(l=>l.key===x.linea)?.name || x.linea)} · ${esc(x.turno)}</strong>
-          ${semaforo(x)}</div><div class="pa-live-producto">${esc(x.marca)} · ${esc(x.presentacion)}</div>
-          <div>Ratio nominal: <b>${x.ratio ? x.ratio.toLocaleString('es-PE')+' UND/h' : 'Sin configurar'}</b></div>
+          ${semaforo(x)}</div><div class="pa-live-producto">${x.sinDatos
+            ? 'Aún no hay producto programado' : esc(x.marca)+' · '+esc(x.presentacion)}</div>
+          ${x.compartida ? '<div class="small-muted">Plan compartido: DÍA e INTERMEDIO</div>' : ''}
+          ${x.sinDatos ? '' : `<div>Ratio nominal: <b>${x.ratio
+            ? x.ratio.toLocaleString('es-PE')+' UND/h' : 'Sin configurar'}</b></div>
           <div>Producción desde el inicio: <b>${Math.round(x.real).toLocaleString('es-PE')} UND</b></div>
-          <div>Último registro: <b>${ultimoRegistro(x)}</b></div>
+          <div>Último registro: <b>${ultimoRegistro(x)}</b></div>`}
           ${x.op?.motivo && x.nivel==='roja' ? `<div>Motivo: ${esc(x.op.motivo)}</div>` : ''}
           <div class="pa-live-actions">${acciones(x,i)}</div>
-          ${avisoAccion(x) ? `<p class="small-muted">${esc(avisoAccion(x))}</p>` : ''}
+          ${x.sinDatos ? '<p class="small-muted">Jefatura debe programar este turno para activar la línea.</p>' :
+            (avisoAccion(x) ? `<p class="small-muted">${esc(avisoAccion(x))}</p>` : '')}
           </article>`).join('')}</div>
       ${filasActuales.length ? '' : '<p class="small-muted">Sin producción ni programación en este período. Pulsa «Ver turno actual» y comprueba la programación.</p>'}
       </div>`;
@@ -234,7 +288,7 @@
       motivo=motivo.slice(0,160);
     }
     const ref=db.collection('sync').doc('programaciones');
-    const k=llave(x.linea,x.fecha,x.turno,x.marca,x.presentacion);
+    const k=llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion);
     const itemsGuardados=await db.runTransaction(async tx=>{
       const snap=await tx.get(ref);
       const items=snap.exists && Array.isArray(snap.data().items)
@@ -251,13 +305,16 @@
         finalizar:['EN_PRODUCCION','DETENIDA','LISTA'].includes(e)
       };
       if(!permitido[accion])throw new Error('El estado cambió. Actualiza el tablero.');
+      const mismoPlan=p=>p.linea===x.linea && p.fecha===x.fecha &&
+        (x.turnoPlan==='DÍA' ? ['DÍA','INTERMEDIO'].includes(p.turno)
+          : p.turno===x.turnoPlan);
       if(accion==='iniciar'){
         const otraDetenida=items.some((p,j)=>j!==i && p.linea===x.linea &&
-          p.fecha===x.fecha && p.turno===x.turno &&
+          mismoPlan(p) &&
           p.estadoOperacion?.estado==='DETENIDA');
         if(otraDetenida)throw new Error('Primero resuelve la detención de la otra presentación.');
         items.forEach((p,j)=>{
-          if(j!==i && p.linea===x.linea && p.fecha===x.fecha && p.turno===x.turno &&
+          if(j!==i && mismoPlan(p) &&
              ['EN_PRODUCCION','PAUSA','LISTA'].includes(p.estadoOperacion?.estado))
             items[j]={...p,estadoOperacion:{...p.estadoOperacion,estado:'FINALIZADA',actualizadoEn:ahora}};
         });

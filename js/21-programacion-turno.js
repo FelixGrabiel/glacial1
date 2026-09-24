@@ -1,4 +1,4 @@
-/* Programación visible en Nuevo registro y Paletas. */
+/* Programación visible en Nuevo registro y Paletas, sin modificar el formulario. */
 (function instalarProgramacionTurno(){
   'use strict';
 
@@ -55,15 +55,9 @@
     if(!visibleLines().some(line => line.key === state.currentLine)) return null;
     if(state.currentTab === 'nuevo' && !permisoPestanaLinea('nuevo')) return null;
     if(state.currentTab === 'paletas' && !puedeAccederPaletas()) return null;
-
     const formulario = state.currentTab === 'paletas' ? draftPaleta : draft;
     if(!formulario?.fecha || !formulario?.turno) return null;
-
-    return {
-      linea:state.currentLine,
-      fecha:formulario.fecha,
-      turno:formulario.turno
-    };
+    return {linea:state.currentLine, fecha:formulario.fecha, turno:formulario.turno};
   }
 
   function claveRegistro(p){
@@ -73,52 +67,37 @@
   function unidades(p){
     const cantidad = num(p.cantidadProgramada);
     if(num(p.unidadesPorPaleta) > 0) return cantidad;
+    return cantidad * (obtenerUnidadesPorPalet(p.linea,p.marca,p.presentacion) || 0);
+  }
 
-    return cantidad *
-      (obtenerUnidadesPorPalet(p.linea,p.marca,p.presentacion) || 0);
+  function turnoDePlan(c,items){
+    if(c.turno !== 'INTERMEDIO') return c.turno;
+    return items.some(p => p.linea === c.linea && p.fecha === c.fecha &&
+      p.turno === 'DÍA' && unidades(p) > 0) ? 'DÍA' : 'INTERMEDIO';
   }
 
   function registros(c){
-    return loadProgramaciones()
-      .filter(p =>
-        p.linea === c.linea &&
-        p.fecha === c.fecha &&
-        p.turno === c.turno &&
-        unidades(p) > 0
-      )
-      .sort((a,b) =>
-        String(a.marca || '').localeCompare(String(b.marca || ''),'es') ||
-        String(a.presentacion || '')
-          .localeCompare(String(b.presentacion || ''),'es')
-      );
+    const items=loadProgramaciones();
+    const turno=turnoDePlan(c,items);
+    return items
+      .filter(p => p.linea === c.linea && p.fecha === c.fecha &&
+        p.turno === turno && unidades(p) > 0)
+      .sort((a,b) => String(a.marca || '').localeCompare(String(b.marca || ''),'es') ||
+        String(a.presentacion || '').localeCompare(String(b.presentacion || ''),'es'));
   }
 
   function escape(s){
     return String(s ?? '').replace(/[&<>"']/g, c =>
-      ({
-        '&':'&amp;',
-        '<':'&lt;',
-        '>':'&gt;',
-        '"':'&quot;',
-        "'":'&#39;'
-      }[c])
-    );
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   function mostrarTarjeta(){
     const cabecera = document.querySelector('#main .main-head');
     if(!cabecera) return;
-
     let card = cabecera.querySelector('#pt-programacion-turno');
     const c = contexto();
-
-    if(!c){
-      card?.remove();
-      return;
-    }
-
+    if(!c){card?.remove();return;}
     instalarEstilo();
-
     if(!card){
       card = document.createElement('section');
       card.id = 'pt-programacion-turno';
@@ -126,61 +105,26 @@
       card.setAttribute('aria-label','Programación del turno');
       cabecera.appendChild(card);
     }
-
     const clave = [c.linea,c.fecha,c.turno].join('|');
     const todas = registros(c);
     const expandida = claveExpandida === clave;
     const visibles = expandida ? todas : todas.slice(0,2);
-
     card.innerHTML = `
-      <div class="pt-top">
-        <h3 class="pt-title">Programación del turno</h3>
-        <span class="pt-context">
-          ${escape(c.turno)} · ${escape(c.fecha)}
-        </span>
-      </div>
-
-      ${todas.length ? `
-        <div class="pt-columns">
-          <span>MARCA</span>
-          <span>PRESENTACIÓN</span>
-          <span>UND PROGRAMADAS</span>
-        </div>
-
+      <div class="pt-top"><h3 class="pt-title">Programación del turno</h3>
+        <span class="pt-context">${escape(c.turno)} · ${escape(c.fecha)}${
+          turnoDePlan(c,loadProgramaciones()) === 'DÍA' && c.turno === 'INTERMEDIO'
+            ? ' · plan de DÍA' : ''}</span></div>
+      ${todas.length ? `<div class="pt-columns"><span>MARCA</span>
+        <span>PRESENTACIÓN</span><span>UND PROGRAMADAS</span></div>
         <div class="pt-list${expandida ? ' is-expanded' : ''}">
-          ${visibles.map(p => `
-            <div class="pt-row">
-              <span title="${escape(p.marca)}">
-                ${escape(p.marca)}
-              </span>
-              <span title="${escape(p.presentacion)}">
-                ${escape(p.presentacion)}
-              </span>
-              <strong>
-                ${unidades(p).toLocaleString('es-PE')} UND
-              </strong>
-            </div>
-          `).join('')}
-        </div>
-      ` : `
-        <div class="pt-empty">
-          Aún no hay programación para este turno.
-        </div>
-      `}
-
-      ${todas.length > 2 ? `
-        <button
-          type="button"
-          class="pt-more"
-          aria-expanded="${expandida}"
-        >
-          ${expandida
-            ? 'Mostrar menos'
-            : 'Ver toda la programación (' + todas.length + ')'}
-        </button>
-      ` : ''}
-    `;
-
+        ${visibles.map(p => `<div class="pt-row">
+          <span title="${escape(p.marca)}">${escape(p.marca)}</span>
+          <span title="${escape(p.presentacion)}">${escape(p.presentacion)}</span>
+          <strong>${unidades(p).toLocaleString('es-PE')} UND</strong>
+        </div>`).join('')}</div>`
+        : '<div class="pt-empty">Aún no hay programación para este turno.</div>'}
+      ${todas.length > 2 ? `<button type="button" class="pt-more" aria-expanded="${expandida}">
+          ${expandida ? 'Mostrar menos' : 'Ver toda la programación (' + todas.length + ')'}</button>` : ''}`;
     card.querySelector('.pt-more')?.addEventListener('click',() => {
       claveExpandida = expandida ? null : clave;
       mostrarTarjeta();
@@ -189,143 +133,69 @@
 
   function mostrarAviso(cambios){
     instalarEstilo();
-
     let overlay = document.getElementById('pt-aviso-programacion');
-
     if(!overlay){
       focoAnterior = document.activeElement;
-
       overlay = document.createElement('div');
       overlay.id = 'pt-aviso-programacion';
       overlay.className = 'pt-overlay';
-
-      overlay.innerHTML = `
-        <div
-          class="pt-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="pt-aviso-titulo"
-        >
-          <h3 id="pt-aviso-titulo">
-            Programación actualizada
-          </h3>
-          <p>Se modificó la programación de tu turno:</p>
-          <ul id="pt-aviso-lista"></ul>
-          <button type="button" id="pt-aviso-cerrar">
-            Entendido
-          </button>
-        </div>
-      `;
-
+      overlay.innerHTML = `<div class="pt-dialog" role="dialog" aria-modal="true"
+        aria-labelledby="pt-aviso-titulo"><h3 id="pt-aviso-titulo">Programación actualizada</h3>
+        <p>Se modificó la programación de tu turno:</p><ul id="pt-aviso-lista"></ul>
+        <button type="button" id="pt-aviso-cerrar">Entendido</button></div>`;
       document.body.appendChild(overlay);
-
       const cerrar = () => {
         overlay.remove();
         if(focoAnterior?.isConnected) focoAnterior.focus();
       };
-
-      overlay.querySelector('#pt-aviso-cerrar')
-        .addEventListener('click',cerrar);
-
+      overlay.querySelector('#pt-aviso-cerrar').addEventListener('click',cerrar);
       overlay.addEventListener('keydown',event => {
-        if(event.key === 'Escape'){
-          event.preventDefault();
-          cerrar();
-        }
-
+        if(event.key === 'Escape'){event.preventDefault();cerrar();}
         if(event.key === 'Tab'){
           event.preventDefault();
           overlay.querySelector('#pt-aviso-cerrar').focus();
         }
       });
     }
-
     const lista = overlay.querySelector('#pt-aviso-lista');
-
     cambios.forEach(cambio => {
       const li = document.createElement('li');
-
-      li.textContent =
-        cambio.marca + ' · ' +
-        cambio.presentacion + ': ' +
-        cambio.antes.toLocaleString('es-PE') +
-        ' → ' +
-        cambio.despues.toLocaleString('es-PE') +
-        ' UND';
-
+      li.textContent = cambio.marca + ' · ' + cambio.presentacion + ': ' +
+        cambio.antes.toLocaleString('es-PE') + ' → ' +
+        cambio.despues.toLocaleString('es-PE') + ' UND';
       lista.appendChild(li);
     });
-
     overlay.querySelector('#pt-aviso-cerrar').focus();
   }
 
-  // La primera lectura no genera una ventana emergente.
+  // La primera lectura establece una referencia; no genera aviso al iniciar sesión.
   function compararProgramaciones(){
-    const usuario =
-      state.user?.username ||
-      state.user?.nombre ||
-      null;
-
-    const foto = new Map(
-      loadProgramaciones().map(p => [
-        claveRegistro(p),
-        {...p}
-      ])
-    );
-
-    if(usuario !== ultimoUsuario){
-      ultimaFoto = null;
-      ultimoUsuario = usuario;
-    }
-
+    const usuario = state.user?.username || state.user?.nombre || null;
+    const foto = new Map(loadProgramaciones().map(p => [claveRegistro(p),{...p}]));
+    if(usuario !== ultimoUsuario){ultimaFoto = null;ultimoUsuario = usuario;}
     const c = contexto();
-
-    if(
-      ultimaFoto &&
-      c &&
-      tienePermiso('paletas') &&
-      !puedeProgramarPaletas()
-    ){
+    if(ultimaFoto && c && tienePermiso('paletas') && !puedeProgramarPaletas()){
       const cambios = [];
-      const claves = new Set([
-        ...ultimaFoto.keys(),
-        ...foto.keys()
-      ]);
-
+      const claves = new Set([...ultimaFoto.keys(),...foto.keys()]);
       claves.forEach(clave => {
         const antes = ultimaFoto.get(clave);
         const despues = foto.get(clave);
         const p = despues || antes;
-
-        if(
-          p.linea !== c.linea ||
-          p.fecha !== c.fecha ||
-          p.turno !== c.turno
-        ){
-          return;
-        }
-
+        if(p.linea !== c.linea || p.fecha !== c.fecha ||
+           p.turno !== turnoDePlan(c,[...foto.values()])) return;
         const valorAntes = antes ? unidades(antes) : 0;
         const valorDespues = despues ? unidades(despues) : 0;
-
         if(valorAntes !== valorDespues){
-          cambios.push({
-            marca:p.marca,
-            presentacion:p.presentacion,
-            antes:valorAntes,
-            despues:valorDespues
-          });
+          cambios.push({marca:p.marca,presentacion:p.presentacion,
+            antes:valorAntes,despues:valorDespues});
         }
       });
-
       if(cambios.length) mostrarAviso(cambios);
     }
-
     ultimaFoto = foto;
   }
 
   const renderMainAnterior = renderMain;
-
   renderMain = function(...args){
     const resultado = renderMainAnterior.apply(this,args);
     mostrarTarjeta();
@@ -333,7 +203,6 @@
   };
 
   const renderFormAnterior = renderFormTab;
-
   renderFormTab = function(...args){
     const resultado = renderFormAnterior.apply(this,args);
     mostrarTarjeta();
@@ -341,7 +210,6 @@
   };
 
   const renderPaletasAnterior = renderPaletasTab;
-
   renderPaletasTab = function(...args){
     const resultado = renderPaletasAnterior.apply(this,args);
     mostrarTarjeta();
@@ -349,7 +217,6 @@
   };
 
   const onProgramacionesAnterior = onProgramacionesUpdated;
-
   onProgramacionesUpdated = function(...args){
     const resultado = onProgramacionesAnterior.apply(this,args);
     compararProgramaciones();
