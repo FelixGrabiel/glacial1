@@ -2406,7 +2406,6 @@
             }
 
         </style>
-        <link rel="stylesheet" href="css/sidebar-glacial.css?v=20260924-sidebar-scroll">
         <style id="sidebar-independent-scroll">
             /* El menú lateral se desplaza sin mover el contenido principal. */
             @media (min-width: 801px) {
@@ -2439,6 +2438,8 @@
                 }
             }
         </style>
+
+        <link rel="stylesheet" href="mobile-glacial.css?v=20260925-movil-1">
 
     </head>
 
@@ -2729,6 +2730,16 @@
 
             <div class="topbar-left">
 
+                <button
+                    type="button"
+                    class="mobile-menu-toggle"
+                    id="mobile-menu-toggle"
+                    aria-label="Abrir menú de navegación"
+                    aria-controls="glacial-sidebar"
+                    aria-expanded="false"
+                    onclick="alternarMenuMovil()"
+                >☰</button>
+
                 <div class="topbar-brand">
 
                     <div class="topbar-logo-wrap">
@@ -2872,6 +2883,15 @@
 
         </header>
 
+        <nav class="mobile-lines" id="mobile-lines" aria-label="Líneas disponibles" hidden></nav>
+        <button
+            type="button"
+            class="mobile-nav-backdrop"
+            id="mobile-nav-backdrop"
+            aria-label="Cerrar menú de navegación"
+            onclick="cerrarMenuMovil()"
+        ></button>
+
 
         <!-- =================================================
             SHELL
@@ -2884,7 +2904,7 @@
                 SIDEBAR
             ================================================== -->
 
-            <aside class="sidebar">
+            <aside class="sidebar" id="glacial-sidebar">
 
 
                 <div class="sidebar-brand">
@@ -3304,7 +3324,7 @@
 
     <script src="js/03-auth.js?v=20260924-sidebar"></script>
 
-    <script src="js/04-sidebar.js?v=20260924-sidebar"></script>
+    <script src="js/04-sidebar.js?v=20260925-movil-1"></script>
 
     <script src="js/05-utils.js?v=20260918-resumen"></script>
 
@@ -3335,19 +3355,13 @@
 
     <script src="js/13-tareo.js?v=20260924-control"></script>
     <script src="js/20-tareo-control.js?v=20260924"></script>
-<<<<<<< HEAD
-    <script src="js/21-programacion-turno.js?v=20260924"></script>
-    <script src="js/23-gerente-solo-lectura.js?v=20260924-lectura-1"></script>
-    <script src="js/24-semaforo-produccion-actual.js?v=20260924-semaforo-4"></script>
-=======
     <script src="js/21-programacion-turno.js?v=20260924-plan-compartido-1"></script>
     <script src="js/23-gerente-solo-lectura.js?v=20260924-lectura-1"></script>
     <script src="js/24-semaforo-produccion-actual.js?v=20260924-alertas-1"></script>
     <script src="js/25-alertas-lineas.js?v=20260924-alertas-1"></script>
     <script src="js/26-rrhh-panel.js?v=20260925-rrhh-1"></script>
     <script src="js/27-rrhh-excel-operativo.js?v=20260925-excel-3"></script>
-    <script src="js/28-tareo-maquinistas.js?v=20260925-tareo-1"></script>
->>>>>>> 049f199 (Actualiza sistema GLACIAL)
+    <script src="js/28-tareo-maquinistas.js?v=20260925-tareo-2"></script>
     <script src="js/12-init.js?v=20260924-sidebar"></script>
 
 

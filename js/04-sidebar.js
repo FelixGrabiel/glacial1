@@ -102,6 +102,20 @@ function renderSidebar(){
 
       .join('');
 
+  const accesosRapidos=document.getElementById('mobile-lines');
+  if(accesosRapidos){
+    accesosRapidos.hidden=!lineas.length;
+    accesosRapidos.innerHTML=lineas.map(l=>`
+      <button type="button" class="mobile-line-btn ${
+        state.currentLine===l.key && PESTANAS_LINEA.includes(state.currentTab)
+          ? 'active' : ''
+      }" data-mobile-line="${l.key}" ${
+        state.currentLine===l.key && PESTANAS_LINEA.includes(state.currentTab)
+          ? 'aria-current="page"' : ''
+      }>${l.name}</button>
+    `).join('');
+  }
+
   const acciones={
     'btn-resumen':['resumen','resumen'],
     'btn-tareo':['tareoProduccion','tareo'],
@@ -133,6 +147,61 @@ function renderSidebar(){
   if(gestion)gestion.hidden=!visibles;
 
 }
+
+/* Menú de teléfono: conserva los mismos botones y permisos del escritorio. */
+function cerrarMenuMovil(){
+  document.body.classList.remove('mobile-nav-open');
+  const boton=document.getElementById('mobile-menu-toggle');
+  const sidebar=document.getElementById('glacial-sidebar');
+  if(boton)boton.setAttribute('aria-expanded','false');
+  if(sidebar){
+    sidebar.inert=window.matchMedia('(max-width:700px)').matches;
+    sidebar.setAttribute('aria-hidden',sidebar.inert?'true':'false');
+  }
+}
+
+function alternarMenuMovil(){
+  if(!window.matchMedia('(max-width:700px)').matches)return;
+  if(document.body.classList.contains('mobile-nav-open')){
+    cerrarMenuMovil();
+    return;
+  }
+  const sidebar=document.getElementById('glacial-sidebar');
+  document.body.classList.add('mobile-nav-open');
+  document.getElementById('mobile-menu-toggle')?.setAttribute('aria-expanded','true');
+  if(sidebar){
+    sidebar.inert=false;
+    sidebar.setAttribute('aria-hidden','false');
+    sidebar.querySelector('button:not([hidden])')?.focus();
+  }
+}
+
+function iniciarMenuMovil(){
+  const sidebar=document.getElementById('glacial-sidebar');
+  sidebar?.addEventListener('click',evento=>{
+    if(evento.target.closest('button'))cerrarMenuMovil();
+  });
+  document.getElementById('mobile-lines')?.addEventListener('click',evento=>{
+    const linea=evento.target.closest('[data-mobile-line]');
+    if(linea)selectLine(linea.dataset.mobileLine);
+  });
+  document.addEventListener('keydown',evento=>{
+    if(evento.key==='Escape' && document.body.classList.contains('mobile-nav-open')){
+      cerrarMenuMovil();
+      document.getElementById('mobile-menu-toggle')?.focus();
+    }
+  });
+  window.addEventListener('resize',cerrarMenuMovil);
+  cerrarMenuMovil();
+}
+
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',iniciarMenuMovil,{once:true});
+}else{
+  iniciarMenuMovil();
+}
+window.alternarMenuMovil=alternarMenuMovil;
+window.cerrarMenuMovil=cerrarMenuMovil;
 
 
 function selectLine(key){
