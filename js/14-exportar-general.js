@@ -148,7 +148,7 @@ function litrosRegistro(rec){
 
 function datosExportacionGeneral(){
 
-  const lineasVisibles = visibleLines();
+  const lineasVisibles = lineasConsultables();
 
   const todos =
     loadRecords().filter(

@@ -255,6 +255,11 @@ function tareoAccesoUsuario() {
         return acceso;
     }
 
+    // Jefatura y Gerencia consultan ambos tareos sin acceso a formularios.
+    if (esUsuarioSoloConsulta(state.user)) {
+        return { editar: [], general: true };
+    }
+
     const permisos = normalizarPermisosUsuario(state.user);
 
     if (permisos === 'todos') {
@@ -637,6 +642,8 @@ function tareoFusionar(remoto, local) {
 
 
 function tareoGuardarEnNube(tareo) {
+
+    if (esUsuarioSoloConsulta(state.user)) return;
 
     if (
         typeof db === 'undefined' ||
@@ -1063,6 +1070,8 @@ function guardarTareos(tareos) {
 
 
 function guardarTareoEnMemoria(tareo) {
+
+    if (esUsuarioSoloConsulta(state.user)) return;
 
     tareo.actualizadoEn = Date.now();
 
@@ -3758,8 +3767,9 @@ function renderHistorialTareo() {
 
                                                             ${
                                                                 (
-                                                                    tienePermiso('eliminarRegistros') ||
-                                                                    tienePermiso('moduloRRHH')
+                                                                    !esUsuarioSoloConsulta(state.user) &&
+                                                                    (tienePermiso('eliminarRegistros') ||
+                                                                    tienePermiso('moduloRRHH'))
                                                                 )
                                                                     ? `
                                                                     <button
@@ -4049,6 +4059,11 @@ function confirmarEliminacionTareo(tareo) {
 
 async function eliminarTareo(id) {
 
+    if (esUsuarioSoloConsulta(state.user)) {
+        alert('Jefatura y Gerencia solo pueden consultar los tareos.');
+        return;
+    }
+
     /*
        Eliminar un tareo: con el permiso general 'eliminarRegistros'
        (igual que siempre) O con 'moduloRRHH' — este último solo
@@ -4170,8 +4185,9 @@ function renderTareoLectura(tareo) {
 
                 ${
                     (
-                        tienePermiso('eliminarRegistros') ||
-                        tienePermiso('moduloRRHH')
+                        !esUsuarioSoloConsulta(state.user) &&
+                        (tienePermiso('eliminarRegistros') ||
+                        tienePermiso('moduloRRHH'))
                     )
                         ? `
                         <button

@@ -2942,7 +2942,7 @@
                 </div>
 
 
-                <div class="sidebar-divider"></div>
+                <div class="sidebar-divider" id="sidebar-lines-divider"></div>
 
 
                 <!-- =================================================
@@ -2950,172 +2950,42 @@
                 ================================================== -->
 
                 <div id="sidebar-management">
-                <div class="sidebar-section-title">
-                    Gestión
-                </div>
+                    <div class="sidebar-section-title">Gestión</div>
 
+                    <button type="button" class="side-action" id="btn-produccion-actual"
+                            onclick="goProduccionActual()" style="display:none">
+                        <span class="side-action-icon">▣</span><span>Producción actual</span>
+                    </button>
+                    <button type="button" class="side-action" id="btn-resumen" onclick="goResumen()">
+                        <span class="side-action-icon">▦</span><span>Resumen general</span>
+                    </button>
+                    <button type="button" class="side-action" id="btn-perdidas" onclick="goPerdidasSoles()">
+                        <span class="side-action-icon">↘</span><span>Impacto económico</span>
+                    </button>
+                    <button type="button" class="side-action" id="btn-mantenimiento"
+                            onclick="goMantenimiento()" style="display:none">
+                        <span class="side-action-icon">⚒</span><span>Mantenimiento</span>
+                    </button>
+                    <button type="button" class="side-action" id="btn-rrhh" onclick="goRRHH()" style="display:none">
+                        <span class="side-action-icon">◫</span><span>Recursos Humanos</span>
+                    </button>
+                    <button type="button" class="side-action" id="btn-almacen" disabled hidden style="display:none"
+                            title="Módulo disponible próximamente" aria-label="Almacén, próximamente">
+                        <span class="side-action-icon">▤</span><span>Almacén · Próximamente</span>
+                    </button>
 
-                <!-- RESUMEN -->
-
-                <button
-                    type="button"
-                    class="side-action"
-                    id="btn-resumen"
-                    onclick="goResumen()"
-                >
-
-                    <span class="side-action-icon">
-                        ▦
-                    </span>
-
-                    <span>
-                        Resumen general
-                    </span>
-
-                </button>
-
-
-                <!-- TAREO -->
-
-                <button
-                    type="button"
-                    class="side-action"
-                    id="btn-tareo"
-                    onclick="goTareo()"
-                >
-
-                    <span class="side-action-icon">
-                        ◷
-                    </span>
-
-                    <span>
-                        Tareo
-                    </span>
-
-                </button>
-
-<!-- IMPACTO ECONÓMICO (antes "Pérdidas en S/.") -->
-
-            <button
-                type="button"
-                class="side-action"
-                id="btn-perdidas"
-                onclick="goPerdidasSoles()"
-            >
-
-                    <span class="side-action-icon">
-                    ↘
-                </span>
-
-                <span>
-                    Impacto Económico
-                </span>
-
-        </button>
-                <!-- PRODUCCIÓN ACTUAL (VENTAS) -->
-
-                <button
-                    type="button"
-                    class="side-action"
-                    id="btn-produccion-actual"
-                    onclick="goProduccionActual()"
-                    style="display: none;"
-                >
-
-                    <span class="side-action-icon">
-                        ▣
-                    </span>
-
-                    <span>
-                        Producción actual
-                    </span>
-
-                </button>
-
-
-                <!-- MANTENIMIENTO -->
-
-                <button
-                    type="button"
-                    class="side-action"
-                    id="btn-mantenimiento"
-                    onclick="goMantenimiento()"
-                    style="display: none;"
-                >
-
-                    <span class="side-action-icon">
-                        ⚒
-                    </span>
-
-                    <span>
-                        Mantenimiento
-                    </span>
-
-                </button>
-
-
-                <!-- RRHH -->
-
-                <button
-                    type="button"
-                    class="side-action"
-                    id="btn-rrhh"
-                    onclick="goRRHH()"
-                    style="display: none;"
-                >
-
-                    <span class="side-action-icon">
-                        ◫
-                    </span>
-
-                    <span>
-                        RRHH
-                    </span>
-
-                </button>
-
-
-                <!-- USUARIOS -->
-
-                <button
-                    type="button"
-                    class="side-action"
-                    id="btn-usuarios"
-                    onclick="openUsersModal()"
-                    style="display: none;"
-                >
-
-                    <span class="side-action-icon">
-                        ⚙
-                    </span>
-
-                    <span>
-                        Gestionar usuarios
-                    </span>
-
-                </button>
-
-
-                <!-- TRABAJADORES -->
-
-                <button
-                    type="button"
-                    class="side-action"
-                    id="btn-trabajadores"
-                    onclick="openWorkersModal()"
-                    style="display: none;"
-                >
-
-                    <span class="side-action-icon">
-                        ☷
-                    </span>
-
-                    <span>
-                        Gestionar trabajadores
-                    </span>
-
-                </button>
-
+                    <!-- El supervisor conserva el Tareo operativo como sección aparte. -->
+                    <button type="button" class="side-action" id="btn-tareo" onclick="goTareo()">
+                        <span class="side-action-icon">◷</span><span>Tareo</span>
+                    </button>
+                    <button type="button" class="side-action" id="btn-usuarios"
+                            onclick="openUsersModal()" style="display:none">
+                        <span class="side-action-icon">⚙</span><span>Gestionar usuarios</span>
+                    </button>
+                    <button type="button" class="side-action" id="btn-trabajadores"
+                            onclick="openWorkersModal()" style="display:none">
+                        <span class="side-action-icon">☷</span><span>Gestionar trabajadores</span>
+                    </button>
                 </div>
                 </div>
 
@@ -3320,11 +3190,11 @@
 
     <script src="js/01-config.js?v=20260924-control"></script>
 
-    <script src="js/02-estado.js?v=20260924-sidebar"></script>
+    <script src="js/02-estado.js?v=20260925-consulta-1"></script>
 
     <script src="js/03-auth.js?v=20260924-sidebar"></script>
 
-    <script src="js/04-sidebar.js?v=20260925-movil-1"></script>
+    <script src="js/04-sidebar.js?v=20260925-consulta-1"></script>
 
     <script src="js/05-utils.js?v=20260918-resumen"></script>
 
@@ -3334,34 +3204,36 @@
 
     <script src="js/08-graficos.js?v=20260918-resumen"></script>
 
-    <script src="js/09-resumen.js?v=20260918-resumen"></script>
+    <script src="js/09-resumen.js?v=20260925-consulta-1"></script>
 
-    <script src="js/10-usuarios.js?v=20260924-sidebar"></script>
+    <script src="js/10-usuarios.js?v=20260925-consulta-1"></script>
 
-    <script src="js/11-trabajadores.js?v=20260918-resumen"></script>
-    <script src="js/15-perdidas-soles.js"></script>
-    <script src="js/22-impacto-para-pegar.js?v=20260924-graficos-2"></script>
+    <script src="js/11-trabajadores.js?v=20260925-consulta-1"></script>
+    <script src="js/15-perdidas-soles.js?v=20260925-consulta-1"></script>
+    <script src="js/22-impacto-para-pegar.js?v=20260925-consulta-1"></script>
     <script src="js/16-paletas.js?v=20260922"></script>
     <script src="js/17-modo-trabajo.js?v=20260923"></script>
     <script src="js/18-mantenimiento.js"></script>
    
     <script src="js/19-rrhh.js"></script>
-    <script src="js/14-exportar-general.js"></script>
+    <script src="js/14-exportar-general.js?v=20260925-consulta-1"></script>
     
 
     <!-- =====================================================
         TAREO
     ====================================================== -->
 
-    <script src="js/13-tareo.js?v=20260924-control"></script>
+    <script src="js/13-tareo.js?v=20260925-consulta-1"></script>
     <script src="js/20-tareo-control.js?v=20260924"></script>
     <script src="js/21-programacion-turno.js?v=20260924-plan-compartido-1"></script>
-    <script src="js/23-gerente-solo-lectura.js?v=20260924-lectura-1"></script>
+    <script src="js/23-gerente-solo-lecutra.js?v=20260925-consulta-1"></script>
     <script src="js/24-semaforo-produccion-actual.js?v=20260924-alertas-1"></script>
     <script src="js/25-alertas-lineas.js?v=20260924-alertas-1"></script>
-    <script src="js/26-rrhh-panel.js?v=20260925-rrhh-1"></script>
+    <script src="js/26-rrhh-panel.js?v=20260925-consulta-1"></script>
     <script src="js/27-rrhh-excel-operativo.js?v=20260925-excel-3"></script>
     <script src="js/28-tareo-maquinistas.js?v=20260925-tareo-2"></script>
+    <script src="js/29-avance-produccion.js"></script>
+    <script src="js/30-rotacion-mantenimiento.js?v=20260925-rotacion-mtto-1"></script>
     <script src="js/12-init.js?v=20260924-sidebar"></script>
 
 

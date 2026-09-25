@@ -2077,7 +2077,9 @@ function generarInsightParadasPlanta(paradasAgrupadas, rangoLabel){
 
 function renderResumen(main){
 
-  const lineasVisibles = visibleLines();
+  // Jefatura y Gerencia consultan todas las líneas desde este resumen,
+  // aunque sus accesos individuales estén ocultos en el menú lateral.
+  const lineasVisibles = lineasConsultables();
 
   const todos =
     loadRecords().filter(

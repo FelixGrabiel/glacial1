@@ -36,7 +36,7 @@
 
   // Una fuente de datos para totales, tablas y gráficos.
   agruparParadasNoProgramadas = function(records){
-    const permitidas = new Set(visibleLines().map(l=>l.key));
+    const permitidas = new Set(lineasConsultables().map(l=>l.key));
     const porLinea = {}, porCategoria = {}, porCausa = {}, porFecha = {};
     const porLineaMaquina = {};
 
@@ -184,10 +184,10 @@ const graficoUndActual=root.querySelector('#chart-pd-linea-und');
 if(graficoUndActual && typeof Chart!=='undefined' &&
    Chart.getChart && Chart.getChart(graficoUndActual))return;
 
-    const permitidas = visibleLines().map(l=>l.key);
+    const permitidas = lineasConsultables().map(l=>l.key);
     const records = filtrarPorRangoPerdidas(loadRecords().filter(r=>
       permitidas.includes(r.linea) ||
-      r.linea==='B10L' && tienePermiso('todasLasLineas')));
+      r.linea==='B10L' && (esUsuarioSoloConsulta(state.user) || tienePermiso('todasLasLineas'))));
     const d = agruparParadasNoProgramadas(records);
 
     if(!document.getElementById('impacto-estilos-extra')){

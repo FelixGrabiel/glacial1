@@ -444,7 +444,7 @@ function renderPerdidasSoles(main){
   }
 
 
-  const lineasVisibles = visibleLines();
+  const lineasVisibles = lineasConsultables();
 
   const todos =
     loadRecords().filter(

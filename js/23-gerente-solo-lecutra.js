@@ -1,20 +1,15 @@
-/* GLACIAL: Gerente General / Gerente en modo de consulta.
+/* GLACIAL: Jefatura y Gerencia en modo de consulta.
    Cargar después de los módulos 02–22 y antes de 12-init.js.
    Controla la interfaz y las funciones de guardado de esta app;
    la seguridad de Firestore requiere Firebase Authentication y reglas por rol. */
 (function instalarGerenteSoloLectura(){
   'use strict';
 
-  const rolesGerencia = new Set(['Gerente General', 'Gerente']);
-  const permisosConsulta = new Set([
-    'verLineasProduccion', 'todasLasLineas',
-    'historial', 'graficos', 'resumen', 'perdidasSoles',
-    'produccionActual', 'tareoGeneral',
-    'exportarExcel', 'exportarExcelGeneral', 'exportarJPG'
-  ]);
+  const rolesGerencia = ROLES_SOLO_CONSULTA;
+  const permisosConsulta = new Set(PERMISOS_SOLO_CONSULTA);
 
   function esGerenteSoloLectura(usuario){
-    return !!usuario && rolesGerencia.has(String(usuario.rol || '').trim());
+    return esUsuarioSoloConsulta(usuario);
   }
   globalThis.esGerenteSoloLectura = esGerenteSoloLectura;
 
@@ -67,7 +62,7 @@
     if(typeof guardarAnterior !== 'function') return;
     globalThis[nombre] = function(...args){
       if(esGerenteSoloLectura(state.user)){
-        throw new Error('Gerencia tiene acceso de solo lectura. No se guardaron cambios.');
+        throw new Error('Jefatura y Gerencia tienen acceso de solo lectura. No se guardaron cambios.');
       }
       return guardarAnterior.apply(this, args);
     };

@@ -129,6 +129,7 @@
 
   const renderAnterior=renderRRHHModulo;
   renderRRHHModulo=function(){
+    if(esUsuarioSoloConsulta(state.user))return renderTareoGeneral();
     if(!tienePermiso('moduloRRHH'))return renderAnterior();
     const main=document.getElementById('main');
     if(!main)return;

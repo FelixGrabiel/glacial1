@@ -9,6 +9,7 @@
    ========================================================= */
 
 function visibleLines(){
+  if(esUsuarioSoloConsulta(state.user))return [];
   if(!puedeVerLineasProduccion())return [];
   if(!['nuevo','historial','graficos','paletas'].some(p=>tienePermiso(p)))return [];
   if(tienePermiso('todasLasLineas'))return LINES;
@@ -16,10 +17,15 @@ function visibleLines(){
   return LINES;
 }
 
+function lineasConsultables(){
+  return esUsuarioSoloConsulta(state.user) ? LINES : visibleLines();
+}
+
 /* Los cargos operativos conservan su acceso. Otros usuarios requieren
    el permiso explícito verLineasProduccion, asignado por administración. */
 function puedeVerLineasProduccion(){
   if(!state.user)return false;
+  if(esUsuarioSoloConsulta(state.user))return false;
   return tienePermiso('verLineasProduccion') || [
     'Supervisor', 'Jefe de Producción', 'Jefe de Operaciones',
     'Gerente General', 'Administrador'
@@ -34,9 +40,9 @@ function primeraVistaAutorizada(){
     if(pestana)return pestana;
   }
   const globales=[
-    ['moduloRRHH','rrhh'], ['moduloMantenimiento','mantenimiento'],
     ['produccionActual','produccion-actual'], ['resumen','resumen'],
-    ['perdidasSoles','perdidas'], ['tareoProduccion','tareo'],
+    ['perdidasSoles','perdidas'], ['moduloMantenimiento','mantenimiento'],
+    ['moduloRRHH','rrhh'], ['tareoProduccion','tareo'],
     ['tareoGeneral','tareo']
   ];
   return globales.find(([permiso])=>tienePermiso(permiso))?.[1] || '';
@@ -74,7 +80,15 @@ function renderSidebar(){
   if(!list)return;
   const lineas=visibleLines();
   const grupoLineas=document.getElementById('sidebar-lines');
-  if(grupoLineas)grupoLineas.hidden=!lineas.length;
+  if(grupoLineas){
+    grupoLineas.hidden=!lineas.length;
+    grupoLineas.style.display=lineas.length?'':'none';
+  }
+  const separadorLineas=document.getElementById('sidebar-lines-divider');
+  if(separadorLineas){
+    separadorLineas.hidden=!lineas.length;
+    separadorLineas.style.display=lineas.length?'':'none';
+  }
 
   list.innerHTML =
 
@@ -117,14 +131,14 @@ function renderSidebar(){
   }
 
   const acciones={
-    'btn-resumen':['resumen','resumen'],
-    'btn-tareo':['tareoProduccion','tareo'],
-    'btn-perdidas':['perdidasSoles','perdidas'],
     'btn-produccion-actual':['produccionActual','produccion-actual'],
+    'btn-resumen':['resumen','resumen'],
+    'btn-perdidas':['perdidasSoles','perdidas'],
     'btn-mantenimiento':['moduloMantenimiento','mantenimiento'],
     'btn-rrhh':['moduloRRHH','rrhh'],
-    'btn-usuarios':['usuarios',''],
-    'btn-trabajadores':['trabajadores','']
+    'btn-tareo':['tareoProduccion','tareo'],
+    'btn-usuarios':['gestionarPersonal',''],
+    'btn-trabajadores':['gestionarPersonal','']
   };
   let visibles=0;
   Object.entries(acciones).forEach(([id,[permiso,vista]])=>{
@@ -132,8 +146,8 @@ function renderSidebar(){
     if(!boton)return;
     const mostrar=id==='btn-tareo'
       ? tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral')
-      : id==='btn-usuarios'
-        ? tienePermiso('usuarios') || tienePermiso('gestionarUsuarios')
+      : id==='btn-usuarios'||id==='btn-trabajadores'
+        ? puedeGestionarPersonal()
         : tienePermiso(permiso);
     boton.hidden=!mostrar;
     boton.style.display=mostrar?'':'none';
@@ -145,6 +159,11 @@ function renderSidebar(){
   });
   const gestion=document.getElementById('sidebar-management');
   if(gestion)gestion.hidden=!visibles;
+  const almacen=document.getElementById('btn-almacen');
+  if(almacen){
+    almacen.hidden=!visibles;
+    almacen.style.display=visibles?'':'none';
+  }
 
 }
 
@@ -320,6 +339,9 @@ function goMantenimiento(){
     return;
   }
   state.currentTab='mantenimiento';
+  if(esUsuarioSoloConsulta(state.user) && typeof tareoGeneralFiltros!=='undefined'){
+    tareoGeneralFiltros.area='Mantenimiento';
+  }
   renderSidebar();
   renderMain();
 }
@@ -344,6 +366,9 @@ function goRRHH(){
     return;
   }
   state.currentTab='rrhh';
+  if(esUsuarioSoloConsulta(state.user) && typeof tareoGeneralFiltros!=='undefined'){
+    tareoGeneralFiltros.area='';
+  }
   renderSidebar();
   renderMain();
 }

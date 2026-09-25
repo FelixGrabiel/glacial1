@@ -20,9 +20,7 @@
 function rolTieneTodosLosPermisos(rol){
 
   return (
-    rol === 'Administrador' ||
-    rol === 'Jefe de Producción' ||
-    rol === 'Jefe de Operaciones'
+    rol === 'Administrador'
   );
 
 }
@@ -34,10 +32,7 @@ function rolTieneTodosLosPermisos(rol){
 
 function openUsersModal(){
 
-  if(
-    !tienePermiso('usuarios') &&
-    !tienePermiso('gestionarUsuarios')
-  ){
+  if(!puedeGestionarPersonal()){
 
     alert('No tienes permiso para gestionar usuarios.');
     return;
@@ -442,8 +437,10 @@ function cambiarRolNuevoUsuario(){
     checks.forEach(
       c=>{
         const sugeridos = {
-          'Supervisor': ['verLineasProduccion','nuevo','historial','graficos','paletas','trabajadores'],
-          'Gerente General': ['verLineasProduccion','todasLasLineas','resumen','historial','graficos','produccionActual'],
+          'Supervisor': ['verLineasProduccion','nuevo','historial','graficos','paletas','gestionarPersonal'],
+          'Gerente General': PERMISOS_SOLO_CONSULTA,
+          'Jefe de Producción': PERMISOS_SOLO_CONSULTA,
+          'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
           'Mantenimiento': ['moduloMantenimiento'],
           'RRHH': ['moduloRRHH'],
           'Ventas': ['produccionActual'],
@@ -659,7 +656,7 @@ function renderUserList(){
                  ============================================= -->
 
             ${
-              tienePermiso('gestionarUsuarios')
+              puedeGestionarPersonal()
                 ? `
 
                   <button
@@ -845,10 +842,7 @@ function actualizarEstadoTodosLosPermisos(){
 
 async function addUser(){
 
-  if(
-    !tienePermiso('usuarios') &&
-    !tienePermiso('gestionarUsuarios')
-  ){
+  if(!puedeGestionarPersonal()){
 
     alert(
       'No tienes permiso para crear usuarios.'
@@ -1020,9 +1014,11 @@ async function addUser(){
     rol,
 
     permisos:
-      todos
-        ? 'todos'
-        : seleccionados,
+      esUsuarioSoloConsulta({rol})
+        ? [...PERMISOS_SOLO_CONSULTA]
+        : todos ? 'todos' : seleccionados,
+
+    permisosGestionVersion:1,
 
     linea
 
@@ -1103,11 +1099,7 @@ async function addUser(){
 
 function editarPermisosUsuario(username){
 
-  if(
-    !tienePermiso(
-      'gestionarUsuarios'
-    )
-  ){
+  if(!puedeGestionarPersonal()){
 
     alert(
       'No tienes permiso para editar permisos de usuarios.'
@@ -1470,11 +1462,7 @@ function actualizarEstadoPermisosEdicion(){
 
 function guardarPermisosUsuario(username){
 
-  if(
-    !tienePermiso(
-      'gestionarUsuarios'
-    )
-  ){
+  if(!puedeGestionarPersonal()){
 
     alert(
       'No tienes permiso para modificar permisos.'
@@ -1562,9 +1550,10 @@ function guardarPermisosUsuario(username){
 
 
   users[index].permisos=
-    todos
-      ? 'todos'
-      : seleccionados;
+    esUsuarioSoloConsulta(users[index])
+      ? [...PERMISOS_SOLO_CONSULTA]
+      : todos ? 'todos' : seleccionados;
+  users[index].permisosGestionVersion=1;
 
 
   saveUsers(users);
@@ -1586,10 +1575,7 @@ function guardarPermisosUsuario(username){
 
 async function migrarTodasLasPasswords(){
 
-  if(
-    !tienePermiso('usuarios') &&
-    !tienePermiso('gestionarUsuarios')
-  ){
+  if(!puedeGestionarPersonal()){
 
     alert(
       'No tienes permiso para hacer esto.'
@@ -1670,10 +1656,7 @@ async function migrarTodasLasPasswords(){
 
 function removeUser(username){
 
-  if(
-    !tienePermiso('usuarios') &&
-    !tienePermiso('gestionarUsuarios')
-  ){
+  if(!puedeGestionarPersonal()){
 
     alert(
       'No tienes permiso para eliminar usuarios.'

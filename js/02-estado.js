@@ -62,6 +62,7 @@ let _usersCache = [];
 let _recordsCache = [];
 let _workersCache = [];
 let _rotacionesCache = [];
+let _rotacionesMantenimientoCache = [];
 let _tareosCache = [];
 let _preciosCache = {};
 let _paletasCache = [];
@@ -71,6 +72,7 @@ let _usersReady = false;
 let _recordsReady = false;
 let _workersReady = false;
 let _rotacionesReady = false;
+let _rotacionesMantenimientoReady = false;
 let _tareosReady = false;
 let _preciosReady = false;
 let _paletasReady = false;
@@ -127,13 +129,12 @@ const PERMISOS_APP=[
   {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
   {key:'paletas',label:'Paletas (registro en tiempo real)'},
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
+  {key:'gestionarPersonal',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
   {key:'verLineasProduccion',label:'Ver líneas de producción en el menú lateral'},
   {key:'tareoProduccion',label:'Tareo de Producción (registrar asistencia)'},
   {key:'tareoGeneral',label:'Tareo General (solo lectura — RRHH)'},
   {key:'moduloMantenimiento',label:'Módulo de Mantenimiento (Tareo y demás secciones del área)'},
   {key:'moduloRRHH',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},
-  {key:'trabajadores',label:'Trabajadores'},
-  {key:'usuarios',label:'Usuarios'},
   {key:'exportarExcel',label:'Exportar Excel'},
   {key:'exportarExcelGeneral',label:'Exportar Excel general de planta'},
   {key:'exportarJPG',label:'Exportar JPG'},
@@ -141,19 +142,47 @@ const PERMISOS_APP=[
   {key:'eliminarRegistros',label:'Eliminar registros'},
   {key:'configuracion',label:'Configuración'},
   {key:'administracion',label:'Administración'},
-  {key:'Gestionar de usuarios',label:'Gestión de usuarios'},
 ];
 
+const ROLES_SOLO_CONSULTA = new Set([
+  'Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'
+]);
+const PERMISOS_SOLO_CONSULTA = [
+  'produccionActual','resumen','perdidasSoles',
+  'moduloMantenimiento','moduloRRHH','tareoGeneral',
+  'exportarExcel','exportarExcelGeneral','exportarJPG'
+];
+
+function esUsuarioSoloConsulta(usuario){
+  return !!usuario && ROLES_SOLO_CONSULTA.has(String(usuario.rol||'').trim());
+}
+
+function puedeGestionarPersonal(){
+  return !!state.user &&
+    ['Administrador','Supervisor'].includes(state.user.rol) &&
+    tienePermiso('gestionarPersonal');
+}
+
 function permisosPorRolAnterior(rol){
-  if(rol==='Administrador'||rol==='Jefe de Producción') return 'todos';
-  if(rol==='Supervisor') return ['nuevo','historial','graficos','paletas','trabajadores'];
+  if(rol==='Administrador') return 'todos';
+  if(ROLES_SOLO_CONSULTA.has(rol)) return [...PERMISOS_SOLO_CONSULTA];
+  if(rol==='Supervisor') return ['nuevo','historial','graficos','paletas','gestionarPersonal'];
   return ['nuevo','historial','graficos','paletas'];
 }
 
 function normalizarPermisosUsuario(u){
   if(!u) return [];
+  // Prevalece el rol, incluso si una cuenta antigua tiene permisos:'todos'.
+  if(esUsuarioSoloConsulta(u)) return [...PERMISOS_SOLO_CONSULTA];
   if(u.permisos==='todos') return 'todos';
-  if(Array.isArray(u.permisos)) return u.permisos;
+  if(Array.isArray(u.permisos)){
+    // Supervisores existentes: conceder acceso inicial; después el Admin
+    // puede revocarlo desde Usuarios (permisosGestionVersion=1).
+    if(u.rol==='Supervisor' && u.permisosGestionVersion!==1){
+      return [...new Set([...u.permisos,'gestionarPersonal'])];
+    }
+    return u.permisos;
+  }
   return permisosPorRolAnterior(u.rol);
 }
 
@@ -187,13 +216,14 @@ function usuariosPorDefecto(){
     },
     {
       username:'jefe',password:'jefe123',rol:'Jefe de Producción',
-      puesto:'Jefe de Producción',permisos:'todos',linea:null,
+      puesto:'Jefe de Producción',permisos:[...PERMISOS_SOLO_CONSULTA],linea:null,
       nombre:'Jefe de Producción'
     },
     {
       username:'supervisor',password:'supervisor123',rol:'Supervisor',
       puesto:'Supervisor',
-      permisos:['nuevo','historial','graficos','paletas','trabajadores'],
+      permisos:['nuevo','historial','graficos','paletas','gestionarPersonal'],
+      permisosGestionVersion:1,
       linea:null,nombre:'Supervisor'
     }
   ];
@@ -331,6 +361,42 @@ function initRealtimeSync(){
 
         console.error(
           'Error de sincronización (rotación semanal):', err
+        );
+
+      }
+
+    );
+
+
+  /*
+     ROTACIÓN SEMANAL DE MANTENIMIENTO
+
+     Documento independiente de la rotación de Producción.
+     Contiene las asignaciones semanales de los técnicos de
+     Mantenimiento: turno (Día / Intermedio / Noche) y horario.
+  */
+
+  db.collection('sync').doc('rotacionesMantenimiento')
+
+    .onSnapshot(
+
+      snap => {
+
+        _rotacionesMantenimientoCache =
+          (snap.exists && snap.data().items)
+            ? snap.data().items
+            : [];
+
+        _rotacionesMantenimientoReady = true;
+
+        onRotacionesMantenimientoUpdated();
+
+      },
+
+      err => {
+
+        console.error(
+          'Error de sincronización (rotación semanal de mantenimiento):', err
         );
 
       }
@@ -583,6 +649,20 @@ function onRotacionesUpdated(){
   ){
 
     renderRotacionSemanal();
+
+  }
+
+}
+
+
+function onRotacionesMantenimientoUpdated(){
+
+  if(
+    document.getElementById('mtto-rotacion-semanal-view') &&
+    typeof renderRotacionSemanalMantenimiento === 'function'
+  ){
+
+    renderRotacionSemanalMantenimiento();
 
   }
 
@@ -872,6 +952,29 @@ function saveRotaciones(r){
     items: r,
     updatedAt: Date.now()
   }).catch(err => _avisarErrorGuardado('rotación semanal', err));
+
+}
+
+
+/* =========================================================
+   ROTACIÓN SEMANAL DE MANTENIMIENTO
+   ========================================================= */
+
+function loadRotacionesMantenimiento(){
+
+  return _rotacionesMantenimientoCache;
+
+}
+
+
+function saveRotacionesMantenimiento(r){
+
+  _rotacionesMantenimientoCache = Array.isArray(r) ? r : [];
+
+  db.collection('sync').doc('rotacionesMantenimiento').set({
+    items: _rotacionesMantenimientoCache,
+    updatedAt: Date.now()
+  }).catch(err => _avisarErrorGuardado('rotación semanal de mantenimiento', err));
 
 }
 

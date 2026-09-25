@@ -15,6 +15,11 @@ let workerSearchTerm = '';
 
 function openWorkersModal(){
 
+  if(!puedeGestionarPersonal()){
+    alert('No tienes permiso para gestionar trabajadores.');
+    return;
+  }
+
   const root =
     document.getElementById(
       'modal-root'
@@ -390,6 +395,8 @@ function renderWorkerList(){
 
 function saveWorkerForm(){
 
+  if(!puedeGestionarPersonal())return;
+
   const nombre =
     document.getElementById('tw-nombre').value.trim();
 
@@ -491,6 +498,8 @@ function saveWorkerForm(){
 
 function startEditWorker(id){
 
+  if(!puedeGestionarPersonal())return;
+
   const worker =
     loadWorkers().find(w => w.id === id);
 
@@ -557,6 +566,8 @@ function cancelWorkerEdit(){
    ========================================================= */
 
 function removeWorker(id){
+
+  if(!puedeGestionarPersonal())return;
 
   if(
     !confirm(
@@ -630,6 +641,8 @@ function obtenerCampoFilaImportada(fila, nombreColuna){
 }
 
 function importarTrabajadoresDesdeArchivo(event){
+
+  if(!puedeGestionarPersonal())return;
 
   const input = event.target;
   const archivo = input.files[0];
