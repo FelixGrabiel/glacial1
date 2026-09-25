@@ -337,6 +337,11 @@
       tx.set(ref,{items,updatedAt:ahora});
       return items;
     });
+    // La transacción ya quedó confirmada. Informa también a esta pestaña:
+    // el caché se actualiza antes de que llegue su propio onSnapshot().
+    if(typeof procesarAlertasOperacion === 'function')
+      procesarAlertasOperacion(itemsGuardados);
+
     _programacionesCache=itemsGuardados;
     if(state.currentTab==='produccion-actual')renderProduccionActualTab();
   }
