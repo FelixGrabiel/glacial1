@@ -3944,4 +3944,126 @@ textarea{
         gap:6px;
     }
 }
+/* =========================================================
+   PRODUCCIÓN ACTUAL - ESTADO EN CURSO
+========================================================= */
 
+.estado-en-curso{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+
+    color:#B77900;
+
+    font-size:11px;
+    font-weight:700;
+
+    text-transform:uppercase;
+    letter-spacing:.04em;
+}
+
+.estado-en-curso .estado-punto{
+    display:inline-block;
+
+    width:10px;
+    height:10px;
+
+    border-radius:50%;
+
+    background:var(--amber);
+
+    box-shadow:
+        0 0 0 0 rgba(245,179,53,.45);
+
+    animation:
+        glacialPulsoProduccion 1.4s ease-in-out infinite;
+}
+
+@keyframes glacialPulsoProduccion{
+
+    0%,
+    100%{
+        opacity:1;
+        transform:scale(1);
+        box-shadow:
+            0 0 0 0 rgba(245,179,53,.40);
+    }
+
+    50%{
+        opacity:.65;
+        transform:scale(1.25);
+        box-shadow:
+            0 0 0 6px rgba(245,179,53,0);
+    }
+
+}
+
+
+/* =========================================================
+   GLACIAL · FLUJO DE CIERRE DEL REPORTE DE PRODUCCIÓN
+   ========================================================= */
+.reporte-cierre-panel{
+  margin-top:16px;
+  padding:16px 18px;
+  border:1px solid var(--line);
+  border-left:5px solid var(--amber);
+  border-radius:8px;
+  background:var(--panel);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  box-shadow:var(--shadow-sm);
+}
+.reporte-cierre-panel.finalizado{border-left-color:var(--good);background:var(--good-bg)}
+.reporte-cierre-panel.reabierto{border-left-color:var(--warn);background:var(--warn-bg)}
+.reporte-cierre-titulo{font-weight:800;font-size:13px;letter-spacing:.035em;color:var(--ink)}
+.reporte-sync-status{margin-top:5px;font-size:12px;font-weight:700}
+.reporte-sync-status.guardado{color:var(--good)}
+.reporte-sync-status.guardando,.reporte-sync-status.pendiente{color:var(--warn)}
+.reporte-sync-status.error{color:var(--bad)}
+.reporte-faltantes{margin-top:8px;color:var(--bad);font-size:12px;line-height:1.5}
+.reporte-listo{margin-top:8px;color:var(--good);font-size:12px;font-weight:600}
+.reporte-cierre-acciones{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+.reporte-cierre-acciones .btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-warning{background:var(--amber);border:1px solid var(--amber-deep);color:var(--blue-dark);font-weight:700}
+.reporte-acciones-secundarias{margin-top:10px}
+.reporte-estado-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap}
+.reporte-estado-badge.finalizado{background:var(--good-bg);color:var(--good)}
+.reporte-estado-badge.en_registro{background:var(--amber-light);color:var(--amber-deep)}
+.reporte-estado-badge.reabierto{background:var(--warn-bg);color:var(--warn)}
+.reporte-toast{position:fixed;right:22px;bottom:22px;z-index:99999;background:var(--blue-dark);color:#fff;padding:10px 14px;border-radius:7px;font-size:12px;font-weight:700;opacity:0;transform:translateY(8px);pointer-events:none;transition:.18s}
+.reporte-toast.visible{opacity:1;transform:translateY(0)}
+@media(max-width:700px){
+  .reporte-cierre-panel{align-items:stretch;flex-direction:column}
+  .reporte-cierre-acciones{justify-content:stretch}
+  .reporte-cierre-acciones .btn{flex:1 1 100%}
+}
+
+
+/* =========================================================
+   GLACIAL · CONTINUIDAD DÍA + INTERMEDIO / HISTORIAL
+   ========================================================= */
+.cuadro-cierre-mini{display:flex;justify-content:flex-end;align-items:center;min-height:30px;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--good)}
+.production-card.cuadro-finalizado{border-color:#a8d5ba!important;background:#fbfefc!important}
+.production-card.cuadro-finalizado>div:first-child{background:linear-gradient(135deg,#237a50,#2e8b57)!important}
+.btn-handoff{background:#eef7fb;border:1px solid #9fc9dc;color:var(--blue-deep);font-weight:700}
+.hist-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:250px}
+.hist-actions .btn-sm{padding:6px 8px;font-size:11px;white-space:nowrap}
+.reporte-estado-badge.en_registro{background:var(--amber-light);color:var(--amber-deep)}
+.hist-report-modal{position:fixed;inset:0;z-index:100000;background:rgba(0,25,40,.58);display:flex;align-items:center;justify-content:center;padding:24px}
+.hist-report-dialog{width:min(1180px,96vw);max-height:92vh;background:#f5f8fa;border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.28);display:flex;flex-direction:column}
+.hist-report-top{padding:17px 20px;background:var(--blue-dark);color:#fff;display:flex;justify-content:space-between;align-items:center}
+.hist-report-top h2{margin:0;font-size:19px}.hist-report-top p{margin:4px 0 0;opacity:.8;font-size:12px}
+.hist-report-close{border:0;background:transparent;color:#fff;font-size:22px;cursor:pointer}
+.hist-report-summary{display:flex;gap:18px;flex-wrap:wrap;padding:11px 20px;background:#fff;border-bottom:1px solid var(--line);font-size:12px}
+.hist-report-body{padding:16px 20px;overflow:auto;display:grid;gap:12px}
+.hist-report-card{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.hist-report-card-head{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-bottom:1px solid var(--line);background:#f8fafb}
+.hist-report-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
+.hist-report-grid>div{padding:11px 13px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.hist-report-grid small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase}.hist-report-grid b{display:block;margin-top:4px;font-size:12px}
+.hist-report-observacion{padding:13px;margin:0;white-space:pre-wrap}
+.hist-report-photos{padding:13px;display:flex;gap:10px;flex-wrap:wrap}.hist-report-photo{width:130px;text-decoration:none;color:var(--blue);font-size:11px;font-weight:700}.hist-report-photo img{display:block;width:130px;height:90px;object-fit:cover;border-radius:5px;border:1px solid var(--line);margin-bottom:5px}
+.hist-report-footer{padding:12px 20px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:800px){.hist-report-modal{padding:8px}.hist-report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hist-actions{min-width:0}.hist-report-summary{gap:8px;flex-direction:column}}

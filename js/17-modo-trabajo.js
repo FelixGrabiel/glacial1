@@ -210,11 +210,34 @@ function obtenerTurnoActual(ahora){
 }
 
 
+function esSupervisorParaCronometro(){
+  const usuario = state?.user || {};
+  const texto = [
+    usuario.puesto || '',
+    usuario.cargo || '',
+    usuario.rol || ''
+  ].join(' ');
+
+  const normalizado =
+    typeof normalizarTexto === 'function'
+      ? normalizarTexto(texto)
+      : texto.toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+  return /\bsupervisor\b/.test(normalizado);
+}
+
+
 let _mtCronometroInterval = null;
 
 function iniciarCronometroTurno(){
 
   detenerCronometroTurno();
+
+  if(!esSupervisorParaCronometro()){
+    return;
+  }
 
   renderCronometroTurno();
 
@@ -245,6 +268,11 @@ function renderCronometroTurno(){
   const box = document.getElementById('cronometro-turno');
 
   if(!box) return;
+
+  if(!esSupervisorParaCronometro()){
+    box.style.display = 'none';
+    return;
+  }
 
   if(state.workMode !== 'trabajar'){
 
@@ -343,7 +371,7 @@ function establecerModoTrabajo(modo, opts){
 
   renderModoSwitch();
 
-  aplicarBloqueoVisualizacion();
+  aplicarBloqueoVisualización();
 
   if(modo === 'trabajar'){
 
@@ -395,7 +423,7 @@ function renderModoSwitch(){
    Producción Actual) quedan libres para consultarse con
    normalidad en modo Visualizar, tal como pide el pedido.
 */
-function aplicarBloqueoVisualizacion(){
+function aplicarBloqueoVisualización(){
 
   const tabContent = document.getElementById('tab-content');
 
@@ -875,7 +903,7 @@ if(typeof renderMain === 'function'){
     _mtRenderMainOriginal.apply(this, arguments);
 
     renderModoSwitch();
-    aplicarBloqueoVisualizacion();
+    aplicarBloqueoVisualización();
     actualizarIndicadorAutoguardado();
 
   };

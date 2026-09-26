@@ -4,7 +4,7 @@
 
    Se usa como PNG directo (sin depender de una imagen externa
    ni de una carpeta de assets) en las portadas del Excel por
-   línea (08-graficos.js) y del Excel general de planta
+   línea (08-gráficos.js) y del Excel general de planta
    (14-exportar-general.js). Cárgalo ANTES de esos dos archivos
    en index.html.
    ============================================================= */

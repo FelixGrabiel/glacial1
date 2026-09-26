@@ -91,6 +91,69 @@ let draftPaleta = null;
 let paletaEditId = null;
 let _guardandoPaleta = false;
 
+/* =========================================================
+   NOMBRE AMIGABLE DE PRESENTACIÓN — SOLO VISUAL
+   =========================================================
+   IMPORTANTE: esta función NO cambia el valor interno que se
+   guarda en Firestore. Solo traduce el código técnico para UI.
+*/
+function nombrePresentacionUI(linea, marca, presentacion){
+
+  const original = String(presentacion || '').trim();
+  if(!original) return '—';
+
+  const txt = original.toLowerCase();
+  const lineaTxt = String(linea || '').toUpperCase();
+  const esAlcalina = txt.includes('alcalina');
+  const conSticker = txt.includes('sticker') || txt.includes('(y)');
+
+  // Cajas y bidones de 20 L: no aporta mostrar "PACK X 1 UND".
+  if(lineaTxt === 'C20L' || txt.includes('caja') && txt.includes('20l')){
+    return 'CAJA 20 L';
+  }
+  if(lineaTxt === 'B20L' || txt.includes('bidon') && txt.includes('20l') || txt.includes('bidón') && txt.includes('20l')){
+    return 'BIDÓN 20 L';
+  }
+
+  // Lee códigos como 380mlx24und, 625mlx15und, 1lx12und,
+  // 1.5lx6und, 2.5lx6und y 7000mlx2und sin alterar el código.
+  let volumen = '';
+  let unidades = '';
+
+  let m = txt.match(/(\d+(?:[.,]\d+)?)\s*ml\s*x?\s*(\d+)\s*und/);
+  if(m){
+    const ml = Number(m[1].replace(',', '.'));
+    volumen = ml === 1000 ? '1 L' : ml === 1500 ? '1.5 L' : ml === 2500 ? '2.5 L' : ml === 7000 ? '7 L' : `${ml} ML`;
+    unidades = m[2];
+  } else {
+    m = txt.match(/(\d+(?:[.,]\d+)?)\s*l\s*x?\s*(\d+)\s*und/);
+    if(m){
+      const litros = Number(m[1].replace(',', '.'));
+      volumen = `${Number.isInteger(litros) ? litros : litros.toFixed(1)} L`;
+      unidades = m[2];
+    }
+  }
+
+  // Respaldo para 7 L si algún código antiguo no trae x1/x2.
+  if(!volumen && (txt.includes('7000ml') || txt.includes('7l'))){
+    volumen = '7 L';
+    unidades = normalizarTexto(marca) === 'bells' ? '1' : '2';
+  }
+
+  if(volumen){
+    const partes = [volumen];
+    if(esAlcalina) partes.push('ALCALINA');
+    if(unidades) partes.push(`PACK X ${unidades} UND`);
+    if(conSticker) partes.push('C/S');
+    return partes.join(' · ');
+  }
+
+  // Si aparece una presentación nueva que aún no reconocemos,
+  // mostramos el valor original en vez de inventar una etiqueta.
+  return original;
+}
+
+
 
 /* =========================================================
    PROGRAMACIÓN DE PALETAS POR TURNO ("CANTIDAD PROGRAMADA")
@@ -832,6 +895,94 @@ async function guardarPaleta(){
     _paletasCache = registros;
 
     /*
+       Sincroniza automáticamente la presentación EN CURSO con el
+       producto que acaba de registrar producción. Así el tablero
+       no puede dejar otra marca (por ejemplo Scala) como EN CURSO
+       cuando las paletas que realmente avanzan son de Cuisine.
+    */
+    if(typeof db !== 'undefined'){
+      const refProg = db.collection('sync').doc('programaciones');
+      const claveActual = claveProgramacionPaleta(
+        draftPaleta.linea,
+        draftPaleta.fecha,
+        draftPaleta.turno === 'INTERMEDIO' ? 'DÍA' : draftPaleta.turno,
+        draftPaleta.marca,
+        draftPaleta.presentacion
+      );
+
+      try{
+        const programacionesActualizadas = await db.runTransaction(async tx => {
+          const snapProg = await tx.get(refProg);
+          const itemsProg = snapProg.exists && Array.isArray(snapProg.data().items)
+            ? snapProg.data().items.slice() : [];
+          const idxProg = itemsProg.findIndex(p => p.clave === claveActual);
+
+          if(idxProg < 0 || num(itemsProg[idxProg].cantidadProgramada) <= 0){
+            return itemsProg;
+          }
+
+          const ahoraOp = Date.now();
+          const mismaLineaPlan = p =>
+            p.linea === draftPaleta.linea &&
+            p.fecha === draftPaleta.fecha &&
+            (draftPaleta.turno === 'INTERMEDIO'
+              ? ['DÍA','INTERMEDIO'].includes(p.turno)
+              : p.turno === draftPaleta.turno);
+
+          itemsProg.forEach((p,j) => {
+            if(j === idxProg || !mismaLineaPlan(p))return;
+            if(p.estadoOperacion?.estado === 'EN_PRODUCCION'){
+              itemsProg[j] = {
+                ...p,
+                estadoOperacion:{
+                  ...p.estadoOperacion,
+                  estado:'PENDIENTE',
+                  actualizadoEn:ahoraOp,
+                  actualizadoPor:nombreUsuarioActualPaletas()
+                }
+              };
+            }
+          });
+
+          const previo = itemsProg[idxProg].estadoOperacion || {};
+          if(previo.estado !== 'CANCELADA' && previo.estado !== 'FINALIZADA'){
+            const producidoActual = resumenProgramacionCombinacionTurnos(
+              draftPaleta.linea,
+              draftPaleta.fecha,
+              [draftPaleta.turno],
+              draftPaleta.marca,
+              draftPaleta.presentacion
+            ).unidadesProducidas;
+
+            itemsProg[idxProg] = {
+              ...itemsProg[idxProg],
+              estadoOperacion:{
+                ...previo,
+                estado:'EN_PRODUCCION',
+                inicio: previo.inicio || ahoraOp,
+                baseUnidades: previo.inicio
+                  ? num(previo.baseUnidades)
+                  : Math.max(0,num(producidoActual)-num(totalUnidades)),
+                pausaDesde:0,
+                detenidaDesde:0,
+                motivo:'',
+                actualizadoEn:ahoraOp,
+                actualizadoPor:nombreUsuarioActualPaletas()
+              }
+            };
+          }
+
+          tx.set(refProg,{items:itemsProg,updatedAt:ahoraOp});
+          return itemsProg;
+        });
+
+        _programacionesCache = programacionesActualizadas;
+      }catch(err){
+        console.warn('Paleta guardada, pero no se pudo sincronizar EN CURSO:',err);
+      }
+    }
+
+    /*
        Se mantienen fecha/turno/marca/presentación (para
        agilizar el siguiente registro del mismo turno) y solo
        se limpian tipo/cantidad/observaciones/hora.
@@ -1332,7 +1483,7 @@ function renderPaletasResultados(){
   return `
 
     <div class="section-title" style="margin-top:0;">
-      Programación · ${escaparHtml(draftPaleta.marca || '—')} · ${escaparHtml(draftPaleta.presentacion || '—')}
+      Programación · ${escaparHtml(draftPaleta.marca || '—')} · ${escaparHtml(nombrePresentacionUI(draftPaleta.linea, draftPaleta.marca, draftPaleta.presentacion))}
     </div>
 
     ${
@@ -1379,7 +1530,7 @@ function renderPaletasResultados(){
                 <div class="pl-grupo-card">
 
                   <div class="pl-grupo-title">
-                    ${escaparHtml(g.marca || '—')} · ${escaparHtml(g.presentacion || '—')}
+                    ${escaparHtml(g.marca || '—')} · ${escaparHtml(nombrePresentacionUI(state.currentLine, g.marca, g.presentacion))}
                   </div>
 
                   <div class="pl-grupo-eventos">
@@ -1491,7 +1642,7 @@ function renderPaletasResultados(){
                 <tr>
                   <td>${r.hora || '—'}</td>
                   <td>${escaparHtml(r.marca || '')}</td>
-                  <td>${escaparHtml(r.presentacion || '')}</td>
+                  <td>${escaparHtml(nombrePresentacionUI(r.linea, r.marca, r.presentacion))}</td>
                   <td>
                     ${
                       r.tipoPaleta === 'INCOMPLETA'
@@ -1881,13 +2032,27 @@ const PALETAS_CSS = `
 `;
 
 
+
+/* Producción actual: detalle secundario colapsable */
+const PRODUCCION_ACTUAL_COMPACTA_CSS = `
+  .pa-detalle-productos{margin-top:4px;border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden}
+  .pa-detalle-productos>summary,.pa-detalle-tabla>summary{cursor:pointer;list-style:none;font-weight:700;color:var(--glacial-blue-dark)}
+  .pa-detalle-productos>summary::-webkit-details-marker,.pa-detalle-tabla>summary::-webkit-details-marker{display:none}
+  .pa-detalle-productos>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px}
+  .pa-detalle-productos>summary:after{content:'▾';font-size:16px}
+  .pa-detalle-productos[open]>summary:after{content:'▴'}
+  .pa-detalle-productos>summary small{margin-left:auto;font-weight:500;color:var(--muted)}
+  .pa-detalle-productos-body{padding:0 15px 15px;border-top:1px solid var(--border)}
+  .pa-detalle-tabla{margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
+  .pa-detalle-tabla>summary{padding:8px 0}
+`;
 /* =========================================================
    RENDER COMPLETO DE LA PESTAÑA "PALETAS"
    =========================================================
 
    Se llama desde renderMain() (06-registro.js) cuando
    state.currentTab === 'paletas', igual que renderFormTab(),
-   renderHistorialTab() y renderGraficosTab().
+   renderHistorialTab() y renderGráficosTab().
    ========================================================= */
 
 function renderPaletasTab(){
@@ -2011,7 +2176,7 @@ function renderPaletasTab(){
               presentaciones.length
                 ? presentaciones.map(p => `
                     <option value="${escaparHtml(p)}" ${p === draftPaleta.presentacion ? 'selected' : ''}>
-                      ${escaparHtml(p)}
+                      ${escaparHtml(nombrePresentacionUI(state.currentLine, draftPaleta.marca, p))}
                     </option>
                   `).join('')
                 : `<option value="">Sin presentaciones configuradas</option>`
@@ -2623,7 +2788,7 @@ function renderProductoProduccionActualCard(p){
         <div>
 
           <div class="pl-grupo-title">
-            ${escaparHtml(p.marca || '—')} · ${escaparHtml(p.presentacion || '—')}
+            ${escaparHtml(p.marca || '—')} · ${escaparHtml(nombrePresentacionUI((p.lineas && p.lineas[0]) || '', p.marca, p.presentacion))}
           </div>
 
           <div class="small-muted">
@@ -2717,9 +2882,6 @@ function renderProduccionActualResultados(){
   const productos =
     productosProduccionActual(fecha, turnos);
 
-  let totalProgramadoUnd = 0;
-  let totalProducidoUnd = 0;
-  let totalPendienteUnd = 0;
   let filasHtml = '';
   let hayFilas = false;
 
@@ -2737,21 +2899,16 @@ function renderProduccionActualResultados(){
 
       hayFilas = true;
 
-      totalProgramadoUnd += r.cantidadProgramada;
-      totalProducidoUnd += r.unidadesProducidas;
-      totalPendienteUnd += r.unidadesPendientes;
-
       const estadoSemaforo =
         estadoSemaforoProduccion(
           r.cantidadProgramada, r.porcentajeAvance, r.sobreproduccion
         );
 
       filasHtml += `
-
         <tr class="${r.sobreproduccion ? 'pl-fila-sobreproduccion' : ''}">
           <td>${escaparHtml(line.name)}</td>
           <td>${escaparHtml(combo.marca || '—')}</td>
-          <td>${escaparHtml(combo.presentacion || '—')}</td>
+          <td>${escaparHtml(nombrePresentacionUI(line.key, combo.marca, combo.presentacion))}</td>
           <td>${r.cantidadProgramada ? r.cantidadProgramada.toLocaleString('es-PE') : '—'}</td>
           <td>${r.unidadesProducidas.toLocaleString('es-PE')}</td>
           <td>
@@ -2762,125 +2919,82 @@ function renderProduccionActualResultados(){
           <td>${r.cantidadProgramada ? r.porcentajeAvance.toFixed(1) + '%' : '—'}</td>
           <td>${renderSemaforoDot(estadoSemaforo)}</td>
         </tr>
-
       `;
 
     });
 
   });
 
-  const cumplimientoGeneral =
-    totalProgramadoUnd > 0
-      ? (totalProducidoUnd / totalProgramadoUnd) * 100
-      : 0;
-
-  const estadoGeneralSemaforo =
-    estadoSemaforoProduccion(
-      totalProgramadoUnd,
-      cumplimientoGeneral,
-      totalProgramadoUnd > 0 && totalProducidoUnd > totalProgramadoUnd
-    );
-
+  /*
+     Producción actual prioriza la lectura operativa por LÍNEA.
+     El tablero consolidado se agrega desde 24-semaforo-produccion-actual.js.
+     Aquí conservamos el detalle histórico por marca/presentación, pero
+     colapsado para no saturar la pantalla.
+  */
   return `
 
-    <div class="pl-kpis">
+    <details class="pa-detalle-productos">
+      <summary>
+        <span>Ver detalle por marca y presentación</span>
+        <small>${productos.length} producto${productos.length === 1 ? '' : 's'}</small>
+      </summary>
 
-      <div class="pl-kpi">
-        <div class="pl-kpi-label">Programado (todas las líneas)</div>
-        <div class="pl-kpi-value">${totalProgramadoUnd.toLocaleString('es-PE')}</div>
-        <div class="small-muted">unidades</div>
-      </div>
+      <div class="pa-detalle-productos-body">
 
-      <div class="pl-kpi">
-        <div class="pl-kpi-label">Producido</div>
-        <div class="pl-kpi-value">${totalProducidoUnd.toLocaleString('es-PE')}</div>
-        <div class="small-muted">unidades</div>
-      </div>
+        <div class="section-title" style="margin-top:0;">
+          Por marca y presentación
+        </div>
 
-      <div class="pl-kpi ${totalProgramadoUnd && totalProducidoUnd > totalProgramadoUnd ? 'pl-kpi-warning' : ''}">
-        <div class="pl-kpi-label">Pendiente</div>
-        <div class="pl-kpi-value">${totalPendienteUnd.toLocaleString('es-PE')}</div>
-        <div class="small-muted">unidades</div>
-      </div>
+        ${
+          productos.length
+            ? `
+              <div class="pl-grupos pl-grupos-anchas" style="margin-bottom:18px;">
+                ${productos.map(renderProductoProduccionActualCard).join('')}
+              </div>
+            `
+            : `
+              <div class="small-muted" style="padding:10px 0 18px;">
+                Sin registros ni programación para la fecha/turno seleccionados.
+              </div>
+            `
+        }
 
-      <div class="pl-kpi">
-        <div class="pl-kpi-label">Cumplimiento general</div>
-        <div class="pl-kpi-value">${totalProgramadoUnd ? cumplimientoGeneral.toFixed(1) + '%' : '—'}</div>
-        <div style="margin-top:6px;">${renderSemaforoChip(estadoGeneralSemaforo)}</div>
-      </div>
-
-    </div>
-
-    <div class="small-muted" style="margin:-6px 0 18px;">
-      Este total suma cada producto por separado, así que si uno
-      sobreproduce mientras otro se atrasa, los números de arriba
-      pueden parecer no cuadrar. Revisa el detalle por producto
-      abajo para saber exactamente cuál está pendiente.
-    </div>
-
-
-    ${renderResumenSemaforoProductos(productos)}
-
-    <div class="section-title" style="margin-top:0;">
-      Por marca y presentación
-    </div>
-
-    ${
-      productos.length
-        ? `
-          <div class="pl-grupos pl-grupos-anchas" style="margin-bottom:18px;">
-            ${productos.map(renderProductoProduccionActualCard).join('')}
-          </div>
-        `
-        : `
-          <div class="small-muted" style="padding:10px 0 18px;">
-            Sin registros ni programación para la fecha/turno seleccionados.
-          </div>
-        `
-    }
-
-
-    <div class="section-title">
-      Detalle por línea
-    </div>
-
-    <div style="overflow-x:auto;">
-
-      <table>
-
-        <thead>
-          <tr>
-            <th>Línea</th>
-            <th>Marca</th>
-            <th>Presentación</th>
-            <th>Programado (UND)</th>
-            <th>Producido (UND)</th>
-            <th>Paletas</th>
-            <th>Pendiente (UND)</th>
-            <th>Avance</th>
-            <th>Estado</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          ${
-            hayFilas
-              ? filasHtml
-              : `
+        <details class="pa-detalle-tabla">
+          <summary>Ver tabla técnica por línea</summary>
+          <div style="overflow-x:auto;margin-top:12px;">
+            <table>
+              <thead>
                 <tr>
-                  <td colspan="9" class="small-muted" style="padding:14px 0;">
-                    Sin registros ni programación para la fecha/turno seleccionados, en ninguna línea.
-                  </td>
+                  <th>Línea</th>
+                  <th>Marca</th>
+                  <th>Presentación</th>
+                  <th>Programado (UND)</th>
+                  <th>Producido (UND)</th>
+                  <th>Paletas</th>
+                  <th>Pendiente (UND)</th>
+                  <th>Avance</th>
+                  <th>Estado</th>
                 </tr>
-              `
-          }
+              </thead>
+              <tbody>
+                ${
+                  hayFilas
+                    ? filasHtml
+                    : `
+                      <tr>
+                        <td colspan="9" class="small-muted" style="padding:14px 0;">
+                          Sin registros ni programación para la fecha/turno seleccionados.
+                        </td>
+                      </tr>
+                    `
+                }
+              </tbody>
+            </table>
+          </div>
+        </details>
 
-        </tbody>
-
-      </table>
-
-    </div>
+      </div>
+    </details>
 
   `;
 
@@ -2908,7 +3022,7 @@ function renderProduccionActualTab(){
 
   main.innerHTML = `
 
-    <style>${PALETAS_CSS}</style>
+    <style>${PALETAS_CSS}${PRODUCCION_ACTUAL_COMPACTA_CSS}</style>
 
     <div class="main-head">
 
@@ -3033,10 +3147,36 @@ function renderProduccionActualTab(){
       }
     });
 
+    /*
+       El saldo es un ESTADO del corte, no un acumulado permanente.
+       Si después del último saldo se registra un nuevo corte de
+       paletas completas, ese nuevo corte reemplaza el saldo anterior
+       salvo que exista un saldo registrado después del mismo.
+    */
+    const orden = item => {
+      if(!item) return {creado:0,hora:'',indice:-1};
+      return {
+        creado:Number(item.registro?.creadoEn) || 0,
+        hora:String(item.registro?.hora || ''),
+        indice:Number(item.indice) || 0
+      };
+    };
+    const esPosterior = (a,b) => {
+      if(!a) return false;
+      if(!b) return true;
+      const A=orden(a), B=orden(b);
+      return A.creado > B.creado ||
+        (A.creado === B.creado &&
+          (A.hora > B.hora || (A.hora === B.hora && A.indice > B.indice)));
+    };
+    const saldoVigente = saldo && esPosterior(saldo, completas)
+      ? num(saldo.registro.totalUnidades)
+      : 0;
+
     return {
       paletas: num(completas?.registro.paletas),
       unidadesCompletas: num(completas?.registro.totalUnidades),
-      unidadesSaldo: num(saldo?.registro.totalUnidades)
+      unidadesSaldo: saldoVigente
     };
   }
 
@@ -3262,13 +3402,13 @@ function renderProduccionActualTab(){
     const campoPaletas = Array.from(
       panel.querySelectorAll('.field-sm')
     ).find(el =>
-      /Cantidad de paletas completas|Paletas completas acumuladas/
+      /Cantidad de paletas completas|Paletas completas del corte/
         .test(el.querySelector('label')?.textContent || '')
     );
 
     if(campoPaletas){
       campoPaletas.querySelector('label').textContent =
-        'Paletas completas acumuladas';
+        'Paletas completas del corte';
 
       const input =
         campoPaletas.querySelector('input[type="number"]');
@@ -3358,7 +3498,7 @@ function renderProduccionActualTab(){
         alert(
           !upp
             ? 'Faltan unidades por paleta para esta presentación.'
-            : 'Ingresa las paletas completas acumuladas (0 o más).'
+            : 'Ingresa las paletas completas del corte (0 o más).'
         );
         return;
       }

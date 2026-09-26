@@ -5,7 +5,7 @@
    Reutiliza el mismo motor que ya usa el Excel por línea
    (xlFill, xlFont, xlN, xlN1,
    xlFechaTexto, cargarScriptExterno, descargarArchivo, etc. —
-   definidos en 08-graficos.js).
+   definidos en 08-gráficos.js).
 
    Cubre, por ahora, los puntos 1 a 5 del Excel general acordado:
      1. Portada de planta
@@ -32,7 +32,7 @@
    =========================================================
 
    Tonos sobrios y de baja saturación, solo para este
-   archivo (el Excel por línea de 08-graficos.js sigue con
+   archivo (el Excel por línea de 08-gráficos.js sigue con
    su paleta XL). Encabezados en azul apagado, semáforo en
    tonos pastel y bordes casi imperceptibles.
    ========================================================= */
@@ -272,13 +272,13 @@ function calcularOEEDiarioPorLinea(records){
    GRÁFICO DE LÍNEAS DIBUJADO EN CANVAS (PARA LA TENDENCIA)
    =========================================================
 
-   Mismo enfoque que xlGraficoBarras (08-graficos.js): se
+   Mismo enfoque que xlGráficoBarras (08-gráficos.js): se
    dibuja en un <canvas> oculto y se inserta como imagen PNG
    en la hoja, porque ExcelJS no soporta gráficos nativos
    editables sin cambiar de librería o armar el XML a mano.
    ========================================================= */
 
-function xlgGraficoLineas(cfg){
+function xlgGráficoLineas(cfg){
 
   const fechas = cfg.fechas || [];
   const series = cfg.series || [];
@@ -308,8 +308,8 @@ function xlgGraficoLineas(cfg){
   ctx.fillText(cfg.titulo || '', 16, 22);
 
   const top = 46, izq = 46, der = 20, abajoEje = 40, abajoLeyenda = 22;
-  const alturaGrafico = alto - top - abajoEje - abajoLeyenda;
-  const anchoGrafico = ancho - izq - der;
+  const alturaGráfico = alto - top - abajoEje - abajoLeyenda;
+  const anchoGráfico = ancho - izq - der;
 
   /* Ejes y grilla (0-100%) */
   ctx.strokeStyle = '#E9EEF2';
@@ -318,28 +318,28 @@ function xlgGraficoLineas(cfg){
   ctx.textAlign = 'right';
 
   for(let p = 0; p <= 100; p += 25){
-    const y = top + alturaGrafico * (1 - p / 100);
+    const y = top + alturaGráfico * (1 - p / 100);
     ctx.beginPath();
     ctx.moveTo(izq, y);
-    ctx.lineTo(izq + anchoGrafico, y);
+    ctx.lineTo(izq + anchoGráfico, y);
     ctx.stroke();
     ctx.fillText(p + '%', izq - 6, y);
   }
 
   /* Línea de meta */
-  const yMeta = top + alturaGrafico * (1 - METAS.oee);
+  const yMeta = top + alturaGráfico * (1 - METAS.oee);
   ctx.strokeStyle = '#' + XLG.rojo;
   ctx.setLineDash([5,3]);
   ctx.beginPath();
   ctx.moveTo(izq, yMeta);
-  ctx.lineTo(izq + anchoGrafico, yMeta);
+  ctx.lineTo(izq + anchoGráfico, yMeta);
   ctx.stroke();
   ctx.setLineDash([]);
 
   ctx.fillStyle = '#' + XLG.rojo;
   ctx.font = 'bold 10px Arial';
   ctx.textAlign = 'right';
-  ctx.fillText('Meta ' + pct(METAS.oee), izq + anchoGrafico - 4, yMeta - 7);
+  ctx.fillText('Meta ' + pct(METAS.oee), izq + anchoGráfico - 4, yMeta - 7);
   ctx.font = '10px Arial';
 
   /* Etiquetas de fecha en X (máx. ~12, para no amontonar) */
@@ -351,8 +351,8 @@ function xlgGraficoLineas(cfg){
     if(i % paso !== 0 && i !== fechas.length - 1){
       return;
     }
-    const x = izq + (fechas.length > 1 ? (i / (fechas.length - 1)) * anchoGrafico : 0);
-    ctx.fillText(xlFechaTexto(f).slice(0,5), x, top + alturaGrafico + 14);
+    const x = izq + (fechas.length > 1 ? (i / (fechas.length - 1)) * anchoGráfico : 0);
+    ctx.fillText(xlFechaTexto(f).slice(0,5), x, top + alturaGráfico + 14);
   });
 
   /* Series */
@@ -367,13 +367,13 @@ function xlgGraficoLineas(cfg){
 
     serie.valores.forEach((v, i) => {
 
-      const x = izq + (fechas.length > 1 ? (i / (fechas.length - 1)) * anchoGrafico : 0);
+      const x = izq + (fechas.length > 1 ? (i / (fechas.length - 1)) * anchoGráfico : 0);
 
       if(v === null || v === undefined){
         return;
       }
 
-      const y = top + alturaGrafico * (1 - Math.min(v, 1));
+      const y = top + alturaGráfico * (1 - Math.min(v, 1));
 
       if(i === 0 || serie.valores[i - 1] === null){
         ctx.moveTo(x, y);
@@ -392,8 +392,8 @@ function xlgGraficoLineas(cfg){
         return;
       }
 
-      const x = izq + (fechas.length > 1 ? (i / (fechas.length - 1)) * anchoGrafico : 0);
-      const y = top + alturaGrafico * (1 - Math.min(v, 1));
+      const x = izq + (fechas.length > 1 ? (i / (fechas.length - 1)) * anchoGráfico : 0);
+      const y = top + alturaGráfico * (1 - Math.min(v, 1));
 
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
@@ -408,7 +408,7 @@ function xlgGraficoLineas(cfg){
 
   /* Leyenda */
   let xLeyenda = izq;
-  const yLeyenda = top + alturaGrafico + abajoEje - 4;
+  const yLeyenda = top + alturaGráfico + abajoEje - 4;
 
   ctx.font = '11px Arial';
   ctx.textAlign = 'left';
@@ -441,7 +441,7 @@ function xlgGraficoLineas(cfg){
    empeorando en los últimos días del rango elegido.
    ========================================================= */
 
-function xlgGraficoSparkline(cfg){
+function xlgGráficoSparkline(cfg){
 
   const valores = cfg.valores || [];
   const meta = num(cfg.meta) || 0.85;
@@ -705,7 +705,7 @@ function xlgHojaPortada(wb, ctx){
       return dia && dia.horas > 0 ? dia.oeeXhoras / dia.horas : null;
     });
 
-    const imgTendencia = xlgGraficoSparkline({
+    const imgTendencia = xlgGráficoSparkline({
       valores: valoresTendencia,
       meta: METAS.oee,
       ancho: 95,
@@ -1299,7 +1299,7 @@ function xlgHojaTendencia(wb, ctx){
   });
 
   /* Gráfico */
-  const imagen = xlgGraficoLineas({
+  const imagen = xlgGráficoLineas({
     titulo: 'OEE diario por línea (línea punteada = meta ' + pct(METAS.oee) + ')',
     fechas, series: seriesOEE, ancho: 760, alto: 340
   });

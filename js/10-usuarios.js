@@ -125,7 +125,7 @@ function openUsersModal(){
               <input
                 id="nu-nombre"
                 
-                placeholder="Ej. Jesus Garcia">
+                placeholder="Ej. Jesús García">
 
             </div>
 
@@ -437,7 +437,7 @@ function cambiarRolNuevoUsuario(){
     checks.forEach(
       c=>{
         const sugeridos = {
-          'Supervisor': ['verLineasProduccion','nuevo','historial','graficos','paletas','gestionarPersonal'],
+          'Supervisor': ['verLineasProduccion','nuevo','historial','gráficos','paletas','gestionarPersonal'],
           'Gerente General': PERMISOS_SOLO_CONSULTA,
           'Jefe de Producción': PERMISOS_SOLO_CONSULTA,
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,

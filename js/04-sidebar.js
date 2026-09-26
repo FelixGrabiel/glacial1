@@ -11,7 +11,7 @@
 function visibleLines(){
   if(esUsuarioSoloConsulta(state.user))return [];
   if(!puedeVerLineasProduccion())return [];
-  if(!['nuevo','historial','graficos','paletas'].some(p=>tienePermiso(p)))return [];
+  if(!['nuevo','historial','gráficos','paletas'].some(p=>tienePermiso(p)))return [];
   if(tienePermiso('todasLasLineas'))return LINES;
   if(state.user.linea)return LINES.filter(l=>l.key===state.user.linea);
   return LINES;
@@ -32,7 +32,7 @@ function puedeVerLineasProduccion(){
   ].includes(state.user.rol);
 }
 
-const PESTANAS_LINEA=['nuevo','historial','graficos','paletas'];
+const PESTANAS_LINEA=['nuevo','historial','gráficos','paletas'];
 
 function primeraVistaAutorizada(){
   if(visibleLines().length){

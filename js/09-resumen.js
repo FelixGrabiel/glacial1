@@ -289,7 +289,7 @@ function calcularKPIsPlanta(records){
    Tonos "pastel" de baja saturación para que las barras se
    vean limpias y profesionales, sin colores estridentes.
    Solo afecta a esta pantalla (la pestaña Gráficos sigue
-   usando la paleta PAL de 08-graficos.js).
+   usando la paleta PAL de 08-gráficos.js).
    ========================================================= */
 
 const PAL_R = {

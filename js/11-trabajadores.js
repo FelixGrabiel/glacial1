@@ -12,6 +12,32 @@
 let workerEditId = null;
 let workerSearchTerm = '';
 
+/* =========================================================
+   RRHH · CLASIFICACIÓN MAESTRA
+   ========================================================= */
+const RRHH_PUESTOS_POR_AREA = {
+  'Producción': ['Operario de Producción','Supervisor de Producción','Maquinista de Producción'],
+  'Mantenimiento': ['Técnico de Mantenimiento','Maquinista de Mantenimiento']
+};
+
+function rrhhAreaTrabajador(worker){
+  if(worker && RRHH_PUESTOS_POR_AREA[worker.area]) return worker.area;
+  const cargo = normalizarTexto(worker?.cargo || '');
+  return cargo.includes('mantenimiento') || cargo.includes('mtto')
+    ? 'Mantenimiento' : 'Producción';
+}
+
+function rrhhActualizarPuestos(valorSeleccionado=''){
+  const area = document.getElementById('tw-area')?.value || 'Producción';
+  const select = document.getElementById('tw-cargo');
+  if(!select) return;
+  const opciones = RRHH_PUESTOS_POR_AREA[area] || [];
+  select.innerHTML = '<option value="">Seleccionar puesto...</option>' +
+    opciones.map(p => `<option value="${p}">${p}</option>`).join('');
+  if(valorSeleccionado && opciones.includes(valorSeleccionado)) select.value = valorSeleccionado;
+}
+
+
 
 function openWorkersModal(){
 
@@ -122,50 +148,37 @@ function openWorkersModal(){
 
 
             <div class="field-sm">
+              <label>Tipo de documento</label>
+              <select id="tw-tipo-documento">
+                <option value="DNI">DNI</option>
+                <option value="CE">Carné de Extranjería</option>
+              </select>
+            </div>
 
-              <label>
-                DNI / N° documento
-              </label>
-
-              <input
-                id="tw-dni"
-              >
-
+            <div class="field-sm">
+              <label>N.º documento</label>
+              <input id="tw-dni" autocomplete="off">
             </div>
 
 
             <div class="field-sm">
-
-              <label>
-                Cargo
-              </label>
-
-              <input
-                id="tw-cargo"
-                list="cargos-trabajador-datalist"
-              >
-
-              <datalist id="cargos-trabajador-datalist">
-
-                ${
-                  CARGOS_TRABAJADOR.map(
-
-                    c => `
-                      <option value="${c}"></option>
-                    `
-
-                  ).join('')
-                }
-
-              </datalist>
-
+              <label>Área principal</label>
+              <select id="tw-area" onchange="rrhhActualizarPuestos()">
+                <option value="Producción">Producción</option>
+                <option value="Mantenimiento">Mantenimiento</option>
+              </select>
             </div>
 
+            <div class="field-sm">
+              <label>Puesto</label>
+              <select id="tw-cargo">
+                <option value="">Seleccionar puesto...</option>
+                ${RRHH_PUESTOS_POR_AREA['Producción'].map(p => `<option value="${p}">${p}</option>`).join('')}
+              </select>
+            </div>
 
             <div class="field-sm">
-
-              <label>
-                Línea / área asignada
+              <label>Línea asignada
               </label>
 
               <select id="tw-linea">
@@ -350,10 +363,10 @@ function renderWorkerList(){
 
               <div class="small-muted">
 
-                ${w.cargo || 'Sin cargo'}
+                ${rrhhAreaTrabajador(w)} · ${w.cargo || 'Sin puesto'}
                 ·
                 ${lineaNombre}
-                ${w.dni ? ' · DNI ' + w.dni : ''}
+                ${w.dni ? ' · ' + (w.tipoDocumento || 'DNI') + ' ' + w.dni : ''}
 
               </div>
 
@@ -400,8 +413,14 @@ function saveWorkerForm(){
   const nombre =
     document.getElementById('tw-nombre').value.trim();
 
+  const tipoDocumento =
+    document.getElementById('tw-tipo-documento')?.value || 'DNI';
+
   const dni =
     document.getElementById('tw-dni').value.trim();
+
+  const area =
+    document.getElementById('tw-area')?.value || 'Producción';
 
   const cargo =
     document.getElementById('tw-cargo').value.trim();
@@ -438,7 +457,9 @@ function saveWorkerForm(){
       workers[idx] = {
         ...workers[idx],
         nombre,
+        tipoDocumento,
         dni,
+        area,
         cargo,
         linea,
         estado
@@ -473,7 +494,9 @@ function saveWorkerForm(){
         Math.random().toString(36).slice(2,8),
 
       nombre,
+      tipoDocumento,
       dni,
+      area,
       cargo,
       linea,
       estado: estado || 'Activo'
@@ -512,8 +535,10 @@ function startEditWorker(id){
 
 
   document.getElementById('tw-nombre').value = worker.nombre || '';
+  document.getElementById('tw-tipo-documento').value = worker.tipoDocumento || 'DNI';
   document.getElementById('tw-dni').value = worker.dni || '';
-  document.getElementById('tw-cargo').value = worker.cargo || '';
+  document.getElementById('tw-area').value = rrhhAreaTrabajador(worker);
+  rrhhActualizarPuestos(worker.cargo || '');
   document.getElementById('tw-linea').value = worker.linea || '';
   document.getElementById('tw-estado').value = worker.estado || 'Activo';
 
@@ -543,8 +568,10 @@ function cancelWorkerEdit(){
 
 
   nombreField.value = '';
+  document.getElementById('tw-tipo-documento').value = 'DNI';
   document.getElementById('tw-dni').value = '';
-  document.getElementById('tw-cargo').value = '';
+  document.getElementById('tw-area').value = 'Producción';
+  rrhhActualizarPuestos();
   document.getElementById('tw-linea').value = '';
   document.getElementById('tw-estado').value = 'Activo';
 

@@ -1,7 +1,7 @@
 /* Avance operativo por fecha y turno. Las cantidades ingresadas son acumuladas. */
 const avanceEstado = { fecha:'', turno:'TD', linea:'PET1', datos:null, sucio:false, unsubscribe:null, clave:'' };
 const AVANCE_LINEAS = ['PET1','PET2','B7L','C20L','B20L','HIELO'];
-const AVANCE_NOMBRES = {PET1:'Pet1',PET2:'Pet2',B7L:'B7L',C20L:'Cajas 20L',B20L:'B20L',HIELO:'Hielo'};
+const AVANCE_NOMBRES = {PET1:'PET 1',PET2:'PET 2',B7L:'B7L',C20L:'Cajas 20L',B20L:'B20L',HIELO:'Hielo'};
 
 function avanceFechaHoy(){
   const hoy = new Date();

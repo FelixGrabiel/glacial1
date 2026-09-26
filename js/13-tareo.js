@@ -41,7 +41,14 @@ const TAREO_ESTADOS_ASISTENCIA = [
     'Falta justificada',
     'Descanso',
     'Descanso médico',
-    'Vacaciones'
+    'Vacaciones',
+    'Suspensión',
+    'Licencia sin goce',
+    'Licencia por maternidad',
+    'Licencia por paternidad',
+    'Fallecimiento de familiar directo',
+    'Comisión / trabajo externo',
+    'Feriado trabajado'
 ];
 
 const TAREO_ESTADOS_FINAL =
@@ -403,6 +410,13 @@ function tareoEstadoCanonico(valor) {
     if (texto === 'descanso') return 'Descanso';
     if (texto === 'descanso medico') return 'Descanso médico';
     if (texto === 'vacaciones') return 'Vacaciones';
+    if (texto === 'suspension') return 'Suspensión';
+    if (texto === 'licencia sin goce' || texto === 'licencia sin goce') return 'Licencia sin goce';
+    if (texto === 'licencia por maternidad') return 'Licencia por maternidad';
+    if (texto === 'licencia por paternidad') return 'Licencia por paternidad';
+    if (texto === 'fallecimiento de familiar directo' || texto === 'fallecimiento por familiar directo') return 'Fallecimiento de familiar directo';
+    if (texto === 'comision / trabajo externo' || texto === 'comision' || texto === 'trabajo externo') return 'Comisión / trabajo externo';
+    if (texto === 'feriado trabajado') return 'Feriado trabajado';
 
     return String(valor);
 }
@@ -1625,6 +1639,9 @@ function tareoNuevaPersona(
         nombre:
             trabajador.nombre || '',
 
+        tipoDocumento:
+            trabajador.tipoDocumento || 'DNI',
+
         dni:
             trabajador.dni || '',
 
@@ -1640,6 +1657,12 @@ function tareoNuevaPersona(
             '',
 
         horaIngreso:
+            '',
+
+        salidaRefrigerio:
+            '',
+
+        retornoRefrigerio:
             '',
 
         refrigerio:
@@ -1698,6 +1721,15 @@ function convertirHoraMinutos(hora) {
     );
 }
 
+
+function calcularMinutosRefrigerio(salidaRefrigerio, retornoRefrigerio) {
+    const salida = convertirHoraMinutos(salidaRefrigerio);
+    const retorno = convertirHoraMinutos(retornoRefrigerio);
+    if (salida === null || retorno === null) return 0;
+    let minutos = retorno - salida;
+    if (minutos < 0) minutos += 1440;
+    return Math.max(0, minutos);
+}
 
 function calcularHorasTrabajadas(
     horaIngreso,
@@ -2696,7 +2728,8 @@ function renderTareoFormulario(tareo) {
                                 <th>Línea</th>
                                 <th>Asistencia</th>
                                 <th>Ingreso</th>
-                                <th>Refrigerio</th>
+                                <th>Salida refrigerio</th>
+                                <th>Retorno refrigerio</th>
                                 <th>Salida</th>
                                 <th>Horas</th>
                                 <th>Extras</th>
@@ -3007,7 +3040,7 @@ function renderFilaPersonalTareo(
                     ${tareoBotonNombre(persona, tareoId)}
 
                     <small>
-                        DNI:
+                        ${escaparHTML(persona.tipoDocumento || 'DNI')}:
                         ${escaparHTML(persona.dni)}
                     </small>
 
@@ -3098,17 +3131,29 @@ function renderFilaPersonalTareo(
 
 
             <td>
+                <div class="tar2-marcacion">
+                    <input type="time"
+                        value="${escaparHTML(persona.salidaRefrigerio || '')}"
+                        ${deshabilitado}
+                        onchange="actualizarSalidaRefrigerioTareo(${clave}, this.value)">
+                    ${asistio && !persona.salidaRefrigerio ? `
+                    <button type="button" class="tar2-action-btn"
+                        onclick="tareoSalidaRefrigerioAhora(${clave})">🍽 SALIDA REFRIGERIO</button>` : ''}
+                </div>
+            </td>
 
-                <input
-                    type="number"
-                    min="0"
-                    max="4"
-                    step="0.25"
-                    value="${Number(persona.refrigerio || 0)}"
-                    ${deshabilitado}
-                    onchange="actualizarRefrigerioTareo(${clave}, this.value)"
-                >
-
+            <td>
+                <div class="tar2-marcacion">
+                    <input type="time"
+                        value="${escaparHTML(persona.retornoRefrigerio || '')}"
+                        ${deshabilitado}
+                        onchange="actualizarRetornoRefrigerioTareo(${clave}, this.value)">
+                    ${asistio && persona.salidaRefrigerio && !persona.retornoRefrigerio ? `
+                    <button type="button" class="tar2-action-btn"
+                        onclick="tareoRetornoRefrigerioAhora(${clave})">↩ RETORNO</button>` : ''}
+                    ${persona.salidaRefrigerio && persona.retornoRefrigerio ? `
+                    <span class="tar2-auto">${calcularMinutosRefrigerio(persona.salidaRefrigerio, persona.retornoRefrigerio)} min</span>` : ''}
+                </div>
             </td>
 
 
@@ -3130,7 +3175,7 @@ function renderFilaPersonalTareo(
                             title="Registrar la hora actual como salida"
                             onclick="tareoSalidaAhora(${clave})"
                         >
-                            Ahora
+                            🚪 SALIDA
                         </button>
                         `
                         : ''
@@ -3285,6 +3330,8 @@ function actualizarAsistenciaTareo(
 
         persona.horaIngreso = '';
         persona.horaIngresoAuto = false;
+        persona.salidaRefrigerio = '';
+        persona.retornoRefrigerio = '';
         persona.refrigerio = 0;
         persona.horaSalida = '';
         persona.horasTrabajadas = 0;
@@ -3316,6 +3363,12 @@ function recalcularPersonaTareo(
 
         return;
     }
+
+    const minutosRefrigerio = calcularMinutosRefrigerio(
+        persona.salidaRefrigerio,
+        persona.retornoRefrigerio
+    );
+    persona.refrigerio = minutosRefrigerio / 60;
 
     persona.horasTrabajadas =
         calcularHorasTrabajadas(
@@ -3354,18 +3407,42 @@ function actualizarHoraIngresoTareo(
 }
 
 
-function actualizarRefrigerioTareo(
-    clave,
-    valor
-) {
-
+function actualizarRefrigerioTareo(clave, valor) {
+    /* Compatibilidad con registros antiguos que guardaban horas de refrigerio. */
     tareoEditarPersona(clave, persona => {
-
-        persona.refrigerio =
-            Number(valor) || 0;
+        persona.refrigerio = Number(valor) || 0;
     });
 }
 
+function actualizarSalidaRefrigerioTareo(clave, hora) {
+    tareoEditarPersona(clave, persona => {
+        persona.salidaRefrigerio = hora;
+        if (!hora) persona.retornoRefrigerio = '';
+    });
+}
+
+function actualizarRetornoRefrigerioTareo(clave, hora) {
+    tareoEditarPersona(clave, persona => {
+        persona.retornoRefrigerio = hora;
+    });
+}
+
+function tareoSalidaRefrigerioAhora(clave) {
+    tareoEditarPersona(clave, persona => {
+        persona.salidaRefrigerio = tareoHoraActual();
+        persona.retornoRefrigerio = '';
+    });
+}
+
+function tareoRetornoRefrigerioAhora(clave) {
+    tareoEditarPersona(clave, persona => {
+        if (!persona.salidaRefrigerio) {
+            alert('Primero registra la salida a refrigerio.');
+            return;
+        }
+        persona.retornoRefrigerio = tareoHoraActual();
+    });
+}
 
 function actualizarHoraSalidaTareo(
     clave,
@@ -3380,10 +3457,13 @@ function actualizarHoraSalidaTareo(
 
 
 function tareoSalidaAhora(clave) {
-
-    tareoEditarPersona(clave, persona => {
-
-        persona.horaSalida = tareoHoraActual();
+    const tareo = tareoObtenerActual();
+    const persona = tareo?.personal?.find(item => tareoClavePersona(item) === String(clave));
+    if (persona?.salidaRefrigerio && !persona?.retornoRefrigerio) {
+        if (!confirm('No se registró el retorno de refrigerio. ¿Registrar SALIDA de todas formas?')) return;
+    }
+    tareoEditarPersona(clave, personaEditada => {
+        personaEditada.horaSalida = tareoHoraActual();
     });
 }
 

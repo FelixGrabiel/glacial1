@@ -124,7 +124,7 @@ function _avisarErrorGuardado(nombreDato, error){
 const PERMISOS_APP=[
   {key:'nuevo',label:'Nuevo registro'},
   {key:'historial',label:'Historial'},
-  {key:'graficos',label:'Gráficos'},
+  {key:'gráficos',label:'Gráficos'},
   {key:'resumen',label:'Resumen / Reportes'},
   {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
   {key:'paletas',label:'Paletas (registro en tiempo real)'},
@@ -140,6 +140,7 @@ const PERMISOS_APP=[
   {key:'exportarJPG',label:'Exportar JPG'},
   {key:'todasLasLineas',label:'Todas las líneas'},
   {key:'eliminarRegistros',label:'Eliminar registros'},
+  {key:'reabrirReporteProduccion',label:'Reabrir reportes de producción finalizados'},
   {key:'configuracion',label:'Configuración'},
   {key:'administracion',label:'Administración'},
 ];
@@ -166,8 +167,8 @@ function puedeGestionarPersonal(){
 function permisosPorRolAnterior(rol){
   if(rol==='Administrador') return 'todos';
   if(ROLES_SOLO_CONSULTA.has(rol)) return [...PERMISOS_SOLO_CONSULTA];
-  if(rol==='Supervisor') return ['nuevo','historial','graficos','paletas','gestionarPersonal'];
-  return ['nuevo','historial','graficos','paletas'];
+  if(rol==='Supervisor') return ['nuevo','historial','gráficos','paletas','gestionarPersonal'];
+  return ['nuevo','historial','gráficos','paletas'];
 }
 
 function normalizarPermisosUsuario(u){
@@ -222,7 +223,7 @@ function usuariosPorDefecto(){
     {
       username:'supervisor',password:'supervisor123',rol:'Supervisor',
       puesto:'Supervisor',
-      permisos:['nuevo','historial','graficos','paletas','gestionarPersonal'],
+      permisos:['nuevo','historial','gráficos','paletas','gestionarPersonal'],
       permisosGestionVersion:1,
       linea:null,nombre:'Supervisor'
     }
@@ -863,7 +864,7 @@ function onRecordsUpdated(){
   if(
     state.currentTab === 'resumen' ||
     state.currentTab === 'historial' ||
-    state.currentTab === 'graficos' ||
+    state.currentTab === 'gráficos' ||
     state.currentTab === 'perdidas'
   ){
 

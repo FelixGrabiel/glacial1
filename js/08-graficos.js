@@ -198,7 +198,51 @@ const valorBarraPlugin = {
 };
 
 
+
 Chart.register(metaLinePlugin, valorBarraPlugin);
+
+/* =========================================================
+   ESTÁNDAR VISUAL INDUSTRIAL — TODOS LOS GRÁFICOS
+   =========================================================
+   Estas opciones son globales: también mejoran los gráficos
+   creados posteriormente por Resumen e Impacto Económico.
+   ========================================================= */
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+Chart.defaults.color = PAL.texto;
+Chart.defaults.font.family = '"IBM Plex Sans", sans-serif';
+Chart.defaults.font.size = 11;
+Chart.defaults.animation.duration = 420;
+Chart.defaults.animation.easing = 'easeOutQuart';
+Chart.defaults.interaction.mode = 'index';
+Chart.defaults.interaction.intersect = false;
+
+Chart.defaults.plugins.legend.position = 'bottom';
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+Chart.defaults.plugins.legend.labels.boxWidth = 8;
+Chart.defaults.plugins.legend.labels.boxHeight = 8;
+Chart.defaults.plugins.legend.labels.padding = 16;
+Chart.defaults.plugins.legend.labels.color = PAL.texto;
+
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0,44,69,.94)';
+Chart.defaults.plugins.tooltip.titleColor = '#FFFFFF';
+Chart.defaults.plugins.tooltip.bodyColor = '#FFFFFF';
+Chart.defaults.plugins.tooltip.padding = 11;
+Chart.defaults.plugins.tooltip.cornerRadius = 7;
+Chart.defaults.plugins.tooltip.displayColors = true;
+Chart.defaults.plugins.tooltip.boxPadding = 4;
+Chart.defaults.plugins.tooltip.titleFont = {weight:'700'};
+Chart.defaults.plugins.tooltip.bodySpacing = 5;
+
+Chart.defaults.datasets.bar.borderRadius = 5;
+Chart.defaults.datasets.bar.borderSkipped = false;
+Chart.defaults.datasets.bar.maxBarThickness = 54;
+Chart.defaults.datasets.line.borderWidth = 2;
+Chart.defaults.datasets.line.pointRadius = 3;
+Chart.defaults.datasets.line.pointHoverRadius = 5;
+Chart.defaults.datasets.line.tension = .28;
+
 
 
 /* =========================================================
@@ -395,7 +439,7 @@ function cambiarRangoTendencia(dias){
 
   tendenciaRangoDias = dias;
 
-  renderGraficosTab();
+  renderGráficosTab();
 
 }
 
@@ -750,7 +794,7 @@ function agruparOEEPorMarca(all){
    histórico completo de la línea), esta junta los cuadros
    de UN registro puntual y suma cuántas unidades efectivas
    se produjeron de cada marca — lo que se necesita en la
-   cabecera del PNG exportado (07-graficos.js > exportarPNG).
+   cabecera del PNG exportado (07-gráficos.js > exportarPNG).
    ========================================================= */
 
 function agruparProduccionPorMarca(rec){
@@ -1212,7 +1256,7 @@ function xlImpresion(ws, ultimaCol, ultimaFila, ctx, opts = {}){
 
 /* ---------- gráficos simples dibujados en canvas ---------- */
 
-function xlGraficoBarras(cfg){
+function xlGráficoBarras(cfg){
 
   const filas = cfg.filas || [];
 
@@ -1324,7 +1368,7 @@ function xlAgregarImagen(wb, ws, dataUrl, col, fila, ancho, alto){
    en grande al centro.
    ========================================================= */
 
-function xlGraficoGaugeOEE(cfg){
+function xlGráficoGaugeOEE(cfg){
 
   const valor = Math.max(0, Math.min(1, num(cfg.valor)));
   const meta = num(cfg.meta);
@@ -1867,9 +1911,9 @@ function xlHojaReporte(wb, ctx){
   xlSeccion(ws, r, C1, C2, 'ANÁLISIS DE PÉRDIDAS Y PARADAS');
   r++;
 
-  const filaGraficos = r;
+  const filaGráficos = r;
 
-  const dataCascada = xlGraficoBarras({
+  const dataCascada = xlGráficoBarras({
     titulo:'Cascada de pérdidas de producción (botellas)',
     filas:[
       { etiqueta:'Capacidad teórica', valor:cascada.capacidadTeorica,
@@ -1890,11 +1934,11 @@ function xlHojaReporte(wb, ctx){
     ]
   });
 
-  xlAgregarImagen(wb, ws, dataCascada, 1.05, filaGraficos - 1 + 0.1, 640, 340);
+  xlAgregarImagen(wb, ws, dataCascada, 1.05, filaGráficos - 1 + 0.1, 640, 340);
 
   const topParadas = paradas.filas.slice(0, 6);
 
-  const dataPareto = xlGraficoBarras({
+  const dataPareto = xlGráficoBarras({
     titulo:'Principales causas de parada (minutos)',
     filas:topParadas.map(f => ({
       etiqueta:f.descripcion,
@@ -1908,11 +1952,11 @@ function xlHojaReporte(wb, ctx){
 
   if(dataPareto){
 
-    xlAgregarImagen(wb, ws, dataPareto, 7.05, filaGraficos - 1 + 0.1, 640, 340);
+    xlAgregarImagen(wb, ws, dataPareto, 7.05, filaGráficos - 1 + 0.1, 640, 340);
 
   } else {
 
-    xlMerge(ws, filaGraficos, 8, C2,
+    xlMerge(ws, filaGráficos, 8, C2,
       'Sin paradas registradas en este turno.',
       { italic:true, color:XL.grisTexto, align:'center', border:false });
 
@@ -2723,7 +2767,7 @@ function xlHojaResumenLineas(wb, ctx){
 
   xlSemaforoCF(res.ws, `G${res.r0}:L${res.rt}`);
 
-  const dataLineas = xlGraficoBarras({
+  const dataLineas = xlGráficoBarras({
     titulo:'OEE histórico por línea',
     ancho:640,
     alto:300,
@@ -2955,7 +2999,7 @@ function xlHojaPortadaEjecutiva(wb, ctx){
      =====================================================
 
      Mismo truco de "dibujar en canvas e insertar como
-     imagen" que ya se usa en xlGraficoBarras: así la
+     imagen" que ya se usa en xlGráficoBarras: así la
      portada muestra de un vistazo el % de OEE y por qué
      quedó ahí, sin tener que abrir la hoja de detalle.
   ===================================================== */
@@ -2967,9 +3011,9 @@ function xlHojaPortadaEjecutiva(wb, ctx){
   ws.getCell(`B${fila}`).font = xlFont({ size:11, bold:true, color:XL.azul });
   fila += 1;
 
-  const filaGraficosPortada = fila;
+  const filaGráficosPortada = fila;
 
-  const dataGauge = xlGraficoGaugeOEE({
+  const dataGauge = xlGráficoGaugeOEE({
     valor:d.oee,
     meta:METAS.oee,
     titulo:'OEE',
@@ -2977,9 +3021,9 @@ function xlHojaPortadaEjecutiva(wb, ctx){
     alto:180
   });
 
-  xlAgregarImagen(wb, ws, dataGauge, 0.9, filaGraficosPortada - 1 + 0.1, 210, 180);
+  xlAgregarImagen(wb, ws, dataGauge, 0.9, filaGráficosPortada - 1 + 0.1, 210, 180);
 
-  const dataCascadaMini = xlGraficoBarras({
+  const dataCascadaMini = xlGráficoBarras({
     titulo:'Cascada de pérdidas (botellas)',
     ancho:330,
     alto:180,
@@ -3002,12 +3046,12 @@ function xlHojaPortadaEjecutiva(wb, ctx){
     ]
   });
 
-  xlAgregarImagen(wb, ws, dataCascadaMini, 2.55, filaGraficosPortada - 1 + 0.1, 330, 180);
+  xlAgregarImagen(wb, ws, dataCascadaMini, 2.55, filaGráficosPortada - 1 + 0.1, 330, 180);
 
   /* Alto de fila estándar ≈ 20px: se saltan filas equivalentes
      a la altura de las imágenes (180px) para no pisar el texto
      de abajo. */
-  fila = filaGraficosPortada + 10;
+  fila = filaGráficosPortada + 10;
 
   const dPrev = (() => {
     const prev = xlTurnoAnterior(rec, all);
@@ -3311,7 +3355,7 @@ function xlDibujarTextoAjustado(ctx, texto, x, y, maxWidth, lineHeight, maxLinea
    acompaña.
    ========================================================= */
 
-function construirResumenesGraficos(rec, d, all){
+function construirResumenesGráficos(rec, d, all){
 
   const cascada = calcCascada(rec);
   const paradas = agruparParadas(rec);
@@ -3440,7 +3484,7 @@ async function exportarPNG(){
 
     }
 
-    const resumenes = construirResumenesGraficos(rec, d, all);
+    const resumenes = construirResumenesGráficos(rec, d, all);
     const marcaProd = agruparProduccionPorMarca(rec);
 
     let logoImg = null;
@@ -3766,7 +3810,7 @@ async function exportarPNG(){
 }
 
 
-function renderGraficosTab(){
+function renderGráficosTab(){
 
   const c =
     document.getElementById(

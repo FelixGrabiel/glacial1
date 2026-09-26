@@ -2021,6 +2021,8 @@ function blankRecord(lineKey){
     semana,
 
     turno:'DÍA',
+    grupoTurno:'DIA_INTERMEDIO',
+    iniciadoPorTurno:'DÍA',
 
     cuadros:
       [1,2,3,4].map(
@@ -2054,7 +2056,18 @@ function blankRecord(lineKey){
         ? state.user.nombre
         : '',
 
-    timestamp:null
+    timestamp:null,
+
+    /* Flujo de trabajo del reporte */
+    estadoRegistro:'EN_REGISTRO',
+    creadoEn:Date.now(),
+    actualizadoEn:Date.now(),
+    actualizadoPor:state.user ? state.user.nombre : '',
+    finalizadoEn:null,
+    finalizadoPor:'',
+    reabiertoEn:null,
+    reabiertoPor:'',
+    auditoria:[]
 
   };
 
@@ -2367,16 +2380,16 @@ function renderMain(){
 
 
       <button
-        data-requires-permission="graficos"
+        data-requires-permission="gráficos"
         class="
           tab
           ${
-            state.currentTab === 'graficos'
+            state.currentTab === 'gráficos'
               ? 'active'
               : ''
           }
         "
-        onclick="setTab('graficos')"
+        onclick="setTab('gráficos')"
       >
         Gráficos
       </button>
@@ -2457,7 +2470,7 @@ function renderMain(){
 
   else{
 
-    renderGraficosTab();
+    renderGráficosTab();
 
   }
 
@@ -2471,7 +2484,7 @@ function setTab(t){
   const permiso = {
     nuevo:'nuevo',
     historial:'historial',
-    graficos:'graficos',
+    gráficos:'gráficos',
     paletas:'paletas',
     resumen:'resumen'
   }[t];
@@ -2508,6 +2521,406 @@ function setTab(t){
    TAB NUEVO REGISTRO
    ========================================================= */
 
+
+
+/* =========================================================
+   DÍA + INTERMEDIO · REPORTE COMPARTIDO
+   ========================================================= */
+function grupoTurnoReporte(turno){
+  return ['DÍA','INTERMEDIO'].includes(turno) ? 'DIA_INTERMEDIO' : 'NOCHE';
+}
+
+function esReporteCompartidoDiaIntermedio(r){
+  return !!r && (r.grupoTurno==='DIA_INTERMEDIO' || ['DÍA','INTERMEDIO'].includes(r.turno));
+}
+
+function buscarReporteCompartidoActivo(linea,fecha){
+  return loadRecords()
+    .filter(r=>r.linea===linea && r.fecha===fecha &&
+      esReporteCompartidoDiaIntermedio(r) &&
+      r.estadoRegistro!=='FINALIZADO')
+    .sort((a,b)=>num(b.actualizadoEn||0)-num(a.actualizadoEn||0))[0] || null;
+}
+
+function intentarContinuarReporteCompartido(turno){
+  if(turno!=='INTERMEDIO' || !draft) return false;
+  const existente=buscarReporteCompartidoActivo(draft.linea,draft.fecha);
+  if(!existente || existente.id===draft.id) return false;
+
+  draft=JSON.parse(JSON.stringify(existente));
+  draft.turno='INTERMEDIO';
+  draft.grupoTurno='DIA_INTERMEDIO';
+  draft.continuadoPor=state.user?.nombre || '';
+  draft.continuadoEn=Date.now();
+  draft.auditoria=Array.isArray(draft.auditoria)?draft.auditoria:[];
+  draft.auditoria.push({
+    accion:'CONTINUADO_INTERMEDIO',
+    fecha:Date.now(),
+    usuario:state.user?.nombre || '',
+    turno:'INTERMEDIO'
+  });
+  return true;
+}
+
+async function entregarAIntermedio(){
+  if(!draft || draft.turno!=='DÍA' || reporteEstaBloqueado()) return;
+  asegurarIdReporte();
+  draft.grupoTurno='DIA_INTERMEDIO';
+  draft.entregadoAIntermedioEn=Date.now();
+  draft.entregadoAIntermedioPor=state.user?.nombre || '';
+  draft.auditoria=Array.isArray(draft.auditoria)?draft.auditoria:[];
+  draft.auditoria.push({
+    accion:'ENTREGADO_A_INTERMEDIO',
+    fecha:draft.entregadoAIntermedioEn,
+    usuario:draft.entregadoAIntermedioPor,
+    turno:'DÍA'
+  });
+  await guardarAvanceReporte();
+  mostrarToastReporte('Reporte disponible para turno INTERMEDIO');
+}
+
+function cuadroEstaFinalizado(i){
+  return normalizarCuadros(draft)[i]?.estadoCuadro==='FINALIZADO';
+}
+
+async function finalizarCuadroProduccion(i){
+  const q=normalizarCuadros(draft)[i];
+  if(!q || q.estadoCuadro==='FINALIZADO' || reporteEstaBloqueado()) return;
+
+  const faltan=[];
+  if(!q.marca) faltan.push('Marca');
+  if(!q.presentacion) faltan.push('Presentación');
+  if(!q.horaInicio) faltan.push('Hora inicio');
+  if(!q.horaFin) faltan.push('Hora fin');
+
+  if(faltan.length){
+    alert('Falta completar en Producción '+(i+1)+':\n\n• '+faltan.join('\n• '));
+    return;
+  }
+
+  if(!confirm(`¿Finalizar Producción ${i+1} · ${q.marca}?\n\nEsta producción quedará bloqueada para el turno INTERMEDIO.`)) return;
+
+  q.estadoCuadro='FINALIZADO';
+  q.finalizadoEn=Date.now();
+  q.finalizadoPor=state.user?.nombre || '';
+  q.auditoriaCuadro=Array.isArray(q.auditoriaCuadro)?q.auditoriaCuadro:[];
+  q.auditoriaCuadro.push({
+    accion:'FINALIZADO',
+    fecha:q.finalizadoEn,
+    usuario:q.finalizadoPor,
+    turno:draft.turno
+  });
+
+  await guardarAvanceReporte({silencioso:true});
+  renderFormTab();
+}
+
+function aplicarBloqueoCuadrosFinalizados(){
+  const root=document.getElementById('tab-content');
+  if(!root) return;
+
+  normalizarCuadros(draft).forEach((q,i)=>{
+    if(q.estadoCuadro!=='FINALIZADO') return;
+    const card=root.querySelector(`[data-cuadro-index="${i}"]`);
+    if(!card) return;
+    card.classList.add('cuadro-finalizado');
+    card.querySelectorAll('input,select,textarea,button').forEach(el=>{
+      if(el.matches('[data-cuadro-finalizar]')) return;
+      el.disabled=true;
+    });
+  });
+}
+
+/* =========================================================
+   FLUJO EN TIEMPO REAL / FINALIZACIÓN DEL REPORTE
+   ========================================================= */
+
+let _autosaveReporteTimer = null;
+let _autosaveReporteInstalado = false;
+let _autosaveReporteGuardando = false;
+
+function usuarioPuedeReabrirReporte(){
+  return !!state.user && tienePermiso('reabrirReporteProduccion');
+}
+
+function reporteEstaBloqueado(r=draft){
+  return r?.estadoRegistro === 'FINALIZADO';
+}
+
+function copiaReporteParaFirestore(r){
+  const copia = JSON.parse(JSON.stringify(r, (k,v)=>{
+    if(k==='blob' || k==='previewUrl') return undefined;
+    return v;
+  }));
+  // Fotos todavía no subidas a Cloudinary no deben enviarse a Firestore.
+  copia.evidenciasPT=(copia.evidenciasPT||[]).filter(e=>e && e.url);
+  return copia;
+}
+
+function asegurarIdReporte(){
+  if(!draft) return;
+  if(!draft.id) draft.id='r_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  if(!draft.timestamp) draft.timestamp=new Date().toISOString();
+  if(!draft.registradoPor) draft.registradoPor=state.user?.nombre || '';
+  if(!draft.estadoRegistro) draft.estadoRegistro='EN_REGISTRO';
+  draft.grupoTurno=grupoTurnoReporte(draft.turno);
+}
+
+async function guardarAvanceReporte({silencioso=false}={}){
+  if(!draft || reporteEstaBloqueado() || _autosaveReporteGuardando) return false;
+
+  asegurarIdReporte();
+  normalizarCuadros(draft);
+  actualizarTodosCuadros();
+  actualizarMermasAutomaticas();
+  draft.diaJuliano=obtenerDiaDelAño(draft.fecha);
+  draft.semana=obtenerSemana(draft.fecha);
+  actualizarLotesCuadros();
+  syncLegacyFromCuadro1();
+
+  draft.actualizadoEn=Date.now();
+  draft.actualizadoPor=state.user?.nombre || '';
+  if(draft.estadoRegistro!=='REABIERTO') draft.estadoRegistro='EN_REGISTRO';
+
+  const records=loadRecords().slice();
+  const idx=records.findIndex(r=>r.id===draft.id);
+  const limpio=copiaReporteParaFirestore(draft);
+  if(idx>=0) records[idx]=limpio; else records.push(limpio);
+
+  _autosaveReporteGuardando=true;
+  actualizarIndicadorGuardado('guardando');
+  try{
+    await saveRecords(records);
+    actualizarIndicadorGuardado('guardado');
+    if(!silencioso) mostrarToastReporte('Avance guardado');
+    return true;
+  }catch(e){
+    console.error('Error guardando avance:',e);
+    actualizarIndicadorGuardado('error');
+    if(!silencioso) alert('No se pudo guardar el avance.');
+    return false;
+  }finally{
+    _autosaveReporteGuardando=false;
+  }
+}
+
+function programarGuardadoAutomaticoReporte(){
+  if(!draft || reporteEstaBloqueado()) return;
+  clearTimeout(_autosaveReporteTimer);
+  actualizarIndicadorGuardado('pendiente');
+  _autosaveReporteTimer=setTimeout(()=>guardarAvanceReporte({silencioso:true}),900);
+}
+
+function instalarAutosaveReporte(){
+  if(_autosaveReporteInstalado) return;
+  _autosaveReporteInstalado=true;
+
+  document.addEventListener('input',e=>{
+    if(e.target?.closest?.('#tab-content') && state.currentTab==='nuevo'){
+      setTimeout(programarGuardadoAutomaticoReporte,0);
+    }
+  });
+  document.addEventListener('change',e=>{
+    if(e.target?.closest?.('#tab-content') && state.currentTab==='nuevo'){
+      setTimeout(programarGuardadoAutomaticoReporte,0);
+    }
+  });
+  document.addEventListener('click',e=>{
+    if(e.target?.closest?.('#tab-content') && state.currentTab==='nuevo'){
+      const accion=e.target.closest('button');
+      if(accion && !accion.matches('[data-no-autosave]')){
+        setTimeout(programarGuardadoAutomaticoReporte,120);
+      }
+    }
+  });
+}
+
+function actualizarIndicadorGuardado(estado){
+  const el=document.getElementById('reporte-sync-status');
+  if(!el) return;
+  const mapa={
+    pendiente:['● Cambios pendientes','pendiente'],
+    guardando:['● Guardando...','guardando'],
+    guardado:['✓ Guardado en tiempo real','guardado'],
+    error:['⚠ Sin sincronizar','error']
+  };
+  const [txt,clase]=mapa[estado]||mapa.guardado;
+  el.textContent=txt;
+  el.className='reporte-sync-status '+clase;
+}
+
+function mostrarToastReporte(texto){
+  let el=document.getElementById('reporte-toast');
+  if(!el){
+    el=document.createElement('div');
+    el.id='reporte-toast';
+    el.className='reporte-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent=texto;
+  el.classList.add('visible');
+  setTimeout(()=>el.classList.remove('visible'),1800);
+}
+
+function validarReporteParaFinalizar(){
+  const faltan=[];
+  normalizarCuadros(draft);
+  const usados=(draft.cuadros||[]).filter(q=>
+    q.marca || q.presentacion || q.horaInicio || q.horaFin ||
+    num(q.produccion?.programada)>0 || num(q.produccion?.efectiva)>0
+  );
+
+  if(!usados.length) faltan.push('Al menos un cuadro de producción');
+  usados.forEach((q,i)=>{
+    const n=i+1;
+    if(!q.marca) faltan.push(`Producción ${n}: marca`);
+    if(!q.presentacion) faltan.push(`Producción ${n}: presentación`);
+    if(!q.horaInicio) faltan.push(`Producción ${n}: hora inicio`);
+    if(!q.horaFin) faltan.push(`Producción ${n}: hora fin`);
+  });
+
+  const personal=(draft.personal||[]);
+  if(!personal.length || personal.some(p=>!String(p.nombre||'').trim())){
+    faltan.push('Personal del turno');
+  }
+  // Observaciones generales es un campo OPCIONAL.
+  // Un reporte puede finalizar correctamente aunque no tenga observaciones.
+
+  const evidencias=(draft.evidenciasPT||[]);
+  if(!evidencias.length) faltan.push('Fotografía de Hoja de Producto Terminado');
+
+  return [...new Set(faltan)];
+}
+
+function renderEstadoCierreReporte(){
+  const estado=draft?.estadoRegistro || 'EN_REGISTRO';
+  const bloqueado=estado==='FINALIZADO';
+  const faltan=bloqueado ? [] : validarReporteParaFinalizar();
+  const etiqueta=estado==='REABIERTO'?'REABIERTO PARA CORRECCIÓN':
+    bloqueado?'FINALIZADO':'EN REGISTRO';
+  const clase=estado==='REABIERTO'?'reabierto':bloqueado?'finalizado':'registro';
+
+  return `
+    <div class="reporte-cierre-panel ${clase}">
+      <div class="reporte-cierre-info">
+        <div class="reporte-cierre-titulo">ESTADO DEL REPORTE · ${etiqueta}</div>
+        <div id="reporte-sync-status" class="reporte-sync-status guardado">
+          ${bloqueado?'🔒 Reporte bloqueado':'✓ Guardado en tiempo real'}
+        </div>
+        ${!bloqueado && faltan.length
+          ? `<div class="reporte-faltantes">Falta para finalizar: ${faltan.map(escaparHtml).join(' · ')}</div>`
+          : !bloqueado
+            ? `<div class="reporte-listo">✓ Todos los campos obligatorios están completos.</div>`
+            : `<div class="reporte-listo">Finalizado por ${escaparHtml(draft.finalizadoPor||'—')}.</div>`}
+      </div>
+      <div class="reporte-cierre-acciones">
+        ${!bloqueado ? `
+          <button class="btn btn-ghost" data-no-autosave onclick="guardarAvanceReporte()">💾 Guardar avance</button>
+          ${draft.turno==='DÍA' ? `<button class="btn btn-handoff" data-no-autosave onclick="entregarAIntermedio()">⇄ Entregar a Intermedio</button>` : ''}
+          <button class="btn btn-primary" data-no-autosave onclick="finalizarReporteProduccion()" ${faltan.length?'disabled':''}>✓ Finalizar reporte</button>
+        ` : usuarioPuedeReabrirReporte() ? `
+          <button class="btn btn-warning" data-no-autosave onclick="reabrirReporteProduccion('${draft.id}')">🔓 Reabrir reporte</button>
+        ` : ''}
+      </div>
+    </div>`;
+}
+
+async function finalizarReporteProduccion(){
+  if(!draft || reporteEstaBloqueado()) return;
+  const faltan=validarReporteParaFinalizar();
+  if(faltan.length){
+    alert('Aún faltan datos para finalizar:\n\n• '+faltan.join('\n• '));
+    renderFormTab();
+    return;
+  }
+  if(!confirm(`¿Finalizar reporte ${draft.linea} — ${draft.turno}?\n\nDespués de finalizar quedará bloqueado y solo un usuario con permiso podrá reabrirlo.`)) return;
+
+  guardandoRegistro=true;
+  asegurarIdReporte();
+  try{
+    const pendientes=(draft.evidenciasPT||[]).filter(e=>e && !e.url);
+    if(pendientes.length){
+      actualizarIndicadorGuardado('guardando');
+      draft.evidenciasPT=await subirEvidenciasPT(draft.id);
+    }
+
+    const ahora=Date.now();
+    draft.estadoRegistro='FINALIZADO';
+    draft.finalizadoEn=ahora;
+    draft.finalizadoPor=state.user?.nombre || '';
+    draft.actualizadoEn=ahora;
+    draft.actualizadoPor=state.user?.nombre || '';
+    draft.auditoria=Array.isArray(draft.auditoria)?draft.auditoria:[];
+    draft.auditoria.push({accion:'FINALIZADO',fecha:ahora,usuario:draft.finalizadoPor});
+
+    const records=loadRecords().slice();
+    const idx=records.findIndex(r=>r.id===draft.id);
+    const limpio=copiaReporteParaFirestore(draft);
+    if(idx>=0) records[idx]=limpio; else records.push(limpio);
+    await saveRecords(records);
+
+    liberarPreviewsEvidenciasPT(draft.evidenciasPT||[]);
+    state.currentTab='historial';
+    draft=blankRecord(state.currentLine);
+    renderMain();
+  }catch(error){
+    console.error('Error finalizando reporte:',error);
+    alert('No se pudo finalizar el reporte.\n\n'+(error?.message||error));
+    renderFormTab();
+  }finally{
+    guardandoRegistro=false;
+  }
+}
+
+async function reabrirReporteProduccion(id){
+  if(!usuarioPuedeReabrirReporte()){
+    alert('No tienes permiso para reabrir reportes finalizados.');
+    return;
+  }
+  const records=loadRecords().slice();
+  const idx=records.findIndex(r=>r.id===id);
+  if(idx<0) return;
+  const r=records[idx];
+  if(r.estadoRegistro!=='FINALIZADO') return;
+  if(!confirm('¿Reabrir este reporte para corrección?')) return;
+
+  const ahora=Date.now();
+  r.estadoRegistro='REABIERTO';
+  r.reabiertoEn=ahora;
+  r.reabiertoPor=state.user?.nombre || '';
+  r.actualizadoEn=ahora;
+  r.actualizadoPor=r.reabiertoPor;
+  r.auditoria=Array.isArray(r.auditoria)?r.auditoria:[];
+  r.auditoria.push({accion:'REABIERTO',fecha:ahora,usuario:r.reabiertoPor});
+  records[idx]=r;
+  await saveRecords(records);
+
+  draft=JSON.parse(JSON.stringify(r));
+  state.currentLine=r.linea;
+  state.currentTab='nuevo';
+  renderMain();
+}
+
+function cargarReporteParaCorreccion(id){
+  const r=loadRecords().find(x=>x.id===id);
+  if(!r) return;
+  if(r.estadoRegistro==='FINALIZADO' && !usuarioPuedeReabrirReporte()) return;
+  draft=JSON.parse(JSON.stringify(r));
+  state.currentLine=r.linea;
+  state.currentTab='nuevo';
+  renderMain();
+}
+
+function aplicarBloqueoReporteFinalizado(){
+  if(!reporteEstaBloqueado()) return;
+  const root=document.getElementById('tab-content');
+  if(!root) return;
+  root.querySelectorAll('input,select,textarea,button').forEach(el=>{
+    if(el.closest('.reporte-cierre-panel')) return;
+    el.disabled=true;
+  });
+}
+
 function renderFormTab(){
 
   if(
@@ -2537,6 +2950,10 @@ function renderFormTab(){
     draft.evidenciasPT = [];
 
   }
+
+  if(!draft.estadoRegistro) draft.estadoRegistro='EN_REGISTRO';
+  if(!Array.isArray(draft.auditoria)) draft.auditoria=[];
+  instalarAutosaveReporte();
 
 
   normalizarCuadros(
@@ -2729,7 +3146,8 @@ function renderFormTab(){
       return `
 
         <div
-          class="production-card"
+          class="production-card ${q.estadoCuadro==='FINALIZADO'?'cuadro-finalizado':''}"
+          data-cuadro-index="${i}"
           style="
             border:1px solid #D7DBD4;
             border-radius:10px;
@@ -2758,27 +3176,57 @@ function renderFormTab(){
           >
 
             <strong style="font-size:16px;">
-              Cuadro ${i+1}
+              PRODUCCIÓN ${i+1}${q.marca ? ' · ' + escaparHtml(String(q.marca).toUpperCase()) : ''}
             </strong>
 
 
-            <span
-              style="
-                font-size:12px;
-                opacity:.95;
-              "
-            >
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+              <span
+                style="
+                  font-size:12px;
+                  opacity:.95;
+                "
+              >
+                ${
+                  q.estadoCuadro==='FINALIZADO'
+                    ? '🔒 FINALIZADO'
+                    : tieneDatos
+                      ? 'Producción'
+                      : 'Sin producción'
+                }
+              </span>
+
               ${
-                tieneDatos
-                  ? 'Producción'
-                  : 'Sin producción'
+                q.estadoCuadro!=='FINALIZADO'
+                  ? `<button
+                       type="button"
+                       data-cuadro-finalizar
+                       data-no-autosave
+                       onclick="event.stopPropagation();finalizarCuadroProduccion(${i})"
+                       style="
+                         border:1px solid rgba(255,255,255,.85);
+                         background:#fff;
+                         color:#006b8f;
+                         border-radius:6px;
+                         padding:7px 10px;
+                         font-size:11px;
+                         font-weight:800;
+                         cursor:pointer;
+                         white-space:nowrap;
+                       "
+                     >✓ FINALIZAR MARCA</button>`
+                  : ''
               }
-            </span>
+            </div>
 
           </div>
 
 
           <div style="padding:12px;">
+
+            ${q.estadoCuadro==='FINALIZADO'
+              ? `<div class="cuadro-cierre-mini"><span>🔒 Marca cerrada por ${escaparHtml(q.finalizadoPor||'—')}</span></div>`
+              : ''}
 
             <div class="grid grid-2">
 
@@ -3746,26 +4194,24 @@ function renderFormTab(){
     ${renderEvidenciasPT()}
 
 
-    <div class="actions-row">
+    ${renderEstadoCierreReporte()}
 
-      <button
-        class="btn btn-ghost"
-        onclick="resetDraft()"
-      >
-        Limpiar formulario
-      </button>
-
-
-      <button
-        class="btn btn-primary"
-        onclick="saveDraft()"
-      >
-        Guardar registro
-      </button>
-
+    <div class="actions-row reporte-acciones-secundarias">
+      ${!reporteEstaBloqueado() ? `
+        <button
+          class="btn btn-ghost"
+          data-no-autosave
+          onclick="resetDraft()"
+        >
+          Limpiar formulario
+        </button>
+      ` : ''}
     </div>
 
   `;
+
+  aplicarBloqueoCuadrosFinalizados();
+  aplicarBloqueoReporteFinalizado();
 
 }
 
@@ -4001,7 +4447,7 @@ function updateCuadroField(
     )[i];
 
 
-  if(!q) return;
+  if(!q || q.estadoCuadro==='FINALIZADO') return;
 
 
   q[name] =
@@ -4116,7 +4562,7 @@ function updateCuadroPathLigero(
     )[i];
 
 
-  if(!q) return;
+  if(!q || q.estadoCuadro==='FINALIZADO') return;
 
 
   const [
@@ -4169,7 +4615,7 @@ function updateCuadroPath(
     )[i];
 
 
-  if(!q) return;
+  if(!q || q.estadoCuadro==='FINALIZADO') return;
 
 
   const [
@@ -4269,15 +4715,15 @@ function updateField(
     name === 'turno'
   ){
 
+    draft.grupoTurno=grupoTurnoReporte(val);
+
+    if(val==='INTERMEDIO'){
+      intentarContinuarReporteCompartido(val);
+    }
+
     actualizarLote();
-
-
     actualizarLotesCuadros();
-
-
     renderFormTab();
-
-
     return;
 
   }
@@ -5028,7 +5474,7 @@ function addParadaCuadro(
     )[cuadroIndex];
 
 
-  if(!q) return;
+  if(!q || q.estadoCuadro==='FINALIZADO') return;
 
 
   q[key].push({
@@ -5059,6 +5505,7 @@ function updateArrItemCuadro(
 
   if(
     !q ||
+    q.estadoCuadro==='FINALIZADO' ||
     !q[key]?.[i]
   ){
 
@@ -6565,333 +7012,5 @@ function resetDraft(){
    ========================================================= */
 
 async function saveDraft(){
-
-  /*
-     Evita doble guardado.
-  */
-  if(
-    !draft ||
-    guardandoRegistro
-  ){
-
-    return;
-
-  }
-
-
-  /*
-     ======================================================
-     VALIDACIÓN OBLIGATORIA DE FOTOS
-     ======================================================
-  */
-
-  const evidencias =
-    Array.isArray(
-      draft.evidenciasPT
-    )
-      ? draft.evidenciasPT
-      : [];
-
-
-  if(
-    !evidencias.length
-  ){
-
-    alert(
-      'Debes adjuntar al menos una fotografía de las Hojas de Producto Terminado antes de guardar el registro.'
-    );
-
-
-    /*
-       Llevar al usuario
-       directamente al panel de evidencia.
-    */
-
-    const evidenciaPanel =
-      document.querySelector(
-        '.panel[style*="border-left"]'
-      );
-
-
-    if(evidenciaPanel){
-
-      evidenciaPanel.scrollIntoView({
-
-        behavior:
-          'smooth',
-
-        block:
-          'center'
-
-      });
-
-    }
-
-
-    return;
-
-  }
-
-
-  guardandoRegistro =
-    true;
-
-
-  /*
-     Buscar botón guardar.
-  */
-
-  const botonGuardar =
-    document.querySelector(
-      '.actions-row .btn-primary'
-    );
-
-
-  const textoOriginal =
-    botonGuardar
-      ? botonGuardar.textContent
-      : 'Guardar registro';
-
-
-  if(botonGuardar){
-
-    botonGuardar.disabled =
-      true;
-
-
-    botonGuardar.textContent =
-      'Subiendo fotos...';
-
-
-    botonGuardar.style.opacity =
-      '.7';
-
-
-    botonGuardar.style.cursor =
-      'wait';
-
-  }
-
-
-  /*
-     Mantener toda la lógica
-     existente antes del guardado.
-  */
-
-  normalizarCuadros(
-    draft
-  );
-
-
-  actualizarTodosCuadros();
-
-
-  actualizarMermasAutomaticas();
-
-
-  draft.diaJuliano =
-    obtenerDiaDelAño(
-      draft.fecha
-    );
-
-
-  draft.semana =
-    obtenerSemana(
-      draft.fecha
-    );
-
-
-  actualizarLotesCuadros();
-
-
-  syncLegacyFromCuadro1();
-
-
-  /*
-     ID único del registro.
-  */
-
-  draft.id =
-    'r_' +
-    Date.now();
-
-
-  draft.timestamp =
-    new Date().toISOString();
-
-
-  draft.registradoPor =
-    state.user
-      ? state.user.nombre
-      : '';
-
-
-  try{
-
-    /*
-       ==================================================
-       SUBIR FOTOS A CLOUDINARY
-       ==================================================
-    */
-
-    if(botonGuardar){
-
-      botonGuardar.textContent =
-        'Subiendo fotos...';
-
-    }
-
-
-    const evidenciasSubidas =
-      await subirEvidenciasPT(
-        draft.id
-      );
-
-
-    /*
-       IMPORTANTE:
-       Después de subir las imágenes,
-       eliminamos Blob y previewUrl del objeto
-       que finalmente irá a Firestore.
-    */
-
-    draft.evidenciasPT =
-      evidenciasSubidas;
-
-
-    if(botonGuardar){
-
-      botonGuardar.textContent =
-        'Guardando registro...';
-
-    }
-
-
-    /*
-       ==================================================
-       GUARDAR REGISTRO
-       ==================================================
-    */
-
-    const records =
-      loadRecords();
-
-
-    /*
-       JSON.parse/stringify mantiene
-       exactamente el comportamiento anterior
-       de guardar una copia limpia del registro.
-    */
-
-    records.push(
-      JSON.parse(
-        JSON.stringify(
-          draft
-        )
-      )
-    );
-
-
-    saveRecords(
-      records
-    );
-
-
-    /*
-       Liberamos las URLs temporales
-       creadas durante la vista previa.
-    */
-
-    liberarPreviewsEvidenciasPT(
-      evidencias
-    );
-
-
-    /*
-       Crear nuevo formulario limpio.
-    */
-
-    draft =
-      blankRecord(
-        state.currentLine
-      );
-
-
-    /*
-       Ir al historial.
-    */
-
-    state.currentTab =
-      'historial';
-
-
-    renderMain();
-
-  }catch(error){
-
-    console.error(
-      'Error guardando registro:',
-      error
-    );
-
-
-    /*
-       IMPORTANTE:
-
-       No intentamos borrar las imágenes
-       de Cloudinary desde el navegador.
-
-       Para borrarlas se necesitaría el
-       API Secret, que NUNCA debe exponerse
-       en JavaScript del frontend.
-
-       Conservamos las fotos locales para
-       que el usuario pueda volver a intentar
-       guardar el registro.
-    */
-
-    draft.evidenciasPT =
-      evidencias;
-
-
-    renderFormTab();
-
-
-    alert(
-      'No se pudo guardar el registro.\n\n' +
-      'Detalle: ' +
-      (
-        error?.message ||
-        error
-      )
-    );
-
-  }finally{
-
-    guardandoRegistro =
-      false;
-
-
-    if(botonGuardar){
-
-      botonGuardar.disabled =
-        false;
-
-
-      botonGuardar.textContent =
-        textoOriginal ||
-        'Guardar registro';
-
-
-      botonGuardar.style.opacity =
-        '';
-
-
-      botonGuardar.style.cursor =
-        '';
-
-    }
-
-  }
-
+  return guardarAvanceReporte();
 }

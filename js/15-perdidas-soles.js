@@ -4,7 +4,7 @@
    Parte del sistema GLACIAL
 
    Vista de solo lectura para gerencia/jefatura (permiso propio
-   'perdidasSoles', independiente de 'resumen' y 'graficos') que
+   'perdidasSoles', independiente de 'resumen' y 'gráficos') que
    convierte a dinero las unidades que se dejaron de producir por
    CUALQUIER parada NO programada (sin importar su "Causa" en
    CAUSAS_PARADA_NO_PROGRAMADA / 06-registro.js), agrupándolas
@@ -24,7 +24,7 @@
 
    Cárgalo en index.html DESPUÉS de 02-estado.js (usa
    loadPrecios/savePrecios/precioUnitarioLinea), 05-utils.js
-   (num/pct), 06-registro.js (normalizarCuadros) y 08-graficos.js
+   (num/pct), 06-registro.js (normalizarCuadros) y 08-gráficos.js
    (formatearNumero, PAL, colorSegunMeta, el plugin valorBarra
    y state.charts/destroyCharts(), usados por los gráficos de
    más abajo — Chart.js también debe estar cargado ya para
@@ -162,7 +162,7 @@ function categorizarParadaPorTexto(texto){
      unidades perdidas = ratioNominal del cuadro × (minutos / 60)
      S/. perdidos      = unidades perdidas × precioUnitarioLinea(línea)
 
-   Es la MISMA lógica que usa calcCascada() (08-graficos.js)
+   Es la MISMA lógica que usa calcCascada() (08-gráficos.js)
    para la pérdida por disponibilidad — ratio × horas de parada.
 
    Cada parada se clasifica además por categoría (máquina/área)
@@ -1012,7 +1012,7 @@ function renderPerdidasSoles(main){
      Reutilizan la misma infraestructura de Chart.js que el
      resto del tablero: PAL, colorSegunMeta, formatearNumero,
      el plugin valorBarra y el bucket state.charts /
-     destroyCharts() (todos definidos en 08-graficos.js, que
+     destroyCharts() (todos definidos en 08-gráficos.js, que
      debe cargarse ANTES que este archivo).
 
      destroyCharts() limpia TODOS los gráficos activos (los

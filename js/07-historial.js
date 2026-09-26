@@ -95,6 +95,10 @@ function renderHistorialTab(){
               </th>
 
               <th>
+                Estado
+              </th>
+
+              <th>
                 Marca
               </th>
 
@@ -185,14 +189,7 @@ function renderHistorialTab(){
 
                   return `
 
-                    <tr
-                      class="hist-row"
-                      onclick="
-                        viewRecord(
-                          '${r.id}'
-                        )
-                      "
-                    >
+                    <tr class="hist-row">
 
                       <td>
                         ${r.fecha}
@@ -213,6 +210,11 @@ function renderHistorialTab(){
                         ${r.turno}
                       </td>
 
+                      <td>
+                        <span class="reporte-estado-badge ${(r.estadoRegistro||'FINALIZADO').toLowerCase()}">
+                          ${(r.estadoRegistro||'FINALIZADO').replaceAll('_',' ')}
+                        </span>
+                      </td>
 
                       <td>
                         ${r.marca || '—'}
@@ -332,20 +334,18 @@ function renderHistorialTab(){
 
 
                       <td>
-
-                        <button
-                          class="row-del"
-                          onclick="
-                            event.stopPropagation();
-                            deleteRecord(
-                              '${r.id}'
-                            )
-                          "
-                        >
-                          ✕
-                        </button>
-
-                      </td>
+  <div class="hist-actions">
+    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();verReporteHistorial('${r.id}')">👁 Ver reporte</button>
+    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();verGráficosHistorial('${r.id}')">📊 Gráficos</button>
+    ${r.estadoRegistro==='REABIERTO'
+      ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();cargarReporteParaCorreccion('${r.id}')">✏️ Continuar</button>`
+      : ''}
+    ${r.estadoRegistro==='FINALIZADO' && typeof usuarioPuedeReabrirReporte==='function' && usuarioPuedeReabrirReporte()
+      ? `<button class="btn btn-ghost btn-sm" title="Reabrir reporte" onclick="event.stopPropagation();reabrirReporteProduccion('${r.id}')">🔓</button>`
+      : ''}
+    <button class="row-del" onclick="event.stopPropagation();deleteRecord('${r.id}')">✕</button>
+  </div>
+</td>
 
 
                     </tr>
@@ -770,12 +770,104 @@ function deleteRecord(id){
    VER REGISTRO
    ========================================================= */
 
-function viewRecord(id){
-
-  state.viewingRecordId = id;
-
-  state.currentTab = 'graficos';
-
+function verGráficosHistorial(id){
+  state.viewingRecordId=id;
+  state.currentTab='gráficos';
   renderMain();
+}
 
+function viewRecord(id){
+  verReporteHistorial(id);
+}
+
+function verReporteHistorial(id){
+  const r=loadRecords().find(x=>x.id===id);
+  if(!r) return;
+  normalizarCuadros(r);
+
+  const esc=v=>String(v??'—')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  const cuadros=(r.cuadros||[]).filter(q=>
+    q.marca || q.presentacion || q.horaInicio || q.horaFin ||
+    num(q.produccion?.efectiva)>0 || num(q.produccion?.programada)>0
+  );
+
+  const tarjetas=cuadros.map((q,i)=>{
+    const prog=(q.paradasProgramadas||[]).reduce((s,p)=>s+num(p.tiempoMin),0);
+    const nprog=(q.paradasNoProgramadas||[]).reduce((s,p)=>s+num(p.tiempoMin),0);
+    return `
+      <section class="hist-report-card">
+        <div class="hist-report-card-head">
+          <strong>Cuadro ${q.numero||i+1} · ${esc(q.marca||'Sin marca')}</strong>
+          <span class="reporte-estado-badge ${(q.estadoCuadro||'EN_REGISTRO').toLowerCase()}">${q.estadoCuadro==='FINALIZADO'?'🔒 FINALIZADO':'EN REGISTRO'}</span>
+        </div>
+        <div class="hist-report-grid">
+          <div><small>Presentación</small><b>${esc(q.presentacion)}</b></div>
+          <div><small>Lote</small><b>${esc(q.lote)}</b></div>
+          <div><small>Hora inicio</small><b>${esc(q.horaInicio)}</b></div>
+          <div><small>Hora fin</small><b>${esc(q.horaFin)}</b></div>
+          <div><small>Programada</small><b>${Math.round(num(q.produccion?.programada)).toLocaleString('es-PE')} UND</b></div>
+          <div><small>Efectiva</small><b>${Math.round(num(q.produccion?.efectiva)).toLocaleString('es-PE')} UND</b></div>
+          <div><small>Paradas programadas</small><b>${prog} min</b></div>
+          <div><small>Paradas no programadas</small><b>${nprog} min</b></div>
+        </div>
+      </section>`;
+  }).join('');
+
+  const personal=(r.personal||[]).filter(p=>String(p.nombre||'').trim()).map(p=>
+    `<tr><td>${esc(p.posicion)}</td><td>${esc(p.nombre)}</td><td>${esc(p.cargo)}</td></tr>`
+  ).join('');
+
+  const fotos=(r.evidenciasPT||[]).filter(e=>e?.url).map(e=>
+    `<a class="hist-report-photo" href="${esc(e.url)}" target="_blank" rel="noopener"><img src="${esc(e.url)}" alt="Evidencia PT"><span>Ver fotografía</span></a>`
+  ).join('');
+
+  const modal=document.createElement('div');
+  modal.className='hist-report-modal';
+  modal.id='hist-report-modal';
+  modal.innerHTML=`
+    <div class="hist-report-dialog">
+      <div class="hist-report-top">
+        <div>
+          <h2>${esc(r.linea)} · REPORTE DE PRODUCCIÓN</h2>
+          <p>${esc(r.fecha)} · ${r.grupoTurno==='DIA_INTERMEDIO'?'DÍA + INTERMEDIO':esc(r.turno)}</p>
+        </div>
+        <button class="hist-report-close" onclick="cerrarReporteHistorial()">✕</button>
+      </div>
+      <div class="hist-report-summary">
+        <span>Estado: <b>${esc((r.estadoRegistro||'FINALIZADO').replaceAll('_',' '))}</b></span>
+        <span>Iniciado por: <b>${esc(r.registradoPor)}</b></span>
+        ${r.continuadoPor?`<span>Continuado por: <b>${esc(r.continuadoPor)}</b></span>`:''}
+        ${r.finalizadoPor?`<span>Finalizado por: <b>${esc(r.finalizadoPor)}</b></span>`:''}
+      </div>
+      <div class="hist-report-body">
+        ${tarjetas || '<div class="empty-state">Sin cuadros utilizados.</div>'}
+        <section class="hist-report-card">
+          <div class="hist-report-card-head"><strong>Personal del turno</strong></div>
+          <div class="table-scroll"><table><thead><tr><th>Posición</th><th>Nombre</th><th>Cargo</th></tr></thead><tbody>${personal||'<tr><td colspan="3">Sin datos</td></tr>'}</tbody></table></div>
+        </section>
+        <section class="hist-report-card">
+          <div class="hist-report-card-head"><strong>Observaciones generales</strong></div>
+          <p class="hist-report-observacion">${esc(r.observaciones||'Sin observaciones')}</p>
+        </section>
+        <section class="hist-report-card">
+          <div class="hist-report-card-head"><strong>Hojas de Producto Terminado</strong></div>
+          <div class="hist-report-photos">${fotos||'<span>Sin fotografías disponibles.</span>'}</div>
+        </section>
+      </div>
+      <div class="hist-report-footer">
+        <button class="btn btn-ghost" onclick="cerrarReporteHistorial();verGráficosHistorial('${r.id}')">📊 Ver gráficos</button>
+        ${r.estadoRegistro==='REABIERTO'
+          ? `<button class="btn btn-primary" onclick="cerrarReporteHistorial();cargarReporteParaCorreccion('${r.id}')">✏️ Continuar reporte</button>`
+          : ''}
+      </div>
+    </div>`;
+  modal.addEventListener('click',e=>{if(e.target===modal) cerrarReporteHistorial();});
+  document.body.appendChild(modal);
+}
+
+function cerrarReporteHistorial(){
+  document.getElementById('hist-report-modal')?.remove();
 }

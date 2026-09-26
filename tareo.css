@@ -866,3 +866,37 @@
 #tareo-alerta-descansos p{margin:10px 0}
 .tareo-alerta-lista{max-height:110px;overflow:auto;font-size:12px;margin-bottom:12px;line-height:1.5}
 @media(max-width:650px){.tareo-control-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* =========================================================
+   TAREO · MARCACIONES RÁPIDAS DE REFRIGERIO / SALIDA
+   ========================================================= */
+.tar2-marcacion{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:5px;
+    min-width:150px;
+}
+.tar2-action-btn{
+    border:1px solid var(--blue);
+    background:var(--blue-light);
+    color:var(--blue-deep);
+    border-radius:5px;
+    min-height:30px;
+    padding:5px 9px;
+    font-size:10px;
+    font-weight:700;
+    cursor:pointer;
+    white-space:nowrap;
+}
+.tar2-action-btn:hover{ filter:brightness(.97); }
+.tar2-marcacion .tar2-auto{
+    font-size:9px;
+    color:var(--good);
+    font-weight:700;
+}
+@media(max-width:700px){
+    .tar2-marcacion{min-width:135px}
+    .tar2-action-btn{width:100%}
+}

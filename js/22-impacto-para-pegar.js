@@ -180,9 +180,9 @@
     const root=main?.querySelector('#perdidas-soles-view');
 if(!root)return;
 
-const graficoUndActual=root.querySelector('#chart-pd-linea-und');
-if(graficoUndActual && typeof Chart!=='undefined' &&
-   Chart.getChart && Chart.getChart(graficoUndActual))return;
+const gráficoUndActual=root.querySelector('#chart-pd-linea-und');
+if(gráficoUndActual && typeof Chart!=='undefined' &&
+   Chart.getChart && Chart.getChart(gráficoUndActual))return;
 
     const permitidas = lineasConsultables().map(l=>l.key);
     const records = filtrarPorRangoPerdidas(loadRecords().filter(r=>
@@ -274,7 +274,7 @@ if(graficoUndActual && typeof Chart!=='undefined' &&
     const grid = root.querySelector('.chart-grid');
     if(!grid) return;
 
-    const mostrarGrafico = (id,titulo,labels,values,tipo='bar')=>{
+    const mostrarGráfico = (id,titulo,labels,values,tipo='bar')=>{
       grid.insertAdjacentHTML('beforeend',`
         <div class="chart-box">
           <h4>${titulo}</h4><canvas id="${id}"></canvas>
@@ -314,18 +314,18 @@ if(graficoUndActual && typeof Chart!=='undefined' &&
       });
     };
 
-    mostrarGrafico('pd-und-linea-extra',
+    mostrarGráfico('pd-und-linea-extra',
       'UND no producidas por línea',
       d.filasLinea.map(x=>x.nombre),
       d.filasLinea.map(x=>x.unidades));
 
-    mostrarGrafico('pd-und-maquina-extra',
+    mostrarGráfico('pd-und-maquina-extra',
       'UND no producidas por máquina / área',
       d.filasCategoria.map(x=>x.categoria),
       d.filasCategoria.map(x=>x.unidades));
 
     if(d.filasFecha.length>1){
-      mostrarGrafico('pd-und-dia-extra',
+      mostrarGráfico('pd-und-dia-extra',
         'UND no producidas por día',
         d.filasFecha.map(x=>x.fecha),
         d.filasFecha.map(x=>x.unidades),

@@ -169,11 +169,14 @@
       return {
         trabajadorId: w.id,
         nombre: w.nombre || p?.nombre || '',
+        tipoDocumento: w.tipoDocumento || p?.tipoDocumento || 'DNI',
         dni: w.dni || p?.dni || '',
         cargo: w.cargo || p?.cargo || 'Maquinista',
         linea: w.linea || p?.linea || '',
         asistencia: p?.asistencia || '',
         horaIngreso: p?.horaIngreso || '',
+        salidaRefrigerio: p?.salidaRefrigerio || '',
+        retornoRefrigerio: p?.retornoRefrigerio || '',
         refrigerio: Number(p?.refrigerio || 0),
         horaSalida: p?.horaSalida || '',
         horasTrabajadas: Number(p?.horasTrabajadas || 0),
@@ -227,7 +230,8 @@
                     <th>Línea</th>
                     <th>Asistencia</th>
                     <th>Ingreso</th>
-                    <th>Refrigerio</th>
+                    <th>Salida refrigerio</th>
+                    <th>Retorno refrigerio</th>
                     <th>Salida</th>
                     <th>Horas</th>
                     <th>Extras</th>
@@ -241,7 +245,7 @@
                       <td>
                         <div class="tareo-worker">
                           <strong>${escaparHTML(p.nombre)}</strong>
-                          <small>DNI: ${escaparHTML(p.dni || '—')}</small>
+                          <small>${escaparHTML(p.tipoDocumento || 'DNI')}: ${escaparHTML(p.dni || '—')}</small>
                         </div>
                       </td>
                       <td>${escaparHTML(p.cargo || 'Maquinista')}</td>

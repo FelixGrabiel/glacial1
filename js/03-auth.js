@@ -368,30 +368,30 @@ function enterApp(){
       .toUpperCase();
 
 
-  document.getElementById('btn-usuarios').style.display =
+  /* =====================================================
+     VISIBILIDAD SEGÚN PERMISOS DEL USUARIO
+     ===================================================== */
 
-    state.user.rol === 'Administrador'
-    
+  const puedeGestionarUsuarios =
+    tienePermiso('usuarios') ||
+    tienePermiso('gestionarUsuarios');
 
-      ? 'block'
+  const btnUsuarios =
+    document.getElementById('btn-usuarios');
 
-      : 'none';
+  if(btnUsuarios){
+    btnUsuarios.style.display =
+      puedeGestionarUsuarios ? '' : 'none';
+  }
 
 
-  document.getElementById('btn-trabajadores').style.display =
+  const btnTrabajadores =
+    document.getElementById('btn-trabajadores');
 
-    (
-      state.user.rol === 'Administrador' ||
-      state.user.rol === 'Jefe de Producción' ||
-      state.user.rol === 'Supervisor' ||
-      state.user.rol === 'Asistente de Producción'  ||
-      state.user.rol === 'Jefe de Operaciones'||
-      state.user.rol === 'Gerente General'
-    )
-
-      ? 'block'
-
-      : 'none';
+  if(btnTrabajadores){
+    btnTrabajadores.style.display =
+      tienePermiso('trabajadores') ? '' : 'none';
+  }
 
 
   /*
@@ -457,6 +457,23 @@ function enterApp(){
         : 'none';
 
   }
+
+  /*
+    Botón "Almacen" (xx-almacen.js): mismo patrón que
+    btnMantenimiento, gateado por el permiso 'moduloAlmacen'.
+  
+  */
+  const btnAlmacen =
+    document.getElementById('btn-almacen');
+    if(btnAlmacen){
+
+      btnAlmacen.style.display = 
+      tienePermiso('moduloAlmacen')
+        ? 'block'
+        : 'none';
+    } 
+
+
 
 
   renderSidebar();
