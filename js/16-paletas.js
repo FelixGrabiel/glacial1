@@ -410,6 +410,233 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
 }
 
 
+
+/* =========================================================
+   SECUENCIA DE PRODUCCIÓN DEL TURNO
+   =========================================================
+   La cantidad programada sigue perteneciendo a la combinación
+   línea + fecha + turno + marca + presentación.
+
+   La secuencia es adicional: una misma combinación puede tener
+   VARIOS tramos (ej.: SCALA -> BELLS -> SCALA) sin duplicar la
+   programación total de SCALA.
+   ========================================================= */
+
+function tramosSecuenciaTurnoPaletas(linea, fecha, turno){
+  const salida=[];
+
+  (loadProgramaciones() || []).forEach(p=>{
+    if(p.linea!==linea || p.fecha!==fecha || p.turno!==turno) return;
+
+    const tramos=Array.isArray(p.tramosSecuencia) ? p.tramosSecuencia : [];
+
+    tramos.forEach(t=>{
+      salida.push({
+        ...t,
+        linea:p.linea,
+        fecha:p.fecha,
+        turno:p.turno,
+        marca:p.marca,
+        presentacion:p.presentacion,
+        claveProgramacion:p.clave,
+        cantidadProgramada:num(p.cantidadProgramada)
+      });
+    });
+  });
+
+  return salida.sort((a,b)=>num(a.orden)-num(b.orden) ||
+    num(a.creadoEn)-num(b.creadoEn));
+}
+
+function textoFinTramoPaletas(t){
+  if(t.tipoFin==='HORA') return 'Hasta '+String(t.horaFin || '—');
+  if(t.tipoFin==='CANTIDAD'){
+    return 'Hasta completar '+num(t.cantidadObjetivo).toLocaleString('es-PE')+' UND';
+  }
+  if(t.tipoFin==='CIERRE') return 'Hasta cierre del turno';
+  return 'Sin condición';
+}
+
+async function agregarTramoSecuenciaDesdeFormulario(){
+  if(!puedeProgramarPaletas()){
+    alert('No tienes permiso para modificar la secuencia.');
+    return;
+  }
+
+  if(!draftPaleta?.marca || !draftPaleta?.presentacion){
+    alert('Selecciona marca y presentación.');
+    return;
+  }
+
+  const prog=obtenerProgramacionPaleta(
+    draftPaleta.linea,
+    draftPaleta.fecha,
+    draftPaleta.turno,
+    draftPaleta.marca,
+    draftPaleta.presentacion
+  );
+
+  if(!prog || num(prog.cantidadProgramada)<=0){
+    alert('Primero guarda la cantidad programada de esta marca y presentación.');
+    return;
+  }
+
+  const tipo=String(document.getElementById('paleta-tramo-tipo')?.value || 'CANTIDAD');
+  const hora=String(document.getElementById('paleta-tramo-hora')?.value || '');
+
+  if(tipo==='HORA' && !/^\d{2}:\d{2}$/.test(hora)){
+    alert('Ingresa la hora hasta la que se producirá este tramo.');
+    return;
+  }
+
+  const existentes=tramosSecuenciaTurnoPaletas(
+    draftPaleta.linea,draftPaleta.fecha,draftPaleta.turno
+  );
+  const orden=existentes.reduce((m,t)=>Math.max(m,num(t.orden)),0)+1;
+  const ahora=Date.now();
+
+  const nuevo={
+    id:'tramo_'+ahora+'_'+Math.random().toString(36).slice(2,7),
+    orden,
+    tipoFin:tipo,
+    horaFin:tipo==='HORA' ? hora : '',
+    cantidadObjetivo:tipo==='CANTIDAD' ? num(prog.cantidadProgramada) : 0,
+    creadoEn:ahora,
+    creadoPor:nombreUsuarioActualPaletas()
+  };
+
+  const ref=db.collection('sync').doc('programaciones');
+  const items=await db.runTransaction(async tx=>{
+    const snap=await tx.get(ref);
+    const actuales=snap.exists && Array.isArray(snap.data().items)
+      ? snap.data().items.slice() : [];
+    const i=actuales.findIndex(p=>p.clave===prog.clave);
+    if(i<0) throw new Error('La programación ya no existe.');
+
+    const tramos=Array.isArray(actuales[i].tramosSecuencia)
+      ? actuales[i].tramosSecuencia.slice() : [];
+    tramos.push(nuevo);
+    actuales[i]={...actuales[i],tramosSecuencia:tramos,actualizadoEn:ahora};
+
+    tx.set(ref,{items:actuales,updatedAt:ahora});
+    return actuales;
+  });
+
+  _programacionesCache=items;
+  renderPaletasTab();
+}
+
+async function eliminarTramoSecuenciaPaletas(claveProgramacion,idTramo){
+  if(!puedeProgramarPaletas()) return;
+  if(!confirm('¿Eliminar este tramo de la secuencia?')) return;
+
+  const ref=db.collection('sync').doc('programaciones');
+  const ahora=Date.now();
+
+  const items=await db.runTransaction(async tx=>{
+    const snap=await tx.get(ref);
+    const actuales=snap.exists && Array.isArray(snap.data().items)
+      ? snap.data().items.slice() : [];
+    const i=actuales.findIndex(p=>p.clave===claveProgramacion);
+    if(i<0) return actuales;
+
+    actuales[i]={
+      ...actuales[i],
+      tramosSecuencia:(Array.isArray(actuales[i].tramosSecuencia)
+        ? actuales[i].tramosSecuencia : []).filter(t=>t.id!==idTramo),
+      actualizadoEn:ahora
+    };
+
+    tx.set(ref,{items:actuales,updatedAt:ahora});
+    return actuales;
+  });
+
+  _programacionesCache=items;
+  renderPaletasTab();
+}
+
+function htmlSecuenciaTurnoPaletas(){
+  if(!draftPaleta) return '';
+
+  const tramos=tramosSecuenciaTurnoPaletas(
+    draftPaleta.linea,draftPaleta.fecha,draftPaleta.turno
+  );
+
+  const lista=tramos.length
+    ? tramos.map((t,i)=>`
+        <div style="display:grid;grid-template-columns:34px minmax(0,1fr) minmax(0,1fr) auto;
+          gap:10px;align-items:center;padding:9px 10px;border-top:1px solid #e7edf2;">
+          <strong style="color:#005B96;">${i+1}</strong>
+          <div>
+            <strong>${escaparHtml(t.marca || '—')}</strong>
+            <div class="small-muted">${escaparHtml(t.presentacion || '')}</div>
+          </div>
+          <div>
+            <strong>${escaparHtml(textoFinTramoPaletas(t))}</strong>
+            ${t.tipoFin==='HORA'
+              ? '<div class="small-muted">Las unidades se toman de lo producido hasta esa hora.</div>'
+              : ''}
+          </div>
+          ${puedeProgramarPaletas()
+            ? `<button type="button" class="btn btn-ghost btn-sm"
+                onclick="eliminarTramoSecuenciaPaletas('${String(t.claveProgramacion).replace(/'/g,"\\'")}','${String(t.id).replace(/'/g,"\\'")}')">Eliminar</button>`
+            : ''}
+        </div>
+      `).join('')
+    : `<div class="small-muted" style="padding:12px 0;">
+        Aún no hay secuencia. Si no la configuras, Producción actual seguirá usando el control manual existente.
+       </div>`;
+
+  return `
+    <div class="panel-body" style="border-top:1px solid #e3e9ee;">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+        <div>
+          <h4 style="margin:0;color:#003B5C;">Secuencia del turno</h4>
+          <div class="small-muted" style="margin-top:4px;">
+            Permite SCALA → BELLS → SCALA sin duplicar la cantidad programada total.
+          </div>
+        </div>
+      </div>
+
+      ${puedeProgramarPaletas() ? `
+      <div class="grid grid-4" style="align-items:end;margin-top:12px;">
+        <div class="field-sm">
+          <label>Marca / presentación del tramo</label>
+          <div style="min-height:36px;display:flex;align-items:center;font-weight:700;color:#003B5C;">
+            ${escaparHtml(draftPaleta.marca || '—')} · ${escaparHtml(draftPaleta.presentacion || '—')}
+          </div>
+        </div>
+
+        <div class="field-sm">
+          <label>Finaliza por</label>
+          <select id="paleta-tramo-tipo"
+            onchange="document.getElementById('paleta-tramo-hora-wrap').style.display=this.value==='HORA'?'block':'none'">
+            <option value="HORA">Hora</option>
+            <option value="CANTIDAD">Completar cantidad programada</option>
+            <option value="CIERRE">Cierre de turno</option>
+          </select>
+        </div>
+
+        <div class="field-sm" id="paleta-tramo-hora-wrap">
+          <label>Hora de corte</label>
+          <input type="time" id="paleta-tramo-hora">
+        </div>
+
+        <div class="field-sm">
+          <button type="button" class="btn btn-ghost"
+            onclick="agregarTramoSecuenciaDesdeFormulario()">
+            + Agregar a secuencia
+          </button>
+        </div>
+      </div>` : ''}
+
+      <div style="margin-top:12px;border:1px solid #dce5eb;border-radius:10px;overflow:hidden;">
+        ${lista}
+      </div>
+    </div>
+  `;
+}
+
 /*
    Comparación PROGRAMADO vs. PRODUCIDO vs. PENDIENTE (en
    UNIDADES, con su equivalente en paletas) para una
@@ -2307,6 +2534,8 @@ function renderPaletasTab(){
         </div>
       </div>
       `}
+
+      ${htmlSecuenciaTurnoPaletas()}
 
       ${puedeRegistrar ? `
       <div class="panel-body grid grid-4">

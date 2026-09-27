@@ -4067,3 +4067,97 @@ textarea{
 .hist-report-photos{padding:13px;display:flex;gap:10px;flex-wrap:wrap}.hist-report-photo{width:130px;text-decoration:none;color:var(--blue);font-size:11px;font-weight:700}.hist-report-photo img{display:block;width:130px;height:90px;object-fit:cover;border-radius:5px;border:1px solid var(--line);margin-bottom:5px}
 .hist-report-footer{padding:12px 20px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
 @media(max-width:800px){.hist-report-modal{padding:8px}.hist-report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hist-actions{min-width:0}.hist-report-summary{gap:8px;flex-direction:column}}
+
+
+/* =========================================================
+   HISTORIAL · TABLA COMPACTA DE ESCRITORIO
+   Mantiene todas las columnas y acciones visibles dentro del panel.
+   ========================================================= */
+.hist-table-wrap{
+    width:100%;
+    max-width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+}
+
+.hist-table{
+    width:100%;
+    min-width:1120px;
+    table-layout:fixed;
+    font-size:11.5px;
+}
+
+.hist-table th{
+    padding:8px 6px;
+    font-size:9px;
+    letter-spacing:.025em;
+}
+
+.hist-table td{
+    padding:8px 6px;
+    line-height:1.25;
+}
+
+.hist-table th:nth-child(1), .hist-table td:nth-child(1){width:64px}
+.hist-table th:nth-child(2), .hist-table td:nth-child(2){width:76px}
+.hist-table th:nth-child(3), .hist-table td:nth-child(3){width:60px}
+.hist-table th:nth-child(4), .hist-table td:nth-child(4){width:58px}
+.hist-table th:nth-child(5), .hist-table td:nth-child(5){width:92px}
+.hist-table th:nth-child(6), .hist-table td:nth-child(6){width:72px}
+.hist-table th:nth-child(7), .hist-table td:nth-child(7){width:158px}
+.hist-table th:nth-child(8), .hist-table td:nth-child(8){width:48px}
+.hist-table th:nth-child(9), .hist-table td:nth-child(9){width:92px}
+.hist-table th:nth-child(10), .hist-table td:nth-child(10){width:64px}
+.hist-table th:nth-child(11), .hist-table td:nth-child(11){width:110px}
+.hist-table th:nth-child(12), .hist-table td:nth-child(12){width:112px}
+.hist-table th:nth-child(13), .hist-table td:nth-child(13){width:220px}
+
+.hist-table .hist-col-presentacion,
+.hist-table .hist-col-registrado{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.hist-table .hist-col-fecha{
+    white-space:normal;
+    overflow-wrap:anywhere;
+}
+
+.hist-table .hist-actions{
+    min-width:0;
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+    gap:4px;
+    flex-wrap:nowrap;
+}
+
+.hist-table .hist-actions .btn-sm{
+    min-height:30px;
+    padding:5px 6px;
+    font-size:10px;
+    gap:3px;
+    white-space:nowrap;
+}
+
+.hist-table .hist-actions .row-del{
+    flex:0 0 auto;
+    padding:3px 4px;
+}
+
+.hist-table .reporte-estado-badge,
+.hist-table .badge{
+    font-size:9.5px;
+    padding:3px 7px;
+}
+
+@media (min-width:1200px){
+    .hist-table-wrap{overflow-x:hidden}
+    .hist-table{min-width:0}
+}
+
+@media (max-width:1199px){
+    .hist-table-wrap{overflow-x:auto}
+}

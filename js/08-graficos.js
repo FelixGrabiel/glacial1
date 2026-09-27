@@ -439,7 +439,7 @@ function cambiarRangoTendencia(dias){
 
   tendenciaRangoDias = dias;
 
-  renderGráficosTab();
+  renderGraficosTab();
 
 }
 
@@ -1911,7 +1911,7 @@ function xlHojaReporte(wb, ctx){
   xlSeccion(ws, r, C1, C2, 'ANÁLISIS DE PÉRDIDAS Y PARADAS');
   r++;
 
-  const filaGráficos = r;
+  const filaGraficos = r;
 
   const dataCascada = xlGráficoBarras({
     titulo:'Cascada de pérdidas de producción (botellas)',
@@ -1934,7 +1934,7 @@ function xlHojaReporte(wb, ctx){
     ]
   });
 
-  xlAgregarImagen(wb, ws, dataCascada, 1.05, filaGráficos - 1 + 0.1, 640, 340);
+  xlAgregarImagen(wb, ws, dataCascada, 1.05, filaGraficos - 1 + 0.1, 640, 340);
 
   const topParadas = paradas.filas.slice(0, 6);
 
@@ -1952,11 +1952,11 @@ function xlHojaReporte(wb, ctx){
 
   if(dataPareto){
 
-    xlAgregarImagen(wb, ws, dataPareto, 7.05, filaGráficos - 1 + 0.1, 640, 340);
+    xlAgregarImagen(wb, ws, dataPareto, 7.05, filaGraficos - 1 + 0.1, 640, 340);
 
   } else {
 
-    xlMerge(ws, filaGráficos, 8, C2,
+    xlMerge(ws, filaGraficos, 8, C2,
       'Sin paradas registradas en este turno.',
       { italic:true, color:XL.grisTexto, align:'center', border:false });
 
@@ -3810,7 +3810,7 @@ async function exportarPNG(){
 }
 
 
-function renderGráficosTab(){
+function renderGraficosTab(){
 
   const c =
     document.getElementById(

@@ -1071,6 +1071,97 @@ async function subirEvidenciasPT(recordId){
    REGISTRO VACÍO
    ========================================================= */
 
+
+/* =========================================================
+   UI NUEVO REGISTRO · GRAMAJES Y PRESENTACIONES SIMPLIFICADAS
+   ========================================================= */
+
+function gramajesPermitidosRegistro(linea){
+  const todos = [
+    '42.7','43.7','45.7','33.7','21.7',
+    '23.7','17.7','15.7','13.8','12.7'
+  ];
+
+  if(linea === 'PET1') return ['42.7','43.7'];
+  if(linea === 'PET2') return todos.filter(g => !['42.7','43.7'].includes(g));
+  if(linea === 'B7L') return ['90'];
+
+  return todos;
+}
+
+function gramajePredeterminadoRegistro(linea){
+  if(linea === 'PET1') return '42.7';
+  if(linea === 'B7L') return '90';
+  return '';
+}
+
+function clavePresentacionVisualRegistro(presentacion){
+  const t = String(presentacion || '').toLowerCase().replace(/\s+/g,'');
+
+  if(t.includes('380ml') && t.includes('24und')) return '380_24';
+  if(t.includes('625ml') && t.includes('6und')) return '625_6';
+  if(t.includes('625ml') && t.includes('15und')) return '625_15';
+  if(t.includes('1.5l') && t.includes('6und')) return '1.5_6';
+  if(t.includes('2.5l') && t.includes('6und')) return '2.5_6';
+  if(t.includes('1lx6und')) return '1_6';
+  if(t.includes('1lx12und')) return '1_12';
+
+  return '';
+}
+
+function etiquetaPresentacionVisualRegistro(clave){
+  return {
+    '380_24':'380 ML PACK X 24 UND',
+    '625_6':'625 ML PACK X 6 UND',
+    '625_15':'625 ML PACK X 15 UND',
+    '1_6':'1 L PACK X 6 UND',
+    '1_12':'1 L PACK X 12 UND',
+    '1.5_6':'1.5 L PACK X 6 UND',
+    '2.5_6':'2.5 L PACK X 6 UND'
+  }[clave] || '';
+}
+
+function presentacionesVisualesRegistro(linea, presentacionActual=''){
+  const origen = PRESENTACIONES_POR_LINEA[linea] || [];
+
+  // La simplificación aplica a PET. Las demás líneas conservan
+  // exactamente sus presentaciones actuales.
+  if(!['PET1','PET2'].includes(linea)){
+    return origen.map(value => ({value, label:value}));
+  }
+
+  const mapa = new Map();
+
+  origen.forEach(value => {
+    const clave = clavePresentacionVisualRegistro(value);
+    if(!clave) return;
+
+    const actual = mapa.get(clave);
+    const txt = String(value || '').toLowerCase();
+
+    // Preferimos /ln como código interno cuando hay duplicados.
+    if(!actual || txt.endsWith('/ln')){
+      mapa.set(clave, value);
+    }
+  });
+
+  // Si editamos un registro existente, conservamos su código interno
+  // aunque visualmente se muestre la presentación simplificada.
+  const claveActual = clavePresentacionVisualRegistro(presentacionActual);
+  if(claveActual && origen.includes(presentacionActual)){
+    mapa.set(claveActual, presentacionActual);
+  }
+
+  const orden = ['380_24','625_6','625_15','1_6','1_12','1.5_6','2.5_6'];
+
+  return orden
+    .filter(clave => mapa.has(clave))
+    .map(clave => ({
+      value: mapa.get(clave),
+      label: etiquetaPresentacionVisualRegistro(clave)
+    }));
+}
+
 function blankCuadro(lineKey, numero){
 
   const marcas =
@@ -1111,7 +1202,7 @@ function blankCuadro(lineKey, numero){
 
     presentacion,
 
-    gramajePreforma: 0,
+    gramajePreforma: gramajePredeterminadoRegistro(lineKey),
 
     ratioNominal:
       activo
@@ -3045,6 +3136,28 @@ function renderFormTab(){
     draft
   );
 
+  (draft.cuadros || []).forEach(q => {
+    if(!q) return;
+
+    if(
+      state.currentLine === 'PET1' &&
+      !['42.7','43.7'].includes(String(q.gramajePreforma ?? ''))
+    ){
+      q.gramajePreforma = '42.7';
+    }
+
+    if(
+      state.currentLine === 'PET2' &&
+      ['42.7','43.7'].includes(String(q.gramajePreforma ?? ''))
+    ){
+      q.gramajePreforma = '';
+    }
+
+    if(state.currentLine === 'B7L'){
+      q.gramajePreforma = '90';
+    }
+  });
+
 
   actualizarTodosCuadros();
 
@@ -3135,9 +3248,10 @@ function renderFormTab(){
 
 
       const presentaciones =
-        PRESENTACIONES_POR_LINEA[
-          state.currentLine
-        ] || [];
+        presentacionesVisualesRegistro(
+          state.currentLine,
+          q.presentacion
+        );
 
 
       const optionList =
@@ -3147,14 +3261,14 @@ function renderFormTab(){
             ? arr.map(
                 o =>
                   `<option
-                    value="${o}"
+                    value="${o.value}"
                     ${
-                      o === q.presentacion
+                      o.value === q.presentacion
                         ? 'selected'
                         : ''
                     }
                   >
-                    ${o}
+                    ${o.label}
                   </option>`
               ).join('')
 
@@ -3411,23 +3525,16 @@ function renderFormTab(){
                   "
                 >
 
-                  <option value="">
-                    Seleccione...
-                  </option>
+                  ${
+                    state.currentLine === 'B7L'
+                      ? ''
+                      : `<option value="">Seleccione...</option>`
+                  }
 
                   ${
-                    [
-                      '42.7',
-                      '43.7',
-                      '45.7',
-                      '33.7',
-                      '21.7',
-                      '23.7',
-                      '17.7',
-                      '15.7',
-                      '13.8',
-                      '12.7'
-                    ]
+                    gramajesPermitidosRegistro(
+                      state.currentLine
+                    )
                     .map(
                       g =>
                         `

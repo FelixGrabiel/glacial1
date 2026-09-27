@@ -89,6 +89,107 @@
       : uppAnterior.apply(this,arguments);
   };
   const llave = (l,f,t,m,p) => claveProgramacionPaleta(l,f,t,m,p);
+
+  function secuenciaPlanificada(linea,fecha,turnoPlan){
+    const salida=[];
+    (loadProgramaciones() || []).forEach(p=>{
+      if(p.linea!==linea || p.fecha!==fecha || p.turno!==turnoPlan)return;
+      (Array.isArray(p.tramosSecuencia) ? p.tramosSecuencia : []).forEach(t=>{
+        salida.push({
+          ...t,
+          linea:p.linea,fecha:p.fecha,turno:p.turno,
+          marca:p.marca,presentacion:p.presentacion,
+          claveProgramacion:p.clave,
+          cantidadProgramada:num(p.cantidadProgramada)
+        });
+      });
+    });
+    return salida.sort((a,b)=>num(a.orden)-num(b.orden) || num(a.creadoEn)-num(b.creadoEn));
+  }
+
+  function marcaTiempoCorte(fecha,hora){
+    if(!fecha || !/^\d{2}:\d{2}$/.test(String(hora || '')))return 0;
+    const d=new Date(fecha+'T'+hora+':00');
+    const ms=d.getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  }
+
+  function producidoTramoSecuencia(t,turnoVista){
+    return num(resumenProgramacionCombinacionTurnos(
+      t.linea,t.fecha,[turnoVista],t.marca,t.presentacion
+    ).unidadesProducidas);
+  }
+
+  function estadoSecuenciaLinea(linea,fecha,turnoPlan,turnoVista,ahora){
+    const tramos=secuenciaPlanificada(linea,fecha,turnoPlan);
+    if(!tramos.length)return null;
+
+    let indiceActivo=tramos.length-1;
+
+    for(let i=0;i<tramos.length;i++){
+      const t=tramos[i];
+      let terminado=false;
+
+      if(t.tipoFin==='HORA'){
+        const corte=marcaTiempoCorte(fecha,t.horaFin);
+        terminado=!!corte && ahora>=corte;
+      }else if(t.tipoFin==='CANTIDAD'){
+        const objetivo=num(t.cantidadObjetivo) || num(t.cantidadProgramada);
+        terminado=objetivo>0 && producidoTramoSecuencia(t,turnoVista)>=objetivo;
+      }else if(t.tipoFin==='CIERRE'){
+        const r=horario(fecha,turnoVista,turnoPlan==='DÍA' && turnoVista==='INTERMEDIO');
+        terminado=!!r && ahora>=r.fin;
+      }
+
+      if(!terminado){
+        indiceActivo=i;
+        break;
+      }
+
+      if(i===tramos.length-1)indiceActivo=-1;
+    }
+
+    return {tramos,indiceActivo,activo:indiceActivo>=0 ? tramos[indiceActivo] : null};
+  }
+
+  function aplicarEstadoVisualSecuencia(items,linea,fecha,turnoPlan,turnoVista,ahora){
+    const sec=estadoSecuenciaLinea(linea,fecha,turnoPlan,turnoVista,ahora);
+    if(!sec || !sec.tramos.length)return null;
+
+    const claveCombo=t=>llave(t.linea,t.fecha,t.turno,t.marca,t.presentacion);
+    const activoKey=sec.activo ? claveCombo(sec.activo) : '';
+
+    items.forEach(x=>{
+      if(['CANCELADA','DETENIDA','LISTA'].includes(x.op?.estado))return;
+
+      const k=llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion);
+      const indices=sec.tramos.map((t,i)=>claveCombo(t)===k ? i : -1).filter(i=>i>=0);
+      if(!indices.length)return;
+
+      if(activoKey && k===activoKey){
+        x.estadoVisual='EN_PRODUCCION';
+        return;
+      }
+
+      if(sec.indiceActivo<0){
+        x.estadoVisual='FINALIZADA';
+        return;
+      }
+
+      const tuvoTramo=indices.some(i=>i<sec.indiceActivo);
+      const tieneTramoFuturo=indices.some(i=>i>sec.indiceActivo);
+
+      if(tuvoTramo && tieneTramoFuturo){
+        x.estadoVisual='PAUSA_SECUENCIA';
+      }else if(tuvoTramo){
+        x.estadoVisual='FINALIZADA';
+      }else{
+        x.estadoVisual='PENDIENTE';
+      }
+    });
+
+    return sec;
+  }
   const turnoActivo = (fecha,turno) => {
     const t=turnoVigente();return t.activo && t.fecha===fecha && t.turno===turno;
   };
@@ -293,6 +394,12 @@
       // nunca debe volver a EN CURSO solo porque tenga registros de paletas.
       items.forEach(x=>{ delete x.estadoVisual; });
 
+      const turnoVistaSecuencia=items[0]?.turno || turnos[0];
+      const turnoPlanSecuencia=items[0]?.turnoPlan || turnoVistaSecuencia;
+      const secuenciaActiva=aplicarEstadoVisualSecuencia(
+        items,line.key,fecha,turnoPlanSecuencia,turnoVistaSecuencia,ahora
+      );
+
       const vacios=filasActuales.filter(x=>x.linea===line.key && x.sinDatos);
       if(!items.length && !vacios.length)return null;
       const detenidos=items.filter(x=>x.op?.estado==='DETENIDA');
@@ -303,8 +410,11 @@
       // El estado operativo guardado tiene prioridad absoluta.
       // Los registros de paletas sirven para métricas, pero NO pueden volver
       // a abrir visualmente una presentación ya FINALIZADA.
-      const activo=detenidos[0] || pausas[0] ||
-        activosGuardados[0] || items.find(x=>x.op?.estado==='LISTA') ||
+      const activoSecuencia=items.find(x=>x.estadoVisual==='EN_PRODUCCION');
+      const pausaSecuencia=items.find(x=>x.estadoVisual==='PAUSA_SECUENCIA');
+      const activo=detenidos[0] ||
+        activoSecuencia || pausas[0] || activosGuardados[0] ||
+        items.find(x=>x.op?.estado==='LISTA') || pausaSecuencia ||
         items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado)) ||
         items[0] || vacios[0];
 
@@ -403,7 +513,7 @@
       )/MS_HORA;
 
       const ratioReal=horasEfectivas>0 ? totalProd/horasEfectivas : 0;
-      return {line,items,vacios,activo,nivel,texto,turnosLinea,totalProg,totalProd,horasEfectivas,ratioReal};
+      return {line,items,vacios,activo,nivel,texto,turnosLinea,totalProg,totalProd,horasEfectivas,ratioReal,secuenciaActiva};
     }).filter(Boolean);
 
     // VISIBILIDAD Y PRIORIDAD DE TARJETAS
@@ -420,10 +530,10 @@
     const esSupervisor=/\bsupervisor\b/.test(perfilNormalizado);
 
     const prioridadGrupo=g=>{
-      if(g.items.some(x=>x.op?.estado==='EN_PRODUCCION'))return 0;
+      if(g.items.some(x=>(x.estadoVisual || x.op?.estado)==='EN_PRODUCCION'))return 0;
       if(g.items.some(x=>x.op?.estado==='DETENIDA'))return 1;
-      if(g.items.some(x=>['PAUSA','LISTA'].includes(x.op?.estado)))return 2;
-      if(g.items.some(x=>x.op?.estado==='FINALIZADA'))return 3;
+      if(g.items.some(x=>['PAUSA_SECUENCIA','PAUSA','LISTA'].includes(x.estadoVisual || x.op?.estado)))return 2;
+      if(g.items.some(x=>(x.estadoVisual || x.op?.estado)==='FINALIZADA'))return 3;
       return 4;
     };
 
@@ -434,7 +544,8 @@
     if(!esSupervisor){
       gruposVisibles=gruposVisibles.filter(g=>
         g.items.some(x=>
-          ['EN_PRODUCCION','DETENIDA','PAUSA','LISTA'].includes(x.op?.estado)
+          ['EN_PRODUCCION','DETENIDA','PAUSA_SECUENCIA','PAUSA','LISTA']
+            .includes(x.estadoVisual || x.op?.estado)
         )
       );
     }
@@ -532,7 +643,7 @@
                 const otraMarcaActiva=g.items.some(y=>
                   y!==x && ['EN_PRODUCCION','DETENIDA','PAUSA','LISTA'].includes(y.op?.estado)
                 );
-                const porRetomar=finalizadoManual && otraMarcaActiva && producido>0;
+                const porRetomar=!g.secuenciaActiva && finalizadoManual && otraMarcaActiva && producido>0;
                 const terminado=metaCumplida || (finalizadoManual && !porRetomar);
                 const estado=cancelado
                   ? '<i class="cancel"><span class="pa-cancel-x">✕</span>CANCELADO</i>'
@@ -540,13 +651,15 @@
                     ? '<i class="fin"><span class="pa-status-dot"></span>COMPLETADO</i>'
                     : porRetomar
                       ? '<i class="retomar"><span class="pa-status-dot"></span>POR RETOMAR</i>'
-                      : finalizadoManual
+                      : (!g.secuenciaActiva && finalizadoManual)
                         ? '<i class="finalizado"><span class="pa-status-dot"></span>FINALIZADO</i>'
                         : e==='EN_PRODUCCION'
                           ? '<i class="curso"><span class="pa-status-dot"></span>EN CURSO</i>'
                         : e==='DETENIDA'
                           ? '<i class="det"><span class="pa-status-dot"></span>DETENIDO</i>'
-                          : '<i class="pend"><span class="pa-status-dot"></span>PENDIENTE</i>';
+                          : e==='PAUSA_SECUENCIA'
+                            ? '<i class="retomar"><span class="pa-status-dot"></span>EN PAUSA</i>'
+                            : '<i class="pend"><span class="pa-status-dot"></span>PENDIENTE</i>';
                 const idx=filasActuales.indexOf(x);
                 const cancelar=x.puede==='supervisor' && !cancelado && !terminado
                   ? `<button type="button" class="pa-cancel-btn" title="Cancelar programación"

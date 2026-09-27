@@ -772,7 +772,7 @@ function deleteRecord(id){
 
 function verGráficosHistorial(id){
   state.viewingRecordId=id;
-  state.currentTab='gráficos';
+  state.currentTab='graficos';
   renderMain();
 }
 

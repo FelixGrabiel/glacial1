@@ -128,6 +128,7 @@ const PERMISOS_APP=[
   {key:'resumen',label:'Resumen / Reportes'},
   {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
   {key:'paletas',label:'Paletas (registro en tiempo real)'},
+  {key:'programarPaletas',label:'Programar producción / Secuencia del turno'},
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
   {key:'gestionarPersonal',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
   {key:'verLineasProduccion',label:'Ver líneas de producción en el menú lateral'},
@@ -592,6 +593,57 @@ function initRealtimeSync(){
 
 function onUsersUpdated(){
 
+  /*
+     Mantener la sesión actual sincronizada con Firestore.
+     Antes _usersCache se actualizaba, pero state.user conservaba
+     la copia de permisos obtenida al iniciar sesión.
+  */
+  if(state.user){
+
+    const usernameActual=
+      String(state.user.username || '').trim().toLowerCase();
+
+    const usuarioActualizado=
+      (_usersCache || []).find(
+        u =>
+          String(u?.username || '').trim().toLowerCase()
+          === usernameActual
+      );
+
+    if(usuarioActualizado){
+
+      const permisosAntes=
+        JSON.stringify(normalizarPermisosUsuario(state.user));
+
+      state.user={
+        ...state.user,
+        ...usuarioActualizado
+      };
+
+      const permisosAhora=
+        JSON.stringify(normalizarPermisosUsuario(state.user));
+
+      /*
+         Si el administrador cambió permisos desde otro usuario/equipo,
+         refrescar la interfaz actual para aplicar el cambio sin relogin.
+      */
+      if(permisosAntes !== permisosAhora){
+
+        if(typeof renderSidebar === 'function'){
+          renderSidebar();
+        }
+
+        if(typeof renderMain === 'function'){
+          renderMain();
+        }
+
+      }
+
+    }
+
+  }
+
+
   if(document.getElementById('userlist')){
 
     renderUserList();
@@ -861,12 +913,6 @@ function onRecordsUpdated(){
      necesita este refresco para salir de "Cargando datos...".
   */
 
-  if(state.currentTab === 'nuevo' &&
-     typeof sincronizarDraftReporteRemoto === 'function'){
-    sincronizarDraftReporteRemoto();
-    return;
-  }
-
   if(
     state.currentTab === 'resumen' ||
     state.currentTab === 'historial' ||
@@ -908,57 +954,12 @@ function loadRecords(){
 
 
 function saveRecords(r){
-  _recordsCache = Array.isArray(r) ? r : [];
+  _recordsCache = r;
 
   return db.collection('sync').doc('records').set({
-    items: _recordsCache,
+    items: r,
     updatedAt: Date.now()
   }).catch(err => _avisarErrorGuardado('reportes', err));
-}
-
-/*
-   =========================================================
-   REPORTE COMPARTIDO · GUARDADO TRANSACCIONAL
-   =========================================================
-   Actualiza SOLO un reporte dentro de sync/records.
-   Firestore reintenta la transacción si otro supervisor
-   guardó cambios al mismo tiempo, evitando que un equipo
-   sobrescriba el arreglo completo leído por otro equipo.
-*/
-async function saveRecordCollaborative(report){
-  if(!report || !report.id) throw new Error('El reporte no tiene ID.');
-
-  const ref=db.collection('sync').doc('records');
-  const limpio=JSON.parse(JSON.stringify(report));
-  const ahora=Date.now();
-
-  const itemsGuardados=await db.runTransaction(async tx=>{
-    const snap=await tx.get(ref);
-    const items=(snap.exists && Array.isArray(snap.data().items))
-      ? snap.data().items.slice()
-      : [];
-
-    const idx=items.findIndex(r=>r && r.id===limpio.id);
-    if(idx>=0){
-      const remoto=items[idx] || {};
-      // El reporte más reciente se toma como base y este guardado aplica
-      // la versión actual del formulario. La transacción evita perder
-      // actualizaciones por escrituras simultáneas del documento.
-      items[idx]={
-        ...remoto,
-        ...limpio,
-        actualizadoEn:limpio.actualizadoEn || ahora
-      };
-    }else{
-      items.push(limpio);
-    }
-
-    tx.set(ref,{items,updatedAt:ahora});
-    return items;
-  });
-
-  _recordsCache=itemsGuardados;
-  return itemsGuardados;
 }
 
 
