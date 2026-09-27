@@ -155,6 +155,68 @@ function nombrePresentacionUI(linea, marca, presentacion){
 
 
 
+
+/* =========================================================
+   PRESENTACIONES ÚNICAS PARA UI DE PALETAS
+   =========================================================
+   SOLO afecta lo que ve el usuario en el selector.
+   El valor interno sigue siendo el código técnico existente
+   (preferentemente /ln), para no romper ratios, cálculos,
+   programación ni registros históricos.
+*/
+function clavePresentacionVisualPaletas(presentacion){
+  const t=String(presentacion||'').toLowerCase().replace(/\s+/g,'');
+
+  if(t.includes('380ml') && t.includes('24und')) return '380_24';
+  if(t.includes('625ml') && t.includes('15und')) return '625_15';
+  if(t.includes('1.5l') && t.includes('6und')) return '1.5_6';
+  if(t.includes('2.5l') && t.includes('6und')) return '2.5_6';
+
+  // Debe ir después de 1.5L y 2.5L para no confundirlos con 1L.
+  if((t.includes('1lx12und') || t.includes('1l') && t.includes('12und')))
+    return '1_12';
+
+  return '';
+}
+
+function etiquetaPresentacionVisualPaletas(clave){
+  return {
+    '380_24':'380 ML PACK X 24 UND',
+    '625_15':'625 ML PACK X 15 UND',
+    '1_12':'1 L PACK X 12 UND',
+    '1.5_6':'1.5 L PACK X 6 UND',
+    '2.5_6':'2.5 L PACK X 6 UND'
+  }[clave] || '';
+}
+
+function presentacionesUnicasPaletas(linea){
+  const origen=PRESENTACIONES_POR_LINEA[linea] || [];
+  const mapa=new Map();
+
+  origen.forEach(p=>{
+    const clave=clavePresentacionVisualPaletas(p);
+    if(!clave) return;
+
+    const actual=mapa.get(clave);
+    const txt=String(p||'').toLowerCase();
+
+    // Internamente preferimos /ln. Si no existe, conservamos
+    // la primera variante válida para mantener compatibilidad.
+    if(!actual || txt.endsWith('/ln')){
+      mapa.set(clave,p);
+    }
+  });
+
+  const orden=['380_24','625_15','1_12','1.5_6','2.5_6'];
+
+  return orden
+    .filter(k=>mapa.has(k))
+    .map(k=>({
+      value:mapa.get(k),
+      label:etiquetaPresentacionVisualPaletas(k)
+    }));
+}
+
 /* =========================================================
    PROGRAMACIÓN DE PALETAS POR TURNO ("CANTIDAD PROGRAMADA")
    =========================================================
@@ -2052,7 +2114,7 @@ const PRODUCCION_ACTUAL_COMPACTA_CSS = `
 
    Se llama desde renderMain() (06-registro.js) cuando
    state.currentTab === 'paletas', igual que renderFormTab(),
-   renderHistorialTab() y renderGráficosTab().
+   renderHistorialTab() y renderGraficosTab().
    ========================================================= */
 
 function renderPaletasTab(){
@@ -2088,7 +2150,14 @@ function renderPaletasTab(){
     MARCAS_POR_LINEA[state.currentLine] || [];
 
   const presentaciones =
-    PRESENTACIONES_POR_LINEA[state.currentLine] || [];
+    presentacionesUnicasPaletas(state.currentLine);
+
+  // Si el borrador viene de un registro antiguo (/la u otra variante),
+  // se conserva el dato hasta que el usuario elija otra presentación.
+  // Para un registro nuevo, usar la opción visual/canónica disponible.
+  if(!draftPaleta.presentacion && presentaciones.length){
+    draftPaleta.presentacion=presentaciones[0].value;
+  }
 
   /*
      Programación YA guardada para la combinación que está
@@ -2175,8 +2244,8 @@ function renderPaletasTab(){
             ${
               presentaciones.length
                 ? presentaciones.map(p => `
-                    <option value="${escaparHtml(p)}" ${p === draftPaleta.presentacion ? 'selected' : ''}>
-                      ${escaparHtml(nombrePresentacionUI(state.currentLine, draftPaleta.marca, p))}
+                    <option value="${escaparHtml(p.value)}" ${p.value === draftPaleta.presentacion ? 'selected' : ''}>
+                      ${escaparHtml(p.label)}
                     </option>
                   `).join('')
                 : `<option value="">Sin presentaciones configuradas</option>`
@@ -3147,36 +3216,10 @@ function renderProduccionActualTab(){
       }
     });
 
-    /*
-       El saldo es un ESTADO del corte, no un acumulado permanente.
-       Si después del último saldo se registra un nuevo corte de
-       paletas completas, ese nuevo corte reemplaza el saldo anterior
-       salvo que exista un saldo registrado después del mismo.
-    */
-    const orden = item => {
-      if(!item) return {creado:0,hora:'',indice:-1};
-      return {
-        creado:Number(item.registro?.creadoEn) || 0,
-        hora:String(item.registro?.hora || ''),
-        indice:Number(item.indice) || 0
-      };
-    };
-    const esPosterior = (a,b) => {
-      if(!a) return false;
-      if(!b) return true;
-      const A=orden(a), B=orden(b);
-      return A.creado > B.creado ||
-        (A.creado === B.creado &&
-          (A.hora > B.hora || (A.hora === B.hora && A.indice > B.indice)));
-    };
-    const saldoVigente = saldo && esPosterior(saldo, completas)
-      ? num(saldo.registro.totalUnidades)
-      : 0;
-
     return {
       paletas: num(completas?.registro.paletas),
       unidadesCompletas: num(completas?.registro.totalUnidades),
-      unidadesSaldo: saldoVigente
+      unidadesSaldo: num(saldo?.registro.totalUnidades)
     };
   }
 
@@ -3402,13 +3445,13 @@ function renderProduccionActualTab(){
     const campoPaletas = Array.from(
       panel.querySelectorAll('.field-sm')
     ).find(el =>
-      /Cantidad de paletas completas|Paletas completas del corte/
+      /Cantidad de paletas completas|Paletas completas acumuladas/
         .test(el.querySelector('label')?.textContent || '')
     );
 
     if(campoPaletas){
       campoPaletas.querySelector('label').textContent =
-        'Paletas completas del corte';
+        'Paletas completas acumuladas';
 
       const input =
         campoPaletas.querySelector('input[type="number"]');
@@ -3498,7 +3541,7 @@ function renderProduccionActualTab(){
         alert(
           !upp
             ? 'Faltan unidades por paleta para esta presentación.'
-            : 'Ingresa las paletas completas del corte (0 o más).'
+            : 'Ingresa las paletas completas acumuladas (0 o más).'
         );
         return;
       }

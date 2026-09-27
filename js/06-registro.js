@@ -2380,16 +2380,16 @@ function renderMain(){
 
 
       <button
-        data-requires-permission="gráficos"
+        data-requires-permission="graficos"
         class="
           tab
           ${
-            state.currentTab === 'gráficos'
+            state.currentTab === 'graficos'
               ? 'active'
               : ''
           }
         "
-        onclick="setTab('gráficos')"
+        onclick="setTab('graficos')"
       >
         Gráficos
       </button>
@@ -2470,7 +2470,7 @@ function renderMain(){
 
   else{
 
-    renderGráficosTab();
+    renderGraficosTab();
 
   }
 
@@ -2484,7 +2484,7 @@ function setTab(t){
   const permiso = {
     nuevo:'nuevo',
     historial:'historial',
-    gráficos:'gráficos',
+    graficos:'graficos',
     paletas:'paletas',
     resumen:'resumen'
   }[t];
@@ -2638,6 +2638,45 @@ function aplicarBloqueoCuadrosFinalizados(){
 let _autosaveReporteTimer = null;
 let _autosaveReporteInstalado = false;
 let _autosaveReporteGuardando = false;
+let _ultimoRemotoAplicado = 0;
+
+/*
+   SINCRONIZACIÓN DEL FORMULARIO ENTRE N SUPERVISORES
+   Todos los dispositivos que tengan abierto el mismo reporte (mismo ID)
+   reciben el avance confirmado por Firestore mediante onSnapshot().
+*/
+function sincronizarDraftReporteRemoto(){
+  if(!draft || !draft.id || state.currentTab!=='nuevo') return;
+
+  const remoto=loadRecords().find(r=>r && r.id===draft.id);
+  if(!remoto) return;
+
+  const remotoTs=num(remoto.actualizadoEn || 0);
+  const localTs=num(draft.actualizadoEn || 0);
+
+  // No re-renderizar por nuestro propio eco ni por una versión antigua.
+  if(remotoTs<=localTs || remotoTs<=_ultimoRemotoAplicado) return;
+
+  // Si el usuario está escribiendo y hay un autosave pendiente, primero
+  // dejamos que ese cambio se confirme para no borrar texto a medio escribir.
+  if(_autosaveReporteGuardando || _autosaveReporteTimer){
+    // No aplicamos el remoto encima de lo que el supervisor está escribiendo.
+    // Al terminar el autosave se vuelve a ejecutar esta función.
+    return;
+  }
+
+  _ultimoRemotoAplicado=remotoTs;
+  draft=JSON.parse(JSON.stringify(remoto));
+
+  // Mantener la línea abierta y refrescar todos los campos del reporte.
+  state.currentLine=draft.linea || state.currentLine;
+  renderFormTab();
+
+  if(typeof mostrarToastReporte==='function'){
+    const quien=remoto.actualizadoPor ? ` por ${remoto.actualizadoPor}` : '';
+    mostrarToastReporte(`Actualizado en tiempo real${quien}`);
+  }
+}
 
 function usuarioPuedeReabrirReporte(){
   return !!state.user && tienePermiso('reabrirReporteProduccion');
@@ -2682,15 +2721,19 @@ async function guardarAvanceReporte({silencioso=false}={}){
   draft.actualizadoPor=state.user?.nombre || '';
   if(draft.estadoRegistro!=='REABIERTO') draft.estadoRegistro='EN_REGISTRO';
 
-  const records=loadRecords().slice();
-  const idx=records.findIndex(r=>r.id===draft.id);
   const limpio=copiaReporteParaFirestore(draft);
-  if(idx>=0) records[idx]=limpio; else records.push(limpio);
 
   _autosaveReporteGuardando=true;
   actualizarIndicadorGuardado('guardando');
   try{
-    await saveRecords(records);
+    if(typeof saveRecordCollaborative==='function'){
+      await saveRecordCollaborative(limpio);
+    }else{
+      const records=loadRecords().slice();
+      const idx=records.findIndex(r=>r.id===draft.id);
+      if(idx>=0) records[idx]=limpio; else records.push(limpio);
+      await saveRecords(records);
+    }
     actualizarIndicadorGuardado('guardado');
     if(!silencioso) mostrarToastReporte('Avance guardado');
     return true;
@@ -2706,9 +2749,31 @@ async function guardarAvanceReporte({silencioso=false}={}){
 
 function programarGuardadoAutomaticoReporte(){
   if(!draft || reporteEstaBloqueado()) return;
-  clearTimeout(_autosaveReporteTimer);
+
+  if(_autosaveReporteTimer){
+    clearTimeout(_autosaveReporteTimer);
+  }
+
   actualizarIndicadorGuardado('pendiente');
-  _autosaveReporteTimer=setTimeout(()=>guardarAvanceReporte({silencioso:true}),900);
+
+  _autosaveReporteTimer=setTimeout(async ()=>{
+    // IMPORTANTE:
+    // setTimeout no limpia por sí solo la variable que guarda su ID.
+    // Si queda con un valor, sincronizarDraftReporteRemoto() cree para
+    // siempre que todavía hay una edición local pendiente y bloquea
+    // todas las actualizaciones que lleguen desde otros dispositivos.
+    _autosaveReporteTimer=null;
+
+    await guardarAvanceReporte({silencioso:true});
+
+    // Si mientras guardábamos llegó una versión más nueva desde Firestore,
+    // comprobarla inmediatamente después de terminar el guardado.
+    setTimeout(()=>{
+      if(typeof sincronizarDraftReporteRemoto==='function'){
+        sincronizarDraftReporteRemoto();
+      }
+    },0);
+  },900);
 }
 
 function instalarAutosaveReporte(){
@@ -2853,11 +2918,15 @@ async function finalizarReporteProduccion(){
     draft.auditoria=Array.isArray(draft.auditoria)?draft.auditoria:[];
     draft.auditoria.push({accion:'FINALIZADO',fecha:ahora,usuario:draft.finalizadoPor});
 
-    const records=loadRecords().slice();
-    const idx=records.findIndex(r=>r.id===draft.id);
     const limpio=copiaReporteParaFirestore(draft);
-    if(idx>=0) records[idx]=limpio; else records.push(limpio);
-    await saveRecords(records);
+    if(typeof saveRecordCollaborative==='function'){
+      await saveRecordCollaborative(limpio);
+    }else{
+      const records=loadRecords().slice();
+      const idx=records.findIndex(r=>r.id===draft.id);
+      if(idx>=0) records[idx]=limpio; else records.push(limpio);
+      await saveRecords(records);
+    }
 
     liberarPreviewsEvidenciasPT(draft.evidenciasPT||[]);
     state.currentTab='historial';
@@ -2949,6 +3018,22 @@ function renderFormTab(){
 
     draft.evidenciasPT = [];
 
+  }
+
+  // Si otro supervisor ya creó un reporte activo para esta misma línea,
+  // fecha y grupo de turno, todos entran al MISMO reporte en vez de crear
+  // copias independientes.
+  if(!draft.id){
+    const grupo=grupoTurnoReporte(draft.turno);
+    const compartido=loadRecords()
+      .filter(r=>r && r.linea===draft.linea && r.fecha===draft.fecha &&
+        (r.grupoTurno || grupoTurnoReporte(r.turno))===grupo &&
+        r.estadoRegistro!=='FINALIZADO')
+      .sort((a,b)=>num(b.actualizadoEn||0)-num(a.actualizadoEn||0))[0];
+
+    if(compartido){
+      draft=JSON.parse(JSON.stringify(compartido));
+    }
   }
 
   if(!draft.estadoRegistro) draft.estadoRegistro='EN_REGISTRO';

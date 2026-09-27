@@ -288,40 +288,156 @@
            (x.vivo && !anterior.vivo))unicos.set(k,x);
       });
       const items=[...unicos.values()];
+
+      // Recalcular el estado visual en cada render. Un producto FINALIZADO
+      // nunca debe volver a EN CURSO solo porque tenga registros de paletas.
+      items.forEach(x=>{ delete x.estadoVisual; });
+
       const vacios=filasActuales.filter(x=>x.linea===line.key && x.sinDatos);
       if(!items.length && !vacios.length)return null;
       const detenidos=items.filter(x=>x.op?.estado==='DETENIDA');
       const pausas=items.filter(x=>x.op?.estado==='PAUSA');
       const ultimoConProduccion=ultimoProductoConProduccion(items);
       const activosGuardados=items.filter(x=>x.op?.estado==='EN_PRODUCCION');
-      const activo=detenidos[0] || pausas[0] || ultimoConProduccion ||
-        activosGuardados[0] || items.find(x=>x.op?.estado==='LISTA') || items[0] || vacios[0];
 
-      // Para la vista, EN CURSO sigue el último producto que realmente
-      // recibió un registro de producción. No altera Firestore ni el histórico.
-      if(ultimoConProduccion && !detenidos.length && !pausas.length){
-        items.forEach(x=>{
-          if(x.op?.estado==='CANCELADA' || x.op?.estado==='FINALIZADA')return;
-          if(x===ultimoConProduccion){
-            x.estadoVisual='EN_PRODUCCION';
-          }else if(x.op?.estado==='EN_PRODUCCION'){
-            x.estadoVisual='PENDIENTE';
-          }
-        });
-      }
+      // El estado operativo guardado tiene prioridad absoluta.
+      // Los registros de paletas sirven para métricas, pero NO pueden volver
+      // a abrir visualmente una presentación ya FINALIZADA.
+      const activo=detenidos[0] || pausas[0] ||
+        activosGuardados[0] || items.find(x=>x.op?.estado==='LISTA') ||
+        items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado)) ||
+        items[0] || vacios[0];
 
       const hayCurso=items.some(x=>(x.estadoVisual || x.op?.estado)==='EN_PRODUCCION');
+      const hayFinalizada=items.some(x=>x.op?.estado==='FINALIZADA');
+      const hayPendiente=items.some(x=>!x.op?.estado || x.op?.estado==='PENDIENTE');
+      const lineaCerrada=!hayCurso && !detenidos.length && !pausas.length &&
+        hayFinalizada && !hayPendiente;
       const nivel=detenidos.length?'roja':pausas.length?'ambar':hayCurso?'verde':'gris';
-      const texto=detenidos.length?'Línea detenida':pausas.length?'Pausa programada':hayCurso?'En curso':'Sin iniciar';
+      const texto=detenidos.length?'Línea detenida':
+        pausas.length?'Pausa programada':
+        hayCurso?'En curso':
+        lineaCerrada?'Finalizada':'Sin iniciar';
       const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
       const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
       const totalProd=items.reduce((s,x)=>s+num(resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas),0);
-      // Ratio real de LÍNEA: producto terminado total / horas efectivas acumuladas.
-      // Las horas efectivas descuentan pausas programadas y detenciones registradas.
-      const horasEfectivas=items.reduce((s,x)=>s+num(x.horas),0);
+      // HORAS EFECTIVAS REALES DE LÍNEA
+      // ---------------------------------------------------------
+      // No se suman las horas de cada marca/presentación, porque
+      // pertenecen a la MISMA línea y eso duplicaba/triplicaba el tiempo.
+      //
+      // Se construye una línea temporal con los intervalos efectivos de
+      // cada presentación y se calcula la UNIÓN de esos intervalos.
+      // El final de cada intervalo queda limitado por:
+      //   1) finalizadaEn, si el supervisor finalizó la presentación;
+      //   2) el fin programado del turno;
+      //   3) la hora actual, mientras siga trabajando.
+      //
+      // De esta forma, un turno 07:00-18:30 nunca puede convertirse en
+      // 36 horas por tener varias marcas dentro de la misma línea.
+      const intervalosEfectivos=[];
+
+      items.forEach(x=>{
+        const inicio=Number(x.op?.inicio || 0);
+        const rango=horario(x.fecha,x.turno,x.compartida);
+        if(!inicio || !rango)return;
+
+        const finalizadaEn=Number(x.op?.finalizadaEn || 0);
+        const canceladaEn=Number(x.op?.canceladaEn || 0);
+        const corteEstado=finalizadaEn || canceladaEn || ahora;
+        const desde=Math.max(inicio,rango.inicio);
+        const hasta=Math.min(corteEstado,rango.fin);
+
+        if(hasta<=desde)return;
+
+        const pausaAcumulada=Number(x.op?.pausaAcumuladaMs || 0);
+        const detencionAcumulada=Number(x.op?.detencionAcumuladaMs || 0);
+
+        let pausaAbierta=0;
+        if(x.op?.estado==='PAUSA' && Number(x.op?.pausaDesde || 0)>0){
+          pausaAbierta=Math.max(
+            0,
+            Math.min(hasta,corteEstado)-Number(x.op.pausaDesde)
+          );
+        }
+
+        let detencionAbierta=0;
+        if(x.op?.estado==='DETENIDA' && Number(x.op?.detenidaDesde || 0)>0){
+          detencionAbierta=Math.max(
+            0,
+            Math.min(hasta,corteEstado)-Number(x.op.detenidaDesde)
+          );
+        }
+
+        const descuento=Math.max(
+          0,
+          pausaAcumulada+detencionAcumulada+pausaAbierta+detencionAbierta
+        );
+
+        // Para evitar sumar dos veces marcas de la misma línea, el intervalo
+        // conserva solamente el tiempo efectivo que realmente aportó.
+        const duracionEfectiva=Math.max(0,(hasta-desde)-descuento);
+        if(duracionEfectiva>0){
+          intervalosEfectivos.push({
+            desde,
+            hasta:desde+duracionEfectiva
+          });
+        }
+      });
+
+      intervalosEfectivos.sort((a,b)=>a.desde-b.desde);
+
+      const unidos=[];
+      intervalosEfectivos.forEach(actual=>{
+        const ultimo=unidos[unidos.length-1];
+        if(!ultimo || actual.desde>ultimo.hasta){
+          unidos.push({...actual});
+        }else{
+          ultimo.hasta=Math.max(ultimo.hasta,actual.hasta);
+        }
+      });
+
+      const horasEfectivas=unidos.reduce(
+        (s,x)=>s+Math.max(0,x.hasta-x.desde),
+        0
+      )/MS_HORA;
+
       const ratioReal=horasEfectivas>0 ? totalProd/horasEfectivas : 0;
       return {line,items,vacios,activo,nivel,texto,turnosLinea,totalProg,totalProd,horasEfectivas,ratioReal};
     }).filter(Boolean);
+
+    // VISIBILIDAD Y PRIORIDAD DE TARJETAS
+    // Supervisor: ve todas las líneas; las activas/detenidas/pausa primero.
+    // Perfiles de consulta: ven únicamente líneas con operación activa.
+    const textoPerfil=[
+      state.user?.rol || '',
+      state.user?.puesto || '',
+      state.user?.cargo || ''
+    ].join(' ');
+    const perfilNormalizado=(typeof normalizarTexto==='function'
+      ? normalizarTexto(textoPerfil)
+      : textoPerfil.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+    const esSupervisor=/\bsupervisor\b/.test(perfilNormalizado);
+
+    const prioridadGrupo=g=>{
+      if(g.items.some(x=>x.op?.estado==='EN_PRODUCCION'))return 0;
+      if(g.items.some(x=>x.op?.estado==='DETENIDA'))return 1;
+      if(g.items.some(x=>['PAUSA','LISTA'].includes(x.op?.estado)))return 2;
+      if(g.items.some(x=>x.op?.estado==='FINALIZADA'))return 3;
+      return 4;
+    };
+
+    let gruposVisibles=grupos.slice().sort((a,b)=>
+      prioridadGrupo(a)-prioridadGrupo(b)
+    );
+
+    if(!esSupervisor){
+      gruposVisibles=gruposVisibles.filter(g=>
+        g.items.some(x=>
+          ['EN_PRODUCCION','DETENIDA','PAUSA','LISTA'].includes(x.op?.estado)
+        )
+      );
+    }
 
     const tablero=document.createElement('section');
     tablero.className='panel pa-live-board';
@@ -330,57 +446,142 @@
       Ver turno actual: ${esc(turnoReal.fecha)} · ${esc(turnoReal.turno)}</button></div>
       <div class="panel-body"><p class="small-muted">Vista operativa por línea. Los totales de unidades no se mezclan entre líneas ni presentaciones.</p>
       <div class="pa-oper-kpis">
-        <div class="pa-oper-kpi pa-oper-ok"><span>Líneas en producción</span><b>${grupos.filter(g=>g.nivel==='verde').length}</b></div>
-        <div class="pa-oper-kpi pa-oper-stop"><span>Líneas detenidas</span><b>${grupos.filter(g=>g.nivel==='roja').length}</b></div>
-        <div class="pa-oper-kpi pa-oper-wait"><span>Líneas pendientes / pausa</span><b>${grupos.filter(g=>g.nivel==='gris'||g.nivel==='ambar').length}</b></div>
+        <div class="pa-oper-kpi pa-oper-ok"><span>Líneas en producción</span><b>${gruposVisibles.filter(g=>g.nivel==='verde').length}</b></div>
+        <div class="pa-oper-kpi pa-oper-stop"><span>Líneas detenidas</span><b>${gruposVisibles.filter(g=>g.nivel==='roja').length}</b></div>
+        <div class="pa-oper-kpi pa-oper-wait"><span>Líneas pendientes / pausa</span><b>${gruposVisibles.filter(g=>g.nivel==='gris'||g.nivel==='ambar').length}</b></div>
       </div>
-      <div class="pa-live-grid">${grupos.map(g=>{
+      <div class="pa-live-grid">${gruposVisibles.map(g=>{
         const idxActivo=filasActuales.indexOf(g.activo);
-        return `<article class="pa-live-card pa-line-card">
-          <div class="pa-live-head"><div><strong class="pa-line-title">${esc(g.line.name)}</strong>
-          <div class="pa-line-turnos">${esc(g.turnosLinea.join(' · ') || 'SIN TURNO')}</div></div>
-          ${renderSemaforoWidget({nivel:g.nivel,texto:g.texto})}</div>
-          <div class="pa-section-title">PROGRAMACIÓN DE LÍNEA</div>
-          <div class="pa-program-list">${g.items.length ? g.items.map(x=>{
-            const prog=num(x.prog?.cantidadProgramada);
-            return `<div><b>${esc(x.marca || '—')}</b>${x.presentacion?' · '+esc(presUI(x.linea,x.marca,x.presentacion)):''}<span>${prog.toLocaleString('es-PE')} UND</span></div>`;
-          }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'}</div>
-          ${g.activo && !g.activo.sinDatos ? `<div class="pa-current">
-            <div class="pa-current-name">${esc(g.activo.marca)} · ${esc(presUI(g.activo.linea,g.activo.marca,g.activo.presentacion))}</div>
-            <div>Ratio nominal: <b>${g.activo.ratio ? g.activo.ratio.toLocaleString('es-PE')+' UND/h':'Sin configurar'}</b></div>
-            <div>Ratio real línea: <b>${g.ratioReal ? Math.round(g.ratioReal).toLocaleString('es-PE')+' UND/h':'—'}</b></div>
-            <div>Horas efectivas línea: <b>${g.horasEfectivas ? g.horasEfectivas.toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2})+' h':'—'}</b></div>
-            <div>Producción desde el inicio: <b>${Math.round(g.activo.real).toLocaleString('es-PE')} UND</b></div>
-            <div>Último registro: <b>${ultimoRegistro(g.activo)}</b></div>
-            ${g.activo.op?.motivo && g.activo.nivel==='roja'?`<div>Motivo: ${esc(g.activo.op.motivo)}</div>`:''}
-            <div class="pa-live-actions">${acciones(g.activo,idxActivo)}</div>
-          </div>`:''}
-          <div class="pa-section-title">LISTA DE MARCAS PRODUCIDAS O EN PRODUCCIÓN</div>
-          <div class="pa-progress-list">${g.items.length ? g.items.map(x=>{
-            const r=resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion);
-            const producido=num(r.unidadesProducidas), programado=num(x.prog?.cantidadProgramada);
-            const e=x.estadoVisual || x.op?.estado;
-            const cancelado=x.op?.estado==='CANCELADA';
-            const terminado=!cancelado && (e==='FINALIZADA' || (programado>0 && producido>=programado));
-            const estado=cancelado
-              ? '<i class="cancel"><span class="pa-cancel-x">✕</span>CANCELADO</i>'
-              : terminado
-                ? '<i class="fin"><span class="pa-status-dot"></span>COMPLETADO</i>'
-                : e==='EN_PRODUCCION'
-                  ? '<i class="curso"><span class="pa-status-dot"></span>EN CURSO</i>'
-                  : e==='DETENIDA'
-                    ? '<i class="det"><span class="pa-status-dot"></span>DETENIDO</i>'
-                    : '<i class="pend"><span class="pa-status-dot"></span>PENDIENTE</i>';
-            const idx=filasActuales.indexOf(x);
-            const cancelar=x.puede==='supervisor' && !cancelado && !terminado
-              ? `<button type="button" class="pa-cancel-btn" data-pa-accion="cancelar" data-pa-indice="${idx}" title="Cancelar marca" aria-label="Cancelar ${esc(x.marca || 'marca')}">✕</button>`
-              : '';
-            return `<div class="pa-progress-row"><span>${esc(x.marca || '—')}${x.presentacion?' · '+esc(presUI(x.linea,x.marca,x.presentacion)):''}</span>
-              <b>${Math.round(producido).toLocaleString('es-PE')} / ${Math.round(programado).toLocaleString('es-PE')} UND</b>
-              ${estado}${cancelar}</div>`;
-          }).join(''):'<div class="small-muted">Aún no hay marcas registradas.</div>'}</div>
-          <div class="pa-total">PRODUCCIÓN TOTAL: <b>${Math.round(g.totalProd).toLocaleString('es-PE')} / ${Math.round(g.totalProg).toLocaleString('es-PE')} UND</b></div>
-          ${g.activo && avisoAccion(g.activo)?`<p class="small-muted">${esc(avisoAccion(g.activo))}</p>`:''}
+        return `<article class="pa-live-card pa-line-card pa-line-card-horizontal">
+          <div class="pa-line-top">
+            <div class="pa-line-ident">
+              <div class="pa-line-icon">⚙</div>
+              <div>
+                <strong class="pa-line-title">${esc(g.line.name)}</strong>
+                <div class="pa-line-turnos">${esc(g.turnosLinea.join(' · ') || 'SIN TURNO')}</div>
+              </div>
+            </div>
+            <div class="pa-line-status">${renderSemaforoWidget({nivel:g.nivel,texto:g.texto})}</div>
+          </div>
+
+          <div class="pa-horizontal-body">
+
+            <section class="pa-hcol pa-hcol-programacion">
+              <div class="pa-hcol-title">▥ PROGRAMACIÓN DE LÍNEA</div>
+              <div class="pa-program-list pa-program-list-horizontal">${
+                g.items.length ? g.items.map(x=>{
+                  const prog=num(x.prog?.cantidadProgramada);
+                  return `<div class="pa-program-row">
+                    <span><b>${esc(x.marca || '—')}</b>${x.presentacion
+                      ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>'
+                      : ''}</span>
+                    <strong>${prog.toLocaleString('es-PE')} UND</strong>
+                  </div>`;
+                }).join('') :
+                '<div class="small-muted">Sin programación para el período seleccionado.</div>'
+              }</div>
+            </section>
+
+            <section class="pa-hcol pa-hcol-ratio">
+              <div class="pa-hcol-title">◴ PRODUCCIÓN ACTUAL</div>
+              ${g.activo && !g.activo.sinDatos ? `
+                <div class="pa-active-product">
+                  ${esc(g.activo.marca)} · ${esc(presUI(
+                    g.activo.linea,g.activo.marca,g.activo.presentacion
+                  ))}
+                </div>
+                <div class="pa-metric-row"><span>Ratio nominal</span><b>${
+                  g.activo.ratio
+                    ? g.activo.ratio.toLocaleString('es-PE')+' UND/h'
+                    : 'Sin configurar'
+                }</b></div>
+                <div class="pa-metric-row"><span>Ratio real línea</span><b>${
+                  g.ratioReal
+                    ? Math.round(g.ratioReal).toLocaleString('es-PE')+' UND/h'
+                    : '—'
+                }</b></div>
+                <div class="pa-metric-row"><span>Horas efectivas</span><b>${
+                  g.horasEfectivas ? g.horasEfectivas.toFixed(2)+' h' : '—'
+                }</b></div>
+                <div class="pa-metric-divider"></div>
+                <div class="pa-metric-row pa-metric-main"><span>Producción desde el inicio</span><b>${
+                  Math.round(g.activo.real).toLocaleString('es-PE')
+                } UND</b></div>
+                <div class="pa-metric-row"><span>Último registro</span><b>${
+                  ultimoRegistro(g.activo)
+                }</b></div>
+                ${g.activo.op?.motivo && g.activo.nivel==='roja'
+                  ? `<div class="pa-stop-reason">Motivo: ${esc(g.activo.op.motivo)}</div>`
+                  : ''}
+                <div class="pa-live-actions">${acciones(g.activo,idxActivo)}</div>
+              ` : '<div class="small-muted">Sin producción activa.</div>'}
+            </section>
+
+            <section class="pa-hcol pa-hcol-marcas">
+              <div class="pa-hcol-title">◆ MARCAS PRODUCIDAS O EN PRODUCCIÓN</div>
+              <div class="pa-progress-list">${g.items.length ? g.items.map(x=>{
+                const r=resumenProgramacionCombinacionTurnos(
+                  x.linea,x.fecha,[x.turno],x.marca,x.presentacion
+                );
+                const producido=Math.round(num(r.unidadesProducidas));
+                const programado=Math.round(num(x.prog?.cantidadProgramada));
+                const e=x.estadoVisual || x.op?.estado;
+                const cancelado=x.op?.estado==='CANCELADA';
+                const metaCumplida=!cancelado && programado>0 && producido>=programado;
+                const finalizadoManual=!cancelado && x.op?.estado==='FINALIZADA' && !metaCumplida;
+                const otraMarcaActiva=g.items.some(y=>
+                  y!==x && ['EN_PRODUCCION','DETENIDA','PAUSA','LISTA'].includes(y.op?.estado)
+                );
+                const porRetomar=finalizadoManual && otraMarcaActiva && producido>0;
+                const terminado=metaCumplida || (finalizadoManual && !porRetomar);
+                const estado=cancelado
+                  ? '<i class="cancel"><span class="pa-cancel-x">✕</span>CANCELADO</i>'
+                  : metaCumplida
+                    ? '<i class="fin"><span class="pa-status-dot"></span>COMPLETADO</i>'
+                    : porRetomar
+                      ? '<i class="retomar"><span class="pa-status-dot"></span>POR RETOMAR</i>'
+                      : finalizadoManual
+                        ? '<i class="finalizado"><span class="pa-status-dot"></span>FINALIZADO</i>'
+                        : e==='EN_PRODUCCION'
+                          ? '<i class="curso"><span class="pa-status-dot"></span>EN CURSO</i>'
+                        : e==='DETENIDA'
+                          ? '<i class="det"><span class="pa-status-dot"></span>DETENIDO</i>'
+                          : '<i class="pend"><span class="pa-status-dot"></span>PENDIENTE</i>';
+                const idx=filasActuales.indexOf(x);
+                const cancelar=x.puede==='supervisor' && !cancelado && !terminado
+                  ? `<button type="button" class="pa-cancel-btn" title="Cancelar programación"
+                      data-pa-accion="cancelar" data-pa-indice="${idx}">✕</button>` : '';
+                return `<div class="pa-progress-row pa-progress-row-horizontal">
+                  <span><b>${esc(x.marca || '—')}</b><small>${
+                    x.presentacion ? esc(presUI(x.linea,x.marca,x.presentacion)) : ''
+                  }</small></span>
+                  <strong>${producido.toLocaleString('es-PE')} / ${programado.toLocaleString('es-PE')} UND</strong>
+                  ${estado}${cancelar}
+                </div>`;
+              }).join('') : '<div class="small-muted">Sin marcas registradas.</div>'}</div>
+            </section>
+
+            <section class="pa-hcol pa-hcol-total">
+              <div class="pa-hcol-title">⬢ PRODUCCIÓN TOTAL</div>
+              <div class="pa-total-big">
+                <div>
+                  <small>PRODUCIDO / PROGRAMADO</small>
+                  <strong>${Math.round(g.totalProd).toLocaleString('es-PE')}<br>
+                    <span>/ ${Math.round(g.totalProg).toLocaleString('es-PE')} UND</span>
+                  </strong>
+                </div>
+              </div>
+              <div class="pa-total-progress">
+                <div style="width:${Math.min(
+                  100,g.totalProg>0 ? g.totalProd/g.totalProg*100 : 0
+                ).toFixed(1)}%"></div>
+              </div>
+              <div class="pa-total-percent">${
+                g.totalProg>0 ? (g.totalProd/g.totalProg*100).toFixed(1) : '0.0'
+              }% de la programación</div>
+            </section>
+
+          </div>
         </article>`;
       }).join('')}</div></div>`;
     cont.prepend(tablero);
@@ -417,7 +618,53 @@
     @media (prefers-reduced-motion:reduce){.pa-progress-row i.curso .pa-status-dot{animation:none}}
     .pa-total{border-top:1px solid #cfdbe3;margin-top:12px;padding-top:10px;font-weight:700}
     .pa-live-active .pl-grupo-card .pl-semaforo-wrap{display:none}
-    @media(max-width:700px){.pa-oper-kpis{grid-template-columns:1fr}.pa-live-grid{grid-template-columns:1fr}.pa-live-card{padding:14px}.pa-progress-row{grid-template-columns:minmax(0,1fr) auto 28px}.pa-progress-row b{grid-column:1;grid-row:2}.pa-progress-row i{grid-column:2;grid-row:1/3;align-self:center}.pa-cancel-btn{grid-column:3;grid-row:1/3}}
+    @media(min-width:701px){
+      .pa-live-grid{
+        display:grid;
+        grid-template-columns:1fr;
+        gap:12px;
+        overflow:visible;
+        padding:2px 0 10px;
+      }
+      .pa-live-card{
+        width:100%;
+        max-width:none;
+      }
+    }
+    .pa-line-card-horizontal{padding:0;overflow:hidden;min-width:0;width:100%}
+    .pa-line-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 18px;border-bottom:1px solid #d9e5ed;background:#f8fbfd}
+    .pa-line-ident{display:flex;align-items:center;gap:12px}.pa-line-icon{font-size:28px;color:#005b96}
+    .pa-horizontal-body{display:grid;grid-template-columns:1.05fr 1.05fr 1.45fr .72fr;align-items:stretch}
+    .pa-hcol{min-width:0;padding:12px 14px;border-right:1px solid #d8e4ec;background:#fff}
+    .pa-hcol:last-child{border-right:0}.pa-hcol-title{font-weight:900;color:#064f80;font-size:12px;letter-spacing:.025em;margin-bottom:12px}
+    .pa-program-list-horizontal{border:0;padding:0}.pa-program-row{display:flex!important;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px!important;margin-bottom:6px;border-radius:8px;background:#edf6fc}
+    .pa-program-row span{min-width:0}.pa-program-row small,.pa-progress-row-horizontal small{display:block;font-weight:500;color:#5f7382;margin-top:1px;white-space:normal}
+    .pa-program-row strong{white-space:nowrap;color:#16344b}
+    .pa-active-product{font-weight:800;color:#005b96;margin-bottom:9px}
+    .pa-metric-row{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.pa-metric-row b{text-align:right;white-space:nowrap}
+    .pa-metric-divider{height:1px;background:#d6e1e8;margin:8px 0}.pa-metric-main{color:#073f68}
+    .pa-stop-reason{margin-top:7px;color:#b42318;font-weight:700}
+    .pa-progress-row-horizontal{grid-template-columns:minmax(0,1fr) auto auto 28px;padding:7px 0;border-bottom:1px solid #edf1f4}
+    .pa-progress-row-horizontal:last-child{border-bottom:0}.pa-progress-row-horizontal>strong{font-size:11px;white-space:nowrap}
+    .pa-total-big{display:flex;align-items:center;gap:14px;min-height:94px;padding:11px;border-radius:10px;background:#edf6fc}
+    .pa-total-big small{display:block;color:#5d7180;font-size:10px;margin-bottom:5px}
+    .pa-total-big strong{font-size:24px;line-height:1.05;color:#073f68}.pa-total-big strong span{font-size:13px}
+    .pa-total-progress{height:8px;border-radius:999px;background:#dce7ee;overflow:hidden;margin-top:12px}.pa-total-progress>div{height:100%;background:#198754}
+    .pa-total-percent{text-align:center;margin-top:6px;font-size:11px;font-weight:700;color:#526979}
+    @media(max-width:700px){
+      .pa-oper-kpis{grid-template-columns:1fr}
+      .pa-live-grid{display:grid;grid-template-columns:1fr;overflow:visible}
+      .pa-live-card{padding:14px}
+      .pa-line-card-horizontal{min-width:0;padding:0}
+      .pa-horizontal-body{grid-template-columns:1fr}
+      .pa-hcol{border-right:0;border-bottom:1px solid #d8e4ec}
+      .pa-hcol:last-child{border-bottom:0}
+      .pa-line-top{padding:12px 14px}
+      .pa-progress-row-horizontal{grid-template-columns:minmax(0,1fr) auto 28px}
+      .pa-progress-row-horizontal>strong{grid-column:1;grid-row:2}
+      .pa-progress-row-horizontal i{grid-column:2;grid-row:1/3}
+      .pa-progress-row-horizontal .pa-cancel-btn{grid-column:3;grid-row:1/3}
+      .pa-live-card{padding:14px}.pa-progress-row{grid-template-columns:minmax(0,1fr) auto 28px}.pa-progress-row b{grid-column:1;grid-row:2}.pa-progress-row i{grid-column:2;grid-row:1/3;align-self:center}.pa-cancel-btn{grid-column:3;grid-row:1/3}}
   `;
   document.head.appendChild(css);
 
@@ -496,7 +743,38 @@
           op.detencionAcumuladaMs=num(op.detencionAcumuladaMs)+Math.max(0,ahora-num(op.detenidaDesde));
         op.pausaDesde=0;op.detenidaDesde=0;op.estado='FINALIZADA';op.finalizadaEn=ahora;
       }
-      items[i]={...items[i],estadoOperacion:op};
+      // Historial persistente de alertas dentro de la propia programación.
+      // Así el historial viaja con sync/programaciones y no requiere
+      // crear otro documento ni cambiar las reglas actuales de Firestore.
+      const historialAlertas = Array.isArray(items[i].historialAlertas)
+        ? items[i].historialAlertas.slice()
+        : [];
+
+      if(accion === 'detener'){
+        historialAlertas.push({
+          id: `${k}|${ahora}|detencion`,
+          tipo: 'detencion',
+          momento: ahora,
+          operador: op.actualizadoPor || '',
+          motivo: motivo || ''
+        });
+      }
+
+      if(accion === 'reanudar' && ['DETENIDA','LISTA'].includes(e)){
+        historialAlertas.push({
+          id: `${k}|${ahora}|reanudacion`,
+          tipo: 'reanudacion',
+          momento: ahora,
+          operador: op.actualizadoPor || '',
+          motivo: previo.motivo || ''
+        });
+      }
+
+      items[i]={
+        ...items[i],
+        estadoOperacion:op,
+        historialAlertas: historialAlertas.slice(-300)
+      };
       tx.set(ref,{items,updatedAt:ahora});
       return items;
     });

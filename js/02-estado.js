@@ -124,7 +124,7 @@ function _avisarErrorGuardado(nombreDato, error){
 const PERMISOS_APP=[
   {key:'nuevo',label:'Nuevo registro'},
   {key:'historial',label:'Historial'},
-  {key:'gráficos',label:'Gráficos'},
+  {key:'graficos',label:'Gráficos'},
   {key:'resumen',label:'Resumen / Reportes'},
   {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
   {key:'paletas',label:'Paletas (registro en tiempo real)'},
@@ -167,8 +167,8 @@ function puedeGestionarPersonal(){
 function permisosPorRolAnterior(rol){
   if(rol==='Administrador') return 'todos';
   if(ROLES_SOLO_CONSULTA.has(rol)) return [...PERMISOS_SOLO_CONSULTA];
-  if(rol==='Supervisor') return ['nuevo','historial','gráficos','paletas','gestionarPersonal'];
-  return ['nuevo','historial','gráficos','paletas'];
+  if(rol==='Supervisor') return ['nuevo','historial','graficos','paletas','gestionarPersonal'];
+  return ['nuevo','historial','graficos','paletas'];
 }
 
 function normalizarPermisosUsuario(u){
@@ -223,7 +223,7 @@ function usuariosPorDefecto(){
     {
       username:'supervisor',password:'supervisor123',rol:'Supervisor',
       puesto:'Supervisor',
-      permisos:['nuevo','historial','gráficos','paletas','gestionarPersonal'],
+      permisos:['nuevo','historial','graficos','paletas','gestionarPersonal'],
       permisosGestionVersion:1,
       linea:null,nombre:'Supervisor'
     }
@@ -861,10 +861,16 @@ function onRecordsUpdated(){
      necesita este refresco para salir de "Cargando datos...".
   */
 
+  if(state.currentTab === 'nuevo' &&
+     typeof sincronizarDraftReporteRemoto === 'function'){
+    sincronizarDraftReporteRemoto();
+    return;
+  }
+
   if(
     state.currentTab === 'resumen' ||
     state.currentTab === 'historial' ||
-    state.currentTab === 'gráficos' ||
+    state.currentTab === 'graficos' ||
     state.currentTab === 'perdidas'
   ){
 
@@ -902,12 +908,57 @@ function loadRecords(){
 
 
 function saveRecords(r){
-  _recordsCache = r;
+  _recordsCache = Array.isArray(r) ? r : [];
 
   return db.collection('sync').doc('records').set({
-    items: r,
+    items: _recordsCache,
     updatedAt: Date.now()
   }).catch(err => _avisarErrorGuardado('reportes', err));
+}
+
+/*
+   =========================================================
+   REPORTE COMPARTIDO · GUARDADO TRANSACCIONAL
+   =========================================================
+   Actualiza SOLO un reporte dentro de sync/records.
+   Firestore reintenta la transacción si otro supervisor
+   guardó cambios al mismo tiempo, evitando que un equipo
+   sobrescriba el arreglo completo leído por otro equipo.
+*/
+async function saveRecordCollaborative(report){
+  if(!report || !report.id) throw new Error('El reporte no tiene ID.');
+
+  const ref=db.collection('sync').doc('records');
+  const limpio=JSON.parse(JSON.stringify(report));
+  const ahora=Date.now();
+
+  const itemsGuardados=await db.runTransaction(async tx=>{
+    const snap=await tx.get(ref);
+    const items=(snap.exists && Array.isArray(snap.data().items))
+      ? snap.data().items.slice()
+      : [];
+
+    const idx=items.findIndex(r=>r && r.id===limpio.id);
+    if(idx>=0){
+      const remoto=items[idx] || {};
+      // El reporte más reciente se toma como base y este guardado aplica
+      // la versión actual del formulario. La transacción evita perder
+      // actualizaciones por escrituras simultáneas del documento.
+      items[idx]={
+        ...remoto,
+        ...limpio,
+        actualizadoEn:limpio.actualizadoEn || ahora
+      };
+    }else{
+      items.push(limpio);
+    }
+
+    tx.set(ref,{items,updatedAt:ahora});
+    return items;
+  });
+
+  _recordsCache=itemsGuardados;
+  return itemsGuardados;
 }
 
 

@@ -17,12 +17,38 @@
    ========================================================= */
 
 let resumenRangoDias = 30;
+let resumenFechaDiaria = null;
 
-/* null = todo el historial disponible */
+/* null = todo el historial disponible; 1 = Diario */
+
+function fechaHoyResumen(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const dia=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dia}`;
+}
 
 function cambiarRangoResumen(dias){
 
   resumenRangoDias = dias;
+
+  if(dias === 1 && !resumenFechaDiaria){
+    resumenFechaDiaria = fechaHoyResumen();
+  }
+
+  renderResumen(
+    document.getElementById('main')
+  );
+
+}
+
+function cambiarFechaDiariaResumen(fecha){
+
+  if(!fecha) return;
+
+  resumenFechaDiaria = fecha;
+  resumenRangoDias = 1;
 
   renderResumen(
     document.getElementById('main')
@@ -194,7 +220,16 @@ function produccionEfectivaRecord(r){
 
 function filtrarPorRangoResumen(records){
 
-  if(!resumenRangoDias || !records.length){
+  if(!records.length){
+    return records;
+  }
+
+  if(resumenRangoDias === 1){
+    const fecha = resumenFechaDiaria || fechaHoyResumen();
+    return records.filter(r => r.fecha === fecha);
+  }
+
+  if(!resumenRangoDias){
     return records;
   }
 
@@ -289,7 +324,7 @@ function calcularKPIsPlanta(records){
    Tonos "pastel" de baja saturación para que las barras se
    vean limpias y profesionales, sin colores estridentes.
    Solo afecta a esta pantalla (la pestaña Gráficos sigue
-   usando la paleta PAL de 08-gráficos.js).
+   usando la paleta PAL de 08-graficos.js).
    ========================================================= */
 
 const PAL_R = {
@@ -2071,6 +2106,214 @@ function generarInsightParadasPlanta(paradasAgrupadas, rangoLabel){
 }
 
 
+function formatearFechaResumen(fecha){
+  if(!fecha) return '';
+  const [y,m,d]=String(fecha).split('-');
+  return [d,m,y].filter(Boolean).join('/');
+}
+
+
+
+/* =========================================================
+   KPI PRODUCCIÓN TOTAL — DESGLOSE REAL POR LÍNEA
+   ========================================================= */
+function produccionResumenPorLinea(records){
+  const orden=['PET1','PET2','B7L','C20L','B20L'];
+  const acumulado={};
+
+  (records || []).forEach(r=>{
+    const linea=String(r?.linea || '').toUpperCase();
+    if(!linea) return;
+    acumulado[linea]=(acumulado[linea] || 0) + produccionEfectivaRecord(r);
+  });
+
+  const extras=Object.keys(acumulado).filter(x=>!orden.includes(x)).sort();
+  return [...orden,...extras]
+    .filter(linea=>num(acumulado[linea])>0)
+    .map(linea=>({linea,total:num(acumulado[linea])}));
+}
+
+function tarjetaProduccionTotalPorLinea(records,total){
+  const filas=produccionResumenPorLinea(records);
+  const suma=filas.reduce((a,f)=>a+f.total,0) || 1;
+
+  const segmentos=filas.map((f,i)=>`
+    <span class="kpi-prod-seg kpi-prod-seg-${(i%5)+1}"
+      style="width:${Math.max(2,(f.total/suma)*100)}%"></span>
+  `).join('');
+
+  const detalle=filas.length
+    ? filas.map((f,i)=>`
+      <div class="kpi-prod-item">
+        <span class="kpi-prod-dot kpi-prod-dot-${(i%5)+1}"></span>
+        <span>${f.linea}</span>
+        <strong>${formatearNumero(f.total)}</strong>
+      </div>
+    `).join('')
+    : `<div class="kpi-prod-empty">Sin producción registrada</div>`;
+
+  return `
+    <div class="rs-kpi kpi-prod-card">
+      <div class="rs-kpi-label">Producción total (por línea)</div>
+      <div class="rs-kpi-value">${formatearNumero(total)}</div>
+      <div class="kpi-prod-sub">Unidades efectivas del período</div>
+      ${filas.length ? `<div class="kpi-prod-bar">${segmentos}</div>` : ''}
+      <div class="kpi-prod-grid">${detalle}</div>
+    </div>
+  `;
+}
+
+
+/* =========================================================
+   PRODUCCIÓN POR LÍNEA Y PRESENTACIÓN
+   =========================================================
+   Bloque ejecutivo adicional. NO reemplaza el gráfico
+   "Producción por presentación y marca": ambos permanecen.
+*/
+function etiquetaPresentacionLineaResumen(linea, presentacion){
+  const p=String(presentacion || '').toLowerCase().replace(/\s+/g,'');
+
+  if(p.includes('380ml') && p.includes('24und')) return '380 ml Pack x 24 und';
+  if(p.includes('625ml') && p.includes('15und')) return '625 ml Pack x 15 und';
+  if(p.includes('625ml') && p.includes('6und')) return '625 ml Pack x 6 und';
+  if(p.includes('1.5l') && p.includes('6und')) return '1.5 L Pack x 6 und';
+  if(p.includes('2.5l') && p.includes('6und')) return '2.5 L Pack x 6 und';
+  if(p.includes('1lx12und')) return '1 L Pack x 12 und';
+  if(p.includes('1lx6und')) return '1 L Pack x 6 und';
+  if(p.includes('7000ml') && p.includes('2und')) return '7 L Pack x 2 und';
+  if(p.includes('7000ml') && p.includes('1und')) return '7 L Pack x 1 und';
+  if(p.includes('7l') && p.includes('2und')) return '7 L Pack x 2 und';
+  if(p.includes('7l') && p.includes('1und')) return '7 L Pack x 1 und';
+  if(p.includes('20l')) return linea === 'C20L' ? '20 L (Cajas)' : '20 L';
+  if(p.includes('b20l')) return 'B20L';
+
+  // Fallback: conserva el nombre conocido por el sistema.
+  if(typeof nombrePresentacionUI === 'function'){
+    try{
+      return nombrePresentacionUI(linea, '', presentacion);
+    }catch(_e){}
+  }
+
+  return String(presentacion || 'Sin presentación')
+    .replace(/_/g,' ')
+    .replace(/\/l[an]$/i,'');
+}
+
+function datosProduccionLineaPresentacionResumen(records){
+  const lineas={};
+
+  (records || []).forEach(r=>{
+    const linea=String(r?.linea || '').toUpperCase();
+    if(!linea) return;
+
+    if(!lineas[linea]){
+      lineas[linea]={linea,total:0,presentaciones:{}};
+    }
+
+    // En los reportes actuales cada cuadro representa una presentación/marca.
+    // Se usa efectiva del cuadro cuando existe; para estructuras antiguas se
+    // usa el total derivado del reporte como respaldo.
+    const cuadros=Array.isArray(r?.cuadros) ? r.cuadros : [];
+
+    if(cuadros.length){
+      cuadros.forEach(c=>{
+        const efectiva=num(c?.efectiva ?? c?.produccion?.efectiva);
+        if(efectiva<=0) return;
+
+        const pres=c?.presentacion || r?.presentacion || 'Sin presentación';
+        const etiqueta=etiquetaPresentacionLineaResumen(linea,pres);
+
+        lineas[linea].presentaciones[etiqueta]=
+          (lineas[linea].presentaciones[etiqueta] || 0) + efectiva;
+
+        lineas[linea].total += efectiva;
+      });
+    }else{
+      const efectiva=produccionEfectivaRecord(r);
+      if(efectiva<=0) return;
+
+      const pres=r?.presentacion || r?.produccion?.presentacion || 'Sin presentación';
+      const etiqueta=etiquetaPresentacionLineaResumen(linea,pres);
+
+      lineas[linea].presentaciones[etiqueta]=
+        (lineas[linea].presentaciones[etiqueta] || 0) + efectiva;
+
+      lineas[linea].total += efectiva;
+    }
+  });
+
+  const orden=['PET1','PET2','B7L','C20L','B20L'];
+  const extras=Object.keys(lineas).filter(x=>!orden.includes(x)).sort();
+
+  return [...orden,...extras]
+    .filter(k=>lineas[k] && lineas[k].total>0)
+    .map(k=>({
+      ...lineas[k],
+      presentaciones:Object.entries(lineas[k].presentaciones)
+        .map(([nombre,unidades])=>({nombre,unidades}))
+        .sort((a,b)=>b.unidades-a.unidades)
+    }));
+}
+
+function renderProduccionLineaPresentacionResumen(records){
+  const lineas=datosProduccionLineaPresentacionResumen(records);
+  const total=lineas.reduce((a,l)=>a+l.total,0);
+
+  const tarjetas=lineas.length
+    ? lineas.map((l,idx)=>{
+        const participacion=total>0 ? (l.total/total)*100 : 0;
+        const filas=l.presentaciones.map((p,i)=>`
+          <div class="rs-lp-row">
+            <span class="rs-lp-row-left">
+              <i class="rs-lp-dot rs-lp-dot-${(i%5)+1}"></i>
+              <span>${escaparHtml(p.nombre)}</span>
+            </span>
+            <strong>${formatearNumero(p.unidades)}</strong>
+          </div>
+        `).join('');
+
+        return `
+          <article class="rs-lp-card">
+            <header class="rs-lp-card-head">
+              <div>
+                <div class="rs-lp-linea">${escaparHtml(l.linea)}</div>
+                <div class="rs-lp-total">Producción: <strong>${formatearNumero(l.total)} und</strong></div>
+              </div>
+              <div class="rs-lp-share">
+                <strong>${participacion.toFixed(1)}%</strong>
+                <span>del total</span>
+              </div>
+            </header>
+
+            <div class="rs-lp-table-head">
+              <span>Presentación</span>
+              <span>Unidades</span>
+            </div>
+
+            <div class="rs-lp-rows">${filas}</div>
+          </article>
+        `;
+      }).join('')
+    : `
+      <div class="rs-lp-empty">
+        No hay producción registrada por línea y presentación en este período.
+      </div>
+    `;
+
+  return `
+    <section class="rs-linea-presentacion">
+      <div class="rs-lp-titlebar">
+        <div>
+          <div class="rs-lp-eyebrow">Detalle operativo</div>
+          <h3>Producción por línea y presentación</h3>
+          <p>Unidades efectivas agrupadas por línea y formato para el período seleccionado.</p>
+        </div>
+      </div>
+      <div class="rs-lp-grid">${tarjetas}</div>
+    </section>
+  `;
+}
+
 /* =========================================================
    RENDER PRINCIPAL DEL RESUMEN
    ========================================================= */
@@ -2092,11 +2335,15 @@ function renderResumen(main){
 
   const rangoLabel =
 
-    resumenRangoDias
+    resumenRangoDias === 1
 
-      ? `últimos ${resumenRangoDias} días`
+      ? `día ${formatearFechaResumen(resumenFechaDiaria || fechaHoyResumen())}`
 
-      : 'todo el historial';
+      : (
+          resumenRangoDias
+            ? `últimos ${resumenRangoDias} días`
+            : 'todo el historial'
+        );
 
 
   main.innerHTML = `
@@ -2152,6 +2399,245 @@ function renderResumen(main){
         gap:10px;
         align-items:center;
         flex-wrap:wrap;
+      }
+
+      .resumen-pro .kpi-prod-card{
+        border-left:4px solid #5A9FD6;
+        overflow:hidden;
+      }
+      .resumen-pro .kpi-prod-sub{
+        font-size:10.5px;
+        color:var(--rs-soft);
+        margin-top:-2px;
+      }
+      .resumen-pro .kpi-prod-bar{
+        height:7px;
+        display:flex;
+        overflow:hidden;
+        border-radius:999px;
+        background:#EDF3F7;
+        margin:9px 0 8px;
+      }
+      .resumen-pro .kpi-prod-seg{display:block;background:#2467A5}
+      .resumen-pro .kpi-prod-seg-2{background:#438AC3}
+      .resumen-pro .kpi-prod-seg-3{background:#6AA8D4}
+      .resumen-pro .kpi-prod-seg-4{background:#91C1E0}
+      .resumen-pro .kpi-prod-seg-5{background:#B5D6EA}
+      .resumen-pro .kpi-prod-grid{
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:5px 12px;
+      }
+      .resumen-pro .kpi-prod-item{
+        display:grid;
+        grid-template-columns:7px 1fr auto;
+        align-items:center;
+        gap:5px;
+        min-width:0;
+        font-size:10.5px;
+        color:var(--rs-soft);
+      }
+      .resumen-pro .kpi-prod-item strong{
+        color:var(--rs-ink);
+        font-size:10.5px;
+      }
+      .resumen-pro .kpi-prod-dot{
+        width:7px;height:7px;border-radius:50%;background:#2467A5;
+      }
+      .resumen-pro .kpi-prod-dot-2{background:#438AC3}
+      .resumen-pro .kpi-prod-dot-3{background:#6AA8D4}
+      .resumen-pro .kpi-prod-dot-4{background:#91C1E0}
+      .resumen-pro .kpi-prod-dot-5{background:#B5D6EA}
+      .resumen-pro .kpi-prod-empty{
+        margin-top:10px;font-size:11px;color:var(--rs-soft);
+      }
+
+
+      /* ---------- Producción por línea y presentación ---------- */
+      .resumen-pro .rs-linea-presentacion{
+        margin:20px 0;
+        padding:18px;
+        background:#FFFFFF;
+        border:1px solid #DFE7ED;
+        border-radius:16px;
+        box-shadow:0 3px 12px rgba(36,55,72,.045);
+      }
+      .resumen-pro .rs-lp-titlebar{
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        gap:16px;
+        margin-bottom:14px;
+      }
+      .resumen-pro .rs-lp-eyebrow{
+        color:#6F98B8;
+        font-size:9px;
+        font-weight:700;
+        letter-spacing:.13em;
+        text-transform:uppercase;
+        margin-bottom:3px;
+      }
+      .resumen-pro .rs-lp-titlebar h3{
+        margin:0;
+        color:#213244;
+        font-size:18px;
+        letter-spacing:-.01em;
+      }
+      .resumen-pro .rs-lp-titlebar p{
+        margin:4px 0 0;
+        color:#73808C;
+        font-size:11.5px;
+      }
+      .resumen-pro .rs-lp-grid{
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+        gap:12px;
+      }
+      .resumen-pro .rs-lp-card{
+        min-width:0;
+        overflow:hidden;
+        background:linear-gradient(180deg,#F8FBFE 0,#FFFFFF 45%);
+        border:1px solid #DCE7F0;
+        border-radius:12px;
+      }
+      .resumen-pro .rs-lp-card-head{
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        gap:10px;
+        padding:13px 14px 11px;
+        border-bottom:1px solid #E7EDF2;
+      }
+      .resumen-pro .rs-lp-linea{
+        color:#18314B;
+        font-size:18px;
+        line-height:1;
+        font-weight:800;
+      }
+      .resumen-pro .rs-lp-total{
+        margin-top:5px;
+        color:#667787;
+        font-size:11px;
+      }
+      .resumen-pro .rs-lp-total strong{color:#26394B}
+      .resumen-pro .rs-lp-share{
+        min-width:62px;
+        padding:5px 8px;
+        text-align:center;
+        background:#E8F4FC;
+        border-radius:9px;
+        color:#285E87;
+      }
+      .resumen-pro .rs-lp-share strong{
+        display:block;
+        font-size:14px;
+        line-height:1.1;
+      }
+      .resumen-pro .rs-lp-share span{
+        display:block;
+        margin-top:2px;
+        font-size:8.5px;
+      }
+      .resumen-pro .rs-lp-table-head{
+        display:grid;
+        grid-template-columns:1fr auto;
+        gap:10px;
+        padding:7px 13px;
+        color:#63788A;
+        background:#F3F7FA;
+        font-size:8.5px;
+        font-weight:700;
+        letter-spacing:.08em;
+        text-transform:uppercase;
+      }
+      .resumen-pro .rs-lp-rows{padding:4px 13px 8px}
+      .resumen-pro .rs-lp-row{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        align-items:center;
+        gap:10px;
+        min-height:27px;
+        border-bottom:1px solid #EDF1F4;
+        color:#415262;
+        font-size:10.5px;
+      }
+      .resumen-pro .rs-lp-row:last-child{border-bottom:0}
+      .resumen-pro .rs-lp-row-left{
+        display:flex;
+        align-items:center;
+        gap:7px;
+        min-width:0;
+      }
+      .resumen-pro .rs-lp-row-left span{
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+      .resumen-pro .rs-lp-row strong{
+        color:#23384B;
+        font-size:10.5px;
+      }
+      .resumen-pro .rs-lp-dot{
+        flex:0 0 auto;
+        width:7px;height:7px;border-radius:50%;
+        background:#2F78B7;
+      }
+      .resumen-pro .rs-lp-dot-2{background:#4A91C7}
+      .resumen-pro .rs-lp-dot-3{background:#6DA8D1}
+      .resumen-pro .rs-lp-dot-4{background:#91BFDC}
+      .resumen-pro .rs-lp-dot-5{background:#B3D4E7}
+      .resumen-pro .rs-lp-empty{
+        grid-column:1/-1;
+        padding:26px;
+        border:1px dashed #D5E0E8;
+        border-radius:10px;
+        text-align:center;
+        color:#74818D;
+        font-size:12px;
+        background:#FAFCFD;
+      }
+
+      .resumen-pro .rs-date-control{
+        display:flex;
+        align-items:center;
+        gap:9px;
+        min-height:42px;
+        padding:6px 11px;
+        border:1px solid #DCE5EC;
+        border-radius:10px;
+        background:#fff;
+        box-shadow:0 2px 8px rgba(35,57,77,.05);
+        color:var(--rs-ink);
+      }
+      .resumen-pro .rs-date-control small{
+        display:block;
+        font-size:9px;
+        line-height:1;
+        text-transform:uppercase;
+        letter-spacing:.09em;
+        color:var(--rs-soft);
+        margin-bottom:2px;
+      }
+      .resumen-pro .rs-date-control input{
+        border:0;
+        outline:0;
+        background:transparent;
+        font:inherit;
+        font-size:12px;
+        font-weight:600;
+        color:var(--rs-ink);
+        padding:0;
+        cursor:pointer;
+      }
+      .resumen-pro .rs-date-icon{
+        display:grid;
+        place-items:center;
+        width:28px;
+        height:28px;
+        border-radius:8px;
+        background:#EAF4FF;
+        color:#1769C2;
+        font-size:14px;
       }
 
       .resumen-pro .rs-seg{
@@ -2558,7 +3044,18 @@ function renderResumen(main){
 
       }
 
-    </style>
+    
+      @media(max-width:700px){
+        .resumen-pro .rs-actions{width:100%;align-items:stretch}
+        .resumen-pro .rs-seg{width:100%;overflow-x:auto}
+        .resumen-pro .rs-seg button{flex:1;white-space:nowrap;padding:7px 10px}
+        .resumen-pro .rs-date-control{width:100%}
+        .resumen-pro .kpi-prod-grid{grid-template-columns:1fr 1fr}
+        .resumen-pro .rs-linea-presentacion{padding:13px}
+        .resumen-pro .rs-lp-grid{grid-template-columns:1fr}
+        .resumen-pro .rs-lp-titlebar h3{font-size:16px}
+      }
+</style>
 
 
     <div class="resumen-pro">
@@ -2588,6 +3085,7 @@ function renderResumen(main){
 
             ${
               [
+                {v:1, t:'Diario'},
                 {v:7, t:'7 días'},
                 {v:30, t:'30 días'},
                 {v:90, t:'90 días'},
@@ -2606,6 +3104,24 @@ function renderResumen(main){
             }
 
           </div>
+
+          ${
+            resumenRangoDias === 1
+              ? `
+                <label class="rs-date-control" title="Seleccionar día del resumen">
+                  <span class="rs-date-icon">▣</span>
+                  <span>
+                    <small>Fecha</small>
+                    <input
+                      type="date"
+                      value="${resumenFechaDiaria || fechaHoyResumen()}"
+                      onchange="cambiarFechaDiariaResumen(this.value)"
+                    >
+                  </span>
+                </label>
+              `
+              : ''
+          }
 
           ${
             tienePermiso('exportarExcelGeneral')
@@ -2653,7 +3169,9 @@ function renderResumen(main){
           <div class="rs-canvas tall"><canvas id="chart-presentacion-marca"></canvas></div>
         </div>
 
-        <div
+        ${renderProduccionLineaPresentacionResumen(records)}
+
+      <div
           class="rs-table-wrap"
           id="resumen-presentacion-marca"
         ></div>
@@ -2936,13 +3454,7 @@ function renderResumen(main){
       pie:'Meta ' + pct(METAS.disponibilidad)
     }) +
 
-    tarjetaKpiResumen({
-      label:'Producción total',
-      valor:formatearNumero(kpis.efectivaTotal),
-      spark:sparklineResumen(serieProdDia.map(x => x.total)),
-      izq:'Unidades efectivas',
-      pie:'≈ ' + formatearNumero(promedioDiario) + ' por día'
-    }) +
+    tarjetaProduccionTotalPorLinea(records, kpis.efectivaTotal) +
 
     tarjetaKpiResumen({
       label:'Merma de planta',
