@@ -4,7 +4,7 @@
    Parte del sistema GLACIAL
 
    Vista de solo lectura para gerencia/jefatura (permiso propio
-   'perdidasSoles', independiente de 'resumen' y 'gráficos') que
+   'perdidasSoles', independiente de 'resumen' y 'graficos') que
    convierte a dinero las unidades que se dejaron de producir por
    CUALQUIER parada NO programada (sin importar su "Causa" en
    CAUSAS_PARADA_NO_PROGRAMADA / 06-registro.js), agrupándolas
@@ -24,14 +24,14 @@
 
    Cárgalo en index.html DESPUÉS de 02-estado.js (usa
    loadPrecios/savePrecios/precioUnitarioLinea), 05-utils.js
-   (num/pct), 06-registro.js (normalizarCuadros) y 08-gráficos.js
+   (num/pct), 06-registro.js (normalizarCuadros) y 08-graficos.js
    (formatearNumero, PAL, colorSegunMeta, el plugin valorBarra
-   y state.charts/destroyCharts(), usados por los gráficos de
+   y state.charts/destroyCharts(), usados por los graficos de
    más abajo — Chart.js también debe estar cargado ya para
    entonces) — el orden exacto sugerido es justo antes
    de 12-init.js, después de 14-exportar-general.js.
 
-   NUEVO (20260922): se agregaron 4 gráficos con Chart.js al
+   NUEVO (20260922): se agregaron 4 graficos con Chart.js al
    final de renderPerdidasSoles() — impacto por línea (barras),
    por máquina/área (barras horizontales), distribución % por
    categoría (dona) y evolución diaria del impacto (línea) —
@@ -162,7 +162,7 @@ function categorizarParadaPorTexto(texto){
      unidades perdidas = ratioNominal del cuadro × (minutos / 60)
      S/. perdidos      = unidades perdidas × precioUnitarioLinea(línea)
 
-   Es la MISMA lógica que usa calcCascada() (08-gráficos.js)
+   Es la MISMA lógica que usa calcCascada() (08-graficos.js)
    para la pérdida por disponibilidad — ratio × horas de parada.
 
    Cada parada se clasifica además por categoría (máquina/área)
@@ -1006,17 +1006,17 @@ function renderPerdidasSoles(main){
 
 
   /* =====================================================
-     GRÁFICOS DE IMPACTO ECONÓMICO
+     graficos DE IMPACTO ECONÓMICO
      =====================================================
 
      Reutilizan la misma infraestructura de Chart.js que el
      resto del tablero: PAL, colorSegunMeta, formatearNumero,
      el plugin valorBarra y el bucket state.charts /
-     destroyCharts() (todos definidos en 08-gráficos.js, que
+     destroyCharts() (todos definidos en 08-graficos.js, que
      debe cargarse ANTES que este archivo).
 
-     destroyCharts() limpia TODOS los gráficos activos (los
-     de Resumen/Gráficos por línea y los de aquí), lo cual es
+     destroyCharts() limpia TODOS los graficos activos (los
+     de Resumen/graficos por línea y los de aquí), lo cual es
      seguro: solo hay uno de los dos tableros visible a la
      vez, así que nunca se destruye un canvas que sigue en
      pantalla.

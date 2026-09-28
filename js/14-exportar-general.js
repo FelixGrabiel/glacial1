@@ -5,7 +5,7 @@
    Reutiliza el mismo motor que ya usa el Excel por línea
    (xlFill, xlFont, xlN, xlN1,
    xlFechaTexto, cargarScriptExterno, descargarArchivo, etc. —
-   definidos en 08-gráficos.js).
+   definidos en 08-graficos.js).
 
    Cubre, por ahora, los puntos 1 a 5 del Excel general acordado:
      1. Portada de planta
@@ -32,7 +32,7 @@
    =========================================================
 
    Tonos sobrios y de baja saturación, solo para este
-   archivo (el Excel por línea de 08-gráficos.js sigue con
+   archivo (el Excel por línea de 08-graficos.js sigue con
    su paleta XL). Encabezados en azul apagado, semáforo en
    tonos pastel y bordes casi imperceptibles.
    ========================================================= */
@@ -272,9 +272,9 @@ function calcularOEEDiarioPorLinea(records){
    GRÁFICO DE LÍNEAS DIBUJADO EN CANVAS (PARA LA TENDENCIA)
    =========================================================
 
-   Mismo enfoque que xlGráficoBarras (08-gráficos.js): se
+   Mismo enfoque que xlGráficoBarras (08-graficos.js): se
    dibuja en un <canvas> oculto y se inserta como imagen PNG
-   en la hoja, porque ExcelJS no soporta gráficos nativos
+   en la hoja, porque ExcelJS no soporta graficos nativos
    editables sin cambiar de librería o armar el XML a mano.
    ========================================================= */
 
@@ -441,7 +441,7 @@ function xlgGráficoLineas(cfg){
    empeorando en los últimos días del rango elegido.
    ========================================================= */
 
-function xlgGráficoSparkline(cfg){
+function xlggraficosparkline(cfg){
 
   const valores = cfg.valores || [];
   const meta = num(cfg.meta) || 0.85;
@@ -705,7 +705,7 @@ function xlgHojaPortada(wb, ctx){
       return dia && dia.horas > 0 ? dia.oeeXhoras / dia.horas : null;
     });
 
-    const imgTendencia = xlgGráficoSparkline({
+    const imgTendencia = xlggraficosparkline({
       valores: valoresTendencia,
       meta: METAS.oee,
       ancho: 95,
@@ -1632,7 +1632,7 @@ async function exportarExcelGeneral(btn){
   const { lineasVisibles, records, rangoLabel } = datos;
 
   /*
-     El Excel general arma 8 hojas (con gráficos en canvas,
+     El Excel general arma 8 hojas (con graficos en canvas,
      Pareto, mapa de calor, etc.) y además protege cada hoja
      antes de descargar — con rangos grandes ("Todo el
      historial") ese trabajo es síncrono y puede tardar varios

@@ -2952,9 +2952,18 @@
                 <div id="sidebar-management">
                     <div class="sidebar-section-title">Gestión</div>
 
+                    <button type="button" class="side-action" id="btn-centro-perfil"
+                            onclick="abrirCentroPerfil()" style="display:none">
+                        <span class="side-action-icon">⌂</span><span>Inicio</span>
+                    </button>
+
                     <button type="button" class="side-action" id="btn-produccion-actual"
                             onclick="goProduccionActual()" style="display:none">
                         <span class="side-action-icon">▣</span><span>Producción actual</span>
+                    </button>
+                    <button type="button" class="side-action" id="btn-avance-produccion"
+                            onclick="goAvanceProduccion()" style="display:none">
+                        <span class="side-action-icon">▤</span><span>Avance y Cierre</span>
                     </button>
                     <button type="button" class="side-action" id="btn-resumen" onclick="goResumen()">
                         <span class="side-action-icon">▦</span><span>Resumen general</span>
@@ -2972,11 +2981,6 @@
                     <button type="button" class="side-action" id="btn-almacen" disabled hidden style="display:none"
                             title="Módulo disponible próximamente" aria-label="Almacén, próximamente">
                         <span class="side-action-icon">▤</span><span>Almacén · Próximamente</span>
-                    </button>
-
-                    <button type="button" class="side-action" id="btn-rotacion-supervisores"
-                            onclick="goRotacionSupervisores()" style="display:none">
-                        <span class="side-action-icon">↻</span><span>Rotación de supervisores</span>
                     </button>
 
                     <!-- El supervisor conserva el Tareo operativo como sección aparte. -->
@@ -3239,7 +3243,7 @@
     <script src="js/28-tareo-maquinistas.js?v=20260925-tareo-2"></script>
     <script src="js/29-avance-produccion.js"></script>
     <script src="js/30-rotacion-mantenimiento.js?v=20260925-rotacion-mtto-1"></script>
-    <script src="js/31-rotacion-supervisores.js?v=20260927-rotacion-supervisores-1"></script>
+    <script src="js/32-dashboard-perfiles.js?v=20260928-centros-1"></script>
     <script src="js/12-init.js?v=20260924-sidebar"></script>
 
 

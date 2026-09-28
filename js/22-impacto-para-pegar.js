@@ -34,7 +34,7 @@
     dest.minutos += min; dest.unidades += und; dest.dinero += money;
   }
 
-  // Una fuente de datos para totales, tablas y gráficos.
+  // Una fuente de datos para totales, tablas y graficos.
   agruparParadasNoProgramadas = function(records){
     const permitidas = new Set(lineasConsultables().map(l=>l.key));
     const porLinea = {}, porCategoria = {}, porCausa = {}, porFecha = {};
@@ -173,7 +173,7 @@
     return temp.innerHTML;
   };
 
-  // Añade el desglose y los gráficos de unidades al reporte existente.
+  // Añade el desglose y los graficos de unidades al reporte existente.
   const renderAnterior = renderPerdidasSoles;
   renderPerdidasSoles = function(main){
     renderAnterior.apply(this,arguments);

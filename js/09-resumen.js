@@ -18,6 +18,9 @@
 
 let resumenRangoDias = 30;
 let resumenFechaDiaria = null;
+let resumenFiltroLinea = 'TODAS';
+let resumenIndustrialCharts = {};
+
 
 /* null = todo el historial disponible; 1 = Diario */
 
@@ -2318,6 +2321,203 @@ function renderProduccionLineaPresentacionResumen(records){
    RENDER PRINCIPAL DEL RESUMEN
    ========================================================= */
 
+
+/* =========================================================
+   RESUMEN GENERAL — CAPA INDUSTRIAL DE PLANTA
+   ========================================================= */
+
+function resumenSeleccionarLinea(linea){
+  resumenFiltroLinea=linea||'TODAS';
+  renderResumen(document.getElementById('main'));
+}
+
+function rsNum(v){const n=Number(v);return Number.isFinite(n)?n:0;}
+function rsCuadros(r){return typeof normalizarCuadros==='function'?normalizarCuadros(r):(r?.cuadros||[]);}
+function rsProd(r){return rsCuadros(r).reduce((s,q)=>s+rsNum(q?.produccion?.efectiva),0);}
+function rsParadas(r){
+  return rsCuadros(r).flatMap(q=>[
+    ...(q?.paradasProgramadas||[]).map(p=>({...p,tipo:'Programada'})),
+    ...(q?.paradasNoProgramadas||[]).map(p=>({...p,tipo:'No programada'}))
+  ]).filter(p=>rsNum(p?.tiempoMin)>0);
+}
+function rsMinProduccion(r){
+  return rsCuadros(r).reduce((s,q)=>{
+    const ini=q?.horaInicio,fin=q?.horaFin;
+    if(!ini||!fin)return s;
+    const [hi,mi]=ini.split(':').map(Number),[hf,mf]=fin.split(':').map(Number);
+    let m=(hf*60+mf)-(hi*60+mi);if(m<0)m+=1440;
+    return s+m;
+  },0);
+}
+function rsMerma(r){
+  return rsCuadros(r).reduce((s,q)=>{
+    const m=q?.mermas||q?.merma||{};
+    if(Array.isArray(m))return s+m.reduce((a,x)=>a+rsNum(x?.unidades||x?.cantidad),0);
+    return s+Object.values(m||{}).reduce((a,x)=>a+rsNum(typeof x==='object'?(x?.unidades||x?.cantidad):x),0);
+  },0);
+}
+function rsPersonal(r){return new Set((r?.personal||[]).filter(p=>p?.nombre).map(p=>String(p.nombre).trim().toLowerCase())).size;}
+function rsFechaEnRango(fecha){
+  if(resumenRangoDias===1)return fecha===(resumenFechaDiaria||fechaHoyResumen());
+  if(!resumenRangoDias)return true;
+  const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(resumenRangoDias-1));
+  return fecha>=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function rsProgramaciones(){
+  const arr=typeof loadProgramaciones==='function'?loadProgramaciones():(typeof _programacionesCache!=='undefined'?_programacionesCache:[]);
+  return (arr||[]).filter(p=>rsFechaEnRango(p.fecha)&&
+    (resumenFiltroLinea==='TODAS'||p.linea===resumenFiltroLinea));
+}
+function rsPaletas(){
+  const arr=typeof loadPaletas==='function'?loadPaletas():(typeof _paletasCache!=='undefined'?_paletasCache:[]);
+  return (arr||[]).filter(p=>rsFechaEnRango(p.fecha)&&
+    (resumenFiltroLinea==='TODAS'||p.linea===resumenFiltroLinea));
+}
+function rsNominalCuadro(q,linea){
+  const direct=rsNum(q?.ratioNominal||q?.produccion?.ratioNominal||q?.ratio);
+  if(direct)return direct;
+  try{
+    if(typeof obtenerRatioNominal==='function')return rsNum(obtenerRatioNominal(linea,q?.marca,q?.presentacion));
+    if(typeof getRatioNominal==='function')return rsNum(getRatioNominal(linea,q?.marca,q?.presentacion));
+  }catch(_){}
+  return 0;
+}
+function rsLineaNombre(k){return ({PET1:'PET1',PET2:'PET2',B7L:'B7L',C20L:'CAJAS 20L',B20L:'B20L',HIELO:'HIELO'})[k]||k;}
+function rsEstadoLineas(){
+  const hoy=fechaHoyResumen();
+  const progs=(typeof loadProgramaciones==='function'?loadProgramaciones():(typeof _programacionesCache!=='undefined'?_programacionesCache:[]))||[];
+  const lineas=['PET1','PET2','B7L','C20L','B20L'];
+  return lineas.map(linea=>{
+    const xs=progs.filter(p=>p.linea===linea&&p.fecha===hoy);
+    const ops=xs.map(x=>x.estadoOperacion||{});
+    let estado='SIN ACTIVIDAD',nivel='off';
+    if(ops.some(o=>o.estado==='DETENIDA')){estado='DETENIDA';nivel='stop';}
+    else if(ops.some(o=>o.estado==='PAUSA')){estado='PAUSA';nivel='pause';}
+    else if(ops.some(o=>o.estado==='EN_PRODUCCION')){estado='EN PRODUCCIÓN';nivel='run';}
+    else if(ops.some(o=>o.estado==='FINALIZADA')){estado='FINALIZADA';nivel='done';}
+    else if(xs.length){estado='PENDIENTE';nivel='wait';}
+    return {linea,estado,nivel};
+  });
+}
+function rsDatosIndustriales(records){
+  const lineas=['PET1','PET2','B7L','C20L','B20L'];
+  const progs=rsProgramaciones(), pals=rsPaletas();
+  const porLinea=lineas.map(linea=>{
+    const rr=records.filter(r=>r.linea===linea);
+    const pp=progs.filter(p=>p.linea===linea&&!['CANCELADA'].includes(p.estado));
+    const programado=pp.reduce((a,p)=>a+rsNum(p.cantidadProgramada),0);
+    let producido=rr.reduce((a,r)=>a+rsProd(r),0);
+    const palLinea=pals.filter(p=>p.linea===linea);
+    if(!producido&&palLinea.length)producido=palLinea.reduce((a,p)=>a+rsNum(p.totalUnidades||p.unidadesIncompleta),0);
+    const paradas=rr.flatMap(rsParadas);
+    const minParadas=paradas.reduce((a,p)=>a+rsNum(p.tiempoMin),0);
+    const minCalendario=rr.reduce((a,r)=>a+rsMinProduccion(r),0);
+    const minEfectivos=Math.max(0,minCalendario-minParadas);
+    const ratio=minEfectivos>0?producido/(minEfectivos/60):0;
+    const nominales=[];
+    rr.forEach(r=>rsCuadros(r).forEach(q=>{const n=rsNominalCuadro(q,linea);if(n)nominales.push(n);}));
+    const nominal=nominales.length?nominales.reduce((a,b)=>a+b,0)/nominales.length:0;
+    const merma=rr.reduce((a,r)=>a+rsMerma(r),0);
+    const personal=rr.reduce((a,r)=>Math.max(a,rsPersonal(r)),0);
+    return {linea,programado,producido,cumplimiento:programado?producido/programado:0,
+      paradas,minParadas,minEfectivos,ratio,nominal,merma,personal};
+  }).filter(x=>x.programado||x.producido||x.minParadas||x.merma);
+  const causas=new Map();
+  porLinea.flatMap(x=>x.paradas).forEach(p=>{
+    const k=String(p.descripcion||'Sin descripción').trim();
+    const o=causas.get(k)||{descripcion:k,minutos:0,tipo:p.tipo};
+    o.minutos+=rsNum(p.tiempoMin);causas.set(k,o);
+  });
+  const pareto=[...causas.values()].sort((a,b)=>b.minutos-a.minutos).slice(0,10);
+  const dias=new Map();
+  records.forEach(r=>{const k=r.fecha||'';if(k)dias.set(k,(dias.get(k)||0)+rsProd(r));});
+  return {porLinea,pareto,tendencia:[...dias].sort((a,b)=>a[0].localeCompare(b[0]))};
+}
+function rsDestroyIndustrial(){
+  Object.values(resumenIndustrialCharts||{}).forEach(c=>{try{c.destroy();}catch(_){}});
+  resumenIndustrialCharts={};
+}
+function rsChart(id,config){
+  const el=document.getElementById(id);if(!el||typeof Chart==='undefined')return;
+  resumenIndustrialCharts[id]=new Chart(el,config);
+}
+function rsInsight(data){
+  if(!data.porLinea.length)return ['No hay datos operativos suficientes en el período seleccionado.'];
+  const out=[];
+  const conProd=data.porLinea.filter(x=>x.producido>0);
+  out.push(`Se registraron ${conProd.length} línea${conProd.length===1?'':'s'} con producción en el período.`);
+  const maxP=data.porLinea.slice().sort((a,b)=>b.minParadas-a.minParadas)[0];
+  if(maxP?.minParadas)out.push(`${rsLineaNombre(maxP.linea)} acumuló ${Math.round(maxP.minParadas).toLocaleString('es-PE')} min de parada, el mayor tiempo registrado entre las líneas visibles.`);
+  if(data.pareto[0])out.push(`La principal causa de parada fue “${data.pareto[0].descripcion}”, con ${Math.round(data.pareto[0].minutos).toLocaleString('es-PE')} min.`);
+  const cumpl=data.porLinea.filter(x=>x.programado>0).sort((a,b)=>b.cumplimiento-a.cumplimiento)[0];
+  if(cumpl)out.push(`${rsLineaNombre(cumpl.linea)} produjo ${Math.round(cumpl.producido).toLocaleString('es-PE')} frente a ${Math.round(cumpl.programado).toLocaleString('es-PE')} programadas (${(cumpl.cumplimiento*100).toFixed(1)}%).`);
+  const ratio=data.porLinea.find(x=>x.ratio&&x.nominal);
+  if(ratio)out.push(`${rsLineaNombre(ratio.linea)} registró Ratio Turno de ${Math.round(ratio.ratio).toLocaleString('es-PE')} frente a nominal ${Math.round(ratio.nominal).toLocaleString('es-PE')} ${ratio.linea==='C20L'?'C/H':'B/H'}.`);
+  return out;
+}
+function renderResumenIndustrial(records,rangoLabel){
+  rsDestroyIndustrial();
+  const anchor=document.getElementById('resumen-kpis');if(!anchor)return;
+  const data=rsDatosIndustriales(records);
+  const estados=rsEstadoLineas();
+  const totalParadas=data.porLinea.reduce((a,x)=>a+x.minParadas,0);
+  const totalProg=data.porLinea.reduce((a,x)=>a+x.programado,0);
+  const totalProd=data.porLinea.reduce((a,x)=>a+x.producido,0);
+  const cumplimiento=totalProg?totalProd/totalProg:0;
+  const totalMerma=data.porLinea.reduce((a,x)=>a+x.merma,0);
+  const mermaPct=(totalProd+totalMerma)>0?totalMerma/(totalProd+totalMerma):0;
+  const horasEf=data.porLinea.reduce((a,x)=>a+x.minEfectivos,0)/60;
+  const filtros=['TODAS','PET1','PET2','B7L','C20L','B20L'];
+
+  const sec=document.createElement('section');
+  sec.className='rs-industrial';
+  sec.innerHTML=`
+    <style>
+      .rs-industrial{margin:0 0 20px}.rs-industrial .ri-filter{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
+      .ri-filter button{border:1px solid #d8e2e8;background:#fff;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;color:#45606f}
+      .ri-filter button.active{background:#073f68;color:#fff;border-color:#073f68}
+      .ri-pulse{border:1px solid #dce5ea;background:#fff;border-radius:10px;padding:15px;margin-bottom:12px}
+      .ri-pulse h3,.ri-box h3,.ri-read h3{margin:0 0 10px;color:#073f68;font-size:14px}
+      .ri-status{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.ri-state{padding:9px;border:1px solid #e5ebef;border-radius:8px;font-size:11px}
+      .ri-state b{display:block;margin-bottom:3px}.ri-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#aab7bf}.ri-dot.run{background:#2e8b57}.ri-dot.stop{background:#c4472b}.ri-dot.pause{background:#d89216}.ri-dot.done{background:#5a9fd6}
+      .ri-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:12px}.ri-kpi{background:#fff;border:1px solid #dce5ea;border-radius:9px;padding:12px}.ri-kpi span{font-size:10px;text-transform:uppercase;color:#71828d;font-weight:700}.ri-kpi b{display:block;font-size:22px;color:#17384d;margin-top:4px}.ri-kpi small{color:#82919a}
+      .ri-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ri-box{background:#fff;border:1px solid #dce5ea;border-radius:10px;padding:14px;min-width:0}.ri-box.wide{grid-column:1/-1}.ri-canvas{height:250px;position:relative}.ri-canvas.tall{height:300px}
+      .ri-read{margin-top:12px;background:#f7fafc;border:1px solid #dce5ea;border-left:4px solid #5a9fd6;border-radius:9px;padding:14px}.ri-read ul{margin:0;padding-left:19px}.ri-read li{margin:5px 0;color:#435b69;font-size:12px}
+      @media(max-width:900px){.ri-status,.ri-kpis{grid-template-columns:repeat(2,1fr)}.ri-grid{grid-template-columns:1fr}.ri-box.wide{grid-column:auto}}@media(max-width:520px){.ri-status,.ri-kpis{grid-template-columns:1fr}}
+    </style>
+    <div class="ri-filter">${filtros.map(x=>`<button class="${resumenFiltroLinea===x?'active':''}" onclick="resumenSeleccionarLinea('${x}')">${x==='TODAS'?'Toda la planta':rsLineaNombre(x)}</button>`).join('')}</div>
+    <div class="ri-pulse"><h3>Estado actual de planta</h3><div class="ri-status">${estados.map(e=>`<div class="ri-state"><b>${rsLineaNombre(e.linea)}</b><span class="ri-dot ${e.nivel}"></span>${e.estado}</div>`).join('')}</div></div>
+    <div class="ri-kpis">
+      <div class="ri-kpi"><span>Producción visible</span><b>${Math.round(totalProd).toLocaleString('es-PE')}</b><small>No mezcla interpretación entre formatos</small></div>
+      <div class="ri-kpi"><span>Cumplimiento</span><b>${totalProg?(cumplimiento*100).toFixed(1)+'%':'—'}</b><small>Producido / programado</small></div>
+      <div class="ri-kpi"><span>Paradas</span><b>${Math.round(totalParadas).toLocaleString('es-PE')} min</b><small>Acumulado</small></div>
+      <div class="ri-kpi"><span>Horas efectivas</span><b>${horasEf.toFixed(1)} h</b><small>Tiempo − paradas</small></div>
+      <div class="ri-kpi"><span>Merma</span><b>${mermaPct?(mermaPct*100).toFixed(1)+'%':'0.0%'}</b><small>Sobre producción + merma</small></div>
+    </div>
+    <div class="ri-grid">
+      <div class="ri-box"><h3>Programado vs producido por línea</h3><div class="ri-canvas"><canvas id="ri-plan-real"></canvas></div></div>
+      <div class="ri-box"><h3>Cumplimiento por línea</h3><div class="ri-canvas"><canvas id="ri-cumplimiento"></canvas></div></div>
+      <div class="ri-box"><h3>Ratio Turno vs nominal</h3><div class="ri-canvas"><canvas id="ri-ratio"></canvas></div></div>
+      <div class="ri-box"><h3>Minutos de parada por línea</h3><div class="ri-canvas"><canvas id="ri-paradas"></canvas></div></div>
+      <div class="ri-box wide"><h3>Pareto de causas de parada</h3><div class="ri-canvas tall"><canvas id="ri-pareto"></canvas></div></div>
+      <div class="ri-box"><h3>Merma registrada por línea</h3><div class="ri-canvas"><canvas id="ri-merma"></canvas></div></div>
+      <div class="ri-box"><h3>Producción por persona</h3><div class="ri-canvas"><canvas id="ri-personal"></canvas></div></div>
+    </div>
+    <div class="ri-read"><h3>Resumen del período</h3><ul>${rsInsight(data).map(x=>`<li>${escaparHtml(x)}</li>`).join('')}</ul></div>`;
+  anchor.parentNode.insertBefore(sec,anchor);
+
+  const labels=data.porLinea.map(x=>rsLineaNombre(x.linea));
+  const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true}}};
+  rsChart('ri-plan-real',{type:'bar',data:{labels,datasets:[{label:'Programado',data:data.porLinea.map(x=>x.programado)},{label:'Producido',data:data.porLinea.map(x=>x.producido)}]},options:base});
+  rsChart('ri-cumplimiento',{type:'bar',data:{labels,datasets:[{label:'Cumplimiento %',data:data.porLinea.map(x=>x.programado?+(x.cumplimiento*100).toFixed(1):0)}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,suggestedMax:100,ticks:{callback:v=>v+'%'}}}}});
+  rsChart('ri-ratio',{type:'bar',data:{labels,datasets:[{label:'Nominal',data:data.porLinea.map(x=>x.nominal)},{label:'Ratio Turno',data:data.porLinea.map(x=>x.ratio)}]},options:base});
+  rsChart('ri-paradas',{type:'bar',data:{labels,datasets:[{label:'Minutos',data:data.porLinea.map(x=>x.minParadas)}]},options:{...base,plugins:{legend:{display:false}}}});
+  let acum=0,totalPareto=data.pareto.reduce((a,x)=>a+x.minutos,0);
+  rsChart('ri-pareto',{data:{labels:data.pareto.map(x=>x.descripcion),datasets:[{type:'bar',label:'Minutos',data:data.pareto.map(x=>x.minutos),yAxisID:'y'},{type:'line',label:'% acumulado',data:data.pareto.map(x=>totalPareto?+(acum+=x.minutos,acum/totalPareto*100).toFixed(1):0),yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true},y1:{beginAtZero:true,max:100,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}}}});
+  rsChart('ri-merma',{type:'bar',data:{labels,datasets:[{label:'Merma',data:data.porLinea.map(x=>x.merma)}]},options:{...base,plugins:{legend:{display:false}}}});
+  rsChart('ri-personal',{type:'bar',data:{labels,datasets:[{label:'Producción / persona',data:data.porLinea.map(x=>x.personal?x.producido/x.personal:0)}]},options:{...base,plugins:{legend:{display:false}}}});
+}
+
 function renderResumen(main){
 
   // Jefatura y Gerencia consultan todas las líneas desde este resumen,
@@ -2329,8 +2529,12 @@ function renderResumen(main){
       r => lineasVisibles.some(l => l.key === r.linea)
     );
 
-  const records =
+  let records =
     filtrarPorRangoResumen(todos);
+
+  if(resumenFiltroLinea !== 'TODAS'){
+    records = records.filter(r=>r.linea===resumenFiltroLinea);
+  }
 
 
   const rangoLabel =
@@ -3190,7 +3394,7 @@ function renderResumen(main){
 
         <div class="chart-box rs-w12">
 
-          <h4>Producción por día, por presentación</h4>
+          <h4>Tendencia de producción por presentación</h4>
 
           <div class="chart-desc">
             Unidades efectivas producidas cada día en ${rangoLabel},
@@ -3221,20 +3425,7 @@ function renderResumen(main){
         </div>
 
 
-        <div class="chart-box rs-w7">
-
-          <h4>Producción por línea</h4>
-
-          <div class="chart-desc">
-            Unidades efectivas producidas por cada línea en
-            ${rangoLabel} — qué línea aporta más al total de planta.
-          </div>
-
-          <div class="rs-canvas "><canvas id="chart-prod-linea"></canvas></div>
-
-          <div id="insight-prod-linea"></div>
-
-        </div>
+        
 
 
         <div class="rs-section">Eficiencia (OEE)</div>
@@ -3297,49 +3488,10 @@ function renderResumen(main){
 
         <div class="rs-section">Pérdidas y paradas</div>
 
-        <div class="chart-box rs-w5">
-
-          <h4>Merma por línea</h4>
-
-          <div class="chart-desc">
-            Merma como % de la producción efectiva de cada línea
-            en ${rangoLabel} (meta ≤ ${pct(METAS.merma)}).
-          </div>
-
-          <div class="rs-legend">
-            <span><b style="background:${PAL_R.verde}"></b>Dentro de meta</span>
-            <span><b style="background:${PAL_R.ambar}"></b>Ligero exceso</span>
-            <span><b style="background:${PAL_R.rojo}"></b>Sobre la meta</span>
-          </div>
-
-          <div class="rs-canvas "><canvas id="chart-merma-linea"></canvas></div>
-
-          <div id="insight-merma-linea"></div>
-
-        </div>
+        
 
 
-        <div class="chart-box rs-w7">
-
-          <h4>Principales causas de parada (planta)</h4>
-
-          <div class="chart-desc">
-            Las causas que más minutos detuvieron la planta en
-            ${rangoLabel}, sumando todas las líneas visibles,
-            ordenadas de mayor a menor (Pareto).
-          </div>
-
-          <div class="rs-legend">
-            <span><b style="background:${PAL_R.azul}"></b>Programada</span>
-            <span><b style="background:${PAL_R.rojo}"></b>No programada</span>
-            <span><b style="background:${PAL_R.ambarLinea}"></b>% acumulado</span>
-          </div>
-
-          <div class="rs-canvas tall"><canvas id="chart-paradas-planta"></canvas></div>
-
-          <div id="insight-paradas-planta"></div>
-
-        </div>
+        
 
       </div>
 
@@ -3371,6 +3523,8 @@ function renderResumen(main){
     </div>
 
   `;
+
+  renderResumenIndustrial(records, rangoLabel);
 
 
   if(!records.length){
@@ -3844,120 +3998,12 @@ function renderResumen(main){
 
   /* =====================================================
      PRODUCCIÓN POR LÍNEA
+     El gráfico legacy fue retirado por redundancia con
+     Programado vs Producido del bloque industrial.
   ===================================================== */
 
   const prodPorLinea =
     sumarProduccionPorLinea(records, lineasVisibles);
-
-  const prodPorLineaOrd =
-    [...prodPorLinea].sort((a,b) => b.total - a.total);
-
-  const totalProdLineas =
-    prodPorLinea.reduce((a,x) => a + x.total, 0);
-
-  state.charts.prodLinea =
-
-    new Chart(
-
-      document.getElementById('chart-prod-linea'),
-
-      {
-
-        type:'bar',
-
-        data:{
-
-          labels:
-            prodPorLineaOrd.map(x => x.linea),
-
-          datasets:[{
-
-            label:'Producción',
-
-            data:
-              prodPorLineaOrd.map(x => x.total),
-
-            backgroundColor:PAL_R.azul,
-
-            borderRadius:6,
-
-            maxBarThickness:60,
-
-            barPercentage:0.55
-
-          }]
-
-        },
-
-        options:{
-
-          maintainAspectRatio:false,
-
-
-          indexAxis:'y',
-
-          layout:{ padding:{ right:64 } },
-
-          plugins:{
-
-            legend:{ display:false },
-
-            valorBarraR:{
-              activo:true
-            },
-
-            tooltip:{
-
-              ...TOOLTIP_R,
-
-
-              callbacks:{
-
-                label:ctx =>
-                  formatearNumero(ctx.parsed.x) +
-                  ' unidades' +
-                  (
-                    totalProdLineas > 0
-                      ? ' · ' + pct(ctx.parsed.x / totalProdLineas)
-                      : ''
-                  )
-
-              }
-
-            }
-
-          },
-
-          scales:{
-
-            x:{
-
-              beginAtZero:true,
-
-              grid:{ color:GRID_R },
-
-              ticks:{
-                callback:v => formatearNumero(v)
-              }
-
-            },
-
-            y:{
-              grid:{ display:false }
-            }
-
-          }
-
-        }
-
-      }
-
-    );
-
-  document.getElementById('insight-prod-linea').innerHTML =
-    cajaInsight(
-      generarInsightProdLinea(prodPorLinea, rangoLabel)
-    );
 
 
   /* =====================================================
@@ -4198,309 +4244,18 @@ function renderResumen(main){
 
   /* =====================================================
      MERMA POR LÍNEA
+     El gráfico legacy fue retirado: el bloque industrial
+     conserva una única visualización de merma por línea.
   ===================================================== */
 
   const mermaPorLinea =
     calcularMermaPorLinea(records, lineasVisibles);
 
-  state.charts.mermaLinea =
-
-    new Chart(
-
-      document.getElementById('chart-merma-linea'),
-
-      {
-
-        type:'bar',
-
-        data:{
-
-          labels:
-            mermaPorLinea.map(x => x.linea),
-
-          datasets:[{
-
-            label:'Merma',
-
-            data:
-              mermaPorLinea.map(x => x.mermaPct * 100),
-
-            backgroundColor:
-
-              mermaPorLinea.map(x =>
-                x.sinDatos
-                  ? PAL_R.grisSuave
-                  : colorSegunMetaInverso(x.mermaPct, METAS.merma)
-              ),
-
-            borderRadius:6,
-
-            maxBarThickness:60,
-
-            barPercentage:0.55
-
-          }]
-
-        },
-
-        options:{
-
-          maintainAspectRatio:false,
-
-
-          plugins:{
-
-            legend:{ display:false },
-
-            valorBarraR:{
-              activo:true,
-              formato:v => (Math.round(v * 10) / 10) + '%'
-            },
-
-            metaLine:{
-              valor:METAS.merma * 100,
-              eje:'y',
-              texto:'Meta ≤ ' + pct(METAS.merma),
-              color:PAL_R.texto
-            },
-
-            tooltip:{
-
-              ...TOOLTIP_R,
-
-
-              callbacks:{
-
-                label:ctx => {
-
-                  const x = mermaPorLinea[ctx.dataIndex];
-
-                  return x.sinDatos
-                    ? 'Sin datos en ' + rangoLabel
-                    : (Math.round(x.mermaPct * 1000) / 10) + '%';
-
-                }
-
-              }
-
-            }
-
-          },
-
-          scales:{
-
-            x:{
-              grid:{ display:false }
-            },
-
-            y:{
-
-              beginAtZero:true,
-
-              grid:{ color:GRID_R },
-
-              ticks:{ callback:v => v + '%' }
-
-            }
-
-          }
-
-        }
-
-      }
-
-    );
-
-  document.getElementById('insight-merma-linea').innerHTML =
-    cajaInsight(
-      generarInsightMermaLinea(mermaPorLinea, rangoLabel)
-    );
-
 
   /* =====================================================
-     PRINCIPALES CAUSAS DE PARADA (PLANTA, PARETO)
+     PARETO DE PARADAS
+     Se conserva únicamente el Pareto del bloque industrial.
   ===================================================== */
-
-  const paradasPlanta =
-    agruparParadasPlanta(records);
-
-  const paretoPlantaFilas =
-    paradasPlanta.filas.slice(0, 10);
-
-  const cajaParadasPlanta =
-    document.getElementById('chart-paradas-planta')
-      ?.closest('.chart-box');
-
-  if(!paretoPlantaFilas.length){
-
-    if(cajaParadasPlanta){
-
-      cajaParadasPlanta.querySelector('canvas').style.display = 'none';
-
-    }
-
-  } else {
-
-    state.charts.paradasPlanta =
-
-      new Chart(
-
-        document.getElementById('chart-paradas-planta'),
-
-        {
-
-          data:{
-
-            labels:
-              paretoPlantaFilas.map(f => f.descripcion),
-
-            datasets:[
-              {
-                type:'bar',
-                label:'Minutos perdidos',
-                data:
-                  paretoPlantaFilas.map(f => f.minutos),
-                backgroundColor:
-                  paretoPlantaFilas.map(
-                    f =>
-                      f.tipo === 'Programada'
-                        ? PAL_R.azul
-                        : PAL_R.rojo
-                  ),
-                borderRadius:6,
-
-            maxBarThickness:60,
-                order:2
-              },
-              {
-                type:'line',
-                label:'% acumulado',
-                data:
-                  paretoPlantaFilas.map(f => f.acumuladoPct),
-                yAxisID:'y2',
-                borderColor:PAL_R.ambarLinea,
-                backgroundColor:PAL_R.ambarLinea,
-                borderWidth:2,
-                pointRadius:3,
-                pointBackgroundColor:'#fff',
-                pointBorderWidth:2,
-                tension:0.2,
-                order:1
-              }
-            ]
-
-          },
-
-          options:{
-
-          maintainAspectRatio:false,
-
-
-            plugins:{
-
-              legend:{ display:false },
-
-              metaLine:{
-                valor:80,
-                eje:'y2',
-                texto:'80%',
-                color:PAL_R.texto
-              },
-
-              tooltip:{
-
-              ...TOOLTIP_R,
-
-
-                callbacks:{
-
-                  label:ctx => {
-
-                    if(ctx.dataset.yAxisID === 'y2'){
-
-                      return 'Acumulado: ' +
-                        Math.round(ctx.parsed.y) + '%';
-
-                    }
-
-                    const fila = paretoPlantaFilas[ctx.dataIndex];
-
-                    return fila.tipo + ': ' +
-                      formatearNumero(fila.minutos) + ' min';
-
-                  }
-
-                }
-
-              }
-
-            },
-
-            scales:{
-
-              x:{
-
-                grid:{ display:false },
-
-                ticks:{
-
-                  maxRotation:38,
-                  minRotation:0,
-                  autoSkip:false,
-                  font:{ size:10 },
-
-                  callback:function(v){
-
-                    const t = this.getLabelForValue(v);
-
-                    return t.length > 18
-                      ? t.slice(0,17) + '…'
-                      : t;
-
-                  }
-
-                }
-
-              },
-
-              y:{
-
-                beginAtZero:true,
-
-                grid:{ color:GRID_R },
-
-                title:{ display:true, text:'Minutos' }
-
-              },
-
-              y2:{
-
-                position:'right',
-
-                beginAtZero:true,
-
-                max:100,
-
-                grid:{ display:false },
-
-                ticks:{ callback:v => v + '%' }
-
-              }
-
-            }
-
-          }
-
-        }
-
-      );
-
-  }
-
-  document.getElementById('insight-paradas-planta').innerHTML =
-    cajaInsight(
-      generarInsightParadasPlanta(paradasPlanta, rangoLabel)
-    );
 
 
   /* =====================================================

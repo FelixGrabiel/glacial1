@@ -419,7 +419,7 @@ function renderModoSwitch(){
    #tab-content cuando: estamos en modo VISUALIZAR Y la
    pestaña abierta es una que registra datos operativos
    ("Nuevo registro" o "Paletas"). El resto de pestañas
-   (Historial, Gráficos, Resumen, Impacto Económico,
+   (Historial, graficos, Resumen, Impacto Económico,
    Producción Actual) quedan libres para consultarse con
    normalidad en modo Visualizar, tal como pide el pedido.
 */
@@ -474,7 +474,7 @@ function mostrarSelectorModoTrabajo(){
               <div class="mm-titulo">Visualizar</div>
               <div class="mm-desc">
                 Solo consulta reportes, indicadores, producción
-                y gráficos. No permite modificar datos.
+                y graficos. No permite modificar datos.
               </div>
             </button>
 

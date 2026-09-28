@@ -1,5 +1,5 @@
 /* =============================================================
-   GRÁFICOS Y REPORTES VISUALES
+   graficos Y REPORTES VISUALES
    Parte del sistema GLACIAL — dividido a partir de app.js
    ============================================================= */
 
@@ -9,7 +9,7 @@
    =========================================================
 
    Referencias contra las que se comparan los indicadores en
-   todos los gráficos. Cambia estos valores si la jefatura
+   todos los graficos. Cambia estos valores si la jefatura
    define otras metas — se actualizan solos en el tablero.
    ========================================================= */
 
@@ -202,9 +202,9 @@ const valorBarraPlugin = {
 Chart.register(metaLinePlugin, valorBarraPlugin);
 
 /* =========================================================
-   ESTÁNDAR VISUAL INDUSTRIAL — TODOS LOS GRÁFICOS
+   ESTÁNDAR VISUAL INDUSTRIAL — TODOS LOS graficos
    =========================================================
-   Estas opciones son globales: también mejoran los gráficos
+   Estas opciones son globales: también mejoran los graficos
    creados posteriormente por Resumen e Impacto Económico.
    ========================================================= */
 Chart.defaults.responsive = true;
@@ -671,7 +671,7 @@ function calcularPromedioMovil(serieDiaria, ventanaDias){
    OEE POR TURNO Y POR MARCA (TODO EL HISTORIAL DE LA LÍNEA)
    =========================================================
 
-   A diferencia de los gráficos de arriba (que muestran un
+   A diferencia de los graficos de arriba (que muestran un
    registro puntual), estos comparan el desempeño acumulado
    — útil para ver si el problema es un turno específico o
    una marca/presentación específica, algo que no se ve
@@ -794,7 +794,7 @@ function agruparOEEPorMarca(all){
    histórico completo de la línea), esta junta los cuadros
    de UN registro puntual y suma cuántas unidades efectivas
    se produjeron de cada marca — lo que se necesita en la
-   cabecera del PNG exportado (07-gráficos.js > exportarPNG).
+   cabecera del PNG exportado (07-graficos.js > exportarPNG).
    ========================================================= */
 
 function agruparProduccionPorMarca(rec){
@@ -855,7 +855,7 @@ function agruparProduccionPorMarca(rec){
 
 
 /* =========================================================
-   GRÁFICOS
+   graficos
    ========================================================= */
 
 function destroyCharts(){
@@ -886,7 +886,7 @@ function destroyCharts(){
    EXPORTACIÓN — EXCEL Y PNG
    Se ejecuta directamente desde la aplicación.
    Excel: usa SheetJS bajo demanda.
-   PNG: genera un dashboard completo a partir de los gráficos
+   PNG: genera un dashboard completo a partir de los graficos
    actuales de Chart.js, sin capturar la pantalla del navegador.
    ========================================================= */
 
@@ -984,7 +984,7 @@ function obtenerRegistroExportacion(){
    Libro con 7 hojas:
      1. Reporte Diario   — resumen ejecutivo, KPIs con semáforo,
                            producción POR CUADRO + total del turno,
-                           gráficos de pérdidas y paradas, mermas,
+                           graficos de pérdidas y paradas, mermas,
                            insumos, personal, observaciones y firmas.
      2. Paradas          — TODAS las paradas de los cuadros (sin tope).
      3. Mermas           — detalle por cuadro y resumen por componente.
@@ -1254,7 +1254,7 @@ function xlImpresion(ws, ultimaCol, ultimaFila, ctx, opts = {}){
 }
 
 
-/* ---------- gráficos simples dibujados en canvas ---------- */
+/* ---------- graficos simples dibujados en canvas ---------- */
 
 function xlGráficoBarras(cfg){
 
@@ -1906,7 +1906,7 @@ function xlHojaReporte(wb, ctx){
 
   r = rt + 2;
 
-  /* ---------- Gráficos ---------- */
+  /* ---------- graficos ---------- */
 
   xlSeccion(ws, r, C1, C2, 'ANÁLISIS DE PÉRDIDAS Y PARADAS');
   r++;
@@ -3011,7 +3011,7 @@ function xlHojaPortadaEjecutiva(wb, ctx){
   ws.getCell(`B${fila}`).font = xlFont({ size:11, bold:true, color:XL.azul });
   fila += 1;
 
-  const filaGráficosPortada = fila;
+  const filagraficosPortada = fila;
 
   const dataGauge = xlGráficoGaugeOEE({
     valor:d.oee,
@@ -3021,7 +3021,7 @@ function xlHojaPortadaEjecutiva(wb, ctx){
     alto:180
   });
 
-  xlAgregarImagen(wb, ws, dataGauge, 0.9, filaGráficosPortada - 1 + 0.1, 210, 180);
+  xlAgregarImagen(wb, ws, dataGauge, 0.9, filagraficosPortada - 1 + 0.1, 210, 180);
 
   const dataCascadaMini = xlGráficoBarras({
     titulo:'Cascada de pérdidas (botellas)',
@@ -3046,12 +3046,12 @@ function xlHojaPortadaEjecutiva(wb, ctx){
     ]
   });
 
-  xlAgregarImagen(wb, ws, dataCascadaMini, 2.55, filaGráficosPortada - 1 + 0.1, 330, 180);
+  xlAgregarImagen(wb, ws, dataCascadaMini, 2.55, filagraficosPortada - 1 + 0.1, 330, 180);
 
   /* Alto de fila estándar ≈ 20px: se saltan filas equivalentes
      a la altura de las imágenes (180px) para no pisar el texto
      de abajo. */
-  fila = filaGráficosPortada + 10;
+  fila = filagraficosPortada + 10;
 
   const dPrev = (() => {
     const prev = xlTurnoAnterior(rec, all);
@@ -3355,7 +3355,7 @@ function xlDibujarTextoAjustado(ctx, texto, x, y, maxWidth, lineHeight, maxLinea
    acompaña.
    ========================================================= */
 
-function construirResumenesGráficos(rec, d, all){
+function construirResumenesgraficos(rec, d, all){
 
   const cascada = calcCascada(rec);
   const paradas = agruparParadas(rec);
@@ -3484,7 +3484,7 @@ async function exportarPNG(){
 
     }
 
-    const resumenes = construirResumenesGráficos(rec, d, all);
+    const resumenes = construirResumenesgraficos(rec, d, all);
     const marcaProd = agruparProduccionPorMarca(rec);
 
     let logoImg = null;
@@ -3688,7 +3688,7 @@ async function exportarPNG(){
     }
 
 
-    /* ---------- cuadros de gráficos + mini resumen ---------- */
+    /* ---------- cuadros de graficos + mini resumen ---------- */
 
     for(let i = 0; i < imagenes.length; i++){
 
@@ -3803,7 +3803,7 @@ async function exportarPNG(){
 
     console.error(error);
 
-    alert('No se pudo generar el PNG. Verifica que los gráficos estén visibles e inténtalo nuevamente.');
+    alert('No se pudo generar el PNG. Verifica que los graficos estén visibles e inténtalo nuevamente.');
 
   }
 

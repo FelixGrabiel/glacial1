@@ -336,7 +336,7 @@ function renderHistorialTab(){
                       <td>
   <div class="hist-actions">
     <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();verReporteHistorial('${r.id}')">👁 Ver reporte</button>
-    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();verGráficosHistorial('${r.id}')">📊 Gráficos</button>
+    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();vergraficosHistorial('${r.id}')">📊 graficos</button>
     ${r.estadoRegistro==='REABIERTO'
       ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();cargarReporteParaCorreccion('${r.id}')">✏️ Continuar</button>`
       : ''}
@@ -770,7 +770,7 @@ function deleteRecord(id){
    VER REGISTRO
    ========================================================= */
 
-function verGráficosHistorial(id){
+function vergraficosHistorial(id){
   state.viewingRecordId=id;
   state.currentTab='graficos';
   renderMain();
@@ -858,7 +858,7 @@ function verReporteHistorial(id){
         </section>
       </div>
       <div class="hist-report-footer">
-        <button class="btn btn-ghost" onclick="cerrarReporteHistorial();verGráficosHistorial('${r.id}')">📊 Ver gráficos</button>
+        <button class="btn btn-ghost" onclick="cerrarReporteHistorial();vergraficosHistorial('${r.id}')">📊 Ver graficos</button>
         ${r.estadoRegistro==='REABIERTO'
           ? `<button class="btn btn-primary" onclick="cerrarReporteHistorial();cargarReporteParaCorreccion('${r.id}')">✏️ Continuar reporte</button>`
           : ''}

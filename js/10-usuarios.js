@@ -447,7 +447,7 @@ function cambiarRolNuevoUsuario(){
     checks.forEach(
       c=>{
         const sugeridos = {
-          'Supervisor': ['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','tareoProduccion','exportarExcel','exportarJPG'],
+          'Supervisor': ['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'],
           'Gerente General': PERMISOS_SOLO_CONSULTA,
           'Jefe de Producción': PERMISOS_SOLO_CONSULTA,
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
@@ -960,9 +960,14 @@ async function addUser(){
     );
 
   if(rol==='Supervisor'){
-    seleccionados=seleccionados.filter(
-      permiso=>permiso!=='gestionarPersonal'
-    );
+    seleccionados=[
+      ...new Set([
+        ...seleccionados.filter(
+          permiso=>permiso!=='gestionarPersonal'
+        ),
+        'avanceProduccion'
+      ])
+    ];
   }
 
 

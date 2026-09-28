@@ -2184,7 +2184,7 @@ function renderMain(){
           <button
             type="button"
             class="btn btn-glacial"
-            onclick="closeWelcome()"
+            onclick="abrirCentroPerfil()"
             style="margin-top:24px;"
           >
             Ingresar al sistema →
@@ -2213,6 +2213,19 @@ function renderMain(){
 
 
   /* =====================================================
+     CENTRO DE INICIO SEGÚN PERFIL
+     ===================================================== */
+  if(state.currentTab === 'centro-perfil'){
+    if(typeof renderCentroPerfil !== 'function'){
+      main.innerHTML='<div class="empty-state"><h4>No se pudo cargar el centro de inicio</h4><p>Comprueba que js/32-dashboard-perfiles.js esté cargado.</p></div>';
+      return;
+    }
+    renderCentroPerfil(main);
+    return;
+  }
+
+
+  /* =====================================================
      ROTACIÓN DE SUPERVISORES
      ===================================================== */
   if(state.currentTab === 'rotacion-supervisores'){
@@ -2224,6 +2237,19 @@ function renderMain(){
       return;
     }
     renderRotacionSupervisores();
+    return;
+  }
+
+
+  /* =====================================================
+     AVANCE Y CIERRE DE TURNO
+     ===================================================== */
+  if(state.currentTab === 'avance-produccion'){
+    if(typeof renderAvanceProduccion !== 'function'){
+      main.innerHTML='<div class="empty-state"><h4>No se pudo cargar Avance y Cierre</h4><p>Comprueba que js/29-avance-produccion.js esté cargado.</p></div>';
+      return;
+    }
+    renderAvanceProduccion(main);
     return;
   }
 
@@ -2469,6 +2495,12 @@ function renderMain(){
   }
 
   else if(
+    state.currentTab === 'graficos'
+  ){
+    renderGraficosTab();
+  }
+
+  else if(
     state.currentTab === 'paletas'
   ){
     const contenidoPaletas = document.getElementById('tab-content');
@@ -2495,9 +2527,13 @@ function renderMain(){
   }
 
   else{
-
-    renderGraficosTab();
-
+    // Nunca usar Gráficos como fallback: una pestaña inválida debe
+    // volver a la primera vista autorizada sin alterar una selección válida.
+    const primera=PESTANAS_LINEA.find(p=>tienePermiso(p));
+    if(primera && primera!==state.currentTab){
+      state.currentTab=primera;
+      renderMain();
+    }
   }
 
 }
@@ -3217,35 +3253,72 @@ function renderFormTab(){
         ] || [];
 
 
+      /*
+         NUEVO REGISTRO usa el mismo catálogo VISUAL que PALETAS.
+         Se conservan los códigos internos (value) para no romper
+         ratios, insumos, historial ni registros existentes.
+      */
       const presentaciones =
-        PRESENTACIONES_POR_LINEA[
-          state.currentLine
-        ] || [];
+        typeof presentacionesUnicasPaletas === 'function'
+          ? presentacionesUnicasPaletas(state.currentLine)
+          : (PRESENTACIONES_POR_LINEA[state.currentLine] || [])
+              .map(p=>({
+                value:p,
+                label:
+                  typeof nombrePresentacionUI === 'function'
+                    ? nombrePresentacionUI(state.currentLine,q.marca,p)
+                    : p
+              }));
 
 
       const optionList =
-        arr =>
-          arr.length
+        arr => {
+          const opciones = Array.isArray(arr) ? arr.slice() : [];
 
-            ? arr.map(
-                o =>
-                  `<option
-                    value="${o}"
-                    ${
-                      o === q.presentacion
-                        ? 'selected'
-                        : ''
-                    }
-                  >
-                    ${o}
-                  </option>`
-              ).join('')
+          /*
+             Si se abre un registro histórico cuyo código ya no forma
+             parte del selector canónico de Paletas, se conserva visible
+             para no cambiar el dato guardado accidentalmente.
+          */
+          if(
+            q.presentacion &&
+            !opciones.some(o=>(o?.value ?? o) === q.presentacion)
+          ){
+            opciones.unshift({
+              value:q.presentacion,
+              label:
+                typeof nombrePresentacionUI === 'function'
+                  ? nombrePresentacionUI(
+                      state.currentLine,
+                      q.marca,
+                      q.presentacion
+                    )
+                  : q.presentacion
+            });
+          }
 
+          return opciones.length
+            ? opciones.map(o=>{
+                const value=o?.value ?? o;
+                const label=o?.label ?? (
+                  typeof nombrePresentacionUI === 'function'
+                    ? nombrePresentacionUI(state.currentLine,q.marca,value)
+                    : value
+                );
+
+                return `<option
+                  value="${value}"
+                  ${value === q.presentacion ? 'selected' : ''}
+                >
+                  ${label}
+                </option>`;
+              }).join('')
             : `
                 <option value="">
                   Sin opciones
                 </option>
               `;
+        };
 
 
       const marcaList =

@@ -40,7 +40,8 @@ function primeraVistaAutorizada(){
     if(pestana)return pestana;
   }
   const globales=[
-    ['produccionActual','produccion-actual'], ['resumen','resumen'],
+    ['__inicio__','centro-perfil'],
+    ['produccionActual','produccion-actual'], ['avanceProduccion','avance-produccion'], ['resumen','resumen'],
     ['perdidasSoles','perdidas'], ['moduloMantenimiento','mantenimiento'],
     ['moduloRRHH','rrhh'], ['gestionar_rotacion_supervisores','rotacion-supervisores'], ['tareoProduccion','tareo'],
     ['tareoGeneral','tareo']
@@ -50,8 +51,10 @@ function primeraVistaAutorizada(){
 
 function ajustarVistaSegunPermisos(){
   const globales={
+    'centro-perfil':'__inicio__',
     resumen:'resumen',perdidas:'perdidasSoles',
     'produccion-actual':'produccionActual',
+    'avance-produccion':'avanceProduccion',
     mantenimiento:'moduloMantenimiento',rrhh:'moduloRRHH',
     'rotacion-supervisores':'gestionar_rotacion_supervisores',
     tareo:'tareoProduccion'
@@ -63,7 +66,9 @@ function ajustarVistaSegunPermisos(){
     ? lineaVisible && tienePermiso(tab)
     : tab==='tareo'
       ? tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral')
-      : globales[tab] && tienePermiso(globales[tab]);
+      : tab==='centro-perfil'
+        ? true
+        : globales[tab] && tienePermiso(globales[tab]);
 
   if(!permitido)state.currentTab=primeraVistaAutorizada();
   if(visibleLines().length && !lineaVisible){
@@ -132,7 +137,9 @@ function renderSidebar(){
   }
 
   const acciones={
+    'btn-centro-perfil':['__inicio__','centro-perfil'],
     'btn-produccion-actual':['produccionActual','produccion-actual'],
+    'btn-avance-produccion':['avanceProduccion','avance-produccion'],
     'btn-resumen':['resumen','resumen'],
     'btn-perdidas':['perdidasSoles','perdidas'],
     'btn-mantenimiento':['moduloMantenimiento','mantenimiento'],
@@ -146,11 +153,13 @@ function renderSidebar(){
   Object.entries(acciones).forEach(([id,[permiso,vista]])=>{
     const boton=document.getElementById(id);
     if(!boton)return;
-    const mostrar=id==='btn-tareo'
-      ? tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral')
-      : id==='btn-usuarios'||id==='btn-trabajadores'
-        ? puedeGestionarPersonal()
-        : tienePermiso(permiso);
+    const mostrar=id==='btn-centro-perfil'
+      ? !!state.user
+      : id==='btn-tareo'
+        ? tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral')
+        : id==='btn-usuarios'||id==='btn-trabajadores'
+          ? puedeGestionarPersonal()
+          : tienePermiso(permiso);
     boton.hidden=!mostrar;
     boton.style.display=mostrar?'':'none';
     if(mostrar)visibles++;
@@ -254,6 +263,14 @@ function selectLine(key){
 }
 
 
+function abrirCentroPerfil(){
+  if(!state.user)return;
+  state.showWelcome=false;
+  state.currentTab='centro-perfil';
+  if(typeof renderSidebar==='function')renderSidebar();
+  renderMain();
+}
+
 function goResumen(){
   if(!tienePermiso('resumen')){
     alert('No tienes permiso para ver Resumen / Reportes.');
@@ -289,6 +306,24 @@ function goPerdidasSoles(){
     return;
   }
   state.currentTab='perdidas';
+  renderSidebar();
+  renderMain();
+}
+
+
+
+function goAvanceProduccion(){
+  if(!tienePermiso('avanceProduccion')){
+    alert('No tienes permiso para ver Avance y Cierre de Turno.');
+    return;
+  }
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
+  state.currentTab='avance-produccion';
   renderSidebar();
   renderMain();
 }

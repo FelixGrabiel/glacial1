@@ -131,6 +131,7 @@ const PERMISOS_APP=[
   {key:'programarPaletas',label:'Programar producción / Secuencia del turno'},
   {key:'gestionar_rotacion_supervisores',label:'Gestionar rotación de supervisores'},
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
+  {key:'avanceProduccion',label:'Avance y Cierre de Turno'},
   {key:'control_operativo_lineas',label:'Control operativo de líneas (Detener / Reanudar / Intervención terminada)'},
   {key:'gestionarPersonal',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
   {key:'verLineasProduccion',label:'Ver líneas de producción en el menú lateral'},
@@ -280,7 +281,7 @@ function puedeGestionarPersonal(){
 function permisosPorRolAnterior(rol){
   if(rol==='Administrador') return 'todos';
   if(ROLES_SOLO_CONSULTA.has(rol)) return [...PERMISOS_SOLO_CONSULTA];
-  if(rol==='Supervisor') return ['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','tareoProduccion','exportarExcel','exportarJPG'];
+  if(rol==='Supervisor') return ['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'];
   return ['nuevo','historial','graficos','paletas'];
 }
 
@@ -302,7 +303,10 @@ function normalizarPermisosUsuario(u){
     // Los permisos del Supervisor son explícitos. Nunca se concede
     // automáticamente acceso a Gestión de usuarios/trabajadores.
     if(u.rol==='Supervisor'){
-      return u.permisos.filter(p=>p!=='gestionarPersonal');
+      return [...new Set([
+        ...u.permisos.filter(p=>p!=='gestionarPersonal'),
+        'avanceProduccion'
+      ])];
     }
     return u.permisos;
   }
@@ -345,7 +349,7 @@ function usuariosPorDefecto(){
     {
       username:'supervisor',password:'supervisor123',rol:'Supervisor',
       puesto:'Supervisor',
-      permisos:['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','tareoProduccion','exportarExcel','exportarJPG'],
+      permisos:['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'],
       permisosGestionVersion:1,
       linea:null,nombre:'Supervisor'
     }

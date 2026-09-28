@@ -690,7 +690,7 @@ const PARADAS_PROGRAMADAS = [
    son siempre administrativas: charlas, refrigerio, limpieza,
    cambios de formato, etc., así que no necesitan causa).
 
-   Se agrega esta clasificación porque Gráficos/Excel la usan
+   Se agrega esta clasificación porque graficos/Excel la usan
    para desglosar minutos de parada por motivo. El reporte
    "Impacto Económico" (15-perdidas-soles.js) YA NO depende de
    este campo: desde el 20260922 valoriza en dinero TODAS las
