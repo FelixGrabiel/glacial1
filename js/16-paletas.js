@@ -107,6 +107,12 @@ function nombrePresentacionUI(linea, marca, presentacion){
   const esAlcalina = txt.includes('alcalina');
   const conSticker = txt.includes('sticker') || txt.includes('(y)');
 
+  // CUISINE 2.5 L: distinguir presentación normal y con sticker.
+  const marcaTxt = String(marca || '').trim().toLowerCase();
+  if(marcaTxt === 'cuisine' && txt.includes('2.5l') && txt.includes('6und')){
+    return conSticker ? 'PACK X 6 UND C/S' : 'PACK X 6 UND';
+  }
+
   // Cajas y bidones de 20 L: no aporta mostrar "PACK X 1 UND".
   if(lineaTxt === 'C20L' || txt.includes('caja') && txt.includes('20l')){
     return 'CAJA 20 L';
@@ -170,7 +176,10 @@ function clavePresentacionVisualPaletas(presentacion){
   if(t.includes('380ml') && t.includes('24und')) return '380_24';
   if(t.includes('625ml') && t.includes('15und')) return '625_15';
   if(t.includes('1.5l') && t.includes('6und')) return '1.5_6';
-  if(t.includes('2.5l') && t.includes('6und')) return '2.5_6';
+  if(t.includes('2.5l') && t.includes('6und')){
+    const conSticker=t.includes('sticker') || t.includes('(y)');
+    return conSticker ? '2.5_6_cs' : '2.5_6';
+  }
 
   // Debe ir después de 1.5L y 2.5L para no confundirlos con 1L.
   if((t.includes('1lx12und') || t.includes('1l') && t.includes('12und')))
@@ -185,7 +194,8 @@ function etiquetaPresentacionVisualPaletas(clave){
     '625_15':'625 ML PACK X 15 UND',
     '1_12':'1 L PACK X 12 UND',
     '1.5_6':'1.5 L PACK X 6 UND',
-    '2.5_6':'2.5 L PACK X 6 UND'
+    '2.5_6':'2.5 L PACK X 6 UND',
+    '2.5_6_cs':'2.5 L PACK X 6 UND C/S'
   }[clave] || '';
 }
 
@@ -207,7 +217,7 @@ function presentacionesUnicasPaletas(linea){
     }
   });
 
-  const orden=['380_24','625_15','1_12','1.5_6','2.5_6'];
+  const orden=['380_24','625_15','1_12','1.5_6','2.5_6','2.5_6_cs'];
 
   return orden
     .filter(k=>mapa.has(k))

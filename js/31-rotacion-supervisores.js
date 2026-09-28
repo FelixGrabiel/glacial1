@@ -268,9 +268,17 @@ function rotSupActualizar(username,fecha,campo,valor){
 function rotSupGuardarBorrador(){
   const r=rotSupObtenerVista();
   if(r.estado==='CERRADA')return;
-  r.estado='BORRADOR';
+
+  // Si ya está publicada, guardar cambios NO la devuelve a BORRADOR.
+  const estabaPublicada=r.estado==='PUBLICADA';
+  if(!estabaPublicada)r.estado='BORRADOR';
+
   r.actualizadoEn=Date.now();
-  r.auditoria=[...(r.auditoria||[]),rotSupAuditoria('GUARDÓ BORRADOR')];
+  r.actualizadoPor=state.user?.username||'';
+  r.auditoria=[
+    ...(r.auditoria||[]),
+    rotSupAuditoria(estabaPublicada ? 'ACTUALIZÓ ROTACIÓN PUBLICADA' : 'GUARDÓ BORRADOR')
+  ];
   rotSupGuardarColeccion(r);
   renderRotacionSupervisores();
 }
@@ -298,7 +306,11 @@ function rotSupPublicar(){
   const r=rotSupObtenerVista();
   const errores=rotSupValidarPublicacion(r);
   if(errores.length){alert('No se puede publicar:\n\n'+errores.slice(0,12).join('\n'));return;}
-  if(!confirm(`¿Deseas publicar la rotación de la semana ${r.semana}?`))return;
+  const yaPublicada=r.estado==='PUBLICADA';
+  const pregunta=yaPublicada
+    ? `¿Deseas actualizar la rotación publicada de la semana ${r.semana}?`
+    : `¿Deseas publicar la rotación de la semana ${r.semana}?`;
+  if(!confirm(pregunta))return;
 
   const todos=[...(loadRotaciones()||[])];
   todos.forEach(x=>{
@@ -308,8 +320,22 @@ function rotSupPublicar(){
       x.cerradaEn=Date.now();
     }
   });
-  r.estado='PUBLICADA'; r.publicadaEn=Date.now(); r.publicadaPor=state.user?.username||'';
-  r.auditoria=[...(r.auditoria||[]),rotSupAuditoria('PUBLICÓ ROTACIÓN')];
+  const ahora=Date.now();
+  r.estado='PUBLICADA';
+
+  if(!yaPublicada || !r.publicadaEn){
+    r.publicadaEn=ahora;
+    r.publicadaPor=state.user?.username||'';
+  }
+
+  r.actualizadoEn=ahora;
+  r.actualizadoPor=state.user?.username||'';
+  if(yaPublicada)r.ultimaActualizacionPublicadaEn=ahora;
+
+  r.auditoria=[
+    ...(r.auditoria||[]),
+    rotSupAuditoria(yaPublicada ? 'ACTUALIZÓ ROTACIÓN PUBLICADA' : 'PUBLICÓ ROTACIÓN')
+  ];
   const idx=todos.findIndex(x=>x?.tipo===ROT_SUP_TIPO&&x.id===r.id);
   if(idx>=0)todos[idx]=r;else todos.push(r);
   saveRotaciones(todos);
@@ -322,6 +348,38 @@ function rotSupCerrar(){
   if(!confirm(`¿Cerrar la rotación de la semana ${r.semana}?`))return;
   r.estado='CERRADA'; r.cerradaEn=Date.now();
   r.auditoria=[...(r.auditoria||[]),rotSupAuditoria('CERRÓ ROTACIÓN')];
+  rotSupGuardarColeccion(r);
+  renderRotacionSupervisores();
+}
+
+function rotSupReabrir(){
+  if(!rotSupPuedeGestionar())return;
+
+  const r=rotSupObtenerVista();
+  if(r.estado!=='CERRADA')return;
+
+  const ok=confirm(
+    `¿Reabrir la rotación de la semana ${r.semana}?\n\n` +
+    'La rotación volverá a PUBLICADA y podrás modificar turnos y horarios.'
+  );
+  if(!ok)return;
+
+  const ahora=Date.now();
+
+  r.estado='PUBLICADA';
+  r.reabiertaEn=ahora;
+  r.reabiertaPor=state.user?.username||'';
+  r.actualizadoEn=ahora;
+  r.actualizadoPor=state.user?.username||'';
+
+  r.auditoria=[
+    ...(r.auditoria||[]),
+    rotSupAuditoria('REABRIÓ ROTACIÓN CERRADA',{
+      estadoAnterior:'CERRADA',
+      estadoNuevo:'PUBLICADA'
+    })
+  ];
+
   rotSupGuardarColeccion(r);
   renderRotacionSupervisores();
 }
@@ -386,7 +444,7 @@ function renderRotacionSupervisores(){
   const supervisores=rotSupSupervisores();
   const prev=new Date(rotSupParseFecha(r.desde));prev.setDate(prev.getDate()-7);
   const next=new Date(rotSupParseFecha(r.desde));next.setDate(next.getDate()+7);
-  const bloqueado=r.estado==='CERRADA';
+  const bloqueado=!rotSupPuedeGestionar() || r.estado==='CERRADA';
   const opciones=ROT_SUP_TURNOS.map(t=>`<option value="${t}">${t}</option>`).join('');
 
   main.innerHTML=`
@@ -403,7 +461,13 @@ function renderRotacionSupervisores(){
     </style>
     <div class="rot-sup-head">
       <div><h2 style="margin:0">Rotación de supervisores</h2>
-        <div class="rot-sup-muted">Semana ${r.semana} · ${r.desde} – ${r.hasta}</div></div>
+        <div class="rot-sup-muted">Semana ${r.semana} · ${r.desde} – ${r.hasta}</div>
+        ${r.estado==='PUBLICADA'?`<div class="rot-sup-muted" style="margin-top:4px">
+          PUBLICADA · Última actualización: ${
+            new Date(r.ultimaActualizacionPublicadaEn || r.actualizadoEn || r.publicadaEn || Date.now())
+              .toLocaleString('es-PE')
+          } · por ${rotSupEsc(r.actualizadoPor || r.publicadaPor || '')}
+        </div>`:''}</div>
       <span class="rot-sup-badge">${r.estado}</span>
     </div>
 
@@ -412,9 +476,10 @@ function renderRotacionSupervisores(){
       <button class="btn btn-ghost" onclick="rotSupSeleccionarSemana('${rotSupFechaISO(rotSupLunes(new Date()))}')">Semana actual</button>
       <button class="btn btn-ghost" onclick="rotSupSeleccionarSemana('${rotSupFechaISO(next)}')">Semana siguiente →</button>
       <button class="btn btn-ghost" onclick="rotSupCopiarAnterior()" ${bloqueado?'disabled':''}>Copiar semana anterior</button>
-      <button class="btn btn-ghost" onclick="rotSupGuardarBorrador()" ${bloqueado?'disabled':''}>Guardar borrador</button>
-      <button class="btn btn-glacial" onclick="rotSupPublicar()" ${bloqueado?'disabled':''}>Publicar rotación</button>
+      <button class="btn btn-ghost" onclick="rotSupGuardarBorrador()" ${bloqueado?'disabled':''}>${r.estado==='PUBLICADA'?'Guardar cambios':'Guardar borrador'}</button>
+      <button class="btn btn-glacial" onclick="rotSupPublicar()" ${bloqueado?'disabled':''}>${r.estado==='PUBLICADA'?'Actualizar publicación':'Publicar rotación'}</button>
       ${r.estado==='PUBLICADA'?`<button class="btn btn-ghost" onclick="rotSupCerrar()">Cerrar semana</button>`:''}
+      ${r.estado==='CERRADA'?`<button class="btn btn-glacial" onclick="rotSupReabrir()">Reabrir rotación</button>`:''}
     </div>
 
     <div class="rot-sup-card rot-sup-scroll">
