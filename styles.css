@@ -4381,3 +4381,103 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
         min-width:650px;
     }
 }
+
+
+/* =========================================================
+   FIX V2 · SCROLL VISIBLE EN REPORTE DE PRODUCCIÓN
+   La altura debe quedar limitada para que overflow genere
+   físicamente la barra vertical.
+   ========================================================= */
+.hist-report-modal{
+    overflow:hidden !important;
+}
+
+.hist-report-dialog{
+    height:min(94vh,900px) !important;
+    max-height:94vh !important;
+    display:flex !important;
+    flex-direction:column !important;
+    overflow:hidden !important;
+}
+
+.hist-report-top,
+.hist-report-trace,
+.hist-report-footer{
+    flex:0 0 auto !important;
+}
+
+.hist-report-body{
+    flex:1 1 auto !important;
+    min-height:0 !important;
+    min-width:0 !important;
+    overflow-y:scroll !important;
+    overflow-x:scroll !important;
+    overscroll-behavior:contain;
+    scrollbar-gutter:stable both-edges;
+    scrollbar-width:auto;
+    scrollbar-color:#6F98AE #E4ECF1;
+}
+
+/* Fuerza una zona horizontal desplazable cuando el contenido la necesite */
+.hist-report-body > *{
+    min-width:0;
+}
+
+.hist-report-body .table-scroll{
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:scroll !important;
+    overflow-y:hidden !important;
+    scrollbar-gutter:stable;
+}
+
+/* Chrome / Edge */
+.hist-report-body::-webkit-scrollbar{
+    width:13px !important;
+    height:13px !important;
+}
+
+.hist-report-body .table-scroll::-webkit-scrollbar{
+    height:12px !important;
+}
+
+.hist-report-body::-webkit-scrollbar-track,
+.hist-report-body .table-scroll::-webkit-scrollbar-track{
+    background:#E4ECF1 !important;
+}
+
+.hist-report-body::-webkit-scrollbar-thumb,
+.hist-report-body .table-scroll::-webkit-scrollbar-thumb{
+    background:#6F98AE !important;
+    border:2px solid #E4ECF1 !important;
+    border-radius:10px !important;
+}
+
+.hist-report-body::-webkit-scrollbar-thumb:hover,
+.hist-report-body .table-scroll::-webkit-scrollbar-thumb:hover{
+    background:#005B96 !important;
+}
+
+/* La tabla conserva ancho suficiente para activar scroll horizontal */
+.hist-report-body .table-scroll table{
+    min-width:900px !important;
+}
+
+/* En pantallas pequeñas el modal ocupa toda la altura,
+   pero el BODY sigue siendo el único sector desplazable. */
+@media(max-width:700px){
+    .hist-report-dialog{
+        height:100dvh !important;
+        max-height:100dvh !important;
+    }
+
+    .hist-report-body{
+        overflow:scroll !important;
+        -webkit-overflow-scrolling:touch;
+    }
+
+    .hist-report-body .table-scroll table{
+        min-width:760px !important;
+    }
+}
