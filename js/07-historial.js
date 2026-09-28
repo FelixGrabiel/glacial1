@@ -794,34 +794,60 @@ function verReporteHistorial(id){
     num(q.produccion?.efectiva)>0 || num(q.produccion?.programada)>0
   );
 
+  const totalProgramado=cuadros.reduce((s,q)=>s+num(q.produccion?.programada),0);
+  const totalEfectivo=cuadros.reduce((s,q)=>s+num(q.produccion?.efectiva),0);
+  const totalParadas=cuadros.reduce((s,q)=>
+    s+(q.paradasProgramadas||[]).reduce((a,p)=>a+num(p.tiempoMin),0)
+     +(q.paradasNoProgramadas||[]).reduce((a,p)=>a+num(p.tiempoMin),0),0);
+  const personalLista=(r.personal||[]).filter(p=>String(p.nombre||'').trim());
+  const cumplimiento=totalProgramado>0 ? (totalEfectivo/totalProgramado)*100 : 0;
+  const cuadrosFinalizados=cuadros.filter(q=>q.estadoCuadro==='FINALIZADO').length;
+  const todosFinalizados=cuadros.length>0 && cuadrosFinalizados===cuadros.length;
+  const estadoReporte=String(r.estadoRegistro||'FINALIZADO').replaceAll('_',' ');
+  const estadoInconsistente=estadoReporte==='FINALIZADO' && !todosFinalizados;
+
   const tarjetas=cuadros.map((q,i)=>{
     const prog=(q.paradasProgramadas||[]).reduce((s,p)=>s+num(p.tiempoMin),0);
     const nprog=(q.paradasNoProgramadas||[]).reduce((s,p)=>s+num(p.tiempoMin),0);
+    const efectiva=num(q.produccion?.efectiva);
+    const programada=num(q.produccion?.programada);
+    const pct=programada>0 ? Math.min(100,(efectiva/programada)*100) : 0;
+    const finalizado=q.estadoCuadro==='FINALIZADO';
     return `
-      <section class="hist-report-card">
-        <div class="hist-report-card-head">
-          <strong>Cuadro ${q.numero||i+1} · ${esc(q.marca||'Sin marca')}</strong>
-          <span class="reporte-estado-badge ${(q.estadoCuadro||'EN_REGISTRO').toLowerCase()}">${q.estadoCuadro==='FINALIZADO'?'🔒 FINALIZADO':'EN REGISTRO'}</span>
-        </div>
+      <details class="hist-report-card hist-report-production-card" ${finalizado?'':'open'}>
+        <summary class="hist-report-card-head">
+          <div class="hist-report-card-title">
+            <span class="hist-report-number">${String(q.numero||i+1).padStart(2,'0')}</span>
+            <span>
+              <strong>${esc(q.marca||'Sin marca')}</strong>
+              <small>${esc(q.presentacion||'Sin presentación')}</small>
+            </span>
+          </div>
+          <div class="hist-report-card-state">
+            <span class="reporte-estado-badge ${(q.estadoCuadro||'EN_REGISTRO').toLowerCase()}">${finalizado?'FINALIZADO':'EN REGISTRO'}</span>
+            <span class="hist-report-chevron">⌄</span>
+          </div>
+        </summary>
+        <div class="hist-report-progress"><span style="width:${pct.toFixed(1)}%"></span></div>
         <div class="hist-report-grid">
-          <div><small>Presentación</small><b>${esc(q.presentacion)}</b></div>
           <div><small>Lote</small><b>${esc(q.lote)}</b></div>
           <div><small>Hora inicio</small><b>${esc(q.horaInicio)}</b></div>
           <div><small>Hora fin</small><b>${esc(q.horaFin)}</b></div>
-          <div><small>Programada</small><b>${Math.round(num(q.produccion?.programada)).toLocaleString('es-PE')} UND</b></div>
-          <div><small>Efectiva</small><b>${Math.round(num(q.produccion?.efectiva)).toLocaleString('es-PE')} UND</b></div>
+          <div><small>Avance</small><b>${pct.toFixed(1)}%</b></div>
+          <div><small>Programada</small><b>${Math.round(programada).toLocaleString('es-PE')} UND</b></div>
+          <div><small>Producción efectiva</small><b>${Math.round(efectiva).toLocaleString('es-PE')} UND</b></div>
           <div><small>Paradas programadas</small><b>${prog} min</b></div>
           <div><small>Paradas no programadas</small><b>${nprog} min</b></div>
         </div>
-      </section>`;
+      </details>`;
   }).join('');
 
-  const personal=(r.personal||[]).filter(p=>String(p.nombre||'').trim()).map(p=>
-    `<tr><td>${esc(p.posicion)}</td><td>${esc(p.nombre)}</td><td>${esc(p.cargo)}</td></tr>`
+  const personal=personalLista.map(p=>
+    `<tr><td>${esc(p.posicion)}</td><td><strong>${esc(p.nombre)}</strong></td><td>${esc(p.cargo)}</td></tr>`
   ).join('');
 
-  const fotos=(r.evidenciasPT||[]).filter(e=>e?.url).map(e=>
-    `<a class="hist-report-photo" href="${esc(e.url)}" target="_blank" rel="noopener"><img src="${esc(e.url)}" alt="Evidencia PT"><span>Ver fotografía</span></a>`
+  const fotos=(r.evidenciasPT||[]).filter(e=>e?.url).map((e,i)=>
+    `<a class="hist-report-photo" href="${esc(e.url)}" target="_blank" rel="noopener"><img src="${esc(e.url)}" alt="Evidencia PT ${i+1}"><span>PT ${String(i+1).padStart(2,'0')} · Ver evidencia</span></a>`
   ).join('');
 
   const modal=document.createElement('div');
@@ -829,40 +855,76 @@ function verReporteHistorial(id){
   modal.id='hist-report-modal';
   modal.innerHTML=`
     <div class="hist-report-dialog">
-      <div class="hist-report-top">
-        <div>
-          <h2>${esc(r.linea)} · REPORTE DE PRODUCCIÓN</h2>
-          <p>${esc(r.fecha)} · ${r.grupoTurno==='DIA_INTERMEDIO'?'DÍA + INTERMEDIO':esc(r.turno)}</p>
+      <header class="hist-report-top">
+        <div class="hist-report-heading">
+          <span class="hist-report-line">${esc(r.linea)}</span>
+          <div>
+            <h2>Reporte de producción</h2>
+            <p>${esc(r.fecha)} · ${r.grupoTurno==='DIA_INTERMEDIO'?'DÍA + INTERMEDIO':esc(r.turno)}</p>
+          </div>
         </div>
-        <button class="hist-report-close" onclick="cerrarReporteHistorial()">✕</button>
+        <div class="hist-report-top-actions">
+          <span class="hist-report-main-status ${estadoInconsistente?'warn':''}">${estadoInconsistente?'REPORTE CERRADO':esc(estadoReporte)}</span>
+          <button class="hist-report-close" onclick="cerrarReporteHistorial()" aria-label="Cerrar reporte">✕</button>
+        </div>
+      </header>
+
+      <div class="hist-report-trace">
+        <span><small>Iniciado por</small><b>${esc(r.registradoPor)}</b></span>
+        ${r.continuadoPor?`<span><small>Continuado por</small><b>${esc(r.continuadoPor)}</b></span>`:''}
+        ${r.finalizadoPor?`<span><small>Finalizado por</small><b>${esc(r.finalizadoPor)}</b></span>`:''}
+        ${estadoInconsistente?`<span class="hist-report-warning"><small>Validación</small><b>${cuadrosFinalizados}/${cuadros.length} cuadros finalizados</b></span>`:''}
       </div>
-      <div class="hist-report-summary">
-        <span>Estado: <b>${esc((r.estadoRegistro||'FINALIZADO').replaceAll('_',' '))}</b></span>
-        <span>Iniciado por: <b>${esc(r.registradoPor)}</b></span>
-        ${r.continuadoPor?`<span>Continuado por: <b>${esc(r.continuadoPor)}</b></span>`:''}
-        ${r.finalizadoPor?`<span>Finalizado por: <b>${esc(r.finalizadoPor)}</b></span>`:''}
-      </div>
+
       <div class="hist-report-body">
-        ${tarjetas || '<div class="empty-state">Sin cuadros utilizados.</div>'}
-        <section class="hist-report-card">
-          <div class="hist-report-card-head"><strong>Personal del turno</strong></div>
+        <section class="hist-report-kpis">
+          <div><small>Producción total</small><strong>${Math.round(totalEfectivo).toLocaleString('es-PE')}</strong><span>UND</span></div>
+          <div><small>Programado</small><strong>${Math.round(totalProgramado).toLocaleString('es-PE')}</strong><span>UND</span></div>
+          <div><small>Cumplimiento</small><strong>${cumplimiento.toFixed(1)}%</strong><span>Producción / meta</span></div>
+          <div><small>Paradas</small><strong>${Math.round(totalParadas)}</strong><span>min</span></div>
+          <div><small>Personal</small><strong>${personalLista.length}</strong><span>personas</span></div>
+        </section>
+
+        <div class="hist-report-section-title"><span>Producción por cuadro</span><small>${cuadrosFinalizados}/${cuadros.length} finalizados</small></div>
+        <div class="hist-report-production-list">
+          ${tarjetas || '<div class="empty-state">Sin cuadros utilizados.</div>'}
+        </div>
+
+        <details class="hist-report-card hist-report-secondary">
+          <summary class="hist-report-card-head">
+            <div class="hist-report-card-title"><span class="hist-report-section-icon">👥</span><strong>Personal del turno</strong></div>
+            <div class="hist-report-card-state"><span class="hist-report-count">${personalLista.length} personas</span><span class="hist-report-chevron">⌄</span></div>
+          </summary>
           <div class="table-scroll"><table><thead><tr><th>Posición</th><th>Nombre</th><th>Cargo</th></tr></thead><tbody>${personal||'<tr><td colspan="3">Sin datos</td></tr>'}</tbody></table></div>
-        </section>
-        <section class="hist-report-card">
-          <div class="hist-report-card-head"><strong>Observaciones generales</strong></div>
+        </details>
+
+        <details class="hist-report-card hist-report-secondary">
+          <summary class="hist-report-card-head">
+            <div class="hist-report-card-title"><span class="hist-report-section-icon">📝</span><strong>Observaciones generales</strong></div>
+            <span class="hist-report-chevron">⌄</span>
+          </summary>
           <p class="hist-report-observacion">${esc(r.observaciones||'Sin observaciones')}</p>
-        </section>
-        <section class="hist-report-card">
-          <div class="hist-report-card-head"><strong>Hojas de Producto Terminado</strong></div>
-          <div class="hist-report-photos">${fotos||'<span>Sin fotografías disponibles.</span>'}</div>
-        </section>
+        </details>
+
+        <details class="hist-report-card hist-report-secondary" ${(r.evidenciasPT||[]).some(e=>e?.url)?'open':''}>
+          <summary class="hist-report-card-head">
+            <div class="hist-report-card-title"><span class="hist-report-section-icon">▣</span><strong>Hojas de Producto Terminado</strong></div>
+            <div class="hist-report-card-state"><span class="hist-report-count">${(r.evidenciasPT||[]).filter(e=>e?.url).length} archivos</span><span class="hist-report-chevron">⌄</span></div>
+          </summary>
+          <div class="hist-report-photos">${fotos||'<span class="hist-report-empty">Sin fotografías disponibles.</span>'}</div>
+        </details>
       </div>
-      <div class="hist-report-footer">
-        <button class="btn btn-ghost" onclick="cerrarReporteHistorial();vergraficosHistorial('${r.id}')">📊 Ver graficos</button>
-        ${r.estadoRegistro==='REABIERTO'
-          ? `<button class="btn btn-primary" onclick="cerrarReporteHistorial();cargarReporteParaCorreccion('${r.id}')">✏️ Continuar reporte</button>`
-          : ''}
-      </div>
+
+      <footer class="hist-report-footer">
+        <span class="hist-report-footer-note">GLACIAL · Control de producción</span>
+        <div>
+          <button class="btn btn-ghost" onclick="cerrarReporteHistorial();vergraficosHistorial('${r.id}')">📊 Ver gráficos</button>
+          ${r.estadoRegistro==='REABIERTO'
+            ? `<button class="btn btn-primary" onclick="cerrarReporteHistorial();cargarReporteParaCorreccion('${r.id}')">✏️ Continuar reporte</button>`
+            : ''}
+          <button class="btn btn-primary" onclick="cerrarReporteHistorial()">Cerrar</button>
+        </div>
+      </footer>
     </div>`;
   modal.addEventListener('click',e=>{if(e.target===modal) cerrarReporteHistorial();});
   document.body.appendChild(modal);

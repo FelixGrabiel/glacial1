@@ -4161,3 +4161,223 @@ textarea{
 @media (max-width:1199px){
     .hist-table-wrap{overflow-x:auto}
 }
+
+
+/* =========================================================
+   GLACIAL · REPORTE DE PRODUCCIÓN — REDISEÑO INDUSTRIAL 2026
+   Solo afecta al modal de Historial / Ver reporte.
+   ========================================================= */
+.hist-report-modal{
+  padding:18px;
+  background:rgba(0,31,50,.66);
+  backdrop-filter:blur(2px);
+}
+.hist-report-dialog{
+  width:min(1240px,97vw);
+  max-height:94vh;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:14px;
+  background:#f3f6f8;
+  box-shadow:0 28px 80px rgba(0,31,50,.32);
+}
+.hist-report-top{
+  min-height:76px;
+  padding:14px 20px;
+  gap:16px;
+  background:linear-gradient(135deg,var(--blue-dark),var(--blue-deep));
+}
+.hist-report-heading,.hist-report-top-actions,.hist-report-card-title,.hist-report-card-state{
+  display:flex;align-items:center;gap:11px;min-width:0;
+}
+.hist-report-line{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:58px;height:36px;padding:0 11px;border-radius:7px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);
+  font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:.05em;
+}
+.hist-report-top h2{font-size:20px;text-transform:uppercase;letter-spacing:.025em}
+.hist-report-top p{margin-top:3px;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em}
+.hist-report-main-status{
+  display:inline-flex;align-items:center;min-height:28px;padding:5px 11px;border-radius:18px;
+  background:#e5f4eb;color:#2e8b57;font-size:10px;font-weight:800;letter-spacing:.04em;
+}
+.hist-report-main-status.warn{background:var(--warn-bg);color:var(--warn)}
+.hist-report-close{
+  display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;
+  border-radius:8px;transition:background .15s ease;
+}
+.hist-report-close:hover{background:rgba(255,255,255,.12)}
+.hist-report-trace{
+  display:flex;align-items:stretch;gap:0;background:#fff;border-bottom:1px solid var(--line);
+}
+.hist-report-trace>span{
+  min-width:0;padding:9px 17px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;
+}
+.hist-report-trace small{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}
+.hist-report-trace b{color:var(--ink);font-size:11.5px}
+.hist-report-trace .hist-report-warning{background:var(--warn-bg)}
+.hist-report-trace .hist-report-warning b{color:var(--warn)}
+.hist-report-body{padding:14px 18px 18px;gap:10px}
+.hist-report-kpis{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;
+}
+.hist-report-kpis>div{
+  min-width:0;padding:11px 13px;background:#fff;border:1px solid var(--line);
+  border-top:3px solid var(--blue);border-radius:7px;box-shadow:var(--shadow-sm);
+}
+.hist-report-kpis small{
+  display:block;color:var(--steel);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+}
+.hist-report-kpis strong{
+  display:inline-block;margin-top:5px;color:var(--blue-deep);font-family:var(--font-display);
+  font-size:24px;line-height:1;font-weight:600;
+}
+.hist-report-kpis span{margin-left:5px;color:var(--muted);font-size:9.5px}
+.hist-report-section-title{
+  display:flex;justify-content:space-between;align-items:center;padding:5px 2px 1px;
+}
+.hist-report-section-title span{color:var(--ink);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.hist-report-section-title small{color:var(--muted);font-size:10px}
+.hist-report-production-list{display:grid;gap:8px}
+.hist-report-card{border-radius:8px;box-shadow:none}
+.hist-report-production-card{border-left:3px solid var(--blue)}
+.hist-report-card>summary{list-style:none;cursor:pointer}
+.hist-report-card>summary::-webkit-details-marker{display:none}
+.hist-report-card-head{min-height:51px;padding:9px 12px;background:#fff}
+.hist-report-card-title>span:last-child{display:flex;flex-direction:column;gap:1px;min-width:0}
+.hist-report-card-title small{color:var(--muted);font-size:10px;font-weight:500}
+.hist-report-number{
+  display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;
+  border-radius:7px;background:var(--blue-light);color:var(--blue-deep);
+  font-family:var(--font-mono);font-size:10px;font-weight:700;
+}
+.hist-report-card-state{margin-left:auto}
+.hist-report-chevron{display:inline-block;color:var(--muted);font-size:17px;transition:transform .16s ease}
+details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180deg)}
+.hist-report-progress{height:3px;background:#edf2f5}
+.hist-report-progress span{display:block;height:100%;max-width:100%;background:var(--blue)}
+.hist-report-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.hist-report-grid>div{padding:8px 12px;min-width:0}
+.hist-report-grid small{font-size:8.5px;letter-spacing:.04em}
+.hist-report-grid b{margin-top:3px;font-size:11px;overflow-wrap:anywhere}
+.hist-report-secondary{margin-top:1px}
+.hist-report-secondary .hist-report-card-head{min-height:47px}
+.hist-report-section-icon{
+  display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+  border-radius:6px;background:#f0f5f8;color:var(--blue);font-size:13px;
+}
+.hist-report-count{
+  padding:4px 8px;border-radius:12px;background:#eef4f7;color:var(--steel);
+  font-family:var(--font-mono);font-size:9px;font-weight:700;
+}
+.hist-report-secondary table{margin:0}
+.hist-report-secondary th,.hist-report-secondary td{padding:8px 12px;font-size:10.5px}
+.hist-report-observacion{padding:11px 13px;color:var(--ink-soft);font-size:11.5px;line-height:1.5}
+.hist-report-photos{padding:11px;gap:9px}
+.hist-report-photo{
+  width:145px;padding:5px;border:1px solid var(--line);border-radius:7px;background:#fff;
+  transition:border-color .15s ease,box-shadow .15s ease;
+}
+.hist-report-photo:hover{border-color:#b6d5e7;box-shadow:var(--shadow-sm)}
+.hist-report-photo img{width:133px;height:78px;margin-bottom:5px}
+.hist-report-photo span{display:block;padding:0 2px 2px;font-size:9.5px}
+.hist-report-empty{padding:4px;color:var(--muted);font-size:11px}
+.hist-report-footer{
+  min-height:62px;padding:10px 18px;align-items:center;justify-content:space-between;
+  box-shadow:0 -4px 14px rgba(0,48,75,.035);
+}
+.hist-report-footer>div{display:flex;gap:7px}
+.hist-report-footer-note{color:var(--muted);font-family:var(--font-mono);font-size:9px;letter-spacing:.05em}
+
+@media(max-width:900px){
+  .hist-report-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hist-report-trace{overflow-x:auto}
+  .hist-report-trace>span{min-width:155px}
+}
+@media(max-width:700px){
+  .hist-report-modal{padding:0}
+  .hist-report-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}
+  .hist-report-top{padding:12px 13px}
+  .hist-report-line{display:none}
+  .hist-report-top h2{font-size:17px}
+  .hist-report-main-status{display:none}
+  .hist-report-body{padding:11px}
+  .hist-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hist-report-kpis>div:first-child{grid-column:span 2}
+  .hist-report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hist-report-footer{padding:9px 11px}
+  .hist-report-footer-note{display:none}
+  .hist-report-footer>div{width:100%}
+  .hist-report-footer .btn{flex:1;padding-inline:8px}
+}
+
+
+/* =========================================================
+   GLACIAL · REPORTE PRODUCCIÓN
+   SCROLL VERTICAL + HORIZONTAL
+   ========================================================= */
+
+/* El modal completo nunca se sale de la pantalla */
+.hist-report-dialog{
+    overflow:hidden;
+}
+
+/* Área central desplazable en ambos sentidos */
+.hist-report-body{
+    overflow-y:auto;
+    overflow-x:auto;
+    min-width:0;
+    scrollbar-width:thin;
+    scrollbar-color:#9DB7C7 #EAF0F4;
+}
+
+/* Permite desplazamiento horizontal cuando una tabla o contenido lo requiera */
+.hist-report-body .table-scroll{
+    width:100%;
+    max-width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+}
+
+/* Scrollbar Chrome / Edge */
+.hist-report-body::-webkit-scrollbar,
+.hist-report-body .table-scroll::-webkit-scrollbar{
+    width:10px;
+    height:10px;
+}
+
+.hist-report-body::-webkit-scrollbar-track,
+.hist-report-body .table-scroll::-webkit-scrollbar-track{
+    background:#EAF0F4;
+    border-radius:10px;
+}
+
+.hist-report-body::-webkit-scrollbar-thumb,
+.hist-report-body .table-scroll::-webkit-scrollbar-thumb{
+    background:#9DB7C7;
+    border:2px solid #EAF0F4;
+    border-radius:10px;
+}
+
+.hist-report-body::-webkit-scrollbar-thumb:hover,
+.hist-report-body .table-scroll::-webkit-scrollbar-thumb:hover{
+    background:#6F98AE;
+}
+
+/* Evita que tablas grandes se compriman demasiado */
+.hist-report-body .table-scroll table{
+    min-width:720px;
+}
+
+/* En móvil mantenemos desplazamiento táctil */
+@media(max-width:700px){
+    .hist-report-body{
+        overflow:auto;
+        -webkit-overflow-scrolling:touch;
+    }
+
+    .hist-report-body .table-scroll table{
+        min-width:650px;
+    }
+}
