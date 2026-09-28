@@ -45,13 +45,27 @@
   }
   function quienControla(linea){
     const u=state.user;
-    if(!u || state.workMode==='visualizar' ||
+
+    // Producción Actual puede mostrar controles operativos aunque el usuario
+    // tenga el modo global "visualizar". La autorización real la determina
+    // el permiso/rol correspondiente, no state.workMode.
+    if(!u ||
        (typeof esGerenteSoloLectura==='function' && esGerenteSoloLectura(u)))return '';
+
+    // IMPORTANTE: primero resolvemos los perfiles de Producción.
+    // Un Supervisor/Jefatura/Admin puede tener también control_operativo_lineas;
+    // ese permiso adicional NO debe degradarlo a "control" (Mantenimiento),
+    // porque perdería Iniciar / Finalizar / Cancelar.
     if(['Administrador','Jefe de Producción','Jefe de Operaciones'].includes(u.rol) &&
        tienePermiso('paletas'))return 'supervisor';
+
     if(u.rol==='Supervisor' && tienePermiso('paletas') &&
        (!u.linea || u.linea===linea))return 'supervisor';
+
+    // Mantenimiento u otro usuario autorizado conserva únicamente
+    // Detener / Pausa / Reanudar / Intervención terminada.
     if(tienePermiso('control_operativo_lineas')) return 'control';
+
     return '';
   }
   // Da acceso al tablero a quienes tienen que registrar el estado.
@@ -167,7 +181,12 @@
       if(!indices.length)return;
 
       if(activoKey && k===activoKey){
-        x.estadoVisual='EN_PRODUCCION';
+        // La secuencia define cuál presentación corresponde producir,
+        // pero NO la inicia automáticamente. El estado EN CURSO solo nace
+        // de estadoOperacion.estado === 'EN_PRODUCCION'.
+        x.estadoVisual = x.op?.estado === 'EN_PRODUCCION'
+          ? 'EN_PRODUCCION'
+          : 'PENDIENTE';
         return;
       }
 
@@ -246,10 +265,15 @@
   }
 
   function acciones(x,idx){
-    if(!x.vivo || !x.prog || !num(x.prog.cantidadProgramada) || !x.puede)return '';
+    if(!x.prog || !num(x.prog.cantidadProgramada) || !x.puede)return '';
+
+    const e=x.op?.estado;
     const boton=(accion,label)=>`<button type="button" class="btn btn-ghost btn-sm"
       data-pa-accion="${accion}" data-pa-indice="${idx}">${label}</button>`;
-    const e=x.op?.estado;
+
+    // La vista puede estar en TODOS/DÍA mientras el supervisor operativo
+    // corresponde a INTERMEDIO. No ocultamos la botonera por x.vivo:
+    // la autorización se valida al ejecutar la acción.
     if(x.puede==='mtto' || x.puede==='control'){
       if(e==='EN_PRODUCCION'){
         return boton('detener','Detener línea')+
@@ -285,9 +309,8 @@
   function avisoAccion(x){
     if(!x.prog || !num(x.prog.cantidadProgramada))
       return 'Para iniciar, primero debe existir programación para esta línea, fecha, turno y presentación.';
-    if(!x.vivo)
-      return 'Los controles aparecen únicamente en el turno activo. Pulsa «Ver turno actual».';
-    if(state.workMode==='visualizar')return 'Cambia al modo Trabajar para usar los controles.';
+    if(!x.vivo && !['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(x.op?.estado))
+      return 'Los controles para iniciar aparecen únicamente en el turno operativo vigente.';
     if((x.puede==='mtto' || x.puede==='control') && !x.op?.estado)
       return 'El supervisor inicia la presentación; Mantenimiento puede registrar la detención.';
     if(!x.puede)
@@ -414,8 +437,11 @@
       // nunca debe volver a EN CURSO solo porque tenga registros de paletas.
       items.forEach(x=>{ delete x.estadoVisual; });
 
-      const turnoVistaSecuencia=items[0]?.turno || turnos[0];
-      const turnoPlanSecuencia=items[0]?.turnoPlan || turnoVistaSecuencia;
+      const itemTurnoActual = fecha===turnoReal.fecha
+        ? items.find(x=>x.turno===turnoReal.turno)
+        : null;
+      const turnoVistaSecuencia=itemTurnoActual?.turno || items[0]?.turno || turnos[0];
+      const turnoPlanSecuencia=itemTurnoActual?.turnoPlan || items[0]?.turnoPlan || turnoVistaSecuencia;
       const secuenciaActiva=aplicarEstadoVisualSecuencia(
         items,line.key,fecha,turnoPlanSecuencia,turnoVistaSecuencia,ahora
       );
@@ -432,13 +458,25 @@
       // a abrir visualmente una presentación ya FINALIZADA.
       const activoSecuencia=items.find(x=>x.estadoVisual==='EN_PRODUCCION');
       const pausaSecuencia=items.find(x=>x.estadoVisual==='PAUSA_SECUENCIA');
-      const activo=detenidos[0] ||
-        activoSecuencia || pausas[0] || activosGuardados[0] ||
-        items.find(x=>x.op?.estado==='LISTA') || pausaSecuencia ||
+      const pendienteTurnoActual = fecha===turnoReal.fecha
+        ? items.find(x=>x.turno===turnoReal.turno &&
+            !['FINALIZADA','CANCELADA'].includes(x.op?.estado))
+        : null;
+      let activo=detenidos[0] || pausas[0] || activosGuardados[0] ||
+        items.find(x=>x.op?.estado==='LISTA') ||
+        activoSecuencia || pausaSecuencia || pendienteTurnoActual ||
         items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado)) ||
         items[0] || vacios[0];
 
-      const hayCurso=items.some(x=>(x.estadoVisual || x.op?.estado)==='EN_PRODUCCION');
+      // DÍA e INTERMEDIO comparten la misma programación. Si estamos viendo
+      // el turno operativo actual, las acciones deben ejecutarse con ese turno
+      // aunque la programación física viva en el documento de DÍA.
+      if(activo && fecha===turnoReal.fecha && ['DÍA','INTERMEDIO'].includes(turnoReal.turno) &&
+         ['DÍA','INTERMEDIO'].includes(activo.turno)){
+        activo={...activo,turno:turnoReal.turno,vivo:true};
+      }
+
+      const hayCurso=items.some(x=>x.op?.estado==='EN_PRODUCCION');
       const hayFinalizada=items.some(x=>x.op?.estado==='FINALIZADA');
       const hayPendiente=items.some(x=>!x.op?.estado || x.op?.estado==='PENDIENTE');
       const todosCerrados=items.length>0 && items.every(
@@ -788,6 +826,9 @@
                   ? `<div class="pa-stop-reason">Motivo: ${esc(g.activo.op.motivo)}</div>`
                   : ''}
                 <div class="pa-live-actions">${acciones(g.activo,idxActivo)}</div>
+                ${!acciones(g.activo,idxActivo) && g.activo.puede==='control' && !g.activo.op?.estado
+                  ? '<div class="small-muted" style="margin-top:8px">Esperando que Producción inicie la presentación.</div>'
+                  : ''}
               ` : '<div class="small-muted">Sin producción activa.</div>'}
             </section>
 
@@ -964,7 +1005,8 @@
   document.head.appendChild(css);
 
   async function cambiarEstado(x,accion){
-    if(!x || !turnoActivo(x.fecha,x.turno) || !quienControla(x.linea))return;
+    if(!x || !quienControla(x.linea))return;
+
     const controlador=quienControla(x.linea);
     const esSupervisor=controlador==='supervisor';
     const esControlOperativo=['mtto','control'].includes(controlador);
