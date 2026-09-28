@@ -51,7 +51,7 @@
        tienePermiso('paletas'))return 'supervisor';
     if(u.rol==='Supervisor' && tienePermiso('paletas') &&
        (!u.linea || u.linea===linea))return 'supervisor';
-    if(u.rol==='Mantenimiento' && tienePermiso('moduloMantenimiento'))return 'mtto';
+    if(tienePermiso('control_operativo_lineas')) return 'control';
     return '';
   }
   // Da acceso al tablero a quienes tienen que registrar el estado.
@@ -246,9 +246,18 @@
     const boton=(accion,label)=>`<button type="button" class="btn btn-ghost btn-sm"
       data-pa-accion="${accion}" data-pa-indice="${idx}">${label}</button>`;
     const e=x.op?.estado;
-    if(x.puede==='mtto'){
-      if(e==='EN_PRODUCCION')return boton('detener','Detener línea');
-      if(e==='DETENIDA')return boton('lista','Intervención terminada');
+    if(x.puede==='mtto' || x.puede==='control'){
+      if(e==='EN_PRODUCCION'){
+        return boton('detener','Detener línea')+
+          boton('pausa','Pausa programada');
+      }
+      if(e==='DETENIDA'){
+        return boton('lista','Intervención terminada')+
+          boton('reanudar','Reanudar producción');
+      }
+      if(e==='LISTA' || e==='PAUSA'){
+        return boton('reanudar','Reanudar producción');
+      }
       return '';
     }
     if(e==='CANCELADA')return '';
@@ -268,7 +277,7 @@
     if(!x.vivo)
       return 'Los controles aparecen únicamente en el turno activo. Pulsa «Ver turno actual».';
     if(state.workMode==='visualizar')return 'Cambia al modo Trabajar para usar los controles.';
-    if(x.puede==='mtto' && !x.op?.estado)
+    if((x.puede==='mtto' || x.puede==='control') && !x.op?.estado)
       return 'El supervisor inicia la presentación; Mantenimiento puede registrar la detención.';
     if(!x.puede)
       return 'Solo el supervisor asignado, Administrador o Jefatura puede iniciar esta presentación.';
@@ -783,10 +792,21 @@
 
   async function cambiarEstado(x,accion){
     if(!x || !turnoActivo(x.fecha,x.turno) || !quienControla(x.linea))return;
-    if(accion==='iniciar' && quienControla(x.linea)!=='supervisor')return;
-    if(['reanudar','pausa','finalizar','cancelar'].includes(accion) &&
-       quienControla(x.linea)!=='supervisor')return;
-    if(accion==='lista' && quienControla(x.linea)!=='mtto')return;
+    const controlador=quienControla(x.linea);
+    const esSupervisor=controlador==='supervisor';
+    const esControlOperativo=['mtto','control'].includes(controlador);
+
+    if(accion==='iniciar' && !esSupervisor)return;
+
+    // Mantenimiento / Control operativo puede DETENER, PAUSAR,
+    // REANUDAR y marcar INTERVENCIÓN TERMINADA.
+    if(['reanudar','pausa'].includes(accion) &&
+       !(esSupervisor || esControlOperativo))return;
+
+    // FINALIZAR y CANCELAR siguen siendo exclusivos de Producción.
+    if(['finalizar','cancelar'].includes(accion) && !esSupervisor)return;
+
+    if(accion==='lista' && !esControlOperativo)return;
     let motivo='';
     if(accion==='detener'){
       motivo=prompt('Motivo de la detención (obligatorio):')?.trim() || '';

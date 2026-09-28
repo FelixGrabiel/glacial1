@@ -54,9 +54,10 @@ function calcDerivedLegacy(r){
   const programada = num(r.produccion?.programada);
   const sopladas = num(r.produccion?.sopladas);
 
-  /* El campo "Botellas calidad" es la cantidad de botellas RECHAZADAS (no conformes). */
-  const rechazadas = num(r.produccion?.calidad);
-  const calidadBot = Math.max(sopladas - rechazadas, 0); /* botellas conformes */
+  /* CALIDAD = unidades tomadas como muestra; no son rechazo ni merma. */
+  const muestrasCalidad = num(r.produccion?.calidad);
+  const rechazadas = 0;
+  const calidadBot = sopladas;
 
   const disponibilidad = horasTurno > 0 ? horasEfectivas / horasTurno : 0;
   const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
@@ -81,6 +82,7 @@ function calcDerivedLegacy(r){
     pProg,
     pNoProg,
     rechazadas,
+    muestrasCalidad,
     calidadBot
   };
 }
@@ -98,9 +100,15 @@ function calcDerivedCuadro(cuadro){
   const programada = num(cuadro?.produccion?.programada);
   const sopladas = num(cuadro?.produccion?.sopladas);
 
-  /* El campo "Botellas calidad" es la cantidad de botellas RECHAZADAS (no conformes). */
-  const rechazadas = num(cuadro?.produccion?.calidad);
-  const calidadBot = Math.max(sopladas - rechazadas, 0); /* botellas conformes */
+  /*
+     CALIDAD = unidades retiradas por el área de Calidad como muestra.
+     NO son rechazo, merma ni producto no conforme.
+     Se conserva produccion.calidad como clave interna para compatibilidad
+     con registros históricos, pero no penaliza el indicador de Calidad/OEE.
+  */
+  const muestrasCalidad = num(cuadro?.produccion?.calidad);
+  const rechazadas = 0;
+  const calidadBot = sopladas;
 
   const disponibilidad = horasTurno > 0 ? horasEfectivas / horasTurno : 0;
   const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
@@ -125,6 +133,7 @@ function calcDerivedCuadro(cuadro){
     pProg,
     pNoProg,
     rechazadas,
+    muestrasCalidad,
     calidadBot
   };
 }
@@ -142,9 +151,10 @@ function calcDerivedMulti(r){
   const programada = cuadros.reduce((a,c) => a + num(c?.produccion?.programada), 0);
   const sopladas = cuadros.reduce((a,c) => a + num(c?.produccion?.sopladas), 0);
 
-  /* Rechazadas: suma del campo "Botellas calidad". Conformes: sopladas - rechazadas, cuadro por cuadro. */
-  const rechazadas = cuadros.reduce((a,c) => a + num(c?.produccion?.calidad), 0);
-  const calidadBot = ds.reduce((a,d) => a + num(d.calidadBot), 0);
+  /* CALIDAD son muestras de laboratorio/control; no rechazo ni merma. */
+  const muestrasCalidad = cuadros.reduce((a,c) => a + num(c?.produccion?.calidad), 0);
+  const rechazadas = 0;
+  const calidadBot = sopladas;
 
   const pProg = ds.reduce((a,d) => a + num(d.pProg), 0);
   const pNoProg = ds.reduce((a,d) => a + num(d.pNoProg), 0);
@@ -1071,97 +1081,6 @@ async function subirEvidenciasPT(recordId){
    REGISTRO VACÍO
    ========================================================= */
 
-
-/* =========================================================
-   UI NUEVO REGISTRO · GRAMAJES Y PRESENTACIONES SIMPLIFICADAS
-   ========================================================= */
-
-function gramajesPermitidosRegistro(linea){
-  const todos = [
-    '42.7','43.7','45.7','33.7','21.7',
-    '23.7','17.7','15.7','13.8','12.7'
-  ];
-
-  if(linea === 'PET1') return ['42.7','43.7'];
-  if(linea === 'PET2') return todos.filter(g => !['42.7','43.7'].includes(g));
-  if(linea === 'B7L') return ['90'];
-
-  return todos;
-}
-
-function gramajePredeterminadoRegistro(linea){
-  if(linea === 'PET1') return '42.7';
-  if(linea === 'B7L') return '90';
-  return '';
-}
-
-function clavePresentacionVisualRegistro(presentacion){
-  const t = String(presentacion || '').toLowerCase().replace(/\s+/g,'');
-
-  if(t.includes('380ml') && t.includes('24und')) return '380_24';
-  if(t.includes('625ml') && t.includes('6und')) return '625_6';
-  if(t.includes('625ml') && t.includes('15und')) return '625_15';
-  if(t.includes('1.5l') && t.includes('6und')) return '1.5_6';
-  if(t.includes('2.5l') && t.includes('6und')) return '2.5_6';
-  if(t.includes('1lx6und')) return '1_6';
-  if(t.includes('1lx12und')) return '1_12';
-
-  return '';
-}
-
-function etiquetaPresentacionVisualRegistro(clave){
-  return {
-    '380_24':'380 ML PACK X 24 UND',
-    '625_6':'625 ML PACK X 6 UND',
-    '625_15':'625 ML PACK X 15 UND',
-    '1_6':'1 L PACK X 6 UND',
-    '1_12':'1 L PACK X 12 UND',
-    '1.5_6':'1.5 L PACK X 6 UND',
-    '2.5_6':'2.5 L PACK X 6 UND'
-  }[clave] || '';
-}
-
-function presentacionesVisualesRegistro(linea, presentacionActual=''){
-  const origen = PRESENTACIONES_POR_LINEA[linea] || [];
-
-  // La simplificación aplica a PET. Las demás líneas conservan
-  // exactamente sus presentaciones actuales.
-  if(!['PET1','PET2'].includes(linea)){
-    return origen.map(value => ({value, label:value}));
-  }
-
-  const mapa = new Map();
-
-  origen.forEach(value => {
-    const clave = clavePresentacionVisualRegistro(value);
-    if(!clave) return;
-
-    const actual = mapa.get(clave);
-    const txt = String(value || '').toLowerCase();
-
-    // Preferimos /ln como código interno cuando hay duplicados.
-    if(!actual || txt.endsWith('/ln')){
-      mapa.set(clave, value);
-    }
-  });
-
-  // Si editamos un registro existente, conservamos su código interno
-  // aunque visualmente se muestre la presentación simplificada.
-  const claveActual = clavePresentacionVisualRegistro(presentacionActual);
-  if(claveActual && origen.includes(presentacionActual)){
-    mapa.set(claveActual, presentacionActual);
-  }
-
-  const orden = ['380_24','625_6','625_15','1_6','1_12','1.5_6','2.5_6'];
-
-  return orden
-    .filter(clave => mapa.has(clave))
-    .map(clave => ({
-      value: mapa.get(clave),
-      label: etiquetaPresentacionVisualRegistro(clave)
-    }));
-}
-
 function blankCuadro(lineKey, numero){
 
   const marcas =
@@ -1202,7 +1121,7 @@ function blankCuadro(lineKey, numero){
 
     presentacion,
 
-    gramajePreforma: gramajePredeterminadoRegistro(lineKey),
+    gramajePreforma: 0,
 
     ratioNominal:
       activo
@@ -2294,6 +2213,22 @@ function renderMain(){
 
 
   /* =====================================================
+     ROTACIÓN DE SUPERVISORES
+     ===================================================== */
+  if(state.currentTab === 'rotacion-supervisores'){
+    if(
+      !tienePermiso('gestionar_rotacion_supervisores') ||
+      typeof renderRotacionSupervisores!=='function'
+    ){
+      main.innerHTML='<div class="empty-state"><h4>Acceso no autorizado</h4></div>';
+      return;
+    }
+    renderRotacionSupervisores();
+    return;
+  }
+
+
+  /* =====================================================
      RESUMEN GENERAL
      ===================================================== */
 
@@ -3081,6 +3016,61 @@ function aplicarBloqueoReporteFinalizado(){
   });
 }
 
+
+/* =========================================================
+   REGLAS DE PREFORMA POR LÍNEA
+   PET1: 42.7 / 43.7
+   PET2: todas las PET excepto 42.7 / 43.7 / 45.7
+   B7L : solo 90 g
+   Otras líneas: no usan preforma
+   ========================================================= */
+
+function gramajesPreformaPorLinea(linea){
+  const gramajesPet=[
+    '42.7','43.7','45.7','33.7','21.7',
+    '23.7','17.7','15.7','13.8','12.7'
+  ];
+
+  if(linea==='PET1') return ['42.7','43.7'];
+
+  if(linea==='PET2'){
+    return gramajesPet.filter(
+      g=>!['42.7','43.7','45.7'].includes(g)
+    );
+  }
+
+  if(linea==='B7L') return ['90'];
+
+  return [];
+}
+
+function normalizarGramajePreformaCuadro(q,linea){
+  if(!q) return;
+
+  const permitidos=gramajesPreformaPorLinea(linea);
+
+  if(linea==='PET1'){
+    if(!permitidos.includes(String(q.gramajePreforma||''))){
+      q.gramajePreforma='42.7';
+    }
+    return;
+  }
+
+  if(linea==='B7L'){
+    q.gramajePreforma='90';
+    return;
+  }
+
+  if(linea==='PET2'){
+    if(!permitidos.includes(String(q.gramajePreforma||''))){
+      q.gramajePreforma='';
+    }
+    return;
+  }
+
+  q.gramajePreforma='';
+}
+
 function renderFormTab(){
 
   if(
@@ -3136,27 +3126,7 @@ function renderFormTab(){
     draft
   );
 
-  (draft.cuadros || []).forEach(q => {
-    if(!q) return;
-
-    if(
-      state.currentLine === 'PET1' &&
-      !['42.7','43.7'].includes(String(q.gramajePreforma ?? ''))
-    ){
-      q.gramajePreforma = '42.7';
-    }
-
-    if(
-      state.currentLine === 'PET2' &&
-      ['42.7','43.7'].includes(String(q.gramajePreforma ?? ''))
-    ){
-      q.gramajePreforma = '';
-    }
-
-    if(state.currentLine === 'B7L'){
-      q.gramajePreforma = '90';
-    }
-  });
+  (draft.cuadros||[]).forEach(q=>normalizarGramajePreformaCuadro(q,state.currentLine));
 
 
   actualizarTodosCuadros();
@@ -3248,10 +3218,9 @@ function renderFormTab(){
 
 
       const presentaciones =
-        presentacionesVisualesRegistro(
-          state.currentLine,
-          q.presentacion
-        );
+        PRESENTACIONES_POR_LINEA[
+          state.currentLine
+        ] || [];
 
 
       const optionList =
@@ -3261,14 +3230,14 @@ function renderFormTab(){
             ? arr.map(
                 o =>
                   `<option
-                    value="${o.value}"
+                    value="${o}"
                     ${
-                      o.value === q.presentacion
+                      o === q.presentacion
                         ? 'selected'
                         : ''
                     }
                   >
-                    ${o.label}
+                    ${o}
                   </option>`
               ).join('')
 
@@ -3498,11 +3467,12 @@ function renderFormTab(){
               </div>
 
 
+              ${
+                ['PET1','PET2','B7L'].includes(state.currentLine)
+                  ? `
               <div class="field-sm">
 
-                <label
-                  for="gramaje_preforma_${i}"
-                >
+                <label for="gramaje_preforma_${i}">
                   Gramaje preforma (g)
                 </label>
 
@@ -3526,24 +3496,19 @@ function renderFormTab(){
                 >
 
                   ${
-                    state.currentLine === 'B7L'
-                      ? ''
-                      : `<option value="">Seleccione...</option>`
+                    state.currentLine==='PET2'
+                      ? `<option value="">Seleccione...</option>`
+                      : ''
                   }
 
                   ${
-                    gramajesPermitidosRegistro(
-                      state.currentLine
-                    )
-                    .map(
-                      g =>
-                        `
+                    gramajesPreformaPorLinea(state.currentLine)
+                      .map(
+                        g=>`
                           <option
                             value="${g}"
                             ${
-                              String(
-                                q.gramajePreforma ?? ''
-                              ) === g
+                              String(q.gramajePreforma ?? '')===g
                                 ? 'selected'
                                 : ''
                             }
@@ -3551,14 +3516,16 @@ function renderFormTab(){
                             ${g} g
                           </option>
                         `
-                    )
-                    .join('')
+                      )
+                      .join('')
                   }
 
                 </select>
 
               </div>
-
+                  `
+                  : ''
+              }
 
               <div class="field-sm">
 
@@ -3763,7 +3730,7 @@ function renderFormTab(){
 
                 ${
                   field(
-                    'Botellas rechazadas (calidad)',
+                    'CALIDAD',
                     'number',
                     q.produccion.calidad,
                     `

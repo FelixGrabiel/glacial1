@@ -11,7 +11,7 @@
 function visibleLines(){
   if(esUsuarioSoloConsulta(state.user))return [];
   if(!puedeVerLineasProduccion())return [];
-  if(!['nuevo','historial','graficos','paletas'].some(p=>tienePermiso(p)))return [];
+  if(!['nuevo','historial','gráficos','paletas'].some(p=>tienePermiso(p)))return [];
   if(tienePermiso('todasLasLineas'))return LINES;
   if(state.user.linea)return LINES.filter(l=>l.key===state.user.linea);
   return LINES;
@@ -32,7 +32,7 @@ function puedeVerLineasProduccion(){
   ].includes(state.user.rol);
 }
 
-const PESTANAS_LINEA=['nuevo','historial','graficos','paletas'];
+const PESTANAS_LINEA=['nuevo','historial','gráficos','paletas'];
 
 function primeraVistaAutorizada(){
   if(visibleLines().length){
@@ -42,7 +42,7 @@ function primeraVistaAutorizada(){
   const globales=[
     ['produccionActual','produccion-actual'], ['resumen','resumen'],
     ['perdidasSoles','perdidas'], ['moduloMantenimiento','mantenimiento'],
-    ['moduloRRHH','rrhh'], ['tareoProduccion','tareo'],
+    ['moduloRRHH','rrhh'], ['gestionar_rotacion_supervisores','rotacion-supervisores'], ['tareoProduccion','tareo'],
     ['tareoGeneral','tareo']
   ];
   return globales.find(([permiso])=>tienePermiso(permiso))?.[1] || '';
@@ -53,6 +53,7 @@ function ajustarVistaSegunPermisos(){
     resumen:'resumen',perdidas:'perdidasSoles',
     'produccion-actual':'produccionActual',
     mantenimiento:'moduloMantenimiento',rrhh:'moduloRRHH',
+    'rotacion-supervisores':'gestionar_rotacion_supervisores',
     tareo:'tareoProduccion'
   };
   const tab=state.currentTab;
@@ -137,6 +138,7 @@ function renderSidebar(){
     'btn-mantenimiento':['moduloMantenimiento','mantenimiento'],
     'btn-rrhh':['moduloRRHH','rrhh'],
     'btn-tareo':['tareoProduccion','tareo'],
+    'btn-rotacion-supervisores':['gestionar_rotacion_supervisores','rotacion-supervisores'],
     'btn-usuarios':['gestionarPersonal',''],
     'btn-trabajadores':['gestionarPersonal','']
   };
@@ -369,6 +371,16 @@ function goRRHH(){
   if(esUsuarioSoloConsulta(state.user) && typeof tareoGeneralFiltros!=='undefined'){
     tareoGeneralFiltros.area='';
   }
+  renderSidebar();
+  renderMain();
+}
+
+function goRotacionSupervisores(){
+  if(!tienePermiso('gestionar_rotacion_supervisores')){
+    alert('No tienes permiso para gestionar la rotación de supervisores.');
+    return;
+  }
+  state.currentTab='rotacion-supervisores';
   renderSidebar();
   renderMain();
 }

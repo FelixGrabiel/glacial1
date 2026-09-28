@@ -129,7 +129,9 @@ const PERMISOS_APP=[
   {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
   {key:'paletas',label:'Paletas (registro en tiempo real)'},
   {key:'programarPaletas',label:'Programar producción / Secuencia del turno'},
+  {key:'gestionar_rotacion_supervisores',label:'Gestionar rotación de supervisores'},
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
+  {key:'control_operativo_lineas',label:'Control operativo de líneas (Detener / Reanudar / Intervención terminada)'},
   {key:'gestionarPersonal',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
   {key:'verLineasProduccion',label:'Ver líneas de producción en el menú lateral'},
   {key:'tareoProduccion',label:'Tareo de Producción (registrar asistencia)'},
@@ -159,6 +161,116 @@ function esUsuarioSoloConsulta(usuario){
   return !!usuario && ROLES_SOLO_CONSULTA.has(String(usuario.rol||'').trim());
 }
 
+
+/* =========================================================
+   GESTIÓN DE TURNO DEL SUPERVISOR
+   La configuración vive en el usuario (sync/users), no fija
+   en el código. Compatible con usuarios antiguos sin horario.
+   ========================================================= */
+
+function minutosHoraTurno(valor){
+  const m=String(valor||'').match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return null;
+  const h=Number(m[1]), min=Number(m[2]);
+  if(h<0 || h>23 || min<0 || min>59) return null;
+  return h*60+min;
+}
+
+function clasificarTurnoPorHorario(inicio,fin){
+  const a=minutosHoraTurno(inicio);
+  const b=minutosHoraTurno(fin);
+  if(a===null || b===null) return '';
+  if(b<=a || a>=20*60) return 'NOCHE';
+  if(a>=12*60) return 'INTERMEDIO';
+  return 'DÍA';
+}
+
+function fechaLocalISO(fecha=new Date()){
+  return [
+    fecha.getFullYear(),
+    String(fecha.getMonth()+1).padStart(2,'0'),
+    String(fecha.getDate()).padStart(2,'0')
+  ].join('-');
+}
+
+function contextoTurnoUsuario(usuario=state.user, ahora=new Date()){
+  if(!usuario) return null;
+
+  /*
+     Para Supervisores, la fuente oficial es la ROTACIÓN SEMANAL
+     PUBLICADA. El horario permanente del usuario deja de decidir
+     su turno operativo.
+  */
+  if(
+    String(usuario.rol||'')==='Supervisor' &&
+    typeof resolverContextoRotacionSupervisor==='function'
+  ){
+    const rotacion=resolverContextoRotacionSupervisor(usuario,ahora);
+    if(rotacion) return rotacion;
+
+    if(typeof _rotacionesReady!=='undefined' && _rotacionesReady){
+      return {
+        turno:'',
+        horarioInicio:'',
+        horarioFin:'',
+        fechaOperativa:fechaLocalISO(ahora),
+        estado:'SIN_ROTACION',
+        automatico:true,
+        origen:'ROTACION_SEMANAL'
+      };
+    }
+  }
+
+  // Compatibilidad para usuarios no Supervisor y durante la carga inicial.
+  const inicio=String(usuario.horarioInicio||'').trim();
+  const fin=String(usuario.horarioFin||'').trim();
+  const turnoConfigurado=String(usuario.turnoSupervisor||'').trim();
+  const turno=turnoConfigurado || clasificarTurnoPorHorario(inicio,fin);
+
+  if(!turno){
+    return {
+      turno:'',
+      horarioInicio:inicio,
+      horarioFin:fin,
+      fechaOperativa:fechaLocalISO(ahora),
+      estado:'SIN_CONFIGURAR',
+      automatico:false
+    };
+  }
+
+  let fechaOperativa=fechaLocalISO(ahora);
+  const ini=minutosHoraTurno(inicio);
+  const finMin=minutosHoraTurno(fin);
+  const actual=ahora.getHours()*60+ahora.getMinutes();
+
+  if(turno==='NOCHE' && ini!==null && finMin!==null && finMin<=ini && actual<finMin){
+    const anterior=new Date(ahora);
+    anterior.setDate(anterior.getDate()-1);
+    fechaOperativa=fechaLocalISO(anterior);
+  }
+
+  let activo=true;
+  if(ini!==null && finMin!==null){
+    activo=finMin>ini
+      ? actual>=ini && actual<finMin
+      : actual>=ini || actual<finMin;
+  }
+
+  return {
+    turno,
+    horarioInicio:inicio,
+    horarioFin:fin,
+    fechaOperativa,
+    estado:activo?'ACTIVO':'FUERA_DE_HORARIO',
+    automatico:true,
+    origen:'USUARIO_LEGACY'
+  };
+}
+
+function turnoAutomaticoUsuario(usuario=state.user){
+  return contextoTurnoUsuario(usuario)?.turno || '';
+}
+
 function puedeGestionarPersonal(){
   return !!state.user &&
     ['Administrador','Supervisor'].includes(state.user.rol) &&
@@ -168,20 +280,29 @@ function puedeGestionarPersonal(){
 function permisosPorRolAnterior(rol){
   if(rol==='Administrador') return 'todos';
   if(ROLES_SOLO_CONSULTA.has(rol)) return [...PERMISOS_SOLO_CONSULTA];
-  if(rol==='Supervisor') return ['nuevo','historial','graficos','paletas','gestionarPersonal'];
+  if(rol==='Supervisor') return ['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','tareoProduccion','exportarExcel','exportarJPG'];
   return ['nuevo','historial','graficos','paletas'];
 }
 
 function normalizarPermisosUsuario(u){
   if(!u) return [];
   // Prevalece el rol, incluso si una cuenta antigua tiene permisos:'todos'.
-  if(esUsuarioSoloConsulta(u)) return [...PERMISOS_SOLO_CONSULTA];
+  if(esUsuarioSoloConsulta(u)){
+    const base=[...PERMISOS_SOLO_CONSULTA];
+    if(String(u.rol||'').trim()==='Jefe de Producción'){
+      base.push('gestionar_rotacion_supervisores');
+    }
+    if(Array.isArray(u.permisos) && u.permisos.includes('gestionar_rotacion_supervisores')){
+      base.push('gestionar_rotacion_supervisores');
+    }
+    return [...new Set(base)];
+  }
   if(u.permisos==='todos') return 'todos';
   if(Array.isArray(u.permisos)){
-    // Supervisores existentes: conceder acceso inicial; después el Admin
-    // puede revocarlo desde Usuarios (permisosGestionVersion=1).
-    if(u.rol==='Supervisor' && u.permisosGestionVersion!==1){
-      return [...new Set([...u.permisos,'gestionarPersonal'])];
+    // Los permisos del Supervisor son explícitos. Nunca se concede
+    // automáticamente acceso a Gestión de usuarios/trabajadores.
+    if(u.rol==='Supervisor'){
+      return u.permisos.filter(p=>p!=='gestionarPersonal');
     }
     return u.permisos;
   }
@@ -224,7 +345,7 @@ function usuariosPorDefecto(){
     {
       username:'supervisor',password:'supervisor123',rol:'Supervisor',
       puesto:'Supervisor',
-      permisos:['nuevo','historial','graficos','paletas','gestionarPersonal'],
+      permisos:['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','tareoProduccion','exportarExcel','exportarJPG'],
       permisosGestionVersion:1,
       linea:null,nombre:'Supervisor'
     }
@@ -687,6 +808,18 @@ function onWorkersUpdated(){
 
 
 function onRotacionesUpdated(){
+
+  if(typeof aplicarContextoRotacionSupervisor==='function'){
+    aplicarContextoRotacionSupervisor(false);
+  }
+
+  if(
+    state.user &&
+    state.currentTab==='rotacion-supervisores' &&
+    typeof renderRotacionSupervisores==='function'
+  ){
+    renderRotacionSupervisores();
+  }
 
   /*
      Si la persona tiene abierta la pantalla de "Rotación

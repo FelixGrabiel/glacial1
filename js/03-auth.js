@@ -102,6 +102,10 @@ async function handleLogin(){
 
   state.user = usuarioLimpio;
 
+  if(typeof aplicarContextoRotacionSupervisor==='function'){
+    aplicarContextoRotacionSupervisor(false);
+  }
+
 
   sessionStorage.setItem(
 
@@ -297,6 +301,10 @@ function tryResumeSession(){
   if(s){
 
     state.user = s;
+
+    if(typeof aplicarContextoRotacionSupervisor==='function'){
+      aplicarContextoRotacionSupervisor(false);
+    }
 
 
     if(

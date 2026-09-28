@@ -235,6 +235,16 @@ function openUsersModal(){
 
             </div>
 
+            <div class="field-sm" id="nu-horario-inicio-wrap" style="display:none;">
+              <label>Horario supervisor · Inicio</label>
+              <input id="nu-horario-inicio" type="time">
+            </div>
+
+            <div class="field-sm" id="nu-horario-fin-wrap" style="display:none;">
+              <label>Horario supervisor · Fin</label>
+              <input id="nu-horario-fin" type="time">
+            </div>
+
 
           </div>
 
@@ -437,11 +447,11 @@ function cambiarRolNuevoUsuario(){
     checks.forEach(
       c=>{
         const sugeridos = {
-          'Supervisor': ['verLineasProduccion','nuevo','historial','gráficos','paletas','gestionarPersonal'],
+          'Supervisor': ['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','tareoProduccion','exportarExcel','exportarJPG'],
           'Gerente General': PERMISOS_SOLO_CONSULTA,
           'Jefe de Producción': PERMISOS_SOLO_CONSULTA,
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
-          'Mantenimiento': ['moduloMantenimiento'],
+          'Mantenimiento': ['moduloMantenimiento','produccionActual','control_operativo_lineas'],
           'RRHH': ['moduloRRHH'],
           'Ventas': ['produccionActual'],
           'Planificación': ['produccionActual'],
@@ -635,6 +645,13 @@ function renderUserList(){
                   : ''
               }
 
+              ${
+                u.rol==='Supervisor' && u.horarioInicio && u.horarioFin
+                  ? ' · '+escaparHtml(u.turnoSupervisor || clasificarTurnoPorHorario(u.horarioInicio,u.horarioFin))+
+                    ' '+escaparHtml(u.horarioInicio)+'–'+escaparHtml(u.horarioFin)
+                  : ''
+              }
+
               · ${ptxt}
 
             </div>
@@ -726,10 +743,23 @@ function toggleLineaField(){
   if(!wrap || !rol) return;
 
 
-  wrap.style.display=
-    rol.value==='Supervisor'
-      ? 'block'
-      : 'none';
+  const esSupervisor = rol.value==='Supervisor';
+
+  wrap.style.display = esSupervisor ? 'block' : 'none';
+
+  const horarioInicioWrap =
+    document.getElementById('nu-horario-inicio-wrap');
+
+  const horarioFinWrap =
+    document.getElementById('nu-horario-fin-wrap');
+
+  if(horarioInicioWrap){
+    horarioInicioWrap.style.display = esSupervisor ? 'block' : 'none';
+  }
+
+  if(horarioFinWrap){
+    horarioFinWrap.style.display = esSupervisor ? 'block' : 'none';
+  }
 
 }
 
@@ -890,6 +920,21 @@ async function addUser(){
         ).value || null
       : null;
 
+  const horarioInicio=
+    rol==='Supervisor'
+      ? (document.getElementById('nu-horario-inicio')?.value || '')
+      : '';
+
+  const horarioFin=
+    rol==='Supervisor'
+      ? (document.getElementById('nu-horario-fin')?.value || '')
+      : '';
+
+  const turnoSupervisor=
+    rol==='Supervisor'
+      ? clasificarTurnoPorHorario(horarioInicio,horarioFin)
+      : '';
+
 
   /*
      Determinar permisos.
@@ -914,6 +959,12 @@ async function addUser(){
       c=>c.value
     );
 
+  if(rol==='Supervisor'){
+    seleccionados=seleccionados.filter(
+      permiso=>permiso!=='gestionarPersonal'
+    );
+  }
+
 
   let todos=
     rolTieneTodosLosPermisos(rol);
@@ -936,6 +987,11 @@ async function addUser(){
 
   }
 
+
+  if(rol==='Supervisor' && (!horarioInicio || !horarioFin)){
+    alert('Para un Supervisor debes configurar hora de inicio y hora de fin.');
+    return;
+  }
 
   if(
     !nombre ||
@@ -1020,7 +1076,10 @@ async function addUser(){
 
     permisosGestionVersion:1,
 
-    linea
+    linea,
+    horarioInicio,
+    horarioFin,
+    turnoSupervisor
 
   });
 
