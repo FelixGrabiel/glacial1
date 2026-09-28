@@ -181,12 +181,7 @@
       if(!indices.length)return;
 
       if(activoKey && k===activoKey){
-        // La secuencia define cuál presentación corresponde producir,
-        // pero NO la inicia automáticamente. El estado EN CURSO solo nace
-        // de estadoOperacion.estado === 'EN_PRODUCCION'.
-        x.estadoVisual = x.op?.estado === 'EN_PRODUCCION'
-          ? 'EN_PRODUCCION'
-          : 'PENDIENTE';
+        x.estadoVisual='EN_PRODUCCION';
         return;
       }
 
@@ -268,12 +263,18 @@
     if(!x.prog || !num(x.prog.cantidadProgramada) || !x.puede)return '';
 
     const e=x.op?.estado;
+
+    // Una operación ABIERTA debe poder controlarse aunque haya cambiado
+    // el bloque horario/supervisor. Esto es necesario para continuidad
+    // DÍA -> INTERMEDIO -> NOCHE y para que Mantenimiento pueda intervenir.
+    const operacionAbierta=['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(e);
+
+    // Solo bloqueamos por turno no vigente cuando se intenta actuar sobre
+    // una programación que todavía no tiene una operación abierta.
+    if(!x.vivo && !operacionAbierta)return '';
+
     const boton=(accion,label)=>`<button type="button" class="btn btn-ghost btn-sm"
       data-pa-accion="${accion}" data-pa-indice="${idx}">${label}</button>`;
-
-    // La vista puede estar en TODOS/DÍA mientras el supervisor operativo
-    // corresponde a INTERMEDIO. No ocultamos la botonera por x.vivo:
-    // la autorización se valida al ejecutar la acción.
     if(x.puede==='mtto' || x.puede==='control'){
       if(e==='EN_PRODUCCION'){
         return boton('detener','Detener línea')+
@@ -298,12 +299,14 @@
 
     if(!e || e==='PENDIENTE')return boton('iniciar','Iniciar presentación')+
       boton('cancelar','✕ Cancelar');
-    if(e==='DETENIDA' || e==='LISTA')return boton('reanudar','Reanudar producción')+
-      boton('finalizar','Finalizar presentación')+boton('cancelar','✕ Cancelar');
-    if(e==='PAUSA')return boton('reanudar','Reanudar producción')+boton('cancelar','✕ Cancelar');
-    if(e==='EN_PRODUCCION')return boton('detener','Detener línea')+
-      boton('pausa','Pausa programada')+boton('finalizar','Finalizar presentación')+
+    if(e==='DETENIDA' || e==='LISTA')return boton('corregirInicio','Corregir hora inicio')+
+      boton('reanudar','Reanudar producción')+boton('finalizar','Finalizar presentación')+
       boton('cancelar','✕ Cancelar');
+    if(e==='PAUSA')return boton('corregirInicio','Corregir hora inicio')+
+      boton('reanudar','Reanudar producción')+boton('cancelar','✕ Cancelar');
+    if(e==='EN_PRODUCCION')return boton('corregirInicio','Corregir hora inicio')+
+      boton('detener','Detener línea')+boton('pausa','Pausa programada')+
+      boton('finalizar','Finalizar presentación')+boton('cancelar','✕ Cancelar');
     return '';
   }
   function avisoAccion(x){
@@ -437,11 +440,8 @@
       // nunca debe volver a EN CURSO solo porque tenga registros de paletas.
       items.forEach(x=>{ delete x.estadoVisual; });
 
-      const itemTurnoActual = fecha===turnoReal.fecha
-        ? items.find(x=>x.turno===turnoReal.turno)
-        : null;
-      const turnoVistaSecuencia=itemTurnoActual?.turno || items[0]?.turno || turnos[0];
-      const turnoPlanSecuencia=itemTurnoActual?.turnoPlan || items[0]?.turnoPlan || turnoVistaSecuencia;
+      const turnoVistaSecuencia=items[0]?.turno || turnos[0];
+      const turnoPlanSecuencia=items[0]?.turnoPlan || turnoVistaSecuencia;
       const secuenciaActiva=aplicarEstadoVisualSecuencia(
         items,line.key,fecha,turnoPlanSecuencia,turnoVistaSecuencia,ahora
       );
@@ -458,25 +458,13 @@
       // a abrir visualmente una presentación ya FINALIZADA.
       const activoSecuencia=items.find(x=>x.estadoVisual==='EN_PRODUCCION');
       const pausaSecuencia=items.find(x=>x.estadoVisual==='PAUSA_SECUENCIA');
-      const pendienteTurnoActual = fecha===turnoReal.fecha
-        ? items.find(x=>x.turno===turnoReal.turno &&
-            !['FINALIZADA','CANCELADA'].includes(x.op?.estado))
-        : null;
-      let activo=detenidos[0] || pausas[0] || activosGuardados[0] ||
-        items.find(x=>x.op?.estado==='LISTA') ||
-        activoSecuencia || pausaSecuencia || pendienteTurnoActual ||
+      const activo=detenidos[0] ||
+        activoSecuencia || pausas[0] || activosGuardados[0] ||
+        items.find(x=>x.op?.estado==='LISTA') || pausaSecuencia ||
         items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado)) ||
         items[0] || vacios[0];
 
-      // DÍA e INTERMEDIO comparten la misma programación. Si estamos viendo
-      // el turno operativo actual, las acciones deben ejecutarse con ese turno
-      // aunque la programación física viva en el documento de DÍA.
-      if(activo && fecha===turnoReal.fecha && ['DÍA','INTERMEDIO'].includes(turnoReal.turno) &&
-         ['DÍA','INTERMEDIO'].includes(activo.turno)){
-        activo={...activo,turno:turnoReal.turno,vivo:true};
-      }
-
-      const hayCurso=items.some(x=>x.op?.estado==='EN_PRODUCCION');
+      const hayCurso=items.some(x=>(x.estadoVisual || x.op?.estado)==='EN_PRODUCCION');
       const hayFinalizada=items.some(x=>x.op?.estado==='FINALIZADA');
       const hayPendiente=items.some(x=>!x.op?.estado || x.op?.estado==='PENDIENTE');
       const todosCerrados=items.length>0 && items.every(
@@ -653,7 +641,9 @@
           )
         : 0;
 
-      const ratioTurno=horasTurno>0 ? totalProd/horasTurno : 0;
+      // El Ratio Turno se calcula más abajo con TIEMPO EFECTIVO:
+      // tiempo transcurrido - paradas/pausas.
+      // Esto evita inflar o distorsionar el indicador.
 
       // Tiempo de paradas/pausas registrado por los estados operativos.
       // Se mantiene separado del ratio para que el usuario pueda ver
@@ -672,9 +662,17 @@
         return suma+ms;
       },0);
 
+      const horasEfectivasTurno=Math.max(
+        0,
+        horasTurno-(paradaMs/MS_HORA)
+      );
+      const ratioTurno=horasEfectivasTurno>0
+        ? totalProd/horasEfectivasTurno
+        : 0;
+
       return {
         line,items,vacios,activo,nivel,texto,turnosLinea,totalProg,totalProd,
-        horasEfectivas,horasTurno,ratioTurno,paradaMs,secuenciaActiva,
+        horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
         totalesPresentacion
       };
     }).filter(Boolean);
@@ -1004,9 +1002,54 @@
   `;
   document.head.appendChild(css);
 
-  async function cambiarEstado(x,accion){
-    if(!x || !quienControla(x.linea))return;
+  function pedirHoraInicioProduccion(x){
+    const ahora=new Date();
+    const sugerida=
+      String(ahora.getHours()).padStart(2,'0')+':' +
+      String(ahora.getMinutes()).padStart(2,'0');
 
+    const valor=prompt(
+      'Hora real de inicio de producción (HH:MM):',
+      sugerida
+    );
+
+    if(valor===null)return null;
+
+    const limpio=String(valor).trim();
+    if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(limpio)){
+      alert('Hora inválida. Usa el formato HH:MM, por ejemplo 07:00.');
+      return null;
+    }
+
+    const [hh,mm]=limpio.split(':').map(Number);
+    const [yy,mo,dd]=String(x.fecha).split('-').map(Number);
+    const fechaInicio=new Date(yy,mo-1,dd,hh,mm,0,0);
+    const inicioMs=fechaInicio.getTime();
+
+    if(!Number.isFinite(inicioMs)){
+      alert('No se pudo interpretar la hora de inicio.');
+      return null;
+    }
+
+    if(inicioMs>Date.now()+60000){
+      alert('La hora de inicio no puede estar en el futuro.');
+      return null;
+    }
+
+    const rango=horario(x.fecha,x.turno,x.compartida);
+    if(rango && (inicioMs<rango.inicio || inicioMs>rango.fin)){
+      const confirmar=confirm(
+        'La hora '+limpio+' está fuera del horario calculado para este turno.\n\n' +
+        '¿Deseas usarla de todas formas como hora real de inicio?'
+      );
+      if(!confirmar)return null;
+    }
+
+    return {ms:inicioMs,hora:limpio};
+  }
+
+  async function cambiarEstado(x,accion){
+    if(!x || !turnoActivo(x.fecha,x.turno) || !quienControla(x.linea))return;
     const controlador=quienControla(x.linea);
     const esSupervisor=controlador==='supervisor';
     const esControlOperativo=['mtto','control'].includes(controlador);
@@ -1019,7 +1062,7 @@
        !(esSupervisor || esControlOperativo))return;
 
     // FINALIZAR y CANCELAR siguen siendo exclusivos de Producción.
-    if(['finalizar','cancelar'].includes(accion) && !esSupervisor)return;
+    if(['finalizar','cancelar','corregirInicio'].includes(accion) && !esSupervisor)return;
 
     // REABRIR exige el permiso específico, independientemente del rol.
     if(accion==='reabrir' && !puedeReabrirProduccion())return;
@@ -1032,6 +1075,44 @@
         'Quedará PENDIENTE y deberá iniciarse manualmente.'
       );
       if(!ok)return;
+    }
+
+    let inicioElegido=null;
+    if(accion==='iniciar'){
+      inicioElegido=pedirHoraInicioProduccion(x);
+      if(!inicioElegido)return;
+    }
+
+    let inicioCorregido=null;
+    if(accion==='corregirInicio'){
+      const inicioActual=Number(x.op?.inicio || 0);
+      if(!inicioActual){
+        alert('Esta presentación no tiene una hora de inicio registrada.');
+        return;
+      }
+
+      const d=new Date(inicioActual);
+      const horaAnterior=String(d.getHours()).padStart(2,'0')+':' +
+        String(d.getMinutes()).padStart(2,'0');
+      const valor=prompt('Corregir hora real de inicio (HH:MM):',horaAnterior);
+      if(valor===null)return;
+      const limpio=String(valor).trim();
+      if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(limpio)){
+        alert('Hora inválida. Usa HH:MM, por ejemplo 07:00.');
+        return;
+      }
+      const [hh,mm]=limpio.split(':').map(Number);
+      const [yy,mo,dd]=String(x.fecha).split('-').map(Number);
+      const ms=new Date(yy,mo-1,dd,hh,mm,0,0).getTime();
+      if(!Number.isFinite(ms) || ms>Date.now()+60000){
+        alert('La hora indicada no es válida o está en el futuro.');
+        return;
+      }
+      if(!confirm(
+        '¿Corregir la hora de inicio de '+x.marca+' de '+horaAnterior+' a '+limpio+'?\n\n'+
+        'No se modificarán las unidades producidas ni los registros de Paletas.'
+      ))return;
+      inicioCorregido={ms,hora:limpio,anterior:inicioActual};
     }
 
     let motivo='';
@@ -1064,7 +1145,8 @@
         reanudar:['DETENIDA','LISTA','PAUSA'].includes(e),
         finalizar:['EN_PRODUCCION','DETENIDA','LISTA'].includes(e),
         cancelar:e!=='CANCELADA' && e!=='FINALIZADA',
-        reabrir:e==='FINALIZADA'
+        reabrir:e==='FINALIZADA',
+        corregirInicio:['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(e)
       };
       if(!permitido[accion])throw new Error('El estado cambió. Actualiza el tablero.');
       const mismoPlan=p=>p.linea===x.linea && p.fecha===x.fecha &&
@@ -1084,10 +1166,23 @@
       const op={...previo,actualizadoEn:ahora,
         actualizadoPor:state.user?.nombre || state.user?.username || 'Usuario'};
       if(accion==='iniciar'){
-        Object.assign(op,{estado:'EN_PRODUCCION',inicio:ahora,
+        Object.assign(op,{
+          estado:'EN_PRODUCCION',
+          inicio:inicioElegido.ms,
+          inicioRegistradoEn:ahora,
+          inicioRegistradoPor:state.user?.nombre || state.user?.username || 'Usuario',
+          inicioHoraManual:inicioElegido.hora,
           baseUnidades:num(resumenProgramacionCombinacionTurnos(x.linea,x.fecha,
             [x.turno],x.marca,x.presentacion).unidadesProducidas),
-          pausaDesde:0,pausaAcumuladaMs:0,detenidaDesde:0,detencionAcumuladaMs:0,motivo:''});
+          pausaDesde:0,pausaAcumuladaMs:0,detenidaDesde:0,detencionAcumuladaMs:0,motivo:''
+        });
+      } else if(accion==='corregirInicio'){
+        op.inicioAnterior=inicioCorregido.anterior;
+        op.inicio=inicioCorregido.ms;
+        op.inicioHoraManual=inicioCorregido.hora;
+        op.inicioCorregido=true;
+        op.inicioCorregidoEn=ahora;
+        op.inicioCorregidoPor=state.user?.nombre || state.user?.username || 'Usuario';
       } else if(accion==='detener'){
         op.estado='DETENIDA';op.motivo=motivo;op.detenidaDesde=ahora;
       }

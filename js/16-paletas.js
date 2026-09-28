@@ -403,15 +403,65 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
     const actuales = snap.exists && Array.isArray(snap.data().items)
       ? snap.data().items.slice() : [];
     const idx = actuales.findIndex(p => p.clave === clave);
+
+    /*
+       Si la cantidad programada queda en 0, la programación se elimina
+       realmente de sync/programaciones. Así no quedan estados operativos
+       antiguos (CANCELADA, FINALIZADA, etc.) flotando en Producción Actual.
+    */
+    if(cantidadNum === 0){
+      if(idx > -1){
+        actuales.splice(idx,1);
+      }
+
+      tx.set(ref,{items:actuales,updatedAt:Date.now()});
+      return actuales;
+    }
+
     if(idx > -1){
-      actuales[idx] = {...actuales[idx], ...campos};
+
+      const anterior = actuales[idx];
+      const estadoAnterior = anterior.estadoOperacion?.estado || '';
+
+      /*
+         Si una combinación había sido CANCELADA y luego se vuelve a
+         programar, se trata como una programación nueva: no debe heredar
+         CANCELADA ni sus marcas de cierre/detención/pausa.
+      */
+      const reiniciarOperacion = estadoAnterior === 'CANCELADA';
+
+      actuales[idx] = {
+        ...anterior,
+        ...campos,
+        ...(reiniciarOperacion ? {
+          estadoOperacion:{
+            estado:'PENDIENTE',
+            actualizadoEn:Date.now(),
+            actualizadoPor:nombreUsuarioActualPaletas(),
+            inicio:0,
+            finalizadaEn:0,
+            canceladaEn:0,
+            pausaDesde:0,
+            pausaAcumuladaMs:0,
+            detenidaDesde:0,
+            detencionAcumuladaMs:0,
+            motivo:'',
+            motivoPausa:''
+          }
+        } : {})
+      };
+
     } else {
+
       actuales.push({
         id:'prog_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
         clave, linea, fecha, turno, marca, presentacion, ...campos,
+        estadoOperacion:{estado:'PENDIENTE'},
         creadoPor:nombreUsuarioActualPaletas(), creadoEn:Date.now()
       });
+
     }
+
     tx.set(ref,{items:actuales,updatedAt:Date.now()});
     return actuales;
   });

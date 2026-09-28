@@ -13,6 +13,7 @@ function avNum(v){const n=Number(v);return Number.isFinite(n)?n:0;}
 function avEsc(v){return typeof escaparHtml==='function'?escaparHtml(v??''):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function avFmt(v){return Math.round(avNum(v)).toLocaleString('es-PE');}
 function avFechaHoy(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function avHoraActual(){const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 function avNombreUsuario(){return state.user?.nombre||state.user?.username||'';}
 function avTurnoCanon(v){
   v=String(v||'').toUpperCase();
@@ -32,7 +33,11 @@ function avCtx(){
   };
 }
 function avRef(){return db.collection('sync').doc('avancesTurno');}
-function avSnapshotId(tipo,hora){return `${avanceEstado.fecha}_${avanceEstado.turno}_${tipo}_${String(hora||'CIERRE').replace(':','')}`;}
+function avSnapshotId(tipo,hora){
+  if(tipo==='CIERRE')return `${avanceEstado.fecha}|${avanceEstado.turno}|CIERRE`;
+  /* Cada avance es un snapshot independiente. */
+  return `${avanceEstado.fecha}|${avanceEstado.turno}|AVANCE|${hora}|${Date.now()}`;
+}
 
 function avHoraMs(fecha,hora,turno){
   if(!fecha||!hora)return 0;
@@ -68,25 +73,76 @@ function avCorteMs(hora,tipo){
   return avHoraMs(avanceEstado.fecha,hora,avanceEstado.turno);
 }
 
+/*
+   PRODUCCIÓN PARA AVANCE / CIERRE
+   Fuente oficial: registros de PALETAS.
+
+   IMPORTANTE:
+   En Paletas, "Paletas completas acumuladas" es un ACUMULADO.
+   Por eso NO se deben sumar todos los registros históricos:
+   se toma el último estado de paletas completas hasta el corte
+   + el último saldo/incompleta hasta el corte.
+
+   Nuevo Registro (Botellas efectivas) ya NO alimenta la cantidad
+   producida del Avance/Cierre.
+*/
 function avProduccionHasta(linea,marca,presentacion,hora,tipo){
   const corte=avCorteMs(hora,tipo);
-  const pal=avPaletas().filter(x=>x.linea===linea&&x.marca===marca&&x.presentacion===presentacion);
-  if(pal.length){
-    return pal.reduce((s,x)=>{
+
+  const pal=avPaletas()
+    .filter(x=>
+      x.linea===linea &&
+      x.marca===marca &&
+      x.presentacion===presentacion
+    )
+    .map((x,indice)=>{
       let ms=Number(x.creadoEn||x.actualizadoEn||0);
-      if(x.hora)ms=avHoraMs(avanceEstado.fecha,x.hora,avanceEstado.turno);
-      return s+(ms&&ms>corte?0:avNum(x.totalUnidades||x.unidadesIncompleta||0));
-    },0);
-  }
-  const regs=avRegistros().filter(r=>r.linea===linea);
-  let total=0;
-  regs.forEach(r=>(typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>{
-    if(q?.marca===marca&&q?.presentacion===presentacion){
-      const ini=avHoraMs(avanceEstado.fecha,q.horaInicio,avanceEstado.turno);
-      if(!ini||ini<=corte)total+=avNum(q?.produccion?.efectiva);
+
+      // La hora ingresada por el supervisor representa el momento
+      // operativo real del registro y tiene prioridad para el corte.
+      if(x.hora){
+        ms=avHoraMs(
+          avanceEstado.fecha,
+          x.hora,
+          avanceEstado.turno
+        );
+      }
+
+      return {registro:x,ms,indice};
+    })
+    .filter(x=>!x.ms || !corte || x.ms<=corte);
+
+  if(!pal.length)return 0;
+
+  let completas=null;
+  let saldo=null;
+
+  const esMasReciente=(actual,candidato)=>{
+    if(!actual)return true;
+    if(candidato.ms!==actual.ms)return candidato.ms>actual.ms;
+    return candidato.indice>actual.indice;
+  };
+
+  pal.forEach(item=>{
+    const tipoPaleta=String(item.registro?.tipoPaleta||'').toUpperCase();
+
+    if(tipoPaleta==='INCOMPLETA'){
+      if(esMasReciente(saldo,item))saldo=item;
+    }else{
+      if(esMasReciente(completas,item))completas=item;
     }
-  }));
-  return total;
+  });
+
+  const unidadesCompletas=avNum(
+    completas?.registro?.totalUnidades
+  );
+
+  const unidadesSaldo=avNum(
+    saldo?.registro?.totalUnidades ??
+    saldo?.registro?.unidadesIncompleta
+  );
+
+  return unidadesCompletas+unidadesSaldo;
 }
 
 function avPersonalLinea(linea){
@@ -181,7 +237,24 @@ function avLineaSnapshot(linea,hora,tipo){
   const productos=avProductosLinea(linea,hora,tipo);
   const inicio=avInicioLinea(linea);
   const produccionTotal=productos.reduce((s,x)=>s+x.produccion,0);
-  const actividad=!!inicio||productos.some(x=>x.produccion>0)||avProgramaciones().some(p=>p.linea===linea&&p?.estadoOperacion?.inicio);
+  /*
+     Una línea debe aparecer en Avance/Cierre si existe cualquiera
+     de estas evidencias del turno:
+     - inicio operativo,
+     - producción registrada en Paletas,
+     - programación,
+     - o registros de Paletas aunque el corte seleccionado sea
+       anterior a la hora del primer registro.
+
+     Esto evita que PET1 desaparezca del reporte solo porque su
+     producción fue registrada después de la hora de corte.
+  */
+  const actividad=
+    !!inicio ||
+    productos.some(x=>x.produccion>0) ||
+    avProgramaciones().some(p=>p.linea===linea) ||
+    avPaletas().some(p=>p.linea===linea);
+
   if(!actividad)return null;
 
   const corte=tipo==='CIERRE'?(avFinLinea(linea)||avCtx().fin):hora;
@@ -207,14 +280,20 @@ function avLineaSnapshot(linea,hora,tipo){
 }
 
 function avConstruirSnapshot(hora,tipo='AVANCE'){
-  const lineas=AVANCE_LINEAS.map(l=>avLineaSnapshot(l,hora,tipo)).filter(Boolean);
+  /*
+     Las horas configuradas (09:00, 11:00, etc.) identifican el avance,
+     pero el corte operativo es la hora REAL en que el supervisor lo genera.
+  */
+  const horaReal=tipo==='CIERRE'?avCtx().fin:avHoraActual();
+  const lineas=AVANCE_LINEAS.map(l=>avLineaSnapshot(l,horaReal,tipo)).filter(Boolean);
   if(!lineas.length)throw Error('No existe producción ni una línea iniciada para este turno.');
   const totalParadas=lineas.reduce((s,l)=>s+l.totalParadas,0);
   const personalSet=lineas.reduce((s,l)=>s+l.personal,0);
   const totalPlanta=lineas.reduce((s,l)=>s+l.produccionTotal,0);
   const snap={
     id:avSnapshotId(tipo,hora),fecha:avanceEstado.fecha,turno:avanceEstado.turno,
-    tipo,horaCorte:tipo==='CIERRE'?avCtx().fin:hora,
+    tipo,horaCorte:horaReal,
+    horaReferencia:tipo==='CIERRE'?'CIERRE':hora,
     supervisor:avNombreUsuario(),generadoPor:state.user?.username||'',
     generadoEn:Date.now(),estado:'GENERADO',lineas,
     resumen:{produccionTotal:totalPlanta,totalParadas,personal:personalSet,lineasTrabajadas:lineas.length}
@@ -314,75 +393,398 @@ function avEscuchar(){
     const todos=doc.exists&&Array.isArray(doc.data().items)?doc.data().items:[];
     avanceEstado.snapshots=todos.filter(x=>x.fecha===avanceEstado.fecha&&x.turno===avanceEstado.turno);
     if(state.currentTab==='avance-produccion')avDibujar();
+    avInstalarBotonFlotante();
+    if(document.getElementById('av-float-modal')?.classList.contains('open'))avDibujarFlotante();
   },e=>{console.error('Avances turno:',e);avAviso('No se pudo sincronizar el historial de avances.');});
 }
-function avEstadoTarjeta(tipo,hora){
-  const id=avSnapshotId(tipo,hora);
-  return avanceEstado.snapshots.find(x=>x.id===id)||null;
+function avUltimoSnapshot(tipo){
+  return avanceEstado.snapshots
+    .filter(x=>x.tipo===tipo)
+    .slice()
+    .sort((a,b)=>avNum(b.generadoEn)-avNum(a.generadoEn))[0]||null;
 }
-function avHorarios(){
-  const base=(AVANCE_HORARIOS[avanceEstado.turno]||[]).slice();
-  return base;
+
+function avAbrirFlotante(){
+  avInstalarEstilos();
+  const ctx=avCtx();
+  avanceEstado.fecha=ctx.fecha;
+  avanceEstado.turno=ctx.turno;
+
+  // El flotante puede abrirse desde cualquier pantalla, incluso si
+  // nunca se abrió antes el módulo Avance y Cierre.
+  if(!avanceEstado.unsubscribe)avEscuchar();
+
+  let modal=document.getElementById('av-float-modal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='av-float-modal';
+    modal.className='av-float-modal';
+    modal.addEventListener('click',e=>{
+      if(e.target===modal)avCerrarFlotante();
+    });
+    document.body.appendChild(modal);
+  }
+  modal.classList.add('open');
+  avDibujarFlotante();
+}
+function avCerrarFlotante(){
+  document.getElementById('av-float-modal')?.classList.remove('open');
+}
+function avDibujarFlotante(){
+  const modal=document.getElementById('av-float-modal');
+  if(!modal)return;
+  const ctx=avCtx();
+  const ultimo=avUltimoSnapshot('AVANCE');
+  const cierre=avUltimoSnapshot('CIERRE');
+  const ahora=avHoraActual();
+
+  modal.innerHTML=`
+    <div class="av-float-dialog" role="dialog" aria-modal="true" aria-label="Avance y cierre de turno">
+      <header class="av-float-head">
+        <div>
+          <h2>Avance y cierre de turno</h2>
+          <p>${avEsc(avanceEstado.fecha||ctx.fecha)} · Turno ${avEsc(avanceEstado.turno||ctx.turno)} · ${ahora}</p>
+        </div>
+        <button type="button" class="av-float-x" onclick="avCerrarFlotante()" aria-label="Cerrar">✕</button>
+      </header>
+
+      <div class="av-float-body">
+        <div class="av-float-actions">
+          <button type="button" class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button>
+          <button type="button" class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button>
+        </div>
+
+        <section class="av-float-last">
+          <div class="av-float-last-head">
+            <div>
+              <small>ÚLTIMO AVANCE</small>
+              <strong>${ultimo?`Generado ${avEsc(ultimo.horaCorte)}`:'Todavía no generado'}</strong>
+            </div>
+            ${ultimo?`<span>${avEsc(ultimo.estado||'GENERADO')}</span>`:''}
+          </div>
+          ${ultimo?`
+            <div class="av-float-last-actions">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="avVerFlotante('${ultimo.id}')">VER</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="avCopiar('${ultimo.id}')">COPIAR PARA WHATSAPP</button>
+            </div>`:''}
+        </section>
+
+        ${cierre?`
+        <section class="av-float-last">
+          <div class="av-float-last-head">
+            <div><small>CIERRE DE TURNO</small><strong>Generado ${avEsc(cierre.horaCorte)}</strong></div>
+            <span>${avEsc(cierre.estado||'GENERADO')}</span>
+          </div>
+          <div class="av-float-last-actions">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="avVerFlotante('${cierre.id}')">VER</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="avCopiar('${cierre.id}')">COPIAR CIERRE</button>
+          </div>
+        </section>`:''}
+
+        <section class="av-float-preview">
+          <div class="av-float-preview-head">
+            <strong>Vista previa para WhatsApp</strong>
+            <small>${avanceEstado.preview?'Lista para copiar':'Genera o selecciona un avance'}</small>
+          </div>
+          <textarea id="av-float-preview" readonly placeholder="Aquí aparecerá el avance o cierre.">${avEsc(avanceEstado.preview)}</textarea>
+        </section>
+      </div>
+    </div>`;
+}
+async function avGenerarAhora(){
+  await avGenerar(avHoraActual(),'AVANCE');
+  const ultimo=avUltimoSnapshot('AVANCE');
+  if(ultimo)avanceEstado.preview=ultimo.texto||'';
+  avDibujarFlotante();
+}
+async function avGenerarCierreAhora(){
+  if(!confirm('¿Generar el cierre de turno con la información registrada hasta este momento?'))return;
+  await avGenerar(avHoraActual(),'CIERRE');
+  const cierre=avUltimoSnapshot('CIERRE');
+  if(cierre)avanceEstado.preview=cierre.texto||'';
+  avDibujarFlotante();
+}
+function avVerFlotante(id){
+  const s=avanceEstado.snapshots.find(x=>x.id===id);
+  if(!s)return;
+  avanceEstado.preview=s.texto||'';
+  avDibujarFlotante();
+}
+
+function avPantallaOperativaVisible(){
+  const app=document.getElementById('app-screen');
+  const selector=document.getElementById('report-select-screen');
+
+  const appVisible=
+    !!app &&
+    getComputedStyle(app).display!=='none';
+
+  const selectorVisible=
+    !!selector &&
+    getComputedStyle(selector).display!=='none';
+
+  return appVisible && !selectorVisible;
+}
+
+function avLimitarPosicionFlotante(btn,left,top){
+  const margen=8;
+  const maxLeft=Math.max(margen,window.innerWidth-btn.offsetWidth-margen);
+  const maxTop=Math.max(margen,window.innerHeight-btn.offsetHeight-margen);
+  return {
+    left:Math.min(Math.max(margen,left),maxLeft),
+    top:Math.min(Math.max(margen,top),maxTop)
+  };
+}
+
+function avGuardarPosicionFlotante(btn){
+  try{
+    const r=btn.getBoundingClientRect();
+    localStorage.setItem('glacial_avance_flotante_pos',JSON.stringify({
+      left:Math.round(r.left),
+      top:Math.round(r.top)
+    }));
+  }catch(_){}
+}
+
+function avRestaurarPosicionFlotante(btn){
+  try{
+    const raw=localStorage.getItem('glacial_avance_flotante_pos');
+    if(!raw)return;
+    const pos=JSON.parse(raw);
+    if(!Number.isFinite(pos.left)||!Number.isFinite(pos.top))return;
+    const p=avLimitarPosicionFlotante(btn,pos.left,pos.top);
+    btn.style.left=p.left+'px';
+    btn.style.top=p.top+'px';
+    btn.style.right='auto';
+    btn.style.bottom='auto';
+  }catch(_){}
+}
+
+function avActivarArrastre(btn){
+  avRestaurarPosicionFlotante(btn);
+
+  let arrastrando=false;
+  let movio=false;
+  let offsetX=0;
+  let offsetY=0;
+
+  const iniciar=e=>{
+    if(e.pointerType==='mouse' && e.button!==0)return;
+    const r=btn.getBoundingClientRect();
+    arrastrando=true;
+    movio=false;
+    offsetX=e.clientX-r.left;
+    offsetY=e.clientY-r.top;
+    btn.classList.add('dragging');
+    try{btn.setPointerCapture(e.pointerId);}catch(_){}
+    e.preventDefault();
+  };
+
+  const mover=e=>{
+    if(!arrastrando)return;
+    const p=avLimitarPosicionFlotante(
+      btn,
+      e.clientX-offsetX,
+      e.clientY-offsetY
+    );
+    if(Math.abs(e.clientX-(p.left+offsetX))>2 ||
+       Math.abs(e.clientY-(p.top+offsetY))>2)movio=true;
+    btn.style.left=p.left+'px';
+    btn.style.top=p.top+'px';
+    btn.style.right='auto';
+    btn.style.bottom='auto';
+    e.preventDefault();
+  };
+
+  const terminar=e=>{
+    if(!arrastrando)return;
+    arrastrando=false;
+    btn.classList.remove('dragging');
+    try{btn.releasePointerCapture(e.pointerId);}catch(_){}
+    avGuardarPosicionFlotante(btn);
+
+    if(!movio){
+      avAbrirFlotante();
+    }
+  };
+
+  btn.addEventListener('pointerdown',iniciar);
+  btn.addEventListener('pointermove',mover);
+  btn.addEventListener('pointerup',terminar);
+  btn.addEventListener('pointercancel',()=>{
+    arrastrando=false;
+    btn.classList.remove('dragging');
+  });
+
+  window.addEventListener('resize',()=>{
+    if(!document.body.contains(btn))return;
+    const r=btn.getBoundingClientRect();
+    const p=avLimitarPosicionFlotante(btn,r.left,r.top);
+    btn.style.left=p.left+'px';
+    btn.style.top=p.top+'px';
+    btn.style.right='auto';
+    btn.style.bottom='auto';
+    avGuardarPosicionFlotante(btn);
+  });
+}
+
+function avInstalarBotonFlotante(){
+  avInstalarEstilos();
+
+  const existente=document.getElementById('av-floating-trigger');
+
+  /*
+     El acceso flotante pertenece al sistema operativo de AGUA.
+     No debe aparecer en Login ni en la pantalla inicial donde se
+     selecciona Reporte Agua / Reporte Hielo.
+  */
+  if(
+    !state?.user ||
+    !tienePermiso('avanceProduccion') ||
+    !avPantallaOperativaVisible()
+  ){
+    existente?.remove();
+    return;
+  }
+
+  if(existente)return;
+  const b=document.createElement('button');
+  b.id='av-floating-trigger';
+  b.type='button';
+  b.className='av-floating-trigger';
+  b.innerHTML='<span class="av-drag-handle" title="Arrastrar">⋮⋮</span><span>▤</span><b>AVANCE / CIERRE</b>';
+  document.body.appendChild(b);
+  avActivarArrastre(b);
 }
 
 function renderAvanceProduccion(main){
+  avInstalarEstilos();
   if(!tienePermiso('avanceProduccion'))return;
   const ctx=avCtx();
   avanceEstado.fecha=ctx.fecha;
   avanceEstado.turno=ctx.turno;
-  main.innerHTML=`<section class="av2"><div id="av-root"></div></section>`;
+  main.innerHTML=`<section class="av2">
+    <div class="av2-head">
+      <div><h2>AVANCE Y CIERRE DE TURNO</h2><p>Generación rápida con información actual de Producción, Paletas, Paradas y Tareo.</p></div>
+      <div class="av2-context"><b>Turno actual: ${avEsc(ctx.turno)}</b><span>Supervisor: ${avEsc(avNombreUsuario())}</span></div>
+    </div>
+    <div class="av2-simple">
+      <button class="btn btn-primary" onclick="avAbrirFlotante()">ABRIR AVANCE / CIERRE</button>
+      <p>También puedes usar el botón flotante disponible mientras trabajas en otros módulos.</p>
+    </div>
+    <section class="av2-history">
+      <h3>Historial de avances</h3>
+      <div id="av-history-list"></div>
+    </section>
+  </section>`;
+  avInstalarBotonFlotante();
   if(!avanceEstado.unsubscribe)avEscuchar(); else avDibujar();
 }
 
 function avDibujar(){
-  const root=document.getElementById('av-root');if(!root)return;
-  const ctx=avCtx(),horas=avHorarios();
-  const cards=horas.map(h=>{
-    const s=avEstadoTarjeta('AVANCE',h),estado=s?.estado||'PENDIENTE';
-    return `<article class="av2-card ${estado.toLowerCase()}">
-      <div><strong>${h}</strong><span>${estado}</span></div>
-      <small>${s?`Generado por ${avEsc(s.supervisor||s.generadoPor)}`:'Avance parcial'}</small>
-      <div class="av2-actions">
-        <button class="btn btn-sm" onclick="avGenerar('${h}','AVANCE')">${s?'ACTUALIZAR':'GENERAR AVANCE'}</button>
-        ${s?`<button class="btn btn-ghost btn-sm" onclick="avVer('${s.id}')">VER</button>
-        <button class="btn btn-ghost btn-sm" onclick="avCopiar('${s.id}')">COPIAR AVANCE</button>`:''}
-      </div></article>`;
-  }).join('');
-  const cierre=avEstadoTarjeta('CIERRE',ctx.fin);
-  root.innerHTML=`
-    <style>${AVANCE_CSS}</style>
-    <div class="av2-head">
-      <div><h2>AVANCE Y CIERRE DE TURNO</h2><p>Resumen automático desde Producción, Paletas, Paradas y Tareo.</p></div>
-      <div class="av2-context">
-        <b>Turno actual: ${avEsc(avanceEstado.turno)}</b>
-        <span>Supervisor: ${avEsc(avNombreUsuario())}</span>
-        <span>Inicio turno: ${avEsc(ctx.inicio||'—')} · Cierre: ${avEsc(ctx.fin||'—')}</span>
-      </div>
-    </div>
-    <div id="av-estado" class="av2-status"></div>
-    <div class="av2-grid">${cards}
-      <article class="av2-card cierre ${cierre?.estado?.toLowerCase()||'pendiente'}">
-        <div><strong>CIERRE</strong><span>${cierre?.estado||'PENDIENTE'}</span></div>
-        <small>Hora configurada: ${avEsc(ctx.fin||'—')}</small>
-        <div class="av2-actions">
-          <button class="btn btn-sm" onclick="avGenerar('${avEsc(ctx.fin)}','CIERRE')">${cierre?'ACTUALIZAR':'GENERAR CIERRE'}</button>
-          ${cierre?`<button class="btn btn-ghost btn-sm" onclick="avVer('${cierre.id}')">VER</button>
-          <button class="btn btn-ghost btn-sm" onclick="avCopiar('${cierre.id}')">COPIAR CIERRE</button>`:''}
-        </div>
-      </article>
-    </div>
-    <section class="av2-preview">
-      <div class="av2-preview-head"><div><h3>Vista previa para WhatsApp</h3><small>Los símbolos * y _ se conservan al copiar.</small></div></div>
-      <textarea id="av-preview" readonly placeholder="Genera o selecciona un avance para visualizarlo aquí.">${avEsc(avanceEstado.preview)}</textarea>
-    </section>
-    <section class="av2-history">
-      <h3>Historial de avances</h3>
-      ${avanceEstado.snapshots.length?avanceEstado.snapshots.slice().sort((a,b)=>avNum(a.generadoEn)-avNum(b.generadoEn)).map(s=>`
-        <button type="button" onclick="avVer('${s.id}')"><b>${s.tipo==='CIERRE'?'CIERRE':s.horaCorte}</b><span>${s.estado}</span><small>${new Date(s.generadoEn).toLocaleString('es-PE')}</small></button>`).join(''):
-        '<p class="small-muted">Todavía no hay avances generados para este turno.</p>'}
-    </section>`;
+  const list=document.getElementById('av-history-list');
+  if(list){
+    list.innerHTML=avanceEstado.snapshots.length
+      ? avanceEstado.snapshots.slice().sort((a,b)=>avNum(b.generadoEn)-avNum(a.generadoEn)).map(s=>`
+        <button type="button" onclick="avVerDesdeModulo('${s.id}')">
+          <b>${s.tipo==='CIERRE'?'CIERRE':avEsc(s.horaCorte)}</b>
+          <span>${avEsc(s.estado||'GENERADO')}</span>
+          <small>${new Date(s.generadoEn).toLocaleString('es-PE')}</small>
+        </button>`).join('')
+      : '<p class="small-muted">Todavía no hay avances generados para este turno.</p>';
+  }
+  avInstalarBotonFlotante();
+  if(document.getElementById('av-float-modal')?.classList.contains('open'))avDibujarFlotante();
+}
+function avVerDesdeModulo(id){
+  const s=avanceEstado.snapshots.find(x=>x.id===id);
+  if(!s)return;
+  avanceEstado.preview=s.texto||'';
+  avAbrirFlotante();
 }
 
 const AVANCE_CSS=`
-.av2{padding:4px}.av2-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 20px;background:#f4f8fb;border:1px solid #d7e3eb;border-left:5px solid #006da8;border-radius:10px}.av2-head h2{margin:0;color:#082f49}.av2-head p{margin:5px 0 0;color:#647987}.av2-context{display:grid;gap:4px;text-align:right;color:#24475c}.av2-status{min-height:22px;margin:8px 2px;color:#17633c;font-weight:700}.av2-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.av2-card{border:1px solid #d7e3eb;border-radius:10px;padding:13px;background:#fff}.av2-card>div:first-child{display:flex;justify-content:space-between;align-items:center}.av2-card strong{font-size:20px;color:#073f68}.av2-card span{font-size:10px;font-weight:800;padding:4px 7px;border-radius:999px;background:#eef2f4}.av2-card.generado span{background:#e6f3ff;color:#075985}.av2-card.copiado span{background:#e7f6ed;color:#17633c}.av2-card small{display:block;margin-top:5px;color:#70828e}.av2-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.av2-card.cierre{border-left:4px solid #006da8}.av2-preview,.av2-history{margin-top:14px;border:1px solid #d7e3eb;border-radius:10px;background:#fff;padding:15px}.av2-preview h3,.av2-history h3{margin:0 0 8px;color:#073f68}.av2-preview textarea{width:100%;min-height:420px;resize:vertical;font-family:'IBM Plex Mono',monospace;line-height:1.45;padding:14px;border:1px solid #cbd8e0;border-radius:8px;background:#f9fbfc}.av2-history button{width:100%;display:grid;grid-template-columns:100px 100px 1fr;gap:8px;text-align:left;padding:9px 10px;margin-top:6px;border:1px solid #e1e8ed;background:#fafcfd;border-radius:7px;cursor:pointer}@media(max-width:700px){.av2-head{display:block}.av2-context{text-align:left;margin-top:12px}.av2-history button{grid-template-columns:70px 80px 1fr}}
+.av2{padding:4px}
+.av2-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 20px;background:#f4f8fb;border:1px solid #d7e3eb;border-left:5px solid #006da8;border-radius:10px}
+.av2-head h2{margin:0;color:#082f49}.av2-head p{margin:5px 0 0;color:#647987}.av2-context{display:grid;gap:4px;text-align:right;color:#24475c}
+.av2-simple{margin-top:14px;padding:24px;border:1px solid #d7e3eb;border-radius:10px;background:#fff;text-align:center}.av2-simple p{margin:9px 0 0;color:#70828e;font-size:12px}
+.av2-history{margin-top:14px;border:1px solid #d7e3eb;border-radius:10px;background:#fff;padding:15px}.av2-history h3{margin:0 0 8px;color:#073f68}
+.av2-history button{width:100%;display:grid;grid-template-columns:100px 100px 1fr;gap:8px;text-align:left;padding:9px 10px;margin-top:6px;border:1px solid #e1e8ed;background:#fafcfd;border-radius:7px;cursor:pointer}
+.av-floating-trigger{position:fixed;touch-action:none;user-select:none;-webkit-user-select:none;right:22px;bottom:22px;z-index:950;display:flex;align-items:center;gap:8px;padding:12px 16px;border:0;border-radius:999px;background:#005b96;color:#fff;box-shadow:0 10px 30px rgba(0,59,92,.28);cursor:pointer;font-family:inherit}
+.av-floating-trigger:hover{background:#003b5c}
+.av-floating-trigger.dragging{cursor:grabbing;opacity:.92;box-shadow:0 14px 36px rgba(0,59,92,.36)}
+.av-drag-handle{font-weight:900;letter-spacing:-2px;opacity:.75;cursor:grab}.av-floating-trigger span{font-size:18px}.av-floating-trigger b{font-size:11px;letter-spacing:.04em}
+.av-float-modal{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,31,50,.55);padding:18px;align-items:center;justify-content:center}
+.av-float-modal.open{display:flex}
+.av-float-dialog{width:min(760px,96vw);max-height:92vh;display:flex;flex-direction:column;background:#f5f8fa;border:1px solid #d7e3eb;border-radius:14px;box-shadow:0 28px 80px rgba(0,31,50,.3);overflow:hidden}
+.av-float-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;background:#003b5c;color:#fff}.av-float-head h2{margin:0;font-size:18px;text-transform:uppercase}.av-float-head p{margin:4px 0 0;font-size:11px;opacity:.8}.av-float-x{width:36px;height:36px;border:0;border-radius:7px;background:rgba(255,255,255,.1);color:#fff;cursor:pointer}
+.av-float-body{padding:16px;overflow:auto}.av-float-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.av-float-last{margin-top:12px;padding:13px;border:1px solid #d7e3eb;border-radius:9px;background:#fff}.av-float-last-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.av-float-last-head div{display:grid;gap:3px}.av-float-last-head small{font-size:9px;color:#70828e;font-weight:800;letter-spacing:.06em}.av-float-last-head strong{color:#073f68}.av-float-last-head>span{font-size:9px;font-weight:800;padding:4px 7px;border-radius:999px;background:#e7f6ed;color:#17633c}.av-float-last-actions{display:flex;gap:7px;margin-top:10px}
+.av-float-preview{margin-top:12px}.av-float-preview-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}.av-float-preview-head strong{color:#073f68}.av-float-preview-head small{color:#70828e}.av-float-preview textarea{width:100%;min-height:310px;resize:vertical;padding:12px;border:1px solid #cbd8e0;border-radius:8px;background:#fff;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.45}
+@media(max-width:700px){.av2-head{display:block}.av2-context{text-align:left;margin-top:12px}.av2-history button{grid-template-columns:70px 80px 1fr}.av-floating-trigger{right:12px;bottom:12px;padding:11px 13px}.av-float-modal{padding:0}.av-float-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:1fr}.av-float-preview textarea{min-height:45vh}}
 `;
+
+/* Inyectar estilos del módulo una sola vez.
+   La versión anterior definía AVANCE_CSS pero no lo agregaba al <head>. */
+function avInstalarEstilos(){
+  if(document.getElementById('av-estilos-globales'))return;
+  const style=document.createElement('style');
+  style.id='av-estilos-globales';
+  style.textContent=AVANCE_CSS;
+  document.head.appendChild(style);
+}
+
+/* =========================================================
+   BOOTSTRAP GLOBAL · BOTÓN FLOTANTE AVANCE / CIERRE
+   =========================================================
+   29-avance-produccion.js carga antes de 12-init.js. Por eso no
+   podemos depender de que el usuario haya abierto primero el módulo
+   "Avance y Cierre". Esperamos a que state.user esté disponible y
+   montamos el acceso flotante globalmente.
+*/
+(function avBootstrapFlotante(){
+  let intentos=0;
+
+  const instalar=()=>{
+    intentos++;
+
+    try{
+      if(
+        typeof state!=='undefined' &&
+        state?.user &&
+        typeof tienePermiso==='function'
+      ){
+        if(tienePermiso('avanceProduccion')){
+          avInstalarBotonFlotante();
+          return;
+        }
+      }
+    }catch(err){
+      console.debug('Avance/Cierre: esperando inicialización...',err);
+    }
+
+    if(intentos<120){
+      setTimeout(instalar,500);
+    }
+  };
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(instalar,250),{once:true});
+  }else{
+    setTimeout(instalar,250);
+  }
+
+  /*
+     Si cambia la pantalla después del login o navegación, verificamos
+     nuevamente sin duplicar el botón.
+  */
+  window.addEventListener('focus',()=>{
+    try{ avInstalarBotonFlotante(); }catch(_){}
+  });
+
+  document.addEventListener('click',()=>{
+    setTimeout(()=>{
+      try{ avInstalarBotonFlotante(); }catch(_){}
+    },50);
+  });
+})();

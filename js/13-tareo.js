@@ -56,7 +56,13 @@ const TAREO_ESTADOS_FINAL =
         estado => estado !== 'Asistió'
     );
 
-let tareoActualId = null;
+/*
+   Estado global del tareo.
+   Se usa `var` intencionalmente porque openTareo() puede ser invocado
+   desde botones globales mientras terminan de cargarse/extenderse los
+   módulos de Tareo/RRHH. Así evitamos la Temporal Dead Zone de `let`.
+*/
+var tareoActualId = null;
 
 /* Estado de pantalla del módulo (filtros y área que se está viendo). */
 
@@ -2343,6 +2349,96 @@ function tareoGenerarIdDeterministico(area, fecha, turno) {
    a la vez terminan en el MISMO tareo, no en dos.
 */
 
+/* =========================================================
+   SINCRONIZAR TAREO EXISTENTE CON ROTACIÓN SEMANAL
+   =========================================================
+   Si la rotación cambia después de haberse creado el tareo,
+   actualizamos la nómina sin borrar asistencia/horas ya
+   registradas de las personas que continúan en el turno.
+*/
+function tareoSincronizarConRotacion(tareo) {
+
+    if (!tareo || tareoAreaDe(tareo) !== 'Producción') {
+        return tareo;
+    }
+
+    const resultado = obtenerPersonalPorRotacion(
+        tareo.fecha,
+        tareo.turno
+    );
+
+    if (!resultado.tieneRotacion || !resultado.rotacion) {
+        return tareo;
+    }
+
+    /* Si ya está usando exactamente esta rotación, no tocamos nada. */
+    if (String(tareo.rotacionId || '') === String(resultado.rotacion.id || '')) {
+        return tareo;
+    }
+
+    const clavePersona = persona => {
+        const id = persona?.trabajadorId ?? persona?.id;
+        if (id !== undefined && id !== null && String(id).trim()) {
+            return 'ID:' + String(id).trim();
+        }
+
+        const dni = tareoNormalizarDNI(persona?.dni || '');
+        if (dni) return 'DNI:' + dni;
+
+        return 'NOMBRE:' + tareoNormalizarTexto(persona?.nombre || '');
+    };
+
+    const anteriores = new Map(
+        (tareo.personal || []).map(persona => [
+            clavePersona(persona),
+            persona
+        ])
+    );
+
+    const ahora = Date.now();
+
+    const nuevoPersonal = resultado.personal.map(trabajador => {
+
+        const nueva = tareoNuevaPersona(trabajador, 'Producción');
+        const anterior = anteriores.get(clavePersona(trabajador));
+
+        if (!anterior) {
+            return nueva;
+        }
+
+        /*
+           Conservamos el registro operativo ya hecho, pero refrescamos
+           los datos maestros que vienen de la nueva rotación.
+        */
+        return {
+            ...nueva,
+            asistencia: anterior.asistencia || '',
+            horaIngreso: anterior.horaIngreso || '',
+            salidaRefrigerio: anterior.salidaRefrigerio || '',
+            retornoRefrigerio: anterior.retornoRefrigerio || '',
+            refrigerio: Number(anterior.refrigerio || 0),
+            horaSalida: anterior.horaSalida || '',
+            horasTrabajadas: Number(anterior.horasTrabajadas || 0),
+            horasExtras: Number(anterior.horasExtras || 0),
+            tardanzaMinutos: Number(anterior.tardanzaMinutos || 0),
+            actualizadoEn: Number(anterior.actualizadoEn || 0)
+        };
+    });
+
+    tareo.personal = ordenarPersonalTareo(nuevoPersonal);
+    tareo.rotacionId = resultado.rotacion.id;
+    tareo.actualizadoEn = Math.max(Number(tareo.actualizadoEn || 0), ahora);
+
+    /*
+       Guardamos la actualización para que la misma rotación se vea
+       también desde otros equipos.
+    */
+    guardarTareoEnMemoria(tareo);
+
+    return tareo;
+}
+
+
 function tareoAbrir(area, fecha, turno) {
 
     if (!tareoAreasEditables().includes(area)) {
@@ -2367,9 +2463,14 @@ function tareoAbrir(area, fecha, turno) {
 
     if (existente) {
 
-        tareoActualId = existente.id;
+        const tareoActualizado =
+            area === 'Producción'
+                ? tareoSincronizarConRotacion(existente)
+                : existente;
 
-        renderTareoFormulario(existente);
+        tareoActualId = tareoActualizado.id;
+
+        renderTareoFormulario(tareoActualizado);
 
         return;
     }
@@ -5306,8 +5407,18 @@ function renderRotacionSemanal() {
                                     ${rotaciones.map(
                                         rotacion => {
 
+                                            /*
+                                               Compatibilidad con rotaciones antiguas:
+                                               algunos registros históricos pueden no
+                                               tener el arreglo `personal`.
+                                            */
+                                            const personalRotacion =
+                                                Array.isArray(rotacion.personal)
+                                                    ? rotacion.personal
+                                                    : [];
+
                                             const dia =
-                                                rotacion.personal.filter(
+                                                personalRotacion.filter(
                                                     persona =>
                                                         normalizarTurno(
                                                             persona.turno
@@ -5316,7 +5427,7 @@ function renderRotacionSemanal() {
                                                 ).length;
 
                                             const noche =
-                                                rotacion.personal.filter(
+                                                personalRotacion.filter(
                                                     persona =>
                                                         normalizarTurno(
                                                             persona.turno
@@ -5354,7 +5465,7 @@ function renderRotacionSemanal() {
 
                                                     <td>
                                                         ${
-                                                            rotacion.personal
+                                                            personalRotacion
                                                                 .length
                                                         }
                                                     </td>
