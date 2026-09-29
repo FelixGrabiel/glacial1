@@ -215,8 +215,9 @@
     const programado=Math.round(num(x.prog?.cantidadProgramada));
     const operativo=x.op?.estado || x.estadoVisual || 'PENDIENTE';
     if(operativo==='CANCELADA')return {key:'CANCELADA',label:'CANCELADA',rank:4,cls:'cancelada'};
-    if(operativo==='FINALIZADA' || (programado>0 && producido>=programado &&
-       !['EN_PRODUCCION','PAUSA','DETENIDA','LISTA'].includes(operativo)))
+    // Al llegar al objetivo, la marca está completada aunque el último
+    // estado operativo guardado siga diciendo EN_PRODUCCION.
+    if(operativo==='FINALIZADA' || (programado>0 && producido>=programado))
       return {key:'COMPLETADA',label:'COMPLETADA',rank:3,cls:'completada'};
     if(['PAUSA','PAUSA_SECUENCIA','DETENIDA','LISTA'].includes(operativo))
       return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa'};
