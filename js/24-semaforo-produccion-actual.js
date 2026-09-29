@@ -206,6 +206,24 @@
 
     return sec;
   }
+  // Una sola clasificación para tarjetas, avances y semáforo de la línea.
+  // El estado operativo persistido manda sobre la secuencia y las paletas.
+  function estadoOrdenItem(x){
+    const producido=Math.round(num(resumenProgramacionCombinacionTurnos(
+      x.linea,x.fecha,[x.turno],x.marca,x.presentacion
+    ).unidadesProducidas));
+    const programado=Math.round(num(x.prog?.cantidadProgramada));
+    const operativo=x.op?.estado || x.estadoVisual || 'PENDIENTE';
+    if(operativo==='CANCELADA')return {key:'CANCELADA',label:'CANCELADA',rank:4,cls:'cancelada'};
+    if(operativo==='FINALIZADA' || (programado>0 && producido>=programado &&
+       !['EN_PRODUCCION','PAUSA','DETENIDA','LISTA'].includes(operativo)))
+      return {key:'COMPLETADA',label:'COMPLETADA',rank:3,cls:'completada'};
+    if(['PAUSA','PAUSA_SECUENCIA','DETENIDA','LISTA'].includes(operativo))
+      return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa'};
+    if(operativo==='EN_PRODUCCION')
+      return {key:'EN_CURSO',label:'EN CURSO',rank:0,cls:'curso'};
+    return {key:'PENDIENTE',label:'PENDIENTE',rank:2,cls:'pendiente'};
+  }
   const turnoActivo = (fecha,turno) => {
     const t=turnoVigente();return t.activo && t.fecha===fecha && t.turno===turno;
   };
@@ -458,21 +476,7 @@
       if(!items.length && !vacios.length)return null;
       const detenidos=items.filter(x=>x.op?.estado==='DETENIDA');
       const pausas=items.filter(x=>x.op?.estado==='PAUSA');
-      const ultimoConProduccion=ultimoProductoConProduccion(items);
       const activosGuardados=items.filter(x=>x.op?.estado==='EN_PRODUCCION');
-
-      // RECUPERACIÓN VISUAL DE PRODUCCIÓN ACTUAL
-      // Si existen paletas registradas para una presentación pendiente, pero por una
-      // incidencia anterior no llegó a guardarse estadoOperacion=EN_PRODUCCION,
-      // mostramos como EN CURSO únicamente la presentación con el registro de paletas
-      // más reciente. Nunca se sobreescribe un estado operativo real ni se reabre una
-      // presentación FINALIZADA/CANCELADA. El siguiente guardado operativo normaliza
-      // el estado persistido en Firestore.
-      if(!activosGuardados.length && ultimoConProduccion &&
-         (!ultimoConProduccion.op?.estado || ultimoConProduccion.op?.estado==='PENDIENTE') &&
-         ultimoConProduccion.estadoVisual!=='FINALIZADA'){
-        ultimoConProduccion.estadoVisual='EN_PRODUCCION';
-      }
 
       // El estado operativo guardado tiene prioridad absoluta.
       // Los registros de paletas sirven para métricas, pero NO pueden volver
@@ -485,19 +489,17 @@
         items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado)) ||
         items[0] || vacios[0];
 
-      const hayCurso=items.some(x=>(x.estadoVisual || x.op?.estado)==='EN_PRODUCCION');
-      const hayFinalizada=items.some(x=>x.op?.estado==='FINALIZADA');
-      const hayPendiente=items.some(x=>!x.op?.estado || x.op?.estado==='PENDIENTE');
-      const todosCerrados=items.length>0 && items.every(
-        x=>['FINALIZADA','CANCELADA'].includes(x.op?.estado)
-      );
-      const lineaCerrada=todosCerrados ||
-        (!hayCurso && !detenidos.length && !pausas.length && hayFinalizada && !hayPendiente);
-      const nivel=detenidos.length?'roja':pausas.length?'ambar':hayCurso?'verde':'gris';
-      const texto=detenidos.length?'Línea detenida':
-        pausas.length?'Pausa programada':
-        hayCurso?'En curso':
-        lineaCerrada?'FINALIZADA':'Sin iniciar';
+      const estados=items.map(estadoOrdenItem);
+      const hayCurso=estados.some(e=>e.key==='EN_CURSO');
+      const hayPausa=estados.some(e=>e.key==='PAUSA');
+      const todosCerrados=estados.length>0 && estados.every(
+        e=>['COMPLETADA','CANCELADA'].includes(e.key));
+      const todosCancelados=estados.length>0 && estados.every(e=>e.key==='CANCELADA');
+      const nivel=detenidos.length?'roja':hayCurso?'verde':hayPausa?'ambar':
+        todosCancelados?'roja':todosCerrados?'verde':'gris';
+      const texto=detenidos.length?'Línea detenida':hayCurso?'En curso':
+        hayPausa?'Pausa programada':todosCancelados?'CANCELADA':
+        todosCerrados?'FINALIZADA':'Sin iniciar';
       const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
       const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
       const totalProd=items.reduce((s,x)=>s+num(resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas),0);
@@ -767,23 +769,6 @@
     };
 
 
-    const estadoOrdenItem=x=>{
-      const producido=Math.round(num(resumenProgramacionCombinacionTurnos(
-        x.linea,x.fecha,[x.turno],x.marca,x.presentacion
-      ).unidadesProducidas));
-      const programado=Math.round(num(x.prog?.cantidadProgramada));
-      const operativo=x.op?.estado || x.estadoVisual || 'PENDIENTE';
-
-      if(x.op?.estado==='CANCELADA')return {key:'CANCELADA',label:'CANCELADA',rank:4,cls:'cancelada'};
-      if(x.op?.estado==='FINALIZADA' || (programado>0 && producido>=programado))
-        return {key:'COMPLETADA',label:'COMPLETADA',rank:3,cls:'completada'};
-      if(['PAUSA','PAUSA_SECUENCIA','DETENIDA','LISTA'].includes(operativo))
-        return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa'};
-      if(operativo==='EN_PRODUCCION')
-        return {key:'EN_CURSO',label:'EN CURSO',rank:0,cls:'curso'};
-      return {key:'PENDIENTE',label:'PENDIENTE',rank:2,cls:'pendiente'};
-    };
-
     const ordenOriginalItem=(x,indice)=>{
       const ordenes=secuenciaPlanificada(x.linea,x.fecha,x.turnoPlan || x.turno);
       const encontrado=ordenes.find(t=>
@@ -997,8 +982,7 @@
     .pa-total-pres-values{display:flex;align-items:baseline;gap:5px;margin-top:7px;color:#073f68}
     .pa-total-pres-values strong{font-size:22px;line-height:1}
     .pa-total-pres-values span{font-size:12px;font-weight:700}
-    .pa-total-big{display:flex;align-items:center;gap:14px;min-height:94px;padding:11px;border-radius:10px;background:#edf6fc}
-    .pa-total-big small{display:block;color:#5d7180;font-size:10px;margin-bottom:5px}
+    .pa-total-big{display:flex;align-items:center;gap:14px;min-height:94px;padding:11px;border-radius:10px;background:#edf6fc}    .pa-total-big small{display:block;color:#5d7180;font-size:10px;margin-bottom:5px}
     .pa-total-big strong{font-size:24px;line-height:1.05;color:#073f68}.pa-total-big strong span{font-size:13px}
     .pa-total-progress{height:8px;border-radius:999px;background:#dce7ee;overflow:hidden;margin-top:12px}.pa-total-progress>div{height:100%;background:#198754}
     .pa-total-percent{text-align:center;margin-top:6px;font-size:11px;font-weight:700;color:#526979}
