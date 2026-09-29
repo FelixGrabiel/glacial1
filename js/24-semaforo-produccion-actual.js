@@ -461,6 +461,19 @@
       const ultimoConProduccion=ultimoProductoConProduccion(items);
       const activosGuardados=items.filter(x=>x.op?.estado==='EN_PRODUCCION');
 
+      // RECUPERACIÓN VISUAL DE PRODUCCIÓN ACTUAL
+      // Si existen paletas registradas para una presentación pendiente, pero por una
+      // incidencia anterior no llegó a guardarse estadoOperacion=EN_PRODUCCION,
+      // mostramos como EN CURSO únicamente la presentación con el registro de paletas
+      // más reciente. Nunca se sobreescribe un estado operativo real ni se reabre una
+      // presentación FINALIZADA/CANCELADA. El siguiente guardado operativo normaliza
+      // el estado persistido en Firestore.
+      if(!activosGuardados.length && ultimoConProduccion &&
+         (!ultimoConProduccion.op?.estado || ultimoConProduccion.op?.estado==='PENDIENTE') &&
+         ultimoConProduccion.estadoVisual!=='FINALIZADA'){
+        ultimoConProduccion.estadoVisual='EN_PRODUCCION';
+      }
+
       // El estado operativo guardado tiene prioridad absoluta.
       // Los registros de paletas sirven para métricas, pero NO pueden volver
       // a abrir visualmente una presentación ya FINALIZADA.
@@ -848,7 +861,9 @@
             <section class="pa-hcol pa-hcol-ratio">
               <div class="pa-hcol-title">◴ PRODUCCIÓN ACTUAL</div>
               ${(()=>{
-                const actual=g.items.find(x=>['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(x.op?.estado)) ||
+                const actual=g.items.find(x=>x.op?.estado==='EN_PRODUCCION') ||
+                  g.items.find(x=>x.estadoVisual==='EN_PRODUCCION') ||
+                  g.items.find(x=>['DETENIDA','LISTA','PAUSA'].includes(x.op?.estado)) ||
                   g.items.find(x=>!x.op?.estado || x.op?.estado==='PENDIENTE') ||
                   g.items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado));
                 if(!actual)return '<div class="pa-empty-current">Sin producción activa en este momento.</div>';
