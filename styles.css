@@ -4481,3 +4481,504 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
         min-width:760px !important;
     }
 }
+
+
+/* =========================================================
+   FIX V3 · MODAL HISTORIAL — SCROLL REAL Y PERSONAL COMPLETO
+   ========================================================= */
+
+/* El modal queda dentro del viewport y el área central es la que desplaza. */
+.hist-report-modal{
+  overflow:hidden !important;
+}
+
+.hist-report-dialog{
+  width:min(1240px,98vw) !important;
+  height:96vh !important;
+  max-height:96vh !important;
+  display:flex !important;
+  flex-direction:column !important;
+  overflow:hidden !important;
+}
+
+.hist-report-top,
+.hist-report-trace,
+.hist-report-footer{
+  flex:0 0 auto !important;
+}
+
+/* Scroll principal: vertical real. Quitamos el horizontal global innecesario. */
+.hist-report-body{
+  flex:1 1 0 !important;
+  min-height:0 !important;
+  max-height:none !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  scrollbar-gutter:stable !important;
+  overscroll-behavior:contain !important;
+  -webkit-overflow-scrolling:touch;
+}
+
+/* Personal: muestra todos los registros dentro de una zona desplazable propia. */
+.hist-report-personal-scroll{
+  display:block !important;
+  width:100% !important;
+  max-width:100% !important;
+  max-height:300px !important;
+  overflow-y:auto !important;
+  overflow-x:auto !important;
+  scrollbar-gutter:stable !important;
+  overscroll-behavior:contain !important;
+  -webkit-overflow-scrolling:touch;
+}
+
+/* Cabecera de la tabla siempre visible mientras se recorre el personal. */
+.hist-report-personal-scroll thead th{
+  position:sticky !important;
+  top:0 !important;
+  z-index:2 !important;
+  background:#EEF3F6 !important;
+}
+
+/* En escritorio no forzamos 900 px si la tabla cabe. */
+.hist-report-personal-scroll table{
+  width:100% !important;
+  min-width:720px !important;
+}
+
+/* Scrollbars visibles y utilizables en Chrome / Edge. */
+.hist-report-body::-webkit-scrollbar,
+.hist-report-personal-scroll::-webkit-scrollbar{
+  width:12px !important;
+  height:12px !important;
+}
+
+.hist-report-body::-webkit-scrollbar-track,
+.hist-report-personal-scroll::-webkit-scrollbar-track{
+  background:#E4ECF1 !important;
+  border-radius:10px !important;
+}
+
+.hist-report-body::-webkit-scrollbar-thumb,
+.hist-report-personal-scroll::-webkit-scrollbar-thumb{
+  background:#6F98AE !important;
+  border:2px solid #E4ECF1 !important;
+  border-radius:10px !important;
+}
+
+.hist-report-body::-webkit-scrollbar-thumb:hover,
+.hist-report-personal-scroll::-webkit-scrollbar-thumb:hover{
+  background:#005B96 !important;
+}
+
+/* La rueda del mouse y el gesto táctil trabajan sobre la tabla de personal. */
+.hist-report-personal-scroll{
+  touch-action:pan-x pan-y !important;
+}
+
+@media(max-width:700px){
+  .hist-report-dialog{
+    width:100vw !important;
+    height:100dvh !important;
+    max-height:100dvh !important;
+    border-radius:0 !important;
+  }
+
+  .hist-report-personal-scroll{
+    max-height:42vh !important;
+  }
+
+  .hist-report-personal-scroll table{
+    min-width:680px !important;
+  }
+}
+
+
+/* =========================================================
+   HISTORIAL · VER REPORTE — MEJORA EJECUTIVA V4
+   Conserva las reglas anteriores. Este bloque solo refina
+   el modal generado por verReporteHistorial().
+   ========================================================= */
+
+.hist-report-modal{
+  padding:18px !important;
+}
+
+.hist-report-dialog{
+  width:min(1260px,98vw) !important;
+  height:min(94vh,940px) !important;
+  max-height:94vh !important;
+  display:flex !important;
+  flex-direction:column !important;
+  overflow:hidden !important;
+}
+
+.hist-report-top,
+.hist-report-trace,
+.hist-report-nav,
+.hist-report-footer{
+  flex:0 0 auto !important;
+}
+
+.hist-report-nav{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:7px 14px;
+  background:#fff;
+  border-bottom:1px solid var(--line);
+}
+
+.hist-report-nav button{
+  appearance:none;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--steel);
+  border-radius:6px;
+  padding:6px 10px;
+  font:700 10px/1 var(--font-body);
+  cursor:pointer;
+}
+
+.hist-report-nav button:hover{
+  color:var(--blue);
+  background:var(--blue-light);
+  border-color:var(--blue-soft);
+}
+
+.hist-report-body{
+  position:relative !important;
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  scroll-behavior:smooth;
+  scrollbar-gutter:stable;
+  padding-bottom:18px !important;
+}
+
+.hist-report-anchor{
+  scroll-margin-top:10px;
+}
+
+.hist-report-kpis{
+  grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+  align-items:stretch;
+}
+
+.hist-report-kpis>div{
+  min-width:0;
+}
+
+.hist-kpi-cumplimiento{
+  display:flex;
+  flex-direction:column;
+}
+
+.hist-kpi-progress{
+  width:100%;
+  height:5px;
+  margin:5px 0 3px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#e4ebef;
+}
+
+.hist-kpi-progress i{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:var(--good);
+}
+
+.hist-report-stop-summary{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin:13px 0 9px;
+}
+
+.hist-report-stop-summary>div{
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+}
+
+.hist-report-stop-summary small,
+.hist-report-stop-summary span{
+  display:block;
+  color:var(--muted);
+  font-size:9px;
+}
+
+.hist-report-stop-summary strong{
+  display:block;
+  margin:2px 0;
+  color:var(--blue-deep);
+  font-family:var(--font-display);
+  font-size:18px;
+}
+
+.hist-report-stop-row em{
+  display:block;
+  margin-top:3px;
+  color:var(--steel);
+  font-size:10px;
+  font-style:normal;
+}
+
+.hist-report-scroll-hint{
+  flex:0 0 auto;
+  padding:5px 12px;
+  border-top:1px solid #e5edf1;
+  background:#f8fbfc;
+  color:var(--steel);
+  text-align:center;
+  font-size:9px;
+  font-weight:700;
+  transition:opacity .18s ease,max-height .18s ease,padding .18s ease;
+}
+
+.hist-report-scroll-hint.is-hidden{
+  max-height:0;
+  padding-top:0;
+  padding-bottom:0;
+  border-top:0;
+  opacity:0;
+  overflow:hidden;
+}
+
+.hist-report-scroll-end{
+  padding:14px 0 2px;
+  color:var(--muted);
+  text-align:center;
+  font-size:9px;
+}
+
+.hist-report-body::-webkit-scrollbar{
+  width:11px !important;
+}
+
+.hist-report-body::-webkit-scrollbar-track{
+  background:#e8eef2 !important;
+}
+
+.hist-report-body::-webkit-scrollbar-thumb{
+  background:#7d9cac !important;
+  border:2px solid #e8eef2 !important;
+  border-radius:999px !important;
+}
+
+.hist-report-body::-webkit-scrollbar-thumb:hover{
+  background:var(--blue) !important;
+}
+
+@media(max-width:1100px){
+  .hist-report-kpis{
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  }
+}
+
+@media(max-width:700px){
+  .hist-report-modal{
+    padding:0 !important;
+  }
+
+  .hist-report-dialog{
+    width:100vw !important;
+    height:100dvh !important;
+    max-height:100dvh !important;
+    border-radius:0 !important;
+  }
+
+  .hist-report-nav{
+    overflow-x:auto;
+    padding:6px 8px;
+  }
+
+  .hist-report-nav button{
+    flex:0 0 auto;
+  }
+
+  .hist-report-kpis{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  }
+
+  .hist-report-stop-summary{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* =========================================================
+   HISTORIAL · VER REPORTE — FIX COMPLETO V5
+   Corrige navegación, scroll y restaura Personal/Observaciones.
+   ========================================================= */
+
+.hist-report-dialog{
+  height:min(900px,94vh) !important;
+  max-height:94vh !important;
+  display:grid !important;
+  grid-template-rows:auto auto auto minmax(0,1fr) auto auto !important;
+  overflow:hidden !important;
+}
+
+.hist-report-body{
+  display:block !important;
+  width:100% !important;
+  min-height:0 !important;
+  height:100% !important;
+  overflow-y:scroll !important;
+  overflow-x:hidden !important;
+  padding:16px 20px 26px !important;
+  scroll-behavior:smooth !important;
+  overscroll-behavior:contain !important;
+}
+
+.hist-report-body > * + *{
+  margin-top:12px;
+}
+
+.hist-report-nav{
+  position:relative !important;
+  z-index:4;
+  display:flex !important;
+  flex-wrap:nowrap !important;
+  overflow-x:auto !important;
+  gap:5px !important;
+  padding:8px 16px !important;
+}
+
+.hist-report-nav button{
+  flex:0 0 auto !important;
+  min-height:30px;
+}
+
+.hist-report-nav button.active{
+  color:var(--blue-deep) !important;
+  background:var(--blue-light) !important;
+  border-color:var(--blue-soft) !important;
+}
+
+.hist-report-production-list{
+  display:grid !important;
+  gap:9px !important;
+}
+
+.hist-report-production-card[open]{
+  overflow:visible !important;
+}
+
+.hist-report-production-card[open] .hist-report-grid{
+  display:grid !important;
+}
+
+.hist-report-section-title{
+  padding-top:4px;
+}
+
+.hist-report-personal-list,
+.hist-report-observations-list{
+  display:grid;
+  background:#fff;
+}
+
+.hist-report-person-row{
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) minmax(90px,180px);
+  gap:10px;
+  align-items:center;
+  padding:10px 14px;
+  border-top:1px solid var(--line);
+}
+
+.hist-report-person-row:first-child,
+.hist-report-observation-row:first-child{
+  border-top:0;
+}
+
+.hist-report-person-num{
+  display:grid;
+  place-items:center;
+  width:30px;
+  height:30px;
+  border-radius:6px;
+  background:var(--blue-light);
+  color:var(--blue-deep);
+  font-family:var(--font-mono);
+  font-size:10px;
+  font-weight:700;
+}
+
+.hist-report-person-row strong{
+  display:block;
+  color:var(--ink);
+  font-size:12px;
+}
+
+.hist-report-person-row small{
+  display:block;
+  margin-top:2px;
+  color:var(--muted);
+  font-size:9px;
+}
+
+.hist-report-person-row>b{
+  color:var(--steel);
+  font-size:10px;
+  text-align:right;
+}
+
+.hist-report-observation-row{
+  display:grid;
+  grid-template-columns:38px 1fr;
+  gap:10px;
+  padding:11px 14px;
+  border-top:1px solid var(--line);
+}
+
+.hist-report-observation-row span{
+  color:var(--blue);
+  font-family:var(--font-mono);
+  font-size:10px;
+  font-weight:700;
+}
+
+.hist-report-observation-row p{
+  margin:0;
+  color:var(--ink-soft);
+  font-size:11px;
+  line-height:1.45;
+}
+
+.hist-report-empty{
+  padding:14px 16px !important;
+  color:var(--muted);
+  font-size:10px;
+}
+
+.hist-report-scroll-hint{
+  position:relative !important;
+  z-index:5;
+}
+
+@media(max-width:700px){
+  .hist-report-dialog{
+    height:100dvh !important;
+    max-height:100dvh !important;
+  }
+
+  .hist-report-body{
+    padding:12px 10px 22px !important;
+  }
+
+  .hist-report-person-row{
+    grid-template-columns:36px minmax(0,1fr);
+  }
+
+  .hist-report-person-row>b{
+    grid-column:2;
+    text-align:left;
+  }
+}

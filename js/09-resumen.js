@@ -1935,12 +1935,13 @@ function agruparParadasPlanta(records){
 
     filas.forEach(f => {
 
-      const clave = f.tipo + '||' + f.descripcion;
+      const causa = normalizarCausaParada(f.descripcion);
+      const clave = f.tipo + '||' + causa.clave;
 
       if(!acumulado[clave]){
 
         acumulado[clave] = {
-          descripcion: f.descripcion,
+          descripcion: causa.descripcion,
           tipo: f.tipo,
           minutos: 0
         };
@@ -2424,9 +2425,15 @@ function rsDatosIndustriales(records){
   }).filter(x=>x.programado||x.producido||x.minParadas||x.merma);
   const causas=new Map();
   porLinea.flatMap(x=>x.paradas).forEach(p=>{
-    const k=String(p.descripcion||'Sin descripción').trim();
-    const o=causas.get(k)||{descripcion:k,minutos:0,tipo:p.tipo};
-    o.minutos+=rsNum(p.tiempoMin);causas.set(k,o);
+    const causa=normalizarCausaParada(p.descripcion);
+    const k=causa.clave;
+    const o=causas.get(k)||{
+      descripcion:causa.descripcion,
+      minutos:0,
+      tipo:p.tipo
+    };
+    o.minutos+=rsNum(p.tiempoMin);
+    causas.set(k,o);
   });
   const pareto=[...causas.values()].sort((a,b)=>b.minutos-a.minutos).slice(0,10);
   const dias=new Map();

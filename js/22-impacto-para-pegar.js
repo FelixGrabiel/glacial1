@@ -69,8 +69,10 @@
 
         const und = ratio * min / 60;
         const money = und * precio(linea);
-        const descripcion = String(p.descripcion || '').trim()
-          || 'Sin descripción';
+        const causaNormalizada =
+          normalizarCausaParada(p.descripcion);
+        const descripcion =
+          causaNormalizada.descripcion;
         const maquina = MAQUINAS.includes(p.maquina) ? p.maquina
           : categorizarParadaPorTexto(descripcion);
 
@@ -96,7 +98,8 @@
         sumar(porLineaMaquina[lm],min,und,money);
         porLineaMaquina[lm].veces++;
 
-        const causa = linea + '|' + descripcion;
+        const causa =
+          linea + '|' + causaNormalizada.clave;
         if(!porCausa[causa]) porCausa[causa] = {
           linea,descripcion,categoria:maquina,
           minutos:0,unidades:0,dinero:0,veces:0

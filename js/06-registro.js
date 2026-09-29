@@ -2677,6 +2677,62 @@ async function finalizarCuadroProduccion(i){
   renderFormTab();
 }
 
+async function reabrirCuadroProduccion(i){
+  const q=normalizarCuadros(draft)[i];
+
+  if(!q || q.estadoCuadro!=='FINALIZADO') return;
+
+  if(typeof tienePermiso!=='function' || !tienePermiso('reabrirProduccion')){
+    alert('No tienes permiso para reabrir una producción finalizada.');
+    return;
+  }
+
+  // Si el reporte completo ya fue cerrado, primero debe usarse la opción
+  // "Reabrir reporte". Esta acción reabre únicamente la marca/producción.
+  if(reporteEstaBloqueado()){
+    alert(
+      'El reporte completo está finalizado.\n\n' +
+      'Primero usa "Reabrir reporte" y luego podrás reabrir esta producción.'
+    );
+    return;
+  }
+
+  const marca=q.marca || ('Producción '+(i+1));
+
+  if(!confirm(
+    `¿Reabrir Producción ${i+1} · ${marca}?\n\n` +
+    'No se eliminará ningún dato. La producción volverá a ser editable ' +
+    'para corregir información y luego podrá finalizarse nuevamente.'
+  )) return;
+
+  const ahora=Date.now();
+  const usuario=state.user?.nombre || state.user?.username || 'Usuario';
+
+  // Conservar el último cierre como trazabilidad.
+  q.ultimaFinalizacion={
+    finalizadoEn:Number(q.finalizadoEn||0),
+    finalizadoPor:q.finalizadoPor||''
+  };
+
+  q.estadoCuadro='ABIERTO';
+  q.reabiertoEn=ahora;
+  q.reabiertoPor=usuario;
+
+  q.auditoriaCuadro=Array.isArray(q.auditoriaCuadro)?q.auditoriaCuadro:[];
+  q.auditoriaCuadro.push({
+    accion:'REABIERTO',
+    fecha:ahora,
+    usuario,
+    turno:draft.turno,
+    finalizadoEnAnterior:q.ultimaFinalizacion.finalizadoEn,
+    finalizadoPorAnterior:q.ultimaFinalizacion.finalizadoPor
+  });
+
+  await guardarAvanceReporte({silencioso:true});
+  renderFormTab();
+  mostrarToastReporte('Producción reabierta para edición');
+}
+
 function aplicarBloqueoCuadrosFinalizados(){
   const root=document.getElementById('tab-content');
   if(!root) return;
@@ -2687,7 +2743,7 @@ function aplicarBloqueoCuadrosFinalizados(){
     if(!card) return;
     card.classList.add('cuadro-finalizado');
     card.querySelectorAll('input,select,textarea,button').forEach(el=>{
-      if(el.matches('[data-cuadro-finalizar]')) return;
+      if(el.matches('[data-cuadro-finalizar],[data-cuadro-reabrir]')) return;
       el.disabled=true;
     });
   });
@@ -2906,10 +2962,17 @@ function validarReporteParaFinalizar(){
     if(!q.horaFin) faltan.push(`Producción ${n}: hora fin`);
   });
 
-  const personal=(draft.personal||[]);
-  if(!personal.length || personal.some(p=>!String(p.nombre||'').trim())){
-    faltan.push('Personal del turno');
-  }
+  /*
+     PERSONAL DEL TURNO VARIABLE:
+     Las posiciones son puestos disponibles de la línea, no una dotación
+     obligatoria. Por eso las filas sin trabajador pueden quedar vacías.
+  */
+  const personalRegistrado=(draft.personal||[]).filter(p=>
+    String(p?.nombre||'').trim()
+  );
+
+  // No agregar "Personal del turno" a faltantes por posiciones vacías.
+  // Se conservan y guardan únicamente los trabajadores realmente registrados.
   // Observaciones generales es un campo OPCIONAL.
   // Un reporte puede finalizar correctamente aunque no tenga observaciones.
 
@@ -3259,16 +3322,24 @@ function renderFormTab(){
          ratios, insumos, historial ni registros existentes.
       */
       const presentaciones =
-        typeof presentacionesUnicasPaletas === 'function'
-          ? presentacionesUnicasPaletas(state.currentLine)
-          : (PRESENTACIONES_POR_LINEA[state.currentLine] || [])
+        state.currentLine === 'B7L'
+          ? (PRESENTACIONES_POR_LINEA.B7L || [])
               .map(p=>({
                 value:p,
-                label:
-                  typeof nombrePresentacionUI === 'function'
-                    ? nombrePresentacionUI(state.currentLine,q.marca,p)
-                    : p
-              }));
+                label:p
+              }))
+          : (
+              typeof presentacionesUnicasPaletas === 'function'
+                ? presentacionesUnicasPaletas(state.currentLine)
+                : (PRESENTACIONES_POR_LINEA[state.currentLine] || [])
+                    .map(p=>({
+                      value:p,
+                      label:
+                        typeof nombrePresentacionUI === 'function'
+                          ? nombrePresentacionUI(state.currentLine,q.marca,p)
+                          : p
+                    }))
+            );
 
 
       const optionList =
@@ -3456,7 +3527,28 @@ function renderFormTab(){
                          white-space:nowrap;
                        "
                      >✓ FINALIZAR MARCA</button>`
-                  : ''
+                  : (
+                      typeof tienePermiso==='function' &&
+                      tienePermiso('reabrirProduccion')
+                        ? `<button
+                             type="button"
+                             data-cuadro-reabrir
+                             data-no-autosave
+                             onclick="event.stopPropagation();reabrirCuadroProduccion(${i})"
+                             style="
+                               border:1px solid rgba(255,255,255,.9);
+                               background:#fff;
+                               color:#006b8f;
+                               border-radius:6px;
+                               padding:7px 10px;
+                               font-size:11px;
+                               font-weight:800;
+                               cursor:pointer;
+                               white-space:nowrap;
+                             "
+                           >↻ REABRIR PRODUCCIÓN</button>`
+                        : ''
+                    )
               }
             </div>
 
@@ -3746,7 +3838,11 @@ function renderFormTab(){
 
                 ${
                   field(
-                    'Programada (bot)',
+                    draft.linea === 'C20L'
+                      ? 'Producción Programada (Caj)'
+                      : draft.linea === 'B20L'
+                        ? 'Producción Programada (Bid)'
+                        : 'Programada (bot)',
                     'number',
                     q.produccion.programada,
                     `
@@ -3762,7 +3858,11 @@ function renderFormTab(){
 
                 ${
                   field(
-                    'Efectiva (bot)',
+                    draft.linea === 'C20L'
+                      ? 'Producción Efectiva (Caj)'
+                      : draft.linea === 'B20L'
+                        ? 'Producción Efectiva (Bid)'
+                        : 'Efectiva (bot)',
                     'number',
                     q.produccion.efectiva,
                     `
@@ -3786,41 +3886,112 @@ function renderFormTab(){
 
 
                 ${
-                  field(
-                    'Botellas sopladas',
-                    'number',
-                    q.produccion.sopladas,
-                    `
-                      updateCuadroPath(
-                        ${i},
-                        'produccion.sopladas',
-                        this.value
+                  draft.linea === 'C20L'
+                    ? field(
+                        'Cajas Calidad',
+                        'number',
+                        q.produccion.calidad,
+                        `
+                          updateCuadroPath(
+                            ${i},
+                            'produccion.calidad',
+                            this.value
+                          )
+                        `
                       )
-                    `
-                  )
+                    : field(
+                        draft.linea === 'B20L'
+                          ? 'Bidones Disponibles'
+                          : 'Botellas sopladas',
+                        'number',
+                        q.produccion.sopladas,
+                        `
+                          updateCuadroPath(
+                            ${i},
+                            'produccion.sopladas',
+                            this.value
+                          )
+                        `
+                      )
                 }
 
 
                 ${
-                  field(
-                    'CALIDAD',
-                    'number',
-                    q.produccion.calidad,
-                    `
-                      updateCuadroPath(
-                        ${i},
-                        'produccion.calidad',
-                        this.value
+                  draft.linea === 'B20L'
+                    ? field(
+                        'Bidones Calidad',
+                        'number',
+                        q.produccion.calidad,
+                        `
+                          updateCuadroPath(
+                            ${i},
+                            'produccion.calidad',
+                            this.value
+                          )
+                        `
                       )
+                    : draft.linea !== 'C20L'
+                      ? field(
+                          'CALIDAD',
+                          'number',
+                          q.produccion.calidad,
+                          `
+                            updateCuadroPath(
+                              ${i},
+                              'produccion.calidad',
+                              this.value
+                            )
+                          `
+                        )
+                      : ''
+                }
+
+
+                ${
+                  ['C20L','B20L'].includes(draft.linea)
+                    ? `
+                      <div class="field-sm">
+                        <label>
+                          Ratio Producción Efectiva (${
+                            draft.linea === 'C20L' ? 'CPH' : 'BPH'
+                          })
+                        </label>
+                        <input
+                          type="text"
+                          value="${num(dq.ratioEfectivo).toFixed(0)}"
+                          ${readonly}
+                        >
+                      </div>
+
+                      <div class="field-sm">
+                        <label>
+                          Producción No Cumplida (${
+                            draft.linea === 'C20L' ? 'Caj' : 'Bid'
+                          })
+                        </label>
+                        <input
+                          type="text"
+                          value="${Math.max(
+                            num(q.produccion.programada) -
+                            num(q.produccion.efectiva),
+                            0
+                          ).toFixed(0)}"
+                          ${readonly}
+                        >
+                      </div>
                     `
-                  )
+                    : ''
                 }
 
 
                 <div class="field-sm">
 
                   <label>
-                    Paletas (automático)
+                    ${
+                      ['C20L','B20L'].includes(draft.linea)
+                        ? 'Nº de Paletas'
+                        : 'Paletas (automático)'
+                    }
                   </label>
 
                   <input
@@ -7031,6 +7202,20 @@ function personalTable(
 
 
   return `
+
+    <div class="personal-turno-ayuda" style="
+      margin:0 0 10px;
+      padding:9px 12px;
+      border:1px solid #d8e6ef;
+      border-left:4px solid #005B96;
+      border-radius:6px;
+      background:#f7fbfd;
+      color:#405261;
+      font-size:12px;
+    ">
+      Registra únicamente al personal que trabajó en el turno.
+      Las posiciones sin personal pueden quedar vacías.
+    </div>
 
     <datalist
       id="personal-workers-datalist"

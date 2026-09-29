@@ -5,11 +5,6 @@
 (function instalarAlertasLineas(){
   'use strict';
 
-  const DESTINATARIOS = new Set([
-    'Gerente General','Gerente','Jefe de Producción','Jefe de Operaciones',
-    'Planificación','Ventas','Ventas y Planificación'
-  ]);
-
   const PREF_SONIDO = 'glacial_alertas_lineas_silenciadas';
   let eventos = [];
   let idsConocidos = new Set();
@@ -19,7 +14,34 @@
   let audio = null;
 
   function autorizado(){
-    return !!state.user && DESTINATARIOS.has(String(state.user.rol || '').trim());
+    if(
+      !state.user ||
+      typeof tienePermiso!=='function' ||
+      !tienePermiso('recibirAlertasProduccion')
+    ) return false;
+
+    // El Centro de alertas solo pertenece a la aplicación operativa.
+    // No debe aparecer en Login ni en el selector Reporte Agua / Reporte Hielo.
+    const appScreen = document.getElementById('app-screen');
+    const selector = document.getElementById('report-select-screen');
+
+    if(!appScreen) return false;
+
+    const estiloApp = window.getComputedStyle(appScreen);
+    const appVisible =
+      estiloApp.display !== 'none' &&
+      estiloApp.visibility !== 'hidden' &&
+      appScreen.getClientRects().length > 0;
+
+    const selectorVisible = selector
+      ? (
+          window.getComputedStyle(selector).display !== 'none' &&
+          window.getComputedStyle(selector).visibility !== 'hidden' &&
+          selector.getClientRects().length > 0
+        )
+      : false;
+
+    return appVisible && !selectorVisible;
   }
 
   function esc(valor){
@@ -270,6 +292,15 @@
 
   globalThis.procesarAlertasOperacion=procesarAlertasOperacion;
 
+  // Aplicar altas/bajas del permiso inmediatamente cuando sync/users cambie
+  // en Firestore, sin cerrar sesión ni recargar la página.
+  const usuariosActualizadosAnterior=onUsersUpdated;
+  onUsersUpdated=function(...args){
+    const resultado=usuariosActualizadosAnterior.apply(this,args);
+    pintar();
+    return resultado;
+  };
+
   const actualizarAnterior=onProgramacionesUpdated;
   onProgramacionesUpdated=function(...args){
     procesarAlertasOperacion(loadProgramaciones());
@@ -293,6 +324,31 @@
     primeraCarga=true;
     return resultado;
   };
+
+  // Vigila cambios de pantalla: si se vuelve al selector inicial/login,
+  // retira el Centro de alertas inmediatamente.
+  const vigilarPantalla = new MutationObserver(()=>{
+    const host=document.getElementById('al-host');
+    if(host && !autorizado()) host.remove();
+  });
+
+  const iniciarVigilancia=()=>{
+    const appScreen=document.getElementById('app-screen');
+    const selector=document.getElementById('report-select-screen');
+
+    [appScreen,selector].filter(Boolean).forEach(el=>{
+      vigilarPantalla.observe(el,{
+        attributes:true,
+        attributeFilter:['style','class','hidden']
+      });
+    });
+  };
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',iniciarVigilancia,{once:true});
+  }else{
+    iniciarVigilancia();
+  }
 
   document.addEventListener('keydown',desbloquearAudio);
 

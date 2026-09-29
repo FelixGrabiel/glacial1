@@ -889,7 +889,7 @@ const FACTOR_STRETCHFILM_PET = {
    REGLAS DE CARTÓN — B7L / C20L / B20L
    ========================================================= */
 
-const CARTON_FIJO_B7L = 18;
+const CARTON_FIJO_B7L = 12;
 const CARTON_C20L_SAN_FERNANDO = 2;
 const CARTON_C20L_DEFAULT = 1;
 const CARTON_FIJO_B20L = 1;
@@ -905,7 +905,8 @@ const MARCAS_POLIETILENO_B7L_SI = [
   'scala',
   'merkat',
   'cuisine',
-  'glacial'
+  'glacial',
+  'aro'
 ];
 
 
@@ -1330,12 +1331,12 @@ function obtenerUnidadesPorPalet(linea, marca, presentacion){
      ===================================================== */
 
   if(linea === 'B7L'){
-    if( m=='glacial' ||  m=='scala' || m=='merkat' || m=='cuisine'){
+    if( m=='glacial' ||  m=='scala' || m=='merkat' || m=='cuisine' ||m === 'aro' ){
       
       return 126;
 
     }
-    if(m === 'aro' || m === 'bells'){
+    if( m === 'bells'){
       
       return 120;
     }
@@ -1558,6 +1559,64 @@ async function calcularHashPassword(password, saltHex){
   );
 
   return bytesAHex(new Uint8Array(bits));
+
+}
+
+
+/* =========================================================
+   NORMALIZACIÓN DE CAUSAS DE PARADA
+   =========================================================
+   Se usa SOLO para comparar/agrupar causas en gráficos,
+   Pareto, Resumen e Impacto Económico.
+
+   NO modifica la descripción original guardada en Firestore.
+
+   Unifica diferencias de:
+   - tildes;
+   - mayúsculas/minúsculas;
+   - espacios repetidos;
+   - espacios al inicio/final.
+
+   Además estandariza visualmente las calibraciones por equipo:
+   Calibracion ENV / calibración env / CALIBRACION ENV
+   -> Calibración ENV
+
+   ENV, ETQ y SOP siguen siendo causas independientes.
+   ========================================================= */
+
+function normalizarCausaParada(descripcion){
+
+  const original =
+    String(descripcion ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const texto =
+    original || 'Sin descripción';
+
+  const clave =
+    texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('es-PE')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  let mostrar = texto;
+
+  const calibracion =
+    clave.match(/^calibracion\s+(env|etq|sop)$/i);
+
+  if(calibracion){
+    mostrar =
+      'Calibración ' +
+      calibracion[1].toUpperCase();
+  }
+
+  return {
+    clave,
+    descripcion: mostrar
+  };
 
 }
 

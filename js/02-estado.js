@@ -133,6 +133,7 @@ const PERMISOS_APP=[
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
   {key:'avanceProduccion',label:'Avance y Cierre de Turno'},
   {key:'control_operativo_lineas',label:'Control operativo de líneas (Detener / Reanudar / Intervención terminada)'},
+  {key:'recibirAlertasProduccion',label:'Recibir notificaciones y alertas de producción'},
   {key:'gestionarPersonal',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
   {key:'verLineasProduccion',label:'Ver líneas de producción en el menú lateral'},
   {key:'tareoProduccion',label:'Tareo de Producción (registrar asistencia)'},
@@ -145,6 +146,7 @@ const PERMISOS_APP=[
   {key:'todasLasLineas',label:'Todas las líneas'},
   {key:'eliminarRegistros',label:'Eliminar registros'},
   {key:'reabrirReporteProduccion',label:'Reabrir reportes de producción finalizados'},
+  {key:'reabrirProduccion',label:'Reabrir producción finalizada'},
   {key:'configuracion',label:'Configuración'},
   {key:'administracion',label:'Administración'},
 ];
@@ -287,15 +289,37 @@ function permisosPorRolAnterior(rol){
 
 function normalizarPermisosUsuario(u){
   if(!u) return [];
-  // Prevalece el rol, incluso si una cuenta antigua tiene permisos:'todos'.
+
+  // ADMINISTRADOR: acceso total siempre.
+  // El rol prevalece sobre cualquier arreglo de permisos guardado en Firestore.
+  if(String(u.rol||'').trim()==='Administrador'){
+    return 'todos';
+  }
+
+  // Los cargos de solo consulta conservan el bloqueo de edición, pero
+  // respetan en tiempo real los permisos de VISUALIZACIÓN asignados por
+  // Administración. Así Historial/Gráficos pueden activarse o retirarse
+  // sin convertir al usuario en un perfil operativo.
   if(esUsuarioSoloConsulta(u)){
-    const base=[...PERMISOS_SOLO_CONSULTA];
-    if(String(u.rol||'').trim()==='Jefe de Producción'){
-      base.push('gestionar_rotacion_supervisores');
-    }
-    if(Array.isArray(u.permisos) && u.permisos.includes('gestionar_rotacion_supervisores')){
-      base.push('gestionar_rotacion_supervisores');
-    }
+    const asignados = Array.isArray(u.permisos)
+      ? u.permisos
+      : [...PERMISOS_SOLO_CONSULTA];
+
+    const permitidosSoloConsulta = new Set([
+      ...PERMISOS_SOLO_CONSULTA,
+      'historial',
+      'graficos',
+      'verLineasProduccion',
+      'todasLasLineas',
+      'gestionar_rotacion_supervisores',
+      'recibirAlertasProduccion'
+    ]);
+
+    const base = asignados.filter(p => permitidosSoloConsulta.has(p));
+
+    // La rotación de supervisores NO se concede por cargo.
+    // Se respeta exclusivamente el permiso guardado por Administración,
+    // permitiendo activarlo o retirarlo en tiempo real vía sync/users.
     return [...new Set(base)];
   }
   if(u.permisos==='todos') return 'todos';

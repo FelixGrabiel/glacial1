@@ -602,6 +602,22 @@ function tareoBuscar(area, fecha, turno) {
 
 window._tareoEscriturasPendientes = 0;
 
+/*
+   Cola local de escrituras de Tareo.
+
+   Firestore ya reintenta una transacción cuando OTRO cliente cambia
+   sync/tareos. El problema aparece cuando ESTE MISMO navegador lanza
+   varias transacciones sobre el mismo documento casi al mismo tiempo
+   (por ejemplo, varias marcaciones seguidas): esas transacciones
+   compiten entre sí y pueden terminar con el error de versión/base.
+
+   La cola NO cambia la lógica del Tareo ni el formato guardado:
+   únicamente hace que las transacciones originadas en este navegador
+   entren una por una. Cada transacción sigue leyendo la versión más
+   reciente de Firestore y sigue usando tareoFusionar().
+*/
+window._tareoColaGuardado = Promise.resolve();
+
 
 function tareoFusionar(remoto, local) {
 
@@ -679,34 +695,53 @@ function tareoGuardarEnNube(tareo) {
 
     const referencia = db.collection('sync').doc('tareos');
 
+    /*
+       Se congela exactamente el cambio solicitado en este instante.
+       La fusión con la versión más reciente se hace dentro de la
+       transacción cuando a esta escritura le corresponda su turno.
+    */
     const copia = JSON.parse(JSON.stringify(tareo));
 
     window._tareoEscriturasPendientes++;
 
-    db.runTransaction(async transaccion => {
+    const ejecutarGuardado = () =>
+        db.runTransaction(async transaccion => {
 
-        const snap = await transaccion.get(referencia);
+            const snap = await transaccion.get(referencia);
 
-        const items =
-            (snap.exists && Array.isArray(snap.data().items))
-                ? snap.data().items.slice()
-                : [];
+            const items =
+                (snap.exists && Array.isArray(snap.data().items))
+                    ? snap.data().items.slice()
+                    : [];
 
-        const indice = items.findIndex(
-            item => item.id === copia.id
-        );
+            const indice = items.findIndex(
+                item => item.id === copia.id
+            );
 
-        if (indice >= 0) {
-            items[indice] = tareoFusionar(items[indice], copia);
-        } else {
-            items.push(copia);
-        }
+            if (indice >= 0) {
+                items[indice] = tareoFusionar(items[indice], copia);
+            } else {
+                items.push(copia);
+            }
 
-        transaccion.set(referencia, {
-            items,
-            updatedAt: Date.now()
+            transaccion.set(referencia, {
+                items,
+                updatedAt: Date.now()
+            });
         });
-    })
+
+    /*
+       IMPORTANTE: no se ejecutan dos transacciones de Tareo de este
+       navegador al mismo tiempo. Un error anterior tampoco bloquea
+       la siguiente escritura.
+    */
+    const operacion = window._tareoColaGuardado
+        .catch(() => undefined)
+        .then(ejecutarGuardado);
+
+    window._tareoColaGuardado = operacion;
+
+    operacion
     .catch(error => {
 
         if (typeof _avisarErrorGuardado === 'function') {

@@ -1075,9 +1075,7 @@ async function addUser(){
     rol,
 
     permisos:
-      esUsuarioSoloConsulta({rol})
-        ? [...PERMISOS_SOLO_CONSULTA]
-        : todos ? 'todos' : seleccionados,
+      todos ? 'todos' : seleccionados,
 
     permisosGestionVersion:1,
 
@@ -1613,10 +1611,11 @@ function guardarPermisosUsuario(username){
   }
 
 
+  // Guardar exactamente la selección hecha por Administración.
+  // Los roles de solo consulta siguen limitados por normalizarPermisosUsuario(),
+  // pero ahora pueden conservar permisos seguros como recibirAlertasProduccion.
   users[index].permisos=
-    esUsuarioSoloConsulta(users[index])
-      ? [...PERMISOS_SOLO_CONSULTA]
-      : todos ? 'todos' : seleccionados;
+    todos ? 'todos' : seleccionados;
   users[index].permisosGestionVersion=1;
 
 

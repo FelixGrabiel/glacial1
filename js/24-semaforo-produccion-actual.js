@@ -181,7 +181,9 @@
       if(!indices.length)return;
 
       if(activoKey && k===activoKey){
-        x.estadoVisual='EN_PRODUCCION';
+        // La secuencia indica cuál corresponde producir, pero NO inicia la operación.
+        // EN CURSO solo existe cuando estadoOperacion fue guardado como EN_PRODUCCION.
+        x.estadoVisual=x.op?.estado==='EN_PRODUCCION' ? 'EN_PRODUCCION' : 'PENDIENTE';
         return;
       }
 
@@ -256,7 +258,7 @@
       puede:quienControla(l)};
   }
   function puedeReabrirProduccion(){
-    return !!state.user && tienePermiso('reabrirReporteProduccion');
+    return !!state.user && tienePermiso('reabrirProduccion');
   }
 
   function acciones(x,idx){
@@ -269,9 +271,15 @@
     // DÍA -> INTERMEDIO -> NOCHE y para que Mantenimiento pueda intervenir.
     const operacionAbierta=['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(e);
 
-    // Solo bloqueamos por turno no vigente cuando se intenta actuar sobre
-    // una programación que todavía no tiene una operación abierta.
-    if(!x.vivo && !operacionAbierta)return '';
+    // Las operaciones abiertas conservan continuidad entre turnos.
+    // Una producción FINALIZADA también puede reabrirse fuera del turno
+    // vigente, siempre que el usuario tenga el permiso específico.
+    const reaperturaAutorizada=e==='FINALIZADA' && puedeReabrirProduccion();
+    // No ocultar controles solo porque la vista seleccionada no sea el turno operativo vigente.
+    // Las operaciones abiertas mantienen continuidad y una programación pendiente puede
+    // iniciarse con confirmación explícita si pertenece a otro turno.
+    const inicioFueraTurnoAutorizado=(!e || e==='PENDIENTE') && x.puede==='supervisor';
+    if(!x.vivo && !operacionAbierta && !reaperturaAutorizada && !inicioFueraTurnoAutorizado)return '';
 
     const boton=(accion,label)=>`<button type="button" class="btn btn-ghost btn-sm"
       data-pa-accion="${accion}" data-pa-indice="${idx}">${label}</button>`;
@@ -312,8 +320,8 @@
   function avisoAccion(x){
     if(!x.prog || !num(x.prog.cantidadProgramada))
       return 'Para iniciar, primero debe existir programación para esta línea, fecha, turno y presentación.';
-    if(!x.vivo && !['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(x.op?.estado))
-      return 'Los controles para iniciar aparecen únicamente en el turno operativo vigente.';
+    if(!x.vivo && (!x.op?.estado || x.op?.estado==='PENDIENTE') && x.puede==='supervisor')
+      return 'Programación fuera del turno operativo vigente. Al iniciar se solicitará confirmación.';
     if((x.puede==='mtto' || x.puede==='control') && !x.op?.estado)
       return 'El supervisor inicia la presentación; Mantenimiento puede registrar la detención.';
     if(!x.puede)
@@ -688,7 +696,13 @@
     const perfilNormalizado=(typeof normalizarTexto==='function'
       ? normalizarTexto(textoPerfil)
       : textoPerfil.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+    // Supervisor, Administrador y Jefaturas de Producción/Operaciones deben
+    // visualizar todas las tarjetas del tablero. Los perfiles únicamente de
+    // consulta conservan el filtro de líneas con operación activa.
     const esSupervisor=/\bsupervisor\b/.test(perfilNormalizado);
+    const esAdministrador=state.user?.rol==='Administrador';
+    const esJefaturaProduccion=['Jefe de Producción','Jefe de Operaciones'].includes(state.user?.rol);
+    const puedeVerTodasLasTarjetas=esSupervisor || esAdministrador || esJefaturaProduccion;
 
     const prioridadGrupo=g=>{
       if(g.items.some(x=>(x.estadoVisual || x.op?.estado)==='EN_PRODUCCION'))return 0;
@@ -702,7 +716,7 @@
       prioridadGrupo(a)-prioridadGrupo(b)
     );
 
-    if(!esSupervisor){
+    if(!puedeVerTodasLasTarjetas){
       gruposVisibles=gruposVisibles.filter(g=>
         g.items.some(x=>
           ['EN_PRODUCCION','DETENIDA','PAUSA_SECUENCIA','PAUSA','LISTA']
@@ -739,6 +753,39 @@
       return null;
     };
 
+
+    const estadoOrdenItem=x=>{
+      const producido=Math.round(num(resumenProgramacionCombinacionTurnos(
+        x.linea,x.fecha,[x.turno],x.marca,x.presentacion
+      ).unidadesProducidas));
+      const programado=Math.round(num(x.prog?.cantidadProgramada));
+      const operativo=x.op?.estado || x.estadoVisual || 'PENDIENTE';
+
+      if(x.op?.estado==='CANCELADA')return {key:'CANCELADA',label:'CANCELADA',rank:4,cls:'cancelada'};
+      if(x.op?.estado==='FINALIZADA' || (programado>0 && producido>=programado))
+        return {key:'COMPLETADA',label:'COMPLETADA',rank:3,cls:'completada'};
+      if(['PAUSA','PAUSA_SECUENCIA','DETENIDA','LISTA'].includes(operativo))
+        return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa'};
+      if(operativo==='EN_PRODUCCION')
+        return {key:'EN_CURSO',label:'EN CURSO',rank:0,cls:'curso'};
+      return {key:'PENDIENTE',label:'PENDIENTE',rank:2,cls:'pendiente'};
+    };
+
+    const ordenOriginalItem=(x,indice)=>{
+      const ordenes=secuenciaPlanificada(x.linea,x.fecha,x.turnoPlan || x.turno);
+      const encontrado=ordenes.find(t=>
+        t.marca===x.marca && t.presentacion===x.presentacion
+      );
+      return encontrado ? num(encontrado.orden) : (10000+indice);
+    };
+
+    const itemsOrdenadosGrupo=g=>g.items
+      .map((x,i)=>({x,i,estado:estadoOrdenItem(x),orden:ordenOriginalItem(x,i)}))
+      .sort((a,b)=>a.estado.rank-b.estado.rank || a.orden-b.orden || a.i-b.i);
+
+    const tarjetaEstado=(estado)=>
+      `<span class="pa-state-badge pa-state-${estado.cls}"><span></span>${estado.label}</span>`;
+
     const tablero=document.createElement('section');
     tablero.className='panel pa-live-board';
     tablero.innerHTML=`<div class="panel-head"><h3>Estado de las líneas</h3>
@@ -767,138 +814,92 @@
           <div class="pa-horizontal-body">
 
             <section class="pa-hcol pa-hcol-programacion">
-              <div class="pa-hcol-title">▥ PROGRAMACIÓN DE LÍNEA</div>
-              <div class="pa-program-list pa-program-list-horizontal">${
-                g.items.length ? g.items.map(x=>{
-                  const prog=num(x.prog?.cantidadProgramada);
-                  return `<div class="pa-program-row">
-                    <span><b>${esc(x.marca || '—')}</b>${x.presentacion
-                      ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>'
-                      : ''}</span>
-                    <strong>${prog.toLocaleString('es-PE')} UND</strong>
-                  </div>`;
-                }).join('') :
-                '<div class="small-muted">Sin programación para el período seleccionado.</div>'
-              }</div>
+              <div class="pa-hcol-title">▥ PROGRAMACIÓN DEL TURNO</div>
+              ${(()=>{
+                const ordenados=itemsOrdenadosGrupo(g);
+                const original=g.items.reduce((a,x)=>a+num(x.prog?.cantidadProgramada),0);
+                const vigente=g.items.reduce((a,x)=>a+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
+                const counts={EN_CURSO:0,PAUSA:0,PENDIENTE:0,COMPLETADA:0,CANCELADA:0};
+                ordenados.forEach(o=>counts[o.estado.key]++);
+                return `<div class="pa-program-summary">
+                  <div><small>Programado originalmente</small><b>${Math.round(original).toLocaleString('es-PE')} UND</b></div>
+                  <div><small>Programación vigente</small><b>${Math.round(vigente).toLocaleString('es-PE')} UND</b></div>
+                </div>
+                <div class="pa-state-counts">
+                  <span class="curso">● ${counts.EN_CURSO} En curso</span>
+                  <span class="pausa">● ${counts.PAUSA} En pausa</span>
+                  <span class="pendiente">● ${counts.PENDIENTE} Pendientes</span>
+                  <span class="completada">● ${counts.COMPLETADA} Completadas</span>
+                  <span class="cancelada">● ${counts.CANCELADA} Canceladas</span>
+                </div>
+                <div class="pa-program-list pa-program-list-horizontal">${
+                  ordenados.length ? ordenados.map(({x,estado})=>{
+                    const prog=Math.round(num(x.prog?.cantidadProgramada));
+                    return `<div class="pa-program-row pa-program-state-${estado.cls}">
+                      <span><b>${esc(x.marca || '—')}</b>${x.presentacion
+                        ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
+                      <div class="pa-program-right"><strong>${prog.toLocaleString('es-PE')} UND</strong>${tarjetaEstado(estado)}</div>
+                    </div>`;
+                  }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
+                }</div>`;
+              })()}
             </section>
 
             <section class="pa-hcol pa-hcol-ratio">
               <div class="pa-hcol-title">◴ PRODUCCIÓN ACTUAL</div>
-              ${g.activo && !g.activo.sinDatos ? `
-                <div class="pa-active-product">
-                  ${esc(g.activo.marca)} · ${esc(presUI(
-                    g.activo.linea,g.activo.marca,g.activo.presentacion
-                  ))}
-                </div>
-                <div class="pa-metric-row"><span>Ratio nominal</span><b>${
-                  g.activo.ratio
-                    ? g.activo.ratio.toLocaleString('es-PE')+' UND/h'
-                    : 'Sin configurar'
-                }</b></div>
-                <div class="pa-metric-row pa-metric-turno"><span>Ratio turno</span><b>${
-                  g.ratioTurno
-                    ? Math.round(g.ratioTurno).toLocaleString('es-PE')+' UND/h'
-                    : '—'
-                }</b></div>
-                <div class="pa-metric-row"><span>Tiempo transcurrido</span><b>${
-                  g.horasTurno ? formatoDuracion(g.horasTurno*MS_HORA) : '—'
-                }</b></div>
-                <div class="pa-metric-row"><span>Tiempo en parada</span><b>${
-                  g.paradaMs ? formatoDuracion(g.paradaMs) : '0 min'
-                }</b></div>
-                ${(()=>{
-                  const parada=paradaActual(g.activo);
-                  return parada ? `<div class="pa-stop-live">
-                    <div><strong>${esc(parada.tipo)}</strong><b>${formatoCronometro(Date.now()-parada.desde)}</b></div>
-                    <small>Desde ${new Date(parada.desde).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})} · ${esc(parada.motivo)}</small>
-                  </div>` : '';
-                })()}
-                <div class="pa-metric-divider"></div>
-                <div class="pa-metric-row pa-metric-main"><span>Producción desde el inicio</span><b>${
-                  Math.round(g.activo.real).toLocaleString('es-PE')
-                } UND</b></div>
-                <div class="pa-metric-row"><span>Último registro</span><b>${
-                  ultimoRegistro(g.activo)
-                }</b></div>
-                ${g.activo.op?.motivo && g.activo.nivel==='roja'
-                  ? `<div class="pa-stop-reason">Motivo: ${esc(g.activo.op.motivo)}</div>`
-                  : ''}
-                <div class="pa-live-actions">${acciones(g.activo,idxActivo)}</div>
-                ${!acciones(g.activo,idxActivo) && g.activo.puede==='control' && !g.activo.op?.estado
-                  ? '<div class="small-muted" style="margin-top:8px">Esperando que Producción inicie la presentación.</div>'
-                  : ''}
-              ` : '<div class="small-muted">Sin producción activa.</div>'}
+              ${(()=>{
+                const actual=g.items.find(x=>['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(x.op?.estado)) ||
+                  g.items.find(x=>!x.op?.estado || x.op?.estado==='PENDIENTE') ||
+                  g.items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado));
+                if(!actual)return '<div class="pa-empty-current">Sin producción activa en este momento.</div>';
+                const idx=filasActuales.indexOf(actual);
+                const estado=estadoOrdenItem(actual);
+                const parada=paradaActual(actual);
+                return `
+                  <div class="pa-current-head">
+                    <div><strong>${esc(actual.marca)}</strong><small>${esc(presUI(actual.linea,actual.marca,actual.presentacion))}</small></div>
+                    ${tarjetaEstado(estado)}
+                  </div>
+                  <div class="pa-metric-row"><span>Ratio nominal</span><b>${actual.ratio ? actual.ratio.toLocaleString('es-PE')+' UND/h' : 'Sin configurar'}</b></div>
+                  <div class="pa-metric-row pa-metric-turno"><span>Ratio actual</span><b>${g.ratioTurno ? Math.round(g.ratioTurno).toLocaleString('es-PE')+' UND/h' : '—'}</b></div>
+                  <div class="pa-metric-row"><span>Tiempo transcurrido</span><b>${g.horasTurno ? formatoDuracion(g.horasTurno*MS_HORA) : '—'}</b></div>
+                  <div class="pa-metric-row"><span>Tiempo en parada</span><b>${g.paradaMs ? formatoDuracion(g.paradaMs) : '0 min'}</b></div>
+                  ${parada ? `<div class="pa-stop-live"><div><strong>${esc(parada.tipo)}</strong><b>${formatoCronometro(Date.now()-parada.desde)}</b></div>
+                    <small>Desde ${new Date(parada.desde).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})} · ${esc(parada.motivo)}</small></div>` : ''}
+                  <div class="pa-metric-divider"></div>
+                  <div class="pa-metric-row pa-metric-main"><span>Producción desde inicio</span><b>${Math.round(actual.real).toLocaleString('es-PE')} UND</b></div>
+                  <div class="pa-metric-row"><span>Último registro</span><b>${ultimoRegistro(actual)}</b></div>
+                  <div class="pa-live-actions">${acciones(actual,idx) || `<span class="pa-actions-note">${esc(avisoAccion(actual) || 'Sin controles disponibles para este usuario.')}</span>`}</div>`;
+              })()}
             </section>
 
-            <section class="pa-hcol pa-hcol-marcas">
-              <div class="pa-hcol-title">◆ MARCAS PRODUCIDAS O EN PRODUCCIÓN</div>
-              <div class="pa-progress-list">${g.items.length ? g.items.map(x=>{
-                const r=resumenProgramacionCombinacionTurnos(
-                  x.linea,x.fecha,[x.turno],x.marca,x.presentacion
-                );
-                const producido=Math.round(num(r.unidadesProducidas));
-                const programado=Math.round(num(x.prog?.cantidadProgramada));
-                const e=x.estadoVisual || x.op?.estado;
-                const cancelado=x.op?.estado==='CANCELADA';
-                const metaCumplida=!cancelado && programado>0 && producido>=programado;
-                const finalizadoManual=!cancelado && x.op?.estado==='FINALIZADA' && !metaCumplida;
-                const otraMarcaActiva=g.items.some(y=>
-                  y!==x && ['EN_PRODUCCION','DETENIDA','PAUSA','LISTA'].includes(y.op?.estado)
-                );
-                const porRetomar=false;
-                const terminado=metaCumplida || finalizadoManual;
-                const estado=cancelado
-                  ? '<i class="cancel"><span class="pa-cancel-x">✕</span>CANCELADO</i>'
-                  : metaCumplida
-                    ? '<i class="fin"><span class="pa-status-dot"></span>COMPLETADO</i>'
-                    : porRetomar
-                      ? '<i class="retomar"><span class="pa-status-dot"></span>POR RETOMAR</i>'
-                      : (!g.secuenciaActiva && finalizadoManual)
-                        ? '<i class="finalizado"><span class="pa-status-dot"></span>FINALIZADO</i>'
-                        : e==='EN_PRODUCCION'
-                          ? '<i class="curso"><span class="pa-status-dot"></span>EN CURSO</i>'
-                        : e==='DETENIDA'
-                          ? '<i class="det"><span class="pa-status-dot"></span>DETENIDO</i>'
-                          : e==='PAUSA_SECUENCIA'
-                            ? '<i class="retomar"><span class="pa-status-dot"></span>EN PAUSA</i>'
-                            : '<i class="pend"><span class="pa-status-dot"></span>PENDIENTE</i>';
-                const idx=filasActuales.indexOf(x);
-                const cancelar=x.puede==='supervisor' && !cancelado && !terminado
-                  ? `<button type="button" class="pa-cancel-btn" title="Cancelar programación"
-                      data-pa-accion="cancelar" data-pa-indice="${idx}">✕</button>` : '';
-                return `<div class="pa-progress-row pa-progress-row-horizontal">
-                  <span><b>${esc(x.marca || '—')}</b><small>${
-                    x.presentacion ? esc(presUI(x.linea,x.marca,x.presentacion)) : ''
-                  }</small></span>
-                  <strong>${producido.toLocaleString('es-PE')} / ${programado.toLocaleString('es-PE')} UND</strong>
-                  ${estado}${cancelar}
-                </div>`;
-              }).join('') : '<div class="small-muted">Sin marcas registradas.</div>'}</div>
-            </section>
-
-            <section class="pa-hcol pa-hcol-total">
-              <div class="pa-hcol-title">⬢ PRODUCCIÓN TOTAL POR PRESENTACIÓN</div>
-              <div class="pa-total-pres-list">
-                ${g.totalesPresentacion.length
-                  ? g.totalesPresentacion.map(t=>{
-                      const pct=t.programado>0 ? t.producido/t.programado*100 : 0;
-                      return `<div class="pa-total-pres-card">
-                        <div class="pa-total-pres-name">${esc(t.etiqueta)}</div>
-                        ${t.marcas.length>1
-                          ? `<div class="pa-total-pres-brands">${esc(t.marcas.join(' + '))}</div>`
-                          : ''}
-                        <div class="pa-total-pres-values">
-                          <strong>${Math.round(t.producido).toLocaleString('es-PE')}</strong>
-                          <span>/ ${Math.round(t.programado).toLocaleString('es-PE')} UND</span>
-                        </div>
-                        <div class="pa-total-progress">
-                          <div style="width:${Math.min(100,pct).toFixed(1)}%"></div>
-                        </div>
-                        <div class="pa-total-percent">${pct.toFixed(1)}% de la programación</div>
-                      </div>`;
-                    }).join('')
-                  : '<div class="small-muted">Sin producción programada.</div>'}
-              </div>
+            <section class="pa-hcol pa-hcol-avance">
+              <div class="pa-hcol-title">▰ AVANCE DE PRODUCCIÓN</div>
+              <div class="pa-advance-list">${(()=>{
+                const ordenados=itemsOrdenadosGrupo(g);
+                return ordenados.length ? ordenados.map(({x,estado})=>{
+                  const r=resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion);
+                  const producido=Math.round(num(r.unidadesProducidas));
+                  const programado=Math.round(num(x.prog?.cantidadProgramada));
+                  const pct=programado>0 ? producido/programado*100 : 0;
+                  const faltante=Math.max(0,programado-producido);
+                  const idx=filasActuales.indexOf(x);
+                  const cancelar=x.puede==='supervisor' &&
+                    !['CANCELADA','COMPLETADA'].includes(estado.key)
+                    ? `<button type="button" class="pa-cancel-btn" title="Cancelar programación"
+                        data-pa-accion="cancelar" data-pa-indice="${idx}">✕</button>` : '';
+                  return `<article class="pa-advance-card pa-advance-${estado.cls}">
+                    <div class="pa-advance-top">
+                      <div><strong>${esc(x.marca || '—')}</strong><small>${x.presentacion ? esc(presUI(x.linea,x.marca,x.presentacion)) : ''}</small></div>
+                      <div class="pa-advance-actions">${tarjetaEstado(estado)}${cancelar}</div>
+                    </div>
+                    <div class="pa-advance-values"><b>${producido.toLocaleString('es-PE')} / ${programado.toLocaleString('es-PE')} UND</b><strong>${pct.toFixed(1)}%</strong></div>
+                    <div class="pa-advance-bar"><div class="${estado.cls}" style="width:${Math.min(100,Math.max(0,pct)).toFixed(1)}%"></div></div>
+                    <div class="pa-advance-foot"><span>Faltan: <b>${faltante.toLocaleString('es-PE')} UND</b></span><span>Último registro: <b>${ultimoRegistro(x)}</b></span></div>
+                    ${estado.key==='CANCELADA' && x.op?.motivoCancelacion ? `<div class="pa-cancel-reason">Motivo: ${esc(x.op.motivoCancelacion)}</div>` : ''}
+                  </article>`;
+                }).join('') : '<div class="small-muted">Sin producción programada.</div>';
+              })()}</div>
             </section>
 
           </div>
@@ -923,6 +924,7 @@
     .pa-program-list>div{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.pa-program-list span{font-weight:700;white-space:nowrap}
     .pa-current{padding:10px 0}.pa-current-name{font-weight:700;color:#005b96;margin-bottom:5px}
     .pa-live-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+    .pa-actions-note{display:block;width:100%;padding:8px 10px;border:1px dashed #cbd8e0;border-radius:7px;background:#f8fbfd;color:#667784;font-size:10px;font-weight:700}
     .pa-progress-list{display:grid;gap:7px}.pa-progress-row{display:grid;grid-template-columns:minmax(0,1fr) auto 118px 28px;gap:10px;align-items:center}
     .pa-progress-row>span{min-width:0}.pa-progress-row b{font-size:12px;white-space:nowrap}
     .pa-progress-row i{display:inline-flex;align-items:center;justify-content:flex-start;gap:7px;font-style:normal;font-weight:800;font-size:10px;letter-spacing:.035em;white-space:nowrap}
@@ -954,7 +956,7 @@
     .pa-line-card-horizontal{padding:0;overflow:hidden;min-width:0;width:100%}
     .pa-line-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 18px;border-bottom:1px solid #d9e5ed;background:#f8fbfd}
     .pa-line-ident{display:flex;align-items:center;gap:12px}.pa-line-icon{font-size:28px;color:#005b96}
-    .pa-horizontal-body{display:grid;grid-template-columns:1.05fr 1.05fr 1.45fr .72fr;align-items:stretch}
+    .pa-horizontal-body{display:grid;grid-template-columns:1.05fr .95fr 1.35fr;align-items:stretch}
     .pa-hcol{min-width:0;padding:12px 14px;border-right:1px solid #d8e4ec;background:#fff}
     .pa-hcol:last-child{border-right:0}.pa-hcol-title{font-weight:900;color:#064f80;font-size:12px;letter-spacing:.025em;margin-bottom:12px}
     .pa-program-list-horizontal{border:0;padding:0}.pa-program-row{display:flex!important;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px!important;margin-bottom:6px;border-radius:8px;background:#edf6fc}
@@ -985,12 +987,45 @@
     .pa-total-big strong{font-size:24px;line-height:1.05;color:#073f68}.pa-total-big strong span{font-size:13px}
     .pa-total-progress{height:8px;border-radius:999px;background:#dce7ee;overflow:hidden;margin-top:12px}.pa-total-progress>div{height:100%;background:#198754}
     .pa-total-percent{text-align:center;margin-top:6px;font-size:11px;font-weight:700;color:#526979}
+    .pa-program-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px}
+    .pa-program-summary>div{padding:8px 9px;border:1px solid #dce6ec;border-radius:8px;background:#f8fbfd}
+    .pa-program-summary small{display:block;color:#667784;font-size:9px;text-transform:uppercase;font-weight:800}
+    .pa-program-summary b{display:block;margin-top:2px;color:#073f68;font-size:13px}
+    .pa-state-counts{display:flex;flex-wrap:wrap;gap:5px 9px;margin:0 0 10px;font-size:9px;font-weight:800}
+    .pa-state-counts .curso{color:#c46f00}.pa-state-counts .pausa{color:#a77b00}.pa-state-counts .pendiente{color:#667784}
+    .pa-state-counts .completada{color:#198754}.pa-state-counts .cancelada{color:#c0392b}
+    .pa-program-right{display:flex;align-items:flex-end;flex-direction:column;gap:4px}
+    .pa-state-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:999px;font-size:9px;font-weight:900;white-space:nowrap}
+    .pa-state-badge>span{width:7px;height:7px;border-radius:50%}
+    .pa-state-curso{background:#fff0dc;color:#a85d00}.pa-state-curso>span{background:#f28c28}
+    .pa-state-pausa{background:#fff7d6;color:#8a6900}.pa-state-pausa>span{background:#e0b400}
+    .pa-state-pendiente{background:#eef2f4;color:#667784}.pa-state-pendiente>span{background:#9aa8b1}
+    .pa-state-completada{background:#e5f4eb;color:#247246}.pa-state-completada>span{background:#2e8b57}
+    .pa-state-cancelada{background:#f8e6e3;color:#a83228}.pa-state-cancelada>span{background:#c0392b}
+    .pa-program-row{border-left:3px solid transparent}
+    .pa-program-state-curso{border-left-color:#f28c28}.pa-program-state-pausa{border-left-color:#e0b400}
+    .pa-program-state-pendiente{border-left-color:#9aa8b1}.pa-program-state-completada{border-left-color:#2e8b57}
+    .pa-program-state-cancelada{border-left-color:#c0392b;opacity:.86}
+    .pa-current-head,.pa-advance-top,.pa-advance-values,.pa-advance-foot,.pa-advance-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .pa-current-head{margin-bottom:10px}.pa-current-head strong{display:block;font-size:15px;color:#073f68}.pa-current-head small{display:block;color:#667784}
+    .pa-empty-current{padding:18px 10px;border:1px dashed #cbd8df;border-radius:9px;text-align:center;color:#667784;background:#fafcfd}
+    .pa-advance-list{display:grid;gap:8px}.pa-advance-card{padding:10px 11px;border:1px solid #dce5ea;border-left:4px solid #9aa8b1;border-radius:9px;background:#fff}
+    .pa-advance-card.pa-advance-curso{border-left-color:#f28c28}.pa-advance-card.pa-advance-pausa{border-left-color:#e0b400}
+    .pa-advance-card.pa-advance-completada{border-left-color:#2e8b57}.pa-advance-card.pa-advance-cancelada{border-left-color:#c0392b}
+    .pa-advance-top strong{display:block;color:#173246}.pa-advance-top small{display:block;color:#667784;font-size:10px}
+    .pa-advance-values{margin-top:8px}.pa-advance-values>b{font-size:12px;color:#294353}.pa-advance-values>strong{font-size:12px;color:#073f68}
+    .pa-advance-bar{height:7px;margin-top:6px;background:#e5ebef;border-radius:999px;overflow:hidden}.pa-advance-bar>div{height:100%;background:#9aa8b1}
+    .pa-advance-bar>div.curso{background:#f28c28}.pa-advance-bar>div.pausa{background:#e0b400}.pa-advance-bar>div.completada{background:#2e8b57}.pa-advance-bar>div.cancelada{background:#c0392b}
+    .pa-advance-foot{margin-top:6px;color:#647987;font-size:9px;align-items:flex-start;flex-wrap:wrap}.pa-advance-foot b{color:#334d5d}
+    .pa-cancel-reason{margin-top:6px;padding-top:6px;border-top:1px dashed #ead0cc;color:#9b3a31;font-size:10px;font-weight:700}
     @media(max-width:700px){
       .pa-oper-kpis{grid-template-columns:1fr}
       .pa-live-grid{display:grid;grid-template-columns:1fr;overflow:visible}
       .pa-live-card{padding:14px}
       .pa-line-card-horizontal{min-width:0;padding:0}
       .pa-horizontal-body{grid-template-columns:1fr}
+      .pa-program-summary{grid-template-columns:1fr 1fr}
+      .pa-advance-foot{display:grid;grid-template-columns:1fr}
       .pa-hcol{border-right:0;border-bottom:1px solid #d8e4ec}
       .pa-hcol:last-child{border-bottom:0}
       .pa-line-top{padding:12px 14px}
@@ -1049,7 +1084,21 @@
   }
 
   async function cambiarEstado(x,accion){
-    if(!x || !turnoActivo(x.fecha,x.turno) || !quienControla(x.linea))return;
+    if(!x)return;
+
+    // Reabrir es una acción administrativa independiente: puede hacerse
+    // sobre una producción finalizada aunque el turno ya haya terminado.
+    if(accion==='reabrir'){
+      if(!puedeReabrirProduccion())return;
+    }else{
+      const estadoActual=x.op?.estado;
+      const operacionAbierta=['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(estadoActual);
+      if(!quienControla(x.linea))return;
+      // Una operación abierta conserva sus controles entre cambios de turno.
+      // Para iniciar una nueva presentación sí se exige el turno vigente.
+      if(!operacionAbierta && accion==='iniciar' && !turnoActivo(x.fecha,x.turno))return;
+    }
+
     const controlador=quienControla(x.linea);
     const esSupervisor=controlador==='supervisor';
     const esControlOperativo=['mtto','control'].includes(controlador);
@@ -1072,13 +1121,21 @@
     if(accion==='reabrir'){
       const ok=confirm(
         '¿Reabrir esta producción finalizada?\n\n' +
-        'Quedará PENDIENTE y deberá iniciarse manualmente.'
+        'No se eliminará ningún dato registrado. La producción quedará ABIERTA ' +
+        'para corregir información y, si corresponde, reanudarla o volver a finalizarla.'
       );
       if(!ok)return;
     }
 
     let inicioElegido=null;
     if(accion==='iniciar'){
+      if(!x.vivo){
+        const vigente=turnoVigente();
+        const ok=confirm(
+          `La programación seleccionada es ${x.fecha} · ${x.turno}, pero el turno operativo vigente es ${vigente.fecha} · ${vigente.turno}.\n\n¿Deseas iniciar esta presentación de todas formas?`
+        );
+        if(!ok)return;
+      }
       inicioElegido=pedirHoraInicioProduccion(x);
       if(!inicioElegido)return;
     }
@@ -1117,6 +1174,7 @@
 
     let motivo='';
     let motivoPausa='';
+    let motivoCancelacion='';
     if(accion==='detener'){
       motivo=prompt('Motivo de la detención (obligatorio):')?.trim() || '';
       if(!motivo)return;
@@ -1127,6 +1185,12 @@
         'Motivo de la pausa programada (ej.: refrigerio, limpieza, cambio programado):'
       )?.trim() || 'Pausa programada';
       motivoPausa=motivoPausa.slice(0,160);
+    }
+    if(accion==='cancelar'){
+      motivoCancelacion=prompt(
+        'Motivo de cancelación (opcional):'
+      )?.trim() || '';
+      motivoCancelacion=motivoCancelacion.slice(0,160);
     }
     const ref=db.collection('sync').doc('programaciones');
     const k=llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion);
@@ -1158,9 +1222,21 @@
           p.estadoOperacion?.estado==='DETENIDA');
         if(otraDetenida)throw new Error('Primero resuelve la detención de la otra presentación.');
         items.forEach((p,j)=>{
-          if(j!==i && mismoPlan(p) &&
-             ['EN_PRODUCCION','PAUSA','LISTA'].includes(p.estadoOperacion?.estado))
-            items[j]={...p,estadoOperacion:{...p.estadoOperacion,estado:'FINALIZADA',actualizadoEn:ahora}};
+          if(j===i || !mismoPlan(p))return;
+          const estadoOtro=p.estadoOperacion?.estado;
+          if(estadoOtro==='EN_PRODUCCION'){
+            items[j]={
+              ...p,
+              estadoOperacion:{
+                ...p.estadoOperacion,
+                estado:'PAUSA',
+                pausaDesde:ahora,
+                motivoPausa:'Cambio temporal de producción',
+                actualizadoEn:ahora,
+                actualizadoPor:state.user?.nombre || state.user?.username || 'Usuario'
+              }
+            };
+          }
         });
       }
       const op={...previo,actualizadoEn:ahora,
@@ -1211,7 +1287,8 @@
           op.pausaAcumuladaMs=num(op.pausaAcumuladaMs)+Math.max(0,ahora-num(op.pausaDesde));
         if(['DETENIDA','LISTA'].includes(e) && num(op.detenidaDesde)>0)
           op.detencionAcumuladaMs=num(op.detencionAcumuladaMs)+Math.max(0,ahora-num(op.detenidaDesde));
-        op.pausaDesde=0;op.detenidaDesde=0;op.estado='CANCELADA';op.finalizadaEn=ahora;op.motivo='';
+        op.pausaDesde=0;op.detenidaDesde=0;op.estado='CANCELADA';op.finalizadaEn=ahora;
+        op.motivo='';op.motivoCancelacion=motivoCancelacion;op.canceladaEn=ahora;
       } else if(accion==='finalizar'){
         if(e==='PAUSA' && num(op.pausaDesde)>0)
           op.pausaAcumuladaMs=num(op.pausaAcumuladaMs)+Math.max(0,ahora-num(op.pausaDesde));
@@ -1223,11 +1300,20 @@
         op.finalizadaEn=ahora;
         op.finalizadaPor=state.user?.nombre || state.user?.username || 'Usuario';
       } else if(accion==='reabrir'){
-        op.estado='PENDIENTE';
+        // Conservar el cierre anterior como trazabilidad antes de desbloquear.
+        op.ultimaFinalizacion={
+          finalizadaEn:num(previo.finalizadaEn),
+          finalizadaPor:previo.finalizadaPor || '',
+          reabiertaEn:ahora,
+          reabiertaPor:state.user?.nombre || state.user?.username || 'Usuario'
+        };
+        op.estado='LISTA';
+        op.reabierta=true;
         op.reabiertaEn=ahora;
         op.reabiertaPor=state.user?.nombre || state.user?.username || 'Usuario';
         op.reaperturaDesde='FINALIZADA';
         op.finalizadaEn=0;
+        op.finalizadaPor='';
         op.pausaDesde=0;
         op.detenidaDesde=0;
         op.motivo='';
@@ -1238,6 +1324,28 @@
       const historialAlertas = Array.isArray(items[i].historialAlertas)
         ? items[i].historialAlertas.slice()
         : [];
+
+      if(accion === 'reabrir'){
+        historialAlertas.push({
+          id: `${k}|${ahora}|reapertura`,
+          tipo: 'reapertura_produccion',
+          momento: ahora,
+          operador: op.reabiertaPor || '',
+          estadoAnterior: 'FINALIZADA',
+          finalizadaEnAnterior: num(previo.finalizadaEn),
+          finalizadaPorAnterior: previo.finalizadaPor || ''
+        });
+      }
+
+      if(accion === 'cancelar'){
+        historialAlertas.push({
+          id: `${k}|${ahora}|cancelacion`,
+          tipo: 'cancelacion_programacion',
+          momento: ahora,
+          operador: op.actualizadoPor || '',
+          motivo: motivoCancelacion || ''
+        });
+      }
 
       if(accion === 'detener'){
         historialAlertas.push({

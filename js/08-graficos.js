@@ -355,15 +355,16 @@ function agruparParadas(rec){
 
       const min = num(p?.tiempoMin);
 
-      const desc =
-        String(p?.descripcion || '').trim() ||
-        'Sin descripción';
+      const causa =
+        normalizarCausaParada(p?.descripcion);
+
+      const desc = causa.descripcion;
 
       if(min <= 0){
         return;
       }
 
-      const clave = tipo + '||' + desc;
+      const clave = tipo + '||' + causa.clave;
 
       if(!acumulado[clave]){
 
