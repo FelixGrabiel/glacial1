@@ -493,6 +493,8 @@
       const estados=items.map(estadoOrdenItem);
       const hayCurso=estados.some(e=>e.key==='EN_CURSO');
       const hayPausa=estados.some(e=>e.key==='PAUSA');
+      const hayPendiente=estados.some(e=>e.key==='PENDIENTE');
+      const hayCompletada=estados.some(e=>e.key==='COMPLETADA');
       const todosCerrados=estados.length>0 && estados.every(
         e=>['COMPLETADA','CANCELADA'].includes(e.key));
       const todosCancelados=estados.length>0 && estados.every(e=>e.key==='CANCELADA');
@@ -500,7 +502,8 @@
         todosCancelados?'roja':todosCerrados?'verde':'gris';
       const texto=detenidos.length?'Línea detenida':hayCurso?'En curso':
         hayPausa?'Pausa programada':todosCancelados?'CANCELADA':
-        todosCerrados?'FINALIZADA':'Sin iniciar';
+        todosCerrados?'FINALIZADA':
+        hayPendiente && hayCompletada?'Pendiente':'Sin iniciar';
       const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
       const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
       const totalProd=items.reduce((s,x)=>s+num(resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas),0);
