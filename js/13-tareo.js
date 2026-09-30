@@ -986,9 +986,35 @@ function tareoInsigniaArea(area) {
 
 function tareoClavePersona(persona) {
 
-    return String(
-        persona.trabajadorId ?? persona.dni ?? persona.nombre
-    );
+    /*
+       IMPORTANTE:
+       ?? no sirve aquí porque '' no es null/undefined.
+       Varias personas importadas desde Excel podían tener trabajadorId=''
+       y todas terminaban con la MISMA clave vacía. Entonces al editar una
+       fila, .find() modificaba a la primera persona con clave ''.
+
+       La clave ahora usa el primer valor REALMENTE no vacío.
+    */
+    const trabajadorId =
+        String(persona?.trabajadorId || persona?.id || '').trim();
+
+    if (trabajadorId) {
+        return trabajadorId;
+    }
+
+    const dni =
+        tareoNormalizarDNI(persona?.dni || '');
+
+    if (dni) {
+        return 'DNI-' + dni;
+    }
+
+    const nombre =
+        tareoNormalizarTexto(persona?.nombre || '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+    return 'NOMBRE-' + nombre;
 }
 
 
@@ -1579,9 +1605,8 @@ function obtenerPersonalPorRotacion(
                 ''
             ).trim() ||
             tareoIdRotacionDesdeFila(
-                nombre,
                 registro.dni || '',
-                Number(registro.filaExcel || indice + 2)
+                nombre
             );
 
         personal.push({
@@ -1638,6 +1663,20 @@ function obtenerPrioridadAsistencia(
 
 
 function ordenarPersonalTareo(personal) {
+
+    /*
+       Orden operativo del tareo:
+       1. Pendiente
+       2. Asistió
+       3. Descanso
+       4. Descanso médico
+       5. Falta
+       6. Demás estados según obtenerPrioridadAsistencia()
+
+       El cambio de posición es únicamente visual.
+       La edición se aplica a la persona correcta mediante
+       tareoClavePersona(), que ya evita IDs vacíos compartidos.
+    */
 
     return [...personal].sort((a, b) => {
 
@@ -1720,8 +1759,14 @@ function tareoNuevaPersona(
     return {
 
         trabajadorId:
-            trabajador.trabajadorId ??
-            trabajador.id,
+            String(
+                trabajador.trabajadorId ||
+                trabajador.id ||
+                tareoIdRotacionDesdeFila(
+                    trabajador.dni || '',
+                    trabajador.nombre || ''
+                )
+            ).trim(),
 
         nombre:
             trabajador.nombre || '',
@@ -3467,14 +3512,11 @@ function renderFilaPersonalTareo(
                         onchange="actualizarAsistenciaTareo(${clave}, this.value)"
                     >
 
-                        ${
-                            pendiente
-                                ? '<option value="" selected>Otro estado…</option>'
-                                : '<option value="">PENDIENTE</option>'
-                        }
+                        <option value="" ${pendiente ? 'selected' : ''}>
+                            PENDIENTE
+                        </option>
 
                         ${TAREO_ESTADOS_ASISTENCIA
-                            .filter(estado => !pendiente || estado !== 'Asistió')
                             .map(
                                 estado => `
                                 <option
@@ -3497,6 +3539,7 @@ function renderFilaPersonalTareo(
 
                 <input
                     type="time"
+                    title="${asistio ? 'Puedes corregir manualmente la hora de ingreso' : 'Marca ASISTIÓ para registrar horas'}"
                     value="${escaparHTML(persona.horaIngreso || '')}"
                     ${deshabilitado}
                     onchange="actualizarHoraIngresoTareo(${clave}, this.value)"
@@ -3694,19 +3737,68 @@ function actualizarAsistenciaTareo(
 
             if (anterior !== 'Asistió') {
 
-                if (tareoEsEnTiempoReal(tareo)) {
+                /*
+                   Si ya existen horas porque se está corrigiendo un registro,
+                   NO las sobrescribimos con la hora actual.
+                */
+                const yaTieneMarcaciones =
+                    Boolean(
+                        persona.horaIngreso ||
+                        persona.salidaRefrigerio ||
+                        persona.retornoRefrigerio ||
+                        persona.horaSalida
+                    );
 
-                    persona.horaIngreso = tareoHoraActual();
-                    persona.horaIngresoAuto = true;
+                if (!yaTieneMarcaciones) {
 
-                } else {
+                    if (tareoEsEnTiempoReal(tareo)) {
 
-                    persona.horaIngreso = '';
-                    persona.horaIngresoAuto = false;
+                        persona.horaIngreso = tareoHoraActual();
+                        persona.horaIngresoAuto = true;
+
+                    } else {
+
+                        persona.horaIngreso = '';
+                        persona.horaIngresoAuto = false;
+                    }
                 }
             }
 
             return;
+        }
+
+        /*
+           CORRECCIÓN DE ASISTENCIA:
+           al pasar de ASISTIÓ a otro estado no se borran las horas
+           silenciosamente. Se solicita confirmación.
+        */
+        const tieneMarcaciones =
+            Boolean(
+                persona.horaIngreso ||
+                persona.salidaRefrigerio ||
+                persona.retornoRefrigerio ||
+                persona.horaSalida
+            );
+
+        if (anterior === 'Asistió' && tieneMarcaciones) {
+
+            const limpiar =
+                confirm(
+                    'Esta persona tiene horas registradas.\n\n' +
+                    '¿Deseas cambiar la asistencia a "' +
+                    (estado || 'PENDIENTE') +
+                    '" y limpiar las horas registradas?'
+                );
+
+            if (!limpiar) {
+
+                /*
+                   Se cancela la corrección completa.
+                   Dejamos el estado anterior para no perder información.
+                */
+                persona.asistencia = anterior;
+                return;
+            }
         }
 
         persona.horaIngreso = '';
@@ -6199,9 +6291,8 @@ function interpretarRotacionExcel(
         */
         const trabajadorId =
             tareoIdRotacionDesdeFila(
-                nombre,
                 dni,
-                numeroFila
+                nombre
             );
 
         const nombreNorm =
