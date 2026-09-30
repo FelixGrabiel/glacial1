@@ -1081,6 +1081,10 @@ async function subirEvidenciasPT(recordId){
    REGISTRO VACÍO
    ========================================================= */
 
+function generarIdParadaProduccion(){
+  return 'pr_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+}
+
 function blankCuadro(lineKey, numero){
 
   const marcas =
@@ -1158,6 +1162,7 @@ function blankCuadro(lineKey, numero){
 
     paradasProgramadas: [
       {
+        id:generarIdParadaProduccion(),
         descripcion:'',
         tiempoMin:0
       }
@@ -1171,6 +1176,7 @@ function blankCuadro(lineKey, numero){
     */
     paradasNoProgramadas: [
       {
+        id:generarIdParadaProduccion(),
         descripcion:'',
         tiempoMin:0,
         causa:''
@@ -1370,7 +1376,7 @@ function normalizarCuadros(record){
               c?.paradasProgramadas
             ) &&
             c.paradasProgramadas.length
-              ? c.paradasProgramadas
+              ? c.paradasProgramadas.map((p,pi)=>({...p,id:p?.id||`pr_${record.id||'legacy'}_${i}_P_${pi}`}))
               : base.paradasProgramadas,
 
           paradasNoProgramadas:
@@ -1378,7 +1384,7 @@ function normalizarCuadros(record){
               c?.paradasNoProgramadas
             ) &&
             c.paradasNoProgramadas.length
-              ? c.paradasNoProgramadas
+              ? c.paradasNoProgramadas.map((p,pi)=>({...p,id:p?.id||`pr_${record.id||'legacy'}_${i}_NP_${pi}`}))
               : base.paradasNoProgramadas,
 
           mermas:
@@ -4432,6 +4438,13 @@ function renderFormTab(){
 
     </div>
 
+    ${typeof avAbrirParadas==='function' ? `
+    <div class="panel" style="margin-bottom:14px;border-left:4px solid #005b96;">
+      <div class="panel-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div><h3 style="margin:0;">Paradas del turno</h3><small>Fuente común con Avance y Cierre. Las paradas generales no se duplican por marca.</small></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-no-autosave onclick="avAbrirParadas(draft.linea,draft.fecha,draft.turno)">+ AGREGAR / REVISAR PARADAS</button>
+      </div>
+    </div>` : ''}
 
     <div
       class="panel"
@@ -5881,6 +5894,7 @@ function addParadaCuadro(
 
 
   q[key].push({
+    id:generarIdParadaProduccion(),
     descripcion:'',
     tiempoMin:0,
     causa:''
@@ -5961,6 +5975,7 @@ function removeArrItemCuadro(
   ){
 
     q[key].push({
+      id:generarIdParadaProduccion(),
       descripcion:'',
       tiempoMin:0,
       causa:''
@@ -6736,6 +6751,8 @@ function addParada(
 ){
 
   draft[key].push({
+
+    id:generarIdParadaProduccion(),
 
     descripcion:'',
 

@@ -12,7 +12,7 @@
      de ingreso y se detecta la tardanza
    - Ficha de la persona al tocar su nombre
    - Tareo Día / Noche
-   - Personal proveniente de 11-trabajadores.js
+   - Personal de Producción proveniente exclusivamente de la rotación Excel vigente
    - Cargos permitidos
    - Rotación semanal mediante Excel
    - Validación de rotación
@@ -634,6 +634,51 @@ function tareoFusionar(remoto, local) {
 
     const config = configLocal ? local : remoto;
 
+    /*
+       PRODUCCIÓN:
+       La nómina NO se fusiona sumando personas de la copia vieja.
+       La copia más nueva es autoritativa porque ya fue construida
+       desde la rotación Excel. Esto permite ELIMINAR de Firestore
+       las filas antiguas provenientes de Gestionar trabajadores.
+
+       Antes, el Map unía "remoto + local"; por eso cada limpieza
+       volvía a traer los duplicados desde Firestore.
+    */
+    if (tareoAreaDe(base) === 'Producción') {
+
+        return {
+            ...base,
+
+            observaciones:
+                config.observaciones || '',
+
+            horaProgramadaIngreso:
+                config.horaProgramadaIngreso,
+
+            jornadaNormal:
+                config.jornadaNormal,
+
+            configActualizadoEn:
+                config.configActualizadoEn || 0,
+
+            actualizadoEn:
+                Math.max(
+                    Number(local.actualizadoEn || 0),
+                    Number(remoto.actualizadoEn || 0)
+                ),
+
+            personal:
+                ordenarPersonalTareo(
+                    Array.isArray(base.personal)
+                        ? base.personal
+                        : []
+                )
+        };
+    }
+
+    /*
+       MANTENIMIENTO conserva la fusión histórica por persona.
+    */
     const clave = persona => String(
         persona.trabajadorId ?? persona.dni ?? persona.nombre
     );
@@ -646,33 +691,50 @@ function tareoFusionar(remoto, local) {
 
     (base.personal || []).forEach(persona => {
 
-        const previo = mapa.get(clave(persona));
+        const previo =
+            mapa.get(
+                clave(persona)
+            );
 
         if (
             !previo ||
             Number(persona.actualizadoEn || 0) >=
             Number(previo.actualizadoEn || 0)
         ) {
-            mapa.set(clave(persona), persona);
+            mapa.set(
+                clave(persona),
+                persona
+            );
         }
     });
 
     return {
         ...base,
 
-        observaciones: config.observaciones || '',
-        horaProgramadaIngreso: config.horaProgramadaIngreso,
-        jornadaNormal: config.jornadaNormal,
-        configActualizadoEn: config.configActualizadoEn || 0,
+        observaciones:
+            config.observaciones || '',
 
-        actualizadoEn: Math.max(
-            Number(local.actualizadoEn || 0),
-            Number(remoto.actualizadoEn || 0)
-        ),
+        horaProgramadaIngreso:
+            config.horaProgramadaIngreso,
 
-        personal: ordenarPersonalTareo(
-            Array.from(mapa.values())
-        )
+        jornadaNormal:
+            config.jornadaNormal,
+
+        configActualizadoEn:
+            config.configActualizadoEn || 0,
+
+        actualizadoEn:
+            Math.max(
+                Number(local.actualizadoEn || 0),
+                Number(remoto.actualizadoEn || 0)
+            ),
+
+        personal:
+            ordenarPersonalTareo(
+                Array.from(
+                    mapa.values()
+                )
+            )
     };
 }
 
@@ -1424,52 +1486,53 @@ function normalizarTurno(valor) {
    PERSONAL SEGÚN ROTACIÓN
    ========================================================= */
 
+
+function tareoFirmaNombreMigracion(nombre) {
+
+    return tareoNormalizarTexto(nombre || '')
+        .replace(/[^a-z0-9ñ\s]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .sort()
+        .join('|');
+}
+
+
 function obtenerPersonalPorRotacion(
     fecha,
     turno
 ) {
 
-    const personalBase = obtenerPersonalTareo();
-
-    const rotacion = obtenerRotacionVigente(
-        fecha
-    );
+    const rotacion =
+        obtenerRotacionVigente(
+            fecha
+        );
 
     if (!rotacion) {
-
         return {
             tieneRotacion: false,
             rotacion: null,
-            personal: personalBase
+            personal: []
         };
     }
 
     const turnoNormalizado =
-        normalizarTurno(turno);
+        normalizarTurno(
+            turno
+        );
 
     const registros =
         Array.isArray(rotacion.personal)
             ? rotacion.personal
             : [];
 
-    /*
-       El personal del tareo se arma directamente con los
-       datos guardados en la rotación (nombre, DNI, cargo,
-       línea), sin depender de que exista un trabajador con
-       ese mismo DNI en la base de Trabajadores.
+    const vistos =
+        new Set();
 
-       Si sí existe una coincidencia en la base de
-       Trabajadores, se usa para completar/actualizar cargo
-       y línea con el dato más reciente; si no existe, se
-       usa tal cual vino en la rotación (y por lo tanto en
-       el Excel original).
-    */
+    const personal =
+        [];
 
-    const vistos = new Set();
-
-    const personalDeRotacion = [];
-
-    registros.forEach(registro => {
+    registros.forEach((registro, indice) => {
 
         if (
             normalizarTurno(
@@ -1479,47 +1542,29 @@ function obtenerPersonalPorRotacion(
             return;
         }
 
-        let trabajador = null;
+        const nombre =
+            String(
+                registro.nombre || ''
+            )
+                .replace(/\s+/g, ' ')
+                .trim();
 
-        if (registro.trabajadorId) {
-
-            trabajador =
-                personalBase.find(
-                    persona =>
-                        String(persona.id) ===
-                        String(registro.trabajadorId)
-                );
+        if (!nombre) {
+            return;
         }
 
-        if (
-            !trabajador &&
-            registro.dni
-        ) {
+        const firma =
+            tareoFirmaNombreMigracion(
+                nombre
+            );
 
-            const dni =
-                tareoNormalizarDNI(
-                    registro.dni
-                );
-
-            if (dni) {
-
-                trabajador =
-                    personalBase.find(
-                        persona =>
-                            tareoNormalizarDNI(
-                                persona.dni
-                            ) === dni
-                    );
-            }
-        }
-
-        const id =
-            registro.trabajadorId ||
-            (trabajador ? trabajador.id : null) ||
-            registro.dni ||
-            registro.nombre;
-
-        const clave = String(id);
+        /*
+           Durante la migración, nombres con las mismas palabras
+           en distinto orden se consideran la misma persona.
+           El dato que se conserva es SIEMPRE el de la rotación.
+        */
+        const clave =
+            firma + '|' + turnoNormalizado;
 
         if (vistos.has(clave)) {
             return;
@@ -1527,37 +1572,38 @@ function obtenerPersonalPorRotacion(
 
         vistos.add(clave);
 
-        personalDeRotacion.push({
-
-            id,
-
-            nombre:
-                (trabajador && trabajador.nombre) ||
-                registro.nombre ||
-                '',
-
-            dni:
-                (trabajador && trabajador.dni) ||
-                registro.dni ||
-                '',
-
-            cargo:
-                (trabajador && trabajador.cargo) ||
-                registro.cargo ||
-                '',
-
-            linea:
-                (trabajador && trabajador.linea) ||
-                registro.linea ||
+        const trabajadorId =
+            String(
+                registro.trabajadorId ||
+                registro.id ||
                 ''
+            ).trim() ||
+            tareoIdRotacionDesdeFila(
+                nombre,
+                registro.dni || '',
+                Number(registro.filaExcel || indice + 2)
+            );
 
+        personal.push({
+            id: trabajadorId,
+            trabajadorId,
+            nombre,
+            dni: registro.dni || '',
+            cargo:
+                registro.cargo ||
+                registro.puesto ||
+                '',
+            linea:
+                registro.linea || '',
+            turno: turnoNormalizado,
+            origen: 'ROTACION_EXCEL'
         });
     });
 
     return {
         tieneRotacion: true,
         rotacion,
-        personal: personalDeRotacion
+        personal
     };
 }
 
@@ -2049,7 +2095,25 @@ function renderTareoPrincipal() {
 
     const hoy = obtenerFechaHoy();
 
-    const personal = obtenerPersonalTareo(area);
+    const personal =
+        area === 'Producción'
+            ? (() => {
+                const rotacion = obtenerRotacionVigente(hoy);
+                if (!rotacion || !Array.isArray(rotacion.personal)) return [];
+
+                const vistos = new Set();
+
+                return rotacion.personal.filter(persona => {
+                    const clave =
+                        String(persona.trabajadorId || '').trim() ||
+                        ('NOMBRE:' + tareoNormalizarTexto(persona.nombre || ''));
+
+                    if (!clave || vistos.has(clave)) return false;
+                    vistos.add(clave);
+                    return true;
+                });
+            })()
+            : obtenerPersonalTareo('Mantenimiento');
 
     const tareosArea = obtenerTareos().filter(
         tareo => tareoAreaDe(tareo) === area
@@ -2406,68 +2470,204 @@ function tareoSincronizarConRotacion(tareo) {
         return tareo;
     }
 
-    /* Si ya está usando exactamente esta rotación, no tocamos nada. */
-    if (String(tareo.rotacionId || '') === String(resultado.rotacion.id || '')) {
-        return tareo;
-    }
+    const normalNombre = persona =>
+        tareoNormalizarTexto(persona?.nombre || '')
+            .replace(/\s+/g, ' ')
+            .trim();
 
-    const clavePersona = persona => {
-        const id = persona?.trabajadorId ?? persona?.id;
-        if (id !== undefined && id !== null && String(id).trim()) {
-            return 'ID:' + String(id).trim();
-        }
+    const porId = new Map();
+    const porDni = new Map();
+    const porNombre = new Map();
 
+    (tareo.personal || []).forEach(persona => {
+
+        const id = String(persona?.trabajadorId ?? persona?.id ?? '').trim();
         const dni = tareoNormalizarDNI(persona?.dni || '');
-        if (dni) return 'DNI:' + dni;
+        const nombre = normalNombre(persona);
+        const firmaNombre = tareoFirmaNombreMigracion(persona?.nombre || '');
 
-        return 'NOMBRE:' + tareoNormalizarTexto(persona?.nombre || '');
-    };
-
-    const anteriores = new Map(
-        (tareo.personal || []).map(persona => [
-            clavePersona(persona),
-            persona
-        ])
-    );
-
-    const ahora = Date.now();
-
-    const nuevoPersonal = resultado.personal.map(trabajador => {
-
-        const nueva = tareoNuevaPersona(trabajador, 'Producción');
-        const anterior = anteriores.get(clavePersona(trabajador));
-
-        if (!anterior) {
-            return nueva;
+        if (id) {
+            if (!porId.has(id)) porId.set(id, []);
+            porId.get(id).push(persona);
         }
 
-        /*
-           Conservamos el registro operativo ya hecho, pero refrescamos
-           los datos maestros que vienen de la nueva rotación.
-        */
-        return {
-            ...nueva,
-            asistencia: anterior.asistencia || '',
-            horaIngreso: anterior.horaIngreso || '',
-            salidaRefrigerio: anterior.salidaRefrigerio || '',
-            retornoRefrigerio: anterior.retornoRefrigerio || '',
-            refrigerio: Number(anterior.refrigerio || 0),
-            horaSalida: anterior.horaSalida || '',
-            horasTrabajadas: Number(anterior.horasTrabajadas || 0),
-            horasExtras: Number(anterior.horasExtras || 0),
-            tardanzaMinutos: Number(anterior.tardanzaMinutos || 0),
-            actualizadoEn: Number(anterior.actualizadoEn || 0)
-        };
+        if (dni) {
+            if (!porDni.has(dni)) porDni.set(dni, []);
+            porDni.get(dni).push(persona);
+        }
+
+        if (nombre) {
+            if (!porNombre.has(nombre)) porNombre.set(nombre, []);
+            porNombre.get(nombre).push(persona);
+        }
+
+        if (firmaNombre) {
+            const claveFirma = 'FIRMA:' + firmaNombre;
+            if (!porNombre.has(claveFirma)) porNombre.set(claveFirma, []);
+            porNombre.get(claveFirma).push(persona);
+        }
     });
 
-    tareo.personal = ordenarPersonalTareo(nuevoPersonal);
-    tareo.rotacionId = resultado.rotacion.id;
-    tareo.actualizadoEn = Math.max(Number(tareo.actualizadoEn || 0), ahora);
+    const puntajeRegistro = persona => {
+        let puntos = 0;
+        if (tareoEstadoCanonico(persona?.asistencia)) puntos += 100;
+        if (persona?.horaIngreso) puntos += 20;
+        if (persona?.salidaRefrigerio) puntos += 5;
+        if (persona?.retornoRefrigerio) puntos += 5;
+        if (persona?.horaSalida) puntos += 20;
+        puntos += Number(persona?.horasTrabajadas || 0);
+        puntos += Number(persona?.horasExtras || 0);
+        puntos += Number(persona?.actualizadoEn || 0) / 1e15;
+        return puntos;
+    };
+
+    const mejorAnterior = trabajador => {
+
+        const id = String(
+            trabajador?.trabajadorId ?? trabajador?.id ?? ''
+        ).trim();
+
+        const dni = tareoNormalizarDNI(trabajador?.dni || '');
+        const nombre = normalNombre(trabajador);
+
+        let candidatos = [];
+
+        if (id && porId.has(id)) {
+            candidatos = porId.get(id);
+        } else if (dni && porDni.has(dni)) {
+            candidatos = porDni.get(dni);
+        } else if (nombre && porNombre.has(nombre)) {
+            candidatos = porNombre.get(nombre);
+        } else {
+            const firma =
+                tareoFirmaNombreMigracion(
+                    trabajador?.nombre || ''
+                );
+
+            const claveFirma =
+                'FIRMA:' + firma;
+
+            if (firma && porNombre.has(claveFirma)) {
+                /*
+                   Solo para migrar tareos antiguos:
+                   "LUIS MANUEL PACHECO MIERES" y
+                   "PACHECO MIERES LUIS MANUEL" apuntan a la
+                   misma asistencia. La fila final conserva el
+                   nombre/puesto del Excel.
+                */
+                candidatos =
+                    porNombre.get(
+                        claveFirma
+                    );
+            }
+        }
+
+        if (!candidatos.length) return null;
+
+        return [...candidatos].sort(
+            (a, b) => puntajeRegistro(b) - puntajeRegistro(a)
+        )[0];
+    };
+
+    const vistos = new Set();
+
+    const nuevoPersonal = resultado.personal
+        .filter(trabajador => {
+
+            const clave =
+                String(trabajador.trabajadorId || '').trim() ||
+                ('NOMBRE:' + normalNombre(trabajador));
+
+            if (!clave || vistos.has(clave)) return false;
+
+            vistos.add(clave);
+            return true;
+        })
+        .map(trabajador => {
+
+            const nueva =
+                tareoNuevaPersona(
+                    trabajador,
+                    'Producción'
+                );
+
+            const anterior =
+                mejorAnterior(trabajador);
+
+            if (!anterior) {
+                return nueva;
+            }
+
+            return {
+                ...nueva,
+
+                /*
+                   Solo se conservan datos OPERATIVOS del tareo.
+                   Nombre, puesto, turno e identidad siguen viniendo
+                   exclusivamente de la rotación Excel.
+                */
+                asistencia:
+                    anterior.asistencia || '',
+
+                horaIngreso:
+                    anterior.horaIngreso || '',
+
+                salidaRefrigerio:
+                    anterior.salidaRefrigerio || '',
+
+                retornoRefrigerio:
+                    anterior.retornoRefrigerio || '',
+
+                refrigerio:
+                    Number(anterior.refrigerio || 0),
+
+                horaSalida:
+                    anterior.horaSalida || '',
+
+                horasTrabajadas:
+                    Number(anterior.horasTrabajadas || 0),
+
+                horasExtras:
+                    Number(anterior.horasExtras || 0),
+
+                tardanzaMinutos:
+                    Number(anterior.tardanzaMinutos || 0),
+
+                observacion:
+                    anterior.observacion || '',
+
+                actualizadoEn:
+                    Number(anterior.actualizadoEn || 0)
+            };
+        });
 
     /*
-       Guardamos la actualización para que la misma rotación se vea
-       también desde otros equipos.
+       IMPORTANTE:
+       No se arrastran filas antiguas que no existan en el Excel.
+       Así un tareo viejo creado desde "Trabajadores" queda depurado
+       y la nómina visible coincide 1:1 con la rotación del turno.
     */
+    tareo.personal =
+        ordenarPersonalTareo(
+            nuevoPersonal
+        );
+
+    tareo.rotacionId =
+        resultado.rotacion.id;
+
+    tareo.fuentePersonal =
+        'ROTACION_EXCEL';
+
+    /*
+       Marca explícita de limpieza. guardarTareoEnMemoria() vuelve
+       a actualizar actualizadoEn justo antes de enviarlo a Firestore.
+    */
+    tareo.depurarPersonalTrabajadores =
+        true;
+
+    tareo.actualizadoEn =
+        Date.now();
+
     guardarTareoEnMemoria(tareo);
 
     return tareo;
@@ -2520,22 +2720,28 @@ function tareoAbrir(area, fecha, turno) {
                 turnoTareo
             );
 
+        if (!resultado.tieneRotacion || !resultado.rotacion) {
+
+            alert(
+                'No hay rotación cargada para esta fecha.'
+            );
+
+            return;
+        }
+
         if (
-            resultado.tieneRotacion &&
             resultado.personal.length === 0
         ) {
 
             alert(
-                'La rotación semanal está activa, pero no se encontraron trabajadores asignados al turno ' +
+                'La rotación vigente no tiene personal asignado al turno ' +
                 turnoTareo + ' para esta fecha.'
             );
 
             return;
         }
 
-        rotacionId = resultado.rotacion
-            ? resultado.rotacion.id
-            : null;
+        rotacionId = resultado.rotacion.id;
     }
 
     const personal =
@@ -2550,7 +2756,7 @@ function tareoAbrir(area, fecha, turno) {
         alert(
             area === 'Mantenimiento'
                 ? 'No hay personal activo de Mantenimiento. Registra trabajadores con un cargo de mantenimiento (por ejemplo "Técnico de Mantenimiento") en Gestionar trabajadores.'
-                : 'No hay personal activo de producción disponible para crear el tareo.'
+                : 'No hay personal asignado en la rotación vigente para este turno.'
         );
 
         return;
@@ -2586,6 +2792,11 @@ function tareoAbrir(area, fecha, turno) {
             '',
 
         rotacionId,
+
+        fuentePersonal:
+            area === 'Producción'
+                ? 'ROTACION_EXCEL'
+                : 'TRABAJADORES_MANTENIMIENTO',
 
         creadoPor:
             (state.user && state.user.username) || '',
@@ -2833,12 +3044,14 @@ function renderTareoFormulario(tareo) {
                         oninput="tareoFiltrarPersonal(this.value)"
                     >
 
+                    ${area === 'Mantenimiento' ? `
                     <button
                         class="btn btn-ghost btn-sm"
                         onclick="tareoAbrirAgregarPersonal()"
                     >
                         + Agregar personal
                     </button>
+                    ` : ''}
 
                     <span class="tareo-count-badge">
                         ${personal.length} personas
@@ -2995,6 +3208,22 @@ function tareoRefrescarFormularioRemoto() {
 
 function tareoAbrirAgregarPersonal() {
 
+    const tareoProduccionActual =
+        obtenerTareos().find(item => item.id === tareoActualId);
+
+    if (
+        tareoProduccionActual &&
+        tareoAreaDe(tareoProduccionActual) === 'Producción'
+    ) {
+
+        alert(
+            'El personal de Producción se administra únicamente mediante la rotación Excel vigente.'
+        );
+
+        return;
+    }
+
+
     const tareo = tareoObtenerActual();
 
     if (!tareo || !tareoPuedeEditar(tareo)) return;
@@ -3076,6 +3305,22 @@ function tareoAbrirAgregarPersonal() {
 
 
 function tareoAgregarPersonal() {
+
+    const tareoProduccionActual =
+        obtenerTareos().find(item => item.id === tareoActualId);
+
+    if (
+        tareoProduccionActual &&
+        tareoAreaDe(tareoProduccionActual) === 'Producción'
+    ) {
+
+        alert(
+            'El personal de Producción se administra únicamente mediante la rotación Excel vigente.'
+        );
+
+        return;
+    }
+
 
     const tareo = tareoObtenerActual();
 
@@ -4670,10 +4915,16 @@ function tareoAbrirFicha(clave, tareoId) {
 
     let datos = referencia ? referencia.persona : null;
 
+    /*
+       No completar fichas de Producción desde Gestionar trabajadores.
+       Si no existe en un tareo/rotación, no se inventa una ficha.
+    */
     if (!datos && typeof loadWorkers === 'function') {
 
         const trabajador = loadWorkers().find(
-            item => String(item.id) === String(clave)
+            item =>
+                String(item.id) === String(clave) &&
+                tareoCargoPermitido(item.cargo, 'Mantenimiento')
         );
 
         if (trabajador) {
@@ -4682,7 +4933,7 @@ function tareoAbrirFicha(clave, tareoId) {
                 dni: trabajador.dni,
                 cargo: trabajador.cargo,
                 linea: trabajador.linea,
-                area: ''
+                area: 'Mantenimiento'
             };
         }
     }
@@ -5651,7 +5902,8 @@ async function previsualizarRotacionExcel(
 
         const resultado =
             interpretarRotacionExcel(
-                filas
+                filas,
+                workbook.SheetNames[0] || ''
             );
 
         window._tareoRotacionPendiente =
@@ -5738,28 +5990,71 @@ function encontrarColumna(
    INTERPRETAR EXCEL
    ========================================================= */
 
-function interpretarRotacionExcel(
-    filas
-) {
+function tareoCargoDesdePuesto(valor) {
+    const puesto = tareoNormalizarTexto(valor).replace(/\s+/g, ' ').trim();
 
-    const columnaDNI =
-        encontrarColumna(
-            filas,
-            [
-                'dni',
-                'documento',
-                'n documento',
-                'n° documento',
-                'numero documento',
-                'nro documento'
-            ]
-        );
+    if (puesto === 'op' || puesto === 'operario') {
+        return 'Operario de Producción';
+    }
+    if (puesto === 'maquinista') {
+        return 'Maquinista de Producción';
+    }
+    if (puesto === 'sup' || puesto === 'supervisor') {
+        return 'Supervisor de Producción';
+    }
+    return '';
+}
+
+function tareoIdRotacionDesdeFila(dni, nombre) {
+    const doc = tareoNormalizarDNI(dni);
+    if (doc) return 'ROT-DNI-' + doc;
+
+    const normal = tareoNormalizarTexto(nombre)
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toUpperCase();
+
+    return normal ? 'ROT-NOMBRE-' + normal : '';
+}
+
+function tareoVigenciaDesdeNombreHoja(nombreHoja) {
+    const texto = String(nombreHoja || '').trim();
+    const m = texto.match(/(\d{1,2})[\s.\/-]+(\d{1,2})(?:[\s.\/-]+(\d{2,4}))?\s*(?:AL|A|HASTA|-)\s*(\d{1,2})[\s.\/-]+(\d{1,2})(?:[\s.\/-]+(\d{2,4}))?/i);
+    if (!m) return null;
+
+    const hoy = new Date();
+    const normalizarAnio = v => {
+        if (!v) return hoy.getFullYear();
+        const n = Number(v);
+        return n < 100 ? 2000 + n : n;
+    };
+
+    let anioInicio = normalizarAnio(m[3]);
+    let anioFin = normalizarAnio(m[6] || m[3]);
+    const mesInicio = Number(m[2]);
+    const mesFin = Number(m[5]);
+
+    if (!m[6] && mesFin < mesInicio) anioFin = anioInicio + 1;
+
+    const iso = (a, mes, dia) => `${a}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+    return {
+        fechaInicio: iso(anioInicio, mesInicio, Number(m[1])),
+        fechaFin: iso(anioFin, mesFin, Number(m[4]))
+    };
+}
+
+
+function interpretarRotacionExcel(
+    filas,
+    nombreHoja = ''
+) {
 
     const columnaNombre =
         encontrarColumna(
             filas,
             [
                 'trabajador',
+                'trabajadores',
                 'nombre',
                 'personal',
                 'empleado',
@@ -5777,358 +6072,240 @@ function interpretarRotacionExcel(
             ]
         );
 
-    const columnaFecha =
+    const columnaPuesto =
         encontrarColumna(
             filas,
             [
-                'fecha',
-                'dia',
-                'día'
-            ]
-        );
-
-    const columnaCargo =
-        encontrarColumna(
-            filas,
-            [
-                'cargo',
                 'puesto',
+                'cargo',
                 'posicion',
                 'posición'
             ]
         );
 
-    const columnaLinea =
+    const columnaDNI =
         encontrarColumna(
             filas,
             [
-                'linea',
-                'línea',
-                'area',
-                'área'
+                'dni',
+                'documento',
+                'n documento',
+                'n° documento',
+                'numero documento',
+                'nro documento'
             ]
         );
 
-    if (
-        !columnaDNI &&
-        !columnaNombre
-    ) {
-
+    if (!columnaNombre) {
         throw new Error(
-            'No se encontró una columna de DNI/documento ni una columna de trabajador/nombre.'
+            'No se encontró la columna TRABAJADOR/TRABAJADORES.'
         );
     }
 
     if (!columnaTurno) {
-
         throw new Error(
-            'No se encontró la columna de Turno.'
+            'No se encontró la columna TURNO.'
         );
     }
 
-    /*
-       La base de trabajadores (11-trabajadores.js) ya NO es
-       requisito para poder subir la rotación: cada fila del
-       Excel se importa con sus propios datos (nombre, DNI,
-       cargo, línea). Si el DNI o el nombre coinciden con un
-       trabajador registrado, se usa para completar datos que
-       falten en el Excel (cargo/línea) y para mantener el
-       mismo identificador entre semanas — pero la ausencia
-       de coincidencia ya no descarta la fila.
-    */
-
-    const personalBase =
-        obtenerPersonalTareo();
-
-    const porDNI =
-        new Map();
-
-    const porNombre =
-        new Map();
-
-    personalBase.forEach(
-        trabajador => {
-
-            const dni =
-                tareoNormalizarDNI(
-                    trabajador.dni
-                );
-
-            if (dni) {
-                porDNI.set(
-                    dni,
-                    trabajador
-                );
-            }
-
-            const nombre =
-                tareoNormalizarTexto(
-                    trabajador.nombre
-                );
-
-            if (nombre) {
-                porNombre.set(
-                    nombre,
-                    trabajador
-                );
-            }
-        }
-    );
-
-    let fechaDetectada = '';
-
-    const registros = [];
-    const sinCoincidencia = [];
-    const invalidos = [];
-
-    filas.forEach(
-        (fila, indice) => {
-
-            const dni =
-                columnaDNI
-                    ? tareoNormalizarDNI(
-                        fila[columnaDNI]
-                      )
-                    : '';
-
-            const nombre =
-                columnaNombre
-                    ? String(
-                        fila[columnaNombre] || ''
-                      ).trim()
-                    : '';
-
-            const turno =
-                normalizarTurno(
-                    fila[columnaTurno]
-                );
-
-            if (!turno) {
-
-                invalidos.push({
-
-                    fila:
-                        indice + 2,
-
-                    nombre,
-                    dni,
-
-                    motivo:
-                        'Turno no reconocido'
-
-                });
-
-                return;
-            }
-
-            if (
-                !dni &&
-                !nombre
-            ) {
-
-                invalidos.push({
-
-                    fila:
-                        indice + 2,
-
-                    nombre,
-                    dni,
-
-                    motivo:
-                        'Falta el nombre y el DNI del trabajador'
-
-                });
-
-                return;
-            }
-
-            let trabajador = null;
-
-            if (dni) {
-
-                trabajador =
-                    porDNI.get(
-                        dni
-                    );
-            }
-
-            if (
-                !trabajador &&
-                nombre
-            ) {
-
-                trabajador =
-                    porNombre.get(
-                        tareoNormalizarTexto(
-                            nombre
-                        )
-                    );
-            }
-
-            if (!trabajador) {
-
-                sinCoincidencia.push({
-
-                    fila:
-                        indice + 2,
-
-                    nombre,
-
-                    dni,
-
-                    turno
-
-                });
-            }
-
-            const cargoExcel =
-                columnaCargo
-                    ? String(
-                        fila[columnaCargo] || ''
-                      ).trim()
-                    : '';
-
-            const lineaExcel =
-                columnaLinea
-                    ? String(
-                        fila[columnaLinea] || ''
-                      ).trim()
-                    : '';
-
-            let fecha =
-                columnaFecha
-                    ? normalizarFechaExcel(
-                        fila[columnaFecha]
-                      )
-                    : '';
-
-            if (fecha) {
-                fechaDetectada =
-                    fecha;
-            }
-
-            registros.push({
-
-                trabajadorId:
-                    trabajador
-                        ? trabajador.id
-                        : ('EXCEL-' + (dni || tareoNormalizarTexto(nombre))),
-
-                nombre:
-                    nombre ||
-                    (trabajador ? trabajador.nombre : ''),
-
-                dni:
-                    dni ||
-                    (trabajador ? trabajador.dni : ''),
-
-                cargo:
-                    cargoExcel ||
-                    (trabajador ? trabajador.cargo : '') ||
-                    '',
-
-                linea:
-                    lineaExcel ||
-                    (trabajador ? trabajador.linea : '') ||
-                    '',
-
-                turno,
-
-                fecha
-
-            });
-        }
-    );
-
-    if (!fechaDetectada) {
-
-        fechaDetectada =
-            obtenerInicioSemana(
-                obtenerFechaHoy()
-            );
+    if (!columnaPuesto) {
+        throw new Error(
+            'No se encontró la columna PUESTO.'
+        );
     }
 
+    const registros = [];
+    const invalidos = [];
+    const duplicados = [];
+    const contradicciones = [];
+
+    const porNombre = new Map();
+    const porAsignacion = new Set();
+
+    filas.forEach((fila, indice) => {
+
+        const numeroFila = indice + 2;
+
+        const nombre =
+            String(
+                fila[columnaNombre] || ''
+            )
+                .replace(/\s+/g, ' ')
+                .trim();
+
+        const turnoOriginal =
+            String(
+                fila[columnaTurno] || ''
+            ).trim();
+
+        const puestoOriginal =
+            String(
+                fila[columnaPuesto] || ''
+            ).trim();
+
+        const turno =
+            normalizarTurno(
+                turnoOriginal
+            );
+
+        const cargo =
+            tareoCargoDesdePuesto(
+                puestoOriginal
+            );
+
+        const dni =
+            columnaDNI
+                ? tareoNormalizarDNI(
+                    fila[columnaDNI] || ''
+                  )
+                : '';
+
+        const errores = [];
+
+        if (!nombre) {
+            errores.push('Falta TRABAJADOR');
+        }
+
+        if (!turno) {
+            errores.push(
+                'Turno no reconocido: ' +
+                (turnoOriginal || '(vacío)')
+            );
+        }
+
+        if (!cargo) {
+            errores.push(
+                'Puesto no reconocido: ' +
+                (puestoOriginal || '(vacío)')
+            );
+        }
+
+        if (errores.length) {
+            invalidos.push({
+                fila: numeroFila,
+                nombre,
+                turno: turnoOriginal,
+                puesto: puestoOriginal,
+                motivo: errores.join(' · ')
+            });
+            return;
+        }
+
+        /*
+           IMPORTANTE:
+           Este identificador nace SOLO del Excel.
+           Nunca se consulta ni se reutiliza un ID de
+           Gestionar trabajadores.
+        */
+        const trabajadorId =
+            tareoIdRotacionDesdeFila(
+                nombre,
+                dni,
+                numeroFila
+            );
+
+        const nombreNorm =
+            tareoNormalizarTexto(nombre)
+                .replace(/\s+/g, ' ')
+                .trim();
+
+        const firma =
+            tareoFirmaNombreMigracion(nombre);
+
+        const claveAsignacion =
+            firma + '|' + turno + '|' + cargo;
+
+        if (porAsignacion.has(claveAsignacion)) {
+            duplicados.push({
+                fila: numeroFila,
+                nombre,
+                turno,
+                puesto: cargo,
+                motivo:
+                    'La misma persona/asignación aparece más de una vez en el Excel.'
+            });
+        }
+
+        porAsignacion.add(claveAsignacion);
+
+        const anteriores =
+            porNombre.get(firma) || [];
+
+        anteriores.forEach(anterior => {
+
+            if (
+                anterior.turno !== turno ||
+                anterior.cargo !== cargo
+            ) {
+                contradicciones.push({
+                    fila: numeroFila,
+                    nombre,
+                    turno,
+                    puesto: cargo,
+                    motivo:
+                        'El mismo nombre aparece con turno o puesto diferente.'
+                });
+            }
+        });
+
+        anteriores.push({
+            fila: numeroFila,
+            turno,
+            cargo
+        });
+
+        porNombre.set(
+            firma,
+            anteriores
+        );
+
+        registros.push({
+            trabajadorId,
+            id: trabajadorId,
+            nombre,
+            dni,
+            cargo,
+            puesto: cargo,
+            linea: '',
+            turno,
+            filaExcel: numeroFila,
+            origen: 'ROTACION_EXCEL'
+        });
+    });
+
+    const vigencia =
+        tareoVigenciaDesdeNombreHoja(
+            nombreHoja
+        );
+
     const fechaInicio =
+        vigencia?.fechaInicio ||
         obtenerInicioSemana(
-            fechaDetectada
+            obtenerFechaHoy()
         );
 
     const fechaFin =
+        vigencia?.fechaFin ||
         obtenerFinSemana(
             fechaInicio
         );
 
-    const duplicados = [];
-
-    const claves =
-        new Set();
-
-    registros.forEach(
-        registro => {
-
-            const clave =
-                `${registro.trabajadorId}-${registro.turno}`;
-
-            if (claves.has(clave)) {
-
-                duplicados.push(
-                    registro
-                );
-
-            } else {
-
-                claves.add(clave);
-            }
-        }
-    );
-
-    const registrosUnicos =
-        registros.filter(
-            registro => {
-
-                const clave =
-                    `${registro.trabajadorId}-${registro.turno}`;
-
-                if (
-                    !registro._procesado
-                ) {
-
-                    registro._procesado =
-                        true;
-
-                    return true;
-                }
-
-                return false;
-            }
-        );
-
     return {
-
-        archivoFilas:
-            filas.length,
-
-        registros:
-            registrosUnicos,
-
-        sinCoincidencia,
-
+        archivoFilas: filas.length,
+        registros,
+        sinCoincidencia: [],
         invalidos,
-
         duplicados,
-
+        contradicciones,
         fechaInicio,
-
         fechaFin,
-
         columnaDNI,
-
         columnaNombre,
-
         columnaTurno,
-
-        columnaFecha
-
+        columnaFecha: null,
+        columnaCargo: columnaPuesto,
+        nombreHoja,
+        origen: 'ROTACION_EXCEL'
     };
 }
 
@@ -6271,15 +6448,21 @@ function renderPreviewRotacion(
                     VIGENCIA DETECTADA
                 </span>
 
-                <strong>
-                    ${formatearFecha(
-                        resultado.fechaInicio
-                    )}
-                    —
-                    ${formatearFecha(
-                        resultado.fechaFin
-                    )}
-                </strong>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
+                    <input
+                        type="date"
+                        id="tareo-rotacion-fecha-inicio"
+                        value="${escaparHTML(resultado.fechaInicio || '')}"
+                        onchange="window._tareoRotacionPendiente.fechaInicio=this.value"
+                    >
+                    <span>—</span>
+                    <input
+                        type="date"
+                        id="tareo-rotacion-fecha-fin"
+                        value="${escaparHTML(resultado.fechaFin || '')}"
+                        onchange="window._tareoRotacionPendiente.fechaFin=this.value"
+                    >
+                </div>
 
             </div>
 
@@ -6429,6 +6612,27 @@ function renderPreviewRotacion(
 
 
         ${
+            (resultado.duplicados || []).length || (resultado.contradicciones || []).length
+                ? `
+                <div class="tareo-import-warning">
+                    <strong>Duplicados o asignaciones contradictorias</strong>
+                    <ul>
+                        ${[...(resultado.duplicados || []), ...(resultado.contradicciones || [])]
+                            .slice(0, 20)
+                            .map(item => `
+                                <li>
+                                    Fila ${item.fila}: ${escaparHTML(item.nombre || 'Sin nombre')}
+                                    — ${escaparHTML(item.motivo || 'Revisar')}
+                                </li>
+                            `).join('')}
+                    </ul>
+                </div>
+                `
+                : ''
+        }
+
+
+        ${
             resultado.invalidos.length
                 ? `
 
@@ -6473,7 +6677,7 @@ function renderPreviewRotacion(
 
                         <th>Trabajador</th>
                         <th>DNI</th>
-                        <th>Cargo</th>
+                        <th>Puesto</th>
                         <th>Línea</th>
                         <th>Turno</th>
 
@@ -6597,118 +6801,161 @@ function renderPreviewRotacion(
 
 function aplicarRotacionPendiente() {
 
-    const resultado =
-        window._tareoRotacionPendiente;
+    const resultado = window._tareoRotacionPendiente;
 
     if (!resultado) {
-
-        alert(
-            'No existe una rotación pendiente de aplicar.'
-        );
-
+        alert('No existe una rotación pendiente de aplicar.');
         return;
     }
 
-    if (
-        !resultado.registros.length
-    ) {
+    /*
+       Sincronizar la vigencia directamente desde los inputs.
+       No depender de una función auxiliar inexistente.
+    */
+    const inputInicio =
+        document.getElementById('tareo-rotacion-fecha-inicio');
 
-        alert(
-            'No existen registros válidos para aplicar.'
-        );
+    const inputFin =
+        document.getElementById('tareo-rotacion-fecha-fin');
 
+    if (inputInicio) {
+        resultado.fechaInicio =
+            String(inputInicio.value || '').trim();
+    }
+
+    if (inputFin) {
+        resultado.fechaFin =
+            String(inputFin.value || '').trim();
+    }
+
+    if (!resultado.fechaInicio || !resultado.fechaFin || resultado.fechaInicio > resultado.fechaFin) {
+        alert('Revisa la vigencia de la rotación antes de aplicar.');
         return;
     }
 
-    if (
-        resultado.invalidos.length
-    ) {
-
-        alert(
-            'Corrija los registros inválidos antes de aplicar la rotación.'
-        );
-
+    if (!resultado.registros.length) {
+        alert('No existen registros válidos para aplicar.');
         return;
     }
 
-    const rotaciones =
-        obtenerRotaciones();
+    const invalidos =
+        Array.isArray(resultado.invalidos)
+            ? resultado.invalidos
+            : [];
+
+    const contradicciones =
+        Array.isArray(resultado.contradicciones)
+            ? resultado.contradicciones
+            : [];
+
+    if (invalidos.length || contradicciones.length) {
+        alert('Corrige las filas marcadas para revisión antes de aplicar la rotación.');
+        return;
+    }
+
+    /*
+       Si ya existen asistencias en el periodo, avisamos antes de cambiar
+       la asignación de turno/puesto de esas personas. No se borra ni se
+       reinicia ningún tareo histórico.
+    */
+    const porIdNuevo = new Map(
+        resultado.registros.map(r => [String(r.trabajadorId), r])
+    );
+    const conflictos = [];
+
+    obtenerTareos()
+        .filter(t => tareoAreaDe(t) === 'Producción' && t.fecha >= resultado.fechaInicio && t.fecha <= resultado.fechaFin)
+        .forEach(t => {
+            (t.personal || []).forEach(p => {
+                const tieneAsistencia = !!tareoEstadoCanonico(p.asistencia) || !!p.horaIngreso || !!p.horaSalida;
+                if (!tieneAsistencia) return;
+
+                const nuevo = porIdNuevo.get(String(p.trabajadorId || ''));
+                if (!nuevo) {
+                    conflictos.push(`${p.nombre}: tiene asistencia el ${formatearFecha(t.fecha)} (${t.turno}) y ya no aparece en la nueva rotación.`);
+                    return;
+                }
+
+                const cambioTurno = normalizarTurno(nuevo.turno) !== normalizarTurno(t.turno);
+                const cambioPuesto = tareoNormalizarTexto(nuevo.cargo) !== tareoNormalizarTexto(p.cargo);
+                if (cambioTurno || cambioPuesto) {
+                    conflictos.push(`${p.nombre}: asistencia registrada el ${formatearFecha(t.fecha)}; la nueva rotación cambia ${cambioTurno ? 'turno' : ''}${cambioTurno && cambioPuesto ? ' y ' : ''}${cambioPuesto ? 'puesto' : ''}.`);
+                }
+            });
+        });
+
+    if (conflictos.length) {
+        const detalle = conflictos.slice(0,12).join('\n• ');
+        const confirmar = confirm(
+            'Se detectaron conflictos con asistencias ya registradas:\n\n• ' + detalle +
+            (conflictos.length > 12 ? `\n• ... y ${conflictos.length - 12} más.` : '') +
+            '\n\nLa asistencia histórica NO se borrará ni reiniciará. ¿Deseas aplicar igualmente la nueva rotación?'
+        );
+        if (!confirmar) return;
+    }
+
+    const rotaciones = obtenerRotaciones();
+    const existente = rotaciones.findIndex(rotacion =>
+        rotacion.fechaInicio === resultado.fechaInicio &&
+        rotacion.fechaFin === resultado.fechaFin
+    );
 
     const nuevaRotacion = {
-
-        id:
-            generarIdRotacion(),
-
-        fechaInicio:
-            resultado.fechaInicio,
-
-        fechaFin:
-            resultado.fechaFin,
-
-        personal:
-            resultado.registros.map(
-                registro => {
-
-                    const copia = {
-                        ...registro
-                    };
-
-                    delete copia._procesado;
-
-                    return copia;
-                }
-            ),
-
-        creadoEn:
-            new Date().toISOString(),
-
-        archivoFilas:
-            resultado.archivoFilas
-
+        id: existente >= 0 ? rotaciones[existente].id : generarIdRotacion(),
+        fechaInicio: resultado.fechaInicio,
+        fechaFin: resultado.fechaFin,
+        personal: resultado.registros.map(registro => ({
+            trabajadorId: registro.trabajadorId,
+            nombre: registro.nombre,
+            dni: registro.dni || '',
+            cargo: registro.cargo,
+            puestoRotacion: registro.puestoRotacion || '',
+            linea: registro.linea || '',
+            turno: registro.turno,
+            fecha: registro.fecha || '',
+            filaExcel: registro.filaExcel
+        })),
+        creadoEn: existente >= 0 ? (rotaciones[existente].creadoEn || new Date().toISOString()) : new Date().toISOString(),
+        actualizadoEn: new Date().toISOString(),
+        archivoFilas: resultado.archivoFilas,
+        archivoHoja: resultado.nombreHoja || '',
+        fuenteAsignacion: 'Excel rotación'
     };
 
-    const existente =
-        rotaciones.findIndex(
-            rotacion =>
-                rotacion.fechaInicio ===
-                    nuevaRotacion.fechaInicio &&
-                rotacion.fechaFin ===
-                    nuevaRotacion.fechaFin
-        );
-
     if (existente >= 0) {
-
-        const confirmar =
-            confirm(
-                'Ya existe una rotación para esta semana. ¿Desea reemplazarla?'
-            );
-
-        if (!confirmar) {
-            return;
-        }
-
-        rotaciones[existente] =
-            nuevaRotacion;
-
-    } else {
-
-        rotaciones.push(
-            nuevaRotacion
+        const confirmar = confirm(
+            'Ya existe una rotación para esta vigencia. ¿Deseas actualizarla? Los tareos y asistencias ya registrados se conservarán.'
         );
+        if (!confirmar) return;
+        rotaciones[existente] = nuevaRotacion;
+    } else {
+        rotaciones.push(nuevaRotacion);
     }
 
-    guardarRotaciones(
-        rotaciones
-    );
+    try {
 
-    window._tareoRotacionPendiente =
-        null;
+        guardarRotaciones(rotaciones);
 
-    alert(
-        'Rotación semanal aplicada correctamente.'
-    );
+        window._tareoRotacionPendiente =
+            null;
 
-    renderRotacionSemanal();
+        alert(
+            'Rotación aplicada correctamente. Producción utilizará únicamente esta rotación para asignar personal, turno y puesto.'
+        );
+
+        renderRotacionSemanal();
+
+    } catch (error) {
+
+        console.error(
+            'TAREO: error al guardar la rotación',
+            error
+        );
+
+        alert(
+            'No se pudo guardar la rotación. Revisa la consola para ver el error. La vista previa se conservará para que no pierdas los datos.'
+        );
+    }
 }
 
 
@@ -6780,7 +7027,16 @@ function obtenerResumenMensualTareo(
 
     areas.forEach(areaFila => {
 
-        obtenerPersonalTareo(areaFila).forEach(trabajador => {
+        /*
+           Producción NO se precarga desde Gestionar trabajadores.
+           Sus filas salen exclusivamente de los tareos creados con
+           la rotación Excel. Mantenimiento conserva su fuente actual.
+        */
+        if (areaFila === 'Producción') {
+            return;
+        }
+
+        obtenerPersonalTareo('Mantenimiento').forEach(trabajador => {
 
             mapa.set(
                 areaFila + '|' + String(trabajador.id),

@@ -96,44 +96,18 @@
   window.tareoCargoPermitido = tareoCargoPermitido;
 
   /* ---------------------------------------------------------
-     2. PRODUCCIÓN: ASEGURAR QUE LOS MAQUINISTAS APAREZCAN
+     2. PRODUCCIÓN: LA ROTACIÓN EXCEL ES LA ÚNICA FUENTE
      ---------------------------------------------------------
-     La rotación sigue mandando para Producción. Además agregamos
-     los maquinistas activos que no estén ya incluidos.
+     IMPORTANTE:
+     Este archivo NO modifica obtenerPersonalPorRotacion().
+     Operarios, maquinistas y supervisores de Producción salen
+     exclusivamente de la rotación Excel procesada por 13-tareo.js.
+
+     Antes este bloque consultaba loadWorkers(), reemplazaba
+     identidad/cargo/línea y agregaba maquinistas activos aunque
+     no estuvieran en el Excel. Eso generaba duplicados.
   */
-  const rotacionAnterior = obtenerPersonalPorRotacion;
-  obtenerPersonalPorRotacion = function(fecha, turno){
-    const resultado = rotacionAnterior(fecha, turno);
-    const trabajadores = personalActivo();
 
-    const base = (resultado.personal || []).map(p => {
-      const ficha = encontrarFicha(p, trabajadores);
-      return ficha ? {
-        ...p,
-        id: ficha.id,
-        trabajadorId: ficha.id,
-        dni: ficha.dni || p.dni,
-        cargo: ficha.cargo || p.cargo,
-        linea: ficha.linea || p.linea
-      } : p;
-    });
-
-    const existentes = new Set(base.map(clavePersona));
-
-    maquinistasActivos().forEach(w => {
-      const clave = clavePersona(w);
-      if(!existentes.has(clave)){
-        base.push(w);
-        existentes.add(clave);
-      }
-    });
-
-    return {
-      ...resultado,
-      personal: base
-    };
-  };
-  window.obtenerPersonalPorRotacion = obtenerPersonalPorRotacion;
 
   /* ---------------------------------------------------------
      3. MANTENIMIENTO: DATOS ESPEJO DESDE PRODUCCIÓN
@@ -164,30 +138,45 @@
   function maquinistasEspejo(tareoMtto){
     const produccion = tareoProduccionRelacionado(tareoMtto);
 
-    return maquinistasActivos().map(w => {
-      const p = personaProduccionDeTrabajador(produccion, w);
-      return {
-        trabajadorId: w.id,
-        nombre: w.nombre || p?.nombre || '',
-        tipoDocumento: w.tipoDocumento || p?.tipoDocumento || 'DNI',
-        dni: w.dni || p?.dni || '',
-        cargo: w.cargo || p?.cargo || 'Maquinista',
-        linea: w.linea || p?.linea || '',
-        asistencia: p?.asistencia || '',
-        horaIngreso: p?.horaIngreso || '',
-        salidaRefrigerio: p?.salidaRefrigerio || '',
-        retornoRefrigerio: p?.retornoRefrigerio || '',
-        refrigerio: Number(p?.refrigerio || 0),
-        horaSalida: p?.horaSalida || '',
-        horasTrabajadas: Number(p?.horasTrabajadas || 0),
-        horasExtras: Number(p?.horasExtras || 0),
-        tardanzaMinutos: Number(p?.tardanzaMinutos || 0),
-        registradoPor: p?.registradoPor || '',
-        actualizadoEn: Number(p?.actualizadoEn || 0),
+    if(
+      !produccion ||
+      !Array.isArray(produccion.personal)
+    ){
+      return [];
+    }
+
+    /*
+       FUENTE ÚNICA:
+       El espejo de Mantenimiento nace del Tareo de Producción.
+       No se consulta loadWorkers() para decidir qué maquinistas
+       deben aparecer ni se crea una segunda asistencia.
+    */
+    return produccion.personal
+      .filter(p => {
+        const cargo = tareoNormalizarTexto(p?.cargo || '');
+        return /\bmaquinista(?:s)?\b/.test(cargo);
+      })
+      .map(p => ({
+        trabajadorId: p.trabajadorId || p.id || '',
+        nombre: p.nombre || '',
+        tipoDocumento: p.tipoDocumento || (p.dni ? 'DNI' : ''),
+        dni: p.dni || '',
+        cargo: p.cargo || 'Maquinista de Producción',
+        linea: p.linea || '',
+        asistencia: p.asistencia || '',
+        horaIngreso: p.horaIngreso || '',
+        salidaRefrigerio: p.salidaRefrigerio || '',
+        retornoRefrigerio: p.retornoRefrigerio || '',
+        refrigerio: Number(p.refrigerio || 0),
+        horaSalida: p.horaSalida || '',
+        horasTrabajadas: Number(p.horasTrabajadas || 0),
+        horasExtras: Number(p.horasExtras || 0),
+        tardanzaMinutos: Number(p.tardanzaMinutos || 0),
+        registradoPor: p.registradoPor || '',
+        actualizadoEn: Number(p.actualizadoEn || 0),
         _origenProduccion: true,
-        _existeEnProduccion: !!p
-      };
-    });
+        _existeEnProduccion: true
+      }));
   }
 
   function claseEstado(persona){
@@ -269,7 +258,7 @@
             </div>
           ` : `
             <div class="empty-state">
-              <p>No hay maquinistas activos registrados.</p>
+              <p>No hay maquinistas en el Tareo de Producción para este turno.</p>
             </div>
           `}
         </div>
@@ -361,9 +350,9 @@
   /* ---------------------------------------------------------
      6. AGREGAR PERSONAL MANUALMENTE
      ---------------------------------------------------------
-     En MTTO el selector ya no ofrece maquinistas porque
-     obtenerPersonalTareo('Mantenimiento') devuelve solo técnicos.
-     En Producción sí puede ofrecerlos.
+     En MTTO el selector no ofrece maquinistas.
+     En Producción tampoco se agregan manualmente desde Trabajadores:
+     los maquinistas provienen exclusivamente de la rotación Excel.
   */
 
   /* ---------------------------------------------------------
@@ -394,20 +383,8 @@
      aparece automáticamente en la pantalla de Mantenimiento.
   */
 
-  /* Refrescar si cambia el padrón de trabajadores. */
-  if(typeof onWorkersUpdated === 'function'){
-    const workersAnterior = onWorkersUpdated;
-    onWorkersUpdated = function(...args){
-      const resultado = workersAnterior.apply(this, args);
-
-      if(document.getElementById('tareo-principal-view')){
-        renderTareoPrincipal();
-      } else if(document.getElementById('tareo-form-view')){
-        tareoRefrescarFormularioRemoto();
-      }
-
-      return resultado;
-    };
-    window.onWorkersUpdated = onWorkersUpdated;
-  }
+  /*
+     Los cambios en Gestionar trabajadores NO refrescan ni modifican
+     el padrón de Producción. El espejo se actualiza con sync/tareos.
+  */
 })();

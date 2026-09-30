@@ -25,7 +25,7 @@
         service cloud.firestore {
           match /databases/{database}/documents {
             match /sync/{doc} {
-              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'tareos', 'precios', 'paletas', 'programaciones'];
+              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'];
             }
             match /auditoriaTareos/{evento} {
               allow read, create: if true;
@@ -555,7 +555,7 @@ const MERMA_ITEMS_POR_LINEA = {
     'Tapa',
     'Asa',
     'Etiqueta',
-    'Polietileno 54cm'
+    'Polietileno 48cm'
   ],
 
   /*
@@ -623,6 +623,7 @@ const MERMA_DIVISORES_POR_LINEA = {
       1.34,
 
     'Tapa Sport Cap':
+    
       1.34,
 
     'Etiqueta':
@@ -650,7 +651,7 @@ const MERMA_DIVISORES_POR_LINEA = {
     'Etiqueta':
       2.9,
 
-    'Polietileno 54cm':
+    'Polietileno 48cm':
       { divisor: 28, sinMultiplicarPor1000: true, decimales: 2 }
 
   }

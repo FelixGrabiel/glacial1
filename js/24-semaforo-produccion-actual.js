@@ -813,25 +813,29 @@
             <div class="pa-line-status">${renderSemaforoWidget({nivel:g.nivel,texto:g.texto})}</div>
           </div>
 
+          <div class="pa-line-kpis">
+            <div class="pa-line-kpi"><small>PROGRAMACIÓN VIGENTE</small><strong>${Math.round(g.totalProg).toLocaleString('es-PE')} <span>UND</span></strong></div>
+            <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong></div>
+            <div class="pa-line-kpi"><small>CUMPLIMIENTO</small><strong>${g.totalProg>0 ? Math.min(999,(g.totalProd/g.totalProg)*100).toFixed(1) : '0.0'}<span>%</span></strong></div>
+            <div class="pa-line-kpi"><small>RATIO TURNO</small><strong>${g.ratioTurno ? Math.round(g.ratioTurno).toLocaleString('es-PE') : '—'} <span>UND/h</span></strong></div>
+            <div class="pa-line-kpi"><small>PARADAS</small><strong>${formatoDuracion(g.paradaMs)}</strong></div>
+          </div>
+
           <div class="pa-horizontal-body">
 
             <section class="pa-hcol pa-hcol-programacion">
-              <div class="pa-hcol-title">▥ PROGRAMACIÓN DEL TURNO</div>
+              <div class="pa-hcol-title">▥ SECUENCIA DEL TURNO</div>
               ${(()=>{
                 const ordenados=itemsOrdenadosGrupo(g);
                 const original=g.items.reduce((a,x)=>a+num(x.prog?.cantidadProgramada),0);
                 const vigente=g.items.reduce((a,x)=>a+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
                 const counts={EN_CURSO:0,PAUSA:0,PENDIENTE:0,COMPLETADA:0,CANCELADA:0};
                 ordenados.forEach(o=>counts[o.estado.key]++);
-                return `<div class="pa-program-summary">
-                  <div><small>Programado originalmente</small><b>${Math.round(original).toLocaleString('es-PE')} UND</b></div>
-                  <div><small>Programación vigente</small><b>${Math.round(vigente).toLocaleString('es-PE')} UND</b></div>
-                </div>
-                <div class="pa-state-counts">
+                return `<div class="pa-state-counts">
                   <span class="curso">● ${counts.EN_CURSO} En curso</span>
                   <span class="pausa">● ${counts.PAUSA} En pausa</span>
                   <span class="pendiente">● ${counts.PENDIENTE} Pendientes</span>
-                  <span class="completada">● ${counts.COMPLETADA} Completadas</span>
+                  <span class="completada">● ${counts.COMPLETADA} Finalizadas</span>
                   <span class="cancelada">● ${counts.CANCELADA} Canceladas</span>
                 </div>
                 <div class="pa-program-list pa-program-list-horizontal">${
@@ -850,9 +854,12 @@
             <section class="pa-hcol pa-hcol-ratio">
               <div class="pa-hcol-title">◴ PRODUCCIÓN ACTUAL</div>
               ${(()=>{
-                const actual=g.items.find(x=>x.op?.estado==='EN_PRODUCCION') ||
-                  g.items.find(x=>x.estadoVisual==='EN_PRODUCCION') ||
-                  g.items.find(x=>['DETENIDA','LISTA','PAUSA'].includes(x.op?.estado)) ||
+                const actualActivo=g.items.find(x=>
+                  x.op?.estado==='EN_PRODUCCION' ||
+                  x.estadoVisual==='EN_PRODUCCION' ||
+                  ['DETENIDA','LISTA','PAUSA'].includes(x.op?.estado)
+                );
+                const actual=actualActivo ||
                   g.items.find(x=>!x.op?.estado || x.op?.estado==='PENDIENTE') ||
                   g.items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado));
                 if(!actual)return '<div class="pa-empty-current">Sin producción activa en este momento.</div>';
@@ -860,6 +867,7 @@
                 const estado=estadoOrdenItem(actual);
                 const parada=paradaActual(actual);
                 return `
+                  ${!actualActivo ? '<div class="pa-next-production">PRÓXIMA PRODUCCIÓN · AÚN NO INICIADA</div>' : '<div class="pa-now-production">PRODUCIENDO AHORA</div>'}
                   <div class="pa-current-head">
                     <div><strong>${esc(actual.marca)}</strong><small>${esc(presUI(actual.linea,actual.marca,actual.presentacion))}</small></div>
                     ${tarjetaEstado(estado)}
@@ -878,7 +886,7 @@
             </section>
 
             <section class="pa-hcol pa-hcol-avance">
-              <div class="pa-hcol-title">▰ AVANCE DE PRODUCCIÓN</div>
+              <div class="pa-hcol-title">▰ HISTORIAL / AVANCE DEL TURNO</div>
               <div class="pa-advance-list">${(()=>{
                 const ordenados=itemsOrdenadosGrupo(g);
                 return ordenados.length ? ordenados.map(({x,estado})=>{
@@ -1021,8 +1029,25 @@
     .pa-advance-bar>div.curso{background:#f28c28}.pa-advance-bar>div.pausa{background:#e0b400}.pa-advance-bar>div.completada{background:#2e8b57}.pa-advance-bar>div.cancelada{background:#c0392b}
     .pa-advance-foot{margin-top:6px;color:#647987;font-size:9px;align-items:flex-start;flex-wrap:wrap}.pa-advance-foot b{color:#334d5d}
     .pa-cancel-reason{margin-top:6px;padding-top:6px;border-top:1px dashed #ead0cc;color:#9b3a31;font-size:10px;font-weight:700}
+    /* REDISEÑO INDUSTRIAL */
+    .pa-line-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-bottom:1px solid #d8e4ec;background:#fff}
+    .pa-line-kpi{padding:11px 14px;border-right:1px solid #e2e9ee;min-width:0}.pa-line-kpi:last-child{border-right:0}
+    .pa-line-kpi small{display:block;font-size:8px;font-weight:900;letter-spacing:.055em;color:#6b7e8b}.pa-line-kpi strong{display:block;margin-top:2px;font-size:17px;line-height:1.1;color:#073f68}.pa-line-kpi strong span{font-size:9px;color:#647987}
+    .pa-horizontal-body{grid-template-columns:minmax(300px,.82fr) minmax(460px,1.18fr)}
+    .pa-hcol-programacion{grid-column:1/-1;border-right:0;border-bottom:1px solid #d8e4ec;background:#fbfdff}
+    .pa-program-list-horizontal{display:flex!important;align-items:stretch;gap:0;overflow-x:auto;padding:2px 0 5px!important}
+    .pa-program-list-horizontal .pa-program-row{position:relative;flex:1 0 190px;display:block!important;margin:0!important;padding:10px 30px 10px 12px!important;border-radius:0;background:transparent;border-left:0;border-top:3px solid #9aa8b1}
+    .pa-program-list-horizontal .pa-program-row:not(:last-child)::after{content:'›';position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:22px;font-weight:900;color:#aab7bf}
+    .pa-program-list-horizontal .pa-program-state-curso{border-top-color:#f28c28;background:#fff9f1}.pa-program-list-horizontal .pa-program-state-pausa{border-top-color:#e0b400;background:#fffdf3}.pa-program-list-horizontal .pa-program-state-pendiente{border-top-color:#9aa8b1}.pa-program-list-horizontal .pa-program-state-completada{border-top-color:#2e8b57;background:#f6fbf8}.pa-program-list-horizontal .pa-program-state-cancelada{border-top-color:#c0392b;background:#fff8f7}
+    .pa-program-list-horizontal .pa-program-right{align-items:flex-start;margin-top:5px}.pa-hcol-ratio{border-right:1px solid #d8e4ec}.pa-hcol-avance{border-right:0}
+    .pa-now-production,.pa-next-production{display:inline-flex;margin:-2px 0 9px;padding:4px 8px;border-radius:6px;font-size:8px;font-weight:900;letter-spacing:.06em}.pa-now-production{background:#fff0dc;color:#a85d00}.pa-next-production{background:#eef2f4;color:#667784}
+    .pa-hcol-ratio .pa-current-head{padding:10px 11px;border:1px solid #dce6ec;border-radius:9px;background:#f8fbfd}.pa-hcol-ratio .pa-metric-main{margin-top:5px;padding:8px 0}.pa-hcol-ratio .pa-metric-main b{font-size:17px}.pa-advance-list{max-height:410px;overflow:auto;padding-right:3px}
+    @media(max-width:900px){.pa-line-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.pa-horizontal-body{grid-template-columns:1fr}.pa-hcol-programacion{grid-column:1}.pa-hcol-ratio{border-right:0;border-bottom:1px solid #d8e4ec}}
     @media(max-width:700px){
       .pa-oper-kpis{grid-template-columns:1fr}
+      .pa-line-kpis{grid-template-columns:1fr 1fr}
+      .pa-line-kpi{border-bottom:1px solid #e2e9ee}
+      .pa-line-kpi:last-child{grid-column:1/-1}
       .pa-live-grid{display:grid;grid-template-columns:1fr;overflow:visible}
       .pa-live-card{padding:14px}
       .pa-line-card-horizontal{min-width:0;padding:0}

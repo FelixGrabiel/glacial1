@@ -6,12 +6,15 @@
 
 const AVANCE_LINEAS=['PET1','PET2','B7L','C20L','B20L','HIELO'];
 const AVANCE_NOMBRES={PET1:'PET1',PET2:'PET2',B7L:'B7L',C20L:'CAJAS 20L',B20L:'B20L',HIELO:'HIELO'};
-const AVANCE_HORARIOS={DÍA:['09:00','11:00','13:00','15:00','17:00'],NOCHE:['01:00','03:00','05:00']};
+// Los avances pueden generarse en CUALQUIER momento del turno.
+// Estas horas quedan solo como referencia documental; nunca bloquean la generación.
+const AVANCE_HORARIOS={DÍA:['09:00','11:00','13:00','15:00','17:00','19:00'],NOCHE:['01:00','03:00','05:00','07:00']};
 const avanceEstado={
   fecha:'',turno:'',horaCorte:'',tipo:'AVANCE',
   snapshots:[],todosSnapshots:[],preview:'',previewId:'',
   unsubscribe:null,mesCalendario:null,filtroTipo:'TODOS',pagina:1,
-  imagenActual:null
+  imagenActual:null,
+  paradasOperativas:[],paradasModal:null
 };
 
 function avNum(v){const n=Number(v);return Number.isFinite(n)?n:0;}
@@ -40,7 +43,8 @@ function avCtx(){
 function avRef(){return db.collection('sync').doc('avancesTurno');}
 function avSnapshotId(tipo,hora){
   if(tipo==='CIERRE')return `${avanceEstado.fecha}|${avanceEstado.turno}|CIERRE`;
-  return `${avanceEstado.fecha}|${avanceEstado.turno}|AVANCE|${hora}`;
+  // ID único: permite varios avances incluso dentro de la misma hora/minuto.
+  return `${avanceEstado.fecha}|${avanceEstado.turno}|AVANCE|${hora}|${Date.now()}`;
 }
 
 function avHoraMs(fecha,hora,turno){
@@ -157,27 +161,250 @@ function avPersonalLinea(linea){
   return nombres.size;
 }
 
-function avParadasLinea(linea,hora,tipo){
+function avIdParadaRegistro(recordId,cuadroIndex,key,index,p){
+  return String(p?.id||`reg:${recordId||'legacy'}:${cuadroIndex}:${key}:${index}`);
+}
+function avParadasRegistroLinea(linea,hora,tipo){
   const corte=avCorteMs(hora,tipo),out=[];
   avRegistros().filter(r=>r.linea===linea).forEach(r=>{
-    (typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>{
+    (typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach((q,qi)=>{
       const ini=avHoraMs(avanceEstado.fecha,q.horaInicio,avanceEstado.turno);
-      if(ini&&ini>corte)return;
-      (q.paradasProgramadas||[]).forEach(p=>{
-        if(p?.descripcion&&avNum(p.tiempoMin)>0)out.push({
-          descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'PROGRAMADA',
-          maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',origen:'REGISTRO'
-        });
-      });
-      (q.paradasNoProgramadas||[]).forEach(p=>{
-        if(p?.descripcion&&avNum(p.tiempoMin)>0)out.push({
-          descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'NO_PROGRAMADA',
-          maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',origen:'REGISTRO'
+      if(ini&&corte&&ini>corte)return;
+      [['paradasProgramadas','PROGRAMADA'],['paradasNoProgramadas','NO_PROGRAMADA']].forEach(([key,tipoParada])=>{
+        (q[key]||[]).forEach((p,pi)=>{
+          if(!p?.descripcion||avNum(p.tiempoMin)<=0)return;
+          out.push({
+            id:avIdParadaRegistro(r.id,qi,key,pi,p),descripcion:p.descripcion,minutos:avNum(p.tiempoMin),estadoRegistro:r.estadoRegistro||'',
+            tipo:tipoParada,causa:p.causa||'',maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',
+            origen:'REGISTRO',recordId:r.id||'',cuadroIndex:qi,key,index:pi,paradaId:p.id||''
+          });
         });
       });
     });
   });
   return out;
+}
+function avParadasOperativasLinea(linea){
+  return (avanceEstado.paradasOperativas||[]).filter(p=>
+    p&&p.fecha===avanceEstado.fecha&&avTurnoCanon(p.turno)===avanceEstado.turno&&p.linea===linea&&!p.eliminada
+  ).map(p=>({...p,minutos:avNum(p.minutos),origen:'AVANCE'}));
+}
+function avParadasLinea(linea,hora,tipo){
+  // Fuente común: registros de producción + eventos generales del turno.
+  // Los eventos generales NO se copian a cada marca/cuadro y por ello no duplican minutos.
+  return [...avParadasRegistroLinea(linea,hora,tipo),...avParadasOperativasLinea(linea)];
+}
+function avPuedeEditarParadas(){
+  if(!avPuedeGenerar())return false;
+  const cierre=avanceEstado.snapshots?.some(s=>s.tipo==='CIERRE'&&s.fecha===avanceEstado.fecha&&s.turno===avanceEstado.turno);
+  if(!cierre)return true;
+  return typeof tienePermiso==='function'&&tienePermiso('reabrirReporteProduccion');
+}
+function avIdParadaNueva(){return `avp_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;}
+function avCatalogoMotivos(){
+  const a=typeof PARADAS_PROGRAMADAS!=='undefined'?PARADAS_PROGRAMADAS:[];
+  return [...new Set(a)].filter(Boolean);
+}
+function avTipoMotivo(descripcion,tipoActual){
+  if(avCatalogoMotivos().includes(String(descripcion||'').trim()))return 'PROGRAMADA';
+  return tipoActual==='PROGRAMADA'?'NO_PROGRAMADA':(tipoActual||'NO_PROGRAMADA');
+}
+async function avAbrirParadas(linea,fecha,turno){
+  try{const [ad,rd]=await Promise.all([avRef().get(),db.collection('sync').doc('records').get()]);avanceEstado.avancesUpdatedAt=avNum(ad.exists?ad.data().updatedAt:0);avanceEstado.recordsUpdatedAt=avNum(rd.exists?rd.data().updatedAt:0);if(ad.exists&&Array.isArray(ad.data().paradasOperativas))avanceEstado.paradasOperativas=ad.data().paradasOperativas;}catch(e){console.error('Leyendo versión de paradas:',e);}
+  if(fecha)avanceEstado.fecha=fecha;
+  if(turno)avanceEstado.turno=avTurnoCanon(turno);
+  linea=linea||AVANCE_LINEAS[0];
+  const existentes=avParadasLinea(linea,avHoraActual(),'AVANCE').map(p=>({...p,tipoOriginal:p.tipo||''}));
+  avanceEstado.paradasModal={
+    linea,fecha:avanceEstado.fecha,turno:avanceEstado.turno,filas:existentes,
+    baseAvancesUpdatedAt:avanceEstado.avancesUpdatedAt||0,
+    baseRecordsUpdatedAt:avanceEstado.recordsUpdatedAt||0,
+    guardando:false,error:''
+  };
+  avRenderParadasModal();
+}
+function avCambiarLineaParadas(linea){if(!avanceEstado.paradasModal)return;avanceEstado.paradasModal.linea=linea;avanceEstado.paradasModal.filas=avParadasLinea(linea,avHoraActual(),'AVANCE').map(p=>({...p,tipoOriginal:p.tipo||''}));avRenderParadasModal();}
+function avCerrarParadas(){
+  if(avanceEstado.paradasModal?.guardando)return;
+  document.getElementById('av-paradas-modal')?.remove();
+  avanceEstado.paradasModal=null;
+  if(!document.querySelector('.av-float-modal.open,.av-detail-modal.open,.av-image-modal.open'))document.body.classList.remove('av-modal-open');
+}
+function avParadaAgregarFila(){
+  const m=avanceEstado.paradasModal;if(!m||m.guardando)return;
+  m.filas.push({id:avIdParadaNueva(),descripcion:'',minutos:0,tipo:'',tipoOriginal:'',causa:'',origen:'AVANCE',nueva:true});
+  avRenderParadasModal();
+}
+function avParadaCampo(i,campo,valor){
+  const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
+  p[campo]=campo==='minutos'?Number(valor||0):valor;
+  if(campo==='tipo'){
+    if(valor==='PROGRAMADA')p.causa='';
+    // El tipo cambia la estructura de la fila (muestra/oculta Causa),
+    // por eso solo en este caso es necesario volver a dibujar el modal.
+    avRenderParadasModal();
+    return;
+  }
+  // Motivo y minutos se actualizan SIN reconstruir el modal.
+  // Así el input conserva foco/cursor mientras el supervisor escribe.
+  if(campo==='minutos')avActualizarTotalParadasModal();
+}
+function avParadaQuitar(i){
+  const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
+  if(p.origen==='REGISTRO')p.eliminarSolicitado=true;
+  else m.filas.splice(i,1);
+  avRenderParadasModal();
+}
+function avActualizarTotalParadasModal(){
+  const m=avanceEstado.paradasModal,total=(m?.filas||[]).filter(p=>!p.eliminarSolicitado).reduce((a,p)=>a+avNum(p.minutos),0);
+  const e=document.getElementById('av-paradas-total');if(e)e.textContent=`${avFmt(total)} min`;
+}
+function avRenderParadasModal(){
+  avInstalarEstilos();const m=avanceEstado.paradasModal;if(!m)return;
+  let modal=document.getElementById('av-paradas-modal');if(!modal){modal=document.createElement('div');modal.id='av-paradas-modal';modal.className='av-paradas-modal';document.body.appendChild(modal);}
+  const opciones=avCatalogoMotivos().map(x=>`<option value="${avEsc(x)}"></option>`).join('');
+  const causas=(typeof CAUSAS_PARADA_NO_PROGRAMADA!=='undefined'?CAUSAS_PARADA_NO_PROGRAMADA:[]);
+  const total=m.filas.filter(p=>!p.eliminarSolicitado).reduce((a,p)=>a+avNum(p.minutos),0);
+  const puedeEditar=avPuedeEditarParadas();
+  modal.innerHTML=`<div class="av-paradas-dialog"><header><div><small>REGISTRO SIMPLE DE PARADAS</small><h2>Agregar paradas</h2><p>${avFechaBonita(m.fecha)} · ${avEsc(m.turno)}</p><select class="av-paradas-linea" onchange="avCambiarLineaParadas(this.value)">${AVANCE_LINEAS.map(l=>`<option value="${l}" ${m.linea===l?'selected':''}>${AVANCE_NOMBRES[l]||l}</option>`).join('')}</select></div><button onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>✕</button></header>
+  <div class="av-paradas-body"><datalist id="av-paradas-catalogo">${opciones}</datalist>
+  <div class="av-paradas-note">Selecciona primero si la parada es <b>Programada</b> o <b>No programada</b>. Las paradas de <b>Nuevo registro</b> y <b>Avance/Cierre</b> se muestran juntas y no se copian a todas las marcas.</div>
+  ${!puedeEditar?`<div class="av-paradas-note"><b>Modo consulta:</b> el turno está cerrado o tu usuario no tiene permiso de edición.</div>`:''}
+  ${m.error?`<div class="av-paradas-error">${avEsc(m.error)}</div>`:''}
+  <div class="av-paradas-list">${m.filas.map((p,i)=>p.eliminarSolicitado?'':`<div class="av-parada-row ${p.tipo==='NO_PROGRAMADA'?'is-np':'is-p'}">
+    <div class="av-parada-tipo"><label>Tipo de parada</label><select onchange="avParadaCampo(${i},'tipo',this.value)" ${m.guardando||!puedeEditar?'disabled':''}>
+      <option value="" ${!p.tipo?'selected':''}>Seleccionar…</option>
+      <option value="PROGRAMADA" ${p.tipo==='PROGRAMADA'?'selected':''}>Programada</option>
+      <option value="NO_PROGRAMADA" ${p.tipo==='NO_PROGRAMADA'?'selected':''}>No programada</option>
+    </select></div>
+    <div class="av-parada-motivo"><label>Motivo de parada</label><input ${p.tipo==='PROGRAMADA'?'list="av-paradas-catalogo"':''} value="${avEsc(p.descripcion||'')}" placeholder="${p.tipo==='NO_PROGRAMADA'?'Ej. Calibración envasadora':'Elige del catálogo o escribe'}" oninput="avParadaCampo(${i},'descripcion',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    ${p.tipo==='NO_PROGRAMADA'?`<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(${i},'causa',this.value)" ${m.guardando||!puedeEditar?'disabled':''}><option value="">Seleccionar…</option>${causas.map(c=>`<option value="${avEsc(c)}" ${p.causa===c?'selected':''}>${avEsc(c)}</option>`).join('')}</select></div>`:''}
+    <div class="av-parada-min"><label>Minutos</label><input type="number" min="1" step="1" value="${avNum(p.minutos)||''}" oninput="avParadaCampo(${i},'minutos',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    <button class="av-parada-remove" title="Quitar fila" onclick="avParadaQuitar(${i})" ${m.guardando||!puedeEditar?'disabled':''}>✕</button>
+    <small>${p.origen==='REGISTRO'?'Origen: Nuevo registro':'Origen: Avance/Cierre'}${p.tipo?` · ${p.tipo==='PROGRAMADA'?'Programada':'No programada'}`:''}</small>
+  </div>`).join('')||'<p class="small-muted">Sin paradas. Usa “+ Agregar otra”.</p>'}</div>
+  <button class="btn btn-ghost av-parada-add" onclick="avParadaAgregarFila()" ${m.guardando||!puedeEditar?'disabled':''}>+ Agregar otra</button></div>
+  <footer><div>Total de minutos <strong id="av-paradas-total">${avFmt(total)} min</strong></div><div><button class="btn btn-ghost" onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>Cancelar</button><button class="btn btn-primary" onclick="avGuardarParadasModal()" ${m.guardando||!puedeEditar?'disabled':''}>${m.guardando?'Guardando…':'Guardar paradas'}</button></div></footer></div>`;
+  modal.classList.add('open');document.body.classList.add('av-modal-open');
+}
+function avBuscarParadaRegistro(records,p){
+  const ri=records.findIndex(r=>r?.id===p.recordId);if(ri<0)return null;
+  const r=records[ri],cuadros=Array.isArray(r.cuadros)?r.cuadros:[];
+  const q=cuadros[p.cuadroIndex];if(!q||!Array.isArray(q[p.key]))return null;
+  let pi=p.paradaId?q[p.key].findIndex(x=>x?.id===p.paradaId):-1;
+  if(pi<0)pi=p.index;
+  if(pi<0||!q[p.key][pi])return null;
+  return {r,q,pi,item:q[p.key][pi]};
+}
+function avConTimeout(promesa,ms=15000){
+  return Promise.race([
+    promesa,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error(
+      'El guardado está tardando demasiado. Revisa tu conexión a internet y vuelve a abrir esta ventana para confirmar si Firestore recibió el cambio.'
+    )),ms))
+  ]);
+}
+async function avGuardarParadasModal(){
+  const m=avanceEstado.paradasModal;if(!m||m.guardando||!avPuedeEditarParadas())return;
+  const activas=m.filas.filter(p=>!p.eliminarSolicitado);
+  const invalida=activas.find(p=>!['PROGRAMADA','NO_PROGRAMADA'].includes(p.tipo)||!String(p.descripcion||'').trim()||avNum(p.minutos)<=0||(p.tipo==='NO_PROGRAMADA'&&!String(p.causa||'').trim()));
+  if(invalida){m.error='Completa Tipo, Motivo y Minutos. En una parada No programada también debes seleccionar la Causa.';avRenderParadasModal();return;}
+
+  // Solo tocamos sync/records si realmente se está editando/eliminando
+  // una parada cuyo origen es Nuevo registro. Las paradas creadas aquí
+  // viven únicamente en sync/avancesTurno.
+  const requiereRecords=m.filas.some(p=>p.origen==='REGISTRO');
+
+  m.guardando=true;m.error='';avRenderParadasModal();
+  try{
+    const avancesRef=avRef(),recordsRef=db.collection('sync').doc('records');
+    let resultado=null;
+
+    const operacion=db.runTransaction(async tx=>{
+      const adoc=await tx.get(avancesRef);
+      const ad=adoc.exists?adoc.data():{};
+      if(avNum(ad.updatedAt)!==avNum(m.baseAvancesUpdatedAt)){
+        throw Error('Otro usuario modificó Avance/Cierre mientras tenías abierta la ventana. Vuelve a abrirla para revisar los cambios antes de guardar.');
+      }
+
+      let rd={},records=[];
+      if(requiereRecords){
+        const rdoc=await tx.get(recordsRef);
+        rd=rdoc.exists?rdoc.data():{};
+        if(avNum(rd.updatedAt)!==avNum(m.baseRecordsUpdatedAt)){
+          throw Error('Otro usuario modificó Nuevo registro mientras tenías abierta la ventana. Vuelve a abrirla para revisar los cambios antes de guardar.');
+        }
+        records=Array.isArray(rd.items)?JSON.parse(JSON.stringify(rd.items)):[];
+      }
+
+      const operativas=Array.isArray(ad.paradasOperativas)?ad.paradasOperativas.slice():[];
+      const ahora=Date.now(),usuario=state.user?.nombre||state.user?.username||'';
+
+      if(requiereRecords){
+        m.filas.forEach(p=>{
+          if(p.origen!=='REGISTRO')return;
+          const ref=avBuscarParadaRegistro(records,p);
+          if(!ref)throw Error(`No se encontró una parada original de Nuevo registro (${p.descripcion||p.id}).`);
+          if(p.eliminarSolicitado){
+            ref.q[p.key].splice(ref.pi,1);
+          }else{
+            const destino=p.tipo==='PROGRAMADA'?'paradasProgramadas':'paradasNoProgramadas';
+            const item={...ref.item,descripcion:String(p.descripcion).trim(),tiempoMin:avNum(p.minutos)};
+            if(!item.id)item.id=p.id.startsWith('reg:')?`pr_${ahora}_${Math.random().toString(36).slice(2,7)}`:p.id;
+            if(destino==='paradasNoProgramadas')item.causa=p.causa||'';else delete item.causa;
+            if(p.key===destino)ref.q[p.key][ref.pi]=item;
+            else{
+              ref.q[p.key].splice(ref.pi,1);
+              if(!Array.isArray(ref.q[destino]))ref.q[destino]=[];
+              ref.q[destino].push(item);
+            }
+          }
+          ref.r.actualizadoEn=ahora;ref.r.actualizadoPor=usuario;
+        });
+      }
+
+      const idsModal=new Set(m.filas.filter(p=>p.origen==='AVANCE').map(p=>p.id));
+      for(let i=operativas.length-1;i>=0;i--){
+        const p=operativas[i];
+        if(p.fecha===m.fecha&&avTurnoCanon(p.turno)===m.turno&&p.linea===m.linea&&!idsModal.has(p.id))operativas.splice(i,1);
+      }
+
+      m.filas.filter(p=>p.origen==='AVANCE'&&!p.eliminarSolicitado).forEach(p=>{
+        const obj={...p,descripcion:String(p.descripcion).trim(),minutos:avNum(p.minutos),tipo:p.tipo,fecha:m.fecha,turno:m.turno,linea:m.linea,origen:'AVANCE',actualizadoPor:usuario,actualizadoEn:ahora};
+        delete obj.nueva;delete obj.eliminarSolicitado;delete obj.tipoOriginal;
+        const i=operativas.findIndex(x=>x.id===obj.id);
+        if(i>=0){
+          obj.creadoEn=operativas[i].creadoEn||ahora;obj.creadoPor=operativas[i].creadoPor||usuario;operativas[i]=obj;
+        }else{
+          obj.creadoEn=ahora;obj.creadoPor=usuario;operativas.push(obj);
+        }
+      });
+
+      tx.set(avancesRef,{paradasOperativas:operativas,updatedAt:ahora},{merge:true});
+      if(requiereRecords)tx.set(recordsRef,{items:records,updatedAt:ahora},{merge:true});
+      return {operativas,updatedAt:ahora};
+    });
+
+    resultado=await avConTimeout(operacion,15000);
+
+    // Reflejo inmediato local. onSnapshot confirmará después el mismo estado
+    // en este y en los demás dispositivos.
+    avanceEstado.paradasOperativas=resultado.operativas;
+    avanceEstado.avancesUpdatedAt=resultado.updatedAt;
+    m.baseAvancesUpdatedAt=resultado.updatedAt;
+
+    // Firestore ya confirmó la escritura: liberar el estado antes de cerrar.
+    // avCerrarParadas() bloquea el cierre mientras guardando=true.
+    m.guardando=false;
+    avAviso('Paradas guardadas correctamente.');
+    avCerrarParadas();
+    if(state.currentTab==='avance-produccion')avDibujar();
+  }catch(e){
+    console.error('Guardando paradas:',e);
+    m.guardando=false;
+    m.error=e?.message||'No se pudieron guardar las paradas.';
+    avRenderParadasModal();
+  }
 }
 
 function avEstadoOperacion(linea,marca,presentacion){
@@ -366,42 +593,159 @@ function avUnidadProduccion(linea){
   return 'und';
 }
 
+function avClaveFormatoPresentacion(presentacion){
+  /*
+     Agrupa por FORMATO FÍSICO (volumen), no por variante comercial
+     ni por cantidad de unidades del pack.
+
+     Ejemplos:
+       2.5L x6 normal + 2.5L x6 C/S => mismo bloque 2.5 L
+       1L x6 + 1L x12              => mismo bloque 1 L
+       1.5L y 1L                   => bloques distintos
+  */
+  let t=String(presentacion||'').toLowerCase().trim();
+  if(!t)return 'SIN_PRESENTACION';
+
+  t=t
+    .replace(/sticker/g,'')
+    .replace(/\(y\)/g,'')
+    .replace(/c\s*\/\s*s/g,'')
+    .replace(/con\s*sticker/g,'')
+    .replace(/_/g,' ');
+
+  // Primero ML para evitar confundir cadenas compactas.
+  let m=t.match(/(\d+(?:[.,]\d+)?)\s*ml(?=\s|x|\/|_|-|$)/i);
+  if(m)return `ML:${m[1].replace(',','.')}`;
+
+  // Admite: 1Lx12und, 1.5 L, 7 Litros, 10 litros, 20L, etc.
+  m=t.match(/(\d+(?:[.,]\d+)?)\s*l(?:itro|itros)?(?=\s|x|\/|_|-|$)/i);
+  if(m)return `L:${m[1].replace(',','.')}`;
+
+  if(t.includes('caja')&&t.includes('20'))return 'L:20';
+  if((t.includes('bidon')||t.includes('bidón'))&&t.includes('20'))return 'L:20';
+
+  return t.replace(/[_\s-]+/g,'');
+}
+
+function avVolumenFormatoPresentacion(presentacion,linea){
+  const t=String(presentacion||'').toLowerCase().replace(/_/g,' ');
+
+  let m=t.match(/(\d+(?:[.,]\d+)?)\s*ml(?=\s|x|\/|_|-|$)/i);
+  if(m){
+    const ml=Number(m[1].replace(',','.'));
+    if(ml===1000)return '1 L';
+    if(ml===1500)return '1.5 L';
+    if(ml===2500)return '2.5 L';
+    if(ml===7000)return '7 L';
+    if(ml===10000)return '10 L';
+    if(ml===20000)return '20 L';
+    return `${ml} ML`;
+  }
+
+  m=t.match(/(\d+(?:[.,]\d+)?)\s*l(?:itro|itros)?(?=\s|x|\/|_|-|$)/i);
+  if(m)return `${m[1].replace(',','.')} L`;
+
+  if(linea==='C20L'||linea==='B20L')return '20 L';
+  return '';
+}
+
+function avBloquesPresentacionLinea(l){
+  const mapa=new Map();
+  (l.productos||[]).filter(p=>avNum(p.produccion)>0).forEach(p=>{
+    const clave=avClaveFormatoPresentacion(p.presentacion);
+    if(!mapa.has(clave))mapa.set(clave,{
+      claveFormato:clave,
+      presentacion:p.presentacion||'',
+      etiqueta:p.etiqueta||avPresentacion(l.linea,p.marca,p.presentacion),
+      productos:[],inicio:'',fin:'',paradas:[],observaciones:[],produccionTotal:0,
+      ratio:0,consumo:0,personal:l.personal
+    });
+    const b=mapa.get(clave);
+    b.productos.push(p);
+    b.produccionTotal+=avNum(p.produccion);
+  });
+
+  // Inicio/fin, paradas y observaciones se incorporan al bloque del mismo FORMATO.
+  // Así Cuisine normal y Cuisine C/S de 2.5 L no crean dos secciones distintas.
+  avRegistros().filter(r=>r.linea===l.linea).forEach(r=>{
+    const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
+    cuadros.forEach(q=>{
+      const clave=avClaveFormatoPresentacion(q?.presentacion);
+      const b=mapa.get(clave); if(!b)return;
+      if(q?.horaInicio && (!b.inicio || q.horaInicio<b.inicio))b.inicio=q.horaInicio;
+      if(q?.horaFin && (!b.fin || q.horaFin>b.fin))b.fin=q.horaFin;
+      (q?.paradasProgramadas||[]).forEach(p=>{if(p?.descripcion&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'PROGRAMADA'});});
+      (q?.paradasNoProgramadas||[]).forEach(p=>{if(p?.descripcion&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'NO_PROGRAMADA'});});
+      [q?.observaciones,q?.observacion].forEach(v=>{if(String(v||'').trim())b.observaciones.push(String(v).trim());});
+    });
+  });
+
+  [...mapa.values()].forEach(b=>{
+    b.totalParadas=b.paradas.reduce((a,p)=>a+avNum(p.minutos),0);
+    const fin=b.fin||l.fin||avanceEstado.horaCorte||avHoraActual();
+    const min=b.inicio?avMinEntre(avanceEstado.fecha,b.inicio,fin,avanceEstado.turno):0;
+    const efectivos=Math.max(0,min-b.totalParadas);
+    b.ratio=efectivos>0?b.produccionTotal/(efectivos/60):0;
+    b.consumo=avConsumoLinea(l.linea,b.productos,b.ratio);
+    b.observaciones=[...new Set(b.observaciones)];
+  });
+  return [...mapa.values()].sort((a,b)=>String(a.inicio||'99:99').localeCompare(String(b.inicio||'99:99')));
+}
+
+function avTituloPresentacion(linea,b){
+  const volumen=avVolumenFormatoPresentacion(b?.presentacion,linea);
+  if(volumen)return `${AVANCE_NOMBRES[linea]||linea} – ${volumen}`;
+
+  const etiqueta=String(b?.etiqueta||'').trim();
+  if(!etiqueta)return AVANCE_NOMBRES[linea]||linea;
+  const m=etiqueta.match(/\b(\d+(?:[.,]\d+)?)\s*L\b/i);
+  const pres=m?`${m[1].replace(',','.')} L`:etiqueta.replace(/\s*C\/S\s*/gi,'').trim();
+  return `${AVANCE_NOMBRES[linea]||linea} – ${pres}`;
+}
+
 function avTextoWhatsApp(s){
   const fecha=s.fecha.split('-').reverse().join('/');
   const out=[
     `*${s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN'} – TURNO ${s.turno}*`,
-    '',
-    `*Fecha: ${fecha}*`,
-    `*Hora: ${s.horaCorte}*`
-  ];
-  s.lineas.forEach((l,idx)=>{
-    out.push('',`*${l.nombre}*`,'',`Inicio: ${l.inicio||'—'}`);
-    if(s.tipo==='CIERRE')out.push(`Término: ${l.fin||'—'}`);
-    out.push('');
-    if(l.sinProduccion)out.push('Línea iniciada – Sin producción registrada.');
-    else l.productos.filter(p=>p.produccion>0).forEach(p=>out.push(`${avProductoWhatsApp(p)}: ${avFmt(p.produccion)} ${avUnidadProduccion(l.linea)}`));
-    out.push('',`Ratio Turno: ${l.ratio?avFmt(l.ratio)+' '+l.unidadRatio:'—'}`);
-    out.push(`Consumo: ${l.consumo?avFmt(l.consumo)+' L/H':'—'}`);
-    out.push(`Personal en línea: ${l.personal}`);
-    if(!l.sinProduccion)out.push('',`Producción total: ${avFmt(l.produccionTotal)} ${avUnidadProduccion(l.linea)}`);
-    out.push('','*PARADAS*','');
-    if(l.paradas.length)l.paradas.forEach(p=>out.push(`${p.descripcion} – ${avFmt(p.minutos)} min`));
-    else out.push('Sin paradas registradas.');
-    out.push('',`Total paradas: ${avFmt(l.totalParadas)} min`);
-    if(idx<s.lineas.length-1)out.push('','---');
+    '',`*Fecha: ${fecha}*`,`*Hora: ${s.horaCorte}*`];
+
+  s.lineas.forEach((l,idxLinea)=>{
+    const bloques=avBloquesPresentacionLinea(l);
+    if(!bloques.length){
+      out.push('',`*${l.nombre}*`,'',`Inicio: ${l.inicio||'—'}`,'','Línea iniciada – Sin producción registrada.','',
+        'Ratio Turno: —','Consumo: —',`Personal en línea: ${l.personal}`,'','*PARADAS*','',
+        l.paradas.length?l.paradas.map(p=>`${p.descripcion} – ${avFmt(p.minutos)} min`).join('\n'):'Sin paradas registradas.','',
+        `Total paradas: ${avFmt(l.totalParadas)} min`);
+    }else{
+      bloques.forEach((b,idxBloque)=>{
+        out.push('',`*${avTituloPresentacion(l.linea,b)}*`,'',`Inicio: ${b.inicio||l.inicio||'—'}`);
+        if(s.tipo==='CIERRE')out.push(`Término: ${b.fin||l.fin||'—'}`);
+        out.push('');
+        b.productos.forEach(p=>out.push(`${avProductoWhatsApp(p)}: ${avFmt(p.produccion)} ${avUnidadProduccion(l.linea)}`));
+        out.push('',`Ratio Turno: ${b.ratio?avFmt(b.ratio)+' '+l.unidadRatio:'—'}`,
+          `Consumo: ${b.consumo?avFmt(b.consumo)+' L/H':'—'}`,
+          `Personal en línea: ${b.personal}`,
+          '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`,
+          '','*PARADAS*','');
+        if(b.paradas.length)b.paradas.forEach(p=>out.push(`${p.descripcion} – ${avFmt(p.minutos)} min`));
+        else out.push('Sin paradas registradas.');
+        out.push('',`Total paradas: ${avFmt(b.totalParadas)} min`);
+        if(b.observaciones.length){out.push('','*OBSERVACIONES*');b.observaciones.forEach(o=>out.push(`- ${o}`));}
+        // Separación entre presentaciones de la misma línea. NO se genera "TOTAL PET2".
+        if(idxBloque<bloques.length-1)out.push('','---');
+      });
+    }
+    if(idxLinea<s.lineas.length-1)out.push('','---');
   });
+
   out.push('','====================','');
   if(s.tipo==='CIERRE'){
-    out.push('*RESUMEN GENERAL DEL TURNO*','',
-      `Producción total planta: ${avFmt(s.resumen.produccionTotal)}`,
-      `Tiempo total de paradas: ${avFmt(s.resumen.totalParadas)} min`,
-      `Personal registrado: ${s.resumen.personal}`,
+    out.push('*RESUMEN GENERAL DEL TURNO*','',`Producción total planta: ${avFmt(s.resumen.produccionTotal)}`,
+      `Tiempo total de paradas: ${avFmt(s.resumen.totalParadas)} min`,`Personal registrado: ${s.resumen.personal}`,
       `Líneas trabajadas: ${s.resumen.lineasTrabajadas}`);
   }else{
-    out.push('*TOTAL PLANTA*','',
-      `Producción acumulada: ${avFmt(s.resumen.produccionTotal)}`,
-      `Tiempo total de paradas: ${avFmt(s.resumen.totalParadas)} min`,
-      `Personal operativo: ${s.resumen.personal}`);
+    out.push('*TOTAL PLANTA*','',`Producción acumulada: ${avFmt(s.resumen.produccionTotal)}`,
+      `Tiempo total de paradas: ${avFmt(s.resumen.totalParadas)} min`,`Personal operativo: ${s.resumen.personal}`);
   }
   out.push('','Generado por:',s.supervisor||s.generadoPor||'—','','GLACIAL - Control de Producción');
   return out.join('\n');
@@ -431,14 +775,10 @@ function avPuedeGenerar(){
   return true;
 }
 function avSlotsTurno(turno){
-  return turno==='NOCHE'?['01:00','03:00','05:00']:['09:00','11:00','13:00','15:00','17:00'];
+  // Solo referencias visuales/documentales. No restringen la generación.
+  return turno==='NOCHE'?['01:00','03:00','05:00','07:00']:['09:00','11:00','13:00','15:00','17:00','19:00'];
 }
-function avSlotActual(){
-  const slots=avSlotsTurno(avanceEstado.turno);
-  const ahora=Date.now();
-  const pasados=slots.filter(h=>avHoraMs(avanceEstado.fecha,h,avanceEstado.turno)<=ahora);
-  return pasados.slice(-1)[0]||slots[0];
-}
+function avSlotActual(){ return avHoraActual(); }
 function avSnapshotPorReferencia(tipo,ref){
   return avanceEstado.snapshots.find(s=>s.tipo===tipo&&(tipo==='CIERRE'||s.horaReferencia===ref))||null;
 }
@@ -448,9 +788,10 @@ async function avGenerar(hora,tipo='AVANCE'){
     const ctx=avCtx();
     avanceEstado.fecha=ctx.fecha;
     avanceEstado.turno=ctx.turno;
-    const referencia=tipo==='CIERRE'?'CIERRE':(hora||avSlotActual());
-    if(avSnapshotPorReferencia(tipo,referencia)){
-      throw Error(tipo==='CIERRE'?'El cierre de este turno ya existe.':`El avance ${referencia} ya fue generado.`);
+    const referencia=tipo==='CIERRE'?'CIERRE':avHoraActual();
+    // Solo el CIERRE es único por turno. Los AVANCES son libres e ilimitados.
+    if(tipo==='CIERRE' && avUltimoSnapshot('CIERRE')){
+      throw Error('El cierre de este turno ya existe.');
     }
     const s=avConstruirSnapshot(referencia,tipo);
     await avGuardarSnapshot(s);
@@ -494,7 +835,10 @@ function avAplicarSeleccion(){
 function avEscuchar(){
   if(avanceEstado.unsubscribe)avanceEstado.unsubscribe();
   avanceEstado.unsubscribe=avRef().onSnapshot(doc=>{
-    avanceEstado.todosSnapshots=doc.exists&&Array.isArray(doc.data().items)?doc.data().items:[];
+    const data=doc.exists?doc.data():{};
+    avanceEstado.todosSnapshots=Array.isArray(data.items)?data.items:[];
+    avanceEstado.paradasOperativas=Array.isArray(data.paradasOperativas)?data.paradasOperativas:[];
+    avanceEstado.avancesUpdatedAt=avNum(data.updatedAt);
     avAplicarSeleccion();
     if(state.currentTab==='avance-produccion')avDibujar();
     avInstalarBotonFlotante();
@@ -518,12 +862,10 @@ function avTurnoHorario(turno,s){
   return turno==='NOCHE'?'22:00 - 07:00':turno==='INTERMEDIO'?'15:00 - 22:00':'07:00 - 15:00';
 }
 function avEstadoSlots(){
-  return avSlotsTurno(avanceEstado.turno).map(h=>({hora:h,snapshot:avSnapshotPorReferencia('AVANCE',h)}));
+  return avanceEstado.snapshots.filter(s=>s.tipo==='AVANCE').slice().sort((a,b)=>avNum(a.generadoEn)-avNum(b.generadoEn));
 }
-function avProximoAvance(){
-  const pendiente=avEstadoSlots().find(x=>!x.snapshot);
-  return pendiente?.hora||'Completados';
-}
+function avProximoAvance(){ return 'Cuando lo necesites'; }
+
 function avAbrirFlotante(){
   avInstalarEstilos();
   const ctx=avCtx();
@@ -566,14 +908,15 @@ function avDibujarFlotante(){
       <div class="av-float-body">
         <section class="av-shift-status">
           <div><small>TURNO ACTUAL</small><strong>${avEsc(ctx.turno)}</strong><span>${avEsc(avTurnoHorario(ctx.turno))}</span></div>
-          <div><small>PRÓXIMO AVANCE</small><strong>${avEsc(avProximoAvance())}</strong><span>${slots.filter(x=>x.snapshot).length}/${slots.length} generados</span></div>
+          <div><small>GENERACIÓN LIBRE</small><strong>En cualquier momento</strong><span>${slots.length} avance(s) guardado(s)</span></div>
         </section>
         <div class="av-slot-strip">
-          ${slots.map(x=>`<div class="${x.snapshot?'done':'pending'}"><b>${x.hora}</b><span>${x.snapshot?'✓ Generado':'○ Pendiente'}</span></div>`).join('')}
-          <div class="${cierre?'done':'pending'}"><b>${ctx.fin}</b><span>${cierre?'✓ Cierre':'○ Cierre'}</span></div>
+          ${slots.slice(-5).map(x=>`<div class="done"><b>${avEsc(x.horaCorte||x.horaReferencia||'—')}</b><span>✓ Avance</span></div>`).join('') || '<div class="pending"><b>AHORA</b><span>○ Sin avances todavía</span></div>'}
+          <div class="${cierre?'done':'pending'}"><b>CIERRE</b><span>${cierre?'✓ Generado':'○ Pendiente'}</span></div>
         </div>
         ${avPuedeGenerar()?`<div class="av-float-actions">
           <button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button>
+          <button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>
           <button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button>
         </div>`:`<div class="av-readonly">Modo consulta: puedes ver, copiar y generar imagen de los registros existentes.</div>`}
         <section class="av-float-last">
@@ -597,8 +940,7 @@ function avAccionesSnapshot(s,flotante=false){
   </div>`;
 }
 async function avGenerarAhora(){
-  const slot=avSlotActual();
-  await avGenerar(slot,'AVANCE');
+  await avGenerar(avHoraActual(),'AVANCE');
   avDibujarFlotante();
 }
 async function avGenerarCierreAhora(){
@@ -650,126 +992,125 @@ function avCerrarDetalle(){
 function avIrDetalle(id){document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});}
 
 function avCanvasSnapshot(s){
-  const W=1080,H=1350,c=document.createElement('canvas');
-  c.width=W;c.height=H;
-  const x=c.getContext('2d');
+  const W=1080, PAD=28;
+  const BLUE='#005B96',DARK='#003B5C',INK='#172B3A',STEEL='#667784',MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
 
-  const BLUE='#005B96',DARK='#003B5C',INK='#172B3A',STEEL='#667784',
-        MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',
-        GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
+  /*
+     IMPORTANTE:
+     La imagen usa EXACTAMENTE la misma agrupación física que el texto:
+       LÍNEA -> FORMATO FÍSICO -> MARCAS.
+     Ejemplos:
+       PET1 2.5 L: Cuisine + Cuisine C/S + Scala = UN SOLO BLOQUE.
+       PET2 1.5 L y PET2 1 L = DOS BLOQUES DISTINTOS.
+  */
+  const grupos=[];
+  (s.lineas||[]).forEach(l=>{
+    const bloques=avBloquesPresentacionLinea(l);
+    if(bloques.length){
+      bloques.forEach(b=>grupos.push({linea:l,bloque:b,sinProduccion:false}));
+    }else{
+      grupos.push({linea:l,bloque:null,sinProduccion:true});
+    }
+  });
 
-  const rr=(cx,cy,cw,ch,r=10)=>{
-    x.beginPath();
-    x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);
-    x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);
-    x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();
+  const altoGrupo=g=>{
+    if(g.sinProduccion){
+      const paradas=Math.max(1,(g.linea.paradas||[]).length);
+      const obs=(g.linea.observaciones||[]).length;
+      return 170+30+paradas*30+(obs?55+obs*27:0);
+    }
+    const b=g.bloque;
+    const productos=Math.max(1,(b.productos||[]).length);
+    const paradas=Math.max(1,(b.paradas||[]).length);
+    const obs=(b.observaciones||[]).length;
+    return 170+productos*34+paradas*30+(obs?55+obs*27:0);
   };
-  const card=(cx,cy,cw,ch,fill=WHITE,stroke=LINE)=>{
-    x.fillStyle=fill;rr(cx,cy,cw,ch,9);x.fill();
-    x.strokeStyle=stroke;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();
-  };
-  const section=(title,y)=>{
-    x.fillStyle=BLUE;rr(24,y,W-48,52,8);x.fill();
-    x.fillStyle=WHITE;x.font='700 23px Arial';x.fillText(title,42,y+34);
-  };
-  const textFit=(txt,maxWidth,fontSize=18,weight='400')=>{
-    let size=fontSize;
-    do{x.font=`${weight} ${size}px Arial`;size--;}while(size>10&&x.measureText(String(txt)).width>maxWidth);
-    return x.font;
-  };
+
+  const H=Math.max(1350,250+grupos.reduce((a,g)=>a+altoGrupo(g)+18,0)+180);
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const rr=(cx,cy,cw,ch,r=10)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
+  const card=(cx,cy,cw,ch,fill=WHITE,stroke=LINE)=>{x.fillStyle=fill;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=stroke;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
+  const fit=(txt,max,size=18,weight='400')=>{let z=size;do{x.font=`${weight} ${z}px Arial`;z--;}while(z>10&&x.measureText(String(txt)).width>max);return x.font;};
+  const divider=(y)=>{x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD+18,y);x.lineTo(W-PAD-18,y);x.stroke();};
+  const wrap=(txt,maxWidth)=>{const words=String(txt||'').split(/\s+/);const rows=[];let row='';for(const w of words){const test=row?row+' '+w:w;if(x.measureText(test).width>maxWidth&&row){rows.push(row);row=w;}else row=test;}if(row)rows.push(row);return rows;};
 
   x.fillStyle=BG;x.fillRect(0,0,W,H);
+  x.fillStyle=DARK;x.fillRect(0,0,W,205);
+  x.fillStyle=WHITE;x.font='700 31px Arial';x.fillText('GLACIAL',55,56);
+  x.font='700 40px Arial';x.fillText(s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN',275,62);
+  x.font='700 26px Arial';x.fillText(`TURNO ${s.turno}`,275,101);
+  x.font='19px Arial';x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);
+  x.font='16px Arial';x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}`,55,184);
 
-  /* HEADER */
-  x.fillStyle=DARK;x.fillRect(0,0,W,190);
-  x.fillStyle=WHITE;
-  x.font='700 31px Arial';x.fillText('GLACIAL',55,56);
-  x.font='700 42px Arial';x.fillText(s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN',275,62);
-  x.font='700 27px Arial';x.fillText(`TURNO ${s.turno}`,275,102);
-  x.font='20px Arial';
-  x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,158);
-  x.fillText(`Hora: ${s.horaCorte||'—'}`,335,158);
-  x.fillText(`Turno: ${s.turno} (${avTurnoHorario(s.turno,s)})`,555,158);
+  let y=228;
+  x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 22px Arial';x.fillText('DETALLE DE PRODUCCIÓN POR FORMATO',48,y+31);y+=64;
 
-  /* PRODUCCIÓN POR LÍNEA — sin tarjetas KPI superiores */
-  let y=215;
-  section('PRODUCCIÓN POR LÍNEA',y);y+=66;
+  grupos.forEach(g=>{
+    const l=g.linea,b=g.bloque;
+    const prods=g.sinProduccion?[]:(b.productos||[]);
+    const paradas=g.sinProduccion?(l.paradas||[]):(b.paradas||[]);
+    const observaciones=g.sinProduccion?(l.observaciones||[]):(b.observaciones||[]);
+    const produccionTotal=g.sinProduccion?0:b.produccionTotal;
+    const inicio=g.sinProduccion?(l.inicio||'—'):(b.inicio||l.inicio||'—');
+    const ratio=g.sinProduccion?0:b.ratio;
+    const consumo=g.sinProduccion?0:b.consumo;
+    const personal=g.sinProduccion?l.personal:b.personal;
+    const totalParadas=g.sinProduccion?l.totalParadas:b.totalParadas;
+    const titulo=g.sinProduccion?(l.nombre||l.linea):avTituloPresentacion(l.linea,b);
+    const h=altoGrupo(g);
 
-  const lineas=(s.lineas||[]).slice(0,6);
-  const rowH=105;
+    card(PAD,y,W-PAD*2,h);
+    x.fillStyle='#EAF5FC';rr(PAD,y,W-PAD*2,58,9);x.fill();
+    x.fillStyle=DARK;x.font='700 25px Arial';x.fillText(titulo,PAD+20,y+37);
+    x.textAlign='right';x.fillStyle=g.sinProduccion?WARN:GOOD;x.font='700 15px Arial';x.fillText(g.sinProduccion?'LÍNEA INICIADA':'PRODUCCIÓN REGISTRADA',W-PAD-20,y+35);x.textAlign='left';
 
-  lineas.forEach(l=>{
-    card(24,y,W-48,rowH);
-    x.fillStyle='#EAF5FC';rr(24,y,160,rowH,9);x.fill();
+    let cy=y+82;
+    const metrics=[
+      ['Inicio',inicio],
+      ['Producción',`${avFmt(produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}`],
+      ['Ratio',ratio?`${avFmt(ratio)} ${l.unidadRatio}`:'—'],
+      ['Consumo',consumo?`${avFmt(consumo)} L/H`:'—'],
+      ['Personal',avFmt(personal)]
+    ],mw=(W-PAD*2-40)/5;
+    metrics.forEach((m,i)=>{const mx=PAD+20+i*mw;x.fillStyle=STEEL;x.font='13px Arial';x.fillText(m[0],mx,cy);x.fillStyle=INK;fit(m[1],mw-12,17,'700');x.fillText(m[1],mx,cy+24);});
+    cy+=55;divider(cy);cy+=27;
 
-    x.fillStyle=DARK;x.font='700 25px Arial';
-    textFit(l.nombre||l.linea,125,25,'700');
-    x.fillText(l.nombre||l.linea,46,y+40);
+    x.fillStyle=BLUE;x.font='700 15px Arial';x.fillText('MARCAS PRODUCIDAS',PAD+20,cy);cy+=26;
+    if(prods.length){
+      prods.forEach(p=>{
+        x.fillStyle=INK;x.font='700 16px Arial';x.fillText(avProductoWhatsApp(p),PAD+28,cy);
+        x.textAlign='right';x.fillStyle=DARK;x.font='700 16px Arial';x.fillText(`${avFmt(p.produccion)} ${avUnidadProduccion(l.linea).toUpperCase()}`,W-PAD-22,cy);x.textAlign='left';cy+=30;
+      });
+    }else{x.fillStyle=MUTED;x.font='14px Arial';x.fillText('Sin producción registrada.',PAD+28,cy);cy+=30;}
 
-    const prodUnidad=avUnidadProduccion(l.linea).toUpperCase();
-    const cols=[
-      {x:205,w:145,t:'Producción',v:`${avFmt(l.produccionTotal)} ${prodUnidad}`},
-      {x:355,w:135,t:'Inicio de línea',v:l.inicio||'—'},
-      {x:495,w:210,t:'Estado',v:l.produccionTotal>0?'En producción':'Línea iniciada',sub:l.produccionTotal>0?'Producción registrada.':'Sin producción registrada.'},
-      {x:710,w:95,t:'Personal',v:avFmt(l.personal)},
-      {x:810,w:115,t:'Ratio Turno',v:l.ratio?`${avFmt(l.ratio)}`:'—',sub:l.ratio?l.unidadRatio:''},
-      {x:930,w:120,t:'Consumo',v:l.consumo?`${avFmt(l.consumo)}`:'—',sub:l.consumo?'L/H':''}
-    ];
+    divider(cy);cy+=27;
+    x.fillStyle=BAD;x.font='700 15px Arial';x.fillText(`PARADAS DE ${titulo}`,PAD+20,cy);
+    x.textAlign='right';x.fillText(`TOTAL: ${avFmt(totalParadas)} min`,W-PAD-20,cy);x.textAlign='left';cy+=26;
+    if(paradas.length){
+      paradas.forEach(p=>{
+        x.fillStyle=p.tipo==='NO_PROGRAMADA'?BAD:WARN;x.font='700 12px Arial';x.fillText(p.tipo==='NO_PROGRAMADA'?'NO PROG.':'PROGRAMADA',PAD+28,cy);
+        x.fillStyle=INK;x.font='14px Arial';fit(p.descripcion,650,14,'400');x.fillText(p.descripcion,PAD+135,cy);
+        x.textAlign='right';x.fillStyle=DARK;x.font='700 14px Arial';x.fillText(`${avFmt(p.minutos)} min`,W-PAD-22,cy);x.textAlign='left';cy+=29;
+      });
+    }else{x.fillStyle=MUTED;x.font='14px Arial';x.fillText('Sin paradas registradas.',PAD+28,cy);cy+=29;}
 
-    cols.forEach((col,i)=>{
-      if(i>0){x.strokeStyle='#E3E9ED';x.beginPath();x.moveTo(col.x-10,y+18);x.lineTo(col.x-10,y+87);x.stroke();}
-      x.fillStyle=STEEL;x.font='14px Arial';x.fillText(col.t,col.x,y+29);
-      x.fillStyle=i===2?(l.produccionTotal>0?GOOD:WARN):INK;
-      textFit(col.v,col.w-8,19,'700');x.fillText(col.v,col.x,y+55);
-      if(col.sub){x.fillStyle=MUTED;textFit(col.sub,col.w-6,12,'400');x.fillText(col.sub,col.x,y+77);}
-    });
-    y+=rowH+10;
+    if(observaciones.length){
+      divider(cy);cy+=25;x.fillStyle=BLUE;x.font='700 14px Arial';x.fillText('OBSERVACIONES',PAD+20,cy);cy+=23;
+      observaciones.forEach(o=>{x.fillStyle=STEEL;x.font='13px Arial';const rows=wrap('• '+o,W-PAD*2-60).slice(0,2);rows.forEach(r=>{x.fillText(r,PAD+28,cy);cy+=22;});});
+    }
+    y+=h+18;
   });
 
-  /* PARADAS */
-  y+=6;section('PARADAS',y);y+=66;
   const r=s.resumen||{};
-  const stopW=(W-72)/3;
-  const stops=[
-    {title:'PROGRAMADAS',value:`${avFmt(r.totalParadasProgramadas)} min`,sub:'Sin paradas registradas.',fill:'#FFF8E8',accent:WARN},
-    {title:'NO PROGRAMADAS',value:`${avFmt(r.totalParadasNoProgramadas)} min`,sub:'Sin paradas registradas.',fill:'#FDEEEE',accent:BAD},
-    {title:'TOTAL',value:`${avFmt(r.totalParadas)} min`,sub:'Tiempo total de paradas.',fill:'#F3F8FB',accent:BLUE}
-  ];
-  stops.forEach((st,i)=>{
-    const cx=24+i*(stopW+12);
-    card(cx,y,stopW,120,st.fill,LINE);
-    x.fillStyle=st.accent;x.beginPath();x.arc(cx+35,y+37,16,0,Math.PI*2);x.fill();
-    x.fillStyle=STEEL;x.font='700 15px Arial';x.fillText(st.title,cx+66,y+30);
-    x.fillStyle=DARK;x.font='700 27px Arial';x.fillText(st.value,cx+66,y+62);
-    x.fillStyle=STEEL;x.font='13px Arial';x.fillText(st.sub,cx+66,y+87);
-  });
-  y+=138;
-
-  /* PERSONAL */
-  card(24,y,W-48,64,'#F8FBFD',LINE);
-  x.fillStyle=BLUE;x.font='700 18px Arial';x.fillText('PERSONAL OPERATIVO',82,y+39);
-  x.textAlign='right';x.fillStyle=DARK;x.font='700 20px Arial';x.fillText(`Total: ${avFmt(r.personal)}`,W-48,y+39);x.textAlign='left';
-  y+=80;
-
-  /* OBSERVACIONES */
-  const observaciones=[...new Set((s.lineas||[]).flatMap(l=>l.observaciones||[]).filter(Boolean))];
-  card(24,y,W-48,100,'#F8FBFD',LINE);
-  x.fillStyle=DARK;x.font='700 17px Arial';x.fillText('OBSERVACIONES',82,y+31);
-  x.fillStyle=STEEL;x.font='14px Arial';
-  const obs=observaciones.length?observaciones.slice(0,2).join(' · '):'—  Sin observaciones registradas.';
-  textFit(obs,W-150,14,'400');x.fillText(obs,82,y+62);
-
-  /* FOOTER */
-  const footerY=1265;
-  x.strokeStyle=LINE;x.beginPath();x.moveTo(24,footerY-22);x.lineTo(W-24,footerY-22);x.stroke();
-  x.fillStyle=STEEL;x.font='16px Arial';x.fillText('Generado por:',30,footerY+10);
-  x.fillStyle=INK;x.font='700 17px Arial';x.fillText(s.supervisor||s.generadoPor||'—',165,footerY+10);
-  x.fillStyle=DARK;x.font='700 22px Arial';x.textAlign='right';x.fillText('GLACIAL',W-55,footerY+10);
-  x.fillStyle=STEEL;x.font='14px Arial';x.fillText('Control de Producción',W-55,footerY+32);x.textAlign='left';
-  x.fillStyle=STEEL;x.font='14px Arial';x.fillText(`${avFechaBonita(s.fecha)} ${s.horaCorte||''}`,165,footerY+35);
-
+  card(PAD,y,W-PAD*2,105,'#F8FBFD',LINE);x.fillStyle=BLUE;x.font='700 17px Arial';x.fillText('RESUMEN DEL AVANCE',PAD+20,y+28);
+  const rs=[`Producción planta: ${avFmt(r.produccionTotal)}`,`Paradas: ${avFmt(r.totalParadas)} min`,`Personal: ${avFmt(r.personal)}`,`Líneas: ${avFmt(r.lineasTrabajadas)}`];
+  rs.forEach((t,i)=>{x.fillStyle=i===1?BAD:DARK;x.font='700 17px Arial';x.fillText(t,PAD+20+i*245,y+70);});
+  y+=128;x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD,y);x.lineTo(W-PAD,y);x.stroke();y+=28;
+  x.fillStyle=STEEL;x.font='15px Arial';x.fillText(`Generado por: ${s.supervisor||s.generadoPor||'—'}`,PAD,y);
+  x.textAlign='right';x.fillStyle=DARK;x.font='700 20px Arial';x.fillText('GLACIAL · Control de Producción',W-PAD,y);x.textAlign='left';
   return c;
 }
+
 async function avGenerarImagen(id){
   const s=avanceEstado.todosSnapshots.find(x=>x.id===id)||avanceEstado.snapshots.find(x=>x.id===id);
   if(!s)return;
@@ -857,8 +1198,10 @@ function avCalendarioHtml(){
   return `<div class="av-calendar"><div class="av-calendar-head"><button onclick="avMoverMes(-1)">‹</button><strong>${titulo}</strong><button onclick="avMoverMes(1)">›</button></div><div class="av-week"><span>LU</span><span>MA</span><span>MI</span><span>JU</span><span>VI</span><span>SA</span><span>DO</span></div><div class="av-days">${cells}</div><div class="av-legend"><span><i class="blue"></i>Avances</span><span><i class="green"></i>Cierre</span><span><i class="gray"></i>Sin registros</span></div></div>`;
 }
 function avTimelineHtml(){
-  const slots=avSlotsTurno(avanceEstado.turno),cierre=avUltimoSnapshot('CIERRE');
-  return `<div class="av-timeline">${slots.map(h=>{const s=avSnapshotPorReferencia('AVANCE',h);return `<div class="av-time-row ${s?'done':'pending'}"><time>${h}</time><div><b>${s?'AVANCE DE PRODUCCIÓN':'AVANCE PENDIENTE'}</b>${s?`<small>Generado ${avEsc(s.horaCorte)} por ${avEsc(s.supervisor||s.generadoPor||'—')}</small>${avAccionesSnapshot(s)}`:'<small>Sin generar</small>'}</div></div>`}).join('')}<div class="av-time-row ${cierre?'done':'pending'}"><time>${avCtx().fin}</time><div><b>${cierre?'CIERRE DE TURNO':'CIERRE PENDIENTE'}</b>${cierre?`<small>Generado por ${avEsc(cierre.supervisor||cierre.generadoPor||'—')}</small>${avAccionesSnapshot(cierre)}`:'<small>Sin generar</small>'}</div></div></div>`;
+  const avances=avanceEstado.snapshots.filter(s=>s.tipo==='AVANCE').slice().sort((a,b)=>avNum(a.generadoEn)-avNum(b.generadoEn));
+  const cierre=avUltimoSnapshot('CIERRE');
+  const filas=avances.map(s=>`<div class="av-time-row done"><time>${avEsc(s.horaCorte||'—')}</time><div><b>AVANCE DE PRODUCCIÓN</b><small>Corte ${avEsc(s.horaCorte||'—')} · generado ${avEsc(avHoraDesdeMs(s.generadoEn)||s.horaCorte||'—')} por ${avEsc(s.supervisor||s.generadoPor||'—')}</small>${avAccionesSnapshot(s)}</div></div>`).join('');
+  return `<div class="av-timeline">${filas||'<div class="av-time-row pending"><time>—</time><div><b>SIN AVANCES GENERADOS</b><small>Puedes generar un avance en cualquier momento del turno.</small></div></div>'}<div class="av-time-row ${cierre?'done':'pending'}"><time>${cierre?avEsc(cierre.horaCorte||'—'):'—'}</time><div><b>${cierre?'CIERRE DE TURNO':'CIERRE PENDIENTE'}</b>${cierre?`<small>Generado ${avEsc(avHoraDesdeMs(cierre.generadoEn)||cierre.horaCorte||'—')} por ${avEsc(cierre.supervisor||cierre.generadoPor||'—')}</small>${avAccionesSnapshot(cierre)}`:'<small>El cierre se genera manualmente cuando corresponda.</small>'}</div></div></div>`;
 }
 function avHistorialGeneralHtml(){
   const tipo=avanceEstado.filtroTipo;
@@ -884,7 +1227,7 @@ function avDibujar(){
   const ctx=avCtx(),actual=avanceEstado.fecha===ctx.fecha&&avanceEstado.turno===ctx.turno;
   root.innerHTML=`
     <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'} · ${avEsc(avanceEstado.turno)}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
-    ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
+    ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
     <div id="av-estado" class="av-inline-status"></div>
     <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','INTERMEDIO','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${t}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
     ${avHistorialGeneralHtml()}`;
@@ -915,8 +1258,10 @@ body.av-modal-open{overflow:hidden}
 .av-float-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.av-readonly{margin-top:10px;padding:9px;border-radius:6px;background:#eef3f6;color:#667784;font-size:10px}.av-float-last{margin-top:10px;padding:12px;border:1px solid #d7e3eb;border-radius:8px;background:#fff}.av-float-last-head small{display:block;font-size:8px;color:#87949d;font-weight:800}.av-float-last-head strong{color:#003b5c}.av-float-last-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .av-detail-dialog{width:min(1080px,98vw)}.av-detail-tabs{position:sticky;top:-16px;z-index:3;display:flex;gap:4px;overflow-x:auto;padding:7px 0;background:#f5f8fa}.av-detail-tabs button{border:1px solid #dce3e8;background:#fff;border-radius:5px;padding:6px 8px;font-size:9px;font-weight:800;color:#456273}.av-detail-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.av-detail-kpis>div{padding:10px;background:#fff;border:1px solid #dce3e8;border-radius:7px}.av-detail-kpis small,.av-detail-kpis span{display:block;color:#87949d;font-size:8px}.av-detail-kpis strong{display:block;color:#003b5c;font-size:18px;margin:3px 0}.av-detail-section{scroll-margin-top:40px;margin-top:14px}.av-detail-section h3{margin:0 0 7px;color:#003b5c}.av-line-card,.av-stop-line,.av-observation{padding:10px;background:#fff;border:1px solid #dce3e8;border-radius:7px;margin-top:7px}.av-line-title{display:flex;justify-content:space-between}.av-line-title b{color:#005b96}.av-line-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}.av-line-metrics span,.av-products span{font-size:9px;color:#667784}.av-products{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.av-products span{padding:4px 6px;background:#f3f7f9;border-radius:4px}.av-stop-line>div{display:grid;grid-template-columns:100px 1fr 70px;gap:6px;padding:6px 0;border-top:1px solid #edf1f3}.av-stop-line span{font-size:8px;font-weight:800}.av-stop-line .np{color:#c0392b}.av-stop-line .p{color:#d89216}.av-stop-line em{text-align:right;font-style:normal}.av-personal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.av-personal-grid>div{display:flex;justify-content:space-between;padding:8px;background:#fff;border:1px solid #dce3e8;border-radius:6px}.av-whatsapp-preview{margin-top:14px;background:#fff;border:1px solid #dce3e8;border-radius:7px;padding:9px}.av-whatsapp-preview summary{cursor:pointer;font-size:10px;font-weight:800;color:#005b96}.av-whatsapp-preview textarea{width:100%;min-height:260px;margin-top:8px;padding:9px;border:1px solid #dce3e8;border-radius:6px;resize:vertical;font-family:'IBM Plex Mono',monospace;font-size:10px}
 .av-image-dialog{width:min(780px,96vw)}.av-image-preview{background:#dfe7ec;text-align:center}.av-image-preview canvas{width:min(100%,540px);height:auto;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.12)}
+
+.av-paradas-modal{display:none;position:fixed;inset:0;z-index:2600;background:rgba(0,31,50,.62);padding:18px;align-items:center;justify-content:center}.av-paradas-modal.open{display:flex}.av-paradas-dialog{width:min(760px,98vw);max-height:92vh;display:flex;flex-direction:column;background:#f5f8fa;border-radius:12px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.28)}.av-paradas-dialog>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:15px 18px;background:#003b5c;color:#fff}.av-paradas-dialog>header h2{margin:2px 0;font-size:18px}.av-paradas-dialog>header p{margin:2px 0;font-size:10px}.av-paradas-dialog>header>button{width:36px;height:36px;border:0;border-radius:6px;background:rgba(255,255,255,.12);color:#fff}.av-paradas-linea{margin-top:7px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:#fff;color:#003b5c;font-weight:800}.av-paradas-body{padding:14px;overflow-y:auto}.av-paradas-note{padding:9px 10px;background:#eaf5fc;border:1px solid #c8deeb;border-radius:7px;color:#35586b;font-size:10px;margin-bottom:10px}.av-paradas-error{padding:9px 10px;background:#fff0ee;border:1px solid #efc0b9;color:#a22d22;border-radius:7px;margin-bottom:10px;font-size:10px}.av-paradas-list{display:grid;gap:8px}.av-parada-row{display:grid;grid-template-columns:150px minmax(180px,1fr) 180px 95px 38px;gap:8px;align-items:end;padding:10px;background:#fff;border:1px solid #d7e3eb;border-radius:8px}.av-parada-row label{display:block;font-size:9px;font-weight:800;color:#667784;margin-bottom:4px}.av-parada-row input,.av-parada-row select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cfdbe3;border-radius:6px;background:#fff}.av-parada-row.is-p{border-left:4px solid #2e9d62}.av-parada-row.is-np{border-left:4px solid #d16b2f}.av-parada-row:not(.is-np) .av-parada-causa{display:none}.av-parada-row small{grid-column:1/-1;color:#87949d;font-size:8px}.av-parada-remove{height:36px;border:1px solid #efc0b9;background:#fff;color:#c0392b;border-radius:6px}.av-parada-add{margin-top:10px}.av-paradas-dialog>footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:#fff;border-top:1px solid #d7e3eb}.av-paradas-dialog>footer>div:last-child{display:flex;gap:7px}.av-paradas-dialog>footer strong{color:#003b5c;margin-left:6px}
 @media(max-width:900px){.av-module-grid{grid-template-columns:1fr}.av-detail-kpis{grid-template-columns:repeat(2,1fr)}.av-slot-strip{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:700px){.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:1fr}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:1fr}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:12px}.av-slot-strip{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.av-paradas-modal{padding:0}.av-paradas-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-parada-row{grid-template-columns:1fr 95px 38px}.av-parada-tipo,.av-parada-motivo,.av-parada-causa{grid-column:1/-1}.av-parada-min{grid-column:1/3}.av-paradas-dialog>footer{align-items:stretch;flex-direction:column}.av-paradas-dialog>footer>div:last-child{display:grid;grid-template-columns:1fr 1fr}.av-paradas-dialog>footer .btn{min-height:44px}.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:1fr}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:1fr}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:12px}.av-slot-strip{grid-template-columns:repeat(2,1fr)}}
 `;
 
 /* Inyectar estilos del módulo una sola vez.

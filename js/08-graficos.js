@@ -3436,378 +3436,408 @@ function construirResumenesgraficos(rec, d, all){
    texto debajo, calculado con los mismos datos del gráfico.
    ========================================================= */
 
-async function exportarPNG(){
+function construirAnalisisAccionReporte(rec, d){
 
-  const data = obtenerRegistroExportacion();
+  const paradas = agruparParadas(rec);
+  const mermas = agruparMermas(rec);
+  const acciones = [];
+  const hallazgos = [];
 
-  if(!data){
-    return;
+  if(paradas.filas.length){
+    const p = paradas.filas[0];
+    hallazgos.push(`La mayor parada fue ${p.descripcion}: ${Math.round(p.minutos)} min.`);
+    acciones.push({
+      prioridad: 1,
+      dato: `${p.descripcion}: ${Math.round(p.minutos)} min`,
+      texto: `Revisar antes del arranque del siguiente turno el punto registrado como “${p.descripcion}” y confirmar que la condición que originó la parada esté controlada.`
+    });
   }
 
-  const { rec, d, all } = data;
+  const mermaFiltrada = mermas.filas.filter(f => num(f.unidades) > 0 || num(f.peso) > 0);
+  if(mermaFiltrada.length){
+    const m = mermaFiltrada[0];
+    const base = Math.max(num(d.efectiva), 1);
+    const porcentaje = num(m.unidades) > 0 ? num(m.unidades) / base : 0;
+    hallazgos.push(`La mayor merma registrada fue ${m.item}: ${formatearNumero(m.unidades)} u.${porcentaje ? ` (${pct(porcentaje)} de la producción efectiva)` : ''}`);
+    acciones.push({
+      prioridad: porcentaje > METAS.merma ? 2 : 3,
+      dato: `${m.item}: ${formatearNumero(m.unidades)} u.${porcentaje ? ` · ${pct(porcentaje)}` : ''}`,
+      texto: porcentaje > METAS.merma
+        ? `Revisar el proceso asociado a “${m.item}” y registrar la causa específica de la merma; el valor calculado está por encima de la meta configurada de ${pct(METAS.merma)}.`
+        : `Dar seguimiento a “${m.item}”, que es la mayor merma del turno, y registrar su causa si vuelve a repetirse.`
+    });
+  }
+
+  if(num(d.rendimiento) < METAS.rendimiento){
+    const diferencia = (METAS.rendimiento - num(d.rendimiento)) * 100;
+    hallazgos.push(`Rendimiento ${pct(d.rendimiento)}, ${diferencia.toFixed(1)} pts por debajo de la meta ${pct(METAS.rendimiento)}.`);
+    acciones.push({
+      prioridad: 1,
+      dato: `Rendimiento ${pct(d.rendimiento)} vs meta ${pct(METAS.rendimiento)}`,
+      texto: `Registrar las causas de pérdida de velocidad durante el siguiente turno. El reporte muestra rendimiento bajo, pero no permite atribuirlo por sí solo a una falla específica.`
+    });
+  }
+
+  if(num(d.disponibilidad) < METAS.disponibilidad){
+    const diferencia = (METAS.disponibilidad - num(d.disponibilidad)) * 100;
+    hallazgos.push(`Disponibilidad ${pct(d.disponibilidad)}, ${diferencia.toFixed(1)} pts por debajo de la meta ${pct(METAS.disponibilidad)}.`);
+    if(!paradas.filas.length){
+      acciones.push({
+        prioridad: 1,
+        dato: `Disponibilidad ${pct(d.disponibilidad)} vs meta ${pct(METAS.disponibilidad)}`,
+        texto: 'Completar el registro de tiempos de parada o periodos sin producción para identificar qué redujo la disponibilidad.'
+      });
+    }
+  }
+
+  if(num(d.programada) > 0){
+    hallazgos.push(`Cumplimiento del programa ${pct(d.cumplimiento)}: ${formatearNumero(d.efectiva)} u. producidas de ${formatearNumero(d.programada)} u. programadas.`);
+    if(num(d.cumplimiento) < 1){
+      acciones.push({
+        prioridad: 2,
+        dato: `Cumplimiento ${pct(d.cumplimiento)}`,
+        texto: `Revisar el faltante de ${formatearNumero(Math.max(num(d.programada)-num(d.efectiva),0))} u. junto con las paradas y pérdidas de rendimiento antes de definir la programación siguiente.`
+      });
+    }
+  } else {
+    hallazgos.push('No existe cantidad programada registrada; no es posible evaluar el cumplimiento del programa.');
+  }
+
+  const observaciones = [];
+  const addObs = v => { if(String(v||'').trim()) observaciones.push(String(v).trim()); };
+  addObs(rec?.observaciones); addObs(rec?.observacion); addObs(rec?.observacionesGenerales);
+  (rec?.cuadros||[]).forEach(c => { addObs(c?.observaciones); addObs(c?.observacion); });
+  if(observaciones.length) hallazgos.push(`Observación del supervisor: ${[...new Set(observaciones)].join(' · ')}`);
+
+  const unicas=[];
+  acciones.sort((a,b)=>a.prioridad-b.prioridad).forEach(a=>{
+    if(unicas.length<3 && !unicas.some(x=>x.texto===a.texto)) unicas.push(a);
+  });
+
+  if(!unicas.length){
+    unicas.push({prioridad:3,dato:'Sin desviaciones críticas detectadas con los datos disponibles',texto:'Mantener el seguimiento de OEE, paradas y mermas en el siguiente turno.'});
+  }
+
+  const editado = rec?.sugerenciaReporte?.editado === true && String(rec?.sugerenciaReporte?.texto||'').trim();
+  return {
+    hallazgos: hallazgos.slice(0,5),
+    acciones: unicas,
+    estado: editado ? 'EDITADO POR SUPERVISOR' : 'AUTOMÁTICO',
+    textoEditado: editado ? String(rec.sugerenciaReporte.texto).trim() : ''
+  };
+}
+
+async function editarSugerenciaReporte(){
+  const data = obtenerRegistroExportacion();
+  if(!data) return;
+  const {rec,d}=data;
+  const auto=construirAnalisisAccionReporte(rec,d);
+  const base=auto.textoEditado || auto.acciones.map((a,i)=>`${i+1}. ${a.dato} → ${a.texto}`).join('\n');
+  const texto=prompt('Editar sugerencia para revisión del supervisor:',base);
+  if(texto===null) return;
+  const registros=loadRecords();
+  const idx=registros.findIndex(r=>r===rec || (r.timestamp&&rec.timestamp&&r.timestamp===rec.timestamp));
+  if(idx<0){ alert('No se pudo identificar el registro para guardar la sugerencia.'); return; }
+  registros[idx].sugerenciaReporte={texto:String(texto).trim(),editado:true,editadoPor:state.user?.nombre||state.user?.username||'',editadoEn:Date.now()};
+  if(typeof saveRecords==='function') await saveRecords(registros);
+  renderGraficosTab();
+}
+
+async function exportarPNG(){
+  const data=obtenerRegistroExportacion();
+  if(!data)return;
+  const {rec,d}=data;
 
   try{
-
-    const ids = [
-      'chart-oee',
-      'chart-componentes',
-      'chart-cascada',
-      'chart-prod',
-      'chart-paradas',
-      'chart-mermas',
-      'chart-insumos',
-      'chart-tendencia',
-      'chart-turno',
-      'chart-marca'
-    ];
-
-    const imagenes = [];
+    const ids=['chart-cascada','chart-paradas','chart-mermas'];
+    const imgs={};
 
     for(const id of ids){
+      const ch=state.charts[id.replace('chart-','')];
+      if(ch)imgs[id]=await cargarImagenCanvas(ch.toBase64Image());
+    }
 
-      const chart = state.charts[
-        id.replace('chart-', '')
-      ];
+    let logoImg=null;
+    try{
+      logoImg=await cargarImagenCanvas('data:image/png;base64,'+GLACIAL_LOGO_BASE64);
+    }catch(e){}
 
-      if(!chart){
-        continue;
+    /* =====================================================
+       DATOS DE PRODUCCIÓN DEL TURNO
+       Línea -> presentación -> marca -> unidades efectivas
+       ===================================================== */
+    const produccionPorFormato={};
+
+    const agregarProduccion=(presentacion,marca,efectiva)=>{
+      const unidades=num(efectiva);
+      if(unidades<=0)return;
+
+      const formato=String(presentacion||'Sin presentación').trim()||'Sin presentación';
+      const nombreMarca=String(marca||'Sin marca').trim()||'Sin marca';
+
+      if(!produccionPorFormato[formato]){
+        produccionPorFormato[formato]={presentacion:formato,total:0,marcas:{}};
       }
 
-      imagenes.push({
-        id,
-        img: await cargarImagenCanvas(chart.toBase64Image()),
-        titulo: document
-          .getElementById(id)
-          ?.closest('.chart-box')
-          ?.querySelector('h4')
-          ?.innerText || ''
-      });
+      if(!produccionPorFormato[formato].marcas[nombreMarca]){
+        produccionPorFormato[formato].marcas[nombreMarca]=0;
+      }
 
+      produccionPorFormato[formato].marcas[nombreMarca]+=unidades;
+      produccionPorFormato[formato].total+=unidades;
+    };
+
+    if(Array.isArray(rec?.cuadros)&&rec.cuadros.length){
+      rec.cuadros.forEach(c=>agregarProduccion(c?.presentacion,c?.marca,c?.produccion?.efectiva));
+    }else{
+      agregarProduccion(rec?.presentacion,rec?.marca,rec?.produccion?.efectiva);
     }
 
-    const resumenes = construirResumenesgraficos(rec, d, all);
-    const marcaProd = agruparProduccionPorMarca(rec);
+    const formatos=Object.values(produccionPorFormato)
+      .sort((a,b)=>b.total-a.total)
+      .map(f=>({
+        ...f,
+        marcas:Object.entries(f.marcas)
+          .map(([marca,efectiva])=>({marca,efectiva}))
+          .sort((a,b)=>b.efectiva-a.efectiva)
+      }));
 
-    let logoImg = null;
+    const totalMarcas=formatos.reduce((a,f)=>a+num(f.total),0);
+    const diferenciaPrograma=num(d.efectiva)-num(d.programada);
 
-    try{
-      logoImg = await cargarImagenCanvas(
-        'data:image/png;base64,' + GLACIAL_LOGO_BASE64
-      );
-    } catch(e){
-      logoImg = null;
-    }
+    const W=1240,H=1754,P=48;
+    const canvas=document.createElement('canvas');
+    canvas.width=W;
+    canvas.height=H;
+    const ctx=canvas.getContext('2d');
 
+    const cascada=calcCascada(rec);
+    const paradas=agruparParadas(rec);
+    const mermas=agruparMermas(rec);
+    const insumos=agruparInsumos(rec);
+    const analisis=construirAnalisisAccionReporte(rec,d);
 
-    /* ---------- medidas generales ---------- */
+    const card=(x,y,w,h)=>{
+      ctx.fillStyle='#FFFFFF';ctx.fillRect(x,y,w,h);
+      ctx.strokeStyle='#DCE3E8';ctx.strokeRect(x,y,w,h);
+    };
+    const wrap=(txt,x,y,maxW,lh,max=3)=>{
+      ctx.textAlign='left';
+      return xlDibujarTextoAjustado(ctx,txt,x,y,maxW,lh,max);
+    };
+    const fmtUnd=v=>`${formatearNumero(num(v))} und`;
 
-    const W = 1800;
-    const boxW = 840;
-    const boxH = 460;
-    const gap = 40;
-    const rows = Math.ceil(imagenes.length / 2);
-
-    /* Franja de marcas: una fila cada 4 marcas, mínimo una fila. */
-    const filasMarca = Math.max(1, Math.ceil(marcaProd.filas.length / 4));
-    const marcaSeccionH = marcaProd.filas.length
-      ? 46 + filasMarca * 40
-      : 0;
-
-    const headerH = 300 + marcaSeccionH;
-    const footerH = 46;
-
-    const H = headerH + rows * (boxH + gap) + gap + footerH;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = W;
-    canvas.height = H;
-
-    const ctx = canvas.getContext('2d');
-
-    /* ---------- fondo ---------- */
-
-    ctx.fillStyle = '#F5F7F9';
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(40, 35, W - 80, headerH - 50);
-
-    /* Barra superior de acento (color de marca GLACIAL). */
-    ctx.fillStyle = PAL.azul;
-    ctx.fillRect(40, 35, W - 80, 6);
-
-
-    /* ---------- logo ---------- */
-
-    let tituloX = 75;
+    ctx.fillStyle='#F3F6F8';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#FFFFFF';ctx.fillRect(P,32,W-P*2,H-64);
+    ctx.fillStyle=PAL.azul;ctx.fillRect(P,32,W-P*2,7);
 
     if(logoImg){
-
-      const logoAlto = 56;
-      const logoAncho = logoAlto * GLACIAL_LOGO_RATIO;
-
-      ctx.drawImage(
-        logoImg,
-        W - 40 - 30 - logoAncho,
-        55,
-        logoAncho,
-        logoAlto
-      );
-
+      const lh=48,lw=lh*GLACIAL_LOGO_RATIO;
+      ctx.drawImage(logoImg,W-P-24-lw,55,lw,lh);
     }
 
+    /* ---------- encabezado ---------- */
+    ctx.fillStyle='#172B3A';ctx.font='700 28px Arial';
+    ctx.fillText('REPORTE DIARIO DE PRODUCCIÓN',P+24,78);
+    ctx.fillStyle='#667784';ctx.font='16px Arial';
+    ctx.fillText(`${rec.linea||state.currentLine||''} · ${rec.fecha||''} · ${rec.turno||''}`,P+24,108);
+    ctx.font='14px Arial';
+    ctx.fillText(`Supervisor: ${rec.registradoPor||'—'}`,P+24,132);
 
-    /* ---------- título y subtítulos ---------- */
+    let y=158;
 
-    ctx.textAlign = 'left';
+    /* =====================================================
+       PRODUCCIÓN DEL TURNO — primero unidades, luego KPI
+       ===================================================== */
+    const prodH=218;
+    card(P+24,y,W-P*2-48,prodH);
+    ctx.fillStyle='#005B96';ctx.font='700 15px Arial';
+    ctx.fillText('PRODUCCIÓN DEL TURNO',P+40,y+27);
 
-    ctx.fillStyle = '#1F2933';
-    ctx.font = 'bold 34px Arial';
-    ctx.fillText('REPORTE DIARIO DE PRODUCCIÓN', tituloX, 90);
+    const resumenW=365;
+    ctx.fillStyle='#F5F9FC';ctx.fillRect(P+40,y+44,resumenW,154);
+    ctx.fillStyle='#667784';ctx.font='12px Arial';
+    ctx.fillText('Programada',P+56,y+67);
+    ctx.fillText('Realizada',P+56,y+99);
+    ctx.fillText('Diferencia',P+56,y+131);
+    ctx.fillText('Cumplimiento',P+56,y+163);
+    ctx.fillStyle='#172B3A';ctx.font='700 15px Arial';ctx.textAlign='right';
+    ctx.fillText(fmtUnd(d.programada),P+40+resumenW-18,y+67);
+    ctx.fillText(fmtUnd(d.efectiva),P+40+resumenW-18,y+99);
+    ctx.fillStyle=diferenciaPrograma>=0?PAL.verde:PAL.rojo;
+    ctx.fillText(`${diferenciaPrograma>=0?'+':''}${formatearNumero(diferenciaPrograma)} und`,P+40+resumenW-18,y+131);
+    ctx.fillStyle='#172B3A';
+    ctx.fillText(pct(d.cumplimiento),P+40+resumenW-18,y+163);
+    ctx.textAlign='left';
+    ctx.fillStyle='#87949D';ctx.font='10px Arial';
+    ctx.fillText(`Cap. teórica ${formatearNumero(cascada.capacidadTeorica)} und · Cap. operativa ${formatearNumero(d.produccionNominal)} und`,P+56,y+188);
 
-    ctx.font = '22px Arial';
-    ctx.fillStyle = '#52606D';
-    ctx.fillText(
-      `${rec.linea || ''} · ${rec.fecha || ''} · ${rec.turno || ''} · Lote: ${rec.lote || '—'}`,
-      tituloX,
-      130
-    );
+    const mx=P+40+resumenW+28;
+    const mw=W-P-mx-40;
+    ctx.fillStyle='#172B3A';ctx.font='700 13px Arial';
+    ctx.fillText('MARCAS PRODUCIDAS',mx,y+55);
+    ctx.fillStyle='#667784';ctx.font='11px Arial';
+    ctx.fillText('Presentación / marca',mx,y+77);
+    ctx.textAlign='right';ctx.fillText('Producción',mx+mw,y+77);ctx.textAlign='left';
 
-    ctx.font = '17px Arial';
-    ctx.fillStyle = '#7B8794';
-    ctx.fillText(
-      `Supervisor / responsable del turno: ${rec.registradoPor || '—'}`,
-      tituloX,
-      160
-    );
+    let my=y+98;
+    let lineasUsadas=0;
+    const maxLineas=6;
 
+    for(const f of formatos){
+      if(lineasUsadas>=maxLineas)break;
+      ctx.fillStyle='#005B96';ctx.font='700 11px Arial';
+      ctx.fillText(`${rec.linea||state.currentLine||''} · ${f.presentacion}`,mx,my);
+      ctx.textAlign='right';ctx.fillText(fmtUnd(f.total),mx+mw,my);ctx.textAlign='left';
+      my+=19;lineasUsadas++;
 
-    /* ---------- tarjetas KPI ---------- */
+      for(const m of f.marcas){
+        if(lineasUsadas>=maxLineas)break;
+        ctx.fillStyle='#405261';ctx.font='11px Arial';
+        ctx.fillText(`• ${m.marca}`,mx+12,my);
+        ctx.textAlign='right';ctx.fillText(fmtUnd(m.efectiva),mx+mw,my);ctx.textAlign='left';
+        my+=18;lineasUsadas++;
+      }
+    }
 
-    const kpis = [
-      ['OEE', pct(d.oee), d.oee, METAS.oee],
-      ['Disponibilidad', pct(d.disponibilidad), d.disponibilidad, METAS.disponibilidad],
-      ['Rendimiento', pct(d.rendimiento), d.rendimiento, METAS.rendimiento],
-      ['Calidad', pct(d.calidad), d.calidad, METAS.calidad],
-      ['Producción total', `${formatearNumero(d.efectiva ?? rec.produccion?.efectiva)} u.`, null, null]
+    if(!formatos.length){
+      ctx.fillStyle='#87949D';ctx.font='11px Arial';
+      ctx.fillText('Sin producción efectiva registrada por marca.',mx,my);
+    }else if(formatos.reduce((a,f)=>a+1+f.marcas.length,0)>maxLineas){
+      ctx.fillStyle='#87949D';ctx.font='10px Arial';
+      ctx.fillText('… resto de marcas incluido en el total del turno.',mx,my);
+    }
+
+    ctx.strokeStyle='#DCE3E8';ctx.beginPath();ctx.moveTo(mx,y+181);ctx.lineTo(mx+mw,y+181);ctx.stroke();
+    ctx.fillStyle='#172B3A';ctx.font='700 12px Arial';ctx.fillText('TOTAL PRODUCIDO',mx,y+201);
+    ctx.textAlign='right';ctx.fillText(fmtUnd(totalMarcas||d.efectiva),mx+mw,y+201);ctx.textAlign='left';
+
+    y+=prodH+18;
+
+    /* ---------- KPI ---------- */
+    const kpis=[
+      ['OEE',d.oee,METAS.oee],
+      ['Disponibilidad',d.disponibilidad,METAS.disponibilidad],
+      ['Rendimiento',d.rendimiento,METAS.rendimiento],
+      ['Calidad',d.calidad,METAS.calidad],
+      ['Cumplimiento',d.cumplimiento,1]
     ];
+    const kw=(W-P*2-48)/5,ky=y;
+    kpis.forEach((k,i)=>{
+      const x=P+24+i*kw;
+      card(x,ky,kw-8,86);
+      ctx.fillStyle=colorSegunMeta(num(k[1]),num(k[2]));ctx.fillRect(x,ky,5,86);
+      ctx.fillStyle='#667784';ctx.font='12px Arial';ctx.fillText(k[0],x+14,ky+22);
+      ctx.fillStyle='#172B3A';ctx.font='700 22px Arial';ctx.fillText(pct(k[1]),x+14,ky+49);
+      ctx.fillStyle='#87949D';ctx.font='10px Arial';
+      const dif=(num(k[1])-num(k[2]))*100;
+      ctx.fillText(`${dif>=0?'▲':'▼'} ${Math.abs(dif).toFixed(1)} pts vs meta`,x+14,ky+70);
+    });
+    y+=104;
 
-    const cardW = 315;
-    const cardY = 185;
-    const cardGap = 20;
+    /* ---------- lectura del día ---------- */
+    card(P+24,y,W-P*2-48,68);
+    ctx.fillStyle='#005B96';ctx.font='700 12px Arial';ctx.fillText('LECTURA DEL DÍA',P+40,y+21);
+    ctx.fillStyle='#405261';ctx.font='12px Arial';
+    const lectura=`Programa ${formatearNumero(d.programada)} und · Producción ${formatearNumero(d.efectiva)} und · Cumplimiento ${pct(d.cumplimiento)}. Capacidad operativa ${formatearNumero(d.produccionNominal)} und. Cumplimiento del programa y aprovechamiento de capacidad son indicadores distintos.`;
+    wrap(lectura,P+40,y+42,W-P*2-80,15,2);
+    y+=86;
 
-    kpis.forEach((k, i) => {
+    /* ---------- gráficos principales ---------- */
+    const colW=(W-P*2-72)/2,gh=292;
+    [['chart-cascada','¿DÓNDE SE PERDIÓ LA PRODUCCIÓN?'],['chart-paradas','PARETO DE PARADAS']].forEach((it,i)=>{
+      const x=P+24+i*(colW+24);card(x,y,colW,gh);
+      ctx.fillStyle='#172B3A';ctx.font='700 13px Arial';ctx.fillText(it[1],x+16,y+24);
+      const im=imgs[it[0]];
+      if(im){
+        const mw2=colW-28,mh=gh-47,sc=Math.min(mw2/im.width,mh/im.height);
+        ctx.drawImage(im,x+(colW-im.width*sc)/2,y+35,im.width*sc,im.height*sc);
+      }
+    });
+    y+=gh+18;
 
-      const x = 75 + i * (cardW + cardGap);
+    /* ---------- merma + consumo ---------- */
+    const dh=255;
+    card(P+24,y,colW,dh);
+    ctx.fillStyle='#172B3A';ctx.font='700 13px Arial';ctx.fillText('MERMA DE INSUMOS',P+40,y+24);
+    if(imgs['chart-mermas']){
+      const im=imgs['chart-mermas'],mw2=colW-28,mh=dh-45,sc=Math.min(mw2/im.width,mh/im.height);
+      ctx.drawImage(im,P+24+(colW-im.width*sc)/2,y+34,im.width*sc,im.height*sc);
+    }
 
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(x, cardY, cardW, 85);
+    const tx=P+24+colW+24;
+    card(tx,y,colW,dh);
+    ctx.fillStyle='#172B3A';ctx.font='700 13px Arial';ctx.fillText('CONSUMO DE INSUMOS',tx+16,y+24);
+    const prod=Math.max(num(d.efectiva),1);
+    const filas=[
+      ['Cajas preformas','cajas',insumos.cajasPreformas],
+      ['Planchas cartón','und',insumos.planchasCarton],
+      ['Polietileno','kg',insumos.polietilenoKg],
+      ['Stretch film','kg',insumos.stretchFilmKg],
+      ['Cartón reciclado','und',insumos.cartonReciclado],
+      ['Cartón real utilizado','und',insumos.cartonRealUtilizado]
+    ].filter(r=>num(r[2])>0);
 
-      ctx.strokeStyle = '#D9E2EC';
-      ctx.strokeRect(x, cardY, cardW, 85);
+    ctx.font='10px Arial';ctx.fillStyle='#667784';
+    ctx.fillText('Insumo',tx+16,y+48);ctx.fillText('Unidad',tx+240,y+48);
+    ctx.fillText('Cantidad',tx+330,y+48);ctx.fillText('x 1,000 u.',tx+430,y+48);
+    let ry=y+70;
+    filas.forEach(r=>{
+      ctx.fillStyle='#405261';
+      ctx.fillText(r[0],tx+16,ry);ctx.fillText(r[1],tx+240,ry);
+      ctx.fillText(num(r[2]).toFixed(r[1]==='kg'?1:0),tx+330,ry);
+      ctx.fillText((num(r[2])/prod*1000).toFixed(2),tx+430,ry);
+      ctx.strokeStyle='#EAEEF1';ctx.beginPath();ctx.moveTo(tx+16,ry+8);ctx.lineTo(tx+colW-16,ry+8);ctx.stroke();
+      ry+=27;
+    });
+    if(!filas.length){ctx.fillStyle='#87949D';ctx.fillText('Sin consumos registrados.',tx+16,ry);}
+    y+=dh+18;
 
-      /* Franja de color a la izquierda según semáforo (solo KPIs con meta). */
-      ctx.fillStyle =
-        k[2] !== null
-          ? colorSegunMeta(k[2], k[3])
-          : PAL.azul;
+    /* ---------- análisis compacto al final ---------- */
+    const ah=Math.max(245,H-y-92);
+    card(P+24,y,W-P*2-48,ah);
+    ctx.fillStyle='#005B96';ctx.font='700 14px Arial';ctx.fillText('ANÁLISIS Y ACCIÓN PARA MAÑANA',P+40,y+25);
+    ctx.fillStyle=analisis.estado==='AUTOMÁTICO'?'#EAF5FC':'#FFF1D6';ctx.fillRect(W-P-210,y+9,145,23);
+    ctx.fillStyle='#405261';ctx.font='700 9px Arial';ctx.fillText(analisis.estado,W-P-198,y+25);
 
-      ctx.fillRect(x, cardY, 5, 85);
-
-      ctx.fillStyle = '#7B8794';
-      ctx.font = '16px Arial';
-      ctx.fillText(k[0], x + 18, cardY + 28);
-
-      ctx.fillStyle = '#1F2933';
-      ctx.font = 'bold 25px Arial';
-      ctx.fillText(k[1], x + 18, cardY + 62);
-
+    const mitad=(W-P*2-88)/2;
+    ctx.fillStyle='#172B3A';ctx.font='700 11px Arial';ctx.fillText('Hallazgos del reporte',P+40,y+52);
+    ctx.fillStyle='#405261';ctx.font='10px Arial';
+    let ay=y+72;
+    analisis.hallazgos.slice(0,3).forEach(h=>{
+      wrap('• '+h,P+48,ay,mitad,14,2);ay+=31;
     });
 
-
-    /* ---------- producción por marca ---------- */
-
-    if(marcaProd.filas.length){
-
-      const seccY = cardY + 85 + 34;
-
-      ctx.fillStyle = '#1F2933';
-      ctx.font = 'bold 16px Arial';
-      ctx.fillText(
-        `PRODUCCIÓN POR MARCA · Total del turno: ${formatearNumero(marcaProd.total)} u.`,
-        tituloX,
-        seccY
-      );
-
-      const filaW = (W - 80 - 70) / 4;
-      const maxVal = Math.max(...marcaProd.filas.map(f => f.efectiva), 1);
-
-      marcaProd.filas.forEach((f, i) => {
-
-        const col = i % 4;
-        const fila = Math.floor(i / 4);
-
-        const x = tituloX + col * filaW;
-        const y = seccY + 26 + fila * 40;
-
-        const pctMarca =
-          marcaProd.total > 0
-            ? Math.round((f.efectiva / marcaProd.total) * 100)
-            : 0;
-
-        /* barra mini de proporción */
-        const barMaxW = filaW - 20;
-        const barW = Math.max(4, barMaxW * (f.efectiva / maxVal));
-
-        ctx.fillStyle = '#E8EAE4';
-        ctx.fillRect(x, y, barMaxW, 8);
-
-        ctx.fillStyle = PAL.azul;
-        ctx.fillRect(x, y, barW, 8);
-
-        ctx.fillStyle = '#1F2933';
-        ctx.font = '600 14px Arial';
-        ctx.textAlign = 'left';
-
-        let etiqueta = `${f.marca}: ${formatearNumero(f.efectiva)} u. (${pctMarca}%)`;
-
-        while(
-          etiqueta.length > 1 &&
-          ctx.measureText(etiqueta).width > barMaxW
-        ){
-          etiqueta = etiqueta.slice(0, -1);
-        }
-
-        if(etiqueta.length < `${f.marca}: ${formatearNumero(f.efectiva)} u. (${pctMarca}%)`.length){
-          etiqueta = etiqueta.trimEnd() + '…';
-        }
-
-        ctx.fillText(etiqueta, x, y - 6);
-
+    const ax=P+56+mitad;
+    ctx.fillStyle='#172B3A';ctx.font='700 11px Arial';ctx.fillText('Acción sugerida para mañana',ax,y+52);
+    ctx.fillStyle='#405261';ctx.font='10px Arial';
+    let aay=y+72;
+    if(analisis.textoEditado){
+      wrap(analisis.textoEditado,ax,aay,mitad-8,14,7);
+    }else{
+      analisis.acciones.slice(0,3).forEach((a,i)=>{
+        wrap(`${i+1}. ${a.dato} → ${a.texto}`,ax,aay,mitad-8,14,3);aay+=46;
       });
-
     }
 
+    ctx.fillStyle='#87949D';ctx.font='9px Arial';
+    ctx.fillText('Sugerencias automáticas para revisión del supervisor; no sustituyen la validación operativa.',P+40,y+ah-14);
 
-    /* ---------- cuadros de graficos + mini resumen ---------- */
+    ctx.fillStyle='#87949D';ctx.font='9px Arial';
+    ctx.fillText(`Producción total: ${formatearNumero(d.efectiva)} und · Capacidad teórica: ${formatearNumero(cascada.capacidadTeorica)} und · Capacidad operativa: ${formatearNumero(d.produccionNominal)} und`,P+24,H-47);
+    ctx.textAlign='right';ctx.fillText('GLACIAL · Control de Producción',W-P-24,H-47);ctx.textAlign='left';
 
-    for(let i = 0; i < imagenes.length; i++){
-
-      const item = imagenes[i];
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const x = 40 + col * (boxW + gap);
-      const y = headerH + gap + row * (boxH + gap);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(x, y, boxW, boxH);
-
-      ctx.strokeStyle = '#D9E2EC';
-      ctx.strokeRect(x, y, boxW, boxH);
-
-      ctx.fillStyle = PAL.azul;
-      ctx.fillRect(x, y, boxW, 4);
-
-      ctx.fillStyle = '#1F2933';
-      ctx.font = 'bold 20px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(item.titulo, x + 20, y + 36);
-
-      const resumenH = 64;
-      const maxW = boxW - 40;
-      const maxH = boxH - 65 - resumenH;
-
-      const scale = Math.min(
-        maxW / item.img.width,
-        maxH / item.img.height
-      );
-
-      const iw = item.img.width * scale;
-      const ih = item.img.height * scale;
-      const ix = x + (boxW - iw) / 2;
-      const iy = y + 48 + (maxH - ih) / 2;
-
-      ctx.drawImage(item.img, ix, iy, iw, ih);
-
-      /* franja de resumen, abajo del gráfico */
-
-      const resumenY = y + boxH - resumenH;
-
-      ctx.fillStyle = '#F8FAFB';
-      ctx.fillRect(x + 1, resumenY, boxW - 2, resumenH - 1);
-
-      ctx.strokeStyle = '#EAEEF1';
-      ctx.beginPath();
-      ctx.moveTo(x, resumenY);
-      ctx.lineTo(x + boxW, resumenY);
-      ctx.stroke();
-
-      ctx.fillStyle = '#3A4551';
-      ctx.font = '13px Arial';
-      ctx.textAlign = 'left';
-
-      xlDibujarTextoAjustado(
-        ctx,
-        resumenes[item.id] || '',
-        x + 20,
-        resumenY + 24,
-        boxW - 40,
-        20,
-        2
-      );
-
-    }
-
-
-    /* ---------- pie de página ---------- */
-
-    const ahora = new Date();
-    const generadoPor =
-      (state.user && (state.user.nombre || state.user.username)) || 'GLACIAL';
-
-    ctx.fillStyle = '#9AA5B1';
-    ctx.font = '13px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(
-      `Generado el ${ahora.toLocaleDateString('es-PE')} ${ahora.toLocaleTimeString('es-PE')} por ${generadoPor} · Sistema GLACIAL`,
-      40,
-      H - 18
-    );
-
-    ctx.textAlign = 'right';
-    ctx.fillText(
-      'Documento de uso interno',
-      W - 40,
-      H - 18
-    );
-    ctx.textAlign = 'left';
-
-
-    canvas.toBlob(blob => {
-
-      if(!blob){
-        alert('No se pudo generar la imagen PNG.');
-        return;
-      }
-
-      const fecha = nombreArchivoSeguro(rec.fecha || new Date().toISOString().slice(0,10));
-      const linea = nombreArchivoSeguro(rec.linea || state.currentLine);
-
-      descargarArchivo(
-        blob,
-        `Dashboard_Produccion_${linea}_${fecha}.png`
-      );
-
-    }, 'image/png');
+    canvas.toBlob(blob=>{
+      if(!blob){alert('No se pudo generar la imagen PNG.');return;}
+      const fecha=nombreArchivoSeguro(rec.fecha||new Date().toISOString().slice(0,10));
+      const linea=nombreArchivoSeguro(rec.linea||state.currentLine);
+      descargarArchivo(blob,`Reporte_Diario_${linea}_${fecha}.png`);
+    },'image/png');
 
   }catch(error){
-
     console.error(error);
-
-    alert('No se pudo generar el PNG. Verifica que los graficos estén visibles e inténtalo nuevamente.');
-
+    alert('No se pudo generar el PNG. Verifica que los gráficos estén visibles e inténtalo nuevamente.');
   }
-
 }
 
 
@@ -4091,6 +4121,14 @@ function renderGraficosTab(){
       </div>
 
 
+      <div class="chart-box" style="grid-column:1/-1;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+          <h4 style="margin:0;">Análisis y acción para mañana</h4>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="editarSugerenciaReporte()">Editar sugerencia</button>
+        </div>
+        <div id="reporte-analisis-accion" class="small-muted" style="margin-top:12px;line-height:1.55;"></div>
+      </div>
+
       <div class="chart-box">
 
         <div
@@ -4159,6 +4197,15 @@ function renderGraficosTab(){
 
 
   destroyCharts();
+
+  const analisisUI = construirAnalisisAccionReporte(rec, d);
+  const analisisEl = document.getElementById('reporte-analisis-accion');
+  if(analisisEl){
+    const accionesTexto = analisisUI.textoEditado
+      ? escaparHtml(analisisUI.textoEditado).replace(/\n/g,'<br>')
+      : analisisUI.acciones.map((a,i)=>`<div style="margin-top:6px;"><b>${i+1}. ${escaparHtml(a.dato)}</b> → ${escaparHtml(a.texto)}</div>`).join('');
+    analisisEl.innerHTML = `<div><b>Hallazgos:</b> ${analisisUI.hallazgos.map(escaparHtml).join(' · ')}</div><div style="margin-top:8px;"><b>Acciones:</b>${accionesTexto}</div><div style="margin-top:8px;font-size:10px;font-weight:700;">${analisisUI.estado}</div>`;
+  }
 
 
   const F = {

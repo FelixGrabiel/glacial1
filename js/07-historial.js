@@ -3,371 +3,316 @@
    Parte del sistema GLACIAL — dividido a partir de app.js
    ============================================================= */
 
-
 /* =========================================================
-   HISTORIAL
+   HISTORIAL — REDISEÑO VISUAL
+   1 fila = 1 registro real. No altera Firebase ni cálculos.
    ========================================================= */
 
-function renderHistorialTab(){
+function histEsc(v){
+  return String(v ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
 
-  const c =
-    document.getElementById(
-      'tab-content'
-    );
+function histCuadrosActivos(r){
+  normalizarCuadros(r);
+  const cuadros=Array.isArray(r.cuadros)?r.cuadros:[];
+  // En el desglose del historial solo mostramos cuadros realmente utilizados.
+  // normalizarCuadros() puede completar marca/presentación en cuadros vacíos,
+  // por eso esos campos por sí solos NO significan que hubo producción.
+  const activos=cuadros.filter(q=>{
+    if(!q)return false;
 
+    const programada=num(q.produccion?.programada);
+    const efectiva=num(q.produccion?.efectiva);
+    const tieneHoras=Boolean(String(q.horaInicio||'').trim() || String(q.horaFin||'').trim());
+    const tieneParadas=(Array.isArray(q.paradasProgramadas)&&q.paradasProgramadas.length>0) ||
+      (Array.isArray(q.paradasNoProgramadas)&&q.paradasNoProgramadas.length>0);
+    const finalizado=String(q.estadoCuadro||'').toUpperCase()==='FINALIZADO';
 
-  const records =
+    return programada>0 || efectiva>0 || tieneHoras || tieneParadas || finalizado;
+  });
+  if(activos.length)return activos;
+  return [{
+    marca:r.marca||'',
+    presentacion:r.presentacion||'',
+    lote:r.lote||'',
+    produccion:r.produccion||{}
+  }];
+}
 
-    loadRecords()
+function histPresentacionNombre(r,q){
+  const valor=q?.presentacion || r?.presentacion || '';
+  if(typeof nombrePresentacionUI==='function'){
+    try{return nombrePresentacionUI(r.linea,q?.marca||r.marca,valor)||valor||'—';}catch(e){}
+  }
+  return String(valor||'—').replaceAll('_',' ');
+}
 
-      .filter(
-        r => r.linea === state.currentLine
-      )
+function histPresentaciones(r){
+  return [...new Set(
+    histCuadrosActivos(r)
+      .map(q=>histPresentacionNombre(r,q))
+      .filter(v=>v&&v!=='—')
+  )];
+}
 
-      .sort(
-        (a,b) =>
-          (b.timestamp || '')
-            .localeCompare(
-              a.timestamp || ''
-            )
-      );
+/* Compatibilidad con llamadas anteriores del historial. */
+function histAplicarFiltros(){
+  const fecha=document.getElementById('hist-f-fecha');
+  if(fecha)fecha.dispatchEvent(new Event('change',{bubbles:true}));
+}
 
+function histLimpiarFiltros(){
+  document.getElementById('hist-f-limpiar')?.click();
+}
 
-  if(records.length === 0){
+function histEstadoTexto(r){
+  return String(r.estadoRegistro||'FINALIZADO').replaceAll('_',' ');
+}
 
-    c.innerHTML = `
-
-      <div class="panel">
-
-        <div class="empty-state">
-
-          <h4>
-            Sin registros todavía
-          </h4>
-
-          <p>
-            Los reportes que guardes
-            en "Nuevo registro"
-            para esta línea
-            aparecerán aquí.
-          </p>
-
-        </div>
-
-      </div>
-
-    `;
-
-    return;
-
+function histDetallePresentaciones(r){
+  const cuadros=histCuadrosActivos(r);
+  if(!cuadros.length){
+    return `<div class="hist-v2-detail-empty">Sin desglose de producción registrado.</div>`;
   }
 
-
-  c.innerHTML = `
-
-    <div class="panel">
-
-      <div
-        class="panel-body"
-        style="padding:0;"
-      >
-
-        <table>
-
-          <thead>
-
-            <tr>
-
-              <th>
-                Fecha
-              </th>
-
-              <th>
-                Día juliano
-              </th>
-
-              <th>
-                Semana
-              </th>
-
-              <th>
-                Turno
-              </th>
-
-              <th>
-                Estado
-              </th>
-
-              <th>
-                Marca
-              </th>
-
-              <th>
-                Presentación
-              </th>
-
-              <th>
-                Lote
-              </th>
-
-              <th>
-                Prod. efectiva
-              </th>
-
-              <th>
-                OEE
-              </th>
-
-              <th>
-                Evidencias PT
-              </th>
-
-              <th>
-                Registrado por
-              </th>
-
-              <th>
-              </th>
-
-            </tr>
-
-          </thead>
-
-
-          <tbody>
-
-            ${
-
-              records.map(
-
-                r => {
-
-                  normalizarCuadros(r);
-
-                  const d =
-                    calcDerived(r);
-
-
-                  const q1 =
-                    r.cuadros?.find(
-                      q =>
-                        num(q.produccion?.efectiva) > 0 ||
-                        q.marca ||
-                        q.presentacion
-                    )
-                    ||
-                    r.cuadros?.[0]
-                    ||
-                    {};
-
-
-                  const diaAño =
-                    r.diaJuliano ||
-                    obtenerDiaDelAño(
-                      r.fecha
-                    );
-
-
-                  const semana =
-                    r.semana ||
-                    obtenerSemana(
-                      r.fecha
-                    );
-
-
-                  const evidencias =
-                    Array.isArray(
-                      r.evidenciasPT
-                    )
-                      ? r.evidenciasPT
-                      : [];
-
-
-                  const cantidadEvidencias =
-                    evidencias.length;
-
-
-                  return `
-
-                    <tr class="hist-row">
-
-                      <td>
-                        ${r.fecha}
-                      </td>
-
-
-                      <td>
-                        ${diaAño || '—'}
-                      </td>
-
-
-                      <td>
-                        ${semana || '—'}
-                      </td>
-
-
-                      <td>
-                        ${r.turno}
-                      </td>
-
-                      <td>
-                        <span class="reporte-estado-badge ${(r.estadoRegistro||'FINALIZADO').toLowerCase()}">
-                          ${(r.estadoRegistro||'FINALIZADO').replaceAll('_',' ')}
-                        </span>
-                      </td>
-
-                      <td>
-                        ${r.marca || '—'}
-                      </td>
-
-
-                      <td>
-                        ${r.presentacion || '—'}
-                      </td>
-
-
-                      <td>
-                        <strong>
-                          ${
-                            q1.lote ||
-                            r.lote ||
-                            '—'
-                          }
-                        </strong>
-                      </td>
-
-
-                      <td>
-                        ${
-                          num(
-                            d.efectiva ??
-                            r.produccion?.efectiva
-                          )
-                          .toLocaleString(
-                            'es-PE'
-                          )
-                        }
-                      </td>
-
-
-                      <td>
-
-                        <span
-                          class="
-                            badge
-                            ${badgeClass(d.oee)}
-                          "
-                        >
-                          ${pct(d.oee)}
-                        </span>
-
-                      </td>
-
-
-                      <td>
-
-                        ${
-                          cantidadEvidencias > 0
-
-                            ? `
-
-                              <button
-                                type="button"
-                                onclick="
-                                  event.stopPropagation();
-                                  verEvidenciasPTHistorial(
-                                    '${r.id}'
-                                  )
-                                "
-                                style="
-                                  border:1px solid #B9DEC9;
-                                  background:#ECF9F1;
-                                  color:#168052;
-                                  border-radius:6px;
-                                  padding:5px 9px;
-                                  cursor:pointer;
-                                  font-size:12px;
-                                  font-weight:600;
-                                  white-space:nowrap;
-                                "
-                              >
-                                📷
-                                ${cantidadEvidencias}
-                                archivo${cantidadEvidencias === 1 ? '' : 's'}
-                              </button>
-
-                            `
-
-                            : `
-
-                              <span
-                                style="
-                                  display:inline-flex;
-                                  align-items:center;
-                                  gap:5px;
-                                  padding:5px 8px;
-                                  border-radius:6px;
-                                  background:#FFF4F4;
-                                  color:#B33A3A;
-                                  font-size:12px;
-                                  font-weight:600;
-                                  white-space:nowrap;
-                                "
-                              >
-                                🔴 Sin archivos
-                              </span>
-
-                            `
-                        }
-
-                      </td>
-
-
-                      <td
-                        class="small-muted"
-                      >
-                        ${
-                          r.registradoPor ||
-                          '—'
-                        }
-                      </td>
-
-
-                      <td>
-  <div class="hist-actions">
-    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();verReporteHistorial('${r.id}')">👁 Ver reporte</button>
-    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();vergraficosHistorial('${r.id}')">📊 graficos</button>
-    ${r.estadoRegistro==='REABIERTO'
-      ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();cargarReporteParaCorreccion('${r.id}')">✏️ Continuar</button>`
-      : ''}
-    ${r.estadoRegistro==='FINALIZADO' && typeof usuarioPuedeReabrirReporte==='function' && usuarioPuedeReabrirReporte()
-      ? `<button class="btn btn-ghost btn-sm" title="Reabrir reporte" onclick="event.stopPropagation();reabrirReporteProduccion('${r.id}')">🔓</button>`
-      : ''}
-    <button class="row-del" onclick="event.stopPropagation();deleteRecord('${r.id}')">✕</button>
-  </div>
-</td>
-
-
-                    </tr>
-
-                  `;
-
-                }
-
-              ).join('')
-
-            }
-
-          </tbody>
-
-        </table>
-
+  return `
+    <div class="hist-v2-detail-grid">
+      ${cuadros.map((q,i)=>`
+        <div class="hist-v2-detail-card">
+          <div class="hist-v2-detail-top">
+            <span class="hist-v2-detail-number">${String(q.numero||i+1).padStart(2,'0')}</span>
+            <div>
+              <strong>${histEsc(q.marca||r.marca||'Sin marca')}</strong>
+              <small>${histEsc(q.presentacion||r.presentacion||'Sin formato')}</small>
+            </div>
+          </div>
+          <div class="hist-v2-detail-data">
+            <span><small>Lote</small><b>${histEsc(q.lote||r.lote||'—')}</b></span>
+            <span><small>Programada</small><b>${Math.round(num(q.produccion?.programada)).toLocaleString('es-PE')} UND</b></span>
+            <span><small>Producida</small><b>${Math.round(num(q.produccion?.efectiva)).toLocaleString('es-PE')} UND</b></span>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function histToggleDetalle(id,btn){
+  const fila=document.getElementById(`hist-detalle-${id}`);
+  if(!fila)return;
+  const abrir=fila.hidden;
+  fila.hidden=!abrir;
+  if(btn){
+    btn.classList.toggle('is-open',abrir);
+    btn.setAttribute('aria-expanded',abrir?'true':'false');
+  }
+}
+
+function histAbrirCalendario(){
+  const input=document.getElementById('hist-f-fecha');
+  if(!input)return;
+  if(typeof input.showPicker==='function'){
+    input.showPicker();
+  }else{
+    input.focus();
+    input.click();
+  }
+}
+
+function renderHistorialTab(){
+  const c=document.getElementById('tab-content');
+
+  const base=loadRecords()
+    .filter(r=>r.linea===state.currentLine)
+    .sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
+
+  if(base.length===0){
+    c.innerHTML=`
+      <div class="panel">
+        <div class="empty-state">
+          <h4>Sin registros todavía</h4>
+          <p>Los reportes que guardes en "Nuevo registro" para esta línea aparecerán aquí.</p>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const turnos=[...new Set(base.map(r=>r.turno).filter(Boolean))];
+  const estados=[...new Set(base.map(histEstadoTexto).filter(Boolean))];
+
+  c.innerHTML=`
+    <section class="historial-produccion-page">
+      <div class="hist-v2-head">
+        <div>
+          <span class="hist-v2-eyebrow">CONTROL DE PRODUCCIÓN</span>
+          <h2>Historial de producción por línea</h2>
+          <p>${histEsc(state.currentLine||'')} · Consulta de reportes registrados</p>
+        </div>
+
+        <div class="hist-v2-head-tools">
+          <span class="hist-v2-count"><strong id="hist-v2-visible-count">${base.length}</strong><span>registros</span></span>
+
+          <div class="hist-v2-quick-filters" aria-label="Filtros del historial">
+            <div class="hist-v2-calendar-wrap">
+              <input type="date" id="hist-f-fecha" class="hist-v2-date-input" aria-label="Filtrar por fecha">
+              <button type="button" class="hist-v2-calendar-btn" id="hist-f-calendar" title="Escoger día" aria-label="Escoger día">📅</button>
+            </div>
+
+            <select id="hist-f-turno" class="hist-v2-mini-select" aria-label="Filtrar por turno" title="Turno">
+              <option value="">Turno: todos</option>
+              ${turnos.map(v=>`<option value="${histEsc(v)}">${histEsc(v)}</option>`).join('')}
+            </select>
+
+            <select id="hist-f-estado" class="hist-v2-mini-select" aria-label="Filtrar por estado" title="Estado">
+              <option value="">Estado: todos</option>
+              ${estados.map(v=>`<option value="${histEsc(v)}">${histEsc(v)}</option>`).join('')}
+            </select>
+
+            <button type="button" class="hist-v2-clear-filter" id="hist-f-limpiar" title="Limpiar filtros" aria-label="Limpiar filtros">×</button>
+          </div>
+        </div>
       </div>
 
-    </div>
+      <div class="hist-v2-active-date" id="hist-v2-active-date" hidden></div>
 
-  `;
+      <div class="hist-v2-table-card">
+        <div class="hist-v2-table-scroll">
+          <table class="hist-v2-table">
+            <thead>
+              <tr>
+                <th class="hist-v2-expand-col"></th>
+                <th>Fecha</th>
+                <th>Turno</th>
+                <th>Estado</th>
+                <th>Producción</th>
+                <th>OEE</th>
+                <th>Evidencias</th>
+                <th>Registrado por</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="hist-v2-body">
+              ${base.map(r=>{
+                normalizarCuadros(r);
+                const d=calcDerived(r);
+                const evidencias=Array.isArray(r.evidenciasPT)?r.evidenciasPT:[];
+                const estado=histEstadoTexto(r);
 
+                return `
+                  <tr class="hist-v2-row"
+                      data-fecha="${histEsc(r.fecha)}"
+                      data-turno="${histEsc(r.turno)}"
+                      data-estado="${histEsc(estado)}">
+                    <td>
+                      <button type="button" class="hist-v2-expand" aria-expanded="false" title="Ver marcas y formatos producidos" onclick="event.stopPropagation();histToggleDetalle('${r.id}',this)">›</button>
+                    </td>
+                    <td><strong class="hist-v2-date">${histEsc(r.fecha)}</strong></td>
+                    <td><span class="hist-v2-shift">${histEsc(r.turno||'—')}</span></td>
+                    <td><span class="reporte-estado-badge ${(r.estadoRegistro||'FINALIZADO').toLowerCase()}">${histEsc(estado)}</span></td>
+                    <td><strong class="hist-v2-production">${Math.round(num(d.efectiva ?? r.produccion?.efectiva)).toLocaleString('es-PE')}</strong><small class="hist-v2-unit"> UND</small></td>
+                    <td><span class="badge ${badgeClass(d.oee)}">${pct(d.oee)}</span></td>
+                    <td>
+                      ${evidencias.length
+                        ? `<button type="button" class="hist-v2-evidence has-files" onclick="event.stopPropagation();verEvidenciasPTHistorial('${r.id}')">📷 ${evidencias.length} archivo${evidencias.length===1?'':'s'}</button>`
+                        : `<span class="hist-v2-evidence no-files">● Sin archivos</span>`}
+                    </td>
+                    <td><span class="hist-v2-user">${histEsc(r.registradoPor||'—')}</span></td>
+                    <td>
+                      <div class="hist-actions hist-v2-actions">
+                        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();verReporteHistorial('${r.id}')">👁 Ver reporte</button>
+                        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();vergraficosHistorial('${r.id}')">📊 Gráficos</button>
+                        ${r.estadoRegistro==='REABIERTO'
+                          ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();cargarReporteParaCorreccion('${r.id}')">✏️ Continuar</button>`
+                          : ''}
+                        ${r.estadoRegistro==='FINALIZADO' && typeof usuarioPuedeReabrirReporte==='function' && usuarioPuedeReabrirReporte()
+                          ? `<button class="btn btn-ghost btn-sm" title="Reabrir reporte" onclick="event.stopPropagation();reabrirReporteProduccion('${r.id}')">🔓</button>`
+                          : ''}
+                        <button class="row-del" title="Eliminar" onclick="event.stopPropagation();deleteRecord('${r.id}')">✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr id="hist-detalle-${r.id}" class="hist-v2-detail-row" hidden>
+                    <td colspan="9">
+                      <div class="hist-v2-detail-wrap">
+                        <div class="hist-v2-detail-heading">
+                          <strong>Marcas / formatos producidos</strong>
+                          <span>Desglose real del registro seleccionado.</span>
+                        </div>
+                        ${histDetallePresentaciones(r)}
+                      </div>
+                    </td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+
+          <div class="hist-v2-no-results" id="hist-v2-no-results" hidden>
+            No hay registros que coincidan con los filtros seleccionados.
+          </div>
+        </div>
+      </div>
+    </section>`;
+
+  const aplicar=()=>{
+    const fecha=document.getElementById('hist-f-fecha')?.value||'';
+    const turno=document.getElementById('hist-f-turno')?.value||'';
+    const estado=document.getElementById('hist-f-estado')?.value||'';
+    let visibles=0;
+
+    document.querySelectorAll('.hist-v2-row').forEach(row=>{
+      const ok=(!fecha||row.dataset.fecha===fecha) &&
+               (!turno||row.dataset.turno===turno) &&
+               (!estado||row.dataset.estado===estado);
+
+      row.hidden=!ok;
+
+      const detalle=row.nextElementSibling;
+      if(detalle?.classList.contains('hist-v2-detail-row')&&!ok){
+        detalle.hidden=true;
+        row.querySelector('.hist-v2-expand')?.classList.remove('is-open');
+        row.querySelector('.hist-v2-expand')?.setAttribute('aria-expanded','false');
+      }
+
+      if(ok)visibles++;
+    });
+
+    const vacio=document.getElementById('hist-v2-no-results');
+    if(vacio)vacio.hidden=visibles!==0;
+
+    const contador=document.getElementById('hist-v2-visible-count');
+    if(contador)contador.textContent=visibles;
+
+    const fechaActiva=document.getElementById('hist-v2-active-date');
+    if(fechaActiva){
+      if(fecha){
+        const [y,m,d]=fecha.split('-');
+        fechaActiva.innerHTML=`<span>📅 ${d}/${m}/${y}</span><button type="button" id="hist-f-quitar-fecha" aria-label="Quitar filtro de fecha">×</button>`;
+        fechaActiva.hidden=false;
+        document.getElementById('hist-f-quitar-fecha')?.addEventListener('click',()=>{
+          const input=document.getElementById('hist-f-fecha');
+          if(input)input.value='';
+          aplicar();
+        });
+      }else{
+        fechaActiva.hidden=true;
+        fechaActiva.innerHTML='';
+      }
+    }
+  };
+
+  document.getElementById('hist-f-calendar')?.addEventListener('click',histAbrirCalendario);
+  document.getElementById('hist-f-fecha')?.addEventListener('change',aplicar);
+  document.getElementById('hist-f-turno')?.addEventListener('change',aplicar);
+  document.getElementById('hist-f-estado')?.addEventListener('change',aplicar);
+  document.getElementById('hist-f-limpiar')?.addEventListener('click',()=>{
+    const fecha=document.getElementById('hist-f-fecha');
+    const turno=document.getElementById('hist-f-turno');
+    const estado=document.getElementById('hist-f-estado');
+    if(fecha)fecha.value='';
+    if(turno)turno.value='';
+    if(estado)estado.value='';
+    aplicar();
+  });
 }
 
 

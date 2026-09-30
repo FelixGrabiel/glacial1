@@ -4982,3 +4982,148 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
     text-align:left;
   }
 }
+
+/* =========================================================
+   HISTORIAL DE PRODUCCIÓN POR LÍNEA — REDISEÑO 2026
+   Encapsulado: no modifica tablas de otros módulos.
+   ========================================================= */
+.historial-produccion-page{--hist-azul:#123d70;--hist-azul-2:#0b2f59;--hist-borde:#d9e3ec;--hist-texto:#17324d;--hist-muted:#66798c;color:var(--hist-texto);padding:4px 0 24px}
+.hist-v2-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:0 0 16px;padding:0 4px}
+.hist-v2-heading h2{margin:0;color:#102f57;font-size:29px;line-height:1.1;letter-spacing:-.5px}
+.hist-v2-heading p{margin:5px 0 0;color:var(--hist-muted);font-size:14px}
+.hist-v2-filters{display:grid;grid-template-columns:1.05fr 1.05fr 1fr 1.15fr 1fr auto;gap:14px;align-items:end;padding:15px 17px;background:#fff;border:1px solid var(--hist-borde);border-radius:10px;box-shadow:0 2px 10px rgba(15,47,82,.04);margin-bottom:14px}
+.hist-v2-filters label{display:grid;gap:6px;min-width:0}.hist-v2-filters label>span{font-size:12px;font-weight:700;color:#274766}
+.hist-v2-filters input,.hist-v2-filters select{width:100%;height:40px;box-sizing:border-box;border:1px solid #cdd9e4;border-radius:7px;background:#fff;color:#17324d;padding:0 11px;font:inherit;font-size:13px;outline:none}
+.hist-v2-filters input:focus,.hist-v2-filters select:focus{border-color:#4f83bd;box-shadow:0 0 0 3px rgba(47,113,180,.10)}
+.hist-v2-filter-actions{display:flex;gap:7px;align-items:center}.hist-v2-filter-btn{height:40px;min-width:126px;border:0;border-radius:7px;background:linear-gradient(180deg,#174a82,#0f3868);color:#fff;font-weight:700;cursor:pointer;padding:0 18px;box-shadow:0 2px 5px rgba(15,56,104,.18)}
+.hist-v2-clear-btn{height:40px;border:1px solid #d6e0e9;border-radius:7px;background:#fff;color:#526b82;font-weight:600;cursor:pointer;padding:0 10px}
+.hist-v2-table-card{background:#fff;border:1px solid var(--hist-borde);border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(15,47,82,.04)}
+.hist-v2-table-scroll{overflow-x:auto;overscroll-behavior-inline:contain}.hist-v2-table{width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;margin:0}
+.hist-v2-table thead th{height:44px;padding:0 12px;background:#f7f9fb;border-bottom:1px solid #dce5ed;color:#36546f;font-size:11px;font-weight:700;text-align:left;white-space:nowrap}
+.hist-v2-table tbody td{padding:10px 12px;border-bottom:1px solid #e5ebf0;color:#183650;font-size:12px;vertical-align:middle;background:#fff}
+.hist-v2-row:hover>td{background:#f5faff}.hist-v2-toggle-cell{width:32px!important;padding-right:2px!important}.hist-v2-toggle{width:27px;height:27px;border:0;background:transparent;border-radius:50%;color:#174a82;font-size:25px;line-height:22px;cursor:pointer;transition:.18s transform,.18s background}.hist-v2-toggle:hover{background:#eaf3fb}.hist-v2-toggle.is-open{transform:rotate(90deg);background:#eaf3fb}
+.hist-v2-presentaciones{display:flex;align-items:center;gap:6px;white-space:nowrap;color:#234d77;font-weight:600}.hist-v2-presentaciones i{font-style:normal;color:#9aabba}.hist-v2-unit{color:#728496;font-size:10px;font-weight:700}
+.hist-v2-evidence{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}.hist-v2-evidence.has-files{border:1px solid #cfe0f4;background:#eef6ff;color:#175ca4;cursor:pointer}.hist-v2-evidence.no-files{background:#f1f4f6;color:#81909d}.hist-v2-user{white-space:nowrap;color:#50687d!important}
+.hist-v2-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}.hist-v2-actions .btn{min-height:31px;padding:5px 9px;border-color:#c9d9e8;color:#174a82;background:#fff;font-size:11px}.hist-v2-actions .btn:hover{background:#eef6ff;border-color:#9ebcda}.hist-v2-icon-btn{min-width:31px!important;padding:5px!important}
+.hist-v2-detail-row>td{padding:0 12px 12px 46px!important;background:#f7fbff!important}.hist-v2-detail-card{border:1px solid #cfe0ef;border-radius:8px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(17,63,104,.04)}.hist-v2-detail-head{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 15px;background:#f3f8fc;border-bottom:1px solid #d9e5ef}.hist-v2-detail-head strong{display:block;color:#153e68;font-size:13px}.hist-v2-detail-head small{display:block;margin-top:3px;color:#728496;font-size:10px}.hist-v2-detail-head>span{padding:4px 8px;border-radius:999px;background:#e3effa;color:#225c91;font-size:10px;font-weight:700;white-space:nowrap}.hist-v2-detail-scroll{overflow-x:auto}.hist-v2-detail-card table{width:100%;min-width:650px;border-collapse:collapse}.hist-v2-detail-card th,.hist-v2-detail-card td{padding:9px 14px!important;border-bottom:1px solid #e7edf2!important;text-align:left;font-size:11px!important}.hist-v2-detail-card th{background:#fff!important;color:#577087!important;font-weight:700}.hist-v2-detail-card tbody tr:last-child td{border-bottom:0!important}
+.hist-v2-table-foot{display:flex;justify-content:space-between;gap:16px;padding:9px 14px;background:#fafbfd;color:#7a8997;font-size:10px}.hist-v2-empty{text-align:center;padding:28px;color:#718496}
+@media(max-width:1100px){.hist-v2-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.hist-v2-filter-actions{grid-column:span 3;justify-content:flex-end}}
+@media(max-width:700px){.historial-produccion-page{padding-top:0}.hist-v2-heading{margin-bottom:12px}.hist-v2-heading h2{font-size:22px}.hist-v2-heading p{font-size:12px}.hist-v2-filters{grid-template-columns:1fr 1fr;gap:10px;padding:12px}.hist-v2-filters label:nth-child(3),.hist-v2-filters label:nth-child(4),.hist-v2-filters label:nth-child(5){grid-column:span 1}.hist-v2-filter-actions{grid-column:1/-1}.hist-v2-filter-btn{flex:1}.hist-v2-table-card{border-radius:8px}.hist-v2-table-scroll{padding-bottom:4px}.hist-v2-detail-row>td{padding-left:10px!important}.hist-v2-table-foot{display:block}.hist-v2-table-foot span{display:block}.hist-v2-table-foot span+span{margin-top:3px}}
+@media(max-width:440px){.hist-v2-filters{grid-template-columns:1fr}.hist-v2-filters label,.hist-v2-filters label:nth-child(3),.hist-v2-filters label:nth-child(4),.hist-v2-filters label:nth-child(5),.hist-v2-filter-actions{grid-column:1}.hist-v2-filter-actions{justify-content:stretch}.hist-v2-clear-btn{min-width:80px}}
+/* =========================================================
+   GLACIAL — HISTORIAL / FILTROS COMPACTOS
+   Agregar al FINAL de styles.css
+   ========================================================= */
+.historial-produccion-page .hist-v2-head{
+  align-items:center;
+}
+.historial-produccion-page .hist-v2-head-tools{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:9px;
+  flex-wrap:wrap;
+}
+.historial-produccion-page .hist-v2-quick-filters{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.historial-produccion-page .hist-v2-calendar-wrap{
+  position:relative;
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+}
+.historial-produccion-page .hist-v2-date-input{
+  position:absolute;
+  inset:0;
+  width:36px!important;
+  height:36px!important;
+  padding:0!important;
+  border:0!important;
+  opacity:0;
+  pointer-events:none;
+}
+.historial-produccion-page .hist-v2-calendar-btn,
+.historial-produccion-page .hist-v2-clear-filter{
+  display:grid;
+  place-items:center;
+  width:36px;
+  height:36px;
+  padding:0;
+  border:1px solid #d7e0e5;
+  border-radius:8px;
+  background:#fff;
+  color:#17384d;
+  cursor:pointer;
+  font-size:16px;
+  line-height:1;
+}
+.historial-produccion-page .hist-v2-calendar-btn:hover,
+.historial-produccion-page .hist-v2-clear-filter:hover{
+  background:#f2f7fa;
+  border-color:#b9cbd6;
+}
+.historial-produccion-page .hist-v2-clear-filter{
+  width:30px;
+  height:30px;
+  border-color:transparent;
+  color:#71818c;
+  font-size:19px;
+}
+.historial-produccion-page .hist-v2-mini-select{
+  width:auto;
+  max-width:145px;
+  height:36px;
+  padding:0 28px 0 9px;
+  border:1px solid #d7e0e5;
+  border-radius:8px;
+  background:#fff;
+  color:#334f5e;
+  font-size:11px;
+  outline:none;
+}
+.historial-produccion-page .hist-v2-active-date{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  width:max-content;
+  margin-top:-10px;
+  padding:4px 7px;
+  border:1px solid #cfe0e9;
+  border-radius:999px;
+  background:#f3f8fb;
+  color:#31566b;
+  font-size:10px;
+  font-weight:700;
+}
+.historial-produccion-page .hist-v2-active-date[hidden]{display:none!important}
+.historial-produccion-page .hist-v2-active-date button{
+  border:0;
+  background:transparent;
+  color:#617985;
+  cursor:pointer;
+  padding:0 2px;
+  font-size:14px;
+  line-height:1;
+}
+/* La tarjeta grande anterior ya no se genera. */
+.historial-produccion-page .hist-v2-filters{display:none!important}
+
+@media(max-width:760px){
+  .historial-produccion-page .hist-v2-head{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .historial-produccion-page .hist-v2-head-tools{
+    width:100%;
+    justify-content:flex-start;
+  }
+  .historial-produccion-page .hist-v2-quick-filters{
+    flex-wrap:wrap;
+  }
+  .historial-produccion-page .hist-v2-mini-select{
+    max-width:125px;
+  }
+}
