@@ -181,9 +181,15 @@
       if(!indices.length)return;
 
       if(activoKey && k===activoKey){
-        // La secuencia indica cuál corresponde producir, pero NO inicia la operación.
-        // EN CURSO solo existe cuando estadoOperacion fue guardado como EN_PRODUCCION.
-        x.estadoVisual=x.op?.estado==='EN_PRODUCCION' ? 'EN_PRODUCCION' : 'PENDIENTE';
+        // La secuencia indica cuál corresponde producir. Si además ya existen
+        // unidades reales registradas para esta marca/presentación, se muestra
+        // EN CURSO aunque estadoOperacion no haya sido iniciado manualmente.
+        // Es únicamente visual: no se escribe ni inventa estadoOperacion.
+        const producido=num(resumenProgramacionCombinacionTurnos(
+          x.linea,x.fecha,[x.turno],x.marca,x.presentacion
+        ).unidadesProducidas);
+        x.estadoVisual=(x.op?.estado==='EN_PRODUCCION' || producido>0)
+          ? 'EN_PRODUCCION' : 'PENDIENTE';
         return;
       }
 
@@ -223,6 +229,16 @@
       return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa'};
     if(operativo==='EN_PRODUCCION')
       return {key:'EN_CURSO',label:'EN CURSO',rank:0,cls:'curso'};
+
+    // Si existen unidades reales registradas y la presentación todavía no
+    // alcanzó su programación, debe visualizarse EN CURSO aunque el supervisor
+    // no haya pulsado "Iniciar presentación". Esto NO modifica estadoOperacion;
+    // solo corrige el estado visual usando producción real.
+    // FINALIZADA/CANCELADA/PAUSA/DETENIDA ya fueron resueltas arriba y conservan
+    // prioridad, por lo que una marca cerrada nunca vuelve a abrirse por paletas.
+    if(producido>0 && (programado<=0 || producido<programado))
+      return {key:'EN_CURSO',label:'EN CURSO',rank:0,cls:'curso'};
+
     return {key:'PENDIENTE',label:'PENDIENTE',rank:2,cls:'pendiente'};
   }
   const turnoActivo = (fecha,turno) => {
