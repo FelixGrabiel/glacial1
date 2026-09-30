@@ -1097,16 +1097,23 @@ function avCanvasSnapshot(s){
   grupos.forEach(g=>{
     const l=g.linea,b=g.bloque;
     const prods=g.sinProduccion?[]:(b.productos||[]);
-    const paradas=g.sinProduccion?(l.paradas||[]):(b.paradas||[]);
+    const paradasBloque=g.sinProduccion?(l.paradas||[]):(b.paradas||[]);
+    const paradasOperativas=g.sinProduccion?[]:(l.paradas||[]).filter(p=>p.origen==='AVANCE');
+    const paradas=[...paradasBloque,...paradasOperativas];
     const observaciones=g.sinProduccion?(l.observaciones||[]):(b.observaciones||[]);
     const produccionTotal=g.sinProduccion?0:b.produccionTotal;
     const inicio=g.sinProduccion?(l.inicio||'—'):(b.inicio||l.inicio||'—');
     const ratio=g.sinProduccion?0:b.ratio;
     const consumo=g.sinProduccion?0:b.consumo;
     const personal=g.sinProduccion?l.personal:b.personal;
-    const totalParadas=g.sinProduccion?l.totalParadas:b.totalParadas;
+    const totalParadas=paradas.reduce((s,p)=>s+avNum(p.minutos),0);
     const titulo=g.sinProduccion?(l.nombre||l.linea):avTituloPresentacion(l.linea,b);
-    const h=altoGrupo(g);
+    const hBase=altoGrupo(g);
+    // El alto debe considerar también las paradas agregadas desde Avance/Cierre.
+    // Si no, se dibujaban pero quedaban fuera del card y el siguiente bloque las tapaba.
+    const hNecesario=205+(prods.length||1)*30+(paradas.length||1)*29+
+      (observaciones.length?55+observaciones.length*22:0);
+    const h=Math.max(hBase,hNecesario);
 
     card(PAD,y,W-PAD*2,h);
     x.fillStyle='#EAF5FC';rr(PAD,y,W-PAD*2,58,9);x.fill();
@@ -1211,10 +1218,48 @@ function avRestaurarPosicionFlotante(btn){
   try{const raw=localStorage.getItem('glacial_avance_flotante_pos');if(!raw)return;const p=JSON.parse(raw),lim=avLimitarPosicionFlotante(btn,avNum(p.left),avNum(p.top));btn.style.left=lim.left+'px';btn.style.top=lim.top+'px';btn.style.right='auto';btn.style.bottom='auto';}catch(_){}
 }
 function avActivarArrastre(btn){
-  avRestaurarPosicionFlotante(btn);let drag=false,movio=false,ox=0,oy=0;
-  btn.addEventListener('pointerdown',e=>{if(e.button!==undefined&&e.button!==0)return;const r=btn.getBoundingClientRect();drag=true;movio=false;ox=e.clientX-r.left;oy=e.clientY-r.top;btn.classList.add('dragging');try{btn.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault();});
-  btn.addEventListener('pointermove',e=>{if(!drag)return;const p=avLimitarPosicionFlotante(btn,e.clientX-ox,e.clientY-oy);movio=true;btn.style.left=p.left+'px';btn.style.top=p.top+'px';btn.style.right='auto';btn.style.bottom='auto';e.preventDefault();});
-  btn.addEventListener('pointerup',e=>{if(!drag)return;drag=false;btn.classList.remove('dragging');try{btn.releasePointerCapture(e.pointerId)}catch(_){}avGuardarPosicionFlotante(btn);if(!movio)avAbrirFlotante();});
+  avRestaurarPosicionFlotante(btn);
+  let drag=false,movio=false,ox=0,oy=0,x0=0,y0=0;
+  const UMBRAL=8;
+
+  btn.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    const r=btn.getBoundingClientRect();
+    drag=true;movio=false;
+    x0=e.clientX;y0=e.clientY;
+    ox=e.clientX-r.left;oy=e.clientY-r.top;
+    btn.classList.add('dragging');
+    try{btn.setPointerCapture(e.pointerId)}catch(_){}
+  });
+
+  btn.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    const dx=Math.abs(e.clientX-x0),dy=Math.abs(e.clientY-y0);
+    if(!movio&&dx<UMBRAL&&dy<UMBRAL)return;
+    movio=true;
+    const p=avLimitarPosicionFlotante(btn,e.clientX-ox,e.clientY-oy);
+    btn.style.left=p.left+'px';btn.style.top=p.top+'px';
+    btn.style.right='auto';btn.style.bottom='auto';
+    if(e.cancelable)e.preventDefault();
+  });
+
+  const terminar=e=>{
+    if(!drag)return;
+    drag=false;btn.classList.remove('dragging');
+    try{btn.releasePointerCapture(e.pointerId)}catch(_){}
+    if(movio)avGuardarPosicionFlotante(btn);
+    else avAbrirFlotante();
+  };
+
+  btn.addEventListener('pointerup',terminar);
+  btn.addEventListener('pointercancel',()=>{drag=false;movio=false;btn.classList.remove('dragging');});
+
+  // Respaldo para navegadores móviles donde Pointer Events/touch-action
+  // pueden impedir que un toque corto llegue correctamente a pointerup.
+  btn.addEventListener('click',e=>{
+    if(movio){e.preventDefault();return;}
+    if(!drag && e.detail===0)avAbrirFlotante();
+  });
 }
 function avInstalarBotonFlotante(){
   avInstalarEstilos();const existente=document.getElementById('av-floating-trigger');
@@ -1310,7 +1355,12 @@ body.av-modal-open{overflow:hidden}
 
 .av-paradas-modal{display:none;position:fixed;inset:0;z-index:2600;background:rgba(0,31,50,.62);padding:18px;align-items:center;justify-content:center}.av-paradas-modal.open{display:flex}.av-paradas-dialog{width:min(760px,98vw);max-height:92vh;display:flex;flex-direction:column;background:#f5f8fa;border-radius:12px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.28)}.av-paradas-dialog>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:15px 18px;background:#003b5c;color:#fff}.av-paradas-dialog>header h2{margin:2px 0;font-size:18px}.av-paradas-dialog>header p{margin:2px 0;font-size:10px}.av-paradas-dialog>header>button{width:36px;height:36px;border:0;border-radius:6px;background:rgba(255,255,255,.12);color:#fff}.av-paradas-linea{margin-top:7px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:#fff;color:#003b5c;font-weight:800}.av-paradas-body{padding:14px;overflow-y:auto}.av-paradas-note{padding:9px 10px;background:#eaf5fc;border:1px solid #c8deeb;border-radius:7px;color:#35586b;font-size:10px;margin-bottom:10px}.av-paradas-error{padding:9px 10px;background:#fff0ee;border:1px solid #efc0b9;color:#a22d22;border-radius:7px;margin-bottom:10px;font-size:10px}.av-paradas-list{display:grid;gap:8px}.av-parada-row{display:grid;grid-template-columns:150px minmax(180px,1fr) 180px 95px 38px;gap:8px;align-items:end;padding:10px;background:#fff;border:1px solid #d7e3eb;border-radius:8px}.av-parada-row label{display:block;font-size:9px;font-weight:800;color:#667784;margin-bottom:4px}.av-parada-row input,.av-parada-row select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cfdbe3;border-radius:6px;background:#fff}.av-parada-row.is-p{border-left:4px solid #2e9d62}.av-parada-row.is-np{border-left:4px solid #d16b2f}.av-parada-row:not(.is-np) .av-parada-causa{display:none}.av-parada-row small{grid-column:1/-1;color:#87949d;font-size:8px}.av-parada-remove{height:36px;border:1px solid #efc0b9;background:#fff;color:#c0392b;border-radius:6px}.av-parada-add{margin-top:10px}.av-paradas-dialog>footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:#fff;border-top:1px solid #d7e3eb}.av-paradas-dialog>footer>div:last-child{display:flex;gap:7px}.av-paradas-dialog>footer strong{color:#003b5c;margin-left:6px}
 @media(max-width:900px){.av-module-grid{grid-template-columns:1fr}.av-detail-kpis{grid-template-columns:repeat(2,1fr)}.av-slot-strip{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:700px){.av-paradas-modal{padding:0}.av-paradas-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-parada-row{grid-template-columns:1fr 95px 38px}.av-parada-tipo,.av-parada-motivo,.av-parada-causa{grid-column:1/-1}.av-parada-min{grid-column:1/3}.av-paradas-dialog>footer{align-items:stretch;flex-direction:column}.av-paradas-dialog>footer>div:last-child{display:grid;grid-template-columns:1fr 1fr}.av-paradas-dialog>footer .btn{min-height:44px}.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:1fr}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:1fr}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:12px}.av-slot-strip{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.av-paradas-modal{padding:0}.av-paradas-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-parada-row{grid-template-columns:1fr 95px 38px}.av-parada-tipo,.av-parada-motivo,.av-parada-causa{grid-column:1/-1}.av-parada-min{grid-column:1/3}.av-paradas-dialog>footer{align-items:stretch;flex-direction:column}.av-paradas-dialog>footer>div:last-child{display:grid;grid-template-columns:1fr 1fr}.av-paradas-dialog>footer .btn{min-height:44px}.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:1fr}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:1fr}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:max(12px,env(safe-area-inset-bottom));touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.av-float-modal.open,.av-detail-modal.open,.av-image-modal.open{display:flex!important;visibility:visible!important;opacity:1!important}
+.av-float-dialog,.av-detail-dialog,.av-image-dialog{height:100dvh;max-height:100dvh}
+.av-float-head,.av-detail-head,.av-image-dialog>header{padding-top:max(16px,env(safe-area-inset-top))}
+.av-float-footer,.av-detail-footer,.av-image-dialog>footer{padding-bottom:max(10px,env(safe-area-inset-bottom))}
+.av-slot-strip{grid-template-columns:repeat(2,1fr)}}
 `;
 
 /* Inyectar estilos del módulo una sola vez.
