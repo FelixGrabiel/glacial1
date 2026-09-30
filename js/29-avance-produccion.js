@@ -681,12 +681,43 @@ function avBloquesPresentacionLinea(l){
   });
 
   [...mapa.values()].forEach(b=>{
-    b.totalParadas=b.paradas.reduce((a,p)=>a+avNum(p.minutos),0);
+    /*
+       Para producción proveniente de Paletas puede no existir horaInicio
+       dentro del cuadro de Nuevo registro. En ese caso usamos el inicio
+       real de la línea (l.inicio), que ya es el mismo que se muestra en
+       el avance. Sin este respaldo el texto mostraba "Inicio: 07:00",
+       pero internamente calculaba 0 minutos y Ratio/Consumo quedaban en —.
+
+       Las paradas del bloque + las paradas operativas de Avance/Cierre
+       se descuentan una sola vez para calcular las horas efectivas.
+    */
+    const inicioCalculo=b.inicio||l.inicio||'';
     const fin=b.fin||l.fin||avanceEstado.horaCorte||avHoraActual();
-    const min=b.inicio?avMinEntre(avanceEstado.fecha,b.inicio,fin,avanceEstado.turno):0;
-    const efectivos=Math.max(0,min-b.totalParadas);
-    b.ratio=efectivos>0?b.produccionTotal/(efectivos/60):0;
-    b.consumo=avConsumoLinea(l.linea,b.productos,b.ratio);
+
+    const paradasOperativas=(l.paradas||[])
+      .filter(p=>p.origen==='AVANCE')
+      .reduce((s,p)=>s+avNum(p.minutos),0);
+
+    b.totalParadas=b.paradas.reduce((a,p)=>a+avNum(p.minutos),0);
+    const totalParadasCalculo=b.totalParadas+paradasOperativas;
+
+    const min=inicioCalculo
+      ? avMinEntre(avanceEstado.fecha,inicioCalculo,fin,avanceEstado.turno)
+      : 0;
+
+    const efectivos=Math.max(0,min-totalParadasCalculo);
+
+    b.inicio=b.inicio||inicioCalculo;
+    b.ratio=efectivos>0
+      ? b.produccionTotal/(efectivos/60)
+      : 0;
+
+    b.consumo=avConsumoLinea(
+      l.linea,
+      b.productos,
+      b.ratio
+    );
+
     b.observaciones=[...new Set(b.observaciones)];
   });
   return [...mapa.values()].sort((a,b)=>String(a.inicio||'99:99').localeCompare(String(b.inicio||'99:99')));
@@ -725,11 +756,29 @@ function avTextoWhatsApp(s){
         out.push('',`Ratio Turno: ${b.ratio?avFmt(b.ratio)+' '+l.unidadRatio:'—'}`,
           `Consumo: ${b.consumo?avFmt(b.consumo)+' L/H':'—'}`,
           `Personal en línea: ${b.personal}`,
-          '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`,
-          '','*PARADAS*','');
-        if(b.paradas.length)b.paradas.forEach(p=>out.push(`${p.descripcion} – ${avFmt(p.minutos)} min`));
-        else out.push('Sin paradas registradas.');
-        out.push('',`Total paradas: ${avFmt(b.totalParadas)} min`);
+          '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`);
+
+        /*
+           PARADAS UNIFICADAS:
+           - Las de Nuevo registro pertenecientes a esta presentación.
+           - Las agregadas desde Avance/Cierre se muestran una sola vez
+             en el primer bloque de la línea.
+           Así nunca aparecen dos títulos: PARADAS / PARADAS GENERALES.
+        */
+        const paradasMostrar=[...(b.paradas||[])];
+        if(idxBloque===0){
+          paradasMostrar.push(...(l.paradas||[]).filter(p=>p.origen==='AVANCE'));
+        }
+        const totalParadasMostrar=paradasMostrar.reduce((s,p)=>s+avNum(p.minutos),0);
+
+        out.push('','*PARADAS*','');
+        if(paradasMostrar.length){
+          paradasMostrar.forEach(p=>out.push(`${p.descripcion} – ${avFmt(p.minutos)} min`));
+        }else{
+          out.push('Sin paradas registradas.');
+        }
+        out.push('',`Total paradas: ${avFmt(totalParadasMostrar)} min`);
+
         if(b.observaciones.length){out.push('','*OBSERVACIONES*');b.observaciones.forEach(o=>out.push(`- ${o}`));}
         // Separación entre presentaciones de la misma línea. NO se genera "TOTAL PET2".
         if(idxBloque<bloques.length-1)out.push('','---');
