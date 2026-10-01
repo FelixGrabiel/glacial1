@@ -1,8 +1,20 @@
-/* Menú lateral GLACIAL. Se carga después de los estilos de index.html. */
-.sidebar{
+/* =============================================================
+   GLACIAL · SIDEBAR POR MÓDULOS
+   Rediseño visual encapsulado. No modifica pantallas ni lógica de negocio.
+   ============================================================= */
+
+#app-screen .shell > .sidebar{
+  --sb-bg:#0B2849;
+  --sb-bg-deep:#071f3b;
+  --sb-active:#0968d8;
+  --sb-hover:rgba(255,255,255,.075);
+  --sb-text:#f5f9ff;
+  --sb-muted:#a9bdd3;
+  --sb-line:rgba(171,204,236,.25);
   position:sticky;
   top:0;
-  width:268px;
+  flex:0 0 264px;
+  width:264px;
   height:calc(100dvh - 70px);
   min-height:0;
   max-height:calc(100dvh - 70px);
@@ -10,213 +22,437 @@
   flex-direction:column;
   padding:0;
   overflow:hidden;
-  background:#fff;
-  border-right:1px solid #dae5ec;
-  box-shadow:2px 0 16px rgba(0,46,74,.045);
+  color:var(--sb-text);
+  background:linear-gradient(180deg,#0d3159 0%,var(--sb-bg) 48%,var(--sb-bg-deep) 100%);
+  border:0;
+  border-right:1px solid rgba(255,255,255,.08);
+  box-shadow:8px 0 24px rgba(2,22,43,.12);
 }
-.sidebar [hidden]{display:none!important}
-.sidebar-brand{
+#app-screen .sidebar [hidden]{display:none!important}
+
+#app-screen .sidebar-brand{
   flex:0 0 auto;
-  margin:0;
-  padding:20px 21px 18px;
-  border-bottom:1px solid #e5edf2;
-}
-.sidebar-brand-mark{
-  width:40px;
-  height:40px;
-  border-radius:10px;
-  box-shadow:0 5px 12px rgba(0,91,150,.15);
-}
-.sidebar-brand strong{font-size:17px;letter-spacing:.04em}
-.sidebar-brand span{font-size:9px;letter-spacing:.14em}
-.sidebar-scroll{
-  flex:1 1 auto;
-  min-height:0;
-  overflow-y:scroll;
-  overflow-x:hidden;
-  padding:17px 12px 22px;
-  scrollbar-width:thin;
-  scrollbar-color:#b8cad6 #f4f8fa;
-  overscroll-behavior:contain;
-}
-.sidebar-scroll::-webkit-scrollbar{width:8px}
-.sidebar-scroll::-webkit-scrollbar-track{background:#f4f8fa}
-.sidebar-scroll::-webkit-scrollbar-thumb{
-  background:#b8cad6;
-  border:2px solid #f4f8fa;
-  border-radius:20px;
-}
-.sidebar-scroll::-webkit-scrollbar-thumb:hover{background:#769bad}
-.sidebar-label,.sidebar-section-title{
-  padding:0 10px;
-  margin:3px 0 11px;
-  color:#6d8493;
-  font-size:10px;
-  font-weight:700;
-  letter-spacing:.12em;
-}
-#line-list{display:grid;gap:4px}
-.line-btn{
-  position:relative;
-  width:100%;
-  min-height:42px;
-  padding:10px 30px 10px 14px;
-  border:1px solid transparent;
-  border-left:3px solid transparent;
-  border-radius:7px;
-  background:transparent;
-  color:#425769;
-  font-size:13px;
-  font-weight:500;
-  letter-spacing:.025em;
-  transition:background .16s ease,border-color .16s ease,color .16s ease;
-}
-.line-btn::after{
-  content:"›";
-  position:absolute;
-  right:13px;
-  top:50%;
-  transform:translateY(-50%);
-  color:#a4b4bf;
-  font:20px/1 Arial,sans-serif;
-}
-.line-btn:hover{background:#f0f7fb;color:#005b96;border-color:#dcecf4}
-.line-btn.active{
-  border-color:#d4e8f5;
-  border-left-color:#f5b335;
-  background:#eaf5fc;
-  color:#003b5c;
-  font-weight:700;
-}
-.line-btn.active::after{color:#005b96}
-.sidebar-divider{margin:20px 10px 18px;background:#e2eaf0}
-#sidebar-lines[hidden] + .sidebar-divider{display:none}
-.side-action{
   display:flex;
   align-items:center;
+  min-height:82px;
+  margin:0;
+  padding:16px 20px;
+  border:0;
+  border-bottom:1px solid rgba(255,255,255,.11);
+  background:rgba(5,24,47,.18);
+}
+#app-screen .sidebar-brand-logo{
+  display:block;
+  width:auto;
+  height:100px;
+  max-width:188px;
+  object-fit:contain;
+  object-position:left center;
+  filter:brightness(0) invert(1);
+}
+
+#app-screen .sidebar-scroll{
+  flex:1 1 auto;
+  min-height:0;
   width:100%;
-  min-height:43px;
-  margin:0 0 5px;
-  padding:7px 9px;
-  border:1px solid transparent;
-  border-radius:8px;
+  padding:14px 9px 20px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(181,207,232,.45) transparent;
+}
+#app-screen .sidebar-scroll::-webkit-scrollbar{width:6px}
+#app-screen .sidebar-scroll::-webkit-scrollbar-track{background:transparent}
+#app-screen .sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(181,207,232,.42);border-radius:20px}
+#app-screen .sidebar-nav{display:grid;gap:4px;width:100%}
+
+#app-screen .side-action,
+#app-screen .sidebar-group-toggle,
+#app-screen .sidebar-subgroup-toggle{
+  appearance:none;
+  border:0;
+  font-family:var(--font-body,'IBM Plex Sans',sans-serif);
+  cursor:pointer;
+}
+#app-screen .side-action,
+#app-screen .sidebar-group-toggle{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  min-height:44px;
+  margin:0;
+  padding:7px 10px;
+  border-radius:7px;
   background:transparent;
-  color:#465c6d;
-  font-size:12.5px;
+  color:var(--sb-text);
+  text-align:left;
+  font-size:13px;
   font-weight:600;
-  line-height:1.3;
+  line-height:1.25;
   white-space:normal;
-  transition:background .16s ease,border-color .16s ease,color .16s ease;
+  transition:background .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease;
 }
-.side-action:hover{
-  background:#f0f7fb;
-  border-color:#d9ebf5;
-  color:#005b96;
+#app-screen .side-action:hover,
+#app-screen .sidebar-group-toggle:hover{background:var(--sb-hover);color:#fff}
+#app-screen .side-action:focus-visible,
+#app-screen .sidebar-group-toggle:focus-visible,
+#app-screen .sidebar-subgroup-toggle:focus-visible,
+#app-screen .line-btn:focus-visible{
+  outline:2px solid #72b7ff;
+  outline-offset:2px;
 }
-.side-action.active{
-  background:#eaf5fc;
-  border-color:#c8e2f1;
-  color:#003b5c;
-  font-weight:700;
-}
-.side-action-icon{
+#app-screen .side-action-icon{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  flex:0 0 29px;
-  width:29px;
-  height:29px;
-  border-radius:7px;
-  background:#eff4f7;
-  color:#537183;
-  font:700 15px/1 Arial,sans-serif;
+  flex:0 0 26px;
+  width:26px;
+  height:26px;
+  border:0;
+  border-radius:6px;
+  background:transparent;
+  color:#c8ddf2;
+  font:700 16px/1 Arial,sans-serif;
 }
-.side-action:hover .side-action-icon,
-.side-action.active .side-action-icon{
-  background:#fff;
-  color:#005b96;
+#app-screen .sidebar-group-label{flex:1;min-width:0}
+#app-screen .sidebar-chevron{
+  flex:0 0 18px;
+  color:#b8cee3;
+  font:700 16px/1 Arial,sans-serif;
+  text-align:center;
+  transform:rotate(180deg);
+  transition:transform .18s ease;
 }
-.sidebar button:focus-visible{
-  outline:2px solid #005b96;
-  outline-offset:2px;
+#app-screen [aria-expanded="true"] > .sidebar-chevron{transform:rotate(0deg)}
+
+#app-screen .sidebar-group.has-active > .sidebar-group-toggle,
+#app-screen .sidebar-group.is-open > .sidebar-group-toggle{
+  color:#fff;
+  background:rgba(10,104,216,.20);
 }
-.sidebar-footer{
+#app-screen .sidebar-group.has-active > .sidebar-group-toggle{box-shadow:inset 3px 0 0 #4fa4ff}
+#app-screen .sidebar-group.has-active > .sidebar-group-toggle .side-action-icon,
+#app-screen .sidebar-group.is-open > .sidebar-group-toggle .side-action-icon{color:#fff}
+
+#app-screen .sidebar-group-panel{
+  position:relative;
+  margin:3px 0 6px 21px;
+  padding:3px 0 3px 14px;
+}
+#app-screen .sidebar-group-panel::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:4px;
+  bottom:5px;
+  width:1px;
+  background:var(--sb-line);
+}
+#app-screen .sidebar-subgroup{margin:0 0 2px}
+#app-screen .sidebar-subgroup-toggle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  width:100%;
+  min-height:40px;
+  padding:7px 7px 7px 10px;
+  border-radius:6px;
+  background:transparent;
+  color:#dce9f6;
+  text-align:left;
+  font-size:12.5px;
+  font-weight:600;
+}
+#app-screen .sidebar-subgroup-toggle:hover{background:rgba(255,255,255,.06);color:#fff}
+#app-screen .sidebar-subgroup-panel{padding:1px 0 4px 6px}
+
+#app-screen #line-list{display:grid;gap:2px;width:100%}
+#app-screen .line-btn,
+#app-screen .sidebar-subaction{
+  position:relative;
+  display:flex;
+  align-items:center;
+  width:100%;
+  min-height:38px;
+  margin:0;
+  padding:7px 9px 7px 17px;
+  border:0;
+  border-radius:6px;
+  background:transparent;
+  color:#c8d8e8;
+  text-align:left;
+  font-size:12px;
+  font-weight:500;
+  line-height:1.25;
+  white-space:normal;
+}
+#app-screen .line-btn::before,
+#app-screen .sidebar-dot{
+  content:"";
+  position:absolute;
+  left:4px;
+  width:4px;
+  height:4px;
+  border-radius:50%;
+  background:#6f9bc5;
+}
+#app-screen .line-btn::after{display:none}
+#app-screen .sidebar-dot{position:relative;left:auto;flex:0 0 4px;margin-left:-5px;margin-right:8px}
+#app-screen .line-btn:hover,
+#app-screen .sidebar-subaction:hover{background:rgba(255,255,255,.07);color:#fff}
+#app-screen .line-btn.active,
+#app-screen .sidebar-subaction.active{
+  background:linear-gradient(90deg,#0871e6,#075fca);
+  color:#fff;
+  font-weight:700;
+  box-shadow:0 5px 14px rgba(0,82,177,.25);
+}
+#app-screen .line-btn.active::before,
+#app-screen .sidebar-subaction.active .sidebar-dot{background:#fff}
+
+#app-screen .sidebar-root-action.active{
+  background:linear-gradient(90deg,#0871e6,#075fca);
+  color:#fff;
+  box-shadow:0 5px 14px rgba(0,82,177,.25);
+}
+#app-screen .sidebar-root-action.active .side-action-icon{color:#fff;background:transparent}
+#app-screen .sidebar-disabled,
+#app-screen .sidebar-disabled:hover{
+  opacity:.52;
+  cursor:not-allowed;
+  background:transparent;
+  color:#b5c6d7;
+  box-shadow:none;
+}
+
+#app-screen .sidebar-footer{
   position:static;
   flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:9px;
   width:auto;
-  margin:9px 13px 13px;
-  padding:11px 12px;
-  border-radius:8px;
-  background:#f7fafc;
+  margin:0;
+  padding:12px 16px 14px;
+  border:0;
+  border-top:1px solid rgba(255,255,255,.10);
+  border-radius:0;
+  background:rgba(4,20,39,.22);
+  color:#dce9f6;
 }
-.sidebar-footer strong{font-size:11px}
-.sidebar-footer small{font-size:10px}
-.sidebar-footer .status-dot{background:#005b96}
+#app-screen .sidebar-footer .status-dot{width:8px;height:8px;flex:none;border-radius:50%;background:#43c77a;box-shadow:0 0 0 3px rgba(67,199,122,.12)}
+#app-screen .sidebar-footer strong{display:block;color:#fff;font-size:10.5px;font-weight:700}
+#app-screen .sidebar-footer small{display:block;margin-top:2px;color:#93abc1;font-size:9.5px}
 
-@media(max-width:1050px) and (min-width:801px){
-  .sidebar{width:245px}
+@media (max-width:1050px) and (min-width:701px){
+  #app-screen .shell > .sidebar{flex-basis:248px;width:248px}
 }
-@media(max-width:800px){
-  .sidebar{
-    position:sticky;
-    top:0;
-    width:100%;
-    height:auto;
-    max-height:none;
-    min-height:0;
-    display:block;
-    padding:7px 9px;
-    border-right:0;
-    border-bottom:1px solid #dce4e9;
-    overflow:hidden;
+
+/* =========================================================
+   GLACIAL · REFINAMIENTO VISUAL SIDEBAR 2026-09-30
+   Solo presentación. No altera permisos ni navegación.
+   ========================================================= */
+:root{
+  --gl-sidebar-w:250px;
+  --gl-sidebar-bg:#071f3b;
+  --gl-sidebar-bg2:#0b2d53;
+  --gl-sidebar-open:rgba(27,103,176,.22);
+  --gl-sidebar-active:#0877d7;
+  --gl-sidebar-text:#f4f8fc;
+  --gl-sidebar-muted:#a9bfd4;
+  --gl-sidebar-line:rgba(174,205,232,.22);
+}
+
+#app-screen .shell>.sidebar{
+  width:var(--gl-sidebar-w);
+  background:linear-gradient(180deg,var(--gl-sidebar-bg2) 0%,var(--gl-sidebar-bg) 58%,#061a31 100%);
+  color:var(--gl-sidebar-text);
+  border-right:1px solid rgba(255,255,255,.07);
+  box-shadow:8px 0 28px rgba(3,19,36,.12);
+  font-family:Inter,"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+
+#app-screen .sidebar-brand{
+  min-height:76px;
+  padding:14px 18px;
+  border-bottom:1px solid rgba(255,255,255,.09);
+}
+#app-screen .sidebar-brand-mark{
+  width:46px;height:46px;object-fit:contain;border-radius:0;
+  box-shadow:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.14));
+}
+#app-screen .sidebar-brand strong{font-size:19px;letter-spacing:.045em;color:#fff}
+#app-screen .sidebar-brand span{color:#a9bfd4;font-size:9px}
+
+#app-screen .sidebar-scroll{
+  padding:14px 10px 18px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(174,205,232,.35) transparent;
+}
+#app-screen .sidebar-scroll::-webkit-scrollbar{width:6px}
+#app-screen .sidebar-scroll::-webkit-scrollbar-track{background:transparent}
+#app-screen .sidebar-scroll::-webkit-scrollbar-thumb{
+  background:rgba(174,205,232,.28);border:0;border-radius:20px;
+}
+
+#app-screen .sidebar .side-action,
+#app-screen .sidebar .sidebar-group-toggle,
+#app-screen .sidebar .line-btn{
+  min-height:46px;
+  border-radius:9px;
+  font-size:14px;
+  font-weight:500;
+  line-height:1.25;
+  color:var(--gl-sidebar-text);
+}
+#app-screen .sidebar .sidebar-group-toggle{
+  padding:8px 10px;
+  background:transparent;border:1px solid transparent;
+}
+#app-screen .sidebar .sidebar-group-toggle:hover,
+#app-screen .sidebar .sidebar-group.is-open>.sidebar-group-toggle{
+  background:var(--gl-sidebar-open);
+  border-color:rgba(104,174,235,.12);
+}
+#app-screen .sidebar .sidebar-group.is-open>.sidebar-group-toggle{
+  color:#fff;font-weight:600;
+}
+
+#app-screen .sidebar .side-action-icon,
+#app-screen .sidebar .sidebar-group-icon{
+  width:32px;height:32px;flex:0 0 32px;
+  background:transparent;color:#d8e8f6;border-radius:8px;
+}
+#app-screen .sidebar svg.sidebar-svg{
+  width:19px;height:19px;display:block;fill:none;stroke:currentColor;
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+}
+
+#app-screen .sidebar .sidebar-chevron{
+  width:18px;height:18px;margin-left:auto;display:grid;place-items:center;
+  color:#b8cee1;transition:transform .18s ease;
+}
+#app-screen .sidebar .sidebar-chevron svg{width:15px;height:15px}
+#app-screen .sidebar .sidebar-group.is-open .sidebar-chevron{transform:rotate(180deg)}
+
+#app-screen .sidebar .sidebar-submenu{
+  position:relative;
+  margin:3px 0 7px 26px;
+  padding:3px 0 3px 14px;
+}
+#app-screen .sidebar .sidebar-submenu::before{
+  content:"";position:absolute;left:3px;top:5px;bottom:5px;width:1px;
+  background:var(--gl-sidebar-line);
+}
+#app-screen .sidebar .sidebar-submenu .side-action,
+#app-screen .sidebar .sidebar-submenu .line-btn{
+  position:relative;min-height:44px;padding:8px 10px 8px 13px;
+  color:#c7d8e8;background:transparent;border:0;
+}
+#app-screen .sidebar .sidebar-submenu .side-action::before,
+#app-screen .sidebar .sidebar-submenu .line-btn::before{
+  content:"";position:absolute;left:-14px;top:50%;width:6px;height:6px;
+  border-radius:50%;background:#6689a9;transform:translate(-50%,-50%);
+}
+#app-screen .sidebar .sidebar-submenu .side-action:hover,
+#app-screen .sidebar .sidebar-submenu .line-btn:hover{
+  background:rgba(255,255,255,.065);color:#fff;
+}
+#app-screen .sidebar .sidebar-submenu .side-action.active,
+#app-screen .sidebar .sidebar-submenu .line-btn.active{
+  background:linear-gradient(90deg,#0877d7,#0868bd);
+  color:#fff;font-weight:600;box-shadow:0 5px 14px rgba(0,83,166,.22);
+}
+#app-screen .sidebar .sidebar-submenu .side-action.active::before,
+#app-screen .sidebar .sidebar-submenu .line-btn.active::before{background:#6fc0ff}
+
+#app-screen .sidebar .sidebar-disabled{
+  opacity:.62;cursor:not-allowed;color:#a9bfd4!important;
+}
+#app-screen .sidebar .sidebar-disabled:hover{background:transparent!important}
+
+#app-screen .sidebar button:focus-visible{
+  outline:2px solid #79c5ff!important;outline-offset:2px!important;
+}
+
+#app-screen .sidebar-footer{
+  margin:8px 10px 12px;padding:10px;
+  background:rgba(255,255,255,.055);
+  border:1px solid rgba(255,255,255,.075);
+  color:#d9e7f3;border-radius:10px;
+}
+
+/* Botón flotante Avance/Cierre: solo acabado visual. */
+#av-floating-trigger.av-floating-trigger{
+  min-height:48px;
+  border-radius:14px;
+  font-family:Inter,"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-weight:700;
+  box-shadow:0 8px 24px rgba(5,67,119,.22);
+}
+
+/* =========================================================
+   GLACIAL · LOGO RESPONSIVE
+   Escritorio: logo únicamente en sidebar.
+   ========================================================= */
+@media (min-width: 901px){
+  #app-screen .topbar-logo-wrap,
+  #app-screen .topbar-separator{
+    display:none !important;
   }
-  .sidebar-brand,.sidebar-footer,.sidebar-label,.sidebar-section-title{
-    display:none;
+  #app-screen .topbar-brand{
+    margin-left:0 !important;
   }
-  .sidebar-scroll{
-    display:flex;
-    align-items:center;
-    gap:5px;
-    width:100%;
-    padding:2px 1px 5px;
-    overflow-x:auto;
-    overflow-y:hidden;
-    scrollbar-width:thin;
+  #app-screen .topbar-title{
+    padding-left:0 !important;
   }
-  #sidebar-lines,#sidebar-management,#line-list{
-    display:flex;
-    align-items:center;
-    flex:0 0 auto;
-    gap:5px;
-  }
-  .sidebar-divider{
-    width:1px;
-    height:26px;
-    flex:0 0 auto;
-    margin:0 6px;
-  }
-  .line-btn,.line-btn.active{
-    width:auto;
-    min-height:36px;
-    padding:7px 11px;
-    border-left:1px solid transparent;
-    border-bottom:2px solid transparent;
-    white-space:nowrap;
-  }
-  .line-btn.active{border-bottom-color:#f5b335}
-  .line-btn::after{display:none}
-  .side-action{
-    width:auto;
-    min-height:36px;
-    margin:0;
-    padding:5px 9px;
-    white-space:nowrap;
-    font-size:11.5px;
-  }
-  .side-action-icon{
-    flex-basis:23px;
-    width:23px;
-    height:23px;
-    font-size:13px;
-  }
+}
+
+/* ==========================================================================
+ * GLACIAL · SIDEBAR · PALETA UNIFICADA FINAL
+ * ==========================================================================
+ ! IMPORTANTE: únicamente acabado visual.
+ ! Permisos, navegación, desplegables y estados siguen controlados por JS/HTML.
+ */
+#app-screen .shell > .sidebar,
+#app-screen #glacial-sidebar{
+    --sb-bg:#0B2849;
+    --sb-bg-deep:#071F3B;
+    --sb-active:#086BEA;
+    --sb-hover:rgba(8,107,234,.18);
+    background:linear-gradient(180deg,#0B2849 0%,#08233F 100%);
+    border-right:1px solid rgba(255,255,255,.08);
+    box-shadow:4px 0 18px rgba(11,40,73,.10);
+}
+
+#app-screen .sidebar .side-action,
+#app-screen .sidebar .sidebar-group-toggle,
+#app-screen .sidebar .line-btn,
+#app-screen .sidebar .sidebar-subaction{
+    border-radius:9px;
+}
+
+#app-screen .sidebar .side-action:hover,
+#app-screen .sidebar .sidebar-group-toggle:hover,
+#app-screen .sidebar .line-btn:hover,
+#app-screen .sidebar .sidebar-subaction:hover{
+    background-color:var(--sb-hover);
+}
+
+#app-screen .sidebar .side-action.active,
+#app-screen .sidebar .sidebar-root-action.active,
+#app-screen .sidebar .line-btn.active,
+#app-screen .sidebar .sidebar-subaction.active{
+    background:#086BEA;
+    color:#fff;
+}
+
+#app-screen .sidebar button:focus-visible,
+#app-screen .sidebar a:focus-visible{
+    outline:2px solid #72B7FF;
+    outline-offset:2px;
 }

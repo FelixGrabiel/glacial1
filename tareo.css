@@ -900,3 +900,73 @@
     .tar2-marcacion{min-width:135px}
     .tar2-action-btn{width:100%}
 }
+
+/* ==========================================================================
+ * GLACIAL · TAREO · PALETA UNIFICADA FINAL
+ * ==========================================================================
+ ! IMPORTANTE: conserva ASISTIÓ, FALTA, advertencias, tardanzas y demás
+ ! colores semánticos definidos por las clases existentes.
+ * Este bloque solo armoniza superficies, bordes, tipografía y foco.
+ */
+.tareo-panel,
+.tareo-card,
+.tareo-section,
+.tareo-resumen,
+.tareo-toolbar,
+.tareo-kpi,
+.tareo-preview-kpis > div{
+    border-color:var(--gl-border);
+    border-radius:var(--gl-radius);
+    background-color:var(--gl-surface);
+}
+
+.tareo-tabs{
+    border-bottom-color:var(--gl-border);
+}
+
+.tareo-tab:hover{
+    color:var(--gl-primary);
+    background:var(--gl-primary-soft);
+}
+
+.tareo-tab.active{
+    color:var(--gl-primary);
+    border-bottom-color:var(--gl-primary);
+}
+
+.tareo-table th{
+    background:var(--gl-primary-soft);
+    color:var(--gl-text);
+}
+
+.tareo-table tbody tr:hover{
+    background:rgba(234,243,255,.45);
+}
+
+.tareo-asistencia-select,
+.tareo-observaciones,
+.tareo-control-filtros input,
+.tareo-control-filtros select{
+    border-color:var(--gl-border);
+    border-radius:var(--gl-radius-sm);
+}
+
+.tareo-asistencia-select:focus,
+.tareo-observaciones:focus,
+.tareo-control-filtros input:focus,
+.tareo-control-filtros select:focus{
+    border-color:var(--gl-primary);
+    outline:3px solid rgba(8,107,234,.13);
+    box-shadow:none;
+}
+
+.tareo-upload-box{
+    border-radius:var(--gl-radius);
+}
+
+.tareo-upload-box:hover{
+    border-color:var(--gl-primary);
+    background:var(--gl-primary-soft);
+}
+
+/* ! Estados .good/.warn/.bad/.asistio/.falta NO se sobrescriben aquí. */

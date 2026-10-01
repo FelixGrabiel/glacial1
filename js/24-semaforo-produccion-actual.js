@@ -56,10 +56,35 @@
     // Un Supervisor/Jefatura/Admin puede tener también control_operativo_lineas;
     // ese permiso adicional NO debe degradarlo a "control" (Mantenimiento),
     // porque perdería Iniciar / Finalizar / Cancelar.
-    if(['Administrador','Jefe de Producción','Jefe de Operaciones'].includes(u.rol) &&
-       tienePermiso('paletas'))return 'supervisor';
+    // Aceptar los nombres de rol reales usados por Gestión de Usuarios.
+    // Algunos perfiles se muestran/guardan como "Administrador del Sistema"
+    // o "Supervisor de Producción". Antes no coincidían con las cadenas
+    // estrictas "Administrador" / "Supervisor" y terminaban degradados a
+    // control operativo, ocultando los controles propios de Producción.
+    const rol=String(u.rol || '').trim().toLocaleLowerCase('es');
+    const esAdminOJefatura=[
+      'administrador',
+      'administrador del sistema',
+      'jefe de producción',
+      'jefe de operaciones'
+    ].includes(rol);
+    const esSupervisorProduccion=[
+      'supervisor',
+      'supervisor de producción'
+    ].includes(rol);
 
-    if(u.rol==='Supervisor' && tienePermiso('paletas') &&
+    // No depender únicamente del texto del rol. En Gestión de Usuarios el
+    // Administrador puede tener todos los permisos aunque su etiqueta visible,
+    // nombre o puesto sea distinta. El permiso `administracion` + `paletas`
+    // identifica de forma estable a un perfil administrativo con capacidad
+    // operativa completa en Producción Actual.
+    const esAdministracionOperativa=
+      tienePermiso('administracion') && tienePermiso('paletas');
+
+    if((esAdminOJefatura || esAdministracionOperativa) && tienePermiso('paletas'))
+      return 'supervisor';
+
+    if(esSupervisorProduccion && tienePermiso('paletas') &&
        (!u.linea || u.linea===linea))return 'supervisor';
 
     // Mantenimiento u otro usuario autorizado conserva únicamente
@@ -464,261 +489,295 @@
       });
     }
 
-    const grupos=LINES.map(line=>{
-      // DÍA e INTERMEDIO pueden apuntar a la MISMA programación compartida.
-      // No debemos mostrarla ni sumarla dos veces. Si ambos están visibles,
-      // conservamos INTERMEDIO porque su resumen ya arrastra lo avanzado en DÍA.
-      const candidatos=filasActuales.filter(x=>x.linea===line.key && !x.sinDatos);
-      const unicos=new Map();
-      candidatos.forEach(x=>{
-        const turnoPlan=x.turnoPlan || x.turno;
-        const k=llave(x.linea,x.fecha,turnoPlan,x.marca,x.presentacion);
-        const anterior=unicos.get(k);
-        if(!anterior || x.turno==='INTERMEDIO' ||
-           (x.vivo && !anterior.vivo))unicos.set(k,x);
-      });
-      const items=[...unicos.values()];
-
-      // Recalcular el estado visual en cada render. Un producto FINALIZADO
-      // nunca debe volver a EN CURSO solo porque tenga registros de paletas.
-      items.forEach(x=>{ delete x.estadoVisual; });
-
-      const turnoVistaSecuencia=items[0]?.turno || turnos[0];
-      const turnoPlanSecuencia=items[0]?.turnoPlan || turnoVistaSecuencia;
-      const secuenciaActiva=aplicarEstadoVisualSecuencia(
-        items,line.key,fecha,turnoPlanSecuencia,turnoVistaSecuencia,ahora
-      );
-
-      const vacios=filasActuales.filter(x=>x.linea===line.key && x.sinDatos);
-      if(!items.length && !vacios.length)return null;
-      const detenidos=items.filter(x=>x.op?.estado==='DETENIDA');
-      const pausas=items.filter(x=>x.op?.estado==='PAUSA');
-      const activosGuardados=items.filter(x=>x.op?.estado==='EN_PRODUCCION');
-
-      // El estado operativo guardado tiene prioridad absoluta.
-      // Los registros de paletas sirven para métricas, pero NO pueden volver
-      // a abrir visualmente una presentación ya FINALIZADA.
-      const activoSecuencia=items.find(x=>x.estadoVisual==='EN_PRODUCCION');
-      const pausaSecuencia=items.find(x=>x.estadoVisual==='PAUSA_SECUENCIA');
-      const activo=detenidos[0] ||
-        activoSecuencia || pausas[0] || activosGuardados[0] ||
-        items.find(x=>x.op?.estado==='LISTA') || pausaSecuencia ||
-        items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado)) ||
-        items[0] || vacios[0];
-
-      const estados=items.map(estadoOrdenItem);
-      const hayCurso=estados.some(e=>e.key==='EN_CURSO');
-      const hayPausa=estados.some(e=>e.key==='PAUSA');
-      const hayPendiente=estados.some(e=>e.key==='PENDIENTE');
-      const hayCompletada=estados.some(e=>e.key==='COMPLETADA');
-      const todosCerrados=estados.length>0 && estados.every(
-        e=>['COMPLETADA','CANCELADA'].includes(e.key));
-      const todosCancelados=estados.length>0 && estados.every(e=>e.key==='CANCELADA');
-      const nivel=detenidos.length?'roja':hayCurso?'verde':hayPausa?'ambar':
-        todosCancelados?'roja':todosCerrados?'verde':'gris';
-      const texto=detenidos.length?'Línea detenida':hayCurso?'En curso':
-        hayPausa?'Pausa programada':todosCancelados?'CANCELADA':
-        todosCerrados?'FINALIZADA':
-        hayPendiente && hayCompletada?'Pendiente':'Sin iniciar';
-      const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
-      const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
-      const totalProd=items.reduce((s,x)=>s+num(resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas),0);
-
-      // PRODUCCIÓN TOTAL POR PRESENTACIÓN
-      // ---------------------------------------------------------
-      // No mezclar formatos físicos diferentes de una misma línea.
-      // Varias marcas con la MISMA presentación sí se consolidan.
-      // Ej.: Aro 380 ml + Bells 380 ml => un total de 380 ml.
-      //      Aro 380 ml + Scala 1.5 L => dos totales independientes.
-      const mapaTotalesPresentacion=new Map();
-      items.forEach(x=>{
-        if(x.op?.estado==='CANCELADA')return;
-
-        const etiqueta=presUI(x.linea,x.marca,x.presentacion);
-        const clave=String(etiqueta || x.presentacion || 'SIN PRESENTACIÓN')
-          .trim()
-          .toUpperCase();
-
-        const producido=num(
-          resumenProgramacionCombinacionTurnos(
-            x.linea,x.fecha,[x.turno],x.marca,x.presentacion
-          ).unidadesProducidas
+    /*
+     ! IMPORTANTE: DÍA + INTERMEDIO comparten un bloque operativo.
+     ! NOCHE SIEMPRE se construye como bloque independiente.
+     * Esto evita mezclar programación, secuencia, producción y estados nocturnos
+     * con la continuidad DÍA/INTERMEDIO cuando se consulta TODOS los turnos.
+     */
+    function construirGrupoTurno(line,candidatos,vacios,turnoFallback){
+        const unicos=new Map();
+        candidatos.forEach(x=>{
+          const turnoPlan=x.turnoPlan || x.turno;
+          const k=llave(x.linea,x.fecha,turnoPlan,x.marca,x.presentacion);
+          const anterior=unicos.get(k);
+          if(!anterior || x.turno==='INTERMEDIO' ||
+             (x.vivo && !anterior.vivo))unicos.set(k,x);
+        });
+        const items=[...unicos.values()];
+  
+        // Recalcular el estado visual en cada render. Un producto FINALIZADO
+        // nunca debe volver a EN CURSO solo porque tenga registros de paletas.
+        items.forEach(x=>{ delete x.estadoVisual; });
+  
+        const turnoVistaSecuencia=items[0]?.turno || turnoFallback;
+        const turnoPlanSecuencia=items[0]?.turnoPlan || turnoVistaSecuencia;
+        const secuenciaActiva=aplicarEstadoVisualSecuencia(
+          items,line.key,fecha,turnoPlanSecuencia,turnoVistaSecuencia,ahora
         );
-        const programado=num(x.prog?.cantidadProgramada);
-
-        const actual=mapaTotalesPresentacion.get(clave) || {
-          clave,
-          etiqueta:etiqueta || x.presentacion || 'Sin presentación',
-          producido:0,
-          programado:0,
-          marcas:new Set()
-        };
-
-        actual.producido+=producido;
-        actual.programado+=programado;
-        if(x.marca)actual.marcas.add(x.marca);
-        mapaTotalesPresentacion.set(clave,actual);
-      });
-
-      const totalesPresentacion=[...mapaTotalesPresentacion.values()]
-        .map(t=>({...t,marcas:[...t.marcas]}));
-
-      // HORAS EFECTIVAS REALES DE LÍNEA
-      // ---------------------------------------------------------
-      // No se suman las horas de cada marca/presentación, porque
-      // pertenecen a la MISMA línea y eso duplicaba/triplicaba el tiempo.
-      //
-      // Se construye una línea temporal con los intervalos efectivos de
-      // cada presentación y se calcula la UNIÓN de esos intervalos.
-      // El final de cada intervalo queda limitado por:
-      //   1) finalizadaEn, si el supervisor finalizó la presentación;
-      //   2) el fin programado del turno;
-      //   3) la hora actual, mientras siga trabajando.
-      //
-      // De esta forma, un turno 07:00-18:30 nunca puede convertirse en
-      // 36 horas por tener varias marcas dentro de la misma línea.
-      const intervalosEfectivos=[];
-
-      items.forEach(x=>{
-        const inicio=Number(x.op?.inicio || 0);
-        const rango=horario(x.fecha,x.turno,x.compartida);
-        if(!inicio || !rango)return;
-
-        const finalizadaEn=Number(x.op?.finalizadaEn || 0);
-        const canceladaEn=Number(x.op?.canceladaEn || 0);
-        const corteEstado=finalizadaEn || canceladaEn || ahora;
-        const desde=Math.max(inicio,rango.inicio);
-        const hasta=Math.min(corteEstado,rango.fin);
-
-        if(hasta<=desde)return;
-
-        const pausaAcumulada=Number(x.op?.pausaAcumuladaMs || 0);
-        const detencionAcumulada=Number(x.op?.detencionAcumuladaMs || 0);
-
-        let pausaAbierta=0;
-        if(x.op?.estado==='PAUSA' && Number(x.op?.pausaDesde || 0)>0){
-          pausaAbierta=Math.max(
-            0,
-            Math.min(hasta,corteEstado)-Number(x.op.pausaDesde)
+  
+        // * 'vacios' llega filtrado por bloque operativo desde construirGrupoTurno().
+        if(!items.length && !vacios.length)return null;
+        const detenidos=items.filter(x=>x.op?.estado==='DETENIDA');
+        const pausas=items.filter(x=>x.op?.estado==='PAUSA');
+        const activosGuardados=items.filter(x=>x.op?.estado==='EN_PRODUCCION');
+  
+        // El estado operativo guardado tiene prioridad absoluta.
+        // Los registros de paletas sirven para métricas, pero NO pueden volver
+        // a abrir visualmente una presentación ya FINALIZADA.
+        const activoSecuencia=items.find(x=>x.estadoVisual==='EN_PRODUCCION');
+        const pausaSecuencia=items.find(x=>x.estadoVisual==='PAUSA_SECUENCIA');
+        const activo=detenidos[0] ||
+          activoSecuencia || pausas[0] || activosGuardados[0] ||
+          items.find(x=>x.op?.estado==='LISTA') || pausaSecuencia ||
+          items.find(x=>!['COMPLETADA','CANCELADA'].includes(estadoOrdenItem(x).key)) ||
+          items[0] || vacios[0];
+  
+        const estados=items.map(estadoOrdenItem);
+        const hayCurso=estados.some(e=>e.key==='EN_CURSO');
+        const hayPausa=estados.some(e=>e.key==='PAUSA');
+        const hayPendiente=estados.some(e=>e.key==='PENDIENTE');
+        const hayCompletada=estados.some(e=>e.key==='COMPLETADA');
+        const todosCerrados=estados.length>0 && estados.every(
+          e=>['COMPLETADA','CANCELADA'].includes(e.key));
+        const todosCancelados=estados.length>0 && estados.every(e=>e.key==='CANCELADA');
+        // Regla visual acordada: EN CURSO usa la luz ámbar/naranja; PAUSA usa ámbar/amarillo.
+        const nivel=detenidos.length?'roja':hayCurso?'ambar':hayPausa?'ambar':
+          todosCancelados?'roja':todosCerrados?'verde':'gris';
+        const texto=detenidos.length?'Línea detenida':hayCurso?'En curso':
+          hayPausa?'Pausa programada':todosCancelados?'CANCELADA':
+          todosCerrados?'FINALIZADA':
+          hayPendiente && hayCompletada?'Pendiente':'Sin iniciar';
+        const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
+        const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
+        const totalProd=items.reduce((s,x)=>s+num(resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas),0);
+  
+        // PRODUCCIÓN TOTAL POR PRESENTACIÓN
+        // ---------------------------------------------------------
+        // No mezclar formatos físicos diferentes de una misma línea.
+        // Varias marcas con la MISMA presentación sí se consolidan.
+        // Ej.: Aro 380 ml + Bells 380 ml => un total de 380 ml.
+        //      Aro 380 ml + Scala 1.5 L => dos totales independientes.
+        const mapaTotalesPresentacion=new Map();
+        items.forEach(x=>{
+          if(x.op?.estado==='CANCELADA')return;
+  
+          const etiqueta=presUI(x.linea,x.marca,x.presentacion);
+          const clave=String(etiqueta || x.presentacion || 'SIN PRESENTACIÓN')
+            .trim()
+            .toUpperCase();
+  
+          const producido=num(
+            resumenProgramacionCombinacionTurnos(
+              x.linea,x.fecha,[x.turno],x.marca,x.presentacion
+            ).unidadesProducidas
           );
-        }
-
-        let detencionAbierta=0;
-        if(x.op?.estado==='DETENIDA' && Number(x.op?.detenidaDesde || 0)>0){
-          detencionAbierta=Math.max(
+          const programado=num(x.prog?.cantidadProgramada);
+  
+          const actual=mapaTotalesPresentacion.get(clave) || {
+            clave,
+            etiqueta:etiqueta || x.presentacion || 'Sin presentación',
+            producido:0,
+            programado:0,
+            marcas:new Set()
+          };
+  
+          actual.producido+=producido;
+          actual.programado+=programado;
+          if(x.marca)actual.marcas.add(x.marca);
+          mapaTotalesPresentacion.set(clave,actual);
+        });
+  
+        const totalesPresentacion=[...mapaTotalesPresentacion.values()]
+          .map(t=>({...t,marcas:[...t.marcas]}));
+  
+        // HORAS EFECTIVAS REALES DE LÍNEA
+        // ---------------------------------------------------------
+        // No se suman las horas de cada marca/presentación, porque
+        // pertenecen a la MISMA línea y eso duplicaba/triplicaba el tiempo.
+        //
+        // Se construye una línea temporal con los intervalos efectivos de
+        // cada presentación y se calcula la UNIÓN de esos intervalos.
+        // El final de cada intervalo queda limitado por:
+        //   1) finalizadaEn, si el supervisor finalizó la presentación;
+        //   2) el fin programado del turno;
+        //   3) la hora actual, mientras siga trabajando.
+        //
+        // De esta forma, un turno 07:00-18:30 nunca puede convertirse en
+        // 36 horas por tener varias marcas dentro de la misma línea.
+        const intervalosEfectivos=[];
+  
+        items.forEach(x=>{
+          const inicio=Number(x.op?.inicio || 0);
+          const rango=horario(x.fecha,x.turno,x.compartida);
+          if(!inicio || !rango)return;
+  
+          const finalizadaEn=Number(x.op?.finalizadaEn || 0);
+          const canceladaEn=Number(x.op?.canceladaEn || 0);
+          const corteEstado=finalizadaEn || canceladaEn || ahora;
+          const desde=Math.max(inicio,rango.inicio);
+          const hasta=Math.min(corteEstado,rango.fin);
+  
+          if(hasta<=desde)return;
+  
+          const pausaAcumulada=Number(x.op?.pausaAcumuladaMs || 0);
+          const detencionAcumulada=Number(x.op?.detencionAcumuladaMs || 0);
+  
+          let pausaAbierta=0;
+          if(x.op?.estado==='PAUSA' && Number(x.op?.pausaDesde || 0)>0){
+            pausaAbierta=Math.max(
+              0,
+              Math.min(hasta,corteEstado)-Number(x.op.pausaDesde)
+            );
+          }
+  
+          let detencionAbierta=0;
+          if(x.op?.estado==='DETENIDA' && Number(x.op?.detenidaDesde || 0)>0){
+            detencionAbierta=Math.max(
+              0,
+              Math.min(hasta,corteEstado)-Number(x.op.detenidaDesde)
+            );
+          }
+  
+          const descuento=Math.max(
             0,
-            Math.min(hasta,corteEstado)-Number(x.op.detenidaDesde)
+            pausaAcumulada+detencionAcumulada+pausaAbierta+detencionAbierta
           );
-        }
-
-        const descuento=Math.max(
+  
+          // Para evitar sumar dos veces marcas de la misma línea, el intervalo
+          // conserva solamente el tiempo efectivo que realmente aportó.
+          const duracionEfectiva=Math.max(0,(hasta-desde)-descuento);
+          if(duracionEfectiva>0){
+            intervalosEfectivos.push({
+              desde,
+              hasta:desde+duracionEfectiva
+            });
+          }
+        });
+  
+        intervalosEfectivos.sort((a,b)=>a.desde-b.desde);
+  
+        const unidos=[];
+        intervalosEfectivos.forEach(actual=>{
+          const ultimo=unidos[unidos.length-1];
+          if(!ultimo || actual.desde>ultimo.hasta){
+            unidos.push({...actual});
+          }else{
+            ultimo.hasta=Math.max(ultimo.hasta,actual.hasta);
+          }
+        });
+  
+        const horasEfectivas=unidos.reduce(
+          (s,x)=>s+Math.max(0,x.hasta-x.desde),
+          0
+        )/MS_HORA;
+  
+        // RATIO TURNO
+        // ---------------------------------------------------------
+        // Producción acumulada / tiempo calendario transcurrido desde
+        // que comenzó la primera presentación de la línea. Las paradas
+        // y pausas NO se descuentan: precisamente deben impactar el ratio.
+        const iniciosTurno=items
+          .map(x=>Number(x.op?.inicio || 0))
+          .filter(Boolean);
+  
+        const inicioTurnoLinea=iniciosTurno.length
+          ? Math.min(...iniciosTurno)
+          : 0;
+  
+        const rangosLinea=items
+          .map(x=>horario(x.fecha,x.turno,x.compartida))
+          .filter(Boolean);
+  
+        const finMaxLinea=rangosLinea.length
+          ? Math.max(...rangosLinea.map(r=>r.fin))
+          : ahora;
+  
+        const cierres=items
+          .map(x=>Number(x.op?.finalizadaEn || x.op?.canceladaEn || 0))
+          .filter(Boolean);
+  
+        const todosCerradosOperacion=items.length>0 && items.every(
+          x=>['FINALIZADA','CANCELADA'].includes(x.op?.estado)
+        );
+  
+        const corteTurnoLinea=todosCerradosOperacion && cierres.length
+          ? Math.max(...cierres)
+          : ahora;
+  
+        const horasTurno=inicioTurnoLinea
+          ? Math.max(
+              0,
+              (Math.min(corteTurnoLinea,finMaxLinea)-inicioTurnoLinea)/MS_HORA
+            )
+          : 0;
+  
+        // El Ratio Turno se calcula más abajo con TIEMPO EFECTIVO:
+        // tiempo transcurrido - paradas/pausas.
+        // Esto evita inflar o distorsionar el indicador.
+  
+        // Tiempo de paradas/pausas registrado por los estados operativos.
+        // Se mantiene separado del ratio para que el usuario pueda ver
+        // claramente cuánto tiempo estuvo detenida la línea.
+        const paradaMs=items.reduce((suma,x)=>{
+          const op=x.op || {};
+          let ms=Number(op.pausaAcumuladaMs || 0)+
+            Number(op.detencionAcumuladaMs || 0);
+  
+          if(op.estado==='PAUSA' && Number(op.pausaDesde || 0)>0){
+            ms+=Math.max(0,Math.min(corteTurnoLinea,finMaxLinea)-Number(op.pausaDesde));
+          }
+          if(['DETENIDA','LISTA'].includes(op.estado) && Number(op.detenidaDesde || 0)>0){
+            ms+=Math.max(0,Math.min(corteTurnoLinea,finMaxLinea)-Number(op.detenidaDesde));
+          }
+          return suma+ms;
+        },0);
+  
+        const horasEfectivasTurno=Math.max(
           0,
-          pausaAcumulada+detencionAcumulada+pausaAbierta+detencionAbierta
+          horasTurno-(paradaMs/MS_HORA)
         );
+        const ratioTurno=horasEfectivasTurno>0
+          ? totalProd/horasEfectivasTurno
+          : 0;
+  
+        return {
+          line,items,vacios,activo,nivel,texto,turnosLinea,totalProg,totalProd,
+          horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
+          totalesPresentacion
+        };
+    }
 
-        // Para evitar sumar dos veces marcas de la misma línea, el intervalo
-        // conserva solamente el tiempo efectivo que realmente aportó.
-        const duracionEfectiva=Math.max(0,(hasta-desde)-descuento);
-        if(duracionEfectiva>0){
-          intervalosEfectivos.push({
-            desde,
-            hasta:desde+duracionEfectiva
-          });
-        }
-      });
+    const grupos=LINES.flatMap(line=>{
+      const candidatosLinea=filasActuales.filter(x=>x.linea===line.key && !x.sinDatos);
+      const vaciosLinea=filasActuales.filter(x=>x.linea===line.key && x.sinDatos);
 
-      intervalosEfectivos.sort((a,b)=>a.desde-b.desde);
+      const bloques=[];
 
-      const unidos=[];
-      intervalosEfectivos.forEach(actual=>{
-        const ultimo=unidos[unidos.length-1];
-        if(!ultimo || actual.desde>ultimo.hasta){
-          unidos.push({...actual});
-        }else{
-          ultimo.hasta=Math.max(ultimo.hasta,actual.hasta);
-        }
-      });
-
-      const horasEfectivas=unidos.reduce(
-        (s,x)=>s+Math.max(0,x.hasta-x.desde),
-        0
-      )/MS_HORA;
-
-      // RATIO TURNO
-      // ---------------------------------------------------------
-      // Producción acumulada / tiempo calendario transcurrido desde
-      // que comenzó la primera presentación de la línea. Las paradas
-      // y pausas NO se descuentan: precisamente deben impactar el ratio.
-      const iniciosTurno=items
-        .map(x=>Number(x.op?.inicio || 0))
-        .filter(Boolean);
-
-      const inicioTurnoLinea=iniciosTurno.length
-        ? Math.min(...iniciosTurno)
-        : 0;
-
-      const rangosLinea=items
-        .map(x=>horario(x.fecha,x.turno,x.compartida))
-        .filter(Boolean);
-
-      const finMaxLinea=rangosLinea.length
-        ? Math.max(...rangosLinea.map(r=>r.fin))
-        : ahora;
-
-      const cierres=items
-        .map(x=>Number(x.op?.finalizadaEn || x.op?.canceladaEn || 0))
-        .filter(Boolean);
-
-      const todosCerradosOperacion=items.length>0 && items.every(
-        x=>['FINALIZADA','CANCELADA'].includes(x.op?.estado)
+      // * Bloque compartido DÍA + INTERMEDIO.
+      const candidatosDiaInter=candidatosLinea.filter(x=>
+        (x.turnoPlan || x.turno)==='DÍA' ||
+        ((x.turnoPlan || x.turno)==='INTERMEDIO' && x.turno!=='NOCHE')
       );
+      const vaciosDiaInter=vaciosLinea.filter(x=>['DÍA','INTERMEDIO'].includes(x.turno));
+      if(candidatosDiaInter.length || vaciosDiaInter.length){
+        const fallbackDiaInter=turnos.includes('INTERMEDIO') ? 'INTERMEDIO' : 'DÍA';
+        const grupo=construirGrupoTurno(line,candidatosDiaInter,vaciosDiaInter,fallbackDiaInter);
+        if(grupo)bloques.push(grupo);
+      }
 
-      const corteTurnoLinea=todosCerradosOperacion && cierres.length
-        ? Math.max(...cierres)
-        : ahora;
-
-      const horasTurno=inicioTurnoLinea
-        ? Math.max(
-            0,
-            (Math.min(corteTurnoLinea,finMaxLinea)-inicioTurnoLinea)/MS_HORA
-          )
-        : 0;
-
-      // El Ratio Turno se calcula más abajo con TIEMPO EFECTIVO:
-      // tiempo transcurrido - paradas/pausas.
-      // Esto evita inflar o distorsionar el indicador.
-
-      // Tiempo de paradas/pausas registrado por los estados operativos.
-      // Se mantiene separado del ratio para que el usuario pueda ver
-      // claramente cuánto tiempo estuvo detenida la línea.
-      const paradaMs=items.reduce((suma,x)=>{
-        const op=x.op || {};
-        let ms=Number(op.pausaAcumuladaMs || 0)+
-          Number(op.detencionAcumuladaMs || 0);
-
-        if(op.estado==='PAUSA' && Number(op.pausaDesde || 0)>0){
-          ms+=Math.max(0,Math.min(corteTurnoLinea,finMaxLinea)-Number(op.pausaDesde));
-        }
-        if(['DETENIDA','LISTA'].includes(op.estado) && Number(op.detenidaDesde || 0)>0){
-          ms+=Math.max(0,Math.min(corteTurnoLinea,finMaxLinea)-Number(op.detenidaDesde));
-        }
-        return suma+ms;
-      },0);
-
-      const horasEfectivasTurno=Math.max(
-        0,
-        horasTurno-(paradaMs/MS_HORA)
+      // ! NOCHE: programación, secuencia, producción y estado propios.
+      const candidatosNoche=candidatosLinea.filter(x=>
+        (x.turnoPlan || x.turno)==='NOCHE' || x.turno==='NOCHE'
       );
-      const ratioTurno=horasEfectivasTurno>0
-        ? totalProd/horasEfectivasTurno
-        : 0;
+      const vaciosNoche=vaciosLinea.filter(x=>x.turno==='NOCHE');
+      if(candidatosNoche.length || vaciosNoche.length){
+        const grupo=construirGrupoTurno(line,candidatosNoche,vaciosNoche,'NOCHE');
+        if(grupo)bloques.push(grupo);
+      }
 
-      return {
-        line,items,vacios,activo,nivel,texto,turnosLinea,totalProg,totalProd,
-        horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
-        totalesPresentacion
-      };
-    }).filter(Boolean);
+      return bloques;
+    });
 
     // VISIBILIDAD Y PRIORIDAD DE TARJETAS
     // Supervisor: ve todas las líneas; las activas/detenidas/pausa primero.
@@ -735,15 +794,17 @@
     // visualizar todas las tarjetas del tablero. Los perfiles únicamente de
     // consulta conservan el filtro de líneas con operación activa.
     const esSupervisor=/\bsupervisor\b/.test(perfilNormalizado);
-    const esAdministrador=state.user?.rol==='Administrador';
+    const esAdministrador=
+      state.user?.rol==='Administrador' ||
+      (tienePermiso('administracion') && tienePermiso('paletas'));
     const esJefaturaProduccion=['Jefe de Producción','Jefe de Operaciones'].includes(state.user?.rol);
     const puedeVerTodasLasTarjetas=esSupervisor || esAdministrador || esJefaturaProduccion;
 
     const prioridadGrupo=g=>{
-      if(g.items.some(x=>(x.estadoVisual || x.op?.estado)==='EN_PRODUCCION'))return 0;
+      if(g.items.some(x=>estadoOrdenItem(x).key==='EN_CURSO'))return 0;
       if(g.items.some(x=>x.op?.estado==='DETENIDA'))return 1;
-      if(g.items.some(x=>['PAUSA_SECUENCIA','PAUSA','LISTA'].includes(x.estadoVisual || x.op?.estado)))return 2;
-      if(g.items.some(x=>(x.estadoVisual || x.op?.estado)==='FINALIZADA'))return 3;
+      if(g.items.some(x=>estadoOrdenItem(x).key==='PAUSA'))return 2;
+      if(g.items.length && g.items.every(x=>['COMPLETADA','CANCELADA'].includes(estadoOrdenItem(x).key)))return 3;
       return 4;
     };
 
@@ -811,9 +872,17 @@
       Ver turno actual: ${esc(turnoReal.fecha)} · ${esc(turnoReal.turno)}</button></div>
       <div class="panel-body"><p class="small-muted">Vista operativa por línea. Los totales de unidades no se mezclan entre líneas ni presentaciones.</p>
       <div class="pa-oper-kpis">
-        <div class="pa-oper-kpi pa-oper-ok"><span>Líneas en producción</span><b>${gruposVisibles.filter(g=>g.nivel==='verde').length}</b></div>
-        <div class="pa-oper-kpi pa-oper-stop"><span>Líneas detenidas</span><b>${gruposVisibles.filter(g=>g.nivel==='roja').length}</b></div>
-        <div class="pa-oper-kpi pa-oper-wait"><span>Líneas pendientes / pausa</span><b>${gruposVisibles.filter(g=>g.nivel==='gris'||g.nivel==='ambar').length}</b></div>
+        <div class="pa-oper-kpi pa-oper-ok"><span>Líneas en producción</span><b>${gruposVisibles.filter(g=>
+          g.items.some(x=>estadoOrdenItem(x).key==='EN_CURSO')
+        ).length}</b></div>
+        <div class="pa-oper-kpi pa-oper-stop"><span>Líneas detenidas</span><b>${gruposVisibles.filter(g=>
+          g.items.some(x=>x.op?.estado==='DETENIDA')
+        ).length}</b></div>
+        <div class="pa-oper-kpi pa-oper-wait"><span>Líneas pendientes / pausa</span><b>${gruposVisibles.filter(g=>
+          !g.items.some(x=>estadoOrdenItem(x).key==='EN_CURSO') &&
+          !g.items.some(x=>x.op?.estado==='DETENIDA') &&
+          g.items.some(x=>['PENDIENTE','PAUSA'].includes(estadoOrdenItem(x).key))
+        ).length}</b></div>
       </div>
       <div class="pa-live-grid">${gruposVisibles.map(g=>{
         const idxActivo=filasActuales.indexOf(g.activo);
@@ -870,14 +939,14 @@
             <section class="pa-hcol pa-hcol-ratio">
               <div class="pa-hcol-title">◴ PRODUCCIÓN ACTUAL</div>
               ${(()=>{
-                const actualActivo=g.items.find(x=>
-                  x.op?.estado==='EN_PRODUCCION' ||
-                  x.estadoVisual==='EN_PRODUCCION' ||
-                  ['DETENIDA','LISTA','PAUSA'].includes(x.op?.estado)
-                );
-                const actual=actualActivo ||
-                  g.items.find(x=>!x.op?.estado || x.op?.estado==='PENDIENTE') ||
-                  g.items.find(x=>!['FINALIZADA','CANCELADA'].includes(x.op?.estado));
+                const actualActivo=g.items.find(x=>{
+                  const e=estadoOrdenItem(x).key;
+                  return e==='EN_CURSO' || e==='PAUSA' || x.op?.estado==='DETENIDA' || x.op?.estado==='LISTA';
+                });
+                const actualPendiente=g.items.find(x=>estadoOrdenItem(x).key==='PENDIENTE');
+                const actual=actualActivo || actualPendiente;
+                // Una presentación COMPLETADA o CANCELADA nunca vuelve a mostrarse
+                // como "próxima producción". Si no hay curso/pausa/pendiente, la línea terminó.
                 if(!actual)return '<div class="pa-empty-current">Sin producción activa en este momento.</div>';
                 const idx=filasActuales.indexOf(actual);
                 const estado=estadoOrdenItem(actual);
@@ -1334,15 +1403,52 @@
         op.pausaDesde=0;op.detenidaDesde=0;op.estado='CANCELADA';op.finalizadaEn=ahora;
         op.motivo='';op.motivoCancelacion=motivoCancelacion;op.canceladaEn=ahora;
       } else if(accion==='finalizar'){
-        if(e==='PAUSA' && num(op.pausaDesde)>0)
-          op.pausaAcumuladaMs=num(op.pausaAcumuladaMs)+Math.max(0,ahora-num(op.pausaDesde));
-        if(['DETENIDA','LISTA'].includes(e) && num(op.detenidaDesde)>0)
-          op.detencionAcumuladaMs=num(op.detencionAcumuladaMs)+Math.max(0,ahora-num(op.detenidaDesde));
-        op.pausaDesde=0;
-        op.detenidaDesde=0;
-        op.estado='FINALIZADA';
-        op.finalizadaEn=ahora;
-        op.finalizadaPor=state.user?.nombre || state.user?.username || 'Usuario';
+        /*
+           FINALIZAR LÍNEA = cierre autoritativo del plan de la línea.
+           No basta con cerrar solo la tarjeta activa: si otra presentación
+           conserva EN_PRODUCCION/PENDIENTE, el render puede volver a mostrar
+           la línea EN CURSO por producción parcial o por la secuencia.
+
+           Al finalizar, cerramos todas las presentaciones del MISMO plan
+           (misma línea/fecha y bloque DÍA+INTERMEDIO cuando es compartido),
+           excepto las que ya fueron CANCELADAS. No se borra producción,
+           programación, paletas ni historial.
+        */
+        const finalizadaPor=state.user?.nombre || state.user?.username || 'Usuario';
+
+        items.forEach((p,j)=>{
+          if(!mismoPlan(p))return;
+
+          const previoLinea=p.estadoOperacion || {};
+          if(previoLinea.estado==='CANCELADA')return;
+
+          const opLinea={...previoLinea};
+
+          if(opLinea.estado==='PAUSA' && num(opLinea.pausaDesde)>0){
+            opLinea.pausaAcumuladaMs=num(opLinea.pausaAcumuladaMs)+
+              Math.max(0,ahora-num(opLinea.pausaDesde));
+          }
+
+          if(['DETENIDA','LISTA'].includes(opLinea.estado) && num(opLinea.detenidaDesde)>0){
+            opLinea.detencionAcumuladaMs=num(opLinea.detencionAcumuladaMs)+
+              Math.max(0,ahora-num(opLinea.detenidaDesde));
+          }
+
+          opLinea.pausaDesde=0;
+          opLinea.detenidaDesde=0;
+          opLinea.estado='FINALIZADA';
+          opLinea.finalizadaEn=ahora;
+          opLinea.finalizadaPor=finalizadaPor;
+          opLinea.actualizadoEn=ahora;
+          opLinea.actualizadoPor=finalizadaPor;
+
+          items[j]={...p,estadoOperacion:opLinea};
+        });
+
+        // Mantener la referencia local sincronizada con el elemento ya cerrado.
+        Object.assign(op,items[i]?.estadoOperacion || {
+          estado:'FINALIZADA',finalizadaEn:ahora,finalizadaPor
+        });
       } else if(accion==='reabrir'){
         // Conservar el cierre anterior como trazabilidad antes de desbloquear.
         op.ultimaFinalizacion={

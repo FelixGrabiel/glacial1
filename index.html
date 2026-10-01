@@ -73,9 +73,6 @@
         <link rel="stylesheet" 
             href="tareo.css"
         >
-        <link rel="stylesheet" 
-            href="sidebar-glacial.css"
-        >
         <!-- =====================================================
             ESTILOS COMPLEMENTARIOS
         ====================================================== -->
@@ -224,265 +221,293 @@
 
 
             /* =====================================================
-            SELECCIÓN DE TIPO DE REPORTE
+            SELECCIÓN DE TIPO DE REPORTE · BIENVENIDA GLACIAL
             ====================================================== */
 
             #report-select-screen {
-
                 display: none;
-
                 min-height: 100vh;
-
                 align-items: center;
-
                 justify-content: center;
-
-                padding: 30px;
-
+                padding: 28px 20px;
                 position: relative;
-
+                overflow-x: hidden;
+                overflow-y: auto;
+                font-family: "IBM Plex Sans", Arial, sans-serif;
                 background:
-                    linear-gradient(
-                        135deg,
-                        rgba(0, 28, 52, 0.92),
-                        rgba(0, 91, 150, 0.82)
-                    ),
+                    linear-gradient(135deg, rgba(6, 31, 58, 0.96), rgba(8, 82, 139, 0.88)),
                     url("img/fondo_glacial.jpg");
-
                 background-size: cover;
-
                 background-position: center;
-
                 background-repeat: no-repeat;
             }
 
-
-            .report-select-card {
-
-                width: 100%;
-
-                max-width: 640px;
-
-                position: relative;
-
-                z-index: 2;
-
+            #report-select-screen::before {
+                content: "";
+                position: fixed;
+                inset: 0;
+                pointer-events: none;
                 background:
-                    rgba(255, 255, 255, 0.98);
+                    radial-gradient(circle at 18% 15%, rgba(78, 166, 229, .13), transparent 34%),
+                    radial-gradient(circle at 84% 80%, rgba(255, 255, 255, .07), transparent 30%);
+            }
 
-                border:
-                    1px solid rgba(255, 255, 255, 0.60);
-
+            #report-select-screen .report-select-card {
+                width: min(100%, 760px);
+                position: relative;
+                z-index: 2;
+                padding: 28px 32px 22px;
+                background: rgba(255, 255, 255, .985);
+                border: 1px solid rgba(255, 255, 255, .72);
                 border-radius: 20px;
-
-                overflow: hidden;
-
-                box-shadow:
-                    var(--shadow-lg);
-
-                padding:
-                    34px 38px 30px;
+                box-shadow: 0 22px 58px rgba(0, 25, 48, .24);
             }
 
-
-            .report-select-logo-container {
-
-                width: 100%;
-
+            #report-select-screen .report-select-logo-container {
                 display: flex;
-
                 justify-content: center;
-
                 align-items: center;
-
-                padding-bottom: 16px;
+                margin: 0 0 8px;
             }
 
-
-            .report-select-logo {
-
+            #report-select-screen .report-select-logo {
                 display: block;
-
                 width: auto;
-
-                height: 78px;
-
-                max-width: 70%;
-
+                height: 64px;
+                max-width: 220px;
                 object-fit: contain;
             }
 
-
-            .report-select-head {
-
+            #report-select-screen .report-select-head {
                 text-align: center;
-
-                padding-bottom: 26px;
+                padding: 0 0 22px;
             }
 
-
-            .report-select-head h1 {
-
-                margin:
-                    10px 0 14px;
-
-                color:
-                    #10202c;
-
-                font-family:
-                    "Oswald",
-                    sans-serif;
-
-                font-size: 26px;
-
-                font-weight: 600;
-
-                letter-spacing: 0.4px;
-            }
-
-
-            .report-select-welcome {
-
-                margin:
-                    0 0 6px;
-
-                color:
-                    var(--glacial-blue);
-
-                font-family:
-                    "IBM Plex Mono",
-                    monospace;
-
-                font-size: 13px;
-
+            #report-select-screen .plant-tag {
+                display: inline-flex;
+                align-items: center;
+                min-height: 28px;
+                margin: 0 0 9px;
+                padding: 5px 11px;
+                border: 1px solid #cfe2f3;
+                border-radius: 999px;
+                background: #eef7ff;
+                color: #075f9f;
+                font-family: inherit;
+                font-size: 11px;
                 font-weight: 700;
-
-                letter-spacing: 1.4px;
+                letter-spacing: .08em;
+                text-transform: uppercase;
             }
 
-
-            .report-select-description {
-
+            #report-select-screen .report-select-head h1 {
                 margin: 0;
+                color: #102b45;
+                font-family: inherit;
+                font-size: clamp(25px, 3.2vw, 34px);
+                font-weight: 700;
+                line-height: 1.18;
+                letter-spacing: -.025em;
+            }
 
-                color:
-                    var(--text-soft);
+            #report-select-screen .report-select-welcome {
+                margin: 10px 0 4px;
+                color: #075f9f;
+                font-family: inherit;
+                font-size: 15px;
+                font-weight: 600;
+                letter-spacing: 0;
+                text-transform: none;
+            }
 
+            #report-select-screen .report-select-welcome strong {
+                font-weight: 700;
+                color: #063f6d;
+            }
+
+            #report-select-screen .report-select-description {
+                margin: 0;
+                color: #617487;
                 font-size: 14px;
-
-                line-height: 1.55;
+                line-height: 1.5;
             }
 
-
-            .report-type-grid {
-
+            #report-select-screen .report-type-grid {
                 display: grid;
-
-                grid-template-columns:
-                    repeat(2, 1fr);
-
-                gap: 18px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 16px;
             }
 
+            #report-select-screen .report-type-card {
+                appearance: none;
+                width: 100%;
+                min-height: 190px;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                justify-content: flex-start;
+                gap: 0;
+                padding: 22px;
+                text-align: left;
+                border: 1px solid #d8e4ed;
+                border-radius: 16px;
+                background: #fff;
+                color: #142f48;
+                box-shadow: 0 5px 18px rgba(12, 55, 88, .06);
+                transition:
+                    transform .18s ease,
+                    border-color .18s ease,
+                    background-color .18s ease,
+                    box-shadow .18s ease;
+            }
 
-            @media (max-width: 560px) {
+            #report-select-screen .report-type-card:hover {
+                transform: translateY(-2px);
+                border-color: #1784d5;
+                background: #f5faff;
+                box-shadow: 0 10px 24px rgba(6, 92, 157, .11);
+            }
 
-                .report-type-grid {
+            #report-select-screen .report-type-card:focus-visible {
+                outline: 3px solid rgba(0, 119, 182, .26);
+                outline-offset: 3px;
+                border-color: #0077b6;
+            }
 
+            #report-select-screen .report-type-icon {
+                width: 46px;
+                height: 46px;
+                display: grid;
+                place-items: center;
+                margin-bottom: 16px;
+                border-radius: 13px;
+                background: #eaf5ff;
+                color: #0876c9;
+            }
+
+            #report-select-screen .report-type-icon svg {
+                width: 25px;
+                height: 25px;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.8;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+
+            #report-select-screen .report-type-title {
+                color: #102b45;
+                font-family: inherit;
+                font-size: 18px;
+                font-weight: 700;
+                line-height: 1.25;
+                letter-spacing: -.01em;
+            }
+
+            #report-select-screen .report-type-desc {
+                margin-top: 7px;
+                color: #66798b;
+                font-size: 13px;
+                line-height: 1.5;
+                text-align: left;
+            }
+
+            #report-select-screen .report-type-action {
+                margin-top: auto;
+                padding-top: 17px;
+                color: #0674c7;
+                font-size: 13px;
+                font-weight: 700;
+            }
+
+            #report-select-screen .report-type-status {
+                display: inline-flex;
+                align-items: center;
+                margin-top: 9px;
+                padding: 4px 8px;
+                border-radius: 999px;
+                background: #fff5df;
+                color: #9a6500;
+                font-size: 11px;
+                font-weight: 700;
+            }
+
+            #report-select-screen .report-select-footer {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 22px;
+                padding-top: 16px;
+                border-top: 1px solid #e2eaf0;
+                color: #718292;
+                font-size: 12px;
+                text-align: center;
+            }
+
+            #report-select-screen .report-select-footer strong {
+                color: #405568;
+                font-weight: 600;
+            }
+
+            @media (max-width: 640px) {
+                #report-select-screen {
+                    align-items: flex-start;
+                    padding: 18px 16px;
+                }
+
+                #report-select-screen .report-select-card {
+                    margin: auto 0;
+                    padding: 22px 18px 18px;
+                    border-radius: 18px;
+                }
+
+                #report-select-screen .report-select-logo {
+                    height: 54px;
+                    max-width: 190px;
+                }
+
+                #report-select-screen .report-select-head {
+                    padding-bottom: 18px;
+                }
+
+                #report-select-screen .report-select-head h1 {
+                    font-size: 26px;
+                }
+
+                #report-select-screen .report-type-grid {
                     grid-template-columns: 1fr;
+                    gap: 12px;
+                }
+
+                #report-select-screen .report-type-card {
+                    min-height: 164px;
+                    padding: 18px;
                 }
             }
 
-
-            .report-type-card {
-
-                display: flex;
-
-                flex-direction: column;
-
-                align-items: center;
-
-                gap: 10px;
-
-                padding: 30px 20px;
-
-                border:
-                    1px solid var(--border);
-
-                border-radius: 16px;
-
-                background:
-                    var(--white);
-
-                box-shadow:
-                    var(--shadow-sm);
-
-                transition:
-                    transform 0.15s ease,
-                    box-shadow 0.15s ease,
-                    border-color 0.15s ease;
+            @media (max-height: 690px) and (min-width: 641px) {
+                #report-select-screen {
+                    align-items: flex-start;
+                    padding-top: 18px;
+                    padding-bottom: 18px;
+                }
             }
 
+            @media (prefers-reduced-motion: reduce) {
+                #report-select-screen *,
+                #report-select-screen *::before,
+                #report-select-screen *::after {
+                    scroll-behavior: auto !important;
+                    transition-duration: .01ms !important;
+                    animation-duration: .01ms !important;
+                    animation-iteration-count: 1 !important;
+                }
 
-            .report-type-card:hover {
-
-                transform:
-                    translateY(-3px);
-
-                border-color:
-                    var(--glacial-blue-light);
-
-                box-shadow:
-                    var(--shadow-md);
-            }
-
-
-            .report-type-icon {
-
-                font-size: 40px;
-
-                line-height: 1;
-            }
-
-
-            .report-type-title {
-
-                color:
-                    #10202c;
-
-                font-family:
-                    "Oswald",
-                    sans-serif;
-
-                font-size: 18px;
-
-                font-weight: 600;
-
-                letter-spacing: 0.3px;
-            }
-
-
-            .report-type-desc {
-
-                color:
-                    var(--text-soft);
-
-                font-size: 12.5px;
-
-                text-align: center;
-            }
-
-
-            .report-select-footer {
-
-                margin-top: 26px;
-
-                text-align: center;
-
-                color:
-                    var(--text-soft);
-
-                font-size: 12px;
+                #report-select-screen .report-type-card:hover {
+                    transform: none;
+                }
             }
 
 
@@ -2439,7 +2464,8 @@
             }
         </style>
 
-        <link rel="stylesheet" href="mobile-glacial.css?v=20260925-movil-1">
+        <link rel="stylesheet" href="sidebar-glacial.css?v=20260930-sidebar-modulos-1">
+        <link rel="stylesheet" href="mobile-glacial.css?v=20260930-sidebar-modulos-1">
 
     </head>
 
@@ -2617,20 +2643,17 @@
         <div class="report-select-card">
 
             <div class="report-select-logo-container">
-
                 <img
                     src="img/logo_glacial.png"
                     alt="GLACIAL"
                     class="report-select-logo"
                 >
-
             </div>
-
 
             <div class="report-select-head">
 
                 <div class="plant-tag">
-                    SISTEMA DE PRODUCCIÓN
+                    Sistema de producción
                 </div>
 
                 <h1>
@@ -2638,15 +2661,14 @@
                 </h1>
 
                 <p class="report-select-welcome">
-                    BIENVENIDO
+                    Bienvenido, <strong id="report-select-welcome-user">usuario</strong>
                 </p>
 
                 <p class="report-select-description">
-                    Seleccione el tipo de reporte que desea ingresar
+                    Selecciona el reporte que deseas abrir
                 </p>
 
             </div>
-
 
             <div class="report-type-grid">
 
@@ -2654,10 +2676,13 @@
                     type="button"
                     class="report-type-card"
                     onclick="goReporteAgua()"
+                    aria-label="Abrir Reporte Agua"
                 >
-
-                    <span class="report-type-icon">
-                        💧
+                    <span class="report-type-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2.8S6.2 9.1 6.2 14.1a5.8 5.8 0 0 0 11.6 0C17.8 9.1 12 2.8 12 2.8Z"></path>
+                            <path d="M9.3 15.1a2.9 2.9 0 0 0 2.7 2"></path>
+                        </svg>
                     </span>
 
                     <span class="report-type-title">
@@ -2665,20 +2690,25 @@
                     </span>
 
                     <span class="report-type-desc">
-                        Ingreso de datos de producción
+                        Registro y seguimiento diario de la producción de agua.
                     </span>
 
+                    <span class="report-type-action">
+                        Abrir reporte →
+                    </span>
                 </button>
-
 
                 <button
                     type="button"
                     class="report-type-card"
                     onclick="goReporteHielo()"
+                    aria-label="Consultar Reporte Hielo"
                 >
-
-                    <span class="report-type-icon">
-                        ❄️
+                    <span class="report-type-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2v20M4.2 6.5l15.6 11M19.8 6.5l-15.6 11"></path>
+                            <path d="m9.7 4.2 2.3 2.1 2.3-2.1M9.7 19.8l2.3-2.1 2.3 2.1M4.5 10l3 .8-.6 3M19.5 14l-3-.8.6-3M19.5 10l-3 .8.6 3M4.5 14l3-.8-.6-3"></path>
+                        </svg>
                     </span>
 
                     <span class="report-type-title">
@@ -2686,27 +2716,31 @@
                     </span>
 
                     <span class="report-type-desc">
-                        Ingreso de datos de producción
+                        Módulo de producción de hielo.
                     </span>
 
+                    <span class="report-type-status">
+                        En desarrollo
+                    </span>
+
+                    <span class="report-type-action">
+                        Ver disponibilidad →
+                    </span>
                 </button>
 
             </div>
 
-
             <div class="report-select-footer">
-
-                Usuario:
-                <strong id="report-select-username">
-                    —
-                </strong>
-
-                <span class="login-footer-separator">
-                    |
+                <span>
+                    Usuario:
+                    <strong id="report-select-username">—</strong>
                 </span>
 
-                Sistema v1.0
+                <span class="login-footer-separator" aria-hidden="true">•</span>
 
+                <span>
+                    Sistema v1.0
+                </span>
             </div>
 
         </div>
@@ -2725,8 +2759,15 @@
             TOPBAR
         ================================================== -->
 
-        <header class="topbar">
-
+        <!--
+            * BETTER COMMENTS · CABECERA PRINCIPAL GLACIAL
+            ! IMPORTANTE: este bloque conserva los IDs y funciones existentes.
+            ! IMPORTANTE: NO modifica usuarios, Firebase, sesión ni datos.
+            ? Visualizar / Trabajar continúa usando establecerModoTrabajo().
+            ? Salir continúa usando handleLogout().
+            * El acceso Inicio permanece en la barra lateral; se retira solo el duplicado superior.
+        -->
+        <header class="topbar" aria-label="Cabecera principal">
 
             <div class="topbar-left">
 
@@ -2738,25 +2779,11 @@
                     aria-controls="glacial-sidebar"
                     aria-expanded="false"
                     onclick="alternarMenuMovil()"
-                >☰</button>
-
-                <div class="topbar-brand">
-
-                    <div class="topbar-logo-wrap">
-
-                        <img
-                            src="img/logo_glacial.png"
-                            alt="Logo GLACIAL"
-                            class="topbar-logo"
-                        >
-
-                    </div>
-
-                </div>
-
-
-                <div class="topbar-separator"></div>
-
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 7h16M4 12h16M4 17h16"/>
+                    </svg>
+                </button>
 
                 <div class="topbar-title">
 
@@ -2765,17 +2792,32 @@
                     </strong>
 
                     <small>
-                        CONTROL OPERATIVO · PLANTA DE ENVASADO
+                        Control operativo · Planta de envasado
                     </small>
 
                 </div>
 
             </div>
 
-
             <div class="topbar-right">
 
+                <!--
+                    * CENTRO DE ALERTAS
+                    ! IMPORTANTE: este contenedor solo define la ubicación visual.
+                    ! La autorización, datos, sonido e historial siguen en 25-alertas-lineas.js.
+                    ? El JS inserta #al-host aquí; ya no usa coordenadas fijas sobre la pantalla.
+                -->
+                <div
+                    id="alertas-topbar-slot"
+                    class="alertas-topbar-slot"
+                    aria-label="Acceso al centro de alertas"
+                ></div>
 
+                <!--
+                    * SELECTOR DE MODO
+                    ! IMPORTANTE: conservar id="modo-turno-box" e id="modo-switch".
+                    ! IMPORTANTE: conservar data-modo y onclick; 17-modo-trabajo.js usa estos valores.
+                -->
                 <div
                     class="modo-turno-box"
                     id="modo-turno-box"
@@ -2784,7 +2826,12 @@
 
                     <div class="cronometro-turno" id="cronometro-turno"></div>
 
-                    <div class="modo-switch" id="modo-switch">
+                    <div
+                        class="modo-switch"
+                        id="modo-switch"
+                        role="group"
+                        aria-label="Modo de uso del sistema"
+                    >
 
                         <button
                             type="button"
@@ -2792,8 +2839,13 @@
                             data-modo="visualizar"
                             onclick="establecerModoTrabajo('visualizar')"
                             title="Solo consulta: reportes, indicadores, producción y gráficos"
+                            aria-pressed="false"
                         >
-                            👁️ Visualizar
+                            <svg class="modo-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+                                <circle cx="12" cy="12" r="2.8"/>
+                            </svg>
+                            <span>Visualizar</span>
                         </button>
 
                         <button
@@ -2802,16 +2854,26 @@
                             data-modo="trabajar"
                             onclick="establecerModoTrabajo('trabajar')"
                             title="Modo operativo: registrar producción, paradas y observaciones"
+                            aria-pressed="false"
                         >
-                            ⚙️ Trabajar
+                            <svg class="modo-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M14.7 6.3a4 4 0 0 0-5-5L12 3.6 9.6 6 7.3 3.7a4 4 0 0 0 5 5L4 17l3 3 8.3-8.3a4 4 0 0 0-.6-5.4Z"/>
+                            </svg>
+                            <span>Trabajar</span>
                         </button>
 
                     </div>
 
                 </div>
 
+                <div class="topbar-profile-separator" aria-hidden="true"></div>
 
-                <div class="user-chip">
+                <!--
+                    * PERFIL
+                    ! IMPORTANTE: user-avatar, user-name y user-role se rellenan con la sesión real.
+                    ! NO escribir nombres o cargos fijos en este HTML.
+                -->
+                <div class="user-chip" title="">
 
                     <div
                         class="user-avatar"
@@ -2840,48 +2902,32 @@
 
                 </div>
 
-
+                <!--
+                    * SALIDA
+                    ! IMPORTANTE: conservar handleLogout(); mantiene la lógica actual de cierre de sesión.
+                -->
                 <button
                     type="button"
-                    class="btn btn-topbar"
-                    onclick="goReportSelect()"
-                    aria-label="Volver a selección de reporte"
-                >
-
-                    <span aria-hidden="true">
-                        ⌂
-                    </span>
-
-                    <span>
-                        Inicio
-                    </span>
-
-                </button>
-
-
-                <button
-                    type="button"
-                    class="btn btn-topbar"
+                    class="btn btn-topbar topbar-logout"
                     onclick="handleLogout()"
                     aria-label="Cerrar sesión"
                 >
-
-                    <span
-                        class="logout-icon"
-                        aria-hidden="true"
-                    >
-                        ↪
-                    </span>
-
-                    <span>
-                        Salir
-                    </span>
-
+                    <svg class="logout-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M10 17l5-5-5-5M15 12H3"/>
+                        <path d="M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/>
+                    </svg>
+                    <span>Salir</span>
                 </button>
 
             </div>
 
         </header>
+
+
+
+
+
+
 
         <nav class="mobile-lines" id="mobile-lines" aria-label="Líneas disponibles" hidden></nav>
         <button
@@ -2904,126 +2950,135 @@
                 SIDEBAR
             ================================================== -->
 
-            <aside class="sidebar" id="glacial-sidebar">
-
+            <aside class="sidebar" id="glacial-sidebar" aria-label="Navegación principal">
 
                 <div class="sidebar-brand">
-
-                    <div class="sidebar-brand-mark">
-                        G
-                    </div>
-
-                    <div>
-
-                        <strong>
-                            GLACIAL
-                        </strong>
-
-                        <span>
-                            PRODUCCIÓN
-                        </span>
-
-                    </div>
-
+                    <img src="img/logo_glacial.png" alt="GLACIAL" class="sidebar-brand-logo">
                 </div>
-
 
                 <div class="sidebar-scroll">
-                <div id="sidebar-lines">
-                    <div class="sidebar-label">
-                        Líneas de producción
-                    </div>
+                    <nav class="sidebar-nav" aria-label="Módulos del sistema">
 
+                        <button type="button" class="side-action sidebar-root-action" id="btn-centro-perfil"
+                                onclick="abrirCentroPerfil()" style="display:none">
+                            <span class="side-action-icon" aria-hidden="true">⌂</span><span>Inicio</span>
+                        </button>
 
-                    <nav
-                        id="line-list"
-                        aria-label="Líneas de producción"
-                    ></nav>
-                </div>
+                        <section class="sidebar-group" id="sidebar-group-produccion" data-sidebar-group="produccion">
+                            <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="produccion"
+                                    aria-expanded="true" aria-controls="sidebar-panel-produccion">
+                                <span class="side-action-icon" aria-hidden="true">▣</span>
+                                <span class="sidebar-group-label">Producción</span>
+                                <span class="sidebar-chevron" aria-hidden="true">⌃</span>
+                            </button>
+                            <div class="sidebar-group-panel" id="sidebar-panel-produccion">
+                                <div class="sidebar-subgroup" id="sidebar-lines">
+                                    <button type="button" class="sidebar-subgroup-toggle" data-sidebar-toggle="registro-produccion"
+                                            aria-expanded="true" aria-controls="sidebar-panel-registro-produccion">
+                                        <span>Registro de producción</span><span class="sidebar-chevron" aria-hidden="true">⌃</span>
+                                    </button>
+                                    <div class="sidebar-subgroup-panel" id="sidebar-panel-registro-produccion">
+                                        <nav id="line-list" aria-label="Líneas de producción"></nav>
+                                    </div>
+                                </div>
 
+                                <button type="button" class="side-action sidebar-subaction" id="btn-produccion-actual"
+                                        onclick="goProduccionActual()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Producción actual</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-avance-produccion"
+                                        onclick="goAvanceProduccion()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Avance y cierre</span>
+                                </button>
+                            </div>
+                        </section>
 
-                <div class="sidebar-divider" id="sidebar-lines-divider"></div>
+                        <button type="button" class="side-action sidebar-root-action sidebar-disabled" id="btn-almacen"
+                                disabled hidden style="display:none" title="Módulo disponible próximamente"
+                                aria-label="Almacén, próximamente">
+                            <span class="side-action-icon" aria-hidden="true">▤</span><span>Almacén · Próximamente</span>
+                        </button>
 
+                        <section class="sidebar-group" id="sidebar-group-mantenimiento" data-sidebar-group="mantenimiento">
+                            <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="mantenimiento"
+                                    aria-expanded="false" aria-controls="sidebar-panel-mantenimiento">
+                                <span class="side-action-icon" aria-hidden="true">⚒</span>
+                                <span class="sidebar-group-label">Mantenimiento</span>
+                                <span class="sidebar-chevron" aria-hidden="true">⌃</span>
+                            </button>
+                            <div class="sidebar-group-panel" id="sidebar-panel-mantenimiento" hidden>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-mantenimiento"
+                                        onclick="goMantenimiento()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Tareo de mantenimiento</span>
+                                </button>
+                            </div>
+                        </section>
 
-                <!-- =================================================
-                    GESTIÓN
-                ================================================== -->
+                        <section class="sidebar-group" id="sidebar-group-rrhh" data-sidebar-group="rrhh">
+                            <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="rrhh"
+                                    aria-expanded="false" aria-controls="sidebar-panel-rrhh">
+                                <span class="side-action-icon" aria-hidden="true">◫</span>
+                                <span class="sidebar-group-label">Recursos Humanos</span>
+                                <span class="sidebar-chevron" aria-hidden="true">⌃</span>
+                            </button>
+                            <div class="sidebar-group-panel" id="sidebar-panel-rrhh" hidden>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-rrhh"
+                                        onclick="goRRHH()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Panel de RRHH</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-tareo" onclick="goTareo()">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Tareo de producción</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-rotacion-supervisores"
+                                        onclick="goRotacionSupervisores()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Rotación de supervisores</span>
+                                </button>
+                            </div>
+                        </section>
 
-                <div id="sidebar-management">
-                    <div class="sidebar-section-title">Gestión</div>
+                        <section class="sidebar-group" id="sidebar-group-reportes" data-sidebar-group="reportes">
+                            <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="reportes"
+                                    aria-expanded="false" aria-controls="sidebar-panel-reportes">
+                                <span class="side-action-icon" aria-hidden="true">▦</span>
+                                <span class="sidebar-group-label">Reportes</span>
+                                <span class="sidebar-chevron" aria-hidden="true">⌃</span>
+                            </button>
+                            <div class="sidebar-group-panel" id="sidebar-panel-reportes" hidden>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-resumen" onclick="goResumen()">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Resumen general</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-perdidas" onclick="goPerdidasSoles()">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Impacto económico</span>
+                                </button>
+                            </div>
+                        </section>
 
-                    <button type="button" class="side-action" id="btn-centro-perfil"
-                            onclick="abrirCentroPerfil()" style="display:none">
-                        <span class="side-action-icon">⌂</span><span>Inicio</span>
-                    </button>
+                        <section class="sidebar-group" id="sidebar-group-configuracion" data-sidebar-group="configuracion">
+                            <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="configuracion"
+                                    aria-expanded="false" aria-controls="sidebar-panel-configuracion">
+                                <span class="side-action-icon" aria-hidden="true">⚙</span>
+                                <span class="sidebar-group-label">Configuración</span>
+                                <span class="sidebar-chevron" aria-hidden="true">⌃</span>
+                            </button>
+                            <div class="sidebar-group-panel" id="sidebar-panel-configuracion" hidden>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-usuarios"
+                                        onclick="openUsersModal()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Gestionar usuarios</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-trabajadores"
+                                        onclick="openWorkersModal()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Gestionar trabajadores</span>
+                                </button>
+                            </div>
+                        </section>
 
-                    <button type="button" class="side-action" id="btn-produccion-actual"
-                            onclick="goProduccionActual()" style="display:none">
-                        <span class="side-action-icon">▣</span><span>Producción actual</span>
-                    </button>
-                    <button type="button" class="side-action" id="btn-avance-produccion"
-                            onclick="goAvanceProduccion()" style="display:none">
-                        <span class="side-action-icon">▤</span><span>Avance y Cierre</span>
-                    </button>
-                    <button type="button" class="side-action" id="btn-resumen" onclick="goResumen()">
-                        <span class="side-action-icon">▦</span><span>Resumen general</span>
-                    </button>
-                    <button type="button" class="side-action" id="btn-perdidas" onclick="goPerdidasSoles()">
-                        <span class="side-action-icon">↘</span><span>Impacto económico</span>
-                    </button>
-                    <button type="button" class="side-action" id="btn-mantenimiento"
-                            onclick="goMantenimiento()" style="display:none">
-                        <span class="side-action-icon">⚒</span><span>Mantenimiento</span>
-                    </button>
-                    <button type="button" class="side-action" id="btn-rrhh" onclick="goRRHH()" style="display:none">
-                        <span class="side-action-icon">◫</span><span>Recursos Humanos</span>
-                    </button>
-                    <button type="button" class="side-action" id="btn-almacen" disabled hidden style="display:none"
-                            title="Módulo disponible próximamente" aria-label="Almacén, próximamente">
-                        <span class="side-action-icon">▤</span><span>Almacén · Próximamente</span>
-                    </button>
-
-                    <button type="button" class="side-action" id="btn-rotacion-supervisores"
-                            onclick="goRotacionSupervisores()" style="display:none">
-                        <span class="side-action-icon">↻</span><span>Rotación de supervisores</span>
-                    </button>
-
-                    <!-- El supervisor conserva el Tareo operativo como sección aparte. -->
-                    <button type="button" class="side-action" id="btn-tareo" onclick="goTareo()">
-                        <span class="side-action-icon">◷</span><span>Tareo</span>
-                    </button>
-                    <button type="button" class="side-action" id="btn-usuarios"
-                            onclick="openUsersModal()" style="display:none">
-                        <span class="side-action-icon">⚙</span><span>Gestionar usuarios</span>
-                    </button>
-                    <button type="button" class="side-action" id="btn-trabajadores"
-                            onclick="openWorkersModal()" style="display:none">
-                        <span class="side-action-icon">☷</span><span>Gestionar trabajadores</span>
-                    </button>
-                </div>
+                    </nav>
                 </div>
 
                 <div class="sidebar-footer">
-
-                    <span
-                        class="status-dot"
-                        aria-hidden="true"
-                    ></span>
-
-                    <div>
-
-                        <strong>
-                            Panel GLACIAL
-                        </strong>
-
-                        <small>
-                            Accesos según permisos
-                        </small>
-
-                    </div>
-
+                    <span class="status-dot" aria-hidden="true"></span>
+                    <div><strong>Panel GLACIAL</strong><small>Accesos según permisos</small></div>
                 </div>
-
             </aside>
 
 
@@ -3208,7 +3263,7 @@
 
     <script src="js/03-auth.js?v=20260924-sidebar"></script>
 
-    <script src="js/04-sidebar.js?v=20260925-consulta-1"></script>
+    <script src="js/04-sidebar.js?v=20260930-sidebar-modulos-1"></script>
 
     <script src="js/05-utils.js?v=20260918-resumen"></script>
 

@@ -163,3 +163,602 @@
 @media (prefers-reduced-motion:reduce){
   #app-screen .shell>.sidebar{transition:none}
 }
+
+
+/* =========================================================
+   SIDEBAR REDISEÑADA · TELÉFONO
+   Sobrescribe únicamente el panel lateral.
+   ========================================================= */
+@media (max-width:700px){
+  #app-screen .shell>.sidebar{
+    width:min(320px,88vw)!important;
+    background:linear-gradient(180deg,#0d3159 0%,#0B2849 48%,#071f3b 100%)!important;
+    border-radius:0 14px 14px 0!important;
+    color:#fff!important;
+  }
+  #app-screen .sidebar>.sidebar-brand{
+    display:flex!important;
+    min-height:78px!important;
+    padding:14px 18px!important;
+    border-bottom:1px solid rgba(255,255,255,.11)!important;
+  }
+  #app-screen .sidebar .sidebar-brand-logo{height:46px!important;max-width:180px!important}
+  #app-screen .sidebar>.sidebar-scroll{
+    display:block!important;
+    flex:1 1 auto!important;
+    min-height:0!important;
+    padding:12px 9px 18px!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+  }
+  #app-screen .sidebar>.sidebar-footer{display:flex!important}
+  #app-screen .sidebar-nav{display:grid!important;width:100%!important;gap:4px!important}
+  #app-screen .sidebar-group{width:100%!important}
+  #app-screen .sidebar-group-panel{display:block;width:auto}
+  #app-screen .sidebar-group-panel[hidden],
+  #app-screen .sidebar-subgroup-panel[hidden]{display:none!important}
+  #app-screen .sidebar .sidebar-group-toggle,
+  #app-screen .sidebar .side-action{min-height:46px!important;width:100%!important}
+  #app-screen .sidebar .sidebar-subgroup-toggle,
+  #app-screen .sidebar .line-btn,
+  #app-screen .sidebar .sidebar-subaction{min-height:44px!important;width:100%!important}
+  #app-screen #sidebar-lines{display:block!important;width:100%!important}
+  #app-screen #sidebar-lines[hidden]{display:none!important}
+  #app-screen #line-list{display:grid!important;width:100%!important;gap:2px!important}
+}
+
+/* =========================================================
+   GLACIAL · LOGO RESPONSIVE
+   Móvil: sidebar cerrada por defecto; logo visible en topbar.
+   ========================================================= */
+@media (max-width: 900px){
+  #app-screen .topbar-logo-wrap{
+    display:flex !important;
+  }
+  #app-screen .topbar-separator{
+    display:block !important;
+  }
+}
+
+
+
+
+/*
+ * BETTER COMMENTS · RESPONSIVE DE CABECERA GLACIAL
+ ! IMPORTANTE: estos estilos están limitados a #app-screen .topbar.
+ ! NO usar selectores globales aquí: podrían alterar formularios, modales o tarjetas.
+ * Para cambiar tamaños/espacios de la cabecera, hacerlo dentro de este bloque.
+ ? Mantener áreas táctiles de al menos 44px en controles interactivos.
+ TODO: si se cambia mucho la altura de la topbar, revisar el ajuste del contenido/sidebar.
+*/
+
+/* =====================================================================
+   GLACIAL · TOPBAR 2026 · RESPONSIVE
+   Se carga al final para ajustar únicamente la cabecera.
+   ===================================================================== */
+@media (max-width:700px){
+  #app-screen .topbar{
+    min-height:72px;
+    padding:9px 10px;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+
+  #app-screen .topbar-left{
+    order:1;
+    flex:1 1 180px;
+    min-width:0;
+    gap:8px;
+  }
+
+  #app-screen .mobile-menu-toggle{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:44px;
+    height:44px;
+    flex:0 0 44px;
+    padding:0;
+    border:1px solid #d4e0e9;
+    border-radius:10px;
+    background:#f7fafc;
+    color:#075f9f;
+    font-size:0;
+  }
+
+  #app-screen .mobile-menu-toggle svg{
+    width:21px;
+    height:21px;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:2;
+    stroke-linecap:round;
+  }
+
+  #app-screen .topbar-title strong{
+    font-size:16px;
+    line-height:1.15;
+  }
+
+  #app-screen .topbar-title small{
+    display:none;
+  }
+
+  #app-screen .topbar-right{
+    display:flex;
+    order:2;
+    flex:0 0 auto;
+    gap:7px;
+  }
+
+  #app-screen .topbar-profile-separator,
+  #app-screen .user-chip{
+    display:none;
+  }
+
+  #app-screen .btn-topbar.topbar-logout{
+    width:44px;
+    min-width:44px;
+    height:44px;
+    min-height:44px;
+    padding:0;
+    border-radius:10px;
+  }
+
+  #app-screen .btn-topbar.topbar-logout span{
+    display:none;
+  }
+
+  #app-screen .btn-topbar.topbar-logout .logout-icon{
+    display:block;
+    width:20px;
+    height:20px;
+  }
+
+  #app-screen #modo-turno-box{
+    order:3;
+    flex:0 0 100%;
+    width:100%;
+    margin:0;
+    gap:7px;
+    justify-content:space-between;
+  }
+
+  #app-screen .modo-switch{
+    flex:1 1 auto;
+    width:auto;
+    max-width:100%;
+    min-height:44px;
+    overflow:visible;
+  }
+
+  #app-screen .modo-btn{
+    flex:1 1 50%;
+    min-width:0;
+    min-height:44px;
+    padding:0 11px;
+    font-size:12.5px;
+  }
+
+  #app-screen .modo-btn-icon{
+    width:18px;
+    height:18px;
+    flex-basis:18px;
+  }
+
+  #app-screen .cronometro-turno{
+    flex:0 1 auto;
+    max-width:100%;
+  }
+}
+
+@media (max-width:420px){
+  #app-screen .topbar{
+    padding-inline:8px;
+  }
+
+  #app-screen .topbar-left{
+    flex-basis:150px;
+  }
+
+  #app-screen .topbar-title strong{
+    font-size:15px;
+  }
+
+  #app-screen .modo-btn{
+    padding-inline:8px;
+    font-size:12px;
+  }
+}
+
+/* ==========================================================================
+ * GLACIAL · RESPONSIVE GLOBAL 2026
+ * ==========================================================================
+ ! IMPORTANTE: no oculta funciones para hacer encajar la interfaz.
+ * Tablas extensas conservan desplazamiento horizontal interno.
+ */
+@media (max-width:900px){
+    :root{
+        --gl-control-height:44px;
+    }
+
+    #app-screen .main,
+    #app-screen main,
+    #app-screen .content,
+    #app-screen .main-content{
+        max-width:100%;
+        min-width:0;
+    }
+
+    #app-screen .card,
+    #app-screen .panel,
+    #app-screen .section-card,
+    #app-screen .form-card{
+        max-width:100%;
+    }
+
+    #app-screen .table-wrap,
+    #app-screen .table-responsive,
+    #app-screen .table-container,
+    #app-screen .tabla-wrap,
+    #app-screen .tabla-responsive{
+        max-width:100%;
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+    }
+
+    #app-screen .modal-content,
+    #app-screen .modal-box,
+    #app-screen .dialog-content,
+    #app-screen .popup-content{
+        width:min(94vw,100%);
+        max-height:90vh;
+        overflow:auto;
+    }
+
+    #app-screen button,
+    #app-screen .btn,
+    #app-screen [role="button"],
+    #app-screen input,
+    #app-screen select{
+        min-height:44px;
+    }
+}
+
+@media (max-width:600px){
+    #app-screen{
+        overflow-x:hidden;
+    }
+
+    #app-screen h1{
+        font-size:clamp(22px,7vw,28px);
+    }
+
+    #app-screen h2{
+        font-size:clamp(18px,6vw,23px);
+    }
+
+    #app-screen h3{
+        font-size:clamp(16px,5vw,20px);
+    }
+
+    #app-screen .card,
+    #app-screen .panel,
+    #app-screen .section-card,
+    #app-screen .modal-content,
+    #app-screen .modal-box{
+        border-radius:10px;
+    }
+}
+
+/* ========================================================================== 
+ * GLACIAL · TOPBAR MÓVIL + CENTRO DE ALERTAS · AJUSTE FINAL
+ * ========================================================================== 
+ ! IMPORTANTE: solo corrige distribución visual en teléfono.
+ ! No modifica permisos, Firebase, eventos ni lógica de alertas.
+ * Fila 1: menú + título + alertas + salir.
+ * Fila 2: Visualizar / Trabajar.
+ */
+@media (max-width:700px){
+  #app-screen .topbar{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:
+      "brand actions"
+      "mode mode";
+    align-items:center;
+    column-gap:8px;
+    row-gap:9px;
+    min-height:auto;
+    padding:9px 10px 11px;
+  }
+
+  #app-screen .topbar-left{
+    grid-area:brand;
+    order:initial;
+    display:flex;
+    align-items:center;
+    min-width:0;
+    width:auto;
+    gap:8px;
+  }
+
+  #app-screen .topbar-right{
+    grid-area:actions;
+    order:initial;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:6px;
+    min-width:0;
+  }
+
+  /* * El slot de alertas vuelve a ser visible en la primera fila. */
+  #app-screen #alertas-topbar-slot{
+    display:flex!important;
+    align-items:center;
+    justify-content:center;
+    order:initial!important;
+    flex:0 0 auto;
+    min-width:44px;
+    margin:0!important;
+  }
+
+  #app-screen #alertas-topbar-slot #al-host,
+  #app-screen #alertas-topbar-slot #al-host.open{
+    width:44px!important;
+    min-width:44px!important;
+  }
+
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-bar{
+    width:44px!important;
+    min-width:44px!important;
+    min-height:44px!important;
+    padding:0!important;
+    justify-content:center!important;
+    border-radius:10px!important;
+  }
+
+  /* * Visualizar / Trabajar ocupa toda la segunda fila. */
+  #app-screen #modo-turno-box{
+    grid-area:mode;
+    order:initial;
+    width:100%;
+    min-width:0;
+    margin:0;
+    display:flex;
+  }
+
+  #app-screen #modo-turno-box .modo-switch{
+    width:100%;
+    max-width:none;
+    min-width:0;
+    display:flex;
+    overflow:hidden;
+  }
+
+  #app-screen #modo-turno-box .modo-btn{
+    flex:1 1 50%;
+    min-width:0;
+    min-height:46px;
+  }
+
+  /* * Salir se mantiene como icono táctil en la primera fila. */
+  #app-screen .btn-topbar.topbar-logout{
+    flex:0 0 44px;
+    width:44px;
+    min-width:44px;
+    height:44px;
+    min-height:44px;
+  }
+
+  #app-screen .topbar-title{
+    min-width:0;
+  }
+
+  #app-screen .topbar-title strong{
+    display:block;
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+}
+
+@media (max-width:420px){
+  #app-screen .topbar{
+    grid-template-columns:minmax(0,1fr) auto;
+    column-gap:5px;
+    padding-inline:8px;
+  }
+
+  #app-screen .topbar-left{gap:6px}
+  #app-screen .topbar-right{gap:4px}
+
+  #app-screen .mobile-menu-toggle,
+  #app-screen #alertas-topbar-slot,
+  #app-screen .btn-topbar.topbar-logout{
+    flex-basis:40px;
+    width:40px;
+    min-width:40px;
+    height:40px;
+    min-height:40px;
+  }
+
+  #app-screen #alertas-topbar-slot #al-host,
+  #app-screen #alertas-topbar-slot #al-host.open,
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-bar{
+    width:40px!important;
+    min-width:40px!important;
+  }
+
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-bar{
+    min-height:40px!important;
+  }
+
+  #app-screen .topbar-title strong{font-size:14px}
+}
+
+/* ==========================================================================
+ * GLACIAL · TOPBAR MÓVIL · DISTRIBUCIÓN FINAL
+ * ==========================================================================
+ ! IMPORTANTE: esta capa corrige únicamente la distribución visual en teléfono.
+ ! No modifica HTML, JS, permisos, Firebase ni la lógica del Centro de alertas.
+ * Fila 1: menú + título + campana + salir.
+ * Fila 2: Visualizar / Trabajar a todo el ancho.
+ */
+@media (max-width:700px){
+
+  #app-screen .topbar{
+    display:grid !important;
+    grid-template-columns:44px minmax(0,1fr) 48px 44px !important;
+    grid-template-rows:auto auto !important;
+    column-gap:7px !important;
+    row-gap:8px !important;
+    align-items:center !important;
+    padding:9px 10px !important;
+    min-height:106px !important;
+  }
+
+  /* * Fila 1 */
+  #app-screen .topbar-left{
+    display:contents !important;
+  }
+
+  #app-screen .mobile-menu-toggle{
+    grid-column:1 !important;
+    grid-row:1 !important;
+    width:44px !important;
+    min-width:44px !important;
+    height:44px !important;
+    margin:0 !important;
+  }
+
+  #app-screen .topbar-title{
+    grid-column:2 !important;
+    grid-row:1 !important;
+    min-width:0 !important;
+    overflow:hidden !important;
+  }
+
+  #app-screen .topbar-title strong{
+    display:block !important;
+    max-width:100% !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+    white-space:nowrap !important;
+    font-size:15px !important;
+  }
+
+  #app-screen .topbar-title small,
+  #app-screen .topbar-logo-wrap,
+  #app-screen .topbar-separator{
+    display:none !important;
+  }
+
+  #app-screen .topbar-right{
+    display:contents !important;
+  }
+
+  #app-screen #alertas-topbar-slot{
+    grid-column:3 !important;
+    grid-row:1 !important;
+    width:48px !important;
+    min-width:48px !important;
+    height:44px !important;
+    margin:0 !important;
+    justify-self:end !important;
+    align-self:center !important;
+    overflow:visible !important;
+  }
+
+  #app-screen #alertas-topbar-slot #al-host,
+  #app-screen #alertas-topbar-slot #al-host.open{
+    width:48px !important;
+    min-width:48px !important;
+    margin:0 !important;
+  }
+
+  #app-screen .btn-topbar.topbar-logout{
+    grid-column:4 !important;
+    grid-row:1 !important;
+    width:44px !important;
+    min-width:44px !important;
+    height:44px !important;
+    margin:0 !important;
+    justify-self:end !important;
+  }
+
+  #app-screen .topbar-profile-separator,
+  #app-screen .user-chip{
+    display:none !important;
+  }
+
+  /* * Fila 2: selector de modo completo. */
+  #app-screen #modo-turno-box{
+    grid-column:1 / -1 !important;
+    grid-row:2 !important;
+    display:flex !important;
+    width:100% !important;
+    min-width:0 !important;
+    margin:0 !important;
+    padding:0 !important;
+    justify-content:stretch !important;
+  }
+
+  #app-screen .modo-switch{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    width:100% !important;
+    max-width:none !important;
+    min-width:0 !important;
+    min-height:48px !important;
+    overflow:hidden !important;
+    border-radius:11px !important;
+  }
+
+  #app-screen .modo-btn{
+    width:100% !important;
+    min-width:0 !important;
+    min-height:48px !important;
+    margin:0 !important;
+    padding:0 10px !important;
+    justify-content:center !important;
+  }
+
+  /* ? Si existe cronómetro, pasa debajo sin romper la fila de modos. */
+  #app-screen .cronometro-turno:not(:empty){
+    grid-column:1 / -1 !important;
+    width:100% !important;
+    max-width:100% !important;
+  }
+}
+
+@media (max-width:420px){
+
+  #app-screen .topbar{
+    grid-template-columns:42px minmax(0,1fr) 46px 42px !important;
+    column-gap:5px !important;
+    padding-inline:8px !important;
+  }
+
+  #app-screen .mobile-menu-toggle,
+  #app-screen .btn-topbar.topbar-logout{
+    width:42px !important;
+    min-width:42px !important;
+    height:42px !important;
+  }
+
+  #app-screen #alertas-topbar-slot,
+  #app-screen #alertas-topbar-slot #al-host,
+  #app-screen #alertas-topbar-slot #al-host.open{
+    width:46px !important;
+    min-width:46px !important;
+  }
+
+  #app-screen .topbar-title strong{
+    font-size:14px !important;
+  }
+}
+

@@ -131,6 +131,7 @@ const PERMISOS_APP=[
   {key:'programarPaletas',label:'Programar producción / Secuencia del turno'},
   {key:'gestionar_rotacion_supervisores',label:'Gestionar rotación de supervisores'},
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
+  {key:'inicioOperativo',label:'Ver Inicio Operativo / Mi turno'},
   {key:'avanceProduccion',label:'Avance y Cierre de Turno'},
   {key:'control_operativo_lineas',label:'Control operativo de líneas (Detener / Reanudar / Intervención terminada)'},
   {key:'recibirAlertasProduccion',label:'Recibir notificaciones y alertas de producción'},
@@ -283,7 +284,7 @@ function puedeGestionarPersonal(){
 function permisosPorRolAnterior(rol){
   if(rol==='Administrador') return 'todos';
   if(ROLES_SOLO_CONSULTA.has(rol)) return [...PERMISOS_SOLO_CONSULTA];
-  if(rol==='Supervisor') return ['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'];
+  if(rol==='Supervisor') return ['inicioOperativo','verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'];
   return ['nuevo','historial','graficos','paletas'];
 }
 
@@ -312,7 +313,8 @@ function normalizarPermisosUsuario(u){
       'verLineasProduccion',
       'todasLasLineas',
       'gestionar_rotacion_supervisores',
-      'recibirAlertasProduccion'
+      'recibirAlertasProduccion',
+      'inicioOperativo'
     ]);
 
     const base = asignados.filter(p => permitidosSoloConsulta.has(p));
@@ -389,20 +391,28 @@ function initRealtimeSync(){
 
       snap => {
 
-        if(snap.exists && snap.data().items){
+        /*
+           SEGURIDAD: Firestore es la fuente oficial de usuarios.
+           Nunca sembrar usuarios predeterminados automáticamente aquí,
+           porque una respuesta vacía/incompleta podría reemplazar una
+           lista real de usuarios. Los defaults quedan disponibles solo
+           como referencia/arranque manual, no como escritura automática.
+        */
+        if(
+          snap.exists &&
+          Array.isArray(snap.data().items)
+        ){
 
           _usersCache = snap.data().items;
 
         } else {
 
-          const seed = usuariosPorDefecto();
+          _usersCache = [];
 
-          _usersCache = seed;
-
-          db.collection('sync').doc('users').set({
-            items: seed,
-            updatedAt: Date.now()
-          });
+          console.error(
+            'sync/users no existe o no contiene un arreglo items válido. ' +
+            'Por seguridad NO se crearán usuarios predeterminados automáticamente.'
+          );
 
         }
 
@@ -1097,12 +1107,65 @@ function loadUsers(){
 
 function saveUsers(u){
 
-  _usersCache = u;
+  if(!Array.isArray(u)){
+    console.error('saveUsers(): se rechazó un valor que no es un arreglo.', u);
+    alert('No se guardaron los usuarios: la lista recibida no es válida.');
+    return Promise.resolve(false);
+  }
 
-  db.collection('sync').doc('users').set({
-    items: u,
-    updatedAt: Date.now()
-  }).catch(err => _avisarErrorGuardado('usuarios', err));
+  /*
+     Guardar el documento completo sigue siendo compatible con la arquitectura
+     actual, pero primero se consulta Firestore para impedir que un caché vacío
+     o incompleto sobrescriba silenciosamente una lista mayor.
+
+     Las reducciones intencionales (Eliminar usuario) deben usar
+     saveUsers(u, { permitirReduccion:true }).
+  */
+  const nuevaLista = u.map(usuario => ({ ...usuario }));
+  const anteriorCache = Array.isArray(_usersCache)
+    ? _usersCache.map(usuario => ({ ...usuario }))
+    : [];
+
+  return db.collection('sync').doc('users').get()
+    .then(snap => {
+      const remotos =
+        snap.exists && Array.isArray(snap.data().items)
+          ? snap.data().items
+          : [];
+
+      if(remotos.length > nuevaLista.length){
+        console.error(
+          'Protección de usuarios: escritura bloqueada porque Firestore contiene ' +
+          remotos.length + ' usuarios y se intentó guardar solo ' +
+          nuevaLista.length + '.',
+          { remotos, nuevaLista }
+        );
+
+        _usersCache = remotos;
+        onUsersUpdated();
+
+        alert(
+          'Guardado de usuarios bloqueado por seguridad.\n\n' +
+          'Firestore contiene ' + remotos.length + ' usuario(s), pero esta operación ' +
+          'intentó guardar solo ' + nuevaLista.length + '.\n\n' +
+          'La lista de Firestore se conservó sin cambios.'
+        );
+
+        return false;
+      }
+
+      _usersCache = nuevaLista;
+
+      return db.collection('sync').doc('users').set({
+        items: nuevaLista,
+        updatedAt: Date.now()
+      }).then(() => true);
+    })
+    .catch(err => {
+      _usersCache = anteriorCache;
+      _avisarErrorGuardado('usuarios', err);
+      return false;
+    });
 
 }
 

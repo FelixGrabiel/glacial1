@@ -346,7 +346,22 @@ function enterApp(){
 
     reportSelectUsername.textContent =
       state.user.nombre ||
-      state.user.username;
+      state.user.name ||
+      state.user.username ||
+      'Usuario';
+
+  }
+
+  const reportSelectWelcomeUser =
+    document.getElementById('report-select-welcome-user');
+
+  if(reportSelectWelcomeUser){
+
+    reportSelectWelcomeUser.textContent =
+      state.user.nombre ||
+      state.user.name ||
+      state.user.username ||
+      'Usuario';
 
   }
 

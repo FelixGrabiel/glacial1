@@ -10,7 +10,7 @@
   let idsConocidos = new Set();
   let primeraCarga = true;
   let vista = 'activas';
-  let abierto = true;
+  let abierto = false;
   let audio = null;
 
   function autorizado(){
@@ -80,16 +80,45 @@
 
   const css=document.createElement('style');
   css.textContent=`
-    #al-host{position:fixed;right:18px;bottom:18px;z-index:10020;
-      width:min(410px,calc(100vw - 28px));font:13px/1.45 system-ui,sans-serif;
-      color:#17334a;filter:drop-shadow(0 10px 24px rgba(10,35,55,.18))}
-    #al-host .al-panel{border:1px solid #cbdbe5;background:#fff;border-radius:14px;overflow:hidden}
+    /* ! Centro de alertas integrado en el TOPBAR real.
+       * El estado cerrado ocupa su espacio junto a Visualizar / Trabajar.
+       * El panel abierto se despliega debajo sin mover la cabecera. */
+    #alertas-topbar-slot{
+      position:relative;display:flex;align-items:center;justify-content:flex-end;
+      flex:0 0 auto;margin-right:12px;z-index:10020
+    }
+    #al-host{
+      position:relative;z-index:10020;width:220px;
+      font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;color:#17334a
+    }
+    /* ! El host NO cambia de ancho al abrirse.
+       * Así nunca empuja ni invade Visualizar / Trabajar. */
+    #al-host.open{width:220px}
+    #al-host .al-panel{
+      border:1px solid #cbdbe5;background:#fff;border-radius:11px;overflow:hidden
+    }
+    #al-host:not(.open) .al-panel{box-shadow:0 3px 12px rgba(11,40,73,.07)}
+
+    /* * Abierto: solo el panel sale del flujo y cae debajo del botón.
+       ? right:0 mantiene alineado el borde derecho del panel con el botón. */
+    #al-host.open .al-panel{
+      position:absolute;right:0;top:calc(100% + 10px);
+      width:410px;max-width:calc(100vw - 28px);
+      filter:drop-shadow(0 12px 26px rgba(10,35,55,.18))
+    }
     #al-host .al-bar{background:#053d60;color:#fff;display:flex;align-items:center;
       justify-content:space-between;gap:8px;padding:10px 12px}
+    #al-host:not(.open) .al-bar{
+      min-height:44px;background:#fff;color:#17324d;padding:0 11px
+    }
+    #al-host .al-bar strong{white-space:nowrap}
     #al-host .al-bar-actions{display:flex;gap:6px;align-items:center}
     #al-host button{font:inherit;cursor:pointer}
     #al-host .al-icon-btn{border:1px solid rgba(255,255,255,.55);border-radius:7px;
       padding:5px 7px;background:transparent;color:#fff;font-size:11px}
+    #al-host:not(.open) .al-icon-btn{
+      border-color:#cfe0f2;color:#31526f;background:#fff
+    }
     #al-host .al-resumen{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;
       padding:9px 10px;background:#f6f9fb;border-bottom:1px solid #e1e9ee}
     #al-host .al-kpi{padding:7px 6px;border:1px solid #dbe5eb;border-radius:8px;
@@ -97,8 +126,7 @@
     #al-host .al-kpi b{display:block;font-size:15px}
     #al-host .al-kpi span{font-size:10.5px;color:#5b6e7d}
     #al-host .al-tabs{display:flex;border-bottom:1px solid #e1e9ee;background:#fff}
-    #al-host .al-tab{flex:1;border:0;background:#fff;padding:9px 8px;color:#526879;
-      font-weight:700}
+    #al-host .al-tab{flex:1;border:0;background:#fff;padding:9px 8px;color:#526879;font-weight:700}
     #al-host .al-tab.activo{color:#053d60;box-shadow:inset 0 -3px 0 #0b6fa4}
     #al-host .al-list{max-height:min(52vh,390px);overflow-y:auto}
     #al-host .al-aviso{padding:11px 12px;border-top:1px solid #e9eef2;
@@ -108,7 +136,220 @@
     #al-host .al-aviso small{display:block;color:#516578;margin-top:3px}
     #al-host .al-vacio{padding:22px 14px;text-align:center;color:#6b7d89}
     #al-host .al-cerrado{display:none}
-    @media(max-width:600px){#al-host{right:10px;bottom:10px;width:calc(100vw - 20px)}}
+    #al-host:not(.open) .al-body{display:none}
+
+    /* * Tablet: conserva el acceso, reduciendo el ancho del botón. */
+    @media(max-width:1100px){
+      #al-host,
+      #al-host.open{width:190px}
+      #alertas-topbar-slot{margin-right:8px}
+    }
+
+    /* ==========================================================================
+     * MÓVIL · CENTRO DE ALERTAS
+     * ==========================================================================
+     ! IMPORTANTE: solo cambia presentación responsive.
+     ! No modifica permisos, Firebase, historial, sonido ni generación de alertas.
+     * Inspirado en el mockup aprobado: botón compacto en cabecera y panel
+     * centrado, legible y táctil al desplegarse.
+     */
+    @media(max-width:800px){
+      #alertas-topbar-slot{
+        order:2;
+        margin-left:auto;
+        margin-right:8px;
+        display:flex;
+        align-items:center;
+        min-width:0;
+      }
+
+      /* * Botón cerrado: campana + acceso compacto en el topbar. */
+      #al-host,
+      #al-host.open{
+        width:52px;
+        min-width:52px;
+      }
+
+      #al-host:not(.open) .al-panel{
+        border-radius:12px;
+        overflow:visible;
+      }
+
+      #al-host:not(.open) .al-bar{
+        width:52px;
+        min-width:52px;
+        min-height:46px;
+        padding:0;
+        justify-content:center;
+        border-radius:12px;
+        border:1px solid #CFE0F2;
+        background:#fff;
+      }
+
+      #al-host:not(.open) .al-bar strong{
+        width:100%;
+        overflow:hidden;
+        white-space:nowrap;
+        font-size:0;
+        text-align:center;
+      }
+
+      #al-host:not(.open) .al-bar strong::before{
+        content:"🔔";
+        font-size:20px;
+        line-height:1;
+      }
+
+      #al-host:not(.open) .al-bar-actions{
+        display:none;
+      }
+
+      /* * Panel abierto: tarjeta flotante centrada bajo la cabecera. */
+      #al-host.open .al-panel{
+        position:fixed;
+        z-index:10050;
+        top:78px;
+        left:50%;
+        right:auto;
+        transform:translateX(-50%);
+        width:min(430px,calc(100vw - 24px));
+        max-width:none;
+        max-height:calc(100dvh - 92px);
+        overflow:hidden;
+        border-radius:14px;
+        box-shadow:0 18px 50px rgba(11,40,73,.24);
+        filter:none;
+      }
+
+      #al-host.open .al-bar{
+        min-height:58px;
+        padding:10px 14px;
+        background:#0B4D73;
+      }
+
+      #al-host.open .al-bar strong{
+        font-size:16px;
+      }
+
+      #al-host.open .al-icon-btn{
+        min-width:40px;
+        min-height:40px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        border-radius:9px;
+      }
+
+      #al-host .al-resumen{
+        gap:8px;
+        padding:10px;
+      }
+
+      #al-host .al-kpi{
+        min-height:78px;
+        padding:10px 5px;
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+      }
+
+      #al-host .al-kpi b{
+        font-size:18px;
+      }
+
+      #al-host .al-kpi span{
+        font-size:11px;
+      }
+
+      #al-host .al-tab{
+        min-height:48px;
+        padding:10px 6px;
+        font-size:13px;
+      }
+
+      #al-host .al-list{
+        max-height:calc(100dvh - 330px);
+        overflow-y:auto;
+        overscroll-behavior:contain;
+      }
+
+      #al-host .al-aviso{
+        padding:13px 14px;
+      }
+
+      #al-host .al-vacio{
+        padding:28px 14px;
+      }
+    }
+
+    @media(max-width:600px){
+      #alertas-topbar-slot{
+        margin-right:6px;
+      }
+
+      #al-host,
+      #al-host.open{
+        width:48px;
+        min-width:48px;
+      }
+
+      #al-host:not(.open) .al-bar{
+        width:48px;
+        min-width:48px;
+        min-height:44px;
+      }
+
+      #al-host.open .al-panel{
+        top:70px;
+        width:calc(100vw - 20px);
+        max-height:calc(100dvh - 82px);
+      }
+
+      #al-host.open .al-bar{
+        min-height:56px;
+        padding:8px 12px;
+      }
+
+      #al-host .al-resumen{
+        gap:6px;
+        padding:8px;
+      }
+
+      #al-host .al-kpi{
+        min-height:72px;
+      }
+
+      #al-host .al-kpi b{
+        font-size:17px;
+      }
+
+      #al-host .al-kpi span{
+        font-size:10px;
+      }
+
+      #al-host .al-list{
+        max-height:calc(100dvh - 305px);
+      }
+    }
+
+    @media(max-width:390px){
+      #al-host.open .al-panel{
+        top:66px;
+        width:calc(100vw - 12px);
+      }
+
+      #al-host .al-resumen{
+        grid-template-columns:repeat(3,minmax(0,1fr));
+      }
+
+      #al-host .al-kpi{
+        padding:8px 3px;
+      }
+
+      #al-host .al-tab{
+        font-size:12px;
+      }
+    }
   `;
   document.head.appendChild(css);
 
@@ -122,7 +363,10 @@
       el=document.createElement('aside');
       el.id='al-host';
       el.setAttribute('aria-label','Centro de alertas de producción');
-      document.body.appendChild(el);
+
+      // ! El anclaje del topbar evita depender de top/right según la resolución.
+      const slot=document.getElementById('alertas-topbar-slot');
+      (slot || document.body).appendChild(el);
     }
     return el;
   }
@@ -155,6 +399,9 @@
     const resueltas=hoy.filter(e=>e.tipo==='reanudacion').length;
     const lista=vista==='historial' ? hoy : activas;
     const sonido=sonidoSilenciado() ? '🔇' : '🔊';
+
+    // * Solo refleja el estado visual; no altera la lógica de las alertas.
+    el.classList.toggle('open',abierto);
 
     el.innerHTML=`<div class="al-panel">
       <div class="al-bar">

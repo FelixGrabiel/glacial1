@@ -435,6 +435,8 @@ function avProductosLinea(linea,hora,tipo){
     const k=`${marca}|${presentacion}`;
     if(!mapa.has(k))mapa.set(k,{marca,presentacion,etiqueta:avPresentacion(linea,marca,presentacion)});
   };
+  // Los cuadros históricos del turno son fuente de participación aunque ya estén FINALIZADOS.
+  // No filtrar aquí por estado EN_CURSO: hacerlo ocultaría líneas/productos ya terminados.
   avRegistros().filter(r=>r.linea===linea).forEach(r=>(typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>agregar(q?.marca,q?.presentacion)));
   avProgramaciones().filter(p=>p.linea===linea).forEach(p=>agregar(p.marca,p.presentacion));
   avPaletas().filter(p=>p.linea===linea).forEach(p=>agregar(p.marca,p.presentacion));
@@ -509,8 +511,24 @@ function avLineaSnapshot(linea,hora,tipo){
      Esto evita que PET1 desaparezca del reporte solo porque su
      producción fue registrada después de la hora de corte.
   */
+  // IMPORTANTE:
+  // Una línea NO desaparece del Avance/Cierre por haber sido FINALIZADA.
+  // Si participó en este turno, se conserva en todos los avances posteriores
+  // y en el cierre. Esto aplica también a CAJAS 20L.
+  const tieneRegistroTurno=avRegistros().some(r=>{
+    if(r?.linea!==linea)return false;
+    const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
+    return cuadros.some(q=>
+      !!q?.horaInicio ||
+      avNum(q?.produccion?.efectiva)>0 ||
+      !!q?.marca ||
+      !!q?.presentacion
+    );
+  });
+
   const actividad=
     !!inicio ||
+    tieneRegistroTurno ||
     productos.some(x=>x.produccion>0) ||
     avProgramaciones().some(p=>p.linea===linea) ||
     avPaletas().some(p=>p.linea===linea);
@@ -787,16 +805,9 @@ function avTextoWhatsApp(s){
     if(idxLinea<s.lineas.length-1)out.push('','---');
   });
 
-  out.push('','====================','');
-  if(s.tipo==='CIERRE'){
-    out.push('*RESUMEN GENERAL DEL TURNO*','',`Producción total planta: ${avFmt(s.resumen.produccionTotal)}`,
-      `Tiempo total de paradas: ${avFmt(s.resumen.totalParadas)} min`,`Personal registrado: ${s.resumen.personal}`,
-      `Líneas trabajadas: ${s.resumen.lineasTrabajadas}`);
-  }else{
-    out.push('*TOTAL PLANTA*','',`Producción acumulada: ${avFmt(s.resumen.produccionTotal)}`,
-      `Tiempo total de paradas: ${avFmt(s.resumen.totalParadas)} min`,`Personal operativo: ${s.resumen.personal}`);
-  }
-  out.push('','Generado por:',s.supervisor||s.generadoPor||'—','','GLACIAL - Control de Producción');
+  // El texto de WhatsApp termina con la última línea trabajada.
+  // Se elimina TOTAL PLANTA / RESUMEN GENERAL DEL TURNO tanto en AVANCE como en CIERRE.
+  out.push('','','Generado por:',s.supervisor||s.generadoPor||'—','','GLACIAL - Control de Producción');
   return out.join('\n');
 }
 
@@ -1040,6 +1051,15 @@ function avCerrarDetalle(){
 }
 function avIrDetalle(id){document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});}
 
+/*
+  ============================================================
+  TAMAÑO DE LETRAS — IMAGEN AVANCE / CIERRE
+  ============================================================
+  MODIFICA SOLO ESTE VALOR si quieres cambiar todas las letras:
+  1.00 = original | 1.20 = +20% | 1.25 = +25% | 1.30 = +30% | 1.40 = +40%
+*/
+const AV_IMAGEN_ESCALA_TEXTO = 1.25;
+
 function avCanvasSnapshot(s){
   const W=1080, PAD=28;
   const BLUE='#005B96',DARK='#003B5C',INK='#172B3A',STEEL='#667784',MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
@@ -1075,24 +1095,56 @@ function avCanvasSnapshot(s){
     return 170+productos*34+paradas*30+(obs?55+obs*27:0);
   };
 
-  const H=Math.max(1350,250+grupos.reduce((a,g)=>a+altoGrupo(g)+18,0)+180);
+  /*
+     ALTURA REAL DE LA IMAGEN
+     ------------------------
+     Antes el canvas calculaba su alto usando solo las paradas propias del bloque.
+     Después, al dibujar, se agregaban también las paradas operativas de Avance/Cierre.
+     Resultado: las tarjetas crecían, pero el canvas NO; las últimas líneas
+     (por ejemplo CAJAS 20L) quedaban recortadas aunque sí existieran en el snapshot/texto.
+
+     Calculamos aquí exactamente la misma altura que se usará al dibujar cada tarjeta.
+  */
+  const altoRealGrupo=g=>{
+    const l=g.linea,b=g.bloque;
+    const prods=g.sinProduccion?[]:(b?.productos||[]);
+    const paradasBloque=g.sinProduccion?(l.paradas||[]):(b?.paradas||[]);
+    const paradasOperativas=g.sinProduccion?[]:(l.paradas||[]).filter(p=>p.origen==='AVANCE');
+    const paradas=[...paradasBloque,...paradasOperativas];
+    const observaciones=g.sinProduccion?(l.observaciones||[]):(b?.observaciones||[]);
+    const escalaEspacio=Math.max(1,AV_IMAGEN_ESCALA_TEXTO);
+    // ESPACIADO VERTICAL: aumenta junto con la letra para evitar superposición y recortes.
+    const hNecesario=205+
+      (prods.length||1)*30*escalaEspacio+
+      (paradas.length||1)*29*escalaEspacio+
+      (observaciones.length?(55+observaciones.length*22)*escalaEspacio:0);
+    return Math.max(altoGrupo(g),hNecesario);
+  };
+
+  const H=Math.max(1350,250+grupos.reduce((a,g)=>a+altoRealGrupo(g)+18,0)+180);
   const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
   const rr=(cx,cy,cw,ch,r=10)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
   const card=(cx,cy,cw,ch,fill=WHITE,stroke=LINE)=>{x.fillStyle=fill;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=stroke;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
-  const fit=(txt,max,size=18,weight='400')=>{let z=size;do{x.font=`${weight} ${z}px Arial`;z--;}while(z>10&&x.measureText(String(txt)).width>max);return x.font;};
+  const fit=(txt,max,size=18,weight='400')=>{
+    // También respeta AV_IMAGEN_ESCALA_TEXTO al ajustar textos largos.
+    let z=Math.round(size*AV_IMAGEN_ESCALA_TEXTO);
+    const minimo=Math.max(10,Math.round(10*AV_IMAGEN_ESCALA_TEXTO));
+    do{x.font=`${weight} ${z}px Arial`;z--;}while(z>minimo&&x.measureText(String(txt)).width>max);
+    return x.font;
+  };
   const divider=(y)=>{x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD+18,y);x.lineTo(W-PAD-18,y);x.stroke();};
   const wrap=(txt,maxWidth)=>{const words=String(txt||'').split(/\s+/);const rows=[];let row='';for(const w of words){const test=row?row+' '+w:w;if(x.measureText(test).width>maxWidth&&row){rows.push(row);row=w;}else row=test;}if(row)rows.push(row);return rows;};
 
   x.fillStyle=BG;x.fillRect(0,0,W,H);
   x.fillStyle=DARK;x.fillRect(0,0,W,205);
-  x.fillStyle=WHITE;x.font='700 31px Arial';x.fillText('GLACIAL',55,56);
-  x.font='700 40px Arial';x.fillText(s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN',275,62);
-  x.font='700 26px Arial';x.fillText(`TURNO ${s.turno}`,275,101);
-  x.font='19px Arial';x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);
-  x.font='16px Arial';x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}`,55,184);
+  x.fillStyle=WHITE;x.font=`700 ${Math.round(31*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('GLACIAL',55,56);
+  x.font=`700 ${Math.round(40*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN',275,62);
+  x.font=`700 ${Math.round(26*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`TURNO ${s.turno}`,275,101);
+  x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);
+  x.font=`${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}`,55,184);
 
   let y=228;
-  x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 22px Arial';x.fillText('DETALLE DE PRODUCCIÓN POR FORMATO',48,y+31);y+=64;
+  x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font=`700 ${Math.round(22*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('DETALLE DE PRODUCCIÓN POR FORMATO',48,y+31);y+=64;
 
   grupos.forEach(g=>{
     const l=g.linea,b=g.bloque;
@@ -1108,17 +1160,14 @@ function avCanvasSnapshot(s){
     const personal=g.sinProduccion?l.personal:b.personal;
     const totalParadas=paradas.reduce((s,p)=>s+avNum(p.minutos),0);
     const titulo=g.sinProduccion?(l.nombre||l.linea):avTituloPresentacion(l.linea,b);
-    const hBase=altoGrupo(g);
-    // El alto debe considerar también las paradas agregadas desde Avance/Cierre.
-    // Si no, se dibujaban pero quedaban fuera del card y el siguiente bloque las tapaba.
-    const hNecesario=205+(prods.length||1)*30+(paradas.length||1)*29+
-      (observaciones.length?55+observaciones.length*22:0);
-    const h=Math.max(hBase,hNecesario);
+    // Usar exactamente el mismo cálculo empleado para dimensionar el canvas.
+    // Así ninguna línea finalizada queda fuera de la imagen por recorte vertical.
+    const h=altoRealGrupo(g);
 
     card(PAD,y,W-PAD*2,h);
     x.fillStyle='#EAF5FC';rr(PAD,y,W-PAD*2,58,9);x.fill();
-    x.fillStyle=DARK;x.font='700 25px Arial';x.fillText(titulo,PAD+20,y+37);
-    x.textAlign='right';x.fillStyle=g.sinProduccion?WARN:GOOD;x.font='700 15px Arial';x.fillText(g.sinProduccion?'LÍNEA INICIADA':'PRODUCCIÓN REGISTRADA',W-PAD-20,y+35);x.textAlign='left';
+    x.fillStyle=DARK;x.font=`700 ${Math.round(25*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(titulo,PAD+20,y+37);
+    x.textAlign='right';x.fillStyle=g.sinProduccion?WARN:GOOD;x.font=`700 ${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(g.sinProduccion?'LÍNEA INICIADA':'PRODUCCIÓN REGISTRADA',W-PAD-20,y+35);x.textAlign='left';
 
     let cy=y+82;
     const metrics=[
@@ -1128,42 +1177,42 @@ function avCanvasSnapshot(s){
       ['Consumo',consumo?`${avFmt(consumo)} L/H`:'—'],
       ['Personal',avFmt(personal)]
     ],mw=(W-PAD*2-40)/5;
-    metrics.forEach((m,i)=>{const mx=PAD+20+i*mw;x.fillStyle=STEEL;x.font='13px Arial';x.fillText(m[0],mx,cy);x.fillStyle=INK;fit(m[1],mw-12,17,'700');x.fillText(m[1],mx,cy+24);});
+    metrics.forEach((m,i)=>{const mx=PAD+20+i*mw;x.fillStyle=STEEL;x.font=`${Math.round(13*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(m[0],mx,cy);x.fillStyle=INK;fit(m[1],mw-12,17,'700');x.fillText(m[1],mx,cy+24);});
     cy+=55;divider(cy);cy+=27;
 
-    x.fillStyle=BLUE;x.font='700 15px Arial';x.fillText('MARCAS PRODUCIDAS',PAD+20,cy);cy+=26;
+    x.fillStyle=BLUE;x.font=`700 ${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('MARCAS PRODUCIDAS',PAD+20,cy);cy+=Math.round(26*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));
     if(prods.length){
       prods.forEach(p=>{
-        x.fillStyle=INK;x.font='700 16px Arial';x.fillText(avProductoWhatsApp(p),PAD+28,cy);
-        x.textAlign='right';x.fillStyle=DARK;x.font='700 16px Arial';x.fillText(`${avFmt(p.produccion)} ${avUnidadProduccion(l.linea).toUpperCase()}`,W-PAD-22,cy);x.textAlign='left';cy+=30;
+        x.fillStyle=INK;x.font=`700 ${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(avProductoWhatsApp(p),PAD+28,cy);
+        x.textAlign='right';x.fillStyle=DARK;x.font=`700 ${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`${avFmt(p.produccion)} ${avUnidadProduccion(l.linea).toUpperCase()}`,W-PAD-22,cy);x.textAlign='left';cy+=Math.round(30*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));
       });
-    }else{x.fillStyle=MUTED;x.font='14px Arial';x.fillText('Sin producción registrada.',PAD+28,cy);cy+=30;}
+    }else{x.fillStyle=MUTED;x.font=`${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('Sin producción registrada.',PAD+28,cy);cy+=Math.round(30*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));}
 
     divider(cy);cy+=27;
-    x.fillStyle=BAD;x.font='700 15px Arial';x.fillText(`PARADAS DE ${titulo}`,PAD+20,cy);
-    x.textAlign='right';x.fillText(`TOTAL: ${avFmt(totalParadas)} min`,W-PAD-20,cy);x.textAlign='left';cy+=26;
+    x.fillStyle=BAD;x.font=`700 ${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`PARADAS DE ${titulo}`,PAD+20,cy);
+    x.textAlign='right';x.fillText(`TOTAL: ${avFmt(totalParadas)} min`,W-PAD-20,cy);x.textAlign='left';cy+=Math.round(26*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));
     if(paradas.length){
       paradas.forEach(p=>{
-        x.fillStyle=p.tipo==='NO_PROGRAMADA'?BAD:WARN;x.font='700 12px Arial';x.fillText(p.tipo==='NO_PROGRAMADA'?'NO PROG.':'PROGRAMADA',PAD+28,cy);
-        x.fillStyle=INK;x.font='14px Arial';fit(p.descripcion,650,14,'400');x.fillText(p.descripcion,PAD+135,cy);
-        x.textAlign='right';x.fillStyle=DARK;x.font='700 14px Arial';x.fillText(`${avFmt(p.minutos)} min`,W-PAD-22,cy);x.textAlign='left';cy+=29;
+        x.fillStyle=p.tipo==='NO_PROGRAMADA'?BAD:WARN;x.font=`700 ${Math.round(12*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(p.tipo==='NO_PROGRAMADA'?'NO PROG.':'PROGRAMADA',PAD+28,cy);
+        x.fillStyle=INK;x.font=`${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;fit(p.descripcion,650,14,'400');x.fillText(p.descripcion,PAD+180,cy); //!TAMAÑO LENTRAS
+        x.textAlign='right';x.fillStyle=DARK;x.font=`700 ${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`${avFmt(p.minutos)} min`,W-PAD-22,cy);x.textAlign='left';cy+=Math.round(29*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));
       });
-    }else{x.fillStyle=MUTED;x.font='14px Arial';x.fillText('Sin paradas registradas.',PAD+28,cy);cy+=29;}
+    }else{x.fillStyle=MUTED;x.font=`${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('Sin paradas registradas.',PAD+28,cy);cy+=Math.round(29*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));}
 
     if(observaciones.length){
-      divider(cy);cy+=25;x.fillStyle=BLUE;x.font='700 14px Arial';x.fillText('OBSERVACIONES',PAD+20,cy);cy+=23;
-      observaciones.forEach(o=>{x.fillStyle=STEEL;x.font='13px Arial';const rows=wrap('• '+o,W-PAD*2-60).slice(0,2);rows.forEach(r=>{x.fillText(r,PAD+28,cy);cy+=22;});});
+      divider(cy);cy+=25;x.fillStyle=BLUE;x.font=`700 ${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('OBSERVACIONES',PAD+20,cy);cy+=23;
+      observaciones.forEach(o=>{x.fillStyle=STEEL;x.font=`${Math.round(13*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;const rows=wrap('• '+o,W-PAD*2-60).slice(0,2);rows.forEach(r=>{x.fillText(r,PAD+28,cy);cy+=22;});});
     }
     y+=h+18;
   });
 
   const r=s.resumen||{};
-  card(PAD,y,W-PAD*2,105,'#F8FBFD',LINE);x.fillStyle=BLUE;x.font='700 17px Arial';x.fillText('RESUMEN DEL AVANCE',PAD+20,y+28);
+  card(PAD,y,W-PAD*2,105,'#F8FBFD',LINE);x.fillStyle=BLUE;x.font=`700 ${Math.round(17*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('RESUMEN DEL AVANCE',PAD+20,y+28);
   const rs=[`Producción planta: ${avFmt(r.produccionTotal)}`,`Paradas: ${avFmt(r.totalParadas)} min`,`Personal: ${avFmt(r.personal)}`,`Líneas: ${avFmt(r.lineasTrabajadas)}`];
-  rs.forEach((t,i)=>{x.fillStyle=i===1?BAD:DARK;x.font='700 17px Arial';x.fillText(t,PAD+20+i*245,y+70);});
+  rs.forEach((t,i)=>{x.fillStyle=i===1?BAD:DARK;x.font=`700 ${Math.round(17*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(t,PAD+20+i*245,y+70);});
   y+=128;x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD,y);x.lineTo(W-PAD,y);x.stroke();y+=28;
-  x.fillStyle=STEEL;x.font='15px Arial';x.fillText(`Generado por: ${s.supervisor||s.generadoPor||'—'}`,PAD,y);
-  x.textAlign='right';x.fillStyle=DARK;x.font='700 20px Arial';x.fillText('GLACIAL · Control de Producción',W-PAD,y);x.textAlign='left';
+  x.fillStyle=STEEL;x.font=`${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Generado por: ${s.supervisor||s.generadoPor||'—'}`,PAD,y);
+  x.textAlign='right';x.fillStyle=DARK;x.font=`700 ${Math.round(20*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('GLACIAL · Control de Producción',W-PAD,y);x.textAlign='left';
   return c;
 }
 

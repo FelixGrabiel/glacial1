@@ -830,7 +830,7 @@ textarea:focus-visible,
 
 .topbar-logo-wrap{
 
-    width:115px;
+    width:225px;
     height:42px;
 
     display:flex;
@@ -5126,4 +5126,564 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
   .historial-produccion-page .hist-v2-mini-select{
     max-width:125px;
   }
+}
+
+/* =========================================================
+   GLACIAL · ACABADO GENERAL 2026-09-30
+   ========================================================= */
+#app-screen{
+  --ui-gap:18px;
+  font-family:Inter,"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+#app-screen button,#app-screen input,#app-screen select,#app-screen textarea{
+  font-family:inherit;
+}
+#app-screen .main{padding:18px 22px 34px}
+#app-screen .main-head{margin-bottom:12px;gap:14px}
+#app-screen .main-head h2{
+  font-family:inherit;
+  letter-spacing:-.02em;
+  line-height:1.15;
+}
+#app-screen .main-head .sub{margin-top:4px}
+#app-screen .tabs{margin-top:8px;margin-bottom:14px}
+#app-screen .tab{min-height:42px}
+#app-screen .card,#app-screen .kpi-card,#app-screen .pt-card{
+  border-radius:12px;
+  box-shadow:0 3px 14px rgba(10,45,72,.055);
+}
+#app-screen .kpi-row{
+  gap:12px;
+  margin:14px 0 18px;
+}
+#app-screen .kpi-card{min-width:0}
+#app-screen .kpi-card .kpi-value,
+#app-screen .kpi-value{font-family:inherit;letter-spacing:-.015em}
+
+/* Centro de alertas contraído: menor huella visual sin alterar su lógica. */
+#app-screen .alerts-center:not(.open),
+#app-screen .alert-center:not(.open),
+#app-screen #centro-alertas:not(.open){
+  max-height:52px;
+  overflow:hidden;
+}
+
+
+
+
+/*
+ * BETTER COMMENTS · CABECERA GLACIAL
+ ! IMPORTANTE: estos estilos están limitados a #app-screen .topbar.
+ ! NO usar selectores globales aquí: podrían alterar formularios, modales o tarjetas.
+ * Para cambiar tamaños/espacios de la cabecera, hacerlo dentro de este bloque.
+ ? Mantener áreas táctiles de al menos 44px en controles interactivos.
+ TODO: si se cambia mucho la altura de la topbar, revisar el ajuste del contenido/sidebar.
+*/
+
+/* =====================================================================
+   GLACIAL · TOPBAR 2026
+   Rediseño VISUAL encapsulado.
+   Mantiene IDs, sesión, permisos y funciones JS existentes.
+   ===================================================================== */
+
+#app-screen .topbar{
+    --tb-navy:#123b60;
+    --tb-blue:#0874d1;
+    --tb-blue-deep:#0562b5;
+    --tb-text:#123653;
+    --tb-muted:#7890a5;
+    --tb-border:#d9e4ed;
+
+    min-height:78px;
+    padding:0 26px 0 30px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:24px;
+
+    background:#fff;
+    color:var(--tb-text);
+    border:0;
+    border-bottom:1px solid var(--tb-border);
+    box-shadow:0 4px 18px rgba(17,58,91,.07);
+    font-family:var(--font-body,'IBM Plex Sans',Arial,sans-serif);
+}
+
+#app-screen .topbar-left{
+    display:flex;
+    align-items:center;
+    flex:1 1 auto;
+    min-width:0;
+    gap:12px;
+}
+
+#app-screen .topbar-title{
+    min-width:0;
+    line-height:1.15;
+}
+
+#app-screen .topbar-title strong{
+    display:block;
+    margin:0;
+    color:var(--tb-navy);
+    font-family:var(--font-body,'IBM Plex Sans',Arial,sans-serif);
+    font-size:clamp(20px,1.55vw,24px);
+    font-weight:700;
+    line-height:1.15;
+    letter-spacing:-.025em;
+    text-transform:none;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+#app-screen .topbar-title small{
+    display:block;
+    margin-top:5px;
+    color:var(--tb-muted);
+    font-family:var(--font-body,'IBM Plex Sans',Arial,sans-serif);
+    font-size:13px;
+    font-weight:500;
+    line-height:1.2;
+    letter-spacing:.01em;
+    text-transform:none;
+}
+
+#app-screen .topbar-right{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:16px;
+    flex:0 1 auto;
+    min-width:0;
+}
+
+/* Selector Visualizar / Trabajar */
+#app-screen .modo-turno-box{
+    align-items:center;
+    gap:10px;
+    min-width:0;
+    margin:0;
+}
+
+#app-screen .modo-switch{
+    display:inline-flex;
+    align-items:stretch;
+    min-height:46px;
+    padding:0;
+    overflow:hidden;
+    border:1px solid #cbd9e5;
+    border-radius:11px;
+    background:#fff;
+    box-shadow:0 2px 7px rgba(18,59,96,.04);
+}
+
+#app-screen .modo-btn{
+    min-width:126px;
+    min-height:44px;
+    margin:0;
+    padding:0 18px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    border:0;
+    border-right:1px solid #d7e2eb;
+    border-radius:0;
+    background:#fff;
+    color:#536d83;
+    font-family:var(--font-body,'IBM Plex Sans',Arial,sans-serif);
+    font-size:14px;
+    font-weight:650;
+    line-height:1;
+    white-space:nowrap;
+    transition:background .16s ease,color .16s ease,box-shadow .16s ease;
+}
+
+#app-screen .modo-btn:last-child{border-right:0}
+
+#app-screen .modo-btn:hover:not(:disabled):not(.activo){
+    background:#f5f9fc;
+    color:#234d70;
+}
+
+#app-screen .modo-btn.activo{
+    position:relative;
+    z-index:1;
+    background:linear-gradient(180deg,var(--tb-blue),var(--tb-blue-deep));
+    color:#fff;
+    box-shadow:0 5px 14px rgba(8,116,209,.20);
+}
+
+#app-screen .modo-btn:disabled{
+    cursor:not-allowed;
+    opacity:.48;
+    background:#f4f7f9;
+    color:#8395a4;
+}
+
+#app-screen .modo-btn:focus-visible,
+#app-screen .btn-topbar:focus-visible,
+#app-screen .mobile-menu-toggle:focus-visible{
+    outline:3px solid rgba(8,116,209,.25);
+    outline-offset:2px;
+}
+
+#app-screen .modo-btn-icon{
+    width:19px;
+    height:19px;
+    flex:0 0 19px;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:1.9;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+}
+
+/* Separación perfil */
+#app-screen .topbar-profile-separator{
+    width:1px;
+    height:48px;
+    flex:0 0 1px;
+    background:#dce6ee;
+}
+
+/* Perfil */
+#app-screen .user-chip{
+    display:flex;
+    align-items:center;
+    gap:11px;
+    min-width:0;
+    max-width:280px;
+    padding:0;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    color:var(--tb-text);
+    box-shadow:none;
+}
+
+#app-screen .user-avatar{
+    width:44px;
+    height:44px;
+    flex:0 0 44px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:50%;
+    background:linear-gradient(145deg,#0a82df,#0758aa);
+    color:#fff;
+    font-family:var(--font-body,'IBM Plex Sans',Arial,sans-serif);
+    font-size:15px;
+    font-weight:700;
+    letter-spacing:.02em;
+    box-shadow:0 4px 10px rgba(7,88,170,.15);
+}
+
+#app-screen .user-info{
+    min-width:0;
+    max-width:210px;
+}
+
+#app-screen .user-name{
+    display:block;
+    overflow:hidden;
+    color:#183a57;
+    font-size:13.5px;
+    font-weight:700;
+    line-height:1.25;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+}
+
+#app-screen .user-role{
+    display:block;
+    margin-top:3px;
+    overflow:hidden;
+    color:#8396a8;
+    font-size:12px;
+    font-weight:500;
+    line-height:1.2;
+    letter-spacing:0;
+    text-transform:none;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+}
+
+/* Salir */
+#app-screen .btn-topbar.topbar-logout{
+    min-width:92px;
+    min-height:44px;
+    padding:0 16px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    border:1px solid #cfdce7;
+    border-radius:10px;
+    background:#fff;
+    color:#35556f;
+    font-family:var(--font-body,'IBM Plex Sans',Arial,sans-serif);
+    font-size:13.5px;
+    font-weight:650;
+    box-shadow:0 2px 6px rgba(18,59,96,.03);
+}
+
+#app-screen .btn-topbar.topbar-logout:hover{
+    border-color:#b7cad9;
+    background:#f7fafc;
+    color:#153e60;
+}
+
+#app-screen .logout-icon{
+    width:19px;
+    height:19px;
+    flex:0 0 19px;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:1.9;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+}
+
+/* Cronómetro: se conserva porque pertenece a la lógica actual.
+   Cuando JS lo muestra, queda compacto sin alterar el selector. */
+#app-screen .cronometro-turno{
+    max-width:220px;
+}
+
+/* La cabecera nueva ya no usa logo ni separador antiguos. */
+#app-screen .topbar-brand,
+#app-screen .topbar-separator{
+    display:none!important;
+}
+
+/* ==========================================================================
+ * GLACIAL · IDENTIDAD VISUAL GLOBAL 2026
+ * ==========================================================================
+ ! IMPORTANTE: CAPA EXCLUSIVAMENTE CSS.
+ ! NO modifica permisos, sesión, Firebase, cálculos, eventos ni navegación.
+ ! NO usar display/visibility aquí para controlar acceso a módulos.
+ * Este bloque centraliza la paleta visual solicitada.
+ */
+:root{
+    --gl-navy:#0B2849;
+    --gl-primary:#086BEA;
+    --gl-primary-hover:#0056C8;
+    --gl-primary-soft:#EAF3FF;
+    --gl-page:#F3F6FA;
+    --gl-surface:#FFFFFF;
+    --gl-text:#17324D;
+    --gl-muted:#64748B;
+    --gl-border:#DCE5EF;
+    --gl-radius:11px;
+    --gl-radius-sm:9px;
+    --gl-shadow:0 4px 18px rgba(11,40,73,.07);
+    --gl-shadow-hover:0 8px 24px rgba(11,40,73,.10);
+    --gl-control-height:44px;
+}
+
+/* * Fondo y texto base del área autenticada. */
+#app-screen{
+    background:var(--gl-page);
+    color:var(--gl-text);
+}
+
+#app-screen .shell,
+#app-screen .main,
+#app-screen main,
+#app-screen .content,
+#app-screen .main-content{
+    background-color:var(--gl-page);
+}
+
+/*
+ * TIPOGRAFÍA
+ ? Reutiliza las fuentes ya cargadas por el proyecto; no agrega dependencias.
+ */
+#app-screen,
+#app-screen button,
+#app-screen input,
+#app-screen select,
+#app-screen textarea{
+    font-family:var(--font-body,"IBM Plex Sans",Arial,sans-serif);
+}
+
+#app-screen h1,
+#app-screen h2,
+#app-screen h3,
+#app-screen h4,
+#app-screen .section-title,
+#app-screen .card-title{
+    color:var(--gl-text);
+    font-family:var(--font-body,"IBM Plex Sans",Arial,sans-serif);
+    letter-spacing:-.015em;
+}
+
+/*
+ * TARJETAS / PANELES
+ ! No se cambian estados semánticos; solo superficie, borde y sombra.
+ */
+#app-screen .card,
+#app-screen .panel,
+#app-screen .section-card,
+#app-screen .form-card,
+#app-screen .chart-box,
+#app-screen .kpi-card,
+#app-screen .resumen-card,
+#app-screen .dashboard-card{
+    border-color:var(--gl-border);
+    border-radius:var(--gl-radius);
+    box-shadow:var(--gl-shadow);
+}
+
+/*
+ * FORMULARIOS
+ * Altura táctil coherente y foco azul accesible.
+ */
+#app-screen input:not([type="checkbox"]):not([type="radio"]),
+#app-screen select,
+#app-screen textarea{
+    border-color:var(--gl-border);
+    border-radius:var(--gl-radius-sm);
+    background-color:var(--gl-surface);
+    color:var(--gl-text);
+}
+
+#app-screen input:not([type="checkbox"]):not([type="radio"]),
+#app-screen select{
+    min-height:var(--gl-control-height);
+}
+
+#app-screen input:focus,
+#app-screen select:focus,
+#app-screen textarea:focus{
+    border-color:var(--gl-primary);
+    outline:3px solid rgba(8,107,234,.13);
+    outline-offset:0;
+}
+
+/*
+ * BOTONES PRIMARIOS
+ ! No se incluyen botones danger/warning/success para conservar su significado.
+ */
+#app-screen .btn-primary,
+#app-screen button.primary,
+#app-screen .button-primary,
+#app-screen .action-primary{
+    min-height:var(--gl-control-height);
+    border-color:var(--gl-primary);
+    border-radius:var(--gl-radius-sm);
+    background:var(--gl-primary);
+    color:#fff;
+    box-shadow:0 3px 9px rgba(8,107,234,.15);
+}
+
+#app-screen .btn-primary:hover:not(:disabled),
+#app-screen button.primary:hover:not(:disabled),
+#app-screen .button-primary:hover:not(:disabled),
+#app-screen .action-primary:hover:not(:disabled){
+    border-color:var(--gl-primary-hover);
+    background:var(--gl-primary-hover);
+}
+
+#app-screen button:focus-visible,
+#app-screen a:focus-visible,
+#app-screen [tabindex]:focus-visible{
+    outline:3px solid rgba(8,107,234,.22);
+    outline-offset:2px;
+}
+
+#app-screen button:disabled,
+#app-screen .btn:disabled,
+#app-screen input:disabled,
+#app-screen select:disabled,
+#app-screen textarea:disabled{
+    cursor:not-allowed;
+    opacity:.58;
+}
+
+/*
+ * TABLAS
+ * Encabezado azul claro; el scroll horizontal se mantiene en su contenedor.
+ */
+#app-screen .table-wrap,
+#app-screen .table-responsive,
+#app-screen .table-container,
+#app-screen .tabla-wrap,
+#app-screen .tabla-responsive{
+    max-width:100%;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    border-radius:var(--gl-radius);
+}
+
+#app-screen table{
+    color:var(--gl-text);
+    border-color:var(--gl-border);
+}
+
+#app-screen table thead th{
+    background:var(--gl-primary-soft);
+    color:var(--gl-text);
+    border-color:var(--gl-border);
+    font-weight:700;
+}
+
+#app-screen table tbody td{
+    border-color:var(--gl-border);
+}
+
+#app-screen table tbody tr:hover{
+    background:rgba(234,243,255,.45);
+}
+
+/*
+ * MODALES / VENTANAS
+ ! Solo presentación. La apertura/cierre sigue perteneciendo al JavaScript.
+ */
+#app-screen .modal-content,
+#app-screen .modal-box,
+#app-screen .dialog-content,
+#app-screen .popup-content{
+    border:1px solid var(--gl-border);
+    border-radius:12px;
+    background:var(--gl-surface);
+    box-shadow:0 20px 55px rgba(11,40,73,.18);
+}
+
+#app-screen .modal-body,
+#app-screen .dialog-body{
+    max-width:100%;
+}
+
+/* * Pestañas seleccionadas: azul uniforme. */
+#app-screen .tabs button.active,
+#app-screen .tab-btn.active,
+#app-screen .nav-tab.active,
+#app-screen [role="tab"][aria-selected="true"]{
+    color:var(--gl-primary);
+    border-color:var(--gl-primary);
+}
+
+/*
+ * GRÁFICOS
+ ! No se aplican filter ni cambios al canvas.
+ * Solo se mejora el contenedor exterior.
+ */
+#app-screen .chart-box,
+#app-screen .chart-card,
+#app-screen .chart-container{
+    background:var(--gl-surface);
+    border-color:var(--gl-border);
+    border-radius:var(--gl-radius);
+    box-shadow:var(--gl-shadow);
+}
+
+/* * Scrollbars discretos en contenedores consultables. */
+#app-screen .table-wrap,
+#app-screen .table-responsive,
+#app-screen .modal-body{
+    scrollbar-width:thin;
+    scrollbar-color:#AFC4D8 transparent;
 }

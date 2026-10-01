@@ -1,3 +1,47 @@
+/*
+ * BETTER COMMENTS · SIDEBAR GLACIAL
+ ! IMPORTANTE: conservar IDs, permisos y funciones de navegación.
+ ! NO duplicar listeners ni crear accesos que evadan permisos.
+ * Este archivo mantiene la navegación lateral existente.
+*/
+
+/* Iconografía SVG de la barra lateral. Mantiene IDs y eventos existentes. */
+function sidebarSvg(nombre){
+  const paths={
+    home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5"/><path d="M9.5 21v-7h5v7"/>',
+    production:'<path d="M4 20V9l5 3V8l5 3V4h6v16Z"/><path d="M8 16h2M13 16h2M18 16h2"/>',
+    box:'<path d="m4 7 8-4 8 4-8 4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/>',
+    wrench:'<path d="M14.7 6.3a4 4 0 0 0-5-5L12 3.6 9.6 6 7.3 3.7a4 4 0 0 0 5 5L4 17l3 3 8.3-8.3a4 4 0 0 0-.6-5.4Z"/>',
+    users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.1 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.3V9.6h.1A1.7 1.7 0 0 0 4.1 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.5 4.1a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2.3h4v.1A1.7 1.7 0 0 0 15 4.1a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.5a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1v4h-.1A1.7 1.7 0 0 0 19.4 15Z"/>',
+    clipboard:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8"/>',
+    chart:'<path d="M4 20V10M10 20V5M16 20v-8M22 20H2"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  };
+  return `<svg class="sidebar-svg" viewBox="0 0 24 24" aria-hidden="true">${paths[nombre]||paths.clipboard}</svg>`;
+}
+function sidebarChevronSvg(){
+  return '<svg class="sidebar-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg>';
+}
+function refinarIconosSidebar(){
+  const iconos={
+    'btn-centro-perfil':'home','btn-produccion-actual':'production',
+    'btn-avance-produccion':'clock','btn-almacen':'box',
+    'btn-mantenimiento':'wrench','btn-rrhh':'users','btn-tareo':'clipboard',
+    'btn-rotacion-supervisores':'users','btn-resumen':'report',
+    'btn-perdidas':'chart','btn-usuarios':'settings','btn-trabajadores':'users'
+  };
+  Object.entries(iconos).forEach(([id,nombre])=>{
+    const b=document.getElementById(id); if(!b)return;
+    const i=b.querySelector('.side-action-icon,.sidebar-group-icon');
+    if(i)i.innerHTML=sidebarSvg(nombre);
+  });
+  document.querySelectorAll('#glacial-sidebar .sidebar-chevron').forEach(el=>{
+    el.innerHTML=sidebarChevronSvg();
+  });
+}
+
 /* =============================================================
    SIDEBAR (LÍNEAS DE PRODUCCIÓN)
    Parte del sistema GLACIAL — dividido a partir de app.js
@@ -168,15 +212,121 @@ function renderSidebar(){
     if(activo)boton.setAttribute('aria-current','page');
     else boton.removeAttribute('aria-current');
   });
-  const gestion=document.getElementById('sidebar-management');
-  if(gestion)gestion.hidden=!visibles;
   const almacen=document.getElementById('btn-almacen');
   if(almacen){
-    almacen.hidden=!visibles;
-    almacen.style.display=visibles?'':'none';
+    // Almacén continúa siendo una referencia visual, no crea una pantalla nueva.
+    const mostrarAlmacen=!!state.user;
+    almacen.hidden=!mostrarAlmacen;
+    almacen.style.display=mostrarAlmacen?'':'none';
   }
 
+  actualizarGruposSidebar();
 }
+
+/* =========================================================
+   MENÚ POR MÓDULOS / DESPLEGABLES
+   Solo organiza accesos existentes. No concede permisos.
+   ========================================================= */
+
+const SIDEBAR_GROUP_STORAGE='glacial.sidebar.groups.v1';
+let sidebarGruposAbiertos=new Set();
+
+function cargarEstadoGruposSidebar(){
+  try{
+    const guardados=JSON.parse(sessionStorage.getItem(SIDEBAR_GROUP_STORAGE)||'[]');
+    sidebarGruposAbiertos=new Set(Array.isArray(guardados)?guardados:[]);
+  }catch(_){
+    sidebarGruposAbiertos=new Set();
+  }
+}
+
+function guardarEstadoGruposSidebar(){
+  try{
+    sessionStorage.setItem(SIDEBAR_GROUP_STORAGE,JSON.stringify([...sidebarGruposAbiertos]));
+  }catch(_){/* sessionStorage puede estar bloqueado; el menú sigue funcionando */}
+}
+
+function grupoSidebarActivo(){
+  if(PESTANAS_LINEA.includes(state.currentTab) || ['produccion-actual','avance-produccion'].includes(state.currentTab))return 'produccion';
+  if(state.currentTab==='mantenimiento')return 'mantenimiento';
+  if(['rrhh','tareo','rotacion-supervisores'].includes(state.currentTab))return 'rrhh';
+  if(['resumen','perdidas'].includes(state.currentTab))return 'reportes';
+  return '';
+}
+
+function grupoTieneAccesosVisibles(grupo){
+  if(!grupo)return false;
+  if(grupo.dataset.sidebarGroup==='produccion'){
+    const lineas=document.getElementById('sidebar-lines');
+    if(lineas && !lineas.hidden && lineas.style.display!=='none')return true;
+  }
+  return [...grupo.querySelectorAll('.side-action')].some(b=>!b.hidden && b.style.display!=='none');
+}
+
+function aplicarEstadoGrupoSidebar(nombre,abierto){
+  const grupo=document.querySelector(`[data-sidebar-group="${nombre}"]`);
+  const boton=document.querySelector(`[data-sidebar-toggle="${nombre}"]`);
+  const panel=document.getElementById(`sidebar-panel-${nombre}`);
+  if(!grupo||!boton||!panel)return;
+  grupo.classList.toggle('is-open',abierto);
+  boton.setAttribute('aria-expanded',abierto?'true':'false');
+  panel.hidden=!abierto;
+}
+
+function alternarGrupoSidebar(nombre){
+  const abierto=sidebarGruposAbiertos.has(nombre);
+  if(abierto)sidebarGruposAbiertos.delete(nombre);
+  else sidebarGruposAbiertos.add(nombre);
+  aplicarEstadoGrupoSidebar(nombre,!abierto);
+  guardarEstadoGruposSidebar();
+}
+
+function actualizarGruposSidebar(){
+  const activo=grupoSidebarActivo();
+  if(activo)sidebarGruposAbiertos.add(activo);
+
+  document.querySelectorAll('.sidebar-group[data-sidebar-group]').forEach(grupo=>{
+    const nombre=grupo.dataset.sidebarGroup;
+    const visible=grupoTieneAccesosVisibles(grupo);
+    grupo.hidden=!visible;
+    grupo.style.display=visible?'':'none';
+    grupo.classList.toggle('has-active',nombre===activo);
+    if(!visible)return;
+    aplicarEstadoGrupoSidebar(nombre,sidebarGruposAbiertos.has(nombre));
+  });
+
+  // Registro de producción es un subgrupo y se mantiene abierto cuando se trabaja en una línea.
+  const registro=document.querySelector('[data-sidebar-toggle="registro-produccion"]');
+  const panelRegistro=document.getElementById('sidebar-panel-registro-produccion');
+  if(registro&&panelRegistro){
+    const forzar=PESTANAS_LINEA.includes(state.currentTab);
+    const abierto=forzar || sidebarGruposAbiertos.has('registro-produccion');
+    registro.setAttribute('aria-expanded',abierto?'true':'false');
+    panelRegistro.hidden=!abierto;
+    registro.closest('.sidebar-subgroup')?.classList.toggle('is-open',abierto);
+  }
+  guardarEstadoGruposSidebar();
+}
+
+function manejarToggleSidebar(evento){
+  const boton=evento.target.closest('[data-sidebar-toggle]');
+  if(!boton)return false;
+  const nombre=boton.dataset.sidebarToggle;
+  if(nombre==='registro-produccion'){
+    const panel=document.getElementById('sidebar-panel-registro-produccion');
+    const abierto=boton.getAttribute('aria-expanded')==='true';
+    boton.setAttribute('aria-expanded',abierto?'false':'true');
+    if(panel)panel.hidden=abierto;
+    boton.closest('.sidebar-subgroup')?.classList.toggle('is-open',!abierto);
+    if(abierto)sidebarGruposAbiertos.delete(nombre); else sidebarGruposAbiertos.add(nombre);
+    guardarEstadoGruposSidebar();
+  }else{
+    alternarGrupoSidebar(nombre);
+  }
+  return true;
+}
+
+cargarEstadoGruposSidebar();
 
 /* Menú de teléfono: conserva los mismos botones y permisos del escritorio. */
 function cerrarMenuMovil(){
@@ -209,7 +359,10 @@ function alternarMenuMovil(){
 function iniciarMenuMovil(){
   const sidebar=document.getElementById('glacial-sidebar');
   sidebar?.addEventListener('click',evento=>{
-    if(evento.target.closest('button'))cerrarMenuMovil();
+    // Abrir/cerrar un grupo NO debe cerrar el panel móvil.
+    if(manejarToggleSidebar(evento))return;
+    const boton=evento.target.closest('button');
+    if(boton && !boton.disabled)cerrarMenuMovil();
   });
   document.getElementById('mobile-lines')?.addEventListener('click',evento=>{
     const linea=evento.target.closest('[data-mobile-line]');

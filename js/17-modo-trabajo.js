@@ -33,6 +33,14 @@
    3) Cronómetro de turno (Mañana/Tarde/Noche, con tolerancia
       de 20 min para Noche).
    ============================================================= */
+/*
+ * BETTER COMMENTS · CABECERA GLACIAL
+ ! IMPORTANTE: conservar IDs, eventos, sesión y permisos existentes.
+ ! NO modificar aquí usuarios ni documentos de Firebase.
+ ? Los cambios de este archivo relacionados con la cabecera son de presentación/estado visual.
+ */
+
+
 
 
 /* =========================================================
@@ -352,12 +360,34 @@ function esModoSoloLectura(){
 
 }
 
+function _mtUsuarioSoloConsulta(){
+  /*
+   * BETTER COMMENTS · CONTROL DE PERMISOS
+   ! IMPORTANTE: esta función NO modifica usuarios, roles ni permisos.
+   ! IMPORTANTE: NO escribe en Firebase.
+   * Solo consulta la función oficial esUsuarioSoloConsulta() del sistema.
+   ? Si el usuario es de solo consulta, el botón TRABAJAR debe permanecer bloqueado.
+  */
+  try{
+    return typeof esUsuarioSoloConsulta === 'function'
+      ? !!esUsuarioSoloConsulta(state?.user)
+      : false;
+  }catch(e){
+    return false;
+  }
+}
+
 function establecerModoTrabajo(modo, opts){
 
   opts = opts || {};
 
   if(modo !== 'visualizar' && modo !== 'trabajar'){
     return;
+  }
+
+  /* ! IMPORTANTE: usuarios de SOLO CONSULTA nunca pueden activar TRABAJAR. */
+  if(modo === 'trabajar' && _mtUsuarioSoloConsulta()){
+    modo = 'visualizar';
   }
 
   state.workMode = modo;
@@ -403,14 +433,42 @@ function renderModoSwitch(){
     box.style.display = state.user ? 'flex' : 'none';
   }
 
+  const soloConsulta = _mtUsuarioSoloConsulta();
+
   document.querySelectorAll('#modo-switch .modo-btn').forEach(btn => {
 
-    btn.classList.toggle(
-      'activo',
-      btn.getAttribute('data-modo') === state.workMode
-    );
+    const modoBtn = btn.getAttribute('data-modo');
+    const activo = modoBtn === state.workMode;
+
+    btn.classList.toggle('activo', activo);
+    btn.setAttribute('aria-pressed', activo ? 'true' : 'false');
+
+    if(modoBtn === 'trabajar'){
+      btn.disabled = soloConsulta;
+      btn.setAttribute(
+        'aria-disabled',
+        soloConsulta ? 'true' : 'false'
+      );
+
+      if(soloConsulta){
+        btn.title = 'No disponible para usuarios de solo consulta';
+      }
+    }
 
   });
+
+  /*
+   * PERFIL DEL USUARIO
+   ! IMPORTANTE: nombre y cargo se toman de la sesión actual; NO fijar valores manualmente.
+   * CSS puede abreviar visualmente nombres largos con "...".
+   * El atributo title conserva nombre + cargo completos al pasar el cursor.
+  */
+  const chip = document.querySelector('.topbar .user-chip');
+  const nombre = document.getElementById('user-name')?.textContent?.trim() || '';
+  const cargo = document.getElementById('user-role')?.textContent?.trim() || '';
+  if(chip){
+    chip.title = [nombre, cargo].filter(Boolean).join(' · ');
+  }
 
 }
 
@@ -512,7 +570,11 @@ function inicializarModoTrabajo(){
     guardado = sessionStorage.getItem(MT_STORAGE_KEY);
   }catch(e){}
 
-  if(guardado === 'visualizar' || guardado === 'trabajar'){
+  if(_mtUsuarioSoloConsulta()){
+
+    establecerModoTrabajo('visualizar', { silencioso: true });
+
+  } else if(guardado === 'visualizar' || guardado === 'trabajar'){
 
     establecerModoTrabajo(guardado, { silencioso: true });
 
