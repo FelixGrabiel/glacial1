@@ -227,42 +227,44 @@ const MARCAS_POR_LINEA = {
 
 const RATIOS_PRESENTACION_PET1 = {
 
+  // ! IMPORTANTE: las presentaciones de agua se muestran como REGULAR.
   'Pack_Regular_2.5Lx6und': 1920,
-  'Pack_Alcalina_2.5Lx6und': 1920,
-  'Pack c/Sticker_Alcalina_2.5Lx6und': 1920,
-  'Pack_Alcalina_SC_1Lx12und/lN': 2400
+  'Pack c/Sticker_Regular_2.5Lx6und': 1920,
+  'Pack_Regular_SC_1Lx12und/lN': 2400
 
 };
 
 const RATIOS_PRESENTACION_PET2 = {
 
+  // ! IMPORTANTE: PET2 ya no expone presentaciones con la palabra ALCALINA.
+  // * Los formatos equivalentes quedan centralizados bajo la denominación REGULAR.
   'Pack_Regular_380mlx24und/la': 3300,
   'Pack_Regular_380mlx24und/ln': 6000,
   'Pack_Regular_625mlx6und/la': 3300,
   'Pack_Regular_625mlx6und/ln': 4500,
   'Pack_Regular_625mlx15und/la': 3300,
   'Pack_Regular_625mlx15und/ln': 5000,
-  'Pack_Alcalina_625mlx6und/la': 2800,
-  'Pack_Alcalina_625mlx6und/ln': 4500,
-  'Pack_Alcalina_625mlx15und/la': 3300,
-  'Pack_Alcalina_625mlx15und/ln': 5000,
-  'Pack_Alcalina(Y)_625mlx15und/la': 3300,
-  'Pack_Alcalina(Y)_625mlx15und/ln': 5000,
   'Pack_Regular_1.5Lx6und': 2400,
+  'Pack_Regular_SC_1Lx6und/la': 2200,
+  'Pack_Regular_SC_1Lx6und/ln': 4000,
   'Pack_Regular_SC_1Lx12und/la': 2400,
   'Pack_Regular_SC_1Lx12und/ln': 4500,
-  'Pack_Alcalina_SC_1Lx6und/la': 2200,
-  'Pack_Alcalina_SC_1Lx6und/ln': 4000,
-  'Pack_Alcalina_SC_1Lx12und/la': 2400,
-  'Pack_Alcalina_SC_1Lx12und/ln': 4500,
-  'Pack_Alcalina_TP_1Lx6und/la': 2200,
-  'Pack_Alcalina_TP_1Lx6und/ln': 4500,
+  'Pack_Regular_TP_1Lx6und/la': 2200,
+  'Pack_Regular_TP_1Lx6und/ln': 4500,
   'Pack_Regular_2.5Lx6und': 1920,
-  'Pack_Alcalina_2.5Lx6und': 1920,
-  'Pack c/Sticker_Alcalina_2.5Lx6und': 1920,
-  'Pack_Alcalina_380mlx24und/LN': 6000
+  'Pack c/Sticker_Regular_2.5Lx6und': 1920
 
 };
+
+// * Compatibilidad con registros históricos guardados con la denominación anterior.
+// ? Esto evita modificar o borrar registros ya existentes en Firestore.
+function normalizarPresentacionRegular(presentacion){
+
+  return String(presentacion || '')
+    .replace(/Alcalina\(Y\)/gi, 'Regular')
+    .replace(/Alcalina/gi, 'Regular');
+
+}
 
 
 /*
@@ -324,13 +326,13 @@ function obtenerRatioNominal(linea, presentacion, marca){
 
   if(linea === 'PET1'){
 
-    return RATIOS_PRESENTACION_PET1[presentacion] ?? 0;
+    return RATIOS_PRESENTACION_PET1[normalizarPresentacionRegular(presentacion)] ?? 0;
 
   }
 
   if(linea === 'PET2'){
 
-    return RATIOS_PRESENTACION_PET2[presentacion] ?? 0;
+    return RATIOS_PRESENTACION_PET2[normalizarPresentacionRegular(presentacion)] ?? 0;
 
   }
 
