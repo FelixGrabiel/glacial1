@@ -69,6 +69,7 @@ var tareoActualId = null;
 let tareoAreaVista = null;
 let tareoFiltroTexto = '';
 let tareoFiltroAreaHistorial = '';
+let tareoFechaVista = '';
 
 let tareoGeneralFiltros = {
     fecha: '',
@@ -2055,6 +2056,13 @@ function tareoCambiarAreaVista(area) {
     renderTareoPrincipal();
 }
 
+function tareoCambiarFechaVista(fecha) {
+
+    tareoFechaVista = fecha;
+
+    renderTareoPrincipal();
+}
+
 
 function tareoTarjetaTurnoHTML(area, fecha, turno) {
 
@@ -2139,6 +2147,10 @@ function renderTareoPrincipal() {
     const editables = tareoAreasEditables();
 
     const hoy = obtenerFechaHoy();
+    const fechaVista =
+        area === 'Mantenimiento'
+            ? (tareoFechaVista || hoy)
+            : hoy;
 
     const personal =
         area === 'Producción'
@@ -2230,19 +2242,35 @@ function renderTareoPrincipal() {
 
             <div class="panel-head">
 
-                <h3>Turnos de hoy · ${formatearFecha(hoy)}</h3>
+                <h3>Turnos del día · ${formatearFecha(fechaVista)}</h3>
 
-                <span class="small-muted">
-                    Toca un turno para registrar a quienes van llegando
-                </span>
+                ${
+                    area === 'Mantenimiento'
+                        ? `
+                        <div class="field-sm">
+                            <label for="tareo-fecha-vista">Fecha del tareo</label>
+                            <input
+                                type="date"
+                                id="tareo-fecha-vista"
+                                value="${escaparHTML(fechaVista)}"
+                                onchange="tareoCambiarFechaVista(this.value)"
+                            >
+                        </div>
+                        `
+                        : `
+                        <span class="small-muted">
+                            Toca un turno para registrar a quienes van llegando
+                        </span>
+                        `
+                }
 
             </div>
 
             <div class="panel-body">
 
                 <div class="tar2-turno-grid">
-                    ${tareoTarjetaTurnoHTML(area, hoy, 'Día')}
-                    ${tareoTarjetaTurnoHTML(area, hoy, 'Noche')}
+                    ${tareoTarjetaTurnoHTML(area, fechaVista, 'Día')}
+                    ${tareoTarjetaTurnoHTML(area, fechaVista, 'Noche')}
                 </div>
 
             </div>
