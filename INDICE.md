@@ -158,3 +158,16 @@ $rutas = Select-String -Path index.html -Pattern 'src="(js/[^"?]+)' | ForEach-Ob
 $faltan = $rutas | Where-Object { -not (Test-Path $_) }
 if ($faltan) { "FALTAN:"; $faltan } else { "OK: $($rutas.Count) scripts existen en disco" }
 ```
+
+## Entornos (PRODUCCIÓN y PRUEBAS)
+
+`js/nucleo/01-config.js` guarda las dos configuraciones de Firebase y elige sola:
+
+| Dirección de la página | Entorno | Proyecto Firebase |
+|---|---|---|
+| `localhost`, `127.0.0.1` | PRUEBAS | `pruebas-b11b7` |
+| cualquier otra (incluido `file://`) | PRODUCCION | `jefaturaopglacial-fdb95` |
+
+En PRUEBAS: `SHEETS_URL` y `SHEETS_CLAVE` quedan vacías (no se escribe en la hoja real), aparece una franja roja
+"BASE DE PRUEBAS" y el título de la pestaña empieza con `[PRUEBAS]`. Al iniciar, la consola del navegador muestra
+qué proyecto se usa.

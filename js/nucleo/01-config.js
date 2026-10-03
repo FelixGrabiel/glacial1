@@ -89,7 +89,32 @@
       pégalo reemplazando el de abajo.
 */
 
-const FIREBASE_CONFIG = {
+/* =========================================================
+   ENTORNOS: PRODUCCION y PRUEBAS (se elige solo)
+   - Si la página se abre desde localhost o 127.0.0.1 → PRUEBAS.
+   - Desde cualquier otra dirección → PRODUCCION.
+   - En PRUEBAS: Google Sheets queda desactivado (SHEETS_URL y SHEETS_CLAVE
+     vacías) y se ve una franja roja "BASE DE PRUEBAS" en toda la app.
+   Los datos de cada entorno viven en proyectos de Firebase distintos y nunca
+   se mezclan. (Un archivo abierto con file:// cuenta como PRODUCCION.)
+   ========================================================= */
+
+const CONFIG_PRUEBAS = {
+  apiKey: "AIzaSyDu-PrKL0Zacynobn_iLc7EVFIiC7Rk96A",
+  authDomain: "pruebas-b11b7.firebaseapp.com",
+  projectId: "pruebas-b11b7",
+  storageBucket: "pruebas-b11b7.firebasestorage.app",
+  messagingSenderId: "492367398973",
+  appId: "1:492367398973:web:80bbe223b737cba90cc254",
+  measurementId: "G-409QMFQT53"
+};
+
+const ENTORNO_PRUEBAS = ['localhost', '127.0.0.1', '[::1]', '::1']
+  .includes(String(window.location.hostname || '').toLowerCase());
+
+const ENTORNO = ENTORNO_PRUEBAS ? 'PRUEBAS' : 'PRODUCCION';
+
+const CONFIG_PRODUCCION = {
   apiKey: "AIzaSyAO86_KLoblDvHq-65q2xbD53-zj_L0tUY",
   authDomain: "jefaturaopglacial-fdb95.firebaseapp.com",
   projectId: "jefaturaopglacial-fdb95",
@@ -98,7 +123,36 @@ const FIREBASE_CONFIG = {
   appId: "1:949615984456:web:6664bb183ee09930ad3d7d"
 };
 
+const FIREBASE_CONFIG = ENTORNO_PRUEBAS ? CONFIG_PRUEBAS : CONFIG_PRODUCCION;
+
 firebase.initializeApp(FIREBASE_CONFIG);
+
+/* Qué proyecto se está usando (visible en la consola del navegador). */
+console.info(
+  '%cGLACIAL · entorno: ' + ENTORNO + ' · proyecto Firebase: ' + FIREBASE_CONFIG.projectId +
+  ' · página: ' + window.location.origin,
+  'font-weight:bold;padding:2px 8px;border-radius:4px;color:#fff;background:' +
+  (ENTORNO_PRUEBAS ? '#c62828' : '#1b6e3a')
+);
+
+/* Franja roja fija en toda la app cuando se usa la base de PRUEBAS. */
+if (ENTORNO_PRUEBAS) {
+  const pintarFranjaPruebas = () => {
+    if (document.getElementById('franja-entorno')) return;
+    const franja = document.createElement('div');
+    franja.id = 'franja-entorno';
+    franja.textContent = 'BASE DE PRUEBAS · ' + FIREBASE_CONFIG.projectId + ' · no son datos de planta';
+    franja.style.cssText =
+      'position:fixed;top:0;left:0;right:0;height:22px;line-height:22px;z-index:2147483000;' +
+      'background:#c62828;color:#fff;text-align:center;font:700 12px/22px system-ui,Arial,sans-serif;' +
+      'letter-spacing:.06em;pointer-events:none;';
+    document.body.appendChild(franja);
+    document.body.style.paddingTop = '22px';
+    document.title = '[PRUEBAS] ' + document.title;
+  };
+  if (document.body) pintarFranjaPruebas();
+  else document.addEventListener('DOMContentLoaded', pintarFranjaPruebas);
+}
 
 const db = firebase.firestore();
 const storage = firebase.storage();
@@ -689,9 +743,12 @@ const PARADAS_PROGRAMADAS = [
    sistema funciona igual). Ver js/34-integraciones.js.
    ========================================================= */
 
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxyG6ylq9N20W_svlnZB9-zk5a-KaLSEPcAFamRTLjmMwcV9FxUa8LN4-AoclqhTYo1/exec';
+// En PRUEBAS quedan vacías: nada se escribe en la hoja real.
+const SHEETS_URL = ENTORNO_PRUEBAS
+  ? ''
+  : 'https://script.google.com/macros/s/AKfycbxyG6ylq9N20W_svlnZB9-zk5a-KaLSEPcAFamRTLjmMwcV9FxUa8LN4-AoclqhTYo1/exec';
 
-const SHEETS_CLAVE = 'jefatura_glacial2626';
+const SHEETS_CLAVE = ENTORNO_PRUEBAS ? '' : 'jefatura_glacial2626';
 
 
 /* =========================================================
