@@ -1,9 +1,9 @@
 /* =============================================================
    GLACIAL · TAREO — AUDITORÍA (colección auditoriaTareos)
    -------------------------------------------------------------
-   Registra, sin tocar 13-tareo.js, quién cambió qué en un tareo.
-   Cada evento es un documento NUEVO en auditoriaTareos (solo crear;
-   las reglas impiden editar o borrar). Se ve en RRHH → Auditoría.
+   Registra, sin tocar la lógica de 13-tareo.js, quién cambió qué en un tareo.
+   Cada evento es un documento NUEVO en auditoriaTareos (solo crear; las reglas
+   impiden editar o borrar). Se ve en RRHH → Auditoría.
 
    Eventos (campo "accion"):
      CREAR_TAREO
@@ -18,36 +18,37 @@
      AGREGAR_POR_DIA / QUITAR_POR_DIA
      CAMBIAR_ESTADO_TAREO
      ELIMINAR_TAREO
+     (y los de 41-tareo-bloqueo.js: EDITAR_TAREO_BLOQUEADO, solicitudes...)
    REGISTRAR_* = primer valor (de vacío/PENDIENTE a un valor).
    EDITAR_*    = corrección de un valor que ya existía.
-   Cada evento lleva además esCorreccion (true/false) para filtrar.
+   Cada evento lleva esCorreccion (true/false), la fecha y hora DEL SERVIDOR
+   (serverTimestamp), el usuario y su uid de Firebase (las reglas exigen
+   uid == request.auth.uid).
 
-   Cada evento guarda: fecha y hora DEL SERVIDOR (serverTimestamp), usuario,
-   uid de Firebase (las reglas exigen uid == request.auth.uid), rol, área,
-   tareo, trabajador, campo, valor anterior y valor nuevo.
+   CÓMO SE ATRIBUYE UN CAMBIO (sin depender de relojes ni de otros equipos):
+   cada acción del usuario (editar una persona, marcar salida vista, agregar
+   por día, etc.) se envuelve: se toma una foto del tareo LOCAL justo ANTES de
+   la acción y otra en SU guardado, y solo se compara esa pareja. Lo que llegue
+   de otros usuarios o dispositivos, las sincronizaciones automáticas con la
+   rotación y los guardados disparados por refrescos de pantalla nunca entran
+   en la comparación, así que no se registran a nombre de quien guarda ni se
+   pierde un evento propio por tener el reloj del equipo atrasado.
 
-   Cómo detecta los cambios: guarda una "foto" de cada tareo y, después de
-   cada guardado, compara. La foto se renueva ANTES de cualquier otra cosa
-   cada vez que llegan datos desde Firestore, y los cambios de una persona
-   solo se atribuyen si su marca actualizadoEn no es anterior a la de la foto:
-   así un cambio hecho por otro usuario o dispositivo nunca se registra a
-   nombre de quien guarda después.
+   Si registrar un evento falla, NO bloquea el guardado del tareo: solo avisa
+   en la consola. No registra nada en el modo "Ver como".
 
-   Si registrar un evento falla, NO bloquea el guardado del tareo: solo
-   avisa en la consola. No registra nada en el modo "Ver como".
-
-   Cargar DESPUÉS de 13-tareo.js y 26-rrhh-panel.js; antes de 12-init.js.
+   Cargar DESPUÉS de 13-tareo.js, 26-rrhh-panel.js y 42-tareo-agregar-personal.js;
+   antes de 41-tareo-bloqueo.js y 12-init.js.
    ============================================================= */
 (function instalarAuditoriaTareos(){
   'use strict';
 
   const COLECCION='auditoriaTareos';
-  const MAX_EVENTOS_POR_GUARDADO=200;
+  const MAX_EVENTOS_POR_ACCION=200;
   const TTL_DUPLICADO_MS=120000;
 
-  const base=new Map();        // tareoId → foto del último estado conocido
   const recientes=new Map();   // clave de evento → instante (evita duplicados)
-  let sembrada=false;
+  let accionActiva=null;       // {id, antes, ahora, ref, clave, ...} de la acción del usuario en curso
 
   const norm=t=>typeof tareoNormalizarTexto==='function'
     ? tareoNormalizarTexto(t)
@@ -64,9 +65,10 @@
     (Array.isArray(t&&t.personal)?t.personal:[]).forEach(p=>{
       if(!p)return;
       const ediciones=Array.isArray(p.edicionesSalida)?p.edicionesSalida:[];
+      const ids=typeof tareoIdentidades==='function'?tareoIdentidades(p):[];
       personal[clavePersona(p)]={
-        nombre:p.nombre||'',dni:p.dni||'',id:p.trabajadorId||p.id||'',
-        ts:Number(p.actualizadoEn||0),
+        nombre:p.nombre||'',dni:p.dni||'',
+        claves:ids.concat(typeof tareoClavePersona==='function'?[String(tareoClavePersona(p))]:[]),
         asistencia:p.asistencia||'',horaIngreso:p.horaIngreso||'',
         salidaRefrigerio:p.salidaRefrigerio||'',retornoRefrigerio:p.retornoRefrigerio||'',
         horaSalida:p.horaSalida||'',
@@ -81,13 +83,6 @@
       if(p&&p.id)porDia[p.id]={nombre:p.nombre||'',dni:p.dni||'',quitada:!!p.eliminada};
     });
     return {estado:t&&t.estado||'',area:t&&t.area||'',personal,porDia};
-  }
-
-  function sembrar(){
-    try{
-      obtenerTareos().forEach(t=>{if(t&&t.id)base.set(t.id,foto(t));});
-      sembrada=true;
-    }catch(e){console.warn('Auditoría de tareos: no se pudo preparar',e&&e.message||e);}
   }
 
   /* ---------- eventos ---------- */
@@ -139,7 +134,9 @@
     return (previo?'EDITAR_':'REGISTRAR_')+nombre;
   }
 
-  function diferencias(t,antes,ahora){
+  /* Diferencias entre dos fotos del MISMO tareo tomadas alrededor de una acción del usuario.
+     claveFiltro: si la acción es sobre una persona concreta, solo se miran los cambios de ella. */
+  function diferencias(t,antes,ahora,claveFiltro){
     const lista=[];
     if(!antes){
       lista.push(evento(t,'CREAR_TAREO','tareo',{
@@ -147,19 +144,18 @@
       }));
       return lista;
     }
-    if(antes.estado!==ahora.estado){
+    const esDeLaAccion=n=>claveFiltro===undefined||(n.claves||[]).includes(String(claveFiltro));
+    if(claveFiltro===undefined&&antes.estado!==ahora.estado){
       lista.push(evento(t,'CAMBIAR_ESTADO_TAREO','estado',{estadoAnterior:antes.estado||null,estadoNuevo:ahora.estado||null}));
     }
     Object.keys(ahora.personal).forEach(k=>{
       const n=ahora.personal[k],a=antes.personal[k];
+      if(!esDeLaAccion(n))return;
       const quien={trabajador:n.nombre,dni:n.dni};
       if(!a){
         lista.push(evento(t,'AGREGAR_PERSONAL','personal',Object.assign({estadoNuevo:n.nombre},quien)));
         return;
       }
-      // Solo se atribuye lo que ESTE dispositivo cambió: si la persona de la foto es más
-      // reciente que la local, la diferencia viene de otro usuario/dispositivo (copia vieja).
-      if(n.ts<a.ts)return;
       const cambia=(campo,nombre)=>{
         if(a[campo]===n[campo])return;
         lista.push(evento(t,accionValor(a[campo],n[campo],nombre),campo,
@@ -183,23 +179,21 @@
       if(a.trabajoEnDescanso!==n.trabajoEnDescanso)
         lista.push(evento(t,'TRABAJO_EN_DESCANSO','trabajoEnDescanso',Object.assign({estadoAnterior:a.trabajoEnDescanso,estadoNuevo:n.trabajoEnDescanso},quien)));
     });
-    Object.keys(antes.personal).forEach(k=>{
-      if(!ahora.personal[k]){
-        const a=antes.personal[k];
-        lista.push(evento(t,'QUITAR_PERSONAL','personal',{trabajador:a.nombre,dni:a.dni,estadoAnterior:a.nombre}));
-      }
-    });
-    Object.keys(ahora.porDia).forEach(id=>{
-      const n=ahora.porDia[id],a=antes.porDia[id];
-      if(!a&&!n.quitada)
-        lista.push(evento(t,'AGREGAR_POR_DIA','personalPorDia',{trabajador:n.nombre,dni:n.dni,estadoNuevo:n.nombre}));
-      else if(a&&!a.quitada&&n.quitada)
-        lista.push(evento(t,'QUITAR_POR_DIA','personalPorDia',{trabajador:n.nombre,dni:n.dni,estadoAnterior:n.nombre}));
-    });
-    Object.keys(antes.porDia).forEach(id=>{
-      if(!ahora.porDia[id]&&!antes.porDia[id].quitada)
-        lista.push(evento(t,'QUITAR_POR_DIA','personalPorDia',{trabajador:antes.porDia[id].nombre,dni:antes.porDia[id].dni,estadoAnterior:antes.porDia[id].nombre}));
-    });
+    if(claveFiltro===undefined){
+      Object.keys(antes.personal).forEach(k=>{
+        if(!ahora.personal[k]){
+          const a=antes.personal[k];
+          lista.push(evento(t,'QUITAR_PERSONAL','personal',{trabajador:a.nombre,dni:a.dni,estadoAnterior:a.nombre}));
+        }
+      });
+      Object.keys(ahora.porDia).forEach(id=>{
+        const n=ahora.porDia[id],a=antes.porDia[id];
+        if(!a&&!n.quitada)
+          lista.push(evento(t,'AGREGAR_POR_DIA','personalPorDia',{trabajador:n.nombre,dni:n.dni,estadoNuevo:n.nombre}));
+        else if(a&&!a.quitada&&n.quitada)
+          lista.push(evento(t,'QUITAR_POR_DIA','personalPorDia',{trabajador:n.nombre,dni:n.dni,estadoAnterior:n.nombre}));
+      });
+    }
     return lista;
   }
 
@@ -218,7 +212,7 @@
       const limpio={};
       Object.keys(ev).forEach(k=>{
         const v=ev[k];
-        limpio[k]=v===undefined?null:(k==='timestamp'?v:JSON.parse(JSON.stringify(v===undefined?null:v)));
+        limpio[k]=v===undefined?null:(k==='timestamp'?v:JSON.parse(JSON.stringify(v)));
       });
       Promise.resolve(db.collection(COLECCION).add(limpio)).catch(e=>
         console.warn('Auditoría de tareos: no se pudo registrar '+ev.accion+':',e&&e.message?e.message:e));
@@ -227,45 +221,92 @@
     }
   }
 
-  function auditar(t){
+  /* Cierra una acción: compara la foto de ANTES con la de su guardado. */
+  function procesar(act){
     try{
-      if(!sembrada||!t||!t.id||!state.user||window.__vistaComo)return;
-      const antes=base.get(t.id);
-      const ahora=foto(t);
-      base.set(t.id,ahora);
-      diferencias(t,antes,ahora).slice(0,MAX_EVENTOS_POR_GUARDADO).forEach(registrar);
+      if(!act||!act.ahora||!state.user||window.__vistaComo)return;
+      const t=act.ref;
+      if(!t)return;
+      if(act.soloCrear&&act.antes)return;                 // abrir un tareo ya existente: lo demás es automático
+      if(!act.antes&&!act.permiteCrear)return;
+      diferencias(t,act.antes,act.ahora,act.clave).slice(0,MAX_EVENTOS_POR_ACCION).forEach(registrar);
     }catch(e){
       console.warn('Auditoría de tareos:',e&&e.message?e.message:e);
     }
   }
 
-  /* ---------- enganches (no cambian el comportamiento de los originales) ---------- */
+  /* El primer guardado dentro de la acción es el de la acción; los posteriores
+     (sincronizaciones automáticas al redibujar) no cuentan. */
   if(typeof guardarTareoEnMemoria==='function'){
     const original=guardarTareoEnMemoria;
     guardarTareoEnMemoria=function(tareo){
       const r=original.apply(this,arguments);
       try{
-        // Si el original no tenía permiso para guardar, no se audita nada.
-        if(tareo&&typeof tareoAutorizadoEscribir==='function'&&tareoAutorizadoEscribir(tareo))auditar(tareo);
+        const a=accionActiva;
+        if(a&&!a.ahora&&tareo&&(a.id===undefined||a.id===null||a.id===tareo.id)&&
+           typeof tareoAutorizadoEscribir==='function'&&tareoAutorizadoEscribir(tareo)){
+          a.ahora=foto(tareo);
+          a.ref=tareo;
+        }
       }catch(e){console.warn('Auditoría de tareos:',e&&e.message||e);}
       return r;
     };
     window.guardarTareoEnMemoria=guardarTareoEnMemoria;
   }
 
-  // La edición de salida de maquinistas (Mantenimiento) guarda con su propia transacción.
-  if(typeof tareoGuardarSalidaMaquinista==='function'){
-    const original=tareoGuardarSalidaMaquinista;
-    tareoGuardarSalidaMaquinista=async function(tareoId){
-      const r=await original.apply(this,arguments);
-      try{
-        const t=obtenerTareos().find(x=>x.id===tareoId);
-        if(t)auditar(t);
-      }catch(e){console.warn('Auditoría de tareos:',e&&e.message||e);}
+  /* Envuelve una acción del usuario.
+     opciones: tareo(args) → tareo local antes de la acción; clave(args) → persona afectada;
+               asincrona → la acción guarda por su cuenta (se lee la foto del caché al terminar);
+               permiteCrear / soloCrear → acciones que pueden crear el tareo. */
+  function envolver(nombre,opc){
+    const original=window[nombre];
+    if(typeof original!=='function'||original.__auditada)return;
+    const nueva=function(){
+      const args=Array.from(arguments);       // las funciones de opciones reciben la lista de argumentos
+      let t=null,antes=null;
+      try{t=opc.tareo?opc.tareo(args):null;antes=t?foto(t):null;}catch(_){/* sin tareo previo */}
+      const act={id:t?t.id:undefined,antes,ahora:null,ref:t,
+        clave:opc.clave?opc.clave(args):undefined,
+        permiteCrear:!!opc.permiteCrear,soloCrear:!!opc.soloCrear};
+      const previa=accionActiva;
+      accionActiva=act;
+      let r;
+      try{r=original.apply(this,arguments);}
+      catch(e){accionActiva=previa;throw e;}
+      const cerrar=()=>{accionActiva=previa;procesar(act);};
+      if(r&&typeof r.then==='function'){
+        return r.then(v=>{
+          try{
+            if(opc.asincrona&&act.id){
+              const cache=obtenerTareos().find(x=>x.id===act.id);
+              if(cache){act.ahora=foto(cache);act.ref=cache;}
+            }
+          }catch(_){/* sin caché */}
+          cerrar();return v;
+        },e=>{accionActiva=previa;throw e;});
+      }
+      cerrar();
       return r;
     };
-    window.tareoGuardarSalidaMaquinista=tareoGuardarSalidaMaquinista;
+    nueva.__auditada=true;
+    window[nombre]=nueva;
   }
+
+  const actual=()=>typeof tareoObtenerActual==='function'?tareoObtenerActual():null;
+  const claveArg=args=>args[0]===undefined?undefined:String(args[0]);
+
+  envolver('tareoEditarPersona',{tareo:actual,clave:claveArg});
+  envolver('tareoMarcarSalidaVista',{tareo:actual,clave:claveArg});
+  envolver('tareoTrabajoEnDescanso',{tareo:actual,clave:claveArg});
+  envolver('tareoAgregarPorDia',{tareo:actual});
+  envolver('tareoQuitarPorDia',{tareo:actual});
+  envolver('tareoAgregarPersonal',{tareo:actual});
+  envolver('tareoGuardarSalidaMaquinista',{
+    tareo:a=>obtenerTareos().find(x=>x.id===a[0])||null,clave:a=>a[1]===undefined?undefined:String(a[1]),asincrona:true});
+  envolver('guardarTareoActual',{tareo:()=>tareoActualId?actual():null,permiteCrear:true});
+  envolver('tareoAbrir',{
+    tareo:a=>typeof tareoBuscar==='function'?tareoBuscar(a[0],a[1],normalizarTurno(a[2])||'Día'):null,
+    permiteCrear:true,soloCrear:true});
 
   if(typeof eliminarTareo==='function'){
     const original=eliminarTareo;
@@ -278,7 +319,6 @@
       const r=await original.apply(this,arguments);
       try{
         if(antes&&!obtenerTareos().some(x=>x.id===id)){
-          base.delete(id);
           registrar(evento(antes.t,'ELIMINAR_TAREO','tareo',{estadoAnterior:antes.resumen}));
         }
       }catch(e){console.warn('Auditoría de tareos:',e&&e.message||e);}
@@ -287,21 +327,6 @@
     window.eliminarTareo=eliminarTareo;
   }
 
-  // Lo que llega de Firestore (cambios de otros usuarios o dispositivos) pasa a ser el
-  // punto de partida. Se renueva ANTES de ejecutar los demás avisos, porque algunos
-  // pueden guardar el tareo al refrescarse y eso no debe atribuir cambios ajenos.
-  if(typeof onTareosUpdated==='function'){
-    const original=onTareosUpdated;
-    onTareosUpdated=function(){
-      sembrar();
-      return original.apply(this,arguments);
-    };
-    window.onTareosUpdated=onTareosUpdated;
-  }
-  // Por si los tareos ya estaban cargados cuando se cargó este archivo.
-  try{if(typeof obtenerTareos==='function'&&obtenerTareos().length)sembrar();}catch(_){/* aún no hay datos */}
-
   window.tareoAuditoriaEvento=evento;        // para 41-tareo-bloqueo.js (solicitudes, correcciones)
   window.tareoAuditoriaRegistrar=registrar;
-  window.tareoAuditarCambios=auditar;   // para pruebas: tareoAuditarCambios(tareo)
 })();

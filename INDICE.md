@@ -135,9 +135,9 @@ js/
 37. mantenimiento/37-mantenimiento-tecnicos.js
 38. mantenimiento/37b-mantenimiento-identificacion.js
 39. rrhh/38-tareo-rrhh-exportacion.js
-40. personal/40-tareo-auditoria.js
-41. personal/41-tareo-bloqueo.js
-42. personal/42-tareo-agregar-personal.js
+40. personal/42-tareo-agregar-personal.js
+41. personal/40-tareo-auditoria.js
+42. personal/41-tareo-bloqueo.js
 43. accesos/39-vista-como.js
 44. nucleo/12-init.js
 

@@ -19,7 +19,7 @@
    No cambia la estructura del tareo. Se audita como AGREGAR_PERSONAL.
    Respeta el bloqueo del tareo (41-tareo-bloqueo.js).
 
-   Cargar DESPUÉS de 13-tareo.js y 41-tareo-bloqueo.js; antes de 12-init.js.
+   Cargar DESPUÉS de 13-tareo.js y ANTES de 40-tareo-auditoria.js (que envuelve estas funciones).
    ============================================================= */
 (function instalarAgregarPersonal(){
   'use strict';
