@@ -5,6 +5,7 @@
 //   Firebase Console > Firestore Database > Reglas > pegar > Publicar.
 //
 // Cambios respecto a las reglas actuales:
+//   - Bloqueo de tareos: 'configTareo' y las colecciones relojServidor y solicitudesCorreccionTareo.
 //   - Se agregan 'tecnicosMant' y 'borradoresNuevoRegistro' (antes faltaban), 'perfiles' (nuevo: uid -> rol), 'accesos' (nuevo: usuario -> correo interno), 'rotacionesMantenimiento'
 //     y 'rotacionMaquinistas' a la lista de documentos permitidos.
 //   - Todavía NO se exige inicio de sesión (así nada deja de funcionar
@@ -16,13 +17,22 @@ service cloud.firestore {
     match /sync/{doc} {
       allow read, write: if doc in [
         'users', 'perfiles', 'accesos', 'records', 'workers', 'rotaciones',
-        'rotacionesMantenimiento', 'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro', 'tareos',
+        'rotacionesMantenimiento', 'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro', 'configTareo', 'tareos',
         'precios', 'paletas', 'programaciones', 'avancesTurno'
       ];
     }
     match /auditoriaTareos/{evento} {
       allow read, create: if true;
       allow update, delete: if false;
+    }
+    // Bloqueo de tareos: hora del servidor y solicitudes de corrección.
+    match /relojServidor/{id} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /solicitudesCorreccionTareo/{id} {
+      allow read, create, update: if true;
+      allow delete: if false;
     }
     match /{document=**} {
       allow read, write: if false;

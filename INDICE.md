@@ -74,6 +74,7 @@ js/
 | 28-tareo-maquinistas.js | Reglas de maquinistas y técnicos en el tareo |
 | 31-rotacion-supervisores.js | Rotación de supervisores |
 | 40-tareo-auditoria.js | Registra en `auditoriaTareos` quién cambió qué en un tareo (solo crea eventos) |
+| 41-tareo-bloqueo.js | Bloqueo de tareos por plazo (hora del servidor), correcciones de RRHH con motivo y solicitudes |
 
 ### js/mantenimiento/
 | Archivo | Función |
@@ -134,8 +135,9 @@ js/
 38. mantenimiento/37b-mantenimiento-identificacion.js
 39. rrhh/38-tareo-rrhh-exportacion.js
 40. personal/40-tareo-auditoria.js
-41. accesos/39-vista-como.js
-42. nucleo/12-init.js
+41. personal/41-tareo-bloqueo.js
+42. accesos/39-vista-como.js
+43. nucleo/12-init.js
 
 ## Cómo agregar un archivo nuevo
 

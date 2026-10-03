@@ -259,7 +259,7 @@ function renderAuditoriaTareos() {
           <td>${escaparHTML(e.usuario)}<br>${escaparHTML(e.rol)}</td>
           <td>${escaparHTML(e.area)} · ${formatearFecha(e.fechaTareo)} · ${escaparHTML(e.turno)}</td>
           <td>${escaparHTML(e.trabajador || '—')}</td>
-          <td>${escaparHTML(e.accion)} · ${escaparHTML(e.campo)}</td>
+          <td>${escaparHTML(e.accion)} · ${escaparHTML(e.campo)}${(e.motivoCorreccion || e.motivo) ? `<br><span class="small-muted">Motivo: ${escaparHTML(e.motivoCorreccion || e.motivo)}</span>` : ''}</td>
           <td title="${escaparHTML(resumen(e.estadoAnterior))}">${escaparHTML(resumen(e.estadoAnterior))}</td>
           <td title="${escaparHTML(resumen(e.estadoNuevo))}">${escaparHTML(resumen(e.estadoNuevo))}</td>
         </tr>`).join('') || '<tr><td colspan="7">Sin eventos registrados todavía.</td></tr>'}

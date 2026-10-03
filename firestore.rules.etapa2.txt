@@ -25,7 +25,7 @@
 //         no rotaciones de Producción). El código tampoco los escucha para ese rol.
 //       · Solo escribe sync/tecnicosMant (PIN de técnicos). Con Cloud Functions
 //         (MANT_PIN_MODO='functions') quitar esa excepción.
-//       · No lee ni escribe auditoriaTareos.
+//       · No lee ni escribe auditoriaTareos ni las solicitudes de corrección de tareos.
 //   - Limitación conocida: estas reglas validan QUIÉN eres, no cada campo
 //     que cambias. El control fino por permiso (tareo, paletas, etc.)
 //     sigue en la aplicación; endurecerlo por rol es una etapa posterior.
@@ -45,6 +45,16 @@ service cloud.firestore {
     }
     function esMantCompartido() {
       return autenticado() && perfiles()[request.auth.uid].rol == 'mantenimiento_compartido';
+    }
+    // RRHH = permiso moduloRRHH (o Administrador) y NO un rol de solo consulta
+    // (Jefatura/Gerencia tienen moduloRRHH solo para ver).
+    function esRRHH() {
+      return autenticado() && !(perfiles()[request.auth.uid].rol in
+        ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente']) && (
+          esAdmin() ||
+          (perfiles()[request.auth.uid].permisos is list &&
+           'moduloRRHH' in perfiles()[request.auth.uid].permisos)
+        );
     }
     function lecturaMant(doc) {
       return doc in [
@@ -66,13 +76,42 @@ service cloud.firestore {
         // Cuenta compartida: solo los PIN de técnicos.
         (esMantCompartido() && doc == 'tecnicosMant') ||
         (!esMantCompartido() && (
-          (doc in ['users', 'perfiles', 'accesos'] && esAdmin()) ||
+          (doc in ['users', 'perfiles', 'accesos', 'configTareo'] && esAdmin()) ||
           (autenticado() && doc in [
             'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
             'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',
             'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'
           ])
         ));
+    }
+
+    // Hora del servidor (bloqueo de tareos): cada usuario solo escribe su propio documento
+    // y solo con la hora del servidor.
+    match /relojServidor/{id} {
+      allow read: if autenticado() && id == request.auth.uid;
+      allow create, update: if autenticado() && id == request.auth.uid
+        && request.resource.data.keys().hasOnly(['t'])
+        && request.resource.data.t == request.time;
+      allow delete: if false;
+    }
+
+    // Solicitudes de corrección de tareos bloqueados.
+    //  - Cualquier usuario con sesión (menos la cuenta compartida) crea la suya, con su uid
+    //    y la hora del servidor, siempre como 'Pendiente'.
+    //  - Cada quien lee las suyas; RRHH lee todas y solo puede marcarlas como atendidas.
+    //  - Nadie las borra.
+    match /solicitudesCorreccionTareo/{id} {
+      allow read: if autenticado() && !esMantCompartido()
+        && (esRRHH() || resource.data.uid == request.auth.uid);
+      allow create: if autenticado() && !esMantCompartido()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.estado == 'Pendiente'
+        && request.resource.data.creadoEn == request.time;
+      allow update: if esRRHH()
+        && request.resource.data.estado == 'Atendida'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estado', 'atendidaPor', 'atendidaPorNombre', 'atendidaEn', 'nota']);
+      allow delete: if false;
     }
 
     // Bitácora del tareo: se puede leer y agregar, nunca modificar ni borrar.

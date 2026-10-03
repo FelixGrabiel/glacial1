@@ -100,12 +100,13 @@
      ID = fecha|turno|área|trabajador
      ========================================================= */
   const ENC_TAREO=['ID','Fecha','Turno','Área','Trabajador','Tipo','Estado','Ingreso',
-    'Salida refrigerio','Retorno refrigerio','Salida','Horas trabajadas','Horas extras','Supervisor'];
+    'Salida refrigerio','Retorno refrigerio','Salida','Horas trabajadas','Horas extras','Supervisor','Estado del tareo'];
 
   function filasTareo(tareo){
     const area=tareoAreaDe(tareo);
     const fecha=dmy(tareo.fecha);
     const sup=typeof tareoResponsable==='function'?tareoResponsable(tareo):(tareo.creadoPor||'');
+    const estadoTareo=typeof tareoEstadoBloqueo==='function'?tareoEstadoBloqueo(tareo):'Abierto';
     const base=(persona,tipo,estado,saldo)=>{
       const nombre=String(persona.nombre||'').trim();
       return [
@@ -113,7 +114,7 @@
         fecha,String(tareo.turno||''),area,nombre,tipo,estado,
         horaTxt(persona.horaIngreso),horaTxt(persona.salidaRefrigerio),horaTxt(persona.retornoRefrigerio),
         horaTxt(persona.horaSalida),
-        saldo.horas,saldo.extras,sup
+        saldo.horas,saldo.extras,sup,estadoTareo
       ];
     };
     const filas=[];

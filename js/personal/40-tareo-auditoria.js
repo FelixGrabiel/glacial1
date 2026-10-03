@@ -104,7 +104,7 @@
   }
 
   function evento(t,accion,campo,extra){
-    return Object.assign({
+    const ev=Object.assign({
       timestamp:marcaServidor(),     // fecha y hora del servidor, no del dispositivo
       ...usuarioActual(),
       area:typeof tareoAreaDe==='function'?tareoAreaDe(t):(t.area||''),
@@ -119,6 +119,18 @@
       estadoAnterior:null,
       estadoNuevo:null
     },extra||{});
+    // Tareo bloqueado corregido por RRHH/Administrador (con motivo): acción propia.
+    try{
+      const b=typeof window.tareoBloqueoInfo==='function'?window.tareoBloqueoInfo(t):null;
+      if(b&&b.bloqueado&&b.sesion&&!/^(INICIAR_|SOLICITAR_|ATENDER_|CONFIGURAR_|CREAR_)/.test(accion)){
+        ev.accionOriginal=accion;
+        ev.accion='EDITAR_TAREO_BLOQUEADO';
+        ev.motivoCorreccion=b.motivo||'';
+        ev.bloqueado=true;
+        ev.esCorreccion=true;
+      }
+    }catch(_){/* sin módulo de bloqueo */}
+    return ev;
   }
 
   /* REGISTRAR (primer valor) o EDITAR (corrección de un valor existente). */
@@ -289,5 +301,7 @@
   // Por si los tareos ya estaban cargados cuando se cargó este archivo.
   try{if(typeof obtenerTareos==='function'&&obtenerTareos().length)sembrar();}catch(_){/* aún no hay datos */}
 
+  window.tareoAuditoriaEvento=evento;        // para 41-tareo-bloqueo.js (solicitudes, correcciones)
+  window.tareoAuditoriaRegistrar=registrar;
   window.tareoAuditarCambios=auditar;   // para pruebas: tareoAuditarCambios(tareo)
 })();

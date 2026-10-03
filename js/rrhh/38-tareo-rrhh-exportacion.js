@@ -129,6 +129,7 @@
       fecha:tareo.fecha,
       turno:normalizarTurno(tareo.turno),
       area:tareoAreaDe(tareo),
+      estadoTareo:typeof tareoEstadoBloqueo==='function'?tareoEstadoBloqueo(tareo):'Abierto',
       tareoId:tareo.id,
       grupo,
       tipo:porDia?'Por día':'Planilla',
@@ -295,7 +296,7 @@
     c.push(
       {k:'dni',t:'DNI',w:12},{k:'nombre',t:'Apellidos y nombres',w:38},{k:'cargo',t:'Cargo',w:28},
       {k:'grupo',t:'Grupo',w:28},{k:'tipo',t:'Tipo',w:11},{k:'linea',t:'Línea',w:12},
-      {k:'estado',t:'Estado',w:22},{k:'ingreso',t:'Ingreso',w:10},{k:'salidaRef',t:'Salida refrigerio',w:11},
+      {k:'estado',t:'Estado',w:22},{k:'estadoTareo',t:'Estado del tareo',w:15},{k:'ingreso',t:'Ingreso',w:10},{k:'salidaRef',t:'Salida refrigerio',w:11},
       {k:'retornoRef',t:'Retorno refrigerio',w:11},{k:'salida',t:'Salida',w:10},
       {k:'horas',t:'Horas trabajadas',w:12},{k:'saldo',t:'HORAS EXTRAS',w:13},
       {k:'tardanza',t:'Tardanza (min)',w:11},{k:'registradoPor',t:'Registrado por',w:22},
@@ -318,6 +319,7 @@
       case 'tipo':return f.tipo==='Por día'?'Por día':'Planilla';
       case 'linea':return f.linea||'';
       case 'estado':return f.estado?f.estado.toUpperCase():'PENDIENTE';
+      case 'estadoTareo':return f.estadoTareo||'Abierto';
       case 'ingreso':return horaExcel(f.ingreso);
       case 'salidaRef':return horaExcel(f.salidaRef);
       case 'retornoRef':return horaExcel(f.retornoRef);
@@ -426,6 +428,10 @@
             cel.fill={type:'pattern',pattern:'solid',fgColor:{argb:bg}};
             cel.font={bold:true,color:{argb:fg}};
             cel.alignment={horizontal:'center',vertical:'middle'};
+          }
+          if(c.k==='estadoTareo'){
+            cel.alignment={horizontal:'center',vertical:'middle'};
+            if(f.estadoTareo==='Bloqueado'){cel.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E8'}};cel.font={bold:true,color:{argb:'FF8A1C1C'}};}
           }
           if(c.k==='observacion'&&f.salidaEditada)cel.font={color:{argb:'FF9C5700'}};
         });
