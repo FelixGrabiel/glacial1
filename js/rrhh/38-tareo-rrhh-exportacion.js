@@ -582,7 +582,6 @@
   /* ---------------------------------------------------------
      5) IMAGEN PARA WHATSAPP
      --------------------------------------------------------- */
-  const IMG={ancho:1080,margen:40,maxPersonas:25};
   const GRUPOS_IMAGEN={'Producción':['SUP','MAQ','OPE','DIA'],'Mantenimiento':['MAQ','TEC','DIA']};
   const ESTADO_CORTO={
     'Falta por justificar':'FALTA','Falta justificada':'FALTA JUSTIF.','Descanso':'DESCANSO',
@@ -591,11 +590,11 @@
     'Fallecimiento de familiar directo':'DUELO','Comisión / trabajo externo':'COMISIÓN','Feriado trabajado':'FERIADO'
   };
 
-  /* La imagen es UNA sola hoja con todas las personas. Solo si superara el alto máximo
-     que soportan los navegadores (celulares incluidos) se parte en más hojas. */
-  const MAX_ALTO_IMAGEN=15000;
-  const ALTO_FIJO_IMAGEN=236+24+130+28+50+150;   // cabecera + resumen + nota + pie
-  const ALTO_TITULO_BLOQUE=60+14;
+  /* Imagen HORIZONTAL (1600 px) con una fila por persona. Máximo 25 personas por imagen;
+     si hay más se generan varias páginas. Sale de la misma lista que el Excel de RRHH. */
+  const IMG_W=1600,IMG_M=66,IMG_FILAS=25;
+  const IMG_FILA=42,IMG_TITULO=44,IMG_FUENTE=23;
+  const IMG_COL={ing:735,ref:940,sal:1135,ext:1312,tar:1478};
 
   function fuente(px,peso){return (peso||'')+' '+px+'px "Segoe UI", Arial, sans-serif';}
   function partirTexto(ctx,texto,ancho){
@@ -609,185 +608,183 @@
     if(actual)lineas.push(actual);
     return lineas.slice(0,3);
   }
-  function ajustar(ctx,texto,ancho,px,peso){
-    let t=px;
-    ctx.font=fuente(t,peso);
-    while(ctx.measureText(texto).width>ancho&&t>16){t-=1;ctx.font=fuente(t,peso);}
-  }
   function rectRedondo(ctx,x,y,w,h,r,color){
     ctx.fillStyle=color;ctx.beginPath();
     ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
     ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.fill();
   }
 
-  /* Alto y contenido de la fila de una persona. */
+  /* Resumen de la imagen: asistieron + faltas + descansos + pendientes = total de personas. */
+  function resumenImagen(filas){
+    const r={total:filas.length,asistieron:0,faltas:0,descansos:0,pendientes:0,tardanzas:0,parcial:false};
+    filas.forEach(f=>{
+      if(f.estado==='Asistió'){r.asistieron++;if(!f.salida)r.parcial=true;}
+      else if(!f.estado){r.pendientes++;}
+      else if(FALTAS.includes(f.estado)){r.faltas++;}
+      else{r.descansos++;}                 // descanso, descanso médico, vacaciones, licencias...
+      if(f.tardanza>0)r.tardanzas++;
+    });
+    if(r.pendientes>0)r.parcial=true;
+    return r;
+  }
+
   function medirFila(ctx,f){
-    ctx.font=fuente(36,'bold');
-    const lineas=partirTexto(ctx,f.nombre,f.linea&&norm(f.linea)!=='sin linea'?640:760);
-    const extra=(lineas.length-1)*42;
-    const asistio=f.estado==='Asistio'||f.estado==='Asistió';
-    const conHorario=asistio&&!!(f.ingreso||f.salidaRef||f.retornoRef||f.salida||f.saldoMin!==null);
-    const conEstado=!conHorario&&!!f.estado;
-    return {lineas,extra,conHorario,conEstado,alto:(conHorario?132:(conEstado?78:66))+extra};
+    ctx.font=fuente(IMG_FUENTE,'500');
+    const lineas=partirTexto(ctx,f.nombre,560);
+    return {lineas,alto:lineas.length>1?IMG_FILA+(lineas.length-1)*28:IMG_FILA};
   }
 
   function paginarImagen(filas,ctx){
     const bloques=ORDEN_GRUPOS.map(k=>({clave:k,filas:filas.filter(f=>f.grupo===k)})).filter(b=>b.filas.length);
     const paginas=[];
-    let pag={items:[],alto:ALTO_FIJO_IMAGEN,personas:0};
-    const nueva=()=>{if(pag.personas)paginas.push(pag);pag={items:[],alto:ALTO_FIJO_IMAGEN,personas:0};};
+    let pag={items:[],personas:0};
+    const nueva=()=>{if(pag.personas)paginas.push(pag);pag={items:[],personas:0};};
     bloques.forEach(b=>{
       const total=personasDistintas(b.filas);
-      const medidas=b.filas.map(f=>({tipo:'persona',f,m:medirFila(ctx,f)}));
+      const filasM=b.filas.map(f=>({tipo:'persona',f,m:medirFila(ctx,f)}));
       let i=0,continuacion=false;
-      while(i<medidas.length){
-        // El título nunca queda solo: debe caber con al menos una persona.
-        if(pag.personas&&pag.alto+ALTO_TITULO_BLOQUE+medidas[i].m.alto>MAX_ALTO_IMAGEN)nueva();
+      while(i<filasM.length){
+        // El título de un bloque nunca queda solo al final: necesita sitio para 2 filas (o todas si son menos).
+        const minimo=Math.min(2,filasM.length-i);
+        if(pag.personas&&IMG_FILAS-pag.personas<minimo)nueva();
         pag.items.push({tipo:'titulo',clave:b.clave,total,continuacion});
-        pag.alto+=ALTO_TITULO_BLOQUE;
-        let agregadas=0;
-        while(i<medidas.length&&(agregadas===0||pag.alto+medidas[i].m.alto<=MAX_ALTO_IMAGEN)){
-          pag.items.push(medidas[i]);pag.alto+=medidas[i].m.alto;pag.personas++;agregadas++;i++;
-        }
-        continuacion=true;
-        if(i<medidas.length)nueva();
+        const cabe=IMG_FILAS-pag.personas;
+        filasM.slice(i,i+cabe).forEach(x=>{pag.items.push(x);pag.personas++;});
+        i+=cabe;continuacion=true;
+        if(i<filasM.length)nueva();
       }
     });
     nueva();
     return paginas;
   }
 
-  /* Dibuja una hoja; devuelve la altura usada (para dimensionar el lienzo). */
+  /* Dibuja una página; devuelve la altura usada (con alto=null solo mide). */
   function dibujarPagina(ctx,pagina,meta,alto){
-    const W=IMG.ancho,M=36;
+    const W=IMG_W,M=IMG_M;
     const dib=alto!==null;
     if(dib){ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,alto);}
+    let y=44;
 
-    // Cabecera
+    // Cabecera (se repite en cada página)
     if(dib){
-      ctx.fillStyle='#003B5C';ctx.fillRect(0,0,W,236);
-      ctx.fillStyle='#FFFFFF';ctx.textAlign='left';
-      ctx.font=fuente(70,'bold');ctx.fillText('GLACIAL',M,88);
-      ctx.font=fuente(42,'600');ctx.fillText(meta.titulo,M,146);
-      ctx.font=fuente(33);ctx.fillText(meta.fechaTxt+' · Turno '+meta.turno,M,198);
-      if(meta.paginas>1){ctx.textAlign='right';ctx.font=fuente(30,'600');ctx.fillText('Hoja '+meta.n+' de '+meta.paginas,W-M,84);ctx.textAlign='left';}
+      ctx.textAlign='left';ctx.fillStyle='#1B2733';
+      ctx.font=fuente(40,'bold');ctx.fillText('Glacial · '+meta.titulo,M,y+36);
+      ctx.fillStyle='#6B7681';ctx.font=fuente(26);
+      ctx.fillText(meta.fechaTxt+' · Turno '+meta.turno.toLowerCase()+' · '+meta.total+' personas',M,y+74);
+      if(meta.paginas>1){ctx.textAlign='right';ctx.fillText('Página '+meta.n+' de '+meta.paginas,W-M,y+74);ctx.textAlign='left';}
     }
-    let y=236+26;
-
-    // Resumen
-    const tarjetas=[['ASISTIERON',meta.resumen.asistieron,'#1B7F3B'],['FALTAS',meta.resumen.faltas,'#C62828'],
-      ['TARDANZAS',meta.resumen.tardanzas,'#B26A00'],['DESCANSOS',meta.resumen.descansos,'#5B6B7A']];
-    const gap=14,tw=(W-2*M-3*gap)/4;
-    tarjetas.forEach((t,i)=>{
-      const x=M+i*(tw+gap);
+    // Resumen: solo en la primera página
+    if(meta.n===1){
+      const r=meta.resumen;
+      const chips=[[r.asistieron+' asistieron','#C9E8CD','#1B5E20'],[r.faltas+' faltas','#FBD5D5','#9B1C1C'],
+        [r.tardanzas+' tardanzas','#F8DCA0','#8A5300'],[r.descansos+(r.descansos===1?' descanso':' descansos'),'#F1F2F3','#555E67'],
+        [r.pendientes+(r.pendientes===1?' pendiente':' pendientes'),'#F1F2F3','#555E67']];
       if(dib){
-        ctx.fillStyle='#F2F6F8';ctx.fillRect(x,y,tw,130);
-        ctx.fillStyle=t[2];ctx.fillRect(x,y,8,130);
-        ctx.textAlign='center';
-        ctx.fillStyle=t[2];ctx.font=fuente(64,'bold');ctx.fillText(String(t[1]),x+tw/2+4,y+74);
-        ctx.fillStyle='#405261';ctx.font=fuente(22,'bold');ctx.fillText(t[0],x+tw/2+4,y+112);
+        ctx.font=fuente(24,'500');
+        const anchos=chips.map(c=>ctx.measureText(c[0]).width+36);
+        let x=W-M-anchos.reduce((a,b)=>a+b,0)-12*(chips.length-1);
+        chips.forEach((c,i)=>{
+          rectRedondo(ctx,x,y+6,anchos[i],46,23,c[1]);
+          ctx.fillStyle=c[2];ctx.textAlign='center';ctx.fillText(c[0],x+anchos[i]/2,y+37);
+          x+=anchos[i]+12;
+        });
         ctx.textAlign='left';
       }
-    });
-    y+=130+30;
+    }
+    y+=96;
+    if(meta.n===1&&meta.resumen.parcial){
+      if(dib){
+        rectRedondo(ctx,M,y,W-2*M,44,10,'#FFF1D0');
+        ctx.fillStyle='#8A5300';ctx.font=fuente(25,'bold');ctx.textAlign='left';
+        ctx.fillText('Turno en curso · datos parciales',M+18,y+31);
+      }
+      y+=58;
+    }
 
-    const xHorario=[M+16,M+205,M+485,M+640];   // ingreso · refrigerio · salida · horas
-    let hayEditada=false,indice=0;
+    // Títulos de columna (se repiten en cada página)
+    if(dib){
+      ctx.fillStyle='#4A5560';ctx.font=fuente(23,'bold');ctx.textAlign='left';
+      ctx.fillText('Trabajador',M+12,y+34);
+      ctx.textAlign='center';
+      ctx.fillText('Ingreso',IMG_COL.ing,y+34);ctx.fillText('Refrigerio',IMG_COL.ref,y+34);
+      ctx.fillText('Salida',IMG_COL.sal,y+34);ctx.fillText('HORAS EXTRAS',IMG_COL.ext,y+34);
+      ctx.fillText('Tardanza',IMG_COL.tar,y+34);
+      ctx.textAlign='left';
+      ctx.fillStyle='#CDD3D9';ctx.fillRect(M,y+48,W-2*M,2);
+    }
+    y+=54;
 
+    let indice=0;
     pagina.items.forEach(it=>{
       if(it.tipo==='titulo'){
         const g=GRUPOS[it.clave];
         if(dib){
-          ctx.fillStyle=it.clave==='SIN'?'#FFE8A3':'#D9E6EF';ctx.fillRect(M,y,W-2*M,60);
-          ctx.fillStyle=it.clave==='SIN'?'#7A4B00':'#003B5C';ctx.font=fuente(31,'bold');
-          ctx.fillText(g.bloque+(it.continuacion?' (cont.)':'')+'  ·  '+it.total,M+16,y+41);
+          ctx.fillStyle=it.clave==='SIN'?'#FFF1D0':'#F3F4F5';ctx.fillRect(M,y,W-2*M,IMG_TITULO);
+          ctx.fillStyle=it.clave==='SIN'?'#8A5300':'#4A5560';ctx.font=fuente(25,'bold');ctx.textAlign='left';
+          const nombre=g.bloque.charAt(0)+g.bloque.slice(1).toLowerCase();
+          ctx.fillText(nombre+(it.continuacion?' (cont.)':'')+' · '+it.total,M+12,y+31);
+          ctx.fillStyle='#E3E7EB';ctx.fillRect(M,y+IMG_TITULO-1,W-2*M,1);
         }
-        y+=ALTO_TITULO_BLOQUE-14;
-        indice=0;
+        y+=IMG_TITULO;indice=0;
         return;
       }
-      const f=it.f,m=it.m;
-      const h=m.alto,e=m.extra;
-      const asistio=f.estado==='Asistió';
+      const f=it.f,m=it.m,h=m.alto;
       if(dib){
-        ctx.fillStyle=indice%2?'#F7FAFC':'#FFFFFF';ctx.fillRect(M,y,W-2*M,h);
-        // Nombre (completo, hasta 3 líneas)
-        ctx.fillStyle=(m.conHorario||m.conEstado)?'#0B2236':'#5B6B7A';
-        ctx.font=fuente(36,'bold');ctx.textAlign='left';
-        const base=m.conHorario?44:(h/2+13-e/2);
-        m.lineas.forEach((l,k)=>ctx.fillText(l,M+16,y+base+k*42));
-        // Línea asignada (solo si tiene)
-        if(f.linea&&norm(f.linea)!=='sin linea'&&!m.conEstado){
-          ctx.font=fuente(24,'bold');
-          const w=ctx.measureText(f.linea).width+28;
-          rectRedondo(ctx,W-M-16-w,y+14,w,38,19,'#E3EEF6');
-          ctx.fillStyle='#0B5C9E';ctx.textAlign='center';ctx.fillText(f.linea,W-M-16-w/2,y+41);ctx.textAlign='left';
+        if(indice%2){ctx.fillStyle='#F7F8F9';ctx.fillRect(M,y,W-2*M,h);}
+        const cy=y+h/2+8;
+        // Trabajador (completo, en dos líneas si es largo) y línea asignada, pequeña
+        ctx.fillStyle='#1E2933';ctx.font=fuente(IMG_FUENTE,'500');ctx.textAlign='left';
+        m.lineas.forEach((l,k)=>ctx.fillText(l,M+12,y+(h===IMG_FILA?IMG_FILA/2+8:28)+k*28));
+        if(f.linea&&norm(f.linea)!=='sin linea'){
+          const ult=m.lineas[m.lineas.length-1];
+          ctx.font=fuente(IMG_FUENTE,'500');const ancho=ctx.measureText(ult).width;
+          ctx.fillStyle='#8A949E';ctx.font=fuente(20);
+          ctx.fillText(f.linea,M+12+ancho+14,y+(h===IMG_FILA?IMG_FILA/2+8:28)+(m.lineas.length-1)*28);
         }
-        if(m.conHorario){
-          const cols=[['INGRESO',f.ingreso],
-            ['REFRIGERIO',f.salidaRef?(f.salidaRef+' – '+(f.retornoRef||'')):''],
-            ['SALIDA',f.salida],
-            ['HORAS',f.horas===null?'':textoHM(f.horas*60)]];
-          cols.forEach((c,k)=>{
-            if(!c[1])return;
-            const tarde=k===0&&f.tardanza>0,editada=k===2&&f.salidaEditada;
-            ctx.font=fuente(17,'bold');ctx.fillStyle=tarde?'#C62828':'#7A8B99';
-            ctx.fillText(tarde?'INGRESO · +'+f.tardanza+' min':c[0],xHorario[k],y+78+e);
-            ctx.font=fuente(33,'bold');ctx.fillStyle=editada?'#B26A00':(tarde?'#C62828':'#172B3A');
-            ctx.fillText(c[1]+(editada?'*':''),xHorario[k],y+114+e);
-            if(editada)hayEditada=true;
-          });
+        const centro=(IMG_COL.ing+IMG_COL.tar)/2;
+        const asistio=f.estado==='Asistió';
+        ctx.textAlign='center';
+        if(asistio&&f.ingreso){
+          ctx.fillStyle='#1E2933';ctx.font=fuente(IMG_FUENTE);
+          ctx.fillText(f.ingreso,IMG_COL.ing,cy);
+          if(f.salidaRef)ctx.fillText(f.salidaRef+' – '+(f.retornoRef||''),IMG_COL.ref,cy);
+          if(f.salida)ctx.fillText(f.salida,IMG_COL.sal,cy);
+          else{ctx.fillStyle='#8A949E';ctx.fillText('En turno',IMG_COL.sal,cy);}
           if(f.saldoMin!==null){
-            const pos=f.saldoMin>0,neg=f.saldoMin<0;
-            const t=textoSaldo(f.saldoMin);
-            ctx.font=fuente(40,'bold');
-            const w=Math.max(150,ctx.measureText(t).width+36);
-            rectRedondo(ctx,W-M-16-w,y+86+e,w,44,12,pos?'#DDF3E4':(neg?'#FBE0E0':'#ECEFF2'));
-            ctx.fillStyle=pos?'#1B7F3B':(neg?'#C62828':'#7A8794');
-            ctx.textAlign='center';ctx.fillText(t,W-M-16-w/2,y+86+e+34);
-            ctx.font=fuente(17,'bold');ctx.fillStyle='#7A8B99';ctx.textAlign='right';
-            ctx.fillText('HORAS EXTRAS',W-M-16,y+78+e);ctx.textAlign='left';
+            ctx.font=fuente(IMG_FUENTE,'bold');
+            ctx.fillStyle=f.saldoMin>0?'#1B6E20':(f.saldoMin<0?'#9B1C1C':'#9AA3AB');
+            ctx.fillText(textoSaldo(f.saldoMin),IMG_COL.ext,cy);
           }
-        }else if(m.conEstado){
-          // Falta, descanso, vacaciones...: una etiqueta de color (nunca "PENDIENTE").
-          const txt=asistio?'ASISTIÓ':(ESTADO_CORTO[f.estado]||f.estado.toUpperCase());
-          const falta=FALTAS.includes(f.estado);
-          const fondo=asistio?'#DDF3E4':(falta?'#FDE3E3':(f.estado==='Descanso'?'#E8ECF0':'#FFF0D6'));
-          const color=asistio?'#1B7F3B':(falta?'#C62828':(f.estado==='Descanso'?'#5B6B7A':'#B26A00'));
-          ctx.font=fuente(30,'bold');
-          const w=ctx.measureText(txt).width+40;
-          rectRedondo(ctx,W-M-16-w,y+h/2-26,w,52,26,fondo);
-          ctx.fillStyle=color;ctx.textAlign='center';ctx.fillText(txt,W-M-16-w/2,y+h/2+11);ctx.textAlign='left';
-          if(f.linea&&norm(f.linea)!=='sin linea'){
-            // La línea va junto a la etiqueta, no encima.
-            ctx.font=fuente(24,'bold');
-            const wl=ctx.measureText(f.linea).width+28;
-            rectRedondo(ctx,W-M-16-w-12-wl,y+h/2-19,wl,38,19,'#E3EEF6');
-            ctx.fillStyle='#0B5C9E';ctx.textAlign='center';ctx.fillText(f.linea,W-M-16-w-12-wl/2,y+h/2+8);ctx.textAlign='left';
-          }
+          if(f.tardanza>0){ctx.font=fuente(IMG_FUENTE);ctx.fillStyle='#8A5300';ctx.fillText(f.tardanza+' min',IMG_COL.tar,cy);}
+        }else{
+          // Sin horas: el estado ocupa las columnas (Falta, Descanso, Pendiente...)
+          let txt,color;
+          if(!f.estado){txt='Pendiente';color='#A7B0B8';}
+          else if(asistio){txt='Asistió';color='#6B7681';}
+          else if(f.estado==='Falta por justificar'){txt='Falta';color='#9B1C1C';}
+          else{txt=f.estado;color='#6B7681';}
+          ctx.fillStyle=color;ctx.font=fuente(IMG_FUENTE);ctx.fillText(txt,centro,cy);
         }
-      }else if(m.conHorario&&f.salidaEditada){
-        hayEditada=true;
+        ctx.textAlign='left';
+        ctx.fillStyle='#E9ECEF';ctx.fillRect(M,y+h-1,W-2*M,1);
       }
       y+=h;indice++;
-      if(!dib&&m.conHorario&&f.salidaEditada)hayEditada=true;
     });
 
-    y+=14;
-    if(hayEditada){
-      if(dib){ctx.fillStyle='#B26A00';ctx.font=fuente(21);ctx.textAlign='left';ctx.fillText('* Salida corregida por Mantenimiento',M+8,y+14);}
-      y+=28;
-    }
+    // Pie
     y+=22;
     if(dib){
-      ctx.fillStyle='#F2F6F8';ctx.fillRect(0,y,W,150);
-      ctx.fillStyle='#003B5C';ctx.font=fuente(31,'bold');ctx.textAlign='center';
-      ctx.fillText('¿Ves un error en tus horas? Avisa a tu supervisor',W/2,y+58);
-      ctx.fillStyle='#5B6B7A';ctx.font=fuente(22);
-      ctx.fillText('Generado: '+meta.generado+(meta.registradores?' · Registró: '+meta.registradores:''),W/2,y+104);
+      ctx.fillStyle='#1F5FA8';ctx.font=fuente(24);ctx.textAlign='left';
+      ctx.fillText('¿Ves un error en tus horas? Avisa a tu supervisor',M,y+30);
+      ctx.fillStyle='#8A949E';ctx.textAlign='right';
+      ctx.fillText('Generado '+meta.generado+' · Página '+meta.n+' de '+meta.paginas,W-M,y+30);
+      if(meta.registradores){
+        ctx.font=fuente(21);ctx.textAlign='left';
+        ctx.fillText('Registró: '+meta.registradores,M,y+62);
+      }
       ctx.textAlign='left';
     }
-    y+=150;
+    y+=meta.registradores?84:56;
     return y;
   }
 
@@ -797,27 +794,27 @@
     const sinClasificar=tareoListaUnica({fechas:[cfg.fecha],turnos:[cfg.turno],grupos:['SIN']}).filas.length;
     const paginas=paginarImagen(L.filas,document.createElement('canvas').getContext('2d'));
     const [y,m,d]=cfg.fecha.split('-').map(Number);
-    const fechaTxt=capitalizar(new Date(y,m-1,d).toLocaleDateString('es-PE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}));
-    const resumen=resumir(L.filas);
-    const meta0={titulo:cfg.titulo||'Tareo de producción',fechaTxt,turno:cfg.turno,resumen,
-      generado:ahoraTxt(),registradores:L.registradores.join(', '),paginas:paginas.length};
+    const fechaTxt=capitalizar(new Date(y,m-1,d).toLocaleDateString('es-PE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}));
+    const resumen=resumenImagen(L.filas);
+    const meta0={titulo:cfg.titulo||'Tareo de producción',fechaTxt,turno:cfg.turno,resumen,total:L.filas.length,
+      generado:ahoraTxt().slice(-5),registradores:L.registradores.join(', '),paginas:paginas.length};
     const imagenes=paginas.map((pag,i)=>{
       const meta=Object.assign({},meta0,{n:i+1});
       const medidor=document.createElement('canvas');
-      medidor.width=IMG.ancho;medidor.height=10;
+      medidor.width=IMG_W;medidor.height=10;
       const alto=Math.ceil(dibujarPagina(medidor.getContext('2d'),pag,meta,null));
       const lienzo=document.createElement('canvas');
-      lienzo.width=IMG.ancho;lienzo.height=alto;
+      lienzo.width=IMG_W;lienzo.height=alto;
       dibujarPagina(lienzo.getContext('2d'),pag,meta,alto);
       return lienzo.toDataURL('image/png');
     });
-    return {imagenes,filas:L.filas,sinClasificar,total:L.filas.length};
+    return {imagenes,filas:L.filas,sinClasificar,total:L.filas.length,resumen};
   }
   window.tareoGenerarImagenesRRHH=generarImagenes;
 
-  function nombreImagen(cfg,n,total){
-    return 'Tareo_'+norm(cfg.area||'produccion').replace(/[^a-z0-9]/g,'_')+'_'+cfg.fecha+'_'+norm(cfg.turno)+
-      (total>1?'_p'+n+'de'+total:'')+'.png';
+  /* Nombre: Tareo_produccion_AAAA-MM-DD_turno_p1.png */
+  function nombreImagen(cfg,n){
+    return 'Tareo_'+norm(cfg.area||'produccion').replace(/[^a-z0-9]/g,'_')+'_'+cfg.fecha+'_'+norm(cfg.turno)+'_p'+n+'.png';
   }
   function descargarImagen(url,nombre){
     const a=document.createElement('a');
@@ -848,15 +845,20 @@
     const r=generarImagenes(cfg);
     if(!r.imagenes.length){alert('No hay personal para generar la imagen.');return;}
     window.__tareoImgEstado={cfg,imagenes:r.imagenes};
+    // En celular: el menú de compartir del teléfono (Web Share con archivos) lleva todas las páginas a WhatsApp.
+    let puedeCompartir=false;
+    try{puedeCompartir=!!(navigator.canShare&&navigator.canShare({files:[new File(['x'],'x.png',{type:'image/png'})]}));}catch(_){/* sin Web Share */}
     root.innerHTML=`
       <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
-        <div class="modal" style="max-width:560px;width:96%;">
+        <div class="modal" style="max-width:980px;width:96%;">
           <div class="modal-head"><h3>Imagen para WhatsApp</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
           <div class="modal-body">
-            <p class="small-muted">${r.total} persona(s) · ${r.imagenes.length} imagen(es)${r.sinClasificar?` · <strong>${r.sinClasificar} sin clasificar no se muestran</strong> (solo salen en el Excel General)`:''}</p>
+            <p class="small-muted">${r.total} persona(s) · ${r.imagenes.length} imagen(es) · asistieron ${r.resumen.asistieron} + faltas ${r.resumen.faltas} + descansos ${r.resumen.descansos} + pendientes ${r.resumen.pendientes} = ${r.resumen.asistieron+r.resumen.faltas+r.resumen.descansos+r.resumen.pendientes}${r.sinClasificar?` · <strong>${r.sinClasificar} sin clasificar no se muestran</strong> (solo salen en el Excel General)`:''}</p>
             <div class="actions-row" style="margin-bottom:10px;">
-              <button class="btn btn-primary" onclick="__tareoImgDescargarTodas()">Descargar ${r.imagenes.length>1?'todas':'imagen'}</button>
-              <button class="btn btn-ghost" onclick="__tareoImgCompartir()">Compartir</button>
+              ${puedeCompartir
+                ? `<button class="btn btn-primary" onclick="__tareoImgCompartir()">Compartir ${r.imagenes.length>1?'todas las páginas':'imagen'}</button>
+                   <button class="btn btn-ghost" onclick="__tareoImgDescargarTodas()">Descargar</button>`
+                : `<button class="btn btn-primary" onclick="__tareoImgDescargarTodas()">Descargar ${r.imagenes.length>1?'todas':'imagen'}</button>`}
             </div>
             ${r.imagenes.map((u,i)=>`
               <div style="margin-bottom:14px;">
