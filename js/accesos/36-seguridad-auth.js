@@ -295,4 +295,47 @@
     }
   }
   window.restablecerClaveUsuario=restablecerClaveUsuario;
+
+  /* ---------- limpieza de credenciales antiguas ----------
+     Quita password, passwordHash y salt de los usuarios que YA tienen cuenta
+     segura (authUid). No toca a quienes aún no migraron: perderían su acceso. */
+  const CAMPOS_LEGADOS=['password','passwordHash','salt'];
+  const tieneRestos=u=>!!u&&CAMPOS_LEGADOS.some(c=>u[c]!==undefined&&u[c]!==null&&u[c]!=='');
+
+  function usuariosConRestos(){
+    const todos=(typeof loadUsers==='function'?loadUsers():[])||[];
+    return {
+      limpiables:todos.filter(u=>u&&u.authUid&&tieneRestos(u)),
+      sinMigrar:todos.filter(u=>u&&!u.authUid&&tieneRestos(u))
+    };
+  }
+  window.contarCredencialesLegadas=()=>usuariosConRestos().limpiables.length;
+
+  async function limpiarCredencialesLegadas(){
+    if(!esAdministrador()){alert('Solo el Administrador puede limpiar credenciales.');return;}
+    const {limpiables,sinMigrar}=usuariosConRestos();
+    if(!limpiables.length){
+      alert('No hay contraseñas antiguas que limpiar en usuarios con cuenta segura.'+
+        (sinMigrar.length?`\n\n${sinMigrar.length} usuario(s) aún no migraron a cuenta segura y conservan su contraseña antigua (migrarlos primero).`:''));
+      return;
+    }
+    const nombres=limpiables.slice(0,15).map(u=>u.username).join(', ')+(limpiables.length>15?'…':'');
+    if(!confirm(`Se borrarán la contraseña antigua, su hash y su sal de ${limpiables.length} usuario(s) con cuenta segura:\n\n${nombres}\n\nEstos usuarios seguirán entrando con su cuenta segura. Esta acción no se puede deshacer.\n\n¿Continuar?`))return;
+    const claves=new Set(limpiables.map(u=>u.username));
+    const finales=loadUsers().map(u=>{
+      if(!u||!claves.has(u.username))return u;
+      const copia={...u};
+      CAMPOS_LEGADOS.forEach(c=>{delete copia[c];});
+      return copia;
+    });
+    try{
+      await saveUsers(finales);
+      alert(`Listo: se limpiaron ${limpiables.length} usuario(s).`+
+        (sinMigrar.length?`\n\nAún conservan contraseña antigua ${sinMigrar.length} usuario(s) sin cuenta segura: migrarlos primero.`:''));
+      if(typeof renderUserList==='function')renderUserList();
+    }catch(e){
+      alert('No se pudo guardar la limpieza: '+(e&&e.message?e.message:e));
+    }
+  }
+  window.limpiarCredencialesLegadas=limpiarCredencialesLegadas;
 })();

@@ -110,6 +110,20 @@ function openUsersModal(){
                     🛡 Migrar usuarios a cuentas seguras
 
                   </button>
+
+                  <button
+                    class="btn btn-ghost btn-sm"
+                    onclick="limpiarCredencialesLegadas()"
+                    title="Borra password, hash y sal de los usuarios que ya tienen cuenta segura">
+
+                    🧹 Limpiar contraseñas antiguas${
+                      typeof contarCredencialesLegadas==='function' &&
+                      contarCredencialesLegadas()
+                        ? ` (${contarCredencialesLegadas()})`
+                        : ''
+                    }
+
+                  </button>
                 `
                 : ''
             }
