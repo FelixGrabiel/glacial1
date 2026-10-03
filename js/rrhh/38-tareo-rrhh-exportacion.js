@@ -585,32 +585,11 @@
     'Fallecimiento de familiar directo':'DUELO','Comisión / trabajo externo':'COMISIÓN','Feriado trabajado':'FERIADO'
   };
 
-  function paginarImagen(filas){
-    // Bloques en orden; nunca deja un título solo al final de una página.
-    const bloques=ORDEN_GRUPOS.map(k=>({clave:k,filas:filas.filter(f=>f.grupo===k)})).filter(b=>b.filas.length);
-    const paginas=[];
-    let pag={items:[],personas:0};
-    const nueva=()=>{if(pag.personas)paginas.push(pag);pag={items:[],personas:0};};
-    bloques.forEach(b=>{
-      let resto=b.filas.slice();
-      const total=personasDistintas(b.filas);
-      let continuacion=false;
-      while(resto.length){
-        const libres=IMG.maxPersonas-pag.personas;
-        const minimo=Math.min(2,resto.length);
-        if(libres<minimo)nueva();
-        const cabe=IMG.maxPersonas-pag.personas;
-        const toma=resto.splice(0,cabe);
-        pag.items.push({tipo:'titulo',clave:b.clave,total,continuacion});
-        toma.forEach(f=>pag.items.push({tipo:'persona',f}));
-        pag.personas+=toma.length;
-        continuacion=true;
-        if(resto.length)nueva();
-      }
-    });
-    if(pag.personas)paginas.push(pag);
-    return paginas;
-  }
+  /* La imagen es UNA sola hoja con todas las personas. Solo si superara el alto máximo
+     que soportan los navegadores (celulares incluidos) se parte en más hojas. */
+  const MAX_ALTO_IMAGEN=15000;
+  const ALTO_FIJO_IMAGEN=236+24+130+28+50+150;   // cabecera + resumen + nota + pie
+  const ALTO_TITULO_BLOQUE=60+14;
 
   function fuente(px,peso){return (peso||'')+' '+px+'px "Segoe UI", Arial, sans-serif';}
   function partirTexto(ctx,texto,ancho){
@@ -629,104 +608,177 @@
     ctx.font=fuente(t,peso);
     while(ctx.measureText(texto).width>ancho&&t>16){t-=1;ctx.font=fuente(t,peso);}
   }
+  function rectRedondo(ctx,x,y,w,h,r,color){
+    ctx.fillStyle=color;ctx.beginPath();
+    ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.fill();
+  }
 
-  /* Dibuja una página; devuelve la altura usada (para dimensionar el lienzo). */
+  /* Alto y contenido de la fila de una persona. */
+  function medirFila(ctx,f){
+    ctx.font=fuente(36,'bold');
+    const lineas=partirTexto(ctx,f.nombre,f.linea&&norm(f.linea)!=='sin linea'?640:760);
+    const extra=(lineas.length-1)*42;
+    const asistio=f.estado==='Asistio'||f.estado==='Asistió';
+    const conHorario=asistio&&!!(f.ingreso||f.salidaRef||f.retornoRef||f.salida||f.saldoMin!==null);
+    const conEstado=!conHorario&&!!f.estado;
+    return {lineas,extra,conHorario,conEstado,alto:(conHorario?132:(conEstado?78:66))+extra};
+  }
+
+  function paginarImagen(filas,ctx){
+    const bloques=ORDEN_GRUPOS.map(k=>({clave:k,filas:filas.filter(f=>f.grupo===k)})).filter(b=>b.filas.length);
+    const paginas=[];
+    let pag={items:[],alto:ALTO_FIJO_IMAGEN,personas:0};
+    const nueva=()=>{if(pag.personas)paginas.push(pag);pag={items:[],alto:ALTO_FIJO_IMAGEN,personas:0};};
+    bloques.forEach(b=>{
+      const total=personasDistintas(b.filas);
+      const medidas=b.filas.map(f=>({tipo:'persona',f,m:medirFila(ctx,f)}));
+      let i=0,continuacion=false;
+      while(i<medidas.length){
+        // El título nunca queda solo: debe caber con al menos una persona.
+        if(pag.personas&&pag.alto+ALTO_TITULO_BLOQUE+medidas[i].m.alto>MAX_ALTO_IMAGEN)nueva();
+        pag.items.push({tipo:'titulo',clave:b.clave,total,continuacion});
+        pag.alto+=ALTO_TITULO_BLOQUE;
+        let agregadas=0;
+        while(i<medidas.length&&(agregadas===0||pag.alto+medidas[i].m.alto<=MAX_ALTO_IMAGEN)){
+          pag.items.push(medidas[i]);pag.alto+=medidas[i].m.alto;pag.personas++;agregadas++;i++;
+        }
+        continuacion=true;
+        if(i<medidas.length)nueva();
+      }
+    });
+    nueva();
+    return paginas;
+  }
+
+  /* Dibuja una hoja; devuelve la altura usada (para dimensionar el lienzo). */
   function dibujarPagina(ctx,pagina,meta,alto){
-    const W=IMG.ancho,M=IMG.margen;
-    let y=0;
+    const W=IMG.ancho,M=36;
     const dib=alto!==null;
     if(dib){ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,alto);}
 
     // Cabecera
-    if(dib){ctx.fillStyle='#003B5C';ctx.fillRect(0,0,W,236);}
     if(dib){
+      ctx.fillStyle='#003B5C';ctx.fillRect(0,0,W,236);
       ctx.fillStyle='#FFFFFF';ctx.textAlign='left';
-      ctx.font=fuente(70,'bold');ctx.fillText('GLACIAL',M,86);
-      ctx.font=fuente(40,'600');ctx.fillText(meta.titulo,M,142);
-      ctx.font=fuente(32);ctx.fillText(meta.fechaTxt+' · Turno '+meta.turno,M,196);
-      if(meta.paginas>1){ctx.textAlign='right';ctx.font=fuente(28,'600');ctx.fillText('Página '+meta.n+' de '+meta.paginas,W-M,86);ctx.textAlign='left';}
+      ctx.font=fuente(70,'bold');ctx.fillText('GLACIAL',M,88);
+      ctx.font=fuente(42,'600');ctx.fillText(meta.titulo,M,146);
+      ctx.font=fuente(33);ctx.fillText(meta.fechaTxt+' · Turno '+meta.turno,M,198);
+      if(meta.paginas>1){ctx.textAlign='right';ctx.font=fuente(30,'600');ctx.fillText('Hoja '+meta.n+' de '+meta.paginas,W-M,84);ctx.textAlign='left';}
     }
-    y=236+24;
+    let y=236+26;
 
     // Resumen
     const tarjetas=[['ASISTIERON',meta.resumen.asistieron,'#1B7F3B'],['FALTAS',meta.resumen.faltas,'#C62828'],
       ['TARDANZAS',meta.resumen.tardanzas,'#B26A00'],['DESCANSOS',meta.resumen.descansos,'#5B6B7A']];
-    const gap=16,tw=(W-2*M-3*gap)/4;
+    const gap=14,tw=(W-2*M-3*gap)/4;
     tarjetas.forEach((t,i)=>{
       const x=M+i*(tw+gap);
       if(dib){
-        ctx.fillStyle='#F2F6F8';ctx.fillRect(x,y,tw,128);
-        ctx.fillStyle=t[2];ctx.fillRect(x,y,8,128);
+        ctx.fillStyle='#F2F6F8';ctx.fillRect(x,y,tw,130);
+        ctx.fillStyle=t[2];ctx.fillRect(x,y,8,130);
         ctx.textAlign='center';
-        ctx.fillStyle=t[2];ctx.font=fuente(58,'bold');ctx.fillText(String(t[1]),x+tw/2+4,y+70);
-        ctx.fillStyle='#405261';ctx.font=fuente(22,'bold');ctx.fillText(t[0],x+tw/2+4,y+108);
+        ctx.fillStyle=t[2];ctx.font=fuente(64,'bold');ctx.fillText(String(t[1]),x+tw/2+4,y+74);
+        ctx.fillStyle='#405261';ctx.font=fuente(22,'bold');ctx.fillText(t[0],x+tw/2+4,y+112);
         ctx.textAlign='left';
       }
     });
-    y+=128+28;
+    y+=130+30;
 
-    const xNombre=M+8,anchoNombre=520,xHor=640,xExtras=W-M-8;
+    const xHorario=[M+16,M+205,M+485,M+640];   // ingreso · refrigerio · salida · horas
+    let hayEditada=false,indice=0;
 
     pagina.items.forEach(it=>{
       if(it.tipo==='titulo'){
         const g=GRUPOS[it.clave];
         if(dib){
-          ctx.fillStyle=it.clave==='SIN'?'#FFE8A3':'#D9E6EF';ctx.fillRect(M,y,W-2*M,64);
-          ctx.fillStyle=it.clave==='SIN'?'#7A4B00':'#003B5C';ctx.font=fuente(30,'bold');
-          ctx.fillText(g.bloque+(it.continuacion?' (cont.)':'')+'  ·  '+it.total,M+16,y+43);
+          ctx.fillStyle=it.clave==='SIN'?'#FFE8A3':'#D9E6EF';ctx.fillRect(M,y,W-2*M,60);
+          ctx.fillStyle=it.clave==='SIN'?'#7A4B00':'#003B5C';ctx.font=fuente(31,'bold');
+          ctx.fillText(g.bloque+(it.continuacion?' (cont.)':'')+'  ·  '+it.total,M+16,y+41);
         }
-        y+=64;
-        if(dib){
-          ctx.fillStyle='#6B7C8C';ctx.font=fuente(20,'bold');
-          ctx.fillText('NOMBRE',xNombre,y+30);
-          ctx.textAlign='center';ctx.fillText('INGRESO - SALIDA',xHor+110,y+30);
-          ctx.textAlign='right';ctx.fillText('HORAS EXTRAS',xExtras,y+30);ctx.textAlign='left';
-          ctx.fillStyle='#C9D4DE';ctx.fillRect(M,y+42,W-2*M,2);
-        }
-        y+=48;
+        y+=ALTO_TITULO_BLOQUE-14;
+        indice=0;
         return;
       }
-      const f=it.f;
-      ctx.font=fuente(34,'bold');
-      const lineas=partirTexto(ctx,f.nombre,anchoNombre);
-      const lineaTxt=f.linea&&norm(f.linea)!=='sin linea'?f.linea:'';
-      const alto=18+lineas.length*42+(lineaTxt?34:0)+14;
+      const f=it.f,m=it.m;
+      const h=m.alto,e=m.extra;
+      const asistio=f.estado==='Asistió';
       if(dib){
-        ctx.fillStyle='#172B3A';ctx.font=fuente(34,'bold');
-        lineas.forEach((l,i)=>ctx.fillText(l,xNombre,y+18+34+i*42-6));
-        if(lineaTxt){ctx.fillStyle='#5B6B7A';ctx.font=fuente(26);ctx.fillText(lineaTxt,xNombre,y+18+lineas.length*42+22);}
-        const cy=y+alto/2+11;
-        if(f.estado==='Asistió'){
-          const hor=f.ingreso?(f.salida?f.ingreso+' - '+f.salida:f.ingreso):'';
-          ctx.fillStyle='#172B3A';ctx.font=fuente(32,'600');ctx.textAlign='center';
-          if(hor)ctx.fillText(hor,xHor+110,cy);
-          if(f.saldoMin!==null){
-            ctx.textAlign='right';
-            ctx.fillStyle=f.saldoMin>0?'#1B7F3B':(f.saldoMin<0?'#C62828':'#7A8794');
-            ctx.font=fuente(38,'bold');ctx.fillText(textoSaldo(f.saldoMin),xExtras,cy);
-          }
-          ctx.textAlign='left';
-        }else{
-          const txt=f.estado?(ESTADO_CORTO[f.estado]||f.estado.toUpperCase()):'PENDIENTE';
-          ctx.textAlign='right';
-          ctx.fillStyle=FALTAS.includes(f.estado)?'#C62828':(f.estado?'#B26A00':'#7A8794');
-          if(f.estado==='Descanso')ctx.fillStyle='#5B6B7A';
-          ajustar(ctx,txt,W-2*M-anchoNombre-30,34,'bold');
-          ctx.fillText(txt,xExtras,cy);
-          ctx.textAlign='left';
+        ctx.fillStyle=indice%2?'#F7FAFC':'#FFFFFF';ctx.fillRect(M,y,W-2*M,h);
+        // Nombre (completo, hasta 3 líneas)
+        ctx.fillStyle=(m.conHorario||m.conEstado)?'#0B2236':'#5B6B7A';
+        ctx.font=fuente(36,'bold');ctx.textAlign='left';
+        const base=m.conHorario?44:(h/2+13-e/2);
+        m.lineas.forEach((l,k)=>ctx.fillText(l,M+16,y+base+k*42));
+        // Línea asignada (solo si tiene)
+        if(f.linea&&norm(f.linea)!=='sin linea'&&!m.conEstado){
+          ctx.font=fuente(24,'bold');
+          const w=ctx.measureText(f.linea).width+28;
+          rectRedondo(ctx,W-M-16-w,y+14,w,38,19,'#E3EEF6');
+          ctx.fillStyle='#0B5C9E';ctx.textAlign='center';ctx.fillText(f.linea,W-M-16-w/2,y+41);ctx.textAlign='left';
         }
-        ctx.fillStyle='#E4EAF0';ctx.fillRect(M,y+alto-1,W-2*M,1);
+        if(m.conHorario){
+          const cols=[['INGRESO',f.ingreso],
+            ['REFRIGERIO',f.salidaRef?(f.salidaRef+' – '+(f.retornoRef||'')):''],
+            ['SALIDA',f.salida],
+            ['HORAS',f.horas===null?'':textoHM(f.horas*60)]];
+          cols.forEach((c,k)=>{
+            if(!c[1])return;
+            const tarde=k===0&&f.tardanza>0,editada=k===2&&f.salidaEditada;
+            ctx.font=fuente(17,'bold');ctx.fillStyle=tarde?'#C62828':'#7A8B99';
+            ctx.fillText(tarde?'INGRESO · +'+f.tardanza+' min':c[0],xHorario[k],y+78+e);
+            ctx.font=fuente(33,'bold');ctx.fillStyle=editada?'#B26A00':(tarde?'#C62828':'#172B3A');
+            ctx.fillText(c[1]+(editada?'*':''),xHorario[k],y+114+e);
+            if(editada)hayEditada=true;
+          });
+          if(f.saldoMin!==null){
+            const pos=f.saldoMin>0,neg=f.saldoMin<0;
+            const t=textoSaldo(f.saldoMin);
+            ctx.font=fuente(40,'bold');
+            const w=Math.max(150,ctx.measureText(t).width+36);
+            rectRedondo(ctx,W-M-16-w,y+86+e,w,44,12,pos?'#DDF3E4':(neg?'#FBE0E0':'#ECEFF2'));
+            ctx.fillStyle=pos?'#1B7F3B':(neg?'#C62828':'#7A8794');
+            ctx.textAlign='center';ctx.fillText(t,W-M-16-w/2,y+86+e+34);
+            ctx.font=fuente(17,'bold');ctx.fillStyle='#7A8B99';ctx.textAlign='right';
+            ctx.fillText('HORAS EXTRAS',W-M-16,y+78+e);ctx.textAlign='left';
+          }
+        }else if(m.conEstado){
+          // Falta, descanso, vacaciones...: una etiqueta de color (nunca "PENDIENTE").
+          const txt=asistio?'ASISTIÓ':(ESTADO_CORTO[f.estado]||f.estado.toUpperCase());
+          const falta=FALTAS.includes(f.estado);
+          const fondo=asistio?'#DDF3E4':(falta?'#FDE3E3':(f.estado==='Descanso'?'#E8ECF0':'#FFF0D6'));
+          const color=asistio?'#1B7F3B':(falta?'#C62828':(f.estado==='Descanso'?'#5B6B7A':'#B26A00'));
+          ctx.font=fuente(30,'bold');
+          const w=ctx.measureText(txt).width+40;
+          rectRedondo(ctx,W-M-16-w,y+h/2-26,w,52,26,fondo);
+          ctx.fillStyle=color;ctx.textAlign='center';ctx.fillText(txt,W-M-16-w/2,y+h/2+11);ctx.textAlign='left';
+          if(f.linea&&norm(f.linea)!=='sin linea'){
+            // La línea va junto a la etiqueta, no encima.
+            ctx.font=fuente(24,'bold');
+            const wl=ctx.measureText(f.linea).width+28;
+            rectRedondo(ctx,W-M-16-w-12-wl,y+h/2-19,wl,38,19,'#E3EEF6');
+            ctx.fillStyle='#0B5C9E';ctx.textAlign='center';ctx.fillText(f.linea,W-M-16-w-12-wl/2,y+h/2+8);ctx.textAlign='left';
+          }
+        }
+      }else if(m.conHorario&&f.salidaEditada){
+        hayEditada=true;
       }
-      y+=alto;
+      y+=h;indice++;
+      if(!dib&&m.conHorario&&f.salidaEditada)hayEditada=true;
     });
 
-    y+=28;
+    y+=14;
+    if(hayEditada){
+      if(dib){ctx.fillStyle='#B26A00';ctx.font=fuente(21);ctx.textAlign='left';ctx.fillText('* Salida corregida por Mantenimiento',M+8,y+14);}
+      y+=28;
+    }
+    y+=22;
     if(dib){
       ctx.fillStyle='#F2F6F8';ctx.fillRect(0,y,W,150);
-      ctx.fillStyle='#003B5C';ctx.font=fuente(30,'bold');ctx.textAlign='center';
-      ctx.fillText('¿Ves un error en tus horas? Avisa a tu supervisor',W/2,y+54);
+      ctx.fillStyle='#003B5C';ctx.font=fuente(31,'bold');ctx.textAlign='center';
+      ctx.fillText('¿Ves un error en tus horas? Avisa a tu supervisor',W/2,y+58);
       ctx.fillStyle='#5B6B7A';ctx.font=fuente(22);
-      ctx.fillText('Generado: '+meta.generado+(meta.registradores?' · Registró: '+meta.registradores:''),W/2,y+100);
+      ctx.fillText('Generado: '+meta.generado+(meta.registradores?' · Registró: '+meta.registradores:''),W/2,y+104);
       ctx.textAlign='left';
     }
     y+=150;
@@ -737,7 +789,7 @@
     const grupos=cfg.grupos||GRUPOS_IMAGEN[cfg.area]||GRUPOS_IMAGEN['Producción'];
     const L=tareoListaUnica({fechas:[cfg.fecha],turnos:[cfg.turno],grupos,areaPorDia:cfg.area});
     const sinClasificar=tareoListaUnica({fechas:[cfg.fecha],turnos:[cfg.turno],grupos:['SIN']}).filas.length;
-    const paginas=paginarImagen(L.filas);
+    const paginas=paginarImagen(L.filas,document.createElement('canvas').getContext('2d'));
     const [y,m,d]=cfg.fecha.split('-').map(Number);
     const fechaTxt=capitalizar(new Date(y,m-1,d).toLocaleDateString('es-PE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}));
     const resumen=resumir(L.filas);
