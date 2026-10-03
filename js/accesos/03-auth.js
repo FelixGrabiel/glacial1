@@ -612,6 +612,11 @@ function enterApp(){
   state.currentTab = 'centro-perfil';
   state.viewingRecordId = null;
 
+  // Escuchas de rotaciones/precios/borradores según el rol (ver 02-estado.js).
+  if(typeof sincronizarEscuchasPorRol === 'function'){
+    sincronizarEscuchasPorRol();
+  }
+
   renderSidebar();
 
   renderMain();

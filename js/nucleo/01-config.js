@@ -25,7 +25,7 @@
         service cloud.firestore {
           match /databases/{database}/documents {
             match /sync/{doc} {
-              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'rotacionesMantenimiento', 'rotacionMaquinistas', 'tecnicosMant', 'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'];
+              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'rotacionesMantenimiento', 'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro', 'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'];
             }
             match /auditoriaTareos/{evento} {
               allow read, create: if true;

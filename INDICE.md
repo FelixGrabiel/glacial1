@@ -13,7 +13,7 @@ sidebar-glacial.css · mobile-glacial.css
 img/                            Imágenes (logo)
 json/                           cors.json, data_personal.json
 functions/                      Cloud Functions de ejemplo (PIN de técnicos), no se despliegan solas
-firestore.rules.*.txt           Reglas de Firestore (etapa 1, etapa 2, bloque de Mantenimiento)
+firestore.rules.*.txt           Reglas de Firestore: etapa1 (abiertas) y etapa2 (estrictas, archivo final; incluye el rol de Mantenimiento)
 js/
   nucleo/         base de la app
   accesos/        inicio de sesión, usuarios y permisos

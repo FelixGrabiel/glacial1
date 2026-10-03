@@ -415,6 +415,72 @@ function usuariosPorDefecto(){
 }
 
 
+/* =========================================================
+   ESCUCHAS RESTRINGIDAS (rotaciones, precios, borradores)
+   La cuenta compartida de Mantenimiento no puede leer estos
+   documentos (ver firestore.rules.etapa2.txt), así que no se
+   escuchan para ese rol: evita errores de permiso en consola.
+   - Reglas abiertas (etapa 1): arrancan al inicio, como siempre,
+     y se detienen al entrar si el rol es Mantenimiento compartido.
+   - Reglas estrictas (etapa 2): arrancan al entrar a la app, ya con
+     sesión, y solo si el rol no es Mantenimiento compartido.
+   ========================================================= */
+
+const _escuchasRestringidas = {};
+
+function _escuchaRestringida(nombre, iniciar){
+
+  _escuchasRestringidas[nombre] = _escuchasRestringidas[nombre] ||
+    { iniciar:null, detener:null, activa:false };
+
+  _escuchasRestringidas[nombre].iniciar = iniciar;
+
+  const estricto =
+    typeof REGLAS_ESTRICTAS !== 'undefined' && REGLAS_ESTRICTAS;
+
+  if(!estricto) activarEscuchaRestringida(nombre);
+
+}
+
+function activarEscuchaRestringida(nombre){
+
+  const e = _escuchasRestringidas[nombre];
+
+  if(!e || e.activa || typeof e.iniciar !== 'function') return;
+
+  e.detener = e.iniciar();
+  e.activa = true;
+
+}
+
+function detenerEscuchaRestringida(nombre){
+
+  const e = _escuchasRestringidas[nombre];
+
+  if(!e || !e.activa) return;
+
+  if(typeof e.detener === 'function') e.detener();
+
+  e.detener = null;
+  e.activa = false;
+
+}
+
+/* Se llama al entrar a la app (enterApp), con state.user ya definido. */
+function sincronizarEscuchasPorRol(){
+
+  const soloMantenimiento =
+    typeof esMantCompartido === 'function' && esMantCompartido();
+
+  Object.keys(_escuchasRestringidas).forEach(nombre =>
+    soloMantenimiento
+      ? detenerEscuchaRestringida(nombre)
+      : activarEscuchaRestringida(nombre)
+  );
+
+}
+
+
 function initRealtimeSync(){
 
   db.collection('sync').doc('users')
@@ -533,7 +599,7 @@ function initRealtimeSync(){
      de guardarse solo en este navegador.
   */
 
-  db.collection('sync').doc('rotaciones')
+  _escuchaRestringida('rotaciones', () => db.collection('sync').doc('rotaciones')
 
     .onSnapshot(
 
@@ -558,7 +624,7 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
   /*
@@ -688,7 +754,7 @@ function initRealtimeSync(){
      iniciales de PRECIOS_UNITARIOS_DEFAULT (01-config.js).
   */
 
-  db.collection('sync').doc('precios')
+  _escuchaRestringida('precios', () => db.collection('sync').doc('precios')
 
     .onSnapshot(
 
@@ -723,7 +789,7 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
   /*

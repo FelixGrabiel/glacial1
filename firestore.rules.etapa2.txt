@@ -1,5 +1,9 @@
 // =====================================================================
 // GLACIAL · REGLAS DE FIRESTORE — ETAPA 2 (ESTRICTAS: exigen inicio de sesión)
+// ARCHIVO ÚNICO Y FINAL. Incluye el rol de la cuenta compartida de Mantenimiento
+// (antes en firestore.rules.mantenimiento.txt, ya eliminado).
+// Firestore solo admite UN conjunto de reglas activo: se publica este archivo
+// completo, reemplazando lo que haya.
 // =====================================================================
 // ⚠ NO publicar hasta que:
 //   1. Todos los usuarios estén migrados a cuentas seguras
@@ -14,9 +18,14 @@
 //   - Solo entra quien tenga sesión de Firebase Authentication Y figure
 //     en el documento sync/perfiles (uid -> rol). Quitar a un usuario de
 //     la lista de usuarios le quita el acceso.
-//   - Los documentos de usuarios y perfiles solo los escribe el
-//     Administrador.
+//   - users, perfiles y accesos solo los escribe el Administrador.
 //   - Los datos operativos los escriben usuarios autenticados.
+//   - CUENTA COMPARTIDA DE MANTENIMIENTO (rol 'mantenimiento_compartido'):
+//       · Lee solo los documentos de lecturaMant() (no precios, no borradores,
+//         no rotaciones de Producción). El código tampoco los escucha para ese rol.
+//       · Solo escribe sync/tecnicosMant (PIN de técnicos). Con Cloud Functions
+//         (MANT_PIN_MODO='functions') quitar esa excepción.
+//       · No lee ni escribe auditoriaTareos.
 //   - Limitación conocida: estas reglas validan QUIÉN eres, no cada campo
 //     que cambias. El control fino por permiso (tareo, paletas, etc.)
 //     sigue en la aplicación; endurecerlo por rol es una etapa posterior.
@@ -34,26 +43,42 @@ service cloud.firestore {
     function esAdmin() {
       return autenticado() && perfiles()[request.auth.uid].rol == 'Administrador';
     }
+    function esMantCompartido() {
+      return autenticado() && perfiles()[request.auth.uid].rol == 'mantenimiento_compartido';
+    }
+    function lecturaMant(doc) {
+      return doc in [
+        'users', 'workers', 'rotacionesMantenimiento', 'rotacionMaquinistas',
+        'tareos', 'programaciones', 'paletas', 'avancesTurno', 'records',
+        'tecnicosMant'
+      ];
+    }
 
     match /sync/{doc} {
       // El perfil propio debe poder leerse para saber quién es quién.
       // 'accesos' (usuario -> correo interno) es público: lo necesita el login.
       allow read: if doc == 'accesos' || request.auth != null && (
-        doc == 'perfiles' || autenticado()
+        doc == 'perfiles' ||
+        (autenticado() && (!esMantCompartido() || lecturaMant(doc)))
       );
 
-      allow write: if
-        (doc in ['users', 'perfiles', 'accesos'] && esAdmin()) ||
-        (autenticado() && doc in [
-          'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
-          'rotacionMaquinistas', 'tecnicosMant', 'tareos', 'precios', 'paletas',
-          'programaciones', 'avancesTurno'
-        ]);
+      allow write:
+        // Cuenta compartida: solo los PIN de técnicos.
+        (esMantCompartido() && doc == 'tecnicosMant') ||
+        (!esMantCompartido() && (
+          (doc in ['users', 'perfiles', 'accesos'] && esAdmin()) ||
+          (autenticado() && doc in [
+            'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
+            'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',
+            'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'
+          ])
+        ));
     }
 
+    // Bitácora del tareo: se puede leer y agregar, nunca modificar ni borrar.
     match /auditoriaTareos/{evento} {
-      allow read: if autenticado();
-      allow create: if autenticado();
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if autenticado() && !esMantCompartido();
       allow update, delete: if false;
     }
 

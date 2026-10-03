@@ -12,7 +12,7 @@
      base se suman a los que Administración asigne en Gestión de Usuarios.
    - Los controles de seguridad no son solo visuales: tienePermiso(),
      tareoAutorizadoEscribir(), quienControla() y las funciones guardar*
-     lo validan; las reglas de Firestore (firestore.rules.mantenimiento.txt)
+     lo validan; las reglas de Firestore (firestore.rules.etapa2.txt)
      refuerzan la lectura/escritura en el servidor.
 
    FASES POSTERIORES (B: técnico + PIN, C: acciones sobre líneas,

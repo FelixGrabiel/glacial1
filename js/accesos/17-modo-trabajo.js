@@ -603,7 +603,7 @@ let _borradoresNuevoRegistroReady = false;
 
 if(typeof db !== 'undefined'){
 
-  db.collection('sync').doc('borradoresNuevoRegistro')
+  _escuchaRestringida('borradoresNuevoRegistro', () => db.collection('sync').doc('borradoresNuevoRegistro')
 
     .onSnapshot(
 
@@ -629,7 +629,7 @@ if(typeof db !== 'undefined'){
 
       }
 
-    );
+    ));
 
 }
 
