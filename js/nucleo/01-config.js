@@ -90,14 +90,24 @@
 */
 
 /* =========================================================
-   ENTORNOS: PRODUCCION y PRUEBAS (se elige solo)
-   - Si la página se abre desde localhost o 127.0.0.1 → PRUEBAS.
-   - Desde cualquier otra dirección → PRODUCCION.
+   ENTORNOS: PRODUCCION y PRUEBAS (se elige solo, y falla hacia el lado seguro)
+   - PRODUCCION únicamente si el dominio de la página está en
+     DOMINIOS_PRODUCCION (lista explícita).
+   - CUALQUIER otra dirección usa PRUEBAS: localhost, 127.0.0.1, file://,
+     IPs de red local (192.168.x.x, 10.x.x.x, 172.16-31.x.x), otros dominios.
    - En PRUEBAS: Google Sheets queda desactivado (SHEETS_URL y SHEETS_CLAVE
      vacías) y se ve una franja roja "BASE DE PRUEBAS" en toda la app.
    Los datos de cada entorno viven en proyectos de Firebase distintos y nunca
-   se mezclan. (Un archivo abierto con file:// cuenta como PRODUCCION.)
+   se mezclan. Si un dominio nuevo no está en la lista, la app abre en
+   PRUEBAS (se nota por la franja roja) en vez de tocar los datos de planta.
    ========================================================= */
+
+/* Solo el NOMBRE del dominio (sin https:// ni ruta). Hoy la app está publicada en
+   GitHub Pages: https://felixgrabiel.github.io/glacial1/
+   → AGREGAR AQUÍ el dominio propio cuando exista (por ejemplo 'glacial.miempresa.com'). */
+const DOMINIOS_PRODUCCION = [
+  'felixgrabiel.github.io'
+];
 
 const CONFIG_PRUEBAS = {
   apiKey: "AIzaSyDu-PrKL0Zacynobn_iLc7EVFIiC7Rk96A",
@@ -109,8 +119,8 @@ const CONFIG_PRUEBAS = {
   measurementId: "G-409QMFQT53"
 };
 
-const ENTORNO_PRUEBAS = ['localhost', '127.0.0.1', '[::1]', '::1']
-  .includes(String(window.location.hostname || '').toLowerCase());
+const ENTORNO_PRUEBAS = !DOMINIOS_PRODUCCION
+  .includes(String(window.location.hostname || '').trim().toLowerCase());
 
 const ENTORNO = ENTORNO_PRUEBAS ? 'PRUEBAS' : 'PRODUCCION';
 

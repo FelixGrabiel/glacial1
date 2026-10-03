@@ -165,8 +165,11 @@ if ($faltan) { "FALTAN:"; $faltan } else { "OK: $($rutas.Count) scripts existen 
 
 | Dirección de la página | Entorno | Proyecto Firebase |
 |---|---|---|
-| `localhost`, `127.0.0.1` | PRUEBAS | `pruebas-b11b7` |
-| cualquier otra (incluido `file://`) | PRODUCCION | `jefaturaopglacial-fdb95` |
+| solo los dominios de `DOMINIOS_PRODUCCION` (hoy `felixgrabiel.github.io`) | PRODUCCION | `jefaturaopglacial-fdb95` |
+| cualquier otra: `localhost`, `127.0.0.1`, `file://`, IPs de red local, otros dominios | PRUEBAS | `pruebas-b11b7` |
+
+Falla hacia el lado seguro: un dominio nuevo que no esté en la lista abre en PRUEBAS. Para publicar en otro
+dominio, agrégalo a `DOMINIOS_PRODUCCION` en `js/nucleo/01-config.js`.
 
 En PRUEBAS: `SHEETS_URL` y `SHEETS_CLAVE` quedan vacías (no se escribe en la hoja real), aparece una franja roja
 "BASE DE PRUEBAS" y el título de la pestaña empieza con `[PRUEBAS]`. Al iniciar, la consola del navegador muestra
