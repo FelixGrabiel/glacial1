@@ -19,7 +19,8 @@
    No cambia la estructura del tareo. Se audita como AGREGAR_PERSONAL.
    Respeta el bloqueo del tareo (41-tareo-bloqueo.js).
 
-   Cargar DESPUÉS de 13-tareo.js y ANTES de 40-tareo-auditoria.js (que envuelve estas funciones).
+   Cargar DESPUÉS de 13-tareo.js. El orden respecto a 40-tareo-auditoria.js es indiferente: la auditoría
+   envuelve estas funciones al iniciar la app, cuando ya cargaron todos los scripts.
    ============================================================= */
 (function instalarAgregarPersonal(){
   'use strict';
