@@ -78,6 +78,13 @@ function puedeVerLineasProduccion(){
 
 const PESTANAS_LINEA=['nuevo','historial','graficos','paletas'];
 
+/* Permisos de ENTRADA al menú (ver ≠ gestionar; la edición se valida aparte). */
+function permisoNavegacion(permiso){
+  if(permiso==='moduloMantenimiento')return puedeEntrarMantenimiento();
+  if(permiso==='tareoProduccion'||permiso==='tareoGeneral')return puedeEntrarTareoProduccion();
+  return tienePermiso(permiso);
+}
+
 function primeraVistaAutorizada(){
   if(visibleLines().length){
     const pestana=PESTANAS_LINEA.find(p=>tienePermiso(p));
@@ -87,10 +94,10 @@ function primeraVistaAutorizada(){
     ['__inicio__','centro-perfil'],
     ['produccionActual','produccion-actual'], ['avanceProduccion','avance-produccion'], ['resumen','resumen'],
     ['perdidasSoles','perdidas'], ['moduloMantenimiento','mantenimiento'],
-    ['moduloRRHH','rrhh'], ['gestionar_rotacion_supervisores','rotacion-supervisores'], ['tareoProduccion','tareo'],
-    ['tareoGeneral','tareo']
+    ['gestionar_rotacion_supervisores','rotacion-supervisores'], ['tareoProduccion','tareo'],
+    ['tareoGeneral','tareo'], ['moduloRRHH','rrhh']
   ];
-  return globales.find(([permiso])=>tienePermiso(permiso))?.[1] || '';
+  return globales.find(([permiso])=>permisoNavegacion(permiso))?.[1] || '';
 }
 
 function ajustarVistaSegunPermisos(){
@@ -109,10 +116,10 @@ function ajustarVistaSegunPermisos(){
   const permitido=vistaLinea
     ? lineaVisible && tienePermiso(tab)
     : tab==='tareo'
-      ? tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral')
+      ? puedeEntrarTareoProduccion()
       : tab==='centro-perfil'
         ? true
-        : globales[tab] && tienePermiso(globales[tab]);
+        : globales[tab] && permisoNavegacion(globales[tab]);
 
   if(!permitido)state.currentTab=primeraVistaAutorizada();
   if(visibleLines().length && !lineaVisible){
@@ -200,10 +207,10 @@ function renderSidebar(){
     const mostrar=id==='btn-centro-perfil'
       ? !!state.user
       : id==='btn-tareo'
-        ? tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral')
+        ? puedeEntrarTareoProduccion()
         : id==='btn-usuarios'||id==='btn-trabajadores'
           ? puedeGestionarPersonal()
-          : tienePermiso(permiso);
+          : permisoNavegacion(permiso);
     boton.hidden=!mostrar;
     boton.style.display=mostrar?'':'none';
     if(mostrar)visibles++;
@@ -247,9 +254,11 @@ function guardarEstadoGruposSidebar(){
 }
 
 function grupoSidebarActivo(){
-  if(PESTANAS_LINEA.includes(state.currentTab) || ['produccion-actual','avance-produccion'].includes(state.currentTab))return 'produccion';
+  // 'produccion-actual' ya no pertenece al grupo Producción: es un módulo raíz.
+  if(PESTANAS_LINEA.includes(state.currentTab) || state.currentTab==='avance-produccion')return 'produccion';
+  if(['tareo','rotacion-supervisores'].includes(state.currentTab))return 'produccion';
   if(state.currentTab==='mantenimiento')return 'mantenimiento';
-  if(['rrhh','tareo','rotacion-supervisores'].includes(state.currentTab))return 'rrhh';
+  if(state.currentTab==='rrhh')return 'rrhh';
   if(['resumen','perdidas'].includes(state.currentTab))return 'reportes';
   return '';
 }
@@ -518,7 +527,7 @@ function goProduccionActual(){
    Administrador asigna aparte, igual que produccionActual.
 */
 function goMantenimiento(){
-  if(!tienePermiso('moduloMantenimiento')){
+  if(!puedeEntrarMantenimiento()){
     alert('No tienes permiso para ver el módulo de Mantenimiento.');
     return;
   }
@@ -529,7 +538,9 @@ function goMantenimiento(){
     return;
   }
   state.currentTab='mantenimiento';
-  if(esUsuarioSoloConsulta(state.user) && typeof tareoGeneralFiltros!=='undefined'){
+  if(typeof tareoGeneralFiltros!=='undefined' && typeof tareoAreasEditables==='function' &&
+     !tareoAreasEditables().includes('Mantenimiento')){
+    // Sin gestión de Mantenimiento: consulta filtrada a esa área.
     tareoGeneralFiltros.area='Mantenimiento';
   }
   renderSidebar();
@@ -538,11 +549,10 @@ function goMantenimiento(){
 
 
 /*
-   "RRHH" — punto de entrada al módulo de Recursos Humanos
-   (19-rrhh.js): Tareo, Tareo General, Historial y Resumen
-   mensual de ambas áreas, con edición y eliminación. Requiere
-   el permiso 'moduloRRHH', igual de independiente que
-   'moduloMantenimiento'.
+   "RRHH" — acceso al Panel de Recursos Humanos
+   (19-rrhh.js). El Tareo de Producción y la Rotación de
+   Supervisores se ofrecen dentro del módulo de Producción.
+   Requiere el permiso 'moduloRRHH'.
 */
 function goRRHH(){
   if(!tienePermiso('moduloRRHH')){
@@ -574,10 +584,20 @@ function goRotacionSupervisores(){
 }
 
 function goTareo(){
-  if(!tienePermiso('tareoProduccion') && !tienePermiso('tareoGeneral'))return;
+  if(!puedeEntrarTareoProduccion())return;
   if(typeof confirmarAbandonoRotacionPendiente==='function' &&
      !confirmarAbandonoRotacionPendiente())return;
   state.currentTab='tareo';
   renderSidebar();
+  if(typeof tareoAreasEditables==='function'){
+    if(tareoAreasEditables().includes('Producción')){
+      tareoAreaVista='Producción';
+    }else if(!tienePermiso('tareoGeneral') && tareoAreasVisibles().includes('Producción')){
+      // Solo consulta (ver_tareo_produccion): vista de lectura de Producción.
+      tareoGeneralFiltros.area='Producción';
+      renderTareoGeneral();
+      return;
+    }
+  }
   openTareo();
 }

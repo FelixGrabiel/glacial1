@@ -447,7 +447,7 @@ function cambiarRolNuevoUsuario(){
     checks.forEach(
       c=>{
         const sugeridos = {
-          'Supervisor': ['inicioOperativo','verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'],
+          'Supervisor': ['inicioOperativo','ver_programacion_turno','ver_insumos_turno','verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'],
           'Gerente General': PERMISOS_SOLO_CONSULTA,
           'Jefe de Producción': [...PERMISOS_SOLO_CONSULTA,'inicioOperativo'],
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,

@@ -1580,4 +1580,87 @@
   setInterval(()=>{
     if(state.user && state.currentTab==='produccion-actual')renderProduccionActualTab();
   },60000);
+
+  /* ---------------------------------------------------------
+     RESUMEN COMPACTO PARA EL INICIO EJECUTIVO (solo lectura)
+     Reutiliza estadoFila / estadoOrdenItem / secuencia del tablero,
+     por lo que el estado mostrado en Inicio coincide con Producción
+     Actual. No escribe nada ni crea datos nuevos.
+     --------------------------------------------------------- */
+  const PRIORIDAD_ESTADO_LINEA=['DETENIDA','EN_CURSO','PAUSA','PENDIENTE','COMPLETADA','CANCELADA'];
+  window.glacialResumenEjecutivoLineas=function(fechaOpt,turnoOpt){
+    const ahora=Date.now(), tv=turnoVigente();
+    const fecha=fechaOpt || tv.fecha, turno=turnoOpt || tv.turno;
+    const filas=[];
+    LINES.forEach(line=>{
+      const vistos=new Set(), items=[];
+      combinacionesConDatosPaletas(line.key,fecha,turno==='INTERMEDIO' ? ['DÍA',turno] : [turno])
+        .forEach(combo=>{
+          const k=combo.marca+'||'+combo.presentacion;
+          if(vistos.has(k))return;
+          const x=estadoFila(line.key,fecha,turno,combo.marca,combo.presentacion,ahora);
+          if(x.prog || num(resumenProgramacionCombinacionTurnos(line.key,fecha,[turno],
+            combo.marca,combo.presentacion).unidadesProducidas)){
+            vistos.add(k);items.push(x);
+          }
+        });
+      if(!items.length)return;
+
+      aplicarEstadoVisualSecuencia(items,line.key,fecha,items[0].turnoPlan || turno,turno,ahora);
+      const estados=items.map(x=>({x,e:estadoOrdenItem(x).key,det:x.op?.estado==='DETENIDA'}));
+      estados.forEach(o=>{ if(o.det)o.e='DETENIDA'; });
+      const claves=estados.map(o=>o.e);
+      const cerrados=claves.every(k=>['COMPLETADA','CANCELADA'].includes(k));
+      const estadoLinea=claves.every(k=>k==='CANCELADA') ? 'CANCELADA'
+        : cerrados ? 'COMPLETADA'
+        : PRIORIDAD_ESTADO_LINEA.find(k=>claves.includes(k));
+      const activo=(estados.find(o=>o.e===estadoLinea) || estados.find(o=>!['COMPLETADA','CANCELADA'].includes(o.e)) || estados[0]).x;
+
+      const programado=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
+      const producido=items.reduce((s,x)=>s+num(resumenProgramacionCombinacionTurnos(
+        x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas),0);
+
+      // Ratio del turno: mismo criterio que Producción Actual (tiempo efectivo).
+      const inicios=items.map(x=>Number(x.op?.inicio || 0)).filter(Boolean);
+      const rangos=items.map(x=>horario(x.fecha,x.turno,x.compartida)).filter(Boolean);
+      const cierres=items.map(x=>Number(x.op?.finalizadaEn || x.op?.canceladaEn || 0)).filter(Boolean);
+      const finMax=rangos.length ? Math.max(...rangos.map(r=>r.fin)) : ahora;
+      const corte=cerrados && cierres.length ? Math.max(...cierres) : ahora;
+      const horasTurno=inicios.length ? Math.max(0,(Math.min(corte,finMax)-Math.min(...inicios))/MS_HORA) : 0;
+      const paradaMs=items.reduce((s,x)=>{
+        const op=x.op || {};
+        let ms=Number(op.pausaAcumuladaMs || 0)+Number(op.detencionAcumuladaMs || 0);
+        if(op.estado==='PAUSA' && Number(op.pausaDesde || 0)>0)
+          ms+=Math.max(0,Math.min(corte,finMax)-Number(op.pausaDesde));
+        if(['DETENIDA','LISTA'].includes(op.estado) && Number(op.detenidaDesde || 0)>0)
+          ms+=Math.max(0,Math.min(corte,finMax)-Number(op.detenidaDesde));
+        return s+ms;
+      },0);
+      const horasEf=Math.max(0,horasTurno-paradaMs/MS_HORA);
+
+      const fila={
+        linea:line.key,nombre:line.name,
+        marca:activo.marca || '',presentacion:activo.presentacion ? presUI(activo.linea,activo.marca,activo.presentacion) : '',
+        estado:estadoLinea,programado,producido,
+        avance:programado>0 ? producido/programado*100 : 0,
+        ratio:horasEf>0 ? producido/horasEf : 0,
+        paradaMs,detenidaMin:null,retrasoPct:null,
+        // Estado/avance por marca-presentación (usado por el Inicio operativo).
+        detalle:estados.map(({x,e})=>{
+          const p=num(resumenProgramacionCombinacionTurnos(
+            x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas);
+          const g=num(x.prog?.cantidadProgramada);
+          return {marca:x.marca,presentacion:x.presentacion,estado:e,producido:p,programado:g,
+            avance:g>0 ? p/g*100 : 0};
+        })
+      };
+      const det=estados.find(o=>o.det);
+      if(det && Number(det.x.op?.detenidaDesde || 0)>0)
+        fila.detenidaMin=Math.max(0,Math.round((ahora-Number(det.x.op.detenidaDesde))/60000));
+      if(estadoLinea==='EN_CURSO' && activo.nivel==='ambar' && activo.esperado>0)
+        fila.retrasoPct=Math.max(0,Math.round((1-activo.real/activo.esperado)*100));
+      filas.push(fila);
+    });
+    return {fecha,turno,actualizado:ahora,filas};
+  };
 })();

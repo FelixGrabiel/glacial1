@@ -33,6 +33,13 @@
   }
   window.tareoEsTecnicoMantenimiento = tareoEsTecnicoMantenimiento;
 
+  /* El Supervisor de Mantenimiento pertenece al tareo de su área. */
+  function tareoEsSupervisorMantenimiento(cargo){
+    const valor = tareoNormalizarTexto(cargo);
+    return /\bsupervis\w*\b/.test(valor) && mtto.test(valor);
+  }
+  window.tareoEsSupervisorMantenimiento = tareoEsSupervisorMantenimiento;
+
   function personalActivo(){
     const lista = typeof loadWorkers === 'function' ? loadWorkers() : [];
     return Array.isArray(lista)
@@ -84,7 +91,8 @@
   const cargoAnterior = tareoCargoPermitido;
   tareoCargoPermitido = function(cargo, area){
     if(area === 'Mantenimiento'){
-      return tareoEsTecnicoMantenimiento(cargo);
+      return tareoEsTecnicoMantenimiento(cargo) ||
+        tareoEsSupervisorMantenimiento(cargo);
     }
 
     if(area === 'Producción' && tareoEsMaquinistaEquipo(cargo)){

@@ -32,7 +32,7 @@
 
 function renderMantenimientoModulo(){
 
-  if(!tienePermiso('moduloMantenimiento')){
+  if(!puedeEntrarMantenimiento()){
 
     const main =
       document.getElementById('main');
@@ -52,7 +52,14 @@ function renderMantenimientoModulo(){
 
   }
 
-  openTareo();
+  // VER ≠ GESTIONAR: quien no gestiona Mantenimiento entra a la vista de consulta.
+  if(tareoAreasEditables().includes('Mantenimiento')){
+    tareoAreaVista = 'Mantenimiento';
+    openTareo();
+  }else{
+    tareoGeneralFiltros.area = 'Mantenimiento';
+    renderTareoGeneral();
+  }
 
 }
 

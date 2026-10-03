@@ -261,26 +261,56 @@ function tareoAreaDe(tareo) {
 }
 
 
+/*
+   VER ≠ GESTIONAR
+   - acceso.editar  → áreas que el usuario puede registrar/editar/validar/eliminar
+                      (gestionar_tareo_produccion ≡ tareoProduccion;
+                       gestionar_tareo_mantenimiento o moduloMantenimiento).
+   - acceso.ver     → áreas que puede CONSULTAR (ver_tareo_produccion,
+                      ver_tareo_mantenimiento; tareoGeneral/moduloRRHH = ambas).
+                      Incluye siempre las áreas editables.
+   Jefatura/Gerencia (roles de solo consulta) NUNCA editan, aunque se
+   les marque un permiso de gestión: solo consultan según ver_tareo_*.
+*/
 function tareoAccesoUsuario() {
 
-    const acceso = { editar: [], general: false };
+    const acceso = { editar: [], ver: [], general: false };
 
     if (typeof state === 'undefined' || !state.user) {
         return acceso;
     }
 
-    // Jefatura y Gerencia consultan ambos tareos sin acceso a formularios.
-    if (esUsuarioSoloConsulta(state.user)) {
-        return { editar: [], general: true };
-    }
-
     const permisos = normalizarPermisosUsuario(state.user);
 
-    if (permisos === 'todos') {
-        return { editar: [...TAREO_AREAS], general: true };
+    const tiene = clave =>
+        permisos === 'todos' ||
+        (Array.isArray(permisos) && permisos.includes(clave));
+
+    // Jefatura y Gerencia consultan, sin acceso a formularios.
+    if (esUsuarioSoloConsulta(state.user)) {
+
+        if (tiene('ver_tareo_produccion') || tiene('tareoGeneral')) {
+            acceso.ver.push('Producción');
+        }
+
+        if (tiene('ver_tareo_mantenimiento') || tiene('tareoGeneral')) {
+            acceso.ver.push('Mantenimiento');
+        }
+
+        acceso.general = acceso.ver.length > 0;
+
+        return acceso;
     }
 
-    if (permisos.includes('tareoProduccion')) {
+    if (permisos === 'todos') {
+        return {
+            editar: [...TAREO_AREAS],
+            ver: [...TAREO_AREAS],
+            general: true
+        };
+    }
+
+    if (tiene('tareoProduccion') || tiene('gestionar_tareo_produccion')) {
         acceso.editar.push('Producción');
     }
 
@@ -295,7 +325,10 @@ function tareoAccesoUsuario() {
        moduloMantenimiento desde 18-mantenimiento.js.
     */
 
-    if (permisos.includes('moduloMantenimiento')) {
+    if (
+        permisos.includes('moduloMantenimiento') ||
+        permisos.includes('gestionar_tareo_mantenimiento')
+    ) {
         acceso.editar.push('Mantenimiento');
     }
 
@@ -321,15 +354,36 @@ function tareoAccesoUsuario() {
 
     }
 
+    // Consulta por permiso específico (independiente por área).
+    if (permisos.includes('ver_tareo_produccion')) acceso.ver.push('Producción');
+    if (permisos.includes('ver_tareo_mantenimiento')) acceso.ver.push('Mantenimiento');
+
+    // Tareo General (RRHH, solo lectura) y moduloRRHH ven ambas áreas.
+    if (
+        permisos.includes('tareoGeneral') ||
+        permisos.includes('moduloRRHH')
+    ) {
+        TAREO_AREAS.forEach(area => acceso.ver.push(area));
+    }
+
+    acceso.editar.forEach(area => acceso.ver.push(area));
+    acceso.ver = TAREO_AREAS.filter(area => acceso.ver.includes(area));
+
     acceso.general =
         permisos.includes('tareoGeneral') ||
-        permisos.includes('moduloRRHH');
+        permisos.includes('moduloRRHH') ||
+        permisos.includes('ver_tareo_produccion') ||
+        permisos.includes('ver_tareo_mantenimiento');
 
     if (acceso.editar.length || acceso.general) {
         return acceso;
     }
 
-    /* Usuario sin permisos de Tareo asignados: regla anterior. */
+    /*
+       Usuario sin permisos de Tareo asignados: ya NO se le concede
+       edición de Producción por defecto (la escritura exige permiso
+       explícito). Solo se conserva la regla anterior de RRHH por texto.
+    */
 
     const texto = tareoNormalizarTexto(
         (state.user.puesto || '') + ' ' + (state.user.rol || '')
@@ -342,8 +396,7 @@ function tareoAccesoUsuario() {
         texto.includes('talento humano')
     ) {
         acceso.general = true;
-    } else {
-        acceso.editar.push('Producción');
+        acceso.ver = [...TAREO_AREAS];
     }
 
     return acceso;
@@ -356,12 +409,101 @@ function tareoAreasEditables() {
 
 
 function tareoAreasVisibles() {
+    return [...tareoAccesoUsuario().ver];
+}
+
+/* Supervisor responsable del tareo (quien lo abrió), con su nombre si existe. */
+function tareoResponsable(tareo) {
+
+    const usuario = String((tareo && tareo.creadoPor) || '').trim();
+
+    if (!usuario) return '—';
+
+    try {
+        const encontrado = (typeof loadUsers === 'function' ? loadUsers() : [])
+            .find(u => String(u.username || '').toLowerCase() === usuario.toLowerCase());
+
+        return (encontrado && encontrado.nombre) || usuario;
+    } catch (_) {
+        return usuario;
+    }
+}
+
+/* ¿Solo puede consultar (no gestiona ninguna área)? */
+function tareoEsSoloConsulta() {
 
     const acceso = tareoAccesoUsuario();
 
-    return acceso.general
-        ? [...TAREO_AREAS]
-        : [...acceso.editar];
+    return !acceso.editar.length && acceso.ver.length > 0;
+}
+
+/*
+   Validación de ESCRITURA (no solo visual). Se invoca antes de
+   cualquier guardado/eliminación, así que ejecutar una función
+   a mano desde la consola tampoco permite modificar el tareo.
+*/
+function tareoAutorizadoEscribir(tareoOArea) {
+
+    if (typeof state === 'undefined' || !state.user) return false;
+
+    if (esUsuarioSoloConsulta(state.user)) return false;
+
+    const area = typeof tareoOArea === 'string'
+        ? tareoOArea
+        : tareoAreaDe(tareoOArea);
+
+    return tareoAreasEditables().includes(area);
+}
+
+function tareoAvisoSinPermisoEscritura(contexto) {
+
+    console.warn(
+        'TAREO: operación bloqueada por permisos (solo visualización)' +
+        (contexto ? ': ' + contexto : '')
+    );
+}
+
+/*
+   Identidad única de una persona: DNI, ID interno o, como último
+   recurso, el nombre. Dos filas son la misma persona si comparten
+   CUALQUIERA de esos datos (no vacíos).
+*/
+function tareoIdentidades(persona) {
+
+    const claves = [];
+
+    const dni = tareoNormalizarDNI(persona && persona.dni);
+    const id = String(
+        (persona && (persona.trabajadorId || persona.id)) || ''
+    ).trim();
+    const nombre = tareoNormalizarTexto(persona && persona.nombre)
+        .replace(/\s+/g, ' ');
+
+    if (dni) claves.push('DNI:' + dni);
+    if (id) claves.push('ID:' + id);
+    // El nombre solo identifica cuando no hay DNI ni ID (evita fusionar homónimos).
+    if (!claves.length && nombre) claves.push('NOM:' + nombre);
+
+    return claves;
+}
+
+/* Elimina repetidos conservando la primera aparición. */
+function tareoDeduplicarPersonas(lista) {
+
+    const vistos = new Set();
+
+    return (Array.isArray(lista) ? lista : []).filter(persona => {
+
+        const claves = tareoIdentidades(persona);
+
+        if (!claves.length) return false;
+
+        if (claves.some(clave => vistos.has(clave))) return false;
+
+        claves.forEach(clave => vistos.add(clave));
+
+        return true;
+    });
 }
 
 
@@ -742,7 +884,10 @@ function tareoFusionar(remoto, local) {
 
 function tareoGuardarEnNube(tareo) {
 
-    if (esUsuarioSoloConsulta(state.user)) return;
+    if (!tareoAutorizadoEscribir(tareo)) {
+        tareoAvisoSinPermisoEscritura('guardar tareo');
+        return;
+    }
 
     if (
         typeof db === 'undefined' ||
@@ -873,6 +1018,17 @@ function tareoRenderTabs(activa) {
                 </button>
             `).join('')}
         </div>
+        ${tareoEsSoloConsulta() ? tareoInsigniaConsulta() : ''}
+    `;
+}
+
+/* Indicador discreto de modo consulta. */
+function tareoInsigniaConsulta() {
+
+    return `
+        <div class="tareo-consulta-badge" role="status">
+            Modo consulta — Solo visualización
+        </div>
     `;
 }
 
@@ -930,6 +1086,8 @@ function tareoInyectarEstilos() {
         .tar2-ficha-item span{display:block;font-size:11px;color:var(--text-soft,#5a6b78);}
         .tar2-ficha-item strong{font-size:15px;}
         .tar2-ficha-sub{font-weight:700;font-size:13px;margin:14px 0 4px;}
+        .tareo-consulta-badge{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#eef3f7;color:#4a6072;border:1px solid #d3dee6;}
+        .tareo-consulta-badge::before{content:'👁';font-size:11px;}
         @media (max-width:640px){.tar2-ficha-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
     `;
 
@@ -1064,7 +1222,8 @@ function obtenerPersonalTareo(area) {
         return [];
     }
 
-    return trabajadores.filter(trabajador => {
+    // Un mismo trabajador no debe repetirse aunque esté duplicado en la lista.
+    return tareoDeduplicarPersonas(trabajadores.filter(trabajador => {
 
         if (!trabajador) return false;
 
@@ -1076,7 +1235,7 @@ function obtenerPersonalTareo(area) {
             estado === 'activo' &&
             tareoCargoPermitido(trabajador.cargo, areaBuscada)
         );
-    });
+    }));
 }
 
 
@@ -1200,6 +1359,15 @@ function obtenerTareos() {
 
 function guardarTareos(tareos) {
 
+    // Escritura masiva: solo quien gestiona al menos un área del tareo.
+    if (
+        esUsuarioSoloConsulta(state.user) ||
+        !tareoAreasEditables().length
+    ) {
+        tareoAvisoSinPermisoEscritura('guardar tareos');
+        return;
+    }
+
     if (typeof saveTareos !== 'function') {
 
         console.error(
@@ -1215,7 +1383,10 @@ function guardarTareos(tareos) {
 
 function guardarTareoEnMemoria(tareo) {
 
-    if (esUsuarioSoloConsulta(state.user)) return;
+    if (!tareoAutorizadoEscribir(tareo)) {
+        tareoAvisoSinPermisoEscritura('guardar tareo');
+        return;
+    }
 
     tareo.actualizadoEn = Date.now();
 
@@ -2747,6 +2918,41 @@ function tareoSincronizarConRotacion(tareo) {
 }
 
 
+/*
+   Tareo de Mantenimiento ya creado: agrega al personal de Mantenimiento
+   que todavía no figura (por ejemplo el Supervisor de Mantenimiento) y
+   elimina repetidos. NO toca la asistencia ya registrada ni agrega
+   maquinistas (esos llegan como espejo desde Producción).
+*/
+function tareoSincronizarPersonalMantenimiento(tareo) {
+
+    if (!tareo || tareoAreaDe(tareo) !== 'Mantenimiento') return tareo;
+
+    if (!tareoAutorizadoEscribir('Mantenimiento')) return tareo;
+
+    const actuales = tareo.personal || [];
+
+    const unicos = tareoDeduplicarPersonas(actuales);
+
+    const identidades = new Set(unicos.flatMap(tareoIdentidades));
+
+    const nuevos = obtenerPersonalTareo('Mantenimiento')
+        .filter(
+            trabajador =>
+                !tareoIdentidades(trabajador).some(clave => identidades.has(clave))
+        )
+        .map(trabajador => tareoNuevaPersona(trabajador, 'Mantenimiento'));
+
+    if (!nuevos.length && unicos.length === actuales.length) return tareo;
+
+    tareo.personal = ordenarPersonalTareo([...unicos, ...nuevos]);
+
+    guardarTareoEnMemoria(tareo);
+
+    return tareo;
+}
+
+
 function tareoAbrir(area, fecha, turno) {
 
     if (!tareoAreasEditables().includes(area)) {
@@ -2774,7 +2980,7 @@ function tareoAbrir(area, fecha, turno) {
         const tareoActualizado =
             area === 'Producción'
                 ? tareoSincronizarConRotacion(existente)
-                : existente;
+                : tareoSincronizarPersonalMantenimiento(existente);
 
         tareoActualId = tareoActualizado.id;
 
@@ -3307,12 +3513,10 @@ function tareoAbrirAgregarPersonal() {
     if (!root) return;
 
     const yaEstan = new Set(
-        (tareo.personal || []).map(
-            persona => String(persona.trabajadorId)
-        )
+        (tareo.personal || []).flatMap(tareoIdentidades)
     );
 
-    const candidatos = (
+    const candidatos = tareoDeduplicarPersonas((
         typeof loadWorkers === 'function'
             ? loadWorkers()
             : []
@@ -3320,8 +3524,8 @@ function tareoAbrirAgregarPersonal() {
         trabajador =>
             trabajador &&
             tareoNormalizarTexto(trabajador.estado) === 'activo' &&
-            !yaEstan.has(String(trabajador.id))
-    ).sort(
+            !tareoIdentidades(trabajador).some(clave => yaEstan.has(clave))
+    )).sort(
         (a, b) => String(a.nombre || '')
             .localeCompare(String(b.nombre || ''), 'es', { sensitivity: 'base' })
     );
@@ -3408,6 +3612,18 @@ function tareoAgregarPersonal() {
     ).find(item => String(item.id) === String(id));
 
     if (!trabajador) return;
+
+    // No duplicar a una persona que ya está en este tareo (DNI / ID).
+    const yaEsta = new Set(
+        (tareo.personal || []).flatMap(tareoIdentidades)
+    );
+
+    if (tareoIdentidades(trabajador).some(clave => yaEsta.has(clave))) {
+
+        alert('Esa persona ya está en este tareo.');
+
+        return;
+    }
 
     const persona = tareoNuevaPersona(
         trabajador,
@@ -4348,7 +4564,7 @@ function renderHistorialTareo() {
 
                                                             ${
                                                                 (
-                                                                    !esUsuarioSoloConsulta(state.user) &&
+                                                                    puedeEditar &&
                                                                     (tienePermiso('eliminarRegistros') ||
                                                                     tienePermiso('moduloRRHH'))
                                                                 )
@@ -4670,10 +4886,10 @@ async function eliminarTareo(id) {
 
     if (!tareo) return;
 
-    if (!tareoAreasVisibles().includes(tareoAreaDe(tareo))) {
+    if (!tareoAutorizadoEscribir(tareo)) {
 
         alert(
-            'No tienes acceso al Tareo de ' + tareoAreaDe(tareo) + '.'
+            'No tienes permiso para gestionar el Tareo de ' + tareoAreaDe(tareo) + '.'
         );
 
         return;
@@ -4737,8 +4953,12 @@ function renderTareoLectura(tareo) {
 
                 <div class="sub">
                     ${escaparHTML(tareo.turno)}
+                    · Responsable: ${escaparHTML(tareoResponsable(tareo))}
+                    · Estado: ${escaparHTML(tareo.estado || 'Abierto')}
                     · ${escaparHTML(tareo.id)}
                 </div>
+
+                ${puedeEditar ? '' : tareoInsigniaConsulta()}
 
             </div>
 
@@ -4766,7 +4986,7 @@ function renderTareoLectura(tareo) {
 
                 ${
                     (
-                        !esUsuarioSoloConsulta(state.user) &&
+                        puedeEditar &&
                         (tienePermiso('eliminarRegistros') ||
                         tienePermiso('moduloRRHH'))
                     )
@@ -5238,6 +5458,14 @@ function tareoGeneralFiltrar() {
 
 function tareoGeneralDatos() {
 
+    // Un filtro de área que ya no es visible para este usuario se descarta.
+    if (
+        tareoGeneralFiltros.area &&
+        !tareoAreasVisibles().includes(tareoGeneralFiltros.area)
+    ) {
+        tareoGeneralFiltros.area = '';
+    }
+
     const { fecha, turno, area } = tareoGeneralFiltros;
 
     const areas = tareoAreasVisibles().filter(
@@ -5306,10 +5534,10 @@ function renderTareoGeneral() {
 
             <div>
 
-                <h2>Tareo General</h2>
+                <h2>${tareoAreasVisibles().length === 1 ? 'Tareo de ' + escaparHTML(tareoAreasVisibles()[0]) : 'Tareo General'}</h2>
 
                 <div class="sub">
-                    Producción y Mantenimiento en una sola vista
+                    ${tareoAreasVisibles().length === 1 ? 'Consulta del tareo por turno' : 'Producción y Mantenimiento en una sola vista'}
                     <span class="tar2-live">En vivo</span>
                 </div>
 
@@ -5360,8 +5588,8 @@ function renderTareoGeneral() {
                     <div class="field-sm">
                         <label>Área</label>
                         <select id="tareo-general-area" onchange="tareoGeneralFiltrar()">
-                            <option value="">Ambas</option>
-                            ${TAREO_AREAS.map(item => `
+                            ${tareoAreasVisibles().length > 1 ? '<option value="">Ambas</option>' : ''}
+                            ${tareoAreasVisibles().map(item => `
                                 <option value="${item}" ${area === item ? 'selected' : ''}>${item}</option>
                             `).join('')}
                         </select>
@@ -5429,6 +5657,10 @@ function renderTareoGeneral() {
                                                     ? ` · <span class="tareo-late">${k.tardanzas} con tardanza</span>`
                                                     : ''
                                             }
+                                        </div>
+                                        <div class="tar2-card-meta">
+                                            Responsable: <strong>${escaparHTML(tareoResponsable(tareo))}</strong>
+                                            · Estado: ${escaparHTML(tareo.estado || 'Abierto')}
                                         </div>
                                         `
                                         : `
@@ -5510,8 +5742,10 @@ function renderTareoGeneral() {
                                         <th>Asistencia</th>
                                         <th>Ingreso</th>
                                         <th>Tardanza</th>
+                                        <th>Refrigerio</th>
                                         <th>Salida</th>
                                         <th>Horas</th>
+                                        <th>Extras</th>
                                     </tr>
                                 </thead>
 
@@ -5536,8 +5770,10 @@ function renderTareoGeneral() {
                                                         : '—'
                                                 }
                                             </td>
+                                            <td>${Number(persona.refrigerio || 0) > 0 ? escaparHTML(String(persona.refrigerio)) + ' h' : '—'}</td>
                                             <td>${persona.horaSalida || '—'}</td>
                                             <td>${formatearHoras(persona.horasTrabajadas)} h</td>
+                                            <td>${formatearHoras(persona.horasExtras)} h</td>
                                         </tr>
                                     `).join('')}
 
@@ -6919,6 +7155,12 @@ function renderPreviewRotacion(
    ========================================================= */
 
 function aplicarRotacionPendiente() {
+
+    // Escritura de la rotación de Producción: exige gestionar el Tareo de Producción.
+    if (!tareoAutorizadoEscribir('Producción')) {
+        alert('No tienes permiso para gestionar la rotación del Tareo de Producción.');
+        return;
+    }
 
     const resultado = window._tareoRotacionPendiente;
 
@@ -8645,6 +8887,51 @@ window.tareoRefrescarFormularioRemoto =
 window.exportarResumenMensualTareo =
     exportarResumenMensualTareo;
     exportarResumenMensualTareo;
+
+
+/*
+   Última barrera de escritura: la función de bajo nivel que reemplaza
+   TODO el documento sync/tareos solo actúa para quien gestiona al menos
+   un área. Una llamada manual desde la consola de un usuario de solo
+   visualización no modifica nada.
+*/
+(function protegerGuardadoTareos() {
+
+    if (typeof saveTareos !== 'function') return;
+
+    const guardarOriginal = saveTareos;
+
+    saveTareos = function (tareos) {
+
+        if (
+            typeof state === 'undefined' ||
+            !state.user ||
+            esUsuarioSoloConsulta(state.user) ||
+            !tareoAreasEditables().length
+        ) {
+            tareoAvisoSinPermisoEscritura('saveTareos');
+            return;
+        }
+
+        // No se permite agregar/quitar tareos de un área que no gestiona.
+        const editables = tareoAreasEditables();
+
+        const idsFuera = lista =>
+            (Array.isArray(lista) ? lista : [])
+                .filter(t => t && !editables.includes(tareoAreaDe(t)))
+                .map(t => t.id)
+                .sort()
+                .join('|');
+
+        if (idsFuera(tareos) !== idsFuera(loadTareos())) {
+            tareoAvisoSinPermisoEscritura('saveTareos fuera de su área');
+            return;
+        }
+
+        return guardarOriginal.apply(this, arguments);
+    };
+
+})();
 
 
 tareoInyectarEstilos();

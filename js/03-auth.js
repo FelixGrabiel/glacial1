@@ -434,7 +434,7 @@ function enterApp(){
 
       tienePermiso('produccionActual')
 
-        ? 'block'
+        ? ''
 
         : 'none';
 
@@ -453,7 +453,7 @@ function enterApp(){
 
     btnMantenimiento.style.display =
 
-      tienePermiso('moduloMantenimiento')
+      puedeEntrarMantenimiento()
 
         ? 'block'
 

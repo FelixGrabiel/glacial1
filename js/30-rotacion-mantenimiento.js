@@ -35,6 +35,11 @@
       return false;
     }
 
+    // Jefatura/Gerencia solo consultan: nunca gestionan la rotación.
+    if(typeof esUsuarioSoloConsulta === 'function' && esUsuarioSoloConsulta(state.user)){
+      return false;
+    }
+
     const texto = textoUsuarioMtto();
     const esMantenimiento = /mantenimiento|\bmtto\b/.test(texto);
     const esResponsable = /supervisor|jefe/.test(texto);

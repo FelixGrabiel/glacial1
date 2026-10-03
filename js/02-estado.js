@@ -132,14 +132,20 @@ const PERMISOS_APP=[
   {key:'gestionar_rotacion_supervisores',label:'Gestionar rotación de supervisores'},
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
   {key:'inicioOperativo',label:'Ver Inicio Operativo / Mi turno'},
+  {key:'ver_inicio_ejecutivo',label:'Ver Inicio Ejecutivo (resumen corto de planta — Gerencia / Jefatura)'},
+  {key:'ver_programacion_turno',label:'Inicio Operativo: ver Programación del turno'},
+  {key:'ver_insumos_turno',label:'Inicio Operativo: ver Insumos del turno'},
   {key:'avanceProduccion',label:'Avance y Cierre de Turno'},
   {key:'control_operativo_lineas',label:'Control operativo de líneas (Detener / Reanudar / Intervención terminada)'},
   {key:'recibirAlertasProduccion',label:'Recibir notificaciones y alertas de producción'},
   {key:'gestionarPersonal',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
   {key:'verLineasProduccion',label:'Ver líneas de producción en el menú lateral'},
-  {key:'tareoProduccion',label:'Tareo de Producción (registrar asistencia)'},
-  {key:'tareoGeneral',label:'Tareo General (solo lectura — RRHH)'},
-  {key:'moduloMantenimiento',label:'Módulo de Mantenimiento (Tareo y demás secciones del área)'},
+  {key:'tareoProduccion',label:'GESTIONAR Tareo de Producción (registrar, editar, validar)'},
+  {key:'ver_tareo_produccion',label:'VER Tareo de Producción (solo visualización)'},
+  {key:'tareoGeneral',label:'Tareo General (solo lectura — RRHH, ambas áreas)'},
+  {key:'moduloMantenimiento',label:'Módulo de Mantenimiento (Tareo y demás secciones del área — gestiona)'},
+  {key:'gestionar_tareo_mantenimiento',label:'GESTIONAR Tareo de Mantenimiento (registrar, editar, validar)'},
+  {key:'ver_tareo_mantenimiento',label:'VER Tareo de Mantenimiento (solo visualización)'},
   {key:'moduloRRHH',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},
   {key:'exportarExcel',label:'Exportar Excel'},
   {key:'exportarExcelGeneral',label:'Exportar Excel general de planta'},
@@ -156,8 +162,8 @@ const ROLES_SOLO_CONSULTA = new Set([
   'Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'
 ]);
 const PERMISOS_SOLO_CONSULTA = [
-  'produccionActual','resumen','perdidasSoles',
-  'moduloMantenimiento','moduloRRHH','tareoGeneral',
+  'produccionActual','ver_inicio_ejecutivo','resumen','perdidasSoles',
+  'moduloMantenimiento','moduloRRHH','ver_tareo_produccion','ver_tareo_mantenimiento',
   'exportarExcel','exportarExcelGeneral','exportarJPG'
 ];
 
@@ -339,8 +345,31 @@ function normalizarPermisosUsuario(u){
   return permisosPorRolAnterior(u.rol);
 }
 
+/* Alias con nombre funcional. Reutilizan permisos ya guardados en
+   sync/users; no crean datos nuevos ni duplican permisos. */
+const PERMISOS_ALIAS={
+  ver_produccion_actual:['produccionActual'],
+  gestionar_produccion:['paletas','programarPaletas'],
+  gestionar_tareo_produccion:['tareoProduccion']
+};
+
+/* Puertas de entrada de menú a los tareos. VER ≠ GESTIONAR: la edición
+   se valida aparte en 13-tareo.js (tareoAutorizadoEscribir). */
+function puedeEntrarTareoProduccion(){
+  return tienePermiso('tareoProduccion') || tienePermiso('tareoGeneral') ||
+    tienePermiso('ver_tareo_produccion');
+}
+function puedeEntrarMantenimiento(){
+  // Jefatura/Gerencia solo consultan: entran únicamente con ver_tareo_mantenimiento.
+  if(esUsuarioSoloConsulta(state.user))return tienePermiso('ver_tareo_mantenimiento');
+  return tienePermiso('moduloMantenimiento') ||
+    tienePermiso('gestionar_tareo_mantenimiento') ||
+    tienePermiso('ver_tareo_mantenimiento');
+}
+
 function tienePermiso(permiso){
   if(!state.user) return false;
+  if(PERMISOS_ALIAS[permiso]) return PERMISOS_ALIAS[permiso].some(k=>tienePermiso(k));
   const p=normalizarPermisosUsuario(state.user);
   return p==='todos'||p.includes(permiso);
 }

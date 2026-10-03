@@ -187,7 +187,26 @@ function cpPuedeVerInicioOperativo(){
   const puesto=cpNorm(state.user?.puesto||state.user?.cargo||'');
   const esSupervisor=rol==='supervisor'||puesto.includes('supervisor de produccion');
   const esJefeProduccion=rol==='jefe de produccion'||puesto==='jefe de produccion';
-  return esSupervisor||esJefeProduccion||cpPuede('inicioOperativo');
+  return esSupervisor||esJefeProduccion||cpPuede('inicioOperativo')||
+    cpPuede('ver_programacion_turno')||cpPuede('ver_insumos_turno');
+}
+
+/* Acceso por función a secciones del Inicio operativo. Supervisores y
+   usuarios con "inicioOperativo" (legado) conservan todas las secciones;
+   los demás necesitan el permiso específico de la sección. */
+function cpAccesoSeccionOperativa(permiso){
+  const rol=cpNorm(state.user?.rol||'');
+  const puesto=cpNorm(state.user?.puesto||state.user?.cargo||'');
+  const porFuncion=rol==='supervisor'||puesto.includes('supervisor de produccion')||
+    rol==='jefe de produccion'||puesto==='jefe de produccion'||cpPuede('inicioOperativo');
+  return porFuncion||cpPuede(permiso);
+}
+
+/* INICIO EJECUTIVO: se decide por permiso, no por el nombre del rol.
+   Gerencia/Jefatura lo reciben por PERMISOS_SOLO_CONSULTA; Administración
+   puede asignarlo a cualquier otro usuario desde Gestión de usuarios. */
+function cpPuedeVerInicioEjecutivo(){
+  return cpPuede('ver_inicio_ejecutivo');
 }
 
 function cpInicioGeneral(){
@@ -223,14 +242,34 @@ function cpIr(destino){
 }
 
 /* ===================== PROGRAMACIÓN ===================== */
+/* Avance y estado por marca/presentación, tomados de Producción Actual
+   (misma fuente y reglas). Si no están disponibles se muestra "—". */
+function cpEstadosProgramacion(){
+  const mapa=new Map();
+  try{
+    if(typeof glacialResumenEjecutivoLineas!=='function')return mapa;
+    const ctx=cpCtx();
+    const r=glacialResumenEjecutivoLineas(ctx.fechaOperativa,cpTurnoCanon(ctx.turno));
+    r.filas.forEach(f=>f.detalle.forEach(d=>mapa.set([f.linea,d.marca,d.presentacion].join('||'),d)));
+  }catch(e){console.warn('Inicio: estado de programación',e);}
+  return mapa;
+}
+const CP_EST_OPER={EN_CURSO:'En curso',PAUSA:'Pausa',PENDIENTE:'Pendiente',COMPLETADA:'Completada',
+  CANCELADA:'Cancelada',DETENIDA:'Detenida'};
 function cpProgramacionCard(){
   const items=cpProgramaciones();
+  const estados=cpEstadosProgramacion();
   return `<section class="cp-card cp-programacion">
     <div class="cp-card-head"><div class="cp-card-title">${cpIcon('calendar')}<div><h3>Programación del turno</h3><p>Órdenes vigentes para el contexto operativo seleccionado.</p></div></div>
       ${cpPuede('paletas')?'<button class="cp-btn cp-btn-outline" type="button" onclick="cpIr(\'programacion\')">Ver programación</button>':''}</div>
-    ${items.length?`<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th>Programado</th></tr></thead><tbody>${items.map(p=>`<tr>
+    ${items.length?`<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th>Programado</th><th>Avance</th><th>Estado</th></tr></thead><tbody>${items.map(p=>{
+      const d=estados.get([p.linea,p.marca,p.presentacion].join('||'));
+      const cls=d?(CP_EST_EJEC[d.estado]||CP_EST_EJEC.PENDIENTE).cls:'';
+      return `<tr>
       <td><strong>${cpEsc(cpNombreLinea(p.linea))}</strong></td><td>${cpEsc(p.marca||'—')}</td><td>${cpEsc(cpPresentacionUI(p))}</td>
-      <td><strong>${cpFmt(cpProgramadoUnidades(p))} ${cpUnidadLinea(p.linea)}</strong></td></tr>`).join('')}</tbody></table></div>`:
+      <td><strong>${cpFmt(cpProgramadoUnidades(p))} ${cpUnidadLinea(p.linea)}</strong></td>
+      <td>${d?Math.round(d.avance)+' %':'—'}</td>
+      <td>${d?`<span class="cp-ex-badge cp-ex-${cls}"><i></i>${CP_EST_OPER[d.estado]||''}</span>`:'—'}</td></tr>`;}).join('')}</tbody></table></div>`:
       '<div class="cp-empty">No hay programación registrada para este turno.</div>'}
     ${cpTurnoCanon(cpCtx().turno)==='INTERMEDIO'?'<div class="cp-note">'+cpIcon('info')+' Día e Intermedio comparten programación cuando existe plan de Día.</div>':''}
   </section>`;
@@ -636,6 +675,7 @@ function cpInsumosCard(){
 function cpAccesosRapidos(){
   const items=[];
   if(cpPuede('nuevo'))items.push({icon:'clipboard',titulo:'Registro de producción',desc:'Registra la producción de tu línea.',dest:'produccion'});
+  if(cpPuede('paletas'))items.push({icon:'box',titulo:'Registrar paletas',desc:'Registra las paletas producidas.',dest:'programacion'});
   if(cpPuede('tareoProduccion')||cpPuede('tareoGeneral'))items.push({icon:'team',titulo:'Tareo',desc:'Registra y revisa la asistencia.',dest:'tareo'});
   if(cpPuede('avanceProduccion'))items.push({icon:'report',titulo:'Avance y cierre',desc:'Prepara el reporte del turno.',dest:'avance'});
   if(!items.length)return '';
@@ -651,8 +691,28 @@ function cpCabecera(){
   </div>`:'';
   return `<div class="cp-title-row"><div><h2>${cpTitulo()}</h2><p>${cpEsVistaGeneral()?'Consulta operativa del turno seleccionado.':'Organiza el trabajo y revisa la programación vigente.'}</p></div>${selector}</div>
     <section class="cp-welcome"><div class="cp-greeting"><span class="cp-avatar-icon">${cpIcon('user')}</span><div><h3>Hola, ${cpEsc(nombre)}</h3><p>${cpEsc(cpCargo()||'Usuario GLACIAL')}</p></div></div>
-      <div class="cp-shift-facts"><button type="button" class="cp-date-fact" onclick="cpAbrirCalendarioInicio()" aria-label="Seleccionar fecha operativa" title="Seleccionar fecha">${cpIcon('calendar')}<span>Fecha<b>${cpFechaBonita(ctx.fechaOperativa)}</b></span><input id="cp-fecha-operativa-input" class="cp-date-native" type="date" value="${cpEsc(ctx.fechaOperativa)}" onchange="cpCambiarFechaInicio(this.value)" tabindex="-1" aria-hidden="true"></button><div>${cpIcon('sun')}<span>Turno<b>${cpEsc(ctx.turno||'Sin asignación')}</b></span></div><div>${cpIcon('clock')}<span>Horario<b>${cpEsc(horario)}</b></span></div></div>
+      <div class="cp-shift-facts"><button type="button" class="cp-date-fact" onclick="cpAbrirCalendarioInicio()" aria-label="Seleccionar fecha operativa" title="Seleccionar fecha">${cpIcon('calendar')}<span>Fecha<b>${cpFechaBonita(ctx.fechaOperativa)}</b></span><input id="cp-fecha-operativa-input" class="cp-date-native" type="date" value="${cpEsc(ctx.fechaOperativa)}" onchange="cpCambiarFechaInicio(this.value)" tabindex="-1" aria-hidden="true"></button><div>${cpIcon('sun')}<span>Turno<b>${cpEsc(ctx.turno||'Sin asignación')}</b></span></div><div>${cpIcon('clock')}<span>Horario<b>${cpEsc(horario)}</b></span></div>${cpHechosTurnoExtra(ctx)}</div>
     </section>`;
+}
+/* Líneas asignadas, estado del turno y tiempo transcurrido de "Mi turno". */
+function cpHechosTurnoExtra(ctx){
+  const lineas=[...new Set(cpProgramaciones().map(p=>cpNombreLinea(p.linea)))];
+  if(!lineas.length&&state.user?.linea)lineas.push(cpNombreLinea(state.user.linea));
+  let estado='—',transcurrido='—';
+  const base=cpContextoBase();
+  if(cpConsulta.fecha&&cpConsulta.fecha!==base.fechaOperativa){estado='Consulta';}
+  else if(ctx.horarioInicio&&ctx.horarioFin){
+    const ini=new Date(`${ctx.fechaOperativa}T${ctx.horarioInicio}:00`);
+    const fin=new Date(`${ctx.fechaOperativa}T${ctx.horarioFin}:00`);
+    if(fin<=ini)fin.setDate(fin.getDate()+1);
+    const ahora=Date.now();
+    if(ahora<ini.getTime()){estado='Por iniciar';transcurrido='No iniciado';}
+    else if(ahora>=fin.getTime()){estado='Finalizado';transcurrido=cpDuracionMin((fin-ini)/60000);}
+    else{estado='En curso';transcurrido=cpDuracionMin((ahora-ini.getTime())/60000);}
+  }
+  return `<div>${cpIcon('clipboard')}<span>Líneas asignadas<b>${cpEsc(lineas.join(', ')||'—')}</b></span></div>
+    <div>${cpIcon('info')}<span>Estado del turno<b>${cpEsc(estado)}</b></span></div>
+    <div>${cpIcon('clock')}<span>Transcurrido<b>${cpEsc(transcurrido)}</b></span></div>`;
 }
 function cpCambiarContexto(campo,valor){
   if(!cpEsVistaGeneral())return;
@@ -690,7 +750,7 @@ function cpStyles(){return `<style id="cp-inicio-estilos">
 .cp-welcome,.cp-card{background:var(--cp-card);border:1px solid var(--cp-line);border-radius:12px;box-shadow:0 3px 12px rgba(17,57,91,.055)}
 .cp-welcome{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:13px 18px;margin-bottom:12px;overflow:hidden;position:relative}.cp-welcome:after{content:"";position:absolute;right:-45px;top:-80px;width:220px;height:220px;background:linear-gradient(135deg,transparent 35%,#eef7ff);transform:rotate(12deg);pointer-events:none}
 .cp-greeting{display:flex;align-items:center;gap:14px;min-width:250px}.cp-avatar-icon{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:#edf6ff;color:var(--cp-blue)}.cp-avatar-icon .cp-icon{width:27px;height:27px}.cp-greeting h3{margin:0;color:#10265f;font-size:19px}.cp-greeting p{margin:3px 0 0;color:#466ba7;font-size:12px}
-.cp-shift-facts{display:flex;position:relative;z-index:1}.cp-shift-facts>div,.cp-shift-facts>.cp-date-fact{display:flex;align-items:center;gap:10px;min-width:145px;padding:2px 18px;border:0;border-left:1px solid var(--cp-line);color:var(--cp-blue);background:transparent;font:inherit;text-align:left}.cp-shift-facts>.cp-date-fact{position:relative;cursor:pointer;border-radius:8px}.cp-shift-facts>.cp-date-fact:hover{background:#f2f8ff}.cp-shift-facts>.cp-date-fact:focus-visible{outline:3px solid rgba(8,120,249,.24);outline-offset:2px}.cp-shift-facts>div>.cp-icon,.cp-shift-facts>.cp-date-fact>.cp-icon{width:23px;height:23px}.cp-shift-facts span{font-size:10px;color:#5d75a0}.cp-shift-facts b{display:block;margin-top:2px;color:#10265f;font-size:13px;white-space:nowrap}.cp-date-native{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:50%;bottom:0}
+.cp-shift-facts{display:flex;flex-wrap:wrap;position:relative;z-index:1}.cp-shift-facts>div,.cp-shift-facts>.cp-date-fact{display:flex;align-items:center;gap:10px;min-width:145px;padding:2px 18px;border:0;border-left:1px solid var(--cp-line);color:var(--cp-blue);background:transparent;font:inherit;text-align:left}.cp-shift-facts>.cp-date-fact{position:relative;cursor:pointer;border-radius:8px}.cp-shift-facts>.cp-date-fact:hover{background:#f2f8ff}.cp-shift-facts>.cp-date-fact:focus-visible{outline:3px solid rgba(8,120,249,.24);outline-offset:2px}.cp-shift-facts>div>.cp-icon,.cp-shift-facts>.cp-date-fact>.cp-icon{width:23px;height:23px}.cp-shift-facts span{font-size:10px;color:#5d75a0}.cp-shift-facts b{display:block;margin-top:2px;color:#10265f;font-size:13px;white-space:nowrap}.cp-date-native{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:50%;bottom:0}
 .cp-card{padding:0;margin-bottom:12px;overflow:hidden}.cp-card-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 14px;border-bottom:1px solid #e7eef4}.cp-card-title{display:flex;align-items:center;gap:10px}.cp-card-title>.cp-icon{width:28px;height:28px;padding:5px;border-radius:8px;background:#edf6ff;color:var(--cp-blue)}.cp-card-title h3{margin:0;color:#10265f;font-size:16px}.cp-card-title p{margin:2px 0 0;color:#58769b;font-size:11px}
 .cp-btn{min-height:36px;border-radius:8px;padding:0 13px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}.cp-btn-outline{background:#fff;border:1px solid #b8d7fb;color:#0870e8}.cp-btn-primary{background:linear-gradient(135deg,#0878f9,#0868db);border:1px solid #0871eb;color:#fff;box-shadow:0 3px 8px rgba(8,120,249,.16)}.cp-btn:focus-visible,.cp-quick button:focus-visible,.cp-context-filter input:focus-visible,.cp-context-filter select:focus-visible{outline:3px solid rgba(8,120,249,.24);outline-offset:2px}
 .cp-table-wrap{width:100%;overflow:auto}.cp-table{width:100%;border-collapse:collapse;font-size:11px}.cp-table th{background:#edf6fd;color:#173764;text-align:left;padding:7px 14px;font-size:10px}.cp-table td{padding:7px 14px;border-top:1px solid #e2ebf2;color:#28415a;vertical-align:middle}.cp-table td strong{color:#10265f}.cp-table td small{display:block;margin-top:2px;color:#71859a;font-size:9px}.cp-table tr:hover td{background:#f9fcff}.cp-empty,.cp-loading{padding:22px;text-align:center;color:var(--cp-muted);font-size:12px}.cp-loading{background:linear-gradient(90deg,#fff,#f6faff,#fff)}
@@ -707,9 +767,127 @@ function cpStyles(){return `<style id="cp-inicio-estilos">
 @media(prefers-reduced-motion:reduce){.cp-shell *{scroll-behavior:auto!important;transition:none!important;animation:none!important}.cp-quick button:hover{transform:none}}
 </style>`;}
 
+/* =========================================================
+   INICIO EJECUTIVO (Gerencia / Jefatura / ver_inicio_ejecutivo)
+   Solo resume lo que ya calcula Producción Actual (24-semaforo…).
+   Sin gráficos ni análisis: el detalle vive en Producción Actual.
+   ========================================================= */
+const CP_EST_EJEC={
+  EN_CURSO:{txt:'EN CURSO',cls:'curso'},PAUSA:{txt:'PAUSA',cls:'pausa'},
+  PENDIENTE:{txt:'PENDIENTE',cls:'pendiente'},COMPLETADA:{txt:'COMPLETADA',cls:'completada'},
+  DETENIDA:{txt:'DETENIDA',cls:'detenida'},CANCELADA:{txt:'CANCELADA',cls:'detenida'}
+};
+function cpDuracionMin(min){
+  min=Math.max(0,Math.round(min));
+  return min>=60?`${Math.floor(min/60)} h ${String(min%60).padStart(2,'0')} min`:`${min} min`;
+}
+function cpDatosEjecutivo(){
+  let r=null;
+  try{r=typeof glacialResumenEjecutivoLineas==='function'?glacialResumenEjecutivoLineas():null;}
+  catch(e){console.warn('Inicio ejecutivo: resumen de líneas',e);}
+  if(!r)return null;
+  const filas=r.filas;
+  const programado=filas.reduce((s,f)=>s+(f.estado==='CANCELADA'?0:f.programado),0);
+  const producido=filas.reduce((s,f)=>s+f.producido,0);
+  const alertas=[];
+  filas.forEach(f=>{
+    if(f.estado==='DETENIDA')alertas.push({tipo:'DETENIDA',linea:f.nombre,
+      texto:f.detenidaMin!==null?`${cpDuracionMin(f.detenidaMin)} sin producción.`:'Línea detenida.'});
+    else if(f.retrasoPct>0)alertas.push({tipo:'RETRASO',linea:f.nombre,
+      texto:`Producción ${f.retrasoPct} % debajo del ritmo esperado.`});
+  });
+  return {
+    ...r,producido,programado,
+    avance:programado>0?producido/programado*100:0,
+    activas:filas.filter(f=>f.estado==='EN_CURSO').length,
+    detenidas:filas.filter(f=>f.estado==='DETENIDA').length,
+    pausadas:filas.filter(f=>f.estado==='PAUSA').length,
+    alertas
+  };
+}
+function cpEjecutivoHTML(){
+  const d=cpDatosEjecutivo();
+  const hora=new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+  if(!d)return `<div class="cp-empty">No se pudo cargar el estado de producción.</div>`;
+  const general=d.detenidas?{t:'CON PARADAS',c:'detenida'}:d.alertas.length?{t:'CON RETRASOS',c:'pausa'}:
+    d.activas?{t:'OPERANDO',c:'completada'}:{t:'SIN PRODUCCIÓN ACTIVA',c:'pendiente'};
+  const filas=d.filas.map(f=>{
+    const e=CP_EST_EJEC[f.estado]||CP_EST_EJEC.PENDIENTE;
+    const producto=[f.marca,f.presentacion].filter(Boolean).join(' ')||'—';
+    return `<tr><td data-label="Línea"><strong>${cpEsc(cpNombreLinea(f.linea))}</strong></td>
+      <td data-label="Producto / Marca">${cpEsc(producto)}</td>
+      <td data-label="Estado"><span class="cp-ex-badge cp-ex-${e.cls}"><i></i>${e.txt}</span></td>
+      <td data-label="Avance"><b>${Math.round(f.avance)} %</b></td>
+      <td data-label="Ratio">${f.ratio?cpFmt(f.ratio)+' UND/h':'—'}</td></tr>`;
+  }).join('');
+  const alertas=d.alertas.length
+    ? d.alertas.map(a=>`<div class="cp-ex-alert cp-ex-alert-${a.tipo==='DETENIDA'?'detenida':'pausa'}"><b>${cpEsc(a.linea)} — ${a.tipo}</b><span>${cpEsc(a.texto)}</span></div>`).join('')
+    : `<div class="cp-ex-ok">${cpIcon('info')} Operación sin alertas críticas.</div>`;
+  return `<div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2>
+      <p>${cpFechaBonita(d.fecha)} · Turno ${cpEsc(d.turno)} · Actualizado ${cpEsc(hora)}</p></div>
+      <span class="cp-ex-badge cp-ex-${general.c} cp-ex-general"><i></i>${general.t}</span></div>
+    <div class="cp-ex-kpis">
+      <div class="cp-ex-kpi"><span>Producción actual</span><b>${cpFmt(d.producido)}</b><small>UND en el turno</small></div>
+      <div class="cp-ex-kpi"><span>Avance del turno</span><b>${d.programado>0?Math.round(d.avance)+' %':'—'}</b><small>de lo programado</small></div>
+      <div class="cp-ex-kpi"><span>Líneas activas</span><b>${d.activas} / ${d.filas.length}</b><small>en curso</small></div>
+      <div class="cp-ex-kpi ${d.detenidas?'cp-ex-kpi-alert':''}"><span>Paradas</span><b>${d.detenidas}</b><small>${d.pausadas} en pausa</small></div>
+    </div>
+    <section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('report')}<div><h3>Estado de líneas</h3><p>Resumen del turno en curso.</p></div></div>
+      ${cpPuede('produccionActual')?`<button class="cp-btn cp-btn-primary" type="button" onclick="goProduccionActual()">VER PRODUCCIÓN ACTUAL →</button>`:''}</div>
+      ${d.filas.length?`<div class="cp-table-wrap"><table class="cp-table cp-ex-table"><thead><tr><th>Línea</th><th>Producto / Marca</th><th>Estado</th><th>Avance</th><th>Ratio</th></tr></thead><tbody>${filas}</tbody></table></div>`
+        :'<div class="cp-empty">No hay programación ni producción registrada en este turno.</div>'}</section>
+    <section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('info')}<div><h3>Alertas importantes</h3><p>Solo situaciones que requieren atención.</p></div></div></div>
+      <div class="cp-ex-alerts">${alertas}</div></section>`;
+}
+function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
+.cp-ex-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.cp-ex-kpi{background:#fff;border:1px solid var(--cp-line);border-radius:12px;padding:12px 16px;box-shadow:0 3px 12px rgba(17,57,91,.055)}
+.cp-ex-kpi span{display:block;color:var(--cp-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.cp-ex-kpi b{display:block;margin:4px 0 2px;color:#10265f;font-size:28px;line-height:1.1}.cp-ex-kpi small{color:var(--cp-muted);font-size:11px}
+.cp-ex-kpi-alert{border-left:4px solid var(--cp-red)}.cp-ex-kpi-alert b{color:var(--cp-red)}
+.cp-ex-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap}
+.cp-ex-badge i{width:8px;height:8px;border-radius:50%;background:currentColor}
+.cp-ex-general{font-size:12px;padding:6px 14px}
+.cp-ex-curso{background:#fff0d6;color:#b86e00}.cp-ex-pausa{background:#fff8d6;color:#9a7500}.cp-ex-pendiente{background:#eceff2;color:#5f6f7c}
+.cp-ex-completada{background:#e5f6ec;color:#13814a}.cp-ex-detenida{background:#fde8e8;color:#c62828}
+.cp-ex-table td,.cp-ex-table th{padding:10px 14px;font-size:12px}
+.cp-ex-alerts{padding:10px 14px;display:grid;gap:8px}
+.cp-ex-alert{display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:8px;border-left:4px solid}
+.cp-ex-alert b{font-size:13px}.cp-ex-alert span{font-size:12px}
+.cp-ex-alert-detenida{background:#fff5f5;border-color:#d93a3a;color:#a92f27}.cp-ex-alert-pausa{background:#fffbea;border-color:#df8b00;color:#8a5a00}
+.cp-ex-ok{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;background:#effbf4;color:#13814a;font-size:13px;font-weight:700}
+@media(max-width:980px){.cp-ex-kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.cp-ex-kpi b{font-size:24px}
+.cp-ex-table thead{display:none}.cp-ex-table,.cp-ex-table tbody,.cp-ex-table tr,.cp-ex-table td{display:block;width:100%}
+.cp-ex-table tr{padding:8px 14px;border-top:1px solid #e2ebf2}.cp-ex-table td{border:0;padding:3px 0;display:flex;justify-content:space-between;gap:10px}
+.cp-ex-table td:before{content:attr(data-label);color:var(--cp-muted);font-size:10px;font-weight:700;text-transform:uppercase}}
+</style>`;}
+function cpRefrescarEjecutivo(){
+  if(!state.user||state.currentTab!=='centro-perfil'||!cpPuedeVerInicioEjecutivo())return;
+  const main=document.getElementById('main');
+  if(main)renderCentroPerfil(main);
+}
+// Actualización en tiempo real: mismas señales que usa Producción Actual.
+['onPaletasUpdated','onProgramacionesUpdated'].forEach(nombre=>{
+  const anterior=globalThis[nombre];
+  if(typeof anterior!=='function')return;
+  globalThis[nombre]=function(){
+    const r=anterior.apply(this,arguments);
+    cpRefrescarEjecutivo();
+    return r;
+  };
+});
+setInterval(cpRefrescarEjecutivo,60000);
+
 function renderCentroPerfil(main){
   if(!main)return;
   cpCargaAvancesToken++;
+
+  // Inicio ejecutivo: se decide por permiso. No se muestra junto al operativo.
+  if(cpPuedeVerInicioEjecutivo()){
+    main.innerHTML=`<section class="cp-shell">${cpStyles()}${cpEjecutivoStyles()}${cpEjecutivoHTML()}</section>`;
+    return;
+  }
 
   // Sin permiso: no se consultan ni renderizan datos operativos del turno.
   if(!cpPuedeVerInicioOperativo()){
@@ -717,7 +895,10 @@ function renderCentroPerfil(main){
     return;
   }
 
-  main.innerHTML=`<section class="cp-shell">${cpStyles()}${cpCabecera()}${cpProgramacionCard()}${cpInsumosCard()}<div class="cp-two">${cpEquipoCard()}${cpPendientesCard()}</div>${cpAccesosRapidos()}</section>`;
+  // Inicio operativo (Mi turno): cada sección respeta su permiso específico.
+  const verProg=cpAccesoSeccionOperativa('ver_programacion_turno');
+  const verInsumos=cpAccesoSeccionOperativa('ver_insumos_turno');
+  main.innerHTML=`<section class="cp-shell">${cpStyles()}${cpEjecutivoStyles()}${cpCabecera()}${verProg?cpProgramacionCard():''}${verInsumos?cpInsumosCard():''}<div class="cp-two">${cpEquipoCard()}${cpPendientesCard()}</div>${cpAccesosRapidos()}</section>`;
   cpCargarAvances();
 }
 
