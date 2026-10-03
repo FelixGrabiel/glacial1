@@ -3,6 +3,7 @@
 let tareoAuditoria = [];
 let tareoAuditoriaLista = null;
 let tareoAuditoriaError = '';
+let tareoAuditoriaSoloCorrecciones = false;
 let tareoControlFiltros = null;
 
 function tareoPeriodo(año, mes, quincena) {
@@ -198,7 +199,8 @@ function tareoIniciarAuditoria() {
     tareoAuditoriaLista = db.collection('auditoriaTareos')
         .orderBy('timestamp', 'desc').limit(500)
         .onSnapshot(snap => {
-            tareoAuditoria = snap.docs.map(d => ({...d.data(), id: d.id}));
+            // serverTimestamps:'estimate' evita fecha vacía mientras el servidor confirma el evento.
+            tareoAuditoria = snap.docs.map(d => ({...d.data({ serverTimestamps: 'estimate' }), id: d.id}));
             tareoAuditoriaError = '';
             if (document.getElementById('tareo-auditoria-view')) renderAuditoriaTareos();
         }, error => {
@@ -207,11 +209,31 @@ function tareoIniciarAuditoria() {
         });
 }
 
+/* Correcciones = cambios de un valor que ya existía (EDITAR_, QUITAR_, ELIMINAR_). */
+function tareoEventoEsCorreccion(e) {
+    return e.esCorreccion === true || /^(EDITAR_|QUITAR_|ELIMINAR_)/.test(String(e.accion || ''));
+}
+
+function tareoAuditoriaFiltrar(valor) {
+    tareoAuditoriaSoloCorrecciones = valor === 'correcciones';
+    renderAuditoriaTareos();
+}
+
+/* La fecha del evento es la del servidor (Timestamp de Firestore). */
+function tareoAuditoriaFecha(e) {
+    const t = e.timestamp;
+    const ms = t && typeof t.toMillis === 'function' ? t.toMillis() : Number(t);
+    return ms ? new Date(ms).toLocaleString('es-PE') : '—';
+}
+
 function renderAuditoriaTareos() {
     if (!tienePermiso('moduloRRHH')) return;
     tareoIniciarAuditoria();
     const main = document.getElementById('main');
     if (!main) return;
+    const eventos = tareoAuditoriaSoloCorrecciones
+        ? tareoAuditoria.filter(tareoEventoEsCorreccion)
+        : tareoAuditoria;
     const resumen = valor => {
         if (valor == null) return '—';
         if (typeof valor === 'object') return JSON.stringify(valor).slice(0, 350);
@@ -219,16 +241,21 @@ function renderAuditoriaTareos() {
     };
     main.innerHTML = `
       <div class="main-head" id="tareo-auditoria-view"><div><h2>Auditoría de tareos</h2>
-      <div class="sub">Últimos 500 eventos, sincronizados en tiempo real</div></div></div>
+      <div class="sub">Últimos 500 eventos, sincronizados en tiempo real · fecha y hora del servidor</div></div></div>
       ${tareoRenderTabs('auditoria')}
       <div class="panel"><div class="panel-body">
+      <div class="tar2-toolbar" style="margin-bottom:10px;"><div class="field-sm"><label>Mostrar</label>
+        <select onchange="tareoAuditoriaFiltrar(this.value)">
+          <option value="todos" ${tareoAuditoriaSoloCorrecciones ? '' : 'selected'}>Todos los eventos</option>
+          <option value="correcciones" ${tareoAuditoriaSoloCorrecciones ? 'selected' : ''}>Solo correcciones (EDITAR / QUITAR / ELIMINAR)</option>
+        </select></div></div>
       ${tareoAuditoriaError ? `<p class="tareo-control-error">No se pudo cargar la auditoría: ${escaparHTML(tareoAuditoriaError)}</p>` : ''}
       <div class="tareo-table-scroll"><table class="tareo-table"><thead><tr>
         <th>Fecha y hora</th><th>Usuario / rol</th><th>Área / tareo</th>
         <th>Trabajador</th><th>Acción / campo</th><th>Anterior</th><th>Nuevo</th>
       </tr></thead><tbody>
-        ${tareoAuditoria.map(e => `<tr>
-          <td>${new Date(e.timestamp).toLocaleString('es-PE')}</td>
+        ${eventos.map(e => `<tr>
+          <td>${tareoAuditoriaFecha(e)}</td>
           <td>${escaparHTML(e.usuario)}<br>${escaparHTML(e.rol)}</td>
           <td>${escaparHTML(e.area)} · ${formatearFecha(e.fechaTareo)} · ${escaparHTML(e.turno)}</td>
           <td>${escaparHTML(e.trabajador || '—')}</td>
@@ -242,6 +269,7 @@ function renderAuditoriaTareos() {
 window.tareoEvaluarDescansos = tareoEvaluarDescansos;
 window.renderControlDescansos = renderControlDescansos;
 window.renderAuditoriaTareos = renderAuditoriaTareos;
+window.tareoAuditoriaFiltrar = tareoAuditoriaFiltrar;
 window.tareoAlertaDescansos = tareoAlertaDescansos;
 // Cubre también el cambio de fecha si la pestaña queda abierta toda la noche.
 setInterval(tareoAlertaDescansos, 60 * 1000);

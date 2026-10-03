@@ -76,9 +76,13 @@ service cloud.firestore {
     }
 
     // Bitácora del tareo: se puede leer y agregar, nunca modificar ni borrar.
+    // Al crear, el evento debe llevar el uid de quien lo escribe (no se puede
+    // registrar a nombre de otro) y la hora del servidor (no la del dispositivo).
     match /auditoriaTareos/{evento} {
       allow read: if autenticado() && !esMantCompartido();
-      allow create: if autenticado() && !esMantCompartido();
+      allow create: if autenticado() && !esMantCompartido()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.timestamp == request.time;
       allow update, delete: if false;
     }
 

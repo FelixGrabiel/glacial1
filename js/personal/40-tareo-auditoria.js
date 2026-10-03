@@ -6,21 +6,33 @@
    las reglas impiden editar o borrar). Se ve en RRHH → Auditoría.
 
    Eventos (campo "accion"):
-     CREAR_TAREO            se abre/crea el tareo de un área, fecha y turno
-     EDITAR_ASISTENCIA      cambia la asistencia de una persona
-     EDITAR_INGRESO         cambia la hora de ingreso
-     EDITAR_REFRIGERIO      cambia salida o retorno de refrigerio
-     EDITAR_SALIDA          cambia la hora de salida
-     EDITAR_SALIDA_MTTO     Mantenimiento edita la salida de un maquinista (con motivo)
+     CREAR_TAREO
+     REGISTRAR_ASISTENCIA / EDITAR_ASISTENCIA
+     REGISTRAR_INGRESO    / EDITAR_INGRESO
+     REGISTRAR_REFRIGERIO / EDITAR_REFRIGERIO
+     REGISTRAR_SALIDA     / EDITAR_SALIDA
+     EDITAR_SALIDA_MTTO     Mantenimiento corrige la salida de un maquinista (con motivo)
      SALIDA_VISTA           el supervisor marca como vista una salida editada
-     TRABAJO_EN_DESCANSO    se marca a un maquinista que trabaja en su descanso
+     TRABAJO_EN_DESCANSO
      AGREGAR_PERSONAL / QUITAR_PERSONAL
      AGREGAR_POR_DIA / QUITAR_POR_DIA
-     CAMBIAR_ESTADO_TAREO   cambia el estado del tareo (abierto → cerrado, etc.)
+     CAMBIAR_ESTADO_TAREO
      ELIMINAR_TAREO
+   REGISTRAR_* = primer valor (de vacío/PENDIENTE a un valor).
+   EDITAR_*    = corrección de un valor que ya existía.
+   Cada evento lleva además esCorreccion (true/false) para filtrar.
+
+   Cada evento guarda: fecha y hora DEL SERVIDOR (serverTimestamp), usuario,
+   uid de Firebase (las reglas exigen uid == request.auth.uid), rol, área,
+   tareo, trabajador, campo, valor anterior y valor nuevo.
 
    Cómo detecta los cambios: guarda una "foto" de cada tareo y, después de
-   cada guardado, compara. Así no depende de dónde se edite.
+   cada guardado, compara. La foto se renueva ANTES de cualquier otra cosa
+   cada vez que llegan datos desde Firestore, y los cambios de una persona
+   solo se atribuyen si su marca actualizadoEn no es anterior a la de la foto:
+   así un cambio hecho por otro usuario o dispositivo nunca se registra a
+   nombre de quien guarda después.
+
    Si registrar un evento falla, NO bloquea el guardado del tareo: solo
    avisa en la consola. No registra nada en el modo "Ver como".
 
@@ -54,6 +66,7 @@
       const ediciones=Array.isArray(p.edicionesSalida)?p.edicionesSalida:[];
       personal[clavePersona(p)]={
         nombre:p.nombre||'',dni:p.dni||'',id:p.trabajadorId||p.id||'',
+        ts:Number(p.actualizadoEn||0),
         asistencia:p.asistencia||'',horaIngreso:p.horaIngreso||'',
         salidaRefrigerio:p.salidaRefrigerio||'',retornoRefrigerio:p.retornoRefrigerio||'',
         horaSalida:p.horaSalida||'',
@@ -80,11 +93,19 @@
   /* ---------- eventos ---------- */
   function usuarioActual(){
     const u=(typeof state!=='undefined'&&state.user)||{};
-    return {usuario:u.username||'',usuarioNombre:u.nombre||u.username||'',rol:u.rol||''};
+    let uid=null;
+    try{uid=(typeof auth!=='undefined'&&auth&&auth.currentUser&&auth.currentUser.uid)||null;}catch(_){/* sin sesión segura */}
+    return {usuario:u.username||'',usuarioNombre:u.nombre||u.username||'',uid,rol:u.rol||''};
   }
+  const esCorreccion=accion=>/^(EDITAR_|QUITAR_|ELIMINAR_)/.test(accion);
+  function marcaServidor(){
+    try{return firebase.firestore.FieldValue.serverTimestamp();}
+    catch(_){return null;}
+  }
+
   function evento(t,accion,campo,extra){
     return Object.assign({
-      timestamp:Date.now(),
+      timestamp:marcaServidor(),     // fecha y hora del servidor, no del dispositivo
       ...usuarioActual(),
       area:typeof tareoAreaDe==='function'?tareoAreaDe(t):(t.area||''),
       tareoId:t.id||'',
@@ -93,12 +114,18 @@
       trabajador:'',
       dni:'',
       accion,
+      esCorreccion:esCorreccion(accion),
       campo:campo||'',
       estadoAnterior:null,
       estadoNuevo:null
     },extra||{});
   }
-  const vacio=v=>v===undefined?null:v;
+
+  /* REGISTRAR (primer valor) o EDITAR (corrección de un valor existente). */
+  function accionValor(anterior,nuevo,nombre){
+    const previo=anterior!==undefined&&anterior!==null&&String(anterior).trim()!==''&&norm(anterior)!=='pendiente';
+    return (previo?'EDITAR_':'REGISTRAR_')+nombre;
+  }
 
   function diferencias(t,antes,ahora){
     const lista=[];
@@ -118,22 +145,26 @@
         lista.push(evento(t,'AGREGAR_PERSONAL','personal',Object.assign({estadoNuevo:n.nombre},quien)));
         return;
       }
-      if(a.asistencia!==n.asistencia)
-        lista.push(evento(t,'EDITAR_ASISTENCIA','asistencia',Object.assign({estadoAnterior:a.asistencia||null,estadoNuevo:n.asistencia||null},quien)));
-      if(a.horaIngreso!==n.horaIngreso)
-        lista.push(evento(t,'EDITAR_INGRESO','horaIngreso',Object.assign({estadoAnterior:a.horaIngreso||null,estadoNuevo:n.horaIngreso||null},quien)));
-      ['salidaRefrigerio','retornoRefrigerio'].forEach(c=>{
-        if(a[c]!==n[c])
-          lista.push(evento(t,'EDITAR_REFRIGERIO',c,Object.assign({estadoAnterior:a[c]||null,estadoNuevo:n[c]||null},quien)));
-      });
+      // Solo se atribuye lo que ESTE dispositivo cambió: si la persona de la foto es más
+      // reciente que la local, la diferencia viene de otro usuario/dispositivo (copia vieja).
+      if(n.ts<a.ts)return;
+      const cambia=(campo,nombre)=>{
+        if(a[campo]===n[campo])return;
+        lista.push(evento(t,accionValor(a[campo],n[campo],nombre),campo,
+          Object.assign({estadoAnterior:a[campo]||null,estadoNuevo:n[campo]||null},quien)));
+      };
+      cambia('asistencia','ASISTENCIA');
+      cambia('horaIngreso','INGRESO');
+      cambia('salidaRefrigerio','REFRIGERIO');
+      cambia('retornoRefrigerio','REFRIGERIO');
       if(n.nEdSalida>a.nEdSalida){
-        // Mantenimiento editó la salida de un maquinista (queda el motivo).
+        // Mantenimiento corrigió la salida de un maquinista (queda el motivo).
         const ed=n.ultimaEd||{};
         lista.push(evento(t,'EDITAR_SALIDA_MTTO','horaSalida',Object.assign({
           estadoAnterior:a.horaSalida||ed.horaAnterior||null,estadoNuevo:n.horaSalida||null,
           motivo:ed.motivo||'',editadaPor:ed.usuarioNombre||ed.usuario||''},quien)));
-      }else if(a.horaSalida!==n.horaSalida){
-        lista.push(evento(t,'EDITAR_SALIDA','horaSalida',Object.assign({estadoAnterior:a.horaSalida||null,estadoNuevo:n.horaSalida||null},quien)));
+      }else{
+        cambia('horaSalida','SALIDA');
       }
       if(!a.vista&&n.vista&&n.nEdSalida===a.nEdSalida)
         lista.push(evento(t,'SALIDA_VISTA','salidaVista',Object.assign({estadoNuevo:n.horaSalida||null},quien)));
@@ -171,7 +202,12 @@
       if(recientes.size>2000){
         for(const [k,v] of recientes){if(t-v>TTL_DUPLICADO_MS)recientes.delete(k);}
       }
-      const limpio=JSON.parse(JSON.stringify(ev,(k,v)=>v===undefined?null:v));
+      // undefined no es válido en Firestore; la marca del servidor se conserva tal cual.
+      const limpio={};
+      Object.keys(ev).forEach(k=>{
+        const v=ev[k];
+        limpio[k]=v===undefined?null:(k==='timestamp'?v:JSON.parse(JSON.stringify(v===undefined?null:v)));
+      });
       Promise.resolve(db.collection(COLECCION).add(limpio)).catch(e=>
         console.warn('Auditoría de tareos: no se pudo registrar '+ev.accion+':',e&&e.message?e.message:e));
     }catch(e){
@@ -239,13 +275,14 @@
     window.eliminarTareo=eliminarTareo;
   }
 
-  // Los cambios que llegan de otros equipos se toman como nuevo punto de partida (sin evento).
+  // Lo que llega de Firestore (cambios de otros usuarios o dispositivos) pasa a ser el
+  // punto de partida. Se renueva ANTES de ejecutar los demás avisos, porque algunos
+  // pueden guardar el tareo al refrescarse y eso no debe atribuir cambios ajenos.
   if(typeof onTareosUpdated==='function'){
     const original=onTareosUpdated;
     onTareosUpdated=function(){
-      const r=original.apply(this,arguments);
       sembrar();
-      return r;
+      return original.apply(this,arguments);
     };
     window.onTareosUpdated=onTareosUpdated;
   }
