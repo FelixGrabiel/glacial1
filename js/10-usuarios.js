@@ -99,6 +99,21 @@ function openUsersModal(){
 
             </button>
 
+            ${
+              typeof esAdministradorSeguridad==='function' &&
+              esAdministradorSeguridad()
+                ? `
+                  <button
+                    class="btn btn-primary btn-sm"
+                    onclick="migrarUsuariosASeguro()">
+
+                    🛡 Migrar usuarios a cuentas seguras
+
+                  </button>
+                `
+                : ''
+            }
+
           </div>
 
 
@@ -690,6 +705,29 @@ function renderUserList(){
 
 
             <!-- =============================================
+                 RESTABLECER CONTRASEÑA (cuenta segura)
+                 ============================================= -->
+
+            ${
+              typeof esAdministradorSeguridad==='function' &&
+              esAdministradorSeguridad()
+                ? `
+
+                  <button
+                    class="btn btn-ghost btn-sm"
+                    title="${u.authUid ? 'Cuenta segura' : 'Aún sin cuenta segura'}"
+                    onclick="restablecerClaveUsuario('${escaparHtml(u.username)}')">
+
+                    🔑 ${u.authUid ? 'Restablecer contraseña' : 'Crear cuenta segura'}
+
+                  </button>
+
+                `
+                : ''
+            }
+
+
+            <!-- =============================================
                  ELIMINAR
                  ============================================= -->
 
@@ -1052,10 +1090,52 @@ async function addUser(){
   }
 
 
+  /*
+     Cuenta segura (Firebase Authentication): la contraseña escrita aquí
+     es TEMPORAL; la persona la cambia al entrar. Si no se puede crear
+     (por ejemplo, el método aún no está activado en Firebase), se ofrece
+     guardar con el sistema anterior.
+  */
+  let seguro=null;
+
+  if(typeof crearCuentaSegura==='function'){
+
+    try{
+
+      seguro=
+        await crearCuentaSegura(
+          username,
+          password,
+          0
+        );
+
+    }catch(e){
+
+      console.warn('Cuenta segura no creada:',e);
+
+      if(
+        !confirm(
+          'No se pudo crear la cuenta segura ('+
+          (e&&e.code?e.code:(e&&e.message)||e)+
+          ').\n\n¿Guardar con el sistema anterior de contraseña?'
+        )
+      ){
+
+        return;
+
+      }
+
+    }
+
+  }
+
+
   const cred=
-    await crearCredencialPassword(
-      password
-    );
+    seguro
+      ? null
+      : await crearCredencialPassword(
+          password
+        );
 
 
   users.push({
@@ -1064,11 +1144,18 @@ async function addUser(){
 
     username,
 
-    salt:
-      cred.salt,
-
-    passwordHash:
-      cred.passwordHash,
+    ...(
+      seguro
+        ? {
+            authUid:seguro.uid,
+            authEmail:seguro.email,
+            authIdx:0
+          }
+        : {
+            salt:cred.salt,
+            passwordHash:cred.passwordHash
+          }
+    ),
 
     puesto,
 

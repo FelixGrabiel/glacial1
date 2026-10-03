@@ -1,0 +1,64 @@
+// =====================================================================
+// GLACIAL · REGLAS DE FIRESTORE — ETAPA 2 (ESTRICTAS: exigen inicio de sesión)
+// =====================================================================
+// ⚠ NO publicar hasta que:
+//   1. Todos los usuarios estén migrados a cuentas seguras
+//      (botón "Migrar usuarios a cuentas seguras") y hayan entrado
+//      al menos una vez con su contraseña nueva.
+//   2. LOGIN_LEGACY_PERMITIDO esté en false y REGLAS_ESTRICTAS en true (js/01-config.js).
+//   3. Se haya probado el sistema con las reglas de la etapa 1.
+// Si algo falla después de publicar, vuelve a pegar las reglas de la
+// etapa 1 (no se pierde ningún dato).
+//
+// Cómo funcionan:
+//   - Solo entra quien tenga sesión de Firebase Authentication Y figure
+//     en el documento sync/perfiles (uid -> rol). Quitar a un usuario de
+//     la lista de usuarios le quita el acceso.
+//   - Los documentos de usuarios y perfiles solo los escribe el
+//     Administrador.
+//   - Los datos operativos los escriben usuarios autenticados.
+//   - Limitación conocida: estas reglas validan QUIÉN eres, no cada campo
+//     que cambias. El control fino por permiso (tareo, paletas, etc.)
+//     sigue en la aplicación; endurecerlo por rol es una etapa posterior.
+// =====================================================================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function perfiles() {
+      return get(/databases/$(database)/documents/sync/perfiles).data.map;
+    }
+    function autenticado() {
+      return request.auth != null && request.auth.uid in perfiles();
+    }
+    function esAdmin() {
+      return autenticado() && perfiles()[request.auth.uid].rol == 'Administrador';
+    }
+
+    match /sync/{doc} {
+      // El perfil propio debe poder leerse para saber quién es quién.
+      // 'accesos' (usuario -> correo interno) es público: lo necesita el login.
+      allow read: if doc == 'accesos' || request.auth != null && (
+        doc == 'perfiles' || autenticado()
+      );
+
+      allow write: if
+        (doc in ['users', 'perfiles', 'accesos'] && esAdmin()) ||
+        (autenticado() && doc in [
+          'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
+          'rotacionMaquinistas', 'tareos', 'precios', 'paletas',
+          'programaciones', 'avancesTurno'
+        ]);
+    }
+
+    match /auditoriaTareos/{evento} {
+      allow read: if autenticado();
+      allow create: if autenticado();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -3327,6 +3327,27 @@ function renderFormTab(){
          Se conservan los códigos internos (value) para no romper
          ratios, insumos, historial ni registros existentes.
       */
+      const presentacionesCatalogo =
+        (PRESENTACIONES_POR_LINEA[state.currentLine] || [])
+          .map(p=>({
+            value:p,
+            label:
+              typeof nombrePresentacionUI === 'function'
+                ? nombrePresentacionUI(state.currentLine,q.marca,p)
+                : p
+          }));
+
+      const presentacionesPaletas =
+        state.currentLine !== 'B7L' &&
+        typeof presentacionesUnicasPaletas === 'function'
+          ? presentacionesUnicasPaletas(state.currentLine)
+          : [];
+
+      /*
+         El catálogo visual de Paletas solo cubre PET1/PET2. Para C20L,
+         B20L y B7L se usa el catálogo de la línea; antes quedaba vacío
+         ("Sin opciones") en los cuadros 2, 3 y 4.
+      */
       const presentaciones =
         state.currentLine === 'B7L'
           ? (PRESENTACIONES_POR_LINEA.B7L || [])
@@ -3335,16 +3356,9 @@ function renderFormTab(){
                 label:p
               }))
           : (
-              typeof presentacionesUnicasPaletas === 'function'
-                ? presentacionesUnicasPaletas(state.currentLine)
-                : (PRESENTACIONES_POR_LINEA[state.currentLine] || [])
-                    .map(p=>({
-                      value:p,
-                      label:
-                        typeof nombrePresentacionUI === 'function'
-                          ? nombrePresentacionUI(state.currentLine,q.marca,p)
-                          : p
-                    }))
+              presentacionesPaletas.length
+                ? presentacionesPaletas
+                : presentacionesCatalogo
             );
 
 
@@ -3626,7 +3640,7 @@ function renderFormTab(){
               <div class="field-sm">
 
                 <label>
-                  Lote automático
+                  Lote
                 </label>
 
                 <input
@@ -3844,11 +3858,22 @@ function renderFormTab(){
 
                 ${
                   field(
-                    draft.linea === 'C20L'
-                      ? 'Producción Programada (Caj)'
-                      : draft.linea === 'B20L'
-                        ? 'Producción Programada (Bid)'
-                        : 'Programada (bot)',
+                    (
+                      draft.linea === 'C20L'
+                        ? 'Producción Programada (Caj)'
+                        : draft.linea === 'B20L'
+                          ? 'Producción Programada (Bid)'
+                          : 'Programada (bot)'
+                    ) + (
+                      /* Autollenado desde la programación (35-autollenado-registro.js) */
+                      q.autoProgramada
+                        ? ''
+                        : (
+                            q.autoProgramadaDisponible
+                              ? ` <small>Programación: ${Number(q.autoProgramadaDisponible).toLocaleString('es-PE')} <a href="#" class="link-origen" onclick="registroUsarProgramada(${i});return false;">Usar</a></small>`
+                              : ''
+                          )
+                    ),
                     'number',
                     q.produccion.programada,
                     `
@@ -3857,18 +3882,36 @@ function renderFormTab(){
                         'produccion.programada',
                         this.value
                       )
-                    `
+                    `,
+                    q.autoProgramada
+                      ? `
+                        readonly
+                        title="Se llena solo desde la programación; corrígela en su origen"
+                        style="background:#f1f3f5;font-weight:700;cursor:not-allowed;"
+                      `
+                      : ''
                   )
                 }
 
 
                 ${
                   field(
-                    draft.linea === 'C20L'
-                      ? 'Producción Efectiva (Caj)'
-                      : draft.linea === 'B20L'
-                        ? 'Producción Efectiva (Bid)'
-                        : 'Efectiva (bot)',
+                    (
+                      draft.linea === 'C20L'
+                        ? 'Producción Efectiva (Caj)'
+                        : draft.linea === 'B20L'
+                          ? 'Producción Efectiva (Bid)'
+                          : 'Efectiva (bot)'
+                    ) + (
+                      /* Autollenado desde Paletas (35-autollenado-registro.js) */
+                      q.autoPaletas
+                        ? ''
+                        : (
+                            q.autoPaletasDisponible
+                              ? ` <small>Paletas: ${Number(q.autoPaletasDisponible).toLocaleString('es-PE')} UND <a href="#" class="link-origen" onclick="registroUsarPaletas(${i});return false;">Usar</a></small>`
+                              : ''
+                          )
+                    ),
                     'number',
                     q.produccion.efectiva,
                     `
@@ -3878,7 +3921,13 @@ function renderFormTab(){
                         this.value
                       )
                     `,
-                    `
+                    q.autoPaletas
+                      ? `
+                        readonly
+                        title="Se llena solo desde Paletas; corrígelo en su origen"
+                        style="background:#f1f3f5;font-weight:700;cursor:not-allowed;"
+                      `
+                      : `
                       onchange="
                         updateCuadroPath(
                           ${i},
@@ -3996,7 +4045,7 @@ function renderFormTab(){
                     ${
                       ['C20L','B20L'].includes(draft.linea)
                         ? 'Nº de Paletas'
-                        : 'Paletas (automático)'
+                        : 'Paletas'
                     }
                   </label>
 
@@ -5653,7 +5702,10 @@ function paradasTableCuadro(
           ${
             safeRows
               .map(
-                (r,i) => `
+                (r,i) => (
+                  typeof registroFilaAuto === 'function' &&
+                  registroFilaAuto(r,i,key,cuadroIndex,esProgramada)
+                ) || `
 
                   <tr>
 
@@ -5872,6 +5924,12 @@ function paradasTableCuadro(
 
       </table>
 
+      ${
+        typeof registroNotaParadas === 'function'
+          ? registroNotaParadas(rows)
+          : ''
+      }
+
     </div>
 
   `;
@@ -5923,9 +5981,11 @@ function updateArrItemCuadro(
   if(
     !q ||
     q.estadoCuadro==='FINALIZADO' ||
-    !q[key]?.[i]
+    !q[key]?.[i] ||
+    q[key][i].auto
   ){
 
+    // Las filas "Automático" se corrigen en su origen, no aquí.
     return;
 
   }
@@ -5962,6 +6022,9 @@ function removeArrItemCuadro(
 
 
   if(!q) return;
+
+  // Las filas "Automático" no se eliminan aquí: se corrigen en su origen.
+  if(q[key]?.[i]?.auto) return;
 
 
   q[key].splice(
@@ -6438,7 +6501,7 @@ function mermasTableCuadro(
                             unidadesEdit
 
                               ? `
-                                oninput="
+                                onchange="
                                   updateMermaCuadro(
                                     ${cuadroIndex},
                                     ${i},
@@ -6541,6 +6604,17 @@ function updateMermaCuadro(
   }
 
 
+  // Conserva la posición de la pantalla: el re-dibujado ya no la reinicia.
+  const scrollY =
+    window.scrollY;
+
+  const main =
+    document.getElementById('main');
+
+  const scrollMain =
+    main ? main.scrollTop : 0;
+
+
   q.mermas[i][field] =
     val === ''
       ? ''
@@ -6553,6 +6627,25 @@ function updateMermaCuadro(
 
 
   renderFormTab();
+
+
+  requestAnimationFrame(
+    () => {
+
+      window.scrollTo(
+        0,
+        scrollY
+      );
+
+      const mainActual =
+        document.getElementById('main');
+
+      if(mainActual){
+        mainActual.scrollTop = scrollMain;
+      }
+
+    }
+  );
 
 }
 
@@ -7023,7 +7116,7 @@ function mermasTable(
                 unidadesEditable
 
                   ? `
-                    oninput="
+                    onchange="
                       updateMerma(
                         ${i},
                         'unidades',

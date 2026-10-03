@@ -25,7 +25,7 @@
         service cloud.firestore {
           match /databases/{database}/documents {
             match /sync/{doc} {
-              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'];
+              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'rotacionesMantenimiento', 'rotacionMaquinistas', 'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'];
             }
             match /auditoriaTareos/{evento} {
               allow read, create: if true;
@@ -103,38 +103,33 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-
 /* =========================================================
-   FIREBASE APP CHECK (OPCIONAL, RECOMENDADO)
+   FIREBASE AUTHENTICATION (SEGURIDAD) — ver js/36-seguridad-auth.js
    =========================================================
+   - Cada usuario tiene una cuenta real de Firebase Authentication.
+     El "usuario" de siempre se convierte en un correo interno:
+     usuario@AUTH_DOMINIO (no necesita ser un correo real).
+   - La sesión dura mientras la pestaña esté abierta (como antes).
+   - LOGIN_LEGACY_PERMITIDO: mientras haya usuarios que todavía no se
+     migraron, pueden entrar con su contraseña anterior. Cuando todos
+     estén migrados, cámbialo a false.
+   Requiere habilitar "Correo electrónico/contraseña" en la consola de
+   Firebase (Authentication > Método de acceso).
+   ========================================================= */
 
-   Restringe el acceso a Firestore para que solo esta página
-   web pueda usarlo (bloquea scripts o herramientas externas
-   que intenten conectarse directo con la configuración de
-   arriba). No sustituye un login real, pero reduce mucho el
-   riesgo mientras se migra a Firebase Authentication.
+const AUTH_DOMINIO = 'glacial.app';
 
-   CÓMO ACTIVARLO:
-   1. En la consola de Firebase: App Check > Apps > registra
-      esta app web > proveedor "reCAPTCHA v3" > copia la
-      "Site key" que te entrega.
-   2. Agrega este script en index.html, ANTES de este archivo:
-        <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-check-compat.js"></script>
-   3. Reemplaza 'TU_SITE_KEY_DE_RECAPTCHA_V3' abajo por la
-      Site key del paso 1, y descomenta las líneas.
-   4. Prueba el sistema normalmente unos días con la app
-      registrada (en modo "no forzado").
-   5. Cuando confirmes que todo funciona bien, en la consola:
-      App Check > Firestore > "Aplicar" (Enforce). Desde ese
-      momento, Firestore rechazará cualquier lectura/escritura
-      que no venga de esta página.
-*/
+const LOGIN_LEGACY_PERMITIDO = true;
 
-// firebase.appCheck().activate(
-//   'TU_SITE_KEY_DE_RECAPTCHA_V3',
-//   true // refresca el token automáticamente
-// );
+/* ETAPA 2: true = la lectura de datos exige sesión (reglas estrictas, ver
+   firestore.rules.etapa2.txt). Mantener false hasta publicar esas reglas. */
+const REGLAS_ESTRICTAS = false;
 
+const auth = (typeof firebase.auth === 'function') ? firebase.auth() : null;
+
+if (auth) {
+  auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(() => {});
+}
 
 const LINES = [
   { key:'PET1', name:'PET 1', ratioDefault:1920 },
@@ -683,6 +678,84 @@ const PARADAS_PROGRAMADAS = [
   'Cierre de turno',
   'Encendido de máquinas'
 ];
+
+
+/* =========================================================
+   INTEGRACIÓN CON GOOGLE SHEETS (Apps Script) — LLENAR AQUÍ
+   =========================================================
+   SHEETS_URL   : URL de la aplicación web de Apps Script (termina en /exec).
+   SHEETS_CLAVE : clave que el script verifica antes de escribir.
+   Vacías = el envío a Google Sheets queda desactivado (el resto del
+   sistema funciona igual). Ver js/34-integraciones.js.
+   ========================================================= */
+
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxyG6ylq9N20W_svlnZB9-zk5a-KaLSEPcAFamRTLjmMwcV9FxUa8LN4-AoclqhTYo1/exec';
+
+const SHEETS_CLAVE = 'jefatura_glacial2626';
+
+
+/* =========================================================
+   CATÁLOGO DE MOTIVOS DE PARADA CON DURACIÓN ESTÁNDAR
+   (CONFIGURABLE — editar aquí)
+   =========================================================
+
+   Lo usan los botones PAUSA PROGRAMADA / DETENER LÍNEA de Producción
+   Actual y el cálculo central de tiempos (23b-tiempos-linea.js).
+
+   estandarMin > 0 : el EXCESO sobre esa duración se cuenta como parada
+                     NO programada (ej.: refrigerio de 75 min = 60
+                     programada + 15 no programada).
+   estandarMin = 0 : sin duración estándar; todo cuenta como programada.
+   ========================================================= */
+
+const CATALOGO_MOTIVOS_PARADA = {
+
+  programadas: [
+    { nombre:'Recepción de personal', estandarMin:10 },
+    { nombre:'Habilitación',          estandarMin:5  },
+    { nombre:'Orden y limpieza',      estandarMin:10 },
+    { nombre:'Refrigerio',            estandarMin:60 }
+  ],
+
+  noProgramadas: [
+    'Falta de paletas',
+    'Falla de máquina',
+    'Falta de insumos',
+    'Falta de personal',
+    'Calidad / producto no conforme',
+    'Otro'
+  ]
+
+};
+
+/* Lista completa de programadas: las del catálogo + las ya existentes (sin estándar). */
+function listaMotivosProgramados(){
+
+  const nombres = new Set(CATALOGO_MOTIVOS_PARADA.programadas.map(m => m.nombre));
+
+  return [
+    ...CATALOGO_MOTIVOS_PARADA.programadas,
+    ...PARADAS_PROGRAMADAS
+      .filter(nombre => !nombres.has(nombre))
+      .map(nombre => ({ nombre, estandarMin:0 }))
+  ];
+}
+
+function normalizarMotivoParada(texto){
+  return String(texto || '').toLowerCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/* Duración estándar (min) de un motivo programado; 0 si no tiene. */
+function estandarMotivoParada(nombre){
+
+  const clave = normalizarMotivoParada(nombre);
+
+  const m = listaMotivosProgramados()
+    .find(item => normalizarMotivoParada(item.nombre) === clave);
+
+  return m ? Number(m.estandarMin) || 0 : 0;
+}
 
 
 /* =========================================================

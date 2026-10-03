@@ -21,6 +21,9 @@ function closeModal(){
    INICIALIZACIÓN
    ========================================================= */
 
-initRealtimeSync();
+// Con reglas estrictas, la sincronización arranca DESPUÉS de iniciar sesión.
+if(typeof REGLAS_ESTRICTAS === "undefined" || !REGLAS_ESTRICTAS){
+  initRealtimeSync();
+}
 
 tryResumeSession();

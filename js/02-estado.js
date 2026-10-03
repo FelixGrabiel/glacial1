@@ -63,6 +63,7 @@ let _recordsCache = [];
 let _workersCache = [];
 let _rotacionesCache = [];
 let _rotacionesMantenimientoCache = [];
+let _rotacionMaquinistasCache = [];
 let _tareosCache = [];
 let _preciosCache = {};
 let _paletasCache = [];
@@ -146,6 +147,7 @@ const PERMISOS_APP=[
   {key:'moduloMantenimiento',label:'Módulo de Mantenimiento (Tareo y demás secciones del área — gestiona)'},
   {key:'gestionar_tareo_mantenimiento',label:'GESTIONAR Tareo de Mantenimiento (registrar, editar, validar)'},
   {key:'ver_tareo_mantenimiento',label:'VER Tareo de Mantenimiento (solo visualización)'},
+  {key:'editar_salida_maquinistas',label:'Editar SOLO la hora de salida de maquinistas (con motivo; no cambia asistencia ni refrigerio)'},
   {key:'moduloRRHH',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},
   {key:'exportarExcel',label:'Exportar Excel'},
   {key:'exportarExcelGeneral',label:'Exportar Excel general de planta'},
@@ -587,6 +589,42 @@ function initRealtimeSync(){
 
         console.error(
           'Error de sincronización (rotación semanal de mantenimiento):', err
+        );
+
+      }
+
+    );
+
+
+  /*
+     ROTACIÓN SEMANAL DE MAQUINISTAS (nodo nuevo e independiente)
+
+     sync/rotacionMaquinistas → items: una semana por elemento, con la
+     grilla lunes–domingo (DÍA / NOCHE / DESCANSO) y la línea de cada
+     maquinista. No modifica ninguna otra rotación.
+  */
+
+  db.collection('sync').doc('rotacionMaquinistas')
+
+    .onSnapshot(
+
+      snap => {
+
+        _rotacionMaquinistasCache =
+          (snap.exists && snap.data().items)
+            ? snap.data().items
+            : [];
+
+        if(typeof onRotacionMaquinistasUpdated === 'function'){
+          onRotacionMaquinistasUpdated();
+        }
+
+      },
+
+      err => {
+
+        console.error(
+          'Error de sincronización (rotación de maquinistas):', err
         );
 
       }
@@ -1281,6 +1319,29 @@ function saveRotacionesMantenimiento(r){
     items: _rotacionesMantenimientoCache,
     updatedAt: Date.now()
   }).catch(err => _avisarErrorGuardado('rotación semanal de mantenimiento', err));
+
+}
+
+
+/* =========================================================
+   ROTACIÓN SEMANAL DE MAQUINISTAS
+   ========================================================= */
+
+function loadRotacionMaquinistas(){
+
+  return _rotacionMaquinistasCache;
+
+}
+
+
+function saveRotacionMaquinistas(r){
+
+  _rotacionMaquinistasCache = Array.isArray(r) ? r : [];
+
+  db.collection('sync').doc('rotacionMaquinistas').set({
+    items: _rotacionMaquinistasCache,
+    updatedAt: Date.now()
+  }).catch(err => _avisarErrorGuardado('rotación de maquinistas', err));
 
 }
 

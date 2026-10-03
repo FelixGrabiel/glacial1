@@ -183,7 +183,14 @@
         registradoPor: p.registradoPor || '',
         actualizadoEn: Number(p.actualizadoEn || 0),
         _origenProduccion: true,
-        _existeEnProduccion: true
+        _existeEnProduccion: true,
+        salidaEditada: !!p.salidaEditada,
+        salidaOriginal: p.salidaOriginal || "",
+        edicionesSalida: p.edicionesSalida || [],
+        trabajoEnDescanso: !!p.trabajoEnDescanso,
+        _tareoId: produccion.id,
+        _clave: tareoClavePersona(p),
+        _persona: p
       }));
   }
 
@@ -231,7 +238,7 @@
                     <th>Retorno refrigerio</th>
                     <th>Salida</th>
                     <th>Horas</th>
-                    <th>Extras</th>
+                    <th>HORAS EXTRAS</th>
                     <th>Tardanza</th>
                     <th>Origen</th>
                   </tr>
@@ -254,9 +261,9 @@
                       </td>
                       <td>${p.horaIngreso || '—'}</td>
                       <td>${Number(p.refrigerio || 0) > 0 ? escaparHTML(String(p.refrigerio)) + ' h' : '—'}</td>
-                      <td>${p.horaSalida || '—'}</td>
+                      <td>${p.horaSalida || '—'}${tareoMarcaSalidaEditada(p)}${(typeof tareoPuedeEditarSalidaMaquinistas==='function' && tareoPuedeEditarSalidaMaquinistas() && p.horaSalida) ? '<button type="button" class="tar2-inline-btn" onclick="tareoEditarSalidaMaquinista(' + tareoArg(p._tareoId) + ',' + tareoArg(p._clave) + ')">Editar salida</button>' : ''}</td>
                       <td>${formatearHoras(p.horasTrabajadas)}</td>
-                      <td>${formatearHoras(p.horasExtras)}</td>
+                      <td>${tareoSaldoHTML(tareoSaldoHoras(p._persona))}</td>
                       <td>${Number(p.tardanzaMinutos || 0) > 0 ? formatearMinutos(p.tardanzaMinutos) : '—'}</td>
                       <td><span class="tar-maq-origin">Producción</span></td>
                     </tr>

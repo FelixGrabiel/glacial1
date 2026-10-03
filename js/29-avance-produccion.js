@@ -172,6 +172,8 @@ function avParadasRegistroLinea(linea,hora,tipo){
       if(ini&&corte&&ini>corte)return;
       [['paradasProgramadas','PROGRAMADA'],['paradasNoProgramadas','NO_PROGRAMADA']].forEach(([key,tipoParada])=>{
         (q[key]||[]).forEach((p,pi)=>{
+          // Las filas automáticas del registro vienen de este mismo origen: no se duplican.
+          if(p?.auto)return;
           if(!p?.descripcion||avNum(p.tiempoMin)<=0)return;
           out.push({
             id:avIdParadaRegistro(r.id,qi,key,pi,p),descripcion:p.descripcion,minutos:avNum(p.tiempoMin),estadoRegistro:r.estadoRegistro||'',
@@ -249,6 +251,37 @@ function avParadaCampo(i,campo,valor){
   // Así el input conserva foco/cursor mientras el supervisor escribe.
   if(campo==='minutos')avActualizarTotalParadasModal();
 }
+/* Hora de inicio/fin opcional: con ambas, los minutos se calculan y la parada
+   se fusiona por intervalo con las registradas por botón (sin contar doble). */
+function avParadaHora(i,campo,valor){
+  const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
+  p[campo]=valor||'';
+  if(p.horaInicio&&p.horaFin){
+    const a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=avHoraMs(m.fecha,p.horaFin,m.turno);
+    const fin=b<=a?b+86400000:b;
+    p.minutos=Math.max(0,Math.round((fin-a)/60000));
+  }
+  avRenderParadasModal();
+}
+/* Paradas ya registradas por los botones PAUSA PROGRAMADA / DETENER LÍNEA. */
+function avParadasBotonModal(m){
+  if(typeof calcularTiemposLinea!=='function')return [];
+  try{return calcularTiemposLinea(m.linea,m.turno,m.fecha).detalle||[];}catch(_){return [];}
+}
+function avParadasBotonHtml(m){
+  const lista=avParadasBotonModal(m);
+  if(!lista.length)return '';
+  return `<div class="av-paradas-note"><b>Ya registradas desde Producción Actual</b> (no las vuelvas a ingresar; ya se suman al total):
+    <ul style="margin:6px 0 0 16px;padding:0">${lista.map(p=>`<li>${avEsc(p.motivo)} · ${avHoraDesdeMs(p.inicio)}–${p.abierta?'abierta':avHoraDesdeMs(p.fin)} · ${avFmt(Math.round(p.minutos))} min · ${p.clasif==='PROGRAMADA'?'Programada':'No programada'}</li>`).join('')}</ul></div>`;
+}
+/* Avisa los motivos que ya existen por botón en el turno (no se suman dos veces). */
+function avDuplicadosConBoton(m,filas){
+  const motivos=new Set(avParadasBotonModal(m).map(p=>String(p.motivo||'').trim().toLowerCase()));
+  return filas.filter(p=>{
+    const d=String(p.descripcion||'').trim().toLowerCase();
+    return d&&motivos.has(d)&&!(p.horaInicio&&p.horaFin);
+  });
+}
 function avParadaQuitar(i){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   if(p.origen==='REGISTRO')p.eliminarSolicitado=true;
@@ -269,6 +302,7 @@ function avRenderParadasModal(){
   modal.innerHTML=`<div class="av-paradas-dialog"><header><div><small>REGISTRO SIMPLE DE PARADAS</small><h2>Agregar paradas</h2><p>${avFechaBonita(m.fecha)} · ${avEsc(m.turno)}</p><select class="av-paradas-linea" onchange="avCambiarLineaParadas(this.value)">${AVANCE_LINEAS.map(l=>`<option value="${l}" ${m.linea===l?'selected':''}>${AVANCE_NOMBRES[l]||l}</option>`).join('')}</select></div><button onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>✕</button></header>
   <div class="av-paradas-body"><datalist id="av-paradas-catalogo">${opciones}</datalist>
   <div class="av-paradas-note">Selecciona primero si la parada es <b>Programada</b> o <b>No programada</b>. Las paradas de <b>Nuevo registro</b> y <b>Avance/Cierre</b> se muestran juntas y no se copian a todas las marcas.</div>
+  ${avParadasBotonHtml(m)}
   ${!puedeEditar?`<div class="av-paradas-note"><b>Modo consulta:</b> el turno está cerrado o tu usuario no tiene permiso de edición.</div>`:''}
   ${m.error?`<div class="av-paradas-error">${avEsc(m.error)}</div>`:''}
   <div class="av-paradas-list">${m.filas.map((p,i)=>p.eliminarSolicitado?'':`<div class="av-parada-row ${p.tipo==='NO_PROGRAMADA'?'is-np':'is-p'}">
@@ -280,6 +314,8 @@ function avRenderParadasModal(){
     <div class="av-parada-motivo"><label>Motivo de parada</label><input ${p.tipo==='PROGRAMADA'?'list="av-paradas-catalogo"':''} value="${avEsc(p.descripcion||'')}" placeholder="${p.tipo==='NO_PROGRAMADA'?'Ej. Calibración envasadora':'Elige del catálogo o escribe'}" oninput="avParadaCampo(${i},'descripcion',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
     ${p.tipo==='NO_PROGRAMADA'?`<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(${i},'causa',this.value)" ${m.guardando||!puedeEditar?'disabled':''}><option value="">Seleccionar…</option>${causas.map(c=>`<option value="${avEsc(c)}" ${p.causa===c?'selected':''}>${avEsc(c)}</option>`).join('')}</select></div>`:''}
     <div class="av-parada-min"><label>Minutos</label><input type="number" min="1" step="1" value="${avNum(p.minutos)||''}" oninput="avParadaCampo(${i},'minutos',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>Desde (opc.)</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    <div class="av-parada-min"><label>Hasta (opc.)</label><input type="time" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
     <button class="av-parada-remove" title="Quitar fila" onclick="avParadaQuitar(${i})" ${m.guardando||!puedeEditar?'disabled':''}>✕</button>
     <small>${p.origen==='REGISTRO'?'Origen: Nuevo registro':'Origen: Avance/Cierre'}${p.tipo?` · ${p.tipo==='PROGRAMADA'?'Programada':'No programada'}`:''}</small>
   </div>`).join('')||'<p class="small-muted">Sin paradas. Usa “+ Agregar otra”.</p>'}</div>
@@ -309,6 +345,14 @@ async function avGuardarParadasModal(){
   const activas=m.filas.filter(p=>!p.eliminarSolicitado);
   const invalida=activas.find(p=>!['PROGRAMADA','NO_PROGRAMADA'].includes(p.tipo)||!String(p.descripcion||'').trim()||avNum(p.minutos)<=0||(p.tipo==='NO_PROGRAMADA'&&!String(p.causa||'').trim()));
   if(invalida){m.error='Completa Tipo, Motivo y Minutos. En una parada No programada también debes seleccionar la Causa.';avRenderParadasModal();return;}
+
+  // Motivos que ya fueron registrados por botón en este turno: se avisa y no se suman dos veces.
+  const duplicadas=avDuplicadosConBoton(m,activas);
+  if(duplicadas.length){
+    alert('Estas paradas ya fueron registradas con el botón de Producción Actual y NO se sumarán dos veces:\n\n- '+
+      duplicadas.map(p=>`${p.descripcion} (${avNum(p.minutos)} min)`).join('\n- ')+
+      '\n\nPuedes quitarlas, o indicar "Desde/Hasta" si es otra parada distinta.');
+  }
 
   // Solo tocamos sync/records si realmente se está editando/eliminando
   // una parada cuyo origen es Nuevo registro. Las paradas creadas aquí
@@ -543,7 +587,23 @@ function avLineaSnapshot(linea,hora,tipo){
   // Ratio Turno del reporte:
   // producción acumulada / horas efectivas.
   // Horas efectivas = tiempo transcurrido - paradas acumuladas.
-  const minutosEfectivos=Math.max(0,minTurno-totalParadas);
+  // También se descuentan DETENER LÍNEA y PAUSA PROGRAMADA (Producción Actual),
+  // calculadas por la función central (23b-tiempos-linea.js) hasta este corte.
+  // Las paradas del supervisor ya están en totalParadas: no se vuelven a sumar.
+  // Se usa la función central: unifica supervisor + botones, fusiona solapes,
+  // aplica duraciones estándar y evita contar dos veces un mismo motivo.
+  let opNoProg=0,opProg=0,minutosEfectivos=Math.max(0,minTurno-totalParadas);
+  if(typeof calcularTiemposLinea==='function'&&inicio){
+    const T=calcularTiemposLinea(linea,avanceEstado.turno,avanceEstado.fecha,{
+      inicioMs:avHoraMs(avanceEstado.fecha,inicio,avanceEstado.turno),
+      finMs:avHoraMs(avanceEstado.fecha,corte,avanceEstado.turno)
+    });
+    if(T.ok){
+      opNoProg=T.fuentes.boton.noProgramadas;
+      opProg=T.fuentes.boton.programadas;
+      minutosEfectivos=T.tiempoOperativoMin;
+    }
+  }
   const ratio=minutosEfectivos>0?produccionTotal/(minutosEfectivos/60):0;
 
   return {
@@ -559,6 +619,7 @@ function avLineaSnapshot(linea,hora,tipo){
     paradasNoProgramadas:paradas.filter(p=>p.tipo==='NO_PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
     observaciones:avObservacionesLinea(linea),
     minutosTranscurridos:minTurno,minutosEfectivos,
+    paradasOperacion:{noProgramadas:opNoProg,programadas:opProg},
     sinProduccion:produccionTotal<=0
   };
 }
@@ -858,6 +919,8 @@ async function avGenerar(hora,tipo='AVANCE'){
     avanceEstado.preview=s.texto||'';
     avanceEstado.previewId=s.id;
     avAviso(tipo==='CIERRE'?'Cierre generado correctamente.':'Avance generado correctamente.');
+    // Envío automático a Google Sheets (no bloquea ni afecta el cierre si falla).
+    if(tipo==='CIERRE'&&typeof sheetsEnviarCierre==='function')sheetsEnviarCierre(s,{automatico:true});
   }catch(e){
     console.error(e);
     alert(e.message||'No se pudo generar el avance.');
@@ -997,6 +1060,8 @@ function avAccionesSnapshot(s,flotante=false){
     <button class="btn btn-ghost btn-sm" onclick="avVer('${s.id}')">VER</button>
     <button class="btn btn-primary btn-sm" onclick="avCopiar('${s.id}')">📋 COPIAR TEXTO</button>
     <button class="btn btn-ghost btn-sm" onclick="avGenerarImagen('${s.id}')">🖼 GENERAR IMAGEN</button>
+    ${s.tipo==='CIERRE'?`<button class="btn btn-ghost btn-sm" onclick="wspEnviarCierre('${s.id}')">📲 Enviar por WhatsApp</button>
+    <button class="btn btn-ghost btn-sm" onclick="sheetsReenviarCierre('${s.id}')">Enviar a Google Sheets</button>`:''}
   </div>`;
 }
 async function avGenerarAhora(){

@@ -677,7 +677,84 @@ function tareoEsEnTiempoReal(tareo) {
    CONTADORES DE UN TAREO
    ========================================================= */
 
-function tareoContadores(personal) {
+/* =========================================================
+   HORAS EXTRAS = SALDO (horas trabajadas − jornada)
+   =========================================================
+   Horas trabajadas ya descuentan el refrigerio y resuelven turnos de
+   noche que cruzan la medianoche. Positivo = a favor (+, verde);
+   negativo = en contra (−, rojo); exacto = 0:00 (gris). Solo se calcula
+   cuando hay ingreso y salida; si no, es null ("—").
+   NO modifica persona.horasExtras (campo guardado, sigue igual).
+*/
+
+function tareoSaldoHoras(persona, jornada) {
+
+    const j = Number(jornada) || 8;
+
+    if (!persona) return null;
+
+    if (persona.tipo === 'POR DÍA') {
+
+        if (!persona.horaIngreso || !persona.horaSalida) return null;
+
+        return tareoHorasPorDia(persona) - j;
+    }
+
+    if (
+        tareoEstadoCanonico(persona.asistencia) !== 'Asistió' ||
+        !persona.horaIngreso ||
+        !persona.horaSalida
+    ) {
+        return null;
+    }
+
+    const refrigerio = calcularMinutosRefrigerio(
+        persona.salidaRefrigerio,
+        persona.retornoRefrigerio
+    ) / 60;
+
+    return calcularHorasTrabajadas(
+        persona.horaIngreso,
+        persona.horaSalida,
+        refrigerio
+    ) - j;
+}
+
+/* Texto H:MM con signo. */
+function tareoTextoSaldo(saldo) {
+
+    if (saldo === null || saldo === undefined || Number.isNaN(saldo)) return '—';
+
+    const minutos = Math.round(Math.abs(saldo) * 60);
+
+    if (minutos === 0) return '0:00';
+
+    return (saldo > 0 ? '+' : '-') +
+        Math.floor(minutos / 60) + ':' + String(minutos % 60).padStart(2, '0');
+}
+
+function tareoSaldoHTML(saldo) {
+
+    if (saldo === null || saldo === undefined || Number.isNaN(saldo)) return '—';
+
+    const minutos = Math.round(Math.abs(saldo) * 60);
+
+    const clase = minutos === 0
+        ? 'tareo-saldo-cero'
+        : (saldo > 0 ? 'tareo-saldo-pos' : 'tareo-saldo-neg');
+
+    return `<strong class="${clase}">${tareoTextoSaldo(saldo)}</strong>`;
+}
+
+/* Saldo para exportar a Excel: horas decimales con signo (sumable). */
+function tareoSaldoNumero(saldo) {
+
+    return saldo === null || saldo === undefined || Number.isNaN(saldo)
+        ? ''
+        : Number(saldo.toFixed(2));
+}
+
+function tareoContadores(personal, jornada) {
 
     const c = {
         total: personal.length,
@@ -686,7 +763,10 @@ function tareoContadores(personal) {
         ausencias: 0,
         tardanzas: 0,
         horas: 0,
-        extras: 0
+        extras: 0,
+        saldo: 0,
+        saldoFavor: 0,
+        saldoContra: 0
     };
 
     personal.forEach(persona => {
@@ -707,6 +787,14 @@ function tareoContadores(personal) {
 
         c.horas += Number(persona.horasTrabajadas || 0);
         c.extras += Number(persona.horasExtras || 0);
+
+        const s = tareoSaldoHoras(persona, jornada);
+
+        if (s !== null) {
+            c.saldo += s;
+            if (s > 0) c.saldoFavor += s;
+            if (s < 0) c.saldoContra += -s;
+        }
     });
 
     c.registrados = c.total - c.pendientes;
@@ -815,7 +903,10 @@ function tareoFusionar(remoto, local) {
                     Array.isArray(base.personal)
                         ? base.personal
                         : []
-                )
+                ),
+
+            personalPorDia:
+                tareoFusionarPorDia(remoto, local)
         };
     }
 
@@ -877,7 +968,10 @@ function tareoFusionar(remoto, local) {
                 Array.from(
                     mapa.values()
                 )
-            )
+            ),
+
+        personalPorDia:
+            tareoFusionarPorDia(remoto, local)
     };
 }
 
@@ -1086,6 +1180,18 @@ function tareoInyectarEstilos() {
         .tar2-ficha-item span{display:block;font-size:11px;color:var(--text-soft,#5a6b78);}
         .tar2-ficha-item strong{font-size:15px;}
         .tar2-ficha-sub{font-weight:700;font-size:13px;margin:14px 0 4px;}
+        .tareo-saldo-pos{color:#1e7f4e;}
+        .tareo-saldo-neg{color:#c62828;}
+        .tareo-saldo-cero{color:#8a98a5;}
+        .tar2-salida-orig{display:block;font-size:10px;color:#8a98a5;text-decoration:line-through;}
+        .tar2-editado{display:inline-block;margin-left:4px;font-size:11px;color:#8a4b0f;cursor:help;}
+        .tar2-alerta-salida{margin:0 0 12px;padding:10px 12px;border:1px solid #efc98a;border-left:4px solid #e0a100;border-radius:8px;background:#fff8e6;color:#6b4a00;font-size:13px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;}
+        .tar2-chip-descanso{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;background:#eceff2;color:#5a7083;}
+        .tar2-chip-trabajo-desc{background:#fdf0e1;color:#8a4b0f;}
+        .tar2-totales{margin:0 0 12px;padding:8px 12px;border:1px solid var(--line,#d9e2e8);border-radius:8px;background:#f3f8fc;font-size:13px;color:var(--text-soft,#405261);}
+        .tar2-totales strong{color:#003B5C;}
+        .tar2-tecnicos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px;}
+        .tar2-tecnicos li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0;border-bottom:1px dashed #e5edf3;}
         .tareo-consulta-badge{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#eef3f7;color:#4a6072;border:1px solid #d3dee6;}
         .tareo-consulta-badge::before{content:'👁';font-size:11px;}
         @media (max-width:640px){.tar2-ficha-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
@@ -1898,7 +2004,7 @@ function crearPersonalTareo(
 
     const base =
         areaTareo === 'Mantenimiento'
-            ? obtenerPersonalTareo('Mantenimiento')
+            ? tareoPersonalMantenimientoTurno(fecha, normalizarTurno(turno) || 'Día')
             : obtenerPersonalPorRotacion(
                 fecha,
                 turno
@@ -2235,6 +2341,145 @@ function tareoCambiarFechaVista(fecha) {
 }
 
 
+/* =========================================================
+   PROGRAMADOS POR TURNO (según la rotación semanal vigente)
+   =========================================================
+   Producción: rotación Excel semanal.
+   Mantenimiento: rotación semanal de Mantenimiento
+   (sync/rotacionesMantenimiento, pestaña "Rotación semanal MTTO").
+   El turno "Intermedio" de Mantenimiento se agrupa con Día.
+   No se guarda nada nuevo: solo se lee.
+*/
+
+function tareoRotacionMttoSemana(fecha) {
+
+    const lista = typeof loadRotacionesMantenimiento === 'function'
+        ? (loadRotacionesMantenimiento() || [])
+        : [];
+
+    return lista.find(
+        r => r && r.fechaInicio &&
+            r.fechaInicio <= fecha &&
+            fecha <= (r.fechaFin || r.fechaInicio)
+    ) || null;
+}
+
+function tareoProgramadosPorTurno(area, fecha) {
+
+    const res = { tieneRotacion: false, turnos: { 'Día': [], 'Noche': [] } };
+
+    if (area === 'Mantenimiento') {
+
+        const rot = tareoRotacionMttoSemana(fecha);
+
+        if (!rot) return res;
+
+        res.tieneRotacion = true;
+
+        (rot.personal || []).forEach(p => {
+
+            const t = tareoNormalizarTexto(p.turno).includes('noche')
+                ? 'Noche'
+                : 'Día';
+
+            res.turnos[t].push(p);
+        });
+
+        return res;
+    }
+
+    res.maquinistas = { 'Día': null, 'Noche': null };
+
+    ['Día', 'Noche'].forEach(t => {
+
+        const r = obtenerPersonalPorRotacion(fecha, t);
+
+        if (r.tieneRotacion) res.tieneRotacion = true;
+
+        res.turnos[t] = r.personal;
+
+        // Con rotación de maquinistas vigente, ellos se cuentan aparte.
+        if (typeof rotacionMaquinistasDia === 'function') {
+
+            const m = rotacionMaquinistasDia(fecha, t);
+
+            if (m.tieneRotacion) {
+
+                const enRot = [...m.trabajan, ...m.descansan];
+
+                res.turnos[t] = r.personal.filter(
+                    p => !enRot.some(x => tareoMismaPersonaFlexible(x, p))
+                );
+
+                res.maquinistas[t] = m.trabajan.length;
+            }
+        }
+    });
+
+    return res;
+}
+
+/*
+   Personal de Mantenimiento que le toca a un turno. Si existe rotación
+   de Mantenimiento para la semana, un técnico asignado al OTRO turno no
+   se incluye; el Supervisor de Mantenimiento (que no rota) y quienes no
+   figuran en la rotación entran a ambos. Sin rotación: todos (como antes).
+*/
+function tareoPersonalMantenimientoTurno(fecha, turno) {
+
+    const base = obtenerPersonalTareo('Mantenimiento');
+
+    const prog = tareoProgramadosPorTurno('Mantenimiento', fecha);
+
+    if (!prog.tieneRotacion) return base;
+
+    const otro = turno === 'Noche' ? 'Día' : 'Noche';
+
+    const ids = lista => new Set(lista.flatMap(tareoIdentidades));
+
+    const delOtro = ids(prog.turnos[otro]);
+    const propios = ids(prog.turnos[turno === 'Noche' ? 'Noche' : 'Día']);
+
+    return base.filter(trabajador => {
+
+        const claves = tareoIdentidades(trabajador);
+
+        if (claves.some(c => propios.has(c))) return true;
+
+        return !claves.some(c => delOtro.has(c));
+    });
+}
+
+/* ---------- Personal POR DÍA (no planilla): campo nuevo tareo.personalPorDia ---------- */
+
+function tareoPorDiaActivos(tareo) {
+
+    return (Array.isArray(tareo && tareo.personalPorDia) ? tareo.personalPorDia : [])
+        .filter(p => p && !p.eliminada);
+}
+
+function tareoPorDiaDelDia(area, fecha) {
+
+    return obtenerTareos()
+        .filter(t => tareoAreaDe(t) === area && t.fecha === fecha)
+        .reduce((total, t) => total + tareoPorDiaActivos(t).length, 0);
+}
+
+/* Horas trabajadas de una persona por día (ingreso → salida). */
+function tareoHorasPorDia(persona) {
+
+    const a = convertirHoraMinutos(persona.horaIngreso);
+    const b = convertirHoraMinutos(persona.horaSalida);
+
+    if (a === null || b === null || a === undefined || b === undefined) return 0;
+
+    let min = b - a;
+
+    if (min < 0) min += 24 * 60;
+
+    return min / 60;
+}
+
 function tareoTarjetaTurnoHTML(area, fecha, turno) {
 
     const tareo = tareoBuscar(area, fecha, turno);
@@ -2246,6 +2491,46 @@ function tareoTarjetaTurnoHTML(area, fecha, turno) {
     const porcentaje = c && c.total
         ? Math.round(c.registrados * 100 / c.total)
         : 0;
+
+    const prog = tareoProgramadosPorTurno(area, fecha);
+    const programados = prog.turnos[turno] || [];
+    const porDia = tareo ? tareoPorDiaActivos(tareo).length : 0;
+
+    /* Mantenimiento: técnicos del turno con su estado de asistencia. */
+    const estadoDe = persona => {
+
+        if (!tareo) return '';
+
+        const claves = tareoIdentidades(persona);
+
+        const fila = (tareo.personal || []).find(
+            item => tareoIdentidades(item).some(k => claves.includes(k))
+        );
+
+        if (!fila) return '';
+
+        return `<span class="tareo-status ${tareoClaseEstado(fila.asistencia)}">${escaparHTML(tareoEtiquetaEstado(fila.asistencia))}</span>`;
+    };
+
+    const tecnicos = area === 'Mantenimiento' && programados.length
+        ? `<ul class="tar2-tecnicos">${programados.map(p => `
+              <li><span>${escaparHTML(p.nombre || '')}</span>${estadoDe(p)}</li>`).join('')}</ul>`
+        : '';
+
+    const nMaq = prog.maquinistas ? prog.maquinistas[turno] : null;
+
+    const lineaProgramados = `
+        <div class="tar2-card-meta">
+            ${
+                prog.tieneRotacion
+                    ? `<strong>${programados.length}</strong> ${area === 'Mantenimiento' ? (programados.length === 1 ? 'técnico' : 'técnicos') : 'programados'}`
+                    : '<span class="tareo-warn">Sin rotación</span>'
+            }
+            ${nMaq !== null && nMaq !== undefined ? ` · Maquinistas: <strong>${nMaq}</strong>` : ''}
+            ${porDia ? ` · Por día: <strong>${porDia}</strong>` : ''}
+        </div>
+        ${tecnicos}
+    `;
 
     return `
         <div class="tar2-card">
@@ -2262,6 +2547,8 @@ function tareoTarjetaTurnoHTML(area, fecha, turno) {
 
             </div>
 
+            ${lineaProgramados}
+
             ${
                 tareo
                     ? `
@@ -2270,7 +2557,7 @@ function tareoTarjetaTurnoHTML(area, fecha, turno) {
                     </div>
 
                     <div class="tar2-card-meta">
-                        <strong>${c.registrados}/${c.total}</strong> registrados ·
+                        <strong>${c.registrados} de ${c.total}</strong> registrados ·
                         ${c.asistieron} asistieron ·
                         ${c.pendientes} pendientes
                         ${
@@ -2438,6 +2725,31 @@ function renderTareoPrincipal() {
             </div>
 
             <div class="panel-body">
+
+                ${(() => {
+
+                    const p = tareoProgramadosPorTurno(area, fechaVista);
+                    const d = p.turnos['Día'].length;
+                    const n = p.turnos['Noche'].length;
+                    const porDia = tareoPorDiaDelDia(area, fechaVista);
+
+                    return `
+                        <div class="tar2-totales">
+                            ${
+                                p.tieneRotacion
+                                    ? `Día: <strong>${d}</strong> · Noche: <strong>${n}</strong> · Total: <strong>${d + n}</strong>`
+                                    : '<span class="tareo-warn">Sin rotación</span>'
+                            }
+                            ${p.maquinistas && p.maquinistas['Día'] !== null ? ` · Maquinistas: <strong>${(p.maquinistas['Día'] || 0) + (p.maquinistas['Noche'] || 0)}</strong>` : ''}
+                            ${porDia ? ` · Por día: <strong>${porDia}</strong>` : ''}
+                        </div>
+                        ${
+                            !p.tieneRotacion && area === 'Mantenimiento'
+                                ? '<div class="small-muted" style="margin:-4px 0 10px;">Asigna el turno de cada técnico en la pestaña "Rotación semanal MTTO".</div>'
+                                : ''
+                        }
+                    `;
+                })()}
 
                 <div class="tar2-turno-grid">
                     ${tareoTarjetaTurnoHTML(area, fechaVista, 'Día')}
@@ -2881,9 +3193,32 @@ function tareoSincronizarConRotacion(tareo) {
                     anterior.observacion || '',
 
                 actualizadoEn:
-                    Number(anterior.actualizadoEn || 0)
+                    Number(anterior.actualizadoEn || 0),
+
+                /* Campos de maquinistas: se conservan al sincronizar con la rotación Excel. */
+                ...(anterior.origenMaquinista ? { origenMaquinista: anterior.origenMaquinista } : {}),
+                ...(anterior.trabajoEnDescanso ? { trabajoEnDescanso: true } : {}),
+                ...(anterior.salidaEditada
+                    ? {
+                        salidaEditada: true,
+                        salidaOriginal: anterior.salidaOriginal || '',
+                        edicionesSalida: anterior.edicionesSalida || []
+                    }
+                    : {})
             };
         });
+
+    // Maquinistas agregados por la rotación de maquinistas (no están en el Excel).
+    (tareo.personal || []).forEach(previa => {
+
+        if (
+            previa &&
+            (previa.origenMaquinista === 'ROT_MAQ' || previa.trabajoEnDescanso) &&
+            !nuevoPersonal.some(n => tareoMismaPersonaFlexible(n, previa))
+        ) {
+            nuevoPersonal.push(previa);
+        }
+    });
 
     /*
        IMPORTANTE:
@@ -2936,7 +3271,7 @@ function tareoSincronizarPersonalMantenimiento(tareo) {
 
     const identidades = new Set(unicos.flatMap(tareoIdentidades));
 
-    const nuevos = obtenerPersonalTareo('Mantenimiento')
+    const nuevos = tareoPersonalMantenimientoTurno(tareo.fecha, normalizarTurno(tareo.turno) || 'Día')
         .filter(
             trabajador =>
                 !tareoIdentidades(trabajador).some(clave => identidades.has(clave))
@@ -3125,14 +3460,19 @@ function renderTareoFormulario(tareo) {
 
     const area = tareoAreaDe(tareo);
 
-    const personal = tareo.personal || [];
+    // Maquinistas según la rotación de maquinistas (bloque aparte).
+    tareoSincronizarMaquinistas(tareo);
+
+    const maqCtx = tareoMaquinistasContexto(tareo);
+
+    const personal = tareoPersonalSinMaquinistas(tareo, maqCtx);
 
     const rotacion =
         area === 'Producción'
             ? obtenerRotacionVigente(tareo.fecha)
             : null;
 
-    const c = tareoContadores(personal);
+    const c = tareoContadores(personal, tareo.jornadaNormal);
 
     const filtro = tareoNormalizarTexto(tareoFiltroTexto);
 
@@ -3164,6 +3504,7 @@ function renderTareoFormulario(tareo) {
 
         </div>
 
+        ${tareoAlertasSalidaHTML(tareo)}
 
         <div class="tareo-kpi-grid">
 
@@ -3288,6 +3629,7 @@ function renderTareoFormulario(tareo) {
                             <span>
                                 Personal cargado:
                                 <strong>${personal.length}</strong>
+                                ${maqCtx.tiene ? ` · Maquinistas: <strong>${maqCtx.filas.length}</strong>` : ''}
                             </span>
                             `
                     }
@@ -3360,7 +3702,7 @@ function renderTareoFormulario(tareo) {
                                 <th>Retorno refrigerio</th>
                                 <th>Salida</th>
                                 <th>Horas</th>
-                                <th>Extras</th>
+                                <th>HORAS EXTRAS</th>
                                 <th>Tardanza</th>
                             </tr>
 
@@ -3387,6 +3729,11 @@ function renderTareoFormulario(tareo) {
             </div>
 
         </div>
+
+
+        ${maqCtx.tiene ? tareoBloqueMaquinistasHTML(tareo, maqCtx) : ''}
+
+        ${tareoSeccionPorDiaHTML(tareo, true)}
 
 
         <div class="panel">
@@ -3417,6 +3764,13 @@ function renderTareoFormulario(tareo) {
                 onclick="renderTareoPrincipal()"
             >
                 Volver
+            </button>
+
+            <button
+                class="btn btn-ghost"
+                onclick="wspEnviarTareo(tareoActualId)"
+            >
+                📲 Enviar por WhatsApp
             </button>
 
             <button
@@ -3484,6 +3838,909 @@ function tareoRefrescarFormularioRemoto() {
 /* =========================================================
    AGREGAR PERSONAL A UN TAREO
    ========================================================= */
+
+/* =========================================================
+   MAQUINISTAS · rotación, bloque del Tareo de Producción y
+   edición de SALIDA por Mantenimiento
+   =========================================================
+   - Los maquinistas siguen guardándose en tareo.personal (misma
+     estructura de siempre), así Mantenimiento los refleja sin duplicar.
+   - La rotación de maquinistas vive en sync/rotacionMaquinistas
+     (33-rotacion-maquinistas.js) y decide quién aparece en cada turno.
+   - Campos nuevos por persona: origenMaquinista, trabajoEnDescanso,
+     salidaEditada, salidaOriginal, edicionesSalida[].
+*/
+
+function tareoEsMaquinista(persona) {
+
+    if (!persona) return false;
+
+    if (typeof tareoEsMaquinistaEquipo === 'function') {
+        return tareoEsMaquinistaEquipo(persona.cargo || '');
+    }
+
+    return /\bmaquinista/.test(tareoNormalizarTexto(persona.cargo));
+}
+
+/* Misma persona por DNI/ID o, si faltan, por nombre. */
+function tareoMismaPersonaFlexible(a, b) {
+
+    const ca = tareoIdentidades(a);
+    const cb = tareoIdentidades(b);
+
+    if (ca.some(k => cb.includes(k))) return true;
+
+    const na = tareoNormalizarTexto(a && a.nombre).replace(/\s+/g, ' ');
+    const nb = tareoNormalizarTexto(b && b.nombre).replace(/\s+/g, ' ');
+
+    return !!na && na === nb;
+}
+
+function tareoMaquinistasContexto(tareo) {
+
+    const vacio = { tiene: false, filas: [], descanso: [], total: 0 };
+
+    if (
+        !tareo ||
+        tareoAreaDe(tareo) !== 'Producción' ||
+        typeof rotacionMaquinistasDia !== 'function'
+    ) {
+        return vacio;
+    }
+
+    const r = rotacionMaquinistasDia(tareo.fecha, tareo.turno);
+
+    if (!r.tieneRotacion) return vacio;
+
+    const personal = tareo.personal || [];
+
+    const buscar = p => personal.find(x => tareoMismaPersonaFlexible(x, p));
+
+    const filas = [];
+    const descanso = [];
+
+    r.trabajan.forEach(p => {
+        const fila = buscar(p);
+        if (fila) filas.push(fila);
+    });
+
+    r.descansan.forEach(p => {
+
+        const fila = buscar(p);
+
+        if (
+            fila &&
+            (fila.trabajoEnDescanso || tareoEstadoCanonico(fila.asistencia) === 'Asistió')
+        ) {
+            filas.push(fila);
+        } else {
+            descanso.push(p);
+        }
+    });
+
+    return {
+        tiene: true,
+        filas,
+        descanso,
+        total: filas.length,
+        enRotacion: [...r.trabajan, ...r.descansan]
+    };
+}
+
+/* Personal de planilla sin los maquinistas que maneja el bloque aparte. */
+function tareoPersonalSinMaquinistas(tareo, ctx) {
+
+    if (!ctx || !ctx.tiene) return tareo.personal || [];
+
+    return (tareo.personal || []).filter(
+        p => !ctx.enRotacion.some(m => tareoMismaPersonaFlexible(m, p))
+    );
+}
+
+/* Agrega al tareo a los maquinistas que tocan según la rotación (sin duplicar). */
+function tareoSincronizarMaquinistas(tareo) {
+
+    if (
+        !tareo ||
+        tareoAreaDe(tareo) !== 'Producción' ||
+        typeof rotacionMaquinistasDia !== 'function' ||
+        !tareoAutorizadoEscribir('Producción')
+    ) {
+        return;
+    }
+
+    const r = rotacionMaquinistasDia(tareo.fecha, tareo.turno);
+
+    if (!r.tieneRotacion) return;
+
+    tareo.personal = tareo.personal || [];
+
+    let cambio = false;
+
+    r.trabajan.forEach(m => {
+
+        if (tareo.personal.some(x => tareoMismaPersonaFlexible(x, m))) return;
+
+        const persona = tareoNuevaPersona({
+            trabajadorId: m.trabajadorId,
+            nombre: m.nombre,
+            dni: m.dni,
+            cargo: 'Maquinista de Producción',
+            linea: m.linea
+        }, 'Producción');
+
+        persona.origenMaquinista = 'ROT_MAQ';
+
+        tareo.personal.push(persona);
+
+        cambio = true;
+    });
+
+    if (cambio) {
+
+        tareo.personal = ordenarPersonalTareo(tareo.personal);
+
+        guardarTareoEnMemoria(tareo);
+    }
+}
+
+function tareoTrabajoEnDescanso(clave) {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const r = rotacionMaquinistasDia(tareo.fecha, tareo.turno);
+
+    const m = r.descansan.find(p => tareoIdentidades(p).includes(clave));
+
+    if (!m) return;
+
+    tareo.personal = tareo.personal || [];
+
+    let persona = tareo.personal.find(x => tareoMismaPersonaFlexible(x, m));
+
+    if (!persona) {
+
+        persona = tareoNuevaPersona({
+            trabajadorId: m.trabajadorId,
+            nombre: m.nombre,
+            dni: m.dni,
+            cargo: 'Maquinista de Producción',
+            linea: m.linea
+        }, 'Producción');
+
+        tareo.personal.push(persona);
+    }
+
+    persona.origenMaquinista = 'ROT_MAQ';
+    persona.trabajoEnDescanso = true;
+    persona.actualizadoEn = Date.now();
+
+    tareo.personal = ordenarPersonalTareo(tareo.personal);
+
+    guardarTareoEnMemoria(tareo);
+
+    renderTareoFormulario(tareo);
+}
+
+function tareoBloqueMaquinistasHTML(tareo, ctx) {
+
+    const filas = ctx.filas;
+
+    return `
+        <div class="panel" id="tareo-maquinistas-panel">
+
+            <div class="panel-head">
+                <div>
+                    <h3>Maquinistas</h3>
+                    <div class="small-muted">
+                        Según la rotación de maquinistas de esta semana. No se suman al personal de Producción.
+                    </div>
+                </div>
+                <span class="tareo-count-badge">Maquinistas: ${filas.length}</span>
+            </div>
+
+            <div class="panel-body tareo-table-panel">
+                <div class="tareo-table-scroll">
+                    <table class="tareo-table tareo-edit-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Trabajador</th>
+                                <th>Cargo</th>
+                                <th>Línea</th>
+                                <th>Asistencia</th>
+                                <th>Ingreso</th>
+                                <th>Salida refrigerio</th>
+                                <th>Retorno refrigerio</th>
+                                <th>Salida</th>
+                                <th>Horas</th>
+                                <th>HORAS EXTRAS</th>
+                                <th>Tardanza</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filas.map((persona, i) =>
+                                renderFilaPersonalTareo(persona, i, tareo.id, '')
+                            ).join('')}
+                            ${ctx.descanso.map((m, i) => `
+                                <tr class="tareo-row-no-asistencia">
+                                    <td>${filas.length + i + 1}</td>
+                                    <td><strong>${escaparHTML(m.nombre)}</strong>
+                                        <small>DNI: ${escaparHTML(m.dni || '—')}</small></td>
+                                    <td>Maquinista</td>
+                                    <td>${escaparHTML(m.linea || 'Sin línea')}</td>
+                                    <td colspan="8">
+                                        <span class="tar2-chip-descanso">Descanso según rotación</span>
+                                        <button type="button" class="tar2-inline-btn"
+                                            onclick="tareoTrabajoEnDescanso(${tareoArg(tareoIdentidades(m)[0] || '')})">
+                                            Trabajó en descanso
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                            ${!filas.length && !ctx.descanso.length
+                                ? '<tr><td colspan="12" class="small-muted">Ningún maquinista programado para este turno.</td></tr>'
+                                : ''}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    `;
+}
+
+/* ---------- Edición de la hora de SALIDA de maquinistas (Mantenimiento) ---------- */
+
+function tareoPuedeEditarSalidaMaquinistas() {
+
+    if (typeof state === 'undefined' || !state.user) return false;
+
+    if (esUsuarioSoloConsulta(state.user)) return false;
+
+    const permisos = normalizarPermisosUsuario(state.user);
+
+    if (
+        permisos === 'todos' ||
+        (Array.isArray(permisos) && permisos.includes('editar_salida_maquinistas'))
+    ) {
+        return true;
+    }
+
+    // Supervisor / Jefe de Mantenimiento.
+    return typeof puedeGestionarRotacionMtto === 'function' &&
+        puedeGestionarRotacionMtto();
+}
+
+/* Original tachado + ícono de editado. */
+function tareoMarcaSalidaEditada(persona) {
+
+    if (!persona || !persona.salidaEditada) return '';
+
+    const ultima = (persona.edicionesSalida || []).slice(-1)[0] || {};
+
+    const titulo = 'Salida editada por ' +
+        (ultima.usuarioNombre || ultima.usuario || 'Mantenimiento') +
+        (ultima.motivo ? ': ' + ultima.motivo : '');
+
+    return (
+        (persona.salidaOriginal
+            ? `<span class="tar2-salida-orig">${escaparHTML(persona.salidaOriginal)}</span>`
+            : '') +
+        `<span class="tar2-editado" title="${escaparHTML(titulo)}">✎</span>`
+    );
+}
+
+/* Botón "Editar salida" para quien tiene el permiso (solo maquinistas con salida). */
+function tareoBotonEditarSalida(tareo, persona) {
+
+    if (
+        !tareoPuedeEditarSalidaMaquinistas() ||
+        tareoAreaDe(tareo) !== 'Producción' ||
+        !tareoEsMaquinista(persona) ||
+        !persona.horaSalida
+    ) {
+        return '';
+    }
+
+    return `<button type="button" class="tar2-inline-btn"
+        onclick="tareoEditarSalidaMaquinista(${tareoArg(tareo.id)}, ${tareoArg(tareoClavePersona(persona))})">
+        Editar salida</button>`;
+}
+
+function tareoEditarSalidaMaquinista(tareoId, clave) {
+
+    if (!tareoPuedeEditarSalidaMaquinistas()) {
+        alert('No tienes permiso para editar la salida de maquinistas.');
+        return;
+    }
+
+    const tareo = obtenerTareos().find(t => t.id === tareoId);
+
+    const persona = tareo && (tareo.personal || []).find(
+        p => tareoClavePersona(p) === String(clave)
+    );
+
+    if (!persona || !tareoEsMaquinista(persona)) return;
+
+    const root = document.getElementById('modal-root');
+
+    if (!root) return;
+
+    root.innerHTML = `
+        <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+            <div class="modal">
+                <div class="modal-head">
+                    <h3>Editar salida · ${escaparHTML(persona.nombre)}</h3>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p class="small-muted" style="margin:0 0 10px;">
+                        Salida actual: <strong>${escaparHTML(persona.horaSalida || '—')}</strong>
+                        ${persona.salidaOriginal ? ` · Original: ${escaparHTML(persona.salidaOriginal)}` : ''}.
+                        Solo se modifica la hora de salida; la original queda guardada.
+                    </p>
+                    <div class="field-sm">
+                        <label>Nueva hora de salida</label>
+                        <input type="time" id="tsm-hora" value="${escaparHTML(persona.horaSalida || '')}">
+                    </div>
+                    <div class="field-sm">
+                        <label>Motivo (obligatorio)</label>
+                        <textarea id="tsm-motivo" rows="2" maxlength="200"></textarea>
+                    </div>
+                    <div class="actions-row">
+                        <button class="btn btn-primary"
+                            onclick="tareoGuardarSalidaMaquinista(${tareoArg(tareoId)}, ${tareoArg(clave)})">
+                            Guardar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function tareoGuardarSalidaMaquinista(tareoId, clave) {
+
+    if (!tareoPuedeEditarSalidaMaquinistas()) return;
+
+    const hora = document.getElementById('tsm-hora')?.value || '';
+    const motivo = (document.getElementById('tsm-motivo')?.value || '').trim();
+
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) {
+        alert('Indica una hora de salida válida.');
+        return;
+    }
+
+    if (!motivo) {
+        alert('El motivo es obligatorio.');
+        return;
+    }
+
+    if (typeof db === 'undefined' || typeof db.runTransaction !== 'function') {
+        alert('Sin conexión con la nube. No se pudo guardar.');
+        return;
+    }
+
+    const referencia = db.collection('sync').doc('tareos');
+
+    try {
+
+        const actualizado = await db.runTransaction(async transaccion => {
+
+            const snap = await transaccion.get(referencia);
+
+            const items = snap.exists && Array.isArray(snap.data().items)
+                ? snap.data().items.slice()
+                : [];
+
+            const i = items.findIndex(t => t.id === tareoId);
+
+            if (i < 0) throw new Error('No se encontró el tareo.');
+
+            const tareo = JSON.parse(JSON.stringify(items[i]));
+
+            const persona = (tareo.personal || []).find(
+                p => tareoClavePersona(p) === String(clave)
+            );
+
+            // Solo maquinistas del Tareo de Producción y solo la hora de salida.
+            if (!persona || tareoAreaDe(tareo) !== 'Producción' || !tareoEsMaquinista(persona)) {
+                throw new Error('Solo se puede editar la salida de maquinistas.');
+            }
+
+            const anterior = persona.horaSalida || '';
+
+            if (anterior === hora) throw new Error('La hora no cambió.');
+
+            const ahora = Date.now();
+
+            if (!persona.salidaOriginal) persona.salidaOriginal = anterior;
+
+            persona.edicionesSalida = [
+                ...(Array.isArray(persona.edicionesSalida) ? persona.edicionesSalida : []),
+                {
+                    horaAnterior: anterior,
+                    horaNueva: hora,
+                    usuario: state.user.username || '',
+                    usuarioNombre: state.user.nombre || state.user.username || '',
+                    momento: ahora,
+                    motivo,
+                    vista: false
+                }
+            ];
+
+            persona.horaSalida = hora;
+            persona.salidaEditada = true;
+            persona.actualizadoEn = ahora;
+
+            // Recalcula horas trabajadas y saldo con la hora nueva.
+            recalcularPersonaTareo(persona, tareo);
+
+            tareo.actualizadoEn = ahora;
+
+            items[i] = tareo;
+
+            transaccion.set(referencia, { items, updatedAt: ahora });
+
+            return tareo;
+        });
+
+        // Reflejo inmediato local (el listener en tiempo real lo confirmará).
+        const cache = loadTareos();
+        const j = cache.findIndex(t => t.id === tareoId);
+
+        if (j >= 0) cache[j] = actualizado;
+
+        closeModal();
+
+        const actual = tareoObtenerActual();
+
+        if (actual) {
+
+            if (tareoPuedeEditar(actual)) renderTareoFormulario(actual);
+            else renderTareoLectura(actual);
+        }
+
+    } catch (error) {
+
+        alert('No se pudo guardar: ' + (error && error.message ? error.message : error));
+    }
+}
+
+/* Alertas para el supervisor de Producción: salidas editadas aún no vistas. */
+function tareoAlertasSalidaHTML(tareo) {
+
+    if (tareoAreaDe(tareo) !== 'Producción') return '';
+
+    const alertas = [];
+
+    (tareo.personal || []).forEach(persona => {
+
+        const ultima = (persona.edicionesSalida || []).slice(-1)[0];
+
+        if (ultima && !ultima.vista) alertas.push({ persona, ultima });
+    });
+
+    return alertas.map(({ persona, ultima }) => `
+        <div class="tar2-alerta-salida">
+            <span>
+                ⚠ Mantenimiento cambió la salida de <strong>${escaparHTML(persona.nombre)}</strong>
+                de ${escaparHTML(ultima.horaAnterior || '—')} a ${escaparHTML(ultima.horaNueva)}.
+                Motivo: ${escaparHTML(ultima.motivo)}
+                <small>(${escaparHTML(ultima.usuarioNombre || ultima.usuario || '')})</small>
+            </span>
+            <button type="button" class="btn btn-sm btn-ghost"
+                onclick="tareoMarcarSalidaVista(${tareoArg(tareoClavePersona(persona))})">Visto</button>
+        </div>
+    `).join('');
+}
+
+function tareoMarcarSalidaVista(clave) {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const persona = (tareo.personal || []).find(
+        p => tareoClavePersona(p) === String(clave)
+    );
+
+    const ultima = persona && (persona.edicionesSalida || []).slice(-1)[0];
+
+    if (!ultima) return;
+
+    ultima.vista = true;
+    ultima.vistaPor = state.user.nombre || state.user.username || '';
+    ultima.vistaEn = Date.now();
+    persona.actualizadoEn = Date.now();
+
+    guardarTareoEnMemoria(tareo);
+
+    renderTareoFormulario(tareo);
+}
+
+window.tareoTrabajoEnDescanso = tareoTrabajoEnDescanso;
+window.tareoEditarSalidaMaquinista = tareoEditarSalidaMaquinista;
+window.tareoGuardarSalidaMaquinista = tareoGuardarSalidaMaquinista;
+window.tareoMarcarSalidaVista = tareoMarcarSalidaVista;
+window.tareoPuedeEditarSalidaMaquinistas = tareoPuedeEditarSalidaMaquinistas;
+window.tareoMarcaSalidaEditada = tareoMarcaSalidaEditada;
+
+
+/* =========================================================
+   PERSONAL POR DÍA (NO PLANILLA)
+   =========================================================
+   Se guarda dentro del propio tareo, en el campo NUEVO
+   tareo.personalPorDia (arreglo de {id, tipo:'POR DÍA', nombre, dni,
+   area, horaIngreso, horaSalida, observacion, ...}). No toca
+   tareo.personal, por lo que no suma a "Personal activo", a la
+   rotación ni a los contadores de asistencia.
+*/
+
+function tareoFusionarPorDia(remoto, local) {
+
+    const mapa = new Map();
+
+    [remoto, local].forEach(tareo =>
+        (Array.isArray(tareo && tareo.personalPorDia) ? tareo.personalPorDia : [])
+            .forEach(p => {
+
+                if (!p || !p.id) return;
+
+                const previo = mapa.get(p.id);
+
+                if (
+                    !previo ||
+                    Number(p.actualizadoEn || 0) >= Number(previo.actualizadoEn || 0)
+                ) {
+                    mapa.set(p.id, p);
+                }
+            })
+    );
+
+    return Array.from(mapa.values());
+}
+
+/* Personas por día registradas antes (sugerencias), la más reciente primero. */
+function tareoPorDiaPrevios() {
+
+    const mapa = new Map();
+
+    obtenerTareos().forEach(t =>
+        (t.personalPorDia || []).forEach(p => {
+
+            if (!p || !p.nombre) return;
+
+            const clave = tareoNormalizarDNI(p.dni) ||
+                tareoNormalizarTexto(p.nombre).replace(/\s+/g, ' ');
+
+            const previo = mapa.get(clave);
+
+            if (!previo || Number(p.actualizadoEn || 0) >= Number(previo.actualizadoEn || 0)) {
+                mapa.set(clave, p);
+            }
+        })
+    );
+
+    return Array.from(mapa.values()).sort(
+        (a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es', { sensitivity: 'base' })
+    );
+}
+
+function tareoSeccionPorDiaHTML(tareo, editable) {
+
+    const lista = tareoPorDiaActivos(tareo);
+
+    return `
+        <div class="panel" id="tareo-por-dia-panel">
+
+            <div class="panel-head">
+
+                <div>
+                    <h3>Personal por día (no planilla)</h3>
+                    <div class="small-muted">
+                        Aparte del personal de planilla: no suma a «Personal activo» ni a los totales de la rotación.
+                    </div>
+                </div>
+
+                <div class="tar2-quick">
+                    ${
+                        editable
+                            ? `<button class="btn btn-ghost btn-sm" onclick="tareoAbrirAgregarPorDia()">+ Agregar personal por día</button>`
+                            : ''
+                    }
+                    <span class="tareo-count-badge">Por día: ${lista.length}</span>
+                </div>
+
+            </div>
+
+            <div class="panel-body tareo-table-panel">
+                ${
+                    lista.length
+                        ? `
+                        <div class="tareo-table-scroll">
+                            <table class="tareo-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Nombres y apellidos</th>
+                                        <th>DNI</th>
+                                        <th>Área / línea</th>
+                                        <th>Ingreso</th>
+                                        <th>Salida</th>
+                                        <th>Horas</th>
+                                        <th>HORAS EXTRAS</th>
+                                        <th>Observación</th>
+                                        ${editable ? '<th></th>' : ''}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${lista.map((p, i) => `
+                                        <tr>
+                                            <td>${i + 1}</td>
+                                            <td><strong>${escaparHTML(p.nombre)}</strong>
+                                                <small class="tar2-auto" style="color:#8a6d1d">POR DÍA</small></td>
+                                            <td>${escaparHTML(p.dni || '—')}</td>
+                                            <td>${escaparHTML(p.area || '—')}</td>
+                                            ${
+                                                editable
+                                                    ? `
+                                                    <td><input type="time" value="${escaparHTML(p.horaIngreso || '')}"
+                                                        onchange="tareoEditarPorDia('${p.id}','horaIngreso',this.value)"></td>
+                                                    <td><input type="time" value="${escaparHTML(p.horaSalida || '')}"
+                                                        onchange="tareoEditarPorDia('${p.id}','horaSalida',this.value)"></td>
+                                                    <td id="tpd-h-${p.id}">${formatearHoras(tareoHorasPorDia(p))} h</td>
+                                                    <td id="tpd-s-${p.id}">${tareoSaldoHTML(tareoSaldoHoras(p))}</td>
+                                                    <td><input type="text" maxlength="160" value="${escaparHTML(p.observacion || '')}"
+                                                        onchange="tareoEditarPorDia('${p.id}','observacion',this.value)"></td>
+                                                    <td><button class="btn btn-sm btn-danger" onclick="tareoQuitarPorDia('${p.id}')">Quitar</button></td>
+                                                    `
+                                                    : `
+                                                    <td>${escaparHTML(p.horaIngreso || '—')}</td>
+                                                    <td>${escaparHTML(p.horaSalida || '—')}</td>
+                                                    <td>${formatearHoras(tareoHorasPorDia(p))} h</td>
+                                                    <td>${tareoSaldoHTML(tareoSaldoHoras(p))}</td>
+                                                    <td>${escaparHTML(p.observacion || '—')}</td>
+                                                    `
+                                            }
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        `
+                        : '<div class="empty-state"><p>Sin personal por día en este turno.</p></div>'
+                }
+            </div>
+
+        </div>
+    `;
+}
+
+function tareoAbrirAgregarPorDia() {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const root = document.getElementById('modal-root');
+
+    if (!root) return;
+
+    const previos = tareoPorDiaPrevios();
+
+    const areas = tareoAreaDe(tareo) === 'Mantenimiento'
+        ? ['Mantenimiento']
+        : (typeof LINES !== 'undefined' ? LINES.map(l => l.name) : []);
+
+    root.innerHTML = `
+        <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+            <div class="modal">
+
+                <div class="modal-head">
+                    <h3>Agregar personal por día</h3>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+
+                <div class="modal-body">
+
+                    <datalist id="tpd-nombres">
+                        ${previos.map(p => `<option value="${escaparHTML(p.nombre)}">${escaparHTML(p.dni || '')}</option>`).join('')}
+                    </datalist>
+                    <datalist id="tpd-dnis">
+                        ${previos.filter(p => p.dni).map(p => `<option value="${escaparHTML(p.dni)}">${escaparHTML(p.nombre)}</option>`).join('')}
+                    </datalist>
+                    <datalist id="tpd-areas">
+                        ${areas.map(a => `<option value="${escaparHTML(a)}"></option>`).join('')}
+                    </datalist>
+
+                    <div class="field-sm">
+                        <label>Nombres y apellidos *</label>
+                        <input type="text" id="tpd-nombre" list="tpd-nombres" maxlength="80"
+                               autocomplete="off" oninput="tareoAutocompletarPorDia('nombre')">
+                    </div>
+
+                    <div class="field-sm">
+                        <label>DNI (opcional)</label>
+                        <input type="text" id="tpd-dni" list="tpd-dnis" maxlength="12" inputmode="numeric"
+                               autocomplete="off" oninput="tareoAutocompletarPorDia('dni')">
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Área o línea</label>
+                        <input type="text" id="tpd-area" list="tpd-areas" maxlength="40" autocomplete="off">
+                    </div>
+
+                    <div class="grid grid-2">
+                        <div class="field-sm">
+                            <label>Hora de ingreso</label>
+                            <input type="time" id="tpd-ingreso" value="${tareoHoraActual()}">
+                        </div>
+                        <div class="field-sm">
+                            <label>Hora de salida</label>
+                            <input type="time" id="tpd-salida">
+                        </div>
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Observación</label>
+                        <input type="text" id="tpd-obs" maxlength="160">
+                    </div>
+
+                    <p class="small-muted" style="margin:10px 0 0;">
+                        Se guarda como personal «POR DÍA», aparte de la planilla.
+                    </p>
+
+                    <div class="actions-row">
+                        <button class="btn btn-primary" onclick="tareoAgregarPorDia()">Agregar</button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    `;
+
+    document.getElementById('tpd-nombre')?.focus();
+}
+
+/* Al escribir nombre o DNI, completa los datos de una persona ya registrada antes. */
+function tareoAutocompletarPorDia(origen) {
+
+    const nombre = document.getElementById('tpd-nombre');
+    const dni = document.getElementById('tpd-dni');
+    const area = document.getElementById('tpd-area');
+
+    if (!nombre || !dni) return;
+
+    const previos = tareoPorDiaPrevios();
+
+    const encontrada = origen === 'dni'
+        ? previos.find(p => tareoNormalizarDNI(p.dni) && tareoNormalizarDNI(p.dni) === tareoNormalizarDNI(dni.value))
+        : previos.find(p => tareoNormalizarTexto(p.nombre) === tareoNormalizarTexto(nombre.value));
+
+    if (!encontrada) return;
+
+    if (origen === 'dni') nombre.value = encontrada.nombre;
+    else if (!dni.value) dni.value = encontrada.dni || '';
+
+    if (area && !area.value) area.value = encontrada.area || '';
+}
+
+function tareoAgregarPorDia() {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const nombre = (document.getElementById('tpd-nombre')?.value || '')
+        .replace(/\s+/g, ' ').trim();
+
+    const dni = tareoNormalizarDNI(document.getElementById('tpd-dni')?.value);
+
+    if (!nombre) {
+        alert('Escribe los nombres y apellidos.');
+        return;
+    }
+
+    if (dni && !/^\d{8,12}$/.test(dni)) {
+        alert('El DNI debe tener solo números (8 dígitos).');
+        return;
+    }
+
+    const yaEsta = tareoPorDiaActivos(tareo).some(p =>
+        (dni && tareoNormalizarDNI(p.dni) === dni) ||
+        (!dni && !tareoNormalizarDNI(p.dni) &&
+            tareoNormalizarTexto(p.nombre) === tareoNormalizarTexto(nombre))
+    );
+
+    if (yaEsta) {
+        alert('Esa persona ya está en el personal por día de este turno.');
+        return;
+    }
+
+    const ahora = Date.now();
+
+    const persona = {
+        id: 'pd_' + ahora + '_' + Math.random().toString(36).slice(2, 7),
+        tipo: 'POR DÍA',
+        nombre,
+        dni,
+        area: (document.getElementById('tpd-area')?.value || '').trim(),
+        horaIngreso: document.getElementById('tpd-ingreso')?.value || tareoHoraActual(),
+        horaSalida: document.getElementById('tpd-salida')?.value || '',
+        observacion: (document.getElementById('tpd-obs')?.value || '').trim(),
+        registradoPor: (state.user && (state.user.nombre || state.user.username)) || '',
+        creadoEn: ahora,
+        actualizadoEn: ahora
+    };
+
+    tareo.personalPorDia = [
+        ...(Array.isArray(tareo.personalPorDia) ? tareo.personalPorDia : []),
+        persona
+    ];
+
+    guardarTareoEnMemoria(tareo);
+
+    closeModal();
+
+    renderTareoFormulario(tareo);
+}
+
+function tareoEditarPorDia(id, campo, valor) {
+
+    if (!['horaIngreso', 'horaSalida', 'observacion', 'area'].includes(campo)) return;
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const persona = (tareo.personalPorDia || []).find(p => p.id === id);
+
+    if (!persona) return;
+
+    persona[campo] = valor || '';
+    persona.actualizadoEn = Date.now();
+
+    guardarTareoEnMemoria(tareo);
+
+    const celda = document.getElementById('tpd-h-' + id);
+
+    if (celda) celda.textContent = formatearHoras(tareoHorasPorDia(persona)) + ' h';
+    const celdaSaldo = document.getElementById("tpd-s-" + id);
+    if (celdaSaldo) celdaSaldo.innerHTML = tareoSaldoHTML(tareoSaldoHoras(persona));
+}
+
+function tareoQuitarPorDia(id) {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const persona = (tareo.personalPorDia || []).find(p => p.id === id);
+
+    if (!persona) return;
+
+    if (!confirm('¿Quitar a ' + persona.nombre + ' del personal por día de este turno?')) return;
+
+    // Baja lógica: así la eliminación también se refleja al fusionar con otros equipos.
+    persona.eliminada = true;
+    persona.actualizadoEn = Date.now();
+
+    guardarTareoEnMemoria(tareo);
+
+    renderTareoFormulario(tareo);
+}
+
+window.tareoAbrirAgregarPorDia = tareoAbrirAgregarPorDia;
+window.tareoAgregarPorDia = tareoAgregarPorDia;
+window.tareoAutocompletarPorDia = tareoAutocompletarPorDia;
+window.tareoEditarPorDia = tareoEditarPorDia;
+window.tareoQuitarPorDia = tareoQuitarPorDia;
+
 
 function tareoAbrirAgregarPersonal() {
 
@@ -3708,6 +4965,7 @@ function renderFilaPersonalTareo(
                 <div class="tareo-worker">
 
                     ${tareoBotonNombre(persona, tareoId)}
+                    ${persona.trabajoEnDescanso ? '<span class="tar2-chip-descanso tar2-chip-trabajo-desc">Trabajó en descanso</span>' : ''}
 
                     <small>
                         ${escaparHTML(persona.tipoDocumento || 'DNI')}:
@@ -3834,6 +5092,8 @@ function renderFilaPersonalTareo(
                     onchange="actualizarHoraSalidaTareo(${clave}, this.value)"
                 >
 
+                ${tareoMarcaSalidaEditada(persona)}
+
                 ${
                     asistio && persona.horaIngreso && !persona.horaSalida
                         ? `
@@ -3863,9 +5123,7 @@ function renderFilaPersonalTareo(
 
             <td>
 
-                <strong class="tareo-hours-extra">
-                    ${formatearHoras(persona.horasExtras)}
-                </strong>
+                ${tareoSaldoHTML(tareoSaldoHoras(persona, (obtenerTareos().find(t => t.id === tareoId) || {}).jornadaNormal))}
 
             </td>
 
@@ -4414,6 +5672,12 @@ function renderHistorialTareo() {
                 <div class="tar2-quick">
 
                     ${
+                        typeof sheetsCantidadPendientes === 'function' && sheetsCantidadPendientes()
+                            ? `<button class="btn btn-sm btn-ghost" onclick="sheetsReenviarPendientes()">Reenviar pendientes a Google Sheets (${sheetsCantidadPendientes()})</button>`
+                            : ''
+                    }
+
+                    ${
                         areasVisibles.length > 1
                             ? `
                             <select onchange="tareoFiltroAreaHistorial = this.value; renderHistorialTareo();">
@@ -4455,7 +5719,8 @@ function renderHistorialTareo() {
                                         <th>Ausencias</th>
                                         <th>Sin registrar</th>
                                         <th>Tardanzas</th>
-                                        <th>Horas extra</th>
+                                        <th>HORAS EXTRAS</th>
+                                        <th>Por día</th>
                                         <th>Acciones</th>
 
                                     </tr>
@@ -4520,8 +5785,12 @@ function renderHistorialTareo() {
                                                         }
                                                     </td>
 
-                                                    <td>
+                                                        ${tareoSaldoHTML(c.saldo)}
                                                         ${formatearHoras(c.extras)} h
+                                                    </td>
+
+                                                    <td>
+                                                        ${tareoPorDiaActivos(tareo).length || '—'}
                                                     </td>
 
                                                     <td>
@@ -4560,6 +5829,26 @@ function renderHistorialTareo() {
                                                                 onclick="exportarTareoPNG('${tareo.id}')"
                                                             >
                                                                 PNG
+                                                            </button>
+
+                                                            <button
+                                                                class="btn btn-sm btn-ghost"
+                                                                onclick="sheetsReenviarTareo('${tareo.id}')"
+                                                                title="Enviar a Google Sheets"
+                                                            >
+                                                                Sheets${
+                                                                    typeof sheetsPendiente === 'function' &&
+                                                                    sheetsPendiente('tareo', tareo.id)
+                                                                        ? ' ⏳ pendiente'
+                                                                        : ''
+                                                                }
+                                                            </button>
+
+                                                            <button
+                                                                class="btn btn-sm btn-ghost"
+                                                                onclick="wspEnviarTareo('${tareo.id}')"
+                                                            >
+                                                                WhatsApp
                                                             </button>
 
                                                             ${
@@ -4971,6 +6260,13 @@ function renderTareoLectura(tareo) {
                     ← Historial
                 </button>
 
+                <button
+                    class="btn btn-ghost"
+                    onclick="wspEnviarTareo('${tareo.id}')"
+                >
+                    📲 Enviar por WhatsApp
+                </button>
+
                 ${
                     puedeEditar
                         ? `
@@ -5034,8 +6330,8 @@ function renderTareoLectura(tareo) {
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">Horas extra</span>
-                <strong>${formatearHoras(c.extras)} h</strong>
+                <span class="tareo-kpi-label">HORAS EXTRAS</span>
+                <strong>${tareoSaldoHTML(c.saldo)}</strong>
             </div>
 
         </div>
@@ -5069,7 +6365,7 @@ function renderTareoLectura(tareo) {
                                 <th>Refrigerio</th>
                                 <th>Salida</th>
                                 <th>Horas</th>
-                                <th>Extras</th>
+                                <th>HORAS EXTRAS</th>
                                 <th>Tardanza</th>
                             </tr>
                         </thead>
@@ -5107,11 +6403,11 @@ function renderTareoLectura(tareo) {
                                         }
                                     </td>
 
-                                    <td>${persona.horaSalida || '—'}</td>
+                                    <td>${persona.horaSalida || "—"}${tareoMarcaSalidaEditada(persona)}${tareoBotonEditarSalida(tareo, persona)}</td>
 
                                     <td>${formatearHoras(persona.horasTrabajadas)} h</td>
 
-                                    <td>${formatearHoras(persona.horasExtras)} h</td>
+                                    <td>${tareoSaldoHTML(tareoSaldoHoras(persona, tareo.jornadaNormal))}</td>
 
                                     <td>
                                         ${
@@ -5133,6 +6429,13 @@ function renderTareoLectura(tareo) {
             </div>
 
         </div>
+
+
+        ${
+            tareoPorDiaActivos(tareo).length
+                ? tareoSeccionPorDiaHTML(tareo, false)
+                : ''
+        }
 
 
         ${
@@ -5182,7 +6485,8 @@ function tareoResumenDeRegistros(registros, año, mes) {
         tardanzas: 0,
         minutosTardanza: 0,
         horas: 0,
-        extras: 0
+        extras: 0,
+        saldo: 0
     };
 
     registros.forEach(({ tareo, persona }) => {
@@ -5211,6 +6515,7 @@ function tareoResumenDeRegistros(registros, año, mes) {
 
         r.horas += Number(persona.horasTrabajadas || 0);
         r.extras += Number(persona.horasExtras || 0);
+        { const s = tareoSaldoHoras(persona); if (s !== null) r.saldo += s; }
 
         if (Number(persona.tardanzaMinutos || 0) > 0) {
             r.tardanzas++;
@@ -5343,7 +6648,7 @@ function tareoAbrirFicha(clave, tareoId) {
                                 ${dato('Hora programada', escaparHTML(seleccionado.tareo.horaProgramadaIngreso || '—'))}
                                 ${dato('Tardanza', Number(turnoActual.tardanzaMinutos || 0) > 0 ? formatearMinutos(turnoActual.tardanzaMinutos) : (turnoActual.horaIngreso ? 'A tiempo' : '—'))}
                                 ${dato('Salida', turnoActual.horaSalida ? escaparHTML(turnoActual.horaSalida) : '—')}
-                                ${dato('Horas / extras', `${formatearHoras(turnoActual.horasTrabajadas)} / ${formatearHoras(turnoActual.horasExtras)}`)}
+                                ${dato('Horas / HORAS EXTRAS', `${formatearHoras(turnoActual.horasTrabajadas)} / ${tareoTextoSaldo(tareoSaldoHoras(turnoActual))}`)}
                             </div>
 
                             ${
@@ -5374,7 +6679,7 @@ function tareoAbrirFicha(clave, tareoId) {
                         ${dato('Vacaciones', resumen.vacaciones)}
                         ${dato('Tardanzas', resumen.tardanzas ? `${resumen.tardanzas} (${formatearMinutos(resumen.minutosTardanza)})` : '0')}
                         ${dato('Horas trabajadas', `${formatearHoras(resumen.horas)} h`)}
-                        ${dato('Horas extra', `${formatearHoras(resumen.extras)} h`)}
+                        ${dato('HORAS EXTRAS (saldo)', tareoTextoSaldo(resumen.saldo))}
                     </div>
 
 
@@ -5658,6 +6963,11 @@ function renderTareoGeneral() {
                                                     : ''
                                             }
                                         </div>
+                                        ${
+                                            tareoPorDiaActivos(tareo).length
+                                                ? `<div class="tar2-card-meta">Por día: <strong>${tareoPorDiaActivos(tareo).length}</strong></div>`
+                                                : ''
+                                        }
                                         <div class="tar2-card-meta">
                                             Responsable: <strong>${escaparHTML(tareoResponsable(tareo))}</strong>
                                             · Estado: ${escaparHTML(tareo.estado || 'Abierto')}
@@ -5745,7 +7055,7 @@ function renderTareoGeneral() {
                                         <th>Refrigerio</th>
                                         <th>Salida</th>
                                         <th>Horas</th>
-                                        <th>Extras</th>
+                                        <th>HORAS EXTRAS</th>
                                     </tr>
                                 </thead>
 
@@ -5771,9 +7081,9 @@ function renderTareoGeneral() {
                                                 }
                                             </td>
                                             <td>${Number(persona.refrigerio || 0) > 0 ? escaparHTML(String(persona.refrigerio)) + ' h' : '—'}</td>
-                                            <td>${persona.horaSalida || '—'}</td>
+                                            <td>${persona.horaSalida || "—"}${tareoMarcaSalidaEditada(persona)}</td>
                                             <td>${formatearHoras(persona.horasTrabajadas)} h</td>
-                                            <td>${formatearHoras(persona.horasExtras)} h</td>
+                                            <td>${tareoSaldoHTML(tareoSaldoHoras(persona, tareo.jornadaNormal))}</td>
                                         </tr>
                                     `).join('')}
 
@@ -5801,6 +7111,112 @@ function renderTareoGeneral() {
 
         </div>
 
+        ${tareoPorDiaGeneralHTML()}
+
+    `;
+}
+
+/* Agrega al libro una hoja con el personal por día de los tareos dados (si hay). */
+function tareoAgregarHojaPorDia(libro, tareos, nombreHoja) {
+
+    const datos = [];
+
+    tareos.forEach(tareo =>
+        tareoPorDiaActivos(tareo).forEach(persona => datos.push({
+            'Fecha': tareo.fecha,
+            'Área': tareoAreaDe(tareo),
+            'Turno': tareo.turno,
+            'Tipo': 'POR DÍA',
+            'Nombres y apellidos': persona.nombre,
+            'DNI': persona.dni || '',
+            'Área / línea': persona.area || '',
+            'Hora ingreso': persona.horaIngreso || '',
+            'Hora salida': persona.horaSalida || '',
+            'Horas trabajadas': Number(tareoHorasPorDia(persona).toFixed(2)),
+            'Observación': persona.observacion || ''
+        }))
+    );
+
+    if (!datos.length) return;
+
+    const hoja = XLSX.utils.json_to_sheet(datos);
+
+    aplicarEstiloExcelTareo(hoja, Object.keys(datos[0]));
+
+    hoja['!autofilter'] = { ref: hoja['!ref'] };
+
+    hoja['!cols'] = [
+        { wch: 12 }, { wch: 15 }, { wch: 8 }, { wch: 10 },
+        { wch: 32 }, { wch: 12 }, { wch: 18 }, { wch: 13 },
+        { wch: 12 }, { wch: 16 }, { wch: 30 }
+    ];
+
+    XLSX.utils.book_append_sheet(libro, hoja, nombreHoja);
+}
+
+/* Bloque separado de personal por día en Tareo General. */
+function tareoPorDiaGeneralHTML() {
+
+    const { tareos } = tareoGeneralDatos();
+
+    const filas = [];
+
+    tareos.forEach(tareo =>
+        tareoPorDiaActivos(tareo).forEach(persona => filas.push({ tareo, persona }))
+    );
+
+    return `
+        <div class="panel">
+
+            <div class="panel-head">
+                <h3>Personal por día (no planilla)</h3>
+                <span class="small-muted">${filas.length} personas · no incluidas en los totales de arriba</span>
+            </div>
+
+            <div class="panel-body">
+                ${
+                    filas.length
+                        ? `
+                        <div class="tareo-table-scroll">
+                            <table class="tareo-table">
+                                <thead>
+                                    <tr>
+                                        <th>Área</th>
+                                        <th>Turno</th>
+                                        <th>Nombres y apellidos</th>
+                                        <th>DNI</th>
+                                        <th>Área / línea</th>
+                                        <th>Ingreso</th>
+                                        <th>Salida</th>
+                                        <th>Horas</th>
+                                        <th>HORAS EXTRAS</th>
+                                        <th>Observación</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${filas.map(({ tareo, persona }) => `
+                                        <tr>
+                                            <td>${tareoInsigniaArea(tareoAreaDe(tareo))}</td>
+                                            <td>${escaparHTML(tareo.turno)}</td>
+                                            <td><strong>${escaparHTML(persona.nombre)}</strong></td>
+                                            <td>${escaparHTML(persona.dni || '—')}</td>
+                                            <td>${escaparHTML(persona.area || '—')}</td>
+                                            <td>${escaparHTML(persona.horaIngreso || '—')}</td>
+                                            <td>${escaparHTML(persona.horaSalida || '—')}</td>
+                                            <td>${formatearHoras(tareoHorasPorDia(persona))} h</td>
+                                            <td>${tareoSaldoHTML(tareoSaldoHoras(persona))}</td>
+                                            <td>${escaparHTML(persona.observacion || '—')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        `
+                        : '<div class="empty-state"><p>Sin personal por día para esta fecha.</p></div>'
+                }
+            </div>
+
+        </div>
     `;
 }
 
@@ -5837,7 +7253,7 @@ function exportarTareoGeneralExcel() {
         'Tardanza (min)': Number(persona.tardanzaMinutos || 0),
         'Hora salida': persona.horaSalida || '',
         'Horas trabajadas': Number(Number(persona.horasTrabajadas || 0).toFixed(2)),
-        'Horas extras': Number(Number(persona.horasExtras || 0).toFixed(2)),
+        'HORAS EXTRAS': tareoSaldoNumero(tareoSaldoHoras(persona, tareo.jornadaNormal)),
         'Registrado por': persona.registradoPor || ''
     }));
 
@@ -5857,6 +7273,13 @@ function exportarTareoGeneralExcel() {
     const libro = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(libro, hoja, 'Tareo General');
+
+    // Personal por día (no planilla): hoja aparte.
+    tareoAgregarHojaPorDia(
+        libro,
+        tareoGeneralDatos().tareos,
+        'Personal por día'
+    );
 
     XLSX.writeFile(
         libro,
@@ -7383,7 +8806,9 @@ function obtenerResumenMensualTareo(
         tardanzas: 0,
         minutosTardanza: 0,
         horasTrabajadas: 0,
-        horasExtras: 0
+        horasExtras: 0,
+        saldoFavor: 0,
+        saldoContra: 0
     });
 
     areas.forEach(areaFila => {
@@ -7472,6 +8897,12 @@ function obtenerResumenMensualTareo(
 
                 resumen.horasTrabajadas +=
                     Number(persona.horasTrabajadas || 0);
+
+                {
+                    const s = tareoSaldoHoras(persona, tareo.jornadaNormal);
+                    if (s !== null && s > 0) resumen.saldoFavor += s;
+                    if (s !== null && s < 0) resumen.saldoContra += -s;
+                }
 
                 resumen.horasExtras +=
                     Number(persona.horasExtras || 0);
@@ -7665,6 +9096,8 @@ function actualizarResumenMensualTareo() {
                 total.medicos += item.descansosMedicos;
                 total.horas += item.horasTrabajadas;
                 total.extras += item.horasExtras;
+                total.favor += item.saldoFavor;
+                total.contra += item.saldoContra;
 
                 return total;
             },
@@ -7676,7 +9109,9 @@ function actualizarResumenMensualTareo() {
                 vacaciones: 0,
                 medicos: 0,
                 horas: 0,
-                extras: 0
+                extras: 0,
+                favor: 0,
+                contra: 0
             }
         );
 
@@ -7702,16 +9137,6 @@ function actualizarResumenMensualTareo() {
             <div class="tareo-kpi">
                 <span class="tareo-kpi-label">Descansos</span>
                 <strong>${totales.descansos}</strong>
-            </div>
-
-            <div class="tareo-kpi">
-                <span class="tareo-kpi-label">Horas trabajadas</span>
-                <strong>${formatearHoras(totales.horas)} h</strong>
-            </div>
-
-            <div class="tareo-kpi">
-                <span class="tareo-kpi-label">Horas extra</span>
-                <strong>${formatearHoras(totales.extras)} h</strong>
             </div>
 
         </div>
@@ -7749,7 +9174,8 @@ function actualizarResumenMensualTareo() {
                                 <th>Médico</th>
                                 <th>Tardanzas</th>
                                 <th>Horas</th>
-                                <th>Extras</th>
+                                <th>HORAS EXTRAS a favor</th>
+                                <th>HORAS EXTRAS en contra</th>
                             </tr>
                         </thead>
 
@@ -7783,7 +9209,8 @@ function actualizarResumenMensualTareo() {
 
                                     <td>${formatearHoras(item.horasTrabajadas)} h</td>
 
-                                    <td>${formatearHoras(item.horasExtras)} h</td>
+                                    <td>${item.saldoFavor ? `<strong class="tareo-saldo-pos">+${tareoTextoSaldo(item.saldoFavor).replace("+", "")}</strong>` : "—"}</td>
+                                    <td>${item.saldoContra ? `<strong class="tareo-saldo-neg">-${tareoTextoSaldo(item.saldoContra).replace("+", "")}</strong>` : "—"}</td>
 
                                 </tr>
                             `
@@ -7799,6 +9226,119 @@ function actualizarResumenMensualTareo() {
 
         </div>
 
+        ${tareoResumenPorDiaHTML(año, mes, area)}
+
+    `;
+}
+
+/*
+   Resumen mensual del personal POR DÍA: una fila por persona con el total
+   de días trabajados en el mes (un día cuenta una vez aunque aparezca en
+   más de un turno). Bloque separado del personal de planilla.
+*/
+function tareoResumenPorDiaMensual(año, mes, area) {
+
+    const areas = tareoAreasVisibles().filter(
+        item => !area || item === area
+    );
+
+    const prefijo = `${año}-${String(mes).padStart(2, '0')}-`;
+
+    const mapa = new Map();
+
+    obtenerTareos()
+        .filter(t =>
+            areas.includes(tareoAreaDe(t)) &&
+            String(t.fecha || '').startsWith(prefijo)
+        )
+        .forEach(t =>
+            tareoPorDiaActivos(t).forEach(p => {
+
+                const clave = (tareoNormalizarDNI(p.dni) ||
+                    tareoNormalizarTexto(p.nombre).replace(/\s+/g, ' ')) +
+                    '|' + tareoAreaDe(t);
+
+                if (!mapa.has(clave)) {
+                    mapa.set(clave, {
+                        nombre: p.nombre,
+                        dni: p.dni || '',
+                        area: tareoAreaDe(t),
+                        dias: new Set(),
+                        horas: 0,
+                        favor: 0,
+                        contra: 0
+                    });
+                }
+
+                const fila = mapa.get(clave);
+
+                fila.dias.add(t.fecha);
+                fila.horas += tareoHorasPorDia(p);
+
+                const saldo = tareoSaldoHoras(p, t.jornadaNormal);
+
+                if (saldo !== null && saldo > 0) fila.favor += saldo;
+                if (saldo !== null && saldo < 0) fila.contra += -saldo;
+
+                if (!fila.dni && p.dni) fila.dni = p.dni;
+            })
+        );
+
+    return Array.from(mapa.values())
+        .map(f => ({ ...f, totalDias: f.dias.size }))
+        .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es', { sensitivity: 'base' }));
+}
+
+function tareoResumenPorDiaHTML(año, mes, area) {
+
+    const filas = tareoResumenPorDiaMensual(año, mes, area);
+
+    return `
+        <div class="panel">
+
+            <div class="panel-head">
+                <h3>Personal por día (no planilla)</h3>
+                <span class="small-muted">${filas.length} personas · aparte del personal de planilla</span>
+            </div>
+
+            <div class="panel-body">
+                ${
+                    filas.length
+                        ? `
+                        <div class="tareo-table-scroll">
+                            <table class="tareo-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombres y apellidos</th>
+                                        <th>DNI</th>
+                                        <th>Área</th>
+                                        <th>Días trabajados</th>
+                                        <th>Horas</th>
+                                        <th>HORAS EXTRAS a favor</th>
+                                        <th>HORAS EXTRAS en contra</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${filas.map(f => `
+                                        <tr>
+                                            <td><strong>${escaparHTML(f.nombre)}</strong></td>
+                                            <td>${escaparHTML(f.dni || '—')}</td>
+                                            <td>${tareoInsigniaArea(f.area)}</td>
+                                            <td class="tareo-number-good">${f.totalDias}</td>
+                                            <td>${formatearHoras(f.horas)} h</td>
+                                            <td>${f.favor ? `<strong class="tareo-saldo-pos">+${tareoTextoSaldo(f.favor).replace("+", "")}</strong>` : '—'}</td>
+                                            <td>${f.contra ? `<strong class="tareo-saldo-neg">-${tareoTextoSaldo(f.contra).replace("+", "")}</strong>` : '—'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        `
+                        : '<div class="empty-state"><p>Sin personal por día en este mes.</p></div>'
+                }
+            </div>
+
+        </div>
     `;
 }
 
@@ -7894,11 +9434,9 @@ function exportarTareoExcel(id) {
                         0
                     ),
 
-                'Horas extras':
-                    Number(
-                        persona.horasExtras ||
-                        0
-                    ),
+                'HORAS EXTRAS':
+                    tareoSaldoNumero(tareoSaldoHoras(persona, tareo.jornadaNormal)),
+
 
                 'Tardanza (min)':
                     Number(
@@ -8116,11 +9654,11 @@ function exportarTareoExcel(id) {
 
         {
             'Indicador':
-                'Horas extras',
+                'HORAS EXTRAS (saldo neto)',
 
             'Valor':
                 Number(
-                    horasExtras.toFixed(2)
+                    tareoContadores(personal, tareo.jornadaNormal).saldo.toFixed(2)
                 )
         }
 
@@ -8167,11 +9705,8 @@ function exportarTareoExcel(id) {
                         0
                     ),
 
-                'Horas extras':
-                    Number(
-                        persona.horasExtras ||
-                        0
-                    ),
+                'HORAS EXTRAS':
+                    tareoSaldoNumero(tareoSaldoHoras(persona, tareo.jornadaNormal)),
 
                 'Tardanza':
                     Number(
@@ -8221,7 +9756,7 @@ function exportarTareoExcel(id) {
             'Refrigerio (h)',
             'Hora salida',
             'Horas trabajadas',
-            'Horas extras',
+            'HORAS EXTRAS',
             'Tardanza (min)',
             'Observaciones'
         ]
@@ -8247,7 +9782,7 @@ function exportarTareoExcel(id) {
             'Hora ingreso',
             'Hora salida',
             'Horas trabajadas',
-            'Horas extras',
+            'HORAS EXTRAS',
             'Tardanza'
         ]
     );
@@ -8334,6 +9869,9 @@ function exportarTareoExcel(id) {
         wsPersonal,
         '03_PERSONAL'
     );
+
+    // Personal por día (no planilla): hoja aparte, solo si hay.
+    tareoAgregarHojaPorDia(workbook, [tareo], '04_POR_DIA');
 
 
     XLSX.writeFile(
@@ -8726,7 +10264,8 @@ function exportarResumenMensualTareo() {
                 'Tardanzas': item.tardanzas,
                 'Minutos tardanza': item.minutosTardanza,
                 'Horas trabajadas': Number(item.horasTrabajadas.toFixed(2)),
-                'Horas extras': Number(item.horasExtras.toFixed(2))
+                'HORAS EXTRAS a favor': Number(item.saldoFavor.toFixed(2)),
+                'HORAS EXTRAS en contra': Number(item.saldoContra.toFixed(2))
             })
         );
 
@@ -8778,6 +10317,32 @@ function exportarResumenMensualTareo() {
         hoja,
         'Resumen mensual'
     );
+
+    // Personal por día (no planilla): hoja aparte con días trabajados del mes.
+    const porDia = tareoResumenPorDiaMensual(año, mes, area);
+
+    if (porDia.length) {
+
+        const datosPorDia = porDia.map(f => ({
+            'Nombres y apellidos': f.nombre,
+            'DNI': f.dni,
+            'Área': f.area,
+            'Tipo': 'POR DÍA',
+            'Días trabajados': f.totalDias,
+            'Horas trabajadas': Number(f.horas.toFixed(2))
+        }));
+
+        const hojaPorDia = XLSX.utils.json_to_sheet(datosPorDia);
+
+        aplicarEstiloExcelTareo(hojaPorDia, Object.keys(datosPorDia[0]));
+
+        hojaPorDia['!cols'] = [
+            { wch: 32 }, { wch: 12 }, { wch: 15 },
+            { wch: 10 }, { wch: 16 }, { wch: 16 }
+        ];
+
+        XLSX.utils.book_append_sheet(workbook, hojaPorDia, 'Personal por día');
+    }
 
     XLSX.writeFile(
         workbook,

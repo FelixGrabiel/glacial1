@@ -129,6 +129,15 @@
   };
   const llave = (l,f,t,m,p) => claveProgramacionPaleta(l,f,t,m,p);
 
+  // Producción de una presentación. Si el supervisor corrigió la finalización
+  // (producción final), esa cifra manda; si no, la de Paletas.
+  function producidoDe(x){
+    const c=x?.op?.produccionFinalCorregida;
+    if(c!==undefined && c!==null && c!=='' && Number.isFinite(Number(c)))return Number(c);
+    return num(resumenProgramacionCombinacionTurnos(
+      x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas);
+  }
+
   function secuenciaPlanificada(linea,fecha,turnoPlan){
     const salida=[];
     (loadProgramaciones() || []).forEach(p=>{
@@ -240,9 +249,7 @@
   // Una sola clasificación para tarjetas, avances y semáforo de la línea.
   // El estado operativo persistido manda sobre la secuencia y las paletas.
   function estadoOrdenItem(x){
-    const producido=Math.round(num(resumenProgramacionCombinacionTurnos(
-      x.linea,x.fecha,[x.turno],x.marca,x.presentacion
-    ).unidadesProducidas));
+    const producido=Math.round(producidoDe(x));
     const programado=Math.round(num(x.prog?.cantidadProgramada));
     const operativo=x.op?.estado || x.estadoVisual || 'PENDIENTE';
     if(operativo==='CANCELADA')return {key:'CANCELADA',label:'CANCELADA',rank:4,cls:'cancelada'};
@@ -339,7 +346,9 @@
     // Las operaciones abiertas mantienen continuidad y una programación pendiente puede
     // iniciarse con confirmación explícita si pertenece a otro turno.
     const inicioFueraTurnoAutorizado=(!e || e==='PENDIENTE') && x.puede==='supervisor';
-    if(!x.vivo && !operacionAbierta && !reaperturaAutorizada && !inicioFueraTurnoAutorizado)return '';
+    // Supervisor/administrador puede corregir una finalización aunque el turno ya terminó.
+    const correccionAutorizada=e==='FINALIZADA' && x.puede==='supervisor';
+    if(!x.vivo && !operacionAbierta && !reaperturaAutorizada && !correccionAutorizada && !inicioFueraTurnoAutorizado)return '';
 
     const boton=(accion,label)=>`<button type="button" class="btn btn-ghost btn-sm"
       data-pa-accion="${accion}" data-pa-indice="${idx}">${label}</button>`;
@@ -360,9 +369,8 @@
     if(e==='CANCELADA')return '';
 
     if(e==='FINALIZADA'){
-      return puedeReabrirProduccion()
-        ? boton('reabrir','Reabrir producción')
-        : '';
+      return (correccionAutorizada ? boton('corregir','Corregir finalización') : '') +
+        (puedeReabrirProduccion() ? boton('reabrir','Reabrir línea') : '');
     }
 
     if(!e || e==='PENDIENTE')return boton('iniciar','Iniciar presentación')+
@@ -550,7 +558,7 @@
           hayPendiente && hayCompletada?'Pendiente':'Sin iniciar';
         const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
         const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
-        const totalProd=items.reduce((s,x)=>s+num(resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas),0);
+        const totalProd=items.reduce((s,x)=>s+producidoDe(x),0);
   
         // PRODUCCIÓN TOTAL POR PRESENTACIÓN
         // ---------------------------------------------------------
@@ -567,11 +575,7 @@
             .trim()
             .toUpperCase();
   
-          const producido=num(
-            resumenProgramacionCombinacionTurnos(
-              x.linea,x.fecha,[x.turno],x.marca,x.presentacion
-            ).unidadesProducidas
-          );
+          const producido=producidoDe(x);
           const programado=num(x.prog?.cantidadProgramada);
   
           const actual=mapaTotalesPresentacion.get(clave) || {
@@ -737,14 +741,21 @@
           0,
           horasTurno-(paradaMs/MS_HORA)
         );
-        const ratioTurno=horasEfectivasTurno>0
-          ? totalProd/horasEfectivasTurno
-          : 0;
-  
+        // Tiempos y ratios: función central única (23b-tiempos-linea.js).
+        // Considera paradas del supervisor, DETENER LÍNEA y PAUSA PROGRAMADA.
+        const turnoCalculo=items[0]?.turno || turnoFallback;
+        const tiempos=calcularTiemposLinea(line.key,turnoCalculo,fecha,{ahora});
+        const ratios=calcularRatiosLinea(tiempos,{produccion:totalProd,programado:totalProg,ahora});
+        const desempeno=evaluarDesempenoLinea(tiempos,ratios,{produccion:totalProd,programado:totalProg});
+        const ratioTurno=ratios.ratioTurno ?? 0;
+        const nivelEstado=nivel;
+        // El COLOR refleja el desempeño; el estado queda como etiqueta de texto.
+        const nivelFinal=desempeno.nivel!=='gris' ? desempeno.nivel : nivelEstado;
+
         return {
-          line,items,vacios,activo,nivel,texto,turnosLinea,totalProg,totalProd,
+          line,items,vacios,activo,nivel:nivelFinal,nivelEstado,texto,turnosLinea,totalProg,totalProd,
           horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
-          totalesPresentacion
+          totalesPresentacion,tiempos,ratios,desempeno
         };
     }
 
@@ -829,6 +840,11 @@
       return h>0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${m} min`;
     };
 
+    // Minutos (no ms) con el mismo formato legible.
+    const formatoMin=min=>formatoDuracion((Number(min)||0)*60000);
+    // Ratio faltante o inválido → "-" (nunca NaN/Infinity).
+    const fmtRatio=v=>Number.isFinite(v) && v!==null ? Math.round(v).toLocaleString('es-PE') : '-';
+
     const formatoCronometro=ms=>{
       ms=Math.max(0,Number(ms)||0);
       const totalSeg=Math.floor(ms/1000);
@@ -895,15 +911,27 @@
                 <div class="pa-line-turnos">${esc(g.turnosLinea.join(' · ') || 'SIN TURNO')}</div>
               </div>
             </div>
-            <div class="pa-line-status">${renderSemaforoWidget({nivel:g.nivel,texto:g.texto})}</div>
+            <div class="pa-line-status">
+              ${g.tiempos?.pausaSinCerrar ? `<span class="pa-chip-alerta" title="Superó la duración estándar">⚠ Pausa sin cerrar · ${esc(g.tiempos.pausaSinCerrar.motivo)} · ${Math.round(g.tiempos.pausaSinCerrar.transcurridoMin)} min (estándar ${g.tiempos.pausaSinCerrar.estandarMin})</span>` : ''}
+              ${g.items.some(x=>x.op?.corregida) ? '<span class="pa-chip-corregida" title="La finalización fue corregida">Corregida</span>' : ''}
+              ${renderSemaforoWidget({nivel:g.nivel,texto:g.texto})}</div>
           </div>
 
           <div class="pa-line-kpis">
             <div class="pa-line-kpi"><small>PROGRAMACIÓN VIGENTE</small><strong>${Math.round(g.totalProg).toLocaleString('es-PE')} <span>UND</span></strong></div>
             <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong></div>
             <div class="pa-line-kpi"><small>CUMPLIMIENTO</small><strong>${g.totalProg>0 ? Math.min(999,(g.totalProd/g.totalProg)*100).toFixed(1) : '0.0'}<span>%</span></strong></div>
-            <div class="pa-line-kpi"><small>RATIO TURNO</small><strong>${g.ratioTurno ? Math.round(g.ratioTurno).toLocaleString('es-PE') : '—'} <span>UND/h</span></strong></div>
-            <div class="pa-line-kpi"><small>PARADAS</small><strong>${formatoDuracion(g.paradaMs)}</strong></div>
+            <div class="pa-line-kpi"><small>RATIO TURNO</small><strong>${fmtRatio(g.ratios?.ratioTurno)} <span>UND/h</span></strong></div>
+            <div class="pa-line-kpi"><small>RATIO EFECTIVO</small><strong>${fmtRatio(g.ratios?.ratioEfectivo)} <span>UND/h</span></strong></div>
+            ${g.tiempos?.enCurso ? `<div class="pa-line-kpi"><small>RATIO NECESARIO</small><strong>${fmtRatio(g.ratios?.ratioNecesario)} <span>UND/h</span></strong></div>` : ''}
+            <div class="pa-line-kpi pa-line-kpi-paradas"><small>PARADAS</small><strong>${g.tiempos?.ok ? formatoMin(g.tiempos.minParadasNoProgramadas+g.tiempos.minPausasProgramadas) : '—'}</strong>
+              ${g.tiempos?.ok ? `<div class="pa-paradas-desglose">
+                <span>No programadas: <b>${formatoMin(g.tiempos.minParadasNoProgramadas)}</b></span>
+                <span>Programadas: <b>${formatoMin(g.tiempos.minPausasProgramadas)}</b></span>
+                <em>Supervisor ${formatoMin(g.tiempos.fuentes.supervisor.noProgramadas+g.tiempos.fuentes.supervisor.programadas)}
+                · Detener línea ${formatoMin(g.tiempos.fuentes.detenerLinea.noProgramadas)}
+                · Pausa programada ${formatoMin(g.tiempos.fuentes.pausaProgramada.programadas)}</em>
+              </div>` : ''}</div>
           </div>
 
           <div class="pa-horizontal-body">
@@ -958,9 +986,10 @@
                     ${tarjetaEstado(estado)}
                   </div>
                   <div class="pa-metric-row"><span>Ratio nominal</span><b>${actual.ratio ? actual.ratio.toLocaleString('es-PE')+' UND/h' : 'Sin configurar'}</b></div>
-                  <div class="pa-metric-row pa-metric-turno"><span>Ratio actual</span><b>${g.ratioTurno ? Math.round(g.ratioTurno).toLocaleString('es-PE')+' UND/h' : '—'}</b></div>
-                  <div class="pa-metric-row"><span>Tiempo transcurrido</span><b>${g.horasTurno ? formatoDuracion(g.horasTurno*MS_HORA) : '—'}</b></div>
-                  <div class="pa-metric-row"><span>Tiempo en parada</span><b>${g.paradaMs ? formatoDuracion(g.paradaMs) : '0 min'}</b></div>
+                  <div class="pa-metric-row pa-metric-turno"><span>Ratio efectivo</span><b>${fmtRatio(g.ratios?.ratioEfectivo)} UND/h</b></div>
+                  <div class="pa-metric-row"><span>Tiempo transcurrido</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.tiempoTranscurridoMin) : '—'}</b></div>
+                  <div class="pa-metric-row"><span>Tiempo operativo</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.tiempoOperativoMin) : '—'}</b></div>
+                  <div class="pa-metric-row"><span>Tiempo en parada</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.minParadasNoProgramadas+g.tiempos.minPausasProgramadas) : '0 min'}</b></div>
                   ${parada ? `<div class="pa-stop-live"><div><strong>${esc(parada.tipo)}</strong><b>${formatoCronometro(Date.now()-parada.desde)}</b></div>
                     <small>Desde ${new Date(parada.desde).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})} · ${esc(parada.motivo)}</small></div>` : ''}
                   <div class="pa-metric-divider"></div>
@@ -975,8 +1004,7 @@
               <div class="pa-advance-list">${(()=>{
                 const ordenados=itemsOrdenadosGrupo(g);
                 return ordenados.length ? ordenados.map(({x,estado})=>{
-                  const r=resumenProgramacionCombinacionTurnos(x.linea,x.fecha,[x.turno],x.marca,x.presentacion);
-                  const producido=Math.round(num(r.unidadesProducidas));
+                  const producido=Math.round(producidoDe(x));
                   const programado=Math.round(num(x.prog?.cantidadProgramada));
                   const pct=programado>0 ? producido/programado*100 : 0;
                   const faltante=Math.max(0,programado-producido);
@@ -1115,7 +1143,20 @@
     .pa-advance-foot{margin-top:6px;color:#647987;font-size:9px;align-items:flex-start;flex-wrap:wrap}.pa-advance-foot b{color:#334d5d}
     .pa-cancel-reason{margin-top:6px;padding-top:6px;border-top:1px dashed #ead0cc;color:#9b3a31;font-size:10px;font-weight:700}
     /* REDISEÑO INDUSTRIAL */
-    .pa-line-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-bottom:1px solid #d8e4ec;background:#fff}
+    .pa-chip-alerta{display:inline-block;margin-right:8px;padding:3px 9px;border-radius:999px;background:#fff1d6;border:1px solid #f0c36a;color:#8a5a00;font-size:11px;font-weight:800;animation:paPulsoProduccion 1.6s ease-in-out infinite}
+    .pa-chip-corregida{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:999px;background:#eef3f7;border:1px solid #d3dee6;color:#5a7083;font-size:10px;font-weight:700}
+    .pa-modal-fondo{position:fixed;inset:0;background:rgba(10,30,50,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px}
+    .pa-modal{background:#fff;border-radius:12px;padding:18px 20px;width:min(420px,100%);max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+    .pa-modal-ancho{width:min(720px,100%)}
+    .pa-modal h3{margin:0 0 12px;color:#103b57}.pa-modal label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:#35506a}
+    .pa-modal select,.pa-modal input[type=time],.pa-modal input[type=number],.pa-modal input[type=text],.pa-modal textarea{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #cbd8e0;border-radius:7px;font:inherit}
+    .pa-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .pa-modal-nota{display:block;margin-top:8px;color:#667784;font-size:11px;line-height:1.4}
+    .pa-modal-acc{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+    .pa-modal-tabla{overflow:auto;border:1px solid #e1e8ed;border-radius:8px}.pa-modal-tabla table{width:100%;border-collapse:collapse;font-size:12px}
+    .pa-modal-tabla th,.pa-modal-tabla td{padding:6px 8px;border-bottom:1px solid #eef2f5;text-align:left}.pa-modal-tabla td small{display:block;color:#7a8b98}
+    .pa-paradas-desglose{display:flex;flex-direction:column;gap:1px;margin-top:3px;font-size:10px;color:#526776;line-height:1.35}.pa-paradas-desglose em{font-style:normal;color:#7a8b98}
+    .pa-line-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));border-bottom:1px solid #d8e4ec;background:#fff}
     .pa-line-kpi{padding:11px 14px;border-right:1px solid #e2e9ee;min-width:0}.pa-line-kpi:last-child{border-right:0}
     .pa-line-kpi small{display:block;font-size:8px;font-weight:900;letter-spacing:.055em;color:#6b7e8b}.pa-line-kpi strong{display:block;margin-top:2px;font-size:17px;line-height:1.1;color:#073f68}.pa-line-kpi strong span{font-size:9px;color:#647987}
     .pa-horizontal-body{grid-template-columns:minmax(300px,.82fr) minmax(460px,1.18fr)}
@@ -1196,8 +1237,231 @@
     return {ms:inicioMs,hora:limpio};
   }
 
+  /* ---------- paradas: catálogo, cierre y corrección de finalización ---------- */
+  const horaTxt=ms=>ms?new Date(ms).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
+
+  // Cierra los registros de parada abiertos. Al reanudar/cancelar: ahora.
+  // Al finalizar sin hora informada (usarEstandar): inicio + estándar si es
+  // programada con estándar; si no, la hora de cierre. Nunca después del cierre.
+  function cerrarParadasAbiertas(paradas,ahora,finMs,usarEstandar){
+    return (Array.isArray(paradas)?paradas:[]).map(r=>{
+      if(!r || num(r.fin)>0)return r;
+      let fin=ahora;
+      if(finMs)fin=Math.min(ahora,finMs);
+      else if(usarEstandar && r.clasificacion==='PROGRAMADA' && num(r.estandarMin)>0)
+        fin=Math.min(ahora,num(r.inicio)+num(r.estandarMin)*60000);
+      return {...r,fin:Math.max(num(r.inicio),fin)};
+    });
+  }
+
+  // Paradas abiertas (con o sin registro) de las presentaciones del mismo plan.
+  function paradasAbiertasDelPlan(x){
+    const salida=[];
+    (loadProgramaciones() || []).forEach(p=>{
+      if(p.linea!==x.linea || p.fecha!==x.fecha)return;
+      const mismo=x.turnoPlan==='DÍA' ? ['DÍA','INTERMEDIO'].includes(p.turno) : p.turno===x.turnoPlan;
+      if(!mismo)return;
+      const op=p.estadoOperacion || {};
+      (op.paradas || []).forEach(r=>{
+        if(r && !num(r.fin))salida.push({motivo:r.motivo,inicio:num(r.inicio),clasificacion:r.clasificacion,
+          estandarMin:num(r.estandarMin)});
+      });
+      if(!(op.paradas || []).some(r=>!num(r.fin))){
+        if(op.estado==='PAUSA' && op.motivoPausa!=='Cambio temporal de producción' && num(op.pausaDesde)>0)
+          salida.push({motivo:op.motivoPausa || 'Pausa programada',inicio:num(op.pausaDesde),clasificacion:'PROGRAMADA',estandarMin:0});
+        if(['DETENIDA','LISTA'].includes(op.estado) && num(op.detenidaDesde)>0)
+          salida.push({motivo:op.motivo || 'Detención de línea',inicio:num(op.detenidaDesde),clasificacion:'NO_PROGRAMADA',estandarMin:0});
+      }
+    });
+    return salida.sort((a,b)=>a.inicio-b.inicio);
+  }
+
+  // Pregunta a qué hora se reanudó. undefined = canceló; null = sin dato.
+  function pedirHoraReanudacion(abierta){
+    const msg='La línea tiene una parada abierta:\n\n'+
+      abierta.motivo+' (desde '+horaTxt(abierta.inicio)+')\n\n'+
+      '¿A qué hora se reanudó realmente? (HH:MM)\n'+
+      'Déjalo vacío si no lo sabes: se cerrará con su duración estándar o con la hora de cierre.';
+    for(;;){
+      const v=prompt(msg,'');
+      if(v===null)return undefined;
+      const t=String(v).trim();
+      if(!t)return null;
+      if(!/^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(t)){alert('Hora inválida. Usa HH:MM, por ejemplo 12:45.');continue;}
+      const [hh,mm]=t.split(':').map(Number);
+      const d=new Date(abierta.inicio);d.setHours(hh,mm,0,0);
+      if(d.getTime()<abierta.inicio)d.setDate(d.getDate()+1);   // cruza medianoche
+      if(d.getTime()>Date.now()+60000){alert('La hora no puede estar en el futuro.');continue;}
+      return d.getTime();
+    }
+  }
+
+  // Ventana para elegir el motivo del catálogo. Devuelve {motivo,estandarMin,clasificacion} o null.
+  function pedirMotivoCatalogo(clasificacion){
+    return new Promise(resolve=>{
+      const programada=clasificacion==='PROGRAMADA';
+      const opciones=programada
+        ? listaMotivosProgramados()
+        : CATALOGO_MOTIVOS_PARADA.noProgramadas.map(nombre=>({nombre,estandarMin:0}));
+      const fondo=document.createElement('div');
+      fondo.className='pa-modal-fondo';
+      fondo.innerHTML=`<div class="pa-modal" role="dialog" aria-modal="true">
+        <h3>${programada?'Pausa programada':'Detener línea'}</h3>
+        <label>Motivo</label>
+        <select id="pa-motivo">${opciones.map((o,i)=>`<option value="${i}">${esc(o.nombre)}${o.estandarMin?` · estándar ${o.estandarMin} min`:''}</option>`).join('')}</select>
+        <div id="pa-motivo-detalle-wrap" hidden><label>Detalle</label><input id="pa-motivo-detalle" maxlength="120"></div>
+        <small class="pa-modal-nota">${programada
+          ? 'El tiempo que exceda el estándar se contará como parada no programada.'
+          : 'Queda registrada con hora de inicio; se cierra al reanudar.'}</small>
+        <div class="pa-modal-acc"><button type="button" class="btn btn-ghost" data-c>Cancelar</button>
+          <button type="button" class="btn btn-primary" data-a>Aceptar</button></div></div>`;
+      document.body.appendChild(fondo);
+      const sel=fondo.querySelector('#pa-motivo'),wrap=fondo.querySelector('#pa-motivo-detalle-wrap');
+      const alternar=()=>{wrap.hidden=!(opciones[sel.value].nombre==='Otro');};
+      sel.addEventListener('change',alternar);alternar();
+      const cerrar=v=>{fondo.remove();resolve(v);};
+      fondo.querySelector('[data-c]').onclick=()=>cerrar(null);
+      fondo.addEventListener('click',e=>{if(e.target===fondo)cerrar(null);});
+      fondo.querySelector('[data-a]').onclick=()=>{
+        const o=opciones[sel.value];
+        let motivo=o.nombre;
+        if(o.nombre==='Otro'){
+          const d=fondo.querySelector('#pa-motivo-detalle').value.trim();
+          if(!d){alert('Escribe el detalle del motivo.');return;}
+          motivo='Otro — '+d;
+        }
+        cerrar({motivo,estandarMin:o.estandarMin || 0,clasificacion});
+      };
+      sel.focus();
+    });
+  }
+
+  /* ---------- CORREGIR FINALIZACIÓN (supervisor / administrador) ---------- */
+  async function corregirFinalizacion(x){
+    if(!x || quienControla(x.linea)!=='supervisor' || x.op?.estado!=='FINALIZADA')return;
+    const mismoPlan=p=>p.linea===x.linea && p.fecha===x.fecha &&
+      (x.turnoPlan==='DÍA' ? ['DÍA','INTERMEDIO'].includes(p.turno) : p.turno===x.turnoPlan);
+    const k=llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion);
+    const plan=(loadProgramaciones() || []).filter(p=>mismoPlan(p) && p.estadoOperacion?.estado==='FINALIZADA');
+    const item=plan.find(p=>p.clave===k);
+    if(!item){alert('No se encontró la presentación finalizada. Actualiza el tablero.');return;}
+
+    const cierreActual=num(item.estadoOperacion.finalizadaEn);
+    const inicioLinea=Math.min(...plan.map(p=>num(p.estadoOperacion?.inicio)).filter(Boolean),cierreActual);
+    const produccionActual=Math.round(producidoDe(x));
+    const filas=[];
+    plan.forEach(p=>paradasEditablesItem(p).forEach(r=>filas.push({...r,itemClave:p.clave,
+      presentacion:p.marca+' · '+presUI(p.linea,p.marca,p.presentacion)})));
+
+    const datos=await new Promise(resolve=>{
+      const fondo=document.createElement('div');
+      fondo.className='pa-modal-fondo';
+      fondo.innerHTML=`<div class="pa-modal pa-modal-ancho" role="dialog" aria-modal="true">
+        <h3>Corregir finalización · ${esc(x.linea)}</h3>
+        <div class="pa-modal-grid">
+          <div><label>Hora real de cierre</label><input type="time" id="pa-c-cierre" value="${horaTxt(cierreActual)}"></div>
+          <div><label>Producción final (${esc(x.marca)})</label><input type="number" min="0" step="1" id="pa-c-prod" value="${produccionActual}"></div>
+        </div>
+        <label>Paradas y pausas registradas</label>
+        ${filas.length ? `<div class="pa-modal-tabla"><table><thead><tr><th>Motivo</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Eliminar</th></tr></thead><tbody>
+          ${filas.map((r,i)=>`<tr><td>${esc(r.motivo)}<small>${esc(r.presentacion)}${r.legado?' · registro antiguo':''}</small></td>
+            <td>${r.tipo==='PAUSA'?'Pausa':'Detención'}</td>
+            <td><input type="time" data-i="${i}" data-c="ini" value="${horaTxt(r.inicio)}"></td>
+            <td><input type="time" data-i="${i}" data-c="fin" value="${horaTxt(r.fin)}"></td>
+            <td><input type="checkbox" data-i="${i}" data-c="del"></td></tr>`).join('')}</tbody></table></div>`
+          : '<p class="pa-modal-nota">No hay paradas registradas.</p>'}
+        <label>Motivo de la corrección (obligatorio)</label>
+        <textarea id="pa-c-motivo" rows="2" maxlength="200"></textarea>
+        <small class="pa-modal-nota">Las paradas abiertas se cierran con la hora de cierre y las que la exceden se recortan. Se recalculan paradas, ratios y cumplimiento, y queda un historial de la corrección.</small>
+        <div class="pa-modal-acc"><button type="button" class="btn btn-ghost" data-c>Cancelar</button>
+          <button type="button" class="btn btn-primary" data-a>Guardar corrección</button></div></div>`;
+      document.body.appendChild(fondo);
+      const cerrar=v=>{fondo.remove();resolve(v);};
+      fondo.querySelector('[data-c]').onclick=()=>cerrar(null);
+      fondo.querySelector('[data-a]').onclick=()=>{
+        const aMs=(base,hhmm,despuesDe)=>{
+          const [h,m]=String(hhmm).split(':').map(Number);
+          const d=new Date(base);d.setHours(h,m,0,0);
+          if(despuesDe && d.getTime()<=despuesDe)d.setDate(d.getDate()+1);   // cruza medianoche
+          return d.getTime();
+        };
+        const motivo=fondo.querySelector('#pa-c-motivo').value.trim();
+        const hc=fondo.querySelector('#pa-c-cierre').value;
+        const prod=Number(fondo.querySelector('#pa-c-prod').value);
+        if(!motivo){alert('El motivo de la corrección es obligatorio.');return;}
+        if(!hc){alert('Indica la hora real de cierre.');return;}
+        if(!Number.isFinite(prod) || prod<0){alert('La producción final no es válida.');return;}
+        const cierre=aMs(cierreActual,hc,inicioLinea);
+        if(cierre<=inicioLinea){alert('El cierre debe ser posterior al inicio de la línea.');return;}
+        if(cierre>Date.now()+60000){alert('El cierre no puede estar en el futuro.');return;}
+        const nuevas=[];
+        for(let i=0;i<filas.length;i++){
+          const ini=fondo.querySelector(`[data-i="${i}"][data-c="ini"]`).value;
+          const fin=fondo.querySelector(`[data-i="${i}"][data-c="fin"]`).value;
+          const del=fondo.querySelector(`[data-i="${i}"][data-c="del"]`).checked;
+          if(del){nuevas.push({...filas[i],eliminar:true});continue;}
+          if(!ini || !fin){alert('Completa inicio y fin de cada parada (o elimínala).');return;}
+          const iMs=aMs(filas[i].inicio,ini,0);
+          const fMs=aMs(iMs,fin,iMs);
+          nuevas.push({...filas[i],inicio:iMs,fin:fMs,eliminar:false});
+        }
+        cerrar({motivo,cierre,prod,filas:nuevas});
+      };
+    });
+    if(!datos)return;
+
+    const ref=db.collection('sync').doc('programaciones');
+    const itemsGuardados=await db.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      const items=snap.exists && Array.isArray(snap.data().items) ? snap.data().items.slice() : [];
+      const ahora=Date.now();
+      const usuario=state.user?.nombre || state.user?.username || 'Usuario';
+      const idx=items.findIndex(p=>p.clave===k);
+      if(idx<0 || items[idx].estadoOperacion?.estado!=='FINALIZADA')
+        throw new Error('El estado cambió. Actualiza el tablero.');
+      const anterior={
+        cierre:cierreActual,produccionFinal:produccionActual,
+        paradas:filas.map(f=>({id:f.id,motivo:f.motivo,inicio:f.inicio,fin:f.fin}))
+      };
+      const nuevo={
+        cierre:datos.cierre,produccionFinal:datos.prod,
+        paradas:datos.filas.filter(f=>!f.eliminar && f.inicio<datos.cierre)
+          .map(f=>({id:f.id,motivo:f.motivo,inicio:f.inicio,fin:Math.min(f.fin,datos.cierre)}))
+      };
+      items.forEach((p,j)=>{
+        if(!mismoPlan(p) || p.estadoOperacion?.estado!=='FINALIZADA')return;
+        const op={...p.estadoOperacion};
+        op.finalizadaEn=datos.cierre;
+        // Todas las paradas pasan a registros con hora; se recortan al cierre.
+        op.paradas=datos.filas
+          .filter(f=>f.itemClave===p.clave && !f.eliminar && f.inicio<datos.cierre)
+          .map(f=>({id:f.legado?`${p.clave}|${f.inicio}|mig`:f.id,tipo:f.tipo,motivo:f.motivo,
+            clasificacion:f.clasificacion,estandarMin:f.estandarMin || 0,inicio:f.inicio,
+            fin:Math.min(f.fin,datos.cierre),origen:'BOTON'}));
+        op.paradasMigradas=true;
+        op.pausaDesde=0;op.detenidaDesde=0;
+        op.corregida=true;op.corregidaEn=ahora;op.corregidaPor=usuario;
+        op.actualizadoEn=ahora;op.actualizadoPor=usuario;
+        if(p.clave===k && datos.prod!==produccionActual)op.produccionFinalCorregida=datos.prod;
+        const historial=Array.isArray(p.historialAlertas) ? p.historialAlertas.slice() : [];
+        if(p.clave===k){
+          historial.push({
+            id:`${k}|${ahora}|correccion`,tipo:'correccion_finalizacion',momento:ahora,
+            operador:usuario,motivo:datos.motivo,anterior,nuevo
+          });
+        }
+        items[j]={...p,estadoOperacion:op,historialAlertas:historial.slice(-300)};
+      });
+      tx.set(ref,{items,updatedAt:ahora});
+      return items;
+    });
+    _programacionesCache=itemsGuardados;
+    if(state.currentTab==='produccion-actual')renderProduccionActualTab();
+  }
+
   async function cambiarEstado(x,accion){
     if(!x)return;
+    if(accion==='corregir')return corregirFinalizacion(x);
 
     // Reabrir es una acción administrativa independiente: puede hacerse
     // sobre una producción finalizada aunque el turno ya haya terminado.
@@ -1288,16 +1552,27 @@
     let motivo='';
     let motivoPausa='';
     let motivoCancelacion='';
+    let motivoElegido=null;
+    // El motivo sale del catálogo (con duración estándar para las programadas).
     if(accion==='detener'){
-      motivo=prompt('Motivo de la detención (obligatorio):')?.trim() || '';
-      if(!motivo)return;
-      motivo=motivo.slice(0,160);
+      motivoElegido=await pedirMotivoCatalogo('NO_PROGRAMADA');
+      if(!motivoElegido)return;
+      motivo=motivoElegido.motivo.slice(0,160);
     }
     if(accion==='pausa'){
-      motivoPausa=prompt(
-        'Motivo de la pausa programada (ej.: refrigerio, limpieza, cambio programado):'
-      )?.trim() || 'Pausa programada';
-      motivoPausa=motivoPausa.slice(0,160);
+      motivoElegido=await pedirMotivoCatalogo('PROGRAMADA');
+      if(!motivoElegido)return;
+      motivoPausa=motivoElegido.motivo.slice(0,160);
+    }
+    // Al finalizar con una pausa/parada abierta, se pregunta cuándo se reanudó realmente.
+    let finParadaMs=null;
+    if(accion==='finalizar'){
+      const abiertas=paradasAbiertasDelPlan(x);
+      if(abiertas.length){
+        const r=pedirHoraReanudacion(abiertas[0]);
+        if(r===undefined)return;          // canceló: no se finaliza
+        finParadaMs=r;                    // null = usar estándar / hora de cierre
+      }
     }
     if(accion==='cancelar'){
       motivoCancelacion=prompt(
@@ -1374,11 +1649,22 @@
         op.inicioCorregidoPor=state.user?.nombre || state.user?.username || 'Usuario';
       } else if(accion==='detener'){
         op.estado='DETENIDA';op.motivo=motivo;op.detenidaDesde=ahora;
+        // Registro de parada con hora de inicio (fin se completa al reanudar).
+        op.paradas=[...(Array.isArray(op.paradas)?op.paradas:[]),{
+          id:`${k}|${ahora}|det`,tipo:'DETENCION',motivo,clasificacion:'NO_PROGRAMADA',
+          estandarMin:0,inicio:ahora,fin:0,origen:'BOTON',
+          creadoPor:state.user?.nombre || state.user?.username || 'Usuario'
+        }].slice(-100);
       }
       else if(accion==='pausa'){
         op.estado='PAUSA';
         op.pausaDesde=ahora;
         op.motivoPausa=motivoPausa;
+        op.paradas=[...(Array.isArray(op.paradas)?op.paradas:[]),{
+          id:`${k}|${ahora}|pausa`,tipo:'PAUSA',motivo:motivoPausa,clasificacion:'PROGRAMADA',
+          estandarMin:num(motivoElegido?.estandarMin),inicio:ahora,fin:0,origen:'BOTON',
+          creadoPor:state.user?.nombre || state.user?.username || 'Usuario'
+        }].slice(-100);
       }
       else if(accion==='lista'){op.estado='LISTA';op.listaDesde=ahora;}
       else if(accion==='reanudar'){
@@ -1395,7 +1681,9 @@
           motivo:e==='PAUSA'?(op.motivoPausa||'Pausa programada'):(op.motivo||'')
         };
         op.pausaDesde=0;op.detenidaDesde=0;op.estado='EN_PRODUCCION';op.motivo='';op.motivoPausa='';
+        op.paradas=cerrarParadasAbiertas(op.paradas,ahora);
       } else if(accion==='cancelar'){
+        op.paradas=cerrarParadasAbiertas(op.paradas,ahora);
         if(e==='PAUSA' && num(op.pausaDesde)>0)
           op.pausaAcumuladaMs=num(op.pausaAcumuladaMs)+Math.max(0,ahora-num(op.pausaDesde));
         if(['DETENIDA','LISTA'].includes(e) && num(op.detenidaDesde)>0)
@@ -1424,14 +1712,32 @@
 
           const opLinea={...previoLinea};
 
+          // Hora real de reanudación indicada por el supervisor (o la hora de cierre).
+          // Ninguna parada cuenta después del cierre.
+          const finParada=Math.min(ahora,finParadaMs || ahora);
+          const eraPausaReal=opLinea.estado==='PAUSA' && opLinea.motivoPausa!=='Cambio temporal de producción';
+          const eraDetenida=['DETENIDA','LISTA'].includes(opLinea.estado);
+
           if(opLinea.estado==='PAUSA' && num(opLinea.pausaDesde)>0){
             opLinea.pausaAcumuladaMs=num(opLinea.pausaAcumuladaMs)+
-              Math.max(0,ahora-num(opLinea.pausaDesde));
+              Math.max(0,finParada-num(opLinea.pausaDesde));
           }
 
-          if(['DETENIDA','LISTA'].includes(opLinea.estado) && num(opLinea.detenidaDesde)>0){
+          if(eraDetenida && num(opLinea.detenidaDesde)>0){
             opLinea.detencionAcumuladaMs=num(opLinea.detencionAcumuladaMs)+
-              Math.max(0,ahora-num(opLinea.detenidaDesde));
+              Math.max(0,finParada-num(opLinea.detenidaDesde));
+          }
+
+          // Registros de parada abiertos: se cierran (programadas con estándar
+          // sin hora informada: inicio + estándar, nunca más allá del cierre).
+          opLinea.paradas=cerrarParadasAbiertas(opLinea.paradas,ahora,finParadaMs,true);
+
+          // Datos anteriores a los registros: el historial recibe un cierre explícito.
+          if((eraPausaReal || eraDetenida) && !(previoLinea.paradas||[]).some(r=>!num(r.fin))){
+            p.historialAlertas=[...(Array.isArray(p.historialAlertas)?p.historialAlertas:[]),{
+              id:`${p.clave}|${finParada}|cierre_parada`,tipo:'cierre_parada',momento:finParada,
+              operador:state.user?.nombre || state.user?.username || 'Usuario'
+            }].slice(-300);
           }
 
           opLinea.pausaDesde=0;
@@ -1444,6 +1750,7 @@
 
           items[j]={...p,estadoOperacion:opLinea};
         });
+        // (p.historialAlertas arriba se asigna sobre el mismo objeto antes de copiarse)
 
         // Mantener la referencia local sincronizada con el elemento ya cerrado.
         Object.assign(op,items[i]?.estadoOperacion || {
@@ -1617,38 +1924,35 @@
       const activo=(estados.find(o=>o.e===estadoLinea) || estados.find(o=>!['COMPLETADA','CANCELADA'].includes(o.e)) || estados[0]).x;
 
       const programado=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
-      const producido=items.reduce((s,x)=>s+num(resumenProgramacionCombinacionTurnos(
-        x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas),0);
+      const producido=items.reduce((s,x)=>s+producidoDe(x),0);
 
-      // Ratio del turno: mismo criterio que Producción Actual (tiempo efectivo).
-      const inicios=items.map(x=>Number(x.op?.inicio || 0)).filter(Boolean);
-      const rangos=items.map(x=>horario(x.fecha,x.turno,x.compartida)).filter(Boolean);
-      const cierres=items.map(x=>Number(x.op?.finalizadaEn || x.op?.canceladaEn || 0)).filter(Boolean);
-      const finMax=rangos.length ? Math.max(...rangos.map(r=>r.fin)) : ahora;
-      const corte=cerrados && cierres.length ? Math.max(...cierres) : ahora;
-      const horasTurno=inicios.length ? Math.max(0,(Math.min(corte,finMax)-Math.min(...inicios))/MS_HORA) : 0;
-      const paradaMs=items.reduce((s,x)=>{
-        const op=x.op || {};
-        let ms=Number(op.pausaAcumuladaMs || 0)+Number(op.detencionAcumuladaMs || 0);
-        if(op.estado==='PAUSA' && Number(op.pausaDesde || 0)>0)
-          ms+=Math.max(0,Math.min(corte,finMax)-Number(op.pausaDesde));
-        if(['DETENIDA','LISTA'].includes(op.estado) && Number(op.detenidaDesde || 0)>0)
-          ms+=Math.max(0,Math.min(corte,finMax)-Number(op.detenidaDesde));
-        return s+ms;
-      },0);
-      const horasEf=Math.max(0,horasTurno-paradaMs/MS_HORA);
+      // Tiempos y ratios: función central única (23b-tiempos-linea.js).
+      const tiempos=calcularTiemposLinea(line.key,turno,fecha,{ahora});
+      const ratios=calcularRatiosLinea(tiempos,{produccion:producido,programado,ahora});
+      const desempeno=evaluarDesempenoLinea(tiempos,ratios,{produccion:producido,programado});
+      const paradaMs=tiempos.ok ? (tiempos.minParadasNoProgramadas+tiempos.minPausasProgramadas)*60000 : 0;
+
+      // Último registro de paletas de la línea (solo lectura).
+      let ultimoMs=0;
+      loadPaletas().forEach(r=>{
+        if(!items.some(x=>r.linea===x.linea && r.fecha===x.fecha &&
+          (r.turno===x.turno || (x.compartida && ['DÍA','INTERMEDIO'].includes(r.turno))) &&
+          r.marca===x.marca && r.presentacion===x.presentacion))return;
+        const t=Number(r.creadoEn || r.actualizadoEn || 0);
+        if(t>ultimoMs)ultimoMs=t;
+      });
 
       const fila={
+        ultimoMs,
         linea:line.key,nombre:line.name,
         marca:activo.marca || '',presentacion:activo.presentacion ? presUI(activo.linea,activo.marca,activo.presentacion) : '',
         estado:estadoLinea,programado,producido,
         avance:programado>0 ? producido/programado*100 : 0,
-        ratio:horasEf>0 ? producido/horasEf : 0,
+        ratio:ratios.ratioEfectivo ?? 0,ratios,tiempos,desempeno,
         paradaMs,detenidaMin:null,retrasoPct:null,
         // Estado/avance por marca-presentación (usado por el Inicio operativo).
         detalle:estados.map(({x,e})=>{
-          const p=num(resumenProgramacionCombinacionTurnos(
-            x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas);
+          const p=producidoDe(x);
           const g=num(x.prog?.cantidadProgramada);
           return {marca:x.marca,presentacion:x.presentacion,estado:e,producido:p,programado:g,
             avance:g>0 ? p/g*100 : 0};
@@ -1657,8 +1961,9 @@
       const det=estados.find(o=>o.det);
       if(det && Number(det.x.op?.detenidaDesde || 0)>0)
         fila.detenidaMin=Math.max(0,Math.round((ahora-Number(det.x.op.detenidaDesde))/60000));
-      if(estadoLinea==='EN_CURSO' && activo.nivel==='ambar' && activo.esperado>0)
-        fila.retrasoPct=Math.max(0,Math.round((1-activo.real/activo.esperado)*100));
+      // Retraso = desempeño no verde (ratio efectivo por debajo del necesario).
+      if(estadoLinea==='EN_CURSO' && ['ambar','roja'].includes(desempeno.nivel) && desempeno.razon>=0)
+        fila.retrasoPct=Math.max(1,Math.round((1-desempeno.razon)*100));
       filas.push(fila);
     });
     return {fecha,turno,actualizado:ahora,filas};

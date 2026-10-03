@@ -886,7 +886,8 @@ function blankPaleta(lineKey){
     fecha: fechaHoyPaletas(),
     turno: 'DÍA',
     marca: marcas[0] || '',
-    presentacion: presentaciones[0] || '',
+    // La presentación arranca en blanco: la elige el supervisor.
+    presentacion: '',
     hora: horaAhoraPaletas(),
     tipoPaleta: 'COMPLETA',
     paletas: 1,
@@ -2436,15 +2437,24 @@ function renderPaletasTab(){
   const marcas =
     MARCAS_POR_LINEA[state.currentLine] || [];
 
-  const presentaciones =
+  let presentaciones =
     presentacionesUnicasPaletas(state.currentLine);
+
+  // B7L, C20L y B20L no están en el catálogo visual de PET: se usa la lista
+  // de la línea, para que el supervisor pueda elegir la presentación.
+  if(!presentaciones.length){
+    presentaciones = (PRESENTACIONES_POR_LINEA[state.currentLine] || [])
+      .map(p => ({
+        value: p,
+        label: typeof nombrePresentacionUI === 'function'
+          ? nombrePresentacionUI(state.currentLine, draftPaleta.marca, p)
+          : p
+      }));
+  }
 
   // Si el borrador viene de un registro antiguo (/la u otra variante),
   // se conserva el dato hasta que el usuario elija otra presentación.
-  // Para un registro nuevo, usar la opción visual/canónica disponible.
-  if(!draftPaleta.presentacion && presentaciones.length){
-    draftPaleta.presentacion=presentaciones[0].value;
-  }
+  // Un registro nuevo queda SIN presentación: la escoge el supervisor.
 
   /*
      Programación YA guardada para la combinación que está
@@ -2530,7 +2540,8 @@ function renderPaletasTab(){
           <select onchange="actualizarPaletaCampoYRerenderizar(this,'presentacion')">
             ${
               presentaciones.length
-                ? presentaciones.map(p => `
+                ? `<option value="" ${!draftPaleta.presentacion ? 'selected' : ''}>Seleccione...</option>` +
+                  presentaciones.map(p => `
                     <option value="${escaparHtml(p.value)}" ${p.value === draftPaleta.presentacion ? 'selected' : ''}>
                       ${escaparHtml(p.label)}
                     </option>

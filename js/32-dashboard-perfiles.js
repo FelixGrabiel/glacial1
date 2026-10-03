@@ -781,85 +781,144 @@ function cpDuracionMin(min){
   min=Math.max(0,Math.round(min));
   return min>=60?`${Math.floor(min/60)} h ${String(min%60).padStart(2,'0')} min`:`${min} min`;
 }
+/* Unidad de medida propia de cada línea: nunca se suman unidades distintas. */
+const CP_UNIDAD_LINEA={C20L:'CAJ',B20L:'BID',B7L:'BID'};
+function cpUnidadEjec(linea){return CP_UNIDAD_LINEA[linea]||'UND';}
+const CP_HORARIO_TURNO={'DÍA':'07:00 – 15:00',INTERMEDIO:'15:00 – 22:00',NOCHE:'22:00 – 07:00'};
+
 function cpDatosEjecutivo(){
   let r=null;
   try{r=typeof glacialResumenEjecutivoLineas==='function'?glacialResumenEjecutivoLineas():null;}
   catch(e){console.warn('Inicio ejecutivo: resumen de líneas',e);}
   if(!r)return null;
   const filas=r.filas;
-  const programado=filas.reduce((s,f)=>s+(f.estado==='CANCELADA'?0:f.programado),0);
-  const producido=filas.reduce((s,f)=>s+f.producido,0);
+  const vigentes=filas.filter(f=>f.estado!=='CANCELADA'&&f.programado>0);
+  // Avance general: promedio del cumplimiento de cada línea (cada una con su
+  // propia unidad). No se suman unidades incompatibles.
+  const avance=vigentes.length
+    ? vigentes.reduce((s,f)=>s+Math.min(100,f.avance),0)/vigentes.length : 0;
+  const cuenta=e=>filas.filter(f=>f.estado===e).length;
+  const cerradas=filas.length>0&&filas.every(f=>['COMPLETADA','CANCELADA'].includes(f.estado));
+  // Retraso = regla del semáforo existente (ritmo real < 90 % del nominal).
+  const retrasadas=filas.filter(f=>f.retrasoPct>0);
   const alertas=[];
   filas.forEach(f=>{
     if(f.estado==='DETENIDA')alertas.push({tipo:'DETENIDA',linea:f.nombre,
       texto:f.detenidaMin!==null?`${cpDuracionMin(f.detenidaMin)} sin producción.`:'Línea detenida.'});
-    else if(f.retrasoPct>0)alertas.push({tipo:'RETRASO',linea:f.nombre,
-      texto:`Producción ${f.retrasoPct} % debajo del ritmo esperado.`});
+    else if(f.retrasoPct>0)alertas.push({tipo:'RETRASADA',linea:f.nombre,
+      texto:`Avance real ${f.retrasoPct} % por debajo del avance esperado.`});
   });
   return {
-    ...r,producido,programado,
-    avance:programado>0?producido/programado*100:0,
-    activas:filas.filter(f=>f.estado==='EN_CURSO').length,
-    detenidas:filas.filter(f=>f.estado==='DETENIDA').length,
-    pausadas:filas.filter(f=>f.estado==='PAUSA').length,
-    alertas
+    ...r,avance,cerradas,alertas,
+    enCurso:cuenta('EN_CURSO'),detenidas:cuenta('DETENIDA'),pausadas:cuenta('PAUSA'),
+    pendientes:cuenta('PENDIENTE'),retrasadas:retrasadas.length
   };
 }
+function cpProductoActual(f){
+  if(f.estado==='COMPLETADA')return 'Producción finalizada';
+  if(f.estado==='CANCELADA')return 'Cancelada';
+  if(f.estado==='PENDIENTE')return 'Pendiente';
+  return [f.marca,f.presentacion].filter(Boolean).join(' · ')||'—';
+}
+function cpAvanceTxt(d){return d.filas.some(f=>f.programado>0)?Math.round(d.avance)+' %':'—';}
 function cpEjecutivoHTML(){
   const d=cpDatosEjecutivo();
   const hora=new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
   if(!d)return `<div class="cp-empty">No se pudo cargar el estado de producción.</div>`;
-  const general=d.detenidas?{t:'CON PARADAS',c:'detenida'}:d.alertas.length?{t:'CON RETRASOS',c:'pausa'}:
-    d.activas?{t:'OPERANDO',c:'completada'}:{t:'SIN PRODUCCIÓN ACTIVA',c:'pendiente'};
-  const filas=d.filas.map(f=>{
-    const e=CP_EST_EJEC[f.estado]||CP_EST_EJEC.PENDIENTE;
-    const producto=[f.marca,f.presentacion].filter(Boolean).join(' ')||'—';
-    return `<tr><td data-label="Línea"><strong>${cpEsc(cpNombreLinea(f.linea))}</strong></td>
-      <td data-label="Producto / Marca">${cpEsc(producto)}</td>
-      <td data-label="Estado"><span class="cp-ex-badge cp-ex-${e.cls}"><i></i>${e.txt}</span></td>
-      <td data-label="Avance"><b>${Math.round(f.avance)} %</b></td>
-      <td data-label="Ratio">${f.ratio?cpFmt(f.ratio)+' UND/h':'—'}</td></tr>`;
-  }).join('');
+  const n=d.filas.length;
+
+  // ESTADO ACTUAL (¿qué pasa ahora?)
+  const actual=d.detenidas?{t:'CON LÍNEAS DETENIDAS',c:'detenida'}
+    :d.enCurso?{t:'OPERANDO',c:'completada'}
+    :d.cerradas?{t:'PRODUCCIÓN DEL TURNO FINALIZADA',c:'completada'}
+    :{t:'SIN LÍNEAS EN PRODUCCIÓN',c:'pendiente'};
+  const partes=[];
+  if(d.enCurso)partes.push(`${d.enCurso} produciendo`);
+  if(d.detenidas)partes.push(`${d.detenidas} detenida${d.detenidas>1?'s':''}`);
+  if(d.pausadas)partes.push(`${d.pausadas} en pausa`);
+  if(d.pendientes)partes.push(`${d.pendientes} pendiente${d.pendientes>1?'s':''}`);
+
+  // RESULTADO DEL TURNO (¿cuánto hemos avanzado?)
+  const estadoTurno=d.cerradas?{t:'COMPLETADO',c:'completada',s:'Programación del turno terminada'}
+    :(d.detenidas||d.retrasadas)?{t:'RETRASADO',c:'pausa',s:d.detenidas?'Hay líneas detenidas':'Por debajo del avance esperado'}
+    :{t:'EN OBJETIVO',c:'completada',s:'Ritmo acorde a lo esperado'};
+
+  const clsBarra=e=>({EN_CURSO:'verde',COMPLETADA:'verde',PAUSA:'ambar',DETENIDA:'rojo',CANCELADA:'rojo'}[e]||'azul');
+  const barra=(pct,e)=>`<div class="cp-ex-bar"><i class="${clsBarra(e)}" style="width:${Math.min(100,Math.max(0,pct)).toFixed(0)}%"></i></div>`;
+  const cant=f=>`${cpFmt(f.producido)} / ${cpFmt(f.programado)} ${cpUnidadEjec(f.linea)}`;
+  const badge=e=>{const x=CP_EST_EJEC[e]||CP_EST_EJEC.PENDIENTE;return `<span class="cp-ex-badge cp-ex-${x.cls}"><i></i>${x.txt}</span>`;};
+  const ultimo=f=>f.ultimoMs?new Date(f.ultimoMs).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}):'—';
+
+  const tarjetas=d.filas.map(f=>`<article class="cp-ex-line">
+      <div class="cp-ex-line-top"><strong>${cpEsc(cpNombreLinea(f.linea))}</strong>${badge(f.estado)}</div>
+      <div class="cp-ex-line-prod">${cpEsc(cpProductoActual(f))}</div>
+      <div class="cp-ex-line-qty"><b>${cpFmt(f.producido)}</b> / ${cpFmt(f.programado)} <small>${cpUnidadEjec(f.linea)}</small></div>
+      <div class="cp-ex-line-bar">${barra(f.avance,f.estado)}<b>${Math.round(f.avance)} %</b></div>
+    </article>`).join('');
+  const filas=d.filas.map(f=>`<tr><td data-label="Línea"><strong>${cpEsc(cpNombreLinea(f.linea))}</strong></td>
+      <td data-label="Producto actual">${cpEsc(cpProductoActual(f))}</td>
+      <td data-label="Producción / Programado"><b>${cant(f)}</b></td>
+      <td data-label="Avance"><span class="cp-ex-pct">${Math.round(f.avance)} %</span>${barra(f.avance,f.estado)}</td>
+      <td data-label="Estado">${badge(f.estado)}</td>
+      <td data-label="Último registro">${ultimo(f)}</td></tr>`).join('');
   const alertas=d.alertas.length
     ? d.alertas.map(a=>`<div class="cp-ex-alert cp-ex-alert-${a.tipo==='DETENIDA'?'detenida':'pausa'}"><b>${cpEsc(a.linea)} — ${a.tipo}</b><span>${cpEsc(a.texto)}</span></div>`).join('')
     : `<div class="cp-ex-ok">${cpIcon('info')} Operación sin alertas críticas.</div>`;
-  return `<div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2>
-      <p>${cpFechaBonita(d.fecha)} · Turno ${cpEsc(d.turno)} · Actualizado ${cpEsc(hora)}</p></div>
-      <span class="cp-ex-badge cp-ex-${general.c} cp-ex-general"><i></i>${general.t}</span></div>
+  const btn=cpPuede('produccionActual')?`<button class="cp-btn cp-btn-primary" type="button" onclick="goProduccionActual()">VER PRODUCCIÓN ACTUAL →</button>`:'';
+
+  return `<div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2><p>Vista general del turno en planta</p></div>
+      <div class="cp-ex-meta"><div><b>${cpFechaBonita(d.fecha)}</b><small>Actualizado ${cpEsc(hora)}</small></div>
+        <div class="cp-ex-turno"><b>TURNO ${cpEsc(d.turno)}</b><small>${cpEsc(CP_HORARIO_TURNO[d.turno]||'')}</small></div></div></div>
     <div class="cp-ex-kpis">
-      <div class="cp-ex-kpi"><span>Producción actual</span><b>${cpFmt(d.producido)}</b><small>UND en el turno</small></div>
-      <div class="cp-ex-kpi"><span>Avance del turno</span><b>${d.programado>0?Math.round(d.avance)+' %':'—'}</b><small>de lo programado</small></div>
-      <div class="cp-ex-kpi"><span>Líneas activas</span><b>${d.activas} / ${d.filas.length}</b><small>en curso</small></div>
-      <div class="cp-ex-kpi ${d.detenidas?'cp-ex-kpi-alert':''}"><span>Paradas</span><b>${d.detenidas}</b><small>${d.pausadas} en pausa</small></div>
+      <div class="cp-ex-kpi"><span>Avance general del turno</span><b>${cpAvanceTxt(d)}</b>${barra(d.avance,'EN_CURSO')}<small>Cumplimiento de la programación</small></div>
+      <div class="cp-ex-kpi"><span>Líneas en producción</span><b>${d.enCurso} / ${n}</b><small>líneas activas en este momento</small></div>
+      <div class="cp-ex-kpi ${d.detenidas?'cp-ex-kpi-alert':''}"><span>Líneas detenidas</span><b>${d.detenidas}</b><small>${d.detenidas?'con parada actual':'sin paradas'}</small></div>
+      <div class="cp-ex-kpi"><span>Estado del turno</span><b class="cp-ex-estado"><span class="cp-ex-badge cp-ex-${estadoTurno.c} cp-ex-general">${estadoTurno.t}</span></b><small>${estadoTurno.s}</small></div>
     </div>
-    <section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('report')}<div><h3>Estado de líneas</h3><p>Resumen del turno en curso.</p></div></div>
-      ${cpPuede('produccionActual')?`<button class="cp-btn cp-btn-primary" type="button" onclick="goProduccionActual()">VER PRODUCCIÓN ACTUAL →</button>`:''}</div>
-      ${d.filas.length?`<div class="cp-table-wrap"><table class="cp-table cp-ex-table"><thead><tr><th>Línea</th><th>Producto / Marca</th><th>Estado</th><th>Avance</th><th>Ratio</th></tr></thead><tbody>${filas}</tbody></table></div>`
-        :'<div class="cp-empty">No hay programación ni producción registrada en este turno.</div>'}</section>
+    <section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('report')}<div><h3>Producción por línea</h3>
+        <p>Cada línea con su propia unidad de medida.</p></div></div>${btn}</div>
+      <div class="cp-ex-estado-actual"><span>ESTADO ACTUAL</span><span class="cp-ex-badge cp-ex-${actual.c}"><i></i>${actual.t}</span><em>${cpEsc(partes.join(' · '))}</em></div>
+      ${n?`<div class="cp-ex-lines">${tarjetas}</div>`:'<div class="cp-empty">No hay programación ni producción registrada en este turno.</div>'}</section>
+    ${n?`<section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('clipboard')}<div><h3>Estado de líneas</h3><p>Resumen compacto del turno.</p></div></div></div>
+      <div class="cp-table-wrap"><table class="cp-table cp-ex-table"><thead><tr><th>Línea</th><th>Producto actual</th><th>Producción / Programado</th><th>Avance</th><th>Estado</th><th>Último registro</th></tr></thead><tbody>${filas}</tbody></table></div></section>`:''}
     <section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('info')}<div><h3>Alertas importantes</h3><p>Solo situaciones que requieren atención.</p></div></div></div>
       <div class="cp-ex-alerts">${alertas}</div></section>`;
 }
 function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
+.cp-ex-meta{display:flex;align-items:center;gap:16px}.cp-ex-meta b{display:block;color:#10265f;font-size:14px}.cp-ex-meta small{color:var(--cp-muted);font-size:11px}
+.cp-ex-turno{background:linear-gradient(135deg,#0a3a7a,#0868db);border-radius:10px;padding:8px 18px}.cp-ex-turno b,.cp-ex-turno small{color:#fff}
 .cp-ex-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
 .cp-ex-kpi{background:#fff;border:1px solid var(--cp-line);border-radius:12px;padding:12px 16px;box-shadow:0 3px 12px rgba(17,57,91,.055)}
-.cp-ex-kpi span{display:block;color:var(--cp-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
-.cp-ex-kpi b{display:block;margin:4px 0 2px;color:#10265f;font-size:28px;line-height:1.1}.cp-ex-kpi small{color:var(--cp-muted);font-size:11px}
+.cp-ex-kpi span{display:block;color:#10265f;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.cp-ex-kpi b{display:block;margin:6px 0 4px;color:#10265f;font-size:30px;line-height:1.1}.cp-ex-kpi small{color:var(--cp-muted);font-size:11px}
+.cp-ex-kpi .cp-ex-bar{margin:2px 0 6px}.cp-ex-estado{margin:8px 0 6px!important}
 .cp-ex-kpi-alert{border-left:4px solid var(--cp-red)}.cp-ex-kpi-alert b{color:var(--cp-red)}
 .cp-ex-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap}
 .cp-ex-badge i{width:8px;height:8px;border-radius:50%;background:currentColor}
-.cp-ex-general{font-size:12px;padding:6px 14px}
+.cp-ex-kpi .cp-ex-general{display:inline-flex;font-size:13px;padding:6px 16px;letter-spacing:0;text-transform:none;color:inherit}
 .cp-ex-curso{background:#fff0d6;color:#b86e00}.cp-ex-pausa{background:#fff8d6;color:#9a7500}.cp-ex-pendiente{background:#eceff2;color:#5f6f7c}
 .cp-ex-completada{background:#e5f6ec;color:#13814a}.cp-ex-detenida{background:#fde8e8;color:#c62828}
-.cp-ex-table td,.cp-ex-table th{padding:10px 14px;font-size:12px}
+.cp-ex-bar{height:8px;border-radius:99px;background:#e6edf3;overflow:hidden;min-width:60px}.cp-ex-bar i{display:block;height:100%;border-radius:99px;background:#0878f9}
+.cp-ex-bar i.verde{background:#159455}.cp-ex-bar i.ambar{background:#e0a100}.cp-ex-bar i.rojo{background:#d93a3a}.cp-ex-bar i.azul{background:#0878f9}
+.cp-ex-estado-actual{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #e7eef4}
+.cp-ex-estado-actual>span:first-child{font-size:10px;font-weight:800;color:var(--cp-muted);letter-spacing:.05em}.cp-ex-estado-actual em{font-style:normal;color:#466ba7;font-size:12px}
+.cp-ex-lines{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;padding:12px 14px}
+.cp-ex-line{border:1px solid var(--cp-line);border-radius:10px;padding:12px;background:#fbfdff}
+.cp-ex-line-top{display:flex;justify-content:space-between;align-items:center;gap:8px}.cp-ex-line-top strong{font-size:16px;color:#10265f}
+.cp-ex-line-prod{margin:6px 0 4px;color:#466ba7;font-size:12px;min-height:16px}
+.cp-ex-line-qty{color:#10265f;font-size:13px}.cp-ex-line-qty b{font-size:22px}.cp-ex-line-qty small{color:var(--cp-muted);font-weight:700}
+.cp-ex-line-bar{display:flex;align-items:center;gap:10px;margin-top:8px}.cp-ex-line-bar .cp-ex-bar{flex:1}.cp-ex-line-bar b{font-size:13px;color:#10265f}
+.cp-ex-table td,.cp-ex-table th{padding:10px 14px;font-size:12px}.cp-ex-table td .cp-ex-bar{display:inline-block;width:90px;margin-left:8px;vertical-align:middle}
+.cp-ex-pct{font-weight:800;color:#10265f}
 .cp-ex-alerts{padding:10px 14px;display:grid;gap:8px}
 .cp-ex-alert{display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:8px;border-left:4px solid}
 .cp-ex-alert b{font-size:13px}.cp-ex-alert span{font-size:12px}
 .cp-ex-alert-detenida{background:#fff5f5;border-color:#d93a3a;color:#a92f27}.cp-ex-alert-pausa{background:#fffbea;border-color:#df8b00;color:#8a5a00}
 .cp-ex-ok{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;background:#effbf4;color:#13814a;font-size:13px;font-weight:700}
-@media(max-width:980px){.cp-ex-kpis{grid-template-columns:1fr 1fr}}
-@media(max-width:620px){.cp-ex-kpi b{font-size:24px}
+@media(max-width:980px){.cp-ex-kpis{grid-template-columns:1fr 1fr}.cp-ex-meta{width:100%;justify-content:space-between}}
+@media(max-width:620px){.cp-ex-kpis{grid-template-columns:1fr}.cp-ex-kpi b{font-size:26px}
 .cp-ex-table thead{display:none}.cp-ex-table,.cp-ex-table tbody,.cp-ex-table tr,.cp-ex-table td{display:block;width:100%}
-.cp-ex-table tr{padding:8px 14px;border-top:1px solid #e2ebf2}.cp-ex-table td{border:0;padding:3px 0;display:flex;justify-content:space-between;gap:10px}
+.cp-ex-table tr{padding:8px 14px;border-top:1px solid #e2ebf2}.cp-ex-table td{border:0;padding:3px 0;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .cp-ex-table td:before{content:attr(data-label);color:var(--cp-muted);font-size:10px;font-weight:700;text-transform:uppercase}}
 </style>`;}
 function cpRefrescarEjecutivo(){

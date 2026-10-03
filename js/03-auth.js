@@ -20,6 +20,28 @@ async function handleLogin(){
     document.getElementById('login-error');
 
 
+  /* Reglas estrictas: primero se autentica y recién entonces se leen los datos. */
+  if(
+    typeof REGLAS_ESTRICTAS !== 'undefined' && REGLAS_ESTRICTAS &&
+    typeof loginEstricto === 'function'
+  ){
+
+    const acceso = await loginEstricto(username, pass);
+
+    if(!acceso.ok){
+
+      errBox.textContent =
+        'Usuario o contraseña incorrectos.';
+
+      errBox.style.display = 'block';
+
+      return;
+
+    }
+
+  }
+
+
   /*
      Si todavía no llegó la primera respuesta de Firestore
      (conexión muy lenta o sin internet), evitamos decir
@@ -50,7 +72,20 @@ async function handleLogin(){
 
   let passwordCorrecta = false;
 
-  if(found){
+  /*
+     Usuarios con cuenta de Firebase Authentication (authUid): SOLO
+     entran por ahí (sin pasar por la contraseña antigua). El resto
+     puede usar el sistema anterior mientras LOGIN_LEGACY_PERMITIDO
+     sea true (ver 01-config.js y 36-seguridad-auth.js).
+  */
+  if(found && found.authUid && typeof autenticarConFirebase === 'function'){
+
+    passwordCorrecta = await autenticarConFirebase(found, pass);
+
+  } else if(
+    found &&
+    (typeof LOGIN_LEGACY_PERMITIDO === 'undefined' || LOGIN_LEGACY_PERMITIDO)
+  ){
 
     if(found.passwordHash && found.salt){
 
@@ -96,6 +131,30 @@ async function handleLogin(){
 
 
   errBox.style.display = 'none';
+
+  /* Contraseña temporal: debe crear la suya antes de entrar. */
+  if(
+    found.authUid &&
+    typeof debeCambiarClaveSegura === 'function' &&
+    debeCambiarClaveSegura()
+  ){
+
+    const cambio = await forzarCambioClave();
+
+    if(!cambio){
+
+      try{ await auth.signOut(); }catch(_){}
+
+      errBox.textContent =
+        'Debes crear una contraseña nueva para entrar.';
+
+      errBox.style.display = 'block';
+
+      return;
+
+    }
+
+  }
 
   const usuarioLimpio =
     usuarioSinCredenciales(found);
@@ -211,6 +270,10 @@ function handleLogout(){
 
   sessionStorage.removeItem(DB_SESSION);
 
+  try{
+    if(typeof auth !== 'undefined' && auth) auth.signOut();
+  }catch(_){/* la sesión local ya se cerró */}
+
   state.user = null;
 
   document.getElementById('app-screen').style.display = 'none';
@@ -297,6 +360,51 @@ function tryResumeSession(){
 
   );
 
+
+  /*
+     Sesión de una cuenta segura: solo se reanuda si Firebase
+     Authentication también conserva la sesión; si no, vuelve al login.
+  */
+  if(
+    s && s.authUid &&
+    typeof auth !== 'undefined' && auth &&
+    !s.__verificadoAuth
+  ){
+
+    const desuscribir = auth.onAuthStateChanged(async usuarioAuth => {
+
+      desuscribir();
+
+      if(usuarioAuth && usuarioAuth.uid === s.authUid){
+
+        // Reglas estrictas: arrancar la sincronización ahora que hay sesión.
+        if(
+          typeof REGLAS_ESTRICTAS !== 'undefined' && REGLAS_ESTRICTAS &&
+          typeof iniciarSincronizacionSegura === 'function'
+        ){
+          iniciarSincronizacionSegura();
+          await esperarUsuariosListos();
+        }
+
+        tryResumeSessionVerificada(s);
+
+      }else{
+
+        sessionStorage.removeItem(DB_SESSION);
+
+      }
+
+    });
+
+    return;
+
+  }
+
+  tryResumeSessionVerificada(s);
+
+}
+
+function tryResumeSessionVerificada(s){
 
   if(s){
 
@@ -498,6 +606,11 @@ function enterApp(){
 
 
 
+
+  // Al entrar, siempre se muestra primero el módulo INICIO.
+  state.showWelcome = false;
+  state.currentTab = 'centro-perfil';
+  state.viewingRecordId = null;
 
   renderSidebar();
 

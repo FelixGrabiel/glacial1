@@ -1,0 +1,31 @@
+// =====================================================================
+// GLACIAL · REGLAS DE FIRESTORE — ETAPA 1 (compatibles con el sistema actual)
+// =====================================================================
+// Cómo aplicarlas:
+//   Firebase Console > Firestore Database > Reglas > pegar > Publicar.
+//
+// Cambios respecto a las reglas actuales:
+//   - Se agregan 'perfiles' (nuevo: uid -> rol), 'accesos' (nuevo: usuario -> correo interno), 'rotacionesMantenimiento'
+//     y 'rotacionMaquinistas' a la lista de documentos permitidos.
+//   - Todavía NO se exige inicio de sesión (así nada deja de funcionar
+//     mientras se migran los usuarios). La etapa 2 lo exige.
+// =====================================================================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /sync/{doc} {
+      allow read, write: if doc in [
+        'users', 'perfiles', 'accesos', 'records', 'workers', 'rotaciones',
+        'rotacionesMantenimiento', 'rotacionMaquinistas', 'tareos',
+        'precios', 'paletas', 'programaciones', 'avancesTurno'
+      ];
+    }
+    match /auditoriaTareos/{evento} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
