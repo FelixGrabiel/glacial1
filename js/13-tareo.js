@@ -512,6 +512,21 @@ function tareoPuedeEditar(tareo) {
 }
 
 
+/* Excel, PNG, Sheets y WhatsApp: solo quien gestiona el tareo (supervisores,
+   Supervisor de Mantenimiento), RRHH y Administrador. Quien solo tiene
+   permiso de visualización (Jefatura, Gerencia, ver_tareo_*) no los ve. */
+function tareoPuedeExportar(tareo) {
+
+    if (typeof state === 'undefined' || !state.user) return false;
+
+    if (esUsuarioSoloConsulta(state.user)) return false;
+
+    return (tareo ? tareoPuedeEditar(tareo) : tareoAreasEditables().length > 0) ||
+        tienePermiso('moduloRRHH');
+}
+window.tareoPuedeExportar = tareoPuedeExportar;
+
+
 function tareoTareosVisibles() {
 
     const visibles = tareoAreasVisibles();
@@ -5085,6 +5100,8 @@ function renderFilaPersonalTareo(
 
             <td>
 
+              <div class="tar2-marcacion">
+
                 <input
                     type="time"
                     value="${escaparHTML(persona.horaSalida || '')}"
@@ -5108,6 +5125,8 @@ function renderFilaPersonalTareo(
                         `
                         : ''
                 }
+
+              </div>
 
             </td>
 
@@ -5672,7 +5691,8 @@ function renderHistorialTareo() {
                 <div class="tar2-quick">
 
                     ${
-                        typeof sheetsCantidadPendientes === 'function' && sheetsCantidadPendientes()
+                        typeof sheetsCantidadPendientes === 'function' && sheetsCantidadPendientes() &&
+                        tareoPuedeExportar()
                             ? `<button class="btn btn-sm btn-ghost" onclick="sheetsReenviarPendientes()">Reenviar pendientes a Google Sheets (${sheetsCantidadPendientes()})</button>`
                             : ''
                     }
@@ -5785,8 +5805,8 @@ function renderHistorialTareo() {
                                                         }
                                                     </td>
 
+                                                    <td>
                                                         ${tareoSaldoHTML(c.saldo)}
-                                                        ${formatearHoras(c.extras)} h
                                                     </td>
 
                                                     <td>
@@ -5817,6 +5837,9 @@ function renderHistorialTareo() {
                                                                     : ''
                                                             }
 
+                                                            ${
+                                                                tareoPuedeExportar(tareo)
+                                                                    ? `
                                                             <button
                                                                 class="btn btn-sm btn-primary"
                                                                 onclick="exportarTareoExcel('${tareo.id}')"
@@ -5829,8 +5852,13 @@ function renderHistorialTareo() {
                                                                 onclick="exportarTareoPNG('${tareo.id}')"
                                                             >
                                                                 PNG
-                                                            </button>
+                                                            </button>`
+                                                                    : ''
+                                                            }
 
+                                                            ${
+                                                                tareoPuedeExportar(tareo)
+                                                                    ? `
                                                             <button
                                                                 class="btn btn-sm btn-ghost"
                                                                 onclick="sheetsReenviarTareo('${tareo.id}')"
@@ -5849,7 +5877,9 @@ function renderHistorialTareo() {
                                                                 onclick="wspEnviarTareo('${tareo.id}')"
                                                             >
                                                                 WhatsApp
-                                                            </button>
+                                                            </button>`
+                                                                    : ''
+                                                            }
 
                                                             ${
                                                                 (

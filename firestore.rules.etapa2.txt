@@ -46,7 +46,7 @@ service cloud.firestore {
         (doc in ['users', 'perfiles', 'accesos'] && esAdmin()) ||
         (autenticado() && doc in [
           'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
-          'rotacionMaquinistas', 'tareos', 'precios', 'paletas',
+          'rotacionMaquinistas', 'tecnicosMant', 'tareos', 'precios', 'paletas',
           'programaciones', 'avancesTurno'
         ]);
     }

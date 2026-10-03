@@ -131,6 +131,7 @@ const PERMISOS_APP=[
   {key:'paletas',label:'Paletas (registro en tiempo real)'},
   {key:'programarPaletas',label:'Programar producción / Secuencia del turno'},
   {key:'gestionar_rotacion_supervisores',label:'Gestionar rotación de supervisores'},
+  {key:'gestionar_rotacion_mantenimiento',label:'Gestionar rotación de Mantenimiento y de maquinistas (Rotación semanal MTTO / Rotación maquinista)'},
   {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
   {key:'inicioOperativo',label:'Ver Inicio Operativo / Mi turno'},
   {key:'ver_inicio_ejecutivo',label:'Ver Inicio Ejecutivo (resumen corto de planta — Gerencia / Jefatura)'},

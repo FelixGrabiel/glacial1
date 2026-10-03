@@ -215,6 +215,7 @@ function openUsersModal(){
                 </option>
 
                 <option value="Mantenimiento">Mantenimiento</option>
+                <option value="mantenimiento_compartido">Mantenimiento · cuenta compartida (solo lectura)</option>
                 <option value="RRHH">RRHH</option>
                 <option value="Ventas">Ventas</option>
                 <option value="Planificación">Planificación</option>
@@ -467,6 +468,7 @@ function cambiarRolNuevoUsuario(){
           'Jefe de Producción': [...PERMISOS_SOLO_CONSULTA,'inicioOperativo'],
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
           'Mantenimiento': ['moduloMantenimiento','produccionActual','control_operativo_lineas'],
+          'mantenimiento_compartido': ['ver_tareo_mantenimiento','produccionActual'],
           'RRHH': ['moduloRRHH'],
           'Ventas': ['produccionActual'],
           'Planificación': ['produccionActual'],

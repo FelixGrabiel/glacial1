@@ -809,7 +809,8 @@
       state.user?.rol==='Administrador' ||
       (tienePermiso('administracion') && tienePermiso('paletas'));
     const esJefaturaProduccion=['Jefe de Producción','Jefe de Operaciones'].includes(state.user?.rol);
-    const puedeVerTodasLasTarjetas=esSupervisor || esAdministrador || esJefaturaProduccion;
+    const esMantenimientoCompartido=typeof esMantCompartido==='function' && esMantCompartido();
+    const puedeVerTodasLasTarjetas=esSupervisor || esAdministrador || esJefaturaProduccion || esMantenimientoCompartido;
 
     const prioridadGrupo=g=>{
       if(g.items.some(x=>estadoOrdenItem(x).key==='EN_CURSO'))return 0;

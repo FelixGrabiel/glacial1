@@ -1,0 +1,66 @@
+// =====================================================================
+// GLACIAL · REGLAS — BLOQUE PARA LA CUENTA COMPARTIDA DE MANTENIMIENTO (FASE A)
+// =====================================================================
+// Solo aplica a la ETAPA 2 (reglas estrictas). En etapa 1 no hace falta.
+// Cuenta compartida = rol 'mantenimiento_compartido' en sync/perfiles.
+//
+// Cambios sobre firestore.rules.etapa2.txt:
+//   1. Función nueva esMantCompartido().
+//   2. La lectura se limita a los documentos que el rol necesita.
+//   3. La escritura queda DENEGADA para esta cuenta, salvo sync/tecnicosMant
+//      (PIN de técnicos, Fase B; no hace falta con Cloud Functions).
+//      (En la Fase C se abrirá una escritura mínima y acotada.)
+// =====================================================================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function perfiles() {
+      return get(/databases/$(database)/documents/sync/perfiles).data.map;
+    }
+    function autenticado() {
+      return request.auth != null && request.auth.uid in perfiles();
+    }
+    function esAdmin() {
+      return autenticado() && perfiles()[request.auth.uid].rol == 'Administrador';
+    }
+    function esMantCompartido() {
+      return autenticado() && perfiles()[request.auth.uid].rol == 'mantenimiento_compartido';
+    }
+
+    match /sync/{doc} {
+      allow read: if doc == 'accesos' || request.auth != null && (
+        doc == 'perfiles' ||
+        (autenticado() && (
+          !esMantCompartido() ||
+          doc in ['users', 'workers', 'rotacionesMantenimiento', 'rotacionMaquinistas',
+                  'tareos', 'programaciones', 'paletas', 'avancesTurno', 'records',
+                  'tecnicosMant']
+        ))
+      );
+
+      allow write:
+        // FASE B: la cuenta compartida solo puede escribir los PIN de técnicos.
+        // Con Cloud Functions (MANT_PIN_MODO='functions') QUITAR esta línea.
+        if (esMantCompartido() && doc == 'tecnicosMant') ||
+        !esMantCompartido() && (
+        (doc in ['users', 'perfiles', 'accesos'] && esAdmin()) ||
+        (autenticado() && doc in [
+          'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
+          'rotacionMaquinistas', 'tareos', 'precios', 'paletas',
+          'programaciones', 'avancesTurno'
+        ])
+      );
+    }
+
+    match /auditoriaTareos/{evento} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if autenticado() && !esMantCompartido();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

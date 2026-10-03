@@ -31,14 +31,17 @@
   }
 
   function puedeGestionarRotacionMtto(){
-    if(typeof tienePermiso !== 'function' || !tienePermiso('moduloMantenimiento')){
-      return false;
-    }
+    if(typeof tienePermiso !== 'function') return false;
 
     // Jefatura/Gerencia solo consultan: nunca gestionan la rotación.
     if(typeof esUsuarioSoloConsulta === 'function' && esUsuarioSoloConsulta(state.user)){
       return false;
     }
+
+    // Permiso explícito asignado por Administración (rotación MTTO y de maquinistas).
+    if(tienePermiso('gestionar_rotacion_mantenimiento')) return true;
+
+    if(!tienePermiso('moduloMantenimiento')) return false;
 
     const texto = textoUsuarioMtto();
     const esMantenimiento = /mantenimiento|\bmtto\b/.test(texto);

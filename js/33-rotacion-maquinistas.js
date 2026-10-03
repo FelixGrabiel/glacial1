@@ -248,6 +248,10 @@
   function renderRotacionMaquinistas(){
     const main=document.getElementById('main');if(!main)return;
     estilos();
+    if(!puedeGestionarRotacionMaquinistas()){
+      main.innerHTML='<div class="empty-state"><h4>Acceso restringido</h4><p>La Rotación de maquinistas solo la ve el Supervisor de Mantenimiento, el Administrador o quien tenga el permiso asignado.</p></div>';
+      return;
+    }
     if(!semana){semana=lunesDe(iso(new Date()));cargarBorrador();}
     const puede=puedeGestionarRotacionMaquinistas();
     const guardada=guardadaDe(semana);
@@ -304,7 +308,8 @@
     const anterior=tareoRenderTabs;
     tareoRenderTabs=function(activa){
       const html=anterior(activa);
-      if(!tareoAreasVisibles().includes('Mantenimiento'))return html;
+      // Solo quien gestiona la rotación (Supervisor de Mantenimiento, Administrador o con permiso).
+      if(!puedeGestionarRotacionMaquinistas())return html;
       const boton=`<button class="tareo-tab ${activa==='rotacionMaq'?'active':''}" onclick="if(confirmarAbandonoRotacionPendiente())renderRotacionMaquinistas()">Rotación maquinista</button>`;
       return html.replace('</div>',boton+'</div>');
     };

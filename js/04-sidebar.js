@@ -118,7 +118,7 @@ function ajustarVistaSegunPermisos(){
     : tab==='tareo'
       ? puedeEntrarTareoProduccion()
       : tab==='centro-perfil'
-        ? true
+        ? !(typeof esMantCompartido==='function' && esMantCompartido())
         : globales[tab] && permisoNavegacion(globales[tab]);
 
   if(!permitido)state.currentTab=primeraVistaAutorizada();
@@ -205,7 +205,7 @@ function renderSidebar(){
     const boton=document.getElementById(id);
     if(!boton)return;
     const mostrar=id==='btn-centro-perfil'
-      ? !!state.user
+      ? !!state.user && !(typeof esMantCompartido==='function' && esMantCompartido())
       : id==='btn-tareo'
         ? puedeEntrarTareoProduccion()
         : id==='btn-usuarios'||id==='btn-trabajadores'
@@ -222,7 +222,7 @@ function renderSidebar(){
   const almacen=document.getElementById('btn-almacen');
   if(almacen){
     // Almacén continúa siendo una referencia visual, no crea una pantalla nueva.
-    const mostrarAlmacen=!!state.user;
+    const mostrarAlmacen=!!state.user && !(typeof esMantCompartido==='function' && esMantCompartido());
     almacen.hidden=!mostrarAlmacen;
     almacen.style.display=mostrarAlmacen?'':'none';
   }
