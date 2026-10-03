@@ -5,7 +5,7 @@
 //   1. Todos los usuarios estén migrados a cuentas seguras
 //      (botón "Migrar usuarios a cuentas seguras") y hayan entrado
 //      al menos una vez con su contraseña nueva.
-//   2. LOGIN_LEGACY_PERMITIDO esté en false y REGLAS_ESTRICTAS en true (js/01-config.js).
+//   2. LOGIN_LEGACY_PERMITIDO esté en false y REGLAS_ESTRICTAS en true (js/nucleo/01-config.js).
 //   3. Se haya probado el sistema con las reglas de la etapa 1.
 // Si algo falla después de publicar, vuelve a pegar las reglas de la
 // etapa 1 (no se pierde ningún dato).

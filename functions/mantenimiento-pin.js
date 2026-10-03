@@ -7,7 +7,7 @@
           Object.assign(exports, require('./mantenimiento-pin'));
      2) npm i firebase-admin firebase-functions   (dentro de functions/)
      3) firebase deploy --only functions
-     4) En js/01-config.js:  window.MANT_PIN_MODO='functions';
+     4) En js/nucleo/01-config.js:  window.MANT_PIN_MODO='functions';
      5) Reglas de Firestore: sin acceso de clientes a la colección
         `mantPines` (match /mantPines/{id} { allow read, write: if false; }).
 
