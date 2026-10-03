@@ -97,6 +97,9 @@
         (p.salidaOriginal||ult.anterior||'—')+' -> '+(p.horaSalida||'—')+
         (ult.motivo?' ('+ult.motivo+')':''));
     }
+    if(p.agregadoManual){
+      partes.push((p.nuevoIngreso?'Personal nuevo':'Agregado manualmente')+(p.agregadoPor?' por '+p.agregadoPor:''));
+    }
     const libre=porDia?p.observacion:(p.observacion||p.observaciones);
     if(libre)partes.push(String(libre));
     return partes.join(' · ');

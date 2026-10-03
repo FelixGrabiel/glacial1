@@ -3228,7 +3228,7 @@ function tareoSincronizarConRotacion(tareo) {
 
         if (
             previa &&
-            (previa.origenMaquinista === 'ROT_MAQ' || previa.trabajoEnDescanso) &&
+            (previa.origenMaquinista === 'ROT_MAQ' || previa.trabajoEnDescanso || previa.agregadoManual) &&
             !nuevoPersonal.some(n => tareoMismaPersonaFlexible(n, previa))
         ) {
             nuevoPersonal.push(previa);
@@ -3680,14 +3680,12 @@ function renderTareoFormulario(tareo) {
                         oninput="tareoFiltrarPersonal(this.value)"
                     >
 
-                    ${area === 'Mantenimiento' ? `
                     <button
                         class="btn btn-ghost btn-sm"
                         onclick="tareoAbrirAgregarPersonal()"
                     >
                         + Agregar personal
                     </button>
-                    ` : ''}
 
                     <span class="tareo-count-badge">
                         ${personal.length} personas
