@@ -91,8 +91,12 @@
     Object.keys(v).forEach(k=>{if(num(v[k])>0)o[normVel(k)]=num(v[k]);});
     return o;
   }
-  const velocidadDe=(linea,pres)=>velocidades()[normVel(claveVel(linea,pres))]||0;
-  window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{})});
+  // Tabla única de velocidad estándar: sync/configIndicadores y, si el formato no está ahí, el catálogo base de 01-config.js
+  // (la misma regla que usa Planificación y el registro de producción; ver 49-resumen-indicadores.js).
+  const velocidadDe=(linea,pres)=>velocidades()[normVel(claveVel(linea,pres))]||
+    (typeof window.glacialVelocidadEstandar==='function'?window.glacialVelocidadEstandar(linea,pres,''):0)||0;
+  window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{}),metasReporte:Object.assign({},remota.metasReporte||{})});
+  window.glacialConfigIndicadoresOyentes=window.glacialConfigIndicadoresOyentes||[];
   const nivelDisp=p=>{
     if(p==null)return 'gris';
     const m=metas(),v=p*100;
@@ -104,10 +108,13 @@
     try{
       desubConfig=db.collection('sync').doc('configIndicadores').onSnapshot(snap=>{
         remota=snap.exists?(snap.data()||{}):{};
+        window.glacialConfigIndicadoresOyentes.forEach(f=>{try{f();}catch(_){/* oyente ajeno */}});
         refrescar();
       },()=>{desubConfig=null;});
     }catch(_){desubConfig=null;}
   }
+  window.glacialConfigIndicadoresEscuchar=()=>escucharConfig();
+  window.glacialPuedeConfigurarIndicadores=()=>puedeConfigurar();
   function detenerConfig(){
     if(desubConfig){try{desubConfig();}catch(_){/* ya cerrado */}}
     desubConfig=null;remota={};
@@ -664,7 +671,7 @@
       '<label style="flex:1;font-size:13px">Ámbar desde (%)<input type="number" data-meta="ambarPct" min="1" max="100" value="'+m.ambarPct+'" style="display:block;width:100%;padding:6px"></label></div>'+
       '<h4 style="margin:12px 0 4px">Velocidad estándar (UND/h) por línea y formato</h4>'+
       '<table style="width:100%;font-size:13px"><thead><tr><th align="left">Línea</th><th align="left">Formato (presentación)</th><th align="left">UND/h</th></tr></thead><tbody>'+
-      formatos.map(f=>'<tr><td>'+esc(nombreLinea(f.linea))+'</td><td>'+esc(f.pres)+'</td><td><input type="number" min="0" data-vel="'+esc(claveVel(f.linea,f.pres))+'" data-orig="'+esc(valorActual(f.linea,f.pres))+'" value="'+esc(valorActual(f.linea,f.pres))+'" placeholder="sin definir" style="width:110px;padding:4px"></td></tr>').join('')+'</tbody></table>'+
+      formatos.map(f=>'<tr><td>'+esc(nombreLinea(f.linea))+'</td><td>'+esc(f.pres)+'</td><td><input type="number" min="0" data-vel="'+esc(claveVel(f.linea,f.pres))+'" data-orig="'+esc(valorActual(f.linea,f.pres))+'" value="'+esc(valorActual(f.linea,f.pres))+'" placeholder="'+esc(typeof window.glacialVelocidadCatalogo==='function'&&window.glacialVelocidadCatalogo(f.linea,f.pres,'')>0?'catálogo: '+window.glacialVelocidadCatalogo(f.linea,f.pres,''):'sin definir')+'" style="width:110px;padding:4px"></td></tr>').join('')+'</tbody></table>'+
       '<div data-cfg-error style="color:#c62828;font-size:12px;min-height:16px;margin-top:6px"></div>'+
       '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" class="btn btn-ghost" data-cfg-x>Cancelar</button><button type="button" class="btn btn-primary" data-cfg-ok>Guardar</button></div></div>';
     document.body.appendChild(fondo);

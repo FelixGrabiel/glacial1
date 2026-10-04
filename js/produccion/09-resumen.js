@@ -2472,7 +2472,7 @@ function renderResumenIndustrial(records,rangoLabel){
   const totalProd=data.porLinea.reduce((a,x)=>a+x.producido,0);
   const cumplimiento=totalProg?totalProd/totalProg:0;
   const totalMerma=data.porLinea.reduce((a,x)=>a+x.merma,0);
-  const mermaPct=(totalProd+totalMerma)>0?totalMerma/(totalProd+totalMerma):0;
+  const mermaPct=totalProd>0?totalMerma/totalProd:0;          // misma fórmula que la tarjeta del Resumen: suma de mermas ÷ producción efectiva
   const horasEf=data.porLinea.reduce((a,x)=>a+x.minEfectivos,0)/60;
   const filtros=['TODAS','PET1','PET2','B7L','C20L','B20L'];
 
@@ -2499,7 +2499,7 @@ function renderResumenIndustrial(records,rangoLabel){
       <div class="ri-kpi"><span>Cumplimiento</span><b>${totalProg?(cumplimiento*100).toFixed(1)+'%':'—'}</b><small>Producido / programado</small></div>
       <div class="ri-kpi"><span>Paradas</span><b>${Math.round(totalParadas).toLocaleString('es-PE')} min</b><small>Acumulado</small></div>
       <div class="ri-kpi"><span>Horas efectivas</span><b>${horasEf.toFixed(1)} h</b><small>Tiempo − paradas</small></div>
-      <div class="ri-kpi"><span>Merma</span><b>${mermaPct?(mermaPct*100).toFixed(1)+'%':'0.0%'}</b><small>Sobre producción + merma</small></div>
+      <div class="ri-kpi"><span>Merma</span><b>${mermaPct?(mermaPct*100).toFixed(1)+'%':'0.0%'}</b><small>Suma de mermas ÷ producción efectiva</small></div>
     </div>
     <div class="ri-grid">
       <div class="ri-box"><h3>Programado vs producido por línea</h3><div class="ri-canvas"><canvas id="ri-plan-real"></canvas></div></div>
@@ -2551,7 +2551,9 @@ function renderResumen(main){
       ? `día ${formatearFechaResumen(resumenFechaDiaria || fechaHoyResumen())}`
 
       : (
-          resumenRangoDias
+          resumenRangoDias === 'rango' && typeof window.glacialRangoEtiqueta === 'function'
+            ? window.glacialRangoEtiqueta()
+          : resumenRangoDias
             ? `últimos ${resumenRangoDias} días`
             : 'todo el historial'
         );
@@ -3601,10 +3603,10 @@ function renderResumen(main){
 
     tarjetaKpiResumen({
       label:'OEE de planta',
-      valor:pct(kpis.oee),
-      clase:claseSegunMeta(kpis.oee, METAS.oee),
-      barra:{ pct:kpis.oee, meta:METAS.oee },
-      pie:'Meta ' + pct(METAS.oee)
+      valor:kpis.oee == null ? '—' : pct(kpis.oee),
+      clase:kpis.oee == null ? '' : claseSegunMeta(kpis.oee, METAS.oee),
+      barra:{ pct:kpis.oee || 0, meta:METAS.oee },
+      pie:(kpis.oee == null ? 'Falta velocidad estándar' : 'Meta ' + pct(METAS.oee)) + ' · Calidad: no se mide'
     }) +
 
     tarjetaKpiResumen({

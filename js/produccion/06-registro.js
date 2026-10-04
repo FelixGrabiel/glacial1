@@ -59,7 +59,9 @@ function calcDerivedLegacy(r){
   const rechazadas = 0;
   const calidadBot = sopladas;
 
-  const disponibilidad = horasTurno > 0 ? horasEfectivas / horasTurno : 0;
+  /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
+  const planificadoH = Math.max(horasTurno - pProg, 0);
+  const disponibilidad = planificadoH > 0 ? horasEfectivas / planificadoH : 0;
   const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
   const oee = disponibilidad * rendimiento * calidad;
@@ -110,7 +112,9 @@ function calcDerivedCuadro(cuadro){
   const rechazadas = 0;
   const calidadBot = sopladas;
 
-  const disponibilidad = horasTurno > 0 ? horasEfectivas / horasTurno : 0;
+  /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
+  const planificadoH = Math.max(horasTurno - pProg, 0);
+  const disponibilidad = planificadoH > 0 ? horasEfectivas / planificadoH : 0;
   const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
   const oee = disponibilidad * rendimiento * calidad;
@@ -159,7 +163,9 @@ function calcDerivedMulti(r){
   const pProg = ds.reduce((a,d) => a + num(d.pProg), 0);
   const pNoProg = ds.reduce((a,d) => a + num(d.pNoProg), 0);
 
-  const disponibilidad = horasTurno > 0 ? horasEfectivas / horasTurno : 0;
+  /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
+  const planificadoH = Math.max(horasTurno - pProg, 0);
+  const disponibilidad = planificadoH > 0 ? horasEfectivas / planificadoH : 0;
   const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
   const oee = disponibilidad * rendimiento * calidad;
