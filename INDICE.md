@@ -62,7 +62,8 @@ js/
 | 22-impacto-para-pegar.js | Complemento del impacto económico |
 | 23b-tiempos-linea.js | Cálculo central de tiempos y ratios por línea |
 | 24-semaforo-produccion-actual.js | Producción actual y semáforo de líneas |
-| 25-alertas-lineas.js | Alertas de líneas |
+| 25-alertas-lineas.js | Centro de alertas de líneas (detenciones + pestaña Avisos con contador) |
+| 46-proyeccion-avisos.js | Avisos a–e, tarjeta «Proyección del turno» del Inicio y editor de umbrales (sync/configAlertas) |
 | 29-avance-produccion.js | Avance y cierre de turno |
 | 35-autollenado-registro.js | Autollenado del registro desde paletas/paradas |
 
@@ -142,8 +143,9 @@ js/
 42. personal/41-tareo-bloqueo.js
 43. mantenimiento/43-bitacora-mantenimiento.js
 44. nucleo/44-estado-datos.js
-45. accesos/39-vista-como.js
-46. nucleo/12-init.js
+45. produccion/46-proyeccion-avisos.js
+46. accesos/39-vista-como.js
+47. nucleo/12-init.js
 
 ## Cómo agregar un archivo nuevo
 
@@ -187,3 +189,5 @@ descargar las contraseñas temporales, respaldar usuarios y trabajadores, y comp
 Al restablecer una clave o eliminar un usuario, el correo anterior se anota en sync/cuentasAntiguas (solo Administrador);
 "Comprobar migración" lo lista para borrar esas cuentas a mano en Firebase Console → Authentication. En la etapa 2,
 sync/perfiles solo lo lee quien figura en perfiles (el login solo necesita sync/accesos, que es público).
+
+Lote 2: la proyección de cierre vive en 23b-tiempos-linea.js (proyectarCierreLinea). Definiciones oficiales: horas efectivas = transcurrido − (paradas programadas + no programadas) ÷ 60; RATIO = producido ÷ horas efectivas; RENDIMIENTO DEL TURNO = producido ÷ (transcurrido − pausas programadas) (solo para «Si las paradas siguen igual»). Los umbrales de avisos y de color se guardan en sync/configAlertas (lectura: todo usuario autenticado; escritura: Administrador y Jefatura).

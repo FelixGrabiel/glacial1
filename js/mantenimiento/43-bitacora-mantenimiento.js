@@ -195,7 +195,14 @@
       .limit(LIMITE_EVENTOS);
   };
 
-  /* ---------- carga por rango (nunca la colección completa) ---------- */
+  /* ---------- carga por rango en VIVO (nunca la colección completa) ----------
+     Escucha solo el rango elegido (máx. 31 días, tope de eventos): primero llegan los del rango y después
+     solo los nuevos. Se cierra al cambiar de rango y al salir de la pantalla. */
+  let desubBitacora=null;
+  function detenerBitacora(){
+    if(desubBitacora){try{desubBitacora();}catch(_){/* ya cerrada */}}
+    desubBitacora=null;
+  }
   async function cargarRango(forzar){
     if(typeof db==='undefined')return;
     const rechazar=msg=>{carga.error=msg;carga.cargando=false;renderBitacoraMtto();};
@@ -204,25 +211,31 @@
     if(dias(F.desde,F.hasta)>MAX_DIAS)
       return rechazar('El rango pedido es de '+dias(F.desde,F.hasta)+' días y el máximo es '+MAX_DIAS+' días por consulta (para no gastar lecturas). Acota las fechas.');
     const clave=F.desde+'|'+F.hasta;
-    if(!forzar&&clave===carga.clave&&!carga.error)return;
+    if(!forzar&&clave===carga.clave&&!carga.error&&desubBitacora)return;       // ya se está escuchando este rango
     const token=++carga.token;
+    detenerBitacora();
     carga.cargando=true;carga.error='';
     renderBitacoraMtto();
     try{
       const ini=inicioOperativo(F.desde);
       const fin=inicioOperativo(addDias(F.hasta,1));
-      const snap=await consultaRango(ini,fin).get();
-      if(token!==carga.token)return;          // llegó una consulta más nueva
-      carga.eventos=snap.docs.map(docAEvento);
-      carga.truncado=snap.size>=LIMITE_EVENTOS;
-      carga.clave=clave;carga.cargadoEn=ahoraMs();
+      desubBitacora=consultaRango(ini,fin).onSnapshot(snap=>{
+        if(token!==carga.token)return;          // llegó una escucha más nueva
+        carga.eventos=snap.docs.map(docAEvento);
+        carga.truncado=snap.size>=LIMITE_EVENTOS;
+        carga.clave=clave;carga.cargadoEn=ahoraMs();carga.cargando=false;carga.error='';
+        if(state.currentTab==='bitacora-mtto')renderBitacoraMtto();      // si ya salió de la pantalla, no se redibuja
+      },e=>{
+        if(token!==carga.token)return;
+        carga.error='No se pudo cargar la bitácora: '+((e&&e.message)||e);
+        carga.eventos=[];carga.clave='';carga.cargando=false;
+        if(state.currentTab==='bitacora-mtto')renderBitacoraMtto();
+      });
     }catch(e){
-      if(token!==carga.token)return;
       carga.error='No se pudo cargar la bitácora: '+((e&&e.message)||e);
-      carga.eventos=[];carga.clave='';
+      carga.eventos=[];carga.clave='';carga.cargando=false;
+      renderBitacoraMtto();
     }
-    carga.cargando=false;
-    renderBitacoraMtto();
   }
 
   /* ---------- filtros (en el navegador) ---------- */
@@ -386,7 +399,7 @@
     main.innerHTML=
       '<div class="main-head" id="bitmtto-view"><div><h2>Bitácora de Mantenimiento</h2>'+
       '<div class="sub">Solo lectura · día operativo de 07:00 a 07:00 · hora del servidor '+
-      (carga.cargadoEn?chip(carga.cargadoEn):'<span class="small-muted">sin consultar</span>')+'</div></div></div>'+
+      (carga.cargadoEn?chip():'<span class="small-muted">sin consultar</span>')+'</div></div></div>'+
       '<div class="panel"><div class="panel-body">'+
       '<div class="bm-rangos">'+rb('hoy','Hoy')+rb('ayer','Ayer')+rb('semana','Esta semana')+rb('mes','Este mes')+rb('personalizado','Personalizado')+'</div>'+
       '<div class="tar2-toolbar" style="margin-bottom:10px;gap:10px;flex-wrap:wrap">'+
@@ -453,9 +466,15 @@
       claveProgramacion:base.claveProgramacion||'',estadoAnterior:'',estadoNuevo:'',motivo:'',estandarMin:null,duracionMs:null,
       paradaId:base.paradaId||null,paradaEventoId:base.id,motivoAnterior:p.motivo||'',motivoDetalle:texto
     };
+    if(window.glacialEstadoDatos&&!window.glacialEstadoDatos.enLinea){
+      alert('Sin conexión: el motivo NO se guardó. Inténtalo cuando vuelva la conexión.');return;
+    }
     try{
-      await ref.set(evento);
-      carga.eventos.push(Object.assign({},evento,{id:ref.id,ts:ahoraMs(),timestamp:null}));
+      // Solo se da por hecho cuando el servidor lo confirma (sin conexión, set() queda pendiente y no resuelve).
+      await Promise.race([ref.set(evento),new Promise((_,rechazar)=>setTimeout(
+        ()=>rechazar(new Error('el servidor no confirmó el guardado (¿sin conexión?)')),10000))]);
+      if(!carga.eventos.some(e=>e.id===ref.id))
+        carga.eventos.push(Object.assign({},evento,{id:ref.id,ts:ahoraMs(),timestamp:null}));   // la escucha en vivo lo reemplaza
       renderBitacoraMtto();
     }catch(e){alert('No se pudo registrar el motivo: '+((e&&e.message)||e));}
   }
@@ -763,6 +782,7 @@
       if(state.currentTab==='bitacora-mtto'&&!state.showWelcome&&puedeVerBitacoraMtto()){
         renderBitacoraMtto();return;
       }
+      if(desubBitacora&&state.currentTab!=='bitacora-mtto')detenerBitacora();   // salió de la bitácora: deja de leer
       return mainAnterior.apply(this,arguments);
     };
   }

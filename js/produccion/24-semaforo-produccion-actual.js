@@ -488,6 +488,62 @@
     return candidatos[0].x;
   }
 
+  /* Último registro de paletas de las presentaciones de una línea (ms; 0 si no hay). Solo lectura. */
+  function ultimoPaletaMs(items){
+    let ultimo=0;
+    loadPaletas().forEach(r=>{
+      if(!items.some(x=>r.linea===x.linea && r.fecha===x.fecha &&
+        (r.turno===x.turno || (x.compartida && ['DÍA','INTERMEDIO'].includes(r.turno))) &&
+        r.marca===x.marca && r.presentacion===x.presentacion))return;
+      const t=Number(r.creadoEn || r.actualizadoEn || 0);
+      if(t>ultimo)ultimo=t;
+    });
+    return ultimo;
+  }
+  /* Umbrales de color de la proyección: sync/configAlertas (46-proyeccion-avisos.js) o los de 23b. */
+  function proyeccionUmbrales(){
+    try{
+      const c=typeof window.glacialConfigAlertas==='function' ? window.glacialConfigAlertas() : null;
+      return c ? {verdePct:c.proyeccionVerdePct,ambarPct:c.proyeccionAmbarPct} : undefined;
+    }catch(_){return undefined;}
+  }
+  function htmlProyeccion(p){
+    if(!p || p.estado==='SIN_PROYECCION')return '';
+    const fmt=n=>Math.round(n).toLocaleString('es-PE');
+    const hhmm=ms=>new Date(ms).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false});
+    const minCalc=(window.UMBRALES_PROYECCION_LINEA||{}).minCalculoMin||30;
+    if(p.estado==='CALCULANDO')
+      return '<div class="pa-proy"><div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b><span>Calculando…</span>'+
+        '<small>Se muestra después de '+minCalc+' min de iniciada la programación.</small></div></div>';
+    if(p.estado==='SIN_RITMO')
+      return '<div class="pa-proy"><div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b><span>—</span>'+
+        '<small>Aún no hay horas efectivas para estimar el ritmo.</small></div></div>';
+    const pct=v=>v==null?'—':v.toFixed(1)+' %';
+    const sinMas=p.sinMasParadas;
+    const dif=p.diferencia;
+    const difTxt=dif>=0 ? '<span class="pa-proy-dif sobra">sobrarían '+fmt(dif)+'</span>'
+      : '<span class="pa-proy-dif falta">faltarían '+fmt(-dif)+'</span>';
+    const registrado=p.segunRegistradoMs ? hhmm(p.segunRegistradoMs) : hhmm(p.ahora);
+    let hora;
+    if(p.cumplido)hora='Programa ya cumplido';
+    else if(p.horaEstimadaMs){
+      hora='Se completaría hacia las <b>'+hhmm(p.horaEstimadaMs)+'</b>'+
+        (p.minAdicionales>0.5 ? ' · <span class="pa-proy-dif falta">después del fin del turno: harían falta '+fmt(p.minAdicionales)+' min adicionales</span>' : '');
+    }else hora='Hora estimada: —';
+    return '<div class="pa-proy '+p.nivel+'">'+
+      '<div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b>'+
+      '<small>según lo registrado a las '+registrado+'</small></div>'+
+      '<div class="pa-proy-grid">'+
+        '<div>Si las paradas siguen igual: <b>'+fmt(p.siguenIgual)+' UND</b> ('+pct(p.pct)+') · '+difTxt+'</div>'+
+        '<div>Sin más paradas: <b>'+(sinMas==null?'—':fmt(sinMas)+' UND')+'</b> ('+pct(sinMas==null?null:sinMas/p.programado*100)+')</div>'+
+        '<div>Ritmo necesario: <b>'+(p.ritmoNecesario==null?'—':fmt(p.ritmoNecesario))+' UND/h</b> · ritmo actual (ratio): <b>'+(p.ritmoActual==null?'—':fmt(p.ritmoActual))+' UND/h</b></div>'+
+        '<div>'+hora+'</div>'+
+      '</div>'+
+      (p.detenida?'<div class="pa-proy-nota">⚠ La línea está detenida: la proyección baja mientras dure la parada.</div>':'')+
+      (p.pausaPendienteMin>0?'<div class="pa-proy-nota info">Incluye descontar el refrigerio pendiente ('+p.pausaPendienteMin+' min).</div>':'')+
+    '</div>';
+  }
+
   function ultimoRegistro(x){
     const registros=loadPaletas().filter(p=>p.linea===x.linea &&
       p.fecha===x.fecha && (p.turno===x.turno || (x.compartida && p.turno==='DÍA')) &&
@@ -809,6 +865,12 @@
         const ratios=calcularRatiosLinea(tiempos,{produccion:totalProd,programado:totalProg,ahora});
         const desempeno=evaluarDesempenoLinea(tiempos,ratios,{produccion:totalProd,programado:totalProg});
         const ratioTurno=ratios.ratioTurno ?? 0;
+        // Proyección de cierre (23b-tiempos-linea.js): no cambia ratios ni minutos de parada.
+        const proyeccion=proyectarCierreLinea(tiempos,ratios,{
+          produccion:totalProd,programado:totalProg,ahora,
+          detenida:items.some(x=>['DETENIDA','LISTA'].includes(x.op?.estado)),
+          ultimoRegistroMs:ultimoPaletaMs(items)
+        },proyeccionUmbrales());
         const nivelEstado=nivel;
         // El COLOR refleja el desempeño; el estado queda como etiqueta de texto.
         const nivelFinal=desempeno.nivel!=='gris' ? desempeno.nivel : nivelEstado;
@@ -816,7 +878,7 @@
         return {
           line,items,vacios,activo,nivel:nivelFinal,nivelEstado,texto,turnosLinea,totalProg,totalProd,
           horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
-          totalesPresentacion,tiempos,ratios,desempeno
+          totalesPresentacion,tiempos,ratios,desempeno,proyeccion
         };
     }
 
@@ -905,7 +967,7 @@
     // Minutos (no ms) con el mismo formato legible.
     const formatoMin=min=>formatoDuracion((Number(min)||0)*60000);
     // Ratio faltante o inválido → "-" (nunca NaN/Infinity).
-    const fmtRatio=v=>Number.isFinite(v) && v!==null ? Math.round(v).toLocaleString('es-PE') : '-';
+    const fmtRatio=v=>Number.isFinite(v) && v!==null ? Math.round(v).toLocaleString('es-PE') : '—';
 
     const formatoCronometro=ms=>{
       ms=Math.max(0,Number(ms)||0);
@@ -983,8 +1045,8 @@
             <div class="pa-line-kpi"><small>PROGRAMACIÓN VIGENTE</small><strong>${Math.round(g.totalProg).toLocaleString('es-PE')} <span>UND</span></strong></div>
             <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong></div>
             <div class="pa-line-kpi"><small>CUMPLIMIENTO</small><strong>${g.totalProg>0 ? Math.min(999,(g.totalProd/g.totalProg)*100).toFixed(1) : '0.0'}<span>%</span></strong></div>
-            <div class="pa-line-kpi"><small>RATIO TURNO</small><strong>${fmtRatio(g.ratios?.ratioTurno)} <span>UND/h</span></strong></div>
-            <div class="pa-line-kpi"><small>RATIO EFECTIVO</small><strong>${fmtRatio(g.ratios?.ratioEfectivo)} <span>UND/h</span></strong></div>
+            <div class="pa-line-kpi" title="Producido ÷ (tiempo transcurrido − pausas programadas). Se usa en la proyección «Si las paradas siguen igual»."><small>RENDIMIENTO DEL TURNO</small><strong>${fmtRatio(g.ratios?.ratioTurno)} <span>UND/h</span></strong></div>
+            <div class="pa-line-kpi" title="Ratio = producido ÷ horas efectivas. Horas efectivas = tiempo transcurrido − (paradas programadas + no programadas)."><small>RATIO</small><strong>${fmtRatio(g.ratios?.ratioEfectivo)} <span>UND/h</span></strong></div>
             ${g.tiempos?.enCurso ? `<div class="pa-line-kpi"><small>RATIO NECESARIO</small><strong>${fmtRatio(g.ratios?.ratioNecesario)} <span>UND/h</span></strong></div>` : ''}
             <div class="pa-line-kpi pa-line-kpi-paradas"><small>PARADAS</small><strong>${g.tiempos?.ok ? formatoMin(g.tiempos.minParadasNoProgramadas+g.tiempos.minPausasProgramadas) : '—'}</strong>
               ${g.tiempos?.ok ? `<div class="pa-paradas-desglose">
@@ -995,6 +1057,8 @@
                 · Pausa programada ${formatoMin(g.tiempos.fuentes.pausaProgramada.programadas)}</em>
               </div>` : ''}</div>
           </div>
+
+          ${htmlProyeccion(g.proyeccion)}
 
           <div class="pa-horizontal-body">
 
@@ -1048,7 +1112,7 @@
                     ${tarjetaEstado(estado)}
                   </div>
                   <div class="pa-metric-row"><span>Ratio nominal</span><b>${actual.ratio ? actual.ratio.toLocaleString('es-PE')+' UND/h' : 'Sin configurar'}</b></div>
-                  <div class="pa-metric-row pa-metric-turno"><span>Ratio efectivo</span><b>${fmtRatio(g.ratios?.ratioEfectivo)} UND/h</b></div>
+                  <div class="pa-metric-row pa-metric-turno"><span>Ratio</span><b>${fmtRatio(g.ratios?.ratioEfectivo)} UND/h</b></div>
                   <div class="pa-metric-row"><span>Tiempo transcurrido</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.tiempoTranscurridoMin) : '—'}</b></div>
                   <div class="pa-metric-row"><span>Tiempo operativo</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.tiempoOperativoMin) : '—'}</b></div>
                   <div class="pa-metric-row"><span>Tiempo en parada</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.minParadasNoProgramadas+g.tiempos.minPausasProgramadas) : '0 min'}</b></div>
@@ -1230,6 +1294,14 @@
     .pa-program-list-horizontal .pa-program-right{align-items:flex-start;margin-top:5px}.pa-hcol-ratio{border-right:1px solid #d8e4ec}.pa-hcol-avance{border-right:0}
     .pa-now-production,.pa-next-production{display:inline-flex;margin:-2px 0 9px;padding:4px 8px;border-radius:6px;font-size:8px;font-weight:900;letter-spacing:.06em}.pa-now-production{background:#fff0dc;color:#a85d00}.pa-next-production{background:#eef2f4;color:#667784}
     .pa-hcol-ratio .pa-current-head{padding:10px 11px;border:1px solid #dce6ec;border-radius:9px;background:#f8fbfd}.pa-hcol-ratio .pa-metric-main{margin-top:5px;padding:8px 0}.pa-hcol-ratio .pa-metric-main b{font-size:17px}.pa-advance-list{max-height:410px;overflow:auto;padding-right:3px}
+    .pa-proy{margin:0;padding:10px 14px;border-bottom:1px solid #d8e4ec;border-left:6px solid #9aa9b8;background:#f7f9fb;font-size:13px;color:#1b2a38}
+    .pa-proy.verde{border-left-color:#13814a;background:#effbf4}.pa-proy.ambar{border-left-color:#df8b00;background:#fffbea}
+    .pa-proy.roja{border-left-color:#d93a3a;background:#fff5f5}
+    .pa-proy-top{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-bottom:4px}
+    .pa-proy-top b{letter-spacing:.04em;color:#10265f}.pa-proy-top small{color:#5a6b7b}
+    .pa-proy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 18px}
+    .pa-proy-grid div b{color:#10265f}.pa-proy-dif.falta{color:#a92f27;font-weight:800}.pa-proy-dif.sobra{color:#13814a;font-weight:800}
+    .pa-proy-nota{margin-top:4px;font-size:12px;color:#8a1f17;font-weight:700}.pa-proy-nota.info{color:#5a6b7b;font-weight:600}
     @media(max-width:900px){.pa-line-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.pa-horizontal-body{grid-template-columns:1fr}.pa-hcol-programacion{grid-column:1}.pa-hcol-ratio{border-right:0;border-bottom:1px solid #d8e4ec}}
     @media(max-width:700px){
       .pa-oper-kpis{grid-template-columns:1fr}
@@ -2145,6 +2217,11 @@
       // Retraso = desempeño no verde (ratio efectivo por debajo del necesario).
       if(estadoLinea==='EN_CURSO' && ['ambar','roja'].includes(desempeno.nivel) && desempeno.razon>=0)
         fila.retrasoPct=Math.max(1,Math.round((1-desempeno.razon)*100));
+      fila.proyeccion=proyectarCierreLinea(tiempos,ratios,{
+        produccion:producido,programado,ahora,
+        detenida:items.some(x=>['DETENIDA','LISTA'].includes(x.op?.estado)),
+        ultimoRegistroMs:ultimoMs
+      },proyeccionUmbrales());
       filas.push(fila);
     });
     return {fecha,turno,actualizado:ahora,filas};

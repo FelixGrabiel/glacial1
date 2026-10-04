@@ -424,8 +424,68 @@
     return {nivel:'gris',motivo:'Sin programación'};
   }
 
+  /* =========================================================
+     PROYECCIÓN DE CIERRE (solo lectura; NO modifica nada de lo anterior)
+     Definiciones oficiales de GLACIAL:
+       Horas efectivas = tiempo transcurrido − (paradas programadas + no programadas) ÷ 60
+       RATIO (UND/h)   = producido ÷ horas efectivas                     → ratios.ratioEfectivo
+       RENDIMIENTO DEL TURNO = producido ÷ ((transcurrido − pausas programadas) ÷ 60)
+                                                                          → ratios.ratioTurno
+     Dos escenarios con el tiempo restante (hasta el fin del turno, descontando el refrigerio si aún no se tomó):
+       «Sin más paradas»            = producido + RATIO × restante
+       «Si las paradas siguen igual» = producido + RENDIMIENTO × restante   (proyección realista)
+     Si las horas efectivas son ≤ 0 el ratio es null y la interfaz muestra «—».
+     ========================================================= */
+  const UMBRALES_PROYECCION={
+    verdePct:100,        // proyección realista ≥ 100 % → verde
+    ambarPct:90,         // entre 90 % y 99 % → ámbar; por debajo → rojo
+    minCalculoMin:30     // durante los primeros 30 min de la programación: «Calculando»
+  };
+  function proyectarCierreLinea(t,ratios,datos,umbrales){
+    const u=Object.assign({},UMBRALES_PROYECCION,umbrales||{});
+    const prod=Math.max(0,num(datos&&datos.produccion));
+    const prog=Math.max(0,num(datos&&datos.programado));
+    const ahora=(datos&&datos.ahora)||ahoraServidor();
+    const sal={estado:'SIN_PROYECCION',producido:prod,programado:prog,restanteMin:null,pausaPendienteMin:0,
+      sinMasParadas:null,siguenIgual:null,pct:null,diferencia:null,nivel:'gris',
+      ritmoNecesario:null,ritmoActual:ratios?ratios.ratioEfectivo:null,rendimiento:ratios?ratios.ratioTurno:null,
+      horaEstimadaMs:null,minAdicionales:0,detenida:!!(datos&&datos.detenida),
+      segunRegistradoMs:(datos&&datos.ultimoRegistroMs)||0,ahora};
+    if(!t||!t.ok||!t.enCurso||!t.finTurnoMs||prog<=0)return sal;
+    const desdeInicioMin=(ahora-num(t.inicioMs))/MS_MIN;
+    if(!(desdeInicioMin>=u.minCalculoMin)){sal.estado='CALCULANDO';sal.minDesdeInicio=Math.max(0,desdeInicioMin);return sal;}
+
+    const restanteBruto=Math.max(0,(t.finTurnoMs-ahora)/MS_MIN);
+    const tomado=(t.detalle||[]).some(d=>norm(d.motivo)==='refrigerio');
+    const std=estandar('Refrigerio');
+    const pausaPend=(!tomado&&std>0&&restanteBruto>std)?std:0;     // el refrigerio aún no tomado se descuenta
+    const restante=Math.max(0,restanteBruto-pausaPend);
+    const rH=restante/60;
+    sal.restanteMin=restante;sal.pausaPendienteMin=pausaPend;
+
+    const ratio=ratios&&ratios.ratioEfectivo!=null?ratios.ratioEfectivo:null;     // oficial
+    const rend=ratios&&ratios.ratioTurno!=null?ratios.ratioTurno:null;            // rendimiento del turno
+    if(ratio!==null)sal.sinMasParadas=prod+ratio*rH;
+    if(rend===null){sal.estado='SIN_RITMO';return sal;}
+    sal.siguenIgual=prod+rend*rH;
+    sal.estado='OK';
+    sal.pct=sal.siguenIgual/prog*100;
+    sal.diferencia=sal.siguenIgual-prog;                                           // + sobrarían / − faltarían
+    sal.nivel=sal.pct>=u.verdePct?'verde':sal.pct>=u.ambarPct?'ambar':'roja';
+    sal.ritmoNecesario=prod>=prog?0:(rH>0?(prog-prod)/rH:null);
+    if(prod>=prog){sal.horaEstimadaMs=null;sal.cumplido=true;}
+    else if(rend>0){
+      const minNecesarios=(prog-prod)/rend*60+pausaPend;
+      sal.horaEstimadaMs=ahora+minNecesarios*MS_MIN;
+      sal.minAdicionales=Math.max(0,(sal.horaEstimadaMs-t.finTurnoMs)/MS_MIN);
+    }
+    return sal;
+  }
+
   window.calcularTiemposLinea=calcularTiemposLinea;
   window.calcularRatiosLinea=calcularRatiosLinea;
+  window.proyectarCierreLinea=proyectarCierreLinea;
+  window.UMBRALES_PROYECCION_LINEA=UMBRALES_PROYECCION;
   window.evaluarDesempenoLinea=evaluarDesempenoLinea;
   window.UMBRALES_DESEMPENO_LINEA=UMBRALES;
   /* Paradas editables de una presentación (registros + históricos ya

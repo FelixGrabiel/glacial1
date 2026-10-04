@@ -498,7 +498,7 @@ function avConsumoLinea(linea,productos,ratio){
   });
   if(vals.length)return vals.reduce((a,b)=>a+b,0)/vals.length;
 
-  // Respaldo transparente: volumen ponderado por la producción * Ratio turno.
+  // Respaldo transparente: volumen ponderado por la producción * ratio.
   let litros=0,und=0;
   productos.forEach(x=>{
     const t=String(x.presentacion||'').toLowerCase();
@@ -584,7 +584,7 @@ function avLineaSnapshot(linea,hora,tipo){
   const paradas=avParadasLinea(linea,hora,tipo);
   const totalParadas=paradas.reduce((s,p)=>s+p.minutos,0);
 
-  // Ratio Turno del reporte:
+  // Ratio del reporte (oficial: producido ÷ horas efectivas):
   // producción acumulada / horas efectivas.
   // Horas efectivas = tiempo transcurrido - paradas acumuladas.
   // También se descuentan DETENER LÍNEA y PAUSA PROGRAMADA (Producción Actual),
@@ -823,7 +823,7 @@ function avTextoWhatsApp(s){
     const bloques=avBloquesPresentacionLinea(l);
     if(!bloques.length){
       out.push('',`*${l.nombre}*`,'',`Inicio: ${l.inicio||'—'}`,'','Línea iniciada – Sin producción registrada.','',
-        'Ratio Turno: —','Consumo: —',`Personal en línea: ${l.personal}`,'','*PARADAS*','',
+        'Ratio: —','Consumo: —',`Personal en línea: ${l.personal}`,'','*PARADAS*','',
         l.paradas.length?l.paradas.map(p=>`${p.descripcion} – ${avFmt(p.minutos)} min`).join('\n'):'Sin paradas registradas.','',
         `Total paradas: ${avFmt(l.totalParadas)} min`);
     }else{
@@ -832,7 +832,7 @@ function avTextoWhatsApp(s){
         if(s.tipo==='CIERRE')out.push(`Término: ${b.fin||l.fin||'—'}`);
         out.push('');
         b.productos.forEach(p=>out.push(`${avProductoWhatsApp(p)}: ${avFmt(p.produccion)} ${avUnidadProduccion(l.linea)}`));
-        out.push('',`Ratio Turno: ${b.ratio?avFmt(b.ratio)+' '+l.unidadRatio:'—'}`,
+        out.push('',`Ratio: ${b.ratio?avFmt(b.ratio)+' '+l.unidadRatio:'—'}`,
           `Consumo: ${b.consumo?avFmt(b.consumo)+' L/H':'—'}`,
           `Personal en línea: ${b.personal}`,
           '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`);

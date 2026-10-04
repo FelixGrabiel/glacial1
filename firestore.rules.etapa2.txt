@@ -86,6 +86,11 @@ service cloud.firestore {
           && 'gestionar_rotacion_mantenimiento' in perfiles()[request.auth.uid].permisos)
       );
     }
+    // Jefatura/Gerencia (solo para editar los umbrales de avisos y proyección, sync/configAlertas).
+    function esJefatura() {
+      return autenticado() && perfiles()[request.auth.uid].rol in
+        ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente'];
+    }
     // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
     function programacionesSinAltasNiBajas() {
       return resource != null
@@ -97,7 +102,7 @@ service cloud.firestore {
       return doc in [
         'users', 'workers', 'rotacionesMantenimiento', 'rotacionMaquinistas',
         'tareos', 'programaciones', 'paletas', 'avancesTurno', 'records',
-        'tecnicosMant', 'configMantenimiento'
+        'tecnicosMant', 'configMantenimiento', 'configAlertas'
       ];
     }
 
@@ -118,6 +123,8 @@ service cloud.firestore {
         (esMantCompartido() && doc == 'programaciones' && programacionesSinAltasNiBajas()) ||
         (!esMantCompartido() && (
           (doc in ['users', 'perfiles', 'accesos', 'configTareo', 'cuentasAntiguas'] && esAdmin()) ||
+          // Umbrales de avisos y proyección: Administrador y Jefatura. La lee todo usuario autenticado (incluida la cuenta compartida).
+          (doc == 'configAlertas' && (esAdmin() || esJefatura())) ||
           (autenticado() && doc in [
             'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
             'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',

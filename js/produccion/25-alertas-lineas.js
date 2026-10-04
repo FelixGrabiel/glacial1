@@ -9,15 +9,20 @@
   let eventos = [];
   let idsConocidos = new Set();
   let primeraCarga = true;
-  let vista = 'activas';
+  let vista = 'avisos';
   let abierto = false;
   let audio = null;
+
+  /* Lote 2: avisos calculados (46-proyeccion-avisos.js). Cada rol recibe los suyos. */
+  const avisosApi = () => (typeof window !== 'undefined' && window.glacialAvisos) || null;
+  const conPermisoEventos = () =>
+    typeof tienePermiso==='function' && tienePermiso('recibirAlertasProduccion');
 
   function autorizado(){
     if(
       !state.user ||
       typeof tienePermiso!=='function' ||
-      !tienePermiso('recibirAlertasProduccion')
+      (!conPermisoEventos() && !(avisosApi() && avisosApi().puede()))
     ) return false;
 
     // El Centro de alertas solo pertenece a la aplicación operativa.
@@ -135,6 +140,14 @@
     #al-host .al-aviso b{display:block;margin-bottom:2px}
     #al-host .al-aviso small{display:block;color:#516578;margin-top:3px}
     #al-host .al-vacio{padding:22px 14px;text-align:center;color:#6b7d89}
+    #al-host .al-badge{display:inline-block;min-width:20px;padding:1px 6px;margin-left:6px;border-radius:999px;
+      background:#d53d31;color:#fff;font-size:11px;font-weight:800;text-align:center}
+    #al-host .al-badge.cero{background:#8aa0b2}
+    #al-host .al-aviso.al-av-roja{border-left-color:#d53d31;background:#fff8f6}
+    #al-host .al-aviso.al-av-ambar{border-left-color:#df8b00;background:#fffbea}
+    #al-host .al-aviso.al-visto{opacity:.55}
+    #al-host .al-av-acc{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+    #al-host .al-av-acc button{border:1px solid #c5d0db;background:#fff;border-radius:7px;padding:4px 9px;font-size:12px}
     #al-host .al-cerrado{display:none}
     #al-host:not(.open) .al-body{display:none}
 
@@ -397,16 +410,38 @@
     const activas=activasHoy();
     const detenciones=hoy.filter(e=>e.tipo==='detencion').length;
     const resueltas=hoy.filter(e=>e.tipo==='reanudacion').length;
+    const api=avisosApi();
+    const avisos=api ? api.listar() : [];
+    const noVistos=avisos.filter(a=>!a.visto).length;
+    const verEventos=conPermisoEventos();
+    if(vista==='avisos' && !api) vista='activas';
+    if(vista!=='avisos' && !verEventos) vista='avisos';
     const lista=vista==='historial' ? hoy : activas;
     const sonido=sonidoSilenciado() ? '🔇' : '🔊';
+    const nombreLinea=k=>{
+      try{const l=(typeof LINES!=='undefined'?LINES:[]).find(x=>x.key===k);return l?l.name:k;}catch(_){return k;}
+    };
+    const chipEstado=window.glacialEstadoDatos ? window.glacialEstadoDatos.chip() : '';
+    const htmlAvisos=avisos.length ? avisos.map(a=>`
+            <div class="al-aviso al-av-${esc(a.severidad)} ${a.visto?'al-visto':''}">
+              <b>${a.severidad==='roja'?'🔴':'🟠'} ${esc(a.tipo==='tareo'?a.linea:nombreLinea(a.linea))}</b>
+              <div>${esc(a.texto)}</div>
+              <small>Desde las ${esc(fmtHora(a.desdeMs))}${a.visto?' · visto en este dispositivo':''}</small>
+              <div class="al-av-acc">
+                <button type="button" data-av-ir="${esc(a.id)}">Ir a la pantalla</button>
+                ${a.visto?'':`<button type="button" data-av-visto="${esc(a.id)}">Marcar como visto</button>`}
+              </div>
+            </div>`).join('')
+      : '<div class="al-vacio">Sin avisos: todo en orden.</div>';
 
     // * Solo refleja el estado visual; no altera la lógica de las alertas.
     el.classList.toggle('open',abierto);
 
     el.innerHTML=`<div class="al-panel">
       <div class="al-bar">
-        <strong>🔔 Centro de alertas</strong>
+        <strong>🔔 Centro de alertas${api?`<span class="al-badge ${noVistos?'':'cero'}" data-al-contador title="Avisos sin ver en este dispositivo">${noVistos}</span>`:''}</strong>
         <div class="al-bar-actions">
+          ${api&&api.puedeConfigurar()?'<button type="button" class="al-icon-btn" data-al-config title="Umbrales de avisos y proyección">⚙</button>':''}
           <button type="button" class="al-icon-btn" data-al-sonido
             title="${sonidoSilenciado()?'Activar sonido':'Silenciar alertas'}">${sonido}</button>
           <button type="button" class="al-icon-btn" data-al-toggle
@@ -414,19 +449,22 @@
         </div>
       </div>
       <div class="${abierto?'':'al-cerrado'}">
-        <div class="al-resumen">
+        <div style="padding:6px 10px;background:#f6f9fb;border-bottom:1px solid #e1e9ee;text-align:right">${chipEstado}</div>
+        ${verEventos?`<div class="al-resumen">
           <div class="al-kpi"><b>${activas.length}</b><span>Activas</span></div>
           <div class="al-kpi"><b>${detenciones}</b><span>Detenciones hoy</span></div>
           <div class="al-kpi"><b>${resueltas}</b><span>Reanudaciones</span></div>
-        </div>
+        </div>`:''}
         <div class="al-tabs">
-          <button type="button" class="al-tab ${vista==='activas'?'activo':''}"
+          ${api?`<button type="button" class="al-tab ${vista==='avisos'?'activo':''}"
+            data-al-vista="avisos">Avisos · ${avisos.length}</button>`:''}
+          ${verEventos?`<button type="button" class="al-tab ${vista==='activas'?'activo':''}"
             data-al-vista="activas">Alertas activas</button>
           <button type="button" class="al-tab ${vista==='historial'?'activo':''}"
-            data-al-vista="historial">Historial de hoy · ${hoy.length}</button>
+            data-al-vista="historial">Historial de hoy · ${hoy.length}</button>`:''}
         </div>
         <div class="al-list" aria-live="polite">
-          ${lista.length ? lista.map(a=>`
+          ${vista==='avisos' ? htmlAvisos : lista.length ? lista.map(a=>`
             <div class="al-aviso ${a.tipo==='detencion'?'al-detencion':''}">
               <b>${a.tipo==='detencion'?'🔴 Línea detenida':'🟢 Producción reanudada'} · ${esc(a.linea)}</b>
               <div>${esc(a.marca)} · ${esc(a.presentacion)}</div>
@@ -538,6 +576,7 @@
   }
 
   globalThis.procesarAlertasOperacion=procesarAlertasOperacion;
+  globalThis.glacialAlertasPintar=pintar;          // 46-proyeccion-avisos.js lo llama cuando cambian los avisos
 
   // Aplicar altas/bajas del permiso inmediatamente cuando sync/users cambie
   // en Firestore, sin cerrar sesión ni recargar la página.
@@ -606,6 +645,12 @@
       return;
     }
     if(!autorizado())return;
+
+    const irBtn=event.target.closest('[data-av-ir]');
+    if(irBtn && avisosApi()){avisosApi().ir(irBtn.dataset.avIr);return;}
+    const vistoBtn=event.target.closest('[data-av-visto]');
+    if(vistoBtn && avisosApi()){avisosApi().visto(vistoBtn.dataset.avVisto);return;}
+    if(event.target.closest('[data-al-config]') && avisosApi()){avisosApi().abrirConfig();return;}
 
     const vistaBtn=event.target.closest('[data-al-vista]');
     if(vistaBtn){
