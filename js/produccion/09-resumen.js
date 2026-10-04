@@ -2392,14 +2392,11 @@ function rsEstadoLineas(){
   const lineas=['PET1','PET2','B7L','C20L','B20L'];
   return lineas.map(linea=>{
     const xs=progs.filter(p=>p.linea===linea&&p.fecha===hoy);
-    const ops=xs.map(x=>x.estadoOperacion||{});
-    let estado='SIN ACTIVIDAD',nivel='off';
-    if(ops.some(o=>o.estado==='DETENIDA')){estado='DETENIDA';nivel='stop';}
-    else if(ops.some(o=>o.estado==='PAUSA')){estado='PAUSA';nivel='pause';}
-    else if(ops.some(o=>o.estado==='EN_PRODUCCION')){estado='EN PRODUCCIÓN';nivel='run';}
-    else if(ops.some(o=>o.estado==='FINALIZADA')){estado='FINALIZADA';nivel='done';}
-    else if(xs.length){estado='PENDIENTE';nivel='wait';}
-    return {linea,estado,nivel};
+    // Misma prioridad de estados que el semáforo (GlacialIndicadores.estadoLineaDesdeItems).
+    const claveDe=o=>({DETENIDA:'DETENIDA',EN_PRODUCCION:'EN_CURSO',PAUSA:'PAUSA',LISTA:'PAUSA',FINALIZADA:'COMPLETADA',CANCELADA:'CANCELADA'})[(o||{}).estado]||'PENDIENTE';
+    const e=GlacialIndicadores.estadoLineaDesdeItems(xs.map(x=>claveDe(x.estadoOperacion)));
+    const vista=({DETENIDA:['DETENIDA','stop'],PAUSA:['PAUSA','pause'],EN_CURSO:['EN PRODUCCIÓN','run'],COMPLETADA:['FINALIZADA','done'],PENDIENTE:['PENDIENTE','wait'],CANCELADA:['CANCELADA','off']})[e]||['SIN ACTIVIDAD','off'];
+    return {linea,estado:vista[0],nivel:vista[1]};
   });
 }
 function rsDatosIndustriales(records){

@@ -40,3 +40,10 @@ Se lista, no se borra. Cada commit de la Parte 2 agrega su sección.
 |---|---|
 | `js/produccion/08-graficos.js` | Las barras de merma por turno solo muestran unidades; el Polietileno en kg + rollos solo sale en el Resumen general (49). Falta decidir si el gráfico del turno también lo muestra en kg. |
 | `js/produccion/09-resumen.js` (`calcularMermaPorLinea`, etc.) | Siguen sumando `agruparMermas(r).totalUnidades`; la fórmula del porcentaje ya es la del módulo. |
+
+## Commit 6 — estado de línea
+
+| Archivo | Qué queda sin uso |
+|---|---|
+| `js/produccion/24-semaforo-produccion-actual.js` | La constante local `PRIORIDAD_ESTADO_LINEA` (la prioridad ahora vive en el módulo) y las variables `hayCurso`, `hayPausa`, `hayPendiente`, `todosCerrados`, `todosCancelados` ya no existen en el tablero. `estadoOrdenItem` sigue siendo la clasificación POR ÍTEM (el módulo solo agrega). |
+| `js/produccion/09-resumen.js` | El Resumen clasifica cada programación solo por `estadoOperacion` (no mira Paletas): una programación sin estado guardado cuenta PENDIENTE aunque ya tenga producción. El semáforo sí mira Paletas. |

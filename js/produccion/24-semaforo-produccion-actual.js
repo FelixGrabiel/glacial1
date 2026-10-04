@@ -691,20 +691,14 @@
           items[0] || vacios[0];
   
         const estados=items.map(estadoOrdenItem);
-        const hayCurso=estados.some(e=>e.key==='EN_CURSO');
-        const hayPausa=estados.some(e=>e.key==='PAUSA');
-        const hayPendiente=estados.some(e=>e.key==='PENDIENTE');
         const hayCompletada=estados.some(e=>e.key==='COMPLETADA');
-        const todosCerrados=estados.length>0 && estados.every(
-          e=>['COMPLETADA','CANCELADA'].includes(e.key));
-        const todosCancelados=estados.length>0 && estados.every(e=>e.key==='CANCELADA');
+        // Estado de la línea: prioridad única del módulo de indicadores (GlacialIndicadores.estadoLineaDesdeItems).
+        const estadoLineaGrupo=GlacialIndicadores.estadoLineaDesdeItems(
+          items.map((x,i)=>x.op?.estado==='DETENIDA'?'DETENIDA':estados[i].key));
         // Regla visual acordada: EN CURSO usa la luz ámbar/naranja; PAUSA usa ámbar/amarillo.
-        const nivel=detenidos.length?'roja':hayCurso?'ambar':hayPausa?'ambar':
-          todosCancelados?'roja':todosCerrados?'verde':'gris';
-        const texto=detenidos.length?'Línea detenida':hayCurso?'En curso':
-          hayPausa?'Pausa programada':todosCancelados?'CANCELADA':
-          todosCerrados?'FINALIZADA':
-          hayPendiente && hayCompletada?'Pendiente':'Sin iniciar';
+        const nivel=({DETENIDA:'roja',EN_CURSO:'ambar',PAUSA:'ambar',CANCELADA:'roja',COMPLETADA:'verde'})[estadoLineaGrupo]||'gris';
+        const texto=({DETENIDA:'Línea detenida',EN_CURSO:'En curso',PAUSA:'Pausa programada',CANCELADA:'CANCELADA',COMPLETADA:'FINALIZADA'})[estadoLineaGrupo]||
+          (estadoLineaGrupo==='PENDIENTE'&&hayCompletada?'Pendiente':'Sin iniciar');
         const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
         const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
         const totalProd=items.reduce((s,x)=>s+producidoDe(x),0);
@@ -2231,10 +2225,7 @@
       const estados=items.map(x=>({x,e:estadoOrdenItem(x).key,det:x.op?.estado==='DETENIDA'}));
       estados.forEach(o=>{ if(o.det)o.e='DETENIDA'; });
       const claves=estados.map(o=>o.e);
-      const cerrados=claves.every(k=>['COMPLETADA','CANCELADA'].includes(k));
-      const estadoLinea=claves.every(k=>k==='CANCELADA') ? 'CANCELADA'
-        : cerrados ? 'COMPLETADA'
-        : PRIORIDAD_ESTADO_LINEA.find(k=>claves.includes(k));
+      const estadoLinea=GlacialIndicadores.estadoLineaDesdeItems(claves);
       const activo=(estados.find(o=>o.e===estadoLinea) || estados.find(o=>!['COMPLETADA','CANCELADA'].includes(o.e)) || estados[0]).x;
 
       const programado=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
