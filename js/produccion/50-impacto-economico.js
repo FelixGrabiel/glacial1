@@ -98,7 +98,11 @@
   /* =========================================================
      MOTOR DE PÉRDIDAS (puro: se prueba sin pantalla)
      ========================================================= */
-  const etiquetaParte=p=>A().nombreLinea(p.linea)+' · '+A().etiquetaProd(p.marca,p.pres);
+  const NOMBRES_LINEA={PET1:'PET 1',PET2:'PET 2',B7L:'Bidones 7 L',C20L:'Cajas 20 L',B20L:'Bidones 20 L',B10L:'Bidones 10 L'};
+  const UNIDAD_LINEA={PET1:'botellas',PET2:'botellas',B7L:'bidones',B10L:'bidones',B20L:'bidones',C20L:'cajas'};
+  const lineaReal=p=>(p.linea==='B7L'&&/(^|[^0-9])(10000\s*ml|10\s*l)/i.test(norm(p.pres)))?'B10L':p.linea;
+  const nombreImp=k=>NOMBRES_LINEA[k]||A().nombreLinea(k);
+  const etiquetaParte=p=>nombreImp(lineaReal(p))+' · '+A().etiquetaProd(p.marca,p.pres);
   function calcularImpacto(partes,prov){
     const T={potencialU:0,paradasU:0,velU:0,paradasS:0,velS:0,mermaS:0,incumplS:0,planMin:0,npMin:0,horasEf:0};
     const faltan={velocidad:new Map(),margen:new Map(),costo:new Map()};
@@ -149,9 +153,9 @@
         items.forEach(i=>{
           const monto=i.minutos/60*p.vel*m.valor;
           minItems+=i.minutos;if(i.estimada)minEstimados+=i.minutos;
-          eventos.push({fecha:p.fecha,linea:p.linea,grupo:p.grupo,motivo:i.motivo||'Sin motivo',monto,min:i.minutos,estimada:!!i.estimada,producto:etq});
+          eventos.push({fecha:p.fecha,linea:lineaReal(p),grupo:p.grupo,motivo:i.motivo||'Sin motivo',monto,min:i.minutos,estimada:!!i.estimada,producto:etq});
           suma(porMotivo,i.motivo||'Sin motivo',i.motivo||'Sin motivo',monto,i.minutos,i.estimada);
-          suma(porLinea,p.linea,A().nombreLinea(p.linea),monto,i.minutos,i.estimada);
+          suma(porLinea,lineaReal(p),nombreImp(lineaReal(p))+' ('+(UNIDAD_LINEA[lineaReal(p)]||'unidades')+')',monto,i.minutos,i.estimada);
           suma(porTurno,p.grupo,A().etiquetaGrupo(p.grupo),monto,i.minutos,i.estimada);
         });
       }
@@ -171,7 +175,7 @@
   /* =========================================================
      PERIODOS, FILTROS Y ACUMULADO DEL MES
      ========================================================= */
-  const G={modo:'mes',desde:'',hasta:'',linea:'',turno:'',marca:'',pres:'',vistaAnterior:false};
+  const G={modo:'mes',desde:'',hasta:'',linea:'',turno:'',marca:'',pres:'',pareto:'motivo',vistaAnterior:false};
   const addDias=(f,n)=>A().addDias(f,n);
   function periodo(){
     const hoy=A().hoyOp();
@@ -215,31 +219,34 @@
     if(document.getElementById('ie-css'))return;
     const s=document.createElement('style');s.id='ie-css';
     s.textContent=`
-      .ie{max-width:1320px;font-size:13px;color:#2E3A46}
-      .ie-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:0 0 8px}
-      .ie h2{margin:0;font-size:22px;color:#2E3A46}.ie-sub{color:#6B7784;font-size:12px}
-      .ie-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-      .ie-ctl select,.ie-ctl input[type=date]{padding:5px 8px;border:1px solid #d8e2e8;border-radius:8px;font-size:12px;background:#fff}
-      .ie-btn{border:1px solid #d8e2e8;background:#fff;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:#073f68}
-      .ie-btn.on{background:#073f68;color:#fff;border-color:#073f68}
-      .ie-aviso{background:#FFF7ED;border:1px solid #FCE3C0;color:#8A5A1E;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px}
+      .ie{--ink:#2E3A46;--soft:#6B7784;--line:#E6EBEF;--rojo:#C4472B;max-width:1320px;font-size:13px;color:var(--ink)}
+      .ie-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+      .ie-title{display:flex;align-items:center;gap:12px}
+      .ie-badge{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:12px;background:#FDEDE8;color:var(--rojo);font-size:20px;flex-shrink:0}
+      .ie-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--rojo);font-weight:600;margin-bottom:4px}
+      .ie h2{margin:0;font-size:24px;font-weight:600;color:var(--ink)}.ie-sub{color:var(--soft);font-size:12px;margin-top:4px}
+      .ie-filtros{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px}
+      .ie-filtros select,.ie-filtros input[type=date],.ie-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;color:var(--soft);cursor:pointer}
+      .ie-btn.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+      .ie-aviso{background:#FFF7ED;border:1px solid #FCE3C0;color:#8A5A1E;border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:13px}
       .ie-aviso ul{margin:4px 0 0;padding-left:18px}
-      .ie-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:8px 0}
-      .ie-k{background:#fff;border:1px solid #dce5ea;border-radius:10px;padding:12px 14px}
-      .ie-k span{display:block;font-size:11px;text-transform:uppercase;color:#71828d;font-weight:700}
-      .ie-k b{display:block;font-size:24px;color:#17384d;margin:3px 0}.ie-k.rojo b{color:#C4472B}.ie-k small{display:block;color:#6B7784;font-size:11px}
-      .ie-k.aparte{background:#f7fafc;border-style:dashed}
-      .ie-box{background:#fff;border:1px solid #dce5ea;border-radius:10px;padding:12px 14px;margin:10px 0}
-      .ie-box h4{margin:0 0 8px;font-size:14px;color:#073f68}
-      .ie-t{width:100%;border-collapse:collapse;font-size:12px}.ie-t th{font-weight:600;color:#6B7784;text-align:right;padding:5px 6px;border-bottom:1px solid #e6ebef}
-      .ie-t td{padding:5px 6px;border-bottom:1px solid #eef1f4;text-align:right}.ie-t th:first-child,.ie-t td:first-child{text-align:left}
-      .ie-bar-h{display:inline-block;height:9px;border-radius:2px;background:#C4472B;vertical-align:middle}
+      .ie-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:0 0 18px}
+      .ie-k{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+      .ie-k span{display:block;font-size:12px;color:var(--soft);margin-bottom:6px}
+      .ie-k b{display:block;font-size:26px;font-weight:700;color:var(--ink)}.ie-k.rojo b{color:var(--rojo)}.ie-k small{display:block;color:var(--soft);font-size:12px;margin-top:4px}
+      .ie-box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:0 0 16px}
+      .ie-box h4{margin:0 0 10px;font-size:15px;color:var(--ink)}
+      .ie-t{width:100%;border-collapse:collapse;font-size:13px}.ie-t th{font-weight:500;color:var(--soft);text-align:right;padding:8px 10px;border-bottom:1px solid var(--line)}
+      .ie-t td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;color:var(--ink)}.ie-t th:first-child,.ie-t td:first-child{text-align:left}
+      .ie-t td.falta{color:#C4472B}.ie-t tr.total td{font-weight:700}
+      .ie-bar-h{display:inline-block;height:10px;border-radius:3px;background:#C4472B;vertical-align:middle}
       .ie-est{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;background:#fff1d6;color:#8A5A1E;font-size:10px}
-      .ie-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}
-      .ie-prog{height:12px;border-radius:6px;background:#eef1f4;position:relative;overflow:hidden;margin:6px 0}
+      .ie-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px}
+      .ie-tabs{display:flex;gap:6px;margin:0 0 8px}.ie-tabs .ie-btn{padding:4px 10px;font-size:12px}
+      .ie-prog{height:12px;border-radius:6px;background:#eef1f4;position:relative;overflow:hidden;margin:8px 0}
       .ie-prog i{position:absolute;left:0;top:0;bottom:0;background:#2e8b57}.ie-prog.alerta i{background:#d89216}.ie-prog.excede i{background:#C4472B}
-      .ie-nota{font-size:11px;color:#6B7784}
-      @media(max-width:600px){.ie-kpis{grid-template-columns:repeat(2,1fr)}}
+      .ie-nota{font-size:12px;color:var(--soft);margin-top:8px}
+      @media(max-width:600px){.ie-kpis{grid-template-columns:1fr}.ie-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(s);
   }
@@ -259,61 +266,60 @@
   const puedeEditar=()=>permitido();
 
   function htmlKpis(R){
-    const res=R.res;
+    const M=R.mes,dif=M.prevParcial>0?(M.acumulado-M.prevParcial)/M.prevParcial*100:null;
+    const sobre=M.meta>0&&M.proyeccion>M.meta;
     return '<div class="ie-kpis">'+
-      '<div class="ie-k rojo"><span>Pérdida total</span><b>'+fmtS(res.total)+'</b><small>Paradas + velocidad reducida + mermas'+(res.hayFaltantes?' · parcial, faltan datos':'')+'</small></div>'+
-      '<div class="ie-k"><span>Paradas no programadas</span><b>'+fmtS(res.paradasS)+'</b><small>'+fmtN(res.T.paradasU)+' unidades · '+fmtN(res.T.npMin)+' min</small></div>'+
-      '<div class="ie-k"><span>Velocidad reducida</span><b>'+fmtS(res.velS)+'</b><small>'+fmtN(res.T.velU)+' unidades</small></div>'+
-      '<div class="ie-k"><span>Mermas</span><b>'+fmtS(res.mermaS)+'</b><small>componente × costo unitario</small></div>'+
-      '<div class="ie-k aparte"><span>Incumplimiento del plan</span><b>'+fmtS(res.incumplS)+'</b><small>(programado − producido) × margen · <i>no se suma al total</i>, es otra forma de ver la misma brecha</small></div></div>';
+      '<div class="ie-k rojo"><span>Pérdida total del mes</span><b>'+fmtS(M.acumulado)+'</b><small>'+(M.meta>0?'Meta máxima '+fmtS(M.meta)+' · '+fmtN(M.usoMeta)+' %':'Sin meta máxima configurada'+(puedeEditar()?' (Valores y supuestos)':''))+(M.parcial?' · parcial, faltan datos':'')+'</small></div>'+
+      '<div class="ie-k"><span>Proyección a fin de mes</span><b>'+fmtS(M.proyeccion)+'</b><small>'+(M.meta>0?(sobre?'Supera la meta en '+fmtS(M.proyeccion-M.meta):'Dentro de la meta ('+fmtS(M.meta-M.proyeccion)+' de margen)'):'Acumulado ÷ '+M.dia+' días × '+M.diasMes+' días')+'</small></div>'+
+      '<div class="ie-k"><span>Mes anterior</span><b>'+fmtS(M.prevCompleto)+'</b><small>'+(dif==null?'Sin comparación':(dif>0?'▲ ':'▼ ')+fmtP(Math.abs(dif))+' '+(dif>0?'más':'menos')+' en este punto del mes ('+fmtS(M.prevParcial)+')')+'</small></div></div>'+
+      (M.meta>0?'<div class="ie-prog '+(sobre?'excede':(M.usoMeta>=80?'alerta':''))+'" title="Acumulado frente a la meta máxima"><i style="width:'+Math.min(100,M.usoMeta)+'%"></i></div>':'');
   }
-  function htmlCascada(res){
+  function htmlCascada(res,per){
     const T=res.T,max=T.potencialU||1;
-    const fila=(n,u,s,c)=>'<tr><td>'+n+'</td><td>'+(u==null?'—':fmtN(u))+'</td><td>'+(s==null?'—':fmtS(s))+'</td><td style="text-align:left">'+barra(u==null?0:u,max,c)+'</td></tr>';
-    const producida=T.potencialU-T.paradasU-T.velU;
-    return '<div class="ie-box"><h4>Cascada de pérdidas</h4><table class="ie-t"><thead><tr><th>Concepto</th><th>Unidades</th><th>Soles</th><th></th></tr></thead><tbody>'+
+    const fila=(n,u,s,c,cls)=>'<tr'+(cls?' class="'+cls+'"':'')+'><td>'+n+'</td><td>'+(u==null?'—':fmtN(u))+'</td><td>'+(s==null?'—':fmtS(s))+'</td><td style="text-align:left">'+barra(u==null?0:u,max,c)+'</td></tr>';
+    const ratio=T.horasEf>0?(T.potencialU-T.paradasU-T.velU)/T.horasEf:null,vel=T.horasEf>0?(T.potencialU-T.paradasU)/T.horasEf:null;
+    return '<div class="ie-box"><h4>Cascada de pérdidas · '+esc(per.etiqueta)+'</h4><table class="ie-t"><thead><tr><th>Concepto</th><th>Unidades</th><th>Soles</th><th></th></tr></thead><tbody>'+
       fila('Producción potencial (planificado × velocidad estándar)',T.potencialU,null,'#888780')+
-      fila('− Paradas no programadas',T.paradasU,res.paradasS,'#E24B4A')+
-      fila('− Velocidad reducida',T.velU,res.velS,'#BA7517')+
-      fila('= Producción que quedó',producida,null,'#2e8b57')+
-      '<tr><td>− Mermas (cada componente en su unidad)</td><td>—</td><td>'+fmtS(res.mermaS)+'</td><td></td></tr>'+
-      '<tr><td><b>Pérdida total</b></td><td></td><td><b>'+fmtS(res.total)+'</b></td><td></td></tr></tbody></table>'+
-      '<div class="ie-nota">Horas efectivas '+fmtN(T.horasEf)+' h · tiempo planificado '+fmtN(T.planMin)+' min. Sin horas extras ni costos de personal.</div></div>';
+      fila('Paradas no programadas ('+fmtN(T.npMin)+' min)',T.paradasU,res.paradasS,'#E24B4A')+
+      fila('Velocidad reducida'+(ratio!=null&&vel!=null?' ('+fmtN(ratio)+' vs '+fmtN(vel)+' UND/h)':''),T.velU,res.velS,'#BA7517')+
+      fila('Mermas (cada componente × su costo)',null,res.mermaS,'#D4537E')+
+      fila('Pérdida total',null,res.total,'','total')+'</tbody></table>'+
+      '<div class="ie-nota">Aparte: incumplimiento del plan (programado − producido) × margen = <b>'+fmtS(res.incumplS)+'</b> · <i>no se suma al total</i>, es otra forma de ver la misma brecha. Horas efectivas '+fmtN(T.horasEf)+' h · tiempo planificado '+fmtN(T.planMin)+' min · sin horas extras ni costos de personal.</div></div>';
   }
-  function htmlMes(M){
-    const cls=M.meta>0&&M.proyeccion>M.meta?'excede':(M.meta>0&&M.usoMeta>=80?'alerta':'');
-    const pct=M.meta>0?Math.min(100,M.acumulado/M.meta*100):0;
-    const dif=M.prevParcial>0?(M.acumulado-M.prevParcial)/M.prevParcial*100:null;
-    return '<div class="ie-box"><h4>Mes en curso</h4><div class="ie-kpis">'+
-      '<div class="ie-k"><span>Acumulado del mes</span><b>'+fmtS(M.acumulado)+'</b><small>del '+fmtFecha(M.ini)+' al '+fmtFecha(M.hoy)+'</small></div>'+
-      '<div class="ie-k"><span>Proyección a fin de mes</span><b>'+fmtS(M.proyeccion)+'</b><small>acumulado ÷ '+M.dia+' días × '+M.diasMes+' días del mes</small></div>'+
-      '<div class="ie-k"><span>Mismo punto del mes anterior</span><b>'+fmtS(M.prevParcial)+'</b><small>'+(dif==null?'sin comparación':(dif>0?'▲ ':'▼ ')+fmtP(Math.abs(dif))+' respecto a este mes')+'</small></div>'+
-      '<div class="ie-k"><span>Mes anterior completo</span><b>'+fmtS(M.prevCompleto)+'</b><small>total del mes</small></div></div>'+
-      (M.meta>0?'<div>Meta máxima de pérdida: <b>'+fmtS(M.meta)+'</b> · acumulado '+fmtP(M.usoMeta)+' · proyección '+fmtP(M.proyMeta)+(M.proyeccion>M.meta?' <b style="color:#C4472B">(supera la meta)</b>':'')+
-        '</div><div class="ie-prog '+cls+'"><i style="width:'+pct+'%"></i></div>':'<div class="ie-nota">Sin meta máxima configurada.'+(puedeEditar()?' Configúrala en «Valores y supuestos».':'')+'</div>')+
-      (M.parcial?'<div class="ie-nota">Cifras parciales: faltan datos para calcular algunos productos o componentes.</div>':'')+'</div>';
-  }
-  function htmlPareto(titulo,filas,tipoEst){
-    if(!filas.length)return '<div class="ie-box"><h4>'+titulo+'</h4><div class="ie-nota">Sin paradas valorizadas en el periodo.</div></div>';
+  function htmlPareto(res){
+    const tabs=[['motivo','Por motivo',res.porMotivo],['linea','Por línea',res.porLinea],['turno','Por turno',res.porTurno]];
+    const act=tabs.find(t=>t[0]===G.pareto)||tabs[0],filas=act[2];
+    const cab='<div class="ie-tabs">'+tabs.map(t=>'<button type="button" class="ie-btn'+(t[0]===act[0]?' on':'')+'" data-ie-pareto="'+t[0]+'">'+t[1]+'</button>').join('')+'</div>';
+    if(!filas.length)return '<div class="ie-box"><h4>Pareto en soles</h4>'+cab+'<div class="ie-nota">Sin paradas valorizadas en el periodo.</div></div>';
     const max=filas[0].soles||1;
-    return '<div class="ie-box"><h4>'+titulo+'</h4><table class="ie-t"><thead><tr><th></th><th>Soles</th><th>Min</th><th></th></tr></thead><tbody>'+
-      filas.slice(0,12).map(f=>'<tr><td>'+esc(f.etiqueta)+(tipoEst?etqEst(f):'')+'</td><td>'+fmtS(f.soles)+'</td><td>'+fmtN(f.min)+'</td><td style="text-align:left">'+barra(f.soles,max)+'</td></tr>').join('')+'</tbody></table></div>';
+    return '<div class="ie-box"><h4>Pareto en soles</h4>'+cab+'<table class="ie-t"><thead><tr><th>'+act[1].replace('Por ','')+'</th><th>Soles</th><th>Min</th><th></th></tr></thead><tbody>'+
+      filas.slice(0,12).map(f=>'<tr><td>'+esc(f.etiqueta)+etqEst(f)+'</td><td>'+fmtS(f.soles)+'</td><td>'+fmtN(f.min)+'</td><td style="text-align:left">'+barra(f.soles,max)+'</td></tr>').join('')+'</tbody></table></div>';
   }
   function htmlTop5(res){
     if(!res.top5.length)return '<div class="ie-box"><h4>Los cinco eventos más caros</h4><div class="ie-nota">Sin paradas valorizadas en el periodo.</div></div>';
     return '<div class="ie-box"><h4>Los cinco eventos más caros del periodo</h4><table class="ie-t"><thead><tr><th>Fecha</th><th>Línea</th><th>Motivo</th><th>Min</th><th>Monto</th></tr></thead><tbody>'+
-      res.top5.map(e=>'<tr><td>'+fmtFecha(e.fecha)+' · '+A().etiquetaGrupo(e.grupo)+'</td><td>'+esc(A().nombreLinea(e.linea))+'</td><td style="text-align:left">'+esc(e.motivo)+(e.estimada?'<span class="ie-est">estimada</span>':'')+'</td><td>'+fmtN(e.min)+'</td><td><b>'+fmtS(e.monto)+'</b></td></tr>').join('')+'</tbody></table></div>';
+      res.top5.map(e=>'<tr><td>'+fmtFecha(e.fecha)+' · '+A().etiquetaGrupo(e.grupo)+'</td><td>'+esc(nombreImp(e.linea))+'</td><td style="text-align:left">'+esc(e.motivo)+(e.estimada?'<span class="ie-est">estimada</span>':'')+'</td><td>'+fmtN(e.min)+'</td><td><b>'+fmtS(e.monto)+'</b></td></tr>').join('')+'</tbody></table></div>';
   }
   function htmlMermas(res){
     if(!res.mermaComp.length)return '<div class="ie-box"><h4>Mermas por componente</h4><div class="ie-nota">Sin mermas registradas en el periodo.</div></div>';
     return '<div class="ie-box"><h4>Mermas por componente</h4><table class="ie-t"><thead><tr><th>Componente</th><th>Cantidad</th><th>Unidad</th><th>Soles</th></tr></thead><tbody>'+
       res.mermaComp.map(m=>'<tr><td>'+esc(m.comp)+'</td><td>'+(m.unidad==='kg'?m.cantidad.toLocaleString('es-PE',{maximumFractionDigits:1}):fmtN(m.cantidad))+'</td><td>'+m.unidad+'</td><td>'+(m.cantidadSinCosto>=m.cantidad?'<i>falta costo</i>':fmtS(m.soles)+(m.cantidadSinCosto>0?' <span class="ie-est">parcial</span>':''))+'</td></tr>').join('')+'</tbody></table></div>';
   }
-  function htmlSupuestos(res){
-    if(!res.supuestos.length)return '<div class="ie-box"><h4>Supuestos del cálculo</h4><div class="ie-nota">No hay valores usados todavía en este periodo.</div></div>';
-    return '<div class="ie-box"><h4>Supuestos del cálculo</h4><table class="ie-t"><thead><tr><th>Concepto</th><th>Producto / componente</th><th>Valor</th><th>Vigente desde</th></tr></thead><tbody>'+
-      res.supuestos.map(s=>'<tr><td>'+s.tipo+'</td><td style="text-align:left">'+esc(s.etiqueta)+'</td><td>'+(s.unidad==='UND/h'?fmtN(s.valor)+' UND/h':fmtS(s.valor)+' <span class="ie-nota">'+esc(s.unidad.replace('S/ ',''))+'</span>')+'</td><td>'+(s.desde?fmtFecha(s.desde):'tabla de velocidades')+'</td></tr>').join('')+'</tbody></table>'+
-      '<div class="ie-nota">Cada evento usa el valor vigente en su fecha; al cambiar un valor se conserva el anterior.</div></div>';
+  function htmlSupuestos(R){
+    const res=R.res,hasta=R.per.hasta,porProd=new Map();
+    R.rec.partes.forEach(p=>{
+      if(!(p.producido>0||p.npMin>0||p.programado>0))return;
+      const k=p.pkey,o=porProd.get(k)||{etq:A().etiquetaProd(p.marca,p.pres),vel:0,p};
+      if(p.vel>0)o.vel=p.vel;porProd.set(k,o);
+    });
+    const filas=[...porProd.values()].sort((a,b)=>a.etq.localeCompare(b.etq,'es'));
+    const prod=filas.length?'<table class="ie-t"><thead><tr><th>Producto</th><th>Vel. estándar</th><th>Margen/und</th><th>Vigente desde</th></tr></thead><tbody>'+filas.map(o=>{
+      const m=vigente(DOCS.margenes,claveMargen(o.p),hasta);
+      return '<tr><td>'+esc(o.etq)+'</td><td'+(o.vel>0?'>'+fmtN(o.vel)+' UND/h':' class="falta">falta')+'</td><td'+(m?'>'+fmtS(m.valor):' class="falta">falta')+'</td><td>'+(m?fmtFecha(m.desde):'—')+'</td></tr>';
+    }).join('')+'</tbody></table>':'<div class="ie-nota">No hay productos con actividad en este periodo.</div>';
+    const cs=res.supuestos.filter(s=>s.tipo==='Costo de insumo');
+    const costos=cs.length?'<h4 style="margin:14px 0 8px">Costo de insumos por componente</h4><table class="ie-t"><thead><tr><th>Línea · componente</th><th>Costo unitario</th><th>Vigente desde</th></tr></thead><tbody>'+cs.map(c=>'<tr><td>'+esc(c.etiqueta)+'</td><td>'+fmtS(c.valor)+' <span class="ie-nota">'+esc(c.unidad.replace('S/ ',''))+'</span></td><td>'+fmtFecha(c.desde)+'</td></tr>').join('')+'</tbody></table>':'';
+    return '<div class="ie-box"><h4>Supuestos del cálculo</h4>'+prod+costos+'<div class="ie-nota">Al cambiar un valor se conserva el anterior; cada evento usa el vigente en su fecha. Sin horas extras ni costos de personal (eso va en RRHH).</div></div>';
   }
   function opcionesFiltros(R){
     const I=A(),marcas=[...new Set([...I.MARCAS_FIJAS,...R.rec.marcas])];
@@ -327,17 +333,18 @@
       '<select data-ie-f="pres" aria-label="Presentación"><option value="">Todas las presentaciones</option>'+cats.map(k=>'<option value="'+esc(k)+'"'+(G.pres===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</select>';
   }
   function htmlPantalla(R){
-    const botones=[['hoy','Hoy'],['7','7 días'],['30','30 días'],['mes','Mes en curso'],['rango','Rango']];
+    const botones=[['hoy','Día'],['7','Semana'],['mes','Mes'],['rango','Rango']];
     const per=R.per;
-    return '<div class="ie" id="impacto-eco-view"><div class="ie-bar"><div><h2>Impacto económico</h2><div class="ie-sub">Cascada de pérdidas · '+esc(per.etiqueta)+(R.rec.hayVivo?' · hoy en vivo desde el semáforo':'')+'</div></div>'+
-      '<div class="ie-ctl">'+botones.map(([k,t])=>'<button type="button" class="ie-btn'+(G.modo===k?' on':'')+'" data-ie-modo="'+k+'">'+t+'</button>').join('')+
+    return '<div class="ie" id="impacto-eco-view"><div class="ie-head"><div class="ie-title"><div class="ie-badge">📉</div><div><div class="ie-eyebrow">Solo para gerencia / jefatura</div><h2>Impacto económico</h2>'+
+      '<div class="ie-sub">Pérdidas por paradas, velocidad reducida y mermas · '+esc(per.etiqueta)+(R.rec.hayVivo?' · hoy en vivo desde el semáforo':'')+'</div></div></div>'+
+      '<div class="ie-filtros">'+botones.map(([k,t])=>'<button type="button" class="ie-btn'+(G.modo===k?' on':'')+'" data-ie-modo="'+k+'">'+t+'</button>').join('')+
       (G.modo==='rango'?'<input type="date" data-ie-fecha="desde" value="'+esc(per.desde)+'"> <input type="date" data-ie-fecha="hasta" value="'+esc(per.hasta)+'">':'')+'</div></div>'+
-      '<div class="ie-bar"><div class="ie-ctl">'+opcionesFiltros(R)+'</div><div class="ie-ctl">'+
-      '<button type="button" class="ie-btn" data-ie-valores>Valores y supuestos</button><button type="button" class="ie-btn" data-ie-excel>Exportar Excel</button>'+
-      '<button type="button" class="ie-btn" data-ie-anterior title="Cálculo con precio por línea (versión previa)">Ver cálculo anterior</button></div></div>'+
-      htmlFaltan(R.res)+htmlKpis(R)+htmlCascada(R.res)+htmlMes(R.mes)+
-      '<div class="ie-grid">'+htmlPareto('Pareto en soles · por motivo de parada',R.res.porMotivo,true)+htmlPareto('Pareto en soles · por línea',R.res.porLinea,true)+htmlPareto('Pareto en soles · por turno',R.res.porTurno,true)+'</div>'+
-      htmlTop5(R.res)+htmlMermas(R.res)+htmlSupuestos(R.res)+
+      '<div class="ie-filtros">'+opcionesFiltros(R)+
+      '<button type="button" class="ie-btn" data-ie-excel>Excel ↓</button><button type="button" class="ie-btn" data-ie-valores>Valores y supuestos</button>'+
+      '<button type="button" class="ie-btn" data-ie-anterior title="Cálculo con precio por línea (versión previa)">Ver cálculo anterior</button></div>'+
+      htmlFaltan(R.res)+htmlKpis(R)+htmlCascada(R.res,per)+
+      '<div class="ie-grid">'+htmlPareto(R.res)+htmlTop5(R.res)+'</div>'+
+      htmlMermas(R.res)+htmlSupuestos(R)+
       (R.res.estimadaPct>0?'<div class="ie-nota">'+fmtP(R.res.estimadaPct)+' de los minutos de parada tiene clasificación estimada (se dedujo del texto del registro; las paradas con motivo de la bitácora no se estiman).</div>':'')+'</div>';
   }
 
@@ -517,6 +524,8 @@
       if(G.modo==='rango'&&!A().fechaOk(G.desde)){const h=A().hoyOp();G.hasta=h;G.desde=addDias(h,-6);}
       render(document.getElementById('main'));return;
     }
+    const pt=e.target.closest('[data-ie-pareto]');
+    if(pt){G.pareto=pt.getAttribute('data-ie-pareto');render(document.getElementById('main'));return;}
     if(e.target.closest('[data-ie-valores]')){abrirEditor();return;}
     if(e.target.closest('[data-ie-excel]')){exportar();return;}
     if(e.target.closest('[data-ie-anterior]')){G.vistaAnterior=true;renderPerdidasSoles(document.getElementById('main'));}
@@ -570,6 +579,6 @@
     window.handleLogout=handleLogout;
   }
 
-  window.glacialImpactoEconomico={calcularImpacto,vigente,provDefecto,calcularTodo,construirLibro,guardarValores,panelMes,periodo,render,
+  window.glacialImpactoEconomico={nombreImp,lineaReal,calcularImpacto,vigente,provDefecto,calcularTodo,construirLibro,guardarValores,panelMes,periodo,render,
     abrirEditor,estado:G,docs:DOCS,listo:LISTO,claveMargen,claveCosto,normKey,permitido,detener,escuchar};
 })();
