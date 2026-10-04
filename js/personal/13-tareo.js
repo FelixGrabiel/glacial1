@@ -6600,7 +6600,10 @@ function tareoResumenDeRegistros(registros, año, mes) {
 
     const r = {
         turnos: 0,
-        asistencias: 0,
+        asistencias: 0,          // solo «Asistió»
+        feriados: 0,             // Feriado trabajado
+        comisiones: 0,           // Comisión / trabajo externo
+        diasTrabajados: 0,       // Asistió + Feriado trabajado + Comisión externa
         faltasPorJustificar: 0,
         faltasJustificadas: 0,
         descansos: 0,
@@ -6630,7 +6633,11 @@ function tareoResumenDeRegistros(registros, año, mes) {
 
         r.turnos++;
 
-        if (tareoEsPresente(estado)) r.asistencias++;
+        if (tareoEsPresente(estado)) r.diasTrabajados++;
+
+        if (estado === 'Asistió') r.asistencias++;
+        else if (estado === 'Feriado trabajado') r.feriados++;
+        else if (estado === TAREO_ESTADO_COMISION) r.comisiones++;
         else if (estado === 'Falta por justificar') r.faltasPorJustificar++;
         else if (estado === 'Falta justificada') r.faltasJustificadas++;
         else if (estado === 'Descanso') r.descansos++;
@@ -6795,7 +6802,10 @@ function tareoAbrirFicha(clave, tareoId) {
                     </div>
 
                     <div class="tar2-ficha-grid">
-                        ${dato('Asistencias', resumen.asistencias)}
+                        ${dato('Asistió', resumen.asistencias)}
+                        ${dato('Feriado trabajado', resumen.feriados)}
+                        ${dato('Comisión externa', resumen.comisiones)}
+                        ${dato('Días trabajados', resumen.diasTrabajados)}
                         ${dato('Faltas por justificar', resumen.faltasPorJustificar)}
                         ${dato('Faltas justificadas', resumen.faltasJustificadas)}
                         ${dato('Descansos', resumen.descansos)}
@@ -8921,7 +8931,10 @@ function obtenerResumenMensualTareo(
         cargo: persona.cargo || '',
         linea: persona.linea || '',
         area: areaFila,
-        asistencias: 0,
+        asistencias: 0,          // solo «Asistió»
+        feriados: 0,             // Feriado trabajado
+        comisiones: 0,           // Comisión / trabajo externo
+        diasTrabajados: 0,       // Asistió + Feriado trabajado + Comisión externa
         faltas: 0,
         permisos: 0,
         descansos: 0,
@@ -8996,6 +9009,17 @@ function obtenerResumenMensualTareo(
 
                     case 'Asistió':
                         resumen.asistencias++;
+                        resumen.diasTrabajados++;
+                        break;
+
+                    case 'Feriado trabajado':
+                        resumen.feriados++;
+                        resumen.diasTrabajados++;
+                        break;
+
+                    case TAREO_ESTADO_COMISION:
+                        resumen.comisiones++;
+                        resumen.diasTrabajados++;
                         break;
 
                     case 'Falta por justificar':
@@ -9213,6 +9237,9 @@ function actualizarResumenMensualTareo() {
             (total, item) => {
 
                 total.asistencias += item.asistencias;
+                total.feriados += item.feriados;
+                total.comisiones += item.comisiones;
+                total.dias += item.diasTrabajados;
                 total.faltas += item.faltas;
                 total.permisos += item.permisos;
                 total.descansos += item.descansos;
@@ -9227,6 +9254,9 @@ function actualizarResumenMensualTareo() {
             },
             {
                 asistencias: 0,
+                feriados: 0,
+                comisiones: 0,
+                dias: 0,
                 faltas: 0,
                 permisos: 0,
                 descansos: 0,
@@ -9244,8 +9274,20 @@ function actualizarResumenMensualTareo() {
         <div class="tareo-kpi-grid">
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">Asistencias</span>
+                <span class="tareo-kpi-label">Asistió</span>
                 <strong class="tareo-good">${totales.asistencias}</strong>
+            </div>
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Feriado trabajado</span>
+                <strong>${totales.feriados}</strong>
+            </div>
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Comisión externa</span>
+                <strong>${totales.comisiones}</strong>
+            </div>
+            <div class="tareo-kpi">
+                <span class="tareo-kpi-label">Días trabajados</span>
+                <strong class="tareo-good">${totales.dias}</strong>
             </div>
 
             <div class="tareo-kpi">
@@ -9290,7 +9332,10 @@ function actualizarResumenMensualTareo() {
                                 <th>Área</th>
                                 <th>DNI</th>
                                 <th>Cargo</th>
-                                <th>Asist.</th>
+                                <th>Asistió</th>
+                                <th>Feriado trab.</th>
+                                <th>Comisión ext.</th>
+                                <th>Días trabajados</th>
                                 <th>F. por justif.</th>
                                 <th>F. justif.</th>
                                 <th>Descansos</th>
@@ -9318,6 +9363,9 @@ function actualizarResumenMensualTareo() {
                                     <td>${escaparHTML(item.cargo)}</td>
 
                                     <td class="tareo-number-good">${item.asistencias}</td>
+                                    <td>${item.feriados}</td>
+                                    <td>${item.comisiones}</td>
+                                    <td class="tareo-number-good"><strong>${item.diasTrabajados}</strong></td>
 
                                     <td>${item.faltas}</td>
 
@@ -10398,7 +10446,10 @@ function exportarResumenMensualTareo() {
                 'Área': item.area,
                 'Cargo': item.cargo,
                 'Línea': item.linea || 'Sin línea',
-                'Asistencias': item.asistencias,
+                'Asistió': item.asistencias,
+                'Feriado trabajado': item.feriados,
+                'Comisión externa': item.comisiones,
+                'Días trabajados': item.diasTrabajados,
                 'Faltas por justificar': item.faltas,
                 'Faltas justificadas': item.permisos,
                 'Descansos': item.descansos,
@@ -10444,6 +10495,9 @@ function exportarResumenMensualTareo() {
         { wch: 28 },
         { wch: 16 },
         { wch: 13 },
+        { wch: 17 },
+        { wch: 16 },
+        { wch: 15 },
         { wch: 20 },
         { wch: 18 },
         { wch: 12 },

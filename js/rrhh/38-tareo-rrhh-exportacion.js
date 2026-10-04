@@ -492,7 +492,7 @@
 
   function hojaTotales(wb,filas){
     const ws=wb.addWorksheet('Totales por persona');
-    const cols=[['Apellidos y nombres',38],['DNI',12],['Cargo',28],['Grupo',28],['Días programados',12],['Días trabajados',12],
+    const cols=[['Apellidos y nombres',38],['DNI',12],['Cargo',28],['Grupo',28],['Días programados',12],['Asistió',10],['Feriado trabajado',12],['Comisión externa',12],['Días trabajados',12],
       ['Faltas',9],['Tardanzas',11],['Horas a favor',13],['Horas en contra',13],['Saldo neto',13]];
     cols.forEach((c,i)=>{ws.getColumn(i+1).width=c[1];});
     const hdr=ws.addRow(cols.map(c=>c[0]));
@@ -501,10 +501,13 @@
     const mapa=new Map();
     filas.forEach(f=>{
       const k=f.grupo+'|'+(soloDigitos(f.dni)||norm(f.nombre));
-      if(!mapa.has(k))mapa.set(k,{f,prog:0,trab:0,faltas:0,tard:0,fav:0,con:0});
+      if(!mapa.has(k))mapa.set(k,{f,prog:0,asist:0,fer:0,com:0,trab:0,faltas:0,tard:0,fav:0,con:0});
       const t=mapa.get(k);
       t.prog++;
-      if(tareoEsPresente(f.estado))t.trab++;
+      if(tareoEsPresente(f.estado))t.trab++;               // días trabajados = Asistió + Feriado trabajado + Comisión externa
+      if(f.estado==='Asistió')t.asist++;
+      else if(f.estado==='Feriado trabajado')t.fer++;
+      else if(f.estado==='Comisión / trabajo externo')t.com++;
       if(FALTAS.includes(f.estado))t.faltas++;
       if(f.tardanza>0)t.tard++;
       if(f.saldoMin>0)t.fav+=f.saldoMin;
@@ -512,12 +515,12 @@
     });
     [...mapa.values()].sort((a,b)=>GRUPOS[a.f.grupo].orden-GRUPOS[b.f.grupo].orden||a.f.nombre.localeCompare(b.f.nombre,'es'))
       .forEach(t=>{
-        const r=ws.addRow([t.f.nombre,t.f.dni,t.f.cargo,GRUPOS[t.f.grupo].etiqueta,t.prog,t.trab,t.faltas,t.tard,
+        const r=ws.addRow([t.f.nombre,t.f.dni,t.f.cargo,GRUPOS[t.f.grupo].etiqueta,t.prog,t.asist,t.fer,t.com,t.trab,t.faltas,t.tard,
           fraccion(t.fav),fraccion(t.con),fraccion(t.fav-t.con)]);
         r.getCell(2).numFmt='@';
-        r.getCell(9).numFmt='[h]:mm';r.getCell(10).numFmt='[h]:mm';
-        r.getCell(11).numFmt=FMT_SALDO;
-        r.getCell(11).font={bold:true,color:{argb:t.fav-t.con>0?'FF1E7B34':(t.fav-t.con<0?'FFC00000':'FF7F7F7F')}};
+        r.getCell(12).numFmt='[h]:mm';r.getCell(13).numFmt='[h]:mm';
+        r.getCell(14).numFmt=FMT_SALDO;
+        r.getCell(14).font={bold:true,color:{argb:t.fav-t.con>0?'FF1E7B34':(t.fav-t.con<0?'FFC00000':'FF7F7F7F')}};
         r.eachCell({includeEmpty:true},(c,i)=>{c.border=bordes;if(i>=5)c.alignment={horizontal:'center'};});
       });
     ws.views=[{state:'frozen',ySplit:1}];
