@@ -93,12 +93,12 @@
       flex:0 0 auto;margin-right:12px;z-index:10020
     }
     #al-host{
-      position:relative;z-index:10020;width:220px;
+      position:relative;z-index:10020;width:256px;
       font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;color:#17334a
     }
     /* ! El host NO cambia de ancho al abrirse.
        * Así nunca empuja ni invade Visualizar / Trabajar. */
-    #al-host.open{width:220px}
+    #al-host.open{width:256px}
     #al-host .al-panel{
       border:1px solid #cbdbe5;background:#fff;border-radius:11px;overflow:hidden
     }
@@ -117,6 +117,8 @@
       min-height:44px;background:#fff;color:#17324d;padding:0 11px
     }
     #al-host .al-bar strong{white-space:nowrap}
+    /* Cerrado: el botón de configuración (⚙) solo aparece con el panel abierto, para que quepa en la cabecera. */
+    #al-host:not(.open) [data-al-config]{display:none}
     #al-host .al-bar-actions{display:flex;gap:6px;align-items:center}
     #al-host button{font:inherit;cursor:pointer}
     #al-host .al-icon-btn{border:1px solid rgba(255,255,255,.55);border-radius:7px;
