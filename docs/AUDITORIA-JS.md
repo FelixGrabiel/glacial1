@@ -1,6 +1,6 @@
 # Auditoría de js/ — duplicados, solapamientos y código sin uso
 
-Estado: **PARTE 1 de 2** (secciones 1 a 4). La Parte 2 (secciones 5 a 8 y resumen final) se entrega después de tu «continúa».
+Estado: **COMPLETO** — Parte 1 (secciones 1 a 4) y Parte 2 (secciones 5 a 8 y resumen final).
 
 Alcance y método
 - Solo análisis: no se modificó ningún archivo de la app. Este informe es el único archivo nuevo (`docs/AUDITORIA-JS.md`).
@@ -399,4 +399,242 @@ Riesgo común (más en la Parte 2, sección 7): el orden de carga define el resu
 
 ---
 
-**Fin de la Parte 1.** Cuando digas «continúa» entrego la Parte 2: código sin uso (5), tiempo real y varios dispositivos (6), riesgos de estructura (7), plan de consolidación con el módulo único de indicadores (8) y el resumen final con las diez duplicaciones más importantes.
+# PARTE 2
+
+## 5. CÓDIGO SIN USO
+
+### 5.1 Funciones que nadie llama (candidatas)
+
+Método: para cada función declarada (global o dentro de un módulo) se buscó su nombre en **todo** `js/` y en `index.html` (incluidos los `onclick="..."` y las plantillas de texto). Estas **43** funciones aparecen una sola vez: en su propia definición. Todas son **por confirmar** antes de borrar, porque una función podría llamarse armando el nombre por texto (`window[nombre]`) o desde la consola.
+
+| Archivo | Funciones (línea) |
+|---|---|
+| `02-estado.js` | `turnoAutomaticoUsuario` (`:327`) |
+| `03-auth.js` | `goReportSelect` (`:335`) |
+| `04-sidebar.js` | `refinarIconosSidebar` (`:27`) |
+| `05-utils.js` | `actualizarLoteDraft` (`:667`) |
+| `06-registro.js` | `cuadroEstaFinalizado` (`:2656`), `inpPath` (`:4806`), `paradasTable` (`:6663`), `addParada` (`:6848`), `mermasTable` (`:6985`) |
+| `07-historial.js` | `histPresentaciones` (`:52`), `histAplicarFiltros` (`:61`), `histLimpiarFiltros` (`:66`), `viewRecord` (`:724`) |
+| `08-graficos.js` | `agruparProduccionPorMarca` (`:801`), `xlBloque` (`:1166`), `construirResumenesgraficos` (`:3359`) |
+| `09-resumen.js` | `statusClassInverso` (`:198`), `sparklineResumen` (`:502`), `generarInsightProdLinea` (`:1748`), `colorSegunMetaInverso` (`:1811`), `agruparParadasPlanta` (`:1928`), `generarInsightMermaLinea` (`:2050`), `generarInsightParadasPlanta` (`:2085`) |
+| `16-paletas.js` | `registrosPaletasTurnoActual` (`:1590`), `renderSemaforoChip` (`:3053`), `renderResumenSemaforoProductos` (`:3083`) |
+| `13-tareo.js` | `generarIdTareo` (`:2285`), `normalizarFechaExcel` (`:8123`) |
+| `24-semaforo-produccion-actual.js` | `claveProductoActivo` (`:471`), `ultimoProductoConProduccion` (`:475`) |
+| `27-rrhh-excel-operativo.js` | `clasificarPersona` (`:35`) |
+| `28-tareo-maquinistas.js` | `personaProduccionDeTrabajador` (`:130`) |
+| `29-avance-produccion.js` | `avParadasRegistroLinea` (`:167`), `avParadasOperativasLinea` (`:189`), `avTipoMotivo` (`:210`), `avEstadoOperacion` (`:454`), `avSlotsTurno` (`:898`), `avSlotActual` (`:902`), `avSnapshotPorReferencia` (`:903`), `avProximoAvance` (`:990`), `avVerFlotante` (`:1076`), `avVerDesdeModulo` (`:1444`) |
+| `32-dashboard-perfiles.js` | `cpRedondear` (`:493`) |
+
+Lectura rápida de los grupos:
+- **Restos de pantallas viejas**: en `07-historial.js` los filtros `hist*` y `viewRecord`; en `06-registro.js` `paradasTable`, `addParada`, `mermasTable` (la versión vigente es `paradasTableCuadro`, `06:5608`); en `16-paletas.js` `renderSemaforoChip` y `renderResumenSemaforoProductos` (el semáforo ahora lo dibuja `24`).
+- **Restos del Resumen**: en `09-resumen.js` hay tres generadores de frases y dos ayudas de color sin uso; `agruparParadasPlanta` (`:1928`) quedó sustituida por el bloque industrial (`09:2403`).
+- **Avance**: diez funciones `av*` sin llamadas (slots, `avProximoAvance`, `avSnapshotPorReferencia`…).
+- **Guardado**: `savePaletas` (`02-estado.js:1571`) y `saveProgramaciones` (`02:1594`) **no tienen ninguna llamada** (Paletas y la programación usan transacciones en `16` y `24`); `23-gerente-solo-lecutra.js:69–:80` todavía las envuelve.
+
+### 5.2 Restos de funciones reemplazadas
+
+| Resto | Dónde | Estado actual |
+|---|---|---|
+| **Login antiguo** (contraseña en texto plano o con hash propio) | `03-auth.js:86–:117` (rama `LOGIN_LEGACY_PERMITIDO`), `:219–:253` (`migrarUsuarioAPasswordSeguro`), botones «Migrar contraseñas antiguas» (`10-usuarios.js:98`, `:135`) | Con las banderas actuales (`01-config.js:199–:200`: `LOGIN_LEGACY_PERMITIDO:false` en PRODUCCION y PRUEBAS) esa rama **no se ejecuta nunca**. Los datos antiguos (`password`, `passwordHash`, `salt`) pueden seguir dentro de `sync/users`: **por confirmar** si quedan usuarios con esos campos |
+| **Clave de Google Sheets** | `01-config.js:779` (`SHEETS_URL=''`) y `:781` (`SHEETS_CLAVE=''`) | Vacías: la integración con Sheets está **desactivada**. El código de envío sigue activo (`34-integraciones.js`; se llama en cada cierre, `29:923`) y la cola de pendientes en `localStorage` (`34:50–:51`). La clave anterior sigue en el historial de git (pendiente de rotar, según el seguimiento anterior) |
+| **Campos de programación en Paletas** | `16-paletas.js`: `paletasProgramadas` (`:318`, `:332`, `:345`, `:393`, `:2080`, `:2902`) junto a `cantidadProgramada` (unidades); formulario de alta de programación dentro de Paletas (`:1413` `guardarProgramacionDesdeFormulario`, `:366` `guardarProgramacionPaleta`) | Dos representaciones de lo programado (paletas y unidades) que hay que mantener sincronizadas; la tarjeta que se ve en Nuevo registro viene de `21`, y el estado de la línea de `24`. **Por confirmar** cuál es la entrada oficial para programar |
+| **Accesos de prueba** | Búsqueda de `username:` literales, `demo`, `test`, `prueba`, `TODO/FIXME` en `js/` | **No se encontraron cuentas ni claves de prueba**. Lo único parecido es el rótulo de entorno `BASE DE PRUEBAS` (`01-config.js:150–:160`), que es legítimo, y el usuario sintético `__vista__` de «Ver como» (`39-vista-como.js:121`) |
+| **Migración desde `localStorage` del tareo** | `13-tareo.js:1367–:1460`, `:1584–:1625` | Migración «una sola vez» de datos locales antiguos hacia Firestore; **por confirmar** si ya no hace falta |
+| **Parche pegado** | `22-impacto-para-pegar.js` (cabecera: «Pegar en js/22-impacto-para-pegar.js») | Archivo de parche sobre `15`; vive solo mientras exista la vista anterior del Impacto |
+| **Vista anterior de Impacto** | `15-perdidas-soles.js` + `22`, accesible con «Ver cálculo anterior» (`50`) | En uso solo como respaldo |
+| **Archivo sin cargar** | `00-logo.js` | Ver 1.3 |
+| **Botón de Almacén** | `index.html` (`btn-almacen`) sin `onclick` | **Por confirmar** |
+
+### 5.3 Bloques comentados
+
+Se buscaron corridas de 3 o más líneas `//` con aspecto de código y bloques `/* … */` largos con aspecto de código. **No se encontró código comentado** (el único resultado, `06-registro.js:717–:899`, es un falso positivo: código vigente con comentarios internos). Los bloques `/* … */` que existen son explicaciones, no código desactivado.
+
+### 5.4 Estilos sin usar (CSS)
+
+Se compararon las clases definidas en cada hoja con todo el texto de `js/` e `index.html`. Ojo: algunas clases se arman por texto (`'tareo-status-'+estado`) y aparecerán aquí por error, así que **todo es por confirmar**.
+
+| Hoja | Clases distintas | Sin ninguna aparición |
+|---|---|---|
+| `styles.css` (5 689 líneas) | 321 | **105** (p. ej. `login-hint`, `demo-user`, `btn-amber`, `hist-row`, casi todo el bloque `tareo-*` antiguo: `tareo-toolbar`, `tareo-kpis`, `tareo-history-*`, `tareo-modal`, `tareo-rotation-*`, `tareo-upload*`, `tareo-preview-*`, `tareo-status-*`) |
+| `tareo.css` (972) | 72 | 6 (`tareo-panel`, `tareo-card`, `tareo-section`, `tareo-resumen`, `tareo-toolbar`, `tareo-hours-extra`) |
+| `mobile-glacial.css` (794) | 97 | 14 (`main-content`, `section-card`, `form-card`, `table-wrap`, `table-responsive`, `tabla-wrap`, `modal-content`, `modal-box`, `dialog-content`, `popup-content`…; parecen selectores «por si acaso») |
+| `sidebar-glacial.css` (458) | 35 | 1 (`sidebar-submenu`) |
+
+Además `index.html` trae **≈ 2 400 líneas de CSS en línea** (`:85–:2438` y `:2439–:2470`) que se suman a las cuatro hojas.
+
+---
+
+## 6. TIEMPO REAL Y VARIOS DISPOSITIVOS
+
+### 6a. Escuchas duplicadas y escuchas que nunca se cierran
+
+**Duplicadas sobre el mismo documento**
+
+| Documento | Escuchas | Costo extra estimado |
+|---|---|---|
+| `sync/avancesTurno` | `23b:123` (permanente) **y** `29:960` (al abrir Avance y Cierre). `23b:118–:119` evita abrir la suya solo si la de 29 ya existe, pero normalmente 23b se abre primero | Con la pantalla de Avance abierta, cada escritura cuesta 2 lecturas por equipo en vez de 1. Orden de magnitud: decenas de lecturas al día |
+| `sync/users` | `02:507` y `44:68` (la de 44 solo para detectar conexión) | 2 lecturas por equipo cada vez que cambia el documento. Poco frecuente. **Por confirmar** con cuántas escrituras hay (`saveUsers` se llama desde login y gestión de usuarios) |
+| `bitacoraMantenimiento` | `43:255` (rango de la Bitácora), `43:659` (tarjeta «Paradas de hoy» del Inicio) y `47:326` (rango de Análisis de paradas) | Cada pantalla vuelve a leer los mismos eventos del día. Con 50–200 eventos al día, abrir Bitácora y Análisis a la vez duplica esas lecturas |
+| `sync/configIndicadores` | `47:109` (escucha) + lectura suelta en `49` | `49` no abre la suya (reutiliza la de 47): sin desperdicio |
+| `sync/configMantenimiento` | `37b:489` (escucha) y `37b:507` (`get` suelto) | 1 lectura extra por apertura |
+
+**Que nunca se cierran (o solo se cierran por recarga de página)**
+
+- `handleLogout` (`03-auth.js:262–:277`) **no cierra ninguna escucha**: borra la sesión y oculta la pantalla. Los módulos nuevos sí cierran las suyas envolviendo `handleLogout` (`37b:570`, `41:598`, `46:279`, `47:748`, `48:601`, `50:578`, `25:605`), pero **no se cierran**: las 10 de `02-estado.js`, la de `23b:123`, la de `44:68` (solo se libera si hay error, `:75`), la de `17:606`, la de `20:199` (`tareoAuditoriaLista`, sin `unsubscribe` en ningún sitio) y la de `29:960` (se reemplaza pero no se cierra al salir de la pantalla; **por confirmar**).
+- Efecto: tras cerrar sesión en un equipo compartido (por ejemplo la TV o una tablet de planta) las escuchas siguen vivas hasta recargar y empiezan a fallar con «permiso denegado» por las reglas de la etapa 2. Costo de lecturas pequeño; el riesgo real son errores en consola y datos de otro usuario en memoria.
+- `20:199` pide hasta **500 eventos** de `auditoriaTareos` al abrir RRHH → Auditoría (`20:229–:231`, solo con el permiso `moduloRRHH`): 500 lecturas por equipo y sesión, y la escucha queda abierta aunque el usuario salga de esa pantalla.
+
+**Costo de fondo (no es desperdicio, pero conviene medirlo)**: `sync/records`, `sync/tareos`, `sync/programaciones` y `sync/paletas` son **un documento único** que crece. Cada escritura de cualquiera obliga a todos los equipos con escucha a releer el documento entero: lecturas por día ≈ escrituras por día × equipos conectados (por ejemplo, 200 paletas × 15 equipos = 3 000 lecturas solo de `paletas`). Cifras por confirmar con el uso real de la consola de Firebase.
+
+### 6b. Lugares que sobrescriben un documento completo con datos en memoria
+
+| Documento | Dónde se escribe completo (`set({items,…})` sin `merge`) | Quién llama | Protección |
+|---|---|---|---|
+| `sync/records` | `02-estado.js:1390` (`saveRecords`) | `06-registro.js:2865`, `:3065`, `:3102`; `07-historial.js:701`; `08-graficos.js:3542` | Ninguna: dos supervisores guardando a la vez, gana el último y se **pierde el registro del otro** |
+| `sync/workers` | `02:1412` | `11-trabajadores.js:509`, `:610`, `:803` | Ninguna |
+| `sync/rotaciones` | `02:1435` | `13-tareo.js:1545`, `:1641`, `:1647`; `31-rotacion-supervisores.js:72`, `:341` | Ninguna |
+| `sync/rotacionesMantenimiento` / `rotacionMaquinistas` | `02:1458` / `02:1481` | `30-rotacion-mantenimiento.js:419` / `33-rotacion-maquinistas.js:176` | Ninguna |
+| `sync/precios` | `02:1529` (`savePrecios`) | `15-perdidas-soles.js:381` | Ninguna (reemplaza todos los precios por línea con los del formulario) |
+| `sync/tareos` | `02:1504` | `13-tareo.js:1374`, `:1495`, `:1501` (migración y respaldo); la edición normal va por transacción `13:1013`, `:4240` | Parcial; `13:10497` solo comprueba permisos y áreas editables |
+| `sync/users` | `02:1316` y `02:1346` (transacción) | `10-usuarios.js:1191`, `:1681`, `:1762`, `:1820`; `03-auth.js:245`; `36-seguridad-auth.js:352`, `:377`, `:421` | Mixta |
+| `sync/perfiles`, `sync/accesos` | `36-seguridad-auth.js:187`, `:188` | Migración | Se arman desde memoria; **por confirmar** si pisan perfiles creados en paralelo |
+| `sync/cuentasAntiguas` | `36:565` (`items:[]`) | Botón de limpieza | Intencional |
+| `sync/configMantenimiento`, `configTareo` | `37b:532`, `41:473` | Pantallas de configuración | `set` sin `merge` con un objeto armado en memoria: **por confirmar** si borra campos que otra persona agregó |
+| `sync/borradoresNuevoRegistro` | `17-modo-trabajo.js:674`, `:688` | Autoguardado | Documento por usuario dentro del mapa; **por confirmar** |
+
+**Lo que ya está bien**: `sync/paletas` y `sync/programaciones` (transacciones en `16` y `24`), `sync/avancesTurno` (`29:367`, `:877` con `merge` y chequeo de `updatedAt`), `configAlertas`, `configIndicadores`, `resumenesTurno` y `configEconomica` (transacción + merge por campos). Además `savePaletas` y `saveProgramaciones` (`02:1571`, `:1594`) sobrescribirían todo si alguien las llamara; hoy nadie lo hace.
+
+### 6c. Datos que otros deberían ver y solo se guardan en el dispositivo
+
+Se revisó todo uso de `localStorage` y `sessionStorage`:
+- **Correcto que sea local**: preferencia de sonido de alertas (`25:77`), posición del botón flotante de Avance (`29:1330`), identificador del equipo (`41:77`), modo visualizar/trabajar y menú abierto (`17:396`, `04:243`), identificación del técnico (`37b:84–:89`, a propósito en `sessionStorage`).
+- **Por confirmar si debería compartirse**:
+  - `46-proyeccion-avisos.js:95–:96`: los avisos «ya vistos» se recuerdan por equipo; si un supervisor reconoce un aviso, el otro lo sigue viendo.
+  - `34-integraciones.js:50–:51`: la **cola de envíos pendientes** a Sheets/WhatsApp vive solo en el equipo (con Sheets desactivado hoy no tiene efecto).
+  - `13-tareo.js:1367–:1460` y `:1584–:1625`: restos de la época en que el tareo vivía solo en `localStorage`.
+- No se detectaron datos de producción importantes guardados solo en el equipo: los borradores, tareos, paradas y cierres van a Firestore.
+
+### 6d. Lecturas únicas donde debería haber una escucha en vivo
+
+- `32-dashboard-perfiles.js:377–:392` (`cpCargarAvances`): si no hay snapshots de la pantalla de Avance en memoria, hace un `get()` de `sync/avancesTurno` y **guarda el resultado en `cpAvancesCache` para siempre** (`:379`). El bloque «pendientes de avance» del Inicio puede quedar **desactualizado** hasta cambiar de clave o recargar, aunque `23b:123` ya tiene una escucha del mismo documento (que solo conserva las paradas operativas). Es el caso más claro.
+- `29-avance-produccion.js:215` (`avAbrirParadas`): dos `get()` (`avancesTurno` y `records`, este último de hasta 1 MB) cada vez que se abre el modal de paradas. Es deliberado (comprobar que nadie cambió el documento), pero `records` ya está en memoria por `02:555`: **por confirmar** si se podría comparar contra la copia en memoria.
+- `37b-mantenimiento-identificacion.js:507`: `get()` de `configMantenimiento` pese a la escucha de `:489`.
+- `43-bitacora-mantenimiento.js:789` (`avisoPendientesCierre`) y `48-resumen-turno.js` (`bitacoraMttoPendientes`): lecturas únicas puntuales; son correctas (se hacen al cerrar el turno).
+- `36-seguridad-auth.js:583` y `:111`: lecturas únicas de respaldo/login; correctas.
+
+### 6e. Cálculos que usan el reloj del dispositivo en vez de la hora del servidor
+
+Los módulos nuevos (`23b`, `24`, `43`, `44`, `46`, `47`, `48`, `49`, `50`, `37b`, `41`) usan `tareoAhoraServidor` (`41-tareo-bloqueo.js:70`). Los módulos anteriores **no**:
+
+| Dónde | Qué decide con el reloj del equipo |
+|---|---|
+| `29-avance-produccion.js:23` (`avFechaHoy`), `:24` (`avHoraActual`) | Fecha, hora y tramo de cada **avance y cierre**; `:649–:650` guarda `createdAt`/`generadoEn` con `Date.now()` (orden de los cierres entre equipos) |
+| `16-paletas.js:844`, `:858` (`fechaHoyPaletas`) | Fecha por defecto de programación y paletas |
+| `16-paletas.js:556`, `:594`, `:1274` (`ahoraOp`) | Marcas de tiempo de tramos de secuencia y del **inicio automático** de la programación al registrar paletas; alimentan los tiempos de `23b` (ratio, horas efectivas, disponibilidad). **Por confirmar** cuánto pesan en los números |
+| `06-registro.js:2005`, `:2085–:2086`, `:2720` | Fecha/hora por defecto del registro y marcas de creación/finalización |
+| `13-tareo.js` (19 `Date.now()` y 8 `new Date()`), `31-rotacion-supervisores.js` (11 y 8), `36-seguridad-auth.js` (7 y 4), `32-dashboard-perfiles.js:351`, `:708` | Fechas «de hoy», horas de ingreso/salida por defecto, comparaciones de turno |
+| `02-estado.js` (12 `Date.now()`) | `updatedAt` de cada documento guardado |
+
+Efecto: un equipo con la hora mal puesta puede crear un cierre, una paleta o un tramo con fecha u hora equivocada, y los reportes que mezclan esos datos con los del semáforo (hora del servidor) quedarían desalineados.
+
+---
+
+## 7. RIESGOS DE ESTRUCTURA
+
+**Dependencias del orden de carga** (si se mueve un `<script>`, cambia el comportamiento sin ningún aviso)
+- `49` necesita que ya existan `47` (`window.glacialAnalisisParadas`), `09`, `14`, `24`; `50` necesita `49`; `48` necesita `43`, `47` y `29`; `43` envuelve funciones de `29` (`:818`); `47` y `48` envuelven funciones de `43`.
+- `24` cambia `tienePermiso` (`:167`) y `resumenProgramacionCombinacionTurnos`; todo lo que se cargue antes de `24` y la llame sigue usando la versión anterior si guardó la referencia.
+- `23` debe cargar «después de los módulos 02–22 y antes de `12-init.js`» (cabecera de `23`); `39-vista-como.js` debe ser de los últimos porque envuelve `Firestore.prototype` (`:68`).
+- Hay `const anterior = X; X = function…` en unos 95 lugares (patrón `const …anterior/prev/original = función;`): la **primera** versión se «congela» al cargar; si otro archivo cambia `X` después de que alguien la guardó, la cadena se salta capas.
+
+**Envolturas apiladas sobre la misma función** (ver 4b): `onProgramacionesUpdated` 10 capas, `tareoRenderTabs` 9, `handleLogout` 9, `renderMain` 7, `renderSidebar` 7, `onPaletasUpdated` 7. Cada nueva pantalla añade una capa más; un error en una capa intermedia afecta a todas las posteriores y es difícil de depurar.
+
+**Nombres globales que pueden chocar**
+- `919` funciones globales y `187` constantes/variables de primer nivel repartidas en 51 archivos. Duplicados reales: solo `cambiarTodosLosPermisos` y `actualizarEstadoTodosLosPermisos` (ver 4a).
+- Riesgo estructural: todo es global y se llama por nombre; un archivo nuevo que declare `esc`, `num`, `norm` o `fmt…` fuera de un IIFE **reemplazaría** silenciosamente la versión de otro (`num` de `05-utils.js:11` usa `parseFloat`; las copias locales usan `Number`, con resultados distintos para «12abc»).
+- 245 `onclick="funcion(...)"` en las plantillas de JS y 24 en `index.html`: refuerzan la dependencia de nombres globales (renombrar una función sin buscar en las plantillas la rompe sin error visible hasta usarla).
+
+**Archivos demasiado grandes para mantener**
+
+| Archivo | Líneas | Funciones | Sugerencia de corte |
+|---|---|---|---|
+| `13-tareo.js` | 10 530 | 164 | Calendario/rotación, resúmenes y exportaciones, formulario, cálculos de horas |
+| `06-registro.js` | 7 550 | 89 | Cálculos (`calcDerived*`), formulario, evidencias PT, despachador `renderMain` |
+| `08-graficos.js` | 5 854 | 61 | Gráficos, Excel por línea, imagen JPG, helpers de Excel |
+| `09-resumen.js` | 4 380 | 74 | Cabecera/filtros, bloque industrial, paneles de marca, insights |
+| `16-paletas.js` | 4 045 | 51 | Paletas, programación, secuencia/tramos |
+| `24-semaforo-produccion-actual.js` | 2 268 | (IIFE) | Motor de estado, acciones y bitácora, tarjetas |
+| `10-usuarios.js` | 1 868 | 16 | |
+| `14-exportar-general.js` | 1 741 | 23 | |
+| `index.html` | 3 360 | — | ≈ 2 400 líneas de CSS en línea (`:85–:2470`) |
+
+Dividirlos solo tiene sentido **moviendo código sin tocar la lógica** y verificando que el orden de carga no cambie.
+
+---
+
+## 8. PLAN DE CONSOLIDACIÓN
+
+Cada fila se hará por separado, en un cambio pequeño y con una comparación de números antes y después. **No se ejecuta ninguna ahora.**
+
+| # | Qué unificar o eliminar | Beneficio | Riesgo | Esfuerzo | Orden |
+|---|---|---|---|---|---|
+| 1 | Una sola regla de **conteo de asistencia** en el tareo (`13:786`) usada por `26`, `32`, `34` y `48` | Mismo «asistieron/faltas/tardanzas» en todas las pantallas y mensajes | Bajo (cambia cifras visibles en Inicio y WhatsApp) | S | 1 |
+| 2 | Cerrar escuchas al cerrar sesión (las 10 de `02`, `23b:123`, `44:68`, `20:199`, `17:606`, `29:960`) y quitar las duplicadas (`avancesTurno`, `users`) | Menos errores en equipos compartidos y menos lecturas | Bajo | S | 2 |
+| 3 | `32` (`cpCargarAvances`) debe leer en vivo en vez de un `get()` cacheado para siempre | Quita el «pendientes de avance» desactualizado | Bajo | S | 3 |
+| 4 | Una sola función de **día operativo y turno vigente** (`glacialTurnoVigente`) para `09`, `16`, `26`, `29`, `43`, `47`, `48`, `49` | Misma fecha en todo el sistema, también pasada la medianoche | Medio (cambia la fecha por defecto de Resumen, Paletas y Avance en ciertas horas) | M | 4 |
+| 5 | **Hora del servidor** en `29:23–:24`, `16:844/:858` y los `Date.now()` que alimentan tiempos (`16:556/:594/:1274`) | Cierres, paletas y tramos con la hora correcta aunque el reloj del equipo falle | Medio | S–M | 5 |
+| 6 | **Módulo único de indicadores** (ver 8.1) | Un solo cálculo de ratio, disponibilidad, merma, cumplimiento, rendimiento y OEE para todas las pantallas | Medio–alto (cambia números visibles) | L | 6 (por etapas) |
+| 7 | Estado de la línea del Resumen (`09:2387`) → usar `glacialResumenEjecutivoLineas` | «Estado actual de planta» igual al semáforo | Bajo–medio | S | 7 |
+| 8 | Regla de «motivo pendiente» única (`24:1619`, `43:103`, `49:174`) y roles de jefatura únicos (`GLACIAL_ROLES`, 10 sitios) | Menos configuraciones que olvidar al cambiar una regla; las reglas de Firestore siguen necesitando copia manual | Bajo | S | 8 |
+| 9 | Retirar del Resumen las tarjetas viejas (`09:3602–:3627`, `ri-kpis`) y `rsInsight`, dejando las de 49 | Una sola cabecera; menos confusión | Bajo (cambio visual) | S | 9 |
+| 10 | Eliminar las 43 funciones sin uso, `savePaletas`, `saveProgramaciones` y la rama de login antiguo (con confirmación una por una) | Menos código que mantener (≈ varios cientos de líneas) | Bajo, pero cada una por confirmar | M | 10 |
+| 11 | `saveRecords`, `saveWorkers`, `saveRotaciones*`, `savePrecios` → transacción o actualización por campos | Evita perder datos cuando dos personas guardan a la vez | **Alto** (toca el guardado de registros); empezar por `records` | L | 11 |
+| 12 | Cambiar la cadena de `on*Updated` por un aviso de eventos simple (`glacialBus`) | Pantallas nuevas sin añadir capas; menos riesgo de orden | Medio | M | 12 |
+| 13 | Metas y umbrales en un solo lugar (`METAS`, `UMBRALES`, `configAlertas`, `metasReporte`) | Una sola pantalla de configuración | Medio | M | 13 |
+| 14 | Utilidades comunes (`num`, `esc`, `norm`, fechas, `fmt…`) en un módulo compartido | Menos copias y el mismo comportamiento en todos | Bajo–medio (diferencia `parseFloat`/`Number`) | M | 14 |
+| 15 | Cargar `00-logo.js` o decidir retirarlo; retirar `15`/`22` cuando ya no haga falta la vista anterior | Logo en Excel/imagen; menos código | Bajo | XS–S | 15 |
+| 16 | `48` (resumen de turno) debe leer el cierre de `29` en vez de recalcular | Un solo cierre oficial | Medio | M | 16 |
+| 17 | Dividir los archivos grandes (`13`, `06`, `08`, `09`, `16`) solo moviendo código | Mantenimiento más fácil | Medio–alto | L | 17 |
+| 18 | Limpiar CSS sin uso (≈ 126 clases candidatas) y mover el CSS en línea de `index.html` a una hoja | Menos peso y menos choques | Bajo | M | 18 |
+
+### 8.1 Propuesta: un único módulo de cálculo de indicadores
+
+Idea: `js/produccion/23c-indicadores.js` (después de `23b`, antes de `24`) con una **unidad de cálculo estándar** y funciones puras.
+
+- **Entrada**: una *unidad* = línea + fecha + turno + producto, con `producido`, `programado`, `duración`, `paradas programadas`, `paradas no programadas`, `mermas` y `velocidad estándar`. La arma `unidadesDelPeriodo(desde, hasta, filtros)`, que ya existe hoy en la práctica dentro de `49` (`recolectar`) y usa semáforo para hoy y registro para turnos anteriores, avisando si difieren más de 2 %.
+- **Salida única**: `ratio`, `horasEfectivas`, `planificado`, `disponibilidad`, `merma`, `cumplimiento`, `rendimiento` y `oee`, con las definiciones vigentes y los mismos redondeos.
+- **Quién la usaría** (en este orden, de menor a mayor riesgo): `49` y `50` (ya la usan en la práctica) → `48` (resumen de turno) → `47` (Análisis de paradas) → `09` y `14` (bloque industrial, gráficos y Excel general) → `29` (Avance) → `06`/`07`/`08` (pantallas del registro).
+- **Cada etapa** se entrega con una tabla de comparación: números de antes y números de después para los mismos datos, y una nota con la diferencia que verá la planta.
+- **Qué no cambia**: el motor de tiempos `23b` sigue siendo el único cálculo de paradas y proyección; el módulo nuevo solo lo reutiliza y le suma los datos de registro para turnos pasados.
+
+---
+
+## RESUMEN FINAL
+
+### Las diez duplicaciones más importantes (en lenguaje simple)
+
+1. **El cumplimiento se calcula de tres maneras.** Según la pantalla, lo producido sale de Paletas, del registro del turno o de una corrección manual, y lo programado de la programación o del propio registro. Dos pantallas pueden mostrar porcentajes distintos para el mismo turno. **Afecta números que hoy ve la planta.**
+2. **El OEE tiene cuatro definiciones.** Unas suponen calidad 100 %, otras toman las botellas de merma como rechazo, y otras no incluyen calidad. **Afecta números visibles** (Gráficos, Excel general, Análisis de paradas y la cabecera del Resumen).
+3. **La disponibilidad se promedia distinto.** Las tarjetas del Resumen la calculan bien, pero los gráficos de abajo y el Excel general promedian por horas efectivas. **Afecta números visibles.**
+4. **«Asistieron» se cuenta con cinco reglas** (Tareo, WhatsApp, Inicio, RRHH, resumen de turno). **Afecta números visibles** de asistencia.
+5. **Los minutos de parada vienen de tres lugares** (registro del turno, estado de la línea y bitácora). El semáforo y el Análisis de paradas coinciden entre sí; el Resumen, el Historial y el Impacto anterior usan el registro. **Afecta números visibles.**
+6. **El ratio de turnos pasados usa horas anotadas**, no las reales del semáforo. **Afecta números** de turnos anteriores.
+7. **El estado de la línea del Resumen** («Estado actual de planta») se calcula aparte del semáforo y puede mostrar otro estado. **Visible.**
+8. **Hay nueve versiones de «día operativo/turno vigente»**; algunas esperan la hora 7 y otras usan la fecha de calendario. **A veces afecta** (pasada la medianoche).
+9. **El Resumen tiene tres juegos de tarjetas y dos generadores de frases** (el antiguo y «Qué pasó»). No cambia números, pero confunde.
+10. **Las reglas de quién puede qué están copiadas** (roles de jefatura en 10 lugares, metas en 5, horarios de turno en 7 criterios) y hay que mantenerlas iguales a mano, incluidas las reglas de Firestore. No cambia números hoy; es la fuente más probable de errores futuros.
+
+### Otros hallazgos importantes que no son duplicación de pantalla
+
+- **Guardado completo de documentos** (`saveRecords`, `saveWorkers`, `saveRotaciones`, `savePrecios`): dos personas guardando a la vez pueden perder datos.
+- **Escuchas sin cerrar al cerrar sesión** (10 de `02` y varias más) y **2 escuchas del mismo documento** (`avancesTurno`, `users`).
+- **Reloj del equipo** en Avance, Paletas y registro en vez de la hora del servidor.
+- **El logo nunca aparece** porque `00-logo.js` no se carga.
+- **43 funciones sin llamadas** y restos del login antiguo y de Sheets.
+
+### Qué afecta números que hoy ve la planta
+Duplicaciones **1, 2, 3, 4, 5, 6 y 7** (y a veces la 8). Las 9 y 10 no cambian cifras, pero conviene resolverlas para que las demás consolidaciones no vuelvan a divergir.
+
+---
+
+**Fin del informe.** No se ejecutó ninguna consolidación. Cuando quieras, empezamos por una sola fila del plan (la sección 8), con su comparación de números antes y después.
