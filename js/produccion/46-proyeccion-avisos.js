@@ -86,7 +86,7 @@
     const u=typeof state!=='undefined'?state.user:null;
     if(!u)return false;
     const rol=String(u.rol||'').trim();
-    return rol==='Administrador'||JEFATURA.includes(rol);
+    return rol==='Administrador'||JEFATURA.includes(rol)||(typeof tienePermiso==='function'&&tienePermiso('configurar_umbrales'));
   };
   const puedeVerProyeccion=a=>!!a&&a.tipos.includes('proyeccion');
 

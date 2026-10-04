@@ -345,27 +345,7 @@ function openUsersModal(){
             ">
 
 
-              ${PERMISOS_APP.map(p=>`
-
-                <label style="
-                  display:flex;
-                  align-items:center;
-                  gap:8px;
-                  cursor:pointer;
-                  font-size:13px;
-                ">
-
-                  <input
-                    type="checkbox"
-                    class="permiso-check"
-                    value="${p.key}"
-                    onchange="actualizarEstadoTodosLosPermisos()">
-
-                  ${p.label}
-
-                </label>
-
-              `).join('')}
+              ${htmlPermisosPorArea({clase:'permiso-check',onchange:'actualizarEstadoTodosLosPermisos()'})}
 
 
             </div>
@@ -1488,49 +1468,7 @@ function editarPermisosUsuario(username){
             ">
 
 
-              ${PERMISOS_APP.map(p=>`
-
-                <label style="
-                  display:flex;
-                  align-items:center;
-                  gap:8px;
-                  cursor:${esAdminPrincipal
-                    ? 'not-allowed'
-                    : 'pointer'};
-                  font-size:13px;
-                ">
-
-
-                  <input
-                    type="checkbox"
-                    class="permiso-edit-check"
-                    value="${p.key}"
-
-                    ${
-                      seleccionados.includes(
-                        p.key
-                      )
-                        ? 'checked'
-                        : ''
-                    }
-
-                    ${
-                      esAdminPrincipal
-                        ? 'disabled'
-                        : ''
-                    }
-
-                    onchange="
-                      actualizarEstadoPermisosEdicion()
-                    ">
-
-
-                  ${p.label}
-
-
-                </label>
-
-              `).join('')}
+              ${htmlPermisosPorArea({clase:'permiso-edit-check',onchange:'actualizarEstadoPermisosEdicion()',seleccionados:seleccionados,deshabilitado:esAdminPrincipal})}
 
 
             </div>

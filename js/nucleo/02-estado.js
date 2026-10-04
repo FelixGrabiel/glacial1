@@ -123,43 +123,87 @@ function _avisarErrorGuardado(nombreDato, error){
    PUESTOS Y PERMISOS DE USUARIOS
    ========================================================= */
 const PERMISOS_APP=[
-  {key:'nuevo',label:'Nuevo registro'},
-  {key:'historial',label:'Historial'},
-  {key:'graficos',label:'Gráficos'},
-  {key:'resumen',label:'Resumen / Reportes'},
-  {key:'perdidasSoles',label:'Impacto Económico (paradas no programadas)'},
-  {key:'paletas',label:'Paletas (registro en tiempo real)'},
-  {key:'programarPaletas',label:'Programar producción / Secuencia del turno'},
-  {key:'gestionar_rotacion_supervisores',label:'Gestionar rotación de supervisores'},
-  {key:'gestionar_rotacion_mantenimiento',label:'Gestionar rotación de Mantenimiento y de maquinistas (Rotación semanal MTTO / Rotación maquinista)'},
-  {key:'produccionActual',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
-  {key:'inicioOperativo',label:'Ver Inicio Operativo / Mi turno'},
-  {key:'ver_inicio_ejecutivo',label:'Ver Inicio Ejecutivo (resumen corto de planta — Gerencia / Jefatura)'},
-  {key:'ver_programacion_turno',label:'Inicio Operativo: ver Programación del turno'},
-  {key:'ver_insumos_turno',label:'Inicio Operativo: ver Insumos del turno'},
-  {key:'avanceProduccion',label:'Avance y Cierre de Turno'},
-  {key:'control_operativo_lineas',label:'Control operativo de líneas (Detener / Reanudar / Intervención terminada)'},
-  {key:'recibirAlertasProduccion',label:'Recibir notificaciones y alertas de producción'},
-  {key:'gestionarPersonal',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
-  {key:'verLineasProduccion',label:'Ver líneas de producción en el menú lateral'},
-  {key:'tareoProduccion',label:'GESTIONAR Tareo de Producción (registrar, editar, validar)'},
-  {key:'ver_tareo_produccion',label:'VER Tareo de Producción (solo visualización)'},
-  {key:'tareoGeneral',label:'Tareo General (solo lectura — RRHH, ambas áreas)'},
-  {key:'moduloMantenimiento',label:'Módulo de Mantenimiento (Tareo y demás secciones del área — gestiona)'},
-  {key:'gestionar_tareo_mantenimiento',label:'GESTIONAR Tareo de Mantenimiento (registrar, editar, validar)'},
-  {key:'ver_tareo_mantenimiento',label:'VER Tareo de Mantenimiento (solo visualización)'},
-  {key:'editar_salida_maquinistas',label:'Editar SOLO la hora de salida de maquinistas (con motivo; no cambia asistencia ni refrigerio)'},
-  {key:'moduloRRHH',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},
-  {key:'exportarExcel',label:'Exportar Excel'},
-  {key:'exportarExcelGeneral',label:'Exportar Excel general de planta'},
-  {key:'exportarJPG',label:'Exportar JPG'},
-  {key:'todasLasLineas',label:'Todas las líneas'},
-  {key:'eliminarRegistros',label:'Eliminar registros'},
-  {key:'reabrirReporteProduccion',label:'Reabrir reportes de producción finalizados'},
-  {key:'reabrirProduccion',label:'Reabrir producción finalizada'},
-  {key:'configuracion',label:'Configuración'},
-  {key:'administracion',label:'Administración'},
+  {key:'nuevo',area:'produccion',label:'Nuevo registro'},
+  {key:'historial',area:'produccion',label:'Historial'},
+  {key:'graficos',area:'visualizacion',label:'Gráficos'},
+  {key:'resumen',area:'visualizacion',label:'Resumen / Reportes'},
+  {key:'perdidasSoles',area:'visualizacion',label:'Impacto Económico (paradas no programadas)'},
+  {key:'paletas',area:'produccion',label:'Paletas (registro en tiempo real)'},
+  {key:'programarPaletas',area:'produccion',label:'Programar producción / Secuencia del turno'},
+  {key:'gestionar_rotacion_supervisores',area:'produccion',label:'Gestionar rotación de supervisores'},
+  {key:'gestionar_rotacion_mantenimiento',area:'mantenimiento',label:'Gestionar rotación de Mantenimiento y de maquinistas (Rotación semanal MTTO / Rotación maquinista)'},
+  {key:'produccionActual',area:'produccion',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
+  {key:'inicioOperativo',area:'visualizacion',label:'Ver Inicio Operativo / Mi turno'},
+  {key:'ver_inicio_ejecutivo',area:'visualizacion',label:'Ver Inicio Ejecutivo (resumen corto de planta — Gerencia / Jefatura)'},
+  {key:'ver_programacion_turno',area:'visualizacion',label:'Inicio Operativo: ver Programación del turno'},
+  {key:'ver_insumos_turno',area:'visualizacion',label:'Inicio Operativo: ver Insumos del turno'},
+  {key:'avanceProduccion',area:'produccion',label:'Avance y Cierre de Turno'},
+  {key:'control_operativo_lineas',area:'mantenimiento',label:'Control operativo de líneas (Detener / Reanudar / Intervención terminada)'},
+  {key:'recibirAlertasProduccion',area:'visualizacion',label:'Recibir notificaciones y alertas de producción'},
+  {key:'gestionarPersonal',area:'administracion',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
+  {key:'verLineasProduccion',area:'produccion',label:'Ver líneas de producción en el menú lateral'},
+  {key:'tareoProduccion',area:'tareo',label:'GESTIONAR Tareo de Producción (registrar, editar, validar)'},
+  {key:'ver_tareo_produccion',area:'tareo',label:'VER Tareo de Producción (solo visualización)'},
+  {key:'tareoGeneral',area:'tareo',label:'Tareo General (solo lectura — RRHH, ambas áreas)'},
+  {key:'moduloMantenimiento',area:'mantenimiento',label:'Módulo de Mantenimiento (Tareo y demás secciones del área — gestiona)'},
+  {key:'gestionar_tareo_mantenimiento',area:'mantenimiento',label:'GESTIONAR Tareo de Mantenimiento (registrar, editar, validar)'},
+  {key:'ver_tareo_mantenimiento',area:'mantenimiento',label:'VER Tareo de Mantenimiento (solo visualización)'},
+  {key:'ver_bitacora_mantenimiento',area:'mantenimiento',label:'VER Bitácora de Mantenimiento y Análisis de paradas (solo lectura)'},
+  {key:'completar_motivo_parada',area:'mantenimiento',label:'Completar el motivo de paradas pendientes (necesita ver la bitácora)'},
+  {key:'editar_salida_maquinistas',area:'mantenimiento',label:'Editar SOLO la hora de salida de maquinistas (con motivo; no cambia asistencia ni refrigerio)'},
+  {key:'moduloRRHH',area:'rrhh',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},
+  {key:'exportarExcel',area:'visualizacion',label:'Exportar Excel'},
+  {key:'exportarExcelGeneral',area:'visualizacion',label:'Exportar Excel general de planta'},
+  {key:'exportarJPG',area:'visualizacion',label:'Exportar JPG'},
+  {key:'todasLasLineas',area:'produccion',label:'Todas las líneas'},
+  {key:'eliminarRegistros',area:'produccion',label:'Eliminar registros'},
+  {key:'reabrirReporteProduccion',area:'produccion',label:'Reabrir reportes de producción finalizados'},
+  {key:'reabrirProduccion',area:'produccion',label:'Reabrir producción finalizada'},
+  {key:'configurar_umbrales',area:'administracion',label:'Configurar umbrales de avisos, metas de disponibilidad y velocidades estándar'},
+  {key:'configuracion',area:'administracion',label:'Configuración'},
+  {key:'administracion',area:'administracion',label:'Administración'},
+  {key:'moduloAlmacen',area:'almacen',label:'Módulo de Almacén (próximamente)'},
 ];
+
+/* Áreas del catálogo (el orden es el de la pantalla de usuarios). */
+const AREAS_PERMISOS=[
+  {clave:'produccion',titulo:'Producción'},
+  {clave:'tareo',titulo:'Tareo de Producción y general'},
+  {clave:'mantenimiento',titulo:'Mantenimiento'},
+  {clave:'rrhh',titulo:'Recursos Humanos (RRHH)'},
+  {clave:'visualizacion',titulo:'Visualización, reportes y exportación'},
+  {clave:'administracion',titulo:'Administración y configuración'},
+  {clave:'almacen',titulo:'Almacén'}
+];
+
+/* Lista de permisos agrupada por área, con el mismo marcado de siempre (checkbox + etiqueta).
+   o.clase: clase de cada casilla · o.onchange: manejador existente · o.seleccionados: claves marcadas
+   o.deshabilitado: bloquear (administrador principal). Cada área tiene un botón «marcar toda el área». */
+function htmlPermisosPorArea(o){
+  const op=Object.assign({clase:'permiso-check',onchange:'',seleccionados:[],deshabilitado:false},o||{});
+  return AREAS_PERMISOS.map(a=>{
+    const lista=PERMISOS_APP.filter(p=>p.area===a.clave);
+    if(!lista.length)return '';
+    return '<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;'+
+      'margin-top:10px;padding:6px 0 4px;border-bottom:1px solid #d5dee6;">'+
+      '<strong style="font-size:13px;color:#10265f;letter-spacing:.03em;">'+a.titulo.toUpperCase()+'</strong>'+
+      (op.deshabilitado?'':'<button type="button" class="btn btn-ghost btn-sm" data-perm-area-btn="'+a.clave+'" '+
+        'onclick="marcarAreaPermisos(\''+a.clave+'\',\''+op.clase+'\')">Marcar / quitar toda el área</button>')+'</div>'+
+      lista.map(p=>'<label style="display:flex;align-items:center;gap:8px;cursor:'+(op.deshabilitado?'not-allowed':'pointer')+';font-size:13px;">'+
+        '<input type="checkbox" class="'+op.clase+'" value="'+p.key+'" data-area="'+a.clave+'"'+
+        (op.seleccionados.includes(p.key)?' checked':'')+(op.deshabilitado?' disabled':'')+
+        (op.onchange?' onchange="'+op.onchange+'"':'')+'>'+p.label+'</label>').join('');
+  }).join('');
+}
+
+/* Marca o quita todas las casillas de un área y avisa a los manejadores existentes. */
+function marcarAreaPermisos(area,clase){
+  const cajas=Array.from(document.querySelectorAll('input.'+clase+'[data-area="'+area+'"]')).filter(c=>!c.disabled);
+  if(!cajas.length)return;
+  const marcar=cajas.some(c=>!c.checked);
+  cajas.forEach(c=>{c.checked=marcar;});
+  cajas[cajas.length-1].dispatchEvent(new Event('change',{bubbles:true}));
+}
 
 const ROLES_SOLO_CONSULTA = new Set([
   'Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'

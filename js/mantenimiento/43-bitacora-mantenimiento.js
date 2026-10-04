@@ -41,7 +41,7 @@
       const rol=String(u.rol||'').trim();
       if(rol==='Administrador')return true;
       if(ROLES_LECTURA.includes(rol))return true;
-      return typeof tienePermiso==='function'&&tienePermiso('gestionar_rotacion_mantenimiento');
+      return typeof tienePermiso==='function'&&(tienePermiso('gestionar_rotacion_mantenimiento')||tienePermiso('ver_bitacora_mantenimiento'));
     }catch(_){return false;}
   }
   window.puedeVerBitacoraMtto=puedeVerBitacoraMtto;
@@ -50,7 +50,7 @@
     try{
       if(!puedeVerBitacoraMtto())return false;
       if(String(state.user.rol||'').trim()==='Administrador')return true;
-      return tienePermiso('gestionar_rotacion_mantenimiento');
+      return tienePermiso('gestionar_rotacion_mantenimiento')||tienePermiso('completar_motivo_parada');
     }catch(_){return false;}
   }
 
