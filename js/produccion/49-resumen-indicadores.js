@@ -172,8 +172,17 @@
      MOTOR DE DATOS: partes (turno · línea · producto) del periodo
      ========================================================= */
   const esSinMotivo=m=>{const t=norm(m);return !t||t==='otro'||t==='sin motivo'||t==='sin descripcion'||t==='sin motivo registrado';};
-  const claveProd=(marca,pres)=>String(pres||'').trim()+'|'+String(marca||'').trim();
-  const etiquetaProd=(marca,pres)=>{const m=String(marca||'').trim(),p=String(pres||'').trim();return m&&p?m+' · '+p:(m||p||'Sin producto');};
+  /* Marca canónica: junta mayúsculas y guiones bajos (BELLS, Bells, Bells_Gas, Bells Gas…) y separa regulares, con gas y saborizadas. */
+  const NOMBRES_MARCA={'bells gas':'Bells Gas','bells manzana':'Bells Manzana','bells maracuya':'Bells Maracuya','bells pina kion':'Bells Piña Kion',
+    'scala gas':'Scala Gas','scala manzana':'Scala Manzana','scala maracuya':'Scala Maracuya','scala pina kion':'Scala Piña Kion','cuisine gas':'Cuisine Gas'};
+  const claveMarca=m=>norm(String(m||'').replace(/_/g,' '));
+  const marcaCanon=m=>{
+    const k=claveMarca(m);if(!k)return 'Sin marca';
+    return NOMBRES_MARCA[k]||k.replace(/(^|\s)\S/g,c=>c.toUpperCase());
+  };
+  const tipoMarca=m=>{const k=claveMarca(m);return /(^|\s)gas$/.test(k)?'gas':/(maracuya|pina kion|manzana)/.test(k)?'sabor':'regular';};
+  const claveProd=(marca,pres)=>String(pres||'').trim()+'|'+marcaCanon(marca);
+  const etiquetaProd=(marca,pres)=>{const m=String(marca||'').trim()?marcaCanon(marca):'',p=String(pres||'').trim();return m&&p?m+' · '+p:(m||p||'Sin producto');};
   const componenteMerma=item=>{
     const t=norm(item);
     if(/botella|bidon/.test(t))return 'Botellas';
@@ -187,7 +196,7 @@
 
   /* Marca (nombre base, el mismo del desglose del Resumen) y presentación (380 ml, 625 ml, 1 L, 1.5 L, 2.5 L, 7 L, 10 L, Cajas 20 L, B20L). */
   const ORDEN_PRES=['380 ml','625 ml','1 L','1.5 L','2.5 L','7 L','10 L','Cajas 20 L','B20L'];
-  const marcaDe=m=>{try{if(typeof marcaBasePresentacion==='function')return marcaBasePresentacion(m);}catch(_){/* sin catálogo */}return String(m||'').trim()||'Sin marca';};
+  const marcaDe=marcaCanon;
   function catPres(linea,pres,marca){
     let c=null;
     try{if(typeof categoriaPresentacion==='function')c=categoriaPresentacion(linea,pres,marca);}catch(_){c=null;}
@@ -641,15 +650,16 @@
 
   function htmlSeccion(R){
     const per=R.per;
-    const marcas=[...R.marcas].sort((a,b)=>a.localeCompare(b,'es'));
+    const marcas=[...R.marcas];
     if(F.marca&&!marcas.includes(F.marca))marcas.push(F.marca);
+    const grupoMarcas=(t,titulo)=>{const l=marcas.filter(k=>tipoMarca(k)===t).sort((a,b)=>a.localeCompare(b,'es'));return l.length?'<optgroup label="'+titulo+'">'+l.map(k=>'<option value="'+esc(k)+'"'+(F.marca===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</optgroup>':'';};
     const cats=ORDEN_PRES.concat([...R.cats].filter(c=>!ORDEN_PRES.includes(c)));
     const rangoUI=(resumenTieneRango()&&resumenRangoDias==='rango')?
       '<input type="date" data-rgx-fecha="desde" value="'+esc(per.desde)+'"> <input type="date" data-rgx-fecha="hasta" value="'+esc(per.hasta)+'">':'';
     return '<div class="rgx-bar"><div><h3>Indicadores del periodo</h3><div class="rgx-sub">Todas las líneas visibles · '+esc(etiquetaPeriodo(per))+
       (R.hayVivo?' · hoy en vivo desde el semáforo':'')+(per.previo?' · comparado con '+esc(fmtFecha(per.previo.desde)===fmtFecha(per.previo.hasta)?fmtFecha(per.previo.desde):fmtFecha(per.previo.desde)+' – '+fmtFecha(per.previo.hasta)):'')+'</div></div>'+
       '<div class="rgx-ctl"><select data-rgx-filtro="turno" aria-label="Turno"><option value="">Todos los turnos</option><option value="DIA"'+(F.turno==='DIA'?' selected':'')+'>Día</option><option value="NOCHE"'+(F.turno==='NOCHE'?' selected':'')+'>Noche</option></select>'+
-      '<select data-rgx-filtro="marca" aria-label="Marca"><option value="">Todas las marcas</option>'+marcas.map(k=>'<option value="'+esc(k)+'"'+(F.marca===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</select>'+
+      '<select data-rgx-filtro="marca" aria-label="Marca"><option value="">Todas las marcas</option>'+grupoMarcas('regular','Regulares')+grupoMarcas('gas','Con gas')+grupoMarcas('sabor','Saborizadas')+'</select>'+
       '<select data-rgx-filtro="pres" aria-label="Presentación"><option value="">Todas las presentaciones</option>'+cats.map(k=>'<option value="'+esc(k)+'"'+(F.pres===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</select>'+
       '<button type="button" class="rgx-btn'+(resumenTieneRango()&&resumenRangoDias==='rango'?' on':'')+'" data-rgx-rango>Rango</button>'+rangoUI+
       (puedeConfigurar()?'<button type="button" class="rgx-btn" data-rgx-metas>⚙ Metas</button>':'')+
@@ -901,5 +911,5 @@
 
   aplicarMetasAlCodigo();
   window.glacialReporteIndicadores={calcular,recolectar,agregar,filtrarPartes,metasReporte,nivel,velocidadEstandar,periodo,variacion,quePaso,
-    estado:F,pintar,agregarHojaIndicadores,componenteMerma,FECHA_CAMBIO};
+    estado:F,pintar,agregarHojaIndicadores,marcaCanon,tipoMarca,componenteMerma,FECHA_CAMBIO};
 })();
