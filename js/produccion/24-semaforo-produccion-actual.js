@@ -21,34 +21,9 @@
     '-'+String(d.getDate()).padStart(2,'0');
   const turnoCodigo = t => t.key === 'MANANA' ? 'DÍA' :
     t.key === 'TARDE' ? 'INTERMEDIO' : 'NOCHE';
-  const turnoVigente = () => {
-    const ahora = new Date(ahoraServidor());
-    const t = obtenerTurnoActual(ahora);
-    // El reloj de cierre conserva NOCHE hasta las 07:20; el turno
-    // productivo DÍA ya comenzó a las 07:00.
-    if(t.enTolerancia){
-      const inicio=new Date(ahora);inicio.setHours(7,0,0,0);
-      const fin=new Date(ahora);fin.setHours(15,0,0,0);
-      return {fecha:fechaLocal(inicio),turno:'DÍA',inicio:inicio.getTime(),
-        fin:fin.getTime(),activo:true};
-    }
-    // El cronómetro tolera el cierre nocturno hasta las 07:20;
-    // la producción nominal nocturna termina a las 07:00.
-    return {fecha:fechaLocal(t.inicio),turno:turnoCodigo(t),
-      inicio:t.inicio.getTime(),fin:t.fin.getTime(),
-      activo:ahora.getTime() >= t.inicio.getTime() && ahora.getTime() < t.fin.getTime()};
-  };
-  function horario(fecha,turno,compartida){
-    const [y,m,d] = String(fecha).split('-').map(Number);
-    if(!y || !m || !d)return null;
-    const h = turno === 'DÍA' ? [7,15] :
-      turno === 'INTERMEDIO' ? (compartida ? [7,22] : [15,22]) :
-      turno === 'NOCHE' ? [22,7] : null;
-    if(!h)return null;
-    const inicio=new Date(y,m-1,d,h[0]).getTime();
-    const fin=new Date(y,m-1,d+(turno==='NOCHE'?1:0),h[1]).getTime();
-    return {inicio,fin};
-  }
+  // Turno vigente y día operativo: una sola función en el módulo de indicadores (hora del servidor, corte 07:00).
+  const turnoVigente = () => GlacialIndicadores.turnoVigente(ahoraServidor());
+  const horario = (fecha,turno,compartida) => GlacialIndicadores.horarioTurno(fecha,turno,compartida);   // horarios únicos del módulo
   /* Quién hizo la acción: el TÉCNICO identificado por PIN cuando se usa la cuenta compartida
      de Mantenimiento (37b-mantenimiento-identificacion.js); si no, el usuario de siempre. */
   function nombreOperador(){

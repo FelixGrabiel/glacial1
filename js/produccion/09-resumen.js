@@ -25,11 +25,7 @@ let resumenIndustrialCharts = {};
 /* null = todo el historial disponible; 1 = Diario */
 
 function fechaHoyResumen(){
-  const d=new Date();
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,'0');
-  const dia=String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${dia}`;
+  return GlacialIndicadores.diaOperativo((typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()));   // día operativo (07:00), hora del servidor
 }
 
 function cambiarRangoResumen(dias){

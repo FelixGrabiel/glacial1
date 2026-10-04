@@ -47,3 +47,12 @@ Se lista, no se borra. Cada commit de la Parte 2 agrega su sección.
 |---|---|
 | `js/produccion/24-semaforo-produccion-actual.js` | La constante local `PRIORIDAD_ESTADO_LINEA` (la prioridad ahora vive en el módulo) y las variables `hayCurso`, `hayPausa`, `hayPendiente`, `todosCerrados`, `todosCancelados` ya no existen en el tablero. `estadoOrdenItem` sigue siendo la clasificación POR ÍTEM (el módulo solo agrega). |
 | `js/produccion/09-resumen.js` | El Resumen clasifica cada programación solo por `estadoOperacion` (no mira Paletas): una programación sin estado guardado cuenta PENDIENTE aunque ya tenga producción. El semáforo sí mira Paletas. |
+
+## Commit 7 — día operativo y turno vigente
+
+| Archivo | Qué queda sin uso |
+|---|---|
+| `js/accesos/17-modo-trabajo.js` | `MT_TOLERANCIA_NOCHE_MIN` y las ramas `enTolerancia` / «cro-estado-tolerancia» del cronómetro: `enTolerancia` ahora es siempre `false`. `finConTolerancia` es igual a `fin`. |
+| `js/produccion/24-semaforo-produccion-actual.js` | `turnoCodigo` y `fechaLocal` locales (el primero ya no se usa). |
+| `js/produccion/41-tareo-bloqueo.js`, `13-tareo.js`, `07-historial.js` | Siguen calculando «hoy» con la fecha del calendario del equipo; no estaban en la lista de pantallas de este commit. |
+| `js/produccion/29-avance-produccion.js` | `avHoraActual()` sigue usando la hora local del equipo (solo para mostrar la hora de corte). |

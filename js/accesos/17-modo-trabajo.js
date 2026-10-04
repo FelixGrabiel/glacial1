@@ -127,91 +127,18 @@ const MT_TOLERANCIA_NOCHE_MIN = 20;
 
 function obtenerTurnoActual(ahora){
 
-  ahora = ahora || new Date();
+  ahora = ahora || new Date((typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()));
 
-
-  /* ¿Seguimos dentro del turno Noche que empezó AYER 22:00
-     (incluyendo su tolerancia hasta las 07:20 de hoy)? */
-
-  const inicioNocheAyer =
-    _mtFechaConHora(_mtSumarDias(ahora, -1), 22, 0);
-
-  const finNocheHoy =
-    _mtFechaConHora(ahora, 7, 0);
-
-  const finNocheHoyConTolerancia =
-    new Date(
-      finNocheHoy.getTime() +
-      MT_TOLERANCIA_NOCHE_MIN * 60000
-    );
-
-  if(
-    ahora >= inicioNocheAyer &&
-    ahora < finNocheHoyConTolerancia
-  ){
-
-    return {
-      key: 'NOCHE',
-      nombre: 'Noche',
-      inicio: inicioNocheAyer,
-      fin: finNocheHoy,
-      finConTolerancia: finNocheHoyConTolerancia,
-      enTolerancia: ahora >= finNocheHoy
-    };
-
-  }
-
-
-  /* MAÑANA 07:00–15:00 */
-
-  const inicioManana = _mtFechaConHora(ahora, 7, 0);
-  const finManana = _mtFechaConHora(ahora, 15, 0);
-
-  if(ahora >= inicioManana && ahora < finManana){
-
-    return {
-      key: 'MANANA',
-      nombre: 'Mañana',
-      inicio: inicioManana,
-      fin: finManana,
-      finConTolerancia: finManana,
-      enTolerancia: false
-    };
-
-  }
-
-
-  /* TARDE 15:00–22:00 */
-
-  const inicioTarde = _mtFechaConHora(ahora, 15, 0);
-  const finTarde = _mtFechaConHora(ahora, 22, 0);
-
-  if(ahora >= inicioTarde && ahora < finTarde){
-
-    return {
-      key: 'TARDE',
-      nombre: 'Tarde',
-      inicio: inicioTarde,
-      fin: finTarde,
-      finConTolerancia: finTarde,
-      enTolerancia: false
-    };
-
-  }
-
-
-  /* NOCHE que empieza HOY 22:00 y termina MAÑANA 07:00(+20) */
-
-  const inicioNocheHoy = _mtFechaConHora(ahora, 22, 0);
-  const finNocheManana = _mtFechaConHora(_mtSumarDias(ahora, 1), 7, 0);
+  /* Turno y horarios: GlacialIndicadores.turnoVigente (07:00 / 15:00 / 22:00, sin tolerancia). */
+  const t = GlacialIndicadores.turnoVigente(ahora.getTime());
+  const meta = { 'DÍA':['MANANA','Mañana'], 'INTERMEDIO':['TARDE','Tarde'], 'NOCHE':['NOCHE','Noche'] }[t.turno];
 
   return {
-    key: 'NOCHE',
-    nombre: 'Noche',
-    inicio: inicioNocheHoy,
-    fin: finNocheManana,
-    finConTolerancia:
-      new Date(finNocheManana.getTime() + MT_TOLERANCIA_NOCHE_MIN * 60000),
+    key: meta[0],
+    nombre: meta[1],
+    inicio: new Date(t.inicio),
+    fin: new Date(t.fin),
+    finConTolerancia: new Date(t.fin),
     enTolerancia: false
   };
 
@@ -292,7 +219,7 @@ function renderCronometroTurno(){
 
   }
 
-  const ahora = new Date();
+  const ahora = new Date((typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()));
 
   const t = obtenerTurnoActual(ahora);
 

@@ -839,15 +839,8 @@ function resumenProgramacionCombinacion(linea, fecha, turno, marca, presentacion
 
 function fechaHoyPaletas(){
 
-  const ahora = new Date();
-
-  return (
-    ahora.getFullYear() +
-    '-' +
-    String(ahora.getMonth() + 1).padStart(2, '0') +
-    '-' +
-    String(ahora.getDate()).padStart(2, '0')
-  );
+  /* Día operativo (arranca a las 07:00), hora del servidor: GlacialIndicadores.diaOperativo. */
+  return GlacialIndicadores.diaOperativo((typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()));
 
 }
 

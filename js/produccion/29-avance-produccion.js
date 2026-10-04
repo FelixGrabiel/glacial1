@@ -20,7 +20,7 @@ const avanceEstado={
 function avNum(v){const n=Number(v);return Number.isFinite(n)?n:0;}
 function avEsc(v){return typeof escaparHtml==='function'?escaparHtml(v??''):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function avFmt(v){return Math.round(avNum(v)).toLocaleString('es-PE');}
-function avFechaHoy(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function avFechaHoy(){return GlacialIndicadores.diaOperativo((typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()));}   // día operativo (07:00), hora del servidor
 function avHoraActual(){const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 function avNombreUsuario(){return state.user?.nombre||state.user?.username||'';}
 function avTurnoCanon(v){
