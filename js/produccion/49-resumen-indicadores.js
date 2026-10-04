@@ -139,7 +139,7 @@
   /* =========================================================
      ESTADO DE FILTROS Y PERIODO
      ========================================================= */
-  const F={turno:'',producto:'',desde:'',hasta:'',detalle:null,comoAbierto:false};
+  const F={turno:'',marca:'',pres:'',desde:'',hasta:'',detalle:null,comoAbierto:false};
   const resumenTieneRango=()=>typeof resumenRangoDias!=='undefined';
 
   function periodo(){
@@ -185,8 +185,18 @@
   };
   const ORDEN_COMP=['Botellas','Preformas','Tapas','Etiquetas','Polietileno'];
 
+  /* Marca (nombre base, el mismo del desglose del Resumen) y presentación (380 ml, 625 ml, 1 L, 1.5 L, 2.5 L, 7 L, 10 L, Cajas 20 L, B20L). */
+  const ORDEN_PRES=['380 ml','625 ml','1 L','1.5 L','2.5 L','7 L','10 L','Cajas 20 L','B20L'];
+  const marcaDe=m=>{try{if(typeof marcaBasePresentacion==='function')return marcaBasePresentacion(m);}catch(_){/* sin catálogo */}return String(m||'').trim()||'Sin marca';};
+  function catPres(linea,pres,marca){
+    let c=null;
+    try{if(typeof categoriaPresentacion==='function')c=categoriaPresentacion(linea,pres,marca);}catch(_){c=null;}
+    if(!c)return 'Otras';
+    if(/^625/.test(c))return '625 ml';
+    return ({'380ml':'380 ml','1L':'1 L','1.5L':'1.5 L','2.5L':'2.5 L','7L':'7 L','10L':'10 L','Cajas 20L':'Cajas 20 L'})[c]||c;
+  }
   function parteVacia(u,marca,pres){
-    return {linea:u.linea,fecha:u.fecha,grupo:u.grupo,fuente:u.fuente,progUnit:false,marca:marca||'',pres:pres||'',
+    return {linea:u.linea,fecha:u.fecha,grupo:u.grupo,fuente:u.fuente,progUnit:false,marca:marca||'',pres:pres||'',marcaN:marcaDe(marca),cat:catPres(u.linea,pres,marca),
       pkey:claveProd(marca,pres),producido:0,programado:0,durMin:0,progMin:0,npMin:0,planMin:0,availMin:0,
       mermas:{},mermaTotal:0,paradas:[],vel:0};
   }
@@ -195,7 +205,7 @@
   function recolectar(desde,hasta){
     const hoy=hoyOp();
     const salida={partes:[],avisos:{sinCierre:[],sinRegistro:[],sinProgramacion:[],sinMotivo:0,sinMotivoEj:[],sinVelocidad:new Set(),discrepancias:[]},
-      productos:new Map(),hayVivo:false};
+      productos:new Map(),marcas:new Set(),cats:new Set(),hayVivo:false};
     let permitidas=null;
     try{permitidas=new Set((typeof lineasConsultables==='function'?lineasConsultables():LINES).map(l=>l.key));}catch(_){permitidas=null;}
     const lineaFiltro=(typeof resumenFiltroLinea!=='undefined'&&resumenFiltroLinea!=='TODAS')?resumenFiltroLinea:'';
@@ -326,7 +336,7 @@
         p.progUnit=u.programado>0;
         p.vel=velParte(p);
         if(p.producido>0&&p.availMin>0&&!(p.vel>0))salida.avisos.sinVelocidad.add(nombreLinea(p.linea)+' · '+etiquetaProd(p.marca,p.pres));
-        salida.productos.set(p.pkey,etiquetaProd(p.marca,p.pres));
+        salida.productos.set(p.pkey,etiquetaProd(p.marca,p.pres));salida.marcas.add(p.marcaN);salida.cats.add(p.cat);
         salida.partes.push(p);
       });
     });
@@ -335,7 +345,7 @@
 
   /* ---------- filtros de turno y producto ---------- */
   function filtrarPartes(partes){
-    return partes.filter(p=>(!F.turno||p.grupo===F.turno)&&(!F.producto||p.pkey===F.producto));
+    return partes.filter(p=>(!F.turno||p.grupo===F.turno)&&(!F.marca||p.marcaN===F.marca)&&(!F.pres||p.cat===F.pres));
   }
 
   /* =========================================================
@@ -455,7 +465,7 @@
     const porProducto=filasComparativo(partes,p=>p.pkey,(k,ps)=>etiquetaProd(ps[0].marca,ps[0].pres),per);
     const mermaComp={};
     partes.forEach(p=>Object.keys(p.mermas).forEach(c=>{const o=mermaComp[c]||(mermaComp[c]={unidades:0,peso:0});o.unidades+=p.mermas[c].unidades;o.peso+=p.mermas[c].peso;}));
-    return {per,partes,productos:act.productos,avisos:act.avisos,hayVivo:act.hayVivo,a,ap,porLinea,porTurno,porProducto,mermaComp,
+    return {per,partes,productos:act.productos,marcas:act.marcas,cats:act.cats,avisos:act.avisos,hayVivo:act.hayVivo,a,ap,porLinea,porTurno,porProducto,mermaComp,
       kpis:Object.keys(NOMBRES).map(ind=>({ind,valor:valorInd(ind,a),nivel:nivelDe(ind,a),variacion:variacion(ind,a,ap)})),
       queFrases:quePaso(partes,porLinea)};
   }
@@ -631,18 +641,21 @@
 
   function htmlSeccion(R){
     const per=R.per;
-    const prods=[...R.productos].sort((a,b)=>a[1].localeCompare(b[1],'es'));
+    const marcas=[...R.marcas].sort((a,b)=>a.localeCompare(b,'es'));
+    if(F.marca&&!marcas.includes(F.marca))marcas.push(F.marca);
+    const cats=ORDEN_PRES.concat([...R.cats].filter(c=>!ORDEN_PRES.includes(c)));
     const rangoUI=(resumenTieneRango()&&resumenRangoDias==='rango')?
       '<input type="date" data-rgx-fecha="desde" value="'+esc(per.desde)+'"> <input type="date" data-rgx-fecha="hasta" value="'+esc(per.hasta)+'">':'';
     return '<div class="rgx-bar"><div><h3>Indicadores del periodo</h3><div class="rgx-sub">Todas las líneas visibles · '+esc(etiquetaPeriodo(per))+
       (R.hayVivo?' · hoy en vivo desde el semáforo':'')+(per.previo?' · comparado con '+esc(fmtFecha(per.previo.desde)===fmtFecha(per.previo.hasta)?fmtFecha(per.previo.desde):fmtFecha(per.previo.desde)+' – '+fmtFecha(per.previo.hasta)):'')+'</div></div>'+
       '<div class="rgx-ctl"><select data-rgx-filtro="turno" aria-label="Turno"><option value="">Todos los turnos</option><option value="DIA"'+(F.turno==='DIA'?' selected':'')+'>Día</option><option value="NOCHE"'+(F.turno==='NOCHE'?' selected':'')+'>Noche</option></select>'+
-      '<select data-rgx-filtro="producto" aria-label="Producto"><option value="">Todos los productos</option>'+prods.map(([k,t])=>'<option value="'+esc(k)+'"'+(F.producto===k?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select>'+
+      '<select data-rgx-filtro="marca" aria-label="Marca"><option value="">Todas las marcas</option>'+marcas.map(k=>'<option value="'+esc(k)+'"'+(F.marca===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</select>'+
+      '<select data-rgx-filtro="pres" aria-label="Presentación"><option value="">Todas las presentaciones</option>'+cats.map(k=>'<option value="'+esc(k)+'"'+(F.pres===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</select>'+
       '<button type="button" class="rgx-btn'+(resumenTieneRango()&&resumenRangoDias==='rango'?' on':'')+'" data-rgx-rango>Rango</button>'+rangoUI+
       (puedeConfigurar()?'<button type="button" class="rgx-btn" data-rgx-metas>⚙ Metas</button>':'')+
       '<button type="button" class="rgx-btn'+(F.comoAbierto?' on':'')+'" data-rgx-como>¿Cómo se calcula?</button></div></div>'+
       '<div class="rgx-nota">Desde el '+fmtFecha(FECHA_CAMBIO)+' todos los periodos, también los pasados, se calculan con las definiciones actuales de disponibilidad, merma y ratio; las cifras de reportes anteriores a esa fecha pueden diferir.'+
-      (F.producto?' · Los gráficos de abajo muestran los registros que incluyen ese producto.':'')+'</div>'+
+      ((F.marca||F.pres)?' · Los gráficos de abajo muestran los registros que incluyen esa marca y presentación.':'')+'</div>'+
       htmlAvisos(R)+htmlKpis(R)+
       '<div class="rgx-box"><h4>Qué pasó</h4>'+(R.queFrases.length?'<ol>'+R.queFrases.map(t=>'<li>'+t+'</li>').join('')+'</ol>':'<div class="rgx-nota">No hay datos suficientes en el periodo.</div>')+'</div>'+
       htmlDetalle(R)+
@@ -770,9 +783,9 @@
       return (records||[]).filter(r=>{
         if(!r||!fechaOk(r.fecha)||r.fecha<p.desde||r.fecha>p.hasta)return false;
         if(F.turno){const g=r.grupoTurno==='NOCHE'?'NOCHE':(r.grupoTurno==='DIA_INTERMEDIO'?'DIA':grupoDeTurno(r.turno));if(g!==F.turno)return false;}
-        if(F.producto){
+        if(F.marca||F.pres){
           const cu=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
-          if(!cu.some(q=>claveProd(q&&q.marca,q&&q.presentacion)===F.producto))return false;
+          if(!cu.some(q=>(!F.marca||marcaDe(q&&q.marca)===F.marca)&&(!F.pres||catPres(r.linea,q&&q.presentacion,q&&q.marca)===F.pres)))return false;
         }
         return true;
       });
@@ -832,7 +845,7 @@
     const ws=wb.addWorksheet('Indicadores');
     const per=R.per;
     ws.addRow(['Indicadores del periodo · '+etiquetaPeriodo(per)]).font={bold:true,size:14};
-    ws.addRow(['Turno: '+(F.turno?etiquetaGrupo(F.turno):'todos')+' · Producto: '+(F.producto?(R.productos.get(F.producto)||F.producto):'todos')+
+    ws.addRow(['Turno: '+(F.turno?etiquetaGrupo(F.turno):'todos')+' · Marca: '+(F.marca||'todas')+' · Presentación: '+(F.pres||'todas')+
       ' · Desde el '+fmtFecha(FECHA_CAMBIO)+' los periodos pasados usan las definiciones actuales.']);
     ws.addRow([]);
     const cab=(cols)=>{const h=ws.addRow(cols);h.eachCell(c=>{c.font={bold:true,color:{argb:'FFFFFFFF'}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1F4E79'}};c.alignment={horizontal:'center',wrapText:true};});};
