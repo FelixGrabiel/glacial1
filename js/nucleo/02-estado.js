@@ -392,29 +392,6 @@ function actualizarEstadoTodosLosPermisos(){
   if(master&&checks.length) master.checked=checks.every(c=>c.checked);
 }
 
-function usuariosPorDefecto(){
-  return [
-    {
-      username:'admin',password:'admin123',rol:'Administrador',
-      puesto:'Administrador',permisos:'todos',linea:null,
-      nombre:'Administrador del Sistema'
-    },
-    {
-      username:'jefe',password:'jefe123',rol:'Jefe de Producción',
-      puesto:'Jefe de Producción',permisos:[...PERMISOS_SOLO_CONSULTA],linea:null,
-      nombre:'Jefe de Producción'
-    },
-    {
-      username:'supervisor',password:'supervisor123',rol:'Supervisor',
-      puesto:'Supervisor',
-      permisos:['verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'],
-      permisosGestionVersion:1,
-      linea:null,nombre:'Supervisor'
-    }
-  ];
-}
-
-
 /* =========================================================
    ESCUCHAS RESTRINGIDAS (rotaciones, precios, borradores)
    La cuenta compartida de Mantenimiento no puede leer estos

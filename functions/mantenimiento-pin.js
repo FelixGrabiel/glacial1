@@ -75,7 +75,8 @@ exports.mantVerificarPin=functions.https.onCall(async(data,context)=>{
     if(bueno){
       tx.update(ref,{intentos:0,bloqueadoHasta:0,ultimoAcceso:Date.now()});
       // Token de identificación (válido 12 h) para validarlo en reglas/funciones posteriores.
-      return {ok:true,token:crypto.createHmac('sha256',process.env.MANT_TOKEN_SECRET||'cambiar-este-secreto')
+      if(!process.env.MANT_TOKEN_SECRET)throw new functions.https.HttpsError('failed-precondition','Falta definir MANT_TOKEN_SECRET en la función.');
+      return {ok:true,token:crypto.createHmac('sha256',process.env.MANT_TOKEN_SECRET)
         .update(String(data.workerId)+'.'+Math.floor(Date.now()/43200000)).digest('hex')};
     }
     const intentos=(v.intentos||0)+1;
