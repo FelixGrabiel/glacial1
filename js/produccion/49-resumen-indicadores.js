@@ -181,6 +181,8 @@
     return NOMBRES_MARCA[k]||k.replace(/(^|\s)\S/g,c=>c.toUpperCase());
   };
   const tipoMarca=m=>{const k=claveMarca(m);return /(^|\s)gas$/.test(k)?'gas':/(maracuya|pina kion|manzana)/.test(k)?'sabor':'regular';};
+  const MARCAS_FIJAS=['Bells','Scala','Cuisine','Bells Gas','Scala Gas','Cuisine Gas',
+    'Bells Manzana','Bells Maracuya','Bells Piña Kion','Scala Manzana','Scala Maracuya','Scala Piña Kion'];
   const claveProd=(marca,pres)=>String(pres||'').trim()+'|'+marcaCanon(marca);
   const etiquetaProd=(marca,pres)=>{const m=String(marca||'').trim()?marcaCanon(marca):'',p=String(pres||'').trim();return m&&p?m+' · '+p:(m||p||'Sin producto');};
   const componenteMerma=item=>{
@@ -650,7 +652,8 @@
 
   function htmlSeccion(R){
     const per=R.per;
-    const marcas=[...R.marcas];
+    // Siempre se ofrecen las variantes con gas y saborizadas conocidas, tengan o no datos en el periodo.
+    const marcas=[...new Set([...MARCAS_FIJAS,...R.marcas])];
     if(F.marca&&!marcas.includes(F.marca))marcas.push(F.marca);
     const grupoMarcas=(t,titulo)=>{const l=marcas.filter(k=>tipoMarca(k)===t).sort((a,b)=>a.localeCompare(b,'es'));return l.length?'<optgroup label="'+titulo+'">'+l.map(k=>'<option value="'+esc(k)+'"'+(F.marca===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</optgroup>':'';};
     const cats=ORDEN_PRES.concat([...R.cats].filter(c=>!ORDEN_PRES.includes(c)));
