@@ -208,41 +208,127 @@
   }
 
   /* ---------- pantallas de administración ---------- */
+  /* Archivo de texto con las claves temporales (se descarga en el momento, nunca se vuelve a poder). */
+  function textoArchivoClaves(titulo,filas){
+    const ahora=new Date();
+    const fecha=ahora.toLocaleString('es-PE');
+    const entorno=typeof ENTORNO!=='undefined'?ENTORNO:'';
+    return [
+      'GLACIAL · '+titulo+(entorno?' · entorno: '+entorno:'')+' · '+fecha,
+      '',
+      'ATENCIÓN: estas contraseñas temporales NO se volverán a mostrar. Entrégalas en privado y borra este archivo después.',
+      'Cada persona deberá crear su contraseña propia al entrar por primera vez.',
+      '',
+      'Usuario\tContraseña temporal',
+      ...filas.map(f=>f.username+'\t'+f.clave),
+      ''
+    ].join('\r\n');
+  }
+  function descargarTexto(nombre,texto,tipo){
+    const blob=new Blob(['\ufeff'+texto],{type:(tipo||'text/plain')+';charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=nombre;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1500);
+  }
+  window.__descargarTextoSeguridad=descargarTexto;
+
   function mostrarClaves(titulo,filas){
     const fondo=document.createElement('div');
     fondo.style.cssText='position:fixed;inset:0;background:rgba(10,30,50,.6);display:flex;align-items:center;justify-content:center;z-index:10001;padding:16px;';
     const texto=filas.map(f=>`${f.username}\t${f.clave}`).join('\n');
+    let guardadas=false;                       // ¿las copió, imprimió o descargó?
     fondo.innerHTML=`<div class="modal" style="max-width:560px;width:100%;max-height:90vh;overflow:auto;">
       <div class="modal-head"><h3>${esc(titulo)}</h3></div>
       <div class="modal-body">
-        <p style="margin:0 0 10px;color:#a92f27;font-size:13px;font-weight:700;">⚠ Estas contraseñas temporales se muestran UNA SOLA VEZ. Cópialas o imprímelas ahora y entrégalas a cada persona (deberá cambiarla al entrar).</p>
+        <p style="margin:0 0 10px;color:#a92f27;font-size:13px;font-weight:700;">⚠ Estas contraseñas temporales NO se volverán a ver. Descárgalas, cópialas o imprímelas AHORA y entrégalas en privado (cada persona deberá crear la suya al entrar).</p>
         <table class="tareo-table"><thead><tr><th>Usuario</th><th>Contraseña temporal</th></tr></thead>
         <tbody>${filas.map(f=>`<tr><td><strong>${esc(f.username)}</strong></td><td><code style="font-size:14px;">${esc(f.clave)}</code></td></tr>`).join('')}</tbody></table>
-        <div class="actions-row" style="justify-content:flex-end;gap:8px;margin-top:14px;">
+        <p class="small-muted" style="margin:10px 0 0;">El archivo descargado contiene contraseñas: guárdalo en un lugar seguro y bórralo cuando las hayas entregado.</p>
+        <div class="actions-row" style="justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap;">
+          <button class="btn btn-primary" data-descargar>⬇ Descargar archivo</button>
           <button class="btn btn-ghost" data-copiar>Copiar</button>
           <button class="btn btn-ghost" data-imprimir>Imprimir</button>
-          <button class="btn btn-primary" data-cerrar>Ya las guardé</button>
+          <button class="btn btn-ghost" data-cerrar>Ya las guardé</button>
         </div></div></div>`;
     document.body.appendChild(fondo);
-    fondo.querySelector('[data-cerrar]').onclick=()=>fondo.remove();
+    fondo.querySelector('[data-descargar]').onclick=()=>{
+      const d=new Date(),p2=n=>String(n).padStart(2,'0');
+      const nombre='contrasenas-temporales-'+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes())+'.txt';
+      descargarTexto(nombre,textoArchivoClaves(titulo,filas));
+      guardadas=true;
+    };
+    fondo.querySelector('[data-cerrar]').onclick=()=>{
+      if(!guardadas&&!confirm('Todavía no descargaste, copiaste ni imprimiste las contraseñas, y NO se volverán a mostrar.\n\n¿Cerrar de todos modos?'))return;
+      fondo.remove();
+    };
     fondo.querySelector('[data-copiar]').onclick=async()=>{
-      try{await navigator.clipboard.writeText(texto);alert('Copiado.');}catch(_){alert('No se pudo copiar; usa Imprimir.');}
+      try{await navigator.clipboard.writeText(texto);guardadas=true;alert('Copiado.');}catch(_){alert('No se pudo copiar; usa Descargar o Imprimir.');}
     };
     fondo.querySelector('[data-imprimir]').onclick=()=>{
       const w=window.open('','_blank');
       if(!w)return;
+      guardadas=true;
       w.document.write(`<html><body style="font-family:sans-serif"><h3>${esc(titulo)}</h3><table border="1" cellpadding="6" style="border-collapse:collapse"><tr><th>Usuario</th><th>Contraseña temporal</th></tr>${filas.map(f=>`<tr><td>${esc(f.username)}</td><td><code>${esc(f.clave)}</code></td></tr>`).join('')}</table></body></html>`);
       w.document.close();w.print();
     };
+  }
+
+  /* Ventana para ELEGIR a quién migrar (casillas). Devuelve los usuarios elegidos o null. */
+  function elegirUsuariosAMigrar(pendientes){
+    return new Promise(resolve=>{
+      const yo=(state.user&&state.user.username)||'';
+      const fondo=document.createElement('div');
+      fondo.style.cssText='position:fixed;inset:0;background:rgba(10,30,50,.6);display:flex;align-items:center;justify-content:center;z-index:10001;padding:16px;';
+      fondo.innerHTML=`<div class="modal" style="max-width:560px;width:100%;max-height:90vh;overflow:auto;">
+        <div class="modal-head"><h3>Migrar usuarios a cuentas seguras</h3></div>
+        <div class="modal-body">
+          <p class="small-muted" style="margin:0 0 10px;">Elige a quién migrar ahora (por ejemplo, un piloto de dos personas). A cada uno se le crea una cuenta segura con una contraseña temporal y <strong>su contraseña anterior deja de funcionar</strong>. Los demás siguen igual.</p>
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" data-todos>Seleccionar todos</button>
+            <button class="btn btn-ghost btn-sm" data-ninguno>Quitar selección</button>
+            <span class="small-muted" data-cuenta style="align-self:center;">0 seleccionados de ${pendientes.length}</span>
+          </div>
+          <div style="max-height:46vh;overflow:auto;border:1px solid #d5dfe8;border-radius:8px;">
+            ${pendientes.map(u=>`<label style="display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid #eef2f6;cursor:pointer;">
+              <input type="checkbox" data-usuario="${esc(u.username)}">
+              <span><strong>${esc(u.username)}</strong> · ${esc(u.nombre||'')}<br><span class="small-muted">${esc(u.puesto||u.rol||'')}${u.username===yo?' · <b>eres tú: entrarás con la contraseña temporal</b>':''}</span></span>
+            </label>`).join('')}
+          </div>
+          <div class="actions-row" style="justify-content:flex-end;gap:8px;margin-top:14px;">
+            <button class="btn btn-ghost" data-cancelar>Cancelar</button>
+            <button class="btn btn-primary" data-migrar disabled>Migrar seleccionados</button>
+          </div>
+        </div></div>`;
+      document.body.appendChild(fondo);
+      const cajas=()=>Array.from(fondo.querySelectorAll('input[type=checkbox][data-usuario]'));
+      const refrescar=()=>{
+        const n=cajas().filter(c=>c.checked).length;
+        fondo.querySelector('[data-cuenta]').textContent=n+' seleccionados de '+pendientes.length;
+        fondo.querySelector('[data-migrar]').disabled=!n;
+      };
+      fondo.addEventListener('change',refrescar);
+      fondo.querySelector('[data-todos]').onclick=()=>{cajas().forEach(c=>{c.checked=true;});refrescar();};
+      fondo.querySelector('[data-ninguno]').onclick=()=>{cajas().forEach(c=>{c.checked=false;});refrescar();};
+      fondo.querySelector('[data-cancelar]').onclick=()=>{fondo.remove();resolve(null);};
+      fondo.querySelector('[data-migrar]').onclick=()=>{
+        const elegidos=cajas().filter(c=>c.checked).map(c=>c.getAttribute?c.getAttribute('data-usuario'):c.dataset.usuario);
+        if(!elegidos.length)return;
+        fondo.remove();resolve(elegidos);
+      };
+    });
   }
 
   async function migrarUsuariosASeguro(){
     if(!esAdministrador()){alert('Solo el Administrador puede migrar usuarios.');return;}
     if(!disponible()){alert('Firebase Authentication no está cargado.');return;}
     const usuarios=loadUsers().map(u=>({...u}));
-    const pendientes=usuarios.filter(u=>u&&!u.authUid);
-    if(!pendientes.length){alert('Todos los usuarios ya tienen cuenta segura.');return;}
-    if(!confirm(`Se crearán cuentas seguras para ${pendientes.length} usuario(s) con una contraseña temporal.\n\nCada uno deberá cambiarla al entrar. Su contraseña anterior dejará de funcionar.\n\n¿Continuar?`))return;
+    const sinMigrar=usuarios.filter(u=>u&&!u.authUid);
+    if(!sinMigrar.length){alert('Todos los usuarios ya tienen cuenta segura.');return;}
+    // Migración por grupos: se elige a quién (p. ej. un piloto de dos usuarios).
+    const elegidos=await elegirUsuariosAMigrar(sinMigrar);
+    if(!elegidos||!elegidos.length)return;
+    const pendientes=sinMigrar.filter(u=>elegidos.includes(u.username));
 
     const usados=new Set(usuarios.map(u=>u.authEmail).filter(Boolean));
     const filas=[],errores=[];
@@ -338,4 +424,109 @@
     }
   }
   window.limpiarCredencialesLegadas=limpiarCredencialesLegadas;
+
+  /* ---------- comprobación de la migración (antes de pasar a la etapa 2) ---------- */
+  const ROL_COMPARTIDA='mantenimiento_compartido';
+  async function comprobarMigracion(opciones){
+    const silencioso=opciones&&opciones.silencioso;
+    if(!esAdministrador()){alert('Solo el Administrador puede comprobar la migración.');return null;}
+    const u=(typeof loadUsers==='function'?loadUsers():[])||[];
+    const [perf,acc]=await Promise.all([
+      db.collection('sync').doc('perfiles').get(),
+      db.collection('sync').doc('accesos').get()
+    ]);
+    const p=perf.exists?(perf.data().map||{}):{};
+    const a=acc.exists?(acc.data().map||{}):{};
+    const nombres=l=>l.map(x=>x.username);
+    const compartidas=u.filter(x=>x&&String(x.rol||'').trim()===ROL_COMPARTIDA);
+    const r={
+      entorno:typeof ENTORNO!=='undefined'?ENTORNO:'',
+      total:u.length,
+      sinCuentaSegura:nombres(u.filter(x=>!x.authUid)),
+      conRestosDeClave:nombres(u.filter(x=>x.password||x.passwordHash||x.salt)),
+      sinPerfil:nombres(u.filter(x=>x.authUid&&!p[x.authUid])),
+      rolDistinto:nombres(u.filter(x=>x.authUid&&p[x.authUid]&&String(p[x.authUid].rol||'')!==String(x.rol||''))),
+      sinAcceso:nombres(u.filter(x=>x.authUid&&a[String(x.username).toLowerCase()]!==x.authEmail)),
+      perfilesSobrantes:Object.keys(p).filter(uid=>!u.some(x=>x.authUid===uid)),
+      adminOk:u.filter(x=>String(x.rol||'').trim()==='Administrador').length>0&&
+        u.filter(x=>String(x.rol||'').trim()==='Administrador').every(x=>x.authUid&&p[x.authUid]&&String(p[x.authUid].rol)==='Administrador'),
+      cuentaCompartida:{
+        existe:compartidas.length>0,
+        usuarios:nombres(compartidas),
+        conCuentaSegura:compartidas.length>0&&compartidas.every(x=>!!x.authUid),
+        enPerfiles:compartidas.length>0&&compartidas.every(x=>x.authUid&&!!p[x.authUid]),
+        rolCorrecto:compartidas.length>0&&compartidas.every(x=>x.authUid&&p[x.authUid]&&String(p[x.authUid].rol)===ROL_COMPARTIDA)
+      }
+    };
+    const problemas=[];
+    if(!r.total)problemas.push('No hay usuarios cargados.');
+    if(r.sinCuentaSegura.length)problemas.push('Sin cuenta segura: '+r.sinCuentaSegura.join(', '));
+    if(r.conRestosDeClave.length)problemas.push('Con restos de contraseña antigua (usa «Limpiar contraseñas antiguas»): '+r.conRestosDeClave.join(', '));
+    if(r.sinPerfil.length)problemas.push('No figuran en perfiles: '+r.sinPerfil.join(', '));
+    if(r.rolDistinto.length)problemas.push('Rol distinto en perfiles: '+r.rolDistinto.join(', '));
+    if(r.sinAcceso.length)problemas.push('Sin entrada correcta en accesos: '+r.sinAcceso.join(', '));
+    if(!r.adminOk)problemas.push('El Administrador no figura correctamente en perfiles.');
+    if(!r.cuentaCompartida.existe)problemas.push('No existe la cuenta compartida de Mantenimiento (rol «'+ROL_COMPARTIDA+'»).');
+    else{
+      if(!r.cuentaCompartida.conCuentaSegura)problemas.push('La cuenta compartida de Mantenimiento no tiene cuenta segura.');
+      else if(!r.cuentaCompartida.enPerfiles)problemas.push('La cuenta compartida de Mantenimiento no figura en perfiles.');
+      else if(!r.cuentaCompartida.rolCorrecto)problemas.push('La cuenta compartida de Mantenimiento figura en perfiles con otro rol.');
+    }
+    r.problemas=problemas;
+    r.listo=problemas.length===0;
+    console.info('Comprobación de migración:',r);
+    if(!silencioso)mostrarComprobacion(r);
+    return r;
+  }
+  window.comprobarMigracion=comprobarMigracion;
+
+  function mostrarComprobacion(r){
+    const fila=(ok,txt)=>`<li style="margin:4px 0;color:${ok?'#13814a':'#a92f27'};font-weight:700;">${ok?'✔':'✘'} <span style="color:#1b2a38;font-weight:600;">${esc(txt)}</span></li>`;
+    const fondo=document.createElement('div');
+    fondo.style.cssText='position:fixed;inset:0;background:rgba(10,30,50,.6);display:flex;align-items:center;justify-content:center;z-index:10001;padding:16px;';
+    fondo.innerHTML=`<div class="modal" style="max-width:600px;width:100%;max-height:90vh;overflow:auto;">
+      <div class="modal-head"><h3>Comprobación de la migración · ${esc(r.entorno)}</h3></div>
+      <div class="modal-body">
+        <p style="margin:0 0 10px;font-weight:800;color:${r.listo?'#13814a':'#a92f27'};">${r.listo?'LISTO: ya se puede pasar a la etapa 2.':'REVISAR: todavía no se debe activar la etapa 2.'}</p>
+        <ul style="list-style:none;padding:0;margin:0;">
+          ${fila(r.total>0,r.total+' usuario(s) en total')}
+          ${fila(!r.sinCuentaSegura.length,'Todos tienen cuenta segura'+(r.sinCuentaSegura.length?' (faltan: '+r.sinCuentaSegura.join(', ')+')':''))}
+          ${fila(!r.conRestosDeClave.length,'Sin restos de contraseña antigua'+(r.conRestosDeClave.length?' ('+r.conRestosDeClave.join(', ')+')':''))}
+          ${fila(!r.sinPerfil.length&&!r.rolDistinto.length,'Todos figuran en perfiles con su rol'+((r.sinPerfil.length||r.rolDistinto.length)?' (revisar: '+r.sinPerfil.concat(r.rolDistinto).join(', ')+')':''))}
+          ${fila(!r.sinAcceso.length,'Todos figuran en accesos (el login los encuentra)'+(r.sinAcceso.length?' ('+r.sinAcceso.join(', ')+')':''))}
+          ${fila(r.adminOk,'El Administrador figura en perfiles como Administrador')}
+          ${fila(r.cuentaCompartida.existe&&r.cuentaCompartida.conCuentaSegura&&r.cuentaCompartida.enPerfiles&&r.cuentaCompartida.rolCorrecto,
+            r.cuentaCompartida.existe?'Cuenta compartida de Mantenimiento ('+r.cuentaCompartida.usuarios.join(', ')+') con cuenta segura y rol correcto en perfiles':'Existe la cuenta compartida de Mantenimiento')}
+        </ul>
+        ${r.perfilesSobrantes.length?`<p class="small-muted" style="margin:10px 0 0;">Aviso: hay ${r.perfilesSobrantes.length} entrada(s) en perfiles que no corresponden a ningún usuario (no bloquea).</p>`:''}
+        <p class="small-muted" style="margin:10px 0 0;">Revisa además en Firebase Console → Authentication que el total de usuarios coincida con ${r.total}.</p>
+        <div class="actions-row" style="justify-content:flex-end;margin-top:14px;"><button class="btn btn-primary" data-cerrar>Cerrar</button></div>
+      </div></div>`;
+    document.body.appendChild(fondo);
+    fondo.querySelector('[data-cerrar]').onclick=()=>fondo.remove();
+  }
+
+  /* ---------- respaldo de los datos de usuarios (antes de migrar o de cambiar de etapa) ---------- */
+  async function respaldarDatosClave(){
+    if(!esAdministrador()){alert('Solo el Administrador puede descargar el respaldo.');return;}
+    const docs=['users','perfiles','accesos','workers','configMantenimiento','configTareo'];
+    const salida={
+      generadoEn:new Date().toISOString(),
+      entorno:typeof ENTORNO!=='undefined'?ENTORNO:'',
+      proyecto:typeof FIREBASE_CONFIG!=='undefined'?FIREBASE_CONFIG.projectId:'',
+      aviso:'Contiene datos de usuarios (puede incluir contraseñas antiguas si aún no se migraron). Guárdalo en un lugar seguro.',
+      documentos:{}
+    };
+    for(const d of docs){
+      try{
+        const snap=await db.collection('sync').doc(d).get();
+        salida.documentos[d]=snap.exists?snap.data():null;
+      }catch(e){salida.documentos[d]={error:String(e&&e.message||e)};}
+    }
+    const f=new Date(),p2=n=>String(n).padStart(2,'0');
+    descargarTexto('respaldo-glacial-'+(salida.entorno||'entorno').toLowerCase()+'-'+f.getFullYear()+p2(f.getMonth()+1)+p2(f.getDate())+'-'+p2(f.getHours())+p2(f.getMinutes())+'.json',
+      JSON.stringify(salida,null,2),'application/json');
+    return salida;
+  }
+  window.respaldarDatosClave=respaldarDatosClave;
 })();

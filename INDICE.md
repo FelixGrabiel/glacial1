@@ -174,3 +174,9 @@ dominio, agrégalo a `DOMINIOS_PRODUCCION` en `js/nucleo/01-config.js`.
 En PRUEBAS: `SHEETS_URL` y `SHEETS_CLAVE` quedan vacías (no se escribe en la hoja real), aparece una franja roja
 "BASE DE PRUEBAS" y el título de la pestaña empieza con `[PRUEBAS]`. Al iniciar, la consola del navegador muestra
 qué proyecto se usa.
+
+### Etapa de seguridad por entorno
+
+`ETAPAS_POR_ENTORNO` (en `js/nucleo/01-config.js`) define `LOGIN_LEGACY_PERMITIDO` y `REGLAS_ESTRICTAS` para cada entorno:
+la etapa 2 se puede ensayar en PRUEBAS sin tocar PRODUCCION. En Gestión de usuarios (Administrador): migrar usuarios por grupos,
+descargar las contraseñas temporales, respaldar usuarios y trabajadores, y comprobar la migración antes de pasar a la etapa 2.

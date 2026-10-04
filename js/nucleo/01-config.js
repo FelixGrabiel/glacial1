@@ -178,17 +178,36 @@ const storage = firebase.storage();
    - LOGIN_LEGACY_PERMITIDO: mientras haya usuarios que todavía no se
      migraron, pueden entrar con su contraseña anterior. Cuando todos
      estén migrados, cámbialo a false.
+   - Las dos banderas (LOGIN_LEGACY_PERMITIDO y REGLAS_ESTRICTAS) se definen
+     POR ENTORNO en ETAPAS_POR_ENTORNO: se puede activar la etapa 2 en PRUEBAS
+     sin activarla en PRODUCCION. Cada proyecto de Firebase necesita sus propias
+     reglas publicadas (ver firestore.rules.etapa1.txt / etapa2.txt).
    Requiere habilitar "Correo electrónico/contraseña" en la consola de
    Firebase (Authentication > Método de acceso).
    ========================================================= */
 
 const AUTH_DOMINIO = 'glacial.app';
 
-const LOGIN_LEGACY_PERMITIDO = true;
+/* ETAPA DE SEGURIDAD DE CADA ENTORNO
+   - LOGIN_LEGACY_PERMITIDO: true = quien aún no migró puede entrar con su contraseña antigua.
+   - REGLAS_ESTRICTAS: true = ETAPA 2 (la lectura de datos exige sesión; reglas de
+     firestore.rules.etapa2.txt). Pasarlo a true SOLO después de publicar esas reglas EN ESE
+     PROYECTO de Firebase y de migrar a todos los usuarios de ese proyecto.
+   Para ensayar la etapa 2: cambiar únicamente la fila PRUEBAS (REGLAS_ESTRICTAS:true,
+   LOGIN_LEGACY_PERMITIDO:false). La fila PRODUCCION no se toca hasta el paso a producción. */
+const ETAPAS_POR_ENTORNO = {
+  PRODUCCION: { LOGIN_LEGACY_PERMITIDO: true, REGLAS_ESTRICTAS: false },
+  PRUEBAS:    { LOGIN_LEGACY_PERMITIDO: true, REGLAS_ESTRICTAS: false }
+};
 
-/* ETAPA 2: true = la lectura de datos exige sesión (reglas estrictas, ver
-   firestore.rules.etapa2.txt). Mantener false hasta publicar esas reglas. */
-const REGLAS_ESTRICTAS = false;
+const LOGIN_LEGACY_PERMITIDO = ETAPAS_POR_ENTORNO[ENTORNO].LOGIN_LEGACY_PERMITIDO;
+
+const REGLAS_ESTRICTAS = ETAPAS_POR_ENTORNO[ENTORNO].REGLAS_ESTRICTAS;
+
+console.info(
+  'GLACIAL · seguridad (' + ENTORNO + '): reglas estrictas = ' + REGLAS_ESTRICTAS +
+  ' · login con contraseña antigua = ' + LOGIN_LEGACY_PERMITIDO
+);
 
 const auth = (typeof firebase.auth === 'function') ? firebase.auth() : null;
 

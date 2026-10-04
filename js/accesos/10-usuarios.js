@@ -113,6 +113,24 @@ function openUsersModal(){
 
                   <button
                     class="btn btn-ghost btn-sm"
+                    onclick="respaldarDatosClave()"
+                    title="Descarga un archivo con usuarios, perfiles, accesos y trabajadores">
+
+                    💾 Respaldar usuarios y trabajadores
+
+                  </button>
+
+                  <button
+                    class="btn btn-ghost btn-sm"
+                    onclick="comprobarMigracion()"
+                    title="Revisa si todos tienen cuenta segura y si ya se puede pasar a la etapa 2">
+
+                    ✅ Comprobar migración
+
+                  </button>
+
+                  <button
+                    class="btn btn-ghost btn-sm"
                     onclick="limpiarCredencialesLegadas()"
                     title="Borra password, hash y sal de los usuarios que ya tienen cuenta segura">
 
@@ -229,7 +247,7 @@ function openUsersModal(){
                 </option>
 
                 <option value="Mantenimiento">Mantenimiento</option>
-                <option value="mantenimiento_compartido">Mantenimiento · cuenta compartida (solo lectura)</option>
+                <option value="mantenimiento_compartido">Mantenimiento · cuenta compartida (identificación por PIN)</option>
                 <option value="RRHH">RRHH</option>
                 <option value="Ventas">Ventas</option>
                 <option value="Planificación">Planificación</option>
@@ -482,7 +500,7 @@ function cambiarRolNuevoUsuario(){
           'Jefe de Producción': [...PERMISOS_SOLO_CONSULTA,'inicioOperativo'],
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
           'Mantenimiento': ['moduloMantenimiento','produccionActual','control_operativo_lineas'],
-          'mantenimiento_compartido': ['ver_tareo_mantenimiento','produccionActual'],
+          'mantenimiento_compartido': ['ver_tareo_mantenimiento','produccionActual','control_operativo_lineas'],
           'RRHH': ['moduloRRHH'],
           'Ventas': ['produccionActual'],
           'Planificación': ['produccionActual'],
