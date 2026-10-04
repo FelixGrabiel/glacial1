@@ -40,6 +40,11 @@ service cloud.firestore {
       allow read, create: if true;
       allow update, delete: if false;
     }
+    // Resumen de turno (Lote 4 · Parte B): un documento por fecha y turno.
+    match /resumenesTurno/{id} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }

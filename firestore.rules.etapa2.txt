@@ -109,6 +109,13 @@ service cloud.firestore {
         (perfiles()[request.auth.uid].permisos is list && 'paletas' in perfiles()[request.auth.uid].permisos)
       );
     }
+    // Quién guarda o actualiza el Resumen de turno (colección resumenesTurno): quien opera Producción
+    // o tiene el permiso avanceProduccion (el mismo que genera el cierre de turno). NO la cuenta compartida.
+    function puedeGenerarResumen() {
+      return puedeOperarProduccion() ||
+        (autenticado() && !esMantCompartido() && perfiles()[request.auth.uid].permisos is list
+          && 'avanceProduccion' in perfiles()[request.auth.uid].permisos);
+    }
     // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
     function programacionesSinAltasNiBajas() {
       return resource != null
@@ -206,6 +213,29 @@ service cloud.firestore {
         && (request.resource.data.accion != 'COMPLETAR_MOTIVO'
             || (request.resource.data.motivoDetalle is string && request.resource.data.motivoDetalle.size() >= 5));
       allow update, delete: if false;
+    }
+
+    // Resumen de turno (Lote 4 · Parte B): UN documento por fecha y turno (id AAAA-MM-DD_DIA o _NOCHE).
+    //  - Lo leen los mismos roles que la bitácora (jefatura, Administrador, supervisores).
+    //  - Se crea una sola vez (si ya existe, un segundo cierre no puede pisarlo) con la hora del servidor.
+    //  - «Actualizar resumen» solo cambia los datos y quién/cuándo; nunca se borra.
+    match /resumenesTurno/{id} {
+      allow read: if puedeLeerBitacoraMtto();
+      allow create: if puedeGenerarResumen()
+        && request.resource.data.keys().hasAll(['fecha', 'turno', 'estado', 'datos', 'creadoUid', 'creadoEn'])
+        && request.resource.data.keys().hasOnly(['fecha', 'turno', 'estado', 'datos', 'creadoUid', 'creadoPor',
+             'creadoPorNombre', 'creadoEn', 'actualizaciones'])
+        && request.resource.data.turno in ['DIA', 'NOCHE']
+        && id == request.resource.data.fecha + '_' + request.resource.data.turno
+        && request.resource.data.estado == 'CERRADO'
+        && request.resource.data.creadoUid == request.auth.uid
+        && request.resource.data.creadoEn == request.time;
+      allow update: if puedeGenerarResumen()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['datos', 'actualizadoUid', 'actualizadoPor', 'actualizadoPorNombre', 'actualizadoEn', 'actualizaciones'])
+        && request.resource.data.actualizadoUid == request.auth.uid
+        && request.resource.data.actualizadoEn == request.time;
+      allow delete: if false;
     }
 
     // Bitácora del tareo: se puede leer y agregar, nunca modificar ni borrar.

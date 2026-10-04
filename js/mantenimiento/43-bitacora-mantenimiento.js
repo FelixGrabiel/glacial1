@@ -804,6 +804,15 @@
     }catch(e){console.warn('Aviso de motivos pendientes:',e&&e.message||e);}
   }
   window.bitacoraMttoAvisoCierre=avisoPendientesCierre;
+  // Paradas con motivo sin completar de un día operativo y turno (una sola consulta; la usa el resumen de turno).
+  window.bitacoraMttoPendientes=async function(fecha,turno){
+    if(typeof db==='undefined')throw new Error('Sin base de datos.');
+    const snap=await consultaRango(inicioOperativo(fecha),inicioOperativo(addDias(fecha,1))).get();
+    const esNoche=t=>norm(t).includes('noche');
+    return armarParadas(snap.docs.map(docAEvento))
+      .filter(p=>p.pendiente&&(!p.turno||esNoche(p.turno)===(esNoche(turno))))
+      .sort((a,b)=>a.inicio-b.inicio);
+  };
   if(typeof avGenerarCierreAhora==='function'){
     const cierreAnterior=avGenerarCierreAhora;
     avGenerarCierreAhora=function(){
