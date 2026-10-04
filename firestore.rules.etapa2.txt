@@ -99,6 +99,16 @@ service cloud.firestore {
         (autenticado() && perfiles()[request.auth.uid].permisos is list
           && 'configurar_umbrales' in perfiles()[request.auth.uid].permisos);
     }
+    // Quién puede registrar en la bitácora las acciones de PRODUCCIÓN sobre una programación/línea
+    // (INICIAR, FINALIZAR, CANCELAR, REABRIR, CORREGIR_INICIO, CORREGIR_FIN): Administrador, Jefe de Producción /
+    // de Operaciones, Supervisor (de Producción) o quien tenga el permiso de paletas. NO la cuenta compartida.
+    function puedeOperarProduccion() {
+      return autenticado() && !esMantCompartido() && (
+        esAdmin() ||
+        perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Jefe de Operaciones', 'Supervisor', 'Supervisor de Producción'] ||
+        (perfiles()[request.auth.uid].permisos is list && 'paletas' in perfiles()[request.auth.uid].permisos)
+      );
+    }
     // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
     function programacionesSinAltasNiBajas() {
       return resource != null
@@ -181,7 +191,17 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.timestamp == request.time
         && request.resource.data.keys().hasAll(['uid', 'timestamp', 'accion', 'linea', 'tecnicoNombre'])
-        && request.resource.data.accion in ['DETENER', 'PAUSAR', 'INTERVENIR', 'REANUDAR', 'COMPLETAR_MOTIVO']
+        && request.resource.data.accion in ['DETENER', 'PAUSAR', 'INTERVENIR', 'REANUDAR', 'COMPLETAR_MOTIVO',
+             'INICIAR', 'FINALIZAR', 'CANCELAR', 'REABRIR', 'CORREGIR_INICIO', 'CORREGIR_FIN']
+        // Acciones de Producción: solo quien opera Producción y con origen PRODUCCION.
+        && (!(request.resource.data.accion in ['INICIAR', 'FINALIZAR', 'CANCELAR', 'REABRIR', 'CORREGIR_INICIO', 'CORREGIR_FIN'])
+            || (puedeOperarProduccion() && request.resource.data.origen == 'PRODUCCION'))
+        // Correcciones: motivo obligatorio (mínimo 5 caracteres) y valor anterior y nuevo.
+        && (!(request.resource.data.accion in ['CORREGIR_INICIO', 'CORREGIR_FIN'])
+            || (request.resource.data.motivoCorreccion is string && request.resource.data.motivoCorreccion.size() >= 5
+                && request.resource.data.keys().hasAll(['valorAnterior', 'valorNuevo'])))
+        // Origen (campo nuevo): si viene, solo PRODUCCION o MANTENIMIENTO.
+        && (!('origen' in request.resource.data.keys()) || request.resource.data.origen in ['PRODUCCION', 'MANTENIMIENTO'])
         // COMPLETAR_MOTIVO: evento nuevo (la bitácora no se edita) con la descripción del motivo (mínimo 5 caracteres).
         && (request.resource.data.accion != 'COMPLETAR_MOTIVO'
             || (request.resource.data.motivoDetalle is string && request.resource.data.motivoDetalle.size() >= 5));

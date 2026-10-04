@@ -22,7 +22,8 @@
   const LIMITE_EVENTOS=2000;     // tope de lecturas por consulta
   const MAX_DIAS=31;             // rango máximo por consulta
   const HORA_CORTE=7;            // el día operativo empieza a las 07:00 (igual que el semáforo)
-  const ACCIONES=['DETENER','PAUSAR','INTERVENIR','REANUDAR','COMPLETAR_MOTIVO'];
+  const ACCIONES=['INICIAR','DETENER','PAUSAR','INTERVENIR','REANUDAR','FINALIZAR','CANCELAR','REABRIR','CORREGIR_INICIO','CORREGIR_FIN','COMPLETAR_MOTIVO'];
+  const ACCIONES_PRODUCCION=['INICIAR','FINALIZAR','CANCELAR','REABRIR','CORREGIR_INICIO','CORREGIR_FIN'];   // Lote 4 · Parte A
   const TURNOS=['DÍA','INTERMEDIO','NOCHE'];
   const MIN_DETALLE=5;
   const ROLES_LECTURA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente',
@@ -106,6 +107,38 @@
     return !!r&&r[1].trim().length<MIN_DETALLE;
   }
 
+  const fmtN=n=>Math.round(Number(n)||0).toLocaleString('es-PE');
+  const horaCorta=ms=>Number(ms)>0?new Date(Number(ms)).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false}):'—';
+
+  /* ORIGEN: quién actuó, PRODUCCION o MANTENIMIENTO. Los eventos nuevos lo traen; los antiguos se infieren. */
+  function origenDe(e){
+    if(e.origen==='PRODUCCION'||e.origen==='MANTENIMIENTO')return e.origen;
+    const rol=String(e.rol||'');
+    if(rol==='mantenimiento_compartido'||rol==='Mantenimiento'||String(e.identificadoPor||'').startsWith('PIN'))return 'MANTENIMIENTO';
+    if(ACCIONES_PRODUCCION.includes(e.accion))return 'PRODUCCION';
+    return rol?'PRODUCCION':'';
+  }
+  const etiquetaOrigen=o=>o==='PRODUCCION'?'Producción':o==='MANTENIMIENTO'?'Mantenimiento':'—';
+
+  /* Texto de «qué pasó» según el tipo de evento (motivo, valores anterior/nuevo, producido…). */
+  function detalleEvento(e){
+    const corr=e.motivoCorreccion?' · Motivo de la corrección: '+e.motivoCorreccion:'';
+    switch(e.accion){
+      case 'COMPLETAR_MOTIVO': return e.motivoDetalle||'';
+      case 'INICIAR': return 'Inicio '+horaCorta(e.inicioMs)+(e.inicioHoraManual?' (hora indicada '+e.inicioHoraManual+')':'');
+      case 'FINALIZAR': return 'Cierre '+horaCorta(e.cierreMs)+' · producido '+fmtN(e.producido)+' de '+fmtN(e.programado);
+      case 'CANCELAR': return e.motivo?'Motivo: '+e.motivo:'Sin motivo indicado';
+      case 'REABRIR': return 'Reabierta (cierre anterior a las '+horaCorta(e.finalizadaEnAnterior)+')';
+      case 'CORREGIR_INICIO': return 'Inicio '+horaCorta(e.valorAnterior)+' → '+horaCorta(e.valorNuevo)+corr;
+      case 'CORREGIR_FIN':{
+        const a=e.valorAnterior||{},n=e.valorNuevo||{};
+        return 'Cierre '+horaCorta(a.cierre)+' → '+horaCorta(n.cierre)+' · producción '+fmtN(a.produccionFinal)+' → '+fmtN(n.produccionFinal)+
+          ' · paradas '+(a.paradas==null?'—':a.paradas)+' → '+(n.paradas==null?'—':n.paradas)+corr;
+      }
+      default: return e.motivo||'';
+    }
+  }
+
   /* ---------- agrupar eventos en paradas ---------- */
   const claveEvento=e=>(e.linea||'')+'|'+(e.claveProgramacion||e.marca||'');
   function armarParadas(eventos){
@@ -163,7 +196,7 @@
   }
 
   /* ---------- estado de la pantalla ---------- */
-  const F={rango:'hoy',desde:'',hasta:'',turno:'',linea:'',tecnico:'',accion:'',q:'',pend:false,orden:'recientes',vista:'paradas'};
+  const F={rango:'hoy',desde:'',hasta:'',turno:'',linea:'',tecnico:'',accion:'',origen:'',q:'',pend:false,orden:'recientes',vista:'paradas'};
   const carga={clave:'',eventos:[],truncado:false,cargando:false,error:'',token:0,cargadoEn:0,usuario:''};
 
   function aplicarRango(r){
@@ -239,7 +272,7 @@
   }
 
   /* ---------- filtros (en el navegador) ---------- */
-  const textoEvento=e=>norm([e.tecnicoNombre,e.cuenta,e.linea,e.motivo,e.motivoDetalle,e.marca,e.presentacion,e.accion].join(' '));
+  const textoEvento=e=>norm([e.tecnicoNombre,e.cuenta,e.linea,e.motivo,e.motivoDetalle,e.motivoCorreccion,e.marca,e.presentacion,e.accion].join(' '));
   const textoParada=p=>norm([p.linea,p.marca,p.presentacion,p.motivoTexto,p.completado&&p.completado.por].concat(
     p.pasos.map(e=>[e.tecnicoNombre,e.cuenta,e.motivoDetalle].join(' '))).join(' '));
   function eventoCumple(e,idsPend){
@@ -247,6 +280,7 @@
     if(F.linea&&e.linea!==F.linea)return false;
     if(F.tecnico&&(e.tecnicoNombre||e.cuenta||'')!==F.tecnico)return false;
     if(F.accion&&e.accion!==F.accion)return false;
+    if(F.origen&&origenDe(e)!==F.origen)return false;
     if(F.q&&!textoEvento(e).includes(norm(F.q)))return false;
     if(F.pend&&!idsPend.has(e.id))return false;
     return true;
@@ -256,6 +290,7 @@
     if(F.linea&&p.linea!==F.linea)return false;
     if(F.tecnico&&!p.pasos.some(e=>(e.tecnicoNombre||e.cuenta||'')===F.tecnico))return false;
     if(F.accion&&!p.pasos.some(e=>e.accion===F.accion)&&!(F.accion==='COMPLETAR_MOTIVO'&&p.completado))return false;
+    if(F.origen&&!p.pasos.some(e=>origenDe(e)===F.origen))return false;
     if(F.q&&!textoParada(p).includes(norm(F.q)))return false;
     if(F.pend&&!p.pendiente)return false;
     return true;
@@ -314,6 +349,8 @@
       .bm-card h4{margin:0 0 4px;font-size:15px}.bm-card .meta{font-size:12px;color:#5a6b7b;margin-bottom:6px}
       .bm-chip{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#e8eef5;color:#1b2a38;margin-right:4px}
       .bm-chip.warn{background:#f6d58b;color:#6b4300}.bm-chip.bad{background:#f4c7c3;color:#8a1f17}.bm-chip.ok{background:#cdeedd;color:#0c5c34}
+      .bm-hist{margin:6px 0 0;padding:0;list-style:none;border-left:3px solid #c5d0db}.bm-hist li{padding:6px 0 6px 12px;border-bottom:1px dashed #e3e8ee;font-size:13px}
+      .bm-hist time{font-weight:800;color:#10265f;margin-right:6px}
       .bm-pasos{margin:6px 0 0;padding:0;list-style:none;font-size:12.5px}.bm-pasos li{padding:2px 0;border-top:1px dashed #e3e8ee}
       .bm-aviso{padding:8px 12px;border-radius:8px;background:#fff8e6;border:1px solid #f0c36a;margin-bottom:10px;font-size:13px}
       .bm-error{padding:8px 12px;border-radius:8px;background:#fdecea;border:1px solid #f1b0aa;color:#8a1f17;margin-bottom:10px;font-size:13px}
@@ -375,9 +412,33 @@
       '</div>';
   }
 
+  function htmlTablaEventos(eventos){
+    return '<div class="tareo-table-scroll"><table class="tareo-table"><thead><tr><th>Hora (servidor)</th><th>Usuario / técnico</th><th>Origen</th><th>Acción</th><th>Línea</th><th>Marca y presentación</th><th>Motivo / detalle</th><th>Duración</th><th>Cuenta</th></tr></thead><tbody>'+
+      (eventos.length?eventos.map(e=>'<tr><td>'+esc(fmtHora(e.ts))+'</td><td>'+esc(e.tecnicoNombre||'—')+'<br><small class="small-muted">'+esc(e.rol||'')+'</small></td><td>'+esc(etiquetaOrigen(origenDe(e)))+'</td><td>'+esc(e.accion)+'</td><td>'+esc(e.linea||'')+'</td><td>'+esc((e.marca||'')+' '+(e.presentacion||''))+'</td><td>'+esc(detalleEvento(e))+'</td><td>'+(duracionEvento(e)!=null?esc(fmtDur(duracionEvento(e))):'—')+'</td><td>'+cuentaTxt(e)+'</td></tr>').join('')
+        :'<tr><td colspan="9" class="small-muted">'+(carga.eventos.length?'Sin eventos con estos filtros.':'Sin eventos en este rango.')+'</td></tr>')+
+      '</tbody></table></div>';
+  }
+
+  /* HISTORIA DE LA LÍNEA: todo lo ocurrido en una línea, en orden, por día y turno. */
+  function htmlHistoria(){
+    if(!F.linea)return '<div class="bm-vacio"><b>Elige una línea</b> en el filtro «Línea» (y, si quieres, un turno) para ver su historia en orden: inicio, paradas, intervenciones, reanudaciones y cierre.</div>';
+    const evs=carga.eventos.filter(e=>e.linea===F.linea&&(!F.turno||e.turno===F.turno)).sort((a,b)=>a.ts-b.ts);
+    if(!evs.length)return '<div class="bm-vacio"><b>Sin eventos de esta línea en el rango'+(F.turno?' y turno':'')+'.</b></div>';
+    const grupos=new Map();
+    evs.forEach(e=>{const k=(e.fechaPlan||'')+'|'+(e.turno||'');if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(e);});
+    return [...grupos.entries()].map(([k,lista])=>{
+      const [fecha,turno]=k.split('|');
+      return '<div class="bm-card" style="margin-bottom:12px"><h4>'+esc(F.linea)+' · '+esc(fmtFecha(fecha))+' · '+esc(turno||'')+'</h4>'+
+        '<ol class="bm-hist">'+lista.map(e=>'<li><time>'+esc(horaCorta(e.ts))+'</time> <b>'+esc(e.accion)+'</b> '+
+          '<span class="bm-chip">'+esc(etiquetaOrigen(origenDe(e)))+'</span> '+esc((e.marca||'')+' '+(e.presentacion||''))+
+          '<div class="small-muted">'+esc(e.tecnicoNombre||'—')+(e.rol?' · '+esc(e.rol):'')+' · cuenta '+esc(e.cuenta||'—')+'</div>'+
+          (detalleEvento(e)?'<div>'+esc(detalleEvento(e))+'</div>':'')+'</li>').join('')+'</ol></div>';
+    }).join('');
+  }
+
   function textoFiltros(){
     return 'Rango (días operativos 07:00–07:00): '+F.desde+' a '+F.hasta+' · Turno: '+(F.turno||'todos')+' · Línea: '+(F.linea||'todas')+
-      ' · Técnico: '+(F.tecnico||'todos')+' · Acción: '+(F.accion||'todas')+' · Búsqueda: '+(F.q?'«'+F.q+'»':'—')+
+      ' · Técnico: '+(F.tecnico||'todos')+' · Acción: '+(F.accion||'todas')+' · Origen: '+(F.origen?etiquetaOrigen(F.origen):'todos')+' · Búsqueda: '+(F.q?'«'+F.q+'»':'—')+
       ' · Solo motivo pendiente: '+(F.pend?'sí':'no')+' · Orden: '+(F.orden==='duracion'?'mayor duración':'más recientes');
   }
 
@@ -409,6 +470,7 @@
         '<div class="field-sm"><label>Línea</label><select id="bm-linea">'+opciones(lineas,F.linea,'Todas')+'</select></div>'+
         '<div class="field-sm"><label>Técnico</label><select id="bm-tecnico">'+opciones(tecnicos,F.tecnico,'Todos')+'</select></div>'+
         '<div class="field-sm"><label>Acción</label><select id="bm-accion">'+opciones(ACCIONES,F.accion,'Todas')+'</select></div>'+
+        '<div class="field-sm"><label>Origen</label><select id="bm-origen"><option value="">Todos</option><option value="PRODUCCION"'+(F.origen==='PRODUCCION'?' selected':'')+'>Producción</option><option value="MANTENIMIENTO"'+(F.origen==='MANTENIMIENTO'?' selected':'')+'>Mantenimiento</option></select></div>'+
         '<div class="field-sm"><label>Ordenar</label><select id="bm-orden"><option value="recientes"'+(F.orden==='recientes'?' selected':'')+'>Más recientes primero</option>'+
           '<option value="duracion"'+(F.orden==='duracion'?' selected':'')+'>Mayor duración primero</option></select></div>'+
         '<div class="field-sm"><label>Buscar</label><input type="search" id="bm-buscar" placeholder="Técnico, línea, motivo…" value="'+esc(F.q)+'"></div>'+
@@ -430,14 +492,13 @@
       '<div class="bm-dos">'+tablaResumen('Por línea',R.porLinea,'Línea')+tablaResumen('Por técnico (quien inició la parada)',R.porTecnico,'Técnico')+'</div>'+
       '<div class="tareo-tabs" style="margin-bottom:10px">'+
         '<button type="button" class="tareo-tab '+(F.vista==='paradas'?'active':'')+'" data-bm-vista="paradas">Por parada ('+paradas.length+')</button>'+
-        '<button type="button" class="tareo-tab '+(F.vista==='eventos'?'active':'')+'" data-bm-vista="eventos">Todos los eventos ('+eventos.length+')</button></div>'+
+        '<button type="button" class="tareo-tab '+(F.vista==='eventos'?'active':'')+'" data-bm-vista="eventos">Todos los eventos ('+eventos.length+')</button>'+
+        '<button type="button" class="tareo-tab '+(F.vista==='historia'?'active':'')+'" data-bm-vista="historia">Historia de la línea</button></div>'+
       (F.vista==='paradas'
         ?(paradas.length?'<div class="bm-cards">'+paradas.map(tarjetaParada).join('')+'</div>'
           :'<div class="bm-vacio">'+(carga.eventos.length?'<b>Sin paradas con estos filtros.</b> Quita algún filtro o la búsqueda para ver más.':'<b>Sin paradas en este rango.</b>')+'</div>')
-        :('<div class="tareo-table-scroll"><table class="tareo-table"><thead><tr><th>Hora (servidor)</th><th>Técnico</th><th>Acción</th><th>Línea</th><th>Marca y presentación</th><th>Motivo</th><th>Duración</th><th>Cuenta</th></tr></thead><tbody>'+
-          (eventos.length?eventos.map(e=>'<tr><td>'+esc(fmtHora(e.ts))+'</td><td>'+esc(e.tecnicoNombre||'—')+'</td><td>'+esc(e.accion)+'</td><td>'+esc(e.linea||'')+'</td><td>'+esc((e.marca||'')+' '+(e.presentacion||''))+'</td><td>'+esc(e.accion==='COMPLETAR_MOTIVO'?(e.motivoDetalle||''):(e.motivo||''))+'</td><td>'+(duracionEvento(e)!=null?esc(fmtDur(duracionEvento(e))):'—')+'</td><td>'+cuentaTxt(e)+'</td></tr>').join('')
-            :'<tr><td colspan="8" class="small-muted">'+(carga.eventos.length?'Sin eventos con estos filtros.':'Sin eventos en este rango.')+'</td></tr>')+
-          '</tbody></table></div>'))+
+        :F.vista==='historia'?htmlHistoria()
+        :htmlTablaEventos(eventos))+
       '</div></div>';
     if(foco){
       const nuevo=document.getElementById('bm-buscar');
@@ -490,7 +551,7 @@
       cargarRango(false);return;
     }
     if(id==='bm-pend'){F.pend=!!e.target.checked;renderBitacoraMtto();return;}
-    const mapa={'bm-turno':'turno','bm-linea':'linea','bm-tecnico':'tecnico','bm-accion':'accion','bm-orden':'orden'};
+    const mapa={'bm-turno':'turno','bm-linea':'linea','bm-tecnico':'tecnico','bm-accion':'accion','bm-origen':'origen','bm-orden':'orden'};
     if(mapa[id]){F[mapa[id]]=e.target.value;renderBitacoraMtto();}
   });
   let temporizadorBusqueda=null;
@@ -557,13 +618,13 @@
     [22,22,16,12,12,12,18,16,30,12,30,16,12,70].forEach((w,i)=>wp.getColumn(i+1).width=w);
     wp.eachRow((row,n)=>{if(n>hp)row.alignment={vertical:'top',wrapText:true};});
     const we=wb.addWorksheet('Eventos');
-    const he=cabecera(we,'Bitácora de Mantenimiento · eventos',['Hora (servidor)','Técnico','Acción','Línea','Fecha plan','Turno','Marca','Presentación','Motivo','Duración (min)','Cuenta','Identificado por','Rol de la cuenta']);
+    const he=cabecera(we,'Bitácora de Mantenimiento · eventos',['Hora (servidor)','Técnico / usuario','Acción','Línea','Fecha plan','Turno','Marca','Presentación','Motivo / detalle','Duración (min)','Cuenta','Identificado por','Rol de la cuenta','Origen']);
     eventos.slice().sort((a,b)=>a.ts-b.ts).forEach(e=>we.addRow([
       fmtHora(e.ts),e.tecnicoNombre||'',e.accion,e.linea||'',e.fechaPlan||'',e.turno||'',e.marca||'',e.presentacion||'',
-      e.accion==='COMPLETAR_MOTIVO'?(e.motivoDetalle||''):(e.motivo||''),
-      duracionEvento(e)!=null?minutos(duracionEvento(e)):'',e.cuenta||'',e.identificadoPor||'',e.rol||'']));
-    we.autoFilter={from:{row:he,column:1},to:{row:he,column:13}};
-    [22,26,18,12,12,12,18,16,30,12,16,16,22].forEach((w,i)=>we.getColumn(i+1).width=w);
+      detalleEvento(e),
+      duracionEvento(e)!=null?minutos(duracionEvento(e)):'',e.cuenta||'',e.identificadoPor||'',e.rol||'',etiquetaOrigen(origenDe(e))]));
+    we.autoFilter={from:{row:he,column:1},to:{row:he,column:14}};
+    [22,26,18,12,12,12,18,16,44,12,16,16,22,16].forEach((w,i)=>we.getColumn(i+1).width=w);
 
     const buffer=await wb.xlsx.writeBuffer();
     const nombre='Bitacora_Mantenimiento_'+F.desde+(F.hasta!==F.desde?'_a_'+F.hasta:'')+'.xlsx';

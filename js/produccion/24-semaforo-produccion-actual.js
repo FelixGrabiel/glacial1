@@ -58,7 +58,9 @@
 
   /* Acciones de control de línea que quedan en bitacoraMantenimiento (solo crear).
      «INTERVENIR» es el botón existente «Intervención terminada» (estado LISTA). */
-  const ACCIONES_BITACORA={detener:'DETENER',pausa:'PAUSAR',lista:'INTERVENIR',reanudar:'REANUDAR'};
+  const ACCIONES_BITACORA={detener:'DETENER',pausa:'PAUSAR',lista:'INTERVENIR',reanudar:'REANUDAR',
+    // Lote 4 · Parte A: acciones de Producción sobre la programación/línea (CORREGIR_FIN se registra en corregirFinalizacion).
+    iniciar:'INICIAR',finalizar:'FINALIZAR',cancelar:'CANCELAR',reabrir:'REABRIR',corregirInicio:'CORREGIR_INICIO'};
   const COLECCION_BITACORA='bitacoraMantenimiento';
 
   function datosQuienOpera(){
@@ -78,10 +80,17 @@
     };
   }
 
+  /* ORIGEN del evento: PRODUCCION (supervisor / jefatura / administrador operando) o MANTENIMIENTO
+     (cuenta compartida, técnicos, control operativo). Distingue quién actuó. */
+  function origenDe(quien,x){
+    if(quien&&quien.compartida)return 'MANTENIMIENTO';
+    return quienControla(x.linea)==='supervisor'?'PRODUCCION':'MANTENIMIENTO';
+  }
   function eventoBitacora(accionBit,quien,x,clave,estadoAnterior,op,extra){
     return Object.assign({
       timestamp:firebase.firestore.FieldValue.serverTimestamp(),   // hora del servidor
       uid:quien.uid,
+      origen:origenDe(quien,x),
       accion:accionBit,
       tecnicoNombre:quien.nombre,                                  // nombre y apellido del técnico (no el de la cuenta)
       tecnicoId:quien.tecnicoId,
@@ -1586,6 +1595,18 @@
         }
         items[j]={...p,estadoOperacion:op,historialAlertas:historial.slice(-300)};
       });
+      // Lote 4 · Parte A: CORREGIR_FIN con valor anterior y nuevo y el motivo obligatorio, en la MISMA transacción.
+      if(!window.__vistaComo){
+        const resumirParadas=lista=>({n:lista.length,min:Math.round(lista.reduce((s,f)=>s+Math.max(0,num(f.fin)-num(f.inicio)),0)/60000)});
+        const pa=resumirParadas(anterior.paradas),pn=resumirParadas(nuevo.paradas);
+        const evento=eventoBitacora('CORREGIR_FIN',datosQuienOpera(),x,k,'FINALIZADA',items[idx].estadoOperacion,{
+          motivo:'',
+          motivoCorreccion:datos.motivo,
+          valorAnterior:{cierre:anterior.cierre,produccionFinal:anterior.produccionFinal,paradas:pa.n,minutosParada:pa.min},
+          valorNuevo:{cierre:nuevo.cierre,produccionFinal:nuevo.produccionFinal,paradas:pn.n,minutosParada:pn.min}
+        });
+        tx.set(db.collection(COLECCION_BITACORA).doc(),evento);
+      }
       tx.set(ref,{items,updatedAt:ahora});
       return items;
     });
@@ -1752,11 +1773,16 @@
         alert('La hora indicada no es válida o está en el futuro.');
         return;
       }
+      const motivoCorr=String(prompt('Motivo de la corrección (obligatorio, mínimo 5 caracteres):') || '').trim().slice(0,160);
+      if(motivoCorr.length<5){
+        alert('El motivo de la corrección es obligatorio (mínimo 5 caracteres). No se corrigió la hora.');
+        return;
+      }
       if(!confirm(
         '¿Corregir la hora de inicio de '+x.marca+' de '+horaAnterior+' a '+limpio+'?\n\n'+
         'No se modificarán las unidades producidas ni los registros de Paletas.'
       ))return;
-      inicioCorregido={ms,hora:limpio,anterior:inicioActual};
+      inicioCorregido={ms,hora:limpio,anterior:inicioActual,motivo:motivoCorr};
     }
 
     let motivo='';
@@ -1876,6 +1902,7 @@
         op.inicioAnterior=inicioCorregido.anterior;
         op.inicio=inicioCorregido.ms;
         op.inicioHoraManual=inicioCorregido.hora;
+        op.inicioCorregidoMotivo=inicioCorregido.motivo;      // campo nuevo: el motivo queda también en la programación
         op.inicioCorregido=true;
         op.inicioCorregidoEn=ahora;
         op.inicioCorregidoPor=nombreOperador();
@@ -2083,23 +2110,34 @@
         historialAlertas: historialAlertas.slice(-300)
       };
       if(accionBit){
-        eventoBit=eventoBitacora(accionBit,quienOpera,x,k,e,op,{
-          motivo:accion==='detener' ? motivo : (accion==='pausa' ? motivoPausa : (accion==='reanudar' ? (previo.motivo || previo.motivoPausa || '') : '')),
+        const datosEvento={
+          motivo:accion==='detener' ? motivo : (accion==='pausa' ? motivoPausa : (accion==='reanudar' ? (previo.motivo || previo.motivoPausa || '') : (accion==='cancelar' ? motivoCancelacion : ''))),
           // Identificador de la parada (mismo id que op.paradas): enlaza DETENER/PAUSAR con sus pasos y con COMPLETAR_MOTIVO.
           paradaId:accion==='detener' ? `${k}|${ahora}|det` : (accion==='pausa' ? `${k}|${ahora}|pausa` : idParadaAbierta(previo)),
           estandarMin:accion==='pausa' ? num(motivoElegido?.estandarMin) : null,
           duracionMs:accion==='reanudar' && op.ultimaParada ? num(op.ultimaParada.duracionMs) : null
-        });
-        if(quienOpera.compartida)tx.set(refBit,eventoBit);      // atómico con el cambio de estado
+        };
+        // Lote 4 · Parte A: datos propios de cada acción de Producción.
+        if(accion==='iniciar'){datosEvento.inicioMs=num(op.inicio);datosEvento.inicioHoraManual=op.inicioHoraManual || '';}
+        if(accion==='finalizar'){
+          datosEvento.cierreMs=ahora;
+          datosEvento.producido=Math.round(producidoDe(x));
+          datosEvento.programado=Math.round(num(x.prog?.cantidadProgramada));
+        }
+        if(accion==='reabrir')datosEvento.finalizadaEnAnterior=num(previo.finalizadaEn);
+        if(accion==='corregirInicio'){
+          datosEvento.valorAnterior=inicioCorregido.anterior;       // hora de inicio anterior (ms)
+          datosEvento.valorNuevo=inicioCorregido.ms;                // hora de inicio nueva (ms)
+          datosEvento.motivoCorreccion=inicioCorregido.motivo;
+        }
+        eventoBit=eventoBitacora(accionBit,quienOpera,x,k,e,op,datosEvento);
+        // El evento va en la MISMA transacción para todos los usuarios: no existe un cambio sin su registro.
+        // (En «Ver como» del Administrador no se registra: es una simulación.)
+        if(!window.__vistaComo)tx.set(refBit,eventoBit);
       }
       tx.set(ref,{items,updatedAt:ahora});
       return items;
     });
-    // Resto de usuarios: bitácora después de confirmar (no bloquea la operación).
-    if(eventoBit && !quienOpera.compartida && !window.__vistaComo){
-      Promise.resolve(refBit.set(eventoBit)).catch(e=>
-        console.warn('Bitácora de Mantenimiento: no se pudo registrar '+accionBit+':',e && e.message ? e.message : e));
-    }
     // La transacción ya quedó confirmada. Informa también a esta pestaña:
     // el caché se actualiza antes de que llegue su propio onSnapshot().
     if(typeof procesarAlertasOperacion === 'function')
