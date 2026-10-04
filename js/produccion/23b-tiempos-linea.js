@@ -357,6 +357,46 @@
     const pausas=Math.min(transcurrido,medir(P)/MS_MIN+sum(durProg));
     const noProg=Math.min(Math.max(0,transcurrido-pausas),(medir(N)+legadoDetMs)/MS_MIN+sum(durNp));
 
+    /* Lista de paradas para el análisis (Pareto, MTTR, MTBF): CAMPO NUEVO, no cambia ningún total.
+       Cada parada con su motivo, clasificación y minutos (recortados al período). El exceso sobre el
+       estándar de un motivo programado se separa como parada NO programada (mismo criterio que arriba).
+       'ajusteNpMin' / 'ajusteProgMin' = diferencia entre los totales de arriba y la suma de la lista
+       (solapes fusionados, topes): permite que el Pareto cuadre exactamente con el semáforo. */
+    const paradasClasificadas=[];
+    const empujar=(motivo,clasif,minutos,datos)=>{
+      if(!(minutos>0))return;
+      paradasClasificadas.push(Object.assign({motivo:motivo||'',clasif,minutos},datos||{}));
+    };
+    const partirPorEstandar=(motivo,clasif,minutos,stdMin,datos)=>{
+      if(clasif==='PROGRAMADA'&&stdMin>0&&minutos>stdMin){
+        empujar(motivo,'PROGRAMADA',stdMin,datos);
+        empujar(motivo,'NO_PROGRAMADA',minutos-stdMin,Object.assign({},datos,{exceso:true}));
+      }else empujar(motivo,clasif,minutos,datos);
+    };
+    registros.forEach(r=>{
+      const seg=recortar(r);
+      if(seg.fin<=seg.inicio)return;
+      const std=r.clasif==='PROGRAMADA'?(num(r.estandarMin)||estandar(r.motivo)):0;
+      partirPorEstandar(r.motivo,r.clasif,(seg.fin-seg.inicio)/MS_MIN,std,
+        {origen:'BOTON',id:r.id||'',inicio:seg.inicio,fin:seg.fin,abierta:!!r.abierta});
+    });
+    legado.map(recortar).filter(i=>i.fin>i.inicio).forEach(i=>
+      empujar(i.tipo==='PAUSA'?'Pausa programada':'Detención de línea',i.clasif,(i.fin-i.inicio)/MS_MIN,
+        {origen:'HISTORICO',inicio:i.inicio,fin:i.fin}));
+    if(legadoDetMs>0)
+      empujar('Detención de línea','NO_PROGRAMADA',legadoDetMs/MS_MIN,{origen:'HISTORICO'});
+    supValidas.forEach(s=>{
+      if(s.inicio&&s.fin){
+        const seg=recortar(s);
+        if(seg.fin<=seg.inicio)return;
+        partirPorEstandar(s.motivo,s.clasif,(seg.fin-seg.inicio)/MS_MIN,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,
+          {origen:s.origen||'SUPERVISOR',inicio:seg.inicio,fin:seg.fin});
+      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR'});
+    });
+    const sumaClasif=c=>paradasClasificadas.filter(x=>x.clasif===c).reduce((a,x)=>a+x.minutos,0);
+    const ajusteNpMin=noProg-sumaClasif('NO_PROGRAMADA');
+    const ajusteProgMin=pausas-sumaClasif('PROGRAMADA');
+
     // Aporte por tipo de botón (para el desglose de la tarjeta).
     const minTipo=tipo=>medir(unir(registros.filter(r=>r.tipo===tipo).map(recortar)))/MS_MIN;
     const supMin=medir(unir([...progSup,...npSup]))/MS_MIN+sum(durProg)+sum(durNp);
@@ -375,7 +415,8 @@
         boton:{noProgramadas:botonNpMin,programadas:botonProgMin}
       },
       solapeMin:solapeMs/MS_MIN,
-      duplicados,pausaSinCerrar,detalle
+      duplicados,pausaSinCerrar,detalle,
+      paradasClasificadas,ajusteNpMin,ajusteProgMin
     };
   }
 

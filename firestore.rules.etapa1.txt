@@ -18,7 +18,7 @@ service cloud.firestore {
     match /sync/{doc} {
       allow read, write: if doc in [
         'users', 'perfiles', 'accesos', 'records', 'workers', 'rotaciones',
-        'rotacionesMantenimiento', 'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro', 'configTareo', 'configMantenimiento', 'configAlertas', 'cuentasAntiguas', 'tareos',
+        'rotacionesMantenimiento', 'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro', 'configTareo', 'configMantenimiento', 'configAlertas', 'configIndicadores', 'cuentasAntiguas', 'tareos',
         'precios', 'paletas', 'programaciones', 'avancesTurno'
       ];
     }

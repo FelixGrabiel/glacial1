@@ -125,6 +125,9 @@ service cloud.firestore {
           (doc in ['users', 'perfiles', 'accesos', 'configTareo', 'cuentasAntiguas'] && esAdmin()) ||
           // Umbrales de avisos y proyección: Administrador y Jefatura. La lee todo usuario autenticado (incluida la cuenta compartida).
           (doc == 'configAlertas' && (esAdmin() || esJefatura())) ||
+          // Metas de disponibilidad y velocidades estándar (Análisis de paradas): Administrador y Jefatura.
+          // La lee todo usuario autenticado salvo la cuenta compartida (no usa esa pantalla).
+          (doc == 'configIndicadores' && (esAdmin() || esJefatura())) ||
           (autenticado() && doc in [
             'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
             'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',
