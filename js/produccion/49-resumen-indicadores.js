@@ -213,13 +213,14 @@
   }
   function velParte(p){return velocidadEstandar(p.linea,p.pres,p.marca);}
 
-  function recolectar(desde,hasta){
+  function recolectar(desde,hasta,opc){
+    opc=opc||{};
     const hoy=hoyOp();
     const salida={partes:[],avisos:{sinCierre:[],sinRegistro:[],sinProgramacion:[],sinMotivo:0,sinMotivoEj:[],sinVelocidad:new Set(),discrepancias:[]},
       productos:new Map(),marcas:new Set(),cats:new Set(),hayVivo:false};
     let permitidas=null;
     try{permitidas=new Set((typeof lineasConsultables==='function'?lineasConsultables():LINES).map(l=>l.key));}catch(_){permitidas=null;}
-    const lineaFiltro=(typeof resumenFiltroLinea!=='undefined'&&resumenFiltroLinea!=='TODAS')?resumenFiltroLinea:'';
+    const lineaFiltro=opc.linea!==undefined?opc.linea:((typeof resumenFiltroLinea!=='undefined'&&resumenFiltroLinea!=='TODAS')?resumenFiltroLinea:'');
     const lineaOk=l=>(!permitidas||permitidas.has(l))&&(!lineaFiltro||l===lineaFiltro);
     const unidades=new Map();
     const kU=(l,f,g)=>l+'|'+f+'|'+g;
@@ -259,7 +260,7 @@
           u.partes=new Map();u.programado=num(f.programado);
           const t47=u47.find(x=>x.linea===f.linea&&grupoDeTurno(x.turno)===g);
           const detalle=(Array.isArray(f.detalle)&&f.detalle.length)?f.detalle:[{marca:f.marca,presentacion:f.presentacion,producido:f.producido,programado:f.programado}];
-          const items=t47?t47.npItems.map(i=>({motivo:i.motivo,minutos:num(i.minutos)})):[];
+          const items=t47?t47.npItems.map(i=>({motivo:i.motivo,minutos:num(i.minutos),estimada:false})):[];
           const prodTot=detalle.reduce((s,d)=>s+num(d.producido),0);
           const pesos=detalle.map(d=>{const v=velocidadEstandar(f.linea,d.presentacion,d.marca);return v>0?num(d.producido)/v:0;});
           const usarVel=prodTot>0&&pesos.every((w,i)=>w>0||num(detalle[i].producido)===0)&&pesos.some(w=>w>0);
@@ -272,7 +273,7 @@
             if(t47){
               pt.durMin=t47.duracion*share;pt.progMin=t47.prog*share;pt.npMin=t47.np*share;
               pt.planMin=t47.planificado*share;pt.availMin=t47.enMarcha*share;
-              pt.paradas=items.map(it=>({motivo:it.motivo,minutos:it.minutos*share}));
+              pt.paradas=items.map(it=>({motivo:it.motivo,minutos:it.minutos*share,estimada:false}));
             }
           });
           u.partes.forEach(pt=>{pt.progUnit=u.programado>0;});
@@ -313,11 +314,21 @@
         pt.planMin+=plan;pt.availMin+=Math.max(plan-np,0);
         npL.forEach(p=>{
           const desc=String(p.descripcion||'').trim();
-          pt.paradas.push({motivo:desc?(typeof normalizarCausaParada==='function'?normalizarCausaParada(desc).descripcion:desc):'Sin motivo',minutos:num(p.tiempoMin)});
+          pt.paradas.push({motivo:desc?(typeof normalizarCausaParada==='function'?normalizarCausaParada(desc).descripcion:desc):'Sin motivo',minutos:num(p.tiempoMin),estimada:true});   // texto libre del registro: clasificación estimada
           if(esSinMotivo(desc)){salida.avisos.sinMotivo++;if(salida.avisos.sinMotivoEj.length<5)salida.avisos.sinMotivoEj.push(nombreLinea(r.linea)+' · '+fmtFecha(r.fecha));}
         });
       });
     });
+
+    /* 3b) Motivos de parada del sistema (bitácora/estado de la programación) en turnos anteriores, cuando coinciden con el registro */
+    let sis47=new Map();
+    if(opc.motivosSistema&&desde<hoy){
+      try{
+        const A=window.glacialAnalisisParadas;
+        const finP=hasta<hoy?hasta:addDias(hoy,-1);
+        if(A&&typeof A.listarUnidades==='function'&&finP>=desde)A.listarUnidades(desde,finP,{}).unidades.forEach(x=>sis47.set(x.linea+'|'+x.fecha+'|'+grupoDeTurno(x.turno),x));
+      }catch(_){sis47=new Map();}
+    }
 
     /* 4) Armar partes definitivas, avisos y comprobaciones */
     unidades.forEach(u=>{
@@ -343,6 +354,15 @@
             salida.avisos.discrepancias.push({tipo:'Minutos de parada',linea:u.linea,fecha:u.fecha,grupo:u.grupo,registro:npReg,otro:npBit,fuente:'bitácora'});
         }
       }
+      if(pasado&&tieneReg&&sis47.size){                 // el sistema sabe el motivo real: se usa si suma lo mismo que el registro (±2 %)
+        const t=sis47.get(u.key),partesU=[...u.partes.values()];
+        const npReg=partesU.reduce((s,p)=>s+p.npMin,0);
+        const npSis=t?t.npItems.reduce((s,i)=>s+num(i.minutos),0):0;
+        if(t&&npSis>0&&npReg>0&&Math.abs(npSis-npReg)/Math.max(npSis,npReg)<=UMBRAL_DIF){
+          partesU.forEach(p=>{if(p.npMin<=0)return;const share=p.npMin/npReg;
+            p.paradas=t.npItems.map(i=>({motivo:i.motivo,minutos:num(i.minutos)*share,estimada:false}));});
+        }
+      }
       u.partes.forEach(p=>{
         p.progUnit=u.programado>0;
         p.vel=velParte(p);
@@ -355,8 +375,9 @@
   }
 
   /* ---------- filtros de turno y producto ---------- */
-  function filtrarPartes(partes){
-    return partes.filter(p=>(!F.turno||p.grupo===F.turno)&&(!F.marca||p.marcaN===F.marca)&&(!F.pres||p.cat===F.pres));
+  function filtrarPartes(partes,f){
+    f=f||F;
+    return partes.filter(p=>(!f.turno||p.grupo===f.turno)&&(!f.marca||p.marcaN===f.marca)&&(!f.pres||p.cat===f.pres));
   }
 
   /* =========================================================
@@ -920,5 +941,6 @@
 
   aplicarMetasAlCodigo();
   window.glacialReporteIndicadores={calcular,recolectar,agregar,filtrarPartes,metasReporte,nivel,velocidadEstandar,periodo,variacion,quePaso,
-    estado:F,pintar,agregarHojaIndicadores,marcaCanon,tipoMarca,componenteMerma,FECHA_CAMBIO};
+    estado:F,pintar,agregarHojaIndicadores,marcaCanon,tipoMarca,componenteMerma,FECHA_CAMBIO,
+    claveProd,etiquetaProd,catPres,hoyOp,addDias,diasEntre,fechaOk,nombreLinea,etiquetaGrupo,ORDEN_PRES,MARCAS_FIJAS,UMBRAL_DIF,grupoDeTurno};
 })();

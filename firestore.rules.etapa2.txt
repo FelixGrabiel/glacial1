@@ -116,6 +116,15 @@ service cloud.firestore {
         (autenticado() && !esMantCompartido() && perfiles()[request.auth.uid].permisos is list
           && 'avanceProduccion' in perfiles()[request.auth.uid].permisos);
     }
+    // Impacto económico: el permiso perdidasSoles. Administrador, jefatura y gerencia lo tienen por defecto (misma lista que
+    // ROLES_SOLO_CONSULTA en 02-estado.js); el Administrador se lo da a otros en Gestión de usuarios. NO la cuenta compartida.
+    function puedeVerImpacto() {
+      return autenticado() && !esMantCompartido() && (
+        esAdmin() ||
+        perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente'] ||
+        (perfiles()[request.auth.uid].permisos is list && 'perdidasSoles' in perfiles()[request.auth.uid].permisos)
+      );
+    }
     // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
     function programacionesSinAltasNiBajas() {
       return resource != null
@@ -235,6 +244,15 @@ service cloud.firestore {
              .hasOnly(['datos', 'actualizadoUid', 'actualizadoPor', 'actualizadoPorNombre', 'actualizadoEn', 'actualizaciones'])
         && request.resource.data.actualizadoUid == request.auth.uid
         && request.resource.data.actualizadoEn == request.time;
+      allow delete: if false;
+    }
+
+    // Valores del Impacto económico (Reportes · Parte B): margen por producto, costo de insumos por componente y meta mensual.
+    // Solo quien tiene el permiso perdidasSoles lee y escribe; el resto de usuarios ni siquiera los puede leer.
+    match /configEconomica/{doc} {
+      allow read: if puedeVerImpacto() && doc in ['margenes', 'costos', 'general'];
+      allow create, update: if puedeVerImpacto() && doc in ['margenes', 'costos', 'general']
+        && request.resource.data.keys().hasOnly(['valores', 'metaPerdidaMes', 'actualizadoPor', 'actualizadoEn']);
       allow delete: if false;
     }
 
