@@ -540,7 +540,7 @@
     const tabsAnterior=tareoRenderTabs;
     tareoRenderTabs=function(){
       const html=tabsAnterior.apply(this,arguments);
-      if(!puedeConfigurarIdent()||html.indexOf('mant-ident-tab')>=0)return html;
+      if(!puedeConfigurarIdent()||!tareoPestanaEnModulo('identificacion')||html.indexOf('mant-ident-tab')>=0)return html;
       const boton='<button type="button" class="tareo-tab mant-ident-tab" onclick="mantConfigurarIdentificacion()">Identificación de técnicos</button>';
       return html.replace('</div>',boton+'</div>');
     };

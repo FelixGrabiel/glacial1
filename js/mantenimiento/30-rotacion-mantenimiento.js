@@ -550,7 +550,7 @@
     const tabsAnterior = tareoRenderTabs;
     tareoRenderTabs = function(activa){
       let html = tabsAnterior(activa);
-      if(!puedeGestionarRotacionMtto()) return html;
+      if(!puedeGestionarRotacionMtto() || !tareoPestanaEnModulo('rotacionMtto')) return html;
 
       const boton = `
         <button

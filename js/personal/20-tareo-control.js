@@ -296,7 +296,7 @@ setInterval(tareoAlertaDescansos, 60 * 1000);
             puede = !!(state.user && tienePermiso('moduloRRHH') &&
                 !(typeof esUsuarioSoloConsulta === 'function' && esUsuarioSoloConsulta(state.user)));
         } catch (_) { puede = false; }
-        if (!puede || html.indexOf('tareo-tab-auditoria') >= 0) return html;
+        if (!puede || !tareoPestanaEnModulo('auditoria') || html.indexOf('tareo-tab-auditoria') >= 0) return html;
         const boton = '<button class="tareo-tab tareo-tab-auditoria ' + (activa === 'auditoria' ? 'active' : '') +
             '" onclick="renderAuditoriaTareos()">Auditoría</button>';
         return html.replace('</div>', boton + '</div>');

@@ -1,0 +1,22 @@
+/* Las pestañas de rotación, auditoría e identificación se muestran solo en el módulo que les corresponde. */
+const fs=require('fs'),vm=require('vm');
+const R=require('path').resolve(__dirname,'..');
+let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c)fallas++;};
+const leer=f=>fs.readFileSync(R+'/'+f,'utf8').replace(/\r\n/g,'\n');
+const s13=leer('js/personal/13-tareo.js');
+const ini=s13.indexOf('const TAREO_PESTANA_MODULOS'),fin=s13.indexOf('function tareoRenderTabs');
+const sb={window:{},state:{currentTab:''}};vm.createContext(sb);
+vm.runInContext(s13.slice(ini,fin),sb);
+const ve=(tab,clave)=>{sb.state.currentTab=tab;return vm.runInContext('tareoPestanaEnModulo',sb)(clave);};
+const claves=['rotacion','rotacionMtto','rotacionMaq','identificacion','auditoria'];
+console.log('  [módulo → pestañas visibles]');
+['rrhh','tareo','mantenimiento'].forEach(m=>console.log('   '+m+': '+(claves.filter(c=>ve(m,c)).join(', ')||'ninguna')));
+ok(claves.every(c=>!ve('rrhh',c)),'panel de RRHH: no muestra ninguna de las cinco');
+ok(ve('tareo','rotacion')&&ve('tareo','auditoria')&&!ve('tareo','rotacionMtto')&&!ve('tareo','rotacionMaq')&&!ve('tareo','identificacion'),'Producción: Rotación semanal y Auditoría');
+ok(ve('mantenimiento','rotacionMtto')&&ve('mantenimiento','rotacionMaq')&&ve('mantenimiento','identificacion')&&ve('mantenimiento','auditoria')&&!ve('mantenimiento','rotacion'),'Mantenimiento: Rotación MTTO, Rotación maquinista, Identificación de técnicos y Auditoría');
+const g=(f,re)=>re.test(leer(f));
+ok(g('js/personal/20-tareo-control.js',/tareoPestanaEnModulo\('auditoria'\)/),'20: Auditoría usa la regla');
+ok(g('js/mantenimiento/30-rotacion-mantenimiento.js',/tareoPestanaEnModulo\('rotacionMtto'\)/),'30: Rotación semanal MTTO usa la regla');
+ok(g('js/mantenimiento/33-rotacion-maquinistas.js',/tareoPestanaEnModulo\('rotacionMaq'\)/),'33: Rotación maquinista usa la regla');
+ok(g('js/mantenimiento/37b-mantenimiento-identificacion.js',/tareoPestanaEnModulo\('identificacion'\)/),'37b: Identificación de técnicos usa la regla');
+console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

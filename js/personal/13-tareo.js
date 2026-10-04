@@ -1181,6 +1181,22 @@ function tareoGuardarEnNube(tareo) {
    TABS DEL MÓDULO
    ========================================================= */
 
+/* Pestañas que solo se muestran en el módulo al que pertenecen (state.currentTab):
+   Rotación semanal → Producción ('tareo'); Rotación semanal MTTO, Rotación maquinista e Identificación
+   de técnicos → Mantenimiento; Auditoría → Producción y Mantenimiento. El panel de RRHH no las muestra. */
+const TAREO_PESTANA_MODULOS = {
+    rotacion: ['tareo'],
+    rotacionMtto: ['mantenimiento'],
+    rotacionMaq: ['mantenimiento'],
+    identificacion: ['mantenimiento'],
+    auditoria: ['tareo', 'mantenimiento']
+};
+function tareoPestanaEnModulo(clave) {
+    const modulos = TAREO_PESTANA_MODULOS[clave] || [];
+    return modulos.includes(state && state.currentTab);
+}
+window.tareoPestanaEnModulo = tareoPestanaEnModulo;
+
 function tareoRenderTabs(activa) {
 
     const acceso = tareoAccesoUsuario();
@@ -1204,7 +1220,7 @@ function tareoRenderTabs(activa) {
        moduloRRHH — que también edita Producción, pero desde el
        módulo de RRHH — no la herede sin que se la asignen aparte.
     */
-    if (tienePermiso('tareoProduccion')) {
+    if (tienePermiso('tareoProduccion') && tareoPestanaEnModulo('rotacion')) {
         tabs.push(['rotacion', 'Rotación semanal', 'renderRotacionSemanal()']);
     }
 

@@ -309,7 +309,7 @@
     tareoRenderTabs=function(activa){
       const html=anterior(activa);
       // Solo quien gestiona la rotación (Supervisor de Mantenimiento, Administrador o con permiso).
-      if(!puedeGestionarRotacionMaquinistas())return html;
+      if(!puedeGestionarRotacionMaquinistas()||!tareoPestanaEnModulo('rotacionMaq'))return html;
       const boton=`<button class="tareo-tab ${activa==='rotacionMaq'?'active':''}" onclick="if(confirmarAbandonoRotacionPendiente())renderRotacionMaquinistas()">Rotación maquinista</button>`;
       return html.replace('</div>',boton+'</div>');
     };
