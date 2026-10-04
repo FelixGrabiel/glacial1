@@ -572,30 +572,149 @@ Dividirlos solo tiene sentido **moviendo código sin tocar la lógica** y verifi
 
 ---
 
+### 7.1 El semáforo que cambia `tienePermiso`
+
+**Qué modifica exactamente** (`24-semaforo-produccion-actual.js:166–:173`). Reemplaza la función global `tienePermiso` (definida en `02-estado.js:417`) por una envoltura. **Solo cuando alguien pregunta por `'produccionActual'`**, la envoltura devuelve `true` si se cumple una de estas dos condiciones:
+
+1. el rol es exactamente `Supervisor` **y** tiene el permiso `paletas`; o
+2. el rol es exactamente `Mantenimiento` **y** tiene `moduloMantenimiento`.
+
+En cualquier otro caso (y para cualquier otro permiso: `paletas`, `perdidasSoles`, `avanceProduccion`…) llama a la versión original sin cambiar nada.
+
+**Para qué existe**: el rol Supervisor no trae `produccionActual` por defecto (`02-estado.js:340`; tampoco en los sugeridos de `10-usuarios.js:478`). Sin la envoltura, un supervisor no vería «Producción actual» en el menú (`04-sidebar.js:505`, `03-auth.js:543`, `32-dashboard-perfiles.js:867`).
+
+**¿Concede un permiso que no debería?** Solo en un sentido, y acotado:
+- **No se puede revocar.** Si el Administrador desmarca `produccionActual` a un Supervisor con `paletas` (o a un Mantenimiento con `moduloMantenimiento`), esa persona entra igual. Es lo único que concede «de más».
+- **Solo da visibilidad del tablero.** Las reglas de Firestore no mencionan `produccionActual` (cualquier usuario con sesión ya lee `sync/programaciones` y `sync/paletas`, `firestore.rules.etapa2.txt:132–:134`), así que no abre datos nuevos. Los controles para operar (iniciar, detener, pausar) los decide `24:130–:148` con otros permisos (`paletas`, `control_operativo_lineas`).
+- Los alias funcionales también pasan por la envoltura: `ver_produccion_actual` → `produccionActual` (`02-estado.js:398`) recibe la misma concesión.
+
+**¿Se lo quita a alguien?** No. La envoltura nunca devuelve `false` por su cuenta: solo suma y, si no aplica, delega en la función original.
+
+**Inconsistencias relacionadas**
+- Reconoce únicamente el texto exacto `Supervisor`; `Supervisor de Producción` (que `24:134` y los módulos `43`, `46`, `47`, `48` sí tratan como supervisor) **no** recibe esa concesión. Ese rol no se puede asignar desde Gestión de usuarios (`10-usuarios.js:221–:254`), así que solo importaría si existe en cuentas antiguas (**por confirmar**).
+- La misma familia de concesiones implícitas: `normalizarPermisosUsuario` (`02-estado.js:344–:392`) agrega siempre `avanceProduccion` al rol exacto `Supervisor` y le quita `gestionarPersonal`, aunque la lista guardada diga otra cosa.
+- «Ver como» (`39-vista-como.js`) sustituye `state.user`, así que la envoltura responde igual para el usuario simulado: no hay diferencia.
+- **Recomendación** (sin ejecutar): reemplazar la envoltura por permisos explícitos (agregar `produccionActual` a los supervisores y a Mantenimiento mediante una migración de `sync/users`), de modo que el Administrador pueda quitarlo.
+
+### 7.2 Roles de jefatura repetidos: ¿coinciden HOY con las demás listas y con las reglas de la etapa 2?
+
+Roles que realmente se pueden asignar en Gestión de usuarios (`10-usuarios.js:221–:254`): Personalizado, Administrador, **Jefe de Producción**, Supervisor, Asistente de Producción, **Jefe de Operaciones**, **Gerente General**, Mantenimiento, `mantenimiento_compartido`, RRHH, Ventas, Planificación, Ventas y Planificación. Los textos `Jefatura`, `Gerente` y `Supervisor de Producción` figuran en varias listas pero **no son roles asignables** (son cargos de trabajadores, `11-trabajadores.js:19`): solo importan si existen cuentas antiguas con esos roles (**por confirmar** con `sync/users`).
+
+| Lista | Dónde | Roles incluidos | ¿Coincide? |
+|---|---|---|---|
+| `ROLES_SOLO_CONSULTA` (la de referencia en la app) | `02-estado.js:208–:210` | Jefe de Producción, Jefe de Operaciones, Jefatura, Gerente General, Gerente | Referencia |
+| `esJefatura`, `esRRHH`, `esSupervisorMtto`, `puedeVerImpacto` (reglas) | `firestore.rules.etapa2.txt:58`, `:68`, `:91`, `:121` | Los mismos 5 | **Coincide** |
+| `JEFATURA` | `46:34`, `47:34`, `48:28` | Los mismos 5 | **Coincide** |
+| `ROLES_LECTURA` / `puedeLeerBitacoraMtto` | `43:29–:30` / reglas `:80` | Los 5 + Supervisor + Supervisor de Producción | **Coincide** entre sí |
+| `puedeVerLineasProduccion` | `04-sidebar.js:74–:77` | Supervisor, Jefe de Producción, Jefe de Operaciones, Gerente General, Administrador | Los 3 de jefatura son **inalcanzables**: la línea `:72` devuelve `false` antes para los roles de solo consulta. Sin efecto |
+| `puedeProgramarPaletas` | `06-registro.js:2116` | Administrador, Gerente General, Jefe de Producción, Jefe de Operaciones | `23-gerente-solo-lecutra.js:47–:49` la anula para los 5 roles de consulta. Sin efecto |
+| `esAdminOJefatura` | `24:132–:137` | administrador, **administrador del sistema**, Jefe de Producción, Jefe de Operaciones (en minúsculas) | `administrador del sistema` no existe como rol; JP/JO no llegan al control `supervisor` porque no tienen `paletas` (`02-estado.js:344–:392`) |
+| `esJefaturaProduccion` | `24:943` | Jefe de Producción, Jefe de Operaciones | Solo habilita **ver** todas las tarjetas. Consistente |
+| `puedeGenerar` | `48-resumen-turno.js:46–:52` | Admin, JP, JO, Supervisor, Supervisor de Producción + permisos `avanceProduccion`/`paletas`, **pero** la línea `:50` ya excluye a los roles de solo consulta | Consistente en la app |
+| `puedeOperarProduccion` (reglas) | reglas `:105` | Jefe de Producción, Jefe de Operaciones, Supervisor, Supervisor de Producción, `paletas` | **No coincide** con la app (ver abajo) |
+| Perfiles de «Ver como» y roles sugeridos | `39-vista-como.js:34–:42`, `10-usuarios.js:473–:487` | GG, JP, JO con permisos de consulta | Coincide |
+
+**Diferencias que existen hoy, y su efecto**
+
+1. **Reglas más permisivas que la app para Jefe de Producción y Jefe de Operaciones.** En la app son roles de solo consulta (no pueden iniciar, finalizar ni generar). Las reglas (`puedeOperarProduccion`, `:105`) sí les permiten escribir en la bitácora acciones de Producción (INICIAR, FINALIZAR…) y, por herencia, crear y actualizar `resumenesTurno` (`puedeGenerarResumen`, `:114`). **Efecto**: ninguno visible hoy (la pantalla no ofrece esas acciones); es un hueco de seguridad si alguien usara un cliente modificado.
+2. **Las reglas no hacen cumplir el «solo consulta» en ningún documento.** La regla de `sync/*` (`:136–:154`) deja escribir `records`, `workers`, `tareos`, `precios`, `paletas`, `programaciones`, `avancesTurno` a **cualquier usuario autenticado que no sea la cuenta compartida**, incluidos Jefe de Producción, Gerente General y Ventas. El bloqueo de `23-gerente-solo-lecutra.js` es solo de interfaz (su propia cabecera lo dice). **Efecto**: ninguno en el uso normal; la protección real depende de la aplicación.
+3. **Permiso `perdidasSoles` por lista (app) frente a rol (reglas).** Un usuario de jefatura al que el Administrador le quitó `perdidasSoles` no ve Impacto económico en la app, pero `puedeVerImpacto` (`:121`) lo deja leer y escribir `configEconomica` por ser de jefatura. **Efecto**: ninguno en pantalla; los márgenes y costos serían legibles para ese usuario con un cliente modificado.
+4. **Entradas inalcanzables o inexistentes** (`04:74`, `06:2116`, `24:132–:137`, y los nombres `Jefatura`, `Gerente`, `Supervisor de Producción`, `administrador del sistema`). **Efecto**: ninguno; es ruido que confunde al leer las listas.
+5. **Ningún lugar niega hoy un permiso legítimo** entre los revisados: las listas que importan (5 roles de consulta, 7 de lectura de la bitácora) coinciden entre la app y las reglas.
+
+### 7.3 Los cinco criterios de «asistió»: un tareo de ejemplo
+
+Tareo de ejemplo (Producción, turno Día, **16 personas**). Los números de la tabla se obtuvieron **ejecutando el código real** de cada pantalla sobre estos mismos datos:
+
+| Persona(s) | Estado guardado | Observación |
+|---|---|---|
+| A1 a A4 (4) | Asistió | A2 llegó 15 min tarde, A3 5 min tarde |
+| B1 | Feriado trabajado | Trabajó |
+| B2 | Comisión / trabajo externo | Trabajó fuera |
+| C1 | Falta por justificar | |
+| C2 | Falta justificada | |
+| C3 | Falta | Estado antiguo, se lee como «Falta por justificar» |
+| C4 | Permiso | Estado antiguo, se lee como «Falta justificada» |
+| D1 | Descanso | |
+| D2 | Descanso médico | |
+| E1 | Vacaciones | |
+| E2 | Suspensión | |
+| E3 | Licencia sin goce | |
+| F1 | (sin estado) | Aún sin registrar |
+
+| Pantalla | Archivo | «Asistieron» | Faltas | Descansos | Otros / ausencias | Tardanzas |
+|---|---|---|---|---|---|---|
+| Tareo (contadores) | `13-tareo.js:772–:801` | **4** | — | — | ausencias **11** (todo lo que no es «Asistió»: también Feriado trabajado y Comisión) | 2 |
+| Mensaje de WhatsApp | `34-integraciones.js:236–:244` | **4** | **4** | **2** | (no informa vacaciones, suspensión ni licencias) | 2 |
+| Inicio, bloque Equipo | `32-dashboard-perfiles.js:292` | **5** («presentes») | — | — | — | — |
+| Panel de RRHH | `26-rrhh-panel.js:82–:90` | — | por justificar **2** | — | ausencias **5** (las 4 faltas, incluidas las 2 antiguas, + Descanso médico) | 2 |
+| Resumen de turno | `48-resumen-turno.js:64–:80` | **6** | **4** | **2** | otros **3**, sin estado 1 | 2 |
+
+Qué se ve:
+- **«Asistieron» da 4, 4, 5 y 6** según la pantalla para el mismo tareo.
+- **Error en Inicio (`32:292`)**: cuenta Feriado trabajado pero **no** cuenta «Comisión / trabajo externo». La lista busca `comision/trabajo externo` y el texto normalizado del estado es `comision / trabajo externo` (con espacios alrededor de la barra), así que nunca coincide. Se comprobó ejecutándolo. La lista también incluye `tardanza`, que no es un estado (la tardanza es un campo de minutos).
+- **Tareo (`13`)** manda a «ausencias» a quien trabajó en feriado o en comisión, y a Vacaciones y Licencias junto con las faltas.
+- **WhatsApp (`34`)** y **RRHH (`26`)** no cubren los estados raros (vacaciones, suspensión, licencias, fallecimiento), por lo que su suma no cierra con el total de 16.
+- **Resumen de turno (`48`)** es el único cuyos grupos suman el total: 6 + 4 + 2 + 3 + 1 = 16.
+
+**Criterio único propuesto** (es el de `48`, puesto en `13-tareo.js` para que todos lo usen):
+
+| Grupo | Estados | Ejemplo |
+|---|---|---|
+| **Asistieron (presentes)** | Asistió, Feriado trabajado, Comisión / trabajo externo | 6 |
+| **Faltas** | Falta por justificar, Falta justificada (incluye las antiguas «Falta» y «Permiso») | 4 |
+| **Descansos** | Descanso, Descanso médico | 2 |
+| **Otros ausentes** | Vacaciones, Suspensión, Licencias, Fallecimiento de familiar directo | 3 |
+| **Sin registrar** | estado vacío | 1 |
+| **Tardanzas** | persona con minutos de tardanza > 0 **entre los presentes**; se cuenta aparte y no cambia el grupo | 2 |
+
+Regla de cuadre: presentes + faltas + descansos + otros + sin registrar = total del tareo (6 + 4 + 2 + 3 + 1 = 16). El «personal por día» no entra en la planilla y se informa aparte. El panel de RRHH mantendría su indicador propio de «faltas por justificar» con ese mismo cálculo.
+
+---
+
 ## 8. PLAN DE CONSOLIDACIÓN
 
-Cada fila se hará por separado, en un cambio pequeño y con una comparación de números antes y después. **No se ejecuta ninguna ahora.**
+Cada fila se hará por separado, en un cambio pequeño y con una comparación de números antes y después. **No se ejecuta ninguna ahora.** El plan se divide en dos grupos: lo que **cambia lo que la planta ve hoy** (números, textos, estados, fechas) y lo que es **solo limpieza interna** (no cambia lo que se ve).
 
-| # | Qué unificar o eliminar | Beneficio | Riesgo | Esfuerzo | Orden |
+### 8.A Cambia números, estados o textos que la planta ve hoy
+
+Cada cambio de esta tabla necesita una comparación de antes y después y aviso previo a la planta.
+
+| # | Qué unificar | Qué verá la planta distinto | Riesgo | Esfuerzo | Orden |
 |---|---|---|---|---|---|
-| 1 | Una sola regla de **conteo de asistencia** en el tareo (`13:786`) usada por `26`, `32`, `34` y `48` | Mismo «asistieron/faltas/tardanzas» en todas las pantallas y mensajes | Bajo (cambia cifras visibles en Inicio y WhatsApp) | S | 1 |
-| 2 | Cerrar escuchas al cerrar sesión (las 10 de `02`, `23b:123`, `44:68`, `20:199`, `17:606`, `29:960`) y quitar las duplicadas (`avancesTurno`, `users`) | Menos errores en equipos compartidos y menos lecturas | Bajo | S | 2 |
-| 3 | `32` (`cpCargarAvances`) debe leer en vivo en vez de un `get()` cacheado para siempre | Quita el «pendientes de avance» desactualizado | Bajo | S | 3 |
-| 4 | Una sola función de **día operativo y turno vigente** (`glacialTurnoVigente`) para `09`, `16`, `26`, `29`, `43`, `47`, `48`, `49` | Misma fecha en todo el sistema, también pasada la medianoche | Medio (cambia la fecha por defecto de Resumen, Paletas y Avance en ciertas horas) | M | 4 |
-| 5 | **Hora del servidor** en `29:23–:24`, `16:844/:858` y los `Date.now()` que alimentan tiempos (`16:556/:594/:1274`) | Cierres, paletas y tramos con la hora correcta aunque el reloj del equipo falle | Medio | S–M | 5 |
-| 6 | **Módulo único de indicadores** (ver 8.1) | Un solo cálculo de ratio, disponibilidad, merma, cumplimiento, rendimiento y OEE para todas las pantallas | Medio–alto (cambia números visibles) | L | 6 (por etapas) |
-| 7 | Estado de la línea del Resumen (`09:2387`) → usar `glacialResumenEjecutivoLineas` | «Estado actual de planta» igual al semáforo | Bajo–medio | S | 7 |
-| 8 | Regla de «motivo pendiente» única (`24:1619`, `43:103`, `49:174`) y roles de jefatura únicos (`GLACIAL_ROLES`, 10 sitios) | Menos configuraciones que olvidar al cambiar una regla; las reglas de Firestore siguen necesitando copia manual | Bajo | S | 8 |
-| 9 | Retirar del Resumen las tarjetas viejas (`09:3602–:3627`, `ri-kpis`) y `rsInsight`, dejando las de 49 | Una sola cabecera; menos confusión | Bajo (cambio visual) | S | 9 |
-| 10 | Eliminar las 43 funciones sin uso, `savePaletas`, `saveProgramaciones` y la rama de login antiguo (con confirmación una por una) | Menos código que mantener (≈ varios cientos de líneas) | Bajo, pero cada una por confirmar | M | 10 |
-| 11 | `saveRecords`, `saveWorkers`, `saveRotaciones*`, `savePrecios` → transacción o actualización por campos | Evita perder datos cuando dos personas guardan a la vez | **Alto** (toca el guardado de registros); empezar por `records` | L | 11 |
-| 12 | Cambiar la cadena de `on*Updated` por un aviso de eventos simple (`glacialBus`) | Pantallas nuevas sin añadir capas; menos riesgo de orden | Medio | M | 12 |
-| 13 | Metas y umbrales en un solo lugar (`METAS`, `UMBRALES`, `configAlertas`, `metasReporte`) | Una sola pantalla de configuración | Medio | M | 13 |
-| 14 | Utilidades comunes (`num`, `esc`, `norm`, fechas, `fmt…`) en un módulo compartido | Menos copias y el mismo comportamiento en todos | Bajo–medio (diferencia `parseFloat`/`Number`) | M | 14 |
-| 15 | Cargar `00-logo.js` o decidir retirarlo; retirar `15`/`22` cuando ya no haga falta la vista anterior | Logo en Excel/imagen; menos código | Bajo | XS–S | 15 |
-| 16 | `48` (resumen de turno) debe leer el cierre de `29` en vez de recalcular | Un solo cierre oficial | Medio | M | 16 |
-| 17 | Dividir los archivos grandes (`13`, `06`, `08`, `09`, `16`) solo moviendo código | Mantenimiento más fácil | Medio–alto | L | 17 |
-| 18 | Limpiar CSS sin uso (≈ 126 clases candidatas) y mover el CSS en línea de `index.html` a una hoja | Menos peso y menos choques | Bajo | M | 18 |
+| A1 | **Criterio único de asistencia** en el tareo (sección 7.3), usado por `13`, `26`, `32`, `34` y `48`; incluye corregir el error de «Comisión» en `32:292` | En el ejemplo, «asistieron» pasa de 4/4/5/6 a **6 en todas**; el Tareo deja de contar como «ausencia» a quien trabajó en feriado o comisión | Bajo | S | 1 |
+| A2 | **Cumplimiento** con un solo numerador (producción efectiva vigente, `24:203`) y un solo denominador (programación sin canceladas) en `06`, `07`, `14`, `16`, `29`, `09` | Cambian los % de cumplimiento del Historial, Gráficos, Excel general y Avance cuando difieren del semáforo | Medio | M | 2 |
+| A3 | **Disponibilidad y OEE** con las definiciones vigentes en gráficos y Excel general (`08`, `09:1865`, `14:208–:209`), no el promedio ponderado por horas | Cambian los gráficos «OEE por línea», «Componentes», «Tendencia OEE» y las hojas del Excel general | Medio | M | 3 |
+| A4 | **Módulo único de indicadores** (sección 8.1) para todas las pantallas | Ratio, disponibilidad, merma, rendimiento y OEE iguales en todas; cambian las cifras de turnos pasados donde el registro difería del semáforo | Medio–alto | L | 4 (por etapas) |
+| A5 | **Estado de línea** del Resumen (`09:2387`) tomado del semáforo (`glacialResumenEjecutivoLineas`) | «Estado actual de planta» pasa a coincidir con Producción actual (secuencia y prioridad de estados) | Bajo–medio | S | 5 |
+| A6 | **Resumen de turno** (`48`) leyendo el cierre de `29` en vez de recalcular | Puede cambiar alguna cifra del resumen de turno respecto a hoy | Medio | M | 6 |
+| A7 | **Día operativo y turno vigente únicos** (`glacialTurnoVigente`) en `09`, `16`, `26`, `29`, `43`, `47`, `48`, `49` | Cambia la fecha por defecto de Resumen, Paletas y Avance entre medianoche y las 07:00 | Medio | M | 7 |
+| A8 | **Hora del servidor** en Avance y Cierre (`29:23–:24`), Paletas (`16:844`, `:858`) y los `Date.now()` que alimentan tiempos (`16:556`, `:594`, `:1274`) | Horas y fechas de cierres, paletas y tramos correctas aunque el reloj del equipo falle; cambian solo donde el reloj estaba mal | Medio | S–M | 8 |
+| A9 | «Pendientes de avance» del Inicio en vivo (`32:377–:392`) | Deja de mostrar pendientes desactualizados | Bajo | S | 9 |
+| A10 | Quitar del Resumen las tarjetas viejas (`09:3602–:3627`, `ri-kpis`) y `rsInsight`, dejando las de `49` | Menos tarjetas repetidas | Bajo | S | 10 |
+| A11 | **Metas y umbrales** en un solo lugar (`METAS`, `UMBRALES` de `23b`, `configAlertas`, `metasReporte`) | Si los valores hoy difieren, cambian algunos colores y avisos | Medio | M | 11 |
+| A12 | Cargar `00-logo.js`; retirar la vista anterior del Impacto (`15`, `22`) | Aparece el logo en Excel e imagen; desaparece «Ver cálculo anterior» | Bajo | XS–S | 12 |
+| A13 | Lista de roles sin usar `administrador del sistema`, y `Supervisor de Producción` en la envoltura de permisos (7.1), si existen cuentas con esos roles | Quien hoy no ve «Producción actual» pasaría a verlo (solo si esas cuentas existen) | Bajo | S | 13 (tras confirmar los roles reales) |
+
+### 8.B Solo limpieza interna (no cambia lo que se ve)
+
+| # | Qué hacer | Beneficio | Riesgo | Esfuerzo | Orden |
+|---|---|---|---|---|---|
+| B1 | **Cerrar todas las escuchas al cerrar sesión** (las 10 de `02`, `23b:123`, `44:68`, `20:199`, `17:606`, `29:960`) y quitar las duplicadas (`avancesTurno`, `users`) | Menos errores y menos lecturas en equipos compartidos | Bajo | S | 1 |
+| B2 | Una sola regla de «motivo pendiente» (`24:1619`, `43:103`, `49:174`) y una sola lista de roles de jefatura (`GLACIAL_ROLES`, 10 sitios) | Menos configuraciones que olvidar al cambiar una regla | Bajo | S | 2 |
+| B3 | **Alinear las reglas de Firestore con la app** (Jefe de Producción y Jefe de Operaciones solo consulta; `perdidasSoles` por lista de permisos; `solo consulta` también en `sync/*`) | Seguridad real, no solo de interfaz. Hay que publicar las reglas en cada proyecto de Firebase | **Medio** (un error bloquea a usuarios) | M | 3 |
+| B4 | Sustituir la envoltura de `tienePermiso` (7.1) por permisos explícitos migrados en `sync/users` | El Administrador puede quitar el acceso; sin concesiones ocultas | Medio | M | 4 |
+| B5 | **Guardado por transacción** en `saveRecords`, `saveWorkers`, `saveRotaciones*`, `savePrecios` (empezar por `records`) | Evita perder datos cuando dos personas guardan a la vez | **Alto** (toca el guardado de registros) | L | 5 |
+| B6 | Eliminar las 43 funciones sin uso, `savePaletas`, `saveProgramaciones` y la rama de login antiguo (con confirmación una por una) | Menos código que mantener | Bajo, cada una por confirmar | M | 6 |
+| B7 | Cambiar la cadena de `on*Updated` por un aviso de eventos simple (`glacialBus`) | Pantallas nuevas sin añadir capas | Medio | M | 7 |
+| B8 | Utilidades comunes (`num`, `esc`, `norm`, fechas, `fmt…`) en un módulo compartido (ojo: `parseFloat` frente a `Number`) | Menos copias | Bajo–medio | M | 8 |
+| B9 | Dividir los archivos grandes (`13`, `06`, `08`, `09`, `16`) solo moviendo código | Mantenimiento más fácil | Medio–alto | L | 9 |
+| B10 | Limpiar CSS sin uso (≈ 126 clases candidatas) y mover el CSS en línea de `index.html` a una hoja | Menos peso y menos choques | Bajo | M | 10 |
+
+Notas del plan:
+- Orden sugerido para empezar: **B1** (no cambia nada visible) y **A1** (cambio visible pequeño y bien acotado, con el ejemplo de 7.3 como comparación).
+- **B3 y B4** no se deben hacer sin antes confirmar con `sync/users` qué roles existen de verdad (7.2).
+- **A4** es la consolidación más grande; se parte en etapas, una pantalla por vez.
 
 ### 8.1 Propuesta: un único módulo de cálculo de indicadores
 
@@ -616,16 +735,17 @@ Idea: `js/produccion/23c-indicadores.js` (después de `23b`, antes de `24`) con 
 1. **El cumplimiento se calcula de tres maneras.** Según la pantalla, lo producido sale de Paletas, del registro del turno o de una corrección manual, y lo programado de la programación o del propio registro. Dos pantallas pueden mostrar porcentajes distintos para el mismo turno. **Afecta números que hoy ve la planta.**
 2. **El OEE tiene cuatro definiciones.** Unas suponen calidad 100 %, otras toman las botellas de merma como rechazo, y otras no incluyen calidad. **Afecta números visibles** (Gráficos, Excel general, Análisis de paradas y la cabecera del Resumen).
 3. **La disponibilidad se promedia distinto.** Las tarjetas del Resumen la calculan bien, pero los gráficos de abajo y el Excel general promedian por horas efectivas. **Afecta números visibles.**
-4. **«Asistieron» se cuenta con cinco reglas** (Tareo, WhatsApp, Inicio, RRHH, resumen de turno). **Afecta números visibles** de asistencia.
+4. **«Asistieron» se cuenta con cinco reglas** (Tareo, WhatsApp, Inicio, RRHH, resumen de turno). En un tareo de ejemplo de 16 personas da **4, 4, 5 y 6** según la pantalla (sección 7.3). **Afecta números visibles** de asistencia, y el Inicio ni siquiera cuenta «Comisión / trabajo externo» por un error de texto (`32:292`).
 5. **Los minutos de parada vienen de tres lugares** (registro del turno, estado de la línea y bitácora). El semáforo y el Análisis de paradas coinciden entre sí; el Resumen, el Historial y el Impacto anterior usan el registro. **Afecta números visibles.**
 6. **El ratio de turnos pasados usa horas anotadas**, no las reales del semáforo. **Afecta números** de turnos anteriores.
 7. **El estado de la línea del Resumen** («Estado actual de planta») se calcula aparte del semáforo y puede mostrar otro estado. **Visible.**
 8. **Hay nueve versiones de «día operativo/turno vigente»**; algunas esperan la hora 7 y otras usan la fecha de calendario. **A veces afecta** (pasada la medianoche).
 9. **El Resumen tiene tres juegos de tarjetas y dos generadores de frases** (el antiguo y «Qué pasó»). No cambia números, pero confunde.
-10. **Las reglas de quién puede qué están copiadas** (roles de jefatura en 10 lugares, metas en 5, horarios de turno en 7 criterios) y hay que mantenerlas iguales a mano, incluidas las reglas de Firestore. No cambia números hoy; es la fuente más probable de errores futuros.
+10. **Las reglas de quién puede qué están copiadas** (roles de jefatura en 10 lugares, metas en 5, horarios de turno en 7 criterios) y hay que mantenerlas iguales a mano, incluidas las reglas de Firestore. Hoy las listas que importan coinciden, pero **las reglas son más permisivas que la app** para Jefe de Producción y Jefe de Operaciones, y no hacen cumplir el «solo consulta» (secciones 7.2). No cambia números hoy; es la fuente más probable de errores futuros.
 
 ### Otros hallazgos importantes que no son duplicación de pantalla
 
+- **`tienePermiso` envuelta por el semáforo** (`24:166–:173`): solo suma acceso a «Producción actual» para `Supervisor` con `paletas` y `Mantenimiento` con `moduloMantenimiento`; nunca quita, pero no se puede revocar (sección 7.1).
 - **Guardado completo de documentos** (`saveRecords`, `saveWorkers`, `saveRotaciones`, `savePrecios`): dos personas guardando a la vez pueden perder datos.
 - **Escuchas sin cerrar al cerrar sesión** (10 de `02` y varias más) y **2 escuchas del mismo documento** (`avancesTurno`, `users`).
 - **Reloj del equipo** en Avance, Paletas y registro en vez de la hora del servidor.
