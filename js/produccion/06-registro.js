@@ -71,7 +71,7 @@ function calcDerivedLegacy(r){
   const planMinVel = conVelocidad ? planificadoH * 60 : 0;
   const npMinVel = conVelocidad ? pNoProg * 60 : 0;
   const efectivaVel = conVelocidad ? efectiva : 0;
-  const cumplimiento = programada > 0 ? efectiva / programada : 0;
+  const cumplimiento = GlacialIndicadores.cumplimiento(efectiva, programada) ?? 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
   const ratioEfectivo = GlacialIndicadores.ratio(efectiva, horasEfectivas) ?? 0;
@@ -131,7 +131,7 @@ function calcDerivedCuadro(cuadro){
   const planMinVel = conVelocidad ? planificadoH * 60 : 0;
   const npMinVel = conVelocidad ? pNoProg * 60 : 0;
   const efectivaVel = conVelocidad ? efectiva : 0;
-  const cumplimiento = programada > 0 ? efectiva / programada : 0;
+  const cumplimiento = GlacialIndicadores.cumplimiento(efectiva, programada) ?? 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
   const ratioEfectivo = GlacialIndicadores.ratio(efectiva, horasEfectivas) ?? 0;
@@ -187,7 +187,7 @@ function calcDerivedMulti(r){
   const rendimiento = rendimientoReal ?? 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
   const oee = GlacialIndicadores.oee(GlacialIndicadores.disponibilidad(planMinVel, npMinVel), rendimientoReal) ?? 0;
-  const cumplimiento = programada > 0 ? efectiva / programada : 0;
+  const cumplimiento = GlacialIndicadores.cumplimiento(efectiva, programada) ?? 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
   const ratioEfectivo = GlacialIndicadores.ratio(efectiva, horasEfectivas) ?? 0;

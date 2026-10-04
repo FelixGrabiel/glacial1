@@ -782,9 +782,7 @@ function resumenProgramacionCombinacionTurnos(linea, fecha, turnos, marca, prese
     cantidadProgramada > 0 && unidadesProducidas > cantidadProgramada;
 
   const porcentajeAvance =
-    cantidadProgramada > 0
-      ? (unidadesProducidas / cantidadProgramada) * 100
-      : 0;
+    (GlacialIndicadores.cumplimiento(unidadesProducidas, cantidadProgramada) ?? 0) * 100;
 
   return {
 
@@ -2935,9 +2933,7 @@ function productosProduccionActual(fecha, turnos){
         g.cantidadProgramada > 0 && g.unidadesProducidas > g.cantidadProgramada;
 
       const porcentajeAvance =
-        g.cantidadProgramada > 0
-          ? (g.unidadesProducidas / g.cantidadProgramada) * 100
-          : 0;
+        (GlacialIndicadores.cumplimiento(g.unidadesProducidas, g.cantidadProgramada) ?? 0) * 100;
 
       return {
         ...g,

@@ -9,7 +9,7 @@ function ctx(s06,s09){const sb={console,Math,Number,Array,Object};vm.createConte
   vm.runInContext(leer('js/nucleo/45-indicadores.js'),sb);
   const agr=/function glacialAgregarDerivados/.test(s06)?extraer(s06,'glacialAgregarDerivados'):'';
   vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+extraer(s06,'calcDerivedCuadro')+extraer(s06,'calcDerivedLegacy')+extraer(s06,'calcDerivedMulti')+extraer(s06,'calcDerived')+agr+'\nvar agruparMermas=r=>({totalUnidades:0});var produccionEfectivaRecord=r=>0;\n'+extraer(s09,'calcularKPIsPlanta'),sb);return sb;}
-const ref=process.env.REF_ANTES||'HEAD';
+const ref=process.env.REF_ANTES||'1dd179d';
 const f06='js/produccion/06-registro.js',f09='js/produccion/09-resumen.js';
 const nuevo=ctx(leer(f06),leer(f09)),antes=ctx(previo(f06,ref),previo(f09,ref));
 const cuadro=(h,prog,np,ef,vel)=>({horasTurno:h,paradasProgramadas:prog?[{tiempoMin:prog}]:[],paradasNoProgramadas:np?[{tiempoMin:np}]:[],ratioNominal:vel,produccion:{efectiva:ef,programada:ef,sopladas:ef}});

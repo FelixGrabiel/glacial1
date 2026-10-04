@@ -200,11 +200,34 @@
 
   // Producción de una presentación. Si el supervisor corrigió la finalización
   // (producción final), esa cifra manda; si no, la de Paletas.
-  function producidoDe(x){
-    const c=x?.op?.produccionFinalCorregida;
-    if(c!==undefined && c!==null && c!=='' && Number.isFinite(Number(c)))return Number(c);
-    return num(resumenProgramacionCombinacionTurnos(
+  /* Producido vigente (módulo de indicadores): turno en curso → Paletas; turno cerrado → registro del turno.
+     Si el turno cerrado no tiene registro, no se sustituye por Paletas: devuelve 0 y producidoSinRegistro(x) es true. */
+  const quitarTilde=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+  function registroDeTurno(x){
+    let recs=[];try{recs=(typeof loadRecords==='function'?loadRecords():[])||[];}catch(_){recs=[];}
+    const turno=quitarTilde(x.turno),marca=quitarTilde(x.marca),pres=quitarTilde(x.presentacion);
+    const delTurno=recs.filter(r=>r&&r.linea===x.linea&&r.fecha===x.fecha&&quitarTilde(r.turno)===turno);
+    if(!delTurno.length)return null;
+    let suma=0;
+    delTurno.forEach(r=>{
+      const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
+      cuadros.forEach(q=>{
+        if(quitarTilde(q&&q.marca)===marca&&quitarTilde(q&&q.presentacion)===pres)suma+=num(q&&q.produccion&&q.produccion.efectiva);
+      });
+    });
+    return suma;
+  }
+  function producidoVigenteDe(x){
+    const paletas=num(resumenProgramacionCombinacionTurnos(
       x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas);
+    const t=turnoVigente();
+    const enCurso=!!(t&&t.activo&&t.fecha===x.fecha&&t.turno===x.turno);
+    return GlacialIndicadores.produccionVigente({turnoEnCurso:enCurso,paletas,registro:enCurso?null:registroDeTurno(x)});
+  }
+  const producidoSinRegistro=x=>producidoVigenteDe(x)===null;
+  function producidoDe(x){
+    const v=producidoVigenteDe(x);
+    return v===null?0:v;
   }
 
   function secuenciaPlanificada(linea,fecha,turnoPlan){
@@ -1053,7 +1076,7 @@
           <div class="pa-line-kpis">
             <div class="pa-line-kpi"><small>PROGRAMACIÓN VIGENTE</small><strong>${Math.round(g.totalProg).toLocaleString('es-PE')} <span>UND</span></strong></div>
             <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong></div>
-            <div class="pa-line-kpi"><small>CUMPLIMIENTO</small><strong>${g.totalProg>0 ? Math.min(999,(g.totalProd/g.totalProg)*100).toFixed(1) : '0.0'}<span>%</span></strong></div>
+            <div class="pa-line-kpi"><small>CUMPLIMIENTO</small><strong>${(()=>{const c=GlacialIndicadores.cumplimiento(g.totalProd,g.totalProg);return c==null?'0.0':Math.min(999,c*100).toFixed(1);})()}<span>%</span></strong></div>
             <div class="pa-line-kpi" title="Producido ÷ (tiempo transcurrido − pausas programadas). Se usa en la proyección «Si las paradas siguen igual»."><small>RENDIMIENTO DEL TURNO</small><strong>${fmtRatio(g.ratios?.ratioTurno)} <span>UND/h</span></strong></div>
             <div class="pa-line-kpi" title="Ratio = producido ÷ horas efectivas. Horas efectivas = tiempo transcurrido − (paradas programadas + no programadas)."><small>RATIO</small><strong>${fmtRatio(g.ratios?.ratioEfectivo)} <span>UND/h</span></strong></div>
             ${g.tiempos?.enCurso ? `<div class="pa-line-kpi"><small>RATIO NECESARIO</small><strong>${fmtRatio(g.ratios?.ratioNecesario)} <span>UND/h</span></strong></div>` : ''}

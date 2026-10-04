@@ -407,7 +407,7 @@
     const dispVF=GlacialIndicadores.disponibilidad(planV,Math.max(0,planV-availV));
     const oeeF=GlacialIndicadores.oee(dispVF,rendF);
     const oee=oeeF==null?null:oeeF*100;
-    return {produccion:prod,programado:progU,producidoProg:prodU,cumplimiento:progU>0?prodU/progU*100:null,
+    return {produccion:prod,programado:progU,producidoProg:prodU,cumplimiento:GlacialIndicadores.cumplimiento(prodU,progU)==null?null:GlacialIndicadores.cumplimiento(prodU,progU)*100,
       horasEfectivas:horas,ratio:horas>0?prodT/horas:null,disponibilidad:disp,merma:prod>0?merma/prod*100:null,
       mermaUnidades:merma,rendimiento:rend,oee,cobertura:prodConT>0?prodV/prodConT*100:null,faltantes:[...faltantes],
       npMin,progMin,planMin:plan,n:partes.length};

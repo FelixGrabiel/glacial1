@@ -98,7 +98,7 @@
       const programado=Math.round(num(f.programado)),producido=Math.round(num(f.producido));
       const ratio=f.ratios&&f.ratios.ratioEfectivo!=null?Math.round(f.ratios.ratioEfectivo):null;
       return {linea:u.linea,nombre:nombreLinea(u.linea),turno:u.turno,programado,producido,
-        cumplimiento:programado>0?+(producido/programado*100).toFixed(1):null,
+        cumplimiento:GlacialIndicadores.cumplimiento(producido,programado)==null?null:+(GlacialIndicadores.cumplimiento(producido,programado)*100).toFixed(1),
         ratio,horasEfectivas:+(u.enMarcha/60).toFixed(2),minNoProg:Math.round(u.np),minProg:Math.round(u.prog),
         estado:f.estado||''};
     });
@@ -120,7 +120,7 @@
     }
     return {
       fecha,turno,generadoMs:ahoraMs(),
-      lineas,totales:{programado:totProg,producido:totProd,cumplimiento:totProg>0?+(totProd/totProg*100).toFixed(1):null},
+      lineas,totales:{programado:totProg,producido:totProd,cumplimiento:GlacialIndicadores.cumplimiento(totProd,totProg)==null?null:+(GlacialIndicadores.cumplimiento(totProd,totProg)*100).toFixed(1)},
       paradas,
       personal:{registrado:personal.registrado,total:personal.total,asistieron:personal.asistieron,enComision:personal.enComision||0,faltas:personal.faltas,
         tardanzas:personal.tardanzas,descansos:personal.descansos,otros:personal.otros,sinEstado:personal.sinEstado,porDia:personal.porDia},

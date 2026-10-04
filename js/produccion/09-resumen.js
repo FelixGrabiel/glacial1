@@ -2427,7 +2427,7 @@ function rsDatosIndustriales(records){
     const nominal=nominales.length?nominales.reduce((a,b)=>a+b,0)/nominales.length:0;
     const merma=rr.reduce((a,r)=>a+rsMerma(r),0);
     const personal=rr.reduce((a,r)=>Math.max(a,rsPersonal(r)),0);
-    return {linea,programado,producido,cumplimiento:programado?producido/programado:0,
+    return {linea,programado,producido,cumplimiento:GlacialIndicadores.cumplimiento(producido,programado)??0,
       paradas,minParadas,minEfectivos,ratio,nominal,merma,personal};
   }).filter(x=>x.programado||x.producido||x.minParadas||x.merma);
   const causas=new Map();
@@ -2477,7 +2477,7 @@ function renderResumenIndustrial(records,rangoLabel){
   const totalParadas=data.porLinea.reduce((a,x)=>a+x.minParadas,0);
   const totalProg=data.porLinea.reduce((a,x)=>a+x.programado,0);
   const totalProd=data.porLinea.reduce((a,x)=>a+x.producido,0);
-  const cumplimiento=totalProg?totalProd/totalProg:0;
+  const cumplimiento=GlacialIndicadores.cumplimiento(totalProd,totalProg)??0;
   const totalMerma=data.porLinea.reduce((a,x)=>a+x.merma,0);
   const mermaPct=totalProd>0?totalMerma/totalProd:0;          // misma fórmula que la tarjeta del Resumen: suma de mermas ÷ producción efectiva
   const horasEf=data.porLinea.reduce((a,x)=>a+x.minEfectivos,0)/60;

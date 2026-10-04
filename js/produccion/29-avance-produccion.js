@@ -611,7 +611,7 @@ function avLineaSnapshot(linea,hora,tipo){
     fin:tipo==='CIERRE'?(avFinLinea(linea)||corte):'',
     productos,produccionTotal,
     programado:avProgramadoLinea(linea),
-    cumplimiento:avProgramadoLinea(linea)>0?(produccionTotal/avProgramadoLinea(linea))*100:0,
+    cumplimiento:(GlacialIndicadores.cumplimiento(produccionTotal,avProgramadoLinea(linea))??0)*100,
     ratio,unidadRatio:avUnidadRatio(linea),
     consumo:avConsumoLinea(linea,productos,ratio),
     personal:avPersonalLinea(linea),paradas,totalParadas,
@@ -638,7 +638,7 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
   const personalSet=lineas.reduce((s,l)=>s+l.personal,0);
   const totalPlanta=lineas.reduce((s,l)=>s+l.produccionTotal,0);
   const totalProgramado=lineas.reduce((s,l)=>s+avNum(l.programado),0);
-  const cumplimiento=totalProgramado>0?(totalPlanta/totalProgramado)*100:0;
+  const cumplimiento=(GlacialIndicadores.cumplimiento(totalPlanta,totalProgramado)??0)*100;
   const ctx=avCtx();
   const snap={
     id:avSnapshotId(tipo,hora),fecha:avanceEstado.fecha,turno:avanceEstado.turno,

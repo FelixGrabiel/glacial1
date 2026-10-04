@@ -7,8 +7,8 @@ const previo=(f,ref)=>cp.execSync('git show '+ref+':'+f,{cwd:R,maxBuffer:1e8}).t
 function extraer(src,n){const m=new RegExp('function[ ]+'+n+'[ ]*[(]').exec(src);if(!m)throw new Error(n);let i=src.indexOf('{',m.index),d=0,j=i;for(;j<src.length;j++){if(src[j]==='{')d++;else if(src[j]==='}'&&!--d)break;}return src.slice(m.index,j+1);}
 function ctx(s06,s09,s08){const sb={console,Math,Number,Array,Object};vm.createContext(sb);sb.window=sb;
   vm.runInContext(leer('js/nucleo/45-indicadores.js'),sb);
-  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+extraer(s06,'calcDerivedCuadro')+extraer(s06,'calcDerivedLegacy')+extraer(s06,'calcDerivedMulti')+extraer(s06,'calcDerived')+'\nvar agruparMermas=r=>({totalUnidades:0});var produccionEfectivaRecord=r=>0;\n'+extraer(s09,'calcularKPIsPlanta')+extraer(s08,'xlEstadisticasLinea'),sb);return sb;}
-const ref=process.env.REF_ANTES||'HEAD';
+  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+extraer(s06,'calcDerivedCuadro')+extraer(s06,'calcDerivedLegacy')+extraer(s06,'calcDerivedMulti')+extraer(s06,'calcDerived')+(/function glacialAgregarDerivados/.test(s06)?extraer(s06,'glacialAgregarDerivados'):'')+'\nvar agruparMermas=r=>({totalUnidades:0});var produccionEfectivaRecord=r=>0;\n'+extraer(s09,'calcularKPIsPlanta')+extraer(s08,'xlEstadisticasLinea'),sb);return sb;}
+const ref=process.env.REF_ANTES||'486e494';
 const f06='js/produccion/06-registro.js',f09='js/produccion/09-resumen.js',f08='js/produccion/08-graficos.js';
 const nuevo=ctx(leer(f06),leer(f09),leer(f08)),antes=ctx(previo(f06,ref),previo(f09,ref),previo(f08,ref));
 const cuadro=(h,prog,np,ef)=>({horasTurno:h,paradasProgramadas:prog?[{tiempoMin:prog}]:[],paradasNoProgramadas:np?[{tiempoMin:np}]:[],ratioNominal:2400,produccion:{efectiva:ef,programada:ef,sopladas:ef}});

@@ -10,7 +10,7 @@ function ctx(src06){const sb={console,Math,Number,Array,Object};vm.createContext
   vm.runInContext(leer('js/nucleo/45-indicadores.js'),sb);
   vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+extraer(src06,'calcDerivedCuadro')+extraer(src06,'calcDerivedLegacy')+';',sb);return sb;}
 const nuevo=ctx(leer('js/produccion/06-registro.js'));
-const ref=process.env.REF_ANTES||'HEAD';
+const ref=process.env.REF_ANTES||'a3de9b0';
 const antes=ctx(previo('js/produccion/06-registro.js',ref));
 const cuadros=[
  {horasTurno:8,paradasProgramadas:[{tiempoMin:60}],paradasNoProgramadas:[{tiempoMin:45}],ratioNominal:2400,produccion:{efectiva:14400,programada:15000,sopladas:15000}},

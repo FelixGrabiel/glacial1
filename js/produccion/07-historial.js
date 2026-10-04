@@ -890,7 +890,7 @@ function verReporteHistorial(id){
   );
   const totalParadasProgramadas=paradasProgramadas.reduce((s,p)=>s+p.minutos,0);
   const totalParadasNoProgramadas=paradasNoProgramadas.reduce((s,p)=>s+p.minutos,0);
-  const cumplimiento=totalProgramado>0 ? (totalEfectivo/totalProgramado)*100 : 0;
+  const cumplimiento=(GlacialIndicadores.cumplimiento(totalEfectivo,totalProgramado) ?? 0)*100;
   const diferenciaProduccion=totalEfectivo-totalProgramado;
   const faltanteProduccion=Math.max(0,totalProgramado-totalEfectivo);
   const excedenteProduccion=Math.max(0,totalEfectivo-totalProgramado);
