@@ -196,7 +196,7 @@ const AUTH_DOMINIO = 'glacial.app';
    Para ensayar la etapa 2: cambiar únicamente la fila PRUEBAS (REGLAS_ESTRICTAS:true,
    LOGIN_LEGACY_PERMITIDO:false). La fila PRODUCCION no se toca hasta el paso a producción. */
 const ETAPAS_POR_ENTORNO = {
-  PRODUCCION: { LOGIN_LEGACY_PERMITIDO: true, REGLAS_ESTRICTAS: false },
+  PRODUCCION: { LOGIN_LEGACY_PERMITIDO: false, REGLAS_ESTRICTAS: true },
   PRUEBAS:    { LOGIN_LEGACY_PERMITIDO: false, REGLAS_ESTRICTAS: true }
 };
 
