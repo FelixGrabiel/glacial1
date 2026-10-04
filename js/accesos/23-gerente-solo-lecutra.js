@@ -1,0 +1,83 @@
+/* GLACIAL: Jefatura y Gerencia en modo de consulta.
+   Cargar después de los módulos 02–22 y antes de 12-init.js.
+   Controla la interfaz y las funciones de guardado de esta app;
+   la seguridad de Firestore requiere Firebase Authentication y reglas por rol. */
+(function instalarGerenteSoloLectura(){
+  'use strict';
+
+  const rolesGerencia = ROLES_SOLO_CONSULTA;
+  const permisosConsulta = new Set(PERMISOS_SOLO_CONSULTA);
+
+  function esGerenteSoloLectura(usuario){
+    return esUsuarioSoloConsulta(usuario);
+  }
+  globalThis.esGerenteSoloLectura = esGerenteSoloLectura;
+
+  // Las cuentas existentes pueden conservar permisos: 'todos' en Firestore.
+  // Para este rol, la lista efectiva siempre es la de consulta.
+  /* Permisos de CONSULTA de tareo: independientes por área y asignables desde
+     Gestión de usuarios (no se deducen del nombre del rol). Si la cuenta aún no
+     tiene una lista guardada (cuentas antiguas o 'todos'), conserva la consulta
+     de ambos tareos que ya tenía. */
+  const PERMISOS_VER_TAREO = ['ver_tareo_produccion','ver_tareo_mantenimiento','tareoGeneral'];
+
+  const permisosAnteriores = normalizarPermisosUsuario;
+  normalizarPermisosUsuario = function(usuario){
+    if(!esGerenteSoloLectura(usuario))
+      return permisosAnteriores.apply(this, arguments);
+
+    const base = Array.from(permisosConsulta)
+      .filter(p => !PERMISOS_VER_TAREO.includes(p));
+    const guardados = Array.isArray(usuario.permisos) ? usuario.permisos : null;
+    const tareo = guardados
+      ? guardados.filter(p => PERMISOS_VER_TAREO.includes(p))
+      : ['ver_tareo_produccion','ver_tareo_mantenimiento'];
+    return [...new Set([...base, ...tareo])];
+  };
+
+  // Evita que un cambio posterior en los roles administrativos conceda
+  // automáticamente todos los permisos a Gerencia.
+  const todosAnteriores = rolTieneTodosLosPermisos;
+  rolTieneTodosLosPermisos = function(rol){
+    return rolesGerencia.has(rol) ? false : todosAnteriores.apply(this, arguments);
+  };
+
+  // 02-estado.js también autorizaba programar por el nombre del rol.
+  const programarAnterior = puedeProgramarPaletas;
+  puedeProgramarPaletas = function(){
+    return esGerenteSoloLectura(state.user)
+      ? false : programarAnterior.apply(this, arguments);
+  };
+
+  // En Gestión de usuarios, al elegir Gerente solo se marcan vistas.
+  const cambiarRolAnterior = cambiarRolNuevoUsuario;
+  cambiarRolNuevoUsuario = function(){
+    const resultado = cambiarRolAnterior.apply(this, arguments);
+    if(!rolesGerencia.has(document.getElementById('nu-rol')?.value)){
+      return resultado;
+    }
+    document.querySelectorAll('.permiso-check').forEach(c => {
+      c.checked = permisosConsulta.has(c.value);
+      c.disabled = !permisosConsulta.has(c.value);
+    });
+    const todos = document.getElementById('nu-permisos-todos');
+    if(todos){ todos.checked = false; todos.disabled = true; }
+    return resultado;
+  };
+
+  // Segunda barrera para llamadas internas de guardado, aunque una pantalla
+  // antigua deje visible por error un botón de edición.
+  [
+    'saveUsers', 'saveRecords', 'saveWorkers', 'saveRotaciones',
+    'saveTareos', 'savePrecios', 'savePaletas', 'saveProgramaciones'
+  ].forEach(nombre => {
+    const guardarAnterior = globalThis[nombre];
+    if(typeof guardarAnterior !== 'function') return;
+    globalThis[nombre] = function(...args){
+      if(esGerenteSoloLectura(state.user)){
+        throw new Error('Jefatura y Gerencia tienen acceso de solo lectura. No se guardaron cambios.');
+      }
+      return guardarAnterior.apply(this, args);
+    };
+  });
+})();

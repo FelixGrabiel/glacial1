@@ -1,0 +1,171 @@
+// =====================================================================
+// GLACIAL · REGLAS DE FIRESTORE — ETAPA 2 (ESTRICTAS: exigen inicio de sesión)
+// ARCHIVO ÚNICO Y FINAL. Incluye el rol de la cuenta compartida de Mantenimiento
+// (antes en firestore.rules.mantenimiento.txt, ya eliminado).
+// Firestore solo admite UN conjunto de reglas activo: se publica este archivo
+// completo, reemplazando lo que haya.
+// =====================================================================
+// ⚠ NO publicar hasta que:
+//   1. Todos los usuarios estén migrados a cuentas seguras
+//      (botón "Migrar usuarios a cuentas seguras") y hayan entrado
+//      al menos una vez con su contraseña nueva.
+//   2. LOGIN_LEGACY_PERMITIDO esté en false y REGLAS_ESTRICTAS en true (js/nucleo/01-config.js).
+//   3. Se haya probado el sistema con las reglas de la etapa 1.
+// Si algo falla después de publicar, vuelve a pegar las reglas de la
+// etapa 1 (no se pierde ningún dato).
+//
+// Cómo funcionan:
+//   - Solo entra quien tenga sesión de Firebase Authentication Y figure
+//     en el documento sync/perfiles (uid -> rol). Quitar a un usuario de
+//     la lista de usuarios le quita el acceso.
+//   - users, perfiles y accesos solo los escribe el Administrador.
+//   - Los datos operativos los escriben usuarios autenticados.
+//   - CUENTA COMPARTIDA DE MANTENIMIENTO (rol 'mantenimiento_compartido'):
+//       · Lee solo los documentos de lecturaMant() (no precios, no borradores,
+//         no rotaciones de Producción). El código tampoco los escucha para ese rol.
+//       · FASE C: opera líneas (detener, pausar, intervenir, reanudar). Para eso recibe
+//         DOS permisos de escritura y nada más:
+//           1) sync/programaciones: puede actualizar el documento, PERO sin agregar ni
+//              quitar programaciones (mismo número de items) y sin otros campos.
+//              Las reglas NO pueden mirar qué cambió dentro de cada item: la
+//              trazabilidad la da la bitácora y el PIN, no una barrera del servidor.
+//           2) bitacoraMantenimiento: crear eventos propios (su uid, hora del servidor).
+//         Además escribe sync/tecnicosMant (PIN de técnicos). Con Cloud Functions
+//         (MANT_PIN_MODO='functions') quitar esa excepción.
+//       · No lee ni escribe auditoriaTareos ni las solicitudes de corrección de tareos.
+//   - Limitación conocida: estas reglas validan QUIÉN eres, no cada campo
+//     que cambias. El control fino por permiso (tareo, paletas, etc.)
+//     sigue en la aplicación; endurecerlo por rol es una etapa posterior.
+// =====================================================================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function perfiles() {
+      return get(/databases/$(database)/documents/sync/perfiles).data.map;
+    }
+    function autenticado() {
+      return request.auth != null && request.auth.uid in perfiles();
+    }
+    function esAdmin() {
+      return autenticado() && perfiles()[request.auth.uid].rol == 'Administrador';
+    }
+    function esMantCompartido() {
+      return autenticado() && perfiles()[request.auth.uid].rol == 'mantenimiento_compartido';
+    }
+    // RRHH = permiso moduloRRHH (o Administrador) y NO un rol de solo consulta
+    // (Jefatura/Gerencia tienen moduloRRHH solo para ver).
+    function esRRHH() {
+      return autenticado() && !(perfiles()[request.auth.uid].rol in
+        ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente']) && (
+          esAdmin() ||
+          (perfiles()[request.auth.uid].permisos is list &&
+           'moduloRRHH' in perfiles()[request.auth.uid].permisos)
+        );
+    }
+    // Supervisor de Mantenimiento (o Administrador): configura la duración de la identificación de técnicos.
+    // Las reglas no distinguen el cargo exacto: se exige el permiso de Mantenimiento y que no sea un rol de solo consulta.
+    function esSupervisorMtto() {
+      return autenticado() && !esMantCompartido()
+        && !(perfiles()[request.auth.uid].rol in
+          ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente'])
+        && (esAdmin() || (perfiles()[request.auth.uid].permisos is list
+            && ('moduloMantenimiento' in perfiles()[request.auth.uid].permisos
+                || 'gestionar_rotacion_mantenimiento' in perfiles()[request.auth.uid].permisos)));
+    }
+    // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
+    function programacionesSinAltasNiBajas() {
+      return resource != null
+        && request.resource.data.keys().hasOnly(['items', 'updatedAt'])
+        && request.resource.data.items is list
+        && request.resource.data.items.size() == resource.data.items.size();
+    }
+    function lecturaMant(doc) {
+      return doc in [
+        'users', 'workers', 'rotacionesMantenimiento', 'rotacionMaquinistas',
+        'tareos', 'programaciones', 'paletas', 'avancesTurno', 'records',
+        'tecnicosMant', 'configMantenimiento'
+      ];
+    }
+
+    match /sync/{doc} {
+      // El perfil propio debe poder leerse para saber quién es quién.
+      // 'accesos' (usuario -> correo interno) es público: lo necesita el login.
+      allow read: if doc == 'accesos' || request.auth != null && (
+        doc == 'perfiles' ||
+        (autenticado() && (!esMantCompartido() || lecturaMant(doc)))
+      );
+
+      allow write:
+        // Duración de la identificación de técnicos: solo supervisor de Mantenimiento / Administrador.
+        (doc == 'configMantenimiento' && esSupervisorMtto()) ||
+        // Cuenta compartida: los PIN de técnicos y operar líneas (programaciones, acotado).
+        (esMantCompartido() && doc == 'tecnicosMant') ||
+        (esMantCompartido() && doc == 'programaciones' && programacionesSinAltasNiBajas()) ||
+        (!esMantCompartido() && (
+          (doc in ['users', 'perfiles', 'accesos', 'configTareo'] && esAdmin()) ||
+          (autenticado() && doc in [
+            'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
+            'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',
+            'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'
+          ])
+        ));
+    }
+
+    // Hora del servidor (bloqueo de tareos): cada usuario solo escribe su propio documento
+    // y solo con la hora del servidor.
+    match /relojServidor/{id} {
+      allow read: if autenticado() && id == request.auth.uid;
+      allow create, update: if autenticado() && id == request.auth.uid
+        && request.resource.data.keys().hasOnly(['t'])
+        && request.resource.data.t == request.time;
+      allow delete: if false;
+    }
+
+    // Solicitudes de corrección de tareos bloqueados.
+    //  - Cualquier usuario con sesión (menos la cuenta compartida) crea la suya, con su uid
+    //    y la hora del servidor, siempre como 'Pendiente'.
+    //  - Cada quien lee las suyas; RRHH lee todas y solo puede marcarlas como atendidas.
+    //  - Nadie las borra.
+    match /solicitudesCorreccionTareo/{id} {
+      allow read: if autenticado() && !esMantCompartido()
+        && (esRRHH() || resource.data.uid == request.auth.uid);
+      allow create: if autenticado() && !esMantCompartido()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.estado == 'Pendiente'
+        && request.resource.data.creadoEn == request.time;
+      allow update: if esRRHH()
+        && request.resource.data.estado == 'Atendida'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estado', 'atendidaPor', 'atendidaPorNombre', 'atendidaEn', 'nota']);
+      allow delete: if false;
+    }
+
+    // Bitácora de acciones sobre líneas (Fase C): solo se agrega, nunca se edita ni se borra.
+    // Cada evento lleva el uid de quien lo escribe y la hora del servidor.
+    match /bitacoraMantenimiento/{id} {
+      allow read: if autenticado();
+      allow create: if autenticado()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.timestamp == request.time
+        && request.resource.data.keys().hasAll(['uid', 'timestamp', 'accion', 'linea', 'tecnicoNombre'])
+        && request.resource.data.accion in ['DETENER', 'PAUSAR', 'INTERVENIR', 'REANUDAR'];
+      allow update, delete: if false;
+    }
+
+    // Bitácora del tareo: se puede leer y agregar, nunca modificar ni borrar.
+    // Al crear, el evento debe llevar el uid de quien lo escribe (no se puede
+    // registrar a nombre de otro) y la hora del servidor (no la del dispositivo).
+    match /auditoriaTareos/{evento} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if autenticado() && !esMantCompartido()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.timestamp == request.time;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
