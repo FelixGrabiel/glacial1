@@ -773,12 +773,12 @@ const PARADAS_PROGRAMADAS = [
    sistema funciona igual). Ver js/34-integraciones.js.
    ========================================================= */
 
-// En PRUEBAS quedan vacías: nada se escribe en la hoja real.
-const SHEETS_URL = ENTORNO_PRUEBAS
-  ? ''
-  : 'https://script.google.com/macros/s/AKfycbxyG6ylq9N20W_svlnZB9-zk5a-KaLSEPcAFamRTLjmMwcV9FxUa8LN4-AoclqhTYo1/exec';
+// APAGADA en TODOS los entornos (PRODUCCIÓN y PRUEBAS): con URL o clave vacías la app no envía nada
+// a Google Sheets. El código de la integración (34-integraciones.js) se conserva. Para reactivarla,
+// escribir aquí la URL del Apps Script y una clave NUEVA (no subir la clave real a un repositorio público).
+const SHEETS_URL = '';
 
-const SHEETS_CLAVE = ENTORNO_PRUEBAS ? '' : 'jefatura_glacial2626';
+const SHEETS_CLAVE = '';
 
 
 /* =========================================================

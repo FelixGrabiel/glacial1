@@ -171,7 +171,7 @@ if ($faltan) { "FALTAN:"; $faltan } else { "OK: $($rutas.Count) scripts existen 
 Falla hacia el lado seguro: un dominio nuevo que no esté en la lista abre en PRUEBAS. Para publicar en otro
 dominio, agrégalo a `DOMINIOS_PRODUCCION` en `js/nucleo/01-config.js`.
 
-En PRUEBAS: `SHEETS_URL` y `SHEETS_CLAVE` quedan vacías (no se escribe en la hoja real), aparece una franja roja
+`SHEETS_URL` y `SHEETS_CLAVE` están vacías en TODOS los entornos (integración con Google Sheets apagada; el código se conserva). En PRUEBAS además aparece una franja roja
 "BASE DE PRUEBAS" y el título de la pestaña empieza con `[PRUEBAS]`. Al iniciar, la consola del navegador muestra
 qué proyecto se usa.
 
