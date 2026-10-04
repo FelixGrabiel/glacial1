@@ -464,7 +464,8 @@
     }
     if(prog>0){
       const c=prod/prog;
-      return {nivel:c>=UMBRALES.cierreVerde?'verde':c>=UMBRALES.cierreAmbar?'ambar':'roja',
+      const metaCumpl=(typeof window.glacialMetasIndicadores==='function'?window.glacialMetasIndicadores():GlacialIndicadores.METAS_INICIALES).cumplimiento;   // tabla única de metas
+      return {nivel:GlacialIndicadores.colorSegunMeta(c*100,metaCumpl),
         razon:c,motivo:'Cumplimiento de la programación'};
     }
     return {nivel:'gris',motivo:'Sin programación'};

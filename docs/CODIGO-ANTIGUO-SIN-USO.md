@@ -56,3 +56,12 @@ Se lista, no se borra. Cada commit de la Parte 2 agrega su sección.
 | `js/produccion/24-semaforo-produccion-actual.js` | `turnoCodigo` y `fechaLocal` locales (el primero ya no se usa). |
 | `js/produccion/41-tareo-bloqueo.js`, `13-tareo.js`, `07-historial.js` | Siguen calculando «hoy» con la fecha del calendario del equipo; no estaban en la lista de pantallas de este commit. |
 | `js/produccion/29-avance-produccion.js` | `avHoraActual()` sigue usando la hora local del equipo (solo para mostrar la hora de corte). |
+
+## Commit 8 — metas y colores
+
+| Archivo | Qué queda sin uso o fuera de la tabla |
+|---|---|
+| `js/produccion/23b-tiempos-linea.js` | `UMBRALES.cierreVerde` y `UMBRALES.cierreAmbar` (el cierre de turno usa la meta de cumplimiento de la tabla). `UMBRALES.enCursoVerde/Ambar` (ritmo vs. necesario) **no están en la tabla de metas** y siguen fijos; `UMBRALES_PROYECCION` tampoco. |
+| `js/produccion/47-analisis-paradas.js` | `DEF_METAS` (90/80) queda solo como respaldo histórico; el valor inicial sale del módulo. |
+| `js/produccion/08-graficos.js` | `METAS.calidad = 0,99` (la calidad no se mide) y los cortes `METAS.merma * 1.5` de colores en 14 (el ámbar de la tabla es 3 %, igual a 1,5 × 2 %, pero no se lee de la tabla). |
+| `js/produccion/09-resumen.js`, `14-exportar-general.js` | Los colores por meta siguen usando `METAS` (se actualiza desde la tabla en 49), no `colorIndicador` directamente. |

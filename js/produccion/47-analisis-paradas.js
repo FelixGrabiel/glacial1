@@ -82,9 +82,8 @@
   const normVel=k=>norm(k).replace(/\s+/g,'');
   function metas(){
     const m=remota.metas||{};
-    const verde=num(m.verdePct)>0?num(m.verdePct):DEF_METAS.verdePct;
-    const ambar=num(m.ambarPct)>0?num(m.ambarPct):DEF_METAS.ambarPct;
-    return {verdePct:verde,ambarPct:Math.min(ambar,verde)};
+    const d=GlacialIndicadores.normalizarMetas({disponibilidad:{verde:m.verdePct,ambar:m.ambarPct}}).disponibilidad;
+    return {verdePct:d.verde,ambarPct:d.ambar};
   }
   function velocidades(){
     const o={},v=remota.velocidades||{};
@@ -98,9 +97,8 @@
   window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{}),metasReporte:Object.assign({},remota.metasReporte||{})});
   window.glacialConfigIndicadoresOyentes=window.glacialConfigIndicadoresOyentes||[];
   const nivelDisp=p=>{
-    if(p==null)return 'gris';
-    const m=metas(),v=p*100;
-    return v>=m.verdePct?'verde':v>=m.ambarPct?'ambar':'roja';
+    const m=metas();
+    return GlacialIndicadores.colorSegunMeta(p==null?null:p*100,{verde:m.verdePct,ambar:m.ambarPct});
   };
 
   function escucharConfig(){

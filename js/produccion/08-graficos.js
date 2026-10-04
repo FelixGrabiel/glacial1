@@ -14,13 +14,15 @@
    ========================================================= */
 
 const METAS = {
-  oee: 0.85,
-  disponibilidad: 0.90,
-  rendimiento: 0.95,
+  /* Valores iniciales de la tabla única de metas (GlacialIndicadores.METAS_INICIALES); 49-resumen-indicadores.js
+     los reemplaza por lo guardado en sync/configIndicadores. */
+  oee: GlacialIndicadores.METAS_INICIALES.oee.verde / 100,
+  disponibilidad: GlacialIndicadores.METAS_INICIALES.disponibilidad.verde / 100,
+  rendimiento: GlacialIndicadores.METAS_INICIALES.ratio.verde / 100,
   calidad: 0.99,
 
   /* % máximo de merma aceptable sobre producción efectiva */
-  merma: 0.02
+  merma: GlacialIndicadores.METAS_INICIALES.merma.verde / 100
 };
 
 

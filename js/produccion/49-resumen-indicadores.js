@@ -30,13 +30,7 @@
 
   const FECHA_CAMBIO='2026-10-04';
   const UMBRAL_DIF=0.02;                       // 2 % entre registro, Paletas y bitácora
-  const DEF_METAS={
-    cumplimiento:{verde:95,ambar:85},
-    ratio:{verde:95,ambar:85},                 // % de la velocidad estándar
-    disponibilidad:{verde:90,ambar:80},
-    merma:{verde:2,ambar:3},                   // máximo aceptable (%)
-    oee:{verde:85,ambar:75}
-  };
+  const DEF_METAS=GlacialIndicadores.METAS_INICIALES;                // valores iniciales: los del módulo de indicadores
   const NOMBRES={produccion:'Producción',cumplimiento:'Cumplimiento del plan',ratio:'Ratio (UND/h)',
     disponibilidad:'Disponibilidad',merma:'Merma',oee:'OEE'};
 
@@ -70,24 +64,16 @@
   const cfg=()=>(typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores():null)||{metas:{},velocidades:{},metasReporte:{}};
   function metasReporte(){
     const c=cfg(),r=c.metasReporte||{},m=c.metas||{};
-    const out={};
-    Object.keys(DEF_METAS).forEach(k=>{
-      const o=r[k]||{};
-      const v=num(o.verde)>0?num(o.verde):DEF_METAS[k].verde;
-      const a=num(o.ambar)>0?num(o.ambar):DEF_METAS[k].ambar;
-      out[k]=k==='merma'?{verde:v,ambar:Math.max(a,v)}:{verde:v,ambar:Math.min(a,v)};
-    });
+    const out=GlacialIndicadores.normalizarMetas(r);                  // una sola interpretación de la tabla (módulo)
     // La disponibilidad comparte meta con Análisis de paradas (una sola fuente).
     if(num(m.verdePct)>0){out.disponibilidad={verde:num(m.verdePct),ambar:Math.min(num(m.ambarPct)||DEF_METAS.disponibilidad.ambar,num(m.verdePct))};}
     return out;
   }
   function nivel(ind,valor){
     if(valor==null||!Number.isFinite(valor))return 'gris';
-    const m=metasReporte()[ind];
-    if(!m)return 'gris';
-    if(ind==='merma')return valor<=m.verde?'verde':valor<=m.ambar?'ambar':'roja';
-    return valor>=m.verde?'verde':valor>=m.ambar?'ambar':'roja';
+    return GlacialIndicadores.colorSegunMeta(valor,metasReporte()[ind],ind==='merma'?'menor':'mayor');
   }
+  window.glacialMetasIndicadores=metasReporte;                       // tabla única de metas (en %), la leen 23b y los demás
   function aplicarMetasAlCodigo(){            // las metas que usaba el código fijo (METAS) siguen a Firestore
     try{
       if(typeof METAS==='undefined')return;
