@@ -61,22 +61,20 @@
      CONSTRUCCIÓN DE LOS DATOS DEL RESUMEN
      ========================================================= */
   function personalDeTareo(fecha,turno){
-    const vacio={registrado:false,total:0,asistieron:0,faltas:0,tardanzas:0,descansos:0,otros:0,sinEstado:0,sinSalida:0,salidasEditadas:0,porDia:0};
+    const vacio={registrado:false,total:0,asistieron:0,enComision:0,faltas:0,tardanzas:0,descansos:0,otros:0,sinEstado:0,sinSalida:0,salidasEditadas:0,porDia:0};
     let t=null;
     try{t=typeof tareoBuscar==='function'?tareoBuscar('Producción',fecha,turno==='NOCHE'?'Noche':'Día'):null;}catch(_){t=null;}
     if(!t)return vacio;
     const canonE=typeof tareoEstadoCanonico==='function'?tareoEstadoCanonico:(v=>v);
     const r=Object.assign({},vacio,{registrado:true});
     try{r.porDia=typeof tareoPorDiaActivos==='function'?tareoPorDiaActivos(t).length:0;}catch(_){r.porDia=0;}
-    (Array.isArray(t.personal)?t.personal:[]).forEach(p=>{
-      r.total++;
+    const lista=Array.isArray(t.personal)?t.personal:[];
+    // Criterio único de asistencia (13-tareo.js: tareoResumenAsistencia).
+    const g=window.tareoResumenAsistencia(lista);
+    r.total=g.total;r.asistieron=g.presentes;r.enComision=g.enComision;r.faltas=g.faltas;r.descansos=g.descansos;
+    r.otros=g.otros;r.sinEstado=g.sinRegistrar;r.tardanzas=g.tardanzas;
+    lista.forEach(p=>{
       const e=canonE(p.asistencia);
-      if(!e)r.sinEstado++;
-      else if(['Asistió','Feriado trabajado','Comisión / trabajo externo'].includes(e))r.asistieron++;
-      else if(['Falta por justificar','Falta justificada'].includes(e))r.faltas++;
-      else if(['Descanso','Descanso médico'].includes(e))r.descansos++;
-      else r.otros++;
-      if(num(p.tardanzaMinutos)>0)r.tardanzas++;
       if(e&&p.horaIngreso&&!p.horaSalida)r.sinSalida++;
       if(p.salidaEditada&&!p.salidaVista)r.salidasEditadas++;
     });
@@ -124,7 +122,7 @@
       fecha,turno,generadoMs:ahoraMs(),
       lineas,totales:{programado:totProg,producido:totProd,cumplimiento:totProg>0?+(totProd/totProg*100).toFixed(1):null},
       paradas,
-      personal:{registrado:personal.registrado,total:personal.total,asistieron:personal.asistieron,faltas:personal.faltas,
+      personal:{registrado:personal.registrado,total:personal.total,asistieron:personal.asistieron,enComision:personal.enComision||0,faltas:personal.faltas,
         tardanzas:personal.tardanzas,descansos:personal.descansos,otros:personal.otros,sinEstado:personal.sinEstado,porDia:personal.porDia},
       pendientes:{paradasSinMotivo:sinMotivo,tareoSinSalida:personal.sinSalida,salidasEditadas:personal.salidasEditadas,
         tareoRegistrado:personal.registrado}
@@ -286,7 +284,7 @@
       // personal
       titulo('Personal');
       if(d.personal.registrado){
-        texto('Asistieron '+d.personal.asistieron+' · Faltas '+d.personal.faltas,M,40,true,'#1b2a38');y+=52;
+        texto('Presentes '+d.personal.asistieron+(d.personal.enComision?' ('+d.personal.enComision+' en comisión)':'')+' · Faltas '+d.personal.faltas,M,40,true,'#1b2a38');y+=52;
         texto('Tardanzas '+d.personal.tardanzas+' · Descansos '+d.personal.descansos,M,40,false,'#1b2a38');y+=52;
         texto('Planilla '+d.personal.total+' · Personal por día '+num(d.personal.porDia),M,36,false,'#4a5b6b');y+=46;
       }else bloqueTexto('Tareo del turno sin registrar.',36,false,'#8a5a00');
@@ -373,7 +371,7 @@
       ['No programadas',d.paradas.cantidadNoProg,d.paradas.minNoProg],['Programadas',d.paradas.cantidadProg,d.paradas.minProg]]
       .concat(d.paradas.top.map((p,i)=>['Motivo principal '+(i+1)+': '+p.motivo,p.cantidad,p.minutos]))
       .concat(d.paradas.porLinea.map(p=>['Línea: '+p.nombre,p.cantidad,p.minutos])),[44,12,12]);
-    hoja('Personal',['Concepto','Cantidad'],d.personal.registrado?[['Asistieron',d.personal.asistieron],['Faltas',d.personal.faltas],['Tardanzas',d.personal.tardanzas],
+    hoja('Personal',['Concepto','Cantidad'],d.personal.registrado?[['Presentes',d.personal.asistieron],['En comisión / trabajo externo (incluidos en presentes)',d.personal.enComision||0],['Faltas',d.personal.faltas],['Tardanzas',d.personal.tardanzas],
       ['Descansos',d.personal.descansos],['Otros estados',d.personal.otros],['Sin estado',d.personal.sinEstado],['Total planilla del turno',d.personal.total],['Personal por día',num(d.personal.porDia)]]:[['Tareo del turno sin registrar','']],[34,12]);
     const pm=d.pendientes.paradasSinMotivo;
     hoja('Pendientes',['Concepto','Detalle'],[
@@ -465,7 +463,7 @@
       '<p>No programadas: <b>'+fmt(d.paradas.cantidadNoProg)+'</b> paradas, <b>'+fmt(d.paradas.minNoProg)+' min</b> · Programadas: <b>'+fmt(d.paradas.cantidadProg)+'</b>, <b>'+fmt(d.paradas.minProg)+' min</b></p>'+
       (d.paradas.top.length?'<ol>'+d.paradas.top.map(p=>'<li>'+esc(p.motivo)+' — '+fmt(p.minutos)+' min ('+p.cantidad+')</li>').join('')+'</ol>':'<div class="rt-vacio">Sin paradas no programadas.</div>')+
       '<h3 class="rt-sec">Personal</h3>'+
-      (d.personal.registrado?'<p>Asistieron <b>'+d.personal.asistieron+'</b> · Faltas <b>'+d.personal.faltas+'</b> · Tardanzas <b>'+d.personal.tardanzas+'</b> · Descansos <b>'+d.personal.descansos+'</b> · Planilla <b>'+d.personal.total+'</b> · Personal por día <b>'+num(d.personal.porDia)+'</b></p>'
+      (d.personal.registrado?'<p>Presentes <b>'+d.personal.asistieron+'</b>'+(d.personal.enComision?' (<b>'+d.personal.enComision+'</b> en comisión)':'')+' · Faltas <b>'+d.personal.faltas+'</b> · Tardanzas <b>'+d.personal.tardanzas+'</b> · Descansos <b>'+d.personal.descansos+'</b> · Planilla <b>'+d.personal.total+'</b> · Personal por día <b>'+num(d.personal.porDia)+'</b></p>'
         :'<div class="rt-vacio">El tareo de Producción de este turno no está registrado.</div>')+
       '<h3 class="rt-sec">Pendientes</h3>'+
       '<ul><li>Paradas con motivo sin completar: <b>'+(pm==null?'no se pudo consultar':pm.length)+'</b>'+(pm&&pm.length?' ('+pm.map(p=>esc(p.nombre)+' '+hhmm(p.inicio)).join(', ')+')':'')+'</li>'+

@@ -238,14 +238,15 @@
   function mensajeTareo(tareo){
     const personal=tareo.personal||[];
     const estado=p=>tareoEstadoCanonico(p.asistencia);
-    const asistieron=personal.filter(p=>estado(p)==='Asistió').length;
-    const faltas=personal.filter(p=>['Falta por justificar','Falta justificada'].includes(estado(p)));
-    const descansos=personal.filter(p=>['Descanso','Descanso médico'].includes(estado(p))).length;
-    const tardanzas=personal.filter(p=>num(p.tardanzaMinutos)>0);
+    // Criterio único de asistencia (13-tareo.js: tareoResumenAsistencia).
+    const g=tareoResumenAsistencia(personal);
+    const faltas=personal.filter(p=>tareoGrupoAsistencia(p.asistencia)==='faltas');
+    const tardanzas=personal.filter(p=>tareoEsPresente(p.asistencia)&&num(p.tardanzaMinutos)>0);
     const porDia=typeof tareoPorDiaActivos==='function'?tareoPorDiaActivos(tareo).length:0;
     const maquinistas=personal.filter(p=>tareoEsMaquinista(p)).length;
     const out=[`*TAREO ${String(tareoAreaDe(tareo)).toUpperCase()}*`,`${dmy(tareo.fecha)} · Turno ${tareo.turno}`,'',
-      `Asistieron: ${asistieron}`,`Faltas: ${faltas.length}`,`Descansos: ${descansos}`,
+      `Presentes: ${g.presentes}${g.enComision?` (${g.enComision} en comisión)`:''}`,`Faltas: ${g.faltas}`,`Descansos: ${g.descansos}`,
+      `Otros ausentes: ${g.otros}`,`Sin registrar: ${g.sinRegistrar}`,
       `Tardanzas: ${tardanzas.length}`,`Personal por día: ${porDia}`,`Maquinistas: ${maquinistas}`];
     if(faltas.length)out.push('',`*Faltas:* ${faltas.map(p=>p.nombre).join(', ')}`);
     if(tardanzas.length)out.push('',`*Tardanzas:* ${tardanzas.map(p=>`${p.nombre} (${num(p.tardanzaMinutos)} min)`).join(', ')}`);

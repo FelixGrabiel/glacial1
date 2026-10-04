@@ -586,6 +586,103 @@ function tareoEstadoCanonico(valor) {
 }
 
 
+/* =========================================================
+   CRITERIO ÚNICO DE ASISTENCIA (se define aquí y en ningún otro lugar)
+   =========================================================
+
+   Lo usan: las pantallas del Tareo, el mensaje de WhatsApp, el Inicio,
+   el resumen de turno, el panel de RRHH, la imagen del tareo y los Excel.
+
+   Grupos (siempre suman el total de personas):
+     Presentes      = Asistió + Feriado trabajado + Comisión / trabajo externo
+                      («en comisión» = los de Comisión / trabajo externo)
+     Faltas         = Falta por justificar + Falta justificada
+     Descansos      = Descanso + Descanso médico
+     Otros ausentes = Vacaciones, Suspensión, licencias y fallecimiento
+                      de familiar directo
+     Sin registrar  = sin estado
+
+   Tardanzas: personas con minutos de tardanza > 0 DENTRO de los presentes.
+   ========================================================= */
+
+const TAREO_ESTADOS_PRESENTE = ['Asistió', 'Feriado trabajado', 'Comisión / trabajo externo'];
+const TAREO_ESTADO_COMISION = 'Comisión / trabajo externo';
+const TAREO_ESTADOS_FALTA = ['Falta por justificar', 'Falta justificada'];
+const TAREO_ESTADOS_DESCANSO = ['Descanso', 'Descanso médico'];
+
+/* Devuelve: 'presentes' | 'faltas' | 'descansos' | 'otros' | 'sinRegistrar' */
+function tareoGrupoAsistencia(estado) {
+
+    const e = tareoEstadoCanonico(estado);
+
+    if (!e) return 'sinRegistrar';
+    if (TAREO_ESTADOS_PRESENTE.includes(e)) return 'presentes';
+    if (TAREO_ESTADOS_FALTA.includes(e)) return 'faltas';
+    if (TAREO_ESTADOS_DESCANSO.includes(e)) return 'descansos';
+
+    return 'otros';
+
+}
+
+function tareoEsPresente(estado) {
+    return tareoGrupoAsistencia(estado) === 'presentes';
+}
+
+/* lista: personas del tareo (campos asistencia y tardanzaMinutos) u otras filas
+   con acc = { estado: fila => ..., tardanza: fila => ... }. */
+function tareoResumenAsistencia(lista, acc) {
+
+    const a = Object.assign({
+        estado: p => p && p.asistencia,
+        tardanza: p => p && p.tardanzaMinutos
+    }, acc || {});
+
+    const r = {
+        total: 0, presentes: 0, enComision: 0, faltas: 0,
+        descansos: 0, otros: 0, sinRegistrar: 0, tardanzas: 0
+    };
+
+    (Array.isArray(lista) ? lista : []).forEach(p => {
+
+        r.total++;
+
+        const e = tareoEstadoCanonico(a.estado(p));
+        const g = tareoGrupoAsistencia(e);
+
+        r[g]++;
+
+        if (g === 'presentes') {
+            if (e === TAREO_ESTADO_COMISION) r.enComision++;
+            if (Number(a.tardanza(p)) > 0) r.tardanzas++;
+        }
+
+    });
+
+    /* nombres de siempre, para no romper a quien ya los usa */
+    r.asistieron = r.presentes;
+    r.pendientes = r.sinRegistrar;
+
+    return r;
+
+}
+
+/* «6 presentes, 1 en comisión» */
+function tareoTextoPresentes(r) {
+
+    const n = Number(r && (r.presentes !== undefined ? r.presentes : r.asistieron)) || 0;
+    const c = Number(r && r.enComision) || 0;
+
+    return n + (n === 1 ? ' presente' : ' presentes') +
+        (c ? ', ' + c + ' en comisión' : '');
+
+}
+window.tareoResumenAsistencia = tareoResumenAsistencia;
+window.tareoTextoPresentes = tareoTextoPresentes;
+window.tareoEsPresente = tareoEsPresente;
+window.tareoGrupoAsistencia = tareoGrupoAsistencia;
+
+
+
 function tareoEtiquetaEstado(estado) {
 
     const canonico = tareoEstadoCanonico(estado);
@@ -784,21 +881,20 @@ function tareoContadores(personal, jornada) {
         saldoContra: 0
     };
 
+    const g = tareoResumenAsistencia(personal);
+
+    c.asistieron = g.presentes;
+    c.enComision = g.enComision;
+    c.faltas = g.faltas;
+    c.descansos = g.descansos;
+    c.otros = g.otros;
+    c.pendientes = g.sinRegistrar;
+    c.ausencias = g.faltas + g.descansos + g.otros;
+    c.tardanzas = g.tardanzas;
+
     personal.forEach(persona => {
 
-        const estado = tareoEstadoCanonico(persona.asistencia);
-
-        if (!estado) {
-            c.pendientes++;
-        } else if (estado === 'Asistió') {
-            c.asistieron++;
-        } else {
-            c.ausencias++;
-        }
-
-        if (Number(persona.tardanzaMinutos) > 0) {
-            c.tardanzas++;
-        }
+        /* la asistencia se cuenta con el criterio único (tareoResumenAsistencia) */
 
         c.horas += Number(persona.horasTrabajadas || 0);
         c.extras += Number(persona.horasExtras || 0);
@@ -2573,7 +2669,7 @@ function tareoTarjetaTurnoHTML(area, fecha, turno) {
 
                     <div class="tar2-card-meta">
                         <strong>${c.registrados} de ${c.total}</strong> registrados ·
-                        ${c.asistieron} asistieron ·
+                        ${tareoTextoPresentes(c)} ·
                         ${c.pendientes} pendientes
                         ${
                             c.tardanzas
@@ -3530,9 +3626,9 @@ function renderTareoFormulario(tareo) {
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">Asistieron</span>
-                <strong class="tareo-good">${c.asistieron}</strong>
-                <small>Con hora de ingreso</small>
+                <span class="tareo-kpi-label">Presentes</span>
+                <strong class="tareo-good">${c.asistieron}</strong>${c.enComision ? '<small>' + c.enComision + ' en comisión externa</small>' : ''}
+                
             </div>
 
             <div class="tareo-kpi">
@@ -5733,7 +5829,7 @@ function renderHistorialTareo() {
                                         <th>Área</th>
                                         <th>Turno</th>
                                         <th>Personal</th>
-                                        <th>Asistieron</th>
+                                        <th>Presentes</th>
                                         <th>Ausencias</th>
                                         <th>Sin registrar</th>
                                         <th>Tardanzas</th>
@@ -6338,8 +6434,8 @@ function renderTareoLectura(tareo) {
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">Asistieron</span>
-                <strong class="tareo-good">${c.asistieron}</strong>
+                <span class="tareo-kpi-label">Presentes</span>
+                <strong class="tareo-good">${c.asistieron}</strong>${c.enComision ? '<small>' + c.enComision + ' en comisión externa</small>' : ''}
             </div>
 
             <div class="tareo-kpi">
@@ -6534,7 +6630,7 @@ function tareoResumenDeRegistros(registros, año, mes) {
 
         r.turnos++;
 
-        if (estado === 'Asistió') r.asistencias++;
+        if (tareoEsPresente(estado)) r.asistencias++;
         else if (estado === 'Falta por justificar') r.faltasPorJustificar++;
         else if (estado === 'Falta justificada') r.faltasJustificadas++;
         else if (estado === 'Descanso') r.descansos++;
@@ -6982,7 +7078,7 @@ function renderTareoGeneral() {
 
                                         <div class="tar2-card-meta">
                                             <strong>${k.registrados}/${k.total}</strong> registrados ·
-                                            ${k.asistieron} asistieron ·
+                                            ${tareoTextoPresentes(k)} ·
                                             ${k.ausencias} ausentes ·
                                             ${k.pendientes} pendientes
                                             ${
@@ -7028,8 +7124,8 @@ function renderTareoGeneral() {
             </div>
 
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">Asistieron</span>
-                <strong class="tareo-good">${c.asistieron}</strong>
+                <span class="tareo-kpi-label">Presentes</span>
+                <strong class="tareo-good">${c.asistieron}</strong>${c.enComision ? '<small>' + c.enComision + ' en comisión externa</small>' : ''}
             </div>
 
             <div class="tareo-kpi">
@@ -9484,56 +9580,41 @@ function exportarTareoExcel(id) {
        HOJA 02 - RESUMEN
        ===================================================== */
 
-    const asistieron =
-        personal.filter(
-            persona =>
-                persona.asistencia ===
-                'Asistió'
-        ).length;
+    const gAsis = tareoResumenAsistencia(personal);
+
+    const asistieron = gAsis.presentes;
 
     const faltas =
         personal.filter(
             persona =>
-                persona.asistencia ===
-                'Falta por justificar'
+                tareoEstadoCanonico(persona.asistencia) === 'Falta por justificar'
         ).length;
 
     const permisos =
         personal.filter(
             persona =>
-                persona.asistencia ===
-                'Falta justificada'
+                tareoEstadoCanonico(persona.asistencia) === 'Falta justificada'
         ).length;
 
     const descansos =
         personal.filter(
             persona =>
-                persona.asistencia ===
-                'Descanso'
+                tareoEstadoCanonico(persona.asistencia) === 'Descanso'
         ).length;
 
     const vacaciones =
         personal.filter(
             persona =>
-                persona.asistencia ===
-                'Vacaciones'
+                tareoEstadoCanonico(persona.asistencia) === 'Vacaciones'
         ).length;
 
     const medicos =
         personal.filter(
             persona =>
-                persona.asistencia ===
-                'Descanso médico'
+                tareoEstadoCanonico(persona.asistencia) === 'Descanso médico'
         ).length;
 
-    const tardanzas =
-        personal.filter(
-            persona =>
-                Number(
-                    persona.tardanzaMinutos ||
-                    0
-                ) > 0
-        ).length;
+    const tardanzas = gAsis.tardanzas;
 
     const horasTrabajadas =
         personal.reduce(
@@ -9616,10 +9697,16 @@ function exportarTareoExcel(id) {
 
         {
             'Indicador':
-                'Asistieron',
-
+                'Presentes (asistió, feriado trabajado y comisión)',
             'Valor':
                 asistieron
+        },
+
+        {
+            'Indicador':
+                'En comisión / trabajo externo (incluidos en presentes)',
+            'Valor':
+                gAsis.enComision
         },
 
         {
@@ -9660,6 +9747,34 @@ function exportarTareoExcel(id) {
 
             'Valor':
                 medicos
+        },
+
+        {
+            'Indicador':
+                'Total faltas (por justificar + justificadas)',
+            'Valor':
+                gAsis.faltas
+        },
+
+        {
+            'Indicador':
+                'Total descansos (descanso + descanso médico)',
+            'Valor':
+                gAsis.descansos
+        },
+
+        {
+            'Indicador':
+                'Otros ausentes (vacaciones, suspensión, licencias)',
+            'Valor':
+                gAsis.otros
+        },
+
+        {
+            'Indicador':
+                'Sin registrar',
+            'Valor':
+                gAsis.sinRegistrar
         },
 
         {

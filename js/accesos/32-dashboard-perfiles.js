@@ -284,12 +284,15 @@ function cpTareosContexto(){
 function cpEquipoData(){
   const ctx=cpCtx();
   const tareos=cpTareosContexto();
-  const asignados=new Map(),presentes=new Set();
+  const asignados=new Map(),presentes=new Set(),enComision=new Set();
   tareos.forEach(t=>(t.personal||[]).forEach(p=>{
     const nombre=String(p?.nombre||'').trim(); if(!nombre)return;
     const key=cpNorm(nombre); if(!asignados.has(key))asignados.set(key,{nombre,linea:p.linea||'',puesto:p.puesto||p.cargo||''});
-    const a=cpNorm(p.asistencia||'');
-    if(['asistio','tardanza','feriado trabajado','comision/trabajo externo'].includes(a))presentes.add(key);
+    // Criterio único de asistencia (13-tareo.js): presentes = Asistió + Feriado trabajado + Comisión / trabajo externo.
+    if(typeof tareoEsPresente==='function'?tareoEsPresente(p.asistencia):false){
+      presentes.add(key);
+      if(tareoEstadoCanonico(p.asistencia)==='Comisión / trabajo externo')enComision.add(key);
+    }
   }));
 
   const supervisores=[];
@@ -306,7 +309,7 @@ function cpEquipoData(){
     }
   }catch(e){console.warn('Inicio: equipo supervisor',e);}
   if(!supervisores.length&&!cpEsVistaGeneral()&&cpRol()==='SUPERVISOR')supervisores.push(state.user?.nombre||state.user?.username||'');
-  return {supervisores:[...new Set(supervisores.filter(Boolean))],asignados:[...asignados.values()],presentes:presentes.size};
+  return {supervisores:[...new Set(supervisores.filter(Boolean))],asignados:[...asignados.values()],presentes:presentes.size,enComision:enComision.size};
 }
 function cpEquipoCard(){
   const e=cpEquipoData();
@@ -315,7 +318,7 @@ function cpEquipoCard(){
     <div class="cp-team-grid">
       <div><span>Supervisor(es)</span><strong>${e.supervisores.length?cpEsc(e.supervisores.join(', ')):'Sin asignación disponible'}</strong></div>
       <div><span>Personal asignado</span><strong>${e.asignados.length?cpFmt(e.asignados.length):'Sin información'}</strong></div>
-      <div><span>Asistencia registrada</span><strong>${e.asignados.length?cpFmt(e.presentes):'—'}</strong></div>
+      <div><span>Asistencia registrada</span><strong>${e.asignados.length?cpFmt(e.presentes)+(e.enComision?' <small>('+cpFmt(e.enComision)+' en comisión)</small>':''):'—'}</strong></div>
     </div>
     <div class="cp-note">${cpIcon('info')} La asignación no confirma asistencia; la presencia proviene del tareo registrado.</div>
   </section>`;

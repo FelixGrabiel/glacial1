@@ -79,15 +79,15 @@
   function pendientes(tareo){
     const personal=Array.isArray(tareo?.personal) ? tareo.personal : [];
     const sinEstado=[],porJustificar=[];
-    let tardanzas=0,ausencias=0;
+    // Criterio único de asistencia (13-tareo.js): presentes, faltas, descansos, otros ausentes y sin registrar suman el total.
+    const g=tareoResumenAsistencia(personal);
     personal.forEach(p=>{
       const estado=tareoEstadoCanonico(p.asistencia);
       if(!estado)sinEstado.push(p.nombre || 'Sin nombre');
       if(estado==='Falta por justificar')porJustificar.push(p.nombre || 'Sin nombre');
-      if(['Falta por justificar','Falta justificada','Descanso médico'].includes(estado))ausencias++;
-      if(Number(p.tardanzaMinutos)>0)tardanzas++;
     });
-    return {sinEstado,porJustificar,tardanzas,ausencias,total:personal.length};
+    return {sinEstado,porJustificar,tardanzas:g.tardanzas,ausencias:g.faltas,total:g.total,
+      presentes:g.presentes,enComision:g.enComision,faltas:g.faltas,descansos:g.descansos,otros:g.otros};
   }
   function abrirTareo(area,fecha,turno){
     if(!tienePermiso('moduloRRHH') || !areas.includes(area) ||
@@ -110,7 +110,7 @@
       ? (x.iniciada?'Aún no se registró un tareo. No se atribuyen faltas sin registro.'
           :'El turno todavía no empieza.')
       : !p.total ? 'Tareo vacío: revisar personal asignado.'
-        : `${p.total} personas · ${p.sinEstado.length} sin estado · `+
+        : `${p.total} personas · ${tareoTextoPresentes(p)} · ${p.sinEstado.length} sin estado · `+
           `${p.porJustificar.length} faltas por justificar · ${p.tardanzas} tardanzas`;
     const nombres=[...p.sinEstado,...p.porJustificar].filter((n,i,a)=>a.indexOf(n)===i);
     return `<article class="rh-turno" data-rh-estado="${estado}">
@@ -141,12 +141,15 @@
     const porJustificar=filas.reduce((n,x)=>n+x.detalle.porJustificar.length,0);
     const tardanzas=filas.reduce((n,x)=>n+x.detalle.tardanzas,0);
     const ausencias=filas.reduce((n,x)=>n+x.detalle.ausencias,0);
+    const presentes=filas.reduce((n,x)=>n+x.detalle.presentes,0);
+    const enComision=filas.reduce((n,x)=>n+x.detalle.enComision,0);
     const kpis=[
       ['Tareos sin registrar',sinAbrir],
       ['Personas sin estado',sinEstado],
       ['Faltas por justificar',porJustificar],
       ['Tardanzas registradas',tardanzas],
-      ['Ausencias registradas',ausencias]
+      ['Presentes'+(enComision?' ('+enComision+' en comisión)':''),presentes],
+      ['Faltas registradas',ausencias]
     ];
     main.innerHTML=`<div id="rh-inicio" class="rh-inicio">
       <div class="rh-intro"><div><h2>RRHH · Pendientes</h2>

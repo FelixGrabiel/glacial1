@@ -230,12 +230,11 @@
   /* ---------- resumen y utilidades de cálculo ---------- */
   const FALTAS=['Falta por justificar','Falta justificada'];
   function resumir(filas){
-    const r={programados:filas.length,asistieron:0,faltas:0,tardanzas:0,descansos:0,favorMin:0,contraMin:0};
+    // Criterio único de asistencia (13-tareo.js: tareoResumenAsistencia).
+    const g=tareoResumenAsistencia(filas,{estado:f=>f.estado,tardanza:f=>f.tardanza});
+    const r={programados:filas.length,asistieron:g.presentes,enComision:g.enComision,faltas:g.faltas,tardanzas:g.tardanzas,
+      descansos:g.descansos,otros:g.otros,sinRegistrar:g.sinRegistrar,favorMin:0,contraMin:0};
     filas.forEach(f=>{
-      if(f.estado==='Asistió')r.asistieron++;
-      if(FALTAS.includes(f.estado))r.faltas++;
-      if(f.estado==='Descanso')r.descansos++;
-      if(f.tardanza>0)r.tardanzas++;
       if(f.saldoMin>0)r.favorMin+=f.saldoMin;
       if(f.saldoMin<0)r.contraMin+=-f.saldoMin;
     });
@@ -359,8 +358,8 @@
 
     // Resumen
     const r=info.resumen;
-    const etiquetas=['Programados','Asistieron','Faltas','Tardanzas','Descansos','Horas a favor','Horas en contra'];
-    const valores=[r.programados,r.asistieron,r.faltas,r.tardanzas,r.descansos,fraccion(r.favorMin),fraccion(r.contraMin)];
+    const etiquetas=['Programados','Presentes','Faltas','Descansos','Otros ausentes','Sin registrar','Tardanzas','Horas a favor','Horas en contra'];
+    const valores=[r.programados,r.asistieron+(r.enComision?' ('+r.enComision+' en comisión)':''),r.faltas,r.descansos,r.otros,r.sinRegistrar,r.tardanzas,fraccion(r.favorMin),fraccion(r.contraMin)];
     const rEt=ws.addRow([]);const rVal=ws.addRow([]);
     const base=4; // desde la columna D
     etiquetas.forEach((t,i)=>{
@@ -369,9 +368,9 @@
       ce.fill={type:'pattern',pattern:'solid',fgColor:{argb:COLOR.azulClaro}};
       ce.alignment={horizontal:'center'};ce.border=bordes;
       const cv=rVal.getCell(base+i);cv.value=valores[i];
-      cv.font={bold:true,size:13,color:{argb:i===5?'FF1E7B34':(i===6?'FFC00000':'FF1B2A38')}};
+      cv.font={bold:true,size:13,color:{argb:i===7?'FF1E7B34':(i===8?'FFC00000':'FF1B2A38')}};
       cv.alignment={horizontal:'center'};cv.border=bordes;
-      if(i>=5)cv.numFmt='[h]:mm';
+      if(i>=7)cv.numFmt='[h]:mm';
     });
     ws.addRow([]);
 
@@ -505,7 +504,7 @@
       if(!mapa.has(k))mapa.set(k,{f,prog:0,trab:0,faltas:0,tard:0,fav:0,con:0});
       const t=mapa.get(k);
       t.prog++;
-      if(f.estado==='Asistió')t.trab++;
+      if(tareoEsPresente(f.estado))t.trab++;
       if(FALTAS.includes(f.estado))t.faltas++;
       if(f.tardanza>0)t.tard++;
       if(f.saldoMin>0)t.fav+=f.saldoMin;
@@ -619,14 +618,11 @@
 
   /* Resumen de la imagen: asistieron + faltas + descansos + pendientes = total de personas. */
   function resumenImagen(filas){
-    const r={total:filas.length,asistieron:0,faltas:0,descansos:0,pendientes:0,tardanzas:0,parcial:false};
-    filas.forEach(f=>{
-      if(f.estado==='Asistió'){r.asistieron++;if(!f.salida)r.parcial=true;}
-      else if(!f.estado){r.pendientes++;}
-      else if(FALTAS.includes(f.estado)){r.faltas++;}
-      else{r.descansos++;}                 // descanso, descanso médico, vacaciones, licencias...
-      if(f.tardanza>0)r.tardanzas++;
-    });
+    // Criterio único de asistencia (13-tareo.js): presentes + faltas + descansos + otros ausentes + sin registrar = total.
+    const g=tareoResumenAsistencia(filas,{estado:f=>f.estado,tardanza:f=>f.tardanza});
+    const r={total:g.total,asistieron:g.presentes,enComision:g.enComision,faltas:g.faltas,descansos:g.descansos,otros:g.otros,
+      pendientes:g.sinRegistrar,tardanzas:g.tardanzas,parcial:false};
+    filas.forEach(f=>{if(tareoEsPresente(f.estado)&&!f.salida)r.parcial=true;});
     if(r.pendientes>0)r.parcial=true;
     return r;
   }
@@ -679,22 +675,23 @@
     // Resumen: solo en la primera página
     if(meta.n===1){
       const r=meta.resumen;
-      const chips=[[r.asistieron+' asistieron','#C9E8CD','#1B5E20'],[r.faltas+' faltas','#FBD5D5','#9B1C1C'],
+      const chips=[[r.asistieron+(r.asistieron===1?' presente':' presentes')+(r.enComision?', '+r.enComision+' en comisión':''),'#C9E8CD','#1B5E20'],[r.faltas+' faltas','#FBD5D5','#9B1C1C'],
         [r.tardanzas+' tardanzas','#F8DCA0','#8A5300'],[r.descansos+(r.descansos===1?' descanso':' descansos'),'#F1F2F3','#555E67'],
-        [r.pendientes+(r.pendientes===1?' pendiente':' pendientes'),'#F1F2F3','#555E67']];
+        [r.otros+(r.otros===1?' otro ausente':' otros ausentes'),'#F1F2F3','#555E67'],
+        [r.pendientes+' sin registrar','#F1F2F3','#555E67']];
       if(dib){
         ctx.font=fuente(24,'500');
         const anchos=chips.map(c=>ctx.measureText(c[0]).width+36);
-        let x=W-M-anchos.reduce((a,b)=>a+b,0)-12*(chips.length-1);
+        let x=M;
         chips.forEach((c,i)=>{
-          rectRedondo(ctx,x,y+6,anchos[i],46,23,c[1]);
-          ctx.fillStyle=c[2];ctx.textAlign='center';ctx.fillText(c[0],x+anchos[i]/2,y+37);
+          rectRedondo(ctx,x,y+92,anchos[i],46,23,c[1]);
+          ctx.fillStyle=c[2];ctx.textAlign='center';ctx.fillText(c[0],x+anchos[i]/2,y+123);
           x+=anchos[i]+12;
         });
         ctx.textAlign='left';
       }
     }
-    y+=96;
+    y+=(meta.n===1?150:96);
     if(meta.n===1&&meta.resumen.parcial){
       if(dib){
         rectRedondo(ctx,M,y,W-2*M,44,10,'#FFF1D0');
@@ -856,7 +853,7 @@
         <div class="modal" style="max-width:980px;width:96%;">
           <div class="modal-head"><h3>Imagen para WhatsApp</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
           <div class="modal-body">
-            <p class="small-muted">${r.total} persona(s) · ${r.imagenes.length} imagen(es) · asistieron ${r.resumen.asistieron} + faltas ${r.resumen.faltas} + descansos ${r.resumen.descansos} + pendientes ${r.resumen.pendientes} = ${r.resumen.asistieron+r.resumen.faltas+r.resumen.descansos+r.resumen.pendientes}${r.sinClasificar?` · <strong>${r.sinClasificar} sin clasificar no se muestran</strong> (solo salen en el Excel General)`:''}</p>
+            <p class="small-muted">${r.total} persona(s) · ${r.imagenes.length} imagen(es) · presentes ${r.resumen.asistieron}${r.resumen.enComision?` (${r.resumen.enComision} en comisión)`:''} + faltas ${r.resumen.faltas} + descansos ${r.resumen.descansos} + otros ausentes ${r.resumen.otros} + sin registrar ${r.resumen.pendientes} = ${r.resumen.asistieron+r.resumen.faltas+r.resumen.descansos+r.resumen.otros+r.resumen.pendientes}${r.sinClasificar?` · <strong>${r.sinClasificar} sin clasificar no se muestran</strong> (solo salen en el Excel General)`:''}</p>
             <div class="actions-row" style="margin-bottom:10px;">
               ${puedeCompartir
                 ? `<button class="btn btn-primary" onclick="__tareoImgCompartir()">Compartir ${r.imagenes.length>1?'todas las páginas':'imagen'}</button>
@@ -1073,15 +1070,14 @@
     if(!vista)return;
     const filas=datosVistaGeneral();
     const planilla=filas.filter(x=>x.grupo!=='DIA');
-    const k={total:planilla.length,asist:planilla.filter(x=>x.estado==='Asistió').length,
-      aus:planilla.filter(x=>x.estado&&x.estado!=='Asistió').length,pend:planilla.filter(x=>!x.estado).length,
-      tard:planilla.filter(x=>x.tardanza>0).length};
+    const gA=tareoResumenAsistencia(planilla,{estado:x=>x.estado,tardanza:x=>x.tardanza});   // criterio único de asistencia
+    const k={total:gA.total,asist:gA.presentes,com:gA.enComision,aus:gA.faltas+gA.descansos+gA.otros,pend:gA.sinRegistrar,tard:gA.tardanzas};
 
     // KPIs con la misma lista
     const kpi=document.querySelector('#main .tareo-kpi-grid');
     if(kpi){
       const caja=(t,v,c)=>'<div class="tareo-kpi"><span class="tareo-kpi-label">'+t+'</span><strong'+(c?' class="'+c+'"':'')+'>'+v+'</strong></div>';
-      kpi.innerHTML=caja('Personal',k.total)+caja('Asistieron',k.asist,'tareo-good')+caja('Ausencias',k.aus)+
+      kpi.innerHTML=caja('Personal',k.total)+caja('Presentes'+(k.com?' ('+k.com+' en comisión)':''),k.asist,'tareo-good')+caja('Ausencias',k.aus)+
         caja('Sin registrar',k.pend,k.pend?'tareo-warn':'')+caja('Tardanzas',k.tard);
     }
 
