@@ -273,3 +273,23 @@ window.tareoAuditoriaFiltrar = tareoAuditoriaFiltrar;
 window.tareoAlertaDescansos = tareoAlertaDescansos;
 // Cubre también el cambio de fecha si la pestaña queda abierta toda la noche.
 setInterval(tareoAlertaDescansos, 60 * 1000);
+
+/* Pestaña "Auditoría" en la barra del tareo: RRHH y Administrador (permiso moduloRRHH, salvo los
+   roles de solo consulta). Misma condición que la pestaña Bloqueos de 41-tareo-bloqueo.js. */
+(function(){
+    if (typeof tareoRenderTabs !== 'function') return;
+    const tabsAnterior = tareoRenderTabs;
+    tareoRenderTabs = function (activa) {
+        const html = tabsAnterior.apply(this, arguments);
+        let puede = false;
+        try {
+            puede = !!(state.user && tienePermiso('moduloRRHH') &&
+                !(typeof esUsuarioSoloConsulta === 'function' && esUsuarioSoloConsulta(state.user)));
+        } catch (_) { puede = false; }
+        if (!puede || html.indexOf('tareo-tab-auditoria') >= 0) return html;
+        const boton = '<button class="tareo-tab tareo-tab-auditoria ' + (activa === 'auditoria' ? 'active' : '') +
+            '" onclick="renderAuditoriaTareos()">Auditoría</button>';
+        return html.replace('</div>', boton + '</div>');
+    };
+    window.tareoRenderTabs = tareoRenderTabs;
+})();

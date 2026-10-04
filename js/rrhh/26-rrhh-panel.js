@@ -171,6 +171,7 @@
           <button type="button" class="btn btn-ghost btn-sm" data-rh-vista="descansos">Control de descansos</button>
           <button type="button" class="btn btn-ghost btn-sm" data-rh-vista="historial">Historial</button>
           <button type="button" class="btn btn-ghost btn-sm" data-rh-vista="resumen">Resumen mensual</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-rh-vista="auditoria">Auditoría</button>
         </div></section></div>`;
   };
   window.renderRRHHModulo=renderRRHHModulo;
@@ -197,7 +198,7 @@
     if(e.target.closest('[data-rh-hoy]')){fechaElegida=null;renderRRHHModulo();return;}
     const vista=e.target.closest('[data-rh-vista]')?.dataset.rhVista;
     const acciones={general:renderTareoGeneral,descansos:renderControlDescansos,
-      historial:renderHistorialTareo,resumen:renderResumenMensualTareoUI};
+      historial:renderHistorialTareo,resumen:renderResumenMensualTareoUI,auditoria:renderAuditoriaTareos};
     if(vista && acciones[vista])acciones[vista]();
   });
   document.getElementById('main')?.addEventListener('change',e=>{
