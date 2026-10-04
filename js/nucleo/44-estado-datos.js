@@ -89,6 +89,11 @@
     }
   }
   arrancar();
+  // Al cerrar sesión se cierra la escucha de conexión; se vuelve a abrir sola al entrar de nuevo.
+  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{
+    if(typeof est.desuscribir==='function'){try{est.desuscribir();}catch(_){/* ya cerrada */}}
+    est.desuscribir=null;est.escuchando=false;
+  });
 
   window.glacialEstadoDatos={chip,estado,actualizar,escuchar,marcarEnLinea:marcar,
     get enLinea(){return est.enLinea;},OBSOLETO_MS};

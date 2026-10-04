@@ -209,6 +209,16 @@ function tareoIniciarAuditoria() {
         });
 }
 
+// Al cerrar sesión se cierra la escucha de la auditoría (500 eventos) y se vacía la copia.
+if (window.glacialCierresSesion) window.glacialCierresSesion.push(() => {
+    if (typeof tareoAuditoriaLista === 'function') {
+        try { tareoAuditoriaLista(); } catch (_) { /* ya cerrada */ }
+    }
+    tareoAuditoriaLista = null;
+    tareoAuditoria = [];
+    tareoAuditoriaError = '';
+});
+
 /* Correcciones = cambios de un valor que ya existía (EDITAR_, QUITAR_, ELIMINAR_). */
 function tareoEventoEsCorreccion(e) {
     return e.esCorreccion === true || /^(EDITAR_|QUITAR_|ELIMINAR_)/.test(String(e.accion || ''));

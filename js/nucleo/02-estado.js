@@ -502,9 +502,68 @@ function sincronizarEscuchasPorRol(){
 }
 
 
+/* ---------------------------------------------------------
+   CIERRE DE SESIÓN: cerrar las escuchas de Firestore
+   Con reglas estrictas (etapa 2) la sincronización arranca al iniciar
+   sesión (36-seguridad-auth.js). Al cerrar sesión se cierran TODAS las
+   escuchas y se vacían las copias en memoria; el siguiente inicio de
+   sesión en la misma pestaña las vuelve a abrir desde cero.
+   Con reglas abiertas (etapa 1) la sincronización es de toda la página
+   y no se toca. Los demás módulos registran su cierre en
+   window.glacialCierresSesion (lo ejecuta handleLogout).
+   --------------------------------------------------------- */
+const _desuscribirSync = [];
+window.glacialCierresSesion = window.glacialCierresSesion || [];
+
+function detenerSincronizacion(){
+
+  if(typeof REGLAS_ESTRICTAS === 'undefined' || !REGLAS_ESTRICTAS) return;
+
+  _desuscribirSync.splice(0).forEach(f => {
+    try{ f(); }catch(_){ /* ya cerrada */ }
+  });
+
+  Object.keys(_escuchasRestringidas).forEach(detenerEscuchaRestringida);
+
+  _usersCache = [];
+  _recordsCache = [];
+  _workersCache = [];
+  _rotacionesCache = [];
+  _rotacionesMantenimientoCache = [];
+  _rotacionMaquinistasCache = [];
+  _tareosCache = [];
+  _preciosCache = {};
+  _paletasCache = [];
+  _programacionesCache = [];
+
+  _usersReady = false;
+  _recordsReady = false;
+  _workersReady = false;
+  _rotacionesReady = false;
+  _rotacionesMantenimientoReady = false;
+  _tareosReady = false;
+  _preciosReady = false;
+  _paletasReady = false;
+  _programacionesReady = false;
+
+  if(typeof window.reiniciarSincronizacionSegura === 'function'){
+    window.reiniciarSincronizacionSegura();
+  }
+
+}
+
+function glacialCerrarEscuchasDeSesion(){
+  (window.glacialCierresSesion || []).forEach(f => {
+    try{ f(); }catch(e){ console.warn('Cierre de sesión:', e && e.message || e); }
+  });
+}
+
+window.glacialCierresSesion.push(detenerSincronizacion);
+
+
 function initRealtimeSync(){
 
-  db.collection('sync').doc('users')
+  _desuscribirSync.push(db.collection('sync').doc('users')
 
     .onSnapshot(
 
@@ -549,10 +608,10 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
-  db.collection('sync').doc('records')
+  _desuscribirSync.push(db.collection('sync').doc('records')
 
     .onSnapshot(
 
@@ -577,10 +636,10 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
-  db.collection('sync').doc('workers')
+  _desuscribirSync.push(db.collection('sync').doc('workers')
 
     .onSnapshot(
 
@@ -605,7 +664,7 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
   /*
@@ -656,7 +715,7 @@ function initRealtimeSync(){
      Mantenimiento: turno (Día / Intermedio / Noche) y horario.
   */
 
-  db.collection('sync').doc('rotacionesMantenimiento')
+  _desuscribirSync.push(db.collection('sync').doc('rotacionesMantenimiento')
 
     .onSnapshot(
 
@@ -681,7 +740,7 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
   /*
@@ -692,7 +751,7 @@ function initRealtimeSync(){
      maquinista. No modifica ninguna otra rotación.
   */
 
-  db.collection('sync').doc('rotacionMaquinistas')
+  _desuscribirSync.push(db.collection('sync').doc('rotacionMaquinistas')
 
     .onSnapshot(
 
@@ -717,7 +776,7 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
   /*
@@ -737,7 +796,7 @@ function initRealtimeSync(){
      arreglo completo de tareos.
   */
 
-  db.collection('sync').doc('tareos')
+  _desuscribirSync.push(db.collection('sync').doc('tareos')
 
     .onSnapshot(
 
@@ -762,7 +821,7 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
   /*
@@ -826,7 +885,7 @@ function initRealtimeSync(){
      vista de solo lectura para Ventas).
   */
 
-  db.collection('sync').doc('paletas')
+  _desuscribirSync.push(db.collection('sync').doc('paletas')
 
     .onSnapshot(
 
@@ -851,7 +910,7 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 
   /*
@@ -869,7 +928,7 @@ function initRealtimeSync(){
      suma de los registros de 'paletas' de esa misma combinación.
   */
 
-  db.collection('sync').doc('programaciones')
+  _desuscribirSync.push(db.collection('sync').doc('programaciones')
 
     .onSnapshot(
 
@@ -894,7 +953,7 @@ function initRealtimeSync(){
 
       }
 
-    );
+    ));
 
 }
 

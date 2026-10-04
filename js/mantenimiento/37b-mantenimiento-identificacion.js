@@ -214,10 +214,11 @@
 
   /* ---------- proveedor LOCAL ---------- */
   const refDoc=()=>db.collection('sync').doc(DOC);
+  let desubTecnicos=null;
   function empezarEscucha(){
     if(escuchando||MODO()!=='local'||typeof db==='undefined')return;
     escuchando=true;
-    refDoc().onSnapshot(s=>{
+    desubTecnicos=refDoc().onSnapshot(s=>{
       cache=(s.exists&&Array.isArray(s.data().items))?s.data().items:[];
       refrescarOverlay();
     },e=>console.warn('tecnicosMant:',e&&e.message));
@@ -565,6 +566,13 @@
     };
     window.enterApp=enterApp;
   }
+  // Al cerrar sesión se cierran las dos escuchas (técnicos y configuración) y se vacía la copia.
+  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{
+    if(typeof desubTecnicos==='function'){try{desubTecnicos();}catch(_){/* ya cerrada */}}
+    desubTecnicos=null;escuchando=false;cache=[];
+    if(typeof desuscribirConfig==='function'){try{desuscribirConfig();}catch(_){/* ya cerrada */}}
+    desuscribirConfig=null;
+  });
   if(typeof handleLogout==='function'){
     const anterior=handleLogout;
     handleLogout=function(){

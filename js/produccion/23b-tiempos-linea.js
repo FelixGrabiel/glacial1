@@ -113,14 +113,14 @@
   }
 
   /* ---------- paradas del supervisor ---------- */
-  let cacheOperativas=null,escuchando=false;
+  let cacheOperativas=null,escuchando=false,desubOperativas=null;
   function paradasOperativas(){
     if(typeof avanceEstado!=='undefined'&&avanceEstado&&avanceEstado.unsubscribe)
       return avanceEstado.paradasOperativas||[];
     if(!escuchando&&typeof db!=='undefined'){
       escuchando=true;
       try{
-        db.collection('sync').doc('avancesTurno').onSnapshot(doc=>{
+        desubOperativas=db.collection('sync').doc('avancesTurno').onSnapshot(doc=>{
           const d=doc.exists?doc.data():{};
           cacheOperativas=Array.isArray(d.paradasOperativas)?d.paradasOperativas:[];
           refrescarVistas();
@@ -130,6 +130,11 @@
     return cacheOperativas||(typeof avanceEstado!=='undefined'?avanceEstado.paradasOperativas:[])||[];
   }
   window.paradasOperativasActuales=()=>paradasOperativas();
+  // Al cerrar sesión se cierra la escucha y se vacía la copia (la próxima sesión la abre de nuevo).
+  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{
+    if(typeof desubOperativas==='function'){try{desubOperativas();}catch(_){/* ya cerrada */}}
+    desubOperativas=null;escuchando=false;cacheOperativas=null;
+  });
   function refrescarVistas(){
     try{
       if(typeof state==='undefined'||!state.user)return;

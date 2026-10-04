@@ -97,6 +97,8 @@
     sincIniciada=true;
     initRealtimeSync();
   };
+  // Al cerrar sesión (02-estado.js: detenerSincronizacion) el siguiente inicio de sesión vuelve a abrir las escuchas.
+  window.reiniciarSincronizacionSegura=function(){sincIniciada=false;};
   window.esperarUsuariosListos=async function(ms){
     const limite=Date.now()+(ms||8000);
     while(typeof _usersReady!=='undefined'&&!_usersReady&&Date.now()<limite){

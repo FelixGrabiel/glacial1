@@ -971,6 +971,12 @@ function avEscuchar(){
     avAviso('No se pudo sincronizar el historial de avances.');
   });
 }
+// Al cerrar sesión se cierra la escucha de avances y se vacían los datos en memoria.
+if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{
+  if(typeof avanceEstado.unsubscribe==='function'){try{avanceEstado.unsubscribe();}catch(_){/* ya cerrada */}}
+  avanceEstado.unsubscribe=null;
+  avanceEstado.todosSnapshots=[];avanceEstado.snapshots=[];avanceEstado.paradasOperativas=[];
+});
 function avUltimoSnapshot(tipo){
   return avanceEstado.snapshots.filter(x=>x.tipo===tipo).slice()
     .sort((a,b)=>avNum(b.generadoEn)-avNum(a.generadoEn))[0]||null;

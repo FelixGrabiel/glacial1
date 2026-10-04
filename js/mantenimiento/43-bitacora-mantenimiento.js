@@ -804,6 +804,8 @@
     }catch(e){console.warn('Aviso de motivos pendientes:',e&&e.message||e);}
   }
   window.bitacoraMttoAvisoCierre=avisoPendientesCierre;
+  // Al cerrar sesión se cierran las escuchas de la bitácora y de la tarjeta «Paradas de hoy».
+  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detenerBitacora();detenerEscuchaDia();});
   // Paradas con motivo sin completar de un día operativo y turno (una sola consulta; la usa el resumen de turno).
   window.bitacoraMttoPendientes=async function(fecha,turno){
     if(typeof db==='undefined')throw new Error('Sin base de datos.');

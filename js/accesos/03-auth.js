@@ -268,6 +268,8 @@ function handleLogout(){
     return;
   }
 
+  // Primero se cierran las escuchas (si no, Firestore las corta con «permiso denegado» al salir).
+  if(typeof glacialCerrarEscuchasDeSesion === 'function') glacialCerrarEscuchasDeSesion();
   sessionStorage.removeItem(DB_SESSION);
 
   try{
