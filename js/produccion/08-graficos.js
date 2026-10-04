@@ -588,14 +588,14 @@ function agruparPorDia(all){
       acumulado[fecha] = {
         fecha,
         horas: 0,
-        oeeXhoras: 0,
+        lista: [],
         efectiva: 0
       };
 
     }
 
     acumulado[fecha].horas += horas;
-    acumulado[fecha].oeeXhoras += d.oee * horas;
+    acumulado[fecha].lista.push(d);
     acumulado[fecha].efectiva += efectiva;
 
   });
@@ -609,8 +609,10 @@ function agruparPorDia(all){
 
       oee:
         x.horas > 0
-          ? x.oeeXhoras / x.horas
+          ? glacialAgregarDerivados(x.lista).oee
           : 0,
+
+      lista: x.lista,
 
       efectiva: x.efectiva,
 
@@ -643,7 +645,7 @@ function calcularPromedioMovil(serieDiaria, ventanaDias){
 
 
     let horas = 0;
-    let oeeXhoras = 0;
+    const lista = [];
 
     serieDiaria.forEach(p => {
 
@@ -652,7 +654,7 @@ function calcularPromedioMovil(serieDiaria, ventanaDias){
       if(f >= ini && f <= fin){
 
         horas += p.horas;
-        oeeXhoras += p.oee * p.horas;
+        lista.push(...p.lista);
 
       }
 
@@ -660,7 +662,7 @@ function calcularPromedioMovil(serieDiaria, ventanaDias){
 
 
     return horas > 0
-      ? oeeXhoras / horas
+      ? glacialAgregarDerivados(lista).oee
       : null;
 
   });
@@ -699,13 +701,13 @@ function agruparOEEPorTurno(all){
       acumulado[turno] = {
         turno,
         horas: 0,
-        oeeXhoras: 0
+        lista: []
       };
 
     }
 
     acumulado[turno].horas += horas;
-    acumulado[turno].oeeXhoras += d.oee * horas;
+    acumulado[turno].lista.push(d);
 
   });
 
@@ -714,7 +716,7 @@ function agruparOEEPorTurno(all){
 
     .map(x => ({
       etiqueta: x.turno,
-      oee: x.horas > 0 ? x.oeeXhoras / x.horas : 0,
+      oee: x.horas > 0 ? glacialAgregarDerivados(x.lista).oee : 0,
       horas: x.horas
     }))
 
@@ -727,7 +729,7 @@ function agruparOEEPorMarca(all){
 
   const acumulado = {};
 
-  const agregar = (marca, horas, oee) => {
+  const agregar = (marca, horas, derivado) => {
 
     const clave = (marca || '').trim();
 
@@ -740,13 +742,13 @@ function agruparOEEPorMarca(all){
       acumulado[clave] = {
         marca: clave,
         horas: 0,
-        oeeXhoras: 0
+        lista: []
       };
 
     }
 
     acumulado[clave].horas += horas;
-    acumulado[clave].oeeXhoras += oee * horas;
+    acumulado[clave].lista.push(derivado);
 
   };
 
@@ -759,7 +761,7 @@ function agruparOEEPorMarca(all){
 
         const dc = calcDerivedCuadro(c);
 
-        agregar(c?.marca, dc.horasEfectivas, dc.oee);
+        agregar(c?.marca, dc.horasEfectivas, dc);
 
       });
 
@@ -767,7 +769,7 @@ function agruparOEEPorMarca(all){
 
       const dl = calcDerivedLegacy(r);
 
-      agregar(r.marca, dl.horasEfectivas, dl.oee);
+      agregar(r.marca, dl.horasEfectivas, dl);
 
     }
 
@@ -778,7 +780,7 @@ function agruparOEEPorMarca(all){
 
     .map(x => ({
       etiqueta: x.marca,
-      oee: x.horas > 0 ? x.oeeXhoras / x.horas : 0,
+      oee: x.horas > 0 ? glacialAgregarDerivados(x.lista).oee : 0,
       horas: x.horas
     }))
 
@@ -1827,13 +1829,13 @@ function xlHojaReporte(wb, ctx){
     xlSet(ws, f, 17,
       xlFx(`IF(H${f}>0,I${f}/H${f},0)`, dc.disponibilidad), par('0.0%'));
     xlSet(ws, f, 18,
-      xlFx(`IF(O${f}*I${f}>0,MIN(K${f}/(O${f}*I${f}),1),0)`, dc.rendimiento),
+      xlFx(`IF(O${f}*I${f}>0,K${f}/(O${f}*I${f}),0)`, dc.rendimiento),
       par('0.0%'));
     xlSet(ws, f, 19,
       xlFx(`IF(L${f}>0,MAX(L${f}-M${f},0)/L${f},IF(K${f}>0,1,0))`, dc.calidad),
       par('0.0%'));
     xlSet(ws, f, 20,
-      xlFx(`Q${f}*R${f}*S${f}`, dc.oee), { numFmt:'0.0%', align:'right', bold:true });
+      xlFx(`Q${f}*R${f}`, dc.oee), { numFmt:'0.0%', align:'right', bold:true });
     xlSet(ws, f, 21,
       xlFx(`IF(J${f}>0,K${f}/J${f},0)`, dc.cumplimiento), par('0.0%'));
 
@@ -1887,7 +1889,7 @@ function xlHojaReporte(wb, ctx){
     xlFx(`IF(H${rt}>0,I${rt}/H${rt},0)`, num(d.disponibilidad)),
     { ...totalFmt, numFmt:'0.0%' });
   xlSet(ws, rt, 18,
-    xlFx(`IF(${nominalRango}>0,MIN(K${rt}/${nominalRango},1),0)`,
+    xlFx(`IF(${nominalRango}>0,SUMIF(O${rc0}:O${rc1},">0",K${rc0}:K${rc1})/${nominalRango},0)`,
       num(d.rendimiento)),
     { ...totalFmt, numFmt:'0.0%' });
   xlSet(ws, rt, 19,
@@ -1895,7 +1897,7 @@ function xlHojaReporte(wb, ctx){
       num(d.calidad)),
     { ...totalFmt, numFmt:'0.0%' });
   xlSet(ws, rt, 20,
-    xlFx(`Q${rt}*R${rt}*S${rt}`, num(d.oee)),
+    xlFx(`Q${rt}*R${rt}`, num(d.oee)),
     { ...totalFmt, numFmt:'0.0%' });
   xlSet(ws, rt, 21,
     xlFx(`IF(J${rt}>0,K${rt}/J${rt},0)`, num(d.cumplimiento)),
@@ -2638,7 +2640,8 @@ function xlHojaHistorial(wb, ctx){
 function xlEstadisticasLinea(regs){
 
   let hTurno = 0, hEf = 0, efec = 0, planMin = 0, npMin = 0;
-  let oeeH = 0, rendH = 0, calH = 0;
+  let calH = 0;
+  const derivados = [];
 
   regs.forEach(r => {
 
@@ -2651,8 +2654,7 @@ function xlEstadisticasLinea(regs){
     npMin += num(x.pNoProg) * 60;
     efec += num(x.efectiva ?? r.produccion?.efectiva);
 
-    oeeH += num(x.oee) * h;
-    rendH += num(x.rendimiento) * h;
+    derivados.push(x);
     calH += num(x.calidad) * h;
 
   });
@@ -2662,9 +2664,9 @@ function xlEstadisticasLinea(regs){
     hEf,
     efec,
     disp:GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0,
-    rend:hEf > 0 ? rendH / hEf : 0,
+    rend:glacialAgregarDerivados(derivados).rendimiento,
     cal:hEf > 0 ? calH / hEf : 0,
-    oee:hEf > 0 ? oeeH / hEf : 0
+    oee:glacialAgregarDerivados(derivados).oee
   };
 
 }

@@ -182,7 +182,8 @@ function agregadosPorLinea(records, lineas){
 
     const recs = records.filter(r => r.linea === l.key);
 
-    let horasTurno = 0, horasEfectivas = 0, oeeXhoras = 0, planMin = 0, npMin = 0;
+    let horasTurno = 0, horasEfectivas = 0, planMin = 0, npMin = 0;
+    const derivados = [];
     let efectiva = 0, programada = 0, litros = 0, minutosParadas = 0, mermaUnidades = 0;
 
     recs.forEach(r => {
@@ -198,22 +199,20 @@ function agregadosPorLinea(records, lineas){
       minutosParadas += (num(d.pProg) + num(d.pNoProg)) * 60;
       mermaUnidades += agruparMermas(r).totalUnidades;
 
-      if(h > 0){
-        oeeXhoras += d.oee * h;
-      }
+      derivados.push(d);
       planMin += (num(d.horasEfectivas) + num(d.pNoProg)) * 60;
       npMin += num(d.pNoProg) * 60;
 
     });
 
-    const oee = horasEfectivas > 0 ? oeeXhoras / horasEfectivas : 0;
+    const { oee, rendimiento } = glacialAgregarDerivados(derivados);
     const disponibilidad = GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0;
     const cumplimiento = programada > 0 ? efectiva / programada : 0;
     const mermaPct = efectiva > 0 ? mermaUnidades / efectiva : 0;
 
     return {
       linea: l.name, key: l.key,
-      horasTurno, horasEfectivas, oee, disponibilidad, planMin, npMin,
+      horasTurno, horasEfectivas, oee, rendimiento, disponibilidad, planMin, npMin, derivados,
       efectiva, programada, cumplimiento, litros,
       minutosParadas, mermaUnidades, mermaPct,
       sinDatos: recs.length === 0
@@ -253,11 +252,11 @@ function calcularOEEDiarioPorLinea(records){
     }
 
     if(!acumulado[r.fecha][r.linea]){
-      acumulado[r.fecha][r.linea] = { horas:0, oeeXhoras:0 };
+      acumulado[r.fecha][r.linea] = { horas:0, lista:[] };
     }
 
     acumulado[r.fecha][r.linea].horas += h;
-    acumulado[r.fecha][r.linea].oeeXhoras += d.oee * h;
+    acumulado[r.fecha][r.linea].lista.push(d);
 
   });
 
@@ -581,9 +580,7 @@ function xlgHojaPortada(wb, ctx){
 
   /* KPIs de planta */
   const horas = lineasAgg.reduce((a,l) => a + l.horasEfectivas, 0);
-  const oeePlanta = horas > 0
-    ? lineasAgg.reduce((a,l) => a + l.oee * l.horasEfectivas, 0) / horas
-    : 0;
+  const oeePlanta = glacialAgregarDerivados(lineasAgg.flatMap(l => l.derivados)).oee;
   const dispPlanta = GlacialIndicadores.disponibilidad(
     lineasAgg.reduce((a,l) => a + l.planMin, 0), lineasAgg.reduce((a,l) => a + l.npMin, 0)) ?? 0;
   const efectivaPlanta = lineasAgg.reduce((a,l) => a + l.efectiva, 0);
@@ -702,7 +699,7 @@ function xlgHojaPortada(wb, ctx){
 
     const valoresTendencia = fechasTendencia.map(f => {
       const dia = tendenciaDiaria.acumulado[f]?.[l.key];
-      return dia && dia.horas > 0 ? dia.oeeXhoras / dia.horas : null;
+      return dia && dia.horas > 0 ? glacialAgregarDerivados(dia.lista).oee : null;
     });
 
     const imgTendencia = xlggraficosparkline({
@@ -824,13 +821,11 @@ function xlgHojaMatrizLineas(wb, ctx){
 
   lineasAgg.forEach(l => {
 
-    const rendimiento = l.horasEfectivas > 0 && l.oee > 0 && l.disponibilidad > 0
-      ? l.oee / l.disponibilidad
-      : 0;
+    const rendimiento = l.rendimiento;
 
     const valores = [
       l.linea, xlN(l.efectiva), xlN(l.litros), xlN1(l.horasEfectivas),
-      pct(l.disponibilidad), rendimiento > 0 ? pct(Math.min(rendimiento, 1)) : '—',
+      pct(l.disponibilidad), rendimiento > 0 ? pct(rendimiento) : '—',
       '—', pct(l.oee), pct(l.cumplimiento),
       xlN1(l.minutosParadas / 60), pct(l.mermaPct),
       l.sinDatos ? 'Sin datos' : xlEstado(l.oee)
@@ -860,9 +855,7 @@ function xlgHojaMatrizLineas(wb, ctx){
   const totalProgramada = lineasAgg.reduce((a,l) => a + l.programada, 0);
   const totalMerma = lineasAgg.reduce((a,l) => a + l.mermaUnidades, 0);
   const totalParadasMin = lineasAgg.reduce((a,l) => a + l.minutosParadas, 0);
-  const oeePlanta = totalHoras > 0
-    ? lineasAgg.reduce((a,l) => a + l.oee * l.horasEfectivas, 0) / totalHoras
-    : 0;
+  const oeePlanta = glacialAgregarDerivados(lineasAgg.flatMap(l => l.derivados)).oee;
   const dispPlanta = GlacialIndicadores.disponibilidad(
     lineasAgg.reduce((a,l) => a + l.planMin, 0), lineasAgg.reduce((a,l) => a + l.npMin, 0)) ?? 0;
 
@@ -1260,7 +1253,7 @@ function xlgHojaTendencia(wb, ctx){
     color: colores[i],
     valores: fechas.map(f => {
       const c = acumulado[f]?.[l.key];
-      return c && c.horas > 0 ? c.oeeXhoras / c.horas : null;
+      return c && c.horas > 0 ? glacialAgregarDerivados(c.lista).oee : null;
     })
   }));
 

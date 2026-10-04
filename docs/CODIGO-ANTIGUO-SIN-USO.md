@@ -16,3 +16,12 @@ Se lista, no se borra. Cada commit de la Parte 2 agrega su sección.
 | `js/produccion/09-resumen.js`, `14-exportar-general.js` | Los promedios de disponibilidad ponderados por horas (`dispXhoras`) se quitaron; la disponibilidad de la planta se calcula con tiempos sumados. El campo `disponibilidad` por línea sigue en el agregado de 14 y ya viene del módulo. |
 | `js/produccion/08-graficos.js` (`xlEstadisticasLinea`) | `hTurno` sigue acumulándose pero ya no entra en la disponibilidad (queda sin lectura). |
 | `js/produccion/49-resumen-indicadores.js` | Las metas `DEF_METAS.disponibilidad` siguen aquí hasta el commit de metas. |
+
+## Commit 3 — rendimiento y OEE
+
+| Archivo | Qué queda sin uso |
+|---|---|
+| `js/produccion/06-registro.js` | `calidad`, `calidadBot`, `rechazadas` se siguen calculando (otras pantallas los muestran), pero ya no entran en el OEE. |
+| `js/produccion/47-analisis-paradas.js` | `datos.rechazadas` (merma de Botellas) se sigue leyendo, pero ya no se usa para calcular nada. Los comentarios de cabecera líneas 20-21 describen la calidad antigua. |
+| `js/produccion/08-graficos.js`, `09-resumen.js` | Siguen mostrando «Calidad» (radar, cascada de pérdidas, metas de calidad, textos de resumen). Como no se mide, queda para decidir si se retira (hoy vale 100 %). |
+| `js/produccion/08-graficos.js` | `calcularPromedioMovil` ahora usa la lista de registros; los campos `oee` y `horas` de la serie diaria quedan solo como valor final. |

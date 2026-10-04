@@ -402,9 +402,11 @@
     const horas=avail/60;
     const dispF=GlacialIndicadores.disponibilidad(plan,Math.max(0,plan-avail));
     const disp=dispF==null?null:dispF*100;
-    const rend=stdOut>0?prodV/stdOut*100:null;
-    const dispV=planV>0?availV/planV*100:null;
-    const oee=(rend!=null&&dispV!=null)?dispV*rend/100:null;
+    const rendF=stdOut>0?GlacialIndicadores.rendimiento(prodV,stdOut):null;
+    const rend=rendF==null?null:rendF*100;
+    const dispVF=GlacialIndicadores.disponibilidad(planV,Math.max(0,planV-availV));
+    const oeeF=GlacialIndicadores.oee(dispVF,rendF);
+    const oee=oeeF==null?null:oeeF*100;
     return {produccion:prod,programado:progU,producidoProg:prodU,cumplimiento:progU>0?prodU/progU*100:null,
       horasEfectivas:horas,ratio:horas>0?prodT/horas:null,disponibilidad:disp,merma:prod>0?merma/prod*100:null,
       mermaUnidades:merma,rendimiento:rend,oee,cobertura:prodConT>0?prodV/prodConT*100:null,faltantes:[...faltantes],

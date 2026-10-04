@@ -62,9 +62,15 @@ function calcDerivedLegacy(r){
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
-  const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
+  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. Calidad: no se mide. */
+  const conVelocidad = produccionNominal > 0;
+  const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(efectiva, horasEfectivas), ratio);
+  const rendimiento = rendimientoReal ?? 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
-  const oee = disponibilidad * rendimiento * calidad;
+  const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal) ?? 0;
+  const planMinVel = conVelocidad ? planificadoH * 60 : 0;
+  const npMinVel = conVelocidad ? pNoProg * 60 : 0;
+  const efectivaVel = conVelocidad ? efectiva : 0;
   const cumplimiento = programada > 0 ? efectiva / programada : 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
@@ -85,7 +91,8 @@ function calcDerivedLegacy(r){
     pNoProg,
     rechazadas,
     muestrasCalidad,
-    calidadBot
+    calidadBot,
+    conVelocidad, planMinVel, npMinVel, efectivaVel
   };
 }
 
@@ -115,9 +122,15 @@ function calcDerivedCuadro(cuadro){
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
-  const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
+  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. Calidad: no se mide. */
+  const conVelocidad = produccionNominal > 0;
+  const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(efectiva, horasEfectivas), ratio);
+  const rendimiento = rendimientoReal ?? 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
-  const oee = disponibilidad * rendimiento * calidad;
+  const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal) ?? 0;
+  const planMinVel = conVelocidad ? planificadoH * 60 : 0;
+  const npMinVel = conVelocidad ? pNoProg * 60 : 0;
+  const efectivaVel = conVelocidad ? efectiva : 0;
   const cumplimiento = programada > 0 ? efectiva / programada : 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
@@ -138,7 +151,8 @@ function calcDerivedCuadro(cuadro){
     pNoProg,
     rechazadas,
     muestrasCalidad,
-    calidadBot
+    calidadBot,
+    conVelocidad, planMinVel, npMinVel, efectivaVel
   };
 }
 
@@ -166,9 +180,13 @@ function calcDerivedMulti(r){
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
-  const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
+  const planMinVel = ds.reduce((a,d) => a + num(d.planMinVel), 0);
+  const npMinVel = ds.reduce((a,d) => a + num(d.npMinVel), 0);
+  const efectivaVel = ds.reduce((a,d) => a + num(d.efectivaVel), 0);
+  const rendimientoReal = produccionNominal > 0 ? GlacialIndicadores.rendimiento(efectivaVel, produccionNominal) : null;
+  const rendimiento = rendimientoReal ?? 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
-  const oee = disponibilidad * rendimiento * calidad;
+  const oee = GlacialIndicadores.oee(GlacialIndicadores.disponibilidad(planMinVel, npMinVel), rendimientoReal) ?? 0;
   const cumplimiento = programada > 0 ? efectiva / programada : 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
@@ -193,10 +211,24 @@ function calcDerivedMulti(r){
     sopladas,
     calidadBot,
     rechazadas,
+    planMinVel, npMinVel, efectivaVel,
     cuadros: ds
   };
 }
 
+
+/* Rendimiento y OEE de varios registros (o líneas): suma de tiempos y producción de lo que tiene velocidad estándar. */
+function glacialAgregarDerivados(lista){
+  const s = c => lista.reduce((a,d) => a + num(d[c]), 0);
+  const nominal = s('produccionNominal');
+  const rend = nominal > 0 ? GlacialIndicadores.rendimiento(s('efectivaVel'), nominal) : null;
+  const disp = GlacialIndicadores.disponibilidad(s('planMinVel'), s('npMinVel'));
+  return {
+    rendimiento: rend ?? 0,
+    oee: GlacialIndicadores.oee(disp, rend) ?? 0,
+    aRevisar: GlacialIndicadores.rendimientoARevisar(rend)
+  };
+}
 
 function calcDerived(r){
   return Array.isArray(r?.cuadros)

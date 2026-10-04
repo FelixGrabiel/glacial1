@@ -276,7 +276,7 @@ function filtrarPorRangoResumen(records){
 function calcularKPIsPlanta(records){
 
   let horas = 0;
-  let oeeXhoras = 0;
+  const derivados = [];
   let planMin = 0;
   let npMin = 0;
   let efectivaTotal = 0;
@@ -295,18 +295,18 @@ function calcularKPIsPlanta(records){
     if(h > 0){
 
       horas += h;
-      oeeXhoras += d.oee * h;
 
     }
 
     planMin += (num(d.horasEfectivas) + num(d.pNoProg)) * 60;
     npMin += num(d.pNoProg) * 60;
+    derivados.push(d);
 
   });
 
   return {
 
-    oee: horas > 0 ? oeeXhoras / horas : 0,
+    oee: glacialAgregarDerivados(derivados).oee,
 
     disponibilidad:
       GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0,
@@ -1545,7 +1545,7 @@ function calcularOEEPorLinea(records, lineas){
       records.filter(r => r.linea === l.key);
 
     let horas = 0;
-    let oeeXhoras = 0;
+    const derivados = [];
 
     recs.forEach(r => {
 
@@ -1554,7 +1554,7 @@ function calcularOEEPorLinea(records, lineas){
 
       if(h > 0){
         horas += h;
-        oeeXhoras += d.oee * h;
+        derivados.push(d);
       }
 
     });
@@ -1565,7 +1565,7 @@ function calcularOEEPorLinea(records, lineas){
 
       key: l.key,
 
-      oee: horas > 0 ? oeeXhoras / horas : 0,
+      oee: glacialAgregarDerivados(derivados).oee,
 
       horas,
 
@@ -1842,7 +1842,7 @@ function calcularComponentesOEEPorLinea(records, lineas){
     let horas = 0;
     let planMin = 0;
     let npMin = 0;
-    let rendXhoras = 0;
+    const derivados = [];
     let calXhoras = 0;
 
     recs.forEach(r => {
@@ -1853,13 +1853,13 @@ function calcularComponentesOEEPorLinea(records, lineas){
       if(h > 0){
 
         horas += h;
-        rendXhoras += num(d.rendimiento) * h;
         calXhoras += num(d.calidad) * h;
 
       }
 
       planMin += (num(d.horasEfectivas) + num(d.pNoProg)) * 60;
       npMin += num(d.pNoProg) * 60;
+      derivados.push(d);
 
     });
 
@@ -1869,7 +1869,7 @@ function calcularComponentesOEEPorLinea(records, lineas){
       key: l.key,
 
       disponibilidad: GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0,
-      rendimiento: horas > 0 ? rendXhoras / horas : 0,
+      rendimiento: glacialAgregarDerivados(derivados).rendimiento,
       calidad: horas > 0 ? calXhoras / horas : 0,
 
       sinDatos: horas <= 0
