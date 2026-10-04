@@ -277,7 +277,8 @@ function calcularKPIsPlanta(records){
 
   let horas = 0;
   let oeeXhoras = 0;
-  let dispXhoras = 0;
+  let planMin = 0;
+  let npMin = 0;
   let efectivaTotal = 0;
   let mermaTotal = 0;
 
@@ -295,9 +296,11 @@ function calcularKPIsPlanta(records){
 
       horas += h;
       oeeXhoras += d.oee * h;
-      dispXhoras += num(d.disponibilidad) * h;
 
     }
+
+    planMin += (num(d.horasEfectivas) + num(d.pNoProg)) * 60;
+    npMin += num(d.pNoProg) * 60;
 
   });
 
@@ -306,7 +309,7 @@ function calcularKPIsPlanta(records){
     oee: horas > 0 ? oeeXhoras / horas : 0,
 
     disponibilidad:
-      horas > 0 ? dispXhoras / horas : 0,
+      GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0,
 
     efectivaTotal,
 
@@ -1837,7 +1840,8 @@ function calcularComponentesOEEPorLinea(records, lineas){
       records.filter(r => r.linea === l.key);
 
     let horas = 0;
-    let dispXhoras = 0;
+    let planMin = 0;
+    let npMin = 0;
     let rendXhoras = 0;
     let calXhoras = 0;
 
@@ -1849,11 +1853,13 @@ function calcularComponentesOEEPorLinea(records, lineas){
       if(h > 0){
 
         horas += h;
-        dispXhoras += num(d.disponibilidad) * h;
         rendXhoras += num(d.rendimiento) * h;
         calXhoras += num(d.calidad) * h;
 
       }
+
+      planMin += (num(d.horasEfectivas) + num(d.pNoProg)) * 60;
+      npMin += num(d.pNoProg) * 60;
 
     });
 
@@ -1862,7 +1868,7 @@ function calcularComponentesOEEPorLinea(records, lineas){
       linea: l.name,
       key: l.key,
 
-      disponibilidad: horas > 0 ? dispXhoras / horas : 0,
+      disponibilidad: GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0,
       rendimiento: horas > 0 ? rendXhoras / horas : 0,
       calidad: horas > 0 ? calXhoras / horas : 0,
 

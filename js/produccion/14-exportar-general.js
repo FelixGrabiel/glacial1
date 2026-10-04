@@ -182,7 +182,7 @@ function agregadosPorLinea(records, lineas){
 
     const recs = records.filter(r => r.linea === l.key);
 
-    let horasTurno = 0, horasEfectivas = 0, oeeXhoras = 0, dispXhoras = 0;
+    let horasTurno = 0, horasEfectivas = 0, oeeXhoras = 0, planMin = 0, npMin = 0;
     let efectiva = 0, programada = 0, litros = 0, minutosParadas = 0, mermaUnidades = 0;
 
     recs.forEach(r => {
@@ -200,19 +200,20 @@ function agregadosPorLinea(records, lineas){
 
       if(h > 0){
         oeeXhoras += d.oee * h;
-        dispXhoras += num(d.disponibilidad) * h;
       }
+      planMin += (num(d.horasEfectivas) + num(d.pNoProg)) * 60;
+      npMin += num(d.pNoProg) * 60;
 
     });
 
     const oee = horasEfectivas > 0 ? oeeXhoras / horasEfectivas : 0;
-    const disponibilidad = horasEfectivas > 0 ? dispXhoras / horasEfectivas : 0;
+    const disponibilidad = GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0;
     const cumplimiento = programada > 0 ? efectiva / programada : 0;
     const mermaPct = efectiva > 0 ? mermaUnidades / efectiva : 0;
 
     return {
       linea: l.name, key: l.key,
-      horasTurno, horasEfectivas, oee, disponibilidad,
+      horasTurno, horasEfectivas, oee, disponibilidad, planMin, npMin,
       efectiva, programada, cumplimiento, litros,
       minutosParadas, mermaUnidades, mermaPct,
       sinDatos: recs.length === 0
@@ -583,9 +584,8 @@ function xlgHojaPortada(wb, ctx){
   const oeePlanta = horas > 0
     ? lineasAgg.reduce((a,l) => a + l.oee * l.horasEfectivas, 0) / horas
     : 0;
-  const dispPlanta = horas > 0
-    ? lineasAgg.reduce((a,l) => a + l.disponibilidad * l.horasEfectivas, 0) / horas
-    : 0;
+  const dispPlanta = GlacialIndicadores.disponibilidad(
+    lineasAgg.reduce((a,l) => a + l.planMin, 0), lineasAgg.reduce((a,l) => a + l.npMin, 0)) ?? 0;
   const efectivaPlanta = lineasAgg.reduce((a,l) => a + l.efectiva, 0);
   const litrosPlanta = lineasAgg.reduce((a,l) => a + l.litros, 0);
   const programadaPlanta = lineasAgg.reduce((a,l) => a + l.programada, 0);
@@ -863,9 +863,8 @@ function xlgHojaMatrizLineas(wb, ctx){
   const oeePlanta = totalHoras > 0
     ? lineasAgg.reduce((a,l) => a + l.oee * l.horasEfectivas, 0) / totalHoras
     : 0;
-  const dispPlanta = totalHoras > 0
-    ? lineasAgg.reduce((a,l) => a + l.disponibilidad * l.horasEfectivas, 0) / totalHoras
-    : 0;
+  const dispPlanta = GlacialIndicadores.disponibilidad(
+    lineasAgg.reduce((a,l) => a + l.planMin, 0), lineasAgg.reduce((a,l) => a + l.npMin, 0)) ?? 0;
 
   const filaTotal = [
     'TOTAL PLANTA', xlN(totalEfectiva), xlN(totalLitros), xlN1(totalHoras),

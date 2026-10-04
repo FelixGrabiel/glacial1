@@ -61,7 +61,7 @@ function calcDerivedLegacy(r){
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
-  const disponibilidad = planificadoH > 0 ? horasEfectivas / planificadoH : 0;
+  const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
   const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
   const oee = disponibilidad * rendimiento * calidad;
@@ -114,7 +114,7 @@ function calcDerivedCuadro(cuadro){
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
-  const disponibilidad = planificadoH > 0 ? horasEfectivas / planificadoH : 0;
+  const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
   const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
   const oee = disponibilidad * rendimiento * calidad;
@@ -165,7 +165,7 @@ function calcDerivedMulti(r){
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
-  const disponibilidad = planificadoH > 0 ? horasEfectivas / planificadoH : 0;
+  const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
   const rendimiento = produccionNominal > 0 ? Math.min(efectiva / produccionNominal, 1) : 0;
   const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
   const oee = disponibilidad * rendimiento * calidad;

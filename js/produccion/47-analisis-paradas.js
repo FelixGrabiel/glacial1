@@ -130,7 +130,7 @@
     const items=Array.isArray(t.paradasClasificadas)?t.paradasClasificadas:[];
     const npItems=items.filter(x=>x.clasif==='NO_PROGRAMADA'),pItems=items.filter(x=>x.clasif==='PROGRAMADA');
     return {linea:g.linea,fecha:g.fecha,turno:g.turno,bloque:g.bloque||(g.turno==='NOCHE'?'NOCHE':'DIA_INTERMEDIO'),
-      t,duracion,prog,np,planificado,enMarcha,disp:planificado>0?enMarcha/planificado:null,
+      t,duracion,prog,np,planificado,enMarcha,disp:GlacialIndicadores.disponibilidad(planificado,np),
       nNp:npItems.length,npItems,pItems,ajusteNp:num(t.ajusteNpMin),ajusteProg:num(t.ajusteProgMin)};
   }
 
@@ -162,7 +162,7 @@
     let plan=0,marcha=0,np=0,prog=0,nNp=0,ajNp=0;
     us.forEach(u=>{plan+=u.planificado;marcha+=u.enMarcha;np+=u.np;prog+=u.prog;nNp+=u.nNp;ajNp+=u.ajusteNp;});
     return {planificado:plan,enMarcha:marcha,npMin:np,progMin:prog,nNp,ajusteNp:ajNp,
-      disp:plan>0?marcha/plan:null,mttr:nNp>0?np/nNp:null,mtbf:nNp>0?marcha/nNp:null};
+      disp:GlacialIndicadores.disponibilidad(plan,np),mttr:nNp>0?np/nNp:null,mtbf:nNp>0?marcha/nNp:null};
   }
 
   /* Pareto: agrupa las paradas por motivo / línea / turno / técnico. */

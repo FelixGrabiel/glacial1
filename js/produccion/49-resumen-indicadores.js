@@ -400,7 +400,8 @@
       }
     });
     const horas=avail/60;
-    const disp=plan>0?avail/plan*100:null;
+    const dispF=GlacialIndicadores.disponibilidad(plan,Math.max(0,plan-avail));
+    const disp=dispF==null?null:dispF*100;
     const rend=stdOut>0?prodV/stdOut*100:null;
     const dispV=planV>0?availV/planV*100:null;
     const oee=(rend!=null&&dispV!=null)?dispV*rend/100:null;

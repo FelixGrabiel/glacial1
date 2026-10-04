@@ -2637,7 +2637,7 @@ function xlHojaHistorial(wb, ctx){
 
 function xlEstadisticasLinea(regs){
 
-  let hTurno = 0, hEf = 0, efec = 0;
+  let hTurno = 0, hEf = 0, efec = 0, planMin = 0, npMin = 0;
   let oeeH = 0, rendH = 0, calH = 0;
 
   regs.forEach(r => {
@@ -2647,6 +2647,8 @@ function xlEstadisticasLinea(regs){
 
     hTurno += num(x.horasTurno ?? r.horasTurno);
     hEf += h;
+    planMin += (h + num(x.pNoProg)) * 60;
+    npMin += num(x.pNoProg) * 60;
     efec += num(x.efectiva ?? r.produccion?.efectiva);
 
     oeeH += num(x.oee) * h;
@@ -2659,7 +2661,7 @@ function xlEstadisticasLinea(regs){
     registros:regs.length,
     hEf,
     efec,
-    disp:hTurno > 0 ? hEf / hTurno : 0,
+    disp:GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0,
     rend:hEf > 0 ? rendH / hEf : 0,
     cal:hEf > 0 ? calH / hEf : 0,
     oee:hEf > 0 ? oeeH / hEf : 0
