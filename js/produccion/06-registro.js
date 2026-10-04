@@ -47,7 +47,7 @@ function calcDerivedLegacy(r){
   const horasTurno = num(r.horasTurno);
   const pProg = num((r.paradasProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
   const pNoProg = num((r.paradasNoProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
-  const horasEfectivas = Math.max(horasTurno - pProg - pNoProg, 0);
+  const horasEfectivas = GlacialIndicadores.horasEfectivas({ transcurridoMin: horasTurno * 60, paradasProgramadasMin: pProg * 60, paradasNoProgramadasMin: pNoProg * 60 });
   const ratio = num(r.ratioNominal);
   const produccionNominal = ratio * horasEfectivas;
   const efectiva = num(r.produccion?.efectiva);
@@ -68,7 +68,7 @@ function calcDerivedLegacy(r){
   const cumplimiento = programada > 0 ? efectiva / programada : 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
-  const ratioEfectivo = horasEfectivas > 0 ? efectiva / horasEfectivas : 0;
+  const ratioEfectivo = GlacialIndicadores.ratio(efectiva, horasEfectivas) ?? 0;
 
   return {
     horasEfectivas,
@@ -95,7 +95,7 @@ function calcDerivedCuadro(cuadro){
   const horasTurno = num(cuadro?.horasTurno);
   const pProg = num((cuadro?.paradasProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
   const pNoProg = num((cuadro?.paradasNoProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
-  const horasEfectivas = Math.max(horasTurno - pProg - pNoProg, 0);
+  const horasEfectivas = GlacialIndicadores.horasEfectivas({ transcurridoMin: horasTurno * 60, paradasProgramadasMin: pProg * 60, paradasNoProgramadasMin: pNoProg * 60 });
   const ratio = num(cuadro?.ratioNominal);
   const produccionNominal = ratio * horasEfectivas;
   const efectiva = num(cuadro?.produccion?.efectiva);
@@ -121,7 +121,7 @@ function calcDerivedCuadro(cuadro){
   const cumplimiento = programada > 0 ? efectiva / programada : 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
-  const ratioEfectivo = horasEfectivas > 0 ? efectiva / horasEfectivas : 0;
+  const ratioEfectivo = GlacialIndicadores.ratio(efectiva, horasEfectivas) ?? 0;
 
   return {
     horasEfectivas,
@@ -172,7 +172,7 @@ function calcDerivedMulti(r){
   const cumplimiento = programada > 0 ? efectiva / programada : 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
-  const ratioEfectivo = horasEfectivas > 0 ? efectiva / horasEfectivas : 0;
+  const ratioEfectivo = GlacialIndicadores.ratio(efectiva, horasEfectivas) ?? 0;
 
   return {
     horasTurno,

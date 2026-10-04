@@ -412,7 +412,7 @@
       tiempoTranscurridoMin:transcurrido,
       minParadasNoProgramadas:noProg,
       minPausasProgramadas:pausas,
-      tiempoOperativoMin:Math.max(0,transcurrido-pausas-noProg),
+      tiempoOperativoMin:GlacialIndicadores.horasEfectivas({transcurridoMin:transcurrido,paradasProgramadasMin:pausas,paradasNoProgramadasMin:noProg})*60,
       fuentes:{
         supervisor:{noProgramadas:medir(Ns)/MS_MIN+sum(durNp),programadas:medir(Ps)/MS_MIN+sum(durProg),total:supMin},
         detenerLinea:{noProgramadas:minTipo('DETENCION')+legadoDetMs/MS_MIN},
@@ -437,7 +437,7 @@
 
     const baseBruta=t.tiempoTranscurridoMin-t.minPausasProgramadas;
     if(baseBruta>0)sal.ratioTurno=prod/(baseBruta/60);
-    if(t.tiempoOperativoMin>0)sal.ratioEfectivo=prod/(t.tiempoOperativoMin/60);
+    sal.ratioEfectivo=GlacialIndicadores.ratio(prod,GlacialIndicadores.horasEfectivas({transcurridoMin:t.tiempoTranscurridoMin,paradasProgramadasMin:t.minPausasProgramadas,paradasNoProgramadasMin:t.minParadasNoProgramadas}));
 
     if(t.enCurso&&t.finTurnoMs){
       const restante=Math.max(0,(t.finTurnoMs-ahora)/MS_MIN);

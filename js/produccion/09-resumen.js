@@ -2413,8 +2413,9 @@ function rsDatosIndustriales(records){
     const paradas=rr.flatMap(rsParadas);
     const minParadas=paradas.reduce((a,p)=>a+rsNum(p.tiempoMin),0);
     const minCalendario=rr.reduce((a,r)=>a+rsMinProduccion(r),0);
-    const minEfectivos=Math.max(0,minCalendario-minParadas);
-    const ratio=minEfectivos>0?producido/(minEfectivos/60):0;
+    const horasEf=GlacialIndicadores.horasEfectivas({transcurridoMin:minCalendario,paradasProgramadasMin:0,paradasNoProgramadasMin:minParadas});
+    const minEfectivos=horasEf*60;
+    const ratio=GlacialIndicadores.ratio(producido,horasEf) ?? 0;
     const nominales=[];
     rr.forEach(r=>rsCuadros(r).forEach(q=>{const n=rsNominalCuadro(q,linea);if(n)nominales.push(n);}));
     const nominal=nominales.length?nominales.reduce((a,b)=>a+b,0)/nominales.length:0;

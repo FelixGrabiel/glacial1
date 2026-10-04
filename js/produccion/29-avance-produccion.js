@@ -784,12 +784,10 @@ function avBloquesPresentacionLinea(l){
       ? avMinEntre(avanceEstado.fecha,inicioCalculo,fin,avanceEstado.turno)
       : 0;
 
-    const efectivos=Math.max(0,min-totalParadasCalculo);
+    const horasEf=GlacialIndicadores.horasEfectivas({transcurridoMin:min,paradasProgramadasMin:0,paradasNoProgramadasMin:totalParadasCalculo});
 
     b.inicio=b.inicio||inicioCalculo;
-    b.ratio=efectivos>0
-      ? b.produccionTotal/(efectivos/60)
-      : 0;
+    b.ratio=GlacialIndicadores.ratio(b.produccionTotal,horasEf) ?? 0;
 
     b.consumo=avConsumoLinea(
       l.linea,

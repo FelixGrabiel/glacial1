@@ -126,7 +126,7 @@
   function construirUnidad(g,t){
     const duracion=num(t.tiempoTranscurridoMin),prog=num(t.minPausasProgramadas),np=num(t.minParadasNoProgramadas);
     const planificado=Math.max(0,duracion-prog);                   // duración de la programación − paradas programadas
-    const enMarcha=Math.max(0,num(t.tiempoOperativoMin));         // planificado − paradas no programadas
+    const enMarcha=GlacialIndicadores.horasEfectivas({transcurridoMin:duracion,paradasProgramadasMin:prog,paradasNoProgramadasMin:np})*60;         // planificado − paradas no programadas
     const items=Array.isArray(t.paradasClasificadas)?t.paradasClasificadas:[];
     const npItems=items.filter(x=>x.clasif==='NO_PROGRAMADA'),pItems=items.filter(x=>x.clasif==='PROGRAMADA');
     return {linea:g.linea,fecha:g.fecha,turno:g.turno,bloque:g.bloque||(g.turno==='NOCHE'?'NOCHE':'DIA_INTERMEDIO'),
