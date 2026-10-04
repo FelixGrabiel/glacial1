@@ -30,6 +30,7 @@ js/
 |---|---|
 | 00-logo.js | Logo en base64 para portadas de Excel. **No se carga** en `index.html` (pendiente de decidir) |
 | 01-config.js | Configuración de Firebase, banderas de seguridad, catálogos |
+| 44-estado-datos.js | Insignia «Actualizado a las HH:MM» / «Sin conexión · datos de las HH:MM» (Inicio, Producción Actual, Bitácora y Tareo) |
 | 02-estado.js | Estado global, permisos, sincronización con Firestore |
 | 04-sidebar.js | Menú lateral y navegación |
 | 05-utils.js | Utilidades comunes |
@@ -85,7 +86,7 @@ js/
 | 33-rotacion-maquinistas.js | Rotación semanal de maquinistas |
 | 37-mantenimiento-tecnicos.js | Cuenta compartida de Mantenimiento: rol, permisos (ver tareo y operar líneas con PIN) |
 | 37b-mantenimiento-identificacion.js | Identificación del técnico con PIN |
-| 43-bitacora-mantenimiento.js | Pantalla de solo lectura «Bitácora de Mantenimiento» (lee bitacoraMantenimiento por rango de fechas; vista por parada, resumen y Excel) |
+| 43-bitacora-mantenimiento.js | Bitácora de Mantenimiento (solo lectura: rangos rápidos por día operativo 07:00–07:00, orden, buscador, vista por parada, motivos pendientes y Excel) y tarjeta «Paradas de hoy» del Inicio |
 
 ### js/rrhh/
 | Archivo | Función |
@@ -140,8 +141,9 @@ js/
 41. personal/40-tareo-auditoria.js
 42. personal/41-tareo-bloqueo.js
 43. mantenimiento/43-bitacora-mantenimiento.js
-44. accesos/39-vista-como.js
-45. nucleo/12-init.js
+44. nucleo/44-estado-datos.js
+45. accesos/39-vista-como.js
+46. nucleo/12-init.js
 
 ## Cómo agregar un archivo nuevo
 

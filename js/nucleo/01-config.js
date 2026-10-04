@@ -781,6 +781,11 @@ const SHEETS_URL = '';
 const SHEETS_CLAVE = '';
 
 
+/* Tarjeta «Paradas de hoy» (Inicio): una parada ABIERTA que supera estos minutos pone la tarjeta en rojo
+   (con alguna abierta por debajo es ámbar; sin abiertas, verde). Una pausa programada solo se alarma si
+   además pasa de su duración estándar. Configurable: editar aquí. */
+const PARADA_ALERTA_MIN = 30;
+
 /* =========================================================
    CATÁLOGO DE MOTIVOS DE PARADA CON DURACIÓN ESTÁNDAR
    (CONFIGURABLE — editar aquí)

@@ -412,6 +412,7 @@
 
     const boton=(accion,label)=>`<button type="button" class="btn btn-ghost btn-sm"
       data-pa-accion="${accion}" data-pa-indice="${idx}">${label}</button>`;
+    const compl=motivoPendienteAbierto(x.op) ? boton('completarMotivo','Completar motivo') : '';
     if(x.puede==='mtto' || x.puede==='control'){
       if(e==='EN_PRODUCCION'){
         return boton('detener','Detener línea')+
@@ -419,10 +420,10 @@
       }
       if(e==='DETENIDA'){
         return boton('lista','Intervención terminada')+
-          boton('reanudar','Reanudar producción');
+          boton('reanudar','Reanudar producción')+compl;
       }
       if(e==='LISTA' || e==='PAUSA'){
-        return boton('reanudar','Reanudar producción');
+        return boton('reanudar','Reanudar producción')+compl;
       }
       return '';
     }
@@ -436,10 +437,10 @@
     if(!e || e==='PENDIENTE')return boton('iniciar','Iniciar presentación')+
       boton('cancelar','✕ Cancelar');
     if(e==='DETENIDA' || e==='LISTA')return boton('corregirInicio','Corregir hora inicio')+
-      boton('reanudar','Reanudar producción')+boton('finalizar','Finalizar presentación')+
+      boton('reanudar','Reanudar producción')+compl+boton('finalizar','Finalizar presentación')+
       boton('cancelar','✕ Cancelar');
     if(e==='PAUSA')return boton('corregirInicio','Corregir hora inicio')+
-      boton('reanudar','Reanudar producción')+boton('cancelar','✕ Cancelar');
+      boton('reanudar','Reanudar producción')+compl+boton('cancelar','✕ Cancelar');
     if(e==='EN_PRODUCCION')return boton('corregirInicio','Corregir hora inicio')+
       boton('detener','Detener línea')+boton('pausa','Pausa programada')+
       boton('finalizar','Finalizar presentación')+boton('cancelar','✕ Cancelar');
@@ -1388,7 +1389,7 @@
         let motivo=o.nombre;
         if(o.nombre==='Otro'){
           const d=fondo.querySelector('#pa-motivo-detalle').value.trim();
-          if(!d){alert('Escribe el detalle del motivo.');return;}
+          if(d.length<5){alert('Escribe el detalle del motivo (mínimo 5 caracteres).');return;}
           motivo='Otro — '+d;
         }
         cerrar({motivo,estandarMin:o.estandarMin || 0,clasificacion});
@@ -1520,9 +1521,77 @@
     if(state.currentTab==='produccion-actual')renderProduccionActualTab();
   }
 
+  /* ---------- MOTIVO PENDIENTE: completarlo después (evento COMPLETAR_MOTIVO) ---------- */
+  // Pendiente = sin motivo, «Otro» a secas o «Otro — …» con menos de 5 caracteres de detalle.
+  function esMotivoPendiente(m){
+    const t=String(m||'').trim().toLowerCase();
+    if(!t || t==='otro' || t==='sin motivo registrado')return true;
+    const r=t.match(/^otro\s*[—–-]\s*(.*)$/);
+    return !!r && r[1].trim().length<5;
+  }
+  const motivoAbierto=op=>op?.estado==='PAUSA' ? (op.motivoPausa||'') : (op?.motivo||'');
+  function motivoPendienteAbierto(op){
+    return !!op && ['DETENIDA','LISTA','PAUSA'].includes(op.estado) && !op.motivoDetalle &&
+      esMotivoPendiente(motivoAbierto(op));
+  }
+  function idParadaAbierta(op){
+    const abiertas=(Array.isArray(op?.paradas) ? op.paradas : []).filter(p=>p && !num(p.fin));
+    return abiertas.length ? (abiertas[abiertas.length-1].id || null) : null;
+  }
+  window.glacialEsMotivoPendiente=esMotivoPendiente;
+
+  async function completarMotivoLinea(x){
+    const op0=x.op || {};
+    if(!motivoPendienteAbierto(op0)){alert('Esta parada no tiene un motivo pendiente.');return;}
+    if(!['supervisor','mtto','control'].includes(x.puede))return;
+    if(typeof esMantCompartido==='function' && esMantCompartido() &&
+       !(typeof window.mantTecnicoActivo==='function' && window.mantTecnicoActivo())){
+      alert('Identifícate con tu PIN antes de operar una línea.');
+      if(typeof window.mantCerrarIdentificacion==='function')window.mantCerrarIdentificacion(true);
+      return;
+    }
+    const entrada=prompt('Describe el motivo de la parada (mínimo 5 caracteres):');
+    if(entrada===null)return;
+    const texto=String(entrada).trim().slice(0,160);
+    if(texto.length<5){alert('La descripción debe tener al menos 5 caracteres.');return;}
+    const k=llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion);
+    const ref=db.collection('sync').doc('programaciones');
+    const quien=datosQuienOpera();
+    const refBit=db.collection(COLECCION_BITACORA).doc();
+    let evento=null;
+    const items=await db.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      const lista=snap.exists && Array.isArray(snap.data().items) ? snap.data().items.slice() : [];
+      const i=lista.findIndex(p=>p.clave===k);
+      if(i<0)throw new Error('No hay programación para esta presentación.');
+      const previo=lista[i].estadoOperacion || {};
+      if(!motivoPendienteAbierto(previo))throw new Error('La parada ya no tiene un motivo pendiente. Actualiza el tablero.');
+      const ahora=ahoraServidor();
+      const op={...previo,motivoDetalle:texto,motivoCompletadoPor:nombreOperador(),motivoCompletadoEn:ahora};
+      lista[i]={...lista[i],estadoOperacion:op};
+      evento=eventoBitacora('COMPLETAR_MOTIVO',quien,x,k,previo.estado,op,{
+        motivo:'',paradaId:idParadaAbierta(previo),motivoAnterior:motivoAbierto(previo),motivoDetalle:texto
+      });
+      if(quien.compartida)tx.set(refBit,evento);          // atómico: sin técnico registrado no se completa
+      tx.set(ref,{items:lista,updatedAt:ahora});
+      return lista;
+    });
+    if(evento && !quien.compartida && !window.__vistaComo){
+      Promise.resolve(refBit.set(evento)).catch(e=>
+        console.warn('Bitácora de Mantenimiento: no se pudo registrar COMPLETAR_MOTIVO:',e && e.message ? e.message : e));
+    }
+    _programacionesCache=items;
+    if(state.currentTab==='produccion-actual')renderProduccionActualTab();
+  }
+
   async function cambiarEstado(x,accion){
     if(!x)return;
     if(accion==='corregir')return corregirFinalizacion(x);
+    if(accion==='completarMotivo'){
+      try{await completarMotivoLinea(x);}
+      catch(err){alert('No se pudo completar el motivo: '+((err&&err.message)||err));}
+      return;
+    }
 
     // Cuenta compartida de Mantenimiento: sin técnico identificado por PIN no se opera la línea.
     if(ACCIONES_BITACORA[accion] && typeof esMantCompartido==='function' && esMantCompartido() &&
@@ -1944,6 +2013,8 @@
       if(accionBit){
         eventoBit=eventoBitacora(accionBit,quienOpera,x,k,e,op,{
           motivo:accion==='detener' ? motivo : (accion==='pausa' ? motivoPausa : (accion==='reanudar' ? (previo.motivo || previo.motivoPausa || '') : '')),
+          // Identificador de la parada (mismo id que op.paradas): enlaza DETENER/PAUSAR con sus pasos y con COMPLETAR_MOTIVO.
+          paradaId:accion==='detener' ? `${k}|${ahora}|det` : (accion==='pausa' ? `${k}|${ahora}|pausa` : idParadaAbierta(previo)),
           estandarMin:accion==='pausa' ? num(motivoElegido?.estandarMin) : null,
           duracionMs:accion==='reanudar' && op.ultimaParada ? num(op.ultimaParada.duracionMs) : null
         });
@@ -1967,6 +2038,7 @@
   }
   // Acceso para pruebas: SOLO existe en el entorno PRUEBAS (en producción no se expone).
   if(typeof ENTORNO_PRUEBAS!=='undefined' && ENTORNO_PRUEBAS)window.glacialSemaforo={cambiarEstado};
+  window.glacialTurnoVigente=turnoVigente;
   const renderAnterior=renderProduccionActualTab;
   renderProduccionActualTab=function(){
     if(!produccionActualFecha)produccionActualFecha=turnoVigente().fecha;

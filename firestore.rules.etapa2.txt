@@ -163,7 +163,10 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.timestamp == request.time
         && request.resource.data.keys().hasAll(['uid', 'timestamp', 'accion', 'linea', 'tecnicoNombre'])
-        && request.resource.data.accion in ['DETENER', 'PAUSAR', 'INTERVENIR', 'REANUDAR'];
+        && request.resource.data.accion in ['DETENER', 'PAUSAR', 'INTERVENIR', 'REANUDAR', 'COMPLETAR_MOTIVO']
+        // COMPLETAR_MOTIVO: evento nuevo (la bitácora no se edita) con la descripción del motivo (mínimo 5 caracteres).
+        && (request.resource.data.accion != 'COMPLETAR_MOTIVO'
+            || (request.resource.data.motivoDetalle is string && request.resource.data.motivoDetalle.size() >= 5));
       allow update, delete: if false;
     }
 
