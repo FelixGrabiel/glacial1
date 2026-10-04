@@ -2405,7 +2405,7 @@ function rsDatosIndustriales(records){
   const progs=rsProgramaciones(), pals=rsPaletas();
   const porLinea=lineas.map(linea=>{
     const rr=records.filter(r=>r.linea===linea);
-    const pp=progs.filter(p=>p.linea===linea&&!['CANCELADA'].includes(p.estado));
+    const pp=progs.filter(p=>p.linea===linea&&!(p.estadoOperacion&&p.estadoOperacion.estado==='CANCELADA'));   // canceladas según estadoOperacion.estado (como el semáforo)
     const programado=pp.reduce((a,p)=>a+rsNum(p.cantidadProgramada),0);
     let producido=rr.reduce((a,r)=>a+rsProd(r),0);
     const palLinea=pals.filter(p=>p.linea===linea);
@@ -2464,7 +2464,7 @@ function rsInsight(data){
 }
 function renderResumenIndustrial(records,rangoLabel){
   rsDestroyIndustrial();
-  const anchor=document.getElementById('resumen-kpis');if(!anchor)return;
+  const anchor=document.getElementById('resumen-anclaje')||document.getElementById('resumen-kpis');if(!anchor)return;
   const data=rsDatosIndustriales(records);
   const estados=rsEstadoLineas();
   const totalParadas=data.porLinea.reduce((a,x)=>a+x.minParadas,0);
@@ -2494,21 +2494,21 @@ function renderResumenIndustrial(records,rangoLabel){
     </style>
     <div class="ri-filter">${filtros.map(x=>`<button class="${resumenFiltroLinea===x?'active':''}" onclick="resumenSeleccionarLinea('${x}')">${x==='TODAS'?'Toda la planta':rsLineaNombre(x)}</button>`).join('')}</div>
     <div class="ri-pulse"><h3>Estado actual de planta</h3><div class="ri-status">${estados.map(e=>`<div class="ri-state"><b>${rsLineaNombre(e.linea)}</b><span class="ri-dot ${e.nivel}"></span>${e.estado}</div>`).join('')}</div></div>
+    <div class="ri-grid">
+      <div class="ri-box"><h3>Programado vs producido por línea</h3><div class="ri-canvas"><canvas id="ri-plan-real"></canvas></div></div>
+      <div class="ri-box"><h3>Cumplimiento por línea</h3><div class="ri-canvas"><canvas id="ri-cumplimiento"></canvas></div></div>
+      <div class="ri-box wide"><h3>Pareto de causas de parada</h3><div class="ri-canvas tall"><canvas id="ri-pareto"></canvas></div></div>
+      <div class="ri-box"><h3>Minutos de parada por línea</h3><div class="ri-canvas"><canvas id="ri-paradas"></canvas></div></div>
+      <div class="ri-box"><h3>Merma registrada por línea</h3><div class="ri-canvas"><canvas id="ri-merma"></canvas></div></div>
+      <div class="ri-box"><h3>Ratio Turno vs nominal</h3><div class="ri-canvas"><canvas id="ri-ratio"></canvas></div></div>
+      <div class="ri-box"><h3>Producción por persona</h3><div class="ri-canvas"><canvas id="ri-personal"></canvas></div></div>
+    </div>
     <div class="ri-kpis">
       <div class="ri-kpi"><span>Producción visible</span><b>${Math.round(totalProd).toLocaleString('es-PE')}</b><small>No mezcla interpretación entre formatos</small></div>
       <div class="ri-kpi"><span>Cumplimiento</span><b>${totalProg?(cumplimiento*100).toFixed(1)+'%':'—'}</b><small>Producido / programado</small></div>
       <div class="ri-kpi"><span>Paradas</span><b>${Math.round(totalParadas).toLocaleString('es-PE')} min</b><small>Acumulado</small></div>
       <div class="ri-kpi"><span>Horas efectivas</span><b>${horasEf.toFixed(1)} h</b><small>Tiempo − paradas</small></div>
       <div class="ri-kpi"><span>Merma</span><b>${mermaPct?(mermaPct*100).toFixed(1)+'%':'0.0%'}</b><small>Suma de mermas ÷ producción efectiva</small></div>
-    </div>
-    <div class="ri-grid">
-      <div class="ri-box"><h3>Programado vs producido por línea</h3><div class="ri-canvas"><canvas id="ri-plan-real"></canvas></div></div>
-      <div class="ri-box"><h3>Cumplimiento por línea</h3><div class="ri-canvas"><canvas id="ri-cumplimiento"></canvas></div></div>
-      <div class="ri-box"><h3>Ratio Turno vs nominal</h3><div class="ri-canvas"><canvas id="ri-ratio"></canvas></div></div>
-      <div class="ri-box"><h3>Minutos de parada por línea</h3><div class="ri-canvas"><canvas id="ri-paradas"></canvas></div></div>
-      <div class="ri-box wide"><h3>Pareto de causas de parada</h3><div class="ri-canvas tall"><canvas id="ri-pareto"></canvas></div></div>
-      <div class="ri-box"><h3>Merma registrada por línea</h3><div class="ri-canvas"><canvas id="ri-merma"></canvas></div></div>
-      <div class="ri-box"><h3>Producción por persona</h3><div class="ri-canvas"><canvas id="ri-personal"></canvas></div></div>
     </div>
     <div class="ri-read"><h3>Resumen del período</h3><ul>${rsInsight(data).map(x=>`<li>${escaparHtml(x)}</li>`).join('')}</ul></div>`;
   anchor.parentNode.insertBefore(sec,anchor);
@@ -3356,10 +3356,7 @@ function renderResumen(main){
       </div>
 
 
-      <div
-        class="rs-kpis"
-        id="resumen-kpis"
-      ></div>
+      <div id="resumen-anclaje"></div>
 
 
       <div class="rs-panel" id="panel-presentacion-marca">
@@ -3528,6 +3525,13 @@ function renderResumen(main){
         ></div>
 
       </div>
+
+      <div class="rs-section" style="margin-top:18px">Tarjetas anteriores (mismos valores que la cabecera de arriba)</div>
+
+      <div
+        class="rs-kpis"
+        id="resumen-kpis"
+      ></div>
 
     </div>
 

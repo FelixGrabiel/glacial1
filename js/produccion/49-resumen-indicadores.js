@@ -656,9 +656,12 @@
     const cats=ORDEN_PRES.concat([...R.cats].filter(c=>!ORDEN_PRES.includes(c)));
     const rangoUI=(resumenTieneRango()&&resumenRangoDias==='rango')?
       '<input type="date" data-rgx-fecha="desde" value="'+esc(per.desde)+'"> <input type="date" data-rgx-fecha="hasta" value="'+esc(per.hasta)+'">':'';
+    const lineasSel=(()=>{try{return (typeof lineasConsultables==='function'?lineasConsultables():LINES);}catch(_){return [];}})();
+    const lineaAct=(typeof resumenFiltroLinea!=='undefined')?resumenFiltroLinea:'TODAS';
     return '<div class="rgx-bar"><div><h3>Indicadores del periodo</h3><div class="rgx-sub">Todas las líneas visibles · '+esc(etiquetaPeriodo(per))+
       (R.hayVivo?' · hoy en vivo desde el semáforo':'')+(per.previo?' · comparado con '+esc(fmtFecha(per.previo.desde)===fmtFecha(per.previo.hasta)?fmtFecha(per.previo.desde):fmtFecha(per.previo.desde)+' – '+fmtFecha(per.previo.hasta)):'')+'</div></div>'+
-      '<div class="rgx-ctl"><select data-rgx-filtro="turno" aria-label="Turno"><option value="">Todos los turnos</option><option value="DIA"'+(F.turno==='DIA'?' selected':'')+'>Día</option><option value="NOCHE"'+(F.turno==='NOCHE'?' selected':'')+'>Noche</option></select>'+
+      '<div class="rgx-ctl"><select data-rgx-filtro="linea" aria-label="Línea"><option value="TODAS">Toda la planta</option>'+lineasSel.map(l=>'<option value="'+esc(l.key)+'"'+(lineaAct===l.key?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select>'+
+      '<select data-rgx-filtro="turno" aria-label="Turno"><option value="">Todos los turnos</option><option value="DIA"'+(F.turno==='DIA'?' selected':'')+'>Día</option><option value="NOCHE"'+(F.turno==='NOCHE'?' selected':'')+'>Noche</option></select>'+
       '<select data-rgx-filtro="marca" aria-label="Marca"><option value="">Todas las marcas</option>'+grupoMarcas('regular','Regulares')+grupoMarcas('gas','Con gas')+grupoMarcas('sabor','Saborizadas')+'</select>'+
       '<select data-rgx-filtro="pres" aria-label="Presentación"><option value="">Todas las presentaciones</option>'+cats.map(k=>'<option value="'+esc(k)+'"'+(F.pres===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</select>'+
       '<button type="button" class="rgx-btn'+(resumenTieneRango()&&resumenRangoDias==='rango'?' on':'')+'" data-rgx-rango>Rango</button>'+rangoUI+
@@ -677,11 +680,13 @@
 
   let ultimo=null;
   function pintar(){
-    const kp=document.getElementById('resumen-kpis');
-    if(!kp||!kp.parentNode)return;
+    // Orden de lectura: cabecera → mis indicadores → bloque de planta (industrial) → resto. Se inserta antes del bloque industrial.
+    const ind=typeof document.querySelector==='function'?document.querySelector('.rs-industrial'):null;
+    const ref=ind||document.getElementById('resumen-anclaje')||document.getElementById('resumen-kpis');
+    if(!ref||!ref.parentNode)return;
     estilos();
     let sec=document.getElementById('rgx');
-    if(!sec){sec=document.createElement('section');sec.id='rgx';sec.className='rgx';kp.parentNode.insertBefore(sec,kp);}
+    if(!sec){sec=document.createElement('section');sec.id='rgx';sec.className='rgx';ref.parentNode.insertBefore(sec,ref);}
     try{
       ultimo=calcular();
       sec.innerHTML=htmlSeccion(ultimo);
@@ -768,6 +773,7 @@
   document.addEventListener('change',e=>{
     const t=e.target;if(!t||!t.closest||!t.closest('#rgx'))return;
     const f=t.getAttribute('data-rgx-filtro');
+    if(f==='linea'){resumenFiltroLinea=t.value||'TODAS';redibujarTodo();return;}
     if(f){F[f]=t.value;redibujarTodo();return;}
     const fe=t.getAttribute('data-rgx-fecha');
     if(fe){
