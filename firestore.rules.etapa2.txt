@@ -97,7 +97,7 @@ service cloud.firestore {
         || (doc == 'cuentasAntiguas' && esAdmin())
         || (doc != 'cuentasAntiguas' && autenticado() && (!esMantCompartido() || lecturaMant(doc)));
 
-      allow write:
+      allow write: if
         // Duración de la identificación de técnicos: solo supervisor de Mantenimiento / Administrador.
         (doc == 'configMantenimiento' && esSupervisorMtto()) ||
         // Cuenta compartida: los PIN de técnicos y operar líneas (programaciones, acotado).
