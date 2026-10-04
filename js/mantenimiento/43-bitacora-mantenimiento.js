@@ -458,7 +458,7 @@
     const rb=(clave,texto)=>'<button type="button" data-bm-rango="'+clave+'" class="'+(F.rango===clave?'active':'')+'">'+texto+'</button>';
     const sinDatos=!carga.cargando&&!carga.error&&!carga.eventos.length;
     main.innerHTML=
-      '<div class="main-head" id="bitmtto-view"><div><h2>Bitácora de Mantenimiento</h2>'+
+      '<div class="main-head" id="bitmtto-view"><div><h2>'+(F.origen==='PRODUCCION'?'Bitácora de producción':'Bitácora de Mantenimiento')+'</h2>'+
       '<div class="sub">Solo lectura · día operativo de 07:00 a 07:00 · hora del servidor '+
       (carga.cargadoEn?chip():'<span class="small-muted">sin consultar</span>')+'</div></div></div>'+
       '<div class="panel"><div class="panel-body">'+
@@ -822,13 +822,16 @@
     if(o.rango){aplicarRango(o.rango);}
     else if(F.rango!=='personalizado'||!fechaOk(F.desde)||!fechaOk(F.hasta))aplicarRango(F.rango==='personalizado'?'personalizado':(F.rango||'hoy'));
     F.pend=!!o.pend;
-    if(o.rango){F.turno=F.linea=F.tecnico=F.accion=F.q='';}
+    if(o.rango){F.turno=F.linea=F.tecnico=F.accion=F.q='';F.origen=o.origen||'';}
+    else if(o.origen!==undefined)F.origen=o.origen;
     state.currentTab='bitacora-mtto';
     if(typeof renderSidebar==='function')renderSidebar();
     if(typeof renderMain==='function')renderMain();
     cargarRango(!!o.rango);
   };
-  window.goBitacoraMtto=()=>window.bitacoraMttoAbrir();
+  window.goBitacoraMtto=()=>window.bitacoraMttoAbrir({origen:''});
+  // «Bitácora de producción»: la misma pantalla filtrada por origen Producción (se abre desde el grupo Producción del menú).
+  window.goBitacoraProduccion=()=>window.bitacoraMttoAbrir({rango:'hoy',origen:'PRODUCCION'});
 
   if(typeof ajustarVistaSegunPermisos==='function'){
     const ajustarAnterior=ajustarVistaSegunPermisos;
@@ -850,22 +853,25 @@
   if(typeof grupoSidebarActivo==='function'){
     const grupoAnterior=grupoSidebarActivo;
     grupoSidebarActivo=function(){
-      return state.currentTab==='bitacora-mtto'?'mantenimiento':grupoAnterior.apply(this,arguments);
+      return state.currentTab==='bitacora-mtto'?(F.origen==='PRODUCCION'?'produccion':'mantenimiento'):grupoAnterior.apply(this,arguments);
     };
   }
   if(typeof renderSidebar==='function'){
     const sidebarAnterior=renderSidebar;
     renderSidebar=function(){
       const r=sidebarAnterior.apply(this,arguments);
-      const b=document.getElementById('btn-bitacora-mtto');
-      if(b){
-        const mostrar=!!(typeof state!=='undefined'&&state.user)&&puedeVerBitacoraMtto();
+      const mostrar=!!(typeof state!=='undefined'&&state.user)&&puedeVerBitacoraMtto();
+      let cambio=false;
+      [['btn-bitacora-mtto',false],['btn-bitacora-prod',true]].forEach(([id,esProd])=>{
+        const b=document.getElementById(id);
+        if(!b)return;
         b.hidden=!mostrar;b.style.display=mostrar?'':'none';
-        const activo=mostrar&&state.currentTab==='bitacora-mtto';
+        const activo=mostrar&&state.currentTab==='bitacora-mtto'&&((F.origen==='PRODUCCION')===esProd);
         b.classList.toggle('active',activo);
         if(activo)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
-        if(typeof actualizarGruposSidebar==='function')actualizarGruposSidebar();
-      }
+        cambio=true;
+      });
+      if(cambio&&typeof actualizarGruposSidebar==='function')actualizarGruposSidebar();
       return r;
     };
   }
