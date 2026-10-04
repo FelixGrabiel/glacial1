@@ -457,12 +457,15 @@ function agruparMermas(rec){
 
     (lista || []).forEach(m => {
 
-      const item =
+      const itemOriginal =
         String(m?.item || '').trim();
 
-      if(!item){
+      if(!itemOriginal){
         return;
       }
+
+      /* Un solo nombre de componente en todas las líneas (Botellas, Preformas, Tapas, Etiquetas, Polietileno). */
+      const item = GlacialIndicadores.componenteMerma(itemOriginal);
 
       if(!acumulado[item]){
 
@@ -1728,7 +1731,7 @@ function xlHojaReporte(wb, ctx){
 
     hallazgos.push(
       `Mermas: ${xlN(mermas.totalUnidades)} unidades ` +
-      `(${(mermas.totalUnidades / num(d.efectiva) * 100).toFixed(2)} % ` +
+      `(${(GlacialIndicadores.merma(mermas.totalUnidades, d.efectiva) * 100).toFixed(2)} % ` +
       `de la producción efectiva). ` +
       `Mayor componente: ${mermas.filas[0].item}.`
     );
@@ -5054,9 +5057,7 @@ function renderGraficosTab(){
     num(d.efectiva ?? rec.produccion?.efectiva);
 
   const mermaPct = f =>
-    efectivaParaMermas > 0
-      ? (f.unidades / efectivaParaMermas) * 100
-      : 0;
+    (GlacialIndicadores.merma(f.unidades, efectivaParaMermas) ?? 0) * 100;
 
 
   if(!mermasAgrupadas.filas.length){
@@ -5190,9 +5191,7 @@ function renderGraficosTab(){
     /* Merma total del turno, contra la meta de planta. */
 
     const totalMermaPct =
-      efectivaParaMermas > 0
-        ? (mermasAgrupadas.totalUnidades / efectivaParaMermas) * 100
-        : 0;
+      (GlacialIndicadores.merma(mermasAgrupadas.totalUnidades, efectivaParaMermas) ?? 0) * 100;
 
     const metaMermaPct = METAS.merma * 100;
 

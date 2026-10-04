@@ -314,9 +314,7 @@ function calcularKPIsPlanta(records){
     efectivaTotal,
 
     mermaPct:
-      efectivaTotal > 0
-        ? mermaTotal / efectivaTotal
-        : 0
+      GlacialIndicadores.merma(mermaTotal, efectivaTotal) ?? 0
 
   };
 
@@ -1911,9 +1909,7 @@ function calcularMermaPorLinea(records, lineas){
       key: l.key,
 
       mermaPct:
-        efectivaTotal > 0
-          ? mermaTotal / efectivaTotal
-          : 0,
+        GlacialIndicadores.merma(mermaTotal, efectivaTotal) ?? 0,
 
       sinDatos: recs.length === 0
 
@@ -2479,7 +2475,7 @@ function renderResumenIndustrial(records,rangoLabel){
   const totalProd=data.porLinea.reduce((a,x)=>a+x.producido,0);
   const cumplimiento=GlacialIndicadores.cumplimiento(totalProd,totalProg)??0;
   const totalMerma=data.porLinea.reduce((a,x)=>a+x.merma,0);
-  const mermaPct=totalProd>0?totalMerma/totalProd:0;          // misma fórmula que la tarjeta del Resumen: suma de mermas ÷ producción efectiva
+  const mermaPct=GlacialIndicadores.merma(totalMerma,totalProd)??0;          // misma fórmula que la tarjeta del Resumen: suma de mermas ÷ producción efectiva
   const horasEf=data.porLinea.reduce((a,x)=>a+x.minEfectivos,0)/60;
   const filtros=['TODAS','PET1','PET2','B7L','C20L','B20L'];
 

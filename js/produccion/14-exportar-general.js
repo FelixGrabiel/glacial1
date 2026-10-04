@@ -208,7 +208,7 @@ function agregadosPorLinea(records, lineas){
     const { oee, rendimiento } = glacialAgregarDerivados(derivados);
     const disponibilidad = GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0;
     const cumplimiento = GlacialIndicadores.cumplimiento(efectiva, programada) ?? 0;
-    const mermaPct = efectiva > 0 ? mermaUnidades / efectiva : 0;
+    const mermaPct = GlacialIndicadores.merma(mermaUnidades, efectiva) ?? 0;
 
     return {
       linea: l.name, key: l.key,
@@ -588,7 +588,7 @@ function xlgHojaPortada(wb, ctx){
   const programadaPlanta = lineasAgg.reduce((a,l) => a + l.programada, 0);
   const cumplimientoPlanta = GlacialIndicadores.cumplimiento(efectivaPlanta, programadaPlanta) ?? 0;
   const mermaPlanta = lineasAgg.reduce((a,l) => a + l.mermaUnidades, 0);
-  const mermaPctPlanta = efectivaPlanta > 0 ? mermaPlanta / efectivaPlanta : 0;
+  const mermaPctPlanta = GlacialIndicadores.merma(mermaPlanta, efectivaPlanta) ?? 0;
   const minutosParadasPlanta = lineasAgg.reduce((a,l) => a + l.minutosParadas, 0);
 
   const estadoMeta =

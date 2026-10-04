@@ -33,3 +33,10 @@ Se lista, no se borra. Cada commit de la Parte 2 agrega su sección.
 | `js/produccion/24-semaforo-produccion-actual.js` (~línea 1588) | El campo «producción corregida» del cierre sigue guardando `op.produccionFinalCorregida`, pero `producidoDe` ya no lo lee: **editarlo no cambia ningún número**. Decidir si se quita el campo del cierre. |
 | `js/produccion/24-semaforo-produccion-actual.js` | `obtenerProgramacionPaleta` y la lógica de cantidad programada por item siguen en el semáforo (el programado vigente por línea lo da `programadoVigente`, pendiente de conectar al sumar items). |
 | `js/produccion/16-paletas.js` | `resumenProgramacionCombinacionTurnos` sigue siendo la fuente de Paletas; no se toca. |
+
+## Commit 5 — merma
+
+| Archivo | Qué queda sin uso |
+|---|---|
+| `js/produccion/08-graficos.js` | Las barras de merma por turno solo muestran unidades; el Polietileno en kg + rollos solo sale en el Resumen general (49). Falta decidir si el gráfico del turno también lo muestra en kg. |
+| `js/produccion/09-resumen.js` (`calcularMermaPorLinea`, etc.) | Siguen sumando `agruparMermas(r).totalUnidades`; la fórmula del porcentaje ya es la del módulo. |
