@@ -1252,8 +1252,10 @@ function saveUsers(u){
      actual, pero primero se consulta Firestore para impedir que un caché vacío
      o incompleto sobrescriba silenciosamente una lista mayor.
 
-     Las reducciones intencionales (Eliminar usuario) deben usar
-     saveUsers(u, { permitirReduccion:true }).
+     Las reducciones intencionales NO pasan por aquí: el Administrador elimina con
+     eliminarUsuarioEnFirestore(username) (más abajo), que quita exactamente a ese
+     usuario de la lista ACTUAL de Firestore dentro de una transacción. Así esta
+     protección sigue activa contra cualquier otra lista desactualizada o incompleta.
   */
   const nuevaLista = u.map(usuario => ({ ...usuario }));
   const anteriorCache = Array.isArray(_usersCache)
@@ -1302,6 +1304,56 @@ function saveUsers(u){
     });
 
 }
+
+
+/* Eliminación intencional de UN usuario (solo Administrador).
+   - Parte de la lista actual de Firestore (no del caché del navegador) y quita únicamente a
+     ese usuario, dentro de una transacción: si alguien más agregó o cambió usuarios, se conservan.
+   - Devuelve { ok, eliminado, motivo }. 'eliminado' es el registro tal como estaba en Firestore
+     (con authEmail/authUid, para anotar la cuenta antigua).
+   - No se puede eliminar 'admin' ni al último Administrador. */
+function eliminarUsuarioEnFirestore(username){
+  const nombre = String(username || '').trim();
+  const clave = x => String((x && x.username) || '').trim();
+  const esAdmin = x => String((x && x.rol) || '').trim() === 'Administrador';
+  const anteriorCache = Array.isArray(_usersCache) ? _usersCache : [];
+
+  if(!nombre) return Promise.resolve({ ok:false, motivo:'Usuario no válido.' });
+  if(nombre === 'admin')
+    return Promise.resolve({ ok:false, motivo:'El usuario administrador principal no puede eliminarse.' });
+
+  const ref = db.collection('sync').doc('users');
+
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const remotos = snap.exists && Array.isArray(snap.data().items) ? snap.data().items : [];
+    const objetivo = remotos.find(x => clave(x) === nombre);
+
+    if(!objetivo) return { ok:true, yaNoExiste:true, lista:remotos, eliminado:null };
+
+    const nueva = remotos.filter(x => clave(x) !== nombre);
+
+    if(nueva.length !== remotos.length - 1)
+      return { ok:false, motivo:'Había más de un registro con ese nombre de usuario. No se eliminó nada.' };
+
+    if(esAdmin(objetivo) && !nueva.some(esAdmin))
+      return { ok:false, motivo:'No se puede eliminar al único Administrador.' };
+
+    tx.set(ref, { items:nueva, updatedAt:Date.now() });
+    return { ok:true, lista:nueva, eliminado:{ ...objetivo } };
+  }).then(r => {
+    if(r.ok && Array.isArray(r.lista)){
+      _usersCache = r.lista.map(x => ({ ...x }));
+      onUsersUpdated();
+    }
+    return r;
+  }).catch(err => {
+    _usersCache = anteriorCache;
+    _avisarErrorGuardado('usuarios', err);
+    return { ok:false, motivo:'No se pudo guardar: ' + ((err && err.message) || err) };
+  });
+}
+window.eliminarUsuarioEnFirestore = eliminarUsuarioEnFirestore;
 
 
 function loadRecords(){

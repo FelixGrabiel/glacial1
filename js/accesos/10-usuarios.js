@@ -1877,33 +1877,53 @@ function removeUser(username){
   }
 
 
-  // La cuenta de Firebase Authentication del usuario eliminado sigue existiendo: se anota
-  // su correo para borrarla a mano (ver comprobarMigracion()).
-  const eliminado=loadUsers().find(u=>u.username===username);
+  /*
+     Eliminación intencional: se quita exactamente a este usuario de la lista ACTUAL de
+     Firestore (transacción). La protección de saveUsers() contra listas desactualizadas
+     no se toca. Después se actualizan perfiles y accesos y se anota el correo de la cuenta
+     de Authentication, que sigue existiendo y se borra a mano (ver comprobarMigracion()).
+  */
+  Promise.resolve(eliminarUsuarioEnFirestore(username))
+    .then(async r=>{
 
-  Promise.resolve(
-    saveUsers(
-      loadUsers().filter(
-        u=>u.username!==username
-      )
-    )
-  ).then(()=>{
-    if(
-      eliminado && eliminado.authEmail &&
-      typeof registrarCuentaAntigua==='function' &&
-      typeof esAdministradorSeguridad==='function' &&
-      esAdministradorSeguridad()
-    ){
-      registrarCuentaAntigua({
-        email:eliminado.authEmail,
-        uid:eliminado.authUid || '',
-        username,
-        motivo:'ELIMINADO'
-      });
-    }
-  }).catch(()=>{});
+      if(!r||!r.ok){
+        alert((r&&r.motivo)||'No se pudo eliminar al usuario.');
+        renderUserList();
+        return;
+      }
 
+      if(r.yaNoExiste){
+        alert('El usuario "'+username+'" ya no existía en la lista.');
+        renderUserList();
+        return;
+      }
 
-  renderUserList();
+      if(typeof publicarPerfiles==='function'){
+        await publicarPerfiles();
+      }
+
+      const eliminado=r.eliminado;
+      if(
+        eliminado && eliminado.authEmail &&
+        typeof registrarCuentaAntigua==='function' &&
+        typeof esAdministradorSeguridad==='function' &&
+        esAdministradorSeguridad()
+      ){
+        await registrarCuentaAntigua({
+          email:eliminado.authEmail,
+          uid:eliminado.authUid || '',
+          username,
+          motivo:'ELIMINADO'
+        });
+      }
+
+      renderUserList();
+
+    })
+    .catch(e=>{
+      console.warn('Eliminar usuario:',e);
+      alert('No se pudo eliminar al usuario: '+((e&&e.message)||e));
+      renderUserList();
+    });
 
 }
