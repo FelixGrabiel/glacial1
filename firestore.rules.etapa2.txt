@@ -73,6 +73,19 @@ service cloud.firestore {
             && ('moduloMantenimiento' in perfiles()[request.auth.uid].permisos
                 || 'gestionar_rotacion_mantenimiento' in perfiles()[request.auth.uid].permisos)));
     }
+    // Pantalla «Bitácora de Mantenimiento» (solo lectura): Administrador, Jefatura/Gerencia,
+    // Supervisor de Producción y Supervisor de Mantenimiento (permiso gestionar_rotacion_mantenimiento).
+    // La cuenta compartida de Mantenimiento NO la lee (solo puede crear sus propios eventos).
+    // Misma lista que ROLES_LECTURA en js/mantenimiento/43-bitacora-mantenimiento.js.
+    function puedeLeerBitacoraMtto() {
+      return autenticado() && !esMantCompartido() && (
+        esAdmin() ||
+        perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura',
+          'Gerente General', 'Gerente', 'Supervisor', 'Supervisor de Producción'] ||
+        (perfiles()[request.auth.uid].permisos is list
+          && 'gestionar_rotacion_mantenimiento' in perfiles()[request.auth.uid].permisos)
+      );
+    }
     // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
     function programacionesSinAltasNiBajas() {
       return resource != null
@@ -145,7 +158,7 @@ service cloud.firestore {
     // Bitácora de acciones sobre líneas (Fase C): solo se agrega, nunca se edita ni se borra.
     // Cada evento lleva el uid de quien lo escribe y la hora del servidor.
     match /bitacoraMantenimiento/{id} {
-      allow read: if autenticado();
+      allow read: if puedeLeerBitacoraMtto();
       allow create: if autenticado()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.timestamp == request.time

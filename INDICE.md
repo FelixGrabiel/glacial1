@@ -85,6 +85,7 @@ js/
 | 33-rotacion-maquinistas.js | Rotación semanal de maquinistas |
 | 37-mantenimiento-tecnicos.js | Cuenta compartida de Mantenimiento: rol, permisos (ver tareo y operar líneas con PIN) |
 | 37b-mantenimiento-identificacion.js | Identificación del técnico con PIN |
+| 43-bitacora-mantenimiento.js | Pantalla de solo lectura «Bitácora de Mantenimiento» (lee bitacoraMantenimiento por rango de fechas; vista por parada, resumen y Excel) |
 
 ### js/rrhh/
 | Archivo | Función |
@@ -138,8 +139,9 @@ js/
 40. personal/42-tareo-agregar-personal.js
 41. personal/40-tareo-auditoria.js
 42. personal/41-tareo-bloqueo.js
-43. accesos/39-vista-como.js
-44. nucleo/12-init.js
+43. mantenimiento/43-bitacora-mantenimiento.js
+44. accesos/39-vista-como.js
+45. nucleo/12-init.js
 
 ## Cómo agregar un archivo nuevo
 
