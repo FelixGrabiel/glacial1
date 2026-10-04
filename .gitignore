@@ -1,0 +1,6 @@
+# Archivos que genera la app con datos sensibles: NUNCA deben subirse al repositorio.
+# Contrasenas temporales (boton "Descargar archivo" al migrar o restablecer claves)
+contrasenas-temporales-*.txt
+
+# Respaldo de usuarios, perfiles, accesos y trabajadores (boton "Respaldar usuarios y trabajadores")
+respaldo-glacial-*.json
