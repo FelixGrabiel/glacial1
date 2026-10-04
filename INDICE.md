@@ -180,3 +180,6 @@ qué proyecto se usa.
 `ETAPAS_POR_ENTORNO` (en `js/nucleo/01-config.js`) define `LOGIN_LEGACY_PERMITIDO` y `REGLAS_ESTRICTAS` para cada entorno:
 la etapa 2 se puede ensayar en PRUEBAS sin tocar PRODUCCION. En Gestión de usuarios (Administrador): migrar usuarios por grupos,
 descargar las contraseñas temporales, respaldar usuarios y trabajadores, y comprobar la migración antes de pasar a la etapa 2.
+Al restablecer una clave o eliminar un usuario, el correo anterior se anota en sync/cuentasAntiguas (solo Administrador);
+"Comprobar migración" lo lista para borrar esas cuentas a mano en Firebase Console → Authentication. En la etapa 2,
+sync/perfiles solo lo lee quien figura en perfiles (el login solo necesita sync/accesos, que es público).

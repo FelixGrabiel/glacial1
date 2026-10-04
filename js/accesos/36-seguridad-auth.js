@@ -370,10 +370,13 @@
     const clave=claveTemporal();
     try{
       const usados=new Set(usuarios.map(x=>x.authEmail).filter(Boolean));
+      const anterior={email:u.authEmail||'',uid:u.authUid||'',username};
       const r=await crearConReintentos(username,clave,(u.authIdx||0)+1,usados);
       u.authUid=r.uid;u.authEmail=r.email;u.authIdx=r.idx;
       delete u.password;delete u.passwordHash;delete u.salt;
       await saveUsers(loadUsers().map(x=>x.username===username?u:x));
+      // La cuenta anterior queda sin uso en Authentication: se anota para borrarla a mano.
+      await registrarCuentaAntigua({...anterior,motivo:'RESTABLECER'});
       mostrarClaves('Contraseña temporal',[{username,clave}]);
       if(typeof renderUserList==='function')renderUserList();
     }catch(e){
@@ -425,15 +428,41 @@
   }
   window.limpiarCredencialesLegadas=limpiarCredencialesLegadas;
 
+  /* ---------- cuentas de Authentication que quedan sin uso ---------- */
+  /* Al restablecer una clave o eliminar un usuario, la cuenta anterior sigue existiendo en
+     Firebase Authentication (el cliente no puede borrarla). Se anota su correo en
+     sync/cuentasAntiguas para que comprobarMigracion() la liste y se borre a mano. */
+  async function registrarCuentaAntigua(c){
+    if(!c||!c.email)return false;
+    try{
+      const ref=db.collection('sync').doc('cuentasAntiguas');
+      await db.runTransaction(async tx=>{
+        const s=await tx.get(ref);
+        const items=(s.exists&&Array.isArray(s.data().items))?s.data().items.slice():[];
+        if(!items.some(x=>x&&x.email===c.email)){
+          items.push({email:c.email,uid:c.uid||'',username:c.username||'',motivo:c.motivo||'',
+            fecha:Date.now(),registradoPor:(state.user&&state.user.username)||''});
+        }
+        tx.set(ref,{items,updatedAt:Date.now()});
+      });
+      return true;
+    }catch(e){
+      console.warn('No se pudo anotar la cuenta antigua '+c.email+' (revísala a mano en Authentication):',e&&e.message||e);
+      return false;
+    }
+  }
+  window.registrarCuentaAntigua=registrarCuentaAntigua;
+
   /* ---------- comprobación de la migración (antes de pasar a la etapa 2) ---------- */
   const ROL_COMPARTIDA='mantenimiento_compartido';
   async function comprobarMigracion(opciones){
     const silencioso=opciones&&opciones.silencioso;
     if(!esAdministrador()){alert('Solo el Administrador puede comprobar la migración.');return null;}
     const u=(typeof loadUsers==='function'?loadUsers():[])||[];
-    const [perf,acc]=await Promise.all([
+    const [perf,acc,viejas]=await Promise.all([
       db.collection('sync').doc('perfiles').get(),
-      db.collection('sync').doc('accesos').get()
+      db.collection('sync').doc('accesos').get(),
+      db.collection('sync').doc('cuentasAntiguas').get().catch(()=>null)
     ]);
     const p=perf.exists?(perf.data().map||{}):{};
     const a=acc.exists?(acc.data().map||{}):{};
@@ -458,6 +487,19 @@
         rolCorrecto:compartidas.length>0&&compartidas.every(x=>x.authUid&&p[x.authUid]&&String(p[x.authUid].rol)===ROL_COMPARTIDA)
       }
     };
+    // Cuentas de Authentication que ya no se usan (informativo; no impide pasar a la etapa 2).
+    const enUso=new Set(u.map(x=>x.authEmail).filter(Boolean));
+    const registradas=((viejas&&viejas.exists&&Array.isArray(viejas.data().items))?viejas.data().items:[])
+      .filter(x=>x&&x.email&&!enUso.has(x.email));
+    const inferidas=[];
+    u.forEach(x=>{
+      for(let i=0;i<(Number(x.authIdx)||0);i++){
+        const e=emailDe(x.username,i);
+        if(enUso.has(e)||registradas.some(c=>c.email===e)||inferidas.some(c=>c.email===e))continue;
+        inferidas.push({email:e,username:x.username,motivo:'POSIBLE (por el índice de restablecimientos)'});
+      }
+    });
+    r.cuentasAntiguas={registradas,inferidas};
     const problemas=[];
     if(!r.total)problemas.push('No hay usuarios cargados.');
     if(r.sinCuentaSegura.length)problemas.push('Sin cuenta segura: '+r.sinCuentaSegura.join(', '));
@@ -498,12 +540,31 @@
           ${fila(r.cuentaCompartida.existe&&r.cuentaCompartida.conCuentaSegura&&r.cuentaCompartida.enPerfiles&&r.cuentaCompartida.rolCorrecto,
             r.cuentaCompartida.existe?'Cuenta compartida de Mantenimiento ('+r.cuentaCompartida.usuarios.join(', ')+') con cuenta segura y rol correcto en perfiles':'Existe la cuenta compartida de Mantenimiento')}
         </ul>
+        ${(r.cuentasAntiguas.registradas.length||r.cuentasAntiguas.inferidas.length)?`<div style="margin-top:12px;padding:10px 12px;border:1px solid #f0c36a;background:#fff8e6;border-radius:8px;">
+          <strong style="font-size:13px;">Cuentas antiguas sin uso (${r.cuentasAntiguas.registradas.length+r.cuentasAntiguas.inferidas.length})</strong>
+          <p class="small-muted" style="margin:4px 0 6px;">Bórralas a mano en Firebase Console → Authentication → Usuarios (el cliente no puede borrar cuentas de otros).</p>
+          <ul style="margin:0;padding-left:18px;font-size:12px;" data-lista-antiguas>${r.cuentasAntiguas.registradas.concat(r.cuentasAntiguas.inferidas).map(c=>`<li><code>${esc(c.email)}</code> · ${esc(c.username||'')} · <span class="small-muted">${esc(c.motivo||'')}</span></li>`).join('')}</ul>
+          <div class="actions-row" style="justify-content:flex-start;gap:8px;margin-top:8px;">
+            <button class="btn btn-ghost btn-sm" data-copiar-antiguas>Copiar correos</button>
+            ${r.cuentasAntiguas.registradas.length?'<button class="btn btn-ghost btn-sm" data-vaciar-antiguas>Ya las borré (vaciar registro)</button>':''}
+          </div></div>`:''}
         ${r.perfilesSobrantes.length?`<p class="small-muted" style="margin:10px 0 0;">Aviso: hay ${r.perfilesSobrantes.length} entrada(s) en perfiles que no corresponden a ningún usuario (no bloquea).</p>`:''}
         <p class="small-muted" style="margin:10px 0 0;">Revisa además en Firebase Console → Authentication que el total de usuarios coincida con ${r.total}.</p>
         <div class="actions-row" style="justify-content:flex-end;margin-top:14px;"><button class="btn btn-primary" data-cerrar>Cerrar</button></div>
       </div></div>`;
     document.body.appendChild(fondo);
     fondo.querySelector('[data-cerrar]').onclick=()=>fondo.remove();
+    const copiar=fondo.querySelector('[data-copiar-antiguas]');
+    if(copiar)copiar.onclick=async()=>{
+      const lista=r.cuentasAntiguas.registradas.concat(r.cuentasAntiguas.inferidas).map(c=>c.email).join('\n');
+      try{await navigator.clipboard.writeText(lista);alert('Correos copiados.');}catch(_){alert(lista);}
+    };
+    const vaciar=fondo.querySelector('[data-vaciar-antiguas]');
+    if(vaciar)vaciar.onclick=async()=>{
+      if(!confirm('¿Ya borraste esas cuentas en Firebase Console?\n\nSe vaciará el registro de cuentas antiguas.'))return;
+      try{await db.collection('sync').doc('cuentasAntiguas').set({items:[],updatedAt:Date.now()});fondo.remove();}
+      catch(e){alert('No se pudo vaciar el registro: '+(e&&e.message||e));}
+    };
   }
 
   /* ---------- respaldo de los datos de usuarios (antes de migrar o de cambiar de etapa) ---------- */

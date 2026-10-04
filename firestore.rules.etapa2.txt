@@ -89,12 +89,13 @@ service cloud.firestore {
     }
 
     match /sync/{doc} {
-      // El perfil propio debe poder leerse para saber quién es quién.
-      // 'accesos' (usuario -> correo interno) es público: lo necesita el login.
-      allow read: if doc == 'accesos' || request.auth != null && (
-        doc == 'perfiles' ||
-        (autenticado() && (!esMantCompartido() || lecturaMant(doc)))
-      );
+      // 'accesos' (usuario -> correo interno) es público: lo necesita el login ANTES de iniciar sesión.
+      // 'perfiles' (uid -> rol) solo lo lee quien ya figura en perfiles: el login y el arranque de la
+      // app no lo leen (las reglas lo consultan por su cuenta); solo lo usa el Administrador al
+      // comprobar la migración. 'cuentasAntiguas' (correos por borrar en Authentication) solo el Administrador.
+      allow read: if doc == 'accesos'
+        || (doc == 'cuentasAntiguas' && esAdmin())
+        || (doc != 'cuentasAntiguas' && autenticado() && (!esMantCompartido() || lecturaMant(doc)));
 
       allow write:
         // Duración de la identificación de técnicos: solo supervisor de Mantenimiento / Administrador.
@@ -103,7 +104,7 @@ service cloud.firestore {
         (esMantCompartido() && doc == 'tecnicosMant') ||
         (esMantCompartido() && doc == 'programaciones' && programacionesSinAltasNiBajas()) ||
         (!esMantCompartido() && (
-          (doc in ['users', 'perfiles', 'accesos', 'configTareo'] && esAdmin()) ||
+          (doc in ['users', 'perfiles', 'accesos', 'configTareo', 'cuentasAntiguas'] && esAdmin()) ||
           (autenticado() && doc in [
             'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
             'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',

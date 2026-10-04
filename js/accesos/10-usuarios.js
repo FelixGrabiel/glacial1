@@ -1877,11 +1877,31 @@ function removeUser(username){
   }
 
 
-  saveUsers(
-    loadUsers().filter(
-      u=>u.username!==username
+  // La cuenta de Firebase Authentication del usuario eliminado sigue existiendo: se anota
+  // su correo para borrarla a mano (ver comprobarMigracion()).
+  const eliminado=loadUsers().find(u=>u.username===username);
+
+  Promise.resolve(
+    saveUsers(
+      loadUsers().filter(
+        u=>u.username!==username
+      )
     )
-  );
+  ).then(()=>{
+    if(
+      eliminado && eliminado.authEmail &&
+      typeof registrarCuentaAntigua==='function' &&
+      typeof esAdministradorSeguridad==='function' &&
+      esAdministradorSeguridad()
+    ){
+      registrarCuentaAntigua({
+        email:eliminado.authEmail,
+        uid:eliminado.authUid || '',
+        username,
+        motivo:'ELIMINADO'
+      });
+    }
+  }).catch(()=>{});
 
 
   renderUserList();
