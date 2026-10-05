@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_mapa" targetNamespace="http://glacial.pe/bpmn/mapa" exporter="GLACIAL documentación" exporterVersion="1.0">
+  <bpmn:collaboration id="Collaboration_mapa">
+    <bpmn:participant id="pA" name="a) Planificación" />
+    <bpmn:participant id="pB" name="b) Producción del turno" />
+    <bpmn:participant id="pC" name="c) Paradas y mantenimiento" />
+    <bpmn:participant id="pG" name="g) Reportes" />
+    <bpmn:participant id="pD" name="d) Tareo y asistencia" />
+    <bpmn:participant id="pE" name="e) RRHH" />
+    <bpmn:participant id="pF" name="f) Usuarios y seguridad" />
+    <bpmn:messageFlow id="MF_0" name="Programación del turno (sync/programaciones)" sourceRef="pA" targetRef="pB" />
+    <bpmn:messageFlow id="MF_1" name="Solicitud de programación o de cambio (solicitudesProgramacion)" sourceRef="pB" targetRef="pA" />
+    <bpmn:messageFlow id="MF_2" name="Resultado de la solicitud, en tiempo real" sourceRef="pA" targetRef="pB" />
+    <bpmn:messageFlow id="MF_3" name="Presentación en producción (estadoOperacion)" sourceRef="pB" targetRef="pC" />
+    <bpmn:messageFlow id="MF_4" name="Línea detenida o reanudada, con alerta en tiempo real" sourceRef="pC" targetRef="pB" />
+    <bpmn:messageFlow id="MF_5" name="Bitácora de paradas (bitacoraMantenimiento)" sourceRef="pC" targetRef="pG" />
+    <bpmn:messageFlow id="MF_6" name="Paletas, registros y cierre de turno" sourceRef="pB" targetRef="pG" />
+    <bpmn:messageFlow id="MF_7" name="Programación para cumplimiento y proyección" sourceRef="pA" targetRef="pG" />
+    <bpmn:messageFlow id="MF_8" name="Rotación y trabajadores de Mantenimiento (identificación de técnicos)" sourceRef="pD" targetRef="pC" />
+    <bpmn:messageFlow id="MF_9" name="Asistencia del turno (tareos) para el resumen de turno" sourceRef="pD" targetRef="pG" />
+    <bpmn:messageFlow id="MF_10" name="Tareos para exportaciones, resumen mensual y auditoría" sourceRef="pD" targetRef="pE" />
+    <bpmn:messageFlow id="MF_11" name="Solicitud de corrección de un tareo bloqueado" sourceRef="pD" targetRef="pE" />
+    <bpmn:messageFlow id="MF_12" name="Corrección atendida (solicitudesCorreccionTareo, auditoriaTareos)" sourceRef="pE" targetRef="pD" />
+    <bpmn:textAnnotation id="nF"><bpmn:text>Usuarios y seguridad entrega la sesión, el rol y los permisos (sync/users, sync/perfiles) a TODOS los procesos; no se dibuja un flujo por proceso para no saturar el mapa.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="AS_nF" sourceRef="nF" targetRef="pF" />
+  </bpmn:collaboration>
+  <bpmndi:BPMNDiagram id="Diagram_mapa">
+    <bpmndi:BPMNPlane id="Plane_mapa" bpmnElement="Collaboration_mapa">
+      <bpmndi:BPMNShape id="Shape_pA" bpmnElement="pA" isHorizontal="true"><dc:Bounds x="60" y="40" width="360" height="90" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_pB" bpmnElement="pB" isHorizontal="true"><dc:Bounds x="660" y="40" width="360" height="90" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_pC" bpmnElement="pC" isHorizontal="true"><dc:Bounds x="1260" y="40" width="360" height="90" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_pG" bpmnElement="pG" isHorizontal="true"><dc:Bounds x="660" y="330" width="360" height="90" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_pD" bpmnElement="pD" isHorizontal="true"><dc:Bounds x="1900" y="330" width="360" height="90" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_pE" bpmnElement="pE" isHorizontal="true"><dc:Bounds x="1900" y="560" width="360" height="90" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_pF" bpmnElement="pF" isHorizontal="true"><dc:Bounds x="60" y="560" width="360" height="90" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_nF" bpmnElement="nF"><dc:Bounds x="480" y="560" width="300" height="90" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_MF_0" bpmnElement="MF_0"><di:waypoint x="420" y="33" /><di:waypoint x="660" y="33" /><bpmndi:BPMNLabel><dc:Bounds x="470" y="17" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_1" bpmnElement="MF_1"><di:waypoint x="660" y="97" /><di:waypoint x="420" y="97" /><bpmndi:BPMNLabel><dc:Bounds x="470" y="81" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_2" bpmnElement="MF_2"><di:waypoint x="420" y="113" /><di:waypoint x="660" y="113" /><bpmndi:BPMNLabel><dc:Bounds x="470" y="97" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_3" bpmnElement="MF_3"><di:waypoint x="1020" y="33" /><di:waypoint x="1260" y="33" /><bpmndi:BPMNLabel><dc:Bounds x="1070" y="17" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_4" bpmnElement="MF_4"><di:waypoint x="1260" y="97" /><di:waypoint x="1020" y="97" /><bpmndi:BPMNLabel><dc:Bounds x="1070" y="81" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_5" bpmnElement="MF_5"><di:waypoint x="1388" y="130" /><di:waypoint x="1388" y="323" /><di:waypoint x="1020" y="323" /><bpmndi:BPMNLabel><dc:Bounds x="1134" y="211" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_6" bpmnElement="MF_6"><di:waypoint x="788" y="130" /><di:waypoint x="788" y="330" /><bpmndi:BPMNLabel><dc:Bounds x="718" y="214" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_7" bpmnElement="MF_7"><di:waypoint x="188" y="130" /><di:waypoint x="188" y="323" /><di:waypoint x="660" y="323" /><bpmndi:BPMNLabel><dc:Bounds x="354" y="211" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_8" bpmnElement="MF_8"><di:waypoint x="2052" y="330" /><di:waypoint x="2052" y="57" /><di:waypoint x="1620" y="57" /><bpmndi:BPMNLabel><dc:Bounds x="1766" y="178" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_9" bpmnElement="MF_9"><di:waypoint x="1900" y="323" /><di:waypoint x="1020" y="323" /><bpmndi:BPMNLabel><dc:Bounds x="1390" y="307" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_10" bpmnElement="MF_10"><di:waypoint x="2028" y="420" /><di:waypoint x="2028" y="560" /><bpmndi:BPMNLabel><dc:Bounds x="1958" y="474" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_11" bpmnElement="MF_11"><di:waypoint x="2068" y="420" /><di:waypoint x="2068" y="560" /><bpmndi:BPMNLabel><dc:Bounds x="1998" y="474" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_MF_12" bpmnElement="MF_12"><di:waypoint x="2132" y="560" /><di:waypoint x="2132" y="420" /><bpmndi:BPMNLabel><dc:Bounds x="2062" y="474" width="140" height="30" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_AS_nF" bpmnElement="AS_nF"><di:waypoint x="630" y="560" /><di:waypoint x="240" y="650" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
