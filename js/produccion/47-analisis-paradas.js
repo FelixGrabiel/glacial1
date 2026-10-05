@@ -655,17 +655,23 @@
   }
   /* Una sola escritura de metas y velocidades (la usan este editor y el Catálogo de Planificación).
      velNuevas: {'LINEA|presentación': número | '__borrar__'}. set con merge: solo se tocan los campos indicados. */
-  async function guardarConfigIndicadores(metasNuevas,velNuevas){
+  async function guardarConfigIndicadores(metasNuevas,velNuevas,opciones){
     const ref=db.collection('sync').doc('configIndicadores');
     const borrar=()=>firebase.firestore.FieldValue.delete();
     await db.runTransaction(async tx=>{
-      await tx.get(ref);
+      const actual=await tx.get(ref);
+      // soloFaltantes: no se toca ninguna velocidad que ya tenga valor en la tabla (se comprueba aquí, con el dato más reciente).
+      if(opciones&&opciones.soloFaltantes){
+        const existentes=new Set(Object.entries((actual.exists&&actual.data().velocidades)||{}).filter(([,v])=>Number(v)>0).map(([k])=>normVel(k)));
+        velNuevas=Object.fromEntries(Object.entries(velNuevas||{}).filter(([k])=>!existentes.has(normVel(k))));
+      }
       const cambios={actualizadoPor:(state.user&&state.user.username)||'',actualizadoEn:ahoraMs()};
       if(metasNuevas&&Object.keys(metasNuevas).length)cambios.metas=metasNuevas;
       if(velNuevas&&Object.keys(velNuevas).length){
         cambios.velocidades={};
         Object.entries(velNuevas).forEach(([k,v])=>{cambios.velocidades[k]=v==='__borrar__'?borrar():v;});
       }
+      if(!(cambios.metas||cambios.velocidades))return;   // nada que escribir
       tx.set(ref,cambios,{merge:true});
     });
   }

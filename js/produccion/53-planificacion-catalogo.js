@@ -86,31 +86,39 @@
   /* ---------- velocidad estándar (tabla de sync/configIndicadores) ---------- */
   const claveVel=(l,p,m)=>l+'|'+String(p||'').trim()+(m?'|'+m:'');
   const normVel=k=>norm(k).replace(/\s+/g,'');
-  function velocidadTabla(l,p,m){
+  function velocidadExacta(l,p,m){   // solo esa clave, sin caer en la general
     const cfg=typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores():null;
     const v=cfg&&cfg.velocidades?cfg.velocidades:{};
-    const buscarClave=k=>{const e=Object.entries(v).find(([kk])=>normVel(kk)===normVel(k));return e?num(e[1]):0;};
-    return (m?buscarClave(claveVel(l,p,m)):0)||buscarClave(claveVel(l,p));
+    const e=Object.entries(v).find(([kk])=>normVel(kk)===normVel(claveVel(l,p,m)));
+    return e?num(e[1]):0;
+  }
+  function velocidadTabla(l,p,m){
+    return (m?velocidadExacta(l,p,m):0)||velocidadExacta(l,p,'');
   }
   const velocidadEfectiva=(l,p,m)=>typeof window.glacialVelocidadEstandar==='function'?num(window.glacialVelocidadEstandar(l,p,m)):0;
   const velocidadCodigo=(l,p,m)=>typeof window.glacialVelocidadCatalogo==='function'?num(window.glacialVelocidadCatalogo(l,p,m)):0;
   const puedeVelocidad=()=>NS.puede()&&typeof window.glacialGuardarConfigIndicadores==='function';
 
   /* Velocidades iniciales: copia los ratios fijos del código a la tabla donde todavía no hay valor (con la excepción por marca). */
-  async function cargarVelocidadesIniciales(){
+  function velocidadesPorCargar(){
     const nuevas={};
     NS.lineas().forEach(l=>{
       NS.presentacionesBrutas(l.key).forEach(p=>{
         const general=velocidadCodigo(l.key,p,'');
-        if(general>0&&!velocidadTabla(l.key,p,''))nuevas[claveVel(l.key,p)]=general;
+        if(general>0&&!velocidadExacta(l.key,p,''))nuevas[claveVel(l.key,p)]=general;
         NS.marcas(l.key).forEach(m=>{
           const v=velocidadCodigo(l.key,p,m);
-          if(v>0&&v!==general&&!velocidadTabla(l.key,p,m))nuevas[claveVel(l.key,p,m)]=v;
+          if(v>0&&v!==general&&!velocidadExacta(l.key,p,m))nuevas[claveVel(l.key,p,m)]=v;
         });
       });
     });
+    return nuevas;
+  }
+  async function cargarVelocidadesIniciales(){
+    const nuevas=velocidadesPorCargar();
     const n=Object.keys(nuevas).length;
-    if(n)await window.glacialGuardarConfigIndicadores({},nuevas);
+    // soloFaltantes: la escritura vuelve a comprobar dentro de la transacción y nunca pisa una velocidad que ya tenga valor.
+    if(n)await window.glacialGuardarConfigIndicadores({},nuevas,{soloFaltantes:true});
     return n;
   }
 
@@ -213,7 +221,9 @@
       return;
     }
     if(e.target.closest('[data-cat-vel-iniciales]')){
-      if(!confirm('Se copiarán a la tabla de velocidades (la de Análisis de paradas) los ratios fijos del código que todavía no tengan valor. Los que ya tienen valor no se tocan. ¿Continuar?'))return;
+      const faltan=Object.keys(velocidadesPorCargar()).length;
+      if(!faltan){alert('No hay velocidades por cargar: todas las del código ya tienen valor en la tabla.');return;}
+      if(!confirm('Se agregarán '+faltan+' velocidad(es) a la tabla de Análisis de paradas, tomadas de los ratios fijos del código. Solo se completan las que faltan: las que ya tienen valor NO se tocan. ¿Continuar?'))return;
       try{
         const n=await cargarVelocidadesIniciales();
         alert(n?'Se cargaron '+n+' velocidad(es). A partir de ahora el código solo sirve de respaldo.':'No había velocidades por cargar.');

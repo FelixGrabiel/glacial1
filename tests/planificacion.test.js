@@ -140,5 +140,23 @@ ok(/glacialPlanificacionRefrescar/.test(s02)&&/glacialPlanificacionEscuchas/.tes
 ok(/renderPlanificacion\(main\)/.test(leer('js/produccion/06-registro.js')),'renderMain llama directamente a renderPlanificacion');
 ok(!/paleta-programada-input|btn-guardar-programacion/.test(s16.slice(s16.indexOf('function renderPaletasTab'))),'Paletas ya no tiene cantidad programada, unidades por paleta ni «Guardar programación»');
 ok(/Ver en Planificación/.test(leer('js/produccion/51-planificacion-nucleo.js'))&&/Solicitar programación/.test(leer('js/produccion/51-planificacion-nucleo.js')),'Paletas: enlace «Ver en Planificación» y botón «Solicitar programación»');
+/* ---------- 7) velocidades iniciales: solo completan las que faltan ---------- */
+{
+  const s47=leer('js/produccion/47-analisis-paradas.js');
+  let guardado=null,existente={velocidades:{'PET1|Regular_625ml':2400}};
+  const sb7={console,Object,Number,Math,Promise,JSON,String};vm.createContext(sb7);
+  sb7.state={user:{username:'p'}};sb7.ahoraMs=()=>1;
+  sb7.firebase={firestore:{FieldValue:{delete:()=>'DEL'}}};
+  sb7.db={collection:()=>({doc:()=>({})}),runTransaction:async fn=>fn({get:async()=>({exists:true,data:()=>existente}),set:(r,d,o)=>{guardado=d;}})};
+  vm.runInContext("const normVel=k=>String(k).toLowerCase().split(' ').join('');"+extraer(s47,'guardarConfigIndicadores'),sb7);
+  const g=vm.runInContext('guardarConfigIndicadores',sb7);
+  await g({},{'PET1|Regular_625ml':9999,'PET1|Regular_380ml':3000},{soloFaltantes:true});
+  ok(guardado&&Object.keys(guardado.velocidades).length===1&&guardado.velocidades['PET1|Regular_380ml']===3000&&!guardado.velocidades['PET1|Regular_625ml'],'«Cargar velocidades iniciales»: solo escribe las que faltan; la que ya tenía valor (2 400) no se toca');
+  guardado=null;
+  await g({},{'PET1|Regular_625ml':9999},{soloFaltantes:true});
+  ok(guardado===null,'si no falta ninguna, no escribe nada');
+  await g({},{'PET1|Regular_625ml':2500});
+  ok(guardado&&guardado.velocidades['PET1|Regular_625ml']===2500,'el editor de Análisis de paradas sigue sobrescribiendo lo que el usuario cambia a propósito');
+}
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
