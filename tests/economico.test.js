@@ -1,4 +1,4 @@
-/* Etapa 2 · información económica protegida por UID: escuchas, valores con historial, migración y auditoría del código. */
+/* Etapa 2 · información económica protegida por ROL: escuchas, valores con historial, migración y auditoría del código. */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const R=path.resolve(__dirname,'..');
 let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c)fallas++;};
@@ -29,13 +29,12 @@ function crearDb(){
     }};
   return {db,docs,escuchasAbiertas,oyentes};
 }
-function entorno(uid,acceso,estado){
+function entorno(uid,rol){
   const F=crearDb();
-  if(acceso)F.docs.set('accesoEconomico/'+uid,{nivel:acceso});
   const sb={console,Math,Number,Array,Object,String,Date,JSON,Promise,Set,Map,setTimeout};vm.createContext(sb);sb.window=sb;
   sb.db=F.db;sb.auth={currentUser:{uid}};
   sb.firebase={firestore:{FieldValue:{serverTimestamp:()=>({__ts:true})}}};
-  sb.state={user:{rol:estado||'Administrador',username:'u'}};
+  sb.state={user:{rol:rol||'Administrador',username:'u'}};
   sb.glacialCierresSesion=[];
   sb.document={getElementById:()=>null};
   vm.runInContext(leer('js/produccion/55-valores-economicos.js'),sb);
@@ -45,21 +44,22 @@ const eco=sb=>sb.window.glacialEconomico;
 
 (async()=>{
 /* ---------- 1) Quién abre qué escucha ---------- */
-for(const [rol,acceso] of [['Administrador',null],['Supervisor',null],['Jefatura','jefatura']]){
-  const {sb,F}=entorno('uid-'+rol,acceso,rol);
+for(const rol of ['Administrador','Supervisor','Jefe de Producción','Jefatura','Jefe de Operaciones','Ventas','RRHH']){
+  const {sb,F}=entorno('uid-'+rol,rol);
   sb.window.glacialEconomicoEscuchas();
-  const aValores=F.escuchasAbiertas.filter(x=>x==='valoresUnitarios'||x.startsWith('valoresUnitarios/')||x.startsWith('configEconomica')||x==='sync/precios');
-  ok(F.escuchasAbiertas.length===1&&F.escuchasAbiertas[0]==='accesoEconomico/uid-'+rol&&aValores.length===0,rol+(acceso?' (Jefatura autorizada)':'')+': solo abre su propio accesoEconomico; NO abre ninguna escucha hacia valores unitarios, historial, configEconomica ni sync/precios');
-  ok(Object.keys(eco(sb).docs().margenes.valores).length===0&&!eco(sb).esGerencia()&&eco(sb).accesoListo(),rol+': no tiene valores en memoria y su acceso quedó resuelto');
+  ok(F.escuchasAbiertas.length===0,rol+': su navegador NO abre ninguna escucha hacia valores unitarios, historial, configEconomica ni sync/precios (0 escuchas)');
+  ok(Object.keys(eco(sb).docs().margenes.valores).length===0&&!eco(sb).esGerencia()&&eco(sb).accesoListo(),rol+': no tiene valores en memoria y su acceso quedó resuelto'+(/Jefe|Jefatura/.test(rol)?' (nivel jefatura: '+eco(sb).esJefatura()+')':''));
   let err='';try{await eco(sb).guardar({tipo:'producto',linea:'PET1',marca:'Scala',presentacion:'2.5 L',valor:1});}catch(e){err=e.message;}
   ok(/Gerencia/.test(err)&&![...F.docs.keys()].some(k=>k.startsWith('valoresUnitarios')),rol+': no puede guardar valores desde la app (ni se escribe nada)');
   err='';try{await eco(sb).historial('P__x');}catch(e){err=e.message;}
   ok(/Gerencia/.test(err),rol+': no puede consultar el historial');
 }
 /* ---------- 2) Gerencia: valores, historial, tiempo real ---------- */
-const g=entorno('uid-ger','gerencia','Gerente');
+const g=entorno('uid-ger','Gerente');
 g.sb.window.glacialEconomicoEscuchas();
-ok(eco(g.sb).esGerencia()&&g.F.escuchasAbiertas.includes('valoresUnitarios'),'Gerencia: abre la escucha de valoresUnitarios');
+ok(eco(g.sb).esGerencia()&&g.F.escuchasAbiertas.length===1&&g.F.escuchasAbiertas[0]==='valoresUnitarios','Gerente: es Gerencia por su rol y abre únicamente la escucha de valoresUnitarios');
+const gg=entorno('uid-gg','Gerente General');gg.sb.window.glacialEconomicoEscuchas();
+ok(eco(gg.sb).esGerencia(),'Gerente General también es Gerencia');
 let avisos=0;eco(g.sb).alCambiar(()=>avisos++);
 await eco(g.sb).guardar({tipo:'producto',linea:'PET1',marca:'Scala',presentacion:'2.5 L',valor:0.30,fecha:'2020-01-01'});
 let d=g.F.docs.get('valoresUnitarios/P__pet1__scala__2-5-l');
@@ -84,14 +84,15 @@ ok(idsHist.length===4,'cada cambio dejó su historial ('+idsHist.length+' regist
 /* cierre de sesión */
 g.sb.glacialCierresSesion.forEach(f=>f());
 ok(g.F.oyentes.every(o=>!o.vivo)&&Object.keys(eco(g.sb).docs().margenes.valores).length===0,'al cerrar sesión se cierran todas las escuchas y se vacían los valores de la memoria');
-/* si Gerencia pierde el acceso en vivo, deja de escuchar */
-const g2=entorno('uid-g2','gerencia');g2.sb.window.glacialEconomicoEscuchas();
+/* si el Administrador cambia el rol en vivo, las escuchas se ajustan */
+const g2=entorno('uid-g2','Gerente');g2.sb.window.glacialEconomicoEscuchas();
 await eco(g2.sb).guardar({tipo:'meta',valor:100});
-const oAcc=g2.F.oyentes.find(o=>o.col==='accesoEconomico');
-g2.F.docs.delete('accesoEconomico/uid-g2');oAcc.cb({exists:false,data:()=>null});
-ok(!eco(g2.sb).esGerencia()&&g2.F.oyentes.filter(o=>o.col==='valoresUnitarios').every(o=>!o.vivo)&&Object.keys(eco(g2.sb).docs().general).length===0,'si se retira el UID de Gerencia en Firebase Console, el navegador deja de escuchar y borra los valores de memoria');
+g2.sb.state.user.rol='Supervisor';g2.sb.window.glacialEconomicoEscuchas();
+ok(!eco(g2.sb).esGerencia()&&g2.F.oyentes.filter(o=>o.col==='valoresUnitarios').every(o=>!o.vivo)&&Object.keys(eco(g2.sb).docs().general).length===0,'si el rol deja de ser Gerencia, el navegador deja de escuchar y borra los valores de la memoria');
+g2.sb.state.user.rol='Gerente';g2.sb.window.glacialEconomicoEscuchas();
+ok(eco(g2.sb).esGerencia()&&eco(g2.sb).docs().general.metaPerdidaMes===100,'si vuelve a ser Gerente, vuelve a escuchar');
 /* ---------- 3) Migración ---------- */
-const m=entorno('uid-m','gerencia');
+const m=entorno('uid-m','Gerente');
 m.F.docs.set('configEconomica/margenes',{valores:{'625-ml-bells':{etiqueta:'Bells · 625 ml',v:{'2020-01-01':{valor:0.5}}},'huerfano':{etiqueta:'Producto viejo',v:{'2020-01-01':{valor:9}}}}});
 m.F.docs.set('configEconomica/costos',{valores:{'pet1--botellas':{etiqueta:'x',v:{'2020-01-01':{valor:0.4}}}}});
 m.F.docs.set('configEconomica/general',{metaPerdidaMes:2000});
@@ -117,12 +118,14 @@ ok(!fs.existsSync(R+'/js/produccion/15-perdidas-soles.js')&&!fs.existsSync(R+'/j
 /* ---------- 5) Reglas ---------- */
 const reglas=leer('firestore.rules.etapa2.txt');
 const bloque=n=>{const i=reglas.indexOf('match /'+n+'/');const j=reglas.indexOf('\n    }\n',i);return reglas.slice(i,j);};
-const eco4=['valoresUnitarios','valoresUnitariosHistorial','resultadosEconomicos','configEconomica','accesoEconomico'].map(bloque);
-ok(eco4.every(b=>b.length>0)&&eco4.every(b=>!/esAdmin\(\)|\.rol\b|permisos/.test(b)),'las reglas de lo económico no usan rol, permisos ni esAdmin(): solo el UID (accesoEconomico)');
+const eco4=['valoresUnitarios','valoresUnitariosHistorial','resultadosEconomicos','configEconomica'].map(bloque);
+const fn=n=>{const i=reglas.indexOf('function '+n+'()');return reglas.slice(i,reglas.indexOf('\n    }\n',i));};
+ok(eco4.every(b=>b.length>0)&&eco4.every(b=>!/esAdmin\(\)|permisos/.test(b)),'las reglas de lo económico no usan esAdmin() ni permisos: solo esGerencia() / esJefaturaEco()');
+ok(/rol in \['Gerente General', 'Gerente'\]/.test(fn('esGerencia'))&&!/Administrador/.test(fn('esGerencia')+fn('esJefaturaEco'))&&/'Jefe de Producción', 'Jefe de Operaciones', 'Jefatura'/.test(fn('esJefaturaEco')),'Gerencia = Gerente General y Gerente; Jefatura = Jefe de Producción, Jefe de Operaciones y Jefatura; el Administrador no figura');
 ok(/allow read: if esGerencia\(\);/.test(bloque('valoresUnitarios'))&&/allow read: if esGerencia\(\);/.test(bloque('valoresUnitariosHistorial')),'valores unitarios e historial: lectura solo Gerencia (Jefatura, Administrador y demás reciben permission-denied)');
 ok(/allow update, delete: if false/.test(bloque('valoresUnitariosHistorial'))&&/allow delete: if false/.test(bloque('valoresUnitarios')),'el historial no se edita ni se borra; los valores no se borran');
 ok(/existsAfter\(/.test(bloque('valoresUnitarios'))&&/getAfter\(/.test(bloque('valoresUnitariosHistorial')),'un valor no puede cambiar sin su historial, y el historial debe coincidir con la versión del valor');
-ok(/allow write: if false/.test(bloque('accesoEconomico'))&&/request\.auth\.uid == uid/.test(bloque('accesoEconomico')),'accesoEconomico: nadie lo escribe desde la app y cada quien solo lee el suyo');
+ok(!/accesoEconomico/.test(reglas.replace(/\/\/[^\n]*/g,'')),'ya no existe la lista de UID (accesoEconomico) en las reglas');
 ok(/allow read: if esGerencia\(\) \|\| esJefaturaEco\(\);/.test(bloque('resultadosEconomicos'))&&/esGerencia\(\)/.test(bloque('resultadosEconomicos').split('allow create')[1]),'resultados económicos: leen Gerencia y Jefatura autorizada; solo Gerencia escribe');
 ok(!/'precios', 'paletas'/.test(reglas)&&/doc == 'precios' && esGerencia\(\)/.test(reglas),'sync/precios: ya no lo escribe ni lo lee nadie salvo Gerencia (para migrar)');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

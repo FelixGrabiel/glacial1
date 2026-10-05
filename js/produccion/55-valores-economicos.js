@@ -1,15 +1,15 @@
 /* =============================================================
    VALORES UNITARIOS Y ACCESO ECONÓMICO (protegidos por UID)
 
-   Quién ve qué se decide por el UID de Firebase Auth, NO por el rol (el Administrador asigna roles y permisos, por
-   eso el rol no basta). La lista vive en el documento accesoEconomico/{UID}, que solo se crea desde Firebase Console:
-     accesoEconomico/{UID} → { nivel: 'gerencia' | 'jefatura', nombre, desde }
+   Quién ve qué se decide por el ROL del usuario (sync/users en el navegador; sync/perfiles en las reglas de Firestore):
+     · Gerencia  = Gerente General, Gerente.
+     · Jefatura  = Jefe de Producción, Jefe de Operaciones, Jefatura.
+     · El Administrador, los supervisores y demás NO tienen acceso económico.
    Las reglas de Firestore (firestore.rules.etapa2.txt) hacen cumplir lo siguiente; esta pantalla solo los usa:
      · Gerencia: lee y escribe valoresUnitarios y lee valoresUnitariosHistorial.
-     · Jefatura, Administrador, supervisores y demás: permission-denied en valoresUnitarios, su historial y la
-       colección anterior configEconomica. Sus navegadores NO abren ninguna escucha hacia esos documentos: este archivo
-       solo escucha su propio accesoEconomico/{su UID} (un documento mínimo con el nivel) y, si el nivel es
-       'gerencia', valoresUnitarios.
+     · Todos los demás: permission-denied en valoresUnitarios, su historial y la colección anterior configEconomica.
+       Sus navegadores NO abren ninguna escucha hacia esos documentos: solo si el rol es Gerencia se escucha valoresUnitarios.
+   El UID del usuario que cambia un valor queda en el documento y en el historial (actualizadoPorUid), como rastro.
 
    valoresUnitarios/{id}  (un documento por línea + marca + presentación, o por línea + insumo, o la meta)
      tipo ('producto' | 'insumo' | 'meta'), linea, marca, presentacion (categoría: 625 ml, 1 L…), componente, unidad,
@@ -22,7 +22,9 @@
 (function(){
   'use strict';
 
-  const COL_VAL='valoresUnitarios',COL_HIST='valoresUnitariosHistorial',COL_ACC='accesoEconomico';
+  const COL_VAL='valoresUnitarios',COL_HIST='valoresUnitariosHistorial';
+  const ROLES_GERENCIA=['Gerente General','Gerente'];
+  const ROLES_JEFATURA=['Jefe de Producción','Jefe de Operaciones','Jefatura'];
   const A=()=>window.glacialReporteIndicadores;
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
   const norm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
@@ -46,7 +48,7 @@
   let nivel=null,accesoListo=false,listoValores=false,errorValores='';
   let items=[];
   const DOCS={margenes:{valores:{}},costos:{valores:{}},general:{}};
-  let cierreAcceso=null,cierreValores=null;
+  let cierreValores=null;
   const oyentes=[];
   const avisar=()=>{oyentes.forEach(f=>{try{f();}catch(_){/* oyente ajeno */}});};
 
@@ -72,8 +74,7 @@
     cierreValores=null;items=[];listoValores=false;errorValores='';reconstruir();
   }
   function cerrarTodo(){
-    if(cierreAcceso){try{cierreAcceso();}catch(_){/* ya cerrada */}}
-    cierreAcceso=null;cerrarValores();nivel=null;accesoListo=false;
+    cerrarValores();nivel=null;accesoListo=false;
   }
   function abrirValores(){
     if(cierreValores||typeof db==='undefined')return;
@@ -89,16 +90,19 @@
     if(nivel==='gerencia')abrirValores();else cerrarValores();
     if(cambio)avisar();
   }
+  /* Nivel según el rol del usuario con sesión. Se vuelve a evaluar al iniciar sesión y cuando el Administrador cambia el rol
+     (02-estado.js llama a esta función en ambos casos): si no cambia nada, no hace nada. */
+  function nivelDeUsuario(u){
+    if(!u)return null;
+    if(typeof esMantCompartido==='function'&&esMantCompartido(u))return null;
+    const rol=String(u.rol||'').trim();
+    return ROLES_GERENCIA.includes(rol)?'gerencia':ROLES_JEFATURA.includes(rol)?'jefatura':null;
+  }
   window.glacialEconomicoEscuchas=function(){
-    cerrarTodo();
-    if(typeof db==='undefined'||typeof state==='undefined'||!state.user)return;
-    if(typeof esMantCompartido==='function'&&esMantCompartido(state.user)){accesoListo=true;return;}
-    let uid='';
-    try{uid=(typeof auth!=='undefined'&&auth&&auth.currentUser&&auth.currentUser.uid)||'';}catch(_){uid='';}
-    if(!uid){accesoListo=true;return;}
-    cierreAcceso=db.collection(COL_ACC).doc(uid).onSnapshot(
-      snap=>fijarNivel(snap.exists?snap.data().nivel:null),
-      ()=>fijarNivel(null));
+    if(typeof db==='undefined'||typeof state==='undefined'||!state.user){cerrarTodo();return;}
+    const n=nivelDeUsuario(state.user);
+    if(accesoListo&&n===nivel&&(n!=='gerencia'||cierreValores))return;
+    fijarNivel(n);
   };
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(cerrarTodo);
 
@@ -123,7 +127,7 @@
     }else if(d.tipo==='meta'){
       id=ID_META;base={tipo:'meta',clave:'meta'};
     }else throw new Error('Tipo de valor desconocido.');
-    const uid=(auth&&auth.currentUser&&auth.currentUser.uid)||'';
+    const uid=(typeof auth!=='undefined'&&auth&&auth.currentUser&&auth.currentUser.uid)||'';
     if(!uid)throw new Error('No hay sesión activa.');
     const ref=db.collection(COL_VAL).doc(id);
     await db.runTransaction(async tx=>{

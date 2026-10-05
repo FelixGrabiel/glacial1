@@ -839,7 +839,7 @@ function initRealtimeSync(){
   // Planificación: catálogo y solicitudes (51-planificacion-nucleo.js). Se cierran con glacialCierresSesion.
   if(typeof glacialPlanificacionEscuchas==='function') glacialPlanificacionEscuchas();
 
-  // Información económica: solo se escucha el propio accesoEconomico/{UID} y, si es Gerencia, valoresUnitarios (55-valores-economicos.js).
+  // Información económica: solo si el rol es Gerencia se escucha valoresUnitarios (55-valores-economicos.js).
   if(typeof glacialEconomicoEscuchas==='function') glacialEconomicoEscuchas();
 
 
@@ -972,6 +972,9 @@ function onUsersUpdated(){
          Si el administrador cambió permisos desde otro usuario/equipo,
          refrescar la interfaz actual para aplicar el cambio sin relogin.
       */
+      // Información económica: si cambió el rol, se vuelve a decidir qué escuchar (55-valores-economicos.js).
+      if(typeof glacialEconomicoEscuchas === 'function') glacialEconomicoEscuchas();
+
       if(permisosAntes !== permisosAhora){
 
         if(typeof renderSidebar === 'function'){

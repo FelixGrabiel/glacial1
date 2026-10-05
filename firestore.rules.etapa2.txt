@@ -127,20 +127,17 @@ service cloud.firestore {
           && !(perfiles()[request.auth.uid].permisos is list && '-planificacion' in perfiles()[request.auth.uid].permisos))
       );
     }
-    // INFORMACIÓN ECONÓMICA SENSIBLE: la autorización se decide por UID, NO por rol ni por permisos que el Administrador pueda asignar.
-    // accesoEconomico/{UID} → { nivel: 'gerencia' | 'jefatura', nombre, desde }. Se crea y se borra SOLO desde Firebase Console:
-    // las reglas no permiten escribirlo desde la aplicación (ni siquiera al Administrador).
-    function nivelEconomico() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/accesoEconomico/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/accesoEconomico/$(request.auth.uid)).data.nivel
-        : '';
-    }
+    // INFORMACIÓN ECONÓMICA SENSIBLE: la autorización se decide por ROL (el de sync/perfiles, el mismo que usa el resto de las reglas).
+    //   Gerencia  = Gerente General, Gerente.
+    //   Jefatura  = Jefe de Producción, Jefe de Operaciones, Jefatura.
+    // El rol Administrador NO da acceso económico. Misma lista que ROLES_GERENCIA y ROLES_JEFATURA en js/produccion/55-valores-economicos.js.
     function esGerencia() {
-      return autenticado() && !esMantCompartido() && nivelEconomico() == 'gerencia';
+      return autenticado() && !esMantCompartido()
+        && perfiles()[request.auth.uid].rol in ['Gerente General', 'Gerente'];
     }
     function esJefaturaEco() {
-      return autenticado() && !esMantCompartido() && nivelEconomico() == 'jefatura';
+      return autenticado() && !esMantCompartido()
+        && perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura'];
     }
     // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
     function programacionesSinAltasNiBajas() {
@@ -311,13 +308,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // accesoEconomico/{UID}: cada usuario solo puede leer SU propio documento (para saber su nivel); nadie lo escribe desde la app.
-    match /accesoEconomico/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    // Valores unitarios (margen por línea + marca + presentación, costo por insumo y meta). SOLO Gerencia (por UID) lee y escribe.
+    // Valores unitarios (margen por línea + marca + presentación, costo por insumo y meta). SOLO Gerencia (por rol) lee y escribe.
     // Jefatura, Administrador, supervisores y demás reciben permission-denied. No se borra: se usa activo=false.
     // Cada cambio sube la versión (+1) y debe crear, en la misma transacción, su documento de historial: valoresUnitariosHistorial/{id}_{version}.
     match /valoresUnitarios/{id} {
