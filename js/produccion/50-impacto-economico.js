@@ -43,7 +43,7 @@
   const fmtP=n=>n==null?'—':num(n).toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1})+' %';
   const fmtFecha=f=>/^\d{4}-\d{2}-\d{2}$/.test(String(f||''))?f.slice(8,10)+'/'+f.slice(5,7)+'/'+f.slice(0,4):String(f||'');
   const ahoraMs=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
-  /* Detalle económico completo: solo Gerencia (por UID). */
+  /* Detalle económico completo: solo Gerencia (por rol). */
   const permitido=()=>{
     try{
       if(typeof esMantCompartido==='function'&&state&&state.user&&esMantCompartido(state.user))return false;

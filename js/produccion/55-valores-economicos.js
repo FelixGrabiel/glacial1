@@ -1,5 +1,5 @@
 /* =============================================================
-   VALORES UNITARIOS Y ACCESO ECONÓMICO (protegidos por UID)
+   VALORES UNITARIOS Y ACCESO ECONÓMICO (protegidos por rol)
 
    Quién ve qué se decide por el ROL del usuario (sync/users en el navegador; sync/perfiles en las reglas de Firestore):
      · Gerencia  = Gerente General, Gerente.
