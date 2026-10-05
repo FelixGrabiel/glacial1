@@ -54,10 +54,10 @@ service cloud.firestore {
       allow read, create, update: if true;
       allow delete: if false;
     }
-    // Valores del Impacto económico (Reportes · Parte B): margen, costos y meta mensual.
+    // Información económica: sin Firebase Authentication (etapa 1) no se puede saber quién es Gerencia, así que queda CERRADA.
+    // Los valores unitarios solo funcionan con las reglas de la etapa 2 (UID de Gerencia en accesoEconomico).
     match /configEconomica/{doc} {
-      allow read, create, update: if true;
-      allow delete: if false;
+      allow read, write: if false;
     }
     match /{document=**} {
       allow read, write: if false;

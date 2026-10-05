@@ -4,10 +4,10 @@
    Reemplaza el contenido de la pantalla «Impacto Económico» (renderPerdidasSoles). La vista anterior (precio por línea,
    solo paradas) sigue disponible con el enlace «Ver cálculo anterior» y no se modificó.
 
-   PERMISO: el mismo de siempre, perdidasSoles (Administrador, jefatura y gerencia lo tienen por defecto; el Administrador
-   se lo da a otros en Gestión de usuarios). Sin el permiso no se ve la opción y NO se cargan los valores económicos.
-   Las reglas de la etapa 2 hacen cumplir lo sensible: leer y escribir margen, costos y meta (colección configEconomica).
-   Los datos de producción, programación y paradas los siguen leyendo todos los usuarios con sesión (ya era así).
+   ACCESO (por UID, ver 55-valores-economicos.js): los valores unitarios y los soles con detalle son EXCLUSIVOS de Gerencia
+   (accesoEconomico/{UID}.nivel = 'gerencia'). Este archivo solo calcula con lo que ese módulo le entrega: en el navegador de
+   cualquiera que no sea Gerencia no existe ninguna escucha hacia los valores, así que no hay nada que calcular ni que ocultar.
+   Para los demás usuarios la pantalla muestra el aviso de que los valores económicos están reservados.
 
    CASCADA (por producto y turno, con el margen y costos vigentes en la fecha de cada evento):
      Producción potencial       = tiempo planificado × velocidad estándar
@@ -23,17 +23,13 @@
    para los turnos anteriores. Motivos de parada: los del sistema (bitácora/estado de la línea) cuando coinciden con el
    registro; si no, el texto del registro, marcado «clasificación estimada».
 
-   FIRESTORE (nuevo): colección configEconomica con tres documentos, todos actualizados por campos (set con merge):
-     margenes  → valores.{producto}.v.{AAAA-MM-DD} = {valor, por, en}     (cada cambio agrega una vigencia; la anterior se conserva)
-     costos    → valores.{línea--componente}.v.{AAAA-MM-DD} = {valor, por, en}
-     general   → metaPerdidaMes (meta máxima de pérdida mensual, S/)
+   FIRESTORE: valoresUnitarios (margen por línea + marca + presentación, costo por insumo, meta) y su historial; ver 55-valores-economicos.js.
    Cargar después de 49-resumen-indicadores.js.
    ========================================================= */
 (function(){
   'use strict';
 
-  const COL='configEconomica';
-  const DOCS_ECO=['margenes','costos','general'];
+  const eco=()=>window.glacialEconomico;
   const A=()=>window.glacialReporteIndicadores;
 
   /* ---------- utilidades ---------- */
@@ -47,21 +43,19 @@
   const fmtP=n=>n==null?'—':num(n).toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1})+' %';
   const fmtFecha=f=>/^\d{4}-\d{2}-\d{2}$/.test(String(f||''))?f.slice(8,10)+'/'+f.slice(5,7)+'/'+f.slice(0,4):String(f||'');
   const ahoraMs=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
+  /* Detalle económico completo: solo Gerencia (por UID). */
   const permitido=()=>{
     try{
-      if(typeof tienePermiso!=='function'||!tienePermiso('perdidasSoles'))return false;
       if(typeof esMantCompartido==='function'&&state&&state.user&&esMantCompartido(state.user))return false;
-      return true;
+      return !!(eco()&&eco().esGerencia());
     }catch(_){return false;}
   };
 
   /* =========================================================
      VALORES ECONÓMICOS (Firestore) Y VIGENCIA
      ========================================================= */
-  const DOCS={margenes:{},costos:{},general:{}};
-  const LISTO={margenes:false,costos:false,general:false};
-  let errorCfg='';
-  let desubs=[];
+  /* Los valores llegan de 55-valores-economicos.js y solo existen en el navegador de Gerencia. */
+  const DOCS={get margenes(){return eco().docs().margenes;},get costos(){return eco().docs().costos;},get general(){return eco().docs().general;}};
 
   function vigente(tabla,clave,fecha){
     const e=tabla&&tabla.valores&&tabla.valores[clave];
@@ -72,28 +66,12 @@
     });
     return mejor;
   }
-  const claveMargen=p=>normKey(p.pkey);
+  const claveMargen=p=>eco().claveProducto(p.linea,p.marcaN,p.cat);   // línea + marca + presentación
   const claveCosto=(linea,comp)=>normKey(linea)+'--'+normKey(comp);
   const provDefecto=()=>({
     margenDe:p=>vigente(DOCS.margenes,claveMargen(p),p.fecha),
     costoDe:(linea,comp,fecha)=>vigente(DOCS.costos,claveCosto(linea,comp),fecha)
   });
-
-  function escuchar(){
-    if(desubs.length||typeof db==='undefined'||!permitido())return;
-    errorCfg='';
-    DOCS_ECO.forEach(n=>{
-      try{
-        desubs.push(db.collection(COL).doc(n).onSnapshot(snap=>{
-          DOCS[n]=snap.exists?(snap.data()||{}):{};LISTO[n]=true;errorCfg='';refrescar();
-        },e=>{errorCfg='No se pudieron leer los valores económicos: '+((e&&e.message)||e);LISTO[n]=true;refrescar();}));
-      }catch(e){errorCfg=String((e&&e.message)||e);}
-    });
-  }
-  function detener(){
-    desubs.forEach(f=>{try{f();}catch(_){/* ya cerrada */}});
-    desubs=[];DOCS_ECO.forEach(n=>{DOCS[n]={};LISTO[n]=false;});
-  }
 
   /* =========================================================
      MOTOR DE PÉRDIDAS (puro: se prueba sin pantalla)
@@ -130,7 +108,7 @@
       });
       if(!actividad)return;
       const m=prov.margenDe(p);
-      if(!m)faltan.margen.set(p.pkey,{pkey:p.pkey,etiqueta:A().etiquetaProd(p.marca,p.pres)});
+      if(!m)faltan.margen.set(claveMargen(p),{linea:p.linea,etiqueta:A().nombreLinea(p.linea)+' · '+A().etiquetaProd(p.marca,p.pres)});
       else supuestos.set('m|'+p.pkey+'|'+m.desde,{tipo:'Margen por unidad',etiqueta:A().etiquetaProd(p.marca,p.pres),valor:m.valor,unidad:'S/ por unidad',desde:m.desde});
       if(m&&p.progUnit&&p.programado>0)T.incumplS+=Math.max(p.programado-p.producido,0)*m.valor;
       if(!(p.vel>0)){
@@ -175,7 +153,7 @@
   /* =========================================================
      PERIODOS, FILTROS Y ACUMULADO DEL MES
      ========================================================= */
-  const G={modo:'mes',desde:'',hasta:'',linea:'',turno:'',marca:'',pres:'',pareto:'motivo',vistaAnterior:false};
+  const G={modo:'mes',desde:'',hasta:'',linea:'',turno:'',marca:'',pres:'',pareto:'motivo'};
   const addDias=(f,n)=>A().addDias(f,n);
   function periodo(){
     const hoy=A().hoyOp();
@@ -257,11 +235,11 @@
     const f=res.faltan,filas=[];
     const lst=(arr,fn)=>arr.slice(0,6).map(fn).join(', ')+(arr.length>6?' y '+(arr.length-6)+' más':'');
     if(f.velocidad.length)filas.push('<b>Velocidad estándar:</b> '+esc(lst(f.velocidad,x=>x.etiqueta))+' — no se calcula su cascada.');
-    if(f.margen.length)filas.push('<b>Margen por unidad (o sin vigencia a esa fecha):</b> '+esc(lst(f.margen,x=>x.etiqueta))+' — no se calcula su pérdida en soles.');
+    if(f.margen.length)filas.push('<b>Productos sin valor unitario configurado</b> (línea · marca · presentación; o sin vigencia a esa fecha): '+esc(lst(f.margen,x=>x.etiqueta))+' — no se calcula su pérdida en soles (no se asume S/ 0).');
     if(f.costo.length)filas.push('<b>Costo de insumo:</b> '+esc(lst(f.costo,x=>x.etiqueta))+' — su merma no se valoriza.');
     if(!filas.length)return '';
     return '<div class="ie-aviso"><b>Faltan datos para calcular</b> (no se asume cero)<ul>'+filas.map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
-      (puedeEditar()?'<button type="button" class="ie-btn" data-ie-valores>Completar valores</button>':'')+'</div>';
+      (puedeEditar()?'<button type="button" class="ie-btn" data-ie-valores>Valores unitarios</button>':'')+'</div>';
   }
   const puedeEditar=()=>permitido();
 
@@ -335,13 +313,12 @@
   function htmlPantalla(R){
     const botones=[['hoy','Día'],['7','Semana'],['mes','Mes'],['rango','Rango']];
     const per=R.per;
-    return '<div class="ie" id="impacto-eco-view"><div class="ie-head"><div class="ie-title"><div class="ie-badge">📉</div><div><div class="ie-eyebrow">Solo para gerencia / jefatura</div><h2>Impacto económico</h2>'+
+    return '<div class="ie" id="impacto-eco-view"><div class="ie-head"><div class="ie-title"><div class="ie-badge">📉</div><div><div class="ie-eyebrow">Solo Gerencia</div><h2>Impacto económico</h2>'+
       '<div class="ie-sub">Pérdidas por paradas, velocidad reducida y mermas · '+esc(per.etiqueta)+(R.rec.hayVivo?' · hoy en vivo desde el semáforo':'')+'</div></div></div>'+
       '<div class="ie-filtros">'+botones.map(([k,t])=>'<button type="button" class="ie-btn'+(G.modo===k?' on':'')+'" data-ie-modo="'+k+'">'+t+'</button>').join('')+
       (G.modo==='rango'?'<input type="date" data-ie-fecha="desde" value="'+esc(per.desde)+'"> <input type="date" data-ie-fecha="hasta" value="'+esc(per.hasta)+'">':'')+'</div></div>'+
       '<div class="ie-filtros">'+opcionesFiltros(R)+
-      '<button type="button" class="ie-btn" data-ie-excel>Excel ↓</button><button type="button" class="ie-btn" data-ie-valores>Valores y supuestos</button>'+
-      '<button type="button" class="ie-btn" data-ie-anterior title="Cálculo con precio por línea (versión previa)">Ver cálculo anterior</button></div>'+
+      '<button type="button" class="ie-btn" data-ie-excel>Excel ↓</button><button type="button" class="ie-btn" data-ie-valores>Valores unitarios</button></div>'+
       htmlFaltan(R.res)+htmlKpis(R)+htmlCascada(R.res,per)+
       '<div class="ie-grid">'+htmlPareto(R.res)+htmlTop5(R.res)+'</div>'+
       htmlMermas(R.res)+htmlSupuestos(R)+
@@ -351,13 +328,13 @@
   let ultimo=null,pendiente=false;
   function render(main){
     if(!main)return;
-    escuchar();
     estilos();
+    if(!permitido()){main.innerHTML=htmlReservado();return;}
     if(typeof _recordsReady!=='undefined'&&!_recordsReady){main.innerHTML='<div class="panel"><div class="small-muted" style="padding:20px 0;text-align:center">Cargando datos...</div></div>';return;}
-    if(!DOCS_ECO.every(n=>LISTO[n])){main.innerHTML='<div class="panel"><div class="small-muted" style="padding:20px 0;text-align:center">Cargando valores económicos...</div></div>';return;}
+    if(!eco().listo()){main.innerHTML='<div class="panel"><div class="small-muted" style="padding:20px 0;text-align:center">Cargando valores económicos...</div></div>';return;}
     try{
       ultimo=calcularTodo();
-      main.innerHTML=(errorCfg?'<div class="ie-aviso">'+esc(errorCfg)+'</div>':'')+htmlPantalla(ultimo);
+      main.innerHTML=(eco().error()?'<div class="ie-aviso">'+esc(eco().error())+'</div>':'')+htmlPantalla(ultimo);
     }catch(e){
       console.warn('Impacto económico:',e&&e.message||e);
       main.innerHTML='<div class="panel"><div class="ie-aviso">No se pudo calcular el impacto económico: '+esc((e&&e.message)||e)+'</div></div>';
@@ -368,99 +345,15 @@
     clearTimeout(temporizador);
     temporizador=setTimeout(()=>{
       try{
-        if(typeof state==='undefined'||!state.user||state.currentTab!=='perdidas'||G.vistaAnterior)return;
+        if(typeof state==='undefined'||!state.user||state.currentTab!=='perdidas')return;
         if(!permitido())return;
         render(document.getElementById('main'));
       }catch(e){console.warn('Impacto económico:',e&&e.message||e);}
     },350);
   }
 
-  /* =========================================================
-     EDITOR DE VALORES: margen por producto, costo por componente y meta mensual
-     ========================================================= */
-  function filasEditor(){
-    const I=A(),hoy=I.hoyOp();
-    const per=periodo();
-    const rec=I.recolectar(addDias(hoy,-60)<per.desde?addDias(hoy,-60):per.desde,hoy,{linea:''});
-    const prods=new Map(),comps=new Map();
-    rec.partes.forEach(p=>{
-      if(!prods.has(p.pkey))prods.set(p.pkey,{pkey:p.pkey,etiqueta:I.etiquetaProd(p.marca,p.pres),marcaN:p.marcaN});
-      Object.keys(p.mermas||{}).forEach(c=>comps.set(p.linea+'|'+c,{linea:p.linea,comp:c}));
-    });
-    try{ // componentes definidos por línea aunque todavía no tengan merma
-      (typeof LINES!=='undefined'?LINES:[]).forEach(l=>{
-        const items=typeof obtenerItemsMerma==='function'?obtenerItemsMerma(l.key):[];
-        items.forEach(it=>{const c=I.componenteMerma(it);comps.set(l.key+'|'+c,{linea:l.key,comp:c});});
-      });
-    }catch(_){/* sin catálogo */}
-    Object.keys(DOCS.margenes.valores||{}).forEach(k=>{const e=DOCS.margenes.valores[k];if(![...prods.values()].some(p=>normKey(p.pkey)===k))prods.set('k:'+k,{pkey:'k:'+k,clave:k,etiqueta:e.etiqueta||k});});
-    Object.keys(DOCS.costos.valores||{}).forEach(k=>{const e=DOCS.costos.valores[k];if(![...comps.values()].some(c=>claveCosto(c.linea,c.comp)===k))comps.set('k:'+k,{clave:k,etiqueta:e.etiqueta||k});});
-    return {prods:[...prods.values()].sort((a,b)=>a.etiqueta.localeCompare(b.etiqueta,'es')),
-      comps:[...comps.values()].map(c=>Object.assign({etiqueta:c.etiqueta||(I.nombreLinea(c.linea)+' · '+c.comp)},c)).sort((a,b)=>a.etiqueta.localeCompare(b.etiqueta,'es')),hoy};
-  }
-  function abrirEditor(){
-    if(!puedeEditar()){alert('No tienes permiso para editar los valores económicos.');return;}
-    const E=filasEditor();
-    const fondo=document.createElement('div');
-    fondo.style.cssText='position:fixed;inset:0;background:rgba(10,30,50,.6);display:flex;align-items:center;justify-content:center;z-index:10060;padding:16px;';
-    const hist=(tabla,clave)=>{
-      const e=tabla.valores&&tabla.valores[clave];if(!e||!e.v)return {act:'sin valor',tit:''};
-      const ds=Object.keys(e.v).sort(),v=vigente(tabla,clave,E.hoy);
-      return {act:v?fmtS(v.valor)+' desde '+fmtFecha(v.desde):'aún no vigente',tit:ds.map(d=>fmtFecha(d)+': '+fmtS(e.v[d].valor)).join(' · ')};
-    };
-    const fila=(tipo,clave,etq)=>{
-      const h=hist(tipo==='m'?DOCS.margenes:DOCS.costos,clave);
-      return '<tr><td>'+esc(etq)+'</td><td title="'+esc(h.tit)+'">'+esc(h.act)+'</td><td><input type="number" step="0.001" min="0" data-eco="'+tipo+'" data-clave="'+esc(clave)+'" data-etq="'+esc(etq)+'" placeholder="nuevo" style="width:90px"></td><td><input type="date" data-eco-desde value="'+E.hoy+'" style="width:130px"></td></tr>';
-    };
-    fondo.innerHTML='<div class="modal" style="max-width:760px;width:100%;max-height:90vh;overflow:auto;background:#fff;border-radius:12px;padding:16px">'+
-      '<h3 style="margin:0 0 6px">Valores y supuestos</h3><p class="small-muted" style="margin:0 0 10px">Escribe solo lo que cambia. Cada valor nuevo se guarda con su fecha de vigencia y el anterior se conserva: cada evento se calcula con el valor vigente en su fecha. Se ve en todos los dispositivos en segundos.</p>'+
-      '<h4 style="margin:8px 0 4px">Margen por unidad (S/) por producto</h4><table style="width:100%;font-size:13px"><thead><tr><th align="left">Producto</th><th align="left">Vigente hoy</th><th align="left">Nuevo (S/)</th><th align="left">Vigente desde</th></tr></thead><tbody>'+E.prods.map(p=>fila('m',p.clave||normKey(p.pkey),p.etiqueta)).join('')+'</tbody></table>'+
-      '<h4 style="margin:12px 0 4px">Costo unitario de insumos (S/) — polietileno por kg, el resto por unidad</h4><table style="width:100%;font-size:13px"><thead><tr><th align="left">Línea · componente</th><th align="left">Vigente hoy</th><th align="left">Nuevo (S/)</th><th align="left">Vigente desde</th></tr></thead><tbody>'+E.comps.map(c=>fila('c',c.clave||claveCosto(c.linea,c.comp),c.etiqueta)).join('')+'</tbody></table>'+
-      '<h4 style="margin:12px 0 4px">Meta máxima de pérdida mensual (S/)</h4><input type="number" step="1" min="0" data-eco-meta value="'+(num((DOCS.general||{}).metaPerdidaMes)||'')+'" data-orig="'+(num((DOCS.general||{}).metaPerdidaMes)||'')+'" placeholder="sin meta" style="width:140px">'+
-      '<div data-eco-error style="color:#c62828;font-size:12px;min-height:16px;margin-top:6px"></div>'+
-      '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" class="btn btn-ghost" data-eco-x>Cancelar</button><button type="button" class="btn btn-primary" data-eco-ok>Guardar</button></div></div>';
-    document.body.appendChild(fondo);
-    const err=t=>{const e=fondo.querySelector('[data-eco-error]');if(e)e.textContent=t;};
-    fondo.querySelector('[data-eco-x]').onclick=()=>fondo.remove();
-    fondo.querySelector('[data-eco-ok]').onclick=async()=>{
-      const filas=[...fondo.querySelectorAll('[data-eco]')];
-      const cambios={m:{},c:{}};let hay=false;
-      for(const el of filas){
-        const v=String(el.value||'').trim();if(v==='')continue;
-        const n=Number(v);
-        if(!Number.isFinite(n)||n<0){err('Cada valor debe ser un número mayor o igual que 0.');return;}
-        const desde=(el.parentNode&&el.parentNode.nextSibling&&el.parentNode.nextSibling.querySelector?el.parentNode.nextSibling.querySelector('[data-eco-desde]'):null)||fondo.querySelector('[data-eco-desde]');
-        const fecha=(desde&&desde.value)||E.hoy;
-        if(!A().fechaOk(fecha)){err('Indica una fecha de vigencia válida.');return;}
-        (cambios[el.getAttribute('data-eco')][el.getAttribute('data-clave')]=cambios[el.getAttribute('data-eco')][el.getAttribute('data-clave')]||{etq:el.getAttribute('data-etq'),v:{}}).v[fecha]=n;
-        hay=true;
-      }
-      const metaEl=fondo.querySelector('[data-eco-meta]'),metaTxt=String(metaEl.value||'').trim();
-      let metaNueva=null;
-      if(metaTxt!==String(metaEl.getAttribute('data-orig')||'')){
-        const n=Number(metaTxt);
-        if(metaTxt===''||!Number.isFinite(n)||n<0){err('La meta máxima debe ser un número mayor o igual que 0.');return;}
-        metaNueva=n;hay=true;
-      }
-      if(!hay){fondo.remove();return;}
-      if(window.glacialEstadoDatos&&window.glacialEstadoDatos.enLinea===false){err('Sin conexión: no se guardó. Inténtalo cuando vuelva la conexión.');return;}
-      err('Guardando…');
-      try{await guardarValores(cambios,metaNueva);fondo.remove();}
-      catch(e){err('No se pudo guardar (¿sin conexión o sin permiso?): '+((e&&e.message)||e));}
-    };
-  }
-  /* Guarda solo lo que cambió: set con merge anidado (nunca el documento entero con datos en memoria). */
-  async function guardarValores(cambios,metaNueva){
-    const por=(state.user&&state.user.username)||'',en=ahoraMs();
-    const armar=c=>{const valores={};Object.keys(c).forEach(k=>{const v={};Object.keys(c[k].v).forEach(d=>{v[d]={valor:c[k].v[d],por,en};});valores[k]={etiqueta:c[k].etq,v};});return valores;};
-    const escribir=async(nombre,datos)=>{
-      const ref=db.collection(COL).doc(nombre);
-      await db.runTransaction(async tx=>{await tx.get(ref);tx.set(ref,Object.assign({actualizadoPor:por,actualizadoEn:en},datos),{merge:true});});
-    };
-    if(Object.keys(cambios.m).length)await escribir('margenes',{valores:armar(cambios.m)});
-    if(Object.keys(cambios.c).length)await escribir('costos',{valores:armar(cambios.c)});
-    if(metaNueva!==null)await escribir('general',{metaPerdidaMes:metaNueva});
-  }
+  /* La edición de valores vive en 55-valores-economicos.js (pantalla «Valores unitarios», solo Gerencia). */
+  function abrirEditor(){if(eco())eco().abrirPantalla();}
 
   /* =========================================================
      EXCEL: cascada, Pareto, eventos, mermas, supuestos y faltantes
@@ -528,10 +421,6 @@
     if(pt){G.pareto=pt.getAttribute('data-ie-pareto');render(document.getElementById('main'));return;}
     if(e.target.closest('[data-ie-valores]')){abrirEditor();return;}
     if(e.target.closest('[data-ie-excel]')){exportar();return;}
-    if(e.target.closest('[data-ie-anterior]')){G.vistaAnterior=true;renderPerdidasSoles(document.getElementById('main'));}
-  });
-  document.addEventListener('click',e=>{
-    if(e.target&&e.target.closest&&e.target.closest('[data-ie-nuevo]')){G.vistaAnterior=false;renderPerdidasSoles(document.getElementById('main'));}
   });
   document.addEventListener('change',e=>{
     const t=e.target;if(!t||!t.closest||!t.closest('#impacto-eco-view'))return;
@@ -541,21 +430,18 @@
     if(fe){G[fe]=t.value;if(A().fechaOk(G.desde)&&A().fechaOk(G.hasta)){if(G.hasta<G.desde){if(fe==='desde')G.hasta=G.desde;else G.desde=G.hasta;}render(document.getElementById('main'));}}
   });
 
-  /* ---------- ganchos: pantalla, tiempo real y cierre de escuchas ---------- */
-  if(typeof renderPerdidasSoles==='function'){
-    const anterior=renderPerdidasSoles;
-    renderPerdidasSoles=function(main){
-      if(!permitido()||G.vistaAnterior){
-        const r=anterior.apply(this,arguments);
-        if(G.vistaAnterior&&main&&permitido()&&!/data-ie-nuevo/.test(main.innerHTML||'')){
-          main.innerHTML='<div style="margin:0 0 8px"><button type="button" class="ie-btn" data-ie-nuevo>← Volver al impacto económico nuevo</button></div>'+main.innerHTML;
-        }
-        return r;
-      }
-      return render(main);
-    };
-    window.renderPerdidasSoles=renderPerdidasSoles;
+  /* ---------- pantalla y tiempo real ---------- */
+  function htmlReservado(){
+    const acc=eco();
+    if(!acc||!acc.accesoListo())return '<div class="panel"><div class="small-muted" style="padding:20px 0;text-align:center">Cargando permisos...</div></div>';
+    return '<div class="ie"><div class="ie-head"><div class="ie-title"><div class="ie-badge">📉</div><div><h2>Impacto económico</h2></div></div></div>'+
+      '<div class="ie-aviso">Los valores económicos están reservados a Gerencia y Jefatura autorizada.</div></div>';
   }
+  window.renderPerdidasSoles=function(main){
+    if(!main)return;
+    return permitido()?render(main):(estilos(),main.innerHTML=htmlReservado());
+  };
+  if(eco())eco().alCambiar(()=>{try{if(typeof state!=='undefined'&&state.user&&state.currentTab==='perdidas')refrescar();}catch(_){/* informativo */}});
   ['onProgramacionesUpdated','onPaletasUpdated'].forEach(nombre=>{
     const anterior=globalThis[nombre];
     if(typeof anterior!=='function')return;
@@ -565,20 +451,7 @@
     if(typeof state==='undefined'||!state.user)return;
     if(state.currentTab==='perdidas'&&document.getElementById('impacto-eco-view'))refrescar();       // el reloj del semáforo avanza
   },60000);
-  if(typeof renderMain==='function'){
-    const anterior=renderMain;
-    renderMain=function(){
-      if(desubs.length&&(typeof state==='undefined'||state.currentTab!=='perdidas')){detener();G.vistaAnterior=false;}   // salió de la pantalla: deja de leer
-      return anterior.apply(this,arguments);
-    };
-    window.renderMain=renderMain;
-  }
-  if(typeof handleLogout==='function'){
-    const anterior=handleLogout;
-    handleLogout=function(){const r=anterior.apply(this,arguments);detener();return r;};
-    window.handleLogout=handleLogout;
-  }
 
-  window.glacialImpactoEconomico={nombreImp,lineaReal,calcularImpacto,vigente,provDefecto,calcularTodo,construirLibro,guardarValores,panelMes,periodo,render,
-    abrirEditor,estado:G,docs:DOCS,listo:LISTO,claveMargen,claveCosto,normKey,permitido,detener,escuchar};
+  window.glacialImpactoEconomico={nombreImp,lineaReal,calcularImpacto,vigente,provDefecto,calcularTodo,construirLibro,panelMes,periodo,render,
+    estado:G,claveMargen,claveCosto,normKey,permitido};
 })();

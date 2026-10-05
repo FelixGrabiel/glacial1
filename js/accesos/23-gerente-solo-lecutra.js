@@ -69,7 +69,7 @@
   // antigua deje visible por error un botón de edición.
   [
     'saveUsers', 'saveRecords', 'saveWorkers', 'saveRotaciones',
-    'saveTareos', 'savePrecios', 'savePaletas', 'saveProgramaciones'
+    'saveTareos', 'savePaletas', 'saveProgramaciones'
   ].forEach(nombre => {
     const guardarAnterior = globalThis[nombre];
     if(typeof guardarAnterior !== 'function') return;

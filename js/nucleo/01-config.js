@@ -25,7 +25,7 @@
         service cloud.firestore {
           match /databases/{database}/documents {
             match /sync/{doc} {
-              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'rotacionesMantenimiento', 'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro', 'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'];
+              allow read, write: if doc in ['users', 'records', 'workers', 'rotaciones', 'rotacionesMantenimiento', 'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro', 'tareos', 'paletas', 'programaciones', 'avancesTurno'];
             }
             match /auditoriaTareos/{evento} {
               allow read, create: if true;
@@ -46,7 +46,7 @@
       ⚠⚠ ACCIÓN REQUERIDA AHORA (20260922, actualizado): la
       regla que hay publicada hoy en la consola de Firebase
       todavía dice "if doc in ['users', 'records', 'workers']"
-      — SIN 'rotaciones', 'tareos', 'precios', 'paletas' NI
+      — SIN 'rotaciones', 'tareos', 'paletas' NI
       'programaciones' (este último es nuevo: lo usa el módulo
       "Paletas" para guardar la CANTIDAD PROGRAMADA de cada
       combinación línea+fecha+turno+marca+presentación, contra
@@ -67,7 +67,7 @@
       Copiar y pegar la regla de arriba en el código NO alcanza:
       hay que ir a Firebase Console > Firestore Database > Reglas,
       reemplazar la regla publicada por la de arriba (agregando
-      'rotaciones', 'tareos', 'precios', 'paletas' y
+      'rotaciones', 'tareos', 'paletas' y
       'programaciones') y hacer clic en "Publicar". Es un cambio
       de una sola vez.
 
@@ -860,20 +860,16 @@ function estandarMotivoParada(nombre){
 
    Se agrega esta clasificación porque graficos/Excel la usan
    para desglosar minutos de parada por motivo. El reporte
-   "Impacto Económico" (15-perdidas-soles.js) YA NO depende de
-   este campo: desde el 20260922 valoriza en dinero TODAS las
-   paradas no programadas, agrupándolas por la máquina/área que
-   detecta en el texto de la descripción (Etiquetadora,
-   Empaquetadora, Sopladora, Envasadora, Calidad, Producción),
-   sin importar la "Causa" que tengan asignada aquí.
+   "Impacto Económico" YA NO depende de este campo: agrupa las
+   paradas no programadas por el motivo de la bitácora o, si no
+   hay, por el texto de la descripción, sin importar la "Causa"
+   que tengan asignada aquí.
 
    Los registros guardados ANTES de este cambio no tienen
    "causa" en sus paradas no programadas, pero eso ya no importa
-   para Impacto Económico: como ahora agrupa por texto de la
-   descripción (no por este campo), esas paradas antiguas SÍ se
-   cuentan en el total de soles — solo caen en "Otros / sin
-   clasificar" si su descripción no menciona ninguna máquina
-   conocida (se avisa esto en la propia pantalla).
+   para Impacto Económico: esas paradas antiguas SÍ se cuentan;
+   su motivo se deduce del texto de la descripción y, si no
+   se puede, queda como "Sin motivo".
    ========================================================= */
 
 const CAUSAS_PARADA_NO_PROGRAMADA = [
@@ -886,41 +882,9 @@ const CAUSAS_PARADA_NO_PROGRAMADA = [
 
 
 /* =========================================================
-   PRECIO UNITARIO POR LÍNEA (PARA VALORIZAR IMPACTO ECONÓMICO)
+   VALORES UNITARIOS: ya NO se escriben en el código.
    =========================================================
-
-   Precio de venta aproximado, en soles, de UNA unidad
-   producida en cada línea (botella/bidón/caja/etc., según
-   corresponda). Se usa SOLO para convertir a dinero las
-   unidades que se dejaron de producir por paradas de máquina
-   (15-perdidas-soles.js) — no afecta ningún cálculo de OEE.
-
-   Estos son los valores INICIALES indicados por jefatura
-   (dentro de los rangos que dieron):
-     PET (PET1/PET2)........ S/ 1.00
-     B7L (Bidón 7L)......... S/ 1.00 a S/ 2.00 -> se deja en 1.50
-     C20L (Caja 20L)........ S/ 1.00 a S/ 9.00 -> se deja en 5.00
-     B20L (Bidón 20L)....... no indicado -> se deja en 1.00
-     Hielo (a futuro)........ S/ 0.00 a S/ 1.00 -> se deja en 0.50
-
-   Un Administrador puede ajustar estos valores desde la
-   pestaña "Impacto Económico" (quedan guardados en Firestore,
-   documento sync/precios, y se sincronizan en tiempo real
-   igual que usuarios/reportes/trabajadores).
+   Los valores económicos (valor por línea + marca + presentación, costo de insumos y meta) viven en Firestore
+   (valoresUnitarios), protegidos por Firestore Security Rules: solo Gerencia, identificada por su UID
+   (accesoEconomico/{UID}), los puede leer y cambiar. Ver js/produccion/55-valores-economicos.js.
    ========================================================= */
-
-const PRECIOS_UNITARIOS_DEFAULT = {
-  PET1: 1.00,
-  PET2: 1.00,
-  B7L: 1.50,
-  C20L: 5.00,
-  B20L: 1.00,
-
-  /*
-     HIELO no es una línea de LINES (todavía no existe el
-     "Reporte Hielo", ver goReporteHielo en 03-auth.js) — se
-     deja el precio ya cargado para cuando se implemente, pero
-     hoy no se usa en ningún cálculo.
-  */
-  HIELO: 0.50
-};

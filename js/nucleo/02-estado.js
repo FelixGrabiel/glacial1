@@ -65,7 +65,6 @@ let _rotacionesCache = [];
 let _rotacionesMantenimientoCache = [];
 let _rotacionMaquinistasCache = [];
 let _tareosCache = [];
-let _preciosCache = {};
 let _paletasCache = [];
 let _programacionesCache = [];
 
@@ -75,7 +74,6 @@ let _workersReady = false;
 let _rotacionesReady = false;
 let _rotacionesMantenimientoReady = false;
 let _tareosReady = false;
-let _preciosReady = false;
 let _paletasReady = false;
 let _programacionesReady = false;
 
@@ -453,7 +451,7 @@ function actualizarEstadoTodosLosPermisos(){
 }
 
 /* =========================================================
-   ESCUCHAS RESTRINGIDAS (rotaciones, precios, borradores)
+   ESCUCHAS RESTRINGIDAS (rotaciones, borradores)
    La cuenta compartida de Mantenimiento no puede leer estos
    documentos (ver firestore.rules.etapa2.txt), así que no se
    escuchan para ese rol: evita errores de permiso en consola.
@@ -548,7 +546,6 @@ function detenerSincronizacion(){
   _rotacionesMantenimientoCache = [];
   _rotacionMaquinistasCache = [];
   _tareosCache = [];
-  _preciosCache = {};
   _paletasCache = [];
   _programacionesCache = [];
 
@@ -558,7 +555,6 @@ function detenerSincronizacion(){
   _rotacionesReady = false;
   _rotacionesMantenimientoReady = false;
   _tareosReady = false;
-  _preciosReady = false;
   _paletasReady = false;
   _programacionesReady = false;
 
@@ -840,55 +836,12 @@ function initRealtimeSync(){
     ));
 
 
-  /*
-     PRECIOS UNITARIOS POR LÍNEA (PARA "IMPACTO ECONÓMICO")
-
-     Un solo documento en Firestore con el precio (S/.) por
-     unidad de cada línea, editable por un Administrador desde
-     la pestaña "Impacto Económico" (15-perdidas-soles.js). Si el
-     documento todavía no existe, se siembra con los valores
-     iniciales de PRECIOS_UNITARIOS_DEFAULT (01-config.js).
-  */
-
   // Planificación: catálogo y solicitudes (51-planificacion-nucleo.js). Se cierran con glacialCierresSesion.
   if(typeof glacialPlanificacionEscuchas==='function') glacialPlanificacionEscuchas();
 
-  _escuchaRestringida('precios', () => db.collection('sync').doc('precios')
+  // Información económica: solo se escucha el propio accesoEconomico/{UID} y, si es Gerencia, valoresUnitarios (55-valores-economicos.js).
+  if(typeof glacialEconomicoEscuchas==='function') glacialEconomicoEscuchas();
 
-    .onSnapshot(
-
-      snap => {
-
-        if(snap.exists && snap.data().items){
-
-          _preciosCache = snap.data().items;
-
-        } else {
-
-          _preciosCache = { ...PRECIOS_UNITARIOS_DEFAULT };
-
-          db.collection('sync').doc('precios').set({
-            items: _preciosCache,
-            updatedAt: Date.now()
-          });
-
-        }
-
-        _preciosReady = true;
-
-        onPreciosUpdated();
-
-      },
-
-      err => {
-
-        console.error(
-          'Error de sincronización (precios):', err
-        );
-
-      }
-
-    ));
 
 
   /*
@@ -1181,39 +1134,6 @@ function onTareosUpdated(){
   ){
 
     renderTareoGeneral();
-
-  }
-
-}
-
-
-function onPreciosUpdated(){
-
-  /*
-     Si la persona tiene abierta la pestaña "Impacto Económico"
-     se refresca para reflejar el precio recién guardado —
-     desde esta u otra computadora.
-
-     ANTES esto se decidía buscando el contenedor
-     'perdidas-soles-view' en el DOM, pero ese id solo existe
-     DESPUÉS de que la vista ya se dibujó con datos completos.
-     Si _preciosReady se volvía true mientras la vista todavía
-     mostraba "Cargando datos..." (sin ese id todavía), este
-     chequeo fallaba y la pantalla se quedaba cargando para
-     siempre. Ahora se decide por state.currentTab, igual que
-     onRecordsUpdated/onTareosUpdated, así el refresco ocurre
-     sin importar qué se esté mostrando en ese momento.
-  */
-
-  if(
-    state.user &&
-    state.currentTab === 'perdidas' &&
-    typeof renderPerdidasSoles === 'function'
-  ){
-
-    renderPerdidasSoles(
-      document.getElementById('main')
-    );
 
   }
 
@@ -1586,50 +1506,6 @@ function saveTareos(t){
     items: t,
     updatedAt: Date.now()
   }).catch(err => _avisarErrorGuardado('tareo', err));
-
-}
-
-
-/* =========================================================
-   PRECIOS UNITARIOS POR LÍNEA (IMPACTO ECONÓMICO)
-   ========================================================= */
-
-function loadPrecios(){
-
-  return Object.keys(_preciosCache).length
-    ? _preciosCache
-    : { ...PRECIOS_UNITARIOS_DEFAULT };
-
-}
-
-
-function savePrecios(p){
-
-  _preciosCache = p;
-
-  db.collection('sync').doc('precios').set({
-    items: p,
-    updatedAt: Date.now()
-  }).catch(err => _avisarErrorGuardado('precios por línea', err));
-
-}
-
-
-/*
-   Precio a usar para una línea: el que haya guardado el
-   Administrador, o si todavía no lo tocó, el valor inicial
-   de PRECIOS_UNITARIOS_DEFAULT (01-config.js).
-*/
-
-function precioUnitarioLinea(lineKey){
-
-  const precios = loadPrecios();
-
-  return num(
-    precios[lineKey] ??
-    PRECIOS_UNITARIOS_DEFAULT[lineKey] ??
-    0
-  );
 
 }
 

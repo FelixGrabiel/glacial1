@@ -116,15 +116,6 @@ service cloud.firestore {
         (autenticado() && !esMantCompartido() && perfiles()[request.auth.uid].permisos is list
           && 'avanceProduccion' in perfiles()[request.auth.uid].permisos);
     }
-    // Impacto económico: el permiso perdidasSoles. Administrador, jefatura y gerencia lo tienen por defecto (misma lista que
-    // ROLES_SOLO_CONSULTA en 02-estado.js); el Administrador se lo da a otros en Gestión de usuarios. NO la cuenta compartida.
-    function puedeVerImpacto() {
-      return autenticado() && !esMantCompartido() && (
-        esAdmin() ||
-        perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente'] ||
-        (perfiles()[request.auth.uid].permisos is list && 'perdidasSoles' in perfiles()[request.auth.uid].permisos)
-      );
-    }
     // Planificación: permiso «planificacion». Por defecto lo tienen el Administrador, el Jefe de Producción y los roles
     // Planificación y Ventas y Planificación (misma lista que ROLES_PLANIFICACION en js/nucleo/02-estado.js);
     // el Administrador lo da o lo quita en Gestión de usuarios ('planificacion' / '-planificacion'). NO la cuenta compartida.
@@ -135,6 +126,21 @@ service cloud.firestore {
         (perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Planificación', 'Ventas y Planificación']
           && !(perfiles()[request.auth.uid].permisos is list && '-planificacion' in perfiles()[request.auth.uid].permisos))
       );
+    }
+    // INFORMACIÓN ECONÓMICA SENSIBLE: la autorización se decide por UID, NO por rol ni por permisos que el Administrador pueda asignar.
+    // accesoEconomico/{UID} → { nivel: 'gerencia' | 'jefatura', nombre, desde }. Se crea y se borra SOLO desde Firebase Console:
+    // las reglas no permiten escribirlo desde la aplicación (ni siquiera al Administrador).
+    function nivelEconomico() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/accesoEconomico/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/accesoEconomico/$(request.auth.uid)).data.nivel
+        : '';
+    }
+    function esGerencia() {
+      return autenticado() && !esMantCompartido() && nivelEconomico() == 'gerencia';
+    }
+    function esJefaturaEco() {
+      return autenticado() && !esMantCompartido() && nivelEconomico() == 'jefatura';
     }
     // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
     function programacionesSinAltasNiBajas() {
@@ -158,7 +164,8 @@ service cloud.firestore {
       // comprobar la migración. 'cuentasAntiguas' (correos por borrar en Authentication) solo el Administrador.
       allow read: if doc == 'accesos'
         || (doc == 'cuentasAntiguas' && esAdmin())
-        || (doc != 'cuentasAntiguas' && autenticado() && (!esMantCompartido() || lecturaMant(doc)));
+        || (doc == 'precios' && esGerencia())
+        || (doc != 'cuentasAntiguas' && doc != 'precios' && autenticado() && (!esMantCompartido() || lecturaMant(doc)));
 
       allow write: if
         // Duración de la identificación de técnicos: solo supervisor de Mantenimiento / Administrador.
@@ -181,7 +188,7 @@ service cloud.firestore {
           (autenticado() && doc in [
             'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
             'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',
-            'tareos', 'precios', 'paletas', 'programaciones', 'avancesTurno'
+            'tareos', 'paletas', 'programaciones', 'avancesTurno'
           ])
         ));
     }
@@ -297,12 +304,55 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Valores del Impacto económico (Reportes · Parte B): margen por producto, costo de insumos por componente y meta mensual.
-    // Solo quien tiene el permiso perdidasSoles lee y escribe; el resto de usuarios ni siquiera los puede leer.
+    // VERSIÓN ANTERIOR de los valores económicos (margen, costos y meta). Cerrada: solo Gerencia la lee, para migrarla a valoresUnitarios.
+    // Nadie la escribe. Una vez migrada se borra desde Firebase Console.
     match /configEconomica/{doc} {
-      allow read: if puedeVerImpacto() && doc in ['margenes', 'costos', 'general'];
-      allow create, update: if puedeVerImpacto() && doc in ['margenes', 'costos', 'general']
-        && request.resource.data.keys().hasOnly(['valores', 'metaPerdidaMes', 'actualizadoPor', 'actualizadoEn']);
+      allow read: if esGerencia() && doc in ['margenes', 'costos', 'general'];
+      allow write: if false;
+    }
+
+    // accesoEconomico/{UID}: cada usuario solo puede leer SU propio documento (para saber su nivel); nadie lo escribe desde la app.
+    match /accesoEconomico/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Valores unitarios (margen por línea + marca + presentación, costo por insumo y meta). SOLO Gerencia (por UID) lee y escribe.
+    // Jefatura, Administrador, supervisores y demás reciben permission-denied. No se borra: se usa activo=false.
+    // Cada cambio sube la versión (+1) y debe crear, en la misma transacción, su documento de historial: valoresUnitariosHistorial/{id}_{version}.
+    match /valoresUnitarios/{id} {
+      allow read: if esGerencia();
+      allow create, update: if esGerencia()
+        && request.resource.data.keys().hasOnly(['tipo', 'linea', 'marca', 'presentacion', 'componente', 'unidad', 'clave',
+             'valorUnitario', 'fechaVigencia', 'vigencias', 'activo', 'version', 'actualizadoPorUid', 'fechaActualizacion'])
+        && request.resource.data.tipo in ['producto', 'insumo', 'meta']
+        && request.resource.data.valorUnitario is number && request.resource.data.valorUnitario >= 0
+        && request.resource.data.version == (resource == null ? 1 : resource.data.version + 1)
+        && request.resource.data.actualizadoPorUid == request.auth.uid
+        && request.resource.data.fechaActualizacion == request.time
+        && existsAfter(/databases/$(database)/documents/valoresUnitariosHistorial/$(id + '_' + string(request.resource.data.version)));
+      allow delete: if false;
+    }
+
+    // Historial de valores unitarios: solo se agrega (nunca se edita ni se borra); solo Gerencia lo lee y lo crea, con su UID y la hora del servidor.
+    match /valoresUnitariosHistorial/{id} {
+      allow read: if esGerencia();
+      allow create: if esGerencia()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.timestamp == request.time
+        && request.resource.data.keys().hasAll(['valorId', 'version', 'valorNuevo', 'uid', 'timestamp'])
+        && id == request.resource.data.valorId + '_' + string(request.resource.data.version)
+        && getAfter(/databases/$(database)/documents/valoresUnitarios/$(request.resource.data.valorId)).data.version == request.resource.data.version;
+      allow update, delete: if false;
+    }
+
+    // Resultados económicos autorizados (soles ya calculados, sin valores unitarios ni detalle por producto). Los escribe Gerencia
+    // (su navegador los calcula); los leen Gerencia y la Jefatura con acceso económico. El Administrador, los supervisores y demás: permission-denied.
+    match /resultadosEconomicos/{id} {
+      allow read: if esGerencia() || esJefaturaEco();
+      allow create, update: if esGerencia()
+        && request.resource.data.generadoPorUid == request.auth.uid
+        && request.resource.data.generadoEn == request.time;
       allow delete: if false;
     }
 
