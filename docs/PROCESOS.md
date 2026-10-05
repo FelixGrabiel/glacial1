@@ -361,7 +361,7 @@ flowchart LR
   SJ1 -. lee .-> dsB2
 ```
 
-### Tabla de fidelidad (c) Paradas y mantenimiento)
+### Tabla de fidelidad — c) Paradas y mantenimiento
 
 | Elemento | Quién | Rol | Archivo | Función | Datos (Firestore) | Verificación |
 |---|---|---|---|---|---|---|
