@@ -2270,6 +2270,19 @@ function renderMain(){
 
 
   /* =====================================================
+     PLANIFICACIÓN (js/produccion/52-planificacion-pantalla.js)
+     ===================================================== */
+  if(state.currentTab === 'planificacion'){
+    if(typeof renderPlanificacion !== 'function'){
+      main.innerHTML='<div class="empty-state"><h4>No se pudo cargar Planificación</h4><p>Comprueba que js/produccion/52-planificacion-pantalla.js esté cargado.</p></div>';
+      return;
+    }
+    renderPlanificacion(main);
+    return;
+  }
+
+
+  /* =====================================================
      ROTACIÓN DE SUPERVISORES
      ===================================================== */
   if(state.currentTab === 'rotacion-supervisores'){

@@ -477,14 +477,14 @@ function cambiarRolNuevoUsuario(){
         const sugeridos = {
           'Supervisor': ['inicioOperativo','ver_programacion_turno','ver_insumos_turno','verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'],
           'Gerente General': PERMISOS_SOLO_CONSULTA,
-          'Jefe de Producción': [...PERMISOS_SOLO_CONSULTA,'inicioOperativo'],
+          'Jefe de Producción': [...PERMISOS_SOLO_CONSULTA,'inicioOperativo','planificacion'],
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
           'Mantenimiento': ['moduloMantenimiento','produccionActual','control_operativo_lineas'],
           'mantenimiento_compartido': ['ver_tareo_mantenimiento','produccionActual','control_operativo_lineas'],
           'RRHH': ['moduloRRHH'],
           'Ventas': ['produccionActual'],
-          'Planificación': ['produccionActual'],
-          'Ventas y Planificación': ['produccionActual']
+          'Planificación': ['produccionActual','planificacion'],
+          'Ventas y Planificación': ['produccionActual','planificacion']
         };
         c.checked=(sugeridos[rol] || []).includes(c.value);
         c.disabled=false;
@@ -1322,7 +1322,9 @@ function editarPermisosUsuario(username){
       ? PERMISOS_APP.map(
           p=>p.key
         )
-      : permisos;
+      : (planificacionPermitida(usuario) && !permisos.includes('planificacion')
+          ? [...permisos,'planificacion']   // lo trae por defecto su rol
+          : permisos);
 
 
   const root=
@@ -1673,8 +1675,12 @@ function guardarPermisosUsuario(username){
   // Guardar exactamente la selección hecha por Administración.
   // Los roles de solo consulta siguen limitados por normalizarPermisosUsuario(),
   // pero ahora pueden conservar permisos seguros como recibirAlertasProduccion.
+  // Planificación: si el rol la trae por defecto y se desmarcó, se guarda '-planificacion' (quitada a propósito).
+  const sinPlanificacion =
+    !todos && !seleccionados.includes('planificacion') &&
+    ROLES_PLANIFICACION.includes(String(users[index].rol||'').trim());
   users[index].permisos=
-    todos ? 'todos' : seleccionados;
+    todos ? 'todos' : (sinPlanificacion ? [...seleccionados,'-planificacion'] : seleccionados);
   users[index].permisosGestionVersion=1;
 
 

@@ -289,6 +289,15 @@ function unidadesPorPaletaActiva(linea, fecha, turno, marca, presentacion){
     return num(prog.unidadesPorPaleta);
   }
 
+  const delCatalogo = window.glacialPlanificacion &&
+    typeof window.glacialPlanificacion.uppCatalogo === 'function'
+      ? num(window.glacialPlanificacion.uppCatalogo(linea, marca, presentacion))
+      : 0;
+
+  if(delCatalogo > 0){
+    return delCatalogo;
+  }
+
   return obtenerUnidadesPorPalet(linea, marca, presentacion) || 0;
 
 }
@@ -363,11 +372,15 @@ function datosProgramacionCombinacion(linea, fecha, turno, marca, presentacion){
    "unidadesPorPaleta" es la que planificación definió para
    esa combinación (producto + presentación).
 */
-async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacion, cantidadUnidades, unidadesPorPaleta){
+async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacion, cantidadUnidades, unidadesPorPaleta, opc){
 
-  if(!puedeProgramarPaletas() ||
-     !visibleLines().some(l => l.key === linea)){
-    throw new Error('No tienes permiso para programar esta línea.');
+  /* opc (Planificación): {motivo, accion ('COPIA'|'IMPORTACION'|'APROBACION'), referencia}.
+     Esta es la única escritura de la programación: la pantalla Planificación, la copia, el Excel y la
+     aprobación de solicitudes pasan por aquí. Solo quien tiene el permiso «planificacion» puede llamarla. */
+  opc = opc || {};
+
+  if(!tienePermiso('planificacion')){
+    throw new Error('Solo Planificación puede crear o editar la programación.');
   }
 
   const clave =
@@ -398,11 +411,22 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
   // Se fusiona una sola combinación en la transacción. Dos jefes que
   // programen líneas diferentes no se borran entre sí.
   const ref = db.collection('sync').doc('programaciones');
+  let previo = null;
   const items = await db.runTransaction(async tx => {
+    previo = null;
     const snap = await tx.get(ref);
     const actuales = snap.exists && Array.isArray(snap.data().items)
       ? snap.data().items.slice() : [];
     const idx = actuales.findIndex(p => p.clave === clave);
+
+    previo = idx > -1 ? actuales[idx] : null;
+
+    // Una programación que ya está en producción solo se cambia con motivo.
+    if(previo && ['EN_PRODUCCION','PAUSA','DETENIDA','LISTA','FINALIZADA']
+         .includes(previo.estadoOperacion?.estado || '') &&
+       String(opc.motivo || '').trim().length < 5){
+      throw new Error('Esta programación ya está en producción: indica el motivo del cambio (mínimo 5 caracteres).');
+    }
 
     /*
        Si la cantidad programada queda en 0, la programación se elimina
@@ -466,6 +490,30 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
     return actuales;
   });
   _programacionesCache = items;
+
+  const nuevo = cantidadNum === 0 ? null : (items.find(p => p.clave === clave) || null);
+  const resultado = { previo, nuevo };
+
+  // Historial de cambios (54-planificacion-solicitudes.js): solo se agrega, nunca se edita ni se borra.
+  if(window.glacialPlanificacion && typeof window.glacialPlanificacion.registrarHistorial === 'function'){
+    await window.glacialPlanificacion.registrarHistorial({
+      accion: opc.accion || (cantidadNum === 0 ? 'ELIMINACION' : (previo ? 'EDICION' : 'CREACION')),
+      linea, fecha, turno, marca, presentacion,
+      anterior: previo ? {
+        cantidad: num(previo.cantidadProgramada),
+        unidadesPorPaleta: num(previo.unidadesPorPaleta),
+        estado: previo.estadoOperacion?.estado || ''
+      } : null,
+      nuevo: nuevo ? {
+        cantidad: num(nuevo.cantidadProgramada),
+        unidadesPorPaleta: num(nuevo.unidadesPorPaleta)
+      } : null,
+      motivo: opc.motivo || '',
+      referencia: opc.referencia || ''
+    });
+  }
+
+  return resultado;
 
 }
 
@@ -763,7 +811,9 @@ function resumenProgramacionCombinacionTurnos(linea, fecha, turnos, marca, prese
   });
 
   if(!unidadesPorPaleta){
-    unidadesPorPaleta = obtenerUnidadesPorPalet(linea, marca, presentacion) || 0;
+    unidadesPorPaleta = (window.glacialPlanificacion && typeof window.glacialPlanificacion.uppCatalogo === 'function'
+      ? num(window.glacialPlanificacion.uppCatalogo(linea, marca, presentacion)) : 0) ||
+      obtenerUnidadesPorPalet(linea, marca, presentacion) || 0;
   }
 
   const paletasEquivalentes =
@@ -2056,6 +2106,20 @@ function actualizarVistaPaletas(){
     estado.textContent = textoEstadoProgramacionPaletas();
   }
 
+  const acciones = document.getElementById('paleta-programacion-acciones');
+  if(acciones){
+    acciones.innerHTML = htmlAccionesProgramacionPaletas();
+  }
+
+}
+
+/* Enlace «Ver en Planificación» o, si no hay programación, el botón «Solicitar programación». */
+function htmlAccionesProgramacionPaletas(){
+  if(!draftPaleta || !window.glacialPlanificacion ||
+     typeof window.glacialPlanificacion.htmlPaletas !== 'function'){
+    return '';
+  }
+  return window.glacialPlanificacion.htmlPaletas(draftPaleta);
 }
 
 function textoEstadoProgramacionPaletas(){
@@ -2065,7 +2129,7 @@ function textoEstadoProgramacionPaletas(){
     draftPaleta.marca,draftPaleta.presentacion
   );
   if(!prog.cantidadProgramada){
-    return 'Todavía no se registró una cantidad programada para esta combinación.';
+    return 'No hay programación para esta combinación. Puedes registrar paletas igual.';
   }
   const paletas = Number.isInteger(prog.paletasProgramadas)
     ? prog.paletasProgramadas : prog.paletasProgramadas.toFixed(1);
@@ -2447,28 +2511,6 @@ function renderPaletasTab(){
   // se conserva el dato hasta que el usuario elija otra presentación.
   // Un registro nuevo queda SIN presentación: la escoge el supervisor.
 
-  /*
-     Programación YA guardada para la combinación que está
-     seleccionada ahora mismo en el formulario (línea + fecha
-     + turno + marca + presentación) — para prellenar los
-     campos y mostrar el estado actual sin tener que ir a
-     "Producción actual" a buscarlo.
-  */
-  const programacionForm =
-    resumenProgramacionCombinacion(
-      state.currentLine,
-      draftPaleta.fecha,
-      draftPaleta.turno,
-      draftPaleta.marca,
-      draftPaleta.presentacion
-    );
-
-  const uppSugerida =
-    programacionForm.unidadesPorPaleta ||
-    obtenerUnidadesPorPalet(state.currentLine, draftPaleta.marca, draftPaleta.presentacion) ||
-    '';
-
-  const puedeProgramar = puedeProgramarPaletas();
   const puedeRegistrar = tienePermiso('paletas');
 
   c.innerHTML = `
@@ -2545,57 +2587,12 @@ function renderPaletasTab(){
       </div>
 
 
-      ${puedeProgramar ? `
-      <div class="panel-body grid grid-4" style="align-items:end;">
-
-        <div class="field-sm">
-          <label>
-            Cantidad programada (UND) — ${draftPaleta.turno}
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            inputmode="numeric"
-            id="paleta-programada-input"
-            value="${programacionForm.cantidadProgramada || ''}"
-          >
-        </div>
-
-        <div class="field-sm">
-          <label>Unidades por paleta</label>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            inputmode="numeric"
-            id="paleta-programada-upp-input"
-            value="${uppSugerida}"
-          >
-        </div>
-
-        <div class="field-sm">
-          <button
-            class="btn btn-ghost"
-            id="btn-guardar-programacion"
-            onclick="guardarProgramacionDesdeFormulario()"
-          >
-            Guardar programación
-          </button>
-        </div>
-
-        <div class="small-muted" id="paleta-programacion-estado" style="align-self:center;">
-          ${textoEstadoProgramacionPaletas()}
-        </div>
-
-      </div>
-      ` : `
       <div class="panel-body">
         <div class="small-muted" id="paleta-programacion-estado">
           ${textoEstadoProgramacionPaletas()}
         </div>
+        <div id="paleta-programacion-acciones">${htmlAccionesProgramacionPaletas()}</div>
       </div>
-      `}
 
       ${htmlSecuenciaTurnoPaletas()}
 

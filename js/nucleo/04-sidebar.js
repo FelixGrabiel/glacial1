@@ -30,7 +30,7 @@ function refinarIconosSidebar(){
     'btn-avance-produccion':'clock','btn-almacen':'box',
     'btn-mantenimiento':'wrench','btn-rrhh':'users','btn-tareo':'clipboard',
     'btn-rotacion-supervisores':'users','btn-resumen':'report',
-    'btn-perdidas':'chart','btn-usuarios':'settings','btn-trabajadores':'users'
+    'btn-perdidas':'chart','btn-usuarios':'settings','btn-trabajadores':'users','btn-planificacion':'clipboard'
   };
   Object.entries(iconos).forEach(([id,nombre])=>{
     const b=document.getElementById(id); if(!b)return;
@@ -80,6 +80,8 @@ const PESTANAS_LINEA=['nuevo','historial','graficos','paletas'];
 
 /* Permisos de ENTRADA al menú (ver ≠ gestionar; la edición se valida aparte). */
 function permisoNavegacion(permiso){
+  // Planificación: quien planifica, o quien ve el plan en solo lectura (supervisores).
+  if(permiso==='planificacionEntrada')return puedeEntrarPlanificacion();
   if(permiso==='moduloMantenimiento')return puedeEntrarMantenimiento();
   if(permiso==='tareoProduccion'||permiso==='tareoGeneral')return puedeEntrarTareoProduccion();
   return tienePermiso(permiso);
@@ -108,6 +110,7 @@ function ajustarVistaSegunPermisos(){
     'avance-produccion':'avanceProduccion',
     mantenimiento:'moduloMantenimiento',rrhh:'moduloRRHH',
     'rotacion-supervisores':'gestionar_rotacion_supervisores',
+    planificacion:'planificacionEntrada',
     tareo:'tareoProduccion'
   };
   const tab=state.currentTab;
@@ -190,6 +193,7 @@ function renderSidebar(){
   const acciones={
     'btn-centro-perfil':['__inicio__','centro-perfil'],
     'btn-produccion-actual':['produccionActual','produccion-actual'],
+    'btn-planificacion':['planificacionEntrada','planificacion'],
     'btn-avance-produccion':['avanceProduccion','avance-produccion'],
     'btn-resumen':['resumen','resumen'],
     'btn-perdidas':['perdidasSoles','perdidas'],
@@ -501,6 +505,29 @@ function goAvanceProduccion(){
    Administrador decida por separado quién la ve — igual que
    goResumen()/goPerdidasSoles().
 */
+function puedeEntrarPlanificacion(){
+  if(!state.user)return false;
+  if(typeof esMantCompartido==='function' && esMantCompartido())return false;
+  return tienePermiso('planificacion') || tienePermiso('programarPaletas') ||
+    tienePermiso('paletas') || tienePermiso('avanceProduccion');
+}
+
+function goPlanificacion(){
+  if(!puedeEntrarPlanificacion()){
+    alert('No tienes permiso para ver Planificación.');
+    return;
+  }
+  if(
+    typeof confirmarAbandonoRotacionPendiente === 'function' &&
+    !confirmarAbandonoRotacionPendiente()
+  ){
+    return;
+  }
+  state.currentTab='planificacion';
+  renderSidebar();
+  renderMain();
+}
+
 function goProduccionActual(){
   if(!tienePermiso('produccionActual')){
     alert('No tienes permiso para ver Producción Actual.');

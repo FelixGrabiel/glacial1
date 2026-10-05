@@ -2975,6 +2975,12 @@
                             <span class="side-action-icon" aria-hidden="true">◴</span><span>Producción actual</span>
                         </button>
 
+                        <!-- Planificación: programación, vista semanal, catálogo, solicitudes y cumplimiento. -->
+                        <button type="button" class="side-action sidebar-root-action" id="btn-planificacion"
+                                onclick="goPlanificacion()" style="display:none">
+                            <span class="side-action-icon" aria-hidden="true">▤</span><span>Planificación</span>
+                        </button>
+
                         <section class="sidebar-group" id="sidebar-group-produccion" data-sidebar-group="produccion">
                             <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="produccion"
                                     aria-expanded="true" aria-controls="sidebar-panel-produccion">
@@ -3288,15 +3294,15 @@
     <script src="js/nucleo/01-config.js?v=20261004-sheets-off"></script>
     <script src="js/nucleo/45-indicadores.js?v=20261004-ind1"></script>
 
-    <script src="js/nucleo/02-estado.js?v=20261004-b1"></script>
+    <script src="js/nucleo/02-estado.js?v=20261005-plan1"></script>
 
     <script src="js/accesos/03-auth.js?v=20261004-b1"></script>
 
-    <script src="js/nucleo/04-sidebar.js?v=20261003-mant-A2"></script>
+    <script src="js/nucleo/04-sidebar.js?v=20261005-plan1"></script>
 
     <script src="js/nucleo/05-utils.js?v=20260918-resumen"></script>
 
-    <script src="js/produccion/06-registro.js?v=20261004-ind5"></script>
+    <script src="js/produccion/06-registro.js?v=20261005-plan1"></script>
 
     <script src="js/produccion/07-historial.js?v=20261004-ind5"></script>
 
@@ -3304,12 +3310,12 @@
 
     <script src="js/produccion/09-resumen.js?v=20261004-ind8"></script>
 
-    <script src="js/accesos/10-usuarios.js?v=20261004-permisos-area"></script>
+    <script src="js/accesos/10-usuarios.js?v=20261005-plan1"></script>
 
     <script src="js/personal/11-trabajadores.js?v=20260925-consulta-1"></script>
     <script src="js/produccion/15-perdidas-soles.js?v=20260925-consulta-1"></script>
     <script src="js/produccion/22-impacto-para-pegar.js?v=20260925-consulta-1"></script>
-    <script src="js/produccion/16-paletas.js?v=20261004-ind8"></script>
+    <script src="js/produccion/16-paletas.js?v=20261005-plan1"></script>
     <script src="js/accesos/17-modo-trabajo.js?v=20261004-ind8"></script>
     <script src="js/mantenimiento/18-mantenimiento.js?v=20261002-tareo-permisos-1"></script>
    
@@ -3326,7 +3332,7 @@
     <script src="js/produccion/21-programacion-turno.js?v=20260924-plan-compartido-1"></script>
     <script src="js/accesos/23-gerente-solo-lecutra.js?v=20261002-tareo-permisos-1"></script>
     <script src="js/produccion/23b-tiempos-linea.js?v=20261004-ind9"></script>
-    <script src="js/produccion/24-semaforo-produccion-actual.js?v=20261004-ind8"></script>
+    <script src="js/produccion/24-semaforo-produccion-actual.js?v=20261005-plan3"></script>
     <script src="js/produccion/25-alertas-lineas.js?v=20261004-alertas-cab"></script>
     <script src="js/rrhh/26-rrhh-panel.js?v=20261004-a1"></script>
     <script src="js/rrhh/27-rrhh-excel-operativo.js?v=20261003-saldo"></script>
@@ -3347,11 +3353,13 @@
     <script src="js/personal/41-tareo-bloqueo.js?v=20261004-faseC2"></script>
     <script src="js/mantenimiento/43-bitacora-mantenimiento.js?v=20261004-b1"></script>
     <script src="js/nucleo/44-estado-datos.js?v=20261004-b1"></script>
-    <script src="js/produccion/46-proyeccion-avisos.js?v=20261004-permisos-area"></script>
-    <script src="js/produccion/47-analisis-paradas.js?v=20261004-ind9"></script>
+    <script src="js/produccion/46-proyeccion-avisos.js?v=20261005-plan3"></script>
+    <script src="js/produccion/47-analisis-paradas.js?v=20261005-plan2"></script>
     <script src="js/produccion/48-resumen-turno.js?v=20261004-ind5"></script>
     <script src="js/produccion/49-resumen-indicadores.js?v=20261004-ind9"></script>
     <script src="js/produccion/50-impacto-economico.js?v=20261004-reportes-b2"></script>
+    <script src="js/produccion/51-planificacion-nucleo.js?v=20261005-plan1"></script>
+    <script src="js/produccion/52-planificacion-pantalla.js?v=20261005-plan1"></script>
     <script src="js/accesos/39-vista-como.js?v=20261003-vista-1"></script>
     <script src="js/nucleo/12-init.js?v=20261003-seguridad"></script>
 

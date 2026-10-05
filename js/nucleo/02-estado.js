@@ -130,6 +130,7 @@ const PERMISOS_APP=[
   {key:'perdidasSoles',area:'visualizacion',label:'Impacto Económico (paradas no programadas)'},
   {key:'paletas',area:'produccion',label:'Paletas (registro en tiempo real)'},
   {key:'programarPaletas',area:'produccion',label:'Programar producción / Secuencia del turno'},
+  {key:'planificacion',area:'produccion',label:'Planificación (crear y editar la programación y el catálogo, aprobar solicitudes)'},
   {key:'gestionar_rotacion_supervisores',area:'produccion',label:'Gestionar rotación de supervisores'},
   {key:'gestionar_rotacion_mantenimiento',area:'mantenimiento',label:'Gestionar rotación de Mantenimiento y de maquinistas (Rotación semanal MTTO / Rotación maquinista)'},
   {key:'produccionActual',area:'produccion',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
@@ -414,8 +415,23 @@ function puedeEntrarMantenimiento(){
     tienePermiso('ver_tareo_mantenimiento');
 }
 
+/* Permiso «planificacion»: por defecto lo tienen el Administrador, el Jefe de Producción y los roles Planificación
+   y Ventas y Planificación. El Administrador lo da o lo quita a cualquier usuario: darlo = 'planificacion' en
+   sus permisos; quitarlo a un rol que lo trae por defecto = '-planificacion'. */
+const ROLES_PLANIFICACION=['Administrador','Jefe de Producción','Planificación','Ventas y Planificación'];
+function planificacionPermitida(u){
+  if(!u) return false;
+  const rol=String(u.rol||'').trim();
+  if(rol==='Administrador' || u.permisos==='todos') return true;
+  const arr=Array.isArray(u.permisos)?u.permisos:[];
+  if(arr.includes('-planificacion')) return false;
+  if(arr.includes('planificacion')) return true;
+  return ROLES_PLANIFICACION.includes(rol);
+}
+
 function tienePermiso(permiso){
   if(!state.user) return false;
+  if(permiso==='planificacion') return planificacionPermitida(state.user);
   if(PERMISOS_ALIAS[permiso]) return PERMISOS_ALIAS[permiso].some(k=>tienePermiso(k));
   const p=normalizarPermisosUsuario(state.user);
   return p==='todos'||p.includes(permiso);
@@ -834,6 +850,9 @@ function initRealtimeSync(){
      iniciales de PRECIOS_UNITARIOS_DEFAULT (01-config.js).
   */
 
+  // Planificación: catálogo y solicitudes (51-planificacion-nucleo.js). Se cierran con glacialCierresSesion.
+  if(typeof glacialPlanificacionEscuchas==='function') glacialPlanificacionEscuchas();
+
   _escuchaRestringida('precios', () => db.collection('sync').doc('precios')
 
     .onSnapshot(
@@ -1247,6 +1266,9 @@ function onPaletasUpdated(){
 
 
 function onProgramacionesUpdated(){
+
+  // Planificación (51-52): repinta sus pantallas con la programación recién sincronizada.
+  if(typeof glacialPlanificacionRefrescar==='function') glacialPlanificacionRefrescar();
 
   /*
      Igual que onPaletasUpdated: NO se reconstruye todo el
