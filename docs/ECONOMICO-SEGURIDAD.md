@@ -116,3 +116,33 @@ JSON.stringify({ls: {...localStorage}, ss: {...sessionStorage}});               
 Object.keys(window).filter(k => /eco|valor|precio|margen|costo/i.test(k));      // solo funciones: glacialEconomico, glacialImpactoResultados…
 glacialEconomico.docs();                                                         // en no-Gerencia: {margenes:{valores:{}}, costos:{valores:{}}, general:{}} (vacío)
 ```
+
+## Rediseño del dashboard (esquema v2)
+
+**Reglas de Firestore: no cambian** (siguen las de `firestore.rules.etapa2.txt`; no hay que volver a publicarlas ni crear índices).
+
+### Qué ve cada rol (la misma pantalla, distinta fuente)
+| Rol | Pestañas | Cifras | Origen de los eventos |
+|---|---|---|---|
+| Gerencia | Resumen ejecutivo · Análisis de pérdidas · Valores unitarios | S/, minutos, unidades; faltantes con botón «Configurar valores» | Calcula en su navegador con los valores unitarios |
+| Jefatura | Resumen ejecutivo · Análisis de pérdidas | S/, minutos, unidades; solo cobertura de valorización (sin acceso a configurar) | Lee `resultadosEconomicos/{AAAA-MM-DD}` (eventos ya valorizados) |
+| Demás roles | Resumen ejecutivo · Análisis de pérdidas | Solo minutos y unidades; ninguna cifra en S/ | Calculan con `provSinValores()` (S/ = null) |
+
+### Documento publicado por día (v2)
+`resultadosEconomicos/{AAAA-MM-DD}` = `{fecha, v:2, filas:[{t,h,tu,g,l,m,p,mq,c,mi,u,s,e,f}], faltan:{productos,insumos}, generadoPorUid, generadoEn}`.
+Cada fila es un evento (t = P parada / V velocidad / M merma; mi = minutos; u = unidades; s = soles o null si falta el valor; f = `valor`/`costo` si falta). **No trae valores unitarios, márgenes, costos ni precios.** `resultadosEconomicos/meta` conserva la meta mensual. Los documentos de la versión 1 (sin `filas`) se ignoran y pueden borrarse a mano.
+Gerencia publica una ventana de **70 días**: al abrir sesión, al cambiar un valor, cada minuto (hoy y ayer) y cada hora (toda la ventana); solo escribe lo que cambió (huella por documento).
+
+> **Riesgo aceptado:** al publicar soles y unidades del mismo evento, Jefatura puede deducir el valor unitario (soles ÷ unidades). El negocio decidió que Jefatura vea las unidades. Si más adelante se quiere impedirlo, hay que dejar de publicar `u` en las filas de Jefatura.
+
+### Máquina
+El registro no guarda la máquina de una parada. Solo se asigna cuando el texto del motivo la nombra (Etiquetadora, Empaquetadora, Sopladora, Envasadora, Rinser); el resto queda «Sin clasificar», y el análisis de máquinas lista las causas registradas de ese grupo.
+
+### Semáforo
+Solo se evalúa contra la **meta mensual** (Valores unitarios → Meta mensual) y solo en el periodo «Mes actual»: Favorable < 80 %, Atención de 80 % a 100 %, Crítico al superar la meta. No hay otros umbrales: sin una meta definida no se muestra semáforo. **Propuesta:** si se desean umbrales por línea o por tipo de pérdida, habría que agregarlos como nuevos valores en `valoresUnitarios` (tipo `meta`).
+
+### Periodo de comparación
+Mes actual → mes anterior hasta el mismo día del mes (o su último día si es más corto). Hoy / 7 días / 30 días / Rango → el mismo número de días inmediatamente anteriores. Cada KPI y cada análisis dice con qué periodo se compara.
+
+### Archivos
+`56-impacto-resultados.js` (datos y publicación) · `57-impacto-estado.js` (estado de filtros y agregación, puro) · `58-impacto-dashboard.js` (pantalla) · `59-impacto-analisis.js` (análisis automático, puro) · `60-impacto-excel.js` (Excel por rol). Pruebas: `tests/impacto-estado.test.js`, `tests/economico-resultados.test.js`, `docs/PRUEBAS-IMPACTO.md`.

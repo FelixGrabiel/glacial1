@@ -246,7 +246,7 @@
           u.partes=new Map();u.programado=num(f.programado);
           const t47=u47.find(x=>x.linea===f.linea&&grupoDeTurno(x.turno)===g);
           const detalle=(Array.isArray(f.detalle)&&f.detalle.length)?f.detalle:[{marca:f.marca,presentacion:f.presentacion,producido:f.producido,programado:f.programado}];
-          const items=t47?t47.npItems.map(i=>({motivo:i.motivo,minutos:num(i.minutos),estimada:false})):[];
+          const items=t47?t47.npItems.map(i=>({motivo:i.motivo,minutos:num(i.minutos),estimada:false,inicio:num(i.inicio)})):[];
           const prodTot=detalle.reduce((s,d)=>s+num(d.producido),0);
           const pesos=detalle.map(d=>{const v=velocidadEstandar(f.linea,d.presentacion,d.marca);return v>0?num(d.producido)/v:0;});
           const usarVel=prodTot>0&&pesos.every((w,i)=>w>0||num(detalle[i].producido)===0)&&pesos.some(w=>w>0);
@@ -259,7 +259,7 @@
             if(t47){
               pt.durMin=t47.duracion*share;pt.progMin=t47.prog*share;pt.npMin=t47.np*share;
               pt.planMin=t47.planificado*share;pt.availMin=t47.enMarcha*share;
-              pt.paradas=items.map(it=>({motivo:it.motivo,minutos:it.minutos*share,estimada:false}));
+              pt.paradas=items.map(it=>({motivo:it.motivo,minutos:it.minutos*share,estimada:false,inicio:it.inicio}));
             }
           });
           u.partes.forEach(pt=>{pt.progUnit=u.programado>0;});
@@ -346,7 +346,7 @@
         const npSis=t?t.npItems.reduce((s,i)=>s+num(i.minutos),0):0;
         if(t&&npSis>0&&npReg>0&&Math.abs(npSis-npReg)/Math.max(npSis,npReg)<=UMBRAL_DIF){
           partesU.forEach(p=>{if(p.npMin<=0)return;const share=p.npMin/npReg;
-            p.paradas=t.npItems.map(i=>({motivo:i.motivo,minutos:num(i.minutos)*share,estimada:false}));});
+            p.paradas=t.npItems.map(i=>({motivo:i.motivo,minutos:num(i.minutos)*share,estimada:false,inicio:num(i.inicio)}));});
         }
       }
       u.partes.forEach(p=>{

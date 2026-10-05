@@ -60,7 +60,11 @@ js/
 | 21-programacion-turno.js | Programación del turno |
 | 50-impacto-economico.js | Impacto económico completo (solo Gerencia): cascada en S/, rankings, supuestos y Excel |
 | 55-valores-economicos.js | Valores unitarios protegidos por rol (solo Gerencia): lectura/escritura con historial, migración y pantalla «Valores unitarios» |
-| 56-impacto-resultados.js | Impacto para Jefatura (soles ya calculados) y operativo para los demás; Gerencia publica los resultados |
+| 56-impacto-resultados.js | Fuente de datos del dashboard de impacto (eventos por día) y publicación de Gerencia para Jefatura |
+| 57-impacto-estado.js | Estado central de filtros y agregación del dashboard (puro, con pruebas) |
+| 58-impacto-dashboard.js | Dashboard interactivo de Impacto económico (filtros cruzados, 10 gráficos, detalle) |
+| 59-impacto-analisis.js | Análisis automático bajo cada gráfico (puro, con pruebas) |
+| 60-impacto-excel.js | Excel de Impacto por rol |
 | 23b-tiempos-linea.js | Cálculo central de tiempos y ratios por línea |
 | 24-semaforo-produccion-actual.js | Producción actual y semáforo de líneas |
 | 25-alertas-lineas.js | Centro de alertas de líneas (detenciones + pestaña Avisos con contador) |
