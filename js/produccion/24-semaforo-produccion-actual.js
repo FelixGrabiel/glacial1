@@ -2141,6 +2141,7 @@
   // Acceso para pruebas: SOLO existe en el entorno PRUEBAS (en producción no se expone).
   if(typeof ENTORNO_PRUEBAS!=='undefined' && ENTORNO_PRUEBAS)window.glacialSemaforo={cambiarEstado};
   window.glacialTurnoVigente=turnoVigente;
+  window.glacialProducidoVigente=producidoVigenteDe;   // producido de una programación: turno en curso = Paletas, turno cerrado = registro (null si falta); lo lee Planificación
   const renderAnterior=renderProduccionActualTab;
   renderProduccionActualTab=function(){
     if(!produccionActualFecha)produccionActualFecha=turnoVigente().fecha;

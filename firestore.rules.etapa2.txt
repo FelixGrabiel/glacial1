@@ -125,6 +125,17 @@ service cloud.firestore {
         (perfiles()[request.auth.uid].permisos is list && 'perdidasSoles' in perfiles()[request.auth.uid].permisos)
       );
     }
+    // Planificación: permiso «planificacion». Por defecto lo tienen el Administrador, el Jefe de Producción y los roles
+    // Planificación y Ventas y Planificación (misma lista que ROLES_PLANIFICACION en js/nucleo/02-estado.js);
+    // el Administrador lo da o lo quita en Gestión de usuarios ('planificacion' / '-planificacion'). NO la cuenta compartida.
+    function puedePlanificar() {
+      return autenticado() && !esMantCompartido() && (
+        esAdmin() ||
+        (perfiles()[request.auth.uid].permisos is list && 'planificacion' in perfiles()[request.auth.uid].permisos) ||
+        (perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Planificación', 'Ventas y Planificación']
+          && !(perfiles()[request.auth.uid].permisos is list && '-planificacion' in perfiles()[request.auth.uid].permisos))
+      );
+    }
     // Programaciones: sin altas ni bajas de items y sin campos nuevos en el documento.
     function programacionesSinAltasNiBajas() {
       return resource != null
@@ -162,6 +173,11 @@ service cloud.firestore {
           // Metas de disponibilidad y velocidades estándar (Análisis de paradas): Administrador y Jefatura.
           // La lee todo usuario autenticado salvo la cuenta compartida (no usa esa pantalla).
           (doc == 'configIndicadores' && puedeConfigurarUmbrales()) ||
+          // El Catálogo de Planificación puede editar SOLO las velocidades estándar de esa misma tabla.
+          (doc == 'configIndicadores' && puedePlanificar() && resource != null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['velocidades', 'actualizadoPor', 'actualizadoEn'])) ||
+          // Catálogo de productos de Planificación (unidades por paleta y si está activo).
+          (doc == 'catalogoPlanificacion' && puedePlanificar()) ||
           (autenticado() && doc in [
             'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
             'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',
@@ -244,6 +260,40 @@ service cloud.firestore {
              .hasOnly(['datos', 'actualizadoUid', 'actualizadoPor', 'actualizadoPorNombre', 'actualizadoEn', 'actualizaciones'])
         && request.resource.data.actualizadoUid == request.auth.uid
         && request.resource.data.actualizadoEn == request.time;
+      allow delete: if false;
+    }
+
+    // Historial de cambios de la programación: solo se agrega, nunca se edita ni se borra.
+    // Cada evento lleva el uid de quien lo escribe y la hora del servidor. Lo leen quienes planifican y la jefatura.
+    match /historialProgramacion/{id} {
+      allow read: if puedePlanificar() || (autenticado() && !esMantCompartido() && esJefatura());
+      allow create: if autenticado() && !esMantCompartido()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.timestamp == request.time
+        && request.resource.data.keys().hasAll(['uid', 'timestamp', 'accion', 'linea', 'fecha', 'turno'])
+        && request.resource.data.accion in ['CREACION', 'EDICION', 'ELIMINACION', 'COPIA', 'IMPORTACION', 'APROBACION', 'RECHAZO_SOLICITUD'];
+      allow update, delete: if false;
+    }
+
+    // Solicitudes de programación (cambio de cantidad o de producto, o programación nueva).
+    //  - Cualquier usuario con sesión (menos la cuenta compartida) crea la suya: su uid, PENDIENTE, motivo y hora del servidor.
+    //  - Cada quien lee las suyas; quien planifica lee todas y solo puede resolverlas (APROBADA o RECHAZADA) con comentario.
+    //  - Nadie las borra.
+    match /solicitudesProgramacion/{id} {
+      allow read: if autenticado() && !esMantCompartido() && (puedePlanificar() || resource.data.uid == request.auth.uid);
+      allow create: if autenticado() && !esMantCompartido()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.estado == 'PENDIENTE'
+        && request.resource.data.creadoEn == request.time
+        && request.resource.data.motivo is string && request.resource.data.motivo.size() >= 5
+        && request.resource.data.tipo in ['CAMBIO_CANTIDAD', 'CAMBIO_PRODUCTO', 'NUEVA_PROGRAMACION'];
+      allow update: if puedePlanificar()
+        && resource.data.estado == 'PENDIENTE'
+        && request.resource.data.estado in ['APROBADA', 'RECHAZADA']
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estado', 'comentario', 'resueltaPor', 'resueltaUid', 'resueltaEn'])
+        && request.resource.data.resueltaUid == request.auth.uid
+        && request.resource.data.resueltaEn == request.time;
       allow delete: if false;
     }
 

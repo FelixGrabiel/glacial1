@@ -225,6 +225,11 @@
       });
     }
 
+    /* f) solicitudes de programación (54-planificacion-solicitudes.js): pendientes para quien planifica, resultado para quien las pidió */
+    if(window.glacialPlanificacion&&typeof window.glacialPlanificacion.avisos==='function'){
+      try{window.glacialPlanificacion.avisos().forEach(x=>add(x.id,'solicitud',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar'}));}catch(_){/* informativo */}
+    }
+
     const vistos=leerVistos();
     const activos=new Set(lista.map(x=>x.id));
     let cambio=false;
@@ -248,6 +253,7 @@
         if(typeof goTareo==='function')goTareo();
         return;
       }
+      if(x.tipo==='solicitud'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion)window.glacialPlanificacion.irASolicitudes();}return;}
       if(typeof goProduccionActual==='function')goProduccionActual();
     }catch(e){console.warn('Aviso: no se pudo abrir la pantalla:',e&&e.message||e);}
   }

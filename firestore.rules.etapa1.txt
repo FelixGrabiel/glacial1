@@ -45,6 +45,15 @@ service cloud.firestore {
       allow read, create, update: if true;
       allow delete: if false;
     }
+    // Planificación: historial de cambios (solo se agrega) y solicitudes de programación.
+    match /historialProgramacion/{id} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+    match /solicitudesProgramacion/{id} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
     // Valores del Impacto económico (Reportes · Parte B): margen, costos y meta mensual.
     match /configEconomica/{doc} {
       allow read, create, update: if true;
