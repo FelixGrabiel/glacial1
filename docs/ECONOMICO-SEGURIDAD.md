@@ -73,3 +73,21 @@ db.collection('sync').doc('precios').get().then(d => console.log('LEYÓ')).catch
 db.collection('configEconomica').doc('margenes').get().then(d => console.log('LEYÓ')).catch(e => console.log(e.code));    // idem
 db.collection('valoresUnitarios').doc('P__x').set({tipo:'producto'}).catch(e => console.log(e.code));                    // permission-denied (incluso Gerencia: faltan campos e historial)
 ```
+
+## Etapa 3 · Qué ve cada rol en Impacto económico
+
+| Rol | Pantalla | Fuente de los datos |
+|---|---|---|
+| Gerencia | Completa (S/, cascada, rankings, valores y supuestos, Excel con supuestos) y «Valores unitarios» | `valoresUnitarios` (escucha en vivo) + cálculo en su navegador (`50-impacto-economico.js`) |
+| Jefatura | «Resultado económico» (S/) + «Parte operativa» (minutos, unidades, paradas, rankings) | `resultadosEconomicos` (soles ya calculados) + datos operativos de siempre |
+| Administrador, supervisores y demás | «Impacto operativo» + el aviso «Los valores económicos están reservados a Gerencia y Jefatura autorizada.» | Solo datos operativos |
+
+### Arquitectura para que Jefatura vea S/ sin valores unitarios (opción B, sin backend)
+1. El navegador de Gerencia calcula los soles con el mismo motor y publica un documento por día: `resultadosEconomicos/{AAAA-MM-DD}` (totales, por línea, por motivo, por turno y por componente de merma, solo soles) y `resultadosEconomicos/meta`.
+2. Se publica al abrir la sesión, cada vez que cambia un valor, cada minuto el día de hoy y cada hora todo el mes en curso y el anterior. Solo se escribe lo que cambió.
+3. Las reglas dejan escribir solo a Gerencia y leer a Gerencia y Jefatura. El navegador de Jefatura **no** abre ninguna escucha hacia `valoresUnitarios`.
+
+**Límites (importantes):**
+- Si ningún dispositivo de Gerencia está abierto, Jefatura ve la última publicación (la pantalla indica la hora). La alternativa sin esta dependencia es una Cloud Function (plan Blaze).
+- Para que Jefatura no deduzca el valor dividiendo soles entre unidades, los documentos publicados no traen unidades ni minutos junto a los soles, no hay detalle por producto y la pantalla separa «Resultado económico» de «Parte operativa». Aun así, **dos cifras agregadas distintas de un mismo periodo permiten estimar un promedio**; no se puede garantizar matemáticamente.
+- «Impacto económico» sigue gobernado por el permiso `perdidasSoles` (quién ve la opción del menú); el contenido lo decide el rol.

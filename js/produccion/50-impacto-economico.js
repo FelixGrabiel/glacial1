@@ -108,7 +108,7 @@
       });
       if(!actividad)return;
       const m=prov.margenDe(p);
-      if(!m)faltan.margen.set(claveMargen(p),{linea:p.linea,etiqueta:A().nombreLinea(p.linea)+' · '+A().etiquetaProd(p.marca,p.pres)});
+      if(!m)faltan.margen.set(claveMargen(p),{linea:p.linea,etiqueta:A().nombreLinea(p.linea)+' · '+p.marcaN+' · '+p.cat});
       else supuestos.set('m|'+p.pkey+'|'+m.desde,{tipo:'Margen por unidad',etiqueta:A().etiquetaProd(p.marca,p.pres),valor:m.valor,unidad:'S/ por unidad',desde:m.desde});
       if(m&&p.progUnit&&p.programado>0)T.incumplS+=Math.max(p.programado-p.producido,0)*m.valor;
       if(!(p.vel>0)){
@@ -346,7 +346,7 @@
     temporizador=setTimeout(()=>{
       try{
         if(typeof state==='undefined'||!state.user||state.currentTab!=='perdidas')return;
-        if(!permitido())return;
+        if(!permitido()){if(window.glacialImpactoResultados)window.glacialImpactoResultados.refrescar();return;}
         render(document.getElementById('main'));
       }catch(e){console.warn('Impacto económico:',e&&e.message||e);}
     },350);
@@ -439,7 +439,10 @@
   }
   window.renderPerdidasSoles=function(main){
     if(!main)return;
-    return permitido()?render(main):(estilos(),main.innerHTML=htmlReservado());
+    if(permitido())return render(main);
+    // Jefatura: resultados en S/ publicados por Gerencia + parte operativa; los demás: solo la parte operativa (56-impacto-resultados.js).
+    if(window.glacialImpactoResultados&&eco()&&eco().accesoListo())return window.glacialImpactoResultados.render(main);
+    estilos();main.innerHTML=htmlReservado();
   };
   if(eco())eco().alCambiar(()=>{try{if(typeof state!=='undefined'&&state.user&&state.currentTab==='perdidas')refrescar();}catch(_){/* informativo */}});
   ['onProgramacionesUpdated','onPaletasUpdated'].forEach(nombre=>{
