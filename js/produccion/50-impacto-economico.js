@@ -4,8 +4,8 @@
    Reemplaza el contenido de la pantalla «Impacto Económico» (renderPerdidasSoles). La vista anterior (precio por línea,
    solo paradas) sigue disponible con el enlace «Ver cálculo anterior» y no se modificó.
 
-   ACCESO (por UID, ver 55-valores-economicos.js): los valores unitarios y los soles con detalle son EXCLUSIVOS de Gerencia
-   (accesoEconomico/{UID}.nivel = 'gerencia'). Este archivo solo calcula con lo que ese módulo le entrega: en el navegador de
+   ACCESO (por rol, ver 55-valores-economicos.js): los valores unitarios y los soles con detalle son EXCLUSIVOS de Gerencia
+   (rol Gerente General o Gerente). Este archivo solo calcula con lo que ese módulo le entrega: en el navegador de
    cualquiera que no sea Gerencia no existe ninguna escucha hacia los valores, así que no hay nada que calcular ni que ocultar.
    Para los demás usuarios la pantalla muestra el aviso de que los valores económicos están reservados.
 

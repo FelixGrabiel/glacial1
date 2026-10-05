@@ -885,6 +885,6 @@ const CAUSAS_PARADA_NO_PROGRAMADA = [
    VALORES UNITARIOS: ya NO se escriben en el código.
    =========================================================
    Los valores económicos (valor por línea + marca + presentación, costo de insumos y meta) viven en Firestore
-   (valoresUnitarios), protegidos por Firestore Security Rules: solo Gerencia, identificada por su UID
-   (accesoEconomico/{UID}), los puede leer y cambiar. Ver js/produccion/55-valores-economicos.js.
+   (valoresUnitarios), protegidos por Firestore Security Rules: solo Gerencia, identificada por su rol
+   (por rol: Gerente General o Gerente), los puede leer y cambiar. Ver js/produccion/55-valores-economicos.js.
    ========================================================= */
