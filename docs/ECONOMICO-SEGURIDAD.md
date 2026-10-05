@@ -91,3 +91,28 @@ db.collection('valoresUnitarios').doc('P__x').set({tipo:'producto'}).catch(e => 
 - Si ningún dispositivo de Gerencia está abierto, Jefatura ve la última publicación (la pantalla indica la hora). La alternativa sin esta dependencia es una Cloud Function (plan Blaze).
 - Para que Jefatura no deduzca el valor dividiendo soles entre unidades, los documentos publicados no traen unidades ni minutos junto a los soles, no hay detalle por producto y la pantalla separa «Resultado económico» de «Parte operativa». Aun así, **dos cifras agregadas distintas de un mismo periodo permiten estimar un promedio**; no se puede garantizar matemáticamente.
 - «Impacto económico» sigue gobernado por el permiso `perdidasSoles` (quién ve la opción del menú); el contenido lo decide el rol.
+
+## Etapa 4 · Lista de pruebas en PRUEBAS (con la sesión de cada usuario)
+
+**Gerencia (rol Gerente / Gerente General)**
+1. Impacto económico → Valores unitarios: crear un valor para una línea + marca + presentación, cambiarlo y abrir el Historial (anterior, nuevo, UID, hora).
+2. Abrir la misma cuenta en otro dispositivo: el cambio aparece sin recargar y el Impacto se recalcula.
+3. Quitar un valor a un producto con actividad: aparece «Productos sin valor unitario configurado» (línea · marca · presentación) y no se calcula como S/ 0.
+
+**Jefatura (rol Jefe de Producción / Jefe de Operaciones / Jefatura)**
+4. Impacto económico muestra «Resultado económico» en S/ y «Parte operativa», sin pantalla de valores ni supuestos.
+5. En la consola, las 4 lecturas de la sección anterior dan `permission-denied`.
+6. Cambiar un valor en Gerencia: el resultado de Jefatura se actualiza en menos de un minuto.
+
+**Administrador y Supervisor**
+7. Impacto operativo sin S/ ni palabras económicas y con el aviso de «reservados a Gerencia y Jefatura autorizada».
+8. Las 4 lecturas de consola dan `permission-denied`; tampoco pueden leer `resultadosEconomicos`.
+
+**Revisión del navegador no autorizado (Administrador/Supervisor/Jefatura)**
+9. Pestaña Network (filtro `firestore`): no deben aparecer peticiones a `valoresUnitarios`, `valoresUnitariosHistorial`, `configEconomica` ni `sync/precios` (Jefatura solo a `resultadosEconomicos`).
+10. Almacenamiento y variables:
+```js
+JSON.stringify({ls: {...localStorage}, ss: {...sessionStorage}});               // no debe traer valores económicos
+Object.keys(window).filter(k => /eco|valor|precio|margen|costo/i.test(k));      // solo funciones: glacialEconomico, glacialImpactoResultados…
+glacialEconomico.docs();                                                         // en no-Gerencia: {margenes:{valores:{}}, costos:{valores:{}}, general:{}} (vacío)
+```

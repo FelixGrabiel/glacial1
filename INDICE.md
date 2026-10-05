@@ -56,10 +56,11 @@ js/
 | 08-graficos.js | Gráficos y Excel por línea |
 | 09-resumen.js | Resumen de producción |
 | 14-exportar-general.js | Exportación general de planta |
-| 15-perdidas-soles.js | Impacto económico de paradas |
 | 16-paletas.js | Paletas en tiempo real |
 | 21-programacion-turno.js | Programación del turno |
-| 22-impacto-para-pegar.js | Complemento del impacto económico |
+| 50-impacto-economico.js | Impacto económico completo (solo Gerencia): cascada en S/, rankings, supuestos y Excel |
+| 55-valores-economicos.js | Valores unitarios protegidos por rol (solo Gerencia): lectura/escritura con historial, migración y pantalla «Valores unitarios» |
+| 56-impacto-resultados.js | Impacto para Jefatura (soles ya calculados) y operativo para los demás; Gerencia publica los resultados |
 | 23b-tiempos-linea.js | Cálculo central de tiempos y ratios por línea |
 | 24-semaforo-produccion-actual.js | Producción actual y semáforo de líneas |
 | 25-alertas-lineas.js | Centro de alertas de líneas (detenciones + pestaña Avisos con contador) |
@@ -111,8 +112,6 @@ js/
 9. produccion/09-resumen.js
 10. accesos/10-usuarios.js
 11. personal/11-trabajadores.js
-12. produccion/15-perdidas-soles.js
-13. produccion/22-impacto-para-pegar.js
 14. produccion/16-paletas.js
 15. accesos/17-modo-trabajo.js
 16. mantenimiento/18-mantenimiento.js
@@ -204,4 +203,6 @@ Lote 4 · Parte B: Resumen de turno automático (js/produccion/48-resumen-turno.
 
 Reportes · Parte A (Resumen general): js/produccion/49-resumen-indicadores.js agrega arriba del Resumen la cabecera de indicadores (producción, cumplimiento, ratio, disponibilidad, merma, OEE) con variación contra el periodo anterior equivalente, metas configurables (sync/configIndicadores.metasReporte y metas), «Qué pasó», comparativos por línea/turno/producto, detalle en pantalla, avisos de datos incompletos, «¿Cómo se calcula?», filtros de turno, producto y rango, y una hoja «Indicadores» en el Excel general. Fórmulas únicas: disponibilidad = (planificado − no programadas) ÷ planificado (también en calcDerived de 06-registro.js), merma = suma de mermas ÷ producción efectiva (también en el bloque industrial de 09-resumen.js), ratio = producción ÷ horas efectivas (igual que el semáforo). Velocidad estándar: única tabla en sync/configIndicadores; obtenerRatioNominal (Planificación y registro) la lee primero y usa el catálogo de 01-config.js como respaldo. Hoy usa el semáforo en vivo; los turnos anteriores, el registro del turno (aviso si difiere más de 2 % de Paletas o de la bitácora). No lee nada nuevo de Firestore ni crea colecciones.
 
-Reportes · Parte B (Impacto económico): js/produccion/50-impacto-economico.js reemplaza el contenido de la pantalla «Impacto Económico» (renderPerdidasSoles; el cálculo anterior queda en «Ver cálculo anterior»). Cascada: producción potencial, pérdida por paradas no programadas, por velocidad reducida y por mermas, en unidades y en soles; el incumplimiento del plan se muestra aparte (no se suma). Margen por producto y costo por componente con fecha de vigencia (se conserva el anterior); meta máxima de pérdida mensual. Colección nueva configEconomica (documentos margenes, costos y general), siempre por campos con merge. Permiso: el mismo perdidasSoles (reglas etapa 2: puedeVerImpacto). Pareto en soles por motivo, línea y turno, cinco eventos más caros, acumulado/proyección/mes anterior, supuestos y Excel. Motivos: los del sistema cuando coinciden con el registro (±2 %); si no, texto del registro marcado «clasificación estimada». recolectar() de 49 acepta {linea, motivosSistema}.
+Reportes · Parte B (Impacto económico): js/produccion/50-impacto-economico.js reemplaza el contenido de la pantalla «Impacto Económico» (renderPerdidasSoles; la vista anterior con precio por línea se retiró). Cascada: producción potencial, pérdida por paradas no programadas, por velocidad reducida y por mermas, en unidades y en soles; el incumplimiento del plan se muestra aparte (no se suma). Margen por producto y costo por componente con fecha de vigencia (se conserva el anterior); meta máxima de pérdida mensual. Colección nueva configEconomica (documentos margenes, costos y general), siempre por campos con merge. Permiso: el mismo perdidasSoles (reglas etapa 2: puedeVerImpacto). Pareto en soles por motivo, línea y turno, cinco eventos más caros, acumulado/proyección/mes anterior, supuestos y Excel. Motivos: los del sistema cuando coinciden con el registro (±2 %); si no, texto del registro marcado «clasificación estimada». recolectar() de 49 acepta {linea, motivosSistema}.
+
+Información económica (protegida por rol): ver docs/ECONOMICO-SEGURIDAD.md. Valores unitarios en la colección valoresUnitarios (solo Gerencia lee/escribe) con historial valoresUnitariosHistorial; resultados en soles agregados en resultadosEconomicos (Gerencia escribe; Gerencia y Jefatura leen). sync/precios y configEconomica quedaron cerrados y se borran tras migrar. Los precios ya no se escriben en el código.
