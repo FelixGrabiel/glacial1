@@ -78,7 +78,9 @@
   }
   function abrirValores(){
     if(cierreValores||typeof db==='undefined')return;
-    cierreValores=db.collection(COL_VAL).onSnapshot(snap=>{
+    let cierre=null;
+    cierreValores=()=>{if(cierre)cierre();};      // queda marcada como abierta antes de suscribirse (evita reentradas si el primer aviso llega al instante)
+    cierre=db.collection(COL_VAL).onSnapshot(snap=>{
       items=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
       reconstruir();listoValores=true;errorValores='';avisar();
     },e=>{errorValores='No se pudieron leer los valores unitarios: '+((e&&e.message)||e);listoValores=true;avisar();});
@@ -104,6 +106,8 @@
     if(accesoListo&&n===nivel&&(n!=='gerencia'||cierreValores))return;
     fijarNivel(n);
   };
+  /* Si las escuchas se pidieron antes de que hubiera usuario (o el rol cambió), se resuelve al consultar: así la pantalla nunca se queda en «Cargando permisos». */
+  const asegurar=()=>{try{if(typeof state!=='undefined'&&state.user&&(!accesoListo||nivelDeUsuario(state.user)!==nivel||(nivel==='gerencia'&&!cierreValores)))window.glacialEconomicoEscuchas();}catch(_){/* se reintenta en la próxima consulta */}};
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(cerrarTodo);
 
   /* =========================================================
@@ -344,8 +348,8 @@
   }
 
   window.glacialEconomico={
-    nivel:()=>nivel,esGerencia:()=>nivel==='gerencia',esJefatura:()=>nivel==='jefatura',accesoListo:()=>accesoListo,
-    listo:()=>nivel==='gerencia'&&listoValores,error:()=>errorValores,docs:()=>DOCS,
+    nivel:()=>{asegurar();return nivel;},esGerencia:()=>{asegurar();return nivel==='gerencia';},esJefatura:()=>{asegurar();return nivel==='jefatura';},accesoListo:()=>{asegurar();return accesoListo;},
+    listo:()=>{asegurar();return nivel==='gerencia'&&listoValores;},error:()=>errorValores,docs:()=>DOCS,
     alCambiar:f=>{if(typeof f==='function')oyentes.push(f);},
     guardar,historial:leerHistorial,migrar:migrarAnteriores,abrirPantalla,
     claveProducto,claveInsumo

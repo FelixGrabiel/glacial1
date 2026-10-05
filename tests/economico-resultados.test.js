@@ -28,7 +28,7 @@ function entorno(rol,inicial,partes){
   sb.window.glacialReporteIndicadores={
     addDias:(f,n)=>{const d=new Date(f+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);},
     hoyOp:()=>'2026-10-10',fechaOk:f=>/^\d{4}-\d{2}-\d{2}$/.test(f||''),nombreLinea:k=>k==='PET1'?'PET 1':k,etiquetaGrupo:g=>g==='NOCHE'?'Noche':'Día',
-    etiquetaProd:(m,p)=>m+' · '+p,recolectar:()=>({partes:partes||[],hayVivo:false}),filtrarPartes:p=>p,marcaCanon:m=>m,catPres:()=>'',ORDEN_PRES:[]};
+    etiquetaProd:(m,p)=>m+' · '+p,recolectar:()=>({partes:partes||[],hayVivo:false,marcas:new Set(),cats:new Set(),productos:new Map(),avisos:{}}),filtrarPartes:p=>p,marcaCanon:m=>m,catPres:()=>'',ORDEN_PRES:[],MARCAS_FIJAS:[],ORDEN_PRES_:[],componenteMerma:x=>x,grupoDeTurno:x=>x};
   vm.runInContext(leer('js/produccion/55-valores-economicos.js'),sb);
   vm.runInContext(leer('js/produccion/50-impacto-economico.js'),sb);
   vm.runInContext(leer('js/produccion/56-impacto-resultados.js'),sb);
@@ -88,6 +88,20 @@ for(const rol of ['Administrador','Supervisor']){
 /* ---------- Parte operativa ---------- */
 const op=j.sb.window.glacialImpactoResultados.calcularOperativo([parte]);
 ok(Math.round(op.T.npMin)===60&&Math.round(op.T.paradasU)===1000&&Math.round(op.T.velU)===6700&&op.T.nParadas===1&&op.porMotivo[0].etq==='Falla de sopladora','operativo: 60 min, 1 000 unidades por paradas, 6 700 por velocidad, 1 parada y su ranking por motivo');
+/* ---------- Las escuchas se pidieron ANTES de que hubiera usuario (error visto en PRUEBAS: se quedaba en «Cargando permisos») ---------- */
+for(const [rol,esperado] of [['Gerente','Gerencia'],['Jefe de Producción','Jefatura'],['Administrador','Operativo']]){
+  const t=entorno(rol,Object.assign({},valores),[parte]);
+  const usuario=t.sb.state.user;t.sb.state.user=null;
+  t.sb.window.glacialEconomicoEscuchas();                   // initRealtimeSync corre sin usuario todavía
+  t.sb.state.user=usuario;                                   // el usuario llega después
+  const m={innerHTML:''};t.sb.window.renderPerdidasSoles(m);
+  await tick();t.sb.window.renderPerdidasSoles(m);
+  const h=m.innerHTML.replace(/<[^>]+>/g,' ');
+  ok(!/Cargando permisos/.test(h)&&t.sb.window.glacialEconomico.accesoListo(),rol+': el acceso se resuelve solo aunque las escuchas se hayan pedido sin usuario (ya no se queda en «Cargando permisos»)');
+  if(esperado==='Gerencia')ok(/Solo Gerencia|Pérdida total del mes/.test(h)&&t.sb.window.glacialEconomico.listo(),'Gerente: ve la pantalla completa de Impacto económico y sus valores quedan cargados');
+  if(esperado==='Jefatura')ok(/Resultado económico|Cargando resultados/.test(h)||/Impacto económico/.test(h),'Jefatura: ve su pantalla');
+  if(esperado==='Operativo')ok(/Impacto operativo/.test(h),'Administrador: ve el impacto operativo');
+}
 /* ---------- Auditoría de archivos ---------- */
 const f56=leer('js/produccion/56-impacto-resultados.js');
 ok(!/valoresUnitarios|configEconomica|sync'\)\.doc\('precios/.test(f56.replace(/\/\*[\s\S]*?\*\//g,'')),'56 no lee valoresUnitarios, configEconomica ni sync/precios');

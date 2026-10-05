@@ -437,14 +437,21 @@
     return '<div class="ie"><div class="ie-head"><div class="ie-title"><div class="ie-badge">📉</div><div><h2>Impacto económico</h2></div></div></div>'+
       '<div class="ie-aviso">Los valores económicos están reservados a Gerencia y Jefatura autorizada.</div></div>';
   }
+  /* 55-valores-economicos.js se carga después de este archivo: el aviso de cambios se registra la primera vez que se necesita. */
+  let oyenteRegistrado=false;
+  function registrarOyente(){
+    if(oyenteRegistrado||!eco())return;
+    oyenteRegistrado=true;
+    eco().alCambiar(()=>{try{if(typeof state!=='undefined'&&state.user&&state.currentTab==='perdidas')refrescar();}catch(_){/* informativo */}});
+  }
   window.renderPerdidasSoles=function(main){
     if(!main)return;
+    registrarOyente();
     if(permitido())return render(main);
     // Jefatura: resultados en S/ publicados por Gerencia + parte operativa; los demás: solo la parte operativa (56-impacto-resultados.js).
     if(window.glacialImpactoResultados&&eco()&&eco().accesoListo())return window.glacialImpactoResultados.render(main);
     estilos();main.innerHTML=htmlReservado();
   };
-  if(eco())eco().alCambiar(()=>{try{if(typeof state!=='undefined'&&state.user&&state.currentTab==='perdidas')refrescar();}catch(_){/* informativo */}});
   ['onProgramacionesUpdated','onPaletasUpdated'].forEach(nombre=>{
     const anterior=globalThis[nombre];
     if(typeof anterior!=='function')return;
