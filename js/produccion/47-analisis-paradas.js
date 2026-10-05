@@ -653,6 +653,23 @@
     Object.keys(remota.velocidades||{}).forEach(k=>{const [l,...r]=k.split('|');add(l,r.join('|'));});
     return filas;
   }
+  /* Una sola escritura de metas y velocidades (la usan este editor y el Catálogo de Planificación).
+     velNuevas: {'LINEA|presentación': número | '__borrar__'}. set con merge: solo se tocan los campos indicados. */
+  async function guardarConfigIndicadores(metasNuevas,velNuevas){
+    const ref=db.collection('sync').doc('configIndicadores');
+    const borrar=()=>firebase.firestore.FieldValue.delete();
+    await db.runTransaction(async tx=>{
+      await tx.get(ref);
+      const cambios={actualizadoPor:(state.user&&state.user.username)||'',actualizadoEn:ahoraMs()};
+      if(metasNuevas&&Object.keys(metasNuevas).length)cambios.metas=metasNuevas;
+      if(velNuevas&&Object.keys(velNuevas).length){
+        cambios.velocidades={};
+        Object.entries(velNuevas).forEach(([k,v])=>{cambios.velocidades[k]=v==='__borrar__'?borrar():v;});
+      }
+      tx.set(ref,cambios,{merge:true});
+    });
+  }
+  window.glacialGuardarConfigIndicadores=guardarConfigIndicadores;
   function abrirConfig(){
     if(!puedeConfigurar()){alert('Solo el Administrador o Jefatura pueden cambiar las metas y velocidades.');return;}
     escucharConfig();
@@ -694,19 +711,7 @@
       if(window.glacialEstadoDatos&&!window.glacialEstadoDatos.enLinea){err('Sin conexión: no se guardó. Inténtalo cuando vuelva la conexión.');return;}
       err('Guardando…');
       try{
-        const ref=db.collection('sync').doc('configIndicadores');
-        const borrar=()=>firebase.firestore.FieldValue.delete();
-        await db.runTransaction(async tx=>{
-          await tx.get(ref);
-          const cambios={actualizadoPor:(state.user&&state.user.username)||'',actualizadoEn:ahoraMs()};
-          if(Object.keys(metasNuevas).length)cambios.metas=metasNuevas;
-          if(Object.keys(velNuevas).length){
-            cambios.velocidades={};
-            Object.entries(velNuevas).forEach(([k,v])=>{cambios.velocidades[k]=v==='__borrar__'?borrar():v;});
-          }
-          // set con merge: solo se tocan los campos indicados; el resto del documento queda como está.
-          tx.set(ref,cambios,{merge:true});
-        });
+        await guardarConfigIndicadores(metasNuevas,velNuevas);
         fondo.remove();
         alert('Guardado. Se actualiza en todos los dispositivos.');
       }catch(e){err('No se pudo guardar (¿sin conexión o sin permiso?): '+((e&&e.message)||e));}
