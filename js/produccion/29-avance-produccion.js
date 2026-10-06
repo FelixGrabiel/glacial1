@@ -30,14 +30,22 @@ function avTurnoCanon(v){
   return 'DÍA';
 }
 function avTurnoRecord(r){return avTurnoCanon(r?.turno);}
+/* Bloques productivos (sync/configIndicadores → bloques): Día (incluye Intermedio) 07:00–19:00 y Noche 21:00–07:00. */
+function avBloquesCfg(){return GlacialIndicadores.normalizarBloques(typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores().bloques:undefined);}
+/* Sin turno asignado por la rotación, el turno actual es el del bloque vigente (de 21:00 a 07:00 es NOCHE; en la franja sin producción se queda en DÍA). */
+function avTurnoPorHora(){
+  try{const b=GlacialIndicadores.bloqueVigente(typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now(),typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores().bloques:undefined);return b&&b.bloque==='noche'?'NOCHE':'DÍA';}
+  catch(_){return 'DÍA';}
+}
 function avCtx(){
   const c=state.user?.contextoRotacion;
-  const turno=avTurnoCanon(state.user?.turnoOperativo||c?.turno||'DÍA');
+  const turno=avTurnoCanon(state.user?.turnoOperativo||c?.turno||avTurnoPorHora());
+  const bl=avBloquesCfg()[turno==='NOCHE'?'noche':'diaInter'];
   return {
     turno,
     fecha:state.user?.fechaOperativa||c?.fechaOperativa||avFechaHoy(),
-    inicio:state.user?.horarioOperativoInicio||c?.horarioInicio||(turno==='NOCHE'?'19:00':'07:00'),
-    fin:state.user?.horarioOperativoFin||c?.horarioFin||(turno==='NOCHE'?'07:00':'19:00')
+    inicio:state.user?.horarioOperativoInicio||c?.horarioInicio||bl.inicio,
+    fin:state.user?.horarioOperativoFin||c?.horarioFin||bl.fin
   };
 }
 function avRef(){return db.collection('sync').doc('avancesTurno');}
@@ -1009,7 +1017,8 @@ function avFechaBonita(fecha){
 }
 function avTurnoHorario(turno,s){
   if(s?.inicioTurno||s?.finTurno)return `${s.inicioTurno||'—'} - ${s.finTurno||'—'}`;
-  return turno==='NOCHE'?'22:00 - 07:00':turno==='INTERMEDIO'?'15:00 - 22:00':'07:00 - 15:00';
+  const bl=avBloquesCfg()[turno==='NOCHE'?'noche':'diaInter'];
+  return bl.inicio+' - '+bl.fin;
 }
 function avEstadoSlots(){
   return avanceEstado.snapshots.filter(s=>s.tipo==='AVANCE').slice().sort((a,b)=>avNum(a.generadoEn)-avNum(b.generadoEn));
@@ -1418,7 +1427,7 @@ function avMoverMes(delta){
   avanceEstado.mesCalendario=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;avDibujar();
 }
 function avSeleccionarFecha(fecha){avanceEstado.fecha=fecha;avanceEstado.pagina=1;avAplicarSeleccion();avDibujar();}
-function avSeleccionarTurno(turno){avanceEstado.turno=turno;avanceEstado.pagina=1;avAplicarSeleccion();avDibujar();}
+function avSeleccionarTurno(turno){avanceEstado.turno=avTurnoCanon(turno);avanceEstado.pagina=1;avAplicarSeleccion();avDibujar();}
 function avCalendarioHtml(){
   const d=avMesBase(),y=d.getFullYear(),m=d.getMonth(),first=(new Date(y,m,1,12).getDay()+6)%7,days=new Date(y,m+1,0).getDate();
   const titulo=d.toLocaleDateString('es-PE',{month:'long',year:'numeric'}).toUpperCase();
@@ -1464,7 +1473,7 @@ function avDibujar(){
     <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'} · ${avEsc(avanceEstado.turno)}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
     ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
     <div id="av-estado" class="av-inline-status"></div>
-    <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','INTERMEDIO','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${t}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
+    <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${t==='DÍA'?'DÍA (incluye Intermedio)':'NOCHE'}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
     ${avHistorialGeneralHtml()}`;
   avInstalarBotonFlotante();
 }

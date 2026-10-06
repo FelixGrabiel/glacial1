@@ -105,4 +105,16 @@ tarj=sb21.reg({linea:'PET1',fecha:FECHA,turno:'DÍA'});
 ok(tarj.length===1&&sb21.und(tarj[0])===20000,'el supervisor de Día ve exactamente lo mismo (20,000)');
 ok(sb21.reg({linea:'PET1',fecha:FECHA,turno:'NOCHE'}).length===1&&sb21.und(sb21.reg({linea:'PET1',fecha:FECHA,turno:'NOCHE'})[0])===5000,'Noche conserva su programación aparte (5,000)');
 ok(items21[0].cantidadProgramada===12000,'la suma no modifica las programaciones guardadas');
+/* ---------- 8) Avance/Cierre: el turno actual sale del bloque vigente (NOCHE desde las 21:00) ---------- */
+{
+  const i0=s29.indexOf('function avBloquesCfg()'),i1=s29.indexOf('function avRef()');
+  const sbx={Math,Number,Array,Object,String,Date,JSON,GlacialIndicadores:G};vm.createContext(sbx);sbx.window=sbx;
+  let hora=ms(21,43);sbx.tareoAhoraServidor=()=>hora;sbx.state={user:{}};sbx.avFechaHoy=()=>FECHA;sbx.avTurnoCanon=v=>String(v||'').toUpperCase().includes('NOCHE')?'NOCHE':'DÍA';
+  vm.runInContext(s29.slice(i0,i1)+';this.ctx=avCtx;',sbx);
+  ok(sbx.ctx().turno==='NOCHE'&&sbx.ctx().inicio==='21:00'&&sbx.ctx().fin==='07:00','a las 21:43, sin turno asignado por rotación, Avance/Cierre muestra el turno NOCHE (21:00–07:00)');
+  hora=ms(12);ok(sbx.ctx().turno==='DÍA'&&sbx.ctx().inicio==='07:00'&&sbx.ctx().fin==='19:00','a las 12:00 muestra DÍA (07:00–19:00)');
+  hora=ms(20);ok(sbx.ctx().turno==='DÍA','en la franja sin producción se queda en el bloque Día que acaba de terminar');
+  sbx.state.user={turnoOperativo:'NOCHE'};hora=ms(12);ok(sbx.ctx().turno==='NOCHE','el turno asignado por la rotación sigue mandando');
+}
+ok(s29.includes("['DÍA','NOCHE'].map(t=>")&&!s29.includes("['DÍA','INTERMEDIO','NOCHE'].map(t=>`<button"),'el filtro de turnos de Avance/Cierre ofrece DÍA (incluye Intermedio) y NOCHE (el botón INTERMEDIO dejaba la lista vacía)');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
