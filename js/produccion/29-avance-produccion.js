@@ -271,17 +271,12 @@ function avParadasBotonModal(m){
 function avParadasBotonHtml(m){
   const lista=avParadasBotonModal(m);
   if(!lista.length)return '';
-  return `<div class="av-paradas-note"><b>Ya registradas desde Producción Actual</b> (no las vuelvas a ingresar; ya se suman al total):
+  return `<div class="av-paradas-note"><b>Historial del semáforo (Producción Actual)</b> — solo informativo: DETENER/PAUSA son el estado de la línea y NO son paradas oficiales ni se suman al total. Registra aquí las paradas que deban contar:
     <ul style="margin:6px 0 0 16px;padding:0">${lista.map(p=>`<li>${avEsc(p.motivo)} · ${avHoraDesdeMs(p.inicio)}–${p.abierta?'abierta':avHoraDesdeMs(p.fin)} · ${avFmt(Math.round(p.minutos))} min · ${p.clasif==='PROGRAMADA'?'Programada':'No programada'}</li>`).join('')}</ul></div>`;
 }
 /* Avisa los motivos que ya existen por botón en el turno (no se suman dos veces). */
-function avDuplicadosConBoton(m,filas){
-  const motivos=new Set(avParadasBotonModal(m).map(p=>String(p.motivo||'').trim().toLowerCase()));
-  return filas.filter(p=>{
-    const d=String(p.descripcion||'').trim().toLowerCase();
-    return d&&motivos.has(d)&&!(p.horaInicio&&p.horaFin);
-  });
-}
+/* Los botones del semáforo ya no son paradas oficiales: no existe duplicado con ellos (se cuenta solo lo registrado aquí). */
+function avDuplicadosConBoton(m,filas){return [];}
 function avParadaQuitar(i){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   if(p.origen==='REGISTRO')p.eliminarSolicitado=true;
@@ -587,11 +582,9 @@ function avLineaSnapshot(linea,hora,tipo){
   // Ratio del reporte (oficial: producido ÷ horas efectivas):
   // producción acumulada / horas efectivas.
   // Horas efectivas = tiempo transcurrido - paradas acumuladas.
-  // También se descuentan DETENER LÍNEA y PAUSA PROGRAMADA (Producción Actual),
-  // calculadas por la función central (23b-tiempos-linea.js) hasta este corte.
-  // Las paradas del supervisor ya están en totalParadas: no se vuelven a sumar.
-  // Se usa la función central: unifica supervisor + botones, fusiona solapes,
-  // aplica duraciones estándar y evita contar dos veces un mismo motivo.
+  // Las paradas oficiales (supervisor) las calcula la función central (23b-tiempos-linea.js) hasta este corte:
+  // fusiona solapes y aplica duraciones estándar. DETENER LÍNEA y PAUSA PROGRAMADA del semáforo NO se descuentan.
+  // (paradasOperacion queda como historial informativo del semáforo.)
   let opNoProg=0,opProg=0,minutosEfectivos=Math.max(0,minTurno-totalParadas);
   if(typeof calcularTiemposLinea==='function'&&inicio){
     const T=calcularTiemposLinea(linea,avanceEstado.turno,avanceEstado.fecha,{

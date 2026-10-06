@@ -1246,6 +1246,10 @@ function blankCuadro(lineKey, numero){
 }
 
 
+/* Filas de parada importadas en su momento desde los botones DETENER LÍNEA / PAUSA PROGRAMADA del semáforo (auto + origen PAUSA|DETENER).
+   Esos botones son ESTADO de la línea, no paradas oficiales: se ignoran en todos los cálculos (también en registros ya guardados). */
+function esParadaDeEstadoSemaforo(p){return !!(p && p.auto && (p.origen==='PAUSA' || p.origen==='DETENER'));}
+
 function normalizarCuadros(record){
 
   if(!record) return [];
@@ -1413,16 +1417,16 @@ function normalizarCuadros(record){
             Array.isArray(
               c?.paradasProgramadas
             ) &&
-            c.paradasProgramadas.length
-              ? c.paradasProgramadas.map((p,pi)=>({...p,id:p?.id||`pr_${record.id||'legacy'}_${i}_P_${pi}`}))
+            c.paradasProgramadas.filter(p=>!esParadaDeEstadoSemaforo(p)).length
+              ? c.paradasProgramadas.filter(p=>!esParadaDeEstadoSemaforo(p)).map((p,pi)=>({...p,id:p?.id||`pr_${record.id||'legacy'}_${i}_P_${pi}`}))
               : base.paradasProgramadas,
 
           paradasNoProgramadas:
             Array.isArray(
               c?.paradasNoProgramadas
             ) &&
-            c.paradasNoProgramadas.length
-              ? c.paradasNoProgramadas.map((p,pi)=>({...p,id:p?.id||`pr_${record.id||'legacy'}_${i}_NP_${pi}`}))
+            c.paradasNoProgramadas.filter(p=>!esParadaDeEstadoSemaforo(p)).length
+              ? c.paradasNoProgramadas.filter(p=>!esParadaDeEstadoSemaforo(p)).map((p,pi)=>({...p,id:p?.id||`pr_${record.id||'legacy'}_${i}_NP_${pi}`}))
               : base.paradasNoProgramadas,
 
           mermas:

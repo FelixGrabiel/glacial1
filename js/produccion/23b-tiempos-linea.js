@@ -4,8 +4,13 @@
    Todo el sistema (semáforo de Producción Actual, Inicio ejecutivo,
    Avance/Cierre) obtiene tiempos, paradas y ratios de AQUÍ.
 
-   FUENTES DE PARADAS (se unifican; no se crean colecciones nuevas):
-   a) BOTONES de Producción Actual (PAUSA PROGRAMADA / DETENER LÍNEA):
+   FUENTE OFICIAL DE PARADAS (desde la separación Semáforo / Paradas oficiales):
+   SOLO las paradas que registra el supervisor (b). Los botones de Producción Actual (a) son
+   ESTADO de la línea: se conservan como historial informativo (detalle, fuentes.detenerLinea,
+   fuentes.pausaProgramada) pero NO suman minutos de parada, tiempo efectivo ni ratio.
+
+   FUENTES (no se crean colecciones nuevas):
+   a) BOTONES de Producción Actual (PAUSA PROGRAMADA / DETENER LÍNEA) — solo historial de estados:
       sync/programaciones → items[].estadoOperacion.paradas[]
       { id, tipo:'PAUSA'|'DETENCION', motivo, clasificacion, estandarMin,
         inicio, fin (0 = abierta), origen }.
@@ -289,7 +294,16 @@
     });
     const sup=paradasSupervisor(linea,fecha,turno);
 
-    /* 2) Duplicados: motivo del supervisor ya registrado por botón */
+    /* SEPARACIÓN SEMÁFORO / PARADAS OFICIALES
+       Los botones DETENER LÍNEA y PAUSA PROGRAMADA solo cambian el ESTADO de la línea (monitoreo, auditoría, alertas).
+       Sus intervalos se conservan en registrosEstado para mostrarlos como historial informativo, pero NO son paradas
+       oficiales: no entran en minutos de parada, tiempo efectivo, ratio, Cierre ni Impacto Económico.
+       Las únicas paradas oficiales son las que registra el supervisor (Avance/Cierre y su registro). */
+    const registrosEstado=registros.slice();
+    const legadoDetInfo=legadoDetMs;
+    registros.length=0;legado.length=0;legadoDetMs=0;
+
+    /* 2) Duplicados: motivo del supervisor ya registrado por botón (ya no aplica: el botón no es parada oficial) */
     const motivosBoton=new Set(registros.map(r=>norm(r.motivo)).filter(Boolean));
     const duplicados=[];
     const supValidas=sup.filter(s=>{
@@ -317,8 +331,8 @@
         }else progLista.push({inicio:seg.inicio,fin:seg.fin});
       }else npLista.push({inicio:seg.inicio,fin:seg.fin});
     };
-    registros.forEach(r=>{
-      clasificar(r,progBoton,npBoton);
+    registrosEstado.forEach(r=>{
+      // Historial de estados del semáforo: solo informativo (no se clasifica ni se suma).
       const seg=recortar(r);
       detalle.push({id:r.id,tipo:r.tipo,motivo:r.motivo,clasif:r.clasif,inicio:seg.inicio,fin:seg.fin,
         abierta:r.abierta,estandarMin:r.estandarMin||estandar(r.motivo),origen:'BOTON',
@@ -403,7 +417,7 @@
     const ajusteProgMin=pausas-sumaClasif('PROGRAMADA');
 
     // Aporte por tipo de botón (para el desglose de la tarjeta).
-    const minTipo=tipo=>medir(unir(registros.filter(r=>r.tipo===tipo).map(recortar)))/MS_MIN;
+    const minTipo=tipo=>medir(unir(registrosEstado.filter(r=>r.tipo===tipo).map(recortar)))/MS_MIN;   // informativo (historial de estados)
     const supMin=medir(unir([...progSup,...npSup]))/MS_MIN+sum(durProg)+sum(durNp);
 
     return {
@@ -415,9 +429,10 @@
       tiempoOperativoMin:GlacialIndicadores.horasEfectivas({transcurridoMin:transcurrido,paradasProgramadasMin:pausas,paradasNoProgramadasMin:noProg})*60,
       fuentes:{
         supervisor:{noProgramadas:medir(Ns)/MS_MIN+sum(durNp),programadas:medir(Ps)/MS_MIN+sum(durProg),total:supMin},
-        detenerLinea:{noProgramadas:minTipo('DETENCION')+legadoDetMs/MS_MIN},
+        // Historial de estados del semáforo (INFORMATIVO): no forma parte de las paradas oficiales ni del ratio.
+        detenerLinea:{noProgramadas:minTipo('DETENCION')+legadoDetInfo/MS_MIN},
         pausaProgramada:{programadas:minTipo('PAUSA')},
-        boton:{noProgramadas:botonNpMin,programadas:botonProgMin}
+        boton:{noProgramadas:minTipo('DETENCION')+legadoDetInfo/MS_MIN,programadas:minTipo('PAUSA')}
       },
       solapeMin:solapeMs/MS_MIN,
       duplicados,pausaSinCerrar,detalle,

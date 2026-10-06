@@ -38,5 +38,5 @@ ok(sb.dep(manual).length===2,'filas manuales con igual nombre y minutos no se to
 
 /* Los tres lugares que dibujan el cierre usan la lista sin duplicados. */
 ok(/b\.paradasAvance/.test(f29)&&!/\(l\.paradas\|\|\[\]\)\.filter\(p=>p\.origen==='AVANCE'\)\);\s*\n\s*const paradas=\[\.\.\.paradasBloque/.test(f29),'texto, detalle e imagen usan b.paradasAvance (sin volver a agregar todas las de Avance)');
-ok(/r\.legado&&todas\.some/.test(f35),'35: la reconstrucción histórica del mismo intervalo no se copia como otra fila');
+ok(/function paradasBoton\(q\)\{\s*return \[\];/.test(f35),'35: DETENER/PAUSA del semáforo ya no se copian al registro (estado, no parada oficial)');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

@@ -7,11 +7,10 @@
 
    PALETAS  → solo la cantidad total en UND va a produccion.efectiva
               del cuadro con esa marca y presentación.
-   PARADAS  → solo MINUTOS (sin horas) + motivo + tipo. Tres fuentes:
-                · PAUSA PROGRAMADA   (semáforo)  → paradas programadas
-                · DETENER LÍNEA      (semáforo)  → paradas no programadas
+   PARADAS  → solo MINUTOS (sin horas) + motivo + tipo. Fuente oficial:
                 · AGREGAR PARADAS    (Avance/Cierre)
-              Las del semáforo ya traen su marca. Las de Avance/Cierre
+              (PAUSA PROGRAMADA y DETENER LÍNEA del semáforo ya NO se importan: son estado de la línea.)
+              Las de Avance/Cierre
               se asignan a la marca que estaba corriendo; si no se puede
               saber, el supervisor elige.
 
@@ -94,25 +93,10 @@
     return causas.find(c=>norm(c)===norm(motivo))||'Otro';
   };
 
+  /* DETENER LÍNEA / PAUSA PROGRAMADA del semáforo son ESTADO de la línea, no paradas oficiales: ya no se copian al registro.
+     Las paradas oficiales son las de Avance/Cierre (y las manuales del registro). */
   function paradasBoton(q){
-    const filas=[];
-    itemsLinea().filter(p=>mismoProducto(p,q)).forEach(p=>{
-      if(typeof paradasEditablesItem!=='function')return;
-      const todas=paradasEditablesItem(p);
-      todas.forEach(r=>{
-        // Reconstrucción histórica del mismo intervalo que ya existe como registro de parada: no es otra parada.
-        if(r.legado&&todas.some(x=>x!==r&&!x.legado&&x.inicio<r.fin&&r.inicio<x.fin))return;
-        const min=Math.round(Math.max(0,r.fin-r.inicio)/60000);
-        if(min<=0)return;
-        const prog=r.clasificacion==='PROGRAMADA';
-        filas.push({
-          id:'auto:'+r.id,descripcion:r.motivo||(prog?'Pausa programada':'Detención de línea'),
-          tiempoMin:min,causa:prog?undefined:causaDe(r.motivo),
-          auto:true,origen:r.tipo==='PAUSA'?'PAUSA':'DETENER',origenId:r.id,tipo:prog?'PROGRAMADA':'NO_PROGRAMADA'
-        });
-      });
-    });
-    return filas;
+    return [];
   }
 
   function paradasAvance(){

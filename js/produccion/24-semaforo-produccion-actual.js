@@ -358,13 +358,10 @@
     const pausa=Number(op?.pausaDesde || 0);
     const finOperacion=Number(op?.finalizadaEn || 0);
     const corteOperacion=finOperacion || ahora;
-    const pausaMs=Number(op?.pausaAcumuladaMs || 0)+
-      (op?.estado==='PAUSA' && pausa ? Math.max(0,corteOperacion-pausa) : 0);
-    const detenidaDesde=Number(op?.detenidaDesde || 0);
-    const detencionMs=Number(op?.detencionAcumuladaMs || 0)+
-      (op?.estado==='DETENIDA' && detenidaDesde ? Math.max(0,corteOperacion-detenidaDesde) : 0);
+    // Los botones DETENER/PAUSA son estado de la línea: sus minutos ya no se descuentan aquí
+    // (las paradas oficiales vienen de Avance/Cierre vía calcularTiemposLinea).
     const horas=inicio && rango ? Math.max(0,
-      (Math.min(corteOperacion,rango.fin)-Math.max(inicio,rango.inicio)-pausaMs-detencionMs)/MS_HORA) : 0;
+      (Math.min(corteOperacion,rango.fin)-Math.max(inicio,rango.inicio))/MS_HORA) : 0;
     const esperado=ratio*horas;
     const desdeInicio=Math.max(0,actual-num(op?.baseUnidades));
     let nivel='gris',texto='Sin iniciar';
@@ -381,9 +378,9 @@
     else if(op?.estado==='EN_PRODUCCION' && horas*60<MIN_INICIO){
       nivel='verde';texto='Avanzando · inicio';
     }
-    else if(op?.estado==='EN_PRODUCCION' && desdeInicio<esperado*MARGEN){
-      nivel='ambar';texto='Por debajo del ritmo nominal';
-    } else if(op?.estado==='EN_PRODUCCION'){
+    else if(op?.estado==='EN_PRODUCCION'){
+      // Sin estado «retrasado» por presentación: el estado se mantiene (en curso) y el desempeño
+      // se evalúa a nivel de línea con el ratio de las paradas oficiales.
       nivel='verde';texto='Avanzando';
     }
     return {linea:l,fecha:f,turno:t,turnoPlan,compartida,
@@ -742,30 +739,10 @@
   
           if(hasta<=desde)return;
   
-          const pausaAcumulada=Number(x.op?.pausaAcumuladaMs || 0);
-          const detencionAcumulada=Number(x.op?.detencionAcumuladaMs || 0);
-  
-          let pausaAbierta=0;
-          if(x.op?.estado==='PAUSA' && Number(x.op?.pausaDesde || 0)>0){
-            pausaAbierta=Math.max(
-              0,
-              Math.min(hasta,corteEstado)-Number(x.op.pausaDesde)
-            );
-          }
-  
-          let detencionAbierta=0;
-          if(x.op?.estado==='DETENIDA' && Number(x.op?.detenidaDesde || 0)>0){
-            detencionAbierta=Math.max(
-              0,
-              Math.min(hasta,corteEstado)-Number(x.op.detenidaDesde)
-            );
-          }
-  
-          const descuento=Math.max(
-            0,
-            pausaAcumulada+detencionAcumulada+pausaAbierta+detencionAbierta
-          );
-  
+          // DETENER/PAUSA del semáforo son estado de la línea: no descuentan tiempo aquí (las paradas oficiales
+          // se descuentan en calcularTiemposLinea).
+          const descuento=0;
+
           // Para evitar sumar dos veces marcas de la misma línea, el intervalo
           // conserva solamente el tiempo efectivo que realmente aportó.
           const duracionEfectiva=Math.max(0,(hasta-desde)-descuento);
@@ -838,32 +815,14 @@
         // tiempo transcurrido - paradas/pausas.
         // Esto evita inflar o distorsionar el indicador.
   
-        // Tiempo de paradas/pausas registrado por los estados operativos.
-        // Se mantiene separado del ratio para que el usuario pueda ver
-        // claramente cuánto tiempo estuvo detenida la línea.
-        const paradaMs=items.reduce((suma,x)=>{
-          const op=x.op || {};
-          let ms=Number(op.pausaAcumuladaMs || 0)+
-            Number(op.detencionAcumuladaMs || 0);
-  
-          if(op.estado==='PAUSA' && Number(op.pausaDesde || 0)>0){
-            ms+=Math.max(0,Math.min(corteTurnoLinea,finMaxLinea)-Number(op.pausaDesde));
-          }
-          if(['DETENIDA','LISTA'].includes(op.estado) && Number(op.detenidaDesde || 0)>0){
-            ms+=Math.max(0,Math.min(corteTurnoLinea,finMaxLinea)-Number(op.detenidaDesde));
-          }
-          return suma+ms;
-        },0);
-  
-        const horasEfectivasTurno=Math.max(
-          0,
-          horasTurno-(paradaMs/MS_HORA)
-        );
         // Tiempos y ratios: función central única (23b-tiempos-linea.js).
-        // Considera paradas del supervisor, DETENER LÍNEA y PAUSA PROGRAMADA.
+        // Considera SOLO las paradas oficiales del supervisor (Avance/Cierre); DETENER LÍNEA y PAUSA PROGRAMADA son estado, no parada.
         const turnoCalculo=items[0]?.turno || turnoFallback;
         const tiempos=calcularTiemposLinea(line.key,turnoCalculo,fecha,{ahora});
         const ratios=calcularRatiosLinea(tiempos,{produccion:totalProd,programado:totalProg,ahora});
+        // Paradas oficiales (programadas + no programadas) y horas efectivas del turno con ellas.
+        const paradaMs=tiempos.ok ? (tiempos.minParadasNoProgramadas+tiempos.minPausasProgramadas)*60000 : 0;
+        const horasEfectivasTurno=Math.max(0,horasTurno-(paradaMs/MS_HORA));
         const desempeno=evaluarDesempenoLinea(tiempos,ratios,{produccion:totalProd,programado:totalProg});
         const ratioTurno=ratios.ratioTurno ?? 0;
         // Proyección de cierre (23b-tiempos-linea.js): no cambia ratios ni minutos de parada.
@@ -878,7 +837,7 @@
 
         return {
           line,items,vacios,activo,nivel:nivelFinal,nivelEstado,texto,turnosLinea,totalProg,totalProd,
-          horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
+          horasEfectivas:tiempos.ok?tiempos.tiempoOperativoMin/60:horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
           totalesPresentacion,tiempos,ratios,desempeno,proyeccion
         };
     }
@@ -1053,9 +1012,8 @@
               ${g.tiempos?.ok ? `<div class="pa-paradas-desglose">
                 <span>No programadas: <b>${formatoMin(g.tiempos.minParadasNoProgramadas)}</b></span>
                 <span>Programadas: <b>${formatoMin(g.tiempos.minPausasProgramadas)}</b></span>
-                <em>Supervisor ${formatoMin(g.tiempos.fuentes.supervisor.noProgramadas+g.tiempos.fuentes.supervisor.programadas)}
-                · Detener línea ${formatoMin(g.tiempos.fuentes.detenerLinea.noProgramadas)}
-                · Pausa programada ${formatoMin(g.tiempos.fuentes.pausaProgramada.programadas)}</em>
+                <em title="Las paradas oficiales son las que registra el supervisor en Avance/Cierre. El tiempo detenida o en pausa del semáforo es solo el historial de estados y no se descuenta del ratio.">Oficiales (Avance/Cierre) ${formatoMin(g.tiempos.fuentes.supervisor.noProgramadas+g.tiempos.fuentes.supervisor.programadas)}
+                · Estado: detenida ${formatoMin(g.tiempos.fuentes.detenerLinea.noProgramadas)} · en pausa ${formatoMin(g.tiempos.fuentes.pausaProgramada.programadas)} (informativo)</em>
               </div>` : ''}</div>
           </div>
 
