@@ -542,63 +542,54 @@
       };
     });
   }
-  /* Tarjeta de proyección de cierre del bloque. Orden pensado para el celular (una sola columna):
-     estado, proyección al cierre, avance, faltante, tiempo restante, ritmo actual, ritmo necesario y capacidad nominal,
-     final estimado y análisis. Todos los números salen de GlacialIndicadores.proyeccionCierre (45-indicadores.js). */
+  /* Tarjeta de proyección de cierre del bloque. Mantiene el aspecto compacto de siempre (una franja con 4 datos en horizontal) y suma,
+     sin cambiar el estilo, el estado (CUMPLIBLE / EN RIESGO / NO ALCANZABLE), el final estimado y el análisis. Todos los números
+     salen de GlacialIndicadores.proyeccionCierre (45-indicadores.js). */
   function htmlProyeccion(p,porTurno){
     if(!p || p.estado==='SIN_PROYECCION')return '';
     const fmt=n=>(n==null || !Number.isFinite(n)) ? '—' : Math.round(n).toLocaleString('es-PE');
     const pct=v=>(v==null || !Number.isFinite(v)) ? '—' : v.toFixed(1)+' %';
     const hhmm=ms=>new Date(ms).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false});
     const dur=min=>{const m=Math.max(0,Math.round(min || 0));return m>=60 ? Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min' : m+' min';};
-    const fila=(t,v)=>'<div class="pa-proy-row"><span>'+t+'</span><b>'+v+'</b></div>';
     const registrado=p.segunRegistradoMs ? hhmm(p.segunRegistradoMs) : hhmm(p.ahora);
+    const chip=p.etiqueta ? '<span class="pa-proy-estado '+(p.nivel || 'gris')+'">'+esc(p.etiqueta)+'</span>' : '';
     let h='<div class="pa-proy '+(p.nivel || 'gris')+'">'+
-      '<div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b><small>según lo registrado a las '+registrado+'</small></div>';
-    // 1) estado
-    h+='<div class="pa-proy-estado '+(p.nivel || 'gris')+'">'+esc(p.etiqueta || 'SIN ESTADO')+'</div>';
-    if(p.motivo && p.modo!=='falta_velocidad')h+='<div class="pa-proy-nota info">'+esc(p.motivo)+'</div>';
-    if(p.modo==='no_proyectable' && p.veredicto==='NO_ALCANZABLE')h+='<div class="pa-proy-estado roja">META NO ALCANZABLE EN EL TIEMPO RESTANTE</div>';
-    // 2) proyección al cierre
+      '<div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b>'+chip+'<small>según lo registrado a las '+registrado+'</small></div>';
+    let celdas=[];
     if(p.modo==='normal'){
       const dif=p.diferencia>=0 ? '<span class="pa-proy-dif sobra">sobrarían '+fmt(p.diferencia)+'</span>' : '<span class="pa-proy-dif falta">faltarían '+fmt(-p.diferencia)+'</span>';
-      const difS=p.diferenciaSinNuevas>=0 ? '<span class="pa-proy-dif sobra">sobrarían '+fmt(p.diferenciaSinNuevas)+'</span>' : '<span class="pa-proy-dif falta">faltarían '+fmt(-p.diferenciaSinNuevas)+'</span>';
-      h+=fila('Si las paradas siguen igual',fmt(p.siguenIgual)+' UND · '+pct(p.pct)+' · '+dif);
-      h+=fila('Sin nuevas paradas',(p.sinNuevas==null ? '—' : fmt(p.sinNuevas)+' UND · '+pct(p.pctSinNuevas)+' · '+difS));
+      celdas.push('Si las paradas siguen igual: <b>'+fmt(p.siguenIgual)+' UND</b> ('+pct(p.pct)+') · '+dif);
+      celdas.push('Sin más paradas: <b>'+(p.sinNuevas==null ? '—' : fmt(p.sinNuevas)+' UND')+'</b> ('+pct(p.pctSinNuevas)+')');
+      celdas.push('Ritmo necesario: <b>'+(p.ritmoNecesario==null ? '—' : fmt(p.ritmoNecesario))+' UND/h</b> · ritmo actual (ratio): <b>'+(p.ritmoReal==null ? '—' : fmt(p.ritmoReal))+' UND/h</b>'+
+        '<br><small>capacidad nominal '+(p.capacidadNominal==null ? '—' : fmt(p.capacidadNominal))+' UND/h · requiere el '+pct(p.requerimientoPct)+'</small>');
+      celdas.push(p.finalEstimadoMs
+        ? 'Final estimado: <b>'+hhmm(p.finalEstimadoMs)+'</b>'+(p.retrasoMin>0 ? ' · <span class="pa-proy-dif falta">'+p.retrasoMin+' min después del fin ('+hhmm(p.finObjetivoMs)+')</span>' : ' <small>(antes del fin, '+hhmm(p.finObjetivoMs)+')</small>')
+        : 'Hora estimada: —');
+    }else if(p.modo==='no_proyectable'){
+      celdas.push('<b>No es posible proyectar todavía</b>: '+esc(p.motivo.charAt(0).toLowerCase()+p.motivo.slice(1)));
+      celdas.push('Avance: <b>'+fmt(p.producido)+' / '+fmt(p.programado)+' UND</b> · faltan '+fmt(p.pendiente));
+      celdas.push('Capacidad nominal: <b>'+(p.capacidadNominal==null ? '—' : fmt(p.capacidadNominal)+' UND/h')+'</b>'+(p.tiempoNominalMin==null ? '' : '<br><small>la meta pide '+dur(p.tiempoNominalMin)+' y quedan '+dur(p.restanteMin)+'</small>'));
+      celdas.push(p.veredicto==='NO_ALCANZABLE' ? '<span class="pa-proy-dif falta">META NO ALCANZABLE EN EL TIEMPO RESTANTE</span>' : (p.cabeNominal ? 'A capacidad nominal la meta cabe en el tiempo restante.' : ''));
     }else if(p.modo==='terminado'){
-      h+=fila('Resultado del bloque',fmt(p.producido)+' de '+fmt(p.programado)+' UND · '+pct(p.pct));
+      celdas.push('Resultado del bloque: <b>'+fmt(p.producido)+' de '+fmt(p.programado)+' UND</b> ('+pct(p.pct)+')');
+      celdas.push(p.pendiente>0 ? '<span class="pa-proy-dif falta">faltaron '+fmt(p.pendiente)+'</span>' : '<span class="pa-proy-dif sobra">meta cumplida</span>');
+    }else if(p.modo==='cumplida'){
+      celdas.push('<span class="pa-proy-dif sobra">Meta cumplida</span>'+(p.horaCumplidaMs ? ' a las <b>'+hhmm(p.horaCumplidaMs)+'</b>' : '')+': <b>'+fmt(p.producido)+' / '+fmt(p.programado)+' UND</b>');
+    }else if(p.modo==='falta_velocidad'){
+      celdas.push(esc(p.motivo));
     }
-    // 3) avance  4) faltante  5) tiempo restante
-    h+=fila('Avance',fmt(p.producido)+' / '+fmt(p.programado)+' UND · '+pct(p.avancePct));
-    h+=fila(p.modo==='terminado' ? 'Faltante final' : 'Faltante',fmt(p.pendiente)+' UND');
-    if(p.modo!=='terminado')h+=fila('Tiempo restante',dur(p.restanteMin)+(p.pausaPendienteMin>0 ? ' <small>(sin '+Math.round(p.pausaPendienteMin)+' min de pausas previstas)</small>' : ''));
-    // 6) ritmo actual
-    if(p.modo!=='terminado' && p.modo!=='cumplida'){
-      h+=fila('Ritmo real (ratio)',(p.ritmoReal==null ? '—' : fmt(p.ritmoReal)+' UND/h')+
-        ' <small>· rendimiento del bloque '+(p.rendimiento==null ? '—' : fmt(p.rendimiento)+' UND/h')+'</small>');
-      // 7) ritmo necesario, capacidad nominal, requerimiento
-      if(p.modo==='no_proyectable')
-        h+=fila('Capacidad nominal',(p.capacidadNominal==null ? '—' : fmt(p.capacidadNominal)+' UND/h')+(p.tiempoNominalMin==null ? '' : ' <small>· la meta pide '+dur(p.tiempoNominalMin)+' y quedan '+dur(p.restanteMin)+'</small>'));
-      else
-      h+=fila('Necesario / capacidad nominal',(p.ritmoNecesario==null ? '—' : fmt(p.ritmoNecesario))+' / '+(p.capacidadNominal==null ? '—' : fmt(p.capacidadNominal))+' UND/h'+
-        (p.requerimientoPct==null ? '' : ' <small>· requiere el '+pct(p.requerimientoPct)+' de la capacidad</small>'));
-    }
-    // 8) final estimado
-    if(p.modo==='normal' && p.finalEstimadoMs)
-      h+=fila('Final estimado',hhmm(p.finalEstimadoMs)+(p.retrasoMin>0 ? ' <span class="pa-proy-dif falta">· '+p.retrasoMin+' min después del fin ('+hhmm(p.finObjetivoMs)+')</span>' : ' <small>· antes del fin ('+hhmm(p.finObjetivoMs)+')</small>'));
-    if(p.modo==='cumplida')h+=fila('Meta cumplida',p.horaCumplidaMs ? 'a las '+hhmm(p.horaCumplidaMs) : 'sí');
-    // 9) análisis automático (mismos números)
+    h+='<div class="pa-proy-grid">'+celdas.filter(Boolean).map(c=>'<div>'+c+'</div>').join('')+'</div>';
+    // análisis automático (mismos números) y avisos informativos
     const an=GlacialIndicadores.analisisProyeccion(p);
-    if(an)h+='<div class="pa-proy-an"><b>Análisis</b> '+esc(an)+'</div>';
-    // avisos informativos (no alteran el cálculo)
+    if(an)h+='<details class="pa-proy-det"><summary>Análisis</summary><div class="pa-proy-an">'+esc(an)+'</div></details>';
     (p.avisos || []).forEach(a=>{h+='<div class="pa-proy-nota">⚠ '+esc(a.texto)+'</div>';});
-    // detalle por producto
+    if(p.pausaPendienteMin>0)h+='<div class="pa-proy-nota info">Incluye descontar '+Math.round(p.pausaPendienteMin)+' min de pausas previstas aún no registradas.</div>';
+    // detalle por producto y producido por turno (desplegables)
     if((p.productos || []).length>1){
       const et={COMPLETADO:'completado',EN_CURSO:'en curso',PENDIENTE:'pendiente',CANCELADO:'cancelado'};
       h+='<details class="pa-proy-det"><summary>Detalle por producto</summary>'+p.productos.map(x=>
         '<div class="pa-proy-row"><span>'+esc(x.etiqueta)+' <small>('+(et[x.estado] || x.estado.toLowerCase())+')</small></span><b>'+fmt(x.producido)+' / '+fmt(x.programado)+'</b></div>').join('')+'</details>';
     }
-    // producido por turno dentro del bloque (cada supervisor); el ritmo de la proyección es siempre el del bloque completo
     if(Array.isArray(porTurno) && porTurno.length){
       h+='<details class="pa-proy-det"><summary>Producido por turno dentro del bloque</summary>'+porTurno.map(f=>
         '<div class="pa-proy-row"><span>'+esc(f.etiqueta)+'</span><b>Día '+fmt(f.dia)+' · Intermedio '+fmt(f.inter)+'</b></div>').join('')+
@@ -1346,7 +1337,7 @@
     .pa-proy-grid div b{color:#10265f}.pa-proy-dif.falta{color:#a92f27;font-weight:800}.pa-proy-dif.sobra{color:#13814a;font-weight:800}
     .pa-proy-nota{margin-top:4px;font-size:12px;color:#8a1f17;font-weight:700}.pa-proy-nota.info{color:#5a6b7b;font-weight:600}
     .pa-franja{margin:0 0 10px;padding:10px 14px;border-radius:10px;background:#eef2f6;border:1px solid #cdd8e2;color:#34475a;font-weight:700;font-size:13px}
-    .pa-proy-estado{display:inline-block;margin:2px 0 6px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.03em;background:#e8edf2;color:#44566a}
+    .pa-proy-estado{display:inline-block;margin:0;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.03em;background:#e8edf2;color:#44566a}
     .pa-proy-estado.verde{background:#d9f4e5;color:#0d6b3c}.pa-proy-estado.ambar{background:#ffeec2;color:#8a5a00}.pa-proy-estado.roja{background:#fbdcdc;color:#a02020}
     .pa-proy-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:4px 0;border-bottom:1px dashed #dde6ee}.pa-proy-row span{color:#44566a}.pa-proy-row b{color:#10265f;text-align:right}.pa-proy-row small{font-weight:500;color:#5a6b7b}
     .pa-proy-an{margin-top:8px;font-size:12.5px;line-height:1.5;color:#1b2a38}.pa-proy-det{margin-top:6px;font-size:12.5px}.pa-proy-det summary{cursor:pointer;font-weight:700;color:#10265f;min-height:28px}
