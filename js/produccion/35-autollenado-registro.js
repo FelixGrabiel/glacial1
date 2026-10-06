@@ -98,7 +98,10 @@
     const filas=[];
     itemsLinea().filter(p=>mismoProducto(p,q)).forEach(p=>{
       if(typeof paradasEditablesItem!=='function')return;
-      paradasEditablesItem(p).forEach(r=>{
+      const todas=paradasEditablesItem(p);
+      todas.forEach(r=>{
+        // Reconstrucción histórica del mismo intervalo que ya existe como registro de parada: no es otra parada.
+        if(r.legado&&todas.some(x=>x!==r&&!x.legado&&x.inicio<r.fin&&r.inicio<x.fin))return;
         const min=Math.round(Math.max(0,r.fin-r.inicio)/60000);
         if(min<=0)return;
         const prog=r.clasificacion==='PROGRAMADA';

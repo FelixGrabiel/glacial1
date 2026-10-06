@@ -753,8 +753,9 @@ function avBloquesPresentacionLinea(l){
       const b=mapa.get(clave); if(!b)return;
       if(q?.horaInicio && (!b.inicio || q.horaInicio<b.inicio))b.inicio=q.horaInicio;
       if(q?.horaFin && (!b.fin || q.horaFin>b.fin))b.fin=q.horaFin;
-      (q?.paradasProgramadas||[]).forEach(p=>{if(p?.descripcion&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'PROGRAMADA'});});
-      (q?.paradasNoProgramadas||[]).forEach(p=>{if(p?.descripcion&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'NO_PROGRAMADA'});});
+      // Se conserva la identidad de cada fila (origenId/origen/auto) para no contar dos veces la misma parada.
+      (q?.paradasProgramadas||[]).forEach(p=>{if(p?.descripcion&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'PROGRAMADA',origenId:p.origenId||'',origen:p.origen||'',auto:!!p.auto});});
+      (q?.paradasNoProgramadas||[]).forEach(p=>{if(p?.descripcion&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'NO_PROGRAMADA',origenId:p.origenId||'',origen:p.origen||'',auto:!!p.auto});});
       [q?.observaciones,q?.observacion].forEach(v=>{if(String(v||'').trim())b.observaciones.push(String(v).trim());});
     });
   });
@@ -773,8 +774,9 @@ function avBloquesPresentacionLinea(l){
     const inicioCalculo=b.inicio||l.inicio||'';
     const fin=b.fin||l.fin||avanceEstado.horaCorte||avHoraActual();
 
-    const paradasOperativas=(l.paradas||[])
-      .filter(p=>p.origen==='AVANCE')
+    // Cada parada real cuenta una sola vez: las de Avance que ya están copiadas en el cuadro no se suman otra vez.
+    b.paradas=avDepurarParadasBloque(b.paradas);
+    const paradasOperativas=avParadasAvanceNuevas(l,b.paradas)
       .reduce((s,p)=>s+avNum(p.minutos),0);
 
     b.totalParadas=b.paradas.reduce((a,p)=>a+avNum(p.minutos),0);
@@ -797,7 +799,27 @@ function avBloquesPresentacionLinea(l){
 
     b.observaciones=[...new Set(b.observaciones)];
   });
-  return [...mapa.values()].sort((a,b)=>String(a.inicio||'99:99').localeCompare(String(b.inicio||'99:99')));
+  const lista=[...mapa.values()].sort((a,b)=>String(a.inicio||'99:99').localeCompare(String(b.inicio||'99:99')));
+  // Las paradas de Avance/Cierre que aún no están en un cuadro se muestran UNA vez, en el primer bloque de la línea.
+  lista.forEach((b,i)=>{b.paradasAvance=i===0?avParadasAvanceNuevas(l,b.paradas):[];});
+  return lista;
+}
+
+/* Identidad de las paradas del cierre.
+   · Una parada de Avance copiada al cuadro por el autollenado conserva su id en origenId: no se agrega de nuevo.
+   · Una parada de botón puede venir dos veces (registro y reconstrucción histórica «legado:…»): se descarta la
+     reconstrucción solo si existe la de registro del mismo origen (PAUSA/DETENER) y los mismos minutos.
+   Nunca se compara por nombre: dos paradas con el mismo motivo y distinto id/hora se conservan. */
+function avDepurarParadasBloque(paradas){
+  const lista=paradas||[];
+  return lista.filter(p=>{
+    if(!p.auto||!String(p.origenId||'').startsWith('legado:'))return true;
+    return !lista.some(x=>x!==p&&x.auto&&x.origen===p.origen&&!String(x.origenId||'').startsWith('legado:')&&avNum(x.minutos)===avNum(p.minutos));
+  });
+}
+function avParadasAvanceNuevas(l,paradasBloque){
+  const copiadas=new Set((paradasBloque||[]).map(p=>String(p.origenId||'')).filter(Boolean));
+  return (l.paradas||[]).filter(p=>p.origen==='AVANCE'&&!copiadas.has(String(p.id||'')));
 }
 
 function avTituloPresentacion(linea,b){
@@ -842,10 +864,7 @@ function avTextoWhatsApp(s){
              en el primer bloque de la línea.
            Así nunca aparecen dos títulos: PARADAS / PARADAS GENERALES.
         */
-        const paradasMostrar=[...(b.paradas||[])];
-        if(idxBloque===0){
-          paradasMostrar.push(...(l.paradas||[]).filter(p=>p.origen==='AVANCE'));
-        }
+        const paradasMostrar=[...(b.paradas||[]),...(b.paradasAvance||[])];
         const totalParadasMostrar=paradasMostrar.reduce((s,p)=>s+avNum(p.minutos),0);
 
         out.push('','*PARADAS*','');
@@ -1178,7 +1197,7 @@ function avCanvasSnapshot(s){
     const l=g.linea,b=g.bloque;
     const prods=g.sinProduccion?[]:(b?.productos||[]);
     const paradasBloque=g.sinProduccion?(l.paradas||[]):(b?.paradas||[]);
-    const paradasOperativas=g.sinProduccion?[]:(l.paradas||[]).filter(p=>p.origen==='AVANCE');
+    const paradasOperativas=g.sinProduccion?[]:(b?.paradasAvance||[]);
     const paradas=[...paradasBloque,...paradasOperativas];
     const observaciones=g.sinProduccion?(l.observaciones||[]):(b?.observaciones||[]);
     const escalaEspacio=Math.max(1,AV_IMAGEN_ESCALA_TEXTO);
@@ -1219,7 +1238,7 @@ function avCanvasSnapshot(s){
     const l=g.linea,b=g.bloque;
     const prods=g.sinProduccion?[]:(b.productos||[]);
     const paradasBloque=g.sinProduccion?(l.paradas||[]):(b.paradas||[]);
-    const paradasOperativas=g.sinProduccion?[]:(l.paradas||[]).filter(p=>p.origen==='AVANCE');
+    const paradasOperativas=g.sinProduccion?[]:(b.paradasAvance||[]);
     const paradas=[...paradasBloque,...paradasOperativas];
     const observaciones=g.sinProduccion?(l.observaciones||[]):(b.observaciones||[]);
     const produccionTotal=g.sinProduccion?0:b.produccionTotal;
