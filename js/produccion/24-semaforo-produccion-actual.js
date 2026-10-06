@@ -511,41 +511,76 @@
       return c ? {verdePct:c.proyeccionVerdePct,ambarPct:c.proyeccionAmbarPct} : undefined;
     }catch(_){return undefined;}
   }
+  /* Datos por presentación para la proyección (completado / en curso / pendiente / cancelado). Solo lectura. */
+  function productosProyeccion(items){
+    return items.map(x=>{
+      const e=estadoOrdenItem(x).key;
+      return {
+        etiqueta:(x.marca||'')+' · '+presUI(x.linea,x.marca,x.presentacion),
+        estado:e==='CANCELADA'?'CANCELADO':e==='COMPLETADA'?'COMPLETADO':(e==='EN_CURSO'||e==='PAUSA')?'EN_CURSO':'PENDIENTE',
+        programado:x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada),
+        producido:producidoDe(x),
+        velocidad:typeof window.glacialVelocidadEstandar==='function'?num(window.glacialVelocidadEstandar(x.linea,x.presentacion,x.marca)):0
+      };
+    });
+  }
+  /* Tarjeta de proyección de cierre del bloque. Orden pensado para el celular (una sola columna):
+     estado, proyección al cierre, avance, faltante, tiempo restante, ritmo actual, ritmo necesario y capacidad nominal,
+     final estimado y análisis. Todos los números salen de GlacialIndicadores.proyeccionCierre (45-indicadores.js). */
   function htmlProyeccion(p){
     if(!p || p.estado==='SIN_PROYECCION')return '';
-    const fmt=n=>Math.round(n).toLocaleString('es-PE');
+    const fmt=n=>(n==null || !Number.isFinite(n)) ? '—' : Math.round(n).toLocaleString('es-PE');
+    const pct=v=>(v==null || !Number.isFinite(v)) ? '—' : v.toFixed(1)+' %';
     const hhmm=ms=>new Date(ms).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false});
-    const minCalc=(window.UMBRALES_PROYECCION_LINEA||{}).minCalculoMin||30;
-    if(p.estado==='CALCULANDO')
-      return '<div class="pa-proy"><div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b><span>Calculando…</span>'+
-        '<small>Se muestra después de '+minCalc+' min de iniciada la programación.</small></div></div>';
-    if(p.estado==='SIN_RITMO')
-      return '<div class="pa-proy"><div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b><span>—</span>'+
-        '<small>Aún no hay horas efectivas para estimar el ritmo.</small></div></div>';
-    const pct=v=>v==null?'—':v.toFixed(1)+' %';
-    const sinMas=p.sinMasParadas;
-    const dif=p.diferencia;
-    const difTxt=dif>=0 ? '<span class="pa-proy-dif sobra">sobrarían '+fmt(dif)+'</span>'
-      : '<span class="pa-proy-dif falta">faltarían '+fmt(-dif)+'</span>';
+    const dur=min=>{const m=Math.max(0,Math.round(min || 0));return m>=60 ? Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min' : m+' min';};
+    const fila=(t,v)=>'<div class="pa-proy-row"><span>'+t+'</span><b>'+v+'</b></div>';
     const registrado=p.segunRegistradoMs ? hhmm(p.segunRegistradoMs) : hhmm(p.ahora);
-    let hora;
-    if(p.cumplido)hora='Programa ya cumplido';
-    else if(p.horaEstimadaMs){
-      hora='Se completaría hacia las <b>'+hhmm(p.horaEstimadaMs)+'</b>'+
-        (p.minAdicionales>0.5 ? ' · <span class="pa-proy-dif falta">después del fin del turno: harían falta '+fmt(p.minAdicionales)+' min adicionales</span>' : '');
-    }else hora='Hora estimada: —';
-    return '<div class="pa-proy '+p.nivel+'">'+
-      '<div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b>'+
-      '<small>según lo registrado a las '+registrado+'</small></div>'+
-      '<div class="pa-proy-grid">'+
-        '<div>Si las paradas siguen igual: <b>'+fmt(p.siguenIgual)+' UND</b> ('+pct(p.pct)+') · '+difTxt+'</div>'+
-        '<div>Sin más paradas: <b>'+(sinMas==null?'—':fmt(sinMas)+' UND')+'</b> ('+pct(sinMas==null?null:sinMas/p.programado*100)+')</div>'+
-        '<div>Ritmo necesario: <b>'+(p.ritmoNecesario==null?'—':fmt(p.ritmoNecesario))+' UND/h</b> · ritmo actual (ratio): <b>'+(p.ritmoActual==null?'—':fmt(p.ritmoActual))+' UND/h</b></div>'+
-        '<div>'+hora+'</div>'+
-      '</div>'+
-      (p.detenida?'<div class="pa-proy-nota">⚠ La línea está detenida: la proyección baja mientras dure la parada.</div>':'')+
-      (p.pausaPendienteMin>0?'<div class="pa-proy-nota info">Incluye descontar el refrigerio pendiente ('+p.pausaPendienteMin+' min).</div>':'')+
-    '</div>';
+    let h='<div class="pa-proy '+(p.nivel || 'gris')+'">'+
+      '<div class="pa-proy-top"><b>PROYECCIÓN DE CIERRE</b><small>según lo registrado a las '+registrado+'</small></div>';
+    // 1) estado
+    h+='<div class="pa-proy-estado '+(p.nivel || 'gris')+'">'+esc(p.etiqueta || 'SIN ESTADO')+'</div>';
+    if(p.motivo && p.modo!=='falta_velocidad')h+='<div class="pa-proy-nota info">'+esc(p.motivo)+'</div>';
+    if(p.modo==='no_proyectable' && p.veredicto==='NO_ALCANZABLE')h+='<div class="pa-proy-estado roja">META NO ALCANZABLE EN EL TIEMPO RESTANTE</div>';
+    // 2) proyección al cierre
+    if(p.modo==='normal'){
+      const dif=p.diferencia>=0 ? '<span class="pa-proy-dif sobra">sobrarían '+fmt(p.diferencia)+'</span>' : '<span class="pa-proy-dif falta">faltarían '+fmt(-p.diferencia)+'</span>';
+      const difS=p.diferenciaSinNuevas>=0 ? '<span class="pa-proy-dif sobra">sobrarían '+fmt(p.diferenciaSinNuevas)+'</span>' : '<span class="pa-proy-dif falta">faltarían '+fmt(-p.diferenciaSinNuevas)+'</span>';
+      h+=fila('Si las paradas siguen igual',fmt(p.siguenIgual)+' UND · '+pct(p.pct)+' · '+dif);
+      h+=fila('Sin nuevas paradas',(p.sinNuevas==null ? '—' : fmt(p.sinNuevas)+' UND · '+pct(p.pctSinNuevas)+' · '+difS));
+    }else if(p.modo==='terminado'){
+      h+=fila('Resultado del bloque',fmt(p.producido)+' de '+fmt(p.programado)+' UND · '+pct(p.pct));
+    }
+    // 3) avance  4) faltante  5) tiempo restante
+    h+=fila('Avance',fmt(p.producido)+' / '+fmt(p.programado)+' UND · '+pct(p.avancePct));
+    h+=fila(p.modo==='terminado' ? 'Faltante final' : 'Faltante',fmt(p.pendiente)+' UND');
+    if(p.modo!=='terminado')h+=fila('Tiempo restante',dur(p.restanteMin)+(p.pausaPendienteMin>0 ? ' <small>(sin '+Math.round(p.pausaPendienteMin)+' min de pausas previstas)</small>' : ''));
+    // 6) ritmo actual
+    if(p.modo!=='terminado' && p.modo!=='cumplida'){
+      h+=fila('Ritmo real (ratio)',(p.ritmoReal==null ? '—' : fmt(p.ritmoReal)+' UND/h')+
+        ' <small>· rendimiento del bloque '+(p.rendimiento==null ? '—' : fmt(p.rendimiento)+' UND/h')+'</small>');
+      // 7) ritmo necesario, capacidad nominal, requerimiento
+      if(p.modo==='no_proyectable')
+        h+=fila('Capacidad nominal',(p.capacidadNominal==null ? '—' : fmt(p.capacidadNominal)+' UND/h')+(p.tiempoNominalMin==null ? '' : ' <small>· la meta pide '+dur(p.tiempoNominalMin)+' y quedan '+dur(p.restanteMin)+'</small>'));
+      else
+      h+=fila('Necesario / capacidad nominal',(p.ritmoNecesario==null ? '—' : fmt(p.ritmoNecesario))+' / '+(p.capacidadNominal==null ? '—' : fmt(p.capacidadNominal))+' UND/h'+
+        (p.requerimientoPct==null ? '' : ' <small>· requiere el '+pct(p.requerimientoPct)+' de la capacidad</small>'));
+    }
+    // 8) final estimado
+    if(p.modo==='normal' && p.finalEstimadoMs)
+      h+=fila('Final estimado',hhmm(p.finalEstimadoMs)+(p.retrasoMin>0 ? ' <span class="pa-proy-dif falta">· '+p.retrasoMin+' min después del fin ('+hhmm(p.finObjetivoMs)+')</span>' : ' <small>· antes del fin ('+hhmm(p.finObjetivoMs)+')</small>'));
+    if(p.modo==='cumplida')h+=fila('Meta cumplida',p.horaCumplidaMs ? 'a las '+hhmm(p.horaCumplidaMs) : 'sí');
+    // 9) análisis automático (mismos números)
+    const an=GlacialIndicadores.analisisProyeccion(p);
+    if(an)h+='<div class="pa-proy-an"><b>Análisis</b> '+esc(an)+'</div>';
+    // avisos informativos (no alteran el cálculo)
+    (p.avisos || []).forEach(a=>{h+='<div class="pa-proy-nota">⚠ '+esc(a.texto)+'</div>';});
+    // detalle por producto
+    if((p.productos || []).length>1){
+      const et={COMPLETADO:'completado',EN_CURSO:'en curso',PENDIENTE:'pendiente',CANCELADO:'cancelado'};
+      h+='<details class="pa-proy-det"><summary>Detalle por producto</summary>'+p.productos.map(x=>
+        '<div class="pa-proy-row"><span>'+esc(x.etiqueta)+' <small>('+(et[x.estado] || x.estado.toLowerCase())+')</small></span><b>'+fmt(x.producido)+' / '+fmt(x.programado)+'</b></div>').join('')+'</details>';
+    }
+    return h+'</div>';
   }
 
   function ultimoRegistro(x){
@@ -827,7 +862,7 @@
         const ratioTurno=ratios.ratioTurno ?? 0;
         // Proyección de cierre (23b-tiempos-linea.js): no cambia ratios ni minutos de parada.
         const proyeccion=proyectarCierreLinea(tiempos,ratios,{
-          produccion:totalProd,programado:totalProg,ahora,
+          produccion:totalProd,programado:totalProg,ahora,productos:productosProyeccion(items),
           detenida:items.some(x=>['DETENIDA','LISTA'].includes(x.op?.estado)),
           ultimoRegistroMs:ultimoPaletaMs(items)
         },proyeccionUmbrales());
@@ -1261,6 +1296,10 @@
     .pa-proy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 18px}
     .pa-proy-grid div b{color:#10265f}.pa-proy-dif.falta{color:#a92f27;font-weight:800}.pa-proy-dif.sobra{color:#13814a;font-weight:800}
     .pa-proy-nota{margin-top:4px;font-size:12px;color:#8a1f17;font-weight:700}.pa-proy-nota.info{color:#5a6b7b;font-weight:600}
+    .pa-proy-estado{display:inline-block;margin:2px 0 6px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.03em;background:#e8edf2;color:#44566a}
+    .pa-proy-estado.verde{background:#d9f4e5;color:#0d6b3c}.pa-proy-estado.ambar{background:#ffeec2;color:#8a5a00}.pa-proy-estado.roja{background:#fbdcdc;color:#a02020}
+    .pa-proy-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:4px 0;border-bottom:1px dashed #dde6ee}.pa-proy-row span{color:#44566a}.pa-proy-row b{color:#10265f;text-align:right}.pa-proy-row small{font-weight:500;color:#5a6b7b}
+    .pa-proy-an{margin-top:8px;font-size:12.5px;line-height:1.5;color:#1b2a38}.pa-proy-det{margin-top:6px;font-size:12.5px}.pa-proy-det summary{cursor:pointer;font-weight:700;color:#10265f;min-height:28px}
     @media(max-width:900px){.pa-line-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.pa-horizontal-body{grid-template-columns:1fr}.pa-hcol-programacion{grid-column:1}.pa-hcol-ratio{border-right:0;border-bottom:1px solid #d8e4ec}}
     @media(max-width:700px){
       .pa-oper-kpis{grid-template-columns:1fr}
@@ -2204,7 +2243,7 @@
       if(estadoLinea==='EN_CURSO' && ['ambar','roja'].includes(desempeno.nivel) && desempeno.razon>=0)
         fila.retrasoPct=Math.max(1,Math.round((1-desempeno.razon)*100));
       fila.proyeccion=proyectarCierreLinea(tiempos,ratios,{
-        produccion:producido,programado,ahora,
+        produccion:producido,programado,ahora,productos:productosProyeccion(items),
         detenida:items.some(x=>['DETENIDA','LISTA'].includes(x.op?.estado)),
         ultimoRegistroMs:ultimoMs
       },proyeccionUmbrales());

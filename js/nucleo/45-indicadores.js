@@ -286,6 +286,203 @@
   }
 
   /* ---------------------------------------------------------
+     BLOQUES PRODUCTIVOS Y PAUSAS PREVISTAS (configuración: sync/configIndicadores → campo «bloques»)
+     Los bloques definen SOLO el horario productivo (fin objetivo de la proyección); los turnos de tareo y asistencia
+     (HORARIOS_TURNO) no cambian.
+       diaInter : Día + Intermedio (una sola programación)      noche : Noche (su fecha es la del día en que empieza)
+       Entre el fin de diaInter y el inicio de noche la planta está parada (no es bloque productivo).
+       pausas   : pausas previstas del bloque {nombre, min}; la que ya figura como parada programada oficial no se vuelve a descontar.
+     --------------------------------------------------------- */
+  const BLOQUES_INICIALES=Object.freeze({
+    diaInter:Object.freeze({etiqueta:'Día + Intermedio',inicio:'07:00',fin:'19:00',pausas:Object.freeze([Object.freeze({nombre:'Refrigerio',min:60})])}),
+    noche:Object.freeze({etiqueta:'Noche',inicio:'21:00',fin:'07:00',pausas:Object.freeze([Object.freeze({nombre:'Refrigerio',min:60})])})
+  });
+  const hhmmValida=t=>/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t||'').trim());
+  const aMin=t=>{const [h,m]=String(t).trim().split(':').map(Number);return h*60+m;};
+  function normalizarBloques(cfg){
+    const c=cfg&&typeof cfg==='object'?cfg:{};
+    const una=(clave)=>{
+      const base=BLOQUES_INICIALES[clave],x=c[clave]&&typeof c[clave]==='object'?c[clave]:{};
+      const inicio=hhmmValida(x.inicio)?String(x.inicio).trim():base.inicio;
+      const fin=hhmmValida(x.fin)?String(x.fin).trim():base.fin;
+      let pausas=base.pausas.map(p=>({nombre:p.nombre,min:p.min}));
+      if(Array.isArray(x.pausas)){
+        pausas=x.pausas.filter(p=>p&&String(p.nombre||'').trim()&&num(p.min)>0).map(p=>({nombre:String(p.nombre).trim(),min:num(p.min)}));
+      }
+      return {etiqueta:base.etiqueta,inicio,fin,pausas};
+    };
+    return {diaInter:una('diaInter'),noche:una('noche')};
+  }
+  const claveBloque=turno=>String(turno||'').toUpperCase().includes('NOCHE')?'noche':'diaInter';
+  /* Inicio y fin (ms) del BLOQUE productivo de una fecha ISO (la fecha es la del día en que empieza el bloque). */
+  function horarioBloque(fecha,turno,cfg){
+    const m=String(fecha||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!m)return null;
+    const b=normalizarBloques(cfg)[claveBloque(turno)];
+    const y=Number(m[1]),mo=Number(m[2])-1,d=Number(m[3]);
+    const ini=aMin(b.inicio),fin=aMin(b.fin);
+    const ms=(dia,min)=>new Date(y,mo,dia,Math.floor(min/60),min%60).getTime();
+    return {inicio:ms(d,ini),fin:ms(fin<=ini?d+1:d,fin),bloque:claveBloque(turno),etiqueta:b.etiqueta};
+  }
+  function pausasPrevistas(turno,cfg){return normalizarBloques(cfg)[claveBloque(turno)].pausas;}
+  /* Minutos de pausas previstas que todavía NO figuran como parada programada oficial (se reconocen por el nombre del motivo). */
+  function pausasPendientesMin(previstas,programadasOficiales){
+    const reg=new Map();
+    (Array.isArray(programadasOficiales)?programadasOficiales:[]).forEach(p=>{
+      const k=norm(p&&p.motivo);if(!k)return;reg.set(k,(reg.get(k)||0)+Math.max(0,num(p.minutos)));
+    });
+    return (Array.isArray(previstas)?previstas:[]).reduce((s,p)=>s+Math.max(0,num(p&&p.min)-(reg.get(norm(p&&p.nombre))||0)),0);
+  }
+
+  /* ---------------------------------------------------------
+     PROYECCIÓN DE CIERRE DEL BLOQUE (puro; la usan todas las pantallas)
+     Definiciones: ver docs/PROYECCION-CIERRE.md
+       Tiempo transcurrido = min(ahora, fin objetivo) − inicio real
+       Tiempo efectivo     = transcurrido − paradas oficiales (programadas + no programadas)
+       Ritmo real (ratio)  = producido ÷ tiempo efectivo
+       Rendimiento bloque  = producido ÷ (transcurrido − paradas programadas ya ocurridas)
+       Tiempo restante     = fin objetivo − ahora − pausas previstas aún no registradas
+       Pendiente           = programado − producido (mín. 0)
+       Tiempo nominal nec. = Σ pendiente de cada producto ÷ su velocidad estándar
+       Requerimiento       = tiempo nominal necesario ÷ tiempo restante
+       Si las paradas siguen igual = producido + rendimiento × restante      Sin nuevas paradas = producido + ritmo real × restante
+       Final estimado      = ahora + pendiente ÷ rendimiento (+ pausas pendientes)
+       CUMPLIBLE: «siguen igual» alcanza lo programado · EN RIESGO: no, pero el tiempo nominal cabe · NO ALCANZABLE: no cabe
+     Nunca devuelve NaN ni Infinity ni negativos: lo que no se puede calcular es null.
+     --------------------------------------------------------- */
+  const PROY_MIN_EFECTIVO_MIN=30;
+  const PROY_SIN_REGISTRO_MIN=60;
+  const finito=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
+  function proyeccionCierre(e){
+    const x=e||{};
+    const ahora=num(x.ahoraMs),ini=num(x.inicioMs),fin=num(x.finObjetivoMs);
+    const prog=Math.max(0,num(x.programado)),prod=Math.max(0,num(x.producido));
+    const pendiente=Math.max(0,prog-prod);
+    const terminado=!!x.terminado||(fin>0&&ahora>=fin);
+    const progMin=Math.max(0,num(x.progMin)),npMin=Math.max(0,num(x.npMin));
+    const transcurridoMin=ini>0&&ahora>ini?Math.max(0,(Math.min(ahora,fin>0?fin:ahora)-ini)/60000):0;
+    const efectivoMin=Math.max(0,transcurridoMin-progMin-npMin);
+    const baseRendMin=transcurridoMin-progMin;
+    const ritmoReal=efectivoMin>0&&prod>0?prod/(efectivoMin/60):null;
+    const rendimiento=baseRendMin>0&&prod>0?prod/(baseRendMin/60):null;
+    const pausasPendMin=terminado?0:pausasPendientesMin(x.pausasPrevistas,x.programadasOficiales);
+    const restanteBrutoMin=fin>0&&ahora>0?Math.max(0,(fin-ahora)/60000):0;
+    const restanteMin=Math.max(0,restanteBrutoMin-pausasPendMin);
+    const restanteH=restanteMin/60;
+
+    // productos y capacidad nominal
+    let productos=(Array.isArray(x.productos)?x.productos:[]).map(p=>({
+      etiqueta:String(p&&p.etiqueta||''),estado:String(p&&p.estado||''),programado:Math.max(0,num(p&&p.programado)),
+      producido:Math.max(0,num(p&&p.producido)),velocidad:num(p&&p.velocidad)}));
+    if(!productos.length)productos=[{etiqueta:'',estado:'EN_CURSO',programado:prog,producido:prod,velocidad:num(x.velocidad)}];
+    const vigentes=productos.filter(p=>p.estado!=='CANCELADO');
+    const faltaVelocidad=vigentes.filter(p=>Math.max(0,p.programado-p.producido)>0&&!(p.velocidad>0)).map(p=>p.etiqueta||'Producto');
+    const conVel=vigentes.filter(p=>p.velocidad>0&&p.programado>0);
+    const tiempoProg=conVel.reduce((s,p)=>s+p.programado/p.velocidad,0);
+    const capacidadNominal=tiempoProg>0?conVel.reduce((s,p)=>s+p.programado,0)/tiempoProg:null;
+    const tiempoNominalMin=faltaVelocidad.length?null:vigentes.reduce((s,p)=>s+(p.velocidad>0?Math.max(0,p.programado-p.producido)/p.velocidad*60:0),0);
+    const cabe=tiempoNominalMin==null?null:tiempoNominalMin<=restanteMin+1e-9;
+    const requerimientoPct=tiempoNominalMin!=null&&restanteMin>0?tiempoNominalMin/restanteMin*100:null;
+    const ritmoNecesario=!terminado&&pendiente>0&&restanteH>0?pendiente/restanteH:null;
+
+    const siguenIgual=rendimiento!=null?prod+rendimiento*restanteH:null;
+    const sinNuevas=ritmoReal!=null?prod+ritmoReal*restanteH:null;
+    const pct=siguenIgual!=null&&prog>0?siguenIgual/prog*100:null;
+    const finalEstimadoMs=!terminado&&pendiente>0&&rendimiento>0?Math.round((ahora+(pendiente/rendimiento)*3600000+pausasPendMin*60000)/60000)*60000:null;   // al minuto más cercano
+    const retrasoMin=finalEstimadoMs!=null&&fin>0?Math.max(0,Math.round((finalEstimadoMs-fin)/60000)):0;
+
+    // avisos informativos (no alteran ningún cálculo)
+    const avisos=[];
+    const sinReg=Math.round(num(x.detencionSinRegistrarMin));
+    if(sinReg>=1)avisos.push({tipo:'detencion',texto:'Hay una detención de '+sinReg+' min sin registrar en Avance.'});
+    const ult=num(x.ultimoRegistroMs);
+    if(!terminado&&ult>0&&ahora-ult>PROY_SIN_REGISTRO_MIN*60000)avisos.push({tipo:'dato',texto:'Dato desactualizado desde las '+hhmmDe(ult)+'.'});
+
+    const sal={
+      estado:'SIN_PROYECCION',modo:'sin_programacion',veredicto:null,nivel:'gris',etiqueta:'',motivo:'',
+      producido:prod,programado:prog,pendiente,avancePct:prog>0?prod/prog*100:null,
+      transcurridoMin,efectivoMin,restanteMin,restanteBrutoMin,pausaPendienteMin:pausasPendMin,
+      ritmoReal,ritmoActual:ritmoReal,rendimiento,ritmoNecesario,capacidadNominal,tiempoNominalMin,requerimientoPct,cabeNominal:cabe,
+      siguenIgual,sinMasParadas:sinNuevas,sinNuevas,pct,pctSinNuevas:sinNuevas!=null&&prog>0?sinNuevas/prog*100:null,
+      diferencia:siguenIgual!=null?siguenIgual-prog:null,diferenciaSinNuevas:sinNuevas!=null?sinNuevas-prog:null,
+      horaEstimadaMs:finalEstimadoMs,finalEstimadoMs,minAdicionales:retrasoMin,retrasoMin,finObjetivoMs:fin,
+      cumplido:false,horaCumplidaMs:null,faltaVelocidad,productos,avisos,detenida:!!x.detenida,
+      segunRegistradoMs:ult,ahora,minDesdeInicio:ini>0?Math.max(0,(ahora-ini)/60000):0
+    };
+    if(prog<=0)return sal;
+    sal.modo='normal';sal.estado='OK';
+
+    if(terminado){
+      sal.modo='terminado';sal.estado='TERMINADO';sal.cumplido=pendiente<=0;
+      sal.veredicto=pendiente<=0?'CUMPLIDA':'NO_CUMPLIDA';sal.nivel=pendiente<=0?'verde':'roja';
+      sal.etiqueta=pendiente<=0?'BLOQUE TERMINADO · META CUMPLIDA':'BLOQUE TERMINADO · META NO CUMPLIDA';
+      sal.ritmoNecesario=null;sal.siguenIgual=null;sal.sinMasParadas=null;sal.sinNuevas=null;sal.pct=prog>0?prod/prog*100:null;
+      sal.diferencia=prod-prog;sal.finalEstimadoMs=null;sal.horaEstimadaMs=null;sal.minAdicionales=0;sal.retrasoMin=0;sal.restanteMin=0;
+      return sal;
+    }
+    if(pendiente<=0){
+      sal.modo='cumplida';sal.estado='CUMPLIDA';sal.cumplido=true;sal.veredicto='CUMPLIDA';sal.nivel='verde';
+      sal.horaCumplidaMs=ult>0?ult:null;sal.etiqueta='META CUMPLIDA';sal.ritmoNecesario=0;sal.siguenIgual=prod;sal.diferencia=prod-prog;
+      sal.pct=prog>0?prod/prog*100:null;sal.horaEstimadaMs=null;sal.finalEstimadoMs=null;
+      return sal;
+    }
+    if(faltaVelocidad.length){
+      sal.modo='falta_velocidad';sal.estado='FALTA_VELOCIDAD';sal.etiqueta='FALTA VELOCIDAD ESTÁNDAR';
+      sal.motivo='Falta velocidad estándar de: '+faltaVelocidad.join(', ')+'. No se puede calcular la capacidad nominal.';
+      return sal;
+    }
+    // ¿se puede proyectar con lo registrado?
+    let motivoNo='';
+    if(!(ini>0))motivoNo='la programación todavía no tiene inicio real';
+    else if(!(prod>0))motivoNo='todavía no hay producción registrada';
+    else if(efectivoMin<PROY_MIN_EFECTIVO_MIN)motivoNo='hay menos de '+PROY_MIN_EFECTIVO_MIN+' minutos efectivos de producción';
+    else if(rendimiento==null)motivoNo='no hay tiempo suficiente para estimar el ritmo';
+    if(motivoNo){
+      sal.modo='no_proyectable';sal.estado='NO_PROYECTABLE';sal.motivo=motivoNo.charAt(0).toUpperCase()+motivoNo.slice(1)+'.';
+      sal.etiqueta='NO ES POSIBLE PROYECTAR TODAVÍA';
+      sal.siguenIgual=null;sal.sinMasParadas=null;sal.sinNuevas=null;sal.pct=null;sal.diferencia=null;sal.finalEstimadoMs=null;sal.horaEstimadaMs=null;sal.minAdicionales=0;sal.retrasoMin=0;
+      if(cabe===false){sal.veredicto='NO_ALCANZABLE';sal.nivel='roja';}
+      return sal;
+    }
+    sal.veredicto=siguenIgual>=prog-1e-9?'CUMPLIBLE':(cabe?'EN_RIESGO':'NO_ALCANZABLE');
+    sal.nivel=sal.veredicto==='CUMPLIBLE'?'verde':sal.veredicto==='EN_RIESGO'?'ambar':'roja';
+    sal.etiqueta=sal.veredicto==='CUMPLIBLE'?'CUMPLIBLE':sal.veredicto==='EN_RIESGO'?'EN RIESGO':'NO ALCANZABLE';
+    return sal;
+  }
+  function hhmmDe(ms){const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+  const fmtN=v=>finito(v)==null?'—':Math.round(v).toLocaleString('es-PE');
+  const fmtP=v=>finito(v)==null?'—':v.toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1})+' %';
+  const fmtDur=min=>{const m=Math.max(0,Math.round(num(min)));return m>=60?Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min':m+' min';};
+  /* Texto del análisis automático, armado con los mismos números (sin mensajes fijos). */
+  function analisisProyeccion(p){
+    if(!p||p.modo==='sin_programacion')return '';
+    const partes=[];
+    if(p.modo==='falta_velocidad')return p.motivo;
+    if(p.modo==='terminado'){
+      partes.push('El bloque terminó con '+fmtN(p.producido)+' de '+fmtN(p.programado)+' UND ('+fmtP(p.pct)+').');
+      partes.push(p.pendiente>0?'Faltaron '+fmtN(p.pendiente)+' UND.':'La meta se cumplió.');
+      return partes.join(' ');
+    }
+    if(p.modo==='cumplida')return 'La meta de '+fmtN(p.programado)+' UND está cumplida'+(p.horaCumplidaMs?' (último registro a las '+hhmmDe(p.horaCumplidaMs)+')':'')+'.';
+    if(p.modo==='no_proyectable'){
+      partes.push('No es posible proyectar todavía: '+p.motivo.charAt(0).toLowerCase()+p.motivo.slice(1));
+      if(p.tiempoNominalMin!=null)partes.push(p.cabeNominal
+        ?'A capacidad nominal ('+fmtN(p.capacidadNominal)+' UND/h) la meta cabe en el tiempo restante ('+fmtDur(p.restanteMin)+'): harían falta '+fmtDur(p.tiempoNominalMin)+'.'
+        :'META NO ALCANZABLE EN EL TIEMPO RESTANTE: a capacidad nominal ('+fmtN(p.capacidadNominal)+' UND/h) harían falta '+fmtDur(p.tiempoNominalMin)+' y quedan '+fmtDur(p.restanteMin)+'.');
+      return partes.join(' ');
+    }
+    partes.push('Con el rendimiento del bloque ('+fmtN(p.rendimiento)+' UND/h) se llegaría a '+fmtN(p.siguenIgual)+' de '+fmtN(p.programado)+' UND ('+fmtP(p.pct)+'): '+(p.diferencia>=0?'sobrarían '+fmtN(p.diferencia):'faltarían '+fmtN(-p.diferencia))+'.');
+    if(p.sinNuevas!=null)partes.push('Sin nuevas paradas, con el ritmo real ('+fmtN(p.ritmoReal)+' UND/h), llegaría a '+fmtN(p.sinNuevas)+' ('+fmtP(p.pctSinNuevas)+').');
+    if(p.ritmoNecesario!=null)partes.push('Se necesitan '+fmtN(p.ritmoNecesario)+' UND/h en '+fmtDur(p.restanteMin)+(p.requerimientoPct!=null?'; a capacidad nominal ('+fmtN(p.capacidadNominal)+' UND/h) eso es el '+fmtP(p.requerimientoPct)+'.':'.'));
+    if(p.veredicto==='EN_RIESGO')partes.push('Está EN RIESGO: no alcanza con el ritmo actual, pero la meta cabe a capacidad nominal.');
+    else if(p.veredicto==='NO_ALCANZABLE')partes.push('META NO ALCANZABLE EN EL TIEMPO RESTANTE: aun a capacidad nominal harían falta '+fmtDur(p.tiempoNominalMin)+' y quedan '+fmtDur(p.restanteMin)+'.');
+    else if(p.veredicto==='CUMPLIBLE')partes.push('Es CUMPLIBLE si se mantiene el ritmo.');
+    if(p.finalEstimadoMs!=null)partes.push('Final estimado: '+hhmmDe(p.finalEstimadoMs)+(p.retrasoMin>0?' ('+p.retrasoMin+' min después del fin objetivo, '+hhmmDe(p.finObjetivoMs)+').':'.'));
+    if(p.pausaPendienteMin>0)partes.push('Se descuentan '+Math.round(p.pausaPendienteMin)+' min de pausas previstas aún no registradas.');
+    return partes.join(' ');
+  }
+
+  /* ---------------------------------------------------------
      DEFINICIONES PARA «¿CÓMO SE CALCULA?» (las mismas que este archivo)
      --------------------------------------------------------- */
   const DEFINICIONES=Object.freeze([
@@ -308,6 +505,7 @@
     cumplimiento,programadoVigente,produccionVigente,
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,
     turnoVigente,diaOperativo,horarioTurno,HORARIOS_TURNO,
+    BLOQUES_INICIALES,normalizarBloques,horarioBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
     estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,
     resumenIndicadores,DEFINICIONES
   });

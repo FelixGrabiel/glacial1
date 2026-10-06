@@ -355,11 +355,11 @@
       const p=f.proyeccion;
       let detalle;
       if(p.estado==='CALCULANDO')detalle='<span class="pry-det">Calculando… (primeros 30 min de la programación)</span>';
-      else if(p.estado!=='OK')detalle='<span class="pry-det">—</span>';
+      else if(p.estado!=='OK')detalle='<span class="pry-det"><b>'+esc(p.etiqueta||'—')+'</b>'+(p.motivo?' · '+esc(p.motivo):'')+'</span>';
       else{
         const dif=p.diferencia>=0?'<b class="pry-ok">sobrarían '+fmt(p.diferencia)+'</b>':'<b class="pry-mal">faltarían '+fmt(-p.diferencia)+'</b>';
         const hora=p.cumplido?'programa cumplido':(p.horaEstimadaMs?'se completaría hacia las '+hhmm(p.horaEstimadaMs)+(p.minAdicionales>0.5?' (+'+fmt(p.minAdicionales)+' min tras el fin del turno)':''):'');
-        detalle='<span class="pry-det"><b>'+fmt(p.siguenIgual)+' UND</b> ('+p.pct.toFixed(0)+' %) · '+dif+' · ritmo necesario <b>'+(p.ritmoNecesario==null?'—':fmt(p.ritmoNecesario))+'</b> vs ratio <b>'+
+        detalle='<span class="pry-det"><b>'+esc(p.etiqueta||'')+'</b> · <b>'+fmt(p.siguenIgual)+' UND</b> ('+p.pct.toFixed(0)+' %) · '+dif+' · ritmo necesario <b>'+(p.ritmoNecesario==null?'—':fmt(p.ritmoNecesario))+'</b> vs ratio <b>'+
           (p.ritmoActual==null?'—':fmt(p.ritmoActual))+'</b> UND/h · '+hora+(p.detenida?' · <b class="pry-mal">línea detenida</b>':'')+'</span>';
       }
       return '<div class="pry-fila pry-'+(p.nivel||'gris')+'"><strong>'+esc(f.nombre||f.linea)+'</strong>'+detalle+'</div>';

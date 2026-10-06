@@ -60,17 +60,15 @@
 
   const CAMBIO_TEMPORAL='Cambio temporal de producción';
 
-  function rangoTurno(fecha,turno,compartida){
-    const [y,m,d]=String(fecha||'').split('-').map(Number);
-    if(!y||!m||!d)return null;
-    const h=turno==='DÍA'?[7,15]:turno==='INTERMEDIO'?(compartida?[7,22]:[15,22]):
-      turno==='NOCHE'?[22,7]:null;
-    if(!h)return null;
-    return {
-      inicio:new Date(y,m-1,d,h[0]).getTime(),
-      // NOCHE cruza la medianoche: termina al día siguiente.
-      fin:new Date(y,m-1,d+(turno==='NOCHE'?1:0),h[1]).getTime()
-    };
+  /* Bloque productivo (Día + Intermedio / Noche) tomado de sync/configIndicadores → bloques; sin configuración usa los valores iniciales.
+     Día e Intermedio comparten el mismo bloque (07:00–19:00 por defecto); Noche va de 21:00 a 07:00 del día siguiente. */
+  function cfgBloques(){
+    try{const c=typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores():null;return c?c.bloques:undefined;}catch(_){return undefined;}
+  }
+  function rangoTurno(fecha,turno){
+    if(!['DÍA','INTERMEDIO','NOCHE'].includes(turno))return null;
+    const h=GlacialIndicadores.horarioBloque(fecha,turno,cfgBloques());
+    return h?{inicio:h.inicio,fin:h.fin}:null;
   }
 
   const bloqueTurno=t=>t==='NOCHE'?'NOCHE':'DIA_INTERMEDIO';
@@ -503,50 +501,32 @@
     ambarPct:90,         // entre 90 % y 99 % → ámbar; por debajo → rojo
     minCalculoMin:30     // durante los primeros 30 min de la programación: «Calculando»
   };
+  /* Todas las fórmulas viven en GlacialIndicadores.proyeccionCierre (45-indicadores.js); aquí solo se arman sus datos.
+     Si el dato no existe se devuelve el resultado vacío (SIN_PROYECCION). Los umbrales por porcentaje ya no colorean la tarjeta:
+     el estado es CUMPLIBLE / EN RIESGO / NO ALCANZABLE (los de sync/configAlertas quedan solo para la alerta de proyección baja). */
   function proyectarCierreLinea(t,ratios,datos,umbrales){
-    const u=Object.assign({},UMBRALES_PROYECCION,umbrales||{});
-    const prod=Math.max(0,num(datos&&datos.produccion));
-    const prog=Math.max(0,num(datos&&datos.programado));
-    const ahora=(datos&&datos.ahora)||ahoraServidor();
-    const sal={estado:'SIN_PROYECCION',producido:prod,programado:prog,restanteMin:null,pausaPendienteMin:0,
-      sinMasParadas:null,siguenIgual:null,pct:null,diferencia:null,nivel:'gris',
-      ritmoNecesario:null,ritmoActual:ratios?ratios.ratioEfectivo:null,rendimiento:ratios?ratios.ratioTurno:null,
-      horaEstimadaMs:null,minAdicionales:0,detenida:!!(datos&&datos.detenida),
-      segunRegistradoMs:(datos&&datos.ultimoRegistroMs)||0,ahora};
-    if(!t||!t.ok||!t.enCurso||!t.finTurnoMs||prog<=0)return sal;
-    const desdeInicioMin=(ahora-num(t.inicioMs))/MS_MIN;
-    if(!(desdeInicioMin>=u.minCalculoMin)){sal.estado='CALCULANDO';sal.minDesdeInicio=Math.max(0,desdeInicioMin);return sal;}
-
-    const restanteBruto=Math.max(0,(t.finTurnoMs-ahora)/MS_MIN);
-    const tomado=(t.detalle||[]).some(d=>norm(d.motivo)==='refrigerio');
-    const std=estandar('Refrigerio');
-    const pausaPend=(!tomado&&std>0&&restanteBruto>std)?std:0;     // el refrigerio aún no tomado se descuenta
-    const restante=Math.max(0,restanteBruto-pausaPend);
-    const rH=restante/60;
-    sal.restanteMin=restante;sal.pausaPendienteMin=pausaPend;
-
-    const ratio=ratios&&ratios.ratioEfectivo!=null?ratios.ratioEfectivo:null;     // oficial
-    const rend=ratios&&ratios.ratioTurno!=null?ratios.ratioTurno:null;            // rendimiento del turno
-    if(ratio!==null)sal.sinMasParadas=prod+ratio*rH;
-    if(rend===null){sal.estado='SIN_RITMO';return sal;}
-    sal.siguenIgual=prod+rend*rH;
-    sal.estado='OK';
-    sal.pct=sal.siguenIgual/prog*100;
-    sal.diferencia=sal.siguenIgual-prog;                                           // + sobrarían / − faltarían
-    sal.nivel=sal.pct>=u.verdePct?'verde':sal.pct>=u.ambarPct?'ambar':'roja';
-    sal.ritmoNecesario=prod>=prog?0:(rH>0?(prog-prod)/rH:null);
-    if(prod>=prog){sal.horaEstimadaMs=null;sal.cumplido=true;}
-    else if(rend>0){
-      const minNecesarios=(prog-prod)/rend*60+pausaPend;
-      sal.horaEstimadaMs=ahora+minNecesarios*MS_MIN;
-      sal.minAdicionales=Math.max(0,(sal.horaEstimadaMs-t.finTurnoMs)/MS_MIN);
-    }
-    return sal;
+    const dt=datos||{};
+    const prog=Math.max(0,num(dt.programado)),prod=Math.max(0,num(dt.produccion));
+    const ahora=dt.ahora||ahoraServidor();
+    if(!t||!t.ok||prog<=0)return Object.assign(GlacialIndicadores.proyeccionCierre({}),{producido:prod,programado:prog,ahora,detenida:!!dt.detenida});
+    const fu=t.fuentes||{};
+    const programadasOficiales=(t.paradasClasificadas||[]).filter(x=>x.clasif==='PROGRAMADA').map(x=>({motivo:x.motivo,minutos:x.minutos}));
+    // Detención del semáforo sin parada oficial equivalente: solo un aviso informativo.
+    const sinRegistrar=Math.max(0,num(fu.detenerLinea&&fu.detenerLinea.noProgramadas)-num(fu.supervisor&&fu.supervisor.noProgramadas));
+    return GlacialIndicadores.proyeccionCierre({
+      ahoraMs:ahora,inicioMs:t.inicioMs,finObjetivoMs:t.finTurnoMs,
+      terminado:!!t.finalizada||(!t.enCurso&&t.finTurnoMs>0&&ahora>=t.finTurnoMs),
+      programado:prog,producido:prod,progMin:t.minPausasProgramadas,npMin:t.minParadasNoProgramadas,
+      productos:dt.productos,velocidad:dt.velocidad,
+      pausasPrevistas:GlacialIndicadores.pausasPrevistas(t.turno,cfgBloques()),programadasOficiales,
+      detencionSinRegistrarMin:sinRegistrar,ultimoRegistroMs:dt.ultimoRegistroMs,detenida:!!dt.detenida
+    });
   }
 
   window.calcularTiemposLinea=calcularTiemposLinea;
   window.calcularRatiosLinea=calcularRatiosLinea;
   window.proyectarCierreLinea=proyectarCierreLinea;
+  window.glacialBloquesConfig=cfgBloques;
   window.UMBRALES_PROYECCION_LINEA=UMBRALES_PROYECCION;
   window.evaluarDesempenoLinea=evaluarDesempenoLinea;
   window.UMBRALES_DESEMPENO_LINEA=UMBRALES;

@@ -94,7 +94,8 @@
   // (la misma regla que usa Planificación y el registro de producción; ver 49-resumen-indicadores.js).
   const velocidadDe=(linea,pres)=>velocidades()[normVel(claveVel(linea,pres))]||
     (typeof window.glacialVelocidadEstandar==='function'?window.glacialVelocidadEstandar(linea,pres,''):0)||0;
-  window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{}),metasReporte:Object.assign({},remota.metasReporte||{})});
+  // bloques: horarios de los bloques productivos y pausas previstas (la proyección de cierre los lee con GlacialIndicadores.normalizarBloques).
+  window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{}),metasReporte:Object.assign({},remota.metasReporte||{}),bloques:remota.bloques&&typeof remota.bloques==='object'?JSON.parse(JSON.stringify(remota.bloques)):undefined});
   window.glacialConfigIndicadoresOyentes=window.glacialConfigIndicadoresOyentes||[];
   const nivelDisp=p=>{
     const m=metas();
