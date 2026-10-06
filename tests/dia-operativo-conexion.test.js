@@ -29,6 +29,6 @@ const G=vm.runInContext('GlacialIndicadores',N);
 ok(G.diaOperativo(L(3,0))==='2026-10-03'&&G.diaOperativo(L(7,0))==='2026-10-04'&&G.diaOperativo(L(23,30))==='2026-10-04','día operativo: 03:00 → 3 de octubre; 07:00 y 23:30 → 4 de octubre');
 const s=f=>leer(f);
 ok(/GlacialIndicadores\.diaOperativo\(/.test(s('js/produccion/16-paletas.js'))&&/GlacialIndicadores\.diaOperativo\(/.test(s('js/produccion/29-avance-produccion.js'))&&/GlacialIndicadores\.diaOperativo\(/.test(s('js/produccion/09-resumen.js')),'Paletas (16), Avance (29) y Resumen (09) usan el día operativo del módulo');
-ok(/const turnoVigente = \(\) => GlacialIndicadores\.turnoVigente\(ahoraServidor\(\)\)/.test(s('js/produccion/24-semaforo-produccion-actual.js'))&&/GlacialIndicadores\.horarioTurno\(/.test(s('js/produccion/24-semaforo-produccion-actual.js')),'semáforo (24): turno vigente y horarios del módulo');
+ok(/const turnoVigente = \(\) => GlacialIndicadores\.turnoVigente\(ahoraServidor\(\)\)/.test(s('js/produccion/24-semaforo-produccion-actual.js'))&&/GlacialIndicadores\.horarioBloque\(/.test(s('js/produccion/24-semaforo-produccion-actual.js')),'semáforo (24): turno vigente del módulo y horarios del BLOQUE productivo (el tareo conserva horarioTurno)');
 ok(!/\bnew Date\(\);\s*\n\s*const t = obtenerTurnoActual/.test(s('js/accesos/17-modo-trabajo.js')),'cronómetro (17): usa la hora del servidor');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

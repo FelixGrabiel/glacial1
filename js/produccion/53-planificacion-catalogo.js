@@ -249,7 +249,7 @@
       '<label>Semana de<input type="date" id="sem-fecha" value="'+esc(E.semana)+'"></label>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-sem="7">Semana siguiente ▶</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-sem="hoy">Esta semana</button>'+
-      '<span class="plan-nota" style="margin:0 0 0 8px">Ámbar = sin programación · borde azul = más de un producto. Toca una celda para abrirla en Programación.</span></div><div id="sem-grilla"></div>';
+      '<span class="plan-nota" style="margin:0 0 0 8px">Ámbar = sin programación · borde azul = más de un producto · ⚠ = misma cantidad en Día e Intermedio (posible duplicado). Toca una celda para abrirla en Programación.</span></div><div id="sem-grilla"></div>';
     pintarGrilla();
   }
 
@@ -261,24 +261,31 @@
     const nombres=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
     const todos=NS.programaciones().filter(p=>p&&dias.includes(p.fecha)&&num(p.cantidadProgramada)>0&&NS.estadoDe(p)!=='CANCELADA');
     const totDia={};let granTotal=0;
+    // Dos columnas por día: Día + Intermedio (suma de las filas DÍA e INTERMEDIO) y Noche.
+    const BL=NS.BLOQUES;
+    const delBloque=(p,b)=>b.valor==='NOCHE'?p.turno==='NOCHE':(p.turno==='DÍA'||p.turno==='INTERMEDIO');
+    const dup=new Set();dias.forEach(d=>NS.duplicadosPosibles(d).forEach(k=>dup.add(d+'|'+k)));
     let cab1='<th rowspan="2">Línea</th>',cab2='';
-    dias.forEach((d,i)=>{cab1+='<th colspan="3" style="text-align:center;border-left:1px solid #d9e2e8">'+nombres[i]+' '+d.slice(8)+'/'+d.slice(5,7)+'</th>';NS.TURNOS.forEach(t=>{cab2+='<th style="text-align:center;font-size:10px;border-left:'+(t==='DÍA'?'1px solid #d9e2e8':'0')+'">'+t.slice(0,3)+'</th>';});});
+    dias.forEach((d,i)=>{cab1+='<th colspan="2" style="text-align:center;border-left:1px solid #d9e2e8">'+nombres[i]+' '+d.slice(8)+'/'+d.slice(5,7)+'</th>';BL.forEach((b,j)=>{cab2+='<th style="text-align:center;font-size:10px;border-left:'+(j===0?'1px solid #d9e2e8':'0')+'">'+(b.valor==='NOCHE'?'Noche':'Día + Int.')+'</th>';});});
     cab1+='<th rowspan="2" class="num" style="border-left:1px solid #d9e2e8">Total línea</th>';
     const filas=NS.lineas().map(l=>{
       let totalLinea=0,celdas='';
-      dias.forEach(d=>NS.TURNOS.forEach(t=>{
-        const ps=todos.filter(p=>p.linea===l.key&&p.fecha===d&&p.turno===t);
-        const suma=ps.reduce((s,p)=>s+num(p.cantidadProgramada),0);
-        totalLinea+=suma;totDia[d+'|'+t]=(totDia[d+'|'+t]||0)+suma;
-        const estilo=!ps.length?'background:#fff8e6':ps.length>1?'box-shadow:inset 0 0 0 2px #2d7fc0;background:#eef6fc':'';
-        celdas+='<td data-sem-fecha="'+d+'" data-sem-turno="'+t+'" style="cursor:pointer;font-size:11px;min-width:92px;vertical-align:top;border-left:'+(t==='DÍA'?'1px solid #d9e2e8':'0')+';'+estilo+'">'+
-          (ps.length?ps.map(p=>'<div title="'+esc(p.marca+' '+NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'"><b>'+num(p.cantidadProgramada).toLocaleString('es-PE')+'</b> '+esc(p.marca)+' '+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</div>').join('')+(ps.length>1?'<div style="color:#2d7fc0">'+ps.length+' productos</div>':''):'<span style="color:#8a6d1d">—</span>')+'</td>';
+      dias.forEach(d=>BL.forEach((b,j)=>{
+        const ps=todos.filter(p=>p.linea===l.key&&p.fecha===d&&delBloque(p,b));
+        // un producto con filas en Día e Intermedio suma sus cantidades
+        const porProd=new Map();ps.forEach(p=>{const k=p.marca+'|'+p.presentacion;const o=porProd.get(k)||{p,cant:0,dup:dup.has(d+'|'+[p.linea,p.marca,p.presentacion].join('|'))};o.cant+=num(p.cantidadProgramada);porProd.set(k,o);});
+        const prods=[...porProd.values()];
+        const suma=prods.reduce((s,o)=>s+o.cant,0);
+        totalLinea+=suma;totDia[d+'|'+b.valor]=(totDia[d+'|'+b.valor]||0)+suma;
+        const estilo=!prods.length?'background:#fff8e6':prods.length>1?'box-shadow:inset 0 0 0 2px #2d7fc0;background:#eef6fc':'';
+        celdas+='<td data-sem-fecha="'+d+'" data-sem-turno="'+b.valor+'" style="cursor:pointer;font-size:11px;min-width:104px;vertical-align:top;border-left:'+(j===0?'1px solid #d9e2e8':'0')+';'+estilo+'">'+
+          (prods.length?prods.map(o=>'<div title="'+esc(o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+'"><b>'+o.cant.toLocaleString('es-PE')+'</b> '+esc(o.p.marca)+' '+esc(NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+(o.dup?' <span style="color:#8a5a1e" title="Misma cantidad en Día e Intermedio: posible duplicado">⚠</span>':'')+'</div>').join('')+(prods.length>1?'<div style="color:#2d7fc0">'+prods.length+' productos</div>':''):'<span style="color:#8a6d1d">—</span>')+'</td>';
       }));
       granTotal+=totalLinea;
       return '<tr><td><b>'+esc(l.name)+'</b></td>'+celdas+'<td class="num" style="border-left:1px solid #d9e2e8"><b>'+totalLinea.toLocaleString('es-PE')+'</b></td></tr>';
     });
     let pie='<td><b>Total semana</b></td>';
-    dias.forEach(d=>NS.TURNOS.forEach(t=>{pie+='<td class="num" style="font-size:11px"><b>'+(totDia[d+'|'+t]?totDia[d+'|'+t].toLocaleString('es-PE'):'')+'</b></td>';}));
+    dias.forEach(d=>BL.forEach(b=>{pie+='<td class="num" style="font-size:11px"><b>'+(totDia[d+'|'+b.valor]?totDia[d+'|'+b.valor].toLocaleString('es-PE'):'')+'</b></td>';}));
     pie+='<td class="num" style="border-left:1px solid #d9e2e8"><b>'+granTotal.toLocaleString('es-PE')+'</b></td>';
     cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr>'+cab1+'</tr><tr>'+cab2+'</tr></thead><tbody>'+filas.join('')+'</tbody><tfoot><tr>'+pie+'</tr></tfoot></table></div>';
   }

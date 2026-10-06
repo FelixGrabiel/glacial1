@@ -23,7 +23,18 @@
     t.key === 'TARDE' ? 'INTERMEDIO' : 'NOCHE';
   // Turno vigente y día operativo: una sola función en el módulo de indicadores (hora del servidor, corte 07:00).
   const turnoVigente = () => GlacialIndicadores.turnoVigente(ahoraServidor());
-  const horario = (fecha,turno,compartida) => GlacialIndicadores.horarioTurno(fecha,turno,compartida);   // horarios únicos del módulo
+  // Horario PRODUCTIVO del bloque (Día + Intermedio / Noche), tomado de la configuración (sync/configIndicadores → bloques).
+  // Los horarios de tareo y asistencia (GlacialIndicadores.horarioTurno) no cambian.
+  const bloqueCfg = () => typeof window.glacialBloquesConfig==='function' ? window.glacialBloquesConfig() : undefined;
+  const horario = (fecha,turno) => GlacialIndicadores.horarioBloque(fecha,turno,bloqueCfg());
+  const bloqueAhora = () => GlacialIndicadores.bloqueVigente(ahoraServidor(),bloqueCfg());
+  const hhmmBloque = ms => new Date(ms).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false});
+  // Turno para las pantallas de PRODUCCIÓN: el vigente de siempre, salvo que desde el inicio del bloque Noche (21:00) ya es NOCHE.
+  // (El turno de tareo y asistencia, glacialTurnoVigente, no cambia.)
+  const turnoProductivo = () => { const tv=turnoVigente(),b=bloqueAhora(); return (tv && b && b.bloque==='noche' && tv.turno!=='NOCHE') ? {...tv,turno:'NOCHE',fecha:b.fecha} : tv; };
+  const textoFranja = b => 'Planta sin producción hasta las '+hhmmBloque(b.reanudaMs);
+  window.glacialBloqueVigente = () => { try{ return bloqueAhora(); }catch(_){ return null; } };
+  window.glacialEnFranjaSinProduccion = () => { try{ const b=bloqueAhora(); return !!(b && b.enFranja); }catch(_){ return false; } };
   /* Quién hizo la acción: el TÉCNICO identificado por PIN cuando se usa la cuenta compartida
      de Mantenimiento (37b-mantenimiento-identificacion.js); si no, el usuario de siempre. */
   function nombreOperador(){
@@ -145,24 +156,19 @@
         (state.user.rol==='Mantenimiento' && tienePermiso('moduloMantenimiento'))))return true;
     return permisoAnterior.apply(this,arguments);
   };
-  // DÍA e INTERMEDIO comparten plan y producción; NOCHE mantiene plan propio.
-  // Conserva programaciones INTERMEDIO antiguas si aún no existe plan de DÍA.
+  // DÍA e INTERMEDIO comparten UNA programación y su producción (el bloque); NOCHE mantiene la suya.
+  // Cualquier consulta de Día o de Intermedio devuelve el programado y lo producido del BLOQUE completo (suma de las filas
+  // DÍA e INTERMEDIO): al entrar Intermedio no se reinicia nada. Ya no existe la regla «si Día > 0».
   const resumenTurnosAnterior=resumenProgramacionCombinacionTurnos;
+  window.glacialResumenPorTurno=resumenTurnosAnterior;           // detalle por turno (trazabilidad por supervisor)
   resumenProgramacionCombinacionTurnos=function(linea,fecha,turnos,marca,presentacion){
-    const dia=turnos.includes('INTERMEDIO')
-      ? obtenerProgramacionPaleta(linea,fecha,'DÍA',marca,presentacion) : null;
-    if(!dia || num(dia.cantidadProgramada)<=0)
-      return resumenTurnosAnterior.apply(this,arguments);
-    const efectivos=turnos.includes('DÍA') ? turnos : ['DÍA',...turnos];
+    const lista=Array.isArray(turnos) ? turnos : [turnos];
+    const delDia=lista.some(t=>t==='DÍA' || t==='INTERMEDIO');
+    if(!delDia)return resumenTurnosAnterior.apply(this,arguments);
+    const efectivos=[...new Set([...lista.filter(t=>t==='NOCHE'),'DÍA','INTERMEDIO'])];
     const r=resumenTurnosAnterior(linea,fecha,efectivos,marca,presentacion);
-    const inter=datosProgramacionCombinacion(linea,fecha,'INTERMEDIO',marca,presentacion);
-    const programada=Math.max(0,r.cantidadProgramada-inter.cantidadProgramada);
-    const paletas=Math.max(0,r.paletasProgramadas-inter.paletasProgramadas);
-    return {...r,cantidadProgramada:programada,paletasProgramadas:paletas,
-      unidadesPorPaleta:num(dia.unidadesPorPaleta) || r.unidadesPorPaleta,
-      unidadesPendientes:Math.max(0,programada-r.unidadesProducidas),
-      sobreproduccion:programada>0 && r.unidadesProducidas>programada,
-      porcentajeAvance:programada>0 ? r.unidadesProducidas/programada*100 : 0};
+    const dia=obtenerProgramacionPaleta(linea,fecha,'DÍA',marca,presentacion);
+    return {...r,unidadesPorPaleta:num(dia && dia.unidadesPorPaleta) || r.unidadesPorPaleta};
   };
   const uppAnterior=unidadesPorPaletaActiva;
   unidadesPorPaletaActiva=function(linea,fecha,turno,marca,presentacion){
@@ -180,8 +186,9 @@
   const quitarTilde=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
   function registroDeTurno(x){
     let recs=[];try{recs=(typeof loadRecords==='function'?loadRecords():[])||[];}catch(_){recs=[];}
-    const turno=quitarTilde(x.turno),marca=quitarTilde(x.marca),pres=quitarTilde(x.presentacion);
-    const delTurno=recs.filter(r=>r&&r.linea===x.linea&&r.fecha===x.fecha&&quitarTilde(r.turno)===turno);
+    const bloque=GlacialIndicadores.claveBloque(x.turno),marca=quitarTilde(x.marca),pres=quitarTilde(x.presentacion);
+    // Día e Intermedio comparten reporte: se toman los registros de todo el bloque.
+    const delTurno=recs.filter(r=>r&&r.linea===x.linea&&r.fecha===x.fecha&&GlacialIndicadores.claveBloque(r.turno)===bloque);
     if(!delTurno.length)return null;
     let suma=0;
     delTurno.forEach(r=>{
@@ -195,8 +202,10 @@
   function producidoVigenteDe(x){
     const paletas=num(resumenProgramacionCombinacionTurnos(
       x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas);
-    const t=turnoVigente();
-    const enCurso=!!(t&&t.activo&&t.fecha===x.fecha&&t.turno===x.turno);
+    // En la franja sin producción el bloque Día + Intermedio acaba de terminar: su producción sigue saliendo de Paletas
+    // (el supervisor todavía no cierra el reporte), no de «sin registro».
+    const bl=bloqueAhora();
+    const enCurso=turnoActivo(x.fecha,x.turno) || !!(bl && bl.enFranja && bl.fecha===x.fecha && GlacialIndicadores.claveBloque(x.turno)==='diaInter');
     return GlacialIndicadores.produccionVigente({turnoEnCurso:enCurso,paletas,registro:enCurso?null:registroDeTurno(x)});
   }
   const producidoSinRegistro=x=>producidoVigenteDe(x)===null;
@@ -317,7 +326,7 @@
   // El estado operativo persistido manda sobre la secuencia y las paletas.
   function estadoOrdenItem(x){
     const producido=Math.round(producidoDe(x));
-    const programado=Math.round(num(x.prog?.cantidadProgramada));
+    const programado=Math.round(progDe(x));
     const operativo=x.op?.estado || x.estadoVisual || 'PENDIENTE';
     if(operativo==='CANCELADA')return {key:'CANCELADA',label:'CANCELADA',rank:4,cls:'cancelada'};
     // Al llegar al objetivo, la marca está completada aunque el último
@@ -340,14 +349,23 @@
 
     return {key:'PENDIENTE',label:'PENDIENTE',rank:2,cls:'pendiente'};
   }
+  // ¿Está en producción el bloque de este turno? (en la franja sin producción no hay bloque activo)
   const turnoActivo = (fecha,turno) => {
-    const t=turnoVigente();return t.activo && t.fecha===fecha && t.turno===turno;
+    const b=bloqueAhora();return !!b && b.activo && b.fecha===fecha && b.bloque===GlacialIndicadores.claveBloque(turno);
   };
+  // Programado del producto en el BLOQUE (suma Día + Intermedio, sin canceladas).
+  const progDe=x=>x.programadoBloque!=null ? x.programadoBloque : num(x.prog?.cantidadProgramada);
   function estadoFila(l,f,t,m,p,ahora){
-    const dia=t==='INTERMEDIO' ? obtenerProgramacionPaleta(l,f,'DÍA',m,p) : null;
-    const compartida=!!dia && num(dia.cantidadProgramada)>0;
-    const turnoPlan=compartida ? 'DÍA' : t;
-    const prog=compartida ? dia : obtenerProgramacionPaleta(l,f,t,m,p);
+    // Fila de programación que lleva el ESTADO del bloque: la de Día si existe; si no, la de Intermedio. El programado
+    // del bloque (suma de las filas) se calcula aparte con glacialProgramadoBloque. Noche tiene la suya.
+    let prog=obtenerProgramacionPaleta(l,f,t,m,p),turnoPlan=t,compartida=false;
+    if(t!=='NOCHE'){
+      const dia=obtenerProgramacionPaleta(l,f,'DÍA',m,p),inter=obtenerProgramacionPaleta(l,f,'INTERMEDIO',m,p);
+      if(dia && num(dia.cantidadProgramada)>0){prog=dia;turnoPlan='DÍA';compartida=t==='INTERMEDIO';}
+      else if(inter && num(inter.cantidadProgramada)>0){prog=inter;turnoPlan='INTERMEDIO';}
+    }
+    const programadoBloque=typeof window.glacialProgramadoBloque==='function'
+      ? window.glacialProgramadoBloque(l,f,t,{marca:m,presentacion:p}).cantidad : num(prog?.cantidadProgramada);
     const r=resumenProgramacionCombinacionTurnos(l,f,[t],m,p);
     const op=prog?.estadoOperacion;
     const actual=num(r.unidadesProducidas);
@@ -383,7 +401,7 @@
       // se evalúa a nivel de línea con el ratio de las paradas oficiales.
       nivel='verde';texto='Avanzando';
     }
-    return {linea:l,fecha:f,turno:t,turnoPlan,compartida,
+    return {linea:l,fecha:f,turno:t,turnoPlan,compartida,programadoBloque,
       marca:m,presentacion:p,prog,op,
       nivel,texto,horas,ratio,esperado,real:desdeInicio,vivo,
       puede:quienControla(l)};
@@ -518,7 +536,7 @@
       return {
         etiqueta:(x.marca||'')+' · '+presUI(x.linea,x.marca,x.presentacion),
         estado:e==='CANCELADA'?'CANCELADO':e==='COMPLETADA'?'COMPLETADO':(e==='EN_CURSO'||e==='PAUSA')?'EN_CURSO':'PENDIENTE',
-        programado:x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada),
+        programado:x.op?.estado==='CANCELADA'?0:progDe(x),
         producido:producidoDe(x),
         velocidad:typeof window.glacialVelocidadEstandar==='function'?num(window.glacialVelocidadEstandar(x.linea,x.presentacion,x.marca)):0
       };
@@ -527,7 +545,7 @@
   /* Tarjeta de proyección de cierre del bloque. Orden pensado para el celular (una sola columna):
      estado, proyección al cierre, avance, faltante, tiempo restante, ritmo actual, ritmo necesario y capacidad nominal,
      final estimado y análisis. Todos los números salen de GlacialIndicadores.proyeccionCierre (45-indicadores.js). */
-  function htmlProyeccion(p){
+  function htmlProyeccion(p,porTurno){
     if(!p || p.estado==='SIN_PROYECCION')return '';
     const fmt=n=>(n==null || !Number.isFinite(n)) ? '—' : Math.round(n).toLocaleString('es-PE');
     const pct=v=>(v==null || !Number.isFinite(v)) ? '—' : v.toFixed(1)+' %';
@@ -580,6 +598,12 @@
       h+='<details class="pa-proy-det"><summary>Detalle por producto</summary>'+p.productos.map(x=>
         '<div class="pa-proy-row"><span>'+esc(x.etiqueta)+' <small>('+(et[x.estado] || x.estado.toLowerCase())+')</small></span><b>'+fmt(x.producido)+' / '+fmt(x.programado)+'</b></div>').join('')+'</details>';
     }
+    // producido por turno dentro del bloque (cada supervisor); el ritmo de la proyección es siempre el del bloque completo
+    if(Array.isArray(porTurno) && porTurno.length){
+      h+='<details class="pa-proy-det"><summary>Producido por turno dentro del bloque</summary>'+porTurno.map(f=>
+        '<div class="pa-proy-row"><span>'+esc(f.etiqueta)+'</span><b>Día '+fmt(f.dia)+' · Intermedio '+fmt(f.inter)+'</b></div>').join('')+
+        '<div class="pa-proy-nota info">Cada registro conserva su usuario, turno y hora. El ritmo y la proyección usan siempre el bloque completo.</div></details>';
+    }
     return h+'</div>';
   }
 
@@ -610,7 +634,7 @@
     const fecha=produccionActualFecha || fechaHoyPaletas();
     const turnos=turnosSeleccionadosProduccionActual();
     const ahora=ahoraServidor();
-    const turnoReal=turnoVigente();
+    const turnoReal=turnoProductivo();
     filasActuales=[];
 
     LINES.forEach(line=>{
@@ -635,6 +659,14 @@
     });
 
     cont.classList.add('pa-live-active');
+    // Aviso de planta parada (franja sin producción) en lugar de líneas detenidas.
+    cont.querySelectorAll('.pa-franja').forEach(e=>e.remove());
+    const bFranja=bloqueAhora();
+    if(bFranja && bFranja.enFranja && fecha===bFranja.fecha){
+      const av=document.createElement('div');av.className='pa-franja';av.setAttribute('role','status');
+      av.textContent=textoFranja(bFranja)+' · no hay proyección, alertas de línea ni minutos de parada en este tramo.';
+      cont.insertBefore(av,cont.firstChild);
+    }
     cont.querySelectorAll('.pl-semaforo-wrap,.pl-resumen-semaforo').forEach(e=>e.remove());
     cont.querySelector('.pl-kpis .pl-kpi:last-child .pl-semaforo-texto')?.remove();
 
@@ -707,7 +739,7 @@
         const texto=({DETENIDA:'Línea detenida',EN_CURSO:'En curso',PAUSA:'Pausa programada',CANCELADA:'CANCELADA',COMPLETADA:'FINALIZADA'})[estadoLineaGrupo]||
           (estadoLineaGrupo==='PENDIENTE'&&hayCompletada?'Pendiente':'Sin iniciar');
         const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
-        const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
+        const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:progDe(x)),0);
         const totalProd=items.reduce((s,x)=>s+producidoDe(x),0);
   
         // PRODUCCIÓN TOTAL POR PRESENTACIÓN
@@ -726,7 +758,7 @@
             .toUpperCase();
   
           const producido=producidoDe(x);
-          const programado=num(x.prog?.cantidadProgramada);
+          const programado=progDe(x);
   
           const actual=mapaTotalesPresentacion.get(clave) || {
             clave,
@@ -869,9 +901,26 @@
         const nivelEstado=nivel;
         // El COLOR refleja el desempeño; el estado queda como etiqueta de texto.
         const nivelFinal=desempeno.nivel!=='gris' ? desempeno.nivel : nivelEstado;
+        // Franja sin producción (entre el fin de Día + Intermedio y el inicio de Noche): no hay línea «detenida», hay planta parada.
+        const bFr=bloqueAhora();
+        const enFranja=!!(bFr && bFr.enFranja && fecha===bFr.fecha && GlacialIndicadores.claveBloque(turnoCalculo)==='diaInter' &&
+          !['COMPLETADA','CANCELADA'].includes(estadoLineaGrupo));
+        const textoFinal=enFranja ? textoFranja(bFr) : texto;
+        // Trazabilidad: lo producido en cada turno (cada supervisor) dentro del bloque Día + Intermedio. No cambia ningún cálculo del bloque.
+        const porTurno=(()=>{
+          if(GlacialIndicadores.claveBloque(turnoCalculo)!=='diaInter' || typeof window.glacialResumenPorTurno!=='function')return null;
+          const vistos=new Set(),filas=[];
+          items.forEach(x=>{
+            const k=x.marca+'||'+x.presentacion;if(vistos.has(k))return;vistos.add(k);
+            const d=num(window.glacialResumenPorTurno(x.linea,x.fecha,['DÍA'],x.marca,x.presentacion).unidadesProducidas);
+            const i=num(window.glacialResumenPorTurno(x.linea,x.fecha,['INTERMEDIO'],x.marca,x.presentacion).unidadesProducidas);
+            filas.push({etiqueta:(x.marca||'')+' · '+presUI(x.linea,x.marca,x.presentacion),dia:d,inter:i});
+          });
+          return filas.some(f=>f.dia>0 || f.inter>0) ? filas : null;
+        })();
 
         return {
-          line,items,vacios,activo,nivel:nivelFinal,nivelEstado,texto,turnosLinea,totalProg,totalProd,
+          line,items,vacios,activo,nivel:enFranja ? 'gris' : nivelFinal,nivelEstado,texto:textoFinal,enFranja,porTurno,turnosLinea,totalProg,totalProd,
           horasEfectivas:tiempos.ok?tiempos.tiempoOperativoMin/60:horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
           totalesPresentacion,tiempos,ratios,desempeno,proyeccion
         };
@@ -1052,7 +1101,7 @@
               </div>` : ''}</div>
           </div>
 
-          ${htmlProyeccion(g.proyeccion)}
+          ${htmlProyeccion(g.proyeccion,g.porTurno)}
 
           <div class="pa-horizontal-body">
 
@@ -1061,7 +1110,7 @@
               ${(()=>{
                 const ordenados=itemsOrdenadosGrupo(g);
                 const original=g.items.reduce((a,x)=>a+num(x.prog?.cantidadProgramada),0);
-                const vigente=g.items.reduce((a,x)=>a+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
+                const vigente=g.items.reduce((a,x)=>a+(x.op?.estado==='CANCELADA'?0:progDe(x)),0);
                 const counts={EN_CURSO:0,PAUSA:0,PENDIENTE:0,COMPLETADA:0,CANCELADA:0};
                 ordenados.forEach(o=>counts[o.estado.key]++);
                 return `<div class="pa-state-counts">
@@ -1073,7 +1122,7 @@
                 </div>
                 <div class="pa-program-list pa-program-list-horizontal">${
                   ordenados.length ? ordenados.map(({x,estado})=>{
-                    const prog=Math.round(num(x.prog?.cantidadProgramada));
+                    const prog=Math.round(progDe(x));
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
                         ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
@@ -1125,7 +1174,7 @@
                 const ordenados=itemsOrdenadosGrupo(g);
                 return ordenados.length ? ordenados.map(({x,estado})=>{
                   const producido=Math.round(producidoDe(x));
-                  const programado=Math.round(num(x.prog?.cantidadProgramada));
+                  const programado=Math.round(progDe(x));
                   const pct=programado>0 ? producido/programado*100 : 0;
                   const faltante=Math.max(0,programado-producido);
                   const idx=filasActuales.indexOf(x);
@@ -1296,6 +1345,7 @@
     .pa-proy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 18px}
     .pa-proy-grid div b{color:#10265f}.pa-proy-dif.falta{color:#a92f27;font-weight:800}.pa-proy-dif.sobra{color:#13814a;font-weight:800}
     .pa-proy-nota{margin-top:4px;font-size:12px;color:#8a1f17;font-weight:700}.pa-proy-nota.info{color:#5a6b7b;font-weight:600}
+    .pa-franja{margin:0 0 10px;padding:10px 14px;border-radius:10px;background:#eef2f6;border:1px solid #cdd8e2;color:#34475a;font-weight:700;font-size:13px}
     .pa-proy-estado{display:inline-block;margin:2px 0 6px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.03em;background:#e8edf2;color:#44566a}
     .pa-proy-estado.verde{background:#d9f4e5;color:#0d6b3c}.pa-proy-estado.ambar{background:#ffeec2;color:#8a5a00}.pa-proy-estado.roja{background:#fbdcdc;color:#a02020}
     .pa-proy-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:4px 0;border-bottom:1px dashed #dde6ee}.pa-proy-row span{color:#44566a}.pa-proy-row b{color:#10265f;text-align:right}.pa-proy-row small{font-weight:500;color:#5a6b7b}
@@ -2111,7 +2161,7 @@
         if(accion==='finalizar'){
           datosEvento.cierreMs=ahora;
           datosEvento.producido=Math.round(producidoDe(x));
-          datosEvento.programado=Math.round(num(x.prog?.cantidadProgramada));
+          datosEvento.programado=Math.round(progDe(x));
         }
         if(accion==='reabrir')datosEvento.finalizadaEnAnterior=num(previo.finalizadaEn);
         if(accion==='corregirInicio'){
@@ -2148,7 +2198,7 @@
   };
   document.getElementById('main')?.addEventListener('click',async event=>{
     if(event.target.closest('[data-pa-turno-actual]')){
-      const t=turnoVigente();
+      const t=turnoProductivo();
       produccionActualFecha=t.fecha;
       produccionActualTurno=t.turno;
       renderProduccionActualTab();
@@ -2177,7 +2227,7 @@
      --------------------------------------------------------- */
   const PRIORIDAD_ESTADO_LINEA=['DETENIDA','EN_CURSO','PAUSA','PENDIENTE','COMPLETADA','CANCELADA'];
   window.glacialResumenEjecutivoLineas=function(fechaOpt,turnoOpt){
-    const ahora=ahoraServidor(), tv=turnoVigente();
+    const ahora=ahoraServidor(), tv=turnoProductivo();
     const fecha=fechaOpt || tv.fecha, turno=turnoOpt || tv.turno;
     const filas=[];
     LINES.forEach(line=>{
@@ -2201,7 +2251,7 @@
       const estadoLinea=GlacialIndicadores.estadoLineaDesdeItems(claves);
       const activo=(estados.find(o=>o.e===estadoLinea) || estados.find(o=>!['COMPLETADA','CANCELADA'].includes(o.e)) || estados[0]).x;
 
-      const programado=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:num(x.prog?.cantidadProgramada)),0);
+      const programado=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:progDe(x)),0);
       const producido=items.reduce((s,x)=>s+producidoDe(x),0);
 
       // Tiempos y ratios: función central única (23b-tiempos-linea.js).
@@ -2231,7 +2281,7 @@
         // Estado/avance por marca-presentación (usado por el Inicio operativo).
         detalle:estados.map(({x,e})=>{
           const p=producidoDe(x);
-          const g=num(x.prog?.cantidadProgramada);
+          const g=progDe(x);
           return {marca:x.marca,presentacion:x.presentacion,estado:e,producido:p,programado:g,
             avance:g>0 ? p/g*100 : 0};
         })

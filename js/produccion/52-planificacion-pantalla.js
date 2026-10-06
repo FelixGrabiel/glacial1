@@ -25,7 +25,7 @@
   function iniciarEstado(){
     if(NS.estado&&NS.estado.fecha)return;
     let fecha=iso(new Date(ahoraMs())),turno='DÍA';
-    try{const t=G().turnoVigente(ahoraMs());fecha=t.fecha;turno=t.turno;}catch(_){/* hoy */}
+    try{const t=G().turnoVigente(ahoraMs());fecha=t.fecha;turno=NS.valorBloque(t.turno);}catch(_){/* hoy */}
     NS.estado=Object.assign({tab:'programacion',fecha,turno,semana:fecha},NS.estado||{});
     if(!NS.estado.fecha)NS.estado.fecha=fecha;
   }
@@ -133,7 +133,7 @@
     const E=NS.estado,planifica=NS.puede();
     cont.innerHTML='<div class="plan-bar">'+
       '<label>Fecha<input type="date" id="plan-fecha" value="'+esc(E.fecha)+'"></label>'+
-      '<div class="plan-turnos" role="group" aria-label="Turno">'+NS.TURNOS.map(t=>'<button type="button" class="plan-pill'+(t===E.turno?' active':'')+'" data-plan-turno="'+t+'">'+t+'</button>').join('')+'</div>'+
+      '<div class="plan-turnos" role="group" aria-label="Turno">'+NS.BLOQUES.map(b=>'<button type="button" class="plan-pill'+(b.valor===NS.valorBloque(E.turno)?' active':'')+'" data-plan-turno="'+b.valor+'">'+b.etq+'</button>').join('')+'</div>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="-1">◀ Día anterior</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="1">Día siguiente ▶</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="hoy">Hoy</button>'+
@@ -149,6 +149,7 @@
     if(!cont)return;
     const E=NS.estado,planifica=NS.puede();
     const items=NS.items(E.fecha,E.turno);
+    const duplicados=NS.duplicadosPosibles(E.fecha);
     let total=0;
     const filas=[];
     NS.lineas().forEach(l=>{
@@ -163,7 +164,7 @@
         const cant=num(p.cantidadProgramada),upp=num(p.unidadesPorPaleta);
         total+=cant;
         const est=NS.estadoDe(p);
-        filas.push('<tr><td>'+(i===0?'<b>'+esc(l.name)+'</b>':'')+'</td><td>'+esc(p.marca)+'</td><td>'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td>'+
+        filas.push('<tr><td>'+(i===0?'<b>'+esc(l.name)+'</b>':'')+'</td><td>'+esc(p.marca)+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">(fila Intermedio)</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td>'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td>'+
           '<td class="num">'+cant.toLocaleString('es-PE')+'</td><td class="num">'+(upp?upp.toLocaleString('es-PE'):'—')+'</td>'+
           '<td class="num">'+(upp?NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:1}):'—')+'</td>'+
           '<td><span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span></td><td class="acc">'+
@@ -174,7 +175,7 @@
     });
     cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th class="num">Cantidad (UND)</th>'+
       '<th class="num">UND por paleta</th><th class="num">Paletas equiv.</th><th>Estado</th><th></th></tr></thead><tbody>'+filas.join('')+
-      '</tbody><tfoot><tr><td colspan="3"><b>Total del turno</b></td><td class="num"><b>'+total.toLocaleString('es-PE')+'</b></td><td colspan="4"></td></tr></tfoot></table></div>';
+      '</tbody><tfoot><tr><td colspan="3"><b>Total del bloque</b></td><td class="num"><b>'+total.toLocaleString('es-PE')+'</b></td><td colspan="4"></td></tr></tfoot></table></div>';
   }
 
   /* ---------- crear o editar una programación ---------- */
@@ -185,7 +186,7 @@
     const f=Object.assign({linea:'',marca:'',presentacion:'',cantidad:'',upp:''},existente?{
       linea:existente.linea,marca:existente.marca,presentacion:existente.presentacion,
       cantidad:num(existente.cantidadProgramada),upp:num(existente.unidadesPorPaleta)}:base||{});
-    f.fecha=E.fecha;f.turno=E.turno;
+    f.fecha=E.fecha;f.turno=existente?existente.turno:NS.valorBloque(E.turno);   // una fila existente conserva su turno; lo nuevo de Día + Intermedio va en la fila DÍA
     const opcionesLinea=NS.lineas().map(l=>'<option value="'+esc(l.key)+'"'+(l.key===f.linea?' selected':'')+'>'+esc(l.name)+'</option>').join('');
     const fondo=abrirDialogo('<h3>'+(existente?'Editar programación':'Nueva programación')+'</h3>'+
       '<div class="small-muted" style="margin-bottom:10px">'+esc(f.fecha)+' · '+esc(f.turno)+'</div>'+
@@ -254,7 +255,7 @@
       '<label><input type="radio" name="pc-modo" value="DIA_ANTERIOR" checked> Del día anterior ('+esc(addDias(E.fecha,-1))+')</label>'+
       '<label><input type="radio" name="pc-modo" value="SEMANA_PASADA"> Del mismo día de la semana pasada ('+esc(addDias(E.fecha,-7))+')</label>'+
       '<label><input type="radio" name="pc-modo" value="SEMANA_COMPLETA"> De una semana completa (la semana anterior a la de esta fecha, lunes a domingo)</label>'+
-      '<label><input type="checkbox" id="pc-solo"> Solo el turno seleccionado ('+esc(E.turno)+')</label>'+
+      '<label><input type="checkbox" id="pc-solo"> Solo el bloque seleccionado ('+esc(NS.etiquetaBloque(E.turno))+')</label>'+
       '<label><input type="checkbox" id="pc-reemplazar"> Reemplazar las que ya existen (las que están en producción nunca se tocan)</label></div>'+
       '<div id="pc-vista" class="plan-nota"></div><div class="plan-error" id="pc-error"></div>'+
       '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="pc-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="pc-aplicar" disabled>Copiar</button></div>',true);
@@ -322,7 +323,7 @@
     const raiz=e.target.closest&&e.target.closest('#plan-root');
     if(!raiz||NS.estado.tab!=='programacion')return;
     const E=NS.estado,t=e.target.closest('[data-plan-turno]');
-    if(t){E.turno=t.getAttribute('data-plan-turno');NS.pintarPestana();return;}
+    if(t){E.turno=NS.valorBloque(t.getAttribute('data-plan-turno'));NS.pintarPestana();return;}
     const dia=e.target.closest('[data-plan-dia]');
     if(dia){
       const v=dia.getAttribute('data-plan-dia');

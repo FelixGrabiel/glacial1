@@ -11,7 +11,7 @@ function entorno({activo,fecha,turno,paletas,registros}){
   vm.runInContext(leer('js/nucleo/45-indicadores.js'),sb);
   sb.loadRecords=()=>registros;
   sb.resumenProgramacionCombinacionTurnos=()=>({unidadesProducidas:paletas});
-  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};var turnoVigente=()=>('+JSON.stringify({activo,fecha,turno})+');'+trozo,sb);
+  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};var turnoActivo=(f,t)=>'+JSON.stringify(!!activo)+'&&f==='+JSON.stringify(fecha)+'&&GlacialIndicadores.claveBloque(t)===GlacialIndicadores.claveBloque('+JSON.stringify(turno)+');var bloqueAhora=()=>({activo:'+JSON.stringify(!!activo)+',enFranja:false,fecha:'+JSON.stringify(fecha)+',bloque:GlacialIndicadores.claveBloque('+JSON.stringify(turno)+')});'+trozo,sb);
   return sb;
 }
 const item={linea:'PET1',fecha:'2026-10-04',turno:'DÍA',marca:'Bells',presentacion:'625 ml',op:{produccionFinalCorregida:99999}};
@@ -22,8 +22,10 @@ e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[
 ok(e.producidoDe(item)===4800,'turno cerrado con registro: producido = registro del turno (4 800), solo de esa marca y presentación');
 e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[]});
 ok(e.producidoDe(item)===0&&vm.runInContext('producidoSinRegistro',e)(item)===true,'turno cerrado sin registro: no se sustituye por Paletas → sin registro (suma 0)');
+e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[reg('NOCHE',3000)]});
+ok(vm.runInContext('producidoSinRegistro',e)(item)===true,'el registro de otro bloque (Noche) no vale para el bloque Día + Intermedio');
 e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[reg('INTERMEDIO',3000)]});
-ok(vm.runInContext('producidoSinRegistro',e)(item)===true,'el registro de otro turno no vale para este turno');
+ok(e.producidoDe(item)===3000,'Día e Intermedio comparten el reporte: el registro de Intermedio vale para el bloque Día + Intermedio');
 const G=vm.runInContext('GlacialIndicadores',e);
 ok(Math.abs(G.cumplimiento(14400,15000)-0.96)<1e-12&&G.cumplimiento(100,0)===null,'cumplimiento = producido ÷ programado; sin programado → null');
 ok(G.programadoVigente([{cantidadProgramada:100},{cantidadProgramada:50,estadoOperacion:{estado:'CANCELADA'}}])===100,'programado vigente sin canceladas');

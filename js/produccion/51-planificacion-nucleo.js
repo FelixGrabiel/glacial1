@@ -21,6 +21,12 @@
   const TURNOS=['DÍA','INTERMEDIO','NOCHE'];
   const ESTADOS_EN_PRODUCCION=['EN_PRODUCCION','PAUSA','DETENIDA','LISTA','FINALIZADA'];
   NS.TURNOS=TURNOS;
+  /* Se programa por BLOQUE: «Día + Intermedio» y «Noche», con una sola cantidad por producto. Lo de Día + Intermedio se guarda en la
+     fila DÍA (no se crea fila de INTERMEDIO, así no cambia la clave ni hay que migrar datos). Las filas INTERMEDIO ya guardadas
+     siguen valiendo: el programado del bloque es la suma (GlacialProgramadoBloque, 23b). */
+  NS.BLOQUES=[{valor:'DÍA',etq:'Día + Intermedio'},{valor:'NOCHE',etq:'Noche'}];
+  NS.valorBloque=t=>String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DÍA';
+  NS.etiquetaBloque=t=>NS.valorBloque(t)==='NOCHE'?'Noche':'Día + Intermedio';
 
   /* ---------- utilidades ---------- */
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
@@ -61,8 +67,20 @@
   NS.estadoTexto=e=>({PENDIENTE:'Pendiente',EN_PRODUCCION:'En producción',PAUSA:'En pausa',DETENIDA:'Detenida',LISTA:'Detenida',FINALIZADA:'Finalizada',CANCELADA:'Cancelada'})[e]||e||'Pendiente';
   NS.items=(fecha,turno)=>{
     const orden=lineas().map(l=>l.key);
-    return programaciones().filter(p=>p&&p.fecha===fecha&&(!turno||p.turno===turno)&&num(p.cantidadProgramada)>0)
+    const bloque=turno?(NS.valorBloque(turno)==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO']):null;
+    return programaciones().filter(p=>p&&p.fecha===fecha&&(!bloque||bloque.includes(p.turno))&&num(p.cantidadProgramada)>0)
       .sort((a,b)=>(orden.indexOf(a.linea)-orden.indexOf(b.linea))||String(a.marca).localeCompare(String(b.marca),'es')||String(a.presentacion).localeCompare(String(b.presentacion),'es'));
+  };
+  /* Productos con la MISMA cantidad en Día e Intermedio (posible duplicado): solo se avisa, nunca se corrige solo. */
+  NS.duplicadosPosibles=fecha=>{
+    const por=new Map();
+    programaciones().forEach(p=>{
+      if(!p||p.fecha!==fecha||!(num(p.cantidadProgramada)>0)||NS.estadoDe(p)==='CANCELADA')return;
+      if(p.turno!=='DÍA'&&p.turno!=='INTERMEDIO')return;
+      const k=[p.linea,p.marca,p.presentacion].join('|');const o=por.get(k)||{};o[p.turno]=num(p.cantidadProgramada);por.set(k,o);
+    });
+    const salida=new Set();por.forEach((o,k)=>{if(o['DÍA']>0&&o['DÍA']===o['INTERMEDIO'])salida.add(k);});
+    return salida;
   };
   NS.paletasEquivalentes=(cant,upp)=>num(upp)>0?num(cant)/num(upp):0;
   /* Unidades por paleta: el catálogo (53) manda; si no hay, la tabla fija de siempre. */
@@ -190,17 +208,32 @@
       const crudo=[col(r,['Fecha']),col(r,['Línea','Linea']),col(r,['Marca']),col(r,['Presentación','Presentacion']),col(r,['Cantidad','Cantidad programada'])];
       if(crudo.every(x=>x===''))return;
       const linea=lineaDeCelda(col(r,['Línea','Linea']));
+      let turnoLeido=turnoDeCelda(col(r,['Turno']));
+      const eraIntermedio=turnoLeido==='INTERMEDIO';
+      if(eraIntermedio)turnoLeido='DÍA';        // Día + Intermedio es UN bloque: se guarda en la fila DÍA
       const fila={
-        linea,fecha:fechaDeCelda(col(r,['Fecha'])),turno:turnoDeCelda(col(r,['Turno'])),
+        linea,fecha:fechaDeCelda(col(r,['Fecha'])),turno:turnoLeido,
         marca:marcaDeCelda(linea,col(r,['Marca'])),presentacion:presentacionDeCelda(linea,col(r,['Presentación','Presentacion'])),
         cantidad:Number(col(r,['Cantidad','Cantidad programada'])),upp:Number(col(r,['Unidades por paleta','UND por paleta','Unidades x paleta']))
       };
       if(!(fila.upp>0))fila.upp=NS.uppSugerida(fila.linea,fila.marca,fila.presentacion);
       const v=NS.validar(fila);
       const clave=NS.clave(fila.linea,fila.fecha,fila.turno,fila.marca,fila.presentacion);
+      if(eraIntermedio)v.avisos.push('Fila INTERMEDIO: se suma al bloque Día + Intermedio (se guarda en la fila DÍA).');
+      const previa=vistos.has(clave)?salida.find(x=>x.clave===clave&&!x.errores.length):null;
+      if(previa&&!v.errores.length&&(eraIntermedio||previa.conIntermedio)){
+        // Día + Intermedio del mismo producto: se SUMAN (no gana la última).
+        const antes=previa.fila.cantidad;previa.fila.cantidad=antes+fila.cantidad;previa.conIntermedio=true;
+        previa.avisos.push('Se sumó la fila '+(i+2)+' (Día + Intermedio): '+antes.toLocaleString('es-PE')+' + '+fila.cantidad.toLocaleString('es-PE')+' = '+previa.fila.cantidad.toLocaleString('es-PE')+' UND.');
+        return;
+      }
       if(vistos.has(clave))v.avisos.push('Se repite en este archivo: gana la última fila.');
+      if(!v.errores.length){
+        const ex=NS.existente(fila.linea,fila.fecha,'INTERMEDIO',fila.marca,fila.presentacion);
+        if(ex&&num(ex.cantidadProgramada)>0)v.avisos.push('Ya hay una fila INTERMEDIO guardada ('+num(ex.cantidadProgramada).toLocaleString('es-PE')+' UND): el programado del bloque será la suma'+(num(ex.cantidadProgramada)===fila.cantidad?' (posible duplicado: misma cantidad).':'.'));
+      }
       vistos.add(clave);
-      salida.push({fila,numero:i+2,errores:v.errores,avisos:v.avisos});
+      salida.push({fila,numero:i+2,errores:v.errores,avisos:v.avisos,clave,conIntermedio:eraIntermedio});
     });
     if(!salida.length)throw new Error('No se encontraron filas con datos.');
     return {filas:salida};
@@ -231,7 +264,7 @@
   NS.irA=function(fecha,turno){
     NS.estado=NS.estado||{};
     if(fechaOk(fecha))NS.estado.fecha=fecha;
-    if(TURNOS.includes(turno))NS.estado.turno=turno;
+    if(TURNOS.includes(turno))NS.estado.turno=NS.valorBloque(turno);
     NS.estado.tab='programacion';
     if(typeof goPlanificacion==='function')goPlanificacion();
   };

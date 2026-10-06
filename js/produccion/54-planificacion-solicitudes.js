@@ -270,7 +270,7 @@
     const fondo=NS.abrirDialogo('<h3>Nueva solicitud</h3><div class="plan-campos">'+
       '<label class="completo">Línea<select id="sn-linea">'+NS.lineas().map(l=>'<option value="'+esc(l.key)+'">'+esc(l.name)+'</option>').join('')+'</select></label>'+
       '<label>Fecha<input type="date" id="sn-fecha" value="'+esc(E.fecha)+'"></label>'+
-      '<label>Turno<select id="sn-turno">'+NS.TURNOS.map(t=>'<option'+(t===E.turno?' selected':'')+'>'+t+'</option>').join('')+'</select></label></div>'+
+      '<label>Turno<select id="sn-turno">'+NS.BLOQUES.map(b=>'<option value="'+b.valor+'"'+(b.valor===NS.valorBloque(E.turno)?' selected':'')+'>'+b.etq+'</option>').join('')+'</select></label></div>'+
       '<p class="plan-nota">Si ya hay un producto programado, pide el cambio desde su fila en Programación.</p>'+
       '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="sn-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="sn-seguir">Pedir programación</button></div>');
     fondo.querySelector('#sn-cancelar').onclick=()=>fondo.remove();
@@ -305,10 +305,19 @@
   /* Reúne programado y producido por línea, día y turno dentro del rango. */
   function calcularCumplimiento(){
     const items=NS.programaciones().filter(p=>p&&fechaOk(p.fecha)&&p.fecha>=FC.desde&&p.fecha<=FC.hasta&&(!FC.linea||p.linea===FC.linea)&&num(p.cantidadProgramada)>0);
-    const detalle=items.filter(p=>NS.estadoDe(p)!=='CANCELADA').map(p=>{
+    // Por BLOQUE: un producto con filas en Día e Intermedio suma su programado y su producido se cuenta UNA vez
+    // (glacialProducidoVigente ya devuelve lo producido por todo el bloque).
+    const bloques=new Map();
+    items.filter(p=>NS.estadoDe(p)!=='CANCELADA').forEach(p=>{
+      const bl=NS.valorBloque(p.turno),k=[p.linea,p.fecha,bl,p.marca,p.presentacion].join('|');
+      const o=bloques.get(k);
+      if(o)o.programado+=G().programadoVigente([p]);else bloques.set(k,{p,bloque:bl,programado:G().programadoVigente([p])});
+    });
+    const detalle=[...bloques.values()].map(o=>{
+      const p=o.p;
       const prod=typeof window.glacialProducidoVigente==='function'?window.glacialProducidoVigente(p):null;
-      return {linea:p.linea,fecha:p.fecha,turno:p.turno,marca:p.marca,presentacion:p.presentacion,
-        programado:G().programadoVigente([p]),producido:prod,semana:lunesDe(p.fecha)};
+      return {linea:p.linea,fecha:p.fecha,turno:o.bloque,marca:p.marca,presentacion:p.presentacion,
+        programado:o.programado,producido:prod,semana:lunesDe(p.fecha)};
     });
     const sumar=(clave)=>{
       const m=new Map();

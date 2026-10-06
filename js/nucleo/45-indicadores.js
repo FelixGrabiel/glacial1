@@ -324,6 +324,29 @@
     const ms=(dia,min)=>new Date(y,mo,dia,Math.floor(min/60),min%60).getTime();
     return {inicio:ms(d,ini),fin:ms(fin<=ini?d+1:d,fin),bloque:claveBloque(turno),etiqueta:b.etiqueta};
   }
+  /* Bloque productivo vigente a una hora dada (puro). Devuelve:
+       {fecha, bloque:'diaInter'|'noche'|null, activo, enFranja, inicio, fin, reanudaMs, etiqueta}
+     - fecha = día operativo en que EMPIEZA el bloque (Noche después de medianoche pertenece al día anterior).
+     - enFranja = planta sin producción (entre el fin de Día + Intermedio y el inicio de Noche): no hay bloque; reanudaMs = inicio de Noche.
+     Es independiente de turnoVigente (tareo/asistencia): solo define los bloques productivos. */
+  function bloqueVigente(ahoraMs,cfg){
+    const t=Number(ahoraMs);
+    if(!Number.isFinite(t))return null;
+    const hoy=new Date(t);
+    for(let k=-1;k<=0;k++){
+      const d=new Date(hoy.getFullYear(),hoy.getMonth(),hoy.getDate()+k);
+      const fecha=fechaISO(d);
+      const di=horarioBloque(fecha,'DÍA',cfg),no=horarioBloque(fecha,'NOCHE',cfg);
+      if(di&&t>=di.inicio&&t<di.fin)return {fecha,bloque:'diaInter',activo:true,enFranja:false,inicio:di.inicio,fin:di.fin,reanudaMs:null,etiqueta:di.etiqueta};
+      if(no&&t>=no.inicio&&t<no.fin)return {fecha,bloque:'noche',activo:true,enFranja:false,inicio:no.inicio,fin:no.fin,reanudaMs:null,etiqueta:no.etiqueta};
+      if(di&&no&&t>=di.fin&&t<no.inicio)return {fecha,bloque:null,activo:false,enFranja:true,inicio:di.fin,fin:no.inicio,reanudaMs:no.inicio,etiqueta:'Planta sin producción'};
+    }
+    // Antes del primer bloque del día (p. ej. la franja que cruza la medianoche en una configuración distinta): se toma el día natural.
+    const fecha=fechaISO(hoy);
+    const di=horarioBloque(fecha,'DÍA',cfg);
+    return {fecha,bloque:null,activo:false,enFranja:true,inicio:t,fin:di?di.inicio:t,reanudaMs:di?di.inicio:null,etiqueta:'Planta sin producción'};
+  }
+
   function pausasPrevistas(turno,cfg){return normalizarBloques(cfg)[claveBloque(turno)].pausas;}
   /* Minutos de pausas previstas que todavía NO figuran como parada programada oficial (se reconocen por el nombre del motivo). */
   function pausasPendientesMin(previstas,programadasOficiales){
@@ -505,7 +528,7 @@
     cumplimiento,programadoVigente,produccionVigente,
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,
     turnoVigente,diaOperativo,horarioTurno,HORARIOS_TURNO,
-    BLOQUES_INICIALES,normalizarBloques,horarioBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
+    BLOQUES_INICIALES,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
     estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,
     resumenIndicadores,DEFINICIONES
   });

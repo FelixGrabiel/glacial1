@@ -143,10 +143,12 @@
     const cfg=config();
     const n=ahora();
     const lista=[];
+    // Franja sin producción (entre el fin de Día + Intermedio y el inicio de Noche): sin alertas de línea.
+    const franja=typeof window.glacialEnFranjaSinProduccion==='function'&&window.glacialEnFranjaSinProduccion();
     const add=(id,tipo,linea,texto,desde,extra)=>lista.push(Object.assign({id,tipo,linea,texto,desdeMs:desde,severidad:'ambar'},extra||{}));
 
     /* a) paradas abiertas */
-    if(a.tipos.includes('parada')){
+    if(a.tipos.includes('parada')&&!franja){
       paradasAbiertas().forEach(p=>{
         if(!enAmbito(a,p.linea))return;
         const min=(n-p.desde)/MS_MIN;
@@ -162,7 +164,7 @@
     if(a.tipos.some(t=>['paletas','proyeccion'].includes(t))&&typeof window.glacialResumenEjecutivoLineas==='function'){
       try{resumen=window.glacialResumenEjecutivoLineas();}catch(_){resumen=null;}
     }
-    if(resumen&&Array.isArray(resumen.filas)){
+    if(!franja&&resumen&&Array.isArray(resumen.filas)){
       resumen.filas.forEach(f=>{
         if(!enAmbito(a,f.linea)||f.estado!=='EN_CURSO'||!f.tiempos||!f.tiempos.enCurso)return;
         if(a.tipos.includes('paletas')){
@@ -183,15 +185,17 @@
     }
 
     /* d) programación que no se inició a tiempo */
-    if(a.tipos.includes('noiniciada')&&typeof window.glacialTurnoVigente==='function'){
-      let tv=null;try{tv=window.glacialTurnoVigente();}catch(_){tv=null;}
-      const r=tv&&inicioTurnoMs(tv.fecha,tv.turno);
+    if(a.tipos.includes('noiniciada')&&!franja&&typeof window.glacialBloqueVigente==='function'){
+      // Por BLOQUE productivo (Día + Intermedio / Noche), no por turno de tareo.
+      let bv=null;try{bv=window.glacialBloqueVigente();}catch(_){bv=null;}
+      const tv=bv&&bv.activo?{fecha:bv.fecha,turno:bv.bloque==='noche'?'NOCHE':'DÍA',bloque:bv.bloque}:null;
+      const r=tv?{ini:bv.inicio,fin:bv.fin}:null;
       if(r&&n>r.ini+cfg.noIniciadaMin*MS_MIN){
         const porLinea=new Map();
         let prog=[];try{prog=loadProgramaciones()||[];}catch(_){prog=[];}
         prog.forEach(p=>{
           if(!p||p.fecha!==tv.fecha||Number(p.cantidadProgramada)<=0)return;
-          const delTurno=p.turno===tv.turno||(tv.turno==='INTERMEDIO'&&p.turno==='DÍA');
+          const delTurno=(p.turno==='NOCHE'?'noche':'diaInter')===tv.bloque;
           if(!delTurno)return;
           const e=p.estadoOperacion&&p.estadoOperacion.estado;
           if(e==='CANCELADA')return;
@@ -202,7 +206,7 @@
         porLinea.forEach((o,linea)=>{
           if(o.iniciada||!enAmbito(a,linea))return;
           add('ini|'+linea+'|'+tv.fecha+'|'+tv.turno,'noiniciada',linea,
-            'Programación sin iniciar desde las '+hhmm(r.ini+cfg.noIniciadaMin*MS_MIN)+' ('+tv.turno+')',r.ini+cfg.noIniciadaMin*MS_MIN);
+            'Programación sin iniciar desde las '+hhmm(r.ini+cfg.noIniciadaMin*MS_MIN)+' ('+(tv.bloque==='noche'?'Noche':'Día + Intermedio')+')',r.ini+cfg.noIniciadaMin*MS_MIN);
         });
       }
     }

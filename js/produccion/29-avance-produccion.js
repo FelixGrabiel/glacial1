@@ -76,8 +76,18 @@ function avProgramaciones(){
   const ps=typeof loadProgramaciones==='function'?loadProgramaciones():(typeof _programacionesCache!=='undefined'?_programacionesCache:[]);
   return (ps||[]).filter(p=>p&&AVANCE_LINEAS.includes(p.linea)&&p.fecha===avanceEstado.fecha&&avTurnoCanon(p.turno)===avanceEstado.turno);
 }
+/* RELEVO vs CIERRE DEL BLOQUE. El bloque productivo (Día + Intermedio 07:00–19:00, Noche 21:00–07:00; configuración en
+   sync/configIndicadores → bloques) lo cierra solo «Finalizar presentación» en Producción Actual. Generar el «Cierre» antes
+   de que termine el bloque es un RELEVO: deja registrado el avance del supervisor con la hora real y NO fija el fin del bloque.
+   Después de terminado el bloque, el cierre se corta en el fin del bloque. */
+function avHorarioBloque(){return GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}
+function avAhoraMs(){return typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();}
+function avEsRelevo(){const b=avHorarioBloque();return !!b&&avAhoraMs()<b.fin;}
+function avCorteCierre(){const b=avHorarioBloque();return b?avHoraDesdeMs(Math.min(avAhoraMs(),b.fin)):avCtx().fin;}
+function avTituloSnapshot(s){return s.tipo==='CIERRE'?(s.relevo?'RELEVO DE TURNO':'CIERRE DE PRODUCCIÓN'):'AVANCE DE PRODUCCIÓN';}
+
 function avCorteMs(hora,tipo){
-  if(tipo==='CIERRE')return avHoraMs(avanceEstado.fecha,avCtx().fin,avanceEstado.turno);
+  if(tipo==='CIERRE')return avHoraMs(avanceEstado.fecha,avCorteCierre(),avanceEstado.turno);
   return avHoraMs(avanceEstado.fecha,hora,avanceEstado.turno);
 }
 
@@ -574,7 +584,7 @@ function avLineaSnapshot(linea,hora,tipo){
 
   if(!actividad)return null;
 
-  const corte=tipo==='CIERRE'?(avFinLinea(linea)||avCtx().fin):hora;
+  const corte=tipo==='CIERRE'?(avFinLinea(linea)||avCorteCierre()):hora;
   const minTurno=inicio?avMinEntre(avanceEstado.fecha,inicio,corte,avanceEstado.turno):0;
   const paradas=avParadasLinea(linea,hora,tipo);
   const totalParadas=paradas.reduce((s,p)=>s+p.minutos,0);
@@ -622,7 +632,7 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
      Las horas configuradas (09:00, 11:00, etc.) identifican el avance,
      pero el corte operativo es la hora REAL en que el supervisor lo genera.
   */
-  const horaReal=tipo==='CIERRE'?avCtx().fin:avHoraActual();
+  const horaReal=tipo==='CIERRE'?avCorteCierre():avHoraActual();
   const lineas=AVANCE_LINEAS.map(l=>avLineaSnapshot(l,horaReal,tipo)).filter(Boolean);
   if(!lineas.length)throw Error('No existe producción ni una línea iniciada para este turno.');
   const totalParadas=lineas.reduce((s,l)=>s+l.totalParadas,0);
@@ -638,6 +648,7 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
     tipo,horaCorte:horaReal,
     horaReferencia:tipo==='CIERRE'?'CIERRE':hora,
     inicioTurno:ctx.inicio,finTurno:ctx.fin,
+    relevo:tipo==='CIERRE'&&avEsRelevo(),    // true = relevo de turno: el bloque sigue abierto
     supervisor:avNombreUsuario(),generadoPor:state.user?.username||'',
     createdAt:Date.now(),createdBy:state.user?.username||'',
     generadoEn:Date.now(),estado:'GENERADO',lineas,
@@ -829,7 +840,7 @@ function avTituloPresentacion(linea,b){
 function avTextoWhatsApp(s){
   const fecha=s.fecha.split('-').reverse().join('/');
   const out=[
-    `*${s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN'} – TURNO ${s.turno}*`,
+    `*${avTituloSnapshot(s)} – TURNO ${s.turno}*`,
     '',`*Fecha: ${fecha}*`,`*Hora: ${s.horaCorte}*`];
 
   s.lineas.forEach((l,idxLinea)=>{
@@ -1100,7 +1111,7 @@ function avAbrirDetalle(s){
   }
   const r=s.resumen||{};
   modal.innerHTML=`<div class="av-detail-dialog">
-    <header class="av-detail-head"><div><small>${s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN'}</small><h2>${avFechaBonita(s.fecha)} · ${avEsc(s.turno)} · ${avEsc(s.horaCorte||'')}</h2></div><button onclick="avCerrarDetalle()">✕</button></header>
+    <header class="av-detail-head"><div><small>${avTituloSnapshot(s)}</small><h2>${avFechaBonita(s.fecha)} · ${avEsc(s.turno)} · ${avEsc(s.horaCorte||'')}</h2></div><button onclick="avCerrarDetalle()">✕</button></header>
     <div class="av-detail-body">
       <div class="av-detail-tabs"><button onclick="avIrDetalle('avd-resumen')">RESUMEN</button><button onclick="avIrDetalle('avd-produccion')">PRODUCCIÓN</button><button onclick="avIrDetalle('avd-paradas')">PARADAS</button><button onclick="avIrDetalle('avd-personal')">PERSONAL</button><button onclick="avIrDetalle('avd-observaciones')">OBSERVACIONES</button></div>
       <section id="avd-resumen" class="av-detail-kpis">
@@ -1219,7 +1230,7 @@ function avCanvasSnapshot(s){
   x.fillStyle=BG;x.fillRect(0,0,W,H);
   x.fillStyle=DARK;x.fillRect(0,0,W,205);
   x.fillStyle=WHITE;x.font=`700 ${Math.round(31*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('GLACIAL',55,56);
-  x.font=`700 ${Math.round(40*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN',275,62);
+  x.font=`700 ${Math.round(40*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(avTituloSnapshot(s),275,62);
   x.font=`700 ${Math.round(26*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`TURNO ${s.turno}`,275,101);
   x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);
   x.font=`${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}`,55,184);

@@ -523,6 +523,38 @@
     });
   }
 
+  /* =========================================================
+     PROGRAMADO DEL BLOQUE (función única)
+     Día e Intermedio comparten UNA programación por línea y producto: el programado del bloque es la SUMA de las filas
+     DÍA e INTERMEDIO (sin canceladas). Noche tiene la suya. Producción actual, esta función central, Avance/Cierre,
+     Planificación y los reportes la usan; ya no existe la regla «si Día > 0».
+     filtro: {marca, presentacion} opcionales. Devuelve {cantidad, productos:[{marca,presentacion,cantidad,filas,duplicadoPosible}],
+     duplicadosPosibles}. «duplicadoPosible» = el mismo producto con la MISMA cantidad en Día e Intermedio (solo se avisa, no se corrige).
+     ========================================================= */
+  function programadoBloque(linea,fecha,turno,filtro){
+    const f=filtro||{};
+    const todos=typeof loadProgramaciones==='function'?(loadProgramaciones()||[]):[];
+    const mapa=new Map();
+    todos.forEach(p=>{
+      if(!p||p.linea!==linea||p.fecha!==fecha||bloqueTurno(p.turno)!==bloqueTurno(turno))return;
+      if(f.marca&&p.marca!==f.marca)return;
+      if(f.presentacion&&p.presentacion!==f.presentacion)return;
+      if(p.estadoOperacion&&p.estadoOperacion.estado==='CANCELADA')return;
+      const cant=num(p.cantidadProgramada);
+      if(!(cant>0))return;
+      const k=p.marca+'||'+p.presentacion;
+      const o=mapa.get(k)||{marca:p.marca,presentacion:p.presentacion,cantidad:0,filas:[]};
+      o.cantidad+=cant;o.filas.push({turno:p.turno,cantidad:cant,clave:p.clave||''});
+      mapa.set(k,o);
+    });
+    const productos=[...mapa.values()].map(o=>{
+      const d=o.filas.find(x=>x.turno==='DÍA'),i=o.filas.find(x=>x.turno==='INTERMEDIO');
+      return Object.assign(o,{duplicadoPosible:!!(d&&i&&d.cantidad===i.cantidad)});
+    });
+    return {cantidad:productos.reduce((s,o)=>s+o.cantidad,0),productos,duplicadosPosibles:productos.filter(o=>o.duplicadoPosible)};
+  }
+  window.glacialProgramadoBloque=programadoBloque;
+
   window.calcularTiemposLinea=calcularTiemposLinea;
   window.calcularRatiosLinea=calcularRatiosLinea;
   window.proyectarCierreLinea=proyectarCierreLinea;
