@@ -266,20 +266,20 @@
     const delBloque=(p,b)=>b.valor==='NOCHE'?p.turno==='NOCHE':(p.turno==='DÍA'||p.turno==='INTERMEDIO');
     const dup=new Set();dias.forEach(d=>NS.duplicadosPosibles(d).forEach(k=>dup.add(d+'|'+k)));
     let cab1='<th rowspan="2">Línea</th>',cab2='';
-    dias.forEach((d,i)=>{cab1+='<th colspan="2" style="text-align:center;border-left:1px solid #d9e2e8">'+nombres[i]+' '+d.slice(8)+'/'+d.slice(5,7)+'</th>';BL.forEach((b,j)=>{cab2+='<th style="text-align:center;font-size:10px;border-left:'+(j===0?'1px solid #d9e2e8':'0')+'">'+(b.valor==='NOCHE'?'Noche':'Día + Int.')+'</th>';});});
+    dias.forEach((d,i)=>{cab1+='<th colspan="2" style="text-align:center;border-left:1px solid #d9e2e8">'+nombres[i]+' '+d.slice(8)+'/'+d.slice(5,7)+'</th>';BL.forEach((b,j)=>{cab2+='<th style="text-align:center;font-size:10px;border-left:'+(j===0?'1px solid #d9e2e8':'0')+'">'+(b.valor==='NOCHE'?'Noche':'Día (incl. Int.)')+'</th>';});});
     cab1+='<th rowspan="2" class="num" style="border-left:1px solid #d9e2e8">Total línea</th>';
     const filas=NS.lineas().map(l=>{
       let totalLinea=0,celdas='';
       dias.forEach(d=>BL.forEach((b,j)=>{
         const ps=todos.filter(p=>p.linea===l.key&&p.fecha===d&&delBloque(p,b));
         // un producto con filas en Día e Intermedio suma sus cantidades
-        const porProd=new Map();ps.forEach(p=>{const k=p.marca+'|'+p.presentacion;const o=porProd.get(k)||{p,cant:0,dup:dup.has(d+'|'+[p.linea,p.marca,p.presentacion].join('|'))};o.cant+=num(p.cantidadProgramada);porProd.set(k,o);});
+        const porProd=new Map();ps.forEach(p=>{const k=p.marca+'|'+p.presentacion;const o=porProd.get(k)||{p,cant:0,inter:false,dup:dup.has(d+'|'+[p.linea,p.marca,p.presentacion].join('|'))};o.cant+=num(p.cantidadProgramada);if(p.turno==='INTERMEDIO')o.inter=true;porProd.set(k,o);});
         const prods=[...porProd.values()];
         const suma=prods.reduce((s,o)=>s+o.cant,0);
         totalLinea+=suma;totDia[d+'|'+b.valor]=(totDia[d+'|'+b.valor]||0)+suma;
         const estilo=!prods.length?'background:#fff8e6':prods.length>1?'box-shadow:inset 0 0 0 2px #2d7fc0;background:#eef6fc':'';
         celdas+='<td data-sem-fecha="'+d+'" data-sem-turno="'+b.valor+'" style="cursor:pointer;font-size:11px;min-width:104px;vertical-align:top;border-left:'+(j===0?'1px solid #d9e2e8':'0')+';'+estilo+'">'+
-          (prods.length?prods.map(o=>'<div title="'+esc(o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+'"><b>'+o.cant.toLocaleString('es-PE')+'</b> '+esc(o.p.marca)+' '+esc(NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+(o.dup?' <span style="color:#8a5a1e" title="Misma cantidad en Día e Intermedio: posible duplicado">⚠</span>':'')+'</div>').join('')+(prods.length>1?'<div style="color:#2d7fc0">'+prods.length+' productos</div>':''):'<span style="color:#8a6d1d">—</span>')+'</td>';
+          (prods.length?prods.map(o=>'<div title="'+esc(o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+'"><b>'+o.cant.toLocaleString('es-PE')+'</b> '+esc(o.p.marca)+' '+esc(NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+(o.inter?' <small style="color:#5a6b78">(cargada como Intermedio)</small>':'')+(o.dup?' <span style="color:#8a5a1e" title="Misma cantidad en Día e Intermedio: posible duplicado">⚠</span>':'')+'</div>').join('')+(prods.length>1?'<div style="color:#2d7fc0">'+prods.length+' productos</div>':''):'<span style="color:#8a6d1d">—</span>')+'</td>';
       }));
       granTotal+=totalLinea;
       return '<tr><td><b>'+esc(l.name)+'</b></td>'+celdas+'<td class="num" style="border-left:1px solid #d9e2e8"><b>'+totalLinea.toLocaleString('es-PE')+'</b></td></tr>';

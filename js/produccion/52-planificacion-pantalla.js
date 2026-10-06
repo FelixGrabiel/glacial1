@@ -133,7 +133,7 @@
     const E=NS.estado,planifica=NS.puede();
     cont.innerHTML='<div class="plan-bar">'+
       '<label>Fecha<input type="date" id="plan-fecha" value="'+esc(E.fecha)+'"></label>'+
-      '<div class="plan-turnos" role="group" aria-label="Turno">'+NS.BLOQUES.map(b=>'<button type="button" class="plan-pill'+(b.valor===NS.valorBloque(E.turno)?' active':'')+'" data-plan-turno="'+b.valor+'">'+b.etq+'</button>').join('')+'</div>'+
+      '<div class="plan-turnos" role="group" aria-label="Turno">'+NS.BLOQUES.map(b=>'<button type="button" class="plan-pill'+(b.valor===NS.valorBloque(E.turno)?' active':'')+'" data-plan-turno="'+b.valor+'">'+esc(b.etq)+' <small style="font-weight:500">'+esc(NS.horarioBloque(b.valor))+'</small></button>').join('')+'</div>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="-1">◀ Día anterior</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="1">Día siguiente ▶</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="hoy">Hoy</button>'+
@@ -164,13 +164,13 @@
         const cant=num(p.cantidadProgramada),upp=num(p.unidadesPorPaleta);
         total+=cant;
         const est=NS.estadoDe(p);
-        filas.push('<tr><td>'+(i===0?'<b>'+esc(l.name)+'</b>':'')+'</td><td>'+esc(p.marca)+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">(fila Intermedio)</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td>'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td>'+
+        filas.push('<tr><td>'+(i===0?'<b>'+esc(l.name)+'</b>':'')+'</td><td>'+esc(p.marca)+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">· Cargada como Intermedio</small>':'')+((p.unificadoDeIntermedio||[]).length?' <small style="color:#5a6b78" title="Unificada desde Intermedio con motivo y registro en el historial">· incluye '+(p.unificadoDeIntermedio.reduce((a,x)=>a+num(x.cantidad),0)).toLocaleString('es-PE')+' cargadas como Intermedio</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td>'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td>'+
           '<td class="num">'+cant.toLocaleString('es-PE')+'</td><td class="num">'+(upp?upp.toLocaleString('es-PE'):'—')+'</td>'+
           '<td class="num">'+(upp?NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:1}):'—')+'</td>'+
           '<td><span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-editar="'+esc(p.clave)+'">Editar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
-          (planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
+          (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Día</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
       });
     });
     cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th class="num">Cantidad (UND)</th>'+
@@ -307,6 +307,8 @@
       }catch(err){q('pi-error').textContent='No se pudo leer el Excel: '+((err&&err.message)||err);}
     };
     q('pi-aplicar').onclick=async()=>{
+      const dudosas=lectura.filas.filter(x=>!x.errores.length&&x.posibleDuplicado);
+      if(dudosas.length&&!confirm('Hay '+dudosas.length+' producto(s) con posible duplicado (misma cantidad en Día e Intermedio):'+LF+LF+dudosas.slice(0,8).map(x=>'· '+x.fila.marca+' '+x.fila.presentacion+' ('+x.fila.cantidad.toLocaleString('es-PE')+' UND)').join(LF)+LF+LF+'¿Confirmas que son cantidades distintas y quieres importar?'))return;
       const filas=lectura.filas.filter(x=>!x.errores.length).map(x=>x.fila);
       // Si el archivo repite un producto, gana la última fila.
       const ultimas=new Map();filas.forEach(f=>ultimas.set(NS.clave(f.linea,f.fecha,f.turno,f.marca,f.presentacion),f));
@@ -315,6 +317,25 @@
       if(r.fallos.length){q('pi-error').textContent=r.ok.length+' importada(s); '+r.fallos.length+' con error:\n'+r.fallos.slice(0,6).map(x=>x.error).join('\n');q('pi-aplicar').disabled=false;}
       else{fondo.remove();if(r.ok.length){const f0=r.ok[0];NS.estado.fecha=f0.fecha;NS.estado.turno=f0.turno;NS.pintarPestana();}}
       pintarTabla();
+    };
+  }
+
+  /* ---------- Unificar en Día (con motivo; queda en el historial) ---------- */
+  function abrirUnificar(clave){
+    const p=NS.programaciones().find(x=>x.clave===clave);
+    if(!p||!NS.puedeUnificar(p)){alert('Esta programación ya no se puede unificar.');return;}
+    const dia=NS.existente(p.linea,p.fecha,'DÍA',p.marca,p.presentacion),cantDia=dia?num(dia.cantidadProgramada):0;
+    const fondo=abrirDialogo('<h3>Unificar en Día</h3><p style="font-size:14px">'+esc(NS.nombreLinea(p.linea))+' · '+esc(p.marca)+' '+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+' · '+esc(p.fecha)+'<br>'+
+      'Cargada como Intermedio: <b>'+num(p.cantidadProgramada).toLocaleString('es-PE')+' UND</b>'+(cantDia>0?' · en Día ya hay '+cantDia.toLocaleString('es-PE')+' UND → quedarán <b>'+(cantDia+num(p.cantidadProgramada)).toLocaleString('es-PE')+' UND</b> en Día':' · pasará a ser la programación de Día')+'.</p>'+
+      '<p class="plan-nota">No cambia el programado del bloque. La fila de Intermedio se quita y queda el rastro en la fila de Día y en el historial. Las paletas, avances y paradas de Intermedio conservan su turno.</p>'+
+      '<label class="completo">Motivo (obligatorio)<textarea id="un-motivo" rows="2" maxlength="200"></textarea></label><div class="plan-error" id="un-error"></div>'+
+      '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="un-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="un-aplicar">Unificar en Día</button></div>');
+    fondo.querySelector('#un-cancelar').onclick=()=>fondo.remove();
+    fondo.querySelector('#un-aplicar').onclick=async()=>{
+      const err=fondo.querySelector('#un-error'),btn=fondo.querySelector('#un-aplicar');
+      btn.disabled=true;err.textContent='Unificando…';
+      try{await NS.unificarEnDia(p,fondo.querySelector('#un-motivo').value);fondo.remove();NS.pintarPestana();}
+      catch(e){err.textContent=(e&&e.message)||String(e);btn.disabled=false;}
     };
   }
 
@@ -336,6 +357,8 @@
     if(nueva){abrirEdicion({linea:nueva.getAttribute('data-plan-nueva')});return;}
     const editar=e.target.closest('[data-plan-editar]');
     if(editar){abrirEdicion({clave:editar.getAttribute('data-plan-editar')});return;}
+    const unif=e.target.closest('[data-plan-unificar]');
+    if(unif){abrirUnificar(unif.getAttribute('data-plan-unificar'));return;}
     const cambio=e.target.closest('[data-plan-cambio]');
     if(cambio){
       const p=NS.programaciones().find(x=>x.clave===cambio.getAttribute('data-plan-cambio'));

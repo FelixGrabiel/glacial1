@@ -15,6 +15,8 @@
   const {num,norm,esc,iso,addDias,lunesDe,fechaOk,ahoraMs}=NS.util;
   const G=()=>window.GlacialIndicadores;
 
+  /* Se programa por bloque; la solicitud conserva el turno REAL de quien la pide (p. ej. INTERMEDIO) y se aplica al bloque Día. */
+  const turnoTxt=t=>t==='INTERMEDIO'?'Día (incluye Intermedio) · pedida desde Intermedio':NS.etiquetaBloque(t);
   const usuario=()=>{
     const u=(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)||null;
     return {uid:(u&&u.uid)||'',nombre:(state.user&&(state.user.nombre||state.user.username))||'',username:(state.user&&state.user.username)||''};
@@ -58,7 +60,7 @@
     try{
       const lista=await leerHistorial();
       cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Fecha y hora</th><th>Acción</th><th>Producto</th><th>Turno</th><th>Antes</th><th>Después</th><th>Motivo</th><th>Usuario</th></tr></thead><tbody>'+
-        (lista.length?lista.map(h=>'<tr><td>'+esc(fmtFechaHora(marcaTiempo(h.timestamp)))+'</td><td>'+esc(TEXTO_ACCION[h.accion]||h.accion)+'</td><td>'+esc(NS.nombreLinea(h.linea))+' · '+esc(h.marca)+' '+esc(NS.etiquetaPresentacion(h.linea,h.marca,h.presentacion))+'</td><td>'+esc(h.fecha)+' · '+esc(h.turno)+'</td><td>'+esc(textoValor(h.anterior))+'</td><td>'+esc(textoValor(h.nuevo))+'</td><td>'+esc(h.motivo||'')+'</td><td>'+esc(h.usuario||'')+'</td></tr>').join(''):'<tr><td colspan="8">Todavía no hay cambios registrados.</td></tr>')+'</tbody></table></div>'+
+        (lista.length?lista.map(h=>'<tr><td>'+esc(fmtFechaHora(marcaTiempo(h.timestamp)))+'</td><td>'+esc(/^UNIFICACION/.test(h.referencia||'')?'Unificada en Día ('+(TEXTO_ACCION[h.accion]||h.accion).toLowerCase()+')':(TEXTO_ACCION[h.accion]||h.accion))+'</td><td>'+esc(NS.nombreLinea(h.linea))+' · '+esc(h.marca)+' '+esc(NS.etiquetaPresentacion(h.linea,h.marca,h.presentacion))+'</td><td>'+esc(h.fecha)+' · '+esc(h.turno==='INTERMEDIO'?'Intermedio':h.turno==='DÍA'?'Día':h.turno)+'</td><td>'+esc(textoValor(h.anterior))+'</td><td>'+esc(textoValor(h.nuevo))+'</td><td>'+esc(h.motivo||'')+'</td><td>'+esc(h.usuario||'')+'</td></tr>').join(''):'<tr><td colspan="8">Todavía no hay cambios registrados.</td></tr>')+'</tbody></table></div>'+
         (NS.historialFallo?'<p class="plan-error">Algún cambio reciente no pudo registrarse en el historial (revisa que las reglas de Firestore estén publicadas).</p>':'');
     }catch(e){cont.innerHTML='<p class="plan-error">No se pudo leer el historial: '+esc((e&&e.message)||e)+'</p>';}
   }
@@ -132,7 +134,7 @@
 
   function dialogoSolicitud(base){
     const fondo=NS.abrirDialogo('<h3>'+(base.tipo==='NUEVA_PROGRAMACION'?'Solicitar programación':'Pedir un cambio')+'</h3>'+
-      '<div class="small-muted" style="margin-bottom:10px">'+esc(NS.nombreLinea(base.linea))+' · '+esc(base.fecha)+' · '+esc(base.turno)+(base.marca?' · '+esc(base.marca)+' '+esc(NS.etiquetaPresentacion(base.linea,base.marca,base.presentacion)):'')+(base.cantidadActual?' · programado '+num(base.cantidadActual).toLocaleString('es-PE'):'')+'</div>'+
+      '<div class="small-muted" style="margin-bottom:10px">'+esc(NS.nombreLinea(base.linea))+' · '+esc(base.fecha)+' · '+esc(turnoTxt(base.turno))+(base.marca?' · '+esc(base.marca)+' '+esc(NS.etiquetaPresentacion(base.linea,base.marca,base.presentacion)):'')+(base.cantidadActual?' · programado '+num(base.cantidadActual).toLocaleString('es-PE'):'')+'</div>'+
       '<div class="plan-campos">'+
       (base.tipo!=='NUEVA_PROGRAMACION'?'<label class="completo">¿Qué quieres cambiar?<select id="ps-tipo"><option value="CAMBIO_CANTIDAD">La cantidad</option><option value="CAMBIO_PRODUCTO">El producto</option></select></label>':'')+
       '<label id="ps-b-marca" class="completo">Marca<select id="ps-marca"></select></label>'+
@@ -201,7 +203,7 @@
   }
   function dialogoResolver(sol,aprobar){
     const fondo=NS.abrirDialogo('<h3>'+(aprobar?'Aprobar':'Rechazar')+' solicitud</h3>'+
-      '<p style="font-size:13px">'+esc(textoTipo(sol.tipo))+' · '+esc(NS.nombreLinea(sol.linea))+' · '+esc(sol.fecha)+' · '+esc(sol.turno)+'<br>Pide: <b>'+esc(textoPropuesta(sol))+'</b><br>Motivo: '+esc(sol.motivo)+'</p>'+
+      '<p style="font-size:13px">'+esc(textoTipo(sol.tipo))+' · '+esc(NS.nombreLinea(sol.linea))+' · '+esc(sol.fecha)+' · '+esc(turnoTxt(sol.turno))+'<br>Pide: <b>'+esc(textoPropuesta(sol))+'</b><br>Motivo: '+esc(sol.motivo)+'</p>'+
       '<label style="font-size:12px;color:#5a6b78;display:flex;flex-direction:column;gap:3px">Comentario (obligatorio)<textarea id="pr-comentario" rows="3" style="padding:7px;border:1px solid #cfdbe3;border-radius:7px;font:inherit"></textarea></label>'+
       (aprobar?'<p class="plan-nota">Al aprobar, la programación se actualiza sola.</p>':'')+
       '<div class="plan-error" id="pr-error"></div><div class="plan-acciones"><button type="button" class="btn btn-ghost" id="pr-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="pr-ok">'+(aprobar?'Aprobar':'Rechazar')+'</button></div>');
@@ -239,7 +241,7 @@
     if(!cont)return;
     const planifica=NS.puede(),u=usuario();
     const lista=NS.solicitudes().filter(s=>planifica||s.uid===u.uid);
-    const fila=s=>'<tr><td>'+esc(fmtFechaHora(marcaTiempo(s.creadoEn)))+'</td><td>'+esc(textoTipo(s.tipo))+'</td><td>'+esc(NS.nombreLinea(s.linea))+'<br><small>'+esc(s.fecha)+' · '+esc(s.turno)+'</small></td>'+
+    const fila=s=>'<tr><td>'+esc(fmtFechaHora(marcaTiempo(s.creadoEn)))+'</td><td>'+esc(textoTipo(s.tipo))+'</td><td>'+esc(NS.nombreLinea(s.linea))+'<br><small>'+esc(s.fecha)+' · '+esc(turnoTxt(s.turno))+'</small></td>'+
       '<td>'+(s.marca?descProducto(s):'—')+'</td><td>'+esc(textoPropuesta(s))+'</td><td>'+esc(s.motivo)+(planifica?'<br><small>'+esc(s.usuario||'')+'</small>':'')+'</td>'+
       '<td><span class="plan-badge '+(s.estado==='APROBADA'?'prod':s.estado==='RECHAZADA'?'stop':'pausa')+'">'+esc(textoEstado(s.estado))+'</span>'+(s.comentario?'<br><small>'+esc(s.comentario)+'</small>':'')+'</td>'+
       '<td class="acc">'+(planifica&&s.estado==='PENDIENTE'?'<button type="button" class="btn btn-primary btn-sm" data-sol-ok="'+esc(s.id)+'">Aprobar</button> <button type="button" class="btn btn-ghost btn-sm" data-sol-no="'+esc(s.id)+'">Rechazar</button>':'')+'</td></tr>';
@@ -270,7 +272,7 @@
     const fondo=NS.abrirDialogo('<h3>Nueva solicitud</h3><div class="plan-campos">'+
       '<label class="completo">Línea<select id="sn-linea">'+NS.lineas().map(l=>'<option value="'+esc(l.key)+'">'+esc(l.name)+'</option>').join('')+'</select></label>'+
       '<label>Fecha<input type="date" id="sn-fecha" value="'+esc(E.fecha)+'"></label>'+
-      '<label>Turno<select id="sn-turno">'+NS.BLOQUES.map(b=>'<option value="'+b.valor+'"'+(b.valor===NS.valorBloque(E.turno)?' selected':'')+'>'+b.etq+'</option>').join('')+'</select></label></div>'+
+      '<label>Turno<select id="sn-turno">'+NS.BLOQUES.map(b=>'<option value="'+b.valor+'"'+(b.valor===NS.valorBloque(E.turno)?' selected':'')+'>'+esc(NS.etiquetaBloqueConHorario(b.valor))+'</option>').join('')+'</select></label></div>'+
       '<p class="plan-nota">Si ya hay un producto programado, pide el cambio desde su fila en Programación.</p>'+
       '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="sn-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="sn-seguir">Pedir programación</button></div>');
     fondo.querySelector('#sn-cancelar').onclick=()=>fondo.remove();
@@ -367,7 +369,7 @@
      hoja(['Día'].concat(cab),resumen('porDia',x=>x),'Por día'),
      hoja(['Semana (lunes)'].concat(cab),resumen('porSemana',x=>x),'Por semana'),
      hoja(['Fecha','Turno','Línea','Marca','Presentación','Programado','Producido','Cumplimiento %'],
-       r.detalle.map(d=>[d.fecha,d.turno,NS.nombreLinea(d.linea),d.marca,NS.etiquetaPresentacion(d.linea,d.marca,d.presentacion),d.programado,d.producido===null?'sin registro':d.producido,d.producido===null?'':pct(d.producido,d.programado)]),'Detalle')
+       r.detalle.map(d=>[d.fecha,NS.etiquetaBloque(d.turno),NS.nombreLinea(d.linea),d.marca,NS.etiquetaPresentacion(d.linea,d.marca,d.presentacion),d.programado,d.producido===null?'sin registro':d.producido,d.producido===null?'':pct(d.producido,d.programado)]),'Detalle')
     ].forEach(([ws,n])=>XLSX.utils.book_append_sheet(libro,ws,n));
     XLSX.writeFile(libro,'cumplimiento-programacion-'+FC.desde+'_'+FC.hasta+'.xlsx');
   }

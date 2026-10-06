@@ -24,9 +24,25 @@
   /* Se programa por BLOQUE: «Día + Intermedio» y «Noche», con una sola cantidad por producto. Lo de Día + Intermedio se guarda en la
      fila DÍA (no se crea fila de INTERMEDIO, así no cambia la clave ni hay que migrar datos). Las filas INTERMEDIO ya guardadas
      siguen valiendo: el programado del bloque es la suma (GlacialProgramadoBloque, 23b). */
-  NS.BLOQUES=[{valor:'DÍA',etq:'Día + Intermedio'},{valor:'NOCHE',etq:'Noche'}];
+  NS.BLOQUES=[{valor:'DÍA',etq:'Día (incluye Intermedio)'},{valor:'NOCHE',etq:'Noche'}];
   NS.valorBloque=t=>String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DÍA';
-  NS.etiquetaBloque=t=>NS.valorBloque(t)==='NOCHE'?'Noche':'Día + Intermedio';
+  NS.etiquetaBloque=t=>NS.valorBloque(t)==='NOCHE'?'Noche':'Día (incluye Intermedio)';
+  /* Horario productivo del bloque, tomado de la configuración de bloques (sync/configIndicadores → bloques). */
+  NS.horarioBloque=t=>{
+    try{
+      const c=typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores().bloques:undefined;
+      const b=window.GlacialIndicadores.normalizarBloques(c)[NS.valorBloque(t)==='NOCHE'?'noche':'diaInter'];
+      return b.inicio+'–'+b.fin;
+    }catch(_){return '';}
+  };
+  NS.etiquetaBloqueConHorario=t=>NS.etiquetaBloque(t)+(NS.horarioBloque(t)?' · '+NS.horarioBloque(t):'');
+  /* Intermedio ya no se programa: lo que llegue como INTERMEDIO va a la fila DÍA, salvo que ese producto YA tenga una fila
+     INTERMEDIO guardada (se edita esa misma). El escritor único (guardarProgramacionPaleta, 16) aplica la misma regla. */
+  NS.turnoDeGuardado=f=>{
+    if(!f||f.turno!=='INTERMEDIO')return f?f.turno:'';
+    const ex=NS.existente(f.linea,f.fecha,'INTERMEDIO',f.marca,f.presentacion);
+    return ex&&num(ex.cantidadProgramada)>0?'INTERMEDIO':'DÍA';
+  };
 
   /* ---------- utilidades ---------- */
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
@@ -90,10 +106,11 @@
   /* ---------- validación ---------- */
   /* fila: {linea,fecha,turno,marca,presentacion,cantidad,upp}. Devuelve {errores:[], avisos:[]}. */
   NS.validar=function(f){
+    f=Object.assign({},f,{turno:NS.turnoDeGuardado(f)});
     const errores=[],avisos=[];
     if(!lineas().some(l=>l.key===f.linea))errores.push('La línea no es válida.');
     if(!fechaOk(f.fecha))errores.push('La fecha no es válida.');
-    if(!TURNOS.includes(f.turno))errores.push('El turno debe ser DÍA, INTERMEDIO o NOCHE.');
+    if(!TURNOS.includes(f.turno))errores.push('El turno debe ser Día (incluye Intermedio) o Noche.');
     if(!f.marca)errores.push('Selecciona la marca.');
     else if(lineas().some(l=>l.key===f.linea)&&!NS.marcas(f.linea).includes(f.marca))errores.push('La marca «'+f.marca+'» no existe en '+NS.nombreLinea(f.linea)+'.');
     if(!f.presentacion)errores.push('Selecciona la presentación.');
@@ -118,8 +135,61 @@
     if(!puede())throw new Error('Solo Planificación puede crear o editar la programación.');
     const v=NS.validar(f);
     if(v.errores.length)throw new Error(v.errores.join(' '));
-    return guardarProgramacionPaleta(f.linea,f.fecha,f.turno,f.marca,f.presentacion,Number(f.cantidad),Number(f.upp),opc);
+    return guardarProgramacionPaleta(f.linea,f.fecha,NS.turnoDeGuardado(f),f.marca,f.presentacion,Number(f.cantidad),Number(f.upp),opc);
   };
+  /* ---------- Unificar en Día ---------- */
+  NS.hoyOperativo=()=>window.GlacialIndicadores?window.GlacialIndicadores.diaOperativo(ahoraMs()):iso(new Date(ahoraMs()));
+  /* Solo filas INTERMEDIO PENDIENTES, de hoy en adelante y sin paletas de ese producto en Intermedio. Lo pasado o en producción no se toca. */
+  NS.puedeUnificar=item=>{
+    if(!item||item.turno!=='INTERMEDIO'||!(num(item.cantidadProgramada)>0)||NS.estadoDe(item)!=='PENDIENTE')return false;
+    if(!fechaOk(item.fecha)||item.fecha<NS.hoyOperativo())return false;
+    const paletas=typeof loadPaletas==='function'?(loadPaletas()||[]):[];
+    return !paletas.some(r=>r&&r.linea===item.linea&&r.fecha===item.fecha&&r.turno==='INTERMEDIO'&&r.marca===item.marca&&r.presentacion===item.presentacion);
+  };
+  /* Mueve la fila INTERMEDIO al bloque Día en UNA transacción sobre sync/programaciones: si el producto ya tiene fila DÍA se suma;
+     si no, la fila pasa a ser DÍA (misma cantidad, unidades por paleta y secuencia). La fila DÍA conserva el rastro en
+     unificadoDeIntermedio[] (reversible) y el historial recibe EDICIÓN/CREACIÓN del DÍA y ELIMINACIÓN del INTERMEDIO con la referencia UNIFICACION. */
+  NS.unificarEnDia=async function(item,motivo){
+    if(!puede())throw new Error('Solo Planificación puede unificar programaciones.');
+    const m=String(motivo||'').trim();
+    if(m.length<5)throw new Error('Indica el motivo de la unificación (mínimo 5 caracteres).');
+    if(!NS.puedeUnificar(item))throw new Error('Solo se pueden unificar programaciones de Intermedio pendientes, de hoy en adelante y sin producción registrada.');
+    const claveInter=item.clave,claveDia=NS.clave(item.linea,item.fecha,'DÍA',item.marca,item.presentacion);
+    const quien=typeof nombreUsuarioActualPaletas==='function'?nombreUsuarioActualPaletas():'';
+    const ref=db.collection('sync').doc('programaciones');
+    let antesDia=null,despuesDia=null,antesInter=null;
+    const items=await db.runTransaction(async tx=>{
+      antesDia=null;despuesDia=null;antesInter=null;
+      const snap=await tx.get(ref);
+      const act=snap.exists&&Array.isArray(snap.data().items)?snap.data().items.slice():[];
+      const i=act.findIndex(p=>p.clave===claveInter);
+      if(i<0)throw new Error('La fila INTERMEDIO ya no existe (otra persona la cambió). Actualiza la pantalla.');
+      const inter=act[i];
+      if(((inter.estadoOperacion&&inter.estadoOperacion.estado)||'PENDIENTE')!=='PENDIENTE')throw new Error('La programación de Intermedio ya no está pendiente: no se puede unificar.');
+      antesInter=inter;
+      const traza={cantidad:num(inter.cantidadProgramada),claveOriginal:claveInter,por:quien,motivo:m,fecha:Date.now()};
+      const j=act.findIndex(p=>p.clave===claveDia);
+      if(j>=0){
+        antesDia=act[j];
+        const upp=num(act[j].unidadesPorPaleta)||num(inter.unidadesPorPaleta),cant=num(act[j].cantidadProgramada)+num(inter.cantidadProgramada);
+        act[j]=Object.assign({},act[j],{cantidadProgramada:cant,unidadesPorPaleta:upp,paletasProgramadas:upp?cant/upp:0,unificadoDeIntermedio:(act[j].unificadoDeIntermedio||[]).concat([traza]),actualizadoPor:quien,actualizadoEn:Date.now()});
+        despuesDia=act[j];act.splice(i,1);
+      }else{
+        act[i]=Object.assign({},inter,{id:'prog_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),clave:claveDia,turno:'DÍA',unificadoDeIntermedio:[traza],actualizadoPor:quien,actualizadoEn:Date.now()});
+        despuesDia=act[i];
+      }
+      tx.set(ref,{items:act,updatedAt:Date.now()});
+      return act;
+    });
+    if(typeof _programacionesCache!=='undefined')_programacionesCache=items;
+    const ref2='UNIFICACION: '+claveInter;
+    const val=p=>p?{cantidad:num(p.cantidadProgramada),unidadesPorPaleta:num(p.unidadesPorPaleta),estado:(p.estadoOperacion&&p.estadoOperacion.estado)||''}:null;
+    const base={linea:item.linea,fecha:item.fecha,marca:item.marca,presentacion:item.presentacion,motivo:m,referencia:ref2};
+    await NS.registrarHistorial(Object.assign({},base,{accion:antesDia?'EDICION':'CREACION',turno:'DÍA',anterior:val(antesDia),nuevo:val(despuesDia)}));
+    await NS.registrarHistorial(Object.assign({},base,{accion:'ELIMINACION',turno:'INTERMEDIO',anterior:val(antesInter),nuevo:null}));
+    return {antesDia,despuesDia,antesInter};
+  };
+
   /* Quita una programación (cantidad 0, como siempre). */
   NS.quitar=async function(item,motivo){
     if(!puede())throw new Error('Solo Planificación puede quitar la programación.');
@@ -140,7 +210,7 @@
      fecha: día destino (en SEMANA_COMPLETA, la semana lunes–domingo que contiene esa fecha).
      Devuelve {candidatos:[fila+existe], omitidos:[{texto}]}. */
   NS.planCopia=function(o){
-    const turnos=o.soloTurno?[o.soloTurno]:TURNOS;
+    const turnos=o.soloTurno?(NS.valorBloque(o.soloTurno)==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO']):TURNOS;
     const pares=[];   // {origen,destino}
     if(o.modo==='DIA_ANTERIOR')pares.push({origen:addDias(o.fecha,-1),destino:o.fecha});
     else if(o.modo==='SEMANA_PASADA')pares.push({origen:addDias(o.fecha,-7),destino:o.fecha});
@@ -150,8 +220,11 @@
       programaciones().forEach(p=>{
         if(!p||p.fecha!==origen||!turnos.includes(p.turno)||num(p.cantidadProgramada)<=0)return;
         if(NS.estadoDe(p)==='CANCELADA')return;
-        const fila={linea:p.linea,fecha:destino,turno:p.turno,marca:p.marca,presentacion:p.presentacion,
+        // Día + Intermedio es UN bloque: la copia va a la fila DÍA y, si el producto tenía fila en ambos turnos, se SUMA.
+        const fila={linea:p.linea,fecha:destino,turno:NS.valorBloque(p.turno),marca:p.marca,presentacion:p.presentacion,
           cantidad:num(p.cantidadProgramada),upp:num(p.unidadesPorPaleta)||NS.uppSugerida(p.linea,p.marca,p.presentacion)};
+        const prev=candidatos.find(c=>c.linea===fila.linea&&c.fecha===fila.fecha&&c.turno===fila.turno&&c.marca===fila.marca&&c.presentacion===fila.presentacion);
+        if(prev){prev.cantidad+=fila.cantidad;return;}
         const etiqueta=destino+' · '+p.turno+' · '+NS.nombreLinea(p.linea)+' · '+p.marca+' '+NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion);
         const ex=NS.existente(fila.linea,fila.fecha,fila.turno,fila.marca,fila.presentacion);
         if(ex&&num(ex.cantidadProgramada)>0){
@@ -219,21 +292,24 @@
       if(!(fila.upp>0))fila.upp=NS.uppSugerida(fila.linea,fila.marca,fila.presentacion);
       const v=NS.validar(fila);
       const clave=NS.clave(fila.linea,fila.fecha,fila.turno,fila.marca,fila.presentacion);
-      if(eraIntermedio)v.avisos.push('Fila INTERMEDIO: se suma al bloque Día + Intermedio (se guarda en la fila DÍA).');
+      if(eraIntermedio)v.avisos.push('Fila INTERMEDIO: se carga en Día (incluye Intermedio); se guarda en la fila DÍA.');
       const previa=vistos.has(clave)?salida.find(x=>x.clave===clave&&!x.errores.length):null;
       if(previa&&!v.errores.length&&(eraIntermedio||previa.conIntermedio)){
         // Día + Intermedio del mismo producto: se SUMAN (no gana la última).
         const antes=previa.fila.cantidad;previa.fila.cantidad=antes+fila.cantidad;previa.conIntermedio=true;
-        previa.avisos.push('Se sumó la fila '+(i+2)+' (Día + Intermedio): '+antes.toLocaleString('es-PE')+' + '+fila.cantidad.toLocaleString('es-PE')+' = '+previa.fila.cantidad.toLocaleString('es-PE')+' UND.');
+        previa.avisos.push('Se sumó la fila '+(i+2)+' (Intermedio): '+antes.toLocaleString('es-PE')+' + '+fila.cantidad.toLocaleString('es-PE')+' = '+previa.fila.cantidad.toLocaleString('es-PE')+' UND.');
+        if(antes===fila.cantidad){previa.posibleDuplicado=true;previa.avisos.push('POSIBLE DUPLICADO: Día e Intermedio traen la misma cantidad ('+antes.toLocaleString('es-PE')+' UND). Confirma antes de importar.');}
         return;
       }
       if(vistos.has(clave))v.avisos.push('Se repite en este archivo: gana la última fila.');
+      let dupGuardado=false;
       if(!v.errores.length){
         const ex=NS.existente(fila.linea,fila.fecha,'INTERMEDIO',fila.marca,fila.presentacion);
-        if(ex&&num(ex.cantidadProgramada)>0)v.avisos.push('Ya hay una fila INTERMEDIO guardada ('+num(ex.cantidadProgramada).toLocaleString('es-PE')+' UND): el programado del bloque será la suma'+(num(ex.cantidadProgramada)===fila.cantidad?' (posible duplicado: misma cantidad).':'.'));
+        if(ex&&num(ex.cantidadProgramada)>0)v.avisos.push('Ya hay una fila INTERMEDIO guardada ('+num(ex.cantidadProgramada).toLocaleString('es-PE')+' UND): el programado del bloque será la suma'+(num(ex.cantidadProgramada)===fila.cantidad?' (POSIBLE DUPLICADO: misma cantidad; confirma antes de importar).':'.'));
+        if(ex&&num(ex.cantidadProgramada)>0&&num(ex.cantidadProgramada)===fila.cantidad)dupGuardado=true;
       }
       vistos.add(clave);
-      salida.push({fila,numero:i+2,errores:v.errores,avisos:v.avisos,clave,conIntermedio:eraIntermedio});
+      salida.push({fila,numero:i+2,errores:v.errores,avisos:v.avisos,clave,conIntermedio:eraIntermedio,posibleDuplicado:dupGuardado});
     });
     if(!salida.length)throw new Error('No se encontraron filas con datos.');
     return {filas:salida};
@@ -241,7 +317,9 @@
   NS.descargarPlantilla=function(){
     if(typeof XLSX==='undefined'){alert('No se cargó la librería de Excel.');return;}
     const l0=lineas()[0]?lineas()[0].key:'PET1';
-    const ejemplo=[NS.COLUMNAS_EXCEL,[addDias(iso(new Date(ahoraMs())),0),'DÍA',l0,NS.marcas(l0)[0]||'',NS.presentacionesBrutas(l0)[0]||'',10000,'']];
+    // La plantilla solo trae DÍA (incluye Intermedio) y NOCHE.
+    const hoyP=addDias(iso(new Date(ahoraMs())),0),m0=NS.marcas(l0)[0]||'',p0=NS.presentacionesBrutas(l0)[0]||'';
+    const ejemplo=[NS.COLUMNAS_EXCEL,[hoyP,'DÍA',l0,m0,p0,10000,''],[hoyP,'NOCHE',l0,m0,p0,8000,'']];
     const libro=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro,XLSX.utils.aoa_to_sheet(ejemplo),'Programación');
     XLSX.writeFile(libro,'plantilla-programacion.xlsx');
@@ -251,7 +329,8 @@
   NS.htmlPaletas=function(d){
     if(!d)return '';
     const prog=NS.existente(d.linea,d.fecha,d.turno,d.marca,d.presentacion);
-    const hay=!!prog&&num(prog.cantidadProgramada)>0;
+    const delBloque=typeof window.glacialProgramadoBloque==='function'?window.glacialProgramadoBloque(d.linea,d.fecha,d.turno,{marca:d.marca,presentacion:d.presentacion}).cantidad:num(prog&&prog.cantidadProgramada);
+    const hay=delBloque>0;
     const btn='background:none;border:0;padding:0;color:#005b96;cursor:pointer;font:inherit;font-weight:600;text-decoration:underline';
     let h='';
     if(NS.puedeVer())h+='<button type="button" style="'+btn+'" onclick="glacialPlanificacion.irA(\''+esc(d.fecha)+'\',\''+esc(d.turno)+'\')">Ver en Planificación →</button>';

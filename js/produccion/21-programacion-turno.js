@@ -76,12 +76,21 @@
       p.turno === 'DÍA' && unidades(p) > 0) ? 'DÍA' : 'INTERMEDIO';
   }
 
+  /* Se programa por bloque: Día e Intermedio comparten UNA programación. El supervisor de Intermedio ve la del bloque Día;
+     si un producto tiene filas en Día y en Intermedio, se muestra UNA línea con la suma (programado del bloque). */
   function registros(c){
     const items=loadProgramaciones();
-    const turno=turnoDePlan(c,items);
-    return items
-      .filter(p => p.linea === c.linea && p.fecha === c.fecha &&
-        p.turno === turno && unidades(p) > 0)
+    const bloque=c.turno === 'NOCHE' ? ['NOCHE'] : ['DÍA','INTERMEDIO'];
+    const porProducto=new Map();
+    items.forEach(p => {
+      if(p.linea !== c.linea || p.fecha !== c.fecha || !bloque.includes(p.turno) || !(unidades(p) > 0)) return;
+      const k=[p.marca,p.presentacion].join('\u0001');
+      const o=porProducto.get(k);
+      if(!o){porProducto.set(k,{...p});return;}
+      o.cantidadProgramada = num(o.cantidadProgramada) + num(p.cantidadProgramada);
+      if(!(num(o.unidadesPorPaleta) > 0)) o.unidadesPorPaleta = p.unidadesPorPaleta;
+    });
+    return [...porProducto.values()]
       .sort((a,b) => String(a.marca || '').localeCompare(String(b.marca || ''),'es') ||
         String(a.presentacion || '').localeCompare(String(b.presentacion || ''),'es'));
   }
@@ -112,8 +121,7 @@
     card.innerHTML = `
       <div class="pt-top"><h3 class="pt-title">Programación del turno</h3>
         <span class="pt-context">${escape(c.turno)} · ${escape(c.fecha)}${
-          turnoDePlan(c,loadProgramaciones()) === 'DÍA' && c.turno === 'INTERMEDIO'
-            ? ' · plan de DÍA' : ''}</span></div>
+          c.turno !== 'NOCHE' ? ' · programación del bloque Día (incluye Intermedio)' : ''}</span></div>
       ${todas.length ? `<div class="pt-columns"><span>MARCA</span>
         <span>PRESENTACIÓN</span><span>UND PROGRAMADAS</span></div>
         <div class="pt-list${expandida ? ' is-expanded' : ''}">

@@ -90,4 +90,19 @@ ok(!/saveProgramaciones|estadoOperacion\s*=/.test(s29),'Avance/Cierre no cierra 
 
 /* ---------- 6) una sola función de programado en todas las pantallas ---------- */
 ok(f24.includes('glacialProgramadoBloque(l,f,t')&&!f24.includes('Conserva programaciones INTERMEDIO antiguas')&&!f24.includes('if(!dia || num(dia.cantidadProgramada)<=0)'),'Producción actual usa la función única y se eliminó la regla «si Día > 0»');
+/* ---------- 7) tarjeta «Programación del turno» (Nuevo registro) y Paletas: el supervisor de Intermedio ve el bloque ---------- */
+const s21=leer('js/produccion/21-programacion-turno.js');
+const i21=s21.indexOf('  function unidades(p){'),j21=s21.indexOf('  function escape(s){');
+const sb21={Math,Number,Array,Object,String,Map};vm.createContext(sb21);
+const items21=[{linea:'PET1',fecha:FECHA,turno:'DÍA',marca:'Scala',presentacion:'2.5 L',cantidadProgramada:12000,unidadesPorPaleta:1200},
+  {linea:'PET1',fecha:FECHA,turno:'INTERMEDIO',marca:'Scala',presentacion:'2.5 L',cantidadProgramada:8000,unidadesPorPaleta:1200},
+  {linea:'PET1',fecha:FECHA,turno:'NOCHE',marca:'Scala',presentacion:'2.5 L',cantidadProgramada:5000,unidadesPorPaleta:1200}];
+sb21.loadProgramaciones=()=>items21;sb21.num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};sb21.obtenerUnidadesPorPalet=()=>0;
+vm.runInContext(s21.slice(i21,j21)+';this.reg=registros;this.und=unidades;',sb21);
+let tarj=sb21.reg({linea:'PET1',fecha:FECHA,turno:'INTERMEDIO'});
+ok(tarj.length===1&&sb21.und(tarj[0])===20000,'el supervisor de Intermedio ve en Nuevo registro UNA línea con el programado del bloque Día: 20,000');
+tarj=sb21.reg({linea:'PET1',fecha:FECHA,turno:'DÍA'});
+ok(tarj.length===1&&sb21.und(tarj[0])===20000,'el supervisor de Día ve exactamente lo mismo (20,000)');
+ok(sb21.reg({linea:'PET1',fecha:FECHA,turno:'NOCHE'}).length===1&&sb21.und(sb21.reg({linea:'PET1',fecha:FECHA,turno:'NOCHE'})[0])===5000,'Noche conserva su programación aparte (5,000)');
+ok(items21[0].cantidadProgramada===12000,'la suma no modifica las programaciones guardadas');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

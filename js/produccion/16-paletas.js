@@ -386,6 +386,11 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
   const clave =
     claveProgramacionPaleta(linea, fecha, turno, marca, presentacion);
 
+  /* Solo se programa en dos bloques: «Día (incluye Intermedio)» y «Noche». Lo que llegue como INTERMEDIO se guarda en la fila DÍA,
+     salvo que ese producto YA tenga una fila INTERMEDIO guardada (se edita esa misma, sin crear otra ni cambiar su clave). */
+  const claveDia = claveProgramacionPaleta(linea, fecha, 'DÍA', marca, presentacion);
+  let claveFinal = clave, turnoFinal = turno;
+
   const cantidadNum =
     Math.max(0, num(cantidadUnidades));
 
@@ -417,7 +422,11 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
     const snap = await tx.get(ref);
     const actuales = snap.exists && Array.isArray(snap.data().items)
       ? snap.data().items.slice() : [];
-    const idx = actuales.findIndex(p => p.clave === clave);
+    claveFinal = clave; turnoFinal = turno;
+    if(turno === 'INTERMEDIO' && !actuales.some(p => p.clave === clave)){
+      claveFinal = claveDia; turnoFinal = 'DÍA';
+    }
+    const idx = actuales.findIndex(p => p.clave === claveFinal);
 
     previo = idx > -1 ? actuales[idx] : null;
 
@@ -479,7 +488,7 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
 
       actuales.push({
         id:'prog_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
-        clave, linea, fecha, turno, marca, presentacion, ...campos,
+        clave: claveFinal, linea, fecha, turno: turnoFinal, marca, presentacion, ...campos,
         estadoOperacion:{estado:'PENDIENTE'},
         creadoPor:nombreUsuarioActualPaletas(), creadoEn:Date.now()
       });
@@ -491,14 +500,14 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
   });
   _programacionesCache = items;
 
-  const nuevo = cantidadNum === 0 ? null : (items.find(p => p.clave === clave) || null);
+  const nuevo = cantidadNum === 0 ? null : (items.find(p => p.clave === claveFinal) || null);
   const resultado = { previo, nuevo };
 
   // Historial de cambios (54-planificacion-solicitudes.js): solo se agrega, nunca se edita ni se borra.
   if(window.glacialPlanificacion && typeof window.glacialPlanificacion.registrarHistorial === 'function'){
     await window.glacialPlanificacion.registrarHistorial({
       accion: opc.accion || (cantidadNum === 0 ? 'ELIMINACION' : (previo ? 'EDICION' : 'CREACION')),
-      linea, fecha, turno, marca, presentacion,
+      linea, fecha, turno: turnoFinal, marca, presentacion,
       anterior: previo ? {
         cantidad: num(previo.cantidadProgramada),
         unidadesPorPaleta: num(previo.unidadesPorPaleta),
