@@ -143,7 +143,7 @@
     persona.nuevoIngreso=nuevoIngreso;
     persona.agregadoPor=nombreUsuario();
     persona.agregadoEn=Date.now();
-    persona.actualizadoEn=Date.now();
+    persona.actualizadoEn=typeof tareoAhoraMs==='function'?tareoAhoraMs():Date.now();
 
     tareo.personal=tareo.personal||[];
     tareo.personal.push(persona);

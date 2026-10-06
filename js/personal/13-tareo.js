@@ -961,6 +961,25 @@ window._tareoEscriturasPendientes = 0;
 window._tareoColaGuardado = Promise.resolve();
 
 
+/* Hora para marcar los cambios del tareo: la del servidor (calibrada), no la del equipo, para que un reloj atrasado o adelantado
+   no haga perder la fusión entre dispositivos. */
+function tareoAhoraMs() {
+    return typeof window !== 'undefined' && typeof window.tareoAhoraServidor === 'function'
+        ? window.tareoAhoraServidor() : Date.now();
+}
+
+/* Une dos listas de personas: la lista y el orden son los de la primera (la copia más nueva); de cada persona se toma el
+   registro con mayor actualizadoEn entre ambas copias. */
+function tareoPersonalMasReciente(principal, otra) {
+    const porClave = new Map();
+    otra.forEach(persona => porClave.set(tareoClavePersona(persona), persona));
+    return principal.map(persona => {
+        const otraPersona = porClave.get(tareoClavePersona(persona));
+        return (otraPersona && Number(otraPersona.actualizadoEn || 0) > Number(persona.actualizadoEn || 0))
+            ? otraPersona : persona;
+    });
+}
+
 function tareoFusionar(remoto, local) {
 
     const localMasNuevo =
@@ -1009,11 +1028,18 @@ function tareoFusionar(remoto, local) {
                     Number(remoto.actualizadoEn || 0)
                 ),
 
+            /*
+               La lista de personas la define la copia más nueva (así se siguen depurando filas antiguas), PERO cada persona
+               conserva su registro MÁS RECIENTE (persona.actualizadoEn). Sin esto, si el supervisor marca varias salidas seguidas
+               y llega un cambio de la nube entre una y otra, la copia siguiente (armada con datos un instante viejos) pisaba
+               las salidas ya guardadas: «le coloco la hora de salida y no se queda guardada».
+            */
             personal:
                 ordenarPersonalTareo(
-                    Array.isArray(base.personal)
-                        ? base.personal
-                        : []
+                    tareoPersonalMasReciente(
+                        Array.isArray(base.personal) ? base.personal : [],
+                        Array.isArray(otro.personal) ? otro.personal : []
+                    )
                 ),
 
             personalPorDia:
@@ -1621,7 +1647,7 @@ function guardarTareoEnMemoria(tareo) {
         return;
     }
 
-    tareo.actualizadoEn = Date.now();
+    tareo.actualizadoEn = tareoAhoraMs();
 
     /*
        1) Se actualiza de inmediato la copia local, para que
@@ -4140,7 +4166,7 @@ function tareoTrabajoEnDescanso(clave) {
 
     persona.origenMaquinista = 'ROT_MAQ';
     persona.trabajoEnDescanso = true;
-    persona.actualizadoEn = Date.now();
+    persona.actualizadoEn = tareoAhoraMs();
 
     tareo.personal = ordenarPersonalTareo(tareo.personal);
 
@@ -4480,7 +4506,7 @@ function tareoMarcarSalidaVista(clave) {
     ultima.vista = true;
     ultima.vistaPor = state.user.nombre || state.user.username || '';
     ultima.vistaEn = Date.now();
-    persona.actualizadoEn = Date.now();
+    persona.actualizadoEn = tareoAhoraMs();
 
     guardarTareoEnMemoria(tareo);
 
@@ -4828,7 +4854,7 @@ function tareoEditarPorDia(id, campo, valor) {
     if (!persona) return;
 
     persona[campo] = valor || '';
-    persona.actualizadoEn = Date.now();
+    persona.actualizadoEn = tareoAhoraMs();
 
     guardarTareoEnMemoria(tareo);
 
@@ -4853,7 +4879,7 @@ function tareoQuitarPorDia(id) {
 
     // Baja lógica: así la eliminación también se refleja al fusionar con otros equipos.
     persona.eliminada = true;
-    persona.actualizadoEn = Date.now();
+    persona.actualizadoEn = tareoAhoraMs();
 
     guardarTareoEnMemoria(tareo);
 
@@ -5012,7 +5038,7 @@ function tareoAgregarPersonal() {
         tareoAreaDe(tareo)
     );
 
-    persona.actualizadoEn = Date.now();
+    persona.actualizadoEn = tareoAhoraMs();
 
     tareo.personal.push(persona);
 
@@ -5316,7 +5342,7 @@ function tareoEditarPersona(clave, cambiar) {
 
     cambiar(persona, tareo);
 
-    persona.actualizadoEn = Date.now();
+    persona.actualizadoEn = tareoAhoraMs();
 
     recalcularPersonaTareo(persona, tareo);
 
@@ -5611,7 +5637,7 @@ function tareoActualizarConfig() {
             persona.horasExtras;
 
         if (antes !== despues) {
-            persona.actualizadoEn = Date.now();
+            persona.actualizadoEn = tareoAhoraMs();
         }
     });
 
@@ -5681,7 +5707,7 @@ function guardarTareoActual() {
             persona.horasExtras;
 
         if (antes !== despues) {
-            persona.actualizadoEn = Date.now();
+            persona.actualizadoEn = tareoAhoraMs();
         }
     });
 
