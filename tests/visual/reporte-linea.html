@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><base href="/"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Reporte por línea</title>
+<style>body{margin:0;background:#e9eef2;font-family:Arial,sans-serif}.barra{padding:10px 16px;background:#003B5C;color:#fff;display:flex;gap:10px;flex-wrap:wrap}
+.barra button{padding:8px 14px;border:0;border-radius:8px;font-weight:700;cursor:pointer}canvas{display:block;margin:12px auto;max-width:100%;height:auto;box-shadow:0 2px 10px rgba(0,0,0,.2)}small{opacity:.8}</style></head>
+<body>
+<div class="barra"><b>Datos de PRUEBA (no reales)</b><span id="botones"></span><small id="info"></small></div>
+<div id="salida"></div>
+<script src="js/nucleo/45-indicadores.js"></script>
+<script src="js/produccion/61-reporte-linea.js"></script>
+<script>
+/* Entorno mínimo: lo que el modelo toma de la aplicación. */
+const FECHA='2026-10-08';
+const ms=(h,m,dia)=>new Date(2026,9,dia||8,h,m||0).getTime();
+const CATALOGO={PET1:['Botellas','Preformas','Tapa Plana','Tapa Sport Cap','Etiqueta','Polietileno'],PET2:['Botellas','Preformas','Tapa Plana','Tapa Sport Cap','Etiqueta','Polietileno'],
+  B7L:['Bidones','Preformas','Tapa','Asa','Etiqueta','Polietileno 48cm'],C20L:['Cajas','Bolsas Trilaminadas','Tapa','Polietileno 54 cm'],B20L:['Bidones','Tapa','Etiqueta','Polietileno']};
+window.obtenerItemsMerma=l=>CATALOGO[l];
+window.normalizarCuadros=r=>r.cuadros||[];
+window.avHoraMs=(f,h,t)=>{const d=new Date(f+'T'+h+':00');if(t==='NOCHE'&&Number(h.slice(0,2))<12)d.setDate(d.getDate()+1);return d.getTime();};
+let REGISTROS=[];window.avRegistros=()=>REGISTROS;let LINEA_ACTUAL='';
+window.glacialVelocidadEstandar=(l)=>({PET1:2000,PET2:3000,B7L:600,C20L:120,B20L:0}[l]||0);
+let PALETAS=[];
+window.glacialProduccionPaletasAlCorte=(linea,fecha,turnos,marca,pres,corte)=>{
+  const r=PALETAS.filter(p=>p.linea===linea&&p.marca===marca&&p.presentacion===pres&&p.ms<=corte);
+  return {valor:r.reduce((s,p)=>s+p.unidades,0),encontrada:r.length>0,registros:r.length};
+};
+function paletas(linea,marca,pres,horas,incrementos){let acum=0;horas.forEach((h,i)=>{acum+=incrementos[i];PALETAS.push({linea,marca,presentacion:pres,ms:ms(h,5),unidades:incrementos[i]});});}
+const E=(linea,o)=>Object.assign({linea,nombre:linea==='C20L'?'CAJAS 20L':linea,inicio:'07:00',corte:'19:00',fin:'19:00',inicioMs:ms(7),corteMs:ms(19),minutosTranscurridos:720,minutosEfectivos:600,
+  minutosParadasProgramadasDesc:30,minutosParadasNoProgramadasDesc:90,totalParadas:120,unidadRatio:linea==='C20L'?'C/H':'B/H',personal:8,personalEstado:'CONFIRMADO',
+  horasHombre:{horas:88,estado:'COMPLETO',cobertura:1},paradas:[{descripcion:'Tanque vacío',minutos:45,tipo:'NO_PROGRAMADA'},{descripcion:'Calibración',minutos:30,tipo:'NO_PROGRAMADA'},{descripcion:'Paletizado',minutos:15,tipo:'NO_PROGRAMADA'},{descripcion:'Refrigerio',minutos:30,tipo:'PROGRAMADA'}]},o);
+const casos=[];
+function caso(nombre,l,ctx,registros,extra){casos.push({nombre,l,ctx:Object.assign({tipo:'CIERRE',relevo:false,supervisor:'Ejemplo',fecha:FECHA,turno:'DÍA',horaCorte:'19:00',id:FECHA+'|DÍA|CIERRE'},ctx||{}),registros:registros||[],extra});}
+const H=[8,9,10,11,12,13,14,15,16,17,18,19];
+/* PET1: dos marcas, datos completos */
+paletas('PET1','Scala','2,5 L',H,[300,500,700,900,900,800,900,900,800,700,600,500]);paletas('PET1','Bells','2,5 L',H,[200,400,500,600,700,700,800,800,800,700,500,300]);
+caso('PET1',E('PET1',{programado:20000,produccionTotal:18000,cumplimiento:90,ratio:1800,productos:[{marca:'Scala',presentacion:'2,5 L',etiqueta:'2,5 L · pack de 6',produccion:10000},{marca:'Bells',presentacion:'2,5 L',etiqueta:'2,5 L · pack de 6',produccion:8000}]}),{},
+  [{cuadros:[{horaInicio:'07:00',insumos:{polietilenoKg:38,stretchFilmKg:12},mermas:[{item:'Botellas',unidades:90,peso:0},{item:'Preformas',unidades:40,peso:0},{item:'Polietileno',unidades:0,peso:2.5}]}]}]);
+/* PET2: marcas, parcial, 12 intervalos */
+paletas('PET2','Scala','625 ml',H,[500,800,1100,1300,1400,1400,1500,1500,1400,1300,1000,800]);
+caso('PET2',E('PET2',{programado:30000,produccionTotal:27000,cumplimiento:90,ratio:2700,productos:[{marca:'Scala',presentacion:'625 ml',etiqueta:'625 ml · pack de 15',produccion:15000},{marca:'Bells',presentacion:'625 ml',etiqueta:'625 ml · pack de 15',produccion:12000}]}),{tipo:'AVANCE'},[]);
+/* B7L */
+paletas('B7L','Scala','7 L',H,[250,300,350,400,450,500,500,450,400,350,300,200]);paletas('B7L','Bells','7 L',H,[200,220,250,260,300,300,260,250,200,200,150,100]);
+caso('B7L',E('B7L',{programado:6000,produccionTotal:5400,cumplimiento:90,ratio:540,productos:[{marca:'Scala',presentacion:'7 L',etiqueta:'7 L',produccion:3000},{marca:'Bells',presentacion:'7 L',etiqueta:'7 L',produccion:2400}]}),{},[]);
+/* C20L: mermas con factores */
+paletas('C20L','Scala','Cajas de 20 L',H,[40,50,60,70,70,70,80,80,70,60,50,40]);paletas('C20L','Bells','Cajas de 20 L',H,[30,40,40,50,50,50,50,50,40,40,30,10]);
+caso('C20L',E('C20L',{programado:1200,produccionTotal:1080,cumplimiento:90,ratio:108,unidadRatio:'C/H',productos:[{marca:'Scala',presentacion:'Cajas de 20 L',etiqueta:'Cajas de 20 L',produccion:600},{marca:'Bells',presentacion:'Cajas de 20 L',etiqueta:'Cajas de 20 L',produccion:480}]}),{},
+  [{cuadros:[{horaInicio:'07:00',insumos:{polietilenoKg:20},mermas:[{item:'Cajas',unidades:100,peso:56},{item:'Bolsas Trilaminadas',unidades:100,peso:90.6},{item:'Tapa',unidades:100,peso:11.14},{item:'Polietileno 54 cm',unidades:0,peso:3.6,pesoIngresadoKg:10}]}]}]);
+/* B20L: mismo diseño que B7L, sin velocidad estándar (rendimiento sin datos), horas hombre parcial */
+paletas('B20L','Scala','20 L',H,[40,50,60,60,70,70,70,60,60,50,40,30]);
+caso('B20L',E('B20L',{programado:800,produccionTotal:660,cumplimiento:82.5,ratio:66,productos:[{marca:'Scala',presentacion:'20 L',etiqueta:'20 L',produccion:660}],horasHombre:{horas:40.5,estado:'PARCIAL',cobertura:0.7}}),{},[]);
+/* Casos límite */
+paletas('PET1','Cuisine','1 L',[9,12,16],[500,500,500]);
+casos.push(Object.assign({},casos[0],{nombre:'PET1 · pendiente de personal, sin paradas, producción superior al programa, un solo registro por hora',
+  l:E('PET1',{programado:1000,produccionTotal:1500,cumplimiento:150,ratio:150,minutosParadasProgramadasDesc:0,minutosParadasNoProgramadasDesc:0,totalParadas:0,paradas:[],personal:null,personalEstado:'PENDIENTE',horasHombre:{horas:null,estado:'SIN_DATOS',cobertura:0},
+    productos:[{marca:'Cuisine',presentacion:'1 L',etiqueta:'1 L · pack de 12',produccion:1500}]}),registros:[]}));
+const lista=[];
+for(let i=0;i<14;i++)lista.push({descripcion:'Motivo de parada número '+(i+1)+' con un texto bastante largo para probar el recorte',minutos:10+i,tipo:'NO_PROGRAMADA'});
+casos.push(Object.assign({},casos[0],{nombre:'PET1 · lista larga de paradas y 7 marcas',l:E('PET1',{programado:50000,produccionTotal:48000,cumplimiento:96,ratio:4800,paradas:lista,minutosParadasNoProgramadasDesc:230,totalParadas:230,
+  productos:['A','B','C','D','E','F','G'].map((m,i)=>({marca:'Marca '+m,presentacion:'2,5 L',etiqueta:'2,5 L · pack de 6',produccion:6000+i*300}))}),registros:[]}));
+casos.push({nombre:'NOCHE · medianoche',l:E('PET2',{inicio:'21:00',corte:'07:00',fin:'07:00',inicioMs:ms(21),corteMs:ms(7,0,9),minutosTranscurridos:600,minutosEfectivos:540,programado:10000,produccionTotal:9000,cumplimiento:90,ratio:1000,
+  minutosParadasNoProgramadasDesc:60,minutosParadasProgramadasDesc:0,totalParadas:60,paradas:[{descripcion:'Falla',minutos:60,tipo:'NO_PROGRAMADA'}],productos:[{marca:'Scala',presentacion:'625 ml',etiqueta:'625 ml · pack de 15',produccion:9000}]}),
+  ctx:{tipo:'CIERRE',relevo:false,supervisor:'Ejemplo',fecha:FECHA,turno:'NOCHE',horaCorte:'07:00',id:FECHA+'|NOCHE|CIERRE'},registros:[]});
+PALETAS.push(...[22,23,0,1,2,4,5,6].map((h,i)=>({linea:'PET2',marca:'Scala',presentacion:'625 ml',ms:h<12?ms(h,10,9):ms(h,10),unidades:1000+i*10})));
+
+const botones=document.getElementById('botones'),salida=document.getElementById('salida'),info=document.getElementById('info');
+const modelos=casos.map(c=>{REGISTROS=c.registros.map(r=>Object.assign({linea:c.l.linea},r));const m=window.glacialReporteLinea.modelo(c.l,c.ctx);return {nombre:c.nombre,m};});
+window.MODELOS=modelos;
+(async()=>{
+  for(const {nombre,m} of modelos){
+    const b=document.createElement('button');b.textContent=nombre.split(' ')[0];b.onclick=()=>document.getElementById('c_'+nombre).scrollIntoView();botones.appendChild(b);
+    const cv=await window.glacialReporteLinea.dibujar(m);cv.id='c_'+nombre;cv.title=nombre;salida.appendChild(cv);
+  }
+  info.textContent=modelos.length+' reportes generados · '+new Date().toLocaleTimeString();window.LISTO=true;
+})();
+</script></body></html>

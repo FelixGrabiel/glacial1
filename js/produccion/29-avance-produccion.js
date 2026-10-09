@@ -776,7 +776,15 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
   const totalPlanta=lineas.reduce((s,l)=>s+l.produccionTotal,0);
   const totalProgramado=lineas.reduce((s,l)=>s+avNum(l.programado),0);
   const cumplimiento=(GlacialIndicadores.cumplimiento(totalPlanta,totalProgramado)??0)*100;
-  const ctx=avCtx();
+    const ctx=avCtx();
+  // Modelo del reporte por línea (61-reporte-linea.js): se calcula UNA vez y queda congelado en el snapshot.
+  if(window.glacialReporteLinea){
+    const idSnap=avSnapshotId(tipo,hora);
+    lineas.forEach(l=>{
+      try{l.reporte=window.glacialReporteLinea.modelo(l,{tipo,relevo:tipo==='CIERRE'&&avEsRelevo(ahoraMs),supervisor:avNombreUsuario(),fecha:avanceEstado.fecha,turno:avanceEstado.turno,horaCorte:horaReal,id:idSnap});}
+      catch(e){console.error('Modelo del reporte de '+l.linea+':',e);}
+    });
+  }
   const snap={
     id:avSnapshotId(tipo,hora),fecha:avanceEstado.fecha,turno:avanceEstado.turno,
     tipo,horaCorte:horaReal,
@@ -1289,7 +1297,7 @@ function avAbrirDetalle(s){
       <section id="avd-produccion" class="av-detail-section"><h3>Producción por línea</h3>
         ${(s.lineas||[]).map(l=>`<article class="av-line-card"><div class="av-line-title"><strong>${avEsc(l.nombre||l.linea)}</strong><b>${avFmt(l.produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}</b></div>
         <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio <b>${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avPersonalTexto(l)}</b>${l.personalDesdeMs?` <small>desde ${avEsc(avHoraHHMM(l.personalDesdeMs))}</small>`:''}</span><span>Horas-hombre <b>${avHorasHombreTexto(l)}</b></span></div>
-        <div class="av-products">${(l.productos||[]).filter(p=>p.produccion>0).map(p=>`<span>${avEsc(p.marca)} · ${avEsc(p.etiqueta)} <b>${avFmt(p.produccion)}</b></span>`).join('')||'<span>Sin producción registrada</span>'}</div>${avDetalleRatioLinea(l)}</article>`).join('')}
+        <div class="av-products">${(l.productos||[]).filter(p=>p.produccion>0).map(p=>`<span>${avEsc(p.marca)} · ${avEsc(p.etiqueta)} <b>${avFmt(p.produccion)}</b></span>`).join('')||'<span>Sin producción registrada</span>'}</div>${avDetalleRatioLinea(l)}${avBotonReporteLinea(s,l)}</article>`).join('')}
       </section>
       <section id="avd-paradas" class="av-detail-section"><h3>Paradas</h3>
         ${(s.lineas||[]).filter(l=>(l.paradas||[]).length).map(l=>`<article class="av-stop-line"><strong>${avEsc(l.nombre||l.linea)}</strong>${l.paradas.map(p=>`<div><span class="${p.tipo==='NO_PROGRAMADA'?'np':'p'}">${p.tipo==='NO_PROGRAMADA'?'NO PROGRAMADA':'PROGRAMADA'}</span><b>${avEsc(p.descripcion)}</b><em>${avFmt(p.minutos)} min</em></div>`).join('')}</article>`).join('')||'<p class="small-muted">Sin paradas registradas.</p>'}
@@ -1319,6 +1327,19 @@ function avDetalleCalculoLinea(l){
     <li>Paradas oficiales: programadas <b>${fm(l.minutosParadasProgramadasDesc)} min</b> · no programadas <b>${fm(l.minutosParadasNoProgramadasDesc)} min</b></li>
     <li>Tiempo efectivo: <b>${fm(l.minutosEfectivos)} min</b></li>
     <li>Fórmula: <b>${formula}</b></li>${alt.map(a=>`<li>Conciliación — ${a}</li>`).join('')}</ul></details>`;
+}
+/* Botón del reporte por línea (PNG con la plantilla aprobada) de un snapshot. */
+function avBotonReporteLinea(s,l){
+  return l.reporte?`<div class="av-float-last-actions" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="avReporteLinea('${s.id}','${l.linea}')">🖼 REPORTE ${avEsc(l.nombre||l.linea)} (PNG)</button></div>`:'';
+}
+async function avReporteLinea(id,linea){
+  const s=avanceEstado.todosSnapshots.find(x=>x.id===id)||avanceEstado.snapshots.find(x=>x.id===id);
+  const l=s&&(s.lineas||[]).find(x=>x.linea===linea);
+  if(!l)return;
+  if(!l.reporte||!window.glacialReporteLinea){alert('Este avance se generó antes del reporte por línea: no tiene los datos congelados para dibujarlo.');return;}
+  const canvas=await window.glacialReporteLinea.dibujar(l.reporte);
+  avanceEstado.imagenActual={id,canvas,snapshot:s,linea};
+  avAbrirImagen(canvas,s);
 }
 function avDetalleRatioLinea(l){
   const out=[];
@@ -1529,7 +1550,7 @@ function avCanvasBlob(){return new Promise(resolve=>avanceEstado.imagenActual?.c
 async function avDescargarImagen(){
   const blob=await avCanvasBlob();if(!blob)return;
   const s=avanceEstado.imagenActual.snapshot,a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);a.download=`GLACIAL_${s.tipo}_${s.fecha}_${s.turno}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  a.href=URL.createObjectURL(blob);a.download=`GLACIAL_${s.tipo}_${avanceEstado.imagenActual.linea?avanceEstado.imagenActual.linea+'_':''}${s.fecha}_${s.turno}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 async function avCopiarImagen(){
   try{

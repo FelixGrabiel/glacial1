@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "validacion-visual",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tests/visual/servir.js"],
+      "port": 5599
+    }
+  ]
+}
