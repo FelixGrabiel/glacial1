@@ -20,9 +20,11 @@
    b) SUPERVISOR: Nuevo registro (sync/records → cuadros[].paradas…
       {descripcion,tiempoMin}) y Avance/Cierre (sync/avancesTurno →
       paradasOperativas {descripcion,minutos,tipo, horaInicio?, horaFin?}).
-      Si traen hora de inicio/fin se fusionan como intervalos; si solo
-      traen minutos se suman, salvo que el MOTIVO ya exista registrado
-      por botón en el mismo turno (duplicado: no se suma dos veces).
+      Si traen hora de inicio/fin se fusionan como intervalos (recortados al período); si solo
+      traen minutos se suman. Una parada manual con el mismo motivo que un botón del semáforo
+      sigue siendo válida y se descuenta una sola vez (el botón no es parada oficial).
+      Avance/Cierre puede enviar su lista ya depurada en opciones.paradasOficiales: si es un arreglo
+      (incluso vacío) es LA fuente oficial de ese cálculo y no se consulta ninguna otra copia.
 
    REGLAS
    - Los intervalos solapados se fusionan (no se cuenta doble). Si una
@@ -156,7 +158,7 @@
   }
 
   /* Lista de paradas del supervisor: {motivo,clasif,minutos,inicio?,fin?,origen}. */
-  function paradasSupervisor(linea,fecha,turno){
+  function paradasSupervisor(linea,fecha,turno,finCalculo){
     const salida=[];
     const records=typeof loadRecords==='function'?(loadRecords()||[]):[];
     records.forEach(r=>{
@@ -166,10 +168,15 @@
       if(grupo!==bloqueTurno(turno))return;
       const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
       cuadros.forEach(q=>{
+        // Un cuadro que empieza después del corte no pertenece a este cálculo.
+        if(finCalculo&&q?.horaInicio){
+          const ini=horaAMs(fecha,q.horaInicio,bloqueTurno(turno)==='NOCHE'?'NOCHE':turno);
+          if(ini&&ini>finCalculo)return;
+        }
         [['paradasNoProgramadas','NO_PROGRAMADA'],['paradasProgramadas','PROGRAMADA']].forEach(([k,clasif])=>{
           (q?.[k]||[]).forEach(p=>{
             // Filas automáticas (importadas de Paletas/semáforo/Avance): ya se cuentan en su origen.
-            if(p?.auto)return;
+            if(p?.auto||p?.eliminada)return;
             if(p?.descripcion&&num(p.tiempoMin)>0)
               salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO'});
           });
@@ -180,11 +187,38 @@
     const canon=t=>String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DÍA';
     paradasOperativas().forEach(p=>{
       if(!p||p.eliminada||p.linea!==linea||p.fecha!==fecha||canon(p.turno)!==canon(turno))return;
-      const e={motivo:p.descripcion||'',clasif:p.tipo==='PROGRAMADA'?'PROGRAMADA':'NO_PROGRAMADA',
-        minutos:num(p.minutos),origen:'AVANCE'};
-      const ini=horaAMs(fecha,p.horaInicio,canon(turno)),fin=horaAMs(fecha,p.horaFin,canon(turno));
-      if(ini&&fin&&fin>ini){e.inicio=ini;e.fin=fin;e.minutos=(fin-ini)/MS_MIN;}
-      if(e.minutos>0)salida.push(e);
+      const e=oficialDesdeAvance(p,fecha,turno);
+      if(e)salida.push(e);
+    });
+    return salida;
+  }
+
+  /* Una parada de Avance/Cierre {descripcion,minutos,tipo,horaInicio?,horaFin?} como entrada oficial. Con hora de inicio y fin
+     se conserva el intervalo (los minutos salen de él); sin horas, solo minutos. */
+  function oficialDesdeAvance(p,fecha,turno){
+    const bloque=bloqueTurno(turno)==='NOCHE'?'NOCHE':'DÍA';
+    const e={motivo:p.descripcion||p.motivo||'',clasif:(p.tipo||p.clasif)==='PROGRAMADA'?'PROGRAMADA':'NO_PROGRAMADA',
+      minutos:num(p.minutos!==undefined?p.minutos:p.tiempoMin),origen:p.origen==='REGISTRO'?'REGISTRO':'AVANCE'};
+    if(p.id)e.id=String(p.id);
+    const ini=horaAMs(fecha,p.horaInicio,bloque),fin=horaAMs(fecha,p.horaFin,bloque);
+    if(ini&&fin&&fin>ini){e.inicio=ini;e.fin=fin;e.minutos=(fin-ini)/MS_MIN;}
+    return e.minutos>0?e:null;
+  }
+
+  /* Lista oficial enviada por Avance/Cierre (opciones.paradasOficiales). Se descartan las eliminadas, las copias automáticas
+     del semáforo (origen PAUSA/DETENER o reconstrucción «legado:») y los valores inválidos. Las copias automáticas de una parada
+     de Avance (origenId) se conservan UNA vez: se identifican por id, nunca por la descripción. */
+  const ORIGEN_ESTADO=/^(PAUSA|DETENER|DETENCION|BOTON|SEMAFORO)/i;
+  function paradasOficialesExplicitas(lista,fecha,turno){
+    const vistos=new Set();
+    const salida=[];
+    lista.forEach(p=>{
+      if(!p||p.eliminada)return;
+      if(p.auto&&(ORIGEN_ESTADO.test(String(p.origen||''))||String(p.origenId||'').startsWith('legado:')))return;
+      const idCopia=String(p.origenId||p.id||'');
+      if(idCopia){if(vistos.has(idCopia))return;vistos.add(idCopia);}
+      const e=oficialDesdeAvance(p,fecha,turno);
+      if(e)salida.push(e);
     });
     return salida;
   }
@@ -248,7 +282,7 @@
 
   /* =========================================================
      calcularTiemposLinea(linea, turno, fecha, opciones)
-     opciones: {ahora, inicioMs, finMs}  (Avance/Cierre fija el corte)
+     opciones: {ahora, inicioMs, finMs, paradasOficiales}  (Avance/Cierre fija el corte y su lista oficial de paradas)
      Devuelve minutos. ok=false si falta el inicio real de la línea.
      ========================================================= */
   function calcularTiemposLinea(linea,turno,fecha,opciones){
@@ -276,7 +310,8 @@
       tiempoTranscurridoMin:0,minParadasNoProgramadas:0,minPausasProgramadas:0,tiempoOperativoMin:0,
       fuentes:{supervisor:{noProgramadas:0,programadas:0},detenerLinea:{noProgramadas:0},
         pausaProgramada:{programadas:0},boton:{noProgramadas:0,programadas:0}},
-      solapeMin:0,duplicados:[],pausaSinCerrar:null,detalle:[]
+      solapeMin:0,duplicados:[],pausaSinCerrar:null,detalle:[],
+      paradasDocumentalesMin:0,paradasDescontadasMin:0,fuenteParadas:Array.isArray(opts.paradasOficiales)?'EXPLICITA':'SISTEMA'
     };
     if(!inicio||!fin||fin<=inicio)return vacio;
 
@@ -290,7 +325,9 @@
       const r=registrosItem(p,fin);
       registros.push(...r.lista);legado.push(...r.legado);legadoDetMs+=r.legadoDetMs;
     });
-    const sup=paradasSupervisor(linea,fecha,turno);
+    // Lista oficial: la que envía Avance/Cierre (un arreglo vacío = sin paradas, no se busca en otra copia) o, sin ella, la del sistema hasta el corte.
+    const explicita=Array.isArray(opts.paradasOficiales);
+    const sup=explicita?paradasOficialesExplicitas(opts.paradasOficiales,fecha,turno):paradasSupervisor(linea,fecha,turno,fin);
 
     /* SEPARACIÓN SEMÁFORO / PARADAS OFICIALES
        Los botones DETENER LÍNEA y PAUSA PROGRAMADA solo cambian el ESTADO de la línea (monitoreo, auditoría, alertas).
@@ -301,17 +338,10 @@
     const legadoDetInfo=legadoDetMs;
     registros.length=0;legado.length=0;legadoDetMs=0;
 
-    /* 2) Duplicados: motivo del supervisor ya registrado por botón (ya no aplica: el botón no es parada oficial) */
-    const motivosBoton=new Set(registros.map(r=>norm(r.motivo)).filter(Boolean));
+    /* 2) Duplicados: el botón del semáforo NO es parada oficial, así que una parada manual con el mismo motivo es válida y
+          se descuenta una sola vez. Las copias automáticas ya se excluyen por su origen (no por la descripción). */
     const duplicados=[];
-    const supValidas=sup.filter(s=>{
-      const dup=motivosBoton.has(norm(s.motivo));
-      if(!dup)return true;
-      // Con hora: se fusiona por intervalo; solo-minutos: se omite para no sumar dos veces.
-      if(s.inicio&&s.fin)return true;
-      duplicados.push({motivo:s.motivo,minutos:s.minutos,origen:s.origen});
-      return false;
-    });
+    const supValidas=sup;
 
     /* 3) Intervalos clasificados (programada / no programada) */
     const progBoton=[],npBoton=[],progSup=[],npSup=[];
@@ -434,7 +464,11 @@
       },
       solapeMin:solapeMs/MS_MIN,
       duplicados,pausaSinCerrar,detalle,
-      paradasClasificadas,ajusteNpMin,ajusteProgMin
+      paradasClasificadas,ajusteNpMin,ajusteProgMin,
+      // Paradas oficiales: suma documental de la lista vs. lo realmente descontado (solapes, topes y estándar la separan).
+      paradasDocumentalesMin:sumaClasif('NO_PROGRAMADA')+sumaClasif('PROGRAMADA'),
+      paradasDescontadasMin:pausas+noProg,
+      fuenteParadas:explicita?'EXPLICITA':'SISTEMA'
     };
   }
 

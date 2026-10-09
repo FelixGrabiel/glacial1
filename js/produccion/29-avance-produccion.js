@@ -182,8 +182,8 @@ function avPersonalLinea(linea){
 function avIdParadaRegistro(recordId,cuadroIndex,key,index,p){
   return String(p?.id||`reg:${recordId||'legacy'}:${cuadroIndex}:${key}:${index}`);
 }
-function avParadasRegistroLinea(linea,hora,tipo){
-  const corte=avCorteMs(hora,tipo),out=[];
+function avParadasRegistroLinea(linea,hora,tipo,corteMs){
+  const corte=corteMs||avCorteMs(hora,tipo),out=[];
   avRegistros().filter(r=>r.linea===linea).forEach(r=>{
     (typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach((q,qi)=>{
       const ini=avHoraMs(avanceEstado.fecha,q.horaInicio,avanceEstado.turno);
@@ -191,7 +191,7 @@ function avParadasRegistroLinea(linea,hora,tipo){
       [['paradasProgramadas','PROGRAMADA'],['paradasNoProgramadas','NO_PROGRAMADA']].forEach(([key,tipoParada])=>{
         (q[key]||[]).forEach((p,pi)=>{
           // Las filas automáticas del registro vienen de este mismo origen: no se duplican.
-          if(p?.auto)return;
+          if(p?.auto||p?.eliminada)return;
           if(!p?.descripcion||avNum(p.tiempoMin)<=0)return;
           out.push({
             id:avIdParadaRegistro(r.id,qi,key,pi,p),descripcion:p.descripcion,minutos:avNum(p.tiempoMin),estadoRegistro:r.estadoRegistro||'',
@@ -204,15 +204,27 @@ function avParadasRegistroLinea(linea,hora,tipo){
   });
   return out;
 }
-function avParadasOperativasLinea(linea){
-  return (avanceEstado.paradasOperativas||[]).filter(p=>
+/* Con corteMs (snapshot): se excluyen las paradas con hora de inicio posterior al corte y las que lo cruzan se recortan al corte
+   (el detalle conserva la hora fin original en horaFinOriginal). Sin corteMs (edición en el modal) no se modifica nada. */
+function avParadasOperativasLinea(linea,corteMs){
+  const out=[];
+  (avanceEstado.paradasOperativas||[]).filter(p=>
     p&&p.fecha===avanceEstado.fecha&&avTurnoCanon(p.turno)===avanceEstado.turno&&p.linea===linea&&!p.eliminada
-  ).map(p=>({...p,minutos:avNum(p.minutos),origen:'AVANCE'}));
+  ).forEach(p=>{
+    const e={...p,minutos:avNum(p.minutos),origen:'AVANCE'};
+    if(corteMs&&p.horaInicio){
+      const ini=avHoraMs(avanceEstado.fecha,p.horaInicio,avanceEstado.turno),fin=avHoraMs(avanceEstado.fecha,p.horaFin,avanceEstado.turno);
+      if(ini&&ini>=corteMs)return;
+      if(ini&&fin&&fin>ini&&fin>corteMs){e.horaFinOriginal=p.horaFin;e.horaFin=avHoraDesdeMs(corteMs);e.minutos=(corteMs-ini)/60000;}
+    }
+    out.push(e);
+  });
+  return out;
 }
-function avParadasLinea(linea,hora,tipo){
+function avParadasLinea(linea,hora,tipo,corteMs){
   // Fuente común: registros de producción + eventos generales del turno.
   // Los eventos generales NO se copian a cada marca/cuadro y por ello no duplican minutos.
-  return [...avParadasRegistroLinea(linea,hora,tipo),...avParadasOperativasLinea(linea)];
+  return [...avParadasRegistroLinea(linea,hora,tipo,corteMs),...avParadasOperativasLinea(linea,corteMs)];
 }
 function avPuedeEditarParadas(){
   if(!avPuedeGenerar())return false;
@@ -468,13 +480,17 @@ function avEstadoOperacion(linea,marca,presentacion){
   const p=avProgramaciones().find(x=>x.linea===linea&&x.marca===marca&&x.presentacion===presentacion);
   return p?.estadoOperacion||{};
 }
+/* Horas ordenadas por INSTANTE, no como texto: en la noche 01:00 va después de 23:00. */
+function avOrdenarHoras(horas){
+  return horas.slice().sort((a,b)=>avHoraMs(avanceEstado.fecha,a,avanceEstado.turno)-avHoraMs(avanceEstado.fecha,b,avanceEstado.turno));
+}
 function avInicioLinea(linea){
   const horas=[];
   avRegistros().filter(r=>r.linea===linea).forEach(r=>(typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>{
     if(q?.horaInicio&&(q?.marca||avNum(q?.produccion?.efectiva)>0))horas.push(q.horaInicio);
   }));
   avProgramaciones().filter(p=>p.linea===linea).forEach(p=>{if(p?.estadoOperacion?.inicio)horas.push(avHoraDesdeMs(p.estadoOperacion.inicio));});
-  return horas.sort()[0]||'';
+  return avOrdenarHoras(horas)[0]||'';
 }
 function avFinLinea(linea){
   const horas=[];
@@ -482,8 +498,21 @@ function avFinLinea(linea){
     if(q?.horaFin&&q?.estadoCuadro==='FINALIZADO')horas.push(q.horaFin);
   }));
   avProgramaciones().filter(p=>p.linea===linea).forEach(p=>{if(p?.estadoOperacion?.finalizadaEn)horas.push(avHoraDesdeMs(p.estadoOperacion.finalizadaEn));});
-  return horas.sort().slice(-1)[0]||'';
+  return avOrdenarHoras(horas).slice(-1)[0]||'';
 }
+/* La línea terminó cuando ninguna presentación ni cuadro sigue en curso: solo entonces su fin real fija el corte.
+   Si otra presentación sigue produciendo, el corte es el del reporte (un relevo no cierra el bloque). */
+function avLineaTerminada(linea){
+  const enCurso=avProgramaciones().some(p=>{
+    if(p.linea!==linea)return false;
+    const op=p.estadoOperacion||{};
+    return avNum(op.inicio)>0&&!['FINALIZADA','CANCELADA'].includes(op.estado);
+  });
+  if(enCurso)return false;
+  return !avRegistros().some(r=>r.linea===linea&&(typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).some(q=>
+    q?.horaInicio&&q?.marca&&!q?.horaFin&&q?.estadoCuadro!=='FINALIZADO'));
+}
+function avFinRealLinea(linea){return avLineaTerminada(linea)?avFinLinea(linea):'';}
 
 function avProductosLinea(linea,hora,tipo){
   const mapa=new Map();
@@ -592,9 +621,15 @@ function avLineaSnapshot(linea,hora,tipo){
 
   if(!actividad)return null;
 
-  const corte=tipo==='CIERRE'?(avFinLinea(linea)||avCorteCierre()):hora;
+  /* Un solo corte para la línea: la hora del reporte, o el fin real si la línea ya terminó antes (no sigue corriendo). */
+  const finReal=avFinRealLinea(linea);
+  const corteBloque=tipo==='CIERRE'?avCorteCierre():hora;
+  const msBloque=avHoraMs(avanceEstado.fecha,corteBloque,avanceEstado.turno),msFinReal=finReal?avHoraMs(avanceEstado.fecha,finReal,avanceEstado.turno):0;
+  const corte=(msFinReal&&msFinReal<msBloque)?finReal:corteBloque;
+  const corteMs=avHoraMs(avanceEstado.fecha,corte,avanceEstado.turno);
   const minTurno=inicio?avMinEntre(avanceEstado.fecha,inicio,corte,avanceEstado.turno):0;
-  const paradas=avParadasLinea(linea,hora,tipo);
+  // Lista oficial ÚNICA de la línea hasta este corte: es la que se muestra y la que se envía al cálculo central.
+  const paradas=avParadasLinea(linea,hora,tipo,corteMs);
   const totalParadas=paradas.reduce((s,p)=>s+p.minutos,0);
 
   // Ratio del reporte (oficial: producido ÷ horas efectivas):
@@ -603,36 +638,45 @@ function avLineaSnapshot(linea,hora,tipo){
   // Las paradas oficiales (supervisor) las calcula la función central (23b-tiempos-linea.js) hasta este corte:
   // fusiona solapes y aplica duraciones estándar. DETENER LÍNEA y PAUSA PROGRAMADA del semáforo NO se descuentan.
   // (paradasOperacion queda como historial informativo del semáforo.)
-  let opNoProg=0,opProg=0,minutosEfectivos=Math.max(0,minTurno-totalParadas);
+  let opNoProg=0,opProg=0,minutosEfectivos=Math.max(0,minTurno-totalParadas),minutosTranscurridos=minTurno,minutosDescontados=minTurno-minutosEfectivos;
   if(typeof calcularTiemposLinea==='function'&&inicio){
     const T=calcularTiemposLinea(linea,avanceEstado.turno,avanceEstado.fecha,{
       inicioMs:avHoraMs(avanceEstado.fecha,inicio,avanceEstado.turno),
-      finMs:avHoraMs(avanceEstado.fecha,corte,avanceEstado.turno)
+      finMs:corteMs,
+      paradasOficiales:paradas
     });
     if(T.ok){
       opNoProg=T.fuentes.boton.noProgramadas;
       opProg=T.fuentes.boton.programadas;
       minutosEfectivos=T.tiempoOperativoMin;
+      minutosTranscurridos=T.tiempoTranscurridoMin;
+      minutosDescontados=T.paradasDescontadasMin;
     }
   }
-  const ratio=minutosEfectivos>0?produccionTotal/(minutosEfectivos/60):0;
+  // Ratio oficial = producción ÷ horas efectivas, con precisión completa (se redondea solo al mostrar).
+  // null = no disponible (sin inicio válido o sin tiempo efectivo); producción 0 con tiempo efectivo sí da ratio 0.
+  const ratio=GlacialIndicadores.ratio(produccionTotal,minutosEfectivos/60);
 
-  return {
-    linea,nombre:AVANCE_NOMBRES[linea],inicio,
-    fin:tipo==='CIERRE'?(avFinLinea(linea)||corte):'',
+  const lineaSnap={
+    linea,nombre:AVANCE_NOMBRES[linea],inicio,corte,
+    fin:tipo==='CIERRE'?(finReal||corte):'',
     productos,produccionTotal,
     programado:avProgramadoLinea(linea),
     cumplimiento:(GlacialIndicadores.cumplimiento(produccionTotal,avProgramadoLinea(linea))??0)*100,
-    ratio,unidadRatio:avUnidadRatio(linea),
-    consumo:avConsumoLinea(linea,productos,ratio),
+    ratio,ratioDisponible:ratio!==null,unidadRatio:avUnidadRatio(linea),
+    consumo:avConsumoLinea(linea,productos,ratio||0),
     personal:avPersonalLinea(linea),paradas,totalParadas,
     paradasProgramadas:paradas.filter(p=>p.tipo==='PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
     paradasNoProgramadas:paradas.filter(p=>p.tipo==='NO_PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
     observaciones:avObservacionesLinea(linea),
-    minutosTranscurridos:minTurno,minutosEfectivos,
+    minutosTranscurridos,minutosEfectivos,minutosParadasDescontadas:minutosDescontados,
     paradasOperacion:{noProgramadas:opNoProg,programadas:opProg},
     sinProduccion:produccionTotal<=0
   };
+  // Los formatos (bloques por presentación) se calculan UNA vez y se guardan con el snapshot: pantalla, texto e imagen leen lo mismo
+  // y reabrirlo después no vuelve a calcular con datos actuales.
+  lineaSnap.bloques=JSON.parse(JSON.stringify(avCalcularBloquesPresentacion(lineaSnap)));
+  return lineaSnap;
 }
 
 function avConstruirSnapshot(hora,tipo='AVANCE'){
@@ -740,8 +784,20 @@ function avVolumenFormatoPresentacion(presentacion,linea){
   return '';
 }
 
+/* Formatos (presentaciones) de una línea. Un snapshot ya generado trae sus bloques congelados (l.bloques): se leen tal cual. */
 function avBloquesPresentacionLinea(l){
+  return Array.isArray(l?.bloques)?l.bloques:avCalcularBloquesPresentacion(l);
+}
+function avRatioTexto(ratio,unidad,disponible){
+  // Snapshots nuevos indican si el ratio está disponible; los anteriores guardaban 0 cuando no lo había.
+  const ok=disponible===undefined?!!ratio:(disponible===true&&Number.isFinite(Number(ratio)));
+  return ok?`${avFmt(ratio)} ${unidad}`:'—';
+}
+function avCalcularBloquesPresentacion(l){
   const mapa=new Map();
+  const nuevo=!!l.corte;   // snapshots nuevos fijan el corte de la línea; los anteriores conservan el cálculo con el que se generaron
+  const msHora=h=>h?avHoraMs(avanceEstado.fecha,h,avanceEstado.turno):0;
+  const corteMs=nuevo?msHora(l.corte):0;
   (l.productos||[]).filter(p=>avNum(p.produccion)>0).forEach(p=>{
     const clave=avClaveFormatoPresentacion(p.presentacion);
     if(!mapa.has(clave))mapa.set(clave,{
@@ -749,7 +805,7 @@ function avBloquesPresentacionLinea(l){
       presentacion:p.presentacion||'',
       etiqueta:p.etiqueta||avPresentacion(l.linea,p.marca,p.presentacion),
       productos:[],inicio:'',fin:'',paradas:[],observaciones:[],produccionTotal:0,
-      ratio:0,consumo:0,personal:l.personal
+      ratio:null,ratioDisponible:false,consumo:0,personal:l.personal
     });
     const b=mapa.get(clave);
     b.productos.push(p);
@@ -763,57 +819,67 @@ function avBloquesPresentacionLinea(l){
     cuadros.forEach(q=>{
       const clave=avClaveFormatoPresentacion(q?.presentacion);
       const b=mapa.get(clave); if(!b)return;
-      if(q?.horaInicio && (!b.inicio || q.horaInicio<b.inicio))b.inicio=q.horaInicio;
-      if(q?.horaFin && (!b.fin || q.horaFin>b.fin))b.fin=q.horaFin;
+      // Un cuadro que empieza después del corte del reporte no entra en él.
+      if(corteMs&&q?.horaInicio&&msHora(q.horaInicio)>corteMs)return;
+      // Se comparan INSTANTES (en la noche 01:00 es posterior a 23:00), no el texto de la hora.
+      if(q?.horaInicio && (!b.inicio || msHora(q.horaInicio)<msHora(b.inicio)))b.inicio=q.horaInicio;
+      if(q?.horaFin && (!b.fin || msHora(q.horaFin)>msHora(b.fin)))b.fin=q.horaFin;
       // Se conserva la identidad de cada fila (origenId/origen/auto) para no contar dos veces la misma parada.
-      (q?.paradasProgramadas||[]).forEach(p=>{if(p?.descripcion&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'PROGRAMADA',origenId:p.origenId||'',origen:p.origen||'',auto:!!p.auto});});
-      (q?.paradasNoProgramadas||[]).forEach(p=>{if(p?.descripcion&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'NO_PROGRAMADA',origenId:p.origenId||'',origen:p.origen||'',auto:!!p.auto});});
+      (q?.paradasProgramadas||[]).forEach(p=>{if(p?.descripcion&&!p.eliminada&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'PROGRAMADA',origenId:p.origenId||'',origen:p.origen||'',auto:!!p.auto});});
+      (q?.paradasNoProgramadas||[]).forEach(p=>{if(p?.descripcion&&!p.eliminada&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'NO_PROGRAMADA',origenId:p.origenId||'',origen:p.origen||'',auto:!!p.auto});});
       [q?.observaciones,q?.observacion].forEach(v=>{if(String(v||'').trim())b.observaciones.push(String(v).trim());});
     });
   });
 
-  [...mapa.values()].forEach(b=>{
-    /*
-       Para producción proveniente de Paletas puede no existir horaInicio
-       dentro del cuadro de Nuevo registro. En ese caso usamos el inicio
-       real de la línea (l.inicio), que ya es el mismo que se muestra en
-       el avance. Sin este respaldo el texto mostraba "Inicio: 07:00",
-       pero internamente calculaba 0 minutos y Ratio/Consumo quedaban en —.
-
-       Las paradas del bloque + las paradas operativas de Avance/Cierre
-       se descuentan una sola vez para calcular las horas efectivas.
-    */
-    const inicioCalculo=b.inicio||l.inicio||'';
-    const fin=b.fin||l.fin||avanceEstado.horaCorte||avHoraActual();
-
-    // Cada parada real cuenta una sola vez: las de Avance que ya están copiadas en el cuadro no se suman otra vez.
-    b.paradas=avDepurarParadasBloque(b.paradas);
-    const paradasOperativas=avParadasAvanceNuevas(l,b.paradas)
-      .reduce((s,p)=>s+avNum(p.minutos),0);
-
-    b.totalParadas=b.paradas.reduce((a,p)=>a+avNum(p.minutos),0);
-    const totalParadasCalculo=b.totalParadas+paradasOperativas;
-
-    const min=inicioCalculo
-      ? avMinEntre(avanceEstado.fecha,inicioCalculo,fin,avanceEstado.turno)
-      : 0;
-
-    const horasEf=GlacialIndicadores.horasEfectivas({transcurridoMin:min,paradasProgramadasMin:0,paradasNoProgramadasMin:totalParadasCalculo});
-
-    b.inicio=b.inicio||inicioCalculo;
-    b.ratio=GlacialIndicadores.ratio(b.produccionTotal,horasEf) ?? 0;
-
-    b.consumo=avConsumoLinea(
-      l.linea,
-      b.productos,
-      b.ratio
-    );
-
-    b.observaciones=[...new Set(b.observaciones)];
-  });
-  const lista=[...mapa.values()].sort((a,b)=>String(a.inicio||'99:99').localeCompare(String(b.inicio||'99:99')));
+  const lista=[...mapa.values()].sort((a,b)=>(a.inicio?msHora(a.inicio):Infinity)-(b.inicio?msHora(b.inicio):Infinity));
+  lista.forEach(b=>{b.observaciones=[...new Set(b.observaciones)];b.paradas=avDepurarParadasBloque(b.paradas);});
   // Las paradas de Avance/Cierre que aún no están en un cuadro se muestran UNA vez, en el primer bloque de la línea.
-  lista.forEach((b,i)=>{b.paradasAvance=i===0?avParadasAvanceNuevas(l,b.paradas):[];});
+  // Una parada de Avance copiada al cuadro de CUALQUIER formato ya está mostrada ahí.
+  const copiadasEnBloques=lista.flatMap(b=>b.paradas);
+  const nuevasAvance=avParadasAvanceNuevas(l,copiadasEnBloques);
+  lista.forEach((b,i)=>{b.paradasAvance=i===0?nuevasAvance:[];});
+
+  lista.forEach((b,i)=>{
+    if(!nuevo){
+      /* Snapshot anterior: se conserva el cálculo con el que se generó (no se recalcula con datos actuales). */
+      const inicioCalculo=b.inicio||l.inicio||'';
+      const fin=b.fin||l.fin||avanceEstado.horaCorte||avHoraActual();
+      const paradasOperativas=avParadasAvanceNuevas(l,b.paradas).reduce((s,p)=>s+avNum(p.minutos),0);
+      b.totalParadas=b.paradas.reduce((a,p)=>a+avNum(p.minutos),0);
+      const totalParadasCalculo=b.totalParadas+paradasOperativas;
+      const min=inicioCalculo?avMinEntre(avanceEstado.fecha,inicioCalculo,fin,avanceEstado.turno):0;
+      const horasEf=GlacialIndicadores.horasEfectivas({transcurridoMin:min,paradasProgramadasMin:0,paradasNoProgramadasMin:totalParadasCalculo});
+      b.inicio=b.inicio||inicioCalculo;
+      b.ratio=GlacialIndicadores.ratio(b.produccionTotal,horasEf) ?? 0;
+      b.ratioDisponible=undefined;
+      b.consumo=avConsumoLinea(l.linea,b.productos,b.ratio);
+      return;
+    }
+    b.totalParadas=b.paradas.reduce((a,p)=>a+avNum(p.minutos),0);
+    if(lista.length===1){
+      /* Una sola presentación: ES la línea. Mismo inicio, corte, paradas oficiales y ratio que el resto del reporte. */
+      b.inicio=l.inicio||b.inicio;
+      b.ratio=l.ratio;b.ratioDisponible=l.ratioDisponible;
+      b.minutosTranscurridos=l.minutosTranscurridos;b.minutosEfectivos=l.minutosEfectivos;
+    }else{
+      /* Varias presentaciones: cada una se calcula en su propia ventana con el cálculo central.
+         Sus paradas son las de su cuadro; las de Avance con hora entran en la ventana en que ocurrieron y las que solo
+         traen minutos se descuentan en la primera presentación (donde se muestran). */
+      const inicioH=b.inicio||l.inicio||'';
+      const finMs=b.fin&&msHora(b.fin)<corteMs?msHora(b.fin):corteMs;
+      const oficiales=[...b.paradas,...nuevasAvance.filter(p=>p.horaInicio&&p.horaFin||i===0)];
+      let T=null;
+      if(typeof calcularTiemposLinea==='function'&&inicioH){
+        try{T=calcularTiemposLinea(l.linea,avanceEstado.turno,avanceEstado.fecha,{inicioMs:msHora(inicioH),finMs,paradasOficiales:oficiales});}catch(_){T=null;}
+      }
+      b.inicio=b.inicio||inicioH;
+      b.minutosTranscurridos=T&&T.ok?T.tiempoTranscurridoMin:0;
+      b.minutosEfectivos=T&&T.ok?T.tiempoOperativoMin:0;
+      b.ratio=T&&T.ok?GlacialIndicadores.ratio(b.produccionTotal,b.minutosEfectivos/60):null;
+      b.ratioDisponible=b.ratio!==null;
+    }
+    b.consumo=avConsumoLinea(l.linea,b.productos,b.ratio||0);
+  });
   return lista;
 }
 
@@ -855,7 +921,7 @@ function avTextoWhatsApp(s){
     const bloques=avBloquesPresentacionLinea(l);
     if(!bloques.length){
       out.push('',`*${l.nombre}*`,'',`Inicio: ${l.inicio||'—'}`,'','Línea iniciada – Sin producción registrada.','',
-        'Ratio: —','Consumo: —',`Personal en línea: ${l.personal}`,'','*PARADAS*','',
+        `Ratio: ${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}`,'Consumo: —',`Personal en línea: ${l.personal}`,'','*PARADAS*','',
         l.paradas.length?l.paradas.map(p=>`${p.descripcion} – ${avFmt(p.minutos)} min`).join('\n'):'Sin paradas registradas.','',
         `Total paradas: ${avFmt(l.totalParadas)} min`);
     }else{
@@ -864,7 +930,7 @@ function avTextoWhatsApp(s){
         if(s.tipo==='CIERRE')out.push(`Término: ${b.fin||l.fin||'—'}`);
         out.push('');
         b.productos.forEach(p=>out.push(`${avProductoWhatsApp(p)}: ${avFmt(p.produccion)} ${avUnidadProduccion(l.linea)}`));
-        out.push('',`Ratio: ${b.ratio?avFmt(b.ratio)+' '+l.unidadRatio:'—'}`,
+        out.push('',`Ratio: ${avRatioTexto(b.ratio,l.unidadRatio,b.ratioDisponible)}`,
           `Consumo: ${b.consumo?avFmt(b.consumo)+' L/H':'—'}`,
           `Personal en línea: ${b.personal}`,
           '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`);
@@ -1132,8 +1198,8 @@ function avAbrirDetalle(s){
       </section>
       <section id="avd-produccion" class="av-detail-section"><h3>Producción por línea</h3>
         ${(s.lineas||[]).map(l=>`<article class="av-line-card"><div class="av-line-title"><strong>${avEsc(l.nombre||l.linea)}</strong><b>${avFmt(l.produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}</b></div>
-        <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio <b>${l.ratio?avFmt(l.ratio)+' '+l.unidadRatio:'—'}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avFmt(l.personal)}</b></span></div>
-        <div class="av-products">${(l.productos||[]).filter(p=>p.produccion>0).map(p=>`<span>${avEsc(p.marca)} · ${avEsc(p.etiqueta)} <b>${avFmt(p.produccion)}</b></span>`).join('')||'<span>Sin producción registrada</span>'}</div></article>`).join('')}
+        <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio <b>${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avFmt(l.personal)}</b></span></div>
+        <div class="av-products">${(l.productos||[]).filter(p=>p.produccion>0).map(p=>`<span>${avEsc(p.marca)} · ${avEsc(p.etiqueta)} <b>${avFmt(p.produccion)}</b></span>`).join('')||'<span>Sin producción registrada</span>'}</div>${avDetalleRatioLinea(l)}</article>`).join('')}
       </section>
       <section id="avd-paradas" class="av-detail-section"><h3>Paradas</h3>
         ${(s.lineas||[]).filter(l=>(l.paradas||[]).length).map(l=>`<article class="av-stop-line"><strong>${avEsc(l.nombre||l.linea)}</strong>${l.paradas.map(p=>`<div><span class="${p.tipo==='NO_PROGRAMADA'?'np':'p'}">${p.tipo==='NO_PROGRAMADA'?'NO PROGRAMADA':'PROGRAMADA'}</span><b>${avEsc(p.descripcion)}</b><em>${avFmt(p.minutos)} min</em></div>`).join('')}</article>`).join('')||'<p class="small-muted">Sin paradas registradas.</p>'}
@@ -1145,6 +1211,16 @@ function avAbrirDetalle(s){
     <footer class="av-detail-footer">${avAccionesSnapshot(s)}<button class="btn btn-ghost btn-sm" onclick="avCerrarDetalle()">CERRAR</button></footer>
   </div>`;
   modal.classList.add('open');document.body.classList.add('av-modal-open');
+}
+/* Pantalla: el ratio de cada formato (si hay varios) y, cuando la suma de paradas no es lo descontado, la explicación. */
+function avDetalleRatioLinea(l){
+  const out=[];
+  const bl=avBloquesPresentacionLinea(l);
+  if(bl.length>1)out.push(`<div class="av-products">${bl.map(b=>`<span>Ratio ${avEsc(avTituloPresentacion(l.linea,b))} <b>${avRatioTexto(b.ratio,l.unidadRatio,b.ratioDisponible)}</b></span>`).join('')}</div>`);
+  const desc=l.minutosParadasDescontadas;
+  if(desc!==undefined&&Math.abs(avNum(desc)-avNum(l.totalParadas))>=0.5)
+    out.push(`<p class="small-muted">Tiempo efectivo ${avFmt(l.minutosEfectivos)} min = ${avFmt(l.minutosTranscurridos)} transcurridos − ${avFmt(desc)} descontados. La suma de paradas listadas es ${avFmt(l.totalParadas)} min: los solapes, las duraciones estándar y el corte del reporte ajustan lo descontado.</p>`);
+  return out.join('');
 }
 function avCerrarDetalle(){
   document.getElementById('av-detail-modal')?.classList.remove('open');
@@ -1256,7 +1332,7 @@ function avCanvasSnapshot(s){
     const observaciones=g.sinProduccion?(l.observaciones||[]):(b.observaciones||[]);
     const produccionTotal=g.sinProduccion?0:b.produccionTotal;
     const inicio=g.sinProduccion?(l.inicio||'—'):(b.inicio||l.inicio||'—');
-    const ratio=g.sinProduccion?0:b.ratio;
+    const ratioTxt=g.sinProduccion?avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible):avRatioTexto(b.ratio,l.unidadRatio,b.ratioDisponible);
     const consumo=g.sinProduccion?0:b.consumo;
     const personal=g.sinProduccion?l.personal:b.personal;
     const totalParadas=paradas.reduce((s,p)=>s+avNum(p.minutos),0);
@@ -1274,7 +1350,7 @@ function avCanvasSnapshot(s){
     const metrics=[
       ['Inicio',inicio],
       ['Producción',`${avFmt(produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}`],
-      ['Ratio',ratio?`${avFmt(ratio)} ${l.unidadRatio}`:'—'],
+      ['Ratio',ratioTxt],
       ['Consumo',consumo?`${avFmt(consumo)} L/H`:'—'],
       ['Personal',avFmt(personal)]
     ],mw=(W-PAD*2-40)/5;
