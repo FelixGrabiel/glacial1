@@ -34,3 +34,11 @@ No se crea ninguna segunda programación ni fila de INTERMEDIO nueva: lo de Día
 - **Solicitudes:** la solicitud y el historial conservan el turno real (INTERMEDIO) y quién la pidió; se aplican al bloque Día.
 - **Nuevo registro (21):** el supervisor de Intermedio ve UNA línea por producto con el programado del bloque.
 - **Reglas de Firestore:** sin cambios. Las reglas solo validan quién escribe; «solo Día y Noche», el permiso de planificación, el motivo y qué se puede unificar los hace cumplir la aplicación.
+
+## Nombres visibles de los turnos (solo presentación)
+Una sola función: `GlacialIndicadores.nombreBloque(turno, contexto, formato)` (`45-indicadores.js`, tabla `NOMBRES_TURNO`).
+- **Reportes** (contexto `reporte`): avances, cierres, imágenes, WhatsApp, Excel e históricos → **DÍA / NOCHE** (ej. «AVANCE DE PRODUCCIÓN – TURNO DÍA»). Incluye el reporte por línea (`61-reporte-linea.js`).
+- **Pantallas** (contexto `pantalla`): **MAÑANA + INTERMEDIO / NOCHE** (formato `titulo`: «Mañana + Intermedio»): semáforo y cronómetro del bloque, Resumen e indicadores, Inicio, programación del turno, Planificación, avisos, Historial de registros, Distribución de personal y los selectores/etiquetas del módulo Avance/Cierre.
+- **No cambia**: identificadores (`DÍA`, `INTERMEDIO`, `NOCHE`, `diaInter`, `DIA_INTERMEDIO`), claves de base de datos, registros guardados, agrupación, horarios, cálculos, permisos ni cierres. Tareo y Rotaciones conservan los nombres de los turnos del personal.
+- **Quedó como estaba** (decisión pendiente): Impacto económico muestra «DÍA / INTERMEDIO» porque ese texto es la llave de agrupación de sus eventos; los selectores de turno individual (Inicio, Producción actual) siguen separando Mañana / Intermedio / Noche.
+Prueba: `tests/nombres-turnos.test.js`.

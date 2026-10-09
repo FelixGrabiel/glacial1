@@ -271,7 +271,7 @@ function cpProgramacionCard(){
       <td>${d?Math.round(d.avance)+' %':'—'}</td>
       <td>${d?`<span class="cp-ex-badge cp-ex-${cls}"><i></i>${CP_EST_OPER[d.estado]||''}</span>`:'—'}</td></tr>`;}).join('')}</tbody></table></div>`:
       '<div class="cp-empty">No hay programación registrada para este turno.</div>'}
-    ${cpTurnoCanon(cpCtx().turno)==='INTERMEDIO'?'<div class="cp-note">'+cpIcon('info')+' Día e Intermedio comparten programación cuando existe plan de Día.</div>':''}
+    ${cpTurnoCanon(cpCtx().turno)==='INTERMEDIO'?'<div class="cp-note">'+cpIcon('info')+' Mañana e Intermedio comparten programación cuando existe plan de Mañana.</div>':''}
   </section>`;
 }
 
@@ -690,11 +690,11 @@ function cpCabecera(){
   const horario=ctx.horarioInicio&&ctx.horarioFin?`${ctx.horarioInicio} – ${ctx.horarioFin}`:'Sin horario asignado';
   const selector=cpEsVistaGeneral()?`<div class="cp-context-filter" aria-label="Consulta de fecha y turno">
     <label>Fecha<input type="date" value="${cpEsc(ctx.fechaOperativa)}" onchange="cpCambiarContexto('fecha',this.value)"></label>
-    <label>Turno<select onchange="cpCambiarContexto('turno',this.value)"><option value="DÍA" ${ctx.turno==='DÍA'?'selected':''}>Día</option><option value="INTERMEDIO" ${ctx.turno==='INTERMEDIO'?'selected':''}>Intermedio</option><option value="NOCHE" ${ctx.turno==='NOCHE'?'selected':''}>Noche</option></select></label>
+    <label>Turno<select onchange="cpCambiarContexto('turno',this.value)"><option value="DÍA" ${ctx.turno==='DÍA'?'selected':''}>Mañana</option><option value="INTERMEDIO" ${ctx.turno==='INTERMEDIO'?'selected':''}>Intermedio</option><option value="NOCHE" ${ctx.turno==='NOCHE'?'selected':''}>Noche</option></select></label>
   </div>`:'';
   return `<div class="cp-title-row"><div><h2>${cpTitulo()}</h2><p>${cpEsVistaGeneral()?'Consulta operativa del turno seleccionado.':'Organiza el trabajo y revisa la programación vigente.'}</p></div>${selector}</div>
     <section class="cp-welcome"><div class="cp-greeting"><span class="cp-avatar-icon">${cpIcon('user')}</span><div><h3>Hola, ${cpEsc(nombre)}</h3><p>${cpEsc(cpCargo()||'Usuario GLACIAL')}</p></div></div>
-      <div class="cp-shift-facts"><button type="button" class="cp-date-fact" onclick="cpAbrirCalendarioInicio()" aria-label="Seleccionar fecha operativa" title="Seleccionar fecha">${cpIcon('calendar')}<span>Fecha<b>${cpFechaBonita(ctx.fechaOperativa)}</b></span><input id="cp-fecha-operativa-input" class="cp-date-native" type="date" value="${cpEsc(ctx.fechaOperativa)}" onchange="cpCambiarFechaInicio(this.value)" tabindex="-1" aria-hidden="true"></button><div>${cpIcon('sun')}<span>Turno<b>${cpEsc(ctx.turno||'Sin asignación')}</b></span></div><div>${cpIcon('clock')}<span>Horario<b>${cpEsc(horario)}</b></span></div>${cpHechosTurnoExtra(ctx)}</div>
+      <div class="cp-shift-facts"><button type="button" class="cp-date-fact" onclick="cpAbrirCalendarioInicio()" aria-label="Seleccionar fecha operativa" title="Seleccionar fecha">${cpIcon('calendar')}<span>Fecha<b>${cpFechaBonita(ctx.fechaOperativa)}</b></span><input id="cp-fecha-operativa-input" class="cp-date-native" type="date" value="${cpEsc(ctx.fechaOperativa)}" onchange="cpCambiarFechaInicio(this.value)" tabindex="-1" aria-hidden="true"></button><div>${cpIcon('sun')}<span>Turno<b>${cpEsc(ctx.turno?GlacialIndicadores.nombreBloque(ctx.turno,'pantalla'):'Sin asignación')}</b></span></div><div>${cpIcon('clock')}<span>Horario<b>${cpEsc(horario)}</b></span></div>${cpHechosTurnoExtra(ctx)}</div>
     </section>`;
 }
 /* Líneas asignadas, estado del turno y tiempo transcurrido de "Mi turno". */
@@ -871,7 +871,7 @@ function cpEjecutivoHTML(){
 
   return `<div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2><p>Vista general del turno en planta</p></div>
       <div class="cp-ex-meta"><div><b>${cpFechaBonita(d.fecha)}</b><small>Actualizado ${cpEsc(hora)}</small></div>
-        <div class="cp-ex-turno"><b>TURNO ${cpEsc(d.turno)}</b><small>${cpEsc(CP_HORARIO_TURNO[d.turno]||'')}</small></div></div></div>
+        <div class="cp-ex-turno"><b>TURNO ${cpEsc(GlacialIndicadores.nombreBloque(d.turno,'pantalla'))}</b><small>${cpEsc(CP_HORARIO_TURNO[d.turno]||'')}</small></div></div></div>
     <div class="cp-ex-kpis">
       <div class="cp-ex-kpi"><span>Avance general del turno</span><b>${cpAvanceTxt(d)}</b>${barra(d.avance,'EN_CURSO')}<small>Cumplimiento de la programación</small></div>
       <div class="cp-ex-kpi"><span>Líneas en producción</span><b>${d.enCurso} / ${n}</b><small>líneas activas en este momento</small></div>

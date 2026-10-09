@@ -24,9 +24,9 @@
   /* Se programa por BLOQUE: «Día + Intermedio» y «Noche», con una sola cantidad por producto. Lo de Día + Intermedio se guarda en la
      fila DÍA (no se crea fila de INTERMEDIO, así no cambia la clave ni hay que migrar datos). Las filas INTERMEDIO ya guardadas
      siguen valiendo: el programado del bloque es la suma (GlacialProgramadoBloque, 23b). */
-  NS.BLOQUES=[{valor:'DÍA',etq:'Día (incluye Intermedio)'},{valor:'NOCHE',etq:'Noche'}];
+  NS.BLOQUES=[{valor:'DÍA',etq:window.GlacialIndicadores.nombreBloque('DÍA','pantalla','titulo')},{valor:'NOCHE',etq:window.GlacialIndicadores.nombreBloque('NOCHE','pantalla','titulo')}];
   NS.valorBloque=t=>String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DÍA';
-  NS.etiquetaBloque=t=>NS.valorBloque(t)==='NOCHE'?'Noche':'Día (incluye Intermedio)';
+  NS.etiquetaBloque=t=>window.GlacialIndicadores.nombreBloque(NS.valorBloque(t),'pantalla','titulo');
   /* Horario productivo del bloque, tomado de la configuración de bloques (sync/configIndicadores → bloques). */
   NS.horarioBloque=t=>{
     try{
@@ -110,7 +110,7 @@
     const errores=[],avisos=[];
     if(!lineas().some(l=>l.key===f.linea))errores.push('La línea no es válida.');
     if(!fechaOk(f.fecha))errores.push('La fecha no es válida.');
-    if(!TURNOS.includes(f.turno))errores.push('El turno debe ser Día (incluye Intermedio) o Noche.');
+    if(!TURNOS.includes(f.turno))errores.push('El turno debe ser Mañana + Intermedio o Noche.');
     if(!f.marca)errores.push('Selecciona la marca.');
     else if(lineas().some(l=>l.key===f.linea)&&!NS.marcas(f.linea).includes(f.marca))errores.push('La marca «'+f.marca+'» no existe en '+NS.nombreLinea(f.linea)+'.');
     if(!f.presentacion)errores.push('Selecciona la presentación.');
@@ -292,13 +292,13 @@
       if(!(fila.upp>0))fila.upp=NS.uppSugerida(fila.linea,fila.marca,fila.presentacion);
       const v=NS.validar(fila);
       const clave=NS.clave(fila.linea,fila.fecha,fila.turno,fila.marca,fila.presentacion);
-      if(eraIntermedio)v.avisos.push('Fila INTERMEDIO: se carga en Día (incluye Intermedio); se guarda en la fila DÍA.');
+      if(eraIntermedio)v.avisos.push('Fila INTERMEDIO: se carga en Mañana + Intermedio; se guarda en la fila DÍA.');
       const previa=vistos.has(clave)?salida.find(x=>x.clave===clave&&!x.errores.length):null;
       if(previa&&!v.errores.length&&(eraIntermedio||previa.conIntermedio)){
         // Día + Intermedio del mismo producto: se SUMAN (no gana la última).
         const antes=previa.fila.cantidad;previa.fila.cantidad=antes+fila.cantidad;previa.conIntermedio=true;
         previa.avisos.push('Se sumó la fila '+(i+2)+' (Intermedio): '+antes.toLocaleString('es-PE')+' + '+fila.cantidad.toLocaleString('es-PE')+' = '+previa.fila.cantidad.toLocaleString('es-PE')+' UND.');
-        if(antes===fila.cantidad){previa.posibleDuplicado=true;previa.avisos.push('POSIBLE DUPLICADO: Día e Intermedio traen la misma cantidad ('+antes.toLocaleString('es-PE')+' UND). Confirma antes de importar.');}
+        if(antes===fila.cantidad){previa.posibleDuplicado=true;previa.avisos.push('POSIBLE DUPLICADO: Mañana e Intermedio traen la misma cantidad ('+antes.toLocaleString('es-PE')+' UND). Confirma antes de importar.');}
         return;
       }
       if(vistos.has(clave))v.avisos.push('Se repite en este archivo: gana la última fila.');

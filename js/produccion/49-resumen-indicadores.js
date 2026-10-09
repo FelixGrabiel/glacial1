@@ -51,7 +51,7 @@
   const ahoraMs=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
   const nombreLinea=k=>{try{const l=(typeof LINES!=='undefined'?LINES:[]).find(x=>x.key===k);return l?l.name:k;}catch(_){return k;}};
   const grupoDeTurno=t=>norm(t).includes('noche')?'NOCHE':'DIA';
-  const etiquetaGrupo=g=>g==='NOCHE'?'Noche':'Día';
+  const etiquetaGrupo=g=>GlacialIndicadores.nombreBloque(g==='NOCHE'?'NOCHE':'DÍA','pantalla','titulo');
   function hoyOp(){
     try{if(typeof window.glacialTurnoVigente==='function'){const t=window.glacialTurnoVigente();if(t&&fechaOk(t.fecha))return t.fecha;}}catch(_){/* cálculo propio */}
     const d=new Date(ahoraMs());if(d.getHours()<7)d.setDate(d.getDate()-1);
@@ -674,7 +674,7 @@
     return '<div class="rgx-bar"><div><h3>Indicadores del periodo</h3><div class="rgx-sub">Todas las líneas visibles · '+esc(etiquetaPeriodo(per))+
       (R.hayVivo?' · hoy en vivo desde el semáforo':'')+(per.previo?' · comparado con '+esc(fmtFecha(per.previo.desde)===fmtFecha(per.previo.hasta)?fmtFecha(per.previo.desde):fmtFecha(per.previo.desde)+' – '+fmtFecha(per.previo.hasta)):'')+'</div></div>'+
       '<div class="rgx-ctl"><select data-rgx-filtro="linea" aria-label="Línea"><option value="TODAS">Toda la planta</option>'+lineasSel.map(l=>'<option value="'+esc(l.key)+'"'+(lineaAct===l.key?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select>'+
-      '<select data-rgx-filtro="turno" aria-label="Turno"><option value="">Todos los turnos</option><option value="DIA"'+(F.turno==='DIA'?' selected':'')+'>Día</option><option value="NOCHE"'+(F.turno==='NOCHE'?' selected':'')+'>Noche</option></select>'+
+      '<select data-rgx-filtro="turno" aria-label="Turno"><option value="">Todos los turnos</option><option value="DIA"'+(F.turno==='DIA'?' selected':'')+'>Mañana + Intermedio</option><option value="NOCHE"'+(F.turno==='NOCHE'?' selected':'')+'>Noche</option></select>'+
       '<select data-rgx-filtro="marca" aria-label="Marca"><option value="">Todas las marcas</option>'+grupoMarcas('regular','Regulares')+grupoMarcas('gas','Con gas')+grupoMarcas('sabor','Saborizadas')+'</select>'+
       '<select data-rgx-filtro="pres" aria-label="Presentación"><option value="">Todas las presentaciones</option>'+cats.map(k=>'<option value="'+esc(k)+'"'+(F.pres===k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</select>'+
       '<button type="button" class="rgx-btn'+(resumenTieneRango()&&resumenRangoDias==='rango'?' on':'')+'" data-rgx-rango>Rango</button>'+rangoUI+

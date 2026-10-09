@@ -990,7 +990,7 @@ function verReporteHistorial(id){
           <span class="hist-report-line">${esc(r.linea)}</span>
           <div>
             <h2>Reporte de producción</h2>
-            <p>${esc(r.fecha)} · ${r.grupoTurno==='DIA_INTERMEDIO'?'DÍA + INTERMEDIO':esc(r.turno)}</p>
+            <p>${esc(r.fecha)} · ${r.grupoTurno==='DIA_INTERMEDIO'?GlacialIndicadores.nombreBloque('DÍA','pantalla'):esc(r.turno)}</p>
           </div>
         </div>
         <div class="hist-report-top-actions">

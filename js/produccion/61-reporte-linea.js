@@ -281,7 +281,7 @@
     texto(x,'REPORTE DE PRODUCCIÓN',PAD+274,66,{tam:25,peso:'600',color:C.blanco,max:360});
     texto(x,m.nombre||m.linea,PAD+274,124,{tam:60,peso:'800',color:C.blanco,max:360,min:36});
     const rx=W-PAD-22;
-    texto(x,fechaBonita(e.fecha)+' · '+(e.bloque==='NOCHE'?'NOCHE':'DÍA + INTERMEDIO'),rx,50,{tam:23,peso:'700',color:C.blanco,align:'right',max:420});
+    texto(x,fechaBonita(e.fecha)+' · '+GlacialIndicadores.nombreBloque(e.bloque,'reporte'),rx,50,{tam:23,peso:'700',color:C.blanco,align:'right',max:420});
     const cerrado=e.estado==='CERRADO';
     x.fillStyle=cerrado?C.verdeFondo:C.ambar;rr(x,rx-160,62,160,36,8);x.fill();
     texto(x,cerrado?'CERRADO':'PARCIAL',rx-80,87,{tam:19,peso:'800',color:C.blanco,align:'center'});
@@ -433,7 +433,7 @@
     y+=ms.hAcc+14;
 
     /* --- 7) pie --- */
-    texto(x,'GLACIAL · '+fechaBonita(e.fecha)+' · '+(e.bloque==='NOCHE'?'Noche':'Día + Intermedio')+' · '+(e.tipo==='CIERRE'?(cerrado?'Cierre':'Relevo'):'Avance')+' al corte '+(e.corte||'—')+' · Reporte '+String(e.idSnapshot||'').split('|').slice(-1)[0]+' v'+m.version,W/2,y+22,{tam:12,color:C.gris,align:'center',max:IW});
+    texto(x,'GLACIAL · '+fechaBonita(e.fecha)+' · '+GlacialIndicadores.nombreBloque(e.bloque,'reporte','titulo')+' · '+(e.tipo==='CIERRE'?(cerrado?'Cierre':'Relevo'):'Avance')+' al corte '+(e.corte||'—')+' · Reporte '+String(e.idSnapshot||'').split('|').slice(-1)[0]+' v'+m.version,W/2,y+22,{tam:12,color:C.gris,align:'center',max:IW});
     return canvas;
   }
 

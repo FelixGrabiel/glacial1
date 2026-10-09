@@ -293,9 +293,25 @@
        Entre el fin de diaInter y el inicio de noche la planta está parada (no es bloque productivo).
        pausas   : pausas previstas del bloque {nombre, min}; la que ya figura como parada programada oficial no se vuelve a descontar.
      --------------------------------------------------------- */
+    /* NOMBRES VISIBLES de los bloques de producción (solo presentación: no cambian claves, identificadores ni agrupación).
+       reporte  → avances, cierres, imágenes, texto de WhatsApp, Excel y reportes históricos: DÍA / NOCHE.
+       pantalla → pantallas del sistema: MAÑANA + INTERMEDIO / NOCHE.
+     Los turnos individuales del personal (Tareo, Rotaciones) conservan sus nombres propios. Todas las pantallas y reportes
+     llaman a nombreBloque(): un solo lugar para cambiar la nomenclatura. */
+  const NOMBRES_TURNO=Object.freeze({
+    reporte:Object.freeze({diurno:'DÍA',nocturno:'NOCHE'}),
+    pantalla:Object.freeze({diurno:'MAÑANA + INTERMEDIO',nocturno:'NOCHE'})
+  });
+  /* entrada: turno o bloque ('DÍA', 'INTERMEDIO', 'NOCHE', 'diaInter', 'noche'…). contexto: 'reporte' | 'pantalla'. formato: 'titulo' → «Mañana + Intermedio». */
+  function nombreBloque(entrada,contexto,formato){
+    const noche=String(entrada||'').toUpperCase().includes('NOCHE');
+    const set=NOMBRES_TURNO[contexto==='reporte'?'reporte':'pantalla'];
+    const base=noche?set.nocturno:set.diurno;
+    return formato==='titulo'?base.split(' ').map(p=>p.charAt(0)+p.slice(1).toLowerCase()).join(' '):base;
+  }
   const BLOQUES_INICIALES=Object.freeze({
-    diaInter:Object.freeze({etiqueta:'Día + Intermedio',inicio:'07:00',fin:'19:00',pausas:Object.freeze([Object.freeze({nombre:'Refrigerio',min:60})])}),
-    noche:Object.freeze({etiqueta:'Noche',inicio:'21:00',fin:'07:00',pausas:Object.freeze([Object.freeze({nombre:'Refrigerio',min:60})])})
+    diaInter:Object.freeze({etiqueta:'MAÑANA + INTERMEDIO',inicio:'07:00',fin:'19:00',pausas:Object.freeze([Object.freeze({nombre:'Refrigerio',min:60})])}),
+    noche:Object.freeze({etiqueta:'NOCHE',inicio:'21:00',fin:'07:00',pausas:Object.freeze([Object.freeze({nombre:'Refrigerio',min:60})])})
   });
   const hhmmValida=t=>/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t||'').trim());
   const aMin=t=>{const [h,m]=String(t).trim().split(':').map(Number);return h*60+m;};
@@ -528,7 +544,7 @@
     cumplimiento,programadoVigente,produccionVigente,
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,
     turnoVigente,diaOperativo,horarioTurno,HORARIOS_TURNO,
-    BLOQUES_INICIALES,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
+    BLOQUES_INICIALES,NOMBRES_TURNO,nombreBloque,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
     estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,
     resumenIndicadores,DEFINICIONES
   });

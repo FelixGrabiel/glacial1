@@ -249,7 +249,7 @@
       '<label>Semana de<input type="date" id="sem-fecha" value="'+esc(E.semana)+'"></label>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-sem="7">Semana siguiente ▶</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-sem="hoy">Esta semana</button>'+
-      '<span class="plan-nota" style="margin:0 0 0 8px">Ámbar = sin programación · borde azul = más de un producto · ⚠ = misma cantidad en Día e Intermedio (posible duplicado). Toca una celda para abrirla en Programación.</span></div><div id="sem-grilla"></div>';
+      '<span class="plan-nota" style="margin:0 0 0 8px">Ámbar = sin programación · borde azul = más de un producto · ⚠ = misma cantidad en Mañana e Intermedio (posible duplicado). Toca una celda para abrirla en Programación.</span></div><div id="sem-grilla"></div>';
     pintarGrilla();
   }
 
@@ -279,7 +279,7 @@
         totalLinea+=suma;totDia[d+'|'+b.valor]=(totDia[d+'|'+b.valor]||0)+suma;
         const estilo=!prods.length?'background:#fff8e6':prods.length>1?'box-shadow:inset 0 0 0 2px #2d7fc0;background:#eef6fc':'';
         celdas+='<td data-sem-fecha="'+d+'" data-sem-turno="'+b.valor+'" style="cursor:pointer;font-size:11px;min-width:104px;vertical-align:top;border-left:'+(j===0?'1px solid #d9e2e8':'0')+';'+estilo+'">'+
-          (prods.length?prods.map(o=>'<div title="'+esc(o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+'"><b>'+o.cant.toLocaleString('es-PE')+'</b> '+esc(o.p.marca)+' '+esc(NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+(o.inter?' <small style="color:#5a6b78">(cargada como Intermedio)</small>':'')+(o.dup?' <span style="color:#8a5a1e" title="Misma cantidad en Día e Intermedio: posible duplicado">⚠</span>':'')+'</div>').join('')+(prods.length>1?'<div style="color:#2d7fc0">'+prods.length+' productos</div>':''):'<span style="color:#8a6d1d">—</span>')+'</td>';
+          (prods.length?prods.map(o=>'<div title="'+esc(o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+'"><b>'+o.cant.toLocaleString('es-PE')+'</b> '+esc(o.p.marca)+' '+esc(NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+(o.inter?' <small style="color:#5a6b78">(cargada como Intermedio)</small>':'')+(o.dup?' <span style="color:#8a5a1e" title="Misma cantidad en Mañana e Intermedio: posible duplicado">⚠</span>':'')+'</div>').join('')+(prods.length>1?'<div style="color:#2d7fc0">'+prods.length+' productos</div>':''):'<span style="color:#8a6d1d">—</span>')+'</td>';
       }));
       granTotal+=totalLinea;
       return '<tr><td><b>'+esc(l.name)+'</b></td>'+celdas+'<td class="num" style="border-left:1px solid #d9e2e8"><b>'+totalLinea.toLocaleString('es-PE')+'</b></td></tr>';

@@ -37,6 +37,8 @@ function avTurnoPorHora(){
   try{const b=GlacialIndicadores.bloqueVigente(typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now(),typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores().bloques:undefined);return b&&b.bloque==='noche'?'NOCHE':'DÍA';}
   catch(_){return 'DÍA';}
 }
+/* Nombre de pantalla del bloque (MAÑANA + INTERMEDIO / NOCHE): selectores y etiquetas de navegación. El contenido de los reportes sigue diciendo DÍA / NOCHE. */
+function avNombreTurnoPantalla(t){return GlacialIndicadores.nombreBloque(t,'pantalla');}
 function avCtx(){
   const c=state.user?.contextoRotacion;
   const turno=avTurnoCanon(state.user?.turnoOperativo||c?.turno||avTurnoPorHora());
@@ -1222,14 +1224,14 @@ function avDibujarFlotante(){
         <div>
           <span class="av-eyebrow">CONTROL OPERATIVO</span>
           <h2>AVANCE Y CIERRE DE TURNO</h2>
-          <p>${avFechaBonita(ctx.fecha)} · ${avEsc(ctx.turno)} · ${avEsc(avTurnoHorario(ctx.turno))}</p>
+          <p>${avFechaBonita(ctx.fecha)} · ${avEsc(avNombreTurnoPantalla(ctx.turno))} · ${avEsc(avTurnoHorario(ctx.turno))}</p>
           <p>Supervisor: <b>${avEsc(avNombreUsuario()||'—')}</b></p>
         </div>
         <button class="av-float-x" onclick="avCerrarFlotante()" aria-label="Cerrar">✕</button>
       </header>
       <div class="av-float-body">
         <section class="av-shift-status">
-          <div><small>TURNO ACTUAL</small><strong>${avEsc(ctx.turno)}</strong><span>${avEsc(avTurnoHorario(ctx.turno))}</span></div>
+          <div><small>TURNO ACTUAL</small><strong>${avEsc(avNombreTurnoPantalla(ctx.turno))}</strong><span>${avEsc(avTurnoHorario(ctx.turno))}</span></div>
           <div><small>GENERACIÓN LIBRE</small><strong>En cualquier momento</strong><span>${slots.length} avance(s) guardado(s)</span></div>
         </section>
         <div class="av-slot-strip">
@@ -1685,10 +1687,10 @@ function avDibujar(){
   avAsegurarDistribucion();
   const ctx=avCtx(),actual=avanceEstado.fecha===ctx.fecha&&avanceEstado.turno===ctx.turno;
   root.innerHTML=`
-    <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'} · ${avEsc(avanceEstado.turno)}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
+    <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
     ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
     <div id="av-estado" class="av-inline-status"></div>
-    <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${t==='DÍA'?'DÍA (incluye Intermedio)':'NOCHE'}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
+    <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${avNombreTurnoPantalla(t)}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
     ${avHistorialGeneralHtml()}`;
   avInstalarBotonFlotante();
 }

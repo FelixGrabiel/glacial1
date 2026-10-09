@@ -180,7 +180,7 @@
       return `${esc(ETQ[l])}: ${t(a)} → <b>${t(n)}</b>`;
     }).filter(Boolean).join('<br>')||'Sin cambios en las cantidades';
     return `<div class="dp-modal" onclick="if(event.target===this)glacialDistribucionPantalla.historial(false)"><div>
-      <div style="display:flex;justify-content:space-between;align-items:center"><h3>Historial · ${esc(E.fecha)} · ${E.bloque==='NOCHE'?'Noche':'Día (incluye Intermedio)'}</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center"><h3>Historial · ${esc(E.fecha)} · ${window.GlacialIndicadores.nombreBloque(E.bloque,'pantalla','titulo')}</h3>
         <button class="dp-sec" style="min-height:40px;padding:0 14px;border:0;border-radius:8px" onclick="glacialDistribucionPantalla.historial(false)">Cerrar</button></div>
       <div style="overflow-x:auto"><table class="dp-tabla"><thead><tr><th>Ver.</th><th>Aplica desde</th><th>Guardado</th><th>Usuario</th><th>Cantidades</th><th>Motivo / observación</th></tr></thead><tbody>
       ${eventos.map(e=>`<tr><td>${num(e.version)}${e.correccion?'<br><small>corrección</small>':''}</td><td>${hhmm(e.desdeMs)}</td><td>${fechaHora(e.guardadoEnMs)}</td><td>${esc(e.usuario||'—')}</td><td>${cambios(e)}${num(e.apoyoCompartido)?`<br>Apoyo: ${num(e.apoyoCompartido)}`:''}</td><td>${esc(e.motivo||e.observaciones||'—')}</td></tr>`).join('')||'<tr><td colspan="6">Sin eventos registrados.</td></tr>'}
@@ -207,7 +207,7 @@
       <div class="dp-card"><div class="dp-ctx">
         <div class="dp-campo"><label>Fecha operativa</label><input type="date" value="${esc(E.fecha)}" onchange="glacialDistribucionPantalla.contexto(this.value,null)"></div>
         <div class="dp-campo"><label>Bloque</label><select onchange="glacialDistribucionPantalla.contexto(null,this.value)">
-          <option value="DÍA" ${E.bloque==='DÍA'?'selected':''}>Día (incluye Intermedio)</option><option value="NOCHE" ${E.bloque==='NOCHE'?'selected':''}>Noche</option></select></div>
+          <option value="DÍA" ${E.bloque==='DÍA'?'selected':''}>${window.GlacialIndicadores.nombreBloque('DÍA','pantalla','titulo')}</option><option value="NOCHE" ${E.bloque==='NOCHE'?'selected':''}>Noche</option></select></div>
       </div></div>
       <div id="dp-banner">${htmlBanner()}</div>
       <div id="dp-resumen">${htmlResumen()}</div>

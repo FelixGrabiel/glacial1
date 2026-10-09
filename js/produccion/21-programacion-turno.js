@@ -120,8 +120,8 @@
     const visibles = expandida ? todas : todas.slice(0,2);
     card.innerHTML = `
       <div class="pt-top"><h3 class="pt-title">Programación del turno</h3>
-        <span class="pt-context">${escape(c.turno)} · ${escape(c.fecha)}${
-          c.turno !== 'NOCHE' ? ' · programación del bloque Día (incluye Intermedio)' : ''}</span></div>
+        <span class="pt-context">${escape(GlacialIndicadores.nombreBloque(c.turno,'pantalla'))} · ${escape(c.fecha)}${
+          c.turno !== 'NOCHE' ? ' · programación compartida del bloque' : ''}</span></div>
       ${todas.length ? `<div class="pt-columns"><span>MARCA</span>
         <span>PRESENTACIÓN</span><span>UND PROGRAMADAS</span></div>
         <div class="pt-list${expandida ? ' is-expanded' : ''}">

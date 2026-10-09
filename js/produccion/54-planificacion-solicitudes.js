@@ -16,7 +16,7 @@
   const G=()=>window.GlacialIndicadores;
 
   /* Se programa por bloque; la solicitud conserva el turno REAL de quien la pide (p. ej. INTERMEDIO) y se aplica al bloque Día. */
-  const turnoTxt=t=>t==='INTERMEDIO'?'Día (incluye Intermedio) · pedida desde Intermedio':NS.etiquetaBloque(t);
+  const turnoTxt=t=>t==='INTERMEDIO'?NS.etiquetaBloque(t)+' · pedida desde Intermedio':NS.etiquetaBloque(t);
   const usuario=()=>{
     const u=(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)||null;
     return {uid:(u&&u.uid)||'',nombre:(state.user&&(state.user.nombre||state.user.username))||'',username:(state.user&&state.user.username)||''};
@@ -60,7 +60,7 @@
     try{
       const lista=await leerHistorial();
       cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Fecha y hora</th><th>Acción</th><th>Producto</th><th>Turno</th><th>Antes</th><th>Después</th><th>Motivo</th><th>Usuario</th></tr></thead><tbody>'+
-        (lista.length?lista.map(h=>'<tr><td>'+esc(fmtFechaHora(marcaTiempo(h.timestamp)))+'</td><td>'+esc(/^UNIFICACION/.test(h.referencia||'')?'Unificada en Día ('+(TEXTO_ACCION[h.accion]||h.accion).toLowerCase()+')':(TEXTO_ACCION[h.accion]||h.accion))+'</td><td>'+esc(NS.nombreLinea(h.linea))+' · '+esc(h.marca)+' '+esc(NS.etiquetaPresentacion(h.linea,h.marca,h.presentacion))+'</td><td>'+esc(h.fecha)+' · '+esc(h.turno==='INTERMEDIO'?'Intermedio':h.turno==='DÍA'?'Día':h.turno)+'</td><td>'+esc(textoValor(h.anterior))+'</td><td>'+esc(textoValor(h.nuevo))+'</td><td>'+esc(h.motivo||'')+'</td><td>'+esc(h.usuario||'')+'</td></tr>').join(''):'<tr><td colspan="8">Todavía no hay cambios registrados.</td></tr>')+'</tbody></table></div>'+
+        (lista.length?lista.map(h=>'<tr><td>'+esc(fmtFechaHora(marcaTiempo(h.timestamp)))+'</td><td>'+esc(/^UNIFICACION/.test(h.referencia||'')?'Unificada en Mañana ('+(TEXTO_ACCION[h.accion]||h.accion).toLowerCase()+')':(TEXTO_ACCION[h.accion]||h.accion))+'</td><td>'+esc(NS.nombreLinea(h.linea))+' · '+esc(h.marca)+' '+esc(NS.etiquetaPresentacion(h.linea,h.marca,h.presentacion))+'</td><td>'+esc(h.fecha)+' · '+esc(h.turno==='INTERMEDIO'?'Intermedio':h.turno==='DÍA'?'Día':h.turno)+'</td><td>'+esc(textoValor(h.anterior))+'</td><td>'+esc(textoValor(h.nuevo))+'</td><td>'+esc(h.motivo||'')+'</td><td>'+esc(h.usuario||'')+'</td></tr>').join(''):'<tr><td colspan="8">Todavía no hay cambios registrados.</td></tr>')+'</tbody></table></div>'+
         (NS.historialFallo?'<p class="plan-error">Algún cambio reciente no pudo registrarse en el historial (revisa que las reglas de Firestore estén publicadas).</p>':'');
     }catch(e){cont.innerHTML='<p class="plan-error">No se pudo leer el historial: '+esc((e&&e.message)||e)+'</p>';}
   }

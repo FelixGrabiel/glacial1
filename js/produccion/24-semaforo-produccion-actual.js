@@ -19,6 +19,8 @@
       : String(presentacion || '—');
   const fechaLocal = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+
     '-'+String(d.getDate()).padStart(2,'0');
+    // Nombres de pantalla de los bloques de las líneas (MAÑANA + INTERMEDIO / NOCHE), sin repetir el bloque.
+  const bloquesTexto = ts => [...new Set((ts || []).map(t => GlacialIndicadores.nombreBloque(t,'pantalla')))].join(' · ');
   const turnoCodigo = t => t.key === 'MANANA' ? 'DÍA' :
     t.key === 'TARDE' ? 'INTERMEDIO' : 'NOCHE';
   // Turno vigente y día operativo: una sola función en el módulo de indicadores (hora del servidor, corte 07:00).
@@ -592,7 +594,7 @@
     }
     if(Array.isArray(porTurno) && porTurno.length){
       h+='<details class="pa-proy-det"><summary>Producido por turno dentro del bloque</summary>'+porTurno.map(f=>
-        '<div class="pa-proy-row"><span>'+esc(f.etiqueta)+'</span><b>Día '+fmt(f.dia)+' · Intermedio '+fmt(f.inter)+'</b></div>').join('')+
+        '<div class="pa-proy-row"><span>'+esc(f.etiqueta)+'</span><b>Mañana '+fmt(f.dia)+' · Intermedio '+fmt(f.inter)+'</b></div>').join('')+
         '<div class="pa-proy-nota info">Cada registro conserva su usuario, turno y hora. El ritmo y la proyección usan siempre el bloque completo.</div></details>';
     }
     return h+'</div>';
@@ -1082,7 +1084,7 @@
               <div class="pa-line-icon">⚙</div>
               <div>
                 <strong class="pa-line-title">${esc(g.line.name)}</strong>
-                <div class="pa-line-turnos">${esc(g.turnosLinea.join(' · ') || 'SIN TURNO')}</div>
+                <div class="pa-line-turnos">${esc(bloquesTexto(g.turnosLinea) || 'SIN TURNO')}</div>
               </div>
             </div>
             <div class="pa-line-status">

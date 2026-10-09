@@ -159,7 +159,7 @@ ok(/Ver en Planificación/.test(leer('js/produccion/51-planificacion-nucleo.js')
   ok(guardado&&guardado.velocidades['PET1|Regular_625ml']===2500,'el editor de Análisis de paradas sigue sobrescribiendo lo que el usuario cambia a propósito');
 }
 /* ---------- 6) Parte B: se programa por BLOQUE (Día + Intermedio / Noche) ---------- */
-ok(NS.BLOQUES.length===2&&NS.BLOQUES[0].etq==='Día (incluye Intermedio)'&&NS.BLOQUES[1].etq==='Noche'&&!NS.BLOQUES.some(b=>/^Intermedio$/i.test(b.etq)),'Planificación ofrece solo «Día (incluye Intermedio)» y «Noche»');
+ok(NS.BLOQUES.length===2&&NS.BLOQUES[0].etq==='Mañana + Intermedio'&&NS.BLOQUES[1].etq==='Noche'&&!NS.BLOQUES.some(b=>/^Intermedio$/i.test(b.etq)),'Planificación ofrece solo «Mañana + Intermedio» y «Noche»');
 ok(NS.valorBloque('INTERMEDIO')==='DÍA'&&NS.valorBloque('DÍA')==='DÍA'&&NS.valorBloque('NOCHE')==='NOCHE','Intermedio pertenece al bloque Día (se guarda en la fila DÍA, sin crear fila de INTERMEDIO)');
 const fila8=(turno,c)=>({clave:'PET1|2026-10-08|'+turno+'|Bells|Regular_625ml',linea:'PET1',fecha:'2026-10-08',turno,marca:'Bells',presentacion:'Regular_625ml',cantidadProgramada:c,unidadesPorPaleta:1200,estadoOperacion:{estado:'PENDIENTE'}});
 progs=[fila8('DÍA',12000),fila8('INTERMEDIO',8000)];
@@ -177,7 +177,7 @@ progs=[];
 const lectB=await NS.leerExcel({arrayBuffer:async()=>new ArrayBuffer(1)});
 ok(lectB.filas.length===2,'Excel: la fila INTERMEDIO de un producto con fila DÍA se fusiona (2 filas, no 3)');
 ok(lectB.filas[0].fila.turno==='DÍA'&&lectB.filas[0].fila.cantidad===20000&&lectB.filas[0].avisos.some(a=>/sumó.*12[.,]000.*8[.,]000.*20[.,]000/.test(a)),'Excel: Día 12,000 + Intermedio 8,000 = 20,000 en la fila DÍA, avisado en la vista previa');
-ok(lectB.filas[1].fila.turno==='DÍA'&&lectB.filas[1].fila.cantidad===5000&&lectB.filas[1].avisos.some(a=>/INTERMEDIO.*Día [(]incluye Intermedio[)]/.test(a)),'Excel: un producto solo en INTERMEDIO también va al bloque (fila DÍA) y lo avisa');
+ok(lectB.filas[1].fila.turno==='DÍA'&&lectB.filas[1].fila.cantidad===5000&&lectB.filas[1].avisos.some(a=>/INTERMEDIO.*Mañana [+] Intermedio/.test(a)),'Excel: un producto solo en INTERMEDIO también va al bloque (fila DÍA) y lo avisa');
 progs=[fila8('INTERMEDIO',8000)].map(x=>Object.assign(x,{fecha:'2026-10-09',clave:'PET1|2026-10-09|INTERMEDIO|Bells|Regular_625ml'}));
 const lectC=await NS.leerExcel({arrayBuffer:async()=>new ArrayBuffer(1)});
 ok(lectC.filas[0].avisos.some(a=>/fila INTERMEDIO guardada.*suma/.test(a)),'Excel: avisa si ya hay una fila INTERMEDIO guardada (el bloque será la suma)');
@@ -225,6 +225,6 @@ const solI={id:'s9',tipo:'NUEVA_PROGRAMACION',linea:'PET1',fecha:'2026-10-21',tu
 await NS.guardar({linea:solI.linea,fecha:solI.fecha,turno:solI.turno,marca:solI.marca,presentacion:solI.presentacion,cantidad:7000,upp:1200},{accion:'APROBACION',referencia:solI.id});
 ok(progs.length===1&&progs[0].turno==='DÍA'&&solI.turno==='INTERMEDIO','aprobar una solicitud pedida desde Intermedio cambia el bloque Día; la solicitud conserva su turno real (INTERMEDIO)');
 /* etiquetas */
-ok(NS.etiquetaBloque('INTERMEDIO')==='Día (incluye Intermedio)'&&/07:00.19:00/.test(NS.horarioBloque('DÍA'))&&/21:00.07:00/.test(NS.horarioBloque('NOCHE')),'el selector muestra «Día (incluye Intermedio)» y «Noche» con su horario de la configuración de bloques');
+ok(NS.etiquetaBloque('INTERMEDIO')==='Mañana + Intermedio'&&/07:00.19:00/.test(NS.horarioBloque('DÍA'))&&/21:00.07:00/.test(NS.horarioBloque('NOCHE')),'el selector muestra «Mañana + Intermedio» y «Noche» con su horario de la configuración de bloques');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -170,7 +170,7 @@
           '<td><span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-editar="'+esc(p.clave)+'">Editar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
-          (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Día</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
+          (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Mañana</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
       });
     });
     cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th class="num">Cantidad (UND)</th>'+
@@ -308,7 +308,7 @@
     };
     q('pi-aplicar').onclick=async()=>{
       const dudosas=lectura.filas.filter(x=>!x.errores.length&&x.posibleDuplicado);
-      if(dudosas.length&&!confirm('Hay '+dudosas.length+' producto(s) con posible duplicado (misma cantidad en Día e Intermedio):'+LF+LF+dudosas.slice(0,8).map(x=>'· '+x.fila.marca+' '+x.fila.presentacion+' ('+x.fila.cantidad.toLocaleString('es-PE')+' UND)').join(LF)+LF+LF+'¿Confirmas que son cantidades distintas y quieres importar?'))return;
+      if(dudosas.length&&!confirm('Hay '+dudosas.length+' producto(s) con posible duplicado (misma cantidad en Mañana e Intermedio):'+LF+LF+dudosas.slice(0,8).map(x=>'· '+x.fila.marca+' '+x.fila.presentacion+' ('+x.fila.cantidad.toLocaleString('es-PE')+' UND)').join(LF)+LF+LF+'¿Confirmas que son cantidades distintas y quieres importar?'))return;
       const filas=lectura.filas.filter(x=>!x.errores.length).map(x=>x.fila);
       // Si el archivo repite un producto, gana la última fila.
       const ultimas=new Map();filas.forEach(f=>ultimas.set(NS.clave(f.linea,f.fecha,f.turno,f.marca,f.presentacion),f));
@@ -325,11 +325,11 @@
     const p=NS.programaciones().find(x=>x.clave===clave);
     if(!p||!NS.puedeUnificar(p)){alert('Esta programación ya no se puede unificar.');return;}
     const dia=NS.existente(p.linea,p.fecha,'DÍA',p.marca,p.presentacion),cantDia=dia?num(dia.cantidadProgramada):0;
-    const fondo=abrirDialogo('<h3>Unificar en Día</h3><p style="font-size:14px">'+esc(NS.nombreLinea(p.linea))+' · '+esc(p.marca)+' '+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+' · '+esc(p.fecha)+'<br>'+
-      'Cargada como Intermedio: <b>'+num(p.cantidadProgramada).toLocaleString('es-PE')+' UND</b>'+(cantDia>0?' · en Día ya hay '+cantDia.toLocaleString('es-PE')+' UND → quedarán <b>'+(cantDia+num(p.cantidadProgramada)).toLocaleString('es-PE')+' UND</b> en Día':' · pasará a ser la programación de Día')+'.</p>'+
-      '<p class="plan-nota">No cambia el programado del bloque. La fila de Intermedio se quita y queda el rastro en la fila de Día y en el historial. Las paletas, avances y paradas de Intermedio conservan su turno.</p>'+
+    const fondo=abrirDialogo('<h3>Unificar en Mañana</h3><p style="font-size:14px">'+esc(NS.nombreLinea(p.linea))+' · '+esc(p.marca)+' '+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+' · '+esc(p.fecha)+'<br>'+
+      'Cargada como Intermedio: <b>'+num(p.cantidadProgramada).toLocaleString('es-PE')+' UND</b>'+(cantDia>0?' · en Mañana ya hay '+cantDia.toLocaleString('es-PE')+' UND → quedarán <b>'+(cantDia+num(p.cantidadProgramada)).toLocaleString('es-PE')+' UND</b> en Mañana':' · pasará a ser la programación de Mañana')+'.</p>'+
+      '<p class="plan-nota">No cambia el programado del bloque. La fila de Intermedio se quita y queda el rastro en la fila de Mañana y en el historial. Las paletas, avances y paradas de Intermedio conservan su turno.</p>'+
       '<label class="completo">Motivo (obligatorio)<textarea id="un-motivo" rows="2" maxlength="200"></textarea></label><div class="plan-error" id="un-error"></div>'+
-      '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="un-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="un-aplicar">Unificar en Día</button></div>');
+      '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="un-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="un-aplicar">Unificar en Mañana</button></div>');
     fondo.querySelector('#un-cancelar').onclick=()=>fondo.remove();
     fondo.querySelector('#un-aplicar').onclick=async()=>{
       const err=fondo.querySelector('#un-error'),btn=fondo.querySelector('#un-aplicar');

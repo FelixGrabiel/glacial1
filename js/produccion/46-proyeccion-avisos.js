@@ -206,7 +206,7 @@
         porLinea.forEach((o,linea)=>{
           if(o.iniciada||!enAmbito(a,linea))return;
           add('ini|'+linea+'|'+tv.fecha+'|'+tv.turno,'noiniciada',linea,
-            'Programación sin iniciar desde las '+hhmm(r.ini+cfg.noIniciadaMin*MS_MIN)+' ('+(tv.bloque==='noche'?'Noche':'Día + Intermedio')+')',r.ini+cfg.noIniciadaMin*MS_MIN);
+            'Programación sin iniciar desde las '+hhmm(r.ini+cfg.noIniciadaMin*MS_MIN)+' ('+GlacialIndicadores.nombreBloque(tv.bloque==='noche'?'NOCHE':'DÍA','pantalla','titulo')+')',r.ini+cfg.noIniciadaMin*MS_MIN);
         });
       }
     }
