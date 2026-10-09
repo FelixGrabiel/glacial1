@@ -1002,7 +1002,22 @@
     // Minutos (no ms) con el mismo formato legible.
     const formatoMin=min=>formatoDuracion((Number(min)||0)*60000);
     // Ratio faltante o inválido → "-" (nunca NaN/Infinity).
-    const fmtRatio=v=>Number.isFinite(v) && v!==null ? Math.round(v).toLocaleString('es-PE') : '—';
+        const fmtRatio=v=>Number.isFinite(v) && v!==null ? Math.round(v).toLocaleString('es-PE') : '—';
+    // Corte del ratio y comparación con el último avance (sus datos congelados): el semáforo es en vivo y puede diferir de un avance anterior.
+    const avisoCorteRatio=g=>{
+      const t=g.tiempos;
+      if(!t||!t.ok||!t.finMs)return '';
+      const corte=hhmmBloque(t.finMs);
+      const u=typeof window.glacialUltimoAvanceLinea==='function'
+        ? window.glacialUltimoAvanceLinea(g.line.key,g.items[0]&&g.items[0].fecha,g.items[0]&&g.items[0].turno) : null;
+      let extra='';
+      if(u){
+        const dP=Math.round(g.totalProd-u.produccion),dT=Math.round(t.tiempoOperativoMin-u.minutosEfectivos);
+        const sg=n=>(n>=0?'+':'')+n.toLocaleString('es-PE');
+        extra='<br><em title="El avance guardado conserva sus datos de ese corte; el semáforo se calcula al momento. La diferencia se explica por la producción y el tiempo efectivo transcurridos desde entonces.">Último avance '+u.horaCorte+': '+(u.ratioDisponible&&u.ratio!=null?fmtRatio(u.ratio):'—')+' · desde entonces '+sg(dP)+' UND y '+sg(dT)+' min efectivos</em>';
+      }
+      return '<div class="pa-ratio-corte" style="font-size:11px;opacity:.75">Corte '+corte+extra+'</div>';
+    };
 
     const formatoCronometro=ms=>{
       ms=Math.max(0,Number(ms)||0);
@@ -1081,7 +1096,7 @@
             <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong></div>
             <div class="pa-line-kpi"><small>CUMPLIMIENTO</small><strong>${(()=>{const c=GlacialIndicadores.cumplimiento(g.totalProd,g.totalProg);return c==null?'0.0':Math.min(999,c*100).toFixed(1);})()}<span>%</span></strong></div>
             <div class="pa-line-kpi" title="Producido ÷ (tiempo transcurrido − pausas programadas). Se usa en la proyección «Si las paradas siguen igual»."><small>RENDIMIENTO DEL TURNO</small><strong>${fmtRatio(g.ratios?.ratioTurno)} <span>UND/h</span></strong></div>
-            <div class="pa-line-kpi" title="Ratio = producido ÷ horas efectivas. Horas efectivas = tiempo transcurrido − (paradas programadas + no programadas)."><small>RATIO</small><strong>${fmtRatio(g.ratios?.ratioEfectivo)} <span>UND/h</span></strong></div>
+            <div class="pa-line-kpi" title="Ratio = producido ÷ horas efectivas. Horas efectivas = tiempo transcurrido − (paradas programadas + no programadas)."><small>RATIO</small><strong>${fmtRatio(g.ratios?.ratioEfectivo)} <span>UND/h</span></strong>${avisoCorteRatio(g)}</div>
             ${g.tiempos?.enCurso ? `<div class="pa-line-kpi"><small>RATIO NECESARIO</small><strong>${fmtRatio(g.ratios?.ratioNecesario)} <span>UND/h</span></strong></div>` : ''}
             <div class="pa-line-kpi pa-line-kpi-paradas"><small>PARADAS</small><strong>${g.tiempos?.ok ? formatoMin(g.tiempos.minParadasNoProgramadas+g.tiempos.minPausasProgramadas) : '—'}</strong>
               ${g.tiempos?.ok ? `<div class="pa-paradas-desglose">

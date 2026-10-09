@@ -3590,6 +3590,35 @@ function renderProduccionActualTab(){
       return resultado;
     };
 
+    /* SERVICIO COMPARTIDO: producción de Paletas de una presentación hasta un corte.
+     Modelo real: cada registro es un ACUMULADO (paletas completas acumuladas / saldo incompleto); manda el último de cada tipo
+     POR TURNO, y los turnos del bloque se suman (Día e Intermedio acumulan por separado). Es la misma regla del semáforo
+     (resumenProgramacionCombinacionTurnos): Avance/Cierre y Producción Actual la leen de aquí.
+     corteMs: se descartan los registros posteriores (por su hora; sin hora, por su creación). Nunca suma Paletas con
+     Producción Efectiva: esa política de fuente la decide quien llama. */
+  function msRegistroPaleta(r, fecha, turno){
+    if(/^\d{1,2}:\d{2}$/.test(String(r.hora || ''))){
+      const d = new Date(fecha + 'T' + String(r.hora).padStart(5,'0') + ':00');
+      if(turno === 'NOCHE' && Number(String(r.hora).slice(0,2)) < 12) d.setDate(d.getDate() + 1);
+      return d.getTime();
+    }
+    return Number(r.creadoEn || r.actualizadoEn) || 0;
+  }
+  window.glacialProduccionPaletasAlCorte = function(linea, fecha, turnos, marca, presentacion, corteMs){
+    let completas = 0, saldo = 0, registros = 0;
+    (Array.isArray(turnos) ? turnos : [turnos]).forEach(turno => {
+      let regs = loadPaletas().filter(r =>
+        r.linea === linea && r.fecha === fecha && r.turno === turno &&
+        r.marca === marca && r.presentacion === presentacion);
+      if(corteMs) regs = regs.filter(r => { const ms = msRegistroPaleta(r, fecha, turno); return !ms || ms <= corteMs; });
+      if(!regs.length) return;
+      registros += regs.length;
+      const u = ultimoEstado(regs);
+      completas += u.unidadesCompletas;
+      saldo += u.unidadesSaldo;
+    });
+    return {valor: completas + saldo, encontrada: registros > 0, registros, completas, saldo};
+  };
   const resumenOriginal = resumenPaletas;
 
   resumenPaletas = function(linea, fecha, turno){

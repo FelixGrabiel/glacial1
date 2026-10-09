@@ -90,8 +90,12 @@ function avProgramaciones(){
    Después de terminado el bloque, el cierre se corta en el fin del bloque. */
 function avHorarioBloque(){return GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}
 function avAhoraMs(){return typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();}
-function avEsRelevo(){const b=avHorarioBloque();return !!b&&avAhoraMs()<b.fin;}
-function avCorteCierre(){const b=avHorarioBloque();return b?avHoraDesdeMs(Math.min(avAhoraMs(),b.fin)):avCtx().fin;}
+function avEsRelevo(ahora){const b=avHorarioBloque();return !!b&&(ahora||avAhoraMs())<b.fin;}
+function avCorteCierre(ahora){const b=avHorarioBloque();return b?avHoraHHMM(Math.min(ahora||avAhoraMs(),b.fin)):avCtx().fin;}
+/* HH:MM de un instante (24 h, sin depender del idioma del equipo). */
+function avHoraHHMM(ms){const d=new Date(ms);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
+/* Versión del cálculo guardada en cada snapshot nuevo (1 = anteriores sin este dato). */
+const AV_VERSION_CALCULO=2;
 function avTituloSnapshot(s){return s.tipo==='CIERRE'?(s.relevo?'RELEVO DE TURNO':'CIERRE DE PRODUCCIÓN'):'AVANCE DE PRODUCCIÓN';}
 
 function avCorteMs(hora,tipo){
@@ -122,6 +126,12 @@ function avProduccionEfectiva(linea,marca,presentacion){
 
 function avProduccionPaletasHasta(linea,marca,presentacion,hora,tipo){
   const corte=avCorteMs(hora,tipo);
+  // Servicio compartido con Producción Actual (16): último acumulado por turno, turnos del bloque sumados, hasta el corte.
+  if(typeof window.glacialProduccionPaletasAlCorte==='function'){
+    const turnos=avanceEstado.turno==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO'];
+    const r=window.glacialProduccionPaletasAlCorte(linea,avanceEstado.fecha,turnos,marca,presentacion,corte);
+    return {valor:r.valor,encontrada:r.encontrada};
+  }
   const pal=avPaletas()
     .filter(x=>x.linea===linea&&x.marca===marca&&x.presentacion===presentacion)
     .map((x,indice)=>{
@@ -150,14 +160,16 @@ function avProduccionHasta(linea,marca,presentacion,hora,tipo){
   const efectiva=avProduccionEfectiva(linea,marca,presentacion);
   const paletas=avProduccionPaletasHasta(linea,marca,presentacion,hora,tipo);
 
+    // Se guarda también el valor de la otra fuente (conciliación): NUNCA se suman.
+  const alt=(fuente,v)=>({fuente,valor:v.valor});
   if(tipo==='CIERRE'){
-    if(efectiva.encontrada)return {valor:efectiva.valor,fuente:'PRODUCCION_EFECTIVA'};
-    return {valor:paletas.valor,fuente:paletas.encontrada?'PALETAS':'SIN_REGISTRO'};
+    if(efectiva.encontrada)return {valor:efectiva.valor,fuente:'PRODUCCION_EFECTIVA',alternativa:paletas.encontrada?alt('PALETAS',paletas):null};
+    return {valor:paletas.valor,fuente:paletas.encontrada?'PALETAS':'SIN_REGISTRO',alternativa:null};
   }
 
-  if(paletas.encontrada&&paletas.valor>0)return {valor:paletas.valor,fuente:'PALETAS'};
-  if(efectiva.encontrada)return {valor:efectiva.valor,fuente:'PRODUCCION_EFECTIVA'};
-  return {valor:0,fuente:paletas.encontrada?'PALETAS':'SIN_REGISTRO'};
+  if(paletas.encontrada&&paletas.valor>0)return {valor:paletas.valor,fuente:'PALETAS',alternativa:efectiva.encontrada?alt('PRODUCCION_EFECTIVA',efectiva):null};
+  if(efectiva.encontrada)return {valor:efectiva.valor,fuente:'PRODUCCION_EFECTIVA',alternativa:null};
+  return {valor:0,fuente:paletas.encontrada?'PALETAS':'SIN_REGISTRO',alternativa:null};
 }
 
 function avPersonalLinea(linea){
@@ -528,7 +540,7 @@ function avProductosLinea(linea,hora,tipo){
   avPaletas().filter(p=>p.linea===linea).forEach(p=>agregar(p.marca,p.presentacion));
   return [...mapa.values()].map(x=>{
     const prod=avProduccionHasta(linea,x.marca,x.presentacion,hora,tipo);
-    return {...x,produccion:prod.valor,fuenteProduccion:prod.fuente};
+        return {...x,produccion:prod.valor,fuenteProduccion:prod.fuente,produccionAlternativa:prod.alternativa||null};
   });
 }
 
@@ -581,7 +593,7 @@ function avObservacionesLinea(linea){
   return [...new Set(out)];
 }
 
-function avLineaSnapshot(linea,hora,tipo){
+function avLineaSnapshot(linea,hora,tipo,ahoraMs){
   const productos=avProductosLinea(linea,hora,tipo);
   const inicio=avInicioLinea(linea);
   const produccionTotal=productos.reduce((s,x)=>s+x.produccion,0);
@@ -623,7 +635,7 @@ function avLineaSnapshot(linea,hora,tipo){
 
   /* Un solo corte para la línea: la hora del reporte, o el fin real si la línea ya terminó antes (no sigue corriendo). */
   const finReal=avFinRealLinea(linea);
-  const corteBloque=tipo==='CIERRE'?avCorteCierre():hora;
+    const corteBloque=tipo==='CIERRE'?avCorteCierre(ahoraMs):hora;
   const msBloque=avHoraMs(avanceEstado.fecha,corteBloque,avanceEstado.turno),msFinReal=finReal?avHoraMs(avanceEstado.fecha,finReal,avanceEstado.turno):0;
   const corte=(msFinReal&&msFinReal<msBloque)?finReal:corteBloque;
   const corteMs=avHoraMs(avanceEstado.fecha,corte,avanceEstado.turno);
@@ -638,7 +650,8 @@ function avLineaSnapshot(linea,hora,tipo){
   // Las paradas oficiales (supervisor) las calcula la función central (23b-tiempos-linea.js) hasta este corte:
   // fusiona solapes y aplica duraciones estándar. DETENER LÍNEA y PAUSA PROGRAMADA del semáforo NO se descuentan.
   // (paradasOperacion queda como historial informativo del semáforo.)
-  let opNoProg=0,opProg=0,minutosEfectivos=Math.max(0,minTurno-totalParadas),minutosTranscurridos=minTurno,minutosDescontados=minTurno-minutosEfectivos;
+    let opNoProg=0,opProg=0,minutosEfectivos=Math.max(0,minTurno-totalParadas),minutosTranscurridos=minTurno,minutosDescontados=minTurno-minutosEfectivos;
+  let minProgDesc=paradas.filter(p=>p.tipo==='PROGRAMADA').reduce((s,p)=>s+p.minutos,0),minNoProgDesc=paradas.filter(p=>p.tipo!=='PROGRAMADA').reduce((s,p)=>s+p.minutos,0);
   if(typeof calcularTiemposLinea==='function'&&inicio){
     const T=calcularTiemposLinea(linea,avanceEstado.turno,avanceEstado.fecha,{
       inicioMs:avHoraMs(avanceEstado.fecha,inicio,avanceEstado.turno),
@@ -650,15 +663,21 @@ function avLineaSnapshot(linea,hora,tipo){
       opProg=T.fuentes.boton.programadas;
       minutosEfectivos=T.tiempoOperativoMin;
       minutosTranscurridos=T.tiempoTranscurridoMin;
-      minutosDescontados=T.paradasDescontadasMin;
+            minutosDescontados=T.paradasDescontadasMin;
+      minProgDesc=T.minPausasProgramadas;minNoProgDesc=T.minParadasNoProgramadas;
     }
   }
+    // Paradas que superan el tiempo transcurrido: no se oculta con un ratio válido (queda «—» y se informa).
+  const paradasExcedenTiempo=!!inicio&&totalParadas>minTurno+0.5;
   // Ratio oficial = producción ÷ horas efectivas, con precisión completa (se redondea solo al mostrar).
   // null = no disponible (sin inicio válido o sin tiempo efectivo); producción 0 con tiempo efectivo sí da ratio 0.
-  const ratio=GlacialIndicadores.ratio(produccionTotal,minutosEfectivos/60);
+    const ratio=(inicio&&!paradasExcedenTiempo)?GlacialIndicadores.ratio(produccionTotal,minutosEfectivos/60):null;
 
   const lineaSnap={
-    linea,nombre:AVANCE_NOMBRES[linea],inicio,corte,
+        linea,nombre:AVANCE_NOMBRES[linea],inicio,corte,
+    // Datos congelados del cálculo (pantalla, texto e imagen leen esto; nada se vuelve a consultar al reabrir).
+    versionCalculo:AV_VERSION_CALCULO,bloque:avanceEstado.turno,fechaBloque:avanceEstado.fecha,
+    corteMs,inicioMs:inicio?avHoraMs(avanceEstado.fecha,inicio,avanceEstado.turno):0,finProductivoMs:finReal?msFinReal:0,
     fin:tipo==='CIERRE'?(finReal||corte):'',
     productos,produccionTotal,
     programado:avProgramadoLinea(linea),
@@ -669,7 +688,8 @@ function avLineaSnapshot(linea,hora,tipo){
     paradasProgramadas:paradas.filter(p=>p.tipo==='PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
     paradasNoProgramadas:paradas.filter(p=>p.tipo==='NO_PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
     observaciones:avObservacionesLinea(linea),
-    minutosTranscurridos,minutosEfectivos,minutosParadasDescontadas:minutosDescontados,
+        minutosTranscurridos,minutosEfectivos,minutosParadasDescontadas:minutosDescontados,paradasExcedenTiempo,
+    minutosParadasProgramadasDesc:minProgDesc,minutosParadasNoProgramadasDesc:minNoProgDesc,
     paradasOperacion:{noProgramadas:opNoProg,programadas:opProg},
     sinProduccion:produccionTotal<=0
   };
@@ -684,8 +704,9 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
      Las horas configuradas (09:00, 11:00, etc.) identifican el avance,
      pero el corte operativo es la hora REAL en que el supervisor lo genera.
   */
-  const horaReal=tipo==='CIERRE'?avCorteCierre():avHoraActual();
-  const lineas=AVANCE_LINEAS.map(l=>avLineaSnapshot(l,horaReal,tipo)).filter(Boolean);
+    const ahoraMs=avAhoraMs();   // una sola hora del servidor para todo el reporte
+  const horaReal=tipo==='CIERRE'?avCorteCierre(ahoraMs):avHoraHHMM(ahoraMs);
+  const lineas=AVANCE_LINEAS.map(l=>avLineaSnapshot(l,horaReal,tipo,ahoraMs)).filter(Boolean);
   if(!lineas.length)throw Error('No existe producción ni una línea iniciada para este turno.');
   const totalParadas=lineas.reduce((s,l)=>s+l.totalParadas,0);
   const totalParadasProgramadas=lineas.reduce((s,l)=>s+avNum(l.paradasProgramadas),0);
@@ -700,7 +721,7 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
     tipo,horaCorte:horaReal,
     horaReferencia:tipo==='CIERRE'?'CIERRE':hora,
     inicioTurno:ctx.inicio,finTurno:ctx.fin,
-    relevo:tipo==='CIERRE'&&avEsRelevo(),    // true = relevo de turno: el bloque sigue abierto
+        relevo:tipo==='CIERRE'&&avEsRelevo(ahoraMs),versionCalculo:AV_VERSION_CALCULO,corteMs:ahoraMs,    // true = relevo de turno: el bloque sigue abierto
     supervisor:avNombreUsuario(),generadoPor:state.user?.username||'',
     createdAt:Date.now(),createdBy:state.user?.username||'',
     generadoEn:Date.now(),estado:'GENERADO',lineas,
@@ -788,6 +809,8 @@ function avVolumenFormatoPresentacion(presentacion,linea){
 function avBloquesPresentacionLinea(l){
   return Array.isArray(l?.bloques)?l.bloques:avCalcularBloquesPresentacion(l);
 }
+/* Ratio de un formato: «Sin tiempo asignado» si no tiene ventana propia (varios formatos sin hora de inicio). */
+function avRatioBloqueTexto(b,unidad){return b&&b.sinTiempo?'Sin tiempo asignado':avRatioTexto(b.ratio,unidad,b.ratioDisponible);}
 function avRatioTexto(ratio,unidad,disponible){
   // Snapshots nuevos indican si el ratio está disponible; los anteriores guardaban 0 cuando no lo había.
   const ok=disponible===undefined?!!ratio:(disponible===true&&Number.isFinite(Number(ratio)));
@@ -865,17 +888,21 @@ function avCalcularBloquesPresentacion(l){
       /* Varias presentaciones: cada una se calcula en su propia ventana con el cálculo central.
          Sus paradas son las de su cuadro; las de Avance con hora entran en la ventana en que ocurrieron y las que solo
          traen minutos se descuentan en la primera presentación (donde se muestran). */
-      const inicioH=b.inicio||l.inicio||'';
-      const finMs=b.fin&&msHora(b.fin)<corteMs?msHora(b.fin):corteMs;
+            const inicioH=b.inicio||'';
+      // Cada formato ocupa su propia ventana: termina en su hora fin, o donde empieza el siguiente formato, o en el corte.
+      const siguiente=lista[i+1]&&lista[i+1].inicio?msHora(lista[i+1].inicio):0;
+      const finMs=b.fin&&msHora(b.fin)<corteMs?msHora(b.fin):(siguiente&&siguiente<corteMs?siguiente:corteMs);
       const oficiales=[...b.paradas,...nuevasAvance.filter(p=>p.horaInicio&&p.horaFin||i===0)];
       let T=null;
       if(typeof calcularTiemposLinea==='function'&&inicioH){
         try{T=calcularTiemposLinea(l.linea,avanceEstado.turno,avanceEstado.fecha,{inicioMs:msHora(inicioH),finMs,paradasOficiales:oficiales});}catch(_){T=null;}
       }
-      b.inicio=b.inicio||inicioH;
+            // Sin hora de inicio propia no se reparte el tiempo de la línea: «Sin tiempo asignado» (no se repite el total en cada formato).
+      b.sinTiempo=!inicioH;
+      b.inicio=b.inicio||l.inicio||'';
       b.minutosTranscurridos=T&&T.ok?T.tiempoTranscurridoMin:0;
       b.minutosEfectivos=T&&T.ok?T.tiempoOperativoMin:0;
-      b.ratio=T&&T.ok?GlacialIndicadores.ratio(b.produccionTotal,b.minutosEfectivos/60):null;
+            b.ratio=T&&T.ok&&!b.sinTiempo?GlacialIndicadores.ratio(b.produccionTotal,b.minutosEfectivos/60):null;
       b.ratioDisponible=b.ratio!==null;
     }
     b.consumo=avConsumoLinea(l.linea,b.productos,b.ratio||0);
@@ -930,7 +957,7 @@ function avTextoWhatsApp(s){
         if(s.tipo==='CIERRE')out.push(`Término: ${b.fin||l.fin||'—'}`);
         out.push('');
         b.productos.forEach(p=>out.push(`${avProductoWhatsApp(p)}: ${avFmt(p.produccion)} ${avUnidadProduccion(l.linea)}`));
-        out.push('',`Ratio: ${avRatioTexto(b.ratio,l.unidadRatio,b.ratioDisponible)}`,
+        out.push('',`Ratio: ${avRatioBloqueTexto(b,l.unidadRatio)}`,
           `Consumo: ${b.consumo?avFmt(b.consumo)+' L/H':'—'}`,
           `Personal en línea: ${b.personal}`,
           '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`);
@@ -1213,15 +1240,42 @@ function avAbrirDetalle(s){
   modal.classList.add('open');document.body.classList.add('av-modal-open');
 }
 /* Pantalla: el ratio de cada formato (si hay varios) y, cuando la suma de paradas no es lo descontado, la explicación. */
+/* Detalle del cálculo de una línea (datos congelados del snapshot): producción, inicio, corte, tiempos, paradas y fórmula. */
+function avDetalleCalculoLinea(l){
+  if(l.versionCalculo===undefined)return '';   // snapshot anterior: no trae los datos para explicarlo
+  const fm=v=>avFmt(v),u=l.unidadRatio;
+  const alt=(l.productos||[]).filter(p=>p.produccionAlternativa&&p.produccionAlternativa.valor!==p.produccion)
+    .map(p=>`${avEsc(p.marca)}: ${p.fuenteProduccion==='PALETAS'?'Paletas':'Producción efectiva'} ${fm(p.produccion)} · ${p.produccionAlternativa.fuente==='PALETAS'?'Paletas':'Producción efectiva'} ${fm(p.produccionAlternativa.valor)} (no se suman)`);
+  const formula=l.ratioDisponible
+    ?`${fm(l.produccionTotal)} ÷ ((${fm(l.minutosTranscurridos)} − ${fm(l.minutosParadasProgramadasDesc+l.minutosParadasNoProgramadasDesc)}) ÷ 60) = ${fm(l.ratio)} ${u}`
+    :'No disponible';
+  return `<details class="av-calculo"><summary>Cómo se calculó el ratio</summary><ul style="margin:6px 0 0 16px;padding:0;font-size:12px">
+    <li>Producción utilizada: <b>${fm(l.produccionTotal)}</b> (fuente: ${[...new Set((l.productos||[]).filter(p=>p.produccion>0).map(p=>p.fuenteProduccion==='PALETAS'?'Paletas':p.fuenteProduccion==='PRODUCCION_EFECTIVA'?'Producción efectiva':'sin registro'))].join(', ')||'sin registro'})</li>
+    <li>Inicio <b>${avEsc(l.inicio||'—')}</b> · corte <b>${avEsc(l.corte||'—')}</b>${l.finProductivoMs?' (fin productivo de la línea)':''}</li>
+    <li>Tiempo transcurrido: <b>${fm(l.minutosTranscurridos)} min</b></li>
+    <li>Paradas oficiales: programadas <b>${fm(l.minutosParadasProgramadasDesc)} min</b> · no programadas <b>${fm(l.minutosParadasNoProgramadasDesc)} min</b></li>
+    <li>Tiempo efectivo: <b>${fm(l.minutosEfectivos)} min</b></li>
+    <li>Fórmula: <b>${formula}</b></li>${alt.map(a=>`<li>Conciliación — ${a}</li>`).join('')}</ul></details>`;
+}
 function avDetalleRatioLinea(l){
   const out=[];
+  if(l.paradasExcedenTiempo)out.push('<p class="small-muted" style="color:#B3261E">Inconsistencia: las paradas registradas ('+avFmt(l.totalParadas)+' min) superan el tiempo transcurrido ('+avFmt(l.minutosTranscurridos)+' min). Corrige las paradas; el ratio no se calcula.</p>');
+  out.push(avDetalleCalculoLinea(l));
   const bl=avBloquesPresentacionLinea(l);
-  if(bl.length>1)out.push(`<div class="av-products">${bl.map(b=>`<span>Ratio ${avEsc(avTituloPresentacion(l.linea,b))} <b>${avRatioTexto(b.ratio,l.unidadRatio,b.ratioDisponible)}</b></span>`).join('')}</div>`);
+  if(bl.length>1)out.push(`<div class="av-products">${bl.map(b=>`<span>Ratio ${avEsc(avTituloPresentacion(l.linea,b))} <b>${avRatioBloqueTexto(b,l.unidadRatio)}</b></span>`).join('')}</div>`);
   const desc=l.minutosParadasDescontadas;
   if(desc!==undefined&&Math.abs(avNum(desc)-avNum(l.totalParadas))>=0.5)
     out.push(`<p class="small-muted">Tiempo efectivo ${avFmt(l.minutosEfectivos)} min = ${avFmt(l.minutosTranscurridos)} transcurridos − ${avFmt(desc)} descontados. La suma de paradas listadas es ${avFmt(l.totalParadas)} min: los solapes, las duraciones estándar y el corte del reporte ajustan lo descontado.</p>`);
   return out.join('');
 }
+/* Último avance o cierre guardado de una línea (sus datos congelados), para compararlo con el semáforo actual. */
+window.glacialUltimoAvanceLinea=function(linea,fecha,turno){
+  const t=avTurnoCanon(turno);
+  const s=(avanceEstado.todosSnapshots||[]).filter(x=>x&&x.fecha===fecha&&x.turno===t&&(x.lineas||[]).some(l=>l.linea===linea))
+    .sort((a,b)=>avNum(b.generadoEn)-avNum(a.generadoEn))[0];
+  const l=s&&s.lineas.find(x=>x.linea===linea);
+  return l?{horaCorte:s.horaCorte,tipo:s.tipo,ratio:l.ratio,ratioDisponible:l.ratioDisponible,produccion:avNum(l.produccionTotal),minutosEfectivos:avNum(l.minutosEfectivos)}:null;
+};
 function avCerrarDetalle(){
   document.getElementById('av-detail-modal')?.classList.remove('open');
   if(!document.querySelector('.av-float-modal.open,.av-image-modal.open'))document.body.classList.remove('av-modal-open');
@@ -1332,7 +1386,7 @@ function avCanvasSnapshot(s){
     const observaciones=g.sinProduccion?(l.observaciones||[]):(b.observaciones||[]);
     const produccionTotal=g.sinProduccion?0:b.produccionTotal;
     const inicio=g.sinProduccion?(l.inicio||'—'):(b.inicio||l.inicio||'—');
-    const ratioTxt=g.sinProduccion?avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible):avRatioTexto(b.ratio,l.unidadRatio,b.ratioDisponible);
+    const ratioTxt=g.sinProduccion?avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible):avRatioBloqueTexto(b,l.unidadRatio);
     const consumo=g.sinProduccion?0:b.consumo;
     const personal=g.sinProduccion?l.personal:b.personal;
     const totalParadas=paradas.reduce((s,p)=>s+avNum(p.minutos),0);
