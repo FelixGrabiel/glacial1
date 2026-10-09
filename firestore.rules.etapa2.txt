@@ -127,6 +127,17 @@ service cloud.firestore {
           && !(perfiles()[request.auth.uid].permisos is list && '-planificacion' in perfiles()[request.auth.uid].permisos))
       );
     }
+    // Distribución de personal por línea (Tareo de Producción): Administrador, Supervisor y Jefe de Producción por defecto
+    // (misma lista que ROLES_DISTRIBUCION_PERSONAL en js/nucleo/02-estado.js); el Administrador lo da o lo quita
+    // ('distribuirPersonal' / '-distribuirPersonal'). NO la cuenta compartida. Jefatura/Gerencia solo consultan.
+    function puedeDistribuirPersonal() {
+      return autenticado() && !esMantCompartido() && (
+        esAdmin() ||
+        (perfiles()[request.auth.uid].permisos is list && 'distribuirPersonal' in perfiles()[request.auth.uid].permisos) ||
+        (perfiles()[request.auth.uid].rol in ['Supervisor', 'Jefe de Producción']
+          && !(perfiles()[request.auth.uid].permisos is list && '-distribuirPersonal' in perfiles()[request.auth.uid].permisos))
+      );
+    }
     // INFORMACIÓN ECONÓMICA SENSIBLE: la autorización se decide por ROL (el de sync/perfiles, el mismo que usa el resto de las reglas).
     //   Gerencia  = Gerente General, Gerente.
     //   Jefatura  = Jefe de Producción, Jefe de Operaciones, Jefatura.
@@ -265,6 +276,32 @@ service cloud.firestore {
         && request.resource.data.actualizadoUid == request.auth.uid
         && request.resource.data.actualizadoEn == request.time;
       allow delete: if false;
+    }
+
+    // Distribución de personal por línea, por fecha operativa y bloque (documento = AAAA-MM-DD_DIA o _NOCHE).
+    //  - El documento solo guarda la versión (cada guardado sube la versión en 1: dos personas no se pisan).
+    //  - Los eventos (historial) solo se crean: uid propio y hora del servidor; nunca se editan ni se borran.
+    //  - Leen todos los usuarios con sesión (menos la cuenta compartida); escribe quien tiene permiso de distribuir.
+    match /distribucionPersonal/{id} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if puedeDistribuirPersonal()
+        && request.resource.data.version == 1
+        && request.resource.data.actualizadoUid == request.auth.uid
+        && request.resource.data.actualizadoEn == request.time;
+      allow update: if puedeDistribuirPersonal()
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.actualizadoUid == request.auth.uid
+        && request.resource.data.actualizadoEn == request.time;
+      allow delete: if false;
+      match /eventos/{opId} {
+        allow read: if autenticado() && !esMantCompartido();
+        allow create: if puedeDistribuirPersonal()
+          && request.resource.data.opId == opId
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.guardadoEn == request.time
+          && request.resource.data.keys().hasAll(['opId', 'version', 'desdeMs', 'lineas', 'uid', 'guardadoEn']);
+        allow update, delete: if false;
+      }
     }
 
     // Historial de cambios de la programación: solo se agrega, nunca se edita ni se borra.

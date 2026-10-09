@@ -129,6 +129,7 @@ const PERMISOS_APP=[
   {key:'paletas',area:'produccion',label:'Paletas (registro en tiempo real)'},
   {key:'programarPaletas',area:'produccion',label:'Programar producción / Secuencia del turno'},
   {key:'planificacion',area:'produccion',label:'Planificación (crear y editar la programación y el catálogo, aprobar solicitudes)'},
+    {key:'distribuirPersonal',area:'produccion',label:'Distribución de personal por línea (confirmar y cambiar en Tareo de Producción)'},
   {key:'gestionar_rotacion_supervisores',area:'produccion',label:'Gestionar rotación de supervisores'},
   {key:'gestionar_rotacion_mantenimiento',area:'mantenimiento',label:'Gestionar rotación de Mantenimiento y de maquinistas (Rotación semanal MTTO / Rotación maquinista)'},
   {key:'produccionActual',area:'produccion',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
@@ -427,9 +428,23 @@ function planificacionPermitida(u){
   return ROLES_PLANIFICACION.includes(rol);
 }
 
+/* Permiso «distribuirPersonal»: por defecto Administrador, Supervisor y Jefe de Producción. Jefatura/Gerencia solo consultan.
+   El Administrador lo da ('distribuirPersonal') o lo quita ('-distribuirPersonal'). Mismas reglas en firestore.rules.etapa2.txt. */
+const ROLES_DISTRIBUCION_PERSONAL=['Administrador','Supervisor','Jefe de Producción'];
+function distribucionPersonalPermitida(u){
+  if(!u) return false;
+  const rol=String(u.rol||'').trim();
+  if(rol==='Administrador' || u.permisos==='todos') return true;
+  const arr=Array.isArray(u.permisos)?u.permisos:[];
+  if(arr.includes('-distribuirPersonal')) return false;
+  if(arr.includes('distribuirPersonal')) return true;
+  return ROLES_DISTRIBUCION_PERSONAL.includes(rol);
+}
+
 function tienePermiso(permiso){
   if(!state.user) return false;
   if(permiso==='planificacion') return planificacionPermitida(state.user);
+  if(permiso==='distribuirPersonal') return distribucionPersonalPermitida(state.user);
   if(PERMISOS_ALIAS[permiso]) return PERMISOS_ALIAS[permiso].some(k=>tienePermiso(k));
   const p=normalizarPermisosUsuario(state.user);
   return p==='todos'||p.includes(permiso);
