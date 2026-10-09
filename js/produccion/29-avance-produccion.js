@@ -172,6 +172,57 @@ function avProduccionHasta(linea,marca,presentacion,hora,tipo){
   return {valor:0,fuente:paletas.encontrada?'PALETAS':'SIN_REGISTRO',alternativa:null};
 }
 
+/* PERSONAL EN LÍNEA: fuente única = Distribución de personal (Tareo de Producción, 43-distribucion-personal.js).
+   Se consulta el evento vigente al CORTE del reporte (no la distribución más reciente si es posterior). Sin confirmación:
+   «Pendiente de confirmar» (no se inventa ni se copia otro valor). Los snapshots anteriores conservan su número. */
+function avDist(){return window.glacialDistribucionPersonal||null;}
+function avDistClave(){return avanceEstado.fecha+'|'+avanceEstado.turno;}
+function avAsegurarDistribucion(){
+  const D=avDist();if(!D||!avanceEstado.fecha||!avanceEstado.turno)return;
+  if(avanceEstado._distClave!==avDistClave()){
+    if(typeof avanceEstado._distCerrar==='function'){try{avanceEstado._distCerrar();}catch(_){/* ya cerrada */}}
+    avanceEstado._distCerrar=D.escuchar(avanceEstado.fecha,avanceEstado.turno);
+    avanceEstado._distClave=avDistClave();
+  }
+  if(!avanceEstado._distOyente){
+    avanceEstado._distOyente=true;
+    D.alCambiar(()=>{if(state.currentTab==='avance-produccion'&&document.getElementById('av-module-content'))avDibujar();});
+  }
+}
+async function avCargarDistribucion(){
+  const D=avDist();if(!D)return;
+  try{await D.cargar(avanceEstado.fecha,avanceEstado.turno);}catch(e){console.error('Cargando distribución de personal:',e);}
+}
+function avPersonalDistribucion(linea,corteMs,inicioMs){
+  const D=avDist();
+  if(!D)return {origen:'LEGADO',estado:'LEGADO',cantidad:avPersonalLinea(linea),horas:null};
+  const p=D.consultar(avanceEstado.fecha,avanceEstado.turno,linea,corteMs);
+  const hh=D.consultarHorasHombre(avanceEstado.fecha,avanceEstado.turno,linea,inicioMs,corteMs);
+  return {origen:'DISTRIBUCION',estado:p.estado,cantidad:p.cantidad,desdeMs:p.desdeMs,version:p.version,
+    horas:{horas:hh.horas,estado:hh.estado,cobertura:hh.cobertura,minutosSinDato:hh.minutosSinDato}};
+}
+/* Texto del personal de una línea o formato (snapshot nuevo o anterior). */
+function avPersonalTexto(x){
+  if(x&&x.personalEstado==='PENDIENTE')return 'Pendiente de confirmar';
+  return avFmt(x&&x.personal);
+}
+function avHorasHombreTexto(x){
+  const h=x&&x.horasHombre;
+  if(!h||h.horas===null||h.horas===undefined||h.estado==='SIN_DATOS')return '—';
+  const v=(Math.round(avNum(h.horas)*10)/10).toLocaleString('es-PE')+' h-h';
+  return h.estado==='PARCIAL'?v+' (parcial · cobertura '+Math.round(avNum(h.cobertura)*100)+'%)':v;
+}
+function avAjustarPersonal(){
+  document.getElementById('av-float-modal')?.classList.remove('open');
+  document.body.classList.remove('av-modal-open');
+  state.currentTab='tareo';
+  if(typeof renderSidebar==='function')renderSidebar();
+  if(window.glacialDistribucionPantalla)window.glacialDistribucionPantalla.contexto(avanceEstado.fecha,avanceEstado.turno);
+}
+function avBotonAjustarPersonal(){
+  const D=avDist();
+  return D&&D.puedeEditar()?'<button class="btn btn-ghost" onclick="avAjustarPersonal()">AJUSTAR PERSONAL</button>':'';
+}
 function avPersonalLinea(linea){
   // Prioridad: personal realmente asignado en el reporte de línea.
   const nombres=new Set();
@@ -667,7 +718,10 @@ function avLineaSnapshot(linea,hora,tipo,ahoraMs){
       minProgDesc=T.minPausasProgramadas;minNoProgDesc=T.minParadasNoProgramadas;
     }
   }
-    // Paradas que superan el tiempo transcurrido: no se oculta con un ratio válido (queda «—» y se informa).
+      // Personal vigente al corte y horas hombre de asignación (desde el inicio de la línea, o del bloque, hasta el corte).
+  const bloqueH=avHorarioBloque();
+  const persDist=avPersonalDistribucion(linea,corteMs,inicio?avHoraMs(avanceEstado.fecha,inicio,avanceEstado.turno):(bloqueH?bloqueH.inicio:corteMs));
+  // Paradas que superan el tiempo transcurrido: no se oculta con un ratio válido (queda «—» y se informa).
   const paradasExcedenTiempo=!!inicio&&totalParadas>minTurno+0.5;
   // Ratio oficial = producción ÷ horas efectivas, con precisión completa (se redondea solo al mostrar).
   // null = no disponible (sin inicio válido o sin tiempo efectivo); producción 0 con tiempo efectivo sí da ratio 0.
@@ -684,7 +738,9 @@ function avLineaSnapshot(linea,hora,tipo,ahoraMs){
     cumplimiento:(GlacialIndicadores.cumplimiento(produccionTotal,avProgramadoLinea(linea))??0)*100,
     ratio,ratioDisponible:ratio!==null,unidadRatio:avUnidadRatio(linea),
     consumo:avConsumoLinea(linea,productos,ratio||0),
-    personal:avPersonalLinea(linea),paradas,totalParadas,
+        personal:persDist.estado==='PENDIENTE'?null:persDist.cantidad,personalEstado:persDist.estado,personalOrigen:persDist.origen,
+    personalDesdeMs:persDist.desdeMs||0,personalVersion:persDist.version||0,horasHombre:persDist.horas,
+    paradas,totalParadas,
     paradasProgramadas:paradas.filter(p=>p.tipo==='PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
     paradasNoProgramadas:paradas.filter(p=>p.tipo==='NO_PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
     observaciones:avObservacionesLinea(linea),
@@ -711,7 +767,12 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
   const totalParadas=lineas.reduce((s,l)=>s+l.totalParadas,0);
   const totalParadasProgramadas=lineas.reduce((s,l)=>s+avNum(l.paradasProgramadas),0);
   const totalParadasNoProgramadas=lineas.reduce((s,l)=>s+avNum(l.paradasNoProgramadas),0);
-  const personalSet=lineas.reduce((s,l)=>s+l.personal,0);
+    const personalSet=lineas.reduce((s,l)=>s+(l.personalEstado==='PENDIENTE'?0:avNum(l.personal)),0);
+  const personalPendientes=lineas.filter(l=>l.personalEstado==='PENDIENTE').length;
+  const hhLineas=lineas.filter(l=>l.horasHombre&&l.horasHombre.horas!==null&&l.horasHombre.horas!==undefined);
+  const horasHombreResumen={horas:hhLineas.length?hhLineas.reduce((s,l)=>s+avNum(l.horasHombre.horas),0):null,
+    estado:!hhLineas.length?'SIN_DATOS':(lineas.every(l=>l.horasHombre&&l.horasHombre.estado==='COMPLETO')?'COMPLETO':'PARCIAL'),
+    cobertura:lineas.length?lineas.reduce((s,l)=>s+(l.horasHombre?avNum(l.horasHombre.cobertura):0),0)/lineas.length:0};
   const totalPlanta=lineas.reduce((s,l)=>s+l.produccionTotal,0);
   const totalProgramado=lineas.reduce((s,l)=>s+avNum(l.programado),0);
   const cumplimiento=(GlacialIndicadores.cumplimiento(totalPlanta,totalProgramado)??0)*100;
@@ -730,7 +791,7 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
       faltante:Math.max(0,totalProgramado-totalPlanta),
       excedente:Math.max(0,totalPlanta-totalProgramado),
       totalParadas,totalParadasProgramadas,totalParadasNoProgramadas,
-      personal:personalSet,lineasTrabajadas:lineas.length
+            personal:personalSet,personalPendientes,horasHombre:horasHombreResumen,lineasTrabajadas:lineas.length
     }
   };
   snap.texto=avTextoWhatsApp(snap);
@@ -828,7 +889,7 @@ function avCalcularBloquesPresentacion(l){
       presentacion:p.presentacion||'',
       etiqueta:p.etiqueta||avPresentacion(l.linea,p.marca,p.presentacion),
       productos:[],inicio:'',fin:'',paradas:[],observaciones:[],produccionTotal:0,
-      ratio:null,ratioDisponible:false,consumo:0,personal:l.personal
+            ratio:null,ratioDisponible:false,consumo:0,personal:l.personal,personalEstado:l.personalEstado,horasHombre:l.horasHombre
     });
     const b=mapa.get(clave);
     b.productos.push(p);
@@ -948,7 +1009,7 @@ function avTextoWhatsApp(s){
     const bloques=avBloquesPresentacionLinea(l);
     if(!bloques.length){
       out.push('',`*${l.nombre}*`,'',`Inicio: ${l.inicio||'—'}`,'','Línea iniciada – Sin producción registrada.','',
-        `Ratio: ${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}`,'Consumo: —',`Personal en línea: ${l.personal}`,'','*PARADAS*','',
+        `Ratio: ${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}`,'Consumo: —',`Personal en línea: ${avPersonalTexto(l)}`,'','*PARADAS*','',
         l.paradas.length?l.paradas.map(p=>`${p.descripcion} – ${avFmt(p.minutos)} min`).join('\n'):'Sin paradas registradas.','',
         `Total paradas: ${avFmt(l.totalParadas)} min`);
     }else{
@@ -959,7 +1020,7 @@ function avTextoWhatsApp(s){
         b.productos.forEach(p=>out.push(`${avProductoWhatsApp(p)}: ${avFmt(p.produccion)} ${avUnidadProduccion(l.linea)}`));
         out.push('',`Ratio: ${avRatioBloqueTexto(b,l.unidadRatio)}`,
           `Consumo: ${b.consumo?avFmt(b.consumo)+' L/H':'—'}`,
-          `Personal en línea: ${b.personal}`,
+                    `Personal en línea: ${avPersonalTexto(b)}`,
           '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`);
 
         /*
@@ -1036,6 +1097,7 @@ async function avGenerar(hora,tipo='AVANCE'){
     if(tipo==='CIERRE' && avUltimoSnapshot('CIERRE')){
       throw Error('El cierre de este turno ya existe.');
     }
+        await avCargarDistribucion();   // la distribución vigente al corte se lee fresca antes de generar
     const s=avConstruirSnapshot(referencia,tipo);
     await avGuardarSnapshot(s);
     avanceEstado.preview=s.texto||'';
@@ -1169,6 +1231,7 @@ function avDibujarFlotante(){
         ${avPuedeGenerar()?`<div class="av-float-actions">
           <button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button>
           <button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>
+          ${avBotonAjustarPersonal()}
           <button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button>
         </div>`:`<div class="av-readonly">Modo consulta: puedes ver, copiar y generar imagen de los registros existentes.</div>`}
         <section class="av-float-last">
@@ -1221,11 +1284,11 @@ function avAbrirDetalle(s){
         <div><small>PROGRAMADO</small><strong>${avFmt(r.programado)}</strong><span>Meta del turno</span></div>
         <div><small>CUMPLIMIENTO</small><strong>${avNum(r.cumplimiento).toFixed(1)}%</strong><span>${r.faltante?`Faltan ${avFmt(r.faltante)}`:`Excedente ${avFmt(r.excedente)}`}</span></div>
         <div><small>PARADAS</small><strong>${avFmt(r.totalParadas)} min</strong><span>P ${avFmt(r.totalParadasProgramadas)} · NP ${avFmt(r.totalParadasNoProgramadas)}</span></div>
-        <div><small>PERSONAL</small><strong>${avFmt(r.personal)}</strong><span>Registrado</span></div>
+        <div><small>PERSONAL</small><strong>${avFmt(r.personal)}</strong><span>${avNum(r.personalPendientes)>0?avNum(r.personalPendientes)+' línea(s) pendiente(s) de confirmar':'Distribución confirmada'}</span></div>
       </section>
       <section id="avd-produccion" class="av-detail-section"><h3>Producción por línea</h3>
         ${(s.lineas||[]).map(l=>`<article class="av-line-card"><div class="av-line-title"><strong>${avEsc(l.nombre||l.linea)}</strong><b>${avFmt(l.produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}</b></div>
-        <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio <b>${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avFmt(l.personal)}</b></span></div>
+        <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio <b>${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avPersonalTexto(l)}</b>${l.personalDesdeMs?` <small>desde ${avEsc(avHoraHHMM(l.personalDesdeMs))}</small>`:''}</span><span>Horas-hombre <b>${avHorasHombreTexto(l)}</b></span></div>
         <div class="av-products">${(l.productos||[]).filter(p=>p.produccion>0).map(p=>`<span>${avEsc(p.marca)} · ${avEsc(p.etiqueta)} <b>${avFmt(p.produccion)}</b></span>`).join('')||'<span>Sin producción registrada</span>'}</div>${avDetalleRatioLinea(l)}</article>`).join('')}
       </section>
       <section id="avd-paradas" class="av-detail-section"><h3>Paradas</h3>
@@ -1388,7 +1451,7 @@ function avCanvasSnapshot(s){
     const inicio=g.sinProduccion?(l.inicio||'—'):(b.inicio||l.inicio||'—');
     const ratioTxt=g.sinProduccion?avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible):avRatioBloqueTexto(b,l.unidadRatio);
     const consumo=g.sinProduccion?0:b.consumo;
-    const personal=g.sinProduccion?l.personal:b.personal;
+        const personalTxt=g.sinProduccion?avPersonalTexto(l):avPersonalTexto(b);
     const totalParadas=paradas.reduce((s,p)=>s+avNum(p.minutos),0);
     const titulo=g.sinProduccion?(l.nombre||l.linea):avTituloPresentacion(l.linea,b);
     // Usar exactamente el mismo cálculo empleado para dimensionar el canvas.
@@ -1406,7 +1469,7 @@ function avCanvasSnapshot(s){
       ['Producción',`${avFmt(produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}`],
       ['Ratio',ratioTxt],
       ['Consumo',consumo?`${avFmt(consumo)} L/H`:'—'],
-      ['Personal',avFmt(personal)]
+            ['Personal',personalTxt]
     ],mw=(W-PAD*2-40)/5;
     metrics.forEach((m,i)=>{const mx=PAD+20+i*mw;x.fillStyle=STEEL;x.font=`${Math.round(13*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(m[0],mx,cy);x.fillStyle=INK;fit(m[1],mw-12,17,'700');x.fillText(m[1],mx,cy+24);});
     cy+=55;divider(cy);cy+=27;
@@ -1439,7 +1502,7 @@ function avCanvasSnapshot(s){
 
   const r=s.resumen||{};
   card(PAD,y,W-PAD*2,105,'#F8FBFD',LINE);x.fillStyle=BLUE;x.font=`700 ${Math.round(17*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('RESUMEN DEL AVANCE',PAD+20,y+28);
-  const rs=[`Producción planta: ${avFmt(r.produccionTotal)}`,`Paradas: ${avFmt(r.totalParadas)} min`,`Personal: ${avFmt(r.personal)}`,`Líneas: ${avFmt(r.lineasTrabajadas)}`];
+  const rs=[`Producción planta: ${avFmt(r.produccionTotal)}`,`Paradas: ${avFmt(r.totalParadas)} min`,`Personal: ${avFmt(r.personal)}${avNum(r.personalPendientes)>0?' (+'+avNum(r.personalPendientes)+' pend.)':''}`,`Líneas: ${avFmt(r.lineasTrabajadas)}`];
   rs.forEach((t,i)=>{x.fillStyle=i===1?BAD:DARK;x.font=`700 ${Math.round(17*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(t,PAD+20+i*245,y+70);});
   y+=128;x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD,y);x.lineTo(W-PAD,y);x.stroke();y+=28;
   x.fillStyle=STEEL;x.font=`${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Generado por: ${s.supervisor||s.generadoPor||'—'}`,PAD,y);
@@ -1598,10 +1661,11 @@ function renderAvanceProduccion(main){
 }
 function avDibujar(){
   const root=document.getElementById('av-module-content');if(!root)return;
+  avAsegurarDistribucion();
   const ctx=avCtx(),actual=avanceEstado.fecha===ctx.fecha&&avanceEstado.turno===ctx.turno;
   root.innerHTML=`
     <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'} · ${avEsc(avanceEstado.turno)}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
-    ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
+    ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
     <div id="av-estado" class="av-inline-status"></div>
     <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${t==='DÍA'?'DÍA (incluye Intermedio)':'NOCHE'}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
     ${avHistorialGeneralHtml()}`;
