@@ -792,3 +792,50 @@
   .modal-backdrop{z-index:200 !important}
   body.entorno-pruebas .modal-backdrop{padding-top:32px}
 }
+
+/* ==========================================================================
+ * GLACIAL · ENCABEZADO MÓVIL · CORRECCIÓN DE ESPACIO (título, campana y salida)
+ * ==========================================================================
+ ! Solo distribución visual. El nombre completo del sistema sigue accesible (span .tt-full + title).
+ * Fila 1: menú · título (se reduce con min-width:0) · campana · salir. Los tres controles reservan 44 × 44 y no se encogen.
+ * El badge de la campana queda dentro de la esquina de su botón (no tapa «Salir» ni se recorta).
+ */
+.tt-short{display:none}
+@media (max-width:700px){
+  #app-screen .topbar{grid-template-columns:minmax(0,1fr) auto;column-gap:8px}
+  #app-screen .topbar-left{min-width:0;gap:8px}
+  #app-screen .topbar-title{flex:1 1 auto;min-width:0;overflow:hidden}
+  #app-screen .topbar-title strong::after{content:none!important}
+  #app-screen .topbar-title strong{display:block;font-size:16px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #app-screen .topbar-title .tt-full{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  #app-screen .topbar-title .tt-short{display:inline}
+  #app-screen .topbar-right{gap:10px;flex:0 0 auto}
+  #app-screen .mobile-menu-toggle,
+  #app-screen #alertas-topbar-slot,
+  #app-screen .btn-topbar.topbar-logout{flex:0 0 44px;width:44px;min-width:44px;height:44px;min-height:44px}
+  #app-screen #alertas-topbar-slot #al-host,
+  #app-screen #alertas-topbar-slot #al-host.open,
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-bar{width:44px!important;min-width:44px!important}
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-bar{min-height:44px!important;position:relative;overflow:visible!important}
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-panel{overflow:visible}
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-bar strong{overflow:visible}
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-badge{position:absolute;top:-5px;right:-5px;margin:0;min-width:20px;height:20px;padding:0 5px;line-height:20px;font-size:11px;box-shadow:0 0 0 2px #fff}
+}
+@media (max-width:420px){
+  /* Las reglas anteriores de este rango usan !important (42 px): se reafirman a 44 × 44 px táctiles. */
+  #app-screen .topbar{grid-template-columns:44px minmax(0,1fr) 44px 44px !important;column-gap:6px !important;padding-inline:8px !important}
+  #app-screen .topbar-left{gap:6px}
+  #app-screen .topbar-right{gap:8px}
+  #app-screen .mobile-menu-toggle,
+  #app-screen .btn-topbar.topbar-logout{width:44px !important;min-width:44px !important;height:44px !important;min-height:44px !important}
+  #app-screen #alertas-topbar-slot,
+  #app-screen #alertas-topbar-slot #al-host,
+  #app-screen #alertas-topbar-slot #al-host.open,
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-bar{width:44px !important;min-width:44px !important}
+  #app-screen #alertas-topbar-slot #al-host:not(.open) .al-bar{min-height:44px !important}
+  #app-screen .topbar-title strong{font-size:15px !important}
+}
+@media (max-width:340px){
+  #app-screen .topbar-title strong{font-size:14px !important}
+  #app-screen .topbar-right{gap:6px}
+}
