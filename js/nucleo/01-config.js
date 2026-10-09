@@ -730,7 +730,7 @@ const MERMA_DIVISORES_POR_LINEA = {
       6.6,
 
     'Etiqueta':
-      2.9,
+      0.0028,
 
     'Polietileno 48cm':
       { divisor: 28, sinMultiplicarPor1000: true, decimales: 2 }
@@ -738,6 +738,29 @@ const MERMA_DIVISORES_POR_LINEA = {
   }
 
 };
+
+/* =========================================================
+   MERMAS DE CAJAS 20L (C20L) — PESO CALCULADO EN KG
+   =========================================================
+   ÚNICA fuente de los factores físicos de C20L (no son costos).
+   - entrada 'unidades': se captura la merma en UND (mermas[].unidades)
+     y el peso calculado (mermas[].peso, kg) = UND × factor.
+   - entrada 'peso': se captura el peso en kg en mermas[].pesoIngresadoKg
+     (dato original, NUNCA se sobrescribe) y el peso calculado
+     (mermas[].peso, kg) = pesoIngresadoKg × factor. No tiene UND.
+   mermas[].peso es siempre el peso CALCULADO que consumen las vistas.
+*/
+const MERMA_CONVERSION_FISICA_POR_LINEA = {
+  C20L: {
+    'Cajas':               { entrada: 'unidades', factor: 0.56   },
+    'Bolsas Trilaminadas': { entrada: 'unidades', factor: 0.906  },
+    'Tapa':                { entrada: 'unidades', factor: 0.1114 },
+    'Polietileno 54 cm':   { entrada: 'peso',     factor: 0.36   }
+  }
+};
+function mermaConversionFisica(linea, item){
+  return (MERMA_CONVERSION_FISICA_POR_LINEA[linea] || {})[item] || null;
+}
 
 /* PET2 usa exactamente las mismas fórmulas que PET1. */
 MERMA_DIVISORES_POR_LINEA.PET2 =

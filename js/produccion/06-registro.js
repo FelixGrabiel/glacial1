@@ -6134,11 +6134,34 @@ function removeArrItemCuadro(
    pasan todo a esta función.
 */
 
+/* C20L: peso CALCULADO en kg por componente (factores en MERMA_CONVERSION_FISICA_POR_LINEA, 01-config.js).
+   Función pura: nunca modifica r ni toma r.peso como dato original salvo en registros anteriores sin pesoIngresadoKg.
+   - entrada 'unidades': UND capturadas × factor.
+   - entrada 'peso': pesoIngresadoKg (dato original) × factor; no genera UND.
+   - Polietileno sin pesoIngresadoKg y con valores guardados = registro anterior: se conserva tal cual (origen incierto). */
+function calcularMermaFisica(r, cfg){
+  const valido = v => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
+  if(cfg.entrada === 'unidades'){
+    const u = Math.round(valido(r.unidades));
+    return { peso: u * cfg.factor, unidades: u };
+  }
+  if(r.pesoIngresadoKg === undefined || r.pesoIngresadoKg === null){
+    const peso = valido(r.peso), unidades = valido(r.unidades);
+    return { peso, unidades, sinPesoIngresado: peso > 0 || unidades > 0 };
+  }
+  return { peso: valido(r.pesoIngresadoKg) * cfg.factor, unidades: 0 };
+}
 function calcularValoresMerma(
   r,
   linea,
   gramajePreforma
 ){
+  const fisica = typeof mermaConversionFisica === 'function'
+    ? mermaConversionFisica(linea, r.item)
+    : null;
+  if(fisica){
+    return calcularMermaFisica(r, fisica);
+  }
 
   const pesoIngresado =
     num(r.peso);
@@ -6156,23 +6179,7 @@ function calcularValoresMerma(
      SIN CONFIGURACIÓN PARA ESTE ÍTEM/LÍNEA
      ===================================================== */
 
-  if(config === undefined){
-
-    if(linea === 'C20L'){
-
-      return {
-
-        peso:
-          unidadesIngresadas *
-          0.0906,
-
-        unidades:
-          unidadesIngresadas
-
-      };
-
-    }
-
+    if(config === undefined){
     return {
 
       peso:
@@ -6347,25 +6354,58 @@ function actualizarMermasAutomaticasCuadro(i){
 }
 
 
+/* Peso en kg para mostrar: se redondea solo aquí (hasta 4 decimales), nunca el valor guardado. */
+function mermaKgTexto(v){
+  const n = Number(v);
+  return Number.isFinite(n) ? String(Number(n.toFixed(4))) : '0';
+}
+/* Tabla de mermas de C20L (cuadro o formulario compatible): dato ingresado editable + peso calculado de solo lectura. */
+function mermasTableC20L(rows, produccionEfectiva, linea, llamada, q, conScroll){
+  const efectiva = num(produccionEfectiva) || 0;
+  let totalKg = 0;
+  const filas = (rows || []).map((r,i) => {
+    const cfg = mermaConversionFisica(linea, r.item);
+    const v = obtenerValoresMermaCuadro(r, linea, q);
+    totalKg += v.peso;
+    const ro = 'readonly tabindex="-1" style="width:100%;box-sizing:border-box;background:#f1f3f5;font-weight:700;cursor:not-allowed;text-align:center"';
+    const ed = 'style="width:100%;box-sizing:border-box;text-align:center"';
+    let entrada, pct;
+    if(cfg && cfg.entrada === 'peso'){
+      const val = r.pesoIngresadoKg === undefined || r.pesoIngresadoKg === null ? '' : r.pesoIngresadoKg;
+      entrada = `<input type="number" min="0" step="0.01" value="${val}" placeholder="kg" ${ed} onchange="${llamada(i,'pesoIngresadoKg')}"> <small class="small-muted">kg ingresados</small>${
+        v.sinPesoIngresado ? `<div class="small-muted" style="font-size:11px">Registro anterior (${mermaKgTexto(v.peso)} kg guardados): ingresa el peso en kg para aplicar la fórmula ×${cfg.factor}.</div>` : ''}`;
+      pct = '—';
+    }else{
+      entrada = `<input type="number" min="0" step="1" value="${v.unidades}" ${ed} onchange="${llamada(i,'unidades')}"> <small class="small-muted">UND</small>`;
+      pct = efectiva > 0 ? ((v.unidades / efectiva) * 100).toFixed(2) + '%' : '—';
+    }
+    return `<tr><td>${r.item}</td><td>${entrada}</td><td><input type="number" value="${mermaKgTexto(v.peso)}" ${ro}></td><td class="small-muted">${pct}</td></tr>`;
+  }).join('');
+  const tabla = `<table style="width:100%;min-width:520px;border-collapse:collapse;font-size:12px;margin:0">
+    <thead><tr><th style="text-align:left">Componente</th><th style="text-align:center">Dato ingresado</th><th style="text-align:center">Peso calculado (kg)</th><th style="text-align:center">%</th></tr></thead>
+    <tbody>${filas}<tr><td><b>Total</b></td><td></td><td style="text-align:center"><b>${mermaKgTexto(totalKg)} kg</b></td><td></td></tr></tbody></table>`;
+  return conScroll
+    ? `<div class="mermas-cuadro-scroll" style="width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border:1px solid #D7DBD4;border-radius:8px;background:#fff">${tabla}</div>`
+    : tabla;
+}
 function mermasTableCuadro(
   rows,
   produccionEfectiva,
   linea,
   cuadroIndex
 ){
-
   const efectiva =
     num(
       produccionEfectiva
     ) || 0;
-
-
   const q =
     normalizarCuadros(
       draft
     )[cuadroIndex];
-
-
+  if(linea === 'C20L'){
+    return mermasTableC20L(rows, produccionEfectiva, linea,
+      (i, campo) => `updateMermaCuadro(${cuadroIndex},${i},'${campo}',this.value)`, q, true);
+  }
   return `
 
     <div
@@ -6613,6 +6653,18 @@ function mermasTableCuadro(
 }
 
 
+/* C20L: cada componente solo permite su dato de entrada (UND o kg ingresados); el peso calculado nunca se edita. */
+function mermaCampoEditableC20L(item, field){
+  const cfg = mermaConversionFisica('C20L', item);
+  if(!cfg) return field === 'unidades';
+  return field === (cfg.entrada === 'peso' ? 'pesoIngresadoKg' : 'unidades');
+}
+/* Vacío o número finito no negativo. */
+function mermaEntradaValida(val){
+  if(val === '' || val === null || val === undefined) return true;
+  const n = Number(val);
+  return Number.isFinite(n) && n >= 0;
+}
 function updateMermaCuadro(
   cuadroIndex,
   i,
@@ -6649,16 +6701,16 @@ function updateMermaCuadro(
   }
 
 
-  if(
+    if(
     draft.linea === 'C20L' &&
-    field !== 'unidades'
+    !mermaCampoEditableC20L(q.mermas[i].item, field)
   ){
-
     return;
-
   }
-
-
+  if(!mermaEntradaValida(val)){
+    renderFormTab();
+    return;
+  }
   // Conserva la posición de la pantalla: el re-dibujado ya no la reinicia.
   const scrollY =
     window.scrollY;
@@ -7036,13 +7088,14 @@ function mermasTable(
   produccionEfectiva,
   linea
 ){
-
   const efectiva =
     num(
       produccionEfectiva
     ) || 0;
-
-
+  if(linea === 'C20L'){
+    return mermasTableC20L(rows, produccionEfectiva, linea,
+      (i, campo) => `updateMerma(${i},'${campo}',this.value)`, null, false);
+  }
   return `
 
     <table>
@@ -7289,16 +7342,16 @@ function updateMerma(
   }
 
 
-  if(
+    if(
     draft.linea === 'C20L' &&
-    field !== 'unidades'
+    !mermaCampoEditableC20L(draft.mermas[i].item, field)
   ){
-
     return;
-
   }
-
-
+  if(!mermaEntradaValida(val)){
+    renderFormTab();
+    return;
+  }
   /*
      Guardar posición actual
      de la pantalla.
