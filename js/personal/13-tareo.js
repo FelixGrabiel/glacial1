@@ -1215,7 +1215,8 @@ const TAREO_PESTANA_MODULOS = {
     rotacionMtto: ['mantenimiento'],
     rotacionMaq: ['mantenimiento'],
     identificacion: ['mantenimiento'],
-    auditoria: ['tareo', 'mantenimiento']
+        auditoria: ['tareo', 'mantenimiento'],
+    distribucion: ['tareo']
 };
 function tareoPestanaEnModulo(clave) {
     const modulos = TAREO_PESTANA_MODULOS[clave] || [];
@@ -1235,6 +1236,15 @@ function tareoRenderTabs(activa) {
 
     if (acceso.general) {
         tabs.push(['general', 'Tareo General', 'renderTareoGeneral()']);
+    }
+
+        // Distribución de personal por línea (Producción): edita quien tiene el permiso; el resto la consulta.
+    if (
+        typeof renderDistribucionPersonal === 'function' &&
+        tareoPestanaEnModulo('distribucion') &&
+        (acceso.editar.includes('Producción') || acceso.ver.includes('Producción'))
+    ) {
+        tabs.push(['distribucion', 'Distribución de personal', 'renderDistribucionPersonal()']);
     }
 
     tabs.push(['historial', 'Historial', 'renderHistorialTareo()']);
