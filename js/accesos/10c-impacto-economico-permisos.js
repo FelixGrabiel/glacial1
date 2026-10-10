@@ -111,17 +111,42 @@
     const otros = loadUsers().filter(u => !P().elegibleVer(String(u.rol || '').trim()));
     const opc = otros.map(u => '<option value="' + esc(u.username) + '">' + esc(u.nombre || u.username) + ' · rol: ' + esc(u.rol || 'sin rol') + (u.puesto ? ' · puesto: ' + esc(u.puesto) : '') + '</option>').join('');
     return '<div style="margin:12px 0;padding:10px;border:1px dashed #b9c9d8;border-radius:8px"><b style="font-size:13px">Agregar usuario</b>' +
-      '<p style="font-size:12px;margin:4px 0;color:#5a6b78">Solo Gerencia, Jefe de Producción, Jefe de Operaciones, Jefatura y Administrador pueden recibir este permiso. Si la persona aún no tiene uno de esos roles, cámbiale el rol o crea su usuario.</p>' +
+      '<p style="font-size:12px;margin:4px 0;color:#5a6b78">Solo Gerencia, Jefe de Producción, Jefe de Operaciones, Jefatura y Administrador pueden recibir este permiso. Elige la cuenta y el rol que se le asignará; al agregarla aparece en la lista y le das «Ver».</p>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><select id="eco-agregar-sel" style="padding:8px;min-width:220px"><option value="">Elegir usuario existente…</option>' + opc + '</select>' +
+      '<select id="eco-agregar-rol" style="padding:8px"><option>Jefe de Operaciones</option><option>Jefe de Producción</option></select>' +
       '<button type="button" class="id-btn" onclick="glacialEcoUsuarios.agregar()">Agregar</button>' +
       '<button type="button" class="id-btn" onclick="glacialEcoUsuarios.crearUsuario()">Crear usuario nuevo</button></div></div>';
   }
+  /* Asigna un rol elegible a una cuenta que lo tiene «Personalizado» u otro (el rol solo se elegía al crearla). Los permisos operativos NO se tocan. */
+  const ROLES_ASIGNABLES = ['Jefe de Operaciones', 'Jefe de Producción'];
+  function aplicarRol(users, username, rol, actor){
+    if(!ROLES_ASIGNABLES.includes(rol)) return {ok:false, msg:'Rol no permitido para esta acción.'};
+    const u = users.find(v => String(v.username).toLowerCase() === String(username).toLowerCase());
+    if(!u) return {ok:false, msg:'No se encontró el usuario.'};
+    if(String(u.username).toLowerCase() === 'admin' || String(u.rol || '').trim() === 'Administrador') return {ok:false, msg:'No se cambia el rol de un Administrador desde aquí.'};
+    const antes = u.rol || '';
+    u.rol = rol;
+    const h = Array.isArray(u.rolHistorial) ? u.rolHistorial.slice(-29) : [];
+    h.push({en: Date.now(), por: actor, antes, ahora: rol, motivo: 'permiso de impacto económico'});
+    u.rolHistorial = h;
+    return {ok:true};
+  }
   function agregar(){
-    const u = document.getElementById('eco-agregar-sel')?.value;
-    if(!u){ alert('Elige un usuario de la lista.'); return; }
-    const x = loadUsers().find(v => String(v.username) === u);
-    alert('«' + (x && (x.nombre || x.username)) + '» tiene el ROL «' + (x && x.rol || 'sin rol') + '»' + (x && x.puesto ? ' (su PUESTO es «' + x.puesto + '», pero el puesto es solo texto; lo que cuenta es el rol)' : '') + ', que no puede recibir permisos de impacto económico.\n\nCámbiale el rol a Jefe de Operaciones, Jefe de Producción, Jefatura o Gerencia en Gestionar usuarios; después aparecerá en esta lista.');
-    if(typeof openUsersModal === 'function') openUsersModal();
+    if(!esAdministrador()){ alert('Solo un Administrador puede asignar permisos de impacto económico.'); return; }
+    const sel = document.getElementById('eco-agregar-sel')?.value;
+    if(!sel){ alert('Elige un usuario de la lista.'); return; }
+    const rol = document.getElementById('eco-agregar-rol')?.value || 'Jefe de Operaciones';
+    const users = loadUsers();
+    const x = users.find(v => String(v.username) === sel);
+    if(!x) return;
+    const nombre = x.nombre || x.username;
+    if(!confirm('«' + nombre + '» tiene el rol «' + (x.rol || 'sin rol') + '», que no puede recibir permisos de impacto económico.\n\n¿Cambiar su rol a «' + rol + '»?\nSus permisos operativos actuales (' + (x.permisos === 'todos' ? 'todos' : (Array.isArray(x.permisos) ? x.permisos.length : 0)) + ') no se modifican; el permiso económico se le da después, en esta lista.')) return;
+    const r = aplicarRol(users, x.username, rol, state.user.username);
+    if(!r.ok){ alert(r.msg); return; }
+    saveUsers(users);
+    const cont = document.getElementById('id-permisos');
+    if(cont) cont.innerHTML = panelHtml();
+    alert('Listo. «' + nombre + '» ya aparece en la lista: marca «Ver» y pulsa «Guardar permisos».');
   }
   function crearUsuario(){
     if(typeof openUsersModal === 'function') openUsersModal();
@@ -138,5 +163,5 @@
     alert(n ? 'Permisos actualizados (' + n + ').' : 'Sin cambios.');
   }
 
-  window.glacialEcoUsuarios = {aplicarCambio, guardarLista, seccionHtml, guardarModal, panelHtml, guardar: guardarPanel, agregar, crearUsuario};
+  window.glacialEcoUsuarios = {aplicarCambio, guardarLista, seccionHtml, guardarModal, panelHtml, guardar: guardarPanel, agregar, crearUsuario, aplicarRol};
 })();

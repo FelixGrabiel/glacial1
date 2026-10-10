@@ -101,6 +101,11 @@ ok(U.aplicarCambio(L,'jef',true,false,'adm').cambio===false,'sin cambios reales 
 r=U.aplicarCambio(L,'ger',true,true,'adm');
 ok(r.ok&&r.cambio===false,'Gerencia sin campo con ver+gestionar ya es el estado vigente: sin cambios');
 
+const L2=[{username:'jg',rol:'Personalizado',puesto:'Jefe de Operaciones',permisos:['a','b']},{username:'admin',rol:'Administrador'},{username:'ad2',rol:'Administrador'}];
+ok(U.aplicarRol(L2,'jg','Gerente','adm').ok===false&&U.aplicarRol(L2,'ad2','Jefe de Operaciones','adm').ok===false&&U.aplicarRol(L2,'admin','Jefe de Operaciones','adm').ok===false,'asignar rol: solo Jefe de Operaciones/Producción y nunca a un Administrador');
+r=U.aplicarRol(L2,'jg','Jefe de Operaciones','adm');
+ok(r.ok&&L2[0].rol==='Jefe de Operaciones'&&L2[0].permisos.length===2&&L2[0].rolHistorial[0].antes==='Personalizado','asignar rol: cuenta Personalizado pasa a Jefe de Operaciones, sin tocar permisos operativos y con historial');
+ok(U.aplicarCambio(L2,'jg',true,false,'adm').ok,'tras asignar el rol, ya se le puede dar «Ver»');
 /* 6) Perfiles, reglas, pantalla */
 const seg=leer('js/accesos/36-seguridad-auth.js');
 ok(/glacialEcoPermisos/.test(seg)&&/eco/.test(seg),'publicarPerfiles publica el campo eco {ver, gestionar}');
