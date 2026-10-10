@@ -19,7 +19,8 @@
   };
 
   let semanaMttoSeleccionada = mttoLunesSemana(new Date());
-  let borradorMtto = {};
+    let borradorMtto = {};
+  let mttoSucio = false;   // hay cambios en pantalla aún sin guardar con «Guardar rotación semanal»
 
   function textoUsuarioMtto(){
     const u = (typeof state !== 'undefined' && state.user) ? state.user : {};
@@ -77,7 +78,17 @@
     return mttoFechaISO(f);
   }
 
+    /* Cambios del editor del cuadro aún sin aplicar y cambios sin guardar: se resuelven antes de cambiar de semana. */
+  function mttoPuedeSalirDeLaSemana(){
+    if(window.glacialRotGrid && !window.glacialRotGrid.resolverPendientes('rot-mtto')) return false;
+    if(mttoSucio && !confirm('Hay cambios sin guardar en la rotación de esta semana. ¿Cambiar de semana y descartarlos?')) return false;
+    mttoSucio = false;
+    if(window.glacialRotGrid) window.glacialRotGrid.limpiar('rot-mtto');
+    return true;
+  }
+
   function mttoMoverSemana(dias){
+    if(!mttoPuedeSalirDeLaSemana()) return;
     const f = mttoFechaLocal(semanaMttoSeleccionada);
     f.setDate(f.getDate()+dias);
     semanaMttoSeleccionada = mttoLunesSemana(f);
@@ -85,7 +96,8 @@
   }
   window.mttoMoverSemana = mttoMoverSemana;
 
-  function mttoIrSemanaActual(){
+    function mttoIrSemanaActual(){
+    if(!mttoPuedeSalirDeLaSemana()) return;
     semanaMttoSeleccionada = mttoLunesSemana(new Date());
     renderRotacionSemanalMantenimiento();
   }
@@ -181,6 +193,49 @@
     }
   }
   window.mttoCambiarTurno = mttoCambiarTurno;
+
+    /* Aplica turno, ingreso y salida de un técnico JUNTOS sobre el borrador de la semana (lo que antes hacían tres controles). Lo llama el
+     cuadro tipo Excel; el guardado y los permisos siguen siendo los de «Guardar rotación semanal». */
+  function mttoAplicarAsignacion(clave, asig){
+    if(!puedeGestionarRotacionMtto()) return {ok:false, error:'Solo el Supervisor de Mantenimiento o Jefe de Mantenimiento puede editar esta rotación.'};
+    const p = borradorMtto[String(clave)];
+    if(!p) return {ok:false, error:'No se encontró al técnico en la rotación de la semana.'};
+    if(!asig || !TURNOS_MTTO[asig.turno]) return {ok:false, error:'Turno no válido.'};
+    if(!asig.inicio || !asig.fin) return {ok:false, error:'Indica la hora de ingreso y de salida.'};
+    p.turno = asig.turno;
+    p.horaIngreso = asig.inicio;
+    p.horaSalida = asig.fin;
+    p.horario = `${p.horaIngreso} - ${p.horaSalida}`;
+    mttoSucio = true;
+    return {ok:true};
+  }
+  window.mttoAplicarAsignacion = mttoAplicarAsignacion;
+  window.mttoAplicarAsignacionGrid = (clave, diaIdx, asig) => mttoAplicarAsignacion(clave, asig);
+  window.mttoRerenderGrid = () => renderRotacionSemanalMantenimiento({conservar:true});
+
+  /* Datos del cuadro (una celda por técnico: el turno de MTTO es semanal, no por día). */
+  function mttoConfigCuadro(tecnicos){
+    const f0 = mttoFechaLocal(semanaMttoSeleccionada);
+    const NOMBRES = ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'], LARGOS = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+    const dias = NOMBRES.map((etq,i) => {
+      const d = new Date(f0); d.setDate(d.getDate()+i);
+      const dd = String(d.getDate()).padStart(2,'0'), mm = String(d.getMonth()+1).padStart(2,'0');
+      return {fecha:mttoFechaISO(d), etq, corta:dd+'/'+mm, largo:LARGOS[i]+' '+dd+'/'+mm, hoy:mttoFechaISO(d)===mttoFechaISO(new Date())};
+    });
+    const clases = {'Día':'dia','Intermedio':'intermedio','Noche':'noche'};
+    return {
+      id:'rot-mtto', col1:'TÉCNICO', etiquetaTabla:'Rotación semanal de Mantenimiento',
+      dias, fusion:{etq:'Toda la semana', titulo:'TURNO DE LA SEMANA'},
+      filas: tecnicos.map(w => {
+        const clave = mttoClaveTrabajador(w), p = borradorMtto[clave] || {};
+        return {id:clave, nombre:w.nombre || '', sub:(w.cargo || 'Técnico de Mantenimiento')+(w.dni ? ' · DNI '+w.dni : ''),
+          celdas:[{valor:p.turno || 'Día', inicio:p.horaIngreso || '', fin:p.horaSalida || ''}]};
+      }),
+      catalogo: Object.keys(TURNOS_MTTO).map(t => ({valor:t, etq:t.toUpperCase(), clase:clases[t] || 'otro', horas:true,
+        base:{inicio:TURNOS_MTTO[t].ingreso, fin:TURNOS_MTTO[t].salida}})),
+      bloqueado:false, aplicar:'mttoAplicarAsignacionGrid', rerender:'mttoRerenderGrid'
+    };
+  }
 
   function mttoCambiarHora(clave, campo, valor){
     const p = borradorMtto[String(clave)];
@@ -364,30 +419,20 @@
   }
   window.mttoImportarExcel = mttoImportarExcel;
 
-  function mttoRenderTablaDesdeBorrador(){
-    Object.entries(borradorMtto).forEach(([clave,p]) => {
-      const fila = document.querySelector(
-        `tr[data-mtto-clave="${CSS.escape(String(clave))}"]`
-      );
-      if(!fila) return;
-
-      const turno = fila.querySelector('[data-mtto-turno]');
-      const ingreso = fila.querySelector('[data-mtto-ingreso]');
-      const salida = fila.querySelector('[data-mtto-salida]');
-      const horario = fila.querySelector('[data-mtto-horario]');
-
-      if(turno) turno.value = p.turno || 'Día';
-      if(ingreso) ingreso.value = p.horaIngreso || '';
-      if(salida) salida.value = p.horaSalida || '';
-      if(horario) horario.value = p.horario || mttoHorarioTexto(p);
-    });
+    function mttoRenderTablaDesdeBorrador(){
+    // El borrador importado se muestra en el cuadro y queda pendiente de «Guardar rotación semanal».
+    mttoSucio = true;
+    renderRotacionSemanalMantenimiento({conservar:true});
   }
 
-  function guardarRotacionSemanalMantenimiento(){
+    function guardarRotacionSemanalMantenimiento(){
     if(!puedeGestionarRotacionMtto()){
       alert('Solo el Supervisor de Mantenimiento o Jefe de Mantenimiento puede guardar esta rotación.');
       return;
     }
+    // Lo que está en el editor del cuadro y no se aplicó se aplica o se descarta antes de guardar (no se guarda a medias).
+    if(window.glacialRotGrid && !window.glacialRotGrid.resolverPendientes('rot-mtto')) return;
+
 
     const personal = Object.values(borradorMtto);
     if(!personal.length){
@@ -416,13 +461,14 @@
     if(i >= 0) todas[i] = {...todas[i], ...registro};
     else todas.push(registro);
 
-    saveRotacionesMantenimiento(todas);
+        saveRotacionesMantenimiento(todas);
+    mttoSucio = false;
     alert('Rotación semanal de Mantenimiento guardada correctamente.');
     renderRotacionSemanalMantenimiento();
   }
   window.guardarRotacionSemanalMantenimiento = guardarRotacionSemanalMantenimiento;
 
-  function renderRotacionSemanalMantenimiento(){
+    function renderRotacionSemanalMantenimiento(opts){
     const main = document.getElementById('main');
     if(!main) return;
 
@@ -436,7 +482,8 @@
       return;
     }
 
-    mttoPrepararBorrador();
+        // Con cambios sin guardar (o al redibujar el cuadro tras «Aplicar») se conserva el borrador; si no, se arma desde lo guardado.
+    if(!((opts && opts.conservar) || mttoSucio)) mttoPrepararBorrador();
     const tecnicos = mttoTecnicosActivos();
     const guardada = mttoRotacionSemana(semanaMttoSeleccionada);
     const fin = mttoFinSemana(semanaMttoSeleccionada);
@@ -456,7 +503,7 @@
         <div class="panel-head">
           <div>
             <h3>Semana ${formatearFecha(semanaMttoSeleccionada)} — ${formatearFecha(fin)}</h3>
-            <span class="small-muted">${guardada ? 'Rotación guardada · puedes actualizarla' : 'Rotación pendiente de guardar'}</span>
+            <span class="small-muted">${guardada ? 'Rotación guardada · puedes actualizarla' : 'Rotación pendiente de guardar'}${mttoSucio ? ' · <strong>cambios sin guardar</strong>' : ''}</span>
           </div>
           <div class="actions-row" style="margin:0;">
             <button class="btn btn-ghost btn-sm" onclick="mttoMoverSemana(-7)">← Semana anterior</button>
@@ -480,57 +527,10 @@
               </button>
             </div>
             <div class="small-muted" style="margin-bottom:12px;">
-              Excel: DNI | Técnico | Turno | Hora ingreso | Hora salida | Horario. Todos los horarios quedan editables antes de guardar.
+              Excel: DNI | Técnico | Turno | Hora ingreso | Hora salida | Horario. Selecciona la celda de un técnico para cambiar su turno y horario; luego pulsa «Guardar rotación semanal».
             </div>
 
-            <div class="tareo-table-scroll">
-              <table class="tareo-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Técnico</th>
-                    <th>Cargo</th>
-                    <th>Turno</th>
-                    <th>Ingreso</th>
-                    <th>Salida</th>
-                    <th>Horario</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${tecnicos.map((w,index) => {
-                    const clave = mttoClaveTrabajador(w);
-                    const p = borradorMtto[clave];
-                    const arg = escaparHTML(JSON.stringify(clave));
-                    return `
-                      <tr data-mtto-clave="${escaparHTML(clave)}">
-                        <td>${index+1}</td>
-                        <td>
-                          <strong>${escaparHTML(w.nombre || '')}</strong>
-                          <div class="small-muted">${w.dni ? 'DNI ' + escaparHTML(w.dni) : ''}</div>
-                        </td>
-                        <td>${escaparHTML(w.cargo || 'Técnico de Mantenimiento')}</td>
-                        <td>
-                          <select data-mtto-turno onchange="mttoCambiarTurno(${arg}, this.value)">
-                            ${Object.keys(TURNOS_MTTO).map(t => `<option value="${t}" ${p.turno===t?'selected':''}>${t}</option>`).join('')}
-                          </select>
-                        </td>
-                        <td><input data-mtto-ingreso type="time" value="${escaparHTML(p.horaIngreso)}" onchange="mttoCambiarHora(${arg},'horaIngreso',this.value); const h=this.closest('tr')?.querySelector('[data-mtto-horario]'); if(h) h.textContent=mttoHorarioTexto(borradorMtto[${arg}]);"></td>
-                        <td><input data-mtto-salida type="time" value="${escaparHTML(p.horaSalida)}" onchange="mttoCambiarHora(${arg},'horaSalida',this.value); const h=this.closest('tr')?.querySelector('[data-mtto-horario]'); if(h) h.textContent=mttoHorarioTexto(borradorMtto[${arg}]);"></td>
-                        <td>
-                          <input
-                            data-mtto-horario
-                            type="text"
-                            value="${escaparHTML(p.horario || mttoHorarioTexto(p))}"
-                            placeholder="Ej. 07:00 - 16:00"
-                            onchange="mttoCambiarHorario(${arg}, this.value)"
-                            style="min-width:150px;"
-                          >
-                        </td>
-                      </tr>`;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
+            ${window.glacialRotGrid ? window.glacialRotGrid.html(mttoConfigCuadro(tecnicos)) : '<div class="empty-state"><p>No se cargó el cuadro de rotación.</p></div>'}
 
             <div class="actions-row" style="justify-content:flex-end;margin-top:16px;">
               <button class="btn btn-primary" onclick="guardarRotacionSemanalMantenimiento()">💾 Guardar rotación semanal</button>
@@ -539,9 +539,10 @@
             <div class="empty-state">
               <h4>No hay técnicos activos</h4>
               <p>Registra técnicos de Mantenimiento activos en Gestionar trabajadores.</p>
-            </div>`}
+            </div>          `}
         </div>
       </div>`;
+    if(window.glacialRotGrid) window.glacialRotGrid.activar('rot-mtto');
   }
   window.renderRotacionSemanalMantenimiento = renderRotacionSemanalMantenimiento;
 

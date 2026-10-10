@@ -232,6 +232,8 @@ function aplicarContextoRotacionSupervisor(mostrarAviso=true){
 }
 
 function rotSupSeleccionarSemana(desde){
+  if(!rotSupResolverPendientes())return;
+  if(window.glacialRotGrid)window.glacialRotGrid.limpiar('rot-sup');
   const lunes=rotSupFechaISO(rotSupLunes(rotSupParseFecha(desde)||new Date()));
   rotSupSemanaVista=lunes;
   renderRotacionSupervisores();
@@ -265,7 +267,38 @@ function rotSupActualizar(username,fecha,campo,valor){
   rotSupGuardarColeccion(r);
 }
 
+/* Aplica la asignación de UNA celda (turno, inicio y fin a la vez) con los mismos permisos, validaciones, guardado y auditoría de
+   rotSupActualizar. Lo llama el cuadro tipo Excel (31a-rotacion-grid.js). Devuelve {ok:true} o {ok:false,error}. */
+function rotSupAplicarCelda(username,fecha,asig){
+  if(!rotSupPuedeGestionar())return {ok:false,error:'No tienes permiso para modificar la rotación de supervisores.'};
+  const r=rotSupObtenerVista();
+  if(r.estado==='CERRADA')return {ok:false,error:'La rotación está CERRADA: reábrela para editar.'};
+  if(!ROT_SUP_TURNOS.includes(asig&&asig.turno))return {ok:false,error:'Turno no válido.'};
+  const conHoras=['DÍA','INTERMEDIO','NOCHE'].includes(asig.turno);
+  if(conHoras&&(!asig.inicio||!asig.fin))return {ok:false,error:'Indica la hora de inicio y de fin.'};
+  r.detalles=r.detalles||[];
+  let d=rotSupDetalleUsuario(r,username);
+  if(!d){
+    // El supervisor figura en el listado pero la semana aún no lo tenía: se agrega con el mismo formato de rotSupNueva.
+    const u=rotSupSupervisores().find(x=>String(x.username).toLowerCase()===String(username).toLowerCase());
+    if(!u)return {ok:false,error:'No se encontró al supervisor.'};
+    d={username:u.username,nombre:u.nombre||u.username,linea:u.linea||'',dias:{}};
+    r.detalles.push(d);
+  }
+  d.dias=d.dias||{};
+  d.dias[fecha]={estado:asig.turno,turno:asig.turno,inicio:conHoras?asig.inicio:'',fin:conHoras?asig.fin:''};
+  r.actualizadoEn=Date.now();
+  r.auditoria=[...(r.auditoria||[]),rotSupAuditoria('MODIFICÓ ASIGNACIÓN',{username,fecha,turno:asig.turno,inicio:d.dias[fecha].inicio,fin:d.dias[fecha].fin})];
+  return rotSupGuardarColeccion(r)?{ok:true}:{ok:false,error:'No se pudo guardar la asignación.'};
+}
+
+/* Cambios del editor del cuadro aún sin aplicar: se aplican o se descartan antes de seguir (nunca se pierden en silencio). */
+function rotSupResolverPendientes(){
+  return !window.glacialRotGrid || window.glacialRotGrid.resolverPendientes('rot-sup');
+}
+
 function rotSupGuardarBorrador(){
+  if(!rotSupResolverPendientes())return;
   const r=rotSupObtenerVista();
   if(r.estado==='CERRADA')return;
 
@@ -303,6 +336,7 @@ function rotSupValidarPublicacion(r){
 
 function rotSupPublicar(){
   if(!rotSupPuedeGestionar())return;
+  if(!rotSupResolverPendientes())return;
   const r=rotSupObtenerVista();
   const errores=rotSupValidarPublicacion(r);
   if(errores.length){alert('No se puede publicar:\n\n'+errores.slice(0,12).join('\n'));return;}
@@ -386,6 +420,7 @@ function rotSupReabrir(){
 
 function rotSupCopiarAnterior(){
   if(!rotSupPuedeGestionar())return;
+  if(!rotSupResolverPendientes())return;
   const actual=rotSupObtenerVista();
   const anteriores=rotSupItems().filter(r=>r.desde<actual.desde).sort((a,b)=>b.desde.localeCompare(a.desde));
   const ant=anteriores[0];
@@ -431,6 +466,35 @@ function rotSupEsc(v){
   return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+const ROT_SUP_DIAS_ETQ=['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
+const ROT_SUP_DIAS_LARGO=['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+function rotSupFechaVisible(iso){return String(iso||'').split('-').reverse().join('/');}
+const ROT_SUP_CLASE_TURNO={'DÍA':'dia','INTERMEDIO':'intermedio','NOCHE':'noche','DESCANSO':'descanso','VACACIONES':'vacaciones','LICENCIA':'licencia','OTRO':'otro'};
+
+/* Datos del cuadro tipo Excel a partir de la rotación REAL de la semana (mismo modelo y catálogo de siempre). */
+function rotSupConfigCuadro(r,dias,supervisores,bloqueado){
+  const hoy=rotSupFechaISO(new Date());
+  return {
+    id:'rot-sup',col1:'SUPERVISOR',etiquetaTabla:'Rotación de supervisores, semana '+r.semana,
+    dias:dias.map((f,i)=>{const p=f.split('-');return {fecha:f,etq:ROT_SUP_DIAS_ETQ[i],corta:p[2]+'/'+p[1],largo:ROT_SUP_DIAS_LARGO[i]+' '+p[2]+'/'+p[1],hoy:f===hoy};}),
+    filas:supervisores.map(u=>{
+      const d=rotSupDetalleUsuario(r,u.username)||{dias:{}};
+      return {id:u.username,nombre:u.nombre||u.username,sub:u.linea||'Todas las líneas',
+        celdas:dias.map(f=>{const a=d.dias?.[f]||{turno:'DESCANSO',inicio:'',fin:''};return {valor:a.turno||'DESCANSO',inicio:a.inicio||'',fin:a.fin||''};})};
+    }),
+    catalogo:ROT_SUP_TURNOS.map(t=>({valor:t,etq:t,clase:ROT_SUP_CLASE_TURNO[t]||'otro',horas:['DÍA','INTERMEDIO','NOCHE'].includes(t),base:ROT_SUP_HORARIOS_BASE[t]||null})),
+    bloqueado,mensajeBloqueo:'La rotación está CERRADA: reábrela para editar.',
+    aplicar:'rotSupAplicarCeldaGrid',rerender:'renderRotacionSupervisores'
+  };
+}
+/* El cuadro llama con (filaId, índiceDeDía, asignación): se traduce a (usuario, fecha). */
+function rotSupAplicarCeldaGrid(username,diaIdx,asig){
+  const r=rotSupObtenerVista();
+  const fecha=rotSupDias(r.desde)[diaIdx];
+  if(!fecha)return {ok:false,error:'Día no válido.'};
+  return rotSupAplicarCelda(username,fecha,asig);
+}
+
 function renderRotacionSupervisores(){
   const main=document.getElementById('main');
   if(!main)return;
@@ -452,23 +516,22 @@ function renderRotacionSupervisores(){
     <style>
       .rot-sup-page{padding:18px;max-width:1500px;margin:auto}.rot-sup-head,.rot-sup-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
       .rot-sup-head{justify-content:space-between}.rot-sup-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:14px}
-      .rot-sup-badge{font-weight:800;font-size:12px;padding:6px 10px;border-radius:999px;background:#eef3f6}.rot-sup-table{width:100%;border-collapse:collapse;min-width:1050px}
-      .rot-sup-table th,.rot-sup-table td{border-bottom:1px solid var(--line);padding:8px;vertical-align:top}.rot-sup-table th{font-size:12px;text-align:left}
-      .rot-sup-cell select,.rot-sup-cell input{width:100%;min-width:92px;margin-bottom:5px}.rot-sup-scroll{overflow:auto}
+            .rot-sup-badge{font-weight:800;font-size:12px;padding:6px 10px;border-radius:999px;background:#eef3f6}
+      .rot-sup-badge.pub{background:#e3f4ea;color:#14532d}.rot-sup-badge.cer{background:#fde7e5;color:#8a1c13}.rot-sup-badge.bor{background:#fff4dc;color:#7a5200}
       .rot-sup-audit{font-size:12px;max-height:180px;overflow:auto}.rot-sup-muted{color:var(--muted);font-size:12px}
-      @media(max-width:700px){.rot-sup-table{min-width:0}.rot-sup-table thead{display:none}.rot-sup-table,.rot-sup-table tbody,.rot-sup-table tr,.rot-sup-table td{display:block;width:100%}
-        .rot-sup-table tr{border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:8px}.rot-sup-table td{border:0}.rot-sup-table td:before{content:attr(data-label);display:block;font-size:11px;font-weight:800;margin-bottom:4px}}
+      .rot-sup-page{overflow-x:clip}
+      @media(max-width:700px){.rot-sup-page{padding:12px 10px}.rot-sup-actions .btn{min-height:44px;flex:1 1 auto}}
     </style>
     <div class="rot-sup-head">
       <div><h2 style="margin:0">Rotación de supervisores</h2>
-        <div class="rot-sup-muted">Semana ${r.semana} · ${r.desde} – ${r.hasta}</div>
+        <div class="rot-sup-muted">Semana ${r.semana} · ${rotSupFechaVisible(r.desde)} al ${rotSupFechaVisible(r.hasta)}</div>
         ${r.estado==='PUBLICADA'?`<div class="rot-sup-muted" style="margin-top:4px">
           PUBLICADA · Última actualización: ${
             new Date(r.ultimaActualizacionPublicadaEn || r.actualizadoEn || r.publicadaEn || Date.now())
               .toLocaleString('es-PE')
           } · por ${rotSupEsc(r.actualizadoPor || r.publicadaPor || '')}
         </div>`:''}</div>
-      <span class="rot-sup-badge">${r.estado}</span>
+      <span class="rot-sup-badge ${r.estado==='PUBLICADA'?'pub':r.estado==='CERRADA'?'cer':'bor'}">${r.estado}</span>
     </div>
 
     <div class="rot-sup-actions" style="margin-top:12px">
@@ -482,28 +545,7 @@ function renderRotacionSupervisores(){
       ${r.estado==='CERRADA'?`<button class="btn btn-glacial" onclick="rotSupReabrir()">Reabrir rotación</button>`:''}
     </div>
 
-    <div class="rot-sup-card rot-sup-scroll">
-      <table class="rot-sup-table">
-        <thead><tr><th>Supervisor</th>${dias.map(f=>`<th>${rotSupNombreDia(f)}</th>`).join('')}</tr></thead>
-        <tbody>
-        ${supervisores.map(u=>{
-          const d=rotSupDetalleUsuario(r,u.username) || {dias:{}};
-          return `<tr><td data-label="Supervisor"><strong>${rotSupEsc(u.nombre||u.username)}</strong><div class="rot-sup-muted">${rotSupEsc(u.linea||'Todas las líneas')}</div></td>
-          ${dias.map(f=>{
-            const a=d.dias?.[f]||{turno:'DESCANSO',inicio:'',fin:''};
-            return `<td class="rot-sup-cell" data-label="${rotSupNombreDia(f)}">
-              <select onchange="rotSupActualizar('${rotSupEsc(u.username)}','${f}','turno',this.value)" ${bloqueado?'disabled':''}>
-                ${ROT_SUP_TURNOS.map(t=>`<option value="${t}" ${a.turno===t?'selected':''}>${t}</option>`).join('')}
-              </select>
-              ${['DÍA','INTERMEDIO','NOCHE'].includes(a.turno)?`
-                <input type="time" value="${rotSupEsc(a.inicio)}" onchange="rotSupActualizar('${rotSupEsc(u.username)}','${f}','inicio',this.value)" ${bloqueado?'disabled':''}>
-                <input type="time" value="${rotSupEsc(a.fin)}" onchange="rotSupActualizar('${rotSupEsc(u.username)}','${f}','fin',this.value)" ${bloqueado?'disabled':''}>`:''}
-            </td>`;
-          }).join('')}</tr>`;
-        }).join('')}
-        </tbody>
-      </table>
-    </div>
+    ${window.glacialRotGrid?window.glacialRotGrid.html(rotSupConfigCuadro(r,dias,supervisores,bloqueado)):'<div class="empty-state"><p>No se cargó el cuadro de rotación.</p></div>'}
 
     <div class="rot-sup-card">
       <h3 style="margin-top:0">Cambio / cobertura excepcional</h3>
@@ -522,7 +564,8 @@ function renderRotacionSupervisores(){
       <h3 style="margin-top:0">Historial / auditoría</h3>
       <div class="rot-sup-audit">
         ${(r.auditoria||[]).slice().reverse().map(a=>`<div>${new Date(a.fechaHora).toLocaleString('es-PE')} · <strong>${rotSupEsc(a.nombre||a.usuario)}</strong> · ${rotSupEsc(a.accion)}</div>`).join('') || 'Sin movimientos.'}
-      </div>
+            </div>
     </div>
   </section>`;
+  if(window.glacialRotGrid)window.glacialRotGrid.activar('rot-sup');
 }

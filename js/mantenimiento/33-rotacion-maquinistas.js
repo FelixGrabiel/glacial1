@@ -101,6 +101,23 @@
   /* =========================================================
      INTERACCIÓN
      ========================================================= */
+    const idxDe=id=>borrador.findIndex(p=>String(p.trabajadorId)===String(id));
+  /* Aplica turno (y línea) de UN maquinista y día JUNTOS sobre el borrador de la semana; el guardado sigue siendo «Guardar rotación». */
+  function aplicarAsignacion(id,d,asig){
+    if(!puedeGestionarRotacionMaquinistas())return {ok:false,error:'No tienes permiso para editar la rotación de maquinistas.'};
+    const i=idxDe(id);if(i<0)return {ok:false,error:'No se encontró al maquinista en la rotación de la semana.'};
+    if(!VALORES.includes(asig&&asig.turno))return {ok:false,error:'Turno no válido.'};
+    const linea=(asig.extra&&asig.extra.linea)||borrador[i].linea;
+    if(!LINEAS_MAQ.includes(linea))return {ok:false,error:'Línea no válida.'};
+    const p=borrador[i];
+    p.dias=Array.isArray(p.dias)&&p.dias.length===7?p.dias:Array(7).fill('DÍA');
+    p.dias[d]=asig.turno;p.linea=linea;
+    sucio=true;
+    return {ok:true};
+  }
+  function resolverPendientes(){return !window.glacialRotGrid||window.glacialRotGrid.resolverPendientes('rot-maq');}
+  function quitarPorId(id){const i=idxDe(id);if(i<0)return;if(window.glacialRotGrid)window.glacialRotGrid.limpiar('rot-maq');quitar(i);}
+
   function alternarCelda(i,d){
     if(!puedeGestionarRotacionMaquinistas())return;
     const p=borrador[i];if(!p)return;
@@ -118,12 +135,16 @@
     if(!confirm('¿Quitar a este maquinista de la rotación de la semana?'))return;
     borrador.splice(i,1);sucio=true;renderRotacionMaquinistas();
   }
-  function moverSemana(n){
+    function moverSemana(n){
+    if(!resolverPendientes())return;
     if(sucio&&!confirm('Hay cambios sin guardar. ¿Cambiar de semana y descartarlos?'))return;
+    if(window.glacialRotGrid)window.glacialRotGrid.limpiar('rot-maq');
     semana=sumarDias(semana,n*7);cargarBorrador();renderRotacionMaquinistas();
   }
-  function irSemanaActual(){
+    function irSemanaActual(){
+    if(!resolverPendientes())return;
     if(sucio&&!confirm('Hay cambios sin guardar. ¿Descartarlos?'))return;
+    if(window.glacialRotGrid)window.glacialRotGrid.limpiar('rot-maq');
     semana=lunesDe(iso(new Date()));cargarBorrador();renderRotacionMaquinistas();
   }
 
@@ -151,8 +172,9 @@
     sucio=true;closeModal();renderRotacionMaquinistas();
   }
 
-  function copiarSemanaAnterior(){
+    function copiarSemanaAnterior(){
     if(!puedeGestionarRotacionMaquinistas())return;
+    if(!resolverPendientes())return;
     const previa=guardadaDe(sumarDias(semana,-7));
     if(!previa||!(previa.personal||[]).length){alert('No existe una rotación guardada en la semana anterior.');return;}
     if(borrador.length&&!confirm('Esto reemplazará lo que hay en pantalla con la semana anterior. ¿Continuar?'))return;
@@ -160,7 +182,8 @@
     sucio=true;renderRotacionMaquinistas();
   }
 
-  function guardar(){
+    function guardar(){
+    if(!resolverPendientes())return;
     if(!puedeGestionarRotacionMaquinistas()){alert('Solo el Supervisor de Mantenimiento o el Administrador puede guardar la rotación de maquinistas.');return;}
     if(!borrador.length){alert('Agrega al menos un maquinista.');return;}
     const sinLinea=borrador.find(p=>!p.linea);
@@ -245,6 +268,23 @@
     document.head.appendChild(s);
   }
 
+    /* Datos del cuadro tipo Excel (31a-rotacion-grid.js): una fila por maquinista (id = trabajadorId) y una columna por día. */
+  const CLASE_MAQ={'DÍA':'dia','NOCHE':'noche','DESCANSO':'descanso'};
+  function configCuadro(fechas,hoy,puede){
+    const ETQ=['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
+    return {
+      id:'rot-maq',col1:'MAQUINISTA',etiquetaTabla:'Rotación de maquinistas',
+      dias:fechas.map((f,i)=>({fecha:f,etq:ETQ[i],corta:f.slice(8)+'/'+f.slice(5,7),largo:DIAS[i].toLowerCase()+' '+f.slice(8)+'/'+f.slice(5,7),hoy:f===hoy})),
+      filas:borrador.map(p=>({id:String(p.trabajadorId),nombre:p.nombre||'',sub:(p.linea||'Sin línea')+(p.dni?' · DNI '+p.dni:''),
+        celdas:DIAS.map((_,d)=>({valor:(p.dias||[])[d]||'DÍA'})),extra:{linea:p.linea||LINEAS_MAQ[0]}})),
+      catalogo:VALORES.map(v=>({valor:v,etq:v,clase:CLASE_MAQ[v]||'otro',horas:false})),
+      extras:[{clave:'linea',etq:'Línea',opciones:LINEAS_MAQ}],
+      accionesFila:puede?[{etq:'Quitar de la semana',fn:'rotMaqQuitarId'}]:[],
+      bloqueado:!puede,mensajeBloqueo:'Modo lectura: solo el Supervisor de Mantenimiento o el Administrador edita esta rotación.',
+      aplicar:'rotMaqAplicarAsignacion',rerender:'renderRotacionMaquinistas'
+    };
+  }
+
   function renderRotacionMaquinistas(){
     const main=document.getElementById('main');if(!main)return;
     estilos();
@@ -281,22 +321,17 @@
             <button class="btn btn-ghost btn-sm" onclick="rotMaqCopiarAnterior()">Copiar semana anterior</button>
             <button class="btn btn-ghost btn-sm" onclick="rotMaqAbrirImportacion()">📥 Importar rotación Excel</button>
           </div>
-          <div class="small-muted" style="margin-bottom:12px;">Toca una celda para cambiar entre DÍA, NOCHE y DESCANSO. Excel: DNI | Maquinista | Línea | Lunes … Domingo.</div>`:''}
-          ${borrador.length?`<div class="tareo-table-scroll"><table class="tareo-table rotmaq-grid">
-            <thead><tr><th>Maquinista</th><th>Línea</th>${DIAS.map((d,i)=>`<th class="${fechas[i]===hoy?'rotmaq-hoy':''}">${d}<br><small>${fechas[i].slice(8)}/${fechas[i].slice(5,7)}</small></th>`).join('')}${puede?'<th></th>':''}</tr></thead>
-            <tbody>${borrador.map((p,i)=>`<tr>
-              <td><strong>${esc(p.nombre)}</strong><div class="small-muted">${p.dni?'DNI '+esc(p.dni):''}</div></td>
-              <td>${puede?`<select onchange="rotMaqCambiarLinea(${i},this.value)">${LINEAS_MAQ.map(l=>`<option ${p.linea===l?'selected':''}>${l}</option>`).join('')}</select>`:esc(p.linea||'—')}</td>
-              ${DIAS.map((_,d)=>{const v=(p.dias||[])[d]||'DÍA';return `<td><button type="button" class="rotmaq-cel ${v==='DÍA'?'dia':v==='NOCHE'?'noche':'descanso'}" ${puede?`onclick="rotMaqAlternar(${i},${d})"`:'disabled'}>${v}</button></td>`;}).join('')}
-              ${puede?`<td><button class="btn btn-sm btn-ghost" onclick="rotMaqQuitar(${i})">✕</button></td>`:''}
-            </tr>`).join('')}</tbody></table></div>
+          <div class="small-muted" style="margin-bottom:12px;">Selecciona una celda para cambiar el turno (y la línea) del maquinista. Excel: DNI | Maquinista | Línea | Lunes … Domingo.</div>`:''}
+          ${borrador.length?`${window.glacialRotGrid?window.glacialRotGrid.html(configCuadro(fechas,hoy,puede)):''}
             ${puede?`<div class="actions-row" style="justify-content:flex-end;margin-top:16px;"><button class="btn btn-primary" onclick="rotMaqGuardar()">💾 Guardar rotación</button></div>`:''}`
           :`<div class="empty-state"><h4>${guardada?'Sin maquinistas':'Sin rotación de maquinistas'}</h4><p>${puede?'Agrega maquinistas, copia la semana anterior o importa un Excel.':'Aún no se cargó la rotación de esta semana.'}</p></div>`}
-        </div>
+                </div>
       </div>`;
+    if(window.glacialRotGrid)window.glacialRotGrid.activar('rot-maq');
   }
 
   window.renderRotacionMaquinistas=renderRotacionMaquinistas;
+  window.rotMaqAplicarAsignacion=aplicarAsignacion;window.rotMaqQuitarId=quitarPorId;
   window.rotMaqAlternar=alternarCelda;window.rotMaqCambiarLinea=cambiarLinea;window.rotMaqQuitar=quitar;
   window.rotMaqMoverSemana=moverSemana;window.rotMaqSemanaActual=irSemanaActual;
   window.rotMaqAbrirAgregar=abrirAgregar;window.rotMaqConfirmarAgregar=confirmarAgregar;
