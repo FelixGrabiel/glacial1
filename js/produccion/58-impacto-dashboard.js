@@ -7,8 +7,10 @@
    El análisis bajo cada gráfico sale de 59-impacto-analisis.js con la misma vista filtrada que se dibuja.
 
    Qué ve cada rol:
-     · Gerencia (rol Gerente/Gerente General): soles, valores unitarios, faltantes con acceso a configurarlos.
-     · Jefatura: soles y unidades de los resultados que publica Gerencia; sin pestaña ni acceso a valores unitarios.
+     · Quien tiene el permiso «gestionar valores unitarios» (Gerencia o Administrador autorizado): soles, valores unitarios, faltantes con
+       acceso a configurarlos (botón CONFIGURAR VALORES UNITARIOS y pestaña «Valores unitarios»: el mismo formulario).
+     · Quien tiene «ver impacto económico» (p. ej. Jefatura autorizada): soles y unidades de los resultados que se publican; sin acceso a valores.
+     · Los demás: modo operativo, sin ninguna cifra en soles.
      · Los demás: la misma pantalla en minutos y unidades, sin ninguna cifra en soles.
    Cargar después de 56-impacto-resultados.js, 57-impacto-estado.js y 59-impacto-analisis.js.
    ============================================================= */
@@ -108,9 +110,9 @@
     '<div class="id-cv"><canvas id="idc-'+c.id+'" role="img" aria-label="'+esc(c.t)+'"></canvas></div><div class="id-an" id="ida-'+c.id+'" aria-live="polite"></div></section>';
   function esqueleto(){
     const abierto=window.innerWidth>=700?' open':'';
-    const tabs=[['resumen','Resumen ejecutivo'],['perdidas','Análisis de pérdidas']].concat(S.gerencia?[['valores','Valores unitarios']]:[]);
+    const tabs=[['resumen','Resumen ejecutivo'],['perdidas','Análisis de pérdidas']].concat(S.gerencia?[['valores','Valores unitarios']]:[]).concat(S.admin?[['permisos','Permisos']]:[]);
     return '<div class="id" id="impacto-dash">'+
-      '<div class="id-head"><div><h2 id="id-titulo">Impacto económico</h2><div class="id-sub" id="id-sub"></div></div><div><button type="button" class="id-btn" data-id-excel>Excel ↓</button></div></div>'+
+      '<div class="id-head"><div><h2 id="id-titulo">Impacto económico</h2><div class="id-sub" id="id-sub"></div></div><div>'+(S.gerencia?'<button type="button" class="id-btn p" data-id-valores>⚙ CONFIGURAR VALORES UNITARIOS</button> ':'')+'<button type="button" class="id-btn" data-id-excel>Excel ↓</button></div></div>'+
       '<div id="id-reserva"></div>'+
       '<div class="id-tabs" role="tablist">'+tabs.map(([k,t])=>'<button type="button" role="tab" class="id-btn" data-id-tab="'+k+'">'+t+'</button>').join('')+'</div>'+
       '<details class="id-filtros"'+abierto+'><summary>Filtros</summary>'+
@@ -121,7 +123,7 @@
       '<div class="id-kpis" id="id-kpis"></div>'+
       '<div data-pane="resumen"><div class="id-grid">'+CARDS.filter(c=>c.pane==='resumen').map((c,i)=>cardHtml(c).replace('class="id-card"','class="id-card'+(i===0?' ancha':'')+'"')).join('')+'</div></div>'+
       '<div data-pane="perdidas" hidden><div class="id-grid">'+CARDS.filter(c=>c.pane==='perdidas').map(cardHtml).join('')+'</div></div>'+
-      '<div data-pane="valores" hidden id="id-valores"></div>'+
+      '<div data-pane="valores" hidden id="id-valores"></div><div data-pane="permisos" hidden id="id-permisos"></div>'+
       '<div id="id-tabla-wrap" style="margin-top:14px"></div><div id="id-modal"></div></div>';
   }
 
@@ -158,8 +160,8 @@
     const v=S.vista;
     document.getElementById('id-titulo').textContent=S.econ?'Impacto económico':'Impacto operativo';
     document.getElementById('id-sub').textContent='Paradas, velocidad reducida y mermas · '+v.per.etiqueta+(S.info&&S.info.ultimo&&S.info.modo==='jef'?' · publicado por Gerencia '+new Date(S.info.ultimo).toLocaleString('es-PE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'');
-    document.getElementById('id-reserva').innerHTML=S.econ?'':'<div class="id-reserva">Los valores económicos están reservados a Gerencia y Jefatura autorizada.</div>';
-    pintarTabs();pintarFiltros();pintarChips();pintarAvisos();pintarFoco();pintarKpis();pintarTarjetas();pintarTabla();pintarValores();
+    document.getElementById('id-reserva').innerHTML=S.econ?'':'<div class="id-reserva">El impacto en soles se muestra solo a quienes tienen el permiso «Ver impacto económico» (Gerencia, Jefatura o Administrador autorizados). Aquí ves únicamente tiempos y unidades.</div>';
+    pintarTabs();pintarFiltros();pintarChips();pintarAvisos();pintarFoco();pintarKpis();pintarTarjetas();pintarTabla();pintarValores();pintarPermisos();
     if(S.detalle)pintarDetalle();
   }
   function pintarTabs(){
@@ -379,12 +381,17 @@
   }
 
   /* ----- pestaña Valores unitarios (solo Gerencia) ----- */
+  function pintarPermisos(){
+    const w=document.getElementById('id-permisos');if(!w||!S.admin||!window.glacialEcoUsuarios)return;
+    if(w.querySelector('input:focus'))return;                 // no se pisa lo que el administrador está marcando
+    w.innerHTML=window.glacialEcoUsuarios.panelHtml();
+  }
   function pintarValores(){
     const w=document.getElementById('id-valores');if(!w||!S.gerencia)return;
     const v=S.vista,f=v.faltantes;
-    w.innerHTML='<section class="id-card"><header><h4>Valores unitarios</h4></header><p style="font-size:14px">Los valores unitarios (margen por producto, costo de insumos y meta mensual) solo los ven y editan Gerencia. Jefatura recibe los resultados ya calculados, sin estos valores.</p>'+
+    w.innerHTML='<section class="id-card"><header><h4>Valores unitarios</h4></header><p style="font-size:14px">Los valores unitarios (valor por línea, excepciones por marca y presentación, costo de insumos y meta mensual) solo los ven y editan quienes tienen el permiso «Gestionar valores unitarios». Quien solo consulta recibe los resultados ya calculados, sin estos valores.</p>'+
       '<p><button type="button" class="id-btn p" data-id-valores>Abrir valores unitarios</button></p>'+
-      '<h4 style="margin-top:12px">Productos sin valor en el periodo</h4>'+(f.productos.length?'<ul>'+f.productos.map(x=>'<li>'+esc(x.linea+' · '+x.marca+' · '+x.pres)+'</li>').join('')+'</ul>':'<div class="id-sub">Todos los productos con actividad tienen valor.</div>')+
+      '<h4 style="margin-top:12px">Productos sin valor unitario configurado en el periodo</h4>'+(f.productos.length?'<ul>'+f.productos.map(x=>'<li>'+esc(x.linea+' · '+x.marca+' · '+x.pres)+'</li>').join('')+'</ul>':'<div class="id-sub">Todos los productos con actividad tienen valor.</div>')+
       '<h4 style="margin-top:12px">Insumos sin costo en el periodo</h4>'+(f.insumos.length?'<ul>'+f.insumos.map(x=>'<li>'+esc(x.linea+' · '+x.comp)+'</li>').join('')+'</ul>':'<div class="id-sub">Todas las mermas tienen costo.</div>')+'</section>';
   }
 
@@ -454,7 +461,14 @@
     if((x=q('data-id-chip'))){const c=E().chips(S.estado)[Number(x.getAttribute('data-id-chip'))];if(c){E().quitar(S.estado,c.dim,c.valor);pintar();}return;}
     if((x=q('data-id-orden'))){S.orden=x.getAttribute('data-id-orden');pintarTabla();return;}
     if((x=q('data-id-detalle'))){abrirDetalle(x.getAttribute('data-id-detalle'));return;}
-    if(q('data-id-valores')){if(eco()&&eco().esGerencia())eco().abrirPantalla();return;}
+    // Mismo componente desde el botón y desde la pestaña; si no hay permiso, el propio formulario explica el motivo (nada falla en silencio).
+    if(q('data-id-valores')){if(eco())eco().abrirPantalla();return;}
+    if(q('data-id-guardar-permisos')){if(window.glacialEcoUsuarios)window.glacialEcoUsuarios.guardar(document.getElementById('id-permisos'));return;}
+    if(q('data-id-excel')){
+      // Exportar resultados en soles exige el permiso de exportación existente + el permiso de consulta económica vigente.
+      if(S.econ&&!(eco()&&eco().puedeVer())){alert('Ya no tienes permiso para consultar el impacto en soles.');return;}
+      if(S.econ&&typeof tienePermiso==='function'&&!tienePermiso('exportarExcel')){alert('Para exportar resultados económicos necesitas el permiso de exportación a Excel.');return;}
+    }
     if(q('data-id-excel')){if(window.glacialImpactoExcel&&S.vista)window.glacialImpactoExcel.exportar({vista:S.vista,estado:S.estado,econ:S.econ,gerencia:S.gerencia,jefatura:S.jefatura});return;}
     if(q('data-id-cerrar')||(t.hasAttribute&&t.hasAttribute('data-id-cerrar-fondo'))){cerrarDetalle();return;}
     if((x=q('data-id-mig'))){const i=Number(x.getAttribute('data-id-mig'));S.detalle.ruta=S.detalle.ruta.slice(0,i+1);pintarDetalle();return;}
@@ -484,11 +498,15 @@
     estilos();
     const acc=eco();
     if(!acc||!acc.accesoListo()){main.innerHTML='<div class="panel"><div class="small-muted" style="padding:20px 0;text-align:center">Cargando permisos...</div></div>';return;}
-    if(typeof _recordsReady!=='undefined'&&!_recordsReady){main.innerHTML='<div class="panel"><div class="small-muted" style="padding:20px 0;text-align:center">Cargando datos...</div></div>';return;}
-    if(!E()||!AN()||!R()){main.innerHTML='<div class="empty-state"><h4>No se pudo cargar Impacto económico</h4><p>Faltan archivos del módulo (56 a 59 de js/produccion).</p></div>';return;}
     S.gerencia=acc.esGerencia();S.jefatura=acc.esJefatura();S.econ=S.gerencia||S.jefatura;
+    S.admin=!!(typeof state!=='undefined'&&state.user&&String(state.user.rol||'').trim()==='Administrador');
+    // Quien gestiona valores accede SIEMPRE al formulario: aunque aún no haya datos, falle el cálculo o falten archivos del dashboard.
+    const accesoGestion=S.gerencia?'<div class="id-head"><div><h2>Impacto económico</h2><div class="id-sub">Valores unitarios y resultados en soles</div></div><div><button type="button" class="id-btn p" data-id-valores>⚙ CONFIGURAR VALORES UNITARIOS</button></div></div>':'';
+    if(typeof _recordsReady!=='undefined'&&!_recordsReady){main.innerHTML='<div class="id" id="impacto-acceso">'+accesoGestion+'<div class="panel"><div class="small-muted" style="padding:20px 0;text-align:center">Cargando datos...</div></div></div>';return;}
+    if(!E()||!AN()||!R()){main.innerHTML='<div class="id" id="impacto-acceso">'+accesoGestion+'<div class="empty-state"><h4>No se pudo cargar Impacto económico</h4><p>Faltan archivos del módulo (56 a 59 de js/produccion). Recarga la página; si persiste, avisa al administrador.</p></div></div>';return;}
     if(!S.estado)S.estado=E().crearEstado();
     if(S.tab==='valores'&&!S.gerencia)S.tab='resumen';
+    if(S.tab==='permisos'&&!S.admin)S.tab='resumen';
     destruirGraficos();
     S.main=main;S.vista=null;S.datos=null;S.detalle=null;S.borrador={modo:S.estado.rango.modo,desde:S.estado.rango.desde,hasta:S.estado.rango.hasta};
     main.innerHTML=esqueleto();

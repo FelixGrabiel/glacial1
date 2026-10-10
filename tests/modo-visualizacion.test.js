@@ -112,7 +112,7 @@ ok(/'records', 'workers', 'rotaciones'/.test(operativo)&&/'programaciones', 'ava
 ['puedeOperarProduccion','puedePlanificar','puedeDistribuirPersonal','esRRHH','esSupervisorMtto'].forEach(n=>{
   const i=reglas.indexOf('function '+n+'()');ok(i>0&&/!soloVista\(\)/.test(reglas.slice(i,i+260)),'reglas: '+n+' excluye soloVista');});
 ok(/allow create: if autenticado\(\) && !soloVista\(\)\s*&& request\.resource\.data\.uid[^]*?'tecnicoNombre'/.test(reglas),'reglas: la bitácora no admite eventos de una cuenta soloVista');
-ok(/esGerencia\(\) && !soloVista\(\)\s*&& request\.resource\.data\.keys\(\)\.hasOnly\(\['tipo'/.test(reglas),'reglas: valores unitarios (precios) no se modifican en modo visualización');
+ok(/ecoGestionar\(\) && !soloVista\(\)\s*&& request\.resource\.data\.keys\(\)\.hasOnly\(\['tipo'/.test(reglas),'reglas: valores unitarios (precios) no se modifican en modo visualización');
 const seg=leer('js/accesos/36-seguridad-auth.js');
 ok(/glacialVista\.activoDe\(u\)\)mapa\[u\.authUid\]\.soloVista=true/.test(seg),'perfiles: se publica soloVista:true para las reglas');
 

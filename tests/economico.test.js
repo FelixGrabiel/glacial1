@@ -52,7 +52,7 @@ for(const rol of ['Administrador','Supervisor','Jefe de Producción','Jefatura',
   let err='';try{await eco(sb).guardar({tipo:'producto',linea:'PET1',marca:'Scala',presentacion:'2.5 L',valor:1});}catch(e){err=e.message;}
   ok(/Gerencia/.test(err)&&![...F.docs.keys()].some(k=>k.startsWith('valoresUnitarios')),rol+': no puede guardar valores desde la app (ni se escribe nada)');
   err='';try{await eco(sb).historial('P__x');}catch(e){err=e.message;}
-  ok(/Gerencia/.test(err),rol+': no puede consultar el historial');
+  ok(/gestiona|Gerencia/.test(err),rol+': no puede consultar el historial');
 }
 /* ---------- 2) Gerencia: valores, historial, tiempo real ---------- */
 const g=entorno('uid-ger','Gerente');
@@ -121,12 +121,13 @@ const bloque=n=>{const i=reglas.indexOf('match /'+n+'/');const j=reglas.indexOf(
 const eco4=['valoresUnitarios','valoresUnitariosHistorial','resultadosEconomicos','configEconomica'].map(bloque);
 const fn=n=>{const i=reglas.indexOf('function '+n+'()');return reglas.slice(i,reglas.indexOf('\n    }\n',i));};
 ok(eco4.every(b=>b.length>0)&&eco4.every(b=>!/esAdmin\(\)|permisos/.test(b)),'las reglas de lo económico no usan esAdmin() ni permisos: solo esGerencia() / esJefaturaEco()');
-ok(/rol in \['Gerente General', 'Gerente'\]/.test(fn('esGerencia'))&&!/Administrador/.test(fn('esGerencia')+fn('esJefaturaEco'))&&/'Jefe de Producción', 'Jefe de Operaciones', 'Jefatura'/.test(fn('esJefaturaEco')),'Gerencia = Gerente General y Gerente; Jefatura = Jefe de Producción, Jefe de Operaciones y Jefatura; el Administrador no figura');
-ok(/allow read: if esGerencia\(\);/.test(bloque('valoresUnitarios'))&&/allow read: if esGerencia\(\);/.test(bloque('valoresUnitariosHistorial')),'valores unitarios e historial: lectura solo Gerencia (Jefatura, Administrador y demás reciben permission-denied)');
+ok(/rol in \['Gerente General','Gerente','Administrador'\]|rol in \['Gerente General', 'Gerente', 'Administrador'\]/.test(fn('ecoGestionar'))&&/get\('gestionar', false\) == true/.test(fn('ecoGestionar')),'ecoGestionar: rol elegible (Gerencia o Administrador) Y permiso explícito eco.gestionar');
+ok(/'Jefe de Producción', 'Jefe de Operaciones', 'Jefatura'/.test(fn('ecoVer'))&&/get\('ver', false\) == true/.test(fn('ecoVer')),'ecoVer: Jefatura/Gerencia/Administrador con permiso explícito eco.ver (gestionar implica ver)');
+ok(/allow read: if ecoGestionar\(\);/.test(bloque('valoresUnitarios'))&&/allow read: if ecoGestionar\(\);/.test(bloque('valoresUnitariosHistorial')),'valores unitarios e historial: lectura solo con permiso de gestionar (Jefatura y los demás reciben permission-denied)');
 ok(/allow update, delete: if false/.test(bloque('valoresUnitariosHistorial'))&&/allow delete: if false/.test(bloque('valoresUnitarios')),'el historial no se edita ni se borra; los valores no se borran');
 ok(/existsAfter\(/.test(bloque('valoresUnitarios'))&&/getAfter\(/.test(bloque('valoresUnitariosHistorial')),'un valor no puede cambiar sin su historial, y el historial debe coincidir con la versión del valor');
 ok(!/accesoEconomico/.test(reglas.replace(/\/\/[^\n]*/g,'')),'ya no existe la lista de UID (accesoEconomico) en las reglas');
-ok(/allow read: if esGerencia\(\) \|\| esJefaturaEco\(\);/.test(bloque('resultadosEconomicos'))&&/esGerencia\(\)/.test(bloque('resultadosEconomicos').split('allow create')[1]),'resultados económicos: leen Gerencia y Jefatura autorizada; solo Gerencia escribe');
-ok(!/'precios', 'paletas'/.test(reglas)&&/doc == 'precios' && esGerencia\(\)/.test(reglas),'sync/precios: ya no lo escribe ni lo lee nadie salvo Gerencia (para migrar)');
+ok(/allow read: if ecoVer\(\);/.test(bloque('resultadosEconomicos'))&&/ecoGestionar\(\)/.test(bloque('resultadosEconomicos').split('allow create')[1]),'resultados económicos: leen Gerencia y Jefatura autorizada; solo Gerencia escribe');
+ok(!/'precios', 'paletas'/.test(reglas)&&/doc == 'precios' && ecoGestionar\(\)/.test(reglas),'sync/precios: ya no lo escribe ni lo lee nadie salvo Gerencia (para migrar)');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

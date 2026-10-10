@@ -3,9 +3,10 @@
 
    Todos los roles dibujan el mismo dashboard (58-impacto-dashboard.js) sobre las mismas FILAS por evento
    {id, tipo P/V/M, fecha, hora, turno, linea, marca, pres, maquina, causa, min, u, s, est, falta}; lo que cambia es de dónde salen:
-     · GERENCIA  → las calcula su navegador con los valores unitarios (50-impacto-economico.js + 55-valores-economicos.js).
-     · JEFATURA  → las lee ya calculadas de resultadosEconomicos/{AAAA-MM-DD} (soles y unidades por evento, SIN valores unitarios).
-                   Su navegador no lee valoresUnitarios (permission-denied).
+     · GESTIÓN (permiso «gestionar valores unitarios»: Gerencia o Administrador autorizado) → las calcula su navegador con los valores
+                   unitarios (50-impacto-economico.js + 55-valores-economicos.js) y las publica.
+     · CONSULTA (permiso «ver impacto económico», p. ej. Jefatura autorizada) → las lee ya calculadas de resultadosEconomicos/{AAAA-MM-DD}
+                   (soles y unidades por evento, SIN valores unitarios). Su navegador no lee valoresUnitarios (permission-denied).
      · LOS DEMÁS → las calculan sin valores (s = null): el dashboard sale en modo operativo, sin ninguna cifra en soles.
    ARQUITECTURA (sin backend): el navegador de Gerencia publica los días recientes (ventana de VENTANA días) al abrir la sesión, al
    cambiar un valor, cada minuto el día de hoy y cada hora toda la ventana; solo se escribe lo que cambió (huella por documento).
@@ -57,15 +58,19 @@
      ========================================================= */
   const hashes=new Map();
   let ultimaCompleta=0,publicando=false,temporizador=null,cierreResultados=null;
+  /* Estado de la PUBLICACIÓN (separado del guardado de valores): un fallo al publicar no significa que el valor se perdió. */
+  const PUB={ultimo:0,error:'',publicando:false};
+  const estadoPub=()=>Object.assign({},PUB);
   const compactar=f=>({t:f.tipo,h:f.hora||'',tu:f.turno,g:f.grupo,l:f.lineaKey,m:f.marca,p:f.pres,mq:f.maquina||'',c:f.causa,mi:r2(f.min),u:r2(f.u),s:f.s==null?null:r2(f.s),e:f.est?1:0,f:f.falta||null});
   const docDia=(fecha,c)=>({fecha,v:VERSION,filas:c.filas.map(compactar),faltan:c.faltan});
   async function publicar(completa){
     if(publicando)return;
     try{
+      // Publica quien puede GESTIONAR valores (Gerencia o Administrador autorizado); no depende del rol de Gerente.
       if(!eco()||!eco().esGerencia()||!eco().listo()||!IE()||typeof _recordsReady==='undefined'||!_recordsReady||typeof db==='undefined')return;
       const uid=(typeof auth!=='undefined'&&auth&&auth.currentUser&&auth.currentUser.uid)||'';
       if(!uid)return;
-      publicando=true;
+      publicando=true;PUB.publicando=true;
       const hoy=A().hoyOp();
       const desde=completa?A().addDias(hoy,-(VENTANA-1)):A().addDias(hoy,-1);
       let n=0;
@@ -85,8 +90,12 @@
         hashes.set('meta',hm);
       }
       if(completa)ultimaCompleta=ahoraMs();
-    }catch(e){console.warn('Resultados económicos: no se pudieron publicar:',e&&e.message||e);}
-    finally{publicando=false;}
+      PUB.ultimo=Date.now();PUB.error='';
+    }catch(e){
+      console.warn('Resultados económicos: no se pudieron publicar:',e&&e.message||e);
+      PUB.error=(e&&e.message)||'Error al publicar';
+    }
+    finally{publicando=false;PUB.publicando=false;}
   }
   const programar=()=>{
     if(temporizador)return;
@@ -169,7 +178,7 @@
   });
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detenerPublicacion();cerrarResultados();limpiarCache();cancelar();nivelPrevio=null;});
 
-  window.glacialImpactoResultados={cargar,cancelar,meta,alCambiarDatos,limpiarCache,publicar,estado:RES,VENTANA,VERSION,compactar,expandir,docDia};
+  window.glacialImpactoResultados={cargar,cancelar,meta,alCambiarDatos,limpiarCache,publicar,estadoPub,estado:RES,VENTANA,VERSION,compactar,expandir,docDia};
   // Si el nivel ya estaba resuelto cuando se cargó este archivo, se arranca de inmediato.
   if(eco()&&eco().accesoListo()){nivelPrevio=eco().nivel();alCambiarNivel();}
 })();

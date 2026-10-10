@@ -45,7 +45,7 @@
   /* =========================================================
      VALORES ECONÓMICOS Y VIGENCIA (solo existen en el navegador de Gerencia)
      ========================================================= */
-  const DOCS={get margenes(){return eco().docs().margenes;},get costos(){return eco().docs().costos;},get general(){return eco().docs().general;}};
+  const DOCS={get margenes(){return eco().docs().margenes;},get costos(){return eco().docs().costos;},get general(){return eco().docs().general;},get lineas(){return eco().docs().lineas;}};
   function vigente(tabla,clave,fecha){
     const e=tabla&&tabla.valores&&tabla.valores[clave];
     if(!e||!e.v)return null;
@@ -58,7 +58,9 @@
   const claveMargen=p=>eco().claveProducto(p.linea,p.marcaN,p.cat);   // línea + marca + presentación
   const claveCosto=(linea,comp)=>normKey(linea)+'--'+normKey(comp);
   const provDefecto=()=>({
-    margenDe:p=>vigente(DOCS.margenes,claveMargen(p),p.fecha),
+    // 1) valor específico (línea + marca + presentación) vigente en la fecha del evento; 2) valor general de la misma línea vigente en esa
+    // fecha; 3) ninguno → sin valor (pendiente). Un cero guardado es un valor válido. Nunca se usa otra línea ni una vigencia futura.
+    margenDe:p=>vigente(DOCS.margenes,claveMargen(p),p.fecha)||vigente(DOCS.lineas,p.linea,p.fecha),
     costoDe:(linea,comp,fecha)=>vigente(DOCS.costos,claveCosto(linea,comp),fecha)
   });
   const provSinValores=()=>({margenDe:()=>null,costoDe:()=>null});

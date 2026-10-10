@@ -20,7 +20,7 @@ function entorno(rol,inicial,partes){
   const sb={console,Math,Number,Array,Object,String,Date,JSON,Promise,Set,Map,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:()=>{}};vm.createContext(sb);sb.window=sb;
   sb.db=F.db;sb.auth={currentUser:{uid:'u-'+rol}};
   sb.firebase={firestore:{FieldValue:{serverTimestamp:()=>({__ts:true})}}};
-  sb.state={user:{rol,username:'u'},currentTab:'perdidas'};
+  sb.state={user:{rol,username:'u',economico:/^Jefe/.test(rol)?{ver:true,gestionar:false}:undefined},currentTab:'perdidas'};
   sb._recordsReady=true;sb.glacialCierresSesion=[];
   const celdas=new Map();
   sb.document={getElementById:()=>null,addEventListener(){},createElement:()=>({}),head:{appendChild(){}},body:{contains:()=>false}};

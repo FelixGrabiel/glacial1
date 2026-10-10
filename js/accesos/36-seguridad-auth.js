@@ -182,6 +182,8 @@
         permisos:u.permisos==='todos'?'todos':(Array.isArray(u.permisos)?u.permisos:[])};
       // Modo visualización general: las reglas de Firestore bloquean TODA escritura de esta cuenta (soloVista).
       if(window.glacialVista&&window.glacialVista.activoDe(u))mapa[u.authUid].soloVista=true;
+      // Permisos económicos EXPLÍCITOS (consulta de soles / gestión de valores unitarios): las reglas los leen de aquí, nunca de «todos».
+      if(window.glacialEcoPermisos){const p=window.glacialEcoPermisos.de(u);if(p.ver||p.gestionar)mapa[u.authUid].eco={ver:!!p.ver,gestionar:!!p.gestionar};}
     });
     // Usuario (minúsculas) → correo interno: lo usa el login en modo estricto.
     const accesos={};
