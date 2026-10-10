@@ -98,16 +98,24 @@
 
   /* Insumos y mermas con el catálogo REAL de la línea. Consumo = lo calculado en el registro (marcado «est.»); merma = lo
      capturado. «—» = sin registro (no hay confirmación de cero). */
-  function insumosModelo(l,ctx){
-    const items=typeof obtenerItemsMerma==='function'?obtenerItemsMerma(l.linea):[];
-    const corte=num(l.corteMs);
+    function insumosModelo(l,ctx){
+    const cuadros=[];
+    (typeof avRegistros==='function'?avRegistros():[]).filter(r=>r.linea===l.linea).forEach(r=>{
+      (typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>cuadros.push(q));
+    });
+    return insumosDesdeCuadros(l.linea,cuadros,num(l.produccionTotal),num(l.corteMs),ctx.fecha,ctx.turno);
+  }
+  /* Insumos y mermas de una línea a partir de SUS cuadros (de un snapshot o de un registro): catálogo real de la línea. */
+  function insumosDesdeCuadros(linea,cuadros,producidoUnd,corte,fecha,turno){
+    const l={linea};
+    const items=typeof obtenerItemsMerma==='function'?obtenerItemsMerma(linea):[];
     const filas=new Map();
     items.forEach(n=>filas.set(n,{insumo:n,consumo:null,consumoUnidad:'',consumoEstimado:false,merma:null,mermaPeso:null,unidad:/^polietileno/i.test(n)?'kg':'UND',pct:null}));
     const insumosSum={polietilenoKg:0,stretchFilmKg:0,planchasCarton:0,cajasPreformas:0};
-    let producidoUnd=num(l.produccionTotal);
-    (typeof avRegistros==='function'?avRegistros():[]).filter(r=>r.linea===l.linea).forEach(r=>{
-      (typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>{
-        if(corte&&q&&q.horaInicio&&avHoraMs(ctx.fecha,q.horaInicio,ctx.turno)>corte)return;   // cuadros posteriores al corte no entran
+        producidoUnd=num(producidoUnd);
+    {
+      (cuadros||[]).forEach(q=>{
+        if(corte&&q&&q.horaInicio&&avHoraMs(fecha,q.horaInicio,turno)>corte)return;   // cuadros posteriores al corte no entran
         (q.mermas||[]).forEach(m=>{
           const f=filas.get(m.item);if(!f)return;
           const u=num(m.unidades),p=num(m.peso);
@@ -117,10 +125,10 @@
             if(l.linea==='C20L'&&p>0)f.mermaPeso=(f.mermaPeso||0)+p;
           }
         });
-        const ins=q.insumos||{};
+                const ins=q.insumos||{};
         Object.keys(insumosSum).forEach(k=>{insumosSum[k]+=num(ins[k]);});
       });
-    });
+    }
     const out=[];
     filas.forEach(f=>{
       if(f.unidad==='UND'&&f.merma!==null&&producidoUnd>0&&l.linea!=='C20L')f.pct=f.merma/producidoUnd*100;
@@ -135,7 +143,7 @@
 
   function accionesModelo(l,pend,paradas){
     const a=[];
-    if(pend>0)a.push({area:'Pendiente de producción',accion:'Evaluar '+fmt(pend)+' '+unidadProd(l.linea)+' pendientes',responsable:'Planificación',estado:'Por validar'});
+    if(pend>0)a.push({area:'Pendiente de producción',accion:'Evaluar '+fmt(pend)+' '+unidadProd(l.linea)+' pendientes',responsable:'Por asignar',estado:'Por validar'});
     if(paradas.motivos.length&&paradas.noProgramadas>0){
       const m=paradas.motivos.find(x=>x.tipo==='NO_PROGRAMADA')||paradas.motivos[0];
       a.push({area:'Paradas',accion:'Revisar la parada «'+m.motivo+'» ('+fmt(m.minutos)+' min)',responsable:'Por asignar',estado:'Por validar'});
@@ -184,6 +192,7 @@
     verde:'#1F7A44',verdeFondo:'#1E8A4C',ambar:'#C98200',ambarFondo:'#FCE9B2',rojo:'#B3261E',blanco:'#FFFFFF'};
   const W=1080,PAD=18,IW=W-PAD*2,RES_H=290;
   const NIVEL={verde:C.verde,ambar:C.ambar,roja:C.rojo,gris:C.texto};
+  const colorNivel=n=>/^#/.test(String(n||''))?n:(NIVEL[n]||C.navy);
 
   function fuente(x,tam,peso){x.font=(peso||'400')+' '+tam+'px Arial, Helvetica, sans-serif';}
   function rr(x,px,py,w,h,r){x.beginPath();x.moveTo(px+r,py);x.arcTo(px+w,py,px+w,py+h,r);x.arcTo(px+w,py+h,px,py+h,r);x.arcTo(px,py+h,px,py,r);x.arcTo(px,py,px+w,py,r);x.closePath();}
@@ -235,7 +244,7 @@
     return new Promise(resolve=>{
       try{
         if(typeof Image==='undefined'||typeof document==='undefined')return resolve(null);
-        const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src='img/logo_glacial.png';
+        const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src=(typeof GLACIAL_LOGO_BASE64!=='undefined'&&GLACIAL_LOGO_BASE64)?'data:image/png;base64,'+GLACIAL_LOGO_BASE64:'img/logo_glacial.png';
       }catch(_){resolve(null);}
     });
   }
@@ -243,6 +252,23 @@
     const c=document.createElement('canvas');c.width=im.width;c.height=im.height;const g=c.getContext('2d');
     g.drawImage(im,0,0);g.globalCompositeOperation='source-in';g.fillStyle='#FFFFFF';g.fillRect(0,0,c.width,c.height);return c;
   }
+
+    /* Texto en varias líneas (sin recortar el contenido: la fila crece). Usa un lienzo de medida si existe; si no, estima. */
+  let _medida=null;
+  function ctxMedida(){
+    if(_medida!==null)return _medida||null;
+    try{_medida=(typeof document!=='undefined'&&document.createElement('canvas').getContext('2d'))||false;}catch(_){_medida=false;}
+    return _medida||null;
+  }
+  function dividirLineas(txt,ancho,tam,max){
+    const c=ctxMedida(),palabras=String(txt==null?'':txt).split(/\s+/).filter(Boolean),lineas=[];let cur='';
+    const w=s=>{if(c){c.font='400 '+tam+'px Arial, Helvetica, sans-serif';return c.measureText(s).width;}return s.length*tam*0.52;};
+    palabras.forEach(p=>{const t=cur?cur+' '+p:p;if(w(t)>ancho&&cur){lineas.push(cur);cur=p;}else cur=t;});
+    if(cur)lineas.push(cur);
+    if(lineas.length>(max||4)){const rec=lineas.slice(0,max||4);rec[rec.length-1]=rec[rec.length-1].replace(/.{0,3}$/,'…');return rec;}
+    return lineas.length?lineas:[''];
+  }
+  const medirLineas=(txt,ancho,tam,max)=>dividirLineas(txt,ancho,tam,max).length;
 
   /* Altura de cada bloque (se calcula antes de crear el canvas para no recortar filas). */
   function medidas(m){
@@ -256,8 +282,9 @@
     const hMedio=Math.max(hHora,hPar);
     const nIns=Math.max(1,m.insumos.length);
     const hIns=38+10+36+nIns*36+34+10;
-    const nAcc=Math.max(1,m.acciones.length);
-    const hAcc=38+10+36+nAcc*44+10;
+        const filasAcc=(m.acciones||[]).map(a=>medirLineas(a.accion,IW*0.39,14,12));
+    const hFilas=filasAcc.reduce((s,n)=>s+Math.max(44,n*19+16),0)||44;
+    const hAcc=38+10+36+hFilas+10;
     return {hArriba,hMedio,hIns,hAcc,total:150+14+RES_H+14+hArriba+14+hMedio+14+hIns+14+hAcc+14+46};
   }
 
@@ -335,7 +362,7 @@
     });
     x.fillStyle=C.celeste2;x.fillRect(PAD+10,cy,wL-20,40);
     texto(x,'TOTAL',PAD+22,cy+27,{tam:16,peso:'800',color:C.navy});
-    texto(x,fmt(r.producido)+' '+u,PAD+wL-22,cy+27,{tam:17,peso:'800',color:C.navy,align:'right'});
+    texto(x,fmt(esNum(m.marcasTotal)?m.marcasTotal:r.producido)+' '+u,PAD+wL-22,cy+27,{tam:17,peso:'800',color:C.navy,align:'right'});
 
     cy=cabeceraSeccion(x,'INDICADORES',xR,y,wR)+10;
     const iw=(wR-20-12)/2;
@@ -345,13 +372,14 @@
       x.fillStyle=C.blanco;x.strokeStyle=C.borde;x.lineWidth=1.2;rr(x,px,py,iw,92,10);x.fill();x.stroke();
       icono(x,ic,px+34,py+46,22);
       texto(x,etq,px+66,py+28,{tam:14,peso:'600',max:iw-74});
-            if(valor.length>8&&valor.indexOf(' ')>0){const p=valor.split(' ');texto(x,p[0]+' '+p[1],px+66,py+56,{tam:17,peso:'800',color:NIVEL[nivel]||C.navy,max:iw-74,min:12});texto(x,p.slice(2).join(' ')||'',px+66,py+74,{tam:17,peso:'800',color:NIVEL[nivel]||C.navy,max:iw-74,min:12});}
-      else texto(x,valor,px+66,py+68,{tam:32,peso:'800',color:NIVEL[nivel]||C.navy,max:iw-74,min:14});
+            if(valor.length>8&&valor.indexOf(' ')>0){const p=valor.split(' ');texto(x,p[0]+' '+p[1],px+66,py+56,{tam:17,peso:'800',color:colorNivel(nivel),max:iw-74,min:12});texto(x,p.slice(2).join(' ')||'',px+66,py+74,{tam:17,peso:'800',color:colorNivel(nivel),max:iw-74,min:12});}
+      else texto(x,valor,px+66,py+68,{tam:32,peso:'800',color:colorNivel(nivel),max:iw-74,min:14});
       if(nota)texto(x,nota,px+66,py+86,{tam:10,color:C.gris,max:iw-74});
     };
     tIn(xR+10,cy,'engranaje','Disponibilidad',pct(ind.disponibilidad.valor)||'Sin datos suficientes',ind.disponibilidad.nivel);
     tIn(xR+10+iw+12,cy,'barras','Rendimiento',pct(ind.rendimiento.valor)||'Sin datos suficientes',ind.rendimiento.nivel,ind.rendimiento.sinVelocidad?'sin velocidad estándar':(ind.rendimiento.aRevisar?'revisar velocidad':''));
-    tIn(xR+10,cy+104,'escudo','Calidad',ind.calidad.texto,'gris','no se mide');
+    if(esNum(ind.calidad.valor))tIn(xR+10,cy+104,'escudo','Calidad',pct(ind.calidad.valor),ind.calidad.nivel);
+    else tIn(xR+10,cy+104,'escudo','Calidad',ind.calidad.texto,'gris','no se mide');
     tIn(xR+10+iw+12,cy+104,'barras','OEE',pct(ind.oee.valor)||'Sin datos suficientes',ind.oee.nivel,'disp. × rend.');
     y+=ms.hArriba+14;
 
@@ -423,19 +451,20 @@
     [['Área',ac[0],'left'],['Acción',ac[1],'left'],['Responsable',ac[2],'left'],['Estado',ac[3],'center']].forEach(([t,px,al])=>texto(x,t,px,cy+24,{tam:14,peso:'700',color:C.navy,align:al}));
     cy+=36;
     if(!m.acciones.length){texto(x,'Sin acciones identificadas con los datos del reporte',PAD+22,cy+28,{tam:14,color:C.gris});cy+=44;}
-    m.acciones.forEach(a=>{
+        m.acciones.forEach(a=>{
+      const ls=dividirLineas(a.accion,IW*0.39,14,12),alto=Math.max(44,ls.length*19+16);
       texto(x,a.area,ac[0],cy+28,{tam:14,max:IW*0.27});
-      texto(x,a.accion,ac[1],cy+28,{tam:14,max:IW*0.39});
+      ls.forEach((t,i)=>texto(x,t,ac[1],cy+27+i*19,{tam:14,min:14}));
       texto(x,a.responsable,ac[2],cy+28,{tam:14,max:IW*0.2});
       x.fillStyle=C.ambarFondo;rr(x,ac[3]-52,cy+10,104,28,14);x.fill();texto(x,a.estado,ac[3],cy+29,{tam:13,peso:'700',color:'#7A5200',align:'center'});
-      x.strokeStyle=C.borde;x.beginPath();x.moveTo(PAD+10,cy+44);x.lineTo(PAD+IW-10,cy+44);x.stroke();cy+=44;
+      x.strokeStyle=C.borde;x.beginPath();x.moveTo(PAD+10,cy+alto);x.lineTo(PAD+IW-10,cy+alto);x.stroke();cy+=alto;
     });
     y+=ms.hAcc+14;
 
     /* --- 7) pie --- */
-    texto(x,'GLACIAL · '+fechaBonita(e.fecha)+' · '+GlacialIndicadores.nombreBloque(e.bloque,'reporte','titulo')+' · '+(e.tipo==='CIERRE'?(cerrado?'Cierre':'Relevo'):'Avance')+' al corte '+(e.corte||'—')+' · Reporte '+String(e.idSnapshot||'').split('|').slice(-1)[0]+' v'+m.version,W/2,y+22,{tam:12,color:C.gris,align:'center',max:IW});
+    texto(x,'GLACIAL · '+fechaBonita(e.fecha)+' · '+GlacialIndicadores.nombreBloque(e.bloque,'reporte','titulo')+' · '+(e.tipo==='REGISTRO'?(cerrado?'Reporte diario':'Reporte parcial'):e.tipo==='CIERRE'?(cerrado?'Cierre':'Relevo'):'Avance')+' al corte '+(e.corte||'—')+(e.tipo==='REGISTRO'?'':' · Reporte '+String(e.idSnapshot||'').split('|').slice(-1)[0])+' · v'+m.version,W/2,y+22,{tam:12,color:C.gris,align:'center',max:IW});
     return canvas;
   }
 
-  window.glacialReporteLinea={VERSION_REPORTE,modelo,dibujar,medidas,porHora,indicadores,insumosModelo,accionesModelo};
+  window.glacialReporteLinea={VERSION_REPORTE,modelo,dibujar,medidas,porHora,indicadores,insumosModelo,insumosDesdeCuadros,accionesModelo,unidadProd};
 })();

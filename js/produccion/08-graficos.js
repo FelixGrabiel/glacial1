@@ -3457,6 +3457,7 @@ function construirAnalisisAccionReporte(rec, d){
     hallazgos.push(`La mayor parada fue ${p.descripcion}: ${Math.round(p.minutos)} min.`);
     acciones.push({
       prioridad: 1,
+      area: 'Paradas',
       dato: `${p.descripcion}: ${Math.round(p.minutos)} min`,
       texto: `Revisar antes del arranque del siguiente turno el punto registrado como “${p.descripcion}” y confirmar que la condición que originó la parada esté controlada.`
     });
@@ -3470,6 +3471,7 @@ function construirAnalisisAccionReporte(rec, d){
     hallazgos.push(`La mayor merma registrada fue ${m.item}: ${formatearNumero(m.unidades)} u.${porcentaje ? ` (${pct(porcentaje)} de la producción efectiva)` : ''}`);
     acciones.push({
       prioridad: porcentaje > METAS.merma ? 2 : 3,
+      area: 'Mermas',
       dato: `${m.item}: ${formatearNumero(m.unidades)} u.${porcentaje ? ` · ${pct(porcentaje)}` : ''}`,
       texto: porcentaje > METAS.merma
         ? `Revisar el proceso asociado a “${m.item}” y registrar la causa específica de la merma; el valor calculado está por encima de la meta configurada de ${pct(METAS.merma)}.`
@@ -3482,6 +3484,7 @@ function construirAnalisisAccionReporte(rec, d){
     hallazgos.push(`Rendimiento ${pct(d.rendimiento)}, ${diferencia.toFixed(1)} pts por debajo de la meta ${pct(METAS.rendimiento)}.`);
     acciones.push({
       prioridad: 1,
+      area: 'Rendimiento',
       dato: `Rendimiento ${pct(d.rendimiento)} vs meta ${pct(METAS.rendimiento)}`,
       texto: `Registrar las causas de pérdida de velocidad durante el siguiente turno. El reporte muestra rendimiento bajo, pero no permite atribuirlo por sí solo a una falla específica.`
     });
@@ -3493,6 +3496,7 @@ function construirAnalisisAccionReporte(rec, d){
     if(!paradas.filas.length){
       acciones.push({
         prioridad: 1,
+        area: 'Paradas',
         dato: `Disponibilidad ${pct(d.disponibilidad)} vs meta ${pct(METAS.disponibilidad)}`,
         texto: 'Completar el registro de tiempos de parada o periodos sin producción para identificar qué redujo la disponibilidad.'
       });
@@ -3504,6 +3508,7 @@ function construirAnalisisAccionReporte(rec, d){
     if(num(d.cumplimiento) < 1){
       acciones.push({
         prioridad: 2,
+        area: 'Pendiente de producción',
         dato: `Cumplimiento ${pct(d.cumplimiento)}`,
         texto: `Revisar el faltante de ${formatearNumero(Math.max(num(d.programada)-num(d.efectiva),0))} u. junto con las paradas y pérdidas de rendimiento antes de definir la programación siguiente.`
       });
@@ -3524,7 +3529,7 @@ function construirAnalisisAccionReporte(rec, d){
   });
 
   if(!unicas.length){
-    unicas.push({prioridad:3,dato:'Sin desviaciones críticas detectadas con los datos disponibles',texto:'Mantener el seguimiento de OEE, paradas y mermas en el siguiente turno.'});
+    unicas.push({prioridad:3,area:'General',dato:'Sin desviaciones críticas detectadas con los datos disponibles',texto:'Mantener el seguimiento de OEE, paradas y mermas en el siguiente turno.'});
   }
 
   const editado = rec?.sugerenciaReporte?.editado === true && String(rec?.sugerenciaReporte?.texto||'').trim();
@@ -3552,7 +3557,13 @@ async function editarSugerenciaReporte(){
   renderGraficosTab();
 }
 
+/* «Exportar PNG» (pestaña Gráficos): plantilla aprobada (61-reporte-linea.js + adaptador 62-reporte-registro.js). */
 async function exportarPNG(){
+  if(window.glacialReporteRegistro&&typeof window.glacialReporteRegistro.exportar==='function')return window.glacialReporteRegistro.exportar();
+  return exportarPNGDetalle();   // sin la plantilla nueva cargada, se conserva el diseño anterior
+}
+/* Salida SECUNDARIA: dashboard con cascada, Pareto, merma y análisis (el diseño anterior). */
+async function exportarPNGDetalle(){
   const data=obtenerRegistroExportacion();
   if(!data)return;
   const {rec,d}=data;
@@ -3992,12 +4003,21 @@ function renderGraficosTab(){
         📊 Exportar Excel
       </button>
 
-      <button
+            <button
         type="button"
         class="btn"
         onclick="exportarPNG()"
       >
         🖼️ Exportar PNG
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-ghost"
+        onclick="exportarPNGDetalle()"
+        title="Dashboard con cascada de pérdidas, Pareto de paradas, merma y análisis"
+      >
+        📈 PNG con gráficos (detalle)
       </button>
 
     </div>

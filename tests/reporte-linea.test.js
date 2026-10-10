@@ -91,7 +91,7 @@ ok(mC.insumos[0].mermaPeso===56&&mC.insumos[1].mermaPeso===90.6&&mC.insumos[2].m
 ok(mC.insumos[3].pct===null,'polietileno C20L: sin porcentaje (no se divide kg entre UND)');
 
 /* 4) acciones */
-ok(m.acciones.length>=1&&m.acciones.every(a=>a.estado==='Por validar')&&m.acciones.some(a=>/2\.000|2,000/.test(a.accion)&&a.responsable==='Planificación'),'acciones: «Evaluar 2.000 botellas pendientes» (Planificación) en estado «Por validar»');
+ok(m.acciones.length>=1&&m.acciones.every(a=>a.estado==='Por validar')&&m.acciones.some(a=>/2\.000|2,000/.test(a.accion)&&a.responsable==='Por asignar'),'acciones: «Evaluar 2.000 botellas pendientes» (Por asignar) en estado «Por validar»');
 ok(m.acciones.filter(a=>a.area==='Paradas').every(a=>a.responsable==='Por asignar'&&!/causa|falla de/i.test(a.accion.replace('«Tanque vacío»',''))),'las paradas se revisan con responsable «Por asignar» sin atribuir causas');
 const mSin=entorno({programaciones:[prog('PET1',ms(7),1000,'Scala','2.5 L')],paletas:[pal('PET1',1000,'12:00','Scala','2.5 L')]});
 const mAcc=mSin.glacialReporteLinea.modelo(mSin.avLineaSnapshot('PET1','19:00','CIERRE',ms(19)),{tipo:'CIERRE',relevo:false,supervisor:'x',fecha:FECHA,turno:'DÍA',id:'q'});

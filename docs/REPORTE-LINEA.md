@@ -27,3 +27,12 @@ Canvas de 1080 px de ancho, altura según el contenido (listas largas agrandan l
 - La producción por hora depende de los registros de Paletas.
 - El «0 confirmado» de mermas no existe como dato: un 0 se muestra «—».
 - El resumen de turno de planta (`48-resumen-turno.js`) conserva su propio personal (asistencia del Tareo); no se tocó.
+
+## Formato aprobado en el flujo real de «Exportar PNG» (pestaña Gráficos)
+**Por qué seguía saliendo el formato anterior:** el reporte `Reporte_Diario_<línea>_<fecha>.png` no lo genera Avance/Cierre (`29`) sino el botón **«Exportar PNG» de la pestaña Gráficos** → `exportarPNG()` en `08-graficos.js`, que dibujaba su propio diseño (cascada, Pareto, merma, análisis). La plantilla aprobada solo estaba conectada al botón «REPORTE <línea> (PNG)» del detalle de Avance/Cierre.
+
+**Ahora:** `exportarPNG()` → `glacialReporteRegistro.exportar()` (`62-reporte-registro.js`) → `modelo(rec, d)` → `glacialReporteLinea.dibujar()` (`61-reporte-linea.js`) → descarga `Reporte_Diario_<línea>_<fecha>.png`. El diseño anterior sigue como salida secundaria: botón «PNG con gráficos (detalle)» → `exportarPNGDetalle()`. No hay redefiniciones (una sola `exportarPNG`) ni handlers duplicados.
+
+**Datos:** el adaptador solo presenta los valores que ya entrega el flujo (`calcDerived`, `agruparParadas`, `construirAnalisisAccionReporte`, Paletas, Distribución de personal); no recalcula nada. Calidad se muestra con su valor actual. Sin dato → «—» o «Pendiente de confirmar». Estado: CERRADO solo si el registro está FINALIZADO; si no, PARCIAL.
+
+**Archivos a incluir al subir:** `js/produccion/08-graficos.js`, `js/produccion/61-reporte-linea.js`, `js/produccion/62-reporte-registro.js` (nuevo), `index.html`, `tests/reporte-registro.test.js` (nuevo), `tests/reporte-linea.test.js`, `docs/REPORTE-LINEA.md`, `docs/capturas-formato/*`.
