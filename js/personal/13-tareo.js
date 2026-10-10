@@ -999,6 +999,12 @@ function tareoPersonalMasReciente(principal, otra, config) {
 
 function tareoFusionar(remoto, local) {
 
+    // Quita las personas con una exclusión activa (la entrada más nueva por persona decide).
+    const tareoSinExcluidos = (lista, excluidos) =>
+        (typeof window !== 'undefined' && window.TareoEd && excluidos && excluidos.length)
+            ? window.TareoEd.filtrarExcluidos(lista, excluidos)
+            : lista;
+
     const localMasNuevo =
         Number(local.actualizadoEn || 0) >=
         Number(remoto.actualizadoEn || 0);
@@ -1051,13 +1057,21 @@ function tareoFusionar(remoto, local) {
                y llega un cambio de la nube entre una y otra, la copia siguiente (armada con datos un instante viejos) pisaba
                las salidas ya guardadas: «le coloco la hora de salida y no se queda guardada».
             */
+            personalExcluido:
+                window.TareoEd
+                    ? window.TareoEd.mezclarExcluidos(base.personalExcluido, otro.personalExcluido)
+                    : (base.personalExcluido || []),
+
             personal:
-                ordenarPersonalTareo(
-                    tareoPersonalMasReciente(
-                        Array.isArray(base.personal) ? base.personal : [],
-                        Array.isArray(otro.personal) ? otro.personal : [],
-                        { jornadaNormal: config.jornadaNormal, horaProgramadaIngreso: config.horaProgramadaIngreso }
-                    )
+                tareoSinExcluidos(
+                    ordenarPersonalTareo(
+                        tareoPersonalMasReciente(
+                            Array.isArray(base.personal) ? base.personal : [],
+                            Array.isArray(otro.personal) ? otro.personal : [],
+                            { jornadaNormal: config.jornadaNormal, horaProgramadaIngreso: config.horaProgramadaIngreso }
+                        )
+                    ),
+                    window.TareoEd ? window.TareoEd.mezclarExcluidos(base.personalExcluido, otro.personalExcluido) : []
                 ),
 
             personalPorDia:
@@ -1089,14 +1103,20 @@ function tareoFusionar(remoto, local) {
                     Number(remoto.actualizadoEn || 0)
                 ),
 
+            personalExcluido:
+                window.TareoEd.mezclarExcluidos(base.personalExcluido, otro.personalExcluido),
+
             personal:
-                ordenarPersonalTareo(
-                    window.TareoEd.mezclarListas(
-                        Array.isArray(base.personal) ? base.personal : [],
-                        Array.isArray(otro.personal) ? otro.personal : [],
-                        true,
-                        { jornadaNormal: config.jornadaNormal, horaProgramadaIngreso: config.horaProgramadaIngreso }
-                    )
+                tareoSinExcluidos(
+                    ordenarPersonalTareo(
+                        window.TareoEd.mezclarListas(
+                            Array.isArray(base.personal) ? base.personal : [],
+                            Array.isArray(otro.personal) ? otro.personal : [],
+                            true,
+                            { jornadaNormal: config.jornadaNormal, horaProgramadaIngreso: config.horaProgramadaIngreso }
+                        )
+                    ),
+                    window.TareoEd.mezclarExcluidos(base.personalExcluido, otro.personalExcluido)
                 ),
 
             personalPorDia:
@@ -2237,13 +2257,20 @@ function crearPersonalTareo(
        de mantenimiento (no usa la rotación del Excel).
     */
 
-    const base =
+    const baseBruta =
         areaTareo === 'Mantenimiento'
             ? tareoPersonalMantenimientoTurno(fecha, normalizarTurno(turno) || 'Día')
             : obtenerPersonalPorRotacion(
                 fecha,
                 turno
             ).personal;
+
+    // Personas que ya no trabajan (exclusión permanente de un tareo anterior de esta área): no se vuelven a traer.
+    const excluida = window.TareoEd
+        ? window.TareoEd.filtroExclusion({ id: '', area: areaTareo, fecha })
+        : () => false;
+
+    const base = baseBruta.filter(trabajador => !excluida(trabajador));
 
     const personal =
         base.map(
@@ -3366,8 +3393,13 @@ function tareoSincronizarConRotacion(tareo) {
 
     const vistos = new Set();
 
+    // Quitadas del tareo (personal que ya no trabaja): la rotación Excel no las vuelve a traer.
+    const excluidaRot = window.TareoEd ? window.TareoEd.filtroExclusion(tareo) : () => false;
+
     const nuevoPersonal = resultado.personal
         .filter(trabajador => {
+
+            if (excluidaRot(trabajador)) return false;
 
             const clave =
                 String(trabajador.trabajadorId || '').trim() ||
@@ -3510,9 +3542,12 @@ function tareoSincronizarPersonalMantenimiento(tareo) {
 
     const identidades = new Set(unicos.flatMap(tareoIdentidades));
 
+    const excluidaMtto = window.TareoEd ? window.TareoEd.filtroExclusion(tareo) : () => false;
+
     const nuevos = tareoPersonalMantenimientoTurno(tareo.fecha, normalizarTurno(tareo.turno) || 'Día')
         .filter(
             trabajador =>
+                !excluidaMtto(trabajador) &&
                 !tareoIdentidades(trabajador).some(clave => identidades.has(clave))
         )
         .map(trabajador => tareoNuevaPersona(trabajador, 'Mantenimiento'));
@@ -4006,6 +4041,8 @@ function renderTareoFormulario(tareo) {
         </div>
 
 
+        ${window.TareoEd ? window.TareoEd.htmlQuitados(completo) : ''}
+
         ${maqCtx.tiene ? tareoBloqueMaquinistasHTML(tareo, maqCtx) : ''}
 
         ${tareoSeccionPorDiaHTML(tareo, true)}
@@ -4260,7 +4297,11 @@ function tareoSincronizarMaquinistas(tareo) {
 
     let cambio = false;
 
+    const excluidaMaq = window.TareoEd ? window.TareoEd.filtroExclusion(tareo) : () => false;
+
     r.trabajan.forEach(m => {
+
+        if (excluidaMaq(m)) return;
 
         if (tareo.personal.some(x => tareoMismaPersonaFlexible(x, m))) return;
 
@@ -5278,6 +5319,9 @@ function renderFilaPersonalTareo(
 
                     ${tareoBotonNombre(persona, tareoId)}
                     <span class="tar2-est" data-tar2-est role="status" aria-live="polite"></span>
+                    ${window.TareoEd && tareoPuedeEditar(obtenerTareos().find(t => t.id === tareoId) || {}) && !esUsuarioSoloConsulta(state.user)
+                        ? `<button type="button" class="tar2-quitar" title="Quitar a esta persona del tareo (ya no trabaja)" onclick="TareoEd.quitarPersonal(${clave})">✕ Quitar</button>`
+                        : ''}
                     ${persona.trabajoEnDescanso ? '<span class="tar2-chip-descanso tar2-chip-trabajo-desc">Trabajó en descanso</span>' : ''}
 
                     <small>

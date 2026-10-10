@@ -444,6 +444,18 @@
     envolver('tareoQuitarPorDia',{tareo:actual});
     envolver('tareoEditarPorDia',{tareo:actual});
     envolver('tareoAgregarPersonal',{tareo:actual});
+    // Quitar personal (45): la foto del tareo antes/después registra QUITAR_PERSONAL con usuario y hora del servidor.
+    if(window.TareoEd&&!window.TareoEd.quitarPersonal.__auditada){
+      const quitar=window.TareoEd.quitarPersonal;
+      const envuelta=function(){
+        const t=actual();const antes=t?foto(t):null;
+        const act={id:t?t.id:undefined,antes,ahora:null,ref:t,clave:undefined,permiteCrear:false,soloCrear:false,sistema:false};
+        const previa=accionActiva;accionActiva=act;
+        try{quitar.apply(this,arguments);}finally{accionActiva=previa;}
+        procesar(act);
+      };
+      envuelta.__auditada=true;window.TareoEd.quitarPersonal=envuelta;
+    }
     envolver('tareoGuardarSalidaMaquinista',{
       tareo:a=>obtenerTareos().find(x=>x.id===a[0])||null,clave:a=>a[1]===undefined?undefined:String(a[1]),asincrona:true});
     envolver('guardarTareoActual',{tareo:()=>typeof tareoActualId!=='undefined'&&tareoActualId?actual():null,permiteCrear:true});

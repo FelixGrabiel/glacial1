@@ -39,7 +39,7 @@ function cargarCliente(nube,opc){
   const el=()=>({addEventListener(){},appendChild(){},style:{},classList:{add(){},remove(){},toggle(){}},querySelectorAll:()=>[],querySelector:()=>null,setAttribute(){},getAttribute:()=>null,contains:()=>false});
   sb.document={getElementById:()=>null,querySelector:()=>null,querySelectorAll:()=>[],addEventListener(){},head:el(),body:el(),createElement:()=>el(),activeElement:null,readyState:'complete'};
   sb.localStorage={getItem:()=>null,setItem(){},removeItem(){}};sb.sessionStorage=sb.localStorage;sb.addEventListener=()=>{};
-  sb.alert=m=>log.alertas.push(m);sb.confirm=m=>{log.confirmas.push(m);return opc.confirmar===undefined?true:opc.confirmar;};
+  sb.alert=m=>log.alertas.push(m);sb.confirm=m=>{log.confirmas.push(m);return typeof opc.confirmar==='function'?opc.confirmar(m,log.confirmas.length):(opc.confirmar===undefined?true:opc.confirmar);};
   sb.state={user:{username:opc.usuario||'sup',nombre:opc.usuario||'Supervisor',rol:'Supervisor'}};
   sb.esUsuarioSoloConsulta=()=>!!opc.soloConsulta;
   sb.tienePermiso=()=>true;sb.normalizarPermisosUsuario=()=>'todos';

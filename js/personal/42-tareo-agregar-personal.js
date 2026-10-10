@@ -138,6 +138,8 @@
     const yaEsta=(tareo.personal||[]).some(p=>tareoMismaPersonaFlexible(p,base)||tareoIdentidades(p).some(c=>tareoIdentidades(base).includes(c)));
     if(yaEsta){alert('Esa persona ya está en este tareo.');return;}
 
+    // Si estaba quitada del tareo (ya no trabajaba), agregarla de nuevo levanta la exclusión.
+    if(window.TareoEd)window.TareoEd.levantarExclusion(tareo,base);
     const persona=tareoNuevaPersona(base,area);
     persona.agregadoManual=true;
     persona.nuevoIngreso=nuevoIngreso;

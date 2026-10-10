@@ -34,3 +34,9 @@ En el navegador (app real, base simulada con latencia): 6 clics seguidos en ASIS
 
 ## Pendiente de probar en PRUEBAS (dispositivos reales)
 Dos supervisores con red real sobre el mismo tareo; tareo de Mantenimiento con maquinistas; noche tras medianoche; una fila con nombre repetido (se guardan los `filaId` la primera vez que se abre).
+
+## Quitar personal del tareo (personas que ya no trabajan)
+Botón «✕ Quitar» en cada fila (solo quien edita ese tareo; no en Modo visualización). Pide confirmación (avisa si tenía asistencia u horas) y pregunta si **ya no trabaja**:
+- **Sí (permanente):** deja una exclusión en `tareo.personalExcluido` que rige para esa área desde la fecha del tareo en adelante: la sincronización con la rotación Excel, con Mantenimiento y con maquinistas, y la creación de tareos nuevos ya no la traen. Los tareos de fechas anteriores no cambian.
+- **No:** se quita solo de ese tareo.
+Las exclusiones se fusionan entre dispositivos (gana la entrada más nueva por persona), así que una copia vieja no reintroduce a la persona. Se puede **restaurar** desde el panel «Personal quitado de este tareo», o agregándola manualmente (levanta la exclusión). La acción queda en la auditoría (`QUITAR_PERSONAL`, usuario y hora del servidor). No se borra al trabajador de Trabajadores ni de la rotación (para quitarlo de todo, desactívalo allí o cambia el Excel). Una fila con identificación repetida y sin `filaId` no se quita por orden.

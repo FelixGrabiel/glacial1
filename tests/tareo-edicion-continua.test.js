@@ -214,6 +214,64 @@ const enNube=(nube,tareoId,clave,sb)=>nube.items.find(x=>x.id===tareoId).persona
    const p=enNube(nube,'tareo-1','T0',a.sb);
    ok(a.log.confirmas.length>0&&p.asistencia==='Asistió'&&p.horaIngreso==='07:30'&&p.registradoEn===antes.registradoEn&&p.registradoPor===antes.registradoPor&&p.actualizadoEn===antes.actualizadoEn,'18. cancelar una corrección no cambia asistencia, autor ni fechas de auditoría');}
 
+  /* 19. QUITAR PERSONAL: sale del tareo, no vuelve con la sincronización y se puede restaurar */
+  {const mkP=(n,extra)=>Object.assign({trabajadorId:'T'+n,nombre:'Persona '+n,dni:'0000000'+n,cargo:'Operario',area:'Producción',linea:'PET1',asistencia:'',horaIngreso:'',salidaRefrigerio:'',retornoRefrigerio:'',horaSalida:'',actualizadoEn:0},extra||{});
+   const nube=crearNube({latencia:6});nube.items=[clonar(crearTareo({n:4,fecha:'2026-10-09'}))];
+   // 1.º confirm = quitar, 2.º = «ya no trabaja» (permanente)
+   let permanente=true;
+   const a=cargarCliente(nube,{confirmar:(m,n)=>n%2===1?true:permanente});a.abrir('tareo-1');
+   const sb=a.sb;
+   sb.tareoMarcarAsistio('T1');await espera(200);
+   sb.TareoEd.quitarPersonal('T1');await espera(300);
+   const t=nube.items[0];
+   ok(t.personal.length===3&&!t.personal.some(p=>p.trabajadorId==='T1'),'19. quitar personal: la persona sale del tareo y se guarda');
+   ok(a.log.confirmas[0].includes('asistencia u horas'),'19. avisa si tenía marcaciones que se perderán');
+   ok(t.personalExcluido.length===1&&t.personalExcluido[0].activa&&t.personalExcluido[0].permanente&&t.personalExcluido[0].por,'19. queda una exclusión con quién y cuándo');
+   // la rotación Excel sigue trayendo a todos: la sincronización NO la vuelve a agregar
+   sb.obtenerPersonalPorRotacion=()=>({tieneRotacion:true,rotacion:{id:'ROT1'},personal:[mkP(0),mkP(1),mkP(2),mkP(3)]});
+   const sync=sb.tareoSincronizarConRotacion(sb.tareoObtenerActual());
+   ok(sync.personal.length===3&&!sync.personal.some(p=>p.trabajadorId==='T1'),'19. la sincronización con la rotación no la vuelve a traer');
+   await espera(300);
+   // un tareo NUEVO de la misma área, de esa fecha en adelante
+   const nuevoPersonal=sb.crearPersonalTareo('2026-10-10','Día','Producción');
+   ok(nuevoPersonal.length===3&&!nuevoPersonal.some(p=>p.trabajadorId==='T1'),'19. «ya no trabaja»: tampoco aparece en los tareos que se creen después');
+   const anterior=sb.crearPersonalTareo('2026-10-01','Día','Producción');
+   ok(anterior.length===4,'19. los tareos de fechas anteriores no se alteran');
+   // copia vieja de otro equipo (Mantenimiento, unión de listas) no la reintroduce
+   const viejo=clonar(crearTareo({n:4,fecha:'2026-10-09'}));viejo.actualizadoEn=99999999999999;
+   const fus=sb.tareoFusionar(clonar(nube.items[0]),viejo);
+   ok(!fus.personal.some(p=>p.trabajadorId==='T1')&&fus.personalExcluido.length===1,'19. una copia vieja de otro dispositivo no reintroduce a la persona al fusionar');
+   const mt=clonar(crearTareo({id:'mt-q',area:'Mantenimiento',n:3,fecha:'2026-10-09'}));
+   const mtRemoto=clonar(mt);mtRemoto.personal=mtRemoto.personal.filter(p=>p.trabajadorId!=='T2');
+   mtRemoto.personalExcluido=[{clave:'T2',ids:['ID:T2','DNI:00000002'],nombre:'Persona 2',en:5000,activa:true,permanente:false,desde:'2026-10-09'}];
+   const fm=sb.tareoFusionar(mtRemoto,mt);
+   ok(fm.personal.length===2&&!fm.personal.some(p=>p.trabajadorId==='T2'),'19. Mantenimiento (unión de listas): tampoco se vuelve a agregar');
+   // restaurar
+   sb.tareoActualId='tareo-1';sb._tareosCache=clonar(nube.items);
+   sb.TareoEd.restaurarPersona('T1');await espera(300);
+   const r=nube.items[0];
+   ok(r.personal.some(p=>p.trabajadorId==='T1')&&!r.personalExcluido.some(e=>e.activa),'19. restaurar devuelve a la persona y levanta la exclusión');
+   const nuevoPersonal2=sb.crearPersonalTareo('2026-10-12','Día','Producción');
+   ok(nuevoPersonal2.length===4,'19. tras restaurar vuelve a aparecer en los tareos nuevos');
+   // solo este tareo (no permanente)
+   permanente=false;a.log.confirmas.length=0;
+   sb._tareosCache=clonar(nube.items);sb.tareoActualId='tareo-1';
+   sb.TareoEd.quitarPersonal('T2');await espera(300);
+   const y=sb.crearPersonalTareo('2026-10-20','Día','Producción');
+   ok(y.length===4&&!nube.items[0].personal.some(p=>p.trabajadorId==='T2'),'19. «solo este tareo»: se quita aquí pero sigue en los demás');
+   // permisos
+   const sin=cargarCliente(nube,{soloConsulta:true,areas:[]});sin.abrir('tareo-1');
+   const antesN=nube.items[0].personal.length;
+   sin.sb.TareoEd.quitarPersonal('T0');await espera(200);
+   ok(nube.items[0].personal.length===antesN&&sin.log.alertas.length>0,'19. un usuario de solo consulta no puede quitar personal');
+   // fila repetida sin identificador: no se quita a ciegas
+   const nube2=crearNube({latencia:4});const dup=[mkP(1,{trabajadorId:'',dni:'',nombre:'Juan Perez'}),mkP(2,{trabajadorId:'',dni:'',nombre:'Juan Perez'})];
+   nube2.items=[clonar(crearTareo({personal:dup,fecha:'2026-10-09'}))];
+   const d=cargarCliente(nube2,{confirmar:true});d.abrir('tareo-1');
+   const k=d.sb.TareoEd.clavesUnicas(d.sb.tareoObtenerActual().personal)[0];
+   d.sb.TareoEd.quitarPersonal(k);await espera(150);
+   ok(nube2.items[0].personal.length===2,'19. una fila con identificación repetida y sin filaId no se quita por orden');}
+
   /* Mezcla campo a campo de dos copias de una persona */
   {const {a}=await montar({});
    const Ed=a.sb.TareoEd;

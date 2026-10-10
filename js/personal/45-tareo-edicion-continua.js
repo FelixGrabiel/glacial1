@@ -528,7 +528,137 @@
   }
   if(typeof document !== 'undefined') estilos();
 
+  /* =========================================================
+     QUITAR PERSONAL DEL TAREO (personas que ya no trabajan)
+     ---------------------------------------------------------
+     La persona sale del tareo y queda una EXCLUSIÓN dentro del propio tareo (tareo.personalExcluido) para que la sincronización con la
+     rotación Excel / Mantenimiento / maquinistas no la vuelva a traer. Si se indica que «ya no trabaja», la exclusión es permanente:
+     rige también para los tareos de esa área que se creen o sincronicen desde esa fecha. Restaurar es una exclusión inactiva más
+     reciente (gana siempre la entrada más nueva por persona). Quién, cuándo y qué marcaciones tenía quedan en la auditoría
+     (QUITAR_PERSONAL) y en la propia entrada. No borra a la persona de Trabajadores ni de la rotación.
+     ========================================================= */
+  const idsDe = p => (typeof tareoIdentidades === 'function' ? tareoIdentidades(p) : []);
+  const entradasDe = t => (t && Array.isArray(t.personalExcluido) ? t.personalExcluido : []);
+  /* Devuelve una función persona → ¿excluida? para un tareo (existente o un {area, fecha} de un tareo por crear). */
+  function filtroExclusion(tareo){
+    const candidatas = [];
+    try{
+      const area = typeof tareoAreaDe === 'function' ? tareoAreaDe(tareo) : (tareo && tareo.area);
+      entradasDe(tareo).forEach(e => candidatas.push(e));
+      if(!(tareo && tareo._soloPropias)) obtenerTareos().forEach(t => {
+        if(!t || t.id === (tareo && tareo.id) || tareoAreaDe(t) !== area) return;
+        entradasDe(t).forEach(e => { if(e && e.permanente && String(tareo.fecha || '') >= String(e.desde || '')) candidatas.push(e); });
+      });
+    }catch(_){ /* sin exclusiones */ }
+    if(!candidatas.length) return () => false;
+    return persona => {
+      const ids = idsDe(persona);
+      if(!ids.length) return false;
+      let mejor = null;
+      candidatas.forEach(e => { if((e.ids || []).some(i => ids.includes(i)) && (!mejor || num(e.en) > num(mejor.en))) mejor = e; });
+      return !!(mejor && mejor.activa);
+    };
+  }
+  function mezclarExcluidos(a, b){
+    const todas = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
+    const salida = [];
+    todas.forEach(e => {
+      if(!e) return;
+      const i = salida.findIndex(x => (x.ids || []).some(id => (e.ids || []).includes(id)));
+      if(i < 0) salida.push(e); else if(num(e.en) > num(salida[i].en)) salida[i] = e;
+    });
+    return salida;
+  }
+  /* Quita de una lista las personas con exclusión activa en las entradas dadas (la entrada más nueva por persona decide). */
+  function filtrarExcluidos(lista, entradas){
+    if(!entradas || !entradas.length) return lista;
+    const excl = filtroExclusion({id: '', area: undefined, fecha: '', personalExcluido: entradas, _soloPropias: true});
+    return lista.filter(p => !excl(p));
+  }
+  function descartarOps(tareoId, clave){
+    for(let i = ops.length - 1; i >= 0; i--){
+      if(ops[i].tareoId === tareoId && ops[i].clave === clave && ops[i].estado !== 'guardando') ops.splice(i, 1);
+    }
+    notificar();
+  }
+  const tieneMarcas = p => !!(p && (p.asistencia || p.horaIngreso || p.salidaRefrigerio || p.retornoRefrigerio || p.horaSalida));
+
+  function quitarPersonal(clave){
+    const tareo = typeof tareoObtenerActual === 'function' ? tareoObtenerActual() : null;
+    if(!tareo) return;
+    if(typeof tareoPuedeEditar !== 'function' || !tareoPuedeEditar(tareo) || (typeof esUsuarioSoloConsulta === 'function' && esUsuarioSoloConsulta(state.user))){
+      alert('No tienes permiso para modificar el Tareo de ' + tareoAreaDe(tareo) + '.');
+      return;
+    }
+    const r = resolver(tareo, clave);
+    if(r.ambigua || String(clave).indexOf('|~') > 0){
+      alert('No se puede saber con certeza a qué persona corresponde esta fila (varias comparten la misma identificación). No se quitó a nadie.');
+      return;
+    }
+    const p = r.persona;
+    if(!p) return;
+    const aviso = tieneMarcas(p)
+      ? '\n\nOJO: tiene asistencia u horas registradas en este tareo; se quitarán junto con ella.' : '';
+    if(!confirm('¿Quitar a ' + (p.nombre || 'esta persona') + ' de este tareo?' + aviso + '\n\nNo se elimina de Trabajadores ni de la rotación.')) return;
+    const permanente = confirm(
+      '¿' + (p.nombre || 'Esta persona') + ' ya no trabaja aquí?\n\n' +
+      'Aceptar: no volverá a aparecer en los tareos de esta área desde el ' + tareo.fecha + ' en adelante.\n' +
+      'Cancelar: se quita solo de este tareo.');
+    const u = (typeof state !== 'undefined' && state.user) || {};
+    const entrada = {
+      clave: claveBase(p), ids: idsDe(p), nombre: p.nombre || '', dni: p.dni || '', cargo: p.cargo || '', linea: p.linea || '',
+      trabajadorId: p.trabajadorId || '', tipoDocumento: p.tipoDocumento || 'DNI', por: u.nombre || u.username || '',
+      en: nuevoTs(), activa: true, permanente, desde: tareo.fecha, teniaMarcas: tieneMarcas(p)
+    };
+    tareo.personalExcluido = [...entradasDe(tareo).filter(e => !(e.ids || []).some(i => entrada.ids.includes(i))), entrada];
+    tareo.personal = (tareo.personal || []).filter(x => x !== p);
+    descartarOps(tareo.id, claveBase(p));
+    guardarTareoEnMemoria(tareo);
+    renderTareoFormulario(tareo);
+  }
+  function restaurarPersona(clave){
+    const tareo = typeof tareoObtenerActual === 'function' ? tareoObtenerActual() : null;
+    if(!tareo || !tareoPuedeEditar(tareo)) return;
+    const e = entradasDe(tareo).find(x => x.activa && x.clave === clave);
+    if(!e) return;
+    e.activa = false; e.en = nuevoTs();
+    if(!(tareo.personal || []).some(x => idsDe(x).some(i => (e.ids || []).includes(i)))){
+      const persona = tareoNuevaPersona({trabajadorId: e.trabajadorId, nombre: e.nombre, dni: e.dni, cargo: e.cargo, linea: e.linea, tipoDocumento: e.tipoDocumento}, tareoAreaDe(tareo));
+      persona.actualizadoEn = nuevoTs();
+      tareo.personal = [...(tareo.personal || []), persona];
+    }
+    guardarTareoEnMemoria(tareo);
+    renderTareoFormulario(tareo);
+  }
+  /* Si alguien agrega manualmente a una persona excluida, la exclusión se levanta (la acción más nueva gana). */
+  function levantarExclusion(tareo, base){
+    const ids = idsDe(base);
+    entradasDe(tareo).forEach(e => { if(e.activa && (e.ids || []).some(i => ids.includes(i))){ e.activa = false; e.en = nuevoTs(); } });
+    if(filtroExclusion(tareo)(base)){
+      tareo.personalExcluido = [...entradasDe(tareo), {clave: claveBase(base), ids, nombre: base.nombre || '', en: nuevoTs(), activa: false, permanente: false, desde: tareo.fecha}];
+    }
+  }
+  function htmlQuitados(tareo){
+    const lista = entradasDe(tareo).filter(e => e && e.activa);
+    if(!lista.length) return '';
+    return '<div class="panel" id="tareo-quitados"><div class="panel-head"><div><h3>Personal quitado de este tareo (' + lista.length + ')</h3>' +
+      '<div class="small-muted">No aparecen en la tabla ni vuelven con la sincronización. Puedes restaurarlos.</div></div></div><div class="panel-body"><ul class="tar2-quitados">' +
+      lista.map(e => '<li><span><strong>' + esc(e.nombre) + '</strong> · ' + esc(e.cargo || '') + (e.permanente ? ' · <em>ya no trabaja</em>' : '') +
+        ' <small class="small-muted">quitado por ' + esc(e.por || '—') + '</small></span>' +
+        '<button type="button" class="btn btn-ghost btn-sm" onclick="TareoEd.restaurarPersona(' + (typeof tareoArg === 'function' ? tareoArg(e.clave) : JSON.stringify(e.clave)) + ')">Restaurar</button></li>').join('') +
+      '</ul></div></div>';
+  }
+  function estilosQuitar(){
+    if(typeof document === 'undefined' || document.getElementById('tareo-quitar-css')) return;
+    const s = document.createElement('style'); s.id = 'tareo-quitar-css';
+    s.textContent = '.tar2-quitar{border:0;background:none;color:#9a4339;cursor:pointer;font-size:12px;padding:2px 4px;margin-left:6px}.tar2-quitar:hover{color:#b42318;text-decoration:underline}' +
+      '.tar2-quitados{list-style:none;margin:0;padding:0}.tar2-quitados li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed #e5edf3}';
+    document.head.appendChild(s);
+  }
+  estilosQuitar();
+
   window.TareoEd = {
+    filtroExclusion, mezclarExcluidos, filtrarExcluidos, quitarPersonal, restaurarPersona, levantarExclusion, htmlQuitados, descartarOps,
     CAMPOS, nuevoTs, nuevoFilaId, clavesUnicas, claveFila, asegurarFilaIds, asignarIds, faltanIds, resolver, tsDe, mezclarPersona, mezclarListas,
     resetVista, deduplicarPersonal, captura, diferencias, aplicarMarcas, aplicarOp, registrarOp, enviar, reintentar, reconciliar, hayOpsSinEnviar, hayPendientes,
     sinConfirmar, legacyIniciar, legacyTerminar, ordenarVista, reordenarVista, registrarRender, sincronizarVista, pintarEstados,
