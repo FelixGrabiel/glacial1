@@ -109,7 +109,7 @@
   /* Agregar usuario: lista las cuentas que aún no aparecen (rol no elegible). Si el rol no sirve, se explica qué cambiar. */
   function agregarHtml(){
     const otros = loadUsers().filter(u => !P().elegibleVer(String(u.rol || '').trim()));
-    const opc = otros.map(u => '<option value="' + esc(u.username) + '">' + esc(u.nombre || u.username) + ' · ' + esc(u.rol || 'sin rol') + '</option>').join('');
+    const opc = otros.map(u => '<option value="' + esc(u.username) + '">' + esc(u.nombre || u.username) + ' · rol: ' + esc(u.rol || 'sin rol') + (u.puesto ? ' · puesto: ' + esc(u.puesto) : '') + '</option>').join('');
     return '<div style="margin:12px 0;padding:10px;border:1px dashed #b9c9d8;border-radius:8px"><b style="font-size:13px">Agregar usuario</b>' +
       '<p style="font-size:12px;margin:4px 0;color:#5a6b78">Solo Gerencia, Jefe de Producción, Jefe de Operaciones, Jefatura y Administrador pueden recibir este permiso. Si la persona aún no tiene uno de esos roles, cámbiale el rol o crea su usuario.</p>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><select id="eco-agregar-sel" style="padding:8px;min-width:220px"><option value="">Elegir usuario existente…</option>' + opc + '</select>' +
@@ -120,7 +120,7 @@
     const u = document.getElementById('eco-agregar-sel')?.value;
     if(!u){ alert('Elige un usuario de la lista.'); return; }
     const x = loadUsers().find(v => String(v.username) === u);
-    alert('«' + (x && (x.nombre || x.username)) + '» tiene el rol «' + (x && x.rol || 'sin rol') + '», que no puede recibir permisos de impacto económico.\n\nCámbiale el rol a Jefe de Operaciones, Jefe de Producción, Jefatura o Gerencia en Gestionar usuarios; después aparecerá en esta lista.');
+    alert('«' + (x && (x.nombre || x.username)) + '» tiene el ROL «' + (x && x.rol || 'sin rol') + '»' + (x && x.puesto ? ' (su PUESTO es «' + x.puesto + '», pero el puesto es solo texto; lo que cuenta es el rol)' : '') + ', que no puede recibir permisos de impacto económico.\n\nCámbiale el rol a Jefe de Operaciones, Jefe de Producción, Jefatura o Gerencia en Gestionar usuarios; después aparecerá en esta lista.');
     if(typeof openUsersModal === 'function') openUsersModal();
   }
   function crearUsuario(){
