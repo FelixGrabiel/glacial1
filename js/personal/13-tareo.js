@@ -9461,6 +9461,12 @@ function renderResumenMensualTareoUI() {
 
             <div class="panel-body">
 
+                ${window.TareoHE ? `
+                <div style="margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                    ${window.TareoHE.htmlControlesPeriodo()}
+                    <span class="small-muted">Período de HORAS EXTRAS y gráficos. «Mes» usa el año y mes de abajo; los contadores generales siguen siendo del mes elegido.</span>
+                </div>` : ''}
+
                 <div class="grid grid-2">
 
                     <div class="field-sm">
@@ -9602,7 +9608,12 @@ function actualizarResumenMensualTareo() {
 
     contenedor.innerHTML = `
 
-        <div class="tareo-kpi-grid">
+        <!--
+            Primera fila: Asistió · Feriado trabajado · Días trabajados · HORAS EXTRAS. Segunda fila: Faltas por justificar · Faltas
+            justificadas · Descansos. La tarjeta COMISIÓN EXTERNA se retiró de este resumen visual: el estado, sus registros y su
+            tratamiento en los cálculos (Días trabajados) y en las exportaciones no cambian.
+        -->
+        <div class="he-kpis">
 
             <div class="tareo-kpi">
                 <span class="tareo-kpi-label">Asistió</span>
@@ -9613,13 +9624,15 @@ function actualizarResumenMensualTareo() {
                 <strong>${totales.feriados}</strong>
             </div>
             <div class="tareo-kpi">
-                <span class="tareo-kpi-label">Comisión externa</span>
-                <strong>${totales.comisiones}</strong>
-            </div>
-            <div class="tareo-kpi">
                 <span class="tareo-kpi-label">Días trabajados</span>
                 <strong class="tareo-good">${totales.dias}</strong>
             </div>
+
+            <div id="tareo-he-tarjeta" class="he-slot"></div>
+
+        </div>
+
+        <div class="he-kpis3">
 
             <div class="tareo-kpi">
                 <span class="tareo-kpi-label">Faltas por justificar</span>
@@ -9637,6 +9650,8 @@ function actualizarResumenMensualTareo() {
             </div>
 
         </div>
+
+        <div id="tareo-he-raiz"></div>
 
 
         <div class="panel">
@@ -9732,6 +9747,9 @@ function actualizarResumenMensualTareo() {
         ${tareoResumenPorDiaHTML(año, mes, area)}
 
     `;
+
+    // Tarjeta HORAS EXTRAS, gráficos y jornadas laboradas (46-tareo-horas-extras.js): consulta, no guarda nada.
+    if (window.TareoHE) window.TareoHE.refrescar();
 }
 
 /*
