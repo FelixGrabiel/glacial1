@@ -150,6 +150,7 @@
 
     return '';
   }
+  window.glacialQuienControla=quienControla;   // 63-incidencias-no-produccion.js: quién puede informar el motivo de no producción
   // Da acceso al tablero a quienes tienen que registrar el estado.
   const permisoAnterior=tienePermiso;
   tienePermiso=function(permiso){
@@ -1079,6 +1080,27 @@
           : '<div class="pa-par-vacio">Sin paradas registradas</div>'}`;
     };
 
+    // Motivo de no producción (informativo; 63-incidencias-no-produccion.js). No es una parada oficial.
+    const MNP=window.glacialIncidencias;
+    if(MNP)MNP.escuchar(fecha);
+    const htmlMotivoNP=g=>{
+      if(!MNP)return '';
+      const ref=g.items[0] || g.vacios[0];
+      if(!ref)return '';
+      const f=ref.fecha || fecha, t=ref.turnoPlan || ref.turno;
+      const d=MNP.doc(f,MNP.bloqueDe(t),g.line.key);
+      const vigente=d && d.estado==='VIGENTE' ? d : null;
+      const puede=MNP.puedeInformar(g.line.key);
+      if(!vigente && !puede)return '';
+      const hora=vigente ? new Date(Number(vigente.registradoEn)||0).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}) : '';
+      return '<div class="pa-np">'+(vigente
+        ? '<span class="pa-np-txt"><b>Sin producción · Motivo: '+esc(vigente.motivo)+'</b>'+(vigente.descripcion ? ' — '+esc(vigente.descripcion) : '')+
+          ' <small>Registrado por '+esc(vigente.registradoPor||'—')+' · '+esc(hora)+'</small></span>'
+        : '<span class="pa-np-txt small-muted">Situación informativa de la línea (no es una parada oficial).</span>')+
+        (puede ? '<button type="button" class="btn btn-ghost btn-sm" data-pa-np="'+esc(g.line.key+'|'+f+'|'+t)+'">'+(vigente?'Corregir motivo':'Informar motivo de no producción')+'</button>' : '')+
+        '</div>';
+    };
+
     const tarjetaEstado=(estado)=>
       `<span class="pa-state-badge pa-state-${estado.cls}"><span></span>${estado.label}</span>`;
 
@@ -1117,6 +1139,8 @@
               ${g.items.some(x=>x.op?.corregida) ? '<span class="pa-chip-corregida" title="La finalización fue corregida">Corregida</span>' : ''}
               ${renderSemaforoWidget({nivel:g.texto==='FINALIZADA'?'verde':g.nivel,texto:g.texto})}</div>
           </div>
+
+          ${htmlMotivoNP(g)}
 
           <div class="pa-line-kpis">
             <div class="pa-line-kpi"><small>PROGRAMACIÓN VIGENTE</small><strong>${Math.round(g.totalProg).toLocaleString('es-PE')} <span>UND</span></strong></div>
@@ -1196,6 +1220,8 @@
 
   const css=document.createElement('style');
   css.textContent=`
+    .pa-np{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 18px;border-bottom:1px solid #d8e4ec;background:#fffbea}
+    .pa-np-txt small{display:block;color:#6b5a2a;font-weight:500}
     /* Colores de estado de producción (una sola correspondencia): EN CURSO naranja, EN PAUSA / PROGRAMADA amarillo, DETENIDA rojo,
        FINALIZADA (COMPLETADA) verde, PENDIENTE gris. Los avisos de meta incumplida son otra señal y conservan su color. */
     .pa-live-board{--est-curso:#F97316;--est-curso-bg:#FFEDD5;--est-curso-tx:#9A3412;--est-pausa:#FACC15;--est-pausa-bg:#FEF9C3;--est-pausa-tx:#713F12;
@@ -2223,6 +2249,10 @@
       procesarAlertasOperacion(itemsGuardados);
 
     _programacionesCache=itemsGuardados;
+    // Un inicio o una reanudación REAL cierra el motivo de no producción vigente de esa línea y bloque (solo si es posterior a su registro).
+    if(['iniciar','reanudar'].includes(accion) && window.glacialIncidencias){
+      window.glacialIncidencias.resolverPorEvento(x.linea,x.fecha,x.turnoPlan || x.turno,ahoraServidor(),accion==='iniciar' ? 'INICIAR' : 'REANUDAR');
+    }
     if(state.currentTab==='produccion-actual')renderProduccionActualTab();
   }
   // Acceso para pruebas: SOLO existe en el entorno PRUEBAS (en producción no se expone).
@@ -2237,6 +2267,12 @@
     return resultado;
   };
   document.getElementById('main')?.addEventListener('click',async event=>{
+    const np=event.target.closest('[data-pa-np]');
+    if(np && window.glacialIncidencias){
+      const [l,f,t]=String(np.dataset.paNp).split('|');
+      window.glacialIncidencias.abrirFormulario(l,f,t);
+      return;
+    }
     if(event.target.closest('[data-pa-turno-actual]')){
       const t=turnoProductivo();
       produccionActualFecha=t.fecha;
@@ -2326,6 +2362,11 @@
             avance:g>0 ? p/g*100 : 0};
         })
       };
+      // Estado OPERATIVO real (lo que registraron los botones), sin deducirlo de producción acumulada: lo usa Inicio.
+      fila.enProduccionReal=items.some(x=>x.op?.estado==='EN_PRODUCCION');
+      fila.detenidaReal=items.some(x=>x.op?.estado==='DETENIDA');
+      fila.iniciadaReal=items.some(x=>num(x.op?.inicio)>0);
+      fila.ultimaOperacionMs=items.reduce((m,x)=>Math.max(m,num(x.op?.actualizadoEn)),0);
       const det=estados.find(o=>o.det);
       if(det && Number(det.x.op?.detenidaDesde || 0)>0)
         fila.detenidaMin=Math.max(0,Math.round((ahora-Number(det.x.op.detenidaDesde))/60000));

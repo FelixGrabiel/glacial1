@@ -128,8 +128,9 @@ ok(V.MODULOS.length>=14&&!V.MODULOS.some(m=>/perdidas|econ/i.test(m.clave)),'cat
 
 const inicio=leer('js/accesos/32-dashboard-perfiles.js');
 const cuerpo=inicio.slice(inicio.indexOf('function cpEjecutivoHTML'),inicio.indexOf('function cpEjecutivoStyles'));
-const pos=n=>cuerpo.indexOf(n,cuerpo.indexOf('return `<div class="cp-ex-kpis">'));
-ok(pos('class="cp-ex-kpis"')<pos('<h3>Producción por línea</h3>')&&pos('<h3>Producción por línea</h3>')<pos('<h3>Alertas importantes</h3>')&&pos('<h3>Alertas importantes</h3>')<pos('<h2>RESUMEN DE PRODUCCIÓN</h2>'),'Inicio: indicadores → producción por línea → alertas → RESUMEN DE PRODUCCIÓN al final');
+const ret=cuerpo.slice(cuerpo.lastIndexOf('return `${cabecera}'));
+const pos=n=>ret.indexOf(n);
+ok(pos('${cabecera}')<pos('${kpis}')&&pos('${kpis}')<pos('${tarjetaSP}')&&pos('${tarjetaSP}')<pos('${tarjetaLineas}')&&pos('${tarjetaLineas}')<pos('${tarjetaAlertas}')&&pos('${tarjetaAlertas}')<pos('<h2>RESUMEN DE PRODUCCIÓN</h2>'),'Inicio: encabezado → 5 tarjetas → líneas sin producción → producción por línea → alertas → RESUMEN DE PRODUCCIÓN al final');
 ok(cuerpo.split('<h2>RESUMEN DE PRODUCCIÓN</h2>').length===2,'Inicio: el encabezado del resumen no se duplica');
 const idx=leer('index.html');
 ok(idx.indexOf('23-gerente-solo-lecutra.js')<idx.indexOf('23b-modo-visualizacion.js')&&idx.indexOf('10-usuarios.js')<idx.indexOf('10b-modo-visualizacion-form.js'),'index: orden de carga');

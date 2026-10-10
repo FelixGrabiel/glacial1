@@ -404,6 +404,33 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Motivos de no producción por línea (INFORMATIVO: no es una parada oficial ni cambia tiempos, ratio o producción).
+    // Un documento por fecha operativa + bloque + línea (id = AAAA-MM-DD_DIA|NOCHE_LINEA): no hay dos vigentes de la misma situación.
+    //  - Leen todos los usuarios con sesión (menos la cuenta compartida de Mantenimiento), incluida la Jefatura en solo consulta.
+    //  - Escribe quien opera Producción (puedeOperarProduccion: ya excluye soloVista y la cuenta compartida), con su uid y la hora del servidor.
+    //  - El historial solo crece (nunca se acorta) y nadie borra incidencias.
+    match /incidenciasNoProduccion/{id} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create, update: if puedeOperarProduccion()
+        && request.resource.data.keys().hasOnly(['linea', 'fecha', 'bloque', 'estado', 'motivo', 'descripcion', 'registradoPor',
+             'registradoUid', 'registradoEn', 'resueltoEn', 'resueltoPor', 'resueltoPorEvento', 'historial', 'actualizadoUid', 'actualizadoEn'])
+        && request.resource.data.keys().hasAll(['linea', 'fecha', 'bloque', 'estado', 'motivo', 'registradoUid', 'registradoEn',
+             'historial', 'actualizadoUid', 'actualizadoEn'])
+        && request.resource.data.linea in ['PET1', 'PET2', 'B7L', 'C20L', 'B20L']
+        && request.resource.data.bloque in ['DIA_INTERMEDIO', 'NOCHE']
+        && request.resource.data.estado in ['VIGENTE', 'RESUELTA']
+        && id == request.resource.data.fecha + '_' + (request.resource.data.bloque == 'NOCHE' ? 'NOCHE' : 'DIA') + '_' + request.resource.data.linea
+        && request.resource.data.motivo in ['Falta de personal', 'Falla de máquina', 'Falta de insumos', 'Mantenimiento', 'Limpieza',
+             'Cambio de formato', 'Otra causa']
+        && (request.resource.data.motivo != 'Otra causa'
+            || (request.resource.data.descripcion is string && request.resource.data.descripcion.size() >= 3))
+        && request.resource.data.actualizadoUid == request.auth.uid
+        && request.resource.data.actualizadoEn == request.time
+        && request.resource.data.historial is list && request.resource.data.historial.size() >= 1
+        && (resource == null || request.resource.data.historial.size() >= resource.data.historial.size());
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
