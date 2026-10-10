@@ -730,7 +730,7 @@ const MERMA_DIVISORES_POR_LINEA = {
       6.6,
 
     'Etiqueta':
-      0.0028,
+      2.9,
 
     'Polietileno 48cm':
       { divisor: 28, sinMultiplicarPor1000: true, decimales: 2 }
