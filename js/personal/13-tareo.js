@@ -110,6 +110,17 @@ window.addEventListener('beforeunload', function(evento){
 
 function confirmarAbandonoRotacionPendiente(){
 
+    // Cambios del tareo todavía no confirmados en la nube (45-tareo-edicion-continua.js): se avisa antes de salir.
+    if(window.TareoEd && window.TareoEd.sinConfirmar().length){
+
+        const salir = confirm(
+            'Hay cambios del tareo que todavía no se confirmaron en la nube.\n\n' +
+            'Si sales ahora podrías perderlos. ¿Salir de todas formas?'
+        );
+
+        if(!salir) return false;
+    }
+
     if(!window._tareoRotacionPendiente){
         return true;
     }
@@ -719,6 +730,9 @@ function tareoNormalizarRegistro(tareo) {
 
         tareo.personal =
             ordenarPersonalTareo(tareo.personal);
+
+        // Filas que comparten identificación: reciben un filaId persistente (una sola vez) para no combinarse (45-tareo-edicion-continua.js).
+        if (window.TareoEd) window.TareoEd.asegurarFilaIds(tareo);
     }
 
     return tareo;
@@ -970,7 +984,10 @@ function tareoAhoraMs() {
 
 /* Une dos listas de personas: la lista y el orden son los de la primera (la copia más nueva); de cada persona se toma el
    registro con mayor actualizadoEn entre ambas copias. */
-function tareoPersonalMasReciente(principal, otra) {
+function tareoPersonalMasReciente(principal, otra, config) {
+    // Campo a campo (gana el cambio más reciente de CADA campo, no el de toda la persona) y con claves únicas: filas con la misma
+    // identificación no se combinan. Ver 45-tareo-edicion-continua.js.
+    if (window.TareoEd) return window.TareoEd.mezclarListas(principal, otra, false, config);
     const porClave = new Map();
     otra.forEach(persona => porClave.set(tareoClavePersona(persona), persona));
     return principal.map(persona => {
@@ -1038,7 +1055,8 @@ function tareoFusionar(remoto, local) {
                 ordenarPersonalTareo(
                     tareoPersonalMasReciente(
                         Array.isArray(base.personal) ? base.personal : [],
-                        Array.isArray(otro.personal) ? otro.personal : []
+                        Array.isArray(otro.personal) ? otro.personal : [],
+                        { jornadaNormal: config.jornadaNormal, horaProgramadaIngreso: config.horaProgramadaIngreso }
                     )
                 ),
 
@@ -1050,8 +1068,44 @@ function tareoFusionar(remoto, local) {
     /*
        MANTENIMIENTO conserva la fusión histórica por persona.
     */
+    /*
+       Antes la clave era String(trabajadorId ?? dni ?? nombre): una cadena vacía NO pasa al siguiente valor, así que varias personas
+       con trabajadorId '' compartían la misma clave y se fusionaban en una. Ahora se usa la identidad única (id → DNI → nombre,
+       normalizados; filas repetidas con su filaId) y la mezcla es campo a campo.
+    */
+    if (window.TareoEd) {
+
+        return {
+            ...base,
+
+            observaciones: config.observaciones || '',
+            horaProgramadaIngreso: config.horaProgramadaIngreso,
+            jornadaNormal: config.jornadaNormal,
+            configActualizadoEn: config.configActualizadoEn || 0,
+
+            actualizadoEn:
+                Math.max(
+                    Number(local.actualizadoEn || 0),
+                    Number(remoto.actualizadoEn || 0)
+                ),
+
+            personal:
+                ordenarPersonalTareo(
+                    window.TareoEd.mezclarListas(
+                        Array.isArray(base.personal) ? base.personal : [],
+                        Array.isArray(otro.personal) ? otro.personal : [],
+                        true,
+                        { jornadaNormal: config.jornadaNormal, horaProgramadaIngreso: config.horaProgramadaIngreso }
+                    )
+                ),
+
+            personalPorDia:
+                tareoFusionarPorDia(remoto, local)
+        };
+    }
+
     const clave = persona => String(
-        persona.trabajadorId ?? persona.dni ?? persona.nombre
+        persona.trabajadorId || persona.dni || persona.nombre
     );
 
     const mapa = new Map();
@@ -1132,6 +1186,19 @@ function tareoGuardarEnNube(tareo) {
         return;
     }
 
+    /*
+       EDICIÓN DE UNA PERSONA (asistencia / horas): se guarda como OPERACIÓN concreta (campos cambiados + valor capturado) aplicada
+       a la versión actual leída dentro de la transacción, sin enviar una copia vieja de la persona. Ver 45-tareo-edicion-continua.js.
+    */
+    if (window.TareoEd && window.TareoEd.hayOpsSinEnviar(tareo.id)) {
+
+        window.TareoEd.enviar();
+
+        // Edición de una persona: solo viaja la operación. Cualquier otro guardado del tareo (personas agregadas, configuración…)
+        // sigue su camino normal y se encola detrás de las operaciones.
+        if (window._tareoGuardandoOperacion) return;
+    }
+
     const referencia = db.collection('sync').doc('tareos');
 
     /*
@@ -1140,6 +1207,9 @@ function tareoGuardarEnNube(tareo) {
        transacción cuando a esta escritura le corresponda su turno.
     */
     const copia = JSON.parse(JSON.stringify(tareo));
+
+    // La copia en vuelo se reaplica sobre lo que llegue de la nube mientras no se confirme (reconciliación).
+    if (window.TareoEd) window.TareoEd.legacyIniciar(copia);
 
     window._tareoEscriturasPendientes++;
 
@@ -1190,6 +1260,8 @@ function tareoGuardarEnNube(tareo) {
         }
     })
     .finally(() => {
+
+        if (window.TareoEd) window.TareoEd.legacyTerminar(copia);
 
         window._tareoEscriturasPendientes--;
 
@@ -2254,7 +2326,11 @@ function tareoNuevaPersona(
             0,
 
         actualizadoEn:
-            0
+            0,
+
+        // Identificador persistente de la fila: se asigna una sola vez al crear la persona en el tareo.
+        filaId:
+            window.TareoEd ? window.TareoEd.nuevoFilaId() : ''
 
     };
 }
@@ -3430,7 +3506,7 @@ function tareoSincronizarPersonalMantenimiento(tareo) {
 
     const actuales = tareo.personal || [];
 
-    const unicos = tareoDeduplicarPersonas(actuales);
+    const unicos = window.TareoEd ? window.TareoEd.deduplicarPersonal(actuales) : tareoDeduplicarPersonas(actuales);
 
     const identidades = new Set(unicos.flatMap(tareoIdentidades));
 
@@ -3452,6 +3528,9 @@ function tareoSincronizarPersonalMantenimiento(tareo) {
 
 
 function tareoAbrir(area, fecha, turno) {
+
+    // Al abrir un tareo el orden por asistencia se calcula de nuevo (dentro de la sesión de edición queda fijo).
+    if (window.TareoEd) window.TareoEd.resetVista();
 
     if (!tareoAreasEditables().includes(area)) {
 
@@ -3639,6 +3718,30 @@ function renderTareoFormulario(tareo) {
 
     const filtro = tareoNormalizarTexto(tareoFiltroTexto);
 
+    /*
+       Orden estable de la vista: las filas NO se mueven mientras el supervisor marca varias personas o escribe una hora. El orden por
+       asistencia se vuelve a aplicar con el botón «Ordenar» o al reabrir el tareo. «completo» es el tareo con TODAS las personas
+       (en Mantenimiento la pantalla recibe una copia sin maquinistas).
+    */
+    const completo = obtenerTareos().find(t => t.id === tareo.id) || tareo;
+
+    const personalVista = window.TareoEd
+        ? window.TareoEd.ordenarVista(tareo, personal)
+        : personal;
+
+    if (window.TareoEd) {
+
+        window.TareoEd.registrarRender(completo);
+
+        const ksCompleto = window.TareoEd.clavesUnicas(completo.personal || []);
+
+        window.TareoEd.setClaveMain(
+            (completo.personal || [])
+                .map((p, i) => personal.includes(p) ? ksCompleto[i] : null)
+                .filter(Boolean)
+        );
+    }
+
     const scrollY = window.scrollY;
     const scrollMain = main.scrollTop;
 
@@ -3654,6 +3757,7 @@ function renderTareoFormulario(tareo) {
                     ${formatearFecha(tareo.fecha)}
                     · Turno ${escaparHTML(tareo.turno)}
                     <span class="tar2-live">En vivo</span>
+                    <span id="tareo-estado-guardado" class="tareo-guardado" role="status" aria-live="polite"></span>
                 </div>
 
             </div>
@@ -3835,6 +3939,15 @@ function renderTareoFormulario(tareo) {
                         + Agregar personal
                     </button>
 
+                    <button
+                        class="btn btn-ghost btn-sm"
+                        type="button"
+                        title="Vuelve a ordenar por asistencia (las filas no se mueven solas mientras registras)"
+                        onclick="window.TareoEd && TareoEd.reordenarVista()"
+                    >
+                        ↕ Ordenar
+                    </button>
+
                     <span class="tareo-count-badge">
                         ${personal.length} personas
                     </span>
@@ -3871,13 +3984,14 @@ function renderTareoFormulario(tareo) {
 
                         <tbody>
 
-                            ${personal.map(
+                            ${personalVista.map(
                                 (persona, index) =>
                                     renderFilaPersonalTareo(
                                         persona,
                                         index,
                                         tareo.id,
-                                        filtro
+                                        filtro,
+                                        completo.personal
                                     )
                             ).join('')}
 
@@ -3947,6 +4061,8 @@ function renderTareoFormulario(tareo) {
 
     window.scrollTo(0, scrollY);
     main.scrollTop = scrollMain;
+
+    if (window.TareoEd) window.TareoEd.pintarEstados();
 }
 
 
@@ -3974,6 +4090,32 @@ function tareoFiltrarPersonal(valor) {
 function tareoRefrescarFormularioRemoto() {
 
     if (!document.getElementById('tareo-form-view')) return;
+
+    /*
+       Con 45-tareo-edicion-continua.js los cambios de otros equipos se reflejan fila por fila (sin reconstruir la pantalla, sin perder
+       foco, búsqueda ni desplazamiento). Solo si cambió la estructura (personas nuevas o quitadas) se vuelve a dibujar, y
+       únicamente cuando no hay un campo en uso ni cambios sin confirmar.
+    */
+    if (window.TareoEd) {
+
+        const actual = tareoObtenerActual();
+
+        if (!actual) return;
+
+        if (window.TareoEd.sincronizarVista(actual)) return;
+
+        if (
+            window._tareoEscriturasPendientes > 0 ||
+            window.TareoEd.campoActivo() ||
+            window.TareoEd.hayPendientes()
+        ) {
+            return;
+        }
+
+        renderTareoFormulario(actual);
+
+        return;
+    }
 
     if (window._tareoEscriturasPendientes > 0) return;
 
@@ -4223,7 +4365,7 @@ function tareoBloqueMaquinistasHTML(tareo, ctx) {
                         </thead>
                         <tbody>
                             ${filas.map((persona, i) =>
-                                renderFilaPersonalTareo(persona, i, tareo.id, '')
+                                renderFilaPersonalTareo(persona, i, tareo.id, '', tareo.personal)
                             ).join('')}
                             ${ctx.descanso.map((m, i) => `
                                 <tr class="tareo-row-no-asistencia">
@@ -5070,7 +5212,8 @@ function renderFilaPersonalTareo(
     persona,
     index,
     tareoId,
-    filtro
+    filtro,
+    listaCompleta
 ) {
 
     const asistencia =
@@ -5088,8 +5231,14 @@ function renderFilaPersonalTareo(
     const tarde =
         Number(persona.tardanzaMinutos || 0) > 0;
 
+    // Clave de la fila: la identificación de la persona o, si se repite en el tareo, con su filaId (ver 45-tareo-edicion-continua.js).
+    const claveFila =
+        window.TareoEd
+            ? window.TareoEd.claveFila(persona, listaCompleta || (obtenerTareos().find(t => t.id === tareoId) || {}).personal)
+            : tareoClavePersona(persona);
+
     const clave =
-        tareoArg(tareoClavePersona(persona));
+        tareoArg(claveFila);
 
     const textoBusqueda =
         tareoNormalizarTexto(
@@ -5105,6 +5254,8 @@ function renderFilaPersonalTareo(
 
         <tr
             data-tareo-persona="${index}"
+            data-tareo-fila="${escaparHTML(claveFila)}"
+            data-tareo-firma="${escaparHTML(window.TareoEd ? window.TareoEd.firma(persona) : '')}"
             data-tareo-buscar="${escaparHTML(textoBusqueda)}"
             style="${oculta}"
             class="${
@@ -5126,6 +5277,7 @@ function renderFilaPersonalTareo(
                 <div class="tareo-worker">
 
                     ${tareoBotonNombre(persona, tareoId)}
+                    <span class="tar2-est" data-tar2-est role="status" aria-live="polite"></span>
                     ${persona.trabajoEnDescanso ? '<span class="tar2-chip-descanso tar2-chip-trabajo-desc">Trabajó en descanso</span>' : ''}
 
                     <small>
@@ -5344,23 +5496,94 @@ function tareoEditarPersona(clave, cambiar) {
         return;
     }
 
-    const persona = tareo.personal.find(
-        item => tareoClavePersona(item) === String(clave)
-    );
+    /*
+       Tareo + persona + campo: la persona se identifica por su clave de fila (id → DNI → nombre; con filaId si se repite), NUNCA por
+       posición ni por «la primera coincidencia». Una clave ambigua no se modifica.
+    */
+    const hallada = window.TareoEd
+        ? window.TareoEd.resolver(tareo, clave)
+        : { persona: tareo.personal.find(item => tareoClavePersona(item) === String(clave)) };
+
+    if (hallada.ambigua) {
+
+        alert(
+            'Hay varias personas con la misma identificación en este tareo y no se puede saber a cuál corresponde este cambio. ' +
+            'No se modificó nada. Avisa al administrador para corregir los datos de la persona.'
+        );
+
+        return;
+    }
+
+    // Clave provisional («|~n»): fila repetida cuyo identificador todavía no se guardó en la nube. Se evita atribuir la marca por orden.
+    if (window.TareoEd && String(clave).indexOf('|~') > 0) {
+
+        alert(
+            'Se están guardando los identificadores de las filas con el mismo nombre. Vuelve a intentarlo en unos segundos; ' +
+            'no se modificó nada.'
+        );
+
+        return;
+    }
+
+    const persona = hallada.persona;
 
     if (!persona) return;
 
+    if (!window.TareoEd) {
+
+        cambiar(persona, tareo);
+
+        persona.actualizadoEn = tareoAhoraMs();
+
+        recalcularPersonaTareo(persona, tareo);
+
+        tareo.personal = ordenarPersonalTareo(tareo.personal);
+
+        guardarTareoEnMemoria(tareo);
+
+        renderTareoFormulario(tareo);
+
+        return;
+    }
+
+    const Ed = window.TareoEd;
+
+    const antes = Ed.captura(persona);
+
     cambiar(persona, tareo);
 
-    persona.actualizadoEn = tareoAhoraMs();
+    // Solo lo que cambió de verdad: si el usuario canceló una corrección no queda nada a medias (asistencia, autor o fechas).
+    const campos = Ed.diferencias(antes, persona);
+
+    if (!Object.keys(campos).length) {
+
+        Ed.sincronizarVista(tareo, { persona });
+
+        return;
+    }
+
+    const ts = Ed.nuevoTs();
+
+    Ed.aplicarMarcas(persona, campos, ts);
 
     recalcularPersonaTareo(persona, tareo);
 
-    tareo.personal = ordenarPersonalTareo(tareo.personal);
+    Ed.registrarOp(tareo, persona, campos, ts, clave);
 
-    guardarTareoEnMemoria(tareo);
+    // No se reordena ni se reconstruye la tabla: el orden se aplica con una acción explícita.
+    window._tareoGuardandoOperacion = true;
 
-    renderTareoFormulario(tareo);
+    try {
+        guardarTareoEnMemoria(tareo);
+    } finally {
+        window._tareoGuardandoOperacion = false;
+    }
+
+    if (!Ed.sincronizarVista(tareo, { persona })) {
+
+        // Estructura distinta (personas nuevas o quitadas): solo si no hay un campo en uso.
+        if (!Ed.campoActivo()) renderTareoFormulario(tareo);
+    }
 }
 
 
@@ -5388,19 +5611,25 @@ function actualizarAsistenciaTareo(
         const anterior =
             tareoEstadoCanonico(persona.asistencia);
 
+        // Marcar ASISTIÓ de nuevo (mismo estado) no cambia nada: ni reinicia horas ni reemplaza autor y fecha.
+        if (estado === anterior) return;
+
         persona.asistencia = estado;
 
-        persona.registradoEn =
+        const registradoEnNuevo =
             estado
                 ? new Date().toISOString()
                 : '';
 
-        persona.registradoPor =
+        const registradoPorNuevo =
             estado
                 ? ((state.user && state.user.username) || '')
                 : '';
 
         if (estado === 'Asistió') {
+
+            persona.registradoEn = registradoEnNuevo;
+            persona.registradoPor = registradoPorNuevo;
 
             if (anterior !== 'Asistió') {
 
@@ -5467,6 +5696,10 @@ function actualizarAsistenciaTareo(
                 return;
             }
         }
+
+        // Confirmado: recién ahora se registra quién y cuándo (cancelar no deja cambios parciales).
+        persona.registradoEn = registradoEnNuevo;
+        persona.registradoPor = registradoPorNuevo;
 
         persona.horaIngreso = '';
         persona.horaIngresoAuto = false;
@@ -5598,7 +5831,9 @@ function actualizarHoraSalidaTareo(
 
 function tareoSalidaAhora(clave) {
     const tareo = tareoObtenerActual();
-    const persona = tareo?.personal?.find(item => tareoClavePersona(item) === String(clave));
+    const persona = window.TareoEd
+        ? window.TareoEd.resolver(tareo, clave).persona
+        : tareo?.personal?.find(item => tareoClavePersona(item) === String(clave));
     if (persona?.salidaRefrigerio && !persona?.retornoRefrigerio) {
         if (!confirm('No se registró el retorno de refrigerio. ¿Registrar SALIDA de todas formas?')) return;
     }

@@ -829,10 +829,12 @@ function initRealtimeSync(){
 
       snap => {
 
+        // Lo recibido se reconcilia con las ediciones propias todavía no confirmadas (45-tareo-edicion-continua.js):
+        // reemplazar el caché a ciegas revertía marcaciones recién hechas y hacía que el formulario se reiniciara.
         _tareosCache =
           (snap.exists && snap.data().items)
-            ? snap.data().items
-            : [];
+            ? (window.TareoEd ? window.TareoEd.reconciliar(snap.data().items) : snap.data().items)
+            : (window.TareoEd ? window.TareoEd.reconciliar([]) : []);
 
         _tareosReady = true;
 
