@@ -103,7 +103,29 @@
     return '<section class="id-card"><header><h4>Permisos de impacto económico</h4></header>' +
       '<p style="font-size:13px">Marca quién puede ver el impacto en soles y quién puede gestionar los valores unitarios. Gestionar implica ver. Administrador solo recibe acceso aquí (habilitación temporal, revocable).</p>' +
       '<div style="overflow:auto"><table class="id-tabla"><thead><tr><th>Usuario</th><th>Rol</th><th>Ver</th><th>Gestionar valores</th></tr></thead><tbody>' + (filas || '<tr><td colspan="4">Sin usuarios elegibles.</td></tr>') + '</tbody></table></div>' +
+      agregarHtml() +
       '<p><button type="button" class="id-btn p" data-id-guardar-permisos>Guardar permisos</button></p></section>';
+  }
+  /* Agregar usuario: lista las cuentas que aún no aparecen (rol no elegible). Si el rol no sirve, se explica qué cambiar. */
+  function agregarHtml(){
+    const otros = loadUsers().filter(u => !P().elegibleVer(String(u.rol || '').trim()));
+    const opc = otros.map(u => '<option value="' + esc(u.username) + '">' + esc(u.nombre || u.username) + ' · ' + esc(u.rol || 'sin rol') + '</option>').join('');
+    return '<div style="margin:12px 0;padding:10px;border:1px dashed #b9c9d8;border-radius:8px"><b style="font-size:13px">Agregar usuario</b>' +
+      '<p style="font-size:12px;margin:4px 0;color:#5a6b78">Solo Gerencia, Jefe de Producción, Jefe de Operaciones, Jefatura y Administrador pueden recibir este permiso. Si la persona aún no tiene uno de esos roles, cámbiale el rol o crea su usuario.</p>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><select id="eco-agregar-sel" style="padding:8px;min-width:220px"><option value="">Elegir usuario existente…</option>' + opc + '</select>' +
+      '<button type="button" class="id-btn" onclick="glacialEcoUsuarios.agregar()">Agregar</button>' +
+      '<button type="button" class="id-btn" onclick="glacialEcoUsuarios.crearUsuario()">Crear usuario nuevo</button></div></div>';
+  }
+  function agregar(){
+    const u = document.getElementById('eco-agregar-sel')?.value;
+    if(!u){ alert('Elige un usuario de la lista.'); return; }
+    const x = loadUsers().find(v => String(v.username) === u);
+    alert('«' + (x && (x.nombre || x.username)) + '» tiene el rol «' + (x && x.rol || 'sin rol') + '», que no puede recibir permisos de impacto económico.\n\nCámbiale el rol a Jefe de Operaciones, Jefe de Producción, Jefatura o Gerencia en Gestionar usuarios; después aparecerá en esta lista.');
+    if(typeof openUsersModal === 'function') openUsersModal();
+  }
+  function crearUsuario(){
+    if(typeof openUsersModal === 'function') openUsersModal();
+    else alert('Abre Gestionar usuarios para crear el usuario (rol Jefe de Operaciones, Jefe de Producción, Jefatura o Gerencia).');
   }
   function guardarPanel(cont){
     const filas = Array.from((cont || document).querySelectorAll('tr[data-eco-user]'));
@@ -116,5 +138,5 @@
     alert(n ? 'Permisos actualizados (' + n + ').' : 'Sin cambios.');
   }
 
-  window.glacialEcoUsuarios = {aplicarCambio, guardarLista, seccionHtml, guardarModal, panelHtml, guardar: guardarPanel};
+  window.glacialEcoUsuarios = {aplicarCambio, guardarLista, seccionHtml, guardarModal, panelHtml, guardar: guardarPanel, agregar, crearUsuario};
 })();
