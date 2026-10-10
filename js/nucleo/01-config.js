@@ -211,9 +211,16 @@ console.info(
 
 const auth = (typeof firebase.auth === 'function') ? firebase.auth() : null;
 
-if (auth) {
-  auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(() => {});
-}
+/* Persistencia de la sesión de Firebase: SESSION = sobrevive a la recarga de ESTA pestaña y se pierde al cerrarla (política
+   vigente; no se cambia a LOCAL). Se espera la promesa antes de iniciar sesión (36-seguridad-auth.js) y un fallo NO se silencia:
+   queda en consola y en window.__authPersistenciaError (el login avisa que la sesión no se recordará al recargar). */
+window.__authPersistenciaError = null;
+window.__authPersistenciaLista = auth
+  ? auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(err => {
+      window.__authPersistenciaError = err || new Error('persistencia no disponible');
+      console.error('GLACIAL · no se pudo fijar la persistencia de sesión (SESSION):', err && (err.code || err.message) || err);
+    })
+  : Promise.resolve();
 
 const LINES = [
   { key:'PET1', name:'PET 1', ratioDefault:1920 },
@@ -730,7 +737,7 @@ const MERMA_DIVISORES_POR_LINEA = {
       6.6,
 
     'Etiqueta':
-      0.0028,
+      2.9,
 
     'Polietileno 48cm':
       { divisor: 28, sinMultiplicarPor1000: true, decimales: 2 }
@@ -749,7 +756,7 @@ const MERMA_DIVISORES_POR_LINEA = {
      (dato original, NUNCA se sobrescribe) y el peso calculado
      (mermas[].peso, kg) = pesoIngresadoKg × factor. No tiene UND.
    mermas[].peso es siempre el peso CALCULADO que consumen las vistas.
-*/
+*/  
 const MERMA_CONVERSION_FISICA_POR_LINEA = {
   C20L: {
     'Cajas':               { entrada: 'unidades', factor: 0.56   },

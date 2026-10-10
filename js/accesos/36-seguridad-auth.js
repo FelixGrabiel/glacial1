@@ -112,8 +112,9 @@
     try{
       const doc=await db.collection('sync').doc('accesos').get();
       const mapa=doc.exists?(doc.data().map||{}):{};
-      const email=mapa[String(username||'').trim().toLowerCase()];
+            const email=mapa[String(username||'').trim().toLowerCase()];
       if(!email)return {ok:false};
+      await (window.__authPersistenciaLista||Promise.resolve());   // la persistencia debe quedar fijada antes de crear la sesión
       await auth.signInWithEmailAndPassword(email,pass);
       window.iniciarSincronizacionSegura();
       await window.esperarUsuariosListos();

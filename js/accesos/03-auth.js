@@ -268,13 +268,12 @@ function handleLogout(){
     return;
   }
 
+    // Una recuperación de sesión en curso se cancela: su respuesta tardía no debe volver a ingresar al usuario.
+  _recuperacionSesion.n++;
+
   // Primero se cierran las escuchas (si no, Firestore las corta con «permiso denegado» al salir).
   if(typeof glacialCerrarEscuchasDeSesion === 'function') glacialCerrarEscuchasDeSesion();
-  sessionStorage.removeItem(DB_SESSION);
-
-  try{
-    if(typeof auth !== 'undefined' && auth) auth.signOut();
-  }catch(_){/* la sesión local ya se cerró */}
+  try{ sessionStorage.removeItem(DB_SESSION); }catch(_){ /* sin acceso */ }
 
   state.user = null;
 
@@ -282,11 +281,22 @@ function handleLogout(){
 
   document.getElementById('report-select-screen').style.display = 'none';
 
-  document.getElementById('login-screen').style.display = 'flex';
-
   document.getElementById('login-user').value = '';
 
   document.getElementById('login-pass').value = '';
+
+  // Se espera el cierre de Firebase (con tope): si se recarga justo después, la sesión ya no existe.
+  sesionUI('cargando', 'Cerrando sesión…');
+
+  const cierre = cerrarSesionFirebaseControlado();
+
+  return cierre.then(() => {
+
+    sesionUI('oculto');
+
+    document.getElementById('login-screen').style.display = 'flex';
+
+  });
 
 }
 
@@ -351,83 +361,383 @@ function goReportSelect(){
 
 
 /* =========================================================
-   RECUPERAR SESIÓN
-   ========================================================= */
+   RECUPERAR SESIÓN (al abrir o recargar la página)
+   =========================================================
+   La IDENTIDAD la decide Firebase Auth (onAuthStateChanged de la instancia principal); rdp_session_v1 (DB_SESSION) es solo
+   contexto AUXILIAR de esta pestaña y nunca prueba que alguien esté autenticado.
+   Estados distintos y visibles:
+     · cargando  → «Recuperando sesión…» (el login NO se muestra como resultado mientras Auth o el perfil cargan)
+     · error     → falla de conexión / perfil que no llegó: mensaje + «Reintentar» (NUNCA se convierte en cierre de sesión)
+     · ausente   → Firebase confirma que no hay sesión: login
+     · denegado  → hay sesión pero el perfil no existe/ no autoriza: acceso bloqueado y login con el mensaje
+   La recarga, el unload y el beforeunload NO cierran la sesión ni borran nada. Un cierre explícito (handleLogout) cancela cualquier
+   recuperación en curso para que una respuesta tardía no vuelva a ingresar al usuario. */
 
-function tryResumeSession(){
+const SESION_ESPERA_AUTH_MS = 15000;     // máximo para que Auth informe su estado inicial
+const SESION_ESPERA_PERFIL_MS = 20000;   // máximo para que lleguen los usuarios (perfil) después de iniciar la sincronización
+const _recuperacionSesion = { n: 0 };    // identificador de la recuperación vigente; handleLogout lo invalida
 
-  const s = JSON.parse(
+/* Contexto local auxiliar: JSON inválido o inexistente = null (se ignora, no se bloquea nada). */
+function leerContextoSesion(){
 
-    sessionStorage.getItem(DB_SESSION) || 'null'
+  try{
 
-  );
+    const raw = sessionStorage.getItem(DB_SESSION);
 
+    if(!raw) return null;
 
-  /*
-     Sesión de una cuenta segura: solo se reanuda si Firebase
-     Authentication también conserva la sesión; si no, vuelve al login.
-  */
-  if(
-    s && s.authUid &&
-    typeof auth !== 'undefined' && auth &&
-    !s.__verificadoAuth
-  ){
+    const s = JSON.parse(raw);
 
-    const desuscribir = auth.onAuthStateChanged(async usuarioAuth => {
+    return (s && typeof s === 'object' && !Array.isArray(s)) ? s : null;
 
-      desuscribir();
+  }catch(e){
 
-      if(usuarioAuth && usuarioAuth.uid === s.authUid){
+    console.warn('GLACIAL · el contexto local de sesión no es válido; se ignora.');
 
-        // Reglas estrictas: arrancar la sincronización ahora que hay sesión.
-        if(
-          typeof REGLAS_ESTRICTAS !== 'undefined' && REGLAS_ESTRICTAS &&
-          typeof iniciarSincronizacionSegura === 'function'
-        ){
-          iniciarSincronizacionSegura();
-          await esperarUsuariosListos();
-        }
+    try{ sessionStorage.removeItem(DB_SESSION); }catch(_){ /* sin acceso al almacenamiento */ }
 
-        tryResumeSessionVerificada(s);
+    return null;
 
-      }else{
+  }
 
-        sessionStorage.removeItem(DB_SESSION);
+}
 
-      }
+/* Pantalla de recuperación: 'cargando' | 'error' | 'oculto'. En 'cargando' y 'error' el login queda oculto. */
+function sesionUI(estado, mensaje, opciones){
 
-    });
+  const ov = document.getElementById('sesion-recuperando');
+
+  const login = document.getElementById('login-screen');
+
+  if(!ov) return;
+
+  if(estado === 'oculto'){
+
+    ov.style.display = 'none';
 
     return;
 
   }
 
-  tryResumeSessionVerificada(s);
+  if(login) login.style.display = 'none';
+
+  ov.style.display = 'flex';
+
+  const texto = ov.querySelector('[data-sesion-texto]');
+
+  if(texto) texto.textContent = mensaje || 'Recuperando sesión…';
+
+  const spinner = ov.querySelector('[data-sesion-spinner]');
+
+  if(spinner) spinner.style.display = (estado === 'cargando') ? 'block' : 'none';
+
+  const acciones = ov.querySelector('[data-sesion-acciones]');
+
+  if(acciones) acciones.style.display = (estado === 'error') ? 'flex' : 'none';
 
 }
 
+function mostrarLoginRecuperacion(mensaje){
+
+  sesionUI('oculto');
+
+  const login = document.getElementById('login-screen');
+
+  if(login) login.style.display = 'flex';
+
+  const errBox = document.getElementById('login-error');
+
+  if(errBox){
+
+    if(mensaje){
+
+      errBox.textContent = mensaje;
+
+      errBox.style.display = 'block';
+
+    }else if(window.__authPersistenciaError){
+
+      errBox.textContent = 'Tu navegador no permite recordar la sesión al recargar la página.';
+
+      errBox.style.display = 'block';
+
+    }
+
+  }
+
+}
+
+/* Espera el primer estado de Auth (después de inicializar). Devuelve {usuario} | {error}. */
+function esperarEstadoAuth(){
+
+  return new Promise(resolve => {
+
+    let hecho = false;
+
+    let desuscribir = null;
+
+    const fin = r => {
+
+      if(hecho) return;
+
+      hecho = true;
+
+      try{ if(typeof desuscribir === 'function') desuscribir(); }catch(_){ /* ya cerrada */ }
+
+      clearTimeout(reloj);
+
+      resolve(r);
+
+    };
+
+    const reloj = setTimeout(() => fin({ error: new Error('tiempo agotado esperando a Firebase Auth') }), SESION_ESPERA_AUTH_MS);
+
+    try{
+
+      desuscribir = auth.onAuthStateChanged(
+
+        usuario => fin({ usuario: usuario || null }),
+
+        error => fin({ error })
+
+      );
+
+    }catch(error){
+
+      fin({ error });
+
+    }
+
+  });
+
+}
+
+/* Botón «Reintentar» de la pantalla de recuperación (reinicia las escuchas para no dejar una sincronización a medias). */
+function reintentarRecuperarSesion(){
+
+  tryResumeSession(true);
+
+}
+
+/* «Volver a iniciar sesión» (decisión explícita del usuario): cierra la sesión de Firebase y muestra el login. */
+async function cancelarRecuperarSesion(){
+
+  _recuperacionSesion.n++;
+
+  await cerrarSesionFirebaseControlado();
+
+  try{ sessionStorage.removeItem(DB_SESSION); }catch(_){ /* sin acceso */ }
+
+  mostrarLoginRecuperacion();
+
+}
+
+function tryResumeSession(reintento){
+
+  window.__sesionIniciada = true;
+
+  const id = ++_recuperacionSesion.n;
+
+  const contexto = leerContextoSesion();
+
+  /* Sin Firebase Auth disponible: se conserva el comportamiento anterior (contexto local). */
+  if(typeof auth === 'undefined' || !auth){
+
+    if(contexto) tryResumeSessionVerificada(contexto);
+
+    else mostrarLoginRecuperacion();
+
+    return;
+
+  }
+
+  sesionUI('cargando', 'Recuperando sesión…');
+
+  if(reintento && typeof detenerSincronizacion === 'function'){
+
+    detenerSincronizacion();   // cierra escuchas y permite iniciarlas de nuevo (sin duplicarlas)
+
+  }
+
+  (async () => {
+
+    const estado = await esperarEstadoAuth();
+
+    if(id !== _recuperacionSesion.n) return;   // cancelada (cierre de sesión u otra recuperación)
+
+    if(estado.error){
+
+      console.warn('GLACIAL · no se pudo comprobar la sesión:', estado.error && (estado.error.code || estado.error.message) || estado.error);
+
+      sesionUI('error', 'No se pudo comprobar tu sesión. Revisa tu conexión e inténtalo de nuevo.');
+
+      return;
+
+    }
+
+    if(!estado.usuario){
+
+      /* Firebase confirma que NO hay sesión: el contexto local queda sin valor. */
+      try{ sessionStorage.removeItem(DB_SESSION); }catch(_){ /* sin acceso */ }
+
+      mostrarLoginRecuperacion();
+
+      return;
+
+    }
+
+    await recuperarPerfilDeSesion(estado.usuario, contexto, id);
+
+  })().catch(error => {
+
+    console.error('GLACIAL · error al recuperar la sesión:', error);
+
+    if(id === _recuperacionSesion.n){
+
+      sesionUI('error', 'Ocurrió un problema al recuperar tu sesión. Inténtalo de nuevo.');
+
+    }
+
+  });
+
+}
+
+/* Con la identidad confirmada por Firebase: sincronización → perfil por UID → state.user sin credenciales → entrada normal. */
+async function recuperarPerfilDeSesion(usuarioAuth, contexto, id){
+
+  const estricto =
+    typeof REGLAS_ESTRICTAS !== 'undefined' && REGLAS_ESTRICTAS &&
+    typeof iniciarSincronizacionSegura === 'function';
+
+  if(estricto) iniciarSincronizacionSegura();   // idempotente: no duplica escuchas
+
+  /* Espera REAL de los usuarios y se comprueba su resultado. */
+  const listo = (typeof esperarUsuariosListos === 'function')
+    ? (await esperarUsuariosListos(SESION_ESPERA_PERFIL_MS)) === true
+    : true;
+
+  if(id !== _recuperacionSesion.n) return;
+
+  if(!listo){
+
+    sesionUI('error', 'No se pudo cargar tu perfil. Revisa tu conexión e inténtalo de nuevo.');
+
+    return;
+
+  }
+
+  const perfil = (typeof loadUsers === 'function' ? loadUsers() : [])
+    .find(u => u && u.authUid && u.authUid === usuarioAuth.uid);
+
+  if(!perfil){
+
+    /* Sesión de Firebase sin perfil autorizado: no se inventa uno ni se usan permisos antiguos. */
+    console.warn('GLACIAL · la sesión de Firebase no corresponde a ningún perfil de usuario.');
+
+    await cerrarSesionFirebaseControlado();
+
+    if(id !== _recuperacionSesion.n) return;
+
+    try{ sessionStorage.removeItem(DB_SESSION); }catch(_){ /* sin acceso */ }
+
+    mostrarLoginRecuperacion('Tu cuenta no tiene acceso a esta aplicación.');
+
+    return;
+
+  }
+
+  /* El contexto local de OTRA cuenta no se restaura (ni su identidad ni sus permisos). */
+  if(contexto && contexto.authUid !== usuarioAuth.uid){
+
+    try{ sessionStorage.removeItem(DB_SESSION); }catch(_){ /* sin acceso */ }
+
+  }
+
+  /* Contraseña temporal: la restauración no se la salta. */
+  if(
+    typeof debeCambiarClaveSegura === 'function' &&
+    debeCambiarClaveSegura()
+  ){
+
+    sesionUI('oculto');
+
+    const cambio = await forzarCambioClave();
+
+    if(id !== _recuperacionSesion.n) return;
+
+    if(!cambio){
+
+      await cerrarSesionFirebaseControlado();
+
+      mostrarLoginRecuperacion('Debes crear una contraseña nueva para entrar.');
+
+      return;
+
+    }
+
+  }
+
+  state.user = usuarioSinCredenciales(perfil);
+
+  if(typeof aplicarContextoRotacionSupervisor === 'function'){
+    aplicarContextoRotacionSupervisor(false);
+  }
+
+  if(state.user.rol === 'Supervisor' && state.user.linea){
+    state.currentLine = state.user.linea;
+  }
+
+  try{
+    sessionStorage.setItem(DB_SESSION, JSON.stringify(state.user));   // contexto auxiliar, sin credenciales ni tokens
+  }catch(_){ /* sin acceso al almacenamiento: no es crítico */ }
+
+  sesionUI('oculto');
+
+  enterApp();
+
+}
+
+/* Compatibilidad: arranque con un usuario local ya verificado (solo sin Firebase Auth). */
 function tryResumeSessionVerificada(s){
 
   if(s){
 
     state.user = s;
 
-    if(typeof aplicarContextoRotacionSupervisor==='function'){
+    if(typeof aplicarContextoRotacionSupervisor === 'function'){
       aplicarContextoRotacionSupervisor(false);
     }
 
-
-    if(
-      s.rol === 'Supervisor' &&
-      s.linea
-    ){
-
+    if(s.rol === 'Supervisor' && s.linea){
       state.currentLine = s.linea;
-
     }
 
+    sesionUI('oculto');
 
     enterApp();
+
+  }
+
+}
+
+/* Cierra la sesión de Firebase esperando su resultado, con tope de tiempo (no se queda colgado sin red). */
+async function cerrarSesionFirebaseControlado(){
+
+  if(typeof auth === 'undefined' || !auth) return;
+
+  try{
+
+    await Promise.race([
+
+      auth.signOut(),
+
+      new Promise(resolve => setTimeout(resolve, 4000))
+
+    ]);
+
+  }catch(e){
+
+    console.warn('GLACIAL · cierre de sesión de Firebase:', e && (e.code || e.message) || e);
 
   }
 

@@ -2482,6 +2482,22 @@
         LOGIN
     ====================================================== -->
 
+    <div id="sesion-recuperando" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:100000;background:#0B2849;color:#fff;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:24px;text-align:center;font-family:'IBM Plex Sans',system-ui,sans-serif">
+        <div data-sesion-spinner style="width:34px;height:34px;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sesion-giro .9s linear infinite"></div>
+        <div data-sesion-texto style="font-size:17px;font-weight:600">Recuperando sesión…</div>
+        <div data-sesion-acciones style="display:none;gap:10px;flex-wrap:wrap;justify-content:center">
+            <button type="button" onclick="reintentarRecuperarSesion()" style="min-height:46px;padding:0 20px;border:0;border-radius:10px;background:#fff;color:#003B5C;font-weight:700;font-size:15px;cursor:pointer">Reintentar</button>
+            <button type="button" onclick="cancelarRecuperarSesion()" style="min-height:46px;padding:0 20px;border:1px solid rgba(255,255,255,.6);border-radius:10px;background:transparent;color:#fff;font-weight:600;font-size:15px;cursor:pointer">Volver a iniciar sesión</button>
+        </div>
+    </div>
+    <style>@keyframes sesion-giro{to{transform:rotate(360deg)}}</style>
+    <script>
+    /* Si esta pestaña pudo tener una sesión (solo se miran los NOMBRES de las claves, nunca su contenido), se muestra «Recuperando
+       sesión…» desde el primer instante: el login no parpadea mientras cargan Firebase y los scripts. */
+    (function(){try{var h=false;for(var i=0;i<sessionStorage.length;i++){var k=sessionStorage.key(i);if(k&&(k==='rdp_session_v1'||k.indexOf('firebase:authUser:')===0)){h=true;break;}}
+      if(h){var ov=document.getElementById('sesion-recuperando');if(ov)ov.style.display='flex';
+        setTimeout(function(){if(!window.__sesionIniciada){var t=ov&&ov.querySelector('[data-sesion-texto]');if(t)t.textContent='No se pudo cargar la aplicación. Recarga la página (Ctrl+F5).';var sp=ov&&ov.querySelector('[data-sesion-spinner]');if(sp)sp.style.display='none';}},30000);}}catch(e){}})();
+    </script>
     <div id="login-screen">
 
         <div class="login-card">
@@ -3291,12 +3307,12 @@
         MÓDULOS PRINCIPALES
     ====================================================== -->
 
-    <script src="js/nucleo/01-config.js?v=20261008-mer1"></script>
+    <script src="js/nucleo/01-config.js?v=20261009-ses1"></script>
     <script src="js/nucleo/45-indicadores.js?v=20261009-nom1"></script>
 
     <script src="js/nucleo/02-estado.js?v=20261008-dp1"></script>
 
-    <script src="js/accesos/03-auth.js?v=20261004-b1"></script>
+    <script src="js/accesos/03-auth.js?v=20261009-ses1"></script>
 
     <script src="js/nucleo/04-sidebar.js?v=20261005-plan1"></script>
 
@@ -3344,7 +3360,7 @@
     <script src="js/accesos/32-dashboard-perfiles.js?v=20261009-nom1"></script>
     <script src="js/produccion/35-autollenado-registro.js?v=20261005-sem1"></script>
     <script src="js/nucleo/34-integraciones.js?v=20261004-a1"></script>
-    <script src="js/accesos/36-seguridad-auth.js?v=20261004-b1"></script>
+    <script src="js/accesos/36-seguridad-auth.js?v=20261009-ses1"></script>
     <script src="js/mantenimiento/37-mantenimiento-tecnicos.js?v=20261004-faseC"></script>
     <script src="js/mantenimiento/37b-mantenimiento-identificacion.js?v=20261004-pestanas"></script>
     <script src="js/rrhh/38-tareo-rrhh-exportacion.js?v=20261004-a1b"></script>
