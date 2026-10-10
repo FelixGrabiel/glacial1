@@ -67,10 +67,11 @@
   function nombreLinea(k){
     try{const l=(typeof LINES!=='undefined'?LINES:[]).find(x=>x.key===k);return l?l.name:k;}catch(_){return k;}
   }
-  const puede=()=>typeof window.puedeVerBitacoraMtto==='function'&&window.puedeVerBitacoraMtto();
+  const puede=()=>window.glacialVista&&window.glacialVista.activo()?window.glacialVista.puedeModulo('analisis_paradas'):(typeof window.puedeVerBitacoraMtto==='function'&&window.puedeVerBitacoraMtto());
   function puedeConfigurar(){
     const u=typeof state!=='undefined'?state.user:null;
     if(!u)return false;
+    if(window.glacialVista&&window.glacialVista.activo())return false;
     const rol=String(u.rol||'').trim();
     return rol==='Administrador'||JEFATURA.includes(rol)||(typeof tienePermiso==='function'&&tienePermiso('configurar_umbrales'));
   }

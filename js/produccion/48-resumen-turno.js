@@ -40,7 +40,7 @@
   const etiquetaTurno=t=>t==='NOCHE'?'NOCHE':'DÍA';
   const idResumen=(fecha,turno)=>fecha+'_'+canon(turno);
   const chip=()=>window.glacialEstadoDatos?window.glacialEstadoDatos.chip():'';
-  const puedeVer=()=>typeof window.puedeVerBitacoraMtto==='function'&&window.puedeVerBitacoraMtto();
+  const puedeVer=()=>window.glacialVista&&window.glacialVista.activo()?window.glacialVista.puedeModulo('resumenes_turno'):(typeof window.puedeVerBitacoraMtto==='function'&&window.puedeVerBitacoraMtto());
   function puedeGenerar(){
     const u=typeof state!=='undefined'?state.user:null;
     if(!u)return false;

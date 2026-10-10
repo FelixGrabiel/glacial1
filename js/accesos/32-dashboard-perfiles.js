@@ -869,10 +869,9 @@ function cpEjecutivoHTML(){
     : `<div class="cp-ex-ok">${cpIcon('info')} Operación sin alertas críticas.</div>`;
   const btn=cpPuede('produccionActual')?`<button class="cp-btn cp-btn-primary" type="button" onclick="goProduccionActual()">VER PRODUCCIÓN ACTUAL →</button>`:'';
 
-  return `<div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2><p>Vista general del turno en planta</p></div>
-      <div class="cp-ex-meta"><div><b>${cpFechaBonita(d.fecha)}</b><small>Actualizado ${cpEsc(hora)}</small></div>
-        <div class="cp-ex-turno"><b>TURNO ${cpEsc(GlacialIndicadores.nombreBloque(d.turno,'pantalla'))}</b><small>${cpEsc(CP_HORARIO_TURNO[d.turno]||'')}</small></div></div></div>
-    <div class="cp-ex-kpis">
+  // Orden de Inicio: indicadores, producción por línea, alertas y, al final, el RESUMEN DE PRODUCCIÓN. Las tarjetas «Paradas de hoy»,
+  // «Proyección del turno» y «Disponibilidad de hoy» (43, 46 y 47) se insertan justo después de .cp-title-row, por eso siguen dentro de este bloque.
+  return `<div class="cp-ex-kpis">
       <div class="cp-ex-kpi"><span>Avance general del turno</span><b>${cpAvanceTxt(d)}</b>${barra(d.avance,'EN_CURSO')}<small>Cumplimiento de la programación</small></div>
       <div class="cp-ex-kpi"><span>Líneas en producción</span><b>${d.enCurso} / ${n}</b><small>líneas activas en este momento</small></div>
       <div class="cp-ex-kpi ${d.detenidas?'cp-ex-kpi-alert':''}"><span>Líneas detenidas</span><b>${d.detenidas}</b><small>${d.detenidas?'con parada actual':'sin paradas'}</small></div>
@@ -885,9 +884,13 @@ function cpEjecutivoHTML(){
     ${n?`<section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('clipboard')}<div><h3>Estado de líneas</h3><p>Resumen compacto del turno.</p></div></div></div>
       <div class="cp-table-wrap"><table class="cp-table cp-ex-table"><thead><tr><th>Línea</th><th>Producto actual</th><th>Producción / Programado</th><th>Avance</th><th>Estado</th><th>Último registro</th></tr></thead><tbody>${filas}</tbody></table></div></section>`:''}
     <section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('info')}<div><h3>Alertas importantes</h3><p>Solo situaciones que requieren atención.</p></div></div></div>
-      <div class="cp-ex-alerts">${alertas}</div></section>`;
+      <div class="cp-ex-alerts">${alertas}</div></section>
+    <section class="cp-resumen-prod" aria-label="Resumen de producción"><div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2><p>Vista general del turno en planta</p></div>
+      <div class="cp-ex-meta"><div><b>${cpFechaBonita(d.fecha)}</b><small>Actualizado ${cpEsc(hora)}</small></div>
+        <div class="cp-ex-turno"><b>TURNO ${cpEsc(GlacialIndicadores.nombreBloque(d.turno,'pantalla'))}</b><small>${cpEsc(CP_HORARIO_TURNO[d.turno]||'')}</small></div></div></div></section>`;
 }
 function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
+.cp-resumen-prod{margin-top:16px;padding:14px 16px 12px;background:#fff;border:1px solid var(--cp-line);border-radius:14px;box-shadow:0 3px 12px rgba(17,57,91,.055)}.cp-resumen-prod .cp-title-row{margin-bottom:10px}
 .cp-ex-meta{display:flex;align-items:center;gap:16px}.cp-ex-meta b{display:block;color:#10265f;font-size:14px}.cp-ex-meta small{color:var(--cp-muted);font-size:11px}
 .cp-ex-turno{background:linear-gradient(135deg,#0a3a7a,#0868db);border-radius:10px;padding:8px 18px}.cp-ex-turno b,.cp-ex-turno small{color:#fff}
 .cp-ex-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}

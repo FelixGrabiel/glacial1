@@ -180,6 +180,8 @@
       if(!u||!u.authUid)return;
       mapa[u.authUid]={username:u.username,rol:String(u.rol||''),
         permisos:u.permisos==='todos'?'todos':(Array.isArray(u.permisos)?u.permisos:[])};
+      // Modo visualización general: las reglas de Firestore bloquean TODA escritura de esta cuenta (soloVista).
+      if(window.glacialVista&&window.glacialVista.activoDe(u))mapa[u.authUid].soloVista=true;
     });
     // Usuario (minúsculas) → correo interno: lo usa el login en modo estricto.
     const accesos={};

@@ -52,6 +52,12 @@
   }
   window.puedeGestionarRotacionMtto = puedeGestionarRotacionMtto;
 
+  /* Modo visualización general: puede CONSULTAR la rotación (módulo «Rotación de trabajadores») sin modificarla. */
+  function mttoSoloVer(){
+    return !!(window.glacialVista && window.glacialVista.activo() && window.glacialVista.puedeModulo('rotacion_trabajadores'));
+  }
+  window.mttoRotacionSoloVer = mttoSoloVer;
+
   function mttoFechaISO(fecha){
     const y = fecha.getFullYear();
     const m = String(fecha.getMonth()+1).padStart(2,'0');
@@ -233,7 +239,7 @@
       }),
       catalogo: Object.keys(TURNOS_MTTO).map(t => ({valor:t, etq:t.toUpperCase(), clase:clases[t] || 'otro', horas:true,
         base:{inicio:TURNOS_MTTO[t].ingreso, fin:TURNOS_MTTO[t].salida}})),
-      bloqueado:false, aplicar:'mttoAplicarAsignacionGrid', rerender:'mttoRerenderGrid'
+      bloqueado:!puedeGestionarRotacionMtto(), mensajeBloqueo:'Modo visualización: solo consulta.', aplicar:'mttoAplicarAsignacionGrid', rerender:'mttoRerenderGrid'
     };
   }
 
@@ -472,7 +478,7 @@
     const main = document.getElementById('main');
     if(!main) return;
 
-    if(!puedeGestionarRotacionMtto()){
+    if(!puedeGestionarRotacionMtto() && !mttoSoloVer()){
       main.innerHTML = `
         <div class="empty-state">
           <h4>Acceso restringido</h4>
@@ -487,6 +493,7 @@
     const tecnicos = mttoTecnicosActivos();
     const guardada = mttoRotacionSemana(semanaMttoSeleccionada);
     const fin = mttoFinSemana(semanaMttoSeleccionada);
+    const soloVer = !puedeGestionarRotacionMtto();
 
     main.innerHTML = `
       <div class="main-head" id="mtto-rotacion-semanal-view">
@@ -503,7 +510,7 @@
         <div class="panel-head">
           <div>
             <h3>Semana ${formatearFecha(semanaMttoSeleccionada)} — ${formatearFecha(fin)}</h3>
-            <span class="small-muted">${guardada ? 'Rotación guardada · puedes actualizarla' : 'Rotación pendiente de guardar'}${mttoSucio ? ' · <strong>cambios sin guardar</strong>' : ''}</span>
+            <span class="small-muted">${guardada ? (soloVer ? 'Rotación guardada' : 'Rotación guardada · puedes actualizarla') : (soloVer ? 'Rotación aún no registrada' : 'Rotación pendiente de guardar')}${mttoSucio ? ' · <strong>cambios sin guardar</strong>' : ''}</span>
           </div>
           <div class="actions-row" style="margin:0;">
             <button class="btn btn-ghost btn-sm" onclick="mttoMoverSemana(-7)">← Semana anterior</button>
@@ -514,7 +521,7 @@
 
         <div class="panel-body">
           ${tecnicos.length ? `
-            <div class="actions-row" style="justify-content:flex-end;margin:0 0 14px 0;gap:8px;flex-wrap:wrap;">
+            ${soloVer ? '' : `<div class="actions-row" style="justify-content:flex-end;margin:0 0 14px 0;gap:8px;flex-wrap:wrap;">
               <input
                 id="mtto-excel-input"
                 type="file"
@@ -528,13 +535,13 @@
             </div>
             <div class="small-muted" style="margin-bottom:12px;">
               Excel: DNI | Técnico | Turno | Hora ingreso | Hora salida | Horario. Selecciona la celda de un técnico para cambiar su turno y horario; luego pulsa «Guardar rotación semanal».
-            </div>
+            </div>`}
 
             ${window.glacialRotGrid ? window.glacialRotGrid.html(mttoConfigCuadro(tecnicos)) : '<div class="empty-state"><p>No se cargó el cuadro de rotación.</p></div>'}
 
-            <div class="actions-row" style="justify-content:flex-end;margin-top:16px;">
+            ${soloVer ? '' : `<div class="actions-row" style="justify-content:flex-end;margin-top:16px;">
               <button class="btn btn-primary" onclick="guardarRotacionSemanalMantenimiento()">💾 Guardar rotación semanal</button>
-            </div>
+            </div>`}
           ` : `
             <div class="empty-state">
               <h4>No hay técnicos activos</h4>
@@ -546,12 +553,25 @@
   }
   window.renderRotacionSemanalMantenimiento = renderRotacionSemanalMantenimiento;
 
+  /* Modo visualización: quien solo tiene «Rotación de trabajadores» entra directo a la rotación (sin el tareo de Mantenimiento). */
+  if(typeof renderMantenimientoModulo === 'function'){
+    const moduloAnterior = renderMantenimientoModulo;
+    renderMantenimientoModulo = function(){
+      const v = window.glacialVista;
+      if(v && v.activo() && !v.puedeModulo('tareo_mantenimiento') && v.puedeModulo('rotacion_trabajadores')){
+        return renderRotacionSemanalMantenimiento();
+      }
+      return moduloAnterior.apply(this, arguments);
+    };
+    window.renderMantenimientoModulo = renderMantenimientoModulo;
+  }
+
   /* Agrega la pestaña SOLO al Supervisor/Jefe de Mantenimiento. */
   if(typeof tareoRenderTabs === 'function'){
     const tabsAnterior = tareoRenderTabs;
     tareoRenderTabs = function(activa){
       let html = tabsAnterior(activa);
-      if(!puedeGestionarRotacionMtto() || !tareoPestanaEnModulo('rotacionMtto')) return html;
+      if((!puedeGestionarRotacionMtto() && !mttoSoloVer()) || !tareoPestanaEnModulo('rotacionMtto')) return html;
 
       const boton = `
         <button

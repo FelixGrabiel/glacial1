@@ -51,6 +51,8 @@
     return typeof puedeGestionarRotacionMtto==='function'&&puedeGestionarRotacionMtto();
   }
   window.puedeGestionarRotacionMaquinistas=puedeGestionarRotacionMaquinistas;
+  // Modo visualización general (módulo «Rotación de trabajadores»): consulta sin modificar.
+  const soloVer=()=>!!(window.glacialVista&&window.glacialVista.activo()&&window.glacialVista.puedeModulo('rotacion_trabajadores'));
 
   /* ---------- datos ---------- */
   const todas=()=>typeof loadRotacionMaquinistas==='function'?(loadRotacionMaquinistas()||[]):[];
@@ -288,7 +290,7 @@
   function renderRotacionMaquinistas(){
     const main=document.getElementById('main');if(!main)return;
     estilos();
-    if(!puedeGestionarRotacionMaquinistas()){
+    if(!puedeGestionarRotacionMaquinistas()&&!soloVer()){
       main.innerHTML='<div class="empty-state"><h4>Acceso restringido</h4><p>La Rotación de maquinistas solo la ve el Supervisor de Mantenimiento, el Administrador o quien tenga el permiso asignado.</p></div>';
       return;
     }
@@ -344,7 +346,7 @@
     tareoRenderTabs=function(activa){
       const html=anterior(activa);
       // Solo quien gestiona la rotación (Supervisor de Mantenimiento, Administrador o con permiso).
-      if(!puedeGestionarRotacionMaquinistas()||!tareoPestanaEnModulo('rotacionMaq'))return html;
+      if((!puedeGestionarRotacionMaquinistas()&&!soloVer())||!tareoPestanaEnModulo('rotacionMaq'))return html;
       const boton=`<button class="tareo-tab ${activa==='rotacionMaq'?'active':''}" onclick="if(confirmarAbandonoRotacionPendiente())renderRotacionMaquinistas()">Rotación maquinista</button>`;
       return html.replace('</div>',boton+'</div>');
     };

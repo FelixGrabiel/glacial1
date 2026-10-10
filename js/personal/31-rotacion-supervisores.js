@@ -17,8 +17,15 @@ const ROT_SUP_HORARIOS_BASE={
 let rotSupSemanaVista=null;
 let rotSupFiltroHistorial='';
 
+/* Modo visualización general: la cuenta consulta la rotación pero no la modifica (aunque tenga el permiso guardado). */
+function rotSupSoloVista(){
+  return !!(window.glacialVista && window.glacialVista.activo());
+}
 function rotSupPuedeGestionar(){
-  return !!state.user && tienePermiso('gestionar_rotacion_supervisores');
+  return !!state.user && !rotSupSoloVista() && tienePermiso('gestionar_rotacion_supervisores');
+}
+function rotSupPuedeVer(){
+  return rotSupPuedeGestionar() || (rotSupSoloVista() && window.glacialVista.puedeModulo('rotacion_supervisores'));
 }
 
 function rotSupFechaISO(d){
@@ -498,12 +505,13 @@ function rotSupAplicarCeldaGrid(username,diaIdx,asig){
 function renderRotacionSupervisores(){
   const main=document.getElementById('main');
   if(!main)return;
-  if(!rotSupPuedeGestionar()){
+  if(!rotSupPuedeVer()){
     main.innerHTML='<div class="empty-state"><h4>Sin permiso</h4><p>No puedes gestionar la rotación de supervisores.</p></div>';
     return;
   }
 
   const r=rotSupObtenerVista();
+  const soloVer=!rotSupPuedeGestionar();
   const dias=rotSupDias(r.desde);
   const supervisores=rotSupSupervisores();
   const prev=new Date(rotSupParseFecha(r.desde));prev.setDate(prev.getDate()-7);
@@ -538,25 +546,25 @@ function renderRotacionSupervisores(){
       <button class="btn btn-ghost" onclick="rotSupSeleccionarSemana('${rotSupFechaISO(prev)}')">← Semana anterior</button>
       <button class="btn btn-ghost" onclick="rotSupSeleccionarSemana('${rotSupFechaISO(rotSupLunes(new Date()))}')">Semana actual</button>
       <button class="btn btn-ghost" onclick="rotSupSeleccionarSemana('${rotSupFechaISO(next)}')">Semana siguiente →</button>
-      <button class="btn btn-ghost" onclick="rotSupCopiarAnterior()" ${bloqueado?'disabled':''}>Copiar semana anterior</button>
+      ${soloVer?'':`<button class="btn btn-ghost" onclick="rotSupCopiarAnterior()" ${bloqueado?'disabled':''}>Copiar semana anterior</button>
       <button class="btn btn-ghost" onclick="rotSupGuardarBorrador()" ${bloqueado?'disabled':''}>${r.estado==='PUBLICADA'?'Guardar cambios':'Guardar borrador'}</button>
       <button class="btn btn-glacial" onclick="rotSupPublicar()" ${bloqueado?'disabled':''}>${r.estado==='PUBLICADA'?'Actualizar publicación':'Publicar rotación'}</button>
       ${r.estado==='PUBLICADA'?`<button class="btn btn-ghost" onclick="rotSupCerrar()">Cerrar semana</button>`:''}
-      ${r.estado==='CERRADA'?`<button class="btn btn-glacial" onclick="rotSupReabrir()">Reabrir rotación</button>`:''}
+      ${r.estado==='CERRADA'?`<button class="btn btn-glacial" onclick="rotSupReabrir()">Reabrir rotación</button>`:''}`}
     </div>
 
     ${window.glacialRotGrid?window.glacialRotGrid.html(rotSupConfigCuadro(r,dias,supervisores,bloqueado)):'<div class="empty-state"><p>No se cargó el cuadro de rotación.</p></div>'}
 
     <div class="rot-sup-card">
       <h3 style="margin-top:0">Cambio / cobertura excepcional</h3>
-      <div class="rot-sup-actions">
+      ${soloVer?'':`<div class="rot-sup-actions">
         <input id="rot-sup-ex-fecha" type="date" min="${r.desde}" max="${r.hasta}" value="${r.desde}">
         <select id="rot-sup-ex-original"><option value="">Supervisor original</option>${supervisores.map(u=>`<option value="${rotSupEsc(u.username)}">${rotSupEsc(u.nombre||u.username)}</option>`).join('')}</select>
         <select id="rot-sup-ex-reemplazo"><option value="">Supervisor reemplazo</option>${supervisores.map(u=>`<option value="${rotSupEsc(u.username)}">${rotSupEsc(u.nombre||u.username)}</option>`).join('')}</select>
         <select id="rot-sup-ex-turno"><option value="">Turno</option>${['DÍA','INTERMEDIO','NOCHE'].map(t=>`<option>${t}</option>`).join('')}</select>
         <input id="rot-sup-ex-motivo" placeholder="Motivo: cobertura, falta, emergencia...">
         <button class="btn btn-ghost" onclick="rotSupAgregarExcepcion()" ${r.estado!=='PUBLICADA'?'disabled':''}>Registrar excepción</button>
-      </div>
+      </div>`}
       ${(r.excepciones||[]).map(e=>`<div class="rot-sup-muted" style="margin-top:8px">${e.fecha} · ${rotSupEsc(e.supervisorOriginal)} → ${rotSupEsc(e.supervisorReemplazo)} · ${e.turno} · ${rotSupEsc(e.motivo)}</div>`).join('') || '<div class="rot-sup-muted">Sin excepciones.</div>'}
     </div>
 

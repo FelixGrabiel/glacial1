@@ -2120,7 +2120,7 @@ function formatearFechaResumen(fecha){
    KPI PRODUCCIÓN TOTAL — DESGLOSE REAL POR LÍNEA
    ========================================================= */
 function produccionResumenPorLinea(records){
-  const orden=['PET1','PET2','B7L','C20L','B20L'];
+  const orden=(typeof glacialLineasPermitidas==='function'?glacialLineasPermitidas(['PET1','PET2','B7L','C20L','B20L']):['PET1','PET2','B7L','C20L','B20L']);
   const acumulado={};
 
   (records || []).forEach(r=>{
@@ -2244,7 +2244,7 @@ function datosProduccionLineaPresentacionResumen(records){
     }
   });
 
-  const orden=['PET1','PET2','B7L','C20L','B20L'];
+  const orden=(typeof glacialLineasPermitidas==='function'?glacialLineasPermitidas(['PET1','PET2','B7L','C20L','B20L']):['PET1','PET2','B7L','C20L','B20L']);
   const extras=Object.keys(lineas).filter(x=>!orden.includes(x)).sort();
 
   return [...orden,...extras]
@@ -2385,7 +2385,7 @@ function rsLineaNombre(k){return ({PET1:'PET1',PET2:'PET2',B7L:'B7L',C20L:'CAJAS
 function rsEstadoLineas(){
   const hoy=fechaHoyResumen();
   const progs=(typeof loadProgramaciones==='function'?loadProgramaciones():(typeof _programacionesCache!=='undefined'?_programacionesCache:[]))||[];
-  const lineas=['PET1','PET2','B7L','C20L','B20L'];
+  const lineas=(typeof glacialLineasPermitidas==='function'?glacialLineasPermitidas(['PET1','PET2','B7L','C20L','B20L']):['PET1','PET2','B7L','C20L','B20L']);
   return lineas.map(linea=>{
     const xs=progs.filter(p=>p.linea===linea&&p.fecha===hoy);
     // Misma prioridad de estados que el semáforo (GlacialIndicadores.estadoLineaDesdeItems).
@@ -2396,7 +2396,7 @@ function rsEstadoLineas(){
   });
 }
 function rsDatosIndustriales(records){
-  const lineas=['PET1','PET2','B7L','C20L','B20L'];
+  const lineas=(typeof glacialLineasPermitidas==='function'?glacialLineasPermitidas(['PET1','PET2','B7L','C20L','B20L']):['PET1','PET2','B7L','C20L','B20L']);
   const progs=rsProgramaciones(), pals=rsPaletas();
   const porLinea=lineas.map(linea=>{
     const rr=records.filter(r=>r.linea===linea);
@@ -2470,7 +2470,7 @@ function renderResumenIndustrial(records,rangoLabel){
   const totalMerma=data.porLinea.reduce((a,x)=>a+x.merma,0);
   const mermaPct=GlacialIndicadores.merma(totalMerma,totalProd)??0;          // misma fórmula que la tarjeta del Resumen: suma de mermas ÷ producción efectiva
   const horasEf=data.porLinea.reduce((a,x)=>a+x.minEfectivos,0)/60;
-  const filtros=['TODAS','PET1','PET2','B7L','C20L','B20L'];
+  const filtros=(typeof glacialLineasPermitidas==='function'?glacialLineasPermitidas(['TODAS','PET1','PET2','B7L','C20L','B20L']):['TODAS','PET1','PET2','B7L','C20L','B20L']);
 
   const sec=document.createElement('section');
   sec.className='rs-industrial';

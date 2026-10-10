@@ -37,6 +37,8 @@
   function puedeVerBitacoraMtto(usuario){
     const u=usuario||(typeof state!=='undefined'?state.user:null);
     if(!u||!u.username)return false;
+    // Modo visualización general: solo si el administrador marcó este módulo; el rol no la concede.
+    if(window.glacialVista&&window.glacialVista.activoDe(u))return u===state.user&&window.glacialVista.puedeModulo('bitacora');
     try{
       if(typeof esMantCompartido==='function'&&esMantCompartido(u))return false;
       const rol=String(u.rol||'').trim();
@@ -49,6 +51,7 @@
   // Completar motivos desde la bitácora: Supervisor de Mantenimiento y Administrador.
   function puedeCompletarMotivo(){
     try{
+      if(window.glacialVista&&window.glacialVista.activo())return false;
       if(!puedeVerBitacoraMtto())return false;
       if(String(state.user.rol||'').trim()==='Administrador')return true;
       return tienePermiso('gestionar_rotacion_mantenimiento')||tienePermiso('completar_motivo_parada');
@@ -219,6 +222,8 @@
     const x=d.data({serverTimestamps:'estimate'});
     return Object.assign({},x,{id:d.id,ts:msDe(x.timestamp)});
   };
+  // Modo visualización general: solo eventos de las líneas autorizadas (sin línea = evento general).
+  const lineaAutorizada=e=>!e||!e.linea||!window.glacialVista||window.glacialVista.lineaPermitida(e.linea);
   const consultaRango=(ini,fin)=>{
     const T=firebase.firestore.Timestamp;
     return db.collection(COLECCION)
@@ -254,7 +259,7 @@
       const fin=inicioOperativo(addDias(F.hasta,1));
       desubBitacora=consultaRango(ini,fin).onSnapshot(snap=>{
         if(token!==carga.token)return;          // llegó una escucha más nueva
-        carga.eventos=snap.docs.map(docAEvento);
+        carga.eventos=snap.docs.map(docAEvento).filter(lineaAutorizada);
         carga.truncado=snap.size>=LIMITE_EVENTOS;
         carga.clave=clave;carga.cargadoEn=ahoraMs();carga.cargando=false;carga.error='';
         if(state.currentTab==='bitacora-mtto')renderBitacoraMtto();      // si ya salió de la pantalla, no se redibuja
@@ -657,7 +662,7 @@
     dia.clave=v.fecha;
     try{
       dia.desub=consultaRango(v.ini,v.fin).onSnapshot(snap=>{
-        dia.eventos=snap.docs.map(docAEvento);
+        dia.eventos=snap.docs.map(docAEvento).filter(lineaAutorizada);
         dia.listo=true;dia.error='';dia.ts=ahoraMs();
         pintarTarjeta();
       },err=>{
@@ -786,7 +791,7 @@
       const v=ventanaDia();
       let eventos;
       if(dia.desub&&dia.clave===v.fecha&&dia.listo&&!dia.error)eventos=dia.eventos;        // ya escuchado: sin lecturas nuevas
-      else{const snap=await consultaRango(v.ini,v.fin).get();eventos=snap.docs.map(docAEvento);}
+      else{const snap=await consultaRango(v.ini,v.fin).get();eventos=snap.docs.map(docAEvento).filter(lineaAutorizada);}
       const turno=turnoActualNombre();
       const pend=armarParadas(eventos).filter(p=>p.pendiente&&(!turno||!p.turno||p.turno===turno)).sort((a,b)=>a.inicio-b.inicio);
       document.getElementById('bm-aviso-cierre')?.remove();
@@ -811,7 +816,7 @@
     if(typeof db==='undefined')throw new Error('Sin base de datos.');
     const snap=await consultaRango(inicioOperativo(fecha),inicioOperativo(addDias(fecha,1))).get();
     const esNoche=t=>norm(t).includes('noche');
-    return armarParadas(snap.docs.map(docAEvento))
+    return armarParadas(snap.docs.map(docAEvento).filter(lineaAutorizada))
       .filter(p=>p.pendiente&&(!p.turno||esNoche(p.turno)===(esNoche(turno))))
       .sort((a,b)=>a.inicio-b.inicio);
   };

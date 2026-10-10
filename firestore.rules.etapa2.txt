@@ -50,13 +50,21 @@ service cloud.firestore {
     function esAdmin() {
       return autenticado() && perfiles()[request.auth.uid].rol == 'Administrador';
     }
+    // MODO VISUALIZACIÓN GENERAL (por usuario): el Administrador marca la cuenta como solo consulta y la aplicación publica
+    // soloVista:true en su entrada de sync/perfiles (js/accesos/36-seguridad-auth.js). Una cuenta así NO escribe nada operativo,
+    // aunque conserve permisos guardados: todas las funciones de abajo que conceden escritura la excluyen.
+    // Limitación: estas reglas protegen la ESCRITURA; la lectura por módulo o por línea no se puede imponer porque los
+    // documentos compartidos (records, paletas, programaciones…) mezclan todas las líneas (el filtro por línea es del navegador).
+    function soloVista() {
+      return autenticado() && perfiles()[request.auth.uid].get('soloVista', false) == true;
+    }
     function esMantCompartido() {
       return autenticado() && perfiles()[request.auth.uid].rol == 'mantenimiento_compartido';
     }
     // RRHH = permiso moduloRRHH (o Administrador) y NO un rol de solo consulta
     // (Jefatura/Gerencia tienen moduloRRHH solo para ver).
     function esRRHH() {
-      return autenticado() && !(perfiles()[request.auth.uid].rol in
+      return autenticado() && !soloVista() && !(perfiles()[request.auth.uid].rol in
         ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente']) && (
           esAdmin() ||
           (perfiles()[request.auth.uid].permisos is list &&
@@ -66,7 +74,7 @@ service cloud.firestore {
     // Supervisor de Mantenimiento (o Administrador): configura la duración de la identificación de técnicos.
     // Las reglas no distinguen el cargo exacto: se exige el permiso de Mantenimiento y que no sea un rol de solo consulta.
     function esSupervisorMtto() {
-      return autenticado() && !esMantCompartido()
+      return autenticado() && !esMantCompartido() && !soloVista()
         && !(perfiles()[request.auth.uid].rol in
           ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente'])
         && (esAdmin() || (perfiles()[request.auth.uid].permisos is list
@@ -95,15 +103,15 @@ service cloud.firestore {
     // Quién puede editar los umbrales (sync/configAlertas) y las metas/velocidades (sync/configIndicadores):
     // Administrador, Jefatura/Gerencia o quien tenga el permiso configurar_umbrales.
     function puedeConfigurarUmbrales() {
-      return esAdmin() || esJefatura() ||
+      return esAdmin() || (!soloVista() && (esJefatura() ||
         (autenticado() && perfiles()[request.auth.uid].permisos is list
-          && 'configurar_umbrales' in perfiles()[request.auth.uid].permisos);
+          && 'configurar_umbrales' in perfiles()[request.auth.uid].permisos)));
     }
     // Quién puede registrar en la bitácora las acciones de PRODUCCIÓN sobre una programación/línea
     // (INICIAR, FINALIZAR, CANCELAR, REABRIR, CORREGIR_INICIO, CORREGIR_FIN): Administrador, Jefe de Producción /
     // de Operaciones, Supervisor (de Producción) o quien tenga el permiso de paletas. NO la cuenta compartida.
     function puedeOperarProduccion() {
-      return autenticado() && !esMantCompartido() && (
+      return autenticado() && !esMantCompartido() && !soloVista() && (
         esAdmin() ||
         perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Jefe de Operaciones', 'Supervisor', 'Supervisor de Producción'] ||
         (perfiles()[request.auth.uid].permisos is list && 'paletas' in perfiles()[request.auth.uid].permisos)
@@ -113,14 +121,14 @@ service cloud.firestore {
     // o tiene el permiso avanceProduccion (el mismo que genera el cierre de turno). NO la cuenta compartida.
     function puedeGenerarResumen() {
       return puedeOperarProduccion() ||
-        (autenticado() && !esMantCompartido() && perfiles()[request.auth.uid].permisos is list
+        (autenticado() && !esMantCompartido() && !soloVista() && perfiles()[request.auth.uid].permisos is list
           && 'avanceProduccion' in perfiles()[request.auth.uid].permisos);
     }
     // Planificación: permiso «planificacion». Por defecto lo tienen el Administrador, el Jefe de Producción y los roles
     // Planificación y Ventas y Planificación (misma lista que ROLES_PLANIFICACION en js/nucleo/02-estado.js);
     // el Administrador lo da o lo quita en Gestión de usuarios ('planificacion' / '-planificacion'). NO la cuenta compartida.
     function puedePlanificar() {
-      return autenticado() && !esMantCompartido() && (
+      return autenticado() && !esMantCompartido() && !soloVista() && (
         esAdmin() ||
         (perfiles()[request.auth.uid].permisos is list && 'planificacion' in perfiles()[request.auth.uid].permisos) ||
         (perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Planificación', 'Ventas y Planificación']
@@ -131,7 +139,7 @@ service cloud.firestore {
     // (misma lista que ROLES_DISTRIBUCION_PERSONAL en js/nucleo/02-estado.js); el Administrador lo da o lo quita
     // ('distribuirPersonal' / '-distribuirPersonal'). NO la cuenta compartida. Jefatura/Gerencia solo consultan.
     function puedeDistribuirPersonal() {
-      return autenticado() && !esMantCompartido() && (
+      return autenticado() && !esMantCompartido() && !soloVista() && (
         esAdmin() ||
         (perfiles()[request.auth.uid].permisos is list && 'distribuirPersonal' in perfiles()[request.auth.uid].permisos) ||
         (perfiles()[request.auth.uid].rol in ['Supervisor', 'Jefe de Producción']
@@ -193,7 +201,8 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['velocidades', 'actualizadoPor', 'actualizadoEn'])) ||
           // Catálogo de productos de Planificación (unidades por paleta y si está activo).
           (doc == 'catalogoPlanificacion' && puedePlanificar()) ||
-          (autenticado() && doc in [
+          // Una cuenta en modo visualización (soloVista) no escribe ningún documento operativo.
+          (autenticado() && !soloVista() && doc in [
             'records', 'workers', 'rotaciones', 'rotacionesMantenimiento',
             'rotacionMaquinistas', 'tecnicosMant', 'borradoresNuevoRegistro',
             'tareos', 'paletas', 'programaciones', 'avancesTurno'
@@ -219,7 +228,7 @@ service cloud.firestore {
     match /solicitudesCorreccionTareo/{id} {
       allow read: if autenticado() && !esMantCompartido()
         && (esRRHH() || resource.data.uid == request.auth.uid);
-      allow create: if autenticado() && !esMantCompartido()
+      allow create: if autenticado() && !esMantCompartido() && !soloVista()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.estado == 'Pendiente'
         && request.resource.data.creadoEn == request.time;
@@ -234,7 +243,7 @@ service cloud.firestore {
     // Cada evento lleva el uid de quien lo escribe y la hora del servidor.
     match /bitacoraMantenimiento/{id} {
       allow read: if puedeLeerBitacoraMtto();
-      allow create: if autenticado()
+      allow create: if autenticado() && !soloVista()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.timestamp == request.time
         && request.resource.data.keys().hasAll(['uid', 'timestamp', 'accion', 'linea', 'tecnicoNombre'])
@@ -308,7 +317,7 @@ service cloud.firestore {
     // Cada evento lleva el uid de quien lo escribe y la hora del servidor. Lo leen quienes planifican y la jefatura.
     match /historialProgramacion/{id} {
       allow read: if puedePlanificar() || (autenticado() && !esMantCompartido() && esJefatura());
-      allow create: if autenticado() && !esMantCompartido()
+      allow create: if autenticado() && !esMantCompartido() && !soloVista()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.timestamp == request.time
         && request.resource.data.keys().hasAll(['uid', 'timestamp', 'accion', 'linea', 'fecha', 'turno'])
@@ -322,7 +331,7 @@ service cloud.firestore {
     //  - Nadie las borra.
     match /solicitudesProgramacion/{id} {
       allow read: if autenticado() && !esMantCompartido() && (puedePlanificar() || resource.data.uid == request.auth.uid);
-      allow create: if autenticado() && !esMantCompartido()
+      allow create: if autenticado() && !esMantCompartido() && !soloVista()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.estado == 'PENDIENTE'
         && request.resource.data.creadoEn == request.time
@@ -350,7 +359,7 @@ service cloud.firestore {
     // Cada cambio sube la versión (+1) y debe crear, en la misma transacción, su documento de historial: valoresUnitariosHistorial/{id}_{version}.
     match /valoresUnitarios/{id} {
       allow read: if esGerencia();
-      allow create, update: if esGerencia()
+      allow create, update: if esGerencia() && !soloVista()
         && request.resource.data.keys().hasOnly(['tipo', 'linea', 'marca', 'presentacion', 'componente', 'unidad', 'clave',
              'valorUnitario', 'fechaVigencia', 'vigencias', 'activo', 'version', 'actualizadoPorUid', 'fechaActualizacion'])
         && request.resource.data.tipo in ['producto', 'insumo', 'meta']
@@ -365,7 +374,7 @@ service cloud.firestore {
     // Historial de valores unitarios: solo se agrega (nunca se edita ni se borra); solo Gerencia lo lee y lo crea, con su UID y la hora del servidor.
     match /valoresUnitariosHistorial/{id} {
       allow read: if esGerencia();
-      allow create: if esGerencia()
+      allow create: if esGerencia() && !soloVista()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.timestamp == request.time
         && request.resource.data.keys().hasAll(['valorId', 'version', 'valorNuevo', 'uid', 'timestamp'])
@@ -389,7 +398,7 @@ service cloud.firestore {
     // registrar a nombre de otro) y la hora del servidor (no la del dispositivo).
     match /auditoriaTareos/{evento} {
       allow read: if autenticado() && !esMantCompartido();
-      allow create: if autenticado() && !esMantCompartido()
+      allow create: if autenticado() && !esMantCompartido() && !soloVista()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.timestamp == request.time;
       allow update, delete: if false;
