@@ -335,7 +335,10 @@
     // estado operativo guardado siga diciendo EN_PRODUCCION.
     if(operativo==='FINALIZADA' || (programado>0 && producido>=programado))
       return {key:'COMPLETADA',label:'COMPLETADA',rank:3,cls:'completada'};
-    if(['PAUSA','PAUSA_SECUENCIA','DETENIDA','LISTA'].includes(operativo))
+    // La clave interna sigue siendo PAUSA (prioridades, contadores y controles no cambian); solo se distingue lo que ve el usuario.
+    if(operativo==='DETENIDA')
+      return {key:'PAUSA',label:'DETENIDA',rank:1,cls:'detenida'};
+    if(['PAUSA','PAUSA_SECUENCIA','LISTA'].includes(operativo))
       return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa'};
     if(operativo==='EN_PRODUCCION')
       return {key:'EN_CURSO',label:'EN CURSO',rank:0,cls:'curso'};
@@ -1054,6 +1057,28 @@
       .map((x,i)=>({x,i,estado:estadoOrdenItem(x),orden:ordenOriginalItem(x,i)}))
       .sort((a,b)=>a.estado.rank-b.estado.rank || a.orden-b.orden || a.i-b.i);
 
+    // PARADAS DEL TURNO: lee la lista oficial que ya calcula 23b-tiempos-linea.js (registros de Avance/Cierre de la línea, fecha y bloque).
+    // No suma nada nuevo ni usa Detener/Pausar del semáforo (solo son estado). Los tiempos del resumen son los mismos del ratio.
+    const fmtParada=min=>{
+      const t=Math.max(0,Math.round(Number(min)||0)),h=Math.floor(t/60),m=t%60;
+      return h>0 ? h+' h '+String(m).padStart(2,'0')+' min' : m+' min';
+    };
+    const htmlParadasTurno=t=>{
+      const lista=t&&t.ok&&Array.isArray(t.paradasClasificadas) ? t.paradasClasificadas : [];
+      const prog=t&&t.ok ? t.minPausasProgramadas : 0, noProg=t&&t.ok ? t.minParadasNoProgramadas : 0;
+      const filas=lista.map(p=>{
+        const esProg=p.clasif==='PROGRAMADA';
+        const motivo=String(p.motivo||'').trim() || 'Sin motivo registrado';
+        return `<tr><td>${esc(motivo)}${p.exceso ? ' <small>(exceso sobre el estándar)</small>' : ''}</td>
+          <td><span class="pa-par-tipo ${esProg?'prog':'noprog'}">${esProg?'Programada':'No programada'}</span></td>
+          <td class="pa-par-t">${fmtParada(p.minutos)}</td></tr>`;
+      }).join('');
+      return `<div class="pa-par-head"><div class="pa-hcol-title">◴ PARADAS DEL TURNO</div><div class="pa-par-sub">Registro de Avance / Cierre</div></div>
+        <div class="pa-par-resumen"><div><span>Programadas</span><b>${fmtParada(prog)}</b></div><div><span>No programadas</span><b>${fmtParada(noProg)}</b></div></div>
+        ${filas ? `<div class="pa-par-scroll"><table class="pa-par-tabla"><thead><tr><th scope="col">MOTIVO</th><th scope="col">TIPO</th><th scope="col" class="pa-par-t">TIEMPO</th></tr></thead><tbody>${filas}</tbody></table></div>`
+          : '<div class="pa-par-vacio">Sin paradas registradas</div>'}`;
+    };
+
     const tarjetaEstado=(estado)=>
       `<span class="pa-state-badge pa-state-${estado.cls}"><span></span>${estado.label}</span>`;
 
@@ -1090,7 +1115,7 @@
             <div class="pa-line-status">
               ${g.tiempos?.pausaSinCerrar ? `<span class="pa-chip-alerta" title="Superó la duración estándar">⚠ Pausa sin cerrar · ${esc(g.tiempos.pausaSinCerrar.motivo)} · ${Math.round(g.tiempos.pausaSinCerrar.transcurridoMin)} min (estándar ${g.tiempos.pausaSinCerrar.estandarMin})</span>` : ''}
               ${g.items.some(x=>x.op?.corregida) ? '<span class="pa-chip-corregida" title="La finalización fue corregida">Corregida</span>' : ''}
-              ${renderSemaforoWidget({nivel:g.nivel,texto:g.texto})}</div>
+              ${renderSemaforoWidget({nivel:g.texto==='FINALIZADA'?'verde':g.nivel,texto:g.texto})}</div>
           </div>
 
           <div class="pa-line-kpis">
@@ -1100,13 +1125,6 @@
             <div class="pa-line-kpi" title="Producido ÷ (tiempo transcurrido − pausas programadas). Se usa en la proyección «Si las paradas siguen igual»."><small>RENDIMIENTO DEL TURNO</small><strong>${fmtRatio(g.ratios?.ratioTurno)} <span>UND/h</span></strong></div>
             <div class="pa-line-kpi" title="Ratio = producido ÷ horas efectivas. Horas efectivas = tiempo transcurrido − (paradas programadas + no programadas)."><small>RATIO</small><strong>${fmtRatio(g.ratios?.ratioEfectivo)} <span>UND/h</span></strong>${avisoCorteRatio(g)}</div>
             ${g.tiempos?.enCurso ? `<div class="pa-line-kpi"><small>RATIO NECESARIO</small><strong>${fmtRatio(g.ratios?.ratioNecesario)} <span>UND/h</span></strong></div>` : ''}
-            <div class="pa-line-kpi pa-line-kpi-paradas"><small>PARADAS</small><strong>${g.tiempos?.ok ? formatoMin(g.tiempos.minParadasNoProgramadas+g.tiempos.minPausasProgramadas) : '—'}</strong>
-              ${g.tiempos?.ok ? `<div class="pa-paradas-desglose">
-                <span>No programadas: <b>${formatoMin(g.tiempos.minParadasNoProgramadas)}</b></span>
-                <span>Programadas: <b>${formatoMin(g.tiempos.minPausasProgramadas)}</b></span>
-                <em title="Las paradas oficiales son las que registra el supervisor en Avance/Cierre. El tiempo detenida o en pausa del semáforo es solo el historial de estados y no se descuenta del ratio.">Oficiales (Avance/Cierre) ${formatoMin(g.tiempos.fuentes.supervisor.noProgramadas+g.tiempos.fuentes.supervisor.programadas)}
-                · Estado: detenida ${formatoMin(g.tiempos.fuentes.detenerLinea.noProgramadas)} · en pausa ${formatoMin(g.tiempos.fuentes.pausaProgramada.programadas)} (informativo)</em>
-              </div>` : ''}</div>
           </div>
 
           ${htmlProyeccion(g.proyeccion,g.porTurno)}
@@ -1117,91 +1135,57 @@
               <div class="pa-hcol-title">▥ SECUENCIA DEL TURNO</div>
               ${(()=>{
                 const ordenados=itemsOrdenadosGrupo(g);
-                const original=g.items.reduce((a,x)=>a+num(x.prog?.cantidadProgramada),0);
-                const vigente=g.items.reduce((a,x)=>a+(x.op?.estado==='CANCELADA'?0:progDe(x)),0);
-                const counts={EN_CURSO:0,PAUSA:0,PENDIENTE:0,COMPLETADA:0,CANCELADA:0};
-                ordenados.forEach(o=>counts[o.estado.key]++);
+                const counts={curso:0,pausa:0,detenida:0,pendiente:0,completada:0,cancelada:0};
+                ordenados.forEach(o=>counts[o.estado.cls]++);
                 return `<div class="pa-state-counts">
-                  <span class="curso">● ${counts.EN_CURSO} En curso</span>
-                  <span class="pausa">● ${counts.PAUSA} En pausa</span>
-                  <span class="pendiente">● ${counts.PENDIENTE} Pendientes</span>
-                  <span class="completada">● ${counts.COMPLETADA} Finalizadas</span>
-                  <span class="cancelada">● ${counts.CANCELADA} Canceladas</span>
+                  <span class="curso">● ${counts.curso} En curso</span>
+                  <span class="pausa">● ${counts.pausa} En pausa</span>
+                  <span class="detenida">● ${counts.detenida} Detenidas</span>
+                  <span class="completada">● ${counts.completada} Finalizadas</span>
+                  <span class="pendiente">● ${counts.pendiente} Pendientes</span>
+                  ${counts.cancelada ? `<span class="cancelada">● ${counts.cancelada} Canceladas</span>` : ''}
                 </div>
                 <div class="pa-program-list pa-program-list-horizontal">${
                   ordenados.length ? ordenados.map(({x,estado})=>{
                     const prog=Math.round(progDe(x));
+                    const idx=filasActuales.indexOf(x);
+                    // «Cancelar programación» vivía en el bloque Historial / Avance, que ya no se muestra aquí: se conserva en la fila.
+                    const cancelar=x.puede==='supervisor' && !['CANCELADA','COMPLETADA'].includes(estado.key)
+                      ? `<button type="button" class="pa-cancel-btn" title="Cancelar programación" aria-label="Cancelar programación"
+                          data-pa-accion="cancelar" data-pa-indice="${idx}">✕</button>` : '';
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
                         ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
-                      <div class="pa-program-right"><strong>${prog.toLocaleString('es-PE')} UND</strong>${tarjetaEstado(estado)}</div>
+                      <div class="pa-program-right"><strong>${prog.toLocaleString('es-PE')} UND</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div></div>
                     </div>`;
                   }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
                 }</div>`;
               })()}
             </section>
 
-            <section class="pa-hcol pa-hcol-ratio">
-              <div class="pa-hcol-title">◴ PRODUCCIÓN ACTUAL</div>
-              ${(()=>{
-                const actualActivo=g.items.find(x=>{
-                  const e=estadoOrdenItem(x).key;
-                  return e==='EN_CURSO' || e==='PAUSA' || x.op?.estado==='DETENIDA' || x.op?.estado==='LISTA';
-                });
-                const actualPendiente=g.items.find(x=>estadoOrdenItem(x).key==='PENDIENTE');
-                const actual=actualActivo || actualPendiente;
-                // Una presentación COMPLETADA o CANCELADA nunca vuelve a mostrarse
-                // como "próxima producción". Si no hay curso/pausa/pendiente, la línea terminó.
-                if(!actual)return '<div class="pa-empty-current">Sin producción activa en este momento.</div>';
-                const idx=filasActuales.indexOf(actual);
-                const estado=estadoOrdenItem(actual);
-                const parada=paradaActual(actual);
-                return `
-                  ${!actualActivo ? '<div class="pa-next-production">PRÓXIMA PRODUCCIÓN · AÚN NO INICIADA</div>' : '<div class="pa-now-production">PRODUCIENDO AHORA</div>'}
-                  <div class="pa-current-head">
-                    <div><strong>${esc(actual.marca)}</strong><small>${esc(presUI(actual.linea,actual.marca,actual.presentacion))}</small></div>
-                    ${tarjetaEstado(estado)}
-                  </div>
-                  <div class="pa-metric-row"><span>Ratio nominal</span><b>${actual.ratio ? actual.ratio.toLocaleString('es-PE')+' UND/h' : 'Sin configurar'}</b></div>
-                  <div class="pa-metric-row pa-metric-turno"><span>Ratio</span><b>${fmtRatio(g.ratios?.ratioEfectivo)} UND/h</b></div>
-                  <div class="pa-metric-row"><span>Tiempo transcurrido</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.tiempoTranscurridoMin) : '—'}</b></div>
-                  <div class="pa-metric-row"><span>Tiempo operativo</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.tiempoOperativoMin) : '—'}</b></div>
-                  <div class="pa-metric-row"><span>Tiempo en parada</span><b>${g.tiempos?.ok ? formatoMin(g.tiempos.minParadasNoProgramadas+g.tiempos.minPausasProgramadas) : '0 min'}</b></div>
-                  ${parada ? `<div class="pa-stop-live"><div><strong>${esc(parada.tipo)}</strong><b>${formatoCronometro(ahoraServidor()-parada.desde)}</b></div>
-                    <small>Desde ${new Date(parada.desde).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})} · ${esc(parada.motivo)}</small></div>` : ''}
-                  <div class="pa-metric-divider"></div>
-                  <div class="pa-metric-row pa-metric-main"><span>Producción desde inicio</span><b>${Math.round(actual.real).toLocaleString('es-PE')} UND</b></div>
-                  <div class="pa-metric-row"><span>Último registro</span><b>${ultimoRegistro(actual)}</b></div>
-                  <div class="pa-live-actions">${acciones(actual,idx) || `<span class="pa-actions-note">${esc(avisoAccion(actual) || 'Sin controles disponibles para este usuario.')}</span>`}</div>`;
-              })()}
-            </section>
+            ${(()=>{
+              // Controles operativos (Iniciar / Detener / Pausar / Finalizar…): antes vivían en el panel «Producción actual». Se conservan
+              // en una franja compacta; no generan paradas oficiales.
+              const actualActivo=g.items.find(x=>{
+                const e=estadoOrdenItem(x).key;
+                return e==='EN_CURSO' || e==='PAUSA' || x.op?.estado==='DETENIDA' || x.op?.estado==='LISTA';
+              });
+              const actual=actualActivo || g.items.find(x=>estadoOrdenItem(x).key==='PENDIENTE');
+              if(!actual)return '';
+              const idx=filasActuales.indexOf(actual);
+              const parada=paradaActual(actual);
+              const botones=acciones(actual,idx);
+              if(!botones && !parada)return '';
+              return `<section class="pa-hcol pa-hcol-controles">
+                <div class="pa-ctl-info"><b>${actualActivo ? 'Produciendo ahora' : 'Próxima producción'}:</b> ${esc(actual.marca||'—')}${actual.presentacion ? ' · '+esc(presUI(actual.linea,actual.marca,actual.presentacion)) : ''}</div>
+                ${parada ? `<div class="pa-stop-live"><div><strong>${esc(parada.tipo)}</strong><b>${formatoCronometro(ahoraServidor()-parada.desde)}</b></div>
+                  <small>Desde ${new Date(parada.desde).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})} · ${esc(parada.motivo)}</small></div>` : ''}
+                ${botones ? `<div class="pa-live-actions">${botones}</div>` : ''}
+              </section>`;
+            })()}
 
-            <section class="pa-hcol pa-hcol-avance">
-              <div class="pa-hcol-title">▰ HISTORIAL / AVANCE DEL TURNO</div>
-              <div class="pa-advance-list">${(()=>{
-                const ordenados=itemsOrdenadosGrupo(g);
-                return ordenados.length ? ordenados.map(({x,estado})=>{
-                  const producido=Math.round(producidoDe(x));
-                  const programado=Math.round(progDe(x));
-                  const pct=programado>0 ? producido/programado*100 : 0;
-                  const faltante=Math.max(0,programado-producido);
-                  const idx=filasActuales.indexOf(x);
-                  const cancelar=x.puede==='supervisor' &&
-                    !['CANCELADA','COMPLETADA'].includes(estado.key)
-                    ? `<button type="button" class="pa-cancel-btn" title="Cancelar programación"
-                        data-pa-accion="cancelar" data-pa-indice="${idx}">✕</button>` : '';
-                  return `<article class="pa-advance-card pa-advance-${estado.cls}">
-                    <div class="pa-advance-top">
-                      <div><strong>${esc(x.marca || '—')}</strong><small>${x.presentacion ? esc(presUI(x.linea,x.marca,x.presentacion)) : ''}</small></div>
-                      <div class="pa-advance-actions">${tarjetaEstado(estado)}${cancelar}</div>
-                    </div>
-                    <div class="pa-advance-values"><b>${producido.toLocaleString('es-PE')} / ${programado.toLocaleString('es-PE')} UND</b><strong>${pct.toFixed(1)}%</strong></div>
-                    <div class="pa-advance-bar"><div class="${estado.cls}" style="width:${Math.min(100,Math.max(0,pct)).toFixed(1)}%"></div></div>
-                    <div class="pa-advance-foot"><span>Faltan: <b>${faltante.toLocaleString('es-PE')} UND</b></span><span>Último registro: <b>${ultimoRegistro(x)}</b></span></div>
-                    ${estado.key==='CANCELADA' && x.op?.motivoCancelacion ? `<div class="pa-cancel-reason">Motivo: ${esc(x.op.motivoCancelacion)}</div>` : ''}
-                  </article>`;
-                }).join('') : '<div class="small-muted">Sin producción programada.</div>';
-              })()}</div>
+            <section class="pa-hcol pa-hcol-paradas">
+              ${htmlParadasTurno(g.tiempos)}
             </section>
 
           </div>
@@ -1212,6 +1196,54 @@
 
   const css=document.createElement('style');
   css.textContent=`
+    /* Colores de estado de producción (una sola correspondencia): EN CURSO naranja, EN PAUSA / PROGRAMADA amarillo, DETENIDA rojo,
+       FINALIZADA (COMPLETADA) verde, PENDIENTE gris. Los avisos de meta incumplida son otra señal y conservan su color. */
+    .pa-live-board{--est-curso:#F97316;--est-curso-bg:#FFEDD5;--est-curso-tx:#9A3412;--est-pausa:#FACC15;--est-pausa-bg:#FEF9C3;--est-pausa-tx:#713F12;
+      --est-det:#EF4444;--est-det-bg:#FEE2E2;--est-det-tx:#991B1B;--est-fin:#22C55E;--est-fin-bg:#DCFCE7;--est-fin-tx:#166534;
+      --est-pend:#9CA3AF;--est-pend-bg:#F3F4F6;--est-pend-tx:#4B5563}
+    .pa-live-board .pa-state-curso{background:var(--est-curso-bg);color:var(--est-curso-tx)}.pa-live-board .pa-state-curso>span{background:var(--est-curso)}
+    .pa-live-board .pa-state-pausa{background:var(--est-pausa-bg);color:var(--est-pausa-tx)}.pa-live-board .pa-state-pausa>span{background:var(--est-pausa)}
+    .pa-live-board .pa-state-detenida{background:var(--est-det-bg);color:var(--est-det-tx)}.pa-live-board .pa-state-detenida>span{background:var(--est-det)}
+    .pa-live-board .pa-state-completada{background:var(--est-fin-bg);color:var(--est-fin-tx)}.pa-live-board .pa-state-completada>span{background:var(--est-fin)}
+    .pa-live-board .pa-state-pendiente{background:var(--est-pend-bg);color:var(--est-pend-tx)}.pa-live-board .pa-state-pendiente>span{background:var(--est-pend)}
+    .pa-live-board .pa-state-counts{font-size:12px}
+    .pa-live-board .pa-state-counts .curso{color:var(--est-curso-tx)}.pa-live-board .pa-state-counts .pausa{color:var(--est-pausa-tx)}
+    .pa-live-board .pa-state-counts .detenida{color:var(--est-det-tx)}.pa-live-board .pa-state-counts .completada{color:var(--est-fin-tx)}
+    .pa-live-board .pa-state-counts .pendiente{color:var(--est-pend-tx)}
+    .pa-live-board .pa-state-counts .curso::first-letter{color:var(--est-curso)}.pa-live-board .pa-state-counts .pausa::first-letter{color:var(--est-pausa)}
+    .pa-live-board .pa-state-counts .detenida::first-letter{color:var(--est-det)}.pa-live-board .pa-state-counts .completada::first-letter{color:var(--est-fin)}
+    .pa-live-board .pa-state-counts .pendiente::first-letter{color:var(--est-pend)}
+    .pa-live-board .pa-program-list-horizontal .pa-program-state-curso{border-top-color:var(--est-curso);background:#fff9f1}
+    .pa-live-board .pa-program-list-horizontal .pa-program-state-pausa{border-top-color:var(--est-pausa);background:#fffdf0}
+    .pa-live-board .pa-program-list-horizontal .pa-program-state-detenida{border-top-color:var(--est-det);background:#fff6f6}
+    .pa-live-board .pa-program-list-horizontal .pa-program-state-completada{border-top-color:var(--est-fin);background:#f4fcf6}
+    .pa-live-board .pa-program-list-horizontal .pa-program-state-pendiente{border-top-color:var(--est-pend);background:#f8f9fa}
+    .pa-program-right-fila{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    /* Cuerpo: secuencia, controles y paradas en una sola columna a todo el ancho */
+    .pa-live-board .pa-horizontal-body{grid-template-columns:minmax(0,1fr)}
+    .pa-live-board .pa-hcol-programacion,.pa-live-board .pa-hcol-paradas,.pa-live-board .pa-hcol-controles{grid-column:1/-1;border-right:0}
+    .pa-live-board .pa-hcol-controles{border-top:1px solid #d8e4ec;background:#fbfdff;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+    .pa-live-board .pa-hcol-controles .pa-live-actions{margin-top:0}.pa-live-board .pa-hcol-controles .pa-stop-live{margin:0}
+    .pa-ctl-info{font-size:13px;color:#073f68}
+    .pa-live-board .pa-line-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+    @media(min-width:901px){.pa-live-board .pa-line-kpis{grid-template-columns:repeat(5,minmax(0,1fr))}}
+    @media(max-width:700px){.pa-live-board .pa-line-kpis{grid-template-columns:1fr 1fr}}
+    /* PARADAS DEL TURNO */
+    .pa-live-board .pa-hcol-paradas{border-top:1px solid #d8e4ec;padding:16px 18px;background:#fff}
+    .pa-par-head .pa-hcol-title{font-size:14px;margin-bottom:2px}.pa-par-sub{color:#5f7382;font-size:13px;margin-bottom:12px}
+    .pa-par-resumen{display:grid;grid-template-columns:1fr 1fr;border:1px solid #cfe0ec;border-radius:10px;background:#f3f9fe;margin-bottom:14px}
+    .pa-par-resumen>div{padding:10px 14px;text-align:center}.pa-par-resumen>div+div{border-left:1px solid #cfe0ec}
+    .pa-par-resumen span{display:block;font-size:13px;color:#4a6376}.pa-par-resumen b{display:block;font-size:22px;color:#073f68;line-height:1.2}
+    .pa-par-scroll{overflow-x:auto;border:1px solid #cfe0ec;border-radius:10px}
+    .pa-par-tabla{width:100%;min-width:420px;border-collapse:collapse;font-size:13px}
+    .pa-par-tabla th{background:#e8f2fa;color:#073f68;font-size:11px;letter-spacing:.04em;text-align:left;padding:8px 12px;text-transform:uppercase}
+    .pa-par-tabla td{padding:8px 12px;border-top:1px solid #e1ecf4;color:#1b2a38;vertical-align:middle}
+    .pa-par-tabla .pa-par-t{text-align:right;white-space:nowrap;font-weight:800;color:#073f68}
+    .pa-par-tabla td small{color:#7a8b98}
+    .pa-par-tipo{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+    .pa-par-tipo.prog{background:#dbeafe;color:#1e40af}.pa-par-tipo.noprog{background:#fef3c7;color:#78350f}
+    .pa-par-vacio{padding:14px;border:1px dashed #cbd8df;border-radius:9px;text-align:center;color:#667784;background:#fafcfd}
+    @media(max-width:700px){.pa-live-board .pa-hcol-paradas{padding:14px 12px}.pa-par-resumen b{font-size:18px}}
     .pa-live-board{margin-bottom:18px}
     .pa-oper-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 16px}
     .pa-oper-kpi{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #d8e1e7;border-radius:10px;background:#fff}
