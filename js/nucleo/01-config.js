@@ -114,12 +114,13 @@ const DOMINIOS_PRODUCCION = [
    - supabaseUrl / supabaseKey: dirección del proyecto y su clave PÚBLICA (publishable). Esa clave puede ir en la página:
      por sí sola no da acceso a nada; cada lectura y escritura la autoriza la base de datos según quién inició sesión.
    - projectId: solo es la etiqueta que se muestra en la consola y en la franja de PRUEBAS.
-   PENDIENTE (antes del paso a producción): PRUEBAS debe apuntar a un proyecto de Supabase distinto del de PRODUCCION.
-   Mientras dura el ensayo de la migración ambos apuntan al mismo proyecto, que todavía no tiene datos de planta. */
+   Cada entorno tiene SU PROPIO proyecto de Supabase (creados el 11-10-2026) y sus datos nunca se mezclan:
+     · PRODUCCION → proyecto ehtbwmvwoxcdefvlxttu      · PRUEBAS → proyecto mvxjopvnnagqytegtexi («GLACIAL pruebas»)
+   Los dos tienen la misma estructura y las mismas reglas; las cuentas de usuario son distintas en cada uno. */
 const CONFIG_PRUEBAS = {
-  projectId: "supabase-ehtbwmvwoxcdefvlxttu (ensayo)",
-  supabaseUrl: "https://ehtbwmvwoxcdefvlxttu.supabase.co",
-  supabaseKey: "sb_publishable_pahErZVQnH-wDlDAOZ0UeA_OP72zRea"
+  projectId: "supabase-pruebas-mvxjopvnnagqytegtexi",
+  supabaseUrl: "https://mvxjopvnnagqytegtexi.supabase.co",
+  supabaseKey: "sb_publishable_tV4MvKJ32QXgLVUz0ZE0zg_7lvODg1h"
 };
 
 const ENTORNO_PRUEBAS = !DOMINIOS_PRODUCCION

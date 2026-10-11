@@ -13,6 +13,16 @@ El resto de los archivos no cambió: siguen usando `firebase`, `db` y `auth`. El
 | `js/nucleo/00b-puente-supabase.js` | **Nuevo.** El puente. Debe cargarse antes de `01-config.js`. |
 | `supabase/functions/fs-cuentas/` | **Nuevo.** Función de servidor: el Administrador crea cuentas sin cerrar su sesión. |
 
+## Entornos
+
+| Entorno | Cuándo | Proyecto de Supabase |
+|---|---|---|
+| PRODUCCION | La página se abre desde un dominio de `DOMINIOS_PRODUCCION` | `ehtbwmvwoxcdefvlxttu` |
+| PRUEBAS | Cualquier otra dirección (franja roja) | `mvxjopvnnagqytegtexi` («GLACIAL pruebas») |
+
+Los dos proyectos tienen la misma estructura, reglas y función `fs-cuentas`. Todo cambio en la base de datos se aplica
+primero en PRUEBAS y después en PRODUCCION. Las cuentas de usuario son independientes en cada proyecto.
+
 ## Cómo se guardan los datos
 
 - Un documento de Firestore = una fila de la tabla `fs_docs` (`coleccion`, `id`, `datos`).
