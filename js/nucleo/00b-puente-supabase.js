@@ -942,8 +942,10 @@
     let almacen;
     try { almacen = global.sessionStorage; almacen.setItem('__glacial_prueba', '1'); almacen.removeItem('__glacial_prueba'); }
     catch (_) { almacen = undefined; }
+    const proyecto = String(config.supabaseUrl || '').replace(/^https?:\/\//, '').split('.')[0] || 'local';
     const sb = global.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
-      auth: { persistSession: !!almacen, storage: almacen, storageKey: 'firebase:authUser:glacial', autoRefreshToken: true, detectSessionInUrl: false },
+      /* La sesión se guarda por proyecto: una sesión de PRUEBAS nunca se confunde con una de PRODUCCION. */
+      auth: { persistSession: !!almacen, storage: almacen, storageKey: 'firebase:authUser:glacial:' + proyecto, autoRefreshToken: true, detectSessionInUrl: false },
       realtime: { params: { eventsPerSecond: 20 } }
     });
     const deRed = e => !!e && (!e.code && /fetch|network|failed|load failed|timeout/i.test(String(e.message || e)));
