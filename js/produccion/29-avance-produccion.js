@@ -260,7 +260,7 @@ function avParadasRegistroLinea(linea,hora,tipo,corteMs){
           if(!p?.descripcion||avNum(p.tiempoMin)<=0)return;
           out.push({
             id:avIdParadaRegistro(r.id,qi,key,pi,p),descripcion:p.descripcion,minutos:avNum(p.tiempoMin),estadoRegistro:r.estadoRegistro||'',
-            tipo:tipoParada,causa:p.causa||'',maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',
+            tipo:tipoParada,causa:p.causa||'',equipo:p.equipo||'',maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',
             origen:'REGISTRO',recordId:r.id||'',cuadroIndex:qi,key,index:pi,paradaId:p.id||''
           });
         });
@@ -332,11 +332,31 @@ function avParadaAgregarFila(){
   m.filas.push({id:avIdParadaNueva(),descripcion:'',minutos:0,tipo:'',tipoOriginal:'',causa:'',origen:'AVANCE',nueva:true});
   avRenderParadasModal();
 }
+/* Equipo que falló: solo cuando la causa es «Falla de máquina». sel = nombre del catálogo o '__otro__'; detalle = texto de «Otro equipo». */
+function avEsFalla(p){return !!(p&&p.tipo==='NO_PROGRAMADA'&&window.glacialEquipos&&window.glacialEquipos.esFalla(p.causa));}
+function avEquipoEstado(p){
+  const d=window.glacialEquipos?window.glacialEquipos.descomponer(p.equipo):{sel:'',detalle:''};
+  return {sel:p.equipoSel!==undefined?p.equipoSel:d.sel,detalle:p.equipoDetalle!==undefined?p.equipoDetalle:d.detalle};
+}
+function avParadaEquipo(i,parte,valor){
+  const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando||!window.glacialEquipos)return;
+  const e=avEquipoEstado(p);
+  if(parte==='sel')e.sel=valor;else e.detalle=valor;
+  p.equipoSel=e.sel;p.equipoDetalle=e.detalle;
+  p.equipo=window.glacialEquipos.componer(e.sel,e.detalle);
+  if(parte==='sel')avRenderParadasModal();          // «Otro equipo» muestra u oculta el detalle; escribir el detalle no redibuja (conserva el cursor)
+}
 function avParadaCampo(i,campo,valor){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   p[campo]=campo==='minutos'?Number(valor||0):valor;
+  if(campo==='causa'){
+    // El equipo solo existe para «Falla de máquina»: al cambiar la causa se limpia y la fila se vuelve a dibujar.
+    if(!window.glacialEquipos||!window.glacialEquipos.esFalla(valor)){p.equipo='';delete p.equipoSel;delete p.equipoDetalle;}
+    avRenderParadasModal();
+    return;
+  }
   if(campo==='tipo'){
-    if(valor==='PROGRAMADA')p.causa='';
+    if(valor==='PROGRAMADA'){p.causa='';p.equipo='';delete p.equipoSel;delete p.equipoDetalle;}
     // El tipo cambia la estructura de la fila (muestra/oculta Causa),
     // por eso solo en este caso es necesario volver a dibujar el modal.
     avRenderParadasModal();
@@ -403,6 +423,7 @@ function avRenderParadasModal(){
     </select></div>
     <div class="av-parada-motivo"><label>Motivo de parada</label><input ${p.tipo==='PROGRAMADA'?'list="av-paradas-catalogo"':''} value="${avEsc(p.descripcion||'')}" placeholder="${p.tipo==='NO_PROGRAMADA'?'Ej. Calibración envasadora':'Elige del catálogo o escribe'}" oninput="avParadaCampo(${i},'descripcion',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
     ${p.tipo==='NO_PROGRAMADA'?`<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(${i},'causa',this.value)" ${m.guardando||!puedeEditar?'disabled':''}><option value="">Seleccionar…</option>${causas.map(c=>`<option value="${avEsc(c)}" ${p.causa===c?'selected':''}>${avEsc(c)}</option>`).join('')}</select></div>`:''}
+    ${avEsFalla(p)?(()=>{const e=avEquipoEstado(p),dis=m.guardando||!puedeEditar?'disabled':'';return `<div class="av-parada-equipo"><label>Equipo que falló (obligatorio)</label><select onchange="avParadaEquipo(${i},'sel',this.value)" ${dis}>${window.glacialEquipos.opciones(m.linea,p.equipo)}</select>${e.sel==='__otro__'?`<input type="text" maxlength="80" value="${avEsc(e.detalle)}" placeholder="Detalle del equipo (mínimo 5 caracteres)" oninput="avParadaEquipo(${i},'detalle',this.value)" ${dis}>`:''}</div>`;})():''}
     <div class="av-parada-min"><label>Minutos</label><input type="number" min="1" step="1" value="${avNum(p.minutos)||''}" oninput="avParadaCampo(${i},'minutos',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
     ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>Desde (opc.)</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
     <div class="av-parada-min"><label>Hasta (opc.)</label><input type="time" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
@@ -435,6 +456,13 @@ async function avGuardarParadasModal(){
   const activas=m.filas.filter(p=>!p.eliminarSolicitado);
   const invalida=activas.find(p=>!['PROGRAMADA','NO_PROGRAMADA'].includes(p.tipo)||!String(p.descripcion||'').trim()||avNum(p.minutos)<=0||(p.tipo==='NO_PROGRAMADA'&&!String(p.causa||'').trim()));
   if(invalida){m.error='Completa Tipo, Motivo y Minutos. En una parada No programada también debes seleccionar la Causa.';avRenderParadasModal();return;}
+  // «Falla de máquina»: el equipo es obligatorio (Otro equipo pide un detalle de al menos 5 caracteres).
+  for(const p of activas){
+    if(!avEsFalla(p))continue;
+    const e=avEquipoEstado(p),err=window.glacialEquipos.validar(e.sel,e.detalle);
+    if(err){m.error='Parada «'+String(p.descripcion||'').trim()+'»: '+err;avRenderParadasModal();return;}
+    p.equipo=window.glacialEquipos.componer(e.sel,e.detalle);
+  }
 
   // Motivos que ya fueron registrados por botón en este turno: se avisa y no se suman dos veces.
   const duplicadas=avDuplicadosConBoton(m,activas);
@@ -486,6 +514,7 @@ async function avGuardarParadasModal(){
             const item={...ref.item,descripcion:String(p.descripcion).trim(),tiempoMin:avNum(p.minutos)};
             if(!item.id)item.id=p.id.startsWith('reg:')?`pr_${ahora}_${Math.random().toString(36).slice(2,7)}`:p.id;
             if(destino==='paradasNoProgramadas')item.causa=p.causa||'';else delete item.causa;
+            if(destino==='paradasNoProgramadas'&&avEsFalla(p)&&p.equipo)item.equipo=p.equipo;else delete item.equipo;
             if(p.key===destino)ref.q[p.key][ref.pi]=item;
             else{
               ref.q[p.key].splice(ref.pi,1);
@@ -505,7 +534,8 @@ async function avGuardarParadasModal(){
 
       m.filas.filter(p=>p.origen==='AVANCE'&&!p.eliminarSolicitado).forEach(p=>{
         const obj={...p,descripcion:String(p.descripcion).trim(),minutos:avNum(p.minutos),tipo:p.tipo,fecha:m.fecha,turno:m.turno,linea:m.linea,origen:'AVANCE',actualizadoPor:usuario,actualizadoEn:ahora};
-        delete obj.nueva;delete obj.eliminarSolicitado;delete obj.tipoOriginal;
+        delete obj.nueva;delete obj.eliminarSolicitado;delete obj.tipoOriginal;delete obj.equipoSel;delete obj.equipoDetalle;
+        if(!avEsFalla(p)||!p.equipo)delete obj.equipo;
         const i=operativas.findIndex(x=>x.id===obj.id);
         if(i>=0){
           obj.creadoEn=operativas[i].creadoEn||ahora;obj.creadoPor=operativas[i].creadoPor||usuario;operativas[i]=obj;
@@ -1789,6 +1819,7 @@ body.av-modal-open #av-floating-trigger{visibility:hidden;pointer-events:none}
 .av-detail-dialog{width:min(1080px,98vw)}.av-detail-tabs{position:sticky;top:-16px;z-index:3;display:flex;gap:4px;overflow-x:auto;padding:7px 0;background:#f5f8fa}.av-detail-tabs button{border:1px solid #dce3e8;background:#fff;border-radius:5px;padding:6px 8px;font-size:9px;font-weight:800;color:#456273}.av-detail-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.av-detail-kpis>div{padding:10px;background:#fff;border:1px solid #dce3e8;border-radius:7px}.av-detail-kpis small,.av-detail-kpis span{display:block;color:#87949d;font-size:8px}.av-detail-kpis strong{display:block;color:#003b5c;font-size:18px;margin:3px 0}.av-detail-section{scroll-margin-top:40px;margin-top:14px}.av-detail-section h3{margin:0 0 7px;color:#003b5c}.av-line-card,.av-stop-line,.av-observation{padding:10px;background:#fff;border:1px solid #dce3e8;border-radius:7px;margin-top:7px}.av-line-title{display:flex;justify-content:space-between}.av-line-title b{color:#005b96}.av-line-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}.av-line-metrics span,.av-products span{font-size:9px;color:#667784}.av-products{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.av-products span{padding:4px 6px;background:#f3f7f9;border-radius:4px}.av-stop-line>div{display:grid;grid-template-columns:100px 1fr 70px;gap:6px;padding:6px 0;border-top:1px solid #edf1f3}.av-stop-line span{font-size:8px;font-weight:800}.av-stop-line .np{color:#c0392b}.av-stop-line .p{color:#d89216}.av-stop-line em{text-align:right;font-style:normal}.av-personal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.av-personal-grid>div{display:flex;justify-content:space-between;padding:8px;background:#fff;border:1px solid #dce3e8;border-radius:6px}.av-whatsapp-preview{margin-top:14px;background:#fff;border:1px solid #dce3e8;border-radius:7px;padding:9px}.av-whatsapp-preview summary{cursor:pointer;font-size:10px;font-weight:800;color:#005b96}.av-whatsapp-preview textarea{width:100%;min-height:260px;margin-top:8px;padding:9px;border:1px solid #dce3e8;border-radius:6px;resize:vertical;font-family:'IBM Plex Mono',monospace;font-size:10px}
 .av-image-dialog{width:min(780px,96vw)}.av-image-preview{background:#dfe7ec;text-align:center}.av-image-preview canvas{width:min(100%,540px);height:auto;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.12)}
 
+.av-parada-equipo{grid-column:1/-1}.av-parada-equipo input{margin-top:6px}
 .av-paradas-modal{display:none;position:fixed;inset:0;z-index:2600;background:rgba(0,31,50,.62);padding:18px;align-items:center;justify-content:center}.av-paradas-modal.open{display:flex}.av-paradas-dialog{width:min(760px,98vw);max-height:92vh;display:flex;flex-direction:column;background:#f5f8fa;border-radius:12px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.28)}.av-paradas-dialog>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:15px 18px;background:#003b5c;color:#fff}.av-paradas-dialog>header h2{margin:2px 0;font-size:18px}.av-paradas-dialog>header p{margin:2px 0;font-size:10px}.av-paradas-dialog>header>button{width:36px;height:36px;border:0;border-radius:6px;background:rgba(255,255,255,.12);color:#fff}.av-paradas-linea{margin-top:7px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:#fff;color:#003b5c;font-weight:800}.av-paradas-body{padding:14px;overflow-y:auto}.av-paradas-note{padding:9px 10px;background:#eaf5fc;border:1px solid #c8deeb;border-radius:7px;color:#35586b;font-size:10px;margin-bottom:10px}.av-paradas-error{padding:9px 10px;background:#fff0ee;border:1px solid #efc0b9;color:#a22d22;border-radius:7px;margin-bottom:10px;font-size:10px}.av-paradas-list{display:grid;gap:8px}.av-parada-row{display:grid;grid-template-columns:150px minmax(180px,1fr) 180px 95px 38px;gap:8px;align-items:end;padding:10px;background:#fff;border:1px solid #d7e3eb;border-radius:8px}.av-parada-row label{display:block;font-size:9px;font-weight:800;color:#667784;margin-bottom:4px}.av-parada-row input,.av-parada-row select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cfdbe3;border-radius:6px;background:#fff}.av-parada-row.is-p{border-left:4px solid #2e9d62}.av-parada-row.is-np{border-left:4px solid #d16b2f}.av-parada-row:not(.is-np) .av-parada-causa{display:none}.av-parada-row small{grid-column:1/-1;color:#87949d;font-size:8px}.av-parada-remove{height:36px;border:1px solid #efc0b9;background:#fff;color:#c0392b;border-radius:6px}.av-parada-add{margin-top:10px}.av-paradas-dialog>footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:#fff;border-top:1px solid #d7e3eb}.av-paradas-dialog>footer>div:last-child{display:flex;gap:7px}.av-paradas-dialog>footer strong{color:#003b5c;margin-left:6px}
 @media(max-width:900px){.av-module-grid{grid-template-columns:1fr}.av-detail-kpis{grid-template-columns:repeat(2,1fr)}.av-slot-strip{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.av-paradas-modal{padding:0}.av-paradas-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-parada-row{grid-template-columns:1fr 95px 38px}.av-parada-tipo,.av-parada-motivo,.av-parada-causa{grid-column:1/-1}.av-parada-min{grid-column:1/3}.av-paradas-dialog>footer{align-items:stretch;flex-direction:column}.av-paradas-dialog>footer>div:last-child{display:grid;grid-template-columns:1fr 1fr}.av-paradas-dialog>footer .btn{min-height:44px}.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:1fr}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:1fr}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:max(12px,env(safe-area-inset-bottom));touch-action:manipulation;-webkit-tap-highlight-color:transparent}

@@ -178,7 +178,7 @@
             // Filas automáticas (importadas de Paletas/semáforo/Avance): ya se cuentan en su origen.
             if(p?.auto||p?.eliminada)return;
             if(p?.descripcion&&num(p.tiempoMin)>0)
-              salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO'});
+              salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO',causa:p.causa||'',equipo:p.equipo||''});
           });
         });
       });
@@ -200,6 +200,8 @@
     const e={motivo:p.descripcion||p.motivo||'',clasif:(p.tipo||p.clasif)==='PROGRAMADA'?'PROGRAMADA':'NO_PROGRAMADA',
       minutos:num(p.minutos!==undefined?p.minutos:p.tiempoMin),origen:p.origen==='REGISTRO'?'REGISTRO':'AVANCE'};
     if(p.id)e.id=String(p.id);
+    // Campos informativos (no entran en ningún cálculo): causa y equipo que falló.
+    e.causa=p.causa||'';e.equipo=p.equipo||'';
     const ini=horaAMs(fecha,p.horaInicio,bloque),fin=horaAMs(fecha,p.horaFin,bloque);
     if(ini&&fin&&fin>ini){e.inicio=ini;e.fin=fin;e.minutos=(fin-ini)/MS_MIN;}
     return e.minutos>0?e:null;
@@ -244,7 +246,7 @@
       }
       lista.push({id:r.id||'',tipo:r.tipo==='DETENCION'?'DETENCION':'PAUSA',
         motivo:r.motivo||'',clasif:r.clasificacion==='PROGRAMADA'?'PROGRAMADA':'NO_PROGRAMADA',
-        estandarMin:std,inicio:num(r.inicio),fin,abierta,origen:'BOTON'});
+        estandarMin:std,inicio:num(r.inicio),fin,abierta,origen:'BOTON',equipo:r.equipo||''});
     });
 
     // Eventos históricos (datos anteriores a los registros de parada).
@@ -363,7 +365,7 @@
       // Historial de estados del semáforo: solo informativo (no se clasifica ni se suma).
       const seg=recortar(r);
       detalle.push({id:r.id,tipo:r.tipo,motivo:r.motivo,clasif:r.clasif,inicio:seg.inicio,fin:seg.fin,
-        abierta:r.abierta,estandarMin:r.estandarMin||estandar(r.motivo),origen:'BOTON',
+        abierta:r.abierta,estandarMin:r.estandarMin||estandar(r.motivo),origen:'BOTON',equipo:r.equipo||'',
         minutos:Math.max(0,(seg.fin-seg.inicio)/MS_MIN)});
       const std=r.estandarMin||estandar(r.motivo);
       if(r.abierta&&r.clasif==='PROGRAMADA'&&std>0&&(fin-r.inicio)/MS_MIN>std&&!finalizada){
@@ -437,8 +439,8 @@
         const seg=recortar(s);
         if(seg.fin<=seg.inicio)return;
         partirPorEstandar(s.motivo,s.clasif,(seg.fin-seg.inicio)/MS_MIN,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,
-          {origen:s.origen||'SUPERVISOR',inicio:seg.inicio,fin:seg.fin});
-      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR'});
+          {origen:s.origen||'SUPERVISOR',inicio:seg.inicio,fin:seg.fin,causa:s.causa||'',equipo:s.equipo||''});
+      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR',causa:s.causa||'',equipo:s.equipo||''});
     });
     const sumaClasif=c=>paradasClasificadas.filter(x=>x.clasif===c).reduce((a,x)=>a+x.minutos,0);
     const ajusteNpMin=noProg-sumaClasif('NO_PROGRAMADA');

@@ -2234,7 +2234,9 @@ function xlHojaParadas(wb, ctx){
           marca:c.marca || '',
           tipo,
           desc:desc || 'Sin descripción',
-          min
+          min,
+          equipo:(tipo === 'No programada' && /^\s*falla de m[aá]quina/i.test(String(p?.causa || '')))
+            ? (String(p?.equipo || '').trim() || 'Equipo sin indicar') : ''
         });
 
       });
@@ -2267,19 +2269,22 @@ function xlHojaParadas(wb, ctx){
       { h:'Descripción', w:54 },
       { h:'Tiempo (min)', w:14, fmt:'#,##0.0' },
       { h:'Tiempo (h)', w:12, fmt:'0.00' },
-      { h:'% del total parado', w:17, fmt:'0.0%' }
+      { h:'% del total parado', w:17, fmt:'0.0%' },
+      { h:'Equipo (falla de máquina)', w:28 }
     ],
     filas:datos.map(f => [
       f.cuadro, f.marca, f.tipo, f.desc, f.min,
       r => xlFx(`E${r}/60`, f.min / 60),
       r => xlFx(`IF($E$${rt}>0,E${r}/$E$${rt},0)`,
-        totalMin > 0 ? f.min / totalMin : 0)
+        totalMin > 0 ? f.min / totalMin : 0),
+      f.equipo || ''
     ]),
     total:(r0, r1) => [
       'TOTAL', '', '', '',
       xlFx(`SUM(E${r0}:E${r1})`, totalMin),
       xlFx(`SUM(F${r0}:F${r1})`, totalMin / 60),
-      xlFx(`SUM(G${r0}:G${r1})`, totalMin > 0 ? 1 : 0)
+      xlFx(`SUM(G${r0}:G${r1})`, totalMin > 0 ? 1 : 0),
+      ''
     ]
   });
 

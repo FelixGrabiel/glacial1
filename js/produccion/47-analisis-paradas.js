@@ -171,6 +171,11 @@
     if(!abrirOtro&&/^otro\b/i.test(m))return 'Otro';
     return m;
   }
+  /* Equipo que falló: solo las paradas por «Falla de máquina»; las antiguas (sin equipo) salen como «Equipo sin indicar». */
+  function equipoDeParada(it){
+    if(!it||!/^\s*falla de m[aá]quina/i.test(String(it.causa||'')))return null;
+    return String(it.equipo||'').trim()||'Equipo sin indicar';
+  }
   function armarPareto(us,o){
     const op=Object.assign({agrupar:'motivo',metrica:'minutos',incluirProg:false,abrirOtro:false,tecnicoDe:null},o||{});
     const grupos=new Map();
@@ -180,7 +185,8 @@
       ajuste+=u.ajusteNp+(op.incluirProg?u.ajusteProg:0);
       items.forEach(it=>{
         let clave;
-        if(op.agrupar==='linea')clave=nombreLinea(u.linea);
+        if(op.agrupar==='equipo'){clave=equipoDeParada(it);if(!clave)return;}
+        else if(op.agrupar==='linea')clave=nombreLinea(u.linea);
         else if(op.agrupar==='turno')clave=u.turno;
         else if(op.agrupar==='tecnico')clave=(op.tecnicoDe&&op.tecnicoDe(it,u))||SIN_TECNICO;
         else clave=etiquetaMotivo(it.motivo,op.abrirOtro);
@@ -435,7 +441,7 @@
   }
 
   function tablaPareto(p,agrupar){
-    const etiqueta={motivo:'Motivo',linea:'Línea',turno:'Turno',tecnico:'Técnico'}[agrupar];
+    const etiqueta={motivo:'Motivo',linea:'Línea',turno:'Turno',tecnico:'Técnico',equipo:'Equipo'}[agrupar];
     const u=p.metrica==='cantidad'?'cantidad':'minutos';
     return '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>'+etiqueta+'</th><th>Cantidad</th><th>Minutos</th><th>% ('+u+')</th><th>Acumulado</th></tr></thead><tbody>'+
       p.filas.map(f=>'<tr><td>'+esc(f.clave)+'</td><td>'+fmt(f.cantidad)+'</td><td>'+fmt(f.minutos)+'</td><td>'+(f.pct*100).toFixed(1)+' %</td><td>'+(f.acum*100).toFixed(1)+' %</td></tr>').join('')+
@@ -518,7 +524,7 @@
       if(!d.us.length){
         cuerpo+='<div class="ap-vacio"><b>Sin turnos con datos en este rango.</b><br>El análisis usa los turnos con inicio real de la línea desde Producción Actual. Prueba con «Ayer», «Esta semana» o «Este mes».</div>';
       }else{
-        cuerpo+='<h3 class="ap-sec">Pareto de paradas '+(F.incluirProg?'(no programadas y programadas)':'no programadas')+' por '+({motivo:'motivo',linea:'línea',turno:'turno',tecnico:'técnico'}[F.agrupar])+'</h3>';
+        cuerpo+='<h3 class="ap-sec">Pareto de paradas '+(F.incluirProg?'(no programadas y programadas)':'no programadas')+' por '+({motivo:'motivo',linea:'línea',turno:'turno',tecnico:'técnico',equipo:'equipo (solo fallas de máquina)'}[F.agrupar])+'</h3>';
         if(F.agrupar==='tecnico'){
           if(!tec.error&&!tec.listo)cuerpo+='<div class="ap-aviso">Cargando técnicos de la bitácora…</div>';
           else if(!tec.error)cuerpo+='<p class="ap-nota">El técnico sale de la bitácora; las paradas sin registro ahí (supervisor, históricas) van a «'+SIN_TECNICO+'».</p>';
@@ -540,7 +546,7 @@
         '<div class="field-sm"><label>Hasta</label><input type="date" id="ap-hasta" value="'+esc(F.hasta)+'" max="'+esc(hoy)+'"></div>'+
         '<div class="field-sm"><label>Línea</label><select id="ap-linea">'+opcionesSel(lineas,F.linea,'Todas')+'</select></div>'+
         '<div class="field-sm"><label>Turno</label><select id="ap-turno">'+opcionesSel(TURNOS,F.turno,'Todos')+'</select></div>'+
-        '<div class="field-sm"><label>Agrupar por</label><select id="ap-agrupar">'+[['motivo','Motivo'],['linea','Línea'],['turno','Turno'],['tecnico','Técnico']].map(([v,t])=>'<option value="'+v+'"'+(F.agrupar===v?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
+        '<div class="field-sm"><label>Agrupar por</label><select id="ap-agrupar">'+[['motivo','Motivo'],['linea','Línea'],['turno','Turno'],['tecnico','Técnico'],['equipo','Equipo']].map(([v,t])=>'<option value="'+v+'"'+(F.agrupar===v?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
         '<div class="field-sm"><label>Ver por</label><select id="ap-metrica"><option value="minutos"'+(F.metrica==='minutos'?' selected':'')+'>Minutos</option><option value="cantidad"'+(F.metrica==='cantidad'?' selected':'')+'>Cantidad de paradas</option></select></div>'+
         '<div class="field-sm"><label>&nbsp;</label><label style="font-weight:600"><input type="checkbox" id="ap-prog"'+(F.incluirProg?' checked':'')+'> Incluir programadas</label></div>'+
         '<div class="field-sm"><label>&nbsp;</label><label style="font-weight:600"><input type="checkbox" id="ap-otro"'+(F.abrirOtro?' checked':'')+'> Abrir «Otro»</label></div>'+
@@ -617,7 +623,7 @@
       ['Disponibilidad',r.disp==null?'—':+(r.disp*100).toFixed(1),'% · meta verde ≥ '+m.verdePct+' %, ámbar ≥ '+m.ambarPct+' %'],
       ['Tiempo medio de reparación (min)',r.mttr==null?'Sin paradas':+r.mttr.toFixed(1),'minutos NP ÷ paradas NP'],
       ['Tiempo medio entre fallas (min)',r.mtbf==null?'Sin paradas':+r.mtbf.toFixed(1),'tiempo en marcha ÷ paradas NP']],[36,18,60]);
-    const etq={motivo:'Motivo',linea:'Línea',turno:'Turno',tecnico:'Técnico'}[F.agrupar];
+    const etq={motivo:'Motivo',linea:'Línea',turno:'Turno',tecnico:'Técnico',equipo:'Equipo'}[F.agrupar];
     hoja('Pareto','Pareto de paradas',[etq,'Cantidad','Minutos','% ('+(F.metrica==='cantidad'?'cantidad':'minutos')+')','Acumulado %'],
       d.pareto.filas.map(f=>[f.clave,f.cantidad,Math.round(f.minutos),+(f.pct*100).toFixed(1),+(f.acum*100).toFixed(1)])
         .concat(Math.abs(d.pareto.ajusteMin)>=0.5?[['Ajuste por solapes y topes','',Math.round(d.pareto.ajusteMin),'','']]:[])
@@ -633,8 +639,8 @@
         ?[u.fecha,nombreLinea(u.linea),u.turno,+(u.disp*100).toFixed(1),Math.round(o.ratioSop),Math.round(o.velocidad),+(o.rend*100).toFixed(1),+(o.oee*100).toFixed(1),o.aRevisar?'revisar velocidad estándar':'']
         :[u.fecha,nombreLinea(u.linea),u.turno,u.disp==null?'—':+(u.disp*100).toFixed(1),'','','','',textoOee(o)]),[12,14,12,16,18,18,14,10,28]);
     const tecnicoDe=d.tecnicoDe;
-    hoja('Paradas','Paradas del rango',['Fecha','Línea','Turno','Motivo','Tipo','Minutos','Origen','Técnico'],
-      d.us.flatMap(u=>u.npItems.concat(F.incluirProg?u.pItems:[]).map(it=>[u.fecha,nombreLinea(u.linea),u.turno,it.motivo,it.clasif==='PROGRAMADA'?'Programada':'No programada'+(it.exceso?' (exceso)':''),+it.minutos.toFixed(1),it.origen,(tecnicoDe&&tecnicoDe(it,u))||''])),[12,14,12,36,22,10,14,26]);
+    hoja('Paradas','Paradas del rango',['Fecha','Línea','Turno','Motivo','Tipo','Minutos','Origen','Técnico','Equipo'],
+      d.us.flatMap(u=>u.npItems.concat(F.incluirProg?u.pItems:[]).map(it=>[u.fecha,nombreLinea(u.linea),u.turno,it.motivo,it.clasif==='PROGRAMADA'?'Programada':'No programada'+(it.exceso?' (exceso)':''),+it.minutos.toFixed(1),it.origen,(tecnicoDe&&tecnicoDe(it,u))||'',equipoDeParada(it)||''])),[12,14,12,36,22,10,14,26,24]);
     const buffer=await wb.xlsx.writeBuffer();
     const nombre='Analisis_paradas_'+F.desde+(F.hasta!==F.desde?'_a_'+F.hasta:'')+'.xlsx';
     const url=URL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
@@ -857,7 +863,7 @@
     window.renderCentroPerfil=renderCentroPerfil;
   }
 
-  window.glacialAnalisisParadas={construirUnidad,resumenIndicadores,armarPareto,armarTendencia,armarReparacion,
+  window.glacialAnalisisParadas={equipoDeParada,construirUnidad,resumenIndicadores,armarPareto,armarTendencia,armarReparacion,
     calcularOee,datosRegistro,resolvedorTecnico,listarUnidades,nivelDisp,render,abrirConfig,exportar,
     estado:F,tecnicos:tec,escucharConfig,pintarTarjetaHoy,calcularTodo,htmlDisponibilidadHoy};
 })();

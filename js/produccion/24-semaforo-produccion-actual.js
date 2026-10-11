@@ -440,7 +440,8 @@
 
     const boton=(accion,label)=>`<button type="button" class="btn btn-ghost btn-sm"
       data-pa-accion="${accion}" data-pa-indice="${idx}">${label}</button>`;
-    const compl=motivoPendienteAbierto(x.op) ? boton('completarMotivo','Completar motivo') : '';
+    const compl=(motivoPendienteAbierto(x.op) ? boton('completarMotivo','Completar motivo') : '')+
+      (equipoPendienteAbierto(x.op) ? boton('indicarEquipo','Indicar equipo') : '');
     if(x.puede==='mtto' || x.puede==='control'){
       if(e==='EN_PRODUCCION'){
         return boton('detener','Detener línea')+
@@ -1040,7 +1041,7 @@
         return {tipo:'PAUSA PROGRAMADA',desde:Number(x.op.pausaDesde),motivo:x.op.motivoPausa||'Pausa programada'};
       }
       if(['DETENIDA','LISTA'].includes(x.op.estado) && Number(x.op.detenidaDesde||0)>0){
-        return {tipo:x.op.estado==='LISTA'?'INTERVENCIÓN TERMINADA':'DETENIDA',desde:Number(x.op.detenidaDesde),motivo:x.op.motivo||'Sin motivo registrado'};
+        return {tipo:x.op.estado==='LISTA'?'INTERVENCIÓN TERMINADA':'DETENIDA',desde:Number(x.op.detenidaDesde),motivo:(x.op.motivo||'Sin motivo registrado')+(x.op.equipo?' · '+x.op.equipo:'')};
       }
       return null;
     };
@@ -1387,6 +1388,7 @@
     .pa-modal select,.pa-modal input[type=time],.pa-modal input[type=number],.pa-modal input[type=text],.pa-modal textarea{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #cbd8e0;border-radius:7px;font:inherit}
     .pa-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .pa-modal-nota{display:block;margin-top:8px;color:#667784;font-size:11px;line-height:1.4}
+    .pa-modal-error{margin-top:8px;color:#c62828;font-size:12px;font-weight:700}
     .pa-modal-acc{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
     .pa-modal-tabla{overflow:auto;border:1px solid #e1e8ed;border-radius:8px}.pa-modal-tabla table{width:100%;border-collapse:collapse;font-size:12px}
     .pa-modal-tabla th,.pa-modal-tabla td{padding:6px 8px;border-bottom:1px solid #eef2f5;text-align:left}.pa-modal-tabla td small{display:block;color:#7a8b98}
@@ -1545,9 +1547,10 @@
   }
 
   // Ventana para elegir el motivo del catálogo. Devuelve {motivo,estandarMin,clasificacion} o null.
-  function pedirMotivoCatalogo(clasificacion){
+  function pedirMotivoCatalogo(clasificacion,linea){
     return new Promise(resolve=>{
       const programada=clasificacion==='PROGRAMADA';
+      const G=window.glacialEquipos;
       const opciones=programada
         ? listaMotivosProgramados()
         : CATALOGO_MOTIVOS_PARADA.noProgramadas.map(nombre=>({nombre,estandarMin:0}));
@@ -1558,6 +1561,10 @@
         <label>Motivo</label>
         <select id="pa-motivo">${opciones.map((o,i)=>`<option value="${i}">${esc(o.nombre)}${o.estandarMin?` · estándar ${o.estandarMin} min`:''}</option>`).join('')}</select>
         <div id="pa-motivo-detalle-wrap" hidden><label>Detalle</label><input id="pa-motivo-detalle" maxlength="120"></div>
+        ${!programada&&G?`<div id="pa-equipo-wrap" hidden><label>Equipo que falló (obligatorio)</label>
+          <select id="pa-equipo">${G.opciones(linea,'')}</select>
+          <div id="pa-equipo-otro-wrap" hidden><input id="pa-equipo-otro" maxlength="80" placeholder="Detalle del equipo (mínimo 5 caracteres)" style="margin-top:6px"></div></div>`:''}
+        <div class="pa-modal-error" id="pa-modal-error" role="alert" hidden></div>
         <small class="pa-modal-nota">${programada
           ? 'El tiempo que exceda el estándar se contará como parada no programada.'
           : 'Queda registrada con hora de inicio; se cierra al reanudar.'}</small>
@@ -1565,20 +1572,35 @@
           <button type="button" class="btn btn-primary" data-a>Aceptar</button></div></div>`;
       document.body.appendChild(fondo);
       const sel=fondo.querySelector('#pa-motivo'),wrap=fondo.querySelector('#pa-motivo-detalle-wrap');
-      const alternar=()=>{wrap.hidden=!(opciones[sel.value].nombre==='Otro');};
+      const eqWrap=fondo.querySelector('#pa-equipo-wrap'),eqSel=fondo.querySelector('#pa-equipo'),eqOtroWrap=fondo.querySelector('#pa-equipo-otro-wrap'),eqOtro=fondo.querySelector('#pa-equipo-otro');
+      const errorEl=fondo.querySelector('#pa-modal-error');
+      const mostrarError=t=>{errorEl.textContent=t||'';errorEl.hidden=!t;};
+      // El equipo se pide solo cuando el motivo es «Falla de máquina».
+      const alternar=()=>{
+        wrap.hidden=!(opciones[sel.value].nombre==='Otro');
+        if(eqWrap)eqWrap.hidden=!(G&&G.esFalla(opciones[sel.value].nombre));
+        mostrarError('');
+      };
       sel.addEventListener('change',alternar);alternar();
+      if(eqSel)eqSel.addEventListener('change',()=>{eqOtroWrap.hidden=eqSel.value!=='__otro__';mostrarError('');});
       const cerrar=v=>{fondo.remove();resolve(v);};
       fondo.querySelector('[data-c]').onclick=()=>cerrar(null);
       fondo.addEventListener('click',e=>{if(e.target===fondo)cerrar(null);});
       fondo.querySelector('[data-a]').onclick=()=>{
         const o=opciones[sel.value];
-        let motivo=o.nombre;
+        let motivo=o.nombre,equipo='';
         if(o.nombre==='Otro'){
           const d=fondo.querySelector('#pa-motivo-detalle').value.trim();
-          if(d.length<5){alert('Escribe el detalle del motivo (mínimo 5 caracteres).');return;}
+          if(d.length<5){mostrarError('Escribe el detalle del motivo (mínimo 5 caracteres).');return;}
           motivo='Otro — '+d;
         }
-        cerrar({motivo,estandarMin:o.estandarMin || 0,clasificacion});
+        // «Falla de máquina»: el equipo es obligatorio («Otro equipo» pide un detalle de al menos 5 caracteres).
+        if(!programada&&G&&G.esFalla(o.nombre)){
+          const err=G.validar(eqSel.value,eqOtro?eqOtro.value:'');
+          if(err){mostrarError(err);return;}
+          equipo=G.componer(eqSel.value,eqOtro?eqOtro.value:'');
+        }
+        cerrar({motivo,estandarMin:o.estandarMin || 0,clasificacion,equipo});
       };
       sel.focus();
     });
@@ -1738,6 +1760,96 @@
   }
   window.glacialEsMotivoPendiente=esMotivoPendiente;
 
+  /* ---------- EQUIPO PENDIENTE: una parada por «Falla de máquina» que quedó sin equipo (se indica después con COMPLETAR_MOTIVO) ---------- */
+  function equipoPendienteAbierto(op){
+    const G=window.glacialEquipos;
+    return !!(G && op && ['DETENIDA','LISTA'].includes(op.estado) && G.esFalla(op.motivo) && !String(op.equipo||'').trim());
+  }
+  window.glacialEquipoPendiente=equipoPendienteAbierto;
+  // Ventana propia (sin prompt) para elegir el equipo. Devuelve el texto del equipo o null.
+  function pedirEquipo(linea){
+    return new Promise(resolve=>{
+      const G=window.glacialEquipos;
+      const fondo=document.createElement('div');
+      fondo.className='pa-modal-fondo';
+      fondo.innerHTML=`<div class="pa-modal" role="dialog" aria-modal="true">
+        <h3>Indicar equipo</h3>
+        <label>Equipo que falló</label>
+        <select id="pa-equipo">${G.opciones(linea,'')}</select>
+        <div id="pa-equipo-otro-wrap" hidden><input id="pa-equipo-otro" maxlength="80" placeholder="Detalle del equipo (mínimo 5 caracteres)" style="margin-top:6px"></div>
+        <div class="pa-modal-error" id="pa-modal-error" role="alert" hidden></div>
+        <div class="pa-modal-acc"><button type="button" class="btn btn-ghost" data-c>Cancelar</button>
+          <button type="button" class="btn btn-primary" data-a>Guardar</button></div></div>`;
+      document.body.appendChild(fondo);
+      const sel=fondo.querySelector('#pa-equipo'),otroWrap=fondo.querySelector('#pa-equipo-otro-wrap'),otro=fondo.querySelector('#pa-equipo-otro'),err=fondo.querySelector('#pa-modal-error');
+      sel.addEventListener('change',()=>{otroWrap.hidden=sel.value!=='__otro__';err.hidden=true;});
+      const cerrar=v=>{fondo.remove();resolve(v);};
+      fondo.querySelector('[data-c]').onclick=()=>cerrar(null);
+      fondo.addEventListener('click',e=>{if(e.target===fondo)cerrar(null);});
+      fondo.querySelector('[data-a]').onclick=()=>{
+        const e=G.validar(sel.value,otro.value);
+        if(e){err.textContent=e;err.hidden=false;return;}
+        cerrar(G.componer(sel.value,otro.value));
+      };
+      sel.focus();
+    });
+  }
+  // Aviso con ventana propia (sin alert).
+  function avisoPa(texto){
+    return new Promise(resolve=>{
+      const f=document.createElement('div');
+      f.className='pa-modal-fondo';
+      f.innerHTML=`<div class="pa-modal" role="alertdialog" aria-modal="true"><p style="margin:0;color:#35506a">${esc(texto)}</p>
+        <div class="pa-modal-acc"><button type="button" class="btn btn-primary" data-a>Entendido</button></div></div>`;
+      document.body.appendChild(f);
+      f.querySelector('[data-a]').onclick=()=>{f.remove();resolve();};
+    });
+  }
+  async function indicarEquipoLinea(x){
+    const op0=x.op || {};
+    if(!equipoPendienteAbierto(op0)){await avisoPa('Esta parada ya tiene equipo.');return;}
+    if(!['supervisor','mtto','control'].includes(x.puede))return;
+    if(typeof esMantCompartido==='function' && esMantCompartido() &&
+       !(typeof window.mantTecnicoActivo==='function' && window.mantTecnicoActivo())){
+      await avisoPa('Identifícate con tu PIN antes de operar una línea.');
+      if(typeof window.mantCerrarIdentificacion==='function')window.mantCerrarIdentificacion(true);
+      return;
+    }
+    const equipo=await pedirEquipo(x.linea);
+    if(!equipo)return;
+    const k=llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion);
+    const ref=db.collection('sync').doc('programaciones');
+    const quien=datosQuienOpera();
+    const refBit=db.collection(COLECCION_BITACORA).doc();
+    let evento=null;
+    const items=await db.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      const lista=snap.exists && Array.isArray(snap.data().items) ? snap.data().items.slice() : [];
+      const i=lista.findIndex(p=>p.clave===k);
+      if(i<0)throw new Error('No hay programación para esta presentación.');
+      const previo=lista[i].estadoOperacion || {};
+      if(!equipoPendienteAbierto(previo))throw new Error('La parada ya tiene equipo o ya no está abierta. Actualiza el tablero.');
+      const ahora=ahoraServidor();
+      const abierta=idParadaAbierta(previo);
+      const paradas=(Array.isArray(previo.paradas)?previo.paradas:[]).map(p=>p && abierta && p.id===abierta ? {...p,equipo} : p);
+      const op={...previo,equipo,paradas,equipoCompletadoPor:nombreOperador(),equipoCompletadoEn:ahora};
+      lista[i]={...lista[i],estadoOperacion:op};
+      // La regla de la bitácora exige motivoDetalle de 5 caracteres o más en COMPLETAR_MOTIVO: sin detalle propio se usa «Equipo: <nombre>».
+      evento=eventoBitacora('COMPLETAR_MOTIVO',quien,x,k,previo.estado,op,{
+        motivo:'',paradaId:abierta,motivoAnterior:motivoAbierto(previo),motivoDetalle:('Equipo: '+equipo).slice(0,160),equipo
+      });
+      if(quien.compartida)tx.set(refBit,evento);
+      tx.set(ref,{items:lista,updatedAt:ahora});
+      return lista;
+    });
+    if(evento && !quien.compartida && !window.__vistaComo){
+      Promise.resolve(refBit.set(evento)).catch(e=>
+        console.warn('Bitácora de Mantenimiento: no se pudo registrar el equipo:',e && e.message ? e.message : e));
+    }
+    _programacionesCache=items;
+    if(state.currentTab==='produccion-actual')renderProduccionActualTab();
+  }
+
   async function completarMotivoLinea(x){
     const op0=x.op || {};
     if(!motivoPendienteAbierto(op0)){alert('Esta parada no tiene un motivo pendiente.');return;}
@@ -1788,6 +1900,11 @@
     if(accion==='completarMotivo'){
       try{await completarMotivoLinea(x);}
       catch(err){alert('No se pudo completar el motivo: '+((err&&err.message)||err));}
+      return;
+    }
+    if(accion==='indicarEquipo'){
+      try{await indicarEquipoLinea(x);}
+      catch(err){await avisoPa('No se pudo guardar el equipo: '+((err&&err.message)||err));}
       return;
     }
 
@@ -1894,11 +2011,13 @@
     let motivoPausa='';
     let motivoCancelacion='';
     let motivoElegido=null;
+    let equipoElegido='';           // equipo que falló (solo «Falla de máquina»)
     // El motivo sale del catálogo (con duración estándar para las programadas).
     if(accion==='detener'){
-      motivoElegido=await pedirMotivoCatalogo('NO_PROGRAMADA');
+      motivoElegido=await pedirMotivoCatalogo('NO_PROGRAMADA',x.linea);
       if(!motivoElegido)return;
       motivo=motivoElegido.motivo.slice(0,160);
+      equipoElegido=String(motivoElegido.equipo||'').slice(0,100);
     }
     if(accion==='pausa'){
       motivoElegido=await pedirMotivoCatalogo('PROGRAMADA');
@@ -2001,7 +2120,7 @@
           inicioHoraManual:inicioElegido.hora,
           baseUnidades:num(resumenProgramacionCombinacionTurnos(x.linea,x.fecha,
             [x.turno],x.marca,x.presentacion).unidadesProducidas),
-          pausaDesde:0,pausaAcumuladaMs:0,detenidaDesde:0,detencionAcumuladaMs:0,motivo:''
+          pausaDesde:0,pausaAcumuladaMs:0,detenidaDesde:0,detencionAcumuladaMs:0,motivo:'',equipo:''
         });
       } else if(accion==='corregirInicio'){
         op.inicioAnterior=inicioCorregido.anterior;
@@ -2012,12 +2131,13 @@
         op.inicioCorregidoEn=ahora;
         op.inicioCorregidoPor=nombreOperador();
       } else if(accion==='detener'){
-        op.estado='DETENIDA';op.motivo=motivo;op.detenidaDesde=ahora;
+        op.estado='DETENIDA';op.motivo=motivo;op.detenidaDesde=ahora;op.equipo=equipoElegido;
         // Registro de parada con hora de inicio (fin se completa al reanudar).
         op.paradas=[...(Array.isArray(op.paradas)?op.paradas:[]),{
           id:`${k}|${ahora}|det`,tipo:'DETENCION',motivo,clasificacion:'NO_PROGRAMADA',
           estandarMin:0,inicio:ahora,fin:0,origen:'BOTON',
-          creadoPor:nombreOperador()
+          creadoPor:nombreOperador(),
+          ...(equipoElegido?{equipo:equipoElegido}:{})
         }].slice(-100);
       }
       else if(accion==='pausa'){
@@ -2042,9 +2162,10 @@
           duracionMs:e==='PAUSA'
             ? Math.max(0,ahora-num(op.pausaDesde))
             : Math.max(0,ahora-num(op.detenidaDesde)),
-          motivo:e==='PAUSA'?(op.motivoPausa||'Pausa programada'):(op.motivo||'')
+          motivo:e==='PAUSA'?(op.motivoPausa||'Pausa programada'):(op.motivo||''),
+          ...(e!=='PAUSA'&&op.equipo?{equipo:op.equipo}:{})
         };
-        op.pausaDesde=0;op.detenidaDesde=0;op.estado='EN_PRODUCCION';op.motivo='';op.motivoPausa='';
+        op.pausaDesde=0;op.detenidaDesde=0;op.estado='EN_PRODUCCION';op.motivo='';op.motivoPausa='';op.equipo='';
         op.paradas=cerrarParadasAbiertas(op.paradas,ahora);
       } else if(accion==='cancelar'){
         op.paradas=cerrarParadasAbiertas(op.paradas,ahora);
@@ -2053,7 +2174,7 @@
         if(['DETENIDA','LISTA'].includes(e) && num(op.detenidaDesde)>0)
           op.detencionAcumuladaMs=num(op.detencionAcumuladaMs)+Math.max(0,ahora-num(op.detenidaDesde));
         op.pausaDesde=0;op.detenidaDesde=0;op.estado='CANCELADA';op.finalizadaEn=ahora;
-        op.motivo='';op.motivoCancelacion=motivoCancelacion;op.canceladaEn=ahora;
+        op.motivo='';op.equipo='';op.motivoCancelacion=motivoCancelacion;op.canceladaEn=ahora;
       } else if(accion==='finalizar'){
         /*
            FINALIZAR LÍNEA = cierre autoritativo del plan de la línea.
@@ -2137,7 +2258,7 @@
         op.finalizadaPor='';
         op.pausaDesde=0;
         op.detenidaDesde=0;
-        op.motivo='';
+        op.motivo='';op.equipo='';
       }
       // Historial persistente de alertas dentro de la propia programación.
       // Así el historial viaja con sync/programaciones y no requiere
@@ -2223,6 +2344,8 @@
           duracionMs:accion==='reanudar' && op.ultimaParada ? num(op.ultimaParada.duracionMs) : null
         };
         // Lote 4 · Parte A: datos propios de cada acción de Producción.
+        if(accion==='detener'&&equipoElegido)datosEvento.equipo=equipoElegido;                    // equipo que falló (bitácora)
+        if(accion==='reanudar'&&previo.equipo)datosEvento.equipo=previo.equipo;
         if(accion==='iniciar'){datosEvento.inicioMs=num(op.inicio);datosEvento.inicioHoraManual=op.inicioHoraManual || '';}
         if(accion==='finalizar'){
           datosEvento.cierreMs=ahora;

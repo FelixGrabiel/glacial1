@@ -530,7 +530,8 @@
       if(!Object.values(nuevos).every(v=>REGEX_HORA.test(String(v||'')))){alert('Indica las cuatro horas de los turnos (HH:MM).');return;}
       if(nuevos.diaIni===nuevos.diaFin||nuevos.nocheIni===nuevos.nocheFin){alert('El inicio y el fin de un turno no pueden ser iguales.');return;}
       try{
-        await db.collection('sync').doc(DOC_CONFIG).set(Object.assign({modo,actualizadoPor:state.user.username||'',actualizadoEn:Date.now(),updatedAt:Date.now()},nuevos));
+        // merge:true: este documento también guarda el catálogo de equipos por línea (37c); no se debe borrar al cambiar el modo u horarios.
+        await db.collection('sync').doc(DOC_CONFIG).set(Object.assign({modo,actualizadoPor:state.user.username||'',actualizadoEn:Date.now(),updatedAt:Date.now()},nuevos),{merge:true});
         closeModal();
       }catch(e){alert('No se pudo guardar: '+(e&&e.message||e));}
     };

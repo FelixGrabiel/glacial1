@@ -93,6 +93,7 @@ js/
 | 33-rotacion-maquinistas.js | Rotación semanal de maquinistas |
 | 37-mantenimiento-tecnicos.js | Cuenta compartida de Mantenimiento: rol, permisos (ver tareo y operar líneas con PIN) |
 | 37b-mantenimiento-identificacion.js | Identificación del técnico con PIN |
+| 37c-equipos-catalogo.js | Equipos por línea (sync/configMantenimiento.equipos, en vivo): selector «Equipo» obligatorio en paradas por «Falla de máquina» (Producción Actual, Avance / Cierre y Registro), «Otro equipo — detalle», editor «Equipos por línea» para el Supervisor de Mantenimiento; paradas antiguas = «Equipo sin indicar» |
 | 43-bitacora-mantenimiento.js | Bitácora de Mantenimiento (solo lectura: rangos rápidos por día operativo 07:00–07:00, orden, buscador, vista por parada, motivos pendientes y Excel) y tarjeta «Paradas de hoy» del Inicio |
 
 ### js/rrhh/
@@ -141,6 +142,7 @@ js/
 36. accesos/36-seguridad-auth.js
 37. mantenimiento/37-mantenimiento-tecnicos.js
 38. mantenimiento/37b-mantenimiento-identificacion.js
+38b. mantenimiento/37c-equipos-catalogo.js
 39. rrhh/38-tareo-rrhh-exportacion.js
 40. personal/42-tareo-agregar-personal.js
 41. personal/40-tareo-auditoria.js
@@ -212,3 +214,5 @@ Reportes · Parte B (Impacto económico): js/produccion/50-impacto-economico.js 
 Información económica (protegida por rol): ver docs/ECONOMICO-SEGURIDAD.md. Valores unitarios en la colección valoresUnitarios (solo Gerencia lee/escribe) con historial valoresUnitariosHistorial; resultados en soles agregados en resultadosEconomicos (Gerencia escribe; Gerencia y Jefatura leen). sync/precios y configEconomica quedaron cerrados y se borran tras migrar. Los precios ya no se escriben en el código.
 
 Calidad retirada: el indicador «Calidad» ya no existe en ninguna pantalla, imagen ni Excel (OEE = disponibilidad × rendimiento). Se conservan, aunque contengan la palabra: el campo «Botellas calidad» del registro (produccion.calidad), el motivo de parada «Calidad / producto no conforme», «Charla de Ingreso Sup. Calid.» y el cargo «Técnico de Calidad». Los registros ya guardados no se tocaron. Prueba: tests/sin-calidad.test.js.
+
+Equipo que falló (Producción 2): texto en la parada (equipo), solo con causa/motivo «Falla de máquina»; no cambia minutos ni indicadores. Bitácora de Mantenimiento: columna, filtro, «Indicar equipo» (evento COMPLETAR_MOTIVO nuevo con motivoDetalle «Equipo: …») y tabla «Por equipo». Análisis de paradas: Pareto por equipo. Resumen de turno: equipo con más minutos de falla. Pruebas: tests/equipos.test.js. Sin cambios de reglas Firestore.

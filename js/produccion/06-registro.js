@@ -2993,6 +2993,11 @@ function validarReporteParaFinalizar(){
     if(!q.presentacion) faltan.push(`Producción ${n}: presentación`);
     if(!q.horaInicio) faltan.push(`Producción ${n}: hora inicio`);
     if(!q.horaFin) faltan.push(`Producción ${n}: hora fin`);
+    // Paradas por «Falla de máquina»: el equipo es obligatorio (la lista «Falta para finalizar» lo muestra; no se bloquea el guardado en tiempo real).
+    if(window.glacialEquipos) (q.paradasNoProgramadas || []).forEach(p => {
+      if(p && !p.auto && !p.eliminada && num(p.tiempoMin) > 0 && window.glacialEquipos.esFalla(p.causa) && window.glacialEquipos.validarTexto(p.equipo))
+        faltan.push(`Producción ${n}: equipo de una parada por Falla de máquina`);
+    });
   });
 
   /*
@@ -5862,6 +5867,12 @@ function paradasTableCuadro(
 
                             </select>
 
+                            ${
+                              typeof registroEquipoHtml === 'function'
+                                ? registroEquipoHtml(cuadroIndex, key, i, r)
+                                : ''
+                            }
+
                           </td>
                         `
                     }
@@ -5974,6 +5985,41 @@ function addParadaCuadro(
 }
 
 
+/* Equipo que falló: solo en paradas NO programadas con causa «Falla de máquina». Se guarda como texto en la propia parada (equipo). */
+function registroEquipoHtml(cuadroIndex, key, i, r){
+  const G = window.glacialEquipos;
+  if(!G || key !== 'paradasNoProgramadas' || !G.esFalla(r?.causa)) return '';
+  const d = G.descomponer(r.equipo);
+  const error = G.validarTexto(r.equipo);
+  return `
+    <div class="registro-equipo" style="margin-top:6px;">
+      <select
+        style="width:100%;box-sizing:border-box;${error ? 'border-color:#c62828;' : ''}"
+        aria-label="Equipo que falló"
+        onchange="updateEquipoParada(${cuadroIndex}, '${key}', ${i}, 'sel', this.value)"
+      >${G.opciones(draft?.linea, r.equipo)}</select>
+      ${d.sel === '__otro__'
+        ? `<input type="text" maxlength="80" value="${escaparHtml(d.detalle)}" placeholder="Detalle del equipo (mínimo 5 caracteres)"
+             style="width:100%;box-sizing:border-box;margin-top:4px;"
+             oninput="updateEquipoParada(${cuadroIndex}, '${key}', ${i}, 'detalle', this.value)">`
+        : ''}
+      ${error ? `<small style="color:#c62828;display:block;margin-top:2px;">Equipo obligatorio: ${escaparHtml(error)}</small>` : ''}
+    </div>`;
+}
+
+function updateEquipoParada(cuadroIndex, key, i, parte, val){
+  const G = window.glacialEquipos;
+  const q = normalizarCuadros(draft)[cuadroIndex];
+  if(!G || !q || q.estadoCuadro==='FINALIZADO' || !q[key]?.[i] || q[key][i].auto) return;
+  const fila = q[key][i], d = G.descomponer(fila.equipo);
+  if(parte === 'sel') d.sel = val; else d.detalle = val;
+  fila.equipo = G.componerParcial(d.sel, d.detalle);
+  actualizarCuadro(cuadroIndex);
+  // «Otro equipo» muestra u oculta el detalle (y el aviso de obligatorio): se redibuja al elegir; al escribir el detalle no, para no perder el cursor.
+  if(parte === 'sel') renderFormTab();
+}
+
+
 function updateArrItemCuadro(
   cuadroIndex,
   key,
@@ -6007,6 +6053,14 @@ function updateArrItemCuadro(
           val || 0
         )
       : val;
+
+  // El equipo solo existe para «Falla de máquina»: si la causa cambia, se limpia y la fila se vuelve a dibujar.
+  if(field === 'causa' && key === 'paradasNoProgramadas'){
+    if(!(window.glacialEquipos && window.glacialEquipos.esFalla(val))) delete q[key][i].equipo;
+    actualizarCuadro(cuadroIndex);
+    renderFormTab();
+    return;
+  }
 
 
   actualizarCuadro(
