@@ -29,7 +29,8 @@ js/
 | Archivo | Función |
 |---|---|
 | 00-logo.js | Logo en base64 para portadas de Excel. **No se carga** en `index.html` (pendiente de decidir) |
-| 01-config.js | Configuración de Firebase, banderas de seguridad, catálogos |
+| 00b-puente-supabase.js | **Rama `supabase`:** puente que ofrece `firebase`, `db` y `auth` sobre Supabase (ver `docs/puente-supabase.md`). Se carga antes de 01-config.js |
+| 01-config.js | Configuración de la base de datos (Supabase), banderas de seguridad, catálogos |
 | 44-estado-datos.js | Insignia «Actualizado a las HH:MM» / «Sin conexión · datos de las HH:MM» (Inicio, Producción Actual, Bitácora y Tareo) |
 | 02-estado.js | Estado global, permisos, sincronización con Firestore |
 | 04-sidebar.js | Menú lateral y navegación |

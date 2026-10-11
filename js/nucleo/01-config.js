@@ -109,14 +109,17 @@ const DOMINIOS_PRODUCCION = [
   'felixgrabiel.github.io'
 ];
 
+/* SUPABASE (desde octubre 2026 los datos ya no están en Firebase).
+   La página sigue hablando con «firebase / db / auth»: js/nucleo/00b-puente-supabase.js traduce esas llamadas a Supabase.
+   - supabaseUrl / supabaseKey: dirección del proyecto y su clave PÚBLICA (publishable). Esa clave puede ir en la página:
+     por sí sola no da acceso a nada; cada lectura y escritura la autoriza la base de datos según quién inició sesión.
+   - projectId: solo es la etiqueta que se muestra en la consola y en la franja de PRUEBAS.
+   PENDIENTE (antes del paso a producción): PRUEBAS debe apuntar a un proyecto de Supabase distinto del de PRODUCCION.
+   Mientras dura el ensayo de la migración ambos apuntan al mismo proyecto, que todavía no tiene datos de planta. */
 const CONFIG_PRUEBAS = {
-  apiKey: "AIzaSyDu-PrKL0Zacynobn_iLc7EVFIiC7Rk96A",
-  authDomain: "pruebas-b11b7.firebaseapp.com",
-  projectId: "pruebas-b11b7",
-  storageBucket: "pruebas-b11b7.firebasestorage.app",
-  messagingSenderId: "492367398973",
-  appId: "1:492367398973:web:80bbe223b737cba90cc254",
-  measurementId: "G-409QMFQT53"
+  projectId: "supabase-ehtbwmvwoxcdefvlxttu (ensayo)",
+  supabaseUrl: "https://ehtbwmvwoxcdefvlxttu.supabase.co",
+  supabaseKey: "sb_publishable_pahErZVQnH-wDlDAOZ0UeA_OP72zRea"
 };
 
 const ENTORNO_PRUEBAS = !DOMINIOS_PRODUCCION
@@ -125,12 +128,9 @@ const ENTORNO_PRUEBAS = !DOMINIOS_PRODUCCION
 const ENTORNO = ENTORNO_PRUEBAS ? 'PRUEBAS' : 'PRODUCCION';
 
 const CONFIG_PRODUCCION = {
-  apiKey: "AIzaSyAO86_KLoblDvHq-65q2xbD53-zj_L0tUY",
-  authDomain: "jefaturaopglacial-fdb95.firebaseapp.com",
-  projectId: "jefaturaopglacial-fdb95",
-  storageBucket: "jefaturaopglacial-fdb95.firebasestorage.app",
-  messagingSenderId: "949615984456",
-  appId: "1:949615984456:web:6664bb183ee09930ad3d7d"
+  projectId: "supabase-ehtbwmvwoxcdefvlxttu",
+  supabaseUrl: "https://ehtbwmvwoxcdefvlxttu.supabase.co",
+  supabaseKey: "sb_publishable_pahErZVQnH-wDlDAOZ0UeA_OP72zRea"
 };
 
 const FIREBASE_CONFIG = ENTORNO_PRUEBAS ? CONFIG_PRUEBAS : CONFIG_PRODUCCION;
@@ -139,7 +139,7 @@ firebase.initializeApp(FIREBASE_CONFIG);
 
 /* Qué proyecto se está usando (visible en la consola del navegador). */
 console.info(
-  '%cGLACIAL · entorno: ' + ENTORNO + ' · proyecto Firebase: ' + FIREBASE_CONFIG.projectId +
+  '%cGLACIAL · entorno: ' + ENTORNO + ' · base de datos: ' + FIREBASE_CONFIG.projectId +
   ' · página: ' + window.location.origin,
   'font-weight:bold;padding:2px 8px;border-radius:4px;color:#fff;background:' +
   (ENTORNO_PRUEBAS ? '#c62828' : '#1b6e3a')
