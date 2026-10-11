@@ -32,21 +32,66 @@
   }
 
   const CSS=`
-    #plan-root .plan-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px;border-bottom:1px solid #d9e2e8}
-    #plan-root .plan-tab{border:0;background:none;padding:9px 14px;font:inherit;font-weight:700;color:#5a6b78;cursor:pointer;border-bottom:3px solid transparent}
-    #plan-root .plan-tab.active{color:#003b5c;border-bottom-color:#005b96}
-    #plan-root .plan-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
-    #plan-root .plan-bar label{font-size:12px;color:#5a6b78;display:flex;flex-direction:column;gap:3px}
-    #plan-root .plan-turnos{display:flex;gap:6px}
-    #plan-root .plan-pill{border:1px solid #cfdbe3;background:#fff;border-radius:999px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer;color:#405261}
-    #plan-root .plan-pill.active{background:#003b5c;border-color:#003b5c;color:#fff}
-    #plan-root table.plan-tabla{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
-    #plan-root .plan-tabla th{background:#eef3f7;color:#3d5365;text-align:left;padding:8px 10px;font-size:12px;border-bottom:1px solid #d9e2e8}
-    #plan-root .plan-tabla td{padding:8px 10px;border-bottom:1px solid #edf1f4;vertical-align:middle}
+    /* ===== Planificación · diseño visual (estilo GLACIAL: azul marino #003b5c / azul #005b96, tarjetas blancas, bordes suaves) ===== */
+    #plan-root{--pl-navy:#003b5c;--pl-blue:#005b96;--pl-line:#dce5ec;--pl-soft:#f4f8fb;--pl-muted:#5a6b78}
+    #plan-root :focus-visible{outline:3px solid #7db4f0;outline-offset:2px}
+    #plan-root .plan-h4{margin:22px 0 6px;color:var(--pl-navy);font-size:16px}
+    #plan-root .plan-h4 small{font-weight:500;color:var(--pl-muted);font-size:12px}
+    /* pestañas: control segmentado */
+    #plan-root .plan-tabs{display:flex;gap:4px;margin:10px 0 14px;padding:4px;background:#e8eff4;border-radius:12px;overflow-x:auto;scrollbar-width:none}
+    #plan-root .plan-tabs::-webkit-scrollbar{display:none}
+    #plan-root .plan-tab{flex:1 0 auto;border:0;background:transparent;padding:9px 16px;border-radius:9px;font:inherit;font-weight:700;font-size:13px;color:#4f6272;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s}
+    #plan-root .plan-tab:hover{color:var(--pl-navy)}
+    #plan-root .plan-tab.active{background:#fff;color:var(--pl-navy);box-shadow:0 1px 3px rgba(0,43,70,.2)}
+    /* barra de fecha, bloque y acciones */
+    #plan-root .plan-bar{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center;margin:0 0 14px;padding:12px 14px;background:#fff;border:1px solid var(--pl-line);border-radius:14px;box-shadow:0 1px 2px rgba(0,43,70,.05)}
+    #plan-root .plan-bar label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pl-muted);display:flex;flex-direction:column;gap:3px}
+    #plan-root .plan-bar input[type=date]{height:38px;box-sizing:border-box}
+    #plan-root .plan-grupo{display:inline-flex;border:1px solid #cfdbe3;border-radius:10px;overflow:hidden;background:#fff}
+    #plan-root .plan-grupo button{border:0;border-right:1px solid #e3eaf0;background:#fff;padding:0 13px;height:38px;font:inherit;font-weight:600;font-size:13px;color:#33566f;cursor:pointer;white-space:nowrap}
+    #plan-root .plan-grupo button:last-child{border-right:0}
+    #plan-root .plan-grupo button:hover{background:var(--pl-soft);color:var(--pl-navy)}
+    #plan-root .plan-turnos{display:inline-flex;padding:3px;background:#e8eff4;border-radius:12px;gap:2px}
+    #plan-root .plan-pill{border:0;background:transparent;border-radius:9px;padding:7px 14px;font:inherit;font-weight:700;font-size:13px;color:#4f6272;cursor:pointer;white-space:nowrap;line-height:1.2;text-align:left}
+    #plan-root .plan-pill small{display:block;font-weight:500;font-size:11px;opacity:.85}
+    #plan-root .plan-pill.active{background:var(--pl-navy);color:#fff;box-shadow:0 2px 6px rgba(0,59,92,.3)}
+    #plan-root .plan-acc-barra{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+    /* tarjetas de resumen del bloque */
+    #plan-root .plan-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 14px}
+    #plan-root .plan-kpi{position:relative;overflow:hidden;background:#fff;border:1px solid var(--pl-line);border-radius:14px;padding:12px 14px 12px 18px;box-shadow:0 1px 2px rgba(0,43,70,.05)}
+    #plan-root .plan-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--k,#005b96)}
+    #plan-root .plan-kpi .k-t{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--pl-muted)}
+    #plan-root .plan-kpi .k-v{margin-top:2px;font-size:26px;font-weight:800;line-height:1.15;color:var(--pl-navy);font-variant-numeric:tabular-nums}
+    #plan-root .plan-kpi .k-s{margin-top:2px;font-size:12px;color:var(--pl-muted)}
+    #plan-root .plan-chip{display:inline-block;margin:2px 4px 2px 0;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
+    #plan-root .plan-chip.rojo{background:#FEE2E2;color:#991B1B}
+    #plan-root .plan-chip.naranja{background:#FFEDD5;color:#9A3412}
+    #plan-root .plan-chip.gris{background:#F3F4F6;color:#4B5563}
+    #plan-root .plan-chip.azul{background:#DBEAFE;color:#1E40AF}
+    #plan-root .plan-chip.verde{background:#DCFCE7;color:#166534}
+    /* tablas */
+    #plan-root .plan-scroll{overflow-x:auto;background:#fff;border:1px solid var(--pl-line);border-radius:14px;box-shadow:0 1px 2px rgba(0,43,70,.05)}
+    #plan-root table.plan-tabla{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;background:#fff}
+    #plan-root .plan-tabla th{background:#f1f6fa;color:#46627a;text-align:left;padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--pl-line);vertical-align:bottom;line-height:1.25}
+    #plan-root .plan-tabla td{padding:9px 10px;border-bottom:1px solid #edf2f6;vertical-align:middle}
     #plan-root .plan-tabla td.num,#plan-root .plan-tabla th.num{text-align:right;font-variant-numeric:tabular-nums}
-    #plan-root .plan-sin td{background:#fff8e6;color:#8a6d1d}
+    #plan-root .plan-tabla tbody tr.plan-fila:hover td{background:#f7fbfe}
+    #plan-root .plan-tabla tr.lin-b td{background:#fbfdfe}
+    #plan-root .plan-tabla td.c-linea{width:1%;white-space:nowrap;font-weight:800;color:var(--pl-navy);border-left:4px solid var(--pl-blue)}
+    #plan-root .plan-tabla tr.plan-ini td{border-top:2px solid #e3ebf1}
+    #plan-root .plan-tabla td.acc{min-width:104px;text-align:right}
+    #plan-root .plan-tabla td.acc .btn{margin:1px 0}
+    #plan-root .plan-tabla tfoot td{background:#f1f6fa;border-bottom:0}
+    #plan-root .plan-sin td{background:#fff8e6;color:#8a6d1d;border-bottom:1px solid #f4e6bd}
+    #plan-root .plan-sin td.c-linea{color:#8a6d1d;border-left-color:#f0c36a}
     #plan-root .plan-linea td{background:#f6f9fb;font-weight:700;color:#003b5c}
-    #plan-root .plan-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;background:#e6f0f7;color:#003b5c}
+    #plan-root .plan-sub td{background:#f1f6fa;font-size:12px;color:#3d5365;border-bottom:2px solid #d9e2e8}
+    #plan-root .plan-pal{display:block}
+    #plan-root .plan-upp{display:block;font-size:11px;font-weight:500;color:var(--pl-muted)}
+    #plan-root .plan-prog td.c-linea b.rep{visibility:hidden}
+    #plan-root .plan-sinreg{color:#6b7280;font-style:italic}
+    #plan-root .plan-inc{margin:0;font-style:italic}
+    #plan-root .plan-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#e6f0f7;color:#003b5c;white-space:nowrap}
     #plan-root .plan-badge.prod{background:#e1f4e8;color:#1e7f4e}
     #plan-root .plan-badge.pausa{background:#fff4d6;color:#8a6d1d}
     #plan-root .plan-badge.stop{background:#fde6e6;color:#a32020}
@@ -58,27 +103,93 @@
     #plan-root .plan-badge.est-fin{background:#DCFCE7;color:#166534}
     #plan-root .plan-badge.est-pend{background:#F3F4F6;color:#4B5563}
     #plan-root .plan-badge.est-canc{background:#E5E7EB;color:#6B7280;text-decoration:line-through}
-    #plan-root .plan-sub td{background:#f6f9fb;font-size:12px;color:#3d5365;border-bottom:2px solid #d9e2e8}
-    #plan-root .plan-barra{display:inline-block;width:64px;height:8px;border-radius:99px;background:#e5e9ee;overflow:hidden;vertical-align:middle;margin-right:6px}
-    #plan-root .plan-barra i{display:block;height:100%;background:#F97316}
-    #plan-root .plan-meta{display:inline-block;margin-top:3px;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;background:#DCFCE7;color:#166534}
-    #plan-root .plan-repro{display:block;font-size:11px;color:#9A3412}
-    #plan-root .plan-repro-box{margin-top:12px;padding:10px 12px;border:1px solid #fed7aa;background:#fff7ed;border-radius:8px;font-size:13px;color:#7c2d12}
+    #plan-root .plan-badge[class*="est-"]::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+    #plan-root .plan-avw{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+    #plan-root .plan-av{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+    #plan-root .plan-barra{display:inline-block;width:52px;height:8px;border-radius:99px;background:#e5e9ee;overflow:hidden}
+    #plan-root .plan-barra i{display:block;height:100%;background:#F97316;border-radius:99px}
+    #plan-root .plan-barra.ok i{background:#22C55E}
+    #plan-root .plan-meta{display:inline-block;margin:3px 0 0 0;padding:1px 9px;border-radius:99px;font-size:11px;font-weight:700;background:#DCFCE7;color:#166534}
+    #plan-root .plan-repro{display:block;font-size:11px;font-weight:600;color:#9A3412}
+    #plan-root .plan-repro-box{margin-top:12px;padding:12px 14px;border:1px solid #fed7aa;border-left:5px solid #F97316;background:#fff7ed;border-radius:12px;font-size:13px;color:#7c2d12}
     #plan-root .plan-repro-box ul{margin:6px 0 0 18px;padding:0}
-    #plan-root .plan-nota{font-size:12px;color:#5a6b78;margin:8px 0}
-    #plan-root .plan-scroll{overflow-x:auto}
+    #plan-root .plan-nota{font-size:12px;color:var(--pl-muted);margin:8px 0;line-height:1.45}
+    /* capacidad por línea */
+    #plan-root .plan-caps{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+    #plan-root .plan-cap{--c:#9CA3AF;background:#fff;border:1px solid var(--pl-line);border-top:4px solid var(--c);border-radius:14px;padding:14px;box-shadow:0 1px 2px rgba(0,43,70,.05)}
+    #plan-root .plan-cap.cabe{--c:#22C55E}
+    #plan-root .plan-cap.justo{--c:#FACC15}
+    #plan-root .plan-cap.exceso{--c:#EF4444}
+    #plan-root .plan-cap h5{margin:0;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:15px;color:var(--pl-navy)}
+    #plan-root .plan-cap .cap-pct{margin-top:6px;font-size:30px;font-weight:800;line-height:1.1;color:var(--pl-navy);font-variant-numeric:tabular-nums}
+    #plan-root .plan-cap .cap-pct small{display:block;font-size:11px;font-weight:600;color:var(--pl-muted)}
+    #plan-root .plan-cap .cap-meter{height:10px;border-radius:99px;background:#e8eef3;overflow:hidden;margin:8px 0 10px}
+    #plan-root .plan-cap .cap-meter i{display:block;height:100%;background:var(--c);border-radius:99px}
+    #plan-root .plan-cap .cap-fil{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px dashed #e3eaf0;font-size:12px;color:#46627a}
+    #plan-root .plan-cap .cap-fil b{color:var(--pl-navy);white-space:nowrap}
+    #plan-root .plan-cap .cap-hol{border-top:1px solid #e3eaf0}
+    #plan-root .plan-cap .cap-falta{margin-top:8px;padding:6px 8px;border-radius:8px;background:#F3F4F6;color:#4B5563;font-size:11px}
+    /* secuencia: barra de tiempo del bloque */
+    #plan-root .plan-seq{margin:0 0 14px;padding:12px 14px;background:#fff;border:1px solid var(--pl-line);border-radius:14px;box-shadow:0 1px 2px rgba(0,43,70,.05)}
+    #plan-root .plan-seq h5{margin:0 0 8px;font-size:14px;color:var(--pl-navy)}
+    #plan-root .plan-seq h5 small{font-weight:500;color:var(--pl-muted)}
+    #plan-root .plan-gantt{position:relative;height:38px;border-radius:10px;border:1px solid var(--pl-line);overflow:hidden;background:repeating-linear-gradient(45deg,#f1f5f8,#f1f5f8 6px,#e9eff4 6px,#e9eff4 12px)}
+    #plan-root .plan-gantt .g-seg{position:absolute;top:3px;bottom:3px;display:flex;align-items:center;padding:0 8px;border-radius:7px;color:#fff;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:inset 0 -2px 0 rgba(0,0,0,.14)}
+    #plan-root .plan-gantt .g-over{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;padding:0 8px;background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:800}
+    #plan-root .plan-gantt-eje{display:flex;justify-content:space-between;margin-top:3px;font-size:11px;color:var(--pl-muted);font-variant-numeric:tabular-nums}
+    #plan-root .plan-seq details{margin-top:8px}
+    #plan-root .plan-seq summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--pl-blue);padding:4px 0}
+    #plan-root .plan-carga{display:inline-block;margin-top:4px;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700}
+    #plan-root .plan-carga.cabe{background:#DCFCE7;color:#166534}
+    #plan-root .plan-carga.justo{background:#FEF9C3;color:#713F12}
+    #plan-root .plan-carga.exceso{background:#FEE2E2;color:#991B1B}
+    #plan-root .plan-carga.inc{background:#F3F4F6;color:#6B7280}
+    /* campos */
+    #plan-root input,#plan-root select,.plan-dialogo input,.plan-dialogo select,.plan-dialogo textarea{padding:7px 10px;border:1px solid #cfdbe3;border-radius:9px;font:inherit;background:#fff}
+    #plan-root input:focus,#plan-root select:focus,.plan-dialogo input:focus,.plan-dialogo select:focus,.plan-dialogo textarea:focus{border-color:var(--pl-blue,#005b96);outline:3px solid #cfe4f7;outline-offset:0}
+    /* diálogos */
     .plan-fondo{position:fixed;inset:0;background:rgba(10,30,50,.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px}
-    .plan-dialogo{background:#fff;border-radius:12px;padding:18px;width:100%;max-width:560px;max-height:92vh;overflow:auto;box-shadow:0 18px 55px rgba(0,0,0,.25)}
+    .plan-dialogo{background:#fff;border-radius:16px;padding:20px 22px;width:100%;max-width:560px;max-height:92vh;overflow:auto;box-shadow:0 22px 60px rgba(0,0,0,.28)}
     .plan-dialogo.ancho{max-width:900px}
-    .plan-dialogo h3{margin:0 0 10px;color:#003b5c}
-    .plan-campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-    .plan-campos label{font-size:12px;color:#5a6b78;display:flex;flex-direction:column;gap:3px}
+    .plan-dialogo h3{margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid #e3eaf0;color:#003b5c;font-size:18px}
+    .plan-campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .plan-campos label{font-size:12px;font-weight:600;color:#5a6b78;display:flex;flex-direction:column;gap:4px}
     .plan-campos .completo{grid-column:1/-1}
-    .plan-dialogo input,.plan-dialogo select,.plan-dialogo textarea,#plan-root input,#plan-root select{padding:7px 8px;border:1px solid #cfdbe3;border-radius:7px;font:inherit}
     .plan-error{color:#c62828;font-size:12px;min-height:16px;margin-top:8px;white-space:pre-line}
     .plan-aviso{color:#8a6d1d;font-size:12px;margin-top:6px;white-space:pre-line}
-    .plan-acciones{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap}
-    @media(max-width:640px){.plan-campos{grid-template-columns:1fr}}
+    .plan-acciones{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #edf2f6;flex-wrap:wrap}
+    /* celular: la tabla de Programación pasa a tarjetas, una por producto */
+    @media(max-width:640px){
+      #plan-root .plan-campos,.plan-campos{grid-template-columns:1fr}
+      #plan-root .plan-bar{padding:10px}
+      #plan-root .plan-bar .plan-f,#plan-root .plan-grupo,#plan-root .plan-turnos{width:100%}
+      #plan-root .plan-grupo button{flex:1}
+      #plan-root .plan-pill{flex:1}
+      #plan-root .plan-acc-barra{margin-left:0;width:100%}
+      #plan-root .plan-acc-barra .btn{flex:1 1 45%}
+      #plan-root .plan-h{display:none}
+      #plan-root .plan-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+      #plan-root .plan-kpi .k-v{font-size:22px}
+      #plan-root .plan-caps{grid-template-columns:1fr}
+      #plan-root .btn{min-height:40px}
+      #plan-root table.plan-prog,#plan-root table.plan-prog tbody,#plan-root table.plan-prog tfoot,#plan-root table.plan-prog tr,#plan-root table.plan-prog td{display:block}
+      #plan-root table.plan-prog thead{display:none}
+      #plan-root .plan-prog tr.plan-fila,#plan-root .plan-prog tr.plan-sin,#plan-root .plan-prog tr.plan-sub,#plan-root .plan-prog tfoot tr{margin:10px;padding:10px 12px;border:1px solid var(--pl-line);border-radius:12px;background:#fff}
+      #plan-root .plan-prog tr.plan-sin{background:#fff8e6;border-color:#f4e6bd}
+      #plan-root .plan-prog tr.plan-sub{background:#f1f6fa}
+      #plan-root .plan-prog td{border:0;padding:4px 0;background:transparent !important;text-align:right}
+      #plan-root .plan-prog td[data-label]{display:flex;justify-content:space-between;align-items:center;gap:12px}
+      #plan-root .plan-prog td[data-label]::before{content:attr(data-label);flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pl-muted);text-align:left}
+      #plan-root .plan-prog td.c-linea{width:auto;border:0;text-align:left;font-size:15px}
+      #plan-root .plan-prog td.c-linea b.rep{visibility:visible;font-weight:700;opacity:.75}
+      #plan-root .plan-upp{display:inline;margin-left:6px}
+      #plan-root .plan-avw{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px}
+      #plan-root .plan-prog td.plan-vacio{display:none}
+      #plan-root .plan-prog tr.plan-sub td:first-child{font-weight:700;text-align:left}
+      #plan-root .plan-prog td.c-prod{font-size:15px}
+      #plan-root .plan-prog td.acc{text-align:left;padding-top:8px}
+      #plan-root .plan-scroll{border-radius:12px}
+    }
   `;
   function estilos(){
     if(document.getElementById('plan-css'))return;
@@ -147,19 +258,53 @@
   function pintarProgramacion(cont){
     const E=NS.estado,planifica=NS.puede();
     cont.innerHTML='<div class="plan-bar">'+
-      '<label>Fecha<input type="date" id="plan-fecha" value="'+esc(E.fecha)+'"></label>'+
-      '<div class="plan-turnos" role="group" aria-label="Turno">'+NS.BLOQUES.map(b=>'<button type="button" class="plan-pill'+(b.valor===NS.valorBloque(E.turno)?' active':'')+'" data-plan-turno="'+b.valor+'">'+esc(b.etq)+' <small style="font-weight:500">'+esc(NS.horarioBloque(b.valor))+'</small></button>').join('')+'</div>'+
-      '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="-1">◀ Día anterior</button>'+
-      '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="1">Día siguiente ▶</button>'+
-      '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="hoy">Hoy</button>'+
-      '<button type="button" class="btn btn-ghost btn-sm" data-plan-copiar-plan title="Copia el plan del bloque como texto para enviarlo al supervisor">Copiar plan</button>'+
-      '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel-plan>Excel del plan</button>'+
-      (planifica?'<span style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-plan-copiar>Copiar programación…</button>'+
-        '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel>Importar Excel…</button>':'')+
-      '</div><div id="plan-prog-tabla"></div><div id="plan-capacidad"></div><div id="plan-secuencia"></div>'+
+      '<label class="plan-f">Fecha<input type="date" id="plan-fecha" value="'+esc(E.fecha)+'"></label>'+
+      '<div class="plan-grupo" role="group" aria-label="Cambiar de día">'+
+        '<button type="button" data-plan-dia="-1" aria-label="Día anterior">◀ <span class="plan-h">Día anterior</span></button>'+
+        '<button type="button" data-plan-dia="hoy">Hoy</button>'+
+        '<button type="button" data-plan-dia="1" aria-label="Día siguiente"><span class="plan-h">Día siguiente</span> ▶</button></div>'+
+      '<div class="plan-turnos" role="group" aria-label="Turno">'+NS.BLOQUES.map(b=>'<button type="button" class="plan-pill'+(b.valor===NS.valorBloque(E.turno)?' active':'')+'" data-plan-turno="'+b.valor+'">'+esc(b.etq)+'<small>'+esc(NS.horarioBloque(b.valor))+'</small></button>').join('')+'</div>'+
+      '<div class="plan-acc-barra">'+
+        '<button type="button" class="btn btn-ghost btn-sm" data-plan-copiar-plan title="Copia el plan del bloque como texto para enviarlo al supervisor">Copiar plan</button>'+
+        '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel-plan>Excel del plan</button>'+
+        (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-copiar>Copiar programación…</button>'+
+          '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel>Importar Excel…</button>':'')+
+      '</div></div>'+
+      '<div id="plan-kpis" class="plan-kpis"></div><div id="plan-prog-tabla"></div><div id="plan-capacidad"></div><div id="plan-secuencia"></div>'+
       (planifica?'':'<p class="plan-nota">Solo lectura: para cambiar una cantidad o un producto, usa «Pedir cambio» en la fila. Si falta una programación, pídela desde Solicitudes.</p>');
     pintarTabla();
     if(typeof NS.pintarExtras==='function')NS.pintarExtras();
+  }
+
+  /* Resumen del bloque en cuatro tarjetas. Las UND de distintas líneas se suman solo como referencia (lo dice la nota). */
+  function pintarKpis(R,cambios){
+    const cont=document.getElementById('plan-kpis');
+    if(!cont)return;
+    const fmt=n=>num(n).toLocaleString('es-PE');
+    let prog=0,progReg=0,prod=0,pend=0,sobre=0,sin=0,productos=0;
+    const lineas=new Set();
+    R.grupos.forEach(g=>{
+      if(!(g.programado>0))return;
+      productos++;lineas.add(g.linea);prog+=g.programado;
+      if(g.producido===null){sin++;return;}
+      progReg+=g.programado;prod+=g.producido;pend+=g.pendiente;sobre+=g.sobre;
+    });
+    if(!productos){cont.innerHTML='';return;}
+    const av=progReg>0?prod/progReg:null;
+    let excesos=0,incompletas=0;
+    if(typeof NS.capacidadLinea==='function')lineas.forEach(l=>{const c=NS.capacidadLinea(NS.estado.fecha,NS.estado.turno,l);if(c&&c.estado==='EXCESO')excesos++;else if(c&&c.estado==='INCOMPLETA')incompletas++;});
+    const pendSol=NS.puede()&&typeof NS.solicitudes==='function'?NS.solicitudes().filter(x=>x.estado==='PENDIENTE').length:0;
+    const aten=[];
+    if(excesos)aten.push('<span class="plan-chip rojo">'+excesos+(excesos===1?' línea no cabe':' líneas no caben')+'</span>');
+    if(sin)aten.push('<span class="plan-chip gris">'+sin+' sin registro</span>');
+    if(incompletas)aten.push('<span class="plan-chip gris">'+incompletas+(incompletas===1?' estimación incompleta':' estimaciones incompletas')+'</span>');
+    if(cambios.length)aten.push('<span class="plan-chip naranja">'+cambios.length+(cambios.length===1?' reprogramación':' reprogramaciones')+'</span>');
+    if(pendSol)aten.push('<span class="plan-chip azul">'+pendSol+(pendSol===1?' solicitud pendiente':' solicitudes pendientes')+'</span>');
+    cont.innerHTML=
+      '<div class="plan-kpi" style="--k:#005b96"><div class="k-t">Programado</div><div class="k-v">'+fmt(prog)+'</div><div class="k-s">UND · '+productos+(productos===1?' producto':' productos')+' · '+lineas.size+(lineas.size===1?' línea':' líneas')+'</div></div>'+
+      '<div class="plan-kpi" style="--k:#F97316"><div class="k-t">Producido</div><div class="k-v">'+(progReg>0||!sin?fmt(prod):'—')+'</div><div class="k-s">'+(av===null?'Sin registro de producción':(av*100).toLocaleString('es-PE',{maximumFractionDigits:0})+' % de lo programado'+(sin?' · '+sin+' sin registro':''))+'</div></div>'+
+      '<div class="plan-kpi" style="--k:#9CA3AF"><div class="k-t">Pendiente</div><div class="k-v">'+(progReg>0?fmt(pend):'—')+'</div><div class="k-s">'+(sobre>0?'<b style="color:#9A3412">+'+fmt(sobre)+' sobreproducción</b>':'UND por producir')+'</div></div>'+
+      '<div class="plan-kpi" style="--k:'+(aten.length?'#F97316':'#22C55E')+'"><div class="k-t">Atención</div><div class="k-v" style="font-size:15px;line-height:1.5;font-weight:700">'+(aten.length?aten.join(' '):'<span class="plan-chip verde">Todo en orden</span>')+'</div><div class="k-s">UND de todas las líneas: solo referencia.</div></div>';
   }
 
   function pintarTabla(){
@@ -171,17 +316,19 @@
     const R=NS.resumenBloque(E.fecha,E.turno);
     const fmt=n=>num(n).toLocaleString('es-PE');
     const pctTxt=a=>a==null?'—':(a*100).toLocaleString('es-PE',{maximumFractionDigits:0})+' %';
-    const barra=a=>a==null?'':'<span class="plan-barra" aria-hidden="true"><i style="width:'+Math.min(100,Math.round(a*100))+'%"></i></span>';
-    let total=0;
+    const barra=a=>a==null?'':'<span class="plan-barra'+(a>=1?' ok':'')+'" aria-hidden="true"><i style="width:'+Math.min(100,Math.round(a*100))+'%"></i></span>';
+    let total=0,nl=0;
     const filas=[];
     NS.lineas().forEach(l=>{
       const propios=items.filter(p=>p.linea===l.key);
       if(!propios.length){
-        filas.push('<tr class="plan-sin"><td><b>'+esc(l.name)+'</b></td><td colspan="9">Sin programación</td><td></td><td class="acc">'+
+        filas.push('<tr class="plan-sin"><td class="c-linea" data-titulo="1"><b>'+esc(l.name)+'</b></td><td colspan="8">Sin programación</td><td></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-pedir="'+esc(l.key)+'">Pedir programación</button>')+'</td></tr>');
         return;
       }
+      nl++;
+      const par=nl%2===0?' lin-b':'';
       const vistos=new Set();
       propios.forEach((p,i)=>{
         const cant=num(p.cantidadProgramada),upp=num(p.unidadesPorPaleta);
@@ -190,22 +337,22 @@
         const k=[p.linea,p.marca,p.presentacion].join('|'),g=R.grupos.get(k),primera=!vistos.has(k);vistos.add(k);
         let celdasAvance;
         if(!primera){
-          celdasAvance='<td colspan="4" class="plan-nota" style="margin:0">incluido en la fila de arriba (mismo producto del bloque)</td>';
+          celdasAvance='<td colspan="4" class="plan-nota plan-inc">incluido en la fila de arriba (mismo producto del bloque)</td>';
         }else if(!g||!(g.programado>0)){
-          celdasAvance='<td class="num">—</td><td class="num">—</td><td class="num">—</td><td>—</td>';
+          celdasAvance='<td class="num" data-label="Producido">—</td><td class="num" data-label="Pendiente">—</td><td class="num" data-label="Sobreproducción">—</td><td data-label="Avance">—</td>';
         }else if(g.producido===null){
-          celdasAvance='<td class="num" title="El turno cerrado no tiene registro del supervisor: no se asume cero.">Sin registro</td><td class="num">—</td><td class="num">—</td><td>—</td>';
+          celdasAvance='<td class="num plan-sinreg" data-label="Producido" title="El turno cerrado no tiene registro del supervisor: no se asume cero.">Sin registro</td><td class="num" data-label="Pendiente">—</td><td class="num" data-label="Sobreproducción">—</td><td data-label="Avance">—</td>';
         }else{
-          celdasAvance='<td class="num">'+fmt(g.producido)+'</td><td class="num">'+(g.pendiente>0?fmt(g.pendiente):'—')+'</td><td class="num">'+(g.sobre>0?'<b style="color:#9A3412">+'+fmt(g.sobre)+'</b>':'—')+'</td>'+
-            '<td>'+barra(g.avance)+pctTxt(g.avance)+(g.alcanzada?'<br><span class="plan-meta">Meta alcanzada</span>':'')+'</td>';
+          celdasAvance='<td class="num" data-label="Producido">'+fmt(g.producido)+'</td><td class="num" data-label="Pendiente">'+(g.pendiente>0?fmt(g.pendiente):'—')+'</td><td class="num" data-label="Sobreproducción">'+(g.sobre>0?'<b style="color:#9A3412">+'+fmt(g.sobre)+'</b>':'—')+'</td>'+
+            '<td data-label="Avance"><span class="plan-avw"><span class="plan-av">'+barra(g.avance)+'<b>'+pctTxt(g.avance)+'</b></span>'+(g.alcanzada?'<span class="plan-meta">Meta alcanzada</span>':'')+'</span></td>';
         }
         const orig=primera&&g?NS.originalDe(E.fecha,E.turno,p.linea,p.marca,p.presentacion):null;
         const repro=orig!==null&&g&&orig!==g.programado?'<span class="plan-repro" title="Plan al iniciar el bloque frente al plan vigente">original al inicio: '+fmt(orig)+'</span>':'';
-        filas.push('<tr><td>'+(i===0?'<b>'+esc(l.name)+'</b>':'')+'</td><td>'+esc(p.marca)+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">· Cargada como Intermedio</small>':'')+((p.unificadoDeIntermedio||[]).length?' <small style="color:#5a6b78" title="Unificada desde Intermedio con motivo y registro en el historial">· incluye '+(p.unificadoDeIntermedio.reduce((a,x)=>a+num(x.cantidad),0)).toLocaleString('es-PE')+' cargadas como Intermedio</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td>'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td>'+
-          '<td class="num">'+fmt(cant)+repro+'</td><td class="num">'+(upp?fmt(upp):'—')+'</td>'+
-          '<td class="num" title="'+(upp?esc(NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:2}))+' paletas equivalentes':'')+'">'+(upp?esc(NS.paletasTexto(cant,upp)):'—')+'</td>'+
+        filas.push('<tr class="plan-fila'+par+(i===0?' plan-ini':'')+'"><td class="c-linea" data-titulo="1"><b'+(i===0?'':' class="rep"')+'>'+esc(l.name)+'</b></td><td class="c-prod" data-label="Marca"><b>'+esc(p.marca)+'</b>'+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">· Cargada como Intermedio</small>':'')+((p.unificadoDeIntermedio||[]).length?' <small style="color:#5a6b78" title="Unificada desde Intermedio con motivo y registro en el historial">· incluye '+(p.unificadoDeIntermedio.reduce((a,x)=>a+num(x.cantidad),0)).toLocaleString('es-PE')+' cargadas como Intermedio</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td data-label="Presentación">'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td>'+
+          '<td class="num" data-label="Cantidad (UND)"><b>'+fmt(cant)+'</b>'+repro+'</td>'+
+          '<td class="num" data-label="Paletas" title="'+(upp?esc(NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:2}))+' paletas equivalentes':'')+'">'+(upp?'<span class="plan-pal">'+esc(NS.paletasTexto(cant,upp))+'<span class="plan-upp">'+fmt(upp)+' UND por paleta</span></span>':'—')+'</td>'+
           celdasAvance+
-          '<td><span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span></td><td class="acc">'+
+          '<td data-label="Estado"><span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-editar="'+esc(p.clave)+'">Editar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
           (planifica&&primera&&g&&g.producido!==null&&g.pendiente>0?' <button type="button" class="btn btn-ghost btn-sm" data-plan-trasladar="'+esc(p.clave)+'" title="Mover a otro bloque lo que falta producir (saldo comprobado)">Trasladar saldo</button>':'')+
@@ -214,15 +361,16 @@
       const t=R.porLinea.get(l.key);
       if(t&&t.productos>0){
         const av=t.programado>0&&!t.sinRegistro?t.producido/t.programado:null;
-        filas.push('<tr class="plan-sub"><td colspan="3">Subtotal '+esc(l.name)+' <small>(UND de esta línea)</small></td><td class="num"><b>'+fmt(t.programado)+'</b></td><td></td><td></td>'+
-          '<td class="num">'+fmt(t.producido)+'</td><td class="num">'+(t.pendiente>0?fmt(t.pendiente):'—')+'</td><td class="num">'+(t.sobre>0?'+'+fmt(t.sobre):'—')+'</td>'+
-          '<td>'+barra(av)+pctTxt(av)+'</td><td colspan="2">'+(t.sinRegistro?t.sinRegistro+' producto(s) sin registro (no suman al producido)':'')+'</td></tr>');
+        filas.push('<tr class="plan-sub"><td colspan="3">Subtotal '+esc(l.name)+' <small>(UND de esta línea)</small></td><td class="num" data-label="Programado"><b>'+fmt(t.programado)+'</b></td><td class="plan-vacio"></td>'+
+          '<td class="num" data-label="Producido">'+fmt(t.producido)+'</td><td class="num" data-label="Pendiente">'+(t.pendiente>0?fmt(t.pendiente):'—')+'</td><td class="num" data-label="Sobreproducción">'+(t.sobre>0?'+'+fmt(t.sobre):'—')+'</td>'+
+          '<td data-label="Avance"><span class="plan-av">'+barra(av)+'<b>'+pctTxt(av)+'</b></span></td><td colspan="2">'+(t.sinRegistro?t.sinRegistro+' producto(s) sin registro (no suman al producido)':'')+'</td></tr>');
       }
     });
     const cambios=NS.cambiosDesdeInicio(E.fecha,E.turno);
-    cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th class="num">Cantidad (UND)</th>'+
-      '<th class="num">UND por paleta</th><th class="num" title="Paletas completas + UND restantes">Paletas (completas + UND)</th><th class="num">Producido (UND)</th><th class="num">Pendiente</th><th class="num">Sobreproducción</th><th>Avance</th><th>Estado</th><th></th></tr></thead><tbody>'+filas.join('')+
-      '</tbody><tfoot><tr><td colspan="3"><b>Total del bloque</b><br><small style="color:#5a6b78">Suma de UND de todas las líneas: solo referencia, no mide capacidad.</small></td><td class="num"><b>'+fmt(total)+'</b></td><td colspan="8"></td></tr></tfoot></table></div>'+
+    pintarKpis(R,cambios);
+    cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla plan-prog"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th class="num">Cantidad (UND)</th>'+
+      '<th class="num" title="Paletas completas + UND restantes">Paletas (completas + UND)</th><th class="num">Producido (UND)</th><th class="num">Pendiente</th><th class="num">Sobreproducción</th><th>Avance</th><th>Estado</th><th></th></tr></thead><tbody>'+filas.join('')+
+      '</tbody><tfoot><tr><td colspan="3"><b>Total del bloque</b><br><small style="color:#5a6b78">Suma de UND de todas las líneas: solo referencia, no mide capacidad.</small></td><td class="num"><b>'+fmt(total)+'</b></td><td colspan="7"></td></tr></tfoot></table></div>'+
       '<p class="plan-nota">Producido: turno en curso = Paletas; turno cerrado = registro del turno. «Sin registro» no es cero. «Meta alcanzada» (cantidad producida ≥ programada) es distinto del estado «Finalizada».</p>'+
       (cambios.length?'<div class="plan-repro-box"><b>Reprogramado después del inicio del bloque</b> (plan original al iniciar → vigente):<ul>'+cambios.map(c=>'<li>'+esc(NS.nombreLinea(c.linea))+' · '+esc(c.marca)+' '+esc(NS.etiquetaPresentacion(c.linea,c.marca,c.presentacion))+': '+fmt(c.original)+' → '+fmt(c.vigente)+' UND'+(c.vigente===0?' (se quitó)':c.original===0?' (se agregó)':'')+'</li>').join('')+'</ul></div>':'')+
       (planifica&&NS.compromisoFallo?'<p class="plan-nota" style="color:#9A3412">No se pudo guardar el plan original del bloque ('+esc(NS.compromisoFallo)+'). El cambio de plan sí se guardó; revisa que las reglas estén publicadas.</p>':'');

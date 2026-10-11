@@ -295,9 +295,8 @@
   function cargaHtml(linea,fecha,bloque,hay){
     if(!hay||typeof NS.cargaCelda!=='function')return '';
     const c=NS.cargaCelda(fecha,bloque,linea);
-    if(!c)return '<div style="font-size:10px;color:#6b7280" title="Falta la velocidad estándar de algún producto">Carga: incompleta</div>';
-    const col=c.estado==='EXCESO'?'#991B1B':c.estado==='JUSTO'?'#713F12':'#166534';
-    return '<div style="font-size:10px;font-weight:700;color:'+col+'" title="Estimación de capacidad (tiempo requerido ÷ disponible)">Carga '+Math.round(c.pct)+' %'+(c.estado==='EXCESO'?' ⚠':'')+'</div>';
+    if(!c)return '<div class="plan-carga inc" title="Falta la velocidad estándar de algún producto">Carga: incompleta</div>';
+    return '<div class="plan-carga '+(c.estado==='EXCESO'?'exceso':c.estado==='JUSTO'?'justo':'cabe')+'" title="Estimación de capacidad (tiempo requerido ÷ disponible)">Carga '+Math.round(c.pct)+' %'+(c.estado==='EXCESO'?' ⚠':'')+'</div>';
   }
   function pintarGrilla(){
     const cont=document.getElementById('sem-grilla');

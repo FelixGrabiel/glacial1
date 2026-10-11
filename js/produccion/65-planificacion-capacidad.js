@@ -142,43 +142,56 @@
   /* =========================================================
      PANEL EN PROGRAMACIÓN: capacidad y secuencia
      ========================================================= */
-  const ETQ={CABE:['Cabe','est-fin'],JUSTO:['Justo','est-pausa'],EXCESO:['No cabe','est-det'],INCOMPLETA:['Estimación incompleta','est-pend']};
+  const ETQ={CABE:['Cabe','est-fin','cabe'],JUSTO:['Justo','est-pausa','justo'],EXCESO:['No cabe','est-det','exceso'],INCOMPLETA:['Estimación incompleta','est-pend','inc']};
+  const COLORES=['#005b96','#F97316','#0e9f6e','#8b5cf6','#d946ef','#0891b2'];
   NS.pintarExtras=function(){
     const cap=document.getElementById('plan-capacidad');
     if(!cap)return;
     const E=NS.estado,t=NS.tiemposDe(E.turno),dur=NS.duracionBloqueMin(E.turno);
-    const filas=[];let hayDatos=false;
+    const tarjetas=[];
     NS.lineas().forEach(l=>{
       const c=NS.capacidadLinea(E.fecha,E.turno,l.key);
       if(!c)return;
-      hayDatos=true;
-      const [txt,cls]=ETQ[c.estado];
-      const falta=c.faltantes.length?'<br><small style="color:#6b7280">Falta: '+c.faltantes.map(f=>esc(f.dato)+(f.marca?' de '+esc(f.marca)+' '+esc(NS.etiquetaPresentacion(l.key,f.marca,f.presentacion)):'')).join('; ')+' (Catálogo)</small>':'';
-      filas.push('<tr><td><b>'+esc(l.name)+'</b></td><td class="num">'+hm(c.produccionMin)+(c.faltantes.length?'*':'')+'</td><td class="num">'+hm(c.cambiosMin)+' <small>('+c.cambios+')</small></td>'+
-        '<td class="num">'+hm(c.disponibleMin)+'</td><td class="num">'+(c.estado==='INCOMPLETA'?'—':'<b style="color:'+(c.holguraMin<0?'#991B1B':'#166534')+'">'+(c.holguraMin<0?'Exceso ':'Libre ')+hm(Math.abs(c.holguraMin))+'</b>')+'</td>'+
-        '<td class="num">'+(c.cargaPct===null?'—':Math.round(c.cargaPct)+' %')+'</td><td><span class="plan-badge '+cls+'">'+txt+'</span>'+falta+'</td></tr>');
+      const [txt,cls,k]=ETQ[c.estado];
+      const falta=c.faltantes.length?'<div class="cap-falta">Falta: '+c.faltantes.map(f=>esc(f.dato)+(f.marca?' de '+esc(f.marca)+' '+esc(NS.etiquetaPresentacion(l.key,f.marca,f.presentacion)):'')).join('; ')+' (Catálogo)</div>':'';
+      tarjetas.push('<div class="plan-cap '+k+'"><h5><span>'+esc(l.name)+'</span><span class="plan-badge '+cls+'">'+txt+'</span></h5>'+
+        '<div class="cap-pct">'+(c.cargaPct===null?'—':Math.round(c.cargaPct)+' %')+'<small>de la capacidad estimada</small></div>'+
+        '<div class="cap-meter"><i style="width:'+(c.cargaPct===null?0:Math.min(100,Math.round(c.cargaPct)))+'%"></i></div>'+
+        '<div class="cap-fil"><span>Producción a velocidad estándar</span><b>'+hm(c.produccionMin)+(c.faltantes.length?'*':'')+'</b></div>'+
+        '<div class="cap-fil"><span>Cambios <small>('+c.cambios+')</small></span><b>'+hm(c.cambiosMin)+'</b></div>'+
+        '<div class="cap-fil"><span>Disponible</span><b>'+hm(c.disponibleMin)+'</b></div>'+
+        '<div class="cap-fil cap-hol"><span>Holgura</span>'+(c.estado==='INCOMPLETA'?'<b>—</b>':'<b style="color:'+(c.holguraMin<0?'#991B1B':'#166534')+'">'+(c.holguraMin<0?'Exceso ':'Libre ')+hm(Math.abs(c.holguraMin))+'</b>')+'</div>'+falta+'</div>');
     });
-    cap.innerHTML=!hayDatos?'':'<h4 style="margin:18px 0 6px;color:#003b5c">Capacidad del bloque <small style="font-weight:500;color:#5a6b78">(estimación de referencia)</small></h4>'+
+    cap.innerHTML=!tarjetas.length?'':'<h4 class="plan-h4">Capacidad del bloque <small>(estimación de referencia)</small></h4>'+
       '<p class="plan-nota">Duración del bloque: <b>'+hm(dur)+'</b> · paradas previstas: <b>'+(t.paradasMin===null?'sin configurar':hm(t.paradasMin))+'</b> (se restan del tiempo disponible) · cambio de marca/formato: <b>'+(t.cambioMin===null?'sin configurar':hm(t.cambioMin))+'</b> (se suma al requerido). Cada tiempo se cuenta una sola vez. Las UND de líneas distintas no se suman.</p>'+
-      '<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Línea</th><th class="num">Producción a velocidad estándar</th><th class="num">Cambios (n.º)</th><th class="num">Disponible</th><th class="num">Holgura</th><th class="num">Carga</th><th>Estado</th></tr></thead><tbody>'+filas.join('')+'</tbody></table></div>'+
+      '<div class="plan-caps">'+tarjetas.join('')+'</div>'+
       '<p class="plan-nota">* sin los productos que no tienen velocidad estándar. Una estimación incompleta no se presenta como verdadera: completa el dato que falta.</p>'+
       (t.cambioMin===null||t.paradasMin===null?'<p class="plan-nota" style="color:#9A3412">No hay tiempos previstos de paradas y cambios configurados: el resultado compara solo producción contra la duración del bloque. '+(NS.puede()?'Configúralos en Catálogo → Tiempos previstos.':'Pídele a Planificación que los configure.')+'</p>':'');
-    // secuencia
+    // secuencia: barra de tiempo del bloque + detalle
     const sec=document.getElementById('plan-secuencia');
     if(!sec)return;
+    const bloque=NS.valorBloque(E.turno),ini=NS.inicioBloqueMs(E.fecha,bloque),durMs=dur*60000;
     const bloques=[];
     NS.lineas().forEach(l=>{
       const s=NS.secuenciaLinea(E.fecha,E.turno,l.key);
       if(!s)return;
+      const colorDe=new Map();
+      s.tramos.forEach(x=>{const k=x.marca+'|'+x.presentacion;if(!colorDe.has(k))colorDe.set(k,COLORES[colorDe.size%COLORES.length]);});
+      const segs=ini&&durMs?s.tramos.filter(x=>x.estimado).map(x=>{
+        const left=Math.max(0,(x.inicioMs-ini)/durMs*100),w=Math.max(1.6,Math.min(100-left,(x.finMs-x.inicioMs)/durMs*100));
+        return '<span class="g-seg" style="left:'+left.toFixed(2)+'%;width:'+w.toFixed(2)+'%;background:'+colorDe.get(x.marca+'|'+x.presentacion)+'" title="'+esc(x.marca+' · '+hhmm(x.inicioMs)+'–'+hhmm(x.finMs)+' · '+fmt(Math.round(x.qty))+' UND')+'">'+esc(x.marca)+'</span>';
+      }).join(''):'';
+      const exceso=s.finEstimadoMs&&s.finEstimadoMs>s.finBloqueMs?'<span class="g-over" title="La secuencia estimada pasa del fin del bloque">+'+hm((s.finEstimadoMs-s.finBloqueMs)/60000)+'</span>':'';
       const f=s.tramos.map(x=>'<tr><td class="num">'+esc(x.orden)+'</td><td>'+esc(x.marca)+' '+esc(NS.etiquetaPresentacion(l.key,x.marca,x.presentacion))+'</td><td>'+esc(x.tipoFin==='HORA'?'Hasta '+x.horaFin:x.tipoFin==='CANTIDAD'?'Hasta completar su cantidad':x.tipoFin==='CIERRE'?'Hasta el cierre del turno':'Sin condición')+'</td>'+
         '<td class="num">'+(x.estimado?hhmm(x.inicioMs):'—')+'</td><td class="num">'+(x.estimado?hhmm(x.finMs):'—')+'</td><td class="num">'+(x.estimado?fmt(Math.round(x.qty)):'—')+'</td>'+(x.motivo?'<td><small style="color:#6b7280">Estimación incompleta: '+esc(x.motivo)+'</small></td>':'<td></td>')+'</tr>').join('');
-      bloques.push('<h5 style="margin:12px 0 4px;color:#003b5c">'+esc(l.name)+(s.finEstimadoMs?' <small style="font-weight:500;color:#5a6b78">· termina hacia las '+hhmm(s.finEstimadoMs)+'</small>':'')+'</h5>'+
-        '<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th class="num">Orden</th><th>Producto</th><th>Fin del tramo</th><th class="num">Inicio estimado</th><th class="num">Fin estimado</th><th class="num">UND estimadas</th><th></th></tr></thead><tbody>'+f+'</tbody></table></div>'+
+      bloques.push('<div class="plan-seq"><h5>'+esc(l.name)+(s.finEstimadoMs?' <small>· termina hacia las '+hhmm(s.finEstimadoMs)+'</small>':'')+'</h5>'+
+        (segs?'<div class="plan-gantt" role="img" aria-label="Secuencia estimada de '+esc(l.name)+'">'+segs+exceso+'</div><div class="plan-gantt-eje"><span>'+hhmm(ini)+'</span><span>'+hhmm(ini+durMs/2)+'</span><span>'+hhmm(ini+durMs)+'</span></div>':'')+
+        '<details'+(segs?'':' open')+'><summary>Detalle de tramos</summary><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th class="num">Orden</th><th>Producto</th><th>Fin del tramo</th><th class="num">Inicio estimado</th><th class="num">Fin estimado</th><th class="num">UND estimadas</th><th></th></tr></thead><tbody>'+f+'</tbody></table></div></details>'+
         (s.avisos.length?'<p class="plan-nota" style="color:#9A3412">'+s.avisos.map(esc).join('<br>')+'</p>':'')+
         (s.sinTramo.length?'<p class="plan-nota">Sin posición en la secuencia: '+s.sinTramo.map(x=>esc(x.marca)+' '+esc(NS.etiquetaPresentacion(l.key,x.marca,x.presentacion))+' ('+fmt(x.cantidad)+' UND)').join(', ')+'.</p>':'')+
-        (s.quedan.length?'<p class="plan-nota">Quedan sin asignar a un tramo: '+s.quedan.map(x=>esc(x.marca)+' '+fmt(x.cantidad)+' UND').join(', ')+'.</p>':''));
+        (s.quedan.length?'<p class="plan-nota">Quedan sin asignar a un tramo: '+s.quedan.map(x=>esc(x.marca)+' '+fmt(x.cantidad)+' UND').join(', ')+'.</p>':'')+'</div>');
     });
-    sec.innerHTML=bloques.length?'<h4 style="margin:18px 0 4px;color:#003b5c">Secuencia del bloque <small style="font-weight:500;color:#5a6b78">(tramos definidos en Paletas · horas estimadas a velocidad estándar)</small></h4>'+bloques.join('')+
+    sec.innerHTML=bloques.length?'<h4 class="plan-h4">Secuencia del bloque <small>(tramos definidos en Paletas · horas estimadas a velocidad estándar)</small></h4>'+bloques.join('')+
       '<p class="plan-nota">Un producto que aparece en varios tramos (p. ej. SCALA → BELLS → SCALA) reparte entre ellos solo lo programado: su cantidad no se duplica.</p>':'';
   };
 
