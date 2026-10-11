@@ -11,6 +11,7 @@
   const NS=window.glacialPlanificacion;
   const {num,esc,iso,addDias,fechaOk,ahoraMs}=NS.util;
   const G=()=>window.GlacialIndicadores;
+  const LF='\n';   // salto de línea de los mensajes de confirmación (antes no estaba definido y importar con posible duplicado fallaba)
 
   const TABS=[
     {clave:'programacion',titulo:'Programación'},
@@ -187,6 +188,8 @@
       linea:existente.linea,marca:existente.marca,presentacion:existente.presentacion,
       cantidad:num(existente.cantidadProgramada),upp:num(existente.unidadesPorPaleta)}:base||{});
     f.fecha=E.fecha;f.turno=existente?existente.turno:NS.valorBloque(E.turno);   // una fila existente conserva su turno; lo nuevo de Día + Intermedio va en la fila DÍA
+    // Versión de la fila que la persona VIO al abrir (null = no existía). Al guardar se comprueba en la transacción: si otra persona la cambió, no se pisa.
+    let visto=existente?num(existente.version):null;
     const opcionesLinea=NS.lineas().map(l=>'<option value="'+esc(l.key)+'"'+(l.key===f.linea?' selected':'')+'>'+esc(l.name)+'</option>').join('');
     const fondo=abrirDialogo('<h3>'+(existente?'Editar programación':'Nueva programación')+'</h3>'+
       '<div class="small-muted" style="margin-bottom:10px">'+esc(f.fecha)+' · '+esc(f.turno)+'</div>'+
@@ -198,7 +201,7 @@
       '<label>Unidades por paleta<input type="number" id="pe-upp" min="1" step="1" inputmode="numeric" value="'+esc(f.upp)+'"></label>'+
       '<label class="completo">Paletas equivalentes<input type="text" id="pe-eq" readonly></label>'+
       '<label class="completo" id="pe-motivo-bloque" style="display:none">Motivo del cambio (obligatorio: ya está en producción)<textarea id="pe-motivo" rows="2"></textarea></label>'+
-      '</div><div class="plan-aviso" id="pe-aviso"></div><div class="plan-error" id="pe-error"></div>'+
+      '</div><div class="plan-aviso" id="pe-aviso"></div><div class="plan-aviso" id="pe-conflicto" style="display:none;background:#fff1d6;border:1px solid #f0d98c;border-radius:8px;padding:8px 10px;color:#6b4a00"></div><div class="plan-error" id="pe-error"></div>'+
       '<div class="plan-acciones">'+(existente?'<button type="button" class="btn btn-ghost" id="pe-quitar" style="margin-right:auto;color:#a32020">Quitar programación</button>':'')+
       '<button type="button" class="btn btn-ghost" id="pe-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="pe-guardar">Guardar</button></div>');
     const q=id=>fondo.querySelector('#'+id);
@@ -217,12 +220,52 @@
       const v=NS.validar({linea:l,fecha:f.fecha,turno:f.turno,marca:m,presentacion:p,cantidad:q('pe-cant').value,upp:q('pe-upp').value});
       q('pe-aviso').textContent=v.avisos.join('\n');
     };
-    llenarMarcas();
-    q('pe-linea').addEventListener('change',()=>{f.marca='';f.presentacion='';llenarMarcas();refrescarCampos();});
+    /* Fila vigente de lo que se está editando (la que otra persona pudo cambiar). */
+    const filaActual=()=>{
+      const l=q('pe-linea').value,m=q('pe-marca').value,p=q('pe-pres').value;
+      if(!l||!m||!p)return null;
+      const ex=NS.existente(l,f.fecha,NS.turnoDeGuardado({linea:l,fecha:f.fecha,turno:f.turno,marca:m,presentacion:p}),m,p);
+      return ex&&num(ex.cantidadProgramada)>0?ex:null;
+    };
+    const capturarVisto=()=>{if(existente)return;const ex=filaActual();visto=ex?num(ex.version):null;};
+    /* Aviso en vivo (sin tocar lo que la persona escribe): si la fila cambió desde que se abrió, se muestra el valor actual. */
+    let bloqueado=false;   // hay un conflicto del servidor sin resolver: el aviso en vivo no lo oculta
+    const mostrarCambioRemoto=()=>{
+      const box=q('pe-conflicto');if(!box||bloqueado)return;
+      refrescarCampos();                           // el aviso «ya existe… se reemplazará» se recalcula con lo vigente (no toca lo escrito)
+      const ex=filaActual(),actualV=ex?num(ex.version):null;
+      if(actualV===visto){box.style.display='none';box.innerHTML='';return;}
+      box.style.display='';
+      box.innerHTML=(ex?'Otra persona cambió esta programación mientras la editabas. Valor actual: <b>'+num(ex.cantidadProgramada).toLocaleString('es-PE')+' UND</b> ('+num(ex.unidadesPorPaleta).toLocaleString('es-PE')+' por paleta, '+esc(NS.estadoTexto(NS.estadoDe(ex)).toLowerCase())+'). No se guardará encima.'
+        :'Esta programación ya no existe (otra persona la quitó).')+' <button type="button" class="btn btn-ghost btn-sm" id="pe-recargar">Cargar valor actual</button>';
+      q('pe-recargar').onclick=()=>{
+        if(ex){q('pe-cant').value=num(ex.cantidadProgramada);q('pe-upp').value=num(ex.unidadesPorPaleta);}
+        visto=actualV;box.style.display='none';box.innerHTML='';q('pe-error').textContent='';q('pe-guardar').disabled=false;refrescarCampos();
+      };
+    };
+    /* Conflicto detectado por el servidor al guardar: el propio error trae el valor actual (puede ir un instante por delante de la copia local). */
+    const mostrarConflictoError=e=>{
+      const box=q('pe-conflicto');if(!box)return;
+      const a=e.actual;
+      box.style.display='';
+      box.innerHTML=esc(e.message)+' <button type="button" class="btn btn-ghost btn-sm" id="pe-recargar">Cargar valor actual</button>';
+      q('pe-guardar').disabled=true;bloqueado=true;
+      q('pe-recargar').onclick=()=>{
+        if(a){q('pe-cant').value=a.cantidad;q('pe-upp').value=a.unidadesPorPaleta;}
+        bloqueado=false;visto=a?num(a.version):null;box.style.display='none';box.innerHTML='';q('pe-error').textContent='';q('pe-guardar').disabled=false;refrescarCampos();
+      };
+    };
+    const vigilar=()=>{
+      if(!document.body.contains(fondo)){const i=NS.alRefrescar.indexOf(vigilar);if(i>=0)NS.alRefrescar.splice(i,1);return;}
+      mostrarCambioRemoto();
+    };
+    NS.alRefrescar.push(vigilar);
+    llenarMarcas();capturarVisto();
+    q('pe-linea').addEventListener('change',()=>{f.marca='';f.presentacion='';llenarMarcas();capturarVisto();refrescarCampos();mostrarCambioRemoto();});
     ['pe-marca','pe-pres'].forEach(id=>q(id).addEventListener('change',()=>{
       const l=q('pe-linea').value,m=q('pe-marca').value,p=q('pe-pres').value;
       if(!existente&&l&&m&&p){const s=NS.uppSugerida(l,m,p);if(s>0)q('pe-upp').value=s;}
-      refrescarCampos();
+      capturarVisto();refrescarCampos();mostrarCambioRemoto();
     }));
     ['pe-cant','pe-upp'].forEach(id=>q(id).addEventListener('input',refrescarCampos));
     refrescarCampos();
@@ -231,8 +274,12 @@
       const fila={linea:q('pe-linea').value,fecha:f.fecha,turno:f.turno,marca:q('pe-marca').value,presentacion:q('pe-pres').value,cantidad:q('pe-cant').value,upp:q('pe-upp').value};
       const motivo=q('pe-motivo').value.trim();
       q('pe-guardar').disabled=true;q('pe-error').textContent='';
-      try{await NS.guardar(fila,{motivo});fondo.remove();pintarTabla();}
-      catch(e){q('pe-error').textContent=(e&&e.message)||String(e);q('pe-guardar').disabled=false;}
+      try{await NS.guardar(fila,{motivo,versionEsperada:visto});fondo.remove();pintarTabla();}
+      catch(e){
+        q('pe-error').textContent=e&&e.conflicto?'':(e&&e.message)||String(e);
+        q('pe-guardar').disabled=false;
+        if(e&&e.conflicto)mostrarConflictoError(e);   // se muestra el valor actual; hay que cargarlo para poder guardar de nuevo
+      }
     };
     const quitar=q('pe-quitar');
     if(quitar)quitar.onclick=async()=>{
@@ -240,8 +287,8 @@
       const motivo=enProd?(prompt('Esta programación ya está en producción. Motivo para quitarla (mínimo 5 caracteres):')||'').trim():'';
       if(enProd&&motivo.length<5){q('pe-error').textContent='Hace falta un motivo de al menos 5 caracteres.';return;}
       if(!enProd&&!confirm('¿Quitar esta programación?'))return;
-      try{await NS.quitar(existente,motivo);fondo.remove();pintarTabla();}
-      catch(e){q('pe-error').textContent=(e&&e.message)||String(e);}
+      try{await NS.quitar(existente,motivo,{versionEsperada:visto});fondo.remove();pintarTabla();}
+      catch(e){if(e&&e.conflicto)mostrarConflictoError(e);q('pe-error').textContent=e&&e.conflicto?'':(e&&e.message)||String(e);}
     };
   }
   NS.abrirEdicion=abrirEdicion;

@@ -148,7 +148,8 @@
   };
   /* Mueve la fila INTERMEDIO al bloque Día en UNA transacción sobre sync/programaciones: si el producto ya tiene fila DÍA se suma;
      si no, la fila pasa a ser DÍA (misma cantidad, unidades por paleta y secuencia). La fila DÍA conserva el rastro en
-     unificadoDeIntermedio[] (reversible) y el historial recibe EDICIÓN/CREACIÓN del DÍA y ELIMINACIÓN del INTERMEDIO con la referencia UNIFICACION. */
+     unificadoDeIntermedio[] (reversible). El historial recibe UN solo evento (referencia UNIFICACION, con «desde» Intermedio) dentro de
+     la MISMA transacción: el cambio y su rastro se guardan juntos o no se guarda nada. */
   NS.unificarEnDia=async function(item,motivo){
     if(!puede())throw new Error('Solo Planificación puede unificar programaciones.');
     const m=String(motivo||'').trim();
@@ -166,34 +167,40 @@
       if(i<0)throw new Error('La fila INTERMEDIO ya no existe (otra persona la cambió). Actualiza la pantalla.');
       const inter=act[i];
       if(((inter.estadoOperacion&&inter.estadoOperacion.estado)||'PENDIENTE')!=='PENDIENTE')throw new Error('La programación de Intermedio ya no está pendiente: no se puede unificar.');
+      if(Number.isFinite(Number(item.version))||Number.isFinite(Number(inter.version))){
+        if(num(inter.version)!==num(item.version)){
+          const e=new Error('Otra persona cambió la fila de Intermedio mientras la mirabas. Valor actual: '+num(inter.cantidadProgramada).toLocaleString('es-PE')+' UND. No se unificó nada.');
+          e.conflicto=true;e.actual={cantidad:num(inter.cantidadProgramada),version:num(inter.version)};throw e;
+        }
+      }
       antesInter=inter;
       const traza={cantidad:num(inter.cantidadProgramada),claveOriginal:claveInter,por:quien,motivo:m,fecha:Date.now()};
       const j=act.findIndex(p=>p.clave===claveDia);
       if(j>=0){
         antesDia=act[j];
         const upp=num(act[j].unidadesPorPaleta)||num(inter.unidadesPorPaleta),cant=num(act[j].cantidadProgramada)+num(inter.cantidadProgramada);
-        act[j]=Object.assign({},act[j],{cantidadProgramada:cant,unidadesPorPaleta:upp,paletasProgramadas:upp?cant/upp:0,unificadoDeIntermedio:(act[j].unificadoDeIntermedio||[]).concat([traza]),actualizadoPor:quien,actualizadoEn:Date.now()});
+        act[j]=Object.assign({},act[j],{cantidadProgramada:cant,unidadesPorPaleta:upp,paletasProgramadas:upp?cant/upp:0,version:num(act[j].version)+1,unificadoDeIntermedio:(act[j].unificadoDeIntermedio||[]).concat([traza]),actualizadoPor:quien,actualizadoEn:Date.now()});
         despuesDia=act[j];act.splice(i,1);
       }else{
-        act[i]=Object.assign({},inter,{id:'prog_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),clave:claveDia,turno:'DÍA',unificadoDeIntermedio:[traza],actualizadoPor:quien,actualizadoEn:Date.now()});
+        act[i]=Object.assign({},inter,{id:'prog_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),clave:claveDia,turno:'DÍA',version:num(inter.version)+1,unificadoDeIntermedio:[traza],actualizadoPor:quien,actualizadoEn:Date.now()});
         despuesDia=act[i];
       }
       tx.set(ref,{items:act,updatedAt:Date.now()});
+      const val=p=>p?{cantidad:num(p.cantidadProgramada),unidadesPorPaleta:num(p.unidadesPorPaleta),estado:(p.estadoOperacion&&p.estadoOperacion.estado)||''}:null;
+      const ev=typeof NS.armarEvento==='function'?NS.armarEvento({accion:antesDia?'EDICION':'CREACION',linea:item.linea,fecha:item.fecha,turno:'DÍA',marca:item.marca,presentacion:item.presentacion,
+        anterior:val(antesDia),nuevo:val(despuesDia),motivo:m,referencia:'UNIFICACION: '+claveInter,
+        extra:{desde:{turno:'INTERMEDIO',clave:claveInter,cantidad:num(inter.cantidadProgramada),unidadesPorPaleta:num(inter.unidadesPorPaleta)}}}):null;
+      if(ev)tx.set(db.collection('historialProgramacion').doc(ev.id),ev.doc);
       return act;
     });
     if(typeof _programacionesCache!=='undefined')_programacionesCache=items;
-    const ref2='UNIFICACION: '+claveInter;
-    const val=p=>p?{cantidad:num(p.cantidadProgramada),unidadesPorPaleta:num(p.unidadesPorPaleta),estado:(p.estadoOperacion&&p.estadoOperacion.estado)||''}:null;
-    const base={linea:item.linea,fecha:item.fecha,marca:item.marca,presentacion:item.presentacion,motivo:m,referencia:ref2};
-    await NS.registrarHistorial(Object.assign({},base,{accion:antesDia?'EDICION':'CREACION',turno:'DÍA',anterior:val(antesDia),nuevo:val(despuesDia)}));
-    await NS.registrarHistorial(Object.assign({},base,{accion:'ELIMINACION',turno:'INTERMEDIO',anterior:val(antesInter),nuevo:null}));
     return {antesDia,despuesDia,antesInter};
   };
 
   /* Quita una programación (cantidad 0, como siempre). */
-  NS.quitar=async function(item,motivo){
+  NS.quitar=async function(item,motivo,opc){
     if(!puede())throw new Error('Solo Planificación puede quitar la programación.');
-    return guardarProgramacionPaleta(item.linea,item.fecha,item.turno,item.marca,item.presentacion,0,num(item.unidadesPorPaleta)||0,{motivo});
+    return guardarProgramacionPaleta(item.linea,item.fecha,item.turno,item.marca,item.presentacion,0,num(item.unidadesPorPaleta)||0,Object.assign({motivo},opc||{}));
   };
   /* Aplica varias filas, una por una, con la misma función. */
   NS.aplicarLote=async function(filas,opc){

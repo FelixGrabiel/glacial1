@@ -24,9 +24,11 @@ const sb={console,Math,Number,Array,Object,String,Date,JSON,Promise,Set,Map};vm.
 sb.tienePermiso=p=>p==='planificacion'?permiso:false;
 sb.nombreUsuarioActualPaletas=()=>'Plan Test';
 sb._programacionesCache=[];
-sb.db={collection:()=>({doc:()=>({__ref:true})}),runTransaction:async fn=>fn({get:async()=>({exists:true,data:()=>JSON.parse(JSON.stringify(doc))}),set:(r,d)=>{doc=JSON.parse(JSON.stringify(d));}})};
-sb.glacialPlanificacion={registrarHistorial:async e=>{historial.push(e);}};
-vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+extraer(s16,'claveProgramacionPaleta')+extraer(s16,'guardarProgramacionPaleta'),sb);
+/* El historial ahora se escribe DENTRO de la misma transacción (documento historialProgramacion/{id}): el doble lo recoge desde tx.set. */
+sb.db={collection:c=>({doc:id=>({__c:c,__id:id})}),runTransaction:async fn=>{const w=[];const r=await fn({get:async()=>({exists:true,data:()=>JSON.parse(JSON.stringify(doc))}),set:(rf,d)=>w.push([rf,d])});
+  w.forEach(([rf,d])=>{if(rf.__c==='historialProgramacion')historial.push(JSON.parse(JSON.stringify(d)));else doc=JSON.parse(JSON.stringify(d));});return r;}};
+sb.glacialPlanificacion={armarEvento:e=>({id:'h'+historial.length,doc:e})};
+vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+extraer(s16,'claveProgramacionPaleta')+extraer(s16,'programacionValorHistorial')+extraer(s16,'programacionConflicto')+extraer(s16,'programacionAplicarEnLista')+extraer(s16,'guardarProgramacionPaleta'),sb);
 const G=s=>vm.runInContext('guardarProgramacionPaleta',sb)(...s);
 await G(['PET1','2026-10-05','DÍA','Bells','625ml',10000,600,{}]);
 ok(doc.items.length===1&&doc.items[0].cantidadProgramada===10000&&doc.items[0].paletasProgramadas===10000/600&&doc.items[0].estadoOperacion.estado==='PENDIENTE','crea la programación con la misma forma de siempre (cantidad, paletas, estado PENDIENTE)');
@@ -202,8 +204,9 @@ progs=[fila8('DÍA',12000),fila8('INTERMEDIO',8000)].map(x=>Object.assign(x,{fec
 let cp=NS.planCopia({modo:'DIA_ANTERIOR',fecha:'2026-10-15',soloTurno:'DÍA'});
 ok(cp.candidatos.length===1&&cp.candidatos[0].turno==='DÍA'&&cp.candidatos[0].cantidad===20000,'copiar el bloque Día incluye las filas de Intermedio y las suma en la fila DÍA (20,000)');
 /* Unificar en Día */
-let pal=[];sbn.loadPaletas=()=>pal;let hist=[];NS.registrarHistorial=async e=>{hist.push(e);};
-sbn.db={collection:()=>({doc:()=>({__r:1})}),runTransaction:async fn=>fn({get:async()=>({exists:true,data:()=>({items:JSON.parse(JSON.stringify(progs))})}),set:(r,d)=>{progs=d.items;}})};
+let pal=[];sbn.loadPaletas=()=>pal;let hist=[];NS.armarEvento=e=>({id:'h'+hist.length,doc:Object.assign({},e,e.extra||{})});
+sbn.db={collection:c=>({doc:id=>({__c:c,__r:1})}),runTransaction:async fn=>{const w=[];const r=await fn({get:async()=>({exists:true,data:()=>({items:JSON.parse(JSON.stringify(progs))})}),set:(rf,d)=>w.push([rf,d])});
+  w.forEach(([rf,d])=>{if(rf.__c==='historialProgramacion')hist.push(d);else progs=d.items;});return r;}};
 const f99=(turno,c,extra)=>Object.assign({clave:'PET1|2099-01-02|'+turno+'|Bells|Regular_625ml',linea:'PET1',fecha:'2099-01-02',turno,marca:'Bells',presentacion:'Regular_625ml',cantidadProgramada:c,unidadesPorPaleta:1200,estadoOperacion:{estado:'PENDIENTE'}},extra||{});
 progs=[f99('DÍA',12000),f99('INTERMEDIO',8000)];
 ok(NS.puedeUnificar(progs[1])&&!NS.puedeUnificar(progs[0]),'solo se puede unificar una fila INTERMEDIO');
@@ -215,7 +218,7 @@ ok(/motivo/i.test(e7)&&progs.length===2,'sin motivo no se unifica');
 await NS.unificarEnDia(progs[1],'Se programó dos veces el mismo producto');
 ok(progs.length===1&&progs[0].turno==='DÍA'&&progs[0].cantidadProgramada===20000&&progs[0].paletasProgramadas===20000/1200,'unificar: la fila DÍA suma 12,000 + 8,000 = 20,000 y la fila INTERMEDIO se quita');
 ok(progs[0].unificadoDeIntermedio.length===1&&progs[0].unificadoDeIntermedio[0].cantidad===8000&&/INTERMEDIO/.test(progs[0].unificadoDeIntermedio[0].claveOriginal)&&progs[0].unificadoDeIntermedio[0].motivo.length>5,'queda el rastro en la fila DÍA (cantidad, clave original, motivo, quién y cuándo)');
-ok(hist.length===2&&hist[0].accion==='EDICION'&&hist[0].turno==='DÍA'&&hist[0].anterior.cantidad===12000&&hist[0].nuevo.cantidad===20000&&hist[1].accion==='ELIMINACION'&&hist[1].turno==='INTERMEDIO'&&hist.every(h=>/^UNIFICACION/.test(h.referencia)&&h.motivo),'historial: edición del Día y eliminación del Intermedio, con motivo y referencia UNIFICACION (acciones ya permitidas por las reglas)');
+ok(hist.length===1&&hist[0].accion==='EDICION'&&hist[0].turno==='DÍA'&&hist[0].anterior.cantidad===12000&&hist[0].nuevo.cantidad===20000&&hist[0].desde.cantidad===8000&&/^UNIFICACION/.test(hist[0].referencia)&&hist[0].motivo,'historial: UN solo evento (edición del Día con «desde» Intermedio), con motivo y referencia UNIFICACION (acción ya permitida por las reglas)');
 progs=[f99('INTERMEDIO',8000)];hist=[];
 await NS.unificarEnDia(progs[0],'Pasa a ser la programación de Día');
 ok(progs.length===1&&progs[0].turno==='DÍA'&&progs[0].cantidadProgramada===8000&&/[|]DÍA[|]/.test(progs[0].clave)&&hist[0].accion==='CREACION','sin fila DÍA previa: la fila pasa a ser DÍA con su misma cantidad');

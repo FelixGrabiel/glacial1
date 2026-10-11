@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><base href="/"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Planificación (datos de prueba)</title>
+<style>
+body{margin:0;background:#f3f6f8;font-family:system-ui,Arial,sans-serif;color:#172b3a}
+.barra{padding:8px 14px;background:#003B5C;color:#fff;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+.barra button,.barra select{padding:6px 10px;border:0;border-radius:7px;font-weight:700;cursor:pointer}
+#main{padding:14px;max-width:1100px;margin:0 auto}
+.btn{padding:8px 14px;border-radius:8px;border:1px solid #005b96;background:#005b96;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.btn-ghost{background:#fff;color:#005b96}.btn-sm{padding:5px 10px;font-size:12px}.btn-primary{background:#005b96;color:#fff}.btn:disabled{opacity:.5;cursor:not-allowed}
+.main-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.main-head h2{margin:0;color:#003b5c}.sub,.small-muted{color:#5a6b78;font-size:13px}
+.empty-state{padding:24px;text-align:center;color:#5a6b78}
+</style></head><body>
+<div class="barra"><b>Datos de PRUEBA (no reales)</b><span id="quien"></span>
+<span style="flex:1"></span><label><input type="checkbox" id="falla"> simular falla de red al guardar</label><button id="reiniciar">Reiniciar datos</button></div>
+<div id="main"></div>
+<script src="js/nucleo/45-indicadores.js"></script>
+<script>
+/* ===== Entorno mínimo: la página real de Planificación (51–54 + las funciones reales de 16) sobre una «nube» falsa compartida entre pestañas
+   (localStorage): dos pestañas = dos dispositivos / dos personas. Las transacciones comprueban versiones como el puente de Supabase. ===== */
+const Q=new URLSearchParams(location.search),USUARIO=Q.get('u')||'ana';
+const PERSONAS={ana:{nombre:'Ana',rol:'Planificación',planifica:true},luis:{nombre:'Luis',rol:'Planificación',planifica:true},sup:{nombre:'Sup',rol:'Supervisor',planifica:false}};
+const P=PERSONAS[USUARIO]||PERSONAS.ana;
+document.getElementById('quien').textContent='Persona: '+P.nombre+' ('+P.rol+(P.planifica?'':' · solo lectura')+')';
+const KEY='glacial-plan-nube',clon=v=>JSON.parse(JSON.stringify(v));
+const leerNube=()=>JSON.parse(localStorage.getItem(KEY)||'{"docs":{},"ver":{}}');
+const escribirNube=n=>localStorage.setItem(KEY,JSON.stringify(n));
+const ts=v=>{if(v==='__TS__')return Date.now();if(Array.isArray(v))return v.map(ts);if(v&&typeof v==='object'){const o={};Object.keys(v).forEach(k=>o[k]=ts(v[k]));return o;}return v;};
+const oyentes=[];
+const avisar=()=>{oyentes.slice().forEach(f=>{try{f();}catch(e){console.warn(e);}});sincronizarProgramaciones();};
+window.addEventListener('storage',e=>{if(e.key===KEY)avisar();});
+var _programacionesCache=[];
+function sincronizarProgramaciones(){const d=leerNube().docs['sync/programaciones'];_programacionesCache=d&&Array.isArray(d.items)?d.items:[];
+  if(window.glacialPlanificacionRefrescar)window.glacialPlanificacionRefrescar();}
+const loadProgramaciones=()=>_programacionesCache;
+const refDoc=(c,id)=>({__c:c,__id:id,__k:c+'/'+id,
+  get:async()=>{const d=leerNube().docs[c+'/'+id];return {exists:d!==undefined,data:()=>clon(d)};},
+  onSnapshot(cb){const f=()=>{const d=leerNube().docs[c+'/'+id];cb({exists:d!==undefined,data:()=>clon(d)});};oyentes.push(f);f();return()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
+  set:async(d)=>{const n=leerNube();n.docs[c+'/'+id]=ts(clon(d));n.ver[c+'/'+id]=(n.ver[c+'/'+id]||0)+1;escribirNube(n);avisar();}});
+const consulta=(c,filtros,orden,limite)=>({
+  where:(campo,op,val)=>consulta(c,filtros.concat([[campo,val]]),orden,limite),orderBy:(campo,dir)=>consulta(c,filtros,[campo,dir],limite),limit:n=>consulta(c,filtros,orden,n),
+  _docs(){let l=Object.entries(leerNube().docs).filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({id:k.slice(c.length+1),v}));
+    filtros.forEach(([campo,val])=>{l=l.filter(x=>x.v[campo]===val);});
+    if(orden){l.sort((a,b)=>(Number(b.v[orden[0]])||0)-(Number(a.v[orden[0]])||0));if(orden[1]!=='desc')l.reverse();}
+    if(limite)l=l.slice(0,limite);return l.map(x=>({id:x.id,data:()=>clon(x.v)}));},
+  get(){return Promise.resolve({docs:this._docs()});},
+  onSnapshot(cb){const self=this,f=()=>{const docs=self._docs();cb({docs,docChanges:()=>docs.map(d=>({type:'added',doc:d}))});};oyentes.push(f);f();return()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
+  add:async d=>{const id='a_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);await refDoc(c,id).set(d);return {id};}});
+const db={
+  collection:c=>Object.assign(consulta(c,[],null,0),{doc:id=>refDoc(c,id||('a_'+Date.now()))}),
+  runTransaction:async fn=>{
+    for(let intento=0;intento<5;intento++){
+      const lect={},w=[];
+      const tx={get:async r=>{await new Promise(x=>setTimeout(x,150));const n=leerNube();lect[r.__k]=n.ver[r.__k]||0;const d=n.docs[r.__k];return {exists:d!==undefined,data:()=>clon(d)};},
+        set:(r,d)=>w.push(['set',r,d]),update:(r,d)=>w.push(['upd',r,d])};
+      const res=await fn(tx);
+      const n=leerNube();let choque=false;Object.keys(lect).forEach(k=>{if((n.ver[k]||0)!==lect[k])choque=true;});
+      if(choque){await new Promise(x=>setTimeout(x,60));continue;}
+      if(document.getElementById('falla').checked)throw new Error('sin red (simulado)');
+      w.forEach(([t,r,d])=>{let nd=clon(d);if(t==='upd')nd=Object.assign({},n.docs[r.__k]||{},nd);n.docs[r.__k]=ts(nd);n.ver[r.__k]=(n.ver[r.__k]||0)+1;});
+      escribirNube(n);avisar();return res;
+    }
+    throw new Error('aborted');
+  }
+};
+const firebase={auth:()=>({currentUser:{uid:'uid-'+USUARIO}}),firestore:{FieldValue:{serverTimestamp:()=>'__TS__'}}};
+const state={user:{rol:P.rol,nombre:P.nombre,username:USUARIO},currentTab:'planificacion'};
+const LINES=[{key:'PET1',name:'PET 1'},{key:'PET2',name:'PET 2'},{key:'B7L',name:'B7L'},{key:'C20L',name:'CAJAS 20L'},{key:'B20L',name:'B20L'}];
+const MARCAS_POR_LINEA={PET1:['Bells','Scala'],PET2:['Bells','Scala'],B7L:['Fontlife'],C20L:['Fontlife'],B20L:['Fontlife']};
+const PRESENTACIONES_POR_LINEA={PET1:['Regular_380ml','Regular_625ml'],PET2:['Regular_625ml'],B7L:['7 Litros'],C20L:['20 Litros'],B20L:['20 Litros']};
+const tienePermiso=p=>p==='planificacion'?P.planifica:false;
+const puedeEntrarPlanificacion=()=>true;
+const escaparHtml=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const obtenerUnidadesPorPalet=(l,m,p)=>p==='Regular_625ml'?1200:p==='Regular_380ml'?2184:0;
+const nombreUsuarioActualPaletas=()=>P.nombre;
+const nombrePresentacionUI=(l,m,p)=>String(p||'').replace('Regular_','').replace('ml',' ml');
+const glacialCierresSesion=[];const loadPaletas=()=>[];
+var num=v=>{const n=Number(v);return isFinite(n)?n:0;};
+
+function extraer(src,n){const m=new RegExp('(?:async[ ]+)?function[ ]+'+n+'[ ]*[(]').exec(src);if(!m)throw new Error('no se encontró '+n);let i=src.indexOf('{',m.index),d=0,j=i;for(;j<src.length;j++){if(src[j]==='{')d++;else if(src[j]==='}'){d--;if(d===0)break;}}return src.slice(m.index,j+1)+'\n';}
+function cargar(src){return new Promise((ok,err)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=err;document.head.appendChild(s);});}
+function sembrar(){
+  const hoy=GlacialIndicadores.diaOperativo(Date.now());
+  const F=(l,t,m,p,c,u,v)=>({id:'prog_'+m+l+t,clave:[l,hoy,t,m,p].join('|'),linea:l,fecha:hoy,turno:t,marca:m,presentacion:p,cantidadProgramada:c,unidadesPorPaleta:u,paletasProgramadas:c/u,version:v||1,estadoOperacion:{estado:'PENDIENTE'}});
+  const n={docs:{},ver:{}};
+  n.docs['sync/programaciones']={items:[F('PET1','DÍA','Bells','Regular_625ml',10000,1200),F('PET1','DÍA','Scala','Regular_380ml',6000,2184),F('PET2','NOCHE','Bells','Regular_625ml',4000,1200)],updatedAt:1};
+  n.docs['solicitudesProgramacion/s1']={tipo:'CAMBIO_CANTIDAD',linea:'PET1',fecha:hoy,turno:'DÍA',marca:'Bells',presentacion:'Regular_625ml',cantidadActual:10000,baseVersion:1,propuesta:{cantidad:12000},motivo:'Falta producto para el pedido',estado:'PENDIENTE',uid:'uid-sup',usuario:'Sup',creadoEn:Date.now()};
+  n.ver['sync/programaciones']=1;escribirNube(n);
+}
+document.getElementById('reiniciar').onclick=()=>{sembrar();avisar();};
+(async()=>{
+  if(!localStorage.getItem(KEY)||Q.get('seed')==='1')sembrar();
+  const s16=await (await fetch('js/produccion/16-paletas.js')).text();
+  ['claveProgramacionPaleta','obtenerProgramacionPaleta','programacionValorHistorial','programacionConflicto','programacionAplicarEnLista','guardarProgramacionPaleta'].forEach(n=>(0,eval)(extraer(s16,n).replace(/^(async )?function (\w+)/,'window.$2=$1function $2')));
+  for(const f of ['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes'])await cargar('js/produccion/'+f+'.js');
+  sincronizarProgramaciones();
+  glacialPlanificacionEscuchas();
+  renderPlanificacion(document.getElementById('main'));
+  window.__listo=true;
+})();
+</script></body></html>

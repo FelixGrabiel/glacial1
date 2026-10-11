@@ -132,6 +132,16 @@ const me=nube();me.docs.set('sync/avancesTurno',{items:[],paradasOperativas:[{id
 const med=await dispositivo(me,'Administrador').window.glacialAvancesItems.medir();
 ok(med.paradas===2&&med.dias===10&&med.crecimientoBytesDia>0&&med.bytesPorParada>100&&med.diasRestantesSoloParadas>1000,'medir(): paradas, bytes por parada, crecimiento por día y plazo estimado');
 
+/* 5b) medirSync: tamaño, filas por elemento y si la lista se parte en Supabase */
+const ms=nube();
+ms.docs.set('sync/programaciones',{items:[{id:'a',fecha:'2026-10-01',x:'x'.repeat(100)},{id:'b',fecha:'2026-10-10',x:'y'.repeat(100)}],updatedAt:1});
+ms.docs.set('sync/paletas',{items:[{id:'p1'},{id:'p1'}]});
+const med2=await dispositivo(ms,'Administrador').window.glacialAvancesItems.medirSync(['programaciones','paletas','noExiste']);
+ok(med2[0].existe&&med2[0].bytes>0&&med2[0].libre>0&&med2[0].listas[0].elementos===2&&med2[0].listas[0].dias===10&&med2[0].listas[0].crecimientoBytesDia>0&&med2[0].listas[0].claveUnica==='id'&&med2[0].listas[0].seParteEnSupabase,'medirSync: bytes, % del límite, crecimiento por día y lista que se parte en filas en Supabase (clave id)');
+ok(med2[1].listas[0].claveUnica===null&&med2[1].listas[0].seParteEnSupabase===false&&med2[2].existe===false,'medirSync: avisa si una lista tiene ids repetidos (quedaría como un solo documento) y si el documento no existe');
+let eMs='';try{await dispositivo(ms,'Supervisor').window.glacialAvancesItems.medirSync();}catch(x){eMs=x.message;}
+ok(/Administrador/.test(eMs),'medirSync es solo para el Administrador');
+
 /* 6) Código y reglas */
 const av=leer('js/produccion/29-avance-produccion.js');
 ok(!/items:arr/.test(av)&&/glacialAvancesItems\.crear\(/.test(av),'29: avGuardarSnapshot ya no reescribe el documento completo: crea el documento del snapshot');
