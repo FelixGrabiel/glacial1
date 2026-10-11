@@ -292,6 +292,48 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Entrega de turno entre supervisores: UN documento por fecha operativa y turno SALIENTE (id = fecha + '_' + turno).
+    //  - Lo leen todos los usuarios con sesión, salvo la cuenta compartida de Mantenimiento (jefatura y gerencia en modo consulta).
+    //  - Crea quien opera Producción (puedeOperarProduccion), con su uid y la hora del servidor; crear con un id existente falla.
+    //  - Mientras esté ENTREGADA, solo quien la entregó corrige resumen y novedades (más actualizadaEn y actualizaciones).
+    //  - Recibir: otro usuario (distinto del que entregó) pasa estado a RECIBIDA y escribe solo recibeUid, recibePor, recibeNombre,
+    //    recibidaEn (hora del servidor) y observacionRecibe (opcional). Después de RECIBIDA nadie la cambia. Nunca se borra.
+    match /entregasTurno/{id} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if puedeOperarProduccion()
+        && request.resource.data.keys().hasAll(['fecha', 'turno', 'estado', 'resumen', 'novedades', 'entregaUid', 'entregaPor',
+             'entregaNombre', 'entregadaEn'])
+        && request.resource.data.keys().hasOnly(['fecha', 'turno', 'estado', 'resumen', 'novedades', 'entregaUid', 'entregaPor',
+             'entregaNombre', 'entregadaEn'])
+        && request.resource.data.turno in ['DIA', 'INTERMEDIO', 'NOCHE']
+        && id == request.resource.data.fecha + '_' + request.resource.data.turno
+        && request.resource.data.estado == 'ENTREGADA'
+        && request.resource.data.novedades is list && request.resource.data.novedades.size() <= 30
+        && request.resource.data.entregaUid == request.auth.uid
+        && request.resource.data.entregadaEn == request.time;
+      allow update: if puedeOperarProduccion()
+        && resource.data.estado == 'ENTREGADA'
+        && (
+          // Corregir: solo quien entregó, solo resumen y novedades.
+          (resource.data.entregaUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['resumen', 'novedades', 'actualizadaEn', 'actualizaciones'])
+            && request.resource.data.novedades is list && request.resource.data.novedades.size() <= 30
+            && request.resource.data.actualizadaEn == request.time)
+          ||
+          // Recibir: otro usuario, solo los campos de recepción.
+          (resource.data.entregaUid != request.auth.uid
+            && request.resource.data.estado == 'RECIBIDA'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['estado', 'recibeUid', 'recibePor', 'recibeNombre', 'recibidaEn', 'observacionRecibe'])
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAll(['estado', 'recibeUid', 'recibePor', 'recibeNombre', 'recibidaEn'])
+            && request.resource.data.recibeUid == request.auth.uid
+            && request.resource.data.recibidaEn == request.time)
+        );
+      allow delete: if false;
+    }
+
     // Avances y cierres de turno: UN documento por snapshot (id = el mismo id del snapshot, p. ej. 2026-10-10|DÍA|CIERRE).
     // Antes vivían en sync/avancesTurno.items y ese documento se acercaba al límite de 1 MiB de Firestore.
     //  - Lo leen los mismos que leen sync/avancesTurno (usuario con sesión; la cuenta compartida solo si ya lo leía: sí).

@@ -46,6 +46,7 @@
     {clave:'avance',            area:'produccion', etq:'Avance y Cierre de Turno',                 permisos:['avanceProduccion'],     tabs:['avance-produccion']},
     {clave:'resumen',           area:'produccion', etq:'Resumen general y reportes',               permisos:['resumen'],              tabs:['resumen']},
     {clave:'resumenes_turno',   area:'produccion', etq:'Resúmenes de turno',                       permisos:[],                       tabs:['resumenes-turno']},
+    {clave:'entrega_turno',     area:'produccion', etq:'Entrega de turno (consulta)',              permisos:[],                       tabs:['entrega-turno']},
     {clave:'tareo_produccion',  area:'personal',   etq:'Tareo de producción',                      permisos:['ver_tareo_produccion'], tabs:['tareo']},
     {clave:'tareo_mantenimiento',area:'personal',  etq:'Tareo de mantenimiento',                   permisos:['ver_tareo_mantenimiento'], tabs:['mantenimiento']},
     {clave:'rotacion_supervisores',area:'personal',etq:'Rotación de supervisores',                 permisos:['gestionar_rotacion_supervisores'], tabs:['rotacion-supervisores']},
@@ -64,7 +65,7 @@
   const PERMISOS_EXPORTAR = ['exportarExcel','exportarExcelGeneral','exportarJPG'];
   // Orden en que se busca la primera vista permitida al entrar o al perder un módulo.
   const ORDEN_VISTAS = ['inicio','produccion_actual','avance','resumen','planificacion','tareo_produccion','tareo_mantenimiento',
-    'rotacion_trabajadores','rotacion_supervisores','rrhh','resumenes_turno','bitacora','analisis_paradas','paletas','historial','graficos'];
+    'rotacion_trabajadores','rotacion_supervisores','rrhh','resumenes_turno','entrega_turno','bitacora','analisis_paradas','paletas','historial','graficos'];
   const TABS_LINEA = ['paletas','historial','graficos'];
 
   /* ---------- configuración del usuario ---------- */

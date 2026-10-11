@@ -95,6 +95,7 @@ js/
 | 37b-mantenimiento-identificacion.js | Identificación del técnico con PIN |
 | 37c-equipos-catalogo.js | Equipos por línea (sync/configMantenimiento.equipos, en vivo): selector «Equipo» obligatorio en paradas por «Falla de máquina» (Producción Actual, Avance / Cierre y Registro), «Otro equipo — detalle», editor «Equipos por línea» para el Supervisor de Mantenimiento; paradas antiguas = «Equipo sin indicar» |
 | 43-bitacora-mantenimiento.js | Bitácora de Mantenimiento (solo lectura: rangos rápidos por día operativo 07:00–07:00, orden, buscador, vista por parada, motivos pendientes y Excel) y tarjeta «Paradas de hoy» del Inicio |
+| 66-entrega-turno.js | Entrega de turno entre supervisores (colección entregasTurno, id fecha_TURNO con DIA/INTERMEDIO/NOCHE): foto automática por línea (reutiliza construirDatos de 48), novedades por línea, entregar/corregir/recibir por transacción, historial por fecha, tarjeta «Entrega de turno pendiente» en el Inicio en vivo y modo consulta para jefatura |
 
 ### js/rrhh/
 | Archivo | Función |
@@ -216,3 +217,5 @@ Información económica (protegida por rol): ver docs/ECONOMICO-SEGURIDAD.md. Va
 Calidad retirada: el indicador «Calidad» ya no existe en ninguna pantalla, imagen ni Excel (OEE = disponibilidad × rendimiento). Se conservan, aunque contengan la palabra: el campo «Botellas calidad» del registro (produccion.calidad), el motivo de parada «Calidad / producto no conforme», «Charla de Ingreso Sup. Calid.» y el cargo «Técnico de Calidad». Los registros ya guardados no se tocaron. Prueba: tests/sin-calidad.test.js.
 
 Equipo que falló (Producción 2): texto en la parada (equipo), solo con causa/motivo «Falla de máquina»; no cambia minutos ni indicadores. Bitácora de Mantenimiento: columna, filtro, «Indicar equipo» (evento COMPLETAR_MOTIVO nuevo con motivoDetalle «Equipo: …») y tabla «Por equipo». Análisis de paradas: Pareto por equipo. Resumen de turno: equipo con más minutos de falla. Pruebas: tests/equipos.test.js. Sin cambios de reglas Firestore.
+
+Entrega de turno (Producción 3): js/produccion/66-entrega-turno.js. Colección entregasTurno (un documento por fecha operativa y turno saliente). Crear: fecha, turno, estado ENTREGADA, resumen, novedades, entregaUid/Por/Nombre, entregadaEn. Corregir (solo quien entregó, mientras ENTREGADA): resumen, novedades, actualizadaEn, actualizaciones. Recibir (otro usuario): estado RECIBIDA, recibeUid/Por/Nombre, recibidaEn, observacionRecibe. Regla nueva en firestore.rules.etapa2.txt (bloque match /entregasTurno/{id}): hay que publicarla en Firebase; la equivalente de Supabase se aplica aparte. Pruebas: tests/entrega-turno.test.js. Módulo de modo consulta: entrega_turno (23b-modo-visualizacion.js).
