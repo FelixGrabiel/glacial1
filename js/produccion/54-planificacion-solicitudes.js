@@ -204,6 +204,9 @@
     if(!NS.puede())throw new Error('Solo Planificación puede resolver solicitudes.');
     comentario=String(comentario||'').trim();
     if(comentario.length<3)throw new Error('Escribe un comentario.');
+    let s0=mapa.get(solId);
+    if(aprobar&&!s0){try{const g=await db.collection('solicitudesProgramacion').doc(solId).get();s0=g.exists?g.data():null;}catch(_){s0=null;}}
+    if(aprobar&&s0&&typeof NS.asegurarCompromiso==='function')await NS.asegurarCompromiso(s0.fecha,s0.turno);   // compromiso original (64), sin bloquear
     const u=usuario();
     const refSol=db.collection('solicitudesProgramacion').doc(solId),refProg=db.collection('sync').doc('programaciones');
     let nuevaLista=null;
@@ -375,20 +378,38 @@
     const detalle=[...bloques.values()].map(o=>{
       const p=o.p;
       const prod=typeof window.glacialProducidoVigente==='function'?window.glacialProducidoVigente(p):null;
+      // Compromiso original (64): el plan al INICIAR el bloque. Sin documento = no hubo reprogramación registrada → original = vigente.
+      const orig=typeof NS.originalDe==='function'?NS.originalDe(p.fecha,o.bloque,p.linea,p.marca,p.presentacion):null;
       return {linea:p.linea,fecha:p.fecha,turno:o.bloque,marca:p.marca,presentacion:p.presentacion,
-        programado:o.programado,producido:prod,semana:lunesDe(p.fecha)};
+        programado:o.programado,original:orig===null?o.programado:orig,reprogramado:orig!==null&&orig!==o.programado,producido:prod,semana:lunesDe(p.fecha)};
     });
+    // Productos que estaban en el compromiso original y YA NO están en el plan vigente: su incumplimiento no se oculta.
+    if(typeof NS.compromisos==='function')NS.compromisos().forEach(c=>{
+      if(!fechaOk(c.fecha)||c.fecha<FC.desde||c.fecha>FC.hasta)return;
+      const por=new Map();
+      (c.filas||[]).forEach(f=>{
+        if(FC.linea&&f.linea!==FC.linea)return;
+        const k=[f.linea,c.fecha,c.bloque,f.marca,f.presentacion].join('|');
+        if(bloques.has(k))return;
+        const o=por.get(k)||{f,cant:0};o.cant+=num(f.cantidad);por.set(k,o);
+      });
+      por.forEach(o=>{
+        const f=o.f,prod=typeof window.glacialProducidoVigente==='function'?window.glacialProducidoVigente({linea:f.linea,fecha:c.fecha,turno:c.bloque,marca:f.marca,presentacion:f.presentacion}):null;
+        detalle.push({linea:f.linea,fecha:c.fecha,turno:c.bloque,marca:f.marca,presentacion:f.presentacion,programado:0,original:o.cant,reprogramado:true,producido:prod,semana:lunesDe(c.fecha)});
+      });
+    });
+    const hayReprogramacion=detalle.some(d=>d.reprogramado);
     const sumar=(clave)=>{
       const m=new Map();
       detalle.forEach(d=>{
-        const k=clave(d),o=m.get(k)||{clave:k,programado:0,producido:0,sinRegistro:0};
-        o.programado+=d.programado;
+        const k=clave(d),o=m.get(k)||{clave:k,programado:0,original:0,producido:0,sinRegistro:0};
+        o.programado+=d.programado;o.original+=d.original;
         if(d.producido===null)o.sinRegistro++;else o.producido+=d.producido;
         m.set(k,o);
       });
       return [...m.values()].sort((a,b)=>String(a.clave).localeCompare(String(b.clave),'es'));
     };
-    return {detalle,porLinea:sumar(d=>d.linea),porDia:sumar(d=>d.fecha),porSemana:sumar(d=>d.semana)};
+    return {detalle,hayReprogramacion,porLinea:sumar(d=>d.linea),porDia:sumar(d=>d.fecha),porSemana:sumar(d=>d.semana)};
   }
   const color=c=>{
     const t=typeof window.glacialMetasIndicadores==='function'?window.glacialMetasIndicadores():G().METAS_INICIALES;
@@ -396,22 +417,27 @@
   };
   const FONDOS={verde:'#e1f4e8',ambar:'#fff4d6',roja:'#fde6e6',gris:'#f1f4f6'};
 
-  function tablaCumplimiento(titulo,filas,etiqueta){
-    const total=filas.reduce((a,f)=>({programado:a.programado+f.programado,producido:a.producido+f.producido,sinRegistro:a.sinRegistro+f.sinRegistro}),{programado:0,producido:0,sinRegistro:0});
+  function tablaCumplimiento(titulo,filas,etiqueta,conOriginal){
+    const total=filas.reduce((a,f)=>({programado:a.programado+f.programado,original:a.original+f.original,producido:a.producido+f.producido,sinRegistro:a.sinRegistro+f.sinRegistro}),{programado:0,original:0,producido:0,sinRegistro:0});
+    const pct=c=>c==null?'—':(c*100).toLocaleString('es-PE',{maximumFractionDigits:1})+' %';
     const fila=(nombre,f,negrita)=>{
-      const c=G().cumplimiento(f.producido,f.programado);
-      return '<tr><td>'+(negrita?'<b>'+esc(nombre)+'</b>':esc(nombre))+'</td><td class="num">'+f.programado.toLocaleString('es-PE')+'</td><td class="num">'+f.producido.toLocaleString('es-PE')+'</td>'+
-        '<td class="num" style="background:'+FONDOS[color(c)]+'"><b>'+(c==null?'—':(c*100).toLocaleString('es-PE',{maximumFractionDigits:1})+' %')+'</b></td><td class="num">'+(f.sinRegistro?f.sinRegistro+' sin registro':'')+'</td></tr>';
+      const c=G().cumplimiento(f.producido,f.programado),co=G().cumplimiento(f.producido,f.original);
+      return '<tr><td>'+(negrita?'<b>'+esc(nombre)+'</b>':esc(nombre))+'</td><td class="num">'+f.programado.toLocaleString('es-PE')+'</td>'+
+        (conOriginal?'<td class="num">'+f.original.toLocaleString('es-PE')+'</td>':'')+'<td class="num">'+f.producido.toLocaleString('es-PE')+'</td>'+
+        '<td class="num" style="background:'+FONDOS[color(c)]+'"><b>'+pct(c)+'</b></td>'+
+        (conOriginal?'<td class="num" style="background:'+FONDOS[color(co)]+'"><b>'+pct(co)+'</b></td>':'')+'<td class="num">'+(f.sinRegistro?f.sinRegistro+' sin registro':'')+'</td></tr>';
     };
-    return '<h4 style="margin:14px 0 6px;color:#003b5c">'+titulo+'</h4><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>'+etiqueta+'</th><th class="num">Programado</th><th class="num">Producido</th><th class="num">Cumplimiento</th><th class="num">Avisos</th></tr></thead><tbody>'+
-      (filas.length?filas.map(f=>fila(etiqueta==='Línea'?NS.nombreLinea(f.clave):etiqueta==='Semana'?'Semana del '+f.clave:f.clave,f)).join('')+fila('Total',total,true):'<tr><td colspan="5">Sin programaciones en el rango.</td></tr>')+'</tbody></table></div>';
+    const nc=conOriginal?7:5;
+    return '<h4 style="margin:14px 0 6px;color:#003b5c">'+titulo+'</h4><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>'+etiqueta+'</th><th class="num">Programado vigente</th>'+(conOriginal?'<th class="num">Original al inicio</th>':'')+'<th class="num">Producido</th><th class="num">Cumplimiento vigente</th>'+(conOriginal?'<th class="num">Cumplimiento vs original</th>':'')+'<th class="num">Avisos</th></tr></thead><tbody>'+
+      (filas.length?filas.map(f=>fila(etiqueta==='Línea'?NS.nombreLinea(f.clave):etiqueta==='Semana'?'Semana del '+f.clave:f.clave,f)).join('')+fila('Total',total,true):'<tr><td colspan="'+nc+'">Sin programaciones en el rango.</td></tr>')+'</tbody></table></div>';
   }
   function pintarCuerpoCumplimiento(){
     const cont=document.getElementById('cu-cuerpo');
     if(!cont)return;
     if(FC.hasta<FC.desde){cont.innerHTML='<p class="plan-error">La fecha «hasta» no puede ser anterior a «desde».</p>';return;}
     const r=calcularCumplimiento();
-    cont.innerHTML=tablaCumplimiento('Por línea',r.porLinea,'Línea')+tablaCumplimiento('Por día',r.porDia,'Día')+tablaCumplimiento('Por semana',r.porSemana,'Semana');
+    cont.innerHTML=(r.hayReprogramacion?'<p class="plan-nota"><b>Hay reprogramación:</b> «Original al inicio» es el plan al iniciar cada bloque (lo cambiado antes del inicio es planificación); «vigente» es el plan de hoy. Un incumplimiento no desaparece al reprogramar.</p>':'')+
+      tablaCumplimiento('Por línea',r.porLinea,'Línea',r.hayReprogramacion)+tablaCumplimiento('Por día',r.porDia,'Día',r.hayReprogramacion)+tablaCumplimiento('Por semana',r.porSemana,'Semana',r.hayReprogramacion);
   }
 
   function exportarCumplimiento(){
@@ -419,14 +445,14 @@
     const r=calcularCumplimiento();
     const pct=(p,g)=>{const c=G().cumplimiento(p,g);return c==null?'':+(c*100).toFixed(1);};
     const hoja=(cab,filas,nombre)=>{const ws=XLSX.utils.aoa_to_sheet([cab].concat(filas));ws['!cols']=cab.map(()=>({wch:18}));return [ws,nombre];};
-    const resumen=(clave,fn)=>r[clave].map(f=>[fn(f.clave),f.programado,f.producido,pct(f.producido,f.programado),f.sinRegistro]);
+    const resumen=(clave,fn)=>r[clave].map(f=>[fn(f.clave),f.programado,f.original,f.producido,pct(f.producido,f.programado),pct(f.producido,f.original),f.sinRegistro]);
     const libro=XLSX.utils.book_new();
-    const cab=['Programado','Producido','Cumplimiento %','Turnos sin registro'];
+    const cab=['Programado vigente','Original al inicio','Producido','Cumplimiento vigente %','Cumplimiento vs original %','Turnos sin registro'];
     [hoja(['Línea'].concat(cab),resumen('porLinea',NS.nombreLinea),'Por línea'),
      hoja(['Día'].concat(cab),resumen('porDia',x=>x),'Por día'),
      hoja(['Semana (lunes)'].concat(cab),resumen('porSemana',x=>x),'Por semana'),
-     hoja(['Fecha','Turno','Línea','Marca','Presentación','Programado','Producido','Cumplimiento %'],
-       r.detalle.map(d=>[d.fecha,NS.etiquetaBloque(d.turno),NS.nombreLinea(d.linea),d.marca,NS.etiquetaPresentacion(d.linea,d.marca,d.presentacion),d.programado,d.producido===null?'sin registro':d.producido,d.producido===null?'':pct(d.producido,d.programado)]),'Detalle')
+     hoja(['Fecha','Turno','Línea','Marca','Presentación','Programado vigente','Original al inicio','Producido','Cumplimiento vigente %','Cumplimiento vs original %','Reprogramado'],
+       r.detalle.map(d=>[d.fecha,NS.etiquetaBloque(d.turno),NS.nombreLinea(d.linea),d.marca,NS.etiquetaPresentacion(d.linea,d.marca,d.presentacion),d.programado,d.original,d.producido===null?'sin registro':d.producido,d.producido===null?'':pct(d.producido,d.programado),d.producido===null?'':pct(d.producido,d.original),d.reprogramado?'sí':'']),'Detalle')
     ].forEach(([ws,n])=>XLSX.utils.book_append_sheet(libro,ws,n));
     XLSX.writeFile(libro,'cumplimiento-programacion-'+FC.desde+'_'+FC.hasta+'.xlsx');
   }

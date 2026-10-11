@@ -312,6 +312,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Compromiso original de la programación (Planificación, etapa 2): UN documento por bloque (id = AAAA-MM-DD_DIA o _NOCHE) con el plan
+    // vigente al INICIAR el bloque. Lo crea quien planifica, una sola vez, justo antes del primer cambio de plan posterior al inicio.
+    //  - Leen todos los usuarios con sesión (menos la cuenta compartida). Nunca se edita ni se borra.
+    match /compromisosProgramacion/{id} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if puedePlanificar() && !soloVista()
+        && request.resource.data.keys().hasAll(['fecha', 'bloque', 'filas', 'inicioMs', 'creadoEn', 'uid'])
+        && request.resource.data.bloque in ['DÍA', 'NOCHE']
+        && request.resource.data.filas is list
+        && id == request.resource.data.fecha + '_' + request.resource.data.bloque
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.creadoEn == request.time;
+      allow update, delete: if false;
+    }
+
     // Distribución de personal por línea, por fecha operativa y bloque (documento = AAAA-MM-DD_DIA o _NOCHE).
     //  - El documento solo guarda la versión (cada guardado sube la versión en 1: dos personas no se pisan).
     //  - Los eventos (historial) solo se crean: uid propio y hora del servidor; nunca se editan ni se borran.

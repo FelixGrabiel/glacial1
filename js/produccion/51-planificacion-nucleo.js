@@ -135,6 +135,8 @@
     if(!puede())throw new Error('Solo Planificación puede crear o editar la programación.');
     const v=NS.validar(f);
     if(v.errores.length)throw new Error(v.errores.join(' '));
+    // Compromiso original (64): si el bloque ya empezó, se guarda el plan tal como estaba ANTES de este primer cambio. Nunca bloquea el guardado.
+    if(typeof NS.asegurarCompromiso==='function')await NS.asegurarCompromiso(f.fecha,NS.turnoDeGuardado(f));
     return guardarProgramacionPaleta(f.linea,f.fecha,NS.turnoDeGuardado(f),f.marca,f.presentacion,Number(f.cantidad),Number(f.upp),opc);
   };
   /* ---------- Unificar en Día ---------- */
@@ -155,6 +157,7 @@
     const m=String(motivo||'').trim();
     if(m.length<5)throw new Error('Indica el motivo de la unificación (mínimo 5 caracteres).');
     if(!NS.puedeUnificar(item))throw new Error('Solo se pueden unificar programaciones de Intermedio pendientes, de hoy en adelante y sin producción registrada.');
+    if(typeof NS.asegurarCompromiso==='function')await NS.asegurarCompromiso(item.fecha,'DÍA');
     const claveInter=item.clave,claveDia=NS.clave(item.linea,item.fecha,'DÍA',item.marca,item.presentacion);
     const quien=typeof nombreUsuarioActualPaletas==='function'?nombreUsuarioActualPaletas():'';
     const ref=db.collection('sync').doc('programaciones');
@@ -200,6 +203,7 @@
   /* Quita una programación (cantidad 0, como siempre). */
   NS.quitar=async function(item,motivo,opc){
     if(!puede())throw new Error('Solo Planificación puede quitar la programación.');
+    if(typeof NS.asegurarCompromiso==='function')await NS.asegurarCompromiso(item.fecha,item.turno);
     return guardarProgramacionPaleta(item.linea,item.fecha,item.turno,item.marca,item.presentacion,0,num(item.unidadesPorPaleta)||0,Object.assign({motivo},opc||{}));
   };
   /* Aplica varias filas, una por una, con la misma función. */

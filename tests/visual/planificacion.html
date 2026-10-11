@@ -74,7 +74,9 @@ const escaparHtml=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<
 const obtenerUnidadesPorPalet=(l,m,p)=>p==='Regular_625ml'?1200:p==='Regular_380ml'?2184:0;
 const nombreUsuarioActualPaletas=()=>P.nombre;
 const nombrePresentacionUI=(l,m,p)=>String(p||'').replace('Regular_','').replace('ml',' ml');
-const glacialCierresSesion=[];const loadPaletas=()=>[];
+const glacialCierresSesion=[];const loadPaletas=()=>(leerNube().docs['sync/paletas']||{items:[]}).items;
+/* Producido oficial (stub): suma de las paletas del producto; sin paletas = 0 en Día y «sin registro» (null) en Noche. */
+window.glacialProducidoVigente=x=>{const l=(leerNube().docs['sync/paletas']||{items:[]}).items.filter(p=>p.linea===x.linea&&p.marca===x.marca&&p.presentacion===x.presentacion&&p.fecha===x.fecha);return l.length?l.reduce((a,p)=>a+p.totalUnidades,0):(x.turno==='NOCHE'?null:0);};
 var num=v=>{const n=Number(v);return isFinite(n)?n:0;};
 
 function extraer(src,n){const m=new RegExp('(?:async[ ]+)?function[ ]+'+n+'[ ]*[(]').exec(src);if(!m)throw new Error('no se encontró '+n);let i=src.indexOf('{',m.index),d=0,j=i;for(;j<src.length;j++){if(src[j]==='{')d++;else if(src[j]==='}'){d--;if(d===0)break;}}return src.slice(m.index,j+1)+'\n';}
@@ -85,6 +87,7 @@ function sembrar(){
   const n={docs:{},ver:{}};
   n.docs['sync/programaciones']={items:[F('PET1','DÍA','Bells','Regular_625ml',10000,1200),F('PET1','DÍA','Scala','Regular_380ml',6000,2184),F('PET2','NOCHE','Bells','Regular_625ml',4000,1200)],updatedAt:1};
   n.docs['solicitudesProgramacion/s1']={tipo:'CAMBIO_CANTIDAD',linea:'PET1',fecha:hoy,turno:'DÍA',marca:'Bells',presentacion:'Regular_625ml',cantidadActual:10000,baseVersion:1,propuesta:{cantidad:12000},motivo:'Falta producto para el pedido',estado:'PENDIENTE',uid:'uid-sup',usuario:'Sup',creadoEn:Date.now()};
+  n.docs['sync/paletas']={items:[{id:'pal1',linea:'PET1',fecha:hoy,turno:'DÍA',marca:'Bells',presentacion:'Regular_625ml',totalUnidades:6500},{id:'pal2',linea:'PET1',fecha:hoy,turno:'DÍA',marca:'Scala',presentacion:'Regular_380ml',totalUnidades:6500}]};
   n.ver['sync/programaciones']=1;escribirNube(n);
 }
 document.getElementById('reiniciar').onclick=()=>{sembrar();avisar();};
@@ -92,7 +95,7 @@ document.getElementById('reiniciar').onclick=()=>{sembrar();avisar();};
   if(!localStorage.getItem(KEY)||Q.get('seed')==='1')sembrar();
   const s16=await (await fetch('js/produccion/16-paletas.js')).text();
   ['claveProgramacionPaleta','obtenerProgramacionPaleta','programacionValorHistorial','programacionConflicto','programacionAplicarEnLista','guardarProgramacionPaleta'].forEach(n=>(0,eval)(extraer(s16,n).replace(/^(async )?function (\w+)/,'window.$2=$1function $2')));
-  for(const f of ['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes'])await cargar('js/produccion/'+f+'.js');
+  for(const f of ['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes','64-planificacion-avance'])await cargar('js/produccion/'+f+'.js');
   sincronizarProgramaciones();
   glacialPlanificacionEscuchas();
   renderPlanificacion(document.getElementById('main'));

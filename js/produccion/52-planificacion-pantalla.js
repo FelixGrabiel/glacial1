@@ -51,6 +51,20 @@
     #plan-root .plan-badge.pausa{background:#fff4d6;color:#8a6d1d}
     #plan-root .plan-badge.stop{background:#fde6e6;color:#a32020}
     #plan-root .plan-badge.fin{background:#e8eef2;color:#5a6b78}
+    /* Colores de estado: los mismos de Producción Actual (EN CURSO naranja, PAUSA amarillo, DETENIDA rojo, FINALIZADA verde, PENDIENTE gris). */
+    #plan-root .plan-badge.est-curso{background:#FFEDD5;color:#9A3412}
+    #plan-root .plan-badge.est-pausa{background:#FEF9C3;color:#713F12}
+    #plan-root .plan-badge.est-det{background:#FEE2E2;color:#991B1B}
+    #plan-root .plan-badge.est-fin{background:#DCFCE7;color:#166534}
+    #plan-root .plan-badge.est-pend{background:#F3F4F6;color:#4B5563}
+    #plan-root .plan-badge.est-canc{background:#E5E7EB;color:#6B7280;text-decoration:line-through}
+    #plan-root .plan-sub td{background:#f6f9fb;font-size:12px;color:#3d5365;border-bottom:2px solid #d9e2e8}
+    #plan-root .plan-barra{display:inline-block;width:64px;height:8px;border-radius:99px;background:#e5e9ee;overflow:hidden;vertical-align:middle;margin-right:6px}
+    #plan-root .plan-barra i{display:block;height:100%;background:#F97316}
+    #plan-root .plan-meta{display:inline-block;margin-top:3px;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;background:#DCFCE7;color:#166534}
+    #plan-root .plan-repro{display:block;font-size:11px;color:#9A3412}
+    #plan-root .plan-repro-box{margin-top:12px;padding:10px 12px;border:1px solid #fed7aa;background:#fff7ed;border-radius:8px;font-size:13px;color:#7c2d12}
+    #plan-root .plan-repro-box ul{margin:6px 0 0 18px;padding:0}
     #plan-root .plan-nota{font-size:12px;color:#5a6b78;margin:8px 0}
     #plan-root .plan-scroll{overflow-x:auto}
     .plan-fondo{position:fixed;inset:0;background:rgba(10,30,50,.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -128,7 +142,7 @@
   /* =========================================================
      PESTAÑA PROGRAMACIÓN
      ========================================================= */
-  const claseEstado=e=>e==='EN_PRODUCCION'?'prod':e==='PAUSA'?'pausa':(e==='DETENIDA'||e==='LISTA'||e==='CANCELADA')?'stop':e==='FINALIZADA'?'fin':'';
+  const claseEstado=e=>e==='EN_PRODUCCION'?'est-curso':e==='PAUSA'?'est-pausa':(e==='DETENIDA'||e==='LISTA')?'est-det':e==='FINALIZADA'?'est-fin':e==='CANCELADA'?'est-canc':'est-pend';
 
   function pintarProgramacion(cont){
     const E=NS.estado,planifica=NS.puede();
@@ -138,6 +152,8 @@
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="-1">◀ Día anterior</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="1">Día siguiente ▶</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-dia="hoy">Hoy</button>'+
+      '<button type="button" class="btn btn-ghost btn-sm" data-plan-copiar-plan title="Copia el plan del bloque como texto para enviarlo al supervisor">Copiar plan</button>'+
+      '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel-plan>Excel del plan</button>'+
       (planifica?'<span style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-plan-copiar>Copiar programación…</button>'+
         '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel>Importar Excel…</button>':'')+
       '</div><div id="plan-prog-tabla"></div>'+
@@ -151,32 +167,63 @@
     const E=NS.estado,planifica=NS.puede();
     const items=NS.items(E.fecha,E.turno);
     const duplicados=NS.duplicadosPosibles(E.fecha);
+    const R=NS.resumenBloque(E.fecha,E.turno);
+    const fmt=n=>num(n).toLocaleString('es-PE');
+    const pctTxt=a=>a==null?'—':(a*100).toLocaleString('es-PE',{maximumFractionDigits:0})+' %';
+    const barra=a=>a==null?'':'<span class="plan-barra" aria-hidden="true"><i style="width:'+Math.min(100,Math.round(a*100))+'%"></i></span>';
     let total=0;
     const filas=[];
     NS.lineas().forEach(l=>{
       const propios=items.filter(p=>p.linea===l.key);
       if(!propios.length){
-        filas.push('<tr class="plan-sin"><td><b>'+esc(l.name)+'</b></td><td colspan="5">Sin programación</td><td></td><td class="acc">'+
+        filas.push('<tr class="plan-sin"><td><b>'+esc(l.name)+'</b></td><td colspan="9">Sin programación</td><td></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-pedir="'+esc(l.key)+'">Pedir programación</button>')+'</td></tr>');
         return;
       }
+      const vistos=new Set();
       propios.forEach((p,i)=>{
         const cant=num(p.cantidadProgramada),upp=num(p.unidadesPorPaleta);
-        total+=cant;
         const est=NS.estadoDe(p);
+        if(est!=='CANCELADA')total+=cant;                  // las canceladas no participan en los totales activos
+        const k=[p.linea,p.marca,p.presentacion].join('|'),g=R.grupos.get(k),primera=!vistos.has(k);vistos.add(k);
+        let celdasAvance;
+        if(!primera){
+          celdasAvance='<td colspan="4" class="plan-nota" style="margin:0">incluido en la fila de arriba (mismo producto del bloque)</td>';
+        }else if(!g||!(g.programado>0)){
+          celdasAvance='<td class="num">—</td><td class="num">—</td><td class="num">—</td><td>—</td>';
+        }else if(g.producido===null){
+          celdasAvance='<td class="num" title="El turno cerrado no tiene registro del supervisor: no se asume cero.">Sin registro</td><td class="num">—</td><td class="num">—</td><td>—</td>';
+        }else{
+          celdasAvance='<td class="num">'+fmt(g.producido)+'</td><td class="num">'+(g.pendiente>0?fmt(g.pendiente):'—')+'</td><td class="num">'+(g.sobre>0?'<b style="color:#9A3412">+'+fmt(g.sobre)+'</b>':'—')+'</td>'+
+            '<td>'+barra(g.avance)+pctTxt(g.avance)+(g.alcanzada?'<br><span class="plan-meta">Meta alcanzada</span>':'')+'</td>';
+        }
+        const orig=primera&&g?NS.originalDe(E.fecha,E.turno,p.linea,p.marca,p.presentacion):null;
+        const repro=orig!==null&&g&&orig!==g.programado?'<span class="plan-repro" title="Plan al iniciar el bloque frente al plan vigente">original al inicio: '+fmt(orig)+'</span>':'';
         filas.push('<tr><td>'+(i===0?'<b>'+esc(l.name)+'</b>':'')+'</td><td>'+esc(p.marca)+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">· Cargada como Intermedio</small>':'')+((p.unificadoDeIntermedio||[]).length?' <small style="color:#5a6b78" title="Unificada desde Intermedio con motivo y registro en el historial">· incluye '+(p.unificadoDeIntermedio.reduce((a,x)=>a+num(x.cantidad),0)).toLocaleString('es-PE')+' cargadas como Intermedio</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td>'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td>'+
-          '<td class="num">'+cant.toLocaleString('es-PE')+'</td><td class="num">'+(upp?upp.toLocaleString('es-PE'):'—')+'</td>'+
-          '<td class="num">'+(upp?NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:1}):'—')+'</td>'+
+          '<td class="num">'+fmt(cant)+repro+'</td><td class="num">'+(upp?fmt(upp):'—')+'</td>'+
+          '<td class="num" title="'+(upp?esc(NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:2}))+' paletas equivalentes':'')+'">'+(upp?esc(NS.paletasTexto(cant,upp)):'—')+'</td>'+
+          celdasAvance+
           '<td><span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-editar="'+esc(p.clave)+'">Editar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
           (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Mañana</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
       });
+      const t=R.porLinea.get(l.key);
+      if(t&&t.productos>0){
+        const av=t.programado>0&&!t.sinRegistro?t.producido/t.programado:null;
+        filas.push('<tr class="plan-sub"><td colspan="3">Subtotal '+esc(l.name)+' <small>(UND de esta línea)</small></td><td class="num"><b>'+fmt(t.programado)+'</b></td><td></td><td></td>'+
+          '<td class="num">'+fmt(t.producido)+'</td><td class="num">'+(t.pendiente>0?fmt(t.pendiente):'—')+'</td><td class="num">'+(t.sobre>0?'+'+fmt(t.sobre):'—')+'</td>'+
+          '<td>'+barra(av)+pctTxt(av)+'</td><td colspan="2">'+(t.sinRegistro?t.sinRegistro+' producto(s) sin registro (no suman al producido)':'')+'</td></tr>');
+      }
     });
+    const cambios=NS.cambiosDesdeInicio(E.fecha,E.turno);
     cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th class="num">Cantidad (UND)</th>'+
-      '<th class="num">UND por paleta</th><th class="num">Paletas equiv.</th><th>Estado</th><th></th></tr></thead><tbody>'+filas.join('')+
-      '</tbody><tfoot><tr><td colspan="3"><b>Total del bloque</b></td><td class="num"><b>'+total.toLocaleString('es-PE')+'</b></td><td colspan="4"></td></tr></tfoot></table></div>';
+      '<th class="num">UND por paleta</th><th class="num" title="Paletas completas + UND restantes">Paletas (completas + UND)</th><th class="num">Producido (UND)</th><th class="num">Pendiente</th><th class="num">Sobreproducción</th><th>Avance</th><th>Estado</th><th></th></tr></thead><tbody>'+filas.join('')+
+      '</tbody><tfoot><tr><td colspan="3"><b>Total del bloque</b><br><small style="color:#5a6b78">Suma de UND de todas las líneas: solo referencia, no mide capacidad.</small></td><td class="num"><b>'+fmt(total)+'</b></td><td colspan="8"></td></tr></tfoot></table></div>'+
+      '<p class="plan-nota">Producido: turno en curso = Paletas; turno cerrado = registro del turno. «Sin registro» no es cero. «Meta alcanzada» (cantidad producida ≥ programada) es distinto del estado «Finalizada».</p>'+
+      (cambios.length?'<div class="plan-repro-box"><b>Reprogramado después del inicio del bloque</b> (plan original al iniciar → vigente):<ul>'+cambios.map(c=>'<li>'+esc(NS.nombreLinea(c.linea))+' · '+esc(c.marca)+' '+esc(NS.etiquetaPresentacion(c.linea,c.marca,c.presentacion))+': '+fmt(c.original)+' → '+fmt(c.vigente)+' UND'+(c.vigente===0?' (se quitó)':c.original===0?' (se agregó)':'')+'</li>').join('')+'</ul></div>':'')+
+      (planifica&&NS.compromisoFallo?'<p class="plan-nota" style="color:#9A3412">No se pudo guardar el plan original del bloque ('+esc(NS.compromisoFallo)+'). El cambio de plan sí se guardó; revisa que las reglas estén publicadas.</p>':'');
   }
 
   /* ---------- crear o editar una programación ---------- */
@@ -398,6 +445,9 @@
       E.fecha=v==='hoy'?G().diaOperativo(ahoraMs()):addDias(E.fecha,Number(v));
       NS.pintarPestana();return;
     }
+    const cp=e.target.closest('[data-plan-copiar-plan]');
+    if(cp){NS.copiarPlan(E.fecha,E.turno).then(()=>{const t0=cp.textContent;cp.textContent='Copiado ✓';setTimeout(()=>{cp.textContent=t0;},1800);}).catch(()=>alert('No se pudo copiar el plan.'));return;}
+    if(e.target.closest('[data-plan-excel-plan]')){NS.excelPlan(E.fecha,E.turno);return;}
     if(e.target.closest('[data-plan-copiar]')){abrirCopia();return;}
     if(e.target.closest('[data-plan-excel]')){abrirImportacion();return;}
     const nueva=e.target.closest('[data-plan-nueva]');
