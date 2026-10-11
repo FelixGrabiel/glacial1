@@ -177,7 +177,9 @@
 
   const snapshotPorId=id=>(typeof avanceEstado!=='undefined'
     ?(avanceEstado.todosSnapshots||[]).find(x=>x.id===id)||(avanceEstado.snapshots||[]).find(x=>x.id===id):null);
-  window.sheetsReenviarCierre=id=>{const s=snapshotPorId(id);if(s)return sheetsEnviarCierre(s,{});};
+  // Un cierre de otro mes puede no estar en memoria: se pide a la colección avancesTurnoItems.
+  const snapshotAsync=async id=>snapshotPorId(id)||(window.glacialAvancesItems?await window.glacialAvancesItems.obtener(id):null);
+  window.sheetsReenviarCierre=async id=>{const s=await snapshotAsync(id);if(s)return sheetsEnviarCierre(s,{});};
 
   /* Reenvía todo lo pendiente de este navegador. */
   async function sheetsReenviarPendientes(){
@@ -187,7 +189,7 @@
     for(const p of lista){
       const exito=p.tipo==='tareo'
         ?await sheetsEnviarTareo(obtenerTareos().find(t=>t.id===p.id),{automatico:true})
-        :await sheetsEnviarCierre(snapshotPorId(p.id),{automatico:true});
+        :await sheetsEnviarCierre(await snapshotAsync(p.id),{automatico:true});
       if(exito)ok++;
     }
     aviso(ok===lista.length?'Pendientes enviados a Google Sheets':`Enviados ${ok} de ${lista.length}; el resto sigue pendiente`,ok!==lista.length);

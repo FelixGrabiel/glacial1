@@ -1065,20 +1065,11 @@ function avTextoWhatsApp(s){
   return out.join('\n');
 }
 
+/* Cada snapshot es su propio documento (avancesTurnoItems/{id}); sync/avancesTurno ya no crece con los avances. Crear falla si el id existe. */
 async function avGuardarSnapshot(s){
-  const ref=avRef();
-  await db.runTransaction(async tx=>{
-    const doc=await tx.get(ref);
-    const arr=doc.exists&&Array.isArray(doc.data().items)?doc.data().items.slice():[];
-    const idx=arr.findIndex(x=>x.id===s.id);
-    if(idx>=0){
-      throw Error(s.tipo==='CIERRE'
-        ?'El cierre de este turno ya fue generado.'
-        :`El avance ${s.horaReferencia} de este turno ya fue generado.`);
-    }
-    arr.push(s);
-    tx.set(ref,{items:arr,updatedAt:Date.now()},{merge:true});
-  });
+  await window.glacialAvancesItems.crear(s,s.tipo==='CIERRE'
+    ?'El cierre de este turno ya fue generado.'
+    :`El avance ${s.horaReferencia} de este turno ya fue generado.`);
   avanceEstado.preview=s.texto;
 }
 
@@ -1144,18 +1135,43 @@ function avAviso(t){
   const f=document.getElementById('av-float-estado');
   if(f)f.textContent=t;
 }
+/* Escuchas en vivo de la colección: el mes que muestra el calendario, el día operativo actual y, si es de otro mes, la fecha elegida. */
+function avAsegurarEscuchas(){
+  const S=window.glacialAvancesItems;if(!S||!avanceEstado.unsubscribe)return;
+  const mes=avanceEstado.mesCalendario||(avanceEstado.fecha||'').slice(0,7);
+  if(/^\d{4}-\d{2}$/.test(mes))S.escucharRango('mes',mes+'-01',mes+'-31');
+  const c=avCtx();
+  if(c.fecha)S.escucharRango('operativa',c.fecha,c.fecha);
+  if(avanceEstado.fecha&&avanceEstado.fecha!==c.fecha&&String(avanceEstado.fecha).slice(0,7)!==mes)S.escucharRango('sel',avanceEstado.fecha,avanceEstado.fecha);else S.cerrar('sel');
+}
 function avAplicarSeleccion(){
+  avAsegurarEscuchas();
   avanceEstado.snapshots=avanceEstado.todosSnapshots.filter(x=>
     x.fecha===avanceEstado.fecha&&x.turno===avanceEstado.turno
   );
 }
 function avEscuchar(){
   if(avanceEstado.unsubscribe)avanceEstado.unsubscribe();
+  const S=window.glacialAvancesItems;
+  // Cambios de la colección (otros dispositivos incluidos): se recalcula la lista unida y se vuelve a dibujar sin recargar.
+  if(S&&!avanceEstado.alCambiarItems){
+    avanceEstado.alCambiarItems=true;
+    S.alCambiar(()=>{
+      if(!avanceEstado.unsubscribe)return;
+      avanceEstado.todosSnapshots=S.todos();
+      avAplicarSeleccion();
+      if(state.currentTab==='avance-produccion')avDibujar();
+      avInstalarBotonFlotante();
+      if(document.getElementById('av-float-modal')?.classList.contains('open'))avDibujarFlotante();
+    });
+  }
   avanceEstado.unsubscribe=avRef().onSnapshot(doc=>{
     const data=doc.exists?doc.data():{};
-    avanceEstado.todosSnapshots=Array.isArray(data.items)?data.items:[];
+    // sync/avancesTurno: paradas operativas y updatedAt (y, hasta migrar, los items antiguos, que se UNEN con la colección sin duplicar).
     avanceEstado.paradasOperativas=Array.isArray(data.paradasOperativas)?data.paradasOperativas:[];
     avanceEstado.avancesUpdatedAt=avNum(data.updatedAt);
+    if(S){S.fijarLegado(data);avanceEstado.todosSnapshots=S.todos();}
+    else avanceEstado.todosSnapshots=Array.isArray(data.items)?data.items:[];
     avAplicarSeleccion();
     if(state.currentTab==='avance-produccion')avDibujar();
     avInstalarBotonFlotante();
@@ -1168,7 +1184,7 @@ function avEscuchar(){
 // Al cerrar sesión se cierra la escucha de avances y se vacían los datos en memoria.
 if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{
   if(typeof avanceEstado.unsubscribe==='function'){try{avanceEstado.unsubscribe();}catch(_){/* ya cerrada */}}
-  avanceEstado.unsubscribe=null;
+  avanceEstado.unsubscribe=null;avanceEstado.alCambiarItems=false;
   avanceEstado.todosSnapshots=[];avanceEstado.snapshots=[];avanceEstado.paradasOperativas=[];
 });
 function avUltimoSnapshot(tipo){
@@ -1729,12 +1745,23 @@ function avDibujar(){
   root.innerHTML=`
     <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
     ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
+    ${avAdminMigracionHtml()}
     <div id="av-estado" class="av-inline-status"></div>
     <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${avNombreTurnoPantalla(t)}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
     ${avHistorialGeneralHtml()}`;
   avInstalarBotonFlotante();
 }
 function avVerDesdeModulo(id){avVer(id);}
+/* Solo Administrador: porcentaje del documento antiguo y botón de migración (respaldo + copia verificada). */
+function avAdminMigracionHtml(){
+  try{
+    const S=window.glacialAvancesItems;
+    if(!S||String(state.user?.rol||'').trim()!=='Administrador')return '';
+    const e=S.estado,legado=e.legado.length,pct=e.legadoBytes?Math.round(e.legadoBytes/S.LIMITE*1000)/10:0;
+    if(!legado&&pct<S.UMBRAL*100)return '';
+    return `<div class="av-inline-status" style="color:#8a5a00;background:#fff8e1;border:1px solid #f0d98c;border-radius:8px;padding:8px 12px;margin:8px 0">Administrador · sync/avancesTurno ocupa ≈${pct} % del límite de 1 MiB${legado?` y aún guarda ${legado} avances/cierres antiguos. `:'. '}${legado?'<button class="btn btn-ghost btn-sm" onclick="glacialAvancesItems.migrarUI()">MIGRAR Y RESPALDAR</button>':''}</div>`;
+  }catch(_){return '';}
+}
 const AVANCE_CSS=`
 body.av-modal-open{overflow:hidden}
 .av2{padding:4px}.av-eyebrow{display:block;font-size:9px;font-weight:800;letter-spacing:.12em;color:#5f7c8c;margin-bottom:4px}

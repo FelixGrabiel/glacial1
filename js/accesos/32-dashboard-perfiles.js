@@ -386,12 +386,13 @@ async function cpCargarAvances(){
   const key=cpClaveAvances(),token=++cpCargaAvancesToken;
   if(cpAvancesCache.has(key))return;
   try{
+    // Consulta por la fecha operativa (colección avancesTurnoItems + items que aún queden en el documento antiguo, sin duplicar).
     let items=[];
-    if(typeof avanceEstado!=='undefined'&&Array.isArray(avanceEstado.todosSnapshots)&&avanceEstado.todosSnapshots.length){
+    const fechaOp=cpCtx().fechaOperativa;
+    if(window.glacialAvancesItems&&typeof db!=='undefined'){
+      items=await window.glacialAvancesItems.consultarFecha(fechaOp);
+    }else if(typeof avanceEstado!=='undefined'&&Array.isArray(avanceEstado.todosSnapshots)){
       items=avanceEstado.todosSnapshots;
-    }else if(typeof db!=='undefined'){
-      const doc=await db.collection('sync').doc('avancesTurno').get();
-      const data=doc.exists?doc.data():{}; items=Array.isArray(data.items)?data.items:[];
     }
     cpAvancesCache.set(key,{items});
   }catch(e){console.error('Inicio · avancesTurno:',e);cpAvancesCache.set(key,{items:[],error:true});}
