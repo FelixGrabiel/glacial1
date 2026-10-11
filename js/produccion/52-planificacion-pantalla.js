@@ -156,9 +156,10 @@
       '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel-plan>Excel del plan</button>'+
       (planifica?'<span style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-plan-copiar>Copiar programación…</button>'+
         '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel>Importar Excel…</button>':'')+
-      '</div><div id="plan-prog-tabla"></div>'+
+      '</div><div id="plan-prog-tabla"></div><div id="plan-capacidad"></div><div id="plan-secuencia"></div>'+
       (planifica?'':'<p class="plan-nota">Solo lectura: para cambiar una cantidad o un producto, usa «Pedir cambio» en la fila. Si falta una programación, pídela desde Solicitudes.</p>');
     pintarTabla();
+    if(typeof NS.pintarExtras==='function')NS.pintarExtras();
   }
 
   function pintarTabla(){
@@ -207,6 +208,7 @@
           '<td><span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-editar="'+esc(p.clave)+'">Editar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
+          (planifica&&primera&&g&&g.producido!==null&&g.pendiente>0?' <button type="button" class="btn btn-ghost btn-sm" data-plan-trasladar="'+esc(p.clave)+'" title="Mover a otro bloque lo que falta producir (saldo comprobado)">Trasladar saldo</button>':'')+
           (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Mañana</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
       });
       const t=R.porLinea.get(l.key);
@@ -471,5 +473,5 @@
     }
   });
 
-  NS.pestanas.push({clave:'programacion',titulo:'Programación',orden:1,pintar:pintarProgramacion,actualizar:pintarTabla});
+  NS.pestanas.push({clave:'programacion',titulo:'Programación',orden:1,pintar:pintarProgramacion,actualizar:()=>{pintarTabla();if(typeof NS.pintarExtras==='function')NS.pintarExtras();}});
 })();
