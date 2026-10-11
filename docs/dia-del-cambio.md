@@ -1,6 +1,6 @@
 # Día del cambio: de Firebase a Supabase
 
-**Fecha acordada:** domingo 1 de noviembre de 2026 (hora por confirmar). **Duración:** unos 30 minutos sin usar la página.
+**Fecha acordada:** domingo 1 de noviembre de 2026, a partir de las 14:00 (hora de Lima). **Duración:** unos 30 minutos sin usar la página.
 
 Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus contraseñas o la consola de Firebase;
 **Claude** hace la copia, las comprobaciones y la publicación. Nada de esto borra datos: Firebase queda intacto como respaldo.
@@ -15,7 +15,9 @@ Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus
 
 - [ ] Integrar en la rama `supabase` lo último de `main` y repetir las pruebas (`tests/puente-supabase.test.js`, `tests/puente-pagina.e2e.js`).
 - [ ] Ensayo en PRUEBAS con dos o tres personas reales (supervisor, mantenimiento, RRHH).
-- [ ] Comprobar que el proyecto de producción de Supabase está activo (los proyectos gratuitos se pausan si pasan una semana quietos; se reanudan con un botón).
+- [ ] Comprobar que el proyecto de producción de Supabase está activo. Los proyectos gratuitos se pausan si pasan una semana
+      quietos (se reanudan con un botón). Para evitarlo, cada proyecto hace una consulta diaria al otro (tarea
+      `glacial-mantener-activo`, migración `glacial_20o`) y hay una tarea programada de Claude cada lunes que lo revisa.
 - [ ] Avisar al personal: día y hora, 30 minutos sin usar la página; al volver hay que **recargar** y entrar con la **contraseña temporal nueva**.
 - [ ] Decidir el plan de Supabase para producción (el gratuito no tiene copias de seguridad diarias; el Pro guarda 7 días).
 - [ ] En los dos proyectos de Supabase: Authentication → desactivar «Allow new users to sign up».
@@ -59,5 +61,6 @@ Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus
 
 - Revisar a diario los avisos de tiempo real consumidos (el plan gratuito incluye 2 millones al mes) y los errores.
 - Firebase se conserva cerrado, sin borrar, al menos un mes.
+- Eliminar la tarea programada semanal «GLACIAL: revisar que Supabase siga activo» (ya no hace falta con la página en uso).
 - Pendientes para después: pasar el proyecto a la cuenta de la empresa, plan con copias de seguridad, y retirar de la
   página lo que ya no se usa de Firebase.
