@@ -11,8 +11,8 @@
                       dibujados con datos: no se genera con IA de imágenes.
 
    Reglas: ratio = producción ÷ horas efectivas del mismo corte (snapshot); pendiente = máx(0, programado − producido) y el
-   excedente va aparte; las paradas mostradas son las descontadas en el cálculo; Calidad no se mide (no hay base) →
-   «Sin datos suficientes»; OEE = disponibilidad × rendimiento (definición del sistema); metas = las configuradas; «—» = sin
+   excedente va aparte; las paradas mostradas son las descontadas en el cálculo; OEE = disponibilidad × rendimiento
+   (definición del sistema); metas = las configuradas; «—» = sin
    registro; los factores de merma NO son recetas de consumo; sin importes económicos.
    Cargar DESPUÉS de 29-avance-produccion.js.
    ============================================================= */
@@ -76,7 +76,6 @@
     return {
       disponibilidad:{valor:disp,nivel:col('disponibilidad',disp)},
       rendimiento:{valor:rend,nivel:col('ratio',rend),aRevisar:GlacialIndicadores.rendimientoARevisar(rend),sinVelocidad:!velOk},
-      calidad:{valor:null,texto:'Sin datos suficientes'},
       oee:{valor:oee,nivel:col('oee',oee)}
     };
   }
@@ -365,7 +364,7 @@
     texto(x,fmt(esNum(m.marcasTotal)?m.marcasTotal:r.producido)+' '+u,PAD+wL-22,cy+27,{tam:17,peso:'800',color:C.navy,align:'right'});
 
     cy=cabeceraSeccion(x,'INDICADORES',xR,y,wR)+10;
-    const iw=(wR-20-12)/2;
+    let iw=(wR-20-12)/2;
     const ind=m.indicadores;
     const pct=v=>esNum(v)?(Math.round(v*1000)/10).toLocaleString('es-PE')+'%':null;
     const tIn=(px,py,ic,etq,valor,nivel,nota)=>{
@@ -378,9 +377,10 @@
     };
     tIn(xR+10,cy,'engranaje','Disponibilidad',pct(ind.disponibilidad.valor)||'Sin datos suficientes',ind.disponibilidad.nivel);
     tIn(xR+10+iw+12,cy,'barras','Rendimiento',pct(ind.rendimiento.valor)||'Sin datos suficientes',ind.rendimiento.nivel,ind.rendimiento.sinVelocidad?'sin velocidad estándar':(ind.rendimiento.aRevisar?'revisar velocidad':''));
-    if(esNum(ind.calidad.valor))tIn(xR+10,cy+104,'escudo','Calidad',pct(ind.calidad.valor),ind.calidad.nivel);
-    else tIn(xR+10,cy+104,'escudo','Calidad',ind.calidad.texto,'gris','no se mide');
-    tIn(xR+10+iw+12,cy+104,'barras','OEE',pct(ind.oee.valor)||'Sin datos suficientes',ind.oee.nivel,'disp. × rend.');
+    // El OEE ocupa todo el ancho de la segunda fila.
+    const iw1=iw;iw=iw1*2+12;
+    tIn(xR+10,cy+104,'barras','OEE',pct(ind.oee.valor)||'Sin datos suficientes',ind.oee.nivel,'disp. × rend.');
+    iw=iw1;
     y+=ms.hArriba+14;
 
     /* --- 4) producción por hora | paradas --- */

@@ -15,10 +15,9 @@
      Ratio (UND/h)      = cantidad producida ÷ horas efectivas
      Disponibilidad     = tiempo en marcha ÷ tiempo planificado
      MTTR = minutos de paradas no programadas ÷ cantidad;   MTBF = tiempo en marcha ÷ cantidad
-     OEE (base) = disponibilidad × rendimiento (Calidad: no se mide)
+     OEE (base) = disponibilidad × rendimiento
         rendimiento = (sopladas totales ÷ horas efectivas) ÷ velocidad estándar     (usa el TOTAL)
-        calidad     = (sopladas − rechazadas) ÷ sopladas                              (usa las BUENAS)
-        rechazadas  = merma de «Botellas» del registro del supervisor; sopladas = registro del supervisor.
+        sopladas    = registro del supervisor.
    Metas y velocidades estándar: sync/configIndicadores (en vivo; se editan solo los campos cambiados).
    Cargar después de 43, 44 y 46. No modifica datos existentes.
    ========================================================= */
@@ -241,10 +240,10 @@
       tecnicos:[...porTecnico.values()].map(calc).sort((a,b)=>b.np-a.np)};
   }
 
-  /* OEE (base): rendimiento con las sopladas TOTALES, calidad con las BUENAS. */
+  /* OEE (base): rendimiento con las sopladas TOTALES. */
   function datosRegistro(u){
     let recs=[];try{recs=loadRecords()||[];}catch(_){recs=[];}
-    let sop=0,rech=0,hay=false;const porPres=new Map();
+    let sop=0,hay=false;const porPres=new Map();
     recs.forEach(r=>{
       if(!r||r.linea!==u.linea||r.fecha!==u.fecha)return;
       const grupo=r.grupoTurno||(typeof grupoTurnoReporte==='function'?grupoTurnoReporte(r.turno):(r.turno==='NOCHE'?'NOCHE':'DIA_INTERMEDIO'));
@@ -253,10 +252,9 @@
       cuadros.forEach(q=>{
         const s=num(q&&q.produccion&&q.produccion.sopladas);
         if(s>0){hay=true;sop+=s;const p=(q&&q.presentacion)||'';porPres.set(p,(porPres.get(p)||0)+s);}
-        ((q&&q.mermas)||[]).forEach(m=>{if(norm(m&&m.item)==='botellas')rech+=num(m.unidades);});
       });
     });
-    return {sopladas:sop,rechazadas:rech,hay,porPresentacion:porPres};
+    return {sopladas:sop,hay,porPresentacion:porPres};
   }
   function calcularOee(u,datos,velFn){
     if(!datos||!datos.hay)return {estado:'SIN_REGISTRO'};
@@ -268,8 +266,8 @@
     const velocidad=datos.sopladas/denom;                     // velocidad estándar ponderada por lo soplado
     const ratioSop=datos.sopladas/horas;
     const rend=GlacialIndicadores.rendimiento(ratioSop,velocidad);     // sin tope
-    return {estado:'OK',ratioSop,velocidad,rend,cal:null,disp:u.disp,oee:GlacialIndicadores.oee(u.disp,rend),aRevisar:GlacialIndicadores.rendimientoARevisar(rend),
-      sopladas:datos.sopladas,rechazadas:datos.rechazadas};
+    return {estado:'OK',ratioSop,velocidad,rend,disp:u.disp,oee:GlacialIndicadores.oee(u.disp,rend),aRevisar:GlacialIndicadores.rendimientoARevisar(rend),
+      sopladas:datos.sopladas};
   }
   const textoOee=o=>({SIN_VELOCIDAD:'Falta velocidad estándar',SIN_REGISTRO:'Falta registro de sopladas',SIN_HORAS:'—'}[o.estado]||'');
 
@@ -480,14 +478,14 @@
     if(!d.oee.length)return '';
     const filas=d.oee.map(({u,o})=>'<tr><td>'+esc(nombreLinea(u.linea))+'</td><td>'+fmtFecha(u.fecha)+' · '+esc(u.turno)+'</td><td>'+pct(u.disp)+'</td>'+
       (o.estado==='OK'
-        ?'<td>'+fmt(o.ratioSop)+' UND/h</td><td>'+fmt(o.velocidad)+'</td><td>'+pct(o.rend)+(o.aRevisar?' <small>revisar velocidad estándar</small>':'')+'</td><td>'+GlacialIndicadores.NOTA_CALIDAD.replace('Calidad: ','')+'</td><td class="ap-celda '+nivelDisp(o.oee)+'"><b>'+pct(o.oee)+'</b></td>'
-        :'<td colspan="5" class="ap-nota">'+esc(textoOee(o))+'</td>')+'</tr>').join('');
+        ?'<td>'+fmt(o.ratioSop)+' UND/h</td><td>'+fmt(o.velocidad)+'</td><td>'+pct(o.rend)+(o.aRevisar?' <small>revisar velocidad estándar</small>':'')+'</td><td class="ap-celda '+nivelDisp(o.oee)+'"><b>'+pct(o.oee)+'</b></td>'
+        :'<td colspan="4" class="ap-nota">'+esc(textoOee(o))+'</td>')+'</tr>').join('');
     const ok=d.oee.filter(x=>x.o.estado==='OK');
     const prom=ok.length?ok.reduce((s,x)=>s+x.o.oee,0)/ok.length:null;
     return '<h3 class="ap-sec">Base para el OEE</h3>'+
-      '<p class="ap-nota">Rendimiento = (sopladas ÷ horas efectivas) ÷ velocidad estándar (usa el total). Calidad: no se mide. Las sopladas salen del registro del supervisor (rechazadas = merma de «Botellas»). Si falta la velocidad estándar o el registro, no se calcula.</p>'+
-      '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Línea</th><th>Día · turno</th><th>Disponibilidad</th><th>Ratio sobre sopladas</th><th>Velocidad estándar</th><th>Rendimiento</th><th>Calidad</th><th>OEE (base)</th></tr></thead><tbody>'+filas+
-      '<tr><td><b>Promedio de los turnos calculables</b></td><td colspan="6">'+ok.length+' de '+d.oee.length+' turnos</td><td><b>'+pct(prom)+'</b></td></tr></tbody></table></div>';
+      '<p class="ap-nota">Rendimiento = (sopladas ÷ horas efectivas) ÷ velocidad estándar (usa el total). Las sopladas salen del registro del supervisor. Si falta la velocidad estándar o el registro, no se calcula.</p>'+
+      '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Línea</th><th>Día · turno</th><th>Disponibilidad</th><th>Ratio sobre sopladas</th><th>Velocidad estándar</th><th>Rendimiento</th><th>OEE (base)</th></tr></thead><tbody>'+filas+
+      '<tr><td><b>Promedio de los turnos calculables</b></td><td colspan="5">'+ok.length+' de '+d.oee.length+' turnos</td><td><b>'+pct(prom)+'</b></td></tr></tbody></table></div>';
   }
 
   function render(){
@@ -630,10 +628,10 @@
       d.us.map(u=>[u.fecha,nombreLinea(u.linea),u.turno,Math.round(u.planificado),Math.round(u.enMarcha),u.disp==null?'—':+(u.disp*100).toFixed(1)]),[12,14,12,18,16,16]);
     hoja('Reparación','Tiempos de reparación y entre fallas',['Línea / técnico','Paradas NP','Minutos NP','Reparación (min)','Entre fallas (min)'],
       d.reparacion.lineas.concat(necesitaTecnicos()?d.reparacion.tecnicos:[]).map(x=>[x.clave,x.n,Math.round(x.np),x.n?+x.mttr.toFixed(1):'Sin paradas',x.n?+x.mtbf.toFixed(1):'Sin paradas']),[34,14,14,18,18]);
-    hoja('OEE base','Base para el OEE',['Fecha','Línea','Turno','Disponibilidad %','Ratio sobre sopladas','Velocidad estándar','Rendimiento %','Calidad %','OEE %','Observación'],
+    hoja('OEE base','Base para el OEE',['Fecha','Línea','Turno','Disponibilidad %','Ratio sobre sopladas','Velocidad estándar','Rendimiento %','OEE %','Observación'],
       d.oee.map(({u,o})=>o.estado==='OK'
-        ?[u.fecha,nombreLinea(u.linea),u.turno,+(u.disp*100).toFixed(1),Math.round(o.ratioSop),Math.round(o.velocidad),+(o.rend*100).toFixed(1),'no se mide',+(o.oee*100).toFixed(1),o.aRevisar?'revisar velocidad estándar':'']
-        :[u.fecha,nombreLinea(u.linea),u.turno,u.disp==null?'—':+(u.disp*100).toFixed(1),'','','','','',textoOee(o)]),[12,14,12,16,18,18,14,12,10,28]);
+        ?[u.fecha,nombreLinea(u.linea),u.turno,+(u.disp*100).toFixed(1),Math.round(o.ratioSop),Math.round(o.velocidad),+(o.rend*100).toFixed(1),+(o.oee*100).toFixed(1),o.aRevisar?'revisar velocidad estándar':'']
+        :[u.fecha,nombreLinea(u.linea),u.turno,u.disp==null?'—':+(u.disp*100).toFixed(1),'','','','',textoOee(o)]),[12,14,12,16,18,18,14,10,28]);
     const tecnicoDe=d.tecnicoDe;
     hoja('Paradas','Paradas del rango',['Fecha','Línea','Turno','Motivo','Tipo','Minutos','Origen','Técnico'],
       d.us.flatMap(u=>u.npItems.concat(F.incluirProg?u.pItems:[]).map(it=>[u.fecha,nombreLinea(u.linea),u.turno,it.motivo,it.clasif==='PROGRAMADA'?'Programada':'No programada'+(it.exceso?' (exceso)':''),+it.minutos.toFixed(1),it.origen,(tecnicoDe&&tecnicoDe(it,u))||''])),[12,14,12,36,22,10,14,26]);

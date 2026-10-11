@@ -4,7 +4,7 @@
    Aplica la plantilla aprobada (61-reporte-linea.js) al reporte que se exporta desde un REGISTRO de producción.
    Este adaptador SOLO presenta: toma los valores que ya entrega el flujo actual (calcDerived, agruparParadas,
    construirAnalisisAccionReporte, Paletas, Distribución de personal) y los coloca en el modelo de la plantilla.
-   No recalcula producción, ratios, paradas, rendimiento, disponibilidad, calidad, OEE ni mermas; lo que no existe se
+   No recalcula producción, ratios, paradas, rendimiento, disponibilidad, OEE ni mermas; lo que no existe se
    muestra «—» o «Pendiente de confirmar».
 
    Flujo: botón «Exportar PNG» (08-graficos.js › renderGraficosTab) → exportarPNG() → glacialReporteRegistro.exportar()
@@ -84,7 +84,6 @@
     const indicadores={
       disponibilidad:{valor:hhTurno>0?num(d.disponibilidad):null,nivel:hhTurno>0?color(d.disponibilidad,METAS.disponibilidad):'gris'},
       rendimiento:{valor:conVel?num(d.rendimiento):null,nivel:conVel?color(d.rendimiento,METAS.rendimiento):'gris',aRevisar:conVel&&num(d.rendimiento)>1,sinVelocidad:!conVel},
-      calidad:{valor:esNum(d.calidad)?num(d.calidad):null,nivel:color(d.calidad,METAS.calidad),texto:'Sin datos suficientes'},
       oee:{valor:conVel?num(d.oee):null,nivel:conVel?color(d.oee,METAS.oee):'gris'}
     };
 

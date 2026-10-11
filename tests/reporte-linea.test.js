@@ -50,7 +50,7 @@ ok(sb.glacialReporteLinea.modelo(l,{tipo:'CIERRE',relevo:true,supervisor:'x',fec
 const disp=(600-0)/600;   // planificado = 720 − 30 = 690; no programadas 90
 ok(Math.abs(m.indicadores.disponibilidad.valor-(690-90)/690)<1e-9,'disponibilidad = (planificado − no programadas) ÷ planificado = 600/690');
 ok(Math.abs(m.indicadores.rendimiento.valor-m.resumen.ratio/2000)<1e-9&&Math.abs(m.indicadores.oee.valor-m.indicadores.disponibilidad.valor*m.indicadores.rendimiento.valor)<1e-9,'rendimiento = ratio ÷ velocidad estándar y OEE = disponibilidad × rendimiento');
-ok(m.indicadores.calidad.valor===null&&m.indicadores.calidad.texto==='Sin datos suficientes','Calidad: «Sin datos suficientes» (no se mide; nunca 100 %)');
+ok(!('calidad' in m.indicadores)&&Object.keys(m.indicadores).sort().join()==='disponibilidad,oee,rendimiento','el modelo ya no trae «Calidad»: solo disponibilidad, rendimiento y OEE');
 ok(['verde','ambar','roja','gris'].includes(m.indicadores.disponibilidad.nivel),'los colores salen de las metas configuradas (no de porcentajes de ejemplo)');
 /* sin velocidad */
 const sb2=entorno({vel:0,programaciones:[prog('B20L',ms(7),800,'Scala','20 L')],paletas:[pal('B20L',660,'12:00','Scala','20 L')]});

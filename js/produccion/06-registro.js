@@ -54,19 +54,15 @@ function calcDerivedLegacy(r){
   const programada = num(r.produccion?.programada);
   const sopladas = num(r.produccion?.sopladas);
 
-  /* CALIDAD = unidades tomadas como muestra; no son rechazo ni merma. */
-  const muestrasCalidad = num(r.produccion?.calidad);
-  const rechazadas = 0;
-  const calidadBot = sopladas;
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
-  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. Calidad: no se mide. */
+  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. */
   const conVelocidad = produccionNominal > 0;
   const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(efectiva, horasEfectivas), ratio);
   const rendimiento = rendimientoReal ?? 0;
-  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+
   const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal) ?? 0;
   const planMinVel = conVelocidad ? planificadoH * 60 : 0;
   const npMinVel = conVelocidad ? pNoProg * 60 : 0;
@@ -81,7 +77,6 @@ function calcDerivedLegacy(r){
     produccionNominal,
     disponibilidad,
     rendimiento,
-    calidad,
     oee,
     cumplimiento,
     eficiencia,
@@ -89,9 +84,6 @@ function calcDerivedLegacy(r){
     ratioEfectivo,
     pProg,
     pNoProg,
-    rechazadas,
-    muestrasCalidad,
-    calidadBot,
     conVelocidad, planMinVel, npMinVel, efectivaVel
   };
 }
@@ -109,24 +101,15 @@ function calcDerivedCuadro(cuadro){
   const programada = num(cuadro?.produccion?.programada);
   const sopladas = num(cuadro?.produccion?.sopladas);
 
-  /*
-     CALIDAD = unidades retiradas por el área de Calidad como muestra.
-     NO son rechazo, merma ni producto no conforme.
-     Se conserva produccion.calidad como clave interna para compatibilidad
-     con registros históricos, pero no penaliza el indicador de Calidad/OEE.
-  */
-  const muestrasCalidad = num(cuadro?.produccion?.calidad);
-  const rechazadas = 0;
-  const calidadBot = sopladas;
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
-  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. Calidad: no se mide. */
+  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. */
   const conVelocidad = produccionNominal > 0;
   const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(efectiva, horasEfectivas), ratio);
   const rendimiento = rendimientoReal ?? 0;
-  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+
   const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal) ?? 0;
   const planMinVel = conVelocidad ? planificadoH * 60 : 0;
   const npMinVel = conVelocidad ? pNoProg * 60 : 0;
@@ -141,7 +124,6 @@ function calcDerivedCuadro(cuadro){
     produccionNominal,
     disponibilidad,
     rendimiento,
-    calidad,
     oee,
     cumplimiento,
     eficiencia,
@@ -149,9 +131,6 @@ function calcDerivedCuadro(cuadro){
     ratioEfectivo,
     pProg,
     pNoProg,
-    rechazadas,
-    muestrasCalidad,
-    calidadBot,
     conVelocidad, planMinVel, npMinVel, efectivaVel
   };
 }
@@ -169,10 +148,6 @@ function calcDerivedMulti(r){
   const programada = cuadros.reduce((a,c) => a + num(c?.produccion?.programada), 0);
   const sopladas = cuadros.reduce((a,c) => a + num(c?.produccion?.sopladas), 0);
 
-  /* CALIDAD son muestras de laboratorio/control; no rechazo ni merma. */
-  const muestrasCalidad = cuadros.reduce((a,c) => a + num(c?.produccion?.calidad), 0);
-  const rechazadas = 0;
-  const calidadBot = sopladas;
 
   const pProg = ds.reduce((a,d) => a + num(d.pProg), 0);
   const pNoProg = ds.reduce((a,d) => a + num(d.pNoProg), 0);
@@ -185,7 +160,7 @@ function calcDerivedMulti(r){
   const efectivaVel = ds.reduce((a,d) => a + num(d.efectivaVel), 0);
   const rendimientoReal = produccionNominal > 0 ? GlacialIndicadores.rendimiento(efectivaVel, produccionNominal) : null;
   const rendimiento = rendimientoReal ?? 0;
-  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+
   const oee = GlacialIndicadores.oee(GlacialIndicadores.disponibilidad(planMinVel, npMinVel), rendimientoReal) ?? 0;
   const cumplimiento = GlacialIndicadores.cumplimiento(efectiva, programada) ?? 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
@@ -198,7 +173,6 @@ function calcDerivedMulti(r){
     produccionNominal,
     disponibilidad,
     rendimiento,
-    calidad,
     oee,
     cumplimiento,
     eficiencia,
@@ -209,8 +183,6 @@ function calcDerivedMulti(r){
     efectiva,
     programada,
     sopladas,
-    calidadBot,
-    rechazadas,
     planMinVel, npMinVel, efectivaVel,
     cuadros: ds
   };
@@ -4503,15 +4475,6 @@ function renderFormTab(){
 
       ${
         kpi(
-          'Calidad',
-          pct(d.calidad),
-          d.calidad
-        )
-      }
-
-
-      ${
-        kpi(
           'OEE',
           pct(d.oee),
           d.oee
@@ -5601,14 +5564,6 @@ function refreshKpisOnly(){
           'Rendimiento',
           pct(d.rendimiento),
           d.rendimiento
-        )
-      }
-
-      ${
-        kpi(
-          'Calidad',
-          pct(d.calidad),
-          d.calidad
         )
       }
 

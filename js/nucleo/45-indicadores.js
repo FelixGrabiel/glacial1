@@ -16,8 +16,7 @@
      Tiempo planificado = duración de la programación − paradas programadas
      Disponibilidad  = (tiempo planificado − paradas no programadas) ÷ tiempo planificado
      Rendimiento     = ratio ÷ velocidad estándar (la de sync/configIndicadores)
-     OEE             = disponibilidad × rendimiento   (solo con velocidad estándar;
-                       «Calidad: no se mide»)
+     OEE             = disponibilidad × rendimiento   (solo con velocidad estándar)
      Merma           = suma de mermas ÷ producción efectiva (con desglose por componente)
      Cumplimiento    = producido ÷ programado
         · Programado: la programación vigente, sin las canceladas.
@@ -77,7 +76,6 @@
     if(!esNum(disp)||!esNum(rend))return null;
     return disp*rend;
   }
-  const NOTA_CALIDAD='Calidad: no se mide';
 
   /* ---------------------------------------------------------
      MERMA
@@ -279,7 +277,7 @@
       produccion:prod,programado:progU,producidoConProgramacion:prodU,cumplimiento:cumplimiento(prodU,progU),
       horasEfectivas:horas,ratio:ratio(prodConTiempo,horas),disponibilidad:disp,
       merma:merma(mermas,prod),sumaMermas:mermas,
-      rendimiento:rend,oee:oee(dispConVel,rend),calidad:NOTA_CALIDAD,
+      rendimiento:rend,oee:oee(dispConVel,rend),
       coberturaVelocidad:prodConT>0?prodV/prodConT:null,faltantesVelocidad:[...new Set(faltantes)],
       paradasNoProgramadasMin:npMin,paradasProgramadasMin:progMin,planificadoMin:planMin,transcurridoMin:durMin
     };
@@ -530,7 +528,7 @@
     ['Tiempo planificado','Duración de la programación − paradas programadas.'],
     ['Disponibilidad','(Tiempo planificado − paradas no programadas) ÷ tiempo planificado.'],
     ['Rendimiento','Ratio ÷ velocidad estándar (la de la tabla de velocidades). Si pasa de 100 %, se muestra «revisar velocidad estándar».'],
-    ['OEE','Disponibilidad × rendimiento. Solo se calcula si el producto tiene velocidad estándar. Calidad: no se mide.'],
+    ['OEE','Disponibilidad × rendimiento. Solo se calcula si el producto tiene velocidad estándar.'],
     ['Merma','Suma de mermas ÷ producción efectiva, con desglose por componente (cada uno en su unidad).'],
     ['Cumplimiento','Producido ÷ programado. Programado: la programación vigente, sin las canceladas. Producido: en el turno en curso, lo registrado en Paletas; en turnos cerrados, el registro del turno.'],
     ['Estado de línea','El del semáforo: detenida, en curso, pausa, pendiente, completada o cancelada, por prioridad.'],
@@ -539,7 +537,7 @@
   ]);
 
   const API=Object.freeze({
-    horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,oee,NOTA_CALIDAD,
+    horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,oee,
     merma,componenteMerma,desgloseMerma,ORDEN_COMPONENTES,
     cumplimiento,programadoVigente,produccionVigente,
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,

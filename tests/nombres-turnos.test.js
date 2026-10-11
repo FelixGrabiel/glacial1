@@ -30,7 +30,7 @@ vm.createContext(sb);sb.window=sb;
 vm.runInContext(leer('js/produccion/61-reporte-linea.js'),sb);
 const modelo=bloque=>({version:1,linea:'PET1',nombre:'PET1',encabezado:{fecha:FECHA,bloque,estado:'CERRADO',inicio:'07:00',corte:'19:00',fin:'19:00',supervisor:'S',tipo:'CIERRE',idSnapshot:FECHA+'|X|CIERRE'},
   resumen:{programado:100,producido:90,pendiente:10,excedente:0,cumplimiento:90,ratio:10,unidadRatio:'B/H',unidad:'botellas',minutosEfectivos:60,minutosTranscurridos:70,paradasMin:10,personal:3,personalEstado:'CONFIRMADO',horasHombre:null},
-  marcas:[],indicadores:{disponibilidad:{valor:null,nivel:'gris'},rendimiento:{valor:null,nivel:'gris'},calidad:{valor:null,texto:'Sin datos suficientes'},oee:{valor:null,nivel:'gris'}},porHora:null,
+  marcas:[],indicadores:{disponibilidad:{valor:null,nivel:'gris'},rendimiento:{valor:null,nivel:'gris'},oee:{valor:null,nivel:'gris'}},porHora:null,
   paradas:{programadas:0,noProgramadas:10,total:10,documentalMin:10,motivos:[],motivosOtros:0,difiere:false},insumos:[],acciones:[]});
 (async()=>{
   const d=lienzo();await sb.glacialReporteLinea.dibujar(modelo('DÍA'),{crearCanvas:()=>d.canvas,sinLogo:true});

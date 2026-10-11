@@ -19,7 +19,6 @@ const METAS = {
   oee: GlacialIndicadores.METAS_INICIALES.oee.verde / 100,
   disponibilidad: GlacialIndicadores.METAS_INICIALES.disponibilidad.verde / 100,
   rendimiento: GlacialIndicadores.METAS_INICIALES.ratio.verde / 100,
-  calidad: 0.99,
 
   /* % máximo de merma aceptable sobre producción efectiva */
   merma: GlacialIndicadores.METAS_INICIALES.merma.verde / 100
@@ -257,10 +256,9 @@ Chart.defaults.datasets.line.tension = .28;
      Capacidad teórica  = ratio nominal × horas de turno
      − Pérdida por paradas      (disponibilidad)
      − Pérdida por ritmo lento  (rendimiento)
-     − Pérdida por calidad      (calidad)
      = Producción buena         (capacidad × OEE)
 
-   Los cuatro pasos suman exactamente la diferencia entre
+   Los tres pasos suman exactamente la diferencia entre
    la capacidad teórica y la producción buena, así que la
    cascada siempre cierra.
    ========================================================= */
@@ -296,26 +294,23 @@ function calcCascada(rec){
 
 
   /*
-     Los tres escalones se derivan de los MISMOS factores
-     que producen el OEE del tablero (D, R y C ya acotados
-     a 100%), encadenados uno tras otro:
+     Los escalones se derivan de los MISMOS factores
+     que producen el OEE del tablero (D y R), encadenados
+     uno tras otro:
 
        tras paradas      = Capacidad × D
-       tras ritmo        = Capacidad × D × R
-       producción buena  = Capacidad × D × R × C = Capacidad × OEE
+       producción buena  = Capacidad × D × R = Capacidad × OEE
 
      Así la cascada siempre cierra exactamente contra el OEE
-     mostrado, incluso cuando la producción efectiva supera
-     a la nominal (rendimiento tope 100%).
+     mostrado.
   */
 
   const D = num(d.disponibilidad);
   const R = num(d.rendimiento);
-  const C = num(d.calidad);
 
   const trasParadas = capacidadTeorica * D;
   const trasRitmo = trasParadas * R;
-  const buena = trasRitmo * C;
+  const buena = trasRitmo;
 
   const perdidaDisponibilidad =
     Math.max(capacidadTeorica - trasParadas, 0);
@@ -323,14 +318,10 @@ function calcCascada(rec){
   const perdidaRendimiento =
     Math.max(trasParadas - trasRitmo, 0);
 
-  const perdidaCalidad =
-    Math.max(trasRitmo - buena, 0);
-
   return {
     capacidadTeorica,
     perdidaDisponibilidad,
     perdidaRendimiento,
-    perdidaCalidad,
     buena,
     oee: num(d.oee)
   };
@@ -1642,15 +1633,13 @@ function xlHojaReporte(wb, ctx){
       s:`${xlN1(d.horasEfectivas)} h efectivas de ${xlN1(d.horasTurno)} h` },
     { t:'Rendimiento', v:d.rendimiento,
       s:`${xlN(d.efectiva)} de ${xlN(d.produccionNominal)} bot. nominales` },
-    { t:'Calidad', v:d.calidad,
-      s:`${xlN(d.calidadBot)} conformes de ${xlN(d.sopladas)} sopladas` },
     { t:'OEE', v:d.oee, s:xlEstado(d.oee) },
     { t:'Cumplimiento', v:d.cumplimiento,
       s:`${xlN(d.efectiva)} de ${xlN(d.programada)} programadas` },
     { t:'Eficiencia', v:d.eficiencia, s:'Efectiva / nominal' }
   ];
 
-  const spansKpi = [[2,4],[5,7],[8,11],[12,15],[16,18],[19,21]];
+  const spansKpi = [[2,5],[6,9],[10,13],[14,17],[18,21]];
 
   kpis.forEach((k,i) => {
 
@@ -1697,8 +1686,7 @@ function xlHojaReporte(wb, ctx){
 
   const perdidas = [
     ['paradas (disponibilidad)', cascada.perdidaDisponibilidad],
-    ['ritmo lento (rendimiento)', cascada.perdidaRendimiento],
-    ['calidad (botellas no conformes)', cascada.perdidaCalidad]
+    ['ritmo lento (rendimiento)', cascada.perdidaRendimiento]
   ].sort((a,b) => b[1] - a[1]);
 
   const minNoProg = paradas.filas
@@ -1799,7 +1787,7 @@ function xlHojaReporte(wb, ctx){
     'Horas turno', 'Horas efect.', 'Prod. programada', 'Prod. efectiva',
     'Bot. sopladas', 'Bot. rechazadas', 'Paletas',
     'Ratio nominal (B/H)', 'Ratio efectivo (B/H)',
-    'Disponib.', 'Rendim.', 'Calidad', 'OEE', 'Cumplim.'
+    'Disponib.', 'Rendim.', 'OEE', 'Cumplim.'
   ]);
 
   ws.getRow(r).height = 40;
@@ -1837,11 +1825,8 @@ function xlHojaReporte(wb, ctx){
       xlFx(`IF(O${f}*I${f}>0,K${f}/(O${f}*I${f}),0)`, dc.rendimiento),
       par('0.0%'));
     xlSet(ws, f, 19,
-      xlFx(`IF(L${f}>0,MAX(L${f}-M${f},0)/L${f},IF(K${f}>0,1,0))`, dc.calidad),
-      par('0.0%'));
-    xlSet(ws, f, 20,
       xlFx(`Q${f}*R${f}`, dc.oee), { numFmt:'0.0%', align:'right', bold:true });
-    xlSet(ws, f, 21,
+    xlSet(ws, f, 20,
       xlFx(`IF(J${f}>0,K${f}/J${f},0)`, dc.cumplimiento), par('0.0%'));
 
   });
@@ -1898,17 +1883,13 @@ function xlHojaReporte(wb, ctx){
       num(d.rendimiento)),
     { ...totalFmt, numFmt:'0.0%' });
   xlSet(ws, rt, 19,
-    xlFx(`IF(L${rt}>0,MAX(L${rt}-M${rt},0)/L${rt},IF(K${rt}>0,1,0))`,
-      num(d.calidad)),
-    { ...totalFmt, numFmt:'0.0%' });
-  xlSet(ws, rt, 20,
     xlFx(`Q${rt}*R${rt}`, num(d.oee)),
     { ...totalFmt, numFmt:'0.0%' });
-  xlSet(ws, rt, 21,
+  xlSet(ws, rt, 20,
     xlFx(`IF(J${rt}>0,K${rt}/J${rt},0)`, num(d.cumplimiento)),
     { ...totalFmt, numFmt:'0.0%' });
 
-  xlSemaforoCF(ws, `Q${rc0}:U${rt}`);
+  xlSemaforoCF(ws, `Q${rc0}:T${rt}`);
 
   ws.getRow(rt).height = 22;
 
@@ -1933,9 +1914,6 @@ function xlHojaReporte(wb, ctx){
       { etiqueta:'− Ritmo lento', valor:cascada.perdidaRendimiento,
         color:'#E69F00',
         texto:'− ' + xlN(cascada.perdidaRendimiento) },
-      { etiqueta:'− Calidad', valor:cascada.perdidaCalidad,
-        color:'#7F3F98',
-        texto:'− ' + xlN(cascada.perdidaCalidad) },
       { etiqueta:'Producción buena', valor:cascada.buena,
         color:'#' + XL.verde,
         texto:xlN(cascada.buena) }
@@ -2010,7 +1988,6 @@ function xlHojaReporte(wb, ctx){
     ['Capacidad teórica del turno', cascada.capacidadTeorica, false],
     ['− Pérdida por paradas', cascada.perdidaDisponibilidad, false],
     ['− Pérdida por ritmo lento', cascada.perdidaRendimiento, false],
-    ['− Pérdida por calidad', cascada.perdidaCalidad, false],
     ['= Producción buena', cascada.buena, true]
   ];
 
@@ -2543,7 +2520,6 @@ function xlHojaHistorial(wb, ctx){
       hEf:num(x.horasEfectivas),
       disp:num(x.disponibilidad),
       rend:num(x.rendimiento),
-      cal:num(x.calidad),
       oee:num(x.oee),
       paradas:(num(x.pProg) + num(x.pNoProg)) * 60,
       usuario:r.registradoPor || ''
@@ -2574,7 +2550,7 @@ function xlHojaHistorial(wb, ctx){
     subtitulo:
       `${filas.length} registro(s)  |  ` +
       'El registro exportado aparece resaltado en amarillo  |  ' +
-      'Disp., Rend., Calidad y OEE del total: promedio ponderado por horas efectivas',
+      'Disp., Rend. y OEE del total: promedio ponderado por horas efectivas',
     tab:XL.celeste,
     columnas:[
       { h:'Fecha', w:12, fmt:'dd/mm/yyyy', align:'center' },
@@ -2589,7 +2565,6 @@ function xlHojaHistorial(wb, ctx){
       { h:'Horas efect.', w:11, fmt:'0.0' },
       { h:'Disponib.', w:11, fmt:'0.0%' },
       { h:'Rendim.', w:11, fmt:'0.0%' },
-      { h:'Calidad', w:11, fmt:'0.0%' },
       { h:'OEE', w:11, fmt:'0.0%' },
       { h:'Paradas (min)', w:12, fmt:'#,##0' },
       { h:'Registrado por', w:26 }
@@ -2600,9 +2575,9 @@ function xlHojaHistorial(wb, ctx){
           f.prog, f.efec,
           r => xlFx(`IF(G${r}>0,H${r}/G${r},0)`,
             f.prog > 0 ? f.efec / f.prog : 0),
-          f.hEf, f.disp, f.rend, f.cal, f.oee, f.paradas, f.usuario
+          f.hEf, f.disp, f.rend, f.oee, f.paradas, f.usuario
         ])
-      : [['', '', '', '', 'Sin registros', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, '']],
+      : [['', '', '', '', 'Sin registros', '', 0, 0, 0, 0, 0, 0, 0, 0, '']],
     resaltar,
     total:(r0, r1, rt) => {
 
@@ -2624,16 +2599,15 @@ function xlHojaHistorial(wb, ctx){
         sp('J', 'hEf'),
         pond('K', 'disp'),
         pond('L', 'rend'),
-        pond('M', 'cal'),
-        pond('N', 'oee'),
-        sp('O', 'paradas'),
+        pond('M', 'oee'),
+        sp('N', 'paradas'),
         ''
       ];
 
     }
   });
 
-  xlSemaforoCF(res.ws, `K${res.r0}:N${res.rt}`);
+  xlSemaforoCF(res.ws, `K${res.r0}:M${res.rt}`);
 
 }
 
@@ -2645,7 +2619,6 @@ function xlHojaHistorial(wb, ctx){
 function xlEstadisticasLinea(regs){
 
   let hTurno = 0, hEf = 0, efec = 0, planMin = 0, npMin = 0;
-  let calH = 0;
   const derivados = [];
 
   regs.forEach(r => {
@@ -2660,7 +2633,6 @@ function xlEstadisticasLinea(regs){
     efec += num(x.efectiva ?? r.produccion?.efectiva);
 
     derivados.push(x);
-    calH += num(x.calidad) * h;
 
   });
 
@@ -2670,7 +2642,6 @@ function xlEstadisticasLinea(regs){
     efec,
     disp:GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0,
     rend:glacialAgregarDerivados(derivados).rendimiento,
-    cal:hEf > 0 ? calH / hEf : 0,
     oee:glacialAgregarDerivados(derivados).oee
   };
 
@@ -2742,7 +2713,6 @@ function xlHojaResumenLineas(wb, ctx){
       { h:'Horas efectivas', w:14, fmt:'#,##0.0' },
       { h:'Disponib.', w:12, fmt:'0.0%' },
       { h:'Rendim.', w:12, fmt:'0.0%' },
-      { h:'Calidad', w:12, fmt:'0.0%' },
       { h:'OEE histórico', w:14, fmt:'0.0%' },
       { h:'OEE últimos 7 días', w:16, fmt:'0.0%' },
       { h:'OEE últimos 30 días', w:17, fmt:'0.0%' }
@@ -2756,7 +2726,6 @@ function xlHojaResumenLineas(wb, ctx){
       f.st.hEf,
       f.st.registros ? f.st.disp : '—',
       f.st.registros ? f.st.rend : '—',
-      f.st.registros ? f.st.cal : '—',
       f.st.registros ? f.st.oee : '—',
       f.oee7.registros ? f.oee7.oee : '—',
       f.oee30.registros ? f.oee30.oee : '—'
@@ -2769,13 +2738,12 @@ function xlHojaResumenLineas(wb, ctx){
       todos.hEf,
       todos.disp,
       todos.rend,
-      todos.cal,
       todos.oee,
       '', ''
     ]
   });
 
-  xlSemaforoCF(res.ws, `G${res.r0}:L${res.rt}`);
+  xlSemaforoCF(res.ws, `G${res.r0}:K${res.rt}`);
 
   const dataLineas = xlGráficoBarras({
     titulo:'OEE histórico por línea',
@@ -2885,9 +2853,9 @@ function generarConclusionesTurno(d, dPrev){
   );
 
   const mayorPerdida =
-    d.disponibilidad <= d.rendimiento && d.disponibilidad <= d.calidad
+    d.disponibilidad <= d.rendimiento
       ? 'disponibilidad (paradas)'
-      : (d.rendimiento <= d.calidad ? 'rendimiento (velocidad)' : 'calidad (rechazos)');
+      : 'rendimiento (velocidad)';
 
   txt.push(`El componente con mayor oportunidad de mejora en el turno es ${mayorPerdida}.`);
 
@@ -2957,7 +2925,6 @@ function xlHojaPortadaEjecutiva(wb, ctx){
     ['OEE del turno', pct(d.oee), METAS.oee, d.oee],
     ['Disponibilidad', pct(d.disponibilidad), METAS.disponibilidad, d.disponibilidad],
     ['Rendimiento', pct(d.rendimiento), METAS.rendimiento, d.rendimiento],
-    ['Calidad', pct(d.calidad), METAS.calidad, d.calidad],
     ['Cumplimiento vs. programado', pct(d.cumplimiento), 1, d.cumplimiento],
     ['Producción efectiva', xlN(d.efectiva) + ' und.', null, null]
   ];
@@ -3047,9 +3014,6 @@ function xlHojaPortadaEjecutiva(wb, ctx){
       { etiqueta:'− Ritmo lento', valor:cascada.perdidaRendimiento,
         color:'#E69F00',
         texto:'− ' + xlN(cascada.perdidaRendimiento) },
-      { etiqueta:'− Calidad', valor:cascada.perdidaCalidad,
-        color:'#7F3F98',
-        texto:'− ' + xlN(cascada.perdidaCalidad) },
       { etiqueta:'Producción buena', valor:cascada.buena,
         color:'#' + XL.verde,
         texto:xlN(cascada.buena) }
@@ -3135,10 +3099,9 @@ function xlHojaDefiniciones(wb, ctx){
   fila += 2;
 
   const definiciones = [
-    ['OEE', 'Disponibilidad × Rendimiento × Calidad. Mide qué tan bien se aprovechó el tiempo de turno para producir botellas/bidones/cajas conformes.'],
+    ['OEE', 'Disponibilidad × Rendimiento. Mide qué tan bien se aprovechó el tiempo de turno para producir botellas/bidones/cajas. Solo se calcula si el producto tiene velocidad estándar.'],
     ['Disponibilidad', 'Horas efectivas ÷ Horas de turno. Horas efectivas = horas de turno menos las paradas programadas y no programadas.'],
     ['Rendimiento', 'Producción efectiva ÷ Producción nominal. Producción nominal = ratio nominal (BPH) × horas efectivas.'],
-    ['Calidad', '(Botellas sopladas − Botellas rechazadas) ÷ Botellas sopladas.'],
     ['Cumplimiento', 'Producción efectiva ÷ Producción programada.'],
     ['Merma', 'Unidades de merma (botellas, preformas, tapas, etiqueta, polietileno) sobre la producción efectiva del turno.']
   ];
@@ -3163,7 +3126,6 @@ function xlHojaDefiniciones(wb, ctx){
     ['OEE', pct(METAS.oee)],
     ['Disponibilidad', pct(METAS.disponibilidad)],
     ['Rendimiento', pct(METAS.rendimiento)],
-    ['Calidad', pct(METAS.calidad)],
     ['Merma (máximo aceptable)', pct(METAS.merma)]
   ].forEach(([term, val]) => {
     ws.getCell(fila, 2).value = term;
@@ -3387,12 +3349,12 @@ function construirResumenesgraficos(rec, d, all){
 
     'chart-componentes':
       `Disponibilidad ${pct(d.disponibilidad)} · Rendimiento ${pct(d.rendimiento)} ` +
-      `· Calidad ${pct(d.calidad)} (metas ${pct(METAS.disponibilidad)} / ${pct(METAS.rendimiento)} / ${pct(METAS.calidad)}).`,
+      `(metas ${pct(METAS.disponibilidad)} / ${pct(METAS.rendimiento)}).`,
 
     'chart-cascada':
       `Capacidad teórica ${formatearNumero(cascada.capacidadTeorica)} u. → ` +
       `producción buena ${formatearNumero(cascada.buena)} u. Pérdidas: paradas ${formatearNumero(cascada.perdidaDisponibilidad)}, ` +
-      `ritmo ${formatearNumero(cascada.perdidaRendimiento)}, calidad ${formatearNumero(cascada.perdidaCalidad)}.`,
+      `ritmo ${formatearNumero(cascada.perdidaRendimiento)}.`,
 
     'chart-prod':
       `Efectiva ${formatearNumero(d.efectiva ?? rec.produccion?.efectiva)} u. / ` +
@@ -3739,10 +3701,9 @@ async function exportarPNGDetalle(){
       ['OEE',d.oee,METAS.oee],
       ['Disponibilidad',d.disponibilidad,METAS.disponibilidad],
       ['Rendimiento',d.rendimiento,METAS.rendimiento],
-      ['Calidad',d.calidad,METAS.calidad],
       ['Cumplimiento',d.cumplimiento,1]
     ];
-    const kw=(W-P*2-48)/5,ky=y;
+    const kw=(W-P*2-48)/4,ky=y;
     kpis.forEach((k,i)=>{
       const x=P+24+i*kw;
       card(x,ky,kw-8,86);
@@ -4083,7 +4044,7 @@ function renderGraficosTab(){
           class="small-muted"
           style="text-align:center;margin-top:6px;font-size:11px;"
         >
-          OEE = Disponibilidad × Rendimiento × Calidad
+          OEE = Disponibilidad × Rendimiento
         </div>
 
       </div>
@@ -4256,9 +4217,9 @@ function renderGraficosTab(){
      GAUGE DE OEE
      =====================================================
 
-     OEE = Disponibilidad × Rendimiento × Calidad, así que
+     OEE = Disponibilidad × Rendimiento, así que
      el anillo muestra un solo valor (el OEE alcanzado
-     contra el 100%), no la suma de los tres factores.
+     contra el 100%), no la suma de los factores.
      El color cambia según qué tan lejos está de la meta.
   ===================================================== */
 
@@ -4340,14 +4301,12 @@ function renderGraficosTab(){
 
   const compValores = [
     d.disponibilidad * 100,
-    d.rendimiento * 100,
-    d.calidad * 100
+    d.rendimiento * 100
   ];
 
   const compMetas = [
     METAS.disponibilidad * 100,
-    METAS.rendimiento * 100,
-    METAS.calidad * 100
+    METAS.rendimiento * 100
   ];
 
 
@@ -4367,8 +4326,7 @@ function renderGraficosTab(){
 
           labels:[
             'Disponibilidad',
-            'Rendimiento',
-            'Calidad'
+            'Rendimiento'
           ],
 
           datasets:[
@@ -4507,13 +4465,11 @@ function renderGraficosTab(){
   const p1 = casc.capacidadTeorica;
   const p2 = p1 - casc.perdidaDisponibilidad;
   const p3 = p2 - casc.perdidaRendimiento;
-  const p4 = p3 - casc.perdidaCalidad;
 
   const cascadaValores = [
     [0, p1],
     [p2, p1],
     [p3, p2],
-    [p4, p3],
     [0, Math.max(casc.buena, 0)]
   ];
 
@@ -4521,7 +4477,6 @@ function renderGraficosTab(){
     casc.capacidadTeorica,
     casc.perdidaDisponibilidad,
     casc.perdidaRendimiento,
-    casc.perdidaCalidad,
     casc.buena
   ];
 
@@ -4544,7 +4499,6 @@ function renderGraficosTab(){
             'Capacidad teórica',
             '− Paradas',
             '− Ritmo lento',
-            '− Calidad',
             'Producción buena'
           ],
 
@@ -4556,7 +4510,6 @@ function renderGraficosTab(){
               PAL.gris,
               PAL.rojo,
               PAL.ambar,
-              PAL.azulSuave,
               PAL.verde
             ],
 

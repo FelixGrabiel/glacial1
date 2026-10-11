@@ -1821,7 +1821,7 @@ function colorSegunMetaInverso(valor, meta){
 
 
 /*
-   Disponibilidad, Rendimiento y Calidad promedio (ponderado
+   Disponibilidad y Rendimiento promedio (ponderado
    por horas efectivas) de cada línea visible — para ver de
    qué componente vienen las pérdidas de OEE.
 */
@@ -1837,7 +1837,6 @@ function calcularComponentesOEEPorLinea(records, lineas){
     let planMin = 0;
     let npMin = 0;
     const derivados = [];
-    let calXhoras = 0;
 
     recs.forEach(r => {
 
@@ -1847,7 +1846,6 @@ function calcularComponentesOEEPorLinea(records, lineas){
       if(h > 0){
 
         horas += h;
-        calXhoras += num(d.calidad) * h;
 
       }
 
@@ -1864,7 +1862,6 @@ function calcularComponentesOEEPorLinea(records, lineas){
 
       disponibilidad: GlacialIndicadores.disponibilidad(planMin, npMin) ?? 0,
       rendimiento: glacialAgregarDerivados(derivados).rendimiento,
-      calidad: horas > 0 ? calXhoras / horas : 0,
 
       sinDatos: horas <= 0
 
@@ -2028,8 +2025,7 @@ function generarInsightComponentesOEE(componentes, rangoLabel){
 
   const candidatos = [
     { nombre:'Disponibilidad', valor:promedio('disponibilidad'), meta:METAS.disponibilidad },
-    { nombre:'Rendimiento', valor:promedio('rendimiento'), meta:METAS.rendimiento },
-    { nombre:'Calidad', valor:promedio('calidad'), meta:METAS.calidad }
+    { nombre:'Rendimiento', valor:promedio('rendimiento'), meta:METAS.rendimiento }
   ];
 
   candidatos.sort((a,b) => (a.valor / a.meta) - (b.valor / b.meta));
@@ -3473,10 +3469,10 @@ function renderResumen(main){
 
         <div class="chart-box">
 
-          <h4>Disponibilidad, rendimiento y calidad por línea</h4>
+          <h4>Disponibilidad y rendimiento por línea</h4>
 
           <div class="chart-desc">
-            Los tres componentes que multiplicados dan el OEE de
+            Los dos componentes que multiplicados dan el OEE de
             cada línea — ayuda a identificar de dónde vienen las
             pérdidas en ${rangoLabel}.
           </div>
@@ -3606,7 +3602,7 @@ function renderResumen(main){
       valor:kpis.oee == null ? '—' : pct(kpis.oee),
       clase:kpis.oee == null ? '' : claseSegunMeta(kpis.oee, METAS.oee),
       barra:{ pct:kpis.oee || 0, meta:METAS.oee },
-      pie:(kpis.oee == null ? 'Falta velocidad estándar' : 'Meta ' + pct(METAS.oee)) + ' · Calidad: no se mide'
+      pie:(kpis.oee == null ? 'Falta velocidad estándar' : 'Meta ' + pct(METAS.oee))
     }) +
 
     tarjetaKpiResumen({
@@ -4135,7 +4131,7 @@ function renderResumen(main){
 
 
   /* =====================================================
-     DISPONIBILIDAD, RENDIMIENTO Y CALIDAD POR LÍNEA
+     DISPONIBILIDAD Y RENDIMIENTO POR LÍNEA
   ===================================================== */
 
   const componentesOEE =
@@ -4168,13 +4164,6 @@ function renderResumen(main){
               label:'Rendimiento',
               data: componentesOEE.map(x => x.rendimiento * 100),
               backgroundColor:PAL_R.ambar,
-              borderRadius:6,
-              maxBarThickness:48
-            },
-            {
-              label:'Calidad',
-              data: componentesOEE.map(x => x.calidad * 100),
-              backgroundColor:PAL_R.verde,
               borderRadius:6,
               maxBarThickness:48
             }
