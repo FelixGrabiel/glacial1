@@ -2,18 +2,21 @@
    MANTENIMIENTO · INTERVENCIONES · EVIDENCIAS FOTOGRÁFICAS (desde el celular)
 
    · Tomar una foto o elegir una existente; adjuntarla al PROBLEMA, al TRABAJO REALIZADO o al CIERRE, con descripción opcional; miniaturas y vista completa.
-   · COMPRESIÓN en el dispositivo (lado máximo 1600 px, JPEG ≤ ~1,2 MB; miniatura de 320 px) y validación de formato y tamaño ANTES de subir.
-   · ALMACENAMIENTO: Firebase Storage (el SDK y el bucket ya están configurados en 01-config.js), ruta intervenciones/{intervención}/{foto}.jpg y
-     {foto}_t.jpg. Acceso protegido por reglas (storage.rules.mantenimiento.txt): las fotos se leen con el SDK autenticado; NO se guardan ni se muestran
-     enlaces públicos permanentes. NUNCA se guarda una imagen (base64) dentro de un documento de la base de datos: el documento solo guarda la referencia.
+   · COMPRESIÓN en el dispositivo (lado máximo 1600 px, JPEG ≤ ~1,2 MB) y validación de formato y tamaño ANTES de subir.
+   · ALMACENAMIENTO: CLOUDINARY, el mismo servicio y la misma cuenta que ya usan las hojas de producto terminado (06-registro.js: CLOUDINARY_CLOUD_NAME y
+     preset de subida SIN firma; el API Secret NO se usa ni se guarda aquí). Carpeta mantenimiento/{intervención}. Por defecto usa el preset existente
+     (CLOUDINARY_UPLOAD_PRESET); se puede crear uno propio y fijarlo con window.MANT_CLOUDINARY_PRESET. La miniatura es una transformación de la misma imagen
+     (no se sube dos veces). Funciona igual con Firebase y con el puente de Supabase.
+   · SEGURIDAD (límite real de Cloudinary sin firma): la imagen se sirve con una dirección pública con un id aleatorio (no se puede listar ni adivinar, pero
+     quien tenga la dirección exacta puede abrirla). Por eso en la base de datos solo se guarda el id (public_id), nunca una dirección, y NO se guarda ninguna
+     imagen (base64) en documentos. Proteger de verdad las fotos exige firmar las entregas en un servidor (Cloud Function / función de Supabase): no se hace aquí.
    · ORDEN SEGURO: primero se sube el archivo y SOLO después se registra la referencia en la intervención (acción EVIDENCIA, una transacción con historial).
-     Así nunca queda una referencia a un archivo que no existe. El texto de la intervención no depende de la foto: «Registro guardado» y «Foto pendiente de subir»
-     son estados distintos.
-   · REINTENTO sin duplicados ni huérfanos: la foto tiene un id fijo desde que se elige (misma ruta al reintentar); lo pendiente se guarda en el dispositivo
-     (IndexedDB) y se reanuda al abrir la pantalla o al volver la conexión. Una foto subida cuyo registro falló reintenta SOLO el registro.
+     Así nunca queda una referencia a un archivo que no existe. El texto de la intervención no depende de la foto: «Registro guardado» y «Foto pendiente de
+     subir» son estados distintos.
+   · REINTENTO sin duplicar registros: la foto tiene un id fijo desde que se elige; lo pendiente se guarda en el dispositivo (IndexedDB) y se reanuda al abrir la
+     pantalla o al volver la conexión. Una foto subida cuyo registro falló reintenta SOLO el registro. Desde el navegador no se pueden borrar archivos de
+     Cloudinary: una subida cuya respuesta se perdió podría dejar un archivo sin referencia (no se muestra en ningún lado).
    · Obligatoriedad: ninguna por defecto; el Supervisor puede exigir foto al cerrar por TIPO de trabajo (sync/configMantenimiento → evidenciasRequeridas).
-   DEPENDENCIA: Firebase Storage habilitado en la consola y storage.rules.mantenimiento.txt publicado. El puente de Supabase NO admite almacenamiento de
-   archivos: allí la función se desactiva sola y lo dice (documentado en docs/mantenimiento-intervenciones.md).
    Cargar después de 67c-intervenciones-pantalla.js.
    ============================================================= */
 (function(){
@@ -41,7 +44,7 @@
     const k=Math.min(1,max/Math.max(w,h));
     return {ancho:Math.max(1,Math.round(w*k)),alto:Math.max(1,Math.round(h*k))};
   }
-  const rutaDe=(intId,evId,mini)=>'intervenciones/'+String(intId).replace(/[^A-Za-z0-9_-]/g,'-')+'/'+String(evId).replace(/[^A-Za-z0-9_-]/g,'-')+(mini?'_t':'')+'.jpg';
+  const carpetaDe=intId=>'mantenimiento/'+String(intId).replace(/[^A-Za-z0-9_-]/g,'-');
 
   /* ---------- compresión (navegador) ---------- */
   async function decodificar(file){
@@ -75,31 +78,41 @@
     return {blob:grande.blob,thumb:mini.blob,ancho:grande.ancho,alto:grande.alto,tam:grande.blob.size};
   }
 
-  /* ---------- almacenamiento de archivos ---------- */
+  /* ---------- almacenamiento de archivos: Cloudinary (subida sin firma, igual que 06-registro.js) ---------- */
+  const nube=()=>window.MANT_CLOUDINARY_CLOUD||(typeof CLOUDINARY_CLOUD_NAME!=='undefined'?CLOUDINARY_CLOUD_NAME:'');
+  const preset=()=>window.MANT_CLOUDINARY_PRESET||(typeof CLOUDINARY_UPLOAD_PRESET!=='undefined'?CLOUDINARY_UPLOAD_PRESET:'');
   const Archivos={
-    almacen(){return window.__archivosPrueba||(typeof storage!=='undefined'?storage:null);},
-    disponible(){try{const a=this.almacen();if(!a||typeof a.ref!=='function')return false;a.ref('intervenciones/_prueba');return true;}catch(_){return false;}},
-    subir(ruta,blob,meta,progreso){
-      return new Promise((ok,er)=>{
-        let tarea;
-        try{tarea=this.almacen().ref(ruta).put(blob,{contentType:'image/jpeg',customMetadata:meta||{}});}catch(e){er(e);return;}
-        tarea.on('state_changed',s=>{if(progreso&&s.totalBytes)progreso(s.bytesTransferred/s.totalBytes);},er,()=>ok(true));
-      });
+    prueba(){return window.__archivosPrueba||null;},
+    disponible(){
+      const p=this.prueba();if(p)return p.disponible!==false;
+      return !!(nube()&&preset()&&typeof XMLHttpRequest!=='undefined'&&typeof FormData!=='undefined');
     },
-    async leer(ruta){                                    // con el SDK autenticado (reglas de acceso); sin enlaces públicos guardados
-      const r=this.almacen().ref(ruta);
-      if(typeof r.getBlob==='function')return r.getBlob();
-      if(typeof r.getBytes==='function')return new Blob([await r.getBytes(8*1024*1024)],{type:'image/jpeg'});
-      const url=await r.getDownloadURL();const resp=await fetch(url);if(!resp.ok)throw new Error('No se pudo leer la imagen ('+resp.status+').');return resp.blob();
+    /* Dirección de entrega derivada del id (no se guarda en la base de datos). mini = transformación de miniatura. */
+    url(publicId,mini){
+      const p=this.prueba();if(p&&p.url)return p.url(publicId,mini);
+      return 'https://res.cloudinary.com/'+nube()+'/image/upload/'+(mini?'c_fill,w_320,h_320,q_auto,f_auto/':'q_auto/')+publicId+'.jpg';
+    },
+    /* Sube el archivo; devuelve {publicId}. Un id ya existente (reintento tras una respuesta perdida) cuenta como subido. */
+    subir(publicId,carpeta,blob,meta,progreso){
+      const p=this.prueba();if(p)return p.subir(publicId,carpeta,blob,meta,progreso);
+      return new Promise((ok,er)=>{
+        const fd=new FormData();
+        fd.append('file',blob);fd.append('upload_preset',preset());fd.append('folder',carpeta);fd.append('public_id',publicId);
+        fd.append('context','intervencion='+String(meta&&meta.intervencion||'').replace(/[|=]/g,'_')+'|evidencia='+String(publicId).replace(/[|=]/g,'_'));
+        const x=new XMLHttpRequest();x.open('POST','https://api.cloudinary.com/v1_1/'+nube()+'/image/upload');
+        x.upload.onprogress=e=>{if(progreso&&e.lengthComputable)progreso(e.loaded/e.total);};
+        x.onload=()=>{
+          let d={};try{d=JSON.parse(x.responseText);}catch(_){d={};}
+          if(x.status>=200&&x.status<300&&d.public_id){ok({publicId:d.public_id});return;}
+          const msg=(d.error&&d.error.message)||('Cloudinary rechazó la foto ('+x.status+').');
+          if(/already exists/i.test(msg)){ok({publicId:carpeta+'/'+publicId});return;}
+          er(new Error(msg));
+        };
+        x.onerror=()=>er(new Error('Sin conexión con Cloudinary.'));x.send(fd);
+      });
     }
   };
-  const cacheUrl=new Map(),cargando=new Map();
-  async function urlDe(ruta){
-    if(cacheUrl.has(ruta))return cacheUrl.get(ruta);
-    if(cargando.has(ruta))return cargando.get(ruta);
-    const p=Archivos.leer(ruta).then(b=>{const u=URL.createObjectURL(b);cacheUrl.set(ruta,u);cargando.delete(ruta);return u;},e=>{cargando.delete(ruta);throw e;});
-    cargando.set(ruta,p);return p;
-  }
+  const urlDe=(ruta,mini)=>Archivos.url(ruta,mini);
 
   /* ---------- cola local (IndexedDB; en memoria si no hay) ---------- */
   const mem=new Map();
@@ -163,14 +176,13 @@
       const A=API();
       if(!A.permisos().escribir){marcar(id,{estado:'ERROR',mensaje:'No tienes permiso para registrar fotos.'});return {ok:false};}
       it.intentos=(it.intentos||0)+1;
-      const pathG=rutaDe(it.intervencionId,id,false),pathM=rutaDe(it.intervencionId,id,true);
-      const meta={subidoPor:(A.quienActua()||{}).uid||'',intervencion:it.intervencionId,evidencia:id};
+      const carpeta=carpetaDe(it.intervencionId);
+      const meta={intervencion:it.intervencionId};
       if(it.estado!=='SUBIDA_SIN_REGISTRO'){
         try{
           marcar(id,{estado:'SUBIENDO',progreso:0,mensaje:''});
-          await Archivos.subir(pathM,it.thumb,meta,()=>{});
-          await Archivos.subir(pathG,it.blob,meta,p=>marcar(id,{estado:'SUBIENDO',progreso:p}));
-          it.estado='SUBIDA_SIN_REGISTRO';await Cola.poner(it);
+          const r=await Archivos.subir(id,carpeta,it.blob,meta,p=>marcar(id,{estado:'SUBIENDO',progreso:p}));
+          it.publicId=r.publicId;it.estado='SUBIDA_SIN_REGISTRO';await Cola.poner(it);
         }catch(e){
           it.estado='PENDIENTE_SUBIR';await Cola.poner(it);
           marcar(id,{estado:'PENDIENTE_SUBIR',progreso:0,mensaje:'No se pudo subir la foto: '+((e&&e.message)||e)+'. El registro de la intervención no se perdió. Reintenta.'});
@@ -179,7 +191,7 @@
       }
       try{                                                   // el archivo YA existe: recién ahora se registra la referencia
         marcar(id,{estado:'REGISTRANDO',progreso:1});
-        await A.accion(it.intervencionId,'EVIDENCIA',{id,seccion:it.seccion,descripcion:it.descripcion,path:pathG,thumb:pathM,tam:it.tam,ancho:it.ancho,alto:it.alto,mime:'image/jpeg'});
+        await A.accion(it.intervencionId,'EVIDENCIA',{id,seccion:it.seccion,descripcion:it.descripcion,path:it.publicId,proveedor:'cloudinary',tam:it.tam,ancho:it.ancho,alto:it.alto,mime:'image/jpeg'});
       }catch(e){
         if(e&&e.codigo==='EVIDENCIA_DUPLICADA'){/* ya estaba registrada: nada más que limpiar */}
         else{
@@ -215,7 +227,7 @@
       const lista=activas.filter(e=>e.seccion===sec),pp=pend.filter(x=>x.seccion===sec);
       if(!lista.length&&!pp.length&&!puedeAgregar)return;
       h+='<div style="margin:6px 0"><b style="font-size:12px;color:#46627a">'+esc(M.SECCIONES_EVIDENCIA[sec]).toUpperCase()+'</b><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">'+
-        lista.map(e=>'<figure style="margin:0;width:92px"><img alt="'+esc(e.descripcion||'Foto')+'" data-ev-mini="'+esc(e.thumb)+'" data-ev-id="'+esc(e.id)+'" style="width:92px;height:92px;object-fit:cover;border-radius:8px;border:1px solid #dce5ec;background:#f1f5f9;cursor:pointer">'+
+        lista.map(e=>'<figure style="margin:0;width:92px"><img alt="'+esc(e.descripcion||'Foto')+'" loading="lazy" src="'+esc(urlDe(e.path,true))+'" data-ev-id="'+esc(e.id)+'" style="width:92px;height:92px;object-fit:cover;border-radius:8px;border:1px solid #dce5ec;background:#f1f5f9;cursor:pointer">'+
           '<figcaption style="font-size:10px;color:#5a6b78">'+esc(e.descripcion||'')+' '+esc((e.por&&e.por.nombre)||'')+'</figcaption></figure>').join('')+
         pp.map(x=>{const st=estados.get(x.id)||{estado:x.estado};return '<figure style="margin:0;width:92px"><img alt="Foto pendiente" src="'+miniaturaPend(x)+'" style="width:92px;height:92px;object-fit:cover;border-radius:8px;border:2px dashed #e879f9;opacity:.8">'+
           '<figcaption style="font-size:10px;color:#86198f"><b>'+(st.estado==='SUBIENDO'?'Subiendo '+Math.round((st.progreso||0)*100)+' %':st.estado==='REGISTRANDO'?'Registrando…':st.estado==='SUBIDA_SIN_REGISTRO'?'Subida; registro pendiente':'Foto pendiente de subir')+'</b>'+
@@ -225,14 +237,11 @@
     });
     return h+(puedeAgregar?'<div class="mi-meta">Las fotos se comprimen antes de subir. La intervención queda guardada aunque una foto falle.</div>':'');
   };
-  /* Después de pintar el detalle: carga las miniaturas (con el SDK autenticado) sin bloquear. */
+  /* Después de pintar el detalle: las imágenes ya traen su dirección; solo se refresca la cola local. */
   window.glacialEvidenciasPostRender=function(raiz){
     if(!raiz)return;
     refrescarCache().then(()=>{});
-    raiz.querySelectorAll('img[data-ev-mini]').forEach(img=>{
-      if(img.src&&img.dataset.cargada)return;
-      urlDe(img.dataset.evMini).then(u=>{img.src=u;img.dataset.cargada='1';}).catch(()=>{img.alt='No se pudo leer la foto';img.style.opacity='.4';});
-    });
+    raiz.querySelectorAll('img[data-ev-id]').forEach(img=>{img.onerror=()=>{img.alt='No se pudo cargar la foto';img.style.opacity='.4';};});
   };
 
   async function verCompleta(intId,evId){
@@ -241,8 +250,7 @@
     if(!e)return;
     const f=UIM().modal('<h3>Foto · '+esc(M.SECCIONES_EVIDENCIA[e.seccion])+'</h3><div id="ev-img" class="mi-meta">Cargando…</div><div class="mi-meta">'+esc(e.descripcion||'')+' · '+esc((e.por&&e.por.nombre)||'')+' · '+esc(UIM().fmtFH(e.en))+'</div>'+
       '<div class="mi-acc"><button type="button" class="btn btn-ghost" data-mi-cerrar>Cerrar</button>'+(API().permisos().escribir&&d.estado!=='CANCELADA'?'<button type="button" class="btn btn-ghost" id="ev-anular">Anular foto</button>':'')+'</div>',true);
-    try{const u=await urlDe(e.path);f.querySelector('#ev-img').innerHTML='<img alt="'+esc(e.descripcion||'Foto')+'" src="'+u+'" style="max-width:100%;border-radius:10px">';}
-    catch(err){f.querySelector('#ev-img').textContent='No se pudo leer la foto: '+((err&&err.message)||err);}
+    f.querySelector('#ev-img').innerHTML='<img alt="'+esc(e.descripcion||'Foto')+'" src="'+esc(urlDe(e.path,false))+'" style="max-width:100%;border-radius:10px">';
     const b=f.querySelector('#ev-anular');
     if(b)b.onclick=()=>{
       f.remove();
@@ -283,9 +291,8 @@
       docs.forEach(d=>(d.evidencias||[]).filter(x=>!x.anulada).forEach(x=>filas.push({d,x})));
       filas.sort((a,b)=>b.x.en-a.x.en);
       f.querySelector('#ev-lista').className='';
-      f.querySelector('#ev-lista').innerHTML=filas.length?'<div style="display:flex;gap:8px;flex-wrap:wrap">'+filas.map(({d,x})=>'<figure style="margin:0;width:104px"><img data-ev-mini="'+esc(x.thumb)+'" alt="'+esc(x.descripcion||'Foto')+'" style="width:104px;height:104px;object-fit:cover;border-radius:8px;border:1px solid #dce5ec;background:#f1f5f9;cursor:pointer" data-ev-abrir-int="'+esc(d.id)+'|'+esc(x.id)+'"><figcaption style="font-size:10px;color:#5a6b78">'+esc(UIM().fmtFH(x.en))+' · '+esc(M.SECCIONES_EVIDENCIA[x.seccion])+'<br>'+esc(String(d.problema).slice(0,40))+'</figcaption></figure>').join('')+'</div>'
+      f.querySelector('#ev-lista').innerHTML=filas.length?'<div style="display:flex;gap:8px;flex-wrap:wrap">'+filas.map(({d,x})=>'<figure style="margin:0;width:104px"><img loading="lazy" src="'+esc(urlDe(x.path,true))+'" alt="'+esc(x.descripcion||'Foto')+'" style="width:104px;height:104px;object-fit:cover;border-radius:8px;border:1px solid #dce5ec;background:#f1f5f9;cursor:pointer" data-ev-abrir-int="'+esc(d.id)+'|'+esc(x.id)+'"><figcaption style="font-size:10px;color:#5a6b78">'+esc(UIM().fmtFH(x.en))+' · '+esc(M.SECCIONES_EVIDENCIA[x.seccion])+'<br>'+esc(String(d.problema).slice(0,40))+'</figcaption></figure>').join('')+'</div>'
         :'<div class="mi-vacio">Este equipo no tiene fotos registradas'+(docs.length?' ('+docs.length+' intervenciones).':'.')+'</div>';
-      window.glacialEvidenciasPostRender(f);
       f.querySelectorAll('[data-ev-abrir-int]').forEach(i=>i.addEventListener('click',()=>{const [a,b]=i.dataset.evAbrirInt.split('|');f.remove();window.intervencionesAbrir({abrir:a});setTimeout(()=>verCompleta(a,b),400);}));
     }catch(err){f.querySelector('#ev-lista').className='mi-error';f.querySelector('#ev-lista').textContent='No se pudieron leer las fotos del equipo: '+((err&&err.message)||err);}
   }
@@ -318,6 +325,6 @@
     try{await exigirFoto(c.dataset.evReq,c.checked);}catch(err){c.checked=!c.checked;UIM().aviso('No se pudo guardar',(err&&err.message)||String(err));}
   });
 
-  window.glacialEvidencias={LIM,validarArchivo,dimensiones,rutaDe,preparar,agregar,procesar,reanudar,Archivos,Cola,estados,pendientesDe,refrescarCache,exigirFoto,alCambiar:f=>{if(typeof f==='function'&&!oyentes.includes(f))oyentes.push(f);},urlDe};
+  window.glacialEvidencias={LIM,validarArchivo,dimensiones,carpetaDe,preparar,agregar,procesar,reanudar,Archivos,Cola,estados,pendientesDe,refrescarCache,exigirFoto,alCambiar:f=>{if(typeof f==='function'&&!oyentes.includes(f))oyentes.push(f);},urlDe};
   window.glacialEvidencias.alCambiar(()=>{try{UIM().pintarDetalle();}catch(_){/* sin detalle */}});
 })();

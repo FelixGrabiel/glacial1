@@ -207,11 +207,11 @@
       case 'EVIDENCIA':{                // se registra SOLO cuando el archivo ya se subió (nunca una referencia a un archivo que no existe)
         if(d.estado==='CANCELADA')throw err('La intervención está cancelada.');
         if(!M.SECCIONES_EVIDENCIA[p.seccion])throw err('Elige a qué corresponde la foto (problema, trabajo o cierre).');
-        if(!txt(p.path)||!txt(p.thumb))throw err('Falta la ruta del archivo subido.');
+        if(!txt(p.path))throw err('Falta la referencia del archivo subido.');
         const id=txt(p.id)||idCorto('ev');
         if(d.evidencias.some(e=>e.id===id))throw err('Esta foto ya estaba registrada.',{codigo:'EVIDENCIA_DUPLICADA'});
         if(d.evidencias.filter(e=>!e.anulada).length>=M.MAX_EVIDENCIAS)throw err('Máximo '+M.MAX_EVIDENCIAS+' fotos por intervención.');
-        d.evidencias.push({id,seccion:p.seccion,descripcion:txt(p.descripcion).slice(0,160),path:txt(p.path),thumb:txt(p.thumb),mime:txt(p.mime)||'image/jpeg',tam:num(p.tam),ancho:num(p.ancho),alto:num(p.alto),por,en:ahora});
+        d.evidencias.push({id,seccion:p.seccion,descripcion:txt(p.descripcion).slice(0,160),path:txt(p.path),proveedor:txt(p.proveedor)||'cloudinary',mime:txt(p.mime)||'image/jpeg',tam:num(p.tam),ancho:num(p.ancho),alto:num(p.alto),por,en:ahora});
         hist('Foto ('+M.SECCIONES_EVIDENCIA[p.seccion]+')'+(txt(p.descripcion)?': '+txt(p.descripcion):''));break;
       }
       case 'ANULAR_EVIDENCIA':{

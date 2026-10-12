@@ -18,10 +18,10 @@ Rama `mantenimiento-1-intervenciones` (desde `main`). No se publicó nada ni se 
 | `67-intervenciones-motor.js` | Motor **puro**: estados, transiciones, cierre, repuestos, seguimiento, evidencias, tareas, correcciones, tiempos. |
 | `67b-intervenciones-datos.js` | Persistencia por **transacción** (versión + historial), permisos, lectura en vivo, apertura sin duplicados. |
 | `67c-intervenciones-pantalla.js` | Pantalla (móvil primero): Intervenciones · Preventivos · Equipos · Indicadores. |
-| `67d-intervenciones-evidencias.js` | Fotos: compresión, subida a Storage, cola con reintento, consulta por equipo, regla de obligatoriedad por tipo. |
+| `67d-intervenciones-evidencias.js` | Fotos: compresión, subida a **Cloudinary**, cola con reintento, consulta por equipo, regla de obligatoriedad por tipo. |
 | `67e-preventivos.js` | Planes preventivos, ejecuciones, reprogramación, avisos y contrato para Planificación. |
 | `67f-indicadores-equipo.js` | MTTR y MTBF por equipo. |
-| `firestore.rules.etapa2.txt`, `storage.rules.mantenimiento.txt` | Reglas nuevas (**hay que publicarlas**). |
+| `firestore.rules.etapa2.txt` | Reglas nuevas de Firestore (**hay que publicarlas**). Las fotos van a Cloudinary: no hay reglas de Storage. |
 | `docs/supabase-mantenimiento.sql` | Reglas equivalentes de Supabase, **preparadas y sin aplicar**. |
 
 ## Intervenciones
@@ -41,7 +41,8 @@ Rama `mantenimiento-1-intervenciones` (desde `main`). No se publicó nada ni se 
 - **Orden seguro**: primero se sube el archivo y **solo después** se registra la referencia. Nunca queda una referencia a un archivo inexistente. El texto de la intervención no depende de la foto: «Registro guardado» ≠ «Foto pendiente de subir».
 - **Reintento sin duplicados**: id fijo por foto (misma ruta); lo pendiente se guarda en el dispositivo (IndexedDB) y se reanuda solo; si el archivo ya subió pero el registro falló, se reintenta **solo el registro**.
 - **Sin base64 en la base de datos** y **sin enlaces públicos permanentes**: se leen con el SDK autenticado. Obligatoriedad: ninguna por defecto; el supervisor puede exigir foto al cerrar **por tipo de trabajo**.
-- **Dependencia exacta**: Firebase Storage **habilitado** en la consola (PRUEBAS y PRODUCCIÓN) y `storage.rules.mantenimiento.txt` publicado. El SDK y los buckets ya estaban configurados en `01-config.js` (no se tocó). **El puente de Supabase no admite almacenamiento de archivos**: allí la función se desactiva sola y lo dice; para tener fotos después del 01/11 hace falta que el puente soporte archivos (decisión pendiente, fuera de este alcance).
+- **Almacenamiento: Cloudinary**, el mismo servicio y cuenta que ya usan las hojas de producto terminado (`06-registro.js`: `CLOUDINARY_CLOUD_NAME` y un preset de subida **sin firma**). Carpeta `mantenimiento/{intervención}`; la miniatura es una transformación de la misma imagen. Usa por defecto el preset existente (`glacial_pt`); se recomienda crear uno propio en Cloudinary (subida sin firma, carpeta `mantenimiento`, solo imágenes, tamaño máximo) y fijarlo con `window.MANT_CLOUDINARY_PRESET`. **No usa Firebase Storage** (de pago) ni el API Secret. Funciona igual con Firebase y con el puente de Supabase.
+- **Límite de seguridad de Cloudinary sin firma**: la imagen se sirve con una dirección pública con id aleatorio (no se puede listar ni adivinar, pero quien tenga la dirección exacta puede abrirla). En la base de datos solo se guarda el id, nunca una dirección. Protegerlas de verdad exige firmar las entregas desde un servidor (Cloud Function o función de Supabase), fuera de este alcance. Desde el navegador no se pueden borrar archivos de Cloudinary.
 
 ## Preventivos
 - Plan: equipo, título, descripción, **frecuencia de calendario** (cada N días/semanas/meses), próxima fecha, **política de próxima fecha** (visible), responsable o grupo, ventana prevista, tareas, activo, versión. **No hay frecuencias por horas o ciclos**: no existe un contador fiable y no se deducen del tiempo que la página estuvo abierta.
@@ -66,12 +67,11 @@ Cada número lleva **período, casos y fórmula** (panel «¿Cómo se calculan?�
 ## Permisos y reglas
 - **Ver**: cuenta compartida, Administrador, jefatura/gerencia (consulta), supervisores y quien tenga permisos de Mantenimiento. **Escribir**: cuenta compartida (con técnico identificado) y Supervisor de Mantenimiento/Administrador; **nunca** Jefatura/Gerencia ni cuentas de solo consulta (el servicio lo rechaza aunque se llame directo). No se cambiaron permisos de Producción, Planificación ni Tareo.
 - **Firestore** (`firestore.rules.etapa2.txt`): `intervenciones` (versión + 1, +1 entrada de historial, uid y hora del servidor, campos de origen inmutables, canceladas inmutables, cerradas solo seguimiento/evidencias o corrección de supervisor) y `planesPreventivos` (el supervisor define; la cuenta compartida solo avanza el ciclo). Las reglas validan **quién** y la forma del cambio, no cada texto.
-- **Storage** (`storage.rules.mantenimiento.txt`): solo `intervenciones/{id}/{foto}.jpg`, JPEG ≤ 2 MB, sin borrar, el resto cerrado, lectura solo para quien ve Mantenimiento.
 - **Supabase**: `docs/supabase-mantenimiento.sql` (preparado, sin aplicar).
 
 ## Instalación / publicación (nada se hace solo)
 1. Publicar `firestore.rules.etapa2.txt` (reglas nuevas: `intervenciones`, `planesPreventivos`).
-2. Habilitar Storage y publicar `storage.rules.mantenimiento.txt` en cada proyecto (si no, las fotos fallan con un mensaje de reintento; todo lo demás funciona).
+2. (Opcional) Crear en Cloudinary un preset de subida propio para Mantenimiento y fijarlo con `window.MANT_CLOUDINARY_PRESET`; si no, usa el preset de las hojas de producto terminado.
 3. Cargar el catálogo en **Mantenimiento → Intervenciones → Equipos** (el Supervisor) y los planes en **Preventivos**.
 4. Subir a PRUEBAS cuando lo ordenes: `git push origin mantenimiento-1-intervenciones:pruebas`.
 
@@ -79,7 +79,7 @@ Cada número lleva **período, casos y fórmula** (panel «¿Cómo se calculan?�
 `tests/mantenimiento-intervenciones.test.js`, `mantenimiento-equipos-maestro.test.js`, `mantenimiento-evidencias.test.js`, `mantenimiento-preventivos.test.js`, `mantenimiento-indicadores.test.js` y la página `tests/visual/mantenimiento.html` (datos de prueba; `?u=ana|luis|sup|jefe` para ver cada persona). Cubren: apertura sin duplicados; equipo pendiente y cierre justificado; cierre completo; no operativo con seguimiento; cierre sin reanudar; dos técnicos con la misma cuenta; ediciones concurrentes, doble cierre y permisos; foto fallida, reintento y texto conservado; consulta sin escritura; preventivo vencido, ejecución única, tareas y reprogramación; plan cambiado sin reescribir ejecuciones; MTTR con espera separada y excluidos; MTBF «Datos insuficientes»; avisos de una misma falla sin duplicar; históricos sin equipo; ningún cambio en paradas oficiales, ratio o programación.
 
 ## Qué no se probó / limitaciones
-- Firebase real (reglas, Storage, cuentas) ni Supabase: las pruebas usan una «nube» falsa; la compresión de imágenes y la cámara del celular solo se validaron en su lógica (no con un teléfono físico).
+- Firebase real (reglas, cuentas), Cloudinary real ni Supabase: las pruebas usan una «nube» y un Cloudinary falsos; la compresión de imágenes y la cámara del celular solo se validaron en su lógica (no con un teléfono físico).
 - El servidor no valida el PIN (cuenta compartida) ni el contenido de cada texto.
-- Pendientes que dependen de datos inexistentes: stock de repuestos (Almacén), contador de horas por equipo, integración con Planificación, almacenamiento de archivos bajo Supabase.
+- Pendientes que dependen de datos inexistentes: stock de repuestos (Almacén), contador de horas por equipo, integración con Planificación, fotos protegidas con firma (servidor).
 - «Indisponibilidad» de línea por falla no se calcula aquí.

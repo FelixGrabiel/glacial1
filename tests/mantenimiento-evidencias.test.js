@@ -28,13 +28,12 @@ function nube(){
       throw new Error('aborted');}};
   return N;
 }
-function almacen(){
+function almacen(){                       // Cloudinary falso: subida sin firma que devuelve el public_id
   const A={objetos:new Map(),puts:0,fallar:false,disponible:true,porRuta:{}};
-  A.ref=ruta=>{
-    if(!A.disponible)throw new Error('GLACIAL · el almacenamiento de archivos de Firebase no se usa.');
-    return {put(blob,meta){A.puts++;A.porRuta[ruta]=(A.porRuta[ruta]||0)+1;
-      return {on(ev,prog,err,fin){setTimeout(()=>{if(A.fallar){err(new Error('network-error'));return;}prog({bytesTransferred:1,totalBytes:1});A.objetos.set(ruta,{blob,meta});fin();},1);}};}};
-  };
+  A.subir=(id,carpeta,blob,meta,prog)=>new Promise((ok,er)=>setTimeout(()=>{
+    if(A.fallar){er(new Error('network-error'));return;}
+    const pid=carpeta+'/'+id;A.puts++;A.porRuta[pid]=(A.porRuta[pid]||0)+1;A.objetos.set(pid,{blob,meta});if(prog)prog(1);ok({publicId:pid});},1));
+  A.url=(p,m)=>'https://res.cloudinary.com/demo/image/upload/'+(m?'c_fill,w_320,h_320/':'')+p+'.jpg';
   return A;
 }
 function dispositivo(N,A,o){
@@ -65,7 +64,7 @@ const preparado=()=>async()=>({blob:{size:300000},thumb:{size:20000},ancho:1600,
   const d1=E.dimensiones(4000,3000,1600),d2=E.dimensiones(800,600,1600),d3=E.dimensiones(3000,4000,320);
   ok(d1.ancho===1600&&d1.alto===1200&&d2.ancho===800&&d2.alto===600&&d3.ancho===240&&d3.alto===320,'la compresión reduce el lado mayor a 1600 px (miniatura 320 px) y nunca agranda');
   ok(E.LIM.maxComprimidoBytes<=1.5*1024*1024&&E.LIM.maxLado===1600,'límites razonables definidos (≈1,2 MB por foto)');
-  ok(E.rutaDe('o_PET1-9','ev_1',false)==='intervenciones/o_PET1-9/ev_1.jpg'&&E.rutaDe('a/b','e v',true)==='intervenciones/a-b/e-v_t.jpg','rutas de almacenamiento saneadas, siempre bajo intervenciones/{id}');
+  ok(E.carpetaDe('o_PET1-9')==='mantenimiento/o_PET1-9'&&E.carpetaDe('a/b c')==='mantenimiento/a-b-c','carpeta de Cloudinary saneada, siempre bajo mantenimiento/{intervención}');
 
   /* ---------- flujo con la misma cuenta ---------- */
   const N=nube(),A=almacen();
@@ -84,7 +83,7 @@ const preparado=()=>async()=>({blob:{size:300000},thumb:{size:20000},ancho:1600,
   A.fallar=false;
   const r2=await EV.procesar('ev_fijo1');
   const d=N.docs.get('intervenciones/'+id);
-  ok(r2.ok&&d.evidencias.length===1&&d.evidencias[0].id==='ev_fijo1'&&d.evidencias[0].path==='intervenciones/'+id+'/ev_fijo1.jpg'&&A.objetos.has(d.evidencias[0].path)&&A.objetos.has(d.evidencias[0].thumb),'reintento: se sube y recién entonces se registra la referencia (foto + miniatura)');
+  ok(r2.ok&&d.evidencias.length===1&&d.evidencias[0].id==='ev_fijo1'&&d.evidencias[0].path==='mantenimiento/'+id+'/ev_fijo1'&&d.evidencias[0].proveedor==='cloudinary'&&A.objetos.has(d.evidencias[0].path)&&!('url' in d.evidencias[0]),'reintento: se sube y recién entonces se registra la referencia (solo el id de Cloudinary, nunca una dirección)');
   ok(EV.pendientesDe(id).length===0&&A.porRuta[d.evidencias[0].path]===1,'la cola queda vacía; la ruta es la misma (id fijo) y no hay archivos huérfanos distintos');
   ok(d.historial[d.historial.length-1].accion==='EVIDENCIA'&&d.evidencias[0].por.nombre==='Ana Pérez'&&d.evidencias[0].por.uid==='uid-cuenta'&&d.evidencias[0].seccion==='PROBLEMA'&&d.evidencias[0].descripcion==='Manguera suelta'&&d.evidencias[0].en>0,'la referencia lleva autor (técnico y cuenta), fecha, sección y descripción, y deja historial');
   ok(JSON.stringify(d).indexOf('data:image')<0&&JSON.stringify(d).indexOf('base64')<0&&!('blob' in d.evidencias[0]),'no se guarda ninguna imagen (base64) en el documento');
@@ -92,7 +91,7 @@ const preparado=()=>async()=>({blob:{size:300000},thumb:{size:20000},ancho:1600,
   N.fallaSoloEvidencia=true;
   const putsAntes=A.puts;
   const r3=await EV.agregar({intervencionId:id,seccion:'TRABAJO',descripcion:'Cambio de manguera',archivo,preparar:preparado(),id:'ev_fijo2'});
-  ok(!r3.ok&&r3.etapa==='registrar'&&EV.estados.get('ev_fijo2').estado==='SUBIDA_SIN_REGISTRO'&&A.objetos.has('intervenciones/'+id+'/ev_fijo2.jpg'),'subida correcta y registro fallido: estado «subida; registro pendiente»');
+  ok(!r3.ok&&r3.etapa==='registrar'&&EV.estados.get('ev_fijo2').estado==='SUBIDA_SIN_REGISTRO'&&A.objetos.has('mantenimiento/'+id+'/ev_fijo2'),'subida correcta y registro fallido: estado «subida; registro pendiente»');
   N.fallaSoloEvidencia=false;
   const putsMedio=A.puts;
   const r4=await EV.procesar('ev_fijo2');
@@ -135,10 +134,12 @@ const preparado=()=>async()=>({blob:{size:300000},thumb:{size:20000},ancho:1600,
   /* 8) anular */
   const an=await sb2.glacialIntervenciones.accion(o2.doc.id,'ANULAR_EVIDENCIA',{id:'ev_c2',motivo:'Foto borrosa'});
   ok(an.evidencias.find(e=>e.id==='ev_c2').anulada&&an.evidencias.length===2,'anular conserva el registro con motivo (el archivo no se borra)');
-  /* 9) reglas */
-  const reglas=leer('storage.rules.mantenimiento.txt');
-  ok(/allow delete: if false/.test(reglas)&&/request\.resource\.contentType == 'image\/jpeg'/.test(reglas)&&/2 \* 1024 \* 1024/.test(reglas)&&/match \/\{todo=\*\*\}/.test(reglas)&&!/allow read: if true/.test(reglas),'reglas de Storage: solo JPEG de hasta 2 MB bajo intervenciones/, sin borrar, el resto cerrado y sin lectura pública');
-  ok(/puedeEscribirFotos\(\)/.test(reglas)&&/esJefatura\(\)/.test(reglas),'las escribe quien opera Mantenimiento; Jefatura/Gerencia solo consulta');
+  /* 9) Cloudinary (mismo servicio que 06-registro.js), sin Storage de Firebase */
+  const src=leer('js/mantenimiento/67d-intervenciones-evidencias.js'),sinCom=src.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,'');
+  ok(/CLOUDINARY_CLOUD_NAME/.test(src)&&/CLOUDINARY_UPLOAD_PRESET/.test(src)&&/api\.cloudinary\.com/.test(src),'usa el Cloudinary que ya usa Producción (cloud y preset existentes)');
+  ok(!/api_secret|API_SECRET|signature|firebase\.storage|storage\.ref|\.getDownloadURL/.test(sinCom),'no usa Firebase Storage ni el API Secret de Cloudinary (subida sin firma)');
+  ok(!fs.existsSync(R+'/storage.rules.mantenimiento.txt'),'ya no hay reglas de Storage que publicar');
+  ok(/\/\/res\.cloudinary\.com|res\.cloudinary\.com/.test(src)&&!/data:image|base64/.test(sinCom),'las imágenes se sirven por dirección derivada del id; ninguna imagen en base64');
   const idx=leer('index.html');
   ok(idx.indexOf('67c-intervenciones-pantalla.js')<idx.indexOf('67d-intervenciones-evidencias.js'),'index.html carga evidencias después de la pantalla');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
