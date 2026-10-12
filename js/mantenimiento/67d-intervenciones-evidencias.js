@@ -23,7 +23,7 @@
   const UIM=()=>window.glacialMantUI;
   const esc=t=>typeof escaparHtml==='function'?escaparHtml(t):String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-  const LIM={maxOriginalBytes:15*1024*1024,maxLado:1600,maxLadoMini:320,calidades:[0.72,0.6,0.5,0.4],maxComprimidoBytes:1200*1024,maxMiniBytes:80*1024,
+  const LIM={maxOriginalBytes:15*1024*1024,maxLado:1600,maxLadoMini:320,niveles:[0.72,0.6,0.5,0.4],maxComprimidoBytes:1200*1024,maxMiniBytes:80*1024,
     formatos:['image/jpeg','image/png','image/webp','image/heic','image/heif']};
 
   /* ---------- validación y cálculo (puros) ---------- */
@@ -55,12 +55,12 @@
       img.src=url;
     });
   }
-  function aBlob(canvas,calidad){return new Promise((ok,er)=>canvas.toBlob(b=>b?ok(b):er(new Error('No se pudo comprimir la imagen.')),'image/jpeg',calidad));}
-  async function reducir(origen,w,h,max,maxBytes,calidades){
+  function aBlob(canvas,nivelJpeg){return new Promise((ok,er)=>canvas.toBlob(b=>b?ok(b):er(new Error('No se pudo comprimir la imagen.')),'image/jpeg',nivelJpeg));}
+  async function reducir(origen,w,h,max,maxBytes,niveles){
     const d=dimensiones(w,h,max),c=document.createElement('canvas');c.width=d.ancho;c.height=d.alto;
     const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,d.ancho,d.alto);g.drawImage(origen,0,0,d.ancho,d.alto);
     let blob=null;
-    for(const q of calidades){blob=await aBlob(c,q);if(blob.size<=maxBytes)break;}
+    for(const q of niveles){blob=await aBlob(c,q);if(blob.size<=maxBytes)break;}
     if(!blob||blob.size>maxBytes*1.6)throw new Error('La imagen sigue siendo demasiado pesada después de comprimirla.');
     return {blob,ancho:d.ancho,alto:d.alto};
   }
@@ -69,7 +69,7 @@
     const e=validarArchivo(file);if(e)throw new Error(e);
     const img=await decodificar(file);
     const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
-    const grande=await reducir(img,w,h,LIM.maxLado,LIM.maxComprimidoBytes,LIM.calidades);
+    const grande=await reducir(img,w,h,LIM.maxLado,LIM.maxComprimidoBytes,LIM.niveles);
     const mini=await reducir(img,w,h,LIM.maxLadoMini,LIM.maxMiniBytes,[0.6,0.5,0.4]);
     if(img.close)try{img.close();}catch(_){/* ya liberada */}
     return {blob:grande.blob,thumb:mini.blob,ancho:grande.ancho,alto:grande.alto,tam:grande.blob.size};
