@@ -1,3 +1,8 @@
+-- ⚠ NO EJECUTAR: este archivo quedó REEMPLAZADO por la migración glacial_21_listas_partidas_mantenimiento (supabase/migraciones/), ya aplicada en PRUEBAS y
+-- PRODUCCIÓN el 12-10-2026. Tenía un error: el puente guarda aparte las listas de objetos con id (historial, tareas…) y esas listas no llegan dentro de «n» en
+-- glacial_fs.autorizar, así que jsonb_typeof(n->'historial') = 'array' rechazaba el guardado. glacial_21 usa glacial_fs.largo() y meta->'partes_tocadas'.
+-- Se conserva solo como referencia histórica.
+--
 -- Reglas de Supabase para «intervenciones» y «planesPreventivos» (equivalentes a los bloques match /intervenciones/{id} y /planesPreventivos/{id} de
 -- firestore.rules.etapa2.txt). NO SE HAN APLICADO: preparado para revisar y aplicar primero en PRUEBAS (mvxjopvnnagqytegtexi) y después en PRODUCCION
 -- (ehtbwmvwoxcdefvlxttu), como el resto de cambios de reglas (docs/puente-supabase.md). Agrega una rama a glacial_fs.puede_leer y a glacial_fs.autorizar sin tocar
