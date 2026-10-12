@@ -4,8 +4,8 @@
    · Tomar una foto o elegir una existente; adjuntarla al PROBLEMA, al TRABAJO REALIZADO o al CIERRE, con descripción opcional; miniaturas y vista completa.
    · COMPRESIÓN en el dispositivo (lado máximo 1600 px, JPEG ≤ ~1,2 MB) y validación de formato y tamaño ANTES de subir.
    · ALMACENAMIENTO: CLOUDINARY, el mismo servicio y la misma cuenta que ya usan las hojas de producto terminado (06-registro.js: CLOUDINARY_CLOUD_NAME y
-     preset de subida SIN firma; el API Secret NO se usa ni se guarda aquí). Carpeta mantenimiento/{intervención}. Por defecto usa el preset existente
-     (CLOUDINARY_UPLOAD_PRESET); se puede crear uno propio y fijarlo con window.MANT_CLOUDINARY_PRESET. La miniatura es una transformación de la misma imagen
+     (cloud) con su propio preset de subida SIN firma, «glacial_mant» (carpeta mantenimiento); el API Secret NO se usa ni se guarda aquí. Se puede
+     cambiar con window.MANT_CLOUDINARY_PRESET. La miniatura es una transformación de la misma imagen
      (no se sube dos veces). Funciona igual con Firebase y con el puente de Supabase.
    · SEGURIDAD (límite real de Cloudinary sin firma): la imagen se sirve con una dirección pública con un id aleatorio (no se puede listar ni adivinar, pero
      quien tenga la dirección exacta puede abrirla). Por eso en la base de datos solo se guarda el id (public_id), nunca una dirección, y NO se guarda ninguna
@@ -80,7 +80,8 @@
 
   /* ---------- almacenamiento de archivos: Cloudinary (subida sin firma, igual que 06-registro.js) ---------- */
   const nube=()=>window.MANT_CLOUDINARY_CLOUD||(typeof CLOUDINARY_CLOUD_NAME!=='undefined'?CLOUDINARY_CLOUD_NAME:'');
-  const preset=()=>window.MANT_CLOUDINARY_PRESET||(typeof CLOUDINARY_UPLOAD_PRESET!=='undefined'?CLOUDINARY_UPLOAD_PRESET:'');
+  const PRESET_MANTENIMIENTO='glacial_mant';          // preset propio (subida sin firma, carpeta mantenimiento) creado en Cloudinary
+  const preset=()=>window.MANT_CLOUDINARY_PRESET||PRESET_MANTENIMIENTO;
   const Archivos={
     prueba(){return window.__archivosPrueba||null;},
     disponible(){

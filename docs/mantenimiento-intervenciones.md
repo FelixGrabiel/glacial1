@@ -41,7 +41,7 @@ Rama `mantenimiento-1-intervenciones` (desde `main`). No se publicó nada ni se 
 - **Orden seguro**: primero se sube el archivo y **solo después** se registra la referencia. Nunca queda una referencia a un archivo inexistente. El texto de la intervención no depende de la foto: «Registro guardado» ≠ «Foto pendiente de subir».
 - **Reintento sin duplicados**: id fijo por foto (misma ruta); lo pendiente se guarda en el dispositivo (IndexedDB) y se reanuda solo; si el archivo ya subió pero el registro falló, se reintenta **solo el registro**.
 - **Sin base64 en la base de datos** y **sin enlaces públicos permanentes**: se leen con el SDK autenticado. Obligatoriedad: ninguna por defecto; el supervisor puede exigir foto al cerrar **por tipo de trabajo**.
-- **Almacenamiento: Cloudinary**, el mismo servicio y cuenta que ya usan las hojas de producto terminado (`06-registro.js`: `CLOUDINARY_CLOUD_NAME` y un preset de subida **sin firma**). Carpeta `mantenimiento/{intervención}`; la miniatura es una transformación de la misma imagen. Usa por defecto el preset existente (`glacial_pt`); se recomienda crear uno propio en Cloudinary (subida sin firma, carpeta `mantenimiento`, solo imágenes, tamaño máximo) y fijarlo con `window.MANT_CLOUDINARY_PRESET`. **No usa Firebase Storage** (de pago) ni el API Secret. Funciona igual con Firebase y con el puente de Supabase.
+- **Almacenamiento: Cloudinary**, el mismo servicio y cuenta que ya usan las hojas de producto terminado (`06-registro.js`: `CLOUDINARY_CLOUD_NAME` y un preset de subida **sin firma**). Carpeta `mantenimiento/{intervención}`; la miniatura es una transformación de la misma imagen. Usa su propio preset de subida sin firma, **`glacial_mant`** (carpeta `mantenimiento`); se puede cambiar con `window.MANT_CLOUDINARY_PRESET`. **No usa Firebase Storage** (de pago) ni el API Secret. Funciona igual con Firebase y con el puente de Supabase.
 - **Límite de seguridad de Cloudinary sin firma**: la imagen se sirve con una dirección pública con id aleatorio (no se puede listar ni adivinar, pero quien tenga la dirección exacta puede abrirla). En la base de datos solo se guarda el id, nunca una dirección. Protegerlas de verdad exige firmar las entregas desde un servidor (Cloud Function o función de Supabase), fuera de este alcance. Desde el navegador no se pueden borrar archivos de Cloudinary.
 
 ## Preventivos
@@ -71,7 +71,7 @@ Cada número lleva **período, casos y fórmula** (panel «¿Cómo se calculan?�
 
 ## Instalación / publicación (nada se hace solo)
 1. Publicar `firestore.rules.etapa2.txt` (reglas nuevas: `intervenciones`, `planesPreventivos`).
-2. (Opcional) Crear en Cloudinary un preset de subida propio para Mantenimiento y fijarlo con `window.MANT_CLOUDINARY_PRESET`; si no, usa el preset de las hojas de producto terminado.
+2. En Cloudinary debe existir el preset **`glacial_mant`** (Unsigned, «Disallow public ID» apagado, formatos jpg/png/webp, overwrite apagado) y «Strict transformations» desactivado o con `c_fill,w_320,h_320,q_auto,f_auto` y `q_auto` permitidos.
 3. Cargar el catálogo en **Mantenimiento → Intervenciones → Equipos** (el Supervisor) y los planes en **Preventivos**.
 4. Subir a PRUEBAS cuando lo ordenes: `git push origin mantenimiento-1-intervenciones:pruebas`.
 

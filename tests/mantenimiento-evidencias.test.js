@@ -136,7 +136,7 @@ const preparado=()=>async()=>({blob:{size:300000},thumb:{size:20000},ancho:1600,
   ok(an.evidencias.find(e=>e.id==='ev_c2').anulada&&an.evidencias.length===2,'anular conserva el registro con motivo (el archivo no se borra)');
   /* 9) Cloudinary (mismo servicio que 06-registro.js), sin Storage de Firebase */
   const src=leer('js/mantenimiento/67d-intervenciones-evidencias.js'),sinCom=src.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,'');
-  ok(/CLOUDINARY_CLOUD_NAME/.test(src)&&/CLOUDINARY_UPLOAD_PRESET/.test(src)&&/api\.cloudinary\.com/.test(src),'usa el Cloudinary que ya usa Producción (cloud y preset existentes)');
+  ok(/CLOUDINARY_CLOUD_NAME/.test(src)&&/glacial_mant/.test(src)&&/api\.cloudinary\.com/.test(src),'usa el Cloudinary que ya usa Producción (cloud y preset existentes)');
   ok(!/api_secret|API_SECRET|signature|firebase\.storage|storage\.ref|\.getDownloadURL/.test(sinCom),'no usa Firebase Storage ni el API Secret de Cloudinary (subida sin firma)');
   ok(!fs.existsSync(R+'/storage.rules.mantenimiento.txt'),'ya no hay reglas de Storage que publicar');
   ok(/\/\/res\.cloudinary\.com|res\.cloudinary\.com/.test(src)&&!/data:image|base64/.test(sinCom),'las imágenes se sirven por dirección derivada del id; ninguna imagen en base64');
