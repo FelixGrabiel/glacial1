@@ -289,7 +289,7 @@
     if(!(fin>0))errores.push('Indica la fecha y hora real de finalización.');
     else{
       if(fin>ahora+5*60000)errores.push('La hora real de finalización no puede estar en el futuro.');
-      if(fin<inicio)errores.push('La finalización no puede ser anterior al inicio del trabajo.');
+      if(fin<inicio-59999)errores.push('La finalización no puede ser anterior al inicio del trabajo.');   // el formulario captura minutos: se tolera el redondeo de hasta 1 minuto
       if(fin<num(d.abiertaMs)-60000)errores.push('La finalización no puede ser anterior a la apertura.');
     }
     if(!(num(d.inicioRealMs)||num(p.inicioRealMs)))avisos.push('No se registró el inicio real: se tomará la apertura.');

@@ -28,6 +28,7 @@ const ref=(c,id)=>({__c:c,__id:id,__k:c+'/'+id,get:async()=>{const d=leerNube().
 const cons=(c,fil,ord,lim)=>({where:(f,op,v)=>cons(c,fil.concat([[f,op,v]]),ord,lim),orderBy:(f,d)=>cons(c,fil,[f,d],lim),limit:n=>cons(c,fil,ord,n),
   _l(){let l=Object.entries(leerNube().docs).filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({id:k.slice(c.length+1),v}));
     fil.forEach(([f,op,v])=>{l=l.filter(x=>op==='=='?x.v[f]===v:Number(x.v[f])>=v);});if(ord)l.sort((a,b)=>Number(b.v[ord[0]])-Number(a.v[ord[0]]));if(lim)l=l.slice(0,lim);return l.map(x=>({id:x.id,data:()=>clon(x.v)}));},
+  get(){return Promise.resolve({docs:this._l()});},
   onSnapshot(cb){const f=()=>cb({docs:this._l()});oy.push(f);f();return()=>{oy.splice(oy.indexOf(f),1);};}});
 const db={collection:c=>Object.assign(cons(c,[],null,0),{doc:id=>ref(c,id)}),
   runTransaction:async fn=>{for(let i=0;i<5;i++){const lect={},w=[];
@@ -69,6 +70,11 @@ function sembrar(){
     base('i5','B7L','eq_4','Compresor central','CORRECTIVO','ALTA','Presión baja en la red de aire','CERRADA',{abierta:false,inicioRealMs:ahora-50*3600000,finRealMs:ahora-48*3600000,cerradaMs:ahora-47*3600000,diagnostico:'Filtro de admisión obstruido',accion:'Se limpió el filtro; sigue con vibración',resultado:'NO_OPERATIVO',pendientes:'Cambiar el rodamiento del motor; hasta entonces opera limitado',sinRepuestos:true,cierre:{por,en:ahora-47*3600000,responsable:{tecnicoId:'w1',nombre:'Ana Pérez'},requiereSeguimiento:true}})
   ];
   docs.forEach(d=>{n.docs['intervenciones/'+d.id]=d;n.ver['intervenciones/'+d.id]=2;});
+  const hoy0=new Date(ahora).toISOString().slice(0,10),mas=d=>new Date(ahora+d*86400000).toISOString().slice(0,10);
+  const pl=(id,tit,eqid,eqn,li,prox,extra)=>Object.assign({id,rev:1,version:1,equipoId:eqid,equipoNombre:eqn,linea:li,titulo:tit,descripcion:'',frecuencia:{tipo:'MESES',cada:1},politica:'CALENDARIO',proximaFecha:prox,fechaOriginal:prox,ventana:{inicio:'13:00',fin:'14:00'},responsable:{tipo:'GRUPO',grupo:'MANTENIMIENTO'},tareas:[{id:'t1',titulo:'Lubricar rodamientos'},{id:'t2',titulo:'Revisar la tensión de la faja'}],avisoDias:7,activo:true,reprogramaciones:[],ultimaEjecucion:null,historialPlan:[]},extra||{});
+  n.docs['planesPreventivos/pl1']=pl('pl1','Lubricación mensual','eq_1','Sopladora 1','PET1',mas(-3));
+  n.docs['planesPreventivos/pl2']=pl('pl2','Revisión de válvulas','eq_2','Envasadora','PET1',mas(4));
+  n.docs['planesPreventivos/pl3']=pl('pl3','Cambio de filtros','eq_4','Compresor central','PET1',mas(20),{ultimaEjecucion:{fecha:mas(-10),por:{nombre:'Ana Pérez'},tareasHechas:2,tareasNoHechas:0},fechaOriginal:mas(10),reprogramaciones:[{id:'r1',original:mas(10),anterior:mas(10),nueva:mas(20),motivo:'Se solapa con producción',por:{nombre:'Ana Pérez'},en:ahora}]});
   const hoy=new Date().toISOString().slice(0,10);
   n.docs['sync/programaciones']={items:[{linea:'B20L',fecha:hoy,turno:'DÍA',marca:'Fontlife',presentacion:'20 Litros',cantidadProgramada:1000,estadoOperacion:{estado:'DETENIDA',motivo:'Falla de máquina',equipo:'Lavadora',detenidaDesde:ahora-40*60000,paradas:[{id:'B20L|99|det',inicio:ahora-40*60000,fin:0}]}}]};
   escribirNube(n);
@@ -78,7 +84,7 @@ document.getElementById('reiniciar').onclick=()=>{sembrar();avisar();};
   if(!localStorage.getItem(KEY)||Q.get('seed')==='1')sembrar();
   const cargar=s=>new Promise((ok,er)=>{const e=document.createElement('script');e.src=s;e.onload=ok;e.onerror=er;document.head.appendChild(e);});
   const extra=(Q.get('mods')||'').split(',').filter(Boolean);
-  for(const f of ['37d-equipos-maestro','67-intervenciones-motor','67b-intervenciones-datos','67c-intervenciones-pantalla'].concat(extra))await cargar('js/mantenimiento/'+f+'.js');
+  for(const f of ['37d-equipos-maestro','67-intervenciones-motor','67b-intervenciones-datos','67c-intervenciones-pantalla','67d-intervenciones-evidencias','67e-preventivos','67f-indicadores-equipo'].concat(extra))await cargar('js/mantenimiento/'+f+'.js');
   goIntervenciones();window.__listo=true;
 })();
 </script></body></html>

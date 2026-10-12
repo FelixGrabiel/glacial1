@@ -172,6 +172,13 @@
       origen:{tipo:p.eventoId?'EVENTO':'PARADA',id:p.paradaId||p.eventoId||'',paradaId:p.paradaId||'',eventoId:p.eventoId||''}},opc);
   }
 
+  /* Cerradas desde una fecha (lectura puntual, hasta 500) para los indicadores; parcial = se alcanzó el límite. */
+  async function historicoDesde(desdeMs){
+    if(!permisos().ver)throw new Error('No tienes permiso para ver las intervenciones.');
+    const snap=await db.collection(COLECCION).where('cerradaMs','>=',desdeMs).orderBy('cerradaMs','desc').limit(500).get();
+    const docs=snap.docs.map(d=>docDe(d.id,d.data({serverTimestamps:'estimate'})));
+    return {docs,parcial:docs.length>=500};
+  }
   /* Intervenciones de un equipo (lectura puntual, hasta 100): para consultar sus fotos e historial. */
   async function porEquipo(equipoId){
     if(!permisos().ver)throw new Error('No tienes permiso para ver las intervenciones.');
@@ -179,7 +186,7 @@
     return snap.docs.map(d=>docDe(d.id,d.data({serverTimestamps:'estimate'}))).sort((a,b)=>b.abiertaMs-a.abiertaMs);
   }
 
-  window.glacialIntervenciones={COLECCION,porEquipo,permisos,quienActua,abrir,accion,abrirDesdeParada,todas,porId,abiertas:()=>[...S.abiertas.values()],cerradas:()=>[...S.cerradas.values()],
+  window.glacialIntervenciones={COLECCION,porEquipo,historicoDesde,permisos,quienActua,abrir,accion,abrirDesdeParada,todas,porId,abiertas:()=>[...S.abiertas.values()],cerradas:()=>[...S.cerradas.values()],
     estado:()=>({listoAbiertas:S.listoAbiertas,listoCerradas:S.listoCerradas,errorAbiertas:S.errorAbiertas,errorCerradas:S.errorCerradas,cerradasPedidas:S.cerradasPedidas}),
     escucharAbiertas,escucharCerradas,detener,alCambiar:f=>{if(typeof f==='function'&&!oyentes.includes(f))oyentes.push(f);},recordar,control};
 })();
