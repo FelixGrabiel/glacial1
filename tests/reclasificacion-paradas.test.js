@@ -104,7 +104,7 @@ function dispositivo(usuario,opc){
   /* ---------- Análisis de paradas (47): mismos minutos, otra etiqueta ---------- */
   const s47=leer('js/produccion/47-analisis-paradas.js');
   const sb2={console,Math,Number,Array,Object,String,Date,JSON,Map,Set,RegExp};vm.createContext(sb2);sb2.window={glacialEquipos:{esFalla:x=>adm.glacialMotivosParada.pideEquipo(x)}};
-  vm.runInContext('const SIN_TECNICO="Sin técnico";const nombreLinea=x=>x;const num=n=>Number(n)||0;const esc=t=>String(t==null?"":t);const fmt=n=>String(Math.round(num(n)));const fmtFecha=f=>f;'+extraer(s47,'equipoDeParada')+extraer(s47,'etiquetaMotivo')+extraer(s47,'causaDeParada')+extraer(s47,'motivoDeParada')+extraer(s47,'armarPareto')+extraer(s47,'bloqueReclasificadas')+'this.f=armarPareto;this.b=bloqueReclasificadas;',sb2);
+  vm.runInContext('const SIN_TECNICO="Sin técnico";const nombreLinea=x=>x;const num=n=>Number(n)||0;const esc=t=>String(t==null?"":t);const fmt=n=>String(Math.round(num(n)));const fmtFecha=f=>f;'+extraer(s47,'equipoDeParada')+extraer(s47,'etiquetaMotivo')+extraer(s47,'causaDeParada')+extraer(s47,'motivoDeParada')+extraer(s47,'claveDe')+extraer(s47,'armarPareto')+extraer(s47,'bloqueReclasificadas')+'this.f=armarPareto;this.b=bloqueReclasificadas;',sb2);
   const otro2=Object.assign({},orig,{id:'avp_9',minutos:30,motivo:'otra'});
   const mk=x=>Object.assign({},x);
   const unidadSin=[{linea:'PET1',turno:'DÍA',ajusteNp:0,ajusteProg:0,pItems:[],npItems:[mk(orig),mk(otro2)]}];

@@ -18,6 +18,7 @@ const PERMITIDO=[
   /Técnico de Calidad/,                           // cargo
   /Charla de Ingreso Sup\. Calid\./,              // parada programada
   /Calidad \/ producto no conforme/,              // motivo de parada
+  /calidad del dato/i,                            // «Calidad del dato» de Análisis de paradas (qué tan completos están los datos, no el indicador)
   /alertas de calidad de datos|ALERTAS DE CALIDAD DE DATOS/,   // calidad de los DATOS (hoja de alertas del Excel general)
   /^\s*Calidad:\s*$|JPEG|quality/                 // compresión de imágenes
 ];

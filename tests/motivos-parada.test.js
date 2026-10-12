@@ -99,7 +99,7 @@ function dispositivo(usuario,opc){
   /* ---------- Análisis de paradas (47) ---------- */
   const s47=leer('js/produccion/47-analisis-paradas.js');
   const sb2={console,Math,Number,Array,Object,String,Date,JSON,Map,Set,RegExp};vm.createContext(sb2);sb2.window={glacialEquipos:{esFalla:x=>M.pideEquipo(x)}};
-  vm.runInContext('const SIN_TECNICO="Sin técnico";const nombreLinea=x=>x;'+extraer(s47,'equipoDeParada')+extraer(s47,'etiquetaMotivo')+extraer(s47,'causaDeParada')+extraer(s47,'motivoDeParada')+extraer(s47,'armarPareto')+'this.f=armarPareto;',sb2);
+  vm.runInContext('const SIN_TECNICO="Sin técnico";const nombreLinea=x=>x;'+extraer(s47,'equipoDeParada')+extraer(s47,'etiquetaMotivo')+extraer(s47,'causaDeParada')+extraer(s47,'motivoDeParada')+extraer(s47,'claveDe')+extraer(s47,'armarPareto')+'this.f=armarPareto;',sb2);
   const it=(causa,motivoCat,mot,min,eq)=>({motivo:mot,motivoCat,causa,minutos:min,clasif:'NO_PROGRAMADA',equipo:eq||''});
   const us=[{linea:'PET1',turno:'DÍA',ajusteNp:0,ajusteProg:0,pItems:[],npItems:[
     it('Ajuste o calibración','Calibración','Calibración — a',20,'Envasadora'),it('Ajuste o calibración','Llenado lento','Llenado lento',10),it('Ajuste o calibración','Calibración','Calibración',5,'Envasadora'),
@@ -122,8 +122,8 @@ function dispositivo(usuario,opc){
   ok(/registroMotivoHtml/.test(s06)&&/paradaCatCampos/.test(s06)&&/causasParadaOpciones/.test(s06)&&/registroCatalogoActivo\(p\)/.test(s06),'Nuevo registro: motivo y detalle del catálogo; las filas antiguas conservan el texto libre');
   ok((s23.match(/motivoCat:/g)||[]).length>=3&&/e.motivoCat=p.motivoCat/.test(s23),'23b pasa causa, motivo y detalle a paradasClasificadas sin tocar minutos');
   ok(/esFallaMotivo\(e\.causa\|\|e\.motivo\)/.test(s43)&&/esFallaMotivo\(p\.causa\|\|p\.motivo\)/.test(s43),'Bitácora: el equipo se pide según la causa');
-  ok(html.indexOf('37e-motivos-parada.js')>html.indexOf('37c-equipos-catalogo.js')&&html.indexOf('37e-motivos-parada.js')>html.indexOf('37d-equipos-maestro.js')&&/37e-motivos-parada\.js\?v=20261012-pm1/.test(html),'index.html carga 37e después de 37c y 37d');
-  ok(['06-registro','08-graficos','23b-tiempos-linea','24-semaforo-produccion-actual','29-avance-produccion','37c-equipos-catalogo','43-bitacora-mantenimiento','47-analisis-paradas'].every(n=>new RegExp(n+'\\.js\\?v=20261012-(pm|rc)1').test(html)),'versión ?v= de los scripts tocados subida');
+  ok(html.indexOf('37e-motivos-parada.js')>html.indexOf('37c-equipos-catalogo.js')&&html.indexOf('37e-motivos-parada.js')>html.indexOf('37d-equipos-maestro.js')&&/37e-motivos-parada\.js\?v=20261012-(pm|am)1/.test(html),'index.html carga 37e después de 37c y 37d');
+  ok(['06-registro','08-graficos','23b-tiempos-linea','24-semaforo-produccion-actual','29-avance-produccion','37c-equipos-catalogo','43-bitacora-mantenimiento','47-analisis-paradas'].every(n=>new RegExp(n+'\\.js\\?v=20261012-(pm|rc|am)1').test(html)),'versión ?v= de los scripts tocados subida');
   ok(/Falla de máquina/.test(s37e)&&/Calidad \/ producto no conforme/.test(s37e)&&/CAUSAS_PARADA_NO_PROGRAMADA/.test(s06)&&/CAUSAS_PARADA_NO_PROGRAMADA/.test(leer('js/nucleo/01-config.js')),'las listas fijas quedan como respaldo');
   ok(!/[^.\w]alert\(|[^.\w]confirm\(|[^.\w]prompt\(/.test(s37e.replace(/\/\/.*$/gm,''))&&!/arrayUnion|increment\(|array-contains|'!='/.test(s37e.replace(/\/\*[^]*?\*\//g,'')),'37e: sin alert/confirm/prompt y compatible con el puente de Supabase');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

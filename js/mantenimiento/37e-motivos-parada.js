@@ -12,6 +12,7 @@
    para que todo lo que hoy lee «descripcion» siga funcionando. Las paradas antiguas conservan su causa y su descripción tal cual.
    Se mantienen los textos exactos «Falla de máquina» y «Calidad / producto no conforme» (otras partes los buscan por nombre): no se renombran ni se desactivan.
    «Otro» exige un detalle de al menos 10 caracteres.
+   Umbrales de Análisis de paradas (mismo documento, campo analisisParadas): fallas repetitivas (N paradas por falla del mismo equipo en D días) y metas del dato limpio (verde/ámbar de % en «Otro» o sin causa, % de fallas sin equipo y % de paradas largas sin hora). Los edita el mismo supervisor desde «Motivos de parada».
    Cargar después de 37c-equipos-catalogo.js (que le delega «¿esta causa pide equipo?»).
    ============================================================= */
 (function(){
@@ -42,7 +43,27 @@
     causa('Otro',false,['Otro'],{exigeDetalle:true})
   ]);
 
-  let catalogo=null,listo=false,desub=null,reintento=null;
+  /* ---------- umbrales de Análisis de paradas ---------- */
+  const ANALISIS_DEFECTO=Object.freeze({fallasUmbral:3,fallasDias:7,otroVerde:10,otroAmbar:25,sinEquipoVerde:10,sinEquipoAmbar:25,sinHoraVerde:10,sinHoraAmbar:25});
+  function normalizarAnalisis(o){
+    const sal=Object.assign({},ANALISIS_DEFECTO),x=o&&typeof o==='object'?o:{};
+    Object.keys(ANALISIS_DEFECTO).forEach(k=>{const n=Number(x[k]);if(x[k]!==undefined&&x[k]!==null&&x[k]!==''&&Number.isFinite(n))sal[k]=n;});
+    return sal;
+  }
+  /* Error legible o '' si los umbrales son válidos. */
+  function validarAnalisis(v){
+    const a=normalizarAnalisis(v);
+    if(!Number.isInteger(a.fallasUmbral)||a.fallasUmbral<2||a.fallasUmbral>20)return 'El número de paradas por falla debe ser un entero entre 2 y 20.';
+    if(!Number.isInteger(a.fallasDias)||a.fallasDias<1||a.fallasDias>31)return 'Los días de la ventana deben ser un entero entre 1 y 31.';
+    for(const [n,k] of [['«Otro» o sin causa','otro'],['fallas sin equipo','sinEquipo'],['paradas largas sin hora','sinHora']]){
+      const ve=a[k+'Verde'],am=a[k+'Ambar'];
+      if(!(ve>=0&&ve<=100&&am>=0&&am<=100))return 'Las metas de «'+n+'» deben estar entre 0 y 100 %.';
+      if(ve>am)return 'En «'+n+'» el verde no puede ser mayor que el ámbar.';
+    }
+    return '';
+  }
+
+  let catalogo=null,listo=false,desub=null,reintento=null,analisis=null;
   const oyentes=[];
   const avisar=()=>oyentes.slice().forEach(f=>{try{f();}catch(e){console.warn('Motivos de parada:',e&&e.message||e);}});
   const alCambiar=f=>{if(typeof f==='function'&&!oyentes.includes(f))oyentes.push(f);};
@@ -74,13 +95,13 @@
     if(desub||typeof db==='undefined'||typeof state==='undefined'||!state.user)return;
     try{
       desub=db.collection('sync').doc(DOC).onSnapshot(s=>{
-        catalogo=normalizar(s.exists?s.data().motivosParada:null);listo=true;avisar();
+        catalogo=normalizar(s.exists?s.data().motivosParada:null);analisis=normalizarAnalisis(s.exists?s.data().analisisParadas:null);listo=true;avisar();
       },e=>{console.warn('Motivos de parada:',e&&e.message||e);desub=null;});
     }catch(_){desub=null;}
   }
   function cerrar(){
     if(typeof desub==='function'){try{desub();}catch(_){/* ya cerrada */}}
-    desub=null;catalogo=null;listo=false;
+    desub=null;catalogo=null;analisis=null;listo=false;
   }
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(cerrar);
   reintento=setInterval(()=>{if(!desub)escuchar();},4000);
@@ -152,6 +173,19 @@
   }
   const buscarCausa=(lista,id)=>{const c=lista.find(x=>x.id===id);if(!c)throw new Error('La causa ya no está en la lista (otra persona la cambió).');return c;};
   const buscarMotivo=(c,id)=>{const x=c.motivos.find(y=>y.id===id);if(!x)throw new Error('El motivo ya no está en la lista (otra persona lo cambió).');return x;};
+
+  /* Umbrales de Análisis de paradas: transacción con merge, solo el campo analisisParadas. */
+  const analisisConfig=()=>{escuchar();return Object.assign({},analisis||ANALISIS_DEFECTO);};
+  async function guardarAnalisisConfig(valores){
+    if(!puedeConfigurar())throw new Error('Solo el Supervisor de Mantenimiento o el Administrador pueden cambiar los umbrales.');
+    const nuevo=normalizarAnalisis(valores),err=validarAnalisis(nuevo);
+    if(err)throw new Error(err);
+    const ref=db.collection('sync').doc(DOC),quien=(state.user&&(state.user.username||state.user.nombre))||'';
+    await db.runTransaction(async tx=>{
+      await tx.get(ref);
+      tx.set(ref,{analisisParadas:nuevo,analisisParadasActualizadoPor:quien,analisisParadasActualizadoEn:ahora(),updatedAt:Date.now()},{merge:true});
+    });
+  }
 
   const agregarCausa=(nombre,pide)=>modificar(l=>{
     const t=nombreValido(nombre,'de la causa');
@@ -225,6 +259,13 @@
       (puede?'<div class="mp-fila"><input type="text" id="mp-motivo-nuevo" maxlength="60" placeholder="Motivo nuevo" aria-label="Motivo nuevo"><button type="button" data-mp-motivo-agregar>Agregar motivo</button></div>'+
         '<h4>Causa nueva</h4><div class="mp-fila"><input type="text" id="mp-causa-nueva" maxlength="60" placeholder="Nombre de la causa" aria-label="Causa nueva"><label><input type="checkbox" id="mp-causa-nueva-eq"> Pide equipo</label><button type="button" data-mp-causa-agregar>Agregar causa</button></div>'
         :'<p class="mp-sub">Solo el Supervisor de Mantenimiento o el Administrador pueden cambiarlos.</p>')+
+      '<h4>Análisis de paradas: avisos y metas</h4>'+
+      (()=>{const a=analisisConfig(),num=(k,min,max,et)=>'<label style="display:flex;flex-direction:column;font-size:12px;gap:2px;flex:1 1 120px">'+et+'<input type="number" id="mp-an-'+k+'" min="'+min+'" max="'+max+'" value="'+a[k]+'"'+dis+' style="padding:8px;border:1px solid #cbd8e0;border-radius:8px;min-height:40px"></label>';
+        return '<div class="mp-fila">'+num('fallasUmbral',2,20,'Falla repetitiva: paradas por falla')+num('fallasDias',1,31,'en esta cantidad de días')+'</div>'+
+          '<div class="mp-fila">'+num('otroVerde',0,100,'«Otro» / sin causa: verde hasta %')+num('otroAmbar',0,100,'ámbar hasta %')+'</div>'+
+          '<div class="mp-fila">'+num('sinEquipoVerde',0,100,'Fallas sin equipo: verde hasta %')+num('sinEquipoAmbar',0,100,'ámbar hasta %')+'</div>'+
+          '<div class="mp-fila">'+num('sinHoraVerde',0,100,'Paradas largas sin hora: verde hasta %')+num('sinHoraAmbar',0,100,'ámbar hasta %')+'</div>'+
+          (puede?'<div class="mp-fila"><button type="button" data-mp-analisis-guardar>Guardar umbrales</button></div>':'');})()+
       '<div class="mp-msg'+(editor.ok?' ok':'')+'" id="mp-msg" role="status">'+esc(editor.msg||'')+'</div>'+
       '<p class="mp-sub">«Otro» exige un detalle de al menos '+MIN_DETALLE_OTRO+' caracteres al registrar la parada.</p>'+
       '<div class="mp-pie"><button type="button" class="btn btn-primary" data-mp-cerrar>Listo</button></div>';
@@ -251,6 +292,10 @@
       const t=e.target;if(!t||!t.closest)return;
       const id=editor.causaId,val=s=>{const el=fondo.querySelector(s);return el?el.value:'';};
       if(t.closest('[data-mp-cerrar]')){fondo.remove();editor=null;return;}
+      if(t.closest('[data-mp-analisis-guardar]')){
+        const v={};Object.keys(ANALISIS_DEFECTO).forEach(k=>{const el=fondo.querySelector('#mp-an-'+k);v[k]=el?el.value:'';});
+        accion(()=>guardarAnalisisConfig(v),'Umbrales guardados.');return;
+      }
       if(t.closest('[data-mp-causa-guardar]')){accion(()=>renombrarCausa(id,val('#mp-causa-nombre')),'Nombre guardado.');return;}
       const ca=t.closest('[data-mp-causa-activa]');
       if(ca){const v=ca.getAttribute('data-mp-causa-activa')==='1';accion(()=>activarCausa(id,v),v?'Causa activada.':'Causa desactivada.');return;}
@@ -283,7 +328,7 @@
     window.tareoRenderTabs=tareoRenderTabs;
   }
 
-  window.glacialMotivosParada={SEP,MIN_DETALLE_OTRO,PROTEGIDAS,CATALOGO_DEFECTO,causas,todas,causaPorNombre,motivosDe,pideEquipo,exigeDetalle,detalleMin,componerDescripcion,validar,
+  window.glacialMotivosParada={ANALISIS_DEFECTO,analisisConfig,guardarAnalisisConfig,validarAnalisis,SEP,MIN_DETALLE_OTRO,PROTEGIDAS,CATALOGO_DEFECTO,causas,todas,causaPorNombre,motivosDe,pideEquipo,exigeDetalle,detalleMin,componerDescripcion,validar,
     opcionesCausa,opcionesMotivo,agregarCausa,renombrarCausa,cambiarPideEquipo,activarCausa,agregarMotivo,renombrarMotivo,activarMotivo,puedeConfigurar,abrirEditor,alCambiar,
     normalizar,estado:()=>({listo,catalogo:catalogo&&JSON.parse(JSON.stringify(catalogo))}),cerrar,escuchar};
 })();
