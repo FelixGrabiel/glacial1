@@ -158,6 +158,25 @@
   }
 
   /* ---------- pestaña Intervenciones ---------- */
+  /* Resumen gráfico dinámico (67i): por estado, equipos con más intervenciones y aperturas por semana. Cada barra o segmento filtra la lista al tocarla. */
+  function panelGraficos(A){
+    const G=window.glacialGraficos;if(!G)return '';
+    const todas=A.todas();if(!todas.length)return '';
+    const COL={PENDIENTE:'#64748b',EN_INTERVENCION:'#1d4ed8',EN_ESPERA:'#7c3aed',CERRADA:'#0e7490',CANCELADA:'#9ca3af'};
+    const porEstado=Object.keys(M.ESTADOS).map(k=>({id:k,etiqueta:M.ESTADOS[k],valor:todas.filter(d=>d.estado===k).length,color:COL[k]}));
+    const cuentaEq=new Map();
+    todas.forEach(d=>{const id=d.equipoId||'__sin__',x=cuentaEq.get(id)||{id,etiqueta:d.equipoNombre||M.SIN_EQUIPO,valor:0,color:id==='__sin__'?'#a21caf':'#2f7fd0'};x.valor++;cuentaEq.set(id,x);});
+    const top=[...cuentaEq.values()].sort((a,b)=>b.valor-a.valor).slice(0,6);
+    const lunes=ms=>{const d=new Date(ms);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime();};
+    const l0=lunes(ahora()),sem=[];for(let i=7;i>=0;i--)sem.push(l0-i*7*86400000);
+    const dd=s=>new Date(s).toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit'});
+    const serie=sem.map(s=>{const n=todas.filter(d=>lunes(d.abiertaMs)===s).length;return {etiqueta:dd(s),valor:n,tip:'Semana del '+dd(s)+': '+n+' intervención(es) abierta(s)'};});
+    return '<details class="gm-panel" data-gm-panel'+(UI.gmCerrado?'':' open')+'><summary>Resumen gráfico</summary><div class="gm-grid">'+
+      '<div class="gm-card"><h5>Por estado</h5>'+G.dona(porEstado,{grupo:'mi-estado',centro:todas.length,subcentro:'intervenciones',aria:'Intervenciones por estado'})+'</div>'+
+      '<div class="gm-card"><h5>Equipos con más intervenciones</h5>'+G.barrasH(top,{grupo:'mi-equipo',unidad:'',activo:F.equipo||undefined})+'</div>'+
+      '<div class="gm-card"><h5>Aperturas por semana</h5>'+G.columnas(serie,{altura:110})+'</div></div>'+
+      '<p class="mi-meta">Toca un estado o un equipo para filtrar la lista; vuelve a tocarlo para quitar el filtro.</p></details>';
+  }
   function pintarIntervenciones(cont){
     const A=API(),p=A.permisos(),st=A.estado();
     if(!st.cerradasPedidas)A.escucharCerradas();
@@ -175,6 +194,7 @@
       (errLeer?'<div class="mi-error">'+esc(errLeer)+'</div>':'')+
       '<div class="mi-kpis">'+kpi('Pendientes',cuenta('PENDIENTE'),'#64748b')+kpi('En intervención',cuenta('EN_INTERVENCION'),'#1d4ed8')+kpi('En espera',cuenta('EN_ESPERA'),'#7c3aed')+kpi('Con pendientes',conPend,'#a21caf')+
         (typeof window.glacialPreventivosResumen==='function'?window.glacialPreventivosResumen():'')+'</div>'+
+      panelGraficos(A)+
       (detenidas.length?'<div class="mi-aviso"><b>Líneas detenidas sin intervención</b>'+detenidas.map(x=>'<div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span><b>'+esc(nombreLinea(x.linea))+'</b> · '+esc(x.motivo||'sin motivo')+(x.equipoTexto?' · '+esc(x.equipoTexto):'')+(x.desdeMs?' · desde hace '+hace(x.desdeMs):'')+'</span>'+
         (p.escribir?'<button type="button" class="btn btn-primary btn-sm" data-mi-desde-parada="'+esc(x.linea+'|'+x.paradaId)+'">Abrir intervención</button>':'')+'</div>').join('')+
         '<div class="mi-meta">Abrir una intervención no cambia el estado de la línea.</div></div>':'')+
@@ -446,11 +466,18 @@
   function suscribir(){if(API()){API().alCambiar(refrescar);if(EQ())EQ().alCambiar(refrescar);return true;}return false;}
   suscribir();
 
+  document.addEventListener('toggle',e=>{const t=e.target;if(t&&t.hasAttribute&&t.hasAttribute('data-gm-panel'))UI.gmCerrado=!t.open;},true);   // recuerda si se plegó el resumen gráfico
   document.addEventListener('click',async e=>{
     const t=e.target;if(!t||!t.closest)return;
     const tab=t.closest('[data-mi-tab]');
     if(tab&&document.getElementById('intervenciones-view')){UI.tab=tab.dataset.miTab;render();return;}
     if(t.closest('[data-mi-cerrar-detalle]')){cerrarDetalle();return;}
+    const gm=t.closest('[data-gm-grupo]');
+    if(gm&&UI.tab==='intervenciones'&&document.getElementById('mi-cuerpo')){
+      const g=gm.dataset.gmGrupo,id=gm.dataset.gmId;
+      if(g==='mi-estado'){F.estado=F.estado===id?'':id;pintarTab();return;}
+      if(g==='mi-equipo'){F.equipo=F.equipo===id?'':id;pintarTab();return;}
+    }
     const ab=t.closest('[data-mi-abrir]');
     if(ab){abrirDetalle(ab.dataset.miAbrir);return;}
     if(t.closest('[data-mi-nueva]')){nuevaIntervencion();return;}

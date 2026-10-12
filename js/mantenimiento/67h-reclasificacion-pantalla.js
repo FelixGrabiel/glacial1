@@ -95,6 +95,8 @@
         '<div class="mi-kpi" style="--c:#15803d"><b>'+(total>0?Math.round(d.reclMin/total*100):0)+' %</b><span>Cuánto bajó lo sin clasificar</span></div></div>'+
       '<p class="mi-meta">Paradas no programadas con causa «Otro», vacía o antigua (sin motivo de catálogo). La reclasificación solo cambia la etiqueta: los minutos, la disponibilidad y el ratio no cambian, y la parada original no se modifica.</p>'+
       (est.error?'<div class="mi-error">'+esc(est.error)+'</div>':'')+
+      (d.grupos.length&&window.glacialGraficos?'<div class="gm-panel" style="padding-top:12px"><div class="gm-card"><h5>Minutos sin clasificar por grupo (toca una barra para asignar)</h5>'+
+        window.glacialGraficos.barrasH(d.grupos.slice(0,8).map(g=>({id:g.clave,etiqueta:g.etiqueta,valor:Math.round(g.min),sub:g.filas.length+' parada(s)',color:'#c2410c'})),{grupo:'rc-grupo',unidad:'min'})+'</div></div>':'')+
       (d.sinDatos?'<div class="mi-vacio">Análisis de paradas todavía no está cargado. Abre «Análisis de paradas» una vez o espera unos segundos.</div>':
         d.grupos.length?d.grupos.slice(0,40).map(tarjetaGrupo).join('')+(d.grupos.length>40?'<div class="mi-aviso">Se muestran los 40 grupos con más minutos; reduce el rango o filtra por línea para ver el resto.</div>':'')
         :'<div class="mi-vacio"><b>No hay paradas por clasificar en este rango.</b></div>')+
@@ -141,7 +143,8 @@
   /* ---------- eventos ---------- */
   document.addEventListener('click',e=>{
     const t=e.target;if(!t||!t.closest)return;
-    const b=t.closest('[data-rc-asignar]');if(b)abrirAsignar(b.dataset.rcAsignar);
+    const b=t.closest('[data-rc-asignar]');if(b){abrirAsignar(b.dataset.rcAsignar);return;}
+    const gm=t.closest('[data-gm-grupo="rc-grupo"]');if(gm)abrirAsignar(gm.dataset.gmId);
   });
   document.addEventListener('toggle',e=>{
     const t=e.target;if(!t||!t.dataset||t.dataset.rcDet===undefined)return;

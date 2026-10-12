@@ -495,8 +495,8 @@
     const W=360,fila=46,mL=8,mR=96,max=Math.max(...filas.map(f=>f.valor))||1,ancho=W-mL-mR,H=filas.length*fila+8;
     const g=filas.map((f,i)=>{
       const y=4+i*fila,w=Math.max(2,f.valor/max*ancho),nombre=f.clave.length>44?f.clave.slice(0,43)+'…':f.clave;
-      return '<g'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+'><text x="'+mL+'" y="'+(y+13)+'" font-size="13" fill="#1b2a38">'+esc(nombre)+'</text>'+
-        '<rect x="'+mL+'" y="'+(y+19)+'" width="'+w.toFixed(1)+'" height="16" rx="3" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
+      return '<g data-tip="'+esc(f.clave+': '+fmt(f.valor)+unidadTxt(p.metrica))+'"'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+'><text x="'+mL+'" y="'+(y+13)+'" font-size="13" fill="#1b2a38">'+esc(nombre)+'</text>'+
+        '<rect class="gm-svg-barh" x="'+mL+'" y="'+(y+19)+'" width="'+w.toFixed(1)+'" height="16" rx="3" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
         '<text x="'+(mL+w+6).toFixed(1)+'" y="'+(y+32)+'" font-size="13" font-weight="700" fill="#1b2a38">'+fmt(f.valor)+'</text>'+
         '<text x="'+(W-4)+'" y="'+(y+32)+'" font-size="12" text-anchor="end" fill="#d93a3a">'+Math.round((f.acum||0)*100)+' %</text></g>';
     }).join('');
@@ -515,7 +515,7 @@
       const h=(f.valor/max)*alto,x=mL+i*bw+bw*0.12,y=mT+alto-h;
       const cx=mL+i*bw+bw/2;
       const nombre=f.clave.length>22?f.clave.slice(0,21)+'…':f.clave;
-      return '<rect'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+' x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw*0.76).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
+      return '<rect class="gm-svg-bar" data-tip="'+esc(f.clave+': '+fmt(f.valor)+unidadTxt(p.metrica))+'"'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+' x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw*0.76).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
         '<text x="'+cx.toFixed(1)+'" y="'+(y-3).toFixed(1)+'" font-size="10" text-anchor="middle" fill="#1b2a38">'+fmt(f.valor)+'</text>'+
         '<text transform="translate('+cx.toFixed(1)+','+(mT+alto+12)+') rotate(-40)" font-size="10" text-anchor="end" fill="#31475c">'+esc(nombre)+'</text>';
     }).join('');
@@ -538,7 +538,7 @@
     const y=v=>mT+alto*(1-v/max);
     const lineas=t.motivos.map((m,k)=>'<polyline fill="none" stroke="'+COLORES[k%5]+'" stroke-width="2" points="'+
       m.porSemana.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ')+'"/>'+
-      m.porSemana.map((v,i)=>'<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3" fill="'+COLORES[k%5]+'"><title>'+esc(m.motivo)+' · semana del '+fmtFecha(t.semanas[i])+': '+fmt(v)+' min</title></circle>').join('')).join('');
+      m.porSemana.map((v,i)=>'<circle data-tip="'+esc(m.motivo+' · semana del '+fmtFecha(t.semanas[i])+': '+fmt(v)+' min')+'" cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="4" fill="'+COLORES[k%5]+'" style="cursor:pointer"><title>'+esc(m.motivo)+' · semana del '+fmtFecha(t.semanas[i])+': '+fmt(v)+' min</title></circle>').join('')).join('');
     const etiquetas=t.semanas.map((s,i)=>'<text x="'+x(i).toFixed(1)+'" y="'+(H-10)+'" font-size="10" text-anchor="middle" fill="#5a6b7b">'+fmtFecha(s)+'</text>').join('');
     return '<svg class="ap-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Tendencia semanal de minutos de parada por motivo">'+
       '<line x1="'+mL+'" y1="'+(mT+alto)+'" x2="'+(W-mR)+'" y2="'+(mT+alto)+'" stroke="#9aa9b8"/>'+

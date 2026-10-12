@@ -148,6 +148,14 @@
       '<tr><td>MTBF (horas de línea en marcha)</td><td>'+(m.estado==='OK'?'<b>'+m.horas.toFixed(1)+' h</b> <small>· '+m.fallasCubiertas+' falla(s) · '+m.exposicionH.toFixed(0)+' h de línea en marcha · cobertura '+m.coberturaDias+' de '+m.diasPeriodo+' días</small>'
         :m.estado==='SIN_FALLAS'?'<i>Sin fallas en el período</i> <small>('+m.exposicionH.toFixed(0)+' h de línea en marcha)</small>':'<i>Datos insuficientes</i> <small>— '+esc(m.motivo)+'</small>')+'</td></tr></tbody></table></div>';
   }
+  /* Gráficos dinámicos (67i) de los equipos con fallas: cada barra abre el detalle del equipo. */
+  function graficosEquipos(r){
+    const G=window.glacialGraficos;if(!G)return '';
+    const fallas=r.porEquipo.slice().sort((a,b)=>b.fallas-a.fallas).slice(0,8).map(e=>({id:e.equipoId,etiqueta:e.nombre,valor:e.fallas,color:'#d93a3a'}));
+    const mttr=r.porEquipo.filter(e=>e.mttrMin!==null&&e.mttrMin!==undefined).sort((a,b)=>b.mttrMin-a.mttrMin).slice(0,8).map(e=>({id:e.equipoId,etiqueta:e.nombre,valor:Math.round(e.mttrMin),sub:e.casosMttr+' caso(s)',color:'#0e7490'}));
+    return '<div class="gm-panel" style="padding-top:12px"><div class="gm-grid"><div class="gm-card"><h5>Fallas por equipo</h5>'+G.barrasH(fallas,{grupo:'ie-equipo',unidad:'fallas'})+'</div>'+
+      '<div class="gm-card"><h5>MTTR por equipo (min)</h5>'+G.barrasH(mttr,{grupo:'ie-equipo',unidad:'min',vacio:'Aún no hay casos con inicio y fin reales para calcular el MTTR.'})+'</div></div></div>';
+  }
   function pintarIndicadores(cont,noCargar){
     const A=API();
     if(!noCargar&&!ST.cargando&&!ST.res&&!ST.error)cargar();
@@ -164,7 +172,7 @@
         '<p class="mi-meta">Período: <b>'+esc(fmtDia(r.desdeMs))+' – '+esc(fmtDia(r.hastaMs))+'</b> · '+r.totales.fallas+' falla(s) con equipo identificado en '+r.totales.equipos+' equipo(s)'+(ST.parcial?' · <b style="color:#8c1d18">datos parciales: se alcanzó el límite de lectura</b>':'')+
           (r.sinExposicion?' · <b style="color:#8c1d18">no hay horas de línea en marcha disponibles (Análisis de paradas no cargado): MTBF no calculable</b>':'')+'</p>'+
         (r.advertencias.map(a=>'<div class="mi-aviso">'+esc(a)+'</div>').join(''))+
-        (r.porEquipo.length?r.porEquipo.map(e=>tarjeta(e)).join(''):'<div class="mi-vacio"><b>No hay fallas con equipo identificado en este período.</b><br>Los indicadores aparecen cuando las intervenciones correctivas se cierran con el equipo identificado.</div>')+
+        (r.porEquipo.length?graficosEquipos(r)+r.porEquipo.map(e=>tarjeta(e)).join(''):'<div class="mi-vacio"><b>No hay fallas con equipo identificado en este período.</b><br>Los indicadores aparecen cuando las intervenciones correctivas se cierran con el equipo identificado.</div>')+
         (r.sinEquipo.length?'<div class="mi-vacio" style="margin-top:8px"><b>Sin equipo identificado: '+r.sinEquipo.length+'</b> intervención(es). Se conservan en la lista de Intervenciones; no se les asigna ningún equipo.</div>':''));
   }
   function detalleEquipo(id){
@@ -177,6 +185,7 @@
     const t=e.target;if(!t||!t.closest)return;
     if(t.closest('[data-ie-recalcular]')){cargar();return;}
     const a=t.closest('[data-ie-abrir]');if(a){detalleEquipo(a.dataset.ieAbrir);return;}
+    const gm=t.closest('[data-gm-grupo="ie-equipo"]');if(gm){detalleEquipo(gm.dataset.gmId);return;}
   });
   document.addEventListener('change',e=>{
     const t=e.target;if(!t||!t.dataset)return;

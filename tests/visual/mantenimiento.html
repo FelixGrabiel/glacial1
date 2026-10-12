@@ -84,7 +84,7 @@ document.getElementById('reiniciar').onclick=()=>{sembrar();avisar();};
   if(!localStorage.getItem(KEY)||Q.get('seed')==='1')sembrar();
   const cargar=s=>new Promise((ok,er)=>{const e=document.createElement('script');e.src=s;e.onload=ok;e.onerror=er;document.head.appendChild(e);});
   const extra=(Q.get('mods')||'').split(',').filter(Boolean);
-  for(const f of ['37d-equipos-maestro','67-intervenciones-motor','67b-intervenciones-datos','67c-intervenciones-pantalla','67d-intervenciones-evidencias','67e-preventivos','67f-indicadores-equipo'].concat(extra))await cargar('js/mantenimiento/'+f+'.js');
+  for(const f of ['37d-equipos-maestro','67-intervenciones-motor','67b-intervenciones-datos','67i-graficos','67c-intervenciones-pantalla','67d-intervenciones-evidencias','67e-preventivos','67f-indicadores-equipo'].concat(extra))await cargar('js/mantenimiento/'+f+'.js');
   goIntervenciones();window.__listo=true;
 })();
 </script></body></html>
