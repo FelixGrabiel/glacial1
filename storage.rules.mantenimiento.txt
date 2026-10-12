@@ -1,0 +1,76 @@
+// =====================================================================
+// GLACIAL · REGLAS DE FIREBASE STORAGE — evidencias fotográficas de Mantenimiento
+// Se publican en Firebase Console → Storage → Reglas (no en Firestore). Storage debe estar HABILITADO en el proyecto
+// (el bucket ya figura en js/nucleo/01-config.js; hay un bucket para PRUEBAS y otro para PRODUCCIÓN: publicar en cada uno).
+//
+// Qué protege:
+//   · Solo se usa la ruta intervenciones/{id de intervención}/{foto}.jpg y {foto}_t.jpg (miniatura). Todo lo demás queda cerrado.
+//   · LEE quien puede ver Mantenimiento (misma lista que puedeVerMantenimiento() de firestore.rules.etapa2.txt, incluida la cuenta compartida).
+//   · ESCRIBE la cuenta compartida de Mantenimiento y el Supervisor de Mantenimiento / Administrador; NUNCA Jefatura/Gerencia ni cuentas de solo consulta.
+//   · Solo imágenes JPEG de hasta 2 MB (la aplicación comprime a ≈1,2 MB), con el nombre esperado.
+//   · Un archivo no se borra. Se puede volver a subir el MISMO archivo solo si lo subió la misma cuenta (reintento sin duplicar).
+//   · Las fotos NO se publican con enlaces permanentes: la aplicación las lee con el SDK autenticado.
+// Depende de que los permisos salgan de sync/perfiles (igual que las reglas de Firestore).
+// =====================================================================
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function perfiles() {
+      return firestore.get(/databases/(default)/documents/sync/perfiles).data.map;
+    }
+    function autenticado() {
+      return request.auth != null && request.auth.uid in perfiles();
+    }
+    function rol() {
+      return perfiles()[request.auth.uid].rol;
+    }
+    function soloVista() {
+      return perfiles()[request.auth.uid].get('soloVista', false) == true;
+    }
+    function esJefatura() {
+      return rol() in ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente'];
+    }
+    function puedeVerMantenimiento() {
+      return autenticado() && (
+        rol() == 'mantenimiento_compartido' || rol() == 'Administrador' || esJefatura() ||
+        rol() in ['Supervisor', 'Supervisor de Producción'] ||
+        (perfiles()[request.auth.uid].permisos is list
+          && ('moduloMantenimiento' in perfiles()[request.auth.uid].permisos
+              || 'gestionar_rotacion_mantenimiento' in perfiles()[request.auth.uid].permisos
+              || 'ver_bitacora_mantenimiento' in perfiles()[request.auth.uid].permisos))
+      );
+    }
+    function puedeEscribirFotos() {
+      return autenticado() && !soloVista() && !esJefatura() && (
+        rol() == 'mantenimiento_compartido' || rol() == 'Administrador' ||
+        (perfiles()[request.auth.uid].permisos is list
+          && ('moduloMantenimiento' in perfiles()[request.auth.uid].permisos
+              || 'gestionar_rotacion_mantenimiento' in perfiles()[request.auth.uid].permisos))
+      );
+    }
+    function archivoValido(nombre) {
+      return nombre.matches('^[A-Za-z0-9_-]+(_t)?[.]jpg$');
+    }
+
+    match /intervenciones/{intervencion}/{archivo} {
+      allow read: if puedeVerMantenimiento();
+      allow create: if puedeEscribirFotos()
+        && archivoValido(archivo)
+        && request.resource.size > 0 && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.metadata.subidoPor == request.auth.uid;
+      allow update: if puedeEscribirFotos()
+        && archivoValido(archivo)
+        && request.resource.size > 0 && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg'
+        && resource.metadata.subidoPor == request.auth.uid
+        && request.resource.metadata.subidoPor == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /{todo=**} {
+      allow read, write: if false;
+    }
+  }
+}

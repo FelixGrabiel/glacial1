@@ -28,6 +28,7 @@
   M.RESULTADOS={OPERATIVO_VERIFICADO:'Operativo, verificación realizada',OPERATIVO_OBSERVACION:'Operativo con observación o restricción',NO_OPERATIVO:'No operativo; requiere seguimiento'};
   M.UNIDADES=['UND','Juego','Litro','Metro','Kg','Rollo','Caja','Otro'];
   M.MIN_TEXTO=10;                       // diagnóstico y acción realizada: no basta una palabra
+  M.SECCIONES_EVIDENCIA={PROBLEMA:'Problema',TRABAJO:'Trabajo realizado',CIERRE:'Cierre'};M.MAX_EVIDENCIAS=12;
   M.MAX_PARTICIPANTES=12;M.MAX_REPUESTOS=40;M.MAX_HISTORIAL=400;M.MAX_SEGUIMIENTOS=20;
   const TRANSICIONES={PENDIENTE:['EN_INTERVENCION','CANCELADA','CERRADA'],EN_INTERVENCION:['EN_ESPERA','CERRADA','CANCELADA'],EN_ESPERA:['EN_INTERVENCION','CERRADA','CANCELADA'],CERRADA:[],CANCELADA:[]};
   M.puedeTransicion=(de,a)=>(TRANSICIONES[de]||[]).includes(a);
@@ -183,6 +184,7 @@
       case 'CERRAR':{
         exigirAbierta(d);
         const v=M.validarCierre(d,p,ahora);
+        if(perm.evidenciaRequerida&&!d.evidencias.some(e=>!e.anulada))v.errores.push('Este tipo de trabajo exige al menos una foto de evidencia antes de cerrar.');
         if(v.errores.length)throw err(v.errores.join(' '),{errores:v.errores,codigo:'CIERRE_INVALIDO'});
         if(p.equipoId&&p.equipoId!==d.equipoId){d.equipoId=txt(p.equipoId);d.equipoNombre=txt(p.equipoNombre);d.equipoPendiente=false;}
         if(!d.equipoId)d.equipoJustificacion=txt(p.equipoJustificacion).slice(0,300);
@@ -202,6 +204,25 @@
           requiereSeguimiento:p.resultado==='NO_OPERATIVO'||txt(d.pendientes).length>0||d.seguimiento.some(s=>s.estado==='PENDIENTE')};
         if(Array.isArray(d.tareas)&&p.tareas)d.tareas=p.tareas;
         hist('Cerró la intervención · '+M.RESULTADOS[p.resultado],'CERRADA',{resultado:p.resultado});break;
+      }
+      case 'EVIDENCIA':{                // se registra SOLO cuando el archivo ya se subió (nunca una referencia a un archivo que no existe)
+        if(d.estado==='CANCELADA')throw err('La intervención está cancelada.');
+        if(!M.SECCIONES_EVIDENCIA[p.seccion])throw err('Elige a qué corresponde la foto (problema, trabajo o cierre).');
+        if(!txt(p.path)||!txt(p.thumb))throw err('Falta la ruta del archivo subido.');
+        const id=txt(p.id)||idCorto('ev');
+        if(d.evidencias.some(e=>e.id===id))throw err('Esta foto ya estaba registrada.',{codigo:'EVIDENCIA_DUPLICADA'});
+        if(d.evidencias.filter(e=>!e.anulada).length>=M.MAX_EVIDENCIAS)throw err('Máximo '+M.MAX_EVIDENCIAS+' fotos por intervención.');
+        d.evidencias.push({id,seccion:p.seccion,descripcion:txt(p.descripcion).slice(0,160),path:txt(p.path),thumb:txt(p.thumb),mime:txt(p.mime)||'image/jpeg',tam:num(p.tam),ancho:num(p.ancho),alto:num(p.alto),por,en:ahora});
+        hist('Foto ('+M.SECCIONES_EVIDENCIA[p.seccion]+')'+(txt(p.descripcion)?': '+txt(p.descripcion):''));break;
+      }
+      case 'ANULAR_EVIDENCIA':{
+        if(d.estado==='CANCELADA')throw err('La intervención está cancelada.');
+        const i=d.evidencias.findIndex(e=>e.id===p.id);
+        if(i<0)throw err('La foto ya no existe.');
+        if(d.evidencias[i].anulada)throw err('La foto ya estaba anulada.');
+        if(txt(p.motivo).length<5)throw err('Indica el motivo para anular la foto (mínimo 5 caracteres).');
+        d.evidencias[i]=Object.assign({},d.evidencias[i],{anulada:{por,en:ahora,motivo:txt(p.motivo).slice(0,160)}});
+        hist('Anuló una foto: '+txt(p.motivo));break;
       }
       case 'CANCELAR':{
         exigirAbierta(d);

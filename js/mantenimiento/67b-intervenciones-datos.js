@@ -150,9 +150,14 @@
       const snap=await tx.get(refDe(id));
       if(!snap.exists)throw new Error('La intervención ya no existe.');
       const act=docDe(id,snap.data());
-      nuevo=M.aplicar(act,nombre,datos,q,ahora(),p);
       const extra={};
-      tx.set(refDe(id),control(Object.assign({},nuevo,{abiertaEn:snap.data().abiertaEn,abiertaUid:snap.data().abiertaUid},extra),q,false));
+      if(nombre==='CERRAR'){                                          // regla explícita por tipo de trabajo: ¿exige foto al cerrar? (sync/configMantenimiento → evidenciasRequeridas)
+        const c=await tx.get(db.collection('sync').doc('configMantenimiento'));
+        const cfg=c.exists&&c.data().evidenciasRequeridas&&typeof c.data().evidenciasRequeridas==='object'?c.data().evidenciasRequeridas:{};
+        extra.evidenciaRequerida=cfg[act.tipo]===true;
+      }
+      nuevo=M.aplicar(act,nombre,datos,q,ahora(),Object.assign({},p,extra));
+      tx.set(refDe(id),control(Object.assign({},nuevo,{abiertaEn:snap.data().abiertaEn,abiertaUid:snap.data().abiertaUid}),q,false));
     });
     recordar(nuevo);
     return nuevo;
@@ -167,7 +172,14 @@
       origen:{tipo:p.eventoId?'EVENTO':'PARADA',id:p.paradaId||p.eventoId||'',paradaId:p.paradaId||'',eventoId:p.eventoId||''}},opc);
   }
 
-  window.glacialIntervenciones={COLECCION,permisos,quienActua,abrir,accion,abrirDesdeParada,todas,porId,abiertas:()=>[...S.abiertas.values()],cerradas:()=>[...S.cerradas.values()],
+  /* Intervenciones de un equipo (lectura puntual, hasta 100): para consultar sus fotos e historial. */
+  async function porEquipo(equipoId){
+    if(!permisos().ver)throw new Error('No tienes permiso para ver las intervenciones.');
+    const snap=await db.collection(COLECCION).where('equipoId','==',equipoId).limit(100).get();
+    return snap.docs.map(d=>docDe(d.id,d.data({serverTimestamps:'estimate'}))).sort((a,b)=>b.abiertaMs-a.abiertaMs);
+  }
+
+  window.glacialIntervenciones={COLECCION,porEquipo,permisos,quienActua,abrir,accion,abrirDesdeParada,todas,porId,abiertas:()=>[...S.abiertas.values()],cerradas:()=>[...S.cerradas.values()],
     estado:()=>({listoAbiertas:S.listoAbiertas,listoCerradas:S.listoCerradas,errorAbiertas:S.errorAbiertas,errorCerradas:S.errorCerradas,cerradasPedidas:S.cerradasPedidas}),
     escucharAbiertas,escucharCerradas,detener,alCambiar:f=>{if(typeof f==='function'&&!oyentes.includes(f))oyentes.push(f);},recordar,control};
 })();

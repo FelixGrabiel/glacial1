@@ -243,6 +243,7 @@
     const cuerpo=f.querySelector('.mi-modal');
     if(!d){cuerpo.innerHTML='<h3>Intervención</h3><div class="mi-vacio">Esta intervención ya no está en la lista cargada.</div><div class="mi-acc"><button type="button" class="btn btn-ghost" data-mi-cerrar-detalle>Cerrar</button></div>';return;}
     const y=f.scrollTop;cuerpo.innerHTML=htmlDetalle(d,API().permisos());f.scrollTop=y;
+    if(typeof window.glacialEvidenciasPostRender==='function')window.glacialEvidenciasPostRender(cuerpo);
   }
   function abrirDetalle(id){
     UI.detalle=id;
@@ -374,10 +375,12 @@
     cont.innerHTML='<div class="mi-filtros"><label>Línea<select data-mi-ef="linea"><option value="">Todas</option>'+E.LINEAS.concat([E.PLANTA]).map(l=>'<option value="'+l+'"'+(fl.linea===l?' selected':'')+'>'+esc(E.nombreLinea(l))+'</option>').join('')+'</select></label>'+
       '<label>Estado<select data-mi-ef="activo"><option value="">Todos</option><option value="true"'+(fl.activo==='true'?' selected':'')+'>Activos</option><option value="false"'+(fl.activo==='false'?' selected':'')+'>Inactivos</option></select></label>'+
       '<label>Buscar<input type="search" data-mi-ef="q" value="'+esc(fl.q)+'"></label></div>'+
+      (typeof window.glacialEvidenciasConfigHtml==='function'?window.glacialEvidenciasConfigHtml():'')+
       (puede?'<div class="mi-acc"><button type="button" class="btn btn-primary btn-sm" data-mi-eq-nuevo>+ Agregar equipo</button></div>':'<div class="mi-meta">Solo el Supervisor de Mantenimiento o el Administrador pueden cambiar el catálogo.</div>')+
-      (!E.listo()?'<div class="mi-vacio">Cargando el catálogo…</div>':lista.length?lista.map(e=>'<div class="mi-card" style="--c:'+(e.activo?'#0e7490':'#9ca3af')+'"'+(puede?' data-mi-eq-editar="'+esc(e.id)+'"':'')+'><h4>'+esc(e.nombre)+' <small style="font-weight:500;color:#5a6b78">· '+esc(e.codigo)+'</small></h4>'+
+      (!E.listo()?'<div class="mi-vacio">Cargando el catálogo…</div>':lista.length?lista.map(e=>'<div class="mi-card" style="--c:'+(e.activo?'#0e7490':'#9ca3af')+';cursor:default"><h4>'+esc(e.nombre)+' <small style="font-weight:500;color:#5a6b78">· '+esc(e.codigo)+'</small></h4>'+
         '<span class="mi-chip">'+esc(e.tipo)+'</span><span class="mi-chip">'+esc(E.nombreLinea(e.linea))+'</span>'+e.compartidoCon.map(l=>'<span class="mi-chip">compartido: '+esc(E.nombreLinea(l))+'</span>').join('')+(e.activo?'':'<span class="mi-chip e-CANCELADA">Inactivo</span>')+
-        (e.datos.marca||e.datos.modelo||e.datos.serie?'<div class="mi-meta">'+esc([e.datos.marca,e.datos.modelo,e.datos.serie&&'Serie '+e.datos.serie].filter(Boolean).join(' · '))+'</div>':'')+'</div>').join('')
+        (e.datos.marca||e.datos.modelo||e.datos.serie?'<div class="mi-meta">'+esc([e.datos.marca,e.datos.modelo,e.datos.serie&&'Serie '+e.datos.serie].filter(Boolean).join(' · '))+'</div>':'')+
+        '<div class="mi-acc">'+(puede?'<button type="button" class="btn btn-ghost btn-sm" data-mi-eq-editar="'+esc(e.id)+'">Editar</button><button type="button" class="btn btn-ghost btn-sm" data-mi-eq-activo="'+esc(e.id)+'">'+(e.activo?'Desactivar':'Activar')+'</button>':'')+(typeof window.glacialFotosDeEquipo==='function'?'<button type="button" class="btn btn-ghost btn-sm" data-mi-eq-fotos="'+esc(e.id)+'">Fotos</button>':'')+'</div></div>').join('')
         :'<div class="mi-vacio"><b>No hay equipos'+(E.lista().length?' con estos filtros':' en el catálogo')+'.</b><br>'+(puede?'Agrega los equipos reales de cada línea. Tipos sugeridos: '+E.TIPOS_SUGERIDOS.join(', ')+' (son ejemplos de tipo, no un inventario cargado).':'El Supervisor de Mantenimiento registra los equipos.')+'</div>');
   }
   function formEquipo(id){
@@ -409,6 +412,7 @@
     const A=API();
     if(!A.permisos().ver){main.innerHTML='<div class="empty-state"><h4>Acceso no autorizado</h4></div>';return;}
     A.escucharAbiertas();
+    if(window.glacialEvidencias)window.glacialEvidencias.reanudar().catch(()=>{});      // fotos pendientes de este dispositivo
     const tabs=visibles();
     if(!tabs.some(t=>t.clave===UI.tab))UI.tab=tabs[0].clave;
     main.innerHTML='<div class="main-head" id="intervenciones-view"><div><h2>Intervenciones</h2><div class="sub">Qué equipo falló, qué se hizo, quién intervino y qué queda pendiente · '+(window.glacialEstadoDatos?window.glacialEstadoDatos.chip():'')+'</div></div></div>'+
@@ -464,6 +468,8 @@
     }
     if(t.closest('[data-mi-eq-nuevo]')){formEquipo('');return;}
     const ee=t.closest('[data-mi-eq-editar]');if(ee){formEquipo(ee.dataset.miEqEditar);return;}
+    const ea=t.closest('[data-mi-eq-activo]');
+    if(ea){const x=EQ().porId(ea.dataset.miEqActivo);if(x){try{await EQ().cambiarActivo(x.id,!x.activo);}catch(err){aviso('No se pudo cambiar',(err&&err.message)||String(err));}}return;}
   });
   document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('[data-mi-abrir]')){e.preventDefault();abrirDetalle(e.target.closest('[data-mi-abrir]').dataset.miAbrir);}});
   document.addEventListener('input',e=>{const t=e.target;if(t&&t.dataset&&t.dataset.miF!==undefined&&t.tagName==='INPUT'){F[t.dataset.miF]=t.value;const l=document.getElementById('mi-lista');if(l){/* filtro de texto en vivo */const lista=filtradas();l.innerHTML=lista.length?lista.map(tarjeta).join(''):'<div class="mi-vacio">No hay intervenciones con estos filtros.</div>';}}
