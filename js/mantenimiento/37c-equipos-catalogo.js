@@ -69,7 +69,12 @@
   reintento=setInterval(()=>{if(!desub)escuchar();},4000);
   escuchar();
 
-  const lista=linea=>{escuchar();return ((equipos||EQUIPOS_DEFECTO)[linea]||[]).slice();};
+  /* Si el catálogo de equipos (37d) ya tiene equipos para la línea, esos nombres mandan; si no, la lista de nombres de siempre. */
+  const lista=linea=>{
+    escuchar();
+    try{const M=window.glacialEquiposMaestro;if(M){const ms=M.delaLinea(linea);if(ms.length)return ms.map(e=>e.nombre);}}catch(_){/* se usa la lista de nombres */}
+    return ((equipos||EQUIPOS_DEFECTO)[linea]||[]).slice();
+  };
 
   /* ¿Esta parada es por falla de máquina? (motivo del botón o causa del registro/Avance) */
   const esFalla=t=>/^\s*falla de m[aá]quina/i.test(String(t||''));

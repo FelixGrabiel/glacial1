@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><base href="/"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Mantenimiento (datos de prueba)</title>
+<style>
+body{margin:0;background:#f3f6f8;font-family:system-ui,Arial,sans-serif;color:#172b3a}
+.barra{padding:8px 14px;background:#003B5C;color:#fff;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+.barra button,.barra select{padding:6px 10px;border:0;border-radius:7px;font-weight:700;cursor:pointer}
+#main{padding:12px;max-width:760px;margin:0 auto}
+.btn{padding:8px 14px;border-radius:8px;border:1px solid #005b96;background:#005b96;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.btn-ghost{background:#fff;color:#005b96}.btn-sm{padding:5px 10px;font-size:12px}.btn-primary{background:#005b96;color:#fff}.btn:disabled{opacity:.5}
+.main-head h2{margin:0;color:#003b5c}.sub{color:#5a6b78;font-size:13px}.empty-state{padding:24px;text-align:center}
+</style></head><body>
+<div class="barra"><b>Datos de PRUEBA (no reales)</b><span id="quien"></span><span style="flex:1"></span>
+<label><input type="checkbox" id="falla"> simular falla de red</label><button id="reiniciar">Reiniciar datos</button></div>
+<div id="main"></div>
+<script>
+const Q=new URLSearchParams(location.search),U=Q.get('u')||'ana';
+const TEC={ana:{workerId:'w1',nombre:'Ana Pérez'},luis:{workerId:'w2',nombre:'Luis Soto'},jefe:null,sup:null};
+const USER=U==='jefe'?{rol:'Gerente General',username:'jef',nombre:'Gerente'}:U==='sup'?{rol:'Supervisor de Mantenimiento',username:'sup',nombre:'Sup Mtto'}:{rol:'mantenimiento_compartido',username:'mant',nombre:'Cuenta Mantenimiento'};
+document.getElementById('quien').textContent='Persona: '+(TEC[U]?TEC[U].nombre:USER.nombre)+' ('+USER.rol+')';
+const KEY='glacial-mant-nube',clon=v=>JSON.parse(JSON.stringify(v));
+const leerNube=()=>JSON.parse(localStorage.getItem(KEY)||'{"docs":{},"ver":{}}'),escribirNube=n=>localStorage.setItem(KEY,JSON.stringify(n));
+const oy=[];const avisar=()=>oy.slice().forEach(f=>{try{f();}catch(e){console.warn(e);}});
+window.addEventListener('storage',e=>{if(e.key===KEY)avisar();});
+const ts=v=>{if(v==='__TS__')return Date.now();if(Array.isArray(v))return v.map(ts);if(v&&typeof v==='object'){const o={};Object.keys(v).forEach(k=>o[k]=ts(v[k]));return o;}return v;};
+const ref=(c,id)=>({__c:c,__id:id,__k:c+'/'+id,get:async()=>{const d=leerNube().docs[c+'/'+id];return {exists:d!==undefined,data:()=>clon(d)};},
+  onSnapshot(cb){const f=()=>{const d=leerNube().docs[c+'/'+id];cb({exists:d!==undefined,data:()=>clon(d)});};oy.push(f);f();return()=>{oy.splice(oy.indexOf(f),1);};}});
+const cons=(c,fil,ord,lim)=>({where:(f,op,v)=>cons(c,fil.concat([[f,op,v]]),ord,lim),orderBy:(f,d)=>cons(c,fil,[f,d],lim),limit:n=>cons(c,fil,ord,n),
+  _l(){let l=Object.entries(leerNube().docs).filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({id:k.slice(c.length+1),v}));
+    fil.forEach(([f,op,v])=>{l=l.filter(x=>op==='=='?x.v[f]===v:Number(x.v[f])>=v);});if(ord)l.sort((a,b)=>Number(b.v[ord[0]])-Number(a.v[ord[0]]));if(lim)l=l.slice(0,lim);return l.map(x=>({id:x.id,data:()=>clon(x.v)}));},
+  onSnapshot(cb){const f=()=>cb({docs:this._l()});oy.push(f);f();return()=>{oy.splice(oy.indexOf(f),1);};}});
+const db={collection:c=>Object.assign(cons(c,[],null,0),{doc:id=>ref(c,id)}),
+  runTransaction:async fn=>{for(let i=0;i<5;i++){const lect={},w=[];
+    const tx={get:async r=>{await new Promise(x=>setTimeout(x,120));const n=leerNube();lect[r.__k]=n.ver[r.__k]||0;const d=n.docs[r.__k];return {exists:d!==undefined,data:()=>clon(d)};},set:(r,d,o)=>w.push([r,d,o])};
+    const res=await fn(tx);const n=leerNube();let ch=false;Object.keys(lect).forEach(k=>{if((n.ver[k]||0)!==lect[k])ch=true;});if(ch)continue;
+    if(document.getElementById('falla').checked)throw new Error('sin red (simulado)');
+    w.forEach(([r,d,o])=>{let nd=ts(clon(d));if(o&&o.merge)nd=Object.assign({},n.docs[r.__k]||{},nd);n.docs[r.__k]=nd;n.ver[r.__k]=(n.ver[r.__k]||0)+1;});escribirNube(n);avisar();return res;}throw new Error('aborted');}};
+const firebase={auth:()=>({currentUser:{uid:'uid-'+(USER.rol==='mantenimiento_compartido'?'cuenta':U)}}),firestore:{FieldValue:{serverTimestamp:()=>'__TS__'}}};
+const state={user:USER,currentTab:'intervenciones'};
+const LINES=[{key:'PET1',name:'PET 1'},{key:'PET2',name:'PET 2'},{key:'B7L',name:'B7L'},{key:'C20L',name:'CAJAS 20L'},{key:'B20L',name:'B20L'}];
+const esMantCompartido=u=>String((u||state.user).rol)==='mantenimiento_compartido';
+const mantTecnicoActivo=()=>esMantCompartido()?TEC[U]:null;
+const tienePermiso=p=>USER.rol==='Supervisor de Mantenimiento'&&['moduloMantenimiento','gestionar_rotacion_mantenimiento'].includes(p);
+const esUsuarioSoloConsulta=u=>(u||state.user).rol==='Gerente General';
+const escaparHtml=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const glacialCierresSesion=[];
+const loadProgramaciones=()=>(leerNube().docs['sync/programaciones']||{items:[]}).items;
+const loadWorkers=()=>[{id:'w1',nombre:'Ana Pérez',estado:'Activo',area:'Mantenimiento',cargo:'Técnico'},{id:'w2',nombre:'Luis Soto',estado:'Activo',area:'Mantenimiento',cargo:'Técnico'},{id:'w3',nombre:'Rosa Díaz',estado:'Activo',area:'Mantenimiento',cargo:'Técnico'}];
+var renderMain=function(){document.getElementById('main').innerHTML='';},renderSidebar=function(){},ajustarVistaSegunPermisos=function(){},grupoSidebarActivo=function(){return '';};
+window.esMantCompartido=esMantCompartido;window.mantTecnicoActivo=mantTecnicoActivo;window.glacialCierresSesion=glacialCierresSesion;window.tienePermiso=tienePermiso;
+const puedeGestionarRotacionMtto=()=>USER.rol==='Supervisor de Mantenimiento';
+function sembrar(){
+  const ahora=Date.now(),n={docs:{},ver:{}};
+  const eq=(id,cod,nom,li,tipo,comp)=>({id,codigo:cod,nombre:nom,linea:li,compartidoCon:comp||[],tipo,activo:true,datos:{marca:'',modelo:'',serie:'',notas:''},creadoPor:'Sup',creadoEn:ahora,actualizadoPor:'Sup',actualizadoEn:ahora});
+  n.docs['sync/configMantenimiento']={equiposMaestro:[eq('eq_1','PET1-SOP-01','Sopladora 1','PET1','Sopladora'),eq('eq_2','PET1-ENV-01','Envasadora','PET1','Envasadora'),eq('eq_3','PET2-SOP-01','Sopladora','PET2','Sopladora'),eq('eq_4','COMP-01','Compresor central','PLANTA','Compresor',['PET1','PET2'])]};
+  const por={nombre:'Ana Pérez',tecnicoId:'w1',uid:'uid-cuenta'};
+  const base=(id,linea,eqid,eqn,tipo,pri,prob,estado,extra)=>Object.assign({id,version:2,linea,equipoId:eqid,equipoNombre:eqn,equipoPendiente:!eqid,equipoJustificacion:'',tipo,prioridad:pri,problema:prob,origen:{tipo:'MANUAL',id:'',paradaId:'',eventoId:'',plan:null},estado,abierta:['PENDIENTE','EN_INTERVENCION','EN_ESPERA'].includes(estado),espera:null,
+    abiertaPor:{nombre:'Ana Pérez',tecnicoId:'w1',uid:'uid-cuenta',cuenta:'mant',identificadoPor:'PIN'},abiertaMs:ahora-3*3600000,abiertaUid:'uid-cuenta',participantes:[{tecnicoId:'w1',nombre:'Ana Pérez',desde:ahora-3*3600000,rol:'RESPONSABLE'}],inicioRealMs:0,finRealMs:0,
+    diagnostico:'',accion:'',resultado:'',pendientes:'',observaciones:'',repuestos:[],sinRepuestos:false,seguimiento:[],evidencias:[],cierre:null,cancelacion:null,verificacion:null,tareas:[],plan:null,
+    historial:[{id:'h1',en:ahora-3*3600000,accion:'ABRIR',por,detalle:prob,de:'',a:'PENDIENTE',campos:null}]},extra||{});
+  const docs=[
+    base('i1','PET1','eq_1','Sopladora 1','CORRECTIVO','ALTA','La sopladora se detiene por sobrecarga del motor','EN_INTERVENCION',{inicioRealMs:ahora-2*3600000}),
+    base('i2','PET1','','','CORRECTIVO','MEDIA','Ruido anormal en la zona de etiquetado','PENDIENTE'),
+    base('i3','PET2','eq_3','Sopladora','CORRECTIVO','CRITICA','Fuga de aire en el cabezal','EN_ESPERA',{inicioRealMs:ahora-2*3600000,espera:{motivo:'REPUESTO',detalle:'Sello del cabezal',desdeMs:ahora-3600000,por},
+      historial:[{id:'h1',en:ahora-3*3600000,accion:'ABRIR',por,detalle:'Fuga',de:'',a:'PENDIENTE'},{id:'h2',en:ahora-2*3600000,accion:'INICIAR',por,detalle:'Inició el trabajo',de:'PENDIENTE',a:'EN_INTERVENCION'},{id:'h3',en:ahora-3600000,accion:'ESPERA',por,detalle:'Espera de repuesto: Sello del cabezal',de:'EN_INTERVENCION',a:'EN_ESPERA'}]}),
+    base('i4','PET1','eq_2','Envasadora','CORRECTIVO','MEDIA','Válvula de llenado con goteo','CERRADA',{abierta:false,inicioRealMs:ahora-26*3600000,finRealMs:ahora-24*3600000,cerradaMs:ahora-23*3600000,diagnostico:'Válvula con el sello desgastado',accion:'Se reemplazó el sello y se calibró el llenado',resultado:'OPERATIVO_OBSERVACION',pendientes:'Revisar el sello en 3 días',
+      repuestos:[{id:'r1',codigo:'SL-12',descripcion:'Sello de válvula',cantidad:1,unidad:'UND',observacion:'',por,en:ahora-25*3600000}],cierre:{por,en:ahora-23*3600000,responsable:{tecnicoId:'w1',nombre:'Ana Pérez'},requiereSeguimiento:true},
+      historial:[{id:'h1',en:ahora-27*3600000,accion:'ABRIR',por,detalle:'Goteo',de:'',a:'PENDIENTE'},{id:'h2',en:ahora-26*3600000,accion:'INICIAR',por,detalle:'Inició',de:'PENDIENTE',a:'EN_INTERVENCION'},{id:'h3',en:ahora-23*3600000,accion:'CERRAR',por,detalle:'Cerró la intervención',de:'EN_INTERVENCION',a:'CERRADA'}]}),
+    base('i5','B7L','eq_4','Compresor central','CORRECTIVO','ALTA','Presión baja en la red de aire','CERRADA',{abierta:false,inicioRealMs:ahora-50*3600000,finRealMs:ahora-48*3600000,cerradaMs:ahora-47*3600000,diagnostico:'Filtro de admisión obstruido',accion:'Se limpió el filtro; sigue con vibración',resultado:'NO_OPERATIVO',pendientes:'Cambiar el rodamiento del motor; hasta entonces opera limitado',sinRepuestos:true,cierre:{por,en:ahora-47*3600000,responsable:{tecnicoId:'w1',nombre:'Ana Pérez'},requiereSeguimiento:true}})
+  ];
+  docs.forEach(d=>{n.docs['intervenciones/'+d.id]=d;n.ver['intervenciones/'+d.id]=2;});
+  const hoy=new Date().toISOString().slice(0,10);
+  n.docs['sync/programaciones']={items:[{linea:'B20L',fecha:hoy,turno:'DÍA',marca:'Fontlife',presentacion:'20 Litros',cantidadProgramada:1000,estadoOperacion:{estado:'DETENIDA',motivo:'Falla de máquina',equipo:'Lavadora',detenidaDesde:ahora-40*60000,paradas:[{id:'B20L|99|det',inicio:ahora-40*60000,fin:0}]}}]};
+  escribirNube(n);
+}
+document.getElementById('reiniciar').onclick=()=>{sembrar();avisar();};
+(async()=>{
+  if(!localStorage.getItem(KEY)||Q.get('seed')==='1')sembrar();
+  const cargar=s=>new Promise((ok,er)=>{const e=document.createElement('script');e.src=s;e.onload=ok;e.onerror=er;document.head.appendChild(e);});
+  const extra=(Q.get('mods')||'').split(',').filter(Boolean);
+  for(const f of ['37d-equipos-maestro','67-intervenciones-motor','67b-intervenciones-datos','67c-intervenciones-pantalla'].concat(extra))await cargar('js/mantenimiento/'+f+'.js');
+  goIntervenciones();window.__listo=true;
+})();
+</script></body></html>

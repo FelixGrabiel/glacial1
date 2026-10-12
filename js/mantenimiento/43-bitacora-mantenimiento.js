@@ -434,6 +434,7 @@
       ((p.pendiente||p.equipoPendiente)&&puedeCompletarMotivo()?'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+
         (p.pendiente?'<button type="button" class="btn btn-primary btn-sm" data-bm-completar="'+esc(p.pasos[0].id)+'">Completar motivo</button>':'')+
         (p.equipoPendiente?'<button type="button" class="btn btn-primary btn-sm" data-bm-equipo="'+esc(p.pasos[0].id)+'">Indicar equipo</button>':'')+'</div>':'')+
+      botonIntervencion(p)+
       '</div>';
   }
 
@@ -568,6 +569,22 @@
     }catch(e){alert('No se pudo registrar el motivo: '+((e&&e.message)||e));}
   }
 
+  /* ---------- Intervención de la parada (módulo Intervenciones): abrir una nueva o ver la existente. La bitácora no se modifica. ---------- */
+  function intervencionDe(p){
+    const A=window.glacialIntervenciones;
+    if(!A||!p||!p.paradaId)return null;
+    try{return A.todas().find(d=>d.origen&&(d.origen.paradaId===p.paradaId||d.origen.id===p.paradaId))||null;}catch(_){return null;}
+  }
+  function botonIntervencion(p){
+    const A=window.glacialIntervenciones;
+    if(!A||p.tipo==='PAUSA'||!p.paradaId)return '';
+    let perm;try{perm=A.permisos();}catch(_){return '';}
+    if(!perm.ver)return '';
+    const d=intervencionDe(p);
+    if(d)return '<div style="margin-top:8px"><button type="button" class="btn btn-ghost btn-sm" data-bm-interv="'+esc(d.id)+'">Ver intervención ('+esc((window.GlacialIntervenciones&&window.GlacialIntervenciones.ESTADOS[d.estado])||d.estado)+')</button></div>';
+    return perm.escribir?'<div style="margin-top:8px"><button type="button" class="btn btn-ghost btn-sm" data-bm-abrir-interv="'+esc(p.paradaId)+'">Abrir intervención</button></div>':'';
+  }
+
   /* ---------- «Indicar equipo»: evento COMPLETAR_MOTIVO nuevo con el equipo (la bitácora no se edita) ---------- */
   async function indicarEquipoDesdeBitacora(idEventoInicial){
     const G=window.glacialEquipos;
@@ -638,6 +655,17 @@
     if(compl){completarDesdeBitacora(compl);return;}
     const eq=e.target.closest('[data-bm-equipo]')?.dataset.bmEquipo;
     if(eq){indicarEquipoDesdeBitacora(eq);return;}
+    const vi=e.target.closest('[data-bm-interv]')?.dataset.bmInterv;
+    if(vi&&typeof window.intervencionesAbrir==='function'){window.intervencionesAbrir({abrir:vi});return;}
+    const ai=e.target.closest('[data-bm-abrir-interv]')?.dataset.bmAbrirInterv;
+    if(ai){
+      const p=armarParadas(carga.eventos).find(x=>x.paradaId===ai);
+      if(!p)return;
+      window.glacialIntervenciones.abrirDesdeParada({linea:p.linea,paradaId:p.paradaId,eventoId:p.pasos[0].id,motivo:p.motivoTexto,equipoTexto:p.equipo||''})
+        .then(r=>{if(typeof window.intervencionesAbrir==='function')window.intervencionesAbrir({abrir:r.doc.id});})
+        .catch(err=>{try{window.glacialMantUI.aviso('No se pudo abrir la intervención',(err&&err.message)||String(err));}catch(_){/* sin aviso */}});
+      return;
+    }
     if(e.target.closest('#bm-actualizar')){cargarRango(true);return;}
     if(e.target.closest('#bm-excel')){exportarExcel();}
   });
