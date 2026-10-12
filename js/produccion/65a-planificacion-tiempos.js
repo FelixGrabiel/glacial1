@@ -179,12 +179,12 @@
   NS.entradaMotor=function(fecha,turno,linea,filasOpc){
     const bloqueClave=NS.valorBloque(turno),b=bloqueDe(fecha,bloqueClave);
     const filas=filasOpc||NS.items(fecha,turno).filter(p=>p.linea===linea&&NS.estadoDe(p)!=='CANCELADA').map(p=>({marca:p.marca,presentacion:p.presentacion,cantidad:num(p.cantidadProgramada),estado:NS.estadoDe(p),fila:p}));
-    const rs=NS.resumenBloque(fecha,turno);
+    let rs=null;                                   // el resumen del bloque (producido oficial) solo se arma si hace falta (capacidad restante)
     const estados=new Map();filas.forEach(f=>{if(f.fila)estados.set((f.marca+'|'+f.presentacion),f.estado);});
     return {fecha,bloqueClave,bloque:b,linea,filas,tramos:NS.tramosDe(fecha,turno,linea),tp:NS.tiemposDatos(),vel:NS.velocidadDe?((m,p)=>NS.velocidadDe(linea,p,m)):(()=>0),
       etiqueta:(m,p)=>NS.etiquetaPresentacion(linea,m,p),ahora:ahoraMs(),
       estado:(m,p)=>estados.get(m+'|'+p)||'PENDIENTE',
-      producido:(m,p)=>{const g=rs.grupos.get([linea,m,p].join('|'));return g?g.producido:null;}};
+      producido:(m,p)=>{rs=rs||NS.resumenBloque(fecha,turno);const g=rs.grupos.get([linea,m,p].join('|'));return g?g.producido:null;}};
   };
   /* Capacidad vigente (con los parámetros de hoy). */
   NS.capacidadVigente=(fecha,turno,linea)=>M.capacidad(NS.entradaMotor(fecha,turno,linea));
@@ -192,11 +192,12 @@
      avisando que está desfasada (no se reescribe en silencio). */
   NS.evaluar=function(fecha,turno,linea){
     const bloque=NS.valorBloque(turno);
-    const vigente=NS.capacidadVigente(fecha,turno,linea);
+    const entrada=NS.entradaMotor(fecha,turno,linea);
+    const vigente=M.capacidad(entrada);
     if(!vigente)return null;
     const g=NS.evaluacionGuardada(fecha,turno,linea);
     const tp=NS.tiemposDatos();
-    const huellaPlan=M.huella(NS.entradaMotor(fecha,turno,linea).filas);
+    const huellaPlan=M.huella(entrada.filas);
     const huellaParam=NS.huellaParametros(tp,linea,fecha,bloque);
     const desfasada=!!g&&g.huellaPlan===huellaPlan&&g.huellaParam!==huellaParam;
     return {vigente,guardada:g&&g.huellaPlan===huellaPlan?g:null,desfasada,mostrar:desfasada?Object.assign({},vigente,{estado:g.estado,requeridoMin:g.requeridoMin,disponibleMin:g.disponibleMin,

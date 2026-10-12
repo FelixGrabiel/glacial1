@@ -79,6 +79,7 @@
       excesoMin=Math.max(1,-vig.holguraMin>0?-vig.holguraMin:((vig.colocacion&&vig.colocacion.excedeMin)||60));
     }
     if(!(excesoMin>0))return Object.assign(res,{motivo:'La línea cabe en este bloque (capacidad '+(base==='restante'?'restante':'del plan')+'): no hay nada que completar.',base});
+    excesoMin=Math.round(excesoMin*1e6)/1e6;
     res.base=base;res.excesoMin=excesoMin;res.motivoExceso=vig.motivoExceso||'';
     // productos con saldo comprobado
     const rs=NS.resumenBloque(fecha,bloque);
@@ -100,7 +101,7 @@
       res.limitaciones.push(!elegido?'Sin productos.':elegido.error||'Este producto no tiene saldo para trasladar o le falta la velocidad estándar.');
       res.sinTraslado=true;
     }else{
-      const need=Math.min(elegido.max,Math.ceil(excesoMin*elegido.vel/60));
+      const need=Math.min(elegido.max,Math.ceil(Math.round(excesoMin*elegido.vel/60*1e6)/1e6));
       const item=elegido.fila,cands=[];
       const tpD=tp;
       for(let d=0;d<=DIAS_ADELANTE;d++){
@@ -139,13 +140,16 @@
       });
       // orden: primero lo que completa todo, luego el más cercano
       res.opciones.sort((a,b)=>(b.completo?1:0)-(a.completo?1:0)||(a.tipo==='NOCHE'?0:1)-(b.tipo==='NOCHE'?0:1)||a.destFecha.localeCompare(b.destFecha)||(a.destBloque==='DÍA'?0:1)-(b.destBloque==='DÍA'?0:1));
-      res.opciones=res.opciones.slice(0,6);
+      const todas=res.opciones,mismaNoche=todas.find(o=>o.tipo==='NOCHE');
+      res.opciones=todas.slice(0,6);
+      if(mismaNoche&&!res.opciones.includes(mismaNoche))res.opciones[5]=mismaNoche;       // «Completar en Noche» siempre se muestra, aunque solo quepa una parte
     }
     // cambio de orden: solo si no hay secuencia definida y reduce los tiempos de cambio
     res.orden=sugerirOrden(fecha,bloque,linea,tp);
     return res;
   };
 
+  NS.sugerirOrden=(fecha,turno,linea)=>sugerirOrden(fecha,NS.valorBloque(turno),linea,NS.tiemposDatos());
   /* Orden de productos que minimiza los minutos de cambio (solo si no hay tramos definidos en Paletas y se conocen todos los tiempos). */
   function sugerirOrden(fecha,bloque,linea,tp){
     const tramos=NS.tramosDe(fecha,bloque,linea);

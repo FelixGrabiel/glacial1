@@ -39,7 +39,7 @@
     const par=Number.isFinite(Number(t[k]))&&t[k]!==null&&t[k]!==''?Number(t[k]):null;
     return {cambioMin:cambio,paradasMin:par};
   };
-  const hm=min=>{const s=min<0?'-':'',a=Math.round(Math.abs(min));return s+Math.floor(a/60)+' h '+String(a%60).padStart(2,'0')+' min';};
+  const hm=min=>{const s=min<0?'-':'',a=Math.round(Math.abs(min));return a<60?s+a+' min':s+Math.floor(a/60)+' h '+String(a%60).padStart(2,'0')+' min';};
   NS.textoDuracion=hm;
   const hhmm=ms=>new Date(ms).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false});
 
@@ -119,7 +119,7 @@
       #plan-root .pc-det td{padding:3px 6px;border-bottom:1px solid #edf2f6;vertical-align:top}
       #plan-root .pc-det td.num,#plan-root .pc-det th.num{text-align:right;font-variant-numeric:tabular-nums}
       #plan-root .pc-det h6{margin:10px 0 2px;font-size:12px;color:#003b5c}
-      #plan-root .plan-gantt .g-vent{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,#94A3B8,#94A3B8 4px,#CBD5E1 4px,#CBD5E1 8px);opacity:.85}
+      #plan-root .plan-gantt .g-vent{position:absolute;z-index:3;top:0;bottom:0;background:repeating-linear-gradient(135deg,#94A3B8,#94A3B8 4px,#CBD5E1 4px,#CBD5E1 8px);opacity:.7}
       #plan-root .plan-gantt .g-prep{position:absolute;top:10px;bottom:10px;background:#475569;border-radius:4px;opacity:.9}
     `;
     s.textContent=css+css.replace(/#plan-root/g,'.plan-dialogo');
@@ -190,9 +190,9 @@
         '<div class="cap-pct">'+(c.cargaPct===null?'—':Math.round(c.cargaPct)+' %')+'<small>de utilización del tiempo disponible</small></div>'+
         '<div class="cap-meter"><i style="width:'+(c.cargaPct===null?0:Math.min(100,Math.round(c.cargaPct)))+'%"></i></div>'+
         '<div class="cap-fil"><span>Disponible</span><b>'+hm(c.disponibleMin)+'</b></div>'+
-        '<div class="cap-fil"><span>Producción requerida</span><b>'+hm(c.produccionMin)+(c.faltantes.some(f=>f.dato==='velocidad estándar')?'*':'')+'</b></div>'+
+        '<div class="cap-fil"><span>Producción requerida</span><b>'+(c.produccionMin>0||!c.faltantes.length?hm(c.produccionMin):'—')+(c.faltantes.some(f=>f.dato==='velocidad estándar')&&c.produccionMin>0?'*':'')+'</b></div>'+
         '<div class="cap-fil"><span>Cambios y preparaciones <small>('+c.preparaciones.length+')</small></span><b>'+hm(c.preparacionMin)+'</b></div>'+
-        '<div class="cap-fil"><span>Requerido total</span><b>'+hm(c.requeridoMin)+'</b></div>'+
+        '<div class="cap-fil"><span>Requerido total</span><b>'+(c.estado==='INCOMPLETA'?'—':hm(c.requeridoMin))+'</b></div>'+
         '<div class="cap-fil cap-hol"><span>'+(c.estado!=='INCOMPLETA'&&c.holguraMin<0?'Exceso':'Tiempo libre')+'</span>'+(c.estado==='INCOMPLETA'?'<b>—</b>':'<b>'+hm(Math.abs(c.holguraMin))+'</b>')+'</div>'+
         (c.finEstMs&&c.estado!=='INCOMPLETA'?'<div class="cap-fil"><span>Inicio y fin estimados</span><b>'+hhmm(c.inicioEstMs)+' – '+hhmm(c.finEstMs)+'</b></div>':'')+rest+
         (c.motivoExceso?'<div class="cap-falta" style="background:#FAE8FF;color:#86198F">'+esc(c.motivoExceso)+'</div>':'')+
@@ -203,7 +203,7 @@
     });
     cap.innerHTML=!tarjetas.length?'':'<h4 class="plan-h4">Capacidad del bloque <small>(estimación de referencia · duración '+hm(dur)+')</small></h4>'+NS.leyendaCapacidad()+
       '<div class="plan-caps">'+tarjetas.join('')+'</div>'+
-      '<p class="plan-nota">Cada tiempo se cuenta una sola vez: las ventanas solo restan del disponible y las preparaciones solo suman al requerido. * sin los productos que no tienen velocidad estándar. Una estimación incompleta no se presenta como verdadera: completa el dato que falta. Las ventanas y reglas se configuran en Catálogo → Tiempos previstos.</p>'+
+      '<p class="plan-nota">Cada tiempo se cuenta una sola vez: las ventanas solo restan del disponible y las preparaciones solo suman al requerido. * sin los productos que no tienen velocidad estándar. Una estimación incompleta no se presenta como verdadera: completa el dato que falta. Las ventanas y reglas se configuran en Catálogo → Tiempos previstos. Pedidos, stock de insumos y mantenimiento programado: <b>Por confirmar</b> (todavía no hay una fuente fiable en el sistema). Esto es una previsión de planificación; el estado operativo es la ejecución real.</p>'+
       (desf?'<p class="plan-nota" style="color:#7A5200">'+desf+(desf===1?' línea muestra':' líneas muestran')+' una evaluación guardada con parámetros anteriores (no se reescribió en silencio).</p>':'');
     // secuencia: barra de tiempo del bloque (con ventanas y preparaciones) + detalle
     const sec=document.getElementById('plan-secuencia');
@@ -264,6 +264,7 @@
       destino:{antes:resumenCap(capDeFilas(destFecha,dbk,item.linea,fd)),despues:resumenCap(capDeFilas(destFecha,dbk,item.linea,mover(fd,cant)))}};
   };
   const finBloqueMs=(fecha,bloque)=>NS.inicioBloqueMs(fecha,bloque)+NS.duracionBloqueMin(bloque)*60000;
+  const aplicados=new Set();            // identificadores de traslado ya aplicados en este dispositivo
   /* o: {item, destFecha, destTurno, cantidad, motivo, trasladoId, destVersionEsperada?, aceptoExceso?} */
   NS.trasladarSaldo=async function(o){
     if(!NS.puede())throw new Error('Solo Planificación puede trasladar saldo.');
@@ -274,6 +275,10 @@
     if(!fechaOk(o.destFecha))throw new Error('La fecha de destino no es válida.');
     if(o.destFecha===item.fecha&&destBloque===origBloque)throw new Error('El destino debe ser otro bloque o otra fecha.');
     if(ahoraMs()>=finBloqueMs(o.destFecha,destBloque))throw new Error('El bloque de destino ya terminó: no se puede trasladar producción a un bloque pasado.');
+    // mismo identificador ya aplicado (doble clic o reintento): no se repite ni se confunde con un conflicto de versión
+    const idO0='h_tr_'+tid+'_o';
+    if(aplicados.has(tid))return {trasladoId:tid,duplicado:true};
+    try{const prev=await db.collection('historialProgramacion').doc(idO0).get();if(prev.exists){aplicados.add(tid);return {trasladoId:tid,duplicado:true};}}catch(_){/* sin lectura del historial: la transacción vuelve a comprobarlo */}
     // se relee la fila y el saldo actuales (no los que se veían al abrir): si cambiaron, se pide revisar la propuesta
     const fresco=NS.programaciones().find(p=>p.clave===item.clave);
     if(!fresco)throw conflicto('La programación de origen ya no existe (otra persona la quitó). No se trasladó nada.',null,{propuestaCambio:true});
@@ -333,6 +338,7 @@
       [ev(rO,item.fecha,rO.turnoFinal,'TRASLADO: a '+o.destFecha+' '+destBloque,idO),ev(rD,o.destFecha,rD.turnoFinal,'TRASLADO: desde '+item.fecha+' '+origBloque,idD)]
         .forEach(e=>{if(e)tx.set(db.collection('historialProgramacion').doc(e.id),e.doc);});
     });
+    aplicados.add(tid);
     if(duplicado)return Object.assign({},info,{duplicado:true});
     if(lista&&typeof _programacionesCache!=='undefined')_programacionesCache=lista;
     try{if(typeof NS.programarEvaluacion==='function'){NS.programarEvaluacion(item.fecha,item.turno);NS.programarEvaluacion(o.destFecha,destBloque);}}catch(_){/* informativo */}
