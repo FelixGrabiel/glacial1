@@ -1189,7 +1189,8 @@ function blankCuadro(lineKey, numero){
         id:generarIdParadaProduccion(),
         descripcion:'',
         tiempoMin:0,
-        causa:''
+        causa:'',
+        ...paradaCatCampos('paradasNoProgramadas')
       }
     ],
 
@@ -2994,6 +2995,13 @@ function validarReporteParaFinalizar(){
     if(!q.horaInicio) faltan.push(`Producción ${n}: hora inicio`);
     if(!q.horaFin) faltan.push(`Producción ${n}: hora fin`);
     // Paradas por «Falla de máquina»: el equipo es obligatorio (la lista «Falta para finalizar» lo muestra; no se bloquea el guardado en tiempo real).
+    // Causa y motivo del catálogo (el detalle es obligatorio en «Otro»).
+    if(window.glacialMotivosParada) (q.paradasNoProgramadas || []).forEach(p => {
+      if(p && !p.auto && !p.eliminada && num(p.tiempoMin) > 0 && registroCatalogoActivo(p)){
+        const err = window.glacialMotivosParada.validar(p.causa, p.motivoCat, p.detalle);
+        if(err) faltan.push(`Producción ${n}: parada no programada (${err.replace(/\.$/, '')})`);
+      }
+    });
     if(window.glacialEquipos) (q.paradasNoProgramadas || []).forEach(p => {
       if(p && !p.auto && !p.eliminada && num(p.tiempoMin) > 0 && window.glacialEquipos.esFalla(p.causa) && window.glacialEquipos.validarTexto(p.equipo))
         faltan.push(`Producción ${n}: equipo de una parada por Falla de máquina`);
@@ -5635,7 +5643,8 @@ function paradasTableCuadro(
           {
             descripcion:'',
             tiempoMin:0,
-            causa:''
+            causa:'',
+            ...paradaCatCampos(key)
           }
         ];
 
@@ -5776,6 +5785,10 @@ function paradasTableCuadro(
 
                           `
 
+                          : registroCatalogoActivo(r)
+
+                          ? registroMotivoHtml(cuadroIndex, key, i, r)
+
                           : `
 
                             <input
@@ -5846,7 +5859,7 @@ function paradasTableCuadro(
                               </option>
 
                               ${
-                                CAUSAS_PARADA_NO_PROGRAMADA
+                                causasParadaOpciones(r)
                                   .map(
                                     o =>
                                       `
@@ -5976,7 +5989,8 @@ function addParadaCuadro(
     id:generarIdParadaProduccion(),
     descripcion:'',
     tiempoMin:0,
-    causa:''
+    causa:'',
+    ...paradaCatCampos(key)
   });
 
 
@@ -5984,6 +5998,37 @@ function addParadaCuadro(
 
 }
 
+
+/* Motivos de parada en dos niveles (37e). Una fila con catálogo lleva motivoCat/detalle (aunque vacíos); las antiguas no los tienen y conservan el texto libre. */
+function paradaCatCampos(key){
+  return (key === 'paradasNoProgramadas' && window.glacialMotivosParada) ? { motivoCat:'', detalle:'' } : {};
+}
+function registroCatalogoActivo(r){
+  return !!(window.glacialMotivosParada && r && r.motivoCat !== undefined);
+}
+function causasParadaOpciones(r){
+  const C = window.glacialMotivosParada;
+  const lista = C ? C.causas().map(c => c.nombre) : CAUSAS_PARADA_NO_PROGRAMADA.slice();
+  const actual = String(r?.causa || '').trim();
+  if(actual && !lista.some(n => n.toLowerCase() === actual.toLowerCase())) lista.push(actual);
+  return lista;
+}
+function registroMotivoHtml(cuadroIndex, key, i, r){
+  const C = window.glacialMotivosParada;
+  const min = C.detalleMin(r.causa);
+  return `
+    <select
+      style="width:100%;box-sizing:border-box;"
+      aria-label="Motivo de la parada"
+      ${r.causa ? '' : 'disabled title="Elige primero la causa"'}
+      onchange="updateArrItemCuadro(${cuadroIndex}, '${key}', ${i}, 'motivoCat', this.value)"
+    >${C.opcionesMotivo(r.causa, r.motivoCat)}</select>
+    <input type="text" maxlength="120" value="${escaparHtml(r.detalle || '')}"
+      placeholder="${min ? 'Detalle (obligatorio, mínimo ' + min + ' caracteres)' : 'Detalle (opcional)'}"
+      aria-label="Detalle de la parada"
+      style="width:100%;box-sizing:border-box;margin-top:4px;"
+      oninput="updateArrItemCuadro(${cuadroIndex}, '${key}', ${i}, 'detalle', this.value)">`;
+}
 
 /* Equipo que falló: solo en paradas NO programadas con causa «Falla de máquina». Se guarda como texto en la propia parada (equipo). */
 function registroEquipoHtml(cuadroIndex, key, i, r){
@@ -6054,6 +6099,21 @@ function updateArrItemCuadro(
         )
       : val;
 
+  // Con catálogo: descripcion = motivo + « — » + detalle; al cambiar la causa se vuelve a elegir el motivo (si hay uno solo, queda elegido).
+  if(key === 'paradasNoProgramadas' && registroCatalogoActivo(q[key][i])){
+    const fila = q[key][i], C = window.glacialMotivosParada;
+    if(field === 'causa'){
+      const ms = C.motivosDe(val);
+      fila.motivoCat = ms.length === 1 ? ms[0] : (ms.includes(fila.motivoCat) ? fila.motivoCat : '');
+    }
+    if(field === 'causa' || field === 'motivoCat' || field === 'detalle') fila.descripcion = C.componerDescripcion(fila.motivoCat, fila.detalle);
+    if(field === 'motivoCat' || field === 'detalle'){
+      actualizarCuadro(cuadroIndex);
+      if(field === 'motivoCat') renderFormTab();           // el detalle no redibuja: conserva el cursor
+      return;
+    }
+  }
+
   // El equipo solo existe para «Falla de máquina»: si la causa cambia, se limpia y la fila se vuelve a dibujar.
   if(field === 'causa' && key === 'paradasNoProgramadas'){
     if(!(window.glacialEquipos && window.glacialEquipos.esFalla(val))) delete q[key][i].equipo;
@@ -6105,7 +6165,8 @@ function removeArrItemCuadro(
       id:generarIdParadaProduccion(),
       descripcion:'',
       tiempoMin:0,
-      causa:''
+      causa:'',
+      ...paradaCatCampos(key)
     });
 
   }

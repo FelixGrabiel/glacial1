@@ -40,7 +40,7 @@ ok(/Equipo sin indicar/.test(G.SIN_INDICAR),'texto «Equipo sin indicar» para p
   /* ---------- 2) Pareto por equipo (47) ---------- */
   const s47=leer('js/produccion/47-analisis-paradas.js');
   const sb2={console,Math,Number,Array,Object,String,Date,JSON,Map,Set,RegExp};vm.createContext(sb2);
-  vm.runInContext('const SIN_TECNICO="Sin técnico";const nombreLinea=x=>x;'+extraer(s47,'equipoDeParada')+extraer(s47,'etiquetaMotivo')+extraer(s47,'armarPareto')+'this.f=armarPareto;this.e=equipoDeParada;',sb2);
+  vm.runInContext('const SIN_TECNICO="Sin técnico";const nombreLinea=x=>x;'+extraer(s47,'equipoDeParada')+extraer(s47,'etiquetaMotivo')+extraer(s47,'causaDeParada')+extraer(s47,'motivoDeParada')+extraer(s47,'armarPareto')+'this.f=armarPareto;this.e=equipoDeParada;',sb2);
   const it=(m,min,causa,eq)=>({motivo:m,minutos:min,clasif:'NO_PROGRAMADA',causa,equipo:eq});
   const us=[{linea:'PET1',turno:'DÍA',ajusteNp:0,ajusteProg:0,pItems:[],npItems:[it('x',30,'Falla de máquina','Rinser'),it('x',20,'Falla de máquina','Rinser'),it('y',15,'Falla de máquina',''),it('z',40,'Cambio de formato','')]}];
   const p=sb2.f(us,{agrupar:'equipo',metrica:'minutos'});
@@ -63,7 +63,7 @@ ok(/Equipo sin indicar/.test(G.SIN_INDICAR),'texto «Equipo sin indicar» para p
   ok(/equipoTop/.test(s48),'Resumen de turno: equipo con más minutos de falla');
   ok(/Equipo \(falla de máquina\)/.test(s08),'Excel de la línea: columna Equipo en la hoja de paradas');
   ok(html.indexOf('37c-equipos-catalogo.js')>html.indexOf('37b-mantenimiento-identificacion.js')&&html.indexOf('37b-mantenimiento-identificacion.js')>0,'index.html carga 37c después de 37b');
-  ok(['06-registro','08-graficos','23b-tiempos-linea','24-semaforo-produccion-actual','29-avance-produccion','37b-mantenimiento-identificacion','37c-equipos-catalogo','43-bitacora-mantenimiento','47-analisis-paradas','48-resumen-turno'].every(n=>new RegExp(n+'\\.js\\?v=2026101[12]-(eq|mt)1').test(html)),'versión ?v= de los scripts tocados subida');
+  ok(['06-registro','08-graficos','23b-tiempos-linea','24-semaforo-produccion-actual','29-avance-produccion','37b-mantenimiento-identificacion','37c-equipos-catalogo','43-bitacora-mantenimiento','47-analisis-paradas','48-resumen-turno'].every(n=>new RegExp(n+'\\.js\\?v=2026101[12]-(eq|mt|pm)1').test(html)),'versión ?v= de los scripts tocados subida');
   ok(!/[^.\w]alert\(|[^.\w]confirm\(|[^.\w]prompt\(/.test(s37c.replace(/\/\/.*$/gm,''))&&!/[^.\w]confirm\(|[^.\w]prompt\(/.test(s43.slice(s43.indexOf('async function indicarEquipoDesdeBitacora'),s43.indexOf('bitacoraMttoEquipoDe'))),'sin alert/confirm/prompt nuevos');
   ok(!/arrayUnion|increment\(|array-contains|'!='/.test(s37c+s43.slice(s43.indexOf('async function indicarEquipoDesdeBitacora'),s43.indexOf('bitacoraMttoEquipoDe'))),'compatible con el puente Supabase (sin arrayUnion, increment ni consultas array-contains / !=)');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

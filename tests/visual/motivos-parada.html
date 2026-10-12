@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><base href="/"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Motivos de parada (datos de prueba)</title>
+<style>
+body{margin:0;background:#f3f6f8;font-family:system-ui,Arial,sans-serif;color:#172b3a}
+.barra{padding:8px 14px;background:#003B5C;color:#fff;font-size:13px;display:flex;gap:10px;align-items:center}
+.btn{padding:8px 14px;border-radius:8px;border:1px solid #005b96;background:#005b96;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.btn-ghost{background:#fff;color:#005b96}.btn-primary{background:#005b96;color:#fff}
+#main{padding:12px;max-width:560px;margin:0 auto}
+.fila{background:#fff;border:1px solid #cbd8e0;border-radius:10px;padding:10px;display:grid;gap:8px}
+.fila label{font-size:12px;color:#5a6b78;display:block}.fila select,.fila input{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd8e0;border-radius:8px;min-height:40px}
+</style></head><body>
+<div class="barra"><b>Datos de PRUEBA (no reales)</b><button class="btn" onclick="glacialMotivosParada.abrirEditor()">Motivos de parada</button></div>
+<div id="main"><div class="fila" id="fila"></div></div>
+<script>
+const docs=new Map(),oy=[],clon=v=>JSON.parse(JSON.stringify(v));
+window.db={collection:()=>({doc:id=>({__k:'sync/'+id,onSnapshot(cb){const f=()=>cb({exists:docs.has('sync/'+id),data:()=>clon(docs.get('sync/'+id))});oy.push(f);f();return()=>{};}})}),
+  runTransaction:async fn=>{const w=[];const tx={get:async r=>({exists:docs.has(r.__k),data:()=>clon(docs.get(r.__k))}),set:(r,d,o)=>w.push([r,d,o])};
+    const res=await fn(tx);w.forEach(([r,d,o])=>docs.set(r.__k,o&&o.merge?Object.assign({},docs.get(r.__k)||{},clon(d)):clon(d)));oy.slice().forEach(f=>f());return res;}};
+window.state={user:{rol:'Administrador',username:'adm',nombre:'Admin'}};
+window.glacialCierresSesion=[];
+</script>
+<script src="js/mantenimiento/37c-equipos-catalogo.js"></script>
+<script src="js/mantenimiento/37e-motivos-parada.js"></script>
+<script>
+const M=glacialMotivosParada;
+function pintar(){
+  const causa=window.causaSel||'Ajuste o calibración';
+  document.getElementById('fila').innerHTML='<div><label>Causa</label><select onchange="causaSel=this.value;pintar()">'+M.opcionesCausa(causa)+'</select></div>'+
+   '<div><label>Motivo</label><select>'+M.opcionesMotivo(causa,'')+'</select></div>'+
+   '<div><label>Detalle '+(M.detalleMin(causa)?'(obligatorio, mínimo '+M.detalleMin(causa)+' caracteres)':'(opcional)')+'</label><input type="text"></div>'+
+   (M.pideEquipo(causa)?'<div><label>Equipo que falló (obligatorio)</label><select>'+glacialEquipos.opciones('PET1','')+'</select></div>':'');
+}
+M.alCambiar(pintar);pintar();
+</script>
+</body></html>

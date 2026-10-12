@@ -77,7 +77,8 @@
   };
 
   /* ¿Esta parada es por falla de máquina? (motivo del botón o causa del registro/Avance) */
-  const esFalla=t=>/^\s*falla de m[aá]quina/i.test(String(t||''));
+  /* Si el catálogo de motivos (37e) está cargado, él decide qué causas piden equipo (Falla de máquina, Ajuste o calibración…); si no, solo «Falla de máquina». */
+  const esFalla=t=>{const M=window.glacialMotivosParada;if(M&&M.pideEquipo)return M.pideEquipo(t);return /^\s*falla de m[aá]quina/i.test(String(t||''));};
 
   /* ---------- valor del equipo: texto final ↔ selección ---------- */
   /* «Otro equipo — detalle» ↔ {sel:'__otro__',detalle}; un nombre del catálogo ↔ {sel:nombre}. Un nombre que ya no está en el catálogo

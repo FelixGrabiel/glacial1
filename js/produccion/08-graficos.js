@@ -2235,7 +2235,7 @@ function xlHojaParadas(wb, ctx){
           tipo,
           desc:desc || 'Sin descripción',
           min,
-          equipo:(tipo === 'No programada' && /^\s*falla de m[aá]quina/i.test(String(p?.causa || '')))
+          equipo:(tipo === 'No programada' && (window.glacialEquipos && window.glacialEquipos.esFalla ? window.glacialEquipos.esFalla(p?.causa) : /^\s*falla de m[aá]quina/i.test(String(p?.causa || ''))))
             ? (String(p?.equipo || '').trim() || 'Equipo sin indicar') : ''
         });
 

@@ -260,7 +260,7 @@ function avParadasRegistroLinea(linea,hora,tipo,corteMs){
           if(!p?.descripcion||avNum(p.tiempoMin)<=0)return;
           out.push({
             id:avIdParadaRegistro(r.id,qi,key,pi,p),descripcion:p.descripcion,minutos:avNum(p.tiempoMin),estadoRegistro:r.estadoRegistro||'',
-            tipo:tipoParada,causa:p.causa||'',equipo:p.equipo||'',maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',
+            tipo:tipoParada,causa:p.causa||'',motivoCat:p.motivoCat||'',detalle:p.detalle||'',equipo:p.equipo||'',maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',
             origen:'REGISTRO',recordId:r.id||'',cuadroIndex:qi,key,index:pi,paradaId:p.id||''
           });
         });
@@ -346,17 +346,71 @@ function avParadaEquipo(i,parte,valor){
   p.equipo=window.glacialEquipos.componer(e.sel,e.detalle);
   if(parte==='sel')avRenderParadasModal();          // «Otro equipo» muestra u oculta el detalle; escribir el detalle no redibuja (conserva el cursor)
 }
+/* Catálogo de causas y motivos (37e): una parada NO programada nueva o tocada usa causa › motivo › detalle; las antiguas conservan su texto libre. */
+function avCat(){return window.glacialMotivosParada||null;}
+function avUsaCatalogo(p){return !!(p&&p.tipo==='NO_PROGRAMADA'&&avCat()&&(p.motivoCat||p.nueva||p.catTocada));}
+function avHoraTxt(ms){const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+function avVentanaTurno(fecha,turno){
+  const bl=avBloquesCfg()[turno==='NOCHE'?'noche':'diaInter'];
+  const a=avHoraMs(fecha,bl.inicio,turno);let b=avHoraMs(fecha,bl.fin,turno);
+  if(a&&b&&b<=a)b+=86400000;
+  return {ini:a,fin:b,txt:bl.inicio+' - '+bl.fin};
+}
+/* Hora de fin = hora de inicio + minutos. */
+function avHoraFinCalculada(m,p){
+  const a=avHoraMs(m.fecha,p.horaInicio,m.turno);
+  return a&&avNum(p.minutos)>0?avHoraTxt(a+Math.round(avNum(p.minutos))*60000):'';
+}
+/* Error legible o '' para una parada con catálogo: causa, motivo, detalle («Otro» pide 10 caracteres) y hora de inicio (obligatoria sobre 15 min; dentro del turno). */
+function avValidarCatalogoParada(m,p){
+  const err=avCat().validar(p.causa,p.motivoCat,p.detalle);
+  if(err)return err;
+  if(p.origen==='REGISTRO')return '';                      // Nuevo registro no tiene hora de inicio en este modal
+  if(!p.horaInicio)return avNum(p.minutos)>15?'una parada de más de 15 minutos necesita la hora de inicio.':'';
+  const w=avVentanaTurno(m.fecha,m.turno),a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=a+Math.round(avNum(p.minutos))*60000;
+  if(a<w.ini||b>w.fin)return 'la parada ('+p.horaInicio+' + '+avFmt(p.minutos)+' min) cae fuera del turno ('+w.txt+').';
+  return '';
+}
+/* Fila de una parada antigua (texto libre): pasa a causa › motivo › detalle del catálogo; el texto anterior queda como detalle. */
+function avParadaUsarCatalogo(i){
+  const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando||!avCat())return;
+  p.catTocada=true;p.motivoCat='';p.detalle=p.detalle||String(p.descripcion||'');p.descripcion='';
+  avRenderParadasModal();
+}
+function avBloqueMotivoHtml(i,p,m,puedeEditar,causas){
+  if(avUsaCatalogo(p)){
+    const C=avCat(),dis=m.guardando||!puedeEditar?'disabled':'',min=C.detalleMin(p.causa);
+    return `<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(${i},'causa',this.value)" ${dis}>${C.opcionesCausa(p.causa)}</select></div>
+    <div class="av-parada-motivo"><label>Motivo</label><select onchange="avParadaCampo(${i},'motivoCat',this.value)" ${dis}>${C.opcionesMotivo(p.causa,p.motivoCat)}</select></div>
+    <div class="av-parada-motivo"><label>Detalle ${min?'(obligatorio, mínimo '+min+' caracteres)':'(opcional)'}</label><input type="text" maxlength="120" value="${avEsc(p.detalle||'')}" oninput="avParadaCampo(${i},'detalle',this.value)" ${dis}></div>`;
+  }
+  return `<div class="av-parada-motivo"><label>Motivo de parada</label><input \${p.tipo==='PROGRAMADA'?'list="av-paradas-catalogo"':''} value="\${avEsc(p.descripcion||'')}" placeholder="\${p.tipo==='NO_PROGRAMADA'?'Ej. Calibración envasadora':'Elige del catálogo o escribe'}" oninput="avParadaCampo(\${i},'descripcion',this.value)" \${m.guardando||!puedeEditar?'disabled':''}></div>
+    \${p.tipo==='NO_PROGRAMADA'?\`<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(\${i},'causa',this.value)" \${m.guardando||!puedeEditar?'disabled':''}><option value="">Seleccionar…</option>\${causas.map(c=>\`<option value="\${avEsc(c)}" \${p.causa===c?'selected':''}>\${avEsc(c)}</option>\`).join('')}</select></div>\`:''}`+(p.tipo==='NO_PROGRAMADA'&&avCat()&&m&&!m.guardando&&puedeEditar?`<div class="av-parada-motivo"><button type="button" class="btn btn-ghost" onclick="avParadaUsarCatalogo(${i})">Usar causa y motivo del catálogo</button></div>`:'');
+}
 function avParadaCampo(i,campo,valor){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   p[campo]=campo==='minutos'?Number(valor||0):valor;
+  if(campo==='motivoCat'||campo==='detalle'){      // el detalle no redibuja: conserva el cursor
+    p.catTocada=true;
+    if(avCat())p.descripcion=avCat().componerDescripcion(p.motivoCat,p.detalle);
+    return;
+  }
   if(campo==='causa'){
+    if(avCat()&&p.tipo==='NO_PROGRAMADA'){
+      // Al cambiar la causa el motivo se vuelve a elegir (si la causa tiene un solo motivo activo, queda elegido).
+      p.catTocada=true;
+      const ms=avCat().motivosDe(valor);
+      p.motivoCat=ms.length===1?ms[0]:(ms.some(n=>n===p.motivoCat)?p.motivoCat:'');
+      p.descripcion=avCat().componerDescripcion(p.motivoCat,p.detalle);
+    }
     // El equipo solo existe para «Falla de máquina»: al cambiar la causa se limpia y la fila se vuelve a dibujar.
     if(!window.glacialEquipos||!window.glacialEquipos.esFalla(valor)){p.equipo='';delete p.equipoSel;delete p.equipoDetalle;}
     avRenderParadasModal();
     return;
   }
   if(campo==='tipo'){
-    if(valor==='PROGRAMADA'){p.causa='';p.equipo='';delete p.equipoSel;delete p.equipoDetalle;}
+    if(valor==='PROGRAMADA'){p.causa='';p.equipo='';delete p.equipoSel;delete p.equipoDetalle;p.motivoCat='';p.detalle='';p.catTocada=false;}
+    else if(valor==='NO_PROGRAMADA'&&avCat()){p.catTocada=true;p.motivoCat='';p.detalle='';p.descripcion='';}
     // El tipo cambia la estructura de la fila (muestra/oculta Causa),
     // por eso solo en este caso es necesario volver a dibujar el modal.
     avRenderParadasModal();
@@ -364,14 +418,22 @@ function avParadaCampo(i,campo,valor){
   }
   // Motivo y minutos se actualizan SIN reconstruir el modal.
   // Así el input conserva foco/cursor mientras el supervisor escribe.
-  if(campo==='minutos')avActualizarTotalParadasModal();
+  if(campo==='minutos'){
+    avActualizarTotalParadasModal();
+    if(p.horaInicio&&avUsaCatalogo(p)&&p.origen!=='REGISTRO'){      // con hora de inicio y minutos, la hora de fin se calcula sola
+      p.horaFin=avHoraFinCalculada(m,p);
+      const el=document.getElementById('av-hfin-'+i);if(el)el.value=p.horaFin;
+    }
+  }
 }
 /* Hora de inicio/fin opcional: con ambas, los minutos se calculan y la parada
    se fusiona por intervalo con las registradas por botón (sin contar doble). */
 function avParadaHora(i,campo,valor){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   p[campo]=valor||'';
-  if(p.horaInicio&&p.horaFin){
+  if(campo==='horaInicio'&&p.horaInicio&&avNum(p.minutos)>0&&avUsaCatalogo(p)){
+    p.horaFin=avHoraFinCalculada(m,p);                // hora de inicio + minutos = hora de fin
+  }else if(p.horaInicio&&p.horaFin){
     const a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=avHoraMs(m.fecha,p.horaFin,m.turno);
     const fin=b<=a?b+86400000:b;
     p.minutos=Math.max(0,Math.round((fin-a)/60000));
@@ -421,12 +483,11 @@ function avRenderParadasModal(){
       <option value="PROGRAMADA" ${p.tipo==='PROGRAMADA'?'selected':''}>Programada</option>
       <option value="NO_PROGRAMADA" ${p.tipo==='NO_PROGRAMADA'?'selected':''}>No programada</option>
     </select></div>
-    <div class="av-parada-motivo"><label>Motivo de parada</label><input ${p.tipo==='PROGRAMADA'?'list="av-paradas-catalogo"':''} value="${avEsc(p.descripcion||'')}" placeholder="${p.tipo==='NO_PROGRAMADA'?'Ej. Calibración envasadora':'Elige del catálogo o escribe'}" oninput="avParadaCampo(${i},'descripcion',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
-    ${p.tipo==='NO_PROGRAMADA'?`<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(${i},'causa',this.value)" ${m.guardando||!puedeEditar?'disabled':''}><option value="">Seleccionar…</option>${causas.map(c=>`<option value="${avEsc(c)}" ${p.causa===c?'selected':''}>${avEsc(c)}</option>`).join('')}</select></div>`:''}
+    ${avBloqueMotivoHtml(i,p,m,puedeEditar,causas)}
     ${avEsFalla(p)?(()=>{const e=avEquipoEstado(p),dis=m.guardando||!puedeEditar?'disabled':'';return `<div class="av-parada-equipo"><label>Equipo que falló (obligatorio)</label><select onchange="avParadaEquipo(${i},'sel',this.value)" ${dis}>${window.glacialEquipos.opciones(m.linea,p.equipo)}</select>${e.sel==='__otro__'?`<input type="text" maxlength="80" value="${avEsc(e.detalle)}" placeholder="Detalle del equipo (mínimo 5 caracteres)" oninput="avParadaEquipo(${i},'detalle',this.value)" ${dis}>`:''}</div>`;})():''}
     <div class="av-parada-min"><label>Minutos</label><input type="number" min="1" step="1" value="${avNum(p.minutos)||''}" oninput="avParadaCampo(${i},'minutos',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
-    ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>Desde (opc.)</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
-    <div class="av-parada-min"><label>Hasta (opc.)</label><input type="time" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
+    ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hora de inicio'+(avNum(p.minutos)>15?' *':''):'Desde (opc.)'}</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    <div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hasta (se calcula)':'Hasta (opc.)'}</label><input type="time" id="av-hfin-${i}" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
     <button class="av-parada-remove" title="Quitar fila" onclick="avParadaQuitar(${i})" ${m.guardando||!puedeEditar?'disabled':''}>✕</button>
     <small>${p.origen==='REGISTRO'?'Origen: Nuevo registro':'Origen: Avance/Cierre'}${p.tipo?` · ${p.tipo==='PROGRAMADA'?'Programada':'No programada'}`:''}</small>
   </div>`).join('')||'<p class="small-muted">Sin paradas. Usa “+ Agregar otra”.</p>'}</div>
@@ -454,6 +515,12 @@ function avConTimeout(promesa,ms=15000){
 async function avGuardarParadasModal(){
   const m=avanceEstado.paradasModal;if(!m||m.guardando||!avPuedeEditarParadas())return;
   const activas=m.filas.filter(p=>!p.eliminarSolicitado);
+  // Causa › motivo del catálogo: «Otro» pide detalle de 10 caracteres; más de 15 min pide hora de inicio dentro del turno.
+  for(const p of activas){
+    if(!avUsaCatalogo(p))continue;
+    const err=avValidarCatalogoParada(m,p);
+    if(err){m.error='Parada «'+(String(p.descripcion||p.motivoCat||'').trim()||'sin motivo')+'»: '+err;avRenderParadasModal();return;}
+  }
   const invalida=activas.find(p=>!['PROGRAMADA','NO_PROGRAMADA'].includes(p.tipo)||!String(p.descripcion||'').trim()||avNum(p.minutos)<=0||(p.tipo==='NO_PROGRAMADA'&&!String(p.causa||'').trim()));
   if(invalida){m.error='Completa Tipo, Motivo y Minutos. En una parada No programada también debes seleccionar la Causa.';avRenderParadasModal();return;}
   // «Falla de máquina»: el equipo es obligatorio (Otro equipo pide un detalle de al menos 5 caracteres).
@@ -513,7 +580,7 @@ async function avGuardarParadasModal(){
             const destino=p.tipo==='PROGRAMADA'?'paradasProgramadas':'paradasNoProgramadas';
             const item={...ref.item,descripcion:String(p.descripcion).trim(),tiempoMin:avNum(p.minutos)};
             if(!item.id)item.id=p.id.startsWith('reg:')?`pr_${ahora}_${Math.random().toString(36).slice(2,7)}`:p.id;
-            if(destino==='paradasNoProgramadas')item.causa=p.causa||'';else delete item.causa;
+            if(destino==='paradasNoProgramadas'){item.causa=p.causa||'';if(p.motivoCat){item.motivoCat=p.motivoCat;item.detalle=p.detalle||'';}}else{delete item.causa;delete item.motivoCat;delete item.detalle;}
             if(destino==='paradasNoProgramadas'&&avEsFalla(p)&&p.equipo)item.equipo=p.equipo;else delete item.equipo;
             if(p.key===destino)ref.q[p.key][ref.pi]=item;
             else{
@@ -534,7 +601,8 @@ async function avGuardarParadasModal(){
 
       m.filas.filter(p=>p.origen==='AVANCE'&&!p.eliminarSolicitado).forEach(p=>{
         const obj={...p,descripcion:String(p.descripcion).trim(),minutos:avNum(p.minutos),tipo:p.tipo,fecha:m.fecha,turno:m.turno,linea:m.linea,origen:'AVANCE',actualizadoPor:usuario,actualizadoEn:ahora};
-        delete obj.nueva;delete obj.eliminarSolicitado;delete obj.tipoOriginal;delete obj.equipoSel;delete obj.equipoDetalle;
+        delete obj.nueva;delete obj.eliminarSolicitado;delete obj.tipoOriginal;delete obj.equipoSel;delete obj.equipoDetalle;delete obj.catTocada;
+        if(p.tipo!=='NO_PROGRAMADA'||!p.motivoCat){delete obj.motivoCat;delete obj.detalle;}
         if(!avEsFalla(p)||!p.equipo)delete obj.equipo;
         const i=operativas.findIndex(x=>x.id===obj.id);
         if(i>=0){

@@ -94,6 +94,7 @@ js/
 | 37-mantenimiento-tecnicos.js | Cuenta compartida de Mantenimiento: rol, permisos (ver tareo y operar líneas con PIN) |
 | 37b-mantenimiento-identificacion.js | Identificación del técnico con PIN |
 | 37c-equipos-catalogo.js | Equipos por línea (sync/configMantenimiento.equipos, en vivo): selector «Equipo» obligatorio en paradas por «Falla de máquina» (Producción Actual, Avance / Cierre y Registro), «Otro equipo — detalle», editor «Equipos por línea» para el Supervisor de Mantenimiento; paradas antiguas = «Equipo sin indicar» |
+| 37e-motivos-parada.js | Motivos de parada en dos niveles (sync/configMantenimiento.motivosParada, en vivo; transacción con merge): causas y motivos editables desde «Motivos de parada» (junto a «Equipos por línea»; nada se borra, se desactiva), `pideEquipo` por causa (37c `esFalla` le delega), «Otro» exige detalle de 10 caracteres. Las paradas no programadas guardan `causa`, `motivoCat`, `detalle`, `equipo` y `descripcion` = motivo — detalle. Catálogo inicial sin escribir. Cargar después de 37d |
 | 43-bitacora-mantenimiento.js | Bitácora de Mantenimiento (solo lectura: rangos rápidos por día operativo 07:00–07:00, orden, buscador, vista por parada, motivos pendientes y Excel) y tarjeta «Paradas de hoy» del Inicio |
 | 66-entrega-turno.js | Entrega de turno entre supervisores (colección entregasTurno, id fecha_TURNO con DIA/INTERMEDIO/NOCHE): foto automática por línea (reutiliza construirDatos de 48), novedades por línea, entregar/corregir/recibir por transacción, historial por fecha, tarjeta «Entrega de turno pendiente» en el Inicio en vivo y modo consulta para jefatura |
 
@@ -144,6 +145,7 @@ js/
 37. mantenimiento/37-mantenimiento-tecnicos.js
 38. mantenimiento/37b-mantenimiento-identificacion.js
 38b. mantenimiento/37c-equipos-catalogo.js
+38c. mantenimiento/37e-motivos-parada.js
 39. rrhh/38-tareo-rrhh-exportacion.js
 40. personal/42-tareo-agregar-personal.js
 41. personal/40-tareo-auditoria.js
@@ -222,4 +224,4 @@ Entrega de turno (Producción 3): js/produccion/66-entrega-turno.js. Colección 
 
 Planificación etapa 4 (tiempos previstos): js/produccion/65b-planificacion-motor.js (cálculo puro de capacidad), 65a-planificacion-tiempos.js (reglas de preparación, ventanas de indisponibilidad, versión, auditoría y evaluaciones en sync/catalogoPlanificacion → tiempos), 65-planificacion-capacidad.js (panel, capacidad restante y traslado idempotente), 65c-planificacion-opciones.js («Ver opciones para completar») y 65d-planificacion-semanal.js (Vista semanal de carga). Sin colecciones ni reglas nuevas. Detalle en docs/planificacion-etapa4.md. Pruebas: tests/planificacion-etapa4-motor.test.js y tests/planificacion-etapa4.test.js.
 
-Mantenimiento (intervenciones, evidencias, preventivos y equipos): js/mantenimiento/37d-equipos-maestro.js (catálogo de equipos en sync/configMantenimiento), 67-intervenciones-motor.js (motor puro), 67b-intervenciones-datos.js (persistencia por transacción, colección intervenciones), 67c-intervenciones-pantalla.js (pantalla), 67d-intervenciones-evidencias.js (fotos en Cloudinary), 67e-preventivos.js (colección planesPreventivos, avisos), 67f-indicadores-equipo.js (MTTR/MTBF por equipo). Detalle y límites en docs/mantenimiento-intervenciones.md. Reglas nuevas: firestore.rules.etapa2.txt; docs/supabase-mantenimiento.sql preparado sin aplicar.
+Mantenimiento (intervenciones, evidencias, preventivos y equipos): js/mantenimiento/37d-equipos-maestro.js (catálogo de equipos en sync/configMantenimiento), 67-intervenciones-motor.js (motor puro), 67b-intervenciones-datos.js (persistencia por transacción, colección intervenciones), 67c-intervenciones-pantalla.js (pantalla), 67d-intervenciones-evidencias.js (fotos en Cloudinary), 67e-preventivos.js (colección planesPreventivos, avisos), 67f-indicadores-equipo.js (MTTR/MTBF por equipo). Detalle y límites en docs/mantenimiento-intervenciones.md. Reglas nuevas: firestore.rules.etapa2.txt; la migración aplicada en Supabase es supabase/migraciones/glacial_21_listas_partidas_mantenimiento.sql (docs/supabase-mantenimiento.sql quedó reemplazado, no ejecutar); ver docs/supabase-listas-partidas.md.

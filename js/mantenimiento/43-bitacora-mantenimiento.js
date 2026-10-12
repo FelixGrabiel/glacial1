@@ -144,8 +144,9 @@
 
   /* ---------- equipo que falló (solo paradas por «Falla de máquina»; las antiguas sin equipo salen como «Equipo sin indicar») ---------- */
   const SIN_EQUIPO='Equipo sin indicar';
-  const esFallaMotivo=m=>/^\s*falla de m[aá]quina/i.test(String(m||''));
-  const equipoDeEvento=e=>String(e.equipo||'').trim()||((e.accion==='DETENER'&&esFallaMotivo(e.motivo))?SIN_EQUIPO:'');
+  /* ¿La causa (o el motivo de una parada antigua) pide equipo? Lo decide el catálogo de motivos (37e) vía glacialEquipos; sin él, solo «Falla de máquina». */
+  const esFallaMotivo=m=>{const G=window.glacialEquipos;return G&&G.esFalla?G.esFalla(m):/^\s*falla de m[aá]quina/i.test(String(m||''));};
+  const equipoDeEvento=e=>String(e.equipo||'').trim()||((e.accion==='DETENER'&&esFallaMotivo(e.causa||e.motivo))?SIN_EQUIPO:'');
 
   /* ---------- agrupar eventos en paradas ---------- */
   const claveEvento=e=>(e.linea||'')+'|'+(e.claveProgramacion||e.marca||'');
@@ -165,7 +166,7 @@
       const nueva=(tipo,e,incompleta)=>{
         const p={tipo,pasos:[e],linea:e.linea||'',turno:e.turno||'',marca:e.marca||'',presentacion:e.presentacion||'',
           fechaPlan:e.fechaPlan||'',inicio:e.ts,fin:null,duracionMs:null,cerrada:false,sinInicio:!!incompleta,motivo:'',
-          paradaId:e.paradaId||null,claveProgramacion:e.claveProgramacion||'',equipo:String(e.equipo||'').trim()};
+          paradaId:e.paradaId||null,claveProgramacion:e.claveProgramacion||'',equipo:String(e.equipo||'').trim(),causa:String(e.causa||'').trim()};
         paradas.push(p);return p;
       };
       lista.forEach(e=>{
@@ -181,6 +182,7 @@
             abierta.motivo=e.motivo||'';
           }else abierta.pasos.push(e);
           if(!abierta.equipo&&e.equipo)abierta.equipo=String(e.equipo).trim();
+          if(!abierta.causa&&e.causa)abierta.causa=String(e.causa).trim();
           abierta.fin=e.ts;abierta.cerrada=true;
           abierta.duracionMs=Number.isFinite(Number(e.duracionMs))&&e.duracionMs!=null?Number(e.duracionMs)
             :(abierta.sinInicio?null:Math.max(0,e.ts-abierta.inicio));
@@ -200,7 +202,7 @@
     paradas.forEach(p=>{
       if(!p.cerrada&&!p.sinInicio)p.duracionEnCursoMs=Math.max(0,ahora-p.inicio);
       p.duracionTotalMs=p.cerrada?p.duracionMs:(p.duracionEnCursoMs??null);
-      p.esFalla=p.tipo!=='PAUSA'&&esFallaMotivo(p.motivo);
+      p.esFalla=p.tipo!=='PAUSA'&&esFallaMotivo(p.causa||p.motivo);
       p.equipoTexto=p.equipo||(p.esFalla?SIN_EQUIPO:'');
       p.equipoPendiente=p.esFalla&&!p.equipo;
       // «Indicar equipo» (evento COMPLETAR_MOTIVO con equipo) NO es completar el motivo: solo el detalle del motivo lo completa.

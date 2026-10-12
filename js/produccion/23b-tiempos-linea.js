@@ -178,7 +178,7 @@
             // Filas automáticas (importadas de Paletas/semáforo/Avance): ya se cuentan en su origen.
             if(p?.auto||p?.eliminada)return;
             if(p?.descripcion&&num(p.tiempoMin)>0)
-              salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO',causa:p.causa||'',equipo:p.equipo||''});
+              salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO',causa:p.causa||'',motivoCat:p.motivoCat||'',detalle:p.detalle||'',equipo:p.equipo||''});
           });
         });
       });
@@ -201,7 +201,7 @@
       minutos:num(p.minutos!==undefined?p.minutos:p.tiempoMin),origen:p.origen==='REGISTRO'?'REGISTRO':'AVANCE'};
     if(p.id)e.id=String(p.id);
     // Campos informativos (no entran en ningún cálculo): causa y equipo que falló.
-    e.causa=p.causa||'';e.equipo=p.equipo||'';
+    e.causa=p.causa||'';e.equipo=p.equipo||'';e.motivoCat=p.motivoCat||'';e.detalle=p.detalle||'';      // causa › motivo › detalle del catálogo (37e)
     const ini=horaAMs(fecha,p.horaInicio,bloque),fin=horaAMs(fecha,p.horaFin,bloque);
     if(ini&&fin&&fin>ini){e.inicio=ini;e.fin=fin;e.minutos=(fin-ini)/MS_MIN;}
     return e.minutos>0?e:null;
@@ -439,8 +439,8 @@
         const seg=recortar(s);
         if(seg.fin<=seg.inicio)return;
         partirPorEstandar(s.motivo,s.clasif,(seg.fin-seg.inicio)/MS_MIN,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,
-          {origen:s.origen||'SUPERVISOR',inicio:seg.inicio,fin:seg.fin,causa:s.causa||'',equipo:s.equipo||''});
-      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR',causa:s.causa||'',equipo:s.equipo||''});
+          {origen:s.origen||'SUPERVISOR',inicio:seg.inicio,fin:seg.fin,causa:s.causa||'',motivoCat:s.motivoCat||'',detalle:s.detalle||'',equipo:s.equipo||''});
+      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR',causa:s.causa||'',motivoCat:s.motivoCat||'',detalle:s.detalle||'',equipo:s.equipo||''});
     });
     const sumaClasif=c=>paradasClasificadas.filter(x=>x.clasif===c).reduce((a,x)=>a+x.minutos,0);
     const ajusteNpMin=noProg-sumaClasif('NO_PROGRAMADA');
