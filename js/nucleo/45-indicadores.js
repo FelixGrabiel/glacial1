@@ -240,6 +240,33 @@
   }
 
   /* ---------------------------------------------------------
+     ESTADO DE LÍNEAS · DESGLOSE POR MARCA (solo Inicio y tablero «Estado de las líneas»)
+     estadoLineaDesdeItems NO cambia: otras pantallas (Resumen general, alertas, proyección) siguen con su prioridad
+     DETENIDA > EN_CURSO > PAUSA > PENDIENTE > COMPLETADA. Esta función se usa SOLO en las tarjetas/filas por línea
+     y se diferencia en dos cosas:
+       · el estado principal de la línea es el de la marca EN CURSO (una marca anterior que quedó detenida sin finalizar
+         ya no arrastra a toda la línea); si no hay ninguna en curso, se usa la prioridad de siempre;
+       · la marca detenida que sigue abierta se informa aparte en `avisos`, sin cambiar el estado principal.
+     marcas: [{marca,presentacion,estado,producido,programado,detenidaDesde?}] en orden de secuencia.
+     Devuelve {actual,estado,marcas,total:{producido,programado,marcas,avance},avisos}.
+     Los números de la marca actual son SOLO de esa marca; el total es la suma de todas (sin canceladas en lo programado).
+     --------------------------------------------------------- */
+  function desgloseLineaPorMarca(marcas){
+    const lista=(Array.isArray(marcas)?marcas:[]).filter(Boolean).map(m=>{
+      const producido=num(m.producido),programado=num(m.programado);
+      return {...m,producido,programado,avance:programado>0?producido/programado*100:0};
+    });
+    if(!lista.length)return {actual:null,estado:null,marcas:[],total:{producido:0,programado:0,marcas:0,avance:0},avisos:[]};
+    const enCurso=lista.find(m=>m.estado==='EN_CURSO');
+    const estado=enCurso?'EN_CURSO':estadoLineaDesdeItems(lista.map(m=>m.estado));
+    const actual=enCurso||lista.find(m=>m.estado===estado)||lista.find(m=>!['COMPLETADA','CANCELADA'].includes(m.estado))||lista[0];
+    const producido=lista.reduce((s,m)=>s+m.producido,0);
+    const programado=lista.reduce((s,m)=>s+(m.estado==='CANCELADA'?0:m.programado),0);
+    const avisos=enCurso?lista.filter(m=>m.estado==='DETENIDA').map(m=>({marca:m.marca,presentacion:m.presentacion,desde:num(m.detenidaDesde)||null})):[];
+    return {actual,estado,marcas:lista,total:{producido,programado,marcas:lista.length,avance:programado>0?producido/programado*100:0},avisos};
+  }
+
+  /* ---------------------------------------------------------
      RESUMEN DE UN CONJUNTO DE PARTES (turno · línea · producto)
      parte = { producido, programado, programacionVigente (bool: cuenta para el cumplimiento),
                transcurridoMin | durMin, paradasProgramadasMin | progMin, paradasNoProgramadasMin | npMin,
@@ -543,7 +570,7 @@
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,
     turnoVigente,diaOperativo,horarioTurno,HORARIOS_TURNO,
     BLOQUES_INICIALES,NOMBRES_TURNO,nombreBloque,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
-    estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,
+    estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,desgloseLineaPorMarca,
     resumenIndicadores,DEFINICIONES
   });
 

@@ -730,8 +730,12 @@
         const estados=items.map(estadoOrdenItem);
         const hayCompletada=estados.some(e=>e.key==='COMPLETADA');
         // Estado de la línea: prioridad única del módulo de indicadores (GlacialIndicadores.estadoLineaDesdeItems).
-        const estadoLineaGrupo=GlacialIndicadores.estadoLineaDesdeItems(
-          items.map((x,i)=>x.op?.estado==='DETENIDA'?'DETENIDA':estados[i].key));
+        // Diferencia con el resto de pantallas (que usan solo estadoLineaDesdeItems): aquí el estado de la tarjeta es el de la marca
+        // EN CURSO, y una marca detenida sin finalizar se avisa aparte (GlacialIndicadores.desgloseLineaPorMarca).
+        const desglose=GlacialIndicadores.desgloseLineaPorMarca(items.map((x,i)=>({
+          marca:x.marca,presentacion:x.presentacion,estado:x.op?.estado==='DETENIDA'?'DETENIDA':estados[i].key,
+          producido:producidoDe(x),programado:progDe(x),detenidaDesde:Number(x.op?.detenidaDesde || 0)})));
+        const estadoLineaGrupo=desglose.estado;
         // Regla visual acordada: EN CURSO usa la luz ámbar/naranja; PAUSA usa ámbar/amarillo.
         const nivel=({DETENIDA:'roja',EN_CURSO:'ambar',PAUSA:'ambar',CANCELADA:'roja',COMPLETADA:'verde'})[estadoLineaGrupo]||'gris';
         const texto=({DETENIDA:'Línea detenida',EN_CURSO:'En curso',PAUSA:'Pausa programada',CANCELADA:'CANCELADA',COMPLETADA:'FINALIZADA'})[estadoLineaGrupo]||
@@ -918,7 +922,7 @@
         })();
 
         return {
-          line,items,vacios,activo,nivel:enFranja ? 'gris' : nivelFinal,nivelEstado,texto:textoFinal,enFranja,porTurno,turnosLinea,totalProg,totalProd,
+          line,items,vacios,activo,nivel:enFranja ? 'gris' : nivelFinal,nivelEstado,texto:textoFinal,enFranja,porTurno,turnosLinea,totalProg,totalProd,desglose,
           horasEfectivas:tiempos.ok?tiempos.tiempoOperativoMin/60:horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
           totalesPresentacion,tiempos,ratios,desempeno,proyeccion
         };
@@ -1143,6 +1147,17 @@
 
           ${htmlMotivoNP(g)}
 
+          ${(()=>{
+            // Marca en curso con SU propio avance (no el total de la línea) y avisos de marcas detenidas sin finalizar.
+            const a=g.desglose.actual;if(!a)return '';
+            const f0=n=>Math.round(n).toLocaleString('es-PE');
+            const aviso=g.desglose.avisos.map(v=>`<div class="pa-aviso-detenida" role="status">⚠ Marca ${esc(v.marca||'—')} quedó detenida${v.desde?' desde '+esc(hhmmBloque(v.desde)):''}: finalízala o reanúdala</div>`).join('');
+            return `<div class="pa-marca-actual"><small>${g.desglose.estado==='EN_CURSO'?'MARCA EN CURSO':'MARCA ACTUAL'}</small>
+              <strong>${esc(a.marca||'—')}${a.presentacion?' · '+esc(presUI(g.line.key,a.marca,a.presentacion)):''}</strong>
+              <span><b>${f0(a.producido)}</b> / ${f0(a.programado)} UND · ${a.programado>0?Math.round(a.avance)+' %':'—'}</span></div>${aviso}`;
+          })()}
+
+          <div class="pa-total-linea">Total línea (${g.desglose.total.marcas} marca${g.desglose.total.marcas===1?'':'s'}): programado, producido y cumplimiento suman todas las marcas del bloque, no solo la actual.</div>
           <div class="pa-line-kpis">
             <div class="pa-line-kpi"><small>PROGRAMACIÓN VIGENTE</small><strong>${Math.round(g.totalProg).toLocaleString('es-PE')} <span>UND</span></strong></div>
             <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong></div>
@@ -1181,7 +1196,7 @@
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
                         ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
-                      <div class="pa-program-right"><strong>${prog.toLocaleString('es-PE')} UND</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div></div>
+                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %':''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div></div>
                     </div>`;
                   }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
                 }</div>`;
@@ -1245,6 +1260,10 @@
     .pa-live-board .pa-program-list-horizontal .pa-program-state-detenida{border-top-color:var(--est-det);background:#fff6f6}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-completada{border-top-color:var(--est-fin);background:#f4fcf6}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-pendiente{border-top-color:var(--est-pend);background:#f8f9fa}
+    .pa-marca-actual{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:10px 18px;border-bottom:1px solid #d8e4ec;background:#fff9f1}
+    .pa-marca-actual small{font-size:10px;font-weight:800;letter-spacing:.05em;color:#9A3412}.pa-marca-actual strong{color:#073f68;overflow-wrap:anywhere}.pa-marca-actual span{color:#073f68}
+    .pa-total-linea{padding:6px 18px;font-size:11px;font-weight:700;color:#5f7382;background:#f4f8fb}
+    .pa-aviso-detenida{margin:0;padding:8px 18px;background:#FEE2E2;color:#991B1B;font-size:12px;font-weight:700;border-bottom:1px solid #fbcaca}
     .pa-program-right-fila{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     /* Cuerpo: secuencia, controles y paradas en una sola columna a todo el ancho */
     .pa-live-board .pa-horizontal-body{grid-template-columns:minmax(0,1fr)}
@@ -2543,9 +2562,13 @@
           const p=producidoDe(x);
           const g=progDe(x);
           return {marca:x.marca,presentacion:x.presentacion,estado:e,producido:p,programado:g,
-            avance:g>0 ? p/g*100 : 0};
+            avance:g>0 ? p/g*100 : 0,detenidaDesde:Number(x.op?.detenidaDesde || 0)};
         })
       };
+      /* Pantalla «Estado de líneas» (Inicio): la marca EN CURSO con SU avance, el desglose por marca y el total aparte.
+         `estado` (arriba) sigue siendo el de estadoLineaDesdeItems porque lo usan otras pantallas; aquí se agrega
+         `desglose.estado`, el de la marca en curso (ver GlacialIndicadores.desgloseLineaPorMarca). */
+      fila.desglose=GlacialIndicadores.desgloseLineaPorMarca(fila.detalle);
       // Estado OPERATIVO real (lo que registraron los botones), sin deducirlo de producción acumulada: lo usa Inicio.
       fila.enProduccionReal=items.some(x=>x.op?.estado==='EN_PRODUCCION');
       fila.detenidaReal=items.some(x=>x.op?.estado==='DETENIDA');
