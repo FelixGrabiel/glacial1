@@ -211,7 +211,7 @@
     if(p.escribir&&d.estado==='CERRADA'&&pe.seguimientos)acciones.push(['resolverSeg','Resolver seguimiento','btn-ghost']);
     if(d.estado==='CERRADA'&&p.puedeCorregir)acciones.push(['corregir','Corregir (supervisor)','btn-ghost']);
     if(d.estado==='CERRADA'&&p.puedeVerificar&&!d.verificacion)acciones.push(['verificar','Verificar cierre','btn-ghost']);
-    const evid=typeof window.glacialEvidenciasHtml==='function'?window.glacialEvidenciasHtml(d,p):'';
+    const evid=(typeof window.glacialPreventivosDetalleHtml==='function'?window.glacialPreventivosDetalleHtml(d,p):'')+(typeof window.glacialEvidenciasHtml==='function'?window.glacialEvidenciasHtml(d,p):'');
     return '<h3>'+(d.equipoId?esc(d.equipoNombre):'<i>'+esc(M.SIN_EQUIPO)+'</i>')+' · '+esc(nombreLinea(d.linea))+'</h3>'+
       chipEstado(d.estado)+chipPrioridad(d.prioridad)+'<span class="mi-chip">'+esc(M.TIPOS[d.tipo]||d.tipo)+'</span>'+(d.verificacion?'<span class="mi-chip e-CERRADA">Verificada por '+esc(d.verificacion.por.nombre)+'</span>':'')+
       (d.estado==='CERRADA'?'<div class="mi-res-op r-'+esc(d.resultado)+'" style="background:var(--g);color:var(--t);border:1px solid var(--b)">'+chipResultado(d.resultado)+(d.resultado==='NO_OPERATIVO'?'<div style="font-weight:600;margin-top:4px">Esto NO es una reparación exitosa: el equipo sigue sin operar y requiere seguimiento.</div>':'')+'</div>':'')+
@@ -255,7 +255,12 @@
   const cerrarDetalle=()=>{UI.detalle=null;document.getElementById('mi-detalle')?.remove();};
 
   /* ---------- acciones ---------- */
-  async function ejecutar(id,accion,datos){return API().accion(id,accion,datos);}
+  /* El cierre de una ejecución preventiva avanza el plan en la MISMA transacción (67e); todo lo demás va directo. */
+  async function ejecutar(id,accion,datos){
+    const d=API().porId(id);
+    if(accion==='CERRAR'&&d&&d.planId&&window.glacialPreventivos)return window.glacialPreventivos.cerrarEjecucion(id,datos);
+    return API().accion(id,accion,datos);
+  }
   const campoTexto=(id,et,v,ph,filas)=>'<label class="completo">'+esc(et)+(filas?'<textarea id="'+id+'" rows="'+filas+'" placeholder="'+esc(ph||'')+'">'+esc(v||'')+'</textarea>':'<input id="'+id+'" value="'+esc(v||'')+'" placeholder="'+esc(ph||'')+'">')+'</label>';
   const equiposDe=linea=>EQ()?EQ().delaLinea(linea):[];
   const selEquipo=(linea,sel)=>'<option value="">Seleccionar equipo…</option>'+equiposDe(linea).map(e=>'<option value="'+esc(e.id)+'"'+(e.id===sel?' selected':'')+'>'+esc(EQ().etiqueta(e))+'</option>').join('');

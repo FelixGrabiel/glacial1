@@ -351,6 +351,30 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Planes de mantenimiento preventivo (por equipo): UN documento por plan. Los lee quien ve Mantenimiento.
+    //  - Los DEFINE (crear y cambiar su contenido) el Supervisor de Mantenimiento / Administrador, con rev + 1, su uid y la hora del servidor.
+    //  - Quien opera Mantenimiento (incluida la cuenta compartida) solo puede AVANZAR el ciclo: cerrar una ejecución (próxima fecha y última ejecución) o
+    //    reprogramar con motivo (arreglo reprogramaciones). No puede cambiar tareas, frecuencia ni responsable.
+    //  - Nadie borra.
+    match /planesPreventivos/{id} {
+      allow read: if puedeVerMantenimiento();
+      allow create: if esSupervisorMtto()
+        && request.resource.data.keys().hasAll(['id', 'equipoId', 'titulo', 'frecuencia', 'proximaFecha', 'tareas', 'rev', 'version', 'actualizadaUid', 'actualizadaEn'])
+        && request.resource.data.id == id
+        && request.resource.data.rev == 1
+        && request.resource.data.tareas is list && request.resource.data.tareas.size() > 0 && request.resource.data.tareas.size() <= 30
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time;
+      allow update: if request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time
+        && (esSupervisorMtto()
+            || (puedeEscribirIntervenciones()
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['proximaFecha', 'fechaOriginal', 'ultimaEjecucion', 'reprogramaciones', 'rev', 'actualizadaEn', 'actualizadaUid'])));
+      allow delete: if false;
+    }
+
     // Entrega de turno entre supervisores: UN documento por fecha operativa y turno SALIENTE (id = fecha + '_' + turno).
     //  - Lo leen todos los usuarios con sesión, salvo la cuenta compartida de Mantenimiento (jefatura y gerencia en modo consulta).
     //  - Crea quien opera Producción (puedeOperarProduccion), con su uid y la hora del servidor; crear con un id existente falla.

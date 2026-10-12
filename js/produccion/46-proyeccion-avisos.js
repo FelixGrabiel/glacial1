@@ -234,6 +234,11 @@
       try{window.glacialPlanificacion.avisos().forEach(x=>add(x.id,'solicitud',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar'}));}catch(_){/* informativo */}
     }
 
+    /* g) Mantenimiento (67e-preventivos.js): preventivo próximo/vencido, intervención en espera y seguimiento pendiente; solo para quien corresponde */
+    if(typeof window.glacialMantAvisos==='function'){
+      try{window.glacialMantAvisos().forEach(x=>add(x.id,'mant',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar',abrir:x.abrir||'',tab:x.tab||''}));}catch(_){/* informativo */}
+    }
+
     const vistos=leerVistos();
     const activos=new Set(lista.map(x=>x.id));
     let cambio=false;
@@ -257,6 +262,7 @@
         if(typeof goTareo==='function')goTareo();
         return;
       }
+      if(x.tipo==='mant'){if(typeof window.intervencionesAbrir==='function')window.intervencionesAbrir({tab:x.tab||'intervenciones',abrir:x.abrir||undefined});return;}
       if(x.tipo==='solicitud'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion)window.glacialPlanificacion.irASolicitudes();}return;}
       if(typeof goProduccionActual==='function')goProduccionActual();
     }catch(e){console.warn('Aviso: no se pudo abrir la pantalla:',e&&e.message||e);}

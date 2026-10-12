@@ -76,7 +76,7 @@
       inicioRealMs:inicia?ahora:0,finRealMs:0,
       diagnostico:'',accion:'',resultado:'',pendientes:'',observaciones:'',
       repuestos:[],sinRepuestos:false,seguimiento:[],evidencias:[],cierre:null,cancelacion:null,verificacion:null,
-      tareas:Array.isArray(d.tareas)?d.tareas:[],plan:d.plan||null,
+      tareas:Array.isArray(d.tareas)?d.tareas.map(x=>({id:txt(x.id),titulo:txt(x.titulo),descripcion:txt(x.descripcion),estado:'PENDIENTE',motivo:'',por:null,en:0})):[],plan:d.plan||null,planId:txt(d.planId),planFecha:txt(d.planFecha),
       historial:[]
     };
     doc.historial=agregarHistorial(doc,ahora,'ABRIR',por,(M.TIPOS[tipo]||tipo)+' · '+(equipoId?doc.equipoNombre:M.SIN_EQUIPO+' (por identificar)')+' · '+doc.problema,'',estado);
@@ -202,7 +202,6 @@
         d.estado='CERRADA';d.abierta=false;d.espera=null;d.cerradaMs=ahora;
         d.cierre={por,en:ahora,responsable:{tecnicoId:resp.tecnicoId,nombre:resp.nombre},
           requiereSeguimiento:p.resultado==='NO_OPERATIVO'||txt(d.pendientes).length>0||d.seguimiento.some(s=>s.estado==='PENDIENTE')};
-        if(Array.isArray(d.tareas)&&p.tareas)d.tareas=p.tareas;
         hist('Cerró la intervención · '+M.RESULTADOS[p.resultado],'CERRADA',{resultado:p.resultado});break;
       }
       case 'EVIDENCIA':{                // se registra SOLO cuando el archivo ya se subió (nunca una referencia a un archivo que no existe)
@@ -223,6 +222,16 @@
         if(txt(p.motivo).length<5)throw err('Indica el motivo para anular la foto (mínimo 5 caracteres).');
         d.evidencias[i]=Object.assign({},d.evidencias[i],{anulada:{por,en:ahora,motivo:txt(p.motivo).slice(0,160)}});
         hist('Anuló una foto: '+txt(p.motivo));break;
+      }
+      case 'TAREA':{                    // preventivo: una tarea se marca como realizada o no realizada SOLO por una persona (nunca por llegar la fecha)
+        exigirAbierta(d);
+        const i=(d.tareas||[]).findIndex(x=>x.id===p.id);
+        if(i<0)throw err('La tarea ya no existe en esta ejecución.');
+        if(p.estado!=='HECHA'&&p.estado!=='NO_HECHA')throw err('Marca la tarea como realizada o no realizada.');
+        if(p.estado==='NO_HECHA'&&txt(p.motivo).length<5)throw err('Indica por qué no se realizó la tarea (mínimo 5 caracteres).');
+        d.tareas=d.tareas.slice();
+        d.tareas[i]=Object.assign({},d.tareas[i],{estado:p.estado,motivo:p.estado==='NO_HECHA'?txt(p.motivo).slice(0,160):'',por,en:ahora});
+        hist('Tarea «'+d.tareas[i].titulo+'»: '+(p.estado==='HECHA'?'realizada':'NO realizada ('+txt(p.motivo)+')'));break;
       }
       case 'CANCELAR':{
         exigirAbierta(d);
@@ -285,7 +294,7 @@
     }
     if(!(num(d.inicioRealMs)||num(p.inicioRealMs)))avisos.push('No se registró el inicio real: se tomará la apertura.');
     if(Array.isArray(d.tareas)&&d.tareas.length){
-      const t=Array.isArray(p.tareas)?p.tareas:d.tareas;
+      const t=d.tareas;
       t.forEach(x=>{
         if(x.estado!=='HECHA'&&x.estado!=='NO_HECHA')errores.push('Marca la tarea «'+x.titulo+'» como realizada o no realizada.');
         else if(x.estado==='NO_HECHA'&&txt(x.motivo).length<5)errores.push('Indica por qué no se realizó la tarea «'+x.titulo+'».');
