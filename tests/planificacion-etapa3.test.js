@@ -50,7 +50,9 @@ const pr=(l,t,m,p,c,u,extra)=>F(l,FECHA,t,m,p,c,u||1200,extra);
   ok(e.NS.capacidadLinea(FECHA,'DÍA','PET2')===null,'una línea sin programación no tiene capacidad que estimar');
   // sin tiempos configurados
   c=entorno(base(12000,6000),{}).NS.capacidadLinea(FECHA,'DÍA','PET1');
-  ok(c.parcial&&c.notas.length===1&&c.cambiosMin===0&&c.disponibleMin===720&&c.estado==='CABE','sin tiempos de cambio y paradas configurados: se compara solo la producción contra la duración y se avisa (no se inventan minutos)');
+  ok(c.estado==='INCOMPLETA'&&c.cargaPct===null&&c.faltantes.some(x=>/cambio/.test(x.dato)),'sin tiempos de cambio configurados y con un cambio de producto: «Estimación incompleta» que dice qué falta (etapa 4: no se inventa ni se asume cero)');
+  c=entorno([pr('PET1','DÍA','Bells','Regular_625ml',12000)],{}).NS.capacidadLinea(FECHA,'DÍA','PET1');
+  ok(c.estado==='CABE'&&c.cambios===0&&c.disponibleMin===720,'un solo producto no necesita tiempo de cambio: con configuración vacía se calcula solo la producción contra la duración')
   // noche
   c=entorno([pr('PET2','NOCHE','Bells','Regular_625ml',9000)],undefined).NS.capacidadLinea(FECHA,'NOCHE','PET2');
   ok(c.duracionMin===600&&c.paradasMin===60&&c.disponibleMin===540&&c.produccionMin===180&&c.cambios===0,'Noche: 600 − 60 = 540 min disponibles; un solo producto no tiene cambios');
@@ -97,11 +99,11 @@ const pr=(l,t,m,p,c,u,extra)=>F(l,FECHA,t,m,p,c,u||1200,extra);
   ok(s.programado===10000&&s.producido===6500&&s.saldo===3500&&s.max===3500,'saldo comprobado = programado − producido oficial (10 000 − 6 500 = 3 500)');
   prod.v=null;s=NS.saldoDe(it());
   ok(s.error&&/no se puede comprobar/.test(s.error),'sin registro de producción no se puede comprobar el saldo (no se asume cero)');prod.v=6500;
-  const intento=async o=>{try{await NS.trasladarSaldo(Object.assign({item:it(),destFecha:FECHA,destTurno:'NOCHE',cantidad:3500,motivo:'Falta de preformas'},o||{}));return '';}catch(x){return x.message;}};
+  const intento=async o=>{try{await NS.trasladarSaldo(Object.assign({trasladoId:'tt'+Math.random().toString(36).slice(2),item:it(),destFecha:FECHA,destTurno:'NOCHE',cantidad:3500,motivo:'Falta de preformas'},o||{}));return '';}catch(x){return x.message;}};
   ok(/motivo/i.test(await intento({motivo:'x'}))&&/otro bloque/.test(await intento({destTurno:'DÍA'}))&&/entero/.test(await intento({cantidad:0}))&&/3[.,]500/.test(await intento({cantidad:4000})),'validaciones: motivo, destino distinto, cantidad entera y no mayor que el saldo');
   ok(items(N)[0].cantidadProgramada===10000&&historial(N).length===0,'ninguna validación fallida escribe nada');
   const antes=N.confirmaciones();
-  const info=await NS.trasladarSaldo({item:it(),destFecha:FECHA,destTurno:'NOCHE',cantidad:3500,motivo:'Falta de preformas'});
+  const info=await NS.trasladarSaldo({trasladoId:'t'+Math.random().toString(36).slice(2),item:it(),destFecha:FECHA,destTurno:'NOCHE',cantidad:3500,motivo:'Falta de preformas'});
   const o=items(N).find(p=>p.turno==='DÍA'),d=items(N).find(p=>p.turno==='NOCHE');
   ok(N.confirmaciones()===antes+2&&o.cantidadProgramada===6500&&d&&d.cantidadProgramada===3500&&d.unidadesPorPaleta===1200&&o.cantidadProgramada+d.cantidadProgramada===10000,'traslado: el origen baja a 6 500 (lo producido se queda), el destino sube a 3 500 y el total sigue en 10 000 (no se duplica el pedido)');
   const h=historial(N).filter(x=>/^TRASLADO/.test(x.referencia));
@@ -112,23 +114,23 @@ const pr=(l,t,m,p,c,u,extra)=>F(l,FECHA,t,m,p,c,u||1200,extra);
   // destino existente: suma
   const e2=entorno([pr('PET1','DÍA','Bells','Regular_625ml',10000,1200,{version:1}),pr('PET1','NOCHE','Bells','Regular_625ml',1000,1200,{version:1})],undefined);
   e2.sb.glacialProducidoVigente=x=>x.turno==='NOCHE'?0:6500;
-  await e2.NS.trasladarSaldo({item:e2.NS.existente('PET1',FECHA,'DÍA','Bells','Regular_625ml'),destFecha:FECHA,destTurno:'NOCHE',cantidad:2000,motivo:'Se completa en Noche'});
+  await e2.NS.trasladarSaldo({trasladoId:'t'+Math.random().toString(36).slice(2),item:e2.NS.existente('PET1',FECHA,'DÍA','Bells','Regular_625ml'),destFecha:FECHA,destTurno:'NOCHE',cantidad:2000,motivo:'Se completa en Noche'});
   ok(items(e2.N).find(p=>p.turno==='NOCHE').cantidadProgramada===3000&&items(e2.N).find(p=>p.turno==='DÍA').cantidadProgramada===8000,'si el destino ya tiene ese producto, se suma (1 000 + 2 000) sin duplicar');
   // otra fecha
   const e3=entorno([pr('PET1','NOCHE','Bells','Regular_625ml',4000,1200,{version:1})],undefined);e3.sb.glacialProducidoVigente=()=>1000;
-  await e3.NS.trasladarSaldo({item:e3.NS.existente('PET1',FECHA,'NOCHE','Bells','Regular_625ml'),destFecha:'2099-03-08',destTurno:'DÍA',cantidad:3000,motivo:'Pasa al día siguiente'});
+  await e3.NS.trasladarSaldo({trasladoId:'t'+Math.random().toString(36).slice(2),item:e3.NS.existente('PET1',FECHA,'NOCHE','Bells','Regular_625ml'),destFecha:'2099-03-08',destTurno:'DÍA',cantidad:3000,motivo:'Pasa al día siguiente'});
   ok(items(e3.N).find(p=>p.fecha==='2099-03-08'&&p.turno==='DÍA').cantidadProgramada===3000&&items(e3.N).find(p=>p.fecha===FECHA).cantidadProgramada===1000,'Noche → Día siguiente: el destino lleva la fecha elegida y el origen conserva lo producido');
   // fila cambiada y fallo de red
   const e4=entorno(progs(),undefined);e4.sb.glacialProducidoVigente=()=>6500;
   const viejo=clon(e4.NS.existente('PET1',FECHA,'DÍA','Bells','Regular_625ml'));
   await require('vm').runInContext('guardarProgramacionPaleta',e4.sb)('PET1',FECHA,'DÍA','Bells','Regular_625ml',9000,1200,{versionEsperada:1});
-  let er=null;try{await e4.NS.trasladarSaldo({item:viejo,destFecha:FECHA,destTurno:'NOCHE',cantidad:2000,motivo:'Falta de preformas'});}catch(x){er=x;}
+  let er=null;try{await e4.NS.trasladarSaldo({trasladoId:'t'+Math.random().toString(36).slice(2),item:viejo,destFecha:FECHA,destTurno:'NOCHE',cantidad:2000,motivo:'Falta de preformas'});}catch(x){er=x;}
   ok(er&&er.conflicto&&/9[.,]000/.test(er.message)&&items(e4.N).length===1,'si la fila de origen cambió mientras se preparaba el traslado: no se aplica y se informa el valor actual');
   const e5=entorno(progs(),undefined);e5.sb.glacialProducidoVigente=()=>6500;e5.N.falla=true;let er5=null;
-  try{await e5.NS.trasladarSaldo({item:e5.NS.existente('PET1',FECHA,'DÍA','Bells','Regular_625ml'),destFecha:FECHA,destTurno:'NOCHE',cantidad:3500,motivo:'Falta de preformas'});}catch(x){er5=x;}
+  try{await e5.NS.trasladarSaldo({trasladoId:'t'+Math.random().toString(36).slice(2),item:e5.NS.existente('PET1',FECHA,'DÍA','Bells','Regular_625ml'),destFecha:FECHA,destTurno:'NOCHE',cantidad:3500,motivo:'Falta de preformas'});}catch(x){er5=x;}
   ok(er5&&items(e5.N).length===1&&items(e5.N)[0].cantidadProgramada===10000&&historial(e5.N).length===0,'con fallo de red no cambia ni el origen ni el destino ni el historial (todo o nada)');
   const e6=entorno(progs(),undefined,{usuario:{planifica:false}});e6.sb.glacialProducidoVigente=()=>6500;let er6=null;
-  try{await e6.NS.trasladarSaldo({item:e6.NS.existente('PET1',FECHA,'DÍA','Bells','Regular_625ml'),destFecha:FECHA,destTurno:'NOCHE',cantidad:3500,motivo:'Falta de preformas'});}catch(x){er6=x;}
+  try{await e6.NS.trasladarSaldo({trasladoId:'t'+Math.random().toString(36).slice(2),item:e6.NS.existente('PET1',FECHA,'DÍA','Bells','Regular_625ml'),destFecha:FECHA,destTurno:'NOCHE',cantidad:3500,motivo:'Falta de preformas'});}catch(x){er6=x;}
   ok(er6&&/Planificación/.test(er6.message),'quien no planifica no puede trasladar saldo');
 }
 
@@ -156,7 +158,7 @@ const pr=(l,t,m,p,c,u,extra)=>F(l,FECHA,t,m,p,c,u||1200,extra);
   // semanal
   e.NS.estado={tab:'semanal',semana:FECHA,fecha:FECHA,turno:'DÍA'};const gr=e.sb.__el('sem-grilla');
   e.NS.pestanas.find(p=>p.clave==='semanal').actualizar();
-  ok(/Carga \d+ %/.test(gr.innerHTML)&&/Carga: incompleta/.test(gr.innerHTML),'vista semanal: carga por línea y bloque, «incompleta» cuando falta un dato');
+  ok(/\d+ %/.test(gr.innerHTML)&&/Estimación incompleta/.test(gr.innerHTML),'vista semanal: utilización por línea y bloque y «Estimación incompleta» cuando falta un dato');
 }
 
 /* ---------- tiempos previstos del catálogo ---------- */

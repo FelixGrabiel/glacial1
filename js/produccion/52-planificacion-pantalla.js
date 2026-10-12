@@ -193,7 +193,7 @@
   `;
   function estilos(){
     if(document.getElementById('plan-css'))return;
-    const s=document.createElement('style');s.id='plan-css';s.textContent=CSS;document.head.appendChild(s);
+    const s=document.createElement('style');s.id='plan-css';s.textContent=CSS+CSS.replace(/#plan-root/g,'.plan-dialogo');   // los diálogos (fuera de #plan-root) usan el mismo estilo de tablas, notas y chipsdocument.head.appendChild(s);
   }
 
   /* ---------- diálogos ---------- */
