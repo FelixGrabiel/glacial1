@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><base href="/"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Reclasificar paradas (datos de prueba)</title>
+<style>
+body{margin:0;background:#f3f6f8;font-family:system-ui,Arial,sans-serif;color:#172b3a}
+.barra{padding:8px 14px;background:#003B5C;color:#fff;font-size:13px}
+#main{padding:12px;max-width:760px;margin:0 auto}
+.btn{padding:8px 14px;border-radius:8px;border:1px solid #005b96;background:#005b96;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.btn-ghost{background:#fff;color:#005b96}.btn-primary{background:#005b96;color:#fff}.btn:disabled{opacity:.5}
+</style></head><body>
+<div class="barra"><b>Datos de PRUEBA (no reales)</b></div>
+<div id="main"><div id="mi-cuerpo"></div></div>
+<script>
+const docs=new Map(),clon=v=>JSON.parse(JSON.stringify(v));
+window.db={collection:c=>({doc:id=>({__k:c+'/'+id}),where(){const e={where(){return e;},onSnapshot(cb){cb({docs:[]});return()=>{};}};return e;}}),
+  runTransaction:async fn=>{const w=[];await fn({get:async r=>({exists:docs.has(r.__k),data:()=>clon(docs.get(r.__k))}),set:(r,d)=>w.push([r,d])});w.forEach(([r,d])=>docs.set(r.__k,d));}};
+window.state={user:{rol:'Administrador',username:'adm',nombre:'Admin'},currentTab:'x'};
+window.glacialCierresSesion=[];window.LINES=[{key:'PET1',name:'PET 1'},{key:'PET2',name:'PET 2'}];
+window.firebase={firestore:{FieldValue:{serverTimestamp:()=>Date.now()}}};
+window.glacialIntervenciones={permisos:()=>({ver:true,puedeCorregir:true}),quienActua:()=>({nombre:'Admin',uid:'u1',cuenta:'adm'})};
+window.glacialMantPestanas=[];
+window.glacialMantUI={aviso(){},formulario(titulo,html,ok,fn,opc){const f=document.createElement('div');f.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);padding:12px;overflow:auto';
+  f.innerHTML='<div style="background:#fff;border-radius:12px;padding:14px;max-width:640px;margin:auto"><h3>'+titulo+'</h3><div style="display:grid;gap:10px">'+html+'</div><button class="btn" id="ok">'+ok+'</button></div>';document.body.appendChild(f);return f;}};
+const u=(id,min,mot,extra)=>Object.assign({id,clasif:'NO_PROGRAMADA',origen:'AVANCE',causa:'Otro',motivoCat:'',detalle:'',equipo:'',motivo:mot,minutos:min},extra||{});
+window.glacialAnalisisParadas={listarUnidades:()=>({unidades:[{linea:'PET1',fecha:'2026-10-05',turno:'DÍA',npItems:[u('a1',20,'parada por env'),u('a2',15,'parad por env'),u('a3',40,'Falta de agua en planta',{causa:''}),u('a4',25,'parada por envasadora'),
+  u('a5',30,'Parada',{reclasificada:true,causa:'Falta de insumos',motivoCat:'Falta de paletas',original:{causa:'Otro',motivoCat:'',detalle:'',equipo:'',motivo:'sin paletas'}})]}],sinInicio:0})};
+</script>
+<script src="js/mantenimiento/37c-equipos-catalogo.js"></script>
+<script src="js/mantenimiento/37e-motivos-parada.js"></script>
+<script src="js/mantenimiento/67g-reclasificacion-datos.js"></script>
+<script src="js/mantenimiento/67h-reclasificacion-pantalla.js"></script>
+<script>glacialMantPestanas[0].pintar(document.getElementById('mi-cuerpo'));</script>
+</body></html>

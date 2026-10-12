@@ -126,7 +126,10 @@
     const duracion=num(t.tiempoTranscurridoMin),prog=num(t.minPausasProgramadas),np=num(t.minParadasNoProgramadas);
     const planificado=Math.max(0,duracion-prog);                   // duración de la programación − paradas programadas
     const enMarcha=GlacialIndicadores.horasEfectivas({transcurridoMin:duracion,paradasProgramadasMin:prog,paradasNoProgramadasMin:np})*60;         // planificado − paradas no programadas
-    const items=Array.isArray(t.paradasClasificadas)?t.paradasClasificadas:[];
+    // Reclasificaciones (67g): la causa, el motivo, el detalle y el equipo que asignó Mantenimiento reemplazan a los originales SOLO como etiqueta
+    // (el original queda en .original y la parada guardada no se toca); los minutos no cambian.
+    const rc=typeof window!=='undefined'?window.glacialReclasificaciones:null;
+    const items=(Array.isArray(t.paradasClasificadas)?t.paradasClasificadas:[]).map(x=>rc&&x&&x.id?rc.aplicar(x):x);
     const npItems=items.filter(x=>x.clasif==='NO_PROGRAMADA'),pItems=items.filter(x=>x.clasif==='PROGRAMADA');
     return {linea:g.linea,fecha:g.fecha,turno:g.turno,bloque:g.bloque||(g.turno==='NOCHE'?'NOCHE':'DIA_INTERMEDIO'),
       t,duracion,prog,np,planificado,enMarcha,disp:GlacialIndicadores.disponibilidad(planificado,np),
@@ -162,6 +165,20 @@
     us.forEach(u=>{plan+=u.planificado;marcha+=u.enMarcha;np+=u.np;prog+=u.prog;nNp+=u.nNp;ajNp+=u.ajusteNp;});
     return {planificado:plan,enMarcha:marcha,npMin:np,progMin:prog,nNp,ajusteNp:ajNp,
       disp:GlacialIndicadores.disponibilidad(plan,np),mttr:nNp>0?np/nNp:null,mtbf:nNp>0?marcha/nNp:null};
+  }
+
+  /* Paradas reclasificadas del rango: marca «reclasificada» y, al tocarla, el valor original. */
+  function bloqueReclasificadas(us){
+    const l=[];let min=0;
+    us.forEach(u=>u.npItems.forEach(it=>{if(it&&it.reclasificada){l.push({u,it});min+=it.minutos;}}));
+    if(!l.length)return '';
+    const txt=x=>[x.causa,x.motivoCat].filter(Boolean).join(' › ')+(x.detalle?' — '+x.detalle:'')+(x.equipo?' · '+x.equipo:'');
+    return '<h3 class="ap-sec">Paradas reclasificadas en el rango ('+l.length+' · '+fmt(min)+' min)</h3>'+
+      '<p class="ap-nota">Mantenimiento les asignó causa, motivo y equipo. Solo cambia la etiqueta: los minutos no cambian y la parada original no se modifica. Toca una para ver el original.</p>'+
+      '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Fecha</th><th>Línea</th><th>Turno</th><th>Minutos</th><th>Clasificación</th></tr></thead><tbody>'+
+      l.slice(0,40).map(({u,it})=>'<tr><td>'+esc(fmtFecha(u.fecha))+'</td><td>'+esc(nombreLinea(u.linea))+'</td><td>'+esc(u.turno)+'</td><td>'+fmt(it.minutos)+'</td><td><details><summary style="cursor:pointer">'+esc(txt(it))+' <b style="color:#0e7490">· reclasificada</b></summary>'+
+        '<small>Original: «'+esc(it.motivo||'')+'» · '+esc(txt(it.original)||'sin causa')+'</small></details></td></tr>').join('')+'</tbody></table></div>'+
+      (l.length>40?'<p class="ap-nota">Se muestran las 40 primeras; el Excel trae todas.</p>':'');
   }
 
   /* Pareto: agrupa las paradas por motivo / línea / turno / técnico. */
@@ -351,6 +368,7 @@
   let verTecnicosPedido=false;
 
   function calcularTodo(){
+    if(typeof window!=='undefined'&&window.glacialReclasificaciones)window.glacialReclasificaciones.asegurarRango(F.desde,F.hasta);   // lee las reclasificaciones del rango (en vivo)
     const rango=listarUnidades(F.desde,F.hasta,{linea:F.linea,turno:F.turno});
     const us=rango.unidades;
     const tecnicoDe=tec.listo?resolvedorTecnico(tec.eventos):null;
@@ -540,6 +558,7 @@
           else if(!tec.error)cuerpo+='<p class="ap-nota">El técnico sale de la bitácora; las paradas sin registro ahí (supervisor, históricas) van a «'+SIN_TECNICO+'».</p>';
         }
         cuerpo+=pa.filas.length?svgPareto(pa)+tablaPareto(pa,F.agrupar):'<div class="ap-vacio"><b>Sin paradas'+(F.incluirProg?'':' no programadas')+' en este rango.</b></div>';
+        cuerpo+=bloqueReclasificadas(d.us);
         cuerpo+='<h3 class="ap-sec">Tendencia: minutos de parada por semana (últimas 8 semanas)</h3>'+
           (d.tendencia&&d.tendencia.motivos.length?svgTendencia(d.tendencia)+'<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Motivo</th>'+d.tendencia.semanas.map(s=>'<th>'+fmtFecha(s)+'</th>').join('')+'</tr></thead><tbody>'+
             d.tendencia.motivos.map(m=>'<tr><td>'+esc(m.motivo)+'</td>'+m.porSemana.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'
@@ -649,8 +668,8 @@
         ?[u.fecha,nombreLinea(u.linea),u.turno,+(u.disp*100).toFixed(1),Math.round(o.ratioSop),Math.round(o.velocidad),+(o.rend*100).toFixed(1),+(o.oee*100).toFixed(1),o.aRevisar?'revisar velocidad estándar':'']
         :[u.fecha,nombreLinea(u.linea),u.turno,u.disp==null?'—':+(u.disp*100).toFixed(1),'','','','',textoOee(o)]),[12,14,12,16,18,18,14,10,28]);
     const tecnicoDe=d.tecnicoDe;
-    hoja('Paradas','Paradas del rango',['Fecha','Línea','Turno','Motivo','Tipo','Minutos','Origen','Técnico','Equipo','Causa','Motivo del catálogo','Detalle'],
-      d.us.flatMap(u=>u.npItems.concat(F.incluirProg?u.pItems:[]).map(it=>[u.fecha,nombreLinea(u.linea),u.turno,it.motivo,it.clasif==='PROGRAMADA'?'Programada':'No programada'+(it.exceso?' (exceso)':''),+it.minutos.toFixed(1),it.origen,(tecnicoDe&&tecnicoDe(it,u))||'',equipoDeParada(it)||'',it.causa||'',it.motivoCat||'',it.detalle||''])),[12,14,12,36,22,10,14,26,24,30,28,30]);
+    hoja('Paradas','Paradas del rango',['Fecha','Línea','Turno','Motivo','Tipo','Minutos','Origen','Técnico','Equipo','Causa','Motivo del catálogo','Detalle','Reclasificada','Causa original','Motivo original','Equipo original'],
+      d.us.flatMap(u=>u.npItems.concat(F.incluirProg?u.pItems:[]).map(it=>[u.fecha,nombreLinea(u.linea),u.turno,it.motivo,it.clasif==='PROGRAMADA'?'Programada':'No programada'+(it.exceso?' (exceso)':''),+it.minutos.toFixed(1),it.origen,(tecnicoDe&&tecnicoDe(it,u))||'',equipoDeParada(it)||'',it.causa||'',it.motivoCat||'',it.detalle||'',it.reclasificada?'Sí':'',it.reclasificada?it.original.causa||'':'',it.reclasificada?it.original.motivoCat||'':'',it.reclasificada?it.original.equipo||'':''])),[12,14,12,36,22,10,14,26,24,30,28,30,14,26,26,24]);
     const buffer=await wb.xlsx.writeBuffer();
     const nombre='Analisis_paradas_'+F.desde+(F.hasta!==F.desde?'_a_'+F.hasta:'')+'.xlsx';
     const url=URL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
@@ -873,7 +892,7 @@
     window.renderCentroPerfil=renderCentroPerfil;
   }
 
-  window.glacialAnalisisParadas={equipoDeParada,construirUnidad,resumenIndicadores,armarPareto,armarTendencia,armarReparacion,
+  window.glacialAnalisisParadas={refrescar,bloqueReclasificadas,equipoDeParada,construirUnidad,resumenIndicadores,armarPareto,armarTendencia,armarReparacion,
     calcularOee,datosRegistro,resolvedorTecnico,listarUnidades,nivelDisp,render,abrirConfig,exportar,
     estado:F,tecnicos:tec,escucharConfig,pintarTarjetaHoy,calcularTodo,htmlDisponibilidadHoy};
 })();

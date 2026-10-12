@@ -167,18 +167,20 @@
         ?grupoTurnoReporte(r.turno):bloqueTurno(r.turno));
       if(grupo!==bloqueTurno(turno))return;
       const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
-      cuadros.forEach(q=>{
+      cuadros.forEach((q,qi)=>{
         // Un cuadro que empieza después del corte no pertenece a este cálculo.
         if(finCalculo&&q?.horaInicio){
           const ini=horaAMs(fecha,q.horaInicio,bloqueTurno(turno)==='NOCHE'?'NOCHE':turno);
           if(ini&&ini>finCalculo)return;
         }
         [['paradasNoProgramadas','NO_PROGRAMADA'],['paradasProgramadas','PROGRAMADA']].forEach(([k,clasif])=>{
-          (q?.[k]||[]).forEach(p=>{
+          (q?.[k]||[]).forEach((p,pi)=>{
             // Filas automáticas (importadas de Paletas/semáforo/Avance): ya se cuentan en su origen.
             if(p?.auto||p?.eliminada)return;
             if(p?.descripcion&&num(p.tiempoMin)>0)
-              salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO',causa:p.causa||'',motivoCat:p.motivoCat||'',detalle:p.detalle||'',equipo:p.equipo||''});
+              salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO',
+                id:String(p.id||('reg:'+(r.id||'legacy')+':'+qi+':'+k+':'+pi)),      // mismo id que usa Avance/Cierre (avIdParadaRegistro): clave estable de la parada para reclasificarla
+                causa:p.causa||'',motivoCat:p.motivoCat||'',detalle:p.detalle||'',equipo:p.equipo||''});
           });
         });
       });
@@ -439,8 +441,8 @@
         const seg=recortar(s);
         if(seg.fin<=seg.inicio)return;
         partirPorEstandar(s.motivo,s.clasif,(seg.fin-seg.inicio)/MS_MIN,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,
-          {origen:s.origen||'SUPERVISOR',inicio:seg.inicio,fin:seg.fin,causa:s.causa||'',motivoCat:s.motivoCat||'',detalle:s.detalle||'',equipo:s.equipo||''});
-      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR',causa:s.causa||'',motivoCat:s.motivoCat||'',detalle:s.detalle||'',equipo:s.equipo||''});
+          {origen:s.origen||'SUPERVISOR',id:s.id||'',inicio:seg.inicio,fin:seg.fin,causa:s.causa||'',motivoCat:s.motivoCat||'',detalle:s.detalle||'',equipo:s.equipo||''});
+      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR',id:s.id||'',causa:s.causa||'',motivoCat:s.motivoCat||'',detalle:s.detalle||'',equipo:s.equipo||''});
     });
     const sumaClasif=c=>paradasClasificadas.filter(x=>x.clasif===c).reduce((a,x)=>a+x.minutos,0);
     const ajusteNpMin=noProg-sumaClasif('NO_PROGRAMADA');

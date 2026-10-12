@@ -375,6 +375,45 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Reclasificación de paradas ya registradas (Avance/Cierre o Nuevo registro): UN documento por parada, con id = id de la parada (con «/» cambiado por «_»).
+    //  - La parada original NO se toca: aquí solo se guarda la causa, el motivo, el detalle y el equipo que le asigna Mantenimiento (los minutos no cambian).
+    //  - Escriben el Supervisor de Mantenimiento y el Administrador (esSupervisorMtto: no la cuenta compartida, ni jefatura, ni cuentas de solo consulta).
+    //    Leen quienes ven la bitácora de Mantenimiento.
+    //  - Se crea con version 1, su uid, la hora del servidor y UNA entrada de historial. Cada cambio sube la version en 1, lleva uid y hora del servidor y AGREGA
+    //    exactamente una entrada al final de la lista historial; las entradas anteriores no cambian (el historial nunca se acorta ni se edita). Nadie borra.
+    //  - Campos de origen (id, paradaId, origen, linea, fecha, turno, descripcionOriginal, minutos) no se cambian nunca.
+    match /reclasificacionesParada/{id} {
+      allow read: if puedeLeerBitacoraMtto();
+      allow create: if esSupervisorMtto()
+        && request.resource.data.keys().hasAll(['id', 'paradaId', 'origen', 'linea', 'fecha', 'causa', 'motivo', 'version', 'historial', 'actualizadaUid', 'actualizadaEn'])
+        && request.resource.data.keys().hasOnly(['id', 'paradaId', 'origen', 'linea', 'fecha', 'turno', 'descripcionOriginal', 'minutos', 'causa', 'motivo', 'detalle',
+             'equipo', 'version', 'historial', 'actualizadaUid', 'actualizadaPor', 'actualizadaEn'])
+        && request.resource.data.id == id
+        && request.resource.data.origen in ['AVANCE', 'REGISTRO']
+        && request.resource.data.linea in ['PET1', 'PET2', 'B7L', 'C20L', 'B20L']
+        && request.resource.data.fecha is string && request.resource.data.fecha.size() == 10
+        && request.resource.data.causa is string && request.resource.data.causa.size() > 0
+        && request.resource.data.motivo is string && request.resource.data.motivo.size() > 0
+        && request.resource.data.version == 1
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time
+        && request.resource.data.historial is list && request.resource.data.historial.size() == 1;
+      allow update: if esSupervisorMtto()
+        && request.resource.data.keys().hasOnly(['id', 'paradaId', 'origen', 'linea', 'fecha', 'turno', 'descripcionOriginal', 'minutos', 'causa', 'motivo', 'detalle',
+             'equipo', 'version', 'historial', 'actualizadaUid', 'actualizadaPor', 'actualizadaEn'])
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time
+        && request.resource.data.causa is string && request.resource.data.causa.size() > 0
+        && request.resource.data.motivo is string && request.resource.data.motivo.size() > 0
+        && request.resource.data.historial is list
+        && request.resource.data.historial.size() == resource.data.historial.size() + 1
+        && request.resource.data.historial[0:resource.data.historial.size()] == resource.data.historial
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['id', 'paradaId', 'origen', 'linea', 'fecha', 'turno', 'descripcionOriginal', 'minutos']);
+      allow delete: if false;
+    }
+
     // Entrega de turno entre supervisores: UN documento por fecha operativa y turno SALIENTE (id = fecha + '_' + turno).
     //  - Lo leen todos los usuarios con sesión, salvo la cuenta compartida de Mantenimiento (jefatura y gerencia en modo consulta).
     //  - Crea quien opera Producción (puedeOperarProduccion), con su uid y la hora del servidor; crear con un id existente falla.
