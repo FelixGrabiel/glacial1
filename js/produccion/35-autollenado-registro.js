@@ -110,8 +110,10 @@
   }
 
   /* Cuadro (índice) al que corresponde una parada de Avance/Cierre, o null. */
+  const SIN_ASIGNAR=-1;      // «Quitar de esta marca» (29b-correccion-paradas.js): la parada queda pendiente y NO se reasigna sola
   function cuadroDeAvance(p){
     const asign=draft.asignacionParadasAvance||{};
+    if(asign[p.id]===SIN_ASIGNAR)return null;
     if(asign[p.id]!==undefined&&asign[p.id]!==null)return Number(asign[p.id]);
     const cand=cuadrosConProducto();
     if(cand.length===1)return cand[0].i;
@@ -238,7 +240,7 @@
     return cambio;
   }
   window.autollenarRegistro=autollenarRegistro;
-  window.__autollenadoInternos={programadoDe,paradasBoton,paradasAvance,itemsLinea,paradasDeseadas,paletasDe};
+  window.__autollenadoInternos={programadoDe,paradasBoton,paradasAvance,itemsLinea,paradasDeseadas,paletasDe,cuadroDeAvance,cuadrosConProducto,SIN_ASIGNAR};
 
   /* ---------- enlaces "Editar en origen" ---------- */
   function editarEnOrigen(origen,i){
@@ -302,7 +304,8 @@
       ${esProgramada?'':`<td style="padding:5px;">${esc(r.causa||'Otro')}</td>`}
       <td style="padding:5px;text-align:center;"><input type="number" value="${num(r.tiempoMin)}" readonly
         style="width:100%;box-sizing:border-box;text-align:center;font-weight:600;background:#f1f3f5;cursor:not-allowed;"></td>
-      <td></td></tr>`;
+      <td>${r.origen==='AVANCE'&&r.origenId&&window.glacialCorreccionParadas&&window.glacialCorreccionParadas.puede()?
+        `<button type="button" class="btn btn-ghost btn-sm" data-no-autosave title="Quitar de esta marca o reasignar" onclick="glacialCorreccionParadas.abrirRegistro(${Number(cuadroIndex)},'${esc(r.origenId)}')">Corregir asignación</button>`:''}</td></tr>`;
   };
 
   /* Notas bajo la tabla: etiqueta Manual y aviso de posible duplicado. */

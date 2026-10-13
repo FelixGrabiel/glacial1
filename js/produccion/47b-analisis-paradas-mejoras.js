@@ -16,7 +16,7 @@
   'use strict';
 
   const MS_MIN=60000;
-  const LARGA_MIN=15;             // «parada larga»: más de 15 minutos (la misma regla que pide hora de inicio al registrar)
+  const LARGA_MIN=15;             // «parada larga»: más de 15 minutos (solo para análisis; registrar una parada ya NO exige hora de inicio)
   const FRECUENTE_MIN=3;          // «frecuente»: 3 o más paradas del mismo motivo en el rango
   const SIN_EQUIPO='Equipo sin indicar';
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
@@ -142,7 +142,7 @@
     return [
       mk('otro','Minutos en «Otro» o sin causa',p(minOtro,minTot),fmt(minOtro)+' de '+fmt(minTot)+' min',cfg.otroVerde,cfg.otroAmbar),
       mk('sinEquipo','Fallas sin equipo indicado',p(fallasSinEq,fallas),fallasSinEq+' de '+fallas+' paradas con causa que pide equipo',cfg.sinEquipoVerde,cfg.sinEquipoAmbar),
-      mk('sinHora','Paradas largas sin hora de inicio',p(largasSinHora,largas),largasSinHora+' de '+largas+' paradas de más de '+LARGA_MIN+' min',cfg.sinHoraVerde,cfg.sinHoraAmbar)
+      mk('sinHora','Paradas largas sin hora de inicio (informativo: la hora es opcional)',p(largasSinHora,largas),largasSinHora+' de '+largas+' paradas de más de '+LARGA_MIN+' min',cfg.sinHoraVerde,cfg.sinHoraAmbar)
     ];
   }
 

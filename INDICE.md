@@ -72,6 +72,7 @@ js/
 | 46-proyeccion-avisos.js | Avisos a–e, tarjeta «Proyección del turno» del Inicio y editor de umbrales (sync/configAlertas) |
 | 29-avance-produccion.js | Avance y cierre de turno |
 | 35-autollenado-registro.js | Autollenado del registro desde paletas/paradas |
+| 29b-correccion-paradas.js | Corregir y reasignar paradas (quitar de una marca, cambiar de marca o de línea) con motivo y constancia |
 
 ### js/personal/
 | Archivo | Función |
@@ -147,6 +148,7 @@ js/
 32. personal/31-rotacion-supervisores.js
 33. accesos/32-dashboard-perfiles.js
 34. produccion/35-autollenado-registro.js
+34b. produccion/29b-correccion-paradas.js (después de 29 y 35)
 35. nucleo/34-integraciones.js
 36. accesos/36-seguridad-auth.js
 37. mantenimiento/37-mantenimiento-tecnicos.js

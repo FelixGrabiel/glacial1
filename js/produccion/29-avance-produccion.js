@@ -390,14 +390,29 @@ function avHoraFinCalculada(m,p){
   const a=avHoraMs(m.fecha,p.horaInicio,m.turno);
   return a&&avNum(p.minutos)>0?avHoraTxt(a+Math.round(avNum(p.minutos))*60000):'';
 }
-/* Error legible o '' para una parada con catálogo: causa, motivo, detalle («Otro» pide 10 caracteres) y hora de inicio (obligatoria sobre 15 min; dentro del turno). */
+/* Error legible o '' para una parada con catálogo: causa, motivo, detalle («Otro» pide 10 caracteres). La hora de inicio es OPCIONAL para cualquier duración; si se escribe debe caer dentro del turno. */
 function avValidarCatalogoParada(m,p){
   const err=avCat().validar(p.causa,p.motivoCat,p.detalle);
   if(err)return err;
   if(p.origen==='REGISTRO')return '';                      // Nuevo registro no tiene hora de inicio en este modal
-  if(!p.horaInicio)return avNum(p.minutos)>15?'una parada de más de 15 minutos necesita la hora de inicio.':'';
+  if(!p.horaInicio)return '';                                // sin hora: vale la duración en minutos (no se inventa un horario)
   const w=avVentanaTurno(m.fecha,m.turno),a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=a+Math.round(avNum(p.minutos))*60000;
   if(a<w.ini||b>w.fin)return 'la parada ('+p.horaInicio+' + '+avFmt(p.minutos)+' min) cae fuera del turno ('+w.txt+').';
+  return '';
+}
+/* Duración e intervalo: la DURACIÓN en minutos es el dato principal y la hora de inicio/fin es opcional. Con inicio y fin, el intervalo (con cruce de
+   medianoche) debe medir lo mismo que los minutos: si no coincide se pide corregir uno; nunca se sobrescribe lo escrito. Fin sin inicio no se acepta. */
+function avValidarDuracionIntervalo(m,p){
+  const min=Number(p.minutos);
+  if(!Number.isFinite(min)||min<=0)return 'indica la duración en minutos (mayor que 0).';
+  if(p.horaFin&&!p.horaInicio)return 'si escribes la hora de fin, escribe también la de inicio (o borra la de fin).';
+  if(p.horaInicio&&p.horaFin){
+    const a=avHoraMs(m.fecha,p.horaInicio,m.turno);let b=avHoraMs(m.fecha,p.horaFin,m.turno);
+    if(!a||!b)return 'las horas de inicio y fin no son válidas.';
+    if(b<=a)b+=86400000;
+    const dur=Math.round((b-a)/60000);
+    if(Math.abs(dur-min)>0.5)return 'la duración ('+avFmt(min)+' min) no coincide con el intervalo '+p.horaInicio+'–'+p.horaFin+' ('+avFmt(dur)+' min). Corrige uno de los dos.';
+  }
   return '';
 }
 /* Fila de una parada antigua (texto libre): pasa a causa › motivo › detalle del catálogo; el texto anterior queda como detalle. */
@@ -462,7 +477,7 @@ function avParadaHora(i,campo,valor){
   p[campo]=valor||'';
   if(campo==='horaInicio'&&p.horaInicio&&avNum(p.minutos)>0&&avUsaCatalogo(p)){
     p.horaFin=avHoraFinCalculada(m,p);                // hora de inicio + minutos = hora de fin
-  }else if(p.horaInicio&&p.horaFin){
+  }else if(p.horaInicio&&p.horaFin&&avNum(p.minutos)<=0){      // solo se completa la duración vacía; una duración ya escrita no se pisa (se valida al guardar)
     const a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=avHoraMs(m.fecha,p.horaFin,m.turno);
     const fin=b<=a?b+86400000:b;
     p.minutos=Math.max(0,Math.round((fin-a)/60000));
@@ -489,9 +504,17 @@ function avParadaQuitar(i){
   else m.filas.splice(i,1);
   avRenderParadasModal();
 }
+/* Aviso (no bloquea): la suma de minutos supera la duración del turno. */
+function avAvisoTotalParadas(m,total){
+  try{
+    const w=avVentanaTurno(m.fecha,m.turno),dur=w&&w.ini&&w.fin?Math.round((w.fin-w.ini)/60000):0;
+    return dur>0&&total>dur?'Revisa: el total ('+avFmt(total)+' min) supera la duración del turno ('+avFmt(dur)+' min).':'';
+  }catch(_){return '';}
+}
 function avActualizarTotalParadasModal(){
   const m=avanceEstado.paradasModal,total=(m?.filas||[]).filter(p=>!p.eliminarSolicitado).reduce((a,p)=>a+avNum(p.minutos),0);
   const e=document.getElementById('av-paradas-total');if(e)e.textContent=`${avFmt(total)} min`;
+  const w=document.getElementById('av-paradas-aviso-total');if(w)w.textContent=m?avAvisoTotalParadas(m,total):'';
 }
 function avRenderParadasModal(){
   avInstalarEstilos();const m=avanceEstado.paradasModal;if(!m)return;
@@ -505,6 +528,7 @@ function avRenderParadasModal(){
   <div class="av-paradas-note">Selecciona primero si la parada es <b>Programada</b> o <b>No programada</b>. Las paradas de <b>Nuevo registro</b> y <b>Avance/Cierre</b> se muestran juntas y no se copian a todas las marcas.</div>
   ${avParadasBotonHtml(m)}
   ${!puedeEditar?`<div class="av-paradas-note"><b>Modo consulta:</b> el turno está cerrado o tu usuario no tiene permiso de edición.</div>`:''}
+  ${window.glacialCorreccionParadas&&window.glacialCorreccionParadas.puede()?`<div class="av-paradas-note"><button type="button" class="btn btn-ghost" onclick="glacialCorreccionParadas.abrirAvance()" ${m.guardando?'disabled':''}>Corregir asignación</button> Pasa paradas ya registradas a otra línea (con motivo y constancia).</div>`:''}
   ${m.error?`<div class="av-paradas-error">${avEsc(m.error)}</div>`:''}
   <div class="av-paradas-list">${m.filas.map((p,i)=>p.eliminarSolicitado?'':`<div class="av-parada-row ${p.tipo==='NO_PROGRAMADA'?'is-np':'is-p'}">
     <div class="av-parada-tipo"><label>Tipo de parada</label><select onchange="avParadaCampo(${i},'tipo',this.value)" ${m.guardando||!puedeEditar?'disabled':''}>
@@ -515,13 +539,13 @@ function avRenderParadasModal(){
     ${avBloqueMotivoHtml(i,p,m,puedeEditar,causas)}
     ${avEsFalla(p)?(()=>{const e=avEquipoEstado(p),dis=m.guardando||!puedeEditar?'disabled':'';return `<div class="av-parada-equipo"><label>Equipo que falló (obligatorio)</label><select onchange="avParadaEquipo(${i},'sel',this.value)" ${dis}>${window.glacialEquipos.opciones(m.linea,p.equipo)}</select>${e.sel==='__otro__'?`<input type="text" maxlength="80" value="${avEsc(e.detalle)}" placeholder="Detalle del equipo (mínimo 5 caracteres)" oninput="avParadaEquipo(${i},'detalle',this.value)" ${dis}>`:''}</div>`;})():''}
     <div class="av-parada-min"><label>Minutos</label><input type="number" min="1" step="1" value="${avNum(p.minutos)||''}" oninput="avParadaCampo(${i},'minutos',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
-    ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hora de inicio'+(avNum(p.minutos)>15?' *':''):'Desde (opc.)'}</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
-    <div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hasta (se calcula)':'Hasta (opc.)'}</label><input type="time" id="av-hfin-${i}" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
+    ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hora de inicio (opc.)':'Desde (opc.)'}</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    <div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hasta (opc.; se calcula)':'Hasta (opc.)'}</label><input type="time" id="av-hfin-${i}" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
     <button class="av-parada-remove" title="Quitar fila" onclick="avParadaQuitar(${i})" ${m.guardando||!puedeEditar?'disabled':''}>✕</button>
     <small>${p.origen==='REGISTRO'?'Origen: Nuevo registro':'Origen: Avance/Cierre'}${p.tipo?` · ${p.tipo==='PROGRAMADA'?'Programada':'No programada'}`:''}</small>
   </div>`).join('')||'<p class="small-muted">Sin paradas. Usa “+ Agregar otra”.</p>'}</div>
   <button class="btn btn-ghost av-parada-add" onclick="avParadaAgregarFila()" ${m.guardando||!puedeEditar?'disabled':''}>+ Agregar otra</button></div>
-  <footer><div>Total de minutos <strong id="av-paradas-total">${avFmt(total)} min</strong></div><div><button class="btn btn-ghost" onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>Cancelar</button><button class="btn btn-primary" onclick="avGuardarParadasModal()" ${m.guardando||!puedeEditar?'disabled':''}>${m.guardando?'Guardando…':'Guardar paradas'}</button></div></footer></div>`;
+  <footer><div>Total de minutos <strong id="av-paradas-total">${avFmt(total)} min</strong><small id="av-paradas-aviso-total" style="display:block;color:#8a5a00">${avEsc(avAvisoTotalParadas(m,total))}</small></div><div><button class="btn btn-ghost" onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>Cancelar</button><button class="btn btn-primary" onclick="avGuardarParadasModal()" ${m.guardando||!puedeEditar?'disabled':''}>${m.guardando?'Guardando…':'Guardar paradas'}</button></div></footer></div>`;
   modal.classList.add('open');document.body.classList.add('av-modal-open');
 }
 function avBuscarParadaRegistro(records,p){
@@ -544,7 +568,11 @@ function avConTimeout(promesa,ms=15000){
 async function avGuardarParadasModal(){
   const m=avanceEstado.paradasModal;if(!m||m.guardando||!avPuedeEditarParadas())return;
   const activas=m.filas.filter(p=>!p.eliminarSolicitado);
-  // Causa › motivo del catálogo: «Otro» pide detalle de 10 caracteres; más de 15 min pide hora de inicio dentro del turno.
+  // Duración en minutos obligatoria (sin importar cuántos); hora de inicio/fin opcional y coherente. Causa › motivo del catálogo: «Otro» pide detalle de 10 caracteres.
+  for(const p of activas){
+    const errD=avValidarDuracionIntervalo(m,p);
+    if(errD){m.error='Parada «'+(String(p.descripcion||p.motivoCat||'').trim()||'sin motivo')+'»: '+errD;avRenderParadasModal();return;}
+  }
   for(const p of activas){
     if(!avUsaCatalogo(p))continue;
     const err=avValidarCatalogoParada(m,p);
@@ -1906,7 +1934,7 @@ function avTimelineHtml(){
   const avances=avanceEstado.snapshots.filter(s=>s.tipo==='AVANCE').slice().sort((a,b)=>avNum(a.generadoEn)-avNum(b.generadoEn));
   const cierre=avUltimoSnapshot('CIERRE');
   const filas=avances.map(s=>`<div class="av-time-row done"><time>${avEsc(s.horaCorte||'—')}</time><div><b>AVANCE DE PRODUCCIÓN</b><small>Corte ${avEsc(s.horaCorte||'—')} · generado ${avEsc(avHoraDesdeMs(s.generadoEn)||s.horaCorte||'—')} por ${avEsc(s.supervisor||s.generadoPor||'—')}</small>${avAccionesSnapshot(s)}</div></div>`).join('');
-  return `<div class="av-timeline">${filas||'<div class="av-time-row pending"><time>—</time><div><b>SIN AVANCES GENERADOS</b><small>Puedes generar un avance en cualquier momento del turno.</small></div></div>'}<div class="av-time-row ${cierre?'done':'pending'}"><time>${cierre?avEsc(cierre.horaCorte||'—'):'—'}</time><div><b>${cierre?'CIERRE DE TURNO':'CIERRE PENDIENTE'}</b>${cierre?`<small>Generado ${avEsc(avHoraDesdeMs(cierre.generadoEn)||cierre.horaCorte||'—')} por ${avEsc(cierre.supervisor||cierre.generadoPor||'—')}</small>${avAccionesSnapshot(cierre)}`:'<small>El cierre se genera manualmente cuando corresponda.</small>'}</div></div></div>`;
+  return `<div class="av-timeline">${filas||'<div class="av-time-row pending"><time>—</time><div><b>SIN AVANCES GENERADOS</b><small>Puedes generar un avance en cualquier momento del turno.</small></div></div>'}<div class="av-time-row ${cierre?'done':'pending'}"><time>${cierre?avEsc(cierre.horaCorte||'—'):'—'}</time><div><b>${cierre?'CIERRE DE TURNO':'CIERRE PENDIENTE'}</b>${cierre?`<small>Generado ${avEsc(avHoraDesdeMs(cierre.generadoEn)||cierre.horaCorte||'—')} por ${avEsc(cierre.supervisor||cierre.generadoPor||'—')}</small>${avAccionesSnapshot(cierre)}`:'<small>El cierre se genera manualmente cuando corresponda.</small>'}</div></div></div>${window.glacialCorreccionParadas?window.glacialCorreccionParadas.avisoPosterior():''}`;
 }
 function avHistorialGeneralHtml(){
   const tipo=avanceEstado.filtroTipo;

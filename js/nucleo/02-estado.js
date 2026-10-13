@@ -159,6 +159,7 @@ const PERMISOS_APP=[
   {key:'eliminarRegistros',area:'produccion',label:'Eliminar registros'},
   {key:'reabrirReporteProduccion',area:'produccion',label:'Reabrir reportes de producción finalizados'},
   {key:'reabrirProduccion',area:'produccion',label:'Reabrir producción finalizada'},
+  {key:'corregir_paradas',area:'produccion',label:'Corregir y reasignar paradas (quitarlas de una marca o pasarlas a otra marca/línea, con motivo)'},
   {key:'configurar_umbrales',area:'administracion',label:'Configurar umbrales de avisos, metas de disponibilidad y velocidades estándar'},
   {key:'configuracion',area:'administracion',label:'Configuración'},
   {key:'administracion',area:'administracion',label:'Administración'},

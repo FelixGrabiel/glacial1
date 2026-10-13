@@ -87,7 +87,7 @@ function dispositivo(usuario,opc){
   const mDia={fecha:'2026-10-12',turno:'DÍA'},mNoche={fecha:'2026-10-12',turno:'NOCHE'};
   const fila=(x)=>Object.assign({tipo:'NO_PROGRAMADA',origen:'AVANCE',causa:'Ajuste o calibración',motivoCat:'Calibración',detalle:'',minutos:10,horaInicio:'',nueva:true},x);
   ok(sb29.v(mDia,fila({minutos:10}))==='','hasta 15 minutos: la hora de inicio es opcional');
-  ok(/hora de inicio/.test(sb29.v(mDia,fila({minutos:16})))&&sb29.v(mDia,fila({minutos:15}))==='','más de 15 minutos sin hora de inicio no se guarda (15 exactos sí)');
+  ok(sb29.v(mDia,fila({minutos:16}))===''&&sb29.v(mDia,fila({minutos:15}))===''&&sb29.v(mDia,fila({minutos:120}))==='','la hora de inicio es opcional para cualquier duración (15, 16 y 120 min se validan sin hora)');
   ok(sb29.v(mDia,fila({minutos:30,horaInicio:'08:00'}))==='','con hora de inicio dentro del turno se guarda');
   ok(/fuera del turno/.test(sb29.v(mDia,fila({minutos:30,horaInicio:'06:50'})))&&/fuera del turno/.test(sb29.v(mDia,fila({minutos:30,horaInicio:'18:45'})))&&sb29.v(mDia,fila({minutos:30,horaInicio:'18:30'}))==='','no puede caer fuera del turno de día (07:00–19:00)');
   ok(sb29.v(mNoche,fila({minutos:30,horaInicio:'23:50'}))===''&&sb29.v(mNoche,fila({minutos:30,horaInicio:'02:10'}))===''&&/fuera del turno/.test(sb29.v(mNoche,fila({minutos:30,horaInicio:'06:45'})))&&/fuera del turno/.test(sb29.v(mNoche,fila({minutos:30,horaInicio:'20:30'}))),'turno de noche (21:00–07:00): cruza la medianoche');
@@ -123,7 +123,7 @@ function dispositivo(usuario,opc){
   ok((s23.match(/motivoCat:/g)||[]).length>=3&&/e.motivoCat=p.motivoCat/.test(s23),'23b pasa causa, motivo y detalle a paradasClasificadas sin tocar minutos');
   ok(/esFallaMotivo\(e\.causa\|\|e\.motivo\)/.test(s43)&&/esFallaMotivo\(p\.causa\|\|p\.motivo\)/.test(s43),'Bitácora: el equipo se pide según la causa');
   ok(html.indexOf('37e-motivos-parada.js')>html.indexOf('37c-equipos-catalogo.js')&&html.indexOf('37e-motivos-parada.js')>html.indexOf('37d-equipos-maestro.js')&&/37e-motivos-parada\.js\?v=20261012-(pm|am)1/.test(html),'index.html carga 37e después de 37c y 37d');
-  ok(['06-registro','08-graficos','23b-tiempos-linea','24-semaforo-produccion-actual','29-avance-produccion','37c-equipos-catalogo','43-bitacora-mantenimiento','47-analisis-paradas'].every(n=>new RegExp(n+'\\.js\\?v=20261012-(pm|rc|am|gm)\\d+').test(html)),'versión ?v= de los scripts tocados subida');
+  ok(['06-registro','08-graficos','23b-tiempos-linea','24-semaforo-produccion-actual','29-avance-produccion','37c-equipos-catalogo','43-bitacora-mantenimiento','47-analisis-paradas'].every(n=>new RegExp(n+'\\.js\\?v=2026101[23]-(pm|rc|am|gm|cp)\\d+').test(html)),'versión ?v= de los scripts tocados subida');
   ok(/Falla de máquina/.test(s37e)&&/Calidad \/ producto no conforme/.test(s37e)&&/CAUSAS_PARADA_NO_PROGRAMADA/.test(s06)&&/CAUSAS_PARADA_NO_PROGRAMADA/.test(leer('js/nucleo/01-config.js')),'las listas fijas quedan como respaldo');
   ok(!/[^.\w]alert\(|[^.\w]confirm\(|[^.\w]prompt\(/.test(s37e.replace(/\/\/.*$/gm,''))&&!/arrayUnion|increment\(|array-contains|'!='/.test(s37e.replace(/\/\*[^]*?\*\//g,'')),'37e: sin alert/confirm/prompt y compatible con el puente de Supabase');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
