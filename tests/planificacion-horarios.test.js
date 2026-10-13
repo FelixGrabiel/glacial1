@@ -192,7 +192,7 @@ const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacio
   ok(/function avGenerarSeleccion/.test(s29)&&/function avAccionesHistoricoHtml/.test(s29)&&/\$\{!actual&&avPuedeGenerar\(\)\?avAccionesHistoricoHtml\(\):''\}/.test(s29)&&/avAbrirCierreHistorico/.test(s29),'Avance/Cierre: GENERAR CIERRE aparece al elegir una fecha y bloque anteriores (no depende de la hora ni del modo histórico)');
   ok(!/avGenerarSeleccion[^]*?avCtx\(\)/.test(s29.slice(s29.indexOf('async function avGenerarSeleccion'),s29.indexOf('function avAccionesHistoricoHtml'))),'el cierre histórico opera sobre la selección, no sobre el turno actual del dispositivo');
   ok(/toleranciaActual\(avAhoraMs\(\)\)/.test(s29)&&/avChipTolerancia/.test(s29)&&/horario de producción por línea/i.test(s29),'Avance reconoce la tolerancia de Noche y muestra el horario por línea');
-  ok(idx.indexOf('51b-horarios-produccion.js')>idx.indexOf('52-planificacion-pantalla.js')&&/51b-horarios-produccion\.js\?v=20261015-hz1/.test(idx),'index.html carga 51b después de 52');
+  ok(idx.indexOf('51b-horarios-produccion.js')>idx.indexOf('52-planificacion-pantalla.js')&&/51b-horarios-produccion\.js\?v=20261015-hz[0-9]/.test(idx),'index.html carga 51b después de 52');
   ok(/NS\.horarios\.htmlResumen/.test(s52)&&/NS\.horarios\.habilitado\(l\.key,E\.fecha,E\.turno\)/.test(s52),'la tabla de Programación oculta las líneas deshabilitadas y muestra el horario por línea');
   const s51b=leer('js/produccion/51b-horarios-produccion.js');
   ok(!/tareo|jornada|horarioOperativo/i.test(s51b.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,''))&&!/paradasOperativas|avancesTurno/.test(s51b),'no toca Tareo, jornadas del personal ni paradas oficiales');
