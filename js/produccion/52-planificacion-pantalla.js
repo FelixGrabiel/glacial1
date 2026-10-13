@@ -14,11 +14,11 @@
   const LF='\n';   // salto de línea de los mensajes de confirmación (antes no estaba definido y importar con posible duplicado fallaba)
 
   const TABS=[
-    {clave:'programacion',titulo:'Programación'},
-    {clave:'semanal',titulo:'Vista semanal'},
-    {clave:'catalogo',titulo:'Catálogo'},
+    {clave:'programacion',titulo:'Programación turno'},
+    {clave:'semanal',titulo:'Programación semanal'},
+    {clave:'catalogo',titulo:'Órdenes de ventas'},
     {clave:'solicitudes',titulo:'Solicitudes'},
-    {clave:'cumplimiento',titulo:'Cumplimiento'}
+    {clave:'cumplimiento',titulo:'Cumplimiento de turno'}
   ];
   NS.TABS=TABS;
 
@@ -638,5 +638,5 @@
     }
   });
 
-  NS.pestanas.push({clave:'programacion',titulo:'Programación',orden:1,pintar:pintarProgramacion,actualizar:()=>{pintarTabla();if(typeof NS.pintarExtras==='function')NS.pintarExtras();}});
+  NS.pestanas.push({clave:'programacion',titulo:'Programación turno',orden:1,pintar:pintarProgramacion,actualizar:()=>{pintarTabla();if(typeof NS.pintarExtras==='function')NS.pintarExtras();}});
 })();

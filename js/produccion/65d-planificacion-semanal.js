@@ -183,6 +183,6 @@
   });
 
   const i=NS.pestanas.findIndex(p=>p.clave==='semanal');
-  const reg={clave:'semanal',titulo:'Vista semanal',orden:2,pintar:pintarSemanal,actualizar:pintarGrilla};
+  const reg={clave:'semanal',titulo:'Programación semanal',orden:2,pintar:pintarSemanal,actualizar:pintarGrilla};
   if(i>=0)NS.pestanas[i]=reg;else NS.pestanas.push(reg);
 })();

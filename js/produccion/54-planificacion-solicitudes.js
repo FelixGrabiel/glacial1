@@ -471,5 +471,5 @@
     pintarCuerpoCumplimiento();
   });
 
-  NS.pestanas.push({clave:'cumplimiento',titulo:'Cumplimiento',orden:5,pintar:pintarCumplimiento,actualizar:pintarCuerpoCumplimiento});
+  NS.pestanas.push({clave:'cumplimiento',titulo:'Cumplimiento de turno',orden:5,pintar:pintarCumplimiento,actualizar:pintarCuerpoCumplimiento});
 })();
