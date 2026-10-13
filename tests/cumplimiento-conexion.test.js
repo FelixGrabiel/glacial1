@@ -33,4 +33,5 @@ const s=f=>leer('js/produccion/'+f);
 ['06-registro','07-historial','09-resumen','14-exportar-general','16-paletas','24-semaforo-produccion-actual','29-avance-produccion','48-resumen-turno','49-resumen-indicadores']
   .forEach(f=>ok(/GlacialIndicadores\.cumplimiento\(/.test(s(f+'.js')),f+': usa GlacialIndicadores.cumplimiento'));
 ok(!/produccionFinalCorregida/.test(s('24-semaforo-produccion-actual.js').split('function producidoDe')[0].slice(-1500)),'el producido ya no lee la corrección manual');
-console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
+ok(!/produccionFinalCorregida=/.test(s24)&&/id="pa-c-prod"[^>]*readonly/.test(s24),'corregir finalización: la producción no se edita ni se guarda una corrección que nadie lee');
+&

@@ -1735,7 +1735,7 @@
         <h3>Corregir finalización · ${esc(x.linea)}</h3>
         <div class="pa-modal-grid">
           <div><label>Hora real de cierre</label><input type="time" id="pa-c-cierre" value="${horaTxt(cierreActual)}"></div>
-          <div><label>Producción final (${esc(x.marca)})</label><input type="number" min="0" step="1" id="pa-c-prod" value="${produccionActual}"></div>
+          <div><label>Producción final (${esc(x.marca)})</label><input type="number" id="pa-c-prod" value="${produccionActual}" readonly disabled title="No se edita aquí"><small class="pa-modal-nota">Sale de Paletas (turno en curso) o del registro de producción (turno cerrado); se corrige allí.</small></div>
         </div>
         <label>Paradas y pausas registradas</label>
         ${filas.length ? `<div class="pa-modal-tabla"><table><thead><tr><th>Motivo</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Eliminar</th></tr></thead><tbody>
@@ -1762,10 +1762,10 @@
         };
         const motivo=fondo.querySelector('#pa-c-motivo').value.trim();
         const hc=fondo.querySelector('#pa-c-cierre').value;
-        const prod=Number(fondo.querySelector('#pa-c-prod').value);
+        // La producción sale de producidoDe (Paletas o registro): aquí solo se muestra y queda igual en el historial.
+        const prod=produccionActual;
         if(!motivo){alert('El motivo de la corrección es obligatorio.');return;}
         if(!hc){alert('Indica la hora real de cierre.');return;}
-        if(!Number.isFinite(prod) || prod<0){alert('La producción final no es válida.');return;}
         const cierre=aMs(cierreActual,hc,inicioLinea);
         if(cierre<=inicioLinea){alert('El cierre debe ser posterior al inicio de la línea.');return;}
         if(cierre>ahoraServidor()+60000){alert('El cierre no puede estar en el futuro.');return;}
@@ -1817,7 +1817,6 @@
         op.pausaDesde=0;op.detenidaDesde=0;
         op.corregida=true;op.corregidaEn=ahora;op.corregidaPor=usuario;
         op.actualizadoEn=ahora;op.actualizadoPor=usuario;
-        if(p.clave===k && datos.prod!==produccionActual)op.produccionFinalCorregida=datos.prod;
         const historial=Array.isArray(p.historialAlertas) ? p.historialAlertas.slice() : [];
         if(p.clave===k){
           historial.push({
