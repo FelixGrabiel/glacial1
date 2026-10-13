@@ -268,7 +268,7 @@ const tiemposDe=N=>N.docs.get('sync/catalogoPlanificacion').tiempos;
   ok(!/[^.\w]alert\(|[^.\w]confirm\(|[^.\w]prompt\(/.test(archivos.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,'')),'sin alert / confirm / prompt nuevos (diálogos propios)');
   const idx=leer('index.html'),pos=n=>idx.indexOf(n);
   ok(pos('65b-planificacion-motor.js')<pos('65a-planificacion-tiempos.js')&&pos('65a-planificacion-tiempos.js')<pos('65-planificacion-capacidad.js')&&pos('65-planificacion-capacidad.js')<pos('65c-planificacion-opciones.js')&&pos('65c-planificacion-opciones.js')<pos('65d-planificacion-semanal.js')&&pos('64-planificacion-avance.js')<pos('65b-planificacion-motor.js'),'orden de carga en index.html: 64, motor, tiempos, capacidad, opciones, semanal');
-  ok(/pl5/.test(idx.match(/65a-planificacion-tiempos\.js\?v=[^"]+/)[0])&&/pl5/.test(idx.match(/53-planificacion-catalogo\.js\?v=[^"]+/)[0]),'versiones de los scripts tocados subidas');
+  ok(/pl[5-9]/.test(idx.match(/65a-planificacion-tiempos\.js\?v=[^"]+/)[0])&&/pl[5-9]/.test(idx.match(/53-planificacion-catalogo\.js\?v=[^"]+/)[0]),'versiones de los scripts tocados subidas');
   ok(!/crearParada|bitacoraMantenimiento|avancesTurno/.test(archivos),'ningún módulo de tiempos previstos escribe paradas oficiales ni Avance/Cierre');
 }
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
