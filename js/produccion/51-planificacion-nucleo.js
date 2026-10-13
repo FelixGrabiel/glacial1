@@ -84,7 +84,7 @@
   NS.items=(fecha,turno)=>{
     const orden=lineas().map(l=>l.key);
     const bloque=turno?(NS.valorBloque(turno)==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO']):null;
-    return programaciones().filter(p=>p&&p.fecha===fecha&&(!bloque||bloque.includes(p.turno))&&num(p.cantidadProgramada)>0)
+    return programaciones().filter(p=>p&&p.fecha===fecha&&(!bloque||bloque.includes(p.turno))&&(num(p.cantidadProgramada)>0||NS.esPlanSinCantidad(p)))
       .sort((a,b)=>(orden.indexOf(a.linea)-orden.indexOf(b.linea))||String(a.marca).localeCompare(String(b.marca),'es')||String(a.presentacion).localeCompare(String(b.presentacion),'es'));
   };
   /* Productos con la MISMA cantidad en Día e Intermedio (posible duplicado): solo se avisa, nunca se corrige solo. */
@@ -98,6 +98,10 @@
     const salida=new Set();por.forEach((o,k)=>{if(o['DÍA']>0&&o['DÍA']===o['INTERMEDIO'])salida.add(k);});
     return salida;
   };
+  /* «Completar cantidad» guardado SIN saldo todavía (pendiente de cierre) o con meta ya completada: la fila existe con cantidad 0 y su meta/resolución
+     (66-planificacion-modos.js). Los demás módulos solo leen filas con cantidad > 0, así que no la ven como orden productiva. */
+  NS.esPlanSinCantidad=p=>!!p&&p.modo==='COMPLETAR'&&!!p.meta&&!!p.meta.resolucion&&!(num(p.cantidadProgramada)>0);
+  NS.filaVigente=ex=>!!ex&&(num(ex.cantidadProgramada)>0||NS.esPlanSinCantidad(ex));
   NS.paletasEquivalentes=(cant,upp)=>num(upp)>0?num(cant)/num(upp):0;
   /* Unidades por paleta: el catálogo (53) manda; si no hay, la tabla fija de siempre. */
   NS.uppCatalogo=NS.uppCatalogo||(()=>0);
@@ -116,12 +120,12 @@
     if(!f.presentacion)errores.push('Selecciona la presentación.');
     else if(lineas().some(l=>l.key===f.linea)&&!NS.presentacionesBrutas(f.linea).includes(f.presentacion))errores.push('La presentación «'+f.presentacion+'» no es válida para '+NS.nombreLinea(f.linea)+'.');
     const cant=Number(f.cantidad),upp=Number(f.upp);
-    if(!Number.isInteger(cant)||cant<=0)errores.push('La cantidad programada debe ser un entero mayor que cero.');
+    if(!(f.permitirCero&&cant===0)&&(!Number.isInteger(cant)||cant<=0))errores.push('La cantidad programada debe ser un entero mayor que cero.');
     if(!Number.isInteger(upp)||upp<=0)errores.push('Las unidades por paleta deben ser un entero mayor que cero.');
     if(!errores.length){
       if(typeof NS.productoInactivo==='function'&&NS.productoInactivo(f.linea,f.marca,f.presentacion))avisos.push('Este producto está marcado como inactivo en el catálogo.');
       const ex=NS.existente(f.linea,f.fecha,f.turno,f.marca,f.presentacion);
-      if(ex&&num(ex.cantidadProgramada)>0){
+      if(ex&&NS.filaVigente(ex)&&!f.permitirCero){
         avisos.push('Ya existe esta programación (misma línea, turno y producto): se reemplazará su cantidad ('+num(ex.cantidadProgramada).toLocaleString('es-PE')+' UND).');
         if(NS.enProduccion(ex))avisos.push('Está '+NS.estadoTexto(NS.estadoDe(ex)).toLowerCase()+': el cambio exige motivo.');
       }

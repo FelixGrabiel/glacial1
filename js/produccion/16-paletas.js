@@ -423,7 +423,7 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
     // Validación con las filas MÁS RECIENTES (dentro de la transacción): p. ej. un cierre asignado a otra meta mientras se revisaba.
     if(typeof opc.validarLista === 'function') opc.validarLista(actuales);
     r = programacionAplicarEnLista(actuales, {
-      linea, fecha, turno, marca, presentacion, cantidadNum, uppNum, campos, motivo: opc.motivo
+      linea, fecha, turno, marca, presentacion, cantidadNum, uppNum, campos, motivo: opc.motivo, conservarCero: !!opc.conservarCero
     }, { versionEsperada: opc.versionEsperada });
     tx.set(ref,{items:r.items,updatedAt:Date.now()});
     const H = window.glacialPlanificacion;
@@ -509,7 +509,7 @@ function programacionAplicarEnLista(actuales, p, opc){
      realmente de sync/programaciones. Así no quedan estados operativos
      antiguos (CANCELADA, FINALIZADA, etc.) flotando en Producción Actual.
   */
-  if(p.cantidadNum === 0){
+  if(p.cantidadNum === 0 && !p.conservarCero){      // conservarCero: «Completar cantidad» pendiente de cierre o con meta completada (la fila se guarda con su meta)
     if(idx > -1) actuales.splice(idx,1);
     return { items: actuales, previo, nuevo: null, claveFinal, turnoFinal };
   }

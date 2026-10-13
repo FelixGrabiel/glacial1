@@ -48,3 +48,39 @@ En la misma fila de `sync/programaciones` (los campos nuevos son opcionales; una
 
 ## Instalación / publicación
 No hay reglas ni migraciones. Para PRUEBAS, cuando lo ordenes: `git push origin planificacion-5-completar-todo-turno:pruebas`. No se publicó ni se desplegó nada.
+
+---
+
+# Etapa 5b · Guardar «Completar cantidad» sin cierre y calcular el saldo al cerrarse
+
+Rama `planificacion-6-completar-pendiente`. **No se publicó nada.** Sustituye el requisito anterior que deshabilitaba el guardado por falta de cierre.
+
+## Flujo
+1. **Guardar** (siempre que meta, producto, fechas y referencia sean válidos): botón **Guardar pendiente de cierre**, saldo y paletas **«Por calcular»**, mensaje «Puedes guardar la programación. El saldo se calculará cuando se confirme el cierre del bloque de referencia.». La fila se guarda con la meta, la referencia (`meta.ref`), la intención de cantidad vinculada y `meta.resolucion.estado = PENDIENTE_CIERRE`, con `cantidadProgramada = 0` (esquema ampliado: `conservarCero` en el escritor único; `NS.esPlanSinCantidad`). Los demás módulos solo leen filas con cantidad > 0, así que no la ven como orden productiva.
+2. **Cierre oficial:** el registro del supervisor con `estadoRegistro = FINALIZADO` (sync/records). Se usa **solo esa fuente**: no se exige finalizar también Avance/Cierre, y finalizar una paleta o pulsar Detener línea no cuenta.
+3. **Resolvedor central** (`NS.modos.resolverPendientes`, una transacción que relee programaciones **y** registros): identifica los planes pendientes, comprueba el cierre, calcula la asignación `máx(0, meta − producción confirmada previa vinculada)` (no se resta lo producido del destino: el pendiente del destino sale de asignación − producido), valida asignaciones y versión, guarda resolución, vínculos, id/versión del cierre, historial y aviso.
+4. **Estados de resolución:** Pendiente de cierre · Saldo calculado · Requiere revisión · Meta completada (distintos del estado operativo y del cumplimiento).
+
+## Qué dispara el cálculo (sin Planificación abierta)
+`onRecordsUpdated` / `onProgramacionesUpdated` (cualquier dispositivo con sesión, incluido el del supervisor que finaliza), al cargar (8 s) y cada 60 s. Es una **reconciliación local barata** (solo mira los planes pendientes que ya están en memoria) y solo escribe si hay algo que cambiar. Si falla: el cierre ya está guardado, se registra el fallo (`NS.modos.fallo`, visible en la fila con **Reintentar**) y se reintenta con espera creciente (15 s … 10 min). No usa Cloud Functions (no se permiten); **si ningún dispositivo con sesión está abierto, se resuelve en cuanto alguien entre**.
+Seguridad: la actualización solo puede cambiar cantidad, paletas, meta, versión y autor (`verificarAcotado`); no corre para consulta, cuenta compartida, modo visualización ni sin conexión. Limitación honesta: las reglas de Firestore autorizan por documento (los supervisores ya podían escribir `sync/programaciones`), no por campo; la restricción por campo está en el código.
+
+## Situaciones
+- Sin registro / registro abierto o reabierto → pendiente con la explicación. Error de lectura → se muestra el error (no «no hay registro») y no se decide nada.
+- Cierre sin el producto → cero confirmado; cuadro con producción sin marca/presentación → «Requiere revisión» (no se inventa).
+- Producción previa ≥ meta → saldo cero, **Meta completada**, el plan se conserva con cantidad 0.
+- **Referencia reabierta** → «Último saldo calculado, referencia reabierta» (no definitivo); al volver a finalizar se recalcula, y **no repite el aviso** si el saldo no cambió. **Cierre corregido** → nuevo saldo, historial y aviso de actualización.
+- **Destino ya iniciado:** se conserva lo producido y el pendiente se recalcula. **Destino cerrado, plan cambiado por otra persona, o nuevo saldo menor que lo producido** → «Requiere revisión» con la diferencia; nada se sobrescribe.
+- **Varios bloques:** se resuelven en orden cronológico; un bloque espera a que el anterior de la meta tenga saldo (no se olvida lo producido antes) y cada cierre cuenta una vez por meta.
+
+## Aviso al supervisor
+Centro de avisos (46): tipo `plan`, **idempotente** (id = meta + plan + id del cierre; un cálculo repetido no genera otro). Lo reciben quien planifica, Administrador/Jefatura y el **supervisor de la línea destino** (según su asignación `linea`). Texto: línea · marca · presentación, meta, cierre confirmado, saldo del destino y «Pendiente actual» si el destino ya produjo; «Ver programación» abre la fecha y bloque. Sin WhatsApp, SMS ni correo. Limitación: no se consulta la rotación vigente por turno, solo la línea asignada al supervisor; si no hay supervisor de esa línea, el aviso queda para quien planifica.
+
+## Tabla, capacidad y exportación
+Modo, meta, referencia, estado de resolución, asignación/«Por calcular» y producción real del destino. Las tarjetas cuentan los planes con saldo pendiente y explican que la capacidad definitiva espera al cierre; si hay ratio se ofrece una **estimación máxima provisional** con la meta completa, **etiquetada** (no es asignación confirmada ni producción real, no entra en totales). Los demás productos de la línea conservan su desglose. Al resolverse, capacidad, semana y Excel usan la asignación resultante. Excel y texto del plan incluyen los planes sin saldo.
+
+## Pruebas
+`node tests/planificacion-pendiente.test.js` (54 comprobaciones): guardar sin cierre y persistir, registro abierto/reabierto, 70,000 con cierre 52,000 → 18,000 y pendiente 15,000, resolución desde otro dispositivo, doble evento sin duplicar, fallo y reintento, reapertura/corrección/destino cerrado/plan cambiado/saldo menor que lo producido, producto equivalente vs distinto, meta alcanzada y cero legítimo, error de lectura, varios bloques, capacidad pendiente, permisos y avisos.
+
+## Limitaciones
+No se probó con Firestore/Supabase reales. Los supervisores deben tener `linea` asignada para recibir el aviso. Un cierre en `Avance/Cierre` sin registro finalizado no resuelve nada. Si ningún dispositivo está en línea, el saldo se calcula al siguiente ingreso.

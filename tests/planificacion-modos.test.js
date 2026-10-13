@@ -41,15 +41,15 @@ const cierreMan=(c,extra)=>rec('r_'+Math.random().toString(36).slice(2,6),FECHA,
   const {M}=entorno([]);
   const pl=regs=>M.planCompletar(Object.assign({},base,{fecha:FECHA,bloque:'NOCHE',metaTotal:24000,ref:{fecha:FECHA,bloque:'DÍA'},items:[],registros:regs}));
   const sin=pl([]);
-  ok(!sin.ok&&sin.estado==='SIN_CIERRE'&&sin.saldo===null&&/Pendiente de cierre/.test(sin.errores.join(' ')),'sin cierre: «Pendiente de cierre»; no se asume producción cero ni se confirma el saldo');
+  ok(sin.ok&&sin.pendiente&&sin.estado==='SIN_CIERRE'&&sin.saldo===null&&/Puedes guardar la programación/.test(sin.avisos.join(' ')),'sin cierre: queda «Pendiente de cierre», se puede guardar y el saldo es null (no cero ni la meta)');
   const abierto=pl([rec('a',FECHA,'DÍA','EN_REGISTRO',[cu('Scala','Regular_380ml',9000)])]);
-  ok(!abierto.ok&&abierto.estado==='PENDIENTE_CIERRE','un registro sin finalizar (avance parcial) no es un cierre confirmado');
+  ok(abierto.ok&&abierto.pendiente&&abierto.estado==='PENDIENTE_CIERRE'&&/abierto o reabierto/.test(abierto.motivoPendiente),'un registro sin finalizar (avance parcial) no es un cierre confirmado: pendiente y se explica el estado');
   const cero=pl([rec('a',FECHA,'DÍA','FINALIZADO',[cu('Scala','Regular_380ml',0)])]);
   ok(cero.ok&&cero.cierre.producido===0&&cero.saldo===24000&&cero.cierre.productoEnCierre===true,'un cierre válido con cero producido se distingue de un cierre ausente (saldo = toda la meta)');
   const sinProd=pl([rec('a',FECHA,'DÍA','FINALIZADO',[cu('Bells','Regular_625ml',5000)])]);
   ok(sinProd.ok&&sinProd.saldo===24000&&sinProd.avisos.some(a=>/no registra este producto/.test(a)),'cierre válido sin ese producto: 0 UND y se avisa');
   const ambiguo=pl([rec('a',FECHA,'DÍA','FINALIZADO',[cu('','',4000),cu('Scala','Regular_380ml',100)])]);
-  ok(!ambiguo.ok&&ambiguo.estado==='NO_IDENTIFICABLE','si el cierre no permite identificar el producto con certeza, no se inventa la cantidad');
+  ok(ambiguo.ok&&ambiguo.pendiente&&ambiguo.revision&&ambiguo.estado==='NO_IDENTIFICABLE'&&ambiguo.saldo===null,'si el cierre no permite identificar el producto con certeza, se guarda para revisión y no se inventa la cantidad');
   // corrección posterior del cierre → aviso de revisión
   const aplicado={clave:'k',linea:'PET1',fecha:FECHA,turno:'NOCHE',marca:'Scala',presentacion:'Regular_380ml',cantidadProgramada:6000,modo:'COMPLETAR',meta:{id:'m1',total:24000,vinculos:[{cierre:'PET1|'+FECHA+'|DÍA|Scala|Regular_380ml',fecha:FECHA,bloque:'DÍA',producido:18000,asignado:18000}]}};
   const rev=M.revisionesDe(aplicado,[rec('a',FECHA,'DÍA','FINALIZADO',[cu('Scala','Regular_380ml',17000)])]);
@@ -76,15 +76,15 @@ const cierreMan=(c,extra)=>rec('r_'+Math.random().toString(36).slice(2,6),FECHA,
   const {M,NS,N}=entorno([],{registros:[cierreMan(25000)],usuario:{planifica:true}});
   const r=M.planCompletar(Object.assign({},base,{fecha:FECHA,bloque:'NOCHE',metaTotal:24000,ref:{fecha:FECHA,bloque:'DÍA'},items:[],registros:[cierreMan(25000)]}));
   ok(r.ok&&r.saldo===0&&r.completada&&r.sobre===1000&&r.avisos.some(a=>/Meta completada/.test(a))&&r.avisos.some(a=>/negativas/.test(a)),'meta ya cumplida: saldo cero, «Meta completada» y sin cantidades negativas');
-  let e='';try{await M.guardar(fila({fecha:FECHA,turno:'NOCHE'}),{modo:'COMPLETAR',cantidad:0,meta:{id:r.metaId,total:24000,vinculos:r.vinculos}});}catch(x){e=x.message;}
-  ok(/Meta completada/.test(e)&&items(N).length===0,'no se crea una orden activa ficticia de cantidad cero');
+  await M.guardar(fila({fecha:FECHA,turno:'NOCHE'}),{modo:'COMPLETAR',cantidad:0,cierreId:M.cierreId(r.cierre),producidoCierre:r.cierre.producido,meta:{ref:{fecha:FECHA,bloque:'DÍA'},id:r.metaId,total:24000,vinculos:r.vinculos}});
+  ok(items(N).length===1&&items(N)[0].cantidadProgramada===0&&items(N)[0].meta.resolucion.estado==='META_COMPLETADA'&&NS.esPlanSinCantidad(items(N)[0])&&NS.capacidadVigente(FECHA,'NOCHE','PET1')===null&&M.estadoPlan(items(N)[0],null).texto==='Meta completada','meta ya cumplida: el plan se conserva con cantidad 0 y «Meta completada»; no es una orden productiva (no entra a la capacidad)');
 }
 {
   // tres bloques: Día (18,000) → Noche (saldo 6,000, produce 5,000) → Día siguiente
   const regs=[cierreMan(18000),rec('n',FECHA,'NOCHE','FINALIZADO',[cu('Scala','Regular_380ml',5000)])];
   const {M,NS,N}=entorno([],{registros:regs});
   const p1=M.planCompletar(Object.assign({},base,{fecha:FECHA,bloque:'NOCHE',metaTotal:24000,ref:{fecha:FECHA,bloque:'DÍA'},items:[],registros:regs}));
-  await M.guardar(fila({fecha:FECHA,turno:'NOCHE'}),{modo:'COMPLETAR',cantidad:p1.saldo,meta:{id:p1.metaId,total:24000,referencia:'Pedido 77',vinculos:p1.vinculos}});
+  await M.guardar(fila({fecha:FECHA,turno:'NOCHE'}),{modo:'COMPLETAR',cantidad:p1.saldo,meta:{ref:{fecha:FECHA,bloque:'DÍA'},id:p1.metaId,total:24000,referencia:'Pedido 77',vinculos:p1.vinculos}});
   const noche=items(N)[0];
   ok(noche.modo==='COMPLETAR'&&noche.cantidadProgramada===6000&&noche.meta.total===24000&&noche.meta.referencia==='Pedido 77'&&noche.meta.vinculos.length===1&&noche.alcance===null&&noche.estimado===null,'el destino guarda el saldo asignado (6,000) y conserva la meta original, la referencia y los vínculos como datos estructurados');
   const h=historial(N);
@@ -100,9 +100,9 @@ const cierreMan=(c,extra)=>rec('r_'+Math.random().toString(36).slice(2,6),FECHA,
   ok(!exceso.ok&&/excede la producción elegible/.test(exceso.errores.join(' ')),'la suma de asignaciones no puede exceder la producción elegible del cierre');
   // no reducir por debajo de lo ya producido
   const {M:M2,N:N2,NS:NS2,sb:sb2}=entorno([],{registros:regs});
-  await M2.guardar(fila({fecha:FECHA,turno:'NOCHE'}),{modo:'COMPLETAR',cantidad:6000,meta:{id:p1.metaId,total:24000,vinculos:p1.vinculos}});
+  await M2.guardar(fila({fecha:FECHA,turno:'NOCHE'}),{modo:'COMPLETAR',cantidad:6000,meta:{ref:{fecha:FECHA,bloque:'DÍA'},id:p1.metaId,total:24000,vinculos:p1.vinculos}});
   sb2.PROD[items(N2)[0].clave]=5500;
-  let e='';try{await M2.guardar(fila({fecha:FECHA,turno:'NOCHE'}),{modo:'COMPLETAR',cantidad:5000,meta:{id:p1.metaId,total:24000,vinculos:p1.vinculos}},{versionEsperada:items(N2)[0].version});}catch(x){e=x.message;}
+  let e='';try{await M2.guardar(fila({fecha:FECHA,turno:'NOCHE'}),{modo:'COMPLETAR',cantidad:5000,meta:{ref:{fecha:FECHA,bloque:'DÍA'},id:p1.metaId,total:24000,vinculos:p1.vinculos}},{versionEsperada:items(N2)[0].version});}catch(x){e=x.message;}
   ok(/menos de lo ya producido/.test(e),'no se reduce la cantidad asignada por debajo de lo ya producido');
 }
 /* ---------- 5) concurrencia: doble clic y asignación simultánea del mismo cierre ---------- */
@@ -110,13 +110,13 @@ const cierreMan=(c,extra)=>rec('r_'+Math.random().toString(36).slice(2,6),FECHA,
   const regs=[cierreMan(18000)];
   const {M,N}=entorno([],{registros:regs});
   const p=M.planCompletar(Object.assign({},base,{fecha:FECHA,bloque:'NOCHE',metaTotal:24000,ref:{fecha:FECHA,bloque:'DÍA'},items:[],registros:regs}));
-  const datos={modo:'COMPLETAR',cantidad:p.saldo,meta:{id:p.metaId,total:24000,vinculos:p.vinculos}};
+  const datos={modo:'COMPLETAR',cantidad:p.saldo,meta:{ref:{fecha:FECHA,bloque:'DÍA'},id:p.metaId,total:24000,vinculos:p.vinculos}};
   const a=M.guardar(fila({fecha:FECHA,turno:'NOCHE'}),datos),b=M.guardar(fila({fecha:FECHA,turno:'NOCHE'}),datos);
   const rs=await Promise.allSettled([a,b]);
   ok(rs.filter(r=>r.status==='fulfilled').length===1&&rs.some(r=>r.status==='rejected'&&/Ya se está guardando/.test(r.reason.message))&&items(N).length===1&&historial(N).length===1,'doble clic: se guarda una sola vez (una entrada de historial)');
   // otra persona asigna el mismo cierre a otra meta mientras se revisaba
   const {M:M3,N:N3}=entorno([Object.assign(F('PET1',FECHA,'NOCHE','Scala','Regular_380ml',6000,2184),{modo:'COMPLETAR',meta:{id:'meta_ajena',total:20000,vinculos:[{cierre:'PET1|'+FECHA+'|DÍA|Scala|Regular_380ml',fecha:FECHA,bloque:'DÍA',producido:18000,asignado:18000}]}})],{registros:regs});
-  let e='';try{await M3.guardar(fila({fecha:MANANA,turno:'DÍA'}),{modo:'COMPLETAR',cantidad:6000,meta:{id:'meta_mia',total:24000,vinculos:p.vinculos}});}catch(x){e=x.message;}
+  let e='';try{await M3.guardar(fila({fecha:MANANA,turno:'DÍA'}),{modo:'COMPLETAR',cantidad:6000,meta:{ref:{fecha:FECHA,bloque:'DÍA'},id:'meta_mia',total:24000,vinculos:p.vinculos}});}catch(x){e=x.message;}
   ok(/ya fue asignado a otra meta/.test(e)&&items(N3).length===1,'la validación dentro de la transacción rechaza un cierre que otra persona asignó a otra meta mientras tanto');
 }
 /* ---------- 6) capacidad con dos o más marcas y cálculo parcial ---------- */

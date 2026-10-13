@@ -300,6 +300,9 @@
     if(excesos)aten.push('<span class="plan-chip rojo">'+excesos+(excesos===1?' línea no cabe':' líneas no caben')+'</span>');
     if(sin)aten.push('<span class="plan-chip gris">'+sin+' sin registro</span>');
     if(incompletas)aten.push('<span class="plan-chip gris">'+incompletas+(incompletas===1?' cálculo parcial':' cálculos parciales')+'</span>');
+    if(NS.modos){const rm0=NS.modos.resumenModos(NS.items(NS.estado.fecha,NS.estado.turno));
+      if(rm0.pendientes)aten.push('<span class="plan-chip gris">'+rm0.pendientes+(rm0.pendientes===1?' saldo pendiente de cierre':' saldos pendientes de cierre')+'</span>');
+      if(rm0.revision)aten.push('<span class="plan-chip naranja">'+rm0.revision+(rm0.revision===1?' saldo requiere revisión':' saldos requieren revisión')+'</span>');}
     if(cambios.length)aten.push('<span class="plan-chip naranja">'+cambios.length+(cambios.length===1?' reprogramación':' reprogramaciones')+'</span>');
     if(pendSol)aten.push('<span class="plan-chip azul">'+pendSol+(pendSol===1?' solicitud pendiente':' solicitudes pendientes')+'</span>');
     cont.innerHTML=
@@ -308,7 +311,7 @@
       '<div class="plan-kpi" style="--k:#9CA3AF"><div class="k-t">Pendiente</div><div class="k-v">'+(progReg>0?fmt(pend):'—')+'</div><div class="k-s">'+(sobre>0?'<b style="color:#9A3412">+'+fmt(sobre)+' sobreproducción</b>':'UND por producir')+'</div></div>'+
       '<div class="plan-kpi" style="--k:'+(aten.length?'#F97316':'#22C55E')+'"><div class="k-t">Atención</div><div class="k-v" style="font-size:15px;line-height:1.5;font-weight:700">'+(aten.length?aten.join(' '):'<span class="plan-chip verde">Todo en orden</span>')+'</div><div class="k-s">UND de todas las líneas: solo referencia.</div></div>'+
       (()=>{const rm=NS.modos?NS.modos.resumenModos(NS.items(NS.estado.fecha,NS.estado.turno)):{metas:0,turno:0};
-        return (rm.metas?'<div class="plan-kpi" style="--k:#7C3AED"><div class="k-t">Metas entre bloques</div><div class="k-v">'+rm.metas+'</div><div class="k-s">el bloque guarda solo el saldo</div></div>':'')+
+        return (rm.metas?'<div class="plan-kpi" style="--k:#7C3AED"><div class="k-t">Metas entre bloques</div><div class="k-v">'+rm.metas+'</div><div class="k-s">'+(rm.pendientes?rm.pendientes+(rm.pendientes===1?' con saldo por calcular (pendiente de cierre)':' con saldo por calcular (pendientes de cierre)'):'el bloque guarda solo el saldo')+'</div></div>':'')+
           (rm.turno?'<div class="plan-kpi" style="--k:#2563EB"><div class="k-t">Todo el turno</div><div class="k-v">'+rm.turno+'</div><div class="k-s">cantidad estimada, no firme</div></div>':'');})();
   }
 
@@ -354,12 +357,13 @@
         const orig=primera&&g?NS.originalDe(E.fecha,E.turno,p.linea,p.marca,p.presentacion):null;
         const repro=orig!==null&&g&&orig!==g.programado?'<span class="plan-repro" title="Plan al iniciar el bloque frente al plan vigente">original al inicio: '+fmt(orig)+'</span>':'';
         filas.push('<tr class="plan-fila'+par+(i===0?' plan-ini':'')+'"><td class="c-linea" data-titulo="1"><b'+(i===0?'':' class="rep"')+'>'+esc(l.name)+'</b></td><td class="c-prod" data-label="Marca"><b>'+esc(p.marca)+'</b>'+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">· Cargada como Intermedio</small>':'')+((p.unificadoDeIntermedio||[]).length?' <small style="color:#5a6b78" title="Unificada desde Intermedio con motivo y registro en el historial">· incluye '+(p.unificadoDeIntermedio.reduce((a,x)=>a+num(x.cantidad),0)).toLocaleString('es-PE')+' cargadas como Intermedio</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td data-label="Presentación">'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+(NS.modos&&primera?NS.modos.htmlSubproducto(p,g):'')+'</td>'+
-          '<td class="num" data-label="Cantidad del bloque (UND)"><b>'+(NS.modos&&NS.modos.modoDe(p)==='TURNO'?'≈ ':'')+fmt(cant)+'</b>'+(NS.modos&&NS.modos.modoDe(p)==='TURNO'?'<small class="plan-subt">estimada</small>':'')+repro+'</td>'+
-          '<td class="num" data-label="Paletas" title="'+(upp?esc(NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:2}))+' paletas equivalentes':'')+'">'+(upp?'<span class="plan-pal">'+esc(NS.paletasTexto(cant,upp))+'<span class="plan-upp">'+fmt(upp)+' UND por paleta</span></span>':'—')+'</td>'+
+          '<td class="num" data-label="Cantidad del bloque (UND)">'+(NS.modos&&NS.esPlanSinCantidad(p)?NS.modos.htmlCantidadSinSaldo(p):'<b>'+(NS.modos&&NS.modos.modoDe(p)==='TURNO'?'≈ ':'')+fmt(cant)+'</b>'+(NS.modos&&NS.modos.modoDe(p)==='TURNO'?'<small class="plan-subt">estimada</small>':''))+repro+'</td>'+
+          '<td class="num" data-label="Paletas" title="'+(upp?esc(NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:2}))+' paletas equivalentes':'')+'">'+(upp&&!NS.esPlanSinCantidad(p)?'<span class="plan-pal">'+esc(NS.paletasTexto(cant,upp))+'<span class="plan-upp">'+fmt(upp)+' UND por paleta</span></span>':'—')+'</td>'+
           celdasAvance+
           '<td data-label="Estado del plan">'+(NS.modos&&primera?NS.modos.htmlEstadoPlan(p,g):'<span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span>')+'</td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-editar="'+esc(p.clave)+'">Editar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
+          (planifica&&NS.modos&&NS.modos.modoDe(p)==='COMPLETAR'&&p.meta&&p.meta.ref&&['PENDIENTE_CIERRE','REQUIERE_REVISION'].includes((p.meta.resolucion||{}).estado)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-recalc="'+esc(p.clave)+'" title="Comprueba si el cierre ya se confirmó y calcula el saldo">Actualizar saldo</button>':'')+
           (planifica&&primera&&g&&g.producido!==null&&g.pendiente>0?' <button type="button" class="btn btn-ghost btn-sm" data-plan-trasladar="'+esc(p.clave)+'" title="Mover a otro bloque lo que falta producir (saldo comprobado)">Trasladar saldo</button>':'')+
           (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Mañana</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
       });
@@ -418,7 +422,7 @@
       const upp=num(q('pe-upp').value),cant=num(q('pe-cant').value);
       q('pe-eq').value=upp>0&&cant>0?(cant/upp).toLocaleString('es-PE',{maximumFractionDigits:1})+' paletas':'—';
       const ex=l&&m&&p?NS.existente(l,f.fecha,f.turno,m,p):null;
-      const exige=!!ex&&num(ex.cantidadProgramada)>0&&NS.enProduccion(ex);
+      const exige=!!ex&&NS.filaVigente(ex)&&NS.enProduccion(ex);
       q('pe-motivo-bloque').style.display=exige?'':'none';
       const v=NS.validar({linea:l,fecha:f.fecha,turno:f.turno,marca:m,presentacion:p,cantidad:q('pe-cant').value,upp:q('pe-upp').value});
       q('pe-aviso').textContent=v.avisos.join('\n');
@@ -428,7 +432,7 @@
       const l=q('pe-linea').value,m=q('pe-marca').value,p=q('pe-pres').value;
       if(!l||!m||!p)return null;
       const ex=NS.existente(l,f.fecha,NS.turnoDeGuardado({linea:l,fecha:f.fecha,turno:f.turno,marca:m,presentacion:p}),m,p);
-      return ex&&num(ex.cantidadProgramada)>0?ex:null;
+      return NS.filaVigente(ex)?ex:null;
     };
     const capturarVisto=()=>{if(existente)return;const ex=filaActual();visto=ex?num(ex.version):null;};
     /* Aviso en vivo (sin tocar lo que la persona escribe): si la fila cambió desde que se abrió, se muestra el valor actual. */
