@@ -16,5 +16,5 @@ ok(/Sin paradas registradas/.test(s)&&/paradasClasificadas/.test(s),'lista ofici
 ok(/data-pa-accion="cancelar"/.test(tablero)&&/acciones\(actual,idx\)/.test(tablero),'se conservan Cancelar programación y los controles operativos');
 ok(/label:'DETENIDA',rank:1,cls:'detenida'/.test(s),'DETENIDA se distingue de EN PAUSA');
 ok(/pa-state-completada\{background:var\(--est-fin-bg\)/.test(s)&&/--est-curso:#F97316/.test(s)&&/--est-pausa:#FACC15/.test(s)&&/--est-det:#EF4444/.test(s)&&/--est-fin:#22C55E/.test(s)&&/--est-pend:#9CA3AF/.test(s),'colores de estado centralizados');
-ok(/nivel:g\.texto==='FINALIZADA'\?'verde':g\.nivel/.test(tablero),'FINALIZADA siempre verde en el semáforo');
+ok(/nivel:g\.nivel,texto:g\.texto/.test(tablero)&&/COMPLETADA:\{etiqueta:'COMPLETADA',cls:'completada',nivel:'verde'/.test(fs.readFileSync(R+'/js/produccion/24a-estados-visuales.js','utf8')),'FINALIZADA siempre verde en el semáforo (mapa único de estados)');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

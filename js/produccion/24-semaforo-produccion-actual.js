@@ -285,6 +285,22 @@
 
     const claveCombo=t=>llave(t.linea,t.fecha,t.turno,t.marca,t.presentacion);
     const activoKey=sec.activo ? claveCombo(sec.activo) : '';
+    // Una marca sin evidencia de inicio (ni estado operativo, ni hora de inicio) nunca arrancó. Producido = 0 NO decide: una marca iniciada puede no tener unidades.
+    const sinIniciar=x=>(!x.op?.estado || x.op.estado==='PENDIENTE') && !num(x.op?.inicio);
+    const cerradas=new Set(items.filter(x=>['FINALIZADA','CANCELADA'].includes(x.op?.estado))
+      .map(x=>llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion)));
+    // Próximo tramo válido: el siguiente de la secuencia (por tramo, no por marca) que no sea el activo ni esté finalizado/cancelado.
+    const proximoKey=(()=>{
+      if(sec.indiceActivo<0)return '';
+      const itemActivo=items.find(x=>llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion)===activoKey);
+      // Si la marca activa todavía no arrancó, ella es la próxima a producir y las demás esperan (PENDIENTE).
+      if(!itemActivo || (sinIniciar(itemActivo) && !num(resumenProgramacionCombinacionTurnos(itemActivo.linea,itemActivo.fecha,[itemActivo.turno],itemActivo.marca,itemActivo.presentacion).unidadesProducidas)))return '';
+      for(let i=sec.indiceActivo+1;i<sec.tramos.length;i++){
+        const c=claveCombo(sec.tramos[i]);
+        if(c!==activoKey && !cerradas.has(c))return c;
+      }
+      return '';
+    })();
 
     items.forEach(x=>{
       if(['FINALIZADA','CANCELADA','DETENIDA','LISTA'].includes(x.op?.estado))return;
@@ -301,8 +317,9 @@
         const producido=num(resumenProgramacionCombinacionTurnos(
           x.linea,x.fecha,[x.turno],x.marca,x.presentacion
         ).unidadesProducidas);
+        // Si todavía no arrancó es la marca que sigue: PRÓXIMO A PRODUCIR (no inicia sola por hora ni por cantidad estimada).
         x.estadoVisual=(x.op?.estado==='EN_PRODUCCION' || producido>0)
-          ? 'EN_PRODUCCION' : 'PENDIENTE';
+          ? 'EN_PRODUCCION' : (sinIniciar(x) ? 'PROXIMO' : 'PENDIENTE');
         return;
       }
 
@@ -315,11 +332,12 @@
       const tieneTramoFuturo=indices.some(i=>i>sec.indiceActivo);
 
       if(tuvoTramo && tieneTramoFuturo){
-        x.estadoVisual='PAUSA_SECUENCIA';
+        // Producto repetido (p. ej. SCALA → BELLS → SCALA): no es una pausa real; es el próximo o sigue pendiente.
+        x.estadoVisual=(k===proximoKey && sinIniciar(x)) ? 'PROXIMO' : 'PENDIENTE';
       }else if(tuvoTramo){
         x.estadoVisual='FINALIZADA';
       }else{
-        x.estadoVisual='PENDIENTE';
+        x.estadoVisual=(k===proximoKey && sinIniciar(x)) ? 'PROXIMO' : 'PENDIENTE';
       }
     });
 
@@ -339,10 +357,18 @@
     // La clave interna sigue siendo PAUSA (prioridades, contadores y controles no cambian); solo se distingue lo que ve el usuario.
     if(operativo==='DETENIDA')
       return {key:'PAUSA',label:'DETENIDA',rank:1,cls:'detenida'};
-    if(['PAUSA','PAUSA_SECUENCIA','LISTA'].includes(operativo))
+    // Pausa real (la registró el supervisor). Una PAUSA sin hora de inicio ni de pausa es un dato antiguo ambiguo: se conserva y se marca para revisión.
+    if(operativo==='PAUSA' && !(Number(x.op?.inicio)>0) && !(Number(x.op?.pausaDesde)>0))
+      return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa',requiereRevision:true};
+    if(['PAUSA','LISTA'].includes(operativo))
       return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa'};
     if(operativo==='EN_PRODUCCION')
       return {key:'EN_CURSO',label:'EN CURSO',rank:0,cls:'curso'};
+
+    // La secuencia manda sobre la producción: una marca ya identificada como la próxima (sin inicio) no está en curso aunque tenga unidades de un tramo anterior
+    // (producto repetido). Producido = 0 nunca decide por sí solo.
+    if(x.estadoVisual==='PROXIMO' && (!x.op?.estado || x.op.estado==='PENDIENTE') && !(Number(x.op?.inicio)>0))
+      return {key:'PENDIENTE',label:'PRÓXIMO A PRODUCIR',rank:1.5,cls:'proximo',proximo:true};
 
     // Si existen unidades reales registradas y la presentación todavía no
     // alcanzó su programación, debe visualizarse EN CURSO aunque el supervisor
@@ -392,20 +418,20 @@
     if(!prog || !num(r.cantidadProgramada))texto='Sin programación';
     else if(!vivo)texto='Consulta histórica';
     else if(op?.estado==='DETENIDA'){nivel='roja';texto='Línea detenida';}
-    else if(op?.estado==='PAUSA')texto='Pausa programada';
-    else if(op?.estado==='LISTA')texto='Lista para reanudar';
-    else if(op?.estado==='FINALIZADA')texto='Presentación finalizada';
+    else if(op?.estado==='PAUSA'){nivel='amarilla';texto='Pausa programada';}
+    else if(op?.estado==='LISTA'){nivel='amarilla';texto='Lista para reanudar';}
+    else if(op?.estado==='FINALIZADA'){nivel='verde';texto='Presentación finalizada';}
     else if(op?.estado==='CANCELADA')texto='Cancelado';
     else if(op?.estado==='EN_PRODUCCION' && ratio<=0){
-      nivel='verde';texto='Avanzando · ratio sin configurar';
+      nivel='naranja';texto='Avanzando · ratio sin configurar';
     }
     else if(op?.estado==='EN_PRODUCCION' && horas*60<MIN_INICIO){
-      nivel='verde';texto='Avanzando · inicio';
+      nivel='naranja';texto='Avanzando · inicio';
     }
     else if(op?.estado==='EN_PRODUCCION'){
       // Sin estado «retrasado» por presentación: el estado se mantiene (en curso) y el desempeño
       // se evalúa a nivel de línea con el ratio de las paradas oficiales.
-      nivel='verde';texto='Avanzando';
+      nivel='naranja';texto='Avanzando';
     }
     return {linea:l,fecha:f,turno:t,turnoPlan,compartida,programadoBloque,
       marca:m,presentacion:p,prog,op,
@@ -677,7 +703,7 @@
         const linea=nombres.get(td[0].textContent.trim());
         const marca=td[1].textContent.trim(),pres=td[2].textContent.trim();
         const lista=turnos.map(t=>indice.get(llave(linea,fecha,t,marca,pres))).filter(Boolean);
-        const elegido=lista.find(x=>x.nivel==='roja') || lista.find(x=>x.nivel==='ambar') ||
+        const elegido=lista.find(x=>x.nivel==='roja') || lista.find(x=>x.nivel==='naranja') || lista.find(x=>x.nivel==='amarilla' || x.nivel==='ambar') ||
           lista.find(x=>x.nivel==='verde') || lista[0];
         td[8].innerHTML=elegido ? renderSemaforoDot(elegido) : '—';
       });
@@ -736,8 +762,9 @@
           marca:x.marca,presentacion:x.presentacion,estado:x.op?.estado==='DETENIDA'?'DETENIDA':estados[i].key,
           producido:producidoDe(x),programado:progDe(x),detenidaDesde:Number(x.op?.detenidaDesde || 0)})));
         const estadoLineaGrupo=desglose.estado;
-        // Regla visual acordada: EN CURSO usa la luz ámbar/naranja; PAUSA usa ámbar/amarillo.
-        const nivel=({DETENIDA:'roja',EN_CURSO:'ambar',PAUSA:'ambar',CANCELADA:'roja',COMPLETADA:'verde'})[estadoLineaGrupo]||'gris';
+        // El color del encabezado es el del ESTADO operativo de la línea (mapa único: 24a-estados-visuales.js): En curso naranja, pausa amarilla,
+        // detenida roja, finalizada verde, pendiente gris. NO depende del ratio ni de la proyección (esas alertas van en su propio panel).
+        const nivel=window.glacialEstadosVisuales.nivelDeEstadoLinea(estadoLineaGrupo);
         const texto=({DETENIDA:'Línea detenida',EN_CURSO:'En curso',PAUSA:'Pausa programada',CANCELADA:'CANCELADA',COMPLETADA:'FINALIZADA'})[estadoLineaGrupo]||
           (estadoLineaGrupo==='PENDIENTE'&&hayCompletada?'Pendiente':'Sin iniciar');
         const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
@@ -901,8 +928,9 @@
           ultimoRegistroMs:ultimoPaletaMs(items)
         },proyeccionUmbrales());
         const nivelEstado=nivel;
-        // El COLOR refleja el desempeño; el estado queda como etiqueta de texto.
-        const nivelFinal=desempeno.nivel!=='gris' ? desempeno.nivel : nivelEstado;
+        // Causa del encabezado rojo con «En curso»: antes aquí se tomaba el nivel del DESEMPEÑO (ratio frente al necesario) para pintar la luz.
+        // Ahora la luz y la etiqueta usan el estado; el desempeño se conserva aparte (nivelDesempeno) y lo muestra el panel de proyección.
+        const nivelFinal=nivelEstado;
         // Franja sin producción (entre el fin de Día + Intermedio y el inicio de Noche): no hay línea «detenida», hay planta parada.
         const bFr=bloqueAhora();
         const enFranja=!!(bFr && bFr.enFranja && fecha===bFr.fecha && GlacialIndicadores.claveBloque(turnoCalculo)==='diaInter' &&
@@ -922,7 +950,7 @@
         })();
 
         return {
-          line,items,vacios,activo,nivel:enFranja ? 'gris' : nivelFinal,nivelEstado,texto:textoFinal,enFranja,porTurno,turnosLinea,totalProg,totalProd,desglose,
+          line,items,vacios,activo,nivel:enFranja ? 'gris' : nivelFinal,nivelEstado,nivelDesempeno:desempeno.nivel,texto:textoFinal,enFranja,porTurno,turnosLinea,totalProg,totalProd,desglose,
           horasEfectivas:tiempos.ok?tiempos.tiempoOperativoMin/60:horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
           totalesPresentacion,tiempos,ratios,desempeno,proyeccion
         };
@@ -1142,7 +1170,7 @@
             <div class="pa-line-status">
               ${g.tiempos?.pausaSinCerrar ? `<span class="pa-chip-alerta" title="Superó la duración estándar">⚠ Pausa sin cerrar · ${esc(g.tiempos.pausaSinCerrar.motivo)} · ${Math.round(g.tiempos.pausaSinCerrar.transcurridoMin)} min (estándar ${g.tiempos.pausaSinCerrar.estandarMin})</span>` : ''}
               ${g.items.some(x=>x.op?.corregida) ? '<span class="pa-chip-corregida" title="La finalización fue corregida">Corregida</span>' : ''}
-              ${renderSemaforoWidget({nivel:g.texto==='FINALIZADA'?'verde':g.nivel,texto:g.texto})}</div>
+              ${renderSemaforoWidget({nivel:g.nivel,texto:g.texto})}</div>
           </div>
 
           ${htmlMotivoNP(g)}
@@ -1175,10 +1203,11 @@
               <div class="pa-hcol-title">▥ SECUENCIA DEL TURNO</div>
               ${(()=>{
                 const ordenados=itemsOrdenadosGrupo(g);
-                const counts={curso:0,pausa:0,detenida:0,pendiente:0,completada:0,cancelada:0};
+                const counts={curso:0,proximo:0,pausa:0,detenida:0,pendiente:0,completada:0,cancelada:0};
                 ordenados.forEach(o=>counts[o.estado.cls]++);
                 return `<div class="pa-state-counts">
                   <span class="curso">● ${counts.curso} En curso</span>
+                  <span class="proximo">● ${counts.proximo} Próximos a producir</span>
                   <span class="pausa">● ${counts.pausa} En pausa</span>
                   <span class="detenida">● ${counts.detenida} Detenidas</span>
                   <span class="completada">● ${counts.completada} Finalizadas</span>
@@ -1238,7 +1267,7 @@
   css.textContent=`
     .pa-np{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 18px;border-bottom:1px solid #d8e4ec;background:#fffbea}
     .pa-np-txt small{display:block;color:#6b5a2a;font-weight:500}
-    /* Colores de estado de producción (una sola correspondencia): EN CURSO naranja, EN PAUSA / PROGRAMADA amarillo, DETENIDA rojo,
+    /* Colores de estado de producción (mapa único en 24a-estados-visuales.js): EN CURSO naranja, EN PAUSA / PRÓXIMO A PRODUCIR / PROGRAMADA amarillo, DETENIDA rojo,
        FINALIZADA (COMPLETADA) verde, PENDIENTE gris. Los avisos de meta incumplida son otra señal y conservan su color. */
     .pa-live-board{--est-curso:#F97316;--est-curso-bg:#FFEDD5;--est-curso-tx:#9A3412;--est-pausa:#FACC15;--est-pausa-bg:#FEF9C3;--est-pausa-tx:#713F12;
       --est-det:#EF4444;--est-det-bg:#FEE2E2;--est-det-tx:#991B1B;--est-fin:#22C55E;--est-fin-bg:#DCFCE7;--est-fin-tx:#166534;
@@ -1247,11 +1276,12 @@
     .pa-live-board .pa-state-pausa{background:var(--est-pausa-bg);color:var(--est-pausa-tx)}.pa-live-board .pa-state-pausa>span{background:var(--est-pausa)}
     .pa-live-board .pa-state-detenida{background:var(--est-det-bg);color:var(--est-det-tx)}.pa-live-board .pa-state-detenida>span{background:var(--est-det)}
     .pa-live-board .pa-state-completada{background:var(--est-fin-bg);color:var(--est-fin-tx)}.pa-live-board .pa-state-completada>span{background:var(--est-fin)}
+    .pa-live-board .pa-state-proximo{background:var(--est-pausa-bg);color:var(--est-pausa-tx)}.pa-live-board .pa-state-proximo>span{background:var(--est-pausa)}
     .pa-live-board .pa-state-pendiente{background:var(--est-pend-bg);color:var(--est-pend-tx)}.pa-live-board .pa-state-pendiente>span{background:var(--est-pend)}
     .pa-live-board .pa-state-counts{font-size:12px}
     .pa-live-board .pa-state-counts .curso{color:var(--est-curso-tx)}.pa-live-board .pa-state-counts .pausa{color:var(--est-pausa-tx)}
     .pa-live-board .pa-state-counts .detenida{color:var(--est-det-tx)}.pa-live-board .pa-state-counts .completada{color:var(--est-fin-tx)}
-    .pa-live-board .pa-state-counts .pendiente{color:var(--est-pend-tx)}
+    .pa-live-board .pa-state-counts .pendiente{color:var(--est-pend-tx)}.pa-live-board .pa-state-counts .proximo{color:var(--est-pausa-tx)}.pa-live-board .pa-state-counts .proximo::first-letter{color:var(--est-pausa)}
     .pa-live-board .pa-state-counts .curso::first-letter{color:var(--est-curso)}.pa-live-board .pa-state-counts .pausa::first-letter{color:var(--est-pausa)}
     .pa-live-board .pa-state-counts .detenida::first-letter{color:var(--est-det)}.pa-live-board .pa-state-counts .completada::first-letter{color:var(--est-fin)}
     .pa-live-board .pa-state-counts .pendiente::first-letter{color:var(--est-pend)}
@@ -1259,6 +1289,7 @@
     .pa-live-board .pa-program-list-horizontal .pa-program-state-pausa{border-top-color:var(--est-pausa);background:#fffdf0}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-detenida{border-top-color:var(--est-det);background:#fff6f6}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-completada{border-top-color:var(--est-fin);background:#f4fcf6}
+    .pa-live-board .pa-program-list-horizontal .pa-program-state-proximo{border-top-color:var(--est-pausa);background:#fffdf0}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-pendiente{border-top-color:var(--est-pend);background:#f8f9fa}
     .pa-marca-actual{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:10px 18px;border-bottom:1px solid #d8e4ec;background:#fff9f1}
     .pa-marca-actual small{font-size:10px;font-weight:800;letter-spacing:.05em;color:#9A3412}.pa-marca-actual strong{color:#073f68;overflow-wrap:anywhere}.pa-marca-actual span{color:#073f68}
@@ -1310,7 +1341,7 @@
     .pa-progress-row i{display:inline-flex;align-items:center;justify-content:flex-start;gap:7px;font-style:normal;font-weight:800;font-size:10px;letter-spacing:.035em;white-space:nowrap}
     .pa-status-dot{flex:0 0 auto;width:10px;height:10px;border-radius:50%;display:inline-block}
     .pa-progress-row i.fin{color:#198754}.pa-progress-row i.fin .pa-status-dot{background:#198754}
-    .pa-progress-row i.curso{color:#a86f00}.pa-progress-row i.curso .pa-status-dot{background:#f5b335;animation:paPulsoProduccion 1.35s ease-in-out infinite;box-shadow:0 0 0 0 rgba(245,179,53,.42)}
+    .pa-progress-row i.curso{color:#9A3412}.pa-progress-row i.curso .pa-status-dot{background:#F97316;animation:paPulsoProduccion 1.35s ease-in-out infinite;box-shadow:0 0 0 0 rgba(249,115,22,.42)}
     .pa-progress-row i.det{color:#c9362b}.pa-progress-row i.det .pa-status-dot{background:#c9362b}
     .pa-progress-row i.pend{color:#667784}.pa-progress-row i.pend .pa-status-dot{background:#b8c3ca}
     .pa-progress-row i.cancel{color:#8b3a32}.pa-cancel-x{font-size:13px;font-weight:900}

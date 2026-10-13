@@ -3059,7 +3059,7 @@ function renderSemaforoWidget(estado){
 
       <div class="pl-semaforo">
         <span class="pl-semaforo-luz pl-semaforo-roja ${estado.nivel === 'roja' ? 'encendida' : ''}"></span>
-        <span class="pl-semaforo-luz pl-semaforo-ambar ${estado.nivel === 'ambar' ? 'encendida' : ''}"></span>
+        <span class="pl-semaforo-luz pl-semaforo-ambar ${['ambar','naranja','amarilla'].includes(estado.nivel) ? 'encendida' : ''} ${estado.nivel === 'naranja' ? 'pl-luz-naranja' : estado.nivel === 'amarilla' ? 'pl-luz-amarilla' : ''}"></span>
         <span class="pl-semaforo-luz pl-semaforo-verde ${estado.nivel === 'verde' ? 'encendida' : ''}"></span>
       </div>
 
