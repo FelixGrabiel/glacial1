@@ -231,6 +231,14 @@
       programaciones().forEach(p=>{
         if(!p||p.fecha!==origen||!turnos.includes(p.turno)||num(p.cantidadProgramada)<=0)return;
         if(NS.estadoDe(p)==='CANCELADA')return;
+        // Modos 66: no se reutiliza un cierre ya asignado ni una estimación de otro día; hay que revisar la referencia y volver a aplicar.
+        const modoP=NS.modos?NS.modos.modoDe(p):'FIJA';
+        if(modoP!=='FIJA'){
+          omitidos.push({texto:destino+' · '+p.turno+' · '+NS.nombreLinea(p.linea)+' · '+p.marca+' '+NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion)+': '+
+            (modoP==='COMPLETAR'?'Completar cantidad: no se copia (el cierre ya asignado no se reutiliza); revisa la referencia y aplica el saldo en la fecha destino.'
+              :'Todo el turno: no se copia (la estimación depende de las ventanas y preparaciones de ese día); prográmalo de nuevo.')});
+          return;
+        }
         // Día + Intermedio es UN bloque: la copia va a la fila DÍA y, si el producto tenía fila en ambos turnos, se SUMA.
         const fila={linea:p.linea,fecha:destino,turno:NS.valorBloque(p.turno),marca:p.marca,presentacion:p.presentacion,
           cantidad:num(p.cantidadProgramada),upp:num(p.unidadesPorPaleta)||NS.uppSugerida(p.linea,p.marca,p.presentacion)};

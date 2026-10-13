@@ -143,7 +143,7 @@ const pr=(l,t,m,p,c,u,extra)=>F(l,FECHA,t,m,p,c,u||1200,extra);
   const tabla=sb.__el('plan-prog-tabla'),cap=sb.__el('plan-capacidad'),sec=sb.__el('plan-secuencia');
   NS.pestanas.find(p=>p.clave==='programacion').actualizar();
   ok(/Trasladar saldo/.test(tabla.innerHTML),'Programación ofrece «Trasladar saldo» en los productos con saldo comprobado');
-  ok(/Capacidad del bloque/.test(cap.innerHTML)&&/Cabe/.test(cap.innerHTML)&&/Estimación incompleta/.test(cap.innerHTML)&&/Falta: velocidad estándar de Fontlife/.test(cap.innerHTML)&&/Cada tiempo se cuenta una sola vez/.test(cap.innerHTML),'panel de capacidad: línea que cabe, línea con estimación incompleta y qué falta');
+  ok(/Capacidad del bloque/.test(cap.innerHTML)&&/Cabe/.test(cap.innerHTML)&&/Cálculo parcial/.test(cap.innerHTML)&&/Cálculo parcial: falta la velocidad estándar de Fontlife/.test(cap.innerHTML)&&/Cada tiempo se cuenta una sola vez/.test(cap.innerHTML),'panel de capacidad: línea que cabe, línea con estimación incompleta y qué falta');
   const e2=entorno(progs,undefined,{usuario:{planifica:false}});e2.sb.glacialProducidoVigente=()=>6000;e2.NS.estado={tab:'programacion',fecha:FECHA,turno:'DÍA'};
   e2.sb.__el('plan-prog-tabla');e2.NS.pestanas.find(p=>p.clave==='programacion').actualizar();
   ok(!/Trasladar saldo/.test(e2.sb.__el('plan-prog-tabla').innerHTML),'quien no planifica no ve «Trasladar saldo»');
@@ -158,7 +158,7 @@ const pr=(l,t,m,p,c,u,extra)=>F(l,FECHA,t,m,p,c,u||1200,extra);
   // semanal
   e.NS.estado={tab:'semanal',semana:FECHA,fecha:FECHA,turno:'DÍA'};const gr=e.sb.__el('sem-grilla');
   e.NS.pestanas.find(p=>p.clave==='semanal').actualizar();
-  ok(/\d+ %/.test(gr.innerHTML)&&/Estimación incompleta/.test(gr.innerHTML),'vista semanal: utilización por línea y bloque y «Estimación incompleta» cuando falta un dato');
+  ok(/\d+ %/.test(gr.innerHTML)&&/Cálculo parcial/.test(gr.innerHTML),'vista semanal: utilización por línea y bloque y «Cálculo parcial» cuando falta un dato');
 }
 
 /* ---------- tiempos previstos del catálogo ---------- */

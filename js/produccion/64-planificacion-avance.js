@@ -145,7 +145,8 @@
       sal.push(l.name);
       // un producto con filas en Día e Intermedio se muestra sumado
       const por=new Map();ps.forEach(p=>{const k=p.marca+'|'+p.presentacion,o=por.get(k)||{p,cant:0,upp:0,est:NS.estadoDe(p)};o.cant+=num(p.cantidadProgramada);o.upp=num(p.unidadesPorPaleta)||o.upp;por.set(k,o);});
-      por.forEach(o=>sal.push('- '+o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion)+': '+fmt(o.cant)+' UND'+(o.upp>0?' ('+NS.paletasTexto(o.cant,o.upp)+' paletas)':'')+' · '+NS.estadoTexto(o.est)));
+      por.forEach(o=>sal.push('- '+o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion)+': '+(NS.modos&&NS.modos.modoDe(o.p)==='TURNO'?'≈ ':'')+fmt(o.cant)+' UND'+
+        (NS.modos&&NS.modos.modoDe(o.p)==='COMPLETAR'&&o.p.meta?' (saldo de la meta '+fmt(o.p.meta.total)+')':NS.modos&&NS.modos.modoDe(o.p)==='TURNO'?' (todo el turno: estimado según ratio nominal)':'')+(o.upp>0?' ('+NS.paletasTexto(o.cant,o.upp)+' paletas)':'')+' · '+NS.estadoTexto(o.est)));
       sal.push('');
     });
     sal.push('GLACIAL - Control de Producción');
@@ -164,12 +165,15 @@
     r.grupos.forEach(g=>{
       if(!(g.programado>0))return;                          // solo filas canceladas: no forman parte del plan
       const orig=NS.originalDe(fecha,turno,g.linea,g.marca,g.presentacion);
-      filas.push([fecha,NS.etiquetaBloque(turno),NS.nombreLinea(g.linea),g.marca,NS.etiquetaPresentacion(g.linea,g.marca,g.presentacion),g.programado,orig===null?'':orig,
+      const f0=g.filas.find(f=>NS.estadoDe(f)!=='CANCELADA')||g.filas[0],modo=NS.modos?NS.modos.modoDe(f0):'FIJA',ep=NS.modos?NS.modos.estadoPlan(f0,g):null,am=NS.modos?NS.modos.avanceMeta(f0,g):null;
+      filas.push([fecha,NS.etiquetaBloque(turno),NS.nombreLinea(g.linea),g.marca,NS.etiquetaPresentacion(g.linea,g.marca,g.presentacion),
+        NS.modos?NS.modos.MODOS[modo]:'Cantidad fija',modo==='COMPLETAR'&&f0.meta?f0.meta.total:'',modo==='COMPLETAR'&&f0.meta?NS.modos.saldoMeta(f0.meta.total,f0.meta.vinculos).asignado:'',
+        modo==='COMPLETAR'&&f0.meta&&f0.meta.referencia?f0.meta.referencia:'',modo==='TURNO'?'estimada según ratio nominal':'',g.programado,orig===null?'':orig,
         g.upp||'',NS.paletasTexto(g.programado,g.upp),g.producido===null?'sin registro':g.producido,g.pendiente===null?'':g.pendiente,g.sobre===null?'':g.sobre,
-        g.avance===null?'':+(g.avance*100).toFixed(1),NS.estadoTexto(NS.estadoDe(g.filas[0]))]);
+        g.avance===null?'':+(g.avance*100).toFixed(1),ep?ep.texto:NS.estadoTexto(NS.estadoDe(g.filas[0])),NS.estadoTexto(NS.estadoDe(g.filas[0])),am&&am.pct!==null?+(am.pct*100).toFixed(1):'']);
     });
-    const ws=XLSX.utils.aoa_to_sheet([['Fecha','Bloque','Línea','Marca','Presentación','Programado (UND)','Original al inicio (UND)','UND por paleta','Paletas (completas + UND)','Producido (UND)','Pendiente (UND)','Sobreproducción (UND)','Avance %','Estado']].concat(filas));
-    ws['!cols']=[12,22,12,14,16,16,18,12,20,14,14,16,10,14].map(w=>({wch:w}));
+    const ws=XLSX.utils.aoa_to_sheet([['Fecha','Bloque','Línea','Marca','Presentación','Modo','Meta total (UND)','Cierre anterior vinculado (UND)','Referencia del pedido','Tipo de cantidad','Programado del bloque (UND)','Original al inicio (UND)','UND por paleta','Paletas (completas + UND)','Producido (UND)','Pendiente (UND)','Sobreproducción (UND)','Avance %','Estado del plan','Estado operativo de la línea','Avance de la meta global %']].concat(filas));
+    ws['!cols']=[12,22,12,14,16,18,14,22,22,26,16,18,12,20,14,14,16,10,22,24,20].map(w=>({wch:w}));
     const libro=XLSX.utils.book_new();XLSX.utils.book_append_sheet(libro,ws,'Plan');
     XLSX.writeFile(libro,'plan-'+fecha+'-'+NS.valorBloque(turno)+'.xlsx');
   };

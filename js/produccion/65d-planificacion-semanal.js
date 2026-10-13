@@ -5,7 +5,7 @@
    Mañana + Intermedio / Noche / Ambos. Con «Ambos» cada celda muestra los dos bloques POR SEPARADO: su capacidad no se suma, porque la producción no se
    puede trasladar libremente entre ellos. Cada celda sale de NS.evaluar() (65a), la misma función del detalle diario, así la semana y el día coinciden.
    Estados de capacidad (con texto e ícono y leyenda propia, distinta de los colores de estado operativo): Cabe · Cabe, ajustado · No cabe ·
-   Estimación incompleta · Sin programación · Datos no disponibles. El estado operativo (en producción, pausa, detenida, finalizada, pendiente) conserva
+   Cálculo parcial (antes «Estimación incompleta») · Sin programación · Datos no disponibles. El estado operativo (en producción, pausa, detenida, finalizada, pendiente) conserva
    los colores acordados. Al abrir una celda se ve el desglose y se puede ir a la programación de ese día y bloque.
    ============================================================= */
 (function(){
@@ -95,7 +95,7 @@
       '<button type="button" class="btn btn-ghost btn-sm" data-sem="hoy">Esta semana</button>'+
       '<label>Bloque<select id="sem-bloque"><option value="DÍA"'+(F.bloque==='DÍA'?' selected':'')+'>Mañana + Intermedio</option><option value="NOCHE"'+(F.bloque==='NOCHE'?' selected':'')+'>Noche</option><option value="AMBOS"'+(F.bloque==='AMBOS'?' selected':'')+'>Ambos (por separado)</option></select></label>'+
       '<label>Línea<select id="sem-linea"><option value="">Todas</option>'+NS.lineas().map(l=>'<option value="'+esc(l.key)+'"'+(l.key===F.linea?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></label>'+
-      '<label>Estado de capacidad<select id="sem-cap"><option value="">Todos</option>'+[['CABE','Cabe (incluye ajustado)'],['EXCESO','No cabe'],['INCOMPLETA','Estimación incompleta'],['SIN_PROG','Sin programación'],['NODATOS','Datos no disponibles']].map(([v,t])=>'<option value="'+v+'"'+(F.cap===v?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'+
+      '<label>Estado de capacidad<select id="sem-cap"><option value="">Todos</option>'+[['CABE','Cabe (incluye ajustado)'],['EXCESO','No cabe'],['INCOMPLETA','Cálculo parcial'],['SIN_PROG','Sin programación'],['NODATOS','Datos no disponibles']].map(([v,t])=>'<option value="'+v+'"'+(F.cap===v?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'+
       '</div>'+(typeof NS.leyendaCapacidad==='function'?NS.leyendaCapacidad():'')+
       '<p class="plan-nota" style="margin:0 0 8px">Cada celda: tiempo requerido / disponible, utilización, tiempo libre o exceso y productos. Toca una celda para ver el desglose. Con «Ambos» los bloques no se suman. La barra superior azul marca hoy. La capacidad es una previsión de planificación; el estado operativo (en producción, pausa, detenida, finalizada, pendiente) es la ejecución real.</p>'+
       '<div id="sem-grilla"></div>';

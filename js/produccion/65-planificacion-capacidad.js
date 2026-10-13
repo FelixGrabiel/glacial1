@@ -94,7 +94,7 @@
      (naranja en producción, amarillo programada, rojo detenida, verde finalizada, gris pendiente). */
   const CAP={
     CABE:{txt:'Cabe',ico:'✓',cls:'pc-cabe'},JUSTO:{txt:'Cabe, ajustado',ico:'◐',cls:'pc-justo'},EXCESO:{txt:'No cabe',ico:'✕',cls:'pc-exceso'},
-    INCOMPLETA:{txt:'Estimación incompleta',ico:'?',cls:'pc-inc'},SIN_PROG:{txt:'Sin programación',ico:'—',cls:'pc-sin'},NODATOS:{txt:'Datos no disponibles',ico:'⚠',cls:'pc-nodatos'}};
+    INCOMPLETA:{txt:'Cálculo parcial',ico:'◐',cls:'pc-inc'},SIN_PROG:{txt:'Sin programación',ico:'—',cls:'pc-sin'},NODATOS:{txt:'Datos no disponibles',ico:'⚠',cls:'pc-nodatos'}};
   NS.CAP=CAP;
   NS.estilosCap=()=>estilosCap();
   const COLORES=['#005b96','#F97316','#0e9f6e','#8b5cf6','#d946ef','#0891b2'];
@@ -129,6 +129,19 @@
     return '<div class="pc-leyenda" aria-label="Leyenda de capacidad">'+['CABE','JUSTO','EXCESO','INCOMPLETA','SIN_PROG','NODATOS'].map(k=>'<span class="pc-chip '+CAP[k].cls+'">'+CAP[k].ico+' '+CAP[k].txt+'</span>').join('')+
       '<small>Escala de capacidad: distinta de los colores de estado operativo.</small></div>';
   };
+  /* Cálculo parcial: qué falta, lo que SÍ se conoce y, si lo conocido ya excede el bloque, el exceso mínimo comprobado. Nunca convierte un dato desconocido en cero. */
+  NS.textoParcial=function(c){
+    if(!c||!c.faltantes||!c.faltantes.length)return '';
+    const cambio=c.preparaciones&&c.preparaciones.some(t=>t.minutos===null&&t.tipo==='CAMBIO');
+    const vel=c.faltantes.filter(f=>f.dato==='velocidad estándar');
+    const otros=c.faltantes.filter(f=>f.dato!=='velocidad estándar'&&!/^tiempo de cambio|cambio/i.test(f.dato));
+    const partes=[];
+    if(cambio)partes.push('configurar cambio de marca o de formato');
+    vel.forEach(f=>partes.push('la velocidad estándar de '+(f.marca?f.marca+' ':'')+(f.etiqueta||f.presentacion||'un producto')));
+    otros.forEach(f=>partes.push(f.dato));
+    if(!partes.length)partes.push(c.faltantes.map(f=>f.dato).join('; '));
+    return 'Cálculo parcial: falta '+partes.join('; ')+'.';
+  };
   NS.chipCapacidad=function(estado){const k=CAP[estado]||CAP.NODATOS;return '<span class="pc-chip '+k.cls+'">'+k.ico+' '+k.txt+'</span>';};
 
   /* Desglose explicable de una capacidad (y de la restante si el bloque ya inició). */
@@ -141,8 +154,8 @@
       fila('<b>Tiempo disponible</b>','<b>'+hm(c.disponibleMin)+'</b>')+
       fila('Producción requerida',hm(c.produccionMin)+(c.faltantes.some(f=>f.dato==='velocidad estándar')?'*':''))+
       fila('Cambios y preparaciones',hm(c.preparacionMin))+
-      fila('<b>Tiempo total requerido</b>','<b>'+hm(c.requeridoMin)+'</b>')+
-      fila('Saldo de tiempo',c.estado==='INCOMPLETA'?'—':(c.saldoMin<0?'Exceso ':'Libre ')+hm(Math.abs(c.saldoMin)))+
+      fila(c.estado==='INCOMPLETA'?'<b>Tiempo requerido conocido (parcial)</b>':'<b>Tiempo total requerido</b>',c.estado==='INCOMPLETA'?'<b>≥ '+hm(c.requeridoMin)+'</b>':'<b>'+hm(c.requeridoMin)+'</b>')+
+      fila('Saldo de tiempo',c.estado==='INCOMPLETA'?(c.excesoMinimoMin>0?'Exceso mínimo comprobado '+hm(c.excesoMinimoMin):'—'):(c.saldoMin<0?'Exceso ':'Libre ')+hm(Math.abs(c.saldoMin)))+
       fila('Utilización',c.utilizacionPct===null?'—':Math.round(c.utilizacionPct)+' %')+'</tbody></table>';
     h+='<h6>Productos</h6><table><thead><tr><th>Producto</th><th class="num">UND</th><th class="num">UND/h</th><th class="num">Tiempo</th></tr></thead><tbody>'+
       c.productos.map(p=>'<tr><td>'+esc(p.marca)+' '+esc(p.etiqueta||p.presentacion)+'</td><td class="num">'+fmt(p.cantidad)+'</td><td class="num">'+(p.vel?fmt(p.vel):'—')+'</td><td class="num">'+(p.min===null?'—':hm(p.min))+'</td></tr>').join('')+'</tbody></table>';
@@ -159,7 +172,8 @@
     const col=c.colocacion||{};
     if(col.verificada)h+='<h6>Colocación de la secuencia</h6><p class="plan-nota">'+(col.ejecutable?'Los tramos caben entre las ventanas: terminaría hacia las '+hhmm(c.finEstMs)+'.':'No es ejecutable: '+esc((col.conflictos&&col.conflictos[0])||(col.quedan&&col.quedan.length?'queda cantidad sin producir dentro del bloque':'revisa los tramos'))+'.')+'</p>';
     else if(col.motivo)h+='<p class="plan-nota">'+esc(col.motivo)+'</p>';
-    if(c.faltantes.length)h+='<div class="cap-falta">Falta: '+c.faltantes.map(f=>esc(f.dato)+(f.marca&&!/ \(/.test(f.dato)?' de '+esc(f.marca)+' '+esc(f.etiqueta||f.presentacion):'')).join('; ')+'. Complétalo en el Catálogo → Tiempos previstos / velocidades.</div>';
+    if(c.faltantes.length)h+='<div class="cap-falta"><b>'+esc(NS.textoParcial(c))+'</b> La parte conocida se muestra arriba; el total definitivo no puede calcularse hasta completarlo.</div>';
+    if(false)h+='<div class="cap-falta">Falta: '+c.faltantes.map(f=>esc(f.dato)+(f.marca&&!/ \(/.test(f.dato)?' de '+esc(f.marca)+' '+esc(f.etiqueta||f.presentacion):'')).join('; ')+'. Complétalo en el Catálogo → Tiempos previstos / velocidades.</div>';
     if(c.notas.length)h+='<p class="plan-nota">'+c.notas.map(esc).join('<br>')+'</p>';
     h+='<p class="plan-nota">Parámetros versión '+num(c.parametrosVersion)+'. Es una previsión de planificación: no crea paradas oficiales ni cambia el ratio real.</p>';
     if(restante){
@@ -173,6 +187,11 @@
     return h+'</div>';
   };
 
+  document.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-plan-config-tiempos]');
+    if(!b||!NS.puede())return;
+    NS.estado.tab='catalogo';NS.pintarPestana();
+  });
   NS.pintarExtras=function(){
     const cap=document.getElementById('plan-capacidad');
     if(!cap)return;
@@ -192,11 +211,12 @@
         '<div class="cap-fil"><span>Disponible</span><b>'+hm(c.disponibleMin)+'</b></div>'+
         '<div class="cap-fil"><span>Producción requerida</span><b>'+(c.produccionMin>0||!c.faltantes.length?hm(c.produccionMin):'—')+(c.faltantes.some(f=>f.dato==='velocidad estándar')&&c.produccionMin>0?'*':'')+'</b></div>'+
         '<div class="cap-fil"><span>Cambios y preparaciones <small>('+c.preparaciones.length+')</small></span><b>'+hm(c.preparacionMin)+'</b></div>'+
-        '<div class="cap-fil"><span>Requerido total</span><b>'+(c.estado==='INCOMPLETA'?'—':hm(c.requeridoMin))+'</b></div>'+
-        '<div class="cap-fil cap-hol"><span>'+(c.estado!=='INCOMPLETA'&&c.holguraMin<0?'Exceso':'Tiempo libre')+'</span>'+(c.estado==='INCOMPLETA'?'<b>—</b>':'<b>'+hm(Math.abs(c.holguraMin))+'</b>')+'</div>'+
+        '<div class="cap-fil"><span>'+(c.estado==='INCOMPLETA'?'Requerido conocido <small>(parcial)</small>':'Requerido total')+'</span><b>'+(c.estado==='INCOMPLETA'?'≥ ':'')+hm(c.requeridoMin)+'</b></div>'+
+        '<div class="cap-fil cap-hol"><span>'+(c.estado==='INCOMPLETA'?(c.excesoMinimoMin>0?'Exceso mínimo comprobado':'Libre / exceso'):(c.holguraMin<0?'Exceso':'Tiempo libre'))+'</span>'+(c.estado==='INCOMPLETA'?'<b>'+(c.excesoMinimoMin>0?hm(c.excesoMinimoMin):'pendiente')+'</b>':'<b>'+hm(Math.abs(c.holguraMin))+'</b>')+'</div>'+
         (c.finEstMs&&c.estado!=='INCOMPLETA'?'<div class="cap-fil"><span>Inicio y fin estimados</span><b>'+hhmm(c.inicioEstMs)+' – '+hhmm(c.finEstMs)+'</b></div>':'')+rest+
         (c.motivoExceso?'<div class="cap-falta" style="background:#FAE8FF;color:#86198F">'+esc(c.motivoExceso)+'</div>':'')+
-        (c.faltantes.length?'<div class="cap-falta">Falta: '+c.faltantes.map(f=>esc(f.dato)+(f.marca&&f.dato==='velocidad estándar'?' de '+esc(f.marca)+' '+esc(f.etiqueta||f.presentacion):'')).join('; ')+'</div>':'')+
+        (c.faltantes.length?'<div class="cap-falta"><b>'+esc(NS.textoParcial(c))+'</b>'+(c.estado==='INCOMPLETA'&&c.excesoMinimoMin>0?' Lo conocido ya excede el tiempo disponible: no cabe, y el exceso real puede ser mayor.':'')+
+          (planifica?'<div style="margin-top:6px"><button type="button" class="btn btn-ghost btn-sm" data-plan-config-tiempos>Configurar tiempo de cambio</button></div>':'')+'</div>':'')+
         (ev.desfasada?'<div class="pc-desf">Evaluación guardada con los parámetros v'+num(ev.guardada.version)+'; hoy serían otros (v'+num(c.parametrosVersion)+'). Con los de hoy: '+esc(CAP[ev.vigente.estado].txt)+'. '+(planifica?'Recalcula en Catálogo → Tiempos previstos.':'')+'</div>':'')+
         '<details class="pc-d"><summary>Desglose</summary>'+NS.htmlDesglose(ev.vigente,restante)+'</details>'+
         (planifica&&c.estado==='EXCESO'&&typeof NS.abrirOpciones==='function'?'<div style="margin-top:8px"><button type="button" class="btn btn-primary btn-sm" data-plan-opciones="'+esc(l.key)+'">Ver opciones para completar</button></div>':'')+'</div>');
@@ -372,7 +392,7 @@
       '<p class="plan-nota">El origen baja y el destino sube en la misma operación: el total no se duplica. Lo ya producido se queda en el origen y el plan original del bloque (si ya empezó) queda guardado. Queda en el historial.</p>'+
       '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="tr-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="tr-ok">Trasladar</button></div>');
     const q=i=>fondo.querySelector('#'+i);
-    const txtCap=(c,t)=>t+': '+({CABE:'cabe',JUSTO:'cabe, ajustado',EXCESO:'no cabe',INCOMPLETA:'estimación incompleta',SIN_PROG:'sin programación'})[c.estado]+(c.estado==='SIN_PROG'||c.estado==='INCOMPLETA'?'':' ('+c.requeridoMin+' / '+c.disponibleMin+' min)');
+    const txtCap=(c,t)=>t+': '+({CABE:'cabe',JUSTO:'cabe, ajustado',EXCESO:'no cabe',INCOMPLETA:'cálculo parcial',SIN_PROG:'sin programación'})[c.estado]+(c.estado==='SIN_PROG'||c.estado==='INCOMPLETA'?'':' ('+c.requeridoMin+' / '+c.disponibleMin+' min)');
     const aviso=()=>{
       const f=q('tr-fecha').value,b=q('tr-bloque').value,c=num(q('tr-cant').value);
       const ex=fechaOk(f)?NS.existente(item.linea,f,b,item.marca,item.presentacion):null;

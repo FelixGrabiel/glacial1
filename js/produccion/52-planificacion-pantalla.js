@@ -255,7 +255,7 @@
   /* =========================================================
      PESTAÑA PROGRAMACIÓN
      ========================================================= */
-  const claseEstado=e=>e==='EN_PRODUCCION'?'est-curso':e==='PAUSA'?'est-pausa':(e==='DETENIDA'||e==='LISTA')?'est-det':e==='FINALIZADA'?'est-fin':e==='CANCELADA'?'est-canc':'est-pend';
+  const claseEstado=NS.claseEstado=e=>e==='EN_PRODUCCION'?'est-curso':e==='PAUSA'?'est-pausa':(e==='DETENIDA'||e==='LISTA')?'est-det':e==='FINALIZADA'?'est-fin':e==='CANCELADA'?'est-canc':'est-pend';
 
   function pintarProgramacion(cont){
     const E=NS.estado,planifica=NS.puede();
@@ -299,14 +299,17 @@
     const aten=[];
     if(excesos)aten.push('<span class="plan-chip rojo">'+excesos+(excesos===1?' línea no cabe':' líneas no caben')+'</span>');
     if(sin)aten.push('<span class="plan-chip gris">'+sin+' sin registro</span>');
-    if(incompletas)aten.push('<span class="plan-chip gris">'+incompletas+(incompletas===1?' estimación incompleta':' estimaciones incompletas')+'</span>');
+    if(incompletas)aten.push('<span class="plan-chip gris">'+incompletas+(incompletas===1?' cálculo parcial':' cálculos parciales')+'</span>');
     if(cambios.length)aten.push('<span class="plan-chip naranja">'+cambios.length+(cambios.length===1?' reprogramación':' reprogramaciones')+'</span>');
     if(pendSol)aten.push('<span class="plan-chip azul">'+pendSol+(pendSol===1?' solicitud pendiente':' solicitudes pendientes')+'</span>');
     cont.innerHTML=
       '<div class="plan-kpi" style="--k:#005b96"><div class="k-t">Programado</div><div class="k-v">'+fmt(prog)+'</div><div class="k-s">UND · '+productos+(productos===1?' producto':' productos')+' · '+lineas.size+(lineas.size===1?' línea':' líneas')+'</div></div>'+
       '<div class="plan-kpi" style="--k:#F97316"><div class="k-t">Producido</div><div class="k-v">'+(progReg>0||!sin?fmt(prod):'—')+'</div><div class="k-s">'+(av===null?'Sin registro de producción':(av*100).toLocaleString('es-PE',{maximumFractionDigits:0})+' % de lo programado'+(sin?' · '+sin+' sin registro':''))+'</div></div>'+
       '<div class="plan-kpi" style="--k:#9CA3AF"><div class="k-t">Pendiente</div><div class="k-v">'+(progReg>0?fmt(pend):'—')+'</div><div class="k-s">'+(sobre>0?'<b style="color:#9A3412">+'+fmt(sobre)+' sobreproducción</b>':'UND por producir')+'</div></div>'+
-      '<div class="plan-kpi" style="--k:'+(aten.length?'#F97316':'#22C55E')+'"><div class="k-t">Atención</div><div class="k-v" style="font-size:15px;line-height:1.5;font-weight:700">'+(aten.length?aten.join(' '):'<span class="plan-chip verde">Todo en orden</span>')+'</div><div class="k-s">UND de todas las líneas: solo referencia.</div></div>';
+      '<div class="plan-kpi" style="--k:'+(aten.length?'#F97316':'#22C55E')+'"><div class="k-t">Atención</div><div class="k-v" style="font-size:15px;line-height:1.5;font-weight:700">'+(aten.length?aten.join(' '):'<span class="plan-chip verde">Todo en orden</span>')+'</div><div class="k-s">UND de todas las líneas: solo referencia.</div></div>'+
+      (()=>{const rm=NS.modos?NS.modos.resumenModos(NS.items(NS.estado.fecha,NS.estado.turno)):{metas:0,turno:0};
+        return (rm.metas?'<div class="plan-kpi" style="--k:#7C3AED"><div class="k-t">Metas entre bloques</div><div class="k-v">'+rm.metas+'</div><div class="k-s">el bloque guarda solo el saldo</div></div>':'')+
+          (rm.turno?'<div class="plan-kpi" style="--k:#2563EB"><div class="k-t">Todo el turno</div><div class="k-v">'+rm.turno+'</div><div class="k-s">cantidad estimada, no firme</div></div>':'');})();
   }
 
   function pintarTabla(){
@@ -350,11 +353,11 @@
         }
         const orig=primera&&g?NS.originalDe(E.fecha,E.turno,p.linea,p.marca,p.presentacion):null;
         const repro=orig!==null&&g&&orig!==g.programado?'<span class="plan-repro" title="Plan al iniciar el bloque frente al plan vigente">original al inicio: '+fmt(orig)+'</span>':'';
-        filas.push('<tr class="plan-fila'+par+(i===0?' plan-ini':'')+'"><td class="c-linea" data-titulo="1"><b'+(i===0?'':' class="rep"')+'>'+esc(l.name)+'</b></td><td class="c-prod" data-label="Marca"><b>'+esc(p.marca)+'</b>'+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">· Cargada como Intermedio</small>':'')+((p.unificadoDeIntermedio||[]).length?' <small style="color:#5a6b78" title="Unificada desde Intermedio con motivo y registro en el historial">· incluye '+(p.unificadoDeIntermedio.reduce((a,x)=>a+num(x.cantidad),0)).toLocaleString('es-PE')+' cargadas como Intermedio</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td data-label="Presentación">'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td>'+
-          '<td class="num" data-label="Cantidad (UND)"><b>'+fmt(cant)+'</b>'+repro+'</td>'+
+        filas.push('<tr class="plan-fila'+par+(i===0?' plan-ini':'')+'"><td class="c-linea" data-titulo="1"><b'+(i===0?'':' class="rep"')+'>'+esc(l.name)+'</b></td><td class="c-prod" data-label="Marca"><b>'+esc(p.marca)+'</b>'+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">· Cargada como Intermedio</small>':'')+((p.unificadoDeIntermedio||[]).length?' <small style="color:#5a6b78" title="Unificada desde Intermedio con motivo y registro en el historial">· incluye '+(p.unificadoDeIntermedio.reduce((a,x)=>a+num(x.cantidad),0)).toLocaleString('es-PE')+' cargadas como Intermedio</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td data-label="Presentación">'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+(NS.modos&&primera?NS.modos.htmlSubproducto(p,g):'')+'</td>'+
+          '<td class="num" data-label="Cantidad del bloque (UND)"><b>'+(NS.modos&&NS.modos.modoDe(p)==='TURNO'?'≈ ':'')+fmt(cant)+'</b>'+(NS.modos&&NS.modos.modoDe(p)==='TURNO'?'<small class="plan-subt">estimada</small>':'')+repro+'</td>'+
           '<td class="num" data-label="Paletas" title="'+(upp?esc(NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:2}))+' paletas equivalentes':'')+'">'+(upp?'<span class="plan-pal">'+esc(NS.paletasTexto(cant,upp))+'<span class="plan-upp">'+fmt(upp)+' UND por paleta</span></span>':'—')+'</td>'+
           celdasAvance+
-          '<td data-label="Estado"><span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span></td><td class="acc">'+
+          '<td data-label="Estado del plan">'+(NS.modos&&primera?NS.modos.htmlEstadoPlan(p,g):'<span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span>')+'</td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-editar="'+esc(p.clave)+'">Editar</button>':
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
           (planifica&&primera&&g&&g.producido!==null&&g.pendiente>0?' <button type="button" class="btn btn-ghost btn-sm" data-plan-trasladar="'+esc(p.clave)+'" title="Mover a otro bloque lo que falta producir (saldo comprobado)">Trasladar saldo</button>':'')+
@@ -370,8 +373,8 @@
     });
     const cambios=NS.cambiosDesdeInicio(E.fecha,E.turno);
     pintarKpis(R,cambios);
-    cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla plan-prog"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th class="num">Cantidad (UND)</th>'+
-      '<th class="num" title="Paletas completas + UND restantes">Paletas (completas + UND)</th><th class="num">Producido (UND)</th><th class="num">Pendiente</th><th class="num">Sobreproducción</th><th>Avance</th><th>Estado</th><th></th></tr></thead><tbody>'+filas.join('')+
+    cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla plan-prog"><thead><tr><th>Línea</th><th>Marca</th><th>Presentación</th><th class="num">Cantidad del bloque (UND)</th>'+
+      '<th class="num" title="Paletas completas + UND restantes">Paletas (completas + UND)</th><th class="num">Producido (UND)</th><th class="num">Pendiente</th><th class="num">Sobreproducción</th><th>Avance</th><th title="Cumplimiento del plan; el estado operativo de la línea se ve aparte">Estado del plan</th><th></th></tr></thead><tbody>'+filas.join('')+
       '</tbody><tfoot><tr><td colspan="3"><b>Total del bloque</b><br><small style="color:#5a6b78">Suma de UND de todas las líneas: solo referencia, no mide capacidad.</small></td><td class="num"><b>'+fmt(total)+'</b></td><td colspan="7"></td></tr></tfoot></table></div>'+
       '<p class="plan-nota">Producido: turno en curso = Paletas; turno cerrado = registro del turno. «Sin registro» no es cero. «Meta alcanzada» (cantidad producida ≥ programada) es distinto del estado «Finalizada».</p>'+
       (cambios.length?'<div class="plan-repro-box"><b>Reprogramado después del inicio del bloque</b> (plan original al iniciar → vigente):<ul>'+cambios.map(c=>'<li>'+esc(NS.nombreLinea(c.linea))+' · '+esc(c.marca)+' '+esc(NS.etiquetaPresentacion(c.linea,c.marca,c.presentacion))+': '+fmt(c.original)+' → '+fmt(c.vigente)+' UND'+(c.vigente===0?' (se quitó)':c.original===0?' (se agregó)':'')+'</li>').join('')+'</ul></div>':'')+
@@ -392,6 +395,7 @@
     const opcionesLinea=NS.lineas().map(l=>'<option value="'+esc(l.key)+'"'+(l.key===f.linea?' selected':'')+'>'+esc(l.name)+'</option>').join('');
     const fondo=abrirDialogo('<h3>'+(existente?'Editar programación':'Nueva programación')+'</h3>'+
       '<div class="small-muted" style="margin-bottom:10px">'+esc(f.fecha)+' · '+esc(f.turno)+'</div>'+
+      (NS.modos?NS.modos.htmlSelector(existente):'')+
       '<div class="plan-campos">'+
       '<label>Línea<select id="pe-linea"'+(existente?' disabled':'')+'>'+opcionesLinea+'</select></label>'+
       '<label>Marca<select id="pe-marca"'+(existente?' disabled':'')+'></select></label>'+
@@ -468,12 +472,23 @@
     }));
     ['pe-cant','pe-upp'].forEach(id=>q(id).addEventListener('input',refrescarCampos));
     refrescarCampos();
+    // Modos de programación (66): Cantidad fija / Completar cantidad / Todo el turno
+    const MD=NS.modos&&NS.modos.montar?NS.modos.montar({fondo,f,existente,q}):null;
     q('pe-cancelar').onclick=()=>fondo.remove();
     q('pe-guardar').onclick=async()=>{
       const fila={linea:q('pe-linea').value,fecha:f.fecha,turno:f.turno,marca:q('pe-marca').value,presentacion:q('pe-pres').value,cantidad:q('pe-cant').value,upp:q('pe-upp').value};
       const motivo=q('pe-motivo').value.trim();
       q('pe-guardar').disabled=true;q('pe-error').textContent='';
-      try{await NS.guardar(fila,{motivo,versionEsperada:visto});fondo.remove();pintarTabla();}
+      try{
+        if(MD&&MD.modo()!=='FIJA'){
+          const m=MD.leer();                                     // vuelve a validar cierre, producción, asignaciones y estimación con lo más reciente
+          fila.cantidad=m.datos.cantidad;
+          await NS.modos.guardar(fila,m.datos,{motivo,versionEsperada:visto});
+        }else if(MD){
+          await NS.modos.guardar(fila,{modo:'FIJA',cantidad:Number(fila.cantidad)},{motivo,versionEsperada:visto});   // limpia meta y estimado de un modo anterior
+        }else await NS.guardar(fila,{motivo,versionEsperada:visto});
+        fondo.remove();pintarTabla();
+      }
       catch(e){
         q('pe-error').textContent=e&&e.conflicto?'':(e&&e.message)||String(e);
         q('pe-guardar').disabled=false;

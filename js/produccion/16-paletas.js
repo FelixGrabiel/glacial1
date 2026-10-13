@@ -405,6 +405,11 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
     actualizadoPor: nombreUsuarioActualPaletas(),
     actualizadoEn: Date.now()
   };
+  /* Modo de programación (Planificación): opc.extra = {modo, meta, estimado, alcance}. Se guarda como dato estructurado en la misma fila;
+     null limpia lo que ya no aplica (Firestore no acepta undefined). Una fila sin modo sigue siendo Cantidad fija. */
+  if(opc.extra && typeof opc.extra === 'object'){
+    Object.keys(opc.extra).forEach(k => { campos[k] = opc.extra[k] === undefined ? null : opc.extra[k]; });
+  }
 
   // Una sola transacción sobre sync/programaciones: el cambio, su control de versión y su historial se guardan juntos (todo o nada).
   // Dos jefes que programen líneas diferentes no se borran entre sí.
@@ -415,6 +420,8 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
     const snap = await tx.get(ref);
     const actuales = snap.exists && Array.isArray(snap.data().items)
       ? snap.data().items.slice() : [];
+    // Validación con las filas MÁS RECIENTES (dentro de la transacción): p. ej. un cierre asignado a otra meta mientras se revisaba.
+    if(typeof opc.validarLista === 'function') opc.validarLista(actuales);
     r = programacionAplicarEnLista(actuales, {
       linea, fecha, turno, marca, presentacion, cantidadNum, uppNum, campos, motivo: opc.motivo
     }, { versionEsperada: opc.versionEsperada });
@@ -427,7 +434,8 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
         anterior: programacionValorHistorial(r.previo, true),
         nuevo: programacionValorHistorial(r.nuevo, false),
         motivo: opc.motivo || '',
-        referencia: opc.referencia || ''
+        referencia: opc.referencia || '',
+        extra: opc.historialExtra || undefined
       });
       if(ev) tx.set(db.collection('historialProgramacion').doc(ev.id), ev.doc);
     }
@@ -443,6 +451,7 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
 function programacionValorHistorial(p, conEstado){
   if(!p) return null;
   const v = { cantidad: num(p.cantidadProgramada), unidadesPorPaleta: num(p.unidadesPorPaleta) };
+  if(p.modo) v.modo = p.modo;
   if(conEstado) v.estado = p.estadoOperacion?.estado || '';
   return v;
 }

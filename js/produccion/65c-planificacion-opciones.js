@@ -173,7 +173,7 @@
      DIÁLOGO
      ========================================================= */
   function htmlCap(c,tit){
-    const e=({CABE:'cabe',JUSTO:'cabe, ajustado',EXCESO:'no cabe',INCOMPLETA:'estimación incompleta',SIN_PROG:'sin programación'})[c.estado]||c.estado;
+    const e=({CABE:'cabe',JUSTO:'cabe, ajustado',EXCESO:'no cabe',INCOMPLETA:'cálculo parcial',SIN_PROG:'sin programación'})[c.estado]||c.estado;
     return tit+': <b>'+esc(e)+'</b>'+(c.estado==='SIN_PROG'||c.estado==='INCOMPLETA'?'':' · '+hm(c.requeridoMin)+' / '+hm(c.disponibleMin));
   }
   function pintarOpciones(fondo,fecha,turno,linea,claveProd){

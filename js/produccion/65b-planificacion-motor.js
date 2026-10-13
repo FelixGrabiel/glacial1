@@ -316,6 +316,7 @@
       brutoMin:duracion,duracionMin:duracion,indisponibleMin:indisponible,paradasMin:indisponible,ventanasSinHorarioMin:sinHorario,ventanas:vt.lista,ventanasInvalidas:vt.errores,ventanasSolapadasMin:vt.sumaMin-vt.unionMin,
       preparaciones:prep.tareas,preparacionesOmitidas:prep.omitidas,cambios,cambiosMin,preparacionMin,produccionMin:prodMin,requeridoMin:requerido,
       disponibleMin:disponible,holguraMin:disponible-requerido,saldoMin:disponible-requerido,cargaPct:null,utilizacionPct:null,estado:'INCOMPLETA',
+      conocidoMin:requerido,excesoMinimoMin:duracion>0?Math.max(0,requerido-disponible):0,
       parcial:!hayReglas&&ord.orden.length>1,secuencia:ord.conSecuencia,parametrosVersion:tp.version,colocacion:{verificada:false,motivo:''},motivoExceso:'',inicioEstMs:null,finEstMs:null};
     // colocación entre ventanas (solo con secuencia completa y sin datos faltantes)
     if(ord.conSecuencia&&!faltantes.length&&duracion>0){

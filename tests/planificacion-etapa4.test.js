@@ -235,7 +235,7 @@ const tiemposDe=N=>N.docs.get('sync/catalogoPlanificacion').tiempos;
   NS.pestanas.find(p=>p.clave==='semanal').actualizar();
   const html=gr.innerHTML;
   ok((html.match(/<tr>/g)||[]).length>=4&&/Lun 0|Sáb \d\d\/03|Dom \d\d\/03/.test(html),'filas por línea y siete columnas de días');
-  ok(/Cabe/.test(html)&&/No cabe/.test(html)&&/Estimación incompleta/.test(html)&&/Sin programación/.test(html),'la semana distingue: cabe, no cabe, estimación incompleta y sin programación');
+  ok(/Cabe/.test(html)&&/No cabe/.test(html)&&/Cálculo parcial/.test(html)&&/Sin programación/.test(html),'la semana distingue: cabe, no cabe, estimación incompleta y sin programación');
   const cd=NS.capacidadLinea(FECHA,'DÍA','PET1'),cn=NS.capacidadLinea(FECHA,'NOCHE','PET1');
   const t=min=>NS.textoDuracion(min);
   ok(html.includes(t(cd.requeridoMin)+' / '+t(cd.disponibleMin))&&html.includes(t(cn.requeridoMin)+' / '+t(cn.disponibleMin)),'cada celda muestra requerido / disponible exactamente igual que el detalle diario (Día y Noche por separado)');
