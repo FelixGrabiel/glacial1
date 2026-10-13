@@ -272,7 +272,7 @@
         (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-copiar>Copiar programación…</button>'+
           '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel>Importar Excel…</button>':'')+
       '</div></div>'+
-      '<div id="plan-kpis" class="plan-kpis"></div><div id="plan-prog-tabla"></div><div id="plan-capacidad"></div><div id="plan-secuencia"></div>'+
+      (NS.horarios?NS.horarios.htmlResumen(E.fecha,E.turno):'')+'<div id="plan-kpis" class="plan-kpis"></div><div id="plan-prog-tabla"></div><div id="plan-capacidad"></div><div id="plan-secuencia"></div>'+
       (planifica?'':'<p class="plan-nota">Solo lectura: para cambiar una cantidad o un producto, usa «Pedir cambio» en la fila. Si falta una programación, pídela desde Solicitudes.</p>');
     pintarTabla();
     if(typeof NS.pintarExtras==='function')NS.pintarExtras();
@@ -329,6 +329,8 @@
     const filas=[];
     NS.lineas().forEach(l=>{
       const propios=items.filter(p=>p.linea===l.key);
+      // Noche (u otro bloque) deshabilitado para la línea: no se muestra como «Sin programación» ni se ofrece agregar; si ya tiene registros históricos, sí se muestra.
+      if(!propios.length&&NS.horarios&&!NS.horarios.habilitado(l.key,E.fecha,E.turno))return;
       if(!propios.length){
         filas.push('<tr class="plan-sin"><td class="c-linea" data-titulo="1"><b>'+esc(l.name)+'</b></td><td colspan="8">Sin programación</td><td></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':

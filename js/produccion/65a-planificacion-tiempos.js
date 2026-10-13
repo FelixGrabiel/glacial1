@@ -30,7 +30,12 @@
   };
   const sinConexion=()=>!!(window.glacialEstadoDatos&&window.glacialEstadoDatos.enLinea===false);
   const idNuevo=p=>p+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-  const bloqueDe=(fecha,bloque)=>({inicioMs:NS.inicioBloqueMs(fecha,bloque),duracionMin:NS.duracionBloqueMin(bloque)});
+  /* Bloque de una fecha. Con línea, el horario sale del resolvedor central (por línea, fecha y vigencia: 51b); sin línea o sin reglas, el horario general de siempre. */
+  const bloqueDe=(fecha,bloque,linea)=>{
+    const r=linea&&window.glacialHorarios?window.glacialHorarios.resolver(linea,fecha,bloque):null;
+    if(r&&r.duracionMin>0)return {inicioMs:r.inicioMs,duracionMin:r.duracionMin,horario:r.horario,habilitado:r.habilitado,version:r.versionHorarios,origen:r.origen};
+    return {inicioMs:NS.inicioBloqueMs(fecha,bloque),duracionMin:NS.duracionBloqueMin(bloque)};
+  };
   NS.bloqueDe=bloqueDe;
 
   /* ---------- huellas ---------- */
@@ -67,7 +72,7 @@
     return {errores,minutos:min};
   };
   NS.validarVentanaNueva=function(v,existentes){
-    return M.validarVentana(v,bloqueDe(v.fecha,v.bloque),existentes);
+    return M.validarVentana(v,bloqueDe(v.fecha,v.bloque,v.linea),existentes);
   };
 
   /* =========================================================
@@ -177,7 +182,7 @@
   NS.evaluacionGuardada=(fecha,turno,linea)=>{const t=typeof NS.tiemposPlan==='function'?NS.tiemposPlan():{};return (t.evaluaciones||{})[claveEval(fecha,NS.valorBloque(turno),linea)]||null;};
   /* Datos de entrada del motor para una línea y bloque reales. */
   NS.entradaMotor=function(fecha,turno,linea,filasOpc){
-    const bloqueClave=NS.valorBloque(turno),b=bloqueDe(fecha,bloqueClave);
+    const bloqueClave=NS.valorBloque(turno),b=bloqueDe(fecha,bloqueClave,linea);
     const filas=filasOpc||NS.items(fecha,turno).filter(p=>p.linea===linea&&NS.estadoDe(p)!=='CANCELADA').map(p=>({marca:p.marca,presentacion:p.presentacion,cantidad:num(p.cantidadProgramada),estado:NS.estadoDe(p),fila:p}));
     let rs=null;                                   // el resumen del bloque (producido oficial) solo se arma si hace falta (capacidad restante)
     const estados=new Map();filas.forEach(f=>{if(f.fila)estados.set((f.marca+'|'+f.presentacion),f.estado);});
@@ -314,7 +319,7 @@
       '<div class="plan-bar" style="margin-bottom:8px"><label>Desde<input type="date" id="ti-desde" value="'+esc(F.desde)+'"></label><label>Hasta<input type="date" id="ti-hasta" value="'+esc(F.hasta)+'"></label>'+
       (planifica?'<span style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-ti-ventana-nueva>+ Agregar ventana</button>':'')+'</div>'+
       '<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Fecha</th><th>Línea</th><th>Bloque</th><th>Tipo</th><th>Horario</th><th class="num">Duración</th><th>Motivo</th><th>Registró</th><th></th></tr></thead><tbody>'+
-      (ventanas.length?ventanas.map(x=>{const p=M.posicionVentana(x,bloqueDe(x.fecha,x.bloque));return '<tr><td>'+esc(fechaTxt(x.fecha))+'</td><td>'+esc(NS.nombreLinea(x.linea))+'</td><td>'+esc(textoBloque(x.bloque))+'</td><td>'+esc(M.TIPOS_VENTANA[x.tipo])+'</td>'+
+      (ventanas.length?ventanas.map(x=>{const p=M.posicionVentana(x,bloqueDe(x.fecha,x.bloque,x.linea));return '<tr><td>'+esc(fechaTxt(x.fecha))+'</td><td>'+esc(NS.nombreLinea(x.linea))+'</td><td>'+esc(textoBloque(x.bloque))+'</td><td>'+esc(M.TIPOS_VENTANA[x.tipo])+'</td>'+
         '<td>'+esc(x.inicio)+(x.fin?'–'+esc(x.fin):'')+(p.error?' <span class="plan-error" style="display:inline" title="'+esc(p.error)+'">⚠ inválida</span>':'')+'</td><td class="num">'+(p.error?'—':(p.z-p.a)+' min')+'</td><td>'+esc(x.motivo)+'</td><td><small>'+esc(x.responsable)+'</small></td>'+
         '<td class="acc">'+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ti-ventana-quitar="'+esc(x.id)+'">Quitar</button>':'')+'</td></tr>';}).join('')
         :'<tr><td colspan="9" class="plan-nota">No hay ventanas registradas en este rango.</td></tr>')+'</tbody></table></div>'+

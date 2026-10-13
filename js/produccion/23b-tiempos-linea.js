@@ -67,8 +67,13 @@
   function cfgBloques(){
     try{const c=typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores():null;return c?c.bloques:undefined;}catch(_){return undefined;}
   }
-  function rangoTurno(fecha,turno){
+  function rangoTurno(fecha,turno,compartida,linea){
     if(!['DÍA','INTERMEDIO','NOCHE'].includes(turno))return null;
+    // Con línea, el horario sale del resolvedor central (por línea, fecha y vigencia: 51b). Sin reglas configuradas devuelve el horario general de siempre.
+    if(linea&&window.glacialHorarios){
+      const r=window.glacialHorarios.resolver(linea,fecha,turno);
+      if(r&&r.duracionMin>0)return {inicio:r.inicioMs,fin:r.finMs};
+    }
     const h=GlacialIndicadores.horarioBloque(fecha,turno,cfgBloques());
     return h?{inicio:h.inicio,fin:h.fin}:null;
   }
@@ -296,7 +301,7 @@
     const items=itemsBloque(linea,fecha,turno);
     const activos=items.filter(p=>p.estadoOperacion?.estado!=='CANCELADA');
     const compartida=turno==='INTERMEDIO'&&items.some(p=>p.turno==='DÍA');
-    const rango=rangoTurno(fecha,turno,compartida);
+    const rango=rangoTurno(fecha,turno,compartida,linea);
 
     const inicios=activos.map(p=>num(p.estadoOperacion?.inicio)).filter(Boolean);
     let inicio=opts.inicioMs!==undefined?num(opts.inicioMs):(inicios.length?Math.min(...inicios):0);

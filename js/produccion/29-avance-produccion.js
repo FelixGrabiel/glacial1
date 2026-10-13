@@ -43,12 +43,25 @@ function avCtx(){
   const c=state.user?.contextoRotacion;
   const turno=avTurnoCanon(state.user?.turnoOperativo||c?.turno||avTurnoPorHora());
   const bl=avBloquesCfg()[turno==='NOCHE'?'noche':'diaInter'];
-  return {
+  const r={
     turno,
     fecha:state.user?.fechaOperativa||c?.fechaOperativa||avFechaHoy(),
     inicio:state.user?.horarioOperativoInicio||c?.horarioInicio||bl.inicio,
     fin:state.user?.horarioOperativoFin||c?.horarioFin||bl.fin
   };
+  // Tolerancia de Noche (51b): hasta 30 min después de su fin (07:00 → 07:30) todavía se completa el registro y el cierre de ESA Noche.
+  // No adelanta aperturas, no cambia la duración productiva y no se aplica si el usuario tiene un turno asignado por rotación.
+  try{
+    if(window.glacialHorarios&&!state.user?.turnoOperativo&&!c?.turno){
+      const tol=window.glacialHorarios.toleranciaActual(avAhoraMs());
+      if(tol){r.turno='NOCHE';r.fecha=tol.fecha;r.enTolerancia=true;r.toleranciaHasta=tol.hasta;}
+    }
+  }catch(_){/* sin horarios configurados */}
+  return r;
+}
+/* Etiqueta de la tolerancia (solo cuando corresponde). */
+function avChipTolerancia(){
+  try{const c=avCtx();return c.enTolerancia&&avanceEstado.fecha===c.fecha&&avanceEstado.turno==='NOCHE'?' <span class="av-eyebrow" style="background:#fff4d6;color:#8a5a00;padding:2px 8px;border-radius:99px">'+avEsc(window.glacialHorarios.textoTolerancia())+' (hasta '+avEsc(c.toleranciaHasta)+')</span>':'';}catch(_){return '';}
 }
 function avRef(){return db.collection('sync').doc('avancesTurno');}
 function avSnapshotId(tipo,hora){
@@ -90,7 +103,23 @@ function avProgramaciones(){
    sync/configIndicadores → bloques) lo cierra solo «Finalizar presentación» en Producción Actual. Generar el «Cierre» antes
    de que termine el bloque es un RELEVO: deja registrado el avance del supervisor con la hora real y NO fija el fin del bloque.
    Después de terminado el bloque, el cierre se corta en el fin del bloque. */
-function avHorarioBloque(){return GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}
+/* Líneas habilitadas para la selección con su horario resuelto (51b). Sin reglas, todas con el horario general. */
+function avHorariosLineas(){
+  if(!window.glacialHorarios)return [];
+  return AVANCE_LINEAS.map(l=>window.glacialHorarios.resolver(l,avanceEstado.fecha,avanceEstado.turno)).filter(Boolean);
+}
+function avHorarioBloque(){
+  // Con reglas por línea, el bloque va desde el inicio más temprano hasta el fin más tardío de las líneas habilitadas (el cierre no corta a una línea que aún produce).
+  try{
+    const hs=avHorariosLineas().filter(h=>h.habilitado);
+    if(hs.length){
+      const base=GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);
+      return {inicio:Math.min(...hs.map(h=>h.inicioMs)),fin:Math.max(...hs.map(h=>h.finMs)),bloque:base?base.bloque:'',etiqueta:base?base.etiqueta:''};
+    }
+  }catch(_){/* horario general */}
+  return avHorarioBloqueGeneral();
+}
+function avHorarioBloqueGeneral(){return GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}
 function avAhoraMs(){return typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();}
 function avEsRelevo(ahora){const b=avHorarioBloque();return !!b&&(ahora||avAhoraMs())<b.fin;}
 function avCorteCierre(ahora){const b=avHorarioBloque();return b?avHoraHHMM(Math.min(ahora||avAhoraMs(),b.fin)):avCtx().fin;}
@@ -1183,7 +1212,62 @@ function avSlotsTurno(turno){
 }
 function avSlotActual(){ return avHoraActual(); }
 function avSnapshotPorReferencia(tipo,ref){
-  return avanceEstado.snapshots.find(s=>s.tipo===tipo&&(tipo==='CIERRE'||s.horaReferencia===ref))||null;
+  if(tipo==='CIERRE')return avUltimoSnapshot('CIERRE');       // con versiones regeneradas, el vigente es el último
+  return avanceEstado.snapshots.find(s=>s.tipo===tipo&&s.horaReferencia===ref)||null;
+}
+/* ---------- GENERAR CIERRE de una fecha y bloque seleccionados (histórico) ----------
+   Opera sobre la SELECCIÓN (no sobre el turno del dispositivo), a cualquier hora y también después de la tolerancia de las 07:30. Crear o regenerar el reporte NO reabre ni finaliza
+   registros de producción. Un reporte regenerado es una versión NUEVA (id con sufijo vN, motivo, referencia a la anterior); la anterior se conserva. */
+function avDatosFaltantesCierre(s){
+  const regs=avRegistros(),falt=[];
+  (s.lineas||[]).forEach(l=>{
+    const rs=regs.filter(r=>r.linea===l.linea);
+    if(!rs.length)falt.push((l.nombre||l.linea)+': no hay registro de producción de ese bloque');
+    else if(rs.some(r=>r.estadoRegistro!=='FINALIZADO'))falt.push((l.nombre||l.linea)+': el registro de producción no está finalizado');
+  });
+  return falt;
+}
+async function avGenerarSeleccion(opc){
+  opc=opc||{};
+  if(!avPuedeGenerar())throw Error('Tu usuario tiene acceso de consulta y no puede generar cierres.');
+  if(!avanceEstado.fecha||!avanceEstado.turno)throw Error('Elige una fecha y un bloque.');
+  const previo=avUltimoSnapshot('CIERRE');
+  if(previo&&!opc.regenerar)throw Error('Ya existe un cierre de esta fecha y bloque: usa «Ver cierre» o «Regenerar cierre».');
+  if(opc.regenerar&&String(opc.motivo||'').trim().length<5)throw Error('Escribe el motivo de la regeneración (mínimo 5 caracteres).');
+  await avCargarDistribucion();
+  const s=avConstruirSnapshot('CIERRE','CIERRE');
+  const version=(previo?avNum(previo.version||1):0)+1;
+  s.version=version;s.generadoDesde='SELECCION';s.historico=true;
+  if(previo){s.reemplazaA=previo.id;s.motivoRegeneracion=String(opc.motivo).trim();s.id=avSnapshotId('CIERRE','CIERRE')+'|v'+version;}
+  const falt=avDatosFaltantesCierre(s);
+  s.datosCompletos=!falt.length;s.faltantes=falt;
+  await avGuardarSnapshot(s);
+  avanceEstado.previewId=s.id;
+  avAviso(falt.length?'Reporte generado con datos incompletos ('+falt.join('; ')+'). No es una finalización oficial de la producción.':(previo?'Cierre regenerado (versión '+version+').':'Cierre generado correctamente.'));
+  return s;
+}
+function avAccionesHistoricoHtml(){
+  const c=avUltimoSnapshot('CIERRE');
+  return `<div class="av-module-actions">${c?`<button class="btn btn-ghost" onclick="avVer('${avEsc(c.id)}')">VER CIERRE${c.version>1?' (v'+c.version+')':''}</button><button class="btn btn-ghost" onclick="avAbrirCierreHistorico(true)">REGENERAR CIERRE</button>`
+    :'<button class="btn btn-primary" onclick="avAbrirCierreHistorico(false)">GENERAR CIERRE</button>'}<small class="small-muted" style="align-self:center">Opera sobre ${avEsc(avanceEstado.fecha)} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}; no reabre ni finaliza registros de producción.</small></div>`;
+}
+function avAbrirCierreHistorico(regenerar){
+  const previo=document.getElementById('av-cierre-hist');if(previo)previo.remove();
+  const f=document.createElement('div');f.id='av-cierre-hist';
+  f.style.cssText='position:fixed;inset:0;background:rgba(10,30,50,.55);z-index:10080;display:flex;align-items:center;justify-content:center;padding:14px';
+  f.innerHTML=`<div role="dialog" aria-modal="true" style="background:#fff;border-radius:14px;padding:18px;max-width:460px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)"><h3 style="margin:0 0 8px;color:#003b5c">${regenerar?'Regenerar cierre':'Generar cierre'}</h3>
+    <p style="font-size:13px;margin:0 0 8px">${avEsc(avanceEstado.fecha)} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}. ${regenerar?'Se crea una versión NUEVA del reporte; la anterior se conserva.':'Se genera el reporte con los datos válidos de esa fecha y ese bloque; lo que falte se indica, no se inventa producción cero.'} Esto no reabre ni finaliza registros de producción.</p>
+    ${regenerar?'<label style="font-size:12px;font-weight:600;color:#5a6b78">Motivo de la regeneración (obligatorio)<textarea id="av-cierre-motivo" rows="2" maxlength="200" style="width:100%;box-sizing:border-box"></textarea></label>':''}
+    <div id="av-cierre-err" role="alert" style="color:#c62828;font-size:12px;min-height:16px;white-space:pre-line;margin-top:6px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button type="button" class="btn btn-ghost" id="av-cierre-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="av-cierre-ok">${regenerar?'Regenerar':'Generar cierre'}</button></div></div>`;
+  document.body.appendChild(f);
+  f.querySelector('#av-cierre-cancelar').onclick=()=>f.remove();
+  const ok=f.querySelector('#av-cierre-ok');
+  ok.onclick=async()=>{
+    ok.disabled=true;f.querySelector('#av-cierre-err').textContent='';
+    try{await avGenerarSeleccion({regenerar:!!regenerar,motivo:regenerar?f.querySelector('#av-cierre-motivo').value:''});f.remove();avDibujar();}
+    catch(e){f.querySelector('#av-cierre-err').textContent=(e&&e.message)||String(e);ok.disabled=false;}     // doble clic o reintento no duplican: el id es único por versión
+  };
 }
 async function avGenerar(hora,tipo='AVANCE'){
   try{
@@ -1296,6 +1380,13 @@ function avFechaBonita(fecha){
 }
 function avTurnoHorario(turno,s){
   if(s?.inicioTurno||s?.finTurno)return `${s.inicioTurno||'—'} - ${s.finTurno||'—'}`;
+  try{       // horario de producción por línea (51b): si las líneas tienen horarios distintos no se muestra uno solo como si valiera para todas
+    if(window.glacialHorarios&&avanceEstado.fecha&&(turno===avanceEstado.turno)){
+      const hs=avHorariosLineas().filter(h=>h.habilitado),dist=[...new Set(hs.map(h=>h.horario))];
+      if(dist.length===1)return dist[0].replace('–',' - ');
+      if(dist.length>1)return 'según línea';
+    }
+  }catch(_){/* horario general */}
   const bl=avBloquesCfg()[turno==='NOCHE'?'noche':'diaInter'];
   return bl.inicio+' - '+bl.fin;
 }
@@ -1841,13 +1932,25 @@ function avDibujar(){
   avAsegurarDistribucion();
   const ctx=avCtx(),actual=avanceEstado.fecha===ctx.fecha&&avanceEstado.turno===ctx.turno;
   root.innerHTML=`
-    <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
+    <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'}${avChipTolerancia()} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
     ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
+    ${!actual&&avPuedeGenerar()?avAccionesHistoricoHtml():''}
+    ${avHorariosLineasHtml()}
     ${avAdminMigracionHtml()}
     <div id="av-estado" class="av-inline-status"></div>
     <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${avNombreTurnoPantalla(t)}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
     ${avHistorialGeneralHtml()}`;
   avInstalarBotonFlotante();
+}
+/* Horario de producción por línea de la selección (solo cuando difiere entre líneas o hay líneas deshabilitadas). */
+function avHorariosLineasHtml(){
+  try{
+    if(!window.glacialHorarios)return '';
+    const hs=avHorariosLineas().filter(h=>AVANCE_LINEAS.includes(h.linea));
+    const hab=hs.filter(h=>h.habilitado),des=hs.filter(h=>!h.habilitado);
+    if(!hab.length||([...new Set(hab.map(h=>h.horario))].length<=1&&!des.length))return '';
+    return `<div class="av-inline-status" style="font-size:12px;color:#46627a">Horario de producción por línea: ${hab.map(h=>avEsc(h.linea)+' '+avEsc(h.horario)+(h.etiqueta&&!/^(mañana|noche)/i.test(h.etiqueta)?' ('+avEsc(h.etiqueta)+')':'')).join(' · ')}${des.length?' · Deshabilitado: '+des.map(h=>avEsc(h.linea)).join(', '):''}</div>`;
+  }catch(_){return '';}
 }
 function avVerDesdeModulo(id){avVer(id);}
 /* Solo Administrador: porcentaje del documento antiguo y botón de migración (respaldo + copia verificada). */

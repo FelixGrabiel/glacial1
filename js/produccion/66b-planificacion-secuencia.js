@@ -63,7 +63,7 @@
      sus tramos y los siguientes (no se usa duración cero para adelantar otras marcas). */
   S.estimar=function(linea,fecha,turno,filas,opc){
     opc=opc||{};
-    const bloque=bl(turno),b=NS.bloqueDe(fecha,bloque);
+    const bloque=bl(turno),b=NS.bloqueDe(fecha,bloque,linea);
     const idxPend=filas.findIndex(f=>f.saldo&&!(num(f.cantidad)>0));
     const usar=(idxPend<0?filas:filas.slice(0,idxPend)).map((f,i)=>({orden:i+1,marca:f.marca,presentacion:f.presentacion,tipoFin:f.tipoFin,cantidadObjetivo:f.tipoFin==='CANTIDAD'?num(f.cantidad):undefined,horaFin:f.hora,cambioPrevioMin:f.cambioPrevioMin}));
     const ahora=ahoraMs();
@@ -211,7 +211,7 @@
   S.proyeccion=function(linea,fecha,turno){
     const filas=S.filasDe(linea,fecha,turno);
     if(!filas.length)return null;
-    const b=NS.bloqueDe(fecha,bl(turno));
+    const b=NS.bloqueDe(fecha,bl(turno),linea);
     if(ahoraMs()<b.inicioMs)return {aplica:false,motivo:'El bloque todavía no empieza: la proyección usa el plan publicado.'};
     const e=S.estimar(linea,fecha,turno,filas,{proyeccion:true});
     const rl=reales(linea,fecha,turno,b);

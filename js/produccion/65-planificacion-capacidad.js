@@ -71,7 +71,7 @@
     if(!tramos.length)return null;
     const c=NS.capacidadVigente(fecha,turno,linea);
     if(!c)return null;
-    const bloque=NS.valorBloque(turno),b=NS.bloqueDe(fecha,bloque),col=c.colocacion||{};
+    const bloque=NS.valorBloque(turno),b=NS.bloqueDe(fecha,bloque,linea),col=c.colocacion||{};
     const evs=(col.eventos||[]).filter(e=>e.tipo==='TRAMO');
     const sal=tramos.map(t=>{
       const e=evs.find(x=>num(x.orden)===num(t.orden)&&x.marca===t.marca&&x.presentacion===t.presentacion);

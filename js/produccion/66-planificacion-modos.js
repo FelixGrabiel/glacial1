@@ -110,6 +110,10 @@
       if(M.ordenBloque(o.ref.fecha,o.ref.bloque)>=M.ordenBloque(o.fecha,o.bloque))errores.push('El cierre de referencia debe ser anterior al bloque de destino (no se vincula a sí mismo ni a un cierre posterior).');
     }
     if(errores.length)return r;
+    if(window.glacialHorarios){
+      const hr=window.glacialHorarios.resolver(o.linea,o.ref.fecha,o.ref.bloque);
+      if(hr&&!hr.habilitado){errores.push((hr.bloque==='NOCHE'?'Noche':'Ese bloque')+' no estaba habilitado para '+NS.nombreLinea(o.linea)+' el '+o.ref.fecha+': elige otro bloque de referencia.');return r;}
+    }
     const cierre=M.cierreReferencia({registros:o.registros,linea:o.linea,fecha:o.ref.fecha,bloque:o.ref.bloque,marca:o.marca,presentacion:o.presentacion});
     r.cierre=cierre;r.estado=cierre.estado;
     // cantidad vinculada: aquí es una INTENCIÓN (vacía = toda la producción elegible); se valida contra lo elegible cuando el cierre se confirma

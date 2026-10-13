@@ -40,8 +40,8 @@
 
   /* Tiempo disponible de un bloque vacío (para ubicar destinos): duración − unión de ventanas (o respaldo general). */
   function disponibleBloque(fecha,bloque,linea,tp){
-    const b=NS.bloqueDe(fecha,bloque);
-    if(!(b.duracionMin>0))return null;
+    const b=NS.bloqueDe(fecha,bloque,linea);
+    if(!(b.duracionMin>0)||b.habilitado===false)return null;       // un bloque deshabilitado para la línea no es destino
     const vt=M.ventanasDe(tp,linea,fecha,bloque,b);
     if(vt.lista.length)return b.duracionMin-vt.unionMin;
     const g=bloque==='NOCHE'?tp.legacy.fijoNocheMin:tp.legacy.fijoDiaMin;
