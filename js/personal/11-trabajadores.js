@@ -350,7 +350,7 @@ function renderWorkerList(){
 
               <div style="font-weight:600;">
 
-                ${w.nombre}
+                ${escaparHtml(w.nombre)}
 
                 ${
                   w.estado === 'Inactivo'

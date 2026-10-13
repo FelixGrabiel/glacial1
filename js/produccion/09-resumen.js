@@ -2095,7 +2095,7 @@ function generarInsightParadasPlanta(paradasAgrupadas, rangoLabel){
 
   return (
     `La causa que más tiempo detiene la planta es ` +
-    `<strong>${causaTop.descripcion}</strong> ` +
+    `<strong>${escaparHtml(causaTop.descripcion)}</strong> ` +
     `(${formatearNumero(causaTop.minutos)} min, ${causaTop.tipo.toLowerCase()}). ` +
     `Las 3 causas principales explican ${participacionTop3}% de los ` +
     `${formatearNumero(paradasAgrupadas.total)} min perdidos en ${rangoLabel}.`

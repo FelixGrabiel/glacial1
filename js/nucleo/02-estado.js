@@ -1042,7 +1042,7 @@ function onWorkersUpdated(){
       findWorkersForLine(draft.linea).map(
 
         w => `
-          <option value="${w.nombre}">${w.cargo || ''}</option>
+          <option value="${escaparHtml(w.nombre)}">${escaparHtml(w.cargo || '')}</option>
         `
 
       ).join('');
