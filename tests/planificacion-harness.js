@@ -66,7 +66,7 @@ function dispositivo(N,usuario,opc){
   sb.db=N.db;
   sb.confirm=m=>{sb.__confirm=m;return true;};sb.alert=m=>{sb.__alert=m;};
   vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+FUNC16,sb);
-  ['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes'].concat(opc.sin64?[]:['64-planificacion-avance','65b-planificacion-motor','65a-planificacion-tiempos','65-planificacion-capacidad','65c-planificacion-opciones','65d-planificacion-semanal','66-planificacion-modos']).forEach(f=>vm.runInContext(leer('js/produccion/'+f+'.js'),sb));
+  ['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes'].concat(opc.sin64?[]:['64-planificacion-avance','65b-planificacion-motor','65a-planificacion-tiempos','65-planificacion-capacidad','65c-planificacion-opciones','65d-planificacion-semanal','66-planificacion-modos','66b-planificacion-secuencia']).forEach(f=>vm.runInContext(leer('js/produccion/'+f+'.js'),sb));
   const sincronizar=()=>{const d=N.docs.get('sync/programaciones');sb._programacionesCache=d&&Array.isArray(d.items)?clon(d.items):[];};
   N.oyentes.push(sincronizar);sincronizar();
   sb.NS=sb.glacialPlanificacion;

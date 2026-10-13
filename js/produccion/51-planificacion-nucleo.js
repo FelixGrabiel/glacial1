@@ -100,7 +100,7 @@
   };
   /* «Completar cantidad» guardado SIN saldo todavía (pendiente de cierre) o con meta ya completada: la fila existe con cantidad 0 y su meta/resolución
      (66-planificacion-modos.js). Los demás módulos solo leen filas con cantidad > 0, así que no la ven como orden productiva. */
-  NS.esPlanSinCantidad=p=>!!p&&p.modo==='COMPLETAR'&&!!p.meta&&!!p.meta.resolucion&&!(num(p.cantidadProgramada)>0);
+  NS.esPlanSinCantidad=p=>!!p&&!(num(p.cantidadProgramada)>0)&&((p.modo==='COMPLETAR'&&!!p.meta&&!!p.meta.resolucion)||((p.modo==='HORA'||p.modo==='TURNO')&&!!p.estimado&&p.estimado.estado==='PENDIENTE'));
   NS.filaVigente=ex=>!!ex&&(num(ex.cantidadProgramada)>0||NS.esPlanSinCantidad(ex));
   NS.paletasEquivalentes=(cant,upp)=>num(upp)>0?num(cant)/num(upp):0;
   /* Unidades por paleta: el catálogo (53) manda; si no hay, la tabla fija de siempre. */
@@ -240,7 +240,8 @@
         if(modoP!=='FIJA'){
           omitidos.push({texto:destino+' · '+p.turno+' · '+NS.nombreLinea(p.linea)+' · '+p.marca+' '+NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion)+': '+
             (modoP==='COMPLETAR'?'Completar cantidad: no se copia (el cierre ya asignado no se reutiliza); revisa la referencia y aplica el saldo en la fecha destino.'
-              :'Todo el turno: no se copia (la estimación depende de las ventanas y preparaciones de ese día); prográmalo de nuevo.')});
+              :modoP==='HORA'?'Hasta una hora: no se copia (hay que validar la hora límite y la estimación de ese día); prográmalo de nuevo en «Secuencia».'
+              :'Todo el turno / hasta el cierre: no se copia (la estimación depende de las ventanas y preparaciones de ese día); prográmalo de nuevo.')});
           return;
         }
         // Día + Intermedio es UN bloque: la copia va a la fila DÍA y, si el producto tenía fila en ambos turnos, se SUMA.

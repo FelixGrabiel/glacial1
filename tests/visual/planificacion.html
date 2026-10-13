@@ -106,7 +106,7 @@ document.getElementById('reiniciar').onclick=()=>{sembrar();avisar();};
   if(!localStorage.getItem(KEY)||Q.get('seed')==='1')sembrar();
   const s16=await (await fetch('js/produccion/16-paletas.js')).text();
   ['claveProgramacionPaleta','obtenerProgramacionPaleta','programacionValorHistorial','programacionConflicto','programacionAplicarEnLista','guardarProgramacionPaleta'].forEach(n=>(0,eval)(extraer(s16,n).replace(/^(async )?function (\w+)/,'window.$2=$1function $2')));
-  for(const f of ['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes','64-planificacion-avance','65b-planificacion-motor','65a-planificacion-tiempos','65-planificacion-capacidad','65c-planificacion-opciones','65d-planificacion-semanal','66-planificacion-modos'])await cargar('js/produccion/'+f+'.js');
+  for(const f of ['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes','64-planificacion-avance','65b-planificacion-motor','65a-planificacion-tiempos','65-planificacion-capacidad','65c-planificacion-opciones','65d-planificacion-semanal','66-planificacion-modos','66b-planificacion-secuencia'])await cargar('js/produccion/'+f+'.js');
   sincronizarProgramaciones();
   glacialPlanificacionEscuchas();
   renderPlanificacion(document.getElementById('main'));

@@ -32,7 +32,9 @@
   const fmt=n=>num(n).toLocaleString('es-PE');
   const hm=m=>typeof NS.textoDuracion==='function'?NS.textoDuracion(m):Math.round(m)+' min';
 
-  M.MODOS={FIJA:'Cantidad fija',COMPLETAR:'Completar cantidad',TURNO:'Todo el turno'};
+  M.MODOS={FIJA:'Cantidad fija',COMPLETAR:'Completar cantidad',TURNO:'Todo el turno',HORA:'Hasta una hora'};
+  M.MODOS_FORM=['FIJA','COMPLETAR','TURNO'];                       // «Hasta una hora» se define en la secuencia (66b), no en este formulario simple
+  M.esTemporal=p=>M.modoDe(p)==='TURNO'||M.modoDe(p)==='HORA';       // sin cantidad fija: la cantidad es ESTIMADA
   M.modoDe=item=>item&&M.MODOS[item.modo]?item.modo:'FIJA';          // lo antiguo (sin modo) es Cantidad fija
   M.ALCANCES={TODO_TURNO:'Todo el turno',TIEMPO_RESTANTE:'Producir durante el tiempo restante'};
 
@@ -205,8 +207,9 @@
       if(rs.estado==='META_COMPLETADA'&&sin){r.cumplida=true;r.clave='META_COMPLETADA';r.texto='Meta completada';r.cls='est-fin';r.nota='La producción vinculada alcanza la meta: no hay saldo por programar.';return r;}
       if(rs.estado==='REQUIERE_REVISION'&&sin){r.clave='REQUIERE_REVISION';r.texto='Requiere revisión';r.cls='est-curso';r.nota=rs.nota||'';return r;}
     }
-    if(modo==='TURNO'){
-      // Todo el turno: no se completa por alcanzar el estimado; sigue vigente hasta la finalización/cierre confirmado.
+    if(modo==='TURNO'||modo==='HORA'){
+      // Todo el turno / hasta el cierre / hasta una hora: no se completan por alcanzar el estimado ni por la hora prevista; siguen vigentes hasta la finalización/cierre confirmado.
+      if(p.estimado&&p.estimado.estado==='PENDIENTE'&&!(num(p.cantidadProgramada)>0)){r.clave='ESTIMACION_PENDIENTE';r.texto='Estimación pendiente';r.cls='est-pend';r.nota=p.estimado.motivo||'';return r;}
       if(est==='FINALIZADA'){r.clave='FINALIZADA';r.texto='Finalizada';r.cls='est-fin';r.nota='Cerrada: la cifra estimada es solo informativa.';}
       else{r.clave='VIGENTE';r.nota=prod!==null&&prod>=prog?'Alcanzó el estimado y sigue vigente hasta el cierre confirmado.':'Vigente hasta el cierre confirmado (el estimado es informativo).';}
       return r;
@@ -271,9 +274,12 @@
         (ref?'<small class="plan-subt">Cierre de referencia: '+esc(ref.fecha)+' · '+esc(M.etiquetaBloque(ref.bloque))+'</small>':'')+
         rev.map(x=>'<small class="plan-subt plan-warn">⚠ '+esc(x.motivo)+' ('+esc(x.fecha)+' · '+esc(M.etiquetaBloque(x.bloque))+')'+(x.ahora!==null?': antes '+fmt(x.antes)+', ahora '+fmt(x.ahora):'')+' — revisa el saldo con «Editar».</small>').join('');
     }
-    if(modo==='TURNO'){
-      const r=M.revisionTurno(p),e=p.estimado;
-      return '<span class="plan-modo plan-modo-t">Todo el turno</span><small class="plan-subt">Meta estimada según ratio nominal'+(e&&e.ratio?' ('+fmt(e.ratio)+' UND/h)':'')+(p.alcance==='TIEMPO_RESTANTE'?' · durante el tiempo restante':'')+'</small>'+
+    if(modo==='TURNO'||modo==='HORA'){
+      const r=p.tramosSecuencia&&p.tramosSecuencia.length&&NS.secuencia?NS.secuencia.revision(p):M.revisionTurno(p),e=p.estimado;
+      const nombre=modo==='HORA'?'Hasta una hora':(p.alcance==='TIEMPO_RESTANTE'?'Tiempo restante':'Todo el turno');
+      const tr=(p.tramosSecuencia||[])[0]||{};
+      return '<span class="plan-modo plan-modo-t">'+nombre+'</span><small class="plan-subt">'+(modo==='HORA'?'Hasta las '+esc((tr.horaFin||(e&&e.horaFin))||'—')+' · ':'')+'Meta estimada según ratio nominal'+(e&&e.ratio?' ('+fmt(e.ratio)+' UND/h)':'')+(modo==='TURNO'&&p.alcance==='TIEMPO_RESTANTE'?' · hasta el cierre':'')+'</small>'+
+        (e&&e.estado==='PENDIENTE'?'<small class="plan-subt plan-warn">Estimación pendiente: '+esc(e.motivo||'')+'</small>':'')+
         (r&&r.cambio?'<small class="plan-subt plan-warn">⚠ Con los parámetros de hoy serían '+fmt(r.hoy)+' UND (guardado: '+fmt(r.guardado)+'). Revísalo con «Editar».</small>':'');
     }
     return '';
@@ -287,7 +293,7 @@
     if(rs&&rs.estado!=='PENDIENTE_CIERRE'&&e.clave!=='PENDIENTE_CIERRE'&&e.clave!=='META_COMPLETADA'&&e.clave!=='REQUIERE_REVISION')h+='<small class="plan-subt">Saldo: '+esc(rs.texto.toLowerCase())+'</small>';
     if(am)h+='<small class="plan-subt">Meta global: '+(am.pct===null?'sin registro':Math.round(am.pct*100)+' % ('+fmt(am.acumulado)+' de '+fmt(am.total)+')')+'</small>';
     if(e.cumplida||e.clave==='FINALIZADA_CON_SALDO')h+='<small class="plan-subt">Línea: '+esc(e.operativo.texto)+'</small>';
-    if(e.modo==='TURNO'&&mostrarNota!==false)h+='<small class="plan-subt">'+esc(e.nota)+'</small>';
+    if((e.modo==='TURNO'||e.modo==='HORA')&&mostrarNota!==false)h+='<small class="plan-subt">'+esc(e.nota)+'</small>';
     return h;
   };
   /* Conteos para las tarjetas de resumen del bloque. */
@@ -346,6 +352,7 @@
           :{estado:num(datos.cantidad)===0?'META_COMPLETADA':'SALDO_CALCULADO',codigo:'',nota:'',cierreId:datos.cierreId||'',producidoCierre:num(datos.producidoCierre),saldo:num(datos.cantidad),calculadoEn:ahoraMs(),calculadoPor:quien(),origen:'MANUAL',versionPlan:vp};
         conservarCero=pend||num(datos.cantidad)===0;
       }
+      if(modo==='HORA')throw new Error('«Hasta una hora» se define en la secuencia de la línea.');
       if(modo==='TURNO'&&!(extra.estimado&&num(extra.estimado.cantidad)>0))throw new Error('La estimación de «Todo el turno» está incompleta: no se guarda un valor inventado.');
       // no reducir por debajo de lo ya producido
       const ex=NS.existente(fila.linea,fila.fecha,NS.turnoDeGuardado(fila),fila.marca,fila.presentacion);
@@ -383,7 +390,7 @@
   };
   M.htmlSelector=function(existente){
     const m=M.modoDe(existente);
-    return '<div class="pm-modos" role="radiogroup" aria-label="Modo de programación">'+Object.keys(M.MODOS).map(k=>'<label class="'+(k===m?'on':'')+'"><input type="radio" name="pm-modo" value="'+k+'"'+(k===m?' checked':'')+'>'+esc(M.MODOS[k])+(k===m?' ✓':'')+'</label>').join('')+'</div>'+
+    return '<div class="pm-modos" role="radiogroup" aria-label="Modo de programación">'+M.MODOS_FORM.map(k=>'<label class="'+(k===m?'on':'')+'"><input type="radio" name="pm-modo" value="'+k+'"'+(k===m?' checked':'')+'>'+esc(M.MODOS[k])+(k===m?' ✓':'')+'</label>').join('')+'</div>'+
       '<div id="pm-panel-c" class="pm-panel" style="display:none"></div><div id="pm-panel-t" class="pm-panel" style="display:none"></div>';
   };
   /* Monta la lógica de los paneles sobre el diálogo ya creado. ctx: {fondo,f,existente,q,refrescar}. Devuelve {leer()}: valida con los datos más recientes y arma lo que se guarda. */

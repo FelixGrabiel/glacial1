@@ -145,8 +145,10 @@
       sal.push(l.name);
       // un producto con filas en Día e Intermedio se muestra sumado
       const por=new Map();ps.forEach(p=>{const k=p.marca+'|'+p.presentacion,o=por.get(k)||{p,cant:0,upp:0,est:NS.estadoDe(p)};o.cant+=num(p.cantidadProgramada);o.upp=num(p.unidadesPorPaleta)||o.upp;por.set(k,o);});
+      const segL=NS.secuencia?NS.secuencia.textoLinea(l.key,fecha,turno):'';
       por.forEach(o=>NS.esPlanSinCantidad(o.p)?sal.push('- '+o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion)+': saldo por calcular ('+((o.p.meta.resolucion||{}).estado==='META_COMPLETADA'?'meta completada':'pendiente de cierre')+') · meta '+fmt(o.p.meta.total)):sal.push('- '+o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion)+': '+(NS.modos&&NS.modos.modoDe(o.p)==='TURNO'?'≈ ':'')+fmt(o.cant)+' UND'+
         (NS.modos&&NS.modos.modoDe(o.p)==='COMPLETAR'&&o.p.meta?' (saldo de la meta '+fmt(o.p.meta.total)+')':NS.modos&&NS.modos.modoDe(o.p)==='TURNO'?' (todo el turno: estimado según ratio nominal)':'')+(o.upp>0?' ('+NS.paletasTexto(o.cant,o.upp)+' paletas)':'')+' · '+NS.estadoTexto(o.est)));
+      if(segL)sal.push(segL);
       sal.push('');
     });
     sal.push('GLACIAL - Control de Producción');
@@ -170,13 +172,15 @@
         NS.modos?NS.modos.MODOS[modo]:'Cantidad fija',modo==='COMPLETAR'&&f0.meta?f0.meta.total:'',modo==='COMPLETAR'&&f0.meta?NS.modos.saldoMeta(f0.meta.total,f0.meta.vinculos).asignado:'',
         modo==='COMPLETAR'&&f0.meta&&f0.meta.referencia?f0.meta.referencia:'',modo==='TURNO'?'estimada según ratio nominal':'',g.programado,orig===null?'':orig,
         g.upp||'',NS.paletasTexto(g.programado,g.upp),g.producido===null?'sin registro':g.producido,g.pendiente===null?'':g.pendiente,g.sobre===null?'':g.sobre,
-        g.avance===null?'':+(g.avance*100).toFixed(1),ep?ep.texto:NS.estadoTexto(NS.estadoDe(g.filas[0])),NS.estadoTexto(NS.estadoDe(g.filas[0])),am&&am.pct!==null?+(am.pct*100).toFixed(1):'']);
+        g.avance===null?'':+(g.avance*100).toFixed(1),ep?ep.texto:NS.estadoTexto(NS.estadoDe(g.filas[0])),NS.estadoTexto(NS.estadoDe(g.filas[0])),am&&am.pct!==null?+(am.pct*100).toFixed(1):'',
+        (f0.tramosSecuencia&&f0.tramosSecuencia[0]?({CANTIDAD:'Cantidad',HORA:'Hasta una hora',CIERRE:'Hasta el cierre'})[f0.tramosSecuencia[0].tipoFin]||'':''),(f0.tramosSecuencia&&f0.tramosSecuencia[0]&&f0.tramosSecuencia[0].horaFin)||'',
+        (f0.tramosSecuencia||[]).filter(t=>t.cambioPrevioMin!==undefined&&t.cambioPrevioMin!==null).map(t=>t.cambioPrevioMin).join(' / ')]);
     });
     NS.items(fecha,turno).filter(p=>NS.esPlanSinCantidad(p)&&NS.estadoDe(p)!=='CANCELADA').forEach(p=>{
       const rs=NS.modos.resolucionDe(p);
       filas.push([fecha,NS.etiquetaBloque(turno),NS.nombreLinea(p.linea),p.marca,NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion),NS.modos.MODOS.COMPLETAR,p.meta.total,'',p.meta.referencia||'','saldo por calcular',0,'','','','','','','',rs.texto,NS.estadoTexto(NS.estadoDe(p)),'']);
     });
-    const ws=XLSX.utils.aoa_to_sheet([['Fecha','Bloque','Línea','Marca','Presentación','Modo','Meta total (UND)','Cierre anterior vinculado (UND)','Referencia del pedido','Tipo de cantidad','Programado del bloque (UND)','Original al inicio (UND)','UND por paleta','Paletas (completas + UND)','Producido (UND)','Pendiente (UND)','Sobreproducción (UND)','Avance %','Estado del plan','Estado operativo de la línea','Avance de la meta global %']].concat(filas));
+    const ws=XLSX.utils.aoa_to_sheet([['Fecha','Bloque','Línea','Marca','Presentación','Modo','Meta total (UND)','Cierre anterior vinculado (UND)','Referencia del pedido','Tipo de cantidad','Programado del bloque (UND)','Original al inicio (UND)','UND por paleta','Paletas (completas + UND)','Producido (UND)','Pendiente (UND)','Sobreproducción (UND)','Avance %','Estado del plan','Estado operativo de la línea','Avance de la meta global %','Terminar por','Hora límite','Cambio previsto antes (min)']].concat(filas));
     ws['!cols']=[12,22,12,14,16,18,14,22,22,26,16,18,12,20,14,14,16,10,22,24,20].map(w=>({wch:w}));
     const libro=XLSX.utils.book_new();XLSX.utils.book_append_sheet(libro,ws,'Plan');
     XLSX.writeFile(libro,'plan-'+fecha+'-'+NS.valorBloque(turno)+'.xlsx');

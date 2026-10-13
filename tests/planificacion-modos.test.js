@@ -218,7 +218,7 @@ const cierreMan=(c,extra)=>rec('r_'+Math.random().toString(36).slice(2,6),FECHA,
   const e2=entorno([Object.assign(F('PET1',AYER,'DÍA','Scala','Regular_380ml',6000,2184),{modo:'COMPLETAR',meta:{id:'m',total:24000,vinculos:[]}}),
     Object.assign(F('PET1',AYER,'NOCHE','Bells','Regular_625ml',5000,1200),{modo:'TURNO',estimado:{cantidad:5000}}),F('PET1',AYER,'DÍA','Bells','Regular_380ml',1000,2184)],{registros:regs});
   const pc=e2.NS.planCopia({modo:'DIA_ANTERIOR',fecha:FECHA});
-  ok(pc.candidatos.length===1&&pc.omitidos.some(o=>/Completar cantidad: no se copia/.test(o.texto))&&pc.omitidos.some(o=>/Todo el turno: no se copia/.test(o.texto)),'copiar a otra fecha no reutiliza un cierre ya asignado ni una estimación ajena: exige revisar y volver a aplicar');
+  ok(pc.candidatos.length===1&&pc.omitidos.some(o=>/Completar cantidad: no se copia/.test(o.texto))&&pc.omitidos.some(o=>/Todo el turno.*: no se copia/.test(o.texto)),'copiar a otra fecha no reutiliza un cierre ya asignado ni una estimación ajena: exige revisar y volver a aplicar');
   const txt=entorno([Object.assign(F('PET1',FECHA,'NOCHE','Scala','Regular_380ml',6000,2184),{modo:'COMPLETAR',meta:{id:'m',total:24000,vinculos:[]}}),Object.assign(F('PET1',FECHA,'NOCHE','Bells','Regular_625ml',52000,1200),{modo:'TURNO'})]).NS.textoPlan(FECHA,'NOCHE');
   ok(/saldo de la meta 24/.test(txt)&&/todo el turno: estimado según ratio nominal/.test(txt),'el texto del plan conserva el modo y la semántica de las cantidades');
   const src=leer('js/produccion/66-planificacion-modos.js'),s64=leer('js/produccion/64-planificacion-avance.js');

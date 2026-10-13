@@ -84,3 +84,40 @@ Modo, meta, referencia, estado de resolución, asignación/«Por calcular» y pr
 
 ## Limitaciones
 No se probó con Firestore/Supabase reales. Los supervisores deben tener `linea` asignada para recibir el aviso. Un cierre en `Avance/Cierre` sin registro finalizado no resuelve nada. Si ningún dispositivo está en línea, el saldo se calcula al siguiente ingreso.
+
+---
+
+# Etapa 5c · Secuencia por cantidad, hora y cierre con cambio de marca configurable
+
+Rama `planificacion-7-secuencia-tiempo`. **No se publicó nada.**
+
+## Lo que ya existía y lo que se amplió
+La secuencia **ya existía** (`tramosSecuencia = [{id, orden, tipoFin: CANTIDAD|HORA|CIERRE, cantidadObjetivo, horaFin}]`, definida en Paletas y leída por Producción Actual y por el motor 65b). **No se creó otra**: se amplió la misma estructura y el mismo motor.
+
+| Archivo | Cambio |
+|---|---|
+| `65b-planificacion-motor.js` | Tiempo de cambio de marca **inicial de 5 min** (`M.CAMBIO_INICIAL_MIN`, solo si cambia la marca con el mismo formato y no hay regla ni respaldo); **ajuste explícito por transición** (`tramo.cambioPrevioMin`, prioridad 1.º); tramos temporales (hora / cierre) sin tope de cantidad; hora límite posterior al cierre = conflicto; ejecución real en la secuencia; **`M.estimarSecuencia`** (estimación única de la secuencia). |
+| `66b-planificacion-secuencia.js` (nuevo) | Diálogo **«Secuencia de la línea»** (producto · terminar por · cantidad u hora · cambio previsto · orden con ▲▼ aptos para celular), guardado en una transacción, proyección con ejecución real, bloque «Secuencia por línea» y sección **Tiempo de cambio de marca** del Catálogo. |
+| `66-planificacion-modos.js` | Modo `HORA` («Hasta una hora»); estado del plan de los temporales (no se completan por la hora ni por alcanzar el estimado); subtítulos. |
+| `51`, `52`, `64` | `esPlanSinCantidad` incluye la estimación pendiente; el botón **Secuencia** y la edición de planes temporales; texto del plan y Excel con terminar por, hora límite y cambio previsto; la copia no arrastra horas ni estimaciones. |
+
+## Modos y convivencia
+- **Cantidad fija** (tramo por cantidad): sin cambios; un producto repetido es **una** programación con la suma de sus tramos.
+- **Completar cantidad**: sigue guardándose pendiente y calculándose al cierre; en la secuencia aparece como «saldo por calcular»: **su duración y los tramos posteriores quedan pendientes** (no se usa duración cero para adelantar otras marcas).
+- **Hasta una hora** (modo `HORA`) y **Hasta el cierre** (modo `TURNO`: el primer tramo = *Todo el turno*; con productos antes = *Tiempo restante*): instrucciones temporales válidas que generan una **cantidad estimada** (nominal × tiempo productivo). Sin velocidad o con un cambio sin dato → **estimación pendiente** (se guarda la instrucción; no es cantidad fija ficticia).
+- Un producto con tramo temporal debe tener **un solo** tramo; «hasta el cierre» debe ser el último; varias marcas sin límite claro → conflicto (no se reparten mitades). Los conflictos **no se guardan en silencio**.
+
+## Tiempo de cambio de marca (prioridad)
+1) Ajuste explícito de la transición en el plan · 2) regla específica de origen/destino · 3) valor general de la línea (Catálogo) · 4) **5 min iniciales**, visibles como «valor inicial». Un 0 explícito se respeta. Marca **y** presentación a la vez: una sola transición (regla combinada o la mayor; nunca la suma); sin regla queda pendiente (el 5 inicial es solo de marca). No se aplica entre tramos del mismo producto, antes del primer tramo ni después del último. Cambiar el catálogo **no reescribe** lo publicado (queda un aviso de revisión explícito).
+
+## Dos lecturas
+**Plan publicado** (estimado, ratio, versión de parámetros, autor y hora) y **Proyección actual** (inicios/finales reales confirmados en Producción Actual + cambio previsto para lo que no empezó; actualizada a la hora del cálculo, con los datos reales que la sustentan). La proyección **no** cambia la instrucción publicada, ni cantidades firmes, ni crea paradas, ni cambia de marca. Si el cambio real dura más o menos que lo previsto se muestra como dato informativo.
+
+## Pruebas
+`node tests/planificacion-secuencia.test.js` (68 comprobaciones): Aro 1,200 → Cuisine hasta una hora → Scala hasta el cierre (09:00, 09:05, 13:05; 3 h 55 y 5 h 55); C20L 160 → tiempo restante; Todo el turno; 5 min / línea / transición / cero explícito / combinado; conflictos y nominal faltante; Noche y Mañana + Intermedio; ventanas y preparaciones una sola vez; repetidos; Fontlife pendiente; proyección con ejecución real; concurrencia, permisos, copia y exportación.
+
+## Limitaciones
+- No se probó con Firestore/Supabase reales ni en un celular físico. Los ratios del ejemplo son de prueba.
+- La proyección usa el inicio y fin **reales por producto** de Producción Actual; no hay un «fin real de tramo» separado (un producto repetido usa un solo par).
+- Capacidad y vista semanal usan la cantidad guardada (la estimación publicada): no muestran todavía la proyección actual.
+- «Hasta una hora» no está en el formulario simple de Agregar/Editar: se define en **Secuencia**.

@@ -38,6 +38,7 @@
   M.TIPOS_VENTANA={MANTENIMIENTO:'Mantenimiento previsto',REFRIGERIO:'Refrigerio con detención de línea',LIMPIEZA:'Limpieza en ventana fija',OTRA:'Otra parada prevista'};
   M.APLICA_OTRA={INICIO:'Al inicio del bloque',FIN:'Al final del bloque',ENTRE:'En cada cambio de producto',BLOQUE:'Una vez en el bloque'};
   M.MAX_MIN=720;
+  M.CAMBIO_INICIAL_MIN=5;      // valor inicial del tiempo de cambio de MARCA cuando la línea no tiene ninguna regla (visible como «valor inicial»)
 
   /* ---------- parámetros: normaliza lo guardado (descarta lo inválido, nunca inventa) ---------- */
   M.normalizarTiempos=function(raw){
@@ -155,6 +156,8 @@
     }
     const g=tp&&tp.legacy?tp.legacy.cambioMin:null;
     if(g!==null&&g!==undefined)return Object.assign(base,{minutos:g,cambio:true,respaldo:true,explicacion:'Valor general de respaldo ('+g+' min, todas las líneas): no hay una regla para esta transición.'});
+    // Valor inicial: solo cambia la MARCA (mismo formato) y no hay regla ni respaldo. Se muestra como inicial; una regla (incluido un cero explícito) lo reemplaza siempre.
+    if(cm&&!cf)return Object.assign(base,{minutos:M.CAMBIO_INICIAL_MIN,cambio:true,inicial:true,explicacion:'Valor inicial de '+M.CAMBIO_INICIAL_MIN+' min (esta línea aún no tiene el tiempo de cambio de marca configurado): se ajusta en Catálogo → Tiempo de cambio de marca.'});
     return Object.assign(base,{minutos:null,cambio:true,faltante:'tiempo de cambio de '+(cm&&cf?'marca y formato':cm?'marca':'formato')+' ('+nombreProd(A)+' → '+nombreProd(B)+')',
       explicacion:'No hay regla ni valor general para esta transición.'});
   };
@@ -175,7 +178,11 @@
     for(let i=1;i<ordenProd.length;i++){
       const A=ordenProd[i-1],B=ordenProd[i];
       if(A.clave===B.clave)continue;
-      const c=M.resolverCambio(tp,linea,A,B);
+      let c=M.resolverCambio(tp,linea,A,B);
+      const ov=o.overrides?o.overrides[A.clave+'>'+B.clave]:undefined;
+      if(c.cambio&&ov!==undefined&&ov!==null&&Number.isFinite(Number(ov))&&Number(ov)>=0){     // 1.º: el ajuste explícito del cambio específico en el plan
+        c=Object.assign({},c,{minutos:Number(ov),ajuste:true,inicial:false,respaldo:false,faltante:undefined,advertencia:false,explicacion:'Ajuste explícito de esta transición en el plan ('+Number(ov)+' min).'});
+      }
       if(c.cambio)tareas.push(Object.assign({},c,{etiqueta:'Cambio '+nombreProd(A)+' → '+nombreProd(B),posicion:'ENTRE'}));
       simple('LIMPIEZA_ENTRE',A,B,'Limpieza entre '+nombreProd(A)+' y '+nombreProd(B));
       simple('OTRA',A,B,'Preparación entre productos','ENTRE');
@@ -207,7 +214,7 @@
     (filas||[]).forEach(f=>{
       if(!(num(f.cantidad)>0))return;
       const k=claveP(f.marca,f.presentacion),o=mapa.get(k)||{clave:k,marca:f.marca,presentacion:f.presentacion,etiqueta:(etiq&&etiq(f.marca,f.presentacion))||f.presentacion,cantidad:0};
-      o.cantidad+=num(f.cantidad);mapa.set(k,o);
+      o.cantidad+=num(f.cantidad);if(f.temporal)o.temporal=true;mapa.set(k,o);
     });
     return [...mapa.values()];
   }
@@ -230,7 +237,7 @@
   M.secuencia=function(e,prods,tareasPorPos){
     const b=e.bloque,tl=lineaLibre(e.union||[]);
     const tramos=(e.tramos||[]).slice().sort((x,y)=>num(x.orden)-num(y.orden));
-    const rest=new Map(prods.map(p=>[p.clave,p.cantidad]));
+    const rest=new Map(prods.map(p=>[p.clave,p.temporal?Infinity:p.cantidad]));       // un producto temporal (sin cantidad fija) no tiene tope de cantidad: lo limita el tiempo
     const ultimo=new Map();tramos.forEach((t,i)=>ultimo.set(claveP(t.marca,t.presentacion),i));
     const eventos=[],avisos=[],conflictos=[];
     let cursor=0,espera=0,incompleta=false,previo=null;
@@ -247,34 +254,148 @@
       const k=claveP(t.marca,t.presentacion),p=prods.find(x=>x.clave===k);
       if(!p){return;}
       const v=e.vel(p.marca,p.presentacion);
-      const ev={tipo:'TRAMO',orden:t.orden,marca:p.marca,presentacion:p.presentacion,etiqueta:p.etiqueta,tipoFin:t.tipoFin,horaFin:t.horaFin,a:null,z:null,qty:null,estimado:false};
+      const ev={tipo:'TRAMO',orden:t.orden,marca:p.marca,presentacion:p.presentacion,etiqueta:p.etiqueta,tipoFin:t.tipoFin,horaFin:t.horaFin,a:null,z:null,qty:null,estimado:false,temporal:!!p.temporal};
+      const R=e.reales&&e.reales[k];                                               // ejecución REAL confirmada de este producto (proyección actual)
+      if(R&&R.finOff!==undefined&&R.finOff!==null){
+        if(previo!==null&&previo!==k)(tareasPorPos['ENTRE|'+previo+'>'+k]||[]).forEach(()=>{});
+        Object.assign(ev,{a:R.inicioOff!==undefined&&R.inicioOff!==null?R.inicioOff:cursor,z:R.finOff,qty:null,estimado:false,real:true,motivo:'finalizado'});
+        eventos.push(ev);cursor=Math.max(cursor,R.finOff);previo=k;rest.set(k,0);return;
+      }
       if(!(v>0)){incompleta=true;ev.motivo='falta la velocidad estándar de este producto';eventos.push(ev);previo=k;return;}
       if(incompleta){ev.motivo='depende de un tramo anterior sin dato';eventos.push(ev);return;}
       if(previo!==null&&previo!==k)(tareasPorPos['ENTRE|'+previo+'>'+k]||[]).forEach(colocarTarea);
       previo=k;
-      const ini=tl.siguienteLibre(cursor);
+      let ini=tl.siguienteLibre(cursor);
+      if(R&&R.inicioOff!==undefined&&R.inicioOff!==null)ini=R.inicioOff;           // ya empezó: se usa el inicio real
+      else if(e.ahoraOff!==undefined&&e.ahoraOff!==null&&ini<e.ahoraOff)ini=tl.siguienteLibre(e.ahoraOff);   // lo que aún no empieza no puede empezar en el pasado
       if(ini>cursor)espera+=ini-cursor;
-      const queda=rest.get(k)||0;
+      const queda=rest.has(k)?rest.get(k):0;
       let fin,qty;
       if(t.tipoFin==='HORA'){
         const hm=M.aMin(t.horaFin);
         let tope=hm===null?null:(hm-minDelDia(b.inicioMs)+1440)%1440;
         if(tope===null){conflictos.push('El tramo '+t.orden+' tiene una hora de fin no válida.');tope=ini;}
         if(tope<=ini){conflictos.push('El tramo '+t.orden+' ('+p.marca+') debe terminar a las '+t.horaFin+', pero por los cambios y ventanas previos no puede empezar antes de las '+M.hhmm(b.inicioMs+ini*60000)+'.');qty=0;fin=ini;}
+        else if(tope>b.duracionMin+0.5){conflictos.push('La hora límite del tramo '+t.orden+' ('+p.marca+', '+t.horaFin+') queda después del cierre del bloque.');qty=0;fin=ini;}
         else{qty=Math.min(queda,v*tl.libreEntre(ini,tope)/60);fin=tope;}
+      }else if(t.tipoFin==='CIERRE'&&p.temporal){
+        // Hasta el cierre del bloque: desde el inicio de este tramo hasta el final, descontando ventanas.
+        if(i!==tramos.length-1)conflictos.push('«Hasta el cierre» normalmente es el último tramo, pero hay otro después de '+p.marca+': revisa la secuencia.');
+        const tope=b.duracionMin;
+        if(tope<=ini){conflictos.push('El tramo '+t.orden+' ('+p.marca+') no tiene tiempo antes del cierre: no puede empezar antes de las '+M.hhmm(b.inicioMs+ini*60000)+'.');qty=0;fin=ini;}
+        else{qty=v*tl.libreEntre(ini,tope)/60;fin=tope;}
       }else{
         if(i!==ultimo.get(k))avisos.push('El producto '+p.marca+' tiene varios tramos con «fin por cantidad o cierre»: su cantidad no se duplica; este tramo toma lo que le falta.');
         qty=queda;fin=tl.caminar(ini,qty/v*60);
       }
-      rest.set(k,Math.max(0,queda-qty));
+      rest.set(k,queda===Infinity?Infinity:Math.max(0,queda-qty));
       Object.assign(ev,{a:ini,z:fin,qty,estimado:true});
       eventos.push(ev);cursor=Math.max(cursor,fin);
     });
     if(!incompleta)(tareasPorPos.FIN||[]).forEach(colocarTarea);
-    const quedan=[];rest.forEach((q,k)=>{if(q>0.5&&tramos.some(t=>claveP(t.marca,t.presentacion)===k)){const p=prods.find(x=>x.clave===k);quedan.push({marca:p.marca,presentacion:p.presentacion,etiqueta:p.etiqueta,cantidad:Math.round(q)});}});
+    const quedan=[];rest.forEach((q,k)=>{if(q!==Infinity&&q>0.5&&tramos.some(t=>claveP(t.marca,t.presentacion)===k)){const p=prods.find(x=>x.clave===k);quedan.push({marca:p.marca,presentacion:p.presentacion,etiqueta:p.etiqueta,cantidad:Math.round(q)});}});
     const sinTramo=prods.filter(p=>!tramos.some(t=>claveP(t.marca,t.presentacion)===p.clave)).map(p=>({marca:p.marca,presentacion:p.presentacion,etiqueta:p.etiqueta,cantidad:p.cantidad}));
     return {eventos,avisos,conflictos,incompleta,quedan,sinTramo,finOff:incompleta?null:cursor,esperaMin:espera,
       inicioMs:b.inicioMs,finBloqueOff:b.duracionMin};
+  };
+
+  /* Ajustes explícitos de «cambio previsto antes de este tramo» → {'claveA>claveB':minutos}. Solo cuenta donde de verdad hay un cambio de producto. */
+  M.overridesDeTramos=function(tramos){
+    const o={};
+    const ts=(tramos||[]).slice().sort((x,y)=>num(x.orden)-num(y.orden));
+    for(let i=1;i<ts.length;i++){
+      const v=ts[i].cambioPrevioMin;
+      if(v===null||v===undefined||v===''||!Number.isFinite(Number(v))||Number(v)<0)continue;
+      const a=claveP(ts[i-1].marca,ts[i-1].presentacion),b=claveP(ts[i].marca,ts[i].presentacion);
+      if(a!==b)o[a+'>'+b]=Number(v);
+    }
+    return o;
+  };
+
+  /* ---------- ESTIMACIÓN DE LA SECUENCIA (tramos por cantidad, por hora y hasta el cierre) ----------
+     e: {bloque:{inicioMs,duracionMin}, tp, linea, fecha, bloqueClave, tramos:[{orden,marca,presentacion,tipoFin:'CANTIDAD'|'HORA'|'CIERRE',cantidadObjetivo,horaFin,cambioPrevioMin}],
+         vel(marca,pres), etiqueta(marca,pres), reales?:{claveProd:{inicioOff,finOff}}, ahoraOff?}
+     Cada tramo: inicio (según el anterior, la transición UNA vez y las ventanas), fin (cantidad / hora / cierre), tiempo productivo y cantidad (fija o ESTIMADA con el nominal).
+     Faltante → el tramo queda pendiente (nunca cero ficticio) y lo siguiente que depende de él también. Conflictos explícitos, sin duraciones negativas. */
+  M.estimarSecuencia=function(e){
+    const b=e.bloque||{inicioMs:0,duracionMin:0},tp=e.tp||M.normalizarTiempos({});
+    const tramos=(e.tramos||[]).slice().sort((x,y)=>num(x.orden)-num(y.orden));
+    const sal={tramos:[],conflictos:[],faltantes:[],avisos:[],transiciones:[],estado:'OK',parametrosVersion:tp.version};
+    if(!tramos.length)return Object.assign(sal,{estado:'SIN_TRAMOS'});
+    // productos: cantidad = suma de sus tramos por cantidad; un producto con tramo temporal (hora/cierre) no tiene cantidad fija
+    const filas=[];
+    tramos.forEach(t=>{
+      const temporal=t.tipoFin==='HORA'||t.tipoFin==='CIERRE';
+      filas.push({marca:t.marca,presentacion:t.presentacion,cantidad:temporal?1:num(t.cantidadObjetivo),temporal});
+    });
+    const prods=agrupar(filas,e.etiqueta);
+    tramos.forEach(t=>{
+      if(t.tipoFin==='CANTIDAD'&&!(num(t.cantidadObjetivo)>0))sal.conflictos.push('El tramo '+t.orden+' ('+t.marca+') termina por cantidad pero no tiene cantidad.');
+      if((t.tipoFin==='HORA'||t.tipoFin==='CIERRE')&&tramos.filter(x=>claveP(x.marca,x.presentacion)===claveP(t.marca,t.presentacion)).length>1)
+        sal.conflictos.push(t.marca+' tiene un tramo «hasta una hora» o «hasta el cierre» y otro tramo: usa un solo tramo para ese producto.');
+    });
+    const duracion=num(b.duracionMin);
+    if(!(duracion>0))sal.faltantes.push({dato:'duración del bloque'});
+    prods.forEach(p=>{if(!(num(e.vel(p.marca,p.presentacion))>0))sal.faltantes.push({dato:'velocidad estándar',marca:p.marca,presentacion:p.presentacion,etiqueta:p.etiqueta});});
+    const vt=M.ventanasDe(tp,e.linea,e.fecha,e.bloqueClave,b);
+    const ord=ordenEjecucion(prods,tramos);
+    const prep=M.preparaciones(tp,e.linea,ord.orden,{limpiezaEnVentana:vt.lista.some(v=>v.tipo==='LIMPIEZA'),overrides:M.overridesDeTramos(tramos)});
+    prep.tareas.forEach(t=>{if(t.minutos===null)sal.faltantes.push({dato:t.faltante||('tiempo de '+t.etiqueta)});});
+    sal.transiciones=prep.tareas.filter(t=>t.tipo==='CAMBIO').map(t=>({desde:t.desde,hacia:t.hacia,minutos:t.minutos,inicial:!!t.inicial,ajuste:!!t.ajuste,respaldo:!!t.respaldo,advertencia:!!t.advertencia,explicacion:t.explicacion,faltante:t.faltante||''}));
+    prep.omitidas.forEach(o=>sal.avisos.push(o.etiqueta+': '+o.motivo));
+    const porPos={INICIO:prep.tareas.filter(x=>x.posicion==='INICIO'),FIN:prep.tareas.filter(x=>x.posicion==='FIN'||x.posicion==='BLOQUE')};
+    const entre={};
+    for(let i=1;i<ord.orden.length;i++){
+      const A=ord.orden[i-1],B=ord.orden[i];
+      if(A.clave===B.clave)continue;
+      // un cambio desconocido se coloca como 0 SOLO para poder seguir; los tramos que dependen de él se marcan pendientes más abajo
+      entre['ENTRE|'+A.clave+'>'+B.clave]=prep.tareas.filter(t=>t.posicion==='ENTRE'&&t.desde===nombreProd(A)&&t.hacia===nombreProd(B)).map(t=>t.minutos===null?Object.assign({},t,{minutos:0}):t);
+    }
+    const sim=M.secuencia({bloque:b,tramos,union:vt.union,vel:e.vel,reales:e.reales,ahoraOff:e.ahoraOff},prods,Object.assign({INICIO:porPos.INICIO,FIN:porPos.FIN},entre));
+    sal.conflictos=sal.conflictos.concat(sim.conflictos);sal.avisos=sal.avisos.concat(sim.avisos);
+    sal.ventanasMin=vt.unionMin;sal.finOff=sim.finOff;
+    // primer tramo que depende de algo desconocido (cambio sin dato)
+    let pendienteDesde=null;
+    const ts=ord.orden.length?tramos:[];
+    for(let i=1;i<ts.length&&pendienteDesde===null;i++){
+      const a=claveP(ts[i-1].marca,ts[i-1].presentacion),c=claveP(ts[i].marca,ts[i].presentacion);
+      if(a===c)continue;
+      const t=prep.tareas.find(x=>x.posicion==='ENTRE'&&x.minutos===null&&x.desde===nombreProd(prods.find(p=>p.clave===a))&&x.hacia===nombreProd(prods.find(p=>p.clave===c)));
+      if(t)pendienteDesde=i;
+    }
+    tramos.forEach((t,i)=>{
+      const k=claveP(t.marca,t.presentacion),ev=sim.eventos.find(x=>x.tipo==='TRAMO'&&num(x.orden)===num(t.orden)&&claveP(x.marca,x.presentacion)===k)||{};
+      const temporal=t.tipoFin==='HORA'||t.tipoFin==='CIERRE',v=num(e.vel(t.marca,t.presentacion));
+      const f={orden:t.orden,marca:t.marca,presentacion:t.presentacion,etiqueta:(e.etiqueta&&e.etiqueta(t.marca,t.presentacion))||t.presentacion,tipoFin:t.tipoFin,horaFin:t.horaFin||'',cantidadObjetivo:t.cantidadObjetivo,
+        temporal,velocidad:v,inicioOff:ev.a!==undefined?ev.a:null,finOff:ev.z!==undefined?ev.z:null,real:!!ev.real,cantidad:null,tiempoMin:null,estado:'OK',motivo:'',
+        cambioAntesMin:null,cambioInicial:false,cambioAjuste:false};
+      if(i>0){
+        const a=claveP(tramos[i-1].marca,tramos[i-1].presentacion);
+        if(a!==k){
+          const tr=sal.transiciones.find(x=>x.hacia===nombreProd({marca:t.marca,presentacion:t.presentacion,etiqueta:f.etiqueta}));
+          const pr=prep.tareas.find(x=>x.posicion==='ENTRE'&&x.hacia===nombreProd(prods.find(p=>p.clave===k))&&x.desde===nombreProd(prods.find(p=>p.clave===a)));
+          if(pr){f.cambioAntesMin=pr.minutos;f.cambioInicial=!!pr.inicial;f.cambioAjuste=!!pr.ajuste;f.cambioFaltante=pr.faltante||'';f.cambioExplicacion=pr.explicacion||'';}
+        }
+      }
+      if(!(v>0)){f.estado='PENDIENTE';f.motivo='falta la velocidad estándar (ratio nominal) de este producto';}
+      else if(pendienteDesde!==null&&i>=pendienteDesde){f.estado='PENDIENTE';f.motivo='depende de un cambio sin tiempo configurado';}
+      else if(ev.real){f.estado='REAL';f.motivo='ya finalizado (dato real)';}
+      else if(ev.motivo){f.estado='PENDIENTE';f.motivo=ev.motivo;}
+      else if(ev.a===null||ev.a===undefined){f.estado='PENDIENTE';f.motivo='sin datos suficientes';}
+      else{
+        const dur=ev.z-ev.a;
+        f.tiempoMin=Math.max(0,dur);
+        if(temporal){
+          if(ev.qty===0&&sim.conflictos.some(c=>c.indexOf('tramo '+t.orden)>=0)){f.estado='CONFLICTO';f.motivo=sim.conflictos.find(c=>c.indexOf('tramo '+t.orden)>=0);}
+          else f.cantidad=Math.floor(ev.qty+1e-9);       // UND enteras sin superar el tiempo
+        }else f.cantidad=num(t.cantidadObjetivo);
+      }
+      sal.tramos.push(f);
+    });
+    // conflicto de una hora límite consumida: el tramo queda en conflicto (no se guarda como plan ejecutable con cantidad 0)
+    sim.conflictos.forEach(c=>{const m=/tramo (\d+)/.exec(c);if(m){const f=sal.tramos.find(x=>String(x.orden)===m[1]);if(f&&f.estado==='OK'&&f.temporal&&!f.cantidad){f.estado='CONFLICTO';f.motivo=c;}}});
+    sal.estado=sal.conflictos.length?'CONFLICTO':sal.tramos.some(f=>f.estado==='PENDIENTE')||sal.faltantes.length?'PARCIAL':'OK';
+    return sal;
   };
 
   /* ---------- capacidad del plan ---------- */
@@ -302,7 +423,7 @@
     // preparaciones
     const ord=ordenEjecucion(prods,e.tramos);
     const limpiezaVentana=vt.lista.some(v=>v.tipo==='LIMPIEZA');
-    const prep=M.preparaciones(tp,e.linea,ord.orden,{limpiezaEnVentana:limpiezaVentana});
+    const prep=M.preparaciones(tp,e.linea,ord.orden,{limpiezaEnVentana:limpiezaVentana,overrides:M.overridesDeTramos(e.tramos)});
     prep.tareas.forEach(t=>{if(t.minutos===null)faltantes.push({marca:'',presentacion:'',etiqueta:'',dato:t.faltante||('tiempo de '+t.etiqueta)});});
     prep.omitidas.forEach(o=>notas.push(o.etiqueta+': '+o.motivo));
     if(!ord.conSecuencia&&ord.orden.length>1)notas.push('No hay secuencia definida en Paletas: el número de cambios supone un cambio entre productos consecutivos de la lista.');

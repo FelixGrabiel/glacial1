@@ -357,7 +357,7 @@
         const orig=primera&&g?NS.originalDe(E.fecha,E.turno,p.linea,p.marca,p.presentacion):null;
         const repro=orig!==null&&g&&orig!==g.programado?'<span class="plan-repro" title="Plan al iniciar el bloque frente al plan vigente">original al inicio: '+fmt(orig)+'</span>':'';
         filas.push('<tr class="plan-fila'+par+(i===0?' plan-ini':'')+'"><td class="c-linea" data-titulo="1"><b'+(i===0?'':' class="rep"')+'>'+esc(l.name)+'</b></td><td class="c-prod" data-label="Marca"><b>'+esc(p.marca)+'</b>'+(p.turno==='INTERMEDIO'?' <small style="color:#5a6b78">· Cargada como Intermedio</small>':'')+((p.unificadoDeIntermedio||[]).length?' <small style="color:#5a6b78" title="Unificada desde Intermedio con motivo y registro en el historial">· incluye '+(p.unificadoDeIntermedio.reduce((a,x)=>a+num(x.cantidad),0)).toLocaleString('es-PE')+' cargadas como Intermedio</small>':'')+(duplicados.has([p.linea,p.marca,p.presentacion].join('|'))&&(p.turno==='DÍA'||p.turno==='INTERMEDIO')?' <span class="plan-badge" style="background:#fff1d6;color:#8a5a1e" title="El mismo producto tiene la misma cantidad en Día e Intermedio: el programado del bloque es la SUMA. Revísalo; no se corrige solo.">posible duplicado</span>':'')+'</td><td data-label="Presentación">'+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+(NS.modos&&primera?NS.modos.htmlSubproducto(p,g):'')+'</td>'+
-          '<td class="num" data-label="Cantidad del bloque (UND)">'+(NS.modos&&NS.esPlanSinCantidad(p)?NS.modos.htmlCantidadSinSaldo(p):'<b>'+(NS.modos&&NS.modos.modoDe(p)==='TURNO'?'≈ ':'')+fmt(cant)+'</b>'+(NS.modos&&NS.modos.modoDe(p)==='TURNO'?'<small class="plan-subt">estimada</small>':''))+repro+'</td>'+
+          '<td class="num" data-label="Cantidad del bloque (UND)">'+(NS.modos&&NS.esPlanSinCantidad(p)?NS.modos.htmlCantidadSinSaldo(p):'<b>'+(NS.modos&&NS.modos.esTemporal(p)?'≈ ':'')+fmt(cant)+'</b>'+(NS.modos&&NS.modos.esTemporal(p)?'<small class="plan-subt">estimada</small>':''))+repro+'</td>'+
           '<td class="num" data-label="Paletas" title="'+(upp?esc(NS.paletasEquivalentes(cant,upp).toLocaleString('es-PE',{maximumFractionDigits:2}))+' paletas equivalentes':'')+'">'+(upp&&!NS.esPlanSinCantidad(p)?'<span class="plan-pal">'+esc(NS.paletasTexto(cant,upp))+'<span class="plan-upp">'+fmt(upp)+' UND por paleta</span></span>':'—')+'</td>'+
           celdasAvance+
           '<td data-label="Estado del plan">'+(NS.modos&&primera?NS.modos.htmlEstadoPlan(p,g):'<span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span>')+'</td><td class="acc">'+
@@ -365,7 +365,7 @@
             '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
           (planifica&&NS.modos&&NS.modos.modoDe(p)==='COMPLETAR'&&p.meta&&p.meta.ref&&['PENDIENTE_CIERRE','REQUIERE_REVISION'].includes((p.meta.resolucion||{}).estado)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-recalc="'+esc(p.clave)+'" title="Comprueba si el cierre ya se confirmó y calcula el saldo">Actualizar saldo</button>':'')+
           (planifica&&primera&&g&&g.producido!==null&&g.pendiente>0?' <button type="button" class="btn btn-ghost btn-sm" data-plan-trasladar="'+esc(p.clave)+'" title="Mover a otro bloque lo que falta producir (saldo comprobado)">Trasladar saldo</button>':'')+
-          (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Mañana</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
+          (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Mañana</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-seq="'+esc(l.key)+'" title="Orden de los productos, cantidad / hora / cierre y tiempo de cambio">Secuencia</button> <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');
       });
       const t=R.porLinea.get(l.key);
       if(t&&t.productos>0){
@@ -624,7 +624,11 @@
     const nueva=e.target.closest('[data-plan-nueva]');
     if(nueva){abrirEdicion({linea:nueva.getAttribute('data-plan-nueva')});return;}
     const editar=e.target.closest('[data-plan-editar]');
-    if(editar){abrirEdicion({clave:editar.getAttribute('data-plan-editar')});return;}
+    if(editar){
+      const cl=editar.getAttribute('data-plan-editar');
+      if(NS.secuencia&&NS.secuencia.debeUsarSecuencia(cl)){NS.secuencia.abrirDesdeClave(cl);return;}      // «hasta una hora» / «hasta el cierre» se editan en la secuencia
+      abrirEdicion({clave:cl});return;
+    }
     const unif=e.target.closest('[data-plan-unificar]');
     if(unif){abrirUnificar(unif.getAttribute('data-plan-unificar'));return;}
     const cambio=e.target.closest('[data-plan-cambio]');
