@@ -242,12 +242,17 @@
 
   /* ---------- pestaña «Horario de producción» ---------- */
   const fechaTxt=f=>String(f).split('-').reverse().join('/');
+  /* Origen legible del horario (nunca el id interno de la regla). */
+  const textoOrigen=r=>{
+    const x=doc.reglas.find(y=>y.id===r.reglaId);
+    return x?'configurado '+textoVig(x)+(x.motivo?' · '+x.motivo:''):'configurado';
+  };
   function pintar(cont){
     const E=NS.estado,planifica=NS.puede();
     const filas=NS.lineas().map(l=>{
       const d=H.resolver(l.key,E.fecha,'DÍA'),n=H.resolver(l.key,E.fecha,'NOCHE');
       const celda=r=>r?(r.habilitado?'<b>'+esc(r.horario)+'</b>'+(r.etiqueta&&r.bloque==='DÍA'&&r.etiqueta!==NS.etiquetaBloque('DÍA')?' <small>('+esc(r.etiqueta)+')</small>':'')+(r.tolerancia?'<small class="plan-subt">tolerancia de registro/cierre hasta '+esc(r.tolerancia.hasta)+'</small>':''):'<span class="plan-chip gris">Deshabilitado</span>')+
-        '<small class="plan-subt">'+(r.origen==='BASE'?'horario predeterminado':r.origen==='RESTABLECIDO'?'restablecido al predeterminado':'regla '+esc(r.reglaId))+'</small>':'—';
+        '<small class="plan-subt">'+(r.origen==='BASE'?'horario predeterminado':r.origen==='RESTABLECIDO'?'restablecido al predeterminado':esc(textoOrigen(r)))+'</small>':'—';
       return '<tr><td><b>'+esc(l.name)+'</b></td><td>'+celda(d)+'</td><td>'+celda(n)+'</td></tr>';
     }).join('');
     const reglas=H.datos().reglas.slice().sort((a,b)=>b.desde.localeCompare(a.desde)||b.actualizadoEn-a.actualizadoEn);
