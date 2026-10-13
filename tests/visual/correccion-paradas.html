@@ -1,0 +1,16 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Validación visual · Corregir asignación (datos de prueba)</title>
+<style>body{font-family:system-ui;margin:0;padding:12px;background:#f3f6f8}.btn{padding:6px 10px;border:1px solid #9aa9b8;border-radius:8px;background:#fff}.btn-primary{background:#005b96;color:#fff;border-color:#005b96}</style></head>
+<body><b>Datos de PRUEBA (no reales)</b><p>Se abre solo el diálogo «Corregir asignación» del Registro (Producción 1) con el módulo real.</p>
+<script>
+window.state={user:{rol:'Administrador',nombre:'Admin'},currentTab:'nuevo'};
+window.tienePermiso=()=>true;window.esUsuarioSoloConsulta=()=>false;
+window.AVANCE_LINEAS=['PET1','PET2','B7L','C20L','B20L'];window.AVANCE_NOMBRES={PET1:'PET 1',PET2:'PET 2',B7L:'B7L',C20L:'C20L',B20L:'B20L'};
+window.draft={linea:'PET1',fecha:'2026-10-13',turno:'DÍA'};
+const p=(id,d,m,t,c,cu)=>({id,descripcion:d,minutos:m,tipo:t,causa:c,_cu:cu});
+const L=[p('a','Calibración envasadora',20,'NO_PROGRAMADA','Ajuste o calibración',0),p('b','Falta de preformas',50,'NO_PROGRAMADA','Falta de insumos',0),p('c','Limpieza programada',15,'PROGRAMADA','',null)];
+window.__autollenadoInternos={paradasAvance:()=>L,cuadroDeAvance:x=>x._cu,cuadrosConProducto:()=>[{q:{marca:'Coca Cola',presentacion:'1 L'},i:0},{q:{marca:'Inca Kola',presentacion:'500 ml'},i:1}],SIN_ASIGNAR:-1};
+window.avanceEstado={fecha:'2026-10-13',turno:'DÍA',paradasOperativas:[],todosSnapshots:[{tipo:'CIERRE',fecha:'2026-10-13',turno:'DÍA'}]};
+</script>
+<script src="../../js/produccion/29b-correccion-paradas.js"></script>
+<script>glacialCorreccionParadas.abrirRegistro(0,'a');</script>
+</body></html>

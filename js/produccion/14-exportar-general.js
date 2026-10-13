@@ -801,7 +801,7 @@ function xlgHojaMatrizLineas(wb, ctx){
 
   const encabezados = [
     'Línea', 'Producción (und.)', 'Litros', 'Horas efectivas',
-    'Disponibilidad', 'Rendimiento', 'Calidad', 'OEE',
+    'Disponibilidad', 'Rendimiento', 'OEE',
     'Cumplimiento', 'Paradas (h)', 'Merma %', 'Estado'
   ];
 
@@ -826,7 +826,7 @@ function xlgHojaMatrizLineas(wb, ctx){
     const valores = [
       l.linea, xlN(l.efectiva), xlN(l.litros), xlN1(l.horasEfectivas),
       pct(l.disponibilidad), rendimiento > 0 ? pct(rendimiento) : '—',
-      '—', pct(l.oee), pct(l.cumplimiento),
+      pct(l.oee), pct(l.cumplimiento),
       xlN1(l.minutosParadas / 60), pct(l.mermaPct),
       l.sinDatos ? 'Sin datos' : xlEstado(l.oee)
     ];
@@ -839,8 +839,8 @@ function xlgHojaMatrizLineas(wb, ctx){
       c.alignment = { horizontal: j === 0 ? 'left' : 'center', vertical:'middle' };
     });
 
-    ws.getCell(fila, 8).fill = xlFill(l.sinDatos ? XLG.grisClaro : xlgColorSemaforo(l.oee));
-    ws.getCell(fila, 11).fill = xlFill(
+    ws.getCell(fila, 7).fill = xlFill(l.sinDatos ? XLG.grisClaro : xlgColorSemaforo(l.oee));
+    ws.getCell(fila, 10).fill = xlFill(
       l.mermaPct <= METAS.merma ? XLG.verdeClaro : (l.mermaPct <= METAS.merma * 1.5 ? XLG.amarilloClaro : XLG.rojoClaro)
     );
 
@@ -861,7 +861,7 @@ function xlgHojaMatrizLineas(wb, ctx){
 
   const filaTotal = [
     'TOTAL PLANTA', xlN(totalEfectiva), xlN(totalLitros), xlN1(totalHoras),
-    pct(dispPlanta), '—', '—', pct(oeePlanta),
+    pct(dispPlanta), '—', pct(oeePlanta),
     totalProgramada > 0 ? pct(totalEfectiva / totalProgramada) : '—',
     xlN1(totalParadasMin / 60),
     totalEfectiva > 0 ? pct(totalMerma / totalEfectiva) : '—',
@@ -1312,7 +1312,7 @@ const XLG_COLUMNAS_DATOS = [
   'Marca', 'Presentación', 'Lote', 'Hora inicio', 'Hora fin',
   'Horas turno', 'Horas efectivas', 'Producción efectiva (und.)',
   'Producción programada (und.)', 'Litros', 'Sopladas', 'Rechazadas',
-  'Disponibilidad', 'Rendimiento', 'Calidad', 'OEE',
+  'Disponibilidad', 'Rendimiento', 'OEE',
   'Paradas programadas (min)', 'Paradas no programadas (min)',
   'Merma (und.)', 'Registrado por'
 ];
@@ -1362,7 +1362,7 @@ function xlgHojaDatos(wb, ctx){
         c.horasTurno, xlN1(d.horasEfectivas), num(c.produccion?.efectiva),
         num(c.produccion?.programada), litrosCuadro(c), num(c.produccion?.sopladas),
         num(c.produccion?.calidad),
-        pct(d.disponibilidad), pct(d.rendimiento), pct(d.calidad), pct(d.oee),
+        pct(d.disponibilidad), pct(d.rendimiento), pct(d.oee),
         paradasProgMin, paradasNoProgMin, mermaCuadro, r.registradoPor || ''
       ]);
 

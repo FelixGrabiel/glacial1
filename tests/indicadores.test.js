@@ -27,7 +27,7 @@ const local=(y,m,d,h,mi)=>new Date(y,m-1,d,h,mi||0).getTime();
   ok(cerca(r,2304)&&Math.round(r)===2304,'caso oficial: ratio = 2,304 UND/h');
   ok(cerca(rend*100,92.16,1e-9)&&(rend*100).toFixed(1)==='92.2','caso oficial: rendimiento = 92.2 %');
   ok((o*100).toFixed(1)==='82.3'&&cerca(o,0.8571428571428571*0+disp*rend),'caso oficial: OEE = 82.3 %');
-  ok(I.NOTA_CALIDAD==='Calidad: no se mide','caso oficial: el OEE lleva la nota «Calidad: no se mide»');
+  ok(I.NOTA_CALIDAD===undefined&&!('calidad' in I.resumenIndicadores([{producido:100,programado:100,programacionVigente:true,durMin:480,progMin:0,npMin:0,mermaTotal:0,velocidad:100,etiqueta:'x'}])),'caso oficial: no existe el indicador «Calidad» (ni su nota) en el módulo');
   const res=I.resumenIndicadores([{producido:14400,programado:16000,programacionVigente:true,durMin:480,progMin:60,npMin:45,mermaTotal:288,velocidad:2500,etiqueta:'Cielo 625 ml'}]);
   ok(cerca(res.horasEfectivas,6.25)&&Math.round(res.ratio)===2304&&(res.disponibilidad*100).toFixed(1)==='89.3'&&(res.rendimiento*100).toFixed(1)==='92.2'&&(res.oee*100).toFixed(1)==='82.3',
     'caso oficial por el resumen de partes: los cinco valores coinciden');
@@ -168,6 +168,6 @@ ok(I.estadoLineaDesdeItems(['COMPLETADA','PENDIENTE'])==='PENDIENTE'&&I.estadoLi
 
 /* ============ definiciones para «¿Cómo se calcula?» ============ */
 ok(I.DEFINICIONES.length===11&&I.DEFINICIONES.every(d=>d.length===2&&d[0]&&d[1]),'las definiciones para «¿Cómo se calcula?» están completas (11)');
-ok(I.DEFINICIONES.some(d=>d[0]==='OEE'&&/Calidad: no se mide/.test(d[1]))&&I.DEFINICIONES.some(d=>d[0]==='Disponibilidad'&&/planificado/.test(d[1])),'las definiciones dicen lo mismo que las funciones');
+ok(I.DEFINICIONES.some(d=>d[0]==='OEE'&&/Disponibilidad × rendimiento/.test(d[1])&&!/alidad/.test(d[1]))&&I.DEFINICIONES.some(d=>d[0]==='Disponibilidad'&&/planificado/.test(d[1])),'las definiciones dicen lo mismo que las funciones (el OEE ya no menciona Calidad)');
 
 console.log('\n'+(total-fallas)+' de '+total+' pruebas correctas'+(fallas?' · '+fallas+' FALLAN':''));

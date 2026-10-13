@@ -233,6 +233,34 @@
     }
     return altos;
   }
+  /* Medición de documentos de sync (solo Administrador; lee, no escribe). Por cada uno: bytes estimados, % del límite de 1 MiB, n.º de elementos,
+     bytes por elemento, rango de fechas y crecimiento por día, y si TODOS los elementos de cada lista traen una clave única (id, username, clave,
+     opId, email o uid): en Supabase esas listas se parten en filas (fs_items); si algún elemento no la trae, la lista queda como un solo documento.
+     Uso: await glacialAvancesItems.medirSync()  ·  await glacialAvancesItems.medirSync(['programaciones','paletas']) */
+  const CLAVES_LISTA=['id','username','clave','opId','email','uid'];
+  const claveDeLista=l=>{
+    if(!Array.isArray(l)||!l.length||!l.every(x=>x&&typeof x==='object'&&!Array.isArray(x)))return null;
+    for(const c of CLAVES_LISTA){const v=new Set();let ok=true;for(const e of l){const t=typeof e[c];if((t!=='string'&&t!=='number')||String(e[c]).length<1||v.has(String(e[c]))){ok=false;break;}v.add(String(e[c]));}if(ok)return c;}
+    return null;
+  };
+  async function medirSync(nombres){
+    if(!esAdmin())throw Error('Solo un Administrador puede medir los documentos de sync.');
+    const sal=[];
+    for(const n of (nombres||['programaciones','paletas','catalogoPlanificacion'])){
+      const d=await db.collection('sync').doc(n).get();
+      if(!d.exists){sal.push({doc:n,existe:false});continue;}
+      const data=d.data(),bytes=estimarBytes(data)+n.length+32;
+      const listas=Object.keys(data).filter(k=>Array.isArray(data[k])).map(k=>{
+        const l=data[k],fechas=l.map(x=>x&&x.fecha).filter(f=>typeof f==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(f)).sort();
+        const dias=fechas.length>1?Math.max(1,Math.round((new Date(fechas[fechas.length-1]+'T12:00:00')-new Date(fechas[0]+'T12:00:00'))/86400000)+1):0;
+        const bl=utf8(k)+1+estimarBytes(l),clave=claveDeLista(l);
+        return {campo:k,elementos:l.length,bytes:bl,bytesPorElemento:l.length?Math.round(bl/l.length):0,desde:fechas[0]||'',hasta:fechas[fechas.length-1]||'',dias,
+          crecimientoBytesDia:dias?Math.round(bl/dias):0,claveUnica:clave,seParteEnSupabase:!!clave||!l.length};
+      });
+      sal.push({doc:n,existe:true,bytes,porcentaje:Math.round(bytes/LIMITE*1000)/10,libre:LIMITE-bytes,listas});
+    }
+    return sal;
+  }
   function avisoTamanos(altos){
     if(!altos.length||typeof document==='undefined')return;
     let b=document.getElementById('sync-tamano-aviso');
@@ -265,5 +293,5 @@
   }
 
   window.glacialAvancesItems={COL,LIMITE,UMBRAL,todos,alCambiar,fijarLegado,escucharRango,cerrar,cerrarTodo,crear,consultarRango,consultarFecha,obtener,
-    unir,limpiar,estimarBytes,bytesPorCampo,medir,migrar,migrarUI,revisarTamanos,vigilar,avisoTamanos,estado:E};
+    unir,limpiar,estimarBytes,bytesPorCampo,medir,migrar,migrarUI,revisarTamanos,medirSync,vigilar,avisoTamanos,estado:E};
 })();

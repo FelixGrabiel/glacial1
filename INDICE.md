@@ -73,6 +73,7 @@ js/
 | 46-proyeccion-avisos.js | Avisos a–e, tarjeta «Proyección del turno» del Inicio y editor de umbrales (sync/configAlertas) |
 | 29-avance-produccion.js | Avance y cierre de turno |
 | 35-autollenado-registro.js | Autollenado del registro desde paletas/paradas |
+| 29b-correccion-paradas.js | Corregir y reasignar paradas (quitar de una marca, cambiar de marca o de línea) con motivo y constancia |
 
 ### js/personal/
 | Archivo | Función |
@@ -94,7 +95,17 @@ js/
 | 33-rotacion-maquinistas.js | Rotación semanal de maquinistas |
 | 37-mantenimiento-tecnicos.js | Cuenta compartida de Mantenimiento: rol, permisos (ver tareo y operar líneas con PIN) |
 | 37b-mantenimiento-identificacion.js | Identificación del técnico con PIN |
+| 37c-equipos-catalogo.js | Equipos por línea (sync/configMantenimiento.equipos, en vivo): selector «Equipo» obligatorio en paradas por «Falla de máquina» (Producción Actual, Avance / Cierre y Registro), «Otro equipo — detalle», editor «Equipos por línea» para el Supervisor de Mantenimiento; paradas antiguas = «Equipo sin indicar» |
+| 37e-motivos-parada.js | Motivos de parada en dos niveles (sync/configMantenimiento.motivosParada, en vivo; transacción con merge): causas y motivos editables desde «Motivos de parada» (junto a «Equipos por línea»; nada se borra, se desactiva), `pideEquipo` por causa (37c `esFalla` le delega), «Otro» exige detalle de 10 caracteres. Las paradas no programadas guardan `causa`, `motivoCat`, `detalle`, `equipo` y `descripcion` = motivo — detalle. Catálogo inicial sin escribir. Cargar después de 37d |
+| 47b-analisis-paradas-mejoras.js | Mejoras de Análisis de paradas (funciones puras + bloques HTML; no cambia minutos): unidades perdidas (minutos ÷ 60 × velocidad estándar), fallas repetitivas (umbral en configMantenimiento.analisisParadas), frecuencia frente a duración, mapa de calor por hora, calidad del dato (metas verde/ámbar configurables) y técnico desde la intervención ligada (bitácora de respaldo). Cargar después de 47 |
+| 67i-graficos.js | Gráficos dinámicos de Mantenimiento (barrasH, columnas, dona; animados, con globo del dato por mouse/toque/teclado, clicables para filtrar) y estilo visual común del módulo (refina mi-*). El globo sirve para cualquier elemento con data-tip (también el Pareto de Análisis de paradas). Cargar antes de 47 y 67c |
+| 66-planificacion-modos.js | Planificación: modos Cantidad fija / Completar cantidad (meta entre bloques con cierre confirmado) / Todo el turno (estimación por ratio nominal), estado del plan «Completada» separado del operativo y formulario de modos. Ver docs/planificacion-etapa5-modos.md. Cargar después de 65d |
+| 66b-planificacion-secuencia.js | Planificación: secuencia por cantidad, hora y cierre (amplía tramosSecuencia), cantidades estimadas de las marcas sin cantidad, cambio de marca configurable (5 min iniciales; ajuste por línea y por transición) y proyección con la ejecución real. Ver docs/planificacion-etapa5-modos.md. Cargar después de 66 |
+| 51b-horarios-produccion.js | Horario de producción por línea, bloque y vigencia: resolvedor central (glacialHorarios.resolver), reglas con precedencia y fecha de inicio explícita, Noche 22:00–07:00 con tolerancia a las 07:30, habilitación de bloques y pestaña «Horario de producción». Sin reglas nada cambia. Ver docs/horarios-produccion.md. Cargar después de 52 |
+| 67g-reclasificacion-datos.js | Reclasificación de paradas ya registradas (colección reclasificacionesParada: un documento por parada, id = id de la parada; version + historial con id; nunca se borra ni se edita el historial). Agrupa descripciones parecidas, sugiere causa, `aplicar()` pone la etiqueta nueva (el original queda en `.original`; minutos sin cambio). Escriben Supervisor de Mantenimiento y Administrador. Lee en vivo solo el rango pedido |
+| 67h-reclasificacion-pantalla.js | Pestaña «Reclasificar paradas» del módulo Mantenimiento: paradas con causa «Otro», vacía o antigua, agrupadas; «Asignar a las N paradas de este grupo»; contadores de minutos sin clasificar y reclasificados |
 | 43-bitacora-mantenimiento.js | Bitácora de Mantenimiento (solo lectura: rangos rápidos por día operativo 07:00–07:00, orden, buscador, vista por parada, motivos pendientes y Excel) y tarjeta «Paradas de hoy» del Inicio |
+| 66-entrega-turno.js | Entrega de turno entre supervisores (colección entregasTurno, id fecha_TURNO con DIA/INTERMEDIO/NOCHE): foto automática por línea (reutiliza construirDatos de 48), novedades por línea, entregar/corregir/recibir por transacción, historial por fecha, tarjeta «Entrega de turno pendiente» en el Inicio en vivo y modo consulta para jefatura |
 
 ### js/rrhh/
 | Archivo | Función |
@@ -138,10 +149,13 @@ js/
 32. personal/31-rotacion-supervisores.js
 33. accesos/32-dashboard-perfiles.js
 34. produccion/35-autollenado-registro.js
+34b. produccion/29b-correccion-paradas.js (después de 29 y 35)
 35. nucleo/34-integraciones.js
 36. accesos/36-seguridad-auth.js
 37. mantenimiento/37-mantenimiento-tecnicos.js
 38. mantenimiento/37b-mantenimiento-identificacion.js
+38b. mantenimiento/37c-equipos-catalogo.js
+38c. mantenimiento/37e-motivos-parada.js
 39. rrhh/38-tareo-rrhh-exportacion.js
 40. personal/42-tareo-agregar-personal.js
 41. personal/40-tareo-auditoria.js
@@ -198,7 +212,7 @@ sync/perfiles solo lo lee quien figura en perfiles (el login solo necesita sync/
 
 Lote 2: la proyección de cierre vive en 23b-tiempos-linea.js (proyectarCierreLinea). Definiciones oficiales: horas efectivas = transcurrido − (paradas programadas + no programadas) ÷ 60; RATIO = producido ÷ horas efectivas; RENDIMIENTO DEL TURNO = producido ÷ (transcurrido − pausas programadas) (solo para «Si las paradas siguen igual»). Los umbrales de avisos y de color se guardan en sync/configAlertas (lectura: todo usuario autenticado; escritura: Administrador y Jefatura).
 
-Lote 3: «Análisis de paradas» (47-analisis-paradas.js) toma los minutos de calcularTiemposLinea() (23b: campo aditivo paradasClasificadas), así que coincide con el semáforo. Disponibilidad = tiempo en marcha ÷ tiempo planificado; MTTR = minutos de paradas no programadas ÷ cantidad; MTBF = tiempo en marcha ÷ cantidad; OEE (base) = disponibilidad × rendimiento × calidad (rendimiento con sopladas totales ÷ horas efectivas ÷ velocidad estándar; calidad con (sopladas − rechazadas) ÷ sopladas; rechazadas = merma de «Botellas» del registro del supervisor). Metas y velocidades estándar: sync/configIndicadores (lectura: usuarios autenticados; escritura: Administrador y Jefatura).
+Lote 3: «Análisis de paradas» (47-analisis-paradas.js) toma los minutos de calcularTiemposLinea() (23b: campo aditivo paradasClasificadas), así que coincide con el semáforo. Disponibilidad = tiempo en marcha ÷ tiempo planificado; MTTR = minutos de paradas no programadas ÷ cantidad; MTBF = tiempo en marcha ÷ cantidad; OEE (base) = disponibilidad × rendimiento (rendimiento con sopladas totales ÷ horas efectivas ÷ velocidad estándar). El indicador «Calidad» se retiró de toda la página (ver «Calidad retirada» al final). Metas y velocidades estándar: sync/configIndicadores (lectura: usuarios autenticados; escritura: Administrador y Jefatura).
 
 Permisos por área (pantalla de usuarios): Producción, Tareo, Mantenimiento, RRHH, Visualización y reportes, Administración y Almacén (PERMISOS_APP en 02-estado.js, con campo area). Permisos nuevos: ver_bitacora_mantenimiento (bitácora y análisis, también en las reglas), completar_motivo_parada y configurar_umbrales (también en las reglas), moduloAlmacen.
 
@@ -211,3 +225,13 @@ Reportes · Parte A (Resumen general): js/produccion/49-resumen-indicadores.js a
 Reportes · Parte B (Impacto económico): js/produccion/50-impacto-economico.js reemplaza el contenido de la pantalla «Impacto Económico» (renderPerdidasSoles; la vista anterior con precio por línea se retiró). Cascada: producción potencial, pérdida por paradas no programadas, por velocidad reducida y por mermas, en unidades y en soles; el incumplimiento del plan se muestra aparte (no se suma). Margen por producto y costo por componente con fecha de vigencia (se conserva el anterior); meta máxima de pérdida mensual. Colección nueva configEconomica (documentos margenes, costos y general), siempre por campos con merge. Permiso: el mismo perdidasSoles (reglas etapa 2: puedeVerImpacto). Pareto en soles por motivo, línea y turno, cinco eventos más caros, acumulado/proyección/mes anterior, supuestos y Excel. Motivos: los del sistema cuando coinciden con el registro (±2 %); si no, texto del registro marcado «clasificación estimada». recolectar() de 49 acepta {linea, motivosSistema}.
 
 Información económica (protegida por rol): ver docs/ECONOMICO-SEGURIDAD.md. Valores unitarios en la colección valoresUnitarios (solo Gerencia lee/escribe) con historial valoresUnitariosHistorial; resultados en soles agregados en resultadosEconomicos (Gerencia escribe; Gerencia y Jefatura leen). sync/precios y configEconomica quedaron cerrados y se borran tras migrar. Los precios ya no se escriben en el código.
+
+Calidad retirada: el indicador «Calidad» ya no existe en ninguna pantalla, imagen ni Excel (OEE = disponibilidad × rendimiento). Se conservan, aunque contengan la palabra: el campo «Botellas calidad» del registro (produccion.calidad), el motivo de parada «Calidad / producto no conforme», «Charla de Ingreso Sup. Calid.» y el cargo «Técnico de Calidad». Los registros ya guardados no se tocaron. Prueba: tests/sin-calidad.test.js.
+
+Equipo que falló (Producción 2): texto en la parada (equipo), solo con causa/motivo «Falla de máquina»; no cambia minutos ni indicadores. Bitácora de Mantenimiento: columna, filtro, «Indicar equipo» (evento COMPLETAR_MOTIVO nuevo con motivoDetalle «Equipo: …») y tabla «Por equipo». Análisis de paradas: Pareto por equipo. Resumen de turno: equipo con más minutos de falla. Pruebas: tests/equipos.test.js. Sin cambios de reglas Firestore.
+
+Entrega de turno (Producción 3): js/produccion/66-entrega-turno.js. Colección entregasTurno (un documento por fecha operativa y turno saliente). Crear: fecha, turno, estado ENTREGADA, resumen, novedades, entregaUid/Por/Nombre, entregadaEn. Corregir (solo quien entregó, mientras ENTREGADA): resumen, novedades, actualizadaEn, actualizaciones. Recibir (otro usuario): estado RECIBIDA, recibeUid/Por/Nombre, recibidaEn, observacionRecibe. Regla nueva en firestore.rules.etapa2.txt (bloque match /entregasTurno/{id}): hay que publicarla en Firebase; la equivalente de Supabase se aplica aparte. Pruebas: tests/entrega-turno.test.js. Módulo de modo consulta: entrega_turno (23b-modo-visualizacion.js).
+
+Planificación etapa 4 (tiempos previstos): js/produccion/65b-planificacion-motor.js (cálculo puro de capacidad), 65a-planificacion-tiempos.js (reglas de preparación, ventanas de indisponibilidad, versión, auditoría y evaluaciones en sync/catalogoPlanificacion → tiempos), 65-planificacion-capacidad.js (panel, capacidad restante y traslado idempotente), 65c-planificacion-opciones.js («Ver opciones para completar») y 65d-planificacion-semanal.js (Vista semanal de carga). Sin colecciones ni reglas nuevas. Detalle en docs/planificacion-etapa4.md. Pruebas: tests/planificacion-etapa4-motor.test.js y tests/planificacion-etapa4.test.js.
+
+Mantenimiento (intervenciones, evidencias, preventivos y equipos): js/mantenimiento/37d-equipos-maestro.js (catálogo de equipos en sync/configMantenimiento), 67-intervenciones-motor.js (motor puro), 67b-intervenciones-datos.js (persistencia por transacción, colección intervenciones), 67c-intervenciones-pantalla.js (pantalla), 67d-intervenciones-evidencias.js (fotos en Cloudinary), 67e-preventivos.js (colección planesPreventivos, avisos), 67f-indicadores-equipo.js (MTTR/MTBF por equipo). Detalle y límites en docs/mantenimiento-intervenciones.md. Reglas nuevas: firestore.rules.etapa2.txt; la migración aplicada en Supabase es supabase/migraciones/glacial_21_listas_partidas_mantenimiento.sql (docs/supabase-mantenimiento.sql quedó reemplazado, no ejecutar); ver docs/supabase-listas-partidas.md.

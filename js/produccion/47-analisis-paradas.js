@@ -15,10 +15,9 @@
      Ratio (UND/h)      = cantidad producida ÷ horas efectivas
      Disponibilidad     = tiempo en marcha ÷ tiempo planificado
      MTTR = minutos de paradas no programadas ÷ cantidad;   MTBF = tiempo en marcha ÷ cantidad
-     OEE (base) = disponibilidad × rendimiento (Calidad: no se mide)
+     OEE (base) = disponibilidad × rendimiento
         rendimiento = (sopladas totales ÷ horas efectivas) ÷ velocidad estándar     (usa el TOTAL)
-        calidad     = (sopladas − rechazadas) ÷ sopladas                              (usa las BUENAS)
-        rechazadas  = merma de «Botellas» del registro del supervisor; sopladas = registro del supervisor.
+        sopladas    = registro del supervisor.
    Metas y velocidades estándar: sync/configIndicadores (en vivo; se editan solo los campos cambiados).
    Cargar después de 43, 44 y 46. No modifica datos existentes.
    ========================================================= */
@@ -127,7 +126,10 @@
     const duracion=num(t.tiempoTranscurridoMin),prog=num(t.minPausasProgramadas),np=num(t.minParadasNoProgramadas);
     const planificado=Math.max(0,duracion-prog);                   // duración de la programación − paradas programadas
     const enMarcha=GlacialIndicadores.horasEfectivas({transcurridoMin:duracion,paradasProgramadasMin:prog,paradasNoProgramadasMin:np})*60;         // planificado − paradas no programadas
-    const items=Array.isArray(t.paradasClasificadas)?t.paradasClasificadas:[];
+    // Reclasificaciones (67g): la causa, el motivo, el detalle y el equipo que asignó Mantenimiento reemplazan a los originales SOLO como etiqueta
+    // (el original queda en .original y la parada guardada no se toca); los minutos no cambian.
+    const rc=typeof window!=='undefined'?window.glacialReclasificaciones:null;
+    const items=(Array.isArray(t.paradasClasificadas)?t.paradasClasificadas:[]).map(x=>rc&&x&&x.id?rc.aplicar(x):x);
     const npItems=items.filter(x=>x.clasif==='NO_PROGRAMADA'),pItems=items.filter(x=>x.clasif==='PROGRAMADA');
     return {linea:g.linea,fecha:g.fecha,turno:g.turno,bloque:g.bloque||(g.turno==='NOCHE'?'NOCHE':'DIA_INTERMEDIO'),
       t,duracion,prog,np,planificado,enMarcha,disp:GlacialIndicadores.disponibilidad(planificado,np),
@@ -165,6 +167,20 @@
       disp:GlacialIndicadores.disponibilidad(plan,np),mttr:nNp>0?np/nNp:null,mtbf:nNp>0?marcha/nNp:null};
   }
 
+  /* Paradas reclasificadas del rango: marca «reclasificada» y, al tocarla, el valor original. */
+  function bloqueReclasificadas(us){
+    const l=[];let min=0;
+    us.forEach(u=>u.npItems.forEach(it=>{if(it&&it.reclasificada){l.push({u,it});min+=it.minutos;}}));
+    if(!l.length)return '';
+    const txt=x=>[x.causa,x.motivoCat].filter(Boolean).join(' › ')+(x.detalle?' — '+x.detalle:'')+(x.equipo?' · '+x.equipo:'');
+    return '<h3 class="ap-sec">Paradas reclasificadas en el rango ('+l.length+' · '+fmt(min)+' min)</h3>'+
+      '<p class="ap-nota">Mantenimiento les asignó causa, motivo y equipo. Solo cambia la etiqueta: los minutos no cambian y la parada original no se modifica. Toca una para ver el original.</p>'+
+      '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Fecha</th><th>Línea</th><th>Turno</th><th>Minutos</th><th>Clasificación</th></tr></thead><tbody>'+
+      l.slice(0,40).map(({u,it})=>'<tr><td>'+esc(fmtFecha(u.fecha))+'</td><td>'+esc(nombreLinea(u.linea))+'</td><td>'+esc(u.turno)+'</td><td>'+fmt(it.minutos)+'</td><td><details><summary style="cursor:pointer">'+esc(txt(it))+' <b style="color:#0e7490">· reclasificada</b></summary>'+
+        '<small>Original: «'+esc(it.motivo||'')+'» · '+esc(txt(it.original)||'sin causa')+'</small></details></td></tr>').join('')+'</tbody></table></div>'+
+      (l.length>40?'<p class="ap-nota">Se muestran las 40 primeras; el Excel trae todas.</p>':'');
+  }
+
   /* Pareto: agrupa las paradas por motivo / línea / turno / técnico. */
   function etiquetaMotivo(motivo,abrirOtro){
     const m=String(motivo||'').trim();
@@ -172,32 +188,78 @@
     if(!abrirOtro&&/^otro\b/i.test(m))return 'Otro';
     return m;
   }
+  /* Equipo que falló: solo las paradas cuya causa pide equipo (catálogo de Mantenimiento; antes solo «Falla de máquina»); las antiguas (sin equipo) salen como «Equipo sin indicar». */
+  function equipoDeParada(it){
+    const G=typeof window!=='undefined'?window.glacialEquipos:null;
+    const pide=it&&(G&&G.esFalla?G.esFalla(it.causa):/^\s*falla de m[aá]quina/i.test(String(it.causa||'')));
+    if(!pide)return null;
+    return String(it.equipo||'').trim()||'Equipo sin indicar';
+  }
+  /* Causa de la parada; las antiguas sin causa salen como «Sin causa». */
+  function causaDeParada(it){return String(it&&it.causa||'').trim()||'Sin causa';}
+  /* Motivo para agrupar: «causa › motivo» del catálogo; una parada antigua (sin motivo de catálogo) se agrupa por su descripción, como siempre. */
+  function motivoDeParada(it,abrirOtro){
+    const mc=String(it&&it.motivoCat||'').trim();
+    return mc?causaDeParada(it)+' › '+mc:etiquetaMotivo(it&&it.motivo,abrirOtro);
+  }
+  /* Clave de grupo de una parada según «Agrupar por» (null = no entra, p. ej. sin equipo cuando se agrupa por equipo). */
+  function claveDe(it,u,op){
+    if(op.agrupar==='equipo')return equipoDeParada(it);
+    if(op.agrupar==='linea')return nombreLinea(u.linea);
+    if(op.agrupar==='turno')return u.turno;
+    if(op.agrupar==='tecnico')return (op.tecnicoDe&&op.tecnicoDe(it,u))||SIN_TECNICO;
+    if(op.agrupar==='causa')return causaDeParada(it);
+    return motivoDeParada(it,op.abrirOtro);
+  }
   function armarPareto(us,o){
     const op=Object.assign({agrupar:'motivo',metrica:'minutos',incluirProg:false,abrirOtro:false,tecnicoDe:null},o||{});
     const grupos=new Map();
-    let totalItems=0,ajuste=0;
+    let totalItems=0,ajuste=0,unidadesTotal=0,sinVelN=0,sinVelMin=0;const motivosSinVel=new Set();
     us.forEach(u=>{
       const items=u.npItems.concat(op.incluirProg?u.pItems:[]);
       ajuste+=u.ajusteNp+(op.incluirProg?u.ajusteProg:0);
       items.forEach(it=>{
-        let clave;
-        if(op.agrupar==='linea')clave=nombreLinea(u.linea);
-        else if(op.agrupar==='turno')clave=u.turno;
-        else if(op.agrupar==='tecnico')clave=(op.tecnicoDe&&op.tecnicoDe(it,u))||SIN_TECNICO;
-        else clave=etiquetaMotivo(it.motivo,op.abrirOtro);
-        const g=grupos.get(clave)||{clave,cantidad:0,minutos:0};
-        g.cantidad++;g.minutos+=it.minutos;grupos.set(clave,g);
+        const clave=claveDe(it,u,op);
+        if(!clave)return;
+        const g=grupos.get(clave)||{clave,cantidad:0,minutos:0,unidades:0,sinVel:0};
+        g.cantidad++;g.minutos+=it.minutos;
+        if(it.unidades===null){g.sinVel++;sinVelN++;sinVelMin+=it.minutos;if(it.motivoSinVel)motivosSinVel.add(it.motivoSinVel);}   // sin velocidad estándar: no se inventa un 0
+        else if(typeof it.unidades==='number'){g.unidades+=it.unidades;unidadesTotal+=it.unidades;}
+        grupos.set(clave,g);
         totalItems+=it.minutos;
       });
     });
     const filas=[...grupos.values()];
-    const valor=f=>op.metrica==='cantidad'?f.cantidad:f.minutos;
+    const valor=f=>op.metrica==='cantidad'?f.cantidad:op.metrica==='unidades'?f.unidades:f.minutos;
     filas.sort((a,b)=>valor(b)-valor(a)||b.minutos-a.minutos||a.clave.localeCompare(b.clave,'es'));
     const total=filas.reduce((s,f)=>s+valor(f),0);
     let acum=0;
     filas.forEach(f=>{f.valor=valor(f);f.pct=total>0?f.valor/total:0;acum+=f.pct;f.acum=Math.min(1,acum);});
-    return {filas,metrica:op.metrica,totalItemsMin:totalItems,ajusteMin:ajuste,
+    return {filas,metrica:op.metrica,totalItemsMin:totalItems,ajusteMin:ajuste,unidadesTotal,sinVelN,sinVelMin,motivosSinVel:[...motivosSinVel],
       totalMin:totalItems+ajuste,totalCantidad:filas.reduce((s,f)=>s+f.cantidad,0)};
+  }
+  /* Las paradas (con su unidad) que forman un grupo del Pareto: el detalle al tocar una barra o fila. */
+  function paradasDeClave(us,o,clave){
+    const op=Object.assign({agrupar:'motivo',incluirProg:false,abrirOtro:false,tecnicoDe:null},o||{});
+    const sal=[];
+    us.forEach(u=>u.npItems.concat(op.incluirProg?u.pItems:[]).forEach(it=>{if(claveDe(it,u,op)===clave)sal.push({u,it});}));
+    return sal.sort((a,b)=>b.u.fecha.localeCompare(a.u.fecha)||num(b.it.inicio)-num(a.it.inicio));
+  }
+
+  /* Cuadros de producción de la unidad (registro del supervisor) con su presentación y hora de inicio y fin: para saber qué corría cuando se paró (unidades perdidas). */
+  function cuadrosDeUnidad(u){
+    let recs=[];try{recs=loadRecords()||[];}catch(_){recs=[];}
+    const sal=[];
+    const hms=(fecha,h)=>{if(!h)return 0;const d=new Date(fecha+'T'+h+':00');if(u.bloque==='NOCHE'&&Number(String(h).slice(0,2))<12)d.setDate(d.getDate()+1);return d.getTime();};
+    recs.forEach(r=>{
+      if(!r||r.linea!==u.linea||r.fecha!==u.fecha)return;
+      const grupo=r.grupoTurno||(typeof grupoTurnoReporte==='function'?grupoTurnoReporte(r.turno):(r.turno==='NOCHE'?'NOCHE':'DIA_INTERMEDIO'));
+      if(grupo!==u.bloque)return;
+      (typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>{
+        if(q&&q.presentacion)sal.push({pres:q.presentacion,ini:hms(u.fecha,q.horaInicio),fin:hms(u.fecha,q.horaFin),sopladas:num(q.produccion&&q.produccion.sopladas)});
+      });
+    });
+    return sal;
   }
 
   /* Tendencia: minutos por semana (lunes–domingo) de los motivos principales. */
@@ -241,10 +303,10 @@
       tecnicos:[...porTecnico.values()].map(calc).sort((a,b)=>b.np-a.np)};
   }
 
-  /* OEE (base): rendimiento con las sopladas TOTALES, calidad con las BUENAS. */
+  /* OEE (base): rendimiento con las sopladas TOTALES. */
   function datosRegistro(u){
     let recs=[];try{recs=loadRecords()||[];}catch(_){recs=[];}
-    let sop=0,rech=0,hay=false;const porPres=new Map();
+    let sop=0,hay=false;const porPres=new Map();
     recs.forEach(r=>{
       if(!r||r.linea!==u.linea||r.fecha!==u.fecha)return;
       const grupo=r.grupoTurno||(typeof grupoTurnoReporte==='function'?grupoTurnoReporte(r.turno):(r.turno==='NOCHE'?'NOCHE':'DIA_INTERMEDIO'));
@@ -253,10 +315,9 @@
       cuadros.forEach(q=>{
         const s=num(q&&q.produccion&&q.produccion.sopladas);
         if(s>0){hay=true;sop+=s;const p=(q&&q.presentacion)||'';porPres.set(p,(porPres.get(p)||0)+s);}
-        ((q&&q.mermas)||[]).forEach(m=>{if(norm(m&&m.item)==='botellas')rech+=num(m.unidades);});
       });
     });
-    return {sopladas:sop,rechazadas:rech,hay,porPresentacion:porPres};
+    return {sopladas:sop,hay,porPresentacion:porPres};
   }
   function calcularOee(u,datos,velFn){
     if(!datos||!datos.hay)return {estado:'SIN_REGISTRO'};
@@ -268,8 +329,8 @@
     const velocidad=datos.sopladas/denom;                     // velocidad estándar ponderada por lo soplado
     const ratioSop=datos.sopladas/horas;
     const rend=GlacialIndicadores.rendimiento(ratioSop,velocidad);     // sin tope
-    return {estado:'OK',ratioSop,velocidad,rend,cal:null,disp:u.disp,oee:GlacialIndicadores.oee(u.disp,rend),aRevisar:GlacialIndicadores.rendimientoARevisar(rend),
-      sopladas:datos.sopladas,rechazadas:datos.rechazadas};
+    return {estado:'OK',ratioSop,velocidad,rend,disp:u.disp,oee:GlacialIndicadores.oee(u.disp,rend),aRevisar:GlacialIndicadores.rendimientoARevisar(rend),
+      sopladas:datos.sopladas};
   }
   const textoOee=o=>({SIN_VELOCIDAD:'Falta velocidad estándar',SIN_REGISTRO:'Falta registro de sopladas',SIN_HORAS:'—'}[o.estado]||'');
 
@@ -336,10 +397,27 @@
   const necesitaTecnicos=()=>F.agrupar==='tecnico'||verTecnicosPedido;
   let verTecnicosPedido=false;
 
+  const CFG_ANALISIS={fallasUmbral:3,fallasDias:7,otroVerde:10,otroAmbar:25,sinEquipoVerde:10,sinEquipoAmbar:25,sinHoraVerde:10,sinHoraAmbar:25};
+  let intervencionesEnlazadas=false;
+  /* Intervenciones que ya escucha Mantenimiento (abiertas y cerradas recientes): para el técnico y el detalle de cada parada. */
+  function intervencionesLista(){
+    try{
+      const A=window.glacialIntervenciones;
+      if(!A||!A.permisos().ver)return [];
+      A.escucharAbiertas();A.escucharCerradas();
+      if(!intervencionesEnlazadas&&A.alCambiar){intervencionesEnlazadas=true;A.alCambiar(refrescar);}
+      return A.todas();
+    }catch(_){return [];}
+  }
   function calcularTodo(){
+    if(typeof window!=='undefined'&&window.glacialReclasificaciones)window.glacialReclasificaciones.asegurarRango(F.desde,F.hasta);   // lee las reclasificaciones del rango (en vivo)
     const rango=listarUnidades(F.desde,F.hasta,{linea:F.linea,turno:F.turno});
-    const us=rango.unidades;
-    const tecnicoDe=tec.listo?resolvedorTecnico(tec.eventos):null;
+    const M=typeof window!=='undefined'?window.glacialAnalisisMejoras:null;
+    // Misma lista de paradas y mismos minutos; solo se agregan las unidades perdidas (minutos ÷ 60 × velocidad estándar) a una copia.
+    const us=M?M.conUnidadesPerdidas(rango.unidades,velocidadDe,cuadrosDeUnidad):rango.unidades;
+    // Técnico: primero el de la intervención ligada a la parada (67b); la bitácora solo de respaldo.
+    const respaldo=tec.listo?resolvedorTecnico(tec.eventos):null;
+    const tecnicoDe=M?M.resolvedorTecnicoCombinado(intervencionesLista(),respaldo):respaldo;
     const resumen=resumenIndicadores(us);
     const pareto=armarPareto(us,{agrupar:F.agrupar,metrica:F.metrica,incluirProg:F.incluirProg,abrirOtro:F.abrirOtro,tecnicoDe});
     const reparacion=armarReparacion(us,tecnicoDe);
@@ -353,7 +431,16 @@
     if(!(cacheTend.key===key&&cacheTend.prog===prog&&cacheTend.recs===recs&&cacheTend.min===Math.floor(ahoraMs()/MS_MIN)))
       cacheTend={key,prog,recs,min:Math.floor(ahoraMs()/MS_MIN),
         res:armarTendencia(listarUnidades(desde8,hoy,{linea:F.linea,turno:F.turno}).unidades,hoy,{incluirProg:F.incluirProg})};
-    return {rango,us,resumen,pareto,reparacion,oee,tendencia:cacheTend.res,tecnicoDe,hoy};
+    const cfg=(typeof window!=='undefined'&&window.glacialMotivosParada&&window.glacialMotivosParada.analisisConfig&&window.glacialMotivosParada.analisisConfig())||CFG_ANALISIS;
+    let mejoras=null;
+    if(M){
+      // Fallas repetitivas: ventana de N días que termina en el último día del rango (y todo el rango).
+      const desdeF=F.desde<addDias(F.hasta,-(cfg.fallasDias-1))?F.desde:addDias(F.hasta,-(cfg.fallasDias-1));
+      const usF=desdeF===F.desde?us:listarUnidades(desdeF,F.hasta,{linea:F.linea,turno:F.turno}).unidades;
+      mejoras={cfg,dato:M.indicadoresDato(us,cfg,equipoDeParada),fallas:M.fallasRepetitivas(usF,cfg,equipoDeParada),
+        frecuencia:M.frecuenciaDuracion(us,it=>motivoDeParada(it,F.abrirOtro)),mapa:M.mapaCalor(us)};
+    }
+    return {rango,us,resumen,pareto,reparacion,oee,tendencia:cacheTend.res,tecnicoDe,hoy,mejoras};
   }
 
   /* =========================================================
@@ -363,6 +450,9 @@
     if(document.getElementById('ap-css'))return;
     const s=document.createElement('style');s.id='ap-css';
     s.textContent=`
+      .ap-modal-fondo{position:fixed;inset:0;background:rgba(10,30,50,.5);z-index:10040;display:flex;align-items:flex-start;justify-content:center;padding:12px;overflow:auto}
+      .ap-modal{background:#fff;border-radius:14px;padding:14px 16px;width:min(900px,100%);margin:auto;box-shadow:0 16px 48px rgba(0,0,0,.28)}
+      .ap-modal h3{margin:0 0 4px;color:#103b57}
       .ap-rangos{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
       .ap-rangos button{border:1px solid #c5d0db;background:#fff;border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer}
       .ap-rangos button.active{background:#10265f;color:#fff;border-color:#10265f}
@@ -389,15 +479,35 @@
     document.head.appendChild(s);
   }
 
+  let ultimo=null;          // último cálculo dibujado (para el detalle al tocar una barra o fila)
   const opcionesSel=(lista,sel,todos)=>'<option value="">'+todos+'</option>'+lista.map(v=>{
     const val=Array.isArray(v)?v[0]:v,txt=Array.isArray(v)?v[1]:v;
     return '<option value="'+esc(val)+'"'+(val===sel?' selected':'')+'>'+esc(txt)+'</option>';}).join('');
 
+  const esAngosto=()=>typeof window!=='undefined'&&window.innerWidth>0&&window.innerWidth<=640;
+  const unidadTxt=m=>m==='cantidad'?' paradas':m==='unidades'?' UND':' min';
+  /* Celular: barras horizontales con la etiqueta encima de cada barra (legible a 360 px; el gráfico vertical de 720 px dejaba el texto en ~5 px). */
+  function svgParetoHorizontal(p){
+    const filas=p.filas.slice(0,12);
+    if(!filas.length)return '';
+    const resto=p.filas.slice(12);
+    if(resto.length)filas.push({clave:'Resto ('+resto.length+')',valor:resto.reduce((s,f)=>s+f.valor,0),acum:1,resto:true});
+    const W=360,fila=46,mL=8,mR=96,max=Math.max(...filas.map(f=>f.valor))||1,ancho=W-mL-mR,H=filas.length*fila+8;
+    const g=filas.map((f,i)=>{
+      const y=4+i*fila,w=Math.max(2,f.valor/max*ancho),nombre=f.clave.length>44?f.clave.slice(0,43)+'…':f.clave;
+      return '<g data-tip="'+esc(f.clave+': '+fmt(f.valor)+unidadTxt(p.metrica))+'"'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+'><text x="'+mL+'" y="'+(y+13)+'" font-size="13" fill="#1b2a38">'+esc(nombre)+'</text>'+
+        '<rect class="gm-svg-barh" x="'+mL+'" y="'+(y+19)+'" width="'+w.toFixed(1)+'" height="16" rx="3" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
+        '<text x="'+(mL+w+6).toFixed(1)+'" y="'+(y+32)+'" font-size="13" font-weight="700" fill="#1b2a38">'+fmt(f.valor)+'</text>'+
+        '<text x="'+(W-4)+'" y="'+(y+32)+'" font-size="12" text-anchor="end" fill="#d93a3a">'+Math.round((f.acum||0)*100)+' %</text></g>';
+    }).join('');
+    return '<svg class="ap-svg" viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto" role="img" aria-label="Pareto de paradas (barras horizontales); el porcentaje a la derecha es el acumulado">'+g+'</svg>';
+  }
   function svgPareto(p){
+    if(esAngosto())return svgParetoHorizontal(p);
     const filas=p.filas.slice(0,15);
     if(!filas.length)return '';
     const resto=p.filas.slice(15);
-    if(resto.length)filas.push({clave:'Resto ('+resto.length+')',valor:resto.reduce((s,f)=>s+f.valor,0),acum:1});
+    if(resto.length)filas.push({clave:'Resto ('+resto.length+')',valor:resto.reduce((s,f)=>s+f.valor,0),acum:1,resto:true});
     const W=720,H=330,mL=52,mR=46,mT=16,mB=104,alto=H-mT-mB;
     const max=Math.max(...filas.map(f=>f.valor))||1;
     const bw=(W-mL-mR)/filas.length;
@@ -405,7 +515,7 @@
       const h=(f.valor/max)*alto,x=mL+i*bw+bw*0.12,y=mT+alto-h;
       const cx=mL+i*bw+bw/2;
       const nombre=f.clave.length>22?f.clave.slice(0,21)+'…':f.clave;
-      return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw*0.76).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+(p.metrica==='cantidad'?' paradas':' min')+'</title></rect>'+
+      return '<rect class="gm-svg-bar" data-tip="'+esc(f.clave+': '+fmt(f.valor)+unidadTxt(p.metrica))+'"'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+' x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw*0.76).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
         '<text x="'+cx.toFixed(1)+'" y="'+(y-3).toFixed(1)+'" font-size="10" text-anchor="middle" fill="#1b2a38">'+fmt(f.valor)+'</text>'+
         '<text transform="translate('+cx.toFixed(1)+','+(mT+alto+12)+') rotate(-40)" font-size="10" text-anchor="end" fill="#31475c">'+esc(nombre)+'</text>';
     }).join('');
@@ -416,7 +526,7 @@
       '<text x="'+(mL-6)+'" y="'+(mT+alto)+'" font-size="10" text-anchor="end" fill="#5a6b7b">0</text>'+
       '<text x="'+(W-mR+6)+'" y="'+(mT+8)+'" font-size="10" fill="#d93a3a">100 %</text>'+
       '<text x="'+(W-mR+6)+'" y="'+(mT+alto)+'" font-size="10" fill="#d93a3a">0 %</text>';
-    return '<svg class="ap-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Pareto de paradas por '+(p.metrica==='cantidad'?'cantidad':'minutos')+'">'+
+    return '<svg class="ap-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Pareto de paradas por '+(p.metrica==='cantidad'?'cantidad':p.metrica==='unidades'?'unidades perdidas':'minutos')+'">'+
       ejes+barras+'<polyline points="'+pts+'" fill="none" stroke="#d93a3a" stroke-width="2"/>'+puntos+'</svg>';
   }
 
@@ -428,7 +538,7 @@
     const y=v=>mT+alto*(1-v/max);
     const lineas=t.motivos.map((m,k)=>'<polyline fill="none" stroke="'+COLORES[k%5]+'" stroke-width="2" points="'+
       m.porSemana.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ')+'"/>'+
-      m.porSemana.map((v,i)=>'<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3" fill="'+COLORES[k%5]+'"><title>'+esc(m.motivo)+' · semana del '+fmtFecha(t.semanas[i])+': '+fmt(v)+' min</title></circle>').join('')).join('');
+      m.porSemana.map((v,i)=>'<circle data-tip="'+esc(m.motivo+' · semana del '+fmtFecha(t.semanas[i])+': '+fmt(v)+' min')+'" cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="4" fill="'+COLORES[k%5]+'" style="cursor:pointer"><title>'+esc(m.motivo)+' · semana del '+fmtFecha(t.semanas[i])+': '+fmt(v)+' min</title></circle>').join('')).join('');
     const etiquetas=t.semanas.map((s,i)=>'<text x="'+x(i).toFixed(1)+'" y="'+(H-10)+'" font-size="10" text-anchor="middle" fill="#5a6b7b">'+fmtFecha(s)+'</text>').join('');
     return '<svg class="ap-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Tendencia semanal de minutos de parada por motivo">'+
       '<line x1="'+mL+'" y1="'+(mT+alto)+'" x2="'+(W-mR)+'" y2="'+(mT+alto)+'" stroke="#9aa9b8"/>'+
@@ -437,12 +547,21 @@
   }
 
   function tablaPareto(p,agrupar){
-    const etiqueta={motivo:'Motivo',linea:'Línea',turno:'Turno',tecnico:'Técnico'}[agrupar];
-    const u=p.metrica==='cantidad'?'cantidad':'minutos';
-    return '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>'+etiqueta+'</th><th>Cantidad</th><th>Minutos</th><th>% ('+u+')</th><th>Acumulado</th></tr></thead><tbody>'+
-      p.filas.map(f=>'<tr><td>'+esc(f.clave)+'</td><td>'+fmt(f.cantidad)+'</td><td>'+fmt(f.minutos)+'</td><td>'+(f.pct*100).toFixed(1)+' %</td><td>'+(f.acum*100).toFixed(1)+' %</td></tr>').join('')+
-      (Math.abs(p.ajusteMin)>=0.5?'<tr><td><i>Ajuste por solapes y topes (igual que el semáforo)</i></td><td>—</td><td>'+(p.ajusteMin>0?'+':'')+fmt(p.ajusteMin)+'</td><td>—</td><td>—</td></tr>':'')+
-      '<tr><td><b>Total (coincide con el semáforo)</b></td><td><b>'+fmt(p.totalCantidad)+'</b></td><td><b>'+fmt(p.totalMin)+'</b></td><td>100 %</td><td></td></tr></tbody></table></div>';
+    const etiqueta={causa:'Causa',motivo:'Motivo (causa › motivo)',linea:'Línea',turno:'Turno',tecnico:'Técnico',equipo:'Equipo'}[agrupar];
+    const u=p.metrica==='cantidad'?'cantidad':p.metrica==='unidades'?'unidades perdidas':'minutos';
+    const conUnd=p.metrica==='unidades';
+    return '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>'+etiqueta+'</th><th>Cantidad</th><th>Minutos</th>'+(conUnd?'<th>Unidades perdidas</th>':'')+'<th>% ('+u+')</th><th>Acumulado</th></tr></thead><tbody>'+
+      p.filas.map((f,i)=>'<tr data-ap-det="'+i+'" style="cursor:pointer" title="Toca para ver las paradas"><td>'+esc(f.clave)+'</td><td>'+fmt(f.cantidad)+'</td><td>'+fmt(f.minutos)+'</td>'+(conUnd?'<td>'+(f.unidades>0||!f.sinVel?fmt(f.unidades):'<i>Sin velocidad</i>')+(f.sinVel&&f.unidades>0?' <small>('+f.sinVel+' sin velocidad)</small>':'')+'</td>':'')+'<td>'+(f.pct*100).toFixed(1)+' %</td><td>'+(f.acum*100).toFixed(1)+' %</td></tr>').join('')+
+      (Math.abs(p.ajusteMin)>=0.5?'<tr><td><i>Ajuste por solapes y topes (igual que el semáforo)</i></td><td>—</td><td>'+(p.ajusteMin>0?'+':'')+fmt(p.ajusteMin)+'</td>'+(conUnd?'<td>—</td>':'')+'<td>—</td><td>—</td></tr>':'')+
+      '<tr><td><b>Total (coincide con el semáforo)</b></td><td><b>'+fmt(p.totalCantidad)+'</b></td><td><b>'+fmt(p.totalMin)+'</b></td>'+(conUnd?'<td><b>'+fmt(p.unidadesTotal)+'</b></td>':'')+'<td>100 %</td><td></td></tr></tbody></table></div>';
+  }
+  /* Aviso de las unidades perdidas: cuántas paradas no se pudieron convertir y por qué (nunca se muestra un 0 falso). */
+  function notaUnidades(p){
+    if(p.metrica!=='unidades')return '';
+    const razon=p.motivosSinVel.length?' Motivo: '+esc(p.motivosSinVel.slice(0,3).join('; '))+'.':'';
+    if(p.sinVelN&&p.unidadesTotal<=0)return '<div class="ap-aviso"><b>No se pueden calcular unidades perdidas:</b> ninguna parada tiene velocidad estándar o presentación identificada.'+razon+' Completa las velocidades en «Metas y velocidades».</div>';
+    return '<p class="ap-nota">Unidades perdidas = minutos ÷ 60 × velocidad estándar (UND/h) de la presentación que corría; si hubo varias y no se sabe cuál, se usa el promedio ponderado por lo soplado.'+
+      (p.sinVelN?' <b>'+p.sinVelN+' paradas ('+fmt(p.sinVelMin)+' min) no suman unidades por falta de velocidad estándar o de presentación.</b>'+razon:'')+'</p>';
   }
 
   function tablaDisponibilidad(d){
@@ -464,14 +583,14 @@
 
   function tablaReparacion(d){
     const fila=r=>'<tr><td>'+esc(r.clave)+'</td><td>'+fmt(r.n)+'</td><td>'+fmt(r.np)+'</td><td>'+(r.n>0?fmt1(r.mttr)+' min':'Sin paradas')+'</td><td>'+(r.n>0?fmt1(r.mtbf)+' min':'Sin paradas')+'</td></tr>';
-    const cab='<thead><tr><th>%</th><th>Paradas no programadas</th><th>Minutos</th><th>Tiempo medio de reparación</th><th>Tiempo medio entre fallas</th></tr></thead>';
+    const cab='<thead><tr><th>%</th><th>Paradas no programadas</th><th>Minutos</th><th>Duración media de parada no programada</th><th>Tiempo medio entre fallas</th></tr></thead>';
     const tecnicos=necesitaTecnicos()
       ?(tec.error?'<div class="ap-aviso">'+esc(tec.error)+'</div>':(!tec.listo?'<div class="ap-aviso">Cargando técnicos de la bitácora…</div>'
         :'<div class="ap-tabla-scroll"><table class="tareo-table">'+cab.replace('%','Técnico')+'<tbody>'+
           (d.reparacion.tecnicos.length?d.reparacion.tecnicos.map(fila).join(''):'<tr><td colspan="5">Sin paradas</td></tr>')+'</tbody></table></div>'))
       :'<div class="ap-nota"><button type="button" class="btn btn-ghost btn-sm" data-ap-tecnicos>Ver por técnico</button> consulta la bitácora del rango (hasta '+LIMITE_EVENTOS+' lecturas).</div>';
-    return '<h3 class="ap-sec">Tiempos de reparación y entre fallas</h3>'+
-      '<p class="ap-nota">Reparación = minutos de paradas no programadas ÷ cantidad. Entre fallas = tiempo en marcha ÷ cantidad.</p>'+
+    return '<h3 class="ap-sec">Duración media de parada y tiempo entre fallas</h3>'+
+      '<p class="ap-nota">Duración media = minutos de paradas no programadas ÷ cantidad (incluye esperas y paradas que no son fallas). El tiempo de reparación real por equipo está en Intervenciones › Indicadores. Entre fallas = tiempo en marcha ÷ cantidad.</p>'+
       '<div class="ap-tabla-scroll"><table class="tareo-table">'+cab.replace('%','Línea')+'<tbody>'+
       (d.reparacion.lineas.length?d.reparacion.lineas.map(fila).join(''):'<tr><td colspan="5">Sin paradas</td></tr>')+'</tbody></table></div>'+tecnicos;
   }
@@ -480,14 +599,14 @@
     if(!d.oee.length)return '';
     const filas=d.oee.map(({u,o})=>'<tr><td>'+esc(nombreLinea(u.linea))+'</td><td>'+fmtFecha(u.fecha)+' · '+esc(u.turno)+'</td><td>'+pct(u.disp)+'</td>'+
       (o.estado==='OK'
-        ?'<td>'+fmt(o.ratioSop)+' UND/h</td><td>'+fmt(o.velocidad)+'</td><td>'+pct(o.rend)+(o.aRevisar?' <small>revisar velocidad estándar</small>':'')+'</td><td>'+GlacialIndicadores.NOTA_CALIDAD.replace('Calidad: ','')+'</td><td class="ap-celda '+nivelDisp(o.oee)+'"><b>'+pct(o.oee)+'</b></td>'
-        :'<td colspan="5" class="ap-nota">'+esc(textoOee(o))+'</td>')+'</tr>').join('');
+        ?'<td>'+fmt(o.ratioSop)+' UND/h</td><td>'+fmt(o.velocidad)+'</td><td>'+pct(o.rend)+(o.aRevisar?' <small>revisar velocidad estándar</small>':'')+'</td><td class="ap-celda '+nivelDisp(o.oee)+'"><b>'+pct(o.oee)+'</b></td>'
+        :'<td colspan="4" class="ap-nota">'+esc(textoOee(o))+'</td>')+'</tr>').join('');
     const ok=d.oee.filter(x=>x.o.estado==='OK');
     const prom=ok.length?ok.reduce((s,x)=>s+x.o.oee,0)/ok.length:null;
     return '<h3 class="ap-sec">Base para el OEE</h3>'+
-      '<p class="ap-nota">Rendimiento = (sopladas ÷ horas efectivas) ÷ velocidad estándar (usa el total). Calidad: no se mide. Las sopladas salen del registro del supervisor (rechazadas = merma de «Botellas»). Si falta la velocidad estándar o el registro, no se calcula.</p>'+
-      '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Línea</th><th>Día · turno</th><th>Disponibilidad</th><th>Ratio sobre sopladas</th><th>Velocidad estándar</th><th>Rendimiento</th><th>Calidad</th><th>OEE (base)</th></tr></thead><tbody>'+filas+
-      '<tr><td><b>Promedio de los turnos calculables</b></td><td colspan="6">'+ok.length+' de '+d.oee.length+' turnos</td><td><b>'+pct(prom)+'</b></td></tr></tbody></table></div>';
+      '<p class="ap-nota">Rendimiento = (sopladas ÷ horas efectivas) ÷ velocidad estándar (usa el total). Las sopladas salen del registro del supervisor. Si falta la velocidad estándar o el registro, no se calcula.</p>'+
+      '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Línea</th><th>Día · turno</th><th>Disponibilidad</th><th>Ratio sobre sopladas</th><th>Velocidad estándar</th><th>Rendimiento</th><th>OEE (base)</th></tr></thead><tbody>'+filas+
+      '<tr><td><b>Promedio de los turnos calculables</b></td><td colspan="5">'+ok.length+' de '+d.oee.length+' turnos</td><td><b>'+pct(prom)+'</b></td></tr></tbody></table></div>';
   }
 
   function render(){
@@ -514,18 +633,23 @@
         '<div class="ap-kpi"><span>Paradas no programadas</span><b>'+fmt(r.nNp)+'</b></div>'+
         '<div class="ap-kpi"><span>Minutos no programados</span><b>'+fmt(r.npMin)+'</b><small>programados: '+fmt(r.progMin)+' min</small></div>'+
         '<div class="ap-kpi '+nivelDisp(r.disp)+'"><span>Disponibilidad</span><b>'+pct(r.disp)+'</b><small>en marcha '+fmt(r.enMarcha)+' de '+fmt(r.planificado)+' min planificados</small></div>'+
-        '<div class="ap-kpi"><span>Tiempo medio de reparación</span><b>'+(r.mttr==null?'Sin paradas':fmt1(r.mttr)+' min')+'</b></div>'+
+        '<div class="ap-kpi"><span>Duración media de parada no programada</span><b>'+(r.mttr==null?'Sin paradas':fmt1(r.mttr)+' min')+'</b></div>'+
         '<div class="ap-kpi"><span>Tiempo medio entre fallas</span><b>'+(r.mtbf==null?'Sin paradas':fmt1(r.mtbf)+' min')+'</b></div></div>';
+      ultimo=d;
+      if(d.mejoras){const M=window.glacialAnalisisMejoras;cuerpo+=M.htmlDato(d.mejoras.dato)+M.htmlFallasRepetitivas(d.mejoras.fallas,d.mejoras.cfg);}
       if(sin)cuerpo+='<p class="ap-nota">'+sin+' turno(s) con programación pero sin inicio real no se miden.</p>';
       if(!d.us.length){
         cuerpo+='<div class="ap-vacio"><b>Sin turnos con datos en este rango.</b><br>El análisis usa los turnos con inicio real de la línea desde Producción Actual. Prueba con «Ayer», «Esta semana» o «Este mes».</div>';
       }else{
-        cuerpo+='<h3 class="ap-sec">Pareto de paradas '+(F.incluirProg?'(no programadas y programadas)':'no programadas')+' por '+({motivo:'motivo',linea:'línea',turno:'turno',tecnico:'técnico'}[F.agrupar])+'</h3>';
+        cuerpo+='<h3 class="ap-sec">Pareto de paradas '+(F.incluirProg?'(no programadas y programadas)':'no programadas')+' por '+({causa:'causa',motivo:'motivo (causa › motivo)',linea:'línea',turno:'turno',tecnico:'técnico',equipo:'equipo (causas que piden equipo)'}[F.agrupar])+'</h3>';
         if(F.agrupar==='tecnico'){
           if(!tec.error&&!tec.listo)cuerpo+='<div class="ap-aviso">Cargando técnicos de la bitácora…</div>';
           else if(!tec.error)cuerpo+='<p class="ap-nota">El técnico sale de la bitácora; las paradas sin registro ahí (supervisor, históricas) van a «'+SIN_TECNICO+'».</p>';
         }
-        cuerpo+=pa.filas.length?svgPareto(pa)+tablaPareto(pa,F.agrupar):'<div class="ap-vacio"><b>Sin paradas'+(F.incluirProg?'':' no programadas')+' en este rango.</b></div>';
+        cuerpo+=notaUnidades(pa);
+        cuerpo+=pa.filas.length?'<p class="ap-nota">Toca una barra o una fila para ver las paradas.</p>'+svgPareto(pa)+tablaPareto(pa,F.agrupar):'<div class="ap-vacio"><b>Sin paradas'+(F.incluirProg?'':' no programadas')+' en este rango.</b></div>';
+        cuerpo+=bloqueReclasificadas(d.us);
+        if(d.mejoras){const M=window.glacialAnalisisMejoras;cuerpo+=M.htmlFrecuencia(d.mejoras.frecuencia)+M.htmlMapaCalor(d.mejoras.mapa);}
         cuerpo+='<h3 class="ap-sec">Tendencia: minutos de parada por semana (últimas 8 semanas)</h3>'+
           (d.tendencia&&d.tendencia.motivos.length?svgTendencia(d.tendencia)+'<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Motivo</th>'+d.tendencia.semanas.map(s=>'<th>'+fmtFecha(s)+'</th>').join('')+'</tr></thead><tbody>'+
             d.tendencia.motivos.map(m=>'<tr><td>'+esc(m.motivo)+'</td>'+m.porSemana.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'
@@ -542,13 +666,57 @@
         '<div class="field-sm"><label>Hasta</label><input type="date" id="ap-hasta" value="'+esc(F.hasta)+'" max="'+esc(hoy)+'"></div>'+
         '<div class="field-sm"><label>Línea</label><select id="ap-linea">'+opcionesSel(lineas,F.linea,'Todas')+'</select></div>'+
         '<div class="field-sm"><label>Turno</label><select id="ap-turno">'+opcionesSel(TURNOS,F.turno,'Todos')+'</select></div>'+
-        '<div class="field-sm"><label>Agrupar por</label><select id="ap-agrupar">'+[['motivo','Motivo'],['linea','Línea'],['turno','Turno'],['tecnico','Técnico']].map(([v,t])=>'<option value="'+v+'"'+(F.agrupar===v?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
-        '<div class="field-sm"><label>Ver por</label><select id="ap-metrica"><option value="minutos"'+(F.metrica==='minutos'?' selected':'')+'>Minutos</option><option value="cantidad"'+(F.metrica==='cantidad'?' selected':'')+'>Cantidad de paradas</option></select></div>'+
+        '<div class="field-sm"><label>Agrupar por</label><select id="ap-agrupar">'+[['causa','Causa'],['motivo','Motivo (causa › motivo)'],['equipo','Equipo'],['linea','Línea'],['turno','Turno'],['tecnico','Técnico']].map(([v,t])=>'<option value="'+v+'"'+(F.agrupar===v?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
+        '<div class="field-sm"><label>Ver por</label><select id="ap-metrica"><option value="minutos"'+(F.metrica==='minutos'?' selected':'')+'>Minutos</option><option value="cantidad"'+(F.metrica==='cantidad'?' selected':'')+'>Cantidad de paradas</option><option value="unidades"'+(F.metrica==='unidades'?' selected':'')+'>Unidades perdidas</option></select></div>'+
         '<div class="field-sm"><label>&nbsp;</label><label style="font-weight:600"><input type="checkbox" id="ap-prog"'+(F.incluirProg?' checked':'')+'> Incluir programadas</label></div>'+
         '<div class="field-sm"><label>&nbsp;</label><label style="font-weight:600"><input type="checkbox" id="ap-otro"'+(F.abrirOtro?' checked':'')+'> Abrir «Otro»</label></div>'+
         '<div class="field-sm"><label>&nbsp;</label>'+(puedeConfigurar()?'<button type="button" class="btn btn-ghost btn-sm" data-ap-config>Metas y velocidades</button> ':'')+
         '<button type="button" class="btn btn-primary btn-sm" data-ap-excel'+(d&&d.us.length?'':' disabled')+'>Exportar a Excel</button></div>'+
       '</div>'+(aviso?'<div class="ap-aviso">'+esc(aviso)+'</div>':'')+cuerpo+'</div></div>';
+  }
+
+  /* ---------- detalle de un grupo del Pareto ---------- */
+  function cerrarDetalle(){const m=document.getElementById('ap-detalle');if(m)m.remove();}
+  function abrirDetalleGrupo(i){
+    const d=ultimo;if(!d)return;
+    const fila=d.pareto.filas[i];if(!fila)return;
+    const op={agrupar:F.agrupar,incluirProg:F.incluirProg,abrirOtro:F.abrirOtro,tecnicoDe:d.tecnicoDe};
+    const lista=paradasDeClave(d.us,op,fila.clave),M=window.glacialAnalisisMejoras,ints=intervencionesLista();
+    const equipos=new Map();
+    const filas=lista.map(({u,it})=>{
+      const eq=equipoDeParada(it)||String(it.equipo||'').trim(),dI=M?M.intervencionDe(it,u,ints):null;
+      if(eq&&eq!==SIN_EQUIPO)equipos.set(u.linea+'|'+eq,{linea:u.linea,equipo:eq});
+      const tec=d.tecnicoDe?d.tecnicoDe(it,u):null;
+      const rep=dI&&(dI.repuestos||[]).filter(x=>!x.anulado).map(x=>x.descripcion||x.codigo).filter(Boolean).join(', ');
+      return '<tr><td>'+esc(fmtFecha(u.fecha))+'</td><td>'+esc(nombreLinea(u.linea))+'</td><td>'+esc(u.turno)+'</td><td>'+(it.inicio?esc(M?M.horaTxt(it.inicio):''):'—')+'</td><td>'+fmt1(it.minutos)+'</td>'+
+        '<td>'+esc(it.motivo||'')+(it.causa?'<br><small>'+esc([it.causa,it.motivoCat].filter(Boolean).join(' › '))+(it.reclasificada?' · <b>reclasificada</b>':'')+'</small>':'')+
+          (dI&&(dI.diagnostico||rep)?'<br><small><b>Intervención:</b> '+(dI.diagnostico?'diagnóstico: '+esc(dI.diagnostico):'')+(rep?' · repuestos: '+esc(rep):'')+'</small>':'')+'</td>'+
+        '<td>'+esc(eq||'—')+'</td><td>'+esc(it.registradoPor||'—')+'</td><td>'+esc(tec||'—')+'</td></tr>';
+    }).join('');
+    const enlaces=[...equipos.values()].slice(0,6).map(e=>'<button type="button" class="btn btn-ghost btn-sm" data-ap-int="'+esc(e.linea)+'|'+esc(e.equipo)+'">Intervenciones de '+esc(e.equipo)+' ('+esc(nombreLinea(e.linea))+')</button>').join(' ');
+    cerrarDetalle();
+    const f=document.createElement('div');f.id='ap-detalle';f.className='ap-modal-fondo';
+    f.innerHTML='<div class="ap-modal" role="dialog" aria-modal="true"><h3>'+esc(fila.clave)+'</h3><p class="ap-nota">'+lista.length+' parada(s) · '+fmt(fila.minutos)+' min'+(F.metrica==='unidades'&&fila.unidades>0?' · '+fmt(fila.unidades)+' UND perdidas':'')+'</p>'+
+      '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Fecha</th><th>Línea</th><th>Turno</th><th>Hora</th><th>Min</th><th>Motivo</th><th>Equipo</th><th>Registró</th><th>Técnico</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
+      (enlaces?'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+enlaces+'</div>':'')+
+      '<div style="margin-top:10px;text-align:right"><button type="button" class="btn btn-primary" data-ap-cerrar-det>Cerrar</button></div></div>';
+    f.addEventListener('mousedown',e=>{if(e.target===f)cerrarDetalle();});
+    f.addEventListener('click',e=>{
+      if(e.target.closest('[data-ap-cerrar-det]')){cerrarDetalle();return;}
+      const b=e.target.closest('[data-ap-int]');
+      if(b){const [linea,...r]=b.dataset.apInt.split('|');verIntervenciones(linea,r.join('|'));}
+    });
+    document.body.appendChild(f);
+  }
+  /* Abre Mantenimiento › Intervenciones filtrado por el equipo (por su id del catálogo; si no está, por el texto). */
+  function verIntervenciones(linea,equipo){
+    const UI=window.glacialMantUI;
+    if(!UI||typeof window.goIntervenciones!=='function'){return;}
+    const E=window.glacialEquiposMaestro,eq=E&&E.buscarPorNombre?E.buscarPorNombre(linea,equipo):null;
+    Object.assign(UI.F,{linea,equipo:eq?eq.id:'',q:eq?'':equipo,tipo:'',estado:'',tecnico:'',desde:'',hasta:''});
+    UI.UI.tab='intervenciones';
+    cerrarDetalle();
+    window.goIntervenciones();
   }
 
   /* =========================================================
@@ -617,26 +785,42 @@
       ['Tiempo planificado (min)',Math.round(r.planificado),'duración de la programación − paradas programadas'],
       ['Tiempo en marcha (min)',Math.round(r.enMarcha),'planificado − paradas no programadas'],
       ['Disponibilidad',r.disp==null?'—':+(r.disp*100).toFixed(1),'% · meta verde ≥ '+m.verdePct+' %, ámbar ≥ '+m.ambarPct+' %'],
-      ['Tiempo medio de reparación (min)',r.mttr==null?'Sin paradas':+r.mttr.toFixed(1),'minutos NP ÷ paradas NP'],
+      ['Duración media de parada no programada (min)',r.mttr==null?'Sin paradas':+r.mttr.toFixed(1),'minutos NP ÷ paradas NP'],
       ['Tiempo medio entre fallas (min)',r.mtbf==null?'Sin paradas':+r.mtbf.toFixed(1),'tiempo en marcha ÷ paradas NP']],[36,18,60]);
-    const etq={motivo:'Motivo',linea:'Línea',turno:'Turno',tecnico:'Técnico'}[F.agrupar];
-    hoja('Pareto','Pareto de paradas',[etq,'Cantidad','Minutos','% ('+(F.metrica==='cantidad'?'cantidad':'minutos')+')','Acumulado %'],
-      d.pareto.filas.map(f=>[f.clave,f.cantidad,Math.round(f.minutos),+(f.pct*100).toFixed(1),+(f.acum*100).toFixed(1)])
-        .concat(Math.abs(d.pareto.ajusteMin)>=0.5?[['Ajuste por solapes y topes','',Math.round(d.pareto.ajusteMin),'','']]:[])
-        .concat([['TOTAL (coincide con el semáforo)',d.pareto.totalCantidad,Math.round(d.pareto.totalMin),100,'']]),[40,12,12,16,14]);
+    const etq={causa:'Causa',motivo:'Motivo (causa › motivo)',linea:'Línea',turno:'Turno',tecnico:'Técnico',equipo:'Equipo'}[F.agrupar];
+    hoja('Pareto','Pareto de paradas',[etq,'Cantidad','Minutos','Unidades perdidas','% ('+(F.metrica==='cantidad'?'cantidad':F.metrica==='unidades'?'unidades perdidas':'minutos')+')','Acumulado %'],
+      d.pareto.filas.map(f=>[f.clave,f.cantidad,Math.round(f.minutos),f.sinVel&&!f.unidades?'Sin velocidad':Math.round(f.unidades),+(f.pct*100).toFixed(1),+(f.acum*100).toFixed(1)])
+        .concat(Math.abs(d.pareto.ajusteMin)>=0.5?[['Ajuste por solapes y topes','',Math.round(d.pareto.ajusteMin),'','','']]:[])
+        .concat([['TOTAL (coincide con el semáforo)',d.pareto.totalCantidad,Math.round(d.pareto.totalMin),Math.round(d.pareto.unidadesTotal),100,'']]),[40,12,12,18,16,14]);
+    if(d.mejoras){
+      const MJ=d.mejoras,Mx=window.glacialAnalisisMejoras;
+      const pu=armarPareto(d.us,{agrupar:F.agrupar,metrica:'unidades',incluirProg:F.incluirProg,abrirOtro:F.abrirOtro,tecnicoDe:d.tecnicoDe});
+      hoja('Unidades perdidas','Unidades perdidas por '+etq.toLowerCase()+' (minutos ÷ 60 × velocidad estándar)',[etq,'Paradas','Minutos','Unidades perdidas','Paradas sin velocidad'],
+        pu.filas.map(f=>[f.clave,f.cantidad,Math.round(f.minutos),f.sinVel&&!f.unidades?'Sin velocidad':Math.round(f.unidades),f.sinVel])
+          .concat([['TOTAL',pu.totalCantidad,Math.round(pu.totalItemsMin),Math.round(pu.unidadesTotal),pu.sinVelN]]),[40,12,12,18,20]);
+      hoja('Calidad del dato','Calidad del dato',['Indicador','Valor %','Detalle','Meta verde hasta %','Meta ámbar hasta %','Nivel'],
+        MJ.dato.map(c=>[c.titulo,c.valor===null?'Sin datos':+c.valor.toFixed(1),c.detalle,c.verde,c.ambar,c.nivel==='gris'?'Sin datos':c.nivel==='verde'?'Verde':c.nivel==='ambar'?'Ámbar':'Rojo']),[36,12,50,18,18,12]);
+      hoja('Frecuencia vs duración','Frecuencia frente a duración por motivo',['Motivo','Tipo','Cantidad','Minutos','Duración media (min)'],
+        MJ.frecuencia.map(x=>[x.clave,Mx.TIPOS_FD[x.tipo],x.cantidad,Math.round(x.minutos),+x.media.toFixed(1)]),[44,20,12,12,18]);
+      const horas=[...Array(24).keys()],orden=[...horas.slice(7),...horas.slice(0,7)];
+      hoja('Mapa de calor','Minutos de parada por hora del día (solo paradas con hora de inicio)',['Turno'].concat(orden.map(h=>String(h).padStart(2,'0')+':00')),
+        ['DÍA','NOCHE'].map(n=>[n].concat(orden.map(h=>Math.round(MJ.mapa.celdas[n][h])))).concat([['Fuera del mapa (sin hora de inicio): '+MJ.mapa.fuera+' paradas, '+Math.round(MJ.mapa.fueraMin)+' min']]),[40]);
+      hoja('Fallas repetitivas','Fallas repetitivas (≥ '+MJ.cfg.fallasUmbral+' paradas por falla del mismo equipo en '+MJ.cfg.fallasDias+' días)',['Línea','Equipo','Paradas','Desde','Hasta','Minutos'],
+        MJ.fallas.map(x=>[nombreLinea(x.linea),x.equipo,x.n,x.desde,x.hasta,Math.round(x.minutos)]),[16,30,10,14,14,12]);
+    }
     hoja('Tendencia','Minutos de parada por semana (8 semanas)',['Motivo'].concat(d.tendencia.semanas.map(s=>'Semana del '+s)),
       d.tendencia.motivos.map(x=>[x.motivo].concat(x.porSemana.map(v=>Math.round(v)))),[36]);
     hoja('Disponibilidad','Disponibilidad por línea, turno y día',['Fecha','Línea','Turno','Planificado (min)','En marcha (min)','Disponibilidad %'],
       d.us.map(u=>[u.fecha,nombreLinea(u.linea),u.turno,Math.round(u.planificado),Math.round(u.enMarcha),u.disp==null?'—':+(u.disp*100).toFixed(1)]),[12,14,12,18,16,16]);
-    hoja('Reparación','Tiempos de reparación y entre fallas',['Línea / técnico','Paradas NP','Minutos NP','Reparación (min)','Entre fallas (min)'],
+    hoja('Duración media','Duración media de parada no programada y tiempo entre fallas',['Línea / técnico','Paradas NP','Minutos NP','Duración media de parada NP (min)','Entre fallas (min)'],
       d.reparacion.lineas.concat(necesitaTecnicos()?d.reparacion.tecnicos:[]).map(x=>[x.clave,x.n,Math.round(x.np),x.n?+x.mttr.toFixed(1):'Sin paradas',x.n?+x.mtbf.toFixed(1):'Sin paradas']),[34,14,14,18,18]);
-    hoja('OEE base','Base para el OEE',['Fecha','Línea','Turno','Disponibilidad %','Ratio sobre sopladas','Velocidad estándar','Rendimiento %','Calidad %','OEE %','Observación'],
+    hoja('OEE base','Base para el OEE',['Fecha','Línea','Turno','Disponibilidad %','Ratio sobre sopladas','Velocidad estándar','Rendimiento %','OEE %','Observación'],
       d.oee.map(({u,o})=>o.estado==='OK'
-        ?[u.fecha,nombreLinea(u.linea),u.turno,+(u.disp*100).toFixed(1),Math.round(o.ratioSop),Math.round(o.velocidad),+(o.rend*100).toFixed(1),'no se mide',+(o.oee*100).toFixed(1),o.aRevisar?'revisar velocidad estándar':'']
-        :[u.fecha,nombreLinea(u.linea),u.turno,u.disp==null?'—':+(u.disp*100).toFixed(1),'','','','','',textoOee(o)]),[12,14,12,16,18,18,14,12,10,28]);
+        ?[u.fecha,nombreLinea(u.linea),u.turno,+(u.disp*100).toFixed(1),Math.round(o.ratioSop),Math.round(o.velocidad),+(o.rend*100).toFixed(1),+(o.oee*100).toFixed(1),o.aRevisar?'revisar velocidad estándar':'']
+        :[u.fecha,nombreLinea(u.linea),u.turno,u.disp==null?'—':+(u.disp*100).toFixed(1),'','','','',textoOee(o)]),[12,14,12,16,18,18,14,10,28]);
     const tecnicoDe=d.tecnicoDe;
-    hoja('Paradas','Paradas del rango',['Fecha','Línea','Turno','Motivo','Tipo','Minutos','Origen','Técnico'],
-      d.us.flatMap(u=>u.npItems.concat(F.incluirProg?u.pItems:[]).map(it=>[u.fecha,nombreLinea(u.linea),u.turno,it.motivo,it.clasif==='PROGRAMADA'?'Programada':'No programada'+(it.exceso?' (exceso)':''),+it.minutos.toFixed(1),it.origen,(tecnicoDe&&tecnicoDe(it,u))||''])),[12,14,12,36,22,10,14,26]);
+    hoja('Paradas','Paradas del rango',['Fecha','Línea','Turno','Motivo','Tipo','Minutos','Origen','Técnico','Equipo','Causa','Motivo del catálogo','Detalle','Reclasificada','Causa original','Motivo original','Equipo original','Hora de inicio','Unidades perdidas','Registrado por'],
+      d.us.flatMap(u=>u.npItems.concat(F.incluirProg?u.pItems:[]).map(it=>[u.fecha,nombreLinea(u.linea),u.turno,it.motivo,it.clasif==='PROGRAMADA'?'Programada':'No programada'+(it.exceso?' (exceso)':''),+it.minutos.toFixed(1),it.origen,(tecnicoDe&&tecnicoDe(it,u))||'',equipoDeParada(it)||'',it.causa||'',it.motivoCat||'',it.detalle||'',it.reclasificada?'Sí':'',it.reclasificada?it.original.causa||'':'',it.reclasificada?it.original.motivoCat||'':'',it.reclasificada?it.original.equipo||'':'',it.inicio?window.glacialAnalisisMejoras.horaTxt(it.inicio):'',it.unidades===null?'Sin velocidad':(it.unidades===undefined?'':Math.round(it.unidades)),it.registradoPor||''])),[12,14,12,36,22,10,14,26,24,30,28,30,14,26,26,24,14,16,22]);
     const buffer=await wb.xlsx.writeBuffer();
     const nombre='Analisis_paradas_'+F.desde+(F.hasta!==F.desde?'_a_'+F.hasta:'')+'.xlsx';
     const url=URL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
@@ -762,6 +946,11 @@
     };
   }
 
+  let modoAngosto=esAngosto();
+  window.addEventListener('resize',()=>{
+    const a=esAngosto();
+    if(a!==modoAngosto){modoAngosto=a;try{if(state.currentTab==='analisis-paradas'&&document.getElementById('analisis-paradas-view'))render();}catch(_){/* sin pantalla */}}
+  });
   const main0=()=>document.getElementById('main');
   main0()?.addEventListener('change',e=>{
     if(!document.getElementById('analisis-paradas-view'))return;
@@ -784,6 +973,8 @@
     if(rango){aplicarRango(rango);render();return;}
     if(e.target.closest('[data-ap-tecnicos]')){verTecnicosPedido=true;render();return;}
     if(e.target.closest('[data-ap-config]')){abrirConfig();return;}
+    const det=e.target.closest('[data-ap-det]');
+    if(det&&det.dataset.apDet!==''){abrirDetalleGrupo(Number(det.dataset.apDet));return;}
     if(e.target.closest('[data-ap-excel]')){exportar();}
   });
 
@@ -859,7 +1050,7 @@
     window.renderCentroPerfil=renderCentroPerfil;
   }
 
-  window.glacialAnalisisParadas={construirUnidad,resumenIndicadores,armarPareto,armarTendencia,armarReparacion,
+  window.glacialAnalisisParadas={claveDe,paradasDeClave,cuadrosDeUnidad,refrescar,bloqueReclasificadas,equipoDeParada,construirUnidad,resumenIndicadores,armarPareto,armarTendencia,armarReparacion,
     calcularOee,datosRegistro,resolvedorTecnico,listarUnidades,nivelDisp,render,abrirConfig,exportar,
     estado:F,tecnicos:tec,escucharConfig,pintarTarjetaHoy,calcularTodo,htmlDisponibilidadHoy};
 })();

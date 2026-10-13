@@ -797,6 +797,15 @@ const CP_HORARIO_TURNO={'DÍA':'07:00 – 15:00',INTERMEDIO:'15:00 – 22:00',NO
 
 /* Contexto de consulta del Inicio ejecutivo: vacío = fecha operativa y bloque VIGENTES. Solo cambia lo que se muestra (no guarda nada). */
 const cpEjecCtx={fecha:'',bloque:''};
+/* Líneas con el desglose por marca desplegado (solo vista: se conserva entre actualizaciones en tiempo real). */
+const cpEjecAbiertas=new Set();
+function cpEjecAlternar(linea){
+  if(cpEjecAbiertas.has(linea))cpEjecAbiertas.delete(linea);else cpEjecAbiertas.add(linea);
+  document.querySelectorAll('.cp-ex-fila,.cp-ex-det').forEach(tr=>{
+    const fila=tr.classList.contains('cp-ex-fila')?tr:tr.previousElementSibling;
+    if(fila&&fila.dataset.linea===linea){tr.classList.toggle('cp-ex-abierta',cpEjecAbiertas.has(linea));if(tr===fila)tr.setAttribute('aria-expanded',String(cpEjecAbiertas.has(linea)));}
+  });
+}
 function cpEjecCambiar(campo,valor){
   if(campo==='fecha')cpEjecCtx.fecha=/^\d{4}-\d{2}-\d{2}$/.test(valor||'')?valor:'';
   if(campo==='bloque')cpEjecCtx.bloque=valor==='NOCHE'||valor==='DIA'?valor:'';
@@ -991,13 +1000,29 @@ function cpEjecutivoHTML(){
   const filasTabla=d.lineasAutorizadas.map(k=>{
     const f=porLinea.get(k);
     const nombre=cpEsc(cpNombreLinea(k));
-    if(!f)return `<tr><td data-label="Línea"><strong>${nombre}</strong></td><td data-label="Estado"><span class="cp-ex-badge cp-ex-sinprog"><i></i>Sin programación</span></td><td data-label="Producción">—</td><td data-label="Cumplimiento">—</td><td data-label="Último registro">—</td></tr>`;
-    const hayMeta=f.programado>0;
-    return `<tr class="${cpPuede('produccionActual')?'cp-fila-link':''}" ${cpPuede('produccionActual')?'tabindex="0" onclick="cpIrLineaInicio()" onkeydown="if(event.key===\'Enter\')cpIrLineaInicio()"':''}>
-      <td data-label="Línea"><strong>${nombre}</strong></td><td data-label="Estado">${badge(f.estado)}</td>
-      <td data-label="Producción">${f.producido>0||hayMeta?`<b>${cpFmt(f.producido)}</b> ${cpUnidadEjec(k)}`:'—'}</td>
-      <td data-label="Cumplimiento">${hayMeta?`<span class="cp-ex-pct">${Math.round(f.avance)} %</span>${barra(f.avance,f.estado)}`:'—'}</td>
-      <td data-label="Último registro">${f.ultimoMs?cpHoraCorta(f.ultimoMs):'—'}</td></tr>`;
+    if(!f)return `<tr><td data-label="Línea"><strong>${nombre}</strong></td><td data-label="Estado"><span class="cp-ex-badge cp-ex-sinprog"><i></i>Sin programación</span></td><td data-label="Producción">—</td><td data-label="Cumplimiento">—</td><td data-label="Último registro">—</td></tr>`
+    // Estado de línea = el de la marca EN CURSO (f.desglose). f.estado (prioridad entre marcas) lo siguen usando otras pantallas.
+    const g=f.desglose,act=g&&g.actual,u=cpUnidadEjec(k);
+    const hayMeta=act?act.programado>0:f.programado>0;
+    const abierta=cpEjecAbiertas.has(k);
+    const nombreMarca=m=>[m.marca,m.presentacion?cpPresentacionUI({linea:k,marca:m.marca,presentacion:m.presentacion}):''].filter(Boolean).join(' · ')||'—';
+    const avisos=(g?g.avisos:[]).map(a=>`<div class="cp-ex-aviso" role="status">⚠ Marca ${cpEsc(a.marca||'—')} quedó detenida${a.desde?` desde ${cpEsc(cpHoraCorta(a.desde))}`:''}: finalízala o reanúdala</div>`).join('');
+    const prodActual=act&&(act.producido>0||hayMeta)
+      ?`<div class="cp-ex-marca-act"><span class="cp-ex-marca-nom">${cpEsc(nombreMarca(act))}</span><span><b>${cpFmt(act.producido)}</b>${act.programado>0?` / ${cpFmt(act.programado)}`:''} ${u}</span></div>
+         <div class="cp-ex-total">Total línea (${g.total.marcas} marca${g.total.marcas===1?'':'s'}): <b>${cpFmt(g.total.producido)}</b> / ${cpFmt(g.total.programado)} ${u}</div>`
+      :'—';
+    const desglose=g?g.marcas.map(m=>{
+      const x=CP_EST_EJEC[m.estado]||CP_EST_EJEC.PENDIENTE;
+      return `<li class="cp-ex-d-${x.cls}${m===act?' cp-ex-d-act':''}"><span class="cp-ex-d-nom">${cpEsc(nombreMarca(m))}</span>
+        <span class="cp-ex-d-num"><b>${cpFmt(m.producido)}</b> / ${cpFmt(m.programado)} ${u} · ${m.programado>0?Math.round(m.avance)+' %':'—'}</span>
+        <span class="cp-ex-badge cp-ex-${x.cls}"><i></i>${x.txt}</span></li>`;}).join(''):'';
+    const hayDet=g&&g.marcas.length>0;
+    return `<tr class="cp-ex-fila ${abierta?'cp-ex-abierta':''}" data-linea="${cpEsc(k)}" ${hayDet?`tabindex="0" role="button" aria-expanded="${abierta}" onclick="cpEjecAlternar('${cpEsc(k)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cpEjecAlternar('${cpEsc(k)}')}"`:''}>
+      <td data-label="Línea"><strong>${nombre}</strong></td><td data-label="Estado">${badge(g&&g.estado||f.estado)}${avisos}</td>
+      <td data-label="Producción">${prodActual}</td>
+      <td data-label="Cumplimiento">${hayMeta?`<span class="cp-ex-pct">${Math.round(act?act.avance:f.avance)} %</span>${barra(act?act.avance:f.avance,g&&g.estado||f.estado)}`:'—'}</td>
+      <td data-label="Último registro">${f.ultimoMs?cpHoraCorta(f.ultimoMs):'—'}</td></tr>
+      ${hayDet?`<tr class="cp-ex-det ${abierta?'cp-ex-abierta':''}"><td colspan="5"><ul class="cp-ex-d-lista" aria-label="Marcas de ${nombre} en el bloque">${desglose}</ul></td></tr>`:''}`;
   }).join('');
   const btn=cpPuede('produccionActual')?`<button class="cp-btn cp-btn-link" type="button" onclick="goProduccionActual()">Ver Producción Actual →</button>`:'';
   const tarjetaLineas=`<section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('report')}<div><h3>Producción por línea</h3>
@@ -1054,6 +1079,25 @@ function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-ex-table thead{display:none}.cp-ex-table,.cp-ex-table tbody,.cp-ex-table tr,.cp-ex-table td{display:block;width:100%}
 .cp-ex-table tr{padding:8px 14px;border-top:1px solid #e2ebf2}.cp-ex-table td{border:0;padding:3px 0;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .cp-ex-table td:before{content:attr(data-label);color:var(--cp-muted);font-size:10px;font-weight:700;text-transform:uppercase}}
+/* ---- Estado de líneas: marca en curso, total aparte y desglose por marca ---- */
+.cp-ex-fila{cursor:pointer}.cp-ex-fila:focus-visible{outline:3px solid rgba(8,120,249,.3);outline-offset:-3px}
+.cp-ex-marca-act{display:flex;flex-direction:column;gap:2px}.cp-ex-marca-nom{font-weight:700;color:#10265f}
+.cp-ex-total{margin-top:4px;font-size:11px;color:var(--cp-muted)}
+.cp-ex-aviso{margin-top:6px;padding:5px 8px;border-radius:6px;background:var(--ie-det-bg,#FEE2E2);color:var(--ie-det-tx,#991B1B);font-size:11px;font-weight:700;line-height:1.3;white-space:normal}
+.cp-ex-det{display:none}.cp-ex-det.cp-ex-abierta{display:table-row}.cp-ex-det>td{padding:0 16px 10px!important;background:#f8fafc}
+.cp-ex-d-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.cp-ex-d-lista li{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.2fr) auto;gap:10px;align-items:center;padding:6px 10px;border-left:4px solid #cfd8e0;border-radius:6px;background:#fff;font-size:12px}
+.cp-ex-d-lista li.cp-ex-d-act{box-shadow:0 0 0 1px rgba(249,115,22,.4)}
+.cp-ex-d-lista li.cp-ex-d-curso{border-left-color:#F97316}.cp-ex-d-lista li.cp-ex-d-detenida{border-left-color:#EF4444}.cp-ex-d-lista li.cp-ex-d-completada{border-left-color:#22C55E}
+.cp-ex-d-nom{font-weight:700;color:#10265f;overflow-wrap:anywhere}.cp-ex-d-num{color:#466ba7}
+@media(max-width:620px){
+  .cp-ex-det,.cp-ex-det.cp-ex-abierta{display:block}.cp-ex-table .cp-ex-det>td{display:block;padding:0 14px 10px!important;background:transparent}
+  .cp-ex-table .cp-ex-det>td:before{content:none}
+  .cp-ex-table tr.cp-ex-fila{border-top:1px solid #e2ebf2}.cp-ex-table tr.cp-ex-fila td[data-label="Producción"],.cp-ex-table tr.cp-ex-fila td[data-label="Estado"]{align-items:flex-start;text-align:right}
+  .cp-ex-marca-act{align-items:flex-end}.cp-ex-aviso{text-align:left}
+  .cp-ex-d-lista li{grid-template-columns:1fr auto;gap:2px 8px;padding:6px 8px}.cp-ex-d-num{grid-column:1/2;grid-row:2}
+  .cp-ex-d-lista li .cp-ex-badge{grid-column:2;grid-row:1/3}
+}
 /* ---- Inicio: encabezado, cinco tarjetas, líneas sin producción, tabla por línea (colores de estado aprobados) ---- */
 .cp-shell{--ie-curso:#F97316;--ie-curso-bg:#FFEDD5;--ie-curso-tx:#9A3412;--ie-pausa:#FACC15;--ie-pausa-bg:#FEF9C3;--ie-pausa-tx:#713F12;--ie-det:#EF4444;--ie-det-bg:#FEE2E2;--ie-det-tx:#991B1B;--ie-fin:#22C55E;--ie-fin-bg:#DCFCE7;--ie-fin-tx:#166534;--ie-pend:#9CA3AF;--ie-pend-bg:#F3F4F6;--ie-pend-tx:#4B5563}
 .cp-shell .cp-ex-curso{background:var(--ie-curso-bg);color:var(--ie-curso-tx)}.cp-shell .cp-ex-pausa{background:var(--ie-pausa-bg);color:var(--ie-pausa-tx)}

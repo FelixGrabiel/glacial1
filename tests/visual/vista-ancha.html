@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Vista ancha (escritorio) de la validación visual</title>
+<style>body{margin:0;background:#cfd8df}#m{width:1180px;height:1500px;border:0;transform:scale(.55);transform-origin:0 0;background:#fff}</style></head>
+<body><iframe id="m" title="escritorio"></iframe>
+<script>
+/* Muestra la página de validación a 1180 px de ancho (diseño de escritorio) reducida para que quepa en el panel del navegador. */
+const q=new URLSearchParams(location.search);
+document.getElementById('m').src='/tests/visual/planificacion.html?'+(q.get('q')||'u=ana');
+</script></body></html>

@@ -889,7 +889,7 @@ const FACTOR_STRETCHFILM_PET = {
    REGLAS DE CARTÓN — B7L / C20L / B20L
    ========================================================= */
 
-const CARTON_FIJO_B7L = 12;
+const CARTON_FIJO_B7L = 16;
 const CARTON_C20L_SAN_FERNANDO = 2;
 const CARTON_C20L_DEFAULT = 1;
 const CARTON_FIJO_B20L = 1;

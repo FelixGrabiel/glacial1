@@ -374,7 +374,8 @@ function datosProgramacionCombinacion(linea, fecha, turno, marca, presentacion){
 */
 async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacion, cantidadUnidades, unidadesPorPaleta, opc){
 
-  /* opc (Planificación): {motivo, accion ('COPIA'|'IMPORTACION'|'APROBACION'), referencia}.
+  /* opc (Planificación): {motivo, accion ('COPIA'|'IMPORTACION'|'APROBACION'), referencia, versionEsperada}.
+     versionEsperada: ver programacionAplicarEnLista (control de cambios simultáneos sobre la misma fila).
      Esta es la única escritura de la programación: la pantalla Planificación, la copia, el Excel y la
      aprobación de solicitudes pasan por aquí. Solo quien tiene el permiso «planificacion» puede llamarla. */
   opc = opc || {};
@@ -382,14 +383,6 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
   if(!tienePermiso('planificacion')){
     throw new Error('Solo Planificación puede crear o editar la programación.');
   }
-
-  const clave =
-    claveProgramacionPaleta(linea, fecha, turno, marca, presentacion);
-
-  /* Solo se programa en dos bloques: «Día (incluye Intermedio)» y «Noche». Lo que llegue como INTERMEDIO se guarda en la fila DÍA,
-     salvo que ese producto YA tenga una fila INTERMEDIO guardada (se edita esa misma, sin crear otra ni cambiar su clave). */
-  const claveDia = claveProgramacionPaleta(linea, fecha, 'DÍA', marca, presentacion);
-  let claveFinal = clave, turnoFinal = turno;
 
   const cantidadNum =
     Math.max(0, num(cantidadUnidades));
@@ -412,118 +405,158 @@ async function guardarProgramacionPaleta(linea, fecha, turno, marca, presentacio
     actualizadoPor: nombreUsuarioActualPaletas(),
     actualizadoEn: Date.now()
   };
+  /* Modo de programación (Planificación): opc.extra = {modo, meta, estimado, alcance}. Se guarda como dato estructurado en la misma fila;
+     null limpia lo que ya no aplica (Firestore no acepta undefined). Una fila sin modo sigue siendo Cantidad fija. */
+  if(opc.extra && typeof opc.extra === 'object'){
+    Object.keys(opc.extra).forEach(k => { campos[k] = opc.extra[k] === undefined ? null : opc.extra[k]; });
+  }
 
-  // Se fusiona una sola combinación en la transacción. Dos jefes que
-  // programen líneas diferentes no se borran entre sí.
+  // Una sola transacción sobre sync/programaciones: el cambio, su control de versión y su historial se guardan juntos (todo o nada).
+  // Dos jefes que programen líneas diferentes no se borran entre sí.
   const ref = db.collection('sync').doc('programaciones');
-  let previo = null;
+  let r = null;
   const items = await db.runTransaction(async tx => {
-    previo = null;
+    r = null;                                   // la función puede repetirse si hubo conflicto: parte siempre de cero
     const snap = await tx.get(ref);
     const actuales = snap.exists && Array.isArray(snap.data().items)
       ? snap.data().items.slice() : [];
-    claveFinal = clave; turnoFinal = turno;
-    if(turno === 'INTERMEDIO' && !actuales.some(p => p.clave === clave)){
-      claveFinal = claveDia; turnoFinal = 'DÍA';
-    }
-    const idx = actuales.findIndex(p => p.clave === claveFinal);
-
-    previo = idx > -1 ? actuales[idx] : null;
-
-    // Una programación que ya está en producción solo se cambia con motivo.
-    if(previo && ['EN_PRODUCCION','PAUSA','DETENIDA','LISTA','FINALIZADA']
-         .includes(previo.estadoOperacion?.estado || '') &&
-       String(opc.motivo || '').trim().length < 5){
-      throw new Error('Esta programación ya está en producción: indica el motivo del cambio (mínimo 5 caracteres).');
-    }
-
-    /*
-       Si la cantidad programada queda en 0, la programación se elimina
-       realmente de sync/programaciones. Así no quedan estados operativos
-       antiguos (CANCELADA, FINALIZADA, etc.) flotando en Producción Actual.
-    */
-    if(cantidadNum === 0){
-      if(idx > -1){
-        actuales.splice(idx,1);
-      }
-
-      tx.set(ref,{items:actuales,updatedAt:Date.now()});
-      return actuales;
-    }
-
-    if(idx > -1){
-
-      const anterior = actuales[idx];
-      const estadoAnterior = anterior.estadoOperacion?.estado || '';
-
-      /*
-         Si una combinación había sido CANCELADA y luego se vuelve a
-         programar, se trata como una programación nueva: no debe heredar
-         CANCELADA ni sus marcas de cierre/detención/pausa.
-      */
-      const reiniciarOperacion = estadoAnterior === 'CANCELADA';
-
-      actuales[idx] = {
-        ...anterior,
-        ...campos,
-        ...(reiniciarOperacion ? {
-          estadoOperacion:{
-            estado:'PENDIENTE',
-            actualizadoEn:Date.now(),
-            actualizadoPor:nombreUsuarioActualPaletas(),
-            inicio:0,
-            finalizadaEn:0,
-            canceladaEn:0,
-            pausaDesde:0,
-            pausaAcumuladaMs:0,
-            detenidaDesde:0,
-            detencionAcumuladaMs:0,
-            motivo:'',
-            motivoPausa:''
-          }
-        } : {})
-      };
-
-    } else {
-
-      actuales.push({
-        id:'prog_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
-        clave: claveFinal, linea, fecha, turno: turnoFinal, marca, presentacion, ...campos,
-        estadoOperacion:{estado:'PENDIENTE'},
-        creadoPor:nombreUsuarioActualPaletas(), creadoEn:Date.now()
+    // Validación con las filas MÁS RECIENTES (dentro de la transacción): p. ej. un cierre asignado a otra meta mientras se revisaba.
+    if(typeof opc.validarLista === 'function') opc.validarLista(actuales);
+    r = programacionAplicarEnLista(actuales, {
+      linea, fecha, turno, marca, presentacion, cantidadNum, uppNum, campos, motivo: opc.motivo, conservarCero: !!opc.conservarCero
+    }, { versionEsperada: opc.versionEsperada });
+    tx.set(ref,{items:r.items,updatedAt:Date.now()});
+    const H = window.glacialPlanificacion;
+    if(H && typeof H.armarEvento === 'function'){
+      const ev = H.armarEvento({
+        accion: opc.accion || (cantidadNum === 0 ? 'ELIMINACION' : (r.previo ? 'EDICION' : 'CREACION')),
+        linea, fecha, turno: r.turnoFinal, marca, presentacion,
+        anterior: programacionValorHistorial(r.previo, true),
+        nuevo: programacionValorHistorial(r.nuevo, false),
+        motivo: opc.motivo || '',
+        referencia: opc.referencia || '',
+        extra: opc.historialExtra || undefined
       });
-
+      if(ev) tx.set(db.collection('historialProgramacion').doc(ev.id), ev.doc);
     }
-
-    tx.set(ref,{items:actuales,updatedAt:Date.now()});
-    return actuales;
+    return r.items;
   });
   _programacionesCache = items;
 
-  const nuevo = cantidadNum === 0 ? null : (items.find(p => p.clave === claveFinal) || null);
-  const resultado = { previo, nuevo };
+  return { previo: r.previo, nuevo: r.nuevo };
 
-  // Historial de cambios (54-planificacion-solicitudes.js): solo se agrega, nunca se edita ni se borra.
-  if(window.glacialPlanificacion && typeof window.glacialPlanificacion.registrarHistorial === 'function'){
-    await window.glacialPlanificacion.registrarHistorial({
-      accion: opc.accion || (cantidadNum === 0 ? 'ELIMINACION' : (previo ? 'EDICION' : 'CREACION')),
-      linea, fecha, turno: turnoFinal, marca, presentacion,
-      anterior: previo ? {
-        cantidad: num(previo.cantidadProgramada),
-        unidadesPorPaleta: num(previo.unidadesPorPaleta),
-        estado: previo.estadoOperacion?.estado || ''
-      } : null,
-      nuevo: nuevo ? {
-        cantidad: num(nuevo.cantidadProgramada),
-        unidadesPorPaleta: num(nuevo.unidadesPorPaleta)
-      } : null,
-      motivo: opc.motivo || '',
-      referencia: opc.referencia || ''
-    });
+}
+
+/* Valor que se guarda en el historial para una fila de programación. */
+function programacionValorHistorial(p, conEstado){
+  if(!p) return null;
+  const v = { cantidad: num(p.cantidadProgramada), unidadesPorPaleta: num(p.unidadesPorPaleta) };
+  if(p.modo) v.modo = p.modo;
+  if(conEstado) v.estado = p.estadoOperacion?.estado || '';
+  return v;
+}
+
+/* Error de conflicto: otra persona cambió la fila mientras se editaba. Trae el valor actual para mostrarlo. */
+function programacionConflicto(previo){
+  const n = v => num(v).toLocaleString('es-PE');
+  const e = new Error(previo
+    ? 'Otra persona cambió esta programación mientras la editabas. Valor actual: ' + n(previo.cantidadProgramada) + ' UND (' +
+      n(previo.unidadesPorPaleta) + ' por paleta, ' + String(previo.estadoOperacion?.estado || 'PENDIENTE').toLowerCase().replace(/_/g,' ') +
+      '). No se guardó tu cambio.'
+    : 'Esta programación ya no existe (otra persona la quitó). No se guardó tu cambio.');
+  e.conflicto = true;
+  e.actual = previo ? {
+    cantidad: num(previo.cantidadProgramada), unidadesPorPaleta: num(previo.unidadesPorPaleta),
+    estado: previo.estadoOperacion?.estado || 'PENDIENTE', version: num(previo.version)
+  } : null;
+  return e;
+}
+
+/* Aplica UN cambio de programación sobre la lista de filas, SIN escribir. Lo usan guardarProgramacionPaleta y la aprobación de
+   solicitudes (54-planificacion-solicitudes.js) dentro de su propia transacción: así ambas aplican exactamente la misma regla.
+   p: {linea,fecha,turno,marca,presentacion,cantidadNum,uppNum,campos,motivo}
+   opc.versionEsperada: número = la fila existía con esa versión (sin versión guardada = 0); null = se esperaba que NO existiera;
+   undefined = sin control de versión (copia, importación, aprobación, que comprueban por su cuenta).
+   Cada cambio sube la versión de la fila en 1. Devuelve {items, previo, nuevo, claveFinal, turnoFinal}. */
+function programacionAplicarEnLista(actuales, p, opc){
+  opc = opc || {};
+  const clave = claveProgramacionPaleta(p.linea, p.fecha, p.turno, p.marca, p.presentacion);
+  const claveDia = claveProgramacionPaleta(p.linea, p.fecha, 'DÍA', p.marca, p.presentacion);
+  let claveFinal = clave, turnoFinal = p.turno;
+  /* Solo se programa en dos bloques: «Día (incluye Intermedio)» y «Noche». Lo que llegue como INTERMEDIO se guarda en la fila DÍA,
+     salvo que ese producto YA tenga una fila INTERMEDIO guardada (se edita esa misma, sin crear otra ni cambiar su clave). */
+  if(p.turno === 'INTERMEDIO' && !actuales.some(x => x.clave === clave)){
+    claveFinal = claveDia; turnoFinal = 'DÍA';
+  }
+  const idx = actuales.findIndex(x => x.clave === claveFinal);
+  const previo = idx > -1 ? actuales[idx] : null;
+
+  if(opc.versionEsperada !== undefined){
+    const esperada = opc.versionEsperada === null ? null : num(opc.versionEsperada);
+    const actual = previo ? num(previo.version) : null;
+    if(esperada !== actual) throw programacionConflicto(previo);
   }
 
-  return resultado;
+  // Una programación que ya está en producción solo se cambia con motivo.
+  if(previo && ['EN_PRODUCCION','PAUSA','DETENIDA','LISTA','FINALIZADA']
+       .includes(previo.estadoOperacion?.estado || '') &&
+     String(p.motivo || '').trim().length < 5){
+    throw new Error('Esta programación ya está en producción: indica el motivo del cambio (mínimo 5 caracteres).');
+  }
 
+  /*
+     Si la cantidad programada queda en 0, la programación se elimina
+     realmente de sync/programaciones. Así no quedan estados operativos
+     antiguos (CANCELADA, FINALIZADA, etc.) flotando en Producción Actual.
+  */
+  if(p.cantidadNum === 0 && !p.conservarCero){      // conservarCero: «Completar cantidad» pendiente de cierre o con meta completada (la fila se guarda con su meta)
+    if(idx > -1) actuales.splice(idx,1);
+    return { items: actuales, previo, nuevo: null, claveFinal, turnoFinal };
+  }
+
+  const version = (previo ? num(previo.version) : 0) + 1;
+  let nuevo;
+  if(idx > -1){
+    const anterior = actuales[idx];
+    const estadoAnterior = anterior.estadoOperacion?.estado || '';
+    /*
+       Si una combinación había sido CANCELADA y luego se vuelve a
+       programar, se trata como una programación nueva: no debe heredar
+       CANCELADA ni sus marcas de cierre/detención/pausa.
+    */
+    const reiniciarOperacion = estadoAnterior === 'CANCELADA';
+    nuevo = actuales[idx] = {
+      ...anterior,
+      ...p.campos,
+      version,
+      ...(reiniciarOperacion ? {
+        estadoOperacion:{
+          estado:'PENDIENTE',
+          actualizadoEn:Date.now(),
+          actualizadoPor:p.campos.actualizadoPor,
+          inicio:0,
+          finalizadaEn:0,
+          canceladaEn:0,
+          pausaDesde:0,
+          pausaAcumuladaMs:0,
+          detenidaDesde:0,
+          detencionAcumuladaMs:0,
+          motivo:'',
+          motivoPausa:''
+        }
+      } : {})
+    };
+  } else {
+    nuevo = {
+      id:'prog_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+      clave: claveFinal, linea: p.linea, fecha: p.fecha, turno: turnoFinal, marca: p.marca, presentacion: p.presentacion, ...p.campos,
+      version,
+      estadoOperacion:{estado:'PENDIENTE'},
+      creadoPor:p.campos.actualizadoPor, creadoEn:Date.now()
+    };
+    actuales.push(nuevo);
+  }
+  return { items: actuales, previo, nuevo, claveFinal, turnoFinal };
 }
 
 
@@ -3026,7 +3059,7 @@ function renderSemaforoWidget(estado){
 
       <div class="pl-semaforo">
         <span class="pl-semaforo-luz pl-semaforo-roja ${estado.nivel === 'roja' ? 'encendida' : ''}"></span>
-        <span class="pl-semaforo-luz pl-semaforo-ambar ${estado.nivel === 'ambar' ? 'encendida' : ''}"></span>
+        <span class="pl-semaforo-luz pl-semaforo-ambar ${['ambar','naranja','amarilla'].includes(estado.nivel) ? 'encendida' : ''} ${estado.nivel === 'naranja' ? 'pl-luz-naranja' : estado.nivel === 'amarilla' ? 'pl-luz-amarilla' : ''}"></span>
         <span class="pl-semaforo-luz pl-semaforo-verde ${estado.nivel === 'verde' ? 'encendida' : ''}"></span>
       </div>
 

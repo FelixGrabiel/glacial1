@@ -13,7 +13,10 @@ async function copiarFirebaseASupabase(o){
     'configIndicadores', 'catalogoPlanificacion', 'borradoresNuevoRegistro', 'precios'].concat(o.docsSyncExtra || []);
   const COLECCIONES = ['avancesTurnoItems', 'bitacoraMantenimiento', 'resumenesTurno', 'distribucionPersonal', 'historialProgramacion',
     'solicitudesProgramacion', 'solicitudesCorreccionTareo', 'auditoriaTareos', 'incidenciasNoProduccion', 'valoresUnitarios',
-    'valoresUnitariosHistorial', 'resultadosEconomicos'].concat(o.coleccionesExtra || []);
+    'valoresUnitariosHistorial', 'resultadosEconomicos',
+    // agregadas en octubre de 2026 (rama main): entrega de turno, compromisos de planificación, Mantenimiento y paradas
+    'entregasTurno', 'compromisosProgramacion', 'intervenciones', 'planesPreventivos', 'correccionesParada', 'reclasificacionesParada'
+  ].concat(o.coleccionesExtra || []);
   const DOCS_SUELTOS = [['configEconomica', 'margenes'], ['configEconomica', 'costos'], ['configEconomica', 'general']];   // esa colección no se puede listar
   /* Valores de Firestore → JSON: las fechas (Timestamp) viajan como {"__ts": milisegundos}. */
   const conv = v => {

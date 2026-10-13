@@ -215,6 +215,27 @@ service cloud.firestore {
         ));
     }
 
+    // Intervenciones de Mantenimiento (órdenes de trabajo): las LEE quien trabaja o supervisa Mantenimiento, incluida la cuenta compartida
+    // (los técnicos son quienes las operan), Administrador, Jefatura/Gerencia (consulta) y supervisores.
+    function puedeVerMantenimiento() {
+      return autenticado() && (
+        esMantCompartido() || esAdmin() ||
+        perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura',
+          'Gerente General', 'Gerente', 'Supervisor', 'Supervisor de Producción'] ||
+        (perfiles()[request.auth.uid].permisos is list
+          && ('moduloMantenimiento' in perfiles()[request.auth.uid].permisos
+              || 'gestionar_rotacion_mantenimiento' in perfiles()[request.auth.uid].permisos
+              || 'ver_bitacora_mantenimiento' in perfiles()[request.auth.uid].permisos))
+      );
+    }
+    // Las ESCRIBE la cuenta compartida (el técnico se identifica con PIN en la aplicación: el servidor no valida el PIN, ver limitación de la
+    // cuenta compartida) y el Supervisor de Mantenimiento / Administrador. Jefatura/Gerencia y las cuentas de solo consulta NO.
+    function puedeEscribirIntervenciones() {
+      return autenticado() && !soloVista()
+        && !(perfiles()[request.auth.uid].rol in ['Jefe de Producción', 'Jefe de Operaciones', 'Jefatura', 'Gerente General', 'Gerente'])
+        && (esMantCompartido() || esSupervisorMtto());
+    }
+
     // Hora del servidor (bloqueo de tareos): cada usuario solo escribe su propio documento
     // y solo con la hora del servidor.
     match /relojServidor/{id} {
@@ -292,6 +313,178 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Intervenciones de Mantenimiento: UN documento por intervención (id = el id de su origen si nace de una parada/evento, o uno propio).
+    //  - Crea quien las escribe, con su uid y la hora del servidor, en estado PENDIENTE o EN_INTERVENCION, versión 1 y UNA entrada de historial.
+    //  - Cada cambio sube la versión en 1, lleva uid y hora del servidor y AGREGA exactamente una entrada de historial (el historial nunca se acorta).
+    //  - Los campos de origen (id, abiertaUid/En/Ms/Por, origen) no se cambian nunca.
+    //  - Una intervención CANCELADA no se modifica. Una CERRADA solo admite: seguimiento y evidencias (cualquiera que escriba), o una corrección con
+    //    permiso (Supervisor de Mantenimiento / Administrador) que la deja CERRADA. Nadie borra.
+    match /intervenciones/{id} {
+      allow read: if puedeVerMantenimiento();
+      allow create: if puedeEscribirIntervenciones()
+        && request.resource.data.keys().hasAll(['id', 'version', 'linea', 'tipo', 'estado', 'abierta', 'problema', 'abiertaUid', 'abiertaEn',
+             'abiertaMs', 'historial', 'actualizadaUid', 'actualizadaEn'])
+        && request.resource.data.id == id
+        && request.resource.data.version == 1
+        && request.resource.data.linea in ['PET1', 'PET2', 'B7L', 'C20L', 'B20L']
+        && request.resource.data.estado in ['PENDIENTE', 'EN_INTERVENCION']
+        && request.resource.data.abierta == true
+        && request.resource.data.abiertaUid == request.auth.uid
+        && request.resource.data.abiertaEn == request.time
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time
+        && request.resource.data.historial is list && request.resource.data.historial.size() == 1;
+      allow update: if puedeEscribirIntervenciones()
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time
+        && request.resource.data.historial is list
+        && request.resource.data.historial.size() == resource.data.historial.size() + 1
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['id', 'abiertaUid', 'abiertaEn', 'abiertaMs', 'abiertaPor', 'origen'])
+        && resource.data.estado != 'CANCELADA'
+        && (resource.data.estado != 'CERRADA' || (
+              request.resource.data.estado == 'CERRADA' && (
+                request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['seguimiento', 'evidencias', 'historial', 'version', 'actualizadaEn', 'actualizadaUid'])
+                || esSupervisorMtto())));
+      allow delete: if false;
+    }
+
+    // Planes de mantenimiento preventivo (por equipo): UN documento por plan. Los lee quien ve Mantenimiento.
+    //  - Los DEFINE (crear y cambiar su contenido) el Supervisor de Mantenimiento / Administrador, con rev + 1, su uid y la hora del servidor.
+    //  - Quien opera Mantenimiento (incluida la cuenta compartida) solo puede AVANZAR el ciclo: cerrar una ejecución (próxima fecha y última ejecución) o
+    //    reprogramar con motivo (arreglo reprogramaciones). No puede cambiar tareas, frecuencia ni responsable.
+    //  - Nadie borra.
+    match /planesPreventivos/{id} {
+      allow read: if puedeVerMantenimiento();
+      allow create: if esSupervisorMtto()
+        && request.resource.data.keys().hasAll(['id', 'equipoId', 'titulo', 'frecuencia', 'proximaFecha', 'tareas', 'rev', 'version', 'actualizadaUid', 'actualizadaEn'])
+        && request.resource.data.id == id
+        && request.resource.data.rev == 1
+        && request.resource.data.tareas is list && request.resource.data.tareas.size() > 0 && request.resource.data.tareas.size() <= 30
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time;
+      allow update: if request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time
+        && (esSupervisorMtto()
+            || (puedeEscribirIntervenciones()
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['proximaFecha', 'fechaOriginal', 'ultimaEjecucion', 'reprogramaciones', 'rev', 'actualizadaEn', 'actualizadaUid'])));
+      allow delete: if false;
+    }
+
+    // Corregir y reasignar paradas: quién puede dejar constancia de una corrección de asignación.
+    // Administrador o quien tenga el permiso corregir_paradas; nunca la cuenta compartida de Mantenimiento ni una cuenta en modo consulta.
+    function puedeCorregirParadas() {
+      return autenticado() && !esMantCompartido() && !soloVista() && (esAdmin() ||
+        (perfiles()[request.auth.uid].permisos is list && 'corregir_paradas' in perfiles()[request.auth.uid].permisos));
+    }
+
+    // Constancia de una corrección de asignación de paradas (quitar de la marca, reasignar de marca o de línea): UN documento por operación, con id = identificador de la operación.
+    //  - La parada original NO se borra: aquí solo queda quién, cuándo (hora del servidor), qué paradas y minutos, de dónde a dónde y por qué (motivo de 5 o más caracteres).
+    //  - Se crea una sola vez (crear con un id que ya existe falla: un reintento o un doble clic no la repite) y nunca se edita ni se borra.
+    //  - Leen todos los usuarios con sesión salvo la cuenta compartida de Mantenimiento.
+    match /correccionesParada/{id} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if puedeCorregirParadas()
+        && request.resource.data.keys().hasAll(['id', 'accion', 'linea', 'fecha', 'turno', 'paradas', 'desde', 'hacia', 'minutos', 'motivo', 'cerrado', 'version', 'actualizadaUid', 'actualizadaEn'])
+        && request.resource.data.keys().hasOnly(['id', 'accion', 'linea', 'fecha', 'turno', 'paradas', 'desde', 'hacia', 'minutos', 'motivo', 'cerrado', 'version', 'actualizadaUid', 'actualizadaPor', 'actualizadaEn'])
+        && request.resource.data.id == id
+        && request.resource.data.accion in ['QUITAR_MARCA', 'REASIGNAR_MARCA', 'REASIGNAR_LINEA']
+        && request.resource.data.linea in ['PET1', 'PET2', 'B7L', 'C20L', 'B20L', 'HIELO']
+        && request.resource.data.fecha is string && request.resource.data.fecha.size() == 10
+        && request.resource.data.turno in ['DÍA', 'NOCHE']
+        && request.resource.data.paradas is list && request.resource.data.paradas.size() > 0 && request.resource.data.paradas.size() <= 50
+        && request.resource.data.motivo is string && request.resource.data.motivo.size() >= 5 && request.resource.data.motivo.size() <= 200
+        && request.resource.data.version == 1
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time;
+      allow update, delete: if false;
+    }
+
+    // Reclasificación de paradas ya registradas (Avance/Cierre o Nuevo registro): UN documento por parada, con id = id de la parada (con «/» cambiado por «_»).
+    //  - La parada original NO se toca: aquí solo se guarda la causa, el motivo, el detalle y el equipo que le asigna Mantenimiento (los minutos no cambian).
+    //  - Escriben el Supervisor de Mantenimiento y el Administrador (esSupervisorMtto: no la cuenta compartida, ni jefatura, ni cuentas de solo consulta).
+    //    Leen quienes ven la bitácora de Mantenimiento.
+    //  - Se crea con version 1, su uid, la hora del servidor y UNA entrada de historial. Cada cambio sube la version en 1, lleva uid y hora del servidor y AGREGA
+    //    exactamente una entrada al final de la lista historial; las entradas anteriores no cambian (el historial nunca se acorta ni se edita). Nadie borra.
+    //  - Campos de origen (id, paradaId, origen, linea, fecha, turno, descripcionOriginal, minutos) no se cambian nunca.
+    match /reclasificacionesParada/{id} {
+      allow read: if puedeLeerBitacoraMtto();
+      allow create: if esSupervisorMtto()
+        && request.resource.data.keys().hasAll(['id', 'paradaId', 'origen', 'linea', 'fecha', 'causa', 'motivo', 'version', 'historial', 'actualizadaUid', 'actualizadaEn'])
+        && request.resource.data.keys().hasOnly(['id', 'paradaId', 'origen', 'linea', 'fecha', 'turno', 'descripcionOriginal', 'minutos', 'causa', 'motivo', 'detalle',
+             'equipo', 'version', 'historial', 'actualizadaUid', 'actualizadaPor', 'actualizadaEn'])
+        && request.resource.data.id == id
+        && request.resource.data.origen in ['AVANCE', 'REGISTRO']
+        && request.resource.data.linea in ['PET1', 'PET2', 'B7L', 'C20L', 'B20L']
+        && request.resource.data.fecha is string && request.resource.data.fecha.size() == 10
+        && request.resource.data.causa is string && request.resource.data.causa.size() > 0
+        && request.resource.data.motivo is string && request.resource.data.motivo.size() > 0
+        && request.resource.data.version == 1
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time
+        && request.resource.data.historial is list && request.resource.data.historial.size() == 1;
+      allow update: if esSupervisorMtto()
+        && request.resource.data.keys().hasOnly(['id', 'paradaId', 'origen', 'linea', 'fecha', 'turno', 'descripcionOriginal', 'minutos', 'causa', 'motivo', 'detalle',
+             'equipo', 'version', 'historial', 'actualizadaUid', 'actualizadaPor', 'actualizadaEn'])
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.actualizadaUid == request.auth.uid
+        && request.resource.data.actualizadaEn == request.time
+        && request.resource.data.causa is string && request.resource.data.causa.size() > 0
+        && request.resource.data.motivo is string && request.resource.data.motivo.size() > 0
+        && request.resource.data.historial is list
+        && request.resource.data.historial.size() == resource.data.historial.size() + 1
+        && request.resource.data.historial[0:resource.data.historial.size()] == resource.data.historial
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['id', 'paradaId', 'origen', 'linea', 'fecha', 'turno', 'descripcionOriginal', 'minutos']);
+      allow delete: if false;
+    }
+
+    // Entrega de turno entre supervisores: UN documento por fecha operativa y turno SALIENTE (id = fecha + '_' + turno).
+    //  - Lo leen todos los usuarios con sesión, salvo la cuenta compartida de Mantenimiento (jefatura y gerencia en modo consulta).
+    //  - Crea quien opera Producción (puedeOperarProduccion), con su uid y la hora del servidor; crear con un id existente falla.
+    //  - Mientras esté ENTREGADA, solo quien la entregó corrige resumen y novedades (más actualizadaEn y actualizaciones).
+    //  - Recibir: otro usuario (distinto del que entregó) pasa estado a RECIBIDA y escribe solo recibeUid, recibePor, recibeNombre,
+    //    recibidaEn (hora del servidor) y observacionRecibe (opcional). Después de RECIBIDA nadie la cambia. Nunca se borra.
+    match /entregasTurno/{id} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if puedeOperarProduccion()
+        && request.resource.data.keys().hasAll(['fecha', 'turno', 'estado', 'resumen', 'novedades', 'entregaUid', 'entregaPor',
+             'entregaNombre', 'entregadaEn'])
+        && request.resource.data.keys().hasOnly(['fecha', 'turno', 'estado', 'resumen', 'novedades', 'entregaUid', 'entregaPor',
+             'entregaNombre', 'entregadaEn'])
+        && request.resource.data.turno in ['DIA', 'INTERMEDIO', 'NOCHE']
+        && id == request.resource.data.fecha + '_' + request.resource.data.turno
+        && request.resource.data.estado == 'ENTREGADA'
+        && request.resource.data.novedades is list && request.resource.data.novedades.size() <= 30
+        && request.resource.data.entregaUid == request.auth.uid
+        && request.resource.data.entregadaEn == request.time;
+      allow update: if puedeOperarProduccion()
+        && resource.data.estado == 'ENTREGADA'
+        && (
+          // Corregir: solo quien entregó, solo resumen y novedades.
+          (resource.data.entregaUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['resumen', 'novedades', 'actualizadaEn', 'actualizaciones'])
+            && request.resource.data.novedades is list && request.resource.data.novedades.size() <= 30
+            && request.resource.data.actualizadaEn == request.time)
+          ||
+          // Recibir: otro usuario, solo los campos de recepción.
+          (resource.data.entregaUid != request.auth.uid
+            && request.resource.data.estado == 'RECIBIDA'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['estado', 'recibeUid', 'recibePor', 'recibeNombre', 'recibidaEn', 'observacionRecibe'])
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAll(['estado', 'recibeUid', 'recibePor', 'recibeNombre', 'recibidaEn'])
+            && request.resource.data.recibeUid == request.auth.uid
+            && request.resource.data.recibidaEn == request.time)
+        );
+      allow delete: if false;
+    }
+
     // Avances y cierres de turno: UN documento por snapshot (id = el mismo id del snapshot, p. ej. 2026-10-10|DÍA|CIERRE).
     // Antes vivían en sync/avancesTurno.items y ese documento se acercaba al límite de 1 MiB de Firestore.
     //  - Lo leen los mismos que leen sync/avancesTurno (usuario con sesión; la cuenta compartida solo si ya lo leía: sí).
@@ -310,6 +503,21 @@ service cloud.firestore {
       allow update: if puedeGenerarResumen()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['copiadoEn', 'copiadoPor']);
       allow delete: if false;
+    }
+
+    // Compromiso original de la programación (Planificación, etapa 2): UN documento por bloque (id = AAAA-MM-DD_DIA o _NOCHE) con el plan
+    // vigente al INICIAR el bloque. Lo crea quien planifica, una sola vez, justo antes del primer cambio de plan posterior al inicio.
+    //  - Leen todos los usuarios con sesión (menos la cuenta compartida). Nunca se edita ni se borra.
+    match /compromisosProgramacion/{id} {
+      allow read: if autenticado() && !esMantCompartido();
+      allow create: if puedePlanificar() && !soloVista()
+        && request.resource.data.keys().hasAll(['fecha', 'bloque', 'filas', 'inicioMs', 'creadoEn', 'uid'])
+        && request.resource.data.bloque in ['DÍA', 'NOCHE']
+        && request.resource.data.filas is list
+        && id == request.resource.data.fecha + '_' + request.resource.data.bloque
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.creadoEn == request.time;
+      allow update, delete: if false;
     }
 
     // Distribución de personal por línea, por fecha operativa y bloque (documento = AAAA-MM-DD_DIA o _NOCHE).

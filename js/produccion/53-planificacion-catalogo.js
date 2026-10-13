@@ -13,11 +13,13 @@
   const {num,norm,esc,iso,addDias,lunesDe,fechaOk,ahoraMs}=NS.util;
 
   /* ---------- datos del catálogo (escucha en vivo) ---------- */
-  let items=[],listo=false;
+  let items=[],listo=false,tiempos={};
   const claveItem=(l,m,p)=>norm(l)+'|'+norm(m)+'|'+norm(p);
   const buscar=(l,m,p)=>items.find(x=>claveItem(x.linea,x.marca,x.presentacion)===claveItem(l,m,p))||null;
   NS.catalogo=()=>items.slice();
   NS.catalogoListo=()=>listo;
+  /* Tiempos previstos de Planificación (capacidad, 65): {cambioMin, fijoDiaMin, fijoNocheMin}. Viven en el mismo documento del catálogo. */
+  NS.tiemposPlan=()=>Object.assign({},tiempos);
   NS.uppCatalogo=(l,m,p)=>{const x=buscar(l,m,p);return x&&x.activo!==false?num(x.unidadesPorPaleta):0;};
   NS.productoInactivo=(l,m,p)=>{const x=buscar(l,m,p);return !!x&&x.activo===false;};
 
@@ -25,6 +27,7 @@
     if(typeof db==='undefined')return null;
     return db.collection('sync').doc('catalogoPlanificacion').onSnapshot(snap=>{
       items=(snap.exists&&Array.isArray(snap.data().items))?snap.data().items:[];
+      tiempos=(snap.exists&&snap.data().tiempos&&typeof snap.data().tiempos==='object')?snap.data().tiempos:{};
       listo=true;
       NS.refrescar();
     },err=>console.warn('Catálogo de Planificación:',err&&err.message||err));
@@ -48,10 +51,24 @@
         actualizadoPor:(state.user&&(state.user.nombre||state.user.username))||'',actualizadoEn:ahoraMs()
       };
       if(idx>-1)actuales[idx]=Object.assign({},actuales[idx],registro);else actuales.push(registro);
-      tx.set(ref,{items:actuales,updatedAt:Date.now()});
+      tx.set(ref,Object.assign({},snap.exists?snap.data():{},{items:actuales,updatedAt:Date.now()}));
     });
   }
   NS.guardarProducto=guardarProducto;
+  /* Guarda los tiempos previstos (minutos enteros 0–720) sin tocar los productos del catálogo. Vacío = sin configurar (null). */
+  NS.guardarTiempos=async function(t){
+    if(!NS.puede())throw new Error('Solo Planificación puede configurar los tiempos previstos.');
+    const lee=v=>{if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(v);if(!Number.isInteger(n)||n<0||n>720)throw new Error('Los minutos deben ser enteros entre 0 y 720.');return n;};
+    const nuevo={cambioMin:lee(t.cambioMin),fijoDiaMin:lee(t.fijoDiaMin),fijoNocheMin:lee(t.fijoNocheMin),
+      actualizadoPor:(state.user&&(state.user.nombre||state.user.username))||'',actualizadoEn:ahoraMs()};
+    const ref=db.collection('sync').doc('catalogoPlanificacion');
+    await db.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      // Conserva reglas, ventanas, versión y evaluaciones de la etapa 4: solo cambian los tres valores de respaldo.
+      const previo=snap.exists&&snap.data().tiempos&&typeof snap.data().tiempos==='object'?snap.data().tiempos:{};
+      tx.set(ref,Object.assign({},snap.exists?snap.data():{},{tiempos:Object.assign({},previo,nuevo),updatedAt:Date.now()}));
+    });
+  };
 
   /* Carga inicial: toma las unidades por paleta que ya usan las programaciones guardadas (la más reciente de cada producto).
      No cambia ninguna programación. */
@@ -78,7 +95,7 @@
           unidadesPorPaleta:n.unidadesPorPaleta,activo:true,origen:'programaciones existentes',
           actualizadoPor:(state.user&&(state.user.nombre||state.user.username))||'',actualizadoEn:ahoraMs()});
       });
-      tx.set(ref,{items:actuales,updatedAt:Date.now()});
+      tx.set(ref,Object.assign({},snap.exists?snap.data():{},{items:actuales,updatedAt:Date.now()}));
     });
     return nuevos.length;
   }
@@ -134,9 +151,25 @@
       (planifica?'<span style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-cat-nuevo>+ Agregar producto</button>'+
         '<button type="button" class="btn btn-ghost btn-sm" data-cat-iniciales>Cargar valores iniciales</button>'+
         (puedeVelocidad()?'<button type="button" class="btn btn-ghost btn-sm" data-cat-vel-iniciales>Cargar velocidades iniciales</button>':''):'')+
-      '</div><div id="cat-tabla"></div>'+
+      '</div><div id="cat-tabla"></div><div id="cat-tiempos"></div>'+
       '<p class="plan-nota">La velocidad estándar es la misma tabla de Análisis de paradas y del Resumen (sync/configIndicadores): aquí se muestra y se edita, no se duplica. «valor inicial» = viene del ratio fijo del código y no está en la tabla.</p>';
-    pintarTablaCatalogo();
+    pintarTablaCatalogo();pintarTiempos();
+  }
+
+  /* Tiempos previstos: se restan (paradas) o se suman (cambios) UNA sola vez en la estimación de capacidad. */
+  function pintarTiempos(){
+    const cont=document.getElementById('cat-tiempos');
+    if(!cont||cont.querySelector('input:focus'))return;
+    if(typeof NS.pintarTiemposUI==='function')return NS.pintarTiemposUI(cont);   // etapa 4 (65a): reglas, ventanas y valores de respaldo
+    const planifica=NS.puede(),t=tiempos,v=x=>x===null||x===undefined?'':esc(x);
+    const campo=(id,etq,val,ayuda)=>'<label>'+etq+'<input type="number" id="'+id+'" min="0" max="720" step="1" inputmode="numeric" value="'+v(val)+'"'+(planifica?'':' disabled')+' placeholder="sin configurar"><small style="color:#5a6b78">'+ayuda+'</small></label>';
+    cont.innerHTML='<h4 style="margin:18px 0 6px;color:#003b5c">Tiempos previstos (para la estimación de capacidad)</h4>'+
+      '<div class="plan-campos" style="max-width:720px">'+
+      campo('ti-cambio','Minutos por cambio de marca o formato',t.cambioMin,'Se suman al tiempo requerido por cada cambio de producto.')+
+      campo('ti-dia','Paradas previstas · Mañana + Intermedio (min)',t.fijoDiaMin,'Charlas, refrigerio, limpieza…: se restan del tiempo disponible.')+
+      campo('ti-noche','Paradas previstas · Noche (min)',t.fijoNocheMin,'Se restan del tiempo disponible de Noche.')+'</div>'+
+      (planifica?'<p><button type="button" class="btn btn-primary btn-sm" data-cat-tiempos-guardar>Guardar tiempos</button> <span class="plan-error" id="ti-error" style="display:inline"></span></p>':'<p class="plan-nota">Solo Planificación puede cambiarlos.</p>')+
+      '<p class="plan-nota">No existen en otro lugar del sistema: son supuestos de planificación, no las paradas oficiales de Avance/Cierre. Cada tiempo se cuenta una sola vez (no se descuenta una ventana y se vuelve a sumar como requerida).'+(t.actualizadoPor?' Última actualización: '+esc(t.actualizadoPor)+'.':'')+'</p>';
   }
 
   function pintarTablaCatalogo(){
@@ -210,6 +243,14 @@
   document.addEventListener('click',async e=>{
     const raiz=e.target.closest&&e.target.closest('#plan-root');
     if(!raiz||NS.estado.tab!=='catalogo')return;
+    if(e.target.closest('[data-cat-tiempos-guardar]')){
+      const er=document.getElementById('ti-error');if(er)er.textContent='';
+      try{
+        await NS.guardarTiempos({cambioMin:document.getElementById('ti-cambio').value,fijoDiaMin:document.getElementById('ti-dia').value,fijoNocheMin:document.getElementById('ti-noche').value});
+        if(er)er.textContent='';alert('Tiempos previstos guardados.');
+      }catch(err){if(er)er.textContent=(err&&err.message)||String(err);}
+      return;
+    }
     if(e.target.closest('[data-cat-nuevo]')){abrirProducto('');return;}
     const ed=e.target.closest('[data-cat-editar]');
     if(ed){abrirProducto(ed.getAttribute('data-cat-editar'));return;}
@@ -237,74 +278,7 @@
   // La tabla de velocidades llega por la suscripción que ya existe (47-analisis-paradas.js).
   if(window.glacialConfigIndicadoresOyentes)window.glacialConfigIndicadoresOyentes.push(()=>{if(NS.estado&&NS.estado.tab==='catalogo')pintarTablaCatalogo();});
 
-  NS.pestanas.push({clave:'catalogo',titulo:'Catálogo',orden:3,pintar:pintarCatalogo,actualizar:pintarTablaCatalogo});
+  NS.pestanas.push({clave:'catalogo',titulo:'Órdenes de ventas',orden:3,pintar:pintarCatalogo,actualizar:()=>{pintarTablaCatalogo();pintarTiempos();}});
 
-  /* =========================================================
-     PESTAÑA VISTA SEMANAL
-     ========================================================= */
-  function pintarSemanal(cont){
-    const E=NS.estado;
-    if(!fechaOk(E.semana))E.semana=E.fecha;
-    cont.innerHTML='<div class="plan-bar"><button type="button" class="btn btn-ghost btn-sm" data-sem="-7">◀ Semana anterior</button>'+
-      '<label>Semana de<input type="date" id="sem-fecha" value="'+esc(E.semana)+'"></label>'+
-      '<button type="button" class="btn btn-ghost btn-sm" data-sem="7">Semana siguiente ▶</button>'+
-      '<button type="button" class="btn btn-ghost btn-sm" data-sem="hoy">Esta semana</button>'+
-      '<span class="plan-nota" style="margin:0 0 0 8px">Ámbar = sin programación · borde azul = más de un producto · ⚠ = misma cantidad en Mañana e Intermedio (posible duplicado). Toca una celda para abrirla en Programación.</span></div><div id="sem-grilla"></div>';
-    pintarGrilla();
-  }
-
-  function pintarGrilla(){
-    const cont=document.getElementById('sem-grilla');
-    if(!cont)return;
-    const E=NS.estado,lun=lunesDe(E.semana);
-    const dias=[0,1,2,3,4,5,6].map(i=>addDias(lun,i));
-    const nombres=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-    const todos=NS.programaciones().filter(p=>p&&dias.includes(p.fecha)&&num(p.cantidadProgramada)>0&&NS.estadoDe(p)!=='CANCELADA');
-    const totDia={};let granTotal=0;
-    // Dos columnas por día: Día + Intermedio (suma de las filas DÍA e INTERMEDIO) y Noche.
-    const BL=NS.BLOQUES;
-    const delBloque=(p,b)=>b.valor==='NOCHE'?p.turno==='NOCHE':(p.turno==='DÍA'||p.turno==='INTERMEDIO');
-    const dup=new Set();dias.forEach(d=>NS.duplicadosPosibles(d).forEach(k=>dup.add(d+'|'+k)));
-    let cab1='<th rowspan="2">Línea</th>',cab2='';
-    dias.forEach((d,i)=>{cab1+='<th colspan="2" style="text-align:center;border-left:1px solid #d9e2e8">'+nombres[i]+' '+d.slice(8)+'/'+d.slice(5,7)+'</th>';BL.forEach((b,j)=>{cab2+='<th style="text-align:center;font-size:10px;border-left:'+(j===0?'1px solid #d9e2e8':'0')+'">'+(b.valor==='NOCHE'?'Noche':'Día (incl. Int.)')+'</th>';});});
-    cab1+='<th rowspan="2" class="num" style="border-left:1px solid #d9e2e8">Total línea</th>';
-    const filas=NS.lineas().map(l=>{
-      let totalLinea=0,celdas='';
-      dias.forEach(d=>BL.forEach((b,j)=>{
-        const ps=todos.filter(p=>p.linea===l.key&&p.fecha===d&&delBloque(p,b));
-        // un producto con filas en Día e Intermedio suma sus cantidades
-        const porProd=new Map();ps.forEach(p=>{const k=p.marca+'|'+p.presentacion;const o=porProd.get(k)||{p,cant:0,inter:false,dup:dup.has(d+'|'+[p.linea,p.marca,p.presentacion].join('|'))};o.cant+=num(p.cantidadProgramada);if(p.turno==='INTERMEDIO')o.inter=true;porProd.set(k,o);});
-        const prods=[...porProd.values()];
-        const suma=prods.reduce((s,o)=>s+o.cant,0);
-        totalLinea+=suma;totDia[d+'|'+b.valor]=(totDia[d+'|'+b.valor]||0)+suma;
-        const estilo=!prods.length?'background:#fff8e6':prods.length>1?'box-shadow:inset 0 0 0 2px #2d7fc0;background:#eef6fc':'';
-        celdas+='<td data-sem-fecha="'+d+'" data-sem-turno="'+b.valor+'" style="cursor:pointer;font-size:11px;min-width:104px;vertical-align:top;border-left:'+(j===0?'1px solid #d9e2e8':'0')+';'+estilo+'">'+
-          (prods.length?prods.map(o=>'<div title="'+esc(o.p.marca+' '+NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+'"><b>'+o.cant.toLocaleString('es-PE')+'</b> '+esc(o.p.marca)+' '+esc(NS.etiquetaPresentacion(o.p.linea,o.p.marca,o.p.presentacion))+(o.inter?' <small style="color:#5a6b78">(cargada como Intermedio)</small>':'')+(o.dup?' <span style="color:#8a5a1e" title="Misma cantidad en Mañana e Intermedio: posible duplicado">⚠</span>':'')+'</div>').join('')+(prods.length>1?'<div style="color:#2d7fc0">'+prods.length+' productos</div>':''):'<span style="color:#8a6d1d">—</span>')+'</td>';
-      }));
-      granTotal+=totalLinea;
-      return '<tr><td><b>'+esc(l.name)+'</b></td>'+celdas+'<td class="num" style="border-left:1px solid #d9e2e8"><b>'+totalLinea.toLocaleString('es-PE')+'</b></td></tr>';
-    });
-    let pie='<td><b>Total semana</b></td>';
-    dias.forEach(d=>BL.forEach(b=>{pie+='<td class="num" style="font-size:11px"><b>'+(totDia[d+'|'+b.valor]?totDia[d+'|'+b.valor].toLocaleString('es-PE'):'')+'</b></td>';}));
-    pie+='<td class="num" style="border-left:1px solid #d9e2e8"><b>'+granTotal.toLocaleString('es-PE')+'</b></td>';
-    cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr>'+cab1+'</tr><tr>'+cab2+'</tr></thead><tbody>'+filas.join('')+'</tbody><tfoot><tr>'+pie+'</tr></tfoot></table></div>';
-  }
-
-  document.addEventListener('click',e=>{
-    const raiz=e.target.closest&&e.target.closest('#plan-root');
-    if(!raiz||NS.estado.tab!=='semanal')return;
-    const nav=e.target.closest('[data-sem]');
-    if(nav){
-      const v=nav.getAttribute('data-sem');
-      NS.estado.semana=v==='hoy'?(window.GlacialIndicadores?window.GlacialIndicadores.diaOperativo(ahoraMs()):iso(new Date(ahoraMs()))):addDias(NS.estado.semana,Number(v));
-      NS.pintarPestana();return;
-    }
-    const celda=e.target.closest('[data-sem-fecha]');
-    if(celda)NS.irA(celda.getAttribute('data-sem-fecha'),celda.getAttribute('data-sem-turno'));
-  });
-  document.addEventListener('change',e=>{
-    if(e.target&&e.target.id==='sem-fecha'&&e.target.closest('#plan-root')&&fechaOk(e.target.value)){NS.estado.semana=e.target.value;NS.pintarPestana();}
-  });
-
-  NS.pestanas.push({clave:'semanal',titulo:'Vista semanal',orden:2,pintar:pintarSemanal,actualizar:pintarGrilla});
+  /* La pestaña «Vista semanal» (carga y capacidad por línea) vive en 65d-planificacion-semanal.js. */
 })();

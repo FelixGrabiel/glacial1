@@ -77,6 +77,7 @@
     if(typeof esMantCompartido==='function'&&esMantCompartido(u))return {tipos:['parada'],lineas:null,tareo:null};
     if(rol==='Administrador'||JEFATURA.includes(rol))return {tipos:TODOS.slice(),lineas:null,tareo:'todas'};
     if(rol==='Supervisor'||rol==='Supervisor de Producción')return {tipos:TODOS.slice(),lineas:u.linea||null,tareo:'Producción'};
+    if(tiene('planificacion'))return {tipos:[],lineas:null,tareo:null};     // quien planifica recibe los avisos de Planificación (saldos, solicitudes)
     if(rol==='Mantenimiento'||tiene('moduloMantenimiento')||tiene('control_operativo_lineas')||tiene('recibirAlertasProduccion'))
       return {tipos:['parada'],lineas:null,tareo:null};
     return null;
@@ -231,7 +232,12 @@
 
     /* f) solicitudes de programación (54-planificacion-solicitudes.js): pendientes para quien planifica, resultado para quien las pidió */
     if(window.glacialPlanificacion&&typeof window.glacialPlanificacion.avisos==='function'){
-      try{window.glacialPlanificacion.avisos().forEach(x=>add(x.id,'solicitud',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar'}));}catch(_){/* informativo */}
+      try{window.glacialPlanificacion.avisos().forEach(x=>add(x.id,x.tipo||'solicitud',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar',fecha:x.fecha||'',bloque:x.bloque||''}));}catch(_){/* informativo */}
+    }
+
+    /* g) Mantenimiento (67e-preventivos.js): preventivo próximo/vencido, intervención en espera y seguimiento pendiente; solo para quien corresponde */
+    if(typeof window.glacialMantAvisos==='function'){
+      try{window.glacialMantAvisos().forEach(x=>add(x.id,'mant',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar',abrir:x.abrir||'',tab:x.tab||''}));}catch(_){/* informativo */}
     }
 
     const vistos=leerVistos();
@@ -257,6 +263,8 @@
         if(typeof goTareo==='function')goTareo();
         return;
       }
+      if(x.tipo==='mant'){if(typeof window.intervencionesAbrir==='function')window.intervencionesAbrir({tab:x.tab||'intervenciones',abrir:x.abrir||undefined});return;}
+      if(x.tipo==='plan'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion&&window.glacialPlanificacion.irAProgramacion)window.glacialPlanificacion.irAProgramacion(x.fecha,x.bloque);}return;}
       if(x.tipo==='solicitud'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion)window.glacialPlanificacion.irASolicitudes();}return;}
       if(typeof goProduccionActual==='function')goProduccionActual();
     }catch(e){console.warn('Aviso: no se pudo abrir la pantalla:',e&&e.message||e);}

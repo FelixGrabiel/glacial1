@@ -29,5 +29,5 @@ let iguales=0,total=0;
 (function rec(pref,n){if(pref.length)for(const _ of[0]){total++;if(viejo(pref)===G.estadoLineaDesdeItems(pref))iguales++;}if(n)K.forEach(k=>rec(pref.concat(k),n-1));})([],4);
 ok(iguales===total,'semáforo: '+total+' combinaciones de estados de 1 a 4 ítems dan el mismo estado que la lógica anterior');
 const s24=leer('js/produccion/24-semaforo-produccion-actual.js');
-ok((s24.match(/GlacialIndicadores\.estadoLineaDesdeItems\(/g)||[]).length===2,'24: tablero y resumen ejecutivo usan el módulo');
+ok((s24.match(/GlacialIndicadores\.estadoLineaDesdeItems\(/g)||[]).length===1&&/GlacialIndicadores\.desgloseLineaPorMarca\(/.test(s24),'24: el resumen ejecutivo usa estadoLineaDesdeItems y el tablero usa el desglose por marca (marca en curso)');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

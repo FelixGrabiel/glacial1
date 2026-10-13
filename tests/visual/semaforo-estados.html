@@ -1,0 +1,31 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Validación visual · Estados del semáforo (datos de prueba)</title>
+<style>
+:root{--danger:#dc2626;--amber-deep:#D89216;--text-soft:#667784}
+body{font-family:system-ui;margin:0;padding:12px;background:#f3f6f8;font-size:13px}
+.fila{display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap}
+/* estilos base del semáforo, copiados de 16-paletas.js (los de naranja/amarilla vienen del módulo real 24a-estados-visuales.js) */
+.pl-semaforo-wrap{display:inline-flex;align-items:center;gap:8px}
+.pl-semaforo{display:inline-flex;flex-direction:column;gap:4px;padding:4px;border-radius:7px;background:linear-gradient(180deg,#26323d,#111a22)}
+.pl-semaforo-luz{width:12px;height:12px;border-radius:50%;display:block;background:rgba(255,255,255,.07)}
+.pl-semaforo-luz.encendida.pl-semaforo-roja{background:radial-gradient(circle at 35% 30%,#ff8a7a,var(--danger));box-shadow:0 0 8px 3px rgba(220,38,38,.75)}
+.pl-semaforo-luz.encendida.pl-semaforo-ambar{background:radial-gradient(circle at 35% 30%,#ffe08a,var(--amber-deep));box-shadow:0 0 8px 3px rgba(216,146,22,.75)}
+.pl-semaforo-luz.encendida.pl-semaforo-verde{background:radial-gradient(circle at 35% 30%,#8ee6b4,#0c6b45);box-shadow:0 0 8px 3px rgba(12,107,69,.7)}
+.pl-semaforo-texto{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.pl-semaforo-texto-roja{color:var(--danger);background:rgba(220,38,38,.1)}.pl-semaforo-texto-verde{color:#0c6b45;background:rgba(12,107,69,.12)}.pl-semaforo-texto-gris{color:var(--text-soft);background:rgba(135,148,157,.14)}
+.pa-proy{margin-top:6px;padding:8px 10px;border-radius:8px;border:1px solid #f0b9b9;background:#fdecec;color:#8a1c1c}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:700;font-size:11px}
+</style></head><body>
+<b>Datos de PRUEBA (no reales)</b>
+<div id="raiz"></div>
+<script src="../../js/produccion/24a-estados-visuales.js"></script>
+<script>
+function renderSemaforoWidget(estado){return `<div class="pl-semaforo-wrap"><div class="pl-semaforo">
+<span class="pl-semaforo-luz pl-semaforo-roja ${estado.nivel==='roja'?'encendida':''}"></span>
+<span class="pl-semaforo-luz pl-semaforo-ambar ${['ambar','naranja','amarilla'].includes(estado.nivel)?'encendida':''} ${estado.nivel==='naranja'?'pl-luz-naranja':estado.nivel==='amarilla'?'pl-luz-amarilla':''}"></span>
+<span class="pl-semaforo-luz pl-semaforo-verde ${estado.nivel==='verde'?'encendida':''}"></span></div>
+<span class="pl-semaforo-texto pl-semaforo-texto-${estado.nivel}">${estado.texto}</span></div>`;}
+const EV=glacialEstadosVisuales;
+const filas=[['EN_CURSO','En curso'],['PROXIMO','Próximo a producir'],['PAUSA','Pausa programada'],['DETENIDA','Línea detenida'],['COMPLETADA','Finalizada'],['PENDIENTE','Sin iniciar']];
+document.getElementById('raiz').innerHTML='<h3>B7L en curso con meta difícil: estado naranja + alerta roja separada</h3><div class="fila">'+renderSemaforoWidget({nivel:EV.nivelDeEstadoLinea('EN_CURSO'),texto:'En curso'})+'</div><div class="pa-proy">Meta no alcanzable en el tiempo restante (alerta de proyección, roja)</div><h3>Todos los estados</h3>'+
+ filas.map(([k,t])=>'<div class="fila">'+renderSemaforoWidget({nivel:EV.nivelDeEstadoLinea(k),texto:t})+'<span class="badge" style="background:'+EV.MAPA[k].fondo+';color:'+EV.MAPA[k].texto+'">'+EV.MAPA[k].etiqueta+'</span></div>').join('');
+</script></body></html>

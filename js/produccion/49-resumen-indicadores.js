@@ -12,7 +12,7 @@
      Disponibilidad  = (planificado − no programadas) ÷ planificado
      Merma           = suma de mermas ÷ producción efectiva                 (misma fórmula en toda la pantalla)
      Cumplimiento    = producido ÷ programado
-     Rendimiento     = ratio ÷ velocidad estándar     ·     OEE = disponibilidad × rendimiento (Calidad: no se mide)
+     Rendimiento     = ratio ÷ velocidad estándar     ·     OEE = disponibilidad × rendimiento
 
    DE DÓNDE SALE CADA DATO
      · Día operativo en curso: datos en vivo del semáforo (glacialResumenEjecutivoLineas + calcularTiemposLinea).
@@ -559,8 +559,8 @@
   function notaKpi(ind,R){
     const a=R.a;
     if(ind==='oee'){
-      if(a.oee==null)return 'Falta velocidad estándar'+(a.faltantes.length?': '+esc(a.faltantes.slice(0,2).join(', ')):'')+' · Calidad: no se mide';
-      return 'Calidad: no se mide'+(a.cobertura!=null&&a.cobertura<99.5?' · parcial ('+fmtD(a.cobertura,0)+' % de la producción con velocidad)':'');
+      if(a.oee==null)return 'Falta velocidad estándar'+(a.faltantes.length?': '+esc(a.faltantes.slice(0,2).join(', ')):'');
+      return a.cobertura!=null&&a.cobertura<99.5?'Parcial ('+fmtD(a.cobertura,0)+' % de la producción con velocidad)':'';
     }
     if(ind==='ratio'&&a.rendimiento!=null)return 'Rendimiento '+fmtP(a.rendimiento)+(a.rendimiento>100?' · revisar velocidad estándar':'');
     return '';
@@ -618,7 +618,7 @@
     ['Merma','Suma de las mermas ÷ producción efectiva (una sola fórmula en toda la pantalla).'],
     ['Cumplimiento','Producido ÷ programado, con la misma ventana de fechas y sin programaciones canceladas.'],
     ['Rendimiento','Ratio ÷ velocidad estándar. Si pasa de 100 %, se muestra el aviso «revisar velocidad estándar».'],
-    ['OEE','Disponibilidad × rendimiento. Solo se calcula si el producto tiene velocidad estándar. Calidad: no se mide.'],
+    ['OEE','Disponibilidad × rendimiento. Solo se calcula si el producto tiene velocidad estándar.'],
     ['Fuente de los datos','Día en curso: semáforo en vivo. Turnos anteriores: registro del turno; si difiere de Paletas o de la bitácora en más de 2 % se avisa.'],
     ['Periodo anterior','Día contra el día anterior; 7, 30 y 90 días contra los mismos días inmediatamente anteriores; rango contra el rango previo de igual duración.']
   ];
@@ -635,7 +635,7 @@
         ratio:'Producción '+fmtN(a.produccion)+' ÷ horas efectivas '+fmtD(a.horasEfectivas,2)+' h = '+(a.ratio==null?'—':fmtN(a.ratio))+' UND/h.',
         disponibilidad:'(Planificado '+fmtN(a.planMin)+' min − no programadas '+fmtN(a.npMin)+' min) ÷ planificado = '+fmtP(a.disponibilidad)+'.',
         merma:'Mermas '+fmtN(a.mermaUnidades)+' ÷ producción '+fmtN(a.produccion)+' = '+fmtP(a.merma)+'.',
-        oee:a.oee==null?'Falta velocidad estándar: no se calcula.':'Disponibilidad × rendimiento = '+fmtP(a.oee)+'. Calidad: no se mide.'
+        oee:a.oee==null?'Falta velocidad estándar: no se calcula.':'Disponibilidad × rendimiento = '+fmtP(a.oee)+'.'
       }[ind];
       const serie=serieDiaria(R.partes,R.per.desde,R.per.hasta,ind);
       const dias=[];for(let f=R.per.desde,i=0;f<=R.per.hasta&&i<400;f=addDias(f,1),i++)dias.push(f);
@@ -885,7 +885,8 @@
       ws.addRow([NOMBRES[k.ind],k.valor==null?'—':+(+k.valor).toFixed(2),prev==null?'—':+(+prev).toFixed(2),v?+v.delta.toFixed(2):'—',v?(v.tipo==='pct'?'%':'pts'):'',
         m?(k.ind==='merma'?'≤ '+m.verde:'≥ '+m.verde):'—',({verde:'Verde',ambar:'Ámbar',roja:'Rojo',gris:'Sin meta / sin dato'})[k.nivel]]);
     });
-    ws.addRow(['OEE: calidad no se mide'+(R.a.oee==null?' · falta velocidad estándar':'')+(R.a.cobertura!=null&&R.a.cobertura<99.5?' · parcial '+fmtD(R.a.cobertura,0)+' %':'')]);
+    const notaOee=(R.a.oee==null?'falta velocidad estándar':'')+(R.a.cobertura!=null&&R.a.cobertura<99.5?(R.a.oee==null?' · ':'')+'parcial '+fmtD(R.a.cobertura,0)+' %':'');
+    if(notaOee)ws.addRow(['OEE: '+notaOee]);
     ws.addRow([]);
     const tabla=(titulo,filas)=>{
       ws.addRow([titulo]).font={bold:true};

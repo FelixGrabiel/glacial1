@@ -62,6 +62,24 @@ consultas, `docChanges`, `includeMetadataChanges`), `where` (`==`, `<`, `<=`, `>
 `FieldValue.increment/arrayUnion/arrayRemove`; `startAfter/endBefore`; `update()` con rutas con punto (`'a.b'`);
 almacenamiento de archivos de Firebase; Cloud Functions de Firebase (`MANT_PIN_MODO='functions'`).
 
+## Reglas de permisos: cómo se trasladan a Supabase
+
+Cada bloque `match /coleccion/{id}` de `firestore.rules.etapa2.txt` tiene su equivalente en las funciones
+`glacial_fs.puede_leer` (leer) y `glacial_fs.autorizar` (crear, cambiar, borrar) de la base de datos. Cuando se agrega o
+cambia una regla en Firebase hay que agregar la rama equivalente en Supabase, **primero en PRUEBAS y después en
+PRODUCCION**, y comprobar que las funciones de los dos proyectos quedan idénticas (misma huella). Los cambios quedan en
+`supabase/migraciones/` (por ejemplo `glacial_21_…`, `glacial_22_…`).
+
+Las listas de objetos con `id` se guardan aparte (una fila por elemento) y **no llegan dentro de los datos** que recibe la
+regla. Para validarlas:
+- largo de una lista: `glacial_fs.largo(n, meta->'conteos', 'campo')` (después) y `glacial_fs.largo(v, meta->'conteos_antes', 'campo')` (antes);
+- listas que cambiaron en el guardado: `meta->'partes_tocadas'` (la regla usa `afect_t`, equivalente a `affectedKeys()`);
+- «la lista solo crece en uno y lo anterior no cambia» (`historial[0:n] == anterior`): `glacial_fs.lista_solo_agrega(c, d, 'campo', v, n, meta)`.
+
+Colecciones con regla en Supabase (13-10-2026): las de la copia inicial más `entregasTurno`, `compromisosProgramacion`,
+`intervenciones`, `planesPreventivos`, `correccionesParada` y `reclasificacionesParada`. Toda colección nueva también debe
+agregarse a la herramienta de copia (`docs/migracion/copiar-firebase-a-supabase.js`).
+
 ## Regla para todo cambio futuro
 
 Lo que se construya debe **verse en tiempo real desde muchos dispositivos**: leer con `onSnapshot`, guardar listas

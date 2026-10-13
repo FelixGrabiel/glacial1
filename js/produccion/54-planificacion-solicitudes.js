@@ -45,6 +45,21 @@
     }
   };
 
+  /* Arma el evento del historial SIN escribirlo: quien lo llama lo guarda dentro de SU transacción (el cambio y su rastro van juntos,
+     todo o nada). ev.extra agrega campos propios (p. ej. «desde» en una unificación). Devuelve {id, doc} o null si no hay sesión. */
+  NS.armarEvento=function(ev){
+    const u=usuario();
+    if(!u.uid)return null;
+    return {
+      id:'h_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+      doc:Object.assign({
+        accion:String(ev.accion||''),linea:ev.linea||'',fecha:ev.fecha||'',turno:ev.turno||'',marca:ev.marca||'',presentacion:ev.presentacion||'',
+        anterior:ev.anterior||null,nuevo:ev.nuevo||null,motivo:String(ev.motivo||''),referencia:String(ev.referencia||''),
+        usuario:u.nombre,username:u.username,uid:u.uid,timestamp:serverTs()
+      },ev.extra||{})
+    };
+  };
+
   async function leerHistorial(){
     const snap=await db.collection('historialProgramacion').orderBy('timestamp','desc').limit(150).get();
     return snap.docs.map(d=>Object.assign({id:d.id},d.data()));
@@ -60,7 +75,7 @@
     try{
       const lista=await leerHistorial();
       cont.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Fecha y hora</th><th>Acción</th><th>Producto</th><th>Turno</th><th>Antes</th><th>Después</th><th>Motivo</th><th>Usuario</th></tr></thead><tbody>'+
-        (lista.length?lista.map(h=>'<tr><td>'+esc(fmtFechaHora(marcaTiempo(h.timestamp)))+'</td><td>'+esc(/^UNIFICACION/.test(h.referencia||'')?'Unificada en Mañana ('+(TEXTO_ACCION[h.accion]||h.accion).toLowerCase()+')':(TEXTO_ACCION[h.accion]||h.accion))+'</td><td>'+esc(NS.nombreLinea(h.linea))+' · '+esc(h.marca)+' '+esc(NS.etiquetaPresentacion(h.linea,h.marca,h.presentacion))+'</td><td>'+esc(h.fecha)+' · '+esc(h.turno==='INTERMEDIO'?'Intermedio':h.turno==='DÍA'?'Día':h.turno)+'</td><td>'+esc(textoValor(h.anterior))+'</td><td>'+esc(textoValor(h.nuevo))+'</td><td>'+esc(h.motivo||'')+'</td><td>'+esc(h.usuario||'')+'</td></tr>').join(''):'<tr><td colspan="8">Todavía no hay cambios registrados.</td></tr>')+'</tbody></table></div>'+
+        (lista.length?lista.map(h=>/^TIEMPOS/.test(h.referencia||'')&&typeof NS.filaHistorialTiempos==='function'?NS.filaHistorialTiempos(h):'<tr><td>'+esc(fmtFechaHora(marcaTiempo(h.timestamp)))+'</td><td>'+esc(/^UNIFICACION/.test(h.referencia||'')?'Unificada en Mañana ('+(TEXTO_ACCION[h.accion]||h.accion).toLowerCase()+')':/^TRASLADO/.test(h.referencia||'')?'Traslado de saldo ('+(TEXTO_ACCION[h.accion]||h.accion).toLowerCase()+')':(TEXTO_ACCION[h.accion]||h.accion))+'</td><td>'+esc(NS.nombreLinea(h.linea))+' · '+esc(h.marca)+' '+esc(NS.etiquetaPresentacion(h.linea,h.marca,h.presentacion))+'</td><td>'+esc(h.fecha)+' · '+esc(h.turno==='INTERMEDIO'?'Intermedio':h.turno==='DÍA'?'Día':h.turno)+'</td><td>'+esc(textoValor(h.anterior))+(h.desde?'<br><small>+ '+esc(num(h.desde.cantidad).toLocaleString('es-PE'))+' UND desde Intermedio</small>':'')+'</td><td>'+esc(textoValor(h.nuevo))+'</td><td>'+esc(h.motivo||'')+'</td><td>'+esc(h.usuario||'')+'</td></tr>').join(''):'<tr><td colspan="8">Todavía no hay cambios registrados.</td></tr>')+'</tbody></table></div>'+
         (NS.historialFallo?'<p class="plan-error">Algún cambio reciente no pudo registrarse en el historial (revisa que las reglas de Firestore estén publicadas).</p>':'');
     }catch(e){cont.innerHTML='<p class="plan-error">No se pudo leer el historial: '+esc((e&&e.message)||e)+'</p>';}
   }
@@ -129,6 +144,8 @@
       cantidadActual:num(s.cantidadActual),propuesta:s.propuesta||null,motivo:String(s.motivo).trim(),estado:'PENDIENTE',
       uid:u.uid,usuario:u.nombre,creadoEn:serverTs()
     };
+    // Versión de la fila sobre la que se pidió el cambio: al aprobar se comprueba que siga igual.
+    if(s.tipo!=='NUEVA_PROGRAMACION'&&Number.isFinite(Number(s.baseVersion)))doc.baseVersion=num(s.baseVersion);
     await db.collection('solicitudesProgramacion').add(doc);
   }
 
@@ -163,44 +180,90 @@
         const tipo=tipoActual(),cant=Number(q('ps-cant').value),marca=q('ps-marca').value,pres=q('ps-pres').value;
         if(!Number.isInteger(cant)||cant<=0)throw new Error('La cantidad pedida debe ser un entero mayor que cero.');
         if(tipo!=='CAMBIO_CANTIDAD'&&(!marca||!pres))throw new Error('Elige la marca y la presentación.');
-        await crearSolicitud({tipo,linea:base.linea,fecha:base.fecha,turno:base.turno,marca:base.marca,presentacion:base.presentacion,cantidadActual:base.cantidadActual,
+        await crearSolicitud({tipo,linea:base.linea,fecha:base.fecha,turno:base.turno,marca:base.marca,presentacion:base.presentacion,cantidadActual:base.cantidadActual,baseVersion:base.baseVersion,
           propuesta:tipo==='CAMBIO_CANTIDAD'?{cantidad:cant}:{marca,presentacion:pres,cantidad:cant},motivo:q('ps-motivo').value});
         fondo.remove();
         alert('Solicitud enviada. Verás el resultado aquí y en el Centro de avisos.');
       }catch(e){q('ps-error').textContent=(e&&e.message)||String(e);q('ps-enviar').disabled=false;}
     };
   }
-  NS.solicitarCambio=item=>dialogoSolicitud({tipo:'CAMBIO_CANTIDAD',linea:item.linea,fecha:item.fecha,turno:item.turno,marca:item.marca,presentacion:item.presentacion,cantidadActual:num(item.cantidadProgramada)});
+  NS.solicitarCambio=item=>dialogoSolicitud({tipo:'CAMBIO_CANTIDAD',linea:item.linea,fecha:item.fecha,turno:item.turno,marca:item.marca,presentacion:item.presentacion,cantidadActual:num(item.cantidadProgramada),baseVersion:num(item.version)});
   NS.solicitarProgramacion=(linea,fecha,turno,marca,presentacion)=>dialogoSolicitud({tipo:'NUEVA_PROGRAMACION',linea,fecha,turno,marca:marca||'',presentacion:presentacion||'',cantidadActual:0});
 
-  /* ---------- aprobar o rechazar ---------- */
-  async function resolver(sol,estado,comentario){
+  /* ---------- aprobar o rechazar ----------
+     UNA transacción lee la solicitud y la programación, comprueba que la solicitud siga PENDIENTE y que la fila siga igual que cuando se pidió,
+     aplica el cambio, escribe su historial y marca la solicitud: todo o nada. Si algo cambió no se aplica nada y el error trae el valor actual. */
+  const conflicto=(msg,actual)=>{const e=new Error(msg);e.conflicto=true;e.actual=actual||null;return e;};
+  const hallarFila=(items,linea,fecha,turno,marca,pres)=>{
+    let f=items.find(x=>x.clave===NS.clave(linea,fecha,turno,marca,pres));
+    if(!f&&turno==='INTERMEDIO')f=items.find(x=>x.clave===NS.clave(linea,fecha,'DÍA',marca,pres));
+    return f||null;
+  };
+  const resumenFila=f=>f?num(f.cantidadProgramada).toLocaleString('es-PE')+' UND ('+num(f.unidadesPorPaleta).toLocaleString('es-PE')+' por paleta)':'sin programar';
+  NS.resolverSolicitud=async function(solId,aprobar,comentario){
+    if(!NS.puede())throw new Error('Solo Planificación puede resolver solicitudes.');
+    comentario=String(comentario||'').trim();
+    if(comentario.length<3)throw new Error('Escribe un comentario.');
+    let s0=mapa.get(solId);
+    if(aprobar&&!s0){try{const g=await db.collection('solicitudesProgramacion').doc(solId).get();s0=g.exists?g.data():null;}catch(_){s0=null;}}
+    if(aprobar&&s0&&typeof NS.asegurarCompromiso==='function')await NS.asegurarCompromiso(s0.fecha,s0.turno);   // compromiso original (64), sin bloquear
     const u=usuario();
-    const ref=db.collection('solicitudesProgramacion').doc(sol.id);
+    const refSol=db.collection('solicitudesProgramacion').doc(solId),refProg=db.collection('sync').doc('programaciones');
+    let nuevaLista=null;
     await db.runTransaction(async tx=>{
-      const snap=await tx.get(ref);
-      if(!snap.exists||snap.data().estado!=='PENDIENTE')throw new Error('Esta solicitud ya fue resuelta por otra persona.');
-      tx.update(ref,{estado,comentario,resueltaPor:u.nombre,resueltaUid:u.uid,resueltaEn:serverTs()});
+      nuevaLista=null;                              // la transacción puede repetirse: parte siempre de cero
+      const ss=await tx.get(refSol);
+      if(!ss.exists)throw new Error('La solicitud ya no existe.');
+      const sol=Object.assign({id:solId},ss.data());
+      if(sol.estado!=='PENDIENTE')throw conflicto('Esta solicitud ya fue resuelta por otra persona ('+textoEstado(sol.estado).toLowerCase()+(sol.resueltaPor?' por '+sol.resueltaPor:'')+(sol.comentario?': '+sol.comentario:'')+'). No se aplicó nada.');
+      const eventos=[];
+      if(aprobar){
+        const ps=await tx.get(refProg);
+        const items=ps.exists&&Array.isArray(ps.data().items)?ps.data().items.slice():[];
+        const motivo='Solicitud de '+(sol.usuario||'supervisor')+': '+sol.motivo;
+        const prop=sol.propuesta||{};
+        const aplicar=(f,cant,upp,extra)=>{
+          const v=NS.validar({linea:sol.linea,fecha:sol.fecha,turno:sol.turno,marca:f.marca,presentacion:f.presentacion,cantidad:cant,upp});
+          if(cant>0&&v.errores.length)throw new Error(v.errores.join(' '));
+          const campos={cantidadProgramada:cant,unidadesPorPaleta:upp,paletasProgramadas:upp?cant/upp:0,actualizadoPor:u.nombre,actualizadoEn:Date.now()};
+          const r=programacionAplicarEnLista(items,{linea:sol.linea,fecha:sol.fecha,turno:sol.turno,marca:f.marca,presentacion:f.presentacion,cantidadNum:cant,uppNum:upp,campos,motivo},{});
+          const ev=NS.armarEvento({accion:extra&&extra.accion||'APROBACION',linea:sol.linea,fecha:sol.fecha,turno:r.turnoFinal,marca:f.marca,presentacion:f.presentacion,
+            anterior:programacionValorHistorial(r.previo,true),nuevo:programacionValorHistorial(r.nuevo,false),motivo,referencia:sol.id});
+          if(ev)eventos.push(ev);
+          return r;
+        };
+        if(sol.tipo==='NUEVA_PROGRAMACION'){
+          const ya=hallarFila(items,sol.linea,sol.fecha,sol.turno,prop.marca,prop.presentacion);
+          if(ya&&num(ya.cantidadProgramada)>0)throw conflicto('Ya hay una programación para ese producto: '+resumenFila(ya)+'. No se aplicó la solicitud; revísala con el valor actual.',{cantidad:num(ya.cantidadProgramada)});
+          aplicar(prop,num(prop.cantidad),num(NS.uppSugerida(sol.linea,prop.marca,prop.presentacion)));
+        }else{
+          const actual=hallarFila(items,sol.linea,sol.fecha,sol.turno,sol.marca,sol.presentacion);
+          if(!actual)throw conflicto('La programación a cambiar ya no existe (otra persona la quitó). No se aplicó la solicitud.');
+          const igual=Number.isFinite(Number(sol.baseVersion))?num(actual.version)===num(sol.baseVersion):num(actual.cantidadProgramada)===num(sol.cantidadActual);
+          if(!igual)throw conflicto('La programación cambió desde que se pidió el cambio (se pidió sobre '+num(sol.cantidadActual).toLocaleString('es-PE')+' UND). Valor actual: '+resumenFila(actual)+'. No se aplicó la solicitud.',{cantidad:num(actual.cantidadProgramada),unidadesPorPaleta:num(actual.unidadesPorPaleta)});
+          if(sol.tipo==='CAMBIO_CANTIDAD'){
+            aplicar({marca:sol.marca,presentacion:sol.presentacion},num(prop.cantidad),num(actual.unidadesPorPaleta)||num(NS.uppSugerida(sol.linea,sol.marca,sol.presentacion)));
+          }else{
+            const destino=hallarFila(items,sol.linea,sol.fecha,sol.turno,prop.marca,prop.presentacion);
+            if(destino&&num(destino.cantidadProgramada)>0)throw conflicto('Ya hay una programación del producto pedido: '+resumenFila(destino)+'. No se aplicó la solicitud.',{cantidad:num(destino.cantidadProgramada)});
+            const uppNuevo=num(NS.uppSugerida(sol.linea,prop.marca,prop.presentacion))||num(actual.unidadesPorPaleta);
+            // quitar el anterior y crear el nuevo ocurren en la MISMA transacción: si algo falla no se pierde el producto original
+            aplicar({marca:sol.marca,presentacion:sol.presentacion},0,num(actual.unidadesPorPaleta),{accion:'ELIMINACION'});
+            aplicar(prop,num(prop.cantidad),uppNuevo);
+          }
+        }
+        tx.set(refProg,{items,updatedAt:Date.now()});
+        nuevaLista=items;
+        eventos.forEach(ev=>tx.set(db.collection('historialProgramacion').doc(ev.id),ev.doc));
+      }else{
+        const ev=NS.armarEvento({accion:'RECHAZO_SOLICITUD',linea:sol.linea,fecha:sol.fecha,turno:sol.turno,marca:sol.marca,presentacion:sol.presentacion,
+          anterior:sol.cantidadActual?{cantidad:num(sol.cantidadActual)}:null,nuevo:null,motivo:comentario,referencia:sol.id});
+        if(ev)tx.set(db.collection('historialProgramacion').doc(ev.id),ev.doc);
+      }
+      tx.update(refSol,{estado:aprobar?'APROBADA':'RECHAZADA',comentario,resueltaPor:u.nombre,resueltaUid:u.uid,resueltaEn:serverTs()});
     });
-  }
-  /* Aplica la solicitud con la función única de programación; si falla, no se marca como aprobada. */
-  async function aplicarSolicitud(sol){
-    const opc={accion:'APROBACION',motivo:'Solicitud de '+(sol.usuario||'supervisor')+': '+sol.motivo,referencia:sol.id};
-    const actual=NS.existente(sol.linea,sol.fecha,sol.turno,sol.marca,sol.presentacion);
-    const upp=(prod=>num(NS.uppSugerida(sol.linea,prod.marca,prod.presentacion)))(sol.propuesta&&sol.propuesta.marca?sol.propuesta:sol);
-    if(sol.tipo==='CAMBIO_CANTIDAD'){
-      if(!actual)throw new Error('La programación a cambiar ya no existe.');
-      await NS.guardar({linea:sol.linea,fecha:sol.fecha,turno:sol.turno,marca:sol.marca,presentacion:sol.presentacion,
-        cantidad:sol.propuesta.cantidad,upp:num(actual.unidadesPorPaleta)||upp},opc);
-    }else if(sol.tipo==='CAMBIO_PRODUCTO'){
-      if(actual)await NS.quitar(actual,opc.motivo);
-      await NS.guardar({linea:sol.linea,fecha:sol.fecha,turno:sol.turno,marca:sol.propuesta.marca,presentacion:sol.propuesta.presentacion,
-        cantidad:sol.propuesta.cantidad,upp:num(NS.uppSugerida(sol.linea,sol.propuesta.marca,sol.propuesta.presentacion))||num(actual&&actual.unidadesPorPaleta)},opc);
-    }else{
-      await NS.guardar({linea:sol.linea,fecha:sol.fecha,turno:sol.turno,marca:sol.propuesta.marca,presentacion:sol.propuesta.presentacion,
-        cantidad:sol.propuesta.cantidad,upp:num(NS.uppSugerida(sol.linea,sol.propuesta.marca,sol.propuesta.presentacion))},opc);
-    }
-  }
+    if(nuevaLista&&typeof _programacionesCache!=='undefined')_programacionesCache=nuevaLista;
+  };
   function dialogoResolver(sol,aprobar){
     const fondo=NS.abrirDialogo('<h3>'+(aprobar?'Aprobar':'Rechazar')+' solicitud</h3>'+
       '<p style="font-size:13px">'+esc(textoTipo(sol.tipo))+' · '+esc(NS.nombreLinea(sol.linea))+' · '+esc(sol.fecha)+' · '+esc(turnoTxt(sol.turno))+'<br>Pide: <b>'+esc(textoPropuesta(sol))+'</b><br>Motivo: '+esc(sol.motivo)+'</p>'+
@@ -214,10 +277,7 @@
       if(comentario.length<3){q('pr-error').textContent='Escribe un comentario.';return;}
       q('pr-ok').disabled=true;q('pr-error').textContent=aprobar?'Aplicando…':'';
       try{
-        if(aprobar)await aplicarSolicitud(sol);
-        await resolver(sol,aprobar?'APROBADA':'RECHAZADA',comentario);
-        if(!aprobar)await NS.registrarHistorial({accion:'RECHAZO_SOLICITUD',linea:sol.linea,fecha:sol.fecha,turno:sol.turno,marca:sol.marca,presentacion:sol.presentacion,
-          anterior:sol.cantidadActual?{cantidad:num(sol.cantidadActual)}:null,nuevo:null,motivo:comentario,referencia:sol.id});
+        await NS.resolverSolicitud(sol.id,aprobar,comentario);
         fondo.remove();
       }catch(e){q('pr-error').textContent=(e&&e.message)||String(e);q('pr-ok').disabled=false;}
     };
@@ -318,20 +378,38 @@
     const detalle=[...bloques.values()].map(o=>{
       const p=o.p;
       const prod=typeof window.glacialProducidoVigente==='function'?window.glacialProducidoVigente(p):null;
+      // Compromiso original (64): el plan al INICIAR el bloque. Sin documento = no hubo reprogramación registrada → original = vigente.
+      const orig=typeof NS.originalDe==='function'?NS.originalDe(p.fecha,o.bloque,p.linea,p.marca,p.presentacion):null;
       return {linea:p.linea,fecha:p.fecha,turno:o.bloque,marca:p.marca,presentacion:p.presentacion,
-        programado:o.programado,producido:prod,semana:lunesDe(p.fecha)};
+        programado:o.programado,original:orig===null?o.programado:orig,reprogramado:orig!==null&&orig!==o.programado,producido:prod,semana:lunesDe(p.fecha)};
     });
+    // Productos que estaban en el compromiso original y YA NO están en el plan vigente: su incumplimiento no se oculta.
+    if(typeof NS.compromisos==='function')NS.compromisos().forEach(c=>{
+      if(!fechaOk(c.fecha)||c.fecha<FC.desde||c.fecha>FC.hasta)return;
+      const por=new Map();
+      (c.filas||[]).forEach(f=>{
+        if(FC.linea&&f.linea!==FC.linea)return;
+        const k=[f.linea,c.fecha,c.bloque,f.marca,f.presentacion].join('|');
+        if(bloques.has(k))return;
+        const o=por.get(k)||{f,cant:0};o.cant+=num(f.cantidad);por.set(k,o);
+      });
+      por.forEach(o=>{
+        const f=o.f,prod=typeof window.glacialProducidoVigente==='function'?window.glacialProducidoVigente({linea:f.linea,fecha:c.fecha,turno:c.bloque,marca:f.marca,presentacion:f.presentacion}):null;
+        detalle.push({linea:f.linea,fecha:c.fecha,turno:c.bloque,marca:f.marca,presentacion:f.presentacion,programado:0,original:o.cant,reprogramado:true,producido:prod,semana:lunesDe(c.fecha)});
+      });
+    });
+    const hayReprogramacion=detalle.some(d=>d.reprogramado);
     const sumar=(clave)=>{
       const m=new Map();
       detalle.forEach(d=>{
-        const k=clave(d),o=m.get(k)||{clave:k,programado:0,producido:0,sinRegistro:0};
-        o.programado+=d.programado;
+        const k=clave(d),o=m.get(k)||{clave:k,programado:0,original:0,producido:0,sinRegistro:0};
+        o.programado+=d.programado;o.original+=d.original;
         if(d.producido===null)o.sinRegistro++;else o.producido+=d.producido;
         m.set(k,o);
       });
       return [...m.values()].sort((a,b)=>String(a.clave).localeCompare(String(b.clave),'es'));
     };
-    return {detalle,porLinea:sumar(d=>d.linea),porDia:sumar(d=>d.fecha),porSemana:sumar(d=>d.semana)};
+    return {detalle,hayReprogramacion,porLinea:sumar(d=>d.linea),porDia:sumar(d=>d.fecha),porSemana:sumar(d=>d.semana)};
   }
   const color=c=>{
     const t=typeof window.glacialMetasIndicadores==='function'?window.glacialMetasIndicadores():G().METAS_INICIALES;
@@ -339,22 +417,27 @@
   };
   const FONDOS={verde:'#e1f4e8',ambar:'#fff4d6',roja:'#fde6e6',gris:'#f1f4f6'};
 
-  function tablaCumplimiento(titulo,filas,etiqueta){
-    const total=filas.reduce((a,f)=>({programado:a.programado+f.programado,producido:a.producido+f.producido,sinRegistro:a.sinRegistro+f.sinRegistro}),{programado:0,producido:0,sinRegistro:0});
+  function tablaCumplimiento(titulo,filas,etiqueta,conOriginal){
+    const total=filas.reduce((a,f)=>({programado:a.programado+f.programado,original:a.original+f.original,producido:a.producido+f.producido,sinRegistro:a.sinRegistro+f.sinRegistro}),{programado:0,original:0,producido:0,sinRegistro:0});
+    const pct=c=>c==null?'—':(c*100).toLocaleString('es-PE',{maximumFractionDigits:1})+' %';
     const fila=(nombre,f,negrita)=>{
-      const c=G().cumplimiento(f.producido,f.programado);
-      return '<tr><td>'+(negrita?'<b>'+esc(nombre)+'</b>':esc(nombre))+'</td><td class="num">'+f.programado.toLocaleString('es-PE')+'</td><td class="num">'+f.producido.toLocaleString('es-PE')+'</td>'+
-        '<td class="num" style="background:'+FONDOS[color(c)]+'"><b>'+(c==null?'—':(c*100).toLocaleString('es-PE',{maximumFractionDigits:1})+' %')+'</b></td><td class="num">'+(f.sinRegistro?f.sinRegistro+' sin registro':'')+'</td></tr>';
+      const c=G().cumplimiento(f.producido,f.programado),co=G().cumplimiento(f.producido,f.original);
+      return '<tr><td>'+(negrita?'<b>'+esc(nombre)+'</b>':esc(nombre))+'</td><td class="num">'+f.programado.toLocaleString('es-PE')+'</td>'+
+        (conOriginal?'<td class="num">'+f.original.toLocaleString('es-PE')+'</td>':'')+'<td class="num">'+f.producido.toLocaleString('es-PE')+'</td>'+
+        '<td class="num" style="background:'+FONDOS[color(c)]+'"><b>'+pct(c)+'</b></td>'+
+        (conOriginal?'<td class="num" style="background:'+FONDOS[color(co)]+'"><b>'+pct(co)+'</b></td>':'')+'<td class="num">'+(f.sinRegistro?f.sinRegistro+' sin registro':'')+'</td></tr>';
     };
-    return '<h4 style="margin:14px 0 6px;color:#003b5c">'+titulo+'</h4><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>'+etiqueta+'</th><th class="num">Programado</th><th class="num">Producido</th><th class="num">Cumplimiento</th><th class="num">Avisos</th></tr></thead><tbody>'+
-      (filas.length?filas.map(f=>fila(etiqueta==='Línea'?NS.nombreLinea(f.clave):etiqueta==='Semana'?'Semana del '+f.clave:f.clave,f)).join('')+fila('Total',total,true):'<tr><td colspan="5">Sin programaciones en el rango.</td></tr>')+'</tbody></table></div>';
+    const nc=conOriginal?7:5;
+    return '<h4 style="margin:14px 0 6px;color:#003b5c">'+titulo+'</h4><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>'+etiqueta+'</th><th class="num">Programado vigente</th>'+(conOriginal?'<th class="num">Original al inicio</th>':'')+'<th class="num">Producido</th><th class="num">Cumplimiento vigente</th>'+(conOriginal?'<th class="num">Cumplimiento vs original</th>':'')+'<th class="num">Avisos</th></tr></thead><tbody>'+
+      (filas.length?filas.map(f=>fila(etiqueta==='Línea'?NS.nombreLinea(f.clave):etiqueta==='Semana'?'Semana del '+f.clave:f.clave,f)).join('')+fila('Total',total,true):'<tr><td colspan="'+nc+'">Sin programaciones en el rango.</td></tr>')+'</tbody></table></div>';
   }
   function pintarCuerpoCumplimiento(){
     const cont=document.getElementById('cu-cuerpo');
     if(!cont)return;
     if(FC.hasta<FC.desde){cont.innerHTML='<p class="plan-error">La fecha «hasta» no puede ser anterior a «desde».</p>';return;}
     const r=calcularCumplimiento();
-    cont.innerHTML=tablaCumplimiento('Por línea',r.porLinea,'Línea')+tablaCumplimiento('Por día',r.porDia,'Día')+tablaCumplimiento('Por semana',r.porSemana,'Semana');
+    cont.innerHTML=(r.hayReprogramacion?'<p class="plan-nota"><b>Hay reprogramación:</b> «Original al inicio» es el plan al iniciar cada bloque (lo cambiado antes del inicio es planificación); «vigente» es el plan de hoy. Un incumplimiento no desaparece al reprogramar.</p>':'')+
+      tablaCumplimiento('Por línea',r.porLinea,'Línea',r.hayReprogramacion)+tablaCumplimiento('Por día',r.porDia,'Día',r.hayReprogramacion)+tablaCumplimiento('Por semana',r.porSemana,'Semana',r.hayReprogramacion);
   }
 
   function exportarCumplimiento(){
@@ -362,14 +445,14 @@
     const r=calcularCumplimiento();
     const pct=(p,g)=>{const c=G().cumplimiento(p,g);return c==null?'':+(c*100).toFixed(1);};
     const hoja=(cab,filas,nombre)=>{const ws=XLSX.utils.aoa_to_sheet([cab].concat(filas));ws['!cols']=cab.map(()=>({wch:18}));return [ws,nombre];};
-    const resumen=(clave,fn)=>r[clave].map(f=>[fn(f.clave),f.programado,f.producido,pct(f.producido,f.programado),f.sinRegistro]);
+    const resumen=(clave,fn)=>r[clave].map(f=>[fn(f.clave),f.programado,f.original,f.producido,pct(f.producido,f.programado),pct(f.producido,f.original),f.sinRegistro]);
     const libro=XLSX.utils.book_new();
-    const cab=['Programado','Producido','Cumplimiento %','Turnos sin registro'];
+    const cab=['Programado vigente','Original al inicio','Producido','Cumplimiento vigente %','Cumplimiento vs original %','Turnos sin registro'];
     [hoja(['Línea'].concat(cab),resumen('porLinea',NS.nombreLinea),'Por línea'),
      hoja(['Día'].concat(cab),resumen('porDia',x=>x),'Por día'),
      hoja(['Semana (lunes)'].concat(cab),resumen('porSemana',x=>x),'Por semana'),
-     hoja(['Fecha','Turno','Línea','Marca','Presentación','Programado','Producido','Cumplimiento %'],
-       r.detalle.map(d=>[d.fecha,NS.etiquetaBloque(d.turno),NS.nombreLinea(d.linea),d.marca,NS.etiquetaPresentacion(d.linea,d.marca,d.presentacion),d.programado,d.producido===null?'sin registro':d.producido,d.producido===null?'':pct(d.producido,d.programado)]),'Detalle')
+     hoja(['Fecha','Turno','Línea','Marca','Presentación','Programado vigente','Original al inicio','Producido','Cumplimiento vigente %','Cumplimiento vs original %','Reprogramado'],
+       r.detalle.map(d=>[d.fecha,NS.etiquetaBloque(d.turno),NS.nombreLinea(d.linea),d.marca,NS.etiquetaPresentacion(d.linea,d.marca,d.presentacion),d.programado,d.original,d.producido===null?'sin registro':d.producido,d.producido===null?'':pct(d.producido,d.programado),d.producido===null?'':pct(d.producido,d.original),d.reprogramado?'sí':'']),'Detalle')
     ].forEach(([ws,n])=>XLSX.utils.book_append_sheet(libro,ws,n));
     XLSX.writeFile(libro,'cumplimiento-programacion-'+FC.desde+'_'+FC.hasta+'.xlsx');
   }
@@ -388,5 +471,5 @@
     pintarCuerpoCumplimiento();
   });
 
-  NS.pestanas.push({clave:'cumplimiento',titulo:'Cumplimiento',orden:5,pintar:pintarCumplimiento,actualizar:pintarCuerpoCumplimiento});
+  NS.pestanas.push({clave:'cumplimiento',titulo:'Cumplimiento de turno',orden:5,pintar:pintarCumplimiento,actualizar:pintarCuerpoCumplimiento});
 })();

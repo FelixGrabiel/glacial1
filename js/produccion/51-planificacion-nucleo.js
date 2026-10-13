@@ -84,7 +84,7 @@
   NS.items=(fecha,turno)=>{
     const orden=lineas().map(l=>l.key);
     const bloque=turno?(NS.valorBloque(turno)==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO']):null;
-    return programaciones().filter(p=>p&&p.fecha===fecha&&(!bloque||bloque.includes(p.turno))&&num(p.cantidadProgramada)>0)
+    return programaciones().filter(p=>p&&p.fecha===fecha&&(!bloque||bloque.includes(p.turno))&&(num(p.cantidadProgramada)>0||NS.esPlanSinCantidad(p)))
       .sort((a,b)=>(orden.indexOf(a.linea)-orden.indexOf(b.linea))||String(a.marca).localeCompare(String(b.marca),'es')||String(a.presentacion).localeCompare(String(b.presentacion),'es'));
   };
   /* Productos con la MISMA cantidad en Día e Intermedio (posible duplicado): solo se avisa, nunca se corrige solo. */
@@ -98,6 +98,10 @@
     const salida=new Set();por.forEach((o,k)=>{if(o['DÍA']>0&&o['DÍA']===o['INTERMEDIO'])salida.add(k);});
     return salida;
   };
+  /* «Completar cantidad» guardado SIN saldo todavía (pendiente de cierre) o con meta ya completada: la fila existe con cantidad 0 y su meta/resolución
+     (66-planificacion-modos.js). Los demás módulos solo leen filas con cantidad > 0, así que no la ven como orden productiva. */
+  NS.esPlanSinCantidad=p=>!!p&&!(num(p.cantidadProgramada)>0)&&((p.modo==='COMPLETAR'&&!!p.meta&&!!p.meta.resolucion)||((p.modo==='HORA'||p.modo==='TURNO')&&!!p.estimado&&p.estimado.estado==='PENDIENTE'));
+  NS.filaVigente=ex=>!!ex&&(num(ex.cantidadProgramada)>0||NS.esPlanSinCantidad(ex));
   NS.paletasEquivalentes=(cant,upp)=>num(upp)>0?num(cant)/num(upp):0;
   /* Unidades por paleta: el catálogo (53) manda; si no hay, la tabla fija de siempre. */
   NS.uppCatalogo=NS.uppCatalogo||(()=>0);
@@ -116,12 +120,12 @@
     if(!f.presentacion)errores.push('Selecciona la presentación.');
     else if(lineas().some(l=>l.key===f.linea)&&!NS.presentacionesBrutas(f.linea).includes(f.presentacion))errores.push('La presentación «'+f.presentacion+'» no es válida para '+NS.nombreLinea(f.linea)+'.');
     const cant=Number(f.cantidad),upp=Number(f.upp);
-    if(!Number.isInteger(cant)||cant<=0)errores.push('La cantidad programada debe ser un entero mayor que cero.');
+    if(!(f.permitirCero&&cant===0)&&(!Number.isInteger(cant)||cant<=0))errores.push('La cantidad programada debe ser un entero mayor que cero.');
     if(!Number.isInteger(upp)||upp<=0)errores.push('Las unidades por paleta deben ser un entero mayor que cero.');
     if(!errores.length){
       if(typeof NS.productoInactivo==='function'&&NS.productoInactivo(f.linea,f.marca,f.presentacion))avisos.push('Este producto está marcado como inactivo en el catálogo.');
       const ex=NS.existente(f.linea,f.fecha,f.turno,f.marca,f.presentacion);
-      if(ex&&num(ex.cantidadProgramada)>0){
+      if(ex&&NS.filaVigente(ex)&&!f.permitirCero){
         avisos.push('Ya existe esta programación (misma línea, turno y producto): se reemplazará su cantidad ('+num(ex.cantidadProgramada).toLocaleString('es-PE')+' UND).');
         if(NS.enProduccion(ex))avisos.push('Está '+NS.estadoTexto(NS.estadoDe(ex)).toLowerCase()+': el cambio exige motivo.');
       }
@@ -135,6 +139,8 @@
     if(!puede())throw new Error('Solo Planificación puede crear o editar la programación.');
     const v=NS.validar(f);
     if(v.errores.length)throw new Error(v.errores.join(' '));
+    // Compromiso original (64): si el bloque ya empezó, se guarda el plan tal como estaba ANTES de este primer cambio. Nunca bloquea el guardado.
+    if(typeof NS.asegurarCompromiso==='function')await NS.asegurarCompromiso(f.fecha,NS.turnoDeGuardado(f));
     return guardarProgramacionPaleta(f.linea,f.fecha,NS.turnoDeGuardado(f),f.marca,f.presentacion,Number(f.cantidad),Number(f.upp),opc);
   };
   /* ---------- Unificar en Día ---------- */
@@ -148,12 +154,14 @@
   };
   /* Mueve la fila INTERMEDIO al bloque Día en UNA transacción sobre sync/programaciones: si el producto ya tiene fila DÍA se suma;
      si no, la fila pasa a ser DÍA (misma cantidad, unidades por paleta y secuencia). La fila DÍA conserva el rastro en
-     unificadoDeIntermedio[] (reversible) y el historial recibe EDICIÓN/CREACIÓN del DÍA y ELIMINACIÓN del INTERMEDIO con la referencia UNIFICACION. */
+     unificadoDeIntermedio[] (reversible). El historial recibe UN solo evento (referencia UNIFICACION, con «desde» Intermedio) dentro de
+     la MISMA transacción: el cambio y su rastro se guardan juntos o no se guarda nada. */
   NS.unificarEnDia=async function(item,motivo){
     if(!puede())throw new Error('Solo Planificación puede unificar programaciones.');
     const m=String(motivo||'').trim();
     if(m.length<5)throw new Error('Indica el motivo de la unificación (mínimo 5 caracteres).');
     if(!NS.puedeUnificar(item))throw new Error('Solo se pueden unificar programaciones de Intermedio pendientes, de hoy en adelante y sin producción registrada.');
+    if(typeof NS.asegurarCompromiso==='function')await NS.asegurarCompromiso(item.fecha,'DÍA');
     const claveInter=item.clave,claveDia=NS.clave(item.linea,item.fecha,'DÍA',item.marca,item.presentacion);
     const quien=typeof nombreUsuarioActualPaletas==='function'?nombreUsuarioActualPaletas():'';
     const ref=db.collection('sync').doc('programaciones');
@@ -166,34 +174,41 @@
       if(i<0)throw new Error('La fila INTERMEDIO ya no existe (otra persona la cambió). Actualiza la pantalla.');
       const inter=act[i];
       if(((inter.estadoOperacion&&inter.estadoOperacion.estado)||'PENDIENTE')!=='PENDIENTE')throw new Error('La programación de Intermedio ya no está pendiente: no se puede unificar.');
+      if(Number.isFinite(Number(item.version))||Number.isFinite(Number(inter.version))){
+        if(num(inter.version)!==num(item.version)){
+          const e=new Error('Otra persona cambió la fila de Intermedio mientras la mirabas. Valor actual: '+num(inter.cantidadProgramada).toLocaleString('es-PE')+' UND. No se unificó nada.');
+          e.conflicto=true;e.actual={cantidad:num(inter.cantidadProgramada),version:num(inter.version)};throw e;
+        }
+      }
       antesInter=inter;
       const traza={cantidad:num(inter.cantidadProgramada),claveOriginal:claveInter,por:quien,motivo:m,fecha:Date.now()};
       const j=act.findIndex(p=>p.clave===claveDia);
       if(j>=0){
         antesDia=act[j];
         const upp=num(act[j].unidadesPorPaleta)||num(inter.unidadesPorPaleta),cant=num(act[j].cantidadProgramada)+num(inter.cantidadProgramada);
-        act[j]=Object.assign({},act[j],{cantidadProgramada:cant,unidadesPorPaleta:upp,paletasProgramadas:upp?cant/upp:0,unificadoDeIntermedio:(act[j].unificadoDeIntermedio||[]).concat([traza]),actualizadoPor:quien,actualizadoEn:Date.now()});
+        act[j]=Object.assign({},act[j],{cantidadProgramada:cant,unidadesPorPaleta:upp,paletasProgramadas:upp?cant/upp:0,version:num(act[j].version)+1,unificadoDeIntermedio:(act[j].unificadoDeIntermedio||[]).concat([traza]),actualizadoPor:quien,actualizadoEn:Date.now()});
         despuesDia=act[j];act.splice(i,1);
       }else{
-        act[i]=Object.assign({},inter,{id:'prog_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),clave:claveDia,turno:'DÍA',unificadoDeIntermedio:[traza],actualizadoPor:quien,actualizadoEn:Date.now()});
+        act[i]=Object.assign({},inter,{id:'prog_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),clave:claveDia,turno:'DÍA',version:num(inter.version)+1,unificadoDeIntermedio:[traza],actualizadoPor:quien,actualizadoEn:Date.now()});
         despuesDia=act[i];
       }
       tx.set(ref,{items:act,updatedAt:Date.now()});
+      const val=p=>p?{cantidad:num(p.cantidadProgramada),unidadesPorPaleta:num(p.unidadesPorPaleta),estado:(p.estadoOperacion&&p.estadoOperacion.estado)||''}:null;
+      const ev=typeof NS.armarEvento==='function'?NS.armarEvento({accion:antesDia?'EDICION':'CREACION',linea:item.linea,fecha:item.fecha,turno:'DÍA',marca:item.marca,presentacion:item.presentacion,
+        anterior:val(antesDia),nuevo:val(despuesDia),motivo:m,referencia:'UNIFICACION: '+claveInter,
+        extra:{desde:{turno:'INTERMEDIO',clave:claveInter,cantidad:num(inter.cantidadProgramada),unidadesPorPaleta:num(inter.unidadesPorPaleta)}}}):null;
+      if(ev)tx.set(db.collection('historialProgramacion').doc(ev.id),ev.doc);
       return act;
     });
     if(typeof _programacionesCache!=='undefined')_programacionesCache=items;
-    const ref2='UNIFICACION: '+claveInter;
-    const val=p=>p?{cantidad:num(p.cantidadProgramada),unidadesPorPaleta:num(p.unidadesPorPaleta),estado:(p.estadoOperacion&&p.estadoOperacion.estado)||''}:null;
-    const base={linea:item.linea,fecha:item.fecha,marca:item.marca,presentacion:item.presentacion,motivo:m,referencia:ref2};
-    await NS.registrarHistorial(Object.assign({},base,{accion:antesDia?'EDICION':'CREACION',turno:'DÍA',anterior:val(antesDia),nuevo:val(despuesDia)}));
-    await NS.registrarHistorial(Object.assign({},base,{accion:'ELIMINACION',turno:'INTERMEDIO',anterior:val(antesInter),nuevo:null}));
     return {antesDia,despuesDia,antesInter};
   };
 
   /* Quita una programación (cantidad 0, como siempre). */
-  NS.quitar=async function(item,motivo){
+  NS.quitar=async function(item,motivo,opc){
     if(!puede())throw new Error('Solo Planificación puede quitar la programación.');
-    return guardarProgramacionPaleta(item.linea,item.fecha,item.turno,item.marca,item.presentacion,0,num(item.unidadesPorPaleta)||0,{motivo});
+    if(typeof NS.asegurarCompromiso==='function')await NS.asegurarCompromiso(item.fecha,item.turno);
+    return guardarProgramacionPaleta(item.linea,item.fecha,item.turno,item.marca,item.presentacion,0,num(item.unidadesPorPaleta)||0,Object.assign({motivo},opc||{}));
   };
   /* Aplica varias filas, una por una, con la misma función. */
   NS.aplicarLote=async function(filas,opc){
@@ -220,6 +235,15 @@
       programaciones().forEach(p=>{
         if(!p||p.fecha!==origen||!turnos.includes(p.turno)||num(p.cantidadProgramada)<=0)return;
         if(NS.estadoDe(p)==='CANCELADA')return;
+        // Modos 66: no se reutiliza un cierre ya asignado ni una estimación de otro día; hay que revisar la referencia y volver a aplicar.
+        const modoP=NS.modos?NS.modos.modoDe(p):'FIJA';
+        if(modoP!=='FIJA'){
+          omitidos.push({texto:destino+' · '+p.turno+' · '+NS.nombreLinea(p.linea)+' · '+p.marca+' '+NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion)+': '+
+            (modoP==='COMPLETAR'?'Completar cantidad: no se copia (el cierre ya asignado no se reutiliza); revisa la referencia y aplica el saldo en la fecha destino.'
+              :modoP==='HORA'?'Hasta una hora: no se copia (hay que validar la hora límite y la estimación de ese día); prográmalo de nuevo en «Secuencia».'
+              :'Todo el turno / hasta el cierre: no se copia (la estimación depende de las ventanas y preparaciones de ese día); prográmalo de nuevo.')});
+          return;
+        }
         // Día + Intermedio es UN bloque: la copia va a la fila DÍA y, si el producto tenía fila en ambos turnos, se SUMA.
         const fila={linea:p.linea,fecha:destino,turno:NS.valorBloque(p.turno),marca:p.marca,presentacion:p.presentacion,
           cantidad:num(p.cantidadProgramada),upp:num(p.unidadesPorPaleta)||NS.uppSugerida(p.linea,p.marca,p.presentacion)};

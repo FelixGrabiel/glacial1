@@ -142,6 +142,12 @@
     }
   }
 
+  /* ---------- equipo que falló (solo paradas por «Falla de máquina»; las antiguas sin equipo salen como «Equipo sin indicar») ---------- */
+  const SIN_EQUIPO='Equipo sin indicar';
+  /* ¿La causa (o el motivo de una parada antigua) pide equipo? Lo decide el catálogo de motivos (37e) vía glacialEquipos; sin él, solo «Falla de máquina». */
+  const esFallaMotivo=m=>{const G=window.glacialEquipos;return G&&G.esFalla?G.esFalla(m):/^\s*falla de m[aá]quina/i.test(String(m||''));};
+  const equipoDeEvento=e=>String(e.equipo||'').trim()||((e.accion==='DETENER'&&esFallaMotivo(e.causa||e.motivo))?SIN_EQUIPO:'');
+
   /* ---------- agrupar eventos en paradas ---------- */
   const claveEvento=e=>(e.linea||'')+'|'+(e.claveProgramacion||e.marca||'');
   function armarParadas(eventos){
@@ -160,13 +166,14 @@
       const nueva=(tipo,e,incompleta)=>{
         const p={tipo,pasos:[e],linea:e.linea||'',turno:e.turno||'',marca:e.marca||'',presentacion:e.presentacion||'',
           fechaPlan:e.fechaPlan||'',inicio:e.ts,fin:null,duracionMs:null,cerrada:false,sinInicio:!!incompleta,motivo:'',
-          paradaId:e.paradaId||null,claveProgramacion:e.claveProgramacion||''};
+          paradaId:e.paradaId||null,claveProgramacion:e.claveProgramacion||'',equipo:String(e.equipo||'').trim(),causa:String(e.causa||'').trim()};
         paradas.push(p);return p;
       };
       lista.forEach(e=>{
         if(e.accion==='DETENER'||e.accion==='PAUSAR'){
           abierta=nueva(e.accion==='PAUSAR'?'PAUSA':'DETENCION',e,false);
           abierta.motivo=e.motivo||'';
+          abierta.equipo=String(e.equipo||'').trim();
         }else if(e.accion==='INTERVENIR'){
           if(!abierta){abierta=nueva('DETENCION',e,true);}else abierta.pasos.push(e);
         }else if(e.accion==='REANUDAR'){
@@ -174,6 +181,8 @@
             abierta=nueva(norm(e.estadoAnterior)==='pausa'?'PAUSA':'DETENCION',e,true);
             abierta.motivo=e.motivo||'';
           }else abierta.pasos.push(e);
+          if(!abierta.equipo&&e.equipo)abierta.equipo=String(e.equipo).trim();
+          if(!abierta.causa&&e.causa)abierta.causa=String(e.causa).trim();
           abierta.fin=e.ts;abierta.cerrada=true;
           abierta.duracionMs=Number.isFinite(Number(e.duracionMs))&&e.duracionMs!=null?Number(e.duracionMs)
             :(abierta.sinInicio?null:Math.max(0,e.ts-abierta.inicio));
@@ -185,12 +194,19 @@
     // COMPLETAR_MOTIVO: evento posterior enlazado a la parada (por paradaId o por el id del evento inicial).
     completados.sort((a,b)=>a.ts-b.ts).forEach(c=>{
       const p=paradas.find(x=>(c.paradaId&&x.paradaId===c.paradaId)||(c.paradaEventoId&&x.pasos[0].id===c.paradaEventoId));
-      if(p)p.completado={texto:c.motivoDetalle||'',por:c.tecnicoNombre||c.cuenta||'',ts:c.ts,cuenta:c.cuenta||'',evento:c};
+      if(p){
+        p.completado={texto:c.motivoDetalle||'',por:c.tecnicoNombre||c.cuenta||'',ts:c.ts,cuenta:c.cuenta||'',evento:c};
+        if(c.equipo)p.equipo=String(c.equipo).trim();          // «Indicar equipo»: evento nuevo con el equipo
+      }
     });
     paradas.forEach(p=>{
       if(!p.cerrada&&!p.sinInicio)p.duracionEnCursoMs=Math.max(0,ahora-p.inicio);
       p.duracionTotalMs=p.cerrada?p.duracionMs:(p.duracionEnCursoMs??null);
-      p.pendiente=!p.completado&&esPendiente(p.motivo);
+      p.esFalla=p.tipo!=='PAUSA'&&esFallaMotivo(p.causa||p.motivo);
+      p.equipoTexto=p.equipo||(p.esFalla?SIN_EQUIPO:'');
+      p.equipoPendiente=p.esFalla&&!p.equipo;
+      // «Indicar equipo» (evento COMPLETAR_MOTIVO con equipo) NO es completar el motivo: solo el detalle del motivo lo completa.
+      p.pendiente=!(p.completado&&!(p.completado.evento&&p.completado.evento.equipo&&String(p.completado.texto||'').indexOf('Equipo: ')===0))&&esPendiente(p.motivo);
       p.motivoTexto=p.completado&&p.completado.texto
         ?((norm(p.motivo)==='otro'||!p.motivo?'Otro':p.motivo)+' — '+p.completado.texto):p.motivo;
       p.iniciador=p.pasos[0].tecnicoNombre||p.pasos[0].cuenta||'—';
@@ -199,7 +215,7 @@
   }
 
   /* ---------- estado de la pantalla ---------- */
-  const F={rango:'hoy',desde:'',hasta:'',turno:'',linea:'',tecnico:'',accion:'',origen:'',q:'',pend:false,orden:'recientes',vista:'paradas'};
+  const F={rango:'hoy',desde:'',hasta:'',turno:'',linea:'',tecnico:'',accion:'',origen:'',equipo:'',q:'',pend:false,orden:'recientes',vista:'paradas'};
   const carga={clave:'',eventos:[],truncado:false,cargando:false,error:'',token:0,cargadoEn:0,usuario:''};
 
   function aplicarRango(r){
@@ -277,8 +293,8 @@
   }
 
   /* ---------- filtros (en el navegador) ---------- */
-  const textoEvento=e=>norm([e.tecnicoNombre,e.cuenta,e.linea,e.motivo,e.motivoDetalle,e.motivoCorreccion,e.marca,e.presentacion,e.accion].join(' '));
-  const textoParada=p=>norm([p.linea,p.marca,p.presentacion,p.motivoTexto,p.completado&&p.completado.por].concat(
+  const textoEvento=e=>norm([e.tecnicoNombre,e.cuenta,e.linea,e.motivo,e.motivoDetalle,e.motivoCorreccion,e.marca,e.presentacion,e.accion,e.equipo].join(' '));
+  const textoParada=p=>norm([p.linea,p.marca,p.presentacion,p.motivoTexto,p.equipoTexto,p.completado&&p.completado.por].concat(
     p.pasos.map(e=>[e.tecnicoNombre,e.cuenta,e.motivoDetalle].join(' '))).join(' '));
   function eventoCumple(e,idsPend){
     if(F.turno&&e.turno!==F.turno)return false;
@@ -286,6 +302,7 @@
     if(F.tecnico&&(e.tecnicoNombre||e.cuenta||'')!==F.tecnico)return false;
     if(F.accion&&e.accion!==F.accion)return false;
     if(F.origen&&origenDe(e)!==F.origen)return false;
+    if(F.equipo&&equipoDeEvento(e)!==F.equipo)return false;
     if(F.q&&!textoEvento(e).includes(norm(F.q)))return false;
     if(F.pend&&!idsPend.has(e.id))return false;
     return true;
@@ -296,6 +313,7 @@
     if(F.tecnico&&!p.pasos.some(e=>(e.tecnicoNombre||e.cuenta||'')===F.tecnico))return false;
     if(F.accion&&!p.pasos.some(e=>e.accion===F.accion)&&!(F.accion==='COMPLETAR_MOTIVO'&&p.completado))return false;
     if(F.origen&&!p.pasos.some(e=>origenDe(e)===F.origen))return false;
+    if(F.equipo&&p.equipoTexto!==F.equipo)return false;
     if(F.q&&!textoParada(p).includes(norm(F.q)))return false;
     if(F.pend&&!p.pendiente)return false;
     return true;
@@ -326,13 +344,14 @@
       r.paradas++;r.ms+=p.duracionTotalMs||0;if(p.pendiente)r.pendientes++;if(!p.cerrada&&!p.sinInicio)r.enCurso++;
       m.set(k,r);
     };
-    paradas.forEach(p=>{sumar(porLinea,p.linea||'—',p);sumar(porTecnico,p.iniciador,p);});
+    const porEquipo=new Map();
+    paradas.forEach(p=>{sumar(porLinea,p.linea||'—',p);sumar(porTecnico,p.iniciador,p);if(p.equipoTexto)sumar(porEquipo,p.equipoTexto,p);});
     const tot={paradas:paradas.length,ms:paradas.reduce((s,p)=>s+(p.duracionTotalMs||0),0),
       msProg:paradas.filter(p=>p.tipo==='PAUSA').reduce((s,p)=>s+(p.duracionTotalMs||0),0),
       msNoProg:paradas.filter(p=>p.tipo!=='PAUSA').reduce((s,p)=>s+(p.duracionTotalMs||0),0),
       pendientes:paradas.filter(p=>p.pendiente).length,enCurso:paradas.filter(p=>!p.cerrada&&!p.sinInicio).length};
     const ord=m=>[...m.entries()].map(([k,v])=>Object.assign({k},v)).sort((a,b)=>b.ms-a.ms||b.paradas-a.paradas);
-    return {porLinea:ord(porLinea),porTecnico:ord(porTecnico),tot};
+    return {porLinea:ord(porLinea),porTecnico:ord(porTecnico),porEquipo:ord(porEquipo),tot};
   }
 
   const chip=ts=>window.glacialEstadoDatos?window.glacialEstadoDatos.chip(ts!=null?{ts}:undefined):'';
@@ -409,18 +428,22 @@
       (!p.cerrada&&!p.sinInicio?'<span class="bm-chip bad">EN CURSO</span>':'')+
       (p.sinInicio?'<span class="bm-chip">INICIO FUERA DEL RANGO</span>':'')+'</div>'+
       '<div style="margin-top:6px"><b>Motivo:</b> '+(esc(p.motivoTexto)||'<i>sin motivo</i>')+'</div>'+
+      (p.equipoTexto?'<div><b>Equipo:</b> '+esc(p.equipoTexto)+(p.equipoPendiente?' <span class="bm-chip warn">EQUIPO PENDIENTE</span>':'')+'</div>':'')+
       (p.completado?'<div class="small-muted">Completado por '+esc(p.completado.por)+' · '+esc(fmtHora(p.completado.ts))+'</div>':'')+
       '<div><b>Duración total:</b> '+esc(dur)+'</div>'+
       '<ul class="bm-pasos">'+p.pasos.map(e=>'<li><b>'+esc(e.accion)+'</b> · '+esc(fmtHora(e.ts))+' · '+esc(e.tecnicoNombre||'—')+
         ' <span class="small-muted">(cuenta '+cuentaTxt(e)+')</span></li>').join('')+'</ul>'+
-      (p.pendiente&&puedeCompletarMotivo()?'<div style="margin-top:8px"><button type="button" class="btn btn-primary btn-sm" data-bm-completar="'+esc(p.pasos[0].id)+'">Completar motivo</button></div>':'')+
+      ((p.pendiente||p.equipoPendiente)&&puedeCompletarMotivo()?'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+
+        (p.pendiente?'<button type="button" class="btn btn-primary btn-sm" data-bm-completar="'+esc(p.pasos[0].id)+'">Completar motivo</button>':'')+
+        (p.equipoPendiente?'<button type="button" class="btn btn-primary btn-sm" data-bm-equipo="'+esc(p.pasos[0].id)+'">Indicar equipo</button>':'')+'</div>':'')+
+      botonIntervencion(p)+
       '</div>';
   }
 
   function htmlTablaEventos(eventos){
-    return '<div class="tareo-table-scroll"><table class="tareo-table"><thead><tr><th>Hora (servidor)</th><th>Usuario / técnico</th><th>Origen</th><th>Acción</th><th>Línea</th><th>Marca y presentación</th><th>Motivo / detalle</th><th>Duración</th><th>Cuenta</th></tr></thead><tbody>'+
-      (eventos.length?eventos.map(e=>'<tr><td>'+esc(fmtHora(e.ts))+'</td><td>'+esc(e.tecnicoNombre||'—')+'<br><small class="small-muted">'+esc(e.rol||'')+'</small></td><td>'+esc(etiquetaOrigen(origenDe(e)))+'</td><td>'+esc(e.accion)+'</td><td>'+esc(e.linea||'')+'</td><td>'+esc((e.marca||'')+' '+(e.presentacion||''))+'</td><td>'+esc(detalleEvento(e))+'</td><td>'+(duracionEvento(e)!=null?esc(fmtDur(duracionEvento(e))):'—')+'</td><td>'+cuentaTxt(e)+'</td></tr>').join('')
-        :'<tr><td colspan="9" class="small-muted">'+(carga.eventos.length?'Sin eventos con estos filtros.':'Sin eventos en este rango.')+'</td></tr>')+
+    return '<div class="tareo-table-scroll"><table class="tareo-table"><thead><tr><th>Hora (servidor)</th><th>Usuario / técnico</th><th>Origen</th><th>Acción</th><th>Línea</th><th>Marca y presentación</th><th>Motivo / detalle</th><th>Equipo</th><th>Duración</th><th>Cuenta</th></tr></thead><tbody>'+
+      (eventos.length?eventos.map(e=>'<tr><td>'+esc(fmtHora(e.ts))+'</td><td>'+esc(e.tecnicoNombre||'—')+'<br><small class="small-muted">'+esc(e.rol||'')+'</small></td><td>'+esc(etiquetaOrigen(origenDe(e)))+'</td><td>'+esc(e.accion)+'</td><td>'+esc(e.linea||'')+'</td><td>'+esc((e.marca||'')+' '+(e.presentacion||''))+'</td><td>'+esc(detalleEvento(e))+'</td><td>'+esc(equipoDeEvento(e))+'</td><td>'+(duracionEvento(e)!=null?esc(fmtDur(duracionEvento(e))):'—')+'</td><td>'+cuentaTxt(e)+'</td></tr>').join('')
+        :'<tr><td colspan="10" class="small-muted">'+(carga.eventos.length?'Sin eventos con estos filtros.':'Sin eventos en este rango.')+'</td></tr>')+
       '</tbody></table></div>';
   }
 
@@ -443,7 +466,7 @@
 
   function textoFiltros(){
     return 'Rango (días operativos 07:00–07:00): '+F.desde+' a '+F.hasta+' · Turno: '+(F.turno||'todos')+' · Línea: '+(F.linea||'todas')+
-      ' · Técnico: '+(F.tecnico||'todos')+' · Acción: '+(F.accion||'todas')+' · Origen: '+(F.origen?etiquetaOrigen(F.origen):'todos')+' · Búsqueda: '+(F.q?'«'+F.q+'»':'—')+
+      ' · Técnico: '+(F.tecnico||'todos')+' · Acción: '+(F.accion||'todas')+' · Origen: '+(F.origen?etiquetaOrigen(F.origen):'todos')+' · Equipo: '+(F.equipo||'todos')+' · Búsqueda: '+(F.q?'«'+F.q+'»':'—')+
       ' · Solo motivo pendiente: '+(F.pend?'sí':'no')+' · Orden: '+(F.orden==='duracion'?'mayor duración':'más recientes');
   }
 
@@ -459,6 +482,7 @@
     const R=resumir(paradas);
     const lineas=[...new Set(carga.eventos.map(e=>e.linea).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
     const tecnicos=[...new Set(carga.eventos.map(e=>e.tecnicoNombre||e.cuenta).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+    const equiposLista=[...new Set(armarParadas(carga.eventos).map(p=>p.equipoTexto).filter(Boolean))].sort((a,b)=>a===SIN_EQUIPO?1:b===SIN_EQUIPO?-1:a.localeCompare(b,'es'));
     const hoy=diaOperativoActual();
     const rb=(clave,texto)=>'<button type="button" data-bm-rango="'+clave+'" class="'+(F.rango===clave?'active':'')+'">'+texto+'</button>';
     const sinDatos=!carga.cargando&&!carga.error&&!carga.eventos.length;
@@ -475,6 +499,7 @@
         '<div class="field-sm"><label>Línea</label><select id="bm-linea">'+opciones(lineas,F.linea,'Todas')+'</select></div>'+
         '<div class="field-sm"><label>Técnico</label><select id="bm-tecnico">'+opciones(tecnicos,F.tecnico,'Todos')+'</select></div>'+
         '<div class="field-sm"><label>Acción</label><select id="bm-accion">'+opciones(ACCIONES,F.accion,'Todas')+'</select></div>'+
+        '<div class="field-sm"><label>Equipo</label><select id="bm-equipo">'+opciones(equiposLista,F.equipo,'Todos')+'</select></div>'+
         '<div class="field-sm"><label>Origen</label><select id="bm-origen"><option value="">Todos</option><option value="PRODUCCION"'+(F.origen==='PRODUCCION'?' selected':'')+'>Producción</option><option value="MANTENIMIENTO"'+(F.origen==='MANTENIMIENTO'?' selected':'')+'>Mantenimiento</option></select></div>'+
         '<div class="field-sm"><label>Ordenar</label><select id="bm-orden"><option value="recientes"'+(F.orden==='recientes'?' selected':'')+'>Más recientes primero</option>'+
           '<option value="duracion"'+(F.orden==='duracion'?' selected':'')+'>Mayor duración primero</option></select></div>'+
@@ -494,7 +519,8 @@
         '<div class="bm-kpi'+(R.tot.pendientes?' warn':'')+'"><span>Motivo pendiente</span><b>'+R.tot.pendientes+'</b><small>= «Otro» sin descripción o sin motivo</small></div>'+
         '<div class="bm-kpi"><span>En curso</span><b>'+R.tot.enCurso+'</b></div>'+
         '<div class="bm-kpi"><span>Eventos en el rango</span><b>'+carga.eventos.length+'</b></div></div>'+
-      '<div class="bm-dos">'+tablaResumen('Por línea',R.porLinea,'Línea')+tablaResumen('Por técnico (quien inició la parada)',R.porTecnico,'Técnico')+'</div>'+
+      '<div class="bm-dos">'+tablaResumen('Por línea',R.porLinea,'Línea')+tablaResumen('Por técnico (quien inició la parada)',R.porTecnico,'Técnico')+
+        (R.porEquipo.length?tablaResumen('Por equipo (fallas de máquina)',R.porEquipo,'Equipo'):'')+'</div>'+
       '<div class="tareo-tabs" style="margin-bottom:10px">'+
         '<button type="button" class="tareo-tab '+(F.vista==='paradas'?'active':'')+'" data-bm-vista="paradas">Por parada ('+paradas.length+')</button>'+
         '<button type="button" class="tareo-tab '+(F.vista==='eventos'?'active':'')+'" data-bm-vista="eventos">Todos los eventos ('+eventos.length+')</button>'+
@@ -545,6 +571,54 @@
     }catch(e){alert('No se pudo registrar el motivo: '+((e&&e.message)||e));}
   }
 
+  /* ---------- Intervención de la parada (módulo Intervenciones): abrir una nueva o ver la existente. La bitácora no se modifica. ---------- */
+  function intervencionDe(p){
+    const A=window.glacialIntervenciones;
+    if(!A||!p||!p.paradaId)return null;
+    try{return A.todas().find(d=>d.origen&&(d.origen.paradaId===p.paradaId||d.origen.id===p.paradaId))||null;}catch(_){return null;}
+  }
+  function botonIntervencion(p){
+    const A=window.glacialIntervenciones;
+    if(!A||p.tipo==='PAUSA'||!p.paradaId)return '';
+    let perm;try{perm=A.permisos();}catch(_){return '';}
+    if(!perm.ver)return '';
+    const d=intervencionDe(p);
+    if(d)return '<div style="margin-top:8px"><button type="button" class="btn btn-ghost btn-sm" data-bm-interv="'+esc(d.id)+'">Ver intervención ('+esc((window.GlacialIntervenciones&&window.GlacialIntervenciones.ESTADOS[d.estado])||d.estado)+')</button></div>';
+    return perm.escribir?'<div style="margin-top:8px"><button type="button" class="btn btn-ghost btn-sm" data-bm-abrir-interv="'+esc(p.paradaId)+'">Abrir intervención</button></div>':'';
+  }
+
+  /* ---------- «Indicar equipo»: evento COMPLETAR_MOTIVO nuevo con el equipo (la bitácora no se edita) ---------- */
+  async function indicarEquipoDesdeBitacora(idEventoInicial){
+    const G=window.glacialEquipos;
+    if(!G){return;}
+    if(!puedeCompletarMotivo()){await G.aviso('No tienes permiso para completar datos de una parada.');return;}
+    const p=armarParadas(carga.eventos).find(x=>x.pasos[0].id===idEventoInicial);
+    if(!p||!p.equipoPendiente){await G.aviso('Esta parada ya tiene equipo.');return;}
+    if(window.glacialEstadoDatos&&!window.glacialEstadoDatos.enLinea){await G.aviso('Sin conexión: el equipo NO se guardó. Inténtalo cuando vuelva la conexión.');return;}
+    const equipo=await G.pedir(p.linea,'Indicar equipo');
+    if(!equipo)return;
+    const u=state.user;
+    let uid=null;try{uid=(auth&&auth.currentUser&&auth.currentUser.uid)||null;}catch(_){/* sin sesión segura */}
+    const ref=db.collection(COLECCION).doc();
+    const base=p.pasos[0];
+    const evento={
+      timestamp:firebase.firestore.FieldValue.serverTimestamp(),uid,accion:'COMPLETAR_MOTIVO',
+      tecnicoNombre:u.nombre||u.username,tecnicoId:null,identificadoPor:'USUARIO',tokenPin:null,cuenta:u.username||'',rol:u.rol||'',
+      linea:base.linea||'',fechaPlan:base.fechaPlan||'',turno:base.turno||'',marca:base.marca||'',presentacion:base.presentacion||'',
+      claveProgramacion:base.claveProgramacion||'',estadoAnterior:'',estadoNuevo:'',motivo:'',estandarMin:null,duracionMs:null,
+      paradaId:base.paradaId||null,paradaEventoId:base.id,motivoAnterior:p.motivo||'',
+      motivoDetalle:('Equipo: '+equipo).slice(0,160),equipo      // la regla exige 5 caracteres o más en motivoDetalle
+    };
+    try{
+      await Promise.race([ref.set(evento),new Promise((_,rechazar)=>setTimeout(
+        ()=>rechazar(new Error('el servidor no confirmó el guardado (¿sin conexión?)')),10000))]);
+      if(!carga.eventos.some(e=>e.id===ref.id))
+        carga.eventos.push(Object.assign({},evento,{id:ref.id,ts:ahoraMs(),timestamp:null}));
+      renderBitacoraMtto();
+    }catch(e){await G.aviso('No se pudo registrar el equipo: '+((e&&e.message)||e));}
+  }
+  window.bitacoraMttoEquipoDe=equipoDeEvento;
+
   /* ---------- eventos de la pantalla ---------- */
   document.getElementById('main')?.addEventListener('change',e=>{
     if(!document.getElementById('bitmtto-view'))return;
@@ -556,7 +630,7 @@
       cargarRango(false);return;
     }
     if(id==='bm-pend'){F.pend=!!e.target.checked;renderBitacoraMtto();return;}
-    const mapa={'bm-turno':'turno','bm-linea':'linea','bm-tecnico':'tecnico','bm-accion':'accion','bm-origen':'origen','bm-orden':'orden'};
+    const mapa={'bm-turno':'turno','bm-linea':'linea','bm-tecnico':'tecnico','bm-accion':'accion','bm-origen':'origen','bm-orden':'orden','bm-equipo':'equipo'};
     if(mapa[id]){F[mapa[id]]=e.target.value;renderBitacoraMtto();}
   });
   let temporizadorBusqueda=null;
@@ -581,6 +655,19 @@
     if(rango){aplicarRango(rango);if(rango==='personalizado')renderBitacoraMtto();else cargarRango(true);return;}
     const compl=e.target.closest('[data-bm-completar]')?.dataset.bmCompletar;
     if(compl){completarDesdeBitacora(compl);return;}
+    const eq=e.target.closest('[data-bm-equipo]')?.dataset.bmEquipo;
+    if(eq){indicarEquipoDesdeBitacora(eq);return;}
+    const vi=e.target.closest('[data-bm-interv]')?.dataset.bmInterv;
+    if(vi&&typeof window.intervencionesAbrir==='function'){window.intervencionesAbrir({abrir:vi});return;}
+    const ai=e.target.closest('[data-bm-abrir-interv]')?.dataset.bmAbrirInterv;
+    if(ai){
+      const p=armarParadas(carga.eventos).find(x=>x.paradaId===ai);
+      if(!p)return;
+      window.glacialIntervenciones.abrirDesdeParada({linea:p.linea,paradaId:p.paradaId,eventoId:p.pasos[0].id,motivo:p.motivoTexto,equipoTexto:p.equipo||''})
+        .then(r=>{if(typeof window.intervencionesAbrir==='function')window.intervencionesAbrir({abrir:r.doc.id});})
+        .catch(err=>{try{window.glacialMantUI.aviso('No se pudo abrir la intervención',(err&&err.message)||String(err));}catch(_){/* sin aviso */}});
+      return;
+    }
     if(e.target.closest('#bm-actualizar')){cargarRango(true);return;}
     if(e.target.closest('#bm-excel')){exportarExcel();}
   });
@@ -610,26 +697,27 @@
     wr.addRow(['Programadas','',paradas.filter(p=>p.tipo==='PAUSA').length,minutos(R.tot.msProg),'']);
     R.porLinea.forEach(r=>wr.addRow(['Línea',r.k,r.paradas,minutos(r.ms),r.pendientes]));
     R.porTecnico.forEach(r=>wr.addRow(['Técnico (inició)',r.k,r.paradas,minutos(r.ms),r.pendientes]));
+    R.porEquipo.forEach(r=>wr.addRow(['Equipo (falla)',r.k,r.paradas,minutos(r.ms),r.pendientes]));
     [16,34,12,12,16].forEach((w,i)=>wr.getColumn(i+1).width=w);
     const wp=wb.addWorksheet('Paradas');
-    const hp=cabecera(wp,'Bitácora de Mantenimiento · paradas',['Inicio (servidor)','Fin','Tipo','Línea','Fecha plan','Turno','Marca','Presentación','Motivo','Motivo pendiente','Motivo completado por','Estado','Duración (min)','Pasos (acción · hora · técnico · cuenta)']);
+    const hp=cabecera(wp,'Bitácora de Mantenimiento · paradas',['Inicio (servidor)','Fin','Tipo','Línea','Fecha plan','Turno','Marca','Presentación','Motivo','Motivo pendiente','Motivo completado por','Estado','Duración (min)','Equipo','Pasos (acción · hora · técnico · cuenta)']);
     paradas.slice().sort((a,b)=>a.inicio-b.inicio).forEach(p=>wp.addRow([
       fmtHora(p.inicio),p.fin?fmtHora(p.fin):'',p.tipo==='PAUSA'?'Pausa programada':'Detención',p.linea,p.fechaPlan,p.turno,p.marca,p.presentacion,
       p.motivoTexto,p.pendiente?'SÍ':'',p.completado?(p.completado.por+' · '+fmtHora(p.completado.ts)):'',
       p.cerrada?'Cerrada':(p.sinInicio?'Sin inicio en el rango':'En curso'),
-      p.duracionTotalMs==null?'':minutos(p.duracionTotalMs),
+      p.duracionTotalMs==null?'':minutos(p.duracionTotalMs),p.equipoTexto||'',
       p.pasos.map(e=>e.accion+' · '+fmtHora(e.ts)+' · '+(e.tecnicoNombre||'—')+' · '+(e.cuenta||'')).join('\n')]));
-    wp.autoFilter={from:{row:hp,column:1},to:{row:hp,column:14}};
-    [22,22,16,12,12,12,18,16,30,12,30,16,12,70].forEach((w,i)=>wp.getColumn(i+1).width=w);
+    wp.autoFilter={from:{row:hp,column:1},to:{row:hp,column:15}};
+    [22,22,16,12,12,12,18,16,30,12,30,16,12,22,70].forEach((w,i)=>wp.getColumn(i+1).width=w);
     wp.eachRow((row,n)=>{if(n>hp)row.alignment={vertical:'top',wrapText:true};});
     const we=wb.addWorksheet('Eventos');
-    const he=cabecera(we,'Bitácora de Mantenimiento · eventos',['Hora (servidor)','Técnico / usuario','Acción','Línea','Fecha plan','Turno','Marca','Presentación','Motivo / detalle','Duración (min)','Cuenta','Identificado por','Rol de la cuenta','Origen']);
+    const he=cabecera(we,'Bitácora de Mantenimiento · eventos',['Hora (servidor)','Técnico / usuario','Acción','Línea','Fecha plan','Turno','Marca','Presentación','Motivo / detalle','Duración (min)','Cuenta','Identificado por','Rol de la cuenta','Origen','Equipo']);
     eventos.slice().sort((a,b)=>a.ts-b.ts).forEach(e=>we.addRow([
       fmtHora(e.ts),e.tecnicoNombre||'',e.accion,e.linea||'',e.fechaPlan||'',e.turno||'',e.marca||'',e.presentacion||'',
       detalleEvento(e),
-      duracionEvento(e)!=null?minutos(duracionEvento(e)):'',e.cuenta||'',e.identificadoPor||'',e.rol||'',etiquetaOrigen(origenDe(e))]));
-    we.autoFilter={from:{row:he,column:1},to:{row:he,column:14}};
-    [22,26,18,12,12,12,18,16,44,12,16,16,22,16].forEach((w,i)=>we.getColumn(i+1).width=w);
+      duracionEvento(e)!=null?minutos(duracionEvento(e)):'',e.cuenta||'',e.identificadoPor||'',e.rol||'',etiquetaOrigen(origenDe(e)),equipoDeEvento(e)]));
+    we.autoFilter={from:{row:he,column:1},to:{row:he,column:15}};
+    [22,26,18,12,12,12,18,16,44,12,16,16,22,16,22].forEach((w,i)=>we.getColumn(i+1).width=w);
 
     const buffer=await wb.xlsx.writeBuffer();
     const nombre='Bitacora_Mantenimiento_'+F.desde+(F.hasta!==F.desde?'_a_'+F.hasta:'')+'.xlsx';

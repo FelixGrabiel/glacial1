@@ -105,12 +105,14 @@
     const totProg=lineas.reduce((s,l)=>s+l.programado,0),totProd=lineas.reduce((s,l)=>s+l.producido,0);
     const par=A.armarPareto(us,{agrupar:'motivo',metrica:'minutos',incluirProg:false});
     const parL=A.armarPareto(us,{agrupar:'linea',metrica:'minutos',incluirProg:false});
+    const parE=A.armarPareto(us,{agrupar:'equipo',metrica:'minutos',incluirProg:false});   // solo fallas de máquina
     const res=A.resumenIndicadores(us);
     const paradas={
       cantidadNoProg:res.nNp,cantidadProg:us.reduce((s,u)=>s+u.pItems.length,0),
       minNoProg:Math.round(res.npMin),minProg:Math.round(res.progMin),
       top:par.filas.slice(0,3).map(f=>({motivo:f.clave,minutos:Math.round(f.minutos),cantidad:f.cantidad})),
-      porLinea:parL.filas.map(f=>({nombre:f.clave,minutos:Math.round(f.minutos),cantidad:f.cantidad}))
+      porLinea:parL.filas.map(f=>({nombre:f.clave,minutos:Math.round(f.minutos),cantidad:f.cantidad})),
+      equipoTop:parE.filas.length?{nombre:parE.filas[0].clave,minutos:Math.round(parE.filas[0].minutos),cantidad:parE.filas[0].cantidad}:null
     };
     const personal=personalDeTareo(fecha,turno);
     let sinMotivo=null;
@@ -280,6 +282,7 @@
       if(d.paradas.top.length){
         texto('Motivos principales',M,36,true,'#10265f');y+=46;
         d.paradas.top.forEach((p,i)=>bloqueTexto((i+1)+'. '+p.motivo+' — '+fmt(p.minutos)+' min',36,false,'#1b2a38',16));
+        if(d.paradas.equipoTop)bloqueTexto('Equipo con más minutos de falla: '+d.paradas.equipoTop.nombre+' — '+fmt(d.paradas.equipoTop.minutos)+' min',36,false,'#1b2a38',16);
       }else bloqueTexto('Sin paradas no programadas.',36,false,'#13814a');
       // personal
       titulo('Personal');
@@ -370,7 +373,8 @@
     hoja('Paradas',['Concepto','Cantidad','Minutos'],[
       ['No programadas',d.paradas.cantidadNoProg,d.paradas.minNoProg],['Programadas',d.paradas.cantidadProg,d.paradas.minProg]]
       .concat(d.paradas.top.map((p,i)=>['Motivo principal '+(i+1)+': '+p.motivo,p.cantidad,p.minutos]))
-      .concat(d.paradas.porLinea.map(p=>['Línea: '+p.nombre,p.cantidad,p.minutos])),[44,12,12]);
+      .concat(d.paradas.porLinea.map(p=>['Línea: '+p.nombre,p.cantidad,p.minutos]))
+      .concat(d.paradas.equipoTop?[['Equipo con más minutos de falla: '+d.paradas.equipoTop.nombre,d.paradas.equipoTop.cantidad,d.paradas.equipoTop.minutos]]:[]),[44,12,12]);
     hoja('Personal',['Concepto','Cantidad'],d.personal.registrado?[['Presentes',d.personal.asistieron],['En comisión / trabajo externo (incluidos en presentes)',d.personal.enComision||0],['Faltas',d.personal.faltas],['Tardanzas',d.personal.tardanzas],
       ['Descansos',d.personal.descansos],['Otros estados',d.personal.otros],['Sin estado',d.personal.sinEstado],['Total planilla del turno',d.personal.total],['Personal por día',num(d.personal.porDia)]]:[['Tareo del turno sin registrar','']],[34,12]);
     const pm=d.pendientes.paradasSinMotivo;
@@ -462,6 +466,7 @@
       '<h3 class="rt-sec">Paradas</h3>'+
       '<p>No programadas: <b>'+fmt(d.paradas.cantidadNoProg)+'</b> paradas, <b>'+fmt(d.paradas.minNoProg)+' min</b> · Programadas: <b>'+fmt(d.paradas.cantidadProg)+'</b>, <b>'+fmt(d.paradas.minProg)+' min</b></p>'+
       (d.paradas.top.length?'<ol>'+d.paradas.top.map(p=>'<li>'+esc(p.motivo)+' — '+fmt(p.minutos)+' min ('+p.cantidad+')</li>').join('')+'</ol>':'<div class="rt-vacio">Sin paradas no programadas.</div>')+
+      (d.paradas.equipoTop?'<p>Equipo con más minutos de falla: <b>'+esc(d.paradas.equipoTop.nombre)+'</b> — '+fmt(d.paradas.equipoTop.minutos)+' min ('+d.paradas.equipoTop.cantidad+')</p>':'')+
       '<h3 class="rt-sec">Personal</h3>'+
       (d.personal.registrado?'<p>Presentes <b>'+d.personal.asistieron+'</b>'+(d.personal.enComision?' (<b>'+d.personal.enComision+'</b> en comisión)':'')+' · Faltas <b>'+d.personal.faltas+'</b> · Tardanzas <b>'+d.personal.tardanzas+'</b> · Descansos <b>'+d.personal.descansos+'</b> · Planilla <b>'+d.personal.total+'</b> · Personal por día <b>'+num(d.personal.porDia)+'</b></p>'
         :'<div class="rt-vacio">El tareo de Producción de este turno no está registrado.</div>')+

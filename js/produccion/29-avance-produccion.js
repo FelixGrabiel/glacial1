@@ -43,12 +43,25 @@ function avCtx(){
   const c=state.user?.contextoRotacion;
   const turno=avTurnoCanon(state.user?.turnoOperativo||c?.turno||avTurnoPorHora());
   const bl=avBloquesCfg()[turno==='NOCHE'?'noche':'diaInter'];
-  return {
+  const r={
     turno,
     fecha:state.user?.fechaOperativa||c?.fechaOperativa||avFechaHoy(),
     inicio:state.user?.horarioOperativoInicio||c?.horarioInicio||bl.inicio,
     fin:state.user?.horarioOperativoFin||c?.horarioFin||bl.fin
   };
+  // Tolerancia de Noche (51b): hasta 30 min después de su fin (07:00 → 07:30) todavía se completa el registro y el cierre de ESA Noche.
+  // No adelanta aperturas, no cambia la duración productiva y no se aplica si el usuario tiene un turno asignado por rotación.
+  try{
+    if(window.glacialHorarios&&!state.user?.turnoOperativo&&!c?.turno){
+      const tol=window.glacialHorarios.toleranciaActual(avAhoraMs());
+      if(tol){r.turno='NOCHE';r.fecha=tol.fecha;r.enTolerancia=true;r.toleranciaHasta=tol.hasta;}
+    }
+  }catch(_){/* sin horarios configurados */}
+  return r;
+}
+/* Etiqueta de la tolerancia (solo cuando corresponde). */
+function avChipTolerancia(){
+  try{const c=avCtx();return c.enTolerancia&&avanceEstado.fecha===c.fecha&&avanceEstado.turno==='NOCHE'?' <span class="av-eyebrow" style="background:#fff4d6;color:#8a5a00;padding:2px 8px;border-radius:99px">'+avEsc(window.glacialHorarios.textoTolerancia())+' (hasta '+avEsc(c.toleranciaHasta)+')</span>':'';}catch(_){return '';}
 }
 function avRef(){return db.collection('sync').doc('avancesTurno');}
 function avSnapshotId(tipo,hora){
@@ -90,7 +103,23 @@ function avProgramaciones(){
    sync/configIndicadores → bloques) lo cierra solo «Finalizar presentación» en Producción Actual. Generar el «Cierre» antes
    de que termine el bloque es un RELEVO: deja registrado el avance del supervisor con la hora real y NO fija el fin del bloque.
    Después de terminado el bloque, el cierre se corta en el fin del bloque. */
-function avHorarioBloque(){return GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}
+/* Líneas habilitadas para la selección con su horario resuelto (51b). Sin reglas, todas con el horario general. */
+function avHorariosLineas(){
+  if(!window.glacialHorarios)return [];
+  return AVANCE_LINEAS.map(l=>window.glacialHorarios.resolver(l,avanceEstado.fecha,avanceEstado.turno)).filter(Boolean);
+}
+function avHorarioBloque(){
+  // Con reglas por línea, el bloque va desde el inicio más temprano hasta el fin más tardío de las líneas habilitadas (el cierre no corta a una línea que aún produce).
+  try{
+    const hs=avHorariosLineas().filter(h=>h.habilitado);
+    if(hs.length){
+      const base=GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);
+      return {inicio:Math.min(...hs.map(h=>h.inicioMs)),fin:Math.max(...hs.map(h=>h.finMs)),bloque:base?base.bloque:'',etiqueta:base?base.etiqueta:''};
+    }
+  }catch(_){/* horario general */}
+  return avHorarioBloqueGeneral();
+}
+function avHorarioBloqueGeneral(){return GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}
 function avAhoraMs(){return typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();}
 function avEsRelevo(ahora){const b=avHorarioBloque();return !!b&&(ahora||avAhoraMs())<b.fin;}
 function avCorteCierre(ahora){const b=avHorarioBloque();return b?avHoraHHMM(Math.min(ahora||avAhoraMs(),b.fin)):avCtx().fin;}
@@ -260,7 +289,7 @@ function avParadasRegistroLinea(linea,hora,tipo,corteMs){
           if(!p?.descripcion||avNum(p.tiempoMin)<=0)return;
           out.push({
             id:avIdParadaRegistro(r.id,qi,key,pi,p),descripcion:p.descripcion,minutos:avNum(p.tiempoMin),estadoRegistro:r.estadoRegistro||'',
-            tipo:tipoParada,causa:p.causa||'',maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',
+            tipo:tipoParada,causa:p.causa||'',motivoCat:p.motivoCat||'',detalle:p.detalle||'',equipo:p.equipo||'',maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',
             origen:'REGISTRO',recordId:r.id||'',cuadroIndex:qi,key,index:pi,paradaId:p.id||''
           });
         });
@@ -332,11 +361,100 @@ function avParadaAgregarFila(){
   m.filas.push({id:avIdParadaNueva(),descripcion:'',minutos:0,tipo:'',tipoOriginal:'',causa:'',origen:'AVANCE',nueva:true});
   avRenderParadasModal();
 }
+/* Equipo que falló: solo cuando la causa es «Falla de máquina». sel = nombre del catálogo o '__otro__'; detalle = texto de «Otro equipo». */
+function avEsFalla(p){return !!(p&&p.tipo==='NO_PROGRAMADA'&&window.glacialEquipos&&window.glacialEquipos.esFalla(p.causa));}
+function avEquipoEstado(p){
+  const d=window.glacialEquipos?window.glacialEquipos.descomponer(p.equipo):{sel:'',detalle:''};
+  return {sel:p.equipoSel!==undefined?p.equipoSel:d.sel,detalle:p.equipoDetalle!==undefined?p.equipoDetalle:d.detalle};
+}
+function avParadaEquipo(i,parte,valor){
+  const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando||!window.glacialEquipos)return;
+  const e=avEquipoEstado(p);
+  if(parte==='sel')e.sel=valor;else e.detalle=valor;
+  p.equipoSel=e.sel;p.equipoDetalle=e.detalle;
+  p.equipo=window.glacialEquipos.componer(e.sel,e.detalle);
+  if(parte==='sel')avRenderParadasModal();          // «Otro equipo» muestra u oculta el detalle; escribir el detalle no redibuja (conserva el cursor)
+}
+/* Catálogo de causas y motivos (37e): una parada NO programada nueva o tocada usa causa › motivo › detalle; las antiguas conservan su texto libre. */
+function avCat(){return window.glacialMotivosParada||null;}
+function avUsaCatalogo(p){return !!(p&&p.tipo==='NO_PROGRAMADA'&&avCat()&&(p.motivoCat||p.nueva||p.catTocada));}
+function avHoraTxt(ms){const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+function avVentanaTurno(fecha,turno){
+  const bl=avBloquesCfg()[turno==='NOCHE'?'noche':'diaInter'];
+  const a=avHoraMs(fecha,bl.inicio,turno);let b=avHoraMs(fecha,bl.fin,turno);
+  if(a&&b&&b<=a)b+=86400000;
+  return {ini:a,fin:b,txt:bl.inicio+' - '+bl.fin};
+}
+/* Hora de fin = hora de inicio + minutos. */
+function avHoraFinCalculada(m,p){
+  const a=avHoraMs(m.fecha,p.horaInicio,m.turno);
+  return a&&avNum(p.minutos)>0?avHoraTxt(a+Math.round(avNum(p.minutos))*60000):'';
+}
+/* Error legible o '' para una parada con catálogo: causa, motivo, detalle («Otro» pide 10 caracteres). La hora de inicio es OPCIONAL para cualquier duración; si se escribe debe caer dentro del turno. */
+function avValidarCatalogoParada(m,p){
+  const err=avCat().validar(p.causa,p.motivoCat,p.detalle);
+  if(err)return err;
+  if(p.origen==='REGISTRO')return '';                      // Nuevo registro no tiene hora de inicio en este modal
+  if(!p.horaInicio)return '';                                // sin hora: vale la duración en minutos (no se inventa un horario)
+  const w=avVentanaTurno(m.fecha,m.turno),a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=a+Math.round(avNum(p.minutos))*60000;
+  if(a<w.ini||b>w.fin)return 'la parada ('+p.horaInicio+' + '+avFmt(p.minutos)+' min) cae fuera del turno ('+w.txt+').';
+  return '';
+}
+/* Duración e intervalo: la DURACIÓN en minutos es el dato principal y la hora de inicio/fin es opcional. Con inicio y fin, el intervalo (con cruce de
+   medianoche) debe medir lo mismo que los minutos: si no coincide se pide corregir uno; nunca se sobrescribe lo escrito. Fin sin inicio no se acepta. */
+function avValidarDuracionIntervalo(m,p){
+  const min=Number(p.minutos);
+  if(!Number.isFinite(min)||min<=0)return 'indica la duración en minutos (mayor que 0).';
+  if(p.horaFin&&!p.horaInicio)return 'si escribes la hora de fin, escribe también la de inicio (o borra la de fin).';
+  if(p.horaInicio&&p.horaFin){
+    const a=avHoraMs(m.fecha,p.horaInicio,m.turno);let b=avHoraMs(m.fecha,p.horaFin,m.turno);
+    if(!a||!b)return 'las horas de inicio y fin no son válidas.';
+    if(b<=a)b+=86400000;
+    const dur=Math.round((b-a)/60000);
+    if(Math.abs(dur-min)>0.5)return 'la duración ('+avFmt(min)+' min) no coincide con el intervalo '+p.horaInicio+'–'+p.horaFin+' ('+avFmt(dur)+' min). Corrige uno de los dos.';
+  }
+  return '';
+}
+/* Fila de una parada antigua (texto libre): pasa a causa › motivo › detalle del catálogo; el texto anterior queda como detalle. */
+function avParadaUsarCatalogo(i){
+  const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando||!avCat())return;
+  p.catTocada=true;p.motivoCat='';p.detalle=p.detalle||String(p.descripcion||'');p.descripcion='';
+  avRenderParadasModal();
+}
+function avBloqueMotivoHtml(i,p,m,puedeEditar,causas){
+  if(avUsaCatalogo(p)){
+    const C=avCat(),dis=m.guardando||!puedeEditar?'disabled':'',min=C.detalleMin(p.causa);
+    return `<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(${i},'causa',this.value)" ${dis}>${C.opcionesCausa(p.causa)}</select></div>
+    <div class="av-parada-motivo"><label>Motivo</label><select onchange="avParadaCampo(${i},'motivoCat',this.value)" ${dis}>${C.opcionesMotivo(p.causa,p.motivoCat)}</select></div>
+    <div class="av-parada-motivo"><label>Detalle ${min?'(obligatorio, mínimo '+min+' caracteres)':'(opcional)'}</label><input type="text" maxlength="120" value="${avEsc(p.detalle||'')}" oninput="avParadaCampo(${i},'detalle',this.value)" ${dis}></div>`;
+  }
+  return `<div class="av-parada-motivo"><label>Motivo de parada</label><input ${p.tipo==='PROGRAMADA'?'list="av-paradas-catalogo"':''} value="${avEsc(p.descripcion||'')}" placeholder="${p.tipo==='NO_PROGRAMADA'?'Ej. Calibración envasadora':'Elige del catálogo o escribe'}" oninput="avParadaCampo(${i},'descripcion',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    ${p.tipo==='NO_PROGRAMADA'?`<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(${i},'causa',this.value)" ${m.guardando||!puedeEditar?'disabled':''}><option value="">Seleccionar…</option>${causas.map(c=>`<option value="${avEsc(c)}" ${p.causa===c?'selected':''}>${avEsc(c)}</option>`).join('')}</select></div>`:''}`+(p.tipo==='NO_PROGRAMADA'&&avCat()&&m&&!m.guardando&&puedeEditar?`<div class="av-parada-motivo"><button type="button" class="btn btn-ghost" onclick="avParadaUsarCatalogo(${i})">Usar causa y motivo del catálogo</button></div>`:'');
+}
 function avParadaCampo(i,campo,valor){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   p[campo]=campo==='minutos'?Number(valor||0):valor;
+  if(campo==='motivoCat'||campo==='detalle'){      // el detalle no redibuja: conserva el cursor
+    p.catTocada=true;
+    if(avCat())p.descripcion=avCat().componerDescripcion(p.motivoCat,p.detalle);
+    return;
+  }
+  if(campo==='causa'){
+    if(avCat()&&p.tipo==='NO_PROGRAMADA'){
+      // Al cambiar la causa el motivo se vuelve a elegir (si la causa tiene un solo motivo activo, queda elegido).
+      p.catTocada=true;
+      const ms=avCat().motivosDe(valor);
+      p.motivoCat=ms.length===1?ms[0]:(ms.some(n=>n===p.motivoCat)?p.motivoCat:'');
+      p.descripcion=avCat().componerDescripcion(p.motivoCat,p.detalle);
+    }
+    // El equipo solo existe para «Falla de máquina»: al cambiar la causa se limpia y la fila se vuelve a dibujar.
+    if(!window.glacialEquipos||!window.glacialEquipos.esFalla(valor)){p.equipo='';delete p.equipoSel;delete p.equipoDetalle;}
+    avRenderParadasModal();
+    return;
+  }
   if(campo==='tipo'){
-    if(valor==='PROGRAMADA')p.causa='';
+    if(valor==='PROGRAMADA'){p.causa='';p.equipo='';delete p.equipoSel;delete p.equipoDetalle;p.motivoCat='';p.detalle='';p.catTocada=false;}
+    else if(valor==='NO_PROGRAMADA'&&avCat()){p.catTocada=true;p.motivoCat='';p.detalle='';p.descripcion='';}
     // El tipo cambia la estructura de la fila (muestra/oculta Causa),
     // por eso solo en este caso es necesario volver a dibujar el modal.
     avRenderParadasModal();
@@ -344,14 +462,22 @@ function avParadaCampo(i,campo,valor){
   }
   // Motivo y minutos se actualizan SIN reconstruir el modal.
   // Así el input conserva foco/cursor mientras el supervisor escribe.
-  if(campo==='minutos')avActualizarTotalParadasModal();
+  if(campo==='minutos'){
+    avActualizarTotalParadasModal();
+    if(p.horaInicio&&avUsaCatalogo(p)&&p.origen!=='REGISTRO'){      // con hora de inicio y minutos, la hora de fin se calcula sola
+      p.horaFin=avHoraFinCalculada(m,p);
+      const el=document.getElementById('av-hfin-'+i);if(el)el.value=p.horaFin;
+    }
+  }
 }
 /* Hora de inicio/fin opcional: con ambas, los minutos se calculan y la parada
    se fusiona por intervalo con las registradas por botón (sin contar doble). */
 function avParadaHora(i,campo,valor){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   p[campo]=valor||'';
-  if(p.horaInicio&&p.horaFin){
+  if(campo==='horaInicio'&&p.horaInicio&&avNum(p.minutos)>0&&avUsaCatalogo(p)){
+    p.horaFin=avHoraFinCalculada(m,p);                // hora de inicio + minutos = hora de fin
+  }else if(p.horaInicio&&p.horaFin&&avNum(p.minutos)<=0){      // solo se completa la duración vacía; una duración ya escrita no se pisa (se valida al guardar)
     const a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=avHoraMs(m.fecha,p.horaFin,m.turno);
     const fin=b<=a?b+86400000:b;
     p.minutos=Math.max(0,Math.round((fin-a)/60000));
@@ -378,9 +504,17 @@ function avParadaQuitar(i){
   else m.filas.splice(i,1);
   avRenderParadasModal();
 }
+/* Aviso (no bloquea): la suma de minutos supera la duración del turno. */
+function avAvisoTotalParadas(m,total){
+  try{
+    const w=avVentanaTurno(m.fecha,m.turno),dur=w&&w.ini&&w.fin?Math.round((w.fin-w.ini)/60000):0;
+    return dur>0&&total>dur?'Revisa: el total ('+avFmt(total)+' min) supera la duración del turno ('+avFmt(dur)+' min).':'';
+  }catch(_){return '';}
+}
 function avActualizarTotalParadasModal(){
   const m=avanceEstado.paradasModal,total=(m?.filas||[]).filter(p=>!p.eliminarSolicitado).reduce((a,p)=>a+avNum(p.minutos),0);
   const e=document.getElementById('av-paradas-total');if(e)e.textContent=`${avFmt(total)} min`;
+  const w=document.getElementById('av-paradas-aviso-total');if(w)w.textContent=m?avAvisoTotalParadas(m,total):'';
 }
 function avRenderParadasModal(){
   avInstalarEstilos();const m=avanceEstado.paradasModal;if(!m)return;
@@ -394,6 +528,7 @@ function avRenderParadasModal(){
   <div class="av-paradas-note">Selecciona primero si la parada es <b>Programada</b> o <b>No programada</b>. Las paradas de <b>Nuevo registro</b> y <b>Avance/Cierre</b> se muestran juntas y no se copian a todas las marcas.</div>
   ${avParadasBotonHtml(m)}
   ${!puedeEditar?`<div class="av-paradas-note"><b>Modo consulta:</b> el turno está cerrado o tu usuario no tiene permiso de edición.</div>`:''}
+  ${window.glacialCorreccionParadas&&window.glacialCorreccionParadas.puede()?`<div class="av-paradas-note"><button type="button" class="btn btn-ghost" onclick="glacialCorreccionParadas.abrirAvance()" ${m.guardando?'disabled':''}>Corregir asignación</button> Pasa paradas ya registradas a otra línea (con motivo y constancia).</div>`:''}
   ${m.error?`<div class="av-paradas-error">${avEsc(m.error)}</div>`:''}
   <div class="av-paradas-list">${m.filas.map((p,i)=>p.eliminarSolicitado?'':`<div class="av-parada-row ${p.tipo==='NO_PROGRAMADA'?'is-np':'is-p'}">
     <div class="av-parada-tipo"><label>Tipo de parada</label><select onchange="avParadaCampo(${i},'tipo',this.value)" ${m.guardando||!puedeEditar?'disabled':''}>
@@ -401,16 +536,16 @@ function avRenderParadasModal(){
       <option value="PROGRAMADA" ${p.tipo==='PROGRAMADA'?'selected':''}>Programada</option>
       <option value="NO_PROGRAMADA" ${p.tipo==='NO_PROGRAMADA'?'selected':''}>No programada</option>
     </select></div>
-    <div class="av-parada-motivo"><label>Motivo de parada</label><input ${p.tipo==='PROGRAMADA'?'list="av-paradas-catalogo"':''} value="${avEsc(p.descripcion||'')}" placeholder="${p.tipo==='NO_PROGRAMADA'?'Ej. Calibración envasadora':'Elige del catálogo o escribe'}" oninput="avParadaCampo(${i},'descripcion',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
-    ${p.tipo==='NO_PROGRAMADA'?`<div class="av-parada-causa"><label>Causa</label><select onchange="avParadaCampo(${i},'causa',this.value)" ${m.guardando||!puedeEditar?'disabled':''}><option value="">Seleccionar…</option>${causas.map(c=>`<option value="${avEsc(c)}" ${p.causa===c?'selected':''}>${avEsc(c)}</option>`).join('')}</select></div>`:''}
+    ${avBloqueMotivoHtml(i,p,m,puedeEditar,causas)}
+    ${avEsFalla(p)?(()=>{const e=avEquipoEstado(p),dis=m.guardando||!puedeEditar?'disabled':'';return `<div class="av-parada-equipo"><label>Equipo que falló (obligatorio)</label><select onchange="avParadaEquipo(${i},'sel',this.value)" ${dis}>${window.glacialEquipos.opciones(m.linea,p.equipo)}</select>${e.sel==='__otro__'?`<input type="text" maxlength="80" value="${avEsc(e.detalle)}" placeholder="Detalle del equipo (mínimo 5 caracteres)" oninput="avParadaEquipo(${i},'detalle',this.value)" ${dis}>`:''}</div>`;})():''}
     <div class="av-parada-min"><label>Minutos</label><input type="number" min="1" step="1" value="${avNum(p.minutos)||''}" oninput="avParadaCampo(${i},'minutos',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
-    ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>Desde (opc.)</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
-    <div class="av-parada-min"><label>Hasta (opc.)</label><input type="time" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
+    ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hora de inicio (opc.)':'Desde (opc.)'}</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    <div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hasta (opc.; se calcula)':'Hasta (opc.)'}</label><input type="time" id="av-hfin-${i}" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
     <button class="av-parada-remove" title="Quitar fila" onclick="avParadaQuitar(${i})" ${m.guardando||!puedeEditar?'disabled':''}>✕</button>
     <small>${p.origen==='REGISTRO'?'Origen: Nuevo registro':'Origen: Avance/Cierre'}${p.tipo?` · ${p.tipo==='PROGRAMADA'?'Programada':'No programada'}`:''}</small>
   </div>`).join('')||'<p class="small-muted">Sin paradas. Usa “+ Agregar otra”.</p>'}</div>
   <button class="btn btn-ghost av-parada-add" onclick="avParadaAgregarFila()" ${m.guardando||!puedeEditar?'disabled':''}>+ Agregar otra</button></div>
-  <footer><div>Total de minutos <strong id="av-paradas-total">${avFmt(total)} min</strong></div><div><button class="btn btn-ghost" onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>Cancelar</button><button class="btn btn-primary" onclick="avGuardarParadasModal()" ${m.guardando||!puedeEditar?'disabled':''}>${m.guardando?'Guardando…':'Guardar paradas'}</button></div></footer></div>`;
+  <footer><div>Total de minutos <strong id="av-paradas-total">${avFmt(total)} min</strong><small id="av-paradas-aviso-total" style="display:block;color:#8a5a00">${avEsc(avAvisoTotalParadas(m,total))}</small></div><div><button class="btn btn-ghost" onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>Cancelar</button><button class="btn btn-primary" onclick="avGuardarParadasModal()" ${m.guardando||!puedeEditar?'disabled':''}>${m.guardando?'Guardando…':'Guardar paradas'}</button></div></footer></div>`;
   modal.classList.add('open');document.body.classList.add('av-modal-open');
 }
 function avBuscarParadaRegistro(records,p){
@@ -433,8 +568,25 @@ function avConTimeout(promesa,ms=15000){
 async function avGuardarParadasModal(){
   const m=avanceEstado.paradasModal;if(!m||m.guardando||!avPuedeEditarParadas())return;
   const activas=m.filas.filter(p=>!p.eliminarSolicitado);
+  // Duración en minutos obligatoria (sin importar cuántos); hora de inicio/fin opcional y coherente. Causa › motivo del catálogo: «Otro» pide detalle de 10 caracteres.
+  for(const p of activas){
+    const errD=avValidarDuracionIntervalo(m,p);
+    if(errD){m.error='Parada «'+(String(p.descripcion||p.motivoCat||'').trim()||'sin motivo')+'»: '+errD;avRenderParadasModal();return;}
+  }
+  for(const p of activas){
+    if(!avUsaCatalogo(p))continue;
+    const err=avValidarCatalogoParada(m,p);
+    if(err){m.error='Parada «'+(String(p.descripcion||p.motivoCat||'').trim()||'sin motivo')+'»: '+err;avRenderParadasModal();return;}
+  }
   const invalida=activas.find(p=>!['PROGRAMADA','NO_PROGRAMADA'].includes(p.tipo)||!String(p.descripcion||'').trim()||avNum(p.minutos)<=0||(p.tipo==='NO_PROGRAMADA'&&!String(p.causa||'').trim()));
   if(invalida){m.error='Completa Tipo, Motivo y Minutos. En una parada No programada también debes seleccionar la Causa.';avRenderParadasModal();return;}
+  // «Falla de máquina»: el equipo es obligatorio (Otro equipo pide un detalle de al menos 5 caracteres).
+  for(const p of activas){
+    if(!avEsFalla(p))continue;
+    const e=avEquipoEstado(p),err=window.glacialEquipos.validar(e.sel,e.detalle);
+    if(err){m.error='Parada «'+String(p.descripcion||'').trim()+'»: '+err;avRenderParadasModal();return;}
+    p.equipo=window.glacialEquipos.componer(e.sel,e.detalle);
+  }
 
   // Motivos que ya fueron registrados por botón en este turno: se avisa y no se suman dos veces.
   const duplicadas=avDuplicadosConBoton(m,activas);
@@ -485,7 +637,8 @@ async function avGuardarParadasModal(){
             const destino=p.tipo==='PROGRAMADA'?'paradasProgramadas':'paradasNoProgramadas';
             const item={...ref.item,descripcion:String(p.descripcion).trim(),tiempoMin:avNum(p.minutos)};
             if(!item.id)item.id=p.id.startsWith('reg:')?`pr_${ahora}_${Math.random().toString(36).slice(2,7)}`:p.id;
-            if(destino==='paradasNoProgramadas')item.causa=p.causa||'';else delete item.causa;
+            if(destino==='paradasNoProgramadas'){item.causa=p.causa||'';if(p.motivoCat){item.motivoCat=p.motivoCat;item.detalle=p.detalle||'';}}else{delete item.causa;delete item.motivoCat;delete item.detalle;}
+            if(destino==='paradasNoProgramadas'&&avEsFalla(p)&&p.equipo)item.equipo=p.equipo;else delete item.equipo;
             if(p.key===destino)ref.q[p.key][ref.pi]=item;
             else{
               ref.q[p.key].splice(ref.pi,1);
@@ -505,7 +658,9 @@ async function avGuardarParadasModal(){
 
       m.filas.filter(p=>p.origen==='AVANCE'&&!p.eliminarSolicitado).forEach(p=>{
         const obj={...p,descripcion:String(p.descripcion).trim(),minutos:avNum(p.minutos),tipo:p.tipo,fecha:m.fecha,turno:m.turno,linea:m.linea,origen:'AVANCE',actualizadoPor:usuario,actualizadoEn:ahora};
-        delete obj.nueva;delete obj.eliminarSolicitado;delete obj.tipoOriginal;
+        delete obj.nueva;delete obj.eliminarSolicitado;delete obj.tipoOriginal;delete obj.equipoSel;delete obj.equipoDetalle;delete obj.catTocada;
+        if(p.tipo!=='NO_PROGRAMADA'||!p.motivoCat){delete obj.motivoCat;delete obj.detalle;}
+        if(!avEsFalla(p)||!p.equipo)delete obj.equipo;
         const i=operativas.findIndex(x=>x.id===obj.id);
         if(i>=0){
           obj.creadoEn=operativas[i].creadoEn||ahora;obj.creadoPor=operativas[i].creadoPor||usuario;operativas[i]=obj;
@@ -1085,7 +1240,62 @@ function avSlotsTurno(turno){
 }
 function avSlotActual(){ return avHoraActual(); }
 function avSnapshotPorReferencia(tipo,ref){
-  return avanceEstado.snapshots.find(s=>s.tipo===tipo&&(tipo==='CIERRE'||s.horaReferencia===ref))||null;
+  if(tipo==='CIERRE')return avUltimoSnapshot('CIERRE');       // con versiones regeneradas, el vigente es el último
+  return avanceEstado.snapshots.find(s=>s.tipo===tipo&&s.horaReferencia===ref)||null;
+}
+/* ---------- GENERAR CIERRE de una fecha y bloque seleccionados (histórico) ----------
+   Opera sobre la SELECCIÓN (no sobre el turno del dispositivo), a cualquier hora y también después de la tolerancia de las 07:30. Crear o regenerar el reporte NO reabre ni finaliza
+   registros de producción. Un reporte regenerado es una versión NUEVA (id con sufijo vN, motivo, referencia a la anterior); la anterior se conserva. */
+function avDatosFaltantesCierre(s){
+  const regs=avRegistros(),falt=[];
+  (s.lineas||[]).forEach(l=>{
+    const rs=regs.filter(r=>r.linea===l.linea);
+    if(!rs.length)falt.push((l.nombre||l.linea)+': no hay registro de producción de ese bloque');
+    else if(rs.some(r=>r.estadoRegistro!=='FINALIZADO'))falt.push((l.nombre||l.linea)+': el registro de producción no está finalizado');
+  });
+  return falt;
+}
+async function avGenerarSeleccion(opc){
+  opc=opc||{};
+  if(!avPuedeGenerar())throw Error('Tu usuario tiene acceso de consulta y no puede generar cierres.');
+  if(!avanceEstado.fecha||!avanceEstado.turno)throw Error('Elige una fecha y un bloque.');
+  const previo=avUltimoSnapshot('CIERRE');
+  if(previo&&!opc.regenerar)throw Error('Ya existe un cierre de esta fecha y bloque: usa «Ver cierre» o «Regenerar cierre».');
+  if(opc.regenerar&&String(opc.motivo||'').trim().length<5)throw Error('Escribe el motivo de la regeneración (mínimo 5 caracteres).');
+  await avCargarDistribucion();
+  const s=avConstruirSnapshot('CIERRE','CIERRE');
+  const version=(previo?avNum(previo.version||1):0)+1;
+  s.version=version;s.generadoDesde='SELECCION';s.historico=true;
+  if(previo){s.reemplazaA=previo.id;s.motivoRegeneracion=String(opc.motivo).trim();s.id=avSnapshotId('CIERRE','CIERRE')+'|v'+version;}
+  const falt=avDatosFaltantesCierre(s);
+  s.datosCompletos=!falt.length;s.faltantes=falt;
+  await avGuardarSnapshot(s);
+  avanceEstado.previewId=s.id;
+  avAviso(falt.length?'Reporte generado con datos incompletos ('+falt.join('; ')+'). No es una finalización oficial de la producción.':(previo?'Cierre regenerado (versión '+version+').':'Cierre generado correctamente.'));
+  return s;
+}
+function avAccionesHistoricoHtml(){
+  const c=avUltimoSnapshot('CIERRE');
+  return `<div class="av-module-actions">${c?`<button class="btn btn-ghost" onclick="avVer('${avEsc(c.id)}')">VER CIERRE${c.version>1?' (v'+c.version+')':''}</button><button class="btn btn-ghost" onclick="avAbrirCierreHistorico(true)">REGENERAR CIERRE</button>`
+    :'<button class="btn btn-primary" onclick="avAbrirCierreHistorico(false)">GENERAR CIERRE</button>'}<small class="small-muted" style="align-self:center">Opera sobre ${avEsc(avanceEstado.fecha)} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}; no reabre ni finaliza registros de producción.</small></div>`;
+}
+function avAbrirCierreHistorico(regenerar){
+  const previo=document.getElementById('av-cierre-hist');if(previo)previo.remove();
+  const f=document.createElement('div');f.id='av-cierre-hist';
+  f.style.cssText='position:fixed;inset:0;background:rgba(10,30,50,.55);z-index:10080;display:flex;align-items:center;justify-content:center;padding:14px';
+  f.innerHTML=`<div role="dialog" aria-modal="true" style="background:#fff;border-radius:14px;padding:18px;max-width:460px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)"><h3 style="margin:0 0 8px;color:#003b5c">${regenerar?'Regenerar cierre':'Generar cierre'}</h3>
+    <p style="font-size:13px;margin:0 0 8px">${avEsc(avanceEstado.fecha)} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}. ${regenerar?'Se crea una versión NUEVA del reporte; la anterior se conserva.':'Se genera el reporte con los datos válidos de esa fecha y ese bloque; lo que falte se indica, no se inventa producción cero.'} Esto no reabre ni finaliza registros de producción.</p>
+    ${regenerar?'<label style="font-size:12px;font-weight:600;color:#5a6b78">Motivo de la regeneración (obligatorio)<textarea id="av-cierre-motivo" rows="2" maxlength="200" style="width:100%;box-sizing:border-box"></textarea></label>':''}
+    <div id="av-cierre-err" role="alert" style="color:#c62828;font-size:12px;min-height:16px;white-space:pre-line;margin-top:6px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button type="button" class="btn btn-ghost" id="av-cierre-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="av-cierre-ok">${regenerar?'Regenerar':'Generar cierre'}</button></div></div>`;
+  document.body.appendChild(f);
+  f.querySelector('#av-cierre-cancelar').onclick=()=>f.remove();
+  const ok=f.querySelector('#av-cierre-ok');
+  ok.onclick=async()=>{
+    ok.disabled=true;f.querySelector('#av-cierre-err').textContent='';
+    try{await avGenerarSeleccion({regenerar:!!regenerar,motivo:regenerar?f.querySelector('#av-cierre-motivo').value:''});f.remove();avDibujar();}
+    catch(e){f.querySelector('#av-cierre-err').textContent=(e&&e.message)||String(e);ok.disabled=false;}     // doble clic o reintento no duplican: el id es único por versión
+  };
 }
 async function avGenerar(hora,tipo='AVANCE'){
   try{
@@ -1198,6 +1408,13 @@ function avFechaBonita(fecha){
 }
 function avTurnoHorario(turno,s){
   if(s?.inicioTurno||s?.finTurno)return `${s.inicioTurno||'—'} - ${s.finTurno||'—'}`;
+  try{       // horario de producción por línea (51b): si las líneas tienen horarios distintos no se muestra uno solo como si valiera para todas
+    if(window.glacialHorarios&&avanceEstado.fecha&&(turno===avanceEstado.turno)){
+      const hs=avHorariosLineas().filter(h=>h.habilitado),dist=[...new Set(hs.map(h=>h.horario))];
+      if(dist.length===1)return dist[0].replace('–',' - ');
+      if(dist.length>1)return 'según línea';
+    }
+  }catch(_){/* horario general */}
   const bl=avBloquesCfg()[turno==='NOCHE'?'noche':'diaInter'];
   return bl.inicio+' - '+bl.fin;
 }
@@ -1717,7 +1934,7 @@ function avTimelineHtml(){
   const avances=avanceEstado.snapshots.filter(s=>s.tipo==='AVANCE').slice().sort((a,b)=>avNum(a.generadoEn)-avNum(b.generadoEn));
   const cierre=avUltimoSnapshot('CIERRE');
   const filas=avances.map(s=>`<div class="av-time-row done"><time>${avEsc(s.horaCorte||'—')}</time><div><b>AVANCE DE PRODUCCIÓN</b><small>Corte ${avEsc(s.horaCorte||'—')} · generado ${avEsc(avHoraDesdeMs(s.generadoEn)||s.horaCorte||'—')} por ${avEsc(s.supervisor||s.generadoPor||'—')}</small>${avAccionesSnapshot(s)}</div></div>`).join('');
-  return `<div class="av-timeline">${filas||'<div class="av-time-row pending"><time>—</time><div><b>SIN AVANCES GENERADOS</b><small>Puedes generar un avance en cualquier momento del turno.</small></div></div>'}<div class="av-time-row ${cierre?'done':'pending'}"><time>${cierre?avEsc(cierre.horaCorte||'—'):'—'}</time><div><b>${cierre?'CIERRE DE TURNO':'CIERRE PENDIENTE'}</b>${cierre?`<small>Generado ${avEsc(avHoraDesdeMs(cierre.generadoEn)||cierre.horaCorte||'—')} por ${avEsc(cierre.supervisor||cierre.generadoPor||'—')}</small>${avAccionesSnapshot(cierre)}`:'<small>El cierre se genera manualmente cuando corresponda.</small>'}</div></div></div>`;
+  return `<div class="av-timeline">${filas||'<div class="av-time-row pending"><time>—</time><div><b>SIN AVANCES GENERADOS</b><small>Puedes generar un avance en cualquier momento del turno.</small></div></div>'}<div class="av-time-row ${cierre?'done':'pending'}"><time>${cierre?avEsc(cierre.horaCorte||'—'):'—'}</time><div><b>${cierre?'CIERRE DE TURNO':'CIERRE PENDIENTE'}</b>${cierre?`<small>Generado ${avEsc(avHoraDesdeMs(cierre.generadoEn)||cierre.horaCorte||'—')} por ${avEsc(cierre.supervisor||cierre.generadoPor||'—')}</small>${avAccionesSnapshot(cierre)}`:'<small>El cierre se genera manualmente cuando corresponda.</small>'}</div></div></div>${window.glacialCorreccionParadas?window.glacialCorreccionParadas.avisoPosterior():''}`;
 }
 function avHistorialGeneralHtml(){
   const tipo=avanceEstado.filtroTipo;
@@ -1743,13 +1960,25 @@ function avDibujar(){
   avAsegurarDistribucion();
   const ctx=avCtx(),actual=avanceEstado.fecha===ctx.fecha&&avanceEstado.turno===ctx.turno;
   root.innerHTML=`
-    <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
+    <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'}${avChipTolerancia()} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
     ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
+    ${!actual&&avPuedeGenerar()?avAccionesHistoricoHtml():''}
+    ${avHorariosLineasHtml()}
     ${avAdminMigracionHtml()}
     <div id="av-estado" class="av-inline-status"></div>
     <div class="av-module-grid"><aside>${avCalendarioHtml()}<div class="av-turn-filter"><strong>TURNOS</strong>${['DÍA','NOCHE'].map(t=>`<button class="${avanceEstado.turno===t?'active':''}" onclick="avSeleccionarTurno('${t}')">${avNombreTurnoPantalla(t)}<small>${avTurnoHorario(t)}</small></button>`).join('')}</div></aside><main><div class="av-section-head"><div><h3>${avFechaBonita(avanceEstado.fecha)} · ${avEsc(avanceEstado.turno)}</h3><p>Historial del turno seleccionado.</p></div></div>${avTimelineHtml()}</main></div>
     ${avHistorialGeneralHtml()}`;
   avInstalarBotonFlotante();
+}
+/* Horario de producción por línea de la selección (solo cuando difiere entre líneas o hay líneas deshabilitadas). */
+function avHorariosLineasHtml(){
+  try{
+    if(!window.glacialHorarios)return '';
+    const hs=avHorariosLineas().filter(h=>AVANCE_LINEAS.includes(h.linea));
+    const hab=hs.filter(h=>h.habilitado),des=hs.filter(h=>!h.habilitado);
+    if(!hab.length||([...new Set(hab.map(h=>h.horario))].length<=1&&!des.length))return '';
+    return `<div class="av-inline-status" style="font-size:12px;color:#46627a">Horario de producción por línea: ${hab.map(h=>avEsc(h.linea)+' '+avEsc(h.horario)+(h.etiqueta&&!/^(mañana|noche)/i.test(h.etiqueta)?' ('+avEsc(h.etiqueta)+')':'')).join(' · ')}${des.length?' · Deshabilitado: '+des.map(h=>avEsc(h.linea)).join(', '):''}</div>`;
+  }catch(_){return '';}
 }
 function avVerDesdeModulo(id){avVer(id);}
 /* Solo Administrador: porcentaje del documento antiguo y botón de migración (respaldo + copia verificada). */
@@ -1789,6 +2018,7 @@ body.av-modal-open #av-floating-trigger{visibility:hidden;pointer-events:none}
 .av-detail-dialog{width:min(1080px,98vw)}.av-detail-tabs{position:sticky;top:-16px;z-index:3;display:flex;gap:4px;overflow-x:auto;padding:7px 0;background:#f5f8fa}.av-detail-tabs button{border:1px solid #dce3e8;background:#fff;border-radius:5px;padding:6px 8px;font-size:9px;font-weight:800;color:#456273}.av-detail-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.av-detail-kpis>div{padding:10px;background:#fff;border:1px solid #dce3e8;border-radius:7px}.av-detail-kpis small,.av-detail-kpis span{display:block;color:#87949d;font-size:8px}.av-detail-kpis strong{display:block;color:#003b5c;font-size:18px;margin:3px 0}.av-detail-section{scroll-margin-top:40px;margin-top:14px}.av-detail-section h3{margin:0 0 7px;color:#003b5c}.av-line-card,.av-stop-line,.av-observation{padding:10px;background:#fff;border:1px solid #dce3e8;border-radius:7px;margin-top:7px}.av-line-title{display:flex;justify-content:space-between}.av-line-title b{color:#005b96}.av-line-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}.av-line-metrics span,.av-products span{font-size:9px;color:#667784}.av-products{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.av-products span{padding:4px 6px;background:#f3f7f9;border-radius:4px}.av-stop-line>div{display:grid;grid-template-columns:100px 1fr 70px;gap:6px;padding:6px 0;border-top:1px solid #edf1f3}.av-stop-line span{font-size:8px;font-weight:800}.av-stop-line .np{color:#c0392b}.av-stop-line .p{color:#d89216}.av-stop-line em{text-align:right;font-style:normal}.av-personal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.av-personal-grid>div{display:flex;justify-content:space-between;padding:8px;background:#fff;border:1px solid #dce3e8;border-radius:6px}.av-whatsapp-preview{margin-top:14px;background:#fff;border:1px solid #dce3e8;border-radius:7px;padding:9px}.av-whatsapp-preview summary{cursor:pointer;font-size:10px;font-weight:800;color:#005b96}.av-whatsapp-preview textarea{width:100%;min-height:260px;margin-top:8px;padding:9px;border:1px solid #dce3e8;border-radius:6px;resize:vertical;font-family:'IBM Plex Mono',monospace;font-size:10px}
 .av-image-dialog{width:min(780px,96vw)}.av-image-preview{background:#dfe7ec;text-align:center}.av-image-preview canvas{width:min(100%,540px);height:auto;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.12)}
 
+.av-parada-equipo{grid-column:1/-1}.av-parada-equipo input{margin-top:6px}
 .av-paradas-modal{display:none;position:fixed;inset:0;z-index:2600;background:rgba(0,31,50,.62);padding:18px;align-items:center;justify-content:center}.av-paradas-modal.open{display:flex}.av-paradas-dialog{width:min(760px,98vw);max-height:92vh;display:flex;flex-direction:column;background:#f5f8fa;border-radius:12px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.28)}.av-paradas-dialog>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:15px 18px;background:#003b5c;color:#fff}.av-paradas-dialog>header h2{margin:2px 0;font-size:18px}.av-paradas-dialog>header p{margin:2px 0;font-size:10px}.av-paradas-dialog>header>button{width:36px;height:36px;border:0;border-radius:6px;background:rgba(255,255,255,.12);color:#fff}.av-paradas-linea{margin-top:7px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:#fff;color:#003b5c;font-weight:800}.av-paradas-body{padding:14px;overflow-y:auto}.av-paradas-note{padding:9px 10px;background:#eaf5fc;border:1px solid #c8deeb;border-radius:7px;color:#35586b;font-size:10px;margin-bottom:10px}.av-paradas-error{padding:9px 10px;background:#fff0ee;border:1px solid #efc0b9;color:#a22d22;border-radius:7px;margin-bottom:10px;font-size:10px}.av-paradas-list{display:grid;gap:8px}.av-parada-row{display:grid;grid-template-columns:150px minmax(180px,1fr) 180px 95px 38px;gap:8px;align-items:end;padding:10px;background:#fff;border:1px solid #d7e3eb;border-radius:8px}.av-parada-row label{display:block;font-size:9px;font-weight:800;color:#667784;margin-bottom:4px}.av-parada-row input,.av-parada-row select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cfdbe3;border-radius:6px;background:#fff}.av-parada-row.is-p{border-left:4px solid #2e9d62}.av-parada-row.is-np{border-left:4px solid #d16b2f}.av-parada-row:not(.is-np) .av-parada-causa{display:none}.av-parada-row small{grid-column:1/-1;color:#87949d;font-size:8px}.av-parada-remove{height:36px;border:1px solid #efc0b9;background:#fff;color:#c0392b;border-radius:6px}.av-parada-add{margin-top:10px}.av-paradas-dialog>footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:#fff;border-top:1px solid #d7e3eb}.av-paradas-dialog>footer>div:last-child{display:flex;gap:7px}.av-paradas-dialog>footer strong{color:#003b5c;margin-left:6px}
 @media(max-width:900px){.av-module-grid{grid-template-columns:1fr}.av-detail-kpis{grid-template-columns:repeat(2,1fr)}.av-slot-strip{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.av-paradas-modal{padding:0}.av-paradas-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-parada-row{grid-template-columns:1fr 95px 38px}.av-parada-tipo,.av-parada-motivo,.av-parada-causa{grid-column:1/-1}.av-parada-min{grid-column:1/3}.av-paradas-dialog>footer{align-items:stretch;flex-direction:column}.av-paradas-dialog>footer>div:last-child{display:grid;grid-template-columns:1fr 1fr}.av-paradas-dialog>footer .btn{min-height:44px}.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:1fr}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:1fr}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:max(12px,env(safe-area-inset-bottom));touch-action:manipulation;-webkit-tap-highlight-color:transparent}

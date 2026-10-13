@@ -21,9 +21,9 @@ Se lista, no se borra. Cada commit de la Parte 2 agrega su sección.
 
 | Archivo | Qué queda sin uso |
 |---|---|
-| `js/produccion/06-registro.js` | `calidad`, `calidadBot`, `rechazadas` se siguen calculando (otras pantallas los muestran), pero ya no entran en el OEE. |
-| `js/produccion/47-analisis-paradas.js` | `datos.rechazadas` (merma de Botellas) se sigue leyendo, pero ya no se usa para calcular nada. Los comentarios de cabecera líneas 20-21 describen la calidad antigua. |
-| `js/produccion/08-graficos.js`, `09-resumen.js` | Siguen mostrando «Calidad» (radar, cascada de pérdidas, metas de calidad, textos de resumen). Como no se mide, queda para decidir si se retira (hoy vale 100 %). |
+| `js/produccion/06-registro.js` | **Retirado** (rama produccion-1-calidad): `calidad`, `calidadBot`, `muestrasCalidad` y `rechazadas` ya no se calculan ni se devuelven. Se conserva el campo del registro `produccion.calidad` («Botellas calidad»). |
+| `js/produccion/47-analisis-paradas.js` | **Retirado**: `datos.rechazadas` y la columna «Calidad» de la base del OEE. |
+| `js/produccion/08-graficos.js`, `09-resumen.js`, `14`, `49`, `61`, `62` | **Retirado**: el indicador «Calidad» (eje de gráficos, escalón de la cascada de pérdidas, metas, textos de resumen y de «¿Cómo se calcula?», tarjetas y columnas de los Excel). Los números del OEE y de la cascada no cambiaron (`tests/sin-calidad.test.js`). |
 | `js/produccion/08-graficos.js` | `calcularPromedioMovil` ahora usa la lista de registros; los campos `oee` y `horas` de la serie diaria quedan solo como valor final. |
 
 ## Commit 4 — cumplimiento y producido vigente

@@ -54,19 +54,15 @@ function calcDerivedLegacy(r){
   const programada = num(r.produccion?.programada);
   const sopladas = num(r.produccion?.sopladas);
 
-  /* CALIDAD = unidades tomadas como muestra; no son rechazo ni merma. */
-  const muestrasCalidad = num(r.produccion?.calidad);
-  const rechazadas = 0;
-  const calidadBot = sopladas;
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
-  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. Calidad: no se mide. */
+  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. */
   const conVelocidad = produccionNominal > 0;
   const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(efectiva, horasEfectivas), ratio);
   const rendimiento = rendimientoReal ?? 0;
-  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+
   const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal) ?? 0;
   const planMinVel = conVelocidad ? planificadoH * 60 : 0;
   const npMinVel = conVelocidad ? pNoProg * 60 : 0;
@@ -81,7 +77,6 @@ function calcDerivedLegacy(r){
     produccionNominal,
     disponibilidad,
     rendimiento,
-    calidad,
     oee,
     cumplimiento,
     eficiencia,
@@ -89,9 +84,6 @@ function calcDerivedLegacy(r){
     ratioEfectivo,
     pProg,
     pNoProg,
-    rechazadas,
-    muestrasCalidad,
-    calidadBot,
     conVelocidad, planMinVel, npMinVel, efectivaVel
   };
 }
@@ -109,24 +101,15 @@ function calcDerivedCuadro(cuadro){
   const programada = num(cuadro?.produccion?.programada);
   const sopladas = num(cuadro?.produccion?.sopladas);
 
-  /*
-     CALIDAD = unidades retiradas por el área de Calidad como muestra.
-     NO son rechazo, merma ni producto no conforme.
-     Se conserva produccion.calidad como clave interna para compatibilidad
-     con registros históricos, pero no penaliza el indicador de Calidad/OEE.
-  */
-  const muestrasCalidad = num(cuadro?.produccion?.calidad);
-  const rechazadas = 0;
-  const calidadBot = sopladas;
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
   const planificadoH = Math.max(horasTurno - pProg, 0);
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
-  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. Calidad: no se mide. */
+  /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. */
   const conVelocidad = produccionNominal > 0;
   const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(efectiva, horasEfectivas), ratio);
   const rendimiento = rendimientoReal ?? 0;
-  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+
   const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal) ?? 0;
   const planMinVel = conVelocidad ? planificadoH * 60 : 0;
   const npMinVel = conVelocidad ? pNoProg * 60 : 0;
@@ -141,7 +124,6 @@ function calcDerivedCuadro(cuadro){
     produccionNominal,
     disponibilidad,
     rendimiento,
-    calidad,
     oee,
     cumplimiento,
     eficiencia,
@@ -149,9 +131,6 @@ function calcDerivedCuadro(cuadro){
     ratioEfectivo,
     pProg,
     pNoProg,
-    rechazadas,
-    muestrasCalidad,
-    calidadBot,
     conVelocidad, planMinVel, npMinVel, efectivaVel
   };
 }
@@ -169,10 +148,6 @@ function calcDerivedMulti(r){
   const programada = cuadros.reduce((a,c) => a + num(c?.produccion?.programada), 0);
   const sopladas = cuadros.reduce((a,c) => a + num(c?.produccion?.sopladas), 0);
 
-  /* CALIDAD son muestras de laboratorio/control; no rechazo ni merma. */
-  const muestrasCalidad = cuadros.reduce((a,c) => a + num(c?.produccion?.calidad), 0);
-  const rechazadas = 0;
-  const calidadBot = sopladas;
 
   const pProg = ds.reduce((a,d) => a + num(d.pProg), 0);
   const pNoProg = ds.reduce((a,d) => a + num(d.pNoProg), 0);
@@ -185,7 +160,7 @@ function calcDerivedMulti(r){
   const efectivaVel = ds.reduce((a,d) => a + num(d.efectivaVel), 0);
   const rendimientoReal = produccionNominal > 0 ? GlacialIndicadores.rendimiento(efectivaVel, produccionNominal) : null;
   const rendimiento = rendimientoReal ?? 0;
-  const calidad = sopladas > 0 ? Math.min(calidadBot / sopladas, 1) : (efectiva > 0 ? 1 : 0);
+
   const oee = GlacialIndicadores.oee(GlacialIndicadores.disponibilidad(planMinVel, npMinVel), rendimientoReal) ?? 0;
   const cumplimiento = GlacialIndicadores.cumplimiento(efectiva, programada) ?? 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
@@ -198,7 +173,6 @@ function calcDerivedMulti(r){
     produccionNominal,
     disponibilidad,
     rendimiento,
-    calidad,
     oee,
     cumplimiento,
     eficiencia,
@@ -209,8 +183,6 @@ function calcDerivedMulti(r){
     efectiva,
     programada,
     sopladas,
-    calidadBot,
-    rechazadas,
     planMinVel, npMinVel, efectivaVel,
     cuadros: ds
   };
@@ -1217,7 +1189,8 @@ function blankCuadro(lineKey, numero){
         id:generarIdParadaProduccion(),
         descripcion:'',
         tiempoMin:0,
-        causa:''
+        causa:'',
+        ...paradaCatCampos('paradasNoProgramadas')
       }
     ],
 
@@ -3021,6 +2994,18 @@ function validarReporteParaFinalizar(){
     if(!q.presentacion) faltan.push(`Producción ${n}: presentación`);
     if(!q.horaInicio) faltan.push(`Producción ${n}: hora inicio`);
     if(!q.horaFin) faltan.push(`Producción ${n}: hora fin`);
+    // Paradas por «Falla de máquina»: el equipo es obligatorio (la lista «Falta para finalizar» lo muestra; no se bloquea el guardado en tiempo real).
+    // Causa y motivo del catálogo (el detalle es obligatorio en «Otro»).
+    if(window.glacialMotivosParada) (q.paradasNoProgramadas || []).forEach(p => {
+      if(p && !p.auto && !p.eliminada && num(p.tiempoMin) > 0 && registroCatalogoActivo(p)){
+        const err = window.glacialMotivosParada.validar(p.causa, p.motivoCat, p.detalle);
+        if(err) faltan.push(`Producción ${n}: parada no programada (${err.replace(/\.$/, '')})`);
+      }
+    });
+    if(window.glacialEquipos) (q.paradasNoProgramadas || []).forEach(p => {
+      if(p && !p.auto && !p.eliminada && num(p.tiempoMin) > 0 && window.glacialEquipos.esFalla(p.causa) && window.glacialEquipos.validarTexto(p.equipo))
+        faltan.push(`Producción ${n}: equipo de una parada por Falla de máquina`);
+    });
   });
 
   /*
@@ -4503,15 +4488,6 @@ function renderFormTab(){
 
       ${
         kpi(
-          'Calidad',
-          pct(d.calidad),
-          d.calidad
-        )
-      }
-
-
-      ${
-        kpi(
           'OEE',
           pct(d.oee),
           d.oee
@@ -5606,14 +5582,6 @@ function refreshKpisOnly(){
 
       ${
         kpi(
-          'Calidad',
-          pct(d.calidad),
-          d.calidad
-        )
-      }
-
-      ${
-        kpi(
           'OEE',
           pct(d.oee),
           d.oee
@@ -5675,7 +5643,8 @@ function paradasTableCuadro(
           {
             descripcion:'',
             tiempoMin:0,
-            causa:''
+            causa:'',
+            ...paradaCatCampos(key)
           }
         ];
 
@@ -5816,6 +5785,10 @@ function paradasTableCuadro(
 
                           `
 
+                          : registroCatalogoActivo(r)
+
+                          ? registroMotivoHtml(cuadroIndex, key, i, r)
+
                           : `
 
                             <input
@@ -5886,7 +5859,7 @@ function paradasTableCuadro(
                               </option>
 
                               ${
-                                CAUSAS_PARADA_NO_PROGRAMADA
+                                causasParadaOpciones(r)
                                   .map(
                                     o =>
                                       `
@@ -5906,6 +5879,12 @@ function paradasTableCuadro(
                               }
 
                             </select>
+
+                            ${
+                              typeof registroEquipoHtml === 'function'
+                                ? registroEquipoHtml(cuadroIndex, key, i, r)
+                                : ''
+                            }
 
                           </td>
                         `
@@ -6010,12 +5989,79 @@ function addParadaCuadro(
     id:generarIdParadaProduccion(),
     descripcion:'',
     tiempoMin:0,
-    causa:''
+    causa:'',
+    ...paradaCatCampos(key)
   });
 
 
   renderFormTab();
 
+}
+
+
+/* Motivos de parada en dos niveles (37e). Una fila con catálogo lleva motivoCat/detalle (aunque vacíos); las antiguas no los tienen y conservan el texto libre. */
+function paradaCatCampos(key){
+  return (key === 'paradasNoProgramadas' && window.glacialMotivosParada) ? { motivoCat:'', detalle:'' } : {};
+}
+function registroCatalogoActivo(r){
+  return !!(window.glacialMotivosParada && r && r.motivoCat !== undefined);
+}
+function causasParadaOpciones(r){
+  const C = window.glacialMotivosParada;
+  const lista = C ? C.causas().map(c => c.nombre) : CAUSAS_PARADA_NO_PROGRAMADA.slice();
+  const actual = String(r?.causa || '').trim();
+  if(actual && !lista.some(n => n.toLowerCase() === actual.toLowerCase())) lista.push(actual);
+  return lista;
+}
+function registroMotivoHtml(cuadroIndex, key, i, r){
+  const C = window.glacialMotivosParada;
+  const min = C.detalleMin(r.causa);
+  return `
+    <select
+      style="width:100%;box-sizing:border-box;"
+      aria-label="Motivo de la parada"
+      ${r.causa ? '' : 'disabled title="Elige primero la causa"'}
+      onchange="updateArrItemCuadro(${cuadroIndex}, '${key}', ${i}, 'motivoCat', this.value)"
+    >${C.opcionesMotivo(r.causa, r.motivoCat)}</select>
+    <input type="text" maxlength="120" value="${escaparHtml(r.detalle || '')}"
+      placeholder="${min ? 'Detalle (obligatorio, mínimo ' + min + ' caracteres)' : 'Detalle (opcional)'}"
+      aria-label="Detalle de la parada"
+      style="width:100%;box-sizing:border-box;margin-top:4px;"
+      oninput="updateArrItemCuadro(${cuadroIndex}, '${key}', ${i}, 'detalle', this.value)">`;
+}
+
+/* Equipo que falló: solo en paradas NO programadas con causa «Falla de máquina». Se guarda como texto en la propia parada (equipo). */
+function registroEquipoHtml(cuadroIndex, key, i, r){
+  const G = window.glacialEquipos;
+  if(!G || key !== 'paradasNoProgramadas' || !G.esFalla(r?.causa)) return '';
+  const d = G.descomponer(r.equipo);
+  const error = G.validarTexto(r.equipo);
+  return `
+    <div class="registro-equipo" style="margin-top:6px;">
+      <select
+        style="width:100%;box-sizing:border-box;${error ? 'border-color:#c62828;' : ''}"
+        aria-label="Equipo que falló"
+        onchange="updateEquipoParada(${cuadroIndex}, '${key}', ${i}, 'sel', this.value)"
+      >${G.opciones(draft?.linea, r.equipo)}</select>
+      ${d.sel === '__otro__'
+        ? `<input type="text" maxlength="80" value="${escaparHtml(d.detalle)}" placeholder="Detalle del equipo (mínimo 5 caracteres)"
+             style="width:100%;box-sizing:border-box;margin-top:4px;"
+             oninput="updateEquipoParada(${cuadroIndex}, '${key}', ${i}, 'detalle', this.value)">`
+        : ''}
+      ${error ? `<small style="color:#c62828;display:block;margin-top:2px;">Equipo obligatorio: ${escaparHtml(error)}</small>` : ''}
+    </div>`;
+}
+
+function updateEquipoParada(cuadroIndex, key, i, parte, val){
+  const G = window.glacialEquipos;
+  const q = normalizarCuadros(draft)[cuadroIndex];
+  if(!G || !q || q.estadoCuadro==='FINALIZADO' || !q[key]?.[i] || q[key][i].auto) return;
+  const fila = q[key][i], d = G.descomponer(fila.equipo);
+  if(parte === 'sel') d.sel = val; else d.detalle = val;
+  fila.equipo = G.componerParcial(d.sel, d.detalle);
+  actualizarCuadro(cuadroIndex);
+  // «Otro equipo» muestra u oculta el detalle (y el aviso de obligatorio): se redibuja al elegir; al escribir el detalle no, para no perder el cursor.
+  if(parte === 'sel') renderFormTab();
 }
 
 
@@ -6052,6 +6098,29 @@ function updateArrItemCuadro(
           val || 0
         )
       : val;
+
+  // Con catálogo: descripcion = motivo + « — » + detalle; al cambiar la causa se vuelve a elegir el motivo (si hay uno solo, queda elegido).
+  if(key === 'paradasNoProgramadas' && registroCatalogoActivo(q[key][i])){
+    const fila = q[key][i], C = window.glacialMotivosParada;
+    if(field === 'causa'){
+      const ms = C.motivosDe(val);
+      fila.motivoCat = ms.length === 1 ? ms[0] : (ms.includes(fila.motivoCat) ? fila.motivoCat : '');
+    }
+    if(field === 'causa' || field === 'motivoCat' || field === 'detalle') fila.descripcion = C.componerDescripcion(fila.motivoCat, fila.detalle);
+    if(field === 'motivoCat' || field === 'detalle'){
+      actualizarCuadro(cuadroIndex);
+      if(field === 'motivoCat') renderFormTab();           // el detalle no redibuja: conserva el cursor
+      return;
+    }
+  }
+
+  // El equipo solo existe para «Falla de máquina»: si la causa cambia, se limpia y la fila se vuelve a dibujar.
+  if(field === 'causa' && key === 'paradasNoProgramadas'){
+    if(!(window.glacialEquipos && window.glacialEquipos.esFalla(val))) delete q[key][i].equipo;
+    actualizarCuadro(cuadroIndex);
+    renderFormTab();
+    return;
+  }
 
 
   actualizarCuadro(
@@ -6096,7 +6165,8 @@ function removeArrItemCuadro(
       id:generarIdParadaProduccion(),
       descripcion:'',
       tiempoMin:0,
-      causa:''
+      causa:'',
+      ...paradaCatCampos(key)
     });
 
   }

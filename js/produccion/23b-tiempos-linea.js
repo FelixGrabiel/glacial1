@@ -67,8 +67,13 @@
   function cfgBloques(){
     try{const c=typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores():null;return c?c.bloques:undefined;}catch(_){return undefined;}
   }
-  function rangoTurno(fecha,turno){
+  function rangoTurno(fecha,turno,compartida,linea){
     if(!['DÍA','INTERMEDIO','NOCHE'].includes(turno))return null;
+    // Con línea, el horario sale del resolvedor central (por línea, fecha y vigencia: 51b). Sin reglas configuradas devuelve el horario general de siempre.
+    if(linea&&window.glacialHorarios){
+      const r=window.glacialHorarios.resolver(linea,fecha,turno);
+      if(r&&r.duracionMin>0)return {inicio:r.inicioMs,fin:r.finMs};
+    }
     const h=GlacialIndicadores.horarioBloque(fecha,turno,cfgBloques());
     return h?{inicio:h.inicio,fin:h.fin}:null;
   }
@@ -167,18 +172,20 @@
         ?grupoTurnoReporte(r.turno):bloqueTurno(r.turno));
       if(grupo!==bloqueTurno(turno))return;
       const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
-      cuadros.forEach(q=>{
+      cuadros.forEach((q,qi)=>{
         // Un cuadro que empieza después del corte no pertenece a este cálculo.
         if(finCalculo&&q?.horaInicio){
           const ini=horaAMs(fecha,q.horaInicio,bloqueTurno(turno)==='NOCHE'?'NOCHE':turno);
           if(ini&&ini>finCalculo)return;
         }
         [['paradasNoProgramadas','NO_PROGRAMADA'],['paradasProgramadas','PROGRAMADA']].forEach(([k,clasif])=>{
-          (q?.[k]||[]).forEach(p=>{
+          (q?.[k]||[]).forEach((p,pi)=>{
             // Filas automáticas (importadas de Paletas/semáforo/Avance): ya se cuentan en su origen.
             if(p?.auto||p?.eliminada)return;
             if(p?.descripcion&&num(p.tiempoMin)>0)
-              salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO'});
+              salida.push({motivo:p.descripcion,clasif,minutos:num(p.tiempoMin),origen:'REGISTRO',registradoPor:String(r.actualizadoPor||r.registradoPor||''),
+                id:String(p.id||('reg:'+(r.id||'legacy')+':'+qi+':'+k+':'+pi)),      // mismo id que usa Avance/Cierre (avIdParadaRegistro): clave estable de la parada para reclasificarla
+                causa:p.causa||'',motivoCat:p.motivoCat||'',detalle:p.detalle||'',equipo:p.equipo||''});
           });
         });
       });
@@ -200,6 +207,9 @@
     const e={motivo:p.descripcion||p.motivo||'',clasif:(p.tipo||p.clasif)==='PROGRAMADA'?'PROGRAMADA':'NO_PROGRAMADA',
       minutos:num(p.minutos!==undefined?p.minutos:p.tiempoMin),origen:p.origen==='REGISTRO'?'REGISTRO':'AVANCE'};
     if(p.id)e.id=String(p.id);
+    // Campos informativos (no entran en ningún cálculo): causa y equipo que falló.
+    e.registradoPor=String(p.creadoPor||p.actualizadoPor||'');      // quién la registró (informativo)
+    e.causa=p.causa||'';e.equipo=p.equipo||'';e.motivoCat=p.motivoCat||'';e.detalle=p.detalle||'';      // causa › motivo › detalle del catálogo (37e)
     const ini=horaAMs(fecha,p.horaInicio,bloque),fin=horaAMs(fecha,p.horaFin,bloque);
     if(ini&&fin&&fin>ini){e.inicio=ini;e.fin=fin;e.minutos=(fin-ini)/MS_MIN;}
     return e.minutos>0?e:null;
@@ -244,7 +254,7 @@
       }
       lista.push({id:r.id||'',tipo:r.tipo==='DETENCION'?'DETENCION':'PAUSA',
         motivo:r.motivo||'',clasif:r.clasificacion==='PROGRAMADA'?'PROGRAMADA':'NO_PROGRAMADA',
-        estandarMin:std,inicio:num(r.inicio),fin,abierta,origen:'BOTON'});
+        estandarMin:std,inicio:num(r.inicio),fin,abierta,origen:'BOTON',equipo:r.equipo||''});
     });
 
     // Eventos históricos (datos anteriores a los registros de parada).
@@ -291,7 +301,7 @@
     const items=itemsBloque(linea,fecha,turno);
     const activos=items.filter(p=>p.estadoOperacion?.estado!=='CANCELADA');
     const compartida=turno==='INTERMEDIO'&&items.some(p=>p.turno==='DÍA');
-    const rango=rangoTurno(fecha,turno,compartida);
+    const rango=rangoTurno(fecha,turno,compartida,linea);
 
     const inicios=activos.map(p=>num(p.estadoOperacion?.inicio)).filter(Boolean);
     let inicio=opts.inicioMs!==undefined?num(opts.inicioMs):(inicios.length?Math.min(...inicios):0);
@@ -363,7 +373,7 @@
       // Historial de estados del semáforo: solo informativo (no se clasifica ni se suma).
       const seg=recortar(r);
       detalle.push({id:r.id,tipo:r.tipo,motivo:r.motivo,clasif:r.clasif,inicio:seg.inicio,fin:seg.fin,
-        abierta:r.abierta,estandarMin:r.estandarMin||estandar(r.motivo),origen:'BOTON',
+        abierta:r.abierta,estandarMin:r.estandarMin||estandar(r.motivo),origen:'BOTON',equipo:r.equipo||'',
         minutos:Math.max(0,(seg.fin-seg.inicio)/MS_MIN)});
       const std=r.estandarMin||estandar(r.motivo);
       if(r.abierta&&r.clasif==='PROGRAMADA'&&std>0&&(fin-r.inicio)/MS_MIN>std&&!finalizada){
@@ -437,8 +447,8 @@
         const seg=recortar(s);
         if(seg.fin<=seg.inicio)return;
         partirPorEstandar(s.motivo,s.clasif,(seg.fin-seg.inicio)/MS_MIN,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,
-          {origen:s.origen||'SUPERVISOR',inicio:seg.inicio,fin:seg.fin});
-      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR'});
+          {origen:s.origen||'SUPERVISOR',id:s.id||'',registradoPor:s.registradoPor||'',inicio:seg.inicio,fin:seg.fin,causa:s.causa||'',motivoCat:s.motivoCat||'',detalle:s.detalle||'',equipo:s.equipo||''});
+      }else partirPorEstandar(s.motivo,s.clasif,s.minutos,s.clasif==='PROGRAMADA'?estandar(s.motivo):0,{origen:s.origen||'SUPERVISOR',id:s.id||'',registradoPor:s.registradoPor||'',causa:s.causa||'',motivoCat:s.motivoCat||'',detalle:s.detalle||'',equipo:s.equipo||''});
     });
     const sumaClasif=c=>paradasClasificadas.filter(x=>x.clasif===c).reduce((a,x)=>a+x.minutos,0);
     const ajusteNpMin=noProg-sumaClasif('NO_PROGRAMADA');
