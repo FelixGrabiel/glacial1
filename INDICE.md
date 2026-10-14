@@ -184,6 +184,15 @@ $faltan = $rutas | Where-Object { -not (Test-Path $_) }
 if ($faltan) { "FALTAN:"; $faltan } else { "OK: $($rutas.Count) scripts existen en disco" }
 ```
 
+## Correr las pruebas
+
+```
+node tests/correr-todo.js              # todas (tests/*.test.js)
+node tests/correr-todo.js tareo plan   # solo las que contienen esas palabras
+```
+
+Resume cuántas pasaron, muestra el detalle solo de las que fallan y sale con código 1 si alguna falla.
+
 ## Entornos (PRODUCCIÓN y PRUEBAS)
 
 `js/nucleo/01-config.js` guarda las dos configuraciones de Firebase y elige sola:
