@@ -46,7 +46,7 @@ let n=0;
 async function guardar(sb,fecha,bloque,desde,lineas,motivo,ver,extra){return sb.glacialDistribucionPersonal.guardar(fecha,bloque,Object.assign({opId:'o'+(++n),versionEsperada:ver,desdeMs:desde,lineas,motivo:motivo||''},extra||{}));}
 
 (async()=>{
-  let sb=entorno({programaciones:[prog('B7L',ms(7))],paletas:[pal('B7L',3486,'12:30')]});
+  let sb=entorno({programaciones:[prog('B7L',ms(7))],paletas:[pal('B7L',3486,'08:30')]});   // produce desde antes del primer corte (el Avance solo muestra líneas con producción)
   const D=()=>sb.glacialDistribucionPersonal;
   /* 1) sin confirmar */
   await sb.avCargarDistribucion();

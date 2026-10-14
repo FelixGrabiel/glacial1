@@ -73,7 +73,7 @@ const mN=sbN.glacialReporteLinea.modelo(lN,{tipo:'CIERRE',relevo:false,superviso
 ok(mN.porHora.intervalos.length>=9&&mN.porHora.intervalos.some(i=>i.desdeMs>=ms(0,0,9)&&i.produccion!==null)&&mN.porHora.intervalos.reduce((s,i)=>s+(i.produccion||0),0)===6000,'Noche: las horas después de medianoche se asignan al día siguiente y suman 6.000');
 ok(mN.encabezado.bloque==='NOCHE','el bloque es NOCHE');
 const sinReg=entorno({programaciones:[prog('PET1',ms(7),1000,'Scala','2.5 L')],paletas:[]});
-const mS=sinReg.glacialReporteLinea.modelo(sinReg.avLineaSnapshot('PET1','12:00','AVANCE',ms(12)),{tipo:'AVANCE',supervisor:'x',fecha:FECHA,turno:'DÍA',id:'s'});
+const mS=sinReg.glacialReporteLinea.modelo(sinReg.avLineaSnapshot('PET1','12:00','CIERRE',ms(12)),{tipo:'CIERRE',supervisor:'x',fecha:FECHA,turno:'DÍA',id:'s'});
 ok(mS.porHora===null,'sin registros horarios: no se dibuja un gráfico inventado');
 
 /* 3) insumos y mermas con el catálogo real */

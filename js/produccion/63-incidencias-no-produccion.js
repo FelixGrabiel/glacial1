@@ -149,30 +149,38 @@
   }
 
   /* ---------- qué líneas muestra el bloque «Líneas sin producción» (función pura, con pruebas) ----------
-     Entradas: filas (de glacialResumenEjecutivoLineas), líneas autorizadas, incidencias de la fecha/bloque y el contexto.
-     Reglas:
-       · incidencia VIGENTE informada → se muestra aunque la línea no tenga paletas ni avance;
-       · línea que debía producir y no lo hace (inicio del bloque ya pasó, hay programación vigente) →
-           NO_INICIADA (nada empezó y no hay producción) o DETENIDA (estado real DETENIDA); sin causa registrada → «motivo pendiente»;
-       · no se marca: inicio previsto aún no llegado, finalizadas/canceladas, en pausa programada, turnos sin programación,
-         ni bloques que no son el vigente (una fecha pasada solo muestra lo informado).
-       · una incidencia se considera superada cuando la línea está en producción real por un evento operativo POSTERIOR a su registro. */
+     Entradas: filas (de glacialResumenEjecutivoLineas), líneas autorizadas, incidencias de la fecha/bloque y el contexto
+     (inicioBloque, ahora; bloqueIniciado opcional, si no se deduce de ahora ≥ inicioBloque).
+     EN PRODUCCIÓN = unidades registradas > 0 en la fecha y el bloque (producción física: incluye la fuera de programación). Es el mismo
+     criterio de la tarjeta «Líneas en producción» de Inicio (enProduccion). Una línea con programación pero sin unidades está SIN producción.
+     Cada línea autorizada que no produce aparece UNA vez:
+       · con incidencia VIGENTE informada → su motivo, quién y cuándo (INFORMADA);
+       · sin programación en el bloque → «Sin programación» automático, no exige motivo (SIN_PROGRAMACION);
+       · programación toda cancelada → «Programación cancelada», no exige motivo (CANCELADA);
+       · el bloque aún no empieza → no exige motivo todavía (BLOQUE_NO_INICIA);
+       · en otro caso → «Motivo pendiente» (pendiente:true; causa DETENIDA si su estado real es detenida, si no SIN_PRODUCCION).
+     Una fecha o bloque pasado también se evalúa (Inicio muestra el turno seleccionado, no solo el vigente). */
+  const producidoFila = f => num(f && (f.producidoFisico != null ? f.producidoFisico : f.producido));
+  function enProduccion(f){ return producidoFila(f) > 0; }
   function sinProduccion(o){
     const filas = new Map((o.filas || []).map(f => [f.linea, f]));
+    const iniciado = typeof o.bloqueIniciado === 'boolean' ? o.bloqueIniciado : !(num(o.ahora) < num(o.inicioBloque));
     const salida = [];
     (o.lineas || []).forEach(linea => {
-      const f = filas.get(linea) || null, inc = (o.incidencias || []).find(d => d && d.linea === linea && d.estado === 'VIGENTE') || null;
-      const superada = !!(inc && f && f.enProduccionReal && num(f.ultimaOperacionMs) > num(inc.registradoEn));
-      if(inc && !superada){
+      const f = filas.get(linea) || null;
+      if(enProduccion(f)) return;
+      const inc = (o.incidencias || []).find(d => d && d.linea === linea && d.estado === 'VIGENTE') || null;
+      if(inc){
         salida.push({linea, pendiente: false, motivo: inc.motivo, descripcion: inc.descripcion || '', por: inc.registradoPor || '', en: num(inc.registradoEn), id: inc.id || '', causa: 'INFORMADA'});
         return;
       }
-      if(!o.bloqueActual || !f || num(o.ahora) < num(o.inicioBloque)) return;
-      if(!(num(f.programado) > 0)) return;
-      let causa = '';
-      if(f.detenidaReal) causa = 'DETENIDA';
-      else if(!f.iniciadaReal && num(f.producido) === 0 && f.estado === 'PENDIENTE' && (f.detalle || []).every(d => d.estado === 'PENDIENTE')) causa = 'NO_INICIADA';
-      if(causa) salida.push({linea, pendiente: true, motivo: '', descripcion: '', por: '', en: 0, id: '', causa});
+      const detalle = (f && f.detalle) || [];
+      const conPlan = !!f && (num(f.programado) > 0 || detalle.length > 0);
+      const vacio = c => ({linea, pendiente: false, motivo: '', descripcion: '', por: '', en: 0, id: '', causa: c});
+      if(!conPlan){ salida.push(vacio('SIN_PROGRAMACION')); return; }
+      if(detalle.length && detalle.every(d => d.estado === 'CANCELADA')){ salida.push(vacio('CANCELADA')); return; }
+      if(!iniciado){ salida.push(vacio('BLOQUE_NO_INICIA')); return; }
+      salida.push(Object.assign(vacio(f.detenidaReal ? 'DETENIDA' : 'SIN_PRODUCCION'), {pendiente: true}));
     });
     return salida;
   }
@@ -230,7 +238,7 @@
   }
 
   window.glacialIncidencias = {
-    COL, MOTIVOS, LINEAS, bloqueDe, idDe, puedeVer, puedeInformar, escuchar, detener, alCambiar, estado, doc, lista,
+    COL, MOTIVOS, LINEAS, bloqueDe, idDe, puedeVer, puedeInformar, escuchar, detener, alCambiar, estado, doc, lista, enProduccion,
     registrar, resolverPorEvento, sinProduccion, abrirFormulario, validar
   };
 })();

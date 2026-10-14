@@ -121,7 +121,8 @@ ok(l.ratio===null&&l.ratioDisponible===false&&l.minutosEfectivos===0,'tiempo efe
 ok(sb.avRatioTexto(l.ratio,'B/H',l.ratioDisponible)==='—','y se muestra «—»');
 sb=entorno({programaciones:[prog('PET2',ms(7))],paletas:[]});
 sb.setOperativas([]);
-l=sb.avLineaSnapshot('PET2','17:21','AVANCE');
+ok(sb.avLineaSnapshot('PET2','17:21','AVANCE')===null,'Avance: una línea iniciada con 0 unidades no aparece (solo líneas en producción)');
+l=sb.avLineaSnapshot('PET2','17:21','CIERRE');
 ok(l&&l.ratio===0&&l.ratioDisponible===true&&sb.avRatioTexto(l.ratio,'B/H',l.ratioDisponible)==='0 B/H','producción 0 con tiempo efectivo positivo: ratio 0 (distinto de «no disponible»)');
 sb=entorno({programaciones:[{linea:'PET2',fecha:FECHA,turno:'DÍA',marca:'Scala',presentacion:'1.5 L',cantidadProgramada:100,estadoOperacion:{}}],paletas:[palet('PET2',5000)]});
 sb.setOperativas([]);

@@ -3347,6 +3347,12 @@ function renderProduccionActualResultados(){
 
       hayFilas = true;
 
+      // Sin fila de programación en el bloque (Día + Intermedio comparten la de Día): producción fuera de programación, no avance de otra marca.
+      const bloquesConsulta = turnos.some(t => t === 'DÍA' || t === 'INTERMEDIO')
+        ? [...new Set([...turnos, 'DÍA', 'INTERMEDIO'])] : turnos;
+      const fueraDePlan = r.unidadesProducidas > 0 && !r.cantidadProgramada &&
+        !bloquesConsulta.some(t => obtenerProgramacionPaleta(line.key, fecha, t, combo.marca, combo.presentacion));
+
       const estadoSemaforo =
         estadoSemaforoProduccion(
           r.cantidadProgramada, r.porcentajeAvance, r.sobreproduccion
@@ -3364,7 +3370,7 @@ function renderProduccionActualResultados(){
             ${r.paletasIncompletasCount ? ' + ' + r.unidadesIncompletas.toLocaleString('es-PE') + ' und. incompleta' : ''}
           </td>
           <td>${r.unidadesPendientes.toLocaleString('es-PE')}</td>
-          <td>${r.cantidadProgramada ? r.porcentajeAvance.toFixed(1) + '%' : '—'}</td>
+          <td>${r.cantidadProgramada ? r.porcentajeAvance.toFixed(1) + '%' : (fueraDePlan ? 'Fuera de programación' : '—')}</td>
           <td>${renderSemaforoDot(estadoSemaforo)}</td>
         </tr>
       `;
@@ -3677,7 +3683,8 @@ function renderProduccionActualTab(){
      POR TURNO, y los turnos del bloque se suman (Día e Intermedio acumulan por separado). Es la misma regla del semáforo
      (resumenProgramacionCombinacionTurnos): Avance/Cierre y Producción Actual la leen de aquí.
      corteMs: se descartan los registros posteriores (por su hora; sin hora, por su creación). Nunca suma Paletas con
-     Producción Efectiva: esa política de fuente la decide quien llama. */
+     Producción Efectiva: esa política de fuente la decide quien llama.
+     desdeMs (opcional): se descartan también los ANTERIORES al inicio del turno (registros de otro turno guardados con este turno). */
   function msRegistroPaleta(r, fecha, turno){
     if(/^\d{1,2}:\d{2}$/.test(String(r.hora || ''))){
       const d = new Date(fecha + 'T' + String(r.hora).padStart(5,'0') + ':00');
@@ -3686,12 +3693,13 @@ function renderProduccionActualTab(){
     }
     return Number(r.creadoEn || r.actualizadoEn) || 0;
   }
-  window.glacialProduccionPaletasAlCorte = function(linea, fecha, turnos, marca, presentacion, corteMs){
+  window.glacialProduccionPaletasAlCorte = function(linea, fecha, turnos, marca, presentacion, corteMs, desdeMs){
     let completas = 0, saldo = 0, registros = 0;
     (Array.isArray(turnos) ? turnos : [turnos]).forEach(turno => {
       const combinacion = claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
       let regs = loadPaletas().filter(r => esCombinacionPaletas(r, combinacion));
       if(corteMs) regs = regs.filter(r => { const ms = msRegistroPaleta(r, fecha, turno); return !ms || ms <= corteMs; });
+      if(desdeMs) regs = regs.filter(r => { const ms = msRegistroPaleta(r, fecha, turno); return !ms || ms >= desdeMs; });
       if(!regs.length) return;
       registros += regs.length;
       const u = ultimoEstado(regs);

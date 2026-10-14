@@ -52,16 +52,7 @@
 
   /* Personal disponible: asistentes de Producción del Tareo del mismo bloque (solo para comprobar; null si no hay Tareo). */
   function disponibles(){
-    try{
-      const turnos=E.bloque==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO'];
-      const ts=(typeof obtenerTareos==='function'?obtenerTareos():[]).filter(t=>t&&t.fecha===E.fecha&&turnos.includes(String(t.turno||'').toUpperCase())&&
-        (typeof tareoAreaDe==='function'?tareoAreaDe(t)==='Producción':true));
-      if(!ts.length)return null;
-      const validos=new Set(['ASISTIO','ASISTIÓ','TARDANZA','FERIADO TRABAJADO','COMISION/TRABAJO EXTERNO','COMISIÓN/TRABAJO EXTERNO']);
-      const vistos=new Set();
-      ts.forEach(t=>(t.personal||[]).forEach(p=>{if(p&&validos.has(String(p.asistencia||'').toUpperCase()))vistos.add(String(p.trabajadorId||p.nombre||'').trim().toLowerCase());}));
-      return vistos.size;
-    }catch(_){return null;}
+    try{return D().disponiblesTareo(typeof obtenerTareos==='function'?obtenerTareos():[],E.fecha,E.bloque);}catch(_){return null;}
   }
 
   /* ---------- formulario ---------- */

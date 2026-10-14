@@ -671,6 +671,18 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Tareo en un documento por tareo (TAREO_POR_DOCUMENTO en js/nucleo/01-config.js; js/personal/13n-tareo-nube.js).
+    //  - Leen los mismos que leen sync/tareos: todo usuario con sesión (incluida la cuenta compartida de Mantenimiento).
+    //  - Escriben los mismos que escriben sync/tareos: con sesión, sin modo solo consulta y no la cuenta compartida. El control por área
+    //    (Producción / Mantenimiento) sigue en la aplicación, igual que hoy con sync/tareos.
+    //  - El id del documento es el id del tareo. No se borra: eliminar deja eliminado:true con sus datos (se puede recuperar).
+    match /tareos/{id} {
+      allow read: if autenticado();
+      allow create, update: if autenticado() && !esMantCompartido() && !soloVista()
+        && request.resource.data.id == id;
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
