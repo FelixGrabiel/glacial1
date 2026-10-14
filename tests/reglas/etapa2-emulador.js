@@ -7,7 +7,7 @@
 const fs=require('fs'),path=require('path');
 const req=m=>require(require.resolve(m,{paths:[process.cwd()]}));
 const {initializeTestEnvironment,assertSucceeds,assertFails}=req('@firebase/rules-unit-testing');
-const {doc,getDoc,setDoc,updateDoc,serverTimestamp}=req('firebase/firestore');
+const {doc,getDoc,setDoc,updateDoc,deleteDoc,serverTimestamp}=req('firebase/firestore');
 
 const REGLAS=fs.readFileSync(path.resolve(__dirname,'..','..','firestore.rules.etapa2.txt'),'utf8');
 const [host,port]=(process.env.FIRESTORE_EMULATOR_HOST||'127.0.0.1:8080').split(':');
@@ -94,6 +94,15 @@ async function caso(texto,promesa){
     version:1,historial:[{v:1}],actualizadaUid:uid,actualizadaEn:serverTimestamp()});
   await caso('reclasificacionesParada: Supervisor de Mantenimiento crea',assertSucceeds(setDoc(doc(como('supMtto'),'reclasificacionesParada/r1'),recl('supMtto'))));
   await caso('reclasificacionesParada: la cuenta compartida NO',assertFails(setDoc(doc(como('mant'),'reclasificacionesParada/r2'),Object.assign(recl('mant'),{id:'r2'}))));
+
+  // Tareo por documento (Fase 2: TAREO_POR_DOCUMENTO)
+  const tar=id=>({id,area:'Producción',fecha:'2026-10-14',turno:'Día',personal:[{trabajadorId:'T1',asistencia:'Asistió'}],actualizadoEn:1});
+  await caso('tareos/{id}: el Supervisor crea su tareo con id coherente',assertSucceeds(setDoc(doc(como('sup'),'tareos/t1'),tar('t1'))));
+  await caso('tareos/{id}: NO con un id distinto al del documento',assertFails(setDoc(doc(como('sup'),'tareos/t2'),tar('otro'))));
+  await caso('tareos/{id}: la cuenta de solo consulta NO escribe',assertFails(setDoc(doc(como('vista'),'tareos/t3'),tar('t3'))));
+  await caso('tareos/{id}: la cuenta compartida de Mantenimiento lee pero NO escribe',Promise.all([assertSucceeds(getDoc(doc(como('mant'),'tareos/t1'))),assertFails(setDoc(doc(como('mant'),'tareos/t1'),tar('t1')))]));
+  await caso('tareos/{id}: sin sesión no se lee',assertFails(getDoc(doc(como(null),'tareos/t1'))));
+  await caso('tareos/{id}: nadie lo borra (eliminar deja eliminado:true)',assertFails(deleteDoc(doc(como('admin'),'tareos/t1'))));
 
   // Economía y cierre general
   await caso('configEconomica (versión anterior): nadie la escribe',assertFails(setDoc(doc(como('gerente'),'configEconomica/margenes'),{x:1})));

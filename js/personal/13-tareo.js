@@ -1032,6 +1032,8 @@ function tareoFusionar(remoto, local) {
         Number(local.actualizadoEn || 0) >=
         Number(remoto.actualizadoEn || 0);
 
+    if (local && local._rondaReintento !== undefined) { local = Object.assign({}, local); delete local._rondaReintento; }
+
     const base = localMasNuevo ? local : remoto;
     const otro = localMasNuevo ? remoto : local;
 
@@ -1242,8 +1244,6 @@ function tareoGuardarEnNube(tareo) {
         if (window._tareoGuardandoOperacion) return;
     }
 
-    const referencia = db.collection('sync').doc('tareos');
-
     /*
        Se congela exactamente el cambio solicitado en este instante.
        La fusión con la versión más reciente se hace dentro de la
@@ -1256,31 +1256,12 @@ function tareoGuardarEnNube(tareo) {
 
     window._tareoEscriturasPendientes++;
 
+    // Solo se lee y se escribe ESTE tareo (13n-tareo-nube.js): en sync/tareos o, con TAREO_POR_DOCUMENTO, en tareos/{id}.
     const ejecutarGuardado = () =>
-        db.runTransaction(async transaccion => {
-
-            const snap = await transaccion.get(referencia);
-
-            const items =
-                (snap.exists && Array.isArray(snap.data().items))
-                    ? snap.data().items.slice()
-                    : [];
-
-            const indice = items.findIndex(
-                item => item.id === copia.id
-            );
-
-            if (indice >= 0) {
-                items[indice] = tareoFusionar(items[indice], copia);
-            } else {
-                items.push(copia);
-            }
-
-            transaccion.set(referencia, {
-                items,
-                updatedAt: Date.now()
-            });
-        });
+        window.TareoNube.modificar([copia.id], ctx => {
+            const actual = ctx.obtener(copia.id);
+            ctx.guardar(actual ? tareoFusionar(actual, copia) : copia);
+        }, { etiqueta: 'tareo ' + copia.id });
 
     /*
        IMPORTANTE: no se ejecutan dos transacciones de Tareo de este
@@ -1293,18 +1274,37 @@ function tareoGuardarEnNube(tareo) {
 
     window._tareoColaGuardado = operacion;
 
+    let conservar = false;
+
     operacion
     .catch(error => {
 
-        if (typeof _avisarErrorGuardado === 'function') {
-            _avisarErrorGuardado('tareo', error);
-        } else {
-            console.error('TAREO: error guardando', error);
+        const c = window.TareoNube.clasificarError(error);
+
+        console.error('TAREO: error guardando (' + c.tipo + '): ' + c.tecnico, error);
+
+        // Conflicto, sin conexión o fallo temporal: el cambio NO se descarta. Sigue aplicado en pantalla (reconciliación) y se
+        // reintenta solo (hasta 3 rondas más, al volver la conexión o a los 20 s). Permisos/tamaño: se avisa y no se reintenta.
+        const ronda = Number(copia._rondaReintento || 0);
+
+        if (c.reintentable && ronda < 3) {
+
+            conservar = true;
+
+            tareoReintentarCopia(copia, ronda + 1);
+        }
+
+        // Mientras se reintenta solo, no se interrumpe con alertas (el detalle queda en la consola). Se avisa si no se reintentará
+        // (permisos, tamaño, validación) o cuando ya no quedan rondas.
+        if (!conservar) {
+
+            alert('No se pudo guardar el tareo en la nube.\n\n' + c.mensaje +
+                (c.reintentable ? '\n\nNo se logró tras varios intentos: no cierres la página y vuelve a intentarlo.' : ''));
         }
     })
     .finally(() => {
 
-        if (window.TareoEd) window.TareoEd.legacyTerminar(copia);
+        if (window.TareoEd && !conservar) window.TareoEd.legacyTerminar(copia);
 
         window._tareoEscriturasPendientes--;
 
@@ -1315,6 +1315,34 @@ function tareoGuardarEnNube(tareo) {
             tareoRefrescarFormularioRemoto();
         }
     });
+}
+
+/* Reintento de un guardado de tareo completo que falló por conflicto, conexión o fallo temporal: al volver la conexión o a los 20 s,
+   sobre la versión más reciente (la fusión campo a campo evita duplicar o pisar lo de otros). */
+function tareoReintentarCopia(copia, ronda) {
+
+    let hecho = false;
+
+    const lanzar = () => {
+
+        if (hecho) return;
+
+        hecho = true;
+
+        if (typeof window.removeEventListener === 'function') window.removeEventListener('online', lanzar);
+
+        if (window.TareoEd) window.TareoEd.legacyTerminar(copia);
+
+        const nueva = JSON.parse(JSON.stringify(copia));
+
+        nueva._rondaReintento = ronda;
+
+        tareoGuardarEnNube(nueva);
+    };
+
+    if (typeof window.addEventListener === 'function') window.addEventListener('online', lanzar);
+
+    setTimeout(lanzar, 20000);
 }
 
 
@@ -3602,7 +3630,12 @@ function tareoMotivoSinPersonalMantenimiento(fecha, turno) {
 }
 
 
+const tareoMaquinistasSincronizados = new Set();
+
 function tareoAbrir(area, fecha, turno) {
+
+    // Al abrir de nuevo un tareo, sus maquinistas se vuelven a sincronizar una vez.
+    tareoMaquinistasSincronizados.clear();
 
     // Al abrir un tareo el orden por asistencia se calcula de nuevo (dentro de la sesión de edición queda fijo).
     if (window.TareoEd) window.TareoEd.resetVista();
@@ -3777,8 +3810,14 @@ function renderTareoFormulario(tareo) {
 
     const area = tareoAreaDe(tareo);
 
-    // Maquinistas según la rotación de maquinistas (bloque aparte).
-    tareoSincronizarMaquinistas(tareo);
+    // Maquinistas según la rotación de maquinistas (bloque aparte): una vez por apertura del tareo, no en cada redibujado
+    // (antes cada actualización recibida podía disparar una escritura en todos los equipos con el tareo abierto).
+    if (!tareoMaquinistasSincronizados.has(tareo.id)) {
+
+        tareoMaquinistasSincronizados.add(tareo.id);
+
+        tareoSincronizarMaquinistas(tareo);
+    }
 
     const maqCtx = tareoMaquinistasContexto(tareo);
 
@@ -4604,27 +4643,19 @@ async function tareoGuardarSalidaMaquinista(tareoId, clave) {
     }
 
     if (typeof db === 'undefined' || typeof db.runTransaction !== 'function') {
-        alert('Sin conexión con la nube. No se pudo guardar.');
+        alert(window.TareoNube ? window.TareoNube.MENSAJES.sin_conexion : 'Sin conexión con la nube. No se pudo guardar.');
         return;
     }
 
-    const referencia = db.collection('sync').doc('tareos');
-
     try {
 
-        const actualizado = await db.runTransaction(async transaccion => {
+        const actualizado = await window.TareoNube.modificar([tareoId], ctx => {
 
-            const snap = await transaccion.get(referencia);
+            const original = ctx.obtener(tareoId);
 
-            const items = snap.exists && Array.isArray(snap.data().items)
-                ? snap.data().items.slice()
-                : [];
+            if (!original) throw new Error('No se encontró el tareo.');
 
-            const i = items.findIndex(t => t.id === tareoId);
-
-            if (i < 0) throw new Error('No se encontró el tareo.');
-
-            const tareo = JSON.parse(JSON.stringify(items[i]));
+            const tareo = JSON.parse(JSON.stringify(original));
 
             const persona = (tareo.personal || []).find(
                 p => tareoClavePersona(p) === String(clave)
@@ -4665,12 +4696,10 @@ async function tareoGuardarSalidaMaquinista(tareoId, clave) {
 
             tareo.actualizadoEn = ahora;
 
-            items[i] = tareo;
-
-            transaccion.set(referencia, { items, updatedAt: ahora });
+            ctx.guardar(tareo);
 
             return tareo;
-        });
+        }, { etiqueta: 'salida de maquinista' });
 
         // Reflejo inmediato local (el listener en tiempo real lo confirmará).
         const cache = loadTareos();
@@ -4690,7 +4719,11 @@ async function tareoGuardarSalidaMaquinista(tareoId, clave) {
 
     } catch (error) {
 
-        alert('No se pudo guardar: ' + (error && error.message ? error.message : error));
+        const c = window.TareoNube.clasificarError(error);
+
+        console.error('TAREO: salida de maquinista (' + c.tipo + '): ' + c.tecnico);
+
+        alert('No se pudo guardar: ' + (c.tipo === 'validacion' ? (error && error.message ? error.message : error) : c.mensaje));
     }
 }
 
@@ -5634,6 +5667,9 @@ function tareoEditarPersona(clave, cambiar) {
 
     const antes = Ed.captura(persona);
 
+    // Hora de cada campo antes de editar: si otro equipo cambia el mismo campo mientras tanto, se detecta como conflicto al guardar.
+    const antesTs = typeof Ed.capturaTs === 'function' ? Ed.capturaTs(persona) : null;
+
     cambiar(persona, tareo);
 
     // Solo lo que cambió de verdad: si el usuario canceló una corrección no queda nada a medias (asistencia, autor o fechas).
@@ -5652,7 +5688,7 @@ function tareoEditarPersona(clave, cambiar) {
 
     recalcularPersonaTareo(persona, tareo);
 
-    Ed.registrarOp(tareo, persona, campos, ts, clave);
+    Ed.registrarOp(tareo, persona, campos, ts, clave, antesTs ? { valores: antes, ts: antesTs } : null);
 
     // No se reordena ni se reconstruye la tabla: el orden se aplica con una acción explícita.
     window._tareoGuardandoOperacion = true;
@@ -6685,11 +6721,28 @@ async function eliminarTareo(id) {
         return;
     }
 
-    guardarTareos(
-        obtenerTareos().filter(
-            item => item.id !== id
-        )
-    );
+    try {
+
+        await window.TareoNube.modificar([id], ctx => {
+            ctx.eliminar(id, (state.user && (state.user.username || state.user.nombre)) || '');
+        }, { etiqueta: 'eliminar tareo' });
+
+    } catch (error) {
+
+        const c = window.TareoNube.clasificarError(error);
+
+        console.error('TAREO: eliminar (' + c.tipo + '): ' + c.tecnico);
+
+        alert('No se pudo eliminar el tareo.\n\n' + c.mensaje);
+
+        return;
+    }
+
+    // Reflejo inmediato local (el listener lo confirmará).
+    const cache = loadTareos();
+    const k = Array.isArray(cache) ? cache.findIndex(t => t && t.id === id) : -1;
+
+    if (k >= 0) cache.splice(k, 1);
 
     if (tareoActualId === id) {
         tareoActualId = null;
