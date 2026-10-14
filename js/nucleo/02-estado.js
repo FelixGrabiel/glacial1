@@ -105,13 +105,19 @@ function _avisarErrorGuardado(nombreDato, error){
     error
   );
 
+  // Mensaje según el tipo real de error (13n-tareo-nube.js · clasificarError): antes se decía «falta permiso o internet» para todo,
+  // incluso para un conflicto de versiones entre dos equipos.
+  const c = window.TareoNube ? window.TareoNube.clasificarError(error) : null;
+  const explicacion = !c ? 'Revisa la conexión a internet y los permisos de tu usuario.'
+    : c.tipo === 'conflicto' ? 'Otro equipo cambió estos datos al mismo tiempo. Vuelve a intentarlo: los datos se actualizarán.'
+    : c.tipo === 'permisos' ? 'Tu usuario no tiene permiso para guardar estos datos (reglas de Firestore).'
+    : c.tipo === 'sin_conexion' ? 'Sin conexión a internet.'
+    : c.tipo === 'tamano' ? 'El documento superó el tamaño máximo que admite Firestore.'
+    : 'No fue posible sincronizar ahora.';
   alert(
-    'No se pudo guardar "' + nombreDato + '" en la nube.\n\n' +
-    'Motivo: ' + (error && error.message ? error.message : error) + '\n\n' +
-    'Es probable que falte permiso en las reglas de Firestore ' +
-    '(revisa 01-config.js) o que no haya conexión a internet.\n\n' +
-    'Lo que acabas de hacer solo quedó guardado en ESTA computadora ' +
-    'y se perderá si recargas la página o la abres desde otro equipo.'
+    'No se pudo guardar "' + nombreDato + '" en la nube.\n\n' + explicacion + '\n\n' +
+    'Lo que acabas de hacer todavía no está en la nube: no recargues la página antes de reintentarlo.\n\n' +
+    'Detalle técnico: ' + (error && error.message ? error.message : error)
   );
 
 }
@@ -824,22 +830,31 @@ function initRealtimeSync(){
      arreglo completo de tareos.
   */
 
+  // Con TAREO_POR_DOCUMENTO (01-config.js) cada tareo vive en tareos/{id}: se leen ambas fuentes y se combinan
+  // (13n-tareo-nube.js · combinar): sync/tareos queda como historial de solo lectura durante la transición.
+  let _tareosLegado = null, _tareosDocs = null;
+  const _tareosPorDocumento = !!window.TAREO_POR_DOCUMENTO;
+  const _tareosPublicar = () => {
+    if(_tareosLegado === null || (_tareosPorDocumento && _tareosDocs === null)) return;     // se espera a tener las dos fuentes
+    const combinados = (_tareosPorDocumento && window.TareoNube)
+      ? window.TareoNube.combinar(_tareosLegado, _tareosDocs)
+      : _tareosLegado;
+    // Lo recibido se reconcilia con las ediciones propias todavía no confirmadas (45-tareo-edicion-continua.js):
+    // reemplazar el caché a ciegas revertía marcaciones recién hechas y hacía que el formulario se reiniciara.
+    _tareosCache = window.TareoEd ? window.TareoEd.reconciliar(combinados) : combinados;
+    _tareosReady = true;
+    onTareosUpdated();
+  };
+
   _desuscribirSync.push(db.collection('sync').doc('tareos')
 
     .onSnapshot(
 
       snap => {
 
-        // Lo recibido se reconcilia con las ediciones propias todavía no confirmadas (45-tareo-edicion-continua.js):
-        // reemplazar el caché a ciegas revertía marcaciones recién hechas y hacía que el formulario se reiniciara.
-        _tareosCache =
-          (snap.exists && snap.data().items)
-            ? (window.TareoEd ? window.TareoEd.reconciliar(snap.data().items) : snap.data().items)
-            : (window.TareoEd ? window.TareoEd.reconciliar([]) : []);
+        _tareosLegado = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
 
-        _tareosReady = true;
-
-        onTareosUpdated();
+        _tareosPublicar();
 
       },
 
@@ -852,6 +867,32 @@ function initRealtimeSync(){
       }
 
     ));
+
+  if(_tareosPorDocumento){
+
+    _desuscribirSync.push(db.collection('tareos')
+
+      .onSnapshot(
+
+        q => {
+
+          _tareosDocs = q.docs.map(d => ({ id: d.id, data: d.data() }));
+
+          _tareosPublicar();
+
+        },
+
+        err => {
+
+          console.error(
+            'Error de sincronización (tareos por documento). ¿Se publicaron las reglas con match /tareos/{id}?', err
+          );
+
+        }
+
+      ));
+
+  }
 
 
   // Planificación: catálogo y solicitudes (51-planificacion-nucleo.js). Se cierran con glacialCierresSesion.
