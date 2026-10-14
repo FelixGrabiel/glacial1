@@ -35,6 +35,6 @@ ok(canc.total.programado===10,'las canceladas no suman al programado');
 /* Conexión con las pantallas */
 const s24=fs.readFileSync(R+'/js/produccion/24-semaforo-produccion-actual.js','utf8'),s32=fs.readFileSync(R+'/js/accesos/32-dashboard-perfiles.js','utf8');
 ok(/fila\.desglose=GlacialIndicadores\.desgloseLineaPorMarca\(/.test(s24)&&/estadoLineaDesdeItems\(claves\)/.test(s24),'resumen ejecutivo: agrega desglose y conserva estado con estadoLineaDesdeItems');
-ok(/Total línea \(\$\{g\.total\.marcas\} marca/.test(s32)&&/quedó detenida/.test(s32)&&/finalízala o reanúdala/.test(s32),'Inicio: total rotulado y aviso de marca detenida');
-ok(/MARCA EN CURSO/.test(s24)&&/Total línea \(/.test(s24)&&/finalízala o reanúdala/.test(s24),'tablero de Producción Actual: marca en curso y aviso');
+ok(/Total del plan \(\$\{g\.total\.marcas\} marca/.test(s32)&&/quedó detenida/.test(s32)&&/finalízala o reanúdala/.test(s32),'Inicio: total rotulado y aviso de marca detenida');
+ok(/MARCA EN CURSO/.test(s24)&&/Total del plan \(/.test(s24)&&/finalízala o reanúdala/.test(s24),'tablero de Producción Actual: marca en curso y aviso');
 console.log(fallas?fallas+' fallas':'todo correcto');

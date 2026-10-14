@@ -3296,6 +3296,12 @@ function renderProduccionActualResultados(){
 
       hayFilas = true;
 
+      // Sin fila de programación en el bloque (Día + Intermedio comparten la de Día): producción fuera de programación, no avance de otra marca.
+      const bloquesConsulta = turnos.some(t => t === 'DÍA' || t === 'INTERMEDIO')
+        ? [...new Set([...turnos, 'DÍA', 'INTERMEDIO'])] : turnos;
+      const fueraDePlan = r.unidadesProducidas > 0 && !r.cantidadProgramada &&
+        !bloquesConsulta.some(t => obtenerProgramacionPaleta(line.key, fecha, t, combo.marca, combo.presentacion));
+
       const estadoSemaforo =
         estadoSemaforoProduccion(
           r.cantidadProgramada, r.porcentajeAvance, r.sobreproduccion
@@ -3313,7 +3319,7 @@ function renderProduccionActualResultados(){
             ${r.paletasIncompletasCount ? ' + ' + r.unidadesIncompletas.toLocaleString('es-PE') + ' und. incompleta' : ''}
           </td>
           <td>${r.unidadesPendientes.toLocaleString('es-PE')}</td>
-          <td>${r.cantidadProgramada ? r.porcentajeAvance.toFixed(1) + '%' : '—'}</td>
+          <td>${r.cantidadProgramada ? r.porcentajeAvance.toFixed(1) + '%' : (fueraDePlan ? 'Fuera de programación' : '—')}</td>
           <td>${renderSemaforoDot(estadoSemaforo)}</td>
         </tr>
       `;

@@ -184,6 +184,24 @@ $faltan = $rutas | Where-Object { -not (Test-Path $_) }
 if ($faltan) { "FALTAN:"; $faltan } else { "OK: $($rutas.Count) scripts existen en disco" }
 ```
 
+## Correr las pruebas
+
+```
+node tests/correr-todo.js              # todas (tests/*.test.js)
+node tests/correr-todo.js tareo plan   # solo las que contienen esas palabras
+```
+
+Resume cuántas pasaron, muestra el detalle solo de las que fallan y sale con código 1 si alguna falla.
+
+Reglas de Firestore (etapa 2) en el emulador, sin tocar ningún proyecto real. Necesita Java; se corre aparte porque usa dependencias de npm:
+
+```
+npm i firebase-tools@13 @firebase/rules-unit-testing@3 firebase@10        # en una carpeta temporal
+npx firebase emulators:exec --only firestore --project demo-glacial "node <ruta-del-repo>/tests/reglas/etapa2-emulador.js"
+```
+
+Comprueba 35 casos por rol: login, perfiles, cuenta compartida de Mantenimiento, bitácora, Planificación, corrección y reclasificación de paradas, economía y la denegación general.
+
 ## Entornos (PRODUCCIÓN y PRUEBAS)
 
 `js/nucleo/01-config.js` guarda las dos configuraciones de Firebase y elige sola:
@@ -224,6 +242,8 @@ Reportes · Parte A (Resumen general): js/produccion/49-resumen-indicadores.js a
 Reportes · Parte B (Impacto económico): js/produccion/50-impacto-economico.js reemplaza el contenido de la pantalla «Impacto Económico» (renderPerdidasSoles; la vista anterior con precio por línea se retiró). Cascada: producción potencial, pérdida por paradas no programadas, por velocidad reducida y por mermas, en unidades y en soles; el incumplimiento del plan se muestra aparte (no se suma). Margen por producto y costo por componente con fecha de vigencia (se conserva el anterior); meta máxima de pérdida mensual. Colección nueva configEconomica (documentos margenes, costos y general), siempre por campos con merge. Permiso: el mismo perdidasSoles (reglas etapa 2: puedeVerImpacto). Pareto en soles por motivo, línea y turno, cinco eventos más caros, acumulado/proyección/mes anterior, supuestos y Excel. Motivos: los del sistema cuando coinciden con el registro (±2 %); si no, texto del registro marcado «clasificación estimada». recolectar() de 49 acepta {linea, motivosSistema}.
 
 Información económica (protegida por rol): ver docs/ECONOMICO-SEGURIDAD.md. Valores unitarios en la colección valoresUnitarios (solo Gerencia lee/escribe) con historial valoresUnitariosHistorial; resultados en soles agregados en resultadosEconomicos (Gerencia escribe; Gerencia y Jefatura leen). sync/precios y configEconomica quedaron cerrados y se borran tras migrar. Los precios ya no se escriben en el código.
+
+Producción fuera de programación: Producción Actual, Inicio y los resúmenes en vivo separan las marcas con paletas pero sin fila de programación en el bloque. Esas marcas no entran a la secuencia, al estado ni al cumplimiento del plan. Se muestran aparte y suman a la producción física de la línea. Función pura: GlacialIndicadores.produccionPlanYFuera (45-indicadores.js). Detalle y causa: docs/PRODUCCION-FUERA-DE-PROGRAMACION.md. Pruebas: tests/fuera-de-programacion.test.js y tests/visual/fuera-de-programacion.html (capturas en docs/capturas-fuera-programacion/).
 
 Calidad retirada: el indicador «Calidad» ya no existe en ninguna pantalla, imagen ni Excel (OEE = disponibilidad × rendimiento). Se conservan, aunque contengan la palabra: el campo «Botellas calidad» del registro (produccion.calidad), el motivo de parada «Calidad / producto no conforme», «Charla de Ingreso Sup. Calid.» y el cargo «Técnico de Calidad». Los registros ya guardados no se tocaron. Prueba: tests/sin-calidad.test.js.
 

@@ -267,6 +267,34 @@
   }
 
   /* ---------------------------------------------------------
+     PRODUCCIÓN DEL PLAN Y FUERA DE PROGRAMACIÓN (tablero «Estado de las líneas»)
+     items: [{linea,fecha,turno,marca,presentacion,enPlan,programado,producido,cancelada}] de una línea y un bloque.
+     ctx (opcional): {linea,fecha,bloque}; lo que no pertenece a ese contexto va a `ajenos` y no se cuenta.
+     · Un producto es del plan solo si tiene fila de programación del bloque (enPlan); no se agrega con programado 0.
+     · Las unidades de un producto sin plan se conservan en `fuera`: no suman al programado ni al numerador del cumplimiento.
+     · Mismo producto = línea + fecha + bloque + marca + presentación exactas (no se une por volumen ni por nombre parecido).
+       Día e Intermedio son un bloque: el mismo producto se cuenta una vez.
+     Devuelve {plan,fuera,ajenos,totales:{programado,producidoPlan,producidoFuera,producidoFisico,cumplimientoPlan}}.
+     --------------------------------------------------------- */
+  function produccionPlanYFuera(items,ctx){
+    const plan=[],fuera=[],ajenos=[],vistos=new Set();
+    (Array.isArray(items)?items:[]).filter(Boolean).forEach(x=>{
+      const bloque=claveBloque(x.turno);
+      if(ctx&&(x.linea!==ctx.linea||x.fecha!==ctx.fecha||bloque!==ctx.bloque)){ajenos.push(x);return;}
+      const k=[x.linea,x.fecha,bloque,x.marca,x.presentacion].join('|');
+      if(vistos.has(k))return;
+      vistos.add(k);
+      if(x.enPlan)plan.push(x);
+      else if(num(x.producido)>0)fuera.push(x);
+    });
+    const programado=plan.reduce((s,x)=>s+(x.cancelada?0:num(x.programado)),0);
+    const producidoPlan=plan.reduce((s,x)=>s+num(x.producido),0);
+    const producidoFuera=fuera.reduce((s,x)=>s+num(x.producido),0);
+    return {plan,fuera,ajenos,totales:{programado,producidoPlan,producidoFuera,producidoFisico:producidoPlan+producidoFuera,
+      cumplimientoPlan:cumplimiento(producidoPlan,programado)}};
+  }
+
+  /* ---------------------------------------------------------
      RESUMEN DE UN CONJUNTO DE PARTES (turno · línea · producto)
      parte = { producido, programado, programacionVigente (bool: cuenta para el cumplimiento),
                transcurridoMin | durMin, paradasProgramadasMin | progMin, paradasNoProgramadasMin | npMin,
@@ -570,7 +598,7 @@
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,
     turnoVigente,diaOperativo,horarioTurno,HORARIOS_TURNO,
     BLOQUES_INICIALES,NOMBRES_TURNO,nombreBloque,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
-    estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,desgloseLineaPorMarca,
+    estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,desgloseLineaPorMarca,produccionPlanYFuera,
     resumenIndicadores,DEFINICIONES
   });
 

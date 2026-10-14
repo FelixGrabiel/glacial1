@@ -187,6 +187,12 @@
   /* Producido vigente (módulo de indicadores): turno en curso → Paletas; turno cerrado → registro del turno.
      Si el turno cerrado no tiene registro, no se sustituye por Paletas: devuelve 0 y producidoSinRegistro(x) es true. */
   const quitarTilde=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+  // En la franja sin producción el bloque Día + Intermedio acaba de terminar: su producción sigue saliendo de Paletas
+  // (el supervisor todavía no cierra el reporte), no de «sin registro».
+  function produccionDesdePaletas(x){
+    const bl=bloqueAhora();
+    return turnoActivo(x.fecha,x.turno) || !!(bl && bl.enFranja && bl.fecha===x.fecha && GlacialIndicadores.claveBloque(x.turno)==='diaInter');
+  }
   function registroDeTurno(x){
     let recs=[];try{recs=(typeof loadRecords==='function'?loadRecords():[])||[];}catch(_){recs=[];}
     const bloque=GlacialIndicadores.claveBloque(x.turno),marca=quitarTilde(x.marca),pres=quitarTilde(x.presentacion);
@@ -205,10 +211,7 @@
   function producidoVigenteDe(x){
     const paletas=num(resumenProgramacionCombinacionTurnos(
       x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas);
-    // En la franja sin producción el bloque Día + Intermedio acaba de terminar: su producción sigue saliendo de Paletas
-    // (el supervisor todavía no cierra el reporte), no de «sin registro».
-    const bl=bloqueAhora();
-    const enCurso=turnoActivo(x.fecha,x.turno) || !!(bl && bl.enFranja && bl.fecha===x.fecha && GlacialIndicadores.claveBloque(x.turno)==='diaInter');
+    const enCurso=produccionDesdePaletas(x);
     return GlacialIndicadores.produccionVigente({turnoEnCurso:enCurso,paletas,registro:enCurso?null:registroDeTurno(x)});
   }
   const producidoSinRegistro=x=>producidoVigenteDe(x)===null;
@@ -390,14 +393,22 @@
   function estadoFila(l,f,t,m,p,ahora){
     // Fila de programación que lleva el ESTADO del bloque: la de Día si existe; si no, la de Intermedio. El programado
     // del bloque (suma de las filas) se calcula aparte con glacialProgramadoBloque. Noche tiene la suya.
-    let prog=obtenerProgramacionPaleta(l,f,t,m,p),turnoPlan=t,compartida=false;
+    let prog=obtenerProgramacionPaleta(l,f,t,m,p),turnoPlan=t,compartida=false,filaBloque=!!prog;
     if(t!=='NOCHE'){
       const dia=obtenerProgramacionPaleta(l,f,'DÍA',m,p),inter=obtenerProgramacionPaleta(l,f,'INTERMEDIO',m,p);
+      filaBloque=filaBloque || !!dia || !!inter;
       if(dia && num(dia.cantidadProgramada)>0){prog=dia;turnoPlan='DÍA';compartida=t==='INTERMEDIO';}
       else if(inter && num(inter.cantidadProgramada)>0){prog=inter;turnoPlan='INTERMEDIO';}
+      // Fila del bloque sin cantidad todavía («Completar cantidad» pendiente de cierre): la misma fila para Día y para Intermedio.
+      else if(!prog && (dia || inter)){prog=dia || inter;turnoPlan=dia ? 'DÍA' : 'INTERMEDIO';compartida=!!dia && t==='INTERMEDIO';}
     }
     const programadoBloque=typeof window.glacialProgramadoBloque==='function'
       ? window.glacialProgramadoBloque(l,f,t,{marca:m,presentacion:p}).cantidad : num(prog?.cantidadProgramada);
+    // Del plan = tiene fila de programación en el bloque (aunque sea «Completar cantidad» con saldo por calcular). Sin fila, sus unidades son
+    // PRODUCCIÓN FUERA DE PROGRAMACIÓN: se muestran aparte y no entran a la secuencia, al estado ni al cumplimiento del plan.
+    // Día e Intermedio son un bloque: la fila fuera del plan usa la clave de Día para no contarse dos veces al consultar ambos turnos.
+    const fueraPlan=!filaBloque && !(num(programadoBloque)>0);
+    if(fueraPlan && t!=='NOCHE')turnoPlan='DÍA';
     const r=resumenProgramacionCombinacionTurnos(l,f,[t],m,p);
     const op=prog?.estadoOperacion;
     const actual=num(r.unidadesProducidas);
@@ -433,7 +444,7 @@
       // se evalúa a nivel de línea con el ratio de las paradas oficiales.
       nivel='naranja';texto='Avanzando';
     }
-    return {linea:l,fecha:f,turno:t,turnoPlan,compartida,programadoBloque,
+    return {linea:l,fecha:f,turno:t,turnoPlan,compartida,programadoBloque,fueraPlan,
       marca:m,presentacion:p,prog,op,
       nivel,texto,horas,ratio,esperado,real:desdeInicio,vivo,
       puede:quienControla(l)};
@@ -724,8 +735,14 @@
           if(!anterior || x.turno==='INTERMEDIO' ||
              (x.vivo && !anterior.vivo))unicos.set(k,x);
         });
-        const items=[...unicos.values()];
-  
+        // Solo los productos del plan forman la secuencia, el estado y el cumplimiento. Lo producido sin programación se conserva aparte
+        // (GlacialIndicadores.produccionPlanYFuera): no se atribuye a otra marca ni se crea una programación ficticia con cero.
+        const separado=GlacialIndicadores.produccionPlanYFuera([...unicos.values()].map(x=>({
+          linea:x.linea,fecha:x.fecha,turno:x.turnoPlan || x.turno,marca:x.marca,presentacion:x.presentacion,
+          enPlan:!x.fueraPlan,cancelada:x.op?.estado==='CANCELADA',programado:progDe(x),producido:producidoDe(x),fila:x})));
+        const items=separado.plan.map(s=>s.fila);
+        const fueraPlan=separado.fuera.map(s=>({...s.fila,producidoFuera:s.producido}));
+
         // Recalcular el estado visual en cada render. Un producto FINALIZADO
         // nunca debe volver a EN CURSO solo porque tenga registros de paletas.
         items.forEach(x=>{ delete x.estadoVisual; });
@@ -737,7 +754,7 @@
         );
   
         // * 'vacios' llega filtrado por bloque operativo desde construirGrupoTurno().
-        if(!items.length && !vacios.length)return null;
+        if(!items.length && !vacios.length && !fueraPlan.length)return null;
         const detenidos=items.filter(x=>x.op?.estado==='DETENIDA');
         const pausas=items.filter(x=>x.op?.estado==='PAUSA');
         const activosGuardados=items.filter(x=>x.op?.estado==='EN_PRODUCCION');
@@ -767,9 +784,17 @@
         const nivel=window.glacialEstadosVisuales.nivelDeEstadoLinea(estadoLineaGrupo);
         const texto=({DETENIDA:'Línea detenida',EN_CURSO:'En curso',PAUSA:'Pausa programada',CANCELADA:'CANCELADA',COMPLETADA:'FINALIZADA'})[estadoLineaGrupo]||
           (estadoLineaGrupo==='PENDIENTE'&&hayCompletada?'Pendiente':'Sin iniciar');
-        const turnosLinea=[...new Set([...items,...vacios].map(x=>x.turno))];
-        const totalProg=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:progDe(x)),0);
-        const totalProd=items.reduce((s,x)=>s+producidoDe(x),0);
+        const turnosLinea=[...new Set([...items,...vacios,...fueraPlan].map(x=>x.turno))];
+        // totalProd = producción del PLAN (numerador del cumplimiento); totalFisico = lo que realmente salió de la línea (plan + fuera del plan).
+        const totalProg=separado.totales.programado;
+        const totalProd=separado.totales.producidoPlan;
+        const totalFuera=separado.totales.producidoFuera;
+        const totalFisico=separado.totales.producidoFisico;
+        // Avance frente al estimado: «Todo el turno», «Tiempo restante» y «Hasta una hora» no son pedidos firmes.
+        const esEstimado=x=>!!(window.glacialPlanificacion?.modos?.esTemporal && window.glacialPlanificacion.modos.esTemporal(x.prog));
+        const vigentes=items.filter(x=>x.op?.estado!=='CANCELADA');
+        const soloEstimado=vigentes.length>0 && vigentes.every(esEstimado);
+        const conEstimado=vigentes.some(esEstimado);
   
         // PRODUCCIÓN TOTAL POR PRESENTACIÓN
         // ---------------------------------------------------------
@@ -915,7 +940,11 @@
         // Considera SOLO las paradas oficiales del supervisor (Avance/Cierre); DETENER LÍNEA y PAUSA PROGRAMADA son estado, no parada.
         const turnoCalculo=items[0]?.turno || turnoFallback;
         const tiempos=calcularTiemposLinea(line.key,turnoCalculo,fecha,{ahora});
-        const ratios=calcularRatiosLinea(tiempos,{produccion:totalProd,programado:totalProg,ahora});
+        // Ratio y rendimiento miden la LÍNEA (unidades físicas, incluida la producción fuera del plan; sin productos fuera del plan es lo mismo de
+        // siempre). El ratio necesario, el desempeño y la proyección miden el PLAN: lo producido fuera del plan no cubre el pendiente de otra marca.
+        const ratiosPlan=calcularRatiosLinea(tiempos,{produccion:totalProd,programado:totalProg,ahora});
+        const ratiosFisicos=totalFuera>0 ? calcularRatiosLinea(tiempos,{produccion:totalFisico,programado:totalProg,ahora}) : ratiosPlan;
+        const ratios={...ratiosPlan,ratioTurno:ratiosFisicos.ratioTurno,ratioEfectivo:ratiosFisicos.ratioEfectivo};
         // Paradas oficiales (programadas + no programadas) y horas efectivas del turno con ellas.
         const paradaMs=tiempos.ok ? (tiempos.minParadasNoProgramadas+tiempos.minPausasProgramadas)*60000 : 0;
         const horasEfectivasTurno=Math.max(0,horasTurno-(paradaMs/MS_HORA));
@@ -951,6 +980,7 @@
 
         return {
           line,items,vacios,activo,nivel:enFranja ? 'gris' : nivelFinal,nivelEstado,nivelDesempeno:desempeno.nivel,texto:textoFinal,enFranja,porTurno,turnosLinea,totalProg,totalProd,desglose,
+          fueraPlan,totalFuera,totalFisico,soloEstimado,conEstimado,esEstimado,
           horasEfectivas:tiempos.ok?tiempos.tiempoOperativoMin/60:horasEfectivas,horasTurno,horasEfectivasTurno,ratioTurno,paradaMs,secuenciaActiva,
           totalesPresentacion,tiempos,ratios,desempeno,proyeccion
         };
@@ -1026,7 +1056,7 @@
         g.items.some(x=>
           ['EN_PRODUCCION','DETENIDA','PAUSA_SECUENCIA','PAUSA','LISTA']
             .includes(x.estadoVisual || x.op?.estado)
-        )
+        ) || g.fueraPlan.some(x=>x.vivo)
       );
     }
 
@@ -1051,7 +1081,7 @@
         ? window.glacialUltimoAvanceLinea(g.line.key,g.items[0]&&g.items[0].fecha,g.items[0]&&g.items[0].turno) : null;
       let extra='';
       if(u){
-        const dP=Math.round(g.totalProd-u.produccion),dT=Math.round(t.tiempoOperativoMin-u.minutosEfectivos);
+        const dP=Math.round(g.totalFisico-u.produccion),dT=Math.round(t.tiempoOperativoMin-u.minutosEfectivos);
         const sg=n=>(n>=0?'+':'')+n.toLocaleString('es-PE');
         extra='<br><em title="El avance guardado conserva sus datos de ese corte; el semáforo se calcula al momento. La diferencia se explica por la producción y el tiempo efectivo transcurridos desde entonces.">Último avance '+u.horaCorte+': '+(u.ratioDisponible&&u.ratio!=null?fmtRatio(u.ratio):'—')+' · desde entonces '+sg(dP)+' UND y '+sg(dT)+' min efectivos</em>';
       }
@@ -1170,6 +1200,7 @@
             <div class="pa-line-status">
               ${g.tiempos?.pausaSinCerrar ? `<span class="pa-chip-alerta" title="Superó la duración estándar">⚠ Pausa sin cerrar · ${esc(g.tiempos.pausaSinCerrar.motivo)} · ${Math.round(g.tiempos.pausaSinCerrar.transcurridoMin)} min (estándar ${g.tiempos.pausaSinCerrar.estandarMin})</span>` : ''}
               ${g.items.some(x=>x.op?.corregida) ? '<span class="pa-chip-corregida" title="La finalización fue corregida">Corregida</span>' : ''}
+              ${g.fueraPlan.length ? `<span class="pa-chip-fuera" title="Hay unidades de productos que no están en la planificación de este bloque">Producción fuera de programación · ${Math.round(g.totalFuera).toLocaleString('es-PE')} UND</span>` : ''}
               ${renderSemaforoWidget({nivel:g.nivel,texto:g.texto})}</div>
           </div>
 
@@ -1180,16 +1211,20 @@
             const a=g.desglose.actual;if(!a)return '';
             const f0=n=>Math.round(n).toLocaleString('es-PE');
             const aviso=g.desglose.avisos.map(v=>`<div class="pa-aviso-detenida" role="status">⚠ Marca ${esc(v.marca||'—')} quedó detenida${v.desde?' desde '+esc(hhmmBloque(v.desde)):''}: finalízala o reanúdala</div>`).join('');
+            const ax=g.items.find(x=>x.marca===a.marca && x.presentacion===a.presentacion);
+            const est=ax && g.esEstimado(ax);
             return `<div class="pa-marca-actual"><small>${g.desglose.estado==='EN_CURSO'?'MARCA EN CURSO':'MARCA ACTUAL'}</small>
               <strong>${esc(a.marca||'—')}${a.presentacion?' · '+esc(presUI(g.line.key,a.marca,a.presentacion)):''}</strong>
-              <span><b>${f0(a.producido)}</b> / ${f0(a.programado)} UND · ${a.programado>0?Math.round(a.avance)+' %':'—'}</span></div>${aviso}`;
+              <span><b>${f0(a.producido)}</b> / ${f0(a.programado)} UND${est?' estimadas':''} · ${a.programado>0?Math.round(a.avance)+' %'+(est?' del estimado':''):'—'}</span></div>${aviso}`;
           })()}
 
-          <div class="pa-total-linea">Total línea (${g.desglose.total.marcas} marca${g.desglose.total.marcas===1?'':'s'}): programado, producido y cumplimiento suman todas las marcas del bloque, no solo la actual.</div>
+          <div class="pa-total-linea">Total del plan (${g.desglose.total.marcas} marca${g.desglose.total.marcas===1?'':'s'} programada${g.desglose.total.marcas===1?'':'s'}): programado, producido y ${g.soloEstimado?'avance':'cumplimiento'} suman las marcas del plan del bloque, no solo la actual${g.fueraPlan.length?'; la producción fuera de programación se muestra aparte y no cuenta':''}.${g.conEstimado?' Las marcas en «Todo el turno», «Tiempo restante» o «Hasta una hora» se comparan con su cantidad estimada, no con un pedido firme.':''}</div>
           <div class="pa-line-kpis">
             <div class="pa-line-kpi"><small>PROGRAMACIÓN VIGENTE</small><strong>${Math.round(g.totalProg).toLocaleString('es-PE')} <span>UND</span></strong></div>
-            <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong></div>
-            <div class="pa-line-kpi"><small>CUMPLIMIENTO</small><strong>${(()=>{const c=GlacialIndicadores.cumplimiento(g.totalProd,g.totalProg);return c==null?'0.0':Math.min(999,c*100).toFixed(1);})()}<span>%</span></strong></div>
+            <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong>${g.fueraPlan.length?'<em class="pa-kpi-nota">del plan</em>':''}</div>
+            ${g.fueraPlan.length ? `<div class="pa-line-kpi pa-line-kpi-fuera" title="Unidades de productos sin programación en este bloque. No suman al cumplimiento del plan."><small>FUERA DE PROGRAMACIÓN</small><strong>${Math.round(g.totalFuera).toLocaleString('es-PE')} <span>UND</span></strong></div>
+            <div class="pa-line-kpi" title="Todo lo que produjo la línea en el bloque: plan + fuera de programación. Es la base del rendimiento y del ratio."><small>PRODUCCIÓN TOTAL DE LA LÍNEA</small><strong>${Math.round(g.totalFisico).toLocaleString('es-PE')} <span>UND</span></strong></div>` : ''}
+            <div class="pa-line-kpi"${g.conEstimado&&!g.soloEstimado?' title="Incluye marcas cuya cantidad es estimada (no es un pedido firme)."':''}><small>${g.soloEstimado?'AVANCE FRENTE AL ESTIMADO':g.conEstimado?'CUMPLIMIENTO (INCLUYE ESTIMADOS)':'CUMPLIMIENTO'}</small><strong>${(()=>{const c=GlacialIndicadores.cumplimiento(g.totalProd,g.totalProg);return c==null?'—':Math.min(999,c*100).toFixed(1)+'<span>%</span>';})()}</strong></div>
             <div class="pa-line-kpi" title="Producido ÷ (tiempo transcurrido − pausas programadas). Se usa en la proyección «Si las paradas siguen igual»."><small>RENDIMIENTO DEL TURNO</small><strong>${fmtRatio(g.ratios?.ratioTurno)} <span>UND/h</span></strong></div>
             <div class="pa-line-kpi" title="Ratio = producido ÷ horas efectivas. Horas efectivas = tiempo transcurrido − (paradas programadas + no programadas)."><small>RATIO</small><strong>${fmtRatio(g.ratios?.ratioEfectivo)} <span>UND/h</span></strong>${avisoCorteRatio(g)}</div>
             ${g.tiempos?.enCurso ? `<div class="pa-line-kpi"><small>RATIO NECESARIO</small><strong>${fmtRatio(g.ratios?.ratioNecesario)} <span>UND/h</span></strong></div>` : ''}
@@ -1225,12 +1260,24 @@
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
                         ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
-                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %':''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div></div>
+                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div></div>
                     </div>`;
                   }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
                 }</div>`;
               })()}
             </section>
+
+            ${g.fueraPlan.length ? `<section class="pa-hcol pa-hcol-fuera">
+              <div class="pa-hcol-title">⚠ PRODUCCIÓN FUERA DE PROGRAMACIÓN</div>
+              <p class="pa-fuera-nota">Estos productos tienen unidades registradas en ${esc(g.line.name)} · ${esc(g.items[0]?.fecha || g.fueraPlan[0].fecha)} · ${esc(bloquesTexto([g.fueraPlan[0].turno]) || g.fueraPlan[0].turno)}, pero no están en la planificación del bloque.
+                Se conservan tal cual: no se atribuyen a otra marca, no completan el plan ni crean una programación. Si corresponde, Planificación debe agregarlos o el supervisor corregir el registro.</p>
+              <div class="pa-program-list pa-program-list-horizontal">${g.fueraPlan.map(x=>`
+                <div class="pa-program-row pa-program-fuera">
+                  <span><b>${esc(x.marca || '—')}</b>${x.presentacion ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
+                  <div class="pa-program-right"><strong>${Math.round(x.producidoFuera).toLocaleString('es-PE')} UND</strong>
+                    <small>Fuente: ${produccionDesdePaletas(x) ? 'Paletas (bloque en curso)' : 'registro de producción del bloque'} · sin programación</small></div>
+                </div>`).join('')}</div>
+            </section>` : ''}
 
             ${(()=>{
               // Controles operativos (Iniciar / Detener / Pausar / Finalizar…): antes vivían en el panel «Producción actual». Se conservan
@@ -1293,6 +1340,14 @@
     .pa-live-board .pa-program-list-horizontal .pa-program-state-pendiente{border-top-color:var(--est-pend);background:#f8f9fa}
     .pa-marca-actual{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:10px 18px;border-bottom:1px solid #d8e4ec;background:#fff9f1}
     .pa-marca-actual small{font-size:10px;font-weight:800;letter-spacing:.05em;color:#9A3412}.pa-marca-actual strong{color:#073f68;overflow-wrap:anywhere}.pa-marca-actual span{color:#073f68}
+    .pa-chip-fuera{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:999px;background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;font-size:10px;font-weight:700}
+    .pa-live-board .pa-hcol-fuera{grid-column:1/-1;border-top:1px solid #d8e4ec;background:#F5F7FF}
+    .pa-fuera-nota{margin:4px 0 8px;font-size:12px;color:#3730A3}
+    .pa-live-board .pa-program-list-horizontal .pa-program-fuera{border-top-color:#6366F1;background:#fff}
+    .pa-program-fuera .pa-program-right small{display:block;font-size:11px;color:#5f7382;font-weight:500}
+    .pa-kpi-nota{display:block;font-size:10px;font-style:normal;color:#5f7382}
+    /* «… UND estimadas · N % del estimado» es más largo: en celular puede pasar a la línea siguiente en vez de cortarse. */
+    .pa-live-board .pa-program-list-horizontal .pa-program-right strong{white-space:normal;overflow-wrap:anywhere}
     .pa-total-linea{padding:6px 18px;font-size:11px;font-weight:700;color:#5f7382;background:#f4f8fb}
     .pa-aviso-detenida{margin:0;padding:8px 18px;background:#FEE2E2;color:#991B1B;font-size:12px;font-weight:700;border-bottom:1px solid #fbcaca}
     .pa-program-right-fila{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -1735,7 +1790,7 @@
         <h3>Corregir finalización · ${esc(x.linea)}</h3>
         <div class="pa-modal-grid">
           <div><label>Hora real de cierre</label><input type="time" id="pa-c-cierre" value="${horaTxt(cierreActual)}"></div>
-          <div><label>Producción final (${esc(x.marca)})</label><input type="number" min="0" step="1" id="pa-c-prod" value="${produccionActual}"></div>
+          <div><label>Producción final (${esc(x.marca)})</label><input type="number" id="pa-c-prod" value="${produccionActual}" readonly disabled title="No se edita aquí"><small class="pa-modal-nota">Sale de Paletas (turno en curso) o del registro de producción (turno cerrado); se corrige allí.</small></div>
         </div>
         <label>Paradas y pausas registradas</label>
         ${filas.length ? `<div class="pa-modal-tabla"><table><thead><tr><th>Motivo</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Eliminar</th></tr></thead><tbody>
@@ -1762,10 +1817,10 @@
         };
         const motivo=fondo.querySelector('#pa-c-motivo').value.trim();
         const hc=fondo.querySelector('#pa-c-cierre').value;
-        const prod=Number(fondo.querySelector('#pa-c-prod').value);
+        // La producción sale de producidoDe (Paletas o registro): aquí solo se muestra y queda igual en el historial.
+        const prod=produccionActual;
         if(!motivo){alert('El motivo de la corrección es obligatorio.');return;}
         if(!hc){alert('Indica la hora real de cierre.');return;}
-        if(!Number.isFinite(prod) || prod<0){alert('La producción final no es válida.');return;}
         const cierre=aMs(cierreActual,hc,inicioLinea);
         if(cierre<=inicioLinea){alert('El cierre debe ser posterior al inicio de la línea.');return;}
         if(cierre>ahoraServidor()+60000){alert('El cierre no puede estar en el futuro.');return;}
@@ -1817,7 +1872,6 @@
         op.pausaDesde=0;op.detenidaDesde=0;
         op.corregida=true;op.corregidaEn=ahora;op.corregidaPor=usuario;
         op.actualizadoEn=ahora;op.actualizadoPor=usuario;
-        if(p.clave===k && datos.prod!==produccionActual)op.produccionFinalCorregida=datos.prod;
         const historial=Array.isArray(p.historialAlertas) ? p.historialAlertas.slice() : [];
         if(p.clave===k){
           historial.push({
@@ -2553,20 +2607,32 @@
           }
         });
       if(!items.length)return;
+      // Igual que el tablero: solo los productos del plan dan estado, secuencia y cumplimiento; lo producido sin programación va aparte.
+      const separado=GlacialIndicadores.produccionPlanYFuera(items.map(x=>({
+        linea:x.linea,fecha:x.fecha,turno:x.turnoPlan || x.turno,marca:x.marca,presentacion:x.presentacion,
+        enPlan:!x.fueraPlan,cancelada:x.op?.estado==='CANCELADA',programado:progDe(x),producido:producidoDe(x),fila:x})));
+      const fueraPlan=separado.fuera.map(z=>({marca:z.marca,presentacion:z.presentacion,producido:z.producido,
+        fuente:produccionDesdePaletas(z.fila) ? 'PALETAS' : 'REGISTRO'}));
+      items.splice(0,items.length,...separado.plan.map(z=>z.fila));
+      if(!items.length && !fueraPlan.length)return;
 
-      aplicarEstadoVisualSecuencia(items,line.key,fecha,items[0].turnoPlan || turno,turno,ahora);
+      if(items.length)aplicarEstadoVisualSecuencia(items,line.key,fecha,items[0].turnoPlan || turno,turno,ahora);
       const estados=items.map(x=>({x,e:estadoOrdenItem(x).key,det:x.op?.estado==='DETENIDA'}));
       estados.forEach(o=>{ if(o.det)o.e='DETENIDA'; });
       const claves=estados.map(o=>o.e);
-      const estadoLinea=GlacialIndicadores.estadoLineaDesdeItems(claves);
-      const activo=(estados.find(o=>o.e===estadoLinea) || estados.find(o=>!['COMPLETADA','CANCELADA'].includes(o.e)) || estados[0]).x;
+      // Sin productos del plan (solo producción fuera de programación) la línea no tiene marca planificada en curso: PENDIENTE.
+      const estadoLinea=GlacialIndicadores.estadoLineaDesdeItems(claves) || 'PENDIENTE';
+      const activo=((estados.find(o=>o.e===estadoLinea) || estados.find(o=>!['COMPLETADA','CANCELADA'].includes(o.e)) || estados[0]) || {x:{}}).x;
 
-      const programado=items.reduce((s,x)=>s+(x.op?.estado==='CANCELADA'?0:progDe(x)),0);
-      const producido=items.reduce((s,x)=>s+producidoDe(x),0);
+      const programado=separado.totales.programado;
+      const producido=separado.totales.producidoPlan;
 
-      // Tiempos y ratios: función central única (23b-tiempos-linea.js).
+      // Tiempos y ratios: función central única (23b-tiempos-linea.js). Ratio = unidades físicas de la línea; ratio necesario = plan.
       const tiempos=calcularTiemposLinea(line.key,turno,fecha,{ahora});
-      const ratios=calcularRatiosLinea(tiempos,{produccion:producido,programado,ahora});
+      const ratiosPlan=calcularRatiosLinea(tiempos,{produccion:producido,programado,ahora});
+      const ratiosFisicos=separado.totales.producidoFuera>0
+        ? calcularRatiosLinea(tiempos,{produccion:separado.totales.producidoFisico,programado,ahora}) : ratiosPlan;
+      const ratios={...ratiosPlan,ratioTurno:ratiosFisicos.ratioTurno,ratioEfectivo:ratiosFisicos.ratioEfectivo};
       const desempeno=evaluarDesempenoLinea(tiempos,ratios,{produccion:producido,programado});
       const paradaMs=tiempos.ok ? (tiempos.minParadasNoProgramadas+tiempos.minPausasProgramadas)*60000 : 0;
 
@@ -2585,6 +2651,8 @@
         linea:line.key,nombre:line.name,
         marca:activo.marca || '',presentacion:activo.presentacion ? presUI(activo.linea,activo.marca,activo.presentacion) : '',
         estado:estadoLinea,programado,producido,
+        // producido = del plan (cumplimiento). Lo de productos sin programación va aparte y suma solo a la producción física.
+        fueraPlan,producidoFuera:separado.totales.producidoFuera,producidoFisico:separado.totales.producidoFisico,
         avance:programado>0 ? producido/programado*100 : 0,
         ratio:ratios.ratioEfectivo ?? 0,ratios,tiempos,desempeno,
         paradaMs,detenidaMin:null,retrasoPct:null,

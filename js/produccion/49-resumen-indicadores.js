@@ -245,7 +245,9 @@
           // el semáforo manda: se rehace el programado y la producción de esta unidad
           u.partes=new Map();u.programado=num(f.programado);
           const t47=u47.find(x=>x.linea===f.linea&&grupoDeTurno(x.turno)===g);
-          const detalle=(Array.isArray(f.detalle)&&f.detalle.length)?f.detalle:[{marca:f.marca,presentacion:f.presentacion,producido:f.producido,programado:f.programado}];
+          // Lo producido fuera de programación (24-semaforo…) es producción física de la línea (rendimiento, OEE) pero no entra al cumplimiento.
+          const detalle=((Array.isArray(f.detalle)&&f.detalle.length)?f.detalle:[{marca:f.marca,presentacion:f.presentacion,producido:f.producido,programado:f.programado}])
+            .concat((f.fueraPlan||[]).map(z=>({marca:z.marca,presentacion:z.presentacion,producido:z.producido,programado:0,fueraPlan:true})));
           const items=t47?t47.npItems.map(i=>({motivo:i.motivo,minutos:num(i.minutos),estimada:false,inicio:num(i.inicio)})):[];
           const prodTot=detalle.reduce((s,d)=>s+num(d.producido),0);
           const pesos=detalle.map(d=>{const v=velocidadEstandar(f.linea,d.presentacion,d.marca);return v>0?num(d.producido)/v:0;});
@@ -253,7 +255,7 @@
           const pesoTot=usarVel?pesos.reduce((a,b)=>a+b,0):(prodTot>0?prodTot:detalle.length);
           detalle.forEach((d,i)=>{
             const pt=getParte(u,d.marca,d.presentacion);
-            pt.producido=num(d.producido);pt.programado=num(d.programado);
+            pt.producido=num(d.producido);pt.programado=num(d.programado);pt.fueraPlan=!!d.fueraPlan;
             const w=usarVel?pesos[i]:(prodTot>0?num(d.producido):1);
             const share=pesoTot>0?w/pesoTot:0;
             if(t47){
@@ -375,7 +377,7 @@
     const faltantes=new Set();
     partes.forEach(p=>{
       prod+=p.producido;merma+=p.mermaTotal;
-      if(p.progUnit){progU+=p.programado;prodU+=p.producido;}
+      if(p.progUnit&&!p.fueraPlan){progU+=p.programado;prodU+=p.producido;}
       if(p.availMin>0){avail+=p.availMin;prodT+=p.producido;}
       if(p.planMin>0)plan+=p.planMin;
       npMin+=p.npMin;progMin+=p.progMin;durMin+=p.durMin;

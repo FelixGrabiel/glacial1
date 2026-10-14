@@ -4676,7 +4676,7 @@ function renderFormTab(){
               this.value
             )
           "
-        >${draft.observaciones||''}</textarea>
+        >${escaparHtml(draft.observaciones||'')}</textarea>
 
       </div>
 
@@ -5793,7 +5793,7 @@ function paradasTableCuadro(
 
                             <input
                               type="text"
-                              value="${r.descripcion||''}"
+                              value="${escaparHtml(r.descripcion||'')}"
                               placeholder="
                                 Motivo de la parada
                               "
@@ -6938,7 +6938,7 @@ function paradasTable(
 
                     <input
                       style="width:500%;"
-                      value="${r.descripcion}"
+                      value="${escaparHtml(r.descripcion)}"
                       oninput="
                         updateArrItem(
                           '${key}',
@@ -7515,9 +7515,9 @@ function personalTable(
           w => `
 
             <option
-              value="${w.nombre}"
+              value="${escaparHtml(w.nombre)}"
             >
-              ${w.cargo || ''}
+              ${escaparHtml(w.cargo || '')}
             </option>
 
           `
@@ -7576,7 +7576,7 @@ function personalTable(
 
                   <input
                     list="personal-workers-datalist"
-                    value="${r.nombre}"
+                    value="${escaparHtml(r.nombre)}"
                     oninput="
                       updatePersonal(
                         ${i},

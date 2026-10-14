@@ -1009,8 +1009,11 @@ function cpEjecutivoHTML(){
     const avisos=(g?g.avisos:[]).map(a=>`<div class="cp-ex-aviso" role="status">⚠ Marca ${cpEsc(a.marca||'—')} quedó detenida${a.desde?` desde ${cpEsc(cpHoraCorta(a.desde))}`:''}: finalízala o reanúdala</div>`).join('');
     const prodActual=act&&(act.producido>0||hayMeta)
       ?`<div class="cp-ex-marca-act"><span class="cp-ex-marca-nom">${cpEsc(nombreMarca(act))}</span><span><b>${cpFmt(act.producido)}</b>${act.programado>0?` / ${cpFmt(act.programado)}`:''} ${u}</span></div>
-         <div class="cp-ex-total">Total línea (${g.total.marcas} marca${g.total.marcas===1?'':'s'}): <b>${cpFmt(g.total.producido)}</b> / ${cpFmt(g.total.programado)} ${u}</div>`
+         <div class="cp-ex-total">Total del plan (${g.total.marcas} marca${g.total.marcas===1?'':'s'}): <b>${cpFmt(g.total.producido)}</b> / ${cpFmt(g.total.programado)} ${u}</div>`
       :'—';
+    // Producción de productos sin programación en el bloque (24-semaforo…): se muestra aparte y no cuenta en el cumplimiento.
+    const fuera=(f.fueraPlan||[]).length
+      ?`<div class="cp-ex-fuera" title="No está en la planificación del bloque; no suma al cumplimiento">⚠ Fuera de programación: ${f.fueraPlan.map(z=>`${cpEsc(nombreMarca(z))} <b>${cpFmt(z.producido)}</b> ${u}`).join(' · ')}</div>`:'';
     const desglose=g?g.marcas.map(m=>{
       const x=CP_EST_EJEC[m.estado]||CP_EST_EJEC.PENDIENTE;
       return `<li class="cp-ex-d-${x.cls}${m===act?' cp-ex-d-act':''}"><span class="cp-ex-d-nom">${cpEsc(nombreMarca(m))}</span>
@@ -1019,7 +1022,7 @@ function cpEjecutivoHTML(){
     const hayDet=g&&g.marcas.length>0;
     return `<tr class="cp-ex-fila ${abierta?'cp-ex-abierta':''}" data-linea="${cpEsc(k)}" ${hayDet?`tabindex="0" role="button" aria-expanded="${abierta}" onclick="cpEjecAlternar('${cpEsc(k)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cpEjecAlternar('${cpEsc(k)}')}"`:''}>
       <td data-label="Línea"><strong>${nombre}</strong></td><td data-label="Estado">${badge(g&&g.estado||f.estado)}${avisos}</td>
-      <td data-label="Producción">${prodActual}</td>
+      <td data-label="Producción">${prodActual}${fuera}</td>
       <td data-label="Cumplimiento">${hayMeta?`<span class="cp-ex-pct">${Math.round(act?act.avance:f.avance)} %</span>${barra(act?act.avance:f.avance,g&&g.estado||f.estado)}`:'—'}</td>
       <td data-label="Último registro">${f.ultimoMs?cpHoraCorta(f.ultimoMs):'—'}</td></tr>
       ${hayDet?`<tr class="cp-ex-det ${abierta?'cp-ex-abierta':''}"><td colspan="5"><ul class="cp-ex-d-lista" aria-label="Marcas de ${nombre} en el bloque">${desglose}</ul></td></tr>`:''}`;
@@ -1083,6 +1086,7 @@ function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-ex-fila{cursor:pointer}.cp-ex-fila:focus-visible{outline:3px solid rgba(8,120,249,.3);outline-offset:-3px}
 .cp-ex-marca-act{display:flex;flex-direction:column;gap:2px}.cp-ex-marca-nom{font-weight:700;color:#10265f}
 .cp-ex-total{margin-top:4px;font-size:11px;color:var(--cp-muted)}
+.cp-ex-fuera{margin-top:4px;font-size:11px;color:#3730A3;background:#EEF2FF;border-radius:6px;padding:2px 6px;display:inline-block}
 .cp-ex-aviso{margin-top:6px;padding:5px 8px;border-radius:6px;background:var(--ie-det-bg,#FEE2E2);color:var(--ie-det-tx,#991B1B);font-size:11px;font-weight:700;line-height:1.3;white-space:normal}
 .cp-ex-det{display:none}.cp-ex-det.cp-ex-abierta{display:table-row}.cp-ex-det>td{padding:0 16px 10px!important;background:#f8fafc}
 .cp-ex-d-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
