@@ -3634,7 +3634,8 @@ function renderProduccionActualTab(){
      POR TURNO, y los turnos del bloque se suman (Día e Intermedio acumulan por separado). Es la misma regla del semáforo
      (resumenProgramacionCombinacionTurnos): Avance/Cierre y Producción Actual la leen de aquí.
      corteMs: se descartan los registros posteriores (por su hora; sin hora, por su creación). Nunca suma Paletas con
-     Producción Efectiva: esa política de fuente la decide quien llama. */
+     Producción Efectiva: esa política de fuente la decide quien llama.
+     desdeMs (opcional): se descartan también los ANTERIORES al inicio del turno (registros de otro turno guardados con este turno). */
   function msRegistroPaleta(r, fecha, turno){
     if(/^\d{1,2}:\d{2}$/.test(String(r.hora || ''))){
       const d = new Date(fecha + 'T' + String(r.hora).padStart(5,'0') + ':00');
@@ -3643,13 +3644,14 @@ function renderProduccionActualTab(){
     }
     return Number(r.creadoEn || r.actualizadoEn) || 0;
   }
-  window.glacialProduccionPaletasAlCorte = function(linea, fecha, turnos, marca, presentacion, corteMs){
+  window.glacialProduccionPaletasAlCorte = function(linea, fecha, turnos, marca, presentacion, corteMs, desdeMs){
     let completas = 0, saldo = 0, registros = 0;
     (Array.isArray(turnos) ? turnos : [turnos]).forEach(turno => {
       let regs = loadPaletas().filter(r =>
         r.linea === linea && r.fecha === fecha && r.turno === turno &&
         r.marca === marca && r.presentacion === presentacion);
       if(corteMs) regs = regs.filter(r => { const ms = msRegistroPaleta(r, fecha, turno); return !ms || ms <= corteMs; });
+      if(desdeMs) regs = regs.filter(r => { const ms = msRegistroPaleta(r, fecha, turno); return !ms || ms >= desdeMs; });
       if(!regs.length) return;
       registros += regs.length;
       const u = ultimoEstado(regs);
