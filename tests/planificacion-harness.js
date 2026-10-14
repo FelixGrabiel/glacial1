@@ -6,7 +6,7 @@ const leer=f=>fs.readFileSync(R+'/'+f,'utf8').replace(/\r\n/g,'\n');
 const clon=v=>JSON.parse(JSON.stringify(v));
 function extraer(src,n){const m=new RegExp('(?:async[ ]+)?function[ ]+'+n+'[ ]*[(]').exec(src);if(!m)throw new Error('no se encontró '+n);let i=src.indexOf('{',m.index),d=0,j=i;for(;j<src.length;j++){if(src[j]==='{')d++;else if(src[j]==='}'){d--;if(d===0)break;}}return src.slice(m.index,j+1)+'\n';}
 const s16=leer('js/produccion/16-paletas.js');
-const FUNC16=['claveProgramacionPaleta','obtenerProgramacionPaleta','programacionValorHistorial','programacionConflicto','programacionAplicarEnLista','guardarProgramacionPaleta'].map(n=>extraer(s16,n)).join('');
+const FUNC16=['normalizarClavePaletas','claveCombinacionPaletas','esCombinacionPaletas','claveProgramacionPaleta','obtenerProgramacionPaleta','programacionValorHistorial','programacionConflicto','programacionAplicarEnLista','guardarProgramacionPaleta'].map(n=>extraer(s16,n)).join('');
 
 function nube(){
   const docs=new Map(),ver=new Map(),oyentes=[];let confirmaciones=0;

@@ -28,7 +28,7 @@ sb._programacionesCache=[];
 sb.db={collection:c=>({doc:id=>({__c:c,__id:id})}),runTransaction:async fn=>{const w=[];const r=await fn({get:async()=>({exists:true,data:()=>JSON.parse(JSON.stringify(doc))}),set:(rf,d)=>w.push([rf,d])});
   w.forEach(([rf,d])=>{if(rf.__c==='historialProgramacion')historial.push(JSON.parse(JSON.stringify(d)));else doc=JSON.parse(JSON.stringify(d));});return r;}};
 sb.glacialPlanificacion={armarEvento:e=>({id:'h'+historial.length,doc:e})};
-vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+extraer(s16,'claveProgramacionPaleta')+extraer(s16,'programacionValorHistorial')+extraer(s16,'programacionConflicto')+extraer(s16,'programacionAplicarEnLista')+extraer(s16,'guardarProgramacionPaleta'),sb);
+vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+['normalizarClavePaletas','claveCombinacionPaletas','esCombinacionPaletas','claveProgramacionPaleta'].map(n=>extraer(s16,n)).join('')+extraer(s16,'programacionValorHistorial')+extraer(s16,'programacionConflicto')+extraer(s16,'programacionAplicarEnLista')+extraer(s16,'guardarProgramacionPaleta'),sb);
 const G=s=>vm.runInContext('guardarProgramacionPaleta',sb)(...s);
 await G(['PET1','2026-10-05','DÍA','Bells','625ml',10000,600,{}]);
 ok(doc.items.length===1&&doc.items[0].cantidadProgramada===10000&&doc.items[0].paletasProgramadas===10000/600&&doc.items[0].estadoOperacion.estado==='PENDIENTE','crea la programación con la misma forma de siempre (cantidad, paletas, estado PENDIENTE)');

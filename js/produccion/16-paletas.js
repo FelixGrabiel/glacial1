@@ -259,13 +259,60 @@ function claveProgramacionPaleta(linea, fecha, turno, marca, presentacion){
 }
 
 
+/*
+   CLAVE NORMALIZADA (solo para COMPARAR; lo guardado no cambia):
+   sin tildes, minúsculas, sin espacios, "7 Litros" = "7L" y
+   fecha DD/MM/YYYY = YYYY-MM-DD. Así "BELLS"/"Bells", "DÍA"/"Dia"
+   o "7 Litros"/"7L" son la misma combinación al leer Paletas y la
+   programación, al guardar la programación (no se duplica la fila)
+   y en el autollenado del registro (35-autollenado-registro.js).
+*/
+function normalizarClavePaletas(valor){
+
+  return String(valor ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/(\d)\s*(litros?|lts?)(?![a-z])/g, '$1l')
+    .replace(/\s+/g, '');
+
+}
+
+function claveCombinacionPaletas(linea, fecha, turno, marca, presentacion){
+
+  const dmy = String(fecha ?? '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const fechaIso = dmy
+    ? dmy[3] + '-' + dmy[2].padStart(2, '0') + '-' + dmy[1].padStart(2, '0')
+    : fecha;
+
+  return [linea, fechaIso, turno, marca, presentacion]
+    .map(normalizarClavePaletas)
+    .join('|');
+
+}
+
+function esCombinacionPaletas(r, claveNormalizada){
+
+  return !!r &&
+    claveCombinacionPaletas(r.linea, r.fecha, r.turno, r.marca, r.presentacion) === claveNormalizada;
+
+}
+
+
 function obtenerProgramacionPaleta(linea, fecha, turno, marca, presentacion){
 
   const clave =
     claveProgramacionPaleta(linea, fecha, turno, marca, presentacion);
 
+  const lista = loadProgramaciones();
+  const exacta = lista.find(p => p.clave === clave);
+  if(exacta) return exacta;
+
+  const normalizada =
+    claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
+
   return (
-    loadProgramaciones().find(p => p.clave === clave) ||
+    lista.find(p => esCombinacionPaletas(p, normalizada)) ||
     null
   );
 
@@ -483,12 +530,19 @@ function programacionAplicarEnLista(actuales, p, opc){
   const clave = claveProgramacionPaleta(p.linea, p.fecha, p.turno, p.marca, p.presentacion);
   const claveDia = claveProgramacionPaleta(p.linea, p.fecha, 'DÍA', p.marca, p.presentacion);
   let claveFinal = clave, turnoFinal = p.turno;
+  // Primero la clave exacta; si no, la misma combinación escrita distinto (mayúsculas, tildes, espacios): se edita esa fila, no se duplica.
+  const indice = (c, turno) => {
+    const i = actuales.findIndex(x => x.clave === c);
+    if(i > -1) return i;
+    const normalizada = claveCombinacionPaletas(p.linea, p.fecha, turno, p.marca, p.presentacion);
+    return actuales.findIndex(x => esCombinacionPaletas(x, normalizada));
+  };
   /* Solo se programa en dos bloques: «Día (incluye Intermedio)» y «Noche». Lo que llegue como INTERMEDIO se guarda en la fila DÍA,
      salvo que ese producto YA tenga una fila INTERMEDIO guardada (se edita esa misma, sin crear otra ni cambiar su clave). */
-  if(p.turno === 'INTERMEDIO' && !actuales.some(x => x.clave === clave)){
+  if(p.turno === 'INTERMEDIO' && indice(clave, p.turno) < 0){
     claveFinal = claveDia; turnoFinal = 'DÍA';
   }
-  const idx = actuales.findIndex(x => x.clave === claveFinal);
+  const idx = indice(claveFinal, turnoFinal);
   const previo = idx > -1 ? actuales[idx] : null;
 
   if(opc.versionEsperada !== undefined){
@@ -825,14 +879,11 @@ function resumenProgramacionCombinacionTurnos(linea, fecha, turnos, marca, prese
       unidadesPorPaleta = datosProg.unidadesPorPaleta;
     }
 
+    const combinacion =
+      claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
+
     loadPaletas()
-      .filter(p =>
-        p.linea === linea &&
-        p.fecha === fecha &&
-        p.turno === turno &&
-        p.marca === marca &&
-        p.presentacion === presentacion
-      )
+      .filter(p => esCombinacionPaletas(p, combinacion))
       .forEach(r => {
 
         unidadesProducidas += num(r.totalUnidades);
@@ -3567,12 +3618,10 @@ function renderProduccionActualTab(){
       let saldosPositivos = 0;
 
       turnos.forEach(turno => {
+        const combinacion =
+          claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
         const registros = loadPaletas().filter(r =>
-          r.linea === linea &&
-          r.fecha === fecha &&
-          r.turno === turno &&
-          r.marca === marca &&
-          r.presentacion === presentacion
+          esCombinacionPaletas(r, combinacion)
         );
 
         const actual = ultimoEstado(registros);
@@ -3640,9 +3689,8 @@ function renderProduccionActualTab(){
   window.glacialProduccionPaletasAlCorte = function(linea, fecha, turnos, marca, presentacion, corteMs){
     let completas = 0, saldo = 0, registros = 0;
     (Array.isArray(turnos) ? turnos : [turnos]).forEach(turno => {
-      let regs = loadPaletas().filter(r =>
-        r.linea === linea && r.fecha === fecha && r.turno === turno &&
-        r.marca === marca && r.presentacion === presentacion);
+      const combinacion = claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
+      let regs = loadPaletas().filter(r => esCombinacionPaletas(r, combinacion));
       if(corteMs) regs = regs.filter(r => { const ms = msRegistroPaleta(r, fecha, turno); return !ms || ms <= corteMs; });
       if(!regs.length) return;
       registros += regs.length;

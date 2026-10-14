@@ -1587,6 +1587,17 @@ function calcularPaletasCuadro(cuadro){
   }
 
 
+  /* Llenado desde Paletas (35-autollenado-registro.js): las paletas registradas allí. */
+  if(
+    cuadro.autoPaletas &&
+    Number.isFinite(cuadro.autoPaletas.paletas)
+  ){
+
+    return cuadro.autoPaletas.paletas;
+
+  }
+
+
   const upp =
     obtenerUnidadesPorPalet(
       draft.linea,

@@ -25,7 +25,7 @@ function entorno(o){
   vm.runInContext(leer('js/produccion/29-avance-produccion.js'),sb);
   vm.runInContext(leer('js/produccion/61-reporte-linea.js'),sb);
   const s16=leer('js/produccion/16-paletas.js');
-  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+s16.slice(s16.indexOf('  function ultimoEstado(registros){'),s16.indexOf('  const resumenTurnosOriginal'))+s16.slice(s16.indexOf('  function msRegistroPaleta'),s16.indexOf('  const resumenOriginal = resumenPaletas;')),sb);
+  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+s16.slice(s16.indexOf('function normalizarClavePaletas'),s16.indexOf('function obtenerProgramacionPaleta'))+s16.slice(s16.indexOf('  function ultimoEstado(registros){'),s16.indexOf('  const resumenTurnosOriginal'))+s16.slice(s16.indexOf('  function msRegistroPaleta'),s16.indexOf('  const resumenOriginal = resumenPaletas;')),sb);
   vm.runInContext(`avanceEstado.fecha='${FECHA}';avanceEstado.turno='${o.turno||'DÍA'}';avanceEstado.paradasOperativas=${JSON.stringify(o.paradas||[])};`,sb);
   return sb;
 }

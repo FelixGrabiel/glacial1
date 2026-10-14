@@ -17,12 +17,13 @@
    Campos NUEVOS (nada existente cambia ni se crea ningún documento):
      draft.autollenadoV1              registro creado con esta función
      draft.asignacionParadasAvance    {idParada: indiceCuadro}
-     cuadro.autoPaletas {ids,total}   marca la UND como automática
+     cuadro.autoPaletas {ids,total,paletas}   marca la UND como automática (paletas: las de Paletas)
      cuadro.autoParadasSig            firma de lo importado (para avisar cambios)
      fila.auto/origen/origenId        marcan cada parada automática
 
-   Los registros guardados ANTES de este cambio no se tocan
-   (sin draft.autollenadoV1 no se llena ni se avisa nada).
+   Se marcan (draft.autollenadoV1) los registros nuevos y los que siguen
+   EN_REGISTRO; finalizados y reabiertos no se tocan (sin la marca no se
+   llena ni se avisa nada).
    Cargar DESPUÉS de 06-registro.js, 16-paletas.js, 23b y 29; antes de 12-init.js.
    ============================================================= */
 (function instalarAutollenadoRegistro(){
@@ -31,18 +32,22 @@
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
   const norm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
   const esc=t=>typeof escaparHtml==='function'?escaparHtml(t):String(t??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  const grupo=t=>typeof grupoTurnoReporte==='function'?grupoTurnoReporte(t):(t==='NOCHE'?'NOCHE':'DIA_INTERMEDIO');
+  /* Misma normalización que Paletas (16-paletas.js): sin tildes, minúsculas, sin espacios, «7 Litros» = «7L». */
+  const clave=v=>typeof normalizarClavePaletas==='function'?normalizarClavePaletas(v):String(v??'');
+  const mismaFecha=(a,b)=>typeof claveCombinacionPaletas==='function'?claveCombinacionPaletas('',a)===claveCombinacionPaletas('',b):a===b;
+  const grupo=t=>clave(t).includes('noche')?'NOCHE':'DIA_INTERMEDIO';
   const canonAvance=t=>String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DÍA';
+  const mismaLineaYFecha=p=>clave(p.linea)===clave(draft.linea)&&mismaFecha(p.fecha,draft.fecha)&&grupo(p.turno)===grupo(draft.turno);
 
   function mismaPresentacion(a,b){
-    if(a===b)return true;
+    if(clave(a)===clave(b))return true;
     if(typeof clavePresentacionVisualPaletas==='function'){
       const ca=clavePresentacionVisualPaletas(a),cb=clavePresentacionVisualPaletas(b);
       return !!ca&&ca===cb;
     }
     return false;
   }
-  const mismoProducto=(x,q)=>x.marca===q.marca&&mismaPresentacion(x.presentacion,q.presentacion);
+  const mismoProducto=(x,q)=>clave(x.marca)===clave(q.marca)&&mismaPresentacion(x.presentacion,q.presentacion);
 
   const activo=()=>typeof draft!=='undefined'&&draft&&draft.autollenadoV1===true&&
     !(typeof reporteEstaBloqueado==='function'&&reporteEstaBloqueado());
@@ -64,10 +69,10 @@
     const lista=typeof loadPaletas==='function'?(loadPaletas()||[]):[];
     const ids=[];let suma=0;
     lista.forEach(p=>{
-      if(!p||p.linea!==draft.linea||p.fecha!==draft.fecha||grupo(p.turno)!==grupo(draft.turno)||!mismoProducto(p,q))return;
+      if(!p||!mismaLineaYFecha(p)||!mismoProducto(p,q))return;
       ids.push(p.id);suma+=num(p.totalUnidades);
     });
-    if(!ids.length)return {ids,total:0};
+    if(!ids.length)return {ids,total:0,paletas:0};
     /*
        Las paletas se registran como cantidades ACUMULADAS (ej. "Completa 4 → 1,296 und",
        luego "Completa 5 → 1,620 und"): NO se pueden sumar. El total del turno lo calcula
@@ -77,15 +82,16 @@
       const turnos=grupo(draft.turno)==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO'];
       try{
         const r=resumenProgramacionCombinacionTurnos(draft.linea,draft.fecha,turnos,q.marca,q.presentacion);
-        return {ids,total:Math.round(num(r&&r.unidadesProducidas))};
+        // paletas: las registradas en Paletas (completas + saldo en equivalente), para el campo «Paletas» del cuadro.
+        return {ids,total:Math.round(num(r&&r.unidadesProducidas)),paletas:Math.round(num(r&&r.paletasEquivalentes)*100)/100};
       }catch(_){/* se usa el respaldo */}
     }
-    return {ids,total:Math.round(suma)};
+    return {ids,total:Math.round(suma),paletas:0};
   }
 
   function itemsLinea(){
     const lista=typeof loadProgramaciones==='function'?(loadProgramaciones()||[]):[];
-    return lista.filter(p=>p&&p.linea===draft.linea&&p.fecha===draft.fecha&&grupo(p.turno)===grupo(draft.turno));
+    return lista.filter(p=>p&&mismaLineaYFecha(p));
   }
 
   const causaDe=motivo=>{
@@ -198,8 +204,8 @@
         if(w.autoPaletasDisponible!==P.total){w.autoPaletasDisponible=P.total;cambio=true;}
       }else{
         if(num(w.produccion.efectiva)!==P.total){w.produccion.efectiva=P.total;cambio=true;}
-        if(!w.autoPaletas||w.autoPaletas.total!==P.total||w.autoPaletas.ids.length!==P.ids.length){
-          w.autoPaletas={ids:P.ids,total:P.total};cambio=true;
+        if(!w.autoPaletas||w.autoPaletas.total!==P.total||w.autoPaletas.ids.length!==P.ids.length||w.autoPaletas.paletas!==P.paletas){
+          w.autoPaletas={ids:P.ids,total:P.total,paletas:P.paletas};cambio=true;
         }
         if(w.autoPaletasDisponible!==undefined){delete w.autoPaletasDisponible;cambio=true;}
       }
@@ -378,20 +384,31 @@
   }
 
   /* ---------- enganches ---------- */
+  /* Devuelve true si el llenado cambió algo. */
   function preparar(){
-    if(typeof draft==='undefined'||!draft||state.currentTab!=='nuevo')return;
-    // Solo registros NUEVOS (sin id) se marcan; los ya guardados antes no se tocan.
-    if(!draft.id&&draft.autollenadoV1===undefined)draft.autollenadoV1=true;
-    if(autollenarRegistro()&&typeof programarGuardadoAutomaticoReporte==='function'){
+    if(typeof draft==='undefined'||!draft||state.currentTab!=='nuevo')return false;
+    // Se marcan los registros nuevos y los que siguen EN REGISTRO. Antes solo se marcaban los que aún no tenían id:
+    // si el autoguardado le daba id antes de un nuevo render (el borrador se crea dentro del render original, después
+    // de esta función), el registro quedaba sin marca y Programada/Efectiva/Paletas no se llenaban nunca.
+    // Finalizados y reabiertos (corrección de un histórico) no se marcan. Lo escrito a mano no se pisa (solo se ofrece «Usar»).
+    const abierto=!draft.id||!draft.estadoRegistro||draft.estadoRegistro==='EN_REGISTRO';
+    if(draft.autollenadoV1===undefined&&abierto)draft.autollenadoV1=true;
+    const cambio=autollenarRegistro();
+    if(cambio&&typeof programarGuardadoAutomaticoReporte==='function'){
       programarGuardadoAutomaticoReporte();
     }
+    return cambio;
   }
 
   if(typeof renderFormTab==='function'){
     const original=renderFormTab;
     renderFormTab=function(){
       try{preparar();}catch(e){console.warn('Autollenado:',e);}
-      const r=original.apply(this,arguments);
+      let r=original.apply(this,arguments);
+      // El render original crea el borrador (o entra al reporte compartido): se llena ese y, si cambió, se pinta una vez más.
+      let cambio=false;
+      try{cambio=preparar();}catch(e){console.warn('Autollenado:',e);}
+      if(cambio)r=original.apply(this,arguments);
       try{estilos();inyectarAvisos();}catch(e){console.warn('Autollenado (avisos):',e);}
       return r;
     };

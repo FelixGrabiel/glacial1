@@ -10,7 +10,7 @@ const leerRef=(f,ref)=>cp.execSync('git show '+ref+':'+f,{cwd:R,maxBuffer:1e8}).
 const clon=v=>JSON.parse(JSON.stringify(v));
 function extraer(src,n){const m=new RegExp('(?:async[ ]+)?function[ ]+'+n+'[ ]*[(]').exec(src);if(!m)throw new Error('no se encontró '+n);let i=src.indexOf('{',m.index),d=0,j=i;for(;j<src.length;j++){if(src[j]==='{')d++;else if(src[j]==='}'){d--;if(d===0)break;}}return src.slice(m.index,j+1)+'\n';}
 const s16=leer('js/produccion/16-paletas.js');
-const FUNC16=['claveProgramacionPaleta','obtenerProgramacionPaleta','programacionValorHistorial','programacionConflicto','programacionAplicarEnLista','guardarProgramacionPaleta'].map(n=>extraer(s16,n)).join('');
+const FUNC16=['normalizarClavePaletas','claveCombinacionPaletas','esCombinacionPaletas','claveProgramacionPaleta','obtenerProgramacionPaleta','programacionValorHistorial','programacionConflicto','programacionAplicarEnLista','guardarProgramacionPaleta'].map(n=>extraer(s16,n)).join('');
 
 /* ---------- nube falsa: documentos con versión, transacciones optimistas con reintento, fallo de red, historial de confirmaciones ---------- */
 function nube(){
@@ -271,7 +271,7 @@ const ANA={nombre:'Ana'},LUIS={nombre:'Luis'};
     {linea:'PET1',fecha:'2099-03-01',turno:'DÍA',cuadros:[{marca:'Bells',presentacion:'Regular_625ml',produccion:{efectiva:4800}}]},
     {linea:'PET1',fecha:'2099-03-01',turno:'INTERMEDIO',cuadros:[{marca:'Bells',presentacion:'Regular_625ml',produccion:{efectiva:2900}}]}];
   let enCurso=true;sb.bloqueAhora=()=>null;sb.turnoActivo=()=>enCurso;
-  const piezas=['claveProgramacionPaleta','obtenerProgramacionPaleta','datosProgramacionCombinacion','resumenProgramacionCombinacionTurnos'].map(n=>extraer(s16,n)).join('');
+  const piezas=['normalizarClavePaletas','claveCombinacionPaletas','esCombinacionPaletas','claveProgramacionPaleta','obtenerProgramacionPaleta','datosProgramacionCombinacion','resumenProgramacionCombinacionTurnos'].map(n=>extraer(s16,n)).join('');
   const envoltura=s24.slice(s24.indexOf('const resumenTurnosAnterior=resumenProgramacionCombinacionTurnos;'),s24.indexOf('const uppAnterior=unidadesPorPaletaActiva;'));
   const regs=s24.slice(s24.indexOf('const quitarTilde='),s24.indexOf('function registroDeTurno(x){'))+extraer(s24,'registroDeTurno')+extraer(s24,'producidoVigenteDe');
   vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+piezas+envoltura+regs,sb);
