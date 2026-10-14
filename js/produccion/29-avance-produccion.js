@@ -119,6 +119,15 @@ function avHorarioBloque(){
   }catch(_){/* horario general */}
   return avHorarioBloqueGeneral();
 }
+/* Ventana productiva del turno del reporte (fecha operativa + bloque; la Noche cruza la medianoche). Lo registrado fuera de ella es de
+   OTRO turno aunque se haya guardado con este turno (p. ej. una paleta de la mañana guardada como NOCHE, o un cuadro que empieza a las 07:00
+   en un registro de Noche): no cuenta como producción ni como inicio de este turno. Sin horario configurado no se filtra. */
+function avVentanaProduccion(){let b=null;try{b=typeof avHorarioBloque==='function'?avHorarioBloque():null;}catch(_){b=null;}return b&&b.inicio&&b.fin?{desde:b.inicio,hasta:b.fin}:null;}
+function avHoraEnTurno(hora){
+  const v=avVentanaProduccion(),ms=avHoraMs(avanceEstado.fecha,hora,avanceEstado.turno);
+  return !v||!ms||(ms>=v.desde&&ms<v.hasta);
+}
+function avMsEnTurno(ms){const v=avVentanaProduccion();return !v||!ms||(ms>=v.desde&&ms<v.hasta);}
 function avHorarioBloqueGeneral(){return GlacialIndicadores.horarioBloque(avanceEstado.fecha,avanceEstado.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}
 function avAhoraMs(){return typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();}
 function avEsRelevo(ahora){const b=avHorarioBloque();return !!b&&(ahora||avAhoraMs())<b.fin;}
@@ -148,6 +157,7 @@ function avProduccionEfectiva(linea,marca,presentacion){
     const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
     cuadros.forEach(q=>{
       if(q?.marca!==marca || q?.presentacion!==presentacion)return;
+      if(q?.horaInicio&&!avHoraEnTurno(q.horaInicio))return;     // cuadro de otro turno
       const efectiva=avNum(q?.produccion?.efectiva);
       if(efectiva>0){encontrada=true;total+=efectiva;}
     });
@@ -160,7 +170,8 @@ function avProduccionPaletasHasta(linea,marca,presentacion,hora,tipo){
   // Servicio compartido con Producción Actual (16): último acumulado por turno, turnos del bloque sumados, hasta el corte.
   if(typeof window.glacialProduccionPaletasAlCorte==='function'){
     const turnos=avanceEstado.turno==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO'];
-    const r=window.glacialProduccionPaletasAlCorte(linea,avanceEstado.fecha,turnos,marca,presentacion,corte);
+    const v=avVentanaProduccion();
+    const r=window.glacialProduccionPaletasAlCorte(linea,avanceEstado.fecha,turnos,marca,presentacion,corte,v?v.desde:0);
     return {valor:r.valor,encontrada:r.encontrada};
   }
   const pal=avPaletas()
@@ -170,7 +181,8 @@ function avProduccionPaletasHasta(linea,marca,presentacion,hora,tipo){
       if(x.hora)ms=avHoraMs(avanceEstado.fecha,x.hora,avanceEstado.turno);
       return {registro:x,ms,indice};
     })
-    .filter(x=>!x.ms||!corte||x.ms<=corte);
+    .filter(x=>!x.ms||!corte||x.ms<=corte)
+    .filter(x=>{const v=avVentanaProduccion();return !v||!x.ms||x.ms>=v.desde;});   // antes del inicio del turno = otro turno
   if(!pal.length)return {valor:0,encontrada:false};
 
   let completas=null,saldo=null;
@@ -707,9 +719,10 @@ function avOrdenarHoras(horas){
 function avInicioLinea(linea){
   const horas=[];
   avRegistros().filter(r=>r.linea===linea).forEach(r=>(typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>{
-    if(q?.horaInicio&&(q?.marca||avNum(q?.produccion?.efectiva)>0))horas.push(q.horaInicio);
+    if(q?.horaInicio&&(q?.marca||avNum(q?.produccion?.efectiva)>0)&&avHoraEnTurno(q.horaInicio))horas.push(q.horaInicio);
   }));
-  avProgramaciones().filter(p=>p.linea===linea).forEach(p=>{if(p?.estadoOperacion?.inicio)horas.push(avHoraDesdeMs(p.estadoOperacion.inicio));});
+  // Un inicio operativo fuera de la ventana del turno (p. ej. 07:00 en un reporte de Noche) es de otro turno: no fija el inicio.
+  avProgramaciones().filter(p=>p.linea===linea).forEach(p=>{if(p?.estadoOperacion?.inicio&&avMsEnTurno(Number(p.estadoOperacion.inicio)))horas.push(avHoraDesdeMs(p.estadoOperacion.inicio));});
   return avOrdenarHoras(horas)[0]||'';
 }
 function avFinLinea(linea){
@@ -801,6 +814,10 @@ function avObservacionesLinea(linea){
   return [...new Set(out)];
 }
 
+/* Una línea está EN PRODUCCIÓN en el turno si tiene unidades (> 0) registradas en su fecha y turno (productos ya filtrados por la ventana del turno). */
+function avLineaEnProduccion(productos){return (productos||[]).reduce((s,x)=>s+avNum(x.produccion),0)>0;}
+const AV_SIN_LINEAS='No hay líneas en producción en este turno.';
+
 function avLineaSnapshot(linea,hora,tipo,ahoraMs){
   const productos=avProductosLinea(linea,hora,tipo);
   const inicio=avInicioLinea(linea);
@@ -840,6 +857,9 @@ function avLineaSnapshot(linea,hora,tipo,ahoraMs){
     avPaletas().some(p=>p.linea===linea);
 
   if(!actividad)return null;
+  // AVANCE: solo las líneas que PRODUJERON en este turno (producción > 0 dentro de su fecha y su ventana). La programación, un inicio
+  // o paradas sin unidades no bastan. Una línea que produjo y ahora está parada sigue apareciendo. El CIERRE conserva el criterio de arriba.
+  if(tipo!=='CIERRE'&&!avLineaEnProduccion(productos))return null;
 
   /* Un solo corte para la línea: la hora del reporte, o el fin real si la línea ya terminó antes (no sigue corriendo). */
   const finReal=avFinRealLinea(linea);
@@ -920,7 +940,8 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
     const ahoraMs=avAhoraMs();   // una sola hora del servidor para todo el reporte
   const horaReal=tipo==='CIERRE'?avCorteCierre(ahoraMs):avHoraHHMM(ahoraMs);
   const lineas=AVANCE_LINEAS.map(l=>avLineaSnapshot(l,horaReal,tipo,ahoraMs)).filter(Boolean);
-  if(!lineas.length)throw Error('No existe producción ni una línea iniciada para este turno.');
+  if(!lineas.length&&tipo==='CIERRE')throw Error('No existe producción ni una línea iniciada para este turno.');
+  // AVANCE sin líneas produciendo: el reporte se genera igual con el aviso AV_SIN_LINEAS y el resumen en 0.
   const totalParadas=lineas.reduce((s,l)=>s+l.totalParadas,0);
   const totalParadasProgramadas=lineas.reduce((s,l)=>s+avNum(l.paradasProgramadas),0);
   const totalParadasNoProgramadas=lineas.reduce((s,l)=>s+avNum(l.paradasNoProgramadas),0);
@@ -1169,6 +1190,7 @@ function avTextoWhatsApp(s){
   const out=[
     `*${avTituloSnapshot(s)} – TURNO ${s.turno}*`,
     '',`*Fecha: ${fecha}*`,`*Hora: ${s.horaCorte}*`];
+  if(!(s.lineas||[]).length)out.push('',AV_SIN_LINEAS);
 
   s.lineas.forEach((l,idxLinea)=>{
     const bloques=avBloquesPresentacionLinea(l);
@@ -1632,47 +1654,45 @@ function avCanvasSnapshot(s){
     }
   });
 
-  const altoGrupo=g=>{
-    if(g.sinProduccion){
-      const paradas=Math.max(1,(g.linea.paradas||[]).length);
-      const obs=(g.linea.observaciones||[]).length;
-      return 170+30+paradas*30+(obs?55+obs*27:0);
-    }
-    const b=g.bloque;
-    const productos=Math.max(1,(b.productos||[]).length);
-    const paradas=Math.max(1,(b.paradas||[]).length);
-    const obs=(b.observaciones||[]).length;
-    return 170+productos*34+paradas*30+(obs?55+obs*27:0);
-  };
-
   /*
-     ALTURA REAL DE LA IMAGEN
-     ------------------------
-     Antes el canvas calculaba su alto usando solo las paradas propias del bloque.
-     Después, al dibujar, se agregaban también las paradas operativas de Avance/Cierre.
-     Resultado: las tarjetas crecían, pero el canvas NO; las últimas líneas
-     (por ejemplo CAJAS 20L) quedaban recortadas aunque sí existieran en el snapshot/texto.
-
-     Calculamos aquí exactamente la misma altura que se usará al dibujar cada tarjeta.
+     ALTURA DE CADA TARJETA = la misma secuencia de pasos con la que se dibuja (no una estimación aparte).
+     Antes la estimación quedaba corta: la última parada de cada tarjeta quedaba tapada por la tarjeta siguiente.
+     Las descripciones largas de paradas y las observaciones se parten en varias líneas y su alto se suma.
   */
-  const altoRealGrupo=g=>{
+  const c=document.createElement('canvas');c.width=W;c.height=10;const x=c.getContext('2d');
+  const E=Math.max(1,AV_IMAGEN_ESCALA_TEXTO),paso=v=>Math.round(v*E),fz=v=>Math.round(v*AV_IMAGEN_ESCALA_TEXTO);
+  const wrap=(txt,maxWidth)=>{const words=String(txt||'').split(/\s+/);const rows=[];let row='';for(const w of words){const test=row?row+' '+w:w;if(x.measureText(test).width>maxWidth&&row){rows.push(row);row=w;}else row=test;}if(row)rows.push(row);return rows.length?rows:[''];};
+  const ANCHO_DESC_PARADA=W-PAD*2-180-130;      // entre la etiqueta PROGRAMADA/NO PROG. y los minutos
+  const filasParada=p=>{x.font=`${fz(14)}px Arial`;return wrap(p.descripcion,ANCHO_DESC_PARADA).slice(0,3);};
+  const filasObs=o=>{x.font=`${fz(13)}px Arial`;return wrap('• '+o,W-PAD*2-60).slice(0,2);};
+  const datosGrupo=g=>{
     const l=g.linea,b=g.bloque;
-    const prods=g.sinProduccion?[]:(b?.productos||[]);
-    const paradasBloque=g.sinProduccion?(l.paradas||[]):(b?.paradas||[]);
-    const paradasOperativas=g.sinProduccion?[]:(b?.paradasAvance||[]);
-    const paradas=[...paradasBloque,...paradasOperativas];
-    const observaciones=g.sinProduccion?(l.observaciones||[]):(b?.observaciones||[]);
-    const escalaEspacio=Math.max(1,AV_IMAGEN_ESCALA_TEXTO);
-    // ESPACIADO VERTICAL: aumenta junto con la letra para evitar superposición y recortes.
-    const hNecesario=205+
-      (prods.length||1)*30*escalaEspacio+
-      (paradas.length||1)*29*escalaEspacio+
-      (observaciones.length?(55+observaciones.length*22)*escalaEspacio:0);
-    return Math.max(altoGrupo(g),hNecesario);
+    return {
+      prods:g.sinProduccion?[]:(b?.productos||[]),
+      paradas:[...(g.sinProduccion?(l.paradas||[]):(b?.paradas||[])),...(g.sinProduccion?[]:(b?.paradasAvance||[]))],
+      observaciones:g.sinProduccion?(l.observaciones||[]):(b?.observaciones||[])
+    };
+  };
+  const altoParada=p=>paso(29)+(filasParada(p).length-1)*paso(20);
+  const altoRealGrupo=g=>{
+    const d=datosGrupo(g);
+    let h=82+55+27+paso(26)+Math.max(1,d.prods.length)*paso(30)+27+paso(26);
+    h+=d.paradas.length?d.paradas.reduce((s,p)=>s+altoParada(p),0):paso(29);
+    if(d.observaciones.length)h+=25+23+d.observaciones.reduce((s,o)=>s+filasObs(o).length*22,0);
+    return h+8;
   };
 
-  const H=Math.max(1350,250+grupos.reduce((a,g)=>a+altoRealGrupo(g)+18,0)+180);
-  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  /* RESUMEN: cada dato en su columna según su ancho real; si no caben cuatro en una fila, van en dos filas de dos. */
+  const r=s.resumen||{};
+  const rs=[`Producción planta: ${avFmt(r.produccionTotal)}`,`Paradas: ${avFmt(r.totalParadas)} min`,`Personal: ${avFmt(r.personal)}${avNum(r.personalPendientes)>0?' (+'+avNum(r.personalPendientes)+' pend.)':''}`,`Líneas: ${avFmt(r.lineasTrabajadas)}`];
+  x.font=`700 ${fz(17)}px Arial`;
+  const anchoResumen=W-PAD*2-40,GAP_RESUMEN=28;
+  const columnasResumen=rs.reduce((a,t)=>a+x.measureText(t).width,0)+GAP_RESUMEN*(rs.length-1)<=anchoResumen?4:2;
+  const altoResumen=columnasResumen===4?105:140;
+  const altoVacio=grupos.length?0:90;
+
+  const H=Math.max(grupos.length?1350:0,250+altoVacio+grupos.reduce((a,g)=>a+altoRealGrupo(g)+18,0)+altoResumen+180);
+  c.height=H;
   const rr=(cx,cy,cw,ch,r=10)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
   const card=(cx,cy,cw,ch,fill=WHITE,stroke=LINE)=>{x.fillStyle=fill;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=stroke;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
   const fit=(txt,max,size=18,weight='400')=>{
@@ -1683,7 +1703,6 @@ function avCanvasSnapshot(s){
     return x.font;
   };
   const divider=(y)=>{x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD+18,y);x.lineTo(W-PAD-18,y);x.stroke();};
-  const wrap=(txt,maxWidth)=>{const words=String(txt||'').split(/\s+/);const rows=[];let row='';for(const w of words){const test=row?row+' '+w:w;if(x.measureText(test).width>maxWidth&&row){rows.push(row);row=w;}else row=test;}if(row)rows.push(row);return rows;};
 
   x.fillStyle=BG;x.fillRect(0,0,W,H);
   x.fillStyle=DARK;x.fillRect(0,0,W,205);
@@ -1695,6 +1714,9 @@ function avCanvasSnapshot(s){
 
   let y=228;
   x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font=`700 ${Math.round(22*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('DETALLE DE PRODUCCIÓN POR FORMATO',48,y+31);y+=64;
+  if(!grupos.length){
+    card(PAD,y,W-PAD*2,72,'#F8FBFD',LINE);x.fillStyle=STEEL;x.font=`700 ${fz(17)}px Arial`;x.fillText(AV_SIN_LINEAS,PAD+20,y+44);y+=altoVacio;
+  }
 
   grupos.forEach(g=>{
     const l=g.linea,b=g.bloque;
@@ -1744,8 +1766,11 @@ function avCanvasSnapshot(s){
     if(paradas.length){
       paradas.forEach(p=>{
         x.fillStyle=p.tipo==='NO_PROGRAMADA'?BAD:WARN;x.font=`700 ${Math.round(12*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(p.tipo==='NO_PROGRAMADA'?'NO PROG.':'PROGRAMADA',PAD+28,cy);
-        x.fillStyle=INK;x.font=`${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;fit(p.descripcion,650,14,'400');x.fillText(p.descripcion,PAD+180,cy); //!TAMAÑO LENTRAS
-        x.textAlign='right';x.fillStyle=DARK;x.font=`700 ${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`${avFmt(p.minutos)} min`,W-PAD-22,cy);x.textAlign='left';cy+=Math.round(29*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));
+        x.textAlign='right';x.fillStyle=DARK;x.font=`700 ${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`${avFmt(p.minutos)} min`,W-PAD-22,cy);x.textAlign='left';
+        // Descripción larga: se parte en filas (hasta 3) y la tarjeta ya reservó ese alto (altoParada).
+        const filas=filasParada(p);x.fillStyle=INK;x.font=`${fz(14)}px Arial`;
+        filas.forEach((f,k)=>x.fillText(f,PAD+180,cy+k*paso(20)));
+        cy+=altoParada(p);
       });
     }else{x.fillStyle=MUTED;x.font=`${Math.round(14*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('Sin paradas registradas.',PAD+28,cy);cy+=Math.round(29*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));}
 
@@ -1756,11 +1781,16 @@ function avCanvasSnapshot(s){
     y+=h+18;
   });
 
-  const r=s.resumen||{};
-  card(PAD,y,W-PAD*2,105,'#F8FBFD',LINE);x.fillStyle=BLUE;x.font=`700 ${Math.round(17*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('RESUMEN DEL AVANCE',PAD+20,y+28);
-  const rs=[`Producción planta: ${avFmt(r.produccionTotal)}`,`Paradas: ${avFmt(r.totalParadas)} min`,`Personal: ${avFmt(r.personal)}${avNum(r.personalPendientes)>0?' (+'+avNum(r.personalPendientes)+' pend.)':''}`,`Líneas: ${avFmt(r.lineasTrabajadas)}`];
-  rs.forEach((t,i)=>{x.fillStyle=i===1?BAD:DARK;x.font=`700 ${Math.round(17*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(t,PAD+20+i*245,y+70);});
-  y+=128;x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD,y);x.lineTo(W-PAD,y);x.stroke();y+=28;
+  card(PAD,y,W-PAD*2,altoResumen,'#F8FBFD',LINE);x.fillStyle=BLUE;x.font=`700 ${Math.round(17*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('RESUMEN DEL AVANCE',PAD+20,y+28);
+  // Columnas según el ancho real de cada texto (antes eran fijas de 245 px y «Producción planta» se montaba sobre «Paradas»).
+  x.font=`700 ${fz(17)}px Arial`;
+  if(columnasResumen===4){
+    let rx=PAD+20;rs.forEach((t,i)=>{x.fillStyle=i===1?BAD:DARK;x.fillText(t,rx,y+70);rx+=x.measureText(t).width+GAP_RESUMEN;});
+  }else{
+    const colW=anchoResumen/2;
+    rs.forEach((t,i)=>{x.fillStyle=i===1?BAD:DARK;fit(t,colW-16,17,'700');x.fillText(t,PAD+20+(i%2)*colW,y+66+Math.floor(i/2)*38);});
+  }
+  y+=altoResumen+23;x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD,y);x.lineTo(W-PAD,y);x.stroke();y+=28;
   x.fillStyle=STEEL;x.font=`${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Generado por: ${s.supervisor||s.generadoPor||'—'}`,PAD,y);
   x.textAlign='right';x.fillStyle=DARK;x.font=`700 ${Math.round(20*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('GLACIAL · Control de Producción',W-PAD,y);x.textAlign='left';
   return c;
