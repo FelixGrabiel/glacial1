@@ -178,6 +178,29 @@ function tareoCargoPermitido(cargo, area) {
 }
 
 
+/*
+   UN SOLO CRITERIO de personal por área para el Tareo: lo usan la lista de turnos, el contador «Personal activo»,
+   «Iniciar tareo» y la sincronización (antes cada lugar podía filtrar distinto y contradecirse).
+   - Activo: sin campo estado (trabajadores importados) cuenta como activo; «Inactivo» (sin tildes ni mayúsculas) o activo:false, no.
+   - Mantenimiento: por ÁREA («Mantenimiento») o por CARGO que mencione mantenimiento («TECNICO DE MANTENIMIENTO»,
+     «Supervisor de Mantenimiento»…), sin importar tildes ni mayúsculas. Producción: la lista TAREO_CARGOS_PERMITIDOS.
+*/
+function tareoTrabajadorActivo(trabajador) {
+    if (!trabajador || trabajador.activo === false) return false;
+    const estado = tareoNormalizarTexto(trabajador.estado);
+    return !estado || estado === 'activo';
+}
+
+function tareoEsDeArea(trabajador, area) {
+    if (!trabajador) return false;
+    if (area === 'Mantenimiento') {
+        return tareoNormalizarTexto(trabajador.area) === 'mantenimiento' ||
+            tareoCargoPermitido(trabajador.cargo, 'Mantenimiento');
+    }
+    return tareoCargoPermitido(trabajador.cargo, area);
+}
+
+
 function escaparHTML(valor) {
     return String(valor ?? '')
         .replace(/&/g, '&amp;')
@@ -1586,15 +1609,9 @@ function obtenerPersonalTareo(area) {
     // Un mismo trabajador no debe repetirse aunque esté duplicado en la lista.
     return tareoDeduplicarPersonas(trabajadores.filter(trabajador => {
 
-        if (!trabajador) return false;
-
-        const estado = tareoNormalizarTexto(
-            trabajador.estado
-        );
-
         return (
-            estado === 'activo' &&
-            tareoCargoPermitido(trabajador.cargo, areaBuscada)
+            tareoTrabajadorActivo(trabajador) &&
+            tareoEsDeArea(trabajador, areaBuscada)
         );
     }));
 }
@@ -3562,6 +3579,29 @@ function tareoSincronizarPersonalMantenimiento(tareo) {
 }
 
 
+/*
+   Por qué un tareo NUEVO de Mantenimiento quedaría sin personal. El personal sale de tres pasos: (1) trabajadores activos de
+   Mantenimiento; (2) los que la Rotación semanal MTTO no programa en el OTRO turno; (3) sin los quitados como «ya no trabaja».
+   Antes siempre se decía «No hay personal activo» aunque hubiera técnicos activos y el vacío viniera del paso 2 o 3.
+*/
+function tareoMotivoSinPersonalMantenimiento(fecha, turno) {
+
+    const activos = obtenerPersonalTareo('Mantenimiento');
+
+    if (!activos.length) {
+        return 'No hay personal activo de Mantenimiento. Registra trabajadores del área Mantenimiento (o con un cargo de mantenimiento, por ejemplo "Técnico de Mantenimiento") en Gestionar trabajadores.';
+    }
+
+    const delTurno = tareoPersonalMantenimientoTurno(fecha, turno);
+
+    if (!delTurno.length) {
+        return 'Hay ' + activos.length + ' trabajadores activos de Mantenimiento, pero la Rotación semanal MTTO los programa a todos en el otro turno. Revisa el turno de cada técnico en «Rotación semanal MTTO».';
+    }
+
+    return 'Hay ' + delTurno.length + ' técnicos de Mantenimiento para el turno ' + turno + ', pero todos figuran como quitados («ya no trabaja») en un tareo anterior de Mantenimiento. Ábrelo y usa «Restaurar» en «Personal quitado de este tareo», o márcalos como Inactivos en Gestionar trabajadores si de verdad ya no trabajan.';
+}
+
+
 function tareoAbrir(area, fecha, turno) {
 
     // Al abrir un tareo el orden por asistencia se calcula de nuevo (dentro de la sesión de edición queda fijo).
@@ -3646,7 +3686,7 @@ function tareoAbrir(area, fecha, turno) {
 
         alert(
             area === 'Mantenimiento'
-                ? 'No hay personal activo de Mantenimiento. Registra trabajadores con un cargo de mantenimiento (por ejemplo "Técnico de Mantenimiento") en Gestionar trabajadores.'
+                ? tareoMotivoSinPersonalMantenimiento(fecha, turnoTareo)
                 : 'No hay personal asignado en la rotación vigente para este turno.'
         );
 
@@ -7031,7 +7071,7 @@ function tareoAbrirFicha(clave, tareoId) {
         const trabajador = loadWorkers().find(
             item =>
                 String(item.id) === String(clave) &&
-                tareoCargoPermitido(item.cargo, 'Mantenimiento')
+                tareoEsDeArea(item, 'Mantenimiento')
         );
 
         if (trabajador) {
