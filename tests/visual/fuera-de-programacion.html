@@ -1,0 +1,50 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Producción fuera de programación (datos de prueba)</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>body{background:#f3f6f8;padding:12px}.aviso-prueba{font:700 13px system-ui;color:#991B1B;margin:0 0 8px}</style>
+</head><body>
+<p class="aviso-prueba">Datos de PRUEBA (no reales) · PET2 · 13/10/2026 · Noche · plan: Fontlife 1 L × 12 (Todo el turno) · Paletas: Scala 1 L × 12</p>
+<div id="main"></div>
+<script>
+/* Escenario aislado. ?caso=antes reproduce la vista con Scala mezclada (sin separar); por defecto, la vista corregida. */
+var AHORA=new Date(2026,9,14,1,30).getTime();               // 14/10 01:30 → día operativo 13/10, bloque Noche
+window.tareoAhoraServidor=function(){return AHORA;};
+var state={user:{rol:'Supervisor',nombre:'Prueba',username:'prueba'},currentTab:'produccion-actual'};
+var LINES=[{key:'PET2',name:'PET 2'}];
+var PRES='1 L · PACK X 12 UND';
+var PROGRAMACIONES=[{id:'p1',clave:['PET2','2026-10-13','NOCHE','Fontlife',PRES].join('|'),linea:'PET2',fecha:'2026-10-13',turno:'NOCHE',marca:'Fontlife',presentacion:PRES,
+  cantidadProgramada:45000,unidadesPorPaleta:1200,paletasProgramadas:37.5,modo:'TURNO',alcance:'TODO_TURNO',
+  tramosSecuencia:[{id:'t1',orden:1,tipoFin:'CIERRE'}],estadoOperacion:{estado:'PENDIENTE'}}];
+if(/caso=sinplan/.test(location.search))PROGRAMACIONES=[];          // ?caso=sinplan: línea con producción y sin ningún producto planificado
+var PALETAS=[{id:'pa1',linea:'PET2',fecha:'2026-10-13',turno:'NOCHE',marca:'Scala',presentacion:PRES,tipoPaleta:'COMPLETA',paletas:20,totalUnidades:24000,creadoEn:AHORA-3*3600000},
+  {id:'pa2',linea:'PET2',fecha:'2026-10-13',turno:'NOCHE',marca:'Scala',presentacion:PRES,tipoPaleta:'INCOMPLETA',paletas:0,totalUnidades:696,creadoEn:AHORA-600000}];
+function loadPaletas(){return PALETAS;}
+function loadProgramaciones(){return PROGRAMACIONES;}
+function loadRecords(){return [];}
+function escaparHtml(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+var tienePermiso=function(){return true;};
+function nombrePresentacionUI(l,m,p){return p;}
+function obtenerUnidadesPorPalet(){return 1200;}
+function obtenerRatioNominal(){return 4000;}
+function normalizarCuadros(r){return r.cuadros||[];}
+function nombreUsuarioActualPaletas(){return 'Prueba';}
+var db={collection:function(){return {doc:function(){return {};}};}};
+var _programacionesCache=PROGRAMACIONES;
+window.glacialPlanificacion={modos:{esTemporal:function(p){return !!p&&(p.modo==='TURNO'||p.modo==='HORA');}}};
+</script>
+<script src="../../js/nucleo/45-indicadores.js"></script>
+<script src="../../js/nucleo/05-utils.js"></script>
+<script src="../../js/produccion/16-paletas.js"></script>
+<script src="../../js/produccion/23b-tiempos-linea.js"></script>
+<script src="../../js/produccion/24a-estados-visuales.js"></script>
+<script src="../../js/produccion/24-semaforo-produccion-actual.js"></script>
+<script>
+if(/caso=antes/.test(location.search)){
+  /* Reproducción del defecto: sin la separación, Scala entra al plan como cualquier marca con unidades. */
+  var sep=GlacialIndicadores.produccionPlanYFuera;
+  GlacialIndicadores=Object.assign({},GlacialIndicadores,{produccionPlanYFuera:function(items,ctx){return sep(items.map(function(x){return Object.assign({},x,{enPlan:true});}),ctx);}});
+}
+produccionActualFecha='2026-10-13';produccionActualTurno='NOCHE';
+renderProduccionActualTab();
+</script>
+</body></html>
