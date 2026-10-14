@@ -135,6 +135,19 @@
     return {estado:'REVISAR',diferencia:d,mensaje:d>0?'Se distribuyeron '+d+' más que el personal disponible: revisar.':'Faltan '+(-d)+' por distribuir respecto al personal disponible.'};
   }
 
+  /* Personal DISPONIBLE del bloque según el Tareo de Producción: personas distintas con asistencia que trabaja (ASISTIÓ, tardanza,
+     feriado trabajado, comisión). null = el Tareo del bloque no tiene asistencia (no se puede comprobar; no es cero). */
+  const ASISTENCIA_TRABAJA=new Set(['ASISTIO','ASISTIÓ','TARDANZA','FERIADO TRABAJADO','COMISION/TRABAJO EXTERNO','COMISIÓN/TRABAJO EXTERNO']);
+  function disponiblesTareo(tareos,fecha,bloque){
+    const turnos=bloqueDe(bloque)==='NOCHE'?['NOCHE']:['DÍA','DIA','INTERMEDIO'];
+    const ts=(tareos||[]).filter(t=>t&&t.fecha===fecha&&turnos.includes(String(t.turno||'').toUpperCase())&&
+      (typeof tareoAreaDe==='function'?tareoAreaDe(t)==='Producción':String(t.area||'').toLowerCase()!=='mantenimiento'));
+    if(!ts.length)return null;
+    const vistos=new Set();
+    ts.forEach(t=>(t.personal||[]).forEach(p=>{if(p&&ASISTENCIA_TRABAJA.has(String(p.asistencia||'').toUpperCase()))vistos.add(String(p.trabajadorId||p.nombre||'').trim().toLowerCase());}));
+    return vistos.size;
+  }
+
   /* ---------- permisos y contexto ---------- */
   const puedeEditar=()=>typeof tienePermiso==='function'&&tienePermiso('distribuirPersonal');
   /* Corregir horas anteriores: Administrador y Jefe de Producción. */
@@ -216,7 +229,7 @@
   });
 
   window.glacialDistribucionPersonal={
-    LINEAS,clave,bloqueDe,normalizarLineas,totalDe,prepararEvento,vigente,personalAlCorte,horasHombre,horasHombrePlanta,compararConDisponible,
+    LINEAS,clave,bloqueDe,normalizarLineas,totalDe,prepararEvento,vigente,personalAlCorte,horasHombre,horasHombrePlanta,compararConDisponible,disponiblesTareo,
     escuchar,cargar,datos,guardar,consultar,consultarHorasHombre,puedeEditar,puedeCorregir,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
     horarioDe

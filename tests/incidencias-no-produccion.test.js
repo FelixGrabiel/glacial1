@@ -35,27 +35,31 @@ const base=filas=>({filas,lineas:['PET1','PET2','B7L','C20L','B20L'],incidencias
 const sp=(o,extra)=>I.sinProduccion(Object.assign(base(o),extra||{}));
 const lin=r=>r.map(x=>x.linea).join(',');
 
+/* Regla vigente (Inicio · «Líneas sin producción»): EN PRODUCCIÓN = unidades > 0 en la fecha y el bloque. Cada línea autorizada sin unidades aparece
+   una vez: motivo informado, «Sin programación» automático, programación cancelada, bloque aún no iniciado o «Motivo pendiente». */
+const de=(r,l)=>r.find(x=>x.linea===l);
 let r=sp([fila('B20L')]);
-ok(lin(r)==='B20L'&&r[0].pendiente&&r[0].causa==='NO_INICIADA','línea que debía iniciar y no ha iniciado, sin causa: «motivo pendiente» (no se inventa una causa)');
+ok(de(r,'B20L').pendiente&&de(r,'B20L').causa==='SIN_PRODUCCION','línea con programación y sin unidades: «Motivo pendiente» (no se inventa una causa)');
+ok(r.length===5&&r.filter(x=>x.causa==='SIN_PROGRAMACION'&&!x.pendiente).length===4,'las líneas sin programación aparecen con «Sin programación» automático y no exigen motivo');
 r=sp([],{incidencias:[{id:'x',linea:'B20L',estado:'VIGENTE',motivo:'Falta de personal',descripcion:'',registradoPor:'Ana',registradoEn:900000}]});
-ok(lin(r)==='B20L'&&!r[0].pendiente&&r[0].motivo==='Falta de personal'&&r[0].por==='Ana','B20L muestra «Falta de personal» aun sin paletas, avance ni programación');
-r=sp([fila('B7L',{estado:'DETENIDA',detenidaReal:true,iniciadaReal:true,producido:300,detalle:[{estado:'DETENIDA'}]})],{incidencias:[{linea:'B7L',estado:'VIGENTE',motivo:'Falla de máquina',registradoPor:'Luis',registradoEn:960000}]});
-ok(lin(r)==='B7L'&&r[0].motivo==='Falla de máquina','otra línea muestra «Falla de máquina» con responsable y hora');
-r=sp([fila('B7L',{estado:'DETENIDA',detenidaReal:true,iniciadaReal:true,producido:300})]);
-ok(lin(r)==='B7L'&&r[0].pendiente&&r[0].causa==='DETENIDA','línea que inició y luego se detuvo, sin motivo: pendiente');
+ok(!de(r,'B20L').pendiente&&de(r,'B20L').motivo==='Falta de personal'&&de(r,'B20L').por==='Ana'&&de(r,'B20L').en===900000,'B20L muestra «Falta de personal», quién y cuándo, aun sin paletas, avance ni programación');
+r=sp([fila('B7L',{estado:'DETENIDA',detenidaReal:true,iniciadaReal:true,producido:0,detalle:[{estado:'DETENIDA'}]})]);
+ok(de(r,'B7L').pendiente&&de(r,'B7L').causa==='DETENIDA','línea detenida sin unidades y sin motivo: pendiente (causa DETENIDA)');
+r=sp([fila('B7L',{estado:'DETENIDA',detenidaReal:true,iniciadaReal:true,producido:300,detalle:[{estado:'DETENIDA'}]})]);
+ok(!de(r,'B7L'),'una línea que ya produjo en el bloque no figura «sin producción» aunque ahora esté detenida');
+ok(!de(sp([fila('PET2',{producido:0,producidoFisico:500})]),'PET2'),'la producción fuera de programación también cuenta como producción (criterio físico)');
 r=sp([fila('PET1',{estado:'PENDIENTE'})],{ahora:400000});
-ok(r.length===0,'inicio previsto todavía no llegado: no es incidencia');
-ok(sp([fila('PET1',{estado:'COMPLETADA',producido:1000,iniciadaReal:true,detalle:[{estado:'COMPLETADA'}]}),fila('PET2',{estado:'CANCELADA',detalle:[{estado:'CANCELADA'}]}),fila('B7L',{estado:'PAUSA',iniciadaReal:true,detalle:[{estado:'PAUSA'}]}),fila('C20L',{estado:'EN_CURSO',enProduccionReal:true,iniciadaReal:true,detalle:[{estado:'EN_CURSO'}]})]).length===0,'finalizada, cancelada, en pausa programada o en curso: no se marcan');
-ok(sp([fila('PET1',{programado:0})]).length===0&&sp([]).length===0,'turno vacío / sin programación: no se marcan todas las líneas');
+ok(de(r,'PET1').causa==='BLOQUE_NO_INICIA'&&!de(r,'PET1').pendiente,'el bloque aún no inicia: aparece sin exigir motivo');
+r=sp([fila('PET1',{estado:'COMPLETADA',producido:1000,iniciadaReal:true,detalle:[{estado:'COMPLETADA'}]}),fila('PET2',{estado:'CANCELADA',detalle:[{estado:'CANCELADA'}]}),fila('C20L',{estado:'EN_CURSO',enProduccionReal:true,iniciadaReal:true,producido:20,detalle:[{estado:'EN_CURSO'}]})]);
+ok(!de(r,'PET1')&&!de(r,'C20L')&&de(r,'PET2').causa==='CANCELADA'&&!de(r,'PET2').pendiente,'con unidades: no aparecen; programación toda cancelada: «Programación cancelada» sin exigir motivo');
+ok(sp([]).length===5&&sp([]).every(x=>!x.pendiente),'turno sin programación: todas «Sin programación», ninguna pendiente');
 r=sp([fila('PET1')],{bloqueActual:false});
-ok(r.length===0,'un bloque que no es el vigente no deduce incidencias (solo muestra lo informado)');
-ok(lin(sp([],{bloqueActual:false,incidencias:[{linea:'PET2',estado:'VIGENTE',motivo:'Limpieza',registradoEn:1}]}))==='PET2','una incidencia informada se puede consultar en su fecha y bloque');
-ok(sp([],{incidencias:[{linea:'PET1',estado:'RESUELTA',motivo:'Limpieza',registradoEn:1}]}).length===0,'una incidencia resuelta ya no aparece como vigente');
-// evento anterior / posterior al registro
+ok(de(r,'PET1').pendiente,'un bloque pasado también se evalúa (Inicio muestra el turno seleccionado)');
+ok(de(sp([],{incidencias:[{linea:'PET1',estado:'RESUELTA',motivo:'Limpieza',registradoEn:1}]}),'PET1').causa==='SIN_PROGRAMACION','una incidencia resuelta ya no aparece como vigente');
 const inc={linea:'PET1',estado:'VIGENTE',motivo:'Mantenimiento',registradoPor:'Ana',registradoEn:900000};
-ok(lin(sp([fila('PET1',{estado:'EN_CURSO',enProduccionReal:true,iniciadaReal:true,ultimaOperacionMs:800000,producido:50,detalle:[{estado:'EN_CURSO'}]})],{incidencias:[inc]}))==='PET1','un inicio ANTERIOR al motivo (o producción previa) no lo cierra');
-ok(sp([fila('PET1',{estado:'EN_CURSO',enProduccionReal:true,iniciadaReal:true,ultimaOperacionMs:950000,producido:50,detalle:[{estado:'EN_CURSO'}]})],{incidencias:[inc]}).length===0,'un inicio/reanudación POSTERIOR al registro la deja de mostrar como vigente');
-ok(lin(I.sinProduccion(Object.assign(base([]),{lineas:['PET1','B20L'],incidencias:[{linea:'PET2',estado:'VIGENTE',motivo:'Limpieza',registradoEn:1}]})))==='','líneas no autorizadas no se muestran');
+ok(!de(sp([fila('PET1',{estado:'EN_CURSO',enProduccionReal:true,iniciadaReal:true,producido:50,detalle:[{estado:'EN_CURSO'}]})],{incidencias:[inc]}),'PET1'),'si la línea ya produce, deja de figurar sin producción aunque su motivo siga vigente');
+ok(lin(I.sinProduccion(Object.assign(base([]),{lineas:['PET1','B20L'],incidencias:[{linea:'PET2',estado:'VIGENTE',motivo:'Limpieza',registradoEn:1}]})))==='PET1,B20L','líneas no autorizadas no se muestran');
+ok(I.enProduccion({producido:1})&&!I.enProduccion({producido:0})&&!I.enProduccion(null),'enProduccion: unidades > 0 (mismo criterio para la tarjeta «Líneas en producción»)');
 
 /* ---------- persistencia: registrar, corregir, resolver ---------- */
 (async()=>{
@@ -117,7 +121,7 @@ ok(lin(I.sinProduccion(Object.assign(base([]),{lineas:['PET1','B20L'],incidencia
   ok(!/Avance|paradasOperativas|avancesTurno|minPausas|minParadas/.test(s63.replace(/\/\*[\s\S]*?\*\//,'')),'63: no toca paradas de Avance/Cierre, tiempos ni ratio');
   const s32=leer('js/accesos/32-dashboard-perfiles.js');
   ok(['Avance del turno','Líneas en producción','Paradas del turno','Motivos registrados','Estado del turno'].every(t=>s32.includes("'"+t+"'")),'Inicio: las cinco tarjetas aprobadas');
-  ok(/Motivo pendiente de registrar/.test(s32)&&/Sin programación para evaluar/.test(s32)&&/SIN PROGRAMACIÓN/.test(s32)&&/SIN DATOS PARA EVALUAR/.test(s32)&&/Sin incidencias de no producción registradas/.test(s32),'Inicio: textos de motivo pendiente, sin programación y sin datos');
+  ok(/Motivo pendiente de registrar/.test(s32)&&/Sin programación para evaluar/.test(s32)&&/SIN PROGRAMACIÓN/.test(s32)&&/SIN DATOS PARA EVALUAR/.test(s32)&&/Todas las líneas están en producción\./.test(s32),'Inicio: textos de motivo pendiente, sin programación, sin datos y todas en producción');
   ok(!/Líneas detenidas/.test(s32.slice(s32.indexOf('function cpEjecutivoHTML'),s32.indexOf('function cpEjecutivoStyles'))),'Inicio: ya no hay tarjeta superior «Líneas detenidas»');
   ok(/lineasAutorizadas/.test(s32)&&/totalLineas/.test(s32),'Inicio: el denominador usa las líneas autorizadas (no fija cinco)');
   const idx=leer('index.html');
