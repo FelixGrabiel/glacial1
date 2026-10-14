@@ -193,6 +193,15 @@ node tests/correr-todo.js tareo plan   # solo las que contienen esas palabras
 
 Resume cuántas pasaron, muestra el detalle solo de las que fallan y sale con código 1 si alguna falla.
 
+Reglas de Firestore (etapa 2) en el emulador, sin tocar ningún proyecto real. Necesita Java; se corre aparte porque usa dependencias de npm:
+
+```
+npm i firebase-tools@13 @firebase/rules-unit-testing@3 firebase@10        # en una carpeta temporal
+npx firebase emulators:exec --only firestore --project demo-glacial "node <ruta-del-repo>/tests/reglas/etapa2-emulador.js"
+```
+
+Comprueba 35 casos por rol: login, perfiles, cuenta compartida de Mantenimiento, bitácora, Planificación, corrección y reclasificación de paradas, economía y la denegación general.
+
 ## Entornos (PRODUCCIÓN y PRUEBAS)
 
 `js/nucleo/01-config.js` guarda las dos configuraciones de Firebase y elige sola:
