@@ -927,20 +927,32 @@ function cpVerMotivosParadas(){
 }
 function cpIrLineaInicio(){if(cpPuede('produccionActual')&&typeof goProduccionActual==='function')goProduccionActual();}
 
-/* ---------- PERSONAL POR LÍNEA (Distribución de personal del Tareo, 43-distribucion-personal.js) ----------
-   Fuente única: la distribución que el supervisor guarda en Tareo › Distribución de personal (cantidad por línea, por fecha operativa y bloque).
-   Se lee el evento vigente al corte del bloque seleccionado (ahora, o el fin si ya terminó). La distribución guarda CANTIDADES por línea, no
-   nombres ni cargos. «Sin asignar» = personal que asistió según el Tareo del bloque − (distribuido a líneas + apoyo compartido). */
+/* ---------- DISTRIBUCIÓN DE PERSONAL (Tareo › Distribución de personal, 43-distribucion-personal.js) ----------
+   Solo consulta: Inicio no guarda ni edita cantidades. Fuente única: la distribución que el supervisor guarda en Tareo, por fecha operativa
+   y bloque (Día = Mañana + Intermedio; Noche aparte). Se toma UN evento: el vigente al corte del bloque seleccionado (ahora, o el fin si ya
+   terminó); las versiones no se suman. La caché es por fecha|bloque, así que una respuesta tardía de otro contexto no pisa el seleccionado.
+   · Línea: cantidad confirmada (0 incluido) o Pendiente (sin confirmar; nunca se muestra como 0).
+   · Asignados a líneas = suma de las líneas CONFIRMADAS. Apoyo compartido va aparte y no se suma a ninguna línea.
+   · Total con asistencia = personas distintas con asistencia que trabaja en el Tareo de Producción del bloque (disponiblesTareo: sin
+     Mantenimiento ni espejos de maquinistas, una persona en Día e Intermedio cuenta una vez). No es el catálogo de trabajadores.
+   · Sin asignar = total con asistencia − asignados − apoyo. La distribución guarda CANTIDADES, no nombres: no se verifica persona por persona. */
 let cpPersonalClave='',cpPersonalCerrar=null;
 function cpPersonalEscuchar(fecha,bloque){
   const D=window.glacialDistribucionPersonal;if(!D)return;
   const k=fecha+'|'+bloque;
   if(k!==cpPersonalClave){
     if(typeof cpPersonalCerrar==='function'){try{cpPersonalCerrar();}catch(_){/* ya cerrada */}}
+    cpPersonalClave=k;          // antes de escuchar: una respuesta inmediata redibuja y no debe abrir otra escucha
+    cpPersonalCerrar=null;
     try{cpPersonalCerrar=D.escuchar(fecha,bloque);}catch(_){cpPersonalCerrar=null;}
-    cpPersonalClave=k;
   }
   if(!window.__cpPersonalOyente){window.__cpPersonalOyente=true;D.alCambiar(cpRefrescarEjecutivo);}
+}
+/* Reintento tras un error de carga: se cierra la escucha y se vuelve a abrir para el mismo contexto. */
+function cpPersonalReintentar(){
+  if(typeof cpPersonalCerrar==='function'){try{cpPersonalCerrar();}catch(_){/* ya cerrada */}}
+  cpPersonalCerrar=null;cpPersonalClave='';
+  cpRefrescarEjecutivo();
 }
 function cpPersonalPorLinea(d){
   const D=window.glacialDistribucionPersonal;
@@ -956,37 +968,81 @@ function cpPersonalPorLinea(d){
   const lineas=d.lineasAutorizadas.filter(l=>D.LINEAS.includes(l)).map(l=>{
     const p=D.consultar(d.fecha,bloque,l,corte),f=porLinea.get(l),produce=!!f&&cpEnProduccion(f);
     const pendiente=p.estado==='PENDIENTE',cant=pendiente?null:Number(p.cantidad)||0;
-    // Resaltados: personal en una línea que no produce; línea que produce sin personal confirmado (0 o pendiente).
+    // Advertencias: personal en una línea que no produce; línea que produce sin personal confirmado (0 o pendiente).
     const alerta=!produce&&cant>0?'parado':(produce&&(pendiente||cant===0)?'sinpersonal':'');
     return {linea:l,produce,pendiente,cantidad:cant,alerta};
   });
   const distribuido=lineas.reduce((s,x)=>s+(x.cantidad||0),0);
   const apoyo=ev?Number(ev.apoyoCompartido)||0:0;
   let disponible=null;try{disponible=D.disponiblesTareo(typeof obtenerTareos==='function'?obtenerTareos():[],d.fecha,bloque);}catch(_){disponible=null;}
-  return {lineas,distribuido,apoyo,disponible,sinAsignar:disponible===null?null:disponible-distribuido-apoyo,
-    sincronizado:!!datos.listo,hayDistribucion:!!ev,desdeMs:ev?Number(ev.desdeMs)||0:0};
+  const sinAsignar=disponible===null||!ev?null:disponible-distribuido-apoyo;
+  const advertencias=lineas.filter(x=>x.alerta).length+(sinAsignar!==null&&sinAsignar<0?1:0);
+  return {lineas,distribuido,apoyo,disponible,sinAsignar,advertencias,
+    pendientes:ev?lineas.filter(x=>x.pendiente):[],
+    error:!!datos.error&&!datos.listo,sincronizado:!!datos.listo,hayDistribucion:!!ev,desdeMs:ev?Number(ev.desdeMs)||0:0,
+    usuario:ev?String(ev.usuario||''):''};
 }
-function cpPersonalPorLineaHTML(d){
-  const r=cpPersonalPorLinea(d);
-  const cab=`<div class="cp-card-head"><div class="cp-card-title">${cpIcon('user')}<div><h3>PERSONAL POR LÍNEA</h3>
-      <p>Distribución de personal del Tareo${r&&r.hayDistribucion?` · vigente desde ${cpEsc(cpHoraCorta(r.desdeMs))}`:''}.</p></div></div></div>`;
-  if(!r)return `<section class="cp-card cp-pl" aria-label="Personal por línea">${cab}<div class="cp-empty">No se cargó la distribución de personal.</div></section>`;
-  if(!r.sincronizado)return `<section class="cp-card cp-pl" aria-label="Personal por línea">${cab}<div class="cp-empty">Consultando la distribución de personal…</div></section>`;
-  const obs={parado:'Tiene personal y no produce',sinpersonal:'Produce sin personal confirmado'};
+const CP_DIST_OBS={parado:'Tiene personal y no produce',sinpersonal:'Produce sin personal confirmado'};
+/* Tarjeta compacta «Distribución de personal» (reemplaza a «Estado del turno» en la fila superior). */
+function cpDistribucionKpi(r){
+  const ver=`<button type="button" class="cp-ex-enlace" onclick="cpVerDistribucion()">Ver distribución →</button>`;
+  if(!r)return `<div class="cp-ds-msg">No se cargó el módulo de distribución de personal.</div>`;
+  if(r.error)return `<div class="cp-ds-msg cp-ds-err" role="alert">No se pudo consultar la distribución de personal.</div>
+    <button type="button" class="cp-ex-enlace" onclick="cpPersonalReintentar()">Reintentar ↻</button>`;
+  if(!r.sincronizado)return `<div class="cp-ds-msg">Consultando la distribución…</div>`;
+  if(!r.hayDistribucion)return `<div class="cp-ds-msg cp-ds-sin">Distribución pendiente de registrar</div>
+    <small class="cp-ds-sub">${r.disponible===null?'El Tareo del bloque aún no tiene asistencia.':`Total con asistencia: <b class="cp-ds-inl">${cpFmt(r.disponible)}</b>`}</small>${ver}`;
+  const lista=r.lineas.map(x=>`<li class="${x.alerta?'cp-ds-alerta':''}"><span>${cpEsc(cpNombreLinea(x.linea))}${x.alerta?` <i class="cp-ds-warn" title="${CP_DIST_OBS[x.alerta]}" aria-label="${CP_DIST_OBS[x.alerta]}">⚠</i>`:''}</span>
+      ${x.pendiente?'<em class="cp-ds-pend">Pendiente</em>':`<strong>${cpFmt(x.cantidad)}</strong>`}</li>`).join('');
+  const sa=r.sinAsignar===null?'<strong>—</strong>'
+    :r.sinAsignar<0?`<strong class="cp-ds-neg" title="Se asignaron ${cpFmt(-r.sinAsignar)} más que los presentes">⚠ ${cpFmt(r.sinAsignar)}</strong>`:`<strong>${cpFmt(r.sinAsignar)}</strong>`;
+  const tot=`<ul class="cp-ds-tot">
+      <li><span>Asignados a líneas${r.pendientes.length?'*':''}</span><strong>${cpFmt(r.distribuido)}</strong></li>
+      <li><span>Apoyo compartido</span><strong>${cpFmt(r.apoyo)}</strong></li>
+      <li><span>Sin asignar</span>${sa}</li>
+      <li class="cp-ds-asis"><span>Total con asistencia</span><strong>${r.disponible===null?'Sin Tareo':cpFmt(r.disponible)}</strong></li></ul>`;
+  const incompleta=r.pendientes.length?`<small class="cp-ds-inc">* Incompleta: ${r.pendientes.map(x=>cpEsc(cpNombreLinea(x.linea))).join(', ')} pendiente${r.pendientes.length===1?'':'s'}</small>`:'';
+  const avisos=r.advertencias?`<button type="button" class="cp-ds-avisos" onclick="cpVerDistribucion()">⚠ ${r.advertencias} advertencia${r.advertencias===1?'':'s'}</button>`:'';
+  return `<ul class="cp-ds-lista" aria-label="Personal por línea">${lista}</ul>${tot}${incompleta}
+    <div class="cp-ds-pie"><small class="cp-ds-sub">Vigente desde ${cpEsc(cpHoraCorta(r.desdeMs))}</small>${avisos}</div>${ver}`;
+}
+/* Detalle (modal de consulta): línea · estado de producción · personal · observación, con los totales. Sin acciones de edición. */
+function cpDistribucionDetalleHTML(d,r){
+  const ctx=`${cpEsc(cpFechaBonita(d.fecha))} · ${cpEsc(GlacialIndicadores.nombreBloque(d.turno,'pantalla'))}`;
+  if(!r)return `<p>No se cargó el módulo de distribución de personal.</p>`;
+  if(r.error)return `<p class="cp-ds-err" role="alert">No se pudo consultar la distribución de personal (${ctx}).</p><button type="button" class="btn btn-ghost" onclick="cpPersonalReintentar()">Reintentar</button>`;
+  if(!r.sincronizado)return `<p>Consultando la distribución de personal…</p>`;
   const filas=r.lineas.map(x=>`<tr class="${x.alerta?'cp-pl-'+x.alerta:''}">
       <td data-label="Línea"><strong>${cpEsc(cpNombreLinea(x.linea))}</strong></td>
       <td data-label="Estado"><span class="cp-ex-badge cp-ex-${x.produce?'curso':'sinprog'}"><i></i>${x.produce?'En producción':'Sin producción'}</span></td>
-      <td data-label="Personal">${x.pendiente?'<span class="cp-pl-pend">Pendiente de confirmar</span>':`<b>${cpFmt(x.cantidad)}</b>`}</td>
-      <td data-label="Observación">${x.alerta?`<span class="cp-pl-obs">⚠ ${obs[x.alerta]}</span>`:'—'}</td></tr>`).join('');
-  const sinAsignar=r.sinAsignar===null?'Tareo del bloque sin asistencia registrada'
-    :r.sinAsignar>=0?`Sin asignar: <b>${cpFmt(r.sinAsignar)}</b> de ${cpFmt(r.disponible)} con asistencia`
-    :`<span class="cp-pl-obs">Se distribuyeron ${cpFmt(-r.sinAsignar)} más que los ${cpFmt(r.disponible)} con asistencia</span>`;
-  const total=`<tr class="cp-pl-total"><td data-label="Línea"><strong>Total</strong></td><td data-label="Estado"></td>
-      <td data-label="Personal"><b>${cpFmt(r.distribuido)}</b>${r.apoyo?` <small>+ ${cpFmt(r.apoyo)} apoyo compartido</small>`:''}</td><td data-label="Observación">${sinAsignar}</td></tr>`;
-  const nota=r.hayDistribucion?'':'<p class="small-muted cp-pl-nota">Aún no se guardó la distribución de este bloque (Tareo › Distribución de personal).</p>';
-  return `<section class="cp-card cp-pl" aria-label="Personal por línea">${cab}${nota}
-    <div class="cp-table-wrap"><table class="cp-table cp-ex-table"><thead><tr><th>Línea</th><th>Estado</th><th>Personal</th><th>Observación</th></tr></thead>
-    <tbody>${filas}${total}</tbody></table></div></section>`;
+      <td data-label="Personal">${!r.hayDistribucion||x.pendiente?'<span class="cp-pl-pend">Pendiente</span>':`<b>${cpFmt(x.cantidad)}</b>`}</td>
+      <td data-label="Observación">${x.alerta?`<span class="cp-pl-obs">⚠ ${CP_DIST_OBS[x.alerta]}</span>`:'—'}</td></tr>`).join('');
+  const notas=[];
+  if(!r.hayDistribucion)notas.push('Distribución pendiente de registrar para este bloque (Tareo › Distribución de personal).');
+  if(r.pendientes.length)notas.push(`Distribución incompleta: ${r.pendientes.map(x=>cpEsc(cpNombreLinea(x.linea))).join(', ')} sin confirmar. «Asignados a líneas» suma solo las líneas confirmadas y «Sin asignar» incluye al personal de las líneas pendientes.`);
+  if(r.sinAsignar!==null&&r.sinAsignar<0)notas.push(`<span class="cp-pl-obs">Inconsistencia: se asignaron ${cpFmt(-r.sinAsignar)} más que los ${cpFmt(r.disponible)} con asistencia en el Tareo. Revisar la distribución o la asistencia.</span>`);
+  if(r.disponible===null)notas.push('El Tareo de Producción del bloque no tiene asistencia registrada: no se puede calcular «Sin asignar».');
+  const tot=(et,v)=>`<div><span>${et}</span><b>${v}</b></div>`;
+  const totales=`<div class="cp-ds-totdet">${tot('Asignados a líneas',r.hayDistribucion?cpFmt(r.distribuido):'—')}${tot('Apoyo compartido',r.hayDistribucion?cpFmt(r.apoyo):'—')}
+      ${tot('Sin asignar',r.sinAsignar===null?'—':cpFmt(r.sinAsignar))}${tot('Total con asistencia',r.disponible===null?'Sin Tareo':cpFmt(r.disponible))}</div>`;
+  return `<p class="small-muted">${ctx}${r.hayDistribucion?` · vigente desde ${cpEsc(cpHoraCorta(r.desdeMs))}${r.usuario?` · registrada por ${cpEsc(r.usuario)}`:''}`:''}</p>
+    ${notas.map(n=>`<p class="cp-ds-nota">${n}</p>`).join('')}
+    <div class="cp-table-wrap"><table class="cp-table cp-ex-table cp-pl"><thead><tr><th>Línea</th><th>Estado</th><th>Personal</th><th>Observación</th></tr></thead><tbody>${filas}</tbody></table></div>
+    ${totales}
+    <p class="small-muted" style="margin-top:10px">Solo consulta. La distribución se registra en Tareo › Distribución de personal y guarda cantidades por línea, no nombres: no se verifica persona por persona. El apoyo compartido no se suma a ninguna línea.</p>`;
+}
+function cpVerDistribucion(){
+  if(!cpPuedeVerInicioEjecutivo())return;          // mismo permiso que la tarjeta: sin él no se exponen cantidades
+  const d=cpDatosEjecutivo();if(!d)return;
+  const raiz=document.getElementById('modal-root');if(!raiz)return;
+  raiz.innerHTML=`<div class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal cp-ds-modal" role="dialog" aria-modal="true" aria-labelledby="cp-ds-titulo" id="cp-ds-modal">
+    <div class="modal-head"><h3 id="cp-ds-titulo">Distribución de personal</h3><button class="modal-close" onclick="closeModal()" aria-label="Cerrar">✕</button></div>
+    <div class="modal-body" id="cp-ds-cuerpo">${cpDistribucionDetalleHTML(d,cpPersonalPorLinea(d))}</div></div></div>`;
+}
+/* Si el detalle está abierto y llega un cambio (Tareo guarda otra versión), se actualiza con el mismo contexto. */
+function cpRefrescarDistribucionAbierta(){
+  const c=document.getElementById('cp-ds-cuerpo');if(!c)return;
+  const d=cpDatosEjecutivo();if(d)c.innerHTML=cpDistribucionDetalleHTML(d,cpPersonalPorLinea(d));
 }
 
 function cpEjecutivoHTML(){
@@ -1030,24 +1086,12 @@ function cpEjecutivoHTML(){
     :`<div class="cp-ex-mot cp-ex-mut">Sin paradas registradas</div>`)
     +`<button type="button" class="cp-ex-enlace" onclick="cpVerMotivosParadas()">Ver detalle →</button>`;
 
-  // 5) ESTADO DEL TURNO: sin programación / sin datos para evaluar / evaluado.
-  const ctxB=cpContextoBloque(d);
+  // 5) DISTRIBUCIÓN DE PERSONAL (reemplaza a «Estado del turno»): consulta de la distribución del Tareo para la fecha y el bloque seleccionados.
   const sp=cpFilasSinProduccion(d);
-  // Líneas sin producción y SIN motivo informado (con programación, bloque ya iniciado): por sí solas piden atención.
-  const sinMotivo=sp.estado==='listo'?sp.filas.filter(f=>f.pendiente).length:0;
-  const causaSinMotivo=sinMotivo?`${sinMotivo} línea${sinMotivo===1?'':'s'} sin motivo de no producción`:'';
-  const sinProg=d.vigentes.length===0;
-  const sinDatos=!sinProg&&(!d.vigentes.some(f=>f.producido>0||f.iniciadaReal)||(ctxB.bloqueActual&&cpAhoraMs()<ctxB.inicio));
-  const estadoTurno=sinProg?{t:'SIN PROGRAMACIÓN',c:'pendiente',s:'No hay programación para el bloque seleccionado'}
-    :sinMotivo?{t:'REQUIERE ATENCIÓN',c:'curso',s:[causaSinMotivo,d.detenidas?`${d.detenidas} detenida${d.detenidas===1?'':'s'}`:'',d.retrasadas?'avance por debajo de lo esperado':''].filter(Boolean).join(' · ')}
-    :sinDatos?{t:'SIN DATOS PARA EVALUAR',c:'pendiente',s:'Hay programación, pero aún falta información'}
-    :d.cerradas?{t:'COMPLETADO',c:'completada',s:'Programación del turno terminada'}
-    :(d.detenidas||d.retrasadas)?{t:'REQUIERE ATENCIÓN',c:'curso',s:'Consultar avance y paradas'}
-    :{t:'EN OBJETIVO',c:'completada',s:'Ritmo acorde a lo esperado'};
-  const tEstado=`<b class="cp-ex-estado"><span class="cp-ex-badge cp-ex-${estadoTurno.c} cp-ex-general">${estadoTurno.t}</span></b><small>${estadoTurno.s}</small>`;
+  const tDistribucion=cpDistribucionKpi(cpPersonalPorLinea(d));
 
   const tarjeta=(icono,titulo,cuerpo,extra='')=>`<div class="cp-ex-kpi ${extra}"><span class="cp-ex-kpi-t">${cpIcon(icono)}${titulo}</span>${cuerpo}</div>`;
-  const kpis=`<div class="cp-ex-kpis">${tarjeta('bars','Avance del turno',tAvance)}${tarjeta('chart','Líneas en producción',tEnCurso)}${tarjeta('pause','Paradas del turno',tParadas)}${tarjeta('list','Motivos registrados',tMotivos)}${tarjeta('pulse','Estado del turno',tEstado)}</div>`;
+  const kpis=`<div class="cp-ex-kpis">${tarjeta('bars','Avance del turno',tAvance)}${tarjeta('chart','Líneas en producción',tEnCurso)}${tarjeta('pause','Paradas del turno',tParadas)}${tarjeta('list','Motivos registrados',tMotivos)}${tarjeta('team','Distribución de personal',tDistribucion,'cp-ds')}</div>`;
 
   // LÍNEAS SIN PRODUCCIÓN: todas las líneas autorizadas sin unidades en el bloque, cada una con su motivo, «Sin programación» o «Motivo pendiente».
   // Inicio solo muestra: el motivo lo informa el supervisor en Producción Actual («Informar motivo de no producción»).
@@ -1073,7 +1117,6 @@ function cpEjecutivoHTML(){
   const tarjetaSP=`<section class="cp-card cp-np" aria-label="Líneas sin producción"><div class="cp-card-head"><div class="cp-card-title"><span class="cp-np-alerta" aria-hidden="true">!</span><div><h3>LÍNEAS SIN PRODUCCIÓN</h3>
       <p>Motivo informado por el supervisor de la línea. Es informativo: no es una parada oficial ni suma en Paradas del turno.</p></div></div></div>${filasSP||`<div class="cp-empty">${vacioSP}</div>`}</section>`;
 
-  const tarjetaPersonal=cpPersonalPorLineaHTML(d);
 
   // PRODUCCIÓN POR LÍNEA: una tabla (línea · estado · producción · cumplimiento · último registro) con las unidades propias de cada línea.
   const porLinea=new Map(d.filas.map(f=>[f.linea,f]));
@@ -1121,10 +1164,11 @@ function cpEjecutivoHTML(){
   const tarjetaAlertas=`<section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('info')}<div><h3>Alertas importantes</h3><p>Solo situaciones vigentes que requieren atención.</p></div></div></div>
       <div class="cp-ex-alerts">${alertas}</div></section>`;
 
-  // Orden: encabezado → 5 tarjetas → personal por línea → líneas sin producción → producción por línea → alertas → RESUMEN DE PRODUCCIÓN al final.
+  // Orden: encabezado → 5 tarjetas → líneas sin producción → producción por línea → alertas → RESUMEN DE PRODUCCIÓN al final.
+  // La tabla «Personal por línea» ya no se repite aquí: su detalle se abre desde «Ver distribución →» (cpVerDistribucion).
   // Las tarjetas «Paradas de hoy», «Proyección del turno» y «Disponibilidad de hoy» (43, 46 y 47) se insertan justo después de .cp-title-row,
   // por eso siguen dentro del bloque final.
-  return `${cabecera}${kpis}${tarjetaPersonal}${tarjetaSP}${tarjetaLineas}${tarjetaAlertas}
+  return `${cabecera}${kpis}${tarjetaSP}${tarjetaLineas}${tarjetaAlertas}
     <section class="cp-resumen-prod" aria-label="Resumen de producción"><div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2><p>Detalle del turno seleccionado.</p></div></div></section>`;
 }
 function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
@@ -1221,6 +1265,31 @@ function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-ex-cab .cp-ex-bloque select{color:#fff!important}.cp-ex-cab .cp-ex-bloque select option{color:#10265f;background:#fff}
 .cp-ex-table td,.cp-ex-table th{padding:10px 16px;font-size:13px}.cp-fila-link{cursor:pointer}.cp-fila-link:focus-visible{outline:3px solid rgba(8,120,249,.3);outline-offset:-3px}
 .cp-ex-table td .cp-ex-bar{display:inline-block;width:140px;margin-left:10px;vertical-align:middle}
+.cp-ex-kpis{align-items:stretch}
+/* ---- Distribución de personal: lista compacta (línea a la izquierda, personal a la derecha) ---- */
+.cp-shell .cp-ds{display:flex;flex-direction:column}
+.cp-shell .cp-ds .cp-ds-lista,.cp-shell .cp-ds .cp-ds-tot{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:2px}
+.cp-shell .cp-ds li{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;line-height:1.35;color:#28415a}
+.cp-shell .cp-ds li>span{display:inline;font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:#28415a;min-width:0;overflow-wrap:anywhere}
+.cp-shell .cp-ds li>strong{font-size:15px;color:#10265f;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cp-shell .cp-ds .cp-ds-lista li{padding:1px 0;border-bottom:1px dashed #e3ebf2}.cp-shell .cp-ds .cp-ds-lista{margin-top:6px;gap:0}
+.cp-shell .cp-ds .cp-ds-lista li.cp-ds-alerta>span{color:#9a3412}
+.cp-shell .cp-ds .cp-ds-tot{margin-top:6px;padding-top:4px;border-top:1px solid var(--cp-line);gap:0}
+.cp-shell .cp-ds .cp-ds-tot li>span{font-weight:500;color:#466ba7;font-size:12px}.cp-shell .cp-ds .cp-ds-tot li>strong{font-size:14px}
+.cp-shell .cp-ds .cp-ds-tot li.cp-ds-asis>span{font-weight:800;color:#10265f}
+.cp-ds-pend{font-style:normal;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--ie-pend-bg,#F3F4F6);color:var(--ie-pend-tx,#4B5563);white-space:nowrap}
+.cp-ds-warn{font-style:normal;color:#b45309}.cp-shell .cp-ds .cp-ds-neg{color:#b42318}
+.cp-shell .cp-ds .cp-ds-inl{display:inline;font-size:inherit;margin:0}
+.cp-ds-msg{margin:10px 0 4px;font-size:14px;font-weight:700;color:#5f6f7c}.cp-ds-sin{color:#4B5563}.cp-ds-err{color:#b42318!important}
+.cp-shell .cp-ds small.cp-ds-sub,.cp-shell .cp-ds small.cp-ds-inc{display:block;margin-top:4px}.cp-shell .cp-ds small.cp-ds-inc{color:#9a5b00}
+.cp-ds-pie{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-top:4px}.cp-shell .cp-ds .cp-ds-pie small{margin:0}
+.cp-ds-avisos{padding:3px 10px;border:1px solid #f2c08a;border-radius:999px;background:#fff7ed;color:#9a3412;font:inherit;font-size:12px;font-weight:700;cursor:pointer;min-height:28px}
+.cp-shell .cp-ds .cp-ex-enlace{margin-top:auto;padding-top:4px;min-height:28px}
+.cp-ds-modal{max-width:760px}.cp-ds-modal .cp-ex-sinprog{background:#F3F4F6;color:#4B5563}.cp-ds-modal .cp-ex-sinprog i{background:#9CA3AF}.cp-ds-modal .cp-ex-curso{background:#FFEDD5;color:#9A3412}.cp-ds-modal .cp-ex-curso i{background:#F97316}.cp-ds-nota{margin:6px 0;font-size:13px;color:#5b4a00;background:#fffbea;border-left:3px solid #e0a100;padding:6px 10px;border-radius:6px}
+.cp-ds-totdet{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.cp-ds-totdet div{border:1px solid var(--cp-line,#dbe5ee);border-radius:10px;padding:8px 10px;background:#f7fafc}
+.cp-ds-totdet span{display:block;font-size:11px;font-weight:700;color:#466ba7;text-transform:uppercase}.cp-ds-totdet b{font-size:20px;color:#10265f}
+@media(max-width:700px){.cp-ds-totdet{grid-template-columns:1fr 1fr}.cp-shell .cp-ds li>span,.cp-shell .cp-ds li{font-size:14px}}
 @media(max-width:1180px){.cp-shell .cp-ex-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){
   .cp-shell .cp-ex-kpis{grid-template-columns:1fr}.cp-ex-cab h1{font-size:26px}.cp-ex-cab-der{width:100%}.cp-ex-ctl{flex:1 1 auto}
@@ -1232,6 +1301,7 @@ function cpRefrescarEjecutivo(){
   if(!state.user||state.currentTab!=='centro-perfil'||!cpPuedeVerInicioEjecutivo())return;
   const main=document.getElementById('main');
   if(main)renderCentroPerfil(main);
+  cpRefrescarDistribucionAbierta();
 }
 // Actualización en tiempo real: mismas señales que usa Producción Actual.
 ['onPaletasUpdated','onProgramacionesUpdated'].forEach(nombre=>{

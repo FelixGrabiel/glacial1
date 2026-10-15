@@ -23,10 +23,10 @@ ok(/D\(\)\.disponiblesTareo\(/.test(leer('js/personal/44-distribucion-personal-p
 const s32=leer('js/accesos/32-dashboard-perfiles.js');
 const ejec=s32.slice(s32.indexOf('function cpEjecutivoHTML'),s32.indexOf('function cpEjecutivoStyles'));
 ok(/const enCursoReal=filas\.filter\(cpEnProduccion\)/.test(s32)&&/I\.enProduccion\(f\)/.test(s32),'«Líneas en producción» usa el mismo criterio que «Líneas sin producción» (unidades > 0)');
-ok(/\$\{cabecera\}\$\{kpis\}\$\{tarjetaPersonal\}\$\{tarjetaSP\}/.test(ejec),'orden: tarjetas → personal por línea → líneas sin producción');
+ok(/\$\{cabecera\}\$\{kpis\}\$\{tarjetaSP\}/.test(ejec),'orden: tarjetas (con Distribución de personal) → líneas sin producción; la tabla de personal pasó al detalle');
 ok(/D\.consultar\(d\.fecha,bloque,l,corte\)/.test(s32)&&/D\.disponiblesTareo\(/.test(s32)&&/cpPersonalEscuchar\(d\.fecha,bloque\)/.test(s32),'personal: Distribución vigente al corte de la fecha y el bloque seleccionados, comparada con la asistencia del Tareo');
-ok(/Tiene personal y no produce/.test(s32)&&/Produce sin personal confirmado/.test(s32)&&/Sin asignar: /.test(s32),'personal: resalta personal parado y producción sin personal; muestra «Sin asignar»');
-ok(/sinMotivo\?\{t:'REQUIERE ATENCIÓN'/.test(ejec)&&/sin motivo de no producción/.test(ejec),'Estado del turno: REQUIERE ATENCIÓN y la causa cuando hay líneas sin motivo');
+ok(/Tiene personal y no produce/.test(s32)&&/Produce sin personal confirmado/.test(s32)&&/Sin asignar/.test(s32),'personal: resalta personal parado y producción sin personal; muestra «Sin asignar»');
+ok(!/'Estado del turno'/.test(ejec)&&/'Distribución de personal'/.test(ejec),'la tarjeta «Estado del turno» se reemplazó por «Distribución de personal»');
 ok(/Todas las líneas están en producción\./.test(ejec)&&/Registrar en Producción Actual/.test(ejec)&&/I\.puedeInformar\(f\.linea\)/.test(ejec),'sin producción: «Todas…» cuando no hay; enlace para registrar solo a quien puede informar');
 ok(/\.cp-ex-table\{min-width:0\}/.test(s32),'celular: las tablas de Inicio no heredan el ancho mínimo de 650 px');
 
