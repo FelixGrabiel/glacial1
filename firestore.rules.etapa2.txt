@@ -774,6 +774,16 @@ service cloud.firestore {
         (puedeValidarAp() && request.resource.data.estado in ['CONFIRMADA', 'BORRADOR']));
       allow delete: if false;
     }
+    // Coordinaciones del turno (seguimiento): las registra y cierra el Asistente; versión +1, historial solo crece; una cerrada no se reabre.
+    match /apCoordinaciones/{id} {
+      allow read: if leerAp();
+      allow create: if puedeAsistente() && autorAp() && versionAp() && historialCreceAp() && request.resource.data.id == id
+        && request.resource.data.estado == 'ABIERTA' && request.resource.data.texto is string && request.resource.data.texto.size() >= 5;
+      allow update: if puedeAsistente() && autorAp() && versionAp() && historialCreceAp()
+        && resource.data.estado == 'ABIERTA' && request.resource.data.estado == 'CERRADA'
+        && request.resource.data.texto == resource.data.texto && request.resource.data.creadoUid == resource.data.creadoUid;
+      allow delete: if false;
+    }
     // Auditoría: cada operación deja su registro (uid y hora del servidor). Nadie la edita ni la borra.
     match /apAuditoria/{id} {
       allow read: if leerAp();

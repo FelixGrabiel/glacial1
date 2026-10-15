@@ -136,6 +136,15 @@ const espera=async p=>{try{await p;return null;}catch(e){return e;}};
   const lista=[fs1,fs2];
   ok(N.factorVigente(lista,{insumo:'POLIETILENO',linea:'PET1',marca:'x',presentacion:'y',fecha:'2026-09-15'}).factor.factor===1.89&&N.factorVigente(lista,{insumo:'POLIETILENO',linea:'PET1',marca:'x',presentacion:'y',fecha:'2026-10-14'}).factor.factor===2.1,'prueba 15: un día histórico usa el factor de su fecha');
 
+  /* ---------- coordinaciones del turno ---------- */
+  const cid=await D.registrarCoordinacion({id:'coo-1',fecha:'2026-10-14',bloque:'DIA',texto:'Confirmar personal de CAJAS 20L',responsable:'Supervisor de Producción',prioridad:'Alta'});
+  await D.registrarCoordinacion({id:'coo-1',fecha:'2026-10-14',bloque:'DIA',texto:'Confirmar personal de CAJAS 20L',responsable:'Supervisor de Producción',prioridad:'Alta'});
+  ok([...sb.db.docs.keys()].filter(k=>k.startsWith('apCoordinaciones/')).length===1&&sb.db.docs.get('apCoordinaciones/'+cid).estado==='ABIERTA','coordinación del turno: se registra una sola vez y queda abierta');
+  ok((await espera(D.registrarCoordinacion({fecha:'2026-10-14',bloque:'DIA',texto:'x',responsable:'Almacén',prioridad:'Normal'})))?.codigo==='VALIDACION','coordinación: exige describir el pendiente');
+  ok((await espera(jefe.D.registrarCoordinacion({fecha:'2026-10-14',bloque:'DIA',texto:'Revisar algo pendiente',responsable:'Almacén',prioridad:'Normal'})))?.codigo==='PERMISO','coordinación: solo quien gestiona el Asistente la registra');
+  await D.cerrarCoordinacion(cid,1,'Confirmado');
+  ok(sb.db.docs.get('apCoordinaciones/'+cid).estado==='CERRADA'&&(await espera(D.cerrarCoordinacion(cid,2,'')))!==null,'coordinación: se cierra con historial y no se vuelve a cerrar');
+
   /* ---------- auditoría ---------- */
   const aud=[...sb.db.docs.entries()].filter(([k])=>k.startsWith('apAuditoria/')).map(([,d])=>d);
   ok(aud.length>=15&&aud.every(a=>a.uid&&a.operacion&&a.en)&&aud.some(a=>a.coleccion==='apFactores'&&a.operacion==='CERRAR_VIGENCIA'&&a.antes&&a.antes.factor===1.89),'cada operación deja auditoría (usuario, operación, antes y después)');

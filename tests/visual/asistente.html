@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="../../styles.css">
 <style>body{background:#f3f6f8;margin:0;padding:12px}.aviso-prueba{font:700 13px system-ui;color:#991B1B;margin:0 0 8px}</style>
 </head><body>
-<p class="aviso-prueba">Datos de PRUEBA (no reales) · 14/10/2026 Mañana + Intermedio · ?tab=resumen|seguimiento|insumos|solicitudes|consumo|merma|parametros|historial · ?rol=asistente|jefe|almacen|gerente</p>
+<p class="aviso-prueba">Datos de PRUEBA (no reales) · 14/10/2026 Mañana + Intermedio · ?tab=resumen|seguimiento|insumos|consumo|merma|historial · ?sub=existencias|factores|requerimientos|solicitudes · ?rol=asistente|jefe|almacen|gerente</p>
 <div id="main"></div><div id="modal-root"></div>
 <script>
 /* Escenario aislado, sin Firebase real: B7L produce tres marcas (Aro, Cuisine, Scala 7 L y Scala 2.5 L), PET1 Scala, PET2 Fontlife, CAJAS 20L y B20L sin
@@ -25,7 +25,9 @@ var PALETAS={'PET1|Scala':15552,'PET2|Fontlife':12000,'B7L|Cuisine':900};
 function loadProgramaciones(){return PROGS;}function loadRecords(){return RECS;}function obtenerTareos(){return [];}
 window.glacialProduccionPaletasAlCorte=function(l,f,t,m){var v=PALETAS[l+'|'+m];return v===undefined?{encontrada:false}:{valor:v,encontrada:true};};
 function obtenerUnidadesPorPalet(){return 0;}
-var D0={apInsumos:[],apFactores:[],apMovimientos:[],apSolicitudes:[],apMermas:[],apConciliaciones:[]};
+var D0={apInsumos:[],apFactores:[],apMovimientos:[],apSolicitudes:[],apMermas:[],apConciliaciones:[],apCoordinaciones:[]};
+/* Nombre de pantalla de la presentación (en la app lo da 16-paletas.js). */
+function nombrePresentacionUI(l,m,p){var t={'Pack_Regular_2.5Lx6und':'2.5 L · PACK X 6 UND','Pack_Regular_625mlx15und/ln':'625 ml · PACK X 15 UND','7 Litros':'7 L','Caja 20 Litros':'20 L','Bidón 20 Litros':'20 L'};return t[p]||p;}
 function ins(c,n,u,t){D0.apInsumos.push({codigo:c,nombre:n,unidad:u,tipo:t,activo:true,version:1});}
 ins('CAJA_PREFORMA','Cajas de preformas','caja','preforma');ins('CARTON','Planchas de cartón','plancha','carton');ins('POLIETILENO','Polietileno','kg','polietileno');ins('STRETCH','Stretch film','kg','stretch');ins('TAPA','Tapas','UND','tapa');
 function fac(l,i,m,p,b,cb,f,o){D0.apFactores.push({id:[l,i,m,p].join('_'),insumo:i,linea:l,marca:m,presentacion:p,base:b,cantidadBase:cb,factor:f,vigenteDesde:'2020-01-01',vigenteHasta:null,activo:true,origen:o||'codigo',version:1});}
@@ -43,6 +45,7 @@ D0.apSolicitudes.push({id:'SOL-20261014-A1',fecha:F,bloque:'DIA',linea:'',estado
 D0.apMermas.push({id:'mer1',fecha:F,bloque:'DIA',linea:'B7L',cuadro:K('B7L','Aro','7 Litros'),marca:'Aro',presentacion:'7 Litros',categoria:'MATERIAL',insumo:'POLIETILENO',unidad:'kg',cantidad:0.3,causa:'Cambio de formato',etapa:'Empaque',estado:'PENDIENTE',version:1,historial:[{estado:'PENDIENTE',por:'Ana',en:AHORA-100*60000}]});
 D0.apMermas.push({id:'mer2',fecha:F,bloque:'DIA',linea:'PET1',cuadro:K('PET1','Scala','Pack_Regular_2.5Lx6und'),marca:'Scala',presentacion:'Pack_Regular_2.5Lx6und',categoria:'MATERIAL',insumo:'CAJA_PREFORMA',unidad:'caja',cantidad:0.05,causa:'Arranque de línea',estado:'VALIDADA',validadoPor:'Rosa',version:2,historial:[{estado:'PENDIENTE',por:'Ana',en:AHORA-150*60000},{estado:'VALIDADA',por:'Rosa',en:AHORA-90*60000}]});
 D0.apConciliaciones.push({id:(K('B7L','Aro','7 Litros')+'|POLIETILENO').replace(/[^A-Za-z0-9_.-]+/g,'_'),fecha:F,bloque:'DIA',linea:'B7L',cuadro:K('B7L','Aro','7 Litros'),insumo:'POLIETILENO',unidad:'kg',saldoInicial:2,saldoFinal:-0.5+1,estado:'EN_REVISION',observaciones:'Revisar diferencia con el supervisor',version:2,historial:[{estado:'BORRADOR',por:'Ana',en:AHORA-50*60000},{estado:'EN_REVISION',por:'Ana',en:AHORA-40*60000}]});
+D0.apCoordinaciones.push({id:'coo1',fecha:F,bloque:'DIA',texto:'Confirmar personal de CAJAS 20L antes de las 14:00',responsable:'Supervisor de Producción',prioridad:'Alta',estado:'ABIERTA',version:1,creadoPor:'Ana',historial:[{estado:'ABIERTA',por:'Ana',en:AHORA-30*60000}]});
 function q(n){return {docs:(D0[n]||[]).map(function(d){return {id:d.id||d.opId||d.codigo,data:function(){return JSON.parse(JSON.stringify(d));}};})};}
 var db={collection:function(n){var c={where:function(){return c;},onSnapshot:function(cb){setTimeout(function(){cb(q(n));},0);return function(){};},get:function(){return Promise.resolve(q(n));},
   doc:function(id){return {id:id};}};return c;},runTransaction:function(){return Promise.reject({code:'permission-denied'});}};
@@ -55,8 +58,8 @@ function renderMain(){}function renderSidebar(){}function ajustarVistaSegunPermi
 <script src="../../js/asistente/72-asistente-pantalla.js"></script>
 <script src="../../js/asistente/73-reporte-general.js"></script>
 <script>
-var TAB=(location.search.match(/tab=(\w+)/)||[])[1];
-goAsistente(TAB);
+var TAB=(location.search.match(/tab=(\w+)/)||[])[1],SUB=(location.search.match(/sub=(\w+)/)||[])[1];
+goAsistente(TAB,SUB);
 if(/detalle=1/.test(location.search))setTimeout(function(){apVerSolicitud('SOL-20261014-A1');},80);
 </script>
 </body></html>

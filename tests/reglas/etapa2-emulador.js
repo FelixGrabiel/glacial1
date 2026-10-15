@@ -153,6 +153,13 @@ async function caso(texto,promesa){
     await assertFails(setDoc(doc(como('asis'),'apAuditoria/a2'),{uid:'otro',en:serverTimestamp()}));
     await assertFails(updateDoc(doc(como('admin'),'apAuditoria/a1'),{operacion:'X'}));
     await assertFails(deleteDoc(doc(como('admin'),'apAuditoria/a1')));})());
+  const coo=(uid,v,estado,extra)=>({id:'K1',estado,version:v,texto:'Confirmar personal',creadoUid:'asis',historial:new Array(v).fill({estado}),...autor(uid),...(extra||{})});
+  await caso('apCoordinaciones: el Asistente registra y cierra; otro rol NO; cerrada no se reabre',(async()=>{
+    await assertFails(setDoc(doc(como('jefe'),'apCoordinaciones/K1'),coo('jefe',1,'ABIERTA')));
+    await assertSucceeds(setDoc(doc(como('asis'),'apCoordinaciones/K1'),coo('asis',1,'ABIERTA')));
+    await assertFails(setDoc(doc(como('asis'),'apCoordinaciones/K1'),coo('asis',2,'CERRADA',{texto:'otro texto'})));
+    await assertSucceeds(setDoc(doc(como('asis'),'apCoordinaciones/K1'),coo('asis',2,'CERRADA')));
+    await assertFails(setDoc(doc(como('asis'),'apCoordinaciones/K1'),coo('asis',3,'ABIERTA')));})());
   await caso('Asistente: la cuenta compartida de Mantenimiento NO lee sus datos',assertFails(getDoc(doc(como('mant'),'apMovimientos/m1'))));
 
   // Economía y cierre general

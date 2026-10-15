@@ -60,6 +60,7 @@ Las rutas son relativas a `js/`.
 | `apSolicitudes/{id}` | `SOL-AAAAMMDD-xxxx` | `{id, fecha, bloque, linea, estado, items[{insumo, unidad, solicitado, entregado, recibido, devuelto}], historial[], version, …autor}` |
 | `apMermas/{id}` | opId | `{id, fecha, bloque, linea, cuadro, marca, presentacion, categoria:'MATERIAL'\|'PRODUCTO', insumo, unidad, cantidad, causa, etapa, lote, estado:'PENDIENTE'\|'VALIDADA'\|'RECHAZADA', validadoPor, validadoEn, observaciones, historial[], version}` |
 | `apConciliaciones/{fecha_bloque_linea_cuadro_insumo}` | determinista | `{saldoInicial, saldoFinal, estado:'BORRADOR'\|'EN_REVISION'\|'CONFIRMADA', observaciones, version, historial[]}` |
+| `apCoordinaciones/{id}` | opId | `{id, fecha, bloque, texto, responsable, prioridad, estado:'ABIERTA'\|'CERRADA', historial[], version}`. Seguimiento del turno. |
 | `apAuditoria/{autoid}` | auto | `{coleccion, docId, operacion, antes, despues, uid, usuario, en}`. Solo se crea. |
 
 ### 3.2 Reglas (`firestore.rules.etapa2.txt`)
@@ -167,3 +168,9 @@ Las RLS replican las funciones de la sección 3.2.
 - **Historial en memoria:** el stock usa los movimientos de los últimos 60 días. Con un conteo físico en ese período el saldo es exacto.
 - **Paradas de Avance sin cuadro:** cuando la línea tiene varios cuadros y no hay reporte diario, esas paradas quedan «Sin asignar» y se avisa en Observaciones.
 - **Gráficos del Resumen:** se insertan como imagen PNG, porque ExcelJS no escribe gráficos nativos.
+
+## 7. Diseño de pantallas (rediseño según las imágenes aprobadas)
+
+- **Pestañas:** Resumen operativo · Seguimiento del turno · Insumos · Consumo · Merma · Historial y reportes. Solicitudes y Factores pasan a ser subpestañas de Insumos, junto con Existencias y Requerimientos.
+- **Coordinaciones del turno** (Seguimiento): nueva colección `apCoordinaciones`, con su regla en `firestore.rules.etapa2.txt`. Hay que volver a publicar las reglas.
+- **Evidencia opcional** en conteos y mermas: se sube a Cloudinary con el mismo servicio y preset que las hojas de producto terminado (`06-registro.js`). Solo se guarda el identificador del archivo; si la subida falla, el registro no se guarda y se avisa.
