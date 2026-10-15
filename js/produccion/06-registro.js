@@ -1632,6 +1632,23 @@ function calcularCajasPreformasCuadro(cuadro){
   }
 
 
+  const catalogo =
+    consumoInsumoCatalogo(
+      'CAJA_PREFORMA',
+      draft.linea,
+      cuadro.marca,
+      cuadro.presentacion,
+      cuadro.produccion
+    );
+
+
+  if(catalogo !== null){
+
+    return catalogo;
+
+  }
+
+
   const efectiva =
     num(
       cuadro.produccion?.efectiva
@@ -1688,6 +1705,23 @@ function calcularPlanchasCartonCuadro(cuadro){
   ){
 
     return 0;
+
+  }
+
+
+  const catalogo =
+    consumoInsumoCatalogo(
+      'CARTON',
+      draft.linea,
+      cuadro.marca,
+      cuadro.presentacion,
+      cuadro.produccion
+    );
+
+
+  if(catalogo !== null){
+
+    return catalogo;
 
   }
 
@@ -1784,6 +1818,23 @@ function calcularPolietilenoCuadro(cuadro){
   }
 
 
+  const catalogo =
+    consumoInsumoCatalogo(
+      'POLIETILENO',
+      draft.linea,
+      cuadro.marca,
+      cuadro.presentacion,
+      cuadro.produccion
+    );
+
+
+  if(catalogo !== null){
+
+    return catalogo;
+
+  }
+
+
   const paletas =
     num(
       cuadro.produccion?.paletas
@@ -1861,6 +1912,23 @@ function calcularStretchFilmCuadro(cuadro){
   ){
 
     return 0;
+
+  }
+
+
+  const catalogo =
+    consumoInsumoCatalogo(
+      'STRETCH',
+      draft.linea,
+      cuadro.marca,
+      cuadro.presentacion,
+      cuadro.produccion
+    );
+
+
+  if(catalogo !== null){
+
+    return catalogo;
 
   }
 

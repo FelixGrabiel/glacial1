@@ -784,6 +784,15 @@ service cloud.firestore {
         && request.resource.data.texto == resource.data.texto && request.resource.data.creadoUid == resource.data.creadoUid;
       allow delete: if false;
     }
+    // Parámetros de merma (documento 'merma': causas y etapas que se eligen al registrar una merma). Los cambia quien administra
+    // factores o valida mermas; versión +1, historial que solo crece, 1 a 30 elementos por lista. Nadie los borra.
+    match /apParametros/{doc} {
+      allow read: if leerAp();
+      allow create, update: if doc == 'merma' && (puedeFactoresAp() || puedeValidarAp()) && autorAp() && versionAp() && historialCreceAp()
+        && request.resource.data.causas is list && request.resource.data.causas.size() >= 1 && request.resource.data.causas.size() <= 30
+        && request.resource.data.etapas is list && request.resource.data.etapas.size() >= 1 && request.resource.data.etapas.size() <= 30;
+      allow delete: if false;
+    }
     // Auditoría: cada operación deja su registro (uid y hora del servidor). Nadie la edita ni la borra.
     match /apAuditoria/{id} {
       allow read: if leerAp();

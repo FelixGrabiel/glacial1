@@ -280,15 +280,26 @@
   /* ---------- mermas ---------- */
   const CAUSAS_MERMA=['Arranque de línea','Cambio de formato','Calibración','Falla de máquina','Defecto de material','Problema de calidad','Manipulación','Otros'];
   const ETAPAS_MERMA=['Soplado','Llenado','Tapado','Etiquetado','Empaque','Paletizado','Almacenamiento','Otra'];
-  function validarMerma(m){
-    const e=[];
+  /* Listas de la pantalla Merma: las configuradas (apParametros/causasMerma) o, si no hay, las de siempre. */
+  const listaOk=(l,def)=>Array.isArray(l)&&l.filter(x=>String(x||'').trim()).length?l.map(x=>String(x).trim()).filter(Boolean):def;
+  /* Valida una lista configurable (causas o etapas): 1 a 30 elementos, 2 a 40 caracteres, sin repetidos. → [errores] */
+  function validarListaMerma(l,nombre){
+    const e=[];const v=(l||[]).map(x=>String(x||'').trim()).filter(Boolean);
+    if(!v.length)e.push('Indica al menos una '+nombre+'.');
+    if(v.length>30)e.push('Máximo 30 '+nombre+'s.');
+    if(v.some(x=>x.length<2||x.length>40))e.push('Cada '+nombre+' debe tener entre 2 y 40 caracteres.');
+    if(new Set(v.map(x=>norm(x))).size!==v.length)e.push('Hay '+nombre+'s repetidas.');
+    return e;
+  }
+  function validarMerma(m,causas){
+    const e=[];const lista=listaOk(causas,CAUSAS_MERMA);
     if(!m||!codigoLinea(m.linea))e.push('Línea no válida.');
     if(!m||!String(m.cuadro||'').trim())e.push('Indica el cuadro (marca y presentación) al que pertenece.');
     if(!m||!['MATERIAL','PRODUCTO'].includes(m.categoria))e.push('Indica si es materia prima/empaque o producto terminado.');
     if(!m||!String(m.insumo||'').trim())e.push('Indica el material o producto.');
     if(!m||!(Number(m.cantidad)>0))e.push('La cantidad debe ser mayor que 0.');
     if(!m||!String(m.unidad||'').trim())e.push('Indica la unidad.');
-    if(!m||!CAUSAS_MERMA.includes(m.causa))e.push('Elige la causa.');
+    if(!m||!lista.includes(m.causa))e.push('Elige la causa.');
     if(m&&m.causa==='Otros'&&String(m.observaciones||'').trim().length<5)e.push('Con causa «Otros» describe la merma (mínimo 5 caracteres).');
     return e;
   }
@@ -380,6 +391,23 @@
   }
   const fmt=v=>v===null||v===undefined?'—':Number(v).toLocaleString('es-PE',{maximumFractionDigits:2});
 
+  /* ---------- consumo según el catálogo (lo usan el Nuevo registro y la tarjeta de Inicio) ---------- */
+  /* Cantidad de un insumo con el factor vigente del catálogo. cant: {unidades, paletas?, unidadesPorPaleta?}.
+     → {valor, factor} | {error:'SIN_FACTOR'|'AMBIGUO'|'SIN_PALETAS'}. Con error, quien llama usa su cálculo anterior. */
+  function consumoCatalogo(factores,q,cant){
+    const r=factorVigente(factores,q);if(r.error)return r;
+    const f=r.factor,base=Number(f.cantidadBase)||1,fac=num(f.factor);
+    if(f.base==='PALETA'){
+      let pal=cant&&cant.paletas;
+      if(pal===null||pal===undefined||pal===''){
+        if(!(Number(cant&&cant.unidadesPorPaleta)>0))return {error:'SIN_PALETAS',factor:f};
+        pal=num(cant.unidades)/Number(cant.unidadesPorPaleta);
+      }
+      return {valor:num(pal)/base*fac,factor:f,paletas:num(pal)};
+    }
+    return {valor:num(cant&&cant.unidades)/base*fac,factor:f};
+  }
+
   /* ---------- migración de los factores fijos del código (05-utils.js) ---------- */
   /* Lee las constantes del Nuevo registro y las convierte en factores versión 1 (origen 'codigo'). Ids deterministas: repetir la
      migración no duplica ni pisa factores ya editados. c: {CAJAS_PREFORMAS_DIVISOR, FACTOR_CARTON_PET, …, PRESENTACIONES_POR_LINEA}. */
@@ -447,7 +475,7 @@
     LINEAS,lineaInfo,codigoLinea,red,norm,bloqueDe,turnosDeBloque,claveCuadro,
     TIPOS_INSUMO,UNIDADES,validarInsumo,validarFactor,vigenteEn,factorVigente,teorico,idFactor,
     cuadrosDelBloque,cuadroAbierto,TIPOS_MOV,saldoInsumo,requerimientos,resumenInsumos,
-    conciliar,movimientosCuadro,CAUSAS_MERMA,ETAPAS_MERMA,validarMerma,mermaValidada,resumenMermas,
+    conciliar,movimientosCuadro,CAUSAS_MERMA,ETAPAS_MERMA,listaOk,validarListaMerma,validarMerma,consumoCatalogo,mermaValidada,resumenMermas,
     ESTADOS_SOLICITUD,TRANSICIONES,ACTOR_ESTADO,puedeTransicion,aplicarEntrega,aplicarRecepcion,
     alertas,pendientesDeCierre,INSUMOS_BASE,factoresDesdeCodigo,fmt
   };
