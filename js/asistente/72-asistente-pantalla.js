@@ -606,8 +606,10 @@
 
   /* ---------- render ---------- */
   function cargando(){
-    const C=D.cache;const errs=Object.values(C.error).filter(Boolean);
-    if(errs.length)return `<div class="ap-msg ap-msg-error" role="alert">${ico('alerta')}<span>No se pudieron leer los datos del Asistente: ${esc(errs[0])}</span><button type="button" class="ap-link" onclick="apReintentar()">Reintentar</button></div>`;
+    const C=D.cache;const COL={insumos:'apInsumos',factores:'apFactores',movimientos:'apMovimientos',solicitudes:'apSolicitudes',mermas:'apMermas',conciliaciones:'apConciliaciones',coordinaciones:'apCoordinaciones'};
+    const fallan=Object.keys(C.error).filter(k=>C.error[k]);
+    // Se nombran las colecciones que fallan: así se ve si falta publicar solo una parte de las reglas (p. ej. una colección nueva).
+    if(fallan.length)return `<div class="ap-msg ap-msg-error" role="alert">${ico('alerta')}<span>No se pudieron leer los datos del Asistente: ${esc(C.error[fallan[0]])} Colecciones afectadas: ${esc(fallan.map(k=>COL[k]||k).join(', '))}.</span><button type="button" class="ap-link" onclick="apReintentar()">Reintentar</button></div>`;
     return ['insumos','factores','movimientos'].every(k=>C.listo[k])?'':`<div class="ap-msg ap-msg-info">${ico('reloj')}<span>Consultando los datos del Asistente…</span></div>`;
   }
   window.apReintentar=()=>{D.detener();D.escucharTodo(AP.fecha);pintar();};
