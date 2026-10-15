@@ -140,6 +140,7 @@ function entorno(usuario,datos){
   ok(j.D.causasMerma().join()==='Viento,Otros'&&j.D.etapasMerma().join()==='Llenado','la pantalla de Merma usa las causas y etapas configuradas');
   const s72=leer('js/asistente/72-asistente-pantalla.js');
   ok(/D\.causasMerma\(\)\.map/.test(s72)&&/D\.etapasMerma\(\)\.map/.test(s72)&&!/N\.CAUSAS_MERMA\.map/.test(s72)&&/N\.validarMerma\(m,D\.causasMerma\(\)\)/.test(s72),'el formulario de merma lista y valida con las causas configuradas');
+  ok(/const sinInsumos=!a&&!D\.cache\.insumos\.some\(i=>i\.activo!==false\)/.test(s72)&&/No hay insumos en el catálogo/.test(s72)&&/\$\{sinInsumos\?'disabled':''\}>Guardar/.test(s72),'Nuevo factor sin insumos en el catálogo: avisa cómo cargarlos y no deja guardar');
   ok(/match \/apParametros\/\{doc\}/.test(leer('firestore.rules.etapa2.txt')),'reglas: bloque apParametros');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

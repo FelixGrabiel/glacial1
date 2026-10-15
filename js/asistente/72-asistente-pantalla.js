@@ -593,14 +593,17 @@
   window.apFactorForm=id=>{
     const a=D.cache.factores.find(f=>f.id===id);const hoy=new Date(D.ahora()).toISOString().slice(0,10);
     const f=a?{...a,vigenteDesde:hoy}:{insumo:'',linea:'PET1',marca:'*',presentacion:'*',base:'PALETA',cantidadBase:1,factor:'',vigenteDesde:hoy};
+    // Sin insumos activos en el catálogo el desplegable quedaría en blanco: se explica cómo cargarlos y no se deja guardar.
+    const sinInsumos=!a&&!D.cache.insumos.some(i=>i.activo!==false);
     modal(a?'Nueva versión del factor':'Nuevo factor',`${a?`<p class="ap-sub">La versión actual (${fmt(a.factor,4)} / ${fmt(a.cantidadBase,0)} ${a.base}) queda vigente hasta el día anterior; los datos históricos siguen usando su valor.</p>`:''}
+      ${sinInsumos?`<div class="ap-info ap-info-acc">${ico('info','ap-info-ico')}<div><b>No hay insumos en el catálogo.</b> Usa «Migrar factores del código» o «Agregar insumo» en Insumos → Factores y vuelve a abrir este formulario.</div></div>`:''}
       <div class="ap-form ap-form-2">${campo('Línea',`<select id="ap-f-lin" ${a?'disabled':''}>${opcionesLineas(f.linea,false)}</select>`)}
       ${campo('Insumo',`<select id="ap-f-ins" ${a?'disabled':''}>${opcionesInsumos(f.insumo)}</select>`)}${campo('Marca (* = todas)',`<input id="ap-f-mar" value="${esc(f.marca)}" ${a?'readonly':''}>`)}
       ${campo('Presentación (* = todas)',`<input id="ap-f-pre" value="${esc(f.presentacion)}" ${a?'readonly':''}>`)}${campo('Base',`<select id="ap-f-base"><option value="PALETA" ${f.base==='PALETA'?'selected':''}>Por paleta</option><option value="UND" ${f.base==='UND'?'selected':''}>Por unidad producida</option></select>`)}
       ${campo('Cantidad base',`<input id="ap-f-cb" type="number" min="0" step="any" value="${esc(f.cantidadBase)}">`)}${campo('Factor (en la unidad del insumo)',`<input id="ap-f-fac" type="number" min="0" step="any" value="${esc(f.factor)}">`)}
       ${campo('Vigente desde',`<input id="ap-f-desde" type="date" value="${esc(f.vigenteDesde)}">`)}</div>
       <p class="ap-sub">Consumo = (producido ÷ cantidad base) × factor, o (paletas ÷ cantidad base) × factor. Factor 0 = «No aplica».</p>
-      <div class="ap-acc"><button type="button" class="ap-btn" onclick="apGuardarFactor('${a?esc(a.id):''}')">Guardar</button></div>`);
+      <div class="ap-acc"><button type="button" class="ap-btn" onclick="apGuardarFactor('${a?esc(a.id):''}')" ${sinInsumos?'disabled':''}>Guardar</button></div>`);
   };
   window.apGuardarFactor=anteriorId=>{
     const a=D.cache.factores.find(f=>f.id===anteriorId);
