@@ -81,7 +81,7 @@
   }
 
   /* ---------- caché en vivo ---------- */
-  const cache={insumos:[],factores:[],movimientos:[],solicitudes:[],mermas:[],conciliaciones:[],listo:{},error:{}};
+  const cache={insumos:[],factores:[],movimientos:[],solicitudes:[],mermas:[],conciliaciones:[],coordinaciones:[],listo:{},error:{}};
   const oyentes=[];let cierres=[];let ctxFecha='';
   const avisar=()=>oyentes.slice().forEach(f=>{try{f();}catch(_){/* una vista no rompe a otra */}});
   const DIAS_MOV=60;            // historial de movimientos que se mantiene en memoria para el stock (último conteo + posteriores)
@@ -101,9 +101,10 @@
     sub('solicitudes',col('apSolicitudes').where('fecha','>=',fechaDesde));
     sub('mermas',col('apMermas').where('fecha','==',fecha));
     sub('conciliaciones',col('apConciliaciones').where('fecha','==',fecha));
+    sub('coordinaciones',col('apCoordinaciones').where('fecha','==',fecha));
   }
   function detener(){cierres.splice(0).forEach(c=>{try{c();}catch(_){/* ya cerrada */}});ctxFecha='';}
-  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();['insumos','factores','movimientos','solicitudes','mermas','conciliaciones'].forEach(k=>{cache[k]=[];});});
+  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();['insumos','factores','movimientos','solicitudes','mermas','conciliaciones','coordinaciones'].forEach(k=>{cache[k]=[];});});
   /* Lectura única de una fecha (Reporte General de otro día sin cambiar la escucha). */
   async function cargarFecha(fecha){
     const [m,c,s]=await Promise.all([col('apMermas').where('fecha','==',fecha).get(),col('apConciliaciones').where('fecha','==',fecha).get(),
@@ -353,6 +354,38 @@
     });
   }
 
+
+  /* ---------- coordinaciones del turno (seguimiento: pendiente, responsable, prioridad) ---------- */
+  const RESPONSABLES=['Asistente de Producción','Supervisor de Producción','Almacén','Mantenimiento','Jefatura de Producción','Planificación'];
+  const PRIORIDADES=['Normal','Alta','Urgente'];
+  async function registrarCoordinacion(c){
+    if(!puede('asistenteProduccion'))throw falla('PERMISO','No tienes permiso para registrar seguimientos.');
+    const texto=String(c.texto||'').trim();
+    if(texto.length<5)throw falla('VALIDACION','Describe el pendiente (mínimo 5 caracteres).');
+    if(!RESPONSABLES.includes(c.responsable))throw falla('VALIDACION','Elige el responsable.');
+    if(!PRIORIDADES.includes(c.prioridad))throw falla('VALIDACION','Elige la prioridad.');
+    const id=String(c.id||nuevoId('coo'));const ref=col('apCoordinaciones').doc(id);const u=usuario();
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);if(s.exists)return;            // reintento: no se duplica
+      const d={id,fecha:c.fecha,bloque:N.bloqueDe(c.bloque),linea:c.linea||'',texto,responsable:c.responsable,prioridad:c.prioridad,estado:'ABIERTA',
+        historial:[{estado:'ABIERTA',por:u.nombre,uid:u.uid,en:ahora()}],version:1,creadoPor:u.nombre,creadoUid:u.uid,...autor()};
+      tx.set(ref,d);auditar(tx,'apCoordinaciones',id,'CREAR',null,d);
+    });
+    return id;
+  }
+  async function cerrarCoordinacion(id,versionEsperada,nota){
+    if(!puede('asistenteProduccion'))throw falla('PERMISO','No tienes permiso para cerrar seguimientos.');
+    const ref=col('apCoordinaciones').doc(id);const u=usuario();
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);if(!s.exists)throw falla('VALIDACION','El seguimiento no existe.');
+      const c=s.data();
+      if(num(c.version)!==num(versionEsperada))throw falla('CONFLICTO','El seguimiento cambió mientras lo revisabas. Vuelve a abrirlo.');
+      if(c.estado!=='ABIERTA')throw falla('VALIDACION','El seguimiento ya está cerrado.');
+      const d={...c,estado:'CERRADA',version:num(c.version)+1,historial:[...(c.historial||[]),{estado:'CERRADA',por:u.nombre,uid:u.uid,en:ahora(),nota:String(nota||'').trim()}],...autor()};
+      tx.set(ref,d);auditar(tx,'apCoordinaciones',id,'CERRAR',{estado:c.estado},{estado:'CERRADA'});
+    });
+  }
+
   /* ---------- historial (auditoría) ---------- */
   async function auditoriaDe(coleccion,docId){
     const q=await col('apAuditoria').where('coleccion','==',coleccion).where('docId','==',String(docId)).get();
@@ -362,6 +395,7 @@
   window.glacialAsistenteDatos={
     CAPACIDADES,capacidad,puede,cache,escucharTodo,detener,cargarFecha,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
     guardarInsumo,guardarFactor,migrarFactoresDelCodigo,registrarMovimiento,anularMovimiento,validarMovimiento,crearSolicitud,cambiarEstadoSolicitud,
-    registrarMerma,validarMerma,guardarConciliacion,idConciliacion,auditoriaDe,mensajeError,nuevoId,ahora
+    registrarMerma,validarMerma,guardarConciliacion,idConciliacion,auditoriaDe,mensajeError,nuevoId,ahora,
+    RESPONSABLES,PRIORIDADES,registrarCoordinacion,cerrarCoordinacion
   };
 })();
