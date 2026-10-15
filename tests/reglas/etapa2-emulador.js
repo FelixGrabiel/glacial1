@@ -160,6 +160,16 @@ async function caso(texto,promesa){
     await assertFails(setDoc(doc(como('asis'),'apCoordinaciones/K1'),coo('asis',2,'CERRADA',{texto:'otro texto'})));
     await assertSucceeds(setDoc(doc(como('asis'),'apCoordinaciones/K1'),coo('asis',2,'CERRADA')));
     await assertFails(setDoc(doc(como('asis'),'apCoordinaciones/K1'),coo('asis',3,'ABIERTA')));})());
+  const par=(uid,v,extra)=>({id:'merma',causas:['Arranque','Otros'],etapas:['Llenado'],version:v,historial:new Array(v).fill({por:uid}),...autor(uid),...(extra||{})});
+  await caso('apParametros/merma: lo cambian Jefe (valida) y Administrador; el Asistente NO; listas vacías NO; otro documento NO',(async()=>{
+    await assertFails(setDoc(doc(como('asis'),'apParametros/merma'),par('asis',1)));
+    await assertSucceeds(setDoc(doc(como('jefe'),'apParametros/merma'),par('jefe',1)));
+    await assertFails(setDoc(doc(como('jefe'),'apParametros/merma'),par('jefe',2,{causas:[]})));
+    await assertFails(setDoc(doc(como('admin'),'apParametros/merma'),par('admin',3)));
+    await assertSucceeds(setDoc(doc(como('admin'),'apParametros/merma'),par('admin',2)));
+    await assertFails(setDoc(doc(como('admin'),'apParametros/otro'),{...par('admin',1),id:'otro'}));
+    await assertSucceeds(getDoc(doc(como('sup'),'apParametros/merma')));
+    await assertFails(getDoc(doc(como('mant'),'apParametros/merma')));})());
   await caso('Asistente: la cuenta compartida de Mantenimiento NO lee sus datos',assertFails(getDoc(doc(como('mant'),'apMovimientos/m1'))));
 
   // Economía y cierre general

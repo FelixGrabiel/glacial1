@@ -476,8 +476,8 @@
         ${campo('Tipo','<select id="ap-m-cat" onchange="apMermaCat()"><option value="MATERIAL">Materia prima / empaque</option><option value="PRODUCTO">Producto terminado</option></select>')}
         ${campo('Insumo',`<select id="ap-m-insumo" onchange="apMermaUnidad()">${opcionesInsumos(insIni&&insIni.codigo)}</select>`,'ap-m-mat')}
         ${campo('Cantidad',`<span class="ap-con-unidad"><input id="ap-m-cant" type="number" min="0" step="any"><b id="ap-m-und">${esc(insIni?insIni.unidad:'')}</b></span>`)}
-        ${campo('Motivo',`<select id="ap-m-causa">${N.CAUSAS_MERMA.map(c=>`<option>${esc(c)}</option>`).join('')}</select>`)}
-        ${campo('Etapa',`<select id="ap-m-etapa"><option value="">—</option>${N.ETAPAS_MERMA.map(c=>`<option>${esc(c)}</option>`).join('')}</select>`)}${campo('Lote afectado','<input id="ap-m-lote" maxlength="40">')}</div>
+        ${campo('Motivo',`<select id="ap-m-causa">${D.causasMerma().map(c=>`<option>${esc(c)}</option>`).join('')}</select>`)}
+        ${campo('Etapa',`<select id="ap-m-etapa"><option value="">—</option>${D.etapasMerma().map(c=>`<option>${esc(c)}</option>`).join('')}</select>`)}${campo('Lote afectado','<input id="ap-m-lote" maxlength="40">')}</div>
         ${campo('Descripción','<textarea id="ap-m-obs" rows="2" maxlength="300" placeholder="Material descartado durante el ajuste"></textarea>','ap-ancho')}
         <div class="ap-campo ap-ancho"><span>Adjuntar foto o documento</span>${evidenciaHTML('ap-m-evid')}</div>
         ${campo('Estado','<span class="ap-ctl-ico"><i class="ap-dot ap-d-gris"></i><select disabled><option>Pendiente de validación</option></select></span>','ap-ancho')}
@@ -488,9 +488,27 @@
       <div class="ap-2 ${form?'ap-2-merma':''}"><div>${tarjeta('Registro del turno',filas?tabla(['Línea','Insumo','#Cantidad','Motivo','Estado'],filas):vacio('Sin mermas en este bloque.'))}
         ${tarjeta('Material observado',(obs.length?tabla(['Material','#Cantidad','Estado','Disponibilidad'],obs.map(x=>`<tr><td data-label="Material">${esc(x.i.nombre)}</td><td data-label="Cantidad" class="ap-num">${fmt(x.s.observado)} ${esc(x.i.unidad)}</td>
           <td data-label="Estado">${pill('Pendiente de evaluación','ambar')}</td><td data-label="Disponibilidad"><span class="ap-pill ap-p-rojo">No disponible para programación</span></td></tr>`).join('')):vacio('Sin material observado.'))
-          +'<p class="ap-nota-pie">'+ico('info')+' El material observado no se considera merma hasta su evaluación.</p>')}</div>${form}</div>
+          +'<p class="ap-nota-pie">'+ico('info')+' El material observado no se considera merma hasta su evaluación.</p>')}${configMerma()}</div>${form}</div>
       ${pie('Cada evento se vincula al movimiento correspondiente para evitar doble descuento de existencias.<br><small>Mantener la distinción entre material observado, material reutilizable y merma.</small>')}`;
   }
+  /* Causas y etapas configurables (apParametros/merma): una por línea. Las mermas ya registradas conservan su causa. */
+  function configMerma(){
+    if(!D.puedeConfigurarMerma())return '';
+    const p=D.cache.parametrosMerma;
+    const det=p&&p.actualizadoPor?`<p class="ap-nota-pie">${ico('info')} Última modificación: ${esc(p.actualizadoPor)} · versión ${num(p.version)}</p>`:`<p class="ap-nota-pie">${ico('info')} Hoy se usan las causas predeterminadas.</p>`;
+    return `<details class="ap-card ap-desplegable"${AP.confMerma?' open':''} ontoggle="apConfMerma(this.open)"><summary><h3>Configurar causas y etapas de merma</h3></summary>
+      <div class="ap-form ap-form-2">${campo('Causas (una por línea)',`<textarea id="ap-cm-causas" rows="9" maxlength="1300">${esc(D.causasMerma().join('\n'))}</textarea>`)}
+        ${campo('Etapas (una por línea)',`<textarea id="ap-cm-etapas" rows="9" maxlength="1300">${esc(D.etapasMerma().join('\n'))}</textarea>`)}</div>
+      <p class="ap-nota-pie">Con la causa «Otros» se exige describir la merma. Quitar una causa no cambia las mermas ya registradas.</p>${det}
+      <div class="ap-acc ap-acc-wrap"><button type="button" class="ap-btn" onclick="apGuardarConfigMerma()">Guardar causas y etapas</button>
+        <button type="button" class="ap-btn ap-btn-o" onclick="apHistorialDoc('apParametros','merma')">Historial</button></div></details>`;
+  }
+  window.apConfMerma=v=>{AP.confMerma=!!v;};
+  window.apGuardarConfigMerma=()=>{
+    const lista=id=>valor(id).split('\n').map(x=>x.trim()).filter(Boolean);
+    const p=D.cache.parametrosMerma;
+    ejecutar(()=>D.guardarParametrosMerma({causas:lista('ap-cm-causas'),etapas:lista('ap-cm-etapas')},p?p.version:0),'Causas y etapas de merma guardadas.');
+  };
   window.apMermaCat=()=>{const p=valor('ap-m-cat')==='PRODUCTO';document.querySelectorAll('.ap-m-mat').forEach(e=>{e.hidden=p;});
     const und=document.getElementById('ap-m-und');if(und){const ctx=contexto();const c=ctx.cuadros.find(x=>x.clave===valor('ap-m-cuadro'));und.textContent=p?(c?N.lineaInfo(c.linea).unidad:'UND'):insumoDe(valor('ap-m-insumo')).unidad;}};
   window.apMermaUnidad=()=>{const und=document.getElementById('ap-m-und');if(und)und.textContent=insumoDe(valor('ap-m-insumo')).unidad;};
@@ -500,7 +518,7 @@
     ejecutar(async()=>{
       const m={id:D.nuevoId('mer'),fecha:AP.fecha,bloque:AP.bloque,linea:c?c.linea:'',cuadro:c?c.clave:'',marca:c?c.marca:'',presentacion:c?c.presentacion:'',
         categoria:cat,insumo:ins.codigo,unidad:ins.unidad,cantidad:valor('ap-m-cant'),causa:valor('ap-m-causa'),etapa:valor('ap-m-etapa'),lote:valor('ap-m-lote')||(c&&c.reporte?c.reporte.lote:''),observaciones:valor('ap-m-obs')};
-      const err=N.validarMerma(m);if(err.length){const e=new Error(err.join(' · '));e.codigo='VALIDACION';throw e;}
+      const err=N.validarMerma(m,D.causasMerma());if(err.length){const e=new Error(err.join(' · '));e.codigo='VALIDACION';throw e;}
       m.evidencia=await subirEvidencia('ap-m-evid');
       return D.registrarMerma(m);
     },'Merma registrada: pendiente de validación.');
@@ -606,8 +624,10 @@
 
   /* ---------- render ---------- */
   function cargando(){
-    const C=D.cache;const errs=Object.values(C.error).filter(Boolean);
-    if(errs.length)return `<div class="ap-msg ap-msg-error" role="alert">${ico('alerta')}<span>No se pudieron leer los datos del Asistente: ${esc(errs[0])}</span><button type="button" class="ap-link" onclick="apReintentar()">Reintentar</button></div>`;
+    const C=D.cache;const COL={insumos:'apInsumos',factores:'apFactores',movimientos:'apMovimientos',solicitudes:'apSolicitudes',mermas:'apMermas',conciliaciones:'apConciliaciones',coordinaciones:'apCoordinaciones',parametrosMerma:'apParametros'};
+    const fallan=Object.keys(C.error).filter(k=>C.error[k]);
+    // Se nombran las colecciones que fallan: así se ve si falta publicar solo una parte de las reglas (p. ej. una colección nueva).
+    if(fallan.length)return `<div class="ap-msg ap-msg-error" role="alert">${ico('alerta')}<span>No se pudieron leer los datos del Asistente: ${esc(C.error[fallan[0]])} Colecciones afectadas: ${esc(fallan.map(k=>COL[k]||k).join(', '))}.</span><button type="button" class="ap-link" onclick="apReintentar()">Reintentar</button></div>`;
     return ['insumos','factores','movimientos'].every(k=>C.listo[k])?'':`<div class="ap-msg ap-msg-info">${ico('reloj')}<span>Consultando los datos del Asistente…</span></div>`;
   }
   window.apReintentar=()=>{D.detener();D.escucharTodo(AP.fecha);pintar();};

@@ -901,6 +901,9 @@ function initRealtimeSync(){
   // Información económica: solo si el rol es Gerencia se escucha valoresUnitarios (55-valores-economicos.js).
   if(typeof glacialEconomicoEscuchas==='function') glacialEconomicoEscuchas();
 
+  // Catálogo de insumos y factores del Asistente (71-asistente-datos.js): lo usan el Nuevo registro y la tarjeta de Inicio.
+  if(typeof glacialFactoresCatalogoEscuchas==='function') glacialFactoresCatalogoEscuchas();
+
 
 
   /*

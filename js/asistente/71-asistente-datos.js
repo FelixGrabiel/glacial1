@@ -2,7 +2,9 @@
    GLACIAL · ASISTENTE DE PRODUCCIÓN — DATOS (Firestore), PERMISOS Y AUDITORÍA
    -------------------------------------------------------------
    Colecciones (docs/ASISTENTE-PRODUCCION.md §3): apInsumos, apFactores, apMovimientos (libro inmutable, id = opId),
-   apSolicitudes, apMermas, apConciliaciones, apAuditoria (solo se crea).
+   apSolicitudes, apMermas, apConciliaciones, apCoordinaciones, apParametros (causas y etapas de merma), apAuditoria (solo se crea).
+   · El catálogo (insumos, factores y parámetros) se escucha desde el inicio de sesión: lo usan también el Nuevo registro y la
+     tarjeta de Inicio (window.glacialFactoresCatalogo). Sin catálogo o sin factor, esas pantallas siguen con su cálculo anterior.
    · Toda escritura es una transacción que incluye su registro de auditoría (antes / después, usuario, hora del servidor).
    · Idempotencia: el id lo fija el cliente (opId o clave determinista). Repetir una operación devuelve lo ya guardado.
    · Versiones: cada documento editable lleva version; si otra persona guardó antes, la operación falla con CONFLICTO y no pisa nada.
@@ -81,8 +83,8 @@
   }
 
   /* ---------- caché en vivo ---------- */
-  const cache={insumos:[],factores:[],movimientos:[],solicitudes:[],mermas:[],conciliaciones:[],coordinaciones:[],listo:{},error:{}};
-  const oyentes=[];let cierres=[];let ctxFecha='';
+  const cache={insumos:[],factores:[],parametrosMerma:null,movimientos:[],solicitudes:[],mermas:[],conciliaciones:[],coordinaciones:[],listo:{},error:{}};
+  const oyentes=[];let cierres=[];let ctxFecha='';let cierresCatalogo=[];
   const avisar=()=>oyentes.slice().forEach(f=>{try{f();}catch(_){/* una vista no rompe a otra */}});
   const DIAS_MOV=60;            // historial de movimientos que se mantiene en memoria para el stock (último conteo + posteriores)
   function escucharTodo(fecha){
@@ -90,13 +92,12 @@
     detener();ctxFecha=fecha;
     const desde=new Date(fecha+'T00:00:00').getTime()-DIAS_MOV*86400000;
     const fechaDesde=new Date(desde).toISOString().slice(0,10);
+    escucharCatalogo();
     const sub=(nombre,q,mapear)=>{
       cache.listo[nombre]=false;cache.error[nombre]='';
       cierres.push(q.onSnapshot(s=>{cache[nombre]=s.docs.map(d=>mapear?mapear(d):d.data());cache.listo[nombre]=true;cache.error[nombre]='';avisar();},
         e=>{cache.error[nombre]=mensajeError(e);avisar();}));
     };
-    sub('insumos',col('apInsumos'));
-    sub('factores',col('apFactores'));
     sub('movimientos',col('apMovimientos').where('en','>=',desde));
     sub('solicitudes',col('apSolicitudes').where('fecha','>=',fechaDesde));
     sub('mermas',col('apMermas').where('fecha','==',fecha));
@@ -104,7 +105,40 @@
     sub('coordinaciones',col('apCoordinaciones').where('fecha','==',fecha));
   }
   function detener(){cierres.splice(0).forEach(c=>{try{c();}catch(_){/* ya cerrada */}});ctxFecha='';}
-  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();['insumos','factores','movimientos','solicitudes','mermas','conciliaciones','coordinaciones'].forEach(k=>{cache[k]=[];});});
+  /* Catálogo (insumos, factores y parámetros de merma): una sola escucha por sesión, independiente de la fecha del Asistente. */
+  function escucharCatalogo(){
+    if(cierresCatalogo.length||typeof db==='undefined')return;
+    const rol=typeof state!=='undefined'&&state.user?String(state.user.rol||''):'';
+    if(rol==='mantenimiento_compartido')return;                 // las reglas no le dan lectura: sigue con los valores del código
+    const sub=(nombre,ref,leer)=>{
+      cache.listo[nombre]=false;cache.error[nombre]='';
+      cierresCatalogo.push(ref.onSnapshot(s=>{cache[nombre]=leer(s);cache.listo[nombre]=true;cache.error[nombre]='';avisar();},
+        e=>{cache.error[nombre]=mensajeError(e);avisar();}));
+    };
+    sub('insumos',col('apInsumos'),s=>s.docs.map(d=>d.data()));
+    sub('factores',col('apFactores'),s=>s.docs.map(d=>d.data()));
+    sub('parametrosMerma',col('apParametros').doc('merma'),s=>s.exists?s.data():null);
+  }
+  function detenerCatalogo(){cierresCatalogo.splice(0).forEach(c=>{try{c();}catch(_){/* ya cerrada */}});}
+  window.glacialFactoresCatalogoEscuchas=escucharCatalogo;
+  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();detenerCatalogo();cache.parametrosMerma=null;
+    ['insumos','factores','movimientos','solicitudes','mermas','conciliaciones','coordinaciones'].forEach(k=>{cache[k]=[];});
+    ['insumos','factores','parametrosMerma'].forEach(k=>{cache.listo[k]=false;cache.error[k]='';});});
+
+  /* Consumo de un insumo con el catálogo, para el Nuevo registro y la tarjeta de Inicio. → {valor, factor, unidad} o null (sin catálogo
+     cargado, con error de lectura o sin factor vigente): quien llama usa entonces su cálculo anterior, sin cambiar nada. */
+  window.glacialFactoresCatalogo={
+    listo:()=>!!(cache.listo.factores&&!cache.error.factores),
+    consumo(insumo,linea,marca,presentacion,fecha,cant){
+      if(!cierresCatalogo.length&&typeof state!=='undefined'&&state.user)escucharCatalogo();   // por si la sesión empezó antes de cargar este archivo
+      if(!(cache.listo.factores&&!cache.error.factores)||!cache.factores.length)return null;
+      const f=/^\d{4}-\d{2}-\d{2}$/.test(String(fecha||''))?fecha:new Date(ahora()-5*3600000).toISOString().slice(0,10);
+      const r=N.consumoCatalogo(cache.factores,{insumo,linea,marca,presentacion,fecha:f},cant||{});
+      if(r.error)return null;
+      const ins=cache.insumos.find(i=>i.codigo===insumo);
+      return {valor:r.valor,factor:r.factor,paletas:r.paletas,unidad:(ins&&ins.unidad)||'',nombre:(ins&&ins.nombre)||insumo};
+    }
+  };
   /* Lectura única de una fecha (Reporte General de otro día sin cambiar la escucha). */
   async function cargarFecha(fecha){
     const [m,c,s]=await Promise.all([col('apMermas').where('fecha','==',fecha).get(),col('apConciliaciones').where('fecha','==',fecha).get(),
@@ -275,9 +309,27 @@
   }
 
   /* ---------- mermas ---------- */
+  /* Causas y etapas configurables (apParametros/merma). Sin documento se usan las de siempre (70-asistente-nucleo.js). */
+  const causasMerma=()=>N.listaOk(cache.parametrosMerma&&cache.parametrosMerma.causas,N.CAUSAS_MERMA);
+  const etapasMerma=()=>N.listaOk(cache.parametrosMerma&&cache.parametrosMerma.etapas,N.ETAPAS_MERMA);
+  const puedeConfigurarMerma=()=>puede('gestionarFactores')||puede('validarMermas');
+  async function guardarParametrosMerma(p,versionEsperada){
+    if(!puedeConfigurarMerma())throw falla('PERMISO','No tienes permiso para configurar las causas de merma.');
+    const causas=(p.causas||[]).map(x=>String(x||'').trim()).filter(Boolean),etapas=(p.etapas||[]).map(x=>String(x||'').trim()).filter(Boolean);
+    const err=[...N.validarListaMerma(causas,'causa'),...N.validarListaMerma(etapas,'etapa')];
+    if(err.length)throw falla('VALIDACION',err.join(' · '));
+    const ref=col('apParametros').doc('merma');const u=usuario();
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);const antes=s.exists?s.data():null;
+      if(num(antes&&antes.version)!==num(versionEsperada))throw falla('CONFLICTO','Otra persona cambió las causas mientras las editabas. Vuelve a abrirlas.');
+      const d={id:'merma',causas,etapas,version:num(antes&&antes.version)+1,
+        historial:[...((antes&&antes.historial)||[]),{por:u.nombre,uid:u.uid,en:ahora(),causas:causas.length,etapas:etapas.length}],...autor()};
+      tx.set(ref,d);auditar(tx,'apParametros','merma',antes?'EDITAR':'CREAR',antes&&{causas:antes.causas,etapas:antes.etapas},{causas,etapas});
+    });
+  }
   async function registrarMerma(m){
     if(!puede('asistenteProduccion'))throw falla('PERMISO','No tienes permiso para registrar mermas.');
-    const err=N.validarMerma(m);if(err.length)throw falla('VALIDACION',err.join(' · '));
+    const err=N.validarMerma(m,causasMerma());if(err.length)throw falla('VALIDACION',err.join(' · '));
     const id=String(m.id||nuevoId('mer'));const ref=col('apMermas').doc(id);const u=usuario();
     await db.runTransaction(async tx=>{
       const s=await tx.get(ref);if(s.exists)return;           // reintento: no se duplica
@@ -396,6 +448,7 @@
     CAPACIDADES,capacidad,puede,cache,escucharTodo,detener,cargarFecha,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
     guardarInsumo,guardarFactor,migrarFactoresDelCodigo,registrarMovimiento,anularMovimiento,validarMovimiento,crearSolicitud,cambiarEstadoSolicitud,
     registrarMerma,validarMerma,guardarConciliacion,idConciliacion,auditoriaDe,mensajeError,nuevoId,ahora,
-    RESPONSABLES,PRIORIDADES,registrarCoordinacion,cerrarCoordinacion
+    RESPONSABLES,PRIORIDADES,registrarCoordinacion,cerrarCoordinacion,
+    escucharCatalogo,causasMerma,etapasMerma,puedeConfigurarMerma,guardarParametrosMerma
   };
 })();

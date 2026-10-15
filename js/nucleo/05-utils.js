@@ -919,6 +919,32 @@ const STRETCHFILM_C20L_FACTOR = 0.5;
 const STRETCHFILM_B20L_FACTOR = 0.75;
 
 
+/* =========================================================
+   CATÁLOGO DE FACTORES (Asistente de Producción → Insumos → Factores)
+   =========================================================
+   Si el catálogo tiene un factor vigente para la línea, marca, presentación y fecha, ese valor manda (se edita en pantalla, con
+   historial). Si no (catálogo sin cargar, sin permiso de lectura o sin factor), se usan las tablas fijas de abajo, como antes.
+   ========================================================= */
+
+function consumoInsumoCatalogo(insumo, linea, marca, presentacion, produccion){
+
+  const cat = typeof window !== 'undefined' ? window.glacialFactoresCatalogo : null;
+
+  if(!cat || typeof cat.consumo !== 'function'){
+    return null;
+  }
+
+  const r = cat.consumo(
+    insumo, linea, marca, presentacion,
+    typeof draft !== 'undefined' && draft ? draft.fecha : '',
+    { unidades: num(produccion?.efectiva), paletas: num(produccion?.paletas) }
+  );
+
+  return r ? Math.round(r.valor * 100) / 100 : null;
+
+}
+
+
 function obtenerDivisorCajasPreformas(presentacion){
 
   const key = String(presentacion || '').toLowerCase();
@@ -932,6 +958,12 @@ function calcularCajasPreformas(){
 
   if(!draft){
     return 0;
+  }
+
+  const catalogo = consumoInsumoCatalogo('CAJA_PREFORMA', draft.linea, draft.marca, draft.presentacion, draft.produccion);
+
+  if(catalogo !== null){
+    return catalogo;
   }
 
   const efectiva =
@@ -1004,6 +1036,12 @@ function calcularPlanchasCarton(){
 
   if(!draft){
     return 0;
+  }
+
+  const catalogo = consumoInsumoCatalogo('CARTON', draft.linea, draft.marca, draft.presentacion, draft.produccion);
+
+  if(catalogo !== null){
+    return catalogo;
   }
 
   const paletas =
@@ -1099,6 +1137,12 @@ function calcularPolietileno(){
     return 0;
   }
 
+  const catalogo = consumoInsumoCatalogo('POLIETILENO', draft.linea, draft.marca, draft.presentacion, draft.produccion);
+
+  if(catalogo !== null){
+    return catalogo;
+  }
+
   const paletas =
     num(draft.produccion?.paletas);
 
@@ -1183,6 +1227,12 @@ function calcularStretchFilm(){
 
   if(!draft){
     return 0;
+  }
+
+  const catalogo = consumoInsumoCatalogo('STRETCH', draft.linea, draft.marca, draft.presentacion, draft.produccion);
+
+  if(catalogo !== null){
+    return catalogo;
   }
 
   const paletas =

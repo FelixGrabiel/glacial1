@@ -48,7 +48,7 @@ D0.apConciliaciones.push({id:(K('B7L','Aro','7 Litros')+'|POLIETILENO').replace(
 D0.apCoordinaciones.push({id:'coo1',fecha:F,bloque:'DIA',texto:'Confirmar personal de CAJAS 20L antes de las 14:00',responsable:'Supervisor de Producción',prioridad:'Alta',estado:'ABIERTA',version:1,creadoPor:'Ana',historial:[{estado:'ABIERTA',por:'Ana',en:AHORA-30*60000}]});
 function q(n){return {docs:(D0[n]||[]).map(function(d){return {id:d.id||d.opId||d.codigo,data:function(){return JSON.parse(JSON.stringify(d));}};})};}
 var db={collection:function(n){var c={where:function(){return c;},onSnapshot:function(cb){setTimeout(function(){cb(q(n));},0);return function(){};},get:function(){return Promise.resolve(q(n));},
-  doc:function(id){return {id:id};}};return c;},runTransaction:function(){return Promise.reject({code:'permission-denied'});}};
+  doc:function(id){return {id:id,onSnapshot:function(cb){setTimeout(function(){cb({exists:false,data:function(){return undefined;}});},0);return function(){};}};}};return c;},runTransaction:function(){return Promise.reject({code:'permission-denied'});}};
 var firebase={auth:function(){return {currentUser:{uid:'u1'}};},firestore:{FieldValue:{serverTimestamp:function(){return 0;}}}};
 function renderMain(){}function renderSidebar(){}function ajustarVistaSegunPermisos(){}function closeModal(){document.getElementById('modal-root').innerHTML='';}
 </script>

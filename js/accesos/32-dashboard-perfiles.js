@@ -657,7 +657,29 @@ function cpInsumosFila(p){
   // C20L/B20L se mantienen visibles, pero no se inventan factores nuevos en Inicio.
   return {...base,preformas:cpNoAplicaInsumo(),etiquetas:cpNoAplicaInsumo(),tapas:cpNoAplicaInsumo(),carton:cpPendienteInsumo(),polietileno:cpPendienteInsumo(),stretch:cpPendienteInsumo()};
 }
-function cpInsumosFilas(){return cpProgramaciones().map(cpInsumosFila);}
+/* Catálogo de factores del Asistente (Insumos → Factores): si tiene un factor vigente para la línea, marca, presentación y fecha,
+   ese valor reemplaza al cálculo fijo de arriba (factor 0 = «No aplica»). Sin catálogo o sin factor, queda el cálculo de siempre. */
+const CP_INSUMO_CATALOGO={preformas:'CAJA_PREFORMA',etiquetas:'ETIQUETA',tapas:'TAPA',carton:'CARTON',polietileno:'POLIETILENO',stretch:'STRETCH'};
+function cpUnidadPlural(u,v){
+  const s=String(u||'');if(!s||/^(kg|UND)$/i.test(s)||Math.abs(Number(v))===1)return s;
+  return /[aeiou]$/i.test(s)?s+'s':s+'es';
+}
+function cpInsumoDesdeCatalogo(p,unidades,codigo){
+  const cat=window.glacialFactoresCatalogo;if(!cat||typeof cat.consumo!=='function')return null;
+  const upp=typeof obtenerUnidadesPorPalet==='function'?cpNum(obtenerUnidadesPorPalet(p.linea,p.marca,p.presentacion)):0;
+  const r=cat.consumo(codigo,p.linea,p.marca,p.presentacion,p.fecha,{unidades,unidadesPorPaleta:upp});
+  if(!r)return null;
+  const f=r.factor;if(!(Number(f.factor)>0))return cpNoAplicaInsumo();
+  const porBase=f.base==='PALETA'?`${cpFmtInsumo(r.paletas)} pal.`:`${cpFmt(unidades,0)} und`;
+  const factorTxt=`${cpFmtInsumo(f.factor)} ${cpUnidadPlural(r.unidad,f.factor)}/${f.base==='PALETA'?(Number(f.cantidadBase)===1?'pal.':cpFmtInsumo(f.cantidadBase)+' pal.'):(Number(f.cantidadBase)===1?'und':cpFmt(f.cantidadBase,0)+' und')} · catálogo`;
+  return cpDatoInsumo(`${cpFmtInsumo(r.valor)} ${cpUnidadPlural(r.unidad,r.valor)}`,porBase,factorTxt);
+}
+function cpInsumosFilaCatalogo(p){
+  const fila=cpInsumosFila(p);
+  Object.entries(CP_INSUMO_CATALOGO).forEach(([campo,codigo])=>{const d=cpInsumoDesdeCatalogo(p,fila.unidades,codigo);if(d)fila[campo]=d;});
+  return fila;
+}
+function cpInsumosFilas(){return cpProgramaciones().map(cpInsumosFilaCatalogo);}
 function cpCeldaInsumo(d){
   const cls=d.estado==='PENDIENTE'?' cp-insumo-pendiente':d.estado==='NO_APLICA'?' cp-insumo-na':'';
   return `<div class="cp-insumo-cell${cls}"><strong>${cpEsc(d.principal)}</strong><span>${cpEsc(d.detalle)}</span>${d.subdetalle?`<small>${cpEsc(d.subdetalle)}</small>`:''}</div>`;

@@ -101,8 +101,8 @@ Las RLS replican las funciones de la sección 3.2.
 
 ## 5. Decisiones pendientes de aprobación
 
-1. **Que el Nuevo registro y la tarjeta de Inicio lean el catálogo** en lugar de sus constantes.
-   - Hoy no se tocan, para no cambiar el cálculo de los reportes ya en uso.
+1. **Que el Nuevo registro y la tarjeta de Inicio lean el catálogo** en lugar de sus constantes. **Aprobado e implementado (sección 8).**
+   - Antes no se tocaban, para no cambiar el cálculo de los reportes ya en uso.
    - La migración copia los valores del Nuevo registro (`05-utils.js`). Los de Inicio difieren y se documentan, pero no se cargan.
    - **Hallazgo:** el Nuevo registro busca la presentación tal cual en sus tablas. Varias presentaciones vigentes «Regular» de PET1 y PET2 solo figuran allí con su nombre anterior «Alcalina», así que sus insumos hoy salen en 0. Ejemplos: `Pack_Regular_SC_1Lx6und/la`, `Pack_Regular_TP_1Lx6und/la` y `Pack c/Sticker_Regular_2.5Lx6und`.
      - La migración les asigna el valor de su equivalente «Alcalina», como indica `normalizarPresentacionRegular`, y lo anota en la nota del factor.
@@ -174,3 +174,20 @@ Las RLS replican las funciones de la sección 3.2.
 - **Pestañas:** Resumen operativo · Seguimiento del turno · Insumos · Consumo · Merma · Historial y reportes. Solicitudes y Factores pasan a ser subpestañas de Insumos, junto con Existencias y Requerimientos.
 - **Coordinaciones del turno** (Seguimiento): nueva colección `apCoordinaciones`, con su regla en `firestore.rules.etapa2.txt`. Hay que volver a publicar las reglas.
 - **Evidencia opcional** en conteos y mermas: se sube a Cloudinary con el mismo servicio y preset que las hojas de producto terminado (`06-registro.js`). Solo se guarda el identificador del archivo; si la subida falla, el registro no se guarda y se avisa.
+
+## 8. Catálogo como fuente única y causas de merma configurables
+
+**Factores (Nuevo registro e Inicio).**
+- El catálogo (`apInsumos`, `apFactores`) se escucha desde el inicio de sesión (`glacialFactoresCatalogoEscuchas` en `02-estado.js`), no solo al abrir el Asistente.
+- `window.glacialFactoresCatalogo.consumo(insumo, línea, marca, presentación, fecha, cantidades)` devuelve el valor con el factor vigente, o `null`.
+- Nuevo registro (`05-utils.js` y los cálculos por cuadro de `06-registro.js`): cajas de preformas, cartón, polietileno y stretch consultan primero el catálogo (`consumoInsumoCatalogo`). Con `null` (catálogo sin cargar, sin permiso de lectura, sin factor o factor ambiguo) usan las tablas fijas de siempre.
+- Inicio (`32-dashboard-perfiles.js`): cada insumo de la tabla (preformas, etiquetas, tapas, cartón, polietileno, stretch) usa el catálogo si tiene factor vigente; factor 0 = «No aplica».
+- Prueba `tests/factores-catalogo.test.js`: con el catálogo migrado, el Nuevo registro da exactamente lo mismo que las tablas fijas en las 264 combinaciones con valor en el código; las presentaciones «Regular» que salían en 0 toman el valor de su equivalente «Alcalina».
+- Los reportes ya guardados conservan sus valores; el catálogo se aplica cuando se calcula o se edita un registro.
+
+**Causas y etapas de merma.**
+- Documento `apParametros/merma` `{causas[], etapas[], version, historial[]}`; sin documento se usan las listas de siempre.
+- Las configura quien tiene `gestionarFactores` o `validarMermas` (Administrador, Jefe de Producción / de Operaciones) desde **Merma → Configurar causas y etapas de merma**, una por línea (1 a 30, sin repetidas). Versión +1, historial y auditoría.
+- Las mermas ya registradas conservan su causa. Con «Otros» se sigue exigiendo la descripción.
+- Reglas: bloque `match /apParametros/{doc}` en `firestore.rules.etapa2.txt` (emulador 67/67).
+
