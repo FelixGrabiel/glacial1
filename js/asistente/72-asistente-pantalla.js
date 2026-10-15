@@ -590,6 +590,13 @@
   };
   window.apGuardarInsumo=version=>{const d={codigo:valor('ap-i-cod').trim().toUpperCase(),nombre:valor('ap-i-nom'),unidad:valor('ap-i-und'),tipo:valor('ap-i-tipo'),activo:valor('ap-i-act')==='1'};
     if(typeof closeModal==='function')closeModal();ejecutar(()=>D.guardarInsumo(d,version),'Insumo guardado.');};
+  /* Marca y presentación del factor: «* Todas» o una de las listas del Nuevo registro (01-config.js) para la línea elegida, sin texto libre. */
+  const listaDeLinea=(tabla,linea)=>{let t=null;try{t=(0,eval)(tabla);}catch(_){}      // constantes globales de 01-config.js
+    return [...new Set(((t&&t[linea])||[]).map(x=>String(x).trim()).filter(Boolean))];};
+  const opcionesProducto=(lista,sel)=>`<option value="*">* Todas</option>`+lista.map(x=>`<option value="${esc(x)}" ${x===sel?'selected':''}>${esc(x)}</option>`).join('');
+  window.apFactorLinea=()=>{const l=valor('ap-f-lin');
+    const m=document.getElementById('ap-f-mar'),p=document.getElementById('ap-f-pre');
+    if(m)m.innerHTML=opcionesProducto(listaDeLinea('MARCAS_POR_LINEA',l),'*');if(p)p.innerHTML=opcionesProducto(listaDeLinea('PRESENTACIONES_POR_LINEA',l),'*');};
   window.apFactorForm=id=>{
     const a=D.cache.factores.find(f=>f.id===id);const hoy=new Date(D.ahora()).toISOString().slice(0,10);
     const f=a?{...a,vigenteDesde:hoy}:{insumo:'',linea:'PET1',marca:'*',presentacion:'*',base:'PALETA',cantidadBase:1,factor:'',vigenteDesde:hoy};
@@ -597,9 +604,9 @@
     const sinInsumos=!a&&!D.cache.insumos.some(i=>i.activo!==false);
     modal(a?'Nueva versión del factor':'Nuevo factor',`${a?`<p class="ap-sub">La versión actual (${fmt(a.factor,4)} / ${fmt(a.cantidadBase,0)} ${a.base}) queda vigente hasta el día anterior; los datos históricos siguen usando su valor.</p>`:''}
       ${sinInsumos?`<div class="ap-info ap-info-acc">${ico('info','ap-info-ico')}<div><b>No hay insumos en el catálogo.</b> Usa «Migrar factores del código» o «Agregar insumo» en Insumos → Factores y vuelve a abrir este formulario.</div></div>`:''}
-      <div class="ap-form ap-form-2">${campo('Línea',`<select id="ap-f-lin" ${a?'disabled':''}>${opcionesLineas(f.linea,false)}</select>`)}
-      ${campo('Insumo',`<select id="ap-f-ins" ${a?'disabled':''}>${opcionesInsumos(f.insumo)}</select>`)}${campo('Marca (* = todas)',`<input id="ap-f-mar" value="${esc(f.marca)}" ${a?'readonly':''}>`)}
-      ${campo('Presentación (* = todas)',`<input id="ap-f-pre" value="${esc(f.presentacion)}" ${a?'readonly':''}>`)}${campo('Base',`<select id="ap-f-base"><option value="PALETA" ${f.base==='PALETA'?'selected':''}>Por paleta</option><option value="UND" ${f.base==='UND'?'selected':''}>Por unidad producida</option></select>`)}
+      <div class="ap-form ap-form-2">${campo('Línea',`<select id="ap-f-lin" ${a?'disabled':'onchange="apFactorLinea()"'}>${opcionesLineas(f.linea,false)}</select>`)}
+      ${campo('Insumo',`<select id="ap-f-ins" ${a?'disabled':''}>${opcionesInsumos(f.insumo)}</select>`)}${campo('Marca',a?`<input id="ap-f-mar" value="${esc(f.marca)}" readonly>`:`<select id="ap-f-mar">${opcionesProducto(listaDeLinea('MARCAS_POR_LINEA',f.linea),f.marca)}</select>`)}
+      ${campo('Presentación',a?`<input id="ap-f-pre" value="${esc(f.presentacion)}" readonly>`:`<select id="ap-f-pre">${opcionesProducto(listaDeLinea('PRESENTACIONES_POR_LINEA',f.linea),f.presentacion)}</select>`)}${campo('Base',`<select id="ap-f-base"><option value="PALETA" ${f.base==='PALETA'?'selected':''}>Por paleta</option><option value="UND" ${f.base==='UND'?'selected':''}>Por unidad producida</option></select>`)}
       ${campo('Cantidad base',`<input id="ap-f-cb" type="number" min="0" step="any" value="${esc(f.cantidadBase)}">`)}${campo('Factor (en la unidad del insumo)',`<input id="ap-f-fac" type="number" min="0" step="any" value="${esc(f.factor)}">`)}
       ${campo('Vigente desde',`<input id="ap-f-desde" type="date" value="${esc(f.vigenteDesde)}">`)}</div>
       <p class="ap-sub">Consumo = (producido ÷ cantidad base) × factor, o (paletas ÷ cantidad base) × factor. Factor 0 = «No aplica».</p>
