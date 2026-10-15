@@ -120,8 +120,8 @@ ok(I.enProduccion({producido:1})&&!I.enProduccion({producido:0})&&!I.enProduccio
   const s63=leer('js/produccion/63-incidencias-no-produccion.js');
   ok(!/Avance|paradasOperativas|avancesTurno|minPausas|minParadas/.test(s63.replace(/\/\*[\s\S]*?\*\//,'')),'63: no toca paradas de Avance/Cierre, tiempos ni ratio');
   const s32=leer('js/accesos/32-dashboard-perfiles.js');
-  ok(['Avance del turno','Líneas en producción','Paradas del turno','Motivos registrados','Estado del turno'].every(t=>s32.includes("'"+t+"'")),'Inicio: las cinco tarjetas aprobadas');
-  ok(/Motivo pendiente de registrar/.test(s32)&&/Sin programación para evaluar/.test(s32)&&/SIN PROGRAMACIÓN/.test(s32)&&/SIN DATOS PARA EVALUAR/.test(s32)&&/Todas las líneas están en producción\./.test(s32),'Inicio: textos de motivo pendiente, sin programación, sin datos y todas en producción');
+  ok(['Avance del turno','Líneas en producción','Paradas del turno','Motivos registrados','Distribución de personal'].every(t=>s32.includes("'"+t+"'")),'Inicio: las cinco tarjetas aprobadas');
+  ok(/Motivo pendiente de registrar/.test(s32)&&/Sin programación para evaluar/.test(s32)&&/Todas las líneas están en producción\./.test(s32),'Inicio: textos de motivo pendiente, sin programación y todas en producción');
   ok(!/Líneas detenidas/.test(s32.slice(s32.indexOf('function cpEjecutivoHTML'),s32.indexOf('function cpEjecutivoStyles'))),'Inicio: ya no hay tarjeta superior «Líneas detenidas»');
   ok(/lineasAutorizadas/.test(s32)&&/totalLineas/.test(s32),'Inicio: el denominador usa las líneas autorizadas (no fija cinco)');
   const idx=leer('index.html');

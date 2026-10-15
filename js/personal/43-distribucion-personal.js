@@ -169,15 +169,20 @@
   const marca=v=>v&&typeof v.toMillis==='function'?v.toMillis():num(v);
   const avisar=()=>oyentes.slice().forEach(f=>{try{f();}catch(_){/* una vista no debe romper a otra */}});
 
-  /* Escucha en vivo un (fecha, bloque). Devuelve la función que la cierra; al cerrar sesión se cierran todas. */
+  /* Escucha en vivo un (fecha, bloque). Devuelve la función que la cierra; al cerrar sesión se cierran todas.
+     listo = llegaron la versión Y el historial de eventos (antes de eso no se sabe si hay distribución). error = la lectura falló
+     (no es «sin distribución»: quien consulta debe ofrecer reintentar en vez de mostrar una distribución vacía). */
   function escuchar(fecha,bloque){
     const k=clave(fecha,bloque);
     cache[k]=cache[k]||{parent:null,eventos:[],listo:false};
+    const c=cache[k];c.error=null;
+    let conParent=false,conEventos=false;
     const r=ref(fecha,bloque);
-    const u1=r.onSnapshot(s=>{cache[k].parent=s.exists?s.data():null;cache[k].listo=true;avisar();},()=>{});
+    const fallo=e=>{c.error=(e&&(e.code||e.message))||'error';avisar();};
+    const u1=r.onSnapshot(s=>{c.parent=s.exists?s.data():null;conParent=true;c.error=null;c.listo=conParent&&conEventos;avisar();},fallo);
     const u2=r.collection('eventos').orderBy('desdeMs').onSnapshot(q=>{
-      cache[k].eventos=q.docs.map(d=>{const x=d.data();return {...x,guardadoEnMs:marca(x.guardadoEn)};});avisar();
-    },()=>{});
+      c.eventos=q.docs.map(d=>{const x=d.data();return {...x,guardadoEnMs:marca(x.guardadoEn)};});conEventos=true;c.error=null;c.listo=conParent&&conEventos;avisar();
+    },fallo);
     const cerrar=()=>{try{u1();}catch(_){/* ya cerrada */}try{u2();}catch(_){/* ya cerrada */}};
     cierres.push(cerrar);
     return cerrar;
