@@ -1,0 +1,60 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Inicio: personal y líneas sin producción (datos de prueba)</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>body{background:#f3f6f8;margin:0;padding:12px}.aviso-prueba{font:700 13px system-ui;color:#991B1B;margin:0 0 8px}</style>
+</head><body>
+<p class="aviso-prueba">Datos de PRUEBA (no reales) · Noche 13/10/2026 · ?caso=motivos · ?caso=sindist · ?caso=error · ?caso=exceso · ?detalle=1</p>
+<div id="main"></div><div id="modal-root"></div>
+<script>
+/* Escenario aislado: Noche 13/10/2026 a las 23:30. PET2 y B7L producen; PET1 tiene programación y no produce; C20L sin programación;
+   B20L con motivo informado. Distribución: PET1 3 (personal parado), PET2 pendiente, B7L 4, C20L 0, B20L 0, apoyo 1. Tareo: 10 con asistencia. */
+var AHORA=new Date(2026,9,13,23,30).getTime(),F='2026-10-13';
+window.tareoAhoraServidor=function(){return AHORA;};
+var conMotivos=/caso=motivos/.test(location.search);
+var state={user:{username:'gerente',nombre:'Gerencia (prueba)',rol:'Gerente General',permisos:['ver_inicio_ejecutivo','produccionActual']},currentTab:'centro-perfil'};
+function tienePermiso(p){return ['ver_inicio_ejecutivo','produccionActual','avanceProduccion'].includes(p);}
+var LINES=[{key:'PET1',name:'PET 1'},{key:'PET2',name:'PET 2'},{key:'B7L',name:'B7L'},{key:'C20L',name:'CAJAS 20L'},{key:'B20L',name:'B20L'}];
+function escaparHtml(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fila(l,o){return Object.assign({linea:l,nombre:l,marca:'',presentacion:'',estado:'PENDIENTE',programado:0,producido:0,producidoFisico:0,avance:0,detalle:[],
+  enProduccionReal:false,detenidaReal:false,iniciadaReal:false,ultimaOperacionMs:0,ultimoMs:0,tiempos:{ok:false},ratios:{},desempeno:{},retrasoPct:null,detenidaMin:null},o);}
+window.glacialResumenEjecutivoLineas=function(){return {fecha:F,turno:'NOCHE',actualizado:AHORA,filas:[
+  fila('PET1',{programado:30000,detalle:[{marca:'Scala',presentacion:'2.5 L',estado:'PENDIENTE',producido:0,programado:30000}]}),
+  fila('PET2',{marca:'Fontlife',presentacion:'1 L',estado:'EN_CURSO',programado:45000,producido:2880,producidoFisico:2880,avance:6.4,enProduccionReal:true,iniciadaReal:true,ultimoMs:AHORA-600000,
+    detalle:[{marca:'Fontlife',presentacion:'1 L',estado:'EN_CURSO',producido:2880,programado:45000,avance:6.4}]}),
+  fila('B7L',{marca:'Bells',presentacion:'7 L',estado:'EN_CURSO',programado:3000,producido:1338,producidoFisico:1338,avance:44.6,enProduccionReal:true,iniciadaReal:true,ultimoMs:AHORA-900000,
+    detalle:[{marca:'Bells',presentacion:'7 L',estado:'EN_CURSO',producido:1338,programado:3000,avance:44.6}]})
+].concat(conMotivos?[]:[])};};
+var INCIDENCIAS=[{id:F+'_NOCHE_B20L',linea:'B20L',fecha:F,bloque:'NOCHE',estado:'VIGENTE',motivo:'Falta de insumos',descripcion:'',registradoPor:'Luis (supervisor)',registradoEn:new Date(2026,9,13,21,20).getTime(),historial:[]}];
+if(conMotivos)INCIDENCIAS.push({id:F+'_NOCHE_PET1',linea:'PET1',fecha:F,bloque:'NOCHE',estado:'VIGENTE',motivo:'Mantenimiento',descripcion:'Cambio de molde',registradoPor:'Ana (supervisora)',registradoEn:new Date(2026,9,13,21,40).getTime(),historial:[]});
+/* Distribución de PRUEBA con la forma de la captura: PET1 6, PET2 7, B7L 10, CAJAS 20L pendiente, B20L 2, apoyo 9; Tareo con 42 con asistencia.
+   Hay además una versión anterior (21:00) que NO debe sumarse: vale la vigente (22:00). Se agrega un duplicado del mismo trabajador en el Tareo
+   y una fila de Mantenimiento (no cuentan). */
+var CASO=(location.search.match(/caso=(\w+)/)||[])[1]||'';
+var EVENTOS=CASO==='sindist'?[]:[
+  {opId:'op1',version:1,desdeMs:new Date(2026,9,13,21,0).getTime(),lineas:{PET1:5,PET2:7,B7L:9,C20L:null,B20L:2},apoyoCompartido:9,usuario:'Luis (supervisor)'},
+  {opId:'op2',version:2,desdeMs:new Date(2026,9,13,22,0).getTime(),lineas:CASO==='exceso'?{PET1:20,PET2:7,B7L:10,C20L:4,B20L:2}:{PET1:6,PET2:7,B7L:10,C20L:null,B20L:2},apoyoCompartido:9,usuario:'Luis (supervisor)'}];
+var trab=Array.from({length:42},function(_,i){return {trabajadorId:'t'+i,nombre:'Trabajador '+i,asistencia:'Asistió'};});
+var TAREOS=[{area:'Producción',fecha:F,turno:'Noche',personal:trab.concat([{trabajadorId:'t0',nombre:'Trabajador 0',asistencia:'Asistió'},{trabajadorId:'f1',nombre:'Falta',asistencia:'Falta por justificar'}])},
+  {area:'Mantenimiento',fecha:F,turno:'Noche',personal:[{trabajadorId:'t1',nombre:'Trabajador 1 (espejo maquinista)',asistencia:'Asistió'},{trabajadorId:'m9',nombre:'Mecánico',asistencia:'Asistió'}]}];
+function obtenerTareos(){return TAREOS;}function tareoAreaDe(t){return t.area==='Mantenimiento'?'Mantenimiento':'Producción';}
+function snapDoc(d){return {exists:true,data:function(){return d;}};}
+/* Como Firestore, las respuestas llegan de forma asíncrona (una respuesta síncrona provocaría redibujos recursivos que no ocurren en la app). */
+function tarde(f){setTimeout(f,0);}
+var db={collection:function(n){return {
+  where:function(){return {onSnapshot:function(cb){tarde(function(){cb({docs:(n==='incidenciasNoProduccion'?INCIDENCIAS:[]).map(function(x){return {id:x.id,data:function(){return x;}};})});});return function(){};}};},
+  doc:function(){return {onSnapshot:function(cb,err){tarde(function(){if(CASO==='error')err({code:'unavailable'});else cb(EVENTOS.length?snapDoc({version:EVENTOS.length}):{exists:false,data:function(){return null;}});});return function(){};},
+    collection:function(){return {orderBy:function(){return {onSnapshot:function(cb,err){tarde(function(){if(CASO==='error')err({code:'unavailable'});else cb({docs:EVENTOS.map(function(e){return {data:function(){return e;}};})});});return function(){};}};}};}};}};}};
+var firebase={auth:function(){return {currentUser:{uid:'g1'}};},firestore:{FieldValue:{serverTimestamp:function(){return 0;}}}};
+window.glacialQuienControla=function(){return 'supervisor';};
+function goProduccionActual(){}function goAvanceProduccion(){}function closeModal(){document.getElementById('modal-root').innerHTML='';}
+</script>
+<script src="../../js/nucleo/45-indicadores.js"></script>
+<script src="../../js/produccion/63-incidencias-no-produccion.js"></script>
+<script src="../../js/personal/43-distribucion-personal.js"></script>
+<script src="../../js/accesos/32-dashboard-perfiles.js"></script>
+<script>
+function renderCentroPerfil(m){m.innerHTML='<section class="cp-shell">'+cpStyles()+cpEjecutivoStyles()+cpEjecutivoHTML()+'</section>';}
+renderCentroPerfil(document.getElementById('main'));
+if(/detalle=1/.test(location.search))setTimeout(cpVerDistribucion,50);
+</script>
+</body></html>

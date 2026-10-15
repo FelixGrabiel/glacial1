@@ -671,6 +671,136 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Tareo en un documento por tareo (TAREO_POR_DOCUMENTO en js/nucleo/01-config.js; js/personal/13n-tareo-nube.js).
+    //  - Leen los mismos que leen sync/tareos: todo usuario con sesión (incluida la cuenta compartida de Mantenimiento).
+    //  - Escriben los mismos que escriben sync/tareos: con sesión, sin modo solo consulta y no la cuenta compartida. El control por área
+    //    (Producción / Mantenimiento) sigue en la aplicación, igual que hoy con sync/tareos.
+    //  - El id del documento es el id del tareo. No se borra: eliminar deja eliminado:true con sus datos (se puede recuperar).
+    match /tareos/{id} {
+      allow read: if autenticado();
+      allow create, update: if autenticado() && !esMantCompartido() && !soloVista()
+        && request.resource.data.id == id;
+      allow delete: if false;
+    }
+
+    // ===================== ASISTENTE DE PRODUCCIÓN (js/asistente/, docs/ASISTENTE-PRODUCCION.md) =====================
+    // Capacidad = rol por defecto + permiso explícito ('permiso' la da, '-permiso' la quita), como puedeDistribuirPersonal().
+    // Misma lista que CAPACIDADES en js/asistente/71-asistente-datos.js. Nunca la cuenta compartida ni una cuenta en modo visualización.
+    function capacidadAp(clave, rolesDefecto) {
+      return autenticado() && !esMantCompartido() && !soloVista() && (
+        esAdmin() ||
+        perfiles()[request.auth.uid].get('permisos', []) == 'todos' ||
+        (perfiles()[request.auth.uid].permisos is list && clave in perfiles()[request.auth.uid].permisos) ||
+        (perfiles()[request.auth.uid].rol in rolesDefecto
+          && !(perfiles()[request.auth.uid].permisos is list && ('-' + clave) in perfiles()[request.auth.uid].permisos))
+      );
+    }
+    function puedeAsistente() { return capacidadAp('asistenteProduccion', ['Asistente de Producción']); }
+    function puedeValidarAp() { return capacidadAp('validarMermas', ['Jefe de Producción', 'Jefe de Operaciones']); }
+    function puedeFactoresAp() { return capacidadAp('gestionarFactores', []); }
+    function puedeAlmacenAp() { return capacidadAp('moduloAlmacen', []); }
+    function leerAp() { return autenticado() && !esMantCompartido(); }
+    // Autor y hora del servidor en cada escritura; versión +1 (1 al crear).
+    function autorAp() {
+      return request.resource.data.actualizadoUid == request.auth.uid && request.resource.data.actualizadoEn == request.time;
+    }
+    function versionAp() {
+      return resource == null ? request.resource.data.version == 1 : request.resource.data.version == resource.data.version + 1;
+    }
+    function historialCreceAp() {
+      return request.resource.data.historial is list
+        && (resource == null || request.resource.data.historial.size() == resource.data.historial.size() + 1);
+    }
+
+    // Catálogo de insumos y factores de consumo: solo quien administra factores. No se borran (se desactivan o se cierra la vigencia).
+    match /apInsumos/{codigo} {
+      allow read: if leerAp();
+      allow create, update: if puedeFactoresAp() && autorAp() && versionAp() && request.resource.data.codigo == codigo;
+      allow delete: if false;
+    }
+    match /apFactores/{id} {
+      allow read: if leerAp();
+      allow create, update: if puedeFactoresAp() && autorAp() && versionAp() && request.resource.data.id == id
+        && request.resource.data.factor is number && request.resource.data.factor >= 0
+        && request.resource.data.cantidadBase is number && request.resource.data.cantidadBase > 0;
+      allow delete: if false;
+    }
+    // Libro de movimientos de material: INMUTABLE (solo se crea; una corrección es un movimiento ANULACION nuevo). id = opId (idempotente).
+    // CONSUMO solo al confirmar una conciliación (validarMermas); el resto lo registra el Asistente.
+    match /apMovimientos/{opId} {
+      allow read: if leerAp();
+      allow create: if request.resource.data.opId == opId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.guardadoEn == request.time
+        && request.resource.data.cantidad is number && request.resource.data.cantidad >= 0
+        && request.resource.data.tipo in ['CONTEO', 'RECEPCION', 'DEVOLUCION', 'TRANSFERENCIA_ENTRADA', 'TRANSFERENCIA_SALIDA', 'CONSUMO', 'ANULACION']
+        && (request.resource.data.tipo == 'CONSUMO' ? puedeValidarAp()
+            : (request.resource.data.tipo == 'ANULACION' ? (puedeAsistente() || puedeValidarAp()) : puedeAsistente()));
+      allow update, delete: if false;
+    }
+    // Solicitudes a Almacén: las crea el Asistente; Almacén pasa a «En preparación / Entregada (parcial)»; el Asistente el resto.
+    // Versión +1 y el historial solo crece. Limitación: las reglas no comparan ítem por ítem (lo valida 70-asistente-nucleo.js).
+    match /apSolicitudes/{id} {
+      allow read: if leerAp();
+      allow create: if puedeAsistente() && autorAp() && versionAp() && historialCreceAp() && request.resource.data.id == id
+        && request.resource.data.creadoUid == request.auth.uid && request.resource.data.estado in ['BORRADOR', 'SOLICITADA'];
+      allow update: if autorAp() && versionAp() && historialCreceAp()
+        && request.resource.data.id == resource.data.id && request.resource.data.creadoUid == resource.data.creadoUid
+        && (request.resource.data.estado in ['EN_PREPARACION', 'ENTREGADA_PARCIAL', 'ENTREGADA']
+            // Almacén PASA a estos estados; Producción puede registrar una recepción parcial SIN cambiarlos.
+            ? (puedeAlmacenAp() || (puedeAsistente() && request.resource.data.estado == resource.data.estado
+                && request.resource.data.estado != 'EN_PREPARACION'))
+            : puedeAsistente());
+      allow delete: if false;
+    }
+    // Mermas: el Asistente las registra PENDIENTE; solo quien valida las pasa a VALIDADA o RECHAZADA (una vez, sin cambiar la cantidad).
+    match /apMermas/{id} {
+      allow read: if leerAp();
+      allow create: if puedeAsistente() && autorAp() && versionAp() && historialCreceAp() && request.resource.data.id == id
+        && request.resource.data.estado == 'PENDIENTE' && request.resource.data.cantidad is number && request.resource.data.cantidad > 0;
+      allow update: if puedeValidarAp() && autorAp() && versionAp() && historialCreceAp()
+        && resource.data.estado == 'PENDIENTE' && request.resource.data.estado in ['VALIDADA', 'RECHAZADA']
+        && request.resource.data.validadoUid == request.auth.uid
+        && request.resource.data.cantidad == resource.data.cantidad && request.resource.data.insumo == resource.data.insumo
+        && request.resource.data.unidad == resource.data.unidad && request.resource.data.cuadro == resource.data.cuadro;
+      allow delete: if false;
+    }
+    // Conciliaciones: el Asistente guarda borrador o la envía a revisión (no si está confirmada); quien valida confirma o reabre.
+    match /apConciliaciones/{id} {
+      allow read: if leerAp();
+      allow create, update: if autorAp() && versionAp() && historialCreceAp() && request.resource.data.id == id && (
+        (puedeAsistente() && request.resource.data.estado in ['BORRADOR', 'EN_REVISION']
+          && (resource == null || resource.data.estado != 'CONFIRMADA')) ||
+        (puedeValidarAp() && request.resource.data.estado in ['CONFIRMADA', 'BORRADOR']));
+      allow delete: if false;
+    }
+    // Coordinaciones del turno (seguimiento): las registra y cierra el Asistente; versión +1, historial solo crece; una cerrada no se reabre.
+    match /apCoordinaciones/{id} {
+      allow read: if leerAp();
+      allow create: if puedeAsistente() && autorAp() && versionAp() && historialCreceAp() && request.resource.data.id == id
+        && request.resource.data.estado == 'ABIERTA' && request.resource.data.texto is string && request.resource.data.texto.size() >= 5;
+      allow update: if puedeAsistente() && autorAp() && versionAp() && historialCreceAp()
+        && resource.data.estado == 'ABIERTA' && request.resource.data.estado == 'CERRADA'
+        && request.resource.data.texto == resource.data.texto && request.resource.data.creadoUid == resource.data.creadoUid;
+      allow delete: if false;
+    }
+    // Parámetros de merma (documento 'merma': causas y etapas que se eligen al registrar una merma). Los cambia quien administra
+    // factores o valida mermas; versión +1, historial que solo crece, 1 a 30 elementos por lista. Nadie los borra.
+    match /apParametros/{doc} {
+      allow read: if leerAp();
+      allow create, update: if doc == 'merma' && (puedeFactoresAp() || puedeValidarAp()) && autorAp() && versionAp() && historialCreceAp()
+        && request.resource.data.causas is list && request.resource.data.causas.size() >= 1 && request.resource.data.causas.size() <= 30
+        && request.resource.data.etapas is list && request.resource.data.etapas.size() >= 1 && request.resource.data.etapas.size() <= 30;
+      allow delete: if false;
+    }
+    // Auditoría: cada operación deja su registro (uid y hora del servidor). Nadie la edita ni la borra.
+    match /apAuditoria/{id} {
+      allow read: if leerAp();
+      allow create: if autenticado() && !esMantCompartido() && !soloVista()
+        && request.resource.data.uid == request.auth.uid && request.resource.data.en == request.time;
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

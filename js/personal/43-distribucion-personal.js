@@ -135,6 +135,19 @@
     return {estado:'REVISAR',diferencia:d,mensaje:d>0?'Se distribuyeron '+d+' más que el personal disponible: revisar.':'Faltan '+(-d)+' por distribuir respecto al personal disponible.'};
   }
 
+  /* Personal DISPONIBLE del bloque según el Tareo de Producción: personas distintas con asistencia que trabaja (ASISTIÓ, tardanza,
+     feriado trabajado, comisión). null = el Tareo del bloque no tiene asistencia (no se puede comprobar; no es cero). */
+  const ASISTENCIA_TRABAJA=new Set(['ASISTIO','ASISTIÓ','TARDANZA','FERIADO TRABAJADO','COMISION/TRABAJO EXTERNO','COMISIÓN/TRABAJO EXTERNO']);
+  function disponiblesTareo(tareos,fecha,bloque){
+    const turnos=bloqueDe(bloque)==='NOCHE'?['NOCHE']:['DÍA','DIA','INTERMEDIO'];
+    const ts=(tareos||[]).filter(t=>t&&t.fecha===fecha&&turnos.includes(String(t.turno||'').toUpperCase())&&
+      (typeof tareoAreaDe==='function'?tareoAreaDe(t)==='Producción':String(t.area||'').toLowerCase()!=='mantenimiento'));
+    if(!ts.length)return null;
+    const vistos=new Set();
+    ts.forEach(t=>(t.personal||[]).forEach(p=>{if(p&&ASISTENCIA_TRABAJA.has(String(p.asistencia||'').toUpperCase()))vistos.add(String(p.trabajadorId||p.nombre||'').trim().toLowerCase());}));
+    return vistos.size;
+  }
+
   /* ---------- permisos y contexto ---------- */
   const puedeEditar=()=>typeof tienePermiso==='function'&&tienePermiso('distribuirPersonal');
   /* Corregir horas anteriores: Administrador y Jefe de Producción. */
@@ -156,15 +169,20 @@
   const marca=v=>v&&typeof v.toMillis==='function'?v.toMillis():num(v);
   const avisar=()=>oyentes.slice().forEach(f=>{try{f();}catch(_){/* una vista no debe romper a otra */}});
 
-  /* Escucha en vivo un (fecha, bloque). Devuelve la función que la cierra; al cerrar sesión se cierran todas. */
+  /* Escucha en vivo un (fecha, bloque). Devuelve la función que la cierra; al cerrar sesión se cierran todas.
+     listo = llegaron la versión Y el historial de eventos (antes de eso no se sabe si hay distribución). error = la lectura falló
+     (no es «sin distribución»: quien consulta debe ofrecer reintentar en vez de mostrar una distribución vacía). */
   function escuchar(fecha,bloque){
     const k=clave(fecha,bloque);
     cache[k]=cache[k]||{parent:null,eventos:[],listo:false};
+    const c=cache[k];c.error=null;
+    let conParent=false,conEventos=false;
     const r=ref(fecha,bloque);
-    const u1=r.onSnapshot(s=>{cache[k].parent=s.exists?s.data():null;cache[k].listo=true;avisar();},()=>{});
+    const fallo=e=>{c.error=(e&&(e.code||e.message))||'error';avisar();};
+    const u1=r.onSnapshot(s=>{c.parent=s.exists?s.data():null;conParent=true;c.error=null;c.listo=conParent&&conEventos;avisar();},fallo);
     const u2=r.collection('eventos').orderBy('desdeMs').onSnapshot(q=>{
-      cache[k].eventos=q.docs.map(d=>{const x=d.data();return {...x,guardadoEnMs:marca(x.guardadoEn)};});avisar();
-    },()=>{});
+      c.eventos=q.docs.map(d=>{const x=d.data();return {...x,guardadoEnMs:marca(x.guardadoEn)};});conEventos=true;c.error=null;c.listo=conParent&&conEventos;avisar();
+    },fallo);
     const cerrar=()=>{try{u1();}catch(_){/* ya cerrada */}try{u2();}catch(_){/* ya cerrada */}};
     cierres.push(cerrar);
     return cerrar;
@@ -216,7 +234,7 @@
   });
 
   window.glacialDistribucionPersonal={
-    LINEAS,clave,bloqueDe,normalizarLineas,totalDe,prepararEvento,vigente,personalAlCorte,horasHombre,horasHombrePlanta,compararConDisponible,
+    LINEAS,clave,bloqueDe,normalizarLineas,totalDe,prepararEvento,vigente,personalAlCorte,horasHombre,horasHombrePlanta,compararConDisponible,disponiblesTareo,
     escuchar,cargar,datos,guardar,consultar,consultarHorasHombre,puedeEditar,puedeCorregir,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
     horarioDe

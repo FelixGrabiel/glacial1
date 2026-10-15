@@ -21,6 +21,7 @@ js/
   personal/       trabajadores, tareo y rotación de supervisores
   mantenimiento/  módulo de Mantenimiento y cuenta compartida
   rrhh/           módulo de RRHH y exportaciones
+  asistente/      Asistente de Producción (insumos, consumos, mermas, solicitudes a Almacén) y Reporte General
 ```
 
 ## Qué hace cada archivo
@@ -79,6 +80,7 @@ js/
 | Archivo | Función |
 |---|---|
 | 11-trabajadores.js | Gestión de trabajadores |
+| 13n-tareo-nube.js | Tareo: única forma de escribir tareos (transacciones, reintentos, mensajes de error, pendientes, documento por tareo). Cargar antes de 13 |
 | 13-tareo.js | Tareo, historial, resumen mensual, rotación semanal |
 | 20-tareo-control.js | Control de descansos y auditoría del tareo |
 | 28-tareo-maquinistas.js | Reglas de maquinistas y técnicos en el tareo |
@@ -106,6 +108,17 @@ js/
 | 67h-reclasificacion-pantalla.js | Pestaña «Reclasificar paradas» del módulo Mantenimiento: paradas con causa «Otro», vacía o antigua, agrupadas; «Asignar a las N paradas de este grupo»; contadores de minutos sin clasificar y reclasificados |
 | 43-bitacora-mantenimiento.js | Bitácora de Mantenimiento (solo lectura: rangos rápidos por día operativo 07:00–07:00, orden, buscador, vista por parada, motivos pendientes y Excel) y tarjeta «Paradas de hoy» del Inicio |
 | 66-entrega-turno.js | Entrega de turno entre supervisores (colección entregasTurno, id fecha_TURNO con DIA/INTERMEDIO/NOCHE): foto automática por línea (reutiliza construirDatos de 48), novedades por línea, entregar/corregir/recibir por transacción, historial por fecha, tarjeta «Entrega de turno pendiente» en el Inicio en vivo y modo consulta para jefatura |
+
+### js/asistente/
+
+Diagnóstico, modelo de datos y permisos: `docs/ASISTENTE-PRODUCCION.md`.
+
+| Archivo | Función |
+|---|---|
+| 70-asistente-nucleo.js | Cálculo puro: cuadros del bloque, factores con vigencia, requerimientos y reservas derivadas, stock por movimientos, conciliación, mermas, estados de solicitud, migración de factores del código |
+| 71-asistente-datos.js | Firestore (`ap*`), permisos por capacidad, transacciones idempotentes y auditoría |
+| 72-asistente-pantalla.js | Pantalla «Asistente de Producción» (Resumen, Seguimiento, Insumos, Solicitudes, Consumo, Merma, Parámetros, Historial) y acceso de Almacén |
+| 73-reporte-general.js | Reporte General de Producción: un Excel por fecha operativa, 6 hojas, fórmulas vivas y formato aprobado (ExcelJS) |
 
 ### js/rrhh/
 | Archivo | Función |
@@ -185,6 +198,24 @@ $faltan = $rutas | Where-Object { -not (Test-Path $_) }
 if ($faltan) { "FALTAN:"; $faltan } else { "OK: $($rutas.Count) scripts existen en disco" }
 ```
 
+## Correr las pruebas
+
+```
+node tests/correr-todo.js              # todas (tests/*.test.js)
+node tests/correr-todo.js tareo plan   # solo las que contienen esas palabras
+```
+
+Resume cuántas pasaron, muestra el detalle solo de las que fallan y sale con código 1 si alguna falla.
+
+Reglas de Firestore (etapa 2) en el emulador, sin tocar ningún proyecto real. Necesita Java; se corre aparte porque usa dependencias de npm:
+
+```
+npm i firebase-tools@13 @firebase/rules-unit-testing@3 firebase@10        # en una carpeta temporal
+npx firebase emulators:exec --only firestore --project demo-glacial "node <ruta-del-repo>/tests/reglas/etapa2-emulador.js"
+```
+
+Comprueba 35 casos por rol: login, perfiles, cuenta compartida de Mantenimiento, bitácora, Planificación, corrección y reclasificación de paradas, economía y la denegación general.
+
 ## Entornos (PRODUCCIÓN y PRUEBAS)
 
 `js/nucleo/01-config.js` guarda las dos configuraciones de Firebase y elige sola:
@@ -225,6 +256,12 @@ Reportes · Parte A (Resumen general): js/produccion/49-resumen-indicadores.js a
 Reportes · Parte B (Impacto económico): js/produccion/50-impacto-economico.js reemplaza el contenido de la pantalla «Impacto Económico» (renderPerdidasSoles; la vista anterior con precio por línea se retiró). Cascada: producción potencial, pérdida por paradas no programadas, por velocidad reducida y por mermas, en unidades y en soles; el incumplimiento del plan se muestra aparte (no se suma). Margen por producto y costo por componente con fecha de vigencia (se conserva el anterior); meta máxima de pérdida mensual. Colección nueva configEconomica (documentos margenes, costos y general), siempre por campos con merge. Permiso: el mismo perdidasSoles (reglas etapa 2: puedeVerImpacto). Pareto en soles por motivo, línea y turno, cinco eventos más caros, acumulado/proyección/mes anterior, supuestos y Excel. Motivos: los del sistema cuando coinciden con el registro (±2 %); si no, texto del registro marcado «clasificación estimada». recolectar() de 49 acepta {linea, motivosSistema}.
 
 Información económica (protegida por rol): ver docs/ECONOMICO-SEGURIDAD.md. Valores unitarios en la colección valoresUnitarios (solo Gerencia lee/escribe) con historial valoresUnitariosHistorial; resultados en soles agregados en resultadosEconomicos (Gerencia escribe; Gerencia y Jefatura leen). sync/precios y configEconomica quedaron cerrados y se borran tras migrar. Los precios ya no se escriben en el código.
+
+Tareo · guardado concurrente (13n-tareo-nube.js): toda escritura de tareos pasa por TareoNube.modificar (transacción solo sobre los tareos tocados, reintentos limitados, mensajes según el error, pendientes conservados en el navegador por usuario 24 h). Mismo campo editado a la vez: «Conflicto: revisar», sin sobrescritura silenciosa. Eliminar ya no reescribe el documento completo. Fase 2: un documento por tareo (tareos/{id}) con el interruptor TAREO_POR_DOCUMENTO de 01-config.js, apagado hasta publicar las reglas; sync/tareos queda de solo lectura y no se borra. Detalle, activación, reversión y guía de pruebas: docs/TAREO-GUARDADO-CONCURRENTE.md. Pruebas: tests/tareo-guardado-concurrente.test.js y tests/reglas/etapa2-emulador.js.
+
+Avance de Producción, solo líneas en producción (29-avance-produccion.js): en el AVANCE una línea aparece solo si produjo (> 0 unidades) en la fecha y el turno del reporte. La programación, un inicio o paradas sin unidades no bastan, y una línea que produjo y luego paró sigue apareciendo. Lo registrado fuera de la ventana del turno (Noche 21:00–07:00; p. ej. una paleta de la mañana guardada como NOCHE o un cuadro que empieza a las 07:00) no cuenta como producción ni como inicio: avVentanaProduccion y el parámetro desdeMs de glacialProduccionPaletasAlCorte (16). Sin líneas produciendo, el reporte dice «No hay líneas en producción en este turno.» con el resumen en 0. El CIERRE conserva su criterio. En la imagen, la altura de cada tarjeta sale de los mismos pasos del dibujo (las paradas largas ocupan varias filas) y las columnas del resumen se ubican por el ancho real del texto. Pruebas: tests/avance-lineas-en-produccion.test.js y tests/visual/avance-imagen.html (capturas en docs/capturas-avance/).
+
+Producción fuera de programación: Producción Actual, Inicio y los resúmenes en vivo separan las marcas con paletas pero sin fila de programación en el bloque. Esas marcas no entran a la secuencia, al estado ni al cumplimiento del plan. Se muestran aparte y suman a la producción física de la línea. Función pura: GlacialIndicadores.produccionPlanYFuera (45-indicadores.js). Detalle y causa: docs/PRODUCCION-FUERA-DE-PROGRAMACION.md. Pruebas: tests/fuera-de-programacion.test.js y tests/visual/fuera-de-programacion.html (capturas en docs/capturas-fuera-programacion/).
 
 Calidad retirada: el indicador «Calidad» ya no existe en ninguna pantalla, imagen ni Excel (OEE = disponibilidad × rendimiento). Se conservan, aunque contengan la palabra: el campo «Botellas calidad» del registro (produccion.calidad), el motivo de parada «Calidad / producto no conforme», «Charla de Ingreso Sup. Calid.» y el cargo «Técnico de Calidad». Los registros ya guardados no se tocaron. Prueba: tests/sin-calidad.test.js.
 

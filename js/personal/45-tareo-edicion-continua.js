@@ -97,15 +97,12 @@
       const local = copiaLocal(tareoId);
       if(!local || typeof tareoAutorizadoEscribir !== 'function' || !tareoAutorizadoEscribir(local)) return;
       if(typeof db === 'undefined' || typeof db.runTransaction !== 'function') return;
-      const ref = db.collection('sync').doc('tareos');
-      const operacion = window._tareoColaGuardado.catch(() => undefined).then(() => db.runTransaction(async tx => {
-        const snap = await tx.get(ref);
-        const items = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items.slice() : [];
-        const i = items.findIndex(t => t.id === tareoId);
-        if(i < 0 || !asignarIds(items[i])) return false;
-        tx.set(ref, {items, updatedAt: Date.now()});
+      const operacion = window._tareoColaGuardado.catch(() => undefined).then(() => window.TareoNube.modificar([tareoId], ctx => {
+        const t = ctx.obtener(tareoId);
+        if(!t || !asignarIds(t)) return false;
+        ctx.guardar(t);
         return true;
-      }));
+      }, {etiqueta: 'identificadores de fila'}));
       window._tareoColaGuardado = operacion;
       operacion.catch(e => console.warn('Tareo: no se pudieron guardar los identificadores de fila:', e && e.message || e));
     }catch(e){ console.warn('Tareo: identificadores de fila:', e && e.message || e); }
@@ -214,30 +211,60 @@
     Object.keys(campos).forEach(c => { t[c] = ts; });
     persona.actualizadoEn = Math.max(num(persona.actualizadoEn), ts);
   }
+  /* Hora de cada campo ANTES de editar: si al guardar otro usuario cambió ese mismo campo después, es un conflicto (no se pisa). */
+  function capturaTs(persona){
+    const o = {};
+    CAMPOS.forEach(c => { o[c] = tsDe(persona, c); });
+    return o;
+  }
+  const igual = (a, b) => JSON.stringify(a === undefined ? '' : a) === JSON.stringify(b === undefined ? '' : b);
   function aplicarOp(tareo, op){
     const r = resolver(tareo, op.clave, op.filaId);
     if(!r.persona) return {ok: false, motivo: r.ambigua ? 'ambigua' : 'no_encontrada'};
     const p = r.persona, t = asegurarTs(p);
     let aplicados = 0;
+    const conflictos = [];
     Object.keys(op.campos).forEach(c => {
-      if(op.ts >= tsDe(p, c)){ p[c] = copia(op.campos[c]); t[c] = op.ts; aplicados++; }
+      const actualTs = tsDe(p, c);
+      const baseTs = op.base && op.base.ts ? num(op.base.ts[c]) : null;
+      // Nadie cambió el campo desde que este usuario lo vio: su edición vale aunque el reloj de su equipo vaya atrasado.
+      const loVio = baseTs !== null && actualTs <= baseTs;
+      // Mismo campo cambiado por otro equipo después de lo que este usuario vio, con otro valor: no se sobrescribe sin aviso.
+      // «Reintentar» sobre un conflicto (op.forzar) confirma que se quiere dejar el valor propio.
+      if(!op.forzar && baseTs !== null && !loVio &&
+         !igual(p[c], op.base.valores ? op.base.valores[c] : undefined) && !igual(p[c], op.campos[c])){
+        conflictos.push({campo: c, suyo: copia(p[c]), mio: copia(op.campos[c])});
+        return;
+      }
+      if(op.forzar || loVio || op.ts >= actualTs){
+        p[c] = copia(op.campos[c]);
+        t[c] = Math.max(op.ts, actualTs + (op.ts >= actualTs ? 0 : 1));    // la hora del campo nunca retrocede
+        aplicados++;
+      }else if(!igual(p[c], op.campos[c])){
+        // Sin base (operación antigua) y con un valor más nuevo de otro equipo: tampoco se descarta en silencio.
+        conflictos.push({campo: c, suyo: copia(p[c]), mio: copia(op.campos[c])});
+      }
     });
-    p.actualizadoEn = Math.max(num(p.actualizadoEn), op.ts);
+    if(aplicados) p.actualizadoEn = Math.max(num(p.actualizadoEn), op.ts);
     recalcular(p, tareo);
-    return {ok: true, aplicados};
+    return {ok: true, aplicados, conflictos};
   }
 
   const ops = [];                     // cola de operaciones de este navegador
   const oyentes = new Set();
   let secuencia = 0;
   const TTL_GUARDADO_MS = 6000;
-  function notificar(){ oyentes.forEach(f => { try{ f(); }catch(_){ /* vista no disponible */ } }); }
+  function notificar(){
+    if(window.TareoNube) window.TareoNube.guardarPendientes(ops);     // los no confirmados sobreviven a una recarga (24 h, por usuario)
+    oyentes.forEach(f => { try{ f(); }catch(_){ /* vista no disponible */ } });
+  }
   function alCambiar(f){ oyentes.add(f); return () => oyentes.delete(f); }
 
-  function registrarOp(tareo, persona, campos, ts, clave){
+  function registrarOp(tareo, persona, campos, ts, clave, base){
     const op = {
       id: 'op' + (++secuencia) + '-' + ts, tareoId: tareo.id, clave: claveBase(persona), claveFila: clave || claveBase(persona),
-      filaId: persona.filaId || '', nombre: persona.nombre || '', campos: copia(campos), ts, estado: 'pendiente', error: '', tGuardado: 0
+      filaId: persona.filaId || '', nombre: persona.nombre || '', campos: copia(campos), ts, estado: 'pendiente', error: '', tGuardado: 0,
+      base: base ? copia(base) : null
     };
     ops.push(op);
     notificar();
@@ -266,41 +293,50 @@
     lote.forEach(o => { o.estado = 'guardando'; o.error = ''; });
     window._tareoEscriturasPendientes = (window._tareoEscriturasPendientes || 0) + 1;
     notificar();
-    const ref = db.collection('sync').doc('tareos');
-    const ejecutar = () => db.runTransaction(async tx => {
+    const ids = [...new Set(lote.map(o => o.tareoId))];
+    // Solo los tareos de estas operaciones (13n-tareo-nube.js): con TAREO_POR_DOCUMENTO cada uno es su propio documento.
+    const ejecutar = () => window.TareoNube.modificar(ids, ctx => {
       // Dentro de la transacción solo hay cálculo puro (puede reejecutarse): sin alertas, auditoría ni cambios visuales.
-      const snap = await tx.get(ref);
-      const items = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items.slice() : [];
       const resultados = [];
+      const tocados = new Map();
       lote.slice().sort((a, b) => a.ts - b.ts).forEach(op => {
-        let i = items.findIndex(t => t.id === op.tareoId);
-        if(i < 0){
-          const local = copiaLocal(op.tareoId);
-          if(!local){ resultados.push({op, ok: false, motivo: 'tareo_no_encontrado'}); return; }
-          items.push(local); i = items.length - 1;
+        let t = tocados.get(op.tareoId) || ctx.obtener(op.tareoId);
+        if(!t){
+          t = copiaLocal(op.tareoId);
+          if(!t){ resultados.push({op, ok: false, motivo: 'tareo_no_encontrado'}); return; }
         }
-        const r = aplicarOp(items[i], op);
+        const r = aplicarOp(t, op);
         resultados.push(Object.assign({op}, r));
-        if(r.ok) items[i].actualizadoEn = Math.max(num(items[i].actualizadoEn), op.ts);
+        if(r.ok && r.aplicados) t.actualizadoEn = Math.max(num(t.actualizadoEn), op.ts);
+        tocados.set(op.tareoId, t);
       });
-      tx.set(ref, {items, updatedAt: Date.now()});
+      tocados.forEach(t => ctx.guardar(t));
       return resultados;
-    });
+    }, {etiqueta: 'asistencia'});
     const operacion = window._tareoColaGuardado.catch(() => undefined).then(ejecutar);
     window._tareoColaGuardado = operacion;
     operacion.then(resultados => {
       const ahora = Date.now();
       (resultados || []).forEach(r => {
-        if(r.ok){ r.op.estado = 'guardado'; r.op.tGuardado = ahora; r.op.error = ''; }
+        if(r.ok && r.conflictos && r.conflictos.length){
+          r.op.estado = 'conflicto'; r.op.tipoError = 'conflicto';
+          r.op.error = 'Otro usuario cambió ' + r.conflictos.map(x => x.campo + ' a «' + (x.suyo === undefined || x.suyo === '' ? 'vacío' : x.suyo) + '»').join(', ') +
+            ' mientras editabas; se conservó su valor. Revisa y pulsa Reintentar si quieres dejar el tuyo.';
+          r.op.forzar = false;
+        }else if(r.ok){ r.op.estado = 'guardado'; r.op.tGuardado = ahora; r.op.error = ''; r.op.tipoError = ''; }
         else{
-          r.op.estado = 'conflicto';
+          r.op.estado = 'conflicto'; r.op.tipoError = 'identidad';
           r.op.error = r.motivo === 'ambigua' ? 'La fila es ambigua (varias personas con la misma identificación).'
             : r.motivo === 'tareo_no_encontrado' ? 'El tareo ya no existe.' : 'No se encontró a la persona en el tareo guardado.';
         }
       });
     }).catch(err => {
-      lote.forEach(o => { if(o.estado === 'guardando'){ o.estado = 'error'; o.error = (err && err.message) || 'No se pudo guardar.'; } });
-      console.error('TAREO: error guardando operaciones', err);
+      const c = window.TareoNube.clasificarError(err);
+      lote.forEach(o => { if(o.estado === 'guardando'){ o.estado = 'error'; o.tipoError = c.tipo; o.error = c.mensaje; } });
+      console.error('TAREO: error guardando operaciones (' + c.tipo + '): ' + c.tecnico);
+      // Conflicto, conexión o fallo temporal: quedan pendientes (y guardados en este equipo) y se reintentan solos al volver la conexión
+      // o a los 30 s, sin duplicar (cada operación fija su campo con su hora). Permisos: no se reintenta.
+      if(c.reintentable) programarReintento();
     }).finally(() => {
       window._tareoEscriturasPendientes = Math.max(0, (window._tareoEscriturasPendientes || 0) - 1);
       notificar();
@@ -309,8 +345,27 @@
       if(typeof tareoRefrescarFormularioRemoto === 'function' && !(window._tareoEscriturasPendientes > 0)) tareoRefrescarFormularioRemoto();
     });
   }
+  let reintentoProgramado = 0, rondasAuto = 0;
+  function programarReintento(){
+    if(reintentoProgramado || rondasAuto >= 5) return;
+    rondasAuto++;
+    const lanzar = () => {
+      if(!reintentoProgramado) return;
+      clearTimeout(reintentoProgramado); reintentoProgramado = 0;
+      if(typeof window.removeEventListener === 'function') window.removeEventListener('online', lanzar);
+      ops.forEach(o => { if(o.estado === 'error' && o.tipoError !== 'permisos' && o.tipoError !== 'tamano') o.estado = 'pendiente'; });
+      enviar();
+    };
+    reintentoProgramado = setTimeout(lanzar, 30000);
+    if(typeof window.addEventListener === 'function') window.addEventListener('online', lanzar);
+  }
   function reintentar(){
-    ops.forEach(o => { if(o.estado === 'error') o.estado = 'pendiente'; });
+    rondasAuto = 0;
+    // Un conflicto de campo se reintenta FORZANDO el valor propio: es la decisión explícita del usuario tras ver el aviso.
+    ops.forEach(o => {
+      if(o.estado === 'error') o.estado = 'pendiente';
+      else if(o.estado === 'conflicto' && o.tipoError === 'conflicto'){ o.estado = 'pendiente'; o.forzar = true; }
+    });
     notificar();
     enviar();
   }
@@ -326,8 +381,24 @@
   }
 
   /* Lo recibido de Firestore + las operaciones todavía no confirmadas (nada pendiente se pierde ni se revierte). */
+  let restaurados = false;
+  function restaurarPendientes(){
+    if(restaurados || !window.TareoNube) return;
+    const guardadas = window.TareoNube.leerPendientes();
+    if(typeof state === 'undefined' || !state.user) return;
+    restaurados = true;
+    if(!guardadas.length) return;
+    guardadas.forEach(g => {
+      if(!g || ops.some(o => o.id === g.id)) return;            // la misma operación no se agrega dos veces
+      ops.push(Object.assign({}, g, {estado: 'pendiente', error: '', tGuardado: 0}));
+      secuencia = Math.max(secuencia, guardadas.length);
+    });
+    console.info('Tareo: se recuperaron ' + guardadas.length + ' cambio(s) pendientes de sincronización de este equipo.');
+    setTimeout(enviar, 0);
+  }
   function reconciliar(items){
     try{
+      restaurarPendientes();
       if(!Array.isArray(items)) return items;
       const ahora = Date.now();
       const pend = ops.filter(o => o.estado !== 'guardado' || ahora - o.tGuardado < TTL_GUARDADO_MS);
@@ -458,7 +529,9 @@
 
   function estadoDe(clave, tareoId){
     const mias = ops.filter(o => o.tareoId === tareoId && o.claveFila === clave);
-    if(mias.some(o => o.estado === 'error' || o.estado === 'conflicto')) return 'error';
+    if(mias.some(o => o.estado === 'conflicto')) return 'conflicto';
+    if(mias.some(o => o.estado === 'error' && o.tipoError === 'permisos')) return 'permisos';
+    if(mias.some(o => o.estado === 'error')) return 'error';
     if(mias.some(o => o.estado === 'pendiente' || o.estado === 'guardando')) return 'guardando';
     if(mias.some(o => o.estado === 'guardado' && Date.now() - o.tGuardado < 2500)) return 'guardado';
     return '';
@@ -472,8 +545,11 @@
       if(sp.getAttribute('data-e') === e) return;
       sp.setAttribute('data-e', e);
       sp.className = 'tar2-est' + (e ? ' tar2-est-' + e : '');
-      sp.textContent = e === 'guardando' ? 'Guardando…' : e === 'guardado' ? 'Guardado ✓' : e === 'error' ? 'No se pudo guardar' : '';
-      if(e === 'error'){
+      sp.textContent = e === 'guardando' ? 'Guardando…' : e === 'guardado' ? 'Guardado en la nube ✓' : e === 'error' ? 'Pendiente de sincronización'
+        : e === 'conflicto' ? 'Conflicto: revisar' : e === 'permisos' ? 'Error de permisos' : '';
+      const detalle = ops.filter(o => o.tareoId === vista.tareoId && o.claveFila === tr.getAttribute('data-tareo-fila') && o.error).map(o => o.error)[0];
+      if(detalle) sp.title = detalle; else sp.removeAttribute('title');
+      if(e === 'error' || e === 'conflicto'){
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'tar2-est-btn'; b.textContent = 'Reintentar';
         b.onclick = reintentar; sp.appendChild(b);
@@ -486,9 +562,12 @@
       const pend = mios.filter(o => o.estado === 'pendiente' || o.estado === 'guardando');
       const reciente = ops.some(o => o.tareoId === vista.tareoId && o.estado === 'guardado');
       let txt = '', cls = '';
-      if(err.length){ txt = err.length + ' cambio(s) sin guardar'; cls = 'error'; }
+      const conf = err.filter(o => o.estado === 'conflicto'), perm = err.filter(o => o.tipoError === 'permisos');
+      if(perm.length){ txt = 'Error de permisos: ' + window.TareoNube.MENSAJES.permisos; cls = 'error'; }
+      else if(conf.length){ txt = conf.length + ' conflicto(s) que requieren revisión'; cls = 'error'; }
+      else if(err.length){ txt = err.length + ' cambio(s) pendientes de sincronización' + (err.some(o => o.tipoError === 'sin_conexion') ? ' (sin conexión)' : ''); cls = 'error'; }
       else if(pend.length){ txt = 'Guardando…'; cls = 'guardando'; }
-      else if(reciente){ txt = 'Todos los cambios guardados ✓'; cls = 'guardado'; }
+      else if(reciente){ txt = 'Tareo guardado en la nube ✓'; cls = 'guardado'; }
       if(g.getAttribute('data-e') !== cls + '|' + txt){
         g.setAttribute('data-e', cls + '|' + txt);
         g.className = 'tareo-guardado' + (cls ? ' tareo-guardado-' + cls : '');
@@ -520,7 +599,7 @@
     if(typeof document === 'undefined' || document.getElementById('tareo-edicion-css')) return;
     const s = document.createElement('style'); s.id = 'tareo-edicion-css';
     s.textContent =
-      '.tar2-est{display:block;font-size:11px;min-height:14px;color:#5a6b78}.tar2-est-guardando{color:#8a6d1d}.tar2-est-guardado{color:#1e7f4e}.tar2-est-error{color:#b42318;font-weight:700}' +
+      '.tar2-est{display:block;font-size:11px;min-height:14px;color:#5a6b78}.tar2-est-guardando{color:#8a6d1d}.tar2-est-guardado{color:#1e7f4e}.tar2-est-error{color:#9a5b00;font-weight:700}.tar2-est-conflicto{color:#b42318;font-weight:700}.tar2-est-permisos{color:#b42318;font-weight:700}' +
       '.tar2-est-btn{margin-left:6px;border:1px solid #b42318;background:#fff;color:#b42318;border-radius:6px;padding:1px 8px;font-size:11px;cursor:pointer}' +
       '.tareo-guardado{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:12px;color:#5a6b78}' +
       '.tareo-guardado-guardando{color:#8a6d1d}.tareo-guardado-guardado{color:#1e7f4e}.tareo-guardado-error{color:#b42318;font-weight:700}';
@@ -659,7 +738,7 @@
 
   window.TareoEd = {
     filtroExclusion, mezclarExcluidos, filtrarExcluidos, quitarPersonal, restaurarPersona, levantarExclusion, htmlQuitados, descartarOps,
-    CAMPOS, nuevoTs, nuevoFilaId, clavesUnicas, claveFila, asegurarFilaIds, asignarIds, faltanIds, resolver, tsDe, mezclarPersona, mezclarListas,
+    CAMPOS, nuevoTs, nuevoFilaId, clavesUnicas, claveFila, asegurarFilaIds, asignarIds, faltanIds, resolver, tsDe, mezclarPersona, mezclarListas, capturaTs,
     resetVista, deduplicarPersonal, captura, diferencias, aplicarMarcas, aplicarOp, registrarOp, enviar, reintentar, reconciliar, hayOpsSinEnviar, hayPendientes,
     sinConfirmar, legacyIniciar, legacyTerminar, ordenarVista, reordenarVista, registrarRender, sincronizarVista, pintarEstados,
     campoActivo, alCambiar, firma, estado: () => ops.map(o => Object.assign({}, o)),

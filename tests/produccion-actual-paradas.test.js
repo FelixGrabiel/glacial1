@@ -6,7 +6,7 @@ const s=fs.readFileSync(R+'/js/produccion/24-semaforo-produccion-actual.js','utf
 const tablero=s.slice(s.indexOf("tablero.innerHTML="),s.indexOf('cont.prepend(tablero)'));
 
 ok(!/pa-line-kpi-paradas|<small>PARADAS<\/small>/.test(tablero),'sin el indicador PARADAS bajo el semáforo');
-ok(['PROGRAMACIÓN VIGENTE','PRODUCCIÓN ACUMULADA','CUMPLIMIENTO','RENDIMIENTO DEL TURNO','RATIO'].every(k=>tablero.includes('<small>'+k+'</small>')),'los cinco indicadores se conservan');
+ok(['PROGRAMACIÓN VIGENTE','PRODUCCIÓN ACUMULADA','RENDIMIENTO DEL TURNO','RATIO'].every(k=>tablero.includes('<small>'+k+'</small>'))&&/'AVANCE FRENTE AL ESTIMADO':g\.conEstimado\?'CUMPLIMIENTO \(INCLUYE ESTIMADOS\)':'CUMPLIMIENTO'/.test(tablero),'los cinco indicadores se conservan (cumplimiento rotulado como avance frente al estimado cuando la cantidad es estimada)');
 ok(/htmlProyeccion\(g\.proyeccion,g\.porTurno\)/.test(tablero),'PROYECCIÓN DE CIERRE se conserva');
 ok(/SECUENCIA DEL TURNO/.test(tablero)&&!/HISTORIAL \/ AVANCE DEL TURNO/.test(tablero),'secuencia conservada y sin HISTORIAL / AVANCE DEL TURNO');
 ok(!/◴ PRODUCCIÓN ACTUAL/.test(tablero)&&/PARADAS DEL TURNO/.test(s)&&/Registro de Avance \/ Cierre/.test(s),'panel PARADAS DEL TURNO en lugar de PRODUCCIÓN ACTUAL');

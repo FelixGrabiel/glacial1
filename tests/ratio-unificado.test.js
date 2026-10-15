@@ -24,7 +24,7 @@ function entorno(o){
   const s16=leer('js/produccion/16-paletas.js');
   const i0=s16.indexOf('  function ultimoEstado(registros){'),i1=s16.indexOf('  const resumenTurnosOriginal');
   const j0=s16.indexOf('  function msRegistroPaleta'),j1=s16.indexOf('  const resumenOriginal = resumenPaletas;');
-  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+s16.slice(i0,i1)+s16.slice(j0,j1),sb);
+  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+s16.slice(s16.indexOf('function normalizarClavePaletas'),s16.indexOf('function obtenerProgramacionPaleta'))+s16.slice(i0,i1)+s16.slice(j0,j1),sb);
   vm.runInContext(`avanceEstado.fecha='${FECHA}';avanceEstado.turno='${o.turno||'DÍA'}';`,sb);
   sb.setOperativas=l=>vm.runInContext('avanceEstado.paradasOperativas='+JSON.stringify(l),sb);
   return sb;

@@ -25,7 +25,7 @@ function entorno(o){
   vm.runInContext(leer('js/produccion/29-avance-produccion.js'),sb);
   vm.runInContext(leer('js/produccion/61-reporte-linea.js'),sb);
   const s16=leer('js/produccion/16-paletas.js');
-  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+s16.slice(s16.indexOf('  function ultimoEstado(registros){'),s16.indexOf('  const resumenTurnosOriginal'))+s16.slice(s16.indexOf('  function msRegistroPaleta'),s16.indexOf('  const resumenOriginal = resumenPaletas;')),sb);
+  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+s16.slice(s16.indexOf('function normalizarClavePaletas'),s16.indexOf('function obtenerProgramacionPaleta'))+s16.slice(s16.indexOf('  function ultimoEstado(registros){'),s16.indexOf('  const resumenTurnosOriginal'))+s16.slice(s16.indexOf('  function msRegistroPaleta'),s16.indexOf('  const resumenOriginal = resumenPaletas;')),sb);
   vm.runInContext(`avanceEstado.fecha='${FECHA}';avanceEstado.turno='${o.turno||'DÍA'}';avanceEstado.paradasOperativas=${JSON.stringify(o.paradas||[])};`,sb);
   return sb;
 }
@@ -73,7 +73,7 @@ const mN=sbN.glacialReporteLinea.modelo(lN,{tipo:'CIERRE',relevo:false,superviso
 ok(mN.porHora.intervalos.length>=9&&mN.porHora.intervalos.some(i=>i.desdeMs>=ms(0,0,9)&&i.produccion!==null)&&mN.porHora.intervalos.reduce((s,i)=>s+(i.produccion||0),0)===6000,'Noche: las horas después de medianoche se asignan al día siguiente y suman 6.000');
 ok(mN.encabezado.bloque==='NOCHE','el bloque es NOCHE');
 const sinReg=entorno({programaciones:[prog('PET1',ms(7),1000,'Scala','2.5 L')],paletas:[]});
-const mS=sinReg.glacialReporteLinea.modelo(sinReg.avLineaSnapshot('PET1','12:00','AVANCE',ms(12)),{tipo:'AVANCE',supervisor:'x',fecha:FECHA,turno:'DÍA',id:'s'});
+const mS=sinReg.glacialReporteLinea.modelo(sinReg.avLineaSnapshot('PET1','12:00','CIERRE',ms(12)),{tipo:'CIERRE',supervisor:'x',fecha:FECHA,turno:'DÍA',id:'s'});
 ok(mS.porHora===null,'sin registros horarios: no se dibuja un gráfico inventado');
 
 /* 3) insumos y mermas con el catálogo real */

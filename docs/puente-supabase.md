@@ -77,7 +77,9 @@ regla. Para validarlas:
 - «la lista solo crece en uno y lo anterior no cambia» (`historial[0:n] == anterior`): `glacial_fs.lista_solo_agrega(c, d, 'campo', v, n, meta)`.
 
 Colecciones con regla en Supabase (13-10-2026): las de la copia inicial más `entregasTurno`, `compromisosProgramacion`,
-`intervenciones`, `planesPreventivos`, `correccionesParada` y `reclasificacionesParada`. Toda colección nueva también debe
+`intervenciones`, `planesPreventivos`, `correccionesParada`, `reclasificacionesParada` y (15-10-2026, `glacial_23`)
+`tareos` y las 9 del Asistente de Producción (`apInsumos`, `apFactores`, `apMovimientos`, `apSolicitudes`, `apMermas`,
+`apConciliaciones`, `apCoordinaciones`, `apParametros`, `apAuditoria`). Toda colección nueva también debe
 agregarse a la herramienta de copia (`docs/migracion/copiar-firebase-a-supabase.js`).
 
 ## Regla para todo cambio futuro

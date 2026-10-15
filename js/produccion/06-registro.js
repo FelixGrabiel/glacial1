@@ -1587,6 +1587,17 @@ function calcularPaletasCuadro(cuadro){
   }
 
 
+  /* Llenado desde Paletas (35-autollenado-registro.js): las paletas registradas allí. */
+  if(
+    cuadro.autoPaletas &&
+    Number.isFinite(cuadro.autoPaletas.paletas)
+  ){
+
+    return cuadro.autoPaletas.paletas;
+
+  }
+
+
   const upp =
     obtenerUnidadesPorPalet(
       draft.linea,
@@ -1617,6 +1628,23 @@ function calcularCajasPreformasCuadro(cuadro){
   ){
 
     return 0;
+
+  }
+
+
+  const catalogo =
+    consumoInsumoCatalogo(
+      'CAJA_PREFORMA',
+      draft.linea,
+      cuadro.marca,
+      cuadro.presentacion,
+      cuadro.produccion
+    );
+
+
+  if(catalogo !== null){
+
+    return catalogo;
 
   }
 
@@ -1677,6 +1705,23 @@ function calcularPlanchasCartonCuadro(cuadro){
   ){
 
     return 0;
+
+  }
+
+
+  const catalogo =
+    consumoInsumoCatalogo(
+      'CARTON',
+      draft.linea,
+      cuadro.marca,
+      cuadro.presentacion,
+      cuadro.produccion
+    );
+
+
+  if(catalogo !== null){
+
+    return catalogo;
 
   }
 
@@ -1773,6 +1818,23 @@ function calcularPolietilenoCuadro(cuadro){
   }
 
 
+  const catalogo =
+    consumoInsumoCatalogo(
+      'POLIETILENO',
+      draft.linea,
+      cuadro.marca,
+      cuadro.presentacion,
+      cuadro.produccion
+    );
+
+
+  if(catalogo !== null){
+
+    return catalogo;
+
+  }
+
+
   const paletas =
     num(
       cuadro.produccion?.paletas
@@ -1850,6 +1912,23 @@ function calcularStretchFilmCuadro(cuadro){
   ){
 
     return 0;
+
+  }
+
+
+  const catalogo =
+    consumoInsumoCatalogo(
+      'STRETCH',
+      draft.linea,
+      cuadro.marca,
+      cuadro.presentacion,
+      cuadro.produccion
+    );
+
+
+  if(catalogo !== null){
+
+    return catalogo;
 
   }
 
@@ -4676,7 +4755,7 @@ function renderFormTab(){
               this.value
             )
           "
-        >${draft.observaciones||''}</textarea>
+        >${escaparHtml(draft.observaciones||'')}</textarea>
 
       </div>
 
@@ -5793,7 +5872,7 @@ function paradasTableCuadro(
 
                             <input
                               type="text"
-                              value="${r.descripcion||''}"
+                              value="${escaparHtml(r.descripcion||'')}"
                               placeholder="
                                 Motivo de la parada
                               "
@@ -6938,7 +7017,7 @@ function paradasTable(
 
                     <input
                       style="width:500%;"
-                      value="${r.descripcion}"
+                      value="${escaparHtml(r.descripcion)}"
                       oninput="
                         updateArrItem(
                           '${key}',
@@ -7515,9 +7594,9 @@ function personalTable(
           w => `
 
             <option
-              value="${w.nombre}"
+              value="${escaparHtml(w.nombre)}"
             >
-              ${w.cargo || ''}
+              ${escaparHtml(w.cargo || '')}
             </option>
 
           `
@@ -7576,7 +7655,7 @@ function personalTable(
 
                   <input
                     list="personal-workers-datalist"
-                    value="${r.nombre}"
+                    value="${escaparHtml(r.nombre)}"
                     oninput="
                       updatePersonal(
                         ${i},

@@ -35,7 +35,7 @@ function entorno(o){
   vm.runInContext(leer('js/produccion/29-avance-produccion.js'),sb);
   vm.runInContext(leer('js/personal/43-distribucion-personal.js'),sb);
   const s16=leer('js/produccion/16-paletas.js');
-  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+s16.slice(s16.indexOf('  function ultimoEstado(registros){'),s16.indexOf('  const resumenTurnosOriginal'))+s16.slice(s16.indexOf('  function msRegistroPaleta'),s16.indexOf('  const resumenOriginal = resumenPaletas;')),sb);
+  vm.runInContext('var num=v=>{const n=Number(v);return isFinite(n)?n:0;};'+s16.slice(s16.indexOf('function normalizarClavePaletas'),s16.indexOf('function obtenerProgramacionPaleta'))+s16.slice(s16.indexOf('  function ultimoEstado(registros){'),s16.indexOf('  const resumenTurnosOriginal'))+s16.slice(s16.indexOf('  function msRegistroPaleta'),s16.indexOf('  const resumenOriginal = resumenPaletas;')),sb);
   vm.runInContext(`avanceEstado.fecha='${FECHA}';avanceEstado.turno='${o.turno||'DÍA'}';avanceEstado.paradasOperativas=[];`,sb);
   return sb;
 }
@@ -46,7 +46,7 @@ let n=0;
 async function guardar(sb,fecha,bloque,desde,lineas,motivo,ver,extra){return sb.glacialDistribucionPersonal.guardar(fecha,bloque,Object.assign({opId:'o'+(++n),versionEsperada:ver,desdeMs:desde,lineas,motivo:motivo||''},extra||{}));}
 
 (async()=>{
-  let sb=entorno({programaciones:[prog('B7L',ms(7))],paletas:[pal('B7L',3486,'12:30')]});
+  let sb=entorno({programaciones:[prog('B7L',ms(7))],paletas:[pal('B7L',3486,'08:30')]});   // produce desde antes del primer corte (el Avance solo muestra líneas con producción)
   const D=()=>sb.glacialDistribucionPersonal;
   /* 1) sin confirmar */
   await sb.avCargarDistribucion();

@@ -1,0 +1,43 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Imagen del Avance (datos de prueba)</title>
+<style>body{background:#e9eef2;margin:0;padding:12px;font:13px system-ui}canvas{max-width:100%;height:auto;display:block;margin:8px 0;background:#fff}</style>
+</head><body>
+<b>Datos de PRUEBA (no reales) · Avance Noche 13/10/2026 23:19 · ?caso=vacio: ninguna línea produciendo</b>
+<div id="raiz"></div>
+<script>
+var AHORA=new Date(2026,9,13,23,19).getTime();
+window.tareoAhoraServidor=function(){return AHORA;};
+var state={user:{username:'ana',nombre:'Ana (prueba)',rol:'Supervisor',permisos:['avanceProduccion']},currentTab:''};
+var F='2026-10-13',ms=function(h,m,d){return new Date(2026,9,d||13,h,m||0).getTime();};
+function prog(l,m,p,ini){return {linea:l,fecha:F,turno:'NOCHE',marca:m,presentacion:p,cantidadProgramada:45000,unidadesPorPaleta:1200,estadoOperacion:{estado:ini?'EN_PRODUCCION':'PENDIENTE',inicio:ini||0,paradas:[]}};}
+function pal(l,m,p,t,h){return {linea:l,fecha:F,turno:'NOCHE',marca:m,presentacion:p,tipoPaleta:'COMPLETA',paletas:t/1200,totalUnidades:t,hora:h,creadoEn:1};}
+var vacio=/caso=vacio/.test(location.search);
+var PROGS=[prog('PET1','Scala','2.5 L',ms(7)),prog('PET2','Fontlife','1 L',ms(21)),prog('B7L','Bells','7 L',ms(21))];
+var PALS=vacio?[pal('PET1','Scala','2.5 L',17766,'15:00')]:[pal('PET1','Scala','2.5 L',17766,'15:00'),pal('PET2','Fontlife','1 L',2880,'22:40'),pal('B7L','Bells','7 L',1338,'22:10')];
+var RECS=[
+  {linea:'PET2',fecha:F,turno:'NOCHE',cuadros:[{marca:'Fontlife',presentacion:'1 L',horaInicio:'21:00',
+    paradasProgramadas:[{descripcion:'Charla de ingreso',tiempoMin:10,horaInicio:'21:00'}],
+    paradasNoProgramadas:[{descripcion:'Calibración de la llenadora por cambio de formato, se ajustaron guías y sensores de nivel antes de reanudar',tiempoMin:35,horaInicio:'21:40'},
+      {descripcion:'Calibración',tiempoMin:12,horaInicio:'22:50'}]}]},
+  {linea:'B7L',fecha:F,turno:'NOCHE',cuadros:[{marca:'Bells',presentacion:'7 L',horaInicio:'21:00',
+    paradasNoProgramadas:[{descripcion:'Falla de máquina: la sopladora perdió presión de aire y se detuvo dos veces; mantenimiento cambió la válvula',tiempoMin:47,horaInicio:'22:20'}]}]}
+];
+function loadProgramaciones(){return PROGS;}function loadPaletas(){return PALS;}function loadRecords(){return RECS;}
+function normalizarCuadros(r){return r.cuadros||[];}
+function normalizarMotivoParada(t){return String(t||'').toLowerCase().trim();}function estandarMotivoParada(){return 0;}
+function escaparHtml(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function tienePermiso(p){return p==='avanceProduccion';}
+var db={collection:function(){return {doc:function(){return {};}};}};
+</script>
+<script src="../../js/nucleo/45-indicadores.js"></script>
+<script src="../../js/nucleo/05-utils.js"></script>
+<script src="../../js/produccion/16-paletas.js"></script>
+<script src="../../js/produccion/23b-tiempos-linea.js"></script>
+<script src="../../js/produccion/29-avance-produccion.js"></script>
+<script>
+avanceEstado.fecha=F;avanceEstado.turno='NOCHE';avanceEstado.paradasOperativas=[];
+var s=avConstruirSnapshot('23:19','AVANCE');
+document.getElementById('raiz').appendChild(avCanvasSnapshot(s));
+window.__snap={lineas:s.lineas.map(function(l){return l.linea+' '+l.produccionTotal+' inicio '+l.inicio;}),resumen:s.resumen};
+</script>
+</body></html>

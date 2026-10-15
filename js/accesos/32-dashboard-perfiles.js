@@ -657,7 +657,29 @@ function cpInsumosFila(p){
   // C20L/B20L se mantienen visibles, pero no se inventan factores nuevos en Inicio.
   return {...base,preformas:cpNoAplicaInsumo(),etiquetas:cpNoAplicaInsumo(),tapas:cpNoAplicaInsumo(),carton:cpPendienteInsumo(),polietileno:cpPendienteInsumo(),stretch:cpPendienteInsumo()};
 }
-function cpInsumosFilas(){return cpProgramaciones().map(cpInsumosFila);}
+/* Catálogo de factores del Asistente (Insumos → Factores): si tiene un factor vigente para la línea, marca, presentación y fecha,
+   ese valor reemplaza al cálculo fijo de arriba (factor 0 = «No aplica»). Sin catálogo o sin factor, queda el cálculo de siempre. */
+const CP_INSUMO_CATALOGO={preformas:'CAJA_PREFORMA',etiquetas:'ETIQUETA',tapas:'TAPA',carton:'CARTON',polietileno:'POLIETILENO',stretch:'STRETCH'};
+function cpUnidadPlural(u,v){
+  const s=String(u||'');if(!s||/^(kg|UND)$/i.test(s)||Math.abs(Number(v))===1)return s;
+  return /[aeiou]$/i.test(s)?s+'s':s+'es';
+}
+function cpInsumoDesdeCatalogo(p,unidades,codigo){
+  const cat=window.glacialFactoresCatalogo;if(!cat||typeof cat.consumo!=='function')return null;
+  const upp=typeof obtenerUnidadesPorPalet==='function'?cpNum(obtenerUnidadesPorPalet(p.linea,p.marca,p.presentacion)):0;
+  const r=cat.consumo(codigo,p.linea,p.marca,p.presentacion,p.fecha,{unidades,unidadesPorPaleta:upp});
+  if(!r)return null;
+  const f=r.factor;if(!(Number(f.factor)>0))return cpNoAplicaInsumo();
+  const porBase=f.base==='PALETA'?`${cpFmtInsumo(r.paletas)} pal.`:`${cpFmt(unidades,0)} und`;
+  const factorTxt=`${cpFmtInsumo(f.factor)} ${cpUnidadPlural(r.unidad,f.factor)}/${f.base==='PALETA'?(Number(f.cantidadBase)===1?'pal.':cpFmtInsumo(f.cantidadBase)+' pal.'):(Number(f.cantidadBase)===1?'und':cpFmt(f.cantidadBase,0)+' und')} · catálogo`;
+  return cpDatoInsumo(`${cpFmtInsumo(r.valor)} ${cpUnidadPlural(r.unidad,r.valor)}`,porBase,factorTxt);
+}
+function cpInsumosFilaCatalogo(p){
+  const fila=cpInsumosFila(p);
+  Object.entries(CP_INSUMO_CATALOGO).forEach(([campo,codigo])=>{const d=cpInsumoDesdeCatalogo(p,fila.unidades,codigo);if(d)fila[campo]=d;});
+  return fila;
+}
+function cpInsumosFilas(){return cpProgramaciones().map(cpInsumosFilaCatalogo);}
 function cpCeldaInsumo(d){
   const cls=d.estado==='PENDIENTE'?' cp-insumo-pendiente':d.estado==='NO_APLICA'?' cp-insumo-na':'';
   return `<div class="cp-insumo-cell${cls}"><strong>${cpEsc(d.principal)}</strong><span>${cpEsc(d.detalle)}</span>${d.subdetalle?`<small>${cpEsc(d.subdetalle)}</small>`:''}</div>`;
@@ -841,8 +863,9 @@ function cpDatosEjecutivo(){
     else if(f.retrasoPct>0)alertas.push({tipo:'RETRASADA',linea:f.nombre,
       texto:`Avance real ${f.retrasoPct} % por debajo del avance esperado.`});
   });
-  // Estado OPERATIVO real (botones de Producción Actual), no deducido de producción acumulada ni de paletas antiguas.
-  const enCursoReal=filas.filter(f=>typeof f.enProduccionReal==='boolean'?f.enProduccionReal:f.estado==='EN_CURSO');
+  // EN PRODUCCIÓN = unidades registradas > 0 en la fecha y el bloque seleccionados (mismo criterio que «Líneas sin producción»,
+  // 63-incidencias-no-produccion.js → enProduccion). Una línea con programación pero sin unidades no cuenta.
+  const enCursoReal=filas.filter(cpEnProduccion);
   // Paradas del turno: SOLO registros oficiales de Avance/Cierre (calcularTiemposLinea → paradasClasificadas), sin motivos de no producción
   // ni botones del semáforo.
   let progMin=0,noProgMin=0;const motivos=[];
@@ -859,6 +882,11 @@ function cpDatosEjecutivo(){
     detenidas:cuenta('DETENIDA'),pausadas:cuenta('PAUSA'),pendientes:cuenta('PENDIENTE'),retrasadas:retrasadas.length,
     paradas:{prog:progMin,noProg:noProgMin,motivos}
   };
+}
+function cpEnProduccion(f){
+  const I=window.glacialIncidencias;
+  if(I&&typeof I.enProduccion==='function')return I.enProduccion(f);
+  return Number(f&&(f.producidoFisico!=null?f.producidoFisico:f.producido))>0;
 }
 function cpProductoActual(f){
   if(f.estado==='COMPLETADA')return 'Producción finalizada';
@@ -887,7 +915,7 @@ function cpFilasSinProduccion(d){
   const ctx=cpContextoBloque(d);
   const est=I.estado();
   const filas=I.sinProduccion({filas:d.filas,lineas:d.lineasAutorizadas,incidencias:I.lista(d.fecha,ctx.bloque),
-    bloqueActual:ctx.bloqueActual,inicioBloque:ctx.inicio,ahora:cpAhoraMs()});
+    inicioBloque:ctx.inicio,ahora:cpAhoraMs()});
   return {filas,estado:est.error?'error':(est.listo&&est.fecha===d.fecha?'listo':'cargando'),inicio:ctx.inicio,error:est.error};
 }
 function cpVerIncidencia(linea){
@@ -921,6 +949,124 @@ function cpVerMotivosParadas(){
 }
 function cpIrLineaInicio(){if(cpPuede('produccionActual')&&typeof goProduccionActual==='function')goProduccionActual();}
 
+/* ---------- DISTRIBUCIÓN DE PERSONAL (Tareo › Distribución de personal, 43-distribucion-personal.js) ----------
+   Solo consulta: Inicio no guarda ni edita cantidades. Fuente única: la distribución que el supervisor guarda en Tareo, por fecha operativa
+   y bloque (Día = Mañana + Intermedio; Noche aparte). Se toma UN evento: el vigente al corte del bloque seleccionado (ahora, o el fin si ya
+   terminó); las versiones no se suman. La caché es por fecha|bloque, así que una respuesta tardía de otro contexto no pisa el seleccionado.
+   · Línea: cantidad confirmada (0 incluido) o Pendiente (sin confirmar; nunca se muestra como 0).
+   · Asignados a líneas = suma de las líneas CONFIRMADAS. Apoyo compartido va aparte y no se suma a ninguna línea.
+   · Total con asistencia = personas distintas con asistencia que trabaja en el Tareo de Producción del bloque (disponiblesTareo: sin
+     Mantenimiento ni espejos de maquinistas, una persona en Día e Intermedio cuenta una vez). No es el catálogo de trabajadores.
+   · Sin asignar = total con asistencia − asignados − apoyo. La distribución guarda CANTIDADES, no nombres: no se verifica persona por persona. */
+let cpPersonalClave='',cpPersonalCerrar=null;
+function cpPersonalEscuchar(fecha,bloque){
+  const D=window.glacialDistribucionPersonal;if(!D)return;
+  const k=fecha+'|'+bloque;
+  if(k!==cpPersonalClave){
+    if(typeof cpPersonalCerrar==='function'){try{cpPersonalCerrar();}catch(_){/* ya cerrada */}}
+    cpPersonalClave=k;          // antes de escuchar: una respuesta inmediata redibuja y no debe abrir otra escucha
+    cpPersonalCerrar=null;
+    try{cpPersonalCerrar=D.escuchar(fecha,bloque);}catch(_){cpPersonalCerrar=null;}
+  }
+  if(!window.__cpPersonalOyente){window.__cpPersonalOyente=true;D.alCambiar(cpRefrescarEjecutivo);}
+}
+/* Reintento tras un error de carga: se cierra la escucha y se vuelve a abrir para el mismo contexto. */
+function cpPersonalReintentar(){
+  if(typeof cpPersonalCerrar==='function'){try{cpPersonalCerrar();}catch(_){/* ya cerrada */}}
+  cpPersonalCerrar=null;cpPersonalClave='';
+  cpRefrescarEjecutivo();
+}
+function cpPersonalPorLinea(d){
+  const D=window.glacialDistribucionPersonal;
+  if(!D)return null;
+  const bloque=d.turno==='NOCHE'?'NOCHE':'DÍA';
+  cpPersonalEscuchar(d.fecha,bloque);
+  let h=null;try{h=GlacialIndicadores.horarioBloque(d.fecha,d.turno,typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}catch(_){h=null;}
+  const ahora=cpAhoraMs();
+  const corte=h?Math.max(h.inicio,Math.min(ahora,h.fin-1)):ahora;
+  const datos=D.datos(d.fecha,bloque);
+  const ev=D.vigente(datos.eventos,corte);
+  const porLinea=new Map(d.filas.map(f=>[f.linea,f]));
+  const lineas=d.lineasAutorizadas.filter(l=>D.LINEAS.includes(l)).map(l=>{
+    const p=D.consultar(d.fecha,bloque,l,corte),f=porLinea.get(l),produce=!!f&&cpEnProduccion(f);
+    const pendiente=p.estado==='PENDIENTE',cant=pendiente?null:Number(p.cantidad)||0;
+    // Advertencias: personal en una línea que no produce; línea que produce sin personal confirmado (0 o pendiente).
+    const alerta=!produce&&cant>0?'parado':(produce&&(pendiente||cant===0)?'sinpersonal':'');
+    return {linea:l,produce,pendiente,cantidad:cant,alerta};
+  });
+  const distribuido=lineas.reduce((s,x)=>s+(x.cantidad||0),0);
+  const apoyo=ev?Number(ev.apoyoCompartido)||0:0;
+  let disponible=null;try{disponible=D.disponiblesTareo(typeof obtenerTareos==='function'?obtenerTareos():[],d.fecha,bloque);}catch(_){disponible=null;}
+  const sinAsignar=disponible===null||!ev?null:disponible-distribuido-apoyo;
+  const advertencias=lineas.filter(x=>x.alerta).length+(sinAsignar!==null&&sinAsignar<0?1:0);
+  return {lineas,distribuido,apoyo,disponible,sinAsignar,advertencias,
+    pendientes:ev?lineas.filter(x=>x.pendiente):[],
+    error:!!datos.error&&!datos.listo,sincronizado:!!datos.listo,hayDistribucion:!!ev,desdeMs:ev?Number(ev.desdeMs)||0:0,
+    usuario:ev?String(ev.usuario||''):''};
+}
+const CP_DIST_OBS={parado:'Tiene personal y no produce',sinpersonal:'Produce sin personal confirmado'};
+/* Tarjeta compacta «Distribución de personal» (reemplaza a «Estado del turno» en la fila superior). */
+function cpDistribucionKpi(r){
+  const ver=`<button type="button" class="cp-ex-enlace" onclick="cpVerDistribucion()">Ver distribución →</button>`;
+  if(!r)return `<div class="cp-ds-msg">No se cargó el módulo de distribución de personal.</div>`;
+  if(r.error)return `<div class="cp-ds-msg cp-ds-err" role="alert">No se pudo consultar la distribución de personal.</div>
+    <button type="button" class="cp-ex-enlace" onclick="cpPersonalReintentar()">Reintentar ↻</button>`;
+  if(!r.sincronizado)return `<div class="cp-ds-msg">Consultando la distribución…</div>`;
+  if(!r.hayDistribucion)return `<div class="cp-ds-msg cp-ds-sin">Distribución pendiente de registrar</div>
+    <small class="cp-ds-sub">${r.disponible===null?'El Tareo del bloque aún no tiene asistencia.':`Total con asistencia: <b class="cp-ds-inl">${cpFmt(r.disponible)}</b>`}</small>${ver}`;
+  const lista=r.lineas.map(x=>`<li class="${x.alerta?'cp-ds-alerta':''}"><span>${cpEsc(cpNombreLinea(x.linea))}${x.alerta?` <i class="cp-ds-warn" title="${CP_DIST_OBS[x.alerta]}" aria-label="${CP_DIST_OBS[x.alerta]}">⚠</i>`:''}</span>
+      ${x.pendiente?'<em class="cp-ds-pend">Pendiente</em>':`<strong>${cpFmt(x.cantidad)}</strong>`}</li>`).join('');
+  const sa=r.sinAsignar===null?'<strong>—</strong>'
+    :r.sinAsignar<0?`<strong class="cp-ds-neg" title="Se asignaron ${cpFmt(-r.sinAsignar)} más que los presentes">⚠ ${cpFmt(r.sinAsignar)}</strong>`:`<strong>${cpFmt(r.sinAsignar)}</strong>`;
+  const tot=`<ul class="cp-ds-tot">
+      <li><span>Asignados a líneas${r.pendientes.length?'*':''}</span><strong>${cpFmt(r.distribuido)}</strong></li>
+      <li><span>Apoyo compartido</span><strong>${cpFmt(r.apoyo)}</strong></li>
+      <li><span>Sin asignar</span>${sa}</li>
+      <li class="cp-ds-asis"><span>Total con asistencia</span><strong>${r.disponible===null?'Sin Tareo':cpFmt(r.disponible)}</strong></li></ul>`;
+  const incompleta=r.pendientes.length?`<small class="cp-ds-inc">* Incompleta: ${r.pendientes.map(x=>cpEsc(cpNombreLinea(x.linea))).join(', ')} pendiente${r.pendientes.length===1?'':'s'}</small>`:'';
+  const avisos=r.advertencias?`<button type="button" class="cp-ds-avisos" onclick="cpVerDistribucion()">⚠ ${r.advertencias} advertencia${r.advertencias===1?'':'s'}</button>`:'';
+  return `<ul class="cp-ds-lista" aria-label="Personal por línea">${lista}</ul>${tot}${incompleta}
+    <div class="cp-ds-pie"><small class="cp-ds-sub">Vigente desde ${cpEsc(cpHoraCorta(r.desdeMs))}</small>${avisos}</div>${ver}`;
+}
+/* Detalle (modal de consulta): línea · estado de producción · personal · observación, con los totales. Sin acciones de edición. */
+function cpDistribucionDetalleHTML(d,r){
+  const ctx=`${cpEsc(cpFechaBonita(d.fecha))} · ${cpEsc(GlacialIndicadores.nombreBloque(d.turno,'pantalla'))}`;
+  if(!r)return `<p>No se cargó el módulo de distribución de personal.</p>`;
+  if(r.error)return `<p class="cp-ds-err" role="alert">No se pudo consultar la distribución de personal (${ctx}).</p><button type="button" class="btn btn-ghost" onclick="cpPersonalReintentar()">Reintentar</button>`;
+  if(!r.sincronizado)return `<p>Consultando la distribución de personal…</p>`;
+  const filas=r.lineas.map(x=>`<tr class="${x.alerta?'cp-pl-'+x.alerta:''}">
+      <td data-label="Línea"><strong>${cpEsc(cpNombreLinea(x.linea))}</strong></td>
+      <td data-label="Estado"><span class="cp-ex-badge cp-ex-${x.produce?'curso':'sinprog'}"><i></i>${x.produce?'En producción':'Sin producción'}</span></td>
+      <td data-label="Personal">${!r.hayDistribucion||x.pendiente?'<span class="cp-pl-pend">Pendiente</span>':`<b>${cpFmt(x.cantidad)}</b>`}</td>
+      <td data-label="Observación">${x.alerta?`<span class="cp-pl-obs">⚠ ${CP_DIST_OBS[x.alerta]}</span>`:'—'}</td></tr>`).join('');
+  const notas=[];
+  if(!r.hayDistribucion)notas.push('Distribución pendiente de registrar para este bloque (Tareo › Distribución de personal).');
+  if(r.pendientes.length)notas.push(`Distribución incompleta: ${r.pendientes.map(x=>cpEsc(cpNombreLinea(x.linea))).join(', ')} sin confirmar. «Asignados a líneas» suma solo las líneas confirmadas y «Sin asignar» incluye al personal de las líneas pendientes.`);
+  if(r.sinAsignar!==null&&r.sinAsignar<0)notas.push(`<span class="cp-pl-obs">Inconsistencia: se asignaron ${cpFmt(-r.sinAsignar)} más que los ${cpFmt(r.disponible)} con asistencia en el Tareo. Revisar la distribución o la asistencia.</span>`);
+  if(r.disponible===null)notas.push('El Tareo de Producción del bloque no tiene asistencia registrada: no se puede calcular «Sin asignar».');
+  const tot=(et,v)=>`<div><span>${et}</span><b>${v}</b></div>`;
+  const totales=`<div class="cp-ds-totdet">${tot('Asignados a líneas',r.hayDistribucion?cpFmt(r.distribuido):'—')}${tot('Apoyo compartido',r.hayDistribucion?cpFmt(r.apoyo):'—')}
+      ${tot('Sin asignar',r.sinAsignar===null?'—':cpFmt(r.sinAsignar))}${tot('Total con asistencia',r.disponible===null?'Sin Tareo':cpFmt(r.disponible))}</div>`;
+  return `<p class="small-muted">${ctx}${r.hayDistribucion?` · vigente desde ${cpEsc(cpHoraCorta(r.desdeMs))}${r.usuario?` · registrada por ${cpEsc(r.usuario)}`:''}`:''}</p>
+    ${notas.map(n=>`<p class="cp-ds-nota">${n}</p>`).join('')}
+    <div class="cp-table-wrap"><table class="cp-table cp-ex-table cp-pl"><thead><tr><th>Línea</th><th>Estado</th><th>Personal</th><th>Observación</th></tr></thead><tbody>${filas}</tbody></table></div>
+    ${totales}
+    <p class="small-muted" style="margin-top:10px">Solo consulta. La distribución se registra en Tareo › Distribución de personal y guarda cantidades por línea, no nombres: no se verifica persona por persona. El apoyo compartido no se suma a ninguna línea.</p>`;
+}
+function cpVerDistribucion(){
+  if(!cpPuedeVerInicioEjecutivo())return;          // mismo permiso que la tarjeta: sin él no se exponen cantidades
+  const d=cpDatosEjecutivo();if(!d)return;
+  const raiz=document.getElementById('modal-root');if(!raiz)return;
+  raiz.innerHTML=`<div class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal cp-ds-modal" role="dialog" aria-modal="true" aria-labelledby="cp-ds-titulo" id="cp-ds-modal">
+    <div class="modal-head"><h3 id="cp-ds-titulo">Distribución de personal</h3><button class="modal-close" onclick="closeModal()" aria-label="Cerrar">✕</button></div>
+    <div class="modal-body" id="cp-ds-cuerpo">${cpDistribucionDetalleHTML(d,cpPersonalPorLinea(d))}</div></div></div>`;
+}
+/* Si el detalle está abierto y llega un cambio (Tareo guarda otra versión), se actualiza con el mismo contexto. */
+function cpRefrescarDistribucionAbierta(){
+  const c=document.getElementById('cp-ds-cuerpo');if(!c)return;
+  const d=cpDatosEjecutivo();if(d)c.innerHTML=cpDistribucionDetalleHTML(d,cpPersonalPorLinea(d));
+}
+
 function cpEjecutivoHTML(){
   const d=cpDatosEjecutivo();
   const hora=new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
@@ -948,8 +1094,8 @@ function cpEjecutivoHTML(){
     ?`<b>${Math.round(d.avance)} %</b>${barraAv(d.avance)}<small>${unidades.length===1?`${cpFmt(totProd)} de ${cpFmt(totProg)} ${unidades[0]}`:`Promedio de ${d.vigentes.length} línea${d.vigentes.length>1?'s':''} con programación`}</small>`
     :`<b>—</b>${barraAv(0)}<small>Sin programación para evaluar</small>`;
 
-  // 2) LÍNEAS EN PRODUCCIÓN: estado operativo real; denominador = líneas autorizadas.
-  const tEnCurso=`<b>${d.enCurso} / ${n}</b><small>${d.enCurso?cpEsc(d.nombresEnCurso.join(' · ')):'Ninguna línea en curso'}</small>`;
+  // 2) LÍNEAS EN PRODUCCIÓN: unidades > 0 en la fecha y el bloque; denominador = líneas autorizadas.
+  const tEnCurso=`<b>${d.enCurso} / ${n}</b><small>${d.enCurso?cpEsc(d.nombresEnCurso.join(' · ')):'Ninguna línea con producción'}</small>`;
 
   // 3) PARADAS DEL TURNO (Avance/Cierre).
   const tParadas=`<div class="cp-ex-par"><span class="cp-pt cp-pt-prog"></span>Programadas: <b>${cpDuracionMin(d.paradas.prog)}</b></div>
@@ -962,36 +1108,37 @@ function cpEjecutivoHTML(){
     :`<div class="cp-ex-mot cp-ex-mut">Sin paradas registradas</div>`)
     +`<button type="button" class="cp-ex-enlace" onclick="cpVerMotivosParadas()">Ver detalle →</button>`;
 
-  // 5) ESTADO DEL TURNO: sin programación / sin datos para evaluar / evaluado.
-  const ctxB=cpContextoBloque(d);
-  const sinProg=d.vigentes.length===0;
-  const sinDatos=!sinProg&&(!d.vigentes.some(f=>f.producido>0||f.iniciadaReal)||(ctxB.bloqueActual&&cpAhoraMs()<ctxB.inicio));
-  const estadoTurno=sinProg?{t:'SIN PROGRAMACIÓN',c:'pendiente',s:'No hay programación para el bloque seleccionado'}
-    :sinDatos?{t:'SIN DATOS PARA EVALUAR',c:'pendiente',s:'Hay programación, pero aún falta información'}
-    :d.cerradas?{t:'COMPLETADO',c:'completada',s:'Programación del turno terminada'}
-    :(d.detenidas||d.retrasadas)?{t:'REQUIERE ATENCIÓN',c:'curso',s:'Consultar avance y paradas'}
-    :{t:'EN OBJETIVO',c:'completada',s:'Ritmo acorde a lo esperado'};
-  const tEstado=`<b class="cp-ex-estado"><span class="cp-ex-badge cp-ex-${estadoTurno.c} cp-ex-general">${estadoTurno.t}</span></b><small>${estadoTurno.s}</small>`;
+  // 5) DISTRIBUCIÓN DE PERSONAL (reemplaza a «Estado del turno»): consulta de la distribución del Tareo para la fecha y el bloque seleccionados.
+  const sp=cpFilasSinProduccion(d);
+  const tDistribucion=cpDistribucionKpi(cpPersonalPorLinea(d));
 
   const tarjeta=(icono,titulo,cuerpo,extra='')=>`<div class="cp-ex-kpi ${extra}"><span class="cp-ex-kpi-t">${cpIcon(icono)}${titulo}</span>${cuerpo}</div>`;
-  const kpis=`<div class="cp-ex-kpis">${tarjeta('bars','Avance del turno',tAvance)}${tarjeta('chart','Líneas en producción',tEnCurso)}${tarjeta('pause','Paradas del turno',tParadas)}${tarjeta('list','Motivos registrados',tMotivos)}${tarjeta('pulse','Estado del turno',tEstado)}</div>`;
+  const kpis=`<div class="cp-ex-kpis">${tarjeta('bars','Avance del turno',tAvance)}${tarjeta('chart','Líneas en producción',tEnCurso)}${tarjeta('pause','Paradas del turno',tParadas)}${tarjeta('list','Motivos registrados',tMotivos)}${tarjeta('team','Distribución de personal',tDistribucion,'cp-ds')}</div>`;
 
-  // LÍNEAS SIN PRODUCCIÓN: el motivo siempre visible (sin tooltip ni detalle cerrado).
-  const sp=cpFilasSinProduccion(d);
+  // LÍNEAS SIN PRODUCCIÓN: todas las líneas autorizadas sin unidades en el bloque, cada una con su motivo, «Sin programación» o «Motivo pendiente».
+  // Inicio solo muestra: el motivo lo informa el supervisor en Producción Actual («Informar motivo de no producción»).
+  const I=window.glacialIncidencias;
+  const textoCausa={SIN_PROGRAMACION:['Sin programación','No tiene programación en este bloque.'],CANCELADA:['Programación cancelada','Toda su programación del bloque está cancelada.'],
+    BLOQUE_NO_INICIA:['El bloque aún no inicia',`El bloque empieza a las ${cpEsc(cpHoraCorta(sp.inicio))}.`]};
   const filasSP=sp.filas.map(f=>{
+    const irRegistrar=f.pendiente&&I&&I.puedeInformar(f.linea)&&cpPuede('produccionActual')
+      ?` <button type="button" class="cp-ex-enlace cp-np-ir" onclick="goProduccionActual()">Registrar en Producción Actual →</button>`:'';
     const cuerpo=f.pendiente
-      ?`<b class="cp-np-pend">${CP_MOTIVO_PENDIENTE}</b><small>${f.causa==='DETENIDA'?'La línea figura detenida y nadie ha informado el motivo.':`Debía iniciar a las ${cpEsc(cpHoraCorta(sp.inicio))} y aún no ha iniciado.`}</small>`
-      :`<b>Motivo: ${cpEsc(f.motivo)}</b>${f.descripcion?` <span class="cp-np-desc">— ${cpEsc(f.descripcion)}</span>`:''}<small>Registrado por ${cpEsc(f.por||'—')} · ${cpEsc(cpHoraCorta(f.en))}</small>`;
-    return `<div class="cp-np-fila"><strong class="cp-np-linea">${cpEsc(cpNombreLinea(f.linea))}</strong><span class="cp-np-chip">Sin producción</span>
-      <span class="cp-np-ico" aria-hidden="true">!</span><div class="cp-np-motivo">${cuerpo}</div>
+      ?`<b class="cp-np-pend">⚠ ${CP_MOTIVO_PENDIENTE}</b>${irRegistrar}<small>${f.causa==='DETENIDA'?'La línea figura detenida y nadie ha informado el motivo.':'Tiene programación y no registra producción en este bloque.'}</small>`
+      :f.causa==='INFORMADA'
+        ?`<b>Motivo: ${cpEsc(f.motivo)}</b>${f.descripcion?` <span class="cp-np-desc">— ${cpEsc(f.descripcion)}</span>`:''}<small>Registrado por ${cpEsc(f.por||'—')} · ${cpEsc(cpHoraCorta(f.en))}</small>`
+        :`<b class="cp-np-auto">${textoCausa[f.causa][0]}</b><small>${textoCausa[f.causa][1]}</small>`;
+    return `<div class="cp-np-fila${f.pendiente?' cp-np-fila-pend':''}"><strong class="cp-np-linea">${cpEsc(cpNombreLinea(f.linea))}</strong><span class="cp-np-chip">Sin producción</span>
+      <span class="cp-np-ico" aria-hidden="true">${f.pendiente?'!':'i'}</span><div class="cp-np-motivo">${cuerpo}</div>
       <button type="button" class="cp-ex-enlace" onclick="cpVerIncidencia('${cpEsc(f.linea)}')">Ver detalle →</button></div>`;
   }).join('');
   const vacioSP=sp.estado==='sin_modulo'?'No se cargó el registro de motivos.'
     :sp.estado==='error'?'No se pudo consultar el registro de motivos en este momento.'
     :sp.estado==='cargando'?'Consultando los motivos informados…'
-    :(sinProg?'No hay programación en este bloque: no hay líneas que deban producir.':'Sin incidencias de no producción registradas');
+    :'Todas las líneas están en producción.';
   const tarjetaSP=`<section class="cp-card cp-np" aria-label="Líneas sin producción"><div class="cp-card-head"><div class="cp-card-title"><span class="cp-np-alerta" aria-hidden="true">!</span><div><h3>LÍNEAS SIN PRODUCCIÓN</h3>
-      <p>Motivo informado por el supervisor.</p></div></div></div>${filasSP||`<div class="cp-empty">${vacioSP}</div>`}</section>`;
+      <p>Motivo informado por el supervisor de la línea. Es informativo: no es una parada oficial ni suma en Paradas del turno.</p></div></div></div>${filasSP||`<div class="cp-empty">${vacioSP}</div>`}</section>`;
+
 
   // PRODUCCIÓN POR LÍNEA: una tabla (línea · estado · producción · cumplimiento · último registro) con las unidades propias de cada línea.
   const porLinea=new Map(d.filas.map(f=>[f.linea,f]));
@@ -1009,8 +1156,11 @@ function cpEjecutivoHTML(){
     const avisos=(g?g.avisos:[]).map(a=>`<div class="cp-ex-aviso" role="status">⚠ Marca ${cpEsc(a.marca||'—')} quedó detenida${a.desde?` desde ${cpEsc(cpHoraCorta(a.desde))}`:''}: finalízala o reanúdala</div>`).join('');
     const prodActual=act&&(act.producido>0||hayMeta)
       ?`<div class="cp-ex-marca-act"><span class="cp-ex-marca-nom">${cpEsc(nombreMarca(act))}</span><span><b>${cpFmt(act.producido)}</b>${act.programado>0?` / ${cpFmt(act.programado)}`:''} ${u}</span></div>
-         <div class="cp-ex-total">Total línea (${g.total.marcas} marca${g.total.marcas===1?'':'s'}): <b>${cpFmt(g.total.producido)}</b> / ${cpFmt(g.total.programado)} ${u}</div>`
+         <div class="cp-ex-total">Total del plan (${g.total.marcas} marca${g.total.marcas===1?'':'s'}): <b>${cpFmt(g.total.producido)}</b> / ${cpFmt(g.total.programado)} ${u}</div>`
       :'—';
+    // Producción de productos sin programación en el bloque (24-semaforo…): se muestra aparte y no cuenta en el cumplimiento.
+    const fuera=(f.fueraPlan||[]).length
+      ?`<div class="cp-ex-fuera" title="No está en la planificación del bloque; no suma al cumplimiento">⚠ Fuera de programación: ${f.fueraPlan.map(z=>`${cpEsc(nombreMarca(z))} <b>${cpFmt(z.producido)}</b> ${u}`).join(' · ')}</div>`:'';
     const desglose=g?g.marcas.map(m=>{
       const x=CP_EST_EJEC[m.estado]||CP_EST_EJEC.PENDIENTE;
       return `<li class="cp-ex-d-${x.cls}${m===act?' cp-ex-d-act':''}"><span class="cp-ex-d-nom">${cpEsc(nombreMarca(m))}</span>
@@ -1019,7 +1169,7 @@ function cpEjecutivoHTML(){
     const hayDet=g&&g.marcas.length>0;
     return `<tr class="cp-ex-fila ${abierta?'cp-ex-abierta':''}" data-linea="${cpEsc(k)}" ${hayDet?`tabindex="0" role="button" aria-expanded="${abierta}" onclick="cpEjecAlternar('${cpEsc(k)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cpEjecAlternar('${cpEsc(k)}')}"`:''}>
       <td data-label="Línea"><strong>${nombre}</strong></td><td data-label="Estado">${badge(g&&g.estado||f.estado)}${avisos}</td>
-      <td data-label="Producción">${prodActual}</td>
+      <td data-label="Producción">${prodActual}${fuera}</td>
       <td data-label="Cumplimiento">${hayMeta?`<span class="cp-ex-pct">${Math.round(act?act.avance:f.avance)} %</span>${barra(act?act.avance:f.avance,g&&g.estado||f.estado)}`:'—'}</td>
       <td data-label="Último registro">${f.ultimoMs?cpHoraCorta(f.ultimoMs):'—'}</td></tr>
       ${hayDet?`<tr class="cp-ex-det ${abierta?'cp-ex-abierta':''}"><td colspan="5"><ul class="cp-ex-d-lista" aria-label="Marcas de ${nombre} en el bloque">${desglose}</ul></td></tr>`:''}`;
@@ -1037,6 +1187,7 @@ function cpEjecutivoHTML(){
       <div class="cp-ex-alerts">${alertas}</div></section>`;
 
   // Orden: encabezado → 5 tarjetas → líneas sin producción → producción por línea → alertas → RESUMEN DE PRODUCCIÓN al final.
+  // La tabla «Personal por línea» ya no se repite aquí: su detalle se abre desde «Ver distribución →» (cpVerDistribucion).
   // Las tarjetas «Paradas de hoy», «Proyección del turno» y «Disponibilidad de hoy» (43, 46 y 47) se insertan justo después de .cp-title-row,
   // por eso siguen dentro del bloque final.
   return `${cabecera}${kpis}${tarjetaSP}${tarjetaLineas}${tarjetaAlertas}
@@ -1076,13 +1227,14 @@ function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-ex-ok{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;background:#effbf4;color:#13814a;font-size:13px;font-weight:700}
 @media(max-width:980px){.cp-ex-kpis{grid-template-columns:1fr 1fr}.cp-ex-meta{width:100%;justify-content:space-between}}
 @media(max-width:620px){.cp-ex-kpis{grid-template-columns:1fr}.cp-ex-kpi b{font-size:26px}
-.cp-ex-table thead{display:none}.cp-ex-table,.cp-ex-table tbody,.cp-ex-table tr,.cp-ex-table td{display:block;width:100%}
+.cp-ex-table thead{display:none}.cp-ex-table,.cp-ex-table tbody,.cp-ex-table tr,.cp-ex-table td{display:block;width:100%}.cp-ex-table{min-width:0}
 .cp-ex-table tr{padding:8px 14px;border-top:1px solid #e2ebf2}.cp-ex-table td{border:0;padding:3px 0;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .cp-ex-table td:before{content:attr(data-label);color:var(--cp-muted);font-size:10px;font-weight:700;text-transform:uppercase}}
 /* ---- Estado de líneas: marca en curso, total aparte y desglose por marca ---- */
 .cp-ex-fila{cursor:pointer}.cp-ex-fila:focus-visible{outline:3px solid rgba(8,120,249,.3);outline-offset:-3px}
 .cp-ex-marca-act{display:flex;flex-direction:column;gap:2px}.cp-ex-marca-nom{font-weight:700;color:#10265f}
 .cp-ex-total{margin-top:4px;font-size:11px;color:var(--cp-muted)}
+.cp-ex-fuera{margin-top:4px;font-size:11px;color:#3730A3;background:#EEF2FF;border-radius:6px;padding:2px 6px;display:inline-block}
 .cp-ex-aviso{margin-top:6px;padding:5px 8px;border-radius:6px;background:var(--ie-det-bg,#FEE2E2);color:var(--ie-det-tx,#991B1B);font-size:11px;font-weight:700;line-height:1.3;white-space:normal}
 .cp-ex-det{display:none}.cp-ex-det.cp-ex-abierta{display:table-row}.cp-ex-det>td{padding:0 16px 10px!important;background:#f8fafc}
 .cp-ex-d-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
@@ -1126,11 +1278,40 @@ function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-np-linea{font-size:18px;color:#10265f}.cp-np-chip{display:inline-block;padding:6px 14px;border-radius:999px;background:#eef0f3;color:#33475b;font-weight:700;font-size:13px;text-align:center}
 .cp-np-ico{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#f5b335;color:#fff;font-weight:900;font-size:14px}
 .cp-np-motivo b{font-size:17px;color:#10265f}.cp-np-motivo small{display:block;color:#5f7382;font-size:13px;margin-top:2px}.cp-np-desc{color:#33475b;font-size:14px}.cp-np-pend{color:#9a5b00!important}
+.cp-np-pend{color:#b42318!important}.cp-np-fila-pend{background:#fff5f5}.cp-np-auto{color:#5f7382!important}.cp-np-ir{margin-left:8px}
+.cp-pl .cp-ex-table td{vertical-align:middle}.cp-pl-parado td{background:#fff8e6}.cp-pl-sinpersonal td{background:#fff1f1}
+.cp-pl-obs{color:#9a3412;font-weight:700;font-size:13px}.cp-pl-pend{color:#9a5b00;font-weight:700;font-size:13px}
+.cp-pl-total td{border-top:2px solid var(--cp-line);background:#f7fafc}.cp-pl-total small{color:var(--cp-muted)}.cp-pl-nota{margin:0 0 8px}
 .cp-shell .cp-ex-kpi .cp-pt{display:inline-block;font-size:0;margin:0 7px 0 0}.cp-shell .cp-ex-kpi .cp-ex-par b,.cp-shell .cp-ex-kpi .cp-ex-mot b{display:inline;margin:0;font-size:15px}
 .cp-shell .cp-ex-kpi .cp-ex-par{font-size:14px;text-transform:none;font-weight:500}.cp-ex-cab select{appearance:none;-webkit-appearance:none;background:transparent!important;border:0!important;box-shadow:none!important;padding:0 18px 0 0;cursor:pointer}
 .cp-ex-cab .cp-ex-bloque select{color:#fff!important}.cp-ex-cab .cp-ex-bloque select option{color:#10265f;background:#fff}
 .cp-ex-table td,.cp-ex-table th{padding:10px 16px;font-size:13px}.cp-fila-link{cursor:pointer}.cp-fila-link:focus-visible{outline:3px solid rgba(8,120,249,.3);outline-offset:-3px}
 .cp-ex-table td .cp-ex-bar{display:inline-block;width:140px;margin-left:10px;vertical-align:middle}
+.cp-ex-kpis{align-items:stretch}
+/* ---- Distribución de personal: lista compacta (línea a la izquierda, personal a la derecha) ---- */
+.cp-shell .cp-ds{display:flex;flex-direction:column}
+.cp-shell .cp-ds .cp-ds-lista,.cp-shell .cp-ds .cp-ds-tot{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:2px}
+.cp-shell .cp-ds li{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;line-height:1.35;color:#28415a}
+.cp-shell .cp-ds li>span{display:inline;font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:#28415a;min-width:0;overflow-wrap:anywhere}
+.cp-shell .cp-ds li>strong{font-size:15px;color:#10265f;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cp-shell .cp-ds .cp-ds-lista li{padding:1px 0;border-bottom:1px dashed #e3ebf2}.cp-shell .cp-ds .cp-ds-lista{margin-top:6px;gap:0}
+.cp-shell .cp-ds .cp-ds-lista li.cp-ds-alerta>span{color:#9a3412}
+.cp-shell .cp-ds .cp-ds-tot{margin-top:6px;padding-top:4px;border-top:1px solid var(--cp-line);gap:0}
+.cp-shell .cp-ds .cp-ds-tot li>span{font-weight:500;color:#466ba7;font-size:12px}.cp-shell .cp-ds .cp-ds-tot li>strong{font-size:14px}
+.cp-shell .cp-ds .cp-ds-tot li.cp-ds-asis>span{font-weight:800;color:#10265f}
+.cp-ds-pend{font-style:normal;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--ie-pend-bg,#F3F4F6);color:var(--ie-pend-tx,#4B5563);white-space:nowrap}
+.cp-ds-warn{font-style:normal;color:#b45309}.cp-shell .cp-ds .cp-ds-neg{color:#b42318}
+.cp-shell .cp-ds .cp-ds-inl{display:inline;font-size:inherit;margin:0}
+.cp-ds-msg{margin:10px 0 4px;font-size:14px;font-weight:700;color:#5f6f7c}.cp-ds-sin{color:#4B5563}.cp-ds-err{color:#b42318!important}
+.cp-shell .cp-ds small.cp-ds-sub,.cp-shell .cp-ds small.cp-ds-inc{display:block;margin-top:4px}.cp-shell .cp-ds small.cp-ds-inc{color:#9a5b00}
+.cp-ds-pie{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-top:4px}.cp-shell .cp-ds .cp-ds-pie small{margin:0}
+.cp-ds-avisos{padding:3px 10px;border:1px solid #f2c08a;border-radius:999px;background:#fff7ed;color:#9a3412;font:inherit;font-size:12px;font-weight:700;cursor:pointer;min-height:28px}
+.cp-shell .cp-ds .cp-ex-enlace{margin-top:auto;padding-top:4px;min-height:28px}
+.cp-ds-modal{max-width:760px}.cp-ds-modal .cp-ex-sinprog{background:#F3F4F6;color:#4B5563}.cp-ds-modal .cp-ex-sinprog i{background:#9CA3AF}.cp-ds-modal .cp-ex-curso{background:#FFEDD5;color:#9A3412}.cp-ds-modal .cp-ex-curso i{background:#F97316}.cp-ds-nota{margin:6px 0;font-size:13px;color:#5b4a00;background:#fffbea;border-left:3px solid #e0a100;padding:6px 10px;border-radius:6px}
+.cp-ds-totdet{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.cp-ds-totdet div{border:1px solid var(--cp-line,#dbe5ee);border-radius:10px;padding:8px 10px;background:#f7fafc}
+.cp-ds-totdet span{display:block;font-size:11px;font-weight:700;color:#466ba7;text-transform:uppercase}.cp-ds-totdet b{font-size:20px;color:#10265f}
+@media(max-width:700px){.cp-ds-totdet{grid-template-columns:1fr 1fr}.cp-shell .cp-ds li>span,.cp-shell .cp-ds li{font-size:14px}}
 @media(max-width:1180px){.cp-shell .cp-ex-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){
   .cp-shell .cp-ex-kpis{grid-template-columns:1fr}.cp-ex-cab h1{font-size:26px}.cp-ex-cab-der{width:100%}.cp-ex-ctl{flex:1 1 auto}
@@ -1142,6 +1323,7 @@ function cpRefrescarEjecutivo(){
   if(!state.user||state.currentTab!=='centro-perfil'||!cpPuedeVerInicioEjecutivo())return;
   const main=document.getElementById('main');
   if(main)renderCentroPerfil(main);
+  cpRefrescarDistribucionAbierta();
 }
 // Actualización en tiempo real: mismas señales que usa Producción Actual.
 ['onPaletasUpdated','onProgramacionesUpdated'].forEach(nombre=>{
