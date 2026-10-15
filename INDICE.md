@@ -21,6 +21,7 @@ js/
   personal/       trabajadores, tareo y rotación de supervisores
   mantenimiento/  módulo de Mantenimiento y cuenta compartida
   rrhh/           módulo de RRHH y exportaciones
+  asistente/      Asistente de Producción (insumos, consumos, mermas, solicitudes a Almacén) y Reporte General
 ```
 
 ## Qué hace cada archivo
@@ -106,6 +107,17 @@ js/
 | 67h-reclasificacion-pantalla.js | Pestaña «Reclasificar paradas» del módulo Mantenimiento: paradas con causa «Otro», vacía o antigua, agrupadas; «Asignar a las N paradas de este grupo»; contadores de minutos sin clasificar y reclasificados |
 | 43-bitacora-mantenimiento.js | Bitácora de Mantenimiento (solo lectura: rangos rápidos por día operativo 07:00–07:00, orden, buscador, vista por parada, motivos pendientes y Excel) y tarjeta «Paradas de hoy» del Inicio |
 | 66-entrega-turno.js | Entrega de turno entre supervisores (colección entregasTurno, id fecha_TURNO con DIA/INTERMEDIO/NOCHE): foto automática por línea (reutiliza construirDatos de 48), novedades por línea, entregar/corregir/recibir por transacción, historial por fecha, tarjeta «Entrega de turno pendiente» en el Inicio en vivo y modo consulta para jefatura |
+
+### js/asistente/
+
+Diagnóstico, modelo de datos y permisos: `docs/ASISTENTE-PRODUCCION.md`.
+
+| Archivo | Función |
+|---|---|
+| 70-asistente-nucleo.js | Cálculo puro: cuadros del bloque, factores con vigencia, requerimientos y reservas derivadas, stock por movimientos, conciliación, mermas, estados de solicitud, migración de factores del código |
+| 71-asistente-datos.js | Firestore (`ap*`), permisos por capacidad, transacciones idempotentes y auditoría |
+| 72-asistente-pantalla.js | Pantalla «Asistente de Producción» (Resumen, Seguimiento, Insumos, Solicitudes, Consumo, Merma, Parámetros, Historial) y acceso de Almacén |
+| 73-reporte-general.js | Reporte General de Producción: un Excel por fecha operativa, 6 hojas, fórmulas vivas y formato aprobado (ExcelJS) |
 
 ### js/rrhh/
 | Archivo | Función |

@@ -2997,6 +2997,12 @@
                             <span class="side-action-icon" aria-hidden="true">▤</span><span>Planificación</span>
                         </button>
 
+                        <!-- Asistente de Producción: insumos, consumos, mermas, solicitudes a Almacén y Reporte General (js/asistente/). -->
+                        <button type="button" class="side-action sidebar-root-action" id="btn-asistente"
+                                onclick="goAsistente()" hidden style="display:none">
+                            <span class="side-action-icon" aria-hidden="true">▦</span><span>Asistente de Producción</span>
+                        </button>
+
                         <section class="sidebar-group" id="sidebar-group-produccion" data-sidebar-group="produccion">
                             <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="produccion"
                                     aria-expanded="true" aria-controls="sidebar-panel-produccion">
@@ -3428,6 +3434,11 @@
     <script src="js/mantenimiento/67f-indicadores-equipo.js?v=20261013-gm1"></script>
     <script src="js/mantenimiento/67g-reclasificacion-datos.js?v=20261012-rc1"></script>
     <script src="js/mantenimiento/67h-reclasificacion-pantalla.js?v=20261013-gm1"></script>
+    <!-- Asistente de Producción (docs/ASISTENTE-PRODUCCION.md): núcleo puro, datos/permisos, pantalla y Reporte General. -->
+    <script src="js/asistente/70-asistente-nucleo.js?v=20261015-ap1"></script>
+    <script src="js/asistente/71-asistente-datos.js?v=20261015-ap1"></script>
+    <script src="js/asistente/72-asistente-pantalla.js?v=20261015-ap1"></script>
+    <script src="js/asistente/73-reporte-general.js?v=20261015-ap1"></script>
     <script src="js/accesos/39-vista-como.js?v=20261003-vista-1"></script>
     <script src="js/nucleo/12-init.js?v=20261003-seguridad"></script>
 

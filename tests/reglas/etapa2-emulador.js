@@ -21,7 +21,11 @@ const PERFILES={
   supMtto:{rol:'Mantenimiento',permisos:['moduloMantenimiento']},
   vista:{rol:'Supervisor',permisos:['paletas'],soloVista:true},
   corrige:{rol:'Supervisor',permisos:['paletas','corregir_paradas']},
-  gerente:{rol:'Gerente General',permisos:[],eco:{ver:true,gestionar:true}}
+  gerente:{rol:'Gerente General',permisos:[],eco:{ver:true,gestionar:true}},
+  asis:{rol:'Asistente de Producción',permisos:[]},
+  asisSin:{rol:'Asistente de Producción',permisos:['-asistenteProduccion']},
+  almacen:{rol:'Personalizado',permisos:['moduloAlmacen']},
+  asisVista:{rol:'Asistente de Producción',permisos:[],soloVista:true}
 };
 let fallas=0,total=0;
 async function caso(texto,promesa){
@@ -103,6 +107,53 @@ async function caso(texto,promesa){
   await caso('tareos/{id}: la cuenta compartida de Mantenimiento lee pero NO escribe',Promise.all([assertSucceeds(getDoc(doc(como('mant'),'tareos/t1'))),assertFails(setDoc(doc(como('mant'),'tareos/t1'),tar('t1')))]));
   await caso('tareos/{id}: sin sesión no se lee',assertFails(getDoc(doc(como(null),'tareos/t1'))));
   await caso('tareos/{id}: nadie lo borra (eliminar deja eliminado:true)',assertFails(deleteDoc(doc(como('admin'),'tareos/t1'))));
+
+  // Asistente de Producción (apInsumos, apFactores, apMovimientos, apSolicitudes, apMermas, apConciliaciones, apAuditoria)
+  const autor=uid=>({actualizadoUid:uid,actualizadoEn:serverTimestamp()});
+  const fac=(uid,v,extra)=>({id:'PET1_POLIETILENO_x',insumo:'POLIETILENO',linea:'PET1',factor:1.89,cantidadBase:1,version:v,...autor(uid),...(extra||{})});
+  await caso('apFactores: el Administrador crea un factor (versión 1)',assertSucceeds(setDoc(doc(como('admin'),'apFactores/PET1_POLIETILENO_x'),fac('admin',1))));
+  await caso('apFactores: el Asistente NO modifica factores (prueba 13)',assertFails(setDoc(doc(como('asis'),'apFactores/PET1_POLIETILENO_x'),fac('asis',2,{factor:5}))));
+  await caso('apFactores: NO con versión que no sube de 1 en 1 ni con factor negativo',Promise.all([assertFails(setDoc(doc(como('admin'),'apFactores/PET1_POLIETILENO_x'),fac('admin',5))),
+    assertFails(setDoc(doc(como('admin'),'apFactores/F2'),{...fac('admin',1),id:'F2',factor:-1}))]));
+  await caso('apFactores: nadie los borra',assertFails(deleteDoc(doc(como('admin'),'apFactores/PET1_POLIETILENO_x'))));
+  const mov=(uid,op,tipo,extra)=>({opId:op,tipo,insumo:'POLIETILENO',cantidad:5,uid,guardadoEn:serverTimestamp(),...(extra||{})});
+  await caso('apMovimientos: el Asistente registra un conteo y una recepción',Promise.all([assertSucceeds(setDoc(doc(como('asis'),'apMovimientos/m1'),mov('asis','m1','CONTEO'))),
+    assertSucceeds(setDoc(doc(como('asis'),'apMovimientos/m2'),mov('asis','m2','RECEPCION')))]));
+  await caso('apMovimientos: inmutable (no se edita ni se borra; un reintento con el mismo opId no lo pisa)',Promise.all([assertFails(setDoc(doc(como('asis'),'apMovimientos/m1'),mov('asis','m1','CONTEO',{cantidad:99}))),
+    assertFails(deleteDoc(doc(como('admin'),'apMovimientos/m1')))]));
+  await caso('apMovimientos: CONSUMO solo quien valida; el Asistente NO',Promise.all([assertFails(setDoc(doc(como('asis'),'apMovimientos/c1'),mov('asis','c1','CONSUMO'))),
+    assertSucceeds(setDoc(doc(como('jefe'),'apMovimientos/c2'),mov('jefe','c2','CONSUMO')))]));
+  await caso('apMovimientos: NO con otro uid, ni con id distinto al opId, ni modo visualización, ni quitando el permiso',Promise.all([
+    assertFails(setDoc(doc(como('asis'),'apMovimientos/m3'),mov('otro','m3','CONTEO'))),assertFails(setDoc(doc(como('asis'),'apMovimientos/m4'),mov('asis','zz','CONTEO'))),
+    assertFails(setDoc(doc(como('asisVista'),'apMovimientos/m5'),mov('asisVista','m5','CONTEO'))),assertFails(setDoc(doc(como('asisSin'),'apMovimientos/m6'),mov('asisSin','m6','CONTEO')))]));
+  const sol=(uid,v,estado,hist)=>({id:'SOL-1',estado,version:v,creadoUid:'asis',historial:new Array(hist).fill({estado}),items:[],...autor(uid)});
+  await caso('apSolicitudes: el Asistente la crea y la envía',assertSucceeds(setDoc(doc(como('asis'),'apSolicitudes/SOL-1'),sol('asis',1,'SOLICITADA',1))));
+  await caso('apSolicitudes: el Asistente NO entrega (solo Almacén)',assertFails(setDoc(doc(como('asis'),'apSolicitudes/SOL-1'),sol('asis',2,'EN_PREPARACION',2))));
+  await caso('apSolicitudes: Almacén prepara y entrega',assertSucceeds(setDoc(doc(como('almacen'),'apSolicitudes/SOL-1'),sol('almacen',2,'EN_PREPARACION',2))));
+  await caso('apSolicitudes: Almacén entrega parcialmente; Producción registra una recepción parcial sin cambiar el estado',(async()=>{
+    await assertSucceeds(setDoc(doc(como('almacen'),'apSolicitudes/SOL-1'),sol('almacen',3,'ENTREGADA_PARCIAL',3)));
+    await assertSucceeds(setDoc(doc(como('asis'),'apSolicitudes/SOL-1'),sol('asis',4,'ENTREGADA_PARCIAL',4)));
+    await assertFails(setDoc(doc(como('asis'),'apSolicitudes/SOL-1'),sol('asis',5,'ENTREGADA',5)));})());
+  await caso('apSolicitudes: Almacén NO confirma la recepción (la confirma Producción)',assertFails(setDoc(doc(como('almacen'),'apSolicitudes/SOL-1'),sol('almacen',5,'RECIBIDA',5))));
+  await caso('apSolicitudes: NO sin subir la versión ni borrando historial (dos usuarios a la vez: el segundo falla)',assertFails(setDoc(doc(como('almacen'),'apSolicitudes/SOL-1'),sol('almacen',4,'ENTREGADA',4))));
+  const mer=(uid,v,estado,extra)=>({id:'M1',estado,version:v,cantidad:4,insumo:'TAPA',unidad:'UND',cuadro:'k',historial:new Array(v).fill({estado}),...autor(uid),...(extra||{})});
+  await caso('apMermas: el Asistente registra una merma pendiente',assertSucceeds(setDoc(doc(como('asis'),'apMermas/M1'),mer('asis',1,'PENDIENTE'))));
+  await caso('apMermas: el Asistente NO la valida',assertFails(setDoc(doc(como('asis'),'apMermas/M1'),mer('asis',2,'VALIDADA',{validadoUid:'asis'}))));
+  await caso('apMermas: quien valida NO cambia la cantidad al validar',assertFails(setDoc(doc(como('jefe'),'apMermas/M1'),mer('jefe',2,'VALIDADA',{validadoUid:'jefe',cantidad:1}))));
+  await caso('apMermas: Jefe de Producción la valida',assertSucceeds(setDoc(doc(como('jefe'),'apMermas/M1'),mer('jefe',2,'VALIDADA',{validadoUid:'jefe'}))));
+  await caso('apMermas: una merma validada no se vuelve a cambiar',assertFails(setDoc(doc(como('jefe'),'apMermas/M1'),mer('jefe',3,'RECHAZADA',{validadoUid:'jefe'}))));
+  const con=(uid,v,estado)=>({id:'C1',estado,version:v,historial:new Array(v).fill({estado}),saldoInicial:1,saldoFinal:0,...autor(uid)});
+  await caso('apConciliaciones: el Asistente guarda borrador y envía a revisión',Promise.all([assertSucceeds(setDoc(doc(como('asis'),'apConciliaciones/C1'),con('asis',1,'BORRADOR')))]));
+  await caso('apConciliaciones: el Asistente NO confirma',assertFails(setDoc(doc(como('asis'),'apConciliaciones/C1'),con('asis',2,'CONFIRMADA'))));
+  await caso('apConciliaciones: quien valida confirma; después el Asistente ya no la edita',(async()=>{
+    await assertSucceeds(setDoc(doc(como('jefe'),'apConciliaciones/C1'),con('jefe',2,'CONFIRMADA')));
+    await assertFails(setDoc(doc(como('asis'),'apConciliaciones/C1'),con('asis',3,'BORRADOR')));})());
+  await caso('apAuditoria: se crea con uid y hora del servidor; nadie la edita ni la borra',(async()=>{
+    await assertSucceeds(setDoc(doc(como('asis'),'apAuditoria/a1'),{uid:'asis',en:serverTimestamp(),operacion:'CREAR'}));
+    await assertFails(setDoc(doc(como('asis'),'apAuditoria/a2'),{uid:'otro',en:serverTimestamp()}));
+    await assertFails(updateDoc(doc(como('admin'),'apAuditoria/a1'),{operacion:'X'}));
+    await assertFails(deleteDoc(doc(como('admin'),'apAuditoria/a1')));})());
+  await caso('Asistente: la cuenta compartida de Mantenimiento NO lee sus datos',assertFails(getDoc(doc(como('mant'),'apMovimientos/m1'))));
 
   // Economía y cierre general
   await caso('configEconomica (versión anterior): nadie la escribe',assertFails(setDoc(doc(como('gerente'),'configEconomica/margenes'),{x:1})));
