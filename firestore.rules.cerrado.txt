@@ -1,0 +1,13 @@
+// GLACIAL · DÍA DEL CAMBIO A SUPABASE · PASO 2 de 2 — «cerrado»
+// Se publica cuando la copia final ya está verificada. Firebase queda como respaldo: nadie puede leer ni
+// guardar desde la página (el dueño del proyecto sigue viendo los datos en la consola de Firebase).
+// Quien tenga abierta la página antigua verá un error y, al recargar, entrará a la página nueva.
+// Para volver atrás: publicar de nuevo firestore.rules.etapa2.txt.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
