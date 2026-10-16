@@ -183,6 +183,11 @@
     if(mostrar!==false&&window.esMantCompartido()&&state.user)abrirOverlay();
   };
 
+  /* Abre la ventana «¿Quién eres?» (la usa el aviso de 37f-tareo-por-tecnico.js cuando no hay técnico identificado). */
+  window.mantAbrirIdentificacion=function(){
+    if(window.esMantCompartido()&&state.user)abrirOverlay();
+  };
+
   /* ---------- técnicos disponibles ---------- */
   function tecnicosDisponibles(){
     const lista=typeof loadWorkers==='function'?(loadWorkers()||[]):[];
