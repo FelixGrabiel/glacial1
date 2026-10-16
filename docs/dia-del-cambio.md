@@ -1,6 +1,7 @@
 # Día del cambio: de Firebase a Supabase
 
-**Fecha acordada:** domingo 1 de noviembre de 2026, a partir de las 14:00 (hora de Lima). **Duración:** unos 30 minutos sin usar la página.
+**Fecha acordada:** domingo 18 de octubre de 2026, a partir de las 20:00 (hora de Lima). Se adelantó desde el 1 de noviembre
+porque el plan gratuito de Firebase empezó a agotar su límite diario («Quota exceeded») con el uso real. **Duración:** unos 30 minutos sin usar la página.
 
 Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus contraseñas o la consola de Firebase;
 **Claude** hace la copia, las comprobaciones y la publicación. Nada de esto borra datos: Firebase queda intacto como respaldo.
@@ -13,6 +14,7 @@ Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus
 
 ## Los días anteriores
 
+- [ ] Pausa de cambios en `main` desde el sábado 17 en la noche.
 - [ ] Integrar en la rama `supabase` lo último de `main` y repetir las pruebas (`tests/puente-supabase.test.js`, `tests/puente-pagina.e2e.js`).
 - [ ] Ensayo en PRUEBAS con dos o tres personas reales (supervisor, mantenimiento, RRHH).
 - [ ] Comprobar que el proyecto de producción de Supabase está activo. Los proyectos gratuitos se pausan si pasan una semana
@@ -20,6 +22,7 @@ Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus
       `glacial-mantener-activo`, migración `glacial_20o`) y hay una tarea programada de Claude cada lunes que lo revisa.
 - [ ] Avisar al personal: día y hora, 30 minutos sin usar la página; al volver hay que **recargar** y entrar con la **contraseña temporal nueva**.
 - [ ] Decidir el plan de Supabase para producción (el gratuito no tiene copias de seguridad diarias; el Pro guarda 7 días).
+      Mientras tanto: copia completa de la base justo después del cambio y una semanal.
 - [ ] En los dos proyectos de Supabase: Authentication → desactivar «Allow new users to sign up».
 
 ## El día del cambio
