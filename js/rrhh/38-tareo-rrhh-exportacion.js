@@ -26,23 +26,25 @@
      --------------------------------------------------------- */
   const GRUPOS={
     SUP:{clave:'SUP',orden:1,etiqueta:'Producción / supervisores',bloque:'SUPERVISORES DE PRODUCCIÓN',hoja:'Supervisores'},
-    MAQ:{clave:'MAQ',orden:2,etiqueta:'Mantenimiento / maquinistas',bloque:'MAQUINISTAS',hoja:'Maquinistas'},
-    TEC:{clave:'TEC',orden:3,etiqueta:'Mantenimiento / técnicos',bloque:'TÉCNICOS DE MANTENIMIENTO',hoja:'Técnicos'},
-    OPE:{clave:'OPE',orden:4,etiqueta:'Producción / operarios',bloque:'OPERARIOS Y LÍDERES DE PRODUCCIÓN',hoja:'Operarios'},
-    SIN:{clave:'SIN',orden:5,etiqueta:'Sin clasificar',bloque:'SIN CLASIFICAR · REVISAR CARGO',hoja:'Sin clasificar'},
-    DIA:{clave:'DIA',orden:6,etiqueta:'Personal por día',bloque:'PERSONAL X DÍA',hoja:'Personal x día'}
+    SMT:{clave:'SMT',orden:2,etiqueta:'Mantenimiento / supervisor',bloque:'SUPERVISOR DE MANTENIMIENTO',hoja:'Supervisor mantenimiento'},
+    MAQ:{clave:'MAQ',orden:3,etiqueta:'Mantenimiento / maquinistas',bloque:'MAQUINISTAS',hoja:'Maquinistas'},
+    TEC:{clave:'TEC',orden:4,etiqueta:'Mantenimiento / técnicos',bloque:'TÉCNICOS DE MANTENIMIENTO',hoja:'Técnicos'},
+    OPE:{clave:'OPE',orden:5,etiqueta:'Producción / operarios',bloque:'OPERARIOS Y LÍDERES DE PRODUCCIÓN',hoja:'Operarios'},
+    SIN:{clave:'SIN',orden:6,etiqueta:'Sin clasificar',bloque:'SIN CLASIFICAR · REVISAR CARGO',hoja:'Sin clasificar'},
+    DIA:{clave:'DIA',orden:7,etiqueta:'Personal por día',bloque:'PERSONAL X DÍA',hoja:'Personal x día'}
   };
   const ORDEN_GRUPOS=Object.values(GRUPOS).sort((a,b)=>a.orden-b.orden).map(g=>g.clave);
 
   /* Opciones del selector "Grupo" → grupos que incluye. */
   const OPCIONES_GRUPO=[
+    {valor:'SMT',texto:'Mantenimiento / supervisor',incluye:['SMT']},
     {valor:'MAQ',texto:'Mantenimiento / maquinistas',incluye:['MAQ']},
     {valor:'TEC',texto:'Mantenimiento / técnicos',incluye:['TEC']},
     {valor:'OPE',texto:'Producción / operarios',incluye:['OPE','DIA']},
     {valor:'SUP',texto:'Producción / supervisores',incluye:['SUP']},
     {valor:'GENERAL',texto:'General',incluye:ORDEN_GRUPOS}
   ];
-  const gruposDe=valor=>(OPCIONES_GRUPO.find(o=>o.valor===valor)||OPCIONES_GRUPO[4]).incluye;
+  const gruposDe=valor=>(OPCIONES_GRUPO.find(o=>o.valor===valor)||OPCIONES_GRUPO.find(o=>o.valor==='GENERAL')).incluye;
 
   const norm=t=>typeof tareoNormalizarTexto==='function'
     ? tareoNormalizarTexto(t)
@@ -53,6 +55,8 @@
     const c=norm(cargo);
     if(!c)return 'SIN';
     if(/maquinista/.test(c))return 'MAQ';
+    // Supervisor de Mantenimiento: tiene su propio bloque (antes caía en «Sin clasificar» y no salía en la imagen).
+    if(/supervis/.test(c)&&/mantenimiento|mtto/.test(c))return 'SMT';
     if(/supervis|jefe|gerent|coordinad|asistent|rrhh|administr/.test(c)){
       // Solo los supervisores de Producción tienen grupo; el resto se revisa.
       return /supervis/.test(c)&&!/mantenimiento|mtto/.test(c)?'SUP':'SIN';
@@ -544,7 +548,7 @@
     const L=tareoListaUnica({fechas:cfg.fechas,turnos:cfg.turnos,grupos,areaPorDia:cfg.areaPorDia});
     if(!L.filas.length){alert('No hay personal registrado con esos filtros.');return;}
     const multi=cfg.fechas.length>1||cfg.turnos.length>1;
-    const opcion=OPCIONES_GRUPO.find(o=>o.valor===cfg.grupoSel)||OPCIONES_GRUPO[4];
+    const opcion=OPCIONES_GRUPO.find(o=>o.valor===cfg.grupoSel)||OPCIONES_GRUPO.find(o=>o.valor==='GENERAL');
     const info={
       grupoTexto:cfg.etiquetaGrupo||opcion.texto,
       rangoTexto:etiquetaRango(cfg.fechas),
@@ -558,7 +562,7 @@
 
     if(cfg.grupoSel==='GENERAL'){
       // Control: el total general debe ser igual a la suma de los grupos (calculados por separado).
-      const hojasGrupo=[['SUP'],['MAQ'],['TEC'],['OPE','DIA'],['SIN']];
+      const hojasGrupo=[['SUP'],['SMT'],['MAQ'],['TEC'],['OPE','DIA'],['SIN']];
       const partes=hojasGrupo.map(g=>({g,L:tareoListaUnica({fechas:cfg.fechas,turnos:cfg.turnos,grupos:g})}));
       const suma=partes.reduce((s,p)=>s+p.L.filas.length,0);
       info.control={total:L.filas.length,suma,
@@ -587,7 +591,7 @@
   /* ---------------------------------------------------------
      5) IMAGEN PARA WHATSAPP
      --------------------------------------------------------- */
-  const GRUPOS_IMAGEN={'Producción':['SUP','MAQ','OPE','DIA'],'Mantenimiento':['MAQ','TEC','DIA']};
+  const GRUPOS_IMAGEN={'Producción':['SUP','MAQ','OPE','DIA'],'Mantenimiento':['SMT','MAQ','TEC','DIA']};
   const ESTADO_CORTO={
     'Falta por justificar':'FALTA','Falta justificada':'FALTA JUSTIF.','Descanso':'DESCANSO',
     'Descanso médico':'DESC. MÉDICO','Vacaciones':'VACACIONES','Suspensión':'SUSPENSIÓN',
@@ -927,7 +931,7 @@
   window.__rrhhxImagen=()=>{
     const c=leerPanel();
     if(c.fechas.length!==1||c.turnos.length!==1)return;
-    const areaPorDefecto=c.grupoSel==='MAQ'||c.grupoSel==='TEC'?'Mantenimiento':'Producción';
+    const areaPorDefecto=c.grupoSel==='SMT'||c.grupoSel==='MAQ'||c.grupoSel==='TEC'?'Mantenimiento':'Producción';
     mostrarImagenes({fecha:c.fechas[0],turno:c.turnos[0],area:areaPorDefecto,
       titulo:areaPorDefecto==='Producción'?'Tareo de producción':'Tareo de mantenimiento'});
   };
@@ -1029,7 +1033,7 @@
      TAREO GENERAL EN PANTALLA: mismos grupos, orden y personas que el Excel y la imagen
      --------------------------------------------------------- */
   let grupoVista='TODOS';
-  const CHIPS_VISTA=[['TODOS','Todos'],['SUP','Supervisores'],['MAQ','Maquinistas'],['TEC','Técnicos'],['OPE','Operarios'],['DIA','Personal x día'],['SIN','Sin clasificar']];
+  const CHIPS_VISTA=[['TODOS','Todos'],['SUP','Supervisores'],['SMT','Sup. mantenimiento'],['MAQ','Maquinistas'],['TEC','Técnicos'],['OPE','Operarios'],['DIA','Personal x día'],['SIN','Sin clasificar']];
 
   function datosVistaGeneral(){
     const f=tareoGeneralFiltros;
@@ -1037,7 +1041,7 @@
     let filas=L.filas;
     // Filtro de área: Producción = supervisores/operarios; Mantenimiento = maquinistas/técnicos (regla de RRHH).
     if(f.area==='Producción')filas=filas.filter(x=>['SUP','OPE'].includes(x.grupo)||((x.grupo==='DIA'||x.grupo==='SIN')&&x.area==='Producción'));
-    if(f.area==='Mantenimiento')filas=filas.filter(x=>['MAQ','TEC'].includes(x.grupo)||((x.grupo==='DIA'||x.grupo==='SIN')&&x.area==='Mantenimiento'));
+    if(f.area==='Mantenimiento')filas=filas.filter(x=>['SMT','MAQ','TEC'].includes(x.grupo)||((x.grupo==='DIA'||x.grupo==='SIN')&&x.area==='Mantenimiento'));
     return filas;
   }
 
