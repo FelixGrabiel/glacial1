@@ -2,7 +2,7 @@
    GLACIAL · ROTACIÓN SEMANAL DE MANTENIMIENTO
 
    - Solo Supervisor de Mantenimiento / Jefe de Mantenimiento.
-   - Muestra únicamente técnicos activos de Mantenimiento.
+   - Muestra los técnicos activos de Mantenimiento y al Supervisor de Mantenimiento (un solo turno por semana).
    - Turnos: Día / Intermedio / Noche.
    - Horario editable por técnico.
    - Se guarda en Firebase: sync/rotacionesMantenimiento.
@@ -119,10 +119,16 @@
            !/supervisor|jefe|gerent|coordinad|asistent/.test(c);
   }
 
+  /* El Supervisor de Mantenimiento también entra en la rotación semanal: así el tareo lo asigna a UN solo turno
+     (sin rotación aparecía en Día y en Noche). */
+  function mttoEsSupervisor(cargo){
+    return typeof tareoEsSupervisorMantenimiento === 'function' && tareoEsSupervisorMantenimiento(cargo);
+  }
+
   function mttoTecnicosActivos(){
     const lista = typeof loadWorkers === 'function' ? loadWorkers() : [];
     return (Array.isArray(lista) ? lista : [])
-      .filter(w => w && tareoNormalizarTexto(w.estado) === 'activo' && mttoEsTecnico(w.cargo))
+      .filter(w => w && tareoNormalizarTexto(w.estado) === 'activo' && (mttoEsTecnico(w.cargo) || mttoEsSupervisor(w.cargo)))
       .sort((a,b) => String(a.nombre||'').localeCompare(String(b.nombre||''),'es',{sensitivity:'base'}));
   }
 
@@ -230,7 +236,7 @@
     });
     const clases = {'Día':'dia','Intermedio':'intermedio','Noche':'noche'};
     return {
-      id:'rot-mtto', col1:'TÉCNICO', etiquetaTabla:'Rotación semanal de Mantenimiento',
+      id:'rot-mtto', col1:'TRABAJADOR', etiquetaTabla:'Rotación semanal de Mantenimiento',
       dias, fusion:{etq:'Toda la semana', titulo:'TURNO DE LA SEMANA'},
       filas: tecnicos.map(w => {
         const clave = mttoClaveTrabajador(w), p = borradorMtto[clave] || {};
