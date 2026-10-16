@@ -91,3 +91,18 @@ exports.mantVerificarPin=functions.https.onCall(async(data,context)=>{
     return {ok:false,restantes:MAX_INTENTOS-intentos,error:'PIN incorrecto.'};
   });
 });
+
+/* Reinicio del PIN: solo Administrador o Supervisor de Mantenimiento (no la cuenta compartida). El técnico crea uno nuevo al entrar. */
+exports.mantReiniciarPin=functions.https.onCall(async(data,context)=>{
+  if(!context.auth)throw new functions.https.HttpsError('unauthenticated','Inicia sesión.');
+  const snap=await db.doc('sync/perfiles').get();
+  const p=(snap.exists&&snap.data().map&&snap.data().map[context.auth.uid])||{};
+  const rol=String(p.rol||'');
+  const permisos=Array.isArray(p.permisos)?p.permisos:[];
+  const supervisorMtto=/supervisor|jefe/i.test(rol)&&/mantenimiento|mtto/i.test(rol);
+  if(rol!=='Administrador'&&!supervisorMtto&&!permisos.includes('gestionar_rotacion_mantenimiento'))
+    throw new functions.https.HttpsError('permission-denied','Solo el Supervisor de Mantenimiento o el Administrador pueden reiniciar un PIN.');
+  await db.doc('mantPines/'+String(data.workerId)).set({intentos:0,bloqueadoHasta:0,pinReiniciadoEn:Date.now(),pinReiniciadoPor:context.auth.uid,
+    hash:admin.firestore.FieldValue.delete(),salt:admin.firestore.FieldValue.delete()},{merge:true});
+  return {ok:true};
+});

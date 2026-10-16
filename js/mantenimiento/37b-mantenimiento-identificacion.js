@@ -249,6 +249,16 @@
       if(yaTenia)return {ok:false,error:'Este técnico ya tiene PIN. Ingrésalo.'};
       return {ok:true};
     },
+    /* Reinicio por el Supervisor de Mantenimiento / Administrador: borra el PIN; el técnico crea uno nuevo al entrar. */
+    async reiniciar(w){
+      await actualizarItem(w.id,it=>{
+        const nuevo=Object.assign({},it,{nombre:w.nombre,intentos:0,bloqueadoHasta:0,pinReiniciadoEn:ahora(),
+          pinReiniciadoPor:(typeof state!=='undefined'&&state.user&&(state.user.username||state.user.nombre))||''});
+        delete nuevo.hash;delete nuevo.salt;
+        return nuevo;
+      });
+      return {ok:true};
+    },
     async verificar(w,pin){
       const s=await refDoc().get();
       const items=(s.exists&&Array.isArray(s.data().items))?s.data().items:[];
@@ -291,7 +301,8 @@
   const Remoto={
     estado:w=>llamar('mantEstadoPin',{workerId:w.id}),
     crear:(w,pin)=>llamar('mantCrearPin',{workerId:w.id,pin}),
-    verificar:(w,pin)=>llamar('mantVerificarPin',{workerId:w.id,pin})
+    verificar:(w,pin)=>llamar('mantVerificarPin',{workerId:w.id,pin}),
+    reiniciar:w=>llamar('mantReiniciarPin',{workerId:w.id})
   };
   const Proveedor=()=>MODO()==='functions'?Remoto:Local;
 
@@ -509,7 +520,7 @@
       if(s.exists&&MODOS[s.data().modo])actual=s.data().modo;
       if(s.exists)h=horariosValidos(s.data());
     }catch(_){/* se usan los predeterminados */}
-    root.innerHTML='<div class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal" style="max-width:460px;width:96%;">'+
+    root.innerHTML='<div class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal" style="max-width:520px;width:96%;">'+
       '<div class="modal-head"><h3>Identificación de técnicos</h3><button class="modal-close" onclick="closeModal()">✕</button></div>'+
       '<div class="modal-body"><p class="small-muted">Define cuánto dura la identificación con PIN en la cuenta compartida de Mantenimiento. Se aplica a las próximas identificaciones.</p>'+
       '<div class="field-sm"><label>La identificación dura</label><select id="mant-ident-modo">'+
@@ -522,7 +533,11 @@
         '<div class="field-sm"><label>NOCHE · de</label><input type="time" id="mant-noche-ini" value="'+h.nocheIni+'"></div>'+
         '<div class="field-sm"><label>NOCHE · a (día siguiente)</label><input type="time" id="mant-noche-fin" value="'+h.nocheFin+'"></div>'+
       '</div>'+
-      '<div class="actions-row"><button class="btn btn-primary" id="mant-ident-guardar">Guardar</button></div></div></div></div>';
+      '<div class="actions-row"><button class="btn btn-primary" id="mant-ident-guardar">Guardar</button></div>'+
+      '<h4 style="margin:18px 0 4px;">PIN de los técnicos</h4>'+
+      '<p class="small-muted" style="margin:0 0 8px;">Si un técnico olvidó su PIN o está bloqueado, reinícialo: la próxima vez que entre creará uno nuevo.</p>'+
+      '<div id="mant-pin-lista" class="mant-pin-lista">Cargando…</div></div></div></div>';
+    pintarListaPines();
     document.getElementById('mant-ident-guardar').onclick=async()=>{
       const modo=document.getElementById('mant-ident-modo').value;
       const nuevos={diaIni:document.getElementById('mant-dia-ini').value,diaFin:document.getElementById('mant-dia-fin').value,
@@ -536,6 +551,41 @@
       }catch(e){alert('No se pudo guardar: '+(e&&e.message||e));}
     };
   };
+  /* Lista de técnicos con su estado de PIN y el botón «Reiniciar PIN» (Supervisor de Mantenimiento / Administrador). */
+  async function pintarListaPines(){
+    const cont=document.getElementById('mant-pin-lista');
+    if(!cont)return;
+    const tecnicos=tecnicosDisponibles();
+    let items=null;
+    if(MODO()==='local'){
+      try{const s=await refDoc().get();items=(s.exists&&Array.isArray(s.data().items))?s.data().items:[];}catch(_){items=null;}
+    }
+    if(!document.getElementById('mant-pin-lista'))return;
+    if(!tecnicos.length){cont.innerHTML='<span class="small-muted">No hay técnicos activos de Mantenimiento.</span>';return;}
+    cont.innerHTML='<div style="max-height:260px;overflow:auto;border:1px solid #d8e4ec;border-radius:8px;">'+tecnicos.map(w=>{
+      const it=items&&items.find(x=>x.workerId===w.id);
+      const bloq=it&&(it.bloqueadoHasta||0)>ahora();
+      const estado=items===null?'':bloq?'Bloqueado':(it&&it.hash)?'Con PIN':'Sin PIN';
+      const puede=!(items!==null&&estado==='Sin PIN');
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #eef3f7;flex-wrap:wrap;">'+
+        '<span style="flex:1 1 160px;min-width:0;overflow-wrap:anywhere;font-weight:600;">'+esc(w.nombre)+'</span>'+
+        (estado?'<small class="small-muted">'+estado+'</small>':'')+
+        '<button type="button" class="btn btn-ghost btn-sm" data-mant-reiniciar="'+esc(w.id)+'"'+(puede?'':' disabled')+'>Reiniciar PIN</button></div>';
+    }).join('')+'</div>';
+    cont.querySelectorAll('[data-mant-reiniciar]').forEach(b=>b.onclick=async()=>{
+      const w=tecnicos.find(x=>String(x.id)===b.getAttribute('data-mant-reiniciar'));
+      if(!w||!puedeConfigurarIdent())return;
+      if(!confirm('¿Reiniciar el PIN de '+w.nombre+'? Deberá crear uno nuevo la próxima vez que se identifique.'))return;
+      b.disabled=true;
+      try{
+        const r=await Proveedor().reiniciar(w);
+        if(r&&r.ok===false)throw new Error(r.error||'No se pudo reiniciar.');
+        alert('PIN de '+w.nombre+' reiniciado. Creará uno nuevo al entrar.');
+        pintarListaPines();
+      }catch(e){b.disabled=false;alert('No se pudo reiniciar el PIN: '+(e&&e.message||e));}
+    });
+  }
+
   // Botón en la barra de pestañas del tareo/Mantenimiento para quien puede configurarlo.
   if(typeof tareoRenderTabs==='function'){
     const tabsAnterior=tareoRenderTabs;
