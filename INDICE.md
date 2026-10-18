@@ -38,6 +38,7 @@ js/
 | 04-sidebar.js | Menú lateral y navegación |
 | 05-utils.js | Utilidades comunes |
 | 12b-barras-desplazamiento.js | Barra de desplazamiento horizontal espejo ARRIBA de toda tabla/contenedor ancho (selector en el archivo); solo aparece si el contenido no cabe |
+| 06b-fotos-supabase.js | Fotos PRIVADAS en Supabase Storage (bucket `glacial-fotos`): subir, enlaces firmados (1 h) en lote, hidratado de `<img>`/`<a>`; las fotos de Cloudinary siguen funcionando. Reglas: supabase/migraciones/glacial_25_fotos_privadas.sql (aplicada en producción). Doc: docs/FOTOS-SUPABASE.md |
 | 12-init.js | Arranque de la app (siempre el último script) |
 | 34-integraciones.js | Google Sheets y WhatsApp |
 
