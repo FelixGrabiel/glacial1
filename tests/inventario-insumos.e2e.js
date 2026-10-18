@@ -35,6 +35,8 @@ const wb3=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb3,XLSX.utils.aoa_
 const archivoMalo=path.join(tmp,'MALO.xlsx');XLSX.writeFile(wb3,archivoMalo);
 
 /* ---- página de prueba: el módulo real con la capa documento simulada en memoria ---- */
+const EXCELJS_DIST=process.env.EXCELJS_DIST||path.join(R,'node_modules/exceljs/dist');
+const HAY_EXCELJS=fs.existsSync(path.join(EXCELJS_DIST,'exceljs.min.js'));
 const PAGINA=`<!doctype html><meta charset="utf-8"><title>inv</title><body><div id="main"></div><div id="modal-root"></div><button id="btn-inventario-insumos" hidden style="display:none"></button>
 <script src="/xlsx/xlsx.full.min.js"></script>
 <script>
@@ -58,10 +60,10 @@ function closeModal(){document.getElementById('modal-root').innerHTML='';}
   window.firebase={firestore:{FieldValue:{serverTimestamp:()=>'__TS__'}},auth:()=>({currentUser:{uid:'u1'}})};
 })();
 </script>
-<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script><script src="/js/asistente/78-inventario-insumos-conciliacion.js"></script><script src="/js/asistente/79-inventario-insumos-auditoria.js"></script></body>`;
+<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script><script src="/js/asistente/78-inventario-insumos-conciliacion.js"></script><script src="/js/asistente/79-inventario-insumos-auditoria.js"></script>${HAY_EXCELJS?'<script src="/exceljs/exceljs.min.js"></script>':''}</body>`;
 const servidor=http.createServer((q,r)=>{
   if(q.url==='/'){r.setHeader('content-type','text/html; charset=utf-8');r.end(PAGINA);return;}
-  const f=q.url.startsWith('/xlsx/')?path.join(dist,q.url.slice(6)):path.join(R,q.url.split('?')[0]);
+  const f=q.url.startsWith('/exceljs/')?path.join(EXCELJS_DIST,q.url.slice(9)):q.url.startsWith('/xlsx/')?path.join(dist,q.url.slice(6)):path.join(R,q.url.split('?')[0]);
   fs.readFile(f,(e,d)=>{if(e){r.statusCode=404;r.end();}else{r.setHeader('content-type',/\.js$/.test(f)?'text/javascript':'application/octet-stream');r.end(d);}});
 });
 
@@ -208,6 +210,19 @@ const servidor=http.createServer((q,r)=>{
   await page.locator('#ii-q-tabla tbody tr >> nth=0 >> input').blur();
   await page.waitForFunction(()=>window.__docs&&[...window.__docs.keys()].some(k=>k.startsWith('insumosConteosComentarios/')));
   ok(true,'el comentario se guarda al salir del campo');
+  /* descarga REAL del Excel de conciliación (con ExcelJS cargado en la página) */
+  if(HAY_EXCELJS){
+    await page.setViewportSize({width:1280,height:900});
+    const [descarga]=await Promise.all([page.waitForEvent('download',{timeout:30000}),page.click('text=Exportar a Excel')]);
+    const rutaX=path.join(tmp,'descarga.xlsx');await descarga.saveAs(rutaX);
+    ok(/^GLACIAL_Conciliacion_Insumos_\d{4}-\d{2}-\d{2}\.xlsx$/.test(descarga.suggestedFilename()),'se descarga «'+descarga.suggestedFilename()+'»');
+    const EJ=require(path.join(EXCELJS_DIST,'..'));const wbx=new EJ.Workbook();await wbx.xlsx.readFile(rutaX);
+    ok(wbx.worksheets.map(w=>w.name).join('|')==='Conciliación|Detalle por ubicación|Resumen','el archivo descargado tiene sus 3 hojas');
+    const wsx=wbx.getWorksheet('Conciliación');
+    ok(wsx.getRow(4).getCell(1).value==='Artículo'&&/^CONTEO \d\d\.\d\d$/.test(wsx.getRow(4).getCell(9).value)&&wsx.rowCount>4,'conciliación: encabezados del Excel del usuario y filas de datos');
+    ok(wbx.getWorksheet('Detalle por ubicación').rowCount>4,'detalle por ubicación con las líneas del conteo');
+    await page.setViewportSize({width:360,height:740});
+  }else console.log('  (sin ExcelJS: se omite la descarga real; defina EXCELJS_DIST)');
   ok(await page.evaluate(()=>document.documentElement.scrollWidth<=362),'conciliación en 360 px sin desborde de página');
   await page.screenshot({path:path.join(tmp,'conciliacion-360.png')});
   await page.setViewportSize({width:1280,height:900});
