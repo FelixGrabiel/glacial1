@@ -136,7 +136,7 @@
   window.apEnfocar=id=>{const el=document.getElementById(id);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>el.focus(),300);}};
   window.apIrConteo=()=>{AP.tab='insumos';AP.sub='existencias';pintar();window.apEnfocar('ap-mov-cant');};
 
-  /* ---------- evidencia opcional (Cloudinary, mismo servicio que 06-registro.js) ---------- */
+  /* ---------- evidencia opcional (Supabase Storage privado; respaldo: Cloudinary) ---------- */
   const EVID={tipos:['image/jpeg','image/png','application/pdf'],maxBytes:10*1024*1024};
   function evidenciaHTML(id){
     return `<label class="ap-evid" for="${id}"><span class="ap-evid-ico">${ico('camara')}</span><span><b>Adjuntar evidencia</b> (opcional)<small id="${id}-nombre">JPG, PNG o PDF. Máx. 10 MB.</small></span>
@@ -148,6 +148,14 @@
     if(!file)return '';
     if(!EVID.tipos.includes(file.type))throw new Error('La evidencia debe ser JPG, PNG o PDF.');
     if(file.size>EVID.maxBytes)throw new Error('La evidencia supera 10 MB.');
+    /* Primero Supabase Storage (bucket privado, carpeta asistente/AAAA-MM); si no responde, Cloudinary como hasta ahora. Se guarda la referencia «supabase:…». */
+    if(window.glacialFotos&&window.glacialFotos.disponible()){
+      try{
+        const mes=new Date().toISOString().slice(0,7);
+        const r=await window.glacialFotos.subir(file,{carpeta:'asistente/'+mes,id:'ev_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),tipo:file.type});
+        return r.url;
+      }catch(e){console.warn('GLACIAL · Supabase Storage no disponible, se usa Cloudinary:',e);}
+    }
     const nube=typeof CLOUDINARY_CLOUD_NAME!=='undefined'?CLOUDINARY_CLOUD_NAME:'',preset=typeof CLOUDINARY_UPLOAD_PRESET!=='undefined'?CLOUDINARY_UPLOAD_PRESET:'';
     if(!nube||!preset)throw new Error('No está configurado el servicio de evidencias.');
     const fd=new FormData();fd.append('file',file);fd.append('upload_preset',preset);

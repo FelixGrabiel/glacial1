@@ -86,6 +86,7 @@
     prueba(){return window.__archivosPrueba||null;},
     disponible(){
       const p=this.prueba();if(p)return p.disponible!==false;
+      if(window.glacialFotos&&window.glacialFotos.disponible())return true;                 // Supabase Storage (privado)
       return !!(nube()&&preset()&&typeof XMLHttpRequest!=='undefined'&&typeof FormData!=='undefined');
     },
     /* Dirección de entrega derivada del id (no se guarda en la base de datos). mini = transformación de miniatura. */
@@ -94,8 +95,23 @@
       return 'https://res.cloudinary.com/'+nube()+'/image/upload/'+(mini?'c_fill,w_320,h_320,q_auto,f_auto/':'q_auto/')+publicId+'.jpg';
     },
     /* Sube el archivo; devuelve {publicId}. Un id ya existente (reintento tras una respuesta perdida) cuenta como subido. */
-    subir(publicId,carpeta,blob,meta,progreso){
+    async subir(publicId,carpeta,blob,meta,progreso){
       const p=this.prueba();if(p)return p.subir(publicId,carpeta,blob,meta,progreso);
+      /* Primero Supabase Storage (bucket privado); si no responde, Cloudinary (como siempre). Un archivo ya subido (reintento) cuenta como subido. */
+      if(window.glacialFotos&&window.glacialFotos.disponible()){
+        try{
+          const r=await window.glacialFotos.subir(blob,{carpeta,id:publicId,tipo:'image/jpeg'});
+          if(progreso)progreso(1);
+          return {publicId:r.url};
+        }catch(e){
+          if(/already exists|duplicate/i.test(String(e&&e.message)))return {publicId:window.glacialFotos.PREFIJO+carpeta+'/'+publicId+'.jpg'};
+          if(!(nube()&&preset()))throw e;
+          console.warn('GLACIAL · Supabase Storage no disponible, se usa Cloudinary:',e);
+        }
+      }
+      return this.subirCloudinary(publicId,carpeta,blob,meta,progreso);
+    },
+    subirCloudinary(publicId,carpeta,blob,meta,progreso){
       return new Promise((ok,er)=>{
         const fd=new FormData();
         fd.append('file',blob);fd.append('upload_preset',preset());fd.append('folder',carpeta);fd.append('public_id',publicId);
@@ -114,6 +130,9 @@
     }
   };
   const urlDe=(ruta,mini)=>Archivos.url(ruta,mini);
+  /* Atributo src de una foto: las de Supabase (referencia «supabase:…», privadas) se firman al mostrarlas; las de Cloudinary, como siempre. */
+  const srcDe=(ruta,mini)=>window.glacialFotos&&window.glacialFotos.esRef(ruta)?window.glacialFotos.atributosImg(ruta):'src="'+esc(urlDe(ruta,mini))+'"';
+  const proveedorDe=ruta=>window.glacialFotos&&window.glacialFotos.esRef(ruta)?'supabase':'cloudinary';
 
   /* ---------- cola local (IndexedDB; en memoria si no hay) ---------- */
   const mem=new Map();
@@ -192,7 +211,7 @@
       }
       try{                                                   // el archivo YA existe: recién ahora se registra la referencia
         marcar(id,{estado:'REGISTRANDO',progreso:1});
-        await A.accion(it.intervencionId,'EVIDENCIA',{id,seccion:it.seccion,descripcion:it.descripcion,path:it.publicId,proveedor:'cloudinary',tam:it.tam,ancho:it.ancho,alto:it.alto,mime:'image/jpeg'});
+        await A.accion(it.intervencionId,'EVIDENCIA',{id,seccion:it.seccion,descripcion:it.descripcion,path:it.publicId,proveedor:proveedorDe(it.publicId),tam:it.tam,ancho:it.ancho,alto:it.alto,mime:'image/jpeg'});
       }catch(e){
         if(e&&e.codigo==='EVIDENCIA_DUPLICADA'){/* ya estaba registrada: nada más que limpiar */}
         else{
@@ -228,7 +247,7 @@
       const lista=activas.filter(e=>e.seccion===sec),pp=pend.filter(x=>x.seccion===sec);
       if(!lista.length&&!pp.length&&!puedeAgregar)return;
       h+='<div style="margin:6px 0"><b style="font-size:12px;color:#46627a">'+esc(M.SECCIONES_EVIDENCIA[sec]).toUpperCase()+'</b><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">'+
-        lista.map(e=>'<figure style="margin:0;width:92px"><img alt="'+esc(e.descripcion||'Foto')+'" loading="lazy" src="'+esc(urlDe(e.path,true))+'" data-ev-id="'+esc(e.id)+'" style="width:92px;height:92px;object-fit:cover;border-radius:8px;border:1px solid #dce5ec;background:#f1f5f9;cursor:pointer">'+
+        lista.map(e=>'<figure style="margin:0;width:92px"><img alt="'+esc(e.descripcion||'Foto')+'" loading="lazy" '+srcDe(e.path,true)+' data-ev-id="'+esc(e.id)+'" style="width:92px;height:92px;object-fit:cover;border-radius:8px;border:1px solid #dce5ec;background:#f1f5f9;cursor:pointer">'+
           '<figcaption style="font-size:10px;color:#5a6b78">'+esc(e.descripcion||'')+' '+esc((e.por&&e.por.nombre)||'')+'</figcaption></figure>').join('')+
         pp.map(x=>{const st=estados.get(x.id)||{estado:x.estado};return '<figure style="margin:0;width:92px"><img alt="Foto pendiente" src="'+miniaturaPend(x)+'" style="width:92px;height:92px;object-fit:cover;border-radius:8px;border:2px dashed #e879f9;opacity:.8">'+
           '<figcaption style="font-size:10px;color:#86198f"><b>'+(st.estado==='SUBIENDO'?'Subiendo '+Math.round((st.progreso||0)*100)+' %':st.estado==='REGISTRANDO'?'Registrando…':st.estado==='SUBIDA_SIN_REGISTRO'?'Subida; registro pendiente':'Foto pendiente de subir')+'</b>'+
@@ -251,7 +270,7 @@
     if(!e)return;
     const f=UIM().modal('<h3>Foto · '+esc(M.SECCIONES_EVIDENCIA[e.seccion])+'</h3><div id="ev-img" class="mi-meta">Cargando…</div><div class="mi-meta">'+esc(e.descripcion||'')+' · '+esc((e.por&&e.por.nombre)||'')+' · '+esc(UIM().fmtFH(e.en))+'</div>'+
       '<div class="mi-acc"><button type="button" class="btn btn-ghost" data-mi-cerrar>Cerrar</button>'+(API().permisos().escribir&&d.estado!=='CANCELADA'?'<button type="button" class="btn btn-ghost" id="ev-anular">Anular foto</button>':'')+'</div>',true);
-    f.querySelector('#ev-img').innerHTML='<img alt="'+esc(e.descripcion||'Foto')+'" src="'+esc(urlDe(e.path,false))+'" style="max-width:100%;border-radius:10px">';
+    f.querySelector('#ev-img').innerHTML='<img alt="'+esc(e.descripcion||'Foto')+'" '+srcDe(e.path,false)+' style="max-width:100%;border-radius:10px">';
     const b=f.querySelector('#ev-anular');
     if(b)b.onclick=()=>{
       f.remove();
@@ -292,7 +311,7 @@
       docs.forEach(d=>(d.evidencias||[]).filter(x=>!x.anulada).forEach(x=>filas.push({d,x})));
       filas.sort((a,b)=>b.x.en-a.x.en);
       f.querySelector('#ev-lista').className='';
-      f.querySelector('#ev-lista').innerHTML=filas.length?'<div style="display:flex;gap:8px;flex-wrap:wrap">'+filas.map(({d,x})=>'<figure style="margin:0;width:104px"><img loading="lazy" src="'+esc(urlDe(x.path,true))+'" alt="'+esc(x.descripcion||'Foto')+'" style="width:104px;height:104px;object-fit:cover;border-radius:8px;border:1px solid #dce5ec;background:#f1f5f9;cursor:pointer" data-ev-abrir-int="'+esc(d.id)+'|'+esc(x.id)+'"><figcaption style="font-size:10px;color:#5a6b78">'+esc(UIM().fmtFH(x.en))+' · '+esc(M.SECCIONES_EVIDENCIA[x.seccion])+'<br>'+esc(String(d.problema).slice(0,40))+'</figcaption></figure>').join('')+'</div>'
+      f.querySelector('#ev-lista').innerHTML=filas.length?'<div style="display:flex;gap:8px;flex-wrap:wrap">'+filas.map(({d,x})=>'<figure style="margin:0;width:104px"><img loading="lazy" '+srcDe(x.path,true)+' alt="'+esc(x.descripcion||'Foto')+'" style="width:104px;height:104px;object-fit:cover;border-radius:8px;border:1px solid #dce5ec;background:#f1f5f9;cursor:pointer" data-ev-abrir-int="'+esc(d.id)+'|'+esc(x.id)+'"><figcaption style="font-size:10px;color:#5a6b78">'+esc(UIM().fmtFH(x.en))+' · '+esc(M.SECCIONES_EVIDENCIA[x.seccion])+'<br>'+esc(String(d.problema).slice(0,40))+'</figcaption></figure>').join('')+'</div>'
         :'<div class="mi-vacio">Este equipo no tiene fotos registradas'+(docs.length?' ('+docs.length+' intervenciones).':'.')+'</div>';
       f.querySelectorAll('[data-ev-abrir-int]').forEach(i=>i.addEventListener('click',()=>{const [a,b]=i.dataset.evAbrirInt.split('|');f.remove();window.intervencionesAbrir({abrir:a});setTimeout(()=>verCompleta(a,b),400);}));
     }catch(err){f.querySelector('#ev-lista').className='mi-error';f.querySelector('#ev-lista').textContent='No se pudieron leer las fotos del equipo: '+((err&&err.message)||err);}
