@@ -40,6 +40,7 @@ js/
 | 12b-barras-desplazamiento.js | Barra de desplazamiento horizontal espejo ARRIBA de toda tabla/contenedor ancho (selector en el archivo); solo aparece si el contenido no cabe |
 | 06b-fotos-supabase.js | Fotos PRIVADAS en Supabase Storage (bucket `glacial-fotos`): subir, enlaces firmados (1 h) en lote, hidratado de `<img>`/`<a>`; las fotos de Cloudinary siguen funcionando. Reglas: supabase/migraciones/glacial_25_fotos_privadas.sql (aplicada en producción). Doc: docs/FOTOS-SUPABASE.md |
 | 06c-migrar-fotos.js | Herramienta del Administrador (botón en el Historial): migra las fotos antiguas de Cloudinary a Supabase conservando la dirección anterior como respaldo |
+| 24b-pausas-sin-cerrar.js | Qué cuenta como «parada abierta» (umbrales por tipo, sin «cambio temporal», solo < 24 h), «Pausas sin cerrar (revisar)» y «Cerrar pausa» (Supervisor/Jefe de Operaciones/Administrador); cierres automáticos. Doc: docs/PAUSAS-SIN-CERRAR.md |
 | 12-init.js | Arranque de la app (siempre el último script) |
 | 34-integraciones.js | Google Sheets y WhatsApp |
 

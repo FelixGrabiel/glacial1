@@ -3244,6 +3244,13 @@ async function finalizarReporteProduccion(){
       await saveRecords(records);
     }
 
+    // Cerrar el turno: las pausas REALES que sigan abiertas (p. ej. un refrigerio olvidado) se cierran al fin del turno y quedan registradas
+    // (24b-pausas-sin-cerrar.js). Si falla, no bloquea el cierre del reporte.
+    if(window.glacialPausas){
+      window.glacialPausas.cerrarAlCerrarTurno({linea:draft.linea,fecha:draft.fecha,turno:draft.turno})
+        .catch(e=>console.warn('GLACIAL · no se pudieron cerrar las pausas abiertas del turno:',e&&e.message||e));
+    }
+
     liberarPreviewsEvidenciasPT(draft.evidenciasPT||[]);
     state.currentTab='historial';
     draft=blankRecord(state.currentLine);
