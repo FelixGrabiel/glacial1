@@ -77,6 +77,7 @@
       <p class="ii-mut">Creó ${esc(m.creadoPor||'—')} · ${esc(hora(m.creadoEn))}${m.cerradoPor?` · Cerró ${esc(m.cerradoPor)} · ${esc(hora(m.cerradoEn))}`:''}</p>
       ${reab?`<details class="ii-reab"><summary>Reaperturas (${(m.reaperturas||[]).length})</summary><ul>${reab}</ul></details>`:''}
       ${puedeEditar(m)?'<div class="ii-fila-t"><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iicImportarExcel()" title="Sube el Excel con el conteo físico: artículo o código y cantidad contada">Importar conteo desde Excel</button></div>':''}
+      ${ubicacionesHtml(m)}
       ${puedeEditar(m)?`<label class="ii-campo"><span>Observación general</span><input type="text" id="ii-c-obs" maxlength="500" value="${esc(m.observacion||'')}" onchange="iicObservacion(this.value)"></label>`:(m.observacion?`<p><b>Observación:</b> ${esc(m.observacion)}</p>`:'')}
       <div class="ii-prog"><div class="ii-barra"><i style="width:${prog.pct}%"></i></div><small>${fmt(prog.contados,0)} de ${fmt(prog.total,0)} artículos contados (${prog.pct}%) · ${fmt(lineasActuales().length,0)} líneas</small></div></div>
       <div class="ii-card"><input type="search" id="ii-c-texto" class="ii-grande" value="${esc(C.texto)}" placeholder="Buscar artículo por nombre o código" oninput="iicTexto(this.value)" autocomplete="off">
@@ -84,6 +85,13 @@
       <label class="ii-chk"><input type="checkbox" ${C.prioritarios?'checked':''} onchange="iicFiltro('prioritarios',this.checked)"> Solo prioritarios</label>
       <label class="ii-chk"><input type="checkbox" ${C.soloPendientes?'checked':''} onchange="iicFiltro('soloPendientes',this.checked)"> Solo pendientes</label></div>
       <div id="ii-c-lista">${listaArticulos(m,mostrar,filas.length)}</div></div>`;
+  }
+  /* Líneas por ubicación, con «Borrar» para quitar de una vez una importación repetida. */
+  function ubicacionesHtml(m){
+    const por=new Map();lineasActuales().forEach(l=>por.set(l.ubicacion,(por.get(l.ubicacion)||0)+1));
+    if(por.size<2&&!(por.size===1&&puedeEditar(m)))return '';
+    const filas=[...por].sort((a,b)=>b[1]-a[1]).map(([u,n])=>`<li><span>«${esc(u)}»</span> <b>${fmt(n,0)}</b> línea(s)${puedeEditar(m)?` <button type="button" class="ii-btn ii-btn-o ii-btn-s ii-peligro" data-ub="${esc(u)}" onclick="iicBorrarUbicacion(this.dataset.ub)">Borrar estas líneas</button>`:''}</li>`).join('');
+    return `<details class="ii-reab"${por.size>1?' open':''}><summary>Líneas por ubicación (${por.size})</summary><ul class="ii-lista-sm">${filas}</ul></details>`;
   }
   function listaArticulos(m,mostrar,total){
     const mas=total>mostrar.length?`<div class="ii-mas"><button type="button" class="ii-btn ii-btn-o" onclick="iicMas()">Mostrar más (${fmt(total-mostrar.length,0)} restantes)</button></div>`:'';
@@ -146,9 +154,15 @@
     return `<p><b>${esc(i.archivo)}</b> · hoja «${esc(String(l.hoja||'').trim())}»</p>
       <div class="ii-resumen"><div><b>${fmt(r.unidas,0)}</b><span>líneas listas para guardar</span></div><div><b>${fmt(r.sinUnir,0)}</b><span>sin unir al catálogo</span></div><div><b>${fmt(r.vacias,0)}</b><span>sin cantidad (se omiten)</span></div></div>
       ${r.sinUnir?`<details class="ii-reab"><summary>Ver los ${fmt(r.sinUnir,0)} que no se pudieron unir</summary><ul class="ii-lista-sm">${l.sinUnir.slice(0,200).map(x=>`<li>${esc(x.texto)} · ${esc(x.cantidad)} <small class="ii-mut">(${esc(x.motivo)})</small></li>`).join('')}</ul></details>`:''}
+      ${duplicadosImp(l)}
       <p class="ii-mut">Las líneas se agregan al conteo del ${esc(fechaTxt(metaActual()&&metaActual().fecha))}; lo que ya estaba registrado no se borra (si repites un artículo, las cantidades se suman). Después puedes editar o borrar líneas una por una.</p>
       <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicImportarExcel()">Elegir otro archivo</button><button type="button" class="ii-btn" id="ii-imp-ok" onclick="iicConfirmarExcel()">Guardar ${fmt(r.unidas,0)} líneas</button></div>`;
   };
+  /* Aviso: artículos del Excel que ya tienen líneas en este conteo (se sumarían y duplicarían la cantidad). */
+  function duplicadosImp(l){
+    const ya=new Set(lineasActuales().map(x=>x.itemId)),n=l.lineas.filter(x=>ya.has(x.itemId)).length;
+    return n?`<div class="ii-msg ii-msg-error" role="alert"><b>Atención:</b> ${fmt(n,0)} de estos artículos ya tienen líneas en este conteo. Si guardas, las cantidades se SUMAN y quedan duplicadas. Si ya importaste este archivo, cancela; para repetirlo usa «Borrar estas líneas» en «Líneas por ubicación».</div>`:'';
+  }
   function pintarImp(){
     abrirModal('Importar conteo desde Excel',`<div id="ii-imp-cuerpo">${cuerpoImp()}</div>`);
   }
@@ -170,11 +184,23 @@
     const i=C.imp;if(!i||i.fase!=='resumen')return;
     const b=document.getElementById('ii-imp-ok');if(b)b.disabled=true;errorModal('');
     try{
+      const ya=new Set(lineasActuales().map(x=>x.itemId)),dup=i.lectura.lineas.filter(x=>ya.has(x.itemId)).length;
+      if(dup&&typeof confirm==='function'&&!confirm(dup+' artículos ya tienen líneas en este conteo: las cantidades se sumarán y quedarán duplicadas. ¿Guardar de todos modos?')){if(b)b.disabled=false;return;}
       const r=await D.agregarLineasLote(C.id,i.lectura.lineas,i.archivo);
       C.imp=null;iicCerrarModal();aviso('ok',`Se importaron ${fmt(r.lineas,0)} líneas desde «${i.archivo}».`);repintar();
     }catch(e){errorModal(D.mensajeError(e));if(b)b.disabled=false;}
   };
 
+  window.iicBorrarUbicacion=ub=>{
+    const n=lineasActuales().filter(l=>l.ubicacion===ub).length;if(!n)return;C.modal=ub;
+    abrirModal('Borrar líneas por ubicación',`<p>¿Borrar las <b>${fmt(n,0)}</b> líneas de la ubicación <b>«${esc(ub)}»</b>? Si esta ubicación viene de una importación repetida, el conteo vuelve a su cantidad real. Queda un solo registro en la auditoría.</p>
+      <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicCerrarModal()">Cancelar</button><button type="button" class="ii-btn ii-peligro-f" id="ii-m-ok" onclick="iicConfirmarBorrarUbicacion()">Borrar ${fmt(n,0)} líneas</button></div>`);
+  };
+  window.iicConfirmarBorrarUbicacion=async()=>{
+    const b=document.getElementById('ii-m-ok');if(b)b.disabled=true;errorModal('');
+    try{const r=await D.borrarLineasUbicacion(C.id,C.modal);iicCerrarModal();aviso('ok',r?'Se borraron '+fmt(r.borradas,0)+' líneas.':'No había líneas en esa ubicación.');repintar();}
+    catch(e){errorModal(D.mensajeError(e));if(b)b.disabled=false;}
+  };
   window.iicNuevo=()=>{
     if(!D.puedeEscribir())return;
     abrirModal('Nuevo conteo',`<div class="ii-form1"><label class="ii-campo"><span>Fecha</span><input type="date" id="ii-n-fecha" value="${hoyIso()}"></label>

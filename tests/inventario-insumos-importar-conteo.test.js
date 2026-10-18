@@ -73,7 +73,19 @@ const cat=[{id:'a',nombre:'ASA ERGONOMICA P/BOTELLA PET 7 LT AZUL'},{id:'b',nomb
   const f1=N.conciliar({catalogo:[{id:'a',nombre:'ASA AZUL',activo:true}],corte,lineas:det.items.filter(l=>l.itemId==='a'),almacen:'INSUMOS',comentarios:[]}).filas[0];
   ok(f1&&f1.sap===2356,'(control) con almacén «Insumos» el TOTAL SAP es solo 2,356: por eso la pantalla mostraba 2,356');
   ok(f&&f.sap===12356&&f.conteo===10000&&f.diferencia===-2356,'conciliación con «Todos»: TOTAL SAP 12,356 · CONTEO 10,000 · DIFERENCIA −2,356 (igual que el Excel)');
+  /* Importación repetida (el caso del 18/10: «Importado del Excel» + «Excel» en el mismo conteo) → se corrige borrando una ubicación */
+  for(const l of r.lineas)await D.agregarLinea(m.id,{itemId:l.itemId,ubicacion:'Excel',cantidad:l.cantidad});
+  let det2=sb.docs.get('insumosConteosDetalle/'+m.id);
+  ok(det2.items.length===8&&N.totalesConteo(det2.items,cat).porItem.get('a').total===20000,'(el problema) con las dos importaciones el artículo ASA AZUL cuenta 20,000 en vez de 10,000');
+  const b1=await D.borrarLineasUbicacion(m.id,'Excel');
+  det2=sb.docs.get('insumosConteosDetalle/'+m.id);
+  ok(b1.borradas===4&&det2.items.length===4&&det2.items.every(l=>l.ubicacion==='Importado del Excel'),'borrar la ubicación «Excel» quita sus 4 líneas y deja las otras');
+  ok(N.totalesConteo(det2.items,cat).porItem.get('a').total===10000&&sb.docs.get('insumosConteosIndice/'+m.id).lineas===4,'el conteo vuelve a 10,000 y el índice se actualiza');
+  const aud2=[...sb.docs.entries()].filter(([k])=>k.startsWith('insumosAuditoria/')).map(([,v])=>v).filter(a=>a.tipo==='BORRAR_UBICACION');
+  ok(aud2.length===1&&aud2[0].antes.lineas===4,'un solo evento de auditoría para todo el borrado');
+  ok(await D.borrarLineasUbicacion(m.id,'No existe')===null,'una ubicación sin líneas no cambia nada');
   const idxHtml=leer('js/asistente/77-inventario-insumos-conteo.js');
+  ok(/iicBorrarUbicacion/.test(idxHtml)&&/duplicadosImp/.test(idxHtml),'la pantalla avisa de duplicados y permite borrar por ubicación');
   ok(/iicImportar\(\)/.test(idxHtml)&&/leerConteoResumen/.test(idxHtml)&&/importarConteo/.test(idxHtml),'la pantalla de conteos tiene el botón «Importar conteo del Excel»');
   console.log(fallas?'\n'+fallas+' FALLAS':'\nTodo bien');
 })();
