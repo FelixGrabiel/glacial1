@@ -59,7 +59,7 @@ js/
 | 08-graficos.js | Gráficos y Excel por línea |
 | 09-resumen.js | Resumen de producción |
 | 14-exportar-general.js | Exportación general de planta |
-| 16-paletas.js | Paletas en tiempo real |
+| 16-paletas.js | Paletas en tiempo real. Rendimiento de Producción actual (sin cambiar resultados): `normalizarClavePaletas` con caché (`._memo`, se vacía a las 20.000 entradas), índice de Paletas por combinación (`paletasDeCombinacionPaletas`, mismo resultado y orden que el filtro completo) usado por `resumenProgramacionCombinacionTurnos` (base y envoltorio de saldo) y `glacialProduccionPaletasAlCorte`, e índice de programaciones en `obtenerProgramacionPaleta` (`._idx`); se rearman al cambiar la lista (arreglo nuevo, tamaño o elemento distinto). Prueba: tests/produccion-actual-rendimiento.test.js |
 | 21-programacion-turno.js | Programación del turno |
 | 50-impacto-economico.js | Impacto económico completo (solo Gerencia): cascada en S/, rankings, supuestos y Excel |
 | 55-valores-economicos.js | Valores unitarios protegidos por rol (solo Gerencia): lectura/escritura con historial, migración y pantalla «Valores unitarios» |
