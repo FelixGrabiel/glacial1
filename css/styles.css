@@ -5687,3 +5687,19 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
     scrollbar-width:thin;
     scrollbar-color:#AFC4D8 transparent;
 }
+
+
+/* =========================================================
+   GRÁFICOS NUEVOS (ApexCharts · ECharts · canvas-gauges) — 08a-graficos-base.js
+   Contenedores con altura fija: el gráfico toma su altura numérica de aquí y nunca se sale de la tarjeta.
+   ========================================================= */
+.gx{width:100%;height:260px;position:relative;overflow:hidden}
+.gx.gx-alto{height:300px}
+.gx.gx-gauge{height:230px}
+.gx .apexcharts-canvas{max-width:100%}
+.gx-tip{background:rgba(0,44,69,.94);color:#fff;padding:9px 11px;border-radius:7px;font-size:12px;line-height:1.45}
+@media(max-width:700px){
+  .gx{height:240px}
+  .gx.gx-alto{height:280px}
+  .gx.gx-gauge{height:210px}
+}

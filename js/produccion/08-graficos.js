@@ -878,6 +878,9 @@ function destroyCharts(){
 
   state.charts = {};
 
+  // GRAFICOS: registro único (ApexCharts, ECharts, canvas-gauges y Chart.js registrados)
+  if(typeof graficosDestruirTodo === 'function') graficosDestruirTodo();
+
 }
 
 
@@ -3541,7 +3544,7 @@ async function exportarPNGDetalle(){
 
     for(const id of ids){
       const ch=state.charts[id.replace('chart-','')];
-      if(ch)imgs[id]=await cargarImagenCanvas(ch.toBase64Image());
+      if(ch)imgs[id]=await cargarImagenCanvas(await ch.toBase64Image());   // GRAFICOS: ApexCharts devuelve el PNG de forma asíncrona
     }
 
     let logoImg=null;
@@ -3834,6 +3837,9 @@ function renderGraficosTab(){
       'tab-content'
     );
 
+  // GRAFICOS: se destruyen ANTES de reemplazar el HTML (destruir un ApexCharts ya desmontado en plena animación lanza errores asíncronos)
+  destroyCharts();
+
 
   const all =
 
@@ -3998,37 +4004,20 @@ function renderGraficosTab(){
           OEE del turno
         </h4>
 
-        <div class="gauge-wrap">
-
-          <canvas id="chart-oee">
-          </canvas>
-
-          <div class="gauge-num">
-
-            <div class="v">
-              ${pct(d.oee)}
-            </div>
-
-            <div class="l">
-              OEE
-            </div>
-
-          </div>
-
-        </div>
+        <div id="chart-oee" class="gx gx-gauge"></div>
 
         <div
           style="text-align:center;font-size:12px;color:${
-            d.oee >= METAS.oee ? PAL.verde : PAL.rojo
+            d.oee * 100 >= METAS_GRAFICOS.oee ? PAL.verde : PAL.rojo
           };font-weight:600;margin-top:6px;"
         >
-          Meta ${pct(METAS.oee)}
+          Meta ${METAS_GRAFICOS.oee}%
           ·
           ${
-            d.oee >= METAS.oee
+            d.oee * 100 >= METAS_GRAFICOS.oee
               ? 'meta cumplida'
               : (
-                  Math.round((METAS.oee - d.oee) * 1000) / 10
+                  Math.round((METAS_GRAFICOS.oee - d.oee * 100) * 10) / 10
                 ) + ' pts por debajo'
           }
         </div>
@@ -4042,8 +4031,7 @@ function renderGraficosTab(){
           Componentes del OEE vs. meta
         </h4>
 
-        <canvas id="chart-componentes">
-        </canvas>
+        <div id="chart-componentes" class="gx gx-gauge"></div>
 
         <div
           class="small-muted"
@@ -4061,8 +4049,7 @@ function renderGraficosTab(){
           ¿Dónde se perdió la producción? (cascada)
         </h4>
 
-        <canvas id="chart-cascada">
-        </canvas>
+        <div id="chart-cascada" class="gx"></div>
 
       </div>
 
@@ -4074,8 +4061,7 @@ function renderGraficosTab(){
           nominal vs. programada vs. efectiva
         </h4>
 
-        <canvas id="chart-prod">
-        </canvas>
+        <div id="chart-prod" class="gx"></div>
 
       </div>
 
@@ -4086,8 +4072,7 @@ function renderGraficosTab(){
           Pareto de paradas (minutos por causa)
         </h4>
 
-        <canvas id="chart-paradas">
-        </canvas>
+        <div id="chart-paradas" class="gx gx-alto"></div>
 
       </div>
 
@@ -4098,8 +4083,7 @@ function renderGraficosTab(){
           Mermas por componente (% de producción)
         </h4>
 
-        <canvas id="chart-mermas">
-        </canvas>
+        <div id="chart-mermas" class="gx gx-alto"></div>
 
       </div>
 
@@ -4110,8 +4094,7 @@ function renderGraficosTab(){
           Consumo de insumos
         </h4>
 
-        <canvas id="chart-insumos">
-        </canvas>
+        <div id="chart-insumos" class="gx"></div>
 
       </div>
 
@@ -4156,8 +4139,7 @@ function renderGraficosTab(){
 
         </div>
 
-        <canvas id="chart-tendencia">
-        </canvas>
+        <div id="chart-tendencia" class="gx gx-alto"></div>
 
       </div>
 
@@ -4168,8 +4150,7 @@ function renderGraficosTab(){
           OEE por turno
         </h4>
 
-        <canvas id="chart-turno">
-        </canvas>
+        <div id="chart-turno" class="gx"></div>
 
       </div>
 
@@ -4180,8 +4161,7 @@ function renderGraficosTab(){
           OEE por marca
         </h4>
 
-        <canvas id="chart-marca">
-        </canvas>
+        <div id="chart-marca" class="gx"></div>
 
       </div>
 
@@ -4203,1635 +4183,321 @@ function renderGraficosTab(){
   }
 
 
-  const F = {
+  /* =====================================================
+     GRÁFICOS NUEVOS (ApexCharts · ECharts) — migración desde Chart.js
+     // GRAFICOS: la capa común está en 08a-graficos-base.js. Los datos y los cálculos son los de siempre; solo cambia cómo se dibujan.
+     Metas y colores de estos gráficos: METAS_GRAFICOS / colorKpi (oee 75 → <65 rojo, 65–75 ámbar, ≥75 verde).
+  ===================================================== */
+  Chart.defaults.font = { family:'IBM Plex Sans', size:12 };
+  Chart.defaults.color = '#3A4551';
 
-    family:'IBM Plex Sans',
-
-    size:12
-
+  const GX = window.glacialGraficosBase;
+  const MG = GX.METAS_GRAFICOS;
+  const r1 = v => Math.round(v * 10) / 10;
+  const txtPct = v => r1(v).toLocaleString('es-PE', { minimumFractionDigits:1, maximumFractionDigits:1 }) + '%';
+  const tip = (titulo, linea) =>
+    '<div class="gx-tip"><b>' + escaparHtml(titulo) + '</b><br>' + escaparHtml(linea) + '</div>';
+  /* state.charts guarda un objeto con destroy() y toBase64Image() (async) para que destroyCharts() y los PNG sigan funcionando. */
+  const registrarGx = (clave, id, creado) => {
+    if(creado) state.charts[clave] = {
+      destroy(){ graficosDestruir(id); },
+      toBase64Image(){ return graficoAImagen(id); }
+    };
+    return creado;
+  };
+  const sinDatos = (id, texto) => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.style.display = 'none';
+    const aviso = document.createElement('div');
+    aviso.className = 'small-muted';
+    aviso.style.cssText = 'text-align:center;padding:20px 0;';
+    aviso.textContent = texto;
+    el.parentNode.insertBefore(aviso, el.nextSibling);
   };
 
 
-  Chart.defaults.font = F;
-
-  Chart.defaults.color =
-    '#3A4551';
+  /* =====================================================
+     OEE DEL TURNO — velocímetro con aguja y marca de meta
+  ===================================================== */
+  registrarGx('oee', 'chart-oee',
+    velocimetroOEE('chart-oee', r1(d.oee * 100), { nombre:'OEE', clave:'oee' }));
 
 
   /* =====================================================
-     GAUGE DE OEE
-     =====================================================
-
-     OEE = Disponibilidad × Rendimiento, así que
-     el anillo muestra un solo valor (el OEE alcanzado
-     contra el 100%), no la suma de los factores.
-     El color cambia según qué tan lejos está de la meta.
+     DISPONIBILIDAD · RENDIMIENTO · CUMPLIMIENTO — tres medidores compactos en un solo gráfico
+     (OEE = Disponibilidad × Rendimiento)
   ===================================================== */
-
-  const colorOee =
-    colorSegunMeta(d.oee, METAS.oee);
-
-
-  state.charts.oee =
-
-    new Chart(
-
-      document.getElementById(
-        'chart-oee'
-      ),
-
-      {
-
-        type:'doughnut',
-
-        data:{
-
-          labels:[
-            'OEE alcanzado',
-            'Pérdida total'
-          ],
-
-          datasets:[{
-
-            data:[
-              d.oee * 100,
-              Math.max(0, 100 - d.oee * 100)
-            ],
-
-            backgroundColor:[
-              colorOee,
-              PAL.grisSuave
-            ],
-
-            borderWidth:0
-
-          }]
-
-        },
-
-        options:{
-
-          cutout:'72%',
-
-          plugins:{
-
-            legend:{
-              display:false
-            },
-
-            tooltip:{
-
-              callbacks:{
-
-                label:ctx =>
-                  ctx.label + ': ' +
-                  (Math.round(ctx.parsed * 10) / 10) + '%'
-
-              }
-
-            }
-
-          }
-
-        }
-
-      }
-
-    );
+  registrarGx('componentes', 'chart-componentes',
+    velocimetrosCompactos('chart-componentes', [
+      { nombre:'Disponibilidad', valor:r1(d.disponibilidad * 100), clave:'disponibilidad' },
+      { nombre:'Rendimiento', valor:r1(d.rendimiento * 100), clave:'rendimiento' },
+      { nombre:'Cumplimiento', valor:r1(d.cumplimiento * 100), clave:'cumplimiento', max:120, meta:MG.cumplimiento }
+    ]));
 
 
   /* =====================================================
-     COMPONENTES DEL OEE VS. META
+     CASCADA DE PÉRDIDAS — columnas flotantes (rangeBar vertical)
   ===================================================== */
-
-  const compValores = [
-    d.disponibilidad * 100,
-    d.rendimiento * 100
-  ];
-
-  const compMetas = [
-    METAS.disponibilidad * 100,
-    METAS.rendimiento * 100
-  ];
-
-
-  state.charts.componentes =
-
-    new Chart(
-
-      document.getElementById(
-        'chart-componentes'
-      ),
-
-      {
-
-        type:'bar',
-
-        data:{
-
-          labels:[
-            'Disponibilidad',
-            'Rendimiento'
-          ],
-
-          datasets:[
-
-            {
-
-              label:'Real',
-
-              data:compValores,
-
-              backgroundColor:
-                compValores.map(
-                  (v,i) =>
-                    colorSegunMeta(
-                      v / 100,
-                      compMetas[i] / 100
-                    )
-                ),
-
-              borderRadius:3,
-
-              barPercentage:0.55
-
-            },
-
-            {
-
-              label:'Meta',
-
-              data:compMetas,
-
-              type:'line',
-
-              showLine:false,
-
-              pointStyle:'line',
-
-              pointRadius:14,
-
-              pointBorderWidth:2,
-
-              pointBorderColor:PAL.texto,
-
-              pointRotation:90
-
-            }
-
-          ]
-
-        },
-
-        options:{
-
-          indexAxis:'y',
-
-          plugins:{
-
-            legend:{
-
-              position:'bottom',
-
-              labels:{
-                boxWidth:10,
-                padding:10,
-                usePointStyle:true
-              }
-
-            },
-
-            tooltip:{
-
-              callbacks:{
-
-                label:ctx =>
-                  ctx.dataset.label + ': ' +
-                  (Math.round(ctx.parsed.x * 10) / 10) + '%'
-
-              }
-
-            }
-
-          },
-
-          scales:{
-
-            x:{
-
-              beginAtZero:true,
-
-              max:100,
-
-              grid:{
-                color:'#EFF2F4'
-              },
-
-              ticks:{
-                callback:v => v + '%'
-              },
-
-              title:{
-                display:true,
-                text:'% alcanzado'
-              }
-
-            },
-
-            y:{
-
-              grid:{
-                display:false
-              }
-
-            }
-
-          }
-
-        }
-
-      }
-
-    );
-
-
-  /* =====================================================
-     CASCADA DE PÉRDIDAS (WATERFALL)
-  ===================================================== */
-
   const casc = calcCascada(rec);
-
-  /*
-     Cada barra se dibuja como un rango [desde, hasta] para
-     que las pérdidas "cuelguen" desde la capacidad teórica
-     hasta la producción buena.
-  */
-
   const p1 = casc.capacidadTeorica;
   const p2 = p1 - casc.perdidaDisponibilidad;
   const p3 = p2 - casc.perdidaRendimiento;
-
-  const cascadaValores = [
-    [0, p1],
-    [p2, p1],
-    [p3, p2],
-    [0, Math.max(casc.buena, 0)]
-  ];
-
+  const cascadaEtiquetas = ['Capacidad teórica', '− Paradas', '− Ritmo lento', 'Producción buena'];
   const cascadaMagnitudes = [
     casc.capacidadTeorica,
     casc.perdidaDisponibilidad,
     casc.perdidaRendimiento,
     casc.buena
   ];
-
-
-  state.charts.cascada =
-
-    new Chart(
-
-      document.getElementById(
-        'chart-cascada'
-      ),
-
-      {
-
-        type:'bar',
-
-        data:{
-
-          labels:[
-            'Capacidad teórica',
-            '− Paradas',
-            '− Ritmo lento',
-            'Producción buena'
-          ],
-
-          datasets:[{
-
-            data:cascadaValores,
-
-            backgroundColor:[
-              PAL.gris,
-              PAL.rojo,
-              PAL.ambar,
-              PAL.verde
-            ],
-
-            borderRadius:3,
-
-            barPercentage:0.65
-
-          }]
-
-        },
-
-        options:{
-
-          plugins:{
-
-            legend:{
-              display:false
-            },
-
-            valorBarra:{
-
-              activo:true,
-
-              formato:(v,i) =>
-                formatearNumero(cascadaMagnitudes[i])
-
-            },
-
-            tooltip:{
-
-              callbacks:{
-
-                label:ctx => {
-
-                  const i = ctx.dataIndex;
-
-                  const magnitud =
-                    formatearNumero(cascadaMagnitudes[i]);
-
-                  const pctSobreTeorica =
-                    casc.capacidadTeorica > 0
-                      ? Math.round(
-                          (cascadaMagnitudes[i] /
-                            casc.capacidadTeorica) * 1000
-                        ) / 10
-                      : 0;
-
-                  return (
-                    magnitud + ' unidades (' +
-                    pctSobreTeorica + '% de la capacidad)'
-                  );
-
-                }
-
-              }
-
-            }
-
-          },
-
-          scales:{
-
-            x:{
-
-              grid:{
-                display:false
-              },
-
-              ticks:{
-                maxRotation:0,
-                autoSkip:false,
-                font:{ size:10 }
-              }
-
-            },
-
-            y:{
-
-              beginAtZero:true,
-
-              grid:{
-                color:'#EFF2F4'
-              },
-
-              ticks:{
-                callback:v => formatearNumero(v)
-              },
-
-              title:{
-                display:true,
-                text:'Unidades'
-              }
-
-            }
-
-          }
-
-        }
-
+  registrarGx('cascada', 'chart-cascada', apexCrear('chart-cascada', {
+    chart:{ type:'rangeBar' },
+    series:[{
+      name:'Unidades',
+      data:[
+        { x:cascadaEtiquetas[0], y:[0, p1], fillColor:PAL.gris },
+        { x:cascadaEtiquetas[1], y:[p2, p1], fillColor:PAL.rojo },
+        { x:cascadaEtiquetas[2], y:[p3, p2], fillColor:PAL.ambar },
+        { x:cascadaEtiquetas[3], y:[0, Math.max(casc.buena, 0)], fillColor:PAL.verde }
+      ]
+    }],
+    plotOptions:{ bar:{ horizontal:false, columnWidth:'58%', borderRadius:4 } },
+    dataLabels:{
+      enabled:true,
+      formatter:(v, o) => formatearNumero(cascadaMagnitudes[o.dataPointIndex]),
+      style:{ colors:['#fff'], fontSize:'11px', fontWeight:700 },
+      dropShadow:{ enabled:true, top:1, left:0, blur:1, opacity:.45 }
+    },
+    xaxis:{ labels:{ style:{ fontSize:'9px' }, rotate:0, trim:false, hideOverlappingLabels:false, maxHeight:48 } },
+    yaxis:{ min:0, labels:{ formatter:v => formatearNumero(v) }, title:{ text:'Unidades' } },
+    legend:{ show:false },
+    tooltip:{
+      custom:({ dataPointIndex }) => {
+        const m = cascadaMagnitudes[dataPointIndex];
+        const pctTeorica = casc.capacidadTeorica > 0 ? r1((m / casc.capacidadTeorica) * 100) : 0;
+        return tip(cascadaEtiquetas[dataPointIndex], formatearNumero(m) + ' unidades (' + pctTeorica + '% de la capacidad)');
       }
-
-    );
+    }
+  }));
 
 
   /* =====================================================
      PRODUCCIÓN: NOMINAL VS. PROGRAMADA VS. EFECTIVA
-     =====================================================
-
-     Suma los 4 cuadros (antes solo leía el cuadro 1).
   ===================================================== */
-
   const prodNominal = num(d.produccionNominal);
-
-  const prodProgramada =
-    num(d.programada ?? rec.produccion?.programada);
-
-  const prodEfectiva =
-    num(d.efectiva ?? rec.produccion?.efectiva);
-
-
-  state.charts.prod =
-
-    new Chart(
-
-      document.getElementById(
-        'chart-prod'
-      ),
-
-      {
-
-        type:'bar',
-
-        data:{
-
-          labels:[
-
-            'Nominal',
-
-            'Programada',
-
-            'Efectiva'
-
-          ],
-
-          datasets:[{
-
-            data:[
-              prodNominal,
-              prodProgramada,
-              prodEfectiva
-            ],
-
-            backgroundColor:[
-              PAL.gris,
-              PAL.ambar,
-              PAL.verde
-            ],
-
-            borderRadius:3,
-
-            barPercentage:0.55
-
-          }]
-
-        },
-
-        options:{
-
-          /*
-             Espacio arriba del gráfico para que la etiqueta de
-             la barra más alta no se corte contra el borde.
-          */
-
-          layout:{
-            padding:{ top:24 }
-          },
-
-          plugins:{
-
-            legend:{
-              display:false
-            },
-
-            valorBarra:{
-              activo:true
-            },
-
-            tooltip:{
-
-              callbacks:{
-
-                label:ctx =>
-                  formatearNumero(ctx.parsed.y) +
-                  ' unidades'
-
-              }
-
-            }
-
-          },
-
-          scales:{
-
-            x:{
-              grid:{ display:false }
-            },
-
-            y:{
-
-              beginAtZero:true,
-
-              /* ~18 % de holgura sobre la barra más alta. */
-
-              suggestedMax:
-                Math.max(prodNominal, prodProgramada, prodEfectiva) > 0
-                  ? Math.max(prodNominal, prodProgramada, prodEfectiva) * 1.18
-                  : undefined,
-
-              grid:{ color:'#EFF2F4' },
-
-              ticks:{
-                callback:v => formatearNumero(v)
-              }
-
-            }
-
-          }
-
-        }
-
-      }
-
-    );
+  const prodProgramada = num(d.programada ?? rec.produccion?.programada);
+  const prodEfectiva = num(d.efectiva ?? rec.produccion?.efectiva);
+  registrarGx('prod', 'chart-prod', apexCrear('chart-prod', {
+    chart:{ type:'bar' },
+    series:[{ name:'Unidades', data:[prodNominal, prodProgramada, prodEfectiva] }],
+    colors:[PAL.gris, PAL.ambar, PAL.verde],
+    plotOptions:{ bar:{ distributed:true, columnWidth:'55%', borderRadius:5, dataLabels:{ position:'top' } } },
+    dataLabels:{ enabled:true, offsetY:-20, formatter:v => formatearNumero(v), style:{ colors:[PAL.texto], fontSize:'11px', fontWeight:700 } },
+    xaxis:{ categories:['Nominal', 'Programada', 'Efectiva'] },
+    yaxis:{
+      min:0,
+      max:Math.max(prodNominal, prodProgramada, prodEfectiva) > 0 ? Math.max(prodNominal, prodProgramada, prodEfectiva) * 1.18 : 1,
+      labels:{ formatter:v => formatearNumero(v) }
+    },
+    legend:{ show:false },
+    tooltip:{ y:{ formatter:v => formatearNumero(v) + ' unidades' } }
+  }));
 
 
   /* =====================================================
-     PARETO DE PARADAS
-     =====================================================
-
-     Ordena las causas de mayor a menor tiempo perdido y
-     dibuja encima la curva de % acumulado, para ver de un
-     vistazo qué pocas causas explican la mayor parte del
-     tiempo perdido. Se toman las paradas de todos los
-     cuadros del registro, no solo del primero.
+     PARETO DE PARADAS — columnas + % acumulado en un segundo eje (0–100 %)
   ===================================================== */
-
   const paradasAgrupadas = agruparParadas(rec);
-
-  /* Se muestran las 10 causas principales para que se lea bien. */
-
-  const paretoFilas =
-    paradasAgrupadas.filas.slice(0, 10);
-
-
+  const paretoFilas = paradasAgrupadas.filas.slice(0, 10);
   if(!paretoFilas.length){
-
-    const canvasParadas =
-      document.getElementById('chart-paradas');
-
-    if(canvasParadas){
-
-      canvasParadas.closest('.chart-box').innerHTML += `
-        <div class="small-muted" style="text-align:center;padding:20px 0;">
-          Sin paradas registradas en este turno.
-        </div>
-      `;
-
-      canvasParadas.style.display = 'none';
-
-    }
-
+    sinDatos('chart-paradas', 'Sin paradas registradas en este turno.');
   } else {
-
-    state.charts.paradas =
-
-      new Chart(
-
-        document.getElementById(
-          'chart-paradas'
-        ),
-
-        {
-
-          data:{
-
-            labels:
-              paretoFilas.map(f => f.descripcion),
-
-            datasets:[
-
-              {
-
-                type:'bar',
-
-                label:'Minutos perdidos',
-
-                data:
-                  paretoFilas.map(f => f.minutos),
-
-                backgroundColor:
-                  paretoFilas.map(
-                    f =>
-                      f.tipo === 'Programada'
-                        ? PAL.azul
-                        : PAL.rojo
-                  ),
-
-                borderRadius:3,
-
-                order:2
-
-              },
-
-              {
-
-                type:'line',
-
-                label:'% acumulado',
-
-                data:
-                  paretoFilas.map(f => f.acumuladoPct),
-
-                yAxisID:'y2',
-
-                borderColor:PAL.ambar,
-
-                backgroundColor:PAL.ambar,
-
-                borderWidth:2,
-
-                pointRadius:3,
-
-                tension:0.2,
-
-                order:1
-
-              }
-
-            ]
-
-          },
-
-          options:{
-
-            plugins:{
-
-              legend:{
-
-                position:'bottom',
-
-                labels:{
-                  boxWidth:10,
-                  padding:10,
-                  usePointStyle:true
-                }
-
-              },
-
-              /* Regla 80/20: referencia sobre la curva acumulada. */
-              metaLine:{
-                valor:80,
-                eje:'y2',
-                texto:'80%',
-                color:PAL.texto
-              },
-
-              tooltip:{
-
-                callbacks:{
-
-                  label:ctx => {
-
-                    if(ctx.dataset.yAxisID === 'y2'){
-
-                      return (
-                        'Acumulado: ' +
-                        Math.round(ctx.parsed.y) + '%'
-                      );
-
-                    }
-
-                    const fila =
-                      paretoFilas[ctx.dataIndex];
-
-                    return (
-                      fila.tipo + ': ' +
-                      formatearNumero(fila.minutos) + ' min'
-                    );
-
-                  }
-
-                }
-
-              }
-
-            },
-
-            scales:{
-
-              x:{
-
-                grid:{
-                  display:false
-                },
-
-                ticks:{
-                  maxRotation:38,
-                  minRotation:0,
-                  autoSkip:false,
-                  font:{ size:10 },
-
-                  callback:function(v){
-
-                    const t =
-                      this.getLabelForValue(v);
-
-                    return t.length > 18
-                      ? t.slice(0,17) + '…'
-                      : t;
-
-                  }
-
-                }
-
-              },
-
-              y:{
-
-                beginAtZero:true,
-
-                grid:{
-                  color:'#EFF2F4'
-                },
-
-                title:{
-                  display:true,
-                  text:'Minutos'
-                }
-
-              },
-
-              y2:{
-
-                position:'right',
-
-                beginAtZero:true,
-
-                max:100,
-
-                grid:{
-                  display:false
-                },
-
-                ticks:{
-                  callback:v => v + '%'
-                }
-
-              }
-
-            }
-
-          }
-
-        }
-
-      );
-
-  }
-
-
-  /*
-     Total de minutos perdidos, mostrado bajo el Pareto para
-     dar contexto al gráfico.
-  */
-
-  const canvasParetoBox =
-    document.getElementById('chart-paradas')
-      ?.closest('.chart-box');
-
-  if(canvasParetoBox && paradasAgrupadas.total > 0){
-
-    const resumen = document.createElement('div');
-
-    resumen.className = 'small-muted';
-
-    resumen.style.cssText =
-      'text-align:center;margin-top:6px;font-size:11px;';
-
-    const top3 =
-      paradasAgrupadas.filas.slice(0,3)
-        .reduce((a,f) => a + f.minutos, 0);
-
-    resumen.textContent =
-      'Total perdido: ' +
-      formatearNumero(paradasAgrupadas.total) +
-      ' min · las 3 causas principales explican ' +
-      Math.round(
-        (top3 / paradasAgrupadas.total) * 100
-      ) + '%';
-
-    canvasParetoBox.appendChild(resumen);
-
+    registrarGx('paradas', 'chart-paradas', apexCrear('chart-paradas', {
+      chart:{ type:'line' },
+      series:[
+        { name:'Minutos perdidos', type:'column',
+          data:paretoFilas.map(f => ({ x:f.descripcion, y:f.minutos, fillColor:f.tipo === 'Programada' ? PAL.azul : PAL.rojo })) },
+        { name:'% acumulado', type:'line', data:paretoFilas.map(f => ({ x:f.descripcion, y:f.acumuladoPct })) }
+      ],
+      colors:[PAL.rojo, PAL.ambar],
+      stroke:{ width:[0, 3], curve:'smooth' },
+      markers:{ size:[0, 4] },
+      plotOptions:{ bar:{ columnWidth:'60%', borderRadius:4 } },
+      dataLabels:{ enabled:false },
+      xaxis:{ labels:{ rotate:-38, trim:true, hideOverlappingLabels:false, style:{ fontSize:'10px' },
+        formatter:t => (String(t).length > 18 ? String(t).slice(0, 17) + '…' : t) } },
+      yaxis:[
+        { seriesName:'Minutos perdidos', min:0, title:{ text:'Minutos' }, labels:{ formatter:v => formatearNumero(v) } },
+        { seriesName:'% acumulado', opposite:true, min:0, max:100, labels:{ formatter:v => Math.round(v) + '%' } }
+      ],
+      annotations:{ yaxis:[{ y:80, yAxisIndex:1, borderColor:PAL.texto, strokeDashArray:4,
+        label:{ text:'80%', position:'right', offsetY:-4, style:{ color:'#fff', background:PAL.texto, fontSize:'10px' } } }] },
+      tooltip:{ shared:true, intersect:false, y:{
+        formatter:(v, o) => o.seriesIndex === 1
+          ? 'Acumulado: ' + Math.round(v) + '%'
+          : paretoFilas[o.dataPointIndex].tipo + ': ' + formatearNumero(paretoFilas[o.dataPointIndex].minutos) + ' min' } }
+    }));
+    const cajaPareto = document.getElementById('chart-paradas')?.closest('.chart-box');
+    if(cajaPareto && paradasAgrupadas.total > 0){
+      const resumen = document.createElement('div');
+      resumen.className = 'small-muted';
+      resumen.style.cssText = 'text-align:center;margin-top:6px;font-size:11px;';
+      const top3 = paradasAgrupadas.filas.slice(0, 3).reduce((a, f) => a + f.minutos, 0);
+      resumen.textContent = 'Total perdido: ' + formatearNumero(paradasAgrupadas.total) +
+        ' min · las 3 causas principales explican ' + Math.round((top3 / paradasAgrupadas.total) * 100) + '%';
+      cajaPareto.appendChild(resumen);
+    }
   }
 
 
   /* =====================================================
-     MERMAS POR COMPONENTE, EN % DE LA PRODUCCIÓN EFECTIVA
-     =====================================================
-
-     Suma los 4 cuadros. 500 botellas de merma significan
-     algo distinto en un turno de 20 000 que en uno de
-     90 000, así que la barra mide % sobre la producción
-     efectiva total (las unidades quedan en el tooltip y en
-     la etiqueta sobre la barra).
+     MERMAS POR COMPONENTE — área polar (los totales van en la leyenda: «Insumo: cantidad»)
   ===================================================== */
-
   const mermasAgrupadas = agruparMermas(rec);
-
-  const efectivaParaMermas =
-    num(d.efectiva ?? rec.produccion?.efectiva);
-
-  const mermaPct = f =>
-    (GlacialIndicadores.merma(f.unidades, efectivaParaMermas) ?? 0) * 100;
-
-
+  const efectivaParaMermas = num(d.efectiva ?? rec.produccion?.efectiva);
+  const mermaPct = f => (GlacialIndicadores.merma(f.unidades, efectivaParaMermas) ?? 0) * 100;
   if(!mermasAgrupadas.filas.length){
-
-    const canvasMermas =
-      document.getElementById('chart-mermas');
-
-    if(canvasMermas){
-
-      canvasMermas.style.display = 'none';
-
-      canvasMermas.closest('.chart-box').innerHTML += `
-        <div class="small-muted" style="text-align:center;padding:20px 0;">
-          Sin mermas registradas en este turno.
-        </div>
-      `;
-
-    }
-
+    sinDatos('chart-mermas', 'Sin mermas registradas en este turno.');
   } else {
-
-    state.charts.mermas =
-
-      new Chart(
-
-        document.getElementById(
-          'chart-mermas'
-        ),
-
-        {
-
-          type:'bar',
-
-          data:{
-
-            labels:
-              mermasAgrupadas.filas.map(f => f.item),
-
-            datasets:[{
-
-              label:'% de producción',
-
-              data:
-                mermasAgrupadas.filas.map(mermaPct),
-
-              backgroundColor:PAL.ambar,
-
-              borderRadius:3,
-
-              barPercentage:0.6
-
-            }]
-
-          },
-
-          options:{
-
-            indexAxis:'y',
-
-            plugins:{
-
-              legend:{
-                display:false
-              },
-
-              valorBarra:{
-
-                activo:true,
-
-                formato:(v,i) =>
-                  (Math.round(v * 10) / 10) + '% (' +
-                  formatearNumero(mermasAgrupadas.filas[i].unidades) +
-                  ')'
-
-              },
-
-              tooltip:{
-
-                callbacks:{
-
-                  label:ctx => {
-
-                    const fila =
-                      mermasAgrupadas.filas[ctx.dataIndex];
-
-                    return (
-                      formatearNumero(fila.unidades) +
-                      ' unidades (' +
-                      (Math.round(mermaPct(fila) * 10) / 10) +
-                      '% de la producción)'
-                    );
-
-                  }
-
-                }
-
-              }
-
-            },
-
-            scales:{
-
-              x:{
-
-                beginAtZero:true,
-
-                grid:{ color:'#EFF2F4' },
-
-                ticks:{ callback:v => v + '%' },
-
-                title:{
-                  display:true,
-                  text:'% de producción efectiva'
-                }
-
-              },
-
-              y:{
-                grid:{ display:false }
-              }
-
-            }
-
-          }
-
-        }
-
-      );
-
-
-    /* Merma total del turno, contra la meta de planta. */
-
-    const totalMermaPct =
-      (GlacialIndicadores.merma(mermasAgrupadas.totalUnidades, efectivaParaMermas) ?? 0) * 100;
-
+    registrarGx('mermas', 'chart-mermas', apexCrear('chart-mermas', {
+      chart:{ type:'polarArea' },
+      series:mermasAgrupadas.filas.map(f => r1(mermaPct(f))),
+      labels:mermasAgrupadas.filas.map(f => f.item + ': ' + formatearNumero(f.unidades)),
+      colors:[PAL.ambar, PAL.azul, PAL.verde, PAL.rojo, PAL.azulSuave, '#E8731A', PAL.gris, '#1F2D3A'],
+      stroke:{ width:1, colors:['#fff'] },
+      fill:{ opacity:.88 },
+      yaxis:{ show:false },                                           // las etiquetas del eje se montan sobre las porciones
+      dataLabels:{ enabled:false },
+      plotOptions:{ polarArea:{ rings:{ strokeWidth:1, strokeColor:GX.tema().grilla }, spokes:{ strokeWidth:1, connectorColors:GX.tema().grilla } } },
+      legend:{ position:'bottom', formatter:(nombre) => nombre },
+      tooltip:{ y:{ formatter:(v, o) => {
+        const f = mermasAgrupadas.filas[o.seriesIndex];
+        return formatearNumero(f.unidades) + ' unidades (' + txtPct(mermaPct(f)) + ' de la producción)';
+      } } }
+    }));
+    const totalMermaPct = (GlacialIndicadores.merma(mermasAgrupadas.totalUnidades, efectivaParaMermas) ?? 0) * 100;
     const metaMermaPct = METAS.merma * 100;
-
-    const colorTotalMerma =
-      totalMermaPct <= metaMermaPct
-        ? PAL.verde
-        : (
-            totalMermaPct <= metaMermaPct * 1.15
-              ? PAL.ambar
-              : PAL.rojo
-          );
-
-    const cajaMermas =
-      document.getElementById('chart-mermas')
-        ?.closest('.chart-box');
-
+    const colorTotalMerma = totalMermaPct <= metaMermaPct ? PAL.verde : (totalMermaPct <= metaMermaPct * 1.15 ? PAL.ambar : PAL.rojo);
+    const cajaMermas = document.getElementById('chart-mermas')?.closest('.chart-box');
     if(cajaMermas){
-
       const resumen = document.createElement('div');
-
-      resumen.style.cssText =
-        'text-align:center;margin-top:6px;font-size:11px;font-weight:600;';
-
+      resumen.style.cssText = 'text-align:center;margin-top:6px;font-size:11px;font-weight:600;';
       resumen.style.color = colorTotalMerma;
-
-      resumen.textContent =
-        'Merma total: ' +
-        (Math.round(totalMermaPct * 10) / 10) +
-        '% de la producción (meta ≤ ' +
-        (Math.round(metaMermaPct * 10) / 10) + '%)';
-
+      resumen.textContent = 'Merma total: ' + r1(totalMermaPct) + '% de la producción (meta ≤ ' + r1(metaMermaPct) + '%)';
       cajaMermas.appendChild(resumen);
-
     }
-
   }
 
 
   /* =====================================================
      CONSUMO DE INSUMOS (SUMA DE LOS 4 CUADROS)
   ===================================================== */
-
   const insumosAgrupados = agruparInsumos(rec);
-
-
-  state.charts.insumos =
-
-    new Chart(
-
-      document.getElementById(
-        'chart-insumos'
-      ),
-
-      {
-
-        type:'bar',
-
-        data:{
-
-          labels:[
-
-            'Cajas preformas',
-
-            'Planchas cartón',
-
-            'Polietileno (kg)',
-
-            'Stretch film (kg)',
-
-            'Cartón reciclado',
-
-            'Cartón real utilizado'
-
-          ],
-
-          datasets:[{
-
-            data:[
-
-              insumosAgrupados.cajasPreformas,
-
-              insumosAgrupados.planchasCarton,
-
-              insumosAgrupados.polietilenoKg,
-
-              insumosAgrupados.stretchFilmKg,
-
-              insumosAgrupados.cartonReciclado,
-
-              insumosAgrupados.cartonRealUtilizado
-
-            ],
-
-            backgroundColor:PAL.azul,
-
-            borderRadius:3,
-
-            barPercentage:0.55
-
-          }]
-
-        },
-
-        options:{
-
-          plugins:{
-
-            legend:{
-              display:false
-            },
-
-            valorBarra:{
-              activo:true
-            },
-
-            tooltip:{
-
-              callbacks:{
-
-                label:ctx =>
-                  formatearNumero(ctx.parsed.y)
-
-              }
-
-            }
-
-          },
-
-          scales:{
-
-            x:{
-              grid:{ display:false }
-            },
-
-            y:{
-
-              beginAtZero:true,
-
-              grid:{ color:'#EFF2F4' },
-
-              ticks:{
-                callback:v => formatearNumero(v)
-              }
-
-            }
-
-          }
-
-        }
-
-      }
-
-    );
+  const insumosValores = [
+    insumosAgrupados.cajasPreformas, insumosAgrupados.planchasCarton, insumosAgrupados.polietilenoKg,
+    insumosAgrupados.stretchFilmKg, insumosAgrupados.cartonReciclado, insumosAgrupados.cartonRealUtilizado
+  ];
+  registrarGx('insumos', 'chart-insumos', apexCrear('chart-insumos', {
+    chart:{ type:'bar' },
+    series:[{ name:'Consumo', data:insumosValores }],
+    colors:[PAL.azul],
+    plotOptions:{ bar:{ columnWidth:'55%', borderRadius:5, dataLabels:{ position:'top' } } },
+    dataLabels:{ enabled:true, offsetY:-20, formatter:v => formatearNumero(v), style:{ colors:[PAL.texto], fontSize:'11px', fontWeight:700 } },
+    xaxis:{ categories:['Cajas preformas', 'Planchas cartón', 'Polietileno (kg)', 'Stretch film (kg)', 'Cartón reciclado', 'Cartón real utilizado'],
+      labels:{ rotate:-30, trim:true, style:{ fontSize:'10px' } } },
+    yaxis:{ min:0, max:Math.max(...insumosValores.map(v => num(v))) > 0 ? Math.max(...insumosValores.map(v => num(v))) * 1.18 : 1,   // sin consumo: eje 0–1 (un eje 0–0 produce rutas NaN)
+      labels:{ formatter:v => formatearNumero(v) } },
+    legend:{ show:false },
+    tooltip:{ y:{ formatter:v => formatearNumero(v) } }
+  }));
 
 
   /* =====================================================
-     TENDENCIA: UN PUNTO POR DÍA, RANGO SELECCIONABLE,
-     PROMEDIO MÓVIL DE 7 DÍAS
-     =====================================================
-
-     - Se agrupa por día (si hubo turno día + noche el mismo
-       día, se combinan ponderando por horas efectivas).
-     - El promedio móvil se calcula sobre TODO el historial
-       y luego se recorta al rango visible, para que el
-       primer punto visible ya tenga una ventana completa
-       de 7 días hacia atrás (no arranca "en frío").
-     - El rango (7/30/90 días) se cuenta hacia atrás desde
-       la fecha del registro más reciente de esta línea, no
-       desde la fecha de hoy.
+     TENDENCIA: UN PUNTO POR DÍA, RANGO SELECCIONABLE, PROMEDIO MÓVIL DE 7 DÍAS
+     (el promedio móvil se calcula sobre TODO el historial y luego se recorta al rango visible)
   ===================================================== */
-
   const serieDiariaCompleta = agruparPorDia(all);
-
-  const promedioMovilCompleto =
-    calcularPromedioMovil(serieDiariaCompleta, 7);
-
+  const promedioMovilCompleto = calcularPromedioMovil(serieDiariaCompleta, 7);
   const mapaPromedioMovil = {};
-
-  serieDiariaCompleta.forEach((p,i) => {
-    mapaPromedioMovil[p.fecha] = promedioMovilCompleto[i];
-  });
-
-
-  const fechaMasReciente =
-    serieDiariaCompleta.length
-      ? serieDiariaCompleta[serieDiariaCompleta.length - 1].fecha
-      : null;
-
+  serieDiariaCompleta.forEach((p, i) => { mapaPromedioMovil[p.fecha] = promedioMovilCompleto[i]; });
+  const fechaMasReciente = serieDiariaCompleta.length ? serieDiariaCompleta[serieDiariaCompleta.length - 1].fecha : null;
   let serieVisible = serieDiariaCompleta;
-
   if(fechaMasReciente){
-
-    const limite =
-      new Date(fechaMasReciente + 'T00:00:00');
-
-    limite.setDate(
-      limite.getDate() - (tendenciaRangoDias - 1)
-    );
-
-    serieVisible =
-      serieDiariaCompleta.filter(
-        p => new Date(p.fecha + 'T00:00:00') >= limite
-      );
-
+    const limite = new Date(fechaMasReciente + 'T00:00:00');
+    limite.setDate(limite.getDate() - (tendenciaRangoDias - 1));
+    serieVisible = serieDiariaCompleta.filter(p => new Date(p.fecha + 'T00:00:00') >= limite);
   }
-
-
-  state.charts.tendencia =
-
-    new Chart(
-
-      document.getElementById(
-        'chart-tendencia'
-      ),
-
-      {
-
-        data:{
-
-          labels:
-            serieVisible.map(p => p.fecha),
-
-          datasets:[
-
-            {
-
-              type:'bar',
-
-              label:'OEE diario',
-
-              data:
-                serieVisible.map(p => p.oee * 100),
-
-              backgroundColor:'#F2D9A8',
-
-              yAxisID:'y',
-
-              order:3,
-
-              barPercentage:0.6
-
-            },
-
-            {
-
-              type:'line',
-
-              label:'Promedio móvil 7 días',
-
-              data:
-                serieVisible.map(
-                  p => {
-                    const v = mapaPromedioMovil[p.fecha];
-                    return v === null || v === undefined
-                      ? null
-                      : v * 100;
-                  }
-                ),
-
-              borderColor:PAL.ambar,
-
-              backgroundColor:PAL.ambar,
-
-              yAxisID:'y',
-
-              tension:0.25,
-
-              pointRadius:2,
-
-              borderWidth:2,
-
-              spanGaps:true,
-
-              order:1
-
-            },
-
-            {
-
-              type:'line',
-
-              label:'Producción efectiva',
-
-              data:
-                serieVisible.map(p => p.efectiva),
-
-              borderColor:PAL.azul,
-
-              backgroundColor:PAL.azul,
-
-              yAxisID:'y1',
-
-              tension:0.25,
-
-              pointRadius:2,
-
-              borderWidth:1.5,
-
-              order:2
-
-            }
-
-          ]
-
-        },
-
-        options:{
-
-          plugins:{
-
-            legend:{
-
-              position:'bottom',
-
-              labels:{
-                boxWidth:10,
-                padding:10,
-                usePointStyle:true
-              }
-
-            },
-
-            metaLine:{
-              valor:METAS.oee * 100,
-              eje:'y',
-              texto:'Meta OEE ' + pct(METAS.oee),
-              color:PAL.rojo
-            },
-
-            tooltip:{
-
-              callbacks:{
-
-                label:ctx =>
-                  ctx.dataset.yAxisID === 'y'
-                    ? ctx.dataset.label + ': ' +
-                      (Math.round(ctx.parsed.y * 10) / 10) + '%'
-                    : 'Efectiva: ' +
-                      formatearNumero(ctx.parsed.y)
-
-              }
-
-            }
-
-          },
-
-          scales:{
-
-            x:{
-              grid:{ display:false }
-            },
-
-            y:{
-
-              position:'left',
-
-              min:0,
-
-              max:100,
-
-              grid:{ color:'#EFF2F4' },
-
-              ticks:{ callback:v => v + '%' },
-
-              title:{
-                display:true,
-                text:'OEE %'
-              }
-
-            },
-
-            y1:{
-
-              position:'right',
-
-              beginAtZero:true,
-
-              grid:{
-                drawOnChartArea:false
-              },
-
-              ticks:{
-                callback:v => formatearNumero(v)
-              },
-
-              title:{
-                display:true,
-                text:'Botellas'
-              }
-
-            }
-
-          }
-
-        }
-
-      }
-
-    );
+  registrarGx('tendencia', 'chart-tendencia', apexCrear('chart-tendencia', {
+    chart:{ type:'line' },
+    series:[
+      { name:'OEE diario', type:'column', data:serieVisible.map(p => r1(p.oee * 100)) },
+      { name:'Promedio móvil 7 días', type:'line',
+        data:serieVisible.map(p => { const v = mapaPromedioMovil[p.fecha]; return v === null || v === undefined ? null : r1(v * 100); }) },
+      { name:'Producción efectiva', type:'line', data:serieVisible.map(p => p.efectiva) }
+    ],
+    colors:['#F2D9A8', PAL.ambar, PAL.azul],
+    stroke:{ width:[0, 3, 2], curve:'smooth' },
+    markers:{ size:[0, 3, 3] },
+    plotOptions:{ bar:{ columnWidth:'60%', borderRadius:3 } },
+    dataLabels:{ enabled:false },
+    xaxis:{ categories:serieVisible.map(p => p.fecha), labels:{ rotate:-45, style:{ fontSize:'10px' } } },
+    yaxis:[
+      { seriesName:'OEE diario', min:0, max:100, title:{ text:'OEE %' }, labels:{ formatter:v => Math.round(v) + '%' } },
+      { seriesName:'OEE diario', min:0, max:100, show:false },
+      { seriesName:'Producción efectiva', opposite:true, min:0, title:{ text:'Botellas' }, labels:{ formatter:v => formatearNumero(v) } }
+    ],
+    annotations:{ yaxis:[{ y:MG.oee, yAxisIndex:0, borderColor:PAL.rojo, strokeDashArray:5,
+      label:{ text:'Meta OEE ' + MG.oee + '%', position:'right', offsetY:-4, style:{ color:'#fff', background:PAL.rojo, fontSize:'10px' } } }] },
+    tooltip:{ shared:true, intersect:false, y:{
+      formatter:(v, o) => v == null ? '—' : (o.seriesIndex === 2 ? formatearNumero(v) : txtPct(v)) } }
+  }));
 
 
   /* =====================================================
-     OEE POR TURNO (TODO EL HISTORIAL DE LA LÍNEA)
+     OEE POR TURNO (TODO EL HISTORIAL DE LA LÍNEA) — área suave con línea de meta
   ===================================================== */
-
   const porTurno = agruparOEEPorTurno(all);
-
-
   if(!porTurno.length){
-
-    const cajaTurno =
-      document.getElementById('chart-turno')?.closest('.chart-box');
-
-    if(cajaTurno){
-
-      cajaTurno.querySelector('canvas').style.display = 'none';
-
-      cajaTurno.innerHTML += `
-        <div class="small-muted" style="text-align:center;padding:20px 0;">
-          Aún no hay suficiente historial para comparar por turno.
-        </div>
-      `;
-
-    }
-
+    sinDatos('chart-turno', 'Aún no hay suficiente historial para comparar por turno.');
   } else {
-
-    state.charts.turno =
-
-      new Chart(
-
-        document.getElementById('chart-turno'),
-
-        {
-
-          type:'bar',
-
-          data:{
-
-            labels:
-              porTurno.map(x => x.etiqueta),
-
-            datasets:[{
-
-              label:'OEE',
-
-              data:
-                porTurno.map(x => x.oee * 100),
-
-              backgroundColor:
-                porTurno.map(
-                  x => colorSegunMeta(x.oee, METAS.oee)
-                ),
-
-              borderRadius:3,
-
-              barPercentage:0.45
-
-            }]
-
-          },
-
-          options:{
-
-            plugins:{
-
-              legend:{ display:false },
-
-              valorBarra:{
-                activo:true,
-                formato:v => (Math.round(v * 10) / 10) + '%'
-              },
-
-              metaLine:{
-                valor:METAS.oee * 100,
-                eje:'y',
-                texto:'Meta ' + pct(METAS.oee),
-                color:PAL.texto
-              },
-
-              tooltip:{
-
-                callbacks:{
-
-                  label:ctx => {
-
-                    const x = porTurno[ctx.dataIndex];
-
-                    return (
-                      (Math.round(x.oee * 1000) / 10) +
-                      '% · ' + Math.round(x.horas) +
-                      ' h efectivas acumuladas'
-                    );
-
-                  }
-
-                }
-
-              }
-
-            },
-
-            scales:{
-
-              x:{
-                grid:{ display:false }
-              },
-
-              y:{
-
-                beginAtZero:true,
-
-                max:100,
-
-                grid:{ color:'#EFF2F4' },
-
-                ticks:{ callback:v => v + '%' }
-
-              }
-
-            }
-
-          }
-
-        }
-
-      );
-
+    registrarGx('turno', 'chart-turno', apexCrear('chart-turno', {
+      chart:{ type:'area' },
+      series:[{ name:'OEE', data:porTurno.map(x => r1(x.oee * 100)) }],
+      colors:[PAL.azul],
+      stroke:{ curve:'smooth', width:3 },
+      fill:{ type:'gradient', gradient:{ shadeIntensity:1, opacityFrom:.38, opacityTo:.04, stops:[0, 100] } },
+      markers:{ size:6, strokeWidth:2, strokeColors:'#fff', colors:porTurno.map(x => colorKpi(x.oee * 100, 'oee')), hover:{ size:8 } },
+      dataLabels:{ enabled:true, formatter:v => txtPct(v), offsetY:-8, style:{ colors:[PAL.texto], fontSize:'11px', fontWeight:700 } },
+      xaxis:{ categories:porTurno.map(x => x.etiqueta) },
+      yaxis:{ min:0, max:100, labels:{ formatter:v => Math.round(v) + '%' } },
+      annotations:{ yaxis:[{ y:MG.oee, borderColor:PAL.texto, strokeDashArray:5,
+        label:{ text:'Meta ' + MG.oee + '%', position:'right', offsetY:-4, style:{ color:'#fff', background:PAL.texto, fontSize:'10px' } } }] },
+      legend:{ show:false },
+      tooltip:{ y:{ formatter:(v, o) => txtPct(v) + ' · ' + Math.round(porTurno[o.dataPointIndex].horas) + ' h efectivas acumuladas' } }
+    }));
   }
 
 
   /* =====================================================
-     OEE POR MARCA (TODO EL HISTORIAL DE LA LÍNEA)
+     OEE POR MARCA (TODO EL HISTORIAL DE LA LÍNEA) — ranking con color según la meta
   ===================================================== */
-
   const porMarca = agruparOEEPorMarca(all);
-
-
   if(!porMarca.length){
-
-    const cajaMarca =
-      document.getElementById('chart-marca')?.closest('.chart-box');
-
-    if(cajaMarca){
-
-      cajaMarca.querySelector('canvas').style.display = 'none';
-
-      cajaMarca.innerHTML += `
-        <div class="small-muted" style="text-align:center;padding:20px 0;">
-          Aún no hay suficiente historial para comparar por marca.
-        </div>
-      `;
-
-    }
-
+    sinDatos('chart-marca', 'Aún no hay suficiente historial para comparar por marca.');
   } else {
-
-    state.charts.marca =
-
-      new Chart(
-
-        document.getElementById('chart-marca'),
-
-        {
-
-          type:'bar',
-
-          data:{
-
-            labels:
-              porMarca.map(x => x.etiqueta),
-
-            datasets:[{
-
-              label:'OEE',
-
-              data:
-                porMarca.map(x => x.oee * 100),
-
-              backgroundColor:
-                porMarca.map(
-                  x => colorSegunMeta(x.oee, METAS.oee)
-                ),
-
-              borderRadius:3,
-
-              barPercentage:0.6
-
-            }]
-
-          },
-
-          options:{
-
-            indexAxis:'y',
-
-            plugins:{
-
-              legend:{ display:false },
-
-              valorBarra:{
-                activo:true,
-                formato:v => (Math.round(v * 10) / 10) + '%'
-              },
-
-              metaLine:{
-                valor:METAS.oee * 100,
-                eje:'x',
-                texto:'Meta ' + pct(METAS.oee),
-                color:PAL.texto
-              },
-
-              tooltip:{
-
-                callbacks:{
-
-                  label:ctx => {
-
-                    const x = porMarca[ctx.dataIndex];
-
-                    return (
-                      (Math.round(x.oee * 1000) / 10) +
-                      '% · ' + Math.round(x.horas) +
-                      ' h efectivas acumuladas'
-                    );
-
-                  }
-
-                }
-
-              }
-
-            },
-
-            scales:{
-
-              x:{
-
-                beginAtZero:true,
-
-                max:100,
-
-                grid:{ color:'#EFF2F4' },
-
-                ticks:{ callback:v => v + '%' }
-
-              },
-
-              y:{
-                grid:{ display:false }
-              }
-
-            }
-
-          }
-
-        }
-
-      );
-
+    registrarGx('marca', 'chart-marca', apexCrear('chart-marca', {
+      chart:{ type:'bar' },
+      series:[{ name:'OEE', data:porMarca.map(x => r1(x.oee * 100)) }],
+      colors:porMarca.map(x => colorKpi(x.oee * 100, 'oee')),
+      plotOptions:{ bar:{ horizontal:true, distributed:true, barHeight:'62%', borderRadius:6 } },
+      fill:{ type:'gradient', gradient:{ shade:'dark', type:'horizontal', shadeIntensity:.35, inverseColors:false, opacityFrom:1, opacityTo:.9, stops:[0, 100] } },
+      dataLabels:{ enabled:true, formatter:v => txtPct(v), style:{ fontSize:'11px', fontWeight:700 } },
+      xaxis:{ categories:porMarca.map(x => x.etiqueta), min:0, max:100, labels:{ formatter:v => Math.round(v) + '%' } },
+      annotations:{ xaxis:[{ x:MG.oee, borderColor:PAL.texto, strokeDashArray:5,
+        label:{ text:'Meta ' + MG.oee + '%', orientation:'horizontal', style:{ color:'#fff', background:PAL.texto, fontSize:'10px' } } }] },
+      legend:{ show:false },
+      tooltip:{ y:{ formatter:(v, o) => txtPct(v) + ' · ' + Math.round(porMarca[o.dataPointIndex].horas) + ' h efectivas acumuladas' } }
+    }));
   }
 
 }
