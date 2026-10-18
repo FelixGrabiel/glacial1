@@ -232,6 +232,28 @@
     });
     return meta;
   }
+  /* Crea un conteo y le carga de una vez las líneas leídas del Excel (columna «CONTEO …»): UNA transacción, una línea por artículo con la
+     ubicación «Importado del Excel». El conteo queda EN PROCESO: se puede revisar, ajustar líneas y cerrar como cualquier otro. */
+  async function importarConteo({fecha,almacen,observacion,archivo,lineas}){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para crear conteos.');
+    const c={fecha:String(fecha||''),almacen:almacen||'TODOS',observacion:String(observacion||'').trim()};
+    const err=N.validarConteo(c);if(err.length)throw falla('VALIDACION',err.join(' · '));
+    if(!Array.isArray(lineas)||!lineas.length)throw falla('VALIDACION','El Excel no trae cantidades para importar.');
+    const u=usuario(),t=ahora(),id=N.claveConteo(c.fecha,t),r=refsConteo(id);
+    const items=lineas.map(l=>{
+      const x={itemId:String(l.itemId||''),ubicacion:'Importado del Excel',cantidad:l.cantidad};
+      const e=N.validarLinea(x);if(e.length)throw falla('VALIDACION',(l.nombre||x.itemId)+': '+e.join(' · '));
+      return {id:N.claveLinea(t),itemId:x.itemId,ubicacion:x.ubicacion,cantidad:N.red(num(x.cantidad),4),por:u.nombre,uid:u.uid,en:t};
+    });
+    const meta={id,...c,estado:'EN_PROCESO',creadoPor:u.nombre,creadoUid:u.uid,creadoEn:t,reaperturas:[],...resumenDe(items)};
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(r.idx);if(s.exists)throw falla('DUPLICADO','Este conteo ya se creó.');
+      tx.set(r.idx,meta);tx.set(r.det,{id,items});
+      auditar(tx,'CREAR_CONTEO',id,c.fecha+' · '+c.almacen,null,{fecha:c.fecha,almacen:c.almacen,observacion:c.observacion});
+      auditar(tx,'IMPORTAR_CONTEO',id,String(archivo||'').slice(0,200),null,{fecha:c.fecha,almacen:c.almacen,lineas:items.length},{conteoId:id});
+    });
+    return meta;
+  }
   /* Lee índice + detalle y exige conteo EN PROCESO; aplica cambio(items, meta) → devuelve lo que se audita. */
   async function sobreLineas(conteoId,cambio){
     if(!yoEscribo())throw falla('PERMISO','No tienes permiso para registrar conteos.');
@@ -369,6 +391,6 @@
   }
 
   window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,asignarCodigosFaltantes,importarCorte,vistaPrevia,mensajeError,
-    escucharConteo,crearConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
+    escucharConteo,crearConteo,importarConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();

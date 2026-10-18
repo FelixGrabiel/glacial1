@@ -413,6 +413,43 @@
     return {articulosContados:tot.porItem.size,lineas:(lineas||[]).length,prioritariosPendientes:pri.pendientes,prioritariosTotal:pri.total};
   }
 
+  /* ---------- importar un conteo desde Excel (columna «CONTEO …» de la hoja RESUMEN) ----------
+     hojas: [{nombre, filas}] (filas = hoja como matriz). Busca, en las primeras 40 filas de cada hoja, la fila de títulos con una columna cuyo título
+     empieza con «CONTEO» (p. ej. «CONTEO 18.10»); los artículos están en la primera columna. Se ignoran las filas de grupo (solo números), «TOTAL GENERAL» y
+     las filas sin cantidad. Cada artículo se une al catálogo por su NOMBRE (sin acentos ni mayúsculas); los que no se encuentran quedan en `sinCatalogo`.
+     Devuelve null si ninguna hoja tiene esa columna; si no, {hoja, titulo, dia, mes, lineas:[{itemId,nombre,cantidad}], sinCatalogo:[{nombre,cantidad}], repetidos:[nombre]}. */
+  function leerConteoExcel(hojas,catalogo){
+    const porNombre=new Map();
+    (catalogo||[]).forEach(c=>{const k=norm(c.nombre);if(k&&!porNombre.has(k))porNombre.set(k,c);});
+    const ordenadas=(hojas||[]).slice().sort((x,y)=>(norm(y.nombre)==='RESUMEN')-(norm(x.nombre)==='RESUMEN'));
+    for(const h of ordenadas){
+      const filas=h.filas||[];let ih=-1,jc=-1;
+      for(let i=0;i<Math.min(filas.length,40)&&ih<0;i++){
+        const f=filas[i]||[];
+        for(let j=1;j<f.length;j++){if(/^CONTEO\b/.test(norm(f[j]))){ih=i;jc=j;break;}}
+      }
+      if(ih<0)continue;
+      const titulo=String(filas[ih][jc]).trim(),m=/(\d{1,2})[./-](\d{1,2})/.exec(titulo);
+      const out={hoja:h.nombre,titulo,dia:m?Number(m[1]):null,mes:m?Number(m[2]):null,lineas:[],sinCatalogo:[],repetidos:[]};
+      const vistos=new Set();
+      for(let i=ih+1;i<filas.length;i++){
+        const f=filas[i];if(!f||f[0]==null||String(f[0]).trim()==='')continue;
+        const nombre=String(f[0]).trim();
+        if(norm(nombre)==='TOTAL GENERAL')break;
+        if(/^\d{2,4}$/.test(nombre))continue;
+        const bruto=f[jc];if(bruto==null||String(bruto).trim()==='')continue;
+        const cantidad=Number(String(bruto).replace(/,/g,''));
+        if(!Number.isFinite(cantidad)||cantidad<0)continue;
+        const k=norm(nombre),it=porNombre.get(k);
+        if(vistos.has(k)){out.repetidos.push(nombre);continue;}
+        vistos.add(k);
+        if(it)out.lineas.push({itemId:it.id,nombre:it.nombre,cantidad:red(cantidad,4)});else out.sinCatalogo.push({nombre,cantidad:red(cantidad,4)});
+      }
+      return out;
+    }
+    return null;
+  }
+
   /* ---------- conciliación SAP vs conteo (Fase 3) ---------- */
   const UMBRAL_OK=2,UMBRAL_OBSERVADO=10;                       // % de diferencia sobre el stock SAP: ≤2 OK · ≤10 OBSERVADO · >10 CRÍTICO
   const ESTADOS_CONCILIACION={OK:'OK',OBSERVADO:'Observado',CRITICO:'Crítico',NO_CONTADO:'No contado',SIN_STOCK_SAP:'Sin stock SAP'};
@@ -461,7 +498,7 @@
   const TIPOS_AUDITORIA={
     IMPORTAR_STOCK:{txt:'Importación de stock SAP',grupo:'IMPORTACION'},
     EDITAR_ARTICULO:{txt:'Edición de artículo (mínimos, reorden, unidad…)',grupo:'CATALOGO'},
-    CREAR_CONTEO:{txt:'Conteo creado',grupo:'CONTEO'},EDITAR_CONTEO:{txt:'Observación del conteo',grupo:'CONTEO'},
+    CREAR_CONTEO:{txt:'Conteo creado',grupo:'CONTEO'},IMPORTAR_CONTEO:{txt:'Conteo importado del Excel',grupo:'CONTEO'},EDITAR_CONTEO:{txt:'Observación del conteo',grupo:'CONTEO'},
     CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
     CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},
     ASIGNAR_CODIGOS:{txt:'Códigos internos asignados',grupo:'CATALOGO'},
@@ -499,7 +536,7 @@
     num,norm,red,fmt,esExcluido,categoriaDe,marcaDe,presentacionDe,esPrioritaria,almacenDe,almacenInfo,idPorNombre,esIdNombre,prefiltrarFilas,leerLibro,
     registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock,
     ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
-    PREFIJO_CODIGO,asignarCodigos,UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones,
+    PREFIJO_CODIGO,asignarCodigos,UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,leerConteoExcel,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones,
     GRUPOS_AUDITORIA,TIPOS_AUDITORIA,CAMPOS_AUDITORIA,grupoAuditoria,cambiosAuditoria,resumenAuditoria,filtrarAuditoria,ordenAuditoria};
   global.glacialInventarioNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

@@ -31,7 +31,7 @@
   /* ---------- lista de conteos ---------- */
   function lista(){
     const cs=D.cache.conteos;
-    const nuevo=D.puedeEscribir()?'<button type="button" class="ii-btn" onclick="iicNuevo()">+ Nuevo conteo</button>':'';
+    const nuevo=D.puedeEscribir()?'<span class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicImportar()">⬆ Importar conteo del Excel</button><button type="button" class="ii-btn" onclick="iicNuevo()">+ Nuevo conteo</button></span>':'';
     const tarjetas=cs.map(c=>`<button type="button" class="ii-cc" onclick="iicAbrir('${esc(c.id)}')"><span class="ii-cc-t"><b>${esc(fechaTxt(c.fecha))}</b> ${estadoPill(c)}</span>
       <span>${esc(nombreAlmacen(c.almacen))}</span><small>${fmt(c.articulos||0,0)} artículos · ${fmt(c.lineas||0,0)} líneas · creó ${esc(c.creadoPor||'—')}</small>
       ${c.observacion?`<small class="ii-mut">${esc(c.observacion)}</small>`:''}</button>`).join('');
@@ -138,6 +138,45 @@
     try{
       const m=await D.crearConteo({fecha:g('ii-n-fecha').value,almacen:g('ii-n-alm').value,observacion:g('ii-n-obs').value});
       iicCerrarModal();C.id=m.id;C.abierto='';C.texto='';C.limite=PASO;D.escucharConteo(m.id);aviso('ok','Conteo creado. Ya pueden registrar líneas.');repintar();
+    }catch(e){errorModal(D.mensajeError(e));if(b)b.disabled=false;}
+  };
+  /* ---------- importar el conteo desde el Excel (columna «CONTEO …» de la hoja RESUMEN) ---------- */
+  let importacion=null;
+  window.iicImportar=()=>{
+    if(!D.puedeEscribir())return;importacion=null;
+    abrirModal('Importar conteo del Excel',`<p class="ii-mut">Sube tu hoja (por ejemplo «STOCK INVENTARIO», hoja RESUMEN). Se lee la columna <b>CONTEO …</b> (p. ej. «CONTEO 18.10») y se crea un
+      conteo con una línea por artículo. Los artículos se unen al catálogo por su nombre.</p>
+      <label class="ii-campo"><span>Archivo Excel</span><input type="file" id="ii-i-arch" accept=".xlsx,.xlsm,.xls" onchange="iicLeerExcel(this)"></label><div id="ii-i-prev"></div>`);
+  };
+  window.iicLeerExcel=async inp=>{
+    const prev=document.getElementById('ii-i-prev'),f=inp.files&&inp.files[0];if(!prev||!f)return;errorModal('');
+    prev.innerHTML='<p class="ii-mut">Leyendo el archivo…</p>';
+    try{
+      if(typeof XLSX==='undefined')throw new Error('No se cargó la librería de Excel. Revisa tu conexión a internet y recarga la página.');
+      const wb=XLSX.read(new Uint8Array(await f.arrayBuffer()),{type:'array',cellDates:false});
+      const hojas=wb.SheetNames.map(n=>({nombre:n,filas:XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null,blankrows:false})}));
+      const r=N.leerConteoExcel(hojas,D.cache.catalogo);
+      if(!r)throw new Error('No encontré una columna «CONTEO …» en el archivo. Revisa que la hoja tenga ese título en la fila de encabezados.');
+      if(!r.lineas.length)throw new Error('La columna «'+r.titulo+'» no tiene cantidades que coincidan con el catálogo.');
+      importacion={archivo:f.name,r};
+      const anio=hoyIso().slice(0,4),fecha=r.dia&&r.mes?anio+'-'+String(r.mes).padStart(2,'0')+'-'+String(r.dia).padStart(2,'0'):hoyIso();
+      const total=r.lineas.reduce((t,l)=>t+l.cantidad,0);
+      prev.innerHTML=`<div class="ii-msg ii-msg-info">Hoja «${esc(r.hoja)}» · columna «${esc(r.titulo)}»: <b>${fmt(r.lineas.length,0)}</b> artículos con cantidad (suma ${fmt(total)}).
+        ${r.sinCatalogo.length?`<br><b>${fmt(r.sinCatalogo.length,0)}</b> no están en el catálogo y no se importarán: ${esc(r.sinCatalogo.slice(0,8).map(x=>x.nombre).join(' · '))}${r.sinCatalogo.length>8?'…':''}`:''}
+        ${r.repetidos.length?`<br>Se ignoraron ${fmt(r.repetidos.length,0)} filas repetidas.`:''}</div>
+        <div class="ii-form1"><label class="ii-campo"><span>Fecha del conteo</span><input type="date" id="ii-i-fecha" value="${fecha}"></label>
+        <label class="ii-campo"><span>Almacén contra el que se compara</span><select id="ii-i-alm"><option value="TODOS" selected>Todos los almacenes (suma de los 6, como tu hoja RESUMEN)</option>
+        ${N.ALMACENES.map(a=>`<option value="${a.clave}">${esc(a.nombre)}</option>`).join('')}</select></label></div>
+        <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicCerrarModal()">Cancelar</button><button type="button" class="ii-btn" id="ii-m-ok" onclick="iicConfirmarImportar()">Crear conteo e importar</button></div>`;
+    }catch(e){importacion=null;prev.innerHTML='';errorModal(e&&e.message||String(e));}
+  };
+  window.iicConfirmarImportar=async()=>{
+    if(!importacion)return;
+    const g=i=>document.getElementById(i),b=g('ii-m-ok');if(b)b.disabled=true;errorModal('');
+    try{
+      const m=await D.importarConteo({fecha:g('ii-i-fecha').value,almacen:g('ii-i-alm').value,observacion:'Importado de '+importacion.archivo,archivo:importacion.archivo,lineas:importacion.r.lineas});
+      iicCerrarModal();importacion=null;C.id=m.id;C.abierto='';C.texto='';C.limite=PASO;D.escucharConteo(m.id);
+      aviso('ok','Conteo importado: '+fmt(m.articulos,0)+' artículos. Revísalo y ciérralo cuando esté listo.');repintar();
     }catch(e){errorModal(D.mensajeError(e));if(b)b.disabled=false;}
   };
   const lineaPorId=id=>lineasActuales().find(l=>l.id===id);

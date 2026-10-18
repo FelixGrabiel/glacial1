@@ -117,3 +117,8 @@ match /insumosAuditoria/{id}     { allow read: if iiVer();  allow create: if iiE
 
 ## Pendiente
 Las 4 fases están construidas. `glacial_24` ya está aplicada en PRODUCCIÓN. Falta probar con el Excel real. Idea futura: un aviso de bajo mínimo. La auditoría cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).
+
+
+## Importar el conteo desde el Excel (18/10/2026)
+Pestaña «Conteo físico» → **⬆ Importar conteo del Excel**. Lee la columna «CONTEO …» (p. ej. «CONTEO 18.10») de la hoja RESUMEN: una línea por artículo, ubicación «Importado del Excel», unida al catálogo por el nombre. Muestra una vista previa (cuántos entran y cuáles no están en el catálogo), deja elegir la fecha y el almacén, y crea el conteo EN PROCESO (se revisa y se cierra como cualquier otro). Auditoría: `CREAR_CONTEO` + `IMPORTAR_CONTEO`.
+**Almacén «Todos los almacenes»** (por defecto en la importación): TOTAL SAP suma los 6 almacenes, igual que la hoja RESUMEN. Con «Insumos y suministros» solo se compara contra ese almacén (por eso un conteo así mostraba 2,356 en vez de 12,356). Prueba: `tests/inventario-insumos-importar-conteo.test.js`.
