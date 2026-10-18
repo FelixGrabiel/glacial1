@@ -12,7 +12,8 @@ styles.css · tareo.css          Estilos
 sidebar-glacial.css · mobile-glacial.css
 img/                            Imágenes (logo)
 json/                           cors.json
-functions/                      Cloud Functions de ejemplo (PIN de técnicos), no se despliegan solas
+firebase-functions/             Cloud Functions de ejemplo (PIN de técnicos), no se despliegan solas. No se llama «functions/»
+                                porque Cloudflare Pages intentaría publicar esa carpeta como funciones de servidor
 firestore.rules.*.txt           Reglas de Firestore: etapa1 (abiertas) y etapa2 (estrictas, archivo final; incluye el rol de Mantenimiento)
 js/
   nucleo/         base de la app

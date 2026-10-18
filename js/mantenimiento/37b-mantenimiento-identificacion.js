@@ -17,7 +17,7 @@
      'functions' LISTO PARA CLOUD FUNCTIONS: el PIN se crea y verifica en el
                  servidor con las funciones callable mantEstadoPin,
                  mantCrearPin y mantVerificarPin (ejemplo en
-                 functions/mantenimiento-pin.js). El navegador nunca ve el
+                 firebase-functions/mantenimiento-pin.js). El navegador nunca ve el
                  hash y el servidor entrega un token de identificación.
    Para pasar a Cloud Functions: desplegar las funciones y poner
    window.MANT_PIN_MODO='functions' en js/01-config.js.
