@@ -1,7 +1,7 @@
 /* =============================================================
    GLACIAL · INVENTARIO DE INSUMOS — NÚCLEO (puro: sin Firestore ni pantalla; se prueba con node)
    -------------------------------------------------------------
-   Documento de diseño: docs/INVENTARIO-INSUMOS.md.
+   Documento de diseño: docs/asistente/inventario-insumos.md.
    · Lee el Excel que la asistente exporta de SAP Business One (consulta «Consulta2»):
        - PLANO: una fila por almacén × artículo (WhsName, ItemCode, ItemName, ItmsGrpCod, OnHand…);
        - TABLA DINÁMICA: artículos en filas (agrupados por ItmsGrpCod) y almacenes en columnas. Esa tabla NO trae ItemCode: el

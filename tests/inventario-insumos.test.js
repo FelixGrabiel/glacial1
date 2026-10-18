@@ -332,6 +332,6 @@ function entorno(rol,permisos){
   ok(!/supabase\.from|\.from\('/.test(pant+dat)&&!/arrayUnion|increment\(|array-contains|where\([^)]*'in'/.test(pant+dat),'solo la capa documento (nada de supabase.from ni consultas no admitidas por el puente)');
   ok(/new Worker/.test(pant)&&/Procesando… /.test(pant)&&/leerEnPagina/.test(pant),'importación en Web Worker con avance «Procesando… X%» y respaldo sin Worker');
   ok(!/insumosAuditoria'\)\.doc\([^)]*\)\.(update|delete)|collection\('insumosAuditoria'\)[^;]*\.(update|delete)\(/.test(dat),'el libro de auditoría solo se escribe con set (crear)');
-  ok(/GLACIAL/.test(leer('docs/INVENTARIO-INSUMOS.md'))&&/glacial_24_inventario_insumos/.test(leer('INDICE.md')),'documentación e INDICE');
+  ok(/GLACIAL/.test(leer('docs/asistente/inventario-insumos.md'))&&/glacial_24_inventario_insumos/.test(leer('INDICE.md')),'documentación e INDICE');
   console.log(fallas?fallas+' fallas':'todo correcto');
 })();

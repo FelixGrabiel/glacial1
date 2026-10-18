@@ -293,7 +293,7 @@ const ANA={nombre:'Ana'},LUIS={nombre:'Luis'};
    Reglas y compatibilidad con el puente de Supabase
    ========================================================= */
 {
-  const reglas=leer('firestore.rules.etapa2.txt');
+  const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
   ok(/match \/historialProgramacion\/\{id\}/.test(reglas)&&/match \/solicitudesProgramacion\/\{id\}/.test(reglas),'las reglas de historial y solicitudes ya cubren lo que ahora se escribe en la transacción');
   const fuentes=['16-paletas','51-planificacion-nucleo','52-planificacion-pantalla','54-planificacion-solicitudes'].map(f=>leer('js/produccion/'+f+'.js')).join('\n');
   ok(!/FieldValue\.(increment|arrayUnion|arrayRemove)|array-contains|startAfter|endBefore|where\([^)]*,\s*'(in|!=)'/.test(fuentes),'sin construcciones que el puente no admite (increment, arrayUnion, in, !=, startAfter…)');

@@ -139,7 +139,7 @@ const ANA={nombre:'Ana'};
   const s52=leer('js/produccion/52-planificacion-pantalla.js');
   ok(/EN_PRODUCCION'\?'est-curso'/.test(s52)&&/#FFEDD5/.test(s52)&&/est-curso\{background:#FFEDD5;color:#9A3412\}/.test(s52)&&/est-fin\{background:#DCFCE7/.test(s52)&&/est-det\{background:#FEE2E2/.test(s52)&&/est-pend\{background:#F3F4F6/.test(s52)&&/est-pausa\{background:#FEF9C3/.test(s52),'colores de estado = los de Producción Actual: EN PRODUCCIÓN naranja, PAUSA amarillo, DETENIDA rojo, FINALIZADA verde, PENDIENTE gris');
   ok(/'LISTA'\)\?'est-det'/.test(s52)&&/CANCELADA'\?'est-canc'/.test(s52)&&/est-canc\{[^}]*line-through/.test(s52),'Pausa, Lista y Cancelada conservan su significado (Lista = detenida; Cancelada con estilo propio, ya no igual que Detenida)');
-  const r=leer('firestore.rules.etapa2.txt'),bl=r.slice(r.indexOf('match /compromisosProgramacion/{id}'),r.indexOf('match /distribucionPersonal'));
+  const r=leer('_archivo/firebase/firestore.rules.etapa2.txt'),bl=r.slice(r.indexOf('match /compromisosProgramacion/{id}'),r.indexOf('match /distribucionPersonal'));
   ok(/allow create: if puedePlanificar\(\) && !soloVista\(\)/.test(bl)&&/creadoEn == request\.time/.test(bl)&&/uid == request\.auth\.uid/.test(bl)&&/allow update, delete: if false/.test(bl)&&/allow read: if autenticado\(\)/.test(bl),'reglas: lo crea quien planifica (uid y hora del servidor), nadie edita ni borra, leen los usuarios con sesión');
   const f64=leer('js/produccion/64-planificacion-avance.js');
   ok(!/FieldValue\.(increment|arrayUnion|arrayRemove)|array-contains|startAfter|endBefore|where\(/.test(f64)&&/orderBy\('fecha','desc'\)\.limit\(200\)/.test(f64),'64: solo onSnapshot con orderBy/limit, runTransaction y set (todo lo que admite el puente)');

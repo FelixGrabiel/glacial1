@@ -109,7 +109,7 @@ ok(U.aplicarCambio(L2,'jg',true,false,'adm').ok,'tras asignar el rol, ya se le p
 /* 6) Perfiles, reglas, pantalla */
 const seg=leer('js/accesos/36-seguridad-auth.js');
 ok(/glacialEcoPermisos/.test(seg)&&/eco/.test(seg),'publicarPerfiles publica el campo eco {ver, gestionar}');
-const reglas=leer('firestore.rules.etapa2.txt');
+const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
 ok(!/esGerencia\(\)|esJefaturaEco\(\)/.test(reglas.replace(/\/\/[^\n]*/g,'')),'las reglas ya no usan esGerencia()/esJefaturaEco() para lo económico');
 ok(/valoresUnitarios[^]*?'linea'/.test(reglas),'las reglas aceptan valores de tipo línea');
 const dash=leer('js/produccion/58-impacto-dashboard.js');

@@ -108,7 +108,7 @@ ok(I.enProduccion({producido:1})&&!I.enProduccion({producido:0})&&!I.enProduccio
   ok(I.puedeVer()===false,'la cuenta compartida de Mantenimiento no lee ni informa');
 
   /* ---------- fuentes ---------- */
-  const reglas=leer('firestore.rules.etapa2.txt');
+  const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
   const bloque=reglas.slice(reglas.indexOf('match /incidenciasNoProduccion/{id}'),reglas.indexOf('match /{document=**}'));
   ok(/allow read: if autenticado\(\) && !esMantCompartido\(\)/.test(bloque)&&/allow create, update: if puedeOperarProduccion\(\)/.test(bloque)&&/allow delete: if false/.test(bloque),'reglas: leen los autenticados; escribe solo quien opera Producción; no se borra');
   ok(/actualizadoUid == request\.auth\.uid/.test(bloque)&&/actualizadoEn == request\.time/.test(bloque)&&/historial\.size\(\) >= resource\.data\.historial\.size\(\)/.test(bloque),'reglas: uid y hora del servidor; el historial solo crece');

@@ -2,7 +2,7 @@
    Modelo (puro): las 5 líneas siempre presentes, línea sin producción con su motivo, códigos de cuadro, paradas asignadas al cuadro, mermas
    rechazadas fuera, personal sin duplicar y sin línea en el Resumen, factor por UND, sin datos inventados.
    Libro (si ExcelJS está disponible: NODE_PATH o node_modules): 6 hojas en orden, enlaces internos, fórmulas sin #REF y sin funciones
-   posteriores a Excel 2010. La verificación con recálculo real (LibreOffice) está descrita en docs/ASISTENTE-PRODUCCION.md. */
+   posteriores a Excel 2010. La verificación con recálculo real (LibreOffice) está descrita en docs/asistente/asistente-produccion.md. */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const R=path.resolve(__dirname,'..');
 let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c)fallas++;};
@@ -49,7 +49,7 @@ ok(L('B7L').personal.length===2&&L('PET1').personal.length===1&&m.apoyo.length==
 ok(L('B7L').personal.find(p=>p.codigo==='03').asistencia==='Falta','asistencia distinta de «Asistió» se conserva (el Excel la marca en rojo)');
 
 let ExcelJS=null;try{ExcelJS=require('exceljs');}catch(_){ExcelJS=null;}
-if(!ExcelJS){console.log('• ExcelJS no está instalado aquí: se omite la comprobación del libro (ver docs/ASISTENTE-PRODUCCION.md).');}
+if(!ExcelJS){console.log('• ExcelJS no está instalado aquí: se omite la comprobación del libro (ver docs/asistente/asistente-produccion.md).');}
 else{
   const wb=G.escribir(ExcelJS,m,{});
   ok(wb.worksheets.map(w=>w.name).join('|')==='Resumen general|PET1|PET2|B7L|CAJAS 20L|B20L','prueba 16: 6 hojas, en orden y con los nombres correctos');

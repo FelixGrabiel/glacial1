@@ -124,7 +124,7 @@ const mtto=dispositivo({username:'mtto',nombre:'Mtto',rol:'Mantenimiento compart
   ok(rr2.yaRecibida&&rr2.por==='Luis'&&docs.get('entregasTurno/'+id).recibidaEn.toMillis()===reloj,'recibir dos veces no cambia nada: informa quién la recibió');
 
   /* ---------- la regla de Firestore autoriza exactamente los campos que escribe el código ---------- */
-  const reglas=leer('firestore.rules.etapa2.txt');
+  const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
   const bloque=reglas.slice(reglas.indexOf('match /entregasTurno/{id}'),reglas.indexOf('match /avancesTurnoItems/{id}'));
   const lista=(re)=>{const m=bloque.match(re);return m?m[1].split(',').map(x=>x.replace(/['\s]/g,'')).filter(Boolean):[];};
   const hasOnlyCrear=lista(/create:[^]*?keys\(\)\s*\.hasOnly\(\[([^\]]*)\]/);

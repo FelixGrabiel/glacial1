@@ -105,7 +105,7 @@ con(Object.assign({},conModo({modulos:['inicio']}),{rol:'Supervisor',permisos:['
 ok(ev("tienePermiso('perdidasSoles')")===false,'quien no la tenía antes, tampoco la recibe al marcar módulos');
 
 /* ---------- 2. Fuentes: reglas de Firestore, perfiles, formulario y orden de Inicio ---------- */
-const reglas=leer('firestore.rules.etapa2.txt');
+const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
 ok(/function soloVista\(\)/.test(reglas)&&/get\('soloVista', false\)/.test(reglas),'reglas: función soloVista() desde sync/perfiles');
 const operativo=reglas.slice(reglas.indexOf("(autenticado() && !soloVista() && doc in ["),reglas.indexOf("(autenticado() && !soloVista() && doc in [")+300);
 ok(/'records', 'workers', 'rotaciones'/.test(operativo)&&/'programaciones', 'avancesTurno'/.test(operativo),'reglas: los documentos operativos exigen !soloVista()');

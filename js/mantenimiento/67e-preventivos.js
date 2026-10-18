@@ -14,7 +14,7 @@
      corresponde con los datos que SÍ existen (responsable del plan, participantes, supervisor de Mantenimiento/Administrador, la cuenta compartida si el técnico
      identificado es el responsable o el plan es del grupo). No hay envío por WhatsApp/SMS ni «técnico de turno» inventado.
    · PLANIFICACIÓN: la ventana prevista de un plan puede consultarse con glacialPreventivos.ventanasPrevistas(desde, hasta); son PROPUESTAS (nunca una parada
-     real ni una ventana confirmada). Planificación todavía NO la consume: el contrato está en docs/mantenimiento-intervenciones.md.
+     real ni una ventana confirmada). Planificación todavía NO la consume: el contrato está en docs/mantenimiento/mantenimiento-intervenciones.md.
    Datos: colección planesPreventivos (un documento por plan). Sin where in/!=, increment, arrayUnion ni update con rutas (puente de Supabase).
    Cargar después de 67c-intervenciones-pantalla.js.
    ============================================================= */

@@ -81,7 +81,7 @@ ok(/body\.av-con-flotante #app-screen \.shell>\.main\{padding-bottom:calc\(84px 
 ok(/<b>Avance \/ Cierre<\/b>/.test(f29)&&/aria-label','Abrir Avance y Cierre de turno'/.test(f29),'texto «Avance / Cierre» y nombre accesible');
 
 /* 9) encabezado móvil */
-const html=leer('index.html'),mob=leer('mobile-glacial.css');
+const html=leer('index.html'),mob=leer('css/mobile-glacial.css');
 ok(/<div class="topbar-title" title="Reporte Diario de Producción">/.test(html)&&/<span class="tt-full">Reporte Diario de Producción<\/span><span class="tt-short" aria-hidden="true">GLACIAL · Producción<\/span>/.test(html),'título: nombre completo accesible + versión corta «GLACIAL · Producción»');
 ok(/\.tt-short\{display:none\}/.test(mob)&&/#app-screen \.topbar-title \.tt-full\{position:absolute;width:1px/.test(mob)&&/#app-screen \.topbar-title \.tt-short\{display:inline\}/.test(mob),'en móvil se muestra la versión corta y el nombre completo queda solo para lectores de pantalla');
 ok(/#app-screen \.topbar-title\{flex:1 1 auto;min-width:0;overflow:hidden\}/.test(mob),'el contenedor del título se reduce (min-width:0) en lugar de empujar los botones');

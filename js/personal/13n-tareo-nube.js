@@ -1,7 +1,7 @@
 /* =============================================================
    GLACIAL · TAREO — GUARDADO EN LA NUBE (concurrencia, errores, pendientes y documento por tareo)
    -------------------------------------------------------------
-   Diagnóstico (docs/TAREO-GUARDADO-CONCURRENTE.md): todos los tareos vivían en UN documento (sync/tareos). Cada marca de cualquier
+   Diagnóstico (docs/personal-tareo/tareo-guardado-concurrente.md): todos los tareos vivían en UN documento (sync/tareos). Cada marca de cualquier
    supervisor abría una transacción sobre ese documento; con varios equipos a la vez Firestore agotaba sus 5 intentos y devolvía
    «the stored version (…) does not match the required base version (…)», que la app mostraba como «falta permiso o internet».
 
@@ -29,7 +29,7 @@
     sin_conexion: 'Sin conexión. Hay cambios pendientes de sincronización.',
     permisos: 'Tu usuario no tiene permiso para guardar este tareo.',
     temporal: 'No fue posible sincronizar ahora. Se intentará nuevamente sin duplicar el registro.',
-    tamano: 'El tareo es demasiado grande para guardarse en un solo documento. Avisa a Sistemas (ver docs/TAREO-GUARDADO-CONCURRENTE.md).',
+    tamano: 'El tareo es demasiado grande para guardarse en un solo documento. Avisa a Sistemas (ver docs/personal-tareo/tareo-guardado-concurrente.md).',
     validacion: '',
     ok: 'Tareo guardado en la nube.'
   };

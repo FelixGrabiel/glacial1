@@ -433,7 +433,7 @@
 
   /* ---------------------------------------------------------
      PROYECCIÓN DE CIERRE DEL BLOQUE (puro; la usan todas las pantallas)
-     Definiciones: ver docs/PROYECCION-CIERRE.md
+     Definiciones: ver docs/produccion/proyeccion-cierre.md
        Tiempo transcurrido = min(ahora, fin objetivo) − inicio real
        Tiempo efectivo     = transcurrido − paradas oficiales (programadas + no programadas)
        Ritmo real (ratio)  = producido ÷ tiempo efectivo
