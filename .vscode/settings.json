@@ -1,0 +1,26 @@
+{
+  "explorer.sortOrder": "type",
+  "explorer.compactFolders": false,
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "index.html": "*.css",
+    "INDICE.md": "README.md, .gitignore",
+    "*.js": "${capture}.test.js"
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/.DS_Store": true
+  },
+  "search.exclude": {
+    "docs/capturas-*/**": true,
+    "docs/capturas/**": true,
+    "_archivo/**": true
+  },
+  "workbench.editor.labelFormat": "short",
+  "workbench.tree.indent": 14,
+  "workbench.tree.renderIndentGuides": "always",
+  "editor.rulers": [120],
+  "files.associations": { "*.bpmn": "xml" }
+}
