@@ -97,10 +97,16 @@
   function guardarVistos(v){try{localStorage.setItem(claveVistos(),JSON.stringify(v));}catch(_){/* almacenamiento bloqueado */}}
 
   /* ---------- cálculo de avisos ---------- */
-  function paradasAbiertas(){
+  function paradasAbiertas(umbralMin){
     const salida=[];
     let prog=[];
     try{prog=typeof loadProgramaciones==='function'?(loadProgramaciones()||[]):[];}catch(_){prog=[];}
+    /* 24b-pausas-sin-cerrar.js: solo paradas reales de las últimas 24 h (sin «cambio temporal» mientras la línea produce otra presentación y con los
+       umbrales por tipo: refrigerio 60 min, cambio temporal 30 min). Las pausas olvidadas se revisan en «PARADAS DE HOY › Pausas sin cerrar». */
+    if(window.glacialPausas){
+      return window.glacialPausas.analizar(prog,ahora(),{umbralRojoMin:umbralMin}).abiertas
+        .map(a=>({linea:a.linea,motivo:a.motivo,desde:a.desde,tipo:a.tipo,estandarMin:a.estandarMin,umbralMin:a.umbralMin}));
+    }
     prog.forEach(p=>{
       const op=p&&p.estadoOperacion;
       if(!op)return;
@@ -150,10 +156,10 @@
 
     /* a) paradas abiertas */
     if(a.tipos.includes('parada')&&!franja){
-      paradasAbiertas().forEach(p=>{
+      paradasAbiertas(cfg.paradaMin).forEach(p=>{
         if(!enAmbito(a,p.linea))return;
         const min=(n-p.desde)/MS_MIN;
-        const umbral=p.tipo==='PAUSA'?Math.max(cfg.paradaMin,p.estandarMin):cfg.paradaMin;
+        const umbral=p.tipo==='PAUSA'?(p.umbralMin>0?p.umbralMin:Math.max(cfg.paradaMin,p.estandarMin)):cfg.paradaMin;
         if(min>umbral)add('par|'+p.linea+'|'+p.desde,'parada',p.linea,
           (p.tipo==='PAUSA'?'Pausa programada':'Parada')+' abierta hace '+fmt(min)+' min'+(p.motivo?' · '+p.motivo:''),
           p.desde,{severidad:'roja'});

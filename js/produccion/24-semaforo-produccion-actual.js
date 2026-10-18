@@ -2267,6 +2267,10 @@
                 actualizadoPor:nombreOperador()
               }
             };
+          } else if(estadoOtro==='PAUSA' && window.glacialPausas){
+            // Pausa REAL (p. ej. refrigerio) de otra presentación del plan: al iniciar esta, esa pausa terminó. Se cierra con esta hora
+            // (registro de parada y historial) y la otra queda «estacionada» (24b-pausas-sin-cerrar.js). Un «cambio temporal» no se toca.
+            items[j]=window.glacialPausas.estacionarProgramacion(p,ahora,nombreOperador());
           }
         });
       }

@@ -395,6 +395,10 @@
       .pp-datos .pp-pend-alerta{color:#8a5a00;font-weight:800}
       .pp-ayuda{font-size:11.5px;color:#5a6b7b;margin-top:6px}
       .pp-vacio{font-size:13px;color:#4a5b6b;padding:4px 0}
+      .pp-sin-cerrar{margin:10px 0 2px;padding:10px 12px;border-radius:10px;background:#fff7e6;border:1px solid #f0c36d;color:#7a4b00}
+      .pp-sc-tit{font-weight:800;font-size:13px}.pp-sc-ayuda{font-size:12px;margin:2px 0 6px}
+      .pp-sc-fila{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #f0d9a8;font-size:13px}
+      .pp-sc-btn{flex:0 0 auto;border:1px solid #b45309;background:#fff;color:#8a4600;border-radius:8px;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer}
       #bm-aviso-cierre{position:fixed;right:16px;bottom:16px;z-index:10050;max-width:360px;background:#fff8e6;border:1px solid #f0c36a;border-left:6px solid #df8b00;border-radius:10px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.2);font-size:13px}
       #bm-aviso-cierre ul{margin:6px 0 8px;padding-left:18px}
     `;
@@ -642,6 +646,8 @@
   });
   document.getElementById('main')?.addEventListener('click',e=>{
     // Tarjeta «Paradas de hoy» (Inicio)
+    const cierre=e.target.closest&&e.target.closest('[data-pp-cerrar]');
+    if(cierre&&window.glacialPausas){e.stopPropagation();window.glacialPausas.abrirCierre(cierre.getAttribute('data-pp-cerrar'));return;}
     const pp=e.target.closest&&e.target.closest('#pp-hoy');
     if(pp){
       if(e.target.closest('[data-pp-pend]'))window.bitacoraMttoAbrir({rango:'hoy',pend:true});
@@ -784,15 +790,36 @@
     const paradas=armarParadas(dia.eventos);
     const R=resumir(paradas);
     const afectada=R.porLinea.find(r=>r.ms>0)||null;
-    const abiertas=abiertasEnVivo();
     const ahora=ahoraMs(),umbral=umbralRojoMin();
-    abiertas.forEach(a=>{
-      a.min=Math.max(0,Math.floor((ahora-a.desde)/60000));
-      // Una pausa programada solo se alarma si pasa de su estándar (p. ej. refrigerio 60 min).
-      a.larga=a.min>(a.tipo==='PAUSA'?Math.max(umbral,a.estandarMin):umbral);
-    });
+    let abiertas,sinCerrar=[];
+    if(window.glacialPausas){
+      // 24b-pausas-sin-cerrar.js: solo paradas de las últimas 24 h (sin «cambio temporal» mientras la línea produce otra presentación); las
+      // pausas olvidadas (> 24 h) o presentaciones sin finalizar van aparte, en «Pausas sin cerrar (revisar)».
+      let prog=[];
+      try{prog=typeof loadProgramaciones==='function'?(loadProgramaciones()||[]):[];}catch(_){prog=[];}
+      const a=window.glacialPausas.analizar(prog,ahora,{umbralRojoMin:umbral,iniDia:ventanaDia().ini});
+      abiertas=a.abiertas;sinCerrar=a.sinCerrar;
+    }else{
+      abiertas=abiertasEnVivo();
+      abiertas.forEach(a=>{
+        a.min=Math.max(0,Math.floor((ahora-a.desde)/60000));
+        // Una pausa programada solo se alarma si pasa de su estándar (p. ej. refrigerio 60 min).
+        a.larga=a.min>(a.tipo==='PAUSA'?Math.max(umbral,a.estandarMin):umbral);
+      });
+    }
     const color=abiertas.some(a=>a.larga)?'rojo':(abiertas.length?'ambar':'verde');
-    return {R,afectada,abiertas,color,umbral};
+    return {R,afectada,abiertas,sinCerrar,color,umbral};
+  }
+  const fmtMin=m=>window.glacialPausas?window.glacialPausas.fmtDuracion(m):m+' min';
+  /* Aviso en ámbar: pausas/paradas abiertas hace más de 24 h y presentaciones sin finalizar (solo se pueden cerrar Supervisor, Jefe de Operaciones y Administrador). */
+  function htmlSinCerrar(lista){
+    if(!lista||!lista.length)return '';
+    const puede=window.glacialPausas&&window.glacialPausas.puedeCerrar();
+    return '<div class="pp-sin-cerrar" role="status"><div class="pp-sc-tit">Pausas sin cerrar (revisar) · '+lista.length+'</div>'+
+      '<div class="pp-sc-ayuda">Llevan más de 24 h abiertas o su turno ya terminó. No son paradas de hoy: revísalas'+(puede?' y ciérralas con la hora real.':'.')+'</div>'+
+      lista.map(a=>'<div class="pp-sc-fila"><span><b>'+esc(a.linea)+'</b> · '+esc(a.fecha)+' · '+esc(a.turno)+' · '+esc(a.marca)+' '+esc(a.presentacion)+
+        '<br><span class="small-muted">'+esc(a.motivo||'sin motivo')+' · desde '+esc(window.glacialPausas.fmtFechaHora(a.desde))+' ('+esc(fmtMin(a.min))+')</span></span>'+
+        (puede?'<button type="button" class="pp-sc-btn" data-pp-cerrar="'+esc(a.clave)+'">'+(a.tipo==='PRODUCCION'?'Finalizar':'Cerrar pausa')+'</button>':'')+'</div>').join('')+'</div>';
   }
 
   function htmlTarjeta(d){
@@ -800,7 +827,7 @@
     const estado={rojo:'PARADA PROLONGADA',ambar:'PARADA ABIERTA',verde:'SIN PARADAS ABIERTAS'}[d.color];
     const cuerpoAbiertas=d.abiertas.length
       ?'<div class="pp-abiertas">'+d.abiertas.map(a=>'<div class="pp-abierta'+(a.larga?' larga':'')+'"><span><b>'+esc(a.linea)+'</b> · '+esc(a.motivo||'sin motivo')+
-        (a.tipo==='PAUSA'?' <span class="small-muted">(pausa)</span>':'')+'</span><span data-pp-min="'+a.desde+'">'+a.min+' min</span></div>').join('')+'</div>'
+        (a.tipo==='PAUSA'?' <span class="small-muted">(pausa)</span>':'')+'</span><span data-pp-min="'+a.desde+'">'+fmtMin(a.min)+'</span></div>').join('')+'</div>'
       :'<div class="pp-vacio">No hay paradas abiertas.</div>';
     const T=d.R.tot;
     const datos=dia.error
@@ -812,8 +839,8 @@
           '<span>Línea más afectada: <b>'+(d.afectada?esc(d.afectada.k)+' · '+minutos(d.afectada.ms)+' min':'—')+'</b></span>'+
           '<span data-pp-pend class="'+(T.pendientes?'pp-pend-alerta':'')+'">Motivo pendiente: <b>'+T.pendientes+'</b></span></div>'+
           '<div class="pp-ayuda">Motivo pendiente = «Otro» sin descripción o sin motivo. Toca la tarjeta para abrir la bitácora de hoy.</div>'
-          :'<div class="pp-vacio">Sin paradas registradas en este día operativo (07:00 a 07:00).</div>'));
-    return '<div class="pp-top"><h3>PARADAS DE HOY</h3><span class="pp-estado">'+estado+'</span>'+chip()+'</div>'+cuerpoAbiertas+datos;
+          :((d.abiertas.length||(d.sinCerrar&&d.sinCerrar.length))?'':'<div class="pp-vacio">Sin paradas registradas en este día operativo (07:00 a 07:00).</div>')));   // solo cuando de verdad no hay nada que listar (ni paradas abiertas ni pausas por revisar)
+    return '<div class="pp-top"><h3>PARADAS DE HOY</h3><span class="pp-estado">'+estado+'</span>'+chip()+'</div>'+cuerpoAbiertas+datos+htmlSinCerrar(d.sinCerrar);
   }
 
   function pintarTarjeta(){
@@ -831,7 +858,7 @@
   function avanzarMinutos(){
     const ahora=ahoraMs();
     document.querySelectorAll('[data-pp-min]').forEach(s=>{
-      s.textContent=Math.max(0,Math.floor((ahora-Number(s.getAttribute('data-pp-min')))/60000))+' min';
+      s.textContent=fmtMin(Math.max(0,Math.floor((ahora-Number(s.getAttribute('data-pp-min')))/60000)));
     });
   }
   setInterval(()=>{
@@ -933,6 +960,7 @@
     if(typeof renderMain==='function')renderMain();
     cargarRango(!!o.rango);
   };
+  window.__paradasHoy={datosTarjeta,htmlTarjeta,dia};              // solo para las pruebas automáticas (tests/pausas-sin-cerrar.e2e.js)
   window.goBitacoraMtto=()=>window.bitacoraMttoAbrir({origen:''});
   // «Bitácora de producción»: la misma pantalla filtrada por origen Producción (se abre desde el grupo Producción del menú).
   window.goBitacoraProduccion=()=>window.bitacoraMttoAbrir({rango:'hoy',origen:'PRODUCCION'});
