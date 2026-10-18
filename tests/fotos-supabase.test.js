@@ -41,14 +41,14 @@ function entorno(conCliente){
 
   /* integración con el resto de la página */
   const reg=leer('js/produccion/06-registro.js'),his=leer('js/produccion/07-historial.js'),html=leer('index.html'),puente=leer('js/nucleo/00b-puente-supabase.js');
-  ok(/window\.glacialFotos\.disponible\(\)/.test(reg)&&/glacialFotos\.subir\(/.test(reg)&&/proveedor:\s*'supabase'/.test(reg)&&/CLOUDINARY_UPLOAD_URL/.test(reg),'06: sube a Supabase primero y conserva Cloudinary como respaldo');
+  ok(/window\.glacialFotos\.disponible\(\)/.test(reg)&&/glacialFotos\.subir\(/.test(reg)&&/proveedor:\s*'supabase'/.test(reg)&&!/cloudinary/i.test(reg),'06: sube a Supabase Storage y ya no usa Cloudinary');
   ok(/histFotoEnlace\(url\)/.test(his)&&/histFotoImg\(url\)/.test(his)&&/histFotoImg\(e\.url\)/.test(his),'07: el historial muestra las fotos con enlace firmado');
   ok(/glacialSupabaseCliente\s*=\s*T\.sb/.test(puente),'el puente expone el cliente de Supabase (con la sesión del usuario)');
   const pos=n=>html.indexOf(n);
   ok(pos('js/nucleo/00b-puente-supabase.js')<pos('js/produccion/06b-fotos-supabase.js')&&pos('js/produccion/06b-fotos-supabase.js')<pos('js/produccion/06-registro.js'),'index.html: el puente, luego 06b y después 06-registro');
   const mant=leer('js/mantenimiento/67d-intervenciones-evidencias.js'),asis=leer('js/asistente/72-asistente-pantalla.js');
-  ok(/glacialFotos\.subir\(blob,\{carpeta,id:publicId/.test(mant)&&/subirCloudinary\(/.test(mant)&&/proveedorDe\(it\.publicId\)/.test(mant)&&(mant.match(/srcDe\(/g)||[]).length>=3&&(mant.match(/src="'\+esc\(urlDe\(/g)||[]).length===1,'Mantenimiento: sube a Supabase (con respaldo a Cloudinary), registra el proveedor y muestra con enlace firmado');
-  ok(/glacialFotos\.subir\(file,\{carpeta:'asistente\//.test(asis)&&/CLOUDINARY_UPLOAD_PRESET/.test(asis),'Asistente de Producción: evidencia a Supabase (carpeta asistente/) con respaldo a Cloudinary');
+  ok(/glacialFotos\.subir\(blob,\{carpeta,id:publicId/.test(mant)&&!/cloudinary/i.test(mant.replace(/\/\*[^]*?\*\//g,''))&&/proveedorDe\(it\.publicId\)/.test(mant)&&(mant.match(/srcDe\(/g)||[]).length>=3,'Mantenimiento: sube a Supabase, registra el proveedor y muestra con enlace firmado (sin Cloudinary)');
+  ok(/glacialFotos\.subir\(file,\{carpeta:'asistente\//.test(asis)&&!/CLOUDINARY_UPLOAD_PRESET|api\.cloudinary/.test(asis),'Asistente de Producción: evidencia a Supabase (carpeta asistente/), sin Cloudinary');
   const {F:F2}=entorno(true);const pdf=await F2.subir({type:'application/pdf'},{carpeta:'asistente/2026-10',id:'ev1',tipo:'application/pdf'});
   ok(pdf.path==='asistente/2026-10/ev1.pdf','los PDF del Asistente conservan su extensión');
   const sql=leer('supabase/migraciones/glacial_25_fotos_privadas.sql');

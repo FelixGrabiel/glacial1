@@ -3,19 +3,16 @@
 
    · Tomar una foto o elegir una existente; adjuntarla al PROBLEMA, al TRABAJO REALIZADO o al CIERRE, con descripción opcional; miniaturas y vista completa.
    · COMPRESIÓN en el dispositivo (lado máximo 1600 px, JPEG ≤ ~1,2 MB) y validación de formato y tamaño ANTES de subir.
-   · ALMACENAMIENTO: CLOUDINARY, el mismo servicio y la misma cuenta que ya usan las hojas de producto terminado (06-registro.js: CLOUDINARY_CLOUD_NAME y
-     (cloud) con su propio preset de subida SIN firma, «glacial_mant» (carpeta mantenimiento); el API Secret NO se usa ni se guarda aquí. Se puede
-     cambiar con window.MANT_CLOUDINARY_PRESET. La miniatura es una transformación de la misma imagen
-     (no se sube dos veces). Funciona igual con Firebase y con el puente de Supabase.
-   · SEGURIDAD (límite real de Cloudinary sin firma): la imagen se sirve con una dirección pública con un id aleatorio (no se puede listar ni adivinar, pero
-     quien tenga la dirección exacta puede abrirla). Por eso en la base de datos solo se guarda el id (public_id), nunca una dirección, y NO se guarda ninguna
-     imagen (base64) en documentos. Proteger de verdad las fotos exige firmar las entregas en un servidor (Cloud Function / función de Supabase): no se hace aquí.
+   · ALMACENAMIENTO: SUPABASE STORAGE, bucket PRIVADO «glacial-fotos» (carpeta mantenimiento/<intervención>/): js/produccion/06b-fotos-supabase.js. En la base se guarda
+     una REFERENCIA («supabase:glacial-fotos/<ruta>»), nunca una dirección ni una imagen (base64). Para mostrarla se pide un enlace FIRMADO que caduca (1 hora);
+     solo lo obtienen usuarios con sesión (reglas de storage.objects en supabase/migraciones/glacial_25_fotos_privadas.sql; la cuenta compartida de Mantenimiento
+     puede subir y ver únicamente mantenimiento/). La miniatura es la misma imagen reducida por la pantalla (no se sube dos veces).
    · ORDEN SEGURO: primero se sube el archivo y SOLO después se registra la referencia en la intervención (acción EVIDENCIA, una transacción con historial).
      Así nunca queda una referencia a un archivo que no existe. El texto de la intervención no depende de la foto: «Registro guardado» y «Foto pendiente de
      subir» son estados distintos.
    · REINTENTO sin duplicar registros: la foto tiene un id fijo desde que se elige; lo pendiente se guarda en el dispositivo (IndexedDB) y se reanuda al abrir la
-     pantalla o al volver la conexión. Una foto subida cuyo registro falló reintenta SOLO el registro. Desde el navegador no se pueden borrar archivos de
-     Cloudinary: una subida cuya respuesta se perdió podría dejar un archivo sin referencia (no se muestra en ningún lado).
+     pantalla o al volver la conexión. Una foto subida cuyo registro falló reintenta SOLO el registro. Las reglas de Storage no permiten borrar desde la página:
+     una subida cuya respuesta se perdió podría dejar un archivo sin referencia (no se muestra en ningún lado).
    · Obligatoriedad: ninguna por defecto; el Supervisor puede exigir foto al cerrar por TIPO de trabajo (sync/configMantenimiento → evidenciasRequeridas).
    Cargar después de 67c-intervenciones-pantalla.js.
    ============================================================= */
@@ -78,61 +75,36 @@
     return {blob:grande.blob,thumb:mini.blob,ancho:grande.ancho,alto:grande.alto,tam:grande.blob.size};
   }
 
-  /* ---------- almacenamiento de archivos: Cloudinary (subida sin firma, igual que 06-registro.js) ---------- */
-  const nube=()=>window.MANT_CLOUDINARY_CLOUD||(typeof CLOUDINARY_CLOUD_NAME!=='undefined'?CLOUDINARY_CLOUD_NAME:'');
-  const PRESET_MANTENIMIENTO='glacial_mant';          // preset propio (subida sin firma, carpeta mantenimiento) creado en Cloudinary
-  const preset=()=>window.MANT_CLOUDINARY_PRESET||PRESET_MANTENIMIENTO;
+  /* ---------- almacenamiento de archivos: Supabase Storage (privado, enlace firmado) ---------- */
   const Archivos={
     prueba(){return window.__archivosPrueba||null;},
     disponible(){
       const p=this.prueba();if(p)return p.disponible!==false;
-      if(window.glacialFotos&&window.glacialFotos.disponible())return true;                 // Supabase Storage (privado)
-      return !!(nube()&&preset()&&typeof XMLHttpRequest!=='undefined'&&typeof FormData!=='undefined');
+      return !!(window.glacialFotos&&window.glacialFotos.disponible());
     },
-    /* Dirección de entrega derivada del id (no se guarda en la base de datos). mini = transformación de miniatura. */
-    url(publicId,mini){
-      const p=this.prueba();if(p&&p.url)return p.url(publicId,mini);
-      return 'https://res.cloudinary.com/'+nube()+'/image/upload/'+(mini?'c_fill,w_320,h_320,q_auto,f_auto/':'q_auto/')+publicId+'.jpg';
+    /* Dirección de entrega (solo en las pruebas). Las referencias «supabase:…» se firman al mostrarlas (srcDe). */
+    url(ruta,mini){
+      const p=this.prueba();if(p&&p.url)return p.url(ruta,mini);
+      return '';
     },
-    /* Sube el archivo; devuelve {publicId}. Un id ya existente (reintento tras una respuesta perdida) cuenta como subido. */
+    /* Sube el archivo; devuelve {publicId} (la referencia «supabase:…»). Un archivo ya existente (reintento tras una respuesta perdida) cuenta como subido. */
     async subir(publicId,carpeta,blob,meta,progreso){
       const p=this.prueba();if(p)return p.subir(publicId,carpeta,blob,meta,progreso);
-      /* Primero Supabase Storage (bucket privado); si no responde, Cloudinary (como siempre). Un archivo ya subido (reintento) cuenta como subido. */
-      if(window.glacialFotos&&window.glacialFotos.disponible()){
-        try{
-          const r=await window.glacialFotos.subir(blob,{carpeta,id:publicId,tipo:'image/jpeg'});
-          if(progreso)progreso(1);
-          return {publicId:r.url};
-        }catch(e){
-          if(/already exists|duplicate/i.test(String(e&&e.message)))return {publicId:window.glacialFotos.PREFIJO+carpeta+'/'+publicId+'.jpg'};
-          if(!(nube()&&preset()))throw e;
-          console.warn('GLACIAL · Supabase Storage no disponible, se usa Cloudinary:',e);
-        }
+      if(!(window.glacialFotos&&window.glacialFotos.disponible()))throw new Error('El almacenamiento de fotos (Supabase) no está disponible. Revisa tu conexión.');
+      try{
+        const r=await window.glacialFotos.subir(blob,{carpeta,id:publicId,tipo:'image/jpeg'});
+        if(progreso)progreso(1);
+        return {publicId:r.url};
+      }catch(e){
+        if(/already exists|duplicate/i.test(String(e&&e.message)))return {publicId:window.glacialFotos.PREFIJO+carpeta+'/'+publicId+'.jpg'};
+        throw e;
       }
-      return this.subirCloudinary(publicId,carpeta,blob,meta,progreso);
-    },
-    subirCloudinary(publicId,carpeta,blob,meta,progreso){
-      return new Promise((ok,er)=>{
-        const fd=new FormData();
-        fd.append('file',blob);fd.append('upload_preset',preset());fd.append('folder',carpeta);fd.append('public_id',publicId);
-        fd.append('context','intervencion='+String(meta&&meta.intervencion||'').replace(/[|=]/g,'_')+'|evidencia='+String(publicId).replace(/[|=]/g,'_'));
-        const x=new XMLHttpRequest();x.open('POST','https://api.cloudinary.com/v1_1/'+nube()+'/image/upload');
-        x.upload.onprogress=e=>{if(progreso&&e.lengthComputable)progreso(e.loaded/e.total);};
-        x.onload=()=>{
-          let d={};try{d=JSON.parse(x.responseText);}catch(_){d={};}
-          if(x.status>=200&&x.status<300&&d.public_id){ok({publicId:d.public_id});return;}
-          const msg=(d.error&&d.error.message)||('Cloudinary rechazó la foto ('+x.status+').');
-          if(/already exists/i.test(msg)){ok({publicId:carpeta+'/'+publicId});return;}
-          er(new Error(msg));
-        };
-        x.onerror=()=>er(new Error('Sin conexión con Cloudinary.'));x.send(fd);
-      });
     }
   };
   const urlDe=(ruta,mini)=>Archivos.url(ruta,mini);
-  /* Atributo src de una foto: las de Supabase (referencia «supabase:…», privadas) se firman al mostrarlas; las de Cloudinary, como siempre. */
+  /* Atributo src de una foto: la referencia «supabase:…» (privada) se firma al mostrarla. */
   const srcDe=(ruta,mini)=>window.glacialFotos&&window.glacialFotos.esRef(ruta)?window.glacialFotos.atributosImg(ruta):'src="'+esc(urlDe(ruta,mini))+'"';
-  const proveedorDe=ruta=>window.glacialFotos&&window.glacialFotos.esRef(ruta)?'supabase':'cloudinary';
+  const proveedorDe=ruta=>window.glacialFotos&&window.glacialFotos.esRef(ruta)?'supabase':'';
 
   /* ---------- cola local (IndexedDB; en memoria si no hay) ---------- */
   const mem=new Map();

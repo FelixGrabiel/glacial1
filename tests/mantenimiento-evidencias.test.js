@@ -28,12 +28,12 @@ function nube(){
       throw new Error('aborted');}};
   return N;
 }
-function almacen(){                       // Cloudinary falso: subida sin firma que devuelve el public_id
+function almacen(){                       // almacén de archivos falso: devuelve la referencia del archivo subido
   const A={objetos:new Map(),puts:0,fallar:false,disponible:true,porRuta:{}};
   A.subir=(id,carpeta,blob,meta,prog)=>new Promise((ok,er)=>setTimeout(()=>{
     if(A.fallar){er(new Error('network-error'));return;}
     const pid=carpeta+'/'+id;A.puts++;A.porRuta[pid]=(A.porRuta[pid]||0)+1;A.objetos.set(pid,{blob,meta});if(prog)prog(1);ok({publicId:pid});},1));
-  A.url=(p,m)=>'https://res.cloudinary.com/demo/image/upload/'+(m?'c_fill,w_320,h_320/':'')+p+'.jpg';
+  A.url=(p,m)=>'https://almacen.demo/fotos/'+(m?'mini/':'')+p+'.jpg';
   return A;
 }
 function dispositivo(N,A,o){
@@ -83,7 +83,7 @@ const preparado=()=>async()=>({blob:{size:300000},thumb:{size:20000},ancho:1600,
   A.fallar=false;
   const r2=await EV.procesar('ev_fijo1');
   const d=N.docs.get('intervenciones/'+id);
-  ok(r2.ok&&d.evidencias.length===1&&d.evidencias[0].id==='ev_fijo1'&&d.evidencias[0].path==='mantenimiento/'+id+'/ev_fijo1'&&d.evidencias[0].proveedor==='cloudinary'&&A.objetos.has(d.evidencias[0].path)&&!('url' in d.evidencias[0]),'reintento: se sube y recién entonces se registra la referencia (solo el id de Cloudinary, nunca una dirección)');
+  ok(r2.ok&&d.evidencias.length===1&&d.evidencias[0].id==='ev_fijo1'&&d.evidencias[0].path==='mantenimiento/'+id+'/ev_fijo1'&&d.evidencias[0].proveedor==='supabase'&&A.objetos.has(d.evidencias[0].path)&&!('url' in d.evidencias[0]),'reintento: se sube y recién entonces se registra la referencia (solo la referencia del archivo, nunca una dirección)');
   ok(EV.pendientesDe(id).length===0&&A.porRuta[d.evidencias[0].path]===1,'la cola queda vacía; la ruta es la misma (id fijo) y no hay archivos huérfanos distintos');
   ok(d.historial[d.historial.length-1].accion==='EVIDENCIA'&&d.evidencias[0].por.nombre==='Ana Pérez'&&d.evidencias[0].por.uid==='uid-cuenta'&&d.evidencias[0].seccion==='PROBLEMA'&&d.evidencias[0].descripcion==='Manguera suelta'&&d.evidencias[0].en>0,'la referencia lleva autor (técnico y cuenta), fecha, sección y descripción, y deja historial');
   ok(JSON.stringify(d).indexOf('data:image')<0&&JSON.stringify(d).indexOf('base64')<0&&!('blob' in d.evidencias[0]),'no se guarda ninguna imagen (base64) en el documento');
@@ -134,12 +134,12 @@ const preparado=()=>async()=>({blob:{size:300000},thumb:{size:20000},ancho:1600,
   /* 8) anular */
   const an=await sb2.glacialIntervenciones.accion(o2.doc.id,'ANULAR_EVIDENCIA',{id:'ev_c2',motivo:'Foto borrosa'});
   ok(an.evidencias.find(e=>e.id==='ev_c2').anulada&&an.evidencias.length===2,'anular conserva el registro con motivo (el archivo no se borra)');
-  /* 9) Cloudinary (mismo servicio que 06-registro.js), sin Storage de Firebase */
+  /* 9) Supabase Storage privado (06b-fotos-supabase.js), sin Cloudinary ni Storage de Firebase */
   const src=leer('js/mantenimiento/67d-intervenciones-evidencias.js'),sinCom=src.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,'');
-  ok(/CLOUDINARY_CLOUD_NAME/.test(src)&&/glacial_mant/.test(src)&&/api\.cloudinary\.com/.test(src),'usa el Cloudinary que ya usa Producción (cloud y preset existentes)');
-  ok(!/api_secret|API_SECRET|signature|firebase\.storage|storage\.ref|\.getDownloadURL/.test(sinCom),'no usa Firebase Storage ni el API Secret de Cloudinary (subida sin firma)');
+  ok(/glacialFotos\.subir\(blob,\{carpeta,id:publicId/.test(src)&&/glacialFotos\.disponible\(\)/.test(src)&&!/cloudinary/i.test(sinCom),'sube a Supabase Storage (bucket privado) y ya no usa Cloudinary');
+  ok(!/api_secret|API_SECRET|signature|firebase\.storage|storage\.ref|\.getDownloadURL/.test(sinCom),'no usa Firebase Storage ni claves secretas');
   ok(!fs.existsSync(R+'/storage.rules.mantenimiento.txt'),'ya no hay reglas de Storage que publicar');
-  ok(/\/\/res\.cloudinary\.com|res\.cloudinary\.com/.test(src)&&!/data:image|base64/.test(sinCom),'las imágenes se sirven por dirección derivada del id; ninguna imagen en base64');
+  ok(/srcDe\(/.test(src)&&/atributosImg/.test(src)&&!/data:image|base64/.test(sinCom),'las imágenes se muestran con enlace firmado (referencia en la base); ninguna imagen en base64');
   const idx=leer('index.html');
   ok(idx.indexOf('67c-intervenciones-pantalla.js')<idx.indexOf('67d-intervenciones-evidencias.js'),'index.html carga evidencias después de la pantalla');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

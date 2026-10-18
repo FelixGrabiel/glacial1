@@ -210,15 +210,10 @@ function calcDerived(r){
 
 
 /* =========================================================
-   CLOUDINARY — EVIDENCIAS HOJAS DE PRODUCTO TERMINADO
+   EVIDENCIAS HOJAS DE PRODUCTO TERMINADO
+   Las fotos van a Supabase Storage (bucket privado «glacial-fotos»,
+   enlace firmado): js/produccion/06b-fotos-supabase.js.
    ========================================================= */
-
-const CLOUDINARY_CLOUD_NAME = 'c0vr6joq';
-
-const CLOUDINARY_UPLOAD_PRESET = 'glacial_pt';
-
-const CLOUDINARY_UPLOAD_URL =
-  `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 
 /*
@@ -284,7 +279,7 @@ function liberarPreviewsEvidenciasPT(evidencias){
 
 
 /*
-   Comprime una imagen antes de enviarla a Cloudinary.
+   Comprime una imagen antes de subirla.
 
    Máximo:
    1600 px en su lado mayor.
@@ -592,7 +587,7 @@ async function handleEvidenciasPT(event){
 
 /*
    Elimina una fotografía del formulario
-   antes de subirla a Cloudinary.
+   antes de subirla.
 */
 function removeEvidenciaPT(index){
 
@@ -895,12 +890,8 @@ function renderEvidenciasPT(){
 
 
 /*
-   Sube las fotografías a Supabase Storage (privado) y, si no está
-   disponible, a Cloudinary.
+   Sube las fotografías a Supabase Storage (privado).
 
-   IMPORTANTE:
-   El API Secret de Cloudinary NO se utiliza aquí.
-   El preset es UNSIGNED.
 */
 async function subirEvidenciasPT(recordId){
 
@@ -973,147 +964,43 @@ async function subirEvidenciasPT(recordId){
 
 
     /*
-       Primero Supabase Storage (bucket privado, enlace firmado). Si no está
-       disponible (p. ej. el bucket aún no existe en ese proyecto) se vuelve a
-       Cloudinary para no detener el registro.
+       Supabase Storage (bucket privado, enlace firmado). Si no está disponible
+       se detiene el guardado con un mensaje claro: no queda ninguna foto a medias.
     */
     if(
-      window.glacialFotos &&
-      window.glacialFotos.disponible()
-    ){
-
-      try{
-
-        const sb =
-          await window.glacialFotos.subir(
-            foto.blob,
-            {
-              carpeta:
-                `hojas_producto_terminado/${recordId}`,
-              id:
-                foto.id,
-              tipo:
-                'image/jpeg'
-            }
-          );
-
-        subidas.push({
-
-          id:
-            foto.id,
-
-          nombre:
-            foto.nombre ||
-            `Foto ${i+1}`,
-
-          tipo:
-            'image/jpeg',
-
-          url:
-            sb.url,
-
-          publicId:
-            sb.path,
-
-          proveedor:
-            'supabase',
-
-          fecha:
-            new Date().toISOString()
-
-        });
-
-        continue;
-
-      }catch(errorSupabase){
-
-        console.warn(
-          'GLACIAL · Supabase Storage no disponible, se usa Cloudinary:',
-          errorSupabase
-        );
-
-      }
-
-    }
-
-
-    const formData =
-      new FormData();
-
-
-    formData.append(
-      'file',
-      foto.blob
-    );
-
-
-    formData.append(
-      'upload_preset',
-      CLOUDINARY_UPLOAD_PRESET
-    );
-
-
-    /*
-       Cada registro queda agrupado
-       en su propia carpeta.
-    */
-    formData.append(
-      'folder',
-      `hojas_producto_terminado/${recordId}`
-    );
-
-
-    /*
-       Guardamos contexto sencillo.
-       Se reemplazan | y = para evitar
-       problemas con el formato de Cloudinary.
-    */
-    const nombreOriginal =
-      String(
-        foto.nombre || ''
-      )
-      .replace(/[|=]/g,'_');
-
-
-    formData.append(
-      'context',
-      `recordId=${recordId}|originalName=${nombreOriginal}`
-    );
-
-
-    const response =
-      await fetch(
-        CLOUDINARY_UPLOAD_URL,
-        {
-          method:'POST',
-          body:formData
-        }
-      );
-
-
-    let data = {};
-
-
-    try{
-
-      data =
-        await response.json();
-
-    }catch(error){
-
-      data = {};
-
-    }
-
-
-    if(
-      !response.ok ||
-      !data.secure_url
+      !window.glacialFotos ||
+      !window.glacialFotos.disponible()
     ){
 
       throw new Error(
-        data?.error?.message ||
-        `Cloudinary rechazó la fotografía ${i+1}.`
+        'No se pudo subir la fotografía '+(i+1)+': el almacenamiento de fotos (Supabase) no está disponible. Revisa tu conexión e inténtalo de nuevo.'
+      );
+
+    }
+
+
+    let sb;
+
+    try{
+
+      sb =
+        await window.glacialFotos.subir(
+          foto.blob,
+          {
+            carpeta:
+              `hojas_producto_terminado/${recordId}`,
+            id:
+              foto.id,
+            tipo:
+              'image/jpeg'
+          }
+        );
+
+    }catch(errorSupabase){
+
+      throw new Error(
+        `No se pudo subir la fotografía ${i+1}: `+
+        (errorSupabase?.message || errorSupabase)
       );
 
     }
@@ -1129,16 +1016,16 @@ async function subirEvidenciasPT(recordId){
         `Foto ${i+1}`,
 
       tipo:
-        data.resource_type
-          ? `${data.resource_type}/${data.format || 'jpeg'}`
-          : 'image/jpeg',
+        'image/jpeg',
 
       url:
-        data.secure_url,
+        sb.url,
 
       publicId:
-        data.public_id ||
-        '',
+        sb.path,
+
+      proveedor:
+        'supabase',
 
       fecha:
         new Date().toISOString()
@@ -2988,7 +2875,7 @@ function copiaReporteParaFirestore(r){
     if(k==='blob' || k==='previewUrl') return undefined;
     return v;
   }));
-  // Fotos todavía no subidas a Cloudinary no deben enviarse a Firestore.
+  // Fotos todavía no subidas no deben enviarse a la base de datos.
   copia.evidenciasPT=(copia.evidenciasPT||[]).filter(e=>e && e.url);
   return copia;
 }

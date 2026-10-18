@@ -18,10 +18,10 @@ Rama `mantenimiento-1-intervenciones` (desde `main`). No se publicó nada ni se 
 | `67-intervenciones-motor.js` | Motor **puro**: estados, transiciones, cierre, repuestos, seguimiento, evidencias, tareas, correcciones, tiempos. |
 | `67b-intervenciones-datos.js` | Persistencia por **transacción** (versión + historial), permisos, lectura en vivo, apertura sin duplicados. |
 | `67c-intervenciones-pantalla.js` | Pantalla (móvil primero): Intervenciones · Preventivos · Equipos · Indicadores. |
-| `67d-intervenciones-evidencias.js` | Fotos: compresión, subida a **Cloudinary**, cola con reintento, consulta por equipo, regla de obligatoriedad por tipo. |
+| `67d-intervenciones-evidencias.js` | Fotos: compresión, subida a **Supabase Storage (privado)**, cola con reintento, consulta por equipo, regla de obligatoriedad por tipo. |
 | `67e-preventivos.js` | Planes preventivos, ejecuciones, reprogramación, avisos y contrato para Planificación. |
 | `67f-indicadores-equipo.js` | MTTR y MTBF por equipo. |
-| `firestore.rules.etapa2.txt` | Reglas nuevas de Firestore (**hay que publicarlas**). Las fotos van a Cloudinary: no hay reglas de Storage. |
+| `firestore.rules.etapa2.txt` | Reglas nuevas de Firestore (**hay que publicarlas**). Las fotos van a Supabase Storage (bucket privado): reglas en `supabase/migraciones/glacial_25_fotos_privadas.sql` (ver `docs/FOTOS-SUPABASE.md`). |
 | `docs/supabase-mantenimiento.sql` | Reglas equivalentes de Supabase, **preparadas y sin aplicar**. |
 
 ## Intervenciones
@@ -41,8 +41,8 @@ Rama `mantenimiento-1-intervenciones` (desde `main`). No se publicó nada ni se 
 - **Orden seguro**: primero se sube el archivo y **solo después** se registra la referencia. Nunca queda una referencia a un archivo inexistente. El texto de la intervención no depende de la foto: «Registro guardado» ≠ «Foto pendiente de subir».
 - **Reintento sin duplicados**: id fijo por foto (misma ruta); lo pendiente se guarda en el dispositivo (IndexedDB) y se reanuda solo; si el archivo ya subió pero el registro falló, se reintenta **solo el registro**.
 - **Sin base64 en la base de datos** y **sin enlaces públicos permanentes**: se leen con el SDK autenticado. Obligatoriedad: ninguna por defecto; el supervisor puede exigir foto al cerrar **por tipo de trabajo**.
-- **Almacenamiento: Cloudinary**, el mismo servicio y cuenta que ya usan las hojas de producto terminado (`06-registro.js`: `CLOUDINARY_CLOUD_NAME` y un preset de subida **sin firma**). Carpeta `mantenimiento/{intervención}`; la miniatura es una transformación de la misma imagen. Usa su propio preset de subida sin firma, **`glacial_mant`** (carpeta `mantenimiento`); se puede cambiar con `window.MANT_CLOUDINARY_PRESET`. **No usa Firebase Storage** (de pago) ni el API Secret. Funciona igual con Firebase y con el puente de Supabase.
-- **Límite de seguridad de Cloudinary sin firma**: la imagen se sirve con una dirección pública con id aleatorio (no se puede listar ni adivinar, pero quien tenga la dirección exacta puede abrirla). En la base de datos solo se guarda el id, nunca una dirección. Protegerlas de verdad exige firmar las entregas desde un servidor (Cloud Function o función de Supabase), fuera de este alcance. Desde el navegador no se pueden borrar archivos de Cloudinary.
+- **Almacenamiento: Supabase Storage** (bucket privado `glacial-fotos`, carpeta `mantenimiento/<intervención>/`; desde la Fase 4 ya no se usa Cloudinary). En la base solo se guarda la **referencia** `supabase:glacial-fotos/<ruta>`; la imagen se muestra con un enlace firmado que caduca (1 hora). La cuenta compartida de Mantenimiento puede subir y ver únicamente `mantenimiento/`.
+- **Seguridad:** el bucket es privado y solo usuarios con sesión obtienen enlaces firmados. Las reglas no permiten actualizar ni borrar desde la página.
 
 ## Preventivos
 - Plan: equipo, título, descripción, **frecuencia de calendario** (cada N días/semanas/meses), próxima fecha, **política de próxima fecha** (visible), responsable o grupo, ventana prevista, tareas, activo, versión. **No hay frecuencias por horas o ciclos**: no existe un contador fiable y no se deducen del tiempo que la página estuvo abierta.
@@ -71,7 +71,7 @@ Cada número lleva **período, casos y fórmula** (panel «¿Cómo se calculan?�
 
 ## Instalación / publicación (nada se hace solo)
 1. Publicar `firestore.rules.etapa2.txt` (reglas nuevas: `intervenciones`, `planesPreventivos`).
-2. En Cloudinary debe existir el preset **`glacial_mant`** (Unsigned, «Disallow public ID» apagado, formatos jpg/png/webp, overwrite apagado) y «Strict transformations» desactivado o con `c_fill,w_320,h_320,q_auto,f_auto` y `q_auto` permitidos.
+2. En el proyecto de Supabase debe estar aplicada `glacial_25_fotos_privadas.sql` (bucket `glacial-fotos` y sus 2 reglas).
 3. Cargar el catálogo en **Mantenimiento → Intervenciones → Equipos** (el Supervisor) y los planes en **Preventivos**.
 4. Subir a PRUEBAS cuando lo ordenes: `git push origin mantenimiento-1-intervenciones:pruebas`.
 
@@ -79,7 +79,7 @@ Cada número lleva **período, casos y fórmula** (panel «¿Cómo se calculan?�
 `tests/mantenimiento-intervenciones.test.js`, `mantenimiento-equipos-maestro.test.js`, `mantenimiento-evidencias.test.js`, `mantenimiento-preventivos.test.js`, `mantenimiento-indicadores.test.js` y la página `tests/visual/mantenimiento.html` (datos de prueba; `?u=ana|luis|sup|jefe` para ver cada persona). Cubren: apertura sin duplicados; equipo pendiente y cierre justificado; cierre completo; no operativo con seguimiento; cierre sin reanudar; dos técnicos con la misma cuenta; ediciones concurrentes, doble cierre y permisos; foto fallida, reintento y texto conservado; consulta sin escritura; preventivo vencido, ejecución única, tareas y reprogramación; plan cambiado sin reescribir ejecuciones; MTTR con espera separada y excluidos; MTBF «Datos insuficientes»; avisos de una misma falla sin duplicar; históricos sin equipo; ningún cambio en paradas oficiales, ratio o programación.
 
 ## Qué no se probó / limitaciones
-- Firebase real (reglas, cuentas), Cloudinary real ni Supabase: las pruebas usan una «nube» y un Cloudinary falsos; la compresión de imágenes y la cámara del celular solo se validaron en su lógica (no con un teléfono físico).
+- Firebase real (reglas, cuentas), Supabase Storage real: las pruebas usan un almacén de archivos falso; la compresión de imágenes y la cámara del celular solo se validaron en su lógica (no con un teléfono físico).
 - El servidor no valida el PIN (cuenta compartida) ni el contenido de cada texto.
 - Pendientes que dependen de datos inexistentes: stock de repuestos (Almacén), contador de horas por equipo, integración con Planificación, fotos protegidas con firma (servidor).
 - «Indisponibilidad» de línea por falla no se calcula aquí.

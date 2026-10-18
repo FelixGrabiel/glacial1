@@ -173,7 +173,7 @@ Las RLS replican las funciones de la sección 3.2.
 
 - **Pestañas:** Resumen operativo · Seguimiento del turno · Insumos · Consumo · Merma · Historial y reportes. Solicitudes y Factores pasan a ser subpestañas de Insumos, junto con Existencias y Requerimientos.
 - **Coordinaciones del turno** (Seguimiento): nueva colección `apCoordinaciones`, con su regla en `firestore.rules.etapa2.txt`. Hay que volver a publicar las reglas.
-- **Evidencia opcional** en conteos y mermas: se sube a Cloudinary con el mismo servicio y preset que las hojas de producto terminado (`06-registro.js`). Solo se guarda el identificador del archivo; si la subida falla, el registro no se guarda y se avisa.
+- **Evidencia opcional** en conteos y mermas: se sube a Supabase Storage (bucket privado `glacial-fotos`, carpeta `asistente/AAAA-MM/`; JPG, PNG o PDF, máx. 10 MB). Solo se guarda la referencia del archivo; si la subida falla, el registro no se guarda y se avisa.
 
 ## 8. Catálogo como fuente única y causas de merma configurables
 
