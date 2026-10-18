@@ -76,14 +76,14 @@
 
     /* Hoja 2: detalle por ubicación */
     const wd=wb.addWorksheet('Detalle por ubicación',{properties:{tabColor:{argb:'FF'+C.sub}},views:[{state:'frozen',ySplit:4,showGridLines:false}],pageSetup:pag});
-    cab(wd,6,'GLACIAL · Detalle del conteo por ubicación',sub);wd.getRow(3).height=6;
-    encabezados(wd,4,['Artículo','Código SAP','Ubicación','Cantidad','Registró','Fecha y hora']);
+    cab(wd,7,'GLACIAL · Detalle del conteo por ubicación',sub);wd.getRow(3).height=6;
+    encabezados(wd,4,['Artículo','Código','Código SAP','Ubicación','Cantidad','Registró','Fecha y hora']);
     m.detalle.forEach((d,i)=>{
-      const row=wd.getRow(5+i);[d.nombre,d.itemCode||'',d.ubicacion,d.cantidad,d.por,hora(d.en)].forEach((v,c)=>{const x=row.getCell(c+1);x.value=v;x.font=font({});x.border=bd();if(i%2===1)x.fill=fill(C.alt);
-        x.alignment={vertical:'middle',horizontal:c===3?'right':'left',wrapText:c===0};if(c===3)x.numFmt=FMT_NUM;});
+      const row=wd.getRow(5+i);[d.nombre,d.codigo||'',d.itemCode||'',d.ubicacion,d.cantidad,d.por,hora(d.en)].forEach((v,c)=>{const x=row.getCell(c+1);x.value=v;x.font=font({});x.border=bd();if(i%2===1)x.fill=fill(C.alt);
+        x.alignment={vertical:'middle',horizontal:c===4?'right':'left',wrapText:c===0};if(c===4)x.numFmt=FMT_NUM;});
     });
-    wd.autoFilter={from:{row:4,column:1},to:{row:Math.max(4+m.detalle.length,4),column:6}};
-    [46,14,22,13,20,18].forEach((w,i)=>{wd.getColumn(i+1).width=w;});
+    wd.autoFilter={from:{row:4,column:1},to:{row:Math.max(4+m.detalle.length,4),column:7}};
+    [46,11,14,22,13,20,18].forEach((w,i)=>{wd.getColumn(i+1).width=w;});
 
     /* Hoja 3: resumen */
     const wr=wb.addWorksheet('Resumen',{properties:{tabColor:{argb:'FF'+C.azulTxt}},views:[{showGridLines:false}],pageSetup:pag});
@@ -165,7 +165,7 @@
   }
   function filasVisibles(mod){
     const t=N.norm(K.texto||'');
-    return mod.conc.filas.filter(f=>(!K.estado||f.estado===K.estado)&&(!t||N.norm(f.nombre).includes(t)||N.norm(f.itemCode).includes(t)));
+    return mod.conc.filas.filter(f=>(!K.estado||f.estado===K.estado)&&(!t||N.norm(f.nombre).includes(t)||N.norm(f.itemCode).includes(t)||N.norm(f.codigo).includes(t)));
   }
   function tarjetas(r){
     const t=(cls,titulo,v,e)=>`<button type="button" class="ii-kpi ii-kb ${cls} ${K.estado===e?'ii-kb-act':''}" onclick="iiqEstado('${e}')"><span>${esc(titulo)}</span><b>${fmt(v,0)}</b></button>`;
@@ -173,7 +173,7 @@
   }
   function tabla(mod){
     const puede=D.puedeEscribir(),f=filasVisibles(mod),mostrar=f.slice(0,K.limite);
-    const filas=mostrar.map(x=>`<tr><td class="ii-nom">${esc(x.nombre)}<small class="ii-mut">${esc(x.itemCode||'')} ${esc(x.categoria)}</small></td><td class="ii-num">${fmt(x.sap)}</td>
+    const filas=mostrar.map(x=>`<tr><td class="ii-nom">${esc(x.nombre)}<small class="ii-mut"><b>${esc(x.codigo||'')}</b> ${esc(x.itemCode?'· SAP '+x.itemCode:'')} · ${esc(x.categoria)}</small></td><td class="ii-num">${fmt(x.sap)}</td>
       <td class="ii-num"><b>${x.contado?fmt(x.conteo):'—'}</b></td><td class="ii-num ii-dif-${x.estado}">${x.contado||x.sap>0?fmt(x.diferencia):'—'}</td><td class="ii-num">${x.pct==null?'—':fmt(x.pct,1)+' %'}</td><td>${pill(x.estado)}</td>
       <td class="ii-com">${puede?`<input type="text" maxlength="500" value="${esc(x.comentario)}" placeholder="Comentario" data-id="${esc(x.id)}" onchange="iiqComentario(this)">`:esc(x.comentario)}
       ${x.comentario?`<small class="ii-mut">${esc(x.comentarioPor)} · ${esc(hora(x.comentarioEn))}</small>`:''}</td></tr>`).join('');

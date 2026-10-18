@@ -263,7 +263,19 @@
       if(a.precio>0&&red(a.precio,4)!==x.precio){x.precio=red(a.precio,4);cambio=true;}
       if(cambio)actualizados++;else sinCambio++;
     });
-    return {lista,nuevos,actualizados,adoptados,sinCambio,resueltos};
+    const cods=asignarCodigos(lista);                           // los artículos nuevos (y los que aún no tenían) reciben su código interno
+    return {lista,nuevos,actualizados,adoptados,sinCambio,resueltos,codigosAsignados:cods.asignados};
+  }
+  /* Código interno GLACIAL de cada artículo («INS-0001»…): propio del sistema, estable y único; no cambia al reimportar ni al recibir el
+     código SAP. Se asigna a los artículos que aún no lo tienen, en orden de categoría y nombre, a partir del número más alto existente. */
+  const PREFIJO_CODIGO='INS-';
+  const numeroCodigo=c=>{const m=/^INS-(\d+)$/.exec(String(c||''));return m?Number(m[1]):0;};
+  const formatoCodigo=n=>PREFIJO_CODIGO+String(n).padStart(4,'0');
+  function asignarCodigos(lista){
+    let max=0;lista.forEach(x=>{max=Math.max(max,numeroCodigo(x.codigo));});
+    const faltan=lista.filter(x=>!numeroCodigo(x.codigo)).sort((a,b)=>String(a.categoria).localeCompare(String(b.categoria),'es')||String(a.nombre).localeCompare(String(b.nombre),'es')||String(a.id).localeCompare(String(b.id)));
+    faltan.forEach(x=>{x.codigo=formatoCodigo(++max);});
+    return {asignados:faltan.length,desde:faltan.length?numeroCodigo(faltan[0].codigo):0,hasta:faltan.length?max:0};
   }
   const CAMPOS_EDITABLES=['unidad','stockMinimo','puntoReorden','prioritario','activo'];
   function validarEdicion(c){
@@ -317,7 +329,7 @@
       if(f.categoria&&x.categoria!==f.categoria)return false;
       if(f.marca&&x.marca!==f.marca)return false;
       if(f.soloBajoMinimo&&!(x.semaforo==='rojo'))return false;
-      if(t&&!(norm(x.nombre).includes(t)||norm(x.itemCode).includes(t)))return false;
+      if(t&&!(norm(x.nombre).includes(t)||norm(x.itemCode).includes(t)||norm(x.codigo).includes(t)))return false;
       return true;
     });
   }
@@ -380,7 +392,7 @@
       if(f.activos!==false&&c.activo===false)return false;
       if(f.prioritarios&&!c.prioritario)return false;
       if(f.categoria&&c.categoria!==f.categoria)return false;
-      if(t&&!(norm(c.nombre).includes(t)||norm(c.itemCode).includes(t)))return false;
+      if(t&&!(norm(c.nombre).includes(t)||norm(c.itemCode).includes(t)||norm(c.codigo).includes(t)))return false;
       return true;
     }).map(c=>{
       const x=totales.porItem.get(c.id);
@@ -424,7 +436,7 @@
       const sap=red(idx.reduce((s,i)=>s+c.w[i],0),4),x=tot.porItem.get(c.id),contado=!!x,conteo=x?x.total:0;
       if(!contado&&!(sap>0))return;
       const e=estadoConciliacion(contado,sap,conteo),cm=com.get(c.id);
-      filas.push({id:c.id,itemCode:c.itemCode,nombre:c.nombre,categoria:c.categoria,w:c.w,sap,contado,conteo,diferencia:contado||sap>0?red(conteo-sap,4):0,
+      filas.push({id:c.id,codigo:c.codigo||'',itemCode:c.itemCode,nombre:c.nombre,categoria:c.categoria,w:c.w,sap,contado,conteo,diferencia:contado||sap>0?red(conteo-sap,4):0,
         pct:e.pct,estado:e.estado,lineas:x?x.lineas:[],comentario:cm?cm.texto:'',comentarioPor:cm?cm.por:'',comentarioEn:cm?cm.en:0});
     });
     filas.sort((a,b)=>ORDEN_CONCILIACION[a.estado]-ORDEN_CONCILIACION[b.estado]||(b.pct||0)-(a.pct||0)||String(a.nombre).localeCompare(String(b.nombre),'es'));
@@ -440,7 +452,7 @@
   /* Líneas por ubicación de todo el conteo (hoja «Detalle por ubicación» del Excel). */
   function detalleUbicaciones(lineas,catalogo){
     const idx=indiceCatalogo(catalogo);
-    return (lineas||[]).map(l=>{const it=idx.get(l.itemId);return {nombre:it?it.nombre:l.itemId,itemCode:it?it.itemCode:'',ubicacion:l.ubicacion,cantidad:num(l.cantidad),por:l.por||'',en:num(l.en)};})
+    return (lineas||[]).map(l=>{const it=idx.get(l.itemId);return {nombre:it?it.nombre:l.itemId,codigo:it?(it.codigo||''):'',itemCode:it?it.itemCode:'',ubicacion:l.ubicacion,cantidad:num(l.cantidad),por:l.por||'',en:num(l.en)};})
       .sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es')||String(a.ubicacion).localeCompare(String(b.ubicacion),'es'));
   }
 
@@ -452,10 +464,11 @@
     CREAR_CONTEO:{txt:'Conteo creado',grupo:'CONTEO'},EDITAR_CONTEO:{txt:'Observación del conteo',grupo:'CONTEO'},
     CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
     CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},
+    ASIGNAR_CODIGOS:{txt:'Códigos internos asignados',grupo:'CATALOGO'},
     COMENTARIO_CONCILIACION:{txt:'Comentario de conciliación',grupo:'COMENTARIO'}};
   const CAMPOS_AUDITORIA={stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',
     texto:'Comentario',estado:'Estado',motivo:'Motivo',observacion:'Observación',fecha:'Fecha',almacen:'Almacén',fechaCorte:'Fecha del corte',formato:'Formato',articulos:'Artículos',
-    nuevos:'Nuevos',actualizados:'Actualizados',adoptados:'Adoptados',excluidos:'Excluidos',almacenes:'Almacenes',lineas:'Líneas',por:'Registró',conteo:'Conteo'};
+    nuevos:'Nuevos',actualizados:'Actualizados',adoptados:'Adoptados',excluidos:'Excluidos',almacenes:'Almacenes',lineas:'Líneas',asignados:'Códigos asignados',desde:'Desde',hasta:'Hasta',por:'Registró',conteo:'Conteo'};
   const grupoAuditoria=t=>(TIPOS_AUDITORIA[t]||{}).grupo||'';
   function valorAuditoria(v){
     if(v===null||v===undefined||v==='')return '—';
@@ -486,7 +499,7 @@
     num,norm,red,fmt,esExcluido,categoriaDe,marcaDe,presentacionDe,esPrioritaria,almacenDe,almacenInfo,idPorNombre,esIdNombre,prefiltrarFilas,leerLibro,
     registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock,
     ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
-    UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones,
+    PREFIJO_CODIGO,asignarCodigos,UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones,
     GRUPOS_AUDITORIA,TIPOS_AUDITORIA,CAMPOS_AUDITORIA,grupoAuditoria,cambiosAuditoria,resumenAuditoria,filtrarAuditoria,ordenAuditoria};
   global.glacialInventarioNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

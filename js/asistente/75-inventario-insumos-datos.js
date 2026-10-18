@@ -3,7 +3,7 @@
    -------------------------------------------------------------
    Mismo mecanismo que el Asistente de Producción (71-asistente-datos.js) y que Paletas: el puente a Supabase traduce estas llamadas a
    fs_docs / fs_items; no se usa la API de tablas de Supabase ni se crean tablas nuevas. Colecciones (docs/INVENTARIO-INSUMOS.md):
-     · insumosCatalogo/catalogo      → { items:[ {id, itemCode, nombre, grupo, categoria, subtipo, marca, presentacion, unidad,
+     · insumosCatalogo/catalogo      → { items:[ {id, codigo (interno INS-0001), itemCode, nombre, grupo, categoria, subtipo, marca, presentacion, unidad,
                                           stockMinimo, puntoReorden, activo, prioritario, precio, alias?} ] }   (un ítem por artículo)
      · insumosCortesIndice/{corteId} → metadatos livianos de cada corte (fecha, quién, archivo, resumen): se escucha completo.
      · insumosCortesDetalle/{corteId}→ { items:[ {id, w:[6 almacenes AP], t} ] }: el stock del corte. Solo se escucha el corte elegido.
@@ -167,6 +167,23 @@
     return resultado;
   }
 
+  /* Códigos internos (INS-0001…): asigna a los artículos que aún no tienen. En una transacción (si dos personas lo piden a la vez, la segunda
+     ya encuentra los códigos puestos y no hace nada). Los artículos nuevos de una importación los reciben solos. */
+  async function asignarCodigosFaltantes(){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para asignar códigos.');
+    const ref=col('insumosCatalogo').doc('catalogo');let r={asignados:0};
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);
+      const lista=(s.exists&&Array.isArray(s.data().items))?s.data().items.map(x=>({...x})):[];
+      const c=N.asignarCodigos(lista);
+      if(!c.asignados)return;
+      tx.set(ref,{items:lista,actualizadoPor:usuario().nombre,actualizadoEn:serverTs()});
+      auditar(tx,'ASIGNAR_CODIGOS','catalogo','Catálogo de insumos',null,{asignados:c.asignados,desde:N.PREFIJO_CODIGO+String(c.desde).padStart(4,'0'),hasta:N.PREFIJO_CODIGO+String(c.hasta).padStart(4,'0')});
+      r=c;
+    });
+    return r;
+  }
+
   /* ---------- importación de un corte de stock ---------- */
   /* lectura: resultado de N.leerLibro (articulos, almacenes, resumen, formato, hoja). Todo en UNA transacción: catálogo + corte + índice + auditoría. */
   async function importarCorte(lectura,{fechaCorte,archivo}){
@@ -183,7 +200,7 @@
       const actual=(sCat.exists&&Array.isArray(sCat.data().items))?sCat.data().items:[];
       const comb=N.combinarCatalogo(actual,lectura.articulos);
       const filas=lectura.articulos.map(a=>N.filaCorte({...a,id:comb.resueltos.get(a.id)||a.id}));      // el id es el del catálogo (ItemCode si ya lo tiene)
-      resumen={articulos:lectura.articulos.length,nuevos:comb.nuevos,actualizados:comb.actualizados,adoptados:comb.adoptados,
+      resumen={articulos:lectura.articulos.length,nuevos:comb.nuevos,actualizados:comb.actualizados,adoptados:comb.adoptados,codigosAsignados:comb.codigosAsignados,
         excluidos:(lectura.resumen.excluidosNombre||0)+(lectura.resumen.fueraDeGrupo||0),almacenes:lectura.almacenes.length};
       tx.set(refCat,{items:comb.lista,actualizadoPor:u.nombre,actualizadoEn:serverTs()});
       tx.set(refDet,{id,fechaCorte,almacenes:lectura.almacenes,items:filas,importadoPor:u.nombre,importadoUid:u.uid,importadoEn:t});
@@ -351,7 +368,7 @@
     return {nuevos:comb.nuevos,existentes:comb.actualizados+comb.sinCambio+comb.adoptados,adoptados:comb.adoptados};
   }
 
-  window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,importarCorte,vistaPrevia,mensajeError,
+  window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,asignarCodigosFaltantes,importarCorte,vistaPrevia,mensajeError,
     escucharConteo,crearConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();

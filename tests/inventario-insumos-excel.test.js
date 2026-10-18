@@ -8,7 +8,7 @@ global.window=global;
 const N=require('../js/asistente/74-inventario-insumos-nucleo.js');
 const X=require('../js/asistente/78-inventario-insumos-conciliacion.js');
 (async()=>{
-  const cat=['A','B','C'].map(k=>({id:k,itemCode:'X'+k,nombre:'ARTÍCULO '+k,categoria:'BOLSA',activo:true,prioritario:true}));
+  const cat=['A','B','C'].map((k,i)=>({id:k,codigo:'INS-000'+(i+1),itemCode:'X'+k,nombre:'ARTÍCULO '+k,categoria:'BOLSA',activo:true,prioritario:true}));
   const corte={fechaCorte:'2026-10-15',items:[{id:'A',w:[100,0,0,0,0,0],t:100},{id:'B',w:[100,20,0,0,0,0],t:120},{id:'C',w:[0,0,0,0,0,0],t:0}]};
   const lineas=[{id:'1',itemId:'A',ubicacion:'Rack A',cantidad:60,por:'Ana',en:Date.UTC(2026,9,15,17,0)},{id:'2',itemId:'A',ubicacion:'Patio',cantidad:50,por:'Ana',en:Date.UTC(2026,9,15,17,5)},{id:'3',itemId:'C',ubicacion:'X',cantidad:3,por:'Luis',en:1}];
   const conc=N.conciliar({catalogo:cat,corte,lineas,almacen:'INSUMOS',comentarios:[{id:'A',texto:'Sobran 10',por:'Ana',en:1}]});
@@ -26,8 +26,8 @@ const X=require('../js/asistente/78-inventario-insumos-conciliacion.js');
   ok(a&&a.getCell(4).value===100&&a.getCell(8).value.result===100&&a.getCell(9).value===110&&a.getCell(10).value.result===10&&a.getCell(11).value==='Sobran 10'&&a.getCell(13).value==='Observado','fila con stock por almacén, total SAP, conteo (60+50), diferencia, comentario y estado');
   ok(/^[A-Z]+\d+(\+[A-Z]+\d+)*$/.test(a.getCell(8).value.formula)&&/^I\d+-H\d+$/.test(a.getCell(10).value.formula),'TOTAL SAP y DIFERENCIA son fórmulas vivas');
   const b=[5,6,7].map(n=>ws.getRow(n)).find(r=>r.getCell(1).value==='ARTÍCULO B');ok(b&&b.getCell(13).value==='No contado'&&b.getCell(9).value==null&&b.getCell(8).value.result===100,'artículo sin contar: NO CONTADO y solo cuenta el almacén contado (no los 20 de Producción)');
-  const wd=wb2.getWorksheet('Detalle por ubicación');ok(wd.getRow(5).getCell(3).value==='Patio'||wd.getRow(5).getCell(3).value==='Rack A','detalle: una fila por línea con ubicación');
-  ok(wd.getRow(5).getCell(6).value==='15/10/2026 12:00'||wd.getRow(5).getCell(6).value==='15/10/2026 12:05','fecha y hora en hora de Perú');
+  const wd=wb2.getWorksheet('Detalle por ubicación');ok(wd.getRow(5).getCell(4).value==='Patio'||wd.getRow(5).getCell(4).value==='Rack A','detalle: una fila por línea con ubicación');
+  ok(wd.getRow(5).getCell(7).value==='15/10/2026 12:00'||wd.getRow(5).getCell(7).value==='15/10/2026 12:05','fecha y hora en hora de Perú');
   ok(wb2.getWorksheet('Resumen').getRow(10).getCell(2).value.result===3,'resumen: total de artículos');
   ok(ws.autoFilter&&ws.views[0].state==='frozen'&&ws.getCell('A1').font.name==='Arial','filtros, panel congelado y tipografía del resto de Excels');
   const ev=[{tipo:'EDITAR_LINEA',usuario:'Ana',articulo:'ARTÍCULO A',conteoId:'k1',enMs:Date.UTC(2026,9,15,17,0,7),antes:{cantidad:1000,ubicacion:'Rack A'},despues:{cantidad:1500,ubicacion:'Rack A'}},

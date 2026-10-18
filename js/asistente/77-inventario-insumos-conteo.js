@@ -57,7 +57,7 @@
   }
   function tarjetaArticulo(m,r){
     const ed=puedeEditar(m);
-    return `<article class="ii-art ${r.contado?'ii-art-ok':''}"><div class="ii-art-c"><div><b class="ii-art-n">${esc(r.nombre)}</b><small class="ii-mut">${esc(r.itemCode||'')} ${esc(r.categoria)}${r.marca?' · '+esc(r.marca):''}</small></div>
+    return `<article class="ii-art ${r.contado?'ii-art-ok':''}"><div class="ii-art-c"><div><b class="ii-art-n">${esc(r.nombre)}</b><small class="ii-mut"><b>${esc(r.codigo||'')}</b> ${esc(r.itemCode?'· SAP '+r.itemCode:'')} · ${esc(r.categoria)}${r.marca?' · '+esc(r.marca):''}</small></div>
       <div class="ii-art-t"><span>Contado</span><b>${r.contado?fmt(r.total):'—'}</b></div></div>
       ${r.lineas.length?`<ul class="ii-lns">${r.lineas.map(l=>lineaHtml(l,ed)).join('')}</ul>`:''}
       ${ed?(C.abierto===r.id?formLinea(m,r):`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iicForm('${esc(r.id)}')">+ Agregar línea</button>`):''}</article>`;

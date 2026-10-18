@@ -16,6 +16,8 @@
   const PASO_FILAS=150;
   const esc=v=>typeof escaparHtml==='function'?escaparHtml(String(v==null?'':v)):String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=N.fmt;
+  /* Celda de código: el código interno GLACIAL y, debajo, el código SAP si ya lo tiene. */
+  const celdaCodigo=x=>`<b>${esc(x.codigo||'—')}</b>${x.itemCode?`<small>SAP ${esc(x.itemCode)}</small>`:''}`;
   const hoyIso=()=>{const d=new Date(Date.now()-5*3600000);return d.toISOString().slice(0,10);};     // fecha de Perú (UTC-5)
   const cederTurno=()=>new Promise(r=>setTimeout(r,0));
 
@@ -57,7 +59,7 @@
     const cab=`<thead><tr><th>Código</th><th>Artículo</th><th>Categoría</th><th>Marca</th>${alm.map(a=>`<th class="ii-num ${a.clave===II.f.almacen?'ii-col-act':''}" title="${esc(a.nombre)}">${esc(a.corto)}</th>`).join('')}
       <th class="ii-num">Total</th><th class="ii-num">Mínimo</th><th>Semáforo</th><th>Corte</th></tr></thead>`;
     const c=corteElegido();
-    const cuerpo=mostrar.map(x=>`<tr class="${x.enCorte?'':'ii-sin-corte'}"><td class="ii-cod">${esc(x.itemCode||'—')}</td><td class="ii-nom">${esc(x.nombre)}${x.activo===false?' <em>(inactivo)</em>':''}</td>
+    const cuerpo=mostrar.map(x=>`<tr class="${x.enCorte?'':'ii-sin-corte'}"><td class="ii-cod">${celdaCodigo(x)}</td><td class="ii-nom">${esc(x.nombre)}${x.activo===false?' <em>(inactivo)</em>':''}</td>
       <td>${esc(x.categoria)}${x.subtipo?` <small>${esc(x.subtipo)}</small>`:''}</td><td>${esc(x.marca||'—')}</td>
       ${x.w.map((v,k)=>`<td class="ii-num ${alm[k].clave===II.f.almacen?'ii-col-act':''}">${x.enCorte?fmt(v):'—'}</td>`).join('')}
       <td class="ii-num"><b>${x.enCorte?fmt(x.total):'—'}</b></td><td class="ii-num">${num(x.stockMinimo)>0?fmt(x.stockMinimo):'—'}</td>
@@ -71,7 +73,7 @@
   function filtrosStock(){
     const f=II.f;
     return `<div class="ii-filtros">
-      <label class="ii-campo"><span>Buscar</span><input type="search" id="ii-texto" value="${esc(f.texto)}" placeholder="Nombre o código" oninput="iiTexto(this.value)" autocomplete="off"></label>
+      <label class="ii-campo"><span>Buscar</span><input type="search" id="ii-texto" value="${esc(f.texto)}" placeholder="Nombre o código (INS-0001 / SAP)" oninput="iiTexto(this.value)" autocomplete="off"></label>
       <label class="ii-campo"><span>Categoría</span><select onchange="iiFiltro('categoria',this.value)">${opciones(categoriasPresentes(),f.categoria,'Todas')}</select></label>
       <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opciones(marcasPresentes(),f.marca,'Todas')}</select></label>
       <label class="ii-campo"><span>Almacén (para el semáforo)</span><select onchange="iiFiltro('almacen',this.value)"><option value="" ${f.almacen===''?'selected':''}>Total (6 almacenes AP)</option>
@@ -102,7 +104,7 @@
     const lista=N.filtrarStock(N.filasStock(D.cache.catalogo,null,''),{categoria:f.categoria,marca:f.marca,prioritarios:f.prioritarios,texto:f.texto,activos:!f.inactivos})
       .sort((a,b)=>String(a.categoria).localeCompare(String(b.categoria),'es')||String(a.nombre).localeCompare(String(b.nombre),'es'));
     const puede=D.puedeEscribir();
-    const filas=lista.slice(0,II.limite).map(x=>`<tr><td class="ii-cod">${esc(x.itemCode||'—')}</td><td class="ii-nom">${esc(x.nombre)}</td><td>${esc(x.categoria)}${x.subtipo?` <small>${esc(x.subtipo)}</small>`:''}</td>
+    const filas=lista.slice(0,II.limite).map(x=>`<tr><td class="ii-cod">${celdaCodigo(x)}</td><td class="ii-nom">${esc(x.nombre)}</td><td>${esc(x.categoria)}${x.subtipo?` <small>${esc(x.subtipo)}</small>`:''}</td>
       <td>${esc(x.marca||'—')}</td><td>${esc(x.presentacion||'—')}</td><td>${esc(x.unidad)}</td><td class="ii-num">${fmt(x.stockMinimo)}</td><td class="ii-num">${fmt(x.puntoReorden)}</td>
       <td>${x.prioritario?'Sí':'—'}</td><td>${x.activo===false?'No':'Sí'}</td>${puede?`<td><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iiEditar('${esc(x.id).replace(/'/g,'&#39;')}')">Editar</button></td>`:''}</tr>`).join('');
     const mas=lista.length>II.limite?`<div class="ii-mas"><button type="button" class="ii-btn ii-btn-o" onclick="iiMasFilas()">Mostrar más (${fmt(lista.length-II.limite,0)} restantes)</button></div>`:'';
@@ -113,7 +115,7 @@
   function tabCatalogo(){
     const f=II.f;
     return `<div class="ii-card"><div class="ii-filtros">
-      <label class="ii-campo"><span>Buscar</span><input type="search" id="ii-texto" value="${esc(f.texto)}" placeholder="Nombre o código" oninput="iiTexto(this.value)" autocomplete="off"></label>
+      <label class="ii-campo"><span>Buscar</span><input type="search" id="ii-texto" value="${esc(f.texto)}" placeholder="Nombre o código (INS-0001 / SAP)" oninput="iiTexto(this.value)" autocomplete="off"></label>
       <label class="ii-campo"><span>Categoría</span><select onchange="iiFiltro('categoria',this.value)">${opciones(categoriasPresentes(),f.categoria,'Todas')}</select></label>
       <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opciones(marcasPresentes(),f.marca,'Todas')}</select></label>
       <label class="ii-chk"><input type="checkbox" ${f.prioritarios?'checked':''} onchange="iiFiltro('prioritarios',this.checked)"> Solo prioritarios</label>
@@ -128,10 +130,19 @@
     if(II.msg)return `<div class="ii-msg ii-msg-${II.msg.tipo}" role="status">${esc(II.msg.texto)}</div>`;
     return ['catalogo','cortes'].every(k=>D.cache.listo[k])?'':'<div class="ii-msg ii-msg-info" role="status">Consultando el inventario…</div>';
   }
+  /* Los artículos sin código interno (p. ej. el catálogo creado antes de existir los códigos) lo reciben al abrir el módulo quien puede escribir. */
+  let asignandoCodigos=false,falloCodigos=false;
+  function autoCodigos(){
+    if(asignandoCodigos||falloCodigos||!D.cache.listo.catalogo||!D.puedeEscribir()||!D.cache.catalogo.some(x=>!x.codigo))return;
+    asignandoCodigos=true;
+    D.asignarCodigosFaltantes().then(r=>{if(r.asignados){II.msg={tipo:'ok',texto:`Se asignaron ${fmt(r.asignados,0)} códigos internos (INS-0001…).`};}})
+      .catch(e=>{falloCodigos=true;II.msg={tipo:'error',texto:D.mensajeError(e)};}).finally(()=>{asignandoCodigos=false;});
+  }
   function pintar(){
     if(state.currentTab!==TAB)return;
     const main=document.getElementById('main');if(!main)return;
     D.escuchar();
+    autoCodigos();
     const modoVista=!D.puedeEscribir();
     const tabs=[['stock','Stock actual'],['conteo','Conteo físico'],['conciliacion','Conciliación'],['auditoria','Auditoría'],['catalogo','Catálogo']].map(([k,t])=>`<button type="button" role="tab" class="ii-tab ${II.tab===k?'ii-tab-act':''}" aria-selected="${II.tab===k}" onclick="iiTab('${k}')">${t}</button>`).join('');
     const scroll=window.scrollY;
@@ -162,7 +173,7 @@
     II.edicion=id;
     raiz().innerHTML=`<div class="modal-backdrop" onclick="if(event.target===this)iiCerrar()"><div class="modal ii-modal" role="dialog" aria-modal="true">
       <div class="modal-head"><h3>Editar artículo</h3><button class="modal-close" onclick="iiCerrar()" aria-label="Cerrar">✕</button></div>
-      <div class="modal-body"><p class="ii-nom-modal">${esc(x.nombre)}</p><p class="ii-mut">${esc(x.itemCode||'Sin código SAP (tabla dinámica)')} · ${esc(x.categoria)}</p>
+      <div class="modal-body"><p class="ii-nom-modal">${esc(x.nombre)}</p><p class="ii-mut"><b>${esc(x.codigo||'Sin código')}</b> · ${esc(x.itemCode?'SAP '+x.itemCode:'Sin código SAP (tabla dinámica)')} · ${esc(x.categoria)}</p>
         <div class="ii-form"><label class="ii-campo"><span>Unidad</span><input id="ii-e-unidad" value="${esc(x.unidad)}" maxlength="20"></label>
         <label class="ii-campo"><span>Stock mínimo</span><input id="ii-e-min" type="number" min="0" step="any" value="${esc(x.stockMinimo)}"></label>
         <label class="ii-campo"><span>Punto de reorden</span><input id="ii-e-reorden" type="number" min="0" step="any" value="${esc(x.puntoReorden)}"></label></div>
@@ -357,7 +368,7 @@
 .ii-chk{display:flex;align-items:center;gap:8px;font-size:14px;min-height:42px}.ii-chk input{width:auto;min-height:0}
 .ii-tw{overflow-x:auto;border:1px solid var(--ii-linea);border-radius:10px}.ii-t{width:100%;border-collapse:collapse;font-size:14px}
 .ii-t th{background:#eef3fa;text-align:left;padding:10px 12px;font-size:13px;font-weight:700;color:#1d3557;white-space:nowrap}.ii-t td{padding:9px 12px;border-top:1px solid #edf2f7;vertical-align:top}
-.ii-num{text-align:right!important;white-space:nowrap;font-variant-numeric:tabular-nums}.ii-col-act{background:#fff8ec}.ii-cod{white-space:nowrap;color:var(--ii-mut);font-size:13px}.ii-nom{min-width:220px}
+.ii-num{text-align:right!important;white-space:nowrap;font-variant-numeric:tabular-nums}.ii-col-act{background:#fff8ec}.ii-cod{white-space:nowrap;color:var(--ii-mut);font-size:13px}.ii-cod b{display:block;color:#0f2547}.ii-cod small{display:block;font-size:11px}.ii-nom{min-width:220px}
 .ii-sin-corte td{color:#98a2b3}.ii-vacio{text-align:center;color:var(--ii-mut);padding:24px}.ii-pie,.ii-mut{color:var(--ii-mut);font-size:13px;margin:10px 0 0}
 .ii-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;font-size:12.5px;font-weight:600;white-space:nowrap}.ii-pill i{width:9px;height:9px;border-radius:50%;background:currentColor}
 .ii-p-rojo{background:#fee2e2;color:#b42318}.ii-p-naranja{background:#ffedd5;color:#9a3412}.ii-p-verde{background:#dcfce7;color:#166534}.ii-p-gris{background:#eceff3;color:#475467}

@@ -109,6 +109,20 @@ const resumenHoja=[['Etiquetas de fila',...WCOL],['ASA ERGONOMICA P/BOTELLA PET 
   ok(c5.lista.filter(x=>/BOLSA GLACIAL 1.5 KG/.test(x.nombre)).length===1&&c5.resueltos.get(bolsa.id)==='I777'&&c5.lista.length===5,'tabla dinámica después del plano: el artículo se une al que ya tiene ItemCode (sin duplicar) y su corte usa ese id');
   ok(N.validarEdicion({stockMinimo:-1}).length===1&&N.validarEdicion({unidad:''}).length===1&&N.validarEdicion({stockMinimo:10,puntoReorden:5}).length===1&&N.validarEdicion({stockMinimo:5,puntoReorden:10,unidad:'kg'}).length===0,'validación de la edición');
 }
+/* Código interno (INS-0001…) */
+{
+  const lista=[{id:'b',nombre:'BOBINA',categoria:'BOBINA'},{id:'a',nombre:'ASA',categoria:'ASA'},{id:'c',nombre:'CAJA',categoria:'CAJA',codigo:'INS-0007'}];
+  const r=N.asignarCodigos(lista);
+  ok(r.asignados===2&&lista.find(x=>x.id==='a').codigo==='INS-0008'&&lista.find(x=>x.id==='b').codigo==='INS-0009'&&lista.find(x=>x.id==='c').codigo==='INS-0007','códigos nuevos a partir del más alto (orden: categoría y nombre); los que ya tienen no cambian');
+  ok(N.asignarCodigos(lista).asignados===0,'asignar de nuevo no cambia nada');
+  const c1=N.combinarCatalogo([],N.leerLibro([{nombre:'Almacenes',filas:pivot}]).articulos);
+  const cods=c1.lista.map(x=>x.codigo);
+  ok(c1.codigosAsignados===5&&cods.every(c=>/^INS-\d{4}$/.test(c))&&new Set(cods).size===5,'importar: cada artículo nuevo recibe un código interno único');
+  const c2=N.combinarCatalogo(c1.lista,N.leerLibro([{nombre:'Almacenes',filas:pivot}]).articulos);
+  ok(c2.codigosAsignados===0&&c2.lista.every((x,i)=>x.codigo===c1.lista[i].codigo),'reimportar no cambia los códigos');
+  ok(N.filtrarStock(N.filasStock(c1.lista,null,''),{texto:c1.lista[2].codigo.toLowerCase(),prioritarios:false}).some(f=>f.id===c1.lista[2].id)&&N.filtrarStock(N.filasStock(c1.lista,null,''),{texto:'ins-000',prioritarios:false}).length>=1,'el buscador encuentra por código interno');
+  ok(N.filasConteo(c1.lista,{porItem:new Map()},{texto:c1.lista[1].codigo,prioritarios:false}).some(f=>f.id===c1.lista[1].id),'el buscador del conteo también');
+}
 /* Cortes, semáforo, filtros y resumen */
 {
   const a={id:'I1',stock:{INSUMOS:100,PRODUCCION:20.5}};
@@ -221,6 +235,12 @@ function entorno(rol,permisos){
   sb.docs.set('insumosCatalogo/catalogo',{...hecho,items:hecho.items.map(x=>x.id===id?{...x,stockMinimo:123}:x)});
   const antes=cambios;sb.db.runTransaction(async()=>{});await new Promise(r=>setTimeout(r,5));
   ok(true,'lectura de cambios de otros dispositivos cubierta por el puente (tests/puente-supabase.test.js)');
+  /* códigos internos: el catálogo ya trae códigos desde la importación y quien no los tiene los recibe */
+  ok(D.cache.catalogo.every(x=>/^INS-\d{4}$/.test(x.codigo)),'el catálogo importado ya trae su código interno');
+  const sinCod=sb.docs.get('insumosCatalogo/catalogo');sb.docs.set('insumosCatalogo/catalogo',{...sinCod,items:sinCod.items.map(x=>{const y={...x};delete y.codigo;return y;})});
+  const rc=await D.asignarCodigosFaltantes();ok(rc.asignados===5&&D.cache.catalogo.every(x=>/^INS-000[1-5]$/.test(x.codigo)),'asignarCodigosFaltantes pone código a un catálogo antiguo (5 artículos)');
+  ok((await D.asignarCodigosFaltantes()).asignados===0,'y la segunda vez no hace nada');
+  ok([...sb.docs.values()].some(a=>a.tipo==='ASIGNAR_CODIGOS'&&a.despues.asignados===5&&a.despues.desde==='INS-0001'),'queda en la auditoría');
   /* ================= conteo físico (Fase 2) ================= */
   const art=D.cache.catalogo[0],art2=D.cache.catalogo[1];
   ok(Nn.validarConteo({fecha:'2026-10-18',almacen:'INSUMOS'}).length===0&&Nn.validarConteo({fecha:'',almacen:'INSUMOS'}).length===1&&Nn.validarConteo({fecha:'2026-10-18',almacen:'XX'}).length===1&&Nn.validarConteo({fecha:'2026-10-18',almacen:'TODOS'}).length===0,'conteo: validación de fecha y almacén (cualquiera de los 6 o «Todos»)');
