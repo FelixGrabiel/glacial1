@@ -184,6 +184,30 @@
     return r;
   }
 
+  /* ---------- artículos sin uso ---------- */
+  /* Lee los últimos cortes (hasta 6) y devuelve los artículos activos cuyo stock total no cambió en ninguno (ver N.detectarSinMovimiento). */
+  async function detectarSinMovimiento(){
+    if(!yoVeo())throw falla('PERMISO','No tienes permiso para ver el inventario.');
+    const recientes=cache.cortes.slice(0,6);
+    const detalles=await Promise.all(recientes.map(c=>col('insumosCortesDetalle').doc(c.id).get().then(s=>s.exists?s.data():null)));
+    return N.detectarSinMovimiento(cache.catalogo,detalles.filter(Boolean),30);
+  }
+  /* Marca o desmarca «sin uso» a varios artículos en UNA transacción y UN evento de auditoría. */
+  async function marcarSinUso(ids,valor){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para editar el catálogo de insumos.');
+    const set=new Set(ids||[]),v=!!valor;if(!set.size)return {cambiados:0};
+    const ref=col('insumosCatalogo').doc('catalogo');let n=0;
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);
+      const lista=(s.exists&&Array.isArray(s.data().items))?s.data().items.map(x=>({...x})):[];
+      lista.forEach(x=>{if(set.has(x.id)&&!!x.sinUso!==v){x.sinUso=v;n++;}});
+      if(!n)return;
+      tx.set(ref,{items:lista,actualizadoPor:usuario().nombre,actualizadoEn:serverTs()});
+      auditar(tx,'MARCAR_SIN_USO','catalogo','Catálogo de insumos',{sinUso:!v},{sinUso:v,articulos:n});
+    });
+    return {cambiados:n};
+  }
+
   /* ---------- importación de un corte de stock ---------- */
   /* lectura: resultado de N.leerLibro (articulos, almacenes, resumen, formato, hoja). Todo en UNA transacción: catálogo + corte + índice + auditoría. */
   async function importarCorte(lectura,{fechaCorte,archivo}){
@@ -260,6 +284,20 @@
       items.push(nueva);
       auditar(tx,'CREAR_LINEA',nueva.itemId,it?it.nombre:'',null,{conteo:conteoId,ubicacion:nueva.ubicacion,cantidad:nueva.cantidad},{conteoId});
       return nueva;
+    });
+  }
+  /* Agrega muchas líneas de una vez (conteo importado desde Excel): una transacción, un evento de auditoría. lineas: [{itemId, ubicacion, cantidad}]. */
+  async function agregarLineasLote(conteoId,lineas,archivo){
+    const u=usuario(),t=ahora();
+    const buenas=(lineas||[]).map(l=>({itemId:String(l.itemId||''),ubicacion:N.ubicacionLimpia(l.ubicacion),cantidad:l.cantidad}));
+    if(!buenas.length)throw falla('VALIDACION','No hay líneas para guardar.');
+    buenas.forEach(l=>{const e=N.validarLinea(l);if(e.length)throw falla('VALIDACION',e.join(' · '));});
+    return sobreLineas(conteoId,(items,meta,tx)=>{
+      const idx=N.indiceCatalogo(cache.catalogo);
+      buenas.forEach((l,k)=>{const it=idx.get(l.itemId);
+        items.push({id:N.claveLinea(t+k),itemId:it?it.id:l.itemId,ubicacion:l.ubicacion,cantidad:N.red(num(l.cantidad),4),por:u.nombre,uid:u.uid,en:t});});
+      auditar(tx,'IMPORTAR_CONTEO',conteoId,String(archivo||'Excel'),null,{conteo:conteoId,lineas:buenas.length},{conteoId});
+      return {lineas:buenas.length};
     });
   }
   async function editarLinea(conteoId,lineaId,{ubicacion,cantidad}){
@@ -369,6 +407,6 @@
   }
 
   window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,asignarCodigosFaltantes,importarCorte,vistaPrevia,mensajeError,
-    escucharConteo,crearConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
+    escucharConteo,crearConteo,agregarLinea,agregarLineasLote,detectarSinMovimiento,marcarSinUso,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();

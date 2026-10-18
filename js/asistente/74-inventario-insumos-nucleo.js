@@ -277,7 +277,7 @@
     faltan.forEach(x=>{x.codigo=formatoCodigo(++max);});
     return {asignados:faltan.length,desde:faltan.length?numeroCodigo(faltan[0].codigo):0,hasta:faltan.length?max:0};
   }
-  const CAMPOS_EDITABLES=['unidad','stockMinimo','puntoReorden','prioritario','activo'];
+  const CAMPOS_EDITABLES=['unidad','stockMinimo','puntoReorden','prioritario','activo','sinUso'];
   function validarEdicion(c){
     const e=[];
     if('unidad' in c&&!String(c.unidad||'').trim())e.push('Indica la unidad.');
@@ -333,8 +333,26 @@
       return true;
     });
   }
-  function ordenarStock(filas){
-    return filas.slice().sort((a,b)=>ORDEN_SEMAFORO[a.semaforo]-ORDEN_SEMAFORO[b.semaforo]||String(a.categoria).localeCompare(String(b.categoria),'es')||String(a.nombre).localeCompare(String(b.nombre),'es'));
+  /* Los artículos marcados «sin uso» van al final de la lista (siguen en el inventario). alFinal=false los deja en su lugar. */
+  function ordenarStock(filas,alFinal){
+    const abajo=alFinal===false?()=>0:x=>x.sinUso?1:0;
+    return filas.slice().sort((a,b)=>abajo(a)-abajo(b)||ORDEN_SEMAFORO[a.semaforo]-ORDEN_SEMAFORO[b.semaforo]||String(a.categoria).localeCompare(String(b.categoria),'es')||String(a.nombre).localeCompare(String(b.nombre),'es'));
+  }
+  /* Sin movimiento: el stock total no cambió en ningún corte del periodo. cortes: [{fechaCorte, items:[{id,t}]}] (cualquier orden). Necesita al
+     menos 3 cortes que abarquen minDias o más; si no, devuelve {ids:[], motivo}. Solo mira artículos activos con stock y que aparecen en todos. */
+  function detectarSinMovimiento(catalogo,cortes,minDias){
+    const dias=minDias||30,lista=(cortes||[]).filter(c=>c&&c.items).slice().sort((a,b)=>String(a.fechaCorte).localeCompare(String(b.fechaCorte)));
+    if(lista.length<3)return {ids:[],motivo:'Hacen falta al menos 3 cortes de stock para saber qué no se mueve (hay '+lista.length+').',desde:'',cortes:lista.length};
+    const dd=f=>Date.parse(f+'T00:00:00Z'),span=Math.round((dd(lista[lista.length-1].fechaCorte)-dd(lista[0].fechaCorte))/86400000);
+    if(!(span>=dias))return {ids:[],motivo:'Los cortes solo abarcan '+span+' días; se necesitan '+dias+' o más.',desde:lista[0].fechaCorte,cortes:lista.length};
+    const mapas=lista.map(c=>new Map(c.items.map(i=>[i.id,i]))),ultimo=mapas[mapas.length-1],ids=[];
+    (catalogo||[]).forEach(c=>{
+      if(c.activo===false||c.sinUso)return;
+      const alias=[c.id,...(c.alias||[])],filaDe=m=>{for(const a of alias){const i=m.get(a);if(i)return i;}return null;};
+      const fin=filaDe(ultimo);if(!fin||!(num(fin.t)>0))return;
+      if(mapas.every(m=>{const i=filaDe(m);return i&&red(num(i.t),4)===red(num(fin.t),4);}))ids.push(c.id);
+    });
+    return {ids,motivo:'',desde:lista[0].fechaCorte,cortes:lista.length,dias:span};
   }
   function resumenStock(filas){
     const activas=filas.filter(x=>x.activo!==false&&x.enCorte);
@@ -413,6 +431,51 @@
     return {articulosContados:tot.porItem.size,lineas:(lineas||[]).length,prioritariosPendientes:pri.pendientes,prioritariosTotal:pri.total};
   }
 
+  /* Lee un Excel con el conteo físico. hojas: [{nombre, filas:[[celdas…]]}]. Busca la fila de títulos (artículo/código + cantidad contada) y une cada
+     fila con el catálogo por código interno (INS-), código SAP o nombre. Devuelve las líneas listas para guardar y lo que no se pudo unir. */
+  const esTitulo=(c,re)=>re.test(norm(c));
+  function leerConteoExcel(hojas,catalogo){
+    const idx=indiceCatalogo(catalogo),porCod=new Map(),porSap=new Map(),porNombre=new Map();
+    (catalogo||[]).forEach(c=>{if(c.codigo)porCod.set(norm(c.codigo),c);if(c.itemCode)porSap.set(norm(c.itemCode),c);
+      const k=norm(c.nombre);porNombre.set(k,porNombre.has(k)?null:c);});
+    let mejor=null;
+    (hojas||[]).forEach(h=>{
+      const filas=h.filas||[];
+      for(let i=0;i<Math.min(filas.length,40);i++){
+        const f=filas[i]||[],cab={};
+        f.forEach((c,j)=>{
+          if(cab.cant===undefined&&esTitulo(c,/^(CONTEO|CANTIDAD|CONTADO|FISICO|STOCK FISICO|CONTEO FISICO|CANT\.? CONTADA|CANTIDAD CONTADA|TOTAL CONTADO)/))cab.cant=j;
+          else if(cab.nom===undefined&&esTitulo(c,/^(ARTICULO|DESCRIPCION|NOMBRE|ITEMNAME|PRODUCTO|MATERIAL|INSUMO)/))cab.nom=j;
+          else if(cab.cod===undefined&&esTitulo(c,/^(CODIGO|COD\.?|ITEMCODE|CODIGO SAP|CODIGO INTERNO|CODIGO GLACIAL)/))cab.cod=j;
+          else if(cab.ubi===undefined&&esTitulo(c,/^(UBICACION|LUGAR|ZONA|RACK)/))cab.ubi=j;
+        });
+        if(cab.cant!==undefined&&(cab.nom!==undefined||cab.cod!==undefined)){
+          const lineas=[],sinUnir=[];let leidas=0,vacias=0;
+          for(let r=i+1;r<filas.length;r++){
+            const g=filas[r]||[];
+            const cantRaw=g[cab.cant];
+            const cod=cab.cod!==undefined?String(g[cab.cod]==null?'':g[cab.cod]).trim():'',nom=cab.nom!==undefined?String(g[cab.nom]==null?'':g[cab.nom]).trim():'';
+            if(!cod&&!nom)continue;
+            if(/^TOTAL/.test(norm(nom||cod)))continue;
+            if(cantRaw===null||cantRaw===undefined||String(cantRaw).trim()===''){vacias++;continue;}
+            const cant=Number(String(cantRaw).replace(/,/g,''));
+            if(!Number.isFinite(cant)||cant<0){sinUnir.push({texto:nom||cod,cantidad:cantRaw,motivo:'Cantidad no válida'});continue;}
+            leidas++;
+            const it=(cod&&(porCod.get(norm(cod))||porSap.get(norm(cod))))||(nom&&porNombre.get(norm(nom)))||null;
+            if(!it){sinUnir.push({texto:nom||cod,cantidad:cant,motivo:cod||nom?(porNombre.get(norm(nom))===null?'Nombre repetido en el catálogo':'No está en el catálogo'):''});continue;}
+            lineas.push({itemId:it.id,nombre:it.nombre,codigo:it.codigo||'',cantidad:red(cant,4),ubicacion:cab.ubi!==undefined&&String(g[cab.ubi]==null?'':g[cab.ubi]).trim()?ubicacionLimpia(g[cab.ubi]):'Excel'});
+          }
+          const puntaje=lineas.length;
+          if(!mejor||puntaje>mejor.lineas.length)mejor={hoja:h.nombre,lineas,sinUnir,leidas,vacias};
+          break;
+        }
+      }
+    });
+    if(!mejor)return {error:'No se encontró la tabla del conteo. El Excel debe tener una fila de títulos con el artículo (o su código) y una columna «Conteo» o «Cantidad».'};
+    if(!mejor.lineas.length)return {error:'Se encontró la hoja «'+String(mejor.hoja).trim()+'» pero ningún artículo coincide con el catálogo ('+mejor.sinUnir.length+' sin unir). Revisa que los nombres o códigos sean los mismos del inventario.'};
+    return {hoja:mejor.hoja,lineas:mejor.lineas,sinUnir:mejor.sinUnir,resumen:{leidas:mejor.leidas,unidas:mejor.lineas.length,sinUnir:mejor.sinUnir.length,vacias:mejor.vacias}};
+  }
+
   /* ---------- conciliación SAP vs conteo (Fase 3) ---------- */
   const UMBRAL_OK=2,UMBRAL_OBSERVADO=10;                       // % de diferencia sobre el stock SAP: ≤2 OK · ≤10 OBSERVADO · >10 CRÍTICO
   const ESTADOS_CONCILIACION={OK:'OK',OBSERVADO:'Observado',CRITICO:'Crítico',NO_CONTADO:'No contado',SIN_STOCK_SAP:'Sin stock SAP'};
@@ -464,9 +527,9 @@
     CREAR_CONTEO:{txt:'Conteo creado',grupo:'CONTEO'},EDITAR_CONTEO:{txt:'Observación del conteo',grupo:'CONTEO'},
     CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
     CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},
-    ASIGNAR_CODIGOS:{txt:'Códigos internos asignados',grupo:'CATALOGO'},
+    ASIGNAR_CODIGOS:{txt:'Códigos internos asignados',grupo:'CATALOGO'},MARCAR_SIN_USO:{txt:'Artículos marcados sin uso',grupo:'CATALOGO'},IMPORTAR_CONTEO:{txt:'Conteo importado desde Excel',grupo:'LINEA'},
     COMENTARIO_CONCILIACION:{txt:'Comentario de conciliación',grupo:'COMENTARIO'}};
-  const CAMPOS_AUDITORIA={stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',
+  const CAMPOS_AUDITORIA={sinUso:'Sin uso',stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',
     texto:'Comentario',estado:'Estado',motivo:'Motivo',observacion:'Observación',fecha:'Fecha',almacen:'Almacén',fechaCorte:'Fecha del corte',formato:'Formato',articulos:'Artículos',
     nuevos:'Nuevos',actualizados:'Actualizados',adoptados:'Adoptados',excluidos:'Excluidos',almacenes:'Almacenes',lineas:'Líneas',asignados:'Códigos asignados',desde:'Desde',hasta:'Hasta',por:'Registró',conteo:'Conteo'};
   const grupoAuditoria=t=>(TIPOS_AUDITORIA[t]||{}).grupo||'';
@@ -498,7 +561,7 @@
   const API={GRUPOS_VALIDOS,GRUPOS_NOMBRE,ALMACENES,CATEGORIAS,PRIORITARIAS,MARCAS,CAMPOS_EDITABLES,ROLES_SOLO_CONSULTA,ROLES_VER_DEFECTO,ROLES_ESCRIBIR_DEFECTO,
     num,norm,red,fmt,esExcluido,categoriaDe,marcaDe,presentacionDe,esPrioritaria,almacenDe,almacenInfo,idPorNombre,esIdNombre,prefiltrarFilas,leerLibro,
     registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock,
-    ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
+    detectarSinMovimiento,leerConteoExcel,ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
     PREFIJO_CODIGO,asignarCodigos,UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones,
     GRUPOS_AUDITORIA,TIPOS_AUDITORIA,CAMPOS_AUDITORIA,grupoAuditoria,cambiosAuditoria,resumenAuditoria,filtrarAuditoria,ordenAuditoria};
   global.glacialInventarioNucleo=API;
