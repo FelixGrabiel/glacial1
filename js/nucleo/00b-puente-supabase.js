@@ -999,6 +999,7 @@
     const T = global.__GLACIAL_TRANSPORTE__ ? global.__GLACIAL_TRANSPORTE__(config) : transporteSupabase(config);
     const db = crearBaseDeDatos(T);
     principal = { name: '[DEFAULT]', options: config, _T: T, _db: db, _auth: crearAuth(T, db), auth(){ return this._auth; }, firestore(){ return this._db; } };
+    if (T.sb) global.glacialSupabaseCliente = T.sb;           // cliente de Supabase (sesión incluida): lo usa js/produccion/06b-fotos-supabase.js para Storage
     Object.assign(firestore, db._clases);                     // firebase.firestore.DocumentReference, .WriteBatch, .Transaction…
     apps.unshift(principal);
     return principal;

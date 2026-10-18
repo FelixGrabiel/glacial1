@@ -530,7 +530,7 @@ function verEvidenciasPTHistorial(id){
                     >
 
                       <a
-                        href="${escapeHtmlPTHistorial(url)}"
+                        ${histFotoEnlace(url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         onclick="event.stopPropagation();"
@@ -541,7 +541,7 @@ function verEvidenciasPTHistorial(id){
                       >
 
                         <img
-                          src="${escapeHtmlPTHistorial(url)}"
+                          ${histFotoImg(url)}
                           alt="${escapeHtmlPTHistorial(nombre)}"
                           style="
                             display:block;
@@ -577,7 +577,7 @@ function verEvidenciasPTHistorial(id){
 
 
                         <a
-                          href="${escapeHtmlPTHistorial(url)}"
+                          ${histFotoEnlace(url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           onclick="event.stopPropagation();"
@@ -622,6 +622,14 @@ function verEvidenciasPTHistorial(id){
 
 }
 
+
+/* Fotos guardadas en Supabase Storage (privadas): se muestran con un enlace firmado (06b-fotos-supabase.js). Las de Cloudinary (https) igual que siempre. */
+function histFotoEnlace(url){
+  return window.glacialFotos ? window.glacialFotos.atributosEnlace(url) : `href="${escapeHtmlPTHistorial(url)}"`;
+}
+function histFotoImg(url){
+  return window.glacialFotos ? window.glacialFotos.atributosImg(url) : `src="${escapeHtmlPTHistorial(url)}"`;
+}
 
 function escapeHtmlPTHistorial(value){
 
@@ -953,7 +961,7 @@ function verReporteHistorial(id){
   };
 
   const fotos=(r.evidenciasPT||[]).filter(e=>e?.url).map((e,i)=>
-    `<a class="hist-report-photo" href="${esc(e.url)}" target="_blank" rel="noopener"><img src="${esc(e.url)}" alt="Evidencia PT ${i+1}"><span>PT ${String(i+1).padStart(2,'0')} · Ver evidencia</span></a>`
+    `<a class="hist-report-photo" ${histFotoEnlace(e.url)} target="_blank" rel="noopener"><img ${histFotoImg(e.url)} alt="Evidencia PT ${i+1}"><span>PT ${String(i+1).padStart(2,'0')} · Ver evidencia</span></a>`
   ).join('');
 
   const personalCompleto=personalHistorialCompleto(r);

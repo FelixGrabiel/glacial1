@@ -785,13 +785,13 @@ function renderEvidenciasPT(){
                       >
 
                         <img
-                          src="${
-                            escapeHtmlPT(
-                              foto.previewUrl ||
-                              foto.url ||
-                              ''
-                            )
-                          }"
+                          ${
+                            foto.previewUrl
+                              ? `src="${escapeHtmlPT(foto.previewUrl)}"`
+                              : window.glacialFotos
+                                ? window.glacialFotos.atributosImg(foto.url || '')
+                                : `src="${escapeHtmlPT(foto.url || '')}"`
+                          }
                           alt="
                             Hoja de Producto
                             Terminado ${i+1}
@@ -895,7 +895,8 @@ function renderEvidenciasPT(){
 
 
 /*
-   Sube las fotografías a Cloudinary.
+   Sube las fotografías a Supabase Storage (privado) y, si no está
+   disponible, a Cloudinary.
 
    IMPORTANTE:
    El API Secret de Cloudinary NO se utiliza aquí.
@@ -967,6 +968,71 @@ async function subirEvidenciasPT(recordId){
       throw new Error(
         `La fotografía ${i+1} no está disponible para subir.`
       );
+
+    }
+
+
+    /*
+       Primero Supabase Storage (bucket privado, enlace firmado). Si no está
+       disponible (p. ej. el bucket aún no existe en ese proyecto) se vuelve a
+       Cloudinary para no detener el registro.
+    */
+    if(
+      window.glacialFotos &&
+      window.glacialFotos.disponible()
+    ){
+
+      try{
+
+        const sb =
+          await window.glacialFotos.subir(
+            foto.blob,
+            {
+              carpeta:
+                `hojas_producto_terminado/${recordId}`,
+              id:
+                foto.id,
+              tipo:
+                'image/jpeg'
+            }
+          );
+
+        subidas.push({
+
+          id:
+            foto.id,
+
+          nombre:
+            foto.nombre ||
+            `Foto ${i+1}`,
+
+          tipo:
+            'image/jpeg',
+
+          url:
+            sb.url,
+
+          publicId:
+            sb.path,
+
+          proveedor:
+            'supabase',
+
+          fecha:
+            new Date().toISOString()
+
+        });
+
+        continue;
+
+      }catch(errorSupabase){
+
+        console.warn(
+          'GLACIAL · Supabase Storage no disponible, se usa Cloudinary:',
+          errorSupabase
+        );
+
+      }
 
     }
 
