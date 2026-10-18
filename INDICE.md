@@ -87,6 +87,7 @@ js/
 | 28-tareo-maquinistas.js | Reglas de maquinistas y técnicos en el tareo |
 | 31-rotacion-supervisores.js | Rotación de supervisores |
 | 40-tareo-auditoria.js | Registra en `auditoriaTareos` quién cambió qué en un tareo (solo crea eventos). Rendimiento: `sembrar()` (cada snapshot) reutiliza la foto de los tareos cuya firma no cambió (WeakMap `fotosPrevias`) |
+| 49b-resumen-graficos-diferidos.js | Reportes → Resumen general (rendimiento/INP): envuelve `renderResumen` y crea los ~13 gráficos de Chart.js de uno en uno (setTimeout 0, sin animación de entrada) en vez de todos en el turno del clic; mismos datos y aspecto final; un render nuevo, `destroy()` o salir de la pantalla cancelan lo pendiente. Prueba: tests/resumen-graficos-diferidos.test.js |
 | 41-tareo-bloqueo.js | Bloqueo de tareos por plazo (hora del servidor), correcciones de RRHH con motivo y solicitudes |
 | 42-tareo-agregar-personal.js | Agregar personal al tareo (ya registrado o personal nuevo) en Producción y Mantenimiento |
 
@@ -180,6 +181,7 @@ Diagnóstico, modelo de datos y permisos: `docs/ASISTENTE-PRODUCCION.md`.
 44. nucleo/44-estado-datos.js
 45. produccion/46-proyeccion-avisos.js
 46. produccion/47-analisis-paradas.js
+46b. produccion/49b-resumen-graficos-diferidos.js (después de 09, 08 y 49; antes de 12-init)
 47. accesos/39-vista-como.js
 48. nucleo/12-init.js
 
