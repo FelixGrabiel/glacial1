@@ -22,7 +22,7 @@
   const cederTurno=()=>new Promise(r=>setTimeout(r,0));
 
   const II={tab:'stock',limite:PASO_FILAS,msg:null,edicion:null,
-    f:{categoria:'',marca:'',almacen:'INSUMOS',prioritarios:true,soloBajoMinimo:false,texto:'',inactivos:false},
+    f:{categoria:'',marca:'',almacen:'INSUMOS',prioritarios:true,soloBajoMinimo:false,texto:'',inactivos:false,sinUsoAlFinal:true},
     imp:null};
 
   /* ---------- datos derivados ---------- */
@@ -32,7 +32,7 @@
   }
   function filasFiltradas(){
     const f={categoria:II.f.categoria,marca:II.f.marca,prioritarios:II.f.prioritarios,soloBajoMinimo:II.f.soloBajoMinimo,texto:II.f.texto,activos:!II.f.inactivos};
-    return N.ordenarStock(N.filtrarStock(filasActuales(),f));
+    return N.ordenarStock(N.filtrarStock(filasActuales(),f),II.f.sinUsoAlFinal);
   }
   const corteElegido=()=>D.cache.cortes.find(c=>c.id===D.cache.corteId)||null;
 
@@ -53,20 +53,25 @@
       ${t('ii-k-gris','Último corte',c?esc(c.fechaCorte):'—',c?('Importó '+c.importadoPor):'Aún no hay cortes')}</div>`;
   }
 
+  const fechaDmy=f=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(f||'');return m?m[3]+'/'+m[2]+'/'+m[1]:(f||'');};
+  /* Orden de lectura: primero el artículo, luego el resultado (total SAP, mínimo, semáforo) y al final el detalle del stock SAP por almacén. */
   function tablaStock(filas){
     const alm=N.ALMACENES;
     const mostrar=filas.slice(0,II.limite);
-    const cab=`<thead><tr><th>Código</th><th>Artículo</th><th>Categoría</th><th>Marca</th>${alm.map(a=>`<th class="ii-num ${a.clave===II.f.almacen?'ii-col-act':''}" title="${esc(a.nombre)}">${esc(a.corto)}</th>`).join('')}
-      <th class="ii-num">Total</th><th class="ii-num">Mínimo</th><th>Semáforo</th><th>Corte</th></tr></thead>`;
     const c=corteElegido();
-    const cuerpo=mostrar.map(x=>`<tr class="${x.enCorte?'':'ii-sin-corte'}"><td class="ii-cod">${celdaCodigo(x)}</td><td class="ii-nom">${esc(x.nombre)}${x.activo===false?' <em>(inactivo)</em>':''}</td>
+    const fc=c?fechaDmy(c.fechaCorte):'';
+    const cab=`<thead><tr class="ii-g"><th colspan="4">ARTÍCULO</th><th colspan="3" class="ii-g-res">RESULTADO SEGÚN SAP</th><th colspan="${alm.length}" class="ii-g-sap">STOCK SAP POR ALMACÉN${fc?' · corte del '+esc(fc):''}</th></tr>
+      <tr><th>Código</th><th>Artículo</th><th>Categoría</th><th>Marca</th><th class="ii-num ii-b-res">Total SAP</th><th class="ii-num">Mínimo</th><th>Semáforo</th>
+      ${alm.map((a,k)=>`<th class="ii-num ${k===0?'ii-b-sap':''} ${a.clave===II.f.almacen?'ii-col-act':''}" title="${esc(a.nombre)}">${esc(a.corto)}</th>`).join('')}</tr></thead>`;
+    const cuerpo=mostrar.map(x=>`<tr class="${x.enCorte?'':'ii-sin-corte'} ${x.sinUso?'ii-sin-uso':''}"><td class="ii-cod">${celdaCodigo(x)}</td><td class="ii-nom">${esc(x.nombre)}${x.activo===false?' <em>(inactivo)</em>':''}</td>
       <td>${esc(x.categoria)}${x.subtipo?` <small>${esc(x.subtipo)}</small>`:''}</td><td>${esc(x.marca||'—')}</td>
-      ${x.w.map((v,k)=>`<td class="ii-num ${alm[k].clave===II.f.almacen?'ii-col-act':''}">${x.enCorte?fmt(v):'—'}</td>`).join('')}
-      <td class="ii-num"><b>${x.enCorte?fmt(x.total):'—'}</b></td><td class="ii-num">${num(x.stockMinimo)>0?fmt(x.stockMinimo):'—'}</td>
-      <td>${x.enCorte?semaforoHtml(x.semaforo):'<span class="ii-pill ii-p-gris"><i></i>Sin corte</span>'}</td><td>${c?esc(c.fechaCorte):'—'}</td></tr>`).join('');
+      <td class="ii-num ii-b-res"><b>${x.enCorte?fmt(x.total):'—'}</b></td><td class="ii-num">${num(x.stockMinimo)>0?fmt(x.stockMinimo):'—'}</td>
+      <td>${x.enCorte?semaforoHtml(x.semaforo):'<span class="ii-pill ii-p-gris"><i></i>Sin corte</span>'}${x.sinUso?' <span class="ii-pill ii-p-sinuso" title="Marcado como sin uso: sigue en el inventario pero va al final de la lista">Sin uso</span>':''}</td>
+      ${x.w.map((v,k)=>`<td class="ii-num ${k===0?'ii-b-sap':''} ${alm[k].clave===II.f.almacen?'ii-col-act':''}">${x.enCorte?fmt(v):'—'}</td>`).join('')}</tr>`).join('');
     const mas=filas.length>mostrar.length?`<div class="ii-mas"><button type="button" class="ii-btn ii-btn-o" onclick="iiMasFilas()">Mostrar ${Math.min(PASO_FILAS,filas.length-mostrar.length)} más (${fmt(filas.length-mostrar.length,0)} restantes)</button></div>`:'';
-    return `<div class="ii-tw"><table class="ii-t">${cab}<tbody>${cuerpo||`<tr><td colspan="${alm.length+8}" class="ii-vacio">Ningún artículo coincide con los filtros.</td></tr>`}</tbody></table></div>${mas}
-      <p class="ii-pie">${fmt(filas.length,0)} artículo(s). El semáforo usa ${II.f.almacen?esc(N.almacenInfo(II.f.almacen).nombre):'el total de los 6 almacenes AP'}.</p>`;
+    const nSin=filas.filter(x=>x.sinUso).length;
+    return `<div class="ii-tw"><table class="ii-t">${cab}<tbody>${cuerpo||`<tr><td colspan="${alm.length+7}" class="ii-vacio">Ningún artículo coincide con los filtros.</td></tr>`}</tbody></table></div>${mas}
+      <p class="ii-pie">${fmt(filas.length,0)} artículo(s)${nSin?` · ${fmt(nSin,0)} sin uso${II.f.sinUsoAlFinal?' (al final de la lista)':''}`:''}. El semáforo usa ${II.f.almacen?esc(N.almacenInfo(II.f.almacen).nombre):'el total de los 6 almacenes AP'}.</p>`;
   }
   const num=N.num;
 
@@ -79,7 +84,8 @@
       <label class="ii-campo"><span>Almacén (para el semáforo)</span><select onchange="iiFiltro('almacen',this.value)"><option value="" ${f.almacen===''?'selected':''}>Total (6 almacenes AP)</option>
         ${N.ALMACENES.map(a=>`<option value="${a.clave}" ${a.clave===f.almacen?'selected':''}>${esc(a.nombre)}</option>`).join('')}</select></label>
       <label class="ii-chk"><input type="checkbox" ${f.prioritarios?'checked':''} onchange="iiFiltro('prioritarios',this.checked)"> Solo prioritarios</label>
-      <label class="ii-chk"><input type="checkbox" ${f.soloBajoMinimo?'checked':''} onchange="iiFiltro('soloBajoMinimo',this.checked)"> Solo bajo mínimo</label></div>`;
+      <label class="ii-chk"><input type="checkbox" ${f.soloBajoMinimo?'checked':''} onchange="iiFiltro('soloBajoMinimo',this.checked)"> Solo bajo mínimo</label>
+      <label class="ii-chk"><input type="checkbox" ${f.sinUsoAlFinal?'checked':''} onchange="iiFiltro('sinUsoAlFinal',this.checked)"> Sin uso al final</label></div>`;
   }
 
   function selectorCorte(){
@@ -95,7 +101,10 @@
       return `<div class="ii-card ii-centro"><h3>Todavía no hay stock cargado</h3><p>Importa el Excel de SAP para crear el catálogo y el primer corte de stock.</p>
         ${D.puedeEscribir()?'<button type="button" class="ii-btn" onclick="iiImportar()">Importar stock SAP</button>':'<p class="ii-mut">Pide a la Asistente de Producción que importe el stock.</p>'}</div>`;
     }
-    return `${tarjetas()}<div class="ii-card">${filtrosStock()}${selectorCorte()}<div id="ii-tabla">${tablaStock(filasFiltradas())}</div></div>`;
+    const c=corteElegido();
+    const nota=`<div class="ii-msg ii-msg-info ii-nota-sap" role="note"><b>Todas las cantidades de esta pantalla son el stock según SAP</b>${c?` (corte del ${esc(fechaDmy(c.fechaCorte))}, importado por ${esc(c.importadoPor||'—')})`:''}. No es el conteo físico: el conteo se registra en «Conteo físico» y se compara con SAP en «Conciliación».</div>`;
+    const detectar=D.puedeEscribir()?'<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iiSinMov()" title="Compara los últimos cortes de SAP y propone los artículos cuyo stock no se mueve">Detectar sin movimiento</button>':'';
+    return `${tarjetas()}<div class="ii-card">${nota}${filtrosStock()}<div class="ii-fila-sm">${selectorCorte()}${detectar}</div><div id="ii-tabla">${tablaStock(filasFiltradas())}</div></div>`;
   }
 
   /* ---------- catálogo ---------- */
@@ -106,10 +115,10 @@
     const puede=D.puedeEscribir();
     const filas=lista.slice(0,II.limite).map(x=>`<tr><td class="ii-cod">${celdaCodigo(x)}</td><td class="ii-nom">${esc(x.nombre)}</td><td>${esc(x.categoria)}${x.subtipo?` <small>${esc(x.subtipo)}</small>`:''}</td>
       <td>${esc(x.marca||'—')}</td><td>${esc(x.presentacion||'—')}</td><td>${esc(x.unidad)}</td><td class="ii-num">${fmt(x.stockMinimo)}</td><td class="ii-num">${fmt(x.puntoReorden)}</td>
-      <td>${x.prioritario?'Sí':'—'}</td><td>${x.activo===false?'No':'Sí'}</td>${puede?`<td><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iiEditar('${esc(x.id).replace(/'/g,'&#39;')}')">Editar</button></td>`:''}</tr>`).join('');
+      <td>${x.prioritario?'Sí':'—'}</td><td>${x.activo===false?'No':'Sí'}</td><td>${x.sinUso?'Sí':'—'}</td>${puede?`<td><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iiEditar('${esc(x.id).replace(/'/g,'&#39;')}')">Editar</button></td>`:''}</tr>`).join('');
     const mas=lista.length>II.limite?`<div class="ii-mas"><button type="button" class="ii-btn ii-btn-o" onclick="iiMasFilas()">Mostrar más (${fmt(lista.length-II.limite,0)} restantes)</button></div>`:'';
     return `<div class="ii-tw"><table class="ii-t"><thead><tr><th>Código</th><th>Artículo</th><th>Categoría</th><th>Marca</th><th>Presentación</th><th>Unidad</th><th class="ii-num">Stock mínimo</th>
-      <th class="ii-num">Punto de reorden</th><th>Prioritario</th><th>Activo</th>${puede?'<th></th>':''}</tr></thead><tbody>${filas||`<tr><td colspan="11" class="ii-vacio">Ningún artículo coincide con los filtros.</td></tr>`}</tbody></table></div>${mas}
+      <th class="ii-num">Punto de reorden</th><th>Prioritario</th><th>Activo</th><th>Sin uso</th>${puede?'<th></th>':''}</tr></thead><tbody>${filas||`<tr><td colspan="12" class="ii-vacio">Ningún artículo coincide con los filtros.</td></tr>`}</tbody></table></div>${mas}
       <p class="ii-pie">${fmt(lista.length,0)} artículo(s). El stock mínimo, el punto de reorden, la unidad, «prioritario» y «activo» se definen aquí y no se sobrescriben al reimportar.</p>`;
   }
   function tabCatalogo(){
@@ -179,6 +188,7 @@
         <label class="ii-campo"><span>Punto de reorden</span><input id="ii-e-reorden" type="number" min="0" step="any" value="${esc(x.puntoReorden)}"></label></div>
         <label class="ii-chk"><input id="ii-e-prio" type="checkbox" ${x.prioritario?'checked':''}> Prioritario</label>
         <label class="ii-chk"><input id="ii-e-activo" type="checkbox" ${x.activo!==false?'checked':''}> Activo</label>
+        <label class="ii-chk"><input id="ii-e-sinuso" type="checkbox" ${x.sinUso?'checked':''}> Sin uso (sigue en el inventario, pero va al final de la lista)</label>
         <div class="ii-msg ii-msg-error" id="ii-e-error" hidden></div>
         <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iiCerrar()">Cancelar</button><button type="button" class="ii-btn" id="ii-e-ok" onclick="iiGuardarEdicion()">Guardar</button></div></div></div></div>`;
   };
@@ -187,12 +197,36 @@
     const g=i=>document.getElementById(i);
     const err=t=>{const e=g('ii-e-error');if(e){e.hidden=!t;e.textContent=t||'';}};
     const cambios={unidad:g('ii-e-unidad').value,stockMinimo:g('ii-e-min').value===''?0:Number(g('ii-e-min').value),puntoReorden:g('ii-e-reorden').value===''?0:Number(g('ii-e-reorden').value),
-      prioritario:g('ii-e-prio').checked,activo:g('ii-e-activo').checked};
+      prioritario:g('ii-e-prio').checked,activo:g('ii-e-activo').checked,sinUso:g('ii-e-sinuso').checked};
     const b=g('ii-e-ok');if(b)b.disabled=true;err('');
     try{
       const r=await D.guardarEdicion(id,cambios);
       iiCerrar();II.msg={tipo:'ok',texto:r.cambiado?'Artículo actualizado.':'No había cambios que guardar.'};pintar();
     }catch(e){err(D.mensajeError(e));if(b)b.disabled=false;}
+  };
+
+
+  /* ---------- artículos sin movimiento ---------- */
+  window.iiSinMov=async()=>{
+    if(!D.puedeEscribir()||!raiz())return;
+    const abrir=cuerpo=>{raiz().innerHTML=`<div class="modal-backdrop" onclick="if(event.target===this)iiCerrar()"><div class="modal ii-modal ii-modal-ancho" role="dialog" aria-modal="true"><div class="modal-head"><h3>Detectar sin movimiento</h3>
+      <button class="modal-close" onclick="iiCerrar()" aria-label="Cerrar">✕</button></div><div class="modal-body">${cuerpo}</div></div></div>`;};
+    abrir('<p>Comparando los últimos cortes de SAP…</p>');
+    try{
+      const r=await D.detectarSinMovimiento();
+      if(!r.ids.length){abrir(`<p>${r.motivo?esc(r.motivo):`Ningún artículo con stock tiene el mismo total en los últimos ${r.cortes} cortes (desde el ${esc(fechaDmy(r.desde))}).`}</p><div class="ii-acc"><button type="button" class="ii-btn" onclick="iiCerrar()">Cerrar</button></div>`);return;}
+      II.sinMov=r.ids;
+      const porId=new Map(D.cache.catalogo.map(c=>[c.id,c]));
+      abrir(`<p>Estos <b>${fmt(r.ids.length,0)}</b> artículos tienen <b>exactamente el mismo stock</b> en los últimos ${r.cortes} cortes de SAP (desde el ${esc(fechaDmy(r.desde))}, ${r.dias} días). Se marcarán «sin uso»: siguen en tu inventario pero pasan al final de la lista. Puedes quitar la marca después desde el Catálogo.</p>
+        <ul class="ii-lista-sm">${r.ids.slice(0,300).map(id=>{const c=porId.get(id)||{};return `<li><b>${esc(c.codigo||'')}</b> ${esc(c.nombre||id)}</li>`;}).join('')}${r.ids.length>300?`<li>… y ${fmt(r.ids.length-300,0)} más</li>`:''}</ul>
+        <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iiCerrar()">Cancelar</button><button type="button" class="ii-btn" id="ii-sm-ok" onclick="iiSinMovOk()">Marcar ${fmt(r.ids.length,0)} como sin uso</button></div>`);
+    }catch(e){abrir(`<div class="ii-msg ii-msg-error" role="alert">${esc(D.mensajeError(e))}</div><div class="ii-acc"><button type="button" class="ii-btn" onclick="iiCerrar()">Cerrar</button></div>`);}
+  };
+  window.iiSinMovOk=async()=>{
+    const b=document.getElementById('ii-sm-ok');if(b)b.disabled=true;
+    try{const r=await D.marcarSinUso(II.sinMov||[],true);iiCerrar();II.msg={tipo:'ok',texto:`${fmt(r.cambiados,0)} artículos marcados como sin uso.`};}
+    catch(e){iiCerrar();II.msg={tipo:'error',texto:D.mensajeError(e)};}
+    pintar();
   };
 
   /* ---------- importar stock SAP ---------- */
@@ -369,7 +403,10 @@
 .ii-tw{overflow-x:auto;border:1px solid var(--ii-linea);border-radius:10px}.ii-t{width:100%;border-collapse:collapse;font-size:14px}
 .ii-t th{background:#eef3fa;text-align:left;padding:10px 12px;font-size:13px;font-weight:700;color:#1d3557;white-space:nowrap}.ii-t td{padding:9px 12px;border-top:1px solid #edf2f7;vertical-align:top}
 .ii-num{text-align:right!important;white-space:nowrap;font-variant-numeric:tabular-nums}.ii-col-act{background:#fff8ec}.ii-cod{white-space:nowrap;color:var(--ii-mut);font-size:13px}.ii-cod b{display:block;color:#0f2547}.ii-cod small{display:block;font-size:11px}.ii-nom{min-width:220px}
-.ii-sin-corte td{color:#98a2b3}.ii-vacio{text-align:center;color:var(--ii-mut);padding:24px}.ii-pie,.ii-mut{color:var(--ii-mut);font-size:13px;margin:10px 0 0}
+.ii-sin-corte td{color:#98a2b3}.ii-sin-uso td{color:#7b8794;background:#f7f9fb}
+.ii-t .ii-g th{text-align:center;font-size:12px;letter-spacing:.04em;background:#dfe9f6;border-bottom:1px solid #c9d6e2}.ii-t .ii-g .ii-g-res{background:#d6ecde;color:#14532d}.ii-t .ii-g .ii-g-sap{background:#fdebd0;color:#7c2d12}
+.ii-b-res{border-left:2px solid #86c79a}.ii-b-sap{border-left:2px solid #f0b46a}.ii-nota-sap{margin-bottom:12px}.ii-fila-sm{display:flex;gap:12px;align-items:end;flex-wrap:wrap;justify-content:space-between;margin-bottom:12px}.ii-fila-sm .ii-corte{margin-bottom:0}
+.ii-p-sinuso{background:#e5e7eb;color:#4b5563}.ii-modal-ancho{max-width:640px}.ii-lista-sm{max-height:260px;overflow:auto;margin:8px 0;padding:8px 8px 8px 22px;border:1px solid var(--ii-linea);border-radius:8px;font-size:13px}.ii-vacio{text-align:center;color:var(--ii-mut);padding:24px}.ii-pie,.ii-mut{color:var(--ii-mut);font-size:13px;margin:10px 0 0}
 .ii-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;font-size:12.5px;font-weight:600;white-space:nowrap}.ii-pill i{width:9px;height:9px;border-radius:50%;background:currentColor}
 .ii-p-rojo{background:#fee2e2;color:#b42318}.ii-p-naranja{background:#ffedd5;color:#9a3412}.ii-p-verde{background:#dcfce7;color:#166534}.ii-p-gris{background:#eceff3;color:#475467}
 .ii-btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--ii-azul);background:var(--ii-azul);color:#fff;border-radius:9px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}

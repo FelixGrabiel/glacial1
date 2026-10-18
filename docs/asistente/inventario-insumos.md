@@ -118,6 +118,12 @@ match /insumosAuditoria/{id}     { allow read: if iiVer();  allow create: if iiE
 ## Pendiente
 Las 4 fases están construidas. `glacial_24` ya está aplicada en PRODUCCIÓN. Falta probar con el Excel real. Idea futura: un aviso de bajo mínimo. La auditoría cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).
 
+## Cambios del 18-10-2026
+
+- **Stock actual** rotulado como stock SAP: columnas agrupadas en «Artículo», «Resultado según SAP» (Total SAP, mínimo, semáforo) y «Stock SAP por almacén · corte del dd/mm/aaaa», más una nota que aclara que no es el conteo físico.
+- **Sin uso**: campo `sinUso` del catálogo (se marca en Editar artículo o con «Detectar sin movimiento», que propone los artículos con el mismo stock en los últimos cortes, mínimo 3 cortes y 30 días). Van al final de la lista (casilla «Sin uso al final») y siguen en el inventario.
+- **Conteo físico**: «Importar conteo desde Excel» (título de artículo o código + columna «Conteo»/«Cantidad», «Ubicación» opcional); une por código INS-, código SAP o nombre y agrega las líneas en una transacción con auditoría (`IMPORTAR_CONTEO`).
+
 
 ## Importar el conteo desde el Excel (18/10/2026)
 Pestaña «Conteo físico» → **⬆ Importar conteo del Excel**. Lee la columna «CONTEO …» (p. ej. «CONTEO 18.10») de la hoja RESUMEN: una línea por artículo, ubicación «Importado del Excel», unida al catálogo por el nombre. Muestra una vista previa (cuántos entran y cuáles no están en el catálogo), deja elegir la fecha y el almacén, y crea el conteo EN PROCESO (se revisa y se cierra como cualquier otro). Auditoría: `CREAR_CONTEO` + `IMPORTAR_CONTEO`.

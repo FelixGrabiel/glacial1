@@ -18,7 +18,7 @@
   const repintar=()=>{const p=window.__inventarioInsumosPantalla;if(p)p.pintar();};
   const PASO=60;
 
-  const C={id:'',texto:'',categoria:'',soloPendientes:false,prioritarios:true,limite:PASO,abierto:'',msg:null,modal:null};
+  const C={id:'',texto:'',categoria:'',soloPendientes:false,prioritarios:true,limite:PASO,abierto:'',msg:null,modal:null,imp:null};
   const nombreAlmacen=a=>a==='TODOS'?'Todos los almacenes':(N.ALMACENES.find(x=>x.clave===a)||{nombre:a}).nombre;
   const hora=ms=>{if(!ms)return '';const d=new Date(Number(ms)-5*3600000),p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());};
   const fechaTxt=f=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(f||'');return m?m[3]+'/'+m[2]+'/'+m[1]:(f||'');};
@@ -31,7 +31,7 @@
   /* ---------- lista de conteos ---------- */
   function lista(){
     const cs=D.cache.conteos;
-    const nuevo=D.puedeEscribir()?'<span class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicImportar()">⬆ Importar conteo del Excel</button><button type="button" class="ii-btn" onclick="iicNuevo()">+ Nuevo conteo</button></span>':'';
+    const nuevo=D.puedeEscribir()?'<span class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicImportar()">⬆ Importar conteo del Excel (crea un conteo nuevo)</button><button type="button" class="ii-btn" onclick="iicNuevo()">+ Nuevo conteo</button></span>':'';
     const tarjetas=cs.map(c=>`<button type="button" class="ii-cc" onclick="iicAbrir('${esc(c.id)}')"><span class="ii-cc-t"><b>${esc(fechaTxt(c.fecha))}</b> ${estadoPill(c)}</span>
       <span>${esc(nombreAlmacen(c.almacen))}</span><small>${fmt(c.articulos||0,0)} artículos · ${fmt(c.lineas||0,0)} líneas · creó ${esc(c.creadoPor||'—')}</small>
       ${c.observacion?`<small class="ii-mut">${esc(c.observacion)}</small>`:''}</button>`).join('');
@@ -76,6 +76,7 @@
       <h3 class="ii-h">${esc(fechaTxt(m.fecha))} · ${esc(nombreAlmacen(m.almacen))} ${estadoPill(m)}</h3>
       <p class="ii-mut">Creó ${esc(m.creadoPor||'—')} · ${esc(hora(m.creadoEn))}${m.cerradoPor?` · Cerró ${esc(m.cerradoPor)} · ${esc(hora(m.cerradoEn))}`:''}</p>
       ${reab?`<details class="ii-reab"><summary>Reaperturas (${(m.reaperturas||[]).length})</summary><ul>${reab}</ul></details>`:''}
+      ${puedeEditar(m)?'<div class="ii-fila-t"><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iicImportarExcel()" title="Sube el Excel con el conteo físico: artículo o código y cantidad contada">Importar conteo desde Excel</button></div>':''}
       ${puedeEditar(m)?`<label class="ii-campo"><span>Observación general</span><input type="text" id="ii-c-obs" maxlength="500" value="${esc(m.observacion||'')}" onchange="iicObservacion(this.value)"></label>`:(m.observacion?`<p><b>Observación:</b> ${esc(m.observacion)}</p>`:'')}
       <div class="ii-prog"><div class="ii-barra"><i style="width:${prog.pct}%"></i></div><small>${fmt(prog.contados,0)} de ${fmt(prog.total,0)} artículos contados (${prog.pct}%) · ${fmt(lineasActuales().length,0)} líneas</small></div></div>
       <div class="ii-card"><input type="search" id="ii-c-texto" class="ii-grande" value="${esc(C.texto)}" placeholder="Buscar artículo por nombre o código" oninput="iicTexto(this.value)" autocomplete="off">
@@ -125,6 +126,55 @@
   const errorModal=t=>{const e=document.getElementById('ii-m-error');if(e){e.hidden=!t;e.textContent=t||'';}};
   window.iicCerrarModal=()=>{C.modal=null;if(typeof closeModal==='function')closeModal();else{const r=raiz();if(r)r.innerHTML='';}};
 
+
+  /* ---------- importar el conteo desde Excel ---------- */
+  const cederTurno=()=>new Promise(r=>setTimeout(r,0));
+  async function leerExcel(archivo){
+    if(typeof XLSX==='undefined')throw new Error('No se cargó la librería de Excel. Revisa tu conexión a internet y recarga la página.');
+    const wb=XLSX.read(new Uint8Array(await archivo.arrayBuffer()),{type:'array',cellDates:false});
+    const hojas=[];
+    for(const nombre of wb.SheetNames){await cederTurno();hojas.push({nombre,filas:XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1,raw:true,defval:null,blankrows:false})});}
+    return hojas;
+  }
+  const cuerpoImp=()=>{
+    const i=C.imp;if(!i)return '';
+    if(i.fase==='elegir')return `<p>Sube el Excel del conteo físico. Debe tener una fila de títulos con el <b>artículo</b> (o su <b>código</b>) y una columna <b>«Conteo»</b> o <b>«Cantidad»</b>; si trae <b>«Ubicación»</b> también se guarda. Cada fila se une al catálogo por código interno (INS-), código SAP o nombre, y se agrega como una línea del conteo.</p>
+      <label class="ii-campo"><span>Archivo (.xlsx)</span><input type="file" id="ii-imp-archivo" accept=".xlsx,.xlsm,.xls" onchange="iicArchivoExcel(this)"></label>`;
+    if(i.fase==='leyendo')return `<p><b>Leyendo el archivo…</b></p>`;
+    if(i.fase==='error')return `<div class="ii-msg ii-msg-error" role="alert">${esc(i.error)}</div><div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicImportarExcel()">Elegir otro archivo</button></div>`;
+    const l=i.lectura,r=l.resumen;
+    return `<p><b>${esc(i.archivo)}</b> · hoja «${esc(String(l.hoja||'').trim())}»</p>
+      <div class="ii-resumen"><div><b>${fmt(r.unidas,0)}</b><span>líneas listas para guardar</span></div><div><b>${fmt(r.sinUnir,0)}</b><span>sin unir al catálogo</span></div><div><b>${fmt(r.vacias,0)}</b><span>sin cantidad (se omiten)</span></div></div>
+      ${r.sinUnir?`<details class="ii-reab"><summary>Ver los ${fmt(r.sinUnir,0)} que no se pudieron unir</summary><ul class="ii-lista-sm">${l.sinUnir.slice(0,200).map(x=>`<li>${esc(x.texto)} · ${esc(x.cantidad)} <small class="ii-mut">(${esc(x.motivo)})</small></li>`).join('')}</ul></details>`:''}
+      <p class="ii-mut">Las líneas se agregan al conteo del ${esc(fechaTxt(metaActual()&&metaActual().fecha))}; lo que ya estaba registrado no se borra (si repites un artículo, las cantidades se suman). Después puedes editar o borrar líneas una por una.</p>
+      <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicImportarExcel()">Elegir otro archivo</button><button type="button" class="ii-btn" id="ii-imp-ok" onclick="iicConfirmarExcel()">Guardar ${fmt(r.unidas,0)} líneas</button></div>`;
+  };
+  function pintarImp(){
+    abrirModal('Importar conteo desde Excel',`<div id="ii-imp-cuerpo">${cuerpoImp()}</div>`);
+  }
+  window.iicImportarExcel=()=>{
+    const m=metaActual();if(!puedeEditar(m))return;
+    C.imp={fase:'elegir'};pintarImp();
+  };
+  window.iicArchivoExcel=async input=>{
+    const archivo=input&&input.files&&input.files[0];if(!archivo||!C.imp)return;
+    const i=C.imp;i.fase='leyendo';i.archivo=archivo.name;pintarImp();
+    try{
+      const hojas=await leerExcel(archivo);
+      const l=N.leerConteoExcel(hojas,D.cache.catalogo);
+      if(l.error){i.fase='error';i.error=l.error;}else{i.fase='resumen';i.lectura=l;}
+    }catch(e){i.fase='error';i.error='No se pudo leer el archivo: '+((e&&e.message)||e);}
+    if(C.imp===i)pintarImp();
+  };
+  window.iicConfirmarExcel=async()=>{
+    const i=C.imp;if(!i||i.fase!=='resumen')return;
+    const b=document.getElementById('ii-imp-ok');if(b)b.disabled=true;errorModal('');
+    try{
+      const r=await D.agregarLineasLote(C.id,i.lectura.lineas,i.archivo);
+      C.imp=null;iicCerrarModal();aviso('ok',`Se importaron ${fmt(r.lineas,0)} líneas desde «${i.archivo}».`);repintar();
+    }catch(e){errorModal(D.mensajeError(e));if(b)b.disabled=false;}
+  };
+
   window.iicNuevo=()=>{
     if(!D.puedeEscribir())return;
     abrirModal('Nuevo conteo',`<div class="ii-form1"><label class="ii-campo"><span>Fecha</span><input type="date" id="ii-n-fecha" value="${hoyIso()}"></label>
@@ -155,7 +205,7 @@
       if(typeof XLSX==='undefined')throw new Error('No se cargó la librería de Excel. Revisa tu conexión a internet y recarga la página.');
       const wb=XLSX.read(new Uint8Array(await f.arrayBuffer()),{type:'array',cellDates:false});
       const hojas=wb.SheetNames.map(n=>({nombre:n,filas:XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null,blankrows:false})}));
-      const r=N.leerConteoExcel(hojas,D.cache.catalogo);
+      const r=N.leerConteoResumen(hojas,D.cache.catalogo);
       if(!r)throw new Error('No encontré una columna «CONTEO …» en el archivo. Revisa que la hoja tenga ese título en la fila de encabezados.');
       if(!r.lineas.length)throw new Error('La columna «'+r.titulo+'» no tiene cantidades que coincidan con el catálogo.');
       importacion={archivo:f.name,r};

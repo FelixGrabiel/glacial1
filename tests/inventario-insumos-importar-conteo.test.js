@@ -44,19 +44,19 @@ const resumen=[
 const cat=[{id:'a',nombre:'ASA ERGONOMICA P/BOTELLA PET 7 LT AZUL'},{id:'b',nombre:'ASA ERGONOMICA P/BOTELLA PET 7 LT CELESTE'},{id:'c',nombre:'BOBINA BOLSA BELLS 3 KG'},
   {id:'d',nombre:'Bolsa Cuisine & Co 3kg'},{id:'e',nombre:'SIN CONTEO TODAVIA'}];
 {
-  const r=N.leerConteoExcel([{nombre:'Almacenes',filas:[['otra','hoja']]},{nombre:'RESUMEN',filas:resumen}],cat);
+  const r=N.leerConteoResumen([{nombre:'Almacenes',filas:[['otra','hoja']]},{nombre:'RESUMEN',filas:resumen}],cat);
   ok(r&&r.hoja==='RESUMEN'&&r.titulo==='CONTEO 18.10'&&r.dia===18&&r.mes===10,'encuentra la columna «CONTEO 18.10» en la hoja RESUMEN y su fecha (18/10)');
   ok(r.lineas.length===4&&r.lineas[0].itemId==='a'&&r.lineas[0].cantidad===10000&&r.lineas[1].cantidad===24000&&r.lineas[2].cantidad===134467,'carga las cantidades del Excel (10000, 24000, 134467…)');
   ok(r.lineas[3].itemId==='d'&&r.lineas[3].cantidad===62500,'une por nombre sin importar mayúsculas y acepta «62,500» como texto');
   ok(r.sinCatalogo.length===1&&r.sinCatalogo[0].cantidad===50,'lo que no está en el catálogo se informa y no se importa');
   ok(r.repetidos.length===1&&!r.lineas.some(l=>l.cantidad===99),'una fila repetida se ignora (queda la primera)');
   ok(!r.lineas.some(l=>l.itemId==='e'),'sin cantidad en la columna: no se importa');
-  ok(N.leerConteoExcel([{nombre:'x',filas:[['a','b'],['c',1]]}],cat)===null,'sin columna «CONTEO»: devuelve null');
+  ok(N.leerConteoResumen([{nombre:'x',filas:[['a','b'],['c',1]]}],cat)===null,'sin columna «CONTEO»: devuelve null');
 }
 (async()=>{
   const sb=entorno('Asistente de Producción');const D=sb.glacialInventarioDatos;
   D.escuchar();
-  const r=N.leerConteoExcel([{nombre:'RESUMEN',filas:resumen}],cat);
+  const r=N.leerConteoResumen([{nombre:'RESUMEN',filas:resumen}],cat);
   const m=await D.importarConteo({fecha:'2026-10-18',almacen:'TODOS',observacion:'Importado de STOCK.xlsx',archivo:'STOCK.xlsx',lineas:r.lineas});
   const idx=sb.docs.get('insumosConteosIndice/'+m.id),det=sb.docs.get('insumosConteosDetalle/'+m.id);
   ok(idx&&idx.estado==='EN_PROCESO'&&idx.almacen==='TODOS'&&idx.articulos===4&&idx.lineas===4,'crea el conteo EN PROCESO con almacén «Todos» y 4 artículos');
@@ -74,6 +74,6 @@ const cat=[{id:'a',nombre:'ASA ERGONOMICA P/BOTELLA PET 7 LT AZUL'},{id:'b',nomb
   ok(f1&&f1.sap===2356,'(control) con almacén «Insumos» el TOTAL SAP es solo 2,356: por eso la pantalla mostraba 2,356');
   ok(f&&f.sap===12356&&f.conteo===10000&&f.diferencia===-2356,'conciliación con «Todos»: TOTAL SAP 12,356 · CONTEO 10,000 · DIFERENCIA −2,356 (igual que el Excel)');
   const idxHtml=leer('js/asistente/77-inventario-insumos-conteo.js');
-  ok(/iicImportar\(\)/.test(idxHtml)&&/leerConteoExcel/.test(idxHtml)&&/importarConteo/.test(idxHtml),'la pantalla de conteos tiene el botón «Importar conteo del Excel»');
+  ok(/iicImportar\(\)/.test(idxHtml)&&/leerConteoResumen/.test(idxHtml)&&/importarConteo/.test(idxHtml),'la pantalla de conteos tiene el botón «Importar conteo del Excel»');
   console.log(fallas?'\n'+fallas+' FALLAS':'\nTodo bien');
 })();
