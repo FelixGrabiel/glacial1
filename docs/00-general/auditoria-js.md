@@ -40,7 +40,7 @@ Leyenda de Firestore: **L** = lee una vez, **E** = escribe, **T** = transacción
 | 19 | `13-tareo.js` | personal | 10 530 | Tareo completo (Producción, Mantenimiento, General), cálculo de horas/extras/tardanza (`:2159–:2240`), rotación, resúmenes | Tareo (todas las pestañas) | `sync/tareos` (T `:1013`, `:4240`) + `saveTareos` | — (usa la caché de 02) |
 | 20 | `20-tareo-control.js` | personal | 296 | Control quincenal y consulta de auditoría | Pestañas de control en Tareo/RRHH | `auditoriaTareos` (lectura por escucha) | 1 (`:199–:201`) |
 | 21 | `21-programacion-turno.js` | produccion | 227 | Tarjeta de programación en Nuevo registro y Paletas | Tarjeta en Nuevo registro / Paletas | caché `programaciones` | — |
-| 22 | `23-gerente-solo-lecutra.js` | accesos | 84 | Modo consulta de jefatura/gerencia, bloquea guardados | Ajusta menús/permisos | Envuelve los `save*` (`:69–:80`) | — |
+| 22 | `23-gerente-solo-lectura.js` | accesos | 84 | Modo consulta de jefatura/gerencia, bloquea guardados | Ajusta menús/permisos | Envuelve los `save*` (`:69–:80`) | — |
 | 23 | `23b-tiempos-linea.js` | produccion | 555 | **Motor central** de tiempos, paradas, ratios y proyección (`calcularTiemposLinea`, `calcularRatiosLinea` `:426`, `proyectarCierreLinea` `:485`) | Ninguna | `sync/avancesTurno` (escucha) | 1 (`:123`, abierta al cargar la primera vez) |
 | 24 | `24-semaforo-produccion-actual.js` | produccion | 2 268 | Producción actual (semáforo), botones INICIAR/DETENER/PAUSAR/FINALIZAR…, resumen ejecutivo (`:2189`) | Producción Actual | T `sync/programaciones` (`:1557`, `:1655`, `:1828`) + **crea** `bitacoraMantenimiento` (`:1608`, `:1653`, `:1826`) | — |
 | 25 | `25-alertas-lineas.js` | produccion | 680 | Centro de alertas (campana) + historial diario | Campana de alertas | caché `programaciones` (`historialAlertas`) | — |
@@ -330,7 +330,7 @@ Cada «↳» envuelve a la anterior (llama a la versión previa y agrega algo) o
 - `onUsersUpdated` (2): `02:908` → `25:584`.
 
 **Guardado y permisos**
-- `saveUsers`: `02:1263` → `36-seguridad-auth.js:202` → `23-gerente-solo-lecutra.js:76` (más el bucle de `23` para `saveRecords/saveWorkers/saveRotaciones/saveTareos/savePrecios/savePaletas/saveProgramaciones`).
+- `saveUsers`: `02:1263` → `36-seguridad-auth.js:202` → `23-gerente-solo-lectura.js:76` (más el bucle de `23` para `saveRecords/saveWorkers/saveRotaciones/saveTareos/savePrecios/savePaletas/saveProgramaciones`).
 - `saveTareos`: `02:1500` → `13:10497` → `23`.
 - `guardarTareoEnMemoria`: `13:1505` → `41:280`. `guardarTareoActual`: `13:5516` → `34:201`. `saveDraft`: `06:7547` → `17:1010`.
 - `tienePermiso`: `02-estado.js:417` → `24-semaforo-produccion-actual.js:167` (**una pantalla de producción cambia la función de permisos global**; da acceso a «produccionActual» a supervisores con `paletas` y a Mantenimiento con `moduloMantenimiento`).
@@ -429,7 +429,7 @@ Lectura rápida de los grupos:
 - **Restos de pantallas viejas**: en `07-historial.js` los filtros `hist*` y `viewRecord`; en `06-registro.js` `paradasTable`, `addParada`, `mermasTable` (la versión vigente es `paradasTableCuadro`, `06:5608`); en `16-paletas.js` `renderSemaforoChip` y `renderResumenSemaforoProductos` (el semáforo ahora lo dibuja `24`).
 - **Restos del Resumen**: en `09-resumen.js` hay tres generadores de frases y dos ayudas de color sin uso; `agruparParadasPlanta` (`:1928`) quedó sustituida por el bloque industrial (`09:2403`).
 - **Avance**: diez funciones `av*` sin llamadas (slots, `avProximoAvance`, `avSnapshotPorReferencia`…).
-- **Guardado**: `savePaletas` (`02-estado.js:1571`) y `saveProgramaciones` (`02:1594`) **no tienen ninguna llamada** (Paletas y la programación usan transacciones en `16` y `24`); `23-gerente-solo-lecutra.js:69–:80` todavía las envuelve.
+- **Guardado**: `savePaletas` (`02-estado.js:1571`) y `saveProgramaciones` (`02:1594`) **no tienen ninguna llamada** (Paletas y la programación usan transacciones en `16` y `24`); `23-gerente-solo-lectura.js:69–:80` todavía las envuelve.
 
 ### 5.2 Restos de funciones reemplazadas
 
@@ -607,7 +607,7 @@ Roles que realmente se pueden asignar en Gestión de usuarios (`10-usuarios.js:2
 | `JEFATURA` | `46:34`, `47:34`, `48:28` | Los mismos 5 | **Coincide** |
 | `ROLES_LECTURA` / `puedeLeerBitacoraMtto` | `43:29–:30` / reglas `:80` | Los 5 + Supervisor + Supervisor de Producción | **Coincide** entre sí |
 | `puedeVerLineasProduccion` | `04-sidebar.js:74–:77` | Supervisor, Jefe de Producción, Jefe de Operaciones, Gerente General, Administrador | Los 3 de jefatura son **inalcanzables**: la línea `:72` devuelve `false` antes para los roles de solo consulta. Sin efecto |
-| `puedeProgramarPaletas` | `06-registro.js:2116` | Administrador, Gerente General, Jefe de Producción, Jefe de Operaciones | `23-gerente-solo-lecutra.js:47–:49` la anula para los 5 roles de consulta. Sin efecto |
+| `puedeProgramarPaletas` | `06-registro.js:2116` | Administrador, Gerente General, Jefe de Producción, Jefe de Operaciones | `23-gerente-solo-lectura.js:47–:49` la anula para los 5 roles de consulta. Sin efecto |
 | `esAdminOJefatura` | `24:132–:137` | administrador, **administrador del sistema**, Jefe de Producción, Jefe de Operaciones (en minúsculas) | `administrador del sistema` no existe como rol; JP/JO no llegan al control `supervisor` porque no tienen `paletas` (`02-estado.js:344–:392`) |
 | `esJefaturaProduccion` | `24:943` | Jefe de Producción, Jefe de Operaciones | Solo habilita **ver** todas las tarjetas. Consistente |
 | `puedeGenerar` | `48-resumen-turno.js:46–:52` | Admin, JP, JO, Supervisor, Supervisor de Producción + permisos `avanceProduccion`/`paletas`, **pero** la línea `:50` ya excluye a los roles de solo consulta | Consistente en la app |
@@ -617,7 +617,7 @@ Roles que realmente se pueden asignar en Gestión de usuarios (`10-usuarios.js:2
 **Diferencias que existen hoy, y su efecto**
 
 1. **Reglas más permisivas que la app para Jefe de Producción y Jefe de Operaciones.** En la app son roles de solo consulta (no pueden iniciar, finalizar ni generar). Las reglas (`puedeOperarProduccion`, `:105`) sí les permiten escribir en la bitácora acciones de Producción (INICIAR, FINALIZAR…) y, por herencia, crear y actualizar `resumenesTurno` (`puedeGenerarResumen`, `:114`). **Efecto**: ninguno visible hoy (la pantalla no ofrece esas acciones); es un hueco de seguridad si alguien usara un cliente modificado.
-2. **Las reglas no hacen cumplir el «solo consulta» en ningún documento.** La regla de `sync/*` (`:136–:154`) deja escribir `records`, `workers`, `tareos`, `precios`, `paletas`, `programaciones`, `avancesTurno` a **cualquier usuario autenticado que no sea la cuenta compartida**, incluidos Jefe de Producción, Gerente General y Ventas. El bloqueo de `23-gerente-solo-lecutra.js` es solo de interfaz (su propia cabecera lo dice). **Efecto**: ninguno en el uso normal; la protección real depende de la aplicación.
+2. **Las reglas no hacen cumplir el «solo consulta» en ningún documento.** La regla de `sync/*` (`:136–:154`) deja escribir `records`, `workers`, `tareos`, `precios`, `paletas`, `programaciones`, `avancesTurno` a **cualquier usuario autenticado que no sea la cuenta compartida**, incluidos Jefe de Producción, Gerente General y Ventas. El bloqueo de `23-gerente-solo-lectura.js` es solo de interfaz (su propia cabecera lo dice). **Efecto**: ninguno en el uso normal; la protección real depende de la aplicación.
 3. **Permiso `perdidasSoles` por lista (app) frente a rol (reglas).** Un usuario de jefatura al que el Administrador le quitó `perdidasSoles` no ve Impacto económico en la app, pero `puedeVerImpacto` (`:121`) lo deja leer y escribir `configEconomica` por ser de jefatura. **Efecto**: ninguno en pantalla; los márgenes y costos serían legibles para ese usuario con un cliente modificado.
 4. **Entradas inalcanzables o inexistentes** (`04:74`, `06:2116`, `24:132–:137`, y los nombres `Jefatura`, `Gerente`, `Supervisor de Producción`, `administrador del sistema`). **Efecto**: ninguno; es ruido que confunde al leer las listas.
 5. **Ningún lugar niega hoy un permiso legítimo** entre los revisados: las listas que importan (5 roles de consulta, 7 de lectura de la bitácora) coinciden entre la app y las reglas.

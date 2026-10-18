@@ -11,7 +11,7 @@
      · Motor único (65b: M.estimarSecuencia / M.secuencia): inicio según el tramo anterior, transición UNA vez, ventanas (unión), fin por cantidad/hora/cierre, cantidad estimada.
      · Dos lecturas separadas: PLAN PUBLICADO (estimado con sus parámetros y versión) y PROYECCIÓN ACTUAL (con inicios/finales REALES confirmados en Producción Actual y el cambio previsto
        para lo que aún no empieza). La proyección nunca cambia la instrucción publicada ni crea paradas oficiales ni cambia de marca por sí sola.
-   Nada de esto crea paradas oficiales ni toca el ratio real. Cargar después de 66-planificacion-modos.js.
+   Nada de esto crea paradas oficiales ni toca el ratio real. Cargar después de 66p-planificacion-modos.js.
    ============================================================= */
 (function(){
   'use strict';

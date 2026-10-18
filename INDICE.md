@@ -67,7 +67,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 10b-modo-visualizacion-form.js | Formulario «Modo visualización general» dentro de Gestionar usuarios → Editar permisos |
 | 10c-impacto-economico-permisos.js | Permisos de Impacto económico por usuario (ver, gestionar, exportar) |
 | 17-modo-trabajo.js | Modo Visualizar / Trabajar |
-| 23-gerente-solo-lecutra.js | Roles de solo consulta (Gerencia/Jefatura) |
+| 23-gerente-solo-lectura.js | Roles de solo consulta (Gerencia/Jefatura) |
 | 23b-modo-visualizacion.js | Modo visualización general por usuario (solo ve lo que el Administrador le concede) |
 | 32-dashboard-perfiles.js | Inicio ejecutivo y operativo según perfil |
 | 36-seguridad-auth.js | Cuentas seguras (autenticación de Supabase, a través del puente que imita a Firebase) |
@@ -124,7 +124,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 65c-planificacion-opciones.js | Planificación · «Ver opciones para completar» cuando una línea no cabe en su bloque |
 | 65d-planificacion-semanal.js | Planificación · vista semanal de carga y capacidad |
 | 66-entrega-turno.js | Entrega de turno entre supervisores (colección entregasTurno, id fecha_TURNO con DIA/INTERMEDIO/NOCHE): foto automática por línea (reutiliza construirDatos de 48), novedades por línea, entregar/corregir/recibir por transacción, historial por fecha, tarjeta «Entrega de turno pendiente» en el Inicio en vivo y modo consulta para jefatura |
-| 66-planificacion-modos.js | Planificación: modos Cantidad fija / Completar cantidad (meta entre bloques con cierre confirmado) / Todo el turno (estimación por ratio nominal), estado del plan «Completada» separado del operativo y formulario de modos. Ver docs/planificacion/planificacion-etapa5-modos.md. Cargar después de 65d |
+| 66p-planificacion-modos.js | Planificación: modos Cantidad fija / Completar cantidad (meta entre bloques con cierre confirmado) / Todo el turno (estimación por ratio nominal), estado del plan «Completada» separado del operativo y formulario de modos. Ver docs/planificacion/planificacion-etapa5-modos.md. Cargar después de 65d |
 | 66b-planificacion-secuencia.js | Planificación: secuencia por cantidad, hora y cierre (amplía tramosSecuencia), cantidades estimadas de las marcas sin cantidad, cambio de marca configurable (5 min iniciales; ajuste por línea y por transición) y proyección con la ejecución real. Ver docs/planificacion/planificacion-etapa5-modos.md. Cargar después de 66 |
 
 ### js/personal/
@@ -213,7 +213,7 @@ Diagnóstico, modelo de datos y permisos: `docs/asistente/asistente-produccion.m
 19. personal/13-tareo.js
 20. personal/20-tareo-control.js
 21. produccion/21-programacion-turno.js
-22. accesos/23-gerente-solo-lecutra.js
+22. accesos/23-gerente-solo-lectura.js
 23. produccion/23b-tiempos-linea.js
 24. produccion/24-semaforo-produccion-actual.js
 25. produccion/25-alertas-lineas.js

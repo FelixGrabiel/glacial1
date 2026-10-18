@@ -7,7 +7,7 @@ La etapa 4 ya tenía el motor de capacidad (ventanas, preparaciones, colocación
 
 | Archivo | Cambio |
 |---|---|
-| `js/produccion/66-planificacion-modos.js` (nuevo) | Modos, cierre confirmado, saldo de la meta, estimación de «Todo el turno», estado del plan y la sección «modo» del formulario. |
+| `js/produccion/66p-planificacion-modos.js` (nuevo) | Modos, cierre confirmado, saldo de la meta, estimación de «Todo el turno», estado del plan y la sección «modo» del formulario. |
 | `js/produccion/16-paletas.js` | El escritor único acepta `opc.extra` (modo, meta, estimado, alcance), `opc.validarLista` (se ejecuta **dentro de la transacción** con las filas más recientes) y `opc.historialExtra`. |
 | `js/produccion/52-planificacion-pantalla.js` | Selector de modo, columna **Estado del plan**, subtítulos de meta/estimado, tarjetas «Metas entre bloques» y «Todo el turno». |
 | `js/produccion/65b`, `65` | Cálculo parcial: `conocidoMin`, `excesoMinimoMin`, texto «Cálculo parcial: falta configurar cambio de marca», botón «Configurar tiempo de cambio». |
@@ -98,7 +98,7 @@ La secuencia **ya existía** (`tramosSecuencia = [{id, orden, tipoFin: CANTIDAD|
 |---|---|
 | `65b-planificacion-motor.js` | Tiempo de cambio de marca **inicial de 5 min** (`M.CAMBIO_INICIAL_MIN`, solo si cambia la marca con el mismo formato y no hay regla ni respaldo); **ajuste explícito por transición** (`tramo.cambioPrevioMin`, prioridad 1.º); tramos temporales (hora / cierre) sin tope de cantidad; hora límite posterior al cierre = conflicto; ejecución real en la secuencia; **`M.estimarSecuencia`** (estimación única de la secuencia). |
 | `66b-planificacion-secuencia.js` (nuevo) | Diálogo **«Secuencia de la línea»** (producto · terminar por · cantidad u hora · cambio previsto · orden con ▲▼ aptos para celular), guardado en una transacción, proyección con ejecución real, bloque «Secuencia por línea» y sección **Tiempo de cambio de marca** del Catálogo. |
-| `66-planificacion-modos.js` | Modo `HORA` («Hasta una hora»); estado del plan de los temporales (no se completan por la hora ni por alcanzar el estimado); subtítulos. |
+| `66p-planificacion-modos.js` | Modo `HORA` («Hasta una hora»); estado del plan de los temporales (no se completan por la hora ni por alcanzar el estimado); subtítulos. |
 | `51`, `52`, `64` | `esPlanSinCantidad` incluye la estimación pendiente; el botón **Secuencia** y la edición de planes temporales; texto del plan y Excel con terminar por, hora límite y cambio previsto; la copia no arrastra horas ni estimaciones. |
 
 ## Modos y convivencia

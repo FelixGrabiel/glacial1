@@ -221,11 +221,11 @@ const cierreMan=(c,extra)=>rec('r_'+Math.random().toString(36).slice(2,6),FECHA,
   ok(pc.candidatos.length===1&&pc.omitidos.some(o=>/Completar cantidad: no se copia/.test(o.texto))&&pc.omitidos.some(o=>/Todo el turno.*: no se copia/.test(o.texto)),'copiar a otra fecha no reutiliza un cierre ya asignado ni una estimación ajena: exige revisar y volver a aplicar');
   const txt=entorno([Object.assign(F('PET1',FECHA,'NOCHE','Scala','Regular_380ml',6000,2184),{modo:'COMPLETAR',meta:{id:'m',total:24000,vinculos:[]}}),Object.assign(F('PET1',FECHA,'NOCHE','Bells','Regular_625ml',52000,1200),{modo:'TURNO'})]).NS.textoPlan(FECHA,'NOCHE');
   ok(/saldo de la meta 24/.test(txt)&&/todo el turno: estimado según ratio nominal/.test(txt),'el texto del plan conserva el modo y la semántica de las cantidades');
-  const src=leer('js/produccion/66-planificacion-modos.js'),s64=leer('js/produccion/64-planificacion-avance.js');
+  const src=leer('js/produccion/66p-planificacion-modos.js'),s64=leer('js/produccion/64-planificacion-avance.js');
   ok(!/avancesTurno|paradasOperativas|bitacoraMantenimiento|ratioReal|finalizarLinea|reanudar/i.test(src.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,'')),'ni los modos ni el estado del plan tocan paradas oficiales, el ratio real ni finalizan o reanudan la línea');
   ok(/Estado del plan/.test(leer('js/produccion/52-planificacion-pantalla.js'))&&/'Modo','Meta total/.test(s64)||/'Modo','Meta total \(UND\)'/.test(s64),'la tabla se llama «Estado del plan» y el Excel exporta modo, meta y estado operativo por separado');
   const html=leer('index.html');
-  ok(html.indexOf('66-planificacion-modos.js')>html.indexOf('65d-planificacion-semanal.js'),'index.html carga 66 después del motor y la vista semanal');
+  ok(html.indexOf('66p-planificacion-modos.js')>html.indexOf('65d-planificacion-semanal.js'),'index.html carga 66 después del motor y la vista semanal');
 }
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

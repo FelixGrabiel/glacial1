@@ -243,7 +243,7 @@ const cierre52=(act)=>rec('rn',FECHA,'NOCHE','FINALIZADO',[cu('Scala','Regular_3
 }
 /* ---------- fuentes ---------- */
 {
-  const s66=leer('js/produccion/66-planificacion-modos.js'),s51=leer('js/produccion/51-planificacion-nucleo.js'),s16=leer('js/produccion/16-paletas.js'),s52=leer('js/produccion/52-planificacion-pantalla.js');
+  const s66=leer('js/produccion/66p-planificacion-modos.js'),s51=leer('js/produccion/51-planificacion-nucleo.js'),s16=leer('js/produccion/16-paletas.js'),s52=leer('js/produccion/52-planificacion-pantalla.js');
   ok(/Guardar pendiente de cierre/.test(s66)&&/Puedes guardar la programación\. El saldo se calculará cuando se confirme el cierre del bloque de referencia\./.test(s66)&&/Por calcular/.test(s66),'el formulario ofrece «Guardar pendiente de cierre» con el mensaje y «Por calcular» aprobados');
   ok(/conservarCero/.test(s16)&&/permitirCero/.test(s51)&&/esPlanSinCantidad/.test(s51)&&/data-plan-recalc/.test(s52),'el esquema admite un plan sin saldo sin romper lo anterior y la tabla ofrece «Actualizar saldo»');
   ok(!/avancesTurno|paradasOperativas|ratioReal/i.test(s66.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,'')),'no toca paradas oficiales ni el ratio real');

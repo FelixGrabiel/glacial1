@@ -286,7 +286,7 @@ function num0(x){return Number(x)||0;}
 {
   const s66b=leer('js/produccion/66b-planificacion-secuencia.js'),m=leer('js/produccion/65b-planificacion-motor.js'),idx=leer('index.html'),s52=leer('js/produccion/52-planificacion-pantalla.js');
   ok(!/avancesTurno|paradasOperativas|ratioReal|finalizarLinea|estadoOperacion\s*=/.test(s66b.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,''))&&!/paradasOperativas|avancesTurno/.test(m),'ninguna estimación genera paradas oficiales, toca el ratio real ni cambia de marca por sí sola');
-  ok(idx.indexOf('66b-planificacion-secuencia.js')>idx.indexOf('66-planificacion-modos.js')&&/data-plan-seq/.test(s52)&&/debeUsarSecuencia/.test(s52),'index.html carga 66b después de 66; la tabla ofrece «Secuencia» y los planes temporales se editan en ella');
+  ok(idx.indexOf('66b-planificacion-secuencia.js')>idx.indexOf('66p-planificacion-modos.js')&&/data-plan-seq/.test(s52)&&/debeUsarSecuencia/.test(s52),'index.html carga 66b después de 66; la tabla ofrece «Secuencia» y los planes temporales se editan en ella');
   ok(/sq-subir|data-sq-subir/.test(s66b)&&/data-sq-bajar/.test(s66b)&&/@media\(max-width:760px\)/.test(s66b),'la secuencia se reordena con botones ▲▼ (no solo arrastrando) y se adapta a celular');
   ok(/Tiempo de cambio de marca/.test(s66b)&&/CAMBIO_INICIAL_MIN=5/.test(m),'el catálogo muestra «Tiempo de cambio de marca» con 5 minutos como valor inicial');
 }
