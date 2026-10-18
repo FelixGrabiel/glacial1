@@ -12,6 +12,17 @@ Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus
 | Cuenta del Administrador (`admin@glacial.app`) | uid `b901a9a1-0c36-45b4-82e1-331e75ee1067` | uid `b89cadf4-5ca6-42c4-a19a-4d07fb371f72` |
 | Página | https://felixgrabiel.github.io/glacial1/ | vista previa de la rama `supabase` (franja roja) |
 
+## Resultado (sábado 17-10-2026)
+
+Cambio terminado. Copia final: 6 494 documentos (10 133 701 bytes), huella general igual en Firebase y en Supabase,
+cero errores; 10 documentos de los ensayos dados de baja. Página publicada a las 23:11 (`main` = `f36deec`).
+Cuentas migradas (14 con contraseña temporal + felixlopez restablecido). Prueba con dos dispositivos correcta
+(paletas, tareo, avance, programaciones, bitácora). Firebase cerrado (`firestore.rules.cerrado.txt`) a las 23:52.
+Respaldos en Supabase: `glacial_fs.respaldo_fs_docs_20261017`, `glacial_fs.respaldo_fs_items_20261017` y
+`glacial_fs.importacion_ensayo_20261011`.
+Pendiente: la migración de cuentas se ejecutó 3 veces y dejó 29 cuentas sin perfil (`*.0`/`*.1@glacial.app` y la
+antigua `felixlopez@glacial.app`); no dan acceso a nada y se pueden eliminar en Authentication.
+
 ## Los días anteriores
 
 - [ ] Pausa de cambios en `main` desde el sábado 17 en la noche.
