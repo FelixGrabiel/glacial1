@@ -362,7 +362,7 @@
   }
 
   /* ---------- conteo físico (Fase 2) ---------- */
-  const ESTADOS_CONTEO={EN_PROCESO:'En proceso',CERRADO:'Cerrado'};
+  const ESTADOS_CONTEO={EN_PROCESO:'En proceso',CERRADO:'Cerrado',ANULADO:'Borrado'};
   const claveConteo=(fecha,instante)=>'K'+String(fecha).replace(/-/g,'')+'_'+Number(instante).toString(36);
   const claveLinea=instante=>'L'+Number(instante).toString(36)+'_'+Math.random().toString(36).slice(2,8);
   const ubicacionLimpia=u=>String(u==null?'':u).replace(/\s+/g,' ').trim().slice(0,60)||'Sin ubicación';
@@ -564,7 +564,7 @@
     IMPORTAR_STOCK:{txt:'Importación de stock SAP',grupo:'IMPORTACION'},
     EDITAR_ARTICULO:{txt:'Edición de artículo (mínimos, reorden, unidad…)',grupo:'CATALOGO'},
     CREAR_CONTEO:{txt:'Conteo creado',grupo:'CONTEO'},EDITAR_CONTEO:{txt:'Observación del conteo',grupo:'CONTEO'},
-    CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
+    CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},BORRAR_CONTEO:{txt:'Conteo borrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
     CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},BORRAR_UBICACION:{txt:'Líneas borradas por ubicación',grupo:'LINEA'},
     ASIGNAR_CODIGOS:{txt:'Códigos internos asignados',grupo:'CATALOGO'},MARCAR_SIN_USO:{txt:'Artículos marcados sin uso',grupo:'CATALOGO'},IMPORTAR_CONTEO:{txt:'Conteo importado desde Excel',grupo:'LINEA'},
     COMENTARIO_CONCILIACION:{txt:'Comentario de conciliación',grupo:'COMENTARIO'}};

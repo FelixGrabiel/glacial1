@@ -123,7 +123,7 @@
     },e=>{cache.error.cortes=mensajeError(e);avisar();}));
     cache.listo.conteos=false;cache.error.conteos='';
     cierres.push(col('insumosConteosIndice').onSnapshot(s=>{
-      cache.conteos=s.docs.map(d=>d.data()).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))||num(b.creadoEn)-num(a.creadoEn));
+      cache.conteos=s.docs.map(d=>d.data()).filter(c=>c.estado!=='ANULADO').sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))||num(b.creadoEn)-num(a.creadoEn));
       cache.listo.conteos=true;cache.error.conteos='';
       if(cache.conteoId&&!cache.conteos.some(c=>c.id===cache.conteoId))escucharConteo('');
       else avisar();
@@ -386,6 +386,21 @@
     });
     return true;
   }
+  /* «Borrar» un conteo (solo Administrador): desaparece de las listas y de la conciliación, pero la base de datos no permite borrar documentos de conteo,
+     así que queda marcado como ANULADO con quién, cuándo y por qué (y un evento en la auditoría). */
+  async function borrarConteo(conteoId,motivo){
+    if(!yoEscribo()||!esAdmin())throw falla('PERMISO','Solo un Administrador puede borrar un conteo.');
+    const m=String(motivo||'').trim();
+    if(m.length<5)throw falla('VALIDACION','Escribe el motivo (mínimo 5 caracteres).');
+    const r=refsConteo(conteoId),u=usuario(),t=ahora();
+    await db.runTransaction(async tx=>{
+      const sI=await tx.get(r.idx);if(!sI.exists)throw falla('VALIDACION','El conteo ya no existe.');
+      const meta=sI.data();if(meta.estado==='ANULADO')throw falla('VALIDACION','El conteo ya estaba borrado.');
+      tx.set(r.idx,{...meta,estado:'ANULADO',estadoAnterior:meta.estado,anuladoPor:u.nombre,anuladoUid:u.uid,anuladoEn:t,anuladoMotivo:m.slice(0,300)});
+      auditar(tx,'BORRAR_CONTEO',conteoId,meta.fecha+' · '+meta.almacen,{estado:meta.estado,lineas:meta.lineas||0,articulos:meta.articulos||0},{estado:'ANULADO',motivo:m.slice(0,300)},{conteoId});
+    });
+    return true;
+  }
   async function guardarObservacion(conteoId,observacion){
     if(!yoEscribo())throw falla('PERMISO','No tienes permiso para editar conteos.');
     const o=String(observacion||'').trim();if(o.length>500)throw falla('VALIDACION','La observación admite hasta 500 caracteres.');
@@ -441,6 +456,6 @@
   }
 
   window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,asignarCodigosFaltantes,importarCorte,vistaPrevia,mensajeError,
-    escucharConteo,crearConteo,importarConteo,agregarLinea,agregarLineasLote,borrarLineasUbicacion,detectarSinMovimiento,marcarSinUso,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
+    escucharConteo,crearConteo,importarConteo,agregarLinea,agregarLineasLote,borrarLineasUbicacion,detectarSinMovimiento,marcarSinUso,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,borrarConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();
