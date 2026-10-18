@@ -84,6 +84,12 @@ const cat=[{id:'a',nombre:'ASA ERGONOMICA P/BOTELLA PET 7 LT AZUL'},{id:'b',nomb
   const aud2=[...sb.docs.entries()].filter(([k])=>k.startsWith('insumosAuditoria/')).map(([,v])=>v).filter(a=>a.tipo==='BORRAR_UBICACION');
   ok(aud2.length===1&&aud2[0].antes.lineas===4,'un solo evento de auditoría para todo el borrado');
   ok(await D.borrarLineasUbicacion(m.id,'No existe')===null,'una ubicación sin líneas no cambia nada');
+  /* La fila final «TOTAL» de la tabla dinámica no es un artículo */
+  const piv=[['Suma de OnHand'],['Etiquetas de fila','AP - INSUMOS Y SUMINISTROS','AP - PRODUCCIÓN'],[105,5,5],['ASA X',2,3],['TOTAL',100,200]];
+  const lect=N.leerLibro([{nombre:'Almacenes',filas:piv}]);
+  ok(lect.articulos.length===1&&lect.articulos[0].nombre==='ASA X','importar el stock: la fila «TOTAL» no entra como artículo');
+  const viejo=N.filasStock([{id:'x1',nombre:'TOTAL',activo:true},{id:'a',nombre:'ASA AZUL',activo:true}],{items:[{id:'x1',w:[1,0,0,0,0,0],t:1},{id:'a',w:[2,0,0,0,0,0],t:2}]},'');
+  ok(viejo.length===1&&viejo[0].id==='a','un «TOTAL» que ya quedó en el catálogo se oculta del stock y de la conciliación');
   const idxHtml=leer('js/asistente/77-inventario-insumos-conteo.js');
   ok(/iicBorrarUbicacion/.test(idxHtml)&&/duplicadosImp/.test(idxHtml),'la pantalla avisa de duplicados y permite borrar por ubicación');
   ok(/iicImportar\(\)/.test(idxHtml)&&/leerConteoResumen/.test(idxHtml)&&/importarConteo/.test(idxHtml),'la pantalla de conteos tiene el botón «Importar conteo del Excel»');
