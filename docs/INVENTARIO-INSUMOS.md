@@ -67,9 +67,9 @@ nunca lo ve. El botón del menú se muestra u oculta en `76` (igual que el Asist
   stock SAP de los almacenes contados** (conteo de Insumos → almacén Insumos; «Todos» → suma de los 6). Diferencia % = |conteo − SAP| / SAP:
   **OK** ≤ 2 % · **OBSERVADO** ≤ 10 % · **CRÍTICO** > 10 % · **NO CONTADO** (hay stock SAP y no se contó) · **SIN STOCK SAP** (se contó y SAP tiene 0). No se listan los artículos
   sin stock SAP que tampoco se contaron. Tarjetas por estado (filtran), buscador, comentario editable por artículo (con autor y hora) y **Exportar a Excel**: hoja «Conciliación»
-  (`Artículo | AP - CUARENTENA | AP - DEVOLUCIONES | AP - INSUMOS Y SUMINISTROS | AP - PRODUCCIÓN | AP - PRODUCTO TERMINADO | AP - INMOVILIZADOS | TOTAL SAP | CONTEO dd.mm | DIFERENCIA |
+  (`Código | Artículo | AP - CUARENTENA | AP - DEVOLUCIONES | AP - INSUMOS Y SUMINISTROS | AP - PRODUCCIÓN | AP - PRODUCTO TERMINADO | AP - INMOVILIZADOS | TOTAL SAP | CONTEO dd.mm | DIFERENCIA |
   COMENTARIOS`, más `% DIF.` y `ESTADO` al final; TOTAL SAP y DIFERENCIA son fórmulas), «Detalle por ubicación» y «Resumen», con la tipografía y colores del Reporte general.
-  `TOTAL SAP` es la suma de los almacenes contados (no de los 6), para que coincida con lo comparado.
+  `Código` es el código interno `INS-0001` del artículo. `TOTAL SAP` es la suma de los almacenes contados (no de los 6), para que coincida con lo comparado.
 - **Auditoría** (Fase 4): libro inmutable `insumosAuditoria` (solo se crea; el código nunca la actualiza ni la borra). Cubre **importaciones** (`IMPORTAR_STOCK`), **mínimos y datos del catálogo**
   (`EDITAR_ARTICULO`), **conteos** (`CREAR_CONTEO`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO` con motivo), **líneas** (`CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`) y **comentarios**
   (`COMENTARIO_CONCILIACION`). Cada evento va en la misma transacción que el cambio y guarda quién (nombre y uid), cuándo (hora del servidor + `enMs`), artículo, conteo y valor anterior → nuevo.

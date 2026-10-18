@@ -46,17 +46,17 @@
     const sub=`Conteo del ${dmy(c0.fecha)} · ${nombreAlm(c0.almacen)} · comparado con el corte SAP del ${dmy(m.corte&&m.corte.fechaCorte)} · ${c0.estado==='CERRADO'?'Conteo cerrado':'Conteo EN PROCESO'}`;
 
     /* Hoja 1: conciliación (columnas del Excel del usuario; los totales y la diferencia son fórmulas vivas) */
-    const ws=wb.addWorksheet('Conciliación',{properties:{tabColor:{argb:'FF'+C.marino}},views:[{state:'frozen',xSplit:1,ySplit:4,showGridLines:false}],pageSetup:pag});
-    const heads=['Artículo',...claves.map(k=>k==='INMOVILIZADOS'?'AP - INMOVILIZADOS':N.almacenInfo(k).nombre),'TOTAL SAP','CONTEO '+dm(c0.fecha),'DIFERENCIA','COMENTARIOS','% DIF.','ESTADO'];
+    const ws=wb.addWorksheet('Conciliación',{properties:{tabColor:{argb:'FF'+C.marino}},views:[{state:'frozen',xSplit:2,ySplit:4,showGridLines:false}],pageSetup:pag});
+    const heads=['Código','Artículo',...claves.map(k=>k==='INMOVILIZADOS'?'AP - INMOVILIZADOS':N.almacenInfo(k).nombre),'TOTAL SAP','CONTEO '+dm(c0.fecha),'DIFERENCIA','COMENTARIOS','% DIF.','ESTADO'];
     const nc=heads.length;cab(ws,nc,'GLACIAL · Conciliación de inventario de insumos',sub);
     ws.getRow(3).height=6;encabezados(ws,4,heads);
-    const cTot=claves.length+2,cCon=cTot+1,cDif=cCon+1,cCom=cDif+1,cPct=cCom+1,cEst=cPct+1;
+    const cTot=claves.length+3,cCon=cTot+1,cDif=cCon+1,cCom=cDif+1,cPct=cCom+1,cEst=cPct+1;
     m.conc.filas.forEach((f,i)=>{
       const n=5+i,row=ws.getRow(n);
-      row.getCell(1).value=f.nombre;
-      idx.forEach((k,j)=>{row.getCell(2+j).value=num(f.w[k]);});
+      row.getCell(1).value=f.codigo||'';row.getCell(2).value=f.nombre;
+      idx.forEach((k,j)=>{row.getCell(3+j).value=num(f.w[k]);});
       // TOTAL SAP = suma de los almacenes contados (si se contó un solo almacén, ese; con «Todos», los 6)
-      const inc=idx.map((k,j)=>({k,j})).filter(x=>m.conc.claves.includes(N.ALMACENES[x.k].clave)).map(x=>col(1+x.j)+n);
+      const inc=idx.map((k,j)=>({k,j})).filter(x=>m.conc.claves.includes(N.ALMACENES[x.k].clave)).map(x=>col(2+x.j)+n);
       row.getCell(cTot).value={formula:inc.length?inc.join('+'):'0',result:f.sap};
       row.getCell(cCon).value=f.contado?f.conteo:null;
       row.getCell(cDif).value={formula:`${col(cCon-1)}${n}-${col(cTot-1)}${n}`,result:f.contado||f.sap>0?f.diferencia:0};
@@ -64,14 +64,14 @@
       row.getCell(cPct).value=f.pct==null?null:f.pct;
       const e=row.getCell(cEst);e.value=TXT_ESTADO[f.estado];
       for(let c=1;c<=nc;c++){const x=row.getCell(c);x.font=font({bold:c===cTot||c===cCon});x.border=bd();if(i%2===1)x.fill=fill(C.alt);
-        if(c>1&&c<cCom)x.numFmt=FMT_NUM;x.alignment={vertical:'middle',wrapText:c===1||c===cCom,horizontal:c>1&&c<cCom?'right':c===cEst?'center':'left'};}
+        if(c>2&&c<cCom)x.numFmt=FMT_NUM;x.alignment={vertical:'middle',wrapText:c===2||c===cCom,horizontal:c>2&&c<cCom?'right':c===cEst?'center':'left'};}
       row.getCell(cPct).numFmt=FMT_PCT;row.getCell(cPct).alignment={horizontal:'right',vertical:'middle'};
       const [bg,tx]=ESTILO[f.estado];e.fill=fill(bg);e.font=font({bold:true,color:tx});
       if(f.estado==='CRITICO'||f.estado==='OBSERVADO'){const d=row.getCell(cDif);d.font=font({bold:true,color:tx});}
     });
     const ult=4+m.conc.filas.length;
     ws.autoFilter={from:{row:4,column:1},to:{row:Math.max(ult,4),column:nc}};
-    ws.getColumn(1).width=46;for(let c=2;c<=cCon+1;c++)ws.getColumn(c).width=c<=claves.length+1?14:13;ws.getColumn(cCom).width=38;ws.getColumn(cPct).width=9;ws.getColumn(cEst).width=14;
+    ws.getColumn(1).width=11;ws.getColumn(2).width=46;for(let c=3;c<=cCon+1;c++)ws.getColumn(c).width=c<=claves.length+2?14:13;ws.getColumn(cCom).width=38;ws.getColumn(cPct).width=9;ws.getColumn(cEst).width=14;
     ws.getColumn(cTot).width=13;ws.getColumn(cCon).width=13;
 
     /* Hoja 2: detalle por ubicación */

@@ -219,7 +219,7 @@ const servidor=http.createServer((q,r)=>{
     const EJ=require(path.join(EXCELJS_DIST,'..'));const wbx=new EJ.Workbook();await wbx.xlsx.readFile(rutaX);
     ok(wbx.worksheets.map(w=>w.name).join('|')==='Conciliación|Detalle por ubicación|Resumen','el archivo descargado tiene sus 3 hojas');
     const wsx=wbx.getWorksheet('Conciliación');
-    ok(wsx.getRow(4).getCell(1).value==='Artículo'&&/^CONTEO \d\d\.\d\d$/.test(wsx.getRow(4).getCell(9).value)&&wsx.rowCount>4,'conciliación: encabezados del Excel del usuario y filas de datos');
+    ok(wsx.getRow(4).getCell(1).value==='Código'&&wsx.getRow(4).getCell(2).value==='Artículo'&&/^CONTEO \d\d\.\d\d$/.test(wsx.getRow(4).getCell(10).value)&&/^INS-\d{4}$/.test(wsx.getRow(5).getCell(1).value)&&wsx.rowCount>4,'conciliación: encabezados del Excel del usuario y filas de datos');
     ok(wbx.getWorksheet('Detalle por ubicación').rowCount>4,'detalle por ubicación con las líneas del conteo');
     await page.setViewportSize({width:360,height:740});
   }else console.log('  (sin ExcelJS: se omite la descarga real; defina EXCELJS_DIST)');
