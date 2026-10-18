@@ -1,7 +1,7 @@
 # Día del cambio: de Firebase a Supabase
 
-**Fecha acordada:** domingo 18 de octubre de 2026, a partir de las 20:00 (hora de Lima). Se adelantó desde el 1 de noviembre
-porque el plan gratuito de Firebase empezó a agotar su límite diario («Quota exceeded») con el uso real. **Duración:** unos 30 minutos sin usar la página.
+**Fecha acordada:** sábado 17 de octubre de 2026, a partir de las 22:00 (hora de Lima). Se adelantó desde el 1 de noviembre
+(y luego desde el domingo 18 a las 20:00) porque el plan gratuito de Firebase empezó a agotar su límite diario («Quota exceeded») con el uso real. **Duración:** unos 30 minutos sin usar la página.
 
 Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus contraseñas o la consola de Firebase;
 **Claude** hace la copia, las comprobaciones y la publicación. Nada de esto borra datos: Firebase queda intacto como respaldo.
@@ -15,7 +15,10 @@ Quién hace qué: **Felix** (Administrador) hace lo que requiere su sesión, sus
 ## Los días anteriores
 
 - [ ] Pausa de cambios en `main` desde el sábado 17 en la noche.
-- [ ] Integrar en la rama `supabase` lo último de `main` y repetir las pruebas (`tests/puente-supabase.test.js`, `tests/puente-pagina.e2e.js`).
+- [x] Integrar en la rama `supabase` lo último de `main` y repetir las pruebas (`tests/puente-supabase.test.js`, `tests/puente-pagina.e2e.js`).
+      Hecho el 17-10-2026: tareo por técnico, reinicio de PIN, Supervisor de Mantenimiento en la rotación y en el tareo,
+      gramaje 21.7 en PET1. No requirió cambios en la base: las reglas de `sync/tecnicosMant` y `sync/rotacionesMantenimiento`
+      en Supabase ya son las mismas que en Firebase. Pasan las 87 pruebas y la prueba de la página real.
 - [ ] Ensayo en PRUEBAS con dos o tres personas reales (supervisor, mantenimiento, RRHH).
 - [ ] Comprobar que el proyecto de producción de Supabase está activo. Los proyectos gratuitos se pausan si pasan una semana
       quietos (se reanudan con un botón). Para evitarlo, cada proyecto hace una consulta diaria al otro (tarea

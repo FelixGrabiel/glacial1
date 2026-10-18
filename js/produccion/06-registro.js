@@ -3255,7 +3255,7 @@ function gramajesPreformaPorLinea(linea){
     '23.7','17.7','15.7','13.8','12.7'
   ];
 
-  if(linea==='PET1') return ['42.7','43.7'];
+  if(linea==='PET1') return ['42.7','43.7','21.7'];
 
   if(linea==='PET2'){
     return gramajesPet.filter(
