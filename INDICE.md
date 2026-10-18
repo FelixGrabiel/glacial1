@@ -58,7 +58,7 @@ js/
 | 08-graficos.js | Gráficos y Excel por línea |
 | 09-resumen.js | Resumen de producción |
 | 14-exportar-general.js | Exportación general de planta |
-| 16-paletas.js | Paletas en tiempo real |
+| 16-paletas.js | Paletas en tiempo real. Rendimiento: índice en memoria de Paletas y de la programación por combinación (`paletasDeCombinacionPaletas`, índice en `obtenerProgramacionPaleta`) y caché de `normalizarClavePaletas`; se rearman solos cuando cambia la lista. Prueba: tests/produccion-actual-rendimiento.test.js |
 | 21-programacion-turno.js | Programación del turno |
 | 50-impacto-economico.js | Impacto económico completo (solo Gerencia): cascada en S/, rankings, supuestos y Excel |
 | 55-valores-economicos.js | Valores unitarios protegidos por rol (solo Gerencia): lectura/escritura con historial, migración y pantalla «Valores unitarios» |
