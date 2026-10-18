@@ -336,7 +336,9 @@
   });
 
   function estilos(){return `<style id="ii-estilos">${window.iiConteoUI?window.iiConteoUI.css:''}${window.iiConciliacionUI?window.iiConciliacionUI.css:''}${window.iiAuditoriaUI?window.iiAuditoriaUI.css:''}
-.ii{--ii-azul:#0b5cc4;--ii-linea:#dde6ef;--ii-mut:#5f7382;color:#0f2547;font-size:15px}
+.ii,.ii-modal{--ii-azul:#0b5cc4;--ii-linea:#dde6ef;--ii-mut:#5f7382}      /* los modales viven en #modal-root, fuera de .ii: necesitan las mismas variables */
+.ii{color:#0f2547;font-size:15px}
+.ii-modal [hidden]{display:none!important}
 .ii [hidden]{display:none!important}
 .ii-cab{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 14px}.ii-cab h1{margin:0;font-size:30px;font-weight:800;color:#0f2547}
 .ii-chip{padding:8px 14px;border-radius:10px;background:#dbeafe;color:#0b5cc4;font-weight:700;font-size:13px}

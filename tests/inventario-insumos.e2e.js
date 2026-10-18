@@ -96,6 +96,8 @@ const servidor=http.createServer((q,r)=>{
   ok(/6\s*\n?\s*almacenes detectados/.test(resumen),'se detectan solo los 6 almacenes AP (los camiones y transportistas no cuentan)');
   ok(/excluidos/.test(resumen),'se muestran los excluidos (ETIQUETA ERROR y grupo 108)');
   ok(msLectura<60000,'el archivo de ~30.000 filas se procesa sin bloquear (menos de 60 s)');
+  const estiloGuardar=await page.locator('.ii-modal .ii-btn >> text=Guardar corte').evaluate(b=>{const c=getComputedStyle(b);return {bg:c.backgroundColor,color:c.color};});
+  ok(estiloGuardar.bg!=='rgba(0, 0, 0, 0)'&&estiloGuardar.bg!==estiloGuardar.color,'el botón «Guardar corte» del modal se ve (fondo azul, letra blanca; los modales usan las variables de color)');
   await page.fill('#ii-fecha','2026-10-15');
   await page.click('text=Guardar corte');
   await page.waitForSelector('.ii-msg-ok');
