@@ -370,7 +370,7 @@
   };
 
   /* ---------- sección «modo» del formulario Agregar/Editar (la monta 52) ---------- */
-  const HOY=()=>NS.hoyOperativo?NS.hoyOperativo():new Date().toISOString().slice(0,10);
+  const HOY=()=>NS.hoyOperativo?NS.hoyOperativo():GlacialFecha.fechaOperativa();
   M.estilos=function(){
     if(document.getElementById('plan-modos-css'))return;
     const s=document.createElement('style');s.id='plan-modos-css';

@@ -41,7 +41,7 @@
   const fmtS=n=>'S/ '+num(n).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:3});
   const fmtFecha=f=>/^\d{4}-\d{2}-\d{2}$/.test(String(f||''))?f.slice(8,10)+'/'+f.slice(5,7)+'/'+f.slice(0,4):String(f||'');
   const ahoraMs=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
-  const hoy=()=>{const d=new Date(ahoraMs());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+  const hoy=()=>{if(window.GlacialFecha)return window.GlacialFecha.fechaOperativa(ahoraMs());/* FECHA-OPERATIVA */const d=new Date(ahoraMs());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
   const fechaOk=f=>/^\d{4}-\d{2}-\d{2}$/.test(String(f||''));
   const COMPONENTES=['Botellas','Preformas','Tapas','Etiquetas','Polietileno'];
 

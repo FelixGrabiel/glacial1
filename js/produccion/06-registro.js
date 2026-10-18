@@ -2042,20 +2042,20 @@ function actualizarTodosCuadros(){
 
 function blankRecord(lineKey){
 
-  const ahora =
-    new Date();
-
+  // FECHA-OPERATIVA: el reporte nuevo nace con la fecha OPERATIVA y el turno en curso (hora de Lima). Antes usaba la fecha de calendario
+  // y turno DÍA fijo: a la 01:31 el formulario nacía con 16/10 DÍA cuando el turno en curso era la NOCHE del 15/10 (día juliano y semana +1).
+  // El turno DÍA / INTERMEDIO queda igual que siempre: nace como DÍA con la fecha de hoy.
+  const GF = window.GlacialFecha;
+  const ahoraMsReg = GF ? GF.ahoraMs() : Date.now();
+  const turnoInicial = GF && GF.turnoActual(ahoraMsReg) === 'NOCHE' ? 'NOCHE' : 'DÍA';
 
   const today =
-    ahora.getFullYear() +
-    '-' +
-    String(
-      ahora.getMonth()+1
-    ).padStart(2,'0') +
-    '-' +
-    String(
-      ahora.getDate()
-    ).padStart(2,'0');
+    GF
+      ? GF.fechaOperativa(ahoraMsReg, turnoInicial)
+      : (function(){
+          const a = new Date();
+          return a.getFullYear() + '-' + String(a.getMonth()+1).padStart(2,'0') + '-' + String(a.getDate()).padStart(2,'0');
+        })();
 
 
   const diaDelAño =
@@ -2083,9 +2083,9 @@ function blankRecord(lineKey){
 
     semana,
 
-    turno:'DÍA',
-    grupoTurno:'DIA_INTERMEDIO',
-    iniciadoPorTurno:'DÍA',
+    turno:turnoInicial,
+    grupoTurno:grupoTurnoReporte(turnoInicial),
+    iniciadoPorTurno:turnoInicial,
 
     cuadros:
       [1,2,3,4].map(

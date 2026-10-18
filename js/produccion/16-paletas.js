@@ -1064,6 +1064,12 @@ function fechaHoyPaletas(){
 
 function horaAhoraPaletas(){
 
+  // FECHA-OPERATIVA: hora de Lima con el reloj del servidor (antes la del equipo)
+  if(window.GlacialFecha){
+    const l = window.GlacialFecha.ahoraLima(window.GlacialFecha.ahoraMs());
+    return String(l.hora).padStart(2, '0') + ':' + String(l.minuto).padStart(2, '0');
+  }
+
   const ahora = new Date();
 
   return (
@@ -1093,7 +1099,8 @@ function blankPaleta(lineKey){
   return {
     linea: lineKey,
     fecha: fechaHoyPaletas(),
-    turno: 'DÍA',
+    // FECHA-OPERATIVA: la fecha ya era la operativa pero el turno era DÍA fijo; en horario de NOCHE ahora nace como NOCHE (DÍA/INTERMEDIO igual que siempre).
+    turno: (window.GlacialFecha && window.GlacialFecha.turnoActual(window.GlacialFecha.ahoraMs()) === 'NOCHE') ? 'NOCHE' : 'DÍA',
     marca: marcas[0] || '',
     // La presentación arranca en blanco: la elige el supervisor.
     presentacion: '',

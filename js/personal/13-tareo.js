@@ -211,7 +211,27 @@ function escaparHTML(valor) {
 }
 
 
+/* Hora programada de ingreso por defecto de un turno (catálogo del Administrador en 41-tareo-bloqueo.js; sin él, 07:00 / 22:00). */
+function tareoIngresoPorDefecto(turno) {
+    const c = typeof window.tareoHorasIngreso === 'function' ? window.tareoHorasIngreso() : null;
+    if (turno === 'Noche') return (c && c.ingresoNoche) || '22:00';
+    return (c && c.ingresoDia) || '07:00';
+}
+
+/* Opciones del selector «Hora programada»: las del catálogo más la hora actual del tareo si no está en la lista (tareos antiguos). */
+function tareoOpcionesHoraProgramada(actual) {
+    const c = typeof window.tareoHorasIngreso === 'function' ? window.tareoHorasIngreso() : null;
+    const horas = (c && c.horas.length ? c.horas : ['07:00', '10:00', '13:00', '14:00', '19:00', '20:00', '21:00', '22:00']).slice();
+    if (actual && !horas.includes(actual)) horas.push(actual);
+    horas.sort();
+    return horas.map(h => `<option value="${escaparHTML(h)}" ${h === actual ? 'selected' : ''}>${escaparHTML(h)}${c && c.horas.includes(h) ? '' : ' (fuera del catálogo)'}</option>`).join('');
+}
+
 function obtenerFechaHoy() {
+    // FECHA-OPERATIVA: «hoy» del tareo es el día operativo (07:00→07:00, hora de Lima, reloj del servidor):
+    // de 00:00 a 07:00 sigue siendo el día anterior, que es donde vive el tareo Noche en curso.
+    if (window.GlacialFecha) return window.GlacialFecha.fechaOperativa(window.GlacialFecha.ahoraMs());
+
     const ahora = new Date();
 
     const año = ahora.getFullYear();
@@ -3799,10 +3819,9 @@ function tareoAbrir(area, fecha, turno) {
 
         turno: turnoTareo,
 
+        // FECHA-OPERATIVA: hora de ingreso por defecto del catálogo configurable (Día 07:00, Noche 22:00); antes Noche era 19:00 fijo.
         horaProgramadaIngreso:
-            turnoTareo === 'Noche'
-                ? '19:00'
-                : '07:00',
+            tareoIngresoPorDefecto(turnoTareo),
 
         jornadaNormal:
             8,
@@ -4016,12 +4035,10 @@ function renderTareoFormulario(tareo) {
 
                     <div class="field-sm">
                         <label>Hora programada</label>
-                        <input
-                            type="time"
+                        <select
                             id="tareo-hora-programada"
-                            value="${escaparHTML(tareo.horaProgramadaIngreso)}"
                             onchange="tareoActualizarConfig()"
-                        >
+                        >${tareoOpcionesHoraProgramada(tareo.horaProgramadaIngreso)}</select>
                     </div>
 
                     <div class="field-sm">

@@ -38,7 +38,10 @@
   const COL_RELOJ='relojServidor';
   const COL_SOLICITUDES='solicitudesCorreccionTareo';
   const TZ_MS=-5*3600000;                 // Perú: UTC-5, sin horario de verano
-  const DEFECTO={dias:2,finDia:'19:00',finNoche:'07:00'};
+  /* FECHA-OPERATIVA: horas de ingreso programadas (catálogo editable por el Administrador, se guarda en sync/configTareo → horasIngreso).
+     Antes la Noche se creaba con 19:00 fijo y quien entraba a las 22:10 figuraba con 190 min de tardanza. */
+  const HORAS_INGRESO_DEFECTO=['07:00','10:00','13:00','14:00','19:00','20:00','21:00','22:00'];
+  const DEFECTO={dias:2,finDia:'19:00',finNoche:'07:00',horasIngreso:HORAS_INGRESO_DEFECTO.slice(),ingresoDia:'07:00',ingresoNoche:'22:00'};
   const SESION_MS=30*60000;               // duración de una sesión de corrección de RRHH
   const RECALIBRAR_MS=15*60000;
 
@@ -66,7 +69,8 @@
      --------------------------------------------------------- */
   let baseServidor=null,baseMono=0,calibrando=false;
   const mono=()=>(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
-  const ahora=()=>baseServidor===null?Date.now():baseServidor+(mono()-baseMono);
+  // FECHA-OPERATIVA: con hora simulada (solo Administrador/desarrollo) el reloj del servidor también se desplaza.
+  const ahora=()=>baseServidor===null?Date.now():baseServidor+(mono()-baseMono)+(window.glacialSimulacionOffsetMs||0);
   window.tareoAhoraServidor=ahora;
   window.tareoRelojVerificado=()=>baseServidor!==null;
 
@@ -125,6 +129,8 @@
   window.tareoBloqueoInfo=info;
   window.tareoEstadoBloqueo=t=>info(t).bloqueado?'Bloqueado':'Abierto';
   window.tareoBloqueoConfig=()=>Object.assign({},cfg);
+  /* Horas de ingreso programadas (catálogo) y las de defecto por turno. */
+  window.tareoHorasIngreso=()=>({horas:cfg.horasIngreso.slice(),ingresoDia:cfg.ingresoDia,ingresoNoche:cfg.ingresoNoche});
 
   /* Datos incompletos de un tareo. */
   function incompletos(t){
@@ -446,17 +452,29 @@
     return {
       dias:Number.isFinite(dias)&&dias>=0&&dias<=60?Math.round(dias):DEFECTO.dias,
       finDia:hora(d&&d.finDia)?d.finDia:DEFECTO.finDia,
-      finNoche:hora(d&&d.finNoche)?d.finNoche:DEFECTO.finNoche
+      finNoche:hora(d&&d.finNoche)?d.finNoche:DEFECTO.finNoche,
+      horasIngreso:horasValidas(d&&d.horasIngreso),
+      ingresoDia:hora(d&&d.ingresoDia)?d.ingresoDia:DEFECTO.ingresoDia,
+      ingresoNoche:hora(d&&d.ingresoNoche)?d.ingresoNoche:DEFECTO.ingresoNoche
     };
   }
+  /* Lista de horas HH:MM válidas, sin repetir y ordenadas; si no hay ninguna válida, la lista inicial. */
+  function horasValidas(v){
+    const lista=(Array.isArray(v)?v:String(v||'').split(/[\s,;]+/)).map(x=>{
+      const m=String(x||'').trim().match(/^(\d{1,2}):(\d{2})$/);
+      return m&&+m[1]<24&&+m[2]<60?String(+m[1]).padStart(2,'0')+':'+m[2]:'';
+    }).filter(Boolean);
+    const unicas=Array.from(new Set(lista)).sort();
+    return unicas.length?unicas:HORAS_INGRESO_DEFECTO.slice();
+  }
   function abrirConfig(){
-    if(!esAdmin()){alert('Solo el Administrador puede configurar el bloqueo.');return;}
+    if(!esAdmin()){alert('Solo el Administrador puede configurar el bloqueo y las horas de ingreso.');return;}
     const root=document.getElementById('modal-root');
     if(!root)return;
     root.innerHTML=
       '<div class="modal-backdrop" onclick="if(event.target===this)closeModal()">'+
       '<div class="modal" style="max-width:460px;width:96%;">'+
-        '<div class="modal-head"><h3>Bloqueo de tareos</h3><button class="modal-close" onclick="closeModal()">✕</button></div>'+
+        '<div class="modal-head"><h3>Bloqueo de tareos y horas de ingreso</h3><button class="modal-close" onclick="closeModal()">✕</button></div>'+
         '<div class="modal-body">'+
           '<p class="small-muted">Un tareo se bloquea cuando pasan estos días desde el fin de su turno (hora de Perú, del servidor). El turno Noche termina al día siguiente.</p>'+
           '<div class="field-sm"><label>Días hasta el bloqueo</label><input type="number" id="bq-dias" min="0" max="60" value="'+cfg.dias+'"></div>'+
@@ -464,16 +482,23 @@
             '<div class="field-sm"><label>Fin del turno Día</label><input type="time" id="bq-fin-dia" value="'+esc(cfg.finDia)+'"></div>'+
             '<div class="field-sm"><label>Fin del turno Noche (día siguiente)</label><input type="time" id="bq-fin-noche" value="'+esc(cfg.finNoche)+'"></div>'+
           '</div>'+
+          '<hr><p class="small-muted"><b>Horas de ingreso</b>: las que se pueden elegir como «Hora programada» en un tareo (la tardanza se calcula contra ella). Sepáralas con coma.</p>'+
+          '<div class="field-sm"><label>Horas de ingreso disponibles</label><input type="text" id="bq-horas" value="'+esc(cfg.horasIngreso.join(', '))+'"></div>'+
+          '<div class="grid grid-2">'+
+            '<div class="field-sm"><label>Ingreso por defecto · Día</label><input type="time" id="bq-ing-dia" value="'+esc(cfg.ingresoDia)+'"></div>'+
+            '<div class="field-sm"><label>Ingreso por defecto · Noche (22:00 = día en que empieza)</label><input type="time" id="bq-ing-noche" value="'+esc(cfg.ingresoNoche)+'"></div>'+
+          '</div>'+
           '<div class="actions-row"><button class="btn btn-primary" id="bq-guardar">Guardar</button></div>'+
         '</div></div></div>';
     document.getElementById('bq-guardar').onclick=async()=>{
       const nuevo=configValida({dias:document.getElementById('bq-dias').value,
-        finDia:document.getElementById('bq-fin-dia').value,finNoche:document.getElementById('bq-fin-noche').value});
+        finDia:document.getElementById('bq-fin-dia').value,finNoche:document.getElementById('bq-fin-noche').value,
+        horasIngreso:document.getElementById('bq-horas').value,ingresoDia:document.getElementById('bq-ing-dia').value,ingresoNoche:document.getElementById('bq-ing-noche').value});
       try{
         await db.collection('sync').doc(DOC_CONFIG).set(Object.assign({},nuevo,{
           actualizadoPor:usuario().username||'',actualizadoEn:Date.now(),updatedAt:Date.now()}));
         auditar({id:'(configuración)',area:'',fecha:'',turno:''},'CONFIGURAR_BLOQUEO_TAREOS','plazo',{
-          estadoAnterior:{dias:cfg.dias,finDia:cfg.finDia,finNoche:cfg.finNoche},estadoNuevo:nuevo});
+          estadoAnterior:{dias:cfg.dias,finDia:cfg.finDia,finNoche:cfg.finNoche,horasIngreso:cfg.horasIngreso,ingresoDia:cfg.ingresoDia,ingresoNoche:cfg.ingresoNoche},estadoNuevo:nuevo});
         cfg=nuevo;
         closeModal();
         if(document.getElementById('tareo-bloqueos-view'))renderTareoBloqueos();

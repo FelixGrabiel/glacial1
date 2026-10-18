@@ -73,8 +73,11 @@
     }
     areas.forEach(area=>turnos.forEach(turno=>claves.push({area,fecha,turno})));
     return claves.map(c=>({ ...c, iniciada:c.fecha<hoy ||
-      // El Tareo usa 07:00 / 19:00 por defecto (13-tareo.js).
-      (c.fecha===hoy && ahora.getHours()>=(c.turno==='Día'?7:19)) }));
+      // FECHA-OPERATIVA: el Noche empieza a la hora de ingreso configurada (22:00 por defecto; antes 19:00 fijo, que daba falsas alarmas de «sin abrir»).
+      (c.fecha===hoy && ahora.getHours()>=(c.turno==='Día'?7:horaInicioNoche())) }));
+  }
+  function horaInicioNoche(){
+    try{const c=window.tareoHorasIngreso&&window.tareoHorasIngreso();const h=c&&parseInt(String(c.ingresoNoche).split(':')[0],10);return Number.isFinite(h)?h:22;}catch(_){return 22;}
   }
   function pendientes(tareo){
     const personal=Array.isArray(tareo?.personal) ? tareo.personal : [];

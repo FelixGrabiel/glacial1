@@ -212,14 +212,19 @@
   function turnoVigente(ahoraMs){
     const ahora=new Date(Number(ahoraMs));
     if(!Number.isFinite(ahora.getTime()))return null;
-    const hora=ahora.getHours();
-    let fechaBase=new Date(ahora.getFullYear(),ahora.getMonth(),ahora.getDate());
-    let turno;
-    if(hora<7){turno='NOCHE';fechaBase=new Date(ahora.getFullYear(),ahora.getMonth(),ahora.getDate()-1);}
-    else if(hora<15)turno='DÍA';
-    else if(hora<22)turno='INTERMEDIO';
-    else turno='NOCHE';
-    const fecha=fechaISO(fechaBase);
+    // FECHA-OPERATIVA: fecha y turno salen de la fuente única (hora de Lima, 01b-fecha-operativa.js); sin ella, el cálculo de siempre.
+    const GF=typeof window!=='undefined'?window.GlacialFecha:null;
+    let fecha,turno;
+    if(GF){fecha=GF.fechaOperativa(ahora.getTime());turno=GF.turnoActual(ahora.getTime());}
+    else{
+      const hora=ahora.getHours();
+      let fechaBase=new Date(ahora.getFullYear(),ahora.getMonth(),ahora.getDate());
+      if(hora<7){turno='NOCHE';fechaBase=new Date(ahora.getFullYear(),ahora.getMonth(),ahora.getDate()-1);}
+      else if(hora<15)turno='DÍA';
+      else if(hora<22)turno='INTERMEDIO';
+      else turno='NOCHE';
+      fecha=fechaISO(fechaBase);
+    }
     const h=horarioTurno(fecha,turno,false);
     return {fecha,turno,inicio:h.inicio,fin:h.fin,activo:ahora.getTime()>=h.inicio&&ahora.getTime()<h.fin};
   }

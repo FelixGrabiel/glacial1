@@ -237,10 +237,17 @@
     return salida.sort((a,b)=>num(a.orden)-num(b.orden) || num(a.creadoEn)-num(b.creadoEn));
   }
 
-  function marcaTiempoCorte(fecha,hora){
+  /* FECHA-OPERATIVA: instante de una hora HH:MM dentro de un turno de fecha operativa `fecha`.
+     En NOCHE las horas anteriores a las 07:00 son del día siguiente (antes se armaban con la fecha del turno: 24 h antes). */
+  function instanteDeTurno(fecha,hora,turno){
+    if(window.GlacialFecha)return window.GlacialFecha.hhmmAMs(fecha,hora,turno);
+    const [yy,mo,dd]=String(fecha).split('-').map(Number),[hh,mm]=String(hora).split(':').map(Number);
+    return new Date(yy,mo-1,dd+(String(turno||'').toUpperCase().includes('NOCHE')&&hh<7?1:0),hh,mm,0,0).getTime();
+  }
+
+  function marcaTiempoCorte(fecha,hora,turno){
     if(!fecha || !/^\d{2}:\d{2}$/.test(String(hora || '')))return 0;
-    const d=new Date(fecha+'T'+hora+':00');
-    const ms=d.getTime();
+    const ms=turno ? instanteDeTurno(fecha,hora,turno) : new Date(fecha+'T'+hora+':00').getTime();
     return Number.isFinite(ms) ? ms : 0;
   }
 
@@ -261,7 +268,7 @@
       let terminado=false;
 
       if(t.tipoFin==='HORA'){
-        const corte=marcaTiempoCorte(fecha,t.horaFin);
+        const corte=marcaTiempoCorte(fecha,t.horaFin,turnoPlan);
         terminado=!!corte && ahora>=corte;
       }else if(t.tipoFin==='CANTIDAD'){
         const objetivo=num(t.cantidadObjetivo) || num(t.cantidadProgramada);
@@ -1565,10 +1572,7 @@
       return null;
     }
 
-    const [hh,mm]=limpio.split(':').map(Number);
-    const [yy,mo,dd]=String(x.fecha).split('-').map(Number);
-    const fechaInicio=new Date(yy,mo-1,dd,hh,mm,0,0);
-    const inicioMs=fechaInicio.getTime();
+    const inicioMs=instanteDeTurno(x.fecha,limpio,x.turno);   // FECHA-OPERATIVA: NOCHE de madrugada = día siguiente
 
     if(!Number.isFinite(inicioMs)){
       alert('No se pudo interpretar la hora de inicio.');
@@ -2147,9 +2151,7 @@
         alert('Hora inválida. Usa HH:MM, por ejemplo 07:00.');
         return;
       }
-      const [hh,mm]=limpio.split(':').map(Number);
-      const [yy,mo,dd]=String(x.fecha).split('-').map(Number);
-      const ms=new Date(yy,mo-1,dd,hh,mm,0,0).getTime();
+      const ms=instanteDeTurno(x.fecha,limpio,x.turno);   // FECHA-OPERATIVA: NOCHE de madrugada = día siguiente
       if(!Number.isFinite(ms) || ms>ahoraServidor()+60000){
         alert('La hora indicada no es válida o está en el futuro.');
         return;

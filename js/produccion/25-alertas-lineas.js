@@ -63,8 +63,12 @@
     return `${y}-${m}-${dia}`;
   }
 
+  /* FECHA-OPERATIVA: «hoy» es el día operativo (07:00→07:00): de 00:00 a 07:00 siguen contando los eventos de la noche que empezó ayer. */
+  function diaOp(ms){
+    return window.GlacialFecha ? window.GlacialFecha.fechaOperativa(Number(ms)) : fechaLocal(ms);
+  }
   function hoyLocal(){
-    return fechaLocal(Date.now());
+    return diaOp(window.GlacialFecha ? window.GlacialFecha.ahoraMs() : Date.now());
   }
 
   function fmtHora(ms){
@@ -389,7 +393,7 @@
   function eventosHoy(){
     const hoy=hoyLocal();
     return eventos
-      .filter(e=>fechaLocal(e.momento)===hoy)
+      .filter(e=>diaOp(e.momento)===hoy)
       .sort((a,b)=>Number(b.momento)-Number(a.momento));
   }
 

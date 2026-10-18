@@ -257,7 +257,13 @@ function fechaLocalISO(fecha=new Date()){
   ].join('-');
 }
 
-function contextoTurnoUsuario(usuario=state.user, ahora=new Date()){
+// FECHA-OPERATIVA: «hoy» operativo (07:00→07:00, hora de Lima): de 00:00 a 07:00 sigue siendo el día anterior.
+function fechaOperativaDeAhora(ahora){
+  const ms=ahora instanceof Date ? ahora.getTime() : Date.now();
+  return window.GlacialFecha ? window.GlacialFecha.fechaOperativa(ms) : fechaLocalISO(new Date(ms));
+}
+
+function contextoTurnoUsuario(usuario=state.user, ahora=new Date(window.GlacialFecha ? window.GlacialFecha.ahoraMs() : Date.now())){
   if(!usuario) return null;
 
   /*
@@ -277,7 +283,7 @@ function contextoTurnoUsuario(usuario=state.user, ahora=new Date()){
         turno:'',
         horarioInicio:'',
         horarioFin:'',
-        fechaOperativa:fechaLocalISO(ahora),
+        fechaOperativa:fechaOperativaDeAhora(ahora),   // FECHA-OPERATIVA: antes día de calendario
         estado:'SIN_ROTACION',
         automatico:true,
         origen:'ROTACION_SEMANAL'
@@ -296,21 +302,22 @@ function contextoTurnoUsuario(usuario=state.user, ahora=new Date()){
       turno:'',
       horarioInicio:inicio,
       horarioFin:fin,
-      fechaOperativa:fechaLocalISO(ahora),
+      fechaOperativa:fechaOperativaDeAhora(ahora),   // FECHA-OPERATIVA: antes día de calendario
       estado:'SIN_CONFIGURAR',
       automatico:false
     };
   }
 
-  let fechaOperativa=fechaLocalISO(ahora);
+  // FECHA-OPERATIVA: NOCHE de madrugada (antes de su hora de fin, 07:00 si no hay) = día en que empezó el turno.
+  const GF=window.GlacialFecha;
+  const msAhora=ahora.getTime();
   const ini=minutosHoraTurno(inicio);
   const finMin=minutosHoraTurno(fin);
-  const actual=ahora.getHours()*60+ahora.getMinutes();
+  const actual=GF ? GF.ahoraLima(msAhora).minutos : ahora.getHours()*60+ahora.getMinutes();
+  let fechaOperativa=GF ? GF.fechaISOLocal(msAhora) : fechaLocalISO(ahora);
 
-  if(turno==='NOCHE' && ini!==null && finMin!==null && finMin<=ini && actual<finMin){
-    const anterior=new Date(ahora);
-    anterior.setDate(anterior.getDate()-1);
-    fechaOperativa=fechaLocalISO(anterior);
+  if(turno==='NOCHE' && (ini===null || finMin===null || finMin<=ini) && actual<(finMin!==null && finMin<720 ? finMin : 420)){
+    fechaOperativa=GF ? GF.sumarDias(fechaOperativa,-1) : fechaLocalISO(new Date(msAhora-86400000));
   }
 
   let activo=true;

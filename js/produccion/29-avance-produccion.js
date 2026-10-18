@@ -21,7 +21,10 @@ function avNum(v){const n=Number(v);return Number.isFinite(n)?n:0;}
 function avEsc(v){return typeof escaparHtml==='function'?escaparHtml(v??''):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function avFmt(v){return Math.round(avNum(v)).toLocaleString('es-PE');}
 function avFechaHoy(){return GlacialIndicadores.diaOperativo((typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()));}   // día operativo (07:00), hora del servidor
-function avHoraActual(){const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
+function avHoraActual(){
+  // FECHA-OPERATIVA: hora de Lima con el reloj del servidor (antes la del equipo)
+  if(window.GlacialFecha){const l=window.GlacialFecha.ahoraLima(avAhoraMs());return `${String(l.hora).padStart(2,'0')}:${String(l.minuto).padStart(2,'0')}`;}
+  const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 function avNombreUsuario(){return state.user?.nombre||state.user?.username||'';}
 function avTurnoCanon(v){
   v=String(v||'').toUpperCase();
@@ -49,6 +52,14 @@ function avCtx(){
     inicio:state.user?.horarioOperativoInicio||c?.horarioInicio||bl.inicio,
     fin:state.user?.horarioOperativoFin||c?.horarioFin||bl.fin
   };
+  // FECHA-OPERATIVA: una NOCHE nunca puede tener fecha posterior a la del turno que está en curso (de 00:00 a 07:00 es el día en que EMPEZÓ).
+  // Antes, un contexto de rotación calculado con la fecha de calendario hacía buscar «16/10 NOCHE» cuando los datos estaban en 15/10.
+  try{
+    if(r.turno==='NOCHE'&&window.GlacialFecha){
+      const op=window.GlacialFecha.fechaOperativa(avAhoraMs(),'NOCHE');
+      if(r.fecha>op)r.fecha=op;
+    }
+  }catch(_){/* sin fuente única */}
   // Tolerancia de Noche (51b): hasta 30 min después de su fin (07:00 → 07:30) todavía se completa el registro y el cierre de ESA Noche.
   // No adelanta aperturas, no cambia la duración productiva y no se aplica si el usuario tiene un turno asignado por rotación.
   try{
@@ -1185,11 +1196,17 @@ function avTituloPresentacion(linea,b){
   return `${AVANCE_NOMBRES[linea]||linea} – ${pres}`;
 }
 
+/* FECHA-OPERATIVA: «Fecha» es la fecha operativa del turno (una NOCHE de madrugada conserva el día en que empezó); este texto añade cuándo se generó realmente (hora de Lima). */
+function avTextoGenerado(s){
+  const ms=avNum(s&&s.generadoEn);
+  if(!ms||!window.GlacialFecha)return '';
+  return ' · Generado: '+window.GlacialFecha.ahoraLima(ms).texto;
+}
 function avTextoWhatsApp(s){
   const fecha=s.fecha.split('-').reverse().join('/');
   const out=[
     `*${avTituloSnapshot(s)} – TURNO ${s.turno}*`,
-    '',`*Fecha: ${fecha}*`,`*Hora: ${s.horaCorte}*`];
+    '',`*Fecha: ${fecha}*`,`*Hora: ${s.horaCorte}*`+(avTextoGenerado(s)?`\n_${avTextoGenerado(s).replace(' · ','')}_`:'')];
   if(!(s.lineas||[]).length)out.push('',AV_SIN_LINEAS);
 
   s.lineas.forEach((l,idxLinea)=>{
@@ -1323,8 +1340,10 @@ async function avGenerar(hora,tipo='AVANCE'){
   try{
     if(!avPuedeGenerar())throw Error('Tu usuario tiene acceso de consulta y no puede generar avances o cierres.');
     const ctx=avCtx();
-    avanceEstado.fecha=ctx.fecha;
-    avanceEstado.turno=ctx.turno;
+    // FECHA-OPERATIVA: si el usuario eligió fecha/turno en la pantalla se respeta; solo sin selección se usa el turno en curso.
+    if(!avanceEstado.manual||!avanceEstado.fecha||!avanceEstado.turno){avanceEstado.fecha=ctx.fecha;avanceEstado.turno=ctx.turno;}
+    else if((avanceEstado.fecha!==ctx.fecha||avanceEstado.turno!==ctx.turno)&&typeof confirm==='function'
+      &&!confirm('Vas a generar el avance de '+avFechaBonita(avanceEstado.fecha)+' · '+avanceEstado.turno+', que no es el turno en curso ('+avFechaBonita(ctx.fecha)+' · '+ctx.turno+'). ¿Continuar?'))return;
     const referencia=tipo==='CIERRE'?'CIERRE':avHoraActual();
     // Solo el CIERRE es único por turno. Los AVANCES son libres e ilimitados.
     if(tipo==='CIERRE' && avUltimoSnapshot('CIERRE')){
@@ -1448,8 +1467,7 @@ function avProximoAvance(){ return 'Cuando lo necesites'; }
 function avAbrirFlotante(){
   avInstalarEstilos();
   const ctx=avCtx();
-  avanceEstado.fecha=ctx.fecha;
-  avanceEstado.turno=ctx.turno;
+  if(!avanceEstado.manual||!avanceEstado.fecha||!avanceEstado.turno){avanceEstado.fecha=ctx.fecha;avanceEstado.turno=ctx.turno;}   // FECHA-OPERATIVA: respeta lo elegido
   if(!avanceEstado.mesCalendario)avanceEstado.mesCalendario=ctx.fecha.slice(0,7);
   if(!avanceEstado.unsubscribe)avEscuchar(); else avAplicarSeleccion();
   let modal=document.getElementById('av-float-modal');
@@ -1710,7 +1728,7 @@ function avCanvasSnapshot(s){
   x.font=`700 ${Math.round(40*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(avTituloSnapshot(s),275,62);
   x.font=`700 ${Math.round(26*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`TURNO ${s.turno}`,275,101);
   x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);
-  x.font=`${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}`,55,184);
+  x.font=`${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}${avTextoGenerado(s)}`,55,184);
 
   let y=228;
   x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font=`700 ${Math.round(22*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('DETALLE DE PRODUCCIÓN POR FORMATO',48,y+31);y+=64;
@@ -1945,8 +1963,8 @@ function avMoverMes(delta){
   const d=avMesBase();d.setMonth(d.getMonth()+delta);
   avanceEstado.mesCalendario=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;avDibujar();
 }
-function avSeleccionarFecha(fecha){avanceEstado.fecha=fecha;avanceEstado.pagina=1;avAplicarSeleccion();avDibujar();}
-function avSeleccionarTurno(turno){avanceEstado.turno=avTurnoCanon(turno);avanceEstado.pagina=1;avAplicarSeleccion();avDibujar();}
+function avSeleccionarFecha(fecha){avanceEstado.manual=true;avanceEstado.fecha=fecha;avanceEstado.pagina=1;avAplicarSeleccion();avDibujar();}
+function avSeleccionarTurno(turno){avanceEstado.manual=true;avanceEstado.turno=avTurnoCanon(turno);avanceEstado.pagina=1;avAplicarSeleccion();avDibujar();}
 function avCalendarioHtml(){
   const d=avMesBase(),y=d.getFullYear(),m=d.getMonth(),first=(new Date(y,m,1,12).getDay()+6)%7,days=new Date(y,m+1,0).getDate();
   const titulo=d.toLocaleDateString('es-PE',{month:'long',year:'numeric'}).toUpperCase();

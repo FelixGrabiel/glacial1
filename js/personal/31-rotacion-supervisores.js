@@ -167,26 +167,30 @@ function rotSupAsignacionFecha(rotacion,username,fecha){
   return rotSupDetalleUsuario(rotacion,username)?.dias?.[fecha] || null;
 }
 
-function resolverContextoRotacionSupervisor(usuario=state.user,ahora=new Date()){
+function resolverContextoRotacionSupervisor(usuario=state.user,ahora=null){
   if(!usuario || String(usuario.rol||'')!=='Supervisor')return null;
   if(typeof _rotacionesReady!=='undefined' && !_rotacionesReady)return null;
 
-  let fecha=rotSupFechaISO(ahora);
+  // FECHA-OPERATIVA: hora de Lima (reloj del servidor) y NOCHE de madrugada = día en que EMPEZÓ el turno.
+  const GF=window.GlacialFecha;
+  const ms=ahora instanceof Date ? ahora.getTime() : (GF ? GF.ahoraMs() : Date.now());
+  const minutosAhora=GF ? GF.ahoraLima(ms).minutos : (new Date(ms).getHours()*60+new Date(ms).getMinutes());
+  const fechaHoy=GF ? GF.fechaISOLocal(ms) : rotSupFechaISO(new Date(ms));
+  const fechaAyer=GF ? GF.sumarDias(fechaHoy,-1) : rotSupFechaISO(new Date(ms-86400000));
+
+  let fecha=fechaHoy;
   let rot=rotSupBuscarSemanaPorFecha(fecha,true);
   let asig=rot ? rotSupAsignacionFecha(rot,usuario.username,fecha) : null;
 
-  // Para turno nocturno después de medianoche, revisar la fecha operativa anterior.
-  if(!asig || !['DÍA','INTERMEDIO','NOCHE'].includes(asig.turno)){
-    const ant=new Date(ahora); ant.setDate(ant.getDate()-1);
-    const fAnt=rotSupFechaISO(ant);
-    const rAnt=rotSupBuscarSemanaPorFecha(fAnt,true);
-    const aAnt=rAnt ? rotSupAsignacionFecha(rAnt,usuario.username,fAnt) : null;
-    if(aAnt?.turno==='NOCHE'){
-      const fin=minutosHoraTurno(aAnt.fin);
-      const actual=ahora.getHours()*60+ahora.getMinutes();
-      if(fin!==null && actual<fin){
-        fecha=fAnt; rot=rAnt; asig=aAnt;
-      }
+  // Madrugada: si ayer tenía NOCHE y aún no termina (fin, 07:00 por defecto), el contexto es el de ayer,
+  // aunque hoy también tenga asignación (noches consecutivas). Antes solo se revisaba si hoy no tenía turno.
+  const rAnt=rotSupBuscarSemanaPorFecha(fechaAyer,true);
+  const aAnt=rAnt ? rotSupAsignacionFecha(rAnt,usuario.username,fechaAyer) : null;
+  if(aAnt?.turno==='NOCHE'){
+    const fin=minutosHoraTurno(aAnt.fin);
+    const limite=(fin!==null && fin<720) ? fin : 420;
+    if(minutosAhora<limite){
+      fecha=fechaAyer; rot=rAnt; asig=aAnt;
     }
   }
 
@@ -206,7 +210,7 @@ function resolverContextoRotacionSupervisor(usuario=state.user,ahora=new Date())
 
   const ini=minutosHoraTurno(asig.inicio);
   const fin=minutosHoraTurno(asig.fin);
-  const actual=ahora.getHours()*60+ahora.getMinutes();
+  const actual=minutosAhora;
   const activo=ini===null||fin===null ? true : (fin>ini ? actual>=ini&&actual<fin : actual>=ini||actual<fin);
 
   return {
@@ -223,7 +227,7 @@ function resolverContextoRotacionSupervisor(usuario=state.user,ahora=new Date())
 
 function aplicarContextoRotacionSupervisor(mostrarAviso=true){
   if(!state.user || state.user.rol!=='Supervisor')return;
-  const ctx=resolverContextoRotacionSupervisor(state.user,new Date());
+  const ctx=resolverContextoRotacionSupervisor(state.user);
   if(ctx){
     state.user={...state.user,contextoRotacion:ctx,turnoOperativo:ctx.turno,
       horarioOperativoInicio:ctx.horarioInicio,horarioOperativoFin:ctx.horarioFin,
@@ -577,3 +581,15 @@ function renderRotacionSupervisores(){
   </section>`;
   if(window.glacialRotGrid)window.glacialRotGrid.activar('rot-sup');
 }
+
+/* FECHA-OPERATIVA: el contexto se calculaba solo al iniciar sesión y quedaba congelado (un supervisor que dejaba la pantalla abierta
+   pasadas las 00:00 o las 07:00 seguía con la fecha/turno anterior). Se recalcula cada minuto y solo se reemplaza si cambió la fecha o el turno. */
+setInterval(function(){
+  try{
+    if(typeof state==='undefined' || !state.user || state.user.rol!=='Supervisor')return;
+    const c=resolverContextoRotacionSupervisor(state.user);
+    const a=state.user.contextoRotacion||null;
+    if(c && (!a || a.fechaOperativa!==c.fechaOperativa || a.turno!==c.turno || a.estado!==c.estado))aplicarContextoRotacionSupervisor(false);
+    else if(!c && a)aplicarContextoRotacionSupervisor(false);
+  }catch(_){}
+},60000);

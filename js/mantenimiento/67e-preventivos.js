@@ -219,7 +219,7 @@
         if(ps.exists){
           const plan=docPlan(act.planId,ps.data());
           if(plan.proximaFecha===act.planFecha){                     // solo si sigue siendo el ciclo vigente
-            const fecEj=iso(new Date(nuevo.finRealMs||ahora()));
+            const fecEj=window.GlacialFecha?window.GlacialFecha.fechaOperativa(nuevo.finRealMs||ahora()):iso(new Date(nuevo.finRealMs||ahora()));   // FECHA-OPERATIVA: un cierre a las 03:00 es del día operativo anterior
             const r=proximaFechaTras(plan,act.planFecha,fecEj);
             const ult={fecha:fecEj,planFecha:act.planFecha,intervencionId:intId,por:{nombre:q.nombre,tecnicoId:q.tecnicoId,uid:q.uid},en:ahora(),resultado:nuevo.resultado,ciclosOmitidos:r.ciclosOmitidos,
               tareasHechas:(nuevo.tareas||[]).filter(t=>t.estado==='HECHA').length,tareasNoHechas:(nuevo.tareas||[]).filter(t=>t.estado==='NO_HECHA').length};
