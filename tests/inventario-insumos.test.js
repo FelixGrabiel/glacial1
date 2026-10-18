@@ -261,7 +261,7 @@ function entorno(rol,permisos){
   await D.reabrirConteo(cnt.id,'Falta contar el Patio');
   const mr=D.cache.conteos[0];ok(mr.estado==='EN_PROCESO'&&mr.reaperturas.length===1&&mr.reaperturas[0].por==='Ana'&&mr.reaperturas[0].motivo==='Falta contar el Patio'&&mr.reaperturas[0].en>0,'el Administrador reabre y queda quién, cuándo y por qué');
   sb.state.user.rol='Asistente de Producción';
-  let vacio=null;const c2=await D.crearConteo({fecha:'2026-10-19',almacen:'TODOS'});try{await D.cerrarConteo(c2.id);}catch(e){vacio=e;}ok(vacio&&vacio.codigo==='VALIDACION','no se cierra un conteo sin líneas');
+  const c2=await D.crearConteo({fecha:'2026-10-19',almacen:'TODOS'});const rv=await D.cerrarConteo(c2.id);ok(rv.lineas===0&&rv.articulos===0&&D.cache.conteos.find(c=>c.id===c2.id).estado==='CERRADO','un conteo sin líneas también se puede cerrar (queda con 0 artículos y 0 líneas)');
   const tipos=[...sb.docs.entries()].filter(([k])=>k.startsWith('insumosAuditoria/')).map(([,v])=>v).filter(a=>a.conteoId===cnt.id).map(a=>a.tipo);
   ok(['CREAR_LINEA','EDITAR_LINEA','BORRAR_LINEA','CERRAR_CONTEO','REABRIR_CONTEO','EDITAR_CONTEO'].every(t=>tipos.includes(t))&&tipos.filter(t=>t==='CREAR_LINEA').length===4,'auditoría de líneas, edición, cierre y reapertura');
   const aE=[...sb.docs.values()].find(a=>a.tipo==='EDITAR_LINEA');ok(aE&&aE.antes.cantidad===1000&&aE.despues.cantidad===1500&&aE.usuario==='Ana','auditoría: valor anterior → nuevo');

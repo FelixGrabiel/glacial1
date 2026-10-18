@@ -277,7 +277,6 @@
       const sI=await tx.get(r.idx);if(!sI.exists)throw falla('VALIDACION','El conteo ya no existe.');
       const meta=sI.data();if(meta.estado==='CERRADO')throw falla('CERRADO','El conteo ya estaba cerrado.');
       const sD=await tx.get(r.det);const items=(sD.exists&&Array.isArray(sD.data().items))?sD.data().items:[];
-      if(!items.length)throw falla('VALIDACION','No se puede cerrar un conteo sin líneas registradas.');
       res=resumenDe(items);
       tx.set(r.idx,{...meta,...res,estado:'CERRADO',cerradoPor:u.nombre,cerradoUid:u.uid,cerradoEn:t});
       auditar(tx,'CERRAR_CONTEO',conteoId,meta.fecha+' · '+meta.almacen,{estado:'EN_PROCESO'},{estado:'CERRADO',...res},{conteoId});

@@ -60,7 +60,7 @@ nunca lo ve. El botón del menú se muestra u oculta en `76` (igual que el Asist
 - **Conteo físico** (Fase 2): lista de conteos (fecha, almacén, estado, líneas) y «+ Nuevo conteo» (fecha, almacén —por defecto AP - INSUMOS Y SUMINISTROS—, observación).
   Dentro del conteo: buscador grande, categoría, «solo prioritarios» y «solo pendientes», avance (X de N artículos) y, por artículo, **varias líneas «ubicación: cantidad»**
   que el sistema suma (reemplaza `=1000+9000`). Cada línea guarda quién y cuándo; se edita o borra mientras el conteo está EN PROCESO. «Cerrar conteo» lo deja de solo lectura
-  (avisa cuántos prioritarios faltan; no cierra uno sin líneas). Solo un **Administrador** lo reabre, con motivo (queda en `reaperturas`). Cada operación es una transacción que
+  (avisa cuántos prioritarios faltan; se puede cerrar aunque no tenga líneas). Solo un **Administrador** lo reabre, con motivo (queda en `reaperturas`). Cada operación es una transacción que
   vuelve a leer el estado: si alguien cerró el conteo mientras otra persona escribía, el guardado se rechaza con un aviso. Las líneas de otras personas aparecen solas (onSnapshot)
   sin quitarle el cursor a quien está escribiendo. Pensado para celular (360 px, campos grandes).
 - **Conciliación** (Fase 3): se elige el conteo y el corte SAP (por defecto el más reciente; avisa si las fechas no coinciden o el conteo sigue EN PROCESO). Se compara **solo con el
