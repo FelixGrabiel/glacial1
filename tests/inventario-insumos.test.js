@@ -163,7 +163,11 @@ function entorno(rol,permisos){
   const ref=(c,id)=>({c,id,k:c+'/'+id,get:async()=>snapDoc(c+'/'+id),set:async d=>{docs.set(c+'/'+id,JSON.parse(JSON.stringify(d)));avisar();},
     onSnapshot(cb){const f=()=>cb(snapDoc(c+'/'+id));oyentes.push(f);f();return()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}});
   sb.docs=docs;
-  sb.db={collection:c=>({doc:id=>ref(c,id||('auto'+(++auto))),onSnapshot(cb){const f=()=>cb({docs:[...docs.entries()].filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({data:()=>JSON.parse(JSON.stringify(v))}))});oyentes.push(f);f();return()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}}),
+  const consulta=(c,fl,od,lm)=>({where:(k,op,v)=>consulta(c,fl.concat([[k,op,v]]),od,lm),orderBy:(k,d)=>consulta(c,fl,[k,d],lm),limit:n=>consulta(c,fl,od,n),
+    get:async()=>{let l=[...docs.entries()].filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({id:k.slice(c.length+1),data:()=>JSON.parse(JSON.stringify(v))}));
+      fl.forEach(([k,op,v])=>{l=l.filter(x=>{const a=x.data()[k];return op==='>='?a>=v:op==='<='?a<=v:op==='>'?a>v:op==='<'?a<v:a===v;});});
+      if(od)l.sort((a,b)=>(a.data()[od[0]]>b.data()[od[0]]?1:-1)*(od[1]==='desc'?-1:1));if(lm)l=l.slice(0,lm);return {docs:l};}});
+  sb.db={collection:c=>({...consulta(c,[],null,null),doc:id=>ref(c,id||('auto'+(++auto))),onSnapshot(cb){const f=()=>cb({docs:[...docs.entries()].filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({data:()=>JSON.parse(JSON.stringify(v))}))});oyentes.push(f);f();return()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}}),
     runTransaction:async fn=>{tx++;const w=[];const t={get:async r=>snapDoc(r.k),set:(r,d)=>w.push([r,d])};await fn(t);w.forEach(([r,d])=>docs.set(r.k,JSON.parse(JSON.stringify(d))));avisar();}};
   sb.firebase={firestore:{FieldValue:{serverTimestamp:()=>'__TS__'}},auth:()=>({currentUser:{uid:'u1'}})};
   sb.state={user:{rol,permisos:permisos||[],nombre:'Ana',username:'ana'}};
@@ -274,6 +278,24 @@ function entorno(rol,permisos){
   let pcm=null;try{await sc2.glacialInventarioDatos.guardarComentario(cnt.id,art.id,'x');}catch(e){pcm=e;}ok(pcm&&pcm.codigo==='PERMISO','solo consulta no comenta');
   D.escucharConteo('');
 
+  /* ================= auditoría (Fase 4) ================= */
+  const rA=await D.consultarAuditoria({});
+  const tiposVistos=new Set(rA.eventos.map(e=>e.tipo));
+  ok(rA.eventos.length>=20&&rA.truncado===false&&rA.eventos.every((e,i,l)=>i===0||l[i-1].enMs>=e.enMs),'consulta de auditoría: más recientes primero');
+  ok([...tiposVistos].every(t=>Nn.TIPOS_AUDITORIA[t]),'todo tipo de evento escrito tiene su etiqueta');
+  ok(['IMPORTAR_STOCK','EDITAR_ARTICULO','CREAR_CONTEO','EDITAR_CONTEO','CERRAR_CONTEO','REABRIR_CONTEO','CREAR_LINEA','EDITAR_LINEA','BORRAR_LINEA','COMENTARIO_CONCILIACION'].every(t=>tiposVistos.has(t)),'la auditoría cubre importaciones, mínimos, conteos, líneas y comentarios');
+  ok(rA.eventos.every(e=>e.usuario==='Ana'&&e.uid==='u1'&&e.enMs>0&&e.en==='__TS__'),'cada evento: quién, cuándo (servidor) y uid');
+  const futuro=await D.consultarAuditoria({desdeMs:Date.now()+86400000});ok(futuro.eventos.length===0,'el rango de fechas filtra');
+  const pocas=await D.consultarAuditoria({limite:3});ok(pocas.eventos.length===3&&pocas.truncado===true,'el límite avisa que hay más');
+  const evL=rA.eventos.find(e=>e.tipo==='EDITAR_LINEA');
+  ok(Nn.cambiosAuditoria(evL).some(c=>c.campo==='Cantidad'&&c.antes==='1,000'&&c.despues==='1,500')&&/Cantidad: 1,000 → 1,500/.test(Nn.resumenAuditoria(evL)),'cambio legible: Cantidad 1,000 → 1,500');
+  const evM=rA.eventos.find(e=>e.tipo==='EDITAR_ARTICULO');ok(/Stock mínimo: 0 → 50,000/.test(Nn.resumenAuditoria(evM)),'mínimos: valor anterior → nuevo');
+  const evR=rA.eventos.find(e=>e.tipo==='REABRIR_CONTEO');ok(/Motivo: Falta contar el Patio/.test(Nn.resumenAuditoria(evR))&&evR.conteoId===cnt.id,'reapertura: con motivo y conteo');
+  ok(Nn.filtrarAuditoria(rA.eventos,{grupo:'LINEA'}).every(e=>Nn.grupoAuditoria(e.tipo)==='LINEA')&&Nn.filtrarAuditoria(rA.eventos,{grupo:'LINEA'}).length===Nn.filtrarAuditoria(rA.eventos,{tipo:'CREAR_LINEA'}).length+Nn.filtrarAuditoria(rA.eventos,{tipo:'EDITAR_LINEA'}).length+Nn.filtrarAuditoria(rA.eventos,{tipo:'BORRAR_LINEA'}).length,'filtros por grupo y por acción');
+  ok(Nn.filtrarAuditoria(rA.eventos,{texto:'patio'}).length>0&&Nn.filtrarAuditoria(rA.eventos,{usuario:'Nadie'}).length===0&&Nn.filtrarAuditoria(rA.eventos,{conteoId:cnt.id}).length>0,'filtros por texto, usuario y conteo');
+  const sc3=entorno('Supervisor');let pa=null;try{await sc3.glacialInventarioDatos.consultarAuditoria({});}catch(e){pa=e;}ok(pa&&pa.codigo==='PERMISO','quien no ve el inventario no consulta la auditoría');
+  const jo=entorno('Jefe de Operaciones');jo.glacialInventarioDatos.escuchar();ok(await jo.glacialInventarioDatos.consultarAuditoria({}).then(()=>true,()=>false),'el Jefe de Operaciones (solo consulta) sí puede consultarla');
+
   /* sin permiso de escritura */
   const sc=entorno('Jefe de Operaciones');let pe=null;try{await sc.glacialInventarioDatos.importarCorte(lect1,{fechaCorte:'2026-10-15',archivo:'x'});}catch(e){pe=e;}
   ok(pe&&pe.codigo==='PERMISO','el Jefe de Operaciones no puede importar');
@@ -283,12 +305,13 @@ function entorno(rol,permisos){
 
   /* ================= integración ================= */
   const html=leer('index.html'),pos=n=>html.indexOf('js/asistente/'+n);
-  ok(pos('74-inventario-insumos-nucleo.js')>pos('73-reporte-general.js')&&pos('75-inventario-insumos-datos.js')>pos('74-inventario-insumos-nucleo.js')&&pos('76-inventario-insumos-pantalla.js')>pos('75-inventario-insumos-datos.js')&&pos('77-inventario-insumos-conteo.js')>pos('76-inventario-insumos-pantalla.js')&&pos('78-inventario-insumos-conciliacion.js')>pos('77-inventario-insumos-conteo.js')&&pos('78-inventario-insumos-conciliacion.js')<html.indexOf('js/nucleo/12-init.js'),'index.html carga 74, 75 y 76 en orden, después del Asistente y antes de 12-init');
+  ok(pos('74-inventario-insumos-nucleo.js')>pos('73-reporte-general.js')&&pos('75-inventario-insumos-datos.js')>pos('74-inventario-insumos-nucleo.js')&&pos('76-inventario-insumos-pantalla.js')>pos('75-inventario-insumos-datos.js')&&pos('77-inventario-insumos-conteo.js')>pos('76-inventario-insumos-pantalla.js')&&pos('78-inventario-insumos-conciliacion.js')>pos('77-inventario-insumos-conteo.js')&&pos('79-inventario-insumos-auditoria.js')>pos('78-inventario-insumos-conciliacion.js')&&pos('79-inventario-insumos-auditoria.js')<html.indexOf('js/nucleo/12-init.js'),'index.html carga 74, 75 y 76 en orden, después del Asistente y antes de 12-init');
   ok(/id="btn-inventario-insumos"[^>]*onclick="goInventarioInsumos\(\)"/.test(html),'botón del menú lateral');
   const pant=leer('js/asistente/76-inventario-insumos-pantalla.js'),dat=leer('js/asistente/75-inventario-insumos-datos.js');
   ok(/state\.currentTab===TAB/.test(pant)&&/window\.goInventarioInsumos/.test(pant)&&/renderSidebar=function/.test(pant)&&/ajustarVistaSegunPermisos=function/.test(pant),'pantalla: pestaña, goInventarioInsumos y envoltorios de renderMain/renderSidebar/permisos');
   ok(!/supabase\.from|\.from\('/.test(pant+dat)&&!/arrayUnion|increment\(|array-contains|where\([^)]*'in'/.test(pant+dat),'solo la capa documento (nada de supabase.from ni consultas no admitidas por el puente)');
   ok(/new Worker/.test(pant)&&/Procesando… /.test(pant)&&/leerEnPagina/.test(pant),'importación en Web Worker con avance «Procesando… X%» y respaldo sin Worker');
+  ok(!/insumosAuditoria'\)\.doc\([^)]*\)\.(update|delete)|collection\('insumosAuditoria'\)[^;]*\.(update|delete)\(/.test(dat),'el libro de auditoría solo se escribe con set (crear)');
   ok(/GLACIAL/.test(leer('docs/INVENTARIO-INSUMOS.md'))&&/glacial_24_inventario_insumos/.test(leer('INDICE.md')),'documentación e INDICE');
   console.log(fallas?fallas+' fallas':'todo correcto');
 })();

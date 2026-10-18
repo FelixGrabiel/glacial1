@@ -48,13 +48,17 @@ function closeModal(){document.getElementById('modal-root').innerHTML='';}
   const avisar=()=>oy.slice().forEach(f=>f());
   const ref=(c,id)=>({k:c+'/'+id,get:async()=>snap(c+'/'+id),set:async d=>{docs.set(c+'/'+id,JSON.parse(JSON.stringify(d)));avisar();},
     onSnapshot(cb){const f=()=>cb(snap(c+'/'+id));oy.push(f);f();return()=>{const i=oy.indexOf(f);if(i>=0)oy.splice(i,1);};}});
-  window.db={collection:c=>({doc:id=>ref(c,id||('a'+(++auto))),onSnapshot(cb){const f=()=>cb({docs:[...docs.entries()].filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({data:()=>JSON.parse(JSON.stringify(v))}))});oy.push(f);f();return()=>{const i=oy.indexOf(f);if(i>=0)oy.splice(i,1);};}}),
+  const consulta=(c,fl,od,lm)=>({where:(k,op,v)=>consulta(c,fl.concat([[k,op,v]]),od,lm),orderBy:(k,d)=>consulta(c,fl,[k,d],lm),limit:n=>consulta(c,fl,od,n),
+    get:async()=>{let l=[...docs.entries()].filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({id:k.slice(c.length+1),data:()=>JSON.parse(JSON.stringify(v))}));
+      fl.forEach(([k,op,v])=>{l=l.filter(x=>{const a=x.data()[k];return op==='>='?a>=v:op==='<='?a<=v:op==='>'?a>v:op==='<'?a<v:a===v;});});
+      if(od)l.sort((a,b)=>(a.data()[od[0]]>b.data()[od[0]]?1:-1)*(od[1]==='desc'?-1:1));if(lm)l=l.slice(0,lm);return {docs:l};}});
+  window.db={collection:c=>({...consulta(c,[],null,null),doc:id=>ref(c,id||('a'+(++auto))),onSnapshot(cb){const f=()=>cb({docs:[...docs.entries()].filter(([k])=>k.startsWith(c+'/')).map(([k,v])=>({data:()=>JSON.parse(JSON.stringify(v))}))});oy.push(f);f();return()=>{const i=oy.indexOf(f);if(i>=0)oy.splice(i,1);};}}),
     runTransaction:async fn=>{const w=[];await fn({get:async r=>snap(r.k),set:(r,d)=>w.push([r,d])});w.forEach(([r,d])=>docs.set(r.k,JSON.parse(JSON.stringify(d))));avisar();}};
   window.__docs=docs;window.__avisar=avisar;
   window.firebase={firestore:{FieldValue:{serverTimestamp:()=>'__TS__'}},auth:()=>({currentUser:{uid:'u1'}})};
 })();
 </script>
-<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script><script src="/js/asistente/78-inventario-insumos-conciliacion.js"></script></body>`;
+<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script><script src="/js/asistente/78-inventario-insumos-conciliacion.js"></script><script src="/js/asistente/79-inventario-insumos-auditoria.js"></script></body>`;
 const servidor=http.createServer((q,r)=>{
   if(q.url==='/'){r.setHeader('content-type','text/html; charset=utf-8');r.end(PAGINA);return;}
   const f=q.url.startsWith('/xlsx/')?path.join(dist,q.url.slice(6)):path.join(R,q.url.split('?')[0]);
@@ -199,6 +203,23 @@ const servidor=http.createServer((q,r)=>{
   ok(true,'el comentario se guarda al salir del campo');
   ok(await page.evaluate(()=>document.documentElement.scrollWidth<=362),'conciliación en 360 px sin desborde de página');
   await page.screenshot({path:path.join(tmp,'conciliacion-360.png')});
+  await page.setViewportSize({width:1280,height:900});
+
+  /* 6d) auditoría */
+  await page.setViewportSize({width:360,height:740});
+  await page.click('.ii-tab >> text=Auditoría');
+  await page.waitForSelector('#ii-a-tabla tbody tr');
+  const nEv=await page.locator('#ii-a-tabla tbody tr').count();
+  ok(nEv>5,'auditoría: lista de eventos ('+nEv+')');
+  const txtA=await page.locator('#ii-a-tabla').innerText();
+  ok(/Importación de stock SAP/.test(txtA)&&/Línea agregada/.test(txtA)&&/Conteo cerrado/.test(txtA)&&/Comentario de conciliación/.test(txtA)&&/Stock mínimo/.test(txtA),'incluye importaciones, líneas, cierre, comentarios y mínimos');
+  ok(/\d\d\/\d\d\/\d{4} \d\d:\d\d:\d\d/.test(txtA)&&/Ana|Asistente|—/.test(txtA)&&/→/.test(txtA),'cada evento: fecha y hora, usuario y antes → después');
+  await page.selectOption('.ii-filtros select >> nth=0','LINEA');
+  await page.waitForTimeout(100);
+  const soloLinea=await page.locator('#ii-a-tabla tbody .ii-pill').allInnerTexts();
+  ok(soloLinea.length>0&&soloLinea.every(t=>/Línea/.test(t)),'filtro por tipo de movimiento');
+  ok(await page.evaluate(()=>document.documentElement.scrollWidth<=362),'auditoría en 360 px sin desborde de página');
+  await page.screenshot({path:path.join(tmp,'auditoria-360.png')});
   await page.setViewportSize({width:1280,height:900});
 
   /* 7) vista de solo consulta */

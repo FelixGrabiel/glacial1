@@ -444,6 +444,39 @@
       .sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es')||String(a.ubicacion).localeCompare(String(b.ubicacion),'es'));
   }
 
+  /* ---------- auditoría (Fase 4) ---------- */
+  const GRUPOS_AUDITORIA={IMPORTACION:'Importaciones',CATALOGO:'Mínimos y catálogo',CONTEO:'Conteos',LINEA:'Líneas de conteo',COMENTARIO:'Comentarios'};
+  const TIPOS_AUDITORIA={
+    IMPORTAR_STOCK:{txt:'Importación de stock SAP',grupo:'IMPORTACION'},
+    EDITAR_ARTICULO:{txt:'Edición de artículo (mínimos, reorden, unidad…)',grupo:'CATALOGO'},
+    CREAR_CONTEO:{txt:'Conteo creado',grupo:'CONTEO'},EDITAR_CONTEO:{txt:'Observación del conteo',grupo:'CONTEO'},
+    CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
+    CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},
+    COMENTARIO_CONCILIACION:{txt:'Comentario de conciliación',grupo:'COMENTARIO'}};
+  const CAMPOS_AUDITORIA={stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',
+    texto:'Comentario',estado:'Estado',motivo:'Motivo',observacion:'Observación',fecha:'Fecha',almacen:'Almacén',fechaCorte:'Fecha del corte',formato:'Formato',articulos:'Artículos',
+    nuevos:'Nuevos',actualizados:'Actualizados',adoptados:'Adoptados',excluidos:'Excluidos',almacenes:'Almacenes',lineas:'Líneas',por:'Registró',conteo:'Conteo'};
+  const grupoAuditoria=t=>(TIPOS_AUDITORIA[t]||{}).grupo||'';
+  function valorAuditoria(v){
+    if(v===null||v===undefined||v==='')return '—';
+    if(typeof v==='boolean')return v?'Sí':'No';
+    if(typeof v==='number')return fmt(v);
+    return String(v);
+  }
+  /* Cambios de un evento como filas {campo, antes, despues} legibles. */
+  function cambiosAuditoria(ev){
+    const a=ev&&ev.antes&&typeof ev.antes==='object'?ev.antes:{},d=ev&&ev.despues&&typeof ev.despues==='object'?ev.despues:{};
+    return [...new Set([...Object.keys(a),...Object.keys(d)])].map(k=>({campo:CAMPOS_AUDITORIA[k]||k,antes:valorAuditoria(a[k]),despues:valorAuditoria(d[k])}));
+  }
+  const resumenAuditoria=ev=>cambiosAuditoria(ev).map(c=>c.antes==='—'&&c.despues!=='—'?`${c.campo}: ${c.despues}`:`${c.campo}: ${c.antes} → ${c.despues}`).join(' · ');
+  /* f: {grupo, tipo, usuario, texto (artículo/código/conteo), conteoId}; eventos más recientes primero. */
+  function filtrarAuditoria(eventos,f){
+    f=f||{};const t=norm(f.texto||'');
+    return (eventos||[]).filter(e=>(!f.grupo||grupoAuditoria(e.tipo)===f.grupo)&&(!f.tipo||e.tipo===f.tipo)&&(!f.usuario||e.usuario===f.usuario)&&(!f.conteoId||e.conteoId===f.conteoId)
+      &&(!t||norm(e.articulo).includes(t)||norm(e.itemId).includes(t)||norm(resumenAuditoria(e)).includes(t)));
+  }
+  const ordenAuditoria=l=>(l||[]).slice().sort((a,b)=>num(b.enMs)-num(a.enMs));
+
   /* ---------- permisos (reglas puras; el módulo de datos las aplica al usuario) ---------- */
   const ROLES_SOLO_CONSULTA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];
   const ROLES_VER_DEFECTO=['Asistente de Producción','Jefe de Operaciones'];
@@ -453,7 +486,8 @@
     num,norm,red,fmt,esExcluido,categoriaDe,marcaDe,presentacionDe,esPrioritaria,almacenDe,almacenInfo,idPorNombre,esIdNombre,prefiltrarFilas,leerLibro,
     registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock,
     ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
-    UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones};
+    UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones,
+    GRUPOS_AUDITORIA,TIPOS_AUDITORIA,CAMPOS_AUDITORIA,grupoAuditoria,cambiosAuditoria,resumenAuditoria,filtrarAuditoria,ordenAuditoria};
   global.glacialInventarioNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);

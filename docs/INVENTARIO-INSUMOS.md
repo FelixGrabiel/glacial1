@@ -10,6 +10,7 @@ Excel de SAP como «corte de stock» y la tabla de stock actual con semáforo. F
 | `js/asistente/74-inventario-insumos-nucleo.js` | Núcleo puro (se prueba con node): lee el Excel (plano o tabla dinámica), categoría/marca/presentación por nombre, catálogo, cortes, stock, semáforo y filtros. |
 | `js/asistente/75-inventario-insumos-datos.js` | Capa de datos (`db.collection`, `onSnapshot`, `runTransaction`: el mismo mecanismo de Paletas y del Asistente), permisos y auditoría. |
 | `js/asistente/76-inventario-insumos-pantalla.js` | Pestaña `inventario-insumos`: Stock actual, Catálogo e «Importar stock SAP» (Web Worker). |
+| `js/asistente/79-inventario-insumos-auditoria.js` | Fase 4: pestaña «Auditoría» (consulta por fechas, filtros, antes → después). |
 | `js/asistente/78-inventario-insumos-conciliacion.js` | Fase 3: pestaña «Conciliación» y Excel (ExcelJS). El cálculo puro es `conciliar()` en 74. |
 | `js/asistente/77-inventario-insumos-conteo.js` | Fase 2: pestaña «Conteo físico» (lista de conteos, líneas por ubicación, cerrar/reabrir). |
 | `index.html` | Botón `#btn-inventario-insumos` (`goInventarioInsumos`) y los 3 scripts, después del Asistente y antes de `12-init`. |
@@ -69,6 +70,11 @@ nunca lo ve. El botón del menú se muestra u oculta en `76` (igual que el Asist
   (`Artículo | AP - CUARENTENA | AP - DEVOLUCIONES | AP - INSUMOS Y SUMINISTROS | AP - PRODUCCIÓN | AP - PRODUCTO TERMINADO | AP - INMOVILIZADOS | TOTAL SAP | CONTEO dd.mm | DIFERENCIA |
   COMENTARIOS`, más `% DIF.` y `ESTADO` al final; TOTAL SAP y DIFERENCIA son fórmulas), «Detalle por ubicación» y «Resumen», con la tipografía y colores del Reporte general.
   `TOTAL SAP` es la suma de los almacenes contados (no de los 6), para que coincida con lo comparado.
+- **Auditoría** (Fase 4): libro inmutable `insumosAuditoria` (solo se crea; el código nunca la actualiza ni la borra). Cubre **importaciones** (`IMPORTAR_STOCK`), **mínimos y datos del catálogo**
+  (`EDITAR_ARTICULO`), **conteos** (`CREAR_CONTEO`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO` con motivo), **líneas** (`CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`) y **comentarios**
+  (`COMENTARIO_CONCILIACION`). Cada evento va en la misma transacción que el cambio y guarda quién (nombre y uid), cuándo (hora del servidor + `enMs`), artículo, conteo y valor anterior → nuevo.
+  La pestaña consulta por rango de fechas (últimos 30 días por defecto, hasta 1.000 eventos; avisa si hay más) y filtra por tipo de movimiento, acción, usuario y texto. No escucha en vivo
+  (el libro crece sin parar): «Actualizar» vuelve a consultar. La ven todos los que ven el inventario, incluido el Jefe de Operaciones (solo consulta).
 - **Importar stock SAP**: archivo + fecha del corte (hoy por defecto, hora de Perú) → resumen (encontrados, nuevos, ya existían, excluidos, almacenes) → «Guardar corte».
   Una sola transacción guarda catálogo + corte + índice + auditoría.
 
@@ -110,5 +116,5 @@ match /insumosAuditoria/{id}     { allow read: if iiVer();  allow create: if iiE
 4. **Exportar a Excel**: comprobar las 3 hojas, las columnas y que TOTAL SAP / DIFERENCIA se recalculan si cambias un valor.
 
 ## Pendiente
-Fase 4 (auditoría de conteos y comentarios). Hoy la
-auditoría ya cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).
+Las 4 fases están construidas. Falta, fuera del código: aplicar `glacial_24` en PRUEBAS y luego PRODUCCIÓN, probar con el Excel real y subir a main. Ideas futuras: exportar la auditoría a Excel y
+un aviso de bajo mínimo. La auditoría cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).

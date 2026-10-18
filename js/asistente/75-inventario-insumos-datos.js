@@ -334,6 +334,18 @@
     return cambio;
   }
 
+  /* Auditoría (solo lectura): una consulta puntual por rango de fechas (enMs), más recientes primero. No se escucha en vivo: crece sin parar. */
+  async function consultarAuditoria({desdeMs,hastaMs,limite}){
+    if(!yoVeo())throw falla('PERMISO','No tienes permiso para ver la auditoría del inventario.');
+    let q=col('insumosAuditoria');
+    if(desdeMs)q=q.where('enMs','>=',Number(desdeMs));
+    if(hastaMs)q=q.where('enMs','<=',Number(hastaMs));
+    const max=Math.min(2000,Number(limite)||1000);
+    const s=await q.orderBy('enMs','desc').limit(max).get();
+    const eventos=s.docs.map(d=>({...d.data(),docId:d.id}));
+    return {eventos:N.ordenAuditoria?N.ordenAuditoria(eventos):eventos,truncado:eventos.length>=max};
+  }
+
   /* Vista previa SIN guardar: cuántos artículos son nuevos respecto al catálogo actual. */
   function vistaPrevia(lectura){
     const comb=N.combinarCatalogo(cache.catalogo,lectura.articulos);
@@ -341,6 +353,6 @@
   }
 
   window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,importarCorte,vistaPrevia,mensajeError,
-    escucharConteo,crearConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,esAdmin,
+    escucharConteo,crearConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();
