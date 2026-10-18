@@ -133,11 +133,11 @@
     const main=document.getElementById('main');if(!main)return;
     D.escuchar();
     const modoVista=!D.puedeEscribir();
-    const tabs=[['stock','Stock actual'],['conteo','Conteo físico'],['catalogo','Catálogo']].map(([k,t])=>`<button type="button" role="tab" class="ii-tab ${II.tab===k?'ii-tab-act':''}" aria-selected="${II.tab===k}" onclick="iiTab('${k}')">${t}</button>`).join('');
+    const tabs=[['stock','Stock actual'],['conteo','Conteo físico'],['conciliacion','Conciliación'],['catalogo','Catálogo']].map(([k,t])=>`<button type="button" role="tab" class="ii-tab ${II.tab===k?'ii-tab-act':''}" aria-selected="${II.tab===k}" onclick="iiTab('${k}')">${t}</button>`).join('');
     const scroll=window.scrollY;
     main.innerHTML=`<section class="ii">${estilos()}<header class="ii-cab"><h1>INVENTARIO DE INSUMOS</h1><div class="ii-cab-der">
       ${modoVista?'<span class="ii-chip">Solo consulta</span>':'<button type="button" class="ii-btn" onclick="iiImportar()">Importar stock SAP</button>'}</div></header>
-      <nav class="ii-tabs" role="tablist">${tabs}</nav>${mensaje()}${II.tab==='catalogo'?tabCatalogo():II.tab==='conteo'&&window.iiConteoUI?window.iiConteoUI.html():tabStock()}</section>`;
+      <nav class="ii-tabs" role="tablist">${tabs}</nav>${mensaje()}${II.tab==='catalogo'?tabCatalogo():II.tab==='conteo'&&window.iiConteoUI?window.iiConteoUI.html():II.tab==='conciliacion'&&window.iiConciliacionUI?window.iiConciliacionUI.html():tabStock()}</section>`;
     window.scrollTo(0,scroll);
   }
   function pintarTabla(){
@@ -327,13 +327,14 @@
   // Tiempo real: lo que otro dispositivo guarda (corte, catálogo, ediciones) aparece solo, sin pisar lo que se está escribiendo.
   D.alCambiar(()=>{
     if(typeof state==='undefined'||state.currentTab!==TAB)return;
+    if(II.tab==='conciliacion'&&window.iiConciliacionUI&&!document.querySelector('#modal-root .modal')){if(!window.iiConciliacionUI.activoEnEdicion())pintar();return;}
     if(II.tab==='conteo'&&window.iiConteoUI&&!document.querySelector('#modal-root .modal')){window.iiConteoUI.conservando(pintar);return;}   // el conteo se actualiza con lo que escriben otras personas sin quitarte el cursor
     if(document.querySelector('.ii input:focus,.ii select:focus,#modal-root .modal'))return;
 
     pintar();
   });
 
-  function estilos(){return `<style id="ii-estilos">${window.iiConteoUI?window.iiConteoUI.css:''}
+  function estilos(){return `<style id="ii-estilos">${window.iiConteoUI?window.iiConteoUI.css:''}${window.iiConciliacionUI?window.iiConciliacionUI.css:''}
 .ii{--ii-azul:#0b5cc4;--ii-linea:#dde6ef;--ii-mut:#5f7382;color:#0f2547;font-size:15px}
 .ii [hidden]{display:none!important}
 .ii-cab{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 14px}.ii-cab h1{margin:0;font-size:30px;font-weight:800;color:#0f2547}

@@ -129,6 +129,30 @@ const resumenHoja=[['Etiquetas de fila',...WCOL],['ASA ERGONOMICA P/BOTELLA PET 
   const rs=N.resumenStock(insumos);ok(rs.articulos===2&&rs.bajoMinimo===1&&rs.sinStock===1,'tarjetas: artículos con corte, bajo mínimo y sin stock');
 }
 
+/* Conciliación SAP vs conteo (Fase 3) */
+{
+  const cat=['A','B','C','D','E','F','G'].map(k=>({id:k,itemCode:'X'+k,nombre:'ART '+k,categoria:'BOLSA',activo:true,prioritario:true}));
+  const w=(ins,prod)=>[ins,prod,0,0,0,0];
+  const corte={items:[{id:'A',w:w(100,0),t:100},{id:'B',w:w(100,0),t:100},{id:'C',w:w(100,0),t:100},{id:'D',w:w(100,0),t:100},{id:'E',w:w(100,0),t:100},{id:'F',w:w(0,0),t:0},{id:'G',w:w(50,500),t:550}]};
+  const L=(id,c)=>({id:'l'+id+c,itemId:id,ubicacion:'U',cantidad:c,en:1});
+  const lineas=[L('A',102),L('B',102.01),L('C',110),L('D',110.01),L('F',7),L('G',50)];       // E (SAP 100) no se cuenta
+  const r=N.conciliar({catalogo:cat,corte,lineas,almacen:'INSUMOS',comentarios:[{id:'C',texto:'revisar',por:'Ana',en:5}]});
+  const e=id=>r.filas.find(f=>f.id===id);
+  ok(e('A').estado==='OK'&&e('A').pct===2,'exactamente 2 % de diferencia es OK');
+  ok(e('B').estado==='OBSERVADO'&&e('C').estado==='OBSERVADO'&&e('C').pct===10,'más de 2 % y hasta 10 % es OBSERVADO');
+  ok(e('D').estado==='CRITICO','más de 10 % es CRÍTICO');
+  ok(e('E').estado==='NO_CONTADO'&&e('E').conteo===0&&e('E').diferencia===-100,'hay stock SAP y no se contó: NO CONTADO');
+  ok(e('F').estado==='SIN_STOCK_SAP'&&e('F').sap===0,'se contó y SAP tiene 0: SIN STOCK SAP');
+  ok(e('G').estado==='OK'&&e('G').sap===50,'solo se compara con el almacén contado (Insumos: 50, no los 550 de la suma)');
+  ok(N.conciliar({catalogo:cat,corte,lineas,almacen:'TODOS'}).filas.find(f=>f.id==='G').estado==='CRITICO','con «Todos» se compara con la suma de los 6 almacenes');
+  ok(r.filas.length===7&&r.resumen.total===7&&r.resumen.OK===2&&r.resumen.OBSERVADO===2&&r.resumen.CRITICO===1&&r.resumen.NO_CONTADO===1&&r.resumen.SIN_STOCK_SAP===1&&r.resumen.conComentario===1,'resumen por estado');
+  ok(r.filas[0].estado==='CRITICO'&&r.filas[r.filas.length-1].estado==='OK','ordenado: lo crítico primero');
+  ok(e('C').comentario==='revisar'&&e('C').comentarioPor==='Ana','el comentario viaja con la fila');
+  ok(N.conciliar({catalogo:cat,corte:null,lineas:[],almacen:'INSUMOS'}).filas.length===0,'sin corte ni conteo no hay filas (artículos sin stock SAP y sin contar no se listan)');
+  ok(N.detalleUbicaciones(lineas,cat).length===6&&N.detalleUbicaciones(lineas,cat)[0].nombre==='ART A','detalle por ubicación');
+  ok(N.validarComentario('x'.repeat(501)).length===1&&N.validarComentario('ok').length===0,'validación del comentario');
+}
+
 /* ================= datos (con una base de documentos simulada) ================= */
 function entorno(rol,permisos){
   const sb={console,Math,Number,Array,Object,String,Set,Map,JSON,Date,Promise,Error,setTimeout,clearTimeout};
@@ -238,6 +262,16 @@ function entorno(rol,permisos){
   ok(['CREAR_LINEA','EDITAR_LINEA','BORRAR_LINEA','CERRAR_CONTEO','REABRIR_CONTEO','EDITAR_CONTEO'].every(t=>tipos.includes(t))&&tipos.filter(t=>t==='CREAR_LINEA').length===4,'auditoría de líneas, edición, cierre y reapertura');
   const aE=[...sb.docs.values()].find(a=>a.tipo==='EDITAR_LINEA');ok(aE&&aE.antes.cantidad===1000&&aE.despues.cantidad===1500&&aE.usuario==='Ana','auditoría: valor anterior → nuevo');
   const sc2=entorno('Jefe de Operaciones');let pe3=null;try{await sc2.glacialInventarioDatos.crearConteo({fecha:'2026-10-18',almacen:'INSUMOS'});}catch(e){pe3=e;}ok(pe3&&pe3.codigo==='PERMISO','el Jefe de Operaciones no crea conteos (solo consulta)');
+  /* conciliación: comentarios */
+  D.escucharConteo(cnt.id);
+  ok(await D.guardarComentario(cnt.id,art.id,'  Revisar el Patio ')===true&&D.cache.comentarios.length===1&&D.cache.comentarios[0].texto==='Revisar el Patio'&&D.cache.comentarios[0].por==='Ana','comentario por artículo guardado en vivo');
+  ok(await D.guardarComentario(cnt.id,art.id,'Revisar el Patio')===false,'sin cambios no escribe ni audita');
+  await D.guardarComentario(cnt.id,art.id,'Ya revisado');ok(D.cache.comentarios.length===1&&D.cache.comentarios[0].texto==='Ya revisado','editar el comentario');
+  await D.cerrarConteo(cnt.id);
+  await D.guardarComentario(cnt.id,art2.id,'Con el conteo cerrado también se comenta');ok(D.cache.comentarios.length===2,'se puede comentar con el conteo CERRADO');
+  await D.guardarComentario(cnt.id,art2.id,'');ok(D.cache.comentarios.length===1,'comentario vacío lo quita');
+  const aC=[...sb.docs.values()].filter(a=>a.tipo==='COMENTARIO_CONCILIACION');ok(aC.length===4&&aC.some(a=>a.antes.texto==='Revisar el Patio'&&a.despues.texto==='Ya revisado'),'auditoría de comentarios (antes → después)');
+  let pcm=null;try{await sc2.glacialInventarioDatos.guardarComentario(cnt.id,art.id,'x');}catch(e){pcm=e;}ok(pcm&&pcm.codigo==='PERMISO','solo consulta no comenta');
   D.escucharConteo('');
 
   /* sin permiso de escritura */
@@ -249,7 +283,7 @@ function entorno(rol,permisos){
 
   /* ================= integración ================= */
   const html=leer('index.html'),pos=n=>html.indexOf('js/asistente/'+n);
-  ok(pos('74-inventario-insumos-nucleo.js')>pos('73-reporte-general.js')&&pos('75-inventario-insumos-datos.js')>pos('74-inventario-insumos-nucleo.js')&&pos('76-inventario-insumos-pantalla.js')>pos('75-inventario-insumos-datos.js')&&pos('77-inventario-insumos-conteo.js')>pos('76-inventario-insumos-pantalla.js')&&pos('77-inventario-insumos-conteo.js')<html.indexOf('js/nucleo/12-init.js'),'index.html carga 74, 75 y 76 en orden, después del Asistente y antes de 12-init');
+  ok(pos('74-inventario-insumos-nucleo.js')>pos('73-reporte-general.js')&&pos('75-inventario-insumos-datos.js')>pos('74-inventario-insumos-nucleo.js')&&pos('76-inventario-insumos-pantalla.js')>pos('75-inventario-insumos-datos.js')&&pos('77-inventario-insumos-conteo.js')>pos('76-inventario-insumos-pantalla.js')&&pos('78-inventario-insumos-conciliacion.js')>pos('77-inventario-insumos-conteo.js')&&pos('78-inventario-insumos-conciliacion.js')<html.indexOf('js/nucleo/12-init.js'),'index.html carga 74, 75 y 76 en orden, después del Asistente y antes de 12-init');
   ok(/id="btn-inventario-insumos"[^>]*onclick="goInventarioInsumos\(\)"/.test(html),'botón del menú lateral');
   const pant=leer('js/asistente/76-inventario-insumos-pantalla.js'),dat=leer('js/asistente/75-inventario-insumos-datos.js');
   ok(/state\.currentTab===TAB/.test(pant)&&/window\.goInventarioInsumos/.test(pant)&&/renderSidebar=function/.test(pant)&&/ajustarVistaSegunPermisos=function/.test(pant),'pantalla: pestaña, goInventarioInsumos y envoltorios de renderMain/renderSidebar/permisos');

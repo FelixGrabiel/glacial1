@@ -10,6 +10,7 @@ Excel de SAP como «corte de stock» y la tabla de stock actual con semáforo. F
 | `js/asistente/74-inventario-insumos-nucleo.js` | Núcleo puro (se prueba con node): lee el Excel (plano o tabla dinámica), categoría/marca/presentación por nombre, catálogo, cortes, stock, semáforo y filtros. |
 | `js/asistente/75-inventario-insumos-datos.js` | Capa de datos (`db.collection`, `onSnapshot`, `runTransaction`: el mismo mecanismo de Paletas y del Asistente), permisos y auditoría. |
 | `js/asistente/76-inventario-insumos-pantalla.js` | Pestaña `inventario-insumos`: Stock actual, Catálogo e «Importar stock SAP» (Web Worker). |
+| `js/asistente/78-inventario-insumos-conciliacion.js` | Fase 3: pestaña «Conciliación» y Excel (ExcelJS). El cálculo puro es `conciliar()` en 74. |
 | `js/asistente/77-inventario-insumos-conteo.js` | Fase 2: pestaña «Conteo físico» (lista de conteos, líneas por ubicación, cerrar/reabrir). |
 | `index.html` | Botón `#btn-inventario-insumos` (`goInventarioInsumos`) y los 3 scripts, después del Asistente y antes de `12-init`. |
 | `supabase/migraciones/glacial_24_inventario_insumos.sql` | **Borrador SIN aplicar**: reglas de Supabase de las colecciones nuevas. |
@@ -25,6 +26,7 @@ Los números de archivo 74–76 siguen al Asistente (70–73); el 17 que sugerí
 | `insumosCortesDetalle/{corteId}` | `{ items:[{id, w:[6 almacenes AP], t}] }` — el stock del corte; solo se escucha el corte elegido. `w` va en el orden Insumos y Suministros, Producción, Inmovilizados, Cuarentena, Devoluciones, Producto terminado. |
 | `insumosConteosIndice/{conteoId}` | Fase 2. Metadatos del conteo: `fecha`, `almacen` (`INSUMOS` por defecto, cualquiera de los 6 o `TODOS`), `observacion`, `estado` (`EN_PROCESO` → `CERRADO`), `creadoPor/creadoEn`, `cerradoPor/cerradoEn`, `reaperturas:[{por,en,motivo}]`, `lineas`, `articulos`. Se escucha completo. |
 | `insumosConteosDetalle/{conteoId}` | Fase 2. `{ items:[{id, itemId, ubicacion, cantidad, por, uid, en, editadoPor?, editadoEn?}] }` — una fila de `fs_items` por línea (varias líneas por artículo, una por ubicación); solo se escucha el conteo abierto. |
+| `insumosConteosComentarios/{conteoId}` | Fase 3. `{ items:[{id: itemId, texto, por, uid, en}] }` — un comentario por artículo de la conciliación (editable también con el conteo cerrado). |
 | `insumosAuditoria/{auto}` | Quién, cuándo (hora del servidor), qué cambió (antes → después) y en qué artículo. Solo se crea. |
 
 Diferencia con el prompt: el catálogo no va en `sync/insumos`. Los documentos `sync/*` dependen de una lista de documentos permitidos que está
@@ -60,6 +62,13 @@ nunca lo ve. El botón del menú se muestra u oculta en `76` (igual que el Asist
   (avisa cuántos prioritarios faltan; no cierra uno sin líneas). Solo un **Administrador** lo reabre, con motivo (queda en `reaperturas`). Cada operación es una transacción que
   vuelve a leer el estado: si alguien cerró el conteo mientras otra persona escribía, el guardado se rechaza con un aviso. Las líneas de otras personas aparecen solas (onSnapshot)
   sin quitarle el cursor a quien está escribiendo. Pensado para celular (360 px, campos grandes).
+- **Conciliación** (Fase 3): se elige el conteo y el corte SAP (por defecto el más reciente; avisa si las fechas no coinciden o el conteo sigue EN PROCESO). Se compara **solo con el
+  stock SAP de los almacenes contados** (conteo de Insumos → almacén Insumos; «Todos» → suma de los 6). Diferencia % = |conteo − SAP| / SAP:
+  **OK** ≤ 2 % · **OBSERVADO** ≤ 10 % · **CRÍTICO** > 10 % · **NO CONTADO** (hay stock SAP y no se contó) · **SIN STOCK SAP** (se contó y SAP tiene 0). No se listan los artículos
+  sin stock SAP que tampoco se contaron. Tarjetas por estado (filtran), buscador, comentario editable por artículo (con autor y hora) y **Exportar a Excel**: hoja «Conciliación»
+  (`Artículo | AP - CUARENTENA | AP - DEVOLUCIONES | AP - INSUMOS Y SUMINISTROS | AP - PRODUCCIÓN | AP - PRODUCTO TERMINADO | AP - INMOVILIZADOS | TOTAL SAP | CONTEO dd.mm | DIFERENCIA |
+  COMENTARIOS`, más `% DIF.` y `ESTADO` al final; TOTAL SAP y DIFERENCIA son fórmulas), «Detalle por ubicación» y «Resumen», con la tipografía y colores del Reporte general.
+  `TOTAL SAP` es la suma de los almacenes contados (no de los 6), para que coincida con lo comparado.
 - **Importar stock SAP**: archivo + fecha del corte (hoy por defecto, hora de Perú) → resumen (encontrados, nuevos, ya existían, excluidos, almacenes) → «Guardar corte».
   Una sola transacción guarda catálogo + corte + índice + auditoría.
 
@@ -94,6 +103,12 @@ match /insumosAuditoria/{id}     { allow read: if iiVer();  allow create: if iiE
 6. Jefe de Operaciones: ve los conteos pero no crea ni registra.
 **Límite conocido:** «solo el Administrador reabre» lo exige la aplicación; las reglas de Supabase (como las de Firebase aquí) no comparan estado anterior → nuevo.
 
+## Pasos de prueba de la conciliación (Fase 3)
+1. Pestaña **Conciliación**: elegir el conteo cerrado y el corte SAP de la misma fecha.
+2. Revisar tarjetas y estados (probar con un artículo con 2 %, 6 % y 15 % de diferencia); hacer clic en una tarjeta para filtrar.
+3. Escribir un comentario y salir del campo: queda con tu nombre y hora; otro dispositivo lo ve solo.
+4. **Exportar a Excel**: comprobar las 3 hojas, las columnas y que TOTAL SAP / DIFERENCIA se recalculan si cambias un valor.
+
 ## Pendiente
-Fase 3 (conciliación SAP vs. conteo y Excel) y Fase 4 (auditoría de conteos y comentarios). Hoy la
-auditoría ya cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`; todas con quién, cuándo y antes → después).
+Fase 4 (auditoría de conteos y comentarios). Hoy la
+auditoría ya cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).

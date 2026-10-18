@@ -80,8 +80,8 @@
   }
 
   /* ---------- caché en vivo ---------- */
-  const cache={catalogo:[],cortes:[],corte:null,corteId:'',conteos:[],conteo:null,conteoId:'',listo:{},error:{}};
-  const oyentes=[];let cierres=[];let cierreCorte=null;let cierreConteo=null;
+  const cache={catalogo:[],cortes:[],corte:null,corteId:'',conteos:[],conteo:null,conteoId:'',comentarios:[],listo:{},error:{}};
+  const oyentes=[];let cierres=[];let cierreCorte=null;let cierreConteo=null;let cierreComentarios=null;
   const avisar=()=>oyentes.slice().forEach(f=>{try{f();}catch(_){/* una vista no rompe a otra */}});
   const ordenCortes=l=>l.slice().sort((a,b)=>String(b.fechaCorte).localeCompare(String(a.fechaCorte))||num(b.importadoEn)-num(a.importadoEn));
 
@@ -95,8 +95,12 @@
   }
   function escucharConteo(id){
     if(cierreConteo){try{cierreConteo();}catch(_){/* ya cerrada */}cierreConteo=null;}
-    cache.conteoId=id||'';cache.conteo=null;cache.listo.conteo=!id;cache.error.conteo='';
+    if(cierreComentarios){try{cierreComentarios();}catch(_){/* ya cerrada */}cierreComentarios=null;}
+    cache.conteoId=id||'';cache.conteo=null;cache.comentarios=[];cache.listo.conteo=!id;cache.error.conteo='';
     if(!id){avisar();return;}
+    cierreComentarios=col('insumosConteosComentarios').doc(id).onSnapshot(s=>{
+      cache.comentarios=(s.exists&&Array.isArray(s.data().items))?s.data().items:[];avisar();
+    },e=>{cache.error.conteo=mensajeError(e);avisar();});
     cierreConteo=col('insumosConteosDetalle').doc(id).onSnapshot(s=>{
       cache.conteo=s.exists?s.data():null;cache.listo.conteo=true;cache.error.conteo='';avisar();
     },e=>{cache.error.conteo=mensajeError(e);avisar();});
@@ -130,6 +134,7 @@
     cierres.splice(0).forEach(c=>{try{c();}catch(_){/* ya cerrada */}});
     if(cierreCorte){try{cierreCorte();}catch(_){/* ya cerrada */}cierreCorte=null;}
     if(cierreConteo){try{cierreConteo();}catch(_){/* ya cerrada */}cierreConteo=null;}
+    if(cierreComentarios){try{cierreComentarios();}catch(_){/* ya cerrada */}cierreComentarios=null;}
     cache.corteId='';cache.corte=null;cache.manual=false;cache.conteoId='';cache.conteo=null;
   }
   function elegirCorte(id,manual){cache.manual=!!manual&&id!==(cache.cortes[0]&&cache.cortes[0].id);if(id!==cache.corteId)escucharCorte(id);}
@@ -306,6 +311,29 @@
     });
   }
 
+  /* Comentario por artículo de la conciliación (insumosConteosComentarios/{conteoId} → { items:[{id: itemId, texto, por, uid, en}] }).
+     Se puede escribir también con el conteo CERRADO (la conciliación se revisa después de cerrar). Texto vacío = quitar el comentario. */
+  async function guardarComentario(conteoId,itemId,texto){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para comentar la conciliación.');
+    const t=String(texto==null?'':texto).trim();
+    const err=N.validarComentario(t);if(err.length)throw falla('VALIDACION',err.join(' · '));
+    const u=usuario(),ahoraMs=ahora(),r=refsConteo(conteoId),ref=col('insumosConteosComentarios').doc(conteoId);let cambio=false;
+    await db.runTransaction(async tx=>{
+      const sI=await tx.get(r.idx);if(!sI.exists)throw falla('VALIDACION','El conteo ya no existe.');
+      const s=await tx.get(ref);
+      const items=(s.exists&&Array.isArray(s.data().items))?s.data().items.map(x=>({...x})):[];
+      const i=items.findIndex(x=>x.id===itemId),antes=i>=0?items[i].texto:'';
+      if(antes===t)return;
+      if(!t)items.splice(i,1);
+      else if(i>=0)Object.assign(items[i],{texto:t,por:u.nombre,uid:u.uid,en:ahoraMs});
+      else items.push({id:itemId,texto:t,por:u.nombre,uid:u.uid,en:ahoraMs});
+      tx.set(ref,{id:conteoId,items});
+      const it=N.indiceCatalogo(cache.catalogo).get(itemId);
+      auditar(tx,'COMENTARIO_CONCILIACION',itemId,it?it.nombre:'',{texto:antes},{texto:t},{conteoId});cambio=true;
+    });
+    return cambio;
+  }
+
   /* Vista previa SIN guardar: cuántos artículos son nuevos respecto al catálogo actual. */
   function vistaPrevia(lectura){
     const comb=N.combinarCatalogo(cache.catalogo,lectura.articulos);
@@ -313,6 +341,6 @@
   }
 
   window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,importarCorte,vistaPrevia,mensajeError,
-    escucharConteo,crearConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,esAdmin,
+    escucharConteo,crearConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,esAdmin,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();

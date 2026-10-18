@@ -65,6 +65,7 @@
   function detalle(){
     const m=metaActual();
     if(!m)return `<div class="ii-card"><p class="ii-mut">${D.cache.listo.conteos?'Ese conteo ya no existe.':'Consultando…'}</p><button type="button" class="ii-btn ii-btn-o" onclick="iicVolver()">Volver</button></div>`;
+    if(D.cache.conteoId!==C.id){const id=C.id;setTimeout(()=>{if(D.cache.conteoId!==id)D.escucharConteo(id);},0);}      // venía de otra pestaña que escuchaba otro conteo
     const {tot,filas}=filasDetalle(),prog=N.progresoConteo(D.cache.catalogo,tot,C.prioritarios);
     const cats=N.CATEGORIAS.filter(c=>D.cache.catalogo.some(x=>x.categoria===c));
     const admin=D.esAdmin();

@@ -54,7 +54,7 @@ function closeModal(){document.getElementById('modal-root').innerHTML='';}
   window.firebase={firestore:{FieldValue:{serverTimestamp:()=>'__TS__'}},auth:()=>({currentUser:{uid:'u1'}})};
 })();
 </script>
-<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script></body>`;
+<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script><script src="/js/asistente/78-inventario-insumos-conciliacion.js"></script></body>`;
 const servidor=http.createServer((q,r)=>{
   if(q.url==='/'){r.setHeader('content-type','text/html; charset=utf-8');r.end(PAGINA);return;}
   const f=q.url.startsWith('/xlsx/')?path.join(dist,q.url.slice(6)):path.join(R,q.url.split('?')[0]);
@@ -182,6 +182,23 @@ const servidor=http.createServer((q,r)=>{
   await page.evaluate(()=>{state.user.rol='Asistente de Producción';});
   await page.click('text=← Conteos');await page.waitForSelector('.ii-cc');
   ok(/En proceso/.test(await page.locator('.ii-cc').first().innerText()),'lista de conteos con su estado');
+  /* 6c) conciliación SAP vs conteo */
+  await page.click('.ii-tab >> text=Conciliación');
+  await page.waitForSelector('.ii-kpis5');
+  ok(/Insumos y Suministros/i.test(await page.locator('.ii-card').first().innerText()),'conciliación: indica con qué almacén se compara');
+  ok((await page.locator('#ii-q-tabla tbody tr').count())>0&&(await page.locator('#ii-q-tabla .ii-pill').count())>0,'tabla con estado por artículo');
+  const kp=await page.locator('.ii-kpis5').innerText();
+  ok(/OK/.test(kp)&&/Observado/.test(kp)&&/Crítico/.test(kp)&&/No contado/.test(kp)&&/Sin stock SAP/.test(kp),'tarjetas por estado');
+  await page.click('.ii-kb >> text=Sin stock SAP');
+  const soloNo=await page.locator('#ii-q-tabla tbody .ii-pill').allInnerTexts();
+  ok(soloNo.length>0&&soloNo.every(t=>/Sin stock SAP/.test(t)),'filtrar por estado');
+  await page.click('.ii-kb >> text=Sin stock SAP');
+  await page.fill('#ii-q-tabla tbody tr >> nth=0 >> input','Revisar con el supervisor');
+  await page.locator('#ii-q-tabla tbody tr >> nth=0 >> input').blur();
+  await page.waitForFunction(()=>window.__docs&&[...window.__docs.keys()].some(k=>k.startsWith('insumosConteosComentarios/')));
+  ok(true,'el comentario se guarda al salir del campo');
+  ok(await page.evaluate(()=>document.documentElement.scrollWidth<=362),'conciliación en 360 px sin desborde de página');
+  await page.screenshot({path:path.join(tmp,'conciliacion-360.png')});
   await page.setViewportSize({width:1280,height:900});
 
   /* 7) vista de solo consulta */

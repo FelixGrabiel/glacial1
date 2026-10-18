@@ -401,6 +401,49 @@
     return {articulosContados:tot.porItem.size,lineas:(lineas||[]).length,prioritariosPendientes:pri.pendientes,prioritariosTotal:pri.total};
   }
 
+  /* ---------- conciliación SAP vs conteo (Fase 3) ---------- */
+  const UMBRAL_OK=2,UMBRAL_OBSERVADO=10;                       // % de diferencia sobre el stock SAP: ≤2 OK · ≤10 OBSERVADO · >10 CRÍTICO
+  const ESTADOS_CONCILIACION={OK:'OK',OBSERVADO:'Observado',CRITICO:'Crítico',NO_CONTADO:'No contado',SIN_STOCK_SAP:'Sin stock SAP'};
+  const ORDEN_CONCILIACION={CRITICO:0,OBSERVADO:1,NO_CONTADO:2,SIN_STOCK_SAP:3,OK:4};
+  const almacenesDeConteo=almacen=>almacen==='TODOS'?ALMACENES.map(a=>a.clave):[almacen||'INSUMOS'];
+  function estadoConciliacion(contado,sap,conteo){
+    if(!contado)return {estado:'NO_CONTADO',pct:null};
+    if(!(sap>0))return {estado:conteo>0?'SIN_STOCK_SAP':'OK',pct:null};
+    const pct=red(Math.abs(conteo-sap)/sap*100,4);
+    return {estado:pct<=UMBRAL_OK?'OK':pct<=UMBRAL_OBSERVADO?'OBSERVADO':'CRITICO',pct};
+  }
+  /* Compara el conteo con el stock SAP de los MISMOS almacenes contados. comentarios: [{id: itemId, texto, por, en}].
+     No se listan los artículos sin stock SAP en esos almacenes que tampoco se contaron. */
+  function conciliar({catalogo,corte,lineas,almacen,comentarios}){
+    const claves=almacenesDeConteo(almacen),idx=claves.map(c=>ALMACENES.findIndex(a=>a.clave===c)).filter(i=>i>=0);
+    const stock=filasStock(catalogo,corte,''),tot=totalesConteo(lineas,catalogo);
+    const com=new Map((comentarios||[]).map(c=>[c.id,c]));
+    const filas=[];
+    stock.forEach(c=>{
+      if(c.activo===false&&!tot.porItem.has(c.id))return;
+      const sap=red(idx.reduce((s,i)=>s+c.w[i],0),4),x=tot.porItem.get(c.id),contado=!!x,conteo=x?x.total:0;
+      if(!contado&&!(sap>0))return;
+      const e=estadoConciliacion(contado,sap,conteo),cm=com.get(c.id);
+      filas.push({id:c.id,itemCode:c.itemCode,nombre:c.nombre,categoria:c.categoria,w:c.w,sap,contado,conteo,diferencia:contado||sap>0?red(conteo-sap,4):0,
+        pct:e.pct,estado:e.estado,lineas:x?x.lineas:[],comentario:cm?cm.texto:'',comentarioPor:cm?cm.por:'',comentarioEn:cm?cm.en:0});
+    });
+    filas.sort((a,b)=>ORDEN_CONCILIACION[a.estado]-ORDEN_CONCILIACION[b.estado]||(b.pct||0)-(a.pct||0)||String(a.nombre).localeCompare(String(b.nombre),'es'));
+    return {filas,huerfanas:tot.huerfanas,claves,resumen:resumenConciliacion(filas)};
+  }
+  function resumenConciliacion(filas){
+    const r={total:filas.length,OK:0,OBSERVADO:0,CRITICO:0,NO_CONTADO:0,SIN_STOCK_SAP:0,conComentario:0};
+    filas.forEach(f=>{r[f.estado]++;if(f.comentario)r.conComentario++;});
+    r.contados=r.total-r.NO_CONTADO;r.pctContado=r.total?Math.round(r.contados/r.total*100):0;
+    return r;
+  }
+  function validarComentario(t){return String(t==null?'':t).length>500?['El comentario admite hasta 500 caracteres.']:[];}
+  /* Líneas por ubicación de todo el conteo (hoja «Detalle por ubicación» del Excel). */
+  function detalleUbicaciones(lineas,catalogo){
+    const idx=indiceCatalogo(catalogo);
+    return (lineas||[]).map(l=>{const it=idx.get(l.itemId);return {nombre:it?it.nombre:l.itemId,itemCode:it?it.itemCode:'',ubicacion:l.ubicacion,cantidad:num(l.cantidad),por:l.por||'',en:num(l.en)};})
+      .sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es')||String(a.ubicacion).localeCompare(String(b.ubicacion),'es'));
+  }
+
   /* ---------- permisos (reglas puras; el módulo de datos las aplica al usuario) ---------- */
   const ROLES_SOLO_CONSULTA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];
   const ROLES_VER_DEFECTO=['Asistente de Producción','Jefe de Operaciones'];
@@ -409,7 +452,8 @@
   const API={GRUPOS_VALIDOS,GRUPOS_NOMBRE,ALMACENES,CATEGORIAS,PRIORITARIAS,MARCAS,CAMPOS_EDITABLES,ROLES_SOLO_CONSULTA,ROLES_VER_DEFECTO,ROLES_ESCRIBIR_DEFECTO,
     num,norm,red,fmt,esExcluido,categoriaDe,marcaDe,presentacionDe,esPrioritaria,almacenDe,almacenInfo,idPorNombre,esIdNombre,prefiltrarFilas,leerLibro,
     registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock,
-    ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre};
+    ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
+    UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones};
   global.glacialInventarioNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);
