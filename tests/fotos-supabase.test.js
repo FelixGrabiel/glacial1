@@ -46,7 +46,12 @@ function entorno(conCliente){
   ok(/glacialSupabaseCliente\s*=\s*T\.sb/.test(puente),'el puente expone el cliente de Supabase (con la sesión del usuario)');
   const pos=n=>html.indexOf(n);
   ok(pos('js/nucleo/00b-puente-supabase.js')<pos('js/produccion/06b-fotos-supabase.js')&&pos('js/produccion/06b-fotos-supabase.js')<pos('js/produccion/06-registro.js'),'index.html: el puente, luego 06b y después 06-registro');
+  const mant=leer('js/mantenimiento/67d-intervenciones-evidencias.js'),asis=leer('js/asistente/72-asistente-pantalla.js');
+  ok(/glacialFotos\.subir\(blob,\{carpeta,id:publicId/.test(mant)&&/subirCloudinary\(/.test(mant)&&/proveedorDe\(it\.publicId\)/.test(mant)&&(mant.match(/srcDe\(/g)||[]).length>=3&&(mant.match(/src="'\+esc\(urlDe\(/g)||[]).length===1,'Mantenimiento: sube a Supabase (con respaldo a Cloudinary), registra el proveedor y muestra con enlace firmado');
+  ok(/glacialFotos\.subir\(file,\{carpeta:'asistente\//.test(asis)&&/CLOUDINARY_UPLOAD_PRESET/.test(asis),'Asistente de Producción: evidencia a Supabase (carpeta asistente/) con respaldo a Cloudinary');
+  const {F:F2}=entorno(true);const pdf=await F2.subir({type:'application/pdf'},{carpeta:'asistente/2026-10',id:'ev1',tipo:'application/pdf'});
+  ok(pdf.path==='asistente/2026-10/ev1.pdf','los PDF del Asistente conservan su extensión');
   const sql=leer('supabase/migraciones/glacial_25_fotos_privadas.sql');
-  ok(/'glacial-fotos',\s*'glacial-fotos',\s*false/.test(sql)&&/for select to authenticated/.test(sql)&&/for insert to authenticated/.test(sql)&&!/for (update|delete)/.test(sql)&&/hojas_producto_terminado\/%/.test(sql),'migración: bucket privado, leer y subir con sesión, sin actualizar ni borrar');
+  ok(/'glacial-fotos',\s*'glacial-fotos',\s*false/.test(sql)&&/for select to authenticated/.test(sql)&&/for insert to authenticated/.test(sql)&&!/for (update|delete)/.test(sql)&&/hojas_producto_terminado\/%/.test(sql)&&/mantenimiento\/%/.test(sql)&&/asistente\/%/.test(sql)&&/application\/pdf/.test(sql),'migración: bucket privado, 3 carpetas, leer y subir con sesión, sin actualizar ni borrar');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })();

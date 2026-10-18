@@ -29,12 +29,14 @@
   const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const ahora=()=>Date.now();
 
-  async function subir(blob,{carpeta,id,tipo}){
+  async function subir(blob,{carpeta,id,tipo},opciones){
+    opciones=opciones||{};
     if(!disponible())throw new Error('Supabase Storage no está disponible.');
     if(!blob)throw new Error('No hay archivo para subir.');
-    const ext=/png/.test(tipo||blob.type)?'png':/webp/.test(tipo||blob.type)?'webp':'jpg';
+    const mime=tipo||blob.type||'image/jpeg';
+    const ext=/pdf/.test(mime)?'pdf':/png/.test(mime)?'png':/webp/.test(mime)?'webp':'jpg';
     const ruta=String(carpeta||'sin_carpeta').replace(/^\/+|\/+$/g,'')+'/'+String(id||('f_'+ahora().toString(36)))+'.'+ext;
-    const r=await cliente().storage.from(BUCKET).upload(ruta,blob,{contentType:tipo||blob.type||'image/jpeg',upsert:false,cacheControl:'3600'});
+    const r=await cliente().storage.from(BUCKET).upload(ruta,blob,{contentType:mime,upsert:opciones.reemplazar===true,cacheControl:'3600'});
     if(r.error)throw new Error(r.error.message||'No se pudo subir la foto.');
     return {url:PREFIJO+ruta,path:ruta,bucket:BUCKET,proveedor:'supabase'};
   }
