@@ -115,7 +115,8 @@ const PROG=()=>[{clave:'B7L|'+FECHA+'|DÍA|BELLS|7 Litros',linea:'B7L',fecha:FEC
   const s06=leer('js/produccion/06-registro.js');
   ok(/cuadro\.autoPaletas &&\s*Number\.isFinite\(cuadro\.autoPaletas\.paletas\)/.test(s06),'calcularPaletasCuadro prefiere autoPaletas.paletas');
   const html=leer('index.html');
-  ok(['06-registro','16-paletas','35-autollenado-registro'].every(n=>new RegExp(n+'\\.js\\?v=20261014-pp\\d+').test(html)),'versión ?v= de los scripts tocados subida');
+  // Acepta esa versión o una posterior (otro cambio puede volver a subir el ?v= del mismo archivo).
+  ok(['06-registro','16-paletas','35-autollenado-registro'].every(n=>{const m=new RegExp(n+'\\.js\\?v=(\\d{8})').exec(html);return !!m&&m[1]>='20261014';}),'versión ?v= de los scripts tocados subida');
 }
 
 console.log(fallas?`\n${fallas} FALLA(S)`:'\nTodo OK');

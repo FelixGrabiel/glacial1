@@ -269,12 +269,25 @@ function claveProgramacionPaleta(linea, fecha, turno, marca, presentacion){
 */
 function normalizarClavePaletas(valor){
 
-  return String(valor ?? '')
+  /* Rendimiento (Producción actual): el mismo texto (línea, fecha, turno, marca,
+     presentación) se normaliza miles de veces por pantalla. Se recuerda el
+     resultado por texto; la caché vive en la propia función y se vacía si crece. */
+  const memo = normalizarClavePaletas._memo ||
+    (normalizarClavePaletas._memo = new Map());
+  const texto = String(valor ?? '');
+  const previo = memo.get(texto);
+  if(previo !== undefined) return previo;
+
+  const r = texto
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/(\d)\s*(litros?|lts?)(?![a-z])/g, '$1l')
     .replace(/\s+/g, '');
+
+  if(memo.size >= 20000) memo.clear();
+  memo.set(texto, r);
+  return r;
 
 }
 
@@ -299,22 +312,75 @@ function esCombinacionPaletas(r, claveNormalizada){
 }
 
 
+/*
+   Registros de Paletas de UNA combinación (clave de claveCombinacionPaletas),
+   en el mismo orden que loadPaletas(). Equivale a
+   loadPaletas().filter(p => esCombinacionPaletas(p, clave)), pero sin recorrer
+   todo el historial en cada consulta: se arma un índice por clave y se vuelve a
+   armar cuando cambia la lista (cada snapshot o guardado la reemplaza por una
+   nueva) o cualquiera de sus elementos (se comparan por identidad, que cuesta
+   microsegundos). Cada registro se vuelve a comprobar al devolverlo.
+*/
+function paletasDeCombinacionPaletas(claveNormalizada){
+
+  const lista = (typeof loadPaletas === 'function' && loadPaletas()) || [];
+  let idx = paletasDeCombinacionPaletas._idx;
+
+  const vigente = idx && idx.lista === lista && idx.copia.length === lista.length &&
+    lista.every((p, i) => p === idx.copia[i]);
+
+  if(!vigente){
+    const mapa = new Map();
+    lista.forEach(p => {
+      if(!p) return;
+      const k = claveCombinacionPaletas(p.linea, p.fecha, p.turno, p.marca, p.presentacion);
+      let grupo = mapa.get(k);
+      if(!grupo) mapa.set(k, grupo = []);
+      grupo.push(p);
+    });
+    idx = paletasDeCombinacionPaletas._idx = { lista, copia: lista.slice(), mapa };
+  }
+
+  return (idx.mapa.get(claveNormalizada) || [])
+    .filter(p => esCombinacionPaletas(p, claveNormalizada));
+
+}
+
+
 function obtenerProgramacionPaleta(linea, fecha, turno, marca, presentacion){
 
   const clave =
     claveProgramacionPaleta(linea, fecha, turno, marca, presentacion);
 
-  const lista = loadProgramaciones();
-  const exacta = lista.find(p => p.clave === clave);
-  if(exacta) return exacta;
+  const lista = loadProgramaciones() || [];
+
+  /* Rendimiento: índice de la lista (primera fila por clave exacta y por clave
+     normalizada, igual que los dos find() de antes). Se rearma si cambia la lista
+     o alguno de sus elementos; cada resultado se vuelve a comprobar. */
+  let idx = obtenerProgramacionPaleta._idx;
+  const vigente = idx && idx.lista === lista && idx.copia.length === lista.length &&
+    lista.every((p, i) => p === idx.copia[i]);
+  if(!vigente){
+    const exactas = new Map(), normalizadas = new Map();
+    lista.forEach(p => {
+      if(!p) return;
+      if(p.clave !== undefined && !exactas.has(p.clave)) exactas.set(p.clave, p);
+      const k = claveCombinacionPaletas(p.linea, p.fecha, p.turno, p.marca, p.presentacion);
+      if(!normalizadas.has(k)) normalizadas.set(k, p);
+    });
+    idx = obtenerProgramacionPaleta._idx = { lista, copia: lista.slice(), exactas, normalizadas };
+  }
+
+  const exacta = idx.exactas.get(clave);
+  if(exacta && exacta.clave === clave) return exacta;
 
   const normalizada =
     claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
 
-  return (
-    lista.find(p => esCombinacionPaletas(p, normalizada)) ||
-    null
-  );
+  const porNormalizada = idx.normalizadas.get(normalizada);
+  return porNormalizada && esCombinacionPaletas(porNormalizada, normalizada)
+    ? porNormalizada
+    : null;
 
 }
 
@@ -882,8 +948,9 @@ function resumenProgramacionCombinacionTurnos(linea, fecha, turnos, marca, prese
     const combinacion =
       claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
 
-    loadPaletas()
-      .filter(p => esCombinacionPaletas(p, combinacion))
+    (typeof paletasDeCombinacionPaletas === 'function'
+      ? paletasDeCombinacionPaletas(combinacion)
+      : loadPaletas().filter(p => esCombinacionPaletas(p, combinacion)))
       .forEach(r => {
 
         unidadesProducidas += num(r.totalUnidades);
@@ -3626,9 +3693,9 @@ function renderProduccionActualTab(){
       turnos.forEach(turno => {
         const combinacion =
           claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
-        const registros = loadPaletas().filter(r =>
-          esCombinacionPaletas(r, combinacion)
-        );
+        const registros = typeof paletasDeCombinacionPaletas === 'function'
+          ? paletasDeCombinacionPaletas(combinacion)
+          : loadPaletas().filter(r => esCombinacionPaletas(r, combinacion));
 
         const actual = ultimoEstado(registros);
 
@@ -3697,7 +3764,9 @@ function renderProduccionActualTab(){
     let completas = 0, saldo = 0, registros = 0;
     (Array.isArray(turnos) ? turnos : [turnos]).forEach(turno => {
       const combinacion = claveCombinacionPaletas(linea, fecha, turno, marca, presentacion);
-      let regs = loadPaletas().filter(r => esCombinacionPaletas(r, combinacion));
+      let regs = typeof paletasDeCombinacionPaletas === 'function'
+        ? paletasDeCombinacionPaletas(combinacion)
+        : loadPaletas().filter(r => esCombinacionPaletas(r, combinacion));
       if(corteMs) regs = regs.filter(r => { const ms = msRegistroPaleta(r, fecha, turno); return !ms || ms <= corteMs; });
       if(desdeMs) regs = regs.filter(r => { const ms = msRegistroPaleta(r, fecha, turno); return !ms || ms >= desdeMs; });
       if(!regs.length) return;
