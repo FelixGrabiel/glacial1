@@ -54,7 +54,7 @@ function closeModal(){document.getElementById('modal-root').innerHTML='';}
   window.firebase={firestore:{FieldValue:{serverTimestamp:()=>'__TS__'}},auth:()=>({currentUser:{uid:'u1'}})};
 })();
 </script>
-<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script></body>`;
+<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script></body>`;
 const servidor=http.createServer((q,r)=>{
   if(q.url==='/'){r.setHeader('content-type','text/html; charset=utf-8');r.end(PAGINA);return;}
   const f=q.url.startsWith('/xlsx/')?path.join(dist,q.url.slice(6)):path.join(R,q.url.split('?')[0]);
@@ -142,6 +142,48 @@ const servidor=http.createServer((q,r)=>{
   ok(/tabla dinámica/.test(await page.locator('.ii-modal').innerText()),'tabla dinámica: avisa que no trae el código SAP');
   await page.click('text=Guardar corte');await page.waitForSelector('.ii-msg-ok');
 
+  /* 6b) conteo físico, en celular de 360 px */
+  await page.setViewportSize({width:360,height:740});
+  await page.click('.ii-tab >> text=Conteo físico');
+  await page.click('text=+ Nuevo conteo');
+  ok((await page.locator('#ii-n-alm').inputValue())==='INSUMOS'&&(await page.locator('#ii-n-alm option').count())===7,'nuevo conteo: almacén por defecto Insumos y Suministros, los 6 almacenes y «Todos»');
+  await page.fill('#ii-n-obs','Conteo de prueba');
+  await page.click('#ii-m-ok');
+  await page.waitForSelector('#ii-c-texto');
+  ok(/En proceso/.test(await page.locator('.ii-h').innerText()),'el conteo nace EN PROCESO');
+  await page.evaluate(()=>{window.__inventarioInsumosConteo.C.prioritarios=false;});
+  await page.fill('#ii-c-texto','bobina');await page.waitForTimeout(400);
+  const nArt=await page.locator('.ii-art').count();ok(nArt>0,'buscador grande filtra la lista de artículos ('+nArt+')');
+  await page.click('.ii-art >> nth=0 >> text=+ Agregar línea');
+  await page.fill('.ii-alta input[name=ubicacion]','Rack A');await page.fill('.ii-alta input[name=cantidad]','1000');await page.click('.ii-alta button');
+  await page.waitForSelector('.ii-ln');
+  await page.fill('.ii-alta input[name=ubicacion]','Patio');await page.fill('.ii-alta input[name=cantidad]','9000');await page.click('.ii-alta button');
+  await page.waitForFunction(()=>document.querySelectorAll('.ii-ln').length===2);
+  ok((await page.locator('.ii-art >> nth=0 >> .ii-art-t b').innerText()).replace(/\D/g,'')==='10000','dos líneas (Rack A 1000 + Patio 9000) se suman: 10,000');
+  ok(/Ana|Asistente|—/.test(await page.locator('.ii-ln small >> nth=0').innerText())&&/\d\d\/\d\d \d\d:\d\d/.test(await page.locator('.ii-ln small >> nth=0').innerText()),'cada línea muestra quién y cuándo');
+  ok(await page.evaluate(()=>document.documentElement.scrollWidth<=362),'conteo en 360 px sin desborde horizontal');
+  await page.screenshot({path:path.join(tmp,'conteo-360.png')});
+  /* tiempo real: otra persona agrega una línea al mismo artículo desde otro dispositivo */
+  await page.evaluate(()=>{const k=[...window.__docs.keys()].find(x=>x.startsWith('insumosConteosDetalle/'));const d=window.__docs.get(k);
+    window.__docs.set(k,{...d,items:d.items.concat([{id:'LREMOTA',itemId:d.items[0].itemId,ubicacion:'Bodega',cantidad:1,por:'Luis',uid:'u2',en:Date.now()}])});window.__avisar();});
+  await page.waitForFunction(()=>document.querySelectorAll('.ii-ln').length===3,null,{timeout:5000});
+  ok(/Luis/.test(await page.locator('.ii-lns').first().innerText()),'la línea de otra persona aparece sola');
+  await page.click('.ii-ln >> nth=0 >> text=Editar');await page.fill('#ii-l-cant','1500');await page.click('#ii-m-ok');
+  await page.waitForFunction(()=>/1,500/.test(document.querySelector('.ii-lns').innerText));
+  await page.click('.ii-ln >> nth=2 >> text=Borrar');await page.click('#ii-m-ok');
+  await page.waitForFunction(()=>document.querySelectorAll('.ii-ln').length===2);
+  await page.click('text=Cerrar conteo');await page.click('#ii-m-ok');
+  await page.waitForFunction(()=>/Cerrado/.test(document.querySelector('.ii-h').innerText));
+  ok(await page.locator('.ii-ln button').count()===0&&await page.locator('text=+ Agregar línea').count()===0&&await page.locator('text=Reabrir conteo').count()===0,'conteo cerrado: solo lectura y la Asistente no ve «Reabrir»');
+  await page.evaluate(()=>{state.user.rol='Administrador';});await page.evaluate(()=>window.__inventarioInsumosPantalla.pintar());
+  await page.click('text=Reabrir conteo');await page.fill('#ii-r-motivo','Falta contar el Patio');await page.click('#ii-m-ok');
+  await page.waitForFunction(()=>/En proceso/.test(document.querySelector('.ii-h').innerText));
+  ok(/Reaperturas \(1\)/.test(await page.locator('.ii-reab').innerText()),'el Administrador reabre con motivo y queda registrado');
+  await page.evaluate(()=>{state.user.rol='Asistente de Producción';});
+  await page.click('text=← Conteos');await page.waitForSelector('.ii-cc');
+  ok(/En proceso/.test(await page.locator('.ii-cc').first().innerText()),'lista de conteos con su estado');
+  await page.setViewportSize({width:1280,height:900});
+
   /* 7) vista de solo consulta */
   await page.evaluate(()=>{state.user.rol='Jefe de Operaciones';goInventarioInsumos();});
   await page.waitForSelector('.ii-chip');
@@ -151,6 +193,7 @@ const servidor=http.createServer((q,r)=>{
   /* 8) móvil de 360 px */
   await page.setViewportSize({width:360,height:740});
   await page.evaluate(()=>{state.user.rol='Asistente de Producción';goInventarioInsumos();});
+  await page.click('.ii-tab >> text=Stock actual');
   await page.waitForSelector('.ii-kpis');
   ok(await page.evaluate(()=>document.documentElement.scrollWidth<=360+2),'en 360 px la página no se desborda (la tabla se desplaza dentro de su contenedor)');
   await page.screenshot({path:path.join(tmp,'inventario-360.png')});

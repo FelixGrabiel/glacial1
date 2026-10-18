@@ -329,6 +329,78 @@
     return {articulos:activas.length,bajoMinimo:activas.filter(x=>x.semaforo==='rojo').length,sinStock:activas.filter(x=>!(x.base>0)).length};
   }
 
+  /* ---------- conteo físico (Fase 2) ---------- */
+  const ESTADOS_CONTEO={EN_PROCESO:'En proceso',CERRADO:'Cerrado'};
+  const claveConteo=(fecha,instante)=>'K'+String(fecha).replace(/-/g,'')+'_'+Number(instante).toString(36);
+  const claveLinea=instante=>'L'+Number(instante).toString(36)+'_'+Math.random().toString(36).slice(2,8);
+  const ubicacionLimpia=u=>String(u==null?'':u).replace(/\s+/g,' ').trim().slice(0,60)||'Sin ubicación';
+  function validarConteo(c){
+    const e=[];
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(c&&c.fecha||'')))e.push('Indica la fecha del conteo.');
+    if(!(c&&(c.almacen==='TODOS'||ALMACENES.some(a=>a.clave===c.almacen))))e.push('Elige el almacén que se va a contar.');
+    if(String(c&&c.observacion||'').length>500)e.push('La observación admite hasta 500 caracteres.');
+    return e;
+  }
+  function validarLinea(l){
+    const e=[];
+    if(!String(l&&l.itemId||'').trim())e.push('Elige el artículo.');
+    const n=Number(l&&l.cantidad);
+    if(l&&l.cantidad!==undefined&&(String(l.cantidad).trim()===''||!Number.isFinite(n)))e.push('Escribe la cantidad contada.');
+    else if(!(n>=0))e.push('La cantidad no puede ser negativa.');
+    else if(n>1e9)e.push('La cantidad es demasiado grande.');
+    if(String(l&&l.ubicacion||'').length>60)e.push('La ubicación admite hasta 60 caracteres.');
+    return e;
+  }
+  /* Artículo del catálogo al que apunta una línea (por id o por un id anterior, ver «alias»). */
+  function itemDeLinea(indice,itemId){
+    return indice.get(itemId)||null;
+  }
+  function indiceCatalogo(catalogo){
+    const m=new Map();
+    (catalogo||[]).forEach(c=>{m.set(c.id,c);(c.alias||[]).forEach(a=>{if(!m.has(a))m.set(a,c);});});
+    return m;
+  }
+  /* Suma por artículo de las líneas de un conteo (varias líneas por ubicación se suman solas: reemplaza =1000+9000). */
+  function totalesConteo(lineas,catalogo){
+    const idx=indiceCatalogo(catalogo),porItem=new Map(),huerfanas=[];
+    (lineas||[]).forEach(l=>{
+      const it=itemDeLinea(idx,l.itemId);
+      if(!it){huerfanas.push(l);return;}
+      let t=porItem.get(it.id);if(!t){t={total:0,lineas:[]};porItem.set(it.id,t);}
+      t.total=red(t.total+num(l.cantidad),4);t.lineas.push(l);
+    });
+    porItem.forEach(t=>t.lineas.sort((a,b)=>num(a.en)-num(b.en)));
+    return {porItem,huerfanas};
+  }
+  /* f: {categoria, texto, prioritarios, soloPendientes, activos}. Una fila por artículo con su total contado. */
+  function filasConteo(catalogo,totales,f){
+    f=f||{};
+    const t=norm(f.texto||'');
+    return (catalogo||[]).filter(c=>{
+      if(f.activos!==false&&c.activo===false)return false;
+      if(f.prioritarios&&!c.prioritario)return false;
+      if(f.categoria&&c.categoria!==f.categoria)return false;
+      if(t&&!(norm(c.nombre).includes(t)||norm(c.itemCode).includes(t)))return false;
+      return true;
+    }).map(c=>{
+      const x=totales.porItem.get(c.id);
+      return {...c,contado:!!x,total:x?x.total:0,lineas:x?x.lineas:[]};
+    }).filter(r=>!f.soloPendientes||!r.contado)
+      .sort((a,b)=>String(a.categoria).localeCompare(String(b.categoria),'es')||String(a.nombre).localeCompare(String(b.nombre),'es'));
+  }
+  /* Avance sobre los artículos que se esperaba contar (activos, y prioritarios si ese filtro está puesto). */
+  function progresoConteo(catalogo,totales,soloPrioritarios){
+    const base=(catalogo||[]).filter(c=>c.activo!==false&&(!soloPrioritarios||c.prioritario));
+    const contados=base.filter(c=>totales.porItem.has(c.id)).length;
+    return {total:base.length,contados,pendientes:base.length-contados,pct:base.length?Math.round(contados/base.length*100):0};
+  }
+  const ubicacionesUsadas=lineas=>[...new Set((lineas||[]).map(l=>l.ubicacion).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  function resumenCierre(lineas,catalogo){
+    const tot=totalesConteo(lineas,catalogo);
+    const pri=progresoConteo(catalogo,tot,true);
+    return {articulosContados:tot.porItem.size,lineas:(lineas||[]).length,prioritariosPendientes:pri.pendientes,prioritariosTotal:pri.total};
+  }
+
   /* ---------- permisos (reglas puras; el módulo de datos las aplica al usuario) ---------- */
   const ROLES_SOLO_CONSULTA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];
   const ROLES_VER_DEFECTO=['Asistente de Producción','Jefe de Operaciones'];
@@ -336,7 +408,8 @@
 
   const API={GRUPOS_VALIDOS,GRUPOS_NOMBRE,ALMACENES,CATEGORIAS,PRIORITARIAS,MARCAS,CAMPOS_EDITABLES,ROLES_SOLO_CONSULTA,ROLES_VER_DEFECTO,ROLES_ESCRIBIR_DEFECTO,
     num,norm,red,fmt,esExcluido,categoriaDe,marcaDe,presentacionDe,esPrioritaria,almacenDe,almacenInfo,idPorNombre,esIdNombre,prefiltrarFilas,leerLibro,
-    registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock};
+    registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock,
+    ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre};
   global.glacialInventarioNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);

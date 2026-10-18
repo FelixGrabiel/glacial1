@@ -1,4 +1,4 @@
--- GLACIAL · glacial_24 · Reglas de Supabase para el INVENTARIO DE INSUMOS (Fase 1)      *** BORRADOR: NO SE HA APLICADO ***
+-- GLACIAL · glacial_24 · Reglas de Supabase para el INVENTARIO DE INSUMOS (Fases 1 y 2)      *** BORRADOR: NO SE HA APLICADO ***
 --
 -- Qué hace (mismo método que glacial_23, que insertó las ramas del Asistente de Producción):
 --  1) glacial_fs.cap_ii_ver: quién puede VER el inventario (permiso 'inventarioInsumos'; por defecto Asistente de Producción y Jefe de
@@ -6,7 +6,7 @@
 --  2) ctx: marcas ii_ver (ver) e ii_esc (escribir: cap_ap, que ya excluye los roles de solo consulta; por defecto Asistente de Producción).
 --  3) autorizar y puede_leer: ramas para las 4 colecciones nuevas:
 --       insumosCatalogo (documento único 'catalogo' con la lista de artículos), insumosCortesIndice y insumosCortesDetalle (un documento
---       por corte de stock; solo se CREAN, no se editan ni se borran) e insumosAuditoria (solo se crea: quién, cuándo, qué cambió).
+--       por corte de stock; solo se CREAN, no se editan ni se borran) insumosConteosIndice / insumosConteosDetalle (conteo físico: se crean y se actualizan, no se borran) e insumosAuditoria (solo se crea).
 --
 -- IMPORTANTE ANTES DE APLICAR
 --  · Esta migración usa las mismas «anclas» de texto que glacial_23 (final de ctx, de autorizar y de puede_leer). Se probó SOLO leyendo
@@ -37,7 +37,7 @@ declare
    'ii_esc',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'inventarioInsumos', array['Asistente de Producción']));$a$;
   anc_fin constant text := E'\n end if;\n return false;';
   rama_aut constant text := $r$
- elsif c in ('insumosCatalogo','insumosCortesIndice','insumosCortesDetalle','insumosAuditoria') then
+ elsif c in ('insumosCatalogo','insumosCortesIndice','insumosCortesDetalle','insumosConteosIndice','insumosConteosDetalle','insumosAuditoria') then
    declare
      esc boolean := coalesce((k->>'ii_esc')::boolean, false);
    begin
@@ -47,13 +47,16 @@ declare
        return esc and n->>'uid' = u and n->'en' = ahora;
      elsif c = 'insumosCatalogo' then
        return esc and d = 'catalogo';
+     elsif c in ('insumosConteosIndice','insumosConteosDetalle') then   -- conteo físico (Fase 2): se crean y se actualizan (líneas, cierre);
+       return esc and (accion = 'update' or n->>'id' = d);              -- no se borran. «Solo un Administrador reabre» lo exige la aplicación
+                                                                        -- (las reglas de este nivel no comparan estado anterior → nuevo).
      else                                                               -- cortes de stock: se crean una vez y no cambian
        return esc and accion = 'create' and n->>'id' = d;
      end if;
    end;
 $r$;
   anc_leer constant text := E'\n end if;\n return false;';
-  rama_leer constant text := E'\n elsif c in (''insumosCatalogo'',''insumosCortesIndice'',''insumosCortesDetalle'',''insumosAuditoria'') then return coalesce((k->>''ii_ver'')::boolean, false);';
+  rama_leer constant text := E'\n elsif c in (''insumosCatalogo'',''insumosCortesIndice'',''insumosCortesDetalle'',''insumosConteosIndice'',''insumosConteosDetalle'',''insumosAuditoria'') then return coalesce((k->>''ii_ver'')::boolean, false);';
 begin
   select pg_get_functiondef(p.oid) into def from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'glacial_fs' and p.proname = 'ctx';

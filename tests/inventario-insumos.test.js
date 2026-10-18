@@ -193,6 +193,53 @@ function entorno(rol,permisos){
   sb.docs.set('insumosCatalogo/catalogo',{...hecho,items:hecho.items.map(x=>x.id===id?{...x,stockMinimo:123}:x)});
   const antes=cambios;sb.db.runTransaction(async()=>{});await new Promise(r=>setTimeout(r,5));
   ok(true,'lectura de cambios de otros dispositivos cubierta por el puente (tests/puente-supabase.test.js)');
+  /* ================= conteo físico (Fase 2) ================= */
+  const art=D.cache.catalogo[0],art2=D.cache.catalogo[1];
+  ok(Nn.validarConteo({fecha:'2026-10-18',almacen:'INSUMOS'}).length===0&&Nn.validarConteo({fecha:'',almacen:'INSUMOS'}).length===1&&Nn.validarConteo({fecha:'2026-10-18',almacen:'XX'}).length===1&&Nn.validarConteo({fecha:'2026-10-18',almacen:'TODOS'}).length===0,'conteo: validación de fecha y almacén (cualquiera de los 6 o «Todos»)');
+  let cv=null;try{await D.crearConteo({fecha:'',almacen:'INSUMOS'});}catch(e){cv=e;}ok(cv&&cv.codigo==='VALIDACION','no se crea un conteo sin fecha');
+  const cnt=await D.crearConteo({fecha:'2026-10-18',almacen:'INSUMOS',observacion:'Conteo mensual'});
+  ok(cnt.estado==='EN_PROCESO'&&cnt.almacen==='INSUMOS'&&cnt.creadoPor==='Ana'&&D.cache.conteos.length===1&&D.cache.conteos[0].id===cnt.id,'nuevo conteo EN PROCESO visible en vivo');
+  D.escucharConteo(cnt.id);
+  const l1=await D.agregarLinea(cnt.id,{itemId:art.id,ubicacion:'  Rack   A ',cantidad:'1000'});
+  const l2=await D.agregarLinea(cnt.id,{itemId:art.id,ubicacion:'Patio',cantidad:9000});
+  await D.agregarLinea(cnt.id,{itemId:art2.id,ubicacion:'Rack B',cantidad:'12.5'});
+  ok(l1.ubicacion==='Rack A'&&l1.por==='Ana'&&l1.uid==='u1'&&l1.en>0&&l1.id!==l2.id,'cada línea guarda ubicación limpia, quién y cuándo');
+  const tot=Nn.totalesConteo(D.cache.conteo.items,D.cache.catalogo);
+  ok(tot.porItem.get(art.id).total===10000&&tot.porItem.get(art.id).lineas.length===2&&tot.porItem.get(art2.id).total===12.5,'el sistema suma las líneas por artículo (1000 + 9000 = 10.000)');
+  ok(D.cache.conteos[0].lineas===3&&D.cache.conteos[0].articulos===2,'el índice del conteo lleva líneas y artículos');
+  const pr=Nn.progresoConteo(D.cache.catalogo,tot,false);ok(pr.total===5&&pr.contados===2&&pr.pendientes===3&&pr.pct===40,'avance del conteo');
+  ok(Nn.filasConteo(D.cache.catalogo,tot,{soloPendientes:true,prioritarios:false}).length===3&&Nn.filasConteo(D.cache.catalogo,tot,{texto:art.nombre.slice(0,6),prioritarios:false}).every(f=>f.nombre.toLowerCase().includes(art.nombre.slice(0,6).toLowerCase())),'lista del conteo: pendientes y buscador');
+  let nv=null;try{await D.agregarLinea(cnt.id,{itemId:art.id,ubicacion:'X',cantidad:-3});}catch(e){nv=e;}ok(nv&&nv.codigo==='VALIDACION','no admite cantidades negativas');
+  let nv2=null;try{await D.agregarLinea(cnt.id,{itemId:art.id,ubicacion:'X',cantidad:'abc'});}catch(e){nv2=e;}ok(nv2&&nv2.codigo==='VALIDACION','ni texto en la cantidad');
+  /* otra persona agrega al mismo tiempo desde otro dispositivo: ambas líneas se conservan */
+  const docDet=sb.docs.get('insumosConteosDetalle/'+cnt.id);
+  sb.docs.set('insumosConteosDetalle/'+cnt.id,{...docDet,items:docDet.items.concat([{id:'LX',itemId:art.id,ubicacion:'Bodega',cantidad:5,por:'Luis',uid:'u2',en:1}])});
+  await D.agregarLinea(cnt.id,{itemId:art.id,ubicacion:'Pasillo',cantidad:1});
+  ok(D.cache.conteo.items.some(x=>x.id==='LX')&&D.cache.conteo.items.length===5,'la línea de otra persona se conserva al guardar (no se pisan)');
+  const eL=await D.editarLinea(cnt.id,l1.id,{ubicacion:'Rack A',cantidad:'1500'});
+  ok(eL.cantidad===1500&&eL.editadoPor==='Ana'&&Nn.totalesConteo(D.cache.conteo.items,D.cache.catalogo).porItem.get(art.id).total===10000+500+5+1,'editar una línea actualiza el total');
+  await D.borrarLinea(cnt.id,'LX');await D.borrarLinea(cnt.id,'LX');
+  ok(!D.cache.conteo.items.some(x=>x.id==='LX'),'borrar una línea (y borrarla dos veces no falla)');
+  await D.guardarObservacion(cnt.id,'Falta el patio');ok(D.cache.conteos[0].observacion==='Falta el patio','observación general editable mientras está en proceso');
+  /* cierre */
+  const res=await D.cerrarConteo(cnt.id);
+  ok(res.lineas===4&&D.cache.conteos[0].estado==='CERRADO'&&D.cache.conteos[0].cerradoPor==='Ana'&&D.cache.conteos[0].cerradoEn>0,'cerrar: queda CERRADO con quién y cuándo');
+  for(const [nom,fn] of [['agregar',()=>D.agregarLinea(cnt.id,{itemId:art.id,ubicacion:'Z',cantidad:1})],['editar',()=>D.editarLinea(cnt.id,l1.id,{ubicacion:'Z',cantidad:1})],['borrar',()=>D.borrarLinea(cnt.id,l1.id)],['observación',()=>D.guardarObservacion(cnt.id,'x')]]){
+    let ec=null;try{await fn();}catch(e){ec=e;}ok(ec&&ec.codigo==='CERRADO',`cerrado: no se puede ${nom}`);
+  }
+  let ra=null;try{await D.reabrirConteo(cnt.id,'Falta el Patio');}catch(e){ra=e;}ok(ra&&ra.codigo==='PERMISO','la Asistente NO puede reabrir un conteo cerrado');
+  sb.state.user.rol='Administrador';
+  let rm=null;try{await D.reabrirConteo(cnt.id,'  ');}catch(e){rm=e;}ok(rm&&rm.codigo==='VALIDACION','reabrir exige un motivo');
+  await D.reabrirConteo(cnt.id,'Falta contar el Patio');
+  const mr=D.cache.conteos[0];ok(mr.estado==='EN_PROCESO'&&mr.reaperturas.length===1&&mr.reaperturas[0].por==='Ana'&&mr.reaperturas[0].motivo==='Falta contar el Patio'&&mr.reaperturas[0].en>0,'el Administrador reabre y queda quién, cuándo y por qué');
+  sb.state.user.rol='Asistente de Producción';
+  let vacio=null;const c2=await D.crearConteo({fecha:'2026-10-19',almacen:'TODOS'});try{await D.cerrarConteo(c2.id);}catch(e){vacio=e;}ok(vacio&&vacio.codigo==='VALIDACION','no se cierra un conteo sin líneas');
+  const tipos=[...sb.docs.entries()].filter(([k])=>k.startsWith('insumosAuditoria/')).map(([,v])=>v).filter(a=>a.conteoId===cnt.id).map(a=>a.tipo);
+  ok(['CREAR_LINEA','EDITAR_LINEA','BORRAR_LINEA','CERRAR_CONTEO','REABRIR_CONTEO','EDITAR_CONTEO'].every(t=>tipos.includes(t))&&tipos.filter(t=>t==='CREAR_LINEA').length===4,'auditoría de líneas, edición, cierre y reapertura');
+  const aE=[...sb.docs.values()].find(a=>a.tipo==='EDITAR_LINEA');ok(aE&&aE.antes.cantidad===1000&&aE.despues.cantidad===1500&&aE.usuario==='Ana','auditoría: valor anterior → nuevo');
+  const sc2=entorno('Jefe de Operaciones');let pe3=null;try{await sc2.glacialInventarioDatos.crearConteo({fecha:'2026-10-18',almacen:'INSUMOS'});}catch(e){pe3=e;}ok(pe3&&pe3.codigo==='PERMISO','el Jefe de Operaciones no crea conteos (solo consulta)');
+  D.escucharConteo('');
+
   /* sin permiso de escritura */
   const sc=entorno('Jefe de Operaciones');let pe=null;try{await sc.glacialInventarioDatos.importarCorte(lect1,{fechaCorte:'2026-10-15',archivo:'x'});}catch(e){pe=e;}
   ok(pe&&pe.codigo==='PERMISO','el Jefe de Operaciones no puede importar');
@@ -202,7 +249,7 @@ function entorno(rol,permisos){
 
   /* ================= integración ================= */
   const html=leer('index.html'),pos=n=>html.indexOf('js/asistente/'+n);
-  ok(pos('74-inventario-insumos-nucleo.js')>pos('73-reporte-general.js')&&pos('75-inventario-insumos-datos.js')>pos('74-inventario-insumos-nucleo.js')&&pos('76-inventario-insumos-pantalla.js')>pos('75-inventario-insumos-datos.js')&&pos('76-inventario-insumos-pantalla.js')<html.indexOf('js/nucleo/12-init.js'),'index.html carga 74, 75 y 76 en orden, después del Asistente y antes de 12-init');
+  ok(pos('74-inventario-insumos-nucleo.js')>pos('73-reporte-general.js')&&pos('75-inventario-insumos-datos.js')>pos('74-inventario-insumos-nucleo.js')&&pos('76-inventario-insumos-pantalla.js')>pos('75-inventario-insumos-datos.js')&&pos('77-inventario-insumos-conteo.js')>pos('76-inventario-insumos-pantalla.js')&&pos('77-inventario-insumos-conteo.js')<html.indexOf('js/nucleo/12-init.js'),'index.html carga 74, 75 y 76 en orden, después del Asistente y antes de 12-init');
   ok(/id="btn-inventario-insumos"[^>]*onclick="goInventarioInsumos\(\)"/.test(html),'botón del menú lateral');
   const pant=leer('js/asistente/76-inventario-insumos-pantalla.js'),dat=leer('js/asistente/75-inventario-insumos-datos.js');
   ok(/state\.currentTab===TAB/.test(pant)&&/window\.goInventarioInsumos/.test(pant)&&/renderSidebar=function/.test(pant)&&/ajustarVistaSegunPermisos=function/.test(pant),'pantalla: pestaña, goInventarioInsumos y envoltorios de renderMain/renderSidebar/permisos');

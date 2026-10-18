@@ -80,8 +80,8 @@
   }
 
   /* ---------- caché en vivo ---------- */
-  const cache={catalogo:[],cortes:[],corte:null,corteId:'',listo:{},error:{}};
-  const oyentes=[];let cierres=[];let cierreCorte=null;
+  const cache={catalogo:[],cortes:[],corte:null,corteId:'',conteos:[],conteo:null,conteoId:'',listo:{},error:{}};
+  const oyentes=[];let cierres=[];let cierreCorte=null;let cierreConteo=null;
   const avisar=()=>oyentes.slice().forEach(f=>{try{f();}catch(_){/* una vista no rompe a otra */}});
   const ordenCortes=l=>l.slice().sort((a,b)=>String(b.fechaCorte).localeCompare(String(a.fechaCorte))||num(b.importadoEn)-num(a.importadoEn));
 
@@ -92,6 +92,14 @@
     cierreCorte=col('insumosCortesDetalle').doc(id).onSnapshot(s=>{
       cache.corte=s.exists?s.data():null;cache.listo.corte=true;cache.error.corte='';avisar();
     },e=>{cache.error.corte=mensajeError(e);avisar();});
+  }
+  function escucharConteo(id){
+    if(cierreConteo){try{cierreConteo();}catch(_){/* ya cerrada */}cierreConteo=null;}
+    cache.conteoId=id||'';cache.conteo=null;cache.listo.conteo=!id;cache.error.conteo='';
+    if(!id){avisar();return;}
+    cierreConteo=col('insumosConteosDetalle').doc(id).onSnapshot(s=>{
+      cache.conteo=s.exists?s.data():null;cache.listo.conteo=true;cache.error.conteo='';avisar();
+    },e=>{cache.error.conteo=mensajeError(e);avisar();});
   }
   let activo=false;                 // una sola escucha, aunque onSnapshot responda de inmediato y la pantalla vuelva a pedirla
   function escuchar(){
@@ -109,15 +117,23 @@
       if(!existe||(!cache.manual&&ultimo!==cache.corteId))escucharCorte(ultimo);
       else avisar();
     },e=>{cache.error.cortes=mensajeError(e);avisar();}));
+    cache.listo.conteos=false;cache.error.conteos='';
+    cierres.push(col('insumosConteosIndice').onSnapshot(s=>{
+      cache.conteos=s.docs.map(d=>d.data()).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))||num(b.creadoEn)-num(a.creadoEn));
+      cache.listo.conteos=true;cache.error.conteos='';
+      if(cache.conteoId&&!cache.conteos.some(c=>c.id===cache.conteoId))escucharConteo('');
+      else avisar();
+    },e=>{cache.error.conteos=mensajeError(e);avisar();}));
   }
   function detener(){
     activo=false;
     cierres.splice(0).forEach(c=>{try{c();}catch(_){/* ya cerrada */}});
     if(cierreCorte){try{cierreCorte();}catch(_){/* ya cerrada */}cierreCorte=null;}
-    cache.corteId='';cache.corte=null;cache.manual=false;
+    if(cierreConteo){try{cierreConteo();}catch(_){/* ya cerrada */}cierreConteo=null;}
+    cache.corteId='';cache.corte=null;cache.manual=false;cache.conteoId='';cache.conteo=null;
   }
   function elegirCorte(id,manual){cache.manual=!!manual&&id!==(cache.cortes[0]&&cache.cortes[0].id);if(id!==cache.corteId)escucharCorte(id);}
-  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();cache.catalogo=[];cache.cortes=[];cache.listo={};cache.error={};});
+  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();cache.catalogo=[];cache.cortes=[];cache.conteos=[];cache.listo={};cache.error={};});
 
   /* ---------- catálogo: edición ---------- */
   /* cambios: subconjunto de N.CAMPOS_EDITABLES. Transacción: lee el catálogo actual, cambia SOLO ese artículo y audita antes → después. */
@@ -173,6 +189,123 @@
     return {id,resumen};
   }
 
+  /* ---------- conteo físico (Fase 2) ----------
+     insumosConteosIndice/{id}  → { id, fecha, almacen, observacion, estado, creadoPor/Uid/En, cerradoPor/En, reaperturas:[{por,en,motivo}], lineas, articulos }
+     insumosConteosDetalle/{id} → { items:[ {id, itemId, ubicacion, cantidad, por, uid, en, editadoPor?, editadoEn?} ] }  (una fila por línea:
+     dos personas contando a la vez no se pisan; cada operación es una transacción que revisa el estado del conteo). */
+  const esAdmin=()=>typeof state!=='undefined'&&state.user&&(state.user.rol==='Administrador'||state.user.permisos==='todos');
+  const refsConteo=id=>({idx:col('insumosConteosIndice').doc(id),det:col('insumosConteosDetalle').doc(id)});
+  const resumenDe=(items)=>({lineas:items.length,articulos:new Set(items.map(l=>l.itemId)).size});
+
+  async function crearConteo({fecha,almacen,observacion}){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para crear conteos.');
+    const c={fecha:String(fecha||''),almacen:almacen||'INSUMOS',observacion:String(observacion||'').trim()};
+    const err=N.validarConteo(c);if(err.length)throw falla('VALIDACION',err.join(' · '));
+    const u=usuario(),t=ahora(),id=N.claveConteo(c.fecha,t),r=refsConteo(id);
+    const meta={id,...c,estado:'EN_PROCESO',creadoPor:u.nombre,creadoUid:u.uid,creadoEn:t,reaperturas:[],lineas:0,articulos:0};
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(r.idx);if(s.exists)throw falla('DUPLICADO','Este conteo ya se creó.');
+      tx.set(r.idx,meta);tx.set(r.det,{id,items:[]});
+      auditar(tx,'CREAR_CONTEO',id,c.fecha+' · '+c.almacen,null,{fecha:c.fecha,almacen:c.almacen,observacion:c.observacion});
+    });
+    return meta;
+  }
+  /* Lee índice + detalle y exige conteo EN PROCESO; aplica cambio(items, meta) → devuelve lo que se audita. */
+  async function sobreLineas(conteoId,cambio){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para registrar conteos.');
+    const r=refsConteo(conteoId);let salida=null;
+    await db.runTransaction(async tx=>{
+      const sI=await tx.get(r.idx);
+      if(!sI.exists)throw falla('VALIDACION','El conteo ya no existe.');
+      const meta=sI.data();
+      if(meta.estado!=='EN_PROCESO')throw falla('CERRADO','El conteo está cerrado: solo un Administrador puede reabrirlo.');
+      const sD=await tx.get(r.det);
+      const items=(sD.exists&&Array.isArray(sD.data().items))?sD.data().items.map(x=>({...x})):[];
+      salida=cambio(items,meta,tx);
+      if(!salida)return;
+      tx.set(r.det,{id:conteoId,items});
+      tx.set(r.idx,{...meta,...resumenDe(items)});
+    });
+    return salida;
+  }
+  async function agregarLinea(conteoId,{itemId,ubicacion,cantidad}){
+    const l={itemId:String(itemId||''),ubicacion:N.ubicacionLimpia(ubicacion),cantidad};
+    const err=N.validarLinea(l);if(err.length)throw falla('VALIDACION',err.join(' · '));
+    const u=usuario(),t=ahora();
+    return sobreLineas(conteoId,(items,meta,tx)=>{
+      const it=N.indiceCatalogo(cache.catalogo).get(l.itemId);
+      const nueva={id:N.claveLinea(t),itemId:it?it.id:l.itemId,ubicacion:l.ubicacion,cantidad:N.red(num(l.cantidad),4),por:u.nombre,uid:u.uid,en:t};
+      items.push(nueva);
+      auditar(tx,'CREAR_LINEA',nueva.itemId,it?it.nombre:'',null,{conteo:conteoId,ubicacion:nueva.ubicacion,cantidad:nueva.cantidad},{conteoId});
+      return nueva;
+    });
+  }
+  async function editarLinea(conteoId,lineaId,{ubicacion,cantidad}){
+    const l={itemId:'x',ubicacion:N.ubicacionLimpia(ubicacion),cantidad};
+    const err=N.validarLinea(l);if(err.length)throw falla('VALIDACION',err.join(' · '));
+    const u=usuario(),t=ahora();
+    return sobreLineas(conteoId,(items,meta,tx)=>{
+      const x=items.find(i=>i.id===lineaId);
+      if(!x)throw falla('VALIDACION','La línea ya no existe (otra persona la eliminó).');
+      const antes={ubicacion:x.ubicacion,cantidad:x.cantidad};
+      x.ubicacion=l.ubicacion;x.cantidad=N.red(num(l.cantidad),4);x.editadoPor=u.nombre;x.editadoEn=t;
+      if(antes.ubicacion===x.ubicacion&&antes.cantidad===x.cantidad)return null;
+      const it=N.indiceCatalogo(cache.catalogo).get(x.itemId);
+      auditar(tx,'EDITAR_LINEA',x.itemId,it?it.nombre:'',antes,{ubicacion:x.ubicacion,cantidad:x.cantidad},{conteoId});
+      return x;
+    });
+  }
+  async function borrarLinea(conteoId,lineaId){
+    return sobreLineas(conteoId,(items,meta,tx)=>{
+      const i=items.findIndex(x=>x.id===lineaId);
+      if(i<0)return null;                                  // ya la había borrado otra persona: nada que hacer
+      const [x]=items.splice(i,1);
+      const it=N.indiceCatalogo(cache.catalogo).get(x.itemId);
+      auditar(tx,'BORRAR_LINEA',x.itemId,it?it.nombre:'',{ubicacion:x.ubicacion,cantidad:x.cantidad,por:x.por},null,{conteoId});
+      return x;
+    });
+  }
+  async function cerrarConteo(conteoId){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para cerrar conteos.');
+    const r=refsConteo(conteoId),u=usuario(),t=ahora();let res=null;
+    await db.runTransaction(async tx=>{
+      const sI=await tx.get(r.idx);if(!sI.exists)throw falla('VALIDACION','El conteo ya no existe.');
+      const meta=sI.data();if(meta.estado==='CERRADO')throw falla('CERRADO','El conteo ya estaba cerrado.');
+      const sD=await tx.get(r.det);const items=(sD.exists&&Array.isArray(sD.data().items))?sD.data().items:[];
+      if(!items.length)throw falla('VALIDACION','No se puede cerrar un conteo sin líneas registradas.');
+      res=resumenDe(items);
+      tx.set(r.idx,{...meta,...res,estado:'CERRADO',cerradoPor:u.nombre,cerradoUid:u.uid,cerradoEn:t});
+      auditar(tx,'CERRAR_CONTEO',conteoId,meta.fecha+' · '+meta.almacen,{estado:'EN_PROCESO'},{estado:'CERRADO',...res},{conteoId});
+    });
+    return res;
+  }
+  async function reabrirConteo(conteoId,motivo){
+    if(!yoEscribo()||!esAdmin())throw falla('PERMISO','Solo un Administrador puede reabrir un conteo cerrado.');
+    const m=String(motivo||'').trim();
+    if(m.length<5)throw falla('VALIDACION','Escribe el motivo de la reapertura (mínimo 5 caracteres).');
+    const r=refsConteo(conteoId),u=usuario(),t=ahora();
+    await db.runTransaction(async tx=>{
+      const sI=await tx.get(r.idx);if(!sI.exists)throw falla('VALIDACION','El conteo ya no existe.');
+      const meta=sI.data();if(meta.estado!=='CERRADO')throw falla('VALIDACION','El conteo no está cerrado.');
+      const reaperturas=(meta.reaperturas||[]).concat([{por:u.nombre,uid:u.uid,en:t,motivo:m.slice(0,300)}]);
+      tx.set(r.idx,{...meta,estado:'EN_PROCESO',reaperturas});
+      auditar(tx,'REABRIR_CONTEO',conteoId,meta.fecha+' · '+meta.almacen,{estado:'CERRADO'},{estado:'EN_PROCESO',motivo:m.slice(0,300)},{conteoId});
+    });
+    return true;
+  }
+  async function guardarObservacion(conteoId,observacion){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para editar conteos.');
+    const o=String(observacion||'').trim();if(o.length>500)throw falla('VALIDACION','La observación admite hasta 500 caracteres.');
+    const r=refsConteo(conteoId);
+    await db.runTransaction(async tx=>{
+      const sI=await tx.get(r.idx);if(!sI.exists)throw falla('VALIDACION','El conteo ya no existe.');
+      const meta=sI.data();if(meta.estado!=='EN_PROCESO')throw falla('CERRADO','El conteo está cerrado.');
+      if((meta.observacion||'')===o)return;
+      tx.set(r.idx,{...meta,observacion:o});
+      auditar(tx,'EDITAR_CONTEO',conteoId,meta.fecha+' · '+meta.almacen,{observacion:meta.observacion||''},{observacion:o},{conteoId});
+    });
+  }
+
   /* Vista previa SIN guardar: cuántos artículos son nuevos respecto al catálogo actual. */
   function vistaPrevia(lectura){
     const comb=N.combinarCatalogo(cache.catalogo,lectura.articulos);
@@ -180,5 +313,6 @@
   }
 
   window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,importarCorte,vistaPrevia,mensajeError,
+    escucharConteo,crearConteo,agregarLinea,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,esAdmin,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();

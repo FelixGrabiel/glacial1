@@ -87,7 +87,7 @@ js/
 | 28-tareo-maquinistas.js | Reglas de maquinistas y técnicos en el tareo |
 | 31-rotacion-supervisores.js | Rotación de supervisores |
 | 40-tareo-auditoria.js | Registra en `auditoriaTareos` quién cambió qué en un tareo (solo crea eventos). Rendimiento: `sembrar()` (cada snapshot) reutiliza la foto de los tareos cuya firma no cambió (WeakMap `fotosPrevias`) |
-| 74-inventario-insumos-nucleo.js · 75-inventario-insumos-datos.js · 76-inventario-insumos-pantalla.js | INVENTARIO DE INSUMOS (Fase 1: catálogo, importar stock SAP y stock actual): núcleo puro (Excel plano o tabla dinámica, categorías, semáforo), capa de datos (`insumosCatalogo`, `insumosCortesIndice`, `insumosCortesDetalle`, `insumosAuditoria`; permiso `inventarioInsumos`) y pantalla (botón `#btn-inventario-insumos`). Diseño y pruebas: docs/INVENTARIO-INSUMOS.md · tests/inventario-insumos.test.js. Reglas de Supabase en borrador: supabase/migraciones/glacial_24_inventario_insumos.sql (sin aplicar) |
+| 74-inventario-insumos-nucleo.js · 75-inventario-insumos-datos.js · 76-inventario-insumos-pantalla.js · 77-inventario-insumos-conteo.js | INVENTARIO DE INSUMOS (Fase 1: catálogo, importar stock SAP y stock actual; Fase 2: conteo físico con varias líneas por ubicación): núcleo puro (Excel plano o tabla dinámica, categorías, semáforo), capa de datos (`insumosCatalogo`, `insumosCortesIndice`, `insumosCortesDetalle`, `insumosConteosIndice`, `insumosConteosDetalle`, `insumosAuditoria`; permiso `inventarioInsumos`) y pantalla (botón `#btn-inventario-insumos`). Diseño y pruebas: docs/INVENTARIO-INSUMOS.md · tests/inventario-insumos.test.js. Reglas de Supabase en borrador: supabase/migraciones/glacial_24_inventario_insumos.sql (sin aplicar) |
 | 49b-resumen-graficos-diferidos.js | Reportes → Resumen general (rendimiento/INP): envuelve `renderResumen` y crea los ~13 gráficos de Chart.js de uno en uno (setTimeout 0, sin animación de entrada) en vez de todos en el turno del clic; mismos datos y aspecto final; un render nuevo, `destroy()` o salir de la pantalla cancelan lo pendiente. Prueba: tests/resumen-graficos-diferidos.test.js |
 | 41-tareo-bloqueo.js | Bloqueo de tareos por plazo (hora del servidor), correcciones de RRHH con motivo y solicitudes |
 | 42-tareo-agregar-personal.js | Agregar personal al tareo (ya registrado o personal nuevo) en Producción y Mantenimiento |
@@ -183,7 +183,7 @@ Diagnóstico, modelo de datos y permisos: `docs/ASISTENTE-PRODUCCION.md`.
 45. produccion/46-proyeccion-avisos.js
 46. produccion/47-analisis-paradas.js
 46b. produccion/49b-resumen-graficos-diferidos.js (después de 09, 08 y 49; antes de 12-init)
-46c. asistente/74-inventario-insumos-nucleo.js, 75-inventario-insumos-datos.js, 76-inventario-insumos-pantalla.js (después de 73-reporte-general; antes de 12-init)
+46c. asistente/74-inventario-insumos-nucleo.js, 75-inventario-insumos-datos.js, 76-inventario-insumos-pantalla.js, 77-inventario-insumos-conteo.js (después de 73-reporte-general; antes de 12-init)
 47. accesos/39-vista-como.js
 48. nucleo/12-init.js
 
