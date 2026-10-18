@@ -18,7 +18,7 @@
   const finDia=f=>Date.parse(f+'T23:59:59.999Z')+PERU;          // fin del día en hora de Perú (UTC-5)
   const iniDia=f=>Date.parse(f+'T00:00:00.000Z')+PERU;
   const hora=ms=>{if(!ms)return '';const d=new Date(Number(ms)-PERU),p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+'/'+d.getUTCFullYear()+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds());};
-  const K={desde:iso(Date.now()-30*86400000),hasta:iso(Date.now()),grupo:'',tipo:'',usuario:'',texto:'',limite:PASO,eventos:null,truncado:false,cargando:false,error:'',pedido:null};
+  const K={desde:iso(Date.now()-30*86400000),hasta:iso(Date.now()),grupo:'',tipo:'',usuario:'',texto:'',limite:PASO,eventos:null,truncado:false,cargando:false,error:'',pedido:null,msg:null};
   const repintar=()=>{const p=global.__inventarioInsumosPantalla;if(p)p.pintar();};
   const GRUPO_PILL={IMPORTACION:'ii-p-azul',CATALOGO:'ii-p-naranja',CONTEO:'ii-p-verde',LINEA:'ii-p-gris',COMENTARIO:'ii-p-gris'};
 
@@ -60,7 +60,8 @@
       <label class="ii-campo"><span>Acción</span><select onchange="iiaFiltro('tipo',this.value)">${sel('tipo',tipos,'Todas')}</select></label>
       <label class="ii-campo"><span>Usuario</span><select onchange="iiaFiltro('usuario',this.value)">${sel('usuario',usuarios.map(u=>[u,u]),'Todos')}</select></label>
       <label class="ii-campo"><span>Buscar artículo o dato</span><input type="search" id="ii-a-texto" value="${esc(K.texto)}" placeholder="Artículo, ubicación, motivo…" oninput="iiaTexto(this.value)" autocomplete="off"></label>
-      <button type="button" class="ii-btn ii-btn-o" onclick="iiaActualizar()">Actualizar</button></div>
+      <button type="button" class="ii-btn ii-btn-o" onclick="iiaActualizar()">Actualizar</button>
+      <button type="button" class="ii-btn" onclick="iiaExportar()" ${f.length?'':'disabled'}>Exportar a Excel</button></div>${K.msg?`<div class="ii-msg ii-msg-${K.msg.tipo}" role="status">${esc(K.msg.texto)}</div>`:''}
       <div id="ii-a-tabla">${cuerpo}</div></div>`;
   }
   let espera=null;
@@ -69,10 +70,17 @@
   global.iiaFiltro=(k,v)=>{K[k]=v;if(k==='grupo')K.tipo='';K.limite=PASO;repintar();};
   global.iiaTexto=v=>{K.texto=v;K.limite=PASO;clearTimeout(espera);espera=setTimeout(()=>{const c=document.getElementById('ii-a-tabla');if(!c){repintar();return;}
     const h=document.createElement('div');h.innerHTML=html();const n=h.querySelector('#ii-a-tabla');if(n)c.innerHTML=n.innerHTML;},200);};
+  global.iiaExportar=async()=>{
+    const X=global.glacialInventarioExcel,f=visibles();if(!X||!f.length)return;
+    const partes=[K.grupo&&N.GRUPOS_AUDITORIA[K.grupo],K.tipo&&(N.TIPOS_AUDITORIA[K.tipo]||{}).txt,K.usuario&&'Usuario: '+K.usuario,K.texto&&'Búsqueda: '+K.texto].filter(Boolean);
+    try{const n=await X.exportarAuditoria({eventos:f,desde:K.desde,hasta:K.hasta,conteos:D.cache.conteos,filtros:partes.join(' · ')});K.msg={tipo:'ok',texto:'Excel generado: '+n};}
+    catch(e){K.msg={tipo:'error',texto:(e&&e.message)||String(e)};}
+    repintar();
+  };
   global.iiaMas=()=>{K.limite+=PASO;repintar();};
   global.iiaActualizar=()=>{K.eventos=null;K.error='';cargar();};
   const css=`
 .ii-cambios{min-width:260px;font-size:13px}.ii-antes{color:#b42318;text-decoration:line-through}.ii-desp{color:#166534;font-weight:600}.ii-nom small{display:block}`;
-  global.iiAuditoriaUI={html,css,reiniciar:()=>{K.eventos=null;K.error='';K.pedido=null;},activoEnEdicion:()=>!!document.querySelector('#ii-a-texto:focus,.ii input[type=date]:focus')};
+  global.iiAuditoriaUI={html,css,reiniciar:()=>{K.msg=null;K.eventos=null;K.error='';K.pedido=null;},activoEnEdicion:()=>!!document.querySelector('#ii-a-texto:focus,.ii input[type=date]:focus')};
   global.__inventarioInsumosAuditoria={K,visibles,cargar};
 })(typeof window!=='undefined'?window:globalThis);

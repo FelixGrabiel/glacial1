@@ -98,6 +98,39 @@
     [26,12,48].forEach((w,i)=>{wr.getColumn(i+1).width=w;});
     return wb;
   }
+  /* Auditoría a Excel: una fila por cambio (campo, antes, después) para poder filtrar y ordenar. m: {eventos (ya filtrados), desde, hasta, conteos (metadatos), filtros (texto)} */
+  function escribirAuditoriaExcel(ExcelJS,m){
+    const wb=new ExcelJS.Workbook();wb.creator='GLACIAL';wb.created=new Date();
+    const ws=wb.addWorksheet('Auditoría',{properties:{tabColor:{argb:'FF'+C.marino}},views:[{state:'frozen',ySplit:4,showGridLines:false}],
+      pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9,margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.2,footer:0.2}}});
+    const heads=['Fecha y hora','Usuario','Acción','Artículo / dato','Conteo','Campo','Valor anterior','Valor nuevo'],nc=heads.length;
+    ws.mergeCells(`A1:${col(nc-1)}1`);const t=ws.getCell('A1');t.value='GLACIAL · Auditoría del inventario de insumos';t.font=font({size:14,bold:true,color:'FFFFFF'});t.fill=fill(C.marino);t.alignment={vertical:'middle',indent:1};ws.getRow(1).height=26;
+    ws.mergeCells(`A2:${col(nc-1)}2`);const s2=ws.getCell('A2');s2.value=`Del ${dmy(m.desde)} al ${dmy(m.hasta)} · ${m.eventos.length} evento(s)${m.filtros?' · '+m.filtros:''}`;s2.font=font({color:C.subTxt});s2.fill=fill(C.sub);s2.alignment={vertical:'middle',indent:1};ws.getRow(2).height=18;
+    ws.getRow(3).height=6;
+    heads.forEach((x,i)=>{const c=ws.getCell(4,i+1);c.value=x;c.font=font({bold:true,color:'FFFFFF'});c.fill=fill(C.sub);c.border=bd();c.alignment={horizontal:'center',vertical:'middle',wrapText:true};});
+    ws.getRow(4).height=24;
+    let n=5,k=0;
+    m.eventos.forEach(e=>{
+      const tipo=(N.TIPOS_AUDITORIA[e.tipo]||{txt:e.tipo}).txt,cm=(m.conteos||[]).find(c=>c.id===e.conteoId);
+      const cambios=N.cambiosAuditoria(e);
+      (cambios.length?cambios:[{campo:'',antes:'',despues:''}]).forEach(c=>{
+        const row=ws.getRow(n++);
+        [hora(e.enMs)+':'+String(new Date(Number(e.enMs)-5*3600000).getUTCSeconds()).padStart(2,'0'),e.usuario||'',tipo,e.articulo||'',cm?dmy(cm.fecha)+' · '+nombreAlm(cm.almacen):'',c.campo,c.antes==='—'?'':c.antes,c.despues==='—'?'':c.despues].forEach((v,i)=>{
+          const x=row.getCell(i+1);x.value=v;x.font=font({});x.border=bd();if(k%2===1)x.fill=fill(C.alt);x.alignment={vertical:'middle',wrapText:i>=3};});
+      });k++;
+    });
+    ws.autoFilter={from:{row:4,column:1},to:{row:Math.max(n-1,4),column:nc}};
+    [19,18,30,40,26,18,22,22].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+    return wb;
+  }
+  async function guardarLibro(wb,nombre){
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    if(typeof descargarArchivo==='function')descargarArchivo(blob,nombre);
+    else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
+    return nombre;
+  }
+  async function exportarAuditoria(m){return guardarLibro(escribirAuditoriaExcel(await asegurarExcelJS(),m),`GLACIAL_Auditoria_Insumos_${m.desde}_${m.hasta}.xlsx`);}
   async function asegurarExcelJS(){
     if(global.ExcelJS&&global.ExcelJS.Workbook)return global.ExcelJS;
     if(typeof cargarScriptExterno==='function')await cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS');
@@ -112,7 +145,7 @@
     else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
     return nombre;
   }
-  const API={escribirExcel,exportar,ORDEN_EXCEL};
+  const API={escribirExcel,exportar,escribirAuditoriaExcel,exportarAuditoria,ORDEN_EXCEL};
   global.glacialInventarioExcel=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 

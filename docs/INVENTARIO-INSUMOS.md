@@ -74,7 +74,7 @@ nunca lo ve. El botón del menú se muestra u oculta en `76` (igual que el Asist
   (`EDITAR_ARTICULO`), **conteos** (`CREAR_CONTEO`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO` con motivo), **líneas** (`CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`) y **comentarios**
   (`COMENTARIO_CONCILIACION`). Cada evento va en la misma transacción que el cambio y guarda quién (nombre y uid), cuándo (hora del servidor + `enMs`), artículo, conteo y valor anterior → nuevo.
   La pestaña consulta por rango de fechas (últimos 30 días por defecto, hasta 1.000 eventos; avisa si hay más) y filtra por tipo de movimiento, acción, usuario y texto. No escucha en vivo
-  (el libro crece sin parar): «Actualizar» vuelve a consultar. La ven todos los que ven el inventario, incluido el Jefe de Operaciones (solo consulta).
+  (el libro crece sin parar): «Actualizar» vuelve a consultar. **Exportar a Excel** baja lo que se ve con los filtros aplicados (hoja «Auditoría», una fila por cambio: fecha y hora, usuario, acción, artículo, conteo, campo, valor anterior y nuevo; con filtros). La ven todos los que ven el inventario, incluido el Jefe de Operaciones (solo consulta).
 - **Importar stock SAP**: archivo + fecha del corte (hoy por defecto, hora de Perú) → resumen (encontrados, nuevos, ya existían, excluidos, almacenes) → «Guardar corte».
   Una sola transacción guarda catálogo + corte + índice + auditoría.
 
@@ -116,5 +116,4 @@ match /insumosAuditoria/{id}     { allow read: if iiVer();  allow create: if iiE
 4. **Exportar a Excel**: comprobar las 3 hojas, las columnas y que TOTAL SAP / DIFERENCIA se recalculan si cambias un valor.
 
 ## Pendiente
-Las 4 fases están construidas. Falta, fuera del código: aplicar `glacial_24` en PRUEBAS y luego PRODUCCIÓN, probar con el Excel real y subir a main. Ideas futuras: exportar la auditoría a Excel y
-un aviso de bajo mínimo. La auditoría cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).
+Las 4 fases están construidas. Falta, fuera del código: aplicar `glacial_24` en PRUEBAS y luego PRODUCCIÓN, probar con el Excel real y subir a main. Idea futura: un aviso de bajo mínimo. La auditoría cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).

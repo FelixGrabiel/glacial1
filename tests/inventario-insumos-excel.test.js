@@ -30,5 +30,13 @@ const X=require('../js/asistente/78-inventario-insumos-conciliacion.js');
   ok(wd.getRow(5).getCell(6).value==='15/10/2026 12:00'||wd.getRow(5).getCell(6).value==='15/10/2026 12:05','fecha y hora en hora de Perú');
   ok(wb2.getWorksheet('Resumen').getRow(10).getCell(2).value.result===3,'resumen: total de artículos');
   ok(ws.autoFilter&&ws.views[0].state==='frozen'&&ws.getCell('A1').font.name==='Arial','filtros, panel congelado y tipografía del resto de Excels');
+  const ev=[{tipo:'EDITAR_LINEA',usuario:'Ana',articulo:'ARTÍCULO A',conteoId:'k1',enMs:Date.UTC(2026,9,15,17,0,7),antes:{cantidad:1000,ubicacion:'Rack A'},despues:{cantidad:1500,ubicacion:'Rack A'}},
+    {tipo:'IMPORTAR_STOCK',usuario:'Luis',articulo:'STOCK.xlsx',enMs:Date.UTC(2026,9,14,15,0,0),antes:null,despues:{fechaCorte:'2026-10-14',articulos:144}}];
+  const wa=X.escribirAuditoriaExcel(ExcelJS,{eventos:ev,desde:'2026-09-18',hasta:'2026-10-18',conteos:[{id:'k1',fecha:'2026-10-15',almacen:'INSUMOS'}],filtros:'Líneas de conteo'});
+  const wb3=new ExcelJS.Workbook();await wb3.xlsx.load(await wa.xlsx.writeBuffer());const au=wb3.getWorksheet('Auditoría');
+  ok(au.getRow(4).values.slice(1).join('|')==='Fecha y hora|Usuario|Acción|Artículo / dato|Conteo|Campo|Valor anterior|Valor nuevo','auditoría: columnas');
+  const filas=[5,6,7,8].map(n=>au.getRow(n).values.slice(1));
+  ok(filas.length===4&&filas[0][0]==='15/10/2026 12:00:07'&&filas[0][1]==='Ana'&&filas[0][2]==='Línea editada'&&filas[0][4]==='15/10/2026 · AP - INSUMOS Y SUMINISTROS'&&filas.some(f=>f[5]==='Cantidad'&&f[6]==='1,000'&&f[7]==='1,500'),'auditoría: una fila por cambio, con fecha/hora de Perú, usuario, acción, conteo y antes → después');
+  ok(filas.some(f=>f[2]==='Importación de stock SAP'&&f[5]==='Artículos'&&f[7]==='144')&&au.autoFilter&&/Líneas de conteo/.test(au.getCell('A2').value),'auditoría: importación, filtros y subtítulo con el filtro aplicado');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })();
