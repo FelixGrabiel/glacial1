@@ -82,11 +82,11 @@ js/
 |---|---|
 | 11-trabajadores.js | Gestión de trabajadores |
 | 13n-tareo-nube.js | Tareo: única forma de escribir tareos (transacciones, reintentos, mensajes de error, pendientes, documento por tareo). Cargar antes de 13 |
-| 13-tareo.js | Tareo, historial, resumen mensual, rotación semanal |
+| 13-tareo.js | Tareo, historial, resumen mensual, rotación semanal. Rendimiento (INP) sin cambiar resultados: `tareoNormalizarRegistro` recuerda (WeakMap `._memo`) cómo quedó cada tareo y solo vuelve a normalizar/ordenar si cambió (lista, personas, asistencia, nombre, identificación o área); `tareoObtenerPorId` busca un tareo sin pasar por `obtenerTareos()` (lo usan `tareoObtenerActual` y `renderFilaPersonalTareo`). Prueba: tests/tareo-rendimiento-inp.test.js |
 | 20-tareo-control.js | Control de descansos y auditoría del tareo |
 | 28-tareo-maquinistas.js | Reglas de maquinistas y técnicos en el tareo |
 | 31-rotacion-supervisores.js | Rotación de supervisores |
-| 40-tareo-auditoria.js | Registra en `auditoriaTareos` quién cambió qué en un tareo (solo crea eventos) |
+| 40-tareo-auditoria.js | Registra en `auditoriaTareos` quién cambió qué en un tareo (solo crea eventos). Rendimiento: `sembrar()` (cada snapshot) reutiliza la foto de los tareos cuya firma no cambió (WeakMap `fotosPrevias`) |
 | 41-tareo-bloqueo.js | Bloqueo de tareos por plazo (hora del servidor), correcciones de RRHH con motivo y solicitudes |
 | 42-tareo-agregar-personal.js | Agregar personal al tareo (ya registrado o personal nuevo) en Producción y Mantenimiento |
 

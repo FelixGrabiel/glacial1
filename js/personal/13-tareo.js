@@ -731,6 +731,49 @@ function tareoNormalizarRegistro(tareo) {
 
     if (!tareo) return tareo;
 
+    /*
+       PERF: obtenerTareos() normaliza TODO el historial en cada llamada (y se llama varias veces por clic): estado canónico de cada
+       persona y, sobre todo, un sort con localeCompare de cada lista. Aquí se recuerda (WeakMap, nada se guarda en el tareo) cómo
+       quedó cada tareo; si la lista, las personas y los campos que usa la normalización siguen igual, el resultado sería idéntico y
+       se omite. Cualquier cambio (persona nueva o reemplazada, asistencia, nombre, identificación o área) vuelve a normalizar.
+    */
+    const memo = tareoNormalizarRegistro._memo || (tareoNormalizarRegistro._memo = new WeakMap());
+    const previo = Array.isArray(tareo.personal) ? memo.get(tareo) : undefined;
+
+    if (
+        previo &&
+        previo.lista === tareo.personal &&
+        previo.area === tareo.area &&
+        previo.refs.length === tareo.personal.length
+    ) {
+
+        let igual = true;
+
+        for (let i = 0; i < previo.refs.length; i++) {
+
+            const p = tareo.personal[i];
+            const v = previo.vals;
+            const k = i * 6;
+
+            if (
+                p !== previo.refs[i] || !p || !p.area ||
+                p.asistencia !== v[k] || p.nombre !== v[k + 1] || p.dni !== v[k + 2] ||
+                p.trabajadorId !== v[k + 3] || p.id !== v[k + 4] || p.filaId !== v[k + 5]
+            ) {
+                igual = false;
+                break;
+            }
+        }
+
+        if (igual) {
+
+            // Misma comprobación de siempre, solo si quedaban filas sin identificador persistente (45-tareo-edicion-continua.js).
+            if (previo.faltanIds && window.TareoEd) window.TareoEd.asegurarFilaIds(tareo);
+
+            return tareo;
+        }
+    }
+
     if (!tareo.area) {
         tareo.area = 'Producción';
     }
@@ -756,6 +799,21 @@ function tareoNormalizarRegistro(tareo) {
 
         // Filas que comparten identificación: reciben un filaId persistente (una sola vez) para no combinarse (45-tareo-edicion-continua.js).
         if (window.TareoEd) window.TareoEd.asegurarFilaIds(tareo);
+
+        // PERF: cómo quedó este tareo (ver arriba). faltanIds se calcula con la lectura de siempre de 45-tareo-edicion-continua.js.
+        let faltanIds = false;
+
+        try {
+            faltanIds = !!(window.TareoEd && typeof window.TareoEd.faltanIds === 'function' && window.TareoEd.faltanIds(tareo));
+        } catch (_) { /* si no se sabe, se vuelve a comprobar siempre */ faltanIds = true; }
+
+        memo.set(tareo, {
+            lista: tareo.personal,
+            area: tareo.area,
+            refs: tareo.personal.slice(),
+            vals: tareo.personal.flatMap(p => [p.asistencia, p.nombre, p.dni, p.trabajadorId, p.id, p.filaId]),
+            faltanIds: window.TareoEd && typeof window.TareoEd.faltanIds !== 'function' ? true : faltanIds
+        });
     }
 
     return tareo;
@@ -5348,7 +5406,7 @@ function renderFilaPersonalTareo(
     // Clave de la fila: la identificación de la persona o, si se repite en el tareo, con su filaId (ver 45-tareo-edicion-continua.js).
     const claveFila =
         window.TareoEd
-            ? window.TareoEd.claveFila(persona, listaCompleta || (obtenerTareos().find(t => t.id === tareoId) || {}).personal)
+            ? window.TareoEd.claveFila(persona, listaCompleta || (tareoObtenerPorId(tareoId) || {}).personal)
             : tareoClavePersona(persona);
 
     const clave =
@@ -5392,7 +5450,7 @@ function renderFilaPersonalTareo(
 
                     ${tareoBotonNombre(persona, tareoId)}
                     <span class="tar2-est" data-tar2-est role="status" aria-live="polite"></span>
-                    ${window.TareoEd && tareoPuedeEditar(obtenerTareos().find(t => t.id === tareoId) || {}) && !esUsuarioSoloConsulta(state.user)
+                    ${window.TareoEd && tareoPuedeEditar(tareoObtenerPorId(tareoId) || {}) && !esUsuarioSoloConsulta(state.user)
                         ? `<button type="button" class="tar2-quitar" title="Quitar a esta persona del tareo (ya no trabaja)" onclick="TareoEd.quitarPersonal(${clave})">✕ Quitar</button>`
                         : ''}
                     ${persona.trabajoEnDescanso ? '<span class="tar2-chip-descanso tar2-chip-trabajo-desc">Trabajó en descanso</span>' : ''}
@@ -5557,7 +5615,7 @@ function renderFilaPersonalTareo(
 
             <td>
 
-                ${tareoSaldoHTML(tareoSaldoHoras(persona, (obtenerTareos().find(t => t.id === tareoId) || {}).jornadaNormal))}
+                ${tareoSaldoHTML(tareoSaldoHoras(persona, (tareoObtenerPorId(tareoId) || {}).jornadaNormal))}
 
             </td>
 
@@ -5584,11 +5642,38 @@ function renderFilaPersonalTareo(
    CAMBIAR TURNO
    ========================================================= */
 
+/*
+   PERF: un tareo por id SIN pasar por obtenerTareos() (que recorre y verifica todo el historial). Se normaliza solo ese tareo con
+   la misma función de siempre (tareoNormalizarRegistro) y se devuelve el mismo objeto que daría obtenerTareos().find(). Con la
+   cuenta compartida de Mantenimiento (filtro por técnico, 37f-tareo-por-tecnico.js) o si no se encuentra, se usa el camino de siempre.
+*/
+function tareoObtenerPorId(id) {
+
+    try {
+
+        if (
+            typeof loadTareos === 'function' &&
+            !(typeof window.esMantCompartido === 'function' && window.esMantCompartido())
+        ) {
+
+            const lista = loadTareos();
+
+            const hallado = Array.isArray(lista)
+                ? lista.find(item => item && item.id === id)
+                : null;
+
+            if (hallado) return tareoNormalizarRegistro(hallado);
+        }
+
+    } catch (_) { /* se usa el camino de siempre */ }
+
+    return obtenerTareos().find(item => item.id === id);
+}
+
+
 function tareoObtenerActual() {
 
-    return obtenerTareos().find(
-        item => item.id === tareoActualId
-    ) || null;
+    return tareoObtenerPorId(tareoActualId) || null;
 }
 
 

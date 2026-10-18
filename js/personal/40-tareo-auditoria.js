@@ -128,8 +128,40 @@
   }
   const tieneDatos=n=>!!(n&&(n.asistencia||n.horaIngreso||n.horaSalida||n.salidaRefrigerio||n.retornoRefrigerio));
 
+  /* PERF: sembrar() corre en CADA snapshot (también el eco de lo que uno mismo guarda) y rehacía la foto de TODOS los tareos del historial.
+     Ahora se recuerda (WeakMap; nada se guarda en el tareo) la foto de cada tareo junto con una firma de lo que foto() lee; si la firma
+     es igual, la foto sería idéntica y se reutiliza. Si algo cambió (aun en el mismo objeto, p. ej. una edición sin guardar), se rehace. */
+  const fotosPrevias=new WeakMap();
+  function firmaFoto(t){
+    const f=[t&&t.estado,t&&t.area];
+    (Array.isArray(t&&t.personal)?t.personal:[]).forEach(p=>{
+      if(!p){f.push(null);return;}
+      const ed=Array.isArray(p.edicionesSalida)?p.edicionesSalida:[];
+      const ult=ed.length?ed[ed.length-1]:null;
+      f.push(p.nombre,p.dni,p.cargo,p.linea,p.id,p.trabajadorId,p.asistencia,p.horaIngreso,p.salidaRefrigerio,p.retornoRefrigerio,
+        p.horaSalida,p.trabajoEnDescanso,ed.length,ult,ult&&ult.vista);
+    });
+    f.push('|');
+    (Array.isArray(t&&t.personalPorDia)?t.personalPorDia:[]).forEach(p=>{
+      if(!p)return;
+      f.push(p.id,p.nombre,p.dni,p.eliminada,p.horaIngreso,p.horaSalida,p.observacion,p.area);
+    });
+    return f;
+  }
+  const igualFirma=(a,b)=>{
+    if(a.length!==b.length)return false;
+    for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false;
+    return true;
+  };
   function sembrar(){
-    try{obtenerTareos().forEach(t=>{if(t&&t.id)base.set(t.id,foto(t));});}
+    try{obtenerTareos().forEach(t=>{
+      if(!(t&&t.id))return;
+      const sig=firmaFoto(t),previa=fotosPrevias.get(t);
+      if(previa&&igualFirma(previa.sig,sig)){base.set(t.id,previa.foto);return;}
+      const f=foto(t);
+      fotosPrevias.set(t,{sig,foto:f});
+      base.set(t.id,f);
+    });}
     catch(e){console.warn('Auditoría de tareos: no se pudo preparar',e&&e.message||e);}
   }
 
