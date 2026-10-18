@@ -347,6 +347,18 @@
       return x;
     });
   }
+  /* Borra de una vez TODAS las líneas de una ubicación (p. ej. una importación repetida del Excel): UNA transacción y UN evento de auditoría. */
+  async function borrarLineasUbicacion(conteoId,ubicacion){
+    const ub=N.ubicacionLimpia(ubicacion);
+    return sobreLineas(conteoId,(items,meta,tx)=>{
+      const quitar=items.filter(x=>x.ubicacion===ub);
+      if(!quitar.length)return null;
+      const quedan=items.filter(x=>x.ubicacion!==ub);
+      items.length=0;quedan.forEach(x=>items.push(x));
+      auditar(tx,'BORRAR_UBICACION',conteoId,'Ubicación «'+ub+'»',{ubicacion:ub,lineas:quitar.length,articulos:new Set(quitar.map(x=>x.itemId)).size},null,{conteoId});
+      return {borradas:quitar.length};
+    });
+  }
   async function cerrarConteo(conteoId){
     if(!yoEscribo())throw falla('PERMISO','No tienes permiso para cerrar conteos.');
     const r=refsConteo(conteoId),u=usuario(),t=ahora();let res=null;
@@ -429,6 +441,6 @@
   }
 
   window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,asignarCodigosFaltantes,importarCorte,vistaPrevia,mensajeError,
-    escucharConteo,crearConteo,importarConteo,agregarLinea,agregarLineasLote,detectarSinMovimiento,marcarSinUso,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
+    escucharConteo,crearConteo,importarConteo,agregarLinea,agregarLineasLote,borrarLineasUbicacion,detectarSinMovimiento,marcarSinUso,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();

@@ -50,6 +50,8 @@
     const n=num(v);
     return n.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:dec===undefined?2:dec});
   }
+  /* La última fila de la tabla dinámica puede llamarse «TOTAL» o «Total general»: es la suma, no un artículo (antes «TOTAL» entraba al catálogo como INS-0182). */
+  const esFilaTotal=nombre=>/^TOTAL( GENERAL)?$/.test(norm(nombre));
   const esExcluido=nombre=>{const n=norm(nombre);return n.includes('NO USAR')||n.includes('ETIQUETA ERROR');};
 
   /* ---------- clasificación por nombre ---------- */
@@ -187,7 +189,7 @@
     for(let i=ih+1;i<filas.length;i++){
       const f=filas[i];if(!f||f[0]===undefined||f[0]===null||String(f[0]).trim()==='')continue;
       const etiqueta=String(f[0]).trim();
-      if(norm(etiqueta)==='TOTAL GENERAL')break;
+      if(esFilaTotal(etiqueta))break;
       if(/^\d{2,4}$/.test(etiqueta)){grupo=Number(etiqueta);continue;}      // fila de grupo (ItmsGrpCod): trae el subtotal, no es un artículo
       r.resumen.filas++;
       if(grupo===null||!GRUPOS_VALIDOS.includes(grupo)){r.resumen.fueraDeGrupo++;continue;}
@@ -308,7 +310,7 @@
   /* Une catálogo + corte. almacen: clave de almacén o '' (total). Devuelve filas listas para la tabla. */
   function filasStock(catalogo,corte,almacen){
     const porId=new Map(((corte&&corte.items)||[]).map(i=>[i.id,i]));
-    return (catalogo||[]).map(c=>{
+    return (catalogo||[]).filter(c=>!esFilaTotal(c.nombre)).map(c=>{      // la fila «TOTAL» que quedó en catálogos ya importados no es un artículo
       let i=porId.get(c.id);
       if(!i&&c.alias&&c.alias.length){for(const al of c.alias){i=porId.get(al);if(i)break;}}
       const w=ALMACENES.map((_,k)=>i?num(i.w[k]):0);
@@ -453,7 +455,7 @@
       for(let i=ih+1;i<filas.length;i++){
         const f=filas[i];if(!f||f[0]==null||String(f[0]).trim()==='')continue;
         const nombre=String(f[0]).trim();
-        if(norm(nombre)==='TOTAL GENERAL')break;
+        if(esFilaTotal(nombre))break;
         if(/^\d{2,4}$/.test(nombre))continue;
         const bruto=f[jc];if(bruto==null||String(bruto).trim()==='')continue;
         const cantidad=Number(String(bruto).replace(/,/g,''));
@@ -563,7 +565,7 @@
     EDITAR_ARTICULO:{txt:'Edición de artículo (mínimos, reorden, unidad…)',grupo:'CATALOGO'},
     CREAR_CONTEO:{txt:'Conteo creado',grupo:'CONTEO'},EDITAR_CONTEO:{txt:'Observación del conteo',grupo:'CONTEO'},
     CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
-    CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},
+    CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},BORRAR_UBICACION:{txt:'Líneas borradas por ubicación',grupo:'LINEA'},
     ASIGNAR_CODIGOS:{txt:'Códigos internos asignados',grupo:'CATALOGO'},MARCAR_SIN_USO:{txt:'Artículos marcados sin uso',grupo:'CATALOGO'},IMPORTAR_CONTEO:{txt:'Conteo importado desde Excel',grupo:'LINEA'},
     COMENTARIO_CONCILIACION:{txt:'Comentario de conciliación',grupo:'COMENTARIO'}};
   const CAMPOS_AUDITORIA={sinUso:'Sin uso',stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',
