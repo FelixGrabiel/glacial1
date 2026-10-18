@@ -2,7 +2,7 @@
    GLACIAL · INVENTARIO DE INSUMOS — DATOS (capa documento: db.collection / onSnapshot / runTransaction), PERMISOS Y AUDITORÍA
    -------------------------------------------------------------
    Mismo mecanismo que el Asistente de Producción (71-asistente-datos.js) y que Paletas: el puente a Supabase traduce estas llamadas a
-   fs_docs / fs_items; no se usa la API de tablas de Supabase ni se crean tablas nuevas. Colecciones (docs/INVENTARIO-INSUMOS.md):
+   fs_docs / fs_items; no se usa la API de tablas de Supabase ni se crean tablas nuevas. Colecciones (docs/asistente/inventario-insumos.md):
      · insumosCatalogo/catalogo      → { items:[ {id, codigo (interno INS-0001), itemCode, nombre, grupo, categoria, subtipo, marca, presentacion, unidad,
                                           stockMinimo, puntoReorden, activo, prioritario, precio, alias?} ] }   (un ítem por artículo)
      · insumosCortesIndice/{corteId} → metadatos livianos de cada corte (fecha, quién, archivo, resumen): se escucha completo.

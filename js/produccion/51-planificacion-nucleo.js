@@ -99,7 +99,7 @@
     return salida;
   };
   /* «Completar cantidad» guardado SIN saldo todavía (pendiente de cierre) o con meta ya completada: la fila existe con cantidad 0 y su meta/resolución
-     (66-planificacion-modos.js). Los demás módulos solo leen filas con cantidad > 0, así que no la ven como orden productiva. */
+     (66p-planificacion-modos.js). Los demás módulos solo leen filas con cantidad > 0, así que no la ven como orden productiva. */
   NS.esPlanSinCantidad=p=>!!p&&!(num(p.cantidadProgramada)>0)&&((p.modo==='COMPLETAR'&&!!p.meta&&!!p.meta.resolucion)||((p.modo==='HORA'||p.modo==='TURNO')&&!!p.estimado&&p.estimado.estado==='PENDIENTE'));
   NS.filaVigente=ex=>!!ex&&(num(ex.cantidadProgramada)>0||NS.esPlanSinCantidad(ex));
   NS.paletasEquivalentes=(cant,upp)=>num(upp)>0?num(cant)/num(upp):0;

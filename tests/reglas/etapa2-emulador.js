@@ -9,7 +9,7 @@ const req=m=>require(require.resolve(m,{paths:[process.cwd()]}));
 const {initializeTestEnvironment,assertSucceeds,assertFails}=req('@firebase/rules-unit-testing');
 const {doc,getDoc,setDoc,updateDoc,deleteDoc,serverTimestamp}=req('firebase/firestore');
 
-const REGLAS=fs.readFileSync(path.resolve(__dirname,'..','..','firestore.rules.etapa2.txt'),'utf8');
+const REGLAS=fs.readFileSync(path.resolve(__dirname,'..','..','_archivo','firebase','firestore.rules.etapa2.txt'),'utf8');
 const [host,port]=(process.env.FIRESTORE_EMULATOR_HOST||'127.0.0.1:8080').split(':');
 // Como los publica js/accesos/36-seguridad-auth.js: cada entrada lleva SIEMPRE permisos (lista, aunque esté vacía, o 'todos').
 const PERFILES={

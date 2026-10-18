@@ -151,7 +151,7 @@ ok(/consultarFecha/.test(leer('js/accesos/32-dashboard-perfiles.js'))&&!/doc\('a
 ok(/snapshotAsync/.test(leer('js/nucleo/34-integraciones.js')),'34: los reenvíos buscan en la colección si el cierre no está en memoria');
 const idx=leer('index.html');
 ok(idx.indexOf('29a-avances-items.js')>0&&idx.indexOf('29a-avances-items.js')<idx.indexOf('29-avance-produccion.js'),'index: 29a se carga antes de 29');
-const reglas=leer('firestore.rules.etapa2.txt');
+const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
 const bl=reglas.slice(reglas.indexOf('match /avancesTurnoItems/{id}'),reglas.indexOf('match /distribucionPersonal'));
 ok(/allow read: if autenticado\(\)/.test(bl)&&/allow create: if puedeGenerarResumen\(\)/.test(bl)&&/creadoPorUid == request\.auth\.uid/.test(bl)&&/creadoEn == request\.time/.test(bl)&&/request\.resource\.data\.id == id/.test(bl),'reglas: lee quien lee sync, crea puedeGenerarResumen() con su uid y la hora del servidor');
 ok(/hasOnly\(\['copiadoEn', 'copiadoPor'\]\)/.test(bl)&&/allow delete: if false/.test(bl),'reglas: solo copiadoEn/copiadoPor se actualizan; nadie borra');

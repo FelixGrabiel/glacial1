@@ -134,7 +134,7 @@ function dispositivo(usuario,opc){
   ok(sbp.glacialMantPestanas.length===1&&sbp.glacialMantPestanas[0].clave==='reclasificar'&&typeof sbp.glacialMantPestanas[0].visible==='function'&&sbp.glacialMantPestanas[0].visible()===true,'la pestaña «Reclasificar paradas» se registra solo para quien puede reclasificar');
 
   /* ---------- fuentes: reglas, ids, index ---------- */
-  const reglas=leer('firestore.rules.etapa2.txt'),i0=reglas.indexOf('match /reclasificacionesParada/{id}'),blqR=reglas.slice(i0,reglas.indexOf('// Entrega de turno entre supervisores',i0));
+  const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt'),i0=reglas.indexOf('match /reclasificacionesParada/{id}'),blqR=reglas.slice(i0,reglas.indexOf('// Entrega de turno entre supervisores',i0));
   ok(i0>0&&/allow read: if puedeLeerBitacoraMtto\(\)/.test(blqR)&&/allow create: if esSupervisorMtto\(\)/.test(blqR)&&/allow update: if esSupervisorMtto\(\)/.test(blqR)&&/allow delete: if false/.test(blqR),'regla: leen quienes ven la bitácora; escriben el Supervisor de Mantenimiento y el Administrador; nadie borra');
   ok(/version == 1/.test(blqR)&&/version == resource\.data\.version \+ 1/.test(blqR)&&/historial\.size\(\) == 1/.test(blqR)&&/historial\.size\(\) == resource\.data\.historial\.size\(\) \+ 1/.test(blqR)&&/historial\[0:resource\.data\.historial\.size\(\)\] == resource\.data\.historial/.test(blqR)&&/actualizadaEn == request\.time/.test(blqR)&&/hasAny\(\['id', 'paradaId', 'origen', 'linea', 'fecha'/.test(blqR),'regla: versión, hora y uid del servidor, historial +1 sin tocar las entradas anteriores, campos de origen fijos');
   const s23=leer('js/produccion/23b-tiempos-linea.js'),html=leer('index.html');

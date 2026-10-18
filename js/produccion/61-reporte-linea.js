@@ -243,7 +243,7 @@
     return new Promise(resolve=>{
       try{
         if(typeof Image==='undefined'||typeof document==='undefined')return resolve(null);
-        const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src=(typeof GLACIAL_LOGO_BASE64!=='undefined'&&GLACIAL_LOGO_BASE64)?'data:image/png;base64,'+GLACIAL_LOGO_BASE64:'img/logo_glacial.png';
+        const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src=(typeof GLACIAL_LOGO_BASE64!=='undefined'&&GLACIAL_LOGO_BASE64)?'data:image/png;base64,'+GLACIAL_LOGO_BASE64:'assets/img/logo_glacial.png';
       }catch(_){resolve(null);}
     });
   }

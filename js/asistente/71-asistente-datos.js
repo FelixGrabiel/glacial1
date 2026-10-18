@@ -1,7 +1,7 @@
 /* =============================================================
    GLACIAL · ASISTENTE DE PRODUCCIÓN — DATOS (Firestore), PERMISOS Y AUDITORÍA
    -------------------------------------------------------------
-   Colecciones (docs/ASISTENTE-PRODUCCION.md §3): apInsumos, apFactores, apMovimientos (libro inmutable, id = opId),
+   Colecciones (docs/asistente/asistente-produccion.md §3): apInsumos, apFactores, apMovimientos (libro inmutable, id = opId),
    apSolicitudes, apMermas, apConciliaciones, apCoordinaciones, apParametros (causas y etapas de merma), apAuditoria (solo se crea).
    · El catálogo (insumos, factores y parámetros) se escucha desde el inicio de sesión: lo usan también el Nuevo registro y la
      tarjeta de Inicio (window.glacialFactoresCatalogo). Sin catálogo o sin factor, esas pantallas siguen con su cálculo anterior.

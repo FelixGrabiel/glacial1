@@ -1,7 +1,7 @@
 /* =============================================================
    GLACIAL · ASISTENTE DE PRODUCCIÓN — NÚCLEO DE CÁLCULO (puro, sin Firestore ni pantalla)
    -------------------------------------------------------------
-   Diseño y diagnóstico: docs/ASISTENTE-PRODUCCION.md.
+   Diseño y diagnóstico: docs/asistente/asistente-produccion.md.
    · Cuadro = combinación programada (o producida) del bloque: fecha|bloque|línea|marca|presentación. Se une al cuadro del reporte
      diario por marca + presentación (como 35-autollenado-registro.js) para tomar lote, horas, paradas y producción efectiva.
    · Producido: cierre (cuadro.produccion.efectiva) si el reporte está FINALIZADO; si no, Paletas al corte. Nunca se suman.

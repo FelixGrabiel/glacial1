@@ -18,7 +18,7 @@
    FASES POSTERIORES (B: técnico + PIN, C: acciones sobre líneas,
    D: administración y bitácora) se agregarán a este mismo archivo.
 
-   Cargar DESPUÉS de 23-gerente-solo-lecutra.js y 10-usuarios.js;
+   Cargar DESPUÉS de 23-gerente-solo-lectura.js y 10-usuarios.js;
    ANTES de 12-init.js.
    ============================================================= */
 (function instalarMantenimientoCompartido(){

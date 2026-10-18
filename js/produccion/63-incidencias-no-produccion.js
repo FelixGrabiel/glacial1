@@ -4,7 +4,7 @@
    Explica por qué una línea no produce (falta de personal, falla de máquina…). Es INFORMATIVO:
      · NO es una parada oficial (no crea paradas en Avance/Cierre, no suma minutos, no toca el ratio ni la producción);
      · NO es un estado operativo (no sustituye Programada, Pendiente, Detenida, Finalizada).
-   Fuentes separadas (ver docs/inicio-motivos-sin-produccion.md):
+   Fuentes separadas (ver docs/produccion/inicio-motivos-sin-produccion.md):
      estado de la línea → Producción Actual / semáforo · motivo → este registro · tiempos de paradas → Avance/Cierre.
 
    MODELO (colección incidenciasNoProduccion, un documento por fecha operativa + bloque + línea → no hay vigentes duplicadas):

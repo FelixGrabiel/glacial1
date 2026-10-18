@@ -201,7 +201,7 @@ const ETAPAS_POR_ENTORNO = {
   PRUEBAS:    { LOGIN_LEGACY_PERMITIDO: false, REGLAS_ESTRICTAS: true }
 };
 
-/* TAREO EN UN DOCUMENTO POR TAREO (colección tareos/{id}, ver js/personal/13n-tareo-nube.js y docs/TAREO-GUARDADO-CONCURRENTE.md).
+/* TAREO EN UN DOCUMENTO POR TAREO (colección tareos/{id}, ver js/personal/13n-tareo-nube.js y docs/personal-tareo/tareo-guardado-concurrente.md).
    false = como siempre: todos los tareos en sync/tareos. true = cada tareo en su propio documento (se migra solo al guardarlo; sync/tareos
    queda de solo lectura y no se borra). Activarlo SOLO después de publicar en ESE proyecto las reglas con «match /tareos/{id}»
    (firestore.rules.etapa2.txt): sin ellas el Tareo no podría guardar. Probar primero en PRUEBAS. */

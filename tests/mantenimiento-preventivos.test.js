@@ -182,7 +182,7 @@ function dispositivo(N,o){
   ok(!/glacialPlanificacion|65a-planificacion|NS\.tiemposDatos/.test(src.replace(/\/\*[^]*?\*\//g,'')),'Mantenimiento no escribe en Planificación: la integración aún no está conectada (solo se expone el contrato)');
   ok(!/arrayUnion|increment\(|array-contains|'!='|startAfter|\.update\(/.test(src.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,'')),'compatible con el puente de Supabase');
   ok(!/\bavancesTurno|bitacoraMantenimiento|estadoOperacion/.test(src.replace(/\/\*[^]*?\*\//g,'')),'los preventivos no escriben paradas oficiales, Avance/Cierre, la bitácora ni la programación productiva');
-  const reglas=leer('firestore.rules.etapa2.txt');
+  const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
   ok(/match \/planesPreventivos\/\{id\}/.test(reglas)&&/hasOnly\(\['proximaFecha', 'fechaOriginal', 'ultimaEjecucion', 'reprogramaciones'/.test(reglas)&&/allow delete: if false/.test(reglas.slice(reglas.indexOf('match /planesPreventivos'),reglas.indexOf('match /planesPreventivos')+2200)),'reglas de Firestore: el plan lo define el supervisor; la cuenta compartida solo avanza el ciclo; nadie borra');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

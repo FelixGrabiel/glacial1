@@ -147,7 +147,7 @@ ok(Math.abs(h.horas-(6*5+4*1))<1e-9&&h.estado==='COMPLETO','Noche cruzando media
   /* comparación con disponibilidad */
   ok(D().compararConDisponible(12,null).estado==='NO_COMPROBABLE'&&D().compararConDisponible(12,12).estado==='COINCIDE'&&D().compararConDisponible(14,12).estado==='REVISAR'&&D().compararConDisponible(10,12).diferencia===-2,'comparación con el personal disponible: no comprobable / coincide / revisar');
   /* reglas */
-  const reglas=leer('firestore.rules.etapa2.txt');
+  const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
   ok(/function puedeDistribuirPersonal\(\)/.test(reglas)&&/match \/distribucionPersonal\/\{id\}/.test(reglas)&&/match \/eventos\/\{opId\}[\s\S]*allow update, delete: if false/.test(reglas),'reglas: escribe solo quien puede distribuir; el historial de eventos nunca se edita ni se borra');
   ok(/guardadoEn == request\.time/.test(reglas)&&/version == resource\.data\.version \+ 1/.test(reglas),'reglas: hora del servidor y versión que solo sube de uno en uno');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

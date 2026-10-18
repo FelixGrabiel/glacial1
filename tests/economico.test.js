@@ -116,7 +116,7 @@ const soles=archivos.filter(f=>/(PET1|PET2|B7L|C20L|B20L|HIELO)\s*:\s*\d+(\.\d+)
 ok(soles.length===0,'no queda ningún objeto línea→número junto a «precio» o «S/» en /js'+(soles.length?': '+soles.map(x=>path.basename(x)).join(', '):''));
 ok(!fs.existsSync(R+'/js/produccion/15-perdidas-soles.js')&&!fs.existsSync(R+'/js/produccion/22-impacto-para-pegar.js')&&!/15-perdidas-soles|22-impacto-para-pegar/.test(leer('index.html')),'la vista antigua (15 y 22) se retiró del código y de index.html');
 /* ---------- 5) Reglas ---------- */
-const reglas=leer('firestore.rules.etapa2.txt');
+const reglas=leer('_archivo/firebase/firestore.rules.etapa2.txt');
 const bloque=n=>{const i=reglas.indexOf('match /'+n+'/');const j=reglas.indexOf('\n    }\n',i);return reglas.slice(i,j);};
 const eco4=['valoresUnitarios','valoresUnitariosHistorial','resultadosEconomicos','configEconomica'].map(bloque);
 const fn=n=>{const i=reglas.indexOf('function '+n+'()');return reglas.slice(i,reglas.indexOf('\n    }\n',i));};

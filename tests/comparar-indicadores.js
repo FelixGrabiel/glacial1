@@ -1,7 +1,7 @@
 /* Compara, con los MISMOS datos de ejemplo, lo que muestra hoy cada pantalla (ejecutando el código real de la
    aplicación, tal como está en js/) con lo que daría el módulo único (js/nucleo/45-indicadores.js).
    No modifica nada. Uso:   node tests/comparar-indicadores.js            (imprime la tabla)
-                            node tests/comparar-indicadores.js --guardar   (escribe docs/COMPARACION-INDICADORES.md) */
+                            node tests/comparar-indicadores.js --guardar   (escribe docs/produccion/comparacion-indicadores.md) */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const RAIZ=path.join(__dirname,'..');
@@ -214,5 +214,5 @@ let md='# Comparación de indicadores: lo que muestra hoy cada pantalla y lo que
   '4. **Estado de línea en el Resumen:** hoy toma el primer estado que encuentra (una programación finalizada hace que se vea FINALIZADA aunque haya otra pendiente); el semáforo da prioridad a la pendiente.\n'+
   '5. **Fecha en Avance y Paletas (29 y 16):** hoy usan la fecha de calendario del equipo; entre 00:00 y 07:00 el día operativo sigue siendo el anterior.\n'+
   '6. **Cronómetro de turno (17):** mantiene NOCHE hasta las 07:20 (tolerancia); el módulo cambia a DÍA a las 07:00, como el semáforo.\n';
-if(process.argv.includes('--guardar')){fs.writeFileSync(path.join(RAIZ,'docs','COMPARACION-INDICADORES.md'),md);console.log('Guardado docs/COMPARACION-INDICADORES.md ('+filas.length+' filas, '+filasCambian.length+' cambian)');}
+if(process.argv.includes('--guardar')){fs.writeFileSync(path.join(RAIZ,'docs','COMPARACION-INDICADORES.md'),md);console.log('Guardado docs/produccion/comparacion-indicadores.md ('+filas.length+' filas, '+filasCambian.length+' cambian)');}
 else console.log(md);

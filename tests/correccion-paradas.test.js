@@ -113,7 +113,7 @@ const parada=(id,min,x)=>Object.assign({id,descripcion:'Calibración '+id,minuto
     ok(C.validarEntrada(marca)!==''&&C.validarEntrada(Object.assign({},marca,{destCuadro:'1'}))==='','reasignar a la misma marca se rechaza; a otra marca vale');
     // documento de auditoría: solo campos que aceptan las reglas
     const d=C.docAuditoria({opId:'cp_1',accion:'REASIGNAR_LINEA',linea:'PET1',fecha:'2026-10-13',turno:'DÍA',paradas:r.movidas,desde:{linea:'PET1'},hacia:{linea:'B7L'},motivo:'x motivo',cerrado:false,actor:{uid:'u1',por:'Ana'},ts:'__TS__'});
-    const regla=leer('firestore.rules.etapa2.txt');
+    const regla=leer('_archivo/firebase/firestore.rules.etapa2.txt');
     const bloque=regla.slice(regla.indexOf('match /correccionesParada/'),regla.indexOf('match /reclasificacionesParada/'));
     const permitidas=(/hasOnly\(\[([^\]]+)\]/.exec(bloque)[1]).split(',').map(x=>x.trim().replace(/'/g,''));
     ok(Object.keys(d).every(k=>permitidas.includes(k))&&d.minutos===20&&d.version===1,'el documento de constancia solo trae los campos que permiten las reglas');

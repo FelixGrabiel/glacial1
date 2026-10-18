@@ -146,6 +146,6 @@ function entorno(usuario,datos){
     const html=sb.O(sb.L('MARCAS_POR_LINEA','PET1'),'Scala');
     ok(JSON.stringify(sb.L('MARCAS_POR_LINEA','PET1'))==='["Bells","Scala","Aro"]'&&sb.L('MARCAS_POR_LINEA','B7L').length===0&&/^<option value="\*">\* Todas<\/option>/.test(html)&&/value="Scala" selected/.test(html),'Nuevo factor: marca y presentación se eligen de las listas de la línea (sin duplicados), con «* Todas» primero');
     ok(/<select id="ap-f-mar">/.test(s72)&&/<select id="ap-f-pre">/.test(s72)&&/onchange="apFactorLinea\(\)"/.test(s72),'Nuevo factor: marca y presentación son listas que cambian con la línea');}
-  ok(/match \/apParametros\/\{doc\}/.test(leer('firestore.rules.etapa2.txt')),'reglas: bloque apParametros');
+  ok(/match \/apParametros\/\{doc\}/.test(leer('_archivo/firebase/firestore.rules.etapa2.txt')),'reglas: bloque apParametros');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

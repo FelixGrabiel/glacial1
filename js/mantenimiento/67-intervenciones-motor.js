@@ -5,7 +5,7 @@
    (67b) las aplica DENTRO de una transacción sobre la versión más reciente del documento, así dos técnicos que tocan campos distintos no se pisan y
    un doble cierre produce una sola transición válida.
 
-   MODELO (colección intervenciones, un documento por intervención; ver docs/mantenimiento-intervenciones.md)
+   MODELO (colección intervenciones, un documento por intervención; ver docs/mantenimiento/mantenimiento-intervenciones.md)
      estado        PENDIENTE · EN_INTERVENCION · EN_ESPERA (con motivo) · CERRADA · CANCELADA (con motivo). NO es el estado operativo de la línea:
                    cerrar una intervención NO reanuda la línea y reanudar la línea NO cierra la intervención.
      historial     solo se agrega (una entrada por acción: quién, cuándo, de qué estado a cuál, detalle).

@@ -1,0 +1,16 @@
+{
+  "folders": [
+    { "name": "🌐 Página (index + estilos)", "path": "." },
+    { "name": "⚙️ Núcleo",        "path": "js/nucleo" },
+    { "name": "🔐 Accesos",       "path": "js/accesos" },
+    { "name": "🏭 Producción",    "path": "js/produccion" },
+    { "name": "👷 Personal / Tareo", "path": "js/personal" },
+    { "name": "🔧 Mantenimiento", "path": "js/mantenimiento" },
+    { "name": "📋 RRHH",          "path": "js/rrhh" },
+    { "name": "🤖 Asistente",     "path": "js/asistente" },
+    { "name": "🗄️ Supabase",      "path": "supabase" },
+    { "name": "📚 Documentación", "path": "docs" },
+    { "name": "🧪 Pruebas",       "path": "tests" }
+  ],
+  "settings": { "files.exclude": { "js": true, "docs": true, "tests": true, "supabase": true } }
+}
