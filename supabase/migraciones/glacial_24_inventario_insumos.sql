@@ -1,4 +1,4 @@
--- GLACIAL · glacial_24 · Reglas de Supabase para el INVENTARIO DE INSUMOS (Fases 1 a 3)      *** BORRADOR: NO SE HA APLICADO ***
+-- GLACIAL · glacial_24 · Reglas de Supabase para el INVENTARIO DE INSUMOS (Fases 1 a 4)      *** APLICADA EN PRODUCCION (ehtbwmvwoxcdefvlxttu) el 2026-10-18 ***
 --
 -- Qué hace (mismo método que glacial_23, que insertó las ramas del Asistente de Producción):
 --  1) glacial_fs.cap_ii_ver: quién puede VER el inventario (permiso 'inventarioInsumos'; por defecto Asistente de Producción y Jefe de
@@ -8,7 +8,9 @@
 --       insumosCatalogo (documento único 'catalogo' con la lista de artículos), insumosCortesIndice y insumosCortesDetalle (un documento
 --       por corte de stock; solo se CREAN, no se editan ni se borran) insumosConteosIndice / insumosConteosDetalle / insumosConteosComentarios (conteo físico y comentarios de la conciliación: se crean y se actualizan, no se borran) e insumosAuditoria (solo se crea).
 --
--- IMPORTANTE ANTES DE APLICAR
+-- NOTA DE APLICACIÓN: antes de ejecutarla en producción se comprobó, solo leyendo, que cada ancla existía exactamente una vez en ctx, autorizar y puede_leer;
+--    después se verificó que las 4 funciones quedaron con las ramas del inventario y que las del Asistente de Producción siguen intactas.
+-- IMPORTANTE ANTES DE APLICAR (histórico)
 --  · Esta migración usa las mismas «anclas» de texto que glacial_23 (final de ctx, de autorizar y de puede_leer). Se probó SOLO leyendo
 --    el archivo glacial_23: revisarla contra las funciones reales de PRUEBAS (mvxjopvnnagqytegtexi) antes de ejecutarla. Si un ancla no
 --    se encuentra exactamente una vez, la migración se detiene con un mensaje y no cambia nada.

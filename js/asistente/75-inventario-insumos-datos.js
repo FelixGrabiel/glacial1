@@ -11,7 +11,7 @@
    Cada lista tiene elementos con «id» (el puente guarda una fila por elemento y solo viaja lo que cambió: dos personas no se pisan).
    Permisos: clave 'inventarioInsumos' (Gestión de usuarios). Por defecto la ven la Asistente de Producción, el Administrador y el Jefe de
    Operaciones; escribe la Asistente y el Administrador (el Jefe de Operaciones y los demás roles de consulta solo ven).
-   Las reglas de Supabase para estas colecciones están en supabase/migraciones/glacial_24_inventario_insumos.sql (SIN aplicar).
+   Las reglas de Supabase para estas colecciones están en supabase/migraciones/glacial_24_inventario_insumos.sql (aplicada en producción).
    ============================================================= */
 (function instalarInventarioInsumosDatos(){
   'use strict';

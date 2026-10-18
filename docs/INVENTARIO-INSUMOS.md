@@ -14,7 +14,7 @@ Excel de SAP como «corte de stock» y la tabla de stock actual con semáforo. F
 | `js/asistente/78-inventario-insumos-conciliacion.js` | Fase 3: pestaña «Conciliación» y Excel (ExcelJS). El cálculo puro es `conciliar()` en 74. |
 | `js/asistente/77-inventario-insumos-conteo.js` | Fase 2: pestaña «Conteo físico» (lista de conteos, líneas por ubicación, cerrar/reabrir). |
 | `index.html` | Botón `#btn-inventario-insumos` (`goInventarioInsumos`) y los 3 scripts, después del Asistente y antes de `12-init`. |
-| `supabase/migraciones/glacial_24_inventario_insumos.sql` | **Borrador SIN aplicar**: reglas de Supabase de las colecciones nuevas. |
+| `supabase/migraciones/glacial_24_inventario_insumos.sql` | **Aplicada en PRODUCCIÓN (2026-10-18)**: reglas de Supabase de las colecciones nuevas. |
 | `tests/inventario-insumos.test.js` | Pruebas del núcleo, de la capa de datos (base simulada) y de la integración. |
 
 Los números de archivo 74–76 siguen al Asistente (70–73); el 17 que sugería el prompt ya existe (`17-modo-trabajo.js`).
@@ -89,7 +89,7 @@ match /insumosConteosDetalle/{id} { allow read: if iiVer();  allow create, updat
 match /insumosAuditoria/{id}     { allow read: if iiVer();  allow create: if iiEscribir() && request.resource.data.uid == request.auth.uid && request.resource.data.en == request.time; allow update, delete: if false; }
 ```
 (`iiVer()` / `iiEscribir()` = `capacidadAp('inventarioInsumos', [...])` como `asistenteProduccion`; ver la migración.) En Supabase: `glacial_24_inventario_insumos.sql`
-(borrador, primero PRUEBAS).
+(aplicada en PRODUCCIÓN el 2026-10-18).
 
 ## Cómo probarlo con STOCK_INVENTARI.xlsx (PRUEBAS)
 1. Publicar `glacial_24` en PRUEBAS (o probar solo la pantalla: la lectura del Excel funciona sin reglas; guardar no).
@@ -116,4 +116,4 @@ match /insumosAuditoria/{id}     { allow read: if iiVer();  allow create: if iiE
 4. **Exportar a Excel**: comprobar las 3 hojas, las columnas y que TOTAL SAP / DIFERENCIA se recalculan si cambias un valor.
 
 ## Pendiente
-Las 4 fases están construidas. Falta, fuera del código: aplicar `glacial_24` en PRUEBAS y luego PRODUCCIÓN, probar con el Excel real y subir a main. Idea futura: un aviso de bajo mínimo. La auditoría cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).
+Las 4 fases están construidas. `glacial_24` ya está aplicada en PRODUCCIÓN. Falta probar con el Excel real. Idea futura: un aviso de bajo mínimo. La auditoría cubre la importación (`IMPORTAR_STOCK`), la edición del catálogo (`EDITAR_ARTICULO`) y el conteo (`CREAR_CONTEO`, `CREAR_LINEA`, `EDITAR_LINEA`, `BORRAR_LINEA`, `EDITAR_CONTEO`, `CERRAR_CONTEO`, `REABRIR_CONTEO`, `COMENTARIO_CONCILIACION`; todas con quién, cuándo y antes → después).
