@@ -117,6 +117,11 @@ const servidor=http.createServer((q,r)=>{
   const filtradas=await page.locator('#ii-tabla tbody tr').count();
   ok(filtradas>0&&filtradas<filasIniciales&&(await page.locator('#ii-tabla tbody').innerText()).toLowerCase().includes('bobina'),'el buscador (con espera de 200 ms) filtra por nombre');
   await page.fill('#ii-texto','');await page.waitForTimeout(400);
+  const codigo1=(await page.locator('#ii-tabla tbody tr >> nth=0 >> .ii-cod b').innerText()).trim();
+  ok(/^INS-\d{4}$/.test(codigo1),'cada artículo muestra su código interno ('+codigo1+')');
+  await page.fill('#ii-texto',codigo1.toLowerCase());await page.waitForTimeout(400);
+  ok(await page.locator('#ii-tabla tbody tr').count()===1&&(await page.locator('#ii-tabla tbody tr').innerText()).includes(codigo1),'buscar por código interno encuentra el artículo');
+  await page.fill('#ii-texto','');await page.waitForTimeout(400);
 
   /* 4) catálogo: editar mínimo y ver el semáforo */
   await page.click('text=Catálogo');
