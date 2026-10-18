@@ -1,0 +1,79 @@
+# Inventario de insumos (GLACIAL) — Fase 1: catálogo, importador SAP y stock actual
+
+Módulo nuevo para comparar el stock de SAP con el conteo físico de planta. **Fase 1** (este documento): catálogo de insumos, importar el
+Excel de SAP como «corte de stock» y la tabla de stock actual con semáforo. Faltan: 2) conteo físico, 3) conciliación y exportar Excel,
+4) auditoría completa (hoy ya se audita la importación y la edición del catálogo).
+
+## Archivos
+| Archivo | Qué hace |
+|---|---|
+| `js/asistente/74-inventario-insumos-nucleo.js` | Núcleo puro (se prueba con node): lee el Excel (plano o tabla dinámica), categoría/marca/presentación por nombre, catálogo, cortes, stock, semáforo y filtros. |
+| `js/asistente/75-inventario-insumos-datos.js` | Capa de datos (`db.collection`, `onSnapshot`, `runTransaction`: el mismo mecanismo de Paletas y del Asistente), permisos y auditoría. |
+| `js/asistente/76-inventario-insumos-pantalla.js` | Pestaña `inventario-insumos`: Stock actual, Catálogo e «Importar stock SAP» (Web Worker). |
+| `index.html` | Botón `#btn-inventario-insumos` (`goInventarioInsumos`) y los 3 scripts, después del Asistente y antes de `12-init`. |
+| `supabase/migraciones/glacial_24_inventario_insumos.sql` | **Borrador SIN aplicar**: reglas de Supabase de las colecciones nuevas. |
+| `tests/inventario-insumos.test.js` | Pruebas del núcleo, de la capa de datos (base simulada) y de la integración. |
+
+Los números de archivo 74–76 siguen al Asistente (70–73); el 17 que sugería el prompt ya existe (`17-modo-trabajo.js`).
+
+## Colecciones nuevas (capa documento: `fs_docs` / `fs_items`, sin tablas SQL nuevas)
+| Colección / documento | Contenido |
+|---|---|
+| `insumosCatalogo/catalogo` | `{ items:[{id, itemCode, nombre, grupo, categoria, subtipo, marca, presentacion, unidad, stockMinimo, puntoReorden, activo, prioritario, precio, alias?}] }` — un ítem por artículo (una fila de `fs_items` cada uno). |
+| `insumosCortesIndice/{corteId}` | Metadatos de cada corte: `fechaCorte`, `importadoPor`, `importadoEn`, `archivo`, `formato`, resumen (artículos, nuevos, excluidos, almacenes). Se escucha completo (es liviano). |
+| `insumosCortesDetalle/{corteId}` | `{ items:[{id, w:[6 almacenes AP], t}] }` — el stock del corte; solo se escucha el corte elegido. `w` va en el orden Insumos y Suministros, Producción, Inmovilizados, Cuarentena, Devoluciones, Producto terminado. |
+| `insumosAuditoria/{auto}` | Quién, cuándo (hora del servidor), qué cambió (antes → después) y en qué artículo. Solo se crea. |
+
+Diferencia con el prompt: el catálogo no va en `sync/insumos`. Los documentos `sync/*` dependen de una lista de documentos permitidos que está
+dentro de la función `autorizar` de Supabase; con colecciones propias basta agregar una rama (`glacial_24`), como se hizo con el Asistente.
+
+## Permisos
+Clave nueva `inventarioInsumos` (Gestión de usuarios → Producción). Por defecto: **Asistente de Producción** (ve y escribe), **Administrador**
+(ve y escribe) y **Jefe de Operaciones** (solo ve). Los demás roles no lo ven salvo que se les marque el permiso (entonces ven y, si no son un rol de
+consulta como Jefatura/Gerencia/Jefe de Producción, también escriben). `-inventarioInsumos` lo quita. La cuenta compartida de Mantenimiento
+nunca lo ve. El botón del menú se muestra u oculta en `76` (igual que el Asistente), no en `03-auth.js`.
+
+## Excel de SAP
+- **Plano** (una fila por almacén × artículo; columnas `WhsName, ItemCode, ItemName, ItmsGrpCod, AvgPrice, OnHand`…): se usa tal cual.
+- **Tabla dinámica** (artículos en filas agrupados por `ItmsGrpCod`, almacenes en columnas): se lee lo que se ve en la hoja. **No trae `ItemCode`**: esos
+  artículos se identifican por grupo + nombre (`id` = `N:105:NOMBRE`). Cuando después llega el export plano, el artículo **adopta su ItemCode** (sin
+  duplicarse, conservando mínimos y demás datos; el id viejo queda en `alias` para que los cortes anteriores sigan sirviendo).
+- `STOCK_INVENTARI.xlsx` es una tabla dinámica (hoja «Almacenes»; la hoja «RESUMEN» es la planilla de conciliación de la asistente y se ignora porque no
+  tiene grupos). Los 108.476 registros planos viven dentro del archivo como caché de la tabla dinámica y no se pueden leer desde el navegador: para
+  tener `ItemCode` hay que exportar la consulta plana desde SAP. Leído con este módulo: 237 artículos, 2 excluidos por nombre, 1 grupo fuera (104).
+- Solo se guardan los 6 almacenes «AP - …» y los grupos 105, 106, 107 y 109; se excluyen «NO USAR» y «ETIQUETA ERROR».
+- La lectura se hace en un **Web Worker** (SheetJS) que conserva solo esas filas y avisa el avance; sin Worker se lee en la página.
+
+## Pantalla
+- **Stock actual**: tarjetas (artículos, bajo mínimo, sin stock, último corte), filtros (buscador, categoría, marca, almacén, prioritarios, solo bajo mínimo),
+  selector de corte y tabla con una columna por almacén AP, total, mínimo, semáforo (🔴 < mínimo · 🟠 < punto de reorden · 🟢 OK · ⚪ sin mínimo) y fecha del corte.
+  El filtro de almacén (por defecto «AP - INSUMOS Y SUMINISTROS») define sobre qué stock se calcula el semáforo; «Total» usa los 6 almacenes. Un artículo
+  que no aparece en el corte no se marca en rojo (queda «Sin corte»). La tabla se dibuja de a 150 filas.
+- **Catálogo**: categoría, marca, presentación, unidad, stock mínimo, punto de reorden, prioritario y activo; la asistente edita unidad, mínimo, reorden,
+  prioritario y activo. Reimportar solo actualiza nombre, grupo (y código/precio): lo definido en GLACIAL no se pisa.
+- **Importar stock SAP**: archivo + fecha del corte (hoy por defecto, hora de Perú) → resumen (encontrados, nuevos, ya existían, excluidos, almacenes) → «Guardar corte».
+  Una sola transacción guarda catálogo + corte + índice + auditoría.
+
+## Reglas (Firebase y Supabase) — pendientes de publicar
+Sin reglas, el módulo mostrará «no tienes permiso… falta publicar las reglas del Inventario de insumos». Equivalente en `firestore.rules.etapa2.txt` (NO modificado):
+```
+match /insumosCatalogo/{id}      { allow read: if iiVer();  allow create, update: if iiEscribir() && id == 'catalogo'; allow delete: if false; }
+match /insumosCortesIndice/{id}  { allow read: if iiVer();  allow create: if iiEscribir() && request.resource.data.id == id; allow update, delete: if false; }
+match /insumosCortesDetalle/{id} { allow read: if iiVer();  allow create: if iiEscribir() && request.resource.data.id == id; allow update, delete: if false; }
+match /insumosAuditoria/{id}     { allow read: if iiVer();  allow create: if iiEscribir() && request.resource.data.uid == request.auth.uid && request.resource.data.en == request.time; allow update, delete: if false; }
+```
+(`iiVer()` / `iiEscribir()` = `capacidadAp('inventarioInsumos', [...])` como `asistenteProduccion`; ver la migración.) En Supabase: `glacial_24_inventario_insumos.sql`
+(borrador, primero PRUEBAS).
+
+## Cómo probarlo con STOCK_INVENTARI.xlsx (PRUEBAS)
+1. Publicar `glacial_24` en PRUEBAS (o probar solo la pantalla: la lectura del Excel funciona sin reglas; guardar no).
+2. Entrar como Asistente de Producción o Administrador → botón **Inventario de insumos**.
+3. **Importar stock SAP** → elegir el archivo → ver el resumen (≈ 237 artículos, 6 almacenes, aviso de tabla dinámica) → **Guardar corte**.
+4. En **Catálogo** ponerle mínimo y punto de reorden a un artículo prioritario; volver a **Stock actual** y ver el semáforo.
+5. Reimportar el mismo archivo con otra fecha: el catálogo no se duplica ni pierde lo editado y aparece un segundo corte.
+6. En otro dispositivo (o ventana) con otro usuario: el corte y las ediciones aparecen solos.
+7. Con un usuario Jefe de Operaciones: ve todo, sin botón de importar ni «Editar».
+
+## Pendiente
+Fase 2 (conteo físico con varias líneas por ubicación), Fase 3 (conciliación SAP vs. conteo y Excel) y Fase 4 (auditoría de conteos y comentarios). Hoy la
+auditoría ya cubre la importación (`IMPORTAR_STOCK`) y la edición del catálogo (`EDITAR_ARTICULO`).
