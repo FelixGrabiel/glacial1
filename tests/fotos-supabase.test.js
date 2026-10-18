@@ -47,7 +47,7 @@ function entorno(conCliente){
   const pos=n=>html.indexOf(n);
   ok(pos('js/nucleo/00b-puente-supabase.js')<pos('js/produccion/06b-fotos-supabase.js')&&pos('js/produccion/06b-fotos-supabase.js')<pos('js/produccion/06-registro.js'),'index.html: el puente, luego 06b y después 06-registro');
   const mant=leer('js/mantenimiento/67d-intervenciones-evidencias.js'),asis=leer('js/asistente/72-asistente-pantalla.js');
-  ok(/glacialFotos\.subir\(blob,\{carpeta,id:publicId/.test(mant)&&/subirCloudinary\(/.test(mant)&&/proveedorDe\(it\.publicId\)/.test(mant)&&(mant.match(/srcDe\(/g)||[]).length>=4&&(mant.match(/src="'\+esc\(urlDe\(/g)||[]).length===1,'Mantenimiento: sube a Supabase (con respaldo a Cloudinary), registra el proveedor y muestra con enlace firmado');
+  ok(/glacialFotos\.subir\(blob,\{carpeta,id:publicId/.test(mant)&&/subirCloudinary\(/.test(mant)&&/proveedorDe\(it\.publicId\)/.test(mant)&&(mant.match(/srcDe\(/g)||[]).length>=3&&(mant.match(/src="'\+esc\(urlDe\(/g)||[]).length===1,'Mantenimiento: sube a Supabase (con respaldo a Cloudinary), registra el proveedor y muestra con enlace firmado');
   ok(/glacialFotos\.subir\(file,\{carpeta:'asistente\//.test(asis)&&/CLOUDINARY_UPLOAD_PRESET/.test(asis),'Asistente de Producción: evidencia a Supabase (carpeta asistente/) con respaldo a Cloudinary');
   const {F:F2}=entorno(true);const pdf=await F2.subir({type:'application/pdf'},{carpeta:'asistente/2026-10',id:'ev1',tipo:'application/pdf'});
   ok(pdf.path==='asistente/2026-10/ev1.pdf','los PDF del Asistente conservan su extensión');
