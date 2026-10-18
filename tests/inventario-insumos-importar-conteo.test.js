@@ -90,7 +90,23 @@ const cat=[{id:'a',nombre:'ASA ERGONOMICA P/BOTELLA PET 7 LT AZUL'},{id:'b',nomb
   ok(lect.articulos.length===1&&lect.articulos[0].nombre==='ASA X','importar el stock: la fila «TOTAL» no entra como artículo');
   const viejo=N.filasStock([{id:'x1',nombre:'TOTAL',activo:true},{id:'a',nombre:'ASA AZUL',activo:true}],{items:[{id:'x1',w:[1,0,0,0,0,0],t:1},{id:'a',w:[2,0,0,0,0,0],t:2}]},'');
   ok(viejo.length===1&&viejo[0].id==='a','un «TOTAL» que ya quedó en el catálogo se oculta del stock y de la conciliación');
+  /* Borrar un conteo: solo Administrador; queda ANULADO con auditoría y desaparece de las listas */
+  {
+    const sa=entorno('Administrador'),Da=sa.glacialInventarioDatos;Da.escuchar();
+    const k=await Da.importarConteo({fecha:'2026-10-18',almacen:'TODOS',archivo:'x.xlsx',lineas:r.lineas});
+    ok(Da.cache.conteos.some(c=>c.id===k.id),'(antes) el conteo aparece en la lista');
+    let e3=null;try{await Da.borrarConteo(k.id,'ab');}catch(e){e3=e;}ok(e3&&e3.codigo==='VALIDACION','borrar pide un motivo de al menos 5 caracteres');
+    await Da.borrarConteo(k.id,'Importación repetida');
+    const ix=sa.docs.get('insumosConteosIndice/'+k.id);
+    ok(ix.estado==='ANULADO'&&ix.anuladoPor==='Ana'&&ix.anuladoMotivo==='Importación repetida'&&ix.estadoAnterior==='EN_PROCESO','queda ANULADO con quién, cuándo y por qué');
+    ok(!Da.cache.conteos.some(c=>c.id===k.id),'desaparece de la lista de conteos (y por tanto de la conciliación)');
+    const aa=[...sa.docs.entries()].filter(([q])=>q.startsWith('insumosAuditoria/')).map(([,v])=>v).filter(x=>x.tipo==='BORRAR_CONTEO');
+    ok(aa.length===1&&aa[0].despues.motivo==='Importación repetida','auditoría: BORRAR_CONTEO con el motivo');
+    let e4=null;try{await Da.borrarConteo(k.id,'otra vez');}catch(e){e4=e;}ok(e4&&e4.codigo==='VALIDACION','no se puede borrar dos veces');
+    let e5=null;try{await D.borrarConteo(m.id,'Importación repetida');}catch(e){e5=e;}ok(e5&&e5.codigo==='PERMISO','un usuario que no es Administrador NO puede borrar conteos');
+  }
   const idxHtml=leer('js/asistente/77-inventario-insumos-conteo.js');
+  ok(/iicBorrarConteo/.test(idxHtml)&&/const borrar=admin/.test(idxHtml),'el botón «Borrar conteo» solo se dibuja para el Administrador');
   ok(/iicBorrarUbicacion/.test(idxHtml)&&/duplicadosImp/.test(idxHtml),'la pantalla avisa de duplicados y permite borrar por ubicación');
   ok(/iicImportar\(\)/.test(idxHtml)&&/leerConteoResumen/.test(idxHtml)&&/importarConteo/.test(idxHtml),'la pantalla de conteos tiene el botón «Importar conteo del Excel»');
   console.log(fallas?'\n'+fallas+' FALLAS':'\nTodo bien');

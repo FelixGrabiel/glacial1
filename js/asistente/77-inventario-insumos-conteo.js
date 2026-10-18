@@ -70,9 +70,10 @@
     const cats=N.CATEGORIAS.filter(c=>D.cache.catalogo.some(x=>x.categoria===c));
     const admin=D.esAdmin();
     const accion=abierto(m)?(D.puedeEscribir()?'<button type="button" class="ii-btn" onclick="iicCerrarConteo()">Cerrar conteo</button>':''):(admin?'<button type="button" class="ii-btn ii-btn-o" onclick="iicReabrir()">Reabrir conteo</button>':'');
+    const borrar=admin?'<button type="button" class="ii-btn ii-btn-o ii-peligro" onclick="iicBorrarConteo()" title="Solo Administrador">Borrar conteo</button>':'';
     const reab=(m.reaperturas||[]).map(x=>`<li>${esc(hora(x.en))} · ${esc(x.por)}: ${esc(x.motivo)}</li>`).join('');
     const mostrar=filas.slice(0,C.limite);
-    return `<div class="ii-card"><div class="ii-fila-t"><div><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iicVolver()">← Conteos</button></div>${accion}</div>
+    return `<div class="ii-card"><div class="ii-fila-t"><div><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iicVolver()">← Conteos</button></div><span class="ii-acc">${borrar}${accion}</span></div>
       <h3 class="ii-h">${esc(fechaTxt(m.fecha))} · ${esc(nombreAlmacen(m.almacen))} ${estadoPill(m)}</h3>
       <p class="ii-mut">Creó ${esc(m.creadoPor||'—')} · ${esc(hora(m.creadoEn))}${m.cerradoPor?` · Cerró ${esc(m.cerradoPor)} · ${esc(hora(m.cerradoEn))}`:''}</p>
       ${reab?`<details class="ii-reab"><summary>Reaperturas (${(m.reaperturas||[]).length})</summary><ul>${reab}</ul></details>`:''}
@@ -199,6 +200,17 @@
   window.iicConfirmarBorrarUbicacion=async()=>{
     const b=document.getElementById('ii-m-ok');if(b)b.disabled=true;errorModal('');
     try{const r=await D.borrarLineasUbicacion(C.id,C.modal);iicCerrarModal();aviso('ok',r?'Se borraron '+fmt(r.borradas,0)+' líneas.':'No había líneas en esa ubicación.');repintar();}
+    catch(e){errorModal(D.mensajeError(e));if(b)b.disabled=false;}
+  };
+  window.iicBorrarConteo=()=>{
+    const m=metaActual();if(!m||!D.esAdmin())return;
+    abrirModal('Borrar conteo',`<p>¿Borrar el conteo del <b>${esc(fechaTxt(m.fecha))}</b> (${esc(nombreAlmacen(m.almacen))}, ${fmt(m.articulos||0,0)} artículos, ${fmt(m.lineas||0,0)} líneas)? Dejará de verse en la lista y en la conciliación. Queda registrado en la auditoría con tu nombre y el motivo.</p>
+      <label class="ii-campo"><span>Motivo (obligatorio)</span><input type="text" id="ii-b-motivo" maxlength="300" placeholder="Ej. Importación repetida"></label>
+      <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iicCerrarModal()">Cancelar</button><button type="button" class="ii-btn ii-peligro-f" id="ii-m-ok" onclick="iicConfirmarBorrarConteo()">Borrar conteo</button></div>`);
+  };
+  window.iicConfirmarBorrarConteo=async()=>{
+    const b=document.getElementById('ii-m-ok');if(b)b.disabled=true;errorModal('');
+    try{await D.borrarConteo(C.id,document.getElementById('ii-b-motivo').value);iicCerrarModal();C.id='';D.escucharConteo('');aviso('ok','Conteo borrado.');repintar();}
     catch(e){errorModal(D.mensajeError(e));if(b)b.disabled=false;}
   };
   window.iicNuevo=()=>{

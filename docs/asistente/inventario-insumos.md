@@ -131,3 +131,6 @@ Pestaña «Conteo físico» → **⬆ Importar conteo del Excel**. Lee la column
 
 ## Importación repetida y «Líneas por ubicación» (18/10/2026)
 Si el mismo Excel se importa dos veces en un conteo (p. ej. «Importado del Excel» y «Excel»), las cantidades se **suman** y cada artículo cuenta el doble. Ahora: (1) al importar dentro de un conteo, el aviso muestra cuántos artículos ya tienen líneas y pide confirmar; (2) el detalle del conteo tiene **«Líneas por ubicación»** con **«Borrar estas líneas»**, que quita de una vez todas las líneas de una ubicación (una transacción y un solo evento `BORRAR_UBICACION` en la auditoría). Para corregir un conteo cerrado, un Administrador lo reabre, borra la ubicación repetida y lo cierra.
+
+## Borrar un conteo (solo Administrador)
+En el detalle de un conteo, **«Borrar conteo»** (pide motivo). Desaparece de la lista de conteos y de la conciliación. La base de datos no permite borrar documentos de conteo, así que queda marcado `ANULADO` con quién, cuándo y por qué (`anuladoPor`, `anuladoEn`, `anuladoMotivo`) y un evento `BORRAR_CONTEO` en la auditoría. Prueba: `tests/inventario-insumos-importar-conteo.test.js`.
