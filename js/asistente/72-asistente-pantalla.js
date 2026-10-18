@@ -69,7 +69,7 @@
   function contextoInicial(){
     if(AP.fecha)return;
     let b=null;try{b=window.GlacialIndicadores.bloqueVigente(D.ahora(),typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}catch(_){b=null;}
-    AP.fecha=b&&b.fecha||new Date(D.ahora()).toISOString().slice(0,10);
+    AP.fecha=b&&b.fecha||GlacialFecha.fechaOperativa(D.ahora())/* FECHA-OPERATIVA: antes UTC (desde las 19:00 Lima daba mañana) */;
     AP.bloque=b&&b.bloque==='noche'?'NOCHE':'DIA';
   }
 
@@ -151,7 +151,7 @@
     /* Supabase Storage (bucket privado, carpeta asistente/AAAA-MM); se guarda la referencia «supabase:…». */
     if(!(window.glacialFotos&&window.glacialFotos.disponible()))throw new Error('El almacenamiento de evidencias (Supabase) no está disponible. El registro no se guardó; revisa tu conexión y reintenta o quita el archivo.');
     try{
-      const mes=new Date().toISOString().slice(0,7);
+      const mes=GlacialFecha.fechaISOLocal().slice(0,7);
       const r=await window.glacialFotos.subir(file,{carpeta:'asistente/'+mes,id:'ev_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),tipo:file.type});
       return r.url;
     }catch(e){
@@ -319,7 +319,7 @@
     const ins=D.cache.insumos.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre));
     const fl=D.cache.factores.filter(f=>(!AP.factLinea||f.linea===AP.factLinea)&&(!AP.factInsumo||f.insumo===AP.factInsumo))
       .sort((a,b)=>a.linea.localeCompare(b.linea)||a.insumo.localeCompare(b.insumo)||String(a.presentacion).localeCompare(String(b.presentacion))||String(b.vigenteDesde).localeCompare(String(a.vigenteDesde)));
-    const hoy=new Date(D.ahora()).toISOString().slice(0,10);
+    const hoy=GlacialFecha.fechaOperativa(D.ahora())/* FECHA-OPERATIVA: antes UTC (desde las 19:00 Lima daba mañana) */;
     const ff=fl.slice(0,400).map(f=>`<tr class="${N.vigenteEn(f,hoy)?'':'ap-anulado'}"><td data-label="Línea">${esc(nombreLinea(f.linea))}</td><td data-label="Insumo">${esc(insumoDe(f.insumo).nombre)}</td><td data-label="Marca">${esc(f.marca)}</td>
       <td data-label="Presentación">${esc(f.presentacion)}</td><td data-label="Factor" class="ap-num">${Number(f.factor)===0?'No aplica':`${fmt(f.factor,4)} ${esc(insumoDe(f.insumo).unidad)} / ${fmt(f.cantidadBase,0)} ${f.base==='PALETA'?'paleta':'UND'}`}</td>
       <td data-label="Vigencia">${esc(f.vigenteDesde)} → ${esc(f.vigenteHasta||'…')}</td><td data-label="Origen">${f.origen==='codigo'?'Código (migrado)':'Manual'} · v${num(f.version)}${f.nota?`<small class="ap-mut ap-blk">${esc(f.nota)}</small>`:''}</td>
@@ -600,7 +600,7 @@
     const m=document.getElementById('ap-f-mar'),p=document.getElementById('ap-f-pre');
     if(m)m.innerHTML=opcionesProducto(listaDeLinea('MARCAS_POR_LINEA',l),'*');if(p)p.innerHTML=opcionesProducto(listaDeLinea('PRESENTACIONES_POR_LINEA',l),'*');};
   window.apFactorForm=id=>{
-    const a=D.cache.factores.find(f=>f.id===id);const hoy=new Date(D.ahora()).toISOString().slice(0,10);
+    const a=D.cache.factores.find(f=>f.id===id);const hoy=GlacialFecha.fechaOperativa(D.ahora())/* FECHA-OPERATIVA: antes UTC (desde las 19:00 Lima daba mañana) */;
     const f=a?{...a,vigenteDesde:hoy}:{insumo:'',linea:'PET1',marca:'*',presentacion:'*',base:'PALETA',cantidadBase:1,factor:'',vigenteDesde:hoy};
     // Sin insumos activos en el catálogo el desplegable quedaría en blanco: se explica cómo cargarlos y no se deja guardar.
     const sinInsumos=!a&&!D.cache.insumos.some(i=>i.activo!==false);

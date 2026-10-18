@@ -221,7 +221,7 @@
     /* e) tareo con pendientes que se bloquea pronto */
     if(a.tipos.includes('tareo')&&a.tareo&&typeof loadTareos==='function'&&typeof window.tareoBloqueoInfo==='function'){
       let tareos=[];try{tareos=loadTareos()||[];}catch(_){tareos=[];}
-      const corte=new Date(n-8*86400000).toISOString().slice(0,10);
+      const corte=GlacialFecha.fechaISOLocal(n-8*86400000)/* FECHA-OPERATIVA: antes UTC */;
       tareos.forEach(t=>{
         if(!t||(t.fecha||'')<corte)return;
         if(a.tareo!=='todas'&&t.area!==a.tareo)return;

@@ -147,7 +147,7 @@
       const {canvas}=await generarCanvas(data.rec,data.d);
       canvas.toBlob(blob=>{
         if(!blob){alert('No se pudo generar la imagen PNG.');return;}
-        const fecha=nombreArchivoSeguro(data.rec.fecha||new Date().toISOString().slice(0,10));
+        const fecha=nombreArchivoSeguro(data.rec.fecha||GlacialFecha.fechaISOLocal());
         const linea=nombreArchivoSeguro(data.rec.linea||state.currentLine);
         descargarArchivo(blob,`Reporte_Diario_${linea}_${fecha}.png`);
       },'image/png');

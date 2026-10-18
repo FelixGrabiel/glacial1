@@ -3206,7 +3206,7 @@ async function exportarExcel(){
 
     const fechaArchivo =
       nombreArchivoSeguro(
-        rec.fecha || new Date().toISOString().slice(0,10)
+        rec.fecha || GlacialFecha.fechaISOLocal()
       );
 
     const lineaArchivo =
@@ -3815,7 +3815,7 @@ async function exportarPNGDetalle(){
 
     canvas.toBlob(blob=>{
       if(!blob){alert('No se pudo generar la imagen PNG.');return;}
-      const fecha=nombreArchivoSeguro(rec.fecha||new Date().toISOString().slice(0,10));
+      const fecha=nombreArchivoSeguro(rec.fecha||GlacialFecha.fechaISOLocal());
       const linea=nombreArchivoSeguro(rec.linea||state.currentLine);
       descargarArchivo(blob,`Reporte_Diario_${linea}_${fecha}.png`);
     },'image/png');

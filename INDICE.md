@@ -33,6 +33,7 @@ js/
 | 00-logo.js | Logo en base64 para portadas de Excel. **No se carga** en `index.html` (pendiente de decidir) |
 | 00b-puente-supabase.js | **Rama `supabase`:** puente que ofrece `firebase`, `db` y `auth` sobre Supabase (ver `docs/puente-supabase.md`). Se carga antes de 01-config.js |
 | 01-config.js | Configuración de la base de datos (Supabase), banderas de seguridad, catálogos |
+| 01b-fecha-operativa.js | Fuente única de fecha operativa / turno (hora de Lima, NOCHE de madrugada = día anterior) y hora simulada para el Administrador. Ver docs/FECHA-OPERATIVA.md |
 | 44-estado-datos.js | Insignia «Actualizado a las HH:MM» / «Sin conexión · datos de las HH:MM» (Inicio, Producción Actual, Bitácora y Tareo) |
 | 02-estado.js | Estado global, permisos, sincronización con Firestore |
 | 04-sidebar.js | Menú lateral y navegación |
@@ -40,6 +41,7 @@ js/
 | 12b-barras-desplazamiento.js | Barra de desplazamiento horizontal espejo ARRIBA de toda tabla/contenedor ancho (selector en el archivo); solo aparece si el contenido no cabe |
 | 06b-fotos-supabase.js | Fotos PRIVADAS en Supabase Storage (bucket `glacial-fotos`): subir, enlaces firmados (1 h) en lote, hidratado de `<img>`/`<a>`; las fotos de Cloudinary siguen funcionando. Reglas: supabase/migraciones/glacial_25_fotos_privadas.sql (aplicada en producción). Doc: docs/FOTOS-SUPABASE.md |
 | 06c-migrar-fotos.js | Herramienta del Administrador (botón en el Historial): migra las fotos antiguas de Cloudinary a Supabase conservando la dirección anterior como respaldo |
+| 06d-corregir-fechas-noche.js | Herramienta del Administrador (botón en el Historial): lista y corrige, con confirmación y respaldo, los registros de la noche guardados con la fecha del calendario |
 | 24b-pausas-sin-cerrar.js | Qué cuenta como «parada abierta» (umbrales por tipo, sin «cambio temporal», solo < 24 h), «Pausas sin cerrar (revisar)» y «Cerrar pausa» (Supervisor/Jefe de Operaciones/Administrador); cierres automáticos. Doc: docs/PAUSAS-SIN-CERRAR.md |
 | 12-init.js | Arranque de la app (siempre el último script) |
 | 34-integraciones.js | Google Sheets y WhatsApp |
@@ -139,6 +141,7 @@ Diagnóstico, modelo de datos y permisos: `docs/ASISTENTE-PRODUCCION.md`.
 ## Orden de carga (el de `index.html`)
 
 1. nucleo/01-config.js
+   (después, nucleo/01b-fecha-operativa.js y nucleo/45-indicadores.js)
 2. nucleo/02-estado.js
 3. accesos/03-auth.js
 4. nucleo/04-sidebar.js

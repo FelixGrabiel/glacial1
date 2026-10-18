@@ -151,6 +151,7 @@ function renderHistorialTab(){
 
         <div class="hist-v2-head-tools">
           <span class="hist-v2-count"><strong id="hist-v2-visible-count">${base.length}</strong><span>registros</span></span>
+          ${window.glacialCorregirFechasNoche&&window.glacialCorregirFechasNoche.visible()?`<button type="button" class="btn btn-ghost" onclick="glacialCorregirFechasNoche.abrir()" title="Solo Administrador">🌙 Corregir fechas de la noche</button>`:''}
           ${window.glacialMigrarFotos&&window.glacialMigrarFotos.visible()?`<button type="button" class="btn btn-ghost" onclick="glacialMigrarFotos.abrir()" title="Solo Administrador">☁ Migrar fotos antiguas (${window.glacialMigrarFotos.total(window.glacialMigrarFotos.pendientes())})</button>`:''}
 
           <div class="hist-v2-quick-filters" aria-label="Filtros del historial">

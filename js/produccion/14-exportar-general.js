@@ -1702,7 +1702,7 @@ async function exportarExcelGeneral(btn){
       );
 
     const fechaArchivo =
-      nombreArchivoSeguro(new Date().toISOString().slice(0,10));
+      nombreArchivoSeguro(GlacialFecha.fechaISOLocal()/* FECHA-OPERATIVA: antes UTC */);
 
     const buffer = await wb.xlsx.writeBuffer();
 
