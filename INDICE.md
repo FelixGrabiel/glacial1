@@ -37,6 +37,7 @@ js/
 | 02-estado.js | Estado global, permisos, sincronización con Firestore |
 | 04-sidebar.js | Menú lateral y navegación |
 | 05-utils.js | Utilidades comunes |
+| 12b-barras-desplazamiento.js | Barra de desplazamiento horizontal espejo ARRIBA de toda tabla/contenedor ancho (selector en el archivo); solo aparece si el contenido no cabe |
 | 12-init.js | Arranque de la app (siempre el último script) |
 | 34-integraciones.js | Google Sheets y WhatsApp |
 
@@ -185,6 +186,7 @@ Diagnóstico, modelo de datos y permisos: `docs/ASISTENTE-PRODUCCION.md`.
 46b. produccion/49b-resumen-graficos-diferidos.js (después de 09, 08 y 49; antes de 12-init)
 46c. asistente/74-inventario-insumos-nucleo.js, 75-inventario-insumos-datos.js, 76-inventario-insumos-pantalla.js, 77-inventario-insumos-conteo.js, 78-inventario-insumos-conciliacion.js, 79-inventario-insumos-auditoria.js (después de 73-reporte-general; antes de 12-init)
 47. accesos/39-vista-como.js
+47b. nucleo/12b-barras-desplazamiento.js (antes de 12-init)
 48. nucleo/12-init.js
 
 ## Cómo agregar un archivo nuevo

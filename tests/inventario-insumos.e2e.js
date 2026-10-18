@@ -60,7 +60,7 @@ function closeModal(){document.getElementById('modal-root').innerHTML='';}
   window.firebase={firestore:{FieldValue:{serverTimestamp:()=>'__TS__'}},auth:()=>({currentUser:{uid:'u1'}})};
 })();
 </script>
-<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script><script src="/js/asistente/78-inventario-insumos-conciliacion.js"></script><script src="/js/asistente/79-inventario-insumos-auditoria.js"></script>${HAY_EXCELJS?'<script src="/exceljs/exceljs.min.js"></script>':''}</body>`;
+<script src="/js/asistente/74-inventario-insumos-nucleo.js"></script><script src="/js/asistente/75-inventario-insumos-datos.js"></script><script src="/js/asistente/76-inventario-insumos-pantalla.js"></script><script src="/js/asistente/77-inventario-insumos-conteo.js"></script><script src="/js/asistente/78-inventario-insumos-conciliacion.js"></script><script src="/js/asistente/79-inventario-insumos-auditoria.js"></script><script src="/js/nucleo/12b-barras-desplazamiento.js"></script>${HAY_EXCELJS?'<script src="/exceljs/exceljs.min.js"></script>':''}</body>`;
 const servidor=http.createServer((q,r)=>{
   if(q.url==='/'){r.setHeader('content-type','text/html; charset=utf-8');r.end(PAGINA);return;}
   const f=q.url.startsWith('/exceljs/')?path.join(EXCELJS_DIST,q.url.slice(9)):q.url.startsWith('/xlsx/')?path.join(dist,q.url.slice(6)):path.join(R,q.url.split('?')[0]);
@@ -108,6 +108,14 @@ const servidor=http.createServer((q,r)=>{
   ok(/2026-10-15/.test(kpis),'la tarjeta muestra la fecha del último corte');
 
   /* 3) tabla y filtros */
+  /* barra de desplazamiento horizontal visible arriba de la tabla ancha (viewport de 1000 px: la tabla de 6 almacenes no cabe) */
+  await page.setViewportSize({width:1000,height:800});
+  await page.waitForSelector('.ii-tw + *, .barra-sup',{timeout:3000}).catch(()=>{});
+  await page.waitForTimeout(500);
+  const barra=await page.evaluate(()=>{const b=document.querySelector('.ii-tw').previousElementSibling;const t=document.querySelector('.ii-tw');
+    if(!b||!b.classList.contains('barra-sup'))return null;b.scrollLeft=120;return new Promise(r=>setTimeout(()=>r({visible:b.offsetHeight>0,ancho:b.firstChild.style.width===t.scrollWidth+'px',sincroniza:Math.abs(t.scrollLeft-120)<2}),100));});
+  ok(barra&&barra.visible&&barra.ancho&&barra.sincroniza,'tabla ancha: barra de desplazamiento visible ARRIBA y sincronizada con la tabla');
+  await page.setViewportSize({width:1280,height:900});
   const filasIniciales=await page.locator('#ii-tabla tbody tr').count();
   ok(filasIniciales>0&&filasIniciales<=150,'la tabla se dibuja (de a 150 filas): '+filasIniciales);
   ok(await page.locator('#ii-tabla th').count()>=14,'una columna por almacén AP, total, mínimo, semáforo y corte');
