@@ -113,7 +113,9 @@
     try{if(typeof window.glacialProducidoVigente==='function'){const v=window.glacialProducidoVigente(p);return v==null?0:num(v);}}catch(_){/* sin producción */}
     return 0;
   }
-  function cobertura(){return N.coberturaOrdenes(ordenes,NS.programaciones(),{hoy:NS.hoyOperativo(),producidoDe});}
+  /* Días de atraso a partir de los cuales una orden sin atender es histórica (configurable; 30 por defecto). */
+  const diasMax=()=>Number.isFinite(Number(config.diasMaxAtraso))&&config.diasMaxAtraso!==''&&config.diasMaxAtraso!==null?Math.max(0,Number(config.diasMaxAtraso)):30;
+  function cobertura(){return N.coberturaOrdenes(ordenes,NS.programaciones(),{hoy:NS.hoyOperativo(),producidoDe,diasMaxAtraso:diasMax()});}
 
   /* ---------- pantalla ---------- */
   const F={estado:'abiertas',cliente:'',cadena:'',linea:'',hasta:''};
@@ -151,7 +153,7 @@
 
   function filtrar(lista,cob,hoy){
     return lista.filter(o=>{
-      const st=N.estadoOrden(o,cob.get(o.id),hoy);
+      const st=N.estadoOrden(o,cob.get(o.id),hoy,diasMax());
       const e=F.estado;
       if(e==='abiertas'&&st.cerrada)return false;
       if(e==='atrasadas'&&st.clave!=='ATRASADA')return false;
@@ -161,6 +163,7 @@
       if(e==='completas'&&st.clave!=='COMPLETA')return false;
       if(e==='despachadas'&&st.clave!=='DESPACHADA')return false;
       if(e==='cerradas'&&!['CANCELADA','RETIRADA'].includes(st.clave))return false;
+      if(e==='vencidas'&&st.clave!=='VENCIDA')return false;
       if(F.cliente&&o.cliente!==F.cliente)return false;
       if(F.cadena&&o.cadena!==F.cadena)return false;
       if(F.linea&&o.linea&&o.linea!==F.linea)return false;
@@ -175,7 +178,7 @@
     const clientes=[...new Set(ordenes.map(o=>o.cliente).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
     const cadenas=[...new Set(ordenes.map(o=>o.cadena).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
     cont.innerHTML='<div class="plan-bar" id="ov-barra">'+
-      '<label>Estado<select id="ov-estado">'+[['abiertas','Abiertas'],['atrasadas','Atrasadas'],['sinprogramar','Sin programar'],['parcial','Programadas en parte'],['enproduccion','En producción'],['completas','Completas (producidas)'],['despachadas','Despachadas'],['cerradas','Canceladas / retiradas'],['todas','Todas']]
+      '<label>Estado<select id="ov-estado">'+[['abiertas','Abiertas'],['atrasadas','Atrasadas'],['sinprogramar','Sin programar'],['parcial','Programadas en parte'],['enproduccion','En producción'],['completas','Completas (producidas)'],['despachadas','Despachadas'],['vencidas','Vencidas sin atender'],['cerradas','Canceladas / retiradas'],['todas','Todas']]
         .map(([v,t])=>'<option value="'+v+'"'+(F.estado===v?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'+
       '<label>Cliente<select id="ov-cliente"><option value="">Todos</option>'+clientes.map(c=>'<option'+(F.cliente===c?' selected':'')+' value="'+esc(c)+'">'+esc(c)+'</option>').join('')+'</select></label>'+
       (cadenas.length>1?'<label>Cadena<select id="ov-cadena"><option value="">Todas</option>'+cadenas.map(c=>'<option'+(F.cadena===c?' selected':'')+' value="'+esc(c)+'">'+esc(c)+'</option>').join('')+'</select></label>':'')+
@@ -192,7 +195,7 @@
     const kp=document.getElementById('ov-kpis'),tb=document.getElementById('ov-tabla');
     if(!kp||!tb)return;
     if(!listo){tb.innerHTML='<div class="empty-state"><p>Cargando órdenes…</p></div>';return;}
-    const hoy=NS.hoyOperativo(),cob=cobertura(),r=N.resumenOrdenes(ordenes,cob,hoy);
+    const hoy=NS.hoyOperativo(),cob=cobertura(),r=N.resumenOrdenes(ordenes,cob,hoy,diasMax());
     const pct=(a,b)=>b>0?(a/b*100).toFixed(1).replace('.',',')+' % de lo pendiente':'';
     kp.innerHTML='<div class="ov-kpis">'+
       '<div class="ov-k" style="--c:#005b96"><span>Órdenes abiertas</span><b>'+fmt(r.abiertas)+'</b><small>'+(r.porVencer?r.porVencer+' por vencer en 3 días':'sin entregas próximas')+'</small></div>'+
@@ -201,9 +204,9 @@
       '<div class="ov-k" style="--c:#2f6690"><span>Programado</span><b>'+fmt(r.programado)+'</b><small>'+pct(r.programado,r.pedidas)+'</small></div>'+
       '<div class="ov-k" style="--c:#3f8f5f"><span>Producido</span><b>'+fmt(r.producido)+'</b><small>'+pct(r.producido,r.pedidas)+'</small></div>'+
       '<div class="ov-k" style="--c:#df8b00"><span>Falta programar</span><b>'+fmt(r.falta)+'</b><small>'+r.sinCubrir+(r.sinCubrir===1?' orden sin cubrir':' órdenes sin cubrir')+'</small></div>'+
-      '<div class="ov-k" style="--c:#c4472b"><span>Atrasadas</span><b>'+fmt(r.atrasadas)+'</b><small>entrega vencida</small></div></div>';
+      '<div class="ov-k" style="--c:#c4472b"><span>Atrasadas</span><b>'+fmt(r.atrasadas)+'</b><small>'+(r.vencidas?fmt(r.vencidas)+' más, vencidas hace más de '+diasMax()+' días':'entrega vencida')+'</small></div></div>';
     const filas=filtrar(ordenes,cob,hoy).sort((a,b)=>{
-      const ca=N.estadoOrden(a,cob.get(a.id),hoy).cerrada,cb=N.estadoOrden(b,cob.get(b.id),hoy).cerrada;
+      const ca=N.estadoOrden(a,cob.get(a.id),hoy,diasMax()).cerrada,cb=N.estadoOrden(b,cob.get(b.id),hoy,diasMax()).cerrada;
       return (ca-cb)||String(a.fechaEntrega).localeCompare(String(b.fechaEntrega))||String(a.numero).localeCompare(String(b.numero));
     });
     if(!ordenes.length){
@@ -212,7 +215,7 @@
     }
     tb.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>N.º orden</th><th>Cliente</th><th>Producto</th><th class="num">Solicitado</th><th class="num">Despachado</th><th>Entrega</th><th>Programado · Producido</th><th class="num">Falta programar</th><th>Estado</th></tr></thead><tbody>'+
       (filas.length?filas.map(o=>{
-        const c=cob.get(o.id),st=N.estadoOrden(o,c,hoy),ped=c?num(c.pedido):0;
+        const c=cob.get(o.id),st=N.estadoOrden(o,c,hoy,diasMax()),ped=c?num(c.pedido):0;
         const prog=c&&ped>0?Math.min(100,c.programado/ped*100):0,prod=c&&ped>0?Math.min(100,c.producido/ped*100):0;
         return '<tr class="ov-fila'+(st.cerrada&&st.clave!=='COMPLETA'&&st.clave!=='DESPACHADA'?' ov-cerrada':'')+'" data-ov-ver="'+esc(o.id)+'"><td><b>'+esc(o.numero)+'</b></td><td>'+esc(o.cliente)+(o.cadena?'<br><small>'+esc(o.cadena)+'</small>':'')+'</td><td>'+etiquetaProducto(o)+(o.linea?'<br><small>'+esc(NS.nombreLinea(o.linea))+'</small>':'')+'</td>'+
           '<td class="num">'+fmt(o.cantidad)+'</td><td class="num">'+(num(o.despachado)>0?fmt(o.despachado):'—')+'</td><td>'+textoEntrega(o,st)+'</td>'+
@@ -235,6 +238,8 @@
       (planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-mapa>Guardar columnas</button> <span class="plan-error" id="ov-mapa-error" style="display:inline"></span></p>':'')+
       '<h4 style="margin:14px 0 4px;color:#003b5c">Fecha de corte</h4><p class="plan-nota">Solo entran órdenes con fecha de entrega desde esta fecha; lo anterior se ignora al importar o sincronizar.</p>'+
       '<p><input type="date" id="ov-corte" value="'+esc(config.fechaCorte||'')+'"'+(planifica?'':' disabled')+'> '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-corte>Guardar fecha</button>':'')+'</p>'+
+      '<h4 style="margin:14px 0 4px;color:#003b5c">Órdenes vencidas</h4><p class="plan-nota">Una orden sin despachar con más días de atraso que este número se considera histórica: sale de «Atrasadas» y no reserva programaciones.</p>'+
+      '<p><input type="number" id="ov-dias" min="0" step="1" value="'+esc(diasMax())+'" style="width:90px"'+(planifica?'':' disabled')+'> días '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-dias>Guardar</button>':'')+'</p>'+
       '<h4 style="margin:14px 0 4px;color:#003b5c">Equivalencias de productos <span class="ov-chip gris">'+eqs.length+'</span></h4><p class="plan-nota">Traducen el texto de la hoja (p. ej. «SCALA-AGUA-SIN-GAS-BT-1-L») a la marca y presentación del sistema. Las nuevas se piden al importar.</p>'+
       (eqs.length?htmlTablaEquiv(eqs.map(e=>htmlFilaEquiv(e.texto,e,'')))+(planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-eqs>Guardar cambios</button> <span class="plan-error" id="ov-eq-error" style="display:inline"></span></p>':''):'<p class="plan-nota">Todavía no hay equivalencias guardadas.</p>')+
       '</details>';
@@ -288,7 +293,7 @@
   function dialogoDetalle(id){
     const o=ordenes.find(x=>x.id===id);
     if(!o)return;
-    const hoy=NS.hoyOperativo(),c=cobertura().get(o.id),st=N.estadoOrden(o,c,hoy),planifica=NS.puede();
+    const hoy=NS.hoyOperativo(),c=cobertura().get(o.id),st=N.estadoOrden(o,c,hoy,diasMax()),planifica=NS.puede();
     const li=(a,b)=>'<div class="li"><span>'+a+'</span><b>'+b+'</b></div>';
     const fondo=NS.abrirDialogo('<div class="ov-det"><h3 style="display:flex;justify-content:space-between;gap:10px;align-items:center">Orden '+esc(o.numero)+' <span class="ov-chip '+st.nivel+'">'+esc(st.etiqueta)+'</span></h3>'+
       li('Cliente',esc(o.cliente))+li('Producto',etiquetaProducto(o)+(o.linea?' · '+esc(NS.nombreLinea(o.linea)):''))+li('Solicitado',fmt(o.cantidad)+' UND')+li('Despachado',fmt(o.despachado)+' UND')+li('Pendiente',fmt(Math.max(0,num(o.cantidad)-num(o.despachado)))+' UND')+(o.cadena?li('Cadena',esc(o.cadena)):'')+(o.producto?li('Producto en la hoja',esc(o.producto)):'')+li('Entrega',textoEntrega(o,st))+
@@ -339,12 +344,18 @@
   }
 
   /* ---- equivalencias: texto de la hoja → marca + presentación (+ línea) ---- */
+  /* Sugerencia para la tabla de equivalencias: primera línea que tiene esa marca Y un formato igual (625 ml, 2.5 L, caja 20 L…); el usuario la confirma o cambia. */
   function sugerirLineaPres(sug){
-    const l=lineasDe().find(x=>sug.marca&&NS.marcas(x.key).some(m=>N.norm(m)===N.norm(sug.marca)));
-    const linea=l?l.key:'';
-    let pres='';
-    if(linea&&sug.volumen){const v=sug.volumen.toLowerCase(),o=NS.presentaciones(linea).find(p=>N.norm(p.value).includes(v+'x')||N.norm(p.label).includes(v));pres=o?o.value:'';}
-    return {linea,marca:l?NS.marcas(linea).find(m=>N.norm(m)===N.norm(sug.marca))||sug.marca:'',presentacion:pres};
+    const formatos=[sug.formato];if(/^20l$/.test(sug.formato))formatos.push('caja20l','bidon20l');
+    const marcaEn=l=>NS.marcas(l).find(m=>N.norm(m)===N.norm(sug.marca||sug.base||''));
+    for(const f of formatos){
+      for(const l of lineasDe()){
+        const m=marcaEn(l.key),p=m&&NS.presentaciones(l.key).find(x=>N.formatoDe(x.value)===f);
+        if(p)return {linea:l.key,marca:m,presentacion:p.value};
+      }
+    }
+    const l=lineasDe().find(x=>marcaEn(x.key));
+    return {linea:l?l.key:'',marca:l?marcaEn(l.key):'',presentacion:''};
   }
   function htmlFilaEquiv(texto,v,extra){
     const {marcas,pres}=opcionesProducto(v.linea);
@@ -372,19 +383,19 @@
     return eq;
   }
 
-  /* Qué pestañas de un libro son de ventas: las que traen las columnas del sistema (OC, tienda, entrega, producto, solicitadas). De esas, las del año más reciente:
-     2026 si hay alguna pestaña de 2026 y, si no, 2025 (o el año más alto que haya). Las ocultas y las que no son de ventas (stock, NNSS, resumen…) quedan sin marcar. */
+  /* Qué pestañas de un libro son de ventas: las visibles que traen las columnas del sistema (OC, tienda, entrega, producto, solicitadas). El AÑO se decide por la fecha de
+     entrega de las filas, no por el nombre de la pestaña («SPSA 2025» puede traer entregas de 2026): 2026 si hay entregas de 2026 y, si no, 2025 (o el año más alto).
+     Devuelve ese año; la fecha de corte propuesta es su 1 de enero. */
   function clasificarHojas(hojas,mapa){
+    const anios=new Set();
     hojas.forEach(h=>{
-      const enc=[...new Set(h.filas.flatMap(f=>Object.keys(f)))];
+      const enc=[...new Set(h.filas.slice(0,50).flatMap(f=>Object.keys(f)))];
       const m=N.mapearColumnas(enc,mapa);
-      h.faltan=m.faltan;h.valida=!m.faltan.length;
-      const y=String(h.nombre).match(/\b(20\d\d)\b/);h.anio=y?Number(y[1]):0;
+      h.faltan=m.faltan;h.valida=!m.faltan.length;h.marcada=h.valida&&!h.oculta;
+      if(h.marcada&&m.mapa.fechaEntrega)h.filas.forEach(f=>{const d=N.leerFecha(f[m.mapa.fechaEntrega],'');if(d)anios.add(Number(d.slice(0,4)));});
     });
-    const anios=[...new Set(hojas.filter(h=>h.valida&&!h.oculta&&h.anio).map(h=>h.anio))];
-    const elegido=anios.includes(2026)?2026:anios.includes(2025)?2025:(anios.length?Math.max(...anios):0);
-    hojas.forEach(h=>{h.marcada=h.valida&&!h.oculta&&(!elegido||h.anio===elegido||!h.anio&&!anios.length);});
-    return elegido;
+    const lista=[...anios];
+    return lista.includes(2026)?2026:lista.includes(2025)?2025:(lista.length?Math.max(...lista):0);
   }
 
   /* Importar Excel / CSV: un archivo con una o varias pestañas (una por cadena) */
@@ -398,7 +409,8 @@
       '<div id="ovi-vista"></div><div class="plan-error" id="ovi-error"></div>'+
       '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="ovi-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="ovi-aplicar" disabled>Importar</button></div>',true);
     const q=i=>fondo.querySelector('#'+i);
-    let hojas=null,origen='excel';
+    let hojas=null,origen='excel',corteManual=false;
+    q('ovi-corte').addEventListener('input',()=>{corteManual=true;});
     const elegidas=()=>{const marcadas=new Set([...fondo.querySelectorAll('[data-ovi-hoja]:checked')].map(c=>c.getAttribute('data-ovi-hoja')));return (hojas||[]).filter(h=>marcadas.has(h.nombre));};
     const opcImp=()=>({origen,retirarAusentes:q('ovi-retirar').checked,fechaCorte:q('ovi-corte').value||''});
     const vista=()=>{
@@ -433,8 +445,8 @@
         hojas=hojas.filter(h=>h.filas.length);
         if(!hojas.length)throw new Error('El archivo no tiene filas.');
         const anio=clasificarHojas(hojas,config.mapeo);
-        if(anio&&!q('ovi-corte').value)q('ovi-corte').value=anio+'-01-01';       // sin fecha de corte guardada: desde el 1 de enero del año elegido
-        q('ovi-hojas').innerHTML=hojas.length>1||!hojas[0].valida?'<div class="ov-vista"><b>Pestañas</b> <small>(se marcan las de ventas del año '+(anio||'más reciente')+'; las ocultas y las que no son de ventas, no)</small><div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">'+
+        if(anio&&!config.fechaCorte&&!corteManual)q('ovi-corte').value=anio+'-01-01';       // sin fecha de corte guardada: desde el 1 de enero del año elegido
+        q('ovi-hojas').innerHTML=hojas.length>1||!hojas[0].valida?'<div class="ov-vista"><b>Pestañas</b> <small>(se marcan las de ventas visibles; entran las entregas desde el '+(anio?'1 de enero de '+anio:'corte')+')</small><div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">'+
           hojas.map(h=>'<label style="display:flex;gap:6px;align-items:center'+(h.valida?'':';color:#8a94a0')+'"><input type="checkbox" data-ovi-hoja="'+esc(h.nombre)+'"'+(h.marcada?' checked':'')+(h.valida?'':' disabled')+'> '+esc(h.nombre)+' <small>('+h.filas.length+' filas'+(h.oculta?' · oculta':'')+(h.valida?'':' · no es de ventas: faltan '+esc(h.faltan.join(', ')))+')</small></label>').join('')+'</div></div>':
           '<input type="checkbox" data-ovi-hoja="'+esc(hojas[0].nombre)+'" checked style="display:none">';
       }catch(err){q('ovi-error').textContent=(err&&err.message)||String(err);hojas=null;}
@@ -475,6 +487,10 @@
     if(ver){dialogoDetalle(ver.getAttribute('data-ov-ver'));return;}
     if(e.target.closest('[data-ov-guardar-corte]')){
       try{await guardarConfig({fechaCorte:(document.getElementById('ov-corte')||{}).value||''});alert('Fecha de corte guardada.');}catch(err){alert((err&&err.message)||err);}
+      return;
+    }
+    if(e.target.closest('[data-ov-guardar-dias]')){
+      try{await guardarConfig({diasMaxAtraso:Math.max(0,Number((document.getElementById('ov-dias')||{}).value)||0)});alert('Guardado.');}catch(err){alert((err&&err.message)||err);}
       return;
     }
     if(e.target.closest('[data-ov-guardar-eqs]')){

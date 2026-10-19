@@ -47,3 +47,12 @@ Una sola ruta para todas las fuentes: `glacialPlanificacion.ventas.aplicarFuente
 - **Despachado:** lo ya enviado no necesita producción. La cobertura (programado / producido / falta) se calcula sobre lo pendiente (solicitado − despachado). Totalmente despachada → estado «Despachada». Tarjeta «Nivel de servicio» = despachado / solicitado (sin canceladas).
 - **OBS «OC CANCELADA»** crea la orden como cancelada.
 - Pendiente: la lectura directa de Google Sheets (el stock del almacén tampoco se descuenta aún del «falta programar»).
+
+## Con el libro real «COSTO X PALETA»
+
+- **Pestañas:** al importar se marcan las pestañas visibles que traen las columnas de ventas (SPSA, MAKRO, CEN, TAMBO…); las de stock, NNSS, resumen y las ocultas quedan sin marcar. Un libro sin esas columnas (p. ej. el de stock de inventario) se rechaza con un mensaje.
+- **Año:** por la fecha de entrega, no por el nombre de la pestaña (la pestaña «SPSA 2025» trae entregas hasta 2026). Si hay entregas de 2026 → corte 1-ene-2026; si no, 1-ene-2025.
+- **Equivalencias:** 45 textos de producto distintos en el libro; llegan sugeridos (marca con gas/sabor, formato, caja/bidón). Una orden se compara por **marca + formato** (625 ml, 1 L, 2.5 L, 7 L, caja 20 L…), no por el pack ni por la/ln.
+- **Vencidas:** una orden sin despachar con más de N días de atraso (30 por defecto, configurable) pasa a «Vencida sin atender»: no cuenta como atraso ni reserva programaciones. Con el libro real hubo ~12 000 líneas de 2026: 710 atrasadas recientes y ~2 800 vencidas.
+- Filas de totales o relleno (sin OC, tienda ni fecha) se ignoran.
+- Prueba con libros reales: `GLX_VENTAS=/ruta/libro.xlsx GLX_XLSX=…/xlsx.full.min.js GLX_LIBS=… node tests/planificacion-ordenes-venta-xlsx.e2e.js`.

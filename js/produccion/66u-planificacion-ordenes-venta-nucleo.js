@@ -21,7 +21,18 @@
   const num=v=>{const n=Number(String(v==null?'':v).replace(/\s/g,'').replace(/,(?=\d{3}(\D|$))/g,'').replace(',','.'));return Number.isFinite(n)?n:0;};
   const norm=t=>String(t==null?'':t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
   const normPres=t=>norm(t).replace(/\s+/g,'');
-  const claveProducto=(marca,presentacion)=>norm(marca)+'|'+normPres(presentacion);
+  /* Formato de una presentación: lo que identifica el producto para una orden de venta (volumen + caja/bidón). Una orden dice «Scala 625 ml», no «pack x15 / x6 / la / ln»:
+     por eso se compara por formato y no por el texto completo de la presentación. Si no se reconoce un volumen se usa el texto tal cual. */
+  function formatoDe(t){
+    let x=norm(t).replace(/[_\/]+/g,' ').replace(/(\d)[\s-]+(\d)[\s-]*(?=l\b|lt|litro)/g,'$1.$2 ').replace(/(\d),(\d)/g,'$1.$2');
+    let m=x.match(/(\d+(?:\.\d+)?)\s*-?\s*ml(?=\b|x\d)/),vol='';
+    if(m)vol=String(Number(m[1]))+'ml';
+    else if((m=x.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:lts?|litros?|l)(?=\b|x\d)/)))vol=String(Number(m[1]))+'l';
+    if(!vol)return normPres(t);
+    const tipo=/\bcaja\b|\bcj\b|\bcjx/.test(x)?'caja':/\bbidon\b|\bbd\b/.test(x)?'bidon':'';
+    return (tipo==='bidon'&&(vol==='7l'||vol==='10l')?'':tipo)+vol;      // el bidón de 7 y 10 L es simplemente «7 Litros» / «10 Litros»
+  }
+  const claveProducto=(marca,presentacion)=>norm(marca)+'|'+formatoDe(presentacion);
   /* Una orden = N.º (la OC) + producto: una misma OC trae varias líneas. */
   const claveOrden=o=>norm(o.numero)+'|'+claveProducto(o.marca,o.presentacion);
   const DIA_MS=86400000;
@@ -68,13 +79,18 @@
   /* equivalencias: {[norm(texto)]:{marca,presentacion,linea?}} (tabla editable por el usuario). */
   const resolverProducto=(texto,eq)=>{const e=eq&&eq[norm(texto)];return e&&e.marca&&e.presentacion?e:null;};
   /* Sugerencia (solo ayuda para llenar la tabla; el usuario confirma): marca = la del vocabulario que aparece como palabra suelta; presentación queda vacía si no se reconoce. */
+  const MARCAS_TEXTO=[['bells',/\bbell\s?s\b|\bbells\b/],['scala',/\bscala\b/],['aro',/\baro\b/],['cuisine',/cuisine|\bc&co\b|\bc ?& ?co\b/],['fontlife',/font\s?life/],
+    ['glacial',/\bglacial\b/],['merkat',/\bmerkat\b/],['yaqua',/\byaqua\b/],['san jorge',/san jor/]];
+  const SABORES=[['manzana',/manzana/],['maracuya',/maracu/],['pina kion',/pi[nñ]a|kion/]];
   function sugerirProducto(texto,marcas){
-    const toks=norm(String(texto).replace(/[_\-\/]+/g,' ')).split(' ').filter(Boolean);
-    const lista=(marcas||[]).slice().sort((a,b)=>b.length-a.length);
-    const marca=lista.find(m=>{const mt=norm(m).split(' ');return mt.every(t=>toks.includes(t));})||'';
-    const gas=/\bcon gas\b|\bgas\b/.test(toks.join(' '))&&!/sin gas/.test(toks.join(' '));
-    const vol=toks.join(' ').match(/(\d+(?:[.,]\d+)?)\s?(l|lt|lts|litros?|ml)\b/);
-    return {marca,volumen:vol?vol[1].replace(',','.')+(vol[2]==='ml'?'ml':'L'):'',conGas:gas};
+    const x=norm(String(texto).replace(/[_\-\/]+/g,' '));
+    const base=(MARCAS_TEXTO.find(([,r])=>r.test(x))||[''])[0];
+    const conGas=/\bcon gas\b/.test(x),sabor=(SABORES.find(([,r])=>r.test(x))||[''])[0];
+    const vocab=(marcas||[]).map(m=>({m,n:norm(m.replace(/_/g,' '))}));
+    const hallar=n=>{const v=vocab.find(o=>o.n===n);return v?v.m:'';};
+    // «Bells con gas» → Bells_Gas · «Scala con gas sabor manzana» → Scala_Manzana (si el sistema tiene esa marca), si no la marca base
+    let marca=base?(sabor?hallar(base+' '+sabor):conGas?hallar(base+' gas'):'')||hallar(base):'';
+    return {marca,base,formato:formatoDe(x),conGas,sabor};
   }
 
   /* ---------------- fecha ---------------- */
@@ -114,12 +130,12 @@
      opc.producidoDe(prog) → UND producidas de esa programación (null/undefined = 0) · opc.hoy 'YYYY-MM-DD' · opc.ventanaDias (si la orden no trae fecha del pedido, se miran las programaciones desde hoy − N días; por defecto 30) */
   function coberturaOrdenes(ordenes,programaciones,opc){
     opc=opc||{};
-    const hoy=opc.hoy||iso(new Date()),ventana=Number.isFinite(opc.ventanaDias)?opc.ventanaDias:30;
+    const hoy=opc.hoy||iso(new Date()),maxAtraso=Number.isFinite(opc.diasMaxAtraso)?opc.diasMaxAtraso:Infinity,ventana=Number.isFinite(opc.ventanaDias)?opc.ventanaDias:30;
     const prod=typeof opc.producidoDe==='function'?opc.producidoDe:()=>0;
     const progs=(programaciones||[]).filter(p=>p&&num(p.cantidadProgramada)>0&&p.marca&&p.presentacion&&fechaOk(p.fecha)&&!(p.estadoOperacion&&p.estadoOperacion.estado==='CANCELADA'))
       .map(p=>({p,producto:claveProducto(p.marca,p.presentacion),restoProg:num(p.cantidadProgramada),restoProd:Math.max(0,Math.min(num(p.cantidadProgramada),num(prod(p))||0))}))
       .sort((a,b)=>String(a.p.fecha).localeCompare(String(b.p.fecha))||String(a.p.turno).localeCompare(String(b.p.turno)));
-    const abiertas=(ordenes||[]).filter(o=>o&&(o.estado||'ABIERTA')==='ABIERTA'&&num(o.cantidad)-num(o.despachado)>0)
+    const abiertas=(ordenes||[]).filter(o=>o&&(o.estado||'ABIERTA')==='ABIERTA'&&num(o.cantidad)-num(o.despachado)>0&&!(fechaOk(o.fechaEntrega)&&diasEntre(hoy,o.fechaEntrega)<-maxAtraso))   // una orden vencida hace mucho ya no reserva programaciones
       .sort((a,b)=>String(a.fechaEntrega).localeCompare(String(b.fechaEntrega))||num(a.creadoEn)-num(b.creadoEn)||String(a.numero).localeCompare(String(b.numero)));
     const res=new Map();
     abiertas.forEach(o=>{
@@ -142,7 +158,7 @@
   }
 
   /* Estado que ve el usuario (se calcula; solo ABIERTA/CANCELADA/RETIRADA se guardan). nivel: verde · azul · ambar · rojo · gris */
-  function estadoOrden(o,cob,hoy){
+  function estadoOrden(o,cob,hoy,diasMax){
     const e=o.estado||'ABIERTA';
     if(e==='CANCELADA')return {clave:'CANCELADA',etiqueta:'Cancelada',nivel:'gris',cerrada:true};
     if(e==='RETIRADA')return {clave:'RETIRADA',etiqueta:'Retirada de la fuente',nivel:'gris',cerrada:true};
@@ -151,6 +167,7 @@
     const c=cob||{pedido:pend,programado:0,producido:0,falta:pend};
     if(c.pedido>0&&c.producido>=c.pedido)return {clave:'COMPLETA',etiqueta:'Completa',nivel:'verde',cerrada:true};
     const dias=fechaOk(o.fechaEntrega)?diasEntre(hoy,o.fechaEntrega):null;
+    if(dias!==null&&Number.isFinite(diasMax)&&dias<-diasMax)return {clave:'VENCIDA',etiqueta:'Vencida sin atender',nivel:'gris',cerrada:true,dias};   // histórico: no cuenta como atraso ni reserva programación
     if(dias!==null&&dias<0)return {clave:'ATRASADA',etiqueta:'Atrasada',nivel:'rojo',cerrada:false,dias};
     const extra=dias!==null&&dias<=3?{porVencer:true,dias}:{dias};
     if(c.producido>0)return Object.assign({clave:'EN_PRODUCCION',etiqueta:'En producción',nivel:'azul',cerrada:false},extra);
@@ -159,10 +176,11 @@
     return Object.assign({clave:'SIN_PROGRAMAR',etiqueta:'Sin programar',nivel:'gris',cerrada:false},extra);
   }
 
-  function resumenOrdenes(ordenes,cobMap,hoy){
-    const r={abiertas:0,pedidas:0,programado:0,producido:0,falta:0,atrasadas:0,porVencer:0,sinCubrir:0,solicitado:0,despachado:0,nivelServicio:null};
+  function resumenOrdenes(ordenes,cobMap,hoy,diasMax){
+    const r={abiertas:0,pedidas:0,programado:0,producido:0,falta:0,atrasadas:0,porVencer:0,sinCubrir:0,vencidas:0,solicitado:0,despachado:0,nivelServicio:null};
     (ordenes||[]).forEach(o=>{
-      const c=cobMap.get(o.id),st=estadoOrden(o,c,hoy);
+      const c=cobMap.get(o.id),st=estadoOrden(o,c,hoy,diasMax);
+      if(st.clave==='VENCIDA')r.vencidas++;
       if(st.clave!=='CANCELADA'&&st.clave!=='RETIRADA'){r.solicitado+=num(o.cantidad);r.despachado+=Math.min(num(o.despachado),num(o.cantidad));}
       if(st.cerrada)return;
       r.abiertas++;r.pedidas+=Math.max(0,num(o.cantidad)-num(o.despachado));
@@ -192,6 +210,7 @@
       const v=c=>mapa[c]?f[mapa[c]]:'';
       const vacia=['numero','cliente','producto','marca','presentacion','cantidad','fechaEntrega'].every(c=>String(v(c)==null?'':v(c)).trim()==='');
       if(vacia)return;
+      if(['numero','cliente','fechaEntrega'].every(c=>String(v(c)==null?'':v(c)).trim()===''))return;   // fila de totales o relleno: no es una orden
       const estadoTxt=norm(v('estado')),obsTxt=norm(v('observaciones'));
       let marca=String(v('marca')||'').trim(),presentacion=String(v('presentacion')||'').trim(),lineaEq='';
       const textoProd=String(v('producto')||'').trim();
@@ -273,7 +292,7 @@
     return lista;
   }
 
-  const API={num,norm,claveProducto,claveOrden,resolverProducto,sugerirProducto,fechaOk,leerFecha,diasEntre,COLUMNAS,ESTADOS_GUARDADOS,mapearColumnas,importarHojas,validarOrden,coberturaOrdenes,estadoOrden,resumenOrdenes,importarFilas,aplicarImportacion};
+  const API={num,norm,formatoDe,claveProducto,claveOrden,resolverProducto,sugerirProducto,fechaOk,leerFecha,diasEntre,COLUMNAS,ESTADOS_GUARDADOS,mapearColumnas,importarHojas,validarOrden,coberturaOrdenes,estadoOrden,resumenOrdenes,importarFilas,aplicarImportacion};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   if(typeof window!=='undefined')window.glacialOrdenesVentaNucleo=API;
 })(typeof window!=='undefined'?window:globalThis);

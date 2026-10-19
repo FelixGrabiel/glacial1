@@ -109,6 +109,21 @@ const prog=(clave,linea,fecha,turno,marca,pres,cant,extra)=>Object.assign({clave
   const rm=N.importarHojas(hojas,[],{equivalencias:EQ,hoy:HOY});
   ok(rm.crear.length===2&&rm.crear[0].cadena==='MAKRO'&&rm.crear[0].despachado===4&&rm.crear[0].observaciones==='nota'&&rm.crear[1].cadena==='SPSA'&&rm.crear[1].despachado===20,'importarHojas: cada pestaña con sus encabezados; la cadena sale del nombre de la pestaña');
   ok(rm.hojasSinColumnas.length===1&&rm.hojasSinColumnas[0].hoja==='NOTAS','una pestaña sin las columnas necesarias se avisa y no frena a las demás');
+  /* formato: una orden dice «Scala 625 ml», no el pack ni la la/ln */
+  ok(N.formatoDe('Pack_Regular_625mlx15und/la')==='625ml'&&N.formatoDe('625 ML PACK X 15 UND')==='625ml'&&N.formatoDe('Pack_Regular_SC_1Lx12und/ln')==='1l'&&N.formatoDe('Pack_Regular_2.5Lx6und')==='2.5l'&&N.formatoDe('Caja 20 Litros')==='caja20l'&&N.formatoDe('Bidón 20 Litros')==='bidon20l'&&N.formatoDe('7 Litros')==='7l','el formato se reconoce en las presentaciones del sistema y en las del texto');
+  const MV=['Bells','Bells_Gas','Bells_Manzana','Scala','Scala_Gas','Scala_Piña_Kion','Cuisine','Aro','Fontlife'];
+  const sg=t=>N.sugerirProducto(t,MV);
+  ok(sg('SCALA-AGUA-SIN-GAS-BT-2-5-L').formato==='2.5l'&&sg('SCALA-AGUA-CON-GAS-BT-625-ML').marca==='Scala_Gas'&&sg('SCALA-AGUA-CON-GAS-PIÑA-KION-BT-625-ML').marca==='Scala_Piña_Kion'&&sg('BELL-S-AGUA-SIN-GAS-BD-7L').marca==='Bells'&&sg('BELL-S-AGUA-SIN-GAS-BD-7L').formato==='7l'&&sg('AGUA CJX20LT SINGAS CUISINE&CO').formato==='caja20l'&&sg('AGUA FONT LIFE X 10 LT').marca==='Fontlife','la sugerencia reconoce marca (con gas / sabor), formato, caja y bidón');
+  const prg=[{clave:'p',linea:'PET2',fecha:HOY,turno:'DÍA',marca:'Scala',presentacion:'Pack_Regular_625mlx15und/la',cantidadProgramada:500}];
+  const cv=N.coberturaOrdenes([{id:'a',numero:'1',marca:'Scala',presentacion:'625 ML PACK X 6 UND',cantidad:300,fechaEntrega:HOY,estado:'ABIERTA'}],prg,{hoy:HOY});
+  ok(cv.get('a').programado===300,'una orden «Scala 625 ml» se cubre con la programación de Scala 625 ml sin importar el pack ni la/ln');
+  /* vencidas: sin atender hace más de N días → históricas (no cuentan como atraso ni reservan programación) */
+  const viej={id:'v',numero:'9',marca:'Scala',presentacion:'625 ML PACK X 15 UND',cantidad:100,despachado:0,fechaEntrega:'2026-05-01',estado:'ABIERTA'};
+  const rec={id:'r',numero:'10',marca:'Scala',presentacion:'625 ML PACK X 15 UND',cantidad:100,despachado:0,fechaEntrega:'2026-10-10',estado:'ABIERTA'};
+  const cv2=N.coberturaOrdenes([viej,rec],[{clave:'p',linea:'PET2',fecha:'2026-10-18',turno:'DÍA',marca:'Scala',presentacion:'625 ML PACK X 15 UND',cantidadProgramada:100}],{hoy:'2026-10-19',diasMaxAtraso:30});
+  ok(N.estadoOrden(viej,cv2.get('v'),'2026-10-19',30).clave==='VENCIDA'&&N.estadoOrden(rec,cv2.get('r'),'2026-10-19',30).clave==='ATRASADA'&&!cv2.has('v')&&cv2.get('r').programado===100,'la orden vencida hace mucho es histórica y no le quita la programación a la reciente');
+  const rs2=N.resumenOrdenes([viej,rec],cv2,'2026-10-19',30);
+  ok(rs2.vencidas===1&&rs2.atrasadas===1&&rs2.abiertas===1,'el resumen separa atrasadas (recientes) de vencidas (históricas)');
   ok(/^2025-1[01]-\d\d$/.test(N.leerFecha(45955))&&N.leerFecha('19/10/26')==='2026-10-19'&&N.leerFecha(new Date(2026,9,19))==='2026-10-19','fecha como serie de Excel, dd/mm/aa y objeto Date');
 }
 console.log(fallas?fallas+' fallas':'todo correcto');

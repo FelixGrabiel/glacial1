@@ -34,15 +34,33 @@ XLSX.writeFile(libro, dir + '/ventas-prueba.xlsx');
   await D.page.setInputFiles('#ovi-archivo', dir + '/ventas-prueba.xlsx');
   await D.page.waitForSelector('[data-ovi-hoja]');
   const hojas = await D.page.evaluate(() => [...document.querySelectorAll('[data-ovi-hoja]')].map(c => c.getAttribute('data-ovi-hoja') + (c.checked ? ':sí' : ':no') + (c.disabled ? ':bloq' : '')));
-  ok(JSON.stringify(hojas) === JSON.stringify(['MAKRO 2025:sí', 'SPSA 2025:sí', 'CEN 2025:sí', 'MAKRO 2024:no', 'NNSS MAKRO 2025:no:bloq']), 'se marcan las pestañas de ventas de 2025 (no 2024 ni NNSS): ' + hojas.join(', '));
-  ok(await D.page.evaluate(() => document.getElementById('ovi-corte').value) === '2025-01-01', 'la fecha de corte se propone desde el 1 de enero del año elegido');
+  ok(JSON.stringify(hojas) === JSON.stringify(['MAKRO 2025:sí', 'SPSA 2025:sí', 'CEN 2025:sí', 'MAKRO 2024:sí', 'NNSS MAKRO 2025:no:bloq']), 'se marcan todas las pestañas de ventas visibles (no NNSS): ' + hojas.join(', '));
+  ok(await D.page.evaluate(() => document.getElementById('ovi-corte').value) === '2025-01-01', 'sin entregas de 2026, la fecha de corte propuesta es el 1 de enero de 2025');
   const vista = await D.page.evaluate(() => document.getElementById('ovi-vista').innerText.replace(/\s+/g, ' '));
   ok(/4 producto\(s\) de la hoja aún no están/.test(vista), 'los productos sin equivalencia se avisan (4): ' + vista.slice(0, 160));
+  const pre = await D.page.evaluate(() => [...document.querySelectorAll('tr[data-eq]')].map(tr => tr.getAttribute('data-eq') + '→' + tr.querySelector('[data-eq-marca]').value + '/' + tr.querySelector('[data-eq-pres]').value));
+  ok(pre.length === 4 && pre.every(x => !/→\//.test(x) && !/\/$/.test(x)), 'cada producto llega con marca y presentación sugeridas: ' + pre.join(' · ').slice(0, 220));
   /* un libro que NO es de ventas (stock) */
   if (process.env.GLX_STOCK) {
     await D.page.setInputFiles('#ovi-archivo', process.env.GLX_STOCK);
     await D.page.waitForFunction(() => /no parece de órdenes de ventas/.test(document.getElementById('ovi-vista').innerText), null, { timeout: 8000 });
     ok(true, 'un libro de stock se rechaza con un mensaje claro (no pide columnas sueltas)');
+  }
+  /* el libro REAL de ventas (opcional: GLX_VENTAS=/ruta/al/libro.xlsx) */
+  if (process.env.GLX_VENTAS) {
+    await D.page.evaluate(() => { window.__bd = { ordenesVenta: [], ordenesVentaConfig: {} }; db.runTransaction = async fn => { const tx = { get: async () => ({ exists: true, data: () => window.__bd }), set: (r, d) => { window.__bd = d; glacialPlanificacion.ventas.__poner(d.ordenesVenta, d.ordenesVentaConfig); glacialPlanificacion.refrescar(); } }; return await fn(tx); }; });
+    await D.page.setInputFiles('#ovi-archivo', process.env.GLX_VENTAS);
+    await D.page.waitForFunction(() => /MAKRO 2023/.test(document.getElementById('ovi-hojas').innerText) && document.querySelectorAll('tr[data-eq]').length > 10, null, { timeout: 60000 });
+    const real = await D.page.evaluate(() => ({ corte: document.getElementById('ovi-corte').value, hojas: [...document.querySelectorAll('[data-ovi-hoja]:checked')].map(c => c.getAttribute('data-ovi-hoja')), eq: [...document.querySelectorAll('tr[data-eq]')].map(tr => [tr.getAttribute('data-eq'), tr.querySelector('[data-eq-marca]').value, tr.querySelector('[data-eq-pres]').value]) }));
+    console.log('REAL', real.corte, real.hojas.join(','), real.eq.length, 'productos;', real.eq.filter(e => !e[1] || !e[2]).length, 'sin sugerencia');
+    await D.page.click('[data-ovi-guardar-eq]');
+    await D.page.waitForFunction(() => !document.querySelector('[data-ovi-guardar-eq]') && /nueva/.test(document.getElementById('ovi-vista').innerText), null, { timeout: 60000 });
+    console.log('VISTA', (await D.page.evaluate(() => document.querySelector('.ov-vista').innerText)).replace(/\s+/g, ' ').slice(0, 400));
+    await D.page.click('#ovi-aplicar'); await D.page.waitForSelector('#ovi-aplicar', { state: 'detached', timeout: 60000 });
+    await D.page.waitForTimeout(800);
+    const fin = await D.page.evaluate(() => ({ n: window.__bd.ordenesVenta.length, kpis: [...document.querySelectorAll('.ov-k')].map(k => k.querySelector('span').textContent + '=' + k.querySelector('b').textContent), filas: document.querySelectorAll('#ov-tabla tbody tr').length }));
+    console.log('FIN', JSON.stringify(fin));
+    if (process.env.GLX_CAPTURAS) await D.page.screenshot({ path: process.env.GLX_CAPTURAS + '/ventas-real.png', fullPage: false });
   }
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar();
