@@ -187,69 +187,50 @@
     document.head.appendChild(s);
   }
 
-  /* ---------- gráficos (Chart.js ya incluido; las instancias se destruyen antes de volver a dibujar) ---------- */
+  /* ---------- gráficos (ApexCharts vía apexCrear: se actualizan en sitio; se destruyen antes de volver a dibujar) ---------- */
   function destruir(){
     charts.forEach(c => { try{ c.destroy(); }catch(_){ /* ya destruido */ } });
     charts = [];
   }
-  const etiquetasBarras = {
-    id: 'heEtiquetas',
-    afterDatasetsDraw(chart){
-      const ctx = chart.ctx, horizontal = chart.options.indexAxis === 'y';
-      ctx.save(); ctx.font = '600 11px sans-serif'; ctx.fillStyle = '#10265f'; ctx.textBaseline = 'middle';
-      chart.data.datasets.forEach((ds, i) => {
-        if(ds.sinEtiquetas) return;
-        chart.getDatasetMeta(i).data.forEach((barra, j) => {
-          const v = ds.data[j];
-          if(v === null || v === undefined || Number.isNaN(v)) return;
-          const t = durCorta(v * 60);
-          if(horizontal){ ctx.textAlign = 'left'; ctx.fillText(t, barra.x + 6, barra.y); }
-          else{ ctx.textAlign = 'center'; ctx.fillText(t, barra.x, barra.y - 9); }
-        });
-      });
-      ctx.restore();
-    }
-  };
-  function crearGrafico(id, config){
+  function crearGrafico(id, opciones){
     const el = document.getElementById(id);
-    if(!el || typeof Chart === 'undefined'){ if(el) el.parentNode.innerHTML = '<div class="he-vacio">No se cargó la biblioteca de gráficos. Los datos siguen disponibles en la tabla.</div>'; return null; }
-    const c = new Chart(el.getContext('2d'), config);
-    charts.push(c);
+    if(!el) return null;
+    if(typeof apexCrear !== 'function' || typeof ApexCharts === 'undefined'){ el.parentNode.innerHTML = '<div class="he-vacio">No se cargó la biblioteca de gráficos. Los datos siguen disponibles en la tabla.</div>'; return null; }
+    const c = apexCrear(id, opciones);
+    if(c && !charts.some(x => x.id === id)) charts.push({id, destroy: () => graficosDestruir(id)});
     return c;
   }
-  const ejeHoras = {beginAtZero: true, title: {display: true, text: 'Horas'}, ticks: {callback: v => v + ' h'}};
+  const etiquetaHoras = v => (v === null || v === undefined || Number.isNaN(v)) ? '' : durCorta(v * 60);
+  const ejeHoras = {min: 0, title: {text: 'Horas'}, labels: {formatter: v => Math.round(v * 10) / 10 + ' h'}};
+  /* clic en una barra: se procesa fuera del manejador de ApexCharts (repintar dentro lo rompe) */
+  const alClic = fn => ({dataPointSelection: (e, ctx, cfg) => { const i = cfg && cfg.dataPointIndex; if(i >= 0) setTimeout(() => fn(i), 0); }});
 
   function graficoDias(d){
     const hayDatos = d.porDia.some(x => x.validos > 0);
     if(!hayDatos) return;
     crearGrafico('he-g-dias', {
-      type: 'bar', plugins: [etiquetasBarras],
-      data: {labels: d.porDia.map(x => fechaCorta(x.fecha)), datasets: [{
-        label: 'Horas extras a favor', backgroundColor: '#0b72e0', borderRadius: 3, maxBarThickness: 38,
-        data: d.porDia.map(x => x.validos > 0 ? x.favor / 60 : null)           // sin información suficiente = ausencia, no cero
-      }]},
-      options: {
-        responsive: true, maintainAspectRatio: false, layout: {padding: {top: 18}},
-        plugins: {legend: {display: false}, tooltip: {callbacks: {
-          title: it => fechaLarga(d.porDia[it[0].dataIndex].fecha),
-          label: it => { const x = d.porDia[it.dataIndex]; return 'Horas extras: ' + dur(x.favor) + (x.pendientes ? ' · ' + x.pendientes + ' pendiente(s)' : ''); }
-        }}},
-        scales: {y: ejeHoras, x: {grid: {display: false}}},
-        onClick: (e, els) => { if(els.length) abrirDia(d.porDia[els[0].index].fecha); }
-      }
+      chart: {type: 'bar', events: alClic(i => abrirDia(d.porDia[i].fecha))},
+      series: [{name: 'Horas extras a favor', data: d.porDia.map(x => x.validos > 0 ? x.favor / 60 : null)}],   // sin información suficiente = ausencia, no cero
+      colors: ['#0b72e0'],
+      plotOptions: {bar: {borderRadius: 3, columnWidth: '60%', dataLabels: {position: 'top'}}},
+      dataLabels: {enabled: true, offsetY: -18, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#10265f']}},
+      xaxis: {categories: d.porDia.map(x => fechaCorta(x.fecha))},
+      yaxis: ejeHoras, legend: {show: false},
+      tooltip: {custom: ({dataPointIndex}) => { const x = d.porDia[dataPointIndex];
+        return '<div class="gx-tip"><b>' + fechaLarga(x.fecha) + '</b><br>Horas extras: ' + dur(x.favor) + (x.pendientes ? ' · ' + x.pendientes + ' pendiente(s)' : '') + '</div>'; }}
     });
   }
   function graficoRanking(top){
     if(!top.length) return;
     crearGrafico('he-g-rank', {
-      type: 'bar', plugins: [etiquetasBarras],
-      data: {labels: top.map(x => x.nombre), datasets: [{label: 'Horas extras a favor', data: top.map(x => x.favor / 60), backgroundColor: top.map(x => x.otros ? '#9fb3c8' : '#0b72e0'), borderRadius: 3, maxBarThickness: 22}]},
-      options: {
-        indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: {padding: {right: 70}},
-        plugins: {legend: {display: false}, tooltip: {callbacks: {label: it => 'Horas extras a favor: ' + dur(top[it.dataIndex].favor)}}},
-        scales: {x: {beginAtZero: true, ticks: {callback: v => v + ' h'}}, y: {grid: {display: false}}},
-        onClick: (e, els) => { if(els.length && !top[els[0].index].otros) abrirDetalle(top[els[0].index].clave); }
-      }
+      chart: {type: 'bar', events: alClic(i => { if(!top[i].otros) abrirDetalle(top[i].clave); })},
+      series: [{name: 'Horas extras a favor', data: top.map(x => x.favor / 60)}],
+      colors: top.map(x => x.otros ? '#9fb3c8' : '#0b72e0'),
+      plotOptions: {bar: {horizontal: true, distributed: true, borderRadius: 3, barHeight: '60%', dataLabels: {position: 'top'}}},
+      dataLabels: {enabled: true, textAnchor: 'start', offsetX: 22, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#10265f']}},
+      xaxis: {categories: top.map(x => x.nombre), min: 0, max: Math.max(...top.map(x => x.favor / 60)) * 1.22, tickAmount: 5, labels: {formatter: v => Math.round(v * 10) / 10 + ' h'}},
+      grid: {padding: {right: 50}}, legend: {show: false},
+      tooltip: {custom: ({dataPointIndex}) => '<div class="gx-tip"><b>' + esc(top[dataPointIndex].nombre) + '</b><br>Horas extras a favor: ' + dur(top[dataPointIndex].favor) + '</div>'}
     });
   }
 
@@ -308,9 +289,9 @@
         '<div class="contra"><small>Saldo en contra</small><strong>' + dur(d.contra) + '</strong></div>' +
         '<div class="pend"><small>Registros pendientes</small><strong>' + d.pendientes.length + '</strong></div></div></div></div>' +
       '<div class="he-graf"><div class="panel"><div class="panel-head"><div><h3>Horas extras por día</h3><div class="small-muted">' + esc(estado.grupo) + ' · ' + esc(r.nombre) + '</div></div></div>' +
-        '<div class="panel-body">' + (d.porDia.some(x => x.validos > 0) ? '<div class="he-lienzo"><canvas id="he-g-dias" role="img" aria-label="Horas extras a favor por día"></canvas></div>' : '<div class="he-vacio">Sin jornadas completas para graficar en este período.' + (d.pendientes.length ? ' Hay ' + d.pendientes.length + ' pendiente(s) de cálculo.' : '') + '</div>') + '</div></div>' +
+        '<div class="panel-body">' + (d.porDia.some(x => x.validos > 0) ? '<div class="he-lienzo"><div id="he-g-dias" style="width:100%;height:100%" role="img" aria-label="Horas extras a favor por día"></div></div>' : '<div class="he-vacio">Sin jornadas completas para graficar en este período.' + (d.pendientes.length ? ' Hay ' + d.pendientes.length + ' pendiente(s) de cálculo.' : '') + '</div>') + '</div></div>' +
       '<div class="panel"><div class="panel-head"><div><h3>Trabajadores con más horas extras</h3><div class="small-muted">' + esc(estado.grupo) + ' · Período seleccionado</div></div></div><div class="panel-body">' +
-        (top.lista.length ? '<div class="he-lienzo" style="height:' + Math.max(180, top.lista.length * 40 + 30) + 'px"><canvas id="he-g-rank" role="img" aria-label="Trabajadores con más horas extras"></canvas></div>' : '<div class="he-vacio">Nadie con horas extras a favor en este período.</div>') +
+        (top.lista.length ? '<div class="he-lienzo" style="height:' + Math.max(180, top.lista.length * 40 + 30) + 'px"><div id="he-g-rank" style="width:100%;height:100%" role="img" aria-label="Trabajadores con más horas extras"></div></div>' : '<div class="he-vacio">Nadie con horas extras a favor en este período.</div>') +
         '<div style="text-align:right"><button type="button" class="he-enlace" onclick="TareoHE.abrirDetalle()">Ver por trabajador →</button></div></div></div></div>' +
       '<div class="panel"><div class="panel-head"><div><h3>Jornadas laboradas</h3><div class="small-muted">Horas efectivamente trabajadas según el tareo</div></div>' +
         '<div class="field-sm" style="min-width:150px"><label for="he-jor">Jornada laborada</label><select id="he-jor" onchange="TareoHE.cambiarJornada(this.value)">' +
@@ -448,7 +429,7 @@
         '<div class="tareo-kpi"><span class="tareo-kpi-label">JORNADA MÁXIMA LABORADA</span><strong>' + (maxima ? dur(maxima.laborada) : '—') + '</strong><small>' + (maxima ? fechaLarga(maxima.fecha) : 'Sin jornadas completas') + '</small></div></div>' +
       '<div class="panel"><div class="panel-head"><div><h3>' + (estado.vista === 'extras' ? 'Horas extras por día' : 'Jornada programada y laborada') + '</h3><div class="small-muted">' + esc(persona ? persona.nombre : '—') + ' · ' + esc(d.rango.nombre) + '</div></div>' +
         '<div class="field-sm" style="min-width:200px"><label for="he-d-vista">Vista</label><select id="he-d-vista" onchange="TareoHE.cambiarVista(this.value)"><option value="extras"' + (estado.vista === 'extras' ? ' selected' : '') + '>Horas extras</option><option value="jornada"' + (estado.vista === 'jornada' ? ' selected' : '') + '>Jornada laborada</option></select></div></div>' +
-        '<div class="panel-body">' + (d.porDia.some(x => x.validos > 0) ? '<div class="he-lienzo"><canvas id="he-g-det" role="img" aria-label="Gráfico del trabajador"></canvas></div>' : '<div class="he-vacio">Sin jornadas completas para graficar en este período.</div>') + '</div></div>' +
+        '<div class="panel-body">' + (d.porDia.some(x => x.validos > 0) ? '<div class="he-lienzo"><div id="he-g-det" style="width:100%;height:100%" role="img" aria-label="Gráfico del trabajador"></div></div>' : '<div class="he-vacio">Sin jornadas completas para graficar en este período.</div>') + '</div></div>' +
       '<div class="panel"><div class="panel-head"><h3>Detalle diario</h3></div><div class="panel-body"><div class="tareo-table-scroll"><table class="tareo-table he-tabla"><thead><tr><th>Fecha</th><th>Ingreso</th><th>Refrigerio</th><th>Salida</th><th>Programada</th><th>Laborada</th><th>Extras</th><th>Saldo en contra</th></tr></thead><tbody>' +
         (filas.map(x => { const val = x.estado === 'valida';
           return '<tr><td><button type="button" class="he-link" onclick="TareoHE.abrirDiaPersona(' + esc(JSON.stringify(x.fecha)) + ')">' + fechaLarga(x.fecha) + '</button>' + (x.turno ? ' <small class="small-muted">' + esc(x.turno) + '</small>' : '') + '</td><td>' + esc(x.ingreso || '—') + '</td>' +
@@ -457,24 +438,28 @@
             '<td>' + (val ? (x.saldo < 0 ? '<span class="he-neg">' + dur(-x.saldo) + '</span>' : '—') : '<span class="he-pend">Pendiente</span>') + '</td></tr>'; }).join('') || '<tr><td colspan="8" class="small-muted">Sin jornadas en este período.</td></tr>') +
         '</tbody></table></div></div></div>';
     if(d.porDia.some(x => x.validos > 0)){
+      const cats = d.porDia.map(x => fechaCorta(x.fecha));
       if(estado.vista === 'extras'){
         crearGrafico('he-g-det', {
-          type: 'bar', plugins: [etiquetasBarras],
-          data: {labels: d.porDia.map(x => fechaCorta(x.fecha)), datasets: [{label: 'Horas extras a favor', backgroundColor: '#0b72e0', borderRadius: 3, maxBarThickness: 38, data: d.porDia.map(x => x.validos > 0 ? x.favor / 60 : null)}]},
-          options: {responsive: true, maintainAspectRatio: false, layout: {padding: {top: 18}}, plugins: {legend: {display: false}, tooltip: {callbacks: {title: it => fechaLarga(d.porDia[it[0].dataIndex].fecha), label: it => 'Horas extras: ' + dur(d.porDia[it.dataIndex].favor)}}},
-            scales: {y: ejeHoras, x: {grid: {display: false}}}, onClick: (e, els) => { if(els.length) abrirDiaPersona(d.porDia[els[0].index].fecha); }}
+          chart: {type: 'bar', events: alClic(i => abrirDiaPersona(d.porDia[i].fecha))},
+          series: [{name: 'Horas extras a favor', data: d.porDia.map(x => x.validos > 0 ? x.favor / 60 : null)}],
+          colors: ['#0b72e0'],
+          plotOptions: {bar: {borderRadius: 3, columnWidth: '60%', dataLabels: {position: 'top'}}},
+          dataLabels: {enabled: true, offsetY: -18, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#10265f']}},
+          xaxis: {categories: cats}, yaxis: ejeHoras, legend: {show: false},
+          tooltip: {custom: ({dataPointIndex}) => '<div class="gx-tip"><b>' + fechaLarga(d.porDia[dataPointIndex].fecha) + '</b><br>Horas extras: ' + dur(d.porDia[dataPointIndex].favor) + '</div>'}
         });
       }else{
         crearGrafico('he-g-det', {
-          type: 'bar',
-          data: {labels: d.porDia.map(x => fechaCorta(x.fecha)), datasets: [
-            {label: 'Jornada programada', backgroundColor: '#9aa8b1', borderRadius: 3, maxBarThickness: 26, data: d.porDia.map(x => x.validos > 0 ? x.programada / 60 : null)},
-            {label: 'Jornada laborada', backgroundColor: '#0b72e0', borderRadius: 3, maxBarThickness: 26, data: d.porDia.map(x => x.validos > 0 ? x.laborada / 60 : null)}]},
-          options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: true, position: 'bottom'}, tooltip: {callbacks: {
-              title: it => fechaLarga(d.porDia[it[0].dataIndex].fecha),
-              label: it => { const x = d.porDia[it.dataIndex]; return it.dataset.label + ': ' + dur(it.datasetIndex === 0 ? x.programada : x.laborada); },
-              afterBody: it => { const x = d.porDia[it[0].dataIndex]; return 'Horas extras: ' + dur(x.favor); }}}},
-            scales: {y: ejeHoras, x: {grid: {display: false}}}, onClick: (e, els) => { if(els.length) abrirDiaPersona(d.porDia[els[0].index].fecha); }}
+          chart: {type: 'bar', events: alClic(i => abrirDiaPersona(d.porDia[i].fecha))},
+          series: [{name: 'Jornada programada', data: d.porDia.map(x => x.validos > 0 ? x.programada / 60 : null)},
+                   {name: 'Jornada laborada', data: d.porDia.map(x => x.validos > 0 ? x.laborada / 60 : null)}],
+          colors: ['#9aa8b1', '#0b72e0'],
+          plotOptions: {bar: {borderRadius: 3, columnWidth: '60%'}},
+          dataLabels: {enabled: false},
+          xaxis: {categories: cats}, yaxis: ejeHoras, legend: {show: true, position: 'bottom'},
+          tooltip: {custom: ({dataPointIndex}) => { const x = d.porDia[dataPointIndex];
+            return '<div class="gx-tip"><b>' + fechaLarga(x.fecha) + '</b><br>Programada: ' + dur(x.programada) + '<br>Laborada: ' + dur(x.laborada) + '<br>Horas extras: ' + dur(x.favor) + '</div>'; }}
         });
       }
     }

@@ -51,7 +51,7 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
   ok(/glacialDiferirGrafico/.test(r)&&/window\.glacialDiferirGrafico\s*=/.test(leer('js/produccion/49b-resumen-graficos-diferidos.js')),'el Resumen crea sus gráficos con glacialDiferirGrafico (49b): de uno en uno, después del render');
   ok(['chart-oee-planta','chart-oee-turno','chart-heat-oee'].every(id=>r.includes(id)),'gráficos nuevos del Resumen: velocímetro de OEE de planta, OEE por turno y mapa de calor');
   ok(/RS_IDS_INDUSTRIAL/.test(r)&&r.includes('ri-personal'),'los 7 gráficos industriales se registran para destruirlos');
-  ok(/if\(typeof Chart !== 'undefined'\) Chart\.register\(valorBarraResumenPlugin\)/.test(r),'el plugin de Chart.js del Resumen ya no exige que Chart exista');
+  ok(!/Chart\.register|Chart\.defaults/.test(r),'09-resumen.js ya no toca Chart.register ni Chart.defaults');
   ok(/KPIs del turno/.test(leer('js/produccion/08-graficos.js'))&&/type:'radialBar'/.test(leer('js/produccion/08-graficos.js')),'la pestaña Gráficos tiene los anillos de KPIs (radialBar)');
 }
 /* Fase 3: Impacto económico */
@@ -62,5 +62,17 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
   ok(/setTimeout\(\(\)=>alternar\(dim,v\),0\)/.test(r),'el clic filtra fuera del manejador de ApexCharts (si no, la librería lanza errores)');
   ok(/apexCrear\('idc-'\+id,opciones\)/.test(r),'cada tarjeta se actualiza en sitio con apexCrear (tiempo real sin parpadeo)');
   ok(/categorizarParadaPorTexto/.test(leer('js/produccion/56-impacto-resultados.js'))||/categorizarParadaPorTexto/.test(leer('js/produccion/55-valores-economicos.js'))||true,'(el cálculo de impacto no se tocó)');
+}
+/* Fase 4: Tareo + Reporte General, y Chart.js retirado */
+{
+  const fs=require('fs'),path=require('path');
+  const t=leer('js/personal/46-tareo-horas-extras.js'),x=leer('js/asistente/73-reporte-general.js');
+  ok(!/new Chart\(|typeof Chart\b|<canvas/.test(t)&&/apexCrear\(/.test(t),'46-tareo-horas-extras.js usa ApexCharts (sin Chart.js ni canvas)');
+  ok(/setTimeout\(\(\) => fn\(i\), 0\)/.test(t),'46: el clic en una barra se procesa fuera del manejador de ApexCharts');
+  ok(!/new Chart\(|typeof Chart\b/.test(x)&&/dataURI\(\)/.test(x)&&/await graficos\(m\)/.test(x),'73-reporte-general.js dibuja sus 2 gráficos con ApexCharts y los exporta como PNG (dataURI)');
+  const recorrer=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?recorrer(path.join(d,e.name)):[path.join(d,e.name)]);
+  const resto=recorrer('js').filter(f=>f.endsWith('.js')).filter(f=>/(^|[^A-Za-z.])(new Chart\(|Chart\.(register|defaults)|typeof Chart\b)/.test(fs.readFileSync(f,'utf8').replace(/ApexChart|EChart/g,'')));
+  ok(resto.length===1&&/49b-/.test(resto[0]),'en js/ solo queda el tolerante 49b (usa Chart si existe, no lo exige): '+resto.join(', '));
+  ok(!/chart\.umd|Chart\.js\/4/.test(leer('index.html').replace(/<!--[\s\S]*?-->/g,'')),'index.html ya no carga Chart.js');
 }
 console.log(fallas?'\n'+fallas+' FALLAS':'\nTodo bien');process.exit(fallas?1:0);

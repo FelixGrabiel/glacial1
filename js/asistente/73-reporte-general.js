@@ -8,7 +8,7 @@
    · escribir(ExcelJS, modelo) arma el libro con ExcelJS: fórmulas VIVAS (SUMIFS, COUNTIFS, INDEX/MATCH; nada posterior a Excel 2010),
      referencias por código de cuadro (nunca por posición fija de otra hoja), formato condicional, enlaces internos, paneles fijos, sin
      cuadrícula, horizontal ajustado al ancho. Los gráficos del Resumen se insertan como imagen (ExcelJS no escribe gráficos nativos).
-   · exportar(fecha) (navegador): reúne las fuentes, dibuja los dos gráficos con Chart.js y descarga el archivo.
+   · exportar(fecha) (navegador): reúne las fuentes, dibuja los dos gráficos con ApexCharts y descarga el archivo.
    ============================================================= */
 (function instalarReporteGeneral(global){
   'use strict';
@@ -385,7 +385,7 @@
       regla(`AND(ISNUMBER(F${filaL}),F${filaL}>=0.98)`,C.verde,C.verdeTx,2),regla(`AND(ISNUMBER(F${filaL}),F${filaL}>=0.9,F${filaL}<0.98)`,C.ambar,C.ambarTx,3),regla(`AND(ISNUMBER(F${filaL}),F${filaL}<0.9)`,C.rojo,C.rojoTx,4)]);
     cf(ws,`L${filaL}:L${filaU}`,[regla(`ISNUMBER(SEARCH("Sin producción",L${filaL}))`,C.rojo,C.rojoTx,5),regla(`ISNUMBER(SEARCH("Confirmado",L${filaL}))`,C.verde,C.verdeTx,6)]);
 
-    // GRÁFICOS (imágenes de Chart.js; en su ausencia, aviso)
+    // GRÁFICOS (imágenes de ApexCharts; en su ausencia, aviso)
     seccion(ws,21,NC,'INDICADORES GRÁFICOS');
     if(opc.graficos&&opc.graficos.length){
       opc.graficos.forEach((g,i)=>{const id=ws.workbook.addImage({base64:g,extension:'png'});ws.addImage(id,{tl:{col:i===0?0:7,row:22},ext:{width:560,height:300}});});
@@ -482,19 +482,27 @@
     if(!global.ExcelJS)throw new Error('No se pudo cargar la librería de Excel (ExcelJS).');
     return global.ExcelJS;
   }
-  function graficos(m){
-    if(typeof Chart==='undefined'||typeof document==='undefined')return [];
-    const L=m.lineas;const pngs=[];
-    const dibujar=cfg=>{const cv=document.createElement('canvas');cv.width=1120;cv.height=600;cv.style.display='none';document.body.appendChild(cv);
-      const ch=new Chart(cv.getContext('2d'),{...cfg,options:{...cfg.options,animation:false,responsive:false,devicePixelRatio:1}});
-      const url=cv.toDataURL('image/png');ch.destroy();cv.remove();return url;};
+  /* Dos gráficos ApexCharts dibujados fuera de pantalla y exportados a PNG (dataURI) para incrustarlos con ExcelJS. */
+  async function graficos(m){
+    if(typeof ApexCharts==='undefined'||typeof document==='undefined')return [];
+    const L=m.lineas;
+    const dibujar=async opciones=>{
+      const host=document.createElement('div');host.style.cssText='position:fixed;left:-10000px;top:0;width:1120px;height:600px;background:#fff';document.body.appendChild(host);
+      const ch=new ApexCharts(host,Object.assign({chart:{width:1120,height:600,background:'#fff',animations:{enabled:false},toolbar:{show:false},fontFamily:'sans-serif'}},opciones,{chart:Object.assign({width:1120,height:600,background:'#fff',animations:{enabled:false},toolbar:{show:false},fontFamily:'sans-serif'},opciones.chart)}));
+      try{await ch.render();const r=await ch.dataURI();return String(r&&(r.imgURI||r)||'');}
+      finally{try{ch.destroy();}catch(_){/* ya destruido */}host.remove();}
+    };
     const cumpl=L.map(l=>{const p=l.cuadros.reduce((s,c)=>s+c.programado,0),q=l.cuadros.reduce((s,c)=>s+c.producido,0);return p>0?Math.round(q/p*1000)/10:0;});
-    pngs.push(dibujar({type:'bar',data:{labels:L.map(l=>l.nombre),datasets:[{label:'Cumplimiento (%)',data:cumpl,backgroundColor:cumpl.map(v=>v>=98?'#22C55E':v>=90?'#F59E0B':'#EF4444')}]},
-      options:{plugins:{title:{display:true,text:'Cumplimiento por línea (%)',font:{size:22}},legend:{display:false}},scales:{y:{beginAtZero:true,max:110}}}}));
+    const pngs=[];
+    pngs.push(await dibujar({chart:{type:'bar'},series:[{name:'Cumplimiento (%)',data:cumpl}],
+      colors:cumpl.map(v=>v>=98?'#22C55E':v>=90?'#F59E0B':'#EF4444'),plotOptions:{bar:{distributed:true,borderRadius:4}},
+      dataLabels:{enabled:true,formatter:v=>v+'%',style:{fontSize:'16px'}},legend:{show:false},
+      title:{text:'Cumplimiento por línea (%)',style:{fontSize:'22px'}},xaxis:{categories:L.map(l=>l.nombre)},yaxis:{min:0,max:110}}));
     const prog=L.map(l=>l.paradas.filter(p=>p.tipo==='Programada').reduce((s,p)=>s+p.minutos,0)),nop=L.map(l=>l.paradas.filter(p=>p.tipo==='No programada').reduce((s,p)=>s+p.minutos,0));
-    pngs.push(dibujar({type:'bar',data:{labels:L.map(l=>l.nombre),datasets:[{label:'Programadas',data:prog,backgroundColor:'#7DD3FC'},{label:'No programadas',data:nop,backgroundColor:'#F59E0B'}]},
-      options:{plugins:{title:{display:true,text:'Paradas por línea (min)',font:{size:22}}},scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}}}));
-    return pngs.map(u=>u.replace(/^data:image\/png;base64,/,''));
+    pngs.push(await dibujar({chart:{type:'bar',stacked:true},series:[{name:'Programadas',data:prog},{name:'No programadas',data:nop}],
+      colors:['#7DD3FC','#F59E0B'],plotOptions:{bar:{borderRadius:2}},dataLabels:{enabled:false},legend:{position:'bottom',fontSize:'16px'},
+      title:{text:'Paradas por línea (min)',style:{fontSize:'22px'}},xaxis:{categories:L.map(l=>l.nombre)},yaxis:{min:0}}));
+    return pngs.map(u=>u.replace(/^data:image\/png;base64,/,'')).filter(Boolean);
   }
   async function exportar(fecha){
     const D=global.glacialAsistenteDatos;
@@ -514,7 +522,7 @@
         return r&&r.origen==='REGLA'?`${r.etiqueta} ${r.horario}`:'';},
       motivoSinProduccion:(linea,f)=>{if(!I||typeof I.doc!=='function')return '';const d=I.doc(f,'DIA',linea)||I.doc(f,'NOCHE',linea);return d&&d.motivo?'Sin producción: '+d.motivo+(d.descripcion?' ('+d.descripcion+')':''):'';}});
     const ExcelJS=await asegurarExcelJS();
-    const wb=escribir(ExcelJS,m,{graficos:graficos(m)});
+    const wb=escribir(ExcelJS,m,{graficos:await graficos(m)});
     const buf=await wb.xlsx.writeBuffer();
     const nombre=`GLACIAL_Reporte_General_${fecha}.xlsx`;
     const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -523,5 +531,5 @@
     return nombre;
   }
 
-  global.glacialReporteGeneral={modelo,escribir,exportar,HOJA,FMT};
+  global.glacialReporteGeneral={modelo,escribir,exportar,graficos,HOJA,FMT};
 })(typeof window!=='undefined'?window:globalThis);

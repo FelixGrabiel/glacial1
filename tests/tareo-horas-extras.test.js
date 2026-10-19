@@ -129,8 +129,8 @@ const res=src13.slice(src13.indexOf('function actualizarResumenMensualTareo'),sr
 const orden=['label">Asistió','label">Feriado trabajado','label">Días trabajados','tareo-he-tarjeta','label">Faltas por justificar','label">Faltas justificadas','label">Descansos'].map(t=>res.indexOf(t));
 ok(orden.every((p,i)=>p>0&&(i===0||p>orden[i-1])),'1. orden de las siete tarjetas: Asistió, Feriado, Días trabajados, HORAS EXTRAS / Faltas por justificar, justificadas, Descansos');
 ok(!/Comisión externa<\/span>/.test(res)&&/TAREO_ESTADO_COMISION/.test(src13)&&/Comisión externa/.test(src13.slice(src13.indexOf('function obtenerResumenMensualTareo'),src13.indexOf('function renderResumenMensualTareoUI'))),'1. se retiró solo la tarjeta COMISIÓN EXTERNA; el estado y sus cálculos se conservan');
-const idx=leerDisco('index.html');ok(idx.indexOf('46-tareo-horas-extras.js')>idx.indexOf('13-tareo.js')&&idx.includes('Chart.js/4.4.1'),'index: carga después del tareo y reutiliza Chart.js ya incluido');
-ok(/destruir\(\)/.test(src46)&&/new Chart\(/.test(src46)&&(src46.match(/new Chart\(/g)||[]).length===1,'13. los gráficos se crean en un solo punto y las instancias se destruyen antes de volver a dibujar');
+const idx=leerDisco('index.html');ok(idx.indexOf('46-tareo-horas-extras.js')>idx.indexOf('13-tareo.js')&&idx.includes('apexcharts@3.45.2'),'index: carga después del tareo y reutiliza ApexCharts ya incluido');
+ok(/destruir\(\)/.test(src46)&&/apexCrear\(/.test(src46)&&(src46.match(/apexCrear\(/g)||[]).length===1,'13. los gráficos se crean en un solo punto y las instancias se destruyen antes de volver a dibujar');
 ok(/Registros completos/.test(src46)&&/Del período seleccionado/.test(src46)&&/Ver detalle/.test(src46)&&/HORAS EXTRAS POR TRABAJADOR/.test(src46)&&/JORNADA MÁXIMA LABORADA/.test(src46),'3. textos de la tarjeta, del panel y del detalle por trabajador');
 
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

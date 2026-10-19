@@ -200,49 +200,7 @@ const valorBarraPlugin = {
 
 
 
-Chart.register(metaLinePlugin, valorBarraPlugin);
-
-/* =========================================================
-   ESTÁNDAR VISUAL INDUSTRIAL — TODOS LOS graficos
-   =========================================================
-   Estas opciones son globales: también mejoran los graficos
-   creados posteriormente por Resumen e Impacto Económico.
-   ========================================================= */
-Chart.defaults.responsive = true;
-Chart.defaults.maintainAspectRatio = false;
-Chart.defaults.color = PAL.texto;
-Chart.defaults.font.family = '"IBM Plex Sans", sans-serif';
-Chart.defaults.font.size = 11;
-Chart.defaults.animation.duration = 420;
-Chart.defaults.animation.easing = 'easeOutQuart';
-Chart.defaults.interaction.mode = 'index';
-Chart.defaults.interaction.intersect = false;
-
-Chart.defaults.plugins.legend.position = 'bottom';
-Chart.defaults.plugins.legend.labels.usePointStyle = true;
-Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
-Chart.defaults.plugins.legend.labels.boxWidth = 8;
-Chart.defaults.plugins.legend.labels.boxHeight = 8;
-Chart.defaults.plugins.legend.labels.padding = 16;
-Chart.defaults.plugins.legend.labels.color = PAL.texto;
-
-Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0,44,69,.94)';
-Chart.defaults.plugins.tooltip.titleColor = '#FFFFFF';
-Chart.defaults.plugins.tooltip.bodyColor = '#FFFFFF';
-Chart.defaults.plugins.tooltip.padding = 11;
-Chart.defaults.plugins.tooltip.cornerRadius = 7;
-Chart.defaults.plugins.tooltip.displayColors = true;
-Chart.defaults.plugins.tooltip.boxPadding = 4;
-Chart.defaults.plugins.tooltip.titleFont = {weight:'700'};
-Chart.defaults.plugins.tooltip.bodySpacing = 5;
-
-Chart.defaults.datasets.bar.borderRadius = 5;
-Chart.defaults.datasets.bar.borderSkipped = false;
-Chart.defaults.datasets.bar.maxBarThickness = 54;
-Chart.defaults.datasets.line.borderWidth = 2;
-Chart.defaults.datasets.line.pointRadius = 3;
-Chart.defaults.datasets.line.pointHoverRadius = 5;
-Chart.defaults.datasets.line.tension = .28;
+/* Chart.js retirado: los gráficos usan ApexCharts / ECharts / canvas-gauges (08a-graficos-base.js). Los plugins de arriba quedan como referencia histórica. */
 
 
 
@@ -4199,8 +4157,6 @@ function renderGraficosTab(){
      // GRAFICOS: la capa común está en 08a-graficos-base.js. Los datos y los cálculos son los de siempre; solo cambia cómo se dibujan.
      Metas y colores de estos gráficos: METAS_GRAFICOS / colorKpi (oee 75 → <65 rojo, 65–75 ámbar, ≥75 verde).
   ===================================================== */
-  Chart.defaults.font = { family:'IBM Plex Sans', size:12 };
-  Chart.defaults.color = '#3A4551';
 
   const GX = window.glacialGraficosBase;
   const MG = GX.METAS_GRAFICOS;

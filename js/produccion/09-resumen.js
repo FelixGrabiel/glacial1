@@ -489,7 +489,6 @@ const valorBarraResumenPlugin = {
 
 };
 
-if(typeof Chart !== 'undefined') Chart.register(valorBarraResumenPlugin);   // GRAFICOS: el Resumen ya no usa Chart.js; el plugin se conserva
 
 
 /* =========================================================
@@ -3569,7 +3568,6 @@ function renderResumen(main){
     });
 
 
-  if(typeof Chart !== 'undefined'){ Chart.defaults.font = { family:'IBM Plex Sans', size:12 }; Chart.defaults.color = PAL_R.texto; }
 
   /* GRAFICOS (fase 2): los gráficos del Resumen son ApexCharts / ECharts (capa común: 08a-graficos-base.js). Se crean de uno en uno
      DESPUÉS del render (49b: glacialDiferirGrafico) para no bloquear la pantalla. Metas y colores: METAS_GRAFICOS / colorKpi. */
