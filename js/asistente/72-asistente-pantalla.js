@@ -688,10 +688,10 @@
       const b=document.getElementById('btn-asistente');
       if(b){const m=puedeEntrar()&&puede('ver_asistente');b.hidden=!m;b.style.display=m?'':'none';b.classList.toggle('active',m&&state.currentTab==='asistente');
         if(m&&state.currentTab==='asistente')b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
-      // Almacén deja de ser «próximamente» para quien tiene el permiso: abre las solicitudes de Producción (no es un segundo inventario).
-      const al=document.getElementById('btn-almacen');
-      if(al&&state.user&&puede('moduloAlmacen')){al.disabled=false;al.classList.remove('sidebar-disabled');al.title='Solicitudes de Producción';al.setAttribute('aria-label','Almacén');
-        al.onclick=()=>window.goAsistente('solicitudes');const t=al.querySelector('span:last-child');if(t)t.textContent='Almacén';}
+      // Almacén es un grupo (index.html): «Solicitudes de Producción» es su acceso para quien tiene el permiso moduloAlmacen (no es un segundo inventario).
+      const sol=document.getElementById('btn-almacen-solicitudes');
+      if(sol){const m=!!(state.user&&puede('moduloAlmacen'));sol.hidden=!m;sol.style.display=m?'':'none';
+        const act=m&&state.currentTab==='asistente'&&!puede('ver_asistente');sol.classList.toggle('active',act);if(act)sol.setAttribute('aria-current','page');else sol.removeAttribute('aria-current');}
       return r;
     };
   }

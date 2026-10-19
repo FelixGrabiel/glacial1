@@ -37,6 +37,8 @@ function refinarIconosSidebar(){
     const i=b.querySelector('.side-action-icon,.sidebar-group-icon');
     if(i)i.innerHTML=sidebarSvg(nombre);
   });
+  const iconoAlmacen=document.querySelector('[data-sidebar-toggle="almacen"] .side-action-icon');
+  if(iconoAlmacen)iconoAlmacen.innerHTML=sidebarSvg('box');
   document.querySelectorAll('#glacial-sidebar .sidebar-chevron').forEach(el=>{
     el.innerHTML=sidebarChevronSvg();
   });
@@ -262,6 +264,7 @@ function grupoSidebarActivo(){
   if(PESTANAS_LINEA.includes(state.currentTab) || state.currentTab==='avance-produccion')return 'produccion';
   if(['tareo','rotacion-supervisores'].includes(state.currentTab))return 'produccion';
   if(state.currentTab==='mantenimiento')return 'mantenimiento';
+  if(state.currentTab==='inventario-insumos')return 'almacen';
   if(state.currentTab==='rrhh')return 'rrhh';
   if(['resumen','perdidas'].includes(state.currentTab))return 'reportes';
   return '';

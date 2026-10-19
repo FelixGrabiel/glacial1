@@ -3002,12 +3002,6 @@
                             <span class="side-action-icon" aria-hidden="true">▦</span><span>Asistente de Producción</span>
                         </button>
 
-                        <!-- Inventario de insumos: stock SAP, catálogo, conteo físico y conciliación (js/asistente/74-76). -->
-                        <button type="button" class="side-action sidebar-root-action" id="btn-inventario-insumos"
-                                onclick="goInventarioInsumos()" hidden style="display:none">
-                            <span class="side-action-icon" aria-hidden="true">▤</span><span>Inventario de insumos</span>
-                        </button>
-
                         <section class="sidebar-group" id="sidebar-group-produccion" data-sidebar-group="produccion">
                             <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="produccion"
                                     aria-expanded="true" aria-controls="sidebar-panel-produccion">
@@ -3048,6 +3042,27 @@
                                 <button type="button" class="side-action sidebar-subaction" id="btn-entrega-turno"
                                         onclick="goEntregaTurno()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Entrega de turno</span>
+                                </button>
+                            </div>
+                        </section>
+
+                        <!-- Almacén: grupo con Inventario de insumos (stock SAP, catálogo, conteo físico y conciliación · js/asistente/74-79) y las
+                             solicitudes de Producción (para quien tiene el permiso moduloAlmacen). Sin ningún acceso, queda el aviso «próximamente». -->
+                        <section class="sidebar-group" id="sidebar-group-almacen" data-sidebar-group="almacen" hidden style="display:none">
+                            <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="almacen"
+                                    aria-expanded="false" aria-controls="sidebar-panel-almacen">
+                                <span class="side-action-icon" aria-hidden="true">▤</span>
+                                <span class="sidebar-group-label">Almacén</span>
+                                <span class="sidebar-chevron" aria-hidden="true">⌃</span>
+                            </button>
+                            <div class="sidebar-group-panel" id="sidebar-panel-almacen" hidden>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-inventario-insumos"
+                                        onclick="goInventarioInsumos()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Inventario de insumos</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-almacen-solicitudes"
+                                        onclick="goAsistente('solicitudes')" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Solicitudes de Producción</span>
                                 </button>
                             </div>
                         </section>
@@ -3332,9 +3347,9 @@
 
     <script src="js/nucleo/02-estado.js?v=20261018-fe1"></script>
 
-    <script src="js/accesos/03-auth.js?v=20261009-ses1"></script>
+    <script src="js/accesos/03-auth.js?v=20261019-alm1"></script>
 
-    <script src="js/nucleo/04-sidebar.js?v=20261005-plan1"></script>
+    <script src="js/nucleo/04-sidebar.js?v=20261019-alm1"></script>
 
     <script src="js/nucleo/05-utils.js?v=20261015-fc1"></script>
 
@@ -3450,11 +3465,11 @@
     <!-- Asistente de Producción (docs/asistente/asistente-produccion.md): núcleo puro, datos/permisos, pantalla y Reporte General. -->
     <script src="js/asistente/70-asistente-nucleo.js?v=20261015-fc1"></script>
     <script src="js/asistente/71-asistente-datos.js?v=20261015-fc1"></script>
-    <script src="js/asistente/72-asistente-pantalla.js?v=20261019-as1"></script>
+    <script src="js/asistente/72-asistente-pantalla.js?v=20261019-alm1"></script>
     <script src="js/asistente/73-reporte-general.js?v=20261019-gx5"></script>
     <script src="js/asistente/74-inventario-insumos-nucleo.js?v=20261018-ic5"></script>
     <script src="js/asistente/75-inventario-insumos-datos.js?v=20261018-ic5"></script>
-    <script src="js/asistente/76-inventario-insumos-pantalla.js?v=20261018-ii10"></script>
+    <script src="js/asistente/76-inventario-insumos-pantalla.js?v=20261019-alm1"></script>
     <script src="js/asistente/77-inventario-insumos-conteo.js?v=20261018-ic5"></script>
     <script src="js/asistente/78-inventario-insumos-conciliacion.js?v=20261018-ii9"></script>
     <script src="js/asistente/79-inventario-insumos-auditoria.js?v=20261018-ii9"></script>

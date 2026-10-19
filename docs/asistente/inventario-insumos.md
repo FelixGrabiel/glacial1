@@ -13,7 +13,7 @@ Excel de SAP como «corte de stock» y la tabla de stock actual con semáforo. F
 | `js/asistente/79-inventario-insumos-auditoria.js` | Fase 4: pestaña «Auditoría» (consulta por fechas, filtros, antes → después). |
 | `js/asistente/78-inventario-insumos-conciliacion.js` | Fase 3: pestaña «Conciliación» y Excel (ExcelJS). El cálculo puro es `conciliar()` en 74. |
 | `js/asistente/77-inventario-insumos-conteo.js` | Fase 2: pestaña «Conteo físico» (lista de conteos, líneas por ubicación, cerrar/reabrir). |
-| `index.html` | Botón `#btn-inventario-insumos` (`goInventarioInsumos`) y los 3 scripts, después del Asistente y antes de `12-init`. |
+| `index.html` | Botón `#btn-inventario-insumos` (`goInventarioInsumos`), ahora dentro del grupo **Almacén** del menú lateral (`#sidebar-group-almacen`, junto con «Solicitudes de Producción» para quien tiene `moduloAlmacen`), y los scripts, después del Asistente y antes de `12-init`. El grupo solo aparece si el usuario tiene alguno de esos accesos; sin ninguno queda el aviso «Almacén · Próximamente». |
 | `supabase/migraciones/glacial_24_inventario_insumos.sql` | **Aplicada en PRODUCCIÓN (2026-10-18)**: reglas de Supabase de las colecciones nuevas. |
 | `tests/inventario-insumos.test.js` | Pruebas del núcleo, de la capa de datos (base simulada) y de la integración. |
 

@@ -366,6 +366,10 @@
       const b=document.getElementById('btn-inventario-insumos');
       if(b){const m=!!(state.user&&D.puedeVer());b.hidden=!m;b.style.display=m?'':'none';b.classList.toggle('active',m&&state.currentTab===TAB);
         if(m&&state.currentTab===TAB)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
+      /* El grupo «Almacén» se muestra solo si alguno de sus accesos (este o «Solicitudes de Producción») es visible; sin ninguno, queda el aviso «próximamente». */
+      if(typeof actualizarGruposSidebar==='function')actualizarGruposSidebar();
+      const g=document.getElementById('sidebar-group-almacen'),ph=document.getElementById('btn-almacen');
+      if(ph&&g)ph.style.display=(state.user&&g.style.display==='none'&&!(typeof esMantCompartido==='function'&&esMantCompartido()))?'':'none';
       return r;
     };
   }

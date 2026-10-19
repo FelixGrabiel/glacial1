@@ -910,10 +910,8 @@ function enterApp(){
     document.getElementById('btn-almacen');
     if(btnAlmacen){
 
-      btnAlmacen.style.display = 
-      tienePermiso('moduloAlmacen')
-        ? 'block'
-        : 'none';
+      // El aviso «próximamente» lo decide renderSidebar (76-inventario-insumos-pantalla.js): solo se ve si el usuario no tiene ningún acceso dentro del grupo Almacén.
+      btnAlmacen.style.display = 'none';
     } 
 
 
