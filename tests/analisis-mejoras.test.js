@@ -117,7 +117,7 @@ const T=(h,m)=>new Date(2026,9,5,h,m||0).getTime();
   ok(/data-ap-det/.test(f47)&&/abrirDetalleGrupo/.test(f47)&&/verIntervenciones/.test(f47)&&/UI\.UI\.tab='intervenciones'/.test(f47)&&/Registró/.test(f47),'detalle al tocar barra o fila, con quién registró y enlace a las intervenciones del equipo');
   ok(/resolvedorTecnicoCombinado\(intervencionesLista\(\),respaldo\)/.test(f47),'el técnico sale de la intervención y la bitácora queda de respaldo');
   ok(/registradoPor/.test(s23)&&(s23.match(/registradoPor/g)||[]).length>=4,'23b entrega quién registró cada parada (informativo)');
-  ok(html.indexOf('47b-analisis-paradas-mejoras.js')>html.indexOf('47-analisis-paradas.js')&&/47b-analisis-paradas-mejoras\.js\?v=20261012-am1/.test(html),'index.html carga 47b después de 47');
+  ok(html.indexOf('47b-analisis-paradas-mejoras.js')>html.indexOf('47-analisis-paradas.js')&&/47b-analisis-paradas-mejoras\.js\?v=\d{8}-[a-z]+\d+/.test(html),'index.html carga 47b después de 47');
   ok(!/[^.\w]alert\(|[^.\w]confirm\(|[^.\w]prompt\(/.test(leer('js/produccion/47b-analisis-paradas-mejoras.js').replace(/\/\/.*$/gm,''))&&!/arrayUnion|increment\(|array-contains|'!='/.test(leer('js/produccion/47b-analisis-paradas-mejoras.js')),'47b: sin alert/confirm/prompt y compatible con el puente de Supabase');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

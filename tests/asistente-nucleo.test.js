@@ -149,4 +149,10 @@ ok(N.codigoLinea('CAJAS 20L')==='C20L'&&N.codigoLinea('Cajas 20 L')==='C20L'&&N.
   ok((t.match(/\$\{pie\(/g)||[]).length<=4,'quedan solo los avisos de reglas de negocio (no las notas informativas repetidas)');
 }
 
+/* Choque de clases: Análisis de paradas (47) usaba .ap-kpi / .ap-kpis / .ap-vacio / .ap-modal, igual que el Asistente (72) y le descuadraba los iconos */
+{
+  const fs3=require('fs'),R3=require('path').resolve(__dirname,'..'),a47=fs3.readFileSync(R3+'/js/produccion/47-analisis-paradas.js','utf8')+fs3.readFileSync(R3+'/js/produccion/47b-analisis-paradas-mejoras.js','utf8');
+  ok(!/(?<![\w-])ap-(kpis|kpi|vacio|modal)(?![\w-])/.test(a47)&&/apar-kpi/.test(a47),'Análisis de paradas ya no usa las clases ap-kpi/ap-kpis/ap-vacio/ap-modal del Asistente (ahora apar-*)');
+}
+
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

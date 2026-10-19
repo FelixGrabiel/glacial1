@@ -177,7 +177,7 @@
   /* ---------- pantalla: bloques HTML ---------- */
   const COLOR_NIVEL={verde:'#13814a',ambar:'#df8b00',rojo:'#d93a3a',gris:'#9aa9b8'};
   function htmlDato(items){
-    return '<div class="ap-kpis" style="margin-bottom:6px">'+items.map(c=>'<div class="ap-kpi" style="border-left-color:'+COLOR_NIVEL[c.nivel]+'" title="Meta: verde hasta '+c.verde+' %, ámbar hasta '+c.ambar+' %"><span>'+esc(c.titulo)+'</span><b style="color:'+COLOR_NIVEL[c.nivel]+'">'+(c.valor===null?'Sin datos':pct1(c.valor))+'</b><small>'+esc(c.detalle)+'</small></div>').join('')+'</div>'+
+    return '<div class="apar-kpis" style="margin-bottom:6px">'+items.map(c=>'<div class="apar-kpi" style="border-left-color:'+COLOR_NIVEL[c.nivel]+'" title="Meta: verde hasta '+c.verde+' %, ámbar hasta '+c.ambar+' %"><span>'+esc(c.titulo)+'</span><b style="color:'+COLOR_NIVEL[c.nivel]+'">'+(c.valor===null?'Sin datos':pct1(c.valor))+'</b><small>'+esc(c.detalle)+'</small></div>').join('')+'</div>'+
       '<p class="ap-nota">Calidad del dato: cuanto más bajo, mejor (verde / ámbar / rojo según la meta que configura el Supervisor de Mantenimiento). Las paradas de Nuevo registro no tienen hora de inicio.</p>';
   }
   function htmlFallasRepetitivas(lista,cfg){
@@ -198,7 +198,7 @@
     const fila=n=>'<tr><td><b>'+n+'</b></td>'+orden.map(h=>celda(mc.celdas[n][h])).join('')+'</tr>';
     return '<h3 class="ap-sec">Mapa de calor: minutos de parada por hora del día</h3>'+
       '<p class="ap-nota">Solo cuenta las paradas con hora de inicio ('+mc.dentro+' paradas, '+fmt(mc.dentroMin)+' min). <b>Quedan fuera '+mc.fuera+' paradas ('+fmt(mc.fueraMin)+' min) por no tener hora de inicio.</b></p>'+
-      (mc.dentro?'<div class="ap-tabla-scroll"><table class="tareo-table" style="min-width:640px"><thead><tr><th></th>'+orden.map(h=>'<th style="font-size:10px;padding:3px 2px">'+String(h).padStart(2,'0')+'</th>').join('')+'</tr></thead><tbody>'+fila('DÍA')+fila('NOCHE')+'</tbody></table></div>':'<div class="ap-vacio">Todavía no hay paradas con hora de inicio en este rango.</div>');
+      (mc.dentro?'<div class="ap-tabla-scroll"><table class="tareo-table" style="min-width:640px"><thead><tr><th></th>'+orden.map(h=>'<th style="font-size:10px;padding:3px 2px">'+String(h).padStart(2,'0')+'</th>').join('')+'</tr></thead><tbody>'+fila('DÍA')+fila('NOCHE')+'</tbody></table></div>':'<div class="apar-vacio">Todavía no hay paradas con hora de inicio en este rango.</div>');
   }
 
   window.glacialAnalisisMejoras={LARGA_MIN,FRECUENTE_MIN,TIPOS_FD,velocidadDeParada,conUnidadesPerdidas,fallasRepetitivas,frecuenciaDuracion,mapaCalor,indicadoresDato,intervencionDe,tecnicoDeIntervencion,

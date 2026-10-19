@@ -451,19 +451,19 @@
     const s=document.createElement('style');s.id='ap-css';
     s.textContent=`
       .ap-modal-fondo{position:fixed;inset:0;background:rgba(10,30,50,.5);z-index:10040;display:flex;align-items:flex-start;justify-content:center;padding:12px;overflow:auto}
-      .ap-modal{background:#fff;border-radius:14px;padding:14px 16px;width:min(900px,100%);margin:auto;box-shadow:0 16px 48px rgba(0,0,0,.28)}
-      .ap-modal h3{margin:0 0 4px;color:#103b57}
+      .apar-modal{background:#fff;border-radius:14px;padding:14px 16px;width:min(900px,100%);margin:auto;box-shadow:0 16px 48px rgba(0,0,0,.28)}
+      .apar-modal h3{margin:0 0 4px;color:#103b57}
       .ap-rangos{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
       .ap-rangos button{border:1px solid #c5d0db;background:#fff;border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer}
       .ap-rangos button.active{background:#10265f;color:#fff;border-color:#10265f}
-      .ap-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}
-      .ap-kpi{border:1px solid #dfe4ea;border-radius:10px;padding:10px 12px;background:#fff;border-left:6px solid #9aa9b8}
-      .ap-kpi span{display:block;font-size:12px;color:#5a6b7b}.ap-kpi b{font-size:22px;color:#1b2a38}.ap-kpi small{display:block;font-size:11px;color:#5a6b7b}
-      .ap-kpi.verde{border-left-color:#13814a}.ap-kpi.ambar{border-left-color:#df8b00}.ap-kpi.roja{border-left-color:#d93a3a}
+      .apar-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}
+      .apar-kpi{border:1px solid #dfe4ea;border-radius:10px;padding:10px 12px;background:#fff;border-left:6px solid #9aa9b8}
+      .apar-kpi span{display:block;font-size:12px;color:#5a6b7b}.apar-kpi b{font-size:22px;color:#1b2a38}.apar-kpi small{display:block;font-size:11px;color:#5a6b7b}
+      .apar-kpi.verde{border-left-color:#13814a}.apar-kpi.ambar{border-left-color:#df8b00}.apar-kpi.roja{border-left-color:#d93a3a}
       .ap-sec{margin:14px 0 6px;font-size:15px;color:#10265f}
       .ap-nota{font-size:12px;color:#5a6b7b;margin:4px 0}
       .ap-aviso{padding:8px 12px;border-radius:8px;background:#fff8e6;border:1px solid #f0c36a;margin:8px 0;font-size:13px}
-      .ap-vacio{padding:14px;border:1px dashed #c5d0db;border-radius:10px;color:#4a5b6b;font-size:13px;background:#f8fafc;margin:8px 0}
+      .apar-vacio{padding:14px;border:1px dashed #c5d0db;border-radius:10px;color:#4a5b6b;font-size:13px;background:#f8fafc;margin:8px 0}
       .ap-svg{width:100%;height:auto;max-width:760px;display:block}
       .ap-celda.verde{background:#cdeedd}.ap-celda.ambar{background:#fbe3b0}.ap-celda.roja{background:#f4c7c3}
       .ap-tabla-scroll{overflow-x:auto}.ap-tabla-scroll table{min-width:520px}
@@ -629,17 +629,17 @@
     if(d){
       const r=d.resumen,pa=d.pareto;
       const sin=d.rango.sinInicio;
-      cuerpo+='<div class="ap-kpis">'+
-        '<div class="ap-kpi"><span>Paradas no programadas</span><b>'+fmt(r.nNp)+'</b></div>'+
-        '<div class="ap-kpi"><span>Minutos no programados</span><b>'+fmt(r.npMin)+'</b><small>programados: '+fmt(r.progMin)+' min</small></div>'+
-        '<div class="ap-kpi '+nivelDisp(r.disp)+'"><span>Disponibilidad</span><b>'+pct(r.disp)+'</b><small>en marcha '+fmt(r.enMarcha)+' de '+fmt(r.planificado)+' min planificados</small></div>'+
-        '<div class="ap-kpi"><span>Duración media de parada no programada</span><b>'+(r.mttr==null?'Sin paradas':fmt1(r.mttr)+' min')+'</b></div>'+
-        '<div class="ap-kpi"><span>Tiempo medio entre fallas</span><b>'+(r.mtbf==null?'Sin paradas':fmt1(r.mtbf)+' min')+'</b></div></div>';
+      cuerpo+='<div class="apar-kpis">'+
+        '<div class="apar-kpi"><span>Paradas no programadas</span><b>'+fmt(r.nNp)+'</b></div>'+
+        '<div class="apar-kpi"><span>Minutos no programados</span><b>'+fmt(r.npMin)+'</b><small>programados: '+fmt(r.progMin)+' min</small></div>'+
+        '<div class="apar-kpi '+nivelDisp(r.disp)+'"><span>Disponibilidad</span><b>'+pct(r.disp)+'</b><small>en marcha '+fmt(r.enMarcha)+' de '+fmt(r.planificado)+' min planificados</small></div>'+
+        '<div class="apar-kpi"><span>Duración media de parada no programada</span><b>'+(r.mttr==null?'Sin paradas':fmt1(r.mttr)+' min')+'</b></div>'+
+        '<div class="apar-kpi"><span>Tiempo medio entre fallas</span><b>'+(r.mtbf==null?'Sin paradas':fmt1(r.mtbf)+' min')+'</b></div></div>';
       ultimo=d;
       if(d.mejoras){const M=window.glacialAnalisisMejoras;cuerpo+=M.htmlDato(d.mejoras.dato)+M.htmlFallasRepetitivas(d.mejoras.fallas,d.mejoras.cfg);}
       if(sin)cuerpo+='<p class="ap-nota">'+sin+' turno(s) con programación pero sin inicio real no se miden.</p>';
       if(!d.us.length){
-        cuerpo+='<div class="ap-vacio"><b>Sin turnos con datos en este rango.</b><br>El análisis usa los turnos con inicio real de la línea desde Producción Actual. Prueba con «Ayer», «Esta semana» o «Este mes».</div>';
+        cuerpo+='<div class="apar-vacio"><b>Sin turnos con datos en este rango.</b><br>El análisis usa los turnos con inicio real de la línea desde Producción Actual. Prueba con «Ayer», «Esta semana» o «Este mes».</div>';
       }else{
         cuerpo+='<h3 class="ap-sec">Pareto de paradas '+(F.incluirProg?'(no programadas y programadas)':'no programadas')+' por '+({causa:'causa',motivo:'motivo (causa › motivo)',linea:'línea',turno:'turno',tecnico:'técnico',equipo:'equipo (causas que piden equipo)'}[F.agrupar])+'</h3>';
         if(F.agrupar==='tecnico'){
@@ -647,13 +647,13 @@
           else if(!tec.error)cuerpo+='<p class="ap-nota">El técnico sale de la bitácora; las paradas sin registro ahí (supervisor, históricas) van a «'+SIN_TECNICO+'».</p>';
         }
         cuerpo+=notaUnidades(pa);
-        cuerpo+=pa.filas.length?'<p class="ap-nota">Toca una barra o una fila para ver las paradas.</p>'+svgPareto(pa)+tablaPareto(pa,F.agrupar):'<div class="ap-vacio"><b>Sin paradas'+(F.incluirProg?'':' no programadas')+' en este rango.</b></div>';
+        cuerpo+=pa.filas.length?'<p class="ap-nota">Toca una barra o una fila para ver las paradas.</p>'+svgPareto(pa)+tablaPareto(pa,F.agrupar):'<div class="apar-vacio"><b>Sin paradas'+(F.incluirProg?'':' no programadas')+' en este rango.</b></div>';
         cuerpo+=bloqueReclasificadas(d.us);
         if(d.mejoras){const M=window.glacialAnalisisMejoras;cuerpo+=M.htmlFrecuencia(d.mejoras.frecuencia)+M.htmlMapaCalor(d.mejoras.mapa);}
         cuerpo+='<h3 class="ap-sec">Tendencia: minutos de parada por semana (últimas 8 semanas)</h3>'+
           (d.tendencia&&d.tendencia.motivos.length?svgTendencia(d.tendencia)+'<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Motivo</th>'+d.tendencia.semanas.map(s=>'<th>'+fmtFecha(s)+'</th>').join('')+'</tr></thead><tbody>'+
             d.tendencia.motivos.map(m=>'<tr><td>'+esc(m.motivo)+'</td>'+m.porSemana.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'
-            :'<div class="ap-vacio">Sin paradas en las últimas 8 semanas con estos filtros.</div>');
+            :'<div class="apar-vacio">Sin paradas en las últimas 8 semanas con estos filtros.</div>');
         cuerpo+=tablaDisponibilidad(d)+tablaReparacion(d)+tablaOee(d);
       }
     }
@@ -696,7 +696,7 @@
     const enlaces=[...equipos.values()].slice(0,6).map(e=>'<button type="button" class="btn btn-ghost btn-sm" data-ap-int="'+esc(e.linea)+'|'+esc(e.equipo)+'">Intervenciones de '+esc(e.equipo)+' ('+esc(nombreLinea(e.linea))+')</button>').join(' ');
     cerrarDetalle();
     const f=document.createElement('div');f.id='ap-detalle';f.className='ap-modal-fondo';
-    f.innerHTML='<div class="ap-modal" role="dialog" aria-modal="true"><h3>'+esc(fila.clave)+'</h3><p class="ap-nota">'+lista.length+' parada(s) · '+fmt(fila.minutos)+' min'+(F.metrica==='unidades'&&fila.unidades>0?' · '+fmt(fila.unidades)+' UND perdidas':'')+'</p>'+
+    f.innerHTML='<div class="apar-modal" role="dialog" aria-modal="true"><h3>'+esc(fila.clave)+'</h3><p class="ap-nota">'+lista.length+' parada(s) · '+fmt(fila.minutos)+' min'+(F.metrica==='unidades'&&fila.unidades>0?' · '+fmt(fila.unidades)+' UND perdidas':'')+'</p>'+
       '<div class="ap-tabla-scroll"><table class="tareo-table"><thead><tr><th>Fecha</th><th>Línea</th><th>Turno</th><th>Hora</th><th>Min</th><th>Motivo</th><th>Equipo</th><th>Registró</th><th>Técnico</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
       (enlaces?'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+enlaces+'</div>':'')+
       '<div style="margin-top:10px;text-align:right"><button type="button" class="btn btn-primary" data-ap-cerrar-det>Cerrar</button></div></div>';
