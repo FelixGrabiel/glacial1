@@ -38,7 +38,7 @@
   const MODULOS = [
     {clave:'inicio',            area:'produccion', etq:'Inicio y resumen de producción',           permisos:['ver_inicio_ejecutivo'], tabs:['centro-perfil']},
     {clave:'produccion_actual', area:'produccion', etq:'Producción Actual / Semáforo',             permisos:['produccionActual'],     tabs:['produccion-actual']},
-    {clave:'planificacion',     area:'produccion', etq:'Planificación (programación y catálogo)',  permisos:[],                       tabs:['planificacion']},
+    {clave:'planificacion',     area:'produccion', etq:'Planificación (programación y catálogo)',  permisos:[],                       tabs:['planificacion','productos-parametros','horario-produccion']},
     // 'paletas' NO se concede como permiso: es el permiso de REGISTRAR. La pestaña se abre por módulo (puedeAccederPaletas / permisoPestanaLinea).
     {clave:'paletas',           area:'produccion', etq:'Paletas y registros de producción',        permisos:[],                       tabs:['paletas']},
     {clave:'historial',         area:'produccion', etq:'Historial de producción por línea',        permisos:['historial'],            tabs:['historial']},

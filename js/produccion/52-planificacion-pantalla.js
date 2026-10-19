@@ -1,6 +1,6 @@
 /* =============================================================
    PLANIFICACIÓN · PANTALLA (Parte A)
-   Pestañas: Programación, Vista semanal, Catálogo, Solicitudes y Cumplimiento.
+   Pestañas: Programación, Programación semanal, Órdenes de ventas y Cumplimiento (el catálogo y el horario de producción se abren desde Mantenimiento y Producción).
    Esta parte dibuja la estructura y la pestaña Programación; las demás se registran en
    glacialPlanificacion.pestanas desde 53 y 54.
    Quien tiene el permiso «planificacion» crea y edita; los demás ven el plan en solo lectura.
@@ -13,11 +13,12 @@
   const G=()=>window.GlacialIndicadores;
   const LF='\n';   // salto de línea de los mensajes de confirmación (antes no estaba definido y importar con posible duplicado fallaba)
 
+  /* Pestañas de Planificación. «Productos y parámetros» (catálogo) vive ahora en Mantenimiento y «Horario de producción» en Producción
+     (52b-planificacion-vistas.js); «Solicitudes» se retiró (ver SOLICITUDES_ACTIVAS en 54). */
   const TABS=[
     {clave:'programacion',titulo:'Programación turno'},
     {clave:'semanal',titulo:'Programación semanal'},
-    {clave:'catalogo',titulo:'Órdenes de ventas'},
-    {clave:'solicitudes',titulo:'Solicitudes'},
+    {clave:'ventas',titulo:'Órdenes de ventas'},
     {clave:'cumplimiento',titulo:'Cumplimiento de turno'}
   ];
   NS.TABS=TABS;
@@ -220,9 +221,20 @@
     estilos();iniciarEstado();
     const solo=!NS.puede();
     main.innerHTML='<div id="plan-root"><div class="main-head"><div><h2>Planificación</h2>'+
-      '<div class="sub">'+(solo?'Plan de producción · solo lectura (puedes pedir cambios en Solicitudes).':'Programa la producción por fecha, turno y línea. Los cambios se ven en todos los dispositivos al instante.')+'</div></div>'+
+      '<div class="sub">'+(solo?'Plan de producción · solo lectura.':'Programa la producción por fecha, turno y línea. Los cambios se ven en todos los dispositivos al instante.')+'</div></div>'+
       (window.glacialEstadoDatos?'<div>'+window.glacialEstadoDatos.chip()+'</div>':'')+'</div>'+
       '<div class="plan-tabs" id="plan-tabs"></div><div id="plan-cuerpo"></div></div>';
+    NS.pintarPestana();
+  };
+  /* Pestaña suelta (sin barra de pestañas): la usan «Productos y parámetros» y «Horario de producción», que viven fuera de Planificación. */
+  NS.renderVista=function(main,clave,titulo,sub){
+    main=main||document.getElementById('main');
+    if(!main)return;
+    if(!NS.puedeVer()){main.innerHTML='<div class="empty-state"><h4>Sin acceso</h4><p>No tienes permiso para ver esta pantalla.</p></div>';return;}
+    estilos();iniciarEstado();
+    NS.estado.tab=clave;
+    main.innerHTML='<div id="plan-root"><div class="main-head"><div><h2>'+esc(titulo)+'</h2><div class="sub">'+esc(sub||'')+'</div></div>'+
+      (window.glacialEstadoDatos?'<div>'+window.glacialEstadoDatos.chip()+'</div>':'')+'</div><div id="plan-cuerpo"></div></div>';
     NS.pintarPestana();
   };
 
@@ -231,7 +243,7 @@
     if(!raiz)return;
     iniciarEstado();
     const tabs=document.getElementById('plan-tabs');
-    tabs.innerHTML=TABS.map(t=>'<button type="button" class="plan-tab'+(t.clave===NS.estado.tab?' active':'')+'" data-plan-tab="'+t.clave+'">'+t.titulo+'</button>').join('');
+    if(tabs)tabs.innerHTML=TABS.map(t=>'<button type="button" class="plan-tab'+(t.clave===NS.estado.tab?' active':'')+'" data-plan-tab="'+t.clave+'">'+t.titulo+'</button>').join('');
     const cuerpo=document.getElementById('plan-cuerpo');
     const reg=NS.pestanas.find(p=>p.clave===NS.estado.tab);
     if(reg&&typeof reg.pintar==='function')reg.pintar(cuerpo);
@@ -240,7 +252,7 @@
 
   /* Cambio en vivo: solo se repinta la zona de datos de la pestaña abierta (no los controles ni los diálogos). */
   NS.repintar=function(){
-    if(typeof state==='undefined'||!state.user||state.currentTab!=='planificacion'||!document.getElementById('plan-root'))return;
+    if(typeof state==='undefined'||!state.user||!['planificacion','productos-parametros','horario-produccion'].includes(state.currentTab)||!document.getElementById('plan-root'))return;
     const reg=NS.pestanas.find(p=>p.clave===NS.estado.tab);
     if(reg&&typeof reg.actualizar==='function')reg.actualizar();
   };
@@ -273,7 +285,7 @@
           '<button type="button" class="btn btn-ghost btn-sm" data-plan-excel>Importar Excel…</button>':'')+
       '</div></div>'+
       (NS.horarios?NS.horarios.htmlResumen(E.fecha,E.turno):'')+'<div id="plan-kpis" class="plan-kpis"></div><div id="plan-prog-tabla"></div><div id="plan-capacidad"></div><div id="plan-secuencia"></div>'+
-      (planifica?'':'<p class="plan-nota">Solo lectura: para cambiar una cantidad o un producto, usa «Pedir cambio» en la fila. Si falta una programación, pídela desde Solicitudes.</p>');
+      (planifica?'':'<p class="plan-nota">Solo lectura.</p>')+(NS.htmlHistorial?NS.htmlHistorial():'');
     pintarTabla();
     if(typeof NS.pintarExtras==='function')NS.pintarExtras();
   }
@@ -334,7 +346,7 @@
       if(!propios.length){
         filas.push('<tr class="plan-sin"><td class="c-linea" data-titulo="1"><b>'+esc(l.name)+'</b></td><td colspan="8">Sin programación</td><td></td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':
-            '<button type="button" class="btn btn-ghost btn-sm" data-plan-pedir="'+esc(l.key)+'">Pedir programación</button>')+'</td></tr>');
+            (typeof NS.solicitarProgramacion==='function'?'<button type="button" class="btn btn-ghost btn-sm" data-plan-pedir="'+esc(l.key)+'">Pedir programación</button>':''))+'</td></tr>');
         return;
       }
       nl++;
@@ -364,7 +376,7 @@
           celdasAvance+
           '<td data-label="Estado del plan">'+(NS.modos&&primera?NS.modos.htmlEstadoPlan(p,g):'<span class="plan-badge '+claseEstado(est)+'">'+esc(NS.estadoTexto(est))+'</span>')+'</td><td class="acc">'+
           (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-editar="'+esc(p.clave)+'">Editar</button>':
-            '<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>')+
+            (typeof NS.solicitarCambio==='function'?'<button type="button" class="btn btn-ghost btn-sm" data-plan-cambio="'+esc(p.clave)+'">Pedir cambio</button>':''))+
           (planifica&&NS.modos&&NS.modos.modoDe(p)==='COMPLETAR'&&p.meta&&p.meta.ref&&['PENDIENTE_CIERRE','REQUIERE_REVISION'].includes((p.meta.resolucion||{}).estado)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-recalc="'+esc(p.clave)+'" title="Comprueba si el cierre ya se confirmó y calcula el saldo">Actualizar saldo</button>':'')+
           (planifica&&primera&&g&&g.producido!==null&&g.pendiente>0?' <button type="button" class="btn btn-ghost btn-sm" data-plan-trasladar="'+esc(p.clave)+'" title="Mover a otro bloque lo que falta producir (saldo comprobado)">Trasladar saldo</button>':'')+
           (planifica&&NS.puedeUnificar(p)?' <button type="button" class="btn btn-ghost btn-sm" data-plan-unificar="'+esc(p.clave)+'">Unificar en Mañana</button>':'')+(planifica&&i===propios.length-1?' <button type="button" class="btn btn-ghost btn-sm" data-plan-seq="'+esc(l.key)+'" title="Orden de los productos, cantidad / hora / cierre y tiempo de cambio">Secuencia</button> <button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':'')+'</td></tr>');

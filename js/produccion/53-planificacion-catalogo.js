@@ -278,7 +278,7 @@
   // La tabla de velocidades llega por la suscripción que ya existe (47-analisis-paradas.js).
   if(window.glacialConfigIndicadoresOyentes)window.glacialConfigIndicadoresOyentes.push(()=>{if(NS.estado&&NS.estado.tab==='catalogo')pintarTablaCatalogo();});
 
-  NS.pestanas.push({clave:'catalogo',titulo:'Órdenes de ventas',orden:3,pintar:pintarCatalogo,actualizar:()=>{pintarTablaCatalogo();pintarTiempos();}});
+  NS.pestanas.push({clave:'catalogo',titulo:'Productos y parámetros',orden:3,pintar:pintarCatalogo,actualizar:()=>{pintarTablaCatalogo();pintarTiempos();}});
 
   /* La pestaña «Vista semanal» (carga y capacidad por línea) vive en 65d-planificacion-semanal.js. */
 })();

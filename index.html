@@ -3043,6 +3043,10 @@
                                         onclick="goEntregaTurno()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Entrega de turno</span>
                                 </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-horario-produccion"
+                                        onclick="goHorarioProduccion()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Horario de producción</span>
+                                </button>
                             </div>
                         </section>
 
@@ -3096,6 +3100,10 @@
                                 <button type="button" class="side-action sidebar-subaction" id="btn-analisis-paradas"
                                         onclick="goAnalisisParadas()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Análisis de paradas</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-productos-parametros"
+                                        onclick="goProductosParametros()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Productos y parámetros</span>
                                 </button>
                             </div>
                         </section>
@@ -3349,7 +3357,7 @@
 
     <script src="js/accesos/03-auth.js?v=20261019-alm1"></script>
 
-    <script src="js/nucleo/04-sidebar.js?v=20261019-alm1"></script>
+    <script src="js/nucleo/04-sidebar.js?v=20261019-ov1"></script>
 
     <script src="js/nucleo/05-utils.js?v=20261015-fc1"></script>
 
@@ -3441,18 +3449,21 @@
     <script src="js/produccion/58-impacto-dashboard.js?v=20261019-ord3"></script>
     <script src="js/produccion/60-impacto-excel.js?v=20261007-dash1"></script>
     <script src="js/produccion/51-planificacion-nucleo.js?v=20261013-pl8"></script>
-    <script src="js/produccion/52-planificacion-pantalla.js?v=20261013-pl8"></script>
-    <script src="js/produccion/51b-horarios-produccion.js?v=20261015-hz2"></script>
-    <script src="js/produccion/53-planificacion-catalogo.js?v=20261013-pl7"></script>
-    <script src="js/produccion/54-planificacion-solicitudes.js?v=20261013-pl7"></script>
+    <script src="js/produccion/52-planificacion-pantalla.js?v=20261019-ov1"></script>
+    <script src="js/produccion/51b-horarios-produccion.js?v=20261019-hz9"></script>
+    <script src="js/produccion/53-planificacion-catalogo.js?v=20261019-pl9"></script>
+    <script src="js/produccion/54-planificacion-solicitudes.js?v=20261019-ov1"></script>
     <script src="js/produccion/64-planificacion-avance.js?v=20261013-pl8"></script>
     <script src="js/produccion/65b-planificacion-motor.js?v=20261013-pl6"></script>
     <script src="js/produccion/65a-planificacion-tiempos.js?v=20261012-pl5"></script>
-    <script src="js/produccion/65-planificacion-capacidad.js?v=20261013-pl6"></script>
+    <script src="js/produccion/65-planificacion-capacidad.js?v=20261019-ov1"></script>
     <script src="js/produccion/65c-planificacion-opciones.js?v=20261012-pl5"></script>
     <script src="js/produccion/65d-planificacion-semanal.js?v=20261013-pl7"></script>
     <script src="js/produccion/66p-planificacion-modos.js?v=20261018-ord2"></script>
     <script src="js/produccion/66b-planificacion-secuencia.js?v=20261014-pl9"></script>
+    <script src="js/produccion/66u-planificacion-ordenes-venta-nucleo.js?v=20261019-ov1"></script>
+    <script src="js/produccion/66v-planificacion-ordenes-venta.js?v=20261019-ov1"></script>
+    <script src="js/produccion/52b-planificacion-vistas.js?v=20261019-ov1"></script>
     <script src="js/produccion/66-entrega-turno.js?v=20261011-et1"></script>
     <script src="js/mantenimiento/67-intervenciones-motor.js?v=20261018-fo3"></script>
     <script src="js/mantenimiento/67b-intervenciones-datos.js?v=20261012-mt1"></script>

@@ -306,6 +306,6 @@
     else if(b.id==='hz-aprobada')accion(b,()=>{const f=leerForm();return H.aplicarConfiguracionAprobada(f.desde,f.motivo);});
     else accion(b,()=>H.cambiarActivo(b.getAttribute('data-hz-activo'),b.getAttribute('data-v')==='1',q('hz-motivo')?q('hz-motivo').value.trim():''));
   });
-  NS.TABS.push({clave:'horarios',titulo:'Horario de producción'});
+  /* «Horario de producción» ya no es una pestaña de Planificación: se abre desde el grupo Producción del menú (52b-planificacion-vistas.js). */
   NS.pestanas.push({clave:'horarios',titulo:'Horario de producción',orden:6,pintar,actualizar:()=>{const c=document.getElementById('plan-cuerpo');if(c&&NS.estado.tab==='horarios'&&!document.activeElement.closest('#hz-form'))pintar(c);}});
 })();

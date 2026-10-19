@@ -127,6 +127,9 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 66-entrega-turno.js | Entrega de turno entre supervisores (colección entregasTurno, id fecha_TURNO con DIA/INTERMEDIO/NOCHE): foto automática por línea (reutiliza construirDatos de 48), novedades por línea, entregar/corregir/recibir por transacción, historial por fecha, tarjeta «Entrega de turno pendiente» en el Inicio en vivo y modo consulta para jefatura |
 | 66p-planificacion-modos.js | Planificación: modos Cantidad fija / Completar cantidad (meta entre bloques con cierre confirmado) / Todo el turno (estimación por ratio nominal), estado del plan «Completada» separado del operativo y formulario de modos. Ver docs/planificacion/planificacion-etapa5-modos.md. Cargar después de 65d |
 | 66b-planificacion-secuencia.js | Planificación: secuencia por cantidad, hora y cierre (amplía tramosSecuencia), cantidades estimadas de las marcas sin cantidad, cambio de marca configurable (5 min iniciales; ajuste por línea y por transición) y proyección con la ejecución real. Ver docs/planificacion/planificacion-etapa5-modos.md. Cargar después de 66 |
+| 66u-planificacion-ordenes-venta-nucleo.js | Planificación · Órdenes de ventas: cálculo puro (cobertura por fecha de entrega, estados, importación Excel/CSV/Google Sheets sin duplicar). Ver docs/planificacion/ordenes-venta.md. Cargar después de 66b |
+| 66v-planificacion-ordenes-venta.js | Planificación · pestaña «Órdenes de ventas» (tarjetas, tabla con barras, detalle, nueva orden, importar, conexión preparada con Google Sheets); se guarda en sync/catalogoPlanificacion → ordenesVenta. Cargar después de 66u |
+| 52b-planificacion-vistas.js | Abre «Productos y parámetros» (grupo Mantenimiento) y «Horario de producción» (grupo Producción) como pantallas propias; antes eran pestañas de Planificación. Cargar después de 66v |
 
 ### js/personal/
 

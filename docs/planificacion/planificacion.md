@@ -1,3 +1,5 @@
+> **Actualización 19-10-2026:** las pestañas cambiaron. Hoy Planificación tiene Programación turno · Programación semanal · **Órdenes de ventas** (nueva, ver `ordenes-venta.md`) · Cumplimiento de turno. El Catálogo pasó a «Productos y parámetros» (grupo Mantenimiento), «Horario de producción» al grupo Producción y las **Solicitudes** se retiraron (código apagado). Lo que sigue describe el diseño original.
+
 # Módulo Planificación
 
 ## Cómo se guardaba y se guarda la programación

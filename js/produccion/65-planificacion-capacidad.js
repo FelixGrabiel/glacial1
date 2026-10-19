@@ -190,7 +190,7 @@
   document.addEventListener('click',e=>{
     const b=e.target.closest&&e.target.closest('[data-plan-config-tiempos]');
     if(!b||!NS.puede())return;
-    NS.estado.tab='catalogo';NS.pintarPestana();
+    if(typeof window.goProductosParametros==='function')window.goProductosParametros();   // «Productos y parámetros» vive ahora en Mantenimiento
   });
   NS.pintarExtras=function(){
     const cap=document.getElementById('plan-capacidad');

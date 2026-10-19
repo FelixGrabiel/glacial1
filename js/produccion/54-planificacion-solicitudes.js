@@ -96,9 +96,14 @@
         .onSnapshot(aplicarSnap,err=>{console.warn('Solicitudes de programación:',err&&err.message||err);cierrePlan=null;});
     }else if(!NS.puede()&&cierrePlan){try{cierrePlan();}catch(_){/* ya cerrada */}cierrePlan=null;}
   }
-  NS.alRefrescar.push(asegurarPlanificador);   // si el permiso cambia en vivo, la escucha amplia se abre o se cierra
+  /* SOLICITUDES RETIRADAS: el supervisor ya no pide cambios desde la app (lo hace por llamada). El código queda aquí, apagado, y sus datos
+     (colección solicitudesProgramacion) no se tocan. Para volver a activarlas basta poner true: reaparecen la pestaña, los botones «Pedir…»,
+     las escuchas y los avisos. */
+  const SOLICITUDES_ACTIVAS=false;
+  NS.solicitudesActivas=SOLICITUDES_ACTIVAS;
+  if(SOLICITUDES_ACTIVAS)NS.alRefrescar.push(asegurarPlanificador);   // si el permiso cambia en vivo, la escucha amplia se abre o se cierra
 
-  NS.escuchas.push(function(){
+  if(SOLICITUDES_ACTIVAS)NS.escuchas.push(function(){
     if(typeof db==='undefined')return null;
     const u=usuario();
     if(!u.uid)return null;
@@ -112,13 +117,13 @@
     };
   });
 
-  NS.solicitudes=()=>[...mapa.values()].sort((a,b)=>marcaTiempo(b.creadoEn)-marcaTiempo(a.creadoEn));
+  if(SOLICITUDES_ACTIVAS)NS.solicitudes=()=>[...mapa.values()].sort((a,b)=>marcaTiempo(b.creadoEn)-marcaTiempo(a.creadoEn));
   const textoTipo=t=>({CAMBIO_CANTIDAD:'Cambio de cantidad',CAMBIO_PRODUCTO:'Cambio de producto',NUEVA_PROGRAMACION:'Programación nueva'})[t]||t;
   const textoEstado=e=>({PENDIENTE:'Pendiente',APROBADA:'Aprobada',RECHAZADA:'Rechazada'})[e]||e;
   const descProducto=s=>(s.marca?esc(s.marca)+' '+esc(NS.etiquetaPresentacion(s.linea,s.marca,s.presentacion)):'—');
 
   /* ---------- avisos para el Centro de avisos ---------- */
-  NS.avisos=function(){
+  if(SOLICITUDES_ACTIVAS)NS.avisos=function(){
     const salida=[],u=usuario(),lista=NS.solicitudes();
     if(NS.puede()){
       const pend=lista.filter(s=>s.estado==='PENDIENTE');
@@ -187,8 +192,8 @@
       }catch(e){q('ps-error').textContent=(e&&e.message)||String(e);q('ps-enviar').disabled=false;}
     };
   }
-  NS.solicitarCambio=item=>dialogoSolicitud({tipo:'CAMBIO_CANTIDAD',linea:item.linea,fecha:item.fecha,turno:item.turno,marca:item.marca,presentacion:item.presentacion,cantidadActual:num(item.cantidadProgramada),baseVersion:num(item.version)});
-  NS.solicitarProgramacion=(linea,fecha,turno,marca,presentacion)=>dialogoSolicitud({tipo:'NUEVA_PROGRAMACION',linea,fecha,turno,marca:marca||'',presentacion:presentacion||'',cantidadActual:0});
+  if(SOLICITUDES_ACTIVAS)NS.solicitarCambio=item=>dialogoSolicitud({tipo:'CAMBIO_CANTIDAD',linea:item.linea,fecha:item.fecha,turno:item.turno,marca:item.marca,presentacion:item.presentacion,cantidadActual:num(item.cantidadProgramada),baseVersion:num(item.version)});
+  if(SOLICITUDES_ACTIVAS)NS.solicitarProgramacion=(linea,fecha,turno,marca,presentacion)=>dialogoSolicitud({tipo:'NUEVA_PROGRAMACION',linea,fecha,turno,marca:marca||'',presentacion:presentacion||'',cantidadActual:0});
 
   /* ---------- aprobar o rechazar ----------
      UNA transacción lee la solicitud y la programación, comprueba que la solicitud siga PENDIENTE y que la fila siga igual que cuando se pidió,
@@ -343,7 +348,16 @@
     };
   }
 
-  NS.pestanas.push({clave:'solicitudes',titulo:'Solicitudes',orden:4,pintar:pintarSolicitudes,actualizar:actualizarSolicitudes});
+  if(SOLICITUDES_ACTIVAS)NS.pestanas.push({clave:'solicitudes',titulo:'Solicitudes',orden:4,pintar:pintarSolicitudes,actualizar:actualizarSolicitudes});
+
+  /* ---------- Historial de cambios: ahora al pie de «Programación turno» (antes vivía en la pestaña Solicitudes) ---------- */
+  NS.htmlHistorial=function(){
+    return puedeVerHistorial()?'<details class="plan-det" id="sol-hist-det" style="margin-top:18px"><summary style="cursor:pointer;font-weight:700;color:#003b5c">Historial de cambios</summary><div id="sol-historial" style="margin-top:8px"></div></details>':'';
+  };
+  document.addEventListener('toggle',e=>{
+    const d=e.target;
+    if(d&&d.id==='sol-hist-det'&&d.open&&d.closest('#plan-root'))pintarHistorial();
+  },true);
 
   /* =========================================================
      PESTAÑA CUMPLIMIENTO

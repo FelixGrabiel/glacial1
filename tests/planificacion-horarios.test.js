@@ -157,7 +157,7 @@ const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacio
   ok(/PET 1 22:00–07:00/.test(txt)||/22:00–07:00/.test(txt)&&/Deshabilitado: CAJAS 20L, B20L/.test(txt),'Noche muestra solo las líneas habilitadas (22:00–07:00) y avisa las deshabilitadas');
   const dia=H.htmlResumen(D1,'DÍA').replace(/<[^>]+>/g,'');
   ok(/PET 1 07:00–19:00/.test(dia)&&/CAJAS 20L 14:00–22:00 \(Intermedio\)/.test(dia)&&/B20L 14:00–22:00 \(Intermedio\)/.test(dia),'Mañana + Intermedio muestra el horario por línea y el Intermedio de C20L/B20L (no un único inicio/fin para todas)');
-  ok(NS.TABS.some(t=>t.clave==='horarios'&&t.titulo==='Horario de producción')&&NS.pestanas.some(p=>p.clave==='horarios'),'«Horario de producción» es una pestaña de Planificación');
+  ok(!NS.TABS.some(t=>t.clave==='horarios')&&NS.pestanas.some(p=>p.clave==='horarios'&&p.titulo==='Horario de producción'),'«Horario de producción» ya no es pestaña de Planificación: se abre desde el grupo Producción (la pantalla sigue registrada)');
   const cont={innerHTML:''};NS.estado={fecha:D1,turno:'DÍA',tab:'horarios'};
   NS.pestanas.find(p=>p.clave==='horarios').pintar(cont);
   ok(/Configurar horario de producción/.test(cont.innerHTML)&&/Restablecer horario predeterminado/.test(cont.innerHTML)&&/Aplicar configuración aprobada/.test(cont.innerHTML)&&/Motivo o instrucción de Gerencia/.test(cont.innerHTML)&&/Responsable del cambio/.test(cont.innerHTML)&&/Una sola fecha/.test(cont.innerHTML)&&/Rango de fechas/.test(cont.innerHTML)&&/hasta nuevo cambio/.test(cont.innerHTML),'el formulario trae líneas, bloque, horas, vigencia, motivo/instrucción, responsable, restablecer y la configuración aprobada');
@@ -192,7 +192,7 @@ const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacio
   ok(/function avGenerarSeleccion/.test(s29)&&/function avAccionesHistoricoHtml/.test(s29)&&/\$\{!actual&&avPuedeGenerar\(\)\?avAccionesHistoricoHtml\(\):''\}/.test(s29)&&/avAbrirCierreHistorico/.test(s29),'Avance/Cierre: GENERAR CIERRE aparece al elegir una fecha y bloque anteriores (no depende de la hora ni del modo histórico)');
   ok(!/avGenerarSeleccion[^]*?avCtx\(\)/.test(s29.slice(s29.indexOf('async function avGenerarSeleccion'),s29.indexOf('function avAccionesHistoricoHtml'))),'el cierre histórico opera sobre la selección, no sobre el turno actual del dispositivo');
   ok(/toleranciaActual\(avAhoraMs\(\)\)/.test(s29)&&/avChipTolerancia/.test(s29)&&/horario de producción por línea/i.test(s29),'Avance reconoce la tolerancia de Noche y muestra el horario por línea');
-  ok(idx.indexOf('51b-horarios-produccion.js')>idx.indexOf('52-planificacion-pantalla.js')&&/51b-horarios-produccion\.js\?v=20261015-hz[0-9]/.test(idx),'index.html carga 51b después de 52');
+  ok(idx.indexOf('51b-horarios-produccion.js')>idx.indexOf('52-planificacion-pantalla.js')&&/51b-horarios-produccion\.js\?v=\d{8}-hz[0-9]/.test(idx),'index.html carga 51b después de 52');
   ok(/NS\.horarios\.htmlResumen/.test(s52)&&/NS\.horarios\.habilitado\(l\.key,E\.fecha,E\.turno\)/.test(s52),'la tabla de Programación oculta las líneas deshabilitadas y muestra el horario por línea');
   const s51b=leer('js/produccion/51b-horarios-produccion.js');
   ok(!/tareo|jornada|horarioOperativo/i.test(s51b.replace(/\/\*[^]*?\*\//g,'').replace(/\/\/.*$/gm,''))&&!/paradasOperativas|avancesTurno/.test(s51b),'no toca Tareo, jornadas del personal ni paradas oficiales');

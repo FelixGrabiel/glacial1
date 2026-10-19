@@ -67,7 +67,7 @@ sbn.obtenerProgramacionPaleta=(l,f,t,m,p)=>progs.find(x=>x.clave===[l,f,t,m,p].j
 sbn.obtenerUnidadesPorPalet=(l,m,p)=>p==='Regular_625ml'?1200:0;
 sbn.guardarProgramacionPaleta=async(l,f,t,m,p,c,u,opc)=>{progs=progs.filter(x=>x.clave!==[l,f,t,m,p].join('|'));if(c>0)progs.push({clave:[l,f,t,m,p].join('|'),linea:l,fecha:f,turno:t,marca:m,presentacion:p,cantidadProgramada:c,unidadesPorPaleta:u,estadoOperacion:{estado:'PENDIENTE'}});return {opc};};
 sbn.glacialCierresSesion=[];
-['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes'].forEach(f=>vm.runInContext(leer('js/produccion/'+f+'.js'),sbn));
+['51-planificacion-nucleo','52-planificacion-pantalla','53-planificacion-catalogo','54-planificacion-solicitudes'].forEach(f=>vm.runInContext(leer('js/produccion/'+f+'.js').replace('const SOLICITUDES_ACTIVAS=false;','const SOLICITUDES_ACTIVAS=true;'),sbn));   // las solicitudes están apagadas en la app; aquí se activan para seguir probando su lógica
 const NS=sbn.glacialPlanificacion;
 const P=(o)=>Object.assign({linea:'PET1',fecha:'2026-10-05',turno:'DÍA',marca:'Bells',presentacion:'Regular_625ml',cantidad:10000,upp:1200},o||{});
 ok(NS.validar(P()).errores.length===0,'validación: una fila correcta pasa');

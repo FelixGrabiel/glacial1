@@ -1,0 +1,84 @@
+/* Planificación · Órdenes de ventas: núcleo de cálculo (66u): cobertura por fecha de entrega, estados, importación (Excel/CSV/Google Sheets) sin duplicar. */
+'use strict';
+const N=require('../js/produccion/66u-planificacion-ordenes-venta-nucleo.js');
+let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c){fallas++;process.exitCode=1;}};
+const HOY='2026-10-19';
+const orden=(id,numero,marca,pres,cant,entrega,extra)=>Object.assign({id,numero,cliente:'Cliente '+id,marca,presentacion:pres,cantidad:cant,fechaEntrega:entrega,estado:'ABIERTA',creadoEn:Number(id.replace(/\D/g,''))||0},extra);
+const prog=(clave,linea,fecha,turno,marca,pres,cant,extra)=>Object.assign({clave,linea,fecha,turno,marca,presentacion:pres,cantidadProgramada:cant},extra);
+
+/* ---- cobertura: se reparte por fecha de entrega, la más urgente primero ---- */
+{
+  const ov=[orden('2','OV-2','Bells','625 ML PACK X 15 UND',20000,'2026-10-25'),orden('1','OV-1','Bells','625 ML PACK X 15 UND',30000,'2026-10-22'),orden('3','OV-3','Glacial','1 L PACK X 12 UND',5000,'2026-10-30')];
+  const pg=[prog('a','PET1','2026-10-20','DÍA','Bells','625 ML PACK X 15 UND',25000),prog('b','PET1','2026-10-21','NOCHE','Bells','625 ML  PACK X 15 UND',10000),prog('c','PET2','2026-10-20','DÍA','Bells','380 ML PACK X 24 UND',9999)];
+  const prod=p=>({a:18000,b:0})[p.clave]||0;
+  const c=N.coberturaOrdenes(ov,pg,{hoy:HOY,producidoDe:prod});
+  ok(c.get('1').programado===30000&&c.get('1').falta===0,'la orden más urgente (OV-1, entrega 22/10) se cubre primero: 25 000 + 5 000 de la segunda programación');
+  ok(c.get('2').programado===5000&&c.get('2').falta===15000,'la siguiente (OV-2) recibe lo que sobra (5 000) y le faltan 15 000');
+  ok(c.get('1').producido===18000&&c.get('2').producido===0,'lo producido se reparte en el mismo orden (18 000 a OV-1)');
+  ok(c.get('3').programado===0&&c.get('3').falta===5000,'un producto sin programación queda sin cubrir');
+  ok(c.get('1').detalle.length===2&&c.get('1').detalle[0].clave==='a','el detalle lista las programaciones que cubren la orden');
+  ok(N.claveProducto('Bells','625 ML  PACK X 15 UND')===N.claveProducto(' bells ','625 ml pack x 15 und'),'el producto se compara sin importar mayúsculas, tildes ni espacios');
+}
+/* ---- línea, fecha del pedido, cancelación ---- */
+{
+  const ov=[orden('1','OV-1','Bells','7 Litros',1000,'2026-10-25',{linea:'B7L'}),orden('2','OV-2','Bells','7 Litros',1000,'2026-10-26',{fechaPedido:'2026-10-21'})];
+  const pg=[prog('x','PET1','2026-10-20','DÍA','Bells','7 Litros',1000),prog('y','B7L','2026-10-20','DÍA','Bells','7 Litros',1000),prog('z','B7L','2026-10-22','DÍA','Bells','7 Litros',800,{estadoOperacion:{estado:'CANCELADA'}})];
+  const c=N.coberturaOrdenes(ov,pg,{hoy:HOY});
+  ok(c.get('1').detalle.length===1&&c.get('1').detalle[0].linea==='B7L','si la orden indica línea, solo la cubren programaciones de esa línea');
+  ok(c.get('2').programado===0&&c.get('2').falta===1000,'con fecha del pedido 21/10 no cuentan las programaciones del 20/10: la fecha del pedido limita desde cuándo se cubre');
+  const c2=N.coberturaOrdenes([Object.assign({},ov[0],{estado:'CANCELADA'})],pg,{hoy:HOY});
+  ok(!c2.has('1'),'una orden cancelada no consume programaciones');
+}
+/* ---- estados ---- */
+{
+  const st=(o,c)=>N.estadoOrden(o,c,HOY).clave;
+  const base=orden('1','OV-1','Bells','7 Litros',1000,'2026-10-25');
+  ok(st(base,{pedido:1000,programado:0,producido:0,falta:1000})==='SIN_PROGRAMAR','sin programar');
+  ok(st(base,{pedido:1000,programado:400,producido:0,falta:600})==='PARCIAL','programada en parte');
+  ok(st(base,{pedido:1000,programado:1000,producido:0,falta:0})==='PROGRAMADA','programada');
+  ok(st(base,{pedido:1000,programado:1000,producido:300,falta:0})==='EN_PRODUCCION','en producción');
+  ok(st(base,{pedido:1000,programado:1000,producido:1000,falta:0})==='COMPLETA','completa');
+  ok(st(Object.assign({},base,{fechaEntrega:'2026-10-18'}),{pedido:1000,programado:1000,producido:300,falta:0})==='ATRASADA','entrega vencida y sin completar = atrasada');
+  ok(st(Object.assign({},base,{fechaEntrega:'2026-10-18'}),{pedido:1000,programado:1000,producido:1000,falta:0})==='COMPLETA','vencida pero completa = completa');
+  ok(st(Object.assign({},base,{estado:'CANCELADA'}),null)==='CANCELADA'&&st(Object.assign({},base,{estado:'RETIRADA'}),null)==='RETIRADA','cancelada y retirada se respetan');
+  ok(N.estadoOrden(Object.assign({},base,{fechaEntrega:'2026-10-21'}),{pedido:1000,programado:0,producido:0,falta:1000},HOY).porVencer===true,'entrega en 3 días o menos = por vencer');
+  const lista=[base,Object.assign({},base,{id:'2',fechaEntrega:'2026-10-10'}),Object.assign({},base,{id:'3',estado:'CANCELADA'})];
+  const cm=new Map([['1',{pedido:1000,programado:600,producido:100,falta:400}],['2',{pedido:1000,programado:0,producido:0,falta:1000}]]);
+  const r=N.resumenOrdenes(lista,cm,HOY);
+  ok(r.abiertas===2&&r.pedidas===2000&&r.programado===600&&r.falta===1400&&r.atrasadas===1&&r.sinCubrir===2,'tarjetas: abiertas, pedidas, programado, falta, atrasadas (las canceladas no cuentan)');
+}
+/* ---- importar ---- */
+{
+  const filas=[
+    {'N.º orden':'OV-100','Cliente':'Andina','Marca':'Bells','Presentación':'625 ML PACK X 15 UND','Cantidad':'12,000','Fecha de entrega':'25/10/2026'},
+    {'N.º orden':'OV-101','Cliente':'Norte','Marca':'Glacial','Presentación':'1 L PACK X 12 UND','Cantidad':8000,'Fecha de entrega':'2026-10-27'},
+    {'N.º orden':'OV-102','Cliente':'','Marca':'Aro','Presentación':'7 Litros','Cantidad':0,'Fecha de entrega':'xx'},
+    {'N.º orden':'OV-100','Cliente':'Andina','Marca':'Bells','Presentación':'625 ML PACK X 15 UND','Cantidad':1,'Fecha de entrega':'25/10/2026'},
+    {'N.º orden':'','Cliente':'','Marca':'','Presentación':'','Cantidad':'','Fecha de entrega':''}
+  ];
+  const r=N.importarFilas(filas,[],{ahora:1760000000000,hoy:HOY,origen:'excel'});
+  ok(r.crear.length===2&&r.crear[0].cantidad===12000&&r.crear[0].fechaEntrega==='2026-10-25'&&r.crear[0].idExterno==='OV-100'&&r.crear[0].origen==='excel','crea las órdenes válidas (cantidad «12,000» y fecha dd/mm/aaaa bien leídas) con su id externo y origen');
+  ok(N.importarFilas([{'N.º orden':'OV-9','Cliente':'a','Marca':'b','Presentación':'c','Cantidad':1,'Fecha de entrega':'2026-10-27','Estado':'Cancelado'}],[],{hoy:HOY}).crear[0].estado==='CANCELADA','si la fuente dice «Cancelado», la orden se crea cancelada');
+  ok(r.errores.length===2&&/cliente/i.test(r.errores[0].mensaje)&&/repetido/.test(r.errores[1].mensaje),'las filas inválidas o repetidas se reportan con su fila y no se importan (la fila vacía se ignora)');
+  const guardadas=N.aplicarImportacion([],r,{ahora:1760000000000,usuario:'Ana'});
+  ok(guardadas.length===2&&guardadas.every(o=>o.id&&o.version===1&&o.creadoPor==='Ana'),'aplicarImportacion guarda con id, versión y autor');
+  /* 2.ª importación: misma fuente cambiada → actualiza sin duplicar y retira la ausente */
+  const filas2=[{'N.º orden':'OV-100','Cliente':'Andina SAC','Marca':'Bells','Presentación':'625 ML PACK X 15 UND','Cantidad':15000,'Fecha de entrega':'26/10/2026'}];
+  const r2=N.importarFilas(filas2,guardadas,{ahora:1760000100000,hoy:HOY,origen:'sheets',retirarAusentes:true});
+  ok(r2.crear.length===0&&r2.actualizar.length===1&&r2.actualizar[0].cambios.cantidad===15000&&r2.actualizar[0].cambios.cliente==='Andina SAC','si el N.º ya existe se ACTUALIZA (no se duplica)');
+  ok(r2.retirar.length===1&&r2.retirar[0].numero==='OV-101','la orden que ya no viene en la fuente se marca para «retirada» (no se borra)');
+  const g2=N.aplicarImportacion(guardadas,r2,{ahora:1760000100000,usuario:'Hoja'});
+  ok(g2.length===2&&g2.find(o=>o.numero==='OV-100').version===2&&g2.find(o=>o.numero==='OV-101').estado==='RETIRADA','tras aplicar: 2 órdenes, la actualizada sube de versión y la ausente queda RETIRADA');
+  const r3=N.importarFilas(filas2,g2,{ahora:1760000200000,hoy:HOY,origen:'sheets'});
+  ok(r3.sinCambio===1&&r3.actualizar.length===0,'importar lo mismo otra vez no cambia nada');
+  const manual=[{id:'m1',numero:'OV-200',cliente:'X',marca:'Bells',presentacion:'7 Litros',cantidad:10,fechaEntrega:'2026-10-30',estado:'ABIERTA',origen:'manual'}];
+  ok(N.importarFilas(filas2,manual,{retirarAusentes:true,hoy:HOY}).retirar.length===0,'las órdenes creadas a mano nunca se retiran por una sincronización');
+  const sinCol=N.importarFilas([{'Cliente':'a','Marca':'b'}],[],{});
+  ok(sinCol.faltanColumnas.length>=3&&sinCol.crear.length===0,'si faltan columnas obligatorias lo dice y no importa nada');
+  const m=N.mapearColumnas(['Pedido','Razón social','Formato','Producto','UND','Entrega'],{});
+  ok(m.faltan.length===0&&m.mapa.numero==='Pedido'&&m.mapa.cliente==='Razón social'&&m.mapa.marca==='Producto'&&m.mapa.presentacion==='Formato','reconoce nombres habituales de columna (Pedido, Razón social, Formato…)');
+  const m2=N.mapearColumnas(['A','B','C','D','E','F'],{numero:'A',cliente:'B',marca:'C',presentacion:'D',cantidad:'E',fechaEntrega:'F'});
+  ok(m2.faltan.length===0&&m2.mapa.fechaEntrega==='F','también acepta un mapa de columnas configurado (para la hoja de Google)');
+  ok(/^2025-1[01]-\d\d$/.test(N.leerFecha(45955))&&N.leerFecha('19/10/26')==='2026-10-19'&&N.leerFecha(new Date(2026,9,19))==='2026-10-19','fecha como serie de Excel, dd/mm/aa y objeto Date');
+}
+console.log(fallas?fallas+' fallas':'todo correcto');
