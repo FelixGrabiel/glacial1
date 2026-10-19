@@ -121,3 +121,13 @@ La secuencia **ya existía** (`tramosSecuencia = [{id, orden, tipoFin: CANTIDAD|
 - La proyección usa el inicio y fin **reales por producto** de Producción Actual; no hay un «fin real de tramo» separado (un producto repetido usa un solo par).
 - Capacidad y vista semanal usan la cantidad guardada (la estimación publicada): no muestran todavía la proyección actual.
 - «Hasta una hora» no está en el formulario simple de Agregar/Editar: se define en **Secuencia**.
+
+---
+
+# Secuencia de la línea con el mismo producto repetido y «Hasta una hora» al agregar
+
+- **Mismo producto en varios pasos.** Una línea puede ser Scala 13 000 → Fontlife 7 500 → Scala (resto del turno), o Scala hasta las 12:00 → Bells 1 800 → Scala (resto). Es UNA programación por producto con varios `tramosSecuencia`; su `cantidadProgramada` y `estimado.cantidad` son la **suma** de sus pasos (fijos + estimados). Cada paso por cantidad produce su cantidad (motor 65b); lo real confirmado solo describe el primer paso del producto.
+- **«Resto del turno / hasta el cierre»** solo puede ir en el último paso de la línea (conflicto si no).
+- **Nueva programación:** opciones Cantidad fija · Completar cantidad · **Resto del turno** (antes «Todo el turno»; si la línea ya tiene productos propone «tiempo restante») · **Hasta una hora** (solo al agregar un producto nuevo: se añade como último paso de la secuencia con `NS.secuencia.agregarPaso`). Para editar usa «Secuencia».
+- Pruebas: `tests/planificacion-secuencia.test.js` (bloque 16b) y `GLX_LIBS=… node tests/planificacion-secuencia-form.e2e.js`.
+- Límite: Producción Actual y Cumplimiento siguen leyendo la cantidad total del producto (no por paso).

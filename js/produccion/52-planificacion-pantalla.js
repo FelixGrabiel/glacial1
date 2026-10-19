@@ -498,7 +498,11 @@
       const motivo=q('pe-motivo').value.trim();
       q('pe-guardar').disabled=true;q('pe-error').textContent='';
       try{
-        if(MD&&MD.modo()!=='FIJA'){
+        if(MD&&MD.modo()==='HORA'){
+          const m=MD.leer();                                     // «Hasta una hora»: un paso más al final de la secuencia de la línea
+          if(!fila.marca||!fila.presentacion)throw new Error('Elige marca y presentación.');
+          await NS.secuencia.agregarPaso(fila,{tipoFin:'HORA',hora:m.hora},{motivo});
+        }else if(MD&&MD.modo()!=='FIJA'){
           const m=MD.leer();                                     // vuelve a validar cierre, producción, asignaciones y estimación con lo más reciente
           fila.cantidad=m.datos.cantidad;
           await NS.modos.guardar(fila,m.datos,{motivo,versionEsperada:visto});

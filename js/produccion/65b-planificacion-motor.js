@@ -255,7 +255,7 @@
       if(!p){return;}
       const v=e.vel(p.marca,p.presentacion);
       const ev={tipo:'TRAMO',orden:t.orden,marca:p.marca,presentacion:p.presentacion,etiqueta:p.etiqueta,tipoFin:t.tipoFin,horaFin:t.horaFin,a:null,z:null,qty:null,estimado:false,temporal:!!p.temporal};
-      const R=e.reales&&e.reales[k];                                               // ejecución REAL confirmada de este producto (proyección actual)
+      const R=e.reales&&tramos.findIndex(x=>claveP(x.marca,x.presentacion)===k)===i?e.reales[k]:null;   // ejecución REAL confirmada de este producto (proyección actual); si el producto se repite, solo describe su primer tramo
       if(R&&R.finOff!==undefined&&R.finOff!==null){
         if(previo!==null&&previo!==k)(tareasPorPos['ENTRE|'+previo+'>'+k]||[]).forEach(()=>{});
         Object.assign(ev,{a:R.inicioOff!==undefined&&R.inicioOff!==null?R.inicioOff:cursor,z:R.finOff,qty:null,estimado:false,real:true,motivo:'finalizado'});
@@ -285,8 +285,8 @@
         if(tope<=ini){conflictos.push('El tramo '+t.orden+' ('+p.marca+') no tiene tiempo antes del cierre: no puede empezar antes de las '+M.hhmm(b.inicioMs+ini*60000)+'.');qty=0;fin=ini;}
         else{qty=v*tl.libreEntre(ini,tope)/60;fin=tope;}
       }else{
-        if(i!==ultimo.get(k))avisos.push('El producto '+p.marca+' tiene varios tramos con «fin por cantidad o cierre»: su cantidad no se duplica; este tramo toma lo que le falta.');
-        qty=queda;fin=tl.caminar(ini,qty/v*60);
+        // cada tramo por cantidad produce SU cantidad (un producto puede repetirse: 13 000 ahora y el resto del turno más tarde)
+        qty=num(t.cantidadObjetivo)>0?Math.min(queda,num(t.cantidadObjetivo)):queda;fin=tl.caminar(ini,qty/v*60);
       }
       rest.set(k,queda===Infinity?Infinity:Math.max(0,queda-qty));
       Object.assign(ev,{a:ini,z:fin,qty,estimado:true});
@@ -331,8 +331,6 @@
     const prods=agrupar(filas,e.etiqueta);
     tramos.forEach(t=>{
       if(t.tipoFin==='CANTIDAD'&&!(num(t.cantidadObjetivo)>0))sal.conflictos.push('El tramo '+t.orden+' ('+t.marca+') termina por cantidad pero no tiene cantidad.');
-      if((t.tipoFin==='HORA'||t.tipoFin==='CIERRE')&&tramos.filter(x=>claveP(x.marca,x.presentacion)===claveP(t.marca,t.presentacion)).length>1)
-        sal.conflictos.push(t.marca+' tiene un tramo «hasta una hora» o «hasta el cierre» y otro tramo: usa un solo tramo para ese producto.');
     });
     const duracion=num(b.duracionMin);
     if(!(duracion>0))sal.faltantes.push({dato:'duración del bloque'});

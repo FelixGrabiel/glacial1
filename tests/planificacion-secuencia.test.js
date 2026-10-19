@@ -261,7 +261,7 @@ function num0(x){return Number(x)||0;}
   ok(/Solo Planificación/.test(e)&&items(cons.N).length===0,'consulta no puede guardar la secuencia');
   // validaciones
   const v=S.validar('B7L',FECHA,'DÍA',[fila('Aro','CANTIDAD'),fila('Cuisine','HORA'),fila('Zzz','CANTIDAD',{cantidad:5}),fila('Scala','HORA',{hora:'12:00'}),fila('Scala','CANTIDAD',{cantidad:5})]);
-  ok(v.some(x=>/cantidad debe ser un entero/.test(x))&&v.some(x=>/elige la hora límite/.test(x))&&v.some(x=>/no existe en B7L/.test(x))&&v.some(x=>/solo tramo/.test(x)),'validaciones: cantidad, hora, marca inexistente y producto temporal con un solo tramo');
+  ok(v.some(x=>/cantidad debe ser un entero/.test(x))&&v.some(x=>/elige la hora límite/.test(x))&&v.some(x=>/no existe en B7L/.test(x))&&!v.some(x=>/solo tramo|un solo tramo/.test(x)),'validaciones: cantidad, hora, marca inexistente (un producto puede repetirse con hora o cierre)');
   // producto quitado de la secuencia
   const q2=entorno([]);
   await q2.S.guardar('B7L',FECHA,'DÍA',[fila('Aro','CANTIDAD',{cantidad:600}),fila('Cuisine','CANTIDAD',{cantidad:900})],{});
@@ -281,6 +281,36 @@ function num0(x){return Number(x)||0;}
   const cp=entorno([Object.assign(F('B7L',FECHA,'DÍA','Cuisine','7 Litros',3000,200,{modo:'HORA',estimado:{cantidad:3000,horaFin:'13:00'},tramosSecuencia:[{id:'h',orden:1,tipoFin:'HORA',horaFin:'13:00'}]}))]);
   const pc=cp.NS.planCopia({modo:'DIA_ANTERIOR',fecha:MANANA});
   ok(pc.candidatos.length===0&&pc.omitidos.some(o=>/Hasta una hora: no se copia/.test(o.texto)),'copiar a otro día no arrastra una hora límite ni una estimación: exige programarlo de nuevo');
+}
+/* ---------- 16b) el mismo producto varias veces en la línea: Scala hasta las 12:00 → Aro 1,200 → Scala el resto del turno ---------- */
+{
+  const {S,N,M}=entorno([]);
+  const filas=[fila('Scala','HORA',{hora:'12:00'}),fila('Aro','CANTIDAD',{cantidad:1200}),fila('Scala','CIERRE')];
+  ok(S.validar('B7L',FECHA,'DÍA',filas).length===0,'Scala puede repetirse en la línea (hasta una hora y luego el resto del turno)');
+  const e=S.estimar('B7L',FECHA,'DÍA',filas);
+  ok(e.estado==='OK'&&e.conflictos.length===0&&e.tramos[0].cantidad===6000&&e.tramos[1].cantidad===1200&&e.tramos[2].cantidad===5800,'cada paso tiene su propia cantidad: 6 000 + 1 200 + 5 800 (Scala vuelve tras el cambio de 5 min)');
+  ok(S.validar('B7L',FECHA,'DÍA',[fila('Scala','CIERRE'),fila('Aro','CANTIDAD',{cantidad:10})]).some(x=>/último paso/.test(x)),'«resto del turno» solo puede ir en el último paso de la línea');
+  await S.guardar('B7L',FECHA,'DÍA',filas,{});
+  const sc=items(N).find(p=>p.marca==='Scala');
+  ok(items(N).length===2&&sc.cantidadProgramada===11800&&sc.tramosSecuencia.length===2&&sc.estimado.cantidad===11800&&sc.modo==='TURNO'&&sc.alcance==='TIEMPO_RESTANTE','una sola programación de Scala con 2 pasos y la SUMA como cantidad (11 800)');
+  const ar=items(N).find(p=>p.marca==='Aro');
+  ok(ar.cantidadProgramada===1200&&ar.modo==='FIJA','Aro conserva su cantidad fija');
+  const re=S.revision(sc);
+  ok(re&&re.estado==='OK'&&re.hoy===11800&&re.cambio===false,'la revisión compara la suma de los pasos');
+  // reabrir: los 3 pasos vuelven en orden
+  const vuelta=S.filasDe('B7L',FECHA,'DÍA');
+  ok(vuelta.length===3&&vuelta.map(f=>f.marca).join()==='Scala,Aro,Scala'&&vuelta[0].tipoFin==='HORA'&&vuelta[2].tipoFin==='CIERRE','al reabrir se recuperan los 3 pasos en su orden');
+  // mixto: cantidad fija + resto del turno del mismo producto
+  const g=entorno([]);
+  await g.S.guardar('PET1',FECHA,'DÍA',[fila('Scala','CANTIDAD',{cantidad:13000,presentacion:'2.5 Litros'}),fila('Scala','CIERRE',{presentacion:'2.5 Litros'})],{});
+  const p1=items(g.N)[0];
+  ok(items(g.N).length===1&&p1.cantidadProgramada===13000+Math.round(0)+(p1.estimado.cantidad-13000)&&p1.estimado.cantidad>13000&&p1.tramosSecuencia.length===2,'PET 1: Scala 13 000 y luego Scala el resto → una programación con la suma');
+  // agregar un paso desde «Nueva programación»
+  const h=entorno([]);
+  await h.S.guardar('B7L',FECHA,'DÍA',[fila('Aro','CANTIDAD',{cantidad:1200})],{});
+  await h.S.agregarPaso({linea:'B7L',fecha:FECHA,turno:'DÍA',marca:'Scala',presentacion:'7 Litros'},{tipoFin:'HORA',hora:'13:00'},{});
+  const ps=items(h.N);
+  ok(ps.length===2&&ps.find(p=>p.marca==='Scala').modo==='HORA'&&ps.find(p=>p.marca==='Scala').tramosSecuencia[0].orden===2,'«Hasta una hora» desde Nueva programación se agrega al final de la secuencia');
 }
 /* ---------- 17) sin paradas oficiales ni cambio automático, fuentes, convivencia ---------- */
 {

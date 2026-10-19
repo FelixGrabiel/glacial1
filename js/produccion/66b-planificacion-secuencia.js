@@ -88,7 +88,6 @@
   S.validar=function(linea,fecha,turno,filas){
     const errores=[];
     if(!filas.length)errores.push('Agrega al menos un producto a la secuencia.');
-    const vistos=new Map();
     filas.forEach((f,i)=>{
       const n='Tramo '+(i+1)+(f.marca?' ('+f.marca+')':'');
       if(!f.marca||!f.presentacion)errores.push(n+': elige marca y presentación.');
@@ -100,11 +99,10 @@
       if(f.tipoFin==='CANTIDAD'&&!f.saldo&&(!Number.isInteger(Number(f.cantidad))||Number(f.cantidad)<=0))errores.push(n+': la cantidad debe ser un entero mayor que cero.');
       if(f.tipoFin==='HORA'&&!/^\d{2}:\d{2}$/.test(String(f.hora||'')))errores.push(n+': elige la hora límite.');
       if(f.cambioPrevioMin!==null&&f.cambioPrevioMin!==undefined&&f.cambioPrevioMin!==''&&(!Number.isFinite(Number(f.cambioPrevioMin))||Number(f.cambioPrevioMin)<0))errores.push(n+': el cambio previsto debe ser 0 o más minutos.');
-      const k=claveP(f.marca,f.presentacion),o=vistos.get(k)||{n:0,temporal:false};o.n++;if(f.tipoFin!=='CANTIDAD')o.temporal=true;vistos.set(k,o);
+      if(f.tipoFin==='CIERRE'&&i<filas.length-1)errores.push(n+': «Resto del turno / hasta el cierre» solo puede ser el último paso de la línea.');
       const mod=MD.modoDe({modo:f.modo});
       if(f.saldo&&f.tipoFin!=='CANTIDAD')errores.push(n+': «Completar cantidad» no se puede cambiar a hora o cierre desde aquí.');
     });
-    vistos.forEach((o,k)=>{if(o.temporal&&o.n>1)errores.push('Un producto con «hasta una hora» o «hasta el cierre» debe tener un solo tramo (no se reparte su tiempo).');});
     return errores;
   };
 
@@ -137,7 +135,7 @@
         const delBloque=p=>p&&p.linea===linea&&p.fecha===fecha&&bl(p.turno)===bloque&&NS.estadoDe(p)!=='CANCELADA'&&(num(p.cantidadProgramada)>0||NS.esPlanSinCantidad(p));
         const tocadas=new Set();
         porProd.forEach(lista=>{
-          const f0=lista[0].f,existente=actuales.find(p=>p&&p.clave===f0.itemClave)||actuales.find(p=>p&&p.linea===linea&&p.fecha===fecha&&bl(p.turno)===bloque&&claveP(p.marca,p.presentacion)===claveP(f0.marca,f0.presentacion)&&NS.estadoDe(p)!=='CANCELADA')||null;
+          const f0=(lista.find(x=>x.f.itemClave)||lista[0]).f,existente=actuales.find(p=>p&&p.clave===f0.itemClave)||actuales.find(p=>p&&p.linea===linea&&p.fecha===fecha&&bl(p.turno)===bloque&&claveP(p.marca,p.presentacion)===claveP(f0.marca,f0.presentacion)&&NS.estadoDe(p)!=='CANCELADA')||null;
           const esperada=existente?num(f0.version):null;
           if(existente&&f0.version!==undefined&&num(existente.version)!==num(f0.version))throw Object.assign(new Error('Otra persona cambió «'+f0.marca+'» mientras editabas la secuencia. Vuelve a abrirla para ver lo vigente.'),{conflicto:true});
           if(!existente&&f0.itemClave)throw Object.assign(new Error('«'+f0.marca+'» ya no existe (otra persona la quitó). Vuelve a abrir la secuencia.'),{conflicto:true});
@@ -154,17 +152,24 @@
           const upp=num(existente?existente.unidadesPorPaleta:0)||num(NS.uppSugerida(linea,f0.marca,f0.presentacion));
           if(esCompletar){cantidad=num(existente.cantidadProgramada);conservarCero=NS.esPlanSinCantidad(existente);}
           else if(temporal){
-            const tr=est.tramos[lista[0].i];
-            const modo=lista[0].f.tipoFin==='HORA'?'HORA':'TURNO';
-            const primero=lista[0].i===0;
-            extra.modo=modo;extra.alcance=modo==='TURNO'?(primero?'TODO_TURNO':'TIEMPO_RESTANTE'):null;extra.meta=null;
-            if(tr&&tr.estado==='OK'&&num(tr.cantidad)>0){
-              cantidad=num(tr.cantidad);
-              extra.estimado={cantidad,ratio:tr.velocidad,tiempoProdMin:Math.round(num(tr.tiempoMin)*10)/10,inicioMs:est.bloque.inicioMs+tr.inicioOff*60000,finMs:est.bloque.inicioMs+tr.finOff*60000,
-                tipoFin:lista[0].f.tipoFin,horaFin:lista[0].f.hora||'',parametrosVersion:num(est.parametrosVersion),calculadoEn:t0,por:quienN};
+            /* Un producto puede repetirse en la línea (13 000 ahora y «el resto» más tarde): su cantidad es la SUMA de sus pasos (fijos + estimados). */
+            const trs=lista.map(x=>est.tramos[x.i]);
+            const fijo=lista.reduce((sum,x)=>sum+(x.f.tipoFin==='CANTIDAD'?Number(x.f.cantidad):0),0);
+            const pendientes=lista.some((x,j)=>x.f.tipoFin!=='CANTIDAD'&&!(trs[j]&&trs[j].estado==='OK'&&num(trs[j].cantidad)>0));
+            const estim=lista.reduce((sum,x,j)=>sum+(x.f.tipoFin!=='CANTIDAD'&&trs[j]&&trs[j].estado==='OK'?num(trs[j].cantidad):0),0);
+            const conCierre=lista.some(x=>x.f.tipoFin==='CIERRE'),tHora=lista.find(x=>x.f.tipoFin==='HORA'),tTemp=lista.find(x=>x.f.tipoFin==='CIERRE')||tHora;
+            const modo=conCierre?'TURNO':'HORA';
+            extra.modo=modo;extra.alcance=modo==='TURNO'?(lista.length===1&&lista[0].i===0?'TODO_TURNO':'TIEMPO_RESTANTE'):null;extra.meta=null;
+            const base={tipoFin:tTemp.f.tipoFin,horaFin:tTemp.f.hora||'',parametrosVersion:num(est.parametrosVersion),calculadoEn:t0,por:quienN};
+            if(!pendientes){
+              cantidad=fijo+estim;
+              const t1=trs[lista.indexOf(tTemp)];
+              extra.estimado=Object.assign({cantidad,ratio:t1.velocidad,tiempoProdMin:Math.round(trs.reduce((sum,t)=>sum+num(t&&t.tiempoMin),0)*10)/10,
+                inicioMs:est.bloque.inicioMs+trs[0].inicioOff*60000,finMs:est.bloque.inicioMs+t1.finOff*60000},base);
             }else{
-              cantidad=0;conservarCero=true;                                  // instrucción válida con estimación pendiente: no es una cantidad fija ficticia
-              extra.estimado={estado:'PENDIENTE',motivo:tr&&tr.motivo?tr.motivo:'estimación pendiente',tipoFin:lista[0].f.tipoFin,horaFin:lista[0].f.hora||'',parametrosVersion:num(est.parametrosVersion),calculadoEn:t0,por:quienN};
+              cantidad=fijo;conservarCero=!(fijo>0);       // instrucción válida con estimación pendiente: no es una cantidad fija ficticia
+              const tp=trs.find(t=>t&&t.estado!=='OK');
+              extra.estimado=Object.assign({estado:'PENDIENTE',motivo:tp&&tp.motivo?tp.motivo:'estimación pendiente'},base);
             }
           }else{
             cantidad=lista.reduce((s,x)=>s+Number(x.f.cantidad),0);
@@ -202,10 +207,12 @@
     if(!p||!(p.modo==='HORA'||p.modo==='TURNO')||!p.estimado||!(num(p.estimado.cantidad)>0))return null;
     const filas=S.filasDe(p.linea,p.fecha,p.turno);
     const e=S.estimar(p.linea,p.fecha,p.turno,filas);
-    const i=filas.findIndex(f=>f.itemClave===p.clave);
-    const t=i>=0?e.tramos[i]:null;
-    if(!t||t.estado!=='OK')return {estado:t?t.estado:'SIN_TRAMO',guardado:num(p.estimado.cantidad),hoy:null,cambio:false};
-    return {estado:'OK',guardado:num(p.estimado.cantidad),hoy:t.cantidad,cambio:t.cantidad!==num(p.estimado.cantidad),version:num(e.parametrosVersion),versionGuardada:num(p.estimado.parametrosVersion)};
+    const idx=filas.map((f,j)=>f.itemClave===p.clave?j:-1).filter(j=>j>=0);
+    const ts=idx.map(j=>e.tramos[j]).filter(Boolean);
+    const mal=ts.find(t=>t.estado!=='OK');
+    if(!ts.length||mal)return {estado:mal?mal.estado:'SIN_TRAMO',guardado:num(p.estimado.cantidad),hoy:null,cambio:false};
+    const hoy=ts.reduce((sum,t)=>sum+num(t.cantidad),0);
+    return {estado:'OK',guardado:num(p.estimado.cantidad),hoy,cambio:hoy!==num(p.estimado.cantidad),version:num(e.parametrosVersion),versionGuardada:num(p.estimado.parametrosVersion)};
   };
   /* Proyección actual de una línea: tramos finalizados con su fin real, cambio real observado, y el resto proyectado desde ahora con el cambio previsto. */
   S.proyeccion=function(linea,fecha,turno){
@@ -359,6 +366,12 @@
     pintarFilas();
     const vigilar=()=>{if(!document.body.contains(fondo)){const i=NS.alRefrescar.indexOf(vigilar);if(i>=0)NS.alRefrescar.splice(i,1);}};   // un refresco remoto no reescribe lo que se está editando
     NS.alRefrescar.push(vigilar);
+  };
+  /* Agrega un producto como el último paso de la secuencia de su línea (desde «Nueva programación»). paso: {tipoFin, hora?, cantidad?}. */
+  S.agregarPaso=async function(fila,paso,opc){
+    const filas=S.filasDe(fila.linea,fila.fecha,fila.turno).map(f=>Object.assign({},f));
+    filas.push({id:idNuevo(),marca:fila.marca,presentacion:fila.presentacion,tipoFin:paso.tipoFin,cantidad:paso.cantidad||'',hora:paso.hora||'',cambioPrevioMin:null,modo:'FIJA',saldo:false,version:undefined,itemClave:'',upp:0});
+    return S.guardar(fila.linea,fila.fecha,fila.turno,filas,opc||{});
   };
   /* Editar un plan temporal (hasta una hora / cierre) abre su secuencia, no el formulario simple. */
   S.debeUsarSecuencia=clave=>{const p=NS.programaciones().find(x=>x.clave===clave);return !!p&&(p.modo==='HORA'||(Array.isArray(p.tramosSecuencia)&&p.tramosSecuencia.some(t=>t.tipoFin==='HORA'||t.tipoFin==='CIERRE')));};

@@ -32,8 +32,8 @@
   const fmt=n=>num(n).toLocaleString('es-PE');
   const hm=m=>typeof NS.textoDuracion==='function'?NS.textoDuracion(m):Math.round(m)+' min';
 
-  M.MODOS={FIJA:'Cantidad fija',COMPLETAR:'Completar cantidad',TURNO:'Todo el turno',HORA:'Hasta una hora'};
-  M.MODOS_FORM=['FIJA','COMPLETAR','TURNO'];                       // «Hasta una hora» se define en la secuencia (66b), no en este formulario simple
+  M.MODOS={FIJA:'Cantidad fija',COMPLETAR:'Completar cantidad',TURNO:'Resto del turno',HORA:'Hasta una hora'};
+  M.MODOS_FORM=['FIJA','COMPLETAR','TURNO','HORA'];                // «Hasta una hora» solo al AGREGAR un producto: se guarda como un paso más de la secuencia de la línea (66b)
   M.esTemporal=p=>M.modoDe(p)==='TURNO'||M.modoDe(p)==='HORA';       // sin cantidad fija: la cantidad es ESTIMADA
   M.modoDe=item=>item&&M.MODOS[item.modo]?item.modo:'FIJA';          // lo antiguo (sin modo) es Cantidad fija
   M.ALCANCES={TODO_TURNO:'Todo el turno',TIEMPO_RESTANTE:'Producir durante el tiempo restante'};
@@ -394,8 +394,8 @@
   };
   M.htmlSelector=function(existente){
     const m=M.modoDe(existente);
-    return '<div class="pm-modos" role="radiogroup" aria-label="Modo de programación">'+M.MODOS_FORM.map(k=>'<label class="'+(k===m?'on':'')+'"><input type="radio" name="pm-modo" value="'+k+'"'+(k===m?' checked':'')+'>'+esc(M.MODOS[k])+(k===m?' ✓':'')+'</label>').join('')+'</div>'+
-      '<div id="pm-panel-c" class="pm-panel" style="display:none"></div><div id="pm-panel-t" class="pm-panel" style="display:none"></div>';
+    return '<div class="pm-modos" role="radiogroup" aria-label="Modo de programación">'+M.MODOS_FORM.filter(k=>k!=='HORA'||!existente).map(k=>'<label class="'+(k===m?'on':'')+'"><input type="radio" name="pm-modo" value="'+k+'"'+(k===m?' checked':'')+'>'+esc(M.MODOS[k])+(k===m?' ✓':'')+'</label>').join('')+'</div>'+
+      '<div id="pm-panel-c" class="pm-panel" style="display:none"></div><div id="pm-panel-t" class="pm-panel" style="display:none"></div><div id="pm-panel-h" class="pm-panel" style="display:none"></div>';
   };
   /* Monta la lógica de los paneles sobre el diálogo ya creado. ctx: {fondo,f,existente,q,refrescar}. Devuelve {leer()}: valida con los datos más recientes y arma lo que se guarda. */
   M.montar=function(ctx){
@@ -422,11 +422,15 @@
       '<div id="pm-c-res"></div>';
     /* panel TODO EL TURNO */
     const pt=fondo.querySelector('#pm-panel-t');
-    const alcIni=existente&&M.modoDe(existente)==='TURNO'&&existente.alcance==='TIEMPO_RESTANTE'?'TIEMPO_RESTANTE':'TODO_TURNO';
+    const hayOtros=NS.programaciones().some(p=>p&&p.linea===q('pe-linea').value&&p.fecha===f.fecha&&bl(p.turno)===destBloque&&NS.estadoDe(p)!=='CANCELADA'&&(!existente||p.clave!==existente.clave)&&(num(p.cantidadProgramada)>0||NS.esPlanSinCantidad(p)));
+    const alcIni=existente?(M.modoDe(existente)==='TURNO'&&existente.alcance==='TIEMPO_RESTANTE'?'TIEMPO_RESTANTE':'TODO_TURNO'):(hayOtros?'TIEMPO_RESTANTE':'TODO_TURNO');   // si la línea ya tiene productos, «el resto» es lo que queda después de ellos
     pt.innerHTML='<h5>Producir durante el bloque, sin una cantidad fija</h5>'+
       '<div class="plan-campos"><label class="completo">Alcance<select id="pm-alcance"><option value="TODO_TURNO"'+(alcIni==='TODO_TURNO'?' selected':'')+'>Todo el turno</option><option value="TIEMPO_RESTANTE"'+(alcIni==='TIEMPO_RESTANTE'?' selected':'')+'>Producir durante el tiempo restante</option></select></label></div>'+
       '<div id="pm-t-res"></div>';
 
+    const ph=fondo.querySelector('#pm-panel-h');
+    if(ph)ph.innerHTML='<h5>Producir este producto hasta una hora</h5><div class="plan-campos"><label class="completo">Hasta las<input type="time" id="pm-hora"></label></div><div id="pm-h-res"></div>'+
+      '<div class="pm-info">Se agrega como un paso más al final de la secuencia de la línea; la cantidad es una estimación con la velocidad nominal.</div>';
     const cant=q('pe-cant'),guardarBtn=q('pe-guardar');
     const textoBoton=t=>{guardarBtn.textContent=t;};
     const pintarCompletar=()=>{
@@ -496,11 +500,12 @@
     const aplicarModo=()=>{
       const m=modoActual();
       fondo.querySelectorAll('.pm-modos label').forEach(l=>{const r=l.querySelector('input');l.classList.toggle('on',r.checked);l.lastChild.nodeValue=l.lastChild.nodeValue.replace(/ ✓$/,'')+(r.checked?' ✓':'');});
-      pc.style.display=m==='COMPLETAR'?'':'none';pt.style.display=m==='TURNO'?'':'none';
-      const fija=m==='FIJA';
+      pc.style.display=m==='COMPLETAR'?'':'none';pt.style.display=m==='TURNO'?'':'none';if(ph)ph.style.display=m==='HORA'?'':'none';
+      const fija=m==='FIJA'||m==='HORA';
       cant.readOnly=!fija;cant.closest('label').firstChild.nodeValue=fija?'Cantidad programada (UND)':(m==='COMPLETAR'?'Saldo asignado al bloque (UND)':'Cantidad estimada (UND)');
-      if(fija){textoBoton('Guardar');guardarBtn.disabled=false;calc=null;}
-      else if(m==='COMPLETAR')pintarCompletar();else pintarTurno();
+      if(m==='HORA'){textoBoton('Agregar a la secuencia');guardarBtn.disabled=false;calc=null;cant.value='';cant.placeholder='Estimada al guardar';cant.closest('label').style.display='none';}
+      else if(fija){cant.closest('label').style.display='';textoBoton('Guardar');guardarBtn.disabled=false;calc=null;}
+      else if(m==='COMPLETAR'){cant.closest('label').style.display='';pintarCompletar();}else{cant.closest('label').style.display='';pintarTurno();}
     };
     fondo.addEventListener('change',e=>{
       const t=e.target;if(!t||!t.id&&t.name!=='pm-modo')return;
@@ -517,6 +522,7 @@
       leer(){
         const m=modoActual(),c=campos();
         if(m==='FIJA')return {modo:'FIJA',datos:{modo:'FIJA',cantidad:Number(cant.value)}};
+        if(m==='HORA'){const h=(fondo.querySelector('#pm-hora')||{}).value||'';if(!/^\d{2}:\d{2}$/.test(h))throw new Error('Elige la hora hasta la que se producirá.');return {modo:'HORA',hora:h,datos:{modo:'HORA',cantidad:0}};}
         if(m==='COMPLETAR'){
           pintarCompletar();      // vuelve a validar con lo más reciente (el cierre pudo confirmarse mientras se llenaba el formulario)
           if(!calc||!calc.ok)throw new Error(calc&&calc.errores&&calc.errores.length?calc.errores.join(' '):'Completa los datos del cierre de referencia.');
