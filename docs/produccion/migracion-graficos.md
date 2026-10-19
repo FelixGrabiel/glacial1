@@ -47,6 +47,10 @@ Se hace **por fases, una pestaña a la vez**. Chart.js sigue cargado hasta que l
 | **Nuevo:** OEE por línea y día | Mapa de calor Apex, 3 rangos según las metas configuradas de OEE (rojo / ámbar / verde), valor dentro de cada celda (hasta 14 días) |
 Los gráficos se crean de uno en uno DESPUÉS del render con `glacialDiferirGrafico` (en `49b-resumen-graficos-diferidos.js`; mismo comportamiento que antes con Chart.js, que se conserva para quien aún lo use). Pestaña Gráficos de la línea: se añadió **KPIs del turno** (anillos radialBar: OEE al centro como total y leyenda con nombre y valor).
 
+## Resumen general · reordenado (después de la fase 4)
+Orden de arriba abajo: encabezado y filtros → aviso de datos incompletos → **8 tarjetas** (OEE, Cumplimiento, Producción, Disponibilidad, Ratio, Merma, Paradas, Horas efectivas) → **Lectura del período** (Qué pasó + el antiguo «Resumen del período») → **Eficiencia (OEE)** (tendencia, OEE por línea, OEE por turno, mapa de calor, disponibilidad y rendimiento) → **Plan, pérdidas y paradas** (estado actual, programado vs producido con % de cumplimiento, ratio, Pareto, minutos de parada, merma, producción por persona) → **Producción** (tendencia por presentación, por turno, por marca, por presentación y marca, por línea y presentación) → **Detalle en tablas** (Por línea, Por turno, Por producto, Merma por componente).
+Se quitó lo que repetía información: las «Tarjetas anteriores» (4), 3 de las 5 tarjetas del bloque de planta (Producción, Cumplimiento, Merma; Paradas y Horas efectivas subieron a la fila de tarjetas), los botones de línea (el desplegable «Toda la planta» de arriba ya cambia la misma variable), el velocímetro de OEE de planta (repetía la tarjeta OEE) y «Cumplimiento por línea» (ahora es el % dentro de «Programado vs producido»). El código vive en 09-resumen.js (plantilla con anclas `rs-anclaje-kpis`, `resumen-anclaje`, `rs-anclaje-detalle`) y 49-resumen-indicadores.js (pinta las secciones `#rgx` y `#rgx-detalle` en esas anclas).
+
 ## Fase 3 · Impacto económico (`58-impacto-dashboard.js`)
 | Tarjeta | Antes | Ahora |
 |---|---|---|

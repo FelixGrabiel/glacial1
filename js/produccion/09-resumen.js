@@ -2326,7 +2326,7 @@ function rsDatosIndustriales(records){
   return {porLinea,pareto,tendencia:[...dias].sort((a,b)=>a[0].localeCompare(b[0]))};
 }
 /* GRAFICOS (fase 2): los 7 gráficos industriales son ApexCharts; rsChart(id, opcionesApex) los crea de uno en uno después del render. */
-const RS_IDS_INDUSTRIAL=['ri-plan-real','ri-cumplimiento','ri-pareto','ri-paradas','ri-merma','ri-ratio','ri-personal'];
+const RS_IDS_INDUSTRIAL=['ri-plan-real','ri-pareto','ri-paradas','ri-merma','ri-ratio','ri-personal'];
 function rsDestroyIndustrial(){
   RS_IDS_INDUSTRIAL.forEach(id=>{ if(typeof graficosDestruir==='function')graficosDestruir(id); });
   resumenIndustrialCharts={};
@@ -2353,17 +2353,13 @@ function rsInsight(data){
 }
 function renderResumenIndustrial(records,rangoLabel){
   rsDestroyIndustrial();
-  const anchor=document.getElementById('resumen-anclaje')||document.getElementById('resumen-kpis');if(!anchor)return;
+  const anchor=document.getElementById('resumen-anclaje');if(!anchor)return;
   const data=rsDatosIndustriales(records);
   const estados=rsEstadoLineas();
   const totalParadas=data.porLinea.reduce((a,x)=>a+x.minParadas,0);
-  const totalProg=data.porLinea.reduce((a,x)=>a+x.programado,0);
-  const totalProd=data.porLinea.reduce((a,x)=>a+x.producido,0);
-  const cumplimiento=GlacialIndicadores.cumplimiento(totalProd,totalProg)??0;
-  const totalMerma=data.porLinea.reduce((a,x)=>a+x.merma,0);
-  const mermaPct=GlacialIndicadores.merma(totalMerma,totalProd)??0;          // misma fórmula que la tarjeta del Resumen: suma de mermas ÷ producción efectiva
   const horasEf=data.porLinea.reduce((a,x)=>a+x.minEfectivos,0)/60;
-  const filtros=(typeof glacialLineasPermitidas==='function'?glacialLineasPermitidas(['TODAS','PET1','PET2','B7L','C20L','B20L']):['TODAS','PET1','PET2','B7L','C20L','B20L']);
+  /* Lo que ya no se dibuja aquí (tarjetas Paradas / Horas efectivas y el «Resumen del período») lo lee 49-resumen-indicadores.js para mostrarlo arriba, con las demás tarjetas. */
+  window.glacialResumenIndustrial={paradas:totalParadas,horasEfectivas:horasEf,frases:rsInsight(data)};
 
   const sec=document.createElement('section');
   sec.className='rs-industrial';
@@ -2381,25 +2377,16 @@ function renderResumenIndustrial(records,rangoLabel){
       .ri-read{margin-top:12px;background:#f7fafc;border:1px solid #dce5ea;border-left:4px solid #5a9fd6;border-radius:9px;padding:14px}.ri-read ul{margin:0;padding-left:19px}.ri-read li{margin:5px 0;color:#435b69;font-size:12px}
       @media(max-width:900px){.ri-status,.ri-kpis{grid-template-columns:repeat(2,1fr)}.ri-grid{grid-template-columns:1fr}.ri-box.wide{grid-column:auto}}@media(max-width:520px){.ri-status,.ri-kpis{grid-template-columns:1fr}}
     </style>
-    <div class="ri-filter">${filtros.map(x=>`<button class="${resumenFiltroLinea===x?'active':''}" onclick="resumenSeleccionarLinea('${x}')">${x==='TODAS'?'Toda la planta':rsLineaNombre(x)}</button>`).join('')}</div>
+    <div class="rs-section">Plan, pérdidas y paradas</div>
     <div class="ri-pulse"><h3>Estado actual de planta</h3><div class="ri-status">${estados.map(e=>`<div class="ri-state"><b>${rsLineaNombre(e.linea)}</b><span class="ri-dot ${e.nivel}"></span>${e.estado}</div>`).join('')}</div></div>
     <div class="ri-grid">
-      <div class="ri-box"><h3>Programado vs producido por línea</h3><div class="ri-canvas"><div id="ri-plan-real" style="width:100%;height:100%;"></div></div></div>
-      <div class="ri-box"><h3>Cumplimiento por línea</h3><div class="ri-canvas"><div id="ri-cumplimiento" style="width:100%;height:100%;"></div></div></div>
+      <div class="ri-box"><h3>Programado vs producido y cumplimiento por línea</h3><div class="ri-canvas"><div id="ri-plan-real" style="width:100%;height:100%;"></div></div></div>
+      <div class="ri-box"><h3>Ratio Turno vs nominal</h3><div class="ri-canvas"><div id="ri-ratio" style="width:100%;height:100%;"></div></div></div>
       <div class="ri-box wide"><h3>Pareto de causas de parada</h3><div class="ri-canvas tall"><div id="ri-pareto" style="width:100%;height:100%;"></div></div></div>
       <div class="ri-box"><h3>Minutos de parada por línea</h3><div class="ri-canvas"><div id="ri-paradas" style="width:100%;height:100%;"></div></div></div>
       <div class="ri-box"><h3>Merma registrada por línea</h3><div class="ri-canvas"><div id="ri-merma" style="width:100%;height:100%;"></div></div></div>
-      <div class="ri-box"><h3>Ratio Turno vs nominal</h3><div class="ri-canvas"><div id="ri-ratio" style="width:100%;height:100%;"></div></div></div>
-      <div class="ri-box"><h3>Producción por persona</h3><div class="ri-canvas"><div id="ri-personal" style="width:100%;height:100%;"></div></div></div>
-    </div>
-    <div class="ri-kpis">
-      <div class="ri-kpi"><span>Producción visible</span><b>${Math.round(totalProd).toLocaleString('es-PE')}</b><small>No mezcla interpretación entre formatos</small></div>
-      <div class="ri-kpi"><span>Cumplimiento</span><b>${totalProg?(cumplimiento*100).toFixed(1)+'%':'—'}</b><small>Producido / programado</small></div>
-      <div class="ri-kpi"><span>Paradas</span><b>${Math.round(totalParadas).toLocaleString('es-PE')} min</b><small>Acumulado</small></div>
-      <div class="ri-kpi"><span>Horas efectivas</span><b>${horasEf.toFixed(1)} h</b><small>Tiempo − paradas</small></div>
-      <div class="ri-kpi"><span>Merma</span><b>${mermaPct?(mermaPct*100).toFixed(1)+'%':'0.0%'}</b><small>Suma de mermas ÷ producción efectiva</small></div>
-    </div>
-    <div class="ri-read"><h3>Resumen del período</h3><ul>${rsInsight(data).map(x=>`<li>${escaparHtml(x)}</li>`).join('')}</ul></div>`;
+      <div class="ri-box wide"><h3>Producción por persona</h3><div class="ri-canvas"><div id="ri-personal" style="width:100%;height:100%;"></div></div></div>
+    </div>`;
   anchor.parentNode.insertBefore(sec,anchor);
 
   const labels=data.porLinea.map(x=>rsLineaNombre(x.linea));
@@ -2407,14 +2394,16 @@ function renderResumenIndustrial(records,rangoLabel){
   const colI=(arr,col)=>({colors:arr,chart:{type:'bar'},plotOptions:{bar:{distributed:true,columnWidth:'55%',borderRadius:5,dataLabels:{position:'top'}}},legend:{show:false}});
   const topeI=vals=>Math.max(0,...vals)>0?Math.max(...vals)*1.18:1;
   const etiquetaI={enabled:true,offsetY:-20,formatter:v=>fI(v),style:{colors:['#4A5663'],fontSize:'11px',fontWeight:700}};
-  rsChart('ri-plan-real',{chart:{type:'bar'},series:[{name:'Programado',data:data.porLinea.map(x=>x.programado)},{name:'Producido',data:data.porLinea.map(x=>x.producido)}],
-    colors:[GI.COLOR.azulSuave,GI.COLOR.azul],plotOptions:{bar:{columnWidth:'60%',borderRadius:4}},dataLabels:{enabled:false},xaxis:{categories:labels},
-    yaxis:{min:0,labels:{formatter:fI}},legend:{position:'bottom'},tooltip:{shared:true,intersect:false,y:{formatter:v=>fI(v)+' unidades'}}});
-  const cumplVals=data.porLinea.map(x=>x.programado?rI(x.cumplimiento*100):0);
-  rsChart('ri-cumplimiento',{...colI(cumplVals.map(v=>colorCumplimiento(v))),series:[{name:'Cumplimiento %',data:cumplVals}],dataLabels:{...etiquetaI,formatter:v=>rI(v)+'%'},
-    xaxis:{categories:labels},yaxis:{min:0,max:Math.max(110,Math.max(0,...cumplVals)*1.15),labels:{formatter:v=>Math.round(v)+'%'}},
-    annotations:{yaxis:[{y:GI.METAS_GRAFICOS.cumplimiento,borderColor:'#4A5663',strokeDashArray:5,label:{text:'Meta '+GI.METAS_GRAFICOS.cumplimiento+'%',position:'right',offsetY:-4,style:{color:'#fff',background:'#4A5663',fontSize:'10px'}}}]},
-    tooltip:{y:{formatter:v=>rI(v)+'% del programa'}}});
+  const cumplVals=data.porLinea.map(x=>x.programado?rI(x.cumplimiento*100):null);
+  rsChart('ri-plan-real',{chart:{type:'line'},
+    series:[{name:'Programado',type:'column',data:data.porLinea.map(x=>x.programado)},{name:'Producido',type:'column',data:data.porLinea.map(x=>x.producido)},{name:'Cumplimiento %',type:'line',data:cumplVals}],
+    colors:[GI.COLOR.azulSuave,GI.COLOR.azul,GI.COLOR.oscuro],stroke:{width:[0,0,0]},plotOptions:{bar:{columnWidth:'60%',borderRadius:4}},
+    markers:{size:[0,0,7],strokeColors:'#fff',strokeWidth:2,discrete:cumplVals.map((v,i)=>({seriesIndex:2,dataPointIndex:i,fillColor:v==null?GI.COLOR.gris:colorCumplimiento(v),strokeColor:'#fff',size:7}))},
+    dataLabels:{enabled:true,enabledOnSeries:[2],offsetY:-10,formatter:v=>v==null?'':rI(v)+'%',style:{colors:['#1F2D3A'],fontSize:'11px',fontWeight:700}},
+    xaxis:{categories:labels},
+    yaxis:[{seriesName:'Programado',min:0,labels:{formatter:fI}},{seriesName:'Programado',show:false,min:0},{seriesName:'Cumplimiento %',opposite:true,min:0,max:Math.max(120,Math.max(0,...cumplVals.filter(v=>v!=null))*1.1),labels:{formatter:v=>Math.round(v)+'%'}}],
+    annotations:{yaxis:[{y:GI.METAS_GRAFICOS.cumplimiento,yAxisIndex:2,borderColor:'#4A5663',strokeDashArray:5,label:{text:'Meta '+GI.METAS_GRAFICOS.cumplimiento+'%',position:'right',offsetY:-4,style:{color:'#fff',background:'#4A5663',fontSize:'10px'}}}]},
+    legend:{position:'bottom'},tooltip:{shared:true,intersect:false,y:{formatter:(v,o)=>v==null?'—':(o.seriesIndex===2?rI(v)+'% del programa':fI(v)+' unidades')}}});
   rsChart('ri-ratio',{chart:{type:'bar'},series:[{name:'Nominal',data:data.porLinea.map(x=>rI(x.nominal))},{name:'Ratio Turno',data:data.porLinea.map(x=>rI(x.ratio))}],
     colors:[GI.COLOR.azulSuave,GI.COLOR.azul],plotOptions:{bar:{columnWidth:'60%',borderRadius:4}},dataLabels:{enabled:false},xaxis:{categories:labels},
     yaxis:{min:0,labels:{formatter:fI}},legend:{position:'bottom'},tooltip:{shared:true,intersect:false,y:{formatter:v=>fI(v)}}});
@@ -3270,8 +3259,129 @@ function renderResumen(main){
       </div>
 
 
+      <div id="rs-anclaje-kpis"></div>
+
+      <div class="chart-grid">
+        <div class="rs-section">Eficiencia (OEE)</div>
+<div class="chart-box rs-w12">
+
+          <h4>Tendencia de OEE de planta</h4>
+
+          <div class="chart-desc">
+            Evolución del OEE combinado de todas las líneas
+            visibles, día por día, en ${rangoLabel}, contra la
+            meta de planta (${METAS_GRAFICOS.oee}%).
+          </div>
+
+          <div class="rs-canvas "><div id="chart-tendencia-oee" class="gx-fill"></div></div>
+
+          <div id="insight-tendencia-oee"></div>
+
+        </div><div class="chart-box">
+
+          <h4>OEE por línea</h4>
+
+          <div class="chart-desc">
+            Eficiencia global de cada línea en ${rangoLabel},
+            comparada contra la meta de planta (${METAS_GRAFICOS.oee}%).
+          </div>
+
+          <div class="rs-legend">
+            <span><b style="background:${PAL_R.verde}"></b>En meta</span>
+            <span><b style="background:${PAL_R.ambar}"></b>Cerca de la meta</span>
+            <span><b style="background:${PAL_R.rojo}"></b>Bajo la meta</span>
+          </div>
+
+          <div class="rs-canvas "><div id="chart-oee-linea" class="gx-fill"></div></div>
+
+          <div id="insight-oee-linea"></div>
+
+        </div><div class="chart-box">
+          <h4>OEE por turno</h4>
+          <div class="chart-desc">
+            OEE acumulado de cada turno (Día, Intermedio, Noche) en ${rangoLabel}, contra la meta.
+          </div>
+          <div class="rs-canvas "><div id="chart-oee-turno" class="gx-fill"></div></div>
+        </div><div class="chart-box rs-w12">
+          <h4>Mapa de calor: OEE por línea y día</h4>
+          <div class="chart-desc">
+            OEE de cada línea día por día en ${rangoLabel}: verde en meta (≥ ${METAS_GRAFICOS.oee}%), ámbar cerca de la meta, rojo por debajo.
+          </div>
+          <div style="padding:0 0 6px;"><div id="chart-heat-oee" style="width:100%;height:220px;"></div></div>
+        </div><div class="chart-box rs-w12">
+
+          <h4>Disponibilidad y rendimiento por línea</h4>
+
+          <div class="chart-desc">
+            Los dos componentes que multiplicados dan el OEE de
+            cada línea — ayuda a identificar de dónde vienen las
+            pérdidas en ${rangoLabel}.
+          </div>
+
+          <div class="rs-canvas "><div id="chart-componentes-oee" class="gx-fill"></div></div>
+
+          <div id="insight-componentes-oee"></div>
+
+        </div>
+      </div>
+
       <div id="resumen-anclaje"></div>
 
+      <div class="chart-grid">
+        <div class="rs-section">Producción</div>
+<div class="chart-box rs-w12">
+
+          <h4>Tendencia de producción por presentación</h4>
+
+          <div class="chart-desc">
+            Unidades efectivas producidas cada día en ${rangoLabel},
+            apiladas por presentación — muestra el volumen diario
+            y qué formatos lo componen.
+          </div>
+
+          <div class="rs-canvas "><div id="chart-prod-dia" class="gx-fill"></div></div>
+
+          <div id="insight-prod-dia"></div>
+
+        </div><div class="chart-box rs-w5">
+
+          <h4>Producción por turno</h4>
+
+          <div class="chart-desc">
+            Total de unidades efectivas por turno (Día, Intermedio,
+            Noche) en ${rangoLabel}.
+          </div>
+
+          <div class="rs-canvas "><div id="chart-prod-turno" class="gx-fill"></div></div>
+
+          <div id="insight-prod-turno"></div>
+
+        </div>
+      </div>
+
+      <div class="rs-panel">
+
+        <div class="rs-panel-head">
+
+          <h3>Producción por marca</h3>
+
+          <div class="chart-desc">
+            Total de unidades efectivas por marca en ${rangoLabel}.
+          </div>
+
+        </div>
+
+        <div
+          class="rs-table-wrap"
+          id="resumen-marcas"
+        ></div>
+
+        <div
+          style="padding:4px 20px 18px;"
+          id="insight-marcas"
+        ></div>
+
+      </div>
 
       <div class="rs-panel" id="panel-presentacion-marca">
 
@@ -3307,166 +3417,7 @@ function renderResumen(main){
 
       </div>
 
-
-      <div class="chart-grid">
-
-        <div class="rs-section">Producción</div>
-
-        <div class="chart-box rs-w12">
-
-          <h4>Tendencia de producción por presentación</h4>
-
-          <div class="chart-desc">
-            Unidades efectivas producidas cada día en ${rangoLabel},
-            apiladas por presentación — muestra el volumen diario
-            y qué formatos lo componen.
-          </div>
-
-          <div class="rs-canvas "><div id="chart-prod-dia" class="gx-fill"></div></div>
-
-          <div id="insight-prod-dia"></div>
-
-        </div>
-
-
-        <div class="chart-box rs-w5">
-
-          <h4>Producción por turno</h4>
-
-          <div class="chart-desc">
-            Total de unidades efectivas por turno (Día, Intermedio,
-            Noche) en ${rangoLabel}.
-          </div>
-
-          <div class="rs-canvas "><div id="chart-prod-turno" class="gx-fill"></div></div>
-
-          <div id="insight-prod-turno"></div>
-
-        </div>
-
-
-        
-
-
-        <div class="rs-section">Eficiencia (OEE)</div>
-
-        <div class="chart-box rs-w12">
-
-          <h4>Tendencia de OEE de planta</h4>
-
-          <div class="chart-desc">
-            Evolución del OEE combinado de todas las líneas
-            visibles, día por día, en ${rangoLabel}, contra la
-            meta de planta (${METAS_GRAFICOS.oee}%).
-          </div>
-
-          <div class="rs-canvas "><div id="chart-tendencia-oee" class="gx-fill"></div></div>
-
-          <div id="insight-tendencia-oee"></div>
-
-        </div>
-        <div class="chart-box rs-w12">
-          <h4>Mapa de calor: OEE por línea y día</h4>
-          <div class="chart-desc">
-            OEE de cada línea día por día en ${rangoLabel}: verde en meta (≥ ${METAS_GRAFICOS.oee}%), ámbar cerca de la meta, rojo por debajo.
-          </div>
-          <div style="padding:0 0 6px;"><div id="chart-heat-oee" style="width:100%;height:220px;"></div></div>
-        </div>
-
-
-        <div class="chart-box">
-          <h4>OEE de planta</h4>
-          <div class="chart-desc">
-            OEE combinado de todas las líneas visibles en ${rangoLabel}, con la marca de la meta (${METAS_GRAFICOS.oee}%).
-          </div>
-          <div class="rs-canvas "><div id="chart-oee-planta" class="gx-fill"></div></div>
-        </div>
-        <div class="chart-box">
-          <h4>OEE por turno</h4>
-          <div class="chart-desc">
-            OEE acumulado de cada turno (Día, Intermedio, Noche) en ${rangoLabel}, contra la meta.
-          </div>
-          <div class="rs-canvas "><div id="chart-oee-turno" class="gx-fill"></div></div>
-        </div>
-        <div class="chart-box">
-
-          <h4>OEE por línea</h4>
-
-          <div class="chart-desc">
-            Eficiencia global de cada línea en ${rangoLabel},
-            comparada contra la meta de planta (${METAS_GRAFICOS.oee}%).
-          </div>
-
-          <div class="rs-legend">
-            <span><b style="background:${PAL_R.verde}"></b>En meta</span>
-            <span><b style="background:${PAL_R.ambar}"></b>Cerca de la meta</span>
-            <span><b style="background:${PAL_R.rojo}"></b>Bajo la meta</span>
-          </div>
-
-          <div class="rs-canvas "><div id="chart-oee-linea" class="gx-fill"></div></div>
-
-          <div id="insight-oee-linea"></div>
-
-        </div>
-
-
-        <div class="chart-box">
-
-          <h4>Disponibilidad y rendimiento por línea</h4>
-
-          <div class="chart-desc">
-            Los dos componentes que multiplicados dan el OEE de
-            cada línea — ayuda a identificar de dónde vienen las
-            pérdidas en ${rangoLabel}.
-          </div>
-
-          <div class="rs-canvas "><div id="chart-componentes-oee" class="gx-fill"></div></div>
-
-          <div id="insight-componentes-oee"></div>
-
-        </div>
-
-
-        <div class="rs-section">Pérdidas y paradas</div>
-
-        
-
-
-        
-
-      </div>
-
-
-      <div class="rs-panel">
-
-        <div class="rs-panel-head">
-
-          <h3>Producción por marca</h3>
-
-          <div class="chart-desc">
-            Total de unidades efectivas por marca en ${rangoLabel}.
-          </div>
-
-        </div>
-
-        <div
-          class="rs-table-wrap"
-          id="resumen-marcas"
-        ></div>
-
-        <div
-          style="padding:4px 20px 18px;"
-          id="insight-marcas"
-        ></div>
-
-      </div>
-
-      <div class="rs-section" style="margin-top:18px">Tarjetas anteriores (mismos valores que la cabecera de arriba)</div>
-
-      <div
-        class="rs-kpis"
-        id="resumen-kpis"
-      ></div>
+      <div id="rs-anclaje-detalle"></div>
 
     </div>
 
@@ -3476,17 +3427,6 @@ function renderResumen(main){
 
 
   if(!records.length){
-
-    document.getElementById(
-      'resumen-kpis'
-    ).innerHTML = `
-
-      <div class="small-muted" style="padding:10px 0;">
-        No hay registros en ${rangoLabel} para las
-        líneas que puedes ver.
-      </div>
-
-    `;
 
     document.getElementById(
       'resumen-marcas'
@@ -3537,37 +3477,6 @@ function renderResumen(main){
     serieProdDia.length
       ? kpis.efectivaTotal / serieProdDia.length
       : 0;
-
-  document.getElementById('resumen-kpis').innerHTML =
-
-    tarjetaKpiResumen({
-      label:'OEE de planta',
-      valor:kpis.oee == null ? '—' : pct(kpis.oee),
-      clase:kpis.oee == null ? '' : claseSegunMeta(kpis.oee, METAS.oee),
-      barra:{ pct:kpis.oee || 0, meta:METAS.oee },
-      pie:(kpis.oee == null ? 'Falta velocidad estándar' : 'Meta ' + pct(METAS.oee))
-    }) +
-
-    tarjetaKpiResumen({
-      label:'Disponibilidad',
-      valor:pct(kpis.disponibilidad),
-      clase:claseSegunMeta(kpis.disponibilidad, METAS.disponibilidad),
-      barra:{ pct:kpis.disponibilidad, meta:METAS.disponibilidad },
-      pie:'Meta ' + pct(METAS.disponibilidad)
-    }) +
-
-    tarjetaProduccionTotalPorLinea(records, kpis.efectivaTotal) +
-
-    tarjetaKpiResumen({
-      label:'Merma de planta',
-      valor:pct(kpis.mermaPct),
-      inverso:true,
-      clase:claseSegunMetaInversa(kpis.mermaPct, METAS.merma),
-      barra:{ pct:kpis.mermaPct / (METAS.merma * 3), meta:1 / 3 },
-      pie:'Meta ≤ ' + pct(METAS.merma)
-    });
-
-
 
   /* GRAFICOS (fase 2): los gráficos del Resumen son ApexCharts / ECharts (capa común: 08a-graficos-base.js). Se crean de uno en uno
      DESPUÉS del render (49b: glacialDiferirGrafico) para no bloquear la pantalla. Metas y colores: METAS_GRAFICOS / colorKpi. */
@@ -3756,13 +3665,9 @@ function renderResumen(main){
   }));
 
   /* =====================================================
-     NUEVOS (con datos que el Resumen ya calcula): velocímetro del OEE de planta, OEE por turno (área)
+     NUEVOS (con datos que el Resumen ya calcula): OEE por turno (área)
      y mapa de calor del OEE por línea y día.
   ===================================================== */
-  registrarR('oeePlanta', 'chart-oee-planta');
-  if(kpis.oee == null) sinDatosR('chart-oee-planta', 'Falta velocidad estándar para calcular el OEE.');
-  else diferir(() => velocimetroOEE('chart-oee-planta', r1R(kpis.oee * 100), { nombre:'OEE de planta', clave:'oee' }));
-
   const oeePorTurno = agruparOEEPorTurno(records);
   registrarR('oeeTurno', 'chart-oee-turno');
   if(!oeePorTurno.length) sinDatosR('chart-oee-turno', 'Sin registros para comparar por turno.');

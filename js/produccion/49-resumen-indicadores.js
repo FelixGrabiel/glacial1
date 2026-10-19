@@ -510,7 +510,7 @@
       .rgx-nota{font-size:11px;color:#6B7784;margin:4px 0 8px}
       .rgx-aviso{background:#FFF7ED;border:1px solid #FCE3C0;color:#8A5A1E;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px}
       .rgx-aviso ul{margin:4px 0 0;padding-left:18px}
-      .rgx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:8px 0}
+      .rgx-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:8px 0}@media(max-width:900px){.rgx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
       .rgx-k{background:#fff;border:1px solid #dce5ea;border-left:5px solid #aab7bf;border-radius:10px;padding:10px 12px;cursor:pointer}
       .rgx-k:hover{border-color:#073f68}.rgx-k.verde{border-left-color:#2e8b57}.rgx-k.ambar{border-left-color:#d89216}.rgx-k.roja{border-left-color:#c4472b}
       .rgx-k span{display:block;font-size:11px;text-transform:uppercase;color:#71828d;font-weight:700}
@@ -586,12 +586,29 @@
   }
 
   function htmlKpis(R){
-    return '<div class="rgx-kpis">'+R.kpis.map(k=>{
+    const ORDEN=['oee','cumplimiento','produccion','disponibilidad','ratio','merma'];   // el OEE primero: es lo que más mira gerencia
+    const kpis=R.kpis.slice().sort((a,b)=>(ORDEN.indexOf(a.ind)<0?99:ORDEN.indexOf(a.ind))-(ORDEN.indexOf(b.ind)<0?99:ORDEN.indexOf(b.ind)));
+    return '<div class="rgx-kpis">'+kpis.map(k=>{
       const nota=notaKpi(k.ind,R);
       return '<div class="rgx-k '+k.nivel+'" data-rgx-ind="'+k.ind+'" role="button" tabindex="0" title="Ver detalle"><span>'+NOMBRES[k.ind]+'</span><b>'+valorTexto(k.ind,k.valor)+
         (k.ind==='ratio'&&k.valor!=null?' <small style="display:inline">UND/h</small>':'')+'</b>'+textoVar(k.ind,k.variacion)+
         '<small>'+metaTexto(k.ind)+'</small>'+(nota?'<small>'+nota+'</small>':'')+'</div>';
-    }).join('')+'</div>';
+    }).join('')+extraKpis()+'</div>';
+  }
+  /* Paradas y Horas efectivas: las calcula el bloque «Plan, pérdidas y paradas» (09-resumen.js) y quedan aquí, con las demás tarjetas. */
+  function extraKpis(){
+    const I=window.glacialResumenIndustrial;
+    if(!I)return '';
+    const una=(t,v,n)=>'<div class="rgx-k" style="cursor:default"><span>'+t+'</span><b>'+v+'</b><small>'+n+'</small></div>';
+    return una('Paradas',fmtN(I.paradas)+' <small style="display:inline">min</small>','Acumulado del período')+
+           una('Horas efectivas',fmtD(I.horasEfectivas,1)+' <small style="display:inline">h</small>','Tiempo − paradas');
+  }
+  /* «Qué pasó» + el resumen de planta (antes un cuadro aparte, «Resumen del período») en un solo bloque de lectura. */
+  function htmlLectura(R){
+    const I=window.glacialResumenIndustrial,extra=I&&I.frases&&I.frases.length?I.frases:[];
+    return '<div class="rgx-box"><h4>Lectura del período</h4>'+
+      (R.queFrases.length?'<ol>'+R.queFrases.map(t=>'<li>'+t+'</li>').join('')+'</ol>':'<div class="rgx-nota">No hay datos suficientes en el periodo.</div>')+
+      (extra.length?'<ul style="margin:8px 0 0;padding-left:19px">'+extra.map(t=>'<li>'+esc(t)+'</li>').join('')+'</ul>':'')+'</div>';
   }
   function htmlTablaComparativa(titulo,filas,conClick){
     if(!filas.length)return '<div class="rgx-box"><h4>'+titulo+'</h4><div class="rgx-nota">Sin datos en el periodo.</div></div>';
@@ -684,27 +701,36 @@
       '<button type="button" class="rgx-btn'+(F.comoAbierto?' on':'')+'" data-rgx-como>¿Cómo se calcula?</button></div></div>'+
       '<div class="rgx-nota">Desde el '+fmtFecha(FECHA_CAMBIO)+' todos los periodos, también los pasados, se calculan con las definiciones actuales de disponibilidad, merma y ratio; las cifras de reportes anteriores a esa fecha pueden diferir.'+
       ((F.marca||F.pres)?' · Los gráficos de abajo muestran los registros que incluyen esa marca y presentación.':'')+'</div>'+
-      htmlAvisos(R)+htmlKpis(R)+
-      '<div class="rgx-box"><h4>Qué pasó</h4>'+(R.queFrases.length?'<ol>'+R.queFrases.map(t=>'<li>'+t+'</li>').join('')+'</ol>':'<div class="rgx-nota">No hay datos suficientes en el periodo.</div>')+'</div>'+
+      htmlAvisos(R)+htmlKpis(R)+htmlLectura(R)+
       htmlDetalle(R)+
+      (F.comoAbierto?'<div class="rgx-box"><h4>¿Cómo se calcula?</h4><dl class="rgx-como">'+DEFINICIONES.map(([t,x])=>'<dt>'+esc(t)+'</dt><dd>'+esc(x)+'</dd>').join('')+'</dl></div>':'');
+  }
+  /* Tablas de consulta (van al final del Resumen general, después de los gráficos). */
+  function htmlTablas(R){
+    return '<div class="rs-section" style="margin-top:18px">Detalle en tablas</div>'+
       htmlTablaComparativa('Por línea',R.porLinea,true)+
       '<div class="rgx-grid3">'+htmlTablaComparativa('Por turno',R.porTurno,false)+htmlTablaComparativa('Por producto',R.porProducto,false)+'</div>'+
-      htmlMerma(R)+
-      (F.comoAbierto?'<div class="rgx-box"><h4>¿Cómo se calcula?</h4><dl class="rgx-como">'+DEFINICIONES.map(([t,x])=>'<dt>'+esc(t)+'</dt><dd>'+esc(x)+'</dd>').join('')+'</dl></div>':'');
+      htmlMerma(R);
   }
 
   let ultimo=null;
   function pintar(){
-    // Orden de lectura: cabecera → mis indicadores → bloque de planta (industrial) → resto. Se inserta antes del bloque industrial.
-    const ind=typeof document.querySelector==='function'?document.querySelector('.rs-industrial'):null;
-    const ref=ind||document.getElementById('resumen-anclaje')||document.getElementById('resumen-kpis');
-    if(!ref||!ref.parentNode)return;
+    // Orden de lectura: cabecera → indicadores y lectura (arriba) → gráficos → tablas de detalle (al final). Cada parte se ancla en la plantilla de 09-resumen.js.
+    const refTop=document.getElementById('rs-anclaje-kpis')||document.querySelector('.rs-industrial')||document.getElementById('resumen-anclaje');
+    if(!refTop||!refTop.parentNode)return;
     estilos();
-    let sec=document.getElementById('rgx');
-    if(!sec){sec=document.createElement('section');sec.id='rgx';sec.className='rgx';ref.parentNode.insertBefore(sec,ref);}
+    const asegurar=(id,ref)=>{
+      let sec=document.getElementById(id);
+      if(!sec){sec=document.createElement('section');sec.id=id;sec.className='rgx';ref.parentNode.insertBefore(sec,ref);}
+      return sec;
+    };
+    const sec=asegurar('rgx',refTop);
+    const refDet=document.getElementById('rs-anclaje-detalle');
+    const secDet=refDet?asegurar('rgx-detalle',refDet):null;
     try{
       ultimo=calcular();
       sec.innerHTML=htmlSeccion(ultimo);
+      if(secDet)secDet.innerHTML=htmlTablas(ultimo);
     }catch(e){
       console.warn('Indicadores del resumen:',e&&e.message||e);
       sec.innerHTML='<div class="rgx-aviso">No se pudieron calcular los indicadores: '+esc((e&&e.message)||e)+'</div>';

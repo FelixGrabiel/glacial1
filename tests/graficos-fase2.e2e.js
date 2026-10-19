@@ -11,8 +11,8 @@ if (!LIBS) { console.log('Falta GLX_LIBS. Prueba omitida.'); process.exit(0); }
 let fallas = 0;
 const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fallas++; };
 
-const IDS = ['chart-presentacion-marca', 'chart-prod-dia', 'chart-prod-turno', 'chart-oee-planta', 'chart-oee-turno', 'chart-oee-linea', 'chart-componentes-oee',
-  'chart-tendencia-oee', 'chart-heat-oee', 'ri-plan-real', 'ri-cumplimiento', 'ri-pareto', 'ri-paradas', 'ri-merma', 'ri-ratio', 'ri-personal'];
+const IDS = ['chart-presentacion-marca', 'chart-prod-dia', 'chart-prod-turno', 'chart-oee-turno', 'chart-oee-linea', 'chart-componentes-oee',
+  'chart-tendencia-oee', 'chart-heat-oee', 'ri-plan-real', 'ri-pareto', 'ri-paradas', 'ri-merma', 'ri-ratio', 'ri-personal'];
 
 (async () => {
   const H = await iniciar();
@@ -62,7 +62,7 @@ const IDS = ['chart-presentacion-marca', 'chart-prod-dia', 'chart-prod-turno', '
       return out;
     }, IDS);
     const dib = IDS.filter(id => m[id] && m[id].dibujado);
-    ok(dib.length === 16, nombre + ': los 16 gráficos se dibujan (' + dib.length + '/16' + (dib.length < 16 ? ' · faltan: ' + IDS.filter(id => !(m[id] && m[id].dibujado)).join(', ') : '') + ')');
+    ok(dib.length === IDS.length, nombre + ': los ' + IDS.length + ' gráficos se dibujan (' + dib.length + '/' + IDS.length + (dib.length < IDS.length ? ' · faltan: ' + IDS.filter(id => !(m[id] && m[id].dibujado)).join(', ') : '') + ')');
     ok(IDS.every(id => m[id] && m[id].dentro && m[id].hijoDentro), nombre + ': todos caben dentro de su tarjeta' + (IDS.filter(id => m[id] && !(m[id].dentro && m[id].hijoDentro)).length ? ' · fuera: ' + IDS.filter(id => m[id] && !(m[id].dentro && m[id].hijoDentro)).join(', ') : ''));
     ok(m.desborde <= 1, nombre + ': la página no tiene desplazamiento horizontal (' + m.desborde + ' px)');
     ok(IDS.every(id => m[id] && m[id].alto >= 140), nombre + ': ninguno colapsa (altura ≥ 140 px)');
@@ -70,11 +70,18 @@ const IDS = ['chart-presentacion-marca', 'chart-prod-dia', 'chart-prod-turno', '
     const info = await D.page.evaluate(() => {
       const a = glacialGraficosBase.REG;
       const heat = a.apex['chart-heat-oee'] && a.apex['chart-heat-oee'].inst.w.config.series;
-      const g = a.echarts['chart-oee-planta'] && a.echarts['chart-oee-planta'].inst.getOption().series[0].data[0];
-      return { filasHeat: heat ? heat.length : -1, oeePlanta: g ? g.value : null, destruibles: ['prodDia', 'prodTurno', 'oeeLinea', 'tendenciaOee', 'componentesOee', 'oeePlanta', 'oeeTurno', 'heatOee'].every(k => state.charts[k] && typeof state.charts[k].destroy === 'function') };
+      return { filasHeat: heat ? heat.length : -1, destruibles: ['prodDia', 'prodTurno', 'oeeLinea', 'tendenciaOee', 'componentesOee', 'oeeTurno', 'heatOee'].every(k => state.charts[k] && typeof state.charts[k].destroy === 'function') };
     });
     ok(info.filasHeat === 3, nombre + ': el mapa de calor tiene una fila por línea (' + info.filasHeat + ')');
-    ok(info.oeePlanta > 0 && info.oeePlanta <= 150, nombre + ': el velocímetro de OEE de planta muestra un valor (' + info.oeePlanta + ' %)');
+    const orden = await D.page.evaluate(() => {
+      const y = sel => { const e = document.querySelector(sel); return e ? e.getBoundingClientRect().top + scrollY : null; };
+      const t = txt => { const e = [...document.querySelectorAll('h3,h4,.rs-section')].find(x => x.textContent.trim().startsWith(txt)); return e ? e.getBoundingClientRect().top + scrollY : null; };
+      return { kpis: y('.rgx-kpis'), lectura: t('Lectura del período'), oee: t('Eficiencia (OEE)'), plan: t('Plan, pérdidas y paradas'), prod: t('Producción'), tablas: t('Detalle en tablas'),
+        cards: document.querySelectorAll('.rgx-kpis > .rgx-k').length, gauge: !!document.getElementById('chart-oee-planta'), anteriores: /Tarjetas anteriores/.test(document.body.innerText), ri: document.querySelectorAll('.ri-kpi, .ri-read, .ri-filter').length };
+    });
+    const o = orden;
+    ok(o.kpis < o.lectura && o.lectura < o.oee && o.oee < o.plan && o.plan < o.prod && o.prod < o.tablas, nombre + ': orden en pantalla: tarjetas → lectura → Eficiencia (OEE) → Plan, pérdidas y paradas → Producción → Detalle en tablas');
+    ok(o.cards === 8 && !o.gauge && !o.anteriores && o.ri === 0, nombre + ': 8 tarjetas (6 + Paradas + Horas efectivas), sin velocímetro de OEE de planta, sin «Tarjetas anteriores» ni bloques repetidos');
     ok(info.destruibles, nombre + ': state.charts guarda objetos con destroy() para cada gráfico del cuerpo');
 
     const n1 = await D.page.evaluate(() => Object.values(glacialGraficosBase.graficosActivos()).reduce((a, l) => a + l.length, 0));
@@ -82,7 +89,7 @@ const IDS = ['chart-presentacion-marca', 'chart-prod-dia', 'chart-prod-turno', '
     await D.page.waitForFunction(() => window.__resumenGraficosDiferidos.pendientes() === 0, null, { timeout: 15000 });
     await D.page.waitForTimeout(500);
     const n2 = await D.page.evaluate(() => Object.values(glacialGraficosBase.graficosActivos()).reduce((a, l) => a + l.length, 0));
-    ok(n1 === n2 && n1 >= 16, nombre + ': tras 5 re-renderizados rápidos siguen ' + n2 + ' instancias (no se acumulan ni se duplican)');
+    ok(n1 === n2 && n1 >= IDS.length, nombre + ': tras 5 re-renderizados rápidos siguen ' + n2 + ' instancias (no se acumulan ni se duplican)');
     await D.page.evaluate(() => { document.getElementById('tab-content').innerHTML = ''; graficosDestruirTodo(); });
     const n3 = await D.page.evaluate(() => Object.values(glacialGraficosBase.graficosActivos()).reduce((a, l) => a + l.length, 0));
     ok(n3 === 0, nombre + ': al salir de la pantalla no queda ninguna instancia');

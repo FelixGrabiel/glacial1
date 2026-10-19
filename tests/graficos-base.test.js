@@ -51,7 +51,7 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
   const r=leer('js/produccion/09-resumen.js');
   ok(!/new Chart\(/.test(r),'09-resumen.js ya no crea gráficos con Chart.js (todo es ApexCharts/ECharts)');
   ok(/glacialDiferirGrafico/.test(r)&&/window\.glacialDiferirGrafico\s*=/.test(leer('js/produccion/49b-resumen-graficos-diferidos.js')),'el Resumen crea sus gráficos con glacialDiferirGrafico (49b): de uno en uno, después del render');
-  ok(['chart-oee-planta','chart-oee-turno','chart-heat-oee'].every(id=>r.includes(id)),'gráficos nuevos del Resumen: velocímetro de OEE de planta, OEE por turno y mapa de calor');
+  ok(['chart-oee-turno','chart-heat-oee'].every(id=>r.includes(id))&&!r.includes('chart-oee-planta')&&!r.includes('ri-cumplimiento'),'gráficos del Resumen: OEE por turno y mapa de calor; sin el velocímetro de OEE de planta (repetía la tarjeta) ni «Cumplimiento por línea» (va dentro de «Programado vs producido»)');
   ok(/RS_IDS_INDUSTRIAL/.test(r)&&r.includes('ri-personal'),'los 7 gráficos industriales se registran para destruirlos');
   ok(!/Chart\.register|Chart\.defaults/.test(r),'09-resumen.js ya no toca Chart.register ni Chart.defaults');
   ok(/KPIs del turno/.test(leer('js/produccion/08-graficos.js'))&&/type:'radialBar'/.test(leer('js/produccion/08-graficos.js')),'la pestaña Gráficos tiene los anillos de KPIs (radialBar)');
@@ -70,6 +70,17 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
   const fuentes=['js/produccion/08a-graficos-base.js','js/produccion/08-graficos.js','js/produccion/09-resumen.js'].map(leer).join('\n');
   ok(!/oee:75|\b64\.9\b|\b74\.9\b/.test(fuentes),'sin metas fijas (75 / 64.9 / 74.9) en los gráficos: todo sale de la tabla configurada');
   ok(/glacialMetasIndicadores/.test(leer('js/produccion/08a-graficos-base.js')),'08a lee glacialMetasIndicadores (la tabla de 49-resumen-indicadores)');
+}
+/* Resumen general reordenado: lo más importante arriba, sin bloques repetidos */
+{
+  const r=leer('js/produccion/09-resumen.js'),k=leer('js/produccion/49-resumen-indicadores.js');
+  const pos=id=>r.indexOf(id);
+  ok(pos('id="rs-anclaje-kpis"')<pos('Eficiencia (OEE)')&&pos('Eficiencia (OEE)')<pos('id="resumen-anclaje"')&&pos('id="resumen-anclaje"')<pos('<div class="rs-section">Producción</div>')&&pos('<div class="rs-section">Producción</div>')<pos('id="panel-presentacion-marca"')&&pos('id="panel-presentacion-marca"')<pos('id="rs-anclaje-detalle"'),'orden: KPIs → Eficiencia (OEE) → Plan, pérdidas y paradas → Producción → detalle en tablas');
+  ok(!r.includes('Tarjetas anteriores')&&!r.includes('resumen-kpis'),'se quitaron las «Tarjetas anteriores» (repetían la cabecera)');
+  ok(!r.includes('class="ri-kpis"')&&!r.includes('class="ri-read"')&&!r.includes('ri-filter">$'),'el bloque de planta ya no repite KPIs, «Resumen del período» ni los botones de línea (el filtro es el desplegable de arriba)');
+  ok(/glacialResumenIndustrial=\{paradas/.test(r)&&/extraKpis\(\)/.test(k)&&/htmlLectura\(R\)/.test(k),'Paradas, Horas efectivas y el resumen de planta suben a las tarjetas / lectura de 49');
+  ok(/'oee','cumplimiento','produccion','disponibilidad','ratio','merma'/.test(k),'las tarjetas empiezan por OEE');
+  ok(/id='rgx-detalle'|asegurar\('rgx-detalle'/.test(k)&&/htmlTablas\(R\)/.test(k),'las tablas Por línea / Por turno / Por producto / Merma van al final (rgx-detalle)');
 }
 /* Fase 4: Tareo + Reporte General, y Chart.js retirado */
 {
