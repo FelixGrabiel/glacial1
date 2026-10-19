@@ -4155,7 +4155,7 @@ function renderGraficosTab(){
   /* =====================================================
      GRÁFICOS NUEVOS (ApexCharts · ECharts) — migración desde Chart.js
      // GRAFICOS: la capa común está en 08a-graficos-base.js. Los datos y los cálculos son los de siempre; solo cambia cómo se dibujan.
-     Metas y colores de estos gráficos: METAS_GRAFICOS / colorKpi (oee 75 → <65 rojo, 65–75 ámbar, ≥75 verde).
+     Metas y colores de estos gráficos: METAS_GRAFICOS / colorKpi, leídos de la tabla configurada (sync/configIndicadores): verde ≥ meta, ámbar ≥ umbral ámbar, rojo por debajo.
   ===================================================== */
 
   const GX = window.glacialGraficosBase;

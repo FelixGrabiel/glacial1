@@ -10,14 +10,16 @@ const sb={console,Math,Number,String,Array,Object,JSON,Promise,setTimeout,clearT
 vm.runInContext(leer('js/produccion/08a-graficos-base.js'),sb);
 const B=sb.glacialGraficosBase,V='#3F8F5F',A='#F2A93B',Rj='#C4472B',N='#E8731A';
 
-ok(JSON.stringify(sb.METAS_GRAFICOS)==='{"oee":75,"disponibilidad":85,"rendimiento":85,"cumplimiento":100}','METAS_GRAFICOS: OEE 75, disponibilidad 85, rendimiento 85, cumplimiento 100 (sin «calidad»: el sistema ya no la usa)');
-ok(sb.colorKpi(64.9,'oee')===Rj&&sb.colorKpi(65,'oee')===A&&sb.colorKpi(74.9,'oee')===A&&sb.colorKpi(75,'oee')===V,'OEE: <65 rojo · 65–75 ámbar · ≥75 verde');
-ok(sb.colorKpi(85,'disponibilidad')===V&&sb.colorKpi(75,'disponibilidad')===A&&sb.colorKpi(74.9,'disponibilidad')===Rj,'otro KPI en %: ≥meta verde · de meta−10 a meta ámbar · por debajo rojo');
-ok(sb.colorKpi(80,90)===A&&sb.colorKpi(NaN,'oee')==='#B7C4CC','la meta también puede pasarse como número; sin dato → gris');
-ok(sb.colorCumplimiento(79.9)===Rj&&sb.colorCumplimiento(80)===A&&sb.colorCumplimiento(94.9)===A&&sb.colorCumplimiento(95)===V&&sb.colorCumplimiento(105)===V&&sb.colorCumplimiento(105.1)===N,'cumplimiento: <80 rojo · 80–95 ámbar · 95–105 verde · >105 naranja (sobreproducción)');
+ok(JSON.stringify(sb.METAS_GRAFICOS)==='{"oee":85,"disponibilidad":90,"rendimiento":95,"cumplimiento":95}','METAS_GRAFICOS sin configuración: los valores iniciales del sistema (OEE 85, disponibilidad 90, rendimiento 95, cumplimiento 95), sin «calidad»');
+sb.glacialMetasIndicadores=()=>({oee:{verde:80,ambar:70},disponibilidad:{verde:88,ambar:78},ratio:{verde:92,ambar:82},cumplimiento:{verde:97,ambar:90},merma:{verde:2,ambar:3}});
+ok(sb.METAS_GRAFICOS.oee===80&&sb.METAS_GRAFICOS.rendimiento===92&&sb.METAS_GRAFICOS.disponibilidad===88&&sb.METAS_GRAFICOS.cumplimiento===97,'METAS_GRAFICOS lee la tabla CONFIGURADA (glacialMetasIndicadores) en cada uso: oee, disponibilidad, rendimiento=ratio, cumplimiento');
+ok(sb.colorKpi(69.9,'oee')===Rj&&sb.colorKpi(70,'oee')===A&&sb.colorKpi(79.9,'oee')===A&&sb.colorKpi(80,'oee')===V,'OEE con la tabla configurada (80/70): <70 rojo · 70–80 ámbar · ≥80 verde');
+ok(sb.colorKpi(88,'disponibilidad')===V&&sb.colorKpi(78,'disponibilidad')===A&&sb.colorKpi(77.9,'disponibilidad')===Rj,'disponibilidad con su propio verde/ámbar configurado (88/78)');
+ok(sb.colorKpi(80,90)===A&&sb.colorKpi(NaN,'oee')==='#B7C4CC','la meta también puede pasarse como número (ámbar = meta−10); sin dato → gris');
+ok(sb.colorCumplimiento(89.9)===Rj&&sb.colorCumplimiento(90)===A&&sb.colorCumplimiento(96.9)===A&&sb.colorCumplimiento(97)===V&&sb.colorCumplimiento(105)===V&&sb.colorCumplimiento(105.1)===N,'cumplimiento (97/90 configurado): <90 rojo · 90–97 ámbar · 97–105 verde · >105 naranja (SOBREPRODUCCIÓN)');
 const b=B.bandasKpi('oee',100),c=B.bandasKpi('cumplimiento',120);
-ok(b.length===3&&Math.abs(b[0][0]-.65)<1e-9&&Math.abs(b[1][0]-.75)<1e-9&&b[2][0]===1,'bandas del velocímetro de OEE: 0–65 rojo, 65–75 ámbar, 75–100 verde');
-ok(c.length===4&&Math.abs(c[0][0]-80/120)<1e-9&&Math.abs(c[2][0]-105/120)<1e-9&&c[3][1]===N,'bandas del cumplimiento (máx. 120): 4 bandas, la última naranja');
+ok(b.length===3&&Math.abs(b[0][0]-.70)<1e-9&&Math.abs(b[1][0]-.80)<1e-9&&b[2][0]===1,'bandas del velocímetro de OEE: 0–70 rojo, 70–80 ámbar, 80–100 verde (metas configuradas)');
+ok(c.length===4&&Math.abs(c[0][0]-90/120)<1e-9&&Math.abs(c[1][0]-97/120)<1e-9&&Math.abs(c[2][0]-105/120)<1e-9&&c[3][1]===N,'bandas del cumplimiento (máx. 120): 4 bandas con las metas configuradas, la última naranja');
 ok(B.fmtEs(1234.5)==='1,235'||B.fmtEs(1234.5)==='1.235'||/^1.?235$/.test(B.fmtEs(1234.5)),'números en es-PE con miles');
 ok(/^S\/ 1.?234$/.test(B.fmtSoles(1234)),'soles como «S/ 1,234»');
 ok(/^12[.,]3%$/.test(B.fmtPct(12.34)),'porcentajes con 1 decimal');
@@ -62,6 +64,12 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
   ok(/setTimeout\(\(\)=>alternar\(dim,v\),0\)/.test(r),'el clic filtra fuera del manejador de ApexCharts (si no, la librería lanza errores)');
   ok(/apexCrear\('idc-'\+id,opciones\)/.test(r),'cada tarjeta se actualiza en sitio con apexCrear (tiempo real sin parpadeo)');
   ok(/categorizarParadaPorTexto/.test(leer('js/produccion/56-impacto-resultados.js'))||/categorizarParadaPorTexto/.test(leer('js/produccion/55-valores-economicos.js'))||true,'(el cálculo de impacto no se tocó)');
+}
+/* Metas unificadas: ningún gráfico tiene metas propias fijas */
+{
+  const fuentes=['js/produccion/08a-graficos-base.js','js/produccion/08-graficos.js','js/produccion/09-resumen.js'].map(leer).join('\n');
+  ok(!/oee:75|\b64\.9\b|\b74\.9\b/.test(fuentes),'sin metas fijas (75 / 64.9 / 74.9) en los gráficos: todo sale de la tabla configurada');
+  ok(/glacialMetasIndicadores/.test(leer('js/produccion/08a-graficos-base.js')),'08a lee glacialMetasIndicadores (la tabla de 49-resumen-indicadores)');
 }
 /* Fase 4: Tareo + Reporte General, y Chart.js retirado */
 {

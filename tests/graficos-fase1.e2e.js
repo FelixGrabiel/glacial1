@@ -3,7 +3,7 @@
    - los 10 gráficos aparecen y caben en su tarjeta (PC y celular de 360 px), sin errores de consola;
    - cambiar de pestaña / re-renderizar NO acumula instancias (registro único);
    - el PNG del gráfico (graficoAImagen) y la compatibilidad con state.charts (exportarPNGDetalle);
-   - las metas y colores (OEE 75: <65 rojo, 65–75 ámbar, ≥75 verde).
+   - las metas y colores (metas CONFIGURADAS: con los valores iniciales OEE 85/75, disponibilidad 90/80, cumplimiento 95/85).
    Requiere Playwright y las librerías: GLX_LIBS=<carpeta con node_modules de apexcharts, echarts, canvas-gauges, chart.js>.
    Uso: GLX_LIBS=/ruta node tests/graficos-fase1.e2e.js   (no forma parte de las pruebas rápidas) */
 'use strict';
@@ -73,13 +73,14 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
 
       /* colores y metas */
       const col = await D.page.evaluate(() => ({
-        a: colorKpi(60, 'oee'), b: colorKpi(70, 'oee'), c: colorKpi(75, 'oee'), d: colorKpi(90, 'oee'), e: colorKpi(84, 'disponibilidad'), f: colorKpi(76, 'disponibilidad'),
-        k: colorKpi(70, 'disponibilidad'), g: colorCumplimiento(70), h: colorCumplimiento(90), i: colorCumplimiento(100), j: colorCumplimiento(110), metas: METAS_GRAFICOS }));
+        a: colorKpi(70, 'oee'), b: colorKpi(75, 'oee'), c: colorKpi(84.9, 'oee'), d: colorKpi(85, 'oee'),
+        e: colorKpi(90, 'disponibilidad'), f: colorKpi(80, 'disponibilidad'), k: colorKpi(79.9, 'disponibilidad'),
+        g: colorCumplimiento(84), h: colorCumplimiento(90), i: colorCumplimiento(100), j: colorCumplimiento(110), metas: METAS_GRAFICOS, tabla: glacialMetasIndicadores() }));
       const C = { rojo: '#C4472B', ambar: '#F2A93B', verde: '#3F8F5F', naranja: '#E8731A' };
-      ok(col.a === C.rojo && col.b === C.ambar && col.c === C.verde && col.d === C.verde, 'OEE: 60 rojo · 70 ámbar · 75 verde · 90 verde (meta 75)');
-      ok(col.e === C.ambar && col.f === C.ambar && col.k === C.rojo, 'Disponibilidad (meta 85): 84 y 76 ámbar · 70 rojo');
-      ok(col.g === C.rojo && col.h === C.ambar && col.i === C.verde && col.j === C.naranja, 'Cumplimiento: 70 rojo · 90 ámbar · 100 verde · 110 naranja (SOBREPRODUCCIÓN)');
-      ok(col.metas.oee === 75 && col.metas.cumplimiento === 100 && !('calidad' in col.metas), 'METAS_GRAFICOS: OEE 75, cumplimiento 100, sin «calidad» (el sistema ya no la usa)');
+      ok(col.a === C.rojo && col.b === C.ambar && col.c === C.ambar && col.d === C.verde, 'OEE (meta configurada 85/75): 70 rojo · 75 y 84,9 ámbar · 85 verde');
+      ok(col.e === C.verde && col.f === C.ambar && col.k === C.rojo, 'Disponibilidad (90/80): 90 verde · 80 ámbar · 79,9 rojo');
+      ok(col.g === C.rojo && col.h === C.ambar && col.i === C.verde && col.j === C.naranja, 'Cumplimiento (95/85): 84 rojo · 90 ámbar · 100 verde · 110 naranja (SOBREPRODUCCIÓN)');
+      ok(col.metas.oee === col.tabla.oee.verde && col.metas.disponibilidad === col.tabla.disponibilidad.verde && col.metas.rendimiento === col.tabla.ratio.verde && col.metas.cumplimiento === col.tabla.cumplimiento.verde && !('calidad' in col.metas), 'METAS_GRAFICOS == tabla configurada que usan tarjetas, insights y Excel (' + JSON.stringify(col.metas) + ')');
 
       /* actualización en sitio: la aguja se mueve sin recrear */
       const mov = await D.page.evaluate(async () => {

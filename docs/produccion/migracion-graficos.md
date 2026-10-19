@@ -11,7 +11,7 @@ Se hace **por fases, una pestaña a la vez**. Chart.js sigue cargado hasta que l
 
 ## Decisiones
 - Todos los gráficos existentes pasan a ApexCharts con el **mismo tipo** (los que el prompt no mapeaba). Los velocímetros son de ECharts.
-- Metas y colores de los gráficos nuevos: `METAS_GRAFICOS` (OEE 75, disponibilidad 85, rendimiento 85, cumplimiento 100) y `colorKpi` (verde ≥ meta; ámbar de meta−10 a meta; rojo por debajo; OEE: <65 rojo, 65–75 ámbar, ≥75 verde). Cumplimiento: <80 rojo · 80–95 ámbar · 95–105 verde · >105 naranja. Las tarjetas, el Excel y las demás pantallas siguen leyendo las metas de `sync/configIndicadores` (`METAS`): por eso, mientras dure la migración, un mismo valor puede verse con otro color en un gráfico nuevo y en una tarjeta.
+- Metas y colores (**unificados**): `METAS_GRAFICOS` y `colorKpi` leen la tabla CONFIGURADA (`sync/configIndicadores` → `glacialMetasIndicadores()`), la misma de tarjetas, insights y Excel: verde ≥ meta, ámbar ≥ umbral ámbar, rojo por debajo (OEE con los valores iniciales 85/75; disponibilidad 90/80; rendimiento = ratio 95/85). Cumplimiento: rojo < ámbar configurado, ámbar < verde, verde hasta 105, naranja > 105 (SOBREPRODUCCIÓN). Se leen en cada dibujo: si el administrador cambia una meta, los gráficos la siguen en el siguiente refresco. Las metas del prompt original (OEE 75, etc.) ya no se usan.
 - **No hay «Calidad»**: el sistema la retiró (OEE = Disponibilidad × Rendimiento; hay una prueba que lo exige). Donde el prompt pedía Calidad se muestra **Cumplimiento**.
 - **No se crea** lo que no tiene datos hoy: línea de tiempo de paradas (las paradas del registro solo traen minutos, sin hora de inicio/fin) y velocímetro analógico del OEE en la pantalla de planta (esa pantalla no calcula OEE). `velocimetroAnalogico` ya existe en la base para cuando haya datos.
 - Sin animaciones: destruir un ApexCharts a mitad de animación (cambio rápido de pestaña o refresco en vivo) lanza errores asíncronos de la librería.
@@ -44,7 +44,7 @@ Se hace **por fases, una pestaña a la vez**. Chart.js sigue cargado hasta que l
 | 7 gráficos industriales (programado vs producido, cumplimiento, pareto, minutos de parada, merma, ratio, producción por persona) | ApexCharts del mismo tipo; el cumplimiento colorea según <80 / 80–95 / 95–105 / >105 |
 | **Nuevo:** OEE de planta | Velocímetro ECharts con marca de meta (usa `calcularKPIsPlanta`, ya existente) |
 | **Nuevo:** OEE por turno | Área suave Día vs Noche (usa `agruparOEEPorTurno`) |
-| **Nuevo:** OEE por línea y día | Mapa de calor Apex, 3 rangos (<65 / 65–75 / ≥75), valor dentro de cada celda (hasta 14 días) |
+| **Nuevo:** OEE por línea y día | Mapa de calor Apex, 3 rangos según las metas configuradas de OEE (rojo / ámbar / verde), valor dentro de cada celda (hasta 14 días) |
 Los gráficos se crean de uno en uno DESPUÉS del render con `glacialDiferirGrafico` (en `49b-resumen-graficos-diferidos.js`; mismo comportamiento que antes con Chart.js, que se conserva para quien aún lo use). Pestaña Gráficos de la línea: se añadió **KPIs del turno** (anillos radialBar: OEE al centro como total y leyenda con nombre y valor).
 
 ## Fase 3 · Impacto económico (`58-impacto-dashboard.js`)

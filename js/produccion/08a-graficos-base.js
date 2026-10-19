@@ -4,9 +4,9 @@
    // GRAFICOS: capa común para los gráficos nuevos. Las librerías se cargan en index.html ANTES de los scripts de js/:
      ApexCharts 3.45.2 (columnas, líneas, áreas, dona, treemap, heatmap…) · ECharts 5.4.3 (velocímetros) · canvas-gauges 2.1.7 (velocímetro analógico).
    API (window.*):
-     METAS_GRAFICOS                  metas de los gráficos, en % (oee 75, disponibilidad 85, rendimiento 85, cumplimiento 100)
-     colorKpi(valorPct, claveOMeta)  verde ≥ meta · ámbar de (meta−10) a meta · rojo por debajo (OEE: <65 rojo, 65–75 ámbar, ≥75 verde)
-     colorCumplimiento(valorPct)     <80 rojo · 80–95 ámbar · 95–105 verde · >105 naranja (SOBREPRODUCCIÓN)
+     METAS_GRAFICOS / metaGrafico(k)  metas en %, LEÍDAS de la tabla configurada (sync/configIndicadores): las mismas de las tarjetas, insights y Excel
+     colorKpi(valorPct, claveOMeta)  verde ≥ meta · ámbar ≥ umbral ámbar configurado · rojo por debajo
+     colorCumplimiento(valorPct)     rojo/ámbar/verde con las metas configuradas · >105 naranja (SOBREPRODUCCIÓN)
      apexCrear(id, opciones)         crea o ACTUALIZA un ApexCharts en #id (altura numérica del contenedor; sin parpadeo en el tiempo real)
      velocimetroOEE(id, valor, op)   velocímetro ECharts con aguja, bandas, marca triangular de la meta, título y valor grande
      velocimetrosCompactos(id, lista, op)  varios medidores pequeños en UN solo gráfico (sin números en el borde)
@@ -21,25 +21,40 @@
   const COLOR={azul:'#2F6690',azulSuave:'#7FA5BF',ambar:'#F2A93B',verde:'#3F8F5F',rojo:'#C4472B',naranja:'#E8731A',gris:'#B7C4CC',grisSuave:'#E8EAE4',texto:'#3A4551',grilla:'#EFF2F4',oscuro:'#1F2D3A'};
   const FUENTE='"IBM Plex Sans", sans-serif';
 
-  /* ---------- metas y colores (una sola fuente para los gráficos nuevos) ---------- */
-  const METAS_GRAFICOS={oee:75,disponibilidad:85,rendimiento:85,cumplimiento:100};
-  const metaDe=c=>typeof c==='number'?c:METAS_GRAFICOS[c];
+  /* ---------- metas y colores: UNA sola fuente = la tabla configurada (sync/configIndicadores → glacialMetasIndicadores) ----------
+     Las mismas metas que usan las tarjetas, los insights y el Excel. Se leen en cada uso (getters), así que si el administrador las cambia,
+     los gráficos las siguen en el siguiente dibujo. Mientras la tabla no exista se usan los valores iniciales del módulo de indicadores. */
+  const RESPALDO={oee:{verde:85,ambar:75},disponibilidad:{verde:90,ambar:80},ratio:{verde:95,ambar:85},cumplimiento:{verde:95,ambar:85}};
+  const CLAVE_TABLA={oee:'oee',disponibilidad:'disponibilidad',rendimiento:'ratio',cumplimiento:'cumplimiento'};
+  function tablaMetas(){
+    try{if(typeof global.glacialMetasIndicadores==='function'){const t=global.glacialMetasIndicadores();if(t)return t;}}catch(_){/* sin configuración */}
+    try{if(global.GlacialIndicadores&&global.GlacialIndicadores.METAS_INICIALES)return global.GlacialIndicadores.METAS_INICIALES;}catch(_){/* sin módulo */}
+    return RESPALDO;
+  }
+  /* {verde, ambar} en % de un indicador: verde ≥ verde · ámbar ≥ ámbar · rojo por debajo. */
+  function metaGrafico(clave){
+    const k=CLAVE_TABLA[clave]||clave,e=tablaMetas()[k]||RESPALDO[k];
+    return e?{verde:Number(e.verde),ambar:Number(e.ambar)}:null;
+  }
+  const METAS_GRAFICOS={};
+  ['oee','disponibilidad','rendimiento','cumplimiento'].forEach(k=>Object.defineProperty(METAS_GRAFICOS,k,{enumerable:true,get:()=>{const m=metaGrafico(k);return m?m.verde:NaN;}}));
+  const metaDe=c=>typeof c==='number'?{verde:c,ambar:c-10}:metaGrafico(c);
   function colorKpi(valor,clave){
     const m=metaDe(clave),v=Number(valor);
-    if(!Number.isFinite(v)||!Number.isFinite(m))return COLOR.gris;
-    return v>=m?COLOR.verde:v>=m-10?COLOR.ambar:COLOR.rojo;
+    if(!m||!Number.isFinite(v)||!Number.isFinite(m.verde))return COLOR.gris;
+    return v>=m.verde?COLOR.verde:v>=m.ambar?COLOR.ambar:COLOR.rojo;
   }
+  /* Cumplimiento del programa: rojo < ámbar · ámbar < verde (metas configuradas) · verde hasta 105 · naranja > 105 (SOBREPRODUCCIÓN). */
   function colorCumplimiento(valor){
-    const v=Number(valor);
-    if(!Number.isFinite(v))return COLOR.gris;
-    return v<80?COLOR.rojo:v<95?COLOR.ambar:v<=105?COLOR.verde:COLOR.naranja;
+    const v=Number(valor),m=metaGrafico('cumplimiento');
+    if(!Number.isFinite(v)||!m)return COLOR.gris;
+    return v<m.ambar?COLOR.rojo:v<m.verde?COLOR.ambar:v<=105?COLOR.verde:COLOR.naranja;
   }
   /* Bandas del arco de un velocímetro en fracción 0–1 de `max`. */
   function bandasKpi(clave,max){
-    const mx=max||100;
-    if(clave==='cumplimiento'&&mx>100)return [[80/mx,COLOR.rojo],[95/mx,COLOR.ambar],[105/mx,COLOR.verde],[1,COLOR.naranja]];
-    const m=metaDe(clave);
-    return [[(m-10)/mx,COLOR.rojo],[m/mx,COLOR.ambar],[1,COLOR.verde]];
+    const mx=max||100,m=metaDe(clave);
+    if(clave==='cumplimiento'&&mx>100)return [[m.ambar/mx,COLOR.rojo],[m.verde/mx,COLOR.ambar],[105/mx,COLOR.verde],[1,COLOR.naranja]];
+    return [[m.ambar/mx,COLOR.rojo],[m.verde/mx,COLOR.ambar],[1,COLOR.verde]];
   }
   const fmtEs=n=>Math.round(Number(n)||0).toLocaleString('es-PE');
   const fmtPct=n=>(Math.round((Number(n)||0)*10)/10).toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
@@ -156,7 +171,7 @@
   function velocimetroOEE(id,valor,op){
     op=op||{};
     const max=op.max||100,clave=op.clave||'oee';
-    const meta=op.meta!=null?op.meta:(max===100?metaDe(clave):null);
+    const meta=op.meta!=null?op.meta:(max===100?metaDe(clave).verde:null);
     const color=op.color||(clave==='cumplimiento'?colorCumplimiento(valor):colorKpi(valor,clave));
     const base={min:0,max,startAngle:200,endAngle:-20,radius:op.radio||'92%',center:op.center||['50%','64%'],grosor:op.grosor||16,
       bandas:op.bandas||bandasKpi(clave,max),splitNumber:max>100?6:5};
@@ -177,7 +192,7 @@
     op=op||{};const n=lista.length||1;
     const series=[];
     lista.forEach((m,i)=>{
-      const max=m.max||100,clave=m.clave||'oee',meta=m.meta!=null?m.meta:(max===100?metaDe(clave):null);
+      const max=m.max||100,clave=m.clave||'oee',meta=m.meta!=null?m.meta:(max===100?metaDe(clave).verde:null);
       const cx=((i+.5)/n*100).toFixed(2)+'%';
       const base={min:0,max,startAngle:200,endAngle:-20,radius:op.radio||(n>=3?'62%':'80%'),center:[cx,op.centroY||'58%'],grosor:op.grosor||10,
         bandas:m.bandas||bandasKpi(clave,max),splitNumber:5};
@@ -188,7 +203,7 @@
     const reg=REG.echarts[id],el=document.getElementById(id);
     if(reg&&el&&reg.el===el&&reg.tipo==='compactos'&&reg.n===n){
       const upd=[];lista.forEach((m,i)=>{
-        const max=m.max||100,clave=m.clave||'oee',meta=m.meta!=null?m.meta:(max===100?metaDe(clave):null);
+        const max=m.max||100,clave=m.clave||'oee',meta=m.meta!=null?m.meta:(max===100?metaDe(clave).verde:null);
         const color=clave==='cumplimiento'?colorCumplimiento(m.valor):colorKpi(m.valor,clave);
         upd.push({data:[{value:m.valor,name:m.nombre,detail:{color}}]});if(meta!=null)upd.push({data:[{value:meta}]});
       });
@@ -204,7 +219,7 @@
     op=op||{};
     const el=document.getElementById(id);if(!el)return null;
     if(typeof RadialGauge==='undefined'){mensajeSinLibreria(el,'canvas-gauges');return null;}
-    const clave=op.clave||'oee',m=metaDe(clave),t=tema();
+    const clave=op.clave||'oee',mt=metaDe(clave),m=mt.verde,am=mt.ambar,t=tema();
     const reg=REG.gauge[id];
     if(reg&&reg.el===el){reg.inst.value=valor;return reg.inst;}
     destruirUno('gauge',id);el.innerHTML='';
@@ -212,7 +227,7 @@
     const lado=Math.max(160,Math.min(el.clientWidth||260,el.clientHeight||260));
     const g=new RadialGauge({renderTo:cv,width:lado,height:lado,minValue:0,maxValue:100,value:valor,units:'%',title:op.titulo||'OEE',
       majorTicks:['0','20','40','60','80','100'],minorTicks:5,strokeTicks:true,
-      highlights:[{from:0,to:m-10,color:COLOR.rojo},{from:m-10,to:m,color:COLOR.ambar},{from:m,to:100,color:COLOR.verde}],highlightsWidth:12,
+      highlights:[{from:0,to:am,color:COLOR.rojo},{from:am,to:m,color:COLOR.ambar},{from:m,to:100,color:COLOR.verde}],highlightsWidth:12,
       colorPlate:'transparent',colorTitle:t.texto,colorUnits:t.texto,colorNumbers:t.texto,colorMajorTicks:t.texto,colorMinorTicks:t.texto,colorBorderShadow:false,
       colorBorderOuter:'transparent',colorBorderMiddle:'transparent',colorBorderInner:'transparent',borders:false,
       needleType:'arrow',needleWidth:3,needleCircleSize:7,needleCircleInner:false,needleShadow:false,colorNeedle:COLOR.oscuro,colorNeedleEnd:COLOR.oscuro,colorNeedleCircleOuter:COLOR.oscuro,
@@ -232,7 +247,7 @@
     return cv?cv.toDataURL('image/png'):null;
   }
 
-  Object.assign(global,{METAS_GRAFICOS,colorKpi,colorCumplimiento,apexCrear,velocimetroOEE,velocimetrosCompactos,velocimetroAnalogico,graficoAImagen,
+  Object.assign(global,{METAS_GRAFICOS,metaGrafico,colorKpi,colorCumplimiento,apexCrear,velocimetroOEE,velocimetrosCompactos,velocimetroAnalogico,graficoAImagen,
     graficosDestruir,graficosDestruirTodo,graficoRegistrarChartJs});
-  global.glacialGraficosBase={COLOR,METAS_GRAFICOS,colorKpi,colorCumplimiento,bandasKpi,fmtEs,fmtPct,fmtSoles,tema,mezclar,apexBase,graficosActivos,REG};
+  global.glacialGraficosBase={COLOR,METAS_GRAFICOS,metaGrafico,colorKpi,colorCumplimiento,bandasKpi,fmtEs,fmtPct,fmtSoles,tema,mezclar,apexBase,graficosActivos,REG};
 })(typeof window!=='undefined'?window:globalThis);

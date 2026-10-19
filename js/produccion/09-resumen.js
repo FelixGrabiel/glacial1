@@ -3797,9 +3797,9 @@ function renderResumen(main){
       chart:{ type:'heatmap' },
       series:filasHeat,
       plotOptions:{ heatmap:{ radius:3, enableShades:false, colorScale:{ ranges:[
-        { from:0, to:64.9, color:PAL.rojo, name:'Bajo ' + (MGR.oee - 10) + '%' },
-        { from:65, to:74.9, color:PAL.ambar, name:(MGR.oee - 10) + '–' + MGR.oee + '%' },
-        { from:75, to:1000, color:PAL.verde, name:'≥ ' + MGR.oee + '%' }
+        { from:0, to:metaGrafico('oee').ambar - 0.1, color:PAL.rojo, name:'Bajo ' + metaGrafico('oee').ambar + '%' },
+        { from:metaGrafico('oee').ambar, to:metaGrafico('oee').verde - 0.1, color:PAL.ambar, name:metaGrafico('oee').ambar + '–' + metaGrafico('oee').verde + '%' },
+        { from:metaGrafico('oee').verde, to:1000, color:PAL.verde, name:'≥ ' + metaGrafico('oee').verde + '%' }
       ] } } },
       dataLabels:{ enabled:fechasHeat.length <= 14, formatter:v => (v == null ? '' : Math.round(v)), style:{ fontSize:'10px', colors:['#fff'] } },
       stroke:{ width:2, colors:['#fff'] },
