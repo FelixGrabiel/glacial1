@@ -107,7 +107,7 @@
      ESQUELETO (se crea una vez; después solo se actualizan sus partes)
      ========================================================= */
   const cardHtml=c=>'<section class="id-card" data-card="'+c.id+'"><header><h4 id="idt-'+c.id+'"></h4><button type="button" class="id-link" data-id-detalle="'+c.id+'">Ver detalle →</button></header>'+
-    '<div class="id-cv"><canvas id="idc-'+c.id+'" role="img" aria-label="'+esc(c.t)+'"></canvas></div><div class="id-an" id="ida-'+c.id+'" aria-live="polite"></div></section>';
+    '<div class="id-cv"><div id="idc-'+c.id+'" role="img" aria-label="'+esc(c.t)+'" style="width:100%;height:100%;"></div></div><div class="id-an" id="ida-'+c.id+'" aria-live="polite"></div></section>';
   function esqueleto(){
     const abierto=window.innerWidth>=700?' open':'';
     const tabs=[['resumen','Resumen ejecutivo'],['perdidas','Análisis de pérdidas']].concat(S.gerencia?[['valores','Valores unitarios']]:[]).concat(S.admin?[['permisos','Permisos']]:[]);
@@ -259,75 +259,112 @@
   const bordes=(dim,etqs,hex)=>etqs.map(x=>(dim&&seleccionado(dim,x))?'#0b2a40':rgba(hex,0));
   const topN=(lista,dim,n)=>{const t=lista.slice(0,n);if(dim)lista.forEach(x=>{if(seleccionado(dim,x.k)&&!t.includes(x))t.push(x);});return t;};
   function alternar(dim,valor){if(!dim||valor==null)return;E().alternar(S.estado,dim,valor);pintar();}
-  const ejeValor=()=>({beginAtZero:true,ticks:{callback:v=>S.econ?'S/ '+nf(v):nf(v)}});
-
-  function opcionesBase(dim,horizontal,extra){
-    return Object.assign({
-      responsive:true,maintainAspectRatio:false,animation:false,
-      interaction:{mode:'nearest',axis:horizontal?'y':'x',intersect:false},
-      plugins:{legend:{display:false},tooltip:{}},
-      onClick:(ev,els,ch)=>{if(!els.length||!dim)return;const e0=els[0];const lab=ch.$etqs?ch.$etqs[e0.index]:ch.data.labels[e0.index];alternar(dim,lab);}
-    },extra||{});
-  }
-  function asegurarGrafico(id,config){
-    const cv=document.getElementById('idc-'+id);
-    if(!cv||typeof Chart==='undefined')return null;
-    let ch=S.charts[id];
-    if(!ch||ch.canvas!==cv){
-      if(ch)try{ch.destroy();}catch(_){/* ya destruido */}
-      ch=S.charts[id]=new Chart(cv.getContext('2d'),config);
-    }else{
-      ch.data=config.data;ch.options=config.options;ch.update('none');
-    }
-    return ch;
+  /* GRAFICOS (fase 3): ApexCharts (capa común 08a-graficos-base.js). Cada tarjeta se ACTUALIZA EN SITIO (apexCrear con el mismo contenedor y tipo: no se recrea
+     ni parpadea con el tiempo real); un clic o toque en una barra, sector o punto agrega o quita ese valor del filtro (alternar), igual que antes. */
+  const ejeValorA=()=>({min:0,labels:{formatter:v=>S.econ?'S/ '+nf(v):nf(v)}});
+  const clickA=(dim,etqs)=>({dataPointSelection:(e,ch,cfg)=>{if(!dim)return;const i=cfg&&(cfg.dataPointIndex>=0?cfg.dataPointIndex:cfg.seriesIndex);   // en la dona cada sector es una «serie»
+      if(i>=0&&etqs[i]!=null){const v=etqs[i];setTimeout(()=>alternar(dim,v),0);}}});    // fuera del manejador: ApexCharts aún está procesando el clic y repintar dentro lo rompe
+  const tipA=(titulo,lineas)=>'<div class="gx-tip"><b>'+esc(titulo)+'</b>'+lineas.filter(Boolean).map(l=>'<br>'+esc(l)).join('')+'</div>';
+  const estadosA={active:{filter:{type:'none'}},hover:{filter:{type:'lighten',value:.08}}};
+  function asegurarGrafico(id,opciones){
+    const el=document.getElementById('idc-'+id);
+    if(!el||typeof apexCrear!=='function'||typeof ApexCharts==='undefined')return null;
+    opciones.states=Object.assign({},estadosA,opciones.states||{});
+    S.charts[id]={destroy(){graficosDestruir('idc-'+id);}};
+    return apexCrear('idc-'+id,opciones);
   }
   function graficoRanking(card,lista,{horizontal,top}){
     const dim=card.dim,datos=topN(lista,dim,top||10),etqs=datos.map(x=>x.k),hex=COLOR[card.id];
     const total=lista.reduce((a,x)=>a+med(x),0);
-    const config={type:'bar',data:{labels:etqs.map(x=>corto(x,24)),datasets:[{label:S.econ?'Soles':'Minutos',data:datos.map(med),backgroundColor:colores(dim,etqs,hex),borderColor:bordes(dim,etqs,hex),borderWidth:2,borderRadius:3}]},
-      options:opcionesBase(dim,horizontal,{indexAxis:horizontal?'y':'x',scales:horizontal?{x:ejeValor()}:{y:ejeValor()},plugins:{legend:{display:false},tooltip:{callbacks:{
-        title:it=>etqs[it[0].dataIndex],
-        label:it=>{const x=datos[it.dataIndex],p=total>0?' · '+nf(med(x)/total*100,1)+' %':'';return fmtM(med(x))+p;},
-        afterLabel:it=>{const x=datos[it.dataIndex];return nf(x.u)+' unidades · '+nf(x.min)+' min'+(x.n?' · '+nf(x.n)+' evento(s)':'');}}}}})};
-    const ch=asegurarGrafico(card.id,config);if(ch)ch.$etqs=etqs;
+    const tooltip={custom:({dataPointIndex:i})=>{const x=datos[i];if(!x)return '';const p=total>0?' · '+nf(med(x)/total*100,1)+' %':'';
+      return tipA(etqs[i],[fmtM(med(x))+p,nf(x.u)+' unidades · '+nf(x.min)+' min'+(x.n?' · '+nf(x.n)+' evento(s)':'')]);}};
+    asegurarGrafico(card.id,{chart:{type:'bar',events:clickA(dim,etqs)},
+      series:[{name:S.econ?'Soles':'Minutos',data:datos.map(med)}],colors:colores(dim,etqs,hex),
+      plotOptions:{bar:{horizontal:!!horizontal,distributed:true,borderRadius:4,barHeight:'72%',columnWidth:'55%',dataLabels:{position:horizontal?'center':'top'}}},
+      stroke:{show:true,width:2,colors:bordes(dim,etqs,hex)},
+      dataLabels:{enabled:true,offsetY:horizontal?0:-18,formatter:v=>S.econ?'S/ '+nf(v):nf(v),style:{fontSize:'11px',fontWeight:700,colors:horizontal?['#fff']:['#3A4551']}},
+      xaxis:Object.assign({categories:etqs.map(x=>corto(x,24))},horizontal?{labels:ejeValorA().labels}:{}),
+      yaxis:horizontal?{labels:{maxWidth:150}}:ejeValorA(),legend:{show:false},tooltip});
+  }
+  /* Máquinas: mapa de árbol (cada recuadro = una máquina; el tamaño es la pérdida). Clic = filtra por esa máquina. */
+  function graficoMapaArbol(card,lista,{top}){
+    const dim=card.dim,datos=topN(lista,dim,top||8),etqs=datos.map(x=>x.k),hex=COLOR[card.id];
+    const total=lista.reduce((a,x)=>a+med(x),0);
+    asegurarGrafico(card.id,{chart:{type:'treemap',events:clickA(dim,etqs)},
+      series:[{data:datos.map(x=>({x:corto(x.k,26),y:Math.max(med(x),0.0001)}))}],colors:colores(dim,etqs,hex),
+      plotOptions:{treemap:{distributed:true,enableShades:false}},
+      stroke:{show:true,width:3,colors:['#ffffff']},
+      dataLabels:{enabled:true,style:{fontSize:'12px',fontWeight:700},formatter:(texto,o)=>[texto,fmtM(Math.max(0,o.value))]},
+      legend:{show:false},
+      tooltip:{custom:({dataPointIndex:i})=>{const x=datos[i];if(!x)return '';const p=total>0?' · '+nf(med(x)/total*100,1)+' %':'';
+        return tipA(etqs[i],[fmtM(med(x))+p,nf(x.u)+' unidades · '+nf(x.min)+' min'+(x.n?' · '+nf(x.n)+' evento(s)':'')]);}}});
+  }
+  /* Tipo de pérdida: dona con degradado y sombra (volumen); el total va al centro. */
+  const PALETA_DONA=['#5b6dd6','#2d7fc0','#3aa5a5','#c9a227','#e07b39','#b3382b'];
+  function graficoDona(card,lista,{top}){
+    const dim=card.dim,datos=topN(lista,dim,top||4),etqs=datos.map(x=>x.k);
+    const total=lista.reduce((a,x)=>a+med(x),0);
+    asegurarGrafico(card.id,{chart:{type:'donut',events:clickA(dim,etqs),dropShadow:{enabled:true,top:3,left:0,blur:6,opacity:.25}},
+      series:datos.map(x=>Math.max(med(x),0)),labels:etqs.map(x=>corto(x,24)),
+      colors:etqs.map((x,i)=>(!hay(dim)||seleccionado(dim,x))?PALETA_DONA[i%PALETA_DONA.length]:rgba(PALETA_DONA[i%PALETA_DONA.length],0.22)),
+      fill:{type:'gradient',gradient:{shade:'dark',type:'vertical',shadeIntensity:.35,gradientToColors:undefined,opacityFrom:1,opacityTo:.85,stops:[0,100]}},
+      stroke:{width:2,colors:['#ffffff']},
+      plotOptions:{pie:{donut:{size:'62%',labels:{show:true,name:{show:true,fontSize:'12px'},value:{show:true,fontSize:'18px',fontWeight:700,formatter:v=>fmtM(Number(v))},
+        total:{show:true,label:'Total',formatter:()=>fmtM(total)}}}}},
+      dataLabels:{enabled:true,formatter:val=>nf(val,1)+' %'},
+      legend:{position:'bottom'},
+      tooltip:{custom:({seriesIndex:i})=>{const x=datos[i];if(!x)return '';const p=total>0?' · '+nf(med(x)/total*100,1)+' %':'';
+        return tipA(etqs[i],[fmtM(med(x))+p,nf(x.u)+' unidades · '+nf(x.min)+' min'+(x.n?' · '+nf(x.n)+' evento(s)':'')]);}}});
   }
   function graficoPareto(card,lista){
     const dim='causa',datos=topN(lista,dim,10),etqs=datos.map(x=>x.k),total=lista.reduce((a,x)=>a+med(x),0);
     let ac=0;const acum=lista.map(x=>{ac+=med(x);return total>0?ac/total*100:0;});
     const acumVis=datos.map(x=>acum[lista.indexOf(x)]);
-    const config={type:'bar',data:{labels:etqs.map(x=>corto(x,18)),datasets:[
-      {type:'bar',label:S.econ?'Soles':'Minutos',data:datos.map(med),backgroundColor:colores(dim,etqs,COLOR.causa),borderColor:bordes(dim,etqs,COLOR.causa),borderWidth:2,yAxisID:'y',order:2},
-      {type:'line',label:'% acumulado',data:acumVis,borderColor:'#1d2b36',backgroundColor:'#1d2b36',pointRadius:3,tension:0.2,yAxisID:'y2',order:1}]},
-      options:opcionesBase(dim,false,{scales:{y:ejeValor(),y2:{position:'right',min:0,max:100,grid:{drawOnChartArea:false},ticks:{callback:v=>v+' %'}}},plugins:{legend:{display:true,position:'bottom'},tooltip:{callbacks:{
-        title:it=>etqs[it[0].dataIndex],
-        label:it=>it.dataset.type==='line'?'Acumulado: '+nf(it.parsed.y,1)+' %':fmtM(med(datos[it.dataIndex]))+(total>0?' · '+nf(med(datos[it.dataIndex])/total*100,1)+' %':'')}}}})};
-    const ch=asegurarGrafico(card.id,config);if(ch)ch.$etqs=etqs;
+    const cols=colores(dim,etqs,COLOR.causa),rotulos=etqs.map(x=>corto(x,18));
+    asegurarGrafico(card.id,{chart:{type:'line',events:clickA(dim,etqs)},
+      series:[{name:S.econ?'Soles':'Minutos',type:'column',data:datos.map((x,i)=>({x:rotulos[i],y:med(x),fillColor:cols[i]}))},
+        {name:'% acumulado',type:'line',data:acumVis.map((v,i)=>({x:rotulos[i],y:Math.round(v*10)/10}))}],
+      colors:[COLOR.causa,'#1d2b36'],stroke:{width:[0,3],curve:'smooth'},markers:{size:[0,4]},
+      plotOptions:{bar:{columnWidth:'60%',borderRadius:4}},dataLabels:{enabled:false},
+      xaxis:{labels:{rotate:-38,trim:true,hideOverlappingLabels:false,style:{fontSize:'10px'}}},
+      yaxis:[Object.assign({seriesName:S.econ?'Soles':'Minutos'},ejeValorA()),{seriesName:'% acumulado',opposite:true,min:0,max:100,labels:{formatter:v=>Math.round(v)+' %'}}],
+      legend:{position:'bottom'},
+      tooltip:{shared:true,intersect:false,custom:({dataPointIndex:i})=>{const x=datos[i];if(!x)return '';
+        return tipA(etqs[i],[fmtM(med(x))+(total>0?' · '+nf(med(x)/total*100,1)+' %':''),'Acumulado: '+nf(acumVis[i],1)+' %']);}}});
   }
   function graficoEvolucion(card,v){
     const ev=v.series.evolucion,porDia=ev.unidad==='día',etqs=ev.claves;
     const labels=etqs.map(x=>porDia?fFecha(x):x);
-    const ds=[{type:'bar',label:'Actual',data:ev.valores,backgroundColor:colores(porDia?'dia':null,etqs,COLOR.evolucion),borderColor:bordes(porDia?'dia':null,etqs,COLOR.evolucion),borderWidth:2,order:3}];
-    if(ev.previo&&ev.previo.some(x=>x>0))ds.push({type:'line',label:'Periodo anterior',data:ev.previo,borderColor:'#7a8a99',borderDash:[6,4],pointRadius:0,tension:0.2,order:2});
-    if(ev.tendencia.ok&&ev.valores.length>=4)ds.push({type:'line',label:'Tendencia',data:ev.tendencia.puntos,borderColor:'#1d2b36',borderDash:[2,3],pointRadius:0,order:1});
-    const config={type:'bar',data:{labels,datasets:ds},options:opcionesBase(null,false,{scales:{y:ejeValor()},plugins:{legend:{display:true,position:'bottom'},tooltip:{callbacks:{
-      title:it=>porDia?fFecha(etqs[it[0].dataIndex]):etqs[it[0].dataIndex],label:it=>it.dataset.label+': '+fmtM(it.parsed.y)}}},
-      onClick:(e,els,ch)=>{if(!els.length||!porDia)return;alternar('dia',etqs[els[0].index]);}})};
-    asegurarGrafico(card.id,config);
+    const cols=colores(porDia?'dia':null,etqs,COLOR.evolucion);
+    const series=[{name:'Actual',type:'column',data:ev.valores.map((y,i)=>({x:labels[i],y,fillColor:cols[i]}))}],estilos=[0],colores_=[COLOR.evolucion];
+    if(ev.previo&&ev.previo.some(x=>x>0)){series.push({name:'Periodo anterior',type:'line',data:ev.previo.map((y,i)=>({x:labels[i],y}))});estilos.push(6);colores_.push('#7a8a99');}
+    if(ev.tendencia.ok&&ev.valores.length>=4){series.push({name:'Tendencia',type:'line',data:ev.tendencia.puntos.map((y,i)=>({x:labels[i],y}))});estilos.push(3);colores_.push('#1d2b36');}
+    asegurarGrafico(card.id,{chart:{type:'line',events:porDia?clickA('dia',etqs):{}},series,colors:colores_,
+      stroke:{width:series.map((x,i)=>i===0?0:2),curve:'smooth',dashArray:estilos},markers:{size:0},
+      plotOptions:{bar:{columnWidth:'65%',borderRadius:3}},dataLabels:{enabled:false},
+      xaxis:{labels:{rotate:-45,style:{fontSize:'10px'}}},yaxis:ejeValorA(),legend:{position:'bottom'},
+      tooltip:{shared:true,intersect:false,y:{formatter:y=>y==null?'—':fmtM(y)}}});
   }
   function graficoAcumulada(card,v){
     const ac=v.series.acumulada,porDia=v.series.evolucion.unidad==='día';
-    const config={type:'line',data:{labels:ac.claves.map(x=>porDia?fFecha(x):x),datasets:[{label:'Acumulado',data:ac.valores,borderColor:COLOR.acumulada,backgroundColor:rgba(COLOR.acumulada,0.15),fill:true,pointRadius:2,tension:0.15}]},
-      options:opcionesBase(null,false,{scales:{y:ejeValor()},plugins:{legend:{display:false},tooltip:{callbacks:{label:it=>'Acumulado: '+fmtM(it.parsed.y)}}},onClick:()=>{}})};
-    asegurarGrafico(card.id,config);
+    asegurarGrafico(card.id,{chart:{type:'area'},series:[{name:'Acumulado',data:ac.valores}],colors:[COLOR.acumulada],
+      stroke:{curve:'smooth',width:2.5},fill:{type:'gradient',gradient:{shadeIntensity:1,opacityFrom:.38,opacityTo:.04,stops:[0,100]}},
+      dataLabels:{enabled:false},markers:{size:0},
+      xaxis:{categories:ac.claves.map(x=>porDia?fFecha(x):x),labels:{rotate:-45,style:{fontSize:'10px'}}},yaxis:ejeValorA(),legend:{show:false},
+      tooltip:{y:{formatter:y=>'Acumulado: '+fmtM(y)}}});
   }
   function graficoDispersion(card,v){
     const pts=v.series.scatter,hex=COLOR.scatter;
-    const config={type:'scatter',data:{datasets:[{label:'Paradas',data:pts.map(p=>({x:p.x,y:p.y})),backgroundColor:pts.map(p=>(!hay('causa')||seleccionado('causa',p.fila.causa))?rgba(hex,0.75):rgba(hex,0.18)),pointRadius:5,pointHoverRadius:8}]},
-      options:opcionesBase('causa',false,{scales:{x:{title:{display:true,text:'Minutos de parada'},beginAtZero:true},y:{title:{display:true,text:S.econ?'Pérdida (S/)':'Unidades perdidas'},beginAtZero:true}},
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:it=>{const p=pts[it.dataIndex];if(!p)return '';const f=p.fila;return [corto(f.causa,40)+(f.maquina&&f.maquina!=='Sin clasificar'?' · '+f.maquina:''),fFecha(f.fecha)+' · '+nf(f.min)+' min · '+(S.econ?fS(f.s):nf(f.u)+' und')];}}}},
-        interaction:{mode:'nearest',intersect:true},
-        onClick:(e,els)=>{if(!els.length)return;const p=pts[els[0].index];if(p)alternar('causa',p.fila.causa);}})};
-    asegurarGrafico(card.id,config);
+    const sel=pts.filter(p=>!hay('causa')||seleccionado('causa',p.fila.causa)),otros=hay('causa')?pts.filter(p=>!seleccionado('causa',p.fila.causa)):[];
+    const grupos=[sel].concat(otros.length?[otros]:[]);
+    const detalle=(g,i)=>{const p=grupos[g]&&grupos[g][i];if(!p)return '';const f=p.fila;
+      return tipA(corto(f.causa,40)+(f.maquina&&f.maquina!=='Sin clasificar'?' · '+f.maquina:''),[fFecha(f.fecha)+' · '+nf(f.min)+' min · '+(S.econ?(f.s==null?'sin valor':fS(f.s)):nf(f.u)+' unidades')]);};
+    asegurarGrafico(card.id,{chart:{type:'scatter',events:{dataPointSelection:(e,ch,cfg)=>{const p=grupos[cfg.seriesIndex]&&grupos[cfg.seriesIndex][cfg.dataPointIndex];if(p){const c=p.fila.causa;setTimeout(()=>alternar('causa',c),0);}}}},
+      series:grupos.map((g,i)=>({name:i===0?(hay('causa')?'Seleccionadas':'Paradas'):'Otras',data:g.map(p=>({x:p.x,y:p.y}))})),
+      colors:[rgba(hex,0.75),rgba(hex,0.18)],markers:{size:6,hover:{size:9}},dataLabels:{enabled:false},
+      xaxis:{type:'numeric',min:0,title:{text:'Minutos de parada'},labels:{formatter:x=>nf(x)}},
+      yaxis:{min:0,title:{text:S.econ?'Pérdida (S/)':'Unidades perdidas'},labels:{formatter:y=>nf(y)}},legend:{show:grupos.length>1,position:'bottom'},
+      tooltip:{custom:({seriesIndex:g,dataPointIndex:i})=>detalle(g,i)}});
   }
   function pintarTarjetas(){
     const v=S.vista,unidad=S.econ?' (S/)':' (minutos)';
@@ -337,21 +374,20 @@
       const r=AN()[FN_ANALISIS[c.id]](v);
       if(an)an.innerHTML=htmlAn(r);
       if(c.pane!==S.tab)return;
-      if(typeof Chart==='undefined'){return;}
+      if(typeof ApexCharts==='undefined'){return;}
       switch(c.id){
         case 'evolucion':graficoEvolucion(c,v);break;
         case 'linea':graficoRanking(c,v.series.linea,{horizontal:true,top:8});break;
         case 'causa':graficoPareto(c,v.series.causa);break;
         case 'turno':graficoRanking(c,v.series.turno,{horizontal:false,top:6});break;
         case 'acumulada':graficoAcumulada(c,v);break;
-        case 'maquina':graficoRanking(c,v.series.maquina,{horizontal:true,top:8});break;
+        case 'maquina':graficoMapaArbol(c,v.series.maquina,{top:8});break;
         case 'marca':graficoRanking(c,v.series.marca,{horizontal:true,top:8});break;
         case 'pres':graficoRanking(c,v.series.pres,{horizontal:true,top:8});break;
-        case 'tipo':graficoRanking(c,v.series.tipo,{horizontal:true,top:4});break;
+        case 'tipo':graficoDona(c,v.series.tipo,{top:4});break;
         case 'scatter':graficoDispersion(c,v);break;
       }
     });
-    Object.keys(S.charts).forEach(id=>{const c=S.charts[id];if(c&&c.canvas&&c.canvas.offsetParent)try{c.resize();}catch(_){/* oculto */}});
   }
   function htmlAn(r){
     if(!r)return '';

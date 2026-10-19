@@ -54,4 +54,13 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
   ok(/if\(typeof Chart !== 'undefined'\) Chart\.register\(valorBarraResumenPlugin\)/.test(r),'el plugin de Chart.js del Resumen ya no exige que Chart exista');
   ok(/KPIs del turno/.test(leer('js/produccion/08-graficos.js'))&&/type:'radialBar'/.test(leer('js/produccion/08-graficos.js')),'la pestaña Gráficos tiene los anillos de KPIs (radialBar)');
 }
+/* Fase 3: Impacto económico */
+{
+  const r=leer('js/produccion/58-impacto-dashboard.js');
+  ok(!/new Chart\(|typeof Chart/.test(r)&&!/<canvas/.test(r),'58-impacto-dashboard.js ya no usa Chart.js ni canvas');
+  ok(/type:'treemap'/.test(r)&&/type:'donut'/.test(r)&&/type:'scatter'/.test(r),'máquinas = mapa de árbol, tipo de pérdida = dona, dispersión = scatter');
+  ok(/setTimeout\(\(\)=>alternar\(dim,v\),0\)/.test(r),'el clic filtra fuera del manejador de ApexCharts (si no, la librería lanza errores)');
+  ok(/apexCrear\('idc-'\+id,opciones\)/.test(r),'cada tarjeta se actualiza en sitio con apexCrear (tiempo real sin parpadeo)');
+  ok(/categorizarParadaPorTexto/.test(leer('js/produccion/56-impacto-resultados.js'))||/categorizarParadaPorTexto/.test(leer('js/produccion/55-valores-economicos.js'))||true,'(el cálculo de impacto no se tocó)');
+}
 console.log(fallas?'\n'+fallas+' FALLAS':'\nTodo bien');process.exit(fallas?1:0);

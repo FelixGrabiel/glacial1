@@ -73,6 +73,7 @@ async function iniciar() {
     state.currentLine = 'PET1'; state.currentTab = 'graficos'; state.viewingRecordId = null;
     // Anfitrión propio: ancho de pantalla completo (en la página real el menú lateral y el margen lo reducen; aquí se mide cada tarjeta contra el viewport)
     ['login-screen', 'app-screen'].forEach(i => { const e = document.getElementById(i); if (e) e.style.display = 'none'; });
+    document.documentElement.style.overflow = 'auto'; document.body.style.overflow = 'auto'; document.body.style.height = 'auto';   // la página real desplaza dentro del área principal; aquí desplaza el documento
     const host = document.createElement('div'); host.style.cssText = 'padding:12px;width:100%;box-sizing:border-box';
     const c = document.createElement('div'); c.id = 'tab-content'; host.appendChild(c); document.body.appendChild(host);
     return recs.length;

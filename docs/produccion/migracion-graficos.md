@@ -6,7 +6,7 @@ Se hace **por fases, una pestaña a la vez**. Chart.js sigue cargado hasta que l
 |---|---|---|
 | 1 | Capa base (`08a-graficos-base.js`) + pestaña **Gráficos** de la línea (10 gráficos) | Hecha |
 | 2 | Resumen general (13 gráficos + 3 nuevos, con la carga diferida `49b`) y anillos de KPIs en la pestaña Gráficos | Hecha |
-| 3 | Impacto económico (10 tarjetas) | Pendiente |
+| 3 | Impacto económico (10 tarjetas) | Hecha |
 | 4 | Tareo (horas extras) y Reporte General a Excel; retirar Chart.js | Pendiente |
 
 ## Decisiones
@@ -47,7 +47,20 @@ Se hace **por fases, una pestaña a la vez**. Chart.js sigue cargado hasta que l
 | **Nuevo:** OEE por línea y día | Mapa de calor Apex, 3 rangos (<65 / 65–75 / ≥75), valor dentro de cada celda (hasta 14 días) |
 Los gráficos se crean de uno en uno DESPUÉS del render con `glacialDiferirGrafico` (en `49b-resumen-graficos-diferidos.js`; mismo comportamiento que antes con Chart.js, que se conserva para quien aún lo use). Pestaña Gráficos de la línea: se añadió **KPIs del turno** (anillos radialBar: OEE al centro como total y leyenda con nombre y valor).
 
+## Fase 3 · Impacto económico (`58-impacto-dashboard.js`)
+| Tarjeta | Antes | Ahora |
+|---|---|---|
+| Evolución de la pérdida | barras + periodo anterior + tendencia | columnas + 2 líneas (Apex mixto) |
+| Pérdida por línea · turno · marca · presentación | barras | barras (Apex), color según selección |
+| Pareto de causas | barras + % acumulado | columnas + % acumulado en segundo eje |
+| Pérdida acumulada | línea con relleno | área suave con degradado |
+| **Top máquinas** | barras horizontales | **mapa de árbol** (treemap): recuadro por máquina, «Máquina» + «S/ monto», bordes del color de fondo |
+| **Pérdida por tipo** | barras horizontales (top 4) | **dona** con degradado y sombra, total «S/ X» al centro |
+| Minutos de parada vs. pérdida | dispersión | dispersión (Apex) |
+**Se conserva todo el comportamiento:** un clic o toque en una barra, recuadro, sector o punto agrega o quita ese valor del filtro (se acumulan y los no elegidos se atenúan); cada gráfico se **actualiza en sitio** con el tiempo real (`refrescar` cada 400 ms / 60 s) con la misma instancia. El clic se procesa fuera del manejador de ApexCharts (`setTimeout 0`): repintar dentro rompe la librería. `categorizarParadaPorTexto()` y todo el cálculo (56/57/59) no cambiaron.
+
 ## Pruebas
 - `node tests/graficos-base.test.js` (rápida): metas, colores, registro, integración en `index.html`.
 - `GLX_LIBS=<carpeta con node_modules de apexcharts, echarts, canvas-gauges y chart.js> node tests/graficos-fase1.e2e.js`: dibuja la pestaña con los 11 gráficos en PC y en celular de 360 px, comprueba que caben, que no se acumulan instancias, los PNG y las metas.
 - `… node tests/graficos-fase2.e2e.js`: dibuja el Resumen general (16 gráficos) con 3 líneas y 12 días, en PC y celular; comprueba la creación diferida, que no se acumulan instancias y los gráficos nuevos.
+- `… node tests/graficos-fase3.e2e.js`: dibuja Impacto económico (10 tarjetas) en PC (con soles) y celular de 360 px (operativo, minutos); clics REALES en barras, recuadro del treemap y sector de la dona (filtran y se quitan); 6 refrescos en vivo con las mismas instancias; sin errores de consola.
