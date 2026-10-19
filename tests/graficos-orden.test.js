@@ -10,18 +10,18 @@ const trozo=(ini,fin)=>{const a=f08.indexOf(ini),b=f08.indexOf(fin,a+1);return a
 /* ---------- pantalla ---------- */
 const pantalla=trozo('function renderGraficosTab(){','GRÁFICOS NUEVOS (ApexCharts');
 const html=pantalla.slice(pantalla.indexOf('<div class="chart-grid">'));
-const orden=['id="resumen-turno"','id="chart-marca-prod"','id="chart-cascada"','id="chart-paradas"','id="chart-mermas"','id="chart-tendencia"','id="chart-turno"','id="chart-marca"','id="chart-insumos"','id="reporte-analisis-accion"'];
+const orden=['id="chart-oee"','id="chart-componentes"','id="chart-marca-prod"','id="chart-cascada"','id="chart-paradas"','id="chart-mermas"','id="chart-tendencia"','id="chart-turno"','id="chart-marca"','id="chart-insumos"','id="reporte-analisis-accion"'];
 const pos=orden.map(k=>html.indexOf(k));
-ok(pos.every(p=>p>=0)&&pos.every((p,i)=>i===0||p>pos[i-1]),'pantalla: resumen → producción por marca → cascada y Pareto → mermas → tendencia → OEE por turno y marca → insumos → análisis y acción (al final)');
-ok(!/chart-kpis|chart-oee"|chart-componentes|chart-prod"/.test(html),'pantalla: ya no están el velocímetro de OEE, los medidores de componentes, los anillos de KPIs ni el gráfico nominal/programada/efectiva');
+ok(pos.every(p=>p>=0)&&pos.every((p,i)=>i===0||p>pos[i-1]),'pantalla: OEE y componentes (medidores) → producción por marca → cascada y Pareto → mermas → tendencia → OEE por turno y marca → insumos → análisis y acción (al final)');
+ok(!/chart-kpis|chart-prod"|resumen-turno/.test(html)&&!/type:'radialBar'/.test(f08),'pantalla: ya no están los anillos de KPIs (repetían los medidores) ni el gráfico nominal/programada/efectiva; se conservan el velocímetro de OEE y los 3 medidores');
 const codigo=f08.slice(f08.indexOf('GRÁFICOS NUEVOS (ApexCharts'));
 const claves=[...codigo.matchAll(/registrarGx\('([a-z-]+)'/g)].map(m=>m[1]);
-ok(['marcaprod','cascada','paradas','mermas','insumos','tendencia','turno','marca'].every(k=>claves.includes(k))&&!['oee','kpis','componentes','prod'].some(k=>claves.includes(k)),'gráficos registrados: los 8 que quedan (incluye «marcaprod», nuevo) y ninguno de los repetidos');
+ok(['oee','componentes','marcaprod','cascada','paradas','mermas','insumos','tendencia','turno','marca'].every(k=>claves.includes(k))&&!['kpis','prod'].some(k=>claves.includes(k)),'gráficos registrados: los 10 que quedan (OEE y componentes como medidores, «marcaprod» nuevo) y ninguno de los repetidos');
 ok(/state\.charts\.cascada|ids=\['chart-cascada','chart-paradas','chart-mermas'\]/.test(f08)&&claves.includes('cascada')&&claves.includes('paradas')&&claves.includes('mermas'),'cascada, Pareto y mermas siguen registrados para el PNG de detalle');
-ok(/agruparProduccionPorMarca\(rec\)/.test(codigo)&&/id="resumen-turno"/.test(html),'«Producción por marca» usa los mismos datos que «Marcas producidas» del PNG (agruparProduccionPorMarca)');
+ok(/agruparProduccionPorMarca\(rec\)/.test(codigo)&&/chart-marca-prod/.test(html),'«Producción por marca» usa los mismos datos que «Marcas producidas» del PNG (agruparProduccionPorMarca)');
 ok(/cascada-datos/.test(codigo)&&/Nominal/.test(codigo)&&/Programada/.test(codigo)&&/Efectiva/.test(codigo),'nominal, programada y efectiva quedan como datos bajo la cascada');
 ok(/type:'bar'[\s\S]{0,200}horizontal:true[\s\S]{0,400}mermasOrden/.test(codigo.slice(codigo.indexOf("registrarGx('mermas'"),codigo.indexOf("registrarGx('mermas'")+1200))||/mermasOrden[\s\S]{0,300}horizontal:true/.test(codigo),'mermas: barras horizontales ordenadas de mayor a menor (ya no área polar)');
-ok(/METAS_GRAFICOS\[clave\]/.test(pantalla)&&/colorCumplimiento\(v\)/.test(pantalla)&&/colorKpi\(v, clave\)/.test(pantalla),'el resumen usa las metas y los colores de la tabla configurada');
+ok(/velocimetroOEE\('chart-oee'/.test(codigo)&&/velocimetrosCompactos\('chart-componentes'/.test(codigo)&&/oeeRed >= METAS_GRAFICOS\.oee/.test(pantalla),'los medidores usan las metas configuradas y el texto «pts por debajo» compara el valor redondeado');
 
 /* ---------- PNG con gráficos (detalle) ---------- */
 const png=trozo('async function exportarPNGDetalle(){','\nfunction ',);

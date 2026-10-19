@@ -15,7 +15,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
 (async () => {
   const H = await iniciar();
   const medir = (page) => page.evaluate(() => {
-    const ids = ['marca-prod', 'cascada', 'paradas', 'mermas', 'insumos', 'tendencia', 'turno', 'marca'];   // orden por importancia: el resumen del turno es HTML (sin gráfico)
+    const ids = ['oee', 'componentes', 'marca-prod', 'cascada', 'paradas', 'mermas', 'insumos', 'tendencia', 'turno', 'marca'];   // orden por importancia: los medidores de OEE y componentes abren la pantalla
     const out = {};
     ids.forEach(id => {
       const el = document.getElementById('chart-' + id);

@@ -54,7 +54,7 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
   ok(['chart-oee-turno','chart-heat-oee'].every(id=>r.includes(id))&&!r.includes('chart-oee-planta')&&!r.includes('ri-cumplimiento'),'gráficos del Resumen: OEE por turno y mapa de calor; sin el velocímetro de OEE de planta (repetía la tarjeta) ni «Cumplimiento por línea» (va dentro de «Programado vs producido»)');
   ok(/RS_IDS_INDUSTRIAL/.test(r)&&r.includes('ri-personal'),'los 7 gráficos industriales se registran para destruirlos');
   ok(!/Chart\.register|Chart\.defaults/.test(r),'09-resumen.js ya no toca Chart.register ni Chart.defaults');
-  ok(/Resumen del turno/.test(leer('js/produccion/08-graficos.js'))&&/resumenTurnoHtml/.test(leer('js/produccion/08-graficos.js'))&&!/type:'radialBar'/.test(leer('js/produccion/08-graficos.js')),'la pestaña Gráficos tiene un solo «Resumen del turno» con los 4 indicadores (sustituye a los anillos radialBar, el velocímetro y los medidores repetidos)');
+  ok(/velocimetroOEE\('chart-oee'/.test(leer('js/produccion/08-graficos.js'))&&/velocimetrosCompactos\('chart-componentes'/.test(leer('js/produccion/08-graficos.js'))&&!/type:'radialBar'/.test(leer('js/produccion/08-graficos.js')),'la pestaña Gráficos abre con el velocímetro de OEE y los 3 medidores de componentes; los anillos radialBar (repetidos) se retiraron');
 }
 /* Fase 3: Impacto económico */
 {

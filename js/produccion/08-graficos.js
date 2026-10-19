@@ -3844,32 +3844,7 @@ function renderGraficosTab(){
     calcDerived(rec);
 
 
-  /* RESUMEN DEL TURNO — un solo bloque con OEE, Disponibilidad, Rendimiento y Cumplimiento (reemplaza el velocímetro, los 3 medidores y los anillos,
-     que mostraban los mismos 4 números). Los colores y las metas son los de la tabla configurada (colorKpi / METAS_GRAFICOS). */
-  const resumenTurnoHtml = (() => {
-    const pctTxt = v => (Math.round(v * 10) / 10).toLocaleString('es-PE', { minimumFractionDigits:1, maximumFractionDigits:1 }) + '%';
-    const efectivaTxt = num(d.efectiva ?? rec.produccion?.efectiva);
-    const programadaTxt = num(d.programada ?? rec.produccion?.programada);
-    const tile = (nombre, valor, clave, detalle) => {
-      const v = num(valor) * 100;
-      const meta = METAS_GRAFICOS[clave];
-      const color = clave === 'cumplimiento' ? colorCumplimiento(v) : colorKpi(v, clave);
-      const dif = Math.round((v - meta) * 10) / 10;
-      const pie = detalle || (Number.isFinite(meta)
-        ? 'meta ' + meta + '% · ' + Math.abs(dif).toLocaleString('es-PE') + ' pts ' + (dif >= 0 ? 'sobre la meta' : 'bajo la meta')
-        : '');
-      return '<div style="background:#F5F9FC;border-radius:10px;padding:12px 10px;text-align:center;border-top:4px solid ' + color + ';">' +
-        '<div style="font-size:26px;font-weight:700;line-height:1.15;color:' + color + ';">' + pctTxt(v) + '</div>' +
-        '<div style="font-size:13px;font-weight:600;margin-top:2px;">' + nombre + '</div>' +
-        '<div class="small-muted" style="font-size:11px;margin-top:2px;">' + pie + '</div></div>';
-    };
-    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">' +
-      tile('OEE', d.oee, 'oee') +
-      tile('Disponibilidad', d.disponibilidad, 'disponibilidad') +
-      tile('Rendimiento', d.rendimiento, 'rendimiento') +
-      tile('Cumplimiento', d.cumplimiento, 'cumplimiento', formatearNumero(efectivaTxt) + ' de ' + formatearNumero(programadaTxt) + ' und programadas') +
-      '</div>';
-  })();
+  const oeeRed = Math.round(d.oee * 1000) / 10;   // el mismo valor que muestra el velocímetro (evita «0 pts por debajo» por decimales)
 
 
   c.innerHTML = `
@@ -3958,13 +3933,47 @@ function renderGraficosTab(){
     <div class="chart-grid">
 
 
-      <div class="chart-box" style="grid-column:1/-1;">
+      <div class="chart-box">
 
         <h4>
-          Resumen del turno
+          OEE del turno
         </h4>
 
-        <div id="resumen-turno">${resumenTurnoHtml}</div>
+        <div id="chart-oee" class="gx gx-gauge"></div>
+
+        <div
+          style="text-align:center;font-size:12px;color:${
+            oeeRed >= METAS_GRAFICOS.oee ? PAL.verde : PAL.rojo
+          };font-weight:600;margin-top:6px;"
+        >
+          Meta ${METAS_GRAFICOS.oee}%
+          ·
+          ${
+            oeeRed >= METAS_GRAFICOS.oee
+              ? 'meta cumplida'
+              : (
+                  Math.round((METAS_GRAFICOS.oee - oeeRed) * 10) / 10
+                ) + ' pts por debajo'
+          }
+        </div>
+
+      </div>
+
+
+      <div class="chart-box">
+
+        <h4>
+          Componentes del OEE vs. meta
+        </h4>
+
+        <div id="chart-componentes" class="gx gx-gauge"></div>
+
+        <div
+          class="small-muted"
+          style="text-align:center;margin-top:6px;font-size:11px;"
+        >
+          OEE = Disponibilidad × Rendimiento
+        </div>
 
       </div>
 
@@ -4139,6 +4148,24 @@ function renderGraficosTab(){
     aviso.textContent = texto;
     el.parentNode.insertBefore(aviso, el.nextSibling);
   };
+
+
+  /* =====================================================
+     OEE DEL TURNO — velocímetro con aguja y marca de meta
+  ===================================================== */
+  registrarGx('oee', 'chart-oee',
+    velocimetroOEE('chart-oee', r1(d.oee * 100), { nombre:'OEE', clave:'oee' }));
+
+  /* =====================================================
+     DISPONIBILIDAD · RENDIMIENTO · CUMPLIMIENTO — tres medidores compactos en un solo gráfico
+     (OEE = Disponibilidad × Rendimiento)
+  ===================================================== */
+  registrarGx('componentes', 'chart-componentes',
+    velocimetrosCompactos('chart-componentes', [
+      { nombre:'Disponibilidad', valor:r1(d.disponibilidad * 100), clave:'disponibilidad' },
+      { nombre:'Rendimiento', valor:r1(d.rendimiento * 100), clave:'rendimiento' },
+      { nombre:'Cumplimiento', valor:r1(d.cumplimiento * 100), clave:'cumplimiento', max:120, meta:MG.cumplimiento }
+    ]));
 
 
   /* =====================================================
