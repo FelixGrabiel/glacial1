@@ -15,7 +15,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
 (async () => {
   const H = await iniciar();
   const medir = (page) => page.evaluate(() => {
-    const ids = ['kpis', 'oee', 'componentes', 'cascada', 'prod', 'paradas', 'mermas', 'insumos', 'tendencia', 'turno', 'marca'];
+    const ids = ['marca-prod', 'cascada', 'paradas', 'mermas', 'insumos', 'tendencia', 'turno', 'marca'];   // orden por importancia: el resumen del turno es HTML (sin gráfico)
     const out = {};
     ids.forEach(id => {
       const el = document.getElementById('chart-' + id);
@@ -61,14 +61,14 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
       await D.page.waitForTimeout(800);
       const imgs = await D.page.evaluate(async () => {
         const r = {};
-        for (const id of ['chart-oee', 'chart-cascada', 'chart-paradas', 'chart-mermas', 'chart-tendencia']) {
+        for (const id of ['chart-marca-prod', 'chart-cascada', 'chart-paradas', 'chart-mermas', 'chart-tendencia']) {
           try { r[id] = String(await graficoAImagen(id)).slice(0, 22); } catch (e) { r[id] = 'ERR ' + e.message; }
         }
         r.estado = ['cascada', 'paradas', 'mermas'].every(k => state.charts[k] && typeof state.charts[k].toBase64Image === 'function' && typeof state.charts[k].destroy === 'function');
         r.viaState = String(await state.charts.cascada.toBase64Image()).slice(0, 22);
         return r;
       });
-      ok(['chart-oee', 'chart-cascada', 'chart-paradas', 'chart-mermas', 'chart-tendencia'].every(k => /^data:image\/png;base64/.test(imgs[k])), 'graficoAImagen devuelve un PNG en base64 para ECharts y ApexCharts');
+      ok(['chart-marca-prod', 'chart-cascada', 'chart-paradas', 'chart-mermas', 'chart-tendencia'].every(k => /^data:image\/png;base64/.test(imgs[k])), 'graficoAImagen devuelve un PNG en base64 para ECharts y ApexCharts');
       ok(imgs.estado && /^data:image\/png/.test(imgs.viaState), 'state.charts.cascada/paradas/mermas siguen teniendo toBase64Image() (para «PNG con gráficos (detalle)»)');
 
       /* colores y metas */
@@ -84,17 +84,20 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
 
       /* actualización en sitio: la aguja se mueve sin recrear */
       const mov = await D.page.evaluate(async () => {
-        const antes = glacialGraficosBase.REG.echarts['chart-oee'].inst;
-        velocimetroOEE('chart-oee', 55.5, { nombre: 'OEE', clave: 'oee' });
+        const caja = document.createElement('div');   // la pantalla ya no trae velocímetro: se prueba la capa base sobre un contenedor propio
+        caja.id = 'chart-oee-prueba'; caja.className = 'gx gx-gauge'; document.body.appendChild(caja);
+        velocimetroOEE('chart-oee-prueba', 40, { nombre: 'OEE', clave: 'oee' });
+        const antes = glacialGraficosBase.REG.echarts['chart-oee-prueba'].inst;
+        velocimetroOEE('chart-oee-prueba', 55.5, { nombre: 'OEE', clave: 'oee' });
         await new Promise(r => setTimeout(r, 300));
-        const despues = glacialGraficosBase.REG.echarts['chart-oee'].inst;
+        const despues = glacialGraficosBase.REG.echarts['chart-oee-prueba'].inst;
         return { misma: antes === despues, valor: despues.getOption().series[0].data[0].value };
       });
       ok(mov.misma && mov.valor === 55.5, 'el velocímetro se actualiza en sitio (misma instancia, solo se mueve la aguja)');
       const ap = await D.page.evaluate(() => {
-        const antes = glacialGraficosBase.REG.apex['chart-prod'].inst;
-        apexCrear('chart-prod', { chart: { type: 'bar' }, series: [{ name: 'Unidades', data: [1, 2, 3] }], xaxis: { categories: ['a', 'b', 'c'] } });
-        return glacialGraficosBase.REG.apex['chart-prod'].inst === antes;
+        const antes = glacialGraficosBase.REG.apex['chart-marca-prod'].inst;
+        apexCrear('chart-marca-prod', { chart: { type: 'bar' }, series: [{ name: 'Unidades', data: [1, 2, 3] }], xaxis: { categories: ['a', 'b', 'c'] } });
+        return glacialGraficosBase.REG.apex['chart-marca-prod'].inst === antes;
       });
       ok(ap, 'apexCrear sobre el mismo contenedor actualiza la instancia (no recrea → sin parpadeo)');
       /* canvas-gauges */

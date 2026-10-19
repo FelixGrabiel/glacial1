@@ -3553,7 +3553,8 @@ async function exportarPNGDetalle(){
     const totalMarcas=formatos.reduce((a,f)=>a+num(f.total),0);
     const diferenciaPrograma=num(d.efectiva)-num(d.programada);
 
-    const W=1240,H=1754,P=48;
+    const totalFilasMarcas=formatos.reduce((a,f)=>a+1+f.marcas.length,0),filasMarcasN=Math.min(10,Math.max(1,totalFilasMarcas))+(totalFilasMarcas>10?0.8:0);
+    const W=1240,P=48,H=Math.max(1400,158+170+18+Math.ceil(filasMarcasN*20+86)+18+310+273+245+92);   // la altura sigue al número de marcas
     const canvas=document.createElement('canvas');
     canvas.width=W;
     canvas.height=H;
@@ -3595,100 +3596,73 @@ async function exportarPNGDetalle(){
     let y=158;
 
     /* =====================================================
-       PRODUCCIÓN DEL TURNO — primero unidades, luego KPI
+       1 · RESUMEN DEL TURNO — los 4 indicadores y, debajo, programada / realizada / diferencia
        ===================================================== */
-    const prodH=218;
-    card(P+24,y,W-P*2-48,prodH);
-    ctx.fillStyle='#005B96';ctx.font='700 15px Arial';
-    ctx.fillText('PRODUCCIÓN DEL TURNO',P+40,y+27);
-
-    const resumenW=365;
-    ctx.fillStyle='#F5F9FC';ctx.fillRect(P+40,y+44,resumenW,154);
-    ctx.fillStyle='#667784';ctx.font='12px Arial';
-    ctx.fillText('Programada',P+56,y+67);
-    ctx.fillText('Realizada',P+56,y+99);
-    ctx.fillText('Diferencia',P+56,y+131);
-    ctx.fillText('Cumplimiento',P+56,y+163);
-    ctx.fillStyle='#172B3A';ctx.font='700 15px Arial';ctx.textAlign='right';
-    ctx.fillText(fmtUnd(d.programada),P+40+resumenW-18,y+67);
-    ctx.fillText(fmtUnd(d.efectiva),P+40+resumenW-18,y+99);
-    ctx.fillStyle=diferenciaPrograma>=0?PAL.verde:PAL.rojo;
-    ctx.fillText(`${diferenciaPrograma>=0?'+':''}${formatearNumero(diferenciaPrograma)} und`,P+40+resumenW-18,y+131);
-    ctx.fillStyle='#172B3A';
-    ctx.fillText(pct(d.cumplimiento),P+40+resumenW-18,y+163);
-    ctx.textAlign='left';
-    ctx.fillStyle='#87949D';ctx.font='10px Arial';
-    ctx.fillText(`Cap. teórica ${formatearNumero(cascada.capacidadTeorica)} und · Cap. operativa ${formatearNumero(d.produccionNominal)} und`,P+56,y+188);
-
-    const mx=P+40+resumenW+28;
-    const mw=W-P-mx-40;
-    ctx.fillStyle='#172B3A';ctx.font='700 13px Arial';
-    ctx.fillText('MARCAS PRODUCIDAS',mx,y+55);
-    ctx.fillStyle='#667784';ctx.font='11px Arial';
-    ctx.fillText('Presentación / marca',mx,y+77);
-    ctx.textAlign='right';ctx.fillText('Producción',mx+mw,y+77);ctx.textAlign='left';
-
-    let my=y+98;
-    let lineasUsadas=0;
-    const maxLineas=6;
-
-    for(const f of formatos){
-      if(lineasUsadas>=maxLineas)break;
-      ctx.fillStyle='#005B96';ctx.font='700 11px Arial';
-      ctx.fillText(`${rec.linea||state.currentLine||''} · ${f.presentacion}`,mx,my);
-      ctx.textAlign='right';ctx.fillText(fmtUnd(f.total),mx+mw,my);ctx.textAlign='left';
-      my+=19;lineasUsadas++;
-
-      for(const m of f.marcas){
-        if(lineasUsadas>=maxLineas)break;
-        ctx.fillStyle='#405261';ctx.font='11px Arial';
-        ctx.fillText(`• ${m.marca}`,mx+12,my);
-        ctx.textAlign='right';ctx.fillText(fmtUnd(m.efectiva),mx+mw,my);ctx.textAlign='left';
-        my+=18;lineasUsadas++;
-      }
-    }
-
-    if(!formatos.length){
-      ctx.fillStyle='#87949D';ctx.font='11px Arial';
-      ctx.fillText('Sin producción efectiva registrada por marca.',mx,my);
-    }else if(formatos.reduce((a,f)=>a+1+f.marcas.length,0)>maxLineas){
-      ctx.fillStyle='#87949D';ctx.font='10px Arial';
-      ctx.fillText('… resto de marcas incluido en el total del turno.',mx,my);
-    }
-
-    ctx.strokeStyle='#DCE3E8';ctx.beginPath();ctx.moveTo(mx,y+181);ctx.lineTo(mx+mw,y+181);ctx.stroke();
-    ctx.fillStyle='#172B3A';ctx.font='700 12px Arial';ctx.fillText('TOTAL PRODUCIDO',mx,y+201);
-    ctx.textAlign='right';ctx.fillText(fmtUnd(totalMarcas||d.efectiva),mx+mw,y+201);ctx.textAlign='left';
-
-    y+=prodH+18;
-
-    /* ---------- KPI ---------- */
     const kpis=[
       ['OEE',d.oee,METAS.oee],
       ['Disponibilidad',d.disponibilidad,METAS.disponibilidad],
       ['Rendimiento',d.rendimiento,METAS.rendimiento],
       ['Cumplimiento',d.cumplimiento,1]
     ];
-    const kw=(W-P*2-48)/4,ky=y;
+    const resH=170;
+    card(P+24,y,W-P*2-48,resH);
+    ctx.fillStyle='#005B96';ctx.font='700 15px Arial';
+    ctx.fillText('RESUMEN DEL TURNO',P+40,y+27);
+    const kw=(W-P*2-80)/4;
     kpis.forEach((k,i)=>{
-      const x=P+24+i*kw;
-      card(x,ky,kw-8,86);
-      ctx.fillStyle=colorSegunMeta(num(k[1]),num(k[2]));ctx.fillRect(x,ky,5,86);
-      ctx.fillStyle='#667784';ctx.font='12px Arial';ctx.fillText(k[0],x+14,ky+22);
-      ctx.fillStyle='#172B3A';ctx.font='700 22px Arial';ctx.fillText(pct(k[1]),x+14,ky+49);
+      const x=P+40+i*kw,ky=y+42;
+      ctx.fillStyle='#F5F9FC';ctx.fillRect(x,ky,kw-10,74);
+      ctx.fillStyle=colorSegunMeta(num(k[1]),num(k[2]));ctx.fillRect(x,ky,5,74);
+      ctx.fillStyle='#667784';ctx.font='12px Arial';ctx.fillText(k[0],x+16,ky+20);
+      ctx.fillStyle='#172B3A';ctx.font='700 22px Arial';ctx.fillText(pct(k[1]),x+16,ky+46);
       ctx.fillStyle='#87949D';ctx.font='10px Arial';
       const dif=(num(k[1])-num(k[2]))*100;
-      ctx.fillText(`${dif>=0?'▲':'▼'} ${Math.abs(dif).toFixed(1)} pts vs meta`,x+14,ky+70);
+      ctx.fillText(`${dif>=0?'▲':'▼'} ${Math.abs(dif).toFixed(1)} pts vs meta`,x+16,ky+64);
     });
-    y+=104;
-
-    /* ---------- lectura del día ---------- */
-    card(P+24,y,W-P*2-48,68);
-    ctx.fillStyle='#005B96';ctx.font='700 12px Arial';ctx.fillText('LECTURA DEL DÍA',P+40,y+21);
     ctx.fillStyle='#405261';ctx.font='12px Arial';
-    const lectura=`Programa ${formatearNumero(d.programada)} und · Producción ${formatearNumero(d.efectiva)} und · Cumplimiento ${pct(d.cumplimiento)}. Capacidad operativa ${formatearNumero(d.produccionNominal)} und. Cumplimiento del programa y aprovechamiento de capacidad son indicadores distintos.`;
-    wrap(lectura,P+40,y+42,W-P*2-80,15,2);
-    y+=86;
+    ctx.fillText(`Programada ${fmtUnd(d.programada)}  ·  Realizada ${fmtUnd(d.efectiva)}  ·  `,P+40,y+141);
+    const antesDif=ctx.measureText(`Programada ${fmtUnd(d.programada)}  ·  Realizada ${fmtUnd(d.efectiva)}  ·  `).width;
+    ctx.fillStyle=diferenciaPrograma>=0?PAL.verde:PAL.rojo;ctx.font='700 12px Arial';
+    ctx.fillText(`Diferencia ${diferenciaPrograma>=0?'+':''}${formatearNumero(diferenciaPrograma)} und`,P+40+antesDif,y+141);
+    ctx.fillStyle='#87949D';ctx.font='10px Arial';
+    ctx.fillText(`Capacidad teórica ${formatearNumero(cascada.capacidadTeorica)} und · Capacidad operativa ${formatearNumero(d.produccionNominal)} und`,P+40,y+158);
+    y+=resH+18;
+
+    /* =====================================================
+       2 · MARCAS PRODUCIDAS — presentación y marca, con el total producido
+       ===================================================== */
+    const filasMarcas=[];
+    formatos.forEach(f=>{
+      filasMarcas.push({t:'f',a:`${rec.linea||state.currentLine||''} · ${f.presentacion}`,b:fmtUnd(f.total)});
+      f.marcas.forEach(m=>filasMarcas.push({t:'m',a:`• ${m.marca}`,b:fmtUnd(m.efectiva)}));
+    });
+    const maxFilasMarcas=10;
+    const visiblesMarcas=filasMarcas.slice(0,maxFilasMarcas);
+    const marcasH=Math.max(1,visiblesMarcas.length)*20+86+(filasMarcas.length>maxFilasMarcas?16:0);
+    card(P+24,y,W-P*2-48,marcasH);
+    ctx.fillStyle='#005B96';ctx.font='700 15px Arial';
+    ctx.fillText('MARCAS PRODUCIDAS',P+40,y+27);
+    ctx.fillStyle='#667784';ctx.font='11px Arial';
+    ctx.fillText('Presentación / marca',P+40,y+50);
+    ctx.textAlign='right';ctx.fillText('Producción',W-P-40,y+50);ctx.textAlign='left';
+    let my=y+72;
+    visiblesMarcas.forEach(f=>{
+      if(f.t==='f'){ctx.fillStyle='#005B96';ctx.font='700 12px Arial';ctx.fillText(f.a,P+40,my);}
+      else{ctx.fillStyle='#405261';ctx.font='12px Arial';ctx.fillText(f.a,P+54,my);}
+      ctx.textAlign='right';ctx.fillText(f.b,W-P-40,my);ctx.textAlign='left';
+      my+=20;
+    });
+    if(!filasMarcas.length){
+      ctx.fillStyle='#87949D';ctx.font='11px Arial';
+      ctx.fillText('Sin producción efectiva registrada por marca.',P+40,my);my+=20;
+    }else if(filasMarcas.length>maxFilasMarcas){
+      ctx.fillStyle='#87949D';ctx.font='10px Arial';
+      ctx.fillText('… resto de marcas incluido en el total del turno.',P+40,my);my+=16;
+    }
+    ctx.strokeStyle='#DCE3E8';ctx.beginPath();ctx.moveTo(P+40,y+marcasH-30);ctx.lineTo(W-P-40,y+marcasH-30);ctx.stroke();
+    ctx.fillStyle='#172B3A';ctx.font='700 12px Arial';ctx.fillText('TOTAL PRODUCIDO',P+40,y+marcasH-11);
+    ctx.textAlign='right';ctx.fillText(fmtUnd(totalMarcas||d.efectiva),W-P-40,y+marcasH-11);ctx.textAlign='left';
+    y+=marcasH+18;
 
     /* ---------- gráficos principales ---------- */
     const colW=(W-P*2-72)/2,gh=292;
@@ -3870,6 +3844,34 @@ function renderGraficosTab(){
     calcDerived(rec);
 
 
+  /* RESUMEN DEL TURNO — un solo bloque con OEE, Disponibilidad, Rendimiento y Cumplimiento (reemplaza el velocímetro, los 3 medidores y los anillos,
+     que mostraban los mismos 4 números). Los colores y las metas son los de la tabla configurada (colorKpi / METAS_GRAFICOS). */
+  const resumenTurnoHtml = (() => {
+    const pctTxt = v => (Math.round(v * 10) / 10).toLocaleString('es-PE', { minimumFractionDigits:1, maximumFractionDigits:1 }) + '%';
+    const efectivaTxt = num(d.efectiva ?? rec.produccion?.efectiva);
+    const programadaTxt = num(d.programada ?? rec.produccion?.programada);
+    const tile = (nombre, valor, clave, detalle) => {
+      const v = num(valor) * 100;
+      const meta = METAS_GRAFICOS[clave];
+      const color = clave === 'cumplimiento' ? colorCumplimiento(v) : colorKpi(v, clave);
+      const dif = Math.round((v - meta) * 10) / 10;
+      const pie = detalle || (Number.isFinite(meta)
+        ? 'meta ' + meta + '% · ' + Math.abs(dif).toLocaleString('es-PE') + ' pts ' + (dif >= 0 ? 'sobre la meta' : 'bajo la meta')
+        : '');
+      return '<div style="background:#F5F9FC;border-radius:10px;padding:12px 10px;text-align:center;border-top:4px solid ' + color + ';">' +
+        '<div style="font-size:26px;font-weight:700;line-height:1.15;color:' + color + ';">' + pctTxt(v) + '</div>' +
+        '<div style="font-size:13px;font-weight:600;margin-top:2px;">' + nombre + '</div>' +
+        '<div class="small-muted" style="font-size:11px;margin-top:2px;">' + pie + '</div></div>';
+    };
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">' +
+      tile('OEE', d.oee, 'oee') +
+      tile('Disponibilidad', d.disponibilidad, 'disponibilidad') +
+      tile('Rendimiento', d.rendimiento, 'rendimiento') +
+      tile('Cumplimiento', d.cumplimiento, 'cumplimiento', formatearNumero(efectivaTxt) + ' de ' + formatearNumero(programadaTxt) + ' und programadas') +
+      '</div>';
+  })();
+
+
   c.innerHTML = `
 
     <div
@@ -3959,55 +3961,21 @@ function renderGraficosTab(){
       <div class="chart-box" style="grid-column:1/-1;">
 
         <h4>
-          KPIs del turno
+          Resumen del turno
         </h4>
 
-        <div id="chart-kpis" class="gx gx-alto"></div>
+        <div id="resumen-turno">${resumenTurnoHtml}</div>
 
       </div>
 
 
-      <div class="chart-box">
+      <div class="chart-box" style="grid-column:1/-1;">
 
         <h4>
-          OEE del turno
+          Producción por marca (unidades efectivas)
         </h4>
 
-        <div id="chart-oee" class="gx gx-gauge"></div>
-
-        <div
-          style="text-align:center;font-size:12px;color:${
-            d.oee * 100 >= METAS_GRAFICOS.oee ? PAL.verde : PAL.rojo
-          };font-weight:600;margin-top:6px;"
-        >
-          Meta ${METAS_GRAFICOS.oee}%
-          ·
-          ${
-            d.oee * 100 >= METAS_GRAFICOS.oee
-              ? 'meta cumplida'
-              : (
-                  Math.round((METAS_GRAFICOS.oee - d.oee * 100) * 10) / 10
-                ) + ' pts por debajo'
-          }
-        </div>
-
-      </div>
-
-
-      <div class="chart-box">
-
-        <h4>
-          Componentes del OEE vs. meta
-        </h4>
-
-        <div id="chart-componentes" class="gx gx-gauge"></div>
-
-        <div
-          class="small-muted"
-          style="text-align:center;margin-top:6px;font-size:11px;"
-        >
-          OEE = Disponibilidad × Rendimiento
-        </div>
+        <div id="chart-marca-prod" class="gx"></div>
 
       </div>
 
@@ -4026,18 +3994,6 @@ function renderGraficosTab(){
       <div class="chart-box">
 
         <h4>
-          Producción:
-          nominal vs. programada vs. efectiva
-        </h4>
-
-        <div id="chart-prod" class="gx"></div>
-
-      </div>
-
-
-      <div class="chart-box">
-
-        <h4>
           Pareto de paradas (minutos por causa)
         </h4>
 
@@ -4046,37 +4002,18 @@ function renderGraficosTab(){
       </div>
 
 
-      <div class="chart-box">
+      <div class="chart-box" style="grid-column:1/-1;">
 
         <h4>
           Mermas por componente (% de producción)
         </h4>
 
-        <div id="chart-mermas" class="gx gx-alto"></div>
-
-      </div>
-
-
-      <div class="chart-box">
-
-        <h4>
-          Consumo de insumos
-        </h4>
-
-        <div id="chart-insumos" class="gx"></div>
+        <div id="chart-mermas" class="gx"></div>
 
       </div>
 
 
       <div class="chart-box" style="grid-column:1/-1;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-          <h4 style="margin:0;">Análisis y acción para mañana</h4>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="editarSugerenciaReporte()">Editar sugerencia</button>
-        </div>
-        <div id="reporte-analisis-accion" class="small-muted" style="margin-top:12px;line-height:1.55;"></div>
-      </div>
-
-      <div class="chart-box">
 
         <div
           style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;"
@@ -4135,6 +4072,26 @@ function renderGraficosTab(){
       </div>
 
 
+      <div class="chart-box" style="grid-column:1/-1;">
+
+        <h4>
+          Consumo de insumos
+        </h4>
+
+        <div id="chart-insumos" class="gx"></div>
+
+      </div>
+
+
+      <div class="chart-box" style="grid-column:1/-1;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+          <h4 style="margin:0;">Análisis y acción para mañana</h4>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="editarSugerenciaReporte()">Editar sugerencia</button>
+        </div>
+        <div id="reporte-analisis-accion" class="small-muted" style="margin-top:12px;line-height:1.55;"></div>
+      </div>
+
+
     </div>
 
   `;
@@ -4185,52 +4142,32 @@ function renderGraficosTab(){
 
 
   /* =====================================================
-     OEE DEL TURNO — velocímetro con aguja y marca de meta
+     PRODUCCIÓN POR MARCA — unidades efectivas del turno, de mayor a menor (mismos datos que «Marcas producidas» del PNG)
   ===================================================== */
-  registrarGx('oee', 'chart-oee',
-    velocimetroOEE('chart-oee', r1(d.oee * 100), { nombre:'OEE', clave:'oee' }));
-
-  /* =====================================================
-     KPIs DEL TURNO — anillos (radialBar): el OEE al centro y una leyenda con nombre y valor
-  ===================================================== */
-  const kpisAnillos = [
-    { nombre:'OEE', valor:r1(d.oee * 100), color:colorKpi(d.oee * 100, 'oee') },
-    { nombre:'Disponibilidad', valor:r1(d.disponibilidad * 100), color:colorKpi(d.disponibilidad * 100, 'disponibilidad') },
-    { nombre:'Rendimiento', valor:r1(d.rendimiento * 100), color:colorKpi(d.rendimiento * 100, 'rendimiento') },
-    { nombre:'Cumplimiento', valor:r1(d.cumplimiento * 100), color:colorCumplimiento(d.cumplimiento * 100) }
-  ];
-  registrarGx('kpis', 'chart-kpis', apexCrear('chart-kpis', {
-    chart:{ type:'radialBar' },
-    series:kpisAnillos.map(k => Math.min(100, Math.max(0, k.valor))),
-    labels:kpisAnillos.map(k => k.nombre),
-    colors:kpisAnillos.map(k => k.color),
-    plotOptions:{ radialBar:{
-      startAngle:-135, endAngle:135, hollow:{ size:'38%' },
-      track:{ background:GX.tema().grilla, strokeWidth:'100%', margin:4 },
-      dataLabels:{
-        name:{ fontSize:'13px', color:PAL.texto },
-        value:{ fontSize:'18px', fontWeight:700, color:PAL.texto, formatter:(v, o) => txtPct(kpisAnillos[o && o.seriesIndex != null ? o.seriesIndex : 0].valor) },
-        total:{ show:true, label:'OEE', fontSize:'13px', color:PAL.texto, formatter:() => txtPct(kpisAnillos[0].valor) }
-      }
-    } },
-    stroke:{ lineCap:'round' },
-    legend:{ show:true, position:'right', fontSize:'13px', itemMargin:{ vertical:4 },
-      formatter:(nombre, o) => nombre + ': ' + txtPct(kpisAnillos[o.seriesIndex].valor) },
-    responsive:[{ breakpoint:600, options:{ legend:{ position:'bottom' } } }],
-    tooltip:{ enabled:false }
-  }));
-
-
-  /* =====================================================
-     DISPONIBILIDAD · RENDIMIENTO · CUMPLIMIENTO — tres medidores compactos en un solo gráfico
-     (OEE = Disponibilidad × Rendimiento)
-  ===================================================== */
-  registrarGx('componentes', 'chart-componentes',
-    velocimetrosCompactos('chart-componentes', [
-      { nombre:'Disponibilidad', valor:r1(d.disponibilidad * 100), clave:'disponibilidad' },
-      { nombre:'Rendimiento', valor:r1(d.rendimiento * 100), clave:'rendimiento' },
-      { nombre:'Cumplimiento', valor:r1(d.cumplimiento * 100), clave:'cumplimiento', max:120, meta:MG.cumplimiento }
-    ]));
+  const prodMarcas = agruparProduccionPorMarca(rec);
+  if(!prodMarcas.filas.length){
+    sinDatos('chart-marca-prod', 'Sin producción efectiva registrada por marca en este turno.');
+  } else {
+    registrarGx('marcaprod', 'chart-marca-prod', apexCrear('chart-marca-prod', {
+      chart:{ type:'bar', height:Math.max(120, 52 + prodMarcas.filas.length * 38) },
+      series:[{ name:'Unidades efectivas', data:prodMarcas.filas.map(f => f.efectiva) }],
+      colors:[PAL.azul],
+      plotOptions:{ bar:{ horizontal:true, barHeight:'62%', borderRadius:5 } },
+      dataLabels:{ enabled:true, formatter:(v, o) => formatearNumero(v) + ' (' + Math.round(prodMarcas.total > 0 ? v / prodMarcas.total * 100 : 0) + '%)',
+        style:{ fontSize:'11px', fontWeight:700 } },
+      xaxis:{ categories:prodMarcas.filas.map(f => f.marca), labels:{ formatter:v => formatearNumero(v) } },
+      legend:{ show:false },
+      tooltip:{ y:{ formatter:v => formatearNumero(v) + ' unidades' } }
+    }));
+    const cajaMarcaProd = document.getElementById('chart-marca-prod')?.closest('.chart-box');
+    if(cajaMarcaProd){
+      const total = document.createElement('div');
+      total.className = 'small-muted';
+      total.style.cssText = 'text-align:center;margin-top:6px;font-size:11px;font-weight:600;';
+      total.textContent = 'Total producido: ' + formatearNumero(prodMarcas.total) + ' unidades';
+      cajaMarcaProd.appendChild(total);
+    }
+  }
 
 
   /* =====================================================
@@ -4279,26 +4216,23 @@ function renderGraficosTab(){
 
 
   /* =====================================================
-     PRODUCCIÓN: NOMINAL VS. PROGRAMADA VS. EFECTIVA
+     NOMINAL · PROGRAMADA · EFECTIVA — tres datos bajo la cascada (antes eran un gráfico aparte)
   ===================================================== */
   const prodNominal = num(d.produccionNominal);
   const prodProgramada = num(d.programada ?? rec.produccion?.programada);
   const prodEfectiva = num(d.efectiva ?? rec.produccion?.efectiva);
-  registrarGx('prod', 'chart-prod', apexCrear('chart-prod', {
-    chart:{ type:'bar' },
-    series:[{ name:'Unidades', data:[prodNominal, prodProgramada, prodEfectiva] }],
-    colors:[PAL.gris, PAL.ambar, PAL.verde],
-    plotOptions:{ bar:{ distributed:true, columnWidth:'55%', borderRadius:5, dataLabels:{ position:'top' } } },
-    dataLabels:{ enabled:true, offsetY:-20, formatter:v => formatearNumero(v), style:{ colors:[PAL.texto], fontSize:'11px', fontWeight:700 } },
-    xaxis:{ categories:['Nominal', 'Programada', 'Efectiva'] },
-    yaxis:{
-      min:0,
-      max:Math.max(prodNominal, prodProgramada, prodEfectiva) > 0 ? Math.max(prodNominal, prodProgramada, prodEfectiva) * 1.18 : 1,
-      labels:{ formatter:v => formatearNumero(v) }
-    },
-    legend:{ show:false },
-    tooltip:{ y:{ formatter:v => formatearNumero(v) + ' unidades' } }
-  }));
+  const cajaCascada = document.getElementById('chart-cascada')?.closest('.chart-box');
+  if(cajaCascada){
+    const fila = document.createElement('div');
+    fila.id = 'cascada-datos';
+    fila.className = 'small-muted';
+    fila.style.cssText = 'display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:6px;font-size:11px;';
+    fila.innerHTML =
+      '<span>Nominal <b>' + formatearNumero(prodNominal) + '</b></span>' +
+      '<span>Programada <b>' + formatearNumero(prodProgramada) + '</b></span>' +
+      '<span>Efectiva <b>' + formatearNumero(prodEfectiva) + '</b></span>';
+    cajaCascada.appendChild(fila);
+  }
 
 
   /* =====================================================
@@ -4356,21 +4290,17 @@ function renderGraficosTab(){
   if(!mermasAgrupadas.filas.length){
     sinDatos('chart-mermas', 'Sin mermas registradas en este turno.');
   } else {
+    const mermasOrden = mermasAgrupadas.filas.slice().sort((x, y) => mermaPct(y) - mermaPct(x));
     registrarGx('mermas', 'chart-mermas', apexCrear('chart-mermas', {
-      chart:{ type:'polarArea' },
-      series:mermasAgrupadas.filas.map(f => r1(mermaPct(f))),
-      labels:mermasAgrupadas.filas.map(f => f.item + ': ' + formatearNumero(f.unidades)),
-      colors:[PAL.ambar, PAL.azul, PAL.verde, PAL.rojo, PAL.azulSuave, '#E8731A', PAL.gris, '#1F2D3A'],
-      stroke:{ width:1, colors:['#fff'] },
-      fill:{ opacity:.88 },
-      yaxis:{ show:false },                                           // las etiquetas del eje se montan sobre las porciones
-      dataLabels:{ enabled:false },
-      plotOptions:{ polarArea:{ rings:{ strokeWidth:1, strokeColor:GX.tema().grilla }, spokes:{ strokeWidth:1, connectorColors:GX.tema().grilla } } },
-      legend:{ position:'bottom', formatter:(nombre) => nombre },
-      tooltip:{ y:{ formatter:(v, o) => {
-        const f = mermasAgrupadas.filas[o.seriesIndex];
-        return formatearNumero(f.unidades) + ' unidades (' + txtPct(mermaPct(f)) + ' de la producción)';
-      } } }
+      chart:{ type:'bar', height:Math.max(150, 56 + mermasOrden.length * 36) },
+      series:[{ name:'% de la producción', data:mermasOrden.map(f => r1(mermaPct(f))) }],
+      colors:[PAL.ambar],
+      plotOptions:{ bar:{ horizontal:true, barHeight:'62%', borderRadius:5 } },
+      dataLabels:{ enabled:true, formatter:(v, o) => txtPct(v) + ' · ' + formatearNumero(mermasOrden[o.dataPointIndex].unidades) + ' u.',
+        style:{ fontSize:'11px', fontWeight:700 } },
+      xaxis:{ categories:mermasOrden.map(f => f.item), min:0, labels:{ formatter:v => txtPct(v) } },
+      legend:{ show:false },
+      tooltip:{ y:{ formatter:(v, o) => formatearNumero(mermasOrden[o.dataPointIndex].unidades) + ' unidades (' + txtPct(v) + ' de la producción)' } }
     }));
     const totalMermaPct = (GlacialIndicadores.merma(mermasAgrupadas.totalUnidades, efectivaParaMermas) ?? 0) * 100;
     const metaMermaPct = METAS.merma * 100;
