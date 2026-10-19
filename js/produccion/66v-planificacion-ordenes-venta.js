@@ -372,6 +372,21 @@
     return eq;
   }
 
+  /* Qué pestañas de un libro son de ventas: las que traen las columnas del sistema (OC, tienda, entrega, producto, solicitadas). De esas, las del año más reciente:
+     2026 si hay alguna pestaña de 2026 y, si no, 2025 (o el año más alto que haya). Las ocultas y las que no son de ventas (stock, NNSS, resumen…) quedan sin marcar. */
+  function clasificarHojas(hojas,mapa){
+    hojas.forEach(h=>{
+      const enc=[...new Set(h.filas.flatMap(f=>Object.keys(f)))];
+      const m=N.mapearColumnas(enc,mapa);
+      h.faltan=m.faltan;h.valida=!m.faltan.length;
+      const y=String(h.nombre).match(/\b(20\d\d)\b/);h.anio=y?Number(y[1]):0;
+    });
+    const anios=[...new Set(hojas.filter(h=>h.valida&&!h.oculta&&h.anio).map(h=>h.anio))];
+    const elegido=anios.includes(2026)?2026:anios.includes(2025)?2025:(anios.length?Math.max(...anios):0);
+    hojas.forEach(h=>{h.marcada=h.valida&&!h.oculta&&(!elegido||h.anio===elegido||!h.anio&&!anios.length);});
+    return elegido;
+  }
+
   /* Importar Excel / CSV: un archivo con una o varias pestañas (una por cadena) */
   function dialogoImportar(){
     if(!NS.puede())return;
@@ -388,7 +403,7 @@
     const opcImp=()=>({origen,retirarAusentes:q('ovi-retirar').checked,fechaCorte:q('ovi-corte').value||''});
     const vista=()=>{
       const sel=elegidas();
-      if(!hojas||!sel.length){q('ovi-vista').innerHTML=hojas?'<div class="plan-aviso">Marca al menos una pestaña.</div>':'';q('ovi-aplicar').disabled=true;return;}
+      if(!hojas||!sel.length){q('ovi-vista').innerHTML=hojas?(hojas.some(h=>h.valida)?'<div class="plan-aviso">Marca al menos una pestaña.</div>':'<div class="plan-aviso"><b>Este archivo no parece de órdenes de ventas.</b> Ninguna pestaña tiene las columnas necesarias: OC (N.º de orden), TIENDA (cliente), FECHA ENTREGA, PRODUCTO y UND SOLICITADAS. Sube el libro de ventas (pestañas MAKRO, SPSA, CEN, TAMBO…).</div>'):'';q('ovi-aplicar').disabled=true;return;}
       const r=previsualizar({hojas:sel},opcImp());
       const malas=(r.hojasSinColumnas||[]).map(h=>'<li style="color:#991b1b">Pestaña «'+esc(h.hoja)+'»: faltan columnas ('+esc(h.faltan.join(', '))+') y no se importa.</li>').join('');
       if(r.faltanColumnas.length&&!r.crear.length&&!r.actualizar.length){q('ovi-vista').innerHTML='<div class="plan-aviso">Faltan columnas obligatorias: <b>'+esc(r.faltanColumnas.join(', '))+'</b>.</div><ul>'+malas+'</ul>';q('ovi-aplicar').disabled=true;return;}
@@ -417,8 +432,10 @@
         }
         hojas=hojas.filter(h=>h.filas.length);
         if(!hojas.length)throw new Error('El archivo no tiene filas.');
-        q('ovi-hojas').innerHTML=hojas.length>1?'<div class="ov-vista"><b>Pestañas</b> <small>(las ocultas vienen sin marcar)</small><div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px">'+
-          hojas.map(h=>'<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-ovi-hoja="'+esc(h.nombre)+'"'+(h.oculta?'':' checked')+'> '+esc(h.nombre)+' <small>('+h.filas.length+')</small></label>').join('')+'</div></div>':
+        const anio=clasificarHojas(hojas,config.mapeo);
+        if(anio&&!q('ovi-corte').value)q('ovi-corte').value=anio+'-01-01';       // sin fecha de corte guardada: desde el 1 de enero del año elegido
+        q('ovi-hojas').innerHTML=hojas.length>1||!hojas[0].valida?'<div class="ov-vista"><b>Pestañas</b> <small>(se marcan las de ventas del año '+(anio||'más reciente')+'; las ocultas y las que no son de ventas, no)</small><div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">'+
+          hojas.map(h=>'<label style="display:flex;gap:6px;align-items:center'+(h.valida?'':';color:#8a94a0')+'"><input type="checkbox" data-ovi-hoja="'+esc(h.nombre)+'"'+(h.marcada?' checked':'')+(h.valida?'':' disabled')+'> '+esc(h.nombre)+' <small>('+h.filas.length+' filas'+(h.oculta?' · oculta':'')+(h.valida?'':' · no es de ventas: faltan '+esc(h.faltan.join(', ')))+')</small></label>').join('')+'</div></div>':
           '<input type="checkbox" data-ovi-hoja="'+esc(hojas[0].nombre)+'" checked style="display:none">';
       }catch(err){q('ovi-error').textContent=(err&&err.message)||String(err);hojas=null;}
       vista();
