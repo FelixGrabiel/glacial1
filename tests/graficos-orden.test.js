@@ -34,4 +34,18 @@ ok(/H=Math\.max\(1400,/.test(png2)&&/filasMarcasN/.test(png2),'PNG de detalle: l
 /* ---------- lo que NO cambia ---------- */
 ok(/async function exportarPNG\(\)\{\n  if\(window\.glacialReporteRegistro&&typeof window\.glacialReporteRegistro\.exportar==='function'\)return window\.glacialReporteRegistro\.exportar\(\);/.test(f08),'«Exportar PNG» sigue usando la plantilla aprobada (glacialReporteRegistro.exportar)');
 ok(/onclick="exportarExcel\(\)"/.test(f08)&&/async function exportarExcel\(\)/.test(f08)&&/onclick="exportarPNG\(\)"/.test(f08)&&/onclick="exportarPNGDetalle\(\)"/.test(f08),'los tres botones de exportación siguen en la pestaña');
+
+/* ---------- análisis y acción: las paradas programadas (refrigerio) no son una acción correctiva ---------- */
+{
+  const vm=require('vm');
+  const src=f08.slice(f08.indexOf('function construirAnalisisAccionReporte('),f08.indexOf('async function editarSugerenciaReporte'));
+  const mk=filas=>vm.runInNewContext(src+';construirAnalisisAccionReporte',{
+    agruparParadas:()=>({filas,total:filas.reduce((a,f)=>a+f.minutos,0)}),agruparMermas:()=>({filas:[],totalUnidades:0}),
+    num:v=>Number(v)||0,formatearNumero:v=>String(v),pct:v=>(v*100).toFixed(1)+'%',METAS:{merma:0.02,rendimiento:0.95,disponibilidad:0.9}});
+  const d={efectiva:14682,programada:18000,cumplimiento:0.816,rendimiento:0.946,disponibilidad:0.752};
+  const r1=mk([{descripcion:'Refrigerio',tipo:'Programada',minutos:60},{descripcion:'Falla de sopladora',tipo:'No programada',minutos:25}])(null,d);
+  ok(!/Refrigerio/.test(JSON.stringify(r1))&&/Falla de sopladora/.test(r1.hallazgos[0]),'refrigerio (parada programada) no aparece en hallazgos ni acciones; la mayor parada es la mayor NO programada');
+  const r2=mk([{descripcion:'Refrigerio',tipo:'Programada',minutos:60}])(null,d);
+  ok(!/Refrigerio/.test(JSON.stringify(r2))&&!r2.hallazgos.some(h=>/mayor parada/.test(h))&&r2.acciones.some(a=>/Completar el registro de tiempos de parada/.test(a.texto)),'si solo hay paradas programadas no se inventa una acción correctiva y la disponibilidad baja pide completar los tiempos');
+}
 console.log(fallas?fallas+' fallas':'todo correcto');

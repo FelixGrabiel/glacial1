@@ -3380,8 +3380,11 @@ function construirAnalisisAccionReporte(rec, d){
   const acciones = [];
   const hallazgos = [];
 
-  if(paradas.filas.length){
-    const p = paradas.filas[0];
+  /* Solo cuentan las paradas NO programadas: el refrigerio y las demás programadas son parte del plan, no hay nada que corregir. */
+  const paradasNoProgramadas = paradas.filas.filter(f => f.tipo !== 'Programada');
+
+  if(paradasNoProgramadas.length){
+    const p = paradasNoProgramadas[0];
     hallazgos.push(`La mayor parada fue ${p.descripcion}: ${Math.round(p.minutos)} min.`);
     acciones.push({
       prioridad: 1,
@@ -3421,7 +3424,7 @@ function construirAnalisisAccionReporte(rec, d){
   if(num(d.disponibilidad) < METAS.disponibilidad){
     const diferencia = (METAS.disponibilidad - num(d.disponibilidad)) * 100;
     hallazgos.push(`Disponibilidad ${pct(d.disponibilidad)}, ${diferencia.toFixed(1)} pts por debajo de la meta ${pct(METAS.disponibilidad)}.`);
-    if(!paradas.filas.length){
+    if(!paradasNoProgramadas.length){
       acciones.push({
         prioridad: 1,
         area: 'Paradas',
