@@ -36,3 +36,14 @@ Una sola ruta para todas las fuentes: `glacialPlanificacion.ventas.aplicarFuente
 
 ## Archivos
 `js/produccion/66u-planificacion-ordenes-venta-nucleo.js` (cálculo puro) · `66v-planificacion-ordenes-venta.js` (pestaña, guardado, importación) · `52b-planificacion-vistas.js` (abre «Productos y parámetros» y «Horario de producción» desde el menú) · pruebas: `tests/planificacion-ordenes-venta.test.js` y `tests/planificacion-ordenes-venta.e2e.js`.
+
+## Adaptación a la hoja real de Ventas (COSTO X PALETA)
+
+- **Una orden = OC + producto.** Una OC trae varias filas (una por producto); cada fila es una orden. Reimportar actualiza, no duplica.
+- **Columnas reconocidas:** OC, TIENDA, FECHA EMISION, FECHA ENTREGA, PRODUCTO, UND SOLICITADAS, UND DESPACHO / UND ENVIADA (despachado), OBS / DEVOLUCION (observaciones). NNSS se ignora.
+- **Varias pestañas:** cada pestaña (cadena: MAKRO, SPSA, CEN, TAMBO…) se lee con sus propios encabezados; la cadena sale del nombre de la pestaña. Las pestañas ocultas vienen sin marcar al importar.
+- **Equivalencias de producto:** el texto de la hoja («SCALA-AGUA-SIN-GAS-BT-1-L») se traduce a línea + marca + presentación con una tabla guardada. Los productos sin equivalencia se avisan en la vista previa, con una sugerencia, y esas filas no se importan hasta confirmarlas. Se editan en «Conexión con Google Sheets».
+- **Fecha de corte:** solo entran órdenes con entrega desde esa fecha (se guarda en la configuración y también se puede cambiar al importar).
+- **Despachado:** lo ya enviado no necesita producción. La cobertura (programado / producido / falta) se calcula sobre lo pendiente (solicitado − despachado). Totalmente despachada → estado «Despachada». Tarjeta «Nivel de servicio» = despachado / solicitado (sin canceladas).
+- **OBS «OC CANCELADA»** crea la orden como cancelada.
+- Pendiente: la lectura directa de Google Sheets (el stock del almacén tampoco se descuenta aún del «falta programar»).

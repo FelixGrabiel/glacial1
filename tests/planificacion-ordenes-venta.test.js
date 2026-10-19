@@ -59,7 +59,7 @@ const prog=(clave,linea,fecha,turno,marca,pres,cant,extra)=>Object.assign({clave
   const r=N.importarFilas(filas,[],{ahora:1760000000000,hoy:HOY,origen:'excel'});
   ok(r.crear.length===2&&r.crear[0].cantidad===12000&&r.crear[0].fechaEntrega==='2026-10-25'&&r.crear[0].idExterno==='OV-100'&&r.crear[0].origen==='excel','crea las órdenes válidas (cantidad «12,000» y fecha dd/mm/aaaa bien leídas) con su id externo y origen');
   ok(N.importarFilas([{'N.º orden':'OV-9','Cliente':'a','Marca':'b','Presentación':'c','Cantidad':1,'Fecha de entrega':'2026-10-27','Estado':'Cancelado'}],[],{hoy:HOY}).crear[0].estado==='CANCELADA','si la fuente dice «Cancelado», la orden se crea cancelada');
-  ok(r.errores.length===2&&/cliente/i.test(r.errores[0].mensaje)&&/repetido/.test(r.errores[1].mensaje),'las filas inválidas o repetidas se reportan con su fila y no se importan (la fila vacía se ignora)');
+  ok(r.errores.length===2&&/cliente/i.test(r.errores[0].mensaje)&&/repetid/.test(r.errores[1].mensaje),'las filas inválidas o repetidas se reportan con su fila y no se importan (la fila vacía se ignora)');
   const guardadas=N.aplicarImportacion([],r,{ahora:1760000000000,usuario:'Ana'});
   ok(guardadas.length===2&&guardadas.every(o=>o.id&&o.version===1&&o.creadoPor==='Ana'),'aplicarImportacion guarda con id, versión y autor');
   /* 2.ª importación: misma fuente cambiada → actualiza sin duplicar y retira la ausente */
@@ -75,10 +75,40 @@ const prog=(clave,linea,fecha,turno,marca,pres,cant,extra)=>Object.assign({clave
   ok(N.importarFilas(filas2,manual,{retirarAusentes:true,hoy:HOY}).retirar.length===0,'las órdenes creadas a mano nunca se retiran por una sincronización');
   const sinCol=N.importarFilas([{'Cliente':'a','Marca':'b'}],[],{});
   ok(sinCol.faltanColumnas.length>=3&&sinCol.crear.length===0,'si faltan columnas obligatorias lo dice y no importa nada');
-  const m=N.mapearColumnas(['Pedido','Razón social','Formato','Producto','UND','Entrega'],{});
-  ok(m.faltan.length===0&&m.mapa.numero==='Pedido'&&m.mapa.cliente==='Razón social'&&m.mapa.marca==='Producto'&&m.mapa.presentacion==='Formato','reconoce nombres habituales de columna (Pedido, Razón social, Formato…)');
+  const m=N.mapearColumnas(['Pedido','Razón social','Formato','Marca','UND','Entrega'],{});
+  ok(m.faltan.length===0&&m.mapa.numero==='Pedido'&&m.mapa.cliente==='Razón social'&&m.mapa.marca==='Marca'&&m.mapa.presentacion==='Formato','reconoce nombres habituales de columna (Pedido, Razón social, Formato…)');
   const m2=N.mapearColumnas(['A','B','C','D','E','F'],{numero:'A',cliente:'B',marca:'C',presentacion:'D',cantidad:'E',fechaEntrega:'F'});
   ok(m2.faltan.length===0&&m2.mapa.fechaEntrega==='F','también acepta un mapa de columnas configurado (para la hoja de Google)');
+  /* ---- hoja real de ventas: una OC con varios productos, texto de producto, despachado, corte ---- */
+  const EQ={[N.norm('SCALA-AGUA-SIN-GAS-BT-1-L')]:{marca:'Scala',presentacion:'Pack_1L',linea:'PET1'},[N.norm('BELLS-AGUA-BT-625-ML')]:{marca:'Bells',presentacion:'Pack_625',linea:'PET2'}};
+  const H=[
+    {OC:'4500','TIENDA':'Makro Lima','FECHA EMISION':'01/10/2026','FECHA ENTREGA':'10/10/2026',PRODUCTO:'SCALA-AGUA-SIN-GAS-BT-1-L','UND SOLICITADAS':100,'UND DESPACHO':40,OBS:''},
+    {OC:'4500','TIENDA':'Makro Lima','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELLS-AGUA-BT-625-ML','UND SOLICITADAS':50,'UND DESPACHO':50},
+    {OC:'4501','TIENDA':'Makro Ate','FECHA ENTREGA':'12/10/2026',PRODUCTO:'RARO','UND SOLICITADAS':5},
+    {OC:'4400','TIENDA':'Makro','FECHA ENTREGA':'01/08/2026',PRODUCTO:'SCALA-AGUA-SIN-GAS-BT-1-L','UND SOLICITADAS':5},
+    {OC:'4502','TIENDA':'Makro','FECHA ENTREGA':'15/10/2026',PRODUCTO:'SCALA-AGUA-SIN-GAS-BT-1-L','UND SOLICITADAS':8,OBS:'OC CANCELADA'}
+  ];
+  const rh=N.importarFilas(H,[],{equivalencias:EQ,fechaCorte:'2026-09-01',cadena:'MAKRO',hoy:HOY,marcas:['Scala','Bells']});
+  ok(rh.faltanColumnas.length===0&&rh.crear.length===3&&rh.errores.length===0,'la misma OC con 2 productos crea 2 órdenes (clave OC + producto)');
+  ok(rh.fueraDeCorte===1&&rh.sinEquivalencia.length===1&&rh.sinEquivalencia[0].texto==='RARO','lo anterior a la fecha de corte se omite y el producto sin equivalencia se avisa');
+  ok(rh.crear[0].despachado===40&&rh.crear[0].cadena==='MAKRO'&&rh.crear[0].linea==='PET1'&&rh.crear[2].estado==='CANCELADA','trae lo despachado, la cadena y la línea; OBS «OC CANCELADA» cancela');
+  const gh=N.aplicarImportacion([],rh,{ahora:1760000000000});
+  const cobH=N.coberturaOrdenes(gh,[],{hoy:HOY});
+  ok(cobH.get(gh[0].id).pedido===60&&!cobH.has(gh[1].id),'la cobertura se calcula sobre lo pendiente (100−40) y lo ya despachado no entra');
+  ok(N.estadoOrden(gh[1],cobH.get(gh[1].id),HOY).clave==='DESPACHADA','completamente despachada → estado Despachada');
+  const resH=N.resumenOrdenes(gh,cobH,HOY);
+  ok(resH.solicitado===150&&resH.despachado===90&&Math.abs(resH.nivelServicio-0.6)<1e-9&&resH.pedidas===60,'nivel de servicio = despachado / solicitado (sin canceladas)');
+  const rh2=N.importarFilas(H,gh,{equivalencias:EQ,fechaCorte:'2026-09-01',cadena:'MAKRO',hoy:HOY});
+  ok(rh2.crear.length===0&&rh2.sinCambio===3,'reimportar la hoja no duplica ni cambia nada');
+  /* varias pestañas con encabezados distintos */
+  const hojas=[
+    {nombre:'MAKRO',filas:[{OC:'M1',TIENDA:'Ate','FECHA ENTREGA':'10/10/2026',PRODUCTO:'SCALA-AGUA-SIN-GAS-BT-1-L','UND SOLICITADAS':10,'UND DESPACHO':4,DEVOLUCION:'x',OBS:'nota'}]},
+    {nombre:'SPSA',filas:[{OC:'S1',TIENDA:'Surco','FECHA ENTREGA':'11/10/2026',PRODUCTO:'BELLS-AGUA-BT-625-ML','UND SOLICITADAS':20,'UND ENVIADA':20}]},
+    {nombre:'NOTAS',filas:[{Algo:'x'}]}
+  ];
+  const rm=N.importarHojas(hojas,[],{equivalencias:EQ,hoy:HOY});
+  ok(rm.crear.length===2&&rm.crear[0].cadena==='MAKRO'&&rm.crear[0].despachado===4&&rm.crear[0].observaciones==='nota'&&rm.crear[1].cadena==='SPSA'&&rm.crear[1].despachado===20,'importarHojas: cada pestaña con sus encabezados; la cadena sale del nombre de la pestaña');
+  ok(rm.hojasSinColumnas.length===1&&rm.hojasSinColumnas[0].hoja==='NOTAS','una pestaña sin las columnas necesarias se avisa y no frena a las demás');
   ok(/^2025-1[01]-\d\d$/.test(N.leerFecha(45955))&&N.leerFecha('19/10/26')==='2026-10-19'&&N.leerFecha(new Date(2026,9,19))==='2026-10-19','fecha como serie de Excel, dd/mm/aa y objeto Date');
 }
 console.log(fallas?fallas+' fallas':'todo correcto');

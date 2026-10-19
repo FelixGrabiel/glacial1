@@ -41,7 +41,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     kpis: [...document.querySelectorAll('.ov-k')].map(k => k.querySelector('span').textContent + '=' + k.querySelector('b').textContent),
     filas: [...document.querySelectorAll('#ov-tabla tbody tr')].map(r => [...r.querySelectorAll('td')].map(t => t.textContent.trim().replace(/\s+/g, ' ')).join(' | ')),
     barras: document.querySelectorAll('#ov-tabla .ov-barra').length, desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
-  ok(info.kpis.length === 6 && /abiertas=5/i.test(info.kpis[0]) && /Atrasadas=1/.test(info.kpis[5]), 'las 6 tarjetas: ' + info.kpis.join(' · '));
+  ok(info.kpis.length === 7 && /abiertas=5/i.test(info.kpis[0]) && /Atrasadas=1/.test(info.kpis[6]) && /Nivel de servicio/.test(info.kpis[1]), 'las 7 tarjetas: ' + info.kpis.join(' · '));
   ok(info.filas.length === 5 && info.filas.every(f => !/OV-006/.test(f)), 'por defecto solo las abiertas (5): la cancelada no se ve');
   const f = n => info.filas.find(x => x.includes(n)) || '';
   ok(/Programada/.test(f('OV-001')) && /30.000/.test(f('OV-001')), 'OV-001 (30 000, entrega más cercana) queda cubierta por la programación de Bells: ' + f('OV-001').slice(-60));
@@ -62,8 +62,8 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await D.page.click('[data-ov-cerrar]');
   /* nueva orden con transacción simulada */
   await D.page.evaluate(() => {
-    window.__bd = { ordenesVenta: glacialPlanificacion.ventas.ordenes() };
-    db.runTransaction = async fn => { const tx = { get: async () => ({ exists: true, data: () => window.__bd }), set: (r, d) => { window.__bd = d; } }; await fn(tx); glacialPlanificacion.ventas.__poner(window.__bd.ordenesVenta); glacialPlanificacion.refrescar(); };
+    window.__bd = { ordenesVenta: glacialPlanificacion.ventas.ordenes(), ordenesVentaConfig: {} };
+    db.runTransaction = async fn => { const tx = { get: async () => ({ exists: true, data: () => window.__bd }), set: (r, d) => { window.__bd = d; } }; await fn(tx); glacialPlanificacion.ventas.__poner(window.__bd.ordenesVenta, window.__bd.ordenesVentaConfig); glacialPlanificacion.refrescar(); };
   });
   await D.page.click('[data-ov-nueva]');
   await D.page.waitForSelector('#ov-guardar');
@@ -92,6 +92,18 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await D.page.once('dialog', d => d.dismiss().catch(() => {}));
   await D.page.click('#ovi-aplicar'); await D.page.waitForSelector('#ovi-aplicar', { state: 'detached', timeout: 5000 });
   ok(await D.page.evaluate(() => { const l = window.__bd.ordenesVenta; return l.filter(o => o.numero === 'OV-001').length === 1 && l.find(o => o.numero === 'OV-001').cantidad === 32000 && l.some(o => o.numero === 'OV-100' && o.origen === 'csv'); }), 'importar actualiza OV-001 (sin duplicarla) y crea OV-100 con origen csv');
+  /* hoja real: PRODUCTO como un solo texto → equivalencias */
+  await D.page.click('[data-ov-importar]'); await D.page.waitForSelector('#ovi-archivo');
+  const csv2 = 'OC,TIENDA,FECHA ENTREGA,PRODUCTO,UND SOLICITADAS,UND DESPACHO\n9001,Makro Ate,' + (await D.page.evaluate(() => window.__dia(5))) + ',BELLS-AGUA-BT-625-ML,300,100\n';
+  await D.page.setInputFiles('#ovi-archivo', { name: 'makro.csv', mimeType: 'text/csv', buffer: Buffer.from(csv2) });
+  await D.page.waitForSelector('[data-ovi-guardar-eq]');
+  ok(await D.page.evaluate(() => /aún no están en el sistema/.test(document.querySelector('.plan-aviso').innerText) && document.querySelectorAll('tr[data-eq]').length === 1), 'un producto sin equivalencia se avisa con su fila para elegir marca y presentación');
+  await D.page.selectOption('tr[data-eq] [data-eq-linea]', { index: 1 });
+  await D.page.selectOption('tr[data-eq] [data-eq-marca]', { index: 1 }); await D.page.selectOption('tr[data-eq] [data-eq-pres]', { index: 1 });
+  await D.page.click('[data-ovi-guardar-eq]');
+  await D.page.waitForFunction(() => /1 orden\(es\) nueva\(s\)/.test((document.querySelector('.ov-vista') || {}).innerText || ''));
+  await D.page.click('#ovi-aplicar'); await D.page.waitForSelector('#ovi-aplicar', { state: 'detached', timeout: 5000 });
+  ok(await D.page.evaluate(() => { const o = window.__bd.ordenesVenta.find(x => x.numero === '9001'); return !!o && o.despachado === 100 && o.cantidad === 300 && !!o.marca && Object.keys(window.__bd.ordenesVentaConfig.equivalencias || {}).length === 1; }), 'la equivalencia se guarda y la orden entra con 100 de 300 ya despachadas');
   ok(await D.page.evaluate(() => !!document.querySelector('#ov-sheets details') && /Preparada · sin conectar/.test(document.getElementById('ov-sheets').innerText) && !!document.querySelector('button[disabled][title*="Google Sheets"]')), 'Google Sheets: panel de columnas preparado y botón «Sincronizar» apagado');
   /* vistas movidas */
   const nav = await D.page.evaluate(() => { goProductosParametros(); return { tab: state.currentTab, titulo: document.querySelector('#plan-root h2').textContent, sinTabs: !document.getElementById('plan-tabs'), cat: !!document.getElementById('cat-tabla'), grupo: document.getElementById('sidebar-panel-mantenimiento').hidden === false, activo: document.getElementById('btn-productos-parametros').classList.contains('active') }; });

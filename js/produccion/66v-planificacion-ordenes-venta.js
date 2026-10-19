@@ -57,7 +57,7 @@
       if(errores.length)throw new Error(errores.join(' '));
       const i=o.id?lista.findIndex(x=>x.id===o.id):-1;
       const base={numero:String(o.numero).trim(),cliente:String(o.cliente).trim(),marca:o.marca,presentacion:o.presentacion,linea:o.linea||'',cantidad:num(o.cantidad),
-        fechaEntrega:o.fechaEntrega,fechaPedido:o.fechaPedido||'',observaciones:String(o.observaciones||'').trim()};
+        fechaEntrega:o.fechaEntrega,fechaPedido:o.fechaPedido||'',observaciones:String(o.observaciones||'').trim(),despachado:Math.max(0,num(o.despachado)),cadena:String(o.cadena||'').trim()};
       if(i>-1){
         if(num(o.version)&&num(lista[i].version)&&num(o.version)!==num(lista[i].version))throw new Error('Otra persona cambió esta orden mientras la editabas. Ciérrala y vuelve a abrirla.');
         lista[i]=Object.assign({},lista[i],base,{actualizadoPor:quien(),actualizadoEn:ahora,version:(num(lista[i].version)||1)+1});
@@ -76,17 +76,25 @@
   }
 
   /* Fuente → órdenes (Excel, CSV y, cuando se conecte, Google Sheets). preview=true solo calcula contra lo que hay hoy. */
-  function previsualizar(filas,opc){return N.importarFilas(filas,ordenes,Object.assign({mapa:config.mapeo,usuario:quien(),ahora:ahoraMs(),hoy:NS.hoyOperativo()},opc));}
-  async function aplicarFuente(filas,opc){
-    const ahora=ahoraMs();
+  const marcasConocidas=()=>[...new Set(lineasDe().flatMap(l=>NS.marcas(l.key)))];
+  const baseImportar=()=>({mapa:config.mapeo,equivalencias:config.equivalencias||{},fechaCorte:config.fechaCorte||'',marcas:marcasConocidas(),usuario:quien(),hoy:NS.hoyOperativo()});
+  /* fuente: o bien {filas} (una tabla) o bien {hojas:[{nombre,filas}]} (varias pestañas, una por cadena) */
+  function correr(fuente,lista,opc){return fuente.hojas?N.importarHojas(fuente.hojas,lista,opc):N.importarFilas(fuente.filas,lista,opc);}
+  function previsualizar(fuente,opc){return correr(Array.isArray(fuente)?{filas:fuente}:fuente,ordenes,Object.assign(baseImportar(),{ahora:ahoraMs()},opc));}
+  async function aplicarFuente(fuente,opc){
+    const ahora=ahoraMs(),f=Array.isArray(fuente)?{filas:fuente}:fuente;
     return mutar(lista=>{
-      const r=N.importarFilas(filas,lista,Object.assign({mapa:config.mapeo,usuario:quien(),ahora,hoy:NS.hoyOperativo()},opc));
+      const r=correr(f,lista,Object.assign(baseImportar(),{ahora},opc));
       if(r.faltanColumnas.length)throw new Error('Faltan columnas: '+r.faltanColumnas.join(', ')+'.');
       return {lista:N.aplicarImportacion(lista,r,{ahora,usuario:quien()}),resultado:r};
     });
   }
   async function guardarMapeo(mapeo){
     await mutar(lista=>({lista}),{mapeo,actualizadoPor:quien(),actualizadoEn:ahoraMs()});
+  }
+  /* Fecha de corte y tabla de equivalencias («texto de la hoja» → marca + presentación + línea). */
+  async function guardarConfig(parcial){
+    await mutar(lista=>({lista}),Object.assign({},parcial,{actualizadoPor:quien(),actualizadoEn:ahoraMs()}));
   }
 
   /* ---------- Google Sheets: preparado, sin conectar ---------- */
@@ -96,7 +104,7 @@
       const filas=await this.obtenerFilas();
       return aplicarFuente(filas,{origen:'sheets',retirarAusentes:true});
     }}};
-  NS.ventas={ordenes:()=>ordenes.slice(),config:()=>Object.assign({},config),listo:()=>listo,guardarOrden,cambiarEstado,previsualizar,aplicarFuente,guardarMapeo,fuentes,
+  NS.ventas={ordenes:()=>ordenes.slice(),config:()=>Object.assign({},config),listo:()=>listo,guardarOrden,cambiarEstado,previsualizar,aplicarFuente,guardarMapeo,guardarConfig,fuentes,
     cobertura:()=>cobertura(),COLUMNAS:N.COLUMNAS,leerCSV:t=>leerCSV(t),
     __poner:(lista,cfg)=>{ordenes=lista||[];config=cfg||{};listo=true;}};   // para pruebas en el navegador
 
@@ -108,7 +116,7 @@
   function cobertura(){return N.coberturaOrdenes(ordenes,NS.programaciones(),{hoy:NS.hoyOperativo(),producidoDe});}
 
   /* ---------- pantalla ---------- */
-  const F={estado:'abiertas',cliente:'',linea:'',hasta:''};
+  const F={estado:'abiertas',cliente:'',cadena:'',linea:'',hasta:''};
   const CSS=`
     #plan-root .ov-kpis,.plan-dialogo .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
     .ov-k{background:#fff;border:1px solid #dce5ec;border-left:5px solid var(--c,#9aa9b8);border-radius:12px;padding:10px 14px}
@@ -124,6 +132,7 @@
     .ov-det .li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #edf2f6;font-size:13px}
     .ov-sheets table{width:100%;border-collapse:collapse;font-size:13px}.ov-sheets td,.ov-sheets th{padding:6px 8px;border-top:1px solid #edf2f6;text-align:left}
     .ov-sheets input{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #cfdbe3;border-radius:8px;font:inherit}
+    .ov-eq{width:100%;border-collapse:collapse;font-size:13px}.ov-eq td,.ov-eq th{padding:5px 6px;border-top:1px solid #edf2f6;text-align:left}.ov-eq select{width:100%;padding:5px;border:1px solid #cfdbe3;border-radius:8px;font:inherit}
     .ov-vista{margin-top:10px;padding:10px 12px;border-radius:10px;background:#f4f8fb;font-size:13px}.ov-vista li{margin:3px 0}`;
   function estilos(){if(document.getElementById('ov-css'))return;const s=document.createElement('style');s.id='ov-css';s.textContent=CSS;document.head.appendChild(s);}
 
@@ -150,8 +159,10 @@
       if(e==='parcial'&&st.clave!=='PARCIAL')return false;
       if(e==='enproduccion'&&st.clave!=='EN_PRODUCCION')return false;
       if(e==='completas'&&st.clave!=='COMPLETA')return false;
+      if(e==='despachadas'&&st.clave!=='DESPACHADA')return false;
       if(e==='cerradas'&&!['CANCELADA','RETIRADA'].includes(st.clave))return false;
       if(F.cliente&&o.cliente!==F.cliente)return false;
+      if(F.cadena&&o.cadena!==F.cadena)return false;
       if(F.linea&&o.linea&&o.linea!==F.linea)return false;
       if(F.hasta&&o.fechaEntrega>F.hasta)return false;
       return true;
@@ -162,10 +173,12 @@
     estilos();
     const planifica=NS.puede();
     const clientes=[...new Set(ordenes.map(o=>o.cliente).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+    const cadenas=[...new Set(ordenes.map(o=>o.cadena).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
     cont.innerHTML='<div class="plan-bar" id="ov-barra">'+
-      '<label>Estado<select id="ov-estado">'+[['abiertas','Abiertas'],['atrasadas','Atrasadas'],['sinprogramar','Sin programar'],['parcial','Programadas en parte'],['enproduccion','En producción'],['completas','Completas'],['cerradas','Canceladas / retiradas'],['todas','Todas']]
+      '<label>Estado<select id="ov-estado">'+[['abiertas','Abiertas'],['atrasadas','Atrasadas'],['sinprogramar','Sin programar'],['parcial','Programadas en parte'],['enproduccion','En producción'],['completas','Completas (producidas)'],['despachadas','Despachadas'],['cerradas','Canceladas / retiradas'],['todas','Todas']]
         .map(([v,t])=>'<option value="'+v+'"'+(F.estado===v?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'+
       '<label>Cliente<select id="ov-cliente"><option value="">Todos</option>'+clientes.map(c=>'<option'+(F.cliente===c?' selected':'')+' value="'+esc(c)+'">'+esc(c)+'</option>').join('')+'</select></label>'+
+      (cadenas.length>1?'<label>Cadena<select id="ov-cadena"><option value="">Todas</option>'+cadenas.map(c=>'<option'+(F.cadena===c?' selected':'')+' value="'+esc(c)+'">'+esc(c)+'</option>').join('')+'</select></label>':'')+
       '<label>Línea<select id="ov-linea"><option value="">Todas</option>'+lineasDe().map(l=>'<option value="'+esc(l.key)+'"'+(F.linea===l.key?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></label>'+
       '<label>Entrega hasta<input type="date" id="ov-hasta" value="'+esc(F.hasta)+'"></label>'+
       '<span style="flex:1"></span>'+
@@ -180,10 +193,11 @@
     if(!kp||!tb)return;
     if(!listo){tb.innerHTML='<div class="empty-state"><p>Cargando órdenes…</p></div>';return;}
     const hoy=NS.hoyOperativo(),cob=cobertura(),r=N.resumenOrdenes(ordenes,cob,hoy);
-    const pct=(a,b)=>b>0?(a/b*100).toFixed(1).replace('.',',')+' % de lo pedido':'';
+    const pct=(a,b)=>b>0?(a/b*100).toFixed(1).replace('.',',')+' % de lo pendiente':'';
     kp.innerHTML='<div class="ov-kpis">'+
       '<div class="ov-k" style="--c:#005b96"><span>Órdenes abiertas</span><b>'+fmt(r.abiertas)+'</b><small>'+(r.porVencer?r.porVencer+' por vencer en 3 días':'sin entregas próximas')+'</small></div>'+
-      '<div class="ov-k"><span>Unidades pedidas</span><b>'+fmt(r.pedidas)+'</b></div>'+
+      '<div class="ov-k" style="--c:#3f8f5f"><span>Nivel de servicio</span><b>'+(r.nivelServicio==null?'—':(r.nivelServicio*100).toFixed(1).replace('.',',')+' %')+'</b><small>'+fmt(r.despachado)+' despachadas de '+fmt(r.solicitado)+'</small></div>'+
+      '<div class="ov-k"><span>Por despachar</span><b>'+fmt(r.pedidas)+'</b><small>unidades pendientes</small></div>'+
       '<div class="ov-k" style="--c:#2f6690"><span>Programado</span><b>'+fmt(r.programado)+'</b><small>'+pct(r.programado,r.pedidas)+'</small></div>'+
       '<div class="ov-k" style="--c:#3f8f5f"><span>Producido</span><b>'+fmt(r.producido)+'</b><small>'+pct(r.producido,r.pedidas)+'</small></div>'+
       '<div class="ov-k" style="--c:#df8b00"><span>Falta programar</span><b>'+fmt(r.falta)+'</b><small>'+r.sinCubrir+(r.sinCubrir===1?' orden sin cubrir':' órdenes sin cubrir')+'</small></div>'+
@@ -196,29 +210,34 @@
       tb.innerHTML='<div class="empty-state"><h4>Todavía no hay órdenes de ventas</h4><p>'+(NS.puede()?'Registra la primera con «+ Nueva orden» o carga un Excel/CSV con «Importar». Más adelante se conectarán desde Google Sheets.':'Aún no se registró ninguna.')+'</p></div>';
       return;
     }
-    tb.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>N.º orden</th><th>Cliente</th><th>Producto</th><th class="num">Pedido (UND)</th><th>Entrega</th><th>Programado · Producido</th><th class="num">Falta programar</th><th>Estado</th></tr></thead><tbody>'+
+    tb.innerHTML='<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>N.º orden</th><th>Cliente</th><th>Producto</th><th class="num">Solicitado</th><th class="num">Despachado</th><th>Entrega</th><th>Programado · Producido</th><th class="num">Falta programar</th><th>Estado</th></tr></thead><tbody>'+
       (filas.length?filas.map(o=>{
-        const c=cob.get(o.id),st=N.estadoOrden(o,c,hoy),ped=num(o.cantidad);
-        const prog=c?Math.min(100,c.programado/ped*100):0,prod=c?Math.min(100,c.producido/ped*100):0;
-        return '<tr class="ov-fila'+(st.cerrada&&st.clave!=='COMPLETA'?' ov-cerrada':'')+'" data-ov-ver="'+esc(o.id)+'"><td><b>'+esc(o.numero)+'</b></td><td>'+esc(o.cliente)+'</td><td>'+etiquetaProducto(o)+(o.linea?'<br><small>'+esc(NS.nombreLinea(o.linea))+'</small>':'')+'</td>'+
-          '<td class="num">'+fmt(ped)+'</td><td>'+textoEntrega(o,st)+'</td>'+
-          '<td>'+(c?'<div class="ov-barra" title="Programado '+fmt(c.programado)+' · Producido '+fmt(c.producido)+'"><i class="p" style="width:'+prog.toFixed(1)+'%"></i><i class="q" style="width:'+prod.toFixed(1)+'%"></i></div><div class="ov-leyenda">'+fmt(c.programado)+' prog. · '+fmt(c.producido)+' prod. ('+(ped>0?Math.round(c.producido/ped*100):0)+' %)</div>':'—')+'</td>'+
+        const c=cob.get(o.id),st=N.estadoOrden(o,c,hoy),ped=c?num(c.pedido):0;
+        const prog=c&&ped>0?Math.min(100,c.programado/ped*100):0,prod=c&&ped>0?Math.min(100,c.producido/ped*100):0;
+        return '<tr class="ov-fila'+(st.cerrada&&st.clave!=='COMPLETA'&&st.clave!=='DESPACHADA'?' ov-cerrada':'')+'" data-ov-ver="'+esc(o.id)+'"><td><b>'+esc(o.numero)+'</b></td><td>'+esc(o.cliente)+(o.cadena?'<br><small>'+esc(o.cadena)+'</small>':'')+'</td><td>'+etiquetaProducto(o)+(o.linea?'<br><small>'+esc(NS.nombreLinea(o.linea))+'</small>':'')+'</td>'+
+          '<td class="num">'+fmt(o.cantidad)+'</td><td class="num">'+(num(o.despachado)>0?fmt(o.despachado):'—')+'</td><td>'+textoEntrega(o,st)+'</td>'+
+          '<td>'+(c?'<div class="ov-barra" title="Programado '+fmt(c.programado)+' · Producido '+fmt(c.producido)+'"><i class="p" style="width:'+prog.toFixed(1)+'%"></i><i class="q" style="width:'+prod.toFixed(1)+'%"></i></div><div class="ov-leyenda">'+fmt(c.programado)+' prog. · '+fmt(c.producido)+' prod. ('+(ped>0?Math.round(c.producido/ped*100):100)+' %)</div>':'—')+'</td>'+
           '<td class="num">'+(c&&c.falta>0?'<span class="ov-falta">'+fmt(c.falta)+'</span>':(c?'0':'—'))+'</td><td><span class="ov-chip '+st.nivel+'">'+esc(st.etiqueta)+'</span></td></tr>';
-      }).join(''):'<tr><td colspan="8">Ninguna orden coincide con los filtros.</td></tr>')+'</tbody></table></div>'+
-      '<p class="plan-nota">Barra clara = programado · barra oscura = producido. Cada orden se cubre con lo programado de su producto, por fecha de entrega (la más urgente primero). No se modifica ninguna programación.</p>';
+      }).join(''):'<tr><td colspan="9">Ninguna orden coincide con los filtros.</td></tr>')+'</tbody></table></div>'+
+      '<p class="plan-nota">Barra clara = programado · barra oscura = producido, sobre lo que aún falta despachar. Lo ya despachado no necesita producción. Cada orden se cubre con lo programado de su producto, por fecha de entrega (la más urgente primero). No se modifica ninguna programación.</p>';
   }
 
   /* ---------- conexión con Google Sheets (preparada) ---------- */
   function pintarSheets(){
     const cont=document.getElementById('ov-sheets');
     if(!cont)return;
-    const mapeo=config.mapeo||{},planifica=NS.puede();
+    const mapeo=config.mapeo||{},planifica=NS.puede(),eqs=Object.values(config.equivalencias||{});
     cont.innerHTML='<details class="ov-sheets"><summary style="cursor:pointer;font-weight:700;color:#003b5c;margin:10px 0 4px">Conexión con Google Sheets <span class="ov-chip gris">Preparada · sin conectar</span></summary>'+
       '<p class="plan-nota">Hoy se usa al <b>importar Excel/CSV</b>; la misma lógica servirá para la hoja. Escribe el encabezado exacto de cada columna de tu hoja (si lo dejas vacío se reconoce por el nombre habitual: «Pedido», «Razón social», «Formato», «Entrega»…).</p>'+
       '<div class="plan-scroll"><table><thead><tr><th>Dato del sistema</th><th>Encabezado en la hoja</th></tr></thead><tbody>'+
       N.COLUMNAS.map(c=>'<tr><td>'+esc(c.etq)+'</td><td><input data-ov-map="'+c.clave+'" value="'+esc(mapeo[c.clave]||'')+'" placeholder="automático"'+(planifica?'':' disabled')+'></td></tr>').join('')+'</tbody></table></div>'+
       '<ul class="plan-nota"><li>Si el N.º ya existe, la orden se <b>actualiza</b> (no se duplica).</li><li>Si una orden desaparece de la hoja, se marca <b>«Retirada»</b>; no se borra.</li><li>Las órdenes creadas a mano nunca se retiran por una sincronización.</li></ul>'+
-      (planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-mapa>Guardar columnas</button> <span class="plan-error" id="ov-mapa-error" style="display:inline"></span></p>':'')+'</details>';
+      (planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-mapa>Guardar columnas</button> <span class="plan-error" id="ov-mapa-error" style="display:inline"></span></p>':'')+
+      '<h4 style="margin:14px 0 4px;color:#003b5c">Fecha de corte</h4><p class="plan-nota">Solo entran órdenes con fecha de entrega desde esta fecha; lo anterior se ignora al importar o sincronizar.</p>'+
+      '<p><input type="date" id="ov-corte" value="'+esc(config.fechaCorte||'')+'"'+(planifica?'':' disabled')+'> '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-corte>Guardar fecha</button>':'')+'</p>'+
+      '<h4 style="margin:14px 0 4px;color:#003b5c">Equivalencias de productos <span class="ov-chip gris">'+eqs.length+'</span></h4><p class="plan-nota">Traducen el texto de la hoja (p. ej. «SCALA-AGUA-SIN-GAS-BT-1-L») a la marca y presentación del sistema. Las nuevas se piden al importar.</p>'+
+      (eqs.length?htmlTablaEquiv(eqs.map(e=>htmlFilaEquiv(e.texto,e,'')))+(planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-eqs>Guardar cambios</button> <span class="plan-error" id="ov-eq-error" style="display:inline"></span></p>':''):'<p class="plan-nota">Todavía no hay equivalencias guardadas.</p>')+
+      '</details>';
   }
 
   /* ---------- diálogos ---------- */
@@ -232,7 +251,7 @@
   function dialogoOrden(id){
     if(!NS.puede())return;
     const x=id?ordenes.find(o=>o.id===id):null;
-    const b=x||{numero:'',cliente:'',marca:'',presentacion:'',linea:'',cantidad:'',fechaEntrega:'',fechaPedido:NS.hoyOperativo(),observaciones:''};
+    const b=x||{numero:'',cliente:'',marca:'',presentacion:'',linea:'',cantidad:'',despachado:'',cadena:'',fechaEntrega:'',fechaPedido:NS.hoyOperativo(),observaciones:''};
     const clientes=[...new Set(ordenes.map(o=>o.cliente).filter(Boolean))];
     const fondo=NS.abrirDialogo('<h3>'+(x?'Editar orden '+esc(x.numero):'Nueva orden de venta')+'</h3><div class="plan-campos">'+
       '<label>N.º de orden<input id="ov-numero" value="'+esc(b.numero)+'" maxlength="40"></label>'+
@@ -241,6 +260,8 @@
       '<label>Marca<select id="ov-marca"></select></label>'+
       '<label class="completo">Presentación<select id="ov-pres"></select></label>'+
       '<label>Cantidad (UND)<input type="number" id="ov-cant" min="1" step="1" value="'+esc(b.cantidad)+'"></label>'+
+      '<label>Despachado (UND)<input type="number" id="ov-desp" min="0" step="1" value="'+esc(b.despachado||'')+'"></label>'+
+      '<label>Cadena (opcional)<input id="ov-cad" value="'+esc(b.cadena||'')+'" maxlength="40"></label>'+
       '<label>Fecha de entrega<input type="date" id="ov-entrega" value="'+esc(b.fechaEntrega)+'"></label>'+
       '<label>Fecha del pedido<input type="date" id="ov-pedido" value="'+esc(b.fechaPedido||'')+'"></label>'+
       '<label class="completo">Observaciones<input id="ov-obs" value="'+esc(b.observaciones||'')+'" maxlength="200"></label></div>'+
@@ -258,7 +279,7 @@
       q('ov-guardar').disabled=true;q('ov-error').textContent='';
       try{
         await guardarOrden({id:x?x.id:'',version:x?x.version:0,numero:q('ov-numero').value,cliente:q('ov-cli').value,linea:q('ov-lin').value,marca:q('ov-marca').value,presentacion:q('ov-pres').value,
-          cantidad:q('ov-cant').value,fechaEntrega:q('ov-entrega').value,fechaPedido:q('ov-pedido').value,observaciones:q('ov-obs').value});
+          cantidad:q('ov-cant').value,despachado:q('ov-desp').value,cadena:q('ov-cad').value,fechaEntrega:q('ov-entrega').value,fechaPedido:q('ov-pedido').value,observaciones:q('ov-obs').value});
         fondo.remove();
       }catch(e){q('ov-error').textContent=(e&&e.message)||String(e);q('ov-guardar').disabled=false;}
     };
@@ -270,7 +291,7 @@
     const hoy=NS.hoyOperativo(),c=cobertura().get(o.id),st=N.estadoOrden(o,c,hoy),planifica=NS.puede();
     const li=(a,b)=>'<div class="li"><span>'+a+'</span><b>'+b+'</b></div>';
     const fondo=NS.abrirDialogo('<div class="ov-det"><h3 style="display:flex;justify-content:space-between;gap:10px;align-items:center">Orden '+esc(o.numero)+' <span class="ov-chip '+st.nivel+'">'+esc(st.etiqueta)+'</span></h3>'+
-      li('Cliente',esc(o.cliente))+li('Producto',etiquetaProducto(o)+(o.linea?' · '+esc(NS.nombreLinea(o.linea)):''))+li('Pedido',fmt(o.cantidad)+' UND')+li('Entrega',textoEntrega(o,st))+
+      li('Cliente',esc(o.cliente))+li('Producto',etiquetaProducto(o)+(o.linea?' · '+esc(NS.nombreLinea(o.linea)):''))+li('Solicitado',fmt(o.cantidad)+' UND')+li('Despachado',fmt(o.despachado)+' UND')+li('Pendiente',fmt(Math.max(0,num(o.cantidad)-num(o.despachado)))+' UND')+(o.cadena?li('Cadena',esc(o.cadena)):'')+(o.producto?li('Producto en la hoja',esc(o.producto)):'')+li('Entrega',textoEntrega(o,st))+
       (c?li('Programado · Producido',fmt(c.programado)+' · '+fmt(c.producido)+' UND')+li('Falta programar','<span class="'+(c.falta>0?'ov-falta':'')+'">'+fmt(c.falta)+' UND</span>'):'')+
       (c&&c.detalle.length?'<h4 style="margin:14px 0 4px;color:#003b5c">Programaciones que la cubren</h4>'+c.detalle.map(d=>'<div class="li"><span>'+esc(NS.nombreLinea(d.linea))+' · '+esc(d.fecha)+' · '+esc(NS.etiquetaBloque(d.turno))+'</span><span><b>'+fmt(d.cantidad)+' UND</b> <button type="button" class="btn btn-ghost btn-sm" data-ov-ir="'+esc(d.fecha)+'|'+esc(d.turno)+'">Ver</button></span></div>').join(''):'')+
       (o.observaciones?li('Observaciones',esc(o.observaciones)):'')+
@@ -279,7 +300,7 @@
       '<div class="plan-acciones">'+(planifica?
         '<button type="button" class="btn btn-ghost" data-ov-irprog>Ir a programar</button>'+
         '<button type="button" class="btn btn-ghost" data-ov-editar="'+esc(o.id)+'">Editar</button>'+
-        (st.clave==='CANCELADA'||st.clave==='RETIRADA'?'<button type="button" class="btn btn-ghost" data-ov-estado="ABIERTA|'+esc(o.id)+'">Reabrir</button>':(st.clave==='COMPLETA'?'':'<button type="button" class="btn btn-ghost" data-ov-estado="CANCELADA|'+esc(o.id)+'">Cancelar orden</button>')):'')+
+        (st.clave==='CANCELADA'||st.clave==='RETIRADA'?'<button type="button" class="btn btn-ghost" data-ov-estado="ABIERTA|'+esc(o.id)+'">Reabrir</button>':(st.clave==='COMPLETA'||st.clave==='DESPACHADA'?'':'<button type="button" class="btn btn-ghost" data-ov-estado="CANCELADA|'+esc(o.id)+'">Cancelar orden</button>')):'')+
       '<button type="button" class="btn btn-primary" data-ov-cerrar>Cerrar</button></div>',true);
     fondo.addEventListener('click',async e=>{
       if(e.target.closest('[data-ov-cerrar]')){fondo.remove();return;}
@@ -317,50 +338,113 @@
     return util.slice(1).map(f=>Object.fromEntries(enc.map((h,i)=>[h,f[i]==null?'':String(f[i]).trim()])));
   }
 
-  /* Importar Excel / CSV */
+  /* ---- equivalencias: texto de la hoja → marca + presentación (+ línea) ---- */
+  function sugerirLineaPres(sug){
+    const l=lineasDe().find(x=>sug.marca&&NS.marcas(x.key).some(m=>N.norm(m)===N.norm(sug.marca)));
+    const linea=l?l.key:'';
+    let pres='';
+    if(linea&&sug.volumen){const v=sug.volumen.toLowerCase(),o=NS.presentaciones(linea).find(p=>N.norm(p.value).includes(v+'x')||N.norm(p.label).includes(v));pres=o?o.value:'';}
+    return {linea,marca:l?NS.marcas(linea).find(m=>N.norm(m)===N.norm(sug.marca))||sug.marca:'',presentacion:pres};
+  }
+  function htmlFilaEquiv(texto,v,extra){
+    const {marcas,pres}=opcionesProducto(v.linea);
+    return '<tr data-eq="'+esc(texto)+'"><td><b>'+esc(texto)+'</b>'+(extra?'<br><small>'+extra+'</small>':'')+'</td>'+
+      '<td><select data-eq-linea><option value="">Cualquiera</option>'+lineasDe().map(l=>'<option value="'+esc(l.key)+'"'+(l.key===v.linea?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></td>'+
+      '<td><select data-eq-marca><option value="">Selecciona…</option>'+marcas.map(m=>'<option'+(m===v.marca?' selected':'')+' value="'+esc(m)+'">'+esc(m)+'</option>').join('')+'</select></td>'+
+      '<td><select data-eq-pres><option value="">Selecciona…</option>'+pres.map(p=>'<option'+(p.value===v.presentacion?' selected':'')+' value="'+esc(p.value)+'">'+esc(p.label)+'</option>').join('')+'</select></td></tr>';
+  }
+  function htmlTablaEquiv(filas){
+    return '<div class="plan-scroll"><table class="ov-eq"><thead><tr><th>Producto en la hoja</th><th>Línea</th><th>Marca</th><th>Presentación</th></tr></thead><tbody>'+filas.join('')+'</tbody></table></div>';
+  }
+  /* Al cambiar la línea se rehacen las marcas y presentaciones de esa fila (un solo escucha para el panel y el diálogo). */
+  document.addEventListener('change',e=>{
+    const sel=e.target&&e.target.closest&&e.target.closest('[data-eq-linea]');if(!sel)return;
+    const tr=sel.closest('tr'),{marcas,pres}=opcionesProducto(sel.value);
+    tr.querySelector('[data-eq-marca]').innerHTML='<option value="">Selecciona…</option>'+marcas.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
+    tr.querySelector('[data-eq-pres]').innerHTML='<option value="">Selecciona…</option>'+pres.map(p=>'<option value="'+esc(p.value)+'">'+esc(p.label)+'</option>').join('');
+  });
+  function leerEquiv(raiz){
+    const eq={};
+    raiz.querySelectorAll('tr[data-eq]').forEach(tr=>{
+      const marca=tr.querySelector('[data-eq-marca]').value,presentacion=tr.querySelector('[data-eq-pres]').value;
+      if(marca&&presentacion)eq[N.norm(tr.getAttribute('data-eq'))]={texto:tr.getAttribute('data-eq'),marca,presentacion,linea:tr.querySelector('[data-eq-linea]').value};
+    });
+    return eq;
+  }
+
+  /* Importar Excel / CSV: un archivo con una o varias pestañas (una por cadena) */
   function dialogoImportar(){
     if(!NS.puede())return;
-    const fondo=NS.abrirDialogo('<h3>Importar órdenes de ventas</h3><p class="plan-nota">Sube un Excel o CSV con una fila por orden. Si el N.º ya existe se actualiza; si es nuevo se crea.</p>'+
+    const fondo=NS.abrirDialogo('<h3>Importar órdenes de ventas</h3><p class="plan-nota">Sube el Excel o CSV de ventas. Si tiene varias pestañas (una por cadena: MAKRO, SPSA…), marca las que quieras. Una OC con varios productos crea una orden por producto. Si OC + producto ya existe se actualiza.</p>'+
       '<p><input type="file" id="ovi-archivo" accept=".xlsx,.xls,.csv"> <button type="button" class="btn btn-ghost btn-sm" data-ovi-plantilla>Descargar plantilla</button></p>'+
+      '<div id="ovi-hojas"></div>'+
+      '<label style="display:flex;gap:8px;align-items:center;margin:6px 0">Importar solo órdenes con entrega desde <input type="date" id="ovi-corte" value="'+esc(config.fechaCorte||'')+'"> <small>(lo anterior se omite)</small></label>'+
       '<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" id="ovi-retirar"> Marcar como «retiradas» las órdenes importadas antes que ya no están en este archivo</label>'+
       '<div id="ovi-vista"></div><div class="plan-error" id="ovi-error"></div>'+
       '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="ovi-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="ovi-aplicar" disabled>Importar</button></div>',true);
     const q=i=>fondo.querySelector('#'+i);
-    let filas=null,origen='excel';
+    let hojas=null,origen='excel';
+    const elegidas=()=>{const marcadas=new Set([...fondo.querySelectorAll('[data-ovi-hoja]:checked')].map(c=>c.getAttribute('data-ovi-hoja')));return (hojas||[]).filter(h=>marcadas.has(h.nombre));};
+    const opcImp=()=>({origen,retirarAusentes:q('ovi-retirar').checked,fechaCorte:q('ovi-corte').value||''});
     const vista=()=>{
-      if(!filas){q('ovi-vista').innerHTML='';q('ovi-aplicar').disabled=true;return;}
-      const r=previsualizar(filas,{origen,retirarAusentes:q('ovi-retirar').checked});
-      if(r.faltanColumnas.length){q('ovi-vista').innerHTML='<div class="plan-aviso">Faltan columnas obligatorias: <b>'+esc(r.faltanColumnas.join(', '))+'</b>. Revisa los encabezados o descarga la plantilla.</div>';q('ovi-aplicar').disabled=true;return;}
-      q('ovi-vista').innerHTML='<div class="ov-vista"><b>Vista previa</b><ul><li>'+r.crear.length+' orden(es) nueva(s)</li><li>'+r.actualizar.length+' por actualizar</li><li>'+r.sinCambio+' sin cambios</li>'+(r.retirar.length?'<li>'+r.retirar.length+' por marcar como retirada(s)</li>':'')+
-        (r.errores.length?'<li style="color:#991b1b">'+r.errores.length+' con error (no se importan): '+r.errores.slice(0,6).map(x=>'fila '+x.fila+' · '+esc(x.mensaje)).join(' | ')+(r.errores.length>6?' …':'')+'</li>':'')+'</ul></div>';
+      const sel=elegidas();
+      if(!hojas||!sel.length){q('ovi-vista').innerHTML=hojas?'<div class="plan-aviso">Marca al menos una pestaña.</div>':'';q('ovi-aplicar').disabled=true;return;}
+      const r=previsualizar({hojas:sel},opcImp());
+      const malas=(r.hojasSinColumnas||[]).map(h=>'<li style="color:#991b1b">Pestaña «'+esc(h.hoja)+'»: faltan columnas ('+esc(h.faltan.join(', '))+') y no se importa.</li>').join('');
+      if(r.faltanColumnas.length&&!r.crear.length&&!r.actualizar.length){q('ovi-vista').innerHTML='<div class="plan-aviso">Faltan columnas obligatorias: <b>'+esc(r.faltanColumnas.join(', '))+'</b>.</div><ul>'+malas+'</ul>';q('ovi-aplicar').disabled=true;return;}
+      let html='<div class="ov-vista"><b>Vista previa</b><ul><li>'+r.crear.length+' orden(es) nueva(s)</li><li>'+r.actualizar.length+' por actualizar</li><li>'+r.sinCambio+' sin cambios</li>'+
+        (r.fueraDeCorte?'<li>'+r.fueraDeCorte+' anterior(es) a la fecha de corte (se omiten)</li>':'')+(r.retirar.length?'<li>'+r.retirar.length+' por marcar como retirada(s)</li>':'')+malas+
+        (r.errores.length?'<li style="color:#991b1b">'+r.errores.length+' con error (no se importan): '+r.errores.slice(0,6).map(x=>(x.hoja?x.hoja+' · ':'')+'fila '+x.fila+' · '+esc(x.mensaje)).join(' | ')+(r.errores.length>6?' …':'')+'</li>':'')+'</ul></div>';
+      if(r.sinEquivalencia&&r.sinEquivalencia.length){
+        html+='<div class="plan-aviso" style="margin-top:10px"><b>'+r.sinEquivalencia.length+' producto(s) de la hoja aún no están en el sistema.</b> Dime a qué marca y presentación equivale cada uno (se guarda y no vuelve a preguntar). Hasta entonces esas filas no se importan.</div>'+
+          htmlTablaEquiv(r.sinEquivalencia.map(x=>htmlFilaEquiv(x.texto,sugerirLineaPres(x.sugerencia),x.filas+(x.filas===1?' fila':' filas'))))+
+          '<p><button type="button" class="btn btn-primary btn-sm" data-ovi-guardar-eq>Guardar equivalencias</button></p>';
+      }
+      q('ovi-vista').innerHTML=html;
       q('ovi-aplicar').disabled=!(r.crear.length||r.actualizar.length||r.retirar.length);
     };
     q('ovi-archivo').onchange=async e=>{
-      q('ovi-error').textContent='';filas=null;
+      q('ovi-error').textContent='';hojas=null;q('ovi-hojas').innerHTML='';
       const f=e.target.files&&e.target.files[0];if(!f){vista();return;}
       try{
         origen=/\.csv$/i.test(f.name)?'csv':'excel';
-        if(origen==='csv')filas=leerCSV(await f.text());
+        if(origen==='csv')hojas=[{nombre:f.name.replace(/\.csv$/i,''),filas:leerCSV(await f.text()),oculta:false}];
         else{
           if(typeof XLSX==='undefined'||!XLSX.read)throw new Error('No se cargó la librería de Excel.');
           const libro=XLSX.read(await f.arrayBuffer(),{type:'array',cellDates:true});
-          filas=XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]],{defval:'',raw:true});
+          const meta=(libro.Workbook&&libro.Workbook.Sheets)||[];
+          hojas=libro.SheetNames.map((n,i)=>({nombre:n,filas:XLSX.utils.sheet_to_json(libro.Sheets[n],{defval:'',raw:true}),oculta:!!(meta[i]&&meta[i].Hidden)}));
         }
-        if(!filas.length)throw new Error('El archivo no tiene filas.');
-      }catch(err){q('ovi-error').textContent=(err&&err.message)||String(err);filas=null;}
+        hojas=hojas.filter(h=>h.filas.length);
+        if(!hojas.length)throw new Error('El archivo no tiene filas.');
+        q('ovi-hojas').innerHTML=hojas.length>1?'<div class="ov-vista"><b>Pestañas</b> <small>(las ocultas vienen sin marcar)</small><div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px">'+
+          hojas.map(h=>'<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-ovi-hoja="'+esc(h.nombre)+'"'+(h.oculta?'':' checked')+'> '+esc(h.nombre)+' <small>('+h.filas.length+')</small></label>').join('')+'</div></div>':
+          '<input type="checkbox" data-ovi-hoja="'+esc(hojas[0].nombre)+'" checked style="display:none">';
+      }catch(err){q('ovi-error').textContent=(err&&err.message)||String(err);hojas=null;}
       vista();
     };
-    q('ovi-retirar').onchange=vista;
+    fondo.addEventListener('change',e=>{if(e.target.matches('[data-ovi-hoja],#ovi-retirar,#ovi-corte'))vista();});
     q('ovi-cancelar').onclick=()=>fondo.remove();
-    fondo.addEventListener('click',e=>{
+    fondo.addEventListener('click',async e=>{
+      if(e.target.closest('[data-ovi-guardar-eq]')){
+        const nuevas=leerEquiv(q('ovi-vista'));
+        if(!Object.keys(nuevas).length){q('ovi-error').textContent='Elige marca y presentación al menos en un producto.';return;}
+        try{await guardarConfig({equivalencias:Object.assign({},config.equivalencias||{},nuevas)});q('ovi-error').textContent='';vista();}
+        catch(err){q('ovi-error').textContent=(err&&err.message)||String(err);}
+        return;
+      }
       if(!e.target.closest('[data-ovi-plantilla]')||typeof XLSX==='undefined')return;
-      const ejemplo=[N.COLUMNAS.filter(c=>c.obligatoria).map(c=>c.etq),['OV-2610-001','Cliente de ejemplo','Bells','625 ML PACK X 15 UND',12000,'2026-10-30']];
-      const libro=XLSX.utils.book_new();XLSX.utils.book_append_sheet(libro,XLSX.utils.aoa_to_sheet(ejemplo),'Órdenes');XLSX.writeFile(libro,'plantilla-ordenes-de-venta.xlsx');
+      const ejemplo=[['OC','TIENDA','FECHA EMISION','FECHA ENTREGA','PRODUCTO','UND SOLICITADAS','UND DESPACHO','OBS'],['4500123456','Tienda de ejemplo','2026-10-01','2026-10-30','SCALA-AGUA-SIN-GAS-BT-1-L',12000,0,'']];
+      const libro=XLSX.utils.book_new();XLSX.utils.book_append_sheet(libro,XLSX.utils.aoa_to_sheet(ejemplo),'MAKRO');XLSX.writeFile(libro,'plantilla-ordenes-de-venta.xlsx');
     });
     q('ovi-aplicar').onclick=async()=>{
       q('ovi-aplicar').disabled=true;q('ovi-error').textContent='';
-      try{const r=await aplicarFuente(filas,{origen,retirarAusentes:q('ovi-retirar').checked});fondo.remove();alert('Importación lista: '+r.crear.length+' nueva(s), '+r.actualizar.length+' actualizada(s)'+(r.retirar.length?', '+r.retirar.length+' retirada(s)':'')+(r.errores.length?'. '+r.errores.length+' fila(s) con error no se importaron.':'.'));}
-      catch(err){q('ovi-error').textContent=(err&&err.message)||String(err);q('ovi-aplicar').disabled=false;}
+      try{
+        const corte=q('ovi-corte').value||'';
+        if(corte!==(config.fechaCorte||''))await guardarConfig({fechaCorte:corte});
+        const r=await aplicarFuente({hojas:elegidas()},opcImp());
+        fondo.remove();alert('Importación lista: '+r.crear.length+' nueva(s), '+r.actualizar.length+' actualizada(s)'+(r.retirar.length?', '+r.retirar.length+' retirada(s)':'')+(r.errores.length?'. '+r.errores.length+' fila(s) con error no se importaron.':'.'));
+      }catch(err){q('ovi-error').textContent=(err&&err.message)||String(err);q('ovi-aplicar').disabled=false;}
     };
   }
 
@@ -372,6 +456,19 @@
     if(e.target.closest('[data-ov-importar]')){dialogoImportar();return;}
     const ver=e.target.closest('[data-ov-ver]');
     if(ver){dialogoDetalle(ver.getAttribute('data-ov-ver'));return;}
+    if(e.target.closest('[data-ov-guardar-corte]')){
+      try{await guardarConfig({fechaCorte:(document.getElementById('ov-corte')||{}).value||''});alert('Fecha de corte guardada.');}catch(err){alert((err&&err.message)||err);}
+      return;
+    }
+    if(e.target.closest('[data-ov-guardar-eqs]')){
+      const er=document.getElementById('ov-eq-error');if(er)er.textContent='';
+      try{
+        const act=leerEquiv(document.getElementById('ov-sheets')),mant=Object.assign({},config.equivalencias||{});
+        Object.keys(mant).forEach(k=>{if(!act[k])delete mant[k];});   // se quitó marca o presentación → se borra la equivalencia
+        await guardarConfig({equivalencias:Object.assign(mant,act)});alert('Equivalencias guardadas.');pintarSheets();
+      }catch(err){if(er)er.textContent=(err&&err.message)||String(err);}
+      return;
+    }
     if(e.target.closest('[data-ov-guardar-mapa]')){
       const mapeo={};raiz.querySelectorAll('[data-ov-map]').forEach(i=>{const v=i.value.trim();if(v)mapeo[i.getAttribute('data-ov-map')]=v;});
       const er=document.getElementById('ov-mapa-error');if(er)er.textContent='';
@@ -380,7 +477,7 @@
   });
   document.addEventListener('change',e=>{
     if(!e.target||!e.target.closest||!e.target.closest('#plan-root')||!NS.estado||NS.estado.tab!=='ventas')return;
-    const mapa={'ov-estado':'estado','ov-cliente':'cliente','ov-linea':'linea','ov-hasta':'hasta'};
+    const mapa={'ov-estado':'estado','ov-cliente':'cliente','ov-cadena':'cadena','ov-linea':'linea','ov-hasta':'hasta'};
     if(mapa[e.target.id]){F[mapa[e.target.id]]=e.target.value;pintarCuerpo();}
   });
 
