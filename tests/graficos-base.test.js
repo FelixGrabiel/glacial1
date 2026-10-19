@@ -44,4 +44,14 @@ ok(/graficosDestruirTodo/.test(g.slice(g.indexOf('function destroyCharts'),g.ind
 ok(/graficosDestruirTodo/.test(leer('js/produccion/06-registro.js').slice(leer('js/produccion/06-registro.js').indexOf('function renderMain'),leer('js/produccion/06-registro.js').indexOf('function renderMain')+500)),'renderMain() destruye los gráficos al cambiar de pestaña');
 ok(/await ch\.toBase64Image\(\)/.test(g),'exportarPNGDetalle espera el PNG asíncrono de los gráficos');
 ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles.css')),'CSS de los contenedores .gx (altura fija, también en celular)');
+/* Fase 2: Resumen general */
+{
+  const r=leer('js/produccion/09-resumen.js');
+  ok(!/new Chart\(/.test(r),'09-resumen.js ya no crea gráficos con Chart.js (todo es ApexCharts/ECharts)');
+  ok(/glacialDiferirGrafico/.test(r)&&/window\.glacialDiferirGrafico\s*=/.test(leer('js/produccion/49b-resumen-graficos-diferidos.js')),'el Resumen crea sus gráficos con glacialDiferirGrafico (49b): de uno en uno, después del render');
+  ok(['chart-oee-planta','chart-oee-turno','chart-heat-oee'].every(id=>r.includes(id)),'gráficos nuevos del Resumen: velocímetro de OEE de planta, OEE por turno y mapa de calor');
+  ok(/RS_IDS_INDUSTRIAL/.test(r)&&r.includes('ri-personal'),'los 7 gráficos industriales se registran para destruirlos');
+  ok(/if\(typeof Chart !== 'undefined'\) Chart\.register\(valorBarraResumenPlugin\)/.test(r),'el plugin de Chart.js del Resumen ya no exige que Chart exista');
+  ok(/KPIs del turno/.test(leer('js/produccion/08-graficos.js'))&&/type:'radialBar'/.test(leer('js/produccion/08-graficos.js')),'la pestaña Gráficos tiene los anillos de KPIs (radialBar)');
+}
 console.log(fallas?'\n'+fallas+' FALLAS':'\nTodo bien');process.exit(fallas?1:0);

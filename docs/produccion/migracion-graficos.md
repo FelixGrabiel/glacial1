@@ -5,7 +5,7 @@ Se hace **por fases, una pestaña a la vez**. Chart.js sigue cargado hasta que l
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Capa base (`08a-graficos-base.js`) + pestaña **Gráficos** de la línea (10 gráficos) | Hecha |
-| 2 | Resumen general (13 gráficos, incluida la carga diferida `49b`) | Pendiente |
+| 2 | Resumen general (13 gráficos + 3 nuevos, con la carga diferida `49b`) y anillos de KPIs en la pestaña Gráficos | Hecha |
 | 3 | Impacto económico (10 tarjetas) | Pendiente |
 | 4 | Tareo (horas extras) y Reporte General a Excel; retirar Chart.js | Pendiente |
 
@@ -32,6 +32,22 @@ Se hace **por fases, una pestaña a la vez**. Chart.js sigue cargado hasta que l
 
 `state.charts.cascada/paradas/mermas` siguen existiendo (objetos con `destroy()` y `toBase64Image()` asíncrono) para «PNG con gráficos (detalle)». Los dibujos en canvas del Excel y del PNG por línea no se tocaron.
 
+## Fase 2 · Resumen general
+| Antes (Chart.js) | Ahora |
+|---|---|
+| Producción por presentación y marca | Columnas agrupadas (una serie por marca) |
+| Tendencia de producción por presentación | Columnas apiladas |
+| Producción por turno | Columnas con color por turno |
+| OEE por línea | Ranking de columnas: color según la meta, degradado `dark`, `borderRadius` 7, valor encima, meta punteada |
+| Tendencia de OEE de planta | Área suave (degradado 0,38 → 0,04) con meta punteada |
+| Disponibilidad y rendimiento por línea | Columnas agrupadas |
+| 7 gráficos industriales (programado vs producido, cumplimiento, pareto, minutos de parada, merma, ratio, producción por persona) | ApexCharts del mismo tipo; el cumplimiento colorea según <80 / 80–95 / 95–105 / >105 |
+| **Nuevo:** OEE de planta | Velocímetro ECharts con marca de meta (usa `calcularKPIsPlanta`, ya existente) |
+| **Nuevo:** OEE por turno | Área suave Día vs Noche (usa `agruparOEEPorTurno`) |
+| **Nuevo:** OEE por línea y día | Mapa de calor Apex, 3 rangos (<65 / 65–75 / ≥75), valor dentro de cada celda (hasta 14 días) |
+Los gráficos se crean de uno en uno DESPUÉS del render con `glacialDiferirGrafico` (en `49b-resumen-graficos-diferidos.js`; mismo comportamiento que antes con Chart.js, que se conserva para quien aún lo use). Pestaña Gráficos de la línea: se añadió **KPIs del turno** (anillos radialBar: OEE al centro como total y leyenda con nombre y valor).
+
 ## Pruebas
 - `node tests/graficos-base.test.js` (rápida): metas, colores, registro, integración en `index.html`.
-- `GLX_LIBS=<carpeta con node_modules de apexcharts, echarts, canvas-gauges y chart.js> node tests/graficos-fase1.e2e.js`: dibuja la pestaña con los 10 gráficos en PC y en celular de 360 px, comprueba que caben, que no se acumulan instancias, los PNG y las metas.
+- `GLX_LIBS=<carpeta con node_modules de apexcharts, echarts, canvas-gauges y chart.js> node tests/graficos-fase1.e2e.js`: dibuja la pestaña con los 11 gráficos en PC y en celular de 360 px, comprueba que caben, que no se acumulan instancias, los PNG y las metas.
+- `… node tests/graficos-fase2.e2e.js`: dibuja el Resumen general (16 gráficos) con 3 líneas y 12 días, en PC y celular; comprueba la creación diferida, que no se acumulan instancias y los gráficos nuevos.

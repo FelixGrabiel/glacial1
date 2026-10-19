@@ -3998,6 +3998,17 @@ function renderGraficosTab(){
     <div class="chart-grid">
 
 
+      <div class="chart-box" style="grid-column:1/-1;">
+
+        <h4>
+          KPIs del turno
+        </h4>
+
+        <div id="chart-kpis" class="gx gx-alto"></div>
+
+      </div>
+
+
       <div class="chart-box">
 
         <h4>
@@ -4222,6 +4233,36 @@ function renderGraficosTab(){
   ===================================================== */
   registrarGx('oee', 'chart-oee',
     velocimetroOEE('chart-oee', r1(d.oee * 100), { nombre:'OEE', clave:'oee' }));
+
+  /* =====================================================
+     KPIs DEL TURNO — anillos (radialBar): el OEE al centro y una leyenda con nombre y valor
+  ===================================================== */
+  const kpisAnillos = [
+    { nombre:'OEE', valor:r1(d.oee * 100), color:colorKpi(d.oee * 100, 'oee') },
+    { nombre:'Disponibilidad', valor:r1(d.disponibilidad * 100), color:colorKpi(d.disponibilidad * 100, 'disponibilidad') },
+    { nombre:'Rendimiento', valor:r1(d.rendimiento * 100), color:colorKpi(d.rendimiento * 100, 'rendimiento') },
+    { nombre:'Cumplimiento', valor:r1(d.cumplimiento * 100), color:colorCumplimiento(d.cumplimiento * 100) }
+  ];
+  registrarGx('kpis', 'chart-kpis', apexCrear('chart-kpis', {
+    chart:{ type:'radialBar' },
+    series:kpisAnillos.map(k => Math.min(100, Math.max(0, k.valor))),
+    labels:kpisAnillos.map(k => k.nombre),
+    colors:kpisAnillos.map(k => k.color),
+    plotOptions:{ radialBar:{
+      startAngle:-135, endAngle:135, hollow:{ size:'38%' },
+      track:{ background:GX.tema().grilla, strokeWidth:'100%', margin:4 },
+      dataLabels:{
+        name:{ fontSize:'13px', color:PAL.texto },
+        value:{ fontSize:'18px', fontWeight:700, color:PAL.texto, formatter:(v, o) => txtPct(kpisAnillos[o && o.seriesIndex != null ? o.seriesIndex : 0].valor) },
+        total:{ show:true, label:'OEE', fontSize:'13px', color:PAL.texto, formatter:() => txtPct(kpisAnillos[0].valor) }
+      }
+    } },
+    stroke:{ lineCap:'round' },
+    legend:{ show:true, position:'right', fontSize:'13px', itemMargin:{ vertical:4 },
+      formatter:(nombre, o) => nombre + ': ' + txtPct(kpisAnillos[o.seriesIndex].valor) },
+    responsive:[{ breakpoint:600, options:{ legend:{ position:'bottom' } } }],
+    tooltip:{ enabled:false }
+  }));
 
 
   /* =====================================================
