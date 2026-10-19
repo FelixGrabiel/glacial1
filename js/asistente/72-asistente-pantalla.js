@@ -182,9 +182,8 @@
     const porAtender=atender.length?`<ul class="ap-atender">${atender.slice(0,8).map(a=>`<li><span class="ap-at-ico ap-c-${a.cls}">${ico(a.ico)}</span><span class="ap-at-tx">${esc(a.txt)}</span>
         <button type="button" class="ap-link" onclick="${a.acc}">Ver detalle ${ico('flecha')}</button></li>`).join('')}</ul>${atender.length>8?`<p class="ap-nota-pie">y ${atender.length-8} más.</p>`:''}`:vacio('Nada pendiente por atender.');
     const conteos=D.cache.movimientos.filter(m=>m.tipo==='CONTEO').sort((a,b)=>num(b.en)-num(a.en));
-    const exist=`<p class="ap-grande">Última verificación: ${conteos.length?`<b>${esc(conteos[0].usuario||'—')}</b> · ${esc(hora(conteos[0].en))}`:'sin conteos registrados'}</p>
-      <button type="button" class="ap-btn" onclick="apIr('insumos','existencias')">${ico('lista')} Ver existencias</button>
-      <p class="ap-nota-pie">El conteo se actualiza con movimientos confirmados.</p>`;
+    // «Existencias en Producción» ya no es una tarjeta aparte: su dato (última verificación) va en una línea dentro de «Por atender».
+    const lineaConteo=`<p class="ap-linea-conteo">Última verificación: ${conteos.length?`<b>${esc(conteos[0].usuario||'—')}</b> · ${esc(hora(conteos[0].en))}`:'sin conteos registrados'} <button type="button" class="ap-link" onclick="apIr('insumos','existencias')">Ver existencias ${ico('flecha')}</button></p>`;
     const I=window.glacialIncidencias;
     const seg=ctx.lineas.map(l=>{
       const cs=ctx.cuadros.filter(c=>c.linea===l);
@@ -196,9 +195,8 @@
         <span class="ap-seg-n">${esc(nombreLinea(l))} · ${esc(c.marca)}</span>${pill(e[0],e[1])}<span class="ap-chev">${ico('chevron')}</span></li>`;}).join('');
     }).join('');
     return `<h2 class="ap-h2">Resumen operativo</h2>${kpis}
-      <div class="ap-2">${tarjeta('Cobertura de la programación',cob,{icono:'capas'})}${tarjeta('Por atender',porAtender,{icono:'campana'})}</div>
-      <div class="ap-2">${tarjeta('Existencias en Producción',exist,{icono:'cubo'})}${tarjeta('Producción y seguimiento',`<ul class="ap-seg">${seg}</ul>`,{icono:'grafico'})}</div>
-      ${pie('Stock de Almacén y existencias en Producción se controlan por separado.')}`;
+      ${tarjeta('Por atender',lineaConteo+porAtender,{icono:'campana'})}
+      <div class="ap-2">${tarjeta('Producción y seguimiento',`<ul class="ap-seg">${seg}</ul>`,{icono:'grafico'})}${tarjeta('Cobertura de la programación',cob,{icono:'capas'})}</div>`;
   }
   window.apVerCuadro=function(clave){
     const ctx=contexto();const c=ctx.cuadros.find(x=>x.clave===clave);if(!c)return;
@@ -238,10 +236,7 @@
     return `<h2 class="ap-h2">Programación y seguimiento</h2>
       <div class="ap-kpis ap-kpis-3">${kpi('lista','azul','Órdenes del turno',ctx.cuadros.length)}${kpi('alerta','ambar','Con faltantes',conFalt)}${kpi('reloj','gris','Pendiente de cierre previo',pendCierre)}</div>
       ${tarjeta('Necesidades por programación',filas?tabla(['Línea','Marca','Modalidad','Materiales','Acción'],filas):vacio('Sin programación en este bloque.'))}
-      <div class="ap-2 ap-2-par">${tarjeta('Recalcular requerimientos',`<div class="ap-info">${ico('info','ap-info-ico')}<ul><li>Cambiar marca, presentación o cantidad actualiza los faltantes.</li>
-          <li>Durante la ejecución se calcula lo necesario para terminar.</li><li>Completar cantidad sin cierre previo: requerimiento pendiente, no cero.</li></ul></div>`)}
-        ${tarjeta('Coordinaciones del turno',coord)}</div>
-      ${pie('Agregar una programación no inicia la producción ni consume material.')}`;
+      ${tarjeta('Coordinaciones del turno',coord)}`;
   }
   window.apRegistrarCoord=()=>ejecutar(()=>D.registrarCoordinacion({id:D.nuevoId('coo'),fecha:AP.fecha,bloque:AP.bloque,texto:valor('ap-co-tx'),responsable:valor('ap-co-resp'),prioridad:valor('ap-co-prio')}),'Seguimiento registrado.');
   window.apCerrarCoord=(id,v)=>{const n=prompt('Nota de cierre (opcional):','');if(n===null)return;ejecutar(()=>D.cerrarCoordinacion(id,v,n),'Seguimiento cerrado.');};
@@ -291,15 +286,12 @@
     const conteos=D.cache.movimientos.filter(m=>m.tipo==='CONTEO').sort((a,b)=>num(b.en)-num(a.en));
     const ult=conteos[0];
     const posteriores=ult?D.cache.movimientos.filter(m=>m.tipo!=='CONTEO'&&m.insumo===ult.insumo&&num(m.en)>num(ult.en)).length:0;
-    const traz=tarjeta('Trazabilidad del saldo',`<ul class="ap-traz">
-        <li>${ico('usuario')}<div><b>Verificado por</b><small>${ult?`${esc(ult.usuario||'—')} · ${esc(fechaHora(ult.en))} · ${esc(insumoDe(ult.insumo).nombre)}`:'Sin conteos registrados'}</small></div></li>
-        <li>${ico('lista')}<div><b>Saldo ajustado por movimientos posteriores</b><small>El saldo se actualiza automáticamente con recepciones, devoluciones, transferencias y consumos confirmados después del conteo${ult?` (${posteriores} desde el último)`:''}.</small></div></li>
-        <li>${ico('enlace')}<div><b>Reservas vinculadas a órdenes</b><small>Incluye reservas de órdenes en estado <b>Programada</b>, <b>En producción</b> y <b>En espera</b>.</small></div></li>
-        <li>${ico('cubo')}<div><b>Stock de Almacén: consultar por separado</b><small>Las existencias de Almacén se gestionan en el módulo de Almacén y no se incluyen en este saldo.</small></div></li></ul>
+    const traz=tarjeta('Último conteo',`<ul class="ap-traz">
+        <li>${ico('usuario')}<div><b>Verificado por</b><small>${ult?`${esc(ult.usuario||'—')} · ${esc(fechaHora(ult.en))} · ${esc(insumoDe(ult.insumo).nombre)}${posteriores?` · ${posteriores} movimiento(s) posteriores`:''}`:'Sin conteos registrados'}</small></div></li></ul>
       <button type="button" class="ap-link" onclick="apIr('historial')">Ver movimientos ${ico('flecha')}</button>`);
     return `${filtros}<div class="ap-card ap-card-in"><h3>Saldo verificado y disponibilidad</h3>${filas?tabla(['Insumo',obs?'#Observado':'#Utilizable','#Reservado otras órdenes','#Disponible','#Requerido','#Faltante'],filas,'ap-t-plano'):vacio('Sin insumos en el catálogo (Factores).')}</div>
       ${pie('Material observado o dañado excluido del disponible.','aviso')}
-      <div class="ap-2 ap-2-par">${form}${traz}</div>${pie('El conteo ajusta el saldo con historial; no genera una entrega de Almacén.')}`;
+      <div class="ap-2 ap-2-par">${form}${traz}</div>`;
   }
   window.apMovUnidad=()=>{const u=document.getElementById('ap-mov-unidad');if(u)u.value=insumoDe(valor('ap-mov-insumo')).unidad;};
   window.apGuardarMovimiento=()=>{
@@ -433,7 +425,7 @@
       ${campo('Observaciones (opcional)',ed?`<textarea id="ap-c-obs" rows="3" maxlength="400">${esc(doc&&doc.observaciones||'')}</textarea>`:`<p>${esc(doc&&doc.observaciones||'—')}</p>`,'ap-ancho')}
       <div class="ap-acc ap-acc-wrap">${ed?`<button type="button" class="ap-btn ap-btn-o ap-btn-gris" onclick="apConc('BORRADOR')">Guardar borrador</button><button type="button" class="ap-btn" onclick="apConc('ENVIAR')">Enviar a revisión</button>`:''}
         ${val&&!conf&&doc?`<button type="button" class="ap-btn" onclick="apConc('CONFIRMAR')" ${x.pendiente?'disabled title="Faltan saldos o factor"':''}>Confirmar consumo</button>`:''}${val&&conf?`<button type="button" class="ap-btn ap-btn-o" onclick="apConc('REABRIR')">Reabrir</button>`:''}</div>`;
-    const reservas=`<section class="ap-card ap-reservas"><span class="ap-card-ico ap-grande-ico">${ico('cubo')}</span><div><h3>Control de reservas</h3><p>Una reserva no es consumo.</p><p>Al registrar consumo, liberar la reserva correspondiente sin duplicar el descuento.</p></div></section>`;
+    const reservas=`<p class="ap-nota-pie">${ico('info')} Una reserva no es consumo: al registrar el consumo se libera la reserva sin duplicar el descuento.</p>`;
     const todas=ctx.concil.map(f=>`<tr class="ap-clic ${f.cuadro.clave===AP.cuadro&&f.insumo.codigo===AP.insumo?'ap-sel':''}" onclick="apSel('todo','${esc(f.cuadro.linea)}|${esc(f.cuadro.clave)}|${esc(f.insumo.codigo)}')">
       <td data-label="Orden">${esc(nombreLinea(f.cuadro.linea)+' · '+f.cuadro.codigo+' · '+f.cuadro.marca)}</td><td data-label="Insumo">${esc(f.insumo.nombre)}</td><td data-label="Teórico" class="ap-num">${f.teorico===null?'Sin factor':fmt(f.teorico)}</td>
       <td data-label="Real" class="ap-num">${f.real===null?'Pendiente':fmt(f.real)}</td><td data-label="Por revisar" class="ap-num ${f.porRevisar?'ap-ambar-tx':''}">${f.porRevisar===null?'—':fmt(f.porRevisar)}</td>
@@ -487,11 +479,11 @@
     return `<div class="ap-tit-acc"><h2 class="ap-h2">Mermas y material observado</h2>${ed?`<button type="button" class="ap-btn" onclick="apEnfocar('ap-m-cant')">${ico('mas')} Registrar merma</button>`:''}</div>
       <div class="ap-kpis ap-kpis-3">${kpi('doc','naranja','Mermas pendientes',m.filter(x=>x.estado==='PENDIENTE').length)}${kpi('check','verde','Mermas validadas',m.filter(x=>x.estado==='VALIDADA').length)}
         ${kpi('alerta','ambar','Material observado',`${obs.length} <em>registro${obs.length===1?'':'s'}</em>`)}</div>
-      <div class="ap-2 ${form?'ap-2-merma':''}"><div>${tarjeta('Registro del turno',filas?tabla(['Línea','Insumo','#Cantidad','Motivo','Estado'],filas):vacio('Sin mermas en este bloque.'))}
-        ${tarjeta('Material observado',(obs.length?tabla(['Material','#Cantidad','Estado','Disponibilidad'],obs.map(x=>`<tr><td data-label="Material">${esc(x.i.nombre)}</td><td data-label="Cantidad" class="ap-num">${fmt(x.s.observado)} ${esc(x.i.unidad)}</td>
-          <td data-label="Estado">${pill('Pendiente de evaluación','ambar')}</td><td data-label="Disponibilidad"><span class="ap-pill ap-p-rojo">No disponible para programación</span></td></tr>`).join('')):vacio('Sin material observado.'))
-          +'<p class="ap-nota-pie">'+ico('info')+' El material observado no se considera merma hasta su evaluación.</p>')}${configMerma()}</div>${form}</div>
-      ${pie('Cada evento se vincula al movimiento correspondiente para evitar doble descuento de existencias.<br><small>Mantener la distinción entre material observado, material reutilizable y merma.</small>')}`;
+      <div class="ap-2 ${form?'ap-2-merma':''}"><div>${tarjeta('Registro del turno',(filas?tabla(['Línea','Insumo','#Cantidad','Motivo','Estado'],filas):vacio('Sin mermas en este bloque.'))
+          +(obs.length?'<h4 class="ap-h4-obs">Material observado</h4>'+tabla(['Material','#Cantidad','Estado','Disponibilidad'],obs.map(x=>`<tr><td data-label="Material">${esc(x.i.nombre)} <span class="ap-pill ap-p-ambar">Observado</span></td><td data-label="Cantidad" class="ap-num">${fmt(x.s.observado)} ${esc(x.i.unidad)}</td>
+          <td data-label="Estado">${pill('Pendiente de evaluación','ambar')}</td><td data-label="Disponibilidad"><span class="ap-pill ap-p-rojo">No disponible para programación</span></td></tr>`).join(''))
+          +'<p class="ap-nota-pie">'+ico('info')+' El material observado no se considera merma hasta su evaluación.</p>':''))}
+        ${configMerma()}</div>${form}</div>`;
   }
   /* Causas y etapas configurables (apParametros/merma): una por línea. Las mermas ya registradas conservan su causa. */
   function configMerma(){
@@ -573,7 +565,7 @@
         <p>${esc(insumoDe(ultC.insumo).nombre)}: ${fmt(ultC.cantidad)} ${esc(ultC.unidad||'')}<br>Ajuste vinculado al conteo<br>Versiones y correcciones conservadas</p>
         <button type="button" class="ap-link" onclick="apHistorialDoc('apMovimientos','${esc(ultC.opId)}')">Ver antes y después ${ico('flecha')}</button></div></div>`:vacio('Sin conteos en esta fecha.'));
     return `<h2 class="ap-h2">Historial y reportes</h2>${filtros}${tarjeta('Movimientos y decisiones',filas?tabla(['Hora','Evento','Insumo','Cantidad','Responsable','Estado'],filas):vacio('Sin movimientos en esta fecha.'))}
-      <div class="ap-2 ap-2-hist">${det}${aud}</div>${pie('Solicitudes, reservas y entregas son operaciones distintas.')}`;
+      <div class="ap-2 ap-2-hist">${det}${aud}</div>`;
   }
   window.apExportar=()=>{
     if(!window.glacialReporteGeneral){AP.msg={tipo:'error',texto:'No se cargó el generador del Reporte General.'};pintar();return;}
@@ -763,6 +755,7 @@
 .ap-link{display:inline-flex;align-items:center;gap:6px;background:none;border:0;color:var(--ap-azul);font:inherit;font-weight:600;cursor:pointer;padding:6px 0;white-space:nowrap}.ap .ap-link .ap-ico{width:17px;height:17px}
 .ap-vacio{padding:18px;color:var(--ap-mut);font-size:14px;text-align:center;border:1px dashed var(--ap-linea);border-radius:10px}
 .ap-sub{color:var(--ap-mut);font-size:14px;margin:4px 0 10px}.ap-nota-pie{margin:10px 0 0;color:var(--ap-mut);font-size:13.5px;display:flex;gap:6px;align-items:center}.ap .ap-nota-pie .ap-ico{width:17px;height:17px;color:var(--ap-azul)}
+.ap-linea-conteo{margin:0 0 10px;font-size:15px;color:var(--ap-mut)}.ap-linea-conteo b{color:inherit}.ap-h4-obs{margin:14px 0 6px;font-size:15px}
 .ap-pie{display:flex;gap:12px;align-items:center;padding:12px 18px;border-radius:12px;margin:0 0 16px;font-size:15px;line-height:1.4}.ap .ap-pie>.ap-ico{width:24px;height:24px}
 .ap-pie-info{background:#eef5fd;border:1px solid #d6e6f8;color:#1d3557}.ap .ap-pie-info>.ap-ico{color:var(--ap-azul)}.ap-pie-aviso{background:#fff6dc;border:1px solid #f3dc91;color:#5b4300;font-weight:600}.ap .ap-pie-aviso>.ap-ico{color:#d18a00}
 .ap-pie small{color:var(--ap-mut);font-weight:400}

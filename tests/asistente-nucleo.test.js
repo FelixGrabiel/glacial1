@@ -139,4 +139,14 @@ ok(N.factorVigente(mig,{insumo:'CARTON',linea:'C20L',marca:'San Fernando',presen
 ok(new Set(mig.map(f=>f.id)).size===mig.length&&JSON.stringify(N.factoresDesdeCodigo(cfg,'2020-01-01').map(f=>f.id))===JSON.stringify(mig.map(f=>f.id)),'migración idempotente: ids únicos y deterministas');
 ok(N.codigoLinea('CAJAS 20L')==='C20L'&&N.codigoLinea('Cajas 20 L')==='C20L'&&N.codigoLinea('pet1')==='PET1'&&N.lineaInfo('C20L').nombre==='CAJAS 20L','líneas: código interno C20L y nombre visible «CAJAS 20L» unificados');
 
+/* Pantalla del Asistente reordenada: sin textos fijos repetidos */
+{
+  const fs2=require('fs'),t=fs2.readFileSync(require('path').resolve(__dirname,'..','js/asistente/72-asistente-pantalla.js'),'utf8');
+  ok(t.indexOf("tarjeta('Por atender'")<t.indexOf("tarjeta('Producción y seguimiento'")&&!/tarjeta\('Existencias en Producción'/.test(t),'Resumen: «Por atender» primero y sin la tarjeta «Existencias en Producción» (su dato va en una línea)');
+  ok(!/Recalcular requerimientos/.test(t)&&/tarjeta\('Coordinaciones del turno',coord\)/.test(t),'Seguimiento: sin la tarjeta de frases fijas; Coordinaciones a ancho completo');
+  ok(!/ap-reservas"/.test(t)&&/Una reserva no es consumo/.test(t),'Consumo: «Control de reservas» pasa a una línea');
+  ok(!/tarjeta\('Material observado'/.test(t)&&/Material observado<\/h4>/.test(t),'Merma: el material observado va dentro de «Registro del turno»');
+  ok((t.match(/\$\{pie\(/g)||[]).length<=4,'quedan solo los avisos de reglas de negocio (no las notas informativas repetidas)');
+}
+
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
