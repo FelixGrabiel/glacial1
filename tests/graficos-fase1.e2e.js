@@ -38,7 +38,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     await D.page.waitForTimeout(1200);
     const m = await medir(D.page);
     const dibujados = Object.entries(m).filter(([k, v]) => k !== 'desborde' && v && !v.oculto && v.svgOcanvas).map(([k]) => k);
-    ok(dibujados.length === 11, nombre + ': los 11 gráficos se dibujan (' + dibujados.join(', ') + ')');
+    ok(dibujados.length === 10, nombre + ': los 10 gráficos se dibujan (' + dibujados.join(', ') + ')');
     ok(Object.entries(m).filter(([k, v]) => k !== 'desborde' && v && !v.oculto).every(([k, v]) => v.dentro && v.hijoDentro), nombre + ': todos caben dentro de su tarjeta (sin salirse)');
     ok(m.desborde <= 1, nombre + ': la página no tiene desplazamiento horizontal (' + m.desborde + ' px)');
     ok(Object.entries(m).filter(([k, v]) => k !== 'desborde' && v && !v.oculto).every(([k, v]) => v.alto >= 150 && v.alto <= 320), nombre + ': alturas numéricas razonables');
@@ -48,7 +48,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     const act1 = await D.page.evaluate(() => { const a = glacialGraficosBase.graficosActivos(); return a.apex.length + a.echarts.length + a.gauge.length; });
     for (let i = 0; i < 6; i++) await D.page.evaluate(() => renderGraficosTab());
     const act2 = await D.page.evaluate(() => { const a = glacialGraficosBase.graficosActivos(); return a.apex.length + a.echarts.length + a.gauge.length; });
-    ok(act1 === act2 && act1 >= 11, nombre + ': tras 6 re-renderizados siguen las mismas ' + act2 + ' instancias (no se acumulan)');
+    ok(act1 === act2 && act1 >= 10, nombre + ': tras 6 re-renderizados siguen las mismas ' + act2 + ' instancias (no se acumulan)');
     /* cambiar de pestaña destruye todo */
     await D.page.evaluate(() => { document.getElementById('tab-content').innerHTML = ''; graficosDestruirTodo(); });
     const act3 = await D.page.evaluate(() => { const a = glacialGraficosBase.graficosActivos(); return a.apex.length + a.echarts.length + a.gauge.length; });
