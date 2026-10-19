@@ -147,7 +147,7 @@ const enCurso={estado:'EN_PRODUCCION',inicio:AHORA-3600000};
     ok(/pl-luz-amarilla/.test(ama)&&/pl-semaforo-texto-amarilla/.test(ama)&&/pl-semaforo-roja encendida/.test(roj.replace(/\s+/g,' ')),'widget amarillo y rojo');
     ok(/pl-semaforo-ambar encendida/.test(w('ambar').replace(/\s+/g,' '))&&!/pl-luz-/.test(w('ambar')),'el nivel ámbar de otros módulos no cambia');
     const tablero=s24.slice(s24.indexOf('tablero.innerHTML='),s24.indexOf('cont.prepend(tablero)'));
-    ok(/Próximos a producir/.test(tablero)&&/counts\.proximo/.test(tablero)&&/counts\.pausa\} En pausa/.test(tablero),'contadores: «Próximos a producir» separado de «En pausa» (pausas reales)');
+    ok(/Próximos a producir/.test(tablero)&&/counts\.proximo/.test(tablero)&&/ct\(counts\.pausa,'pausa','En pausa'\)/.test(tablero),'contadores: «Próximos a producir» separado de «En pausa» (pausas reales)');
     ok(/pa-state-proximo\{background:var\(--est-pausa-bg\)/.test(s24)&&/pa-program-state-proximo/.test(s24),'estilos de la tarjeta y la etiqueta del próximo (amarillo)');
     ok(/data-pa-accion|acciones\(actual,idx\)/.test(tablero)&&/estadoOrdenItem\(x\)\.key==='PENDIENTE'/.test(tablero),'los controles (Iniciar para el próximo) siguen usando la misma clave; el próximo no se trata como pausado');
     const html=leer('index.html');

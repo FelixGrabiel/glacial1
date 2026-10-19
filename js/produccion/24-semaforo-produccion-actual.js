@@ -629,12 +629,20 @@
     }else if(p.modo==='falta_velocidad'){
       celdas.push(esc(p.motivo));
     }
-    h+='<div class="pa-proy-grid">'+celdas.filter(Boolean).map(c=>'<div>'+c+'</div>').join('')+'</div>';
+    // Versión CORTA siempre visible (una línea): lo esencial de la proyección. El resto (ritmo, capacidad, análisis, notas) queda en «Ver detalle».
+    const util=celdas.filter(Boolean);
+    const cortas=p.modo==='normal' ? [util[0],util[3]] : p.modo==='no_proyectable' ? [util[0],util[1]] : util;
+    const cortoHtml=cortas.filter(Boolean).join(' · ');
+    const resto=p.modo==='normal' ? [util[1],util[2]] : p.modo==='no_proyectable' ? util.slice(2) : [];
+    h+='<div class="pa-proy-corto">'+cortoHtml+'</div>';
     // análisis automático (mismos números) y avisos informativos
     const an=GlacialIndicadores.analisisProyeccion(p);
-    if(an)h+='<details class="pa-proy-det"><summary>Análisis</summary><div class="pa-proy-an">'+esc(an)+'</div></details>';
     (p.avisos || []).forEach(a=>{h+='<div class="pa-proy-nota">⚠ '+esc(a.texto)+'</div>';});
-    if(p.pausaPendienteMin>0)h+='<div class="pa-proy-nota info">Incluye descontar '+Math.round(p.pausaPendienteMin)+' min de pausas previstas aún no registradas.</div>';
+    let detalle='';
+    if(resto.filter(Boolean).length)detalle+='<div class="pa-proy-grid">'+resto.filter(Boolean).map(c=>'<div>'+c+'</div>').join('')+'</div>';
+    if(an)detalle+='<div class="pa-proy-an">'+esc(an)+'</div>';
+    if(p.pausaPendienteMin>0)detalle+='<div class="pa-proy-nota info">Incluye descontar '+Math.round(p.pausaPendienteMin)+' min de pausas previstas aún no registradas.</div>';
+    if(detalle)h+='<details class="pa-proy-det"><summary>Ver detalle de la proyección</summary>'+detalle+'</details>';
     // detalle por producto y producido por turno (desplegables)
     if((p.productos || []).length>1){
       const et={COMPLETADO:'completado',EN_CURSO:'en curso',PENDIENTE:'pendiente',CANCELADO:'cancelado'};
@@ -1144,7 +1152,7 @@
           <td><span class="pa-par-tipo ${esProg?'prog':'noprog'}">${esProg?'Programada':'No programada'}</span></td>
           <td class="pa-par-t">${fmtParada(p.minutos)}</td></tr>`;
       }).join('');
-      return `<div class="pa-par-head"><div class="pa-hcol-title">◴ PARADAS DEL TURNO</div><div class="pa-par-sub">Registro de Avance / Cierre</div></div>
+      return `<div class="pa-par-head"><div class="pa-hcol-title">◴ PARADAS DEL TURNO</div></div>
         <div class="pa-par-resumen"><div><span>Programadas</span><b>${fmtParada(prog)}</b></div><div><span>No programadas</span><b>${fmtParada(noProg)}</b></div></div>
         ${filas ? `<div class="pa-par-scroll"><table class="pa-par-tabla"><thead><tr><th scope="col">MOTIVO</th><th scope="col">TIPO</th><th scope="col" class="pa-par-t">TIEMPO</th></tr></thead><tbody>${filas}</tbody></table></div>`
           : '<div class="pa-par-vacio">Sin paradas registradas</div>'}`;
@@ -1195,6 +1203,10 @@
       </div>
       <div class="pa-live-grid">${gruposVisibles.map(g=>{
         const idxActivo=filasActuales.indexOf(g.activo);
+        // Línea sin programación (ni producción fuera de plan) en el bloque: una fila delgada en vez de una tarjeta de ceros.
+        if(!g.items.length && !g.fueraPlan.length){
+          return `<article class="pa-live-card pa-line-slim"><div class="pa-slim-txt"><strong>${esc(g.line.name)}</strong> · ${esc(bloquesTexto(g.turnosLinea) || 'SIN TURNO')} · Sin programación en este bloque</div>${htmlMotivoNP(g)}</article>`;
+        }
         return `<article class="pa-live-card pa-line-card pa-line-card-horizontal">
           <div class="pa-line-top">
             <div class="pa-line-ident">
@@ -1213,19 +1225,6 @@
 
           ${htmlMotivoNP(g)}
 
-          ${(()=>{
-            // Marca en curso con SU propio avance (no el total de la línea) y avisos de marcas detenidas sin finalizar.
-            const a=g.desglose.actual;if(!a)return '';
-            const f0=n=>Math.round(n).toLocaleString('es-PE');
-            const aviso=g.desglose.avisos.map(v=>`<div class="pa-aviso-detenida" role="status">⚠ Marca ${esc(v.marca||'—')} quedó detenida${v.desde?' desde '+esc(hhmmBloque(v.desde)):''}: finalízala o reanúdala</div>`).join('');
-            const ax=g.items.find(x=>x.marca===a.marca && x.presentacion===a.presentacion);
-            const est=ax && g.esEstimado(ax);
-            return `<div class="pa-marca-actual"><small>${g.desglose.estado==='EN_CURSO'?'MARCA EN CURSO':'MARCA ACTUAL'}</small>
-              <strong>${esc(a.marca||'—')}${a.presentacion?' · '+esc(presUI(g.line.key,a.marca,a.presentacion)):''}</strong>
-              <span><b>${f0(a.producido)}</b> / ${f0(a.programado)} UND${est?' estimadas':''} · ${a.programado>0?Math.round(a.avance)+' %'+(est?' del estimado':''):'—'}</span></div>${aviso}`;
-          })()}
-
-          <div class="pa-total-linea">Total del plan (${g.desglose.total.marcas} marca${g.desglose.total.marcas===1?'':'s'} programada${g.desglose.total.marcas===1?'':'s'}): programado, producido y ${g.soloEstimado?'avance':'cumplimiento'} suman las marcas del plan del bloque, no solo la actual${g.fueraPlan.length?'; la producción fuera de programación se muestra aparte y no cuenta':''}.${g.conEstimado?' Las marcas en «Todo el turno», «Tiempo restante» o «Hasta una hora» se comparan con su cantidad estimada, no con un pedido firme.':''}</div>
           <div class="pa-line-kpis">
             <div class="pa-line-kpi"><small>PROGRAMACIÓN VIGENTE</small><strong>${Math.round(g.totalProg).toLocaleString('es-PE')} <span>UND</span></strong></div>
             <div class="pa-line-kpi"><small>PRODUCCIÓN ACUMULADA</small><strong>${Math.round(g.totalProd).toLocaleString('es-PE')} <span>UND</span></strong>${g.fueraPlan.length?'<em class="pa-kpi-nota">del plan</em>':''}</div>
@@ -1238,6 +1237,19 @@
           </div>
 
           ${htmlProyeccion(g.proyeccion,g.porTurno)}
+          ${(()=>{
+            // Marca en curso con SU propio avance (no el total de la línea) y avisos de marcas detenidas sin finalizar.
+            const a=g.desglose.actual;if(!a)return '';
+            const f0=n=>Math.round(n).toLocaleString('es-PE');
+            const aviso=g.desglose.avisos.map(v=>`<div class="pa-aviso-detenida" role="status">⚠ Marca ${esc(v.marca||'—')} quedó detenida${v.desde?' desde '+esc(hhmmBloque(v.desde)):''}: finalízala o reanúdala</div>`).join('');
+            const ax=g.items.find(x=>x.marca===a.marca && x.presentacion===a.presentacion);
+            const est=ax && g.esEstimado(ax);
+            return `<div class="pa-marca-actual"><small>${g.desglose.estado==='EN_CURSO'?'MARCA EN CURSO':'MARCA ACTUAL'}</small>
+              <strong>${esc(a.marca||'—')}${a.presentacion?' · '+esc(presUI(g.line.key,a.marca,a.presentacion)):''}</strong>
+              ${g.desglose.total.marcas>1?`<span><b>${f0(a.producido)}</b> / ${f0(a.programado)} UND${est?' estimadas':''} · ${a.programado>0?Math.round(a.avance)+' %'+(est?' del estimado':''):'—'}</span>`:''}</div>${aviso}`;
+          })()}
+
+          ${g.desglose.total.marcas>1 ? `<div class="pa-total-linea">Total del plan (${g.desglose.total.marcas} marca${g.desglose.total.marcas===1?'':'s'} programada${g.desglose.total.marcas===1?'':'s'}): programado, producido y ${g.soloEstimado?'avance':'cumplimiento'} suman las marcas del plan del bloque, no solo la actual${g.fueraPlan.length?'; la producción fuera de programación se muestra aparte y no cuenta':''}.${g.conEstimado?' Las marcas en «Todo el turno», «Tiempo restante» o «Hasta una hora» se comparan con su cantidad estimada, no con un pedido firme.':''}</div>` : ''}
 
           <div class="pa-horizontal-body">
 
@@ -1247,13 +1259,14 @@
                 const ordenados=itemsOrdenadosGrupo(g);
                 const counts={curso:0,proximo:0,pausa:0,detenida:0,pendiente:0,completada:0,cancelada:0};
                 ordenados.forEach(o=>counts[o.estado.cls]++);
+                const ct=(n,cls,txt)=>n>0 ? `<span class="${cls}">● ${n} ${txt}</span>` : '';
                 return `<div class="pa-state-counts">
-                  <span class="curso">● ${counts.curso} En curso</span>
-                  <span class="proximo">● ${counts.proximo} Próximos a producir</span>
-                  <span class="pausa">● ${counts.pausa} En pausa</span>
-                  <span class="detenida">● ${counts.detenida} Detenidas</span>
-                  <span class="completada">● ${counts.completada} Finalizadas</span>
-                  <span class="pendiente">● ${counts.pendiente} Pendientes</span>
+                  ${ct(counts.curso,'curso','En curso')}
+                  ${ct(counts.proximo,'proximo','Próximos a producir')}
+                  ${ct(counts.pausa,'pausa','En pausa')}
+                  ${ct(counts.detenida,'detenida','Detenidas')}
+                  ${ct(counts.completada,'completada','Finalizadas')}
+                  ${ct(counts.pendiente,'pendiente','Pendientes')}
                   ${counts.cancelada ? `<span class="cancelada">● ${counts.cancelada} Canceladas</span>` : ''}
                 </div>
                 <div class="pa-program-list pa-program-list-horizontal">${
@@ -1522,6 +1535,9 @@
     .pa-proy.roja{border-left-color:#d93a3a;background:#fff5f5}
     .pa-proy-top{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-bottom:4px}
     .pa-proy-top b{letter-spacing:.04em;color:#10265f}.pa-proy-top small{color:#5a6b7b}
+    .pa-proy-corto{font-size:13px;line-height:1.5}.pa-proy-corto b{color:#10265f}
+    .pa-line-slim{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 16px;background:#fff;border:1px solid #d8e4ec;border-radius:12px;color:#5f7382}
+    .pa-line-slim .pa-slim-txt strong{color:#10265f}.pa-line-slim .pa-np{border:0;background:transparent;padding:0}.pa-line-slim .pa-np-txt.small-muted{display:none}
     .pa-proy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 18px}
     .pa-proy-grid div b{color:#10265f}.pa-proy-dif.falta{color:#a92f27;font-weight:800}.pa-proy-dif.sobra{color:#13814a;font-weight:800}
     .pa-proy-nota{margin-top:4px;font-size:12px;color:#8a1f17;font-weight:700}.pa-proy-nota.info{color:#5a6b7b;font-weight:600}

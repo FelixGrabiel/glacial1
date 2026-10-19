@@ -3607,19 +3607,8 @@ function renderProduccionActualTab(){
     </div>
 
 
-    <div class="panel" style="margin-top:14px;">
-
-      <div class="panel-head">
-        <h3>
-          Programado vs. producido · ${produccionActualFecha}
-          · ${produccionActualTurno === 'TODOS' ? 'Todos los turnos' : produccionActualTurno}
-        </h3>
-      </div>
-
-      <div class="panel-body" id="produccion-actual-resultados">
-        ${renderProduccionActualResultados()}
-      </div>
-
+    <div style="margin-top:14px;" id="produccion-actual-resultados">
+      ${renderProduccionActualResultados()}
     </div>
 
   `;
