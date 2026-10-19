@@ -3,7 +3,8 @@
    -------------------------------------------------------------
    - Pestaña "Rotación maquinista" del Tareo (junto a "Rotación semanal").
    - Grilla semanal: una fila por maquinista y una columna por día
-     (lunes a domingo). Cada celda: DÍA, NOCHE o DESCANSO (tocar para cambiar).
+     (lunes a domingo). Cada celda: DÍA, INTERMEDIO, NOCHE o DESCANSO (tocar para cambiar).
+     INTERMEDIO cuenta con DÍA para el Tareo de Producción (igual que en el resto del sistema: Día incluye Intermedio).
    - Cada maquinista tiene su línea (PET1, PET2, B7L, C20L, B20L).
    - Botones: Agregar maquinista · Copiar semana anterior · Importar Excel.
    - SOLO el Supervisor de Mantenimiento y el Administrador la editan;
@@ -19,7 +20,7 @@
 
   const DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
   const LINEAS_MAQ=['PET1','PET2','B7L','C20L','B20L'];
-  const VALORES=['DÍA','NOCHE','DESCANSO'];
+  const VALORES=['DÍA','INTERMEDIO','NOCHE','DESCANSO'];
 
   let semana='';              // lunes ISO de la semana mostrada
   let borrador=[];            // personal de la semana mostrada (aún sin guardar)
@@ -76,7 +77,7 @@
      ========================================================= */
   function rotacionMaquinistasDia(fecha,turno){
     const g=guardadaDe(lunesDe(fecha));
-    const res={tieneRotacion:!!g,trabajan:[],descansan:[]};
+    const res={tieneRotacion:!!g,trabajan:[],descansan:[],intermedio:[]};
     if(!g)return res;
     const i=indiceDia(fecha);
     const turnoNorm=norm(turno).includes('noche')?'NOCHE':'DÍA';
@@ -84,6 +85,7 @@
       const v=(p.dias||[])[i]||'DESCANSO';
       if(v==='DESCANSO')res.descansan.push(p);
       else if(v===turnoNorm)res.trabajan.push(p);
+      else if(v==='INTERMEDIO'&&turnoNorm==='DÍA'){res.trabajan.push(p);res.intermedio.push(p);}      // el Intermedio se agrupa con el Día
     });
     return res;
   }
@@ -214,6 +216,7 @@
     const t=norm(v);
     if(!t)return '';
     if(t==='dia'||t==='d')return 'DÍA';
+    if(t==='intermedio'||t==='inter'||t==='i')return 'INTERMEDIO';
     if(t==='noche'||t==='n')return 'NOCHE';
     if(['descanso','desc','x','-','libre','off'].includes(t))return 'DESCANSO';
     return '';
@@ -271,7 +274,7 @@
   }
 
     /* Datos del cuadro tipo Excel (31a-rotacion-grid.js): una fila por maquinista (id = trabajadorId) y una columna por día. */
-  const CLASE_MAQ={'DÍA':'dia','NOCHE':'noche','DESCANSO':'descanso'};
+  const CLASE_MAQ={'DÍA':'dia','INTERMEDIO':'intermedio','NOCHE':'noche','DESCANSO':'descanso'};
   function configCuadro(fechas,hoy,puede){
     const ETQ=['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
     return {
@@ -323,7 +326,7 @@
             <button class="btn btn-ghost btn-sm" onclick="rotMaqCopiarAnterior()">Copiar semana anterior</button>
             <button class="btn btn-ghost btn-sm" onclick="rotMaqAbrirImportacion()">📥 Importar rotación Excel</button>
           </div>
-          <div class="small-muted" style="margin-bottom:12px;">Selecciona una celda para cambiar el turno (y la línea) del maquinista. Excel: DNI | Maquinista | Línea | Lunes … Domingo.</div>`:''}
+          <div class="small-muted" style="margin-bottom:12px;">Selecciona una celda para cambiar el turno (y la línea) del maquinista. Excel: DNI | Maquinista | Línea | Lunes … Domingo (cada día: Día, Intermedio, Noche o Descanso).</div>`:''}
           ${borrador.length?`${window.glacialRotGrid?window.glacialRotGrid.html(configCuadro(fechas,hoy,puede)):''}
             ${puede?`<div class="actions-row" style="justify-content:flex-end;margin-top:16px;"><button class="btn btn-primary" onclick="rotMaqGuardar()">💾 Guardar rotación</button></div>`:''}`
           :`<div class="empty-state"><h4>${guardada?'Sin maquinistas':'Sin rotación de maquinistas'}</h4><p>${puede?'Agrega maquinistas, copia la semana anterior o importa un Excel.':'Aún no se cargó la rotación de esta semana.'}</p></div>`}
