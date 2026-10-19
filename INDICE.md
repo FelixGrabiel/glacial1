@@ -149,6 +149,8 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 44-distribucion-personal-pantalla.js | Pestaña «Distribución de personal» del Tareo de Producción |
 | 45-tareo-edicion-continua.js | Tareo: edición continua de varias filas seguidas (`docs/personal-tareo/tareo-edicion-continua.md`) |
 | 46-tareo-horas-extras.js | Tareo: horas extras, gráficos y jornada laborada, solo lectura (`docs/personal-tareo/tareo-horas-extras.md`) |
+| 47a-horas-extras-nucleo.js | Tareo: reglas puras del registro de horas extras (total con medianoche, validación, choques, filtros) |
+| 47-horas-extras-registro.js | Tareo: pestaña «Horas extras» con justificación y autorización (`docs/personal-tareo/tareo-horas-extras-registro.md`) |
 
 ### js/mantenimiento/
 

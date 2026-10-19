@@ -475,13 +475,13 @@ function cambiarRolNuevoUsuario(){
     checks.forEach(
       c=>{
         const sugeridos = {
-          'Supervisor': ['inicioOperativo','ver_programacion_turno','ver_insumos_turno','verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','exportarExcel','exportarJPG'],
+          'Supervisor': ['inicioOperativo','ver_programacion_turno','ver_insumos_turno','verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','horasExtras','exportarExcel','exportarJPG'],
           'Gerente General': PERMISOS_SOLO_CONSULTA,
           'Jefe de Producción': [...PERMISOS_SOLO_CONSULTA,'inicioOperativo','planificacion'],
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
-          'Mantenimiento': ['moduloMantenimiento','produccionActual','control_operativo_lineas'],
+          'Mantenimiento': ['moduloMantenimiento','horasExtras','produccionActual','control_operativo_lineas'],
           'mantenimiento_compartido': ['ver_tareo_mantenimiento','produccionActual','control_operativo_lineas'],
-          'RRHH': ['moduloRRHH'],
+          'RRHH': ['moduloRRHH','horasExtras'],
           'Ventas': ['produccionActual'],
           'Planificación': ['produccionActual','planificacion'],
           'Ventas y Planificación': ['produccionActual','planificacion']

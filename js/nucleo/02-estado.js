@@ -151,6 +151,7 @@ const PERMISOS_APP=[
   {key:'tareoProduccion',area:'tareo',label:'GESTIONAR Tareo de Producción (registrar, editar, validar)'},
   {key:'ver_tareo_produccion',area:'tareo',label:'VER Tareo de Producción (solo visualización)'},
   {key:'tareoGeneral',area:'tareo',label:'Tareo General (solo lectura — RRHH, ambas áreas)'},
+  {key:'horasExtras',area:'tareo',label:'REGISTRAR Horas extras con justificación y autorización (junto con gestionar el Tareo de esa área; RRHH ambas áreas)'},
   {key:'moduloMantenimiento',area:'mantenimiento',label:'Módulo de Mantenimiento (Tareo y demás secciones del área — gestiona)'},
   {key:'gestionar_tareo_mantenimiento',area:'mantenimiento',label:'GESTIONAR Tareo de Mantenimiento (registrar, editar, validar)'},
   {key:'ver_tareo_mantenimiento',area:'mantenimiento',label:'VER Tareo de Mantenimiento (solo visualización)'},

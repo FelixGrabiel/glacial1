@@ -1468,6 +1468,11 @@ function tareoRenderTabs(activa) {
         tabs.push(['distribucion', 'Distribución de personal', 'renderDistribucionPersonal()']);
     }
 
+    // Horas extras con justificación y autorización (47-horas-extras-registro.js).
+    if (window.glacialHorasExtras && window.glacialHorasExtras.puedeVer()) {
+        tabs.push(['horasextras', 'Horas extras', 'renderHorasExtrasRegistro()']);
+    }
+
     tabs.push(['historial', 'Historial', 'renderHistorialTareo()']);
     tabs.push(['resumen', 'Resumen mensual', 'renderResumenMensualTareoUI()']);
 
@@ -1616,7 +1621,7 @@ function tareoBotonNombre(persona, tareoId) {
             data-tareo-id="${escaparHTML(tareoId || '')}"
         >
             ${escaparHTML(persona.nombre)}
-        </button>
+        </button>${window.glacialHorasExtras ? window.glacialHorasExtras.marca(persona, tareoId) : ''}
     `;
 }
 
@@ -7393,6 +7398,8 @@ function tareoAbrirFicha(clave, tareoId) {
                             `
                     }
 
+                    ${window.glacialHorasExtras ? window.glacialHorasExtras.fichaHtml(clave, referencia && referencia.tareo && referencia.tareo.fecha) : ''}
+
                 </div>
 
             </div>
@@ -9591,13 +9598,18 @@ function obtenerResumenMensualTareo(
             });
         });
 
-    return Array.from(mapa.values()).sort(
+    const filasResumen = Array.from(mapa.values()).sort(
         (a, b) =>
             a.area.localeCompare(b.area) ||
             String(a.nombre).localeCompare(
                 String(b.nombre), 'es', { sensitivity: 'base' }
             )
     );
+
+    // «Total HE»: horas extras REGISTRADAS y autorizadas (47-horas-extras-registro.js).
+    return window.glacialHorasExtras
+        ? window.glacialHorasExtras.decorarResumen(filasResumen, año, mes)
+        : filasResumen;
 }
 
 
@@ -9886,6 +9898,7 @@ function actualizarResumenMensualTareo() {
                                 <th>Horas</th>
                                 <th>HORAS EXTRAS a favor</th>
                                 <th>HORAS EXTRAS en contra</th>
+                                <th title="Horas extras registradas y autorizadas (pestaña Horas extras)">Total HE</th>
                             </tr>
                         </thead>
 
@@ -9924,6 +9937,8 @@ function actualizarResumenMensualTareo() {
 
                                     <td>${item.saldoFavor ? `<strong class="tareo-saldo-pos">+${tareoTextoSaldo(item.saldoFavor).replace("+", "")}</strong>` : "—"}</td>
                                     <td>${item.saldoContra ? `<strong class="tareo-saldo-neg">-${tareoTextoSaldo(item.saldoContra).replace("+", "")}</strong>` : "—"}</td>
+
+                                    <td>${item.totalHE ? `<strong>${String(item.totalHE).replace('.', ',')} h</strong>` : '—'}</td>
 
                                 </tr>
                             `
@@ -11003,7 +11018,8 @@ function exportarResumenMensualTareo() {
                 'Minutos tardanza': item.minutosTardanza,
                 'Horas trabajadas': Number(item.horasTrabajadas.toFixed(2)),
                 'HORAS EXTRAS a favor': Number(item.saldoFavor.toFixed(2)),
-                'HORAS EXTRAS en contra': Number(item.saldoContra.toFixed(2))
+                'HORAS EXTRAS en contra': Number(item.saldoContra.toFixed(2)),
+                'Total HE (registradas y autorizadas)': Number((item.totalHE || 0).toFixed(2))
             })
         );
 
@@ -11050,7 +11066,8 @@ function exportarResumenMensualTareo() {
         { wch: 13 },
         { wch: 18 },
         { wch: 18 },
-        { wch: 15 }
+        { wch: 15 },
+        { wch: 22 }
     ];
 
     XLSX.utils.book_append_sheet(
@@ -11083,6 +11100,26 @@ function exportarResumenMensualTareo() {
         ];
 
         XLSX.utils.book_append_sheet(workbook, hojaPorDia, 'Personal por día');
+    }
+
+    // Hoja «Horas extras»: detalle completo (justificación y autorizador) del mes.
+    if (window.glacialHorasExtras) {
+
+        const filasHE = window.glacialHorasExtras.filasExcel(año, mes, area);
+
+        if (filasHE.length) {
+
+            const hojaHE = XLSX.utils.json_to_sheet(filasHE);
+
+            aplicarEstiloExcelTareo(hojaHE, Object.keys(filasHE[0]));
+
+            hojaHE['!cols'] = [
+                { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 30 }, { wch: 22 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 12 },
+                { wch: 32 }, { wch: 50 }, { wch: 20 }, { wch: 24 }, { wch: 16 }, { wch: 22 }, { wch: 16 }, { wch: 10 }, { wch: 30 }
+            ];
+
+            XLSX.utils.book_append_sheet(workbook, hojaHE, 'Horas extras');
+        }
     }
 
     XLSX.writeFile(

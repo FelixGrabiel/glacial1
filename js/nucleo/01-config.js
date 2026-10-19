@@ -926,3 +926,36 @@ const CAUSAS_PARADA_NO_PROGRAMADA = [
    (valoresUnitarios), protegidos por Firestore Security Rules: solo Gerencia, identificada por su rol
    (por rol: Gerente General o Gerente), los puede leer y cambiar. Ver js/produccion/55-valores-economicos.js.
    ========================================================= */
+
+
+/* =========================================================
+   HORAS EXTRAS (registro con justificación y autorización)
+   =========================================================
+   Listas fáciles de editar. Las usa js/personal/47-horas-extras-registro.js (pestaña «Horas extras» del Tareo).
+   · HORAS_EXTRAS_MOTIVOS: lista fija por área (el motivo es obligatorio).
+   · HORAS_EXTRAS_AUTORIZADORES: roles (de Gestión de usuarios) que pueden aparecer en «Autorizado por» según el área.
+   · HORAS_EXTRAS_MIN_JUSTIFICACION: mínimo de caracteres del detalle (también lo exige la regla del servidor).
+   ========================================================= */
+const HORAS_EXTRAS_MOTIVOS = {
+  produccion: [
+    'Cumplimiento del programa de producción',
+    'Cobertura de falta / descanso',
+    'Parada o avería',
+    'Limpieza / sanitización',
+    'Otro'
+  ],
+  mantenimiento: [
+    'Correctivo / avería',
+    'Preventivo programado',
+    'Cambio de formato',
+    'Cobertura de falta',
+    'Otro'
+  ]
+};
+
+const HORAS_EXTRAS_AUTORIZADORES = {
+  produccion: ['Jefe de Producción', 'Jefe de Operaciones', 'Supervisor', 'Gerente General'],
+  mantenimiento: ['Jefe de Operaciones', 'Mantenimiento', 'Gerente General']
+};
+
+const HORAS_EXTRAS_MIN_JUSTIFICACION = 15;
