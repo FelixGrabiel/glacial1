@@ -16,13 +16,18 @@
   if(typeof renderResumen!=='function')return;
 
   const original=renderResumen;
-  let generacion=0,cola=[];
+  let generacion=0,cola=[],renderizando=false;
 
   /* PERF: una creación real por turno; el resto espera. */
   function siguiente(gen){
     if(gen!==generacion)return;
     const tarea=cola.shift();
     if(!tarea)return;
+    if(tarea.fn){                                             // GRAFICOS (fase 2): creación de un ApexCharts/ECharts diferida (glacialDiferirGrafico)
+      try{tarea.fn();}catch(e){console.warn('Resumen general: no se pudo crear un gráfico:',e&&e.message||e);}
+      if(cola.length)setTimeout(()=>siguiente(gen),0);
+      return;
+    }
     const Real=tarea.Real;
     if(!tarea.objeto.cancelado&&tarea.el&&tarea.el.isConnected!==false){
       const defaults=Real&&Real.defaults;
@@ -41,7 +46,7 @@
 
   renderResumen=function(main){
     const Real=window.Chart;
-    if(typeof Real!=='function')return original.apply(this,arguments);
+    const conChart=typeof Real==='function';
 
     generacion++;
     const gen=generacion;
@@ -57,15 +62,23 @@
       cola.push({Real,el,config,objeto});
       return objeto;
     }
-    Object.setPrototypeOf(Diferido,Real);                     // Chart.defaults, Chart.register… siguen funcionando
+    if(conChart)Object.setPrototypeOf(Diferido,Real);         // Chart.defaults, Chart.register… siguen funcionando
 
     try{
-      window.Chart=Diferido;
+      renderizando=true;
+      if(conChart)window.Chart=Diferido;
       return original.apply(this,arguments);
     }finally{
-      window.Chart=Real;
+      renderizando=false;
+      if(conChart)window.Chart=Real;
       if(cola.length)setTimeout(()=>siguiente(gen),0);
     }
+  };
+  /* GRAFICOS (fase 2): los gráficos del Resumen son ApexCharts / ECharts. Durante renderResumen, glacialDiferirGrafico(fn) encola la creación
+     (una por turno, como antes con Chart.js); fuera de renderResumen se ejecuta de inmediato. Un render nuevo cancela lo pendiente. */
+  window.glacialDiferirGrafico=function(fn){
+    if(!renderizando){fn();return;}
+    cola.push({fn});
   };
   window.renderResumen=renderResumen;
 
