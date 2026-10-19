@@ -82,6 +82,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 06c-migrar-fotos.js | Herramienta del Administrador (botón en el Historial): migra las fotos antiguas de Cloudinary a Supabase conservando la dirección anterior como respaldo |
 | 06d-corregir-fechas-noche.js | Herramienta del Administrador (botón en el Historial): lista y corrige, con confirmación y respaldo, los registros de la noche guardados con la fecha del calendario |
 | 07-historial.js | Historial de registros |
+| 08a-graficos-base.js | Capa común de los gráficos nuevos (ApexCharts · ECharts · canvas-gauges): `apexCrear`, `velocimetroOEE`, `velocimetrosCompactos`, `velocimetroAnalogico`, `graficoAImagen`, registro único de instancias, `METAS_GRAFICOS` y `colorKpi`. Ver docs/produccion/migracion-graficos.md |
 | 08-graficos.js | Gráficos y Excel por línea |
 | 09-resumen.js | Resumen de producción |
 | 14-exportar-general.js | Exportación general de planta |

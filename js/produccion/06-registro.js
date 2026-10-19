@@ -2175,6 +2175,9 @@ if (typeof globalThis.permisoPestanaLinea !== 'function') {
 }
 function renderMain(){
 
+  // GRAFICOS: al cambiar de pestaña o refrescar se destruyen las instancias de ApexCharts / ECharts / canvas-gauges (no se acumulan)
+  if(typeof graficosDestruirTodo === 'function') graficosDestruirTodo();
+
   const main =
     document.getElementById('main');
 
