@@ -10,7 +10,7 @@ const { iniciar, LIBS } = require('./ayuda/graficos-e2e.js');
 if (!LIBS) { console.log('Falta GLX_LIBS. Prueba omitida.'); process.exit(0); }
 let fallas = 0;
 const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fallas++; };
-const RESUMEN = ['evolucion', 'linea', 'causa', 'turno', 'acumulada'], PERDIDAS = ['maquina', 'marca', 'pres', 'tipo', 'scatter'];
+const RESUMEN = ['evolucion', 'causa', 'tipo', 'linea', 'turno', 'acumulada'], PERDIDAS = ['maquina', 'marca', 'pres'];
 
 (async () => {
   const H = await iniciar();
@@ -50,16 +50,16 @@ const RESUMEN = ['evolucion', 'linea', 'causa', 'turno', 'acumulada'], PERDIDAS 
       return o;
     }, ids);
     let m = await medir(RESUMEN);
-    ok(RESUMEN.every(id => m[id] && m[id].dibujado), nombre + ': los 5 gráficos del Resumen ejecutivo se dibujan');
+    ok(RESUMEN.every(id => m[id] && m[id].dibujado), nombre + ': los 6 gráficos del Resumen ejecutivo se dibujan (evolución, Pareto, dona de tipo, línea, turno y acumulada)');
     ok(RESUMEN.every(id => m[id].dentro && m[id].hijoDentro) && m.desborde <= 1, nombre + ': caben en su tarjeta y la página no se desborda (' + m.desborde + ' px)');
 
     await D.page.click('[data-id-tab="perdidas"]');
     await D.page.waitForSelector('#idc-maquina svg', { timeout: 8000 }); await D.page.waitForTimeout(600);
     m = await medir(PERDIDAS);
-    ok(PERDIDAS.every(id => m[id] && m[id].dibujado), nombre + ': los 5 gráficos de Análisis de pérdidas se dibujan (mapa de árbol, 3 rankings, dona y dispersión)');
+    ok(PERDIDAS.every(id => m[id] && m[id].dibujado), nombre + ': los 3 gráficos de Análisis de pérdidas se dibujan (mapa de árbol, marca y presentación)');
     ok(PERDIDAS.every(id => m[id].dentro && m[id].hijoDentro) && m.desborde <= 1, nombre + ': caben en su tarjeta');
-    const tipos = await D.page.evaluate(() => { const r = glacialGraficosBase.REG.apex; return { arbol: r['idc-maquina'].inst.w.config.chart.type, dona: r['idc-tipo'].inst.w.config.chart.type, disp: r['idc-scatter'].inst.w.config.chart.type }; });
-    ok(tipos.arbol === 'treemap' && tipos.dona === 'donut' && tipos.disp === 'scatter', nombre + ': máquinas = treemap, tipo = dona, dispersión = scatter');
+    const tipos = await D.page.evaluate(() => { const r = glacialGraficosBase.REG.apex; return { arbol: r['idc-maquina'].inst.w.config.chart.type, dona: r['idc-tipo'].inst.w.config.chart.type, sinDisp: !r['idc-scatter'] && !document.getElementById('idc-scatter') }; });
+    ok(tipos.arbol === 'treemap' && tipos.dona === 'donut' && tipos.sinDisp, nombre + ': máquinas = treemap, tipo = dona (ahora en el Resumen ejecutivo), sin la dispersión');
 
     /* clic real en una barra del ranking (marca) */
     const sel = (dim) => D.page.evaluate((dim) => glacialImpactoDashboard.estado.estado.sel[dim].length, dim);
@@ -73,6 +73,7 @@ const RESUMEN = ['evolucion', 'linea', 'causa', 'turno', 'acumulada'], PERDIDAS 
     /* clic en recuadro del treemap y en sector de la dona */
     await D.page.locator('#idc-maquina .apexcharts-treemap-rect').first().click({ force: true }); await D.page.waitForTimeout(500);
     ok(await sel('maquina') === 1, nombre + ': un clic en un recuadro del mapa de árbol filtra por esa máquina');
+    await D.page.click('[data-id-tab="resumen"]'); await D.page.waitForSelector('#idc-tipo svg', { timeout: 8000 }); await D.page.waitForTimeout(500);
     /* el centro del recuadro de un sector de dona cae en el hueco: se hace clic de verdad sobre un punto del arco */
     const punto = await D.page.evaluate(() => {
       document.getElementById('idc-tipo').scrollIntoView({ block: 'center', behavior: 'instant' });
@@ -89,6 +90,7 @@ const RESUMEN = ['evolucion', 'linea', 'causa', 'turno', 'acumulada'], PERDIDAS 
     });
     await D.page.mouse.click(punto.x, punto.y); await D.page.waitForTimeout(500);
     ok(await sel('tipo') === 1, nombre + ': un clic en un sector de la dona filtra por ese tipo');
+    await D.page.click('[data-id-tab="perdidas"]'); await D.page.waitForTimeout(500);
     await D.page.evaluate(() => { const e = glacialImpactoDashboard.estado; Object.keys(e.estado.sel).forEach(k => { e.estado.sel[k] = []; }); glacialImpactoDashboard.refrescar(); });
     await D.page.waitForTimeout(900);
 
@@ -102,7 +104,7 @@ const RESUMEN = ['evolucion', 'linea', 'causa', 'turno', 'acumulada'], PERDIDAS 
     });
     const despues = await D.page.evaluate(() => Object.values(glacialGraficosBase.graficosActivos()).reduce((a, l) => a + l.length, 0));
     ok(mismas, nombre + ': tras 6 refrescos en vivo los gráficos son LAS MISMAS instancias (se actualizan en sitio, sin parpadeo)');
-    ok(antes === despues && despues >= 10, nombre + ': no se acumulan instancias (' + despues + ')');
+    ok(antes === despues && despues >= 9, nombre + ': no se acumulan instancias (' + despues + ')');
     /* cambiar de pestaña interna y volver: sigue dibujado */
     await D.page.click('[data-id-tab="resumen"]'); await D.page.waitForTimeout(500);
     await D.page.click('[data-id-tab="perdidas"]'); await D.page.waitForTimeout(600);

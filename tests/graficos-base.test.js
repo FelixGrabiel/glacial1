@@ -60,7 +60,9 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
 {
   const r=leer('js/produccion/58-impacto-dashboard.js');
   ok(!/new Chart\(|typeof Chart/.test(r)&&!/<canvas/.test(r),'58-impacto-dashboard.js ya no usa Chart.js ni canvas');
-  ok(/type:'treemap'/.test(r)&&/type:'donut'/.test(r)&&/type:'scatter'/.test(r),'máquinas = mapa de árbol, tipo de pérdida = dona, dispersión = scatter');
+  ok(/type:'treemap'/.test(r)&&/type:'donut'/.test(r)&&!/type:'scatter'/.test(r),'máquinas = mapa de árbol, tipo de pérdida = dona; sin dispersión (repetía la tabla de eventos)');
+  ok(/\{id:'tipo',pane:'resumen'/.test(r)&&/\{id:'maquina',pane:'perdidas'[^}]*ancha:true/.test(r)&&!/id:'scatter'/.test(r),'Impacto: la dona de tipo está en el Resumen ejecutivo y Análisis de pérdidas empieza por las máquinas');
+  ok(!/Variación del periodo/.test(r)&&/sin meta configurada no se muestra la tarjeta/.test(r),'Impacto: sin tarjeta «Variación» (va dentro de «Pérdida total») y sin tarjeta «Meta mensual» vacía');
   ok(/setTimeout\(\(\)=>alternar\(dim,v\),0\)/.test(r),'el clic filtra fuera del manejador de ApexCharts (si no, la librería lanza errores)');
   ok(/apexCrear\('idc-'\+id,opciones\)/.test(r),'cada tarjeta se actualiza en sitio con apexCrear (tiempo real sin parpadeo)');
   ok(/categorizarParadaPorTexto/.test(leer('js/produccion/56-impacto-resultados.js'))||/categorizarParadaPorTexto/.test(leer('js/produccion/55-valores-economicos.js'))||true,'(el cálculo de impacto no se tocó)');

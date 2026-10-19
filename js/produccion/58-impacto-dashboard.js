@@ -30,20 +30,20 @@
   const fFecha=f=>/^\d{4}-\d{2}-\d{2}$/.test(String(f||''))?f.slice(8,10)+'/'+f.slice(5,7):String(f||'');
 
   /* ---------- tarjetas (gráficos) ---------- */
+  /* Orden de lectura: Resumen ejecutivo = «¿cuánto, cuándo y por qué?» · Análisis de pérdidas = «¿dónde está el problema?». ancha = ocupa todo el ancho. */
   const CARDS=[
-    {id:'evolucion',pane:'resumen',t:'Evolución de la pérdida',dim:'dia'},
-    {id:'linea',pane:'resumen',t:'Pérdida por línea',dim:'linea'},
+    {id:'evolucion',pane:'resumen',t:'Evolución de la pérdida',dim:'dia',ancha:true},
     {id:'causa',pane:'resumen',t:'Pareto de causas',dim:'causa'},
+    {id:'tipo',pane:'resumen',t:'Pérdida por tipo',dim:'tipo'},
+    {id:'linea',pane:'resumen',t:'Pérdida por línea',dim:'linea'},
     {id:'turno',pane:'resumen',t:'Pérdida por turno',dim:'turno'},
-    {id:'acumulada',pane:'resumen',t:'Pérdida acumulada',dim:null},
-    {id:'maquina',pane:'perdidas',t:'Top máquinas con mayor pérdida',dim:'maquina'},
+    {id:'acumulada',pane:'resumen',t:'Pérdida acumulada',dim:null,ancha:true},
+    {id:'maquina',pane:'perdidas',t:'Top máquinas con mayor pérdida',dim:'maquina',ancha:true},
     {id:'marca',pane:'perdidas',t:'Pérdida por marca',dim:'marca'},
-    {id:'pres',pane:'perdidas',t:'Pérdida por presentación',dim:'pres'},
-    {id:'tipo',pane:'perdidas',t:'Pérdida por tipo',dim:'tipo'},
-    {id:'scatter',pane:'perdidas',t:'Minutos de parada vs. pérdida',dim:'causa'}
+    {id:'pres',pane:'perdidas',t:'Pérdida por presentación',dim:'pres'}
   ];
-  const FN_ANALISIS={evolucion:'evolucion',linea:'linea',causa:'pareto',turno:'turno',acumulada:'acumulada',maquina:'maquina',marca:'marca',pres:'pres',tipo:'tipo',scatter:'dispersion'};
-  const COLOR={evolucion:'#c0392b',linea:'#2d7fc0',causa:'#e07b39',turno:'#2e8b57',acumulada:'#8e5bb5',maquina:'#b3382b',marca:'#3aa5a5',pres:'#c9a227',tipo:'#5b6dd6',scatter:'#2d7fc0'};
+  const FN_ANALISIS={evolucion:'evolucion',linea:'linea',causa:'pareto',turno:'turno',acumulada:'acumulada',maquina:'maquina',marca:'marca',pres:'pres',tipo:'tipo'};
+  const COLOR={evolucion:'#c0392b',linea:'#2d7fc0',causa:'#e07b39',turno:'#2e8b57',acumulada:'#8e5bb5',maquina:'#b3382b',marca:'#3aa5a5',pres:'#c9a227',tipo:'#5b6dd6'};
 
   /* ---------- estado del módulo ---------- */
   const S={estado:null,tab:'resumen',datos:null,vista:null,info:null,charts:{},cargando:false,error:'',orden:'impacto',detalle:null,main:null,econ:false,gerencia:false,jefatura:false,borrador:null,ultimaCarga:0};
@@ -106,7 +106,7 @@
   /* =========================================================
      ESQUELETO (se crea una vez; después solo se actualizan sus partes)
      ========================================================= */
-  const cardHtml=c=>'<section class="id-card" data-card="'+c.id+'"><header><h4 id="idt-'+c.id+'"></h4><button type="button" class="id-link" data-id-detalle="'+c.id+'">Ver detalle →</button></header>'+
+  const cardHtml=c=>'<section class="id-card'+(c.ancha?' ancha':'')+'" data-card="'+c.id+'"><header><h4 id="idt-'+c.id+'"></h4><button type="button" class="id-link" data-id-detalle="'+c.id+'">Ver detalle →</button></header>'+
     '<div class="id-cv"><div id="idc-'+c.id+'" role="img" aria-label="'+esc(c.t)+'" style="width:100%;height:100%;"></div></div><div class="id-an" id="ida-'+c.id+'" aria-live="polite"></div></section>';
   function esqueleto(){
     const abierto=window.innerWidth>=700?' open':'';
@@ -121,7 +121,7 @@
         '<div class="id-per"><button type="button" class="id-btn p" data-id-aplicar>Aplicar</button><button type="button" class="id-btn" data-id-limpiar-todo>Limpiar filtros</button></div></details>'+
       '<div class="id-chips" id="id-chips"></div><div id="id-avisos"></div><div id="id-foco"></div>'+
       '<div class="id-kpis" id="id-kpis"></div>'+
-      '<div data-pane="resumen"><div class="id-grid">'+CARDS.filter(c=>c.pane==='resumen').map((c,i)=>cardHtml(c).replace('class="id-card"','class="id-card'+(i===0?' ancha':'')+'"')).join('')+'</div></div>'+
+      '<div data-pane="resumen"><div class="id-grid">'+CARDS.filter(c=>c.pane==='resumen').map(cardHtml).join('')+'</div></div>'+
       '<div data-pane="perdidas" hidden><div class="id-grid">'+CARDS.filter(c=>c.pane==='perdidas').map(cardHtml).join('')+'</div></div>'+
       '<div data-pane="valores" hidden id="id-valores"></div><div data-pane="permisos" hidden id="id-permisos"></div>'+
       '<div id="id-tabla-wrap" style="margin-top:14px"></div><div id="id-modal"></div></div>';
@@ -231,7 +231,7 @@
   /* ----- KPI ----- */
   function semaforo(v){
     if(!S.econ||v.per.modo!=='mes')return '';
-    const meta=num(R().meta());if(!(meta>0))return '<div class="id-k"><span>Meta mensual</span><b>—</b><small>Sin meta configurada: no se evalúa semáforo.</small></div>';
+    const meta=num(R().meta());if(!(meta>0))return '';       // sin meta configurada no se muestra la tarjeta
     const uso=v.contexto.totalSinFiltros.s/meta*100;
     const est=uso>100?['cri','Crítico']:uso>=80?['ate','Atención']:['fav','Favorable'];
     return '<div class="id-k"><span>Meta mensual ('+fS(meta)+')</span><b>'+nf(uso,1)+' %</b><span class="id-sem '+est[0]+'">'+est[1]+'</span><small>Umbrales: Atención desde 80 %, Crítico al superar la meta. Se calcula con el mes completo, sin filtros.</small></div>';
@@ -248,7 +248,6 @@
     else cards.push(k('Minutos perdidos',nf(t.min),comp,'rojo'),k('Unidades perdidas',nf(t.u),''),k('Paradas',nf(t.n),'no programadas'));
     const tl=v.kpis.topLinea,tc=v.kpis.topCausa;
     cards.push(k('Línea de mayor impacto',tl?esc(tl.k):'—',tl?fmtM(med(tl)):''),k('Principal causa',tc?esc(corto(tc.k,34)):'—',tc?fmtM(med(tc)):''));
-    cards.push(k('Variación del periodo',va||'—',var_?'Se compara con el '+(v.perPrev?esc(v.perPrev.etiqueta):'periodo anterior'):'No hay datos del periodo anterior'));
     document.getElementById('id-kpis').innerHTML=cards.join('')+semaforo(v);
   }
 
@@ -353,23 +352,10 @@
       xaxis:{categories:ac.claves.map(x=>porDia?fFecha(x):x),labels:{rotate:-45,style:{fontSize:'10px'}}},yaxis:ejeValorA(),legend:{show:false},
       tooltip:{y:{formatter:y=>'Acumulado: '+fmtM(y)}}});
   }
-  function graficoDispersion(card,v){
-    const pts=v.series.scatter,hex=COLOR.scatter;
-    const sel=pts.filter(p=>!hay('causa')||seleccionado('causa',p.fila.causa)),otros=hay('causa')?pts.filter(p=>!seleccionado('causa',p.fila.causa)):[];
-    const grupos=[sel].concat(otros.length?[otros]:[]);
-    const detalle=(g,i)=>{const p=grupos[g]&&grupos[g][i];if(!p)return '';const f=p.fila;
-      return tipA(corto(f.causa,40)+(f.maquina&&f.maquina!=='Sin clasificar'?' · '+f.maquina:''),[fFecha(f.fecha)+' · '+nf(f.min)+' min · '+(S.econ?(f.s==null?'sin valor':fS(f.s)):nf(f.u)+' unidades')]);};
-    asegurarGrafico(card.id,{chart:{type:'scatter',events:{dataPointSelection:(e,ch,cfg)=>{const p=grupos[cfg.seriesIndex]&&grupos[cfg.seriesIndex][cfg.dataPointIndex];if(p){const c=p.fila.causa;setTimeout(()=>alternar('causa',c),0);}}}},
-      series:grupos.map((g,i)=>({name:i===0?(hay('causa')?'Seleccionadas':'Paradas'):'Otras',data:g.map(p=>({x:p.x,y:p.y}))})),
-      colors:[rgba(hex,0.75),rgba(hex,0.18)],markers:{size:6,hover:{size:9}},dataLabels:{enabled:false},
-      xaxis:{type:'numeric',min:0,title:{text:'Minutos de parada'},labels:{formatter:x=>nf(x)}},
-      yaxis:{min:0,title:{text:S.econ?'Pérdida (S/)':'Unidades perdidas'},labels:{formatter:y=>nf(y)}},legend:{show:grupos.length>1,position:'bottom'},
-      tooltip:{custom:({seriesIndex:g,dataPointIndex:i})=>detalle(g,i)}});
-  }
   function pintarTarjetas(){
     const v=S.vista,unidad=S.econ?' (S/)':' (minutos)';
     CARDS.forEach(c=>{
-      const t=document.getElementById('idt-'+c.id);if(t)t.textContent=c.t+(c.id==='scatter'?(S.econ?' (S/)':' (unidades)'):unidad);
+      const t=document.getElementById('idt-'+c.id);if(t)t.textContent=c.t+unidad;
       const an=document.getElementById('ida-'+c.id);
       const r=AN()[FN_ANALISIS[c.id]](v);
       if(an)an.innerHTML=htmlAn(r);
@@ -385,7 +371,6 @@
         case 'marca':graficoRanking(c,v.series.marca,{horizontal:true,top:8});break;
         case 'pres':graficoRanking(c,v.series.pres,{horizontal:true,top:8});break;
         case 'tipo':graficoDona(c,v.series.tipo,{top:4});break;
-        case 'scatter':graficoDispersion(c,v);break;
       }
     });
   }
