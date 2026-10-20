@@ -178,12 +178,14 @@
     return Object.assign({clave:'SIN_PROGRAMAR',etiqueta:'Sin programar',nivel:'gris',cerrada:false},extra);
   }
 
-  function resumenOrdenes(ordenes,cobMap,hoy,diasMax){
+  /* ventanaDias (opcional): el nivel de servicio cuenta solo las líneas cuya entrega cayó en los últimos N días (hasta hoy): así no lo sesga la historia cerrada que no se guarda. */
+  function resumenOrdenes(ordenes,cobMap,hoy,diasMax,ventanaDias){
     const r={abiertas:0,pedidas:0,programado:0,producido:0,falta:0,atrasadas:0,porVencer:0,sinCubrir:0,vencidas:0,solicitado:0,despachado:0,nivelServicio:null};
     (ordenes||[]).forEach(o=>{
       const c=cobMap.get(o.id),st=estadoOrden(o,c,hoy,diasMax);
       if(st.clave==='VENCIDA')r.vencidas++;
-      if(st.clave!=='CANCELADA'&&st.clave!=='RETIRADA'){r.solicitado+=num(o.cantidad);r.despachado+=Math.min(num(o.despachado),num(o.cantidad));}
+      const enVentana=!Number.isFinite(ventanaDias)||(fechaOk(o.fechaEntrega)&&diasEntre(hoy,o.fechaEntrega)<=0&&diasEntre(hoy,o.fechaEntrega)>=-ventanaDias);
+      if(enVentana&&st.clave!=='CANCELADA'&&st.clave!=='RETIRADA'){r.solicitado+=num(o.cantidad);r.despachado+=Math.min(num(o.despachado),num(o.cantidad));}
       if(st.cerrada)return;
       r.abiertas++;r.pedidas+=Math.max(0,num(o.cantidad)-num(o.despachado));
       if(c){r.programado+=c.programado;r.producido+=c.producido;r.falta+=c.falta;if(c.falta>0)r.sinCubrir++;}
@@ -240,6 +242,8 @@
         estado:/cancel|anulad|duplicad/.test(estadoTxt+' '+obsTxt)?'CANCELADA':'ABIERTA'
       };
       if(!(num(orden.cantidad)>0)&&orden.numero&&orden.cliente&&fechaE){out.sinCantidad=(out.sinCantidad||0)+1;return;}     // línea de la hoja con 0 solicitadas: no hay nada que producir
+      /* Historia ya cerrada: una línea completamente despachada hace más de N días no se guarda (miles de filas que no cambian y que el servidor tarda en escribir). */
+      if(Number.isFinite(opc.diasDespachadas)&&orden.estado!=='CANCELADA'&&num(orden.cantidad)>0&&num(orden.despachado)>=num(orden.cantidad)&&fechaE&&diasEntre(hoy,fechaE)<-opc.diasDespachadas){out.despachadasAntiguas=(out.despachadasAntiguas||0)+1;return;}
       cand.push({orden,fila:f.__fila||i+2,hoja:f.__hoja||''});
     });
     /* «OC DUPLICADA» / anulada: si la misma línea (OC + producto) también viene vigente, la anulada se omite en vez de contarla como repetida. */

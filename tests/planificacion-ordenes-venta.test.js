@@ -146,6 +146,13 @@ const prog=(clave,linea,fecha,turno,marca,pres,cant,extra)=>Object.assign({clave
   ok(r3s.crear.find(o=>o.despachado===240)&&/^S\/OC 2026-02-04 TAMBOLUR/.test(r3s.crear.find(o=>o.cliente==='TAMBO LURIN').numero),'queda la línea vigente (240 despachadas) y el pedido sin OC lleva «S/OC fecha tienda»');
   const solo=N.importarFilas([f3[0]],[],{equivalencias:EQ3,hoy:HOY});
   ok(solo.crear.length===1&&solo.crear[0].estado==='CANCELADA','una «OC DUPLICADA» sola (sin la vigente) entra como cancelada');
+  /* historia cerrada: una línea completamente despachada hace más de N días no se guarda */
+  const fd=[{OC:'1',TIENDA:'T','FECHA ENTREGA':'01/01/2026',PRODUCTO:'BELL-S-AGUA-BT-625-ML','UND SOLICITADAS':10,'UND DESPACHO':10},{OC:'2',TIENDA:'T','FECHA ENTREGA':'01/01/2026',PRODUCTO:'BELL-S-AGUA-BT-625-ML','UND SOLICITADAS':10,'UND DESPACHO':4},{OC:'3',TIENDA:'T','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELL-S-AGUA-BT-625-ML','UND SOLICITADAS':10,'UND DESPACHO':10}];
+  const rdd=N.importarFilas(fd,[],{equivalencias:EQ2,hoy:'2026-10-19',diasDespachadas:60});
+  ok(rdd.despachadasAntiguas===1&&rdd.crear.length===2&&rdd.crear.some(o=>o.numero==='2')&&rdd.crear.some(o=>o.numero==='3'),'la línea despachada hace más de 60 días se omite; la pendiente (aunque vieja) y la despachada reciente se guardan');
+  ok(N.importarFilas(fd,[],{equivalencias:EQ2,hoy:'2026-10-19'}).crear.length===3,'sin el límite de días se guardan todas');
+  const rv=N.resumenOrdenes([{id:'a',cantidad:100,despachado:100,fechaEntrega:'2026-10-10',estado:'ABIERTA'},{id:'b',cantidad:100,despachado:50,fechaEntrega:'2026-10-12',estado:'ABIERTA'},{id:'c',cantidad:100,despachado:0,fechaEntrega:'2026-01-05',estado:'ABIERTA'},{id:'d',cantidad:100,despachado:0,fechaEntrega:'2026-12-01',estado:'ABIERTA'}],new Map(),'2026-10-19',null,60);
+  ok(rv.solicitado===200&&rv.despachado===150&&Math.abs(rv.nivelServicio-0.75)<1e-9,'el nivel de servicio cuenta solo entregas de los últimos N días (hasta hoy): ni la historia vieja ni lo futuro lo sesgan');
   ok(/^2025-1[01]-\d\d$/.test(N.leerFecha(45955))&&N.leerFecha('19/10/26')==='2026-10-19'&&N.leerFecha(new Date(2026,9,19))==='2026-10-19','fecha como serie de Excel, dd/mm/aa y objeto Date');
 }
 console.log(fallas?fallas+' fallas':'todo correcto');

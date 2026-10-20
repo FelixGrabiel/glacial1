@@ -85,33 +85,39 @@
 
   /* Fuente → órdenes (Excel, CSV y, cuando se conecte, Google Sheets). preview=true solo calcula contra lo que hay hoy. */
   const marcasConocidas=()=>[...new Set(lineasDe().flatMap(l=>NS.marcas(l.key)))];
-  const baseImportar=()=>({mapa:config.mapeo,equivalencias:config.equivalencias||{},fechaCorte:config.fechaCorte||'',marcas:marcasConocidas(),usuario:quien(),hoy:NS.hoyOperativo()});
+  const diasDesp=()=>{const n=Number(config.diasDespachadas);return config.diasDespachadas===undefined||config.diasDespachadas===''||!Number.isFinite(n)?60:Math.max(0,n);};
+  const baseImportar=()=>({diasDespachadas:diasDesp(),mapa:config.mapeo,equivalencias:config.equivalencias||{},fechaCorte:config.fechaCorte||'',marcas:marcasConocidas(),usuario:quien(),hoy:NS.hoyOperativo()});
   /* fuente: o bien {filas} (una tabla) o bien {hojas:[{nombre,filas}]} (varias pestañas, una por cadena) */
   function correr(fuente,lista,opc){return fuente.hojas?N.importarHojas(fuente.hojas,lista,opc):N.importarFilas(fuente.filas,lista,opc);}
   function previsualizar(fuente,opc){return correr(Array.isArray(fuente)?{filas:fuente}:fuente,ordenes,Object.assign(baseImportar(),{ahora:ahoraMs()},opc));}
   /* Importación por LOTES: una importación grande (miles de líneas) no se manda en un solo guardado —el servidor lo rechaza o tarda más de lo que aguanta—;
      se calcula UNA vez y se guarda en transacciones de LOTE líneas, con avance y con tiempo máximo por lote. Un lote repetido no duplica (se omite lo que ya existe). */
-  const LOTE=300,TIEMPO_LOTE_MS=90000;
+  const LOTE=100,LOTE_MIN=5,TIEMPO_LOTE_MS=90000;
   const conTiempo=(p,ms,msg)=>new Promise((ok,mal)=>{const t=setTimeout(()=>mal(new Error(msg)),ms);p.then(v=>{clearTimeout(t);ok(v);},e=>{clearTimeout(t);mal(e);});});
+  const esTiempoAgotado=e=>/caducad|timeout|timed out|tiempo|statement/i.test((e&&e.message)||String(e||''));   // «Cancelación de la declaración debido a que la declaración ha caducado» = statement timeout
   async function aplicarFuente(fuente,opc){
     opc=opc||{};
     const ahora=ahoraMs(),f=Array.isArray(fuente)?{filas:fuente}:fuente;
     const r=correr(f,ordenes,Object.assign(baseImportar(),{ahora},opc));
     if(r.faltanColumnas.length)throw new Error('Faltan columnas: '+r.faltanColumnas.join(', ')+'.');
-    const trozos=[];
-    for(let i=0;i<r.crear.length;i+=LOTE)trozos.push({crear:r.crear.slice(i,i+LOTE),actualizar:[],retirar:[]});
-    for(let i=0;i<r.actualizar.length;i+=LOTE)trozos.push({crear:[],actualizar:r.actualizar.slice(i,i+LOTE),retirar:[]});
-    for(let i=0;i<r.retirar.length;i+=LOTE)trozos.push({crear:[],actualizar:[],retirar:r.retirar.slice(i,i+LOTE)});
-    const total=r.crear.length+r.actualizar.length+r.retirar.length;let hechas=0;
+    /* Cola de trabajo: cada elemento es una línea a crear, actualizar o retirar. Si el servidor agota el tiempo en un lote, el lote se parte a la mitad y se reintenta. */
+    const cola=[].concat(r.crear.map(x=>({t:'c',x})),r.actualizar.map(x=>({t:'a',x})),r.retirar.map(x=>({t:'r',x})));
+    const total=cola.length;let hechas=0,tam=LOTE,n=0;
     if(typeof opc.progreso==='function')opc.progreso(0,total);
-    for(let n=0;n<trozos.length;n++){
-      const t=trozos[n],ts=ahoraMs()+n;
-      await conTiempo(mutar(lista=>{
-        const existentes=new Set(lista.map(N.claveOrden));
-        const crear=t.crear.filter(o=>!existentes.has(N.claveOrden(o)));
-        return {lista:N.aplicarImportacion(lista,{crear,actualizar:t.actualizar,retirar:t.retirar},{ahora:ts,usuario:quien()})};
-      }),TIEMPO_LOTE_MS,'El servidor no respondió al guardar el lote '+(n+1)+' de '+trozos.length+' (ya se guardaron '+hechas.toLocaleString('es-PE')+' líneas). Vuelve a importar: continúa donde quedó, sin duplicar.');
-      hechas+=t.crear.length+t.actualizar.length+t.retirar.length;
+    while(cola.length){
+      const lote=cola.slice(0,tam),ts=ahoraMs()+(n++);
+      const trozo={crear:lote.filter(e=>e.t==='c').map(e=>e.x),actualizar:lote.filter(e=>e.t==='a').map(e=>e.x),retirar:lote.filter(e=>e.t==='r').map(e=>e.x)};
+      try{
+        await conTiempo(mutar(lista=>{
+          const existentes=new Set(lista.map(N.claveOrden));
+          const crear=trozo.crear.filter(o=>!existentes.has(N.claveOrden(o)));
+          return {lista:N.aplicarImportacion(lista,{crear,actualizar:trozo.actualizar,retirar:trozo.retirar},{ahora:ts,usuario:quien()})};
+        }),TIEMPO_LOTE_MS,'El servidor no respondió (tiempo agotado) al guardar un lote.');
+      }catch(e){
+        if(esTiempoAgotado(e)&&tam>LOTE_MIN){tam=Math.max(LOTE_MIN,Math.floor(tam/2));continue;}   // lote más chico y reintenta
+        throw new Error(((e&&e.message)||String(e))+' Ya se guardaron '+hechas.toLocaleString('es-PE')+' de '+total.toLocaleString('es-PE')+' líneas: vuelve a importar y continúa donde quedó, sin duplicar.');
+      }
+      cola.splice(0,lote.length);hechas+=lote.length;
       if(typeof opc.progreso==='function')opc.progreso(hechas,total);
     }
     return r;
@@ -222,11 +228,11 @@
     const kp=document.getElementById('ov-kpis'),tb=document.getElementById('ov-tabla');
     if(!kp||!tb)return;
     if(!listo){tb.innerHTML='<div class="empty-state"><p>Cargando órdenes…</p></div>';return;}
-    const hoy=NS.hoyOperativo(),cob=cobertura(),r=N.resumenOrdenes(ordenes,cob,hoy,diasMax());
+    const hoy=NS.hoyOperativo(),cob=cobertura(),r=N.resumenOrdenes(ordenes,cob,hoy,diasMax(),diasDesp());
     const pct=(a,b)=>b>0?(a/b*100).toFixed(1).replace('.',',')+' % de lo pendiente':'';
     kp.innerHTML='<div class="ov-kpis">'+
       '<div class="ov-k" style="--c:#005b96"><span>Órdenes abiertas</span><b>'+fmt(r.abiertas)+'</b><small>'+(r.porVencer?r.porVencer+' por vencer en 3 días':'sin entregas próximas')+'</small></div>'+
-      '<div class="ov-k" style="--c:#3f8f5f"><span>Nivel de servicio</span><b>'+(r.nivelServicio==null?'—':(r.nivelServicio*100).toFixed(1).replace('.',',')+' %')+'</b><small>'+fmt(r.despachado)+' despachadas de '+fmt(r.solicitado)+'</small></div>'+
+      '<div class="ov-k" style="--c:#3f8f5f"><span>Nivel de servicio</span><b>'+(r.nivelServicio==null?'—':(r.nivelServicio*100).toFixed(1).replace('.',',')+' %')+'</b><small>'+fmt(r.despachado)+' despachadas de '+fmt(r.solicitado)+' · entregas de los últimos '+diasDesp()+' días</small></div>'+
       '<div class="ov-k"><span>Por despachar</span><b>'+fmt(r.pedidas)+'</b><small>unidades pendientes</small></div>'+
       '<div class="ov-k" style="--c:#2f6690"><span>Programado</span><b>'+fmt(r.programado)+'</b><small>'+pct(r.programado,r.pedidas)+'</small></div>'+
       '<div class="ov-k" style="--c:#3f8f5f"><span>Producido</span><b>'+fmt(r.producido)+'</b><small>'+pct(r.producido,r.pedidas)+'</small></div>'+
@@ -267,6 +273,8 @@
       '<p><input type="date" id="ov-corte" value="'+esc(config.fechaCorte||'')+'"'+(planifica?'':' disabled')+'> '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-corte>Guardar fecha</button>':'')+'</p>'+
       '<h4 style="margin:14px 0 4px;color:#003b5c">Órdenes vencidas</h4><p class="plan-nota">Una orden sin despachar con más días de atraso que este número se considera histórica: sale de «Atrasadas» y no reserva programaciones.</p>'+
       '<p><input type="number" id="ov-dias" min="0" step="1" value="'+esc(diasMax())+'" style="width:90px"'+(planifica?'':' disabled')+'> días '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-dias>Guardar</button>':'')+'</p>'+
+      '<h4 style="margin:14px 0 4px;color:#003b5c">Historia despachada</h4><p class="plan-nota">Al importar, las líneas completamente despachadas hace más de estos días no se guardan (son miles de filas que ya no cambian y alargan cada guardado). El nivel de servicio cuenta solo lo guardado.</p>'+
+      '<p><input type="number" id="ov-dias-desp" min="0" step="1" value="'+esc(diasDesp())+'" style="width:90px"'+(planifica?'':' disabled')+'> días '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-desp>Guardar</button>':'')+'</p>'+
       '<h4 style="margin:14px 0 4px;color:#003b5c">Equivalencias de productos <span class="ov-chip gris">'+eqs.length+'</span></h4><p class="plan-nota">Traducen el texto de la hoja (p. ej. «SCALA-AGUA-SIN-GAS-BT-1-L») a la marca y presentación del sistema. Las nuevas se piden al importar.</p>'+
       (eqs.length?htmlTablaEquiv(eqs.map(e=>htmlFilaEquiv(e.texto,e,'')))+(planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-eqs>Guardar cambios</button> <span class="plan-error" id="ov-eq-error" style="display:inline"></span></p>':''):'<p class="plan-nota">Todavía no hay equivalencias guardadas.</p>')+
       '</details>';
@@ -447,7 +455,7 @@
       const malas=(r.hojasSinColumnas||[]).map(h=>'<li style="color:#991b1b">Pestaña «'+esc(h.hoja)+'»: faltan columnas ('+esc(h.faltan.join(', '))+') y no se importa.</li>').join('');
       if(r.faltanColumnas.length&&!r.crear.length&&!r.actualizar.length){q('ovi-vista').innerHTML='<div class="plan-aviso">Faltan columnas obligatorias: <b>'+esc(r.faltanColumnas.join(', '))+'</b>.</div><ul>'+malas+'</ul>';q('ovi-aplicar').disabled=true;return;}
       let html='<div class="ov-vista"><b>Vista previa</b><ul><li>'+r.crear.length+' orden(es) nueva(s)</li><li>'+r.actualizar.length+' por actualizar</li><li>'+r.sinCambio+' sin cambios</li>'+
-        (r.fueraDeCorte?'<li>'+r.fueraDeCorte+' anterior(es) a la fecha de corte (se omiten)</li>':'')+(r.sinCantidad?'<li>'+r.sinCantidad+' línea(s) con 0 solicitadas (se omiten)</li>':'')+(r.duplicadasOmitidas?'<li>'+r.duplicadasOmitidas+' línea(s) «OC duplicada» o anulada que también viene vigente (se omiten)</li>':'')+(r.filasAjenas?'<li>'+r.filasAjenas+' fila(s) sin OC ni tienda (totales o notas; se omiten)</li>':'')+(r.sinOC?'<li>'+r.sinOC+' pedido(s) sin N.º de OC: se identifican como «S/OC fecha tienda»</li>':'')+(r.retirar.length?'<li>'+r.retirar.length+' por marcar como retirada(s)</li>':'')+malas+
+        (r.fueraDeCorte?'<li>'+r.fueraDeCorte+' anterior(es) a la fecha de corte (se omiten)</li>':'')+(r.sinCantidad?'<li>'+r.sinCantidad+' línea(s) con 0 solicitadas (se omiten)</li>':'')+(r.despachadasAntiguas?'<li>'+r.despachadasAntiguas+' línea(s) ya despachadas hace más de '+diasDesp()+' días (historia cerrada; se omiten)</li>':'')+(r.duplicadasOmitidas?'<li>'+r.duplicadasOmitidas+' línea(s) «OC duplicada» o anulada que también viene vigente (se omiten)</li>':'')+(r.filasAjenas?'<li>'+r.filasAjenas+' fila(s) sin OC ni tienda (totales o notas; se omiten)</li>':'')+(r.sinOC?'<li>'+r.sinOC+' pedido(s) sin N.º de OC: se identifican como «S/OC fecha tienda»</li>':'')+(r.retirar.length?'<li>'+r.retirar.length+' por marcar como retirada(s)</li>':'')+malas+
         (r.errores.length?'<li style="color:#991b1b">'+r.errores.length+' con error (no se importan): '+r.errores.slice(0,6).map(x=>(x.hoja?x.hoja+' · ':'')+'fila '+x.fila+' · '+esc(x.mensaje)).join(' | ')+(r.errores.length>6?' …':'')+'</li>':'')+'</ul></div>';
       if(r.sinEquivalencia&&r.sinEquivalencia.length){
         html+='<div class="plan-aviso" style="margin-top:10px"><b>'+r.sinEquivalencia.length+' producto(s) de la hoja aún no están en el sistema.</b> Dime a qué marca y presentación equivale cada uno (se guarda y no vuelve a preguntar). Hasta entonces esas filas no se importan.</div>'+
@@ -518,6 +526,10 @@
     if(ver){dialogoDetalle(ver.getAttribute('data-ov-ver'));return;}
     if(e.target.closest('[data-ov-guardar-corte]')){
       try{await guardarConfig({fechaCorte:(document.getElementById('ov-corte')||{}).value||''});alert('Fecha de corte guardada.');}catch(err){alert((err&&err.message)||err);}
+      return;
+    }
+    if(e.target.closest('[data-ov-guardar-desp]')){
+      try{await guardarConfig({diasDespachadas:Math.max(0,Number((document.getElementById('ov-dias-desp')||{}).value)||0)});alert('Guardado.');}catch(err){alert((err&&err.message)||err);}
       return;
     }
     if(e.target.closest('[data-ov-guardar-dias]')){

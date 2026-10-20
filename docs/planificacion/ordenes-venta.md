@@ -56,3 +56,8 @@ Una sola ruta para todas las fuentes: `glacialPlanificacion.ventas.aplicarFuente
 - **Vencidas:** una orden sin despachar con más de N días de atraso (30 por defecto, configurable) pasa a «Vencida sin atender»: no cuenta como atraso ni reserva programaciones. Con el libro real hubo ~12 000 líneas de 2026: 710 atrasadas recientes y ~2 800 vencidas.
 - Filas de totales o relleno (sin OC, tienda ni fecha) se ignoran.
 - Prueba con libros reales: `GLX_VENTAS=/ruta/libro.xlsx GLX_XLSX=…/xlsx.full.min.js GLX_LIBS=… node tests/planificacion-ordenes-venta-xlsx.e2e.js`.
+
+## Importaciones grandes (servidor con tiempo máximo por consulta)
+- El puente de Supabase corta cada guardado a los pocos segundos («Cancelación de la declaración debido a que la declaración ha caducado» = *statement timeout*). Una importación de miles de líneas en un solo guardado fallaba.
+- **Por lotes:** se calcula una vez y se guarda de 100 en 100 líneas con avance («Importando… 37 %»). Si el servidor agota el tiempo, el lote se parte a la mitad y reintenta (mínimo 5). Un lote repetido no duplica; si se interrumpe, volver a importar continúa donde quedó.
+- **Historia despachada:** las líneas completamente despachadas hace más de N días (60 por defecto; «Historia despachada» en la configuración) no se guardan: con el libro real eran ~6 800 de ~12 000. El nivel de servicio cuenta solo las entregas de los últimos N días hasta hoy, para no sesgarlo.
