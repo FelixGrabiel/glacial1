@@ -36,7 +36,7 @@
   /* Una transacción que lee la lista fresca, la cambia con fn(lista) y la guarda sin tocar el resto del documento. */
   async function mutar(fn,cfg){
     if(!NS.puede())throw new Error('Solo Planificación puede cambiar las órdenes de ventas.');
-    let resultado=null;
+    let resultado=null,guardado=null;
     await db.runTransaction(async tx=>{
       const snap=await tx.get(REF());
       const d=snap.exists?snap.data():{};
@@ -46,7 +46,15 @@
       const nuevo=Object.assign({},d,{ordenesVenta:(r&&r.lista)||actuales,updatedAt:Date.now()});
       if(cfg)nuevo.ordenesVentaConfig=Object.assign({},d.ordenesVentaConfig||{},cfg);
       tx.set(REF(),nuevo);
+      guardado=nuevo;
     });
+    /* La pantalla no espera al aviso del servidor: con lo recién guardado ya se ve (equivalencias, fecha de corte, órdenes importadas). */
+    if(guardado){
+      ordenes=Array.isArray(guardado.ordenesVenta)?guardado.ordenesVenta:ordenes;
+      config=guardado.ordenesVentaConfig&&typeof guardado.ordenesVentaConfig==='object'?guardado.ordenesVentaConfig:config;
+      listo=true;
+      try{NS.refrescar();}catch(_){/* la pantalla se repinta con el próximo aviso */}
+    }
     return resultado;
   }
 
@@ -429,6 +437,7 @@
       }
       q('ovi-vista').innerHTML=html;
       q('ovi-aplicar').disabled=!(r.crear.length||r.actualizar.length||r.retirar.length);
+      q('ovi-aplicar').title=q('ovi-aplicar').disabled?(r.sinEquivalencia&&r.sinEquivalencia.length?'Primero guarda las equivalencias de producto (tabla de arriba): sin ellas no hay nada que importar.':'No hay órdenes nuevas ni cambios para importar.'):'';
     };
     q('ovi-archivo').onchange=async e=>{
       q('ovi-error').textContent='';hojas=null;q('ovi-hojas').innerHTML='';
