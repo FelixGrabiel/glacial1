@@ -428,7 +428,7 @@
       const malas=(r.hojasSinColumnas||[]).map(h=>'<li style="color:#991b1b">Pestaña «'+esc(h.hoja)+'»: faltan columnas ('+esc(h.faltan.join(', '))+') y no se importa.</li>').join('');
       if(r.faltanColumnas.length&&!r.crear.length&&!r.actualizar.length){q('ovi-vista').innerHTML='<div class="plan-aviso">Faltan columnas obligatorias: <b>'+esc(r.faltanColumnas.join(', '))+'</b>.</div><ul>'+malas+'</ul>';q('ovi-aplicar').disabled=true;return;}
       let html='<div class="ov-vista"><b>Vista previa</b><ul><li>'+r.crear.length+' orden(es) nueva(s)</li><li>'+r.actualizar.length+' por actualizar</li><li>'+r.sinCambio+' sin cambios</li>'+
-        (r.fueraDeCorte?'<li>'+r.fueraDeCorte+' anterior(es) a la fecha de corte (se omiten)</li>':'')+(r.retirar.length?'<li>'+r.retirar.length+' por marcar como retirada(s)</li>':'')+malas+
+        (r.fueraDeCorte?'<li>'+r.fueraDeCorte+' anterior(es) a la fecha de corte (se omiten)</li>':'')+(r.sinCantidad?'<li>'+r.sinCantidad+' línea(s) con 0 solicitadas (se omiten)</li>':'')+(r.retirar.length?'<li>'+r.retirar.length+' por marcar como retirada(s)</li>':'')+malas+
         (r.errores.length?'<li style="color:#991b1b">'+r.errores.length+' con error (no se importan): '+r.errores.slice(0,6).map(x=>(x.hoja?x.hoja+' · ':'')+'fila '+x.fila+' · '+esc(x.mensaje)).join(' | ')+(r.errores.length>6?' …':'')+'</li>':'')+'</ul></div>';
       if(r.sinEquivalencia&&r.sinEquivalencia.length){
         html+='<div class="plan-aviso" style="margin-top:10px"><b>'+r.sinEquivalencia.length+' producto(s) de la hoja aún no están en el sistema.</b> Dime a qué marca y presentación equivale cada uno (se guarda y no vuelve a preguntar). Hasta entonces esas filas no se importan.</div>'+

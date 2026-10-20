@@ -34,7 +34,9 @@
   }
   const claveProducto=(marca,presentacion)=>norm(marca)+'|'+formatoDe(presentacion);
   /* Una orden = N.º (la OC) + producto: una misma OC trae varias líneas. */
-  const claveOrden=o=>norm(o.numero)+'|'+claveProducto(o.marca,o.presentacion);
+  /* Incluye el texto del producto de la hoja: dos productos distintos de la misma OC pueden equivaler a la misma marca y formato (p. ej. «625ML PK X 6» y «625 ML»)
+     y son dos líneas distintas. La cobertura sí compara por marca + formato (claveProducto). */
+  const claveOrden=o=>norm(o.numero)+'|'+claveProducto(o.marca,o.presentacion)+'|'+norm(o.producto);
   const DIA_MS=86400000;
   const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const fechaOk=f=>/^\d{4}-\d{2}-\d{2}$/.test(String(f||''))&&!Number.isNaN(new Date(f+'T00:00:00').getTime());
@@ -233,6 +235,7 @@
         fechaPedido:leerFecha(v('fechaPedido'),hoy),observaciones:String(v('observaciones')||'').trim(),
         estado:/cancel|anulad/.test(estadoTxt+' '+obsTxt)?'CANCELADA':'ABIERTA'
       };
+      if(!(num(orden.cantidad)>0)&&orden.numero&&orden.cliente&&fechaE){out.sinCantidad=(out.sinCantidad||0)+1;return;}     // línea de la hoja con 0 solicitadas: no hay nada que producir
       const errores=validarOrden(Object.assign({id:'_'},orden),{existentes:[]});
       const kOrden=claveOrden(orden);
       if(vistos.has(kOrden)&&orden.numero)errores.push('Esa OC con ese producto aparece repetida en el archivo.');

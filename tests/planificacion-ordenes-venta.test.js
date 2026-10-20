@@ -124,6 +124,15 @@ const prog=(clave,linea,fecha,turno,marca,pres,cant,extra)=>Object.assign({clave
   ok(N.estadoOrden(viej,cv2.get('v'),'2026-10-19',30).clave==='VENCIDA'&&N.estadoOrden(rec,cv2.get('r'),'2026-10-19',30).clave==='ATRASADA'&&!cv2.has('v')&&cv2.get('r').programado===100,'la orden vencida hace mucho es histórica y no le quita la programación a la reciente');
   const rs2=N.resumenOrdenes([viej,rec],cv2,'2026-10-19',30);
   ok(rs2.vencidas===1&&rs2.atrasadas===1&&rs2.abiertas===1,'el resumen separa atrasadas (recientes) de vencidas (históricas)');
+  /* dos productos distintos de la misma OC que equivalen a la misma marca y formato: son dos líneas, no un duplicado */
+  const EQ2={[N.norm('BELL-S-AGUA-SIN-GAS-BT-625ML-PK-X-6UN')]:{marca:'Bells',presentacion:'Pack_Regular_625mlx6und/ln'},[N.norm('BELL-S-AGUA-BT-625-ML')]:{marca:'Bells',presentacion:'Pack_Regular_625mlx15und/ln'}};
+  const f2=[{OC:'9',TIENDA:'T','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELL-S-AGUA-SIN-GAS-BT-625ML-PK-X-6UN','UND SOLICITADAS':10},{OC:'9',TIENDA:'T','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELL-S-AGUA-BT-625-ML','UND SOLICITADAS':20},{OC:'9',TIENDA:'T','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELL-S-AGUA-BT-625-ML','UND SOLICITADAS':20}];
+  const r2c=N.importarFilas(f2,[],{equivalencias:EQ2,hoy:HOY});
+  ok(r2c.crear.length===2&&r2c.errores.length===1&&/repetida/.test(r2c.errores[0].mensaje),'la misma OC con dos productos de la hoja que equivalen a la misma marca y formato crea 2 líneas; solo la fila realmente repetida es error');
+  const g2c=N.aplicarImportacion([],r2c,{ahora:1});
+  ok(N.importarFilas(f2.slice(0,2),g2c,{equivalencias:EQ2,hoy:HOY}).sinCambio===2,'reimportar esas dos líneas no las duplica');
+  const r0=N.importarFilas([{OC:'8',TIENDA:'T','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELL-S-AGUA-BT-625-ML','UND SOLICITADAS':0},{OC:'8',TIENDA:'T','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELL-S-AGUA-SIN-GAS-BT-625ML-PK-X-6UN','UND SOLICITADAS':5}],[],{equivalencias:EQ2,hoy:HOY});
+  ok(r0.crear.length===1&&r0.sinCantidad===1&&r0.errores.length===0,'una línea con 0 solicitadas se omite (no es error)');
   ok(/^2025-1[01]-\d\d$/.test(N.leerFecha(45955))&&N.leerFecha('19/10/26')==='2026-10-19'&&N.leerFecha(new Date(2026,9,19))==='2026-10-19','fecha como serie de Excel, dd/mm/aa y objeto Date');
 }
 console.log(fallas?fallas+' fallas':'todo correcto');

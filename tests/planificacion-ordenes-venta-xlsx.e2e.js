@@ -55,7 +55,7 @@ XLSX.writeFile(libro, dir + '/ventas-prueba.xlsx');
     console.log('REAL', real.corte, real.hojas.join(','), real.eq.length, 'productos;', real.eq.filter(e => !e[1] || !e[2]).length, 'sin sugerencia');
     await D.page.click('[data-ovi-guardar-eq]');
     await D.page.waitForFunction(() => !document.querySelector('[data-ovi-guardar-eq]') && /nueva/.test(document.getElementById('ovi-vista').innerText), null, { timeout: 60000 });
-    console.log('VISTA', (await D.page.evaluate(() => document.querySelector('.ov-vista').innerText)).replace(/\s+/g, ' ').slice(0, 400));
+    console.log('VISTA', (await D.page.evaluate(() => document.getElementById('ovi-vista').innerText)).replace(/\s+/g, ' ').slice(0, 700));
     await D.page.click('#ovi-aplicar'); await D.page.waitForSelector('#ovi-aplicar', { state: 'detached', timeout: 60000 });
     await D.page.waitForTimeout(800);
     const fin = await D.page.evaluate(() => ({ n: window.__bd.ordenesVenta.length, kpis: [...document.querySelectorAll('.ov-k')].map(k => k.querySelector('span').textContent + '=' + k.querySelector('b').textContent), filas: document.querySelectorAll('#ov-tabla tbody tr').length }));
