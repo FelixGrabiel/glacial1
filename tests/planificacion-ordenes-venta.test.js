@@ -133,6 +133,19 @@ const prog=(clave,linea,fecha,turno,marca,pres,cant,extra)=>Object.assign({clave
   ok(N.importarFilas(f2.slice(0,2),g2c,{equivalencias:EQ2,hoy:HOY}).sinCambio===2,'reimportar esas dos líneas no las duplica');
   const r0=N.importarFilas([{OC:'8',TIENDA:'T','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELL-S-AGUA-BT-625-ML','UND SOLICITADAS':0},{OC:'8',TIENDA:'T','FECHA ENTREGA':'10/10/2026',PRODUCTO:'BELL-S-AGUA-SIN-GAS-BT-625ML-PK-X-6UN','UND SOLICITADAS':5}],[],{equivalencias:EQ2,hoy:HOY});
   ok(r0.crear.length===1&&r0.sinCantidad===1&&r0.errores.length===0,'una línea con 0 solicitadas se omite (no es error)');
+  /* filas especiales de la hoja real: OC DUPLICADA, pedidos sin OC y filas ajenas */
+  const EQ3={[N.norm('AGUA 1LT TAPA SPORT CUISINE&CO')]:{marca:'Cuisine',presentacion:'Pack_Regular_TP_1Lx6und/la'},[N.norm('AGUA FONT LIFE X 1 LT')]:{marca:'Fontlife',presentacion:'Pack_Regular_SC_1Lx12und/ln'}};
+  const f3=[
+    {OC:'4301',TIENDA:'CENCOSUD','FECHA ENTREGA':'25/03/2026',PRODUCTO:'AGUA 1LT TAPA SPORT CUISINE&CO','UND SOLICITADAS':240,'UND DESPACHO':0,OBS:'OC DUPLICADA'},
+    {OC:'4301',TIENDA:'CENCOSUD','FECHA ENTREGA':'25/03/2026',PRODUCTO:'AGUA 1LT TAPA SPORT CUISINE&CO','UND SOLICITADAS':240,'UND DESPACHO':240,OBS:''},
+    {OC:'',TIENDA:'TAMBO LURIN','FECHA ENTREGA':'04/02/2026',PRODUCTO:'AGUA FONT LIFE X 1 LT','UND SOLICITADAS':17280,'UND DESPACHO':17280},
+    {OC:'',TIENDA:'','FECHA ENTREGA':'F1000',PRODUCTO:'AGUA FONT LIFE X 1 LT','UND SOLICITADAS':17280,'UND DESPACHO':'TAMBO LURIN'}
+  ];
+  const r3s=N.importarFilas(f3,[],{equivalencias:EQ3,hoy:HOY});
+  ok(r3s.crear.length===2&&r3s.errores.length===0&&r3s.duplicadasOmitidas===1&&r3s.filasAjenas===1&&r3s.sinOC===1,'«OC DUPLICADA» se omite si la vigente viene en el archivo; pedido sin OC se importa; fila ajena se ignora (sin errores)');
+  ok(r3s.crear.find(o=>o.despachado===240)&&/^S\/OC 2026-02-04 TAMBOLUR/.test(r3s.crear.find(o=>o.cliente==='TAMBO LURIN').numero),'queda la línea vigente (240 despachadas) y el pedido sin OC lleva «S/OC fecha tienda»');
+  const solo=N.importarFilas([f3[0]],[],{equivalencias:EQ3,hoy:HOY});
+  ok(solo.crear.length===1&&solo.crear[0].estado==='CANCELADA','una «OC DUPLICADA» sola (sin la vigente) entra como cancelada');
   ok(/^2025-1[01]-\d\d$/.test(N.leerFecha(45955))&&N.leerFecha('19/10/26')==='2026-10-19'&&N.leerFecha(new Date(2026,9,19))==='2026-10-19','fecha como serie de Excel, dd/mm/aa y objeto Date');
 }
 console.log(fallas?fallas+' fallas':'todo correcto');

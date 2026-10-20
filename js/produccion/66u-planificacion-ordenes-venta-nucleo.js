@@ -208,11 +208,12 @@
     const corte=fechaOk(opc.fechaCorte)?opc.fechaCorte:'';
     out.fueraDeCorte=0;out.sinEquivalencia=[];const faltaEq=new Map();
     const vistos=new Set();
+    const cand=[];
     (filas||[]).forEach((f,i)=>{
       const v=c=>mapa[c]?f[mapa[c]]:'';
       const vacia=['numero','cliente','producto','marca','presentacion','cantidad','fechaEntrega'].every(c=>String(v(c)==null?'':v(c)).trim()==='');
       if(vacia)return;
-      if(['numero','cliente','fechaEntrega'].every(c=>String(v(c)==null?'':v(c)).trim()===''))return;   // fila de totales o relleno: no es una orden
+      if(['numero','cliente'].every(c=>String(v(c)==null?'':v(c)).trim()===''))return void (out.filasAjenas=(out.filasAjenas||0)+1);   // sin OC ni tienda: totales, notas o una tabla ajena pegada en la hoja
       const estadoTxt=norm(v('estado')),obsTxt=norm(v('observaciones'));
       let marca=String(v('marca')||'').trim(),presentacion=String(v('presentacion')||'').trim(),lineaEq='';
       const textoProd=String(v('producto')||'').trim();
@@ -228,18 +229,27 @@
       const fechaE=leerFecha(v('fechaEntrega'),hoy);
       if(corte&&fechaE&&fechaE<corte){out.fueraDeCorte++;return;}
       out.vistos++;
+      let numero=String(v('numero')).trim();
+      const clienteTxt=String(v('cliente')).trim();
+      if(!numero&&clienteTxt&&fechaE){numero='S/OC '+fechaE+' '+norm(clienteTxt).replace(/[^a-z0-9]/g,'').slice(0,8).toUpperCase();out.sinOC=(out.sinOC||0)+1;}   // pedido sin N.º de OC en la hoja: se identifica por fecha y tienda
       const orden={
-        numero:String(v('numero')).trim(),cliente:String(v('cliente')).trim(),marca,presentacion,producto:textoProd,
+        numero,cliente:clienteTxt,marca,presentacion,producto:textoProd,
         despachado:Math.max(0,num(v('despachado'))),cadena:String(v('cadena')||opc.cadena||'').trim(),
         cantidad:num(v('cantidad')),fechaEntrega:fechaE,linea:String(v('linea')||lineaEq||'').trim(),
         fechaPedido:leerFecha(v('fechaPedido'),hoy),observaciones:String(v('observaciones')||'').trim(),
-        estado:/cancel|anulad/.test(estadoTxt+' '+obsTxt)?'CANCELADA':'ABIERTA'
+        estado:/cancel|anulad|duplicad/.test(estadoTxt+' '+obsTxt)?'CANCELADA':'ABIERTA'
       };
       if(!(num(orden.cantidad)>0)&&orden.numero&&orden.cliente&&fechaE){out.sinCantidad=(out.sinCantidad||0)+1;return;}     // línea de la hoja con 0 solicitadas: no hay nada que producir
-      const errores=validarOrden(Object.assign({id:'_'},orden),{existentes:[]});
+      cand.push({orden,fila:f.__fila||i+2,hoja:f.__hoja||''});
+    });
+    /* «OC DUPLICADA» / anulada: si la misma línea (OC + producto) también viene vigente, la anulada se omite en vez de contarla como repetida. */
+    const vivas=new Set(cand.filter(c=>c.orden.estado!=='CANCELADA'&&c.orden.numero).map(c=>claveOrden(c.orden)));
+    cand.forEach(({orden,fila,hoja})=>{
       const kOrden=claveOrden(orden);
+      if(orden.estado==='CANCELADA'&&vivas.has(kOrden)){out.duplicadasOmitidas=(out.duplicadasOmitidas||0)+1;return;}
+      const errores=validarOrden(Object.assign({id:'_'},orden),{existentes:[]});
       if(vistos.has(kOrden)&&orden.numero)errores.push('Esa OC con ese producto aparece repetida en el archivo.');
-      if(errores.length){out.errores.push({fila:f.__fila||i+2,hoja:f.__hoja||'',numero:orden.numero,mensaje:errores.join(' ')});return;}
+      if(errores.length){out.errores.push({fila,hoja,numero:orden.numero,mensaje:errores.join(' ')});return;}
       vistos.add(kOrden);
       const previa=porNumero.get(kOrden);
       if(!previa){out.crear.push(Object.assign({},orden,{origen,idExterno:orden.numero,sincronizadoEn:ahora}));return;}
