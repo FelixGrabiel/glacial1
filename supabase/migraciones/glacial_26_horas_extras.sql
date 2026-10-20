@@ -1,4 +1,4 @@
--- GLACIAL · glacial_26 · Reglas de Supabase para el REGISTRO DE HORAS EXTRAS (Tareo)            *** NO APLICADA TODAVÍA ***
+-- GLACIAL · glacial_26 · Reglas de Supabase para el REGISTRO DE HORAS EXTRAS (Tareo)            *** APLICADA EN PRUEBAS (mvxjopvnnagqytegtexi) el 2026-10-20; PRODUCCION pendiente ***
 --
 -- Qué hace (mismo método que glacial_23 y glacial_24: inserta ramas en las funciones del puente; no crea tablas — los datos viven en fs_docs):
 --  1) glacial_fs.cap_he_esc / cap_he_ver: quién ESCRIBE y quién VE las horas extras de cada área.
@@ -14,10 +14,9 @@
 --       (registradoUid) es quien crea. No se borra nunca (se ANULA con motivo de 5 o más caracteres: estado = ANULADO).
 --
 -- NOTA DE APLICACIÓN (leer ANTES de ejecutar):
---  · Esta migración usa las mismas «anclas» de texto que glacial_24 (final de ctx, de autorizar y de puede_leer). Se escribió SIN poder conectarse a Supabase
---    (la conexión falló en la sesión): revisarla contra las funciones reales de PRUEBAS (mvxjopvnnagqytegtexi) antes de ejecutarla. Si un ancla no se
+--  · Esta migración usa las mismas «anclas» de texto que glacial_24 (final de ctx, de autorizar y de puede_leer). Probada en PRUEBAS dentro de una transacción antes de aplicarla; revisarla contra las funciones reales de PRUEBAS (mvxjopvnnagqytegtexi) antes de ejecutarla. Si un ancla no se
 --    encuentra exactamente una vez, la migración se detiene con un mensaje y no cambia nada.
---  · Requiere glacial_23 y glacial_24 ya aplicadas (usa 'ii_esc' como última marca de ctx).
+--  · Requiere glacial_23 (usa como ancla la última marca de ctx: 'ii_esc' si glacial_24 está aplicada o, si no, 'ap_alm'). No depende de glacial_24.
 --  · Orden: primero PRUEBAS, probar con un supervisor de Producción, un técnico con PIN y un usuario de RRHH (docs/personal-tareo/tareo-horas-extras-registro.md),
 --    y solo después PRODUCCION (ehtbwmvwoxcdefvlxttu). Comparar la huella de las funciones de los dos proyectos.
 --  · LÍMITE: puede_leer de una CONSULTA (sin id de documento) no distingue el área: deja leer si el usuario ve alguna de las dos. La aplicación consulta
@@ -53,10 +52,11 @@ revoke all on function glacial_fs.cap_he_ver(boolean, boolean, boolean, boolean,
 
 do $m$
 declare
-  def text; cuenta integer;
-  -- final del return de ctx tal como lo dejó glacial_24 (última marca: ii_esc)
-  anc_ctx_ret constant text := $a$'ii_esc',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'inventarioInsumos', array['Asistente de Producción']));$a$;
-  rep_ctx_ret constant text := $a$'ii_esc',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'inventarioInsumos', array['Asistente de Producción']),
+  def text; cuenta integer; anc text; marcas text;
+  -- final del return de ctx: glacial_24 (última marca ii_esc) o, si glacial_24 no está aplicada, glacial_23 (última marca ap_alm)
+  anc_ii  constant text := $a$'ii_esc',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'inventarioInsumos', array['Asistente de Producción']));$a$;
+  anc_ap  constant text := $a$'ap_alm',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'moduloAlmacen', array[]::text[]));$a$;
+  nuevas_marcas constant text := $a$,
    'he_esc_prod', glacial_fs.cap_he_esc(aut, v_mant, v_solo, v_admin, perm, 'produccion'),
    'he_esc_mant', glacial_fs.cap_he_esc(aut, v_mant, v_solo, v_admin, perm, 'mantenimiento'),
    'he_ver_prod', glacial_fs.cap_he_ver(aut, v_mant, v_solo, v_admin, perm, 'produccion'),
@@ -103,9 +103,11 @@ begin
   select pg_get_functiondef(p.oid) into def from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'glacial_fs' and p.proname = 'ctx';
   if position('he_esc_prod' in def) = 0 then
-    cuenta := (length(def) - length(replace(def, anc_ctx_ret, ''))) / length(anc_ctx_ret);
-    if cuenta <> 1 then raise exception 'ctx: punto de inserción encontrado % veces (¿falta glacial_24?)', cuenta; end if;
-    execute replace(def, anc_ctx_ret, rep_ctx_ret);
+    anc := case when position(anc_ii in def) > 0 then anc_ii else anc_ap end;
+    cuenta := (length(def) - length(replace(def, anc, ''))) / length(anc);
+    if cuenta <> 1 then raise exception 'ctx: punto de inserción encontrado % veces (se esperaba glacial_23 o glacial_24)', cuenta; end if;
+    -- se quita el cierre «);» del return y se agregan las marcas nuevas
+    execute replace(def, anc, substr(anc, 1, length(anc) - 2) || nuevas_marcas);
   end if;
 
   select pg_get_functiondef(p.oid) into def from pg_proc p join pg_namespace n on n.oid = p.pronamespace

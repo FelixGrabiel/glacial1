@@ -43,7 +43,7 @@ Técnico con PIN (cuenta compartida de Mantenimiento): ve solo **sus** horas ext
 | `supabase/migraciones/glacial_26_horas_extras.sql` | reglas del servidor (**NO aplicada**, ver abajo) |
 | `tests/horas-extras-registro.test.js` / `.e2e.js` | reglas puras y navegador (formulario, choque, edición, anulación, marca, ficha, resumen, permisos, PIN) |
 
-## Migración SQL — NO aplicada
+## Migración SQL — aplicada en PRUEBAS (20-10-2026), PRODUCCION pendiente
 `glacial_26_horas_extras.sql` agrega `cap_he_esc` / `cap_he_ver`, las marcas `he_*` de `ctx` y las ramas de `autorizar` y `puede_leer` para `horasExtras`, con el mismo método que `glacial_24` (anclas de texto). **Se escribió sin conexión a Supabase**: hay que revisarla contra las funciones de PRUEBAS antes de ejecutarla (si un ancla no aparece exactamente una vez, se detiene y no cambia nada). Hasta aplicarla, el guardado desde la aplicación será rechazado por el servidor.
 Validaciones que hace el servidor (equivalentes a `NOT NULL` / `CHECK`): motivo, justificación ≥ 15 caracteres, autorizador y horas obligatorios, `horaFin` ≠ `horaInicio`, `totalHoras` > 0, el área del documento coincide con su id y con el permiso, `registradoUid` = quien crea, nunca se borra.
 Límite: `puede_leer` de una **consulta** no distingue el área; la aplicación consulta siempre por `area`. Comprobar en PRUEBAS que un supervisor de Producción no recibe documentos de Mantenimiento.
