@@ -48,7 +48,7 @@ XLSX.writeFile(libro, dir + '/ventas-prueba.xlsx');
   }
   /* el libro REAL de ventas (opcional: GLX_VENTAS=/ruta/al/libro.xlsx) */
   if (process.env.GLX_VENTAS) {
-    await D.page.evaluate(() => { window.__bd = { ordenesVenta: [], ordenesVentaConfig: {} }; db.runTransaction = async fn => { const tx = { get: async () => ({ exists: true, data: () => window.__bd }), set: (r, d) => { window.__bd = d; } }; return await fn(tx); }; });   // sin aviso del servidor: la pantalla debe verse bien con lo recién guardado
+    await D.page.evaluate(() => { window.__bd = { ordenesVenta: [], ordenesVentaConfig: {} }; window.__txs = 0; db.runTransaction = async fn => { window.__txs++; const tx = { get: async () => ({ exists: true, data: () => window.__bd }), set: (r, d) => { window.__bd = d; } }; return await fn(tx); }; });   // sin aviso del servidor: la pantalla debe verse bien con lo recién guardado
     await D.page.setInputFiles('#ovi-archivo', process.env.GLX_VENTAS);
     await D.page.waitForFunction(() => /MAKRO 2023/.test(document.getElementById('ovi-hojas').innerText) && document.querySelectorAll('tr[data-eq]').length > 10, null, { timeout: 60000 });
     const real = await D.page.evaluate(() => ({ corte: document.getElementById('ovi-corte').value, hojas: [...document.querySelectorAll('[data-ovi-hoja]:checked')].map(c => c.getAttribute('data-ovi-hoja')), eq: [...document.querySelectorAll('tr[data-eq]')].map(tr => [tr.getAttribute('data-eq'), tr.querySelector('[data-eq-marca]').value, tr.querySelector('[data-eq-pres]').value]) }));
@@ -60,6 +60,8 @@ XLSX.writeFile(libro, dir + '/ventas-prueba.xlsx');
     await D.page.waitForTimeout(800);
     const fin = await D.page.evaluate(() => ({ n: window.__bd.ordenesVenta.length, kpis: [...document.querySelectorAll('.ov-k')].map(k => k.querySelector('span').textContent + '=' + k.querySelector('b').textContent), filas: document.querySelectorAll('#ov-tabla tbody tr').length }));
     console.log('FIN', JSON.stringify(fin));
+    const txs = await D.page.evaluate(() => window.__txs);
+    ok(txs > 20, 'la importación grande se guardó por lotes (' + txs + ' guardados) y no de una sola vez');
     ok(fin.n > 1000 && fin.filas > 0, 'importar el libro real con el aviso del servidor tardío: ' + fin.n + ' órdenes y la tabla ya se ve');
     if (process.env.GLX_CAPTURAS) await D.page.screenshot({ path: process.env.GLX_CAPTURAS + '/ventas-real.png', fullPage: false });
   }

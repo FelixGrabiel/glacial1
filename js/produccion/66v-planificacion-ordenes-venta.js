@@ -89,13 +89,32 @@
   /* fuente: o bien {filas} (una tabla) o bien {hojas:[{nombre,filas}]} (varias pestañas, una por cadena) */
   function correr(fuente,lista,opc){return fuente.hojas?N.importarHojas(fuente.hojas,lista,opc):N.importarFilas(fuente.filas,lista,opc);}
   function previsualizar(fuente,opc){return correr(Array.isArray(fuente)?{filas:fuente}:fuente,ordenes,Object.assign(baseImportar(),{ahora:ahoraMs()},opc));}
+  /* Importación por LOTES: una importación grande (miles de líneas) no se manda en un solo guardado —el servidor lo rechaza o tarda más de lo que aguanta—;
+     se calcula UNA vez y se guarda en transacciones de LOTE líneas, con avance y con tiempo máximo por lote. Un lote repetido no duplica (se omite lo que ya existe). */
+  const LOTE=300,TIEMPO_LOTE_MS=90000;
+  const conTiempo=(p,ms,msg)=>new Promise((ok,mal)=>{const t=setTimeout(()=>mal(new Error(msg)),ms);p.then(v=>{clearTimeout(t);ok(v);},e=>{clearTimeout(t);mal(e);});});
   async function aplicarFuente(fuente,opc){
+    opc=opc||{};
     const ahora=ahoraMs(),f=Array.isArray(fuente)?{filas:fuente}:fuente;
-    return mutar(lista=>{
-      const r=correr(f,lista,Object.assign(baseImportar(),{ahora},opc));
-      if(r.faltanColumnas.length)throw new Error('Faltan columnas: '+r.faltanColumnas.join(', ')+'.');
-      return {lista:N.aplicarImportacion(lista,r,{ahora,usuario:quien()}),resultado:r};
-    });
+    const r=correr(f,ordenes,Object.assign(baseImportar(),{ahora},opc));
+    if(r.faltanColumnas.length)throw new Error('Faltan columnas: '+r.faltanColumnas.join(', ')+'.');
+    const trozos=[];
+    for(let i=0;i<r.crear.length;i+=LOTE)trozos.push({crear:r.crear.slice(i,i+LOTE),actualizar:[],retirar:[]});
+    for(let i=0;i<r.actualizar.length;i+=LOTE)trozos.push({crear:[],actualizar:r.actualizar.slice(i,i+LOTE),retirar:[]});
+    for(let i=0;i<r.retirar.length;i+=LOTE)trozos.push({crear:[],actualizar:[],retirar:r.retirar.slice(i,i+LOTE)});
+    const total=r.crear.length+r.actualizar.length+r.retirar.length;let hechas=0;
+    if(typeof opc.progreso==='function')opc.progreso(0,total);
+    for(let n=0;n<trozos.length;n++){
+      const t=trozos[n],ts=ahoraMs()+n;
+      await conTiempo(mutar(lista=>{
+        const existentes=new Set(lista.map(N.claveOrden));
+        const crear=t.crear.filter(o=>!existentes.has(N.claveOrden(o)));
+        return {lista:N.aplicarImportacion(lista,{crear,actualizar:t.actualizar,retirar:t.retirar},{ahora:ts,usuario:quien()})};
+      }),TIEMPO_LOTE_MS,'El servidor no respondió al guardar el lote '+(n+1)+' de '+trozos.length+' (ya se guardaron '+hechas.toLocaleString('es-PE')+' líneas). Vuelve a importar: continúa donde quedó, sin duplicar.');
+      hechas+=t.crear.length+t.actualizar.length+t.retirar.length;
+      if(typeof opc.progreso==='function')opc.progreso(hechas,total);
+    }
+    return r;
   }
   async function guardarMapeo(mapeo){
     await mutar(lista=>({lista}),{mapeo,actualizadoPor:quien(),actualizadoEn:ahoraMs()});
@@ -477,12 +496,15 @@
     });
     q('ovi-aplicar').onclick=async()=>{
       q('ovi-aplicar').disabled=true;q('ovi-error').textContent='';
+      const btn=q('ovi-aplicar'),texto0=btn.textContent;
+      const prog=(h,t)=>{btn.textContent=t?'Importando… '+Math.round(h/t*100)+' %':'Importando…';q('ovi-error').style.color='#1e40af';q('ovi-error').textContent=t?'Guardando '+h.toLocaleString('es-PE')+' de '+t.toLocaleString('es-PE')+' líneas. No cierres esta ventana.':'Guardando…';};
       try{
+        prog(0,0);
         const corte=q('ovi-corte').value||'';
-        if(corte!==(config.fechaCorte||''))await guardarConfig({fechaCorte:corte});
-        const r=await aplicarFuente({hojas:elegidas()},opcImp());
+        if(corte!==(config.fechaCorte||''))await conTiempo(guardarConfig({fechaCorte:corte}),60000,'El servidor no respondió al guardar la fecha de corte.');
+        const r=await aplicarFuente({hojas:elegidas()},Object.assign(opcImp(),{progreso:prog}));
         fondo.remove();alert('Importación lista: '+r.crear.length+' nueva(s), '+r.actualizar.length+' actualizada(s)'+(r.retirar.length?', '+r.retirar.length+' retirada(s)':'')+(r.errores.length?'. '+r.errores.length+' fila(s) con error no se importaron.':'.'));
-      }catch(err){q('ovi-error').textContent=(err&&err.message)||String(err);q('ovi-aplicar').disabled=false;}
+      }catch(err){console.error('Órdenes de ventas · importar:',err);q('ovi-error').style.color='';q('ovi-error').textContent=(err&&err.message)||String(err);btn.textContent=texto0;btn.disabled=false;}
     };
   }
 
