@@ -118,5 +118,8 @@ const espera=async p=>{try{await p;return null;}catch(e){return e;}};
   ok(/asistente\/80-almacen-enlace-nucleo\.js\?v=/.test(idx)&&/asistente\/81-almacen-enlace-datos\.js\?v=/.test(idx)&&idx.indexOf('81-almacen-enlace-datos')>idx.indexOf('71-asistente-datos'),'index.html carga el enlace después de los datos del Asistente');
   ok(/apAlmacenMov/.test(p71)&&/glacialAlmacenEnlaceDatos\.escuchar/.test(p71),'71 escribe apAlmacenMov y arranca la escucha del stock');
   ok(/ap-i-sap/.test(p72)&&/apAvisoStock/.test(p72)&&/ap-sin-stock/.test(p72),'72 muestra el código SAP del insumo, el aviso al solicitar y la autorización sin stock');
+  ok(/apSolicitarFaltantes/.test(p72)&&/faltantesNetos/.test(p72)&&/transitoYComprometido/.test(p72),'72: «Solicitar todos los faltantes» en un clic, sin repetir lo ya pedido o en camino');
+  ok(/apMigrar\(true\)/.test(p72)&&/Activar factores/.test(p72),'72: «Activar factores» en un clic desde el Resumen');
+  ok(!/TURNO:'Todo el turno'/.test(p72)&&/modalidadTxt/.test(p72)&&/tramosSecuencia/.test(p72),'72: Seguimiento dice «Resto del turno» y muestra los pasos de la secuencia');
   ok(/apAlmacenMov/.test(leer('supabase/migraciones/glacial_27_almacen_enlace_inventario.sql')),'existe la migración glacial_27');
 }
