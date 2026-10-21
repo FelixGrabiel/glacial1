@@ -66,7 +66,9 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 10-usuarios.js | Gestión de usuarios y permisos |
 | 10b-modo-visualizacion-form.js | Formulario «Modo visualización general» dentro de Gestionar usuarios → Editar permisos |
 | 10c-impacto-economico-permisos.js | Permisos de Impacto económico por usuario (ver, gestionar, exportar) |
-| 17-modo-trabajo.js | Modo Visualizar / Trabajar |
+| 17b-ventana-supervisor.js | Ventana de trabajo del supervisor (rotación: abre 15 min antes, cierra al fin + 30 min solo Noche + tiempo del Administrador) y corte de las 19:00 (bloque por reloj de producción). Ver docs/00-general/ventana-supervisor.md |
+| 17-modo-trabajo.js | Modo Visualizar / Trabajar; cronómetro del supervisor y cierre automático a VISUALIZAR |
+| 17c-ampliaciones-turno.js | Panel «Tiempo de supervisores» (solo Administrador) en Rotación de supervisores: dar o anular tiempo extra con motivo |
 | 23-gerente-solo-lectura.js | Roles de solo consulta (Gerencia/Jefatura) |
 | 23b-modo-visualizacion.js | Modo visualización general por usuario (solo ve lo que el Administrador le concede) |
 | 32-dashboard-perfiles.js | Inicio ejecutivo y operativo según perfil |
@@ -105,7 +107,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 49b-resumen-graficos-diferidos.js | Reportes → Resumen general (rendimiento/INP): envuelve `renderResumen` y crea los ~13 gráficos de Chart.js de uno en uno (setTimeout 0, sin animación de entrada) en vez de todos en el turno del clic; mismos datos y aspecto final; un render nuevo, `destroy()` o salir de la pantalla cancelan lo pendiente. Prueba: tests/resumen-graficos-diferidos.test.js |
 | 50-impacto-economico.js | Impacto económico completo (solo Gerencia): cascada en S/, rankings, supuestos y Excel |
 | 51-planificacion-nucleo.js | Planificación · núcleo: lectura/escritura de `sync/programaciones` y funciones comunes (`docs/planificacion/planificacion.md`) |
-| 51b-horarios-produccion.js | Horario de producción por línea, bloque y vigencia: resolvedor central (glacialHorarios.resolver), reglas con precedencia y fecha de inicio explícita, Noche 22:00–07:00 con tolerancia a las 07:30, habilitación de bloques y pestaña «Horario de producción». Sin reglas nada cambia. Ver docs/produccion/horarios-produccion.md. Cargar después de 52 |
+| 51b-horarios-produccion.js | Horario de producción por línea, bloque y vigencia: resolvedor central (glacialHorarios.resolver), reglas con precedencia y fecha de inicio explícita, Noche con tolerancia a las 07:30 (configuración aprobada: Noche 19:00–07:00, C20L/B20L 14:00–19:00), habilitación de bloques y pestaña «Horario de producción». Sin reglas nada cambia. Ver docs/produccion/horarios-produccion.md. Cargar después de 52 |
 | 52-planificacion-pantalla.js | Planificación · pantalla y pestaña Programación |
 | 53-planificacion-catalogo.js | Planificación · catálogo y vista semanal |
 | 54-planificacion-solicitudes.js | Planificación · solicitudes, historial y cumplimiento |
@@ -214,7 +216,7 @@ Diagnóstico, modelo de datos y permisos: `docs/asistente/asistente-produccion.m
 10. accesos/10-usuarios.js
 11. personal/11-trabajadores.js
 14. produccion/16-paletas.js
-15. accesos/17-modo-trabajo.js
+15. accesos/17b-ventana-supervisor.js · accesos/17-modo-trabajo.js
 16. mantenimiento/18-mantenimiento.js
 17. rrhh/19-rrhh.js
 18. produccion/14-exportar-general.js
@@ -231,7 +233,7 @@ Diagnóstico, modelo de datos y permisos: `docs/asistente/asistente-produccion.m
 29. produccion/29-avance-produccion.js
 30. mantenimiento/30-rotacion-mantenimiento.js
 31. mantenimiento/33-rotacion-maquinistas.js
-32. personal/31-rotacion-supervisores.js
+32. personal/31-rotacion-supervisores.js · accesos/17c-ampliaciones-turno.js (después de 31)
 33. accesos/32-dashboard-perfiles.js
 34. produccion/35-autollenado-registro.js
 34b. produccion/29b-correccion-paradas.js (después de 29 y 35)

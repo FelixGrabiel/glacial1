@@ -60,6 +60,21 @@ function avCtx(){
       if(r.fecha>op)r.fecha=op;
     }
   }catch(_){/* sin fuente única */}
+  // CORTE 19:00 (17b-ventana-supervisor.js): el bloque del avance lo decide el RELOJ de producción, no el turno del supervisor.
+  // Si la Noche ya empezó según el horario por línea (p. ej. 19:00), el supervisor intermedio (14:00–22:00) y cualquier otro usuario
+  // registran en la NOCHE. El supervisor que entra 15 min antes (06:45) queda en SU turno, no en el que sale.
+  // La Noche asignada por la rotación (incluida su tolerancia) no cambia: se sigue resolviendo como antes.
+  try{
+    const vs=window.glacialVentanaSupervisor;
+    const cx=vs&&vs.contextoAvance?vs.contextoAvance(state.user?.turnoOperativo||c?.turno||''):null;
+    if(cx){
+      r.turno=cx.turno;r.fecha=cx.fecha;
+      if(cx.inicio)r.inicio=cx.inicio;
+      if(cx.fin)r.fin=cx.fin;
+      if(cx.porReloj)r.porReloj=true;
+      return r;
+    }
+  }catch(_){/* sin 17b: comportamiento de siempre */}
   // Tolerancia de Noche (51b): hasta 30 min después de su fin (07:00 → 07:30) todavía se completa el registro y el cierre de ESA Noche.
   // No adelanta aperturas, no cambia la duración productiva y no se aplica si el usuario tiene un turno asignado por rotación.
   try{
@@ -1281,6 +1296,8 @@ async function avGuardarSnapshot(s){
 function avPuedeGenerar(){
   if(!state?.user || !tienePermiso('avanceProduccion'))return false;
   if(typeof esUsuarioSoloConsulta==='function' && esUsuarioSoloConsulta(state.user))return false;
+  // Supervisor fuera de su ventana de turno (17b): solo consulta. Solo el Administrador amplía el tiempo.
+  try{const vs=window.glacialVentanaSupervisor;if(vs&&vs.aplicaA(state.user)&&!vs.puedeTrabajar(state.user))return false;}catch(_){}
   return true;
 }
 function avSlotsTurno(turno){

@@ -15,7 +15,7 @@
      · PRECEDENCIA determinista: una fecha > rango > desde-hasta-nuevo-cambio; entre abiertas gana la de fecha de inicio más reciente. Dos reglas de la misma línea, bloque,
        tipo y especificidad con vigencias que se superponen NO se pueden guardar (no se resuelve por orden accidental).
      · Nada se borra: una regla se desactiva y queda el historial.
-   NOCHE: abre a la hora configurada (22:00 en la configuración aprobada), termina a las 07:00 del día siguiente y TOLERA hasta 30 min después (07:30) SOLO para completar registro y cierre:
+   NOCHE: abre a la hora configurada (19:00 en la configuración aprobada del 21-10-2026), termina a las 07:00 del día siguiente y TOLERA hasta 30 min después (07:30) SOLO para completar registro y cierre:
    no adelanta la apertura, no desplaza el inicio, no aumenta la duración productiva ni la capacidad, no finaliza máquinas ni confirma cierres.
    No toca Tareo ni las jornadas del personal. Cargar después de 51-planificacion-nucleo.js.
    ============================================================= */
@@ -190,13 +190,18 @@
   };
   /* Restablecer horario predeterminado: desde la fecha indicada, las líneas elegidas vuelven al horario base de ese bloque. NO cambia la habilitación. */
   H.restablecer=(lineas,bloque,desde,motivo)=>escribir([{kind:'HORARIO',base:true,lineas,bloque:bl(bloque),tipoVigencia:'ABIERTA',desde,hasta:'',inicio:'',fin:'',etiqueta:'',habilitado:true,motivo}],{});
-  /* Configuración aprobada (NO se activa sola): Noche 22:00–07:00 para las líneas con Noche, C20L/B20L Intermedio 14:00–22:00 sin Noche. Exige fecha de inicio explícita. */
+  /* Configuración aprobada (NO se activa sola; exige fecha de inicio explícita, la pone el Administrador o quien tenga Planificación):
+     CORTE DE LAS 19:00 (21-10-2026) — toda producción desde las 19:00 pertenece a la NOCHE (también los avances del supervisor intermedio).
+       · Noche 19:00–07:00 para TODAS las líneas (12 h; la tolerancia de registro/cierre sigue hasta las 07:30).
+       · C20L y B20L: Mañana + Intermedio 14:00–19:00 (etiqueta «Intermedio») y Noche HABILITADA (pueden producir después de las 19:00).
+       · Las demás líneas conservan Mañana + Intermedio 07:00–19:00 (horario base).
+     Antes: Noche 22:00–07:00 para PET1/PET2/B7L y C20L/B20L 14:00–22:00 sin Noche. */
   H.configuracionAprobada=function(desde,motivo){
     const base={tipoVigencia:'ABIERTA',desde,hasta:'',motivo,habilitado:true};
-    const conNoche=LINEAS().filter(l=>!['C20L','B20L'].includes(l));
-    return [Object.assign({kind:'HORARIO',lineas:conNoche,bloque:'NOCHE',inicio:'22:00',fin:'07:00',etiqueta:''},base),
-      Object.assign({kind:'HORARIO',lineas:LINEAS().filter(l=>['C20L','B20L'].includes(l)),bloque:'DÍA',inicio:'14:00',fin:'22:00',etiqueta:'Intermedio'},base),
-      Object.assign({kind:'HABILITACION',lineas:LINEAS().filter(l=>['C20L','B20L'].includes(l)),bloque:'NOCHE'},base,{habilitado:false})];
+    const cajas=LINEAS().filter(l=>['C20L','B20L'].includes(l));
+    return [Object.assign({kind:'HORARIO',lineas:LINEAS(),bloque:'NOCHE',inicio:'19:00',fin:'07:00',etiqueta:''},base),
+      Object.assign({kind:'HORARIO',lineas:cajas,bloque:'DÍA',inicio:'14:00',fin:'19:00',etiqueta:'Intermedio'},base),
+      Object.assign({kind:'HABILITACION',lineas:cajas,bloque:'NOCHE'},base,{habilitado:true})];
   };
   H.aplicarConfiguracionAprobada=function(desde,motivo){
     if(!fechaOk(desde))return Promise.reject(new Error('Indica la fecha de inicio de la vigencia: no se asume ninguna.'));

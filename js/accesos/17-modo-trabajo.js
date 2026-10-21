@@ -30,8 +30,12 @@
 
    2) Modo Visualizar / Trabajar.
 
-   3) Cronómetro de turno (Mañana/Tarde/Noche, con tolerancia
-      de 20 min para Noche).
+   3) Cronómetro de turno. Para los supervisores de la rotación
+      usa su VENTANA (17b-ventana-supervisor.js): abre 15 min antes,
+      cierra al fin del turno (+30 min solo en Noche, + el tiempo que
+      dé el Administrador) y al cerrar deja la cuenta en VISUALIZAR.
+      Para los demás usuarios con cronómetro, el comportamiento de
+      siempre (solo informativo).
    ============================================================= */
 /*
  * BETTER COMMENTS · CABECERA GLACIAL
@@ -112,15 +116,11 @@ function _mtFechaHoyISO(d){
    1) CRONÓMETRO DE TURNO
    =========================================================
 
-   Turnos:
-     MAÑANA  07:00 – 15:00
-     TARDE   15:00 – 22:00
-     NOCHE   22:00 – 07:00 (+20 min de tolerancia, hasta 07:20)
-
-   Entre 07:00 y 07:20 el turno mostrado sigue siendo NOCHE,
-   marcado como "en tolerancia / cerrando turno" (el turno de
-   la noche recién termina de verdad a las 07:20 para efectos
-   del cronómetro), y a partir de 07:20 empieza a contar MAÑANA.
+   Supervisores de la rotación: ver renderCronometroVentana (la
+   ventana sale de su rotación publicada, ver 17b).
+   Demás usuarios con cronómetro (informativo, sin bloqueo):
+     MAÑANA  07:00 – 15:00 · TARDE 15:00 – 22:00 · NOCHE 22:00 – 07:00
+   según GlacialIndicadores.turnoVigente (sin tolerancia).
    ========================================================= */
 
 const MT_TOLERANCIA_NOCHE_MIN = 20;
@@ -198,11 +198,159 @@ function detenerCronometroTurno(){
 
 }
 
+/* ---------------------------------------------------------
+   VENTANA DEL SUPERVISOR (17b-ventana-supervisor.js)
+   Supervisores de la rotación: el cronómetro se ve SIEMPRE (también en
+   Visualizar), cuenta hasta el CIERRE real (fin + tolerancia de Noche +
+   tiempo dado por el Administrador) y, al cerrar, guarda el borrador y
+   pasa la cuenta a modo VISUALIZAR. Solo el Administrador amplía.
+   --------------------------------------------------------- */
+const _mtVS = () => window.glacialVentanaSupervisor || null;
+const _mtEsc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function _mtAplicaVentana(){
+  const VS = _mtVS();
+  return !!(VS && state?.user && VS.aplicaA(state.user));
+}
+let _mtCerrandoTurno = false;
+let _mtAvisoMostrado = '';
+let _mtUltimoPuedeTrabajar = null;
+
+function _mtToastTurno(texto){
+  let el = document.getElementById('mt-toast-turno');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'mt-toast-turno';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.textContent = texto;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 12000);
+}
+
+function _mtCerrarPorFinDeTurno(st){
+  if(_mtCerrandoTurno) return;
+  _mtCerrandoTurno = true;
+  try{
+    // Lo que el supervisor estaba escribiendo se guarda como borrador ANTES de bloquear: nunca se pierde.
+    if(state.currentTab === 'nuevo' && draft && !esModoSoloLectura()){
+      clearTimeout(_mtAutosaveTimer);
+      ejecutarAutoguardadoNuevoRegistro();
+    }
+  }catch(e){
+    console.error('No se pudo guardar el borrador al cerrar el turno:', e);
+  }
+  establecerModoTrabajo('visualizar', { silencioso: true });
+  const VS = _mtVS();
+  const root = document.getElementById('modal-root');
+  if(root){
+    root.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal">
+          <div class="modal-head"><h3>🔒 Tu turno cerró</h3></div>
+          <div class="modal-body">
+            <p style="margin:0 0 8px;font-size:14px;line-height:1.6;">${_mtEsc(VS ? VS.textoBloqueo(st) : '')}</p>
+            <p style="margin:0 0 8px;color:var(--text-soft);font-size:13.5px;line-height:1.6;">
+              Quedaste en modo <b>VISUALIZAR</b>: puedes consultar todo, pero ya no registrar.
+              Lo que estabas escribiendo en «Nuevo registro» quedó guardado como borrador.
+            </p>
+            <p style="margin:0;color:var(--text-soft);font-size:13.5px;line-height:1.6;">
+              Si necesitas más tiempo, pídelo al <b>administrador</b>: solo él puede ampliarlo.
+            </p>
+            <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+              <button type="button" class="btn btn-primary" onclick="closeModal()">Entendido</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+  _mtCerrandoTurno = false;
+}
+
+function _mtHtmlCierre(v){
+  const extras = [];
+  if(v.toleranciaMin) extras.push('+' + v.toleranciaMin + ' min tolerancia');
+  if(v.ampliacionMin) extras.push('+' + v.ampliacionMin + ' min del admin');
+  return _mtFmtHora(new Date(v.cierreMs)) + (extras.length ? ' <small style="font-weight:500">(' + extras.join(', ') + ')</small>' : '');
+}
+
+function renderCronometroVentana(box){
+  const VS = _mtVS();
+  const st = VS.estado(state.user);
+
+  if(st.aplica && st.puedeTrabajar === false && state.workMode === 'trabajar'){
+    _mtCerrarPorFinDeTurno(st);
+  }
+  document.body.classList.toggle('turno-cerrado', st.aplica && st.puedeTrabajar === false);
+  if(_mtUltimoPuedeTrabajar !== st.puedeTrabajar){
+    _mtUltimoPuedeTrabajar = st.puedeTrabajar;
+    renderModoSwitch();
+  }
+
+  box.style.display = 'flex';
+  box.classList.remove('cro-aviso', 'cro-cerrado');
+  const nombreTurno = t => ({ 'DÍA':'Día', 'INTERMEDIO':'Intermedio', 'NOCHE':'Noche' }[t] || t || '');
+
+  if(st.estado === 'CARGANDO'){
+    box.innerHTML = '<div class="cro-turno-nombre">Turno</div><div class="cro-nota">Cargando la rotación…</div>';
+    return;
+  }
+  if(st.estado === 'SIN_HORARIO'){
+    box.innerHTML = '<div class="cro-turno-nombre">Turno sin horario</div>'
+      + '<div class="cro-nota">No hay rotación publicada ni horario en tu perfil. Avísale a Jefatura de Producción.</div>';
+    actualizarIndicadorAutoguardado();
+    return;
+  }
+
+  if(st.puedeTrabajar && st.ventana){
+    const v = st.ventana, ahora = st.ahoraMs;
+    let estado = 'En curso', clase = '';
+    if(st.estado === 'ANTICIPADA'){ estado = 'Entrada anticipada · empieza a las ' + v.inicio; }
+    else if(st.estado === 'TOLERANCIA'){ estado = 'Tolerancia de Noche'; clase = 'cro-estado-tolerancia'; }
+    else if(st.estado === 'AMPLIADA'){ estado = 'Tiempo extra dado por el administrador'; clase = 'cro-estado-tolerancia'; }
+    if(st.porCerrar){
+      estado = 'Por cerrar · guarda tus registros';
+      clase = 'cro-estado-aviso';
+      box.classList.add('cro-aviso');
+      const clave = v.fecha + '|' + v.turno + '|' + v.cierreMs;
+      if(_mtAvisoMostrado !== clave && state.workMode === 'trabajar'){
+        _mtAvisoMostrado = clave;
+        _mtToastTurno('⏳ Tu turno cierra a las ' + _mtFmtHora(new Date(v.cierreMs)) + '. Guarda tus registros: después quedarás en modo visualización.');
+      }
+    }
+    const nota = v.origen === 'PERFIL'
+      ? '<div class="cro-nota">Sin rotación publicada: se usa el horario de tu perfil. Avísale a Jefatura.</div>'
+      : '';
+    box.innerHTML = `
+      <div class="cro-turno-nombre">Turno ${_mtEsc(nombreTurno(v.turno))} · ${v.inicio}–${v.fin}</div>
+      <div class="cro-fila"><span>${ahora < v.inicioMs ? 'Empieza en' : 'Transcurrido'}</span><b>${_mtFmtDuracion(Math.abs(ahora - v.inicioMs))}</b></div>
+      <div class="cro-fila"><span>Cierre</span><b>${_mtHtmlCierre(v)}</b></div>
+      <div class="cro-fila"><span>Restante</span><b>${_mtFmtDuracion(st.restanteMs)}</b></div>
+      <div class="cro-estado ${clase}">${estado}</div>
+      ${nota}`;
+    actualizarIndicadorAutoguardado();
+    return;
+  }
+
+  box.classList.add('cro-cerrado');
+  box.innerHTML = `
+    <div class="cro-turno-nombre">🔒 Solo visualización</div>
+    <div class="cro-nota">${_mtEsc(VS.textoBloqueo(st))}</div>
+    <div class="cro-estado cro-estado-cerrado">Más tiempo: solo el administrador</div>`;
+  actualizarIndicadorAutoguardado();
+}
+
 function renderCronometroTurno(){
 
   const box = document.getElementById('cronometro-turno');
 
   if(!box) return;
+
+  if(_mtAplicaVentana()){
+    renderCronometroVentana(box);
+    return;
+  }
 
   if(!esSupervisorParaCronometro()){
     box.style.display = 'none';
@@ -317,6 +465,18 @@ function establecerModoTrabajo(modo, opts){
     modo = 'visualizar';
   }
 
+  /* Supervisor fuera de su ventana de turno (17b): TRABAJAR no se activa. Solo el Administrador amplía el tiempo. */
+  if(modo === 'trabajar' && _mtAplicaVentana()){
+    const VS = _mtVS(), st = VS.estado(state.user);
+    if(st.puedeTrabajar === false){
+      if(!opts.silencioso){
+        alert('No puedes activar el modo TRABAJAR.\n\n' + VS.textoBloqueo(st) +
+          '\n\nSi necesitas más tiempo, pídelo al administrador.');
+      }
+      modo = 'visualizar';
+    }
+  }
+
   state.workMode = modo;
 
   try{
@@ -330,8 +490,9 @@ function establecerModoTrabajo(modo, opts){
 
   aplicarBloqueoVisualización();
 
-  if(modo === 'trabajar'){
+  if(modo === 'trabajar' || _mtAplicaVentana()){
 
+    // Al supervisor de la rotación el cronómetro le sigue corriendo en VISUALIZAR (muestra el cierre o cuándo abre).
     iniciarCronometroTurno();
 
   } else {
@@ -361,6 +522,12 @@ function renderModoSwitch(){
   }
 
   const soloConsulta = _mtUsuarioSoloConsulta();
+  let fueraDeTurno = false, textoFuera = '';
+  if(!soloConsulta && _mtAplicaVentana()){
+    const st = _mtVS().estado(state.user);
+    fueraDeTurno = st.puedeTrabajar === false;
+    textoFuera = fueraDeTurno ? _mtVS().textoBloqueo(st) + ' Solo el administrador puede darte más tiempo.' : '';
+  }
 
   document.querySelectorAll('#modo-switch .modo-btn').forEach(btn => {
 
@@ -371,14 +538,18 @@ function renderModoSwitch(){
     btn.setAttribute('aria-pressed', activo ? 'true' : 'false');
 
     if(modoBtn === 'trabajar'){
-      btn.disabled = soloConsulta;
+      btn.disabled = soloConsulta || fueraDeTurno;
       btn.setAttribute(
         'aria-disabled',
-        soloConsulta ? 'true' : 'false'
+        (soloConsulta || fueraDeTurno) ? 'true' : 'false'
       );
 
       if(soloConsulta){
         btn.title = 'No disponible para usuarios de solo consulta';
+      } else if(fueraDeTurno){
+        btn.title = textoFuera;
+      } else {
+        btn.title = 'Modo operativo: registrar producción, paradas y observaciones';
       }
     }
 
@@ -566,12 +737,24 @@ function loadBorradoresNuevoRegistro(){
 
 }
 
-function obtenerBorradorNuevoRegistro(linea){
+/* Un borrador por LÍNEA + FECHA OPERATIVA + GRUPO DE TURNO (Día+Intermedio / Noche).
+   Antes era uno por línea: el supervisor que entra 15 min antes (06:45) recuperaba o
+   pisaba el borrador del supervisor de Noche, que sigue trabajando hasta las 07:30.
+   Ahora cada turno tiene el suyo y el relevo no se cruza. */
+function _mtGrupoBorrador(turno){
+  return String(turno || '').toUpperCase().includes('NOCHE') ? 'NOCHE' : 'DIA_INTERMEDIO';
+}
+function _mtMismoBorrador(b, linea, fecha, turno){
+  return b && b.linea === linea && b.fecha === fecha && _mtGrupoBorrador(b.turno) === _mtGrupoBorrador(turno);
+}
 
-  return (
-    loadBorradoresNuevoRegistro().find(b => b.linea === linea) ||
-    null
-  );
+function obtenerBorradorNuevoRegistro(linea, fecha, turno){
+
+  const items = loadBorradoresNuevoRegistro();
+  if(fecha){
+    return items.find(b => _mtMismoBorrador(b, linea, fecha, turno)) || null;
+  }
+  return items.find(b => b.linea === linea) || null;
 
 }
 
@@ -579,7 +762,7 @@ function guardarBorradorNuevoRegistro(linea, draftObj){
 
   const items = loadBorradoresNuevoRegistro().slice();
 
-  const idx = items.findIndex(b => b.linea === linea);
+  const idx = items.findIndex(b => _mtMismoBorrador(b, linea, draftObj.fecha, draftObj.turno));
 
   const entry = {
     linea,
@@ -605,10 +788,12 @@ function guardarBorradorNuevoRegistro(linea, draftObj){
 
 }
 
-function eliminarBorradorNuevoRegistro(linea){
+function eliminarBorradorNuevoRegistro(linea, clave){
 
+  // Con clave (fecha y turno del registro guardado) se borra SOLO el borrador de ese turno: el del otro turno de la línea se conserva.
   const items =
-    loadBorradoresNuevoRegistro().filter(b => b.linea !== linea);
+    loadBorradoresNuevoRegistro().filter(b =>
+      clave && clave.fecha ? !_mtMismoBorrador(b, linea, clave.fecha, clave.turno) : b.linea !== linea);
 
   _borradoresNuevoRegistroCache = items;
 
@@ -829,15 +1014,20 @@ function intentarRestaurarBorrador(lineKey){
 
   if(typeof obtenerBorradorNuevoRegistro !== 'function') return null;
 
-  const guardado = obtenerBorradorNuevoRegistro(lineKey);
+  /* Solo se restaura el borrador del turno EN CURSO para esta persona y
+     esta línea (misma fecha operativa y mismo grupo de turno con el que
+     nacería un reporte nuevo): un borrador de otro turno o de un día
+     anterior no "resucita" en un turno nuevo, y el del turno que sale
+     no se mezcla con el del que entra. */
+  let ctx = null;
+  try{
+    ctx = window.glacialVentanaSupervisor ? window.glacialVentanaSupervisor.contextoNuevoRegistro(lineKey) : null;
+  }catch(e){ ctx = null; }
+  if(!ctx) ctx = { fecha: _mtFechaHoyISO(), turno: 'DÍA' };
+
+  const guardado = obtenerBorradorNuevoRegistro(lineKey, ctx.fecha, ctx.turno);
 
   if(!guardado || !guardado.draft) return null;
-
-  /* Solo se restaura si es del mismo día: un borrador de un
-     turno/día anterior que nunca se cerró no debe "resucitar"
-     silenciosamente en un turno nuevo. */
-
-  if(guardado.fecha !== _mtFechaHoyISO()) return null;
 
   try{
 
@@ -948,7 +1138,18 @@ if(typeof saveDraft === 'function'){
 
     }
 
+    if(_mtAplicaVentana()){
+      const st = _mtVS().estado(state.user);
+      if(st.puedeTrabajar === false){
+        alert('Tu turno ya cerró: no se puede guardar el registro.\n\n' + _mtVS().textoBloqueo(st) +
+          '\n\nTu avance quedó como borrador. Si necesitas más tiempo, pídelo al administrador.');
+        _mtCerrarPorFinDeTurno(st);
+        return;
+      }
+    }
+
     const lineaGuardada = state.currentLine;
+    const borradorGuardado = draft ? { fecha: draft.fecha, turno: draft.turno } : null;
 
     await _mtSaveDraftOriginal.apply(this, arguments);
 
@@ -964,7 +1165,7 @@ if(typeof saveDraft === 'function'){
 
       clearTimeout(_mtAutosaveTimer);
 
-      eliminarBorradorNuevoRegistro(lineaGuardada);
+      eliminarBorradorNuevoRegistro(lineaGuardada, borradorGuardado);
 
       _mtUltimoEstadoGuardado = null;
       _mtUltimoGuardadoISO = null;

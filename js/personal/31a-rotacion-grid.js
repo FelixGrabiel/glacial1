@@ -18,7 +18,7 @@
      id, col1:'SUPERVISOR', etiquetaTabla,
      dias:[{fecha, etq:'LUN', corta:'05/10', largo:'lunes 05/10', hoy}],
      filas:[{id, nombre, sub, celdas:[{valor, inicio, fin}], extra:{clave:valor}}],
-     catalogo:[{valor, etq, clase, horas:true|false, base:{inicio,fin}}],
+     catalogo:[{valor, etq, clase, horas:true|false, base:{inicio,fin}, atajos?:[{etq, inicio, fin}]}],   // atajos: botones que llenan inicio y fin
      bloqueado, mensajeBloqueo,
      aplicar:'nombreFuncionGlobal'   // (filaId, diaIdx, {turno, inicio, fin, extra}) → true | {ok:true} | false | {ok:false,error}
      rerender:'nombreFuncionGlobal'  // vuelve a dibujar la pantalla del módulo
@@ -155,6 +155,7 @@
       <label><span>Turno</span><select data-rg-turno ${dis} aria-label="Turno de ${esc(fila.nombre)}">${opciones}</select></label>
       <label data-rg-horas ${horas?'':'hidden'}><span>Inicio</span><input type="time" data-rg-inicio value="${esc(dr.inicio)}" ${dis}></label>
       <label data-rg-horas ${horas?'':'hidden'}><span>Fin</span><input type="time" data-rg-fin value="${esc(dr.fin)}" ${dis}></label>
+      ${horas?((itemCat(cfg,dr.turno)||{}).atajos||[]).map((x,i)=>`<button type="button" data-rg-atajo="${i}" title="Pone ${esc(x.inicio)}–${esc(x.fin)}" ${dis}>${esc(x.etq)}</button>`).join(''):''}
       ${extras}
       <button type="button" class="rg-aplicar" data-rg-aplicar ${dis}>Aplicar</button>
       <button type="button" data-rg-cancelar ${dirty?'':'hidden'}>Cancelar</button>
@@ -301,6 +302,10 @@
       const id=idDe(t);if(!id)return;
       if(t.closest('[data-rg-aplicar]')){aplicar(id);return;}
       if(t.closest('[data-rg-cancelar]')){cancelar(id);return;}
+      // Atajo de horario del turno (p. ej. «12 h»): solo llena inicio y fin; se aplican con «Aplicar», como siempre.
+      const at=t.closest('[data-rg-atajo]');
+      if(at){const cfg=CFG[id],s=est(id);const x=cfg&&s.draft&&((itemCat(cfg,s.draft.turno)||{}).atajos||[])[Number(at.dataset.rgAtajo)];
+        if(x){s.draft.inicio=x.inicio;s.draft.fin=x.fin;s.msg='';s.msgTipo='';pintarEditor(id);}return;}
       const ac=t.closest('[data-rg-accion]');
       if(ac){const cfg=CFG[id],s=est(id),a=cfg&&(cfg.accionesFila||[])[Number(ac.dataset.rgAccion)];if(a&&s.sel&&typeof window[a.fn]==='function'){window[a.fn](s.sel.f);}}
     });

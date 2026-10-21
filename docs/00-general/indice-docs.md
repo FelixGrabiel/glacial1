@@ -2,7 +2,7 @@
 
 | Carpeta | Contenido |
 |---|---|
-| `00-general/` | Procesos, el día del cambio a Supabase, el puente, fecha operativa, fotos, auditorías |
+| `00-general/` | Procesos, el día del cambio a Supabase, el puente, fecha operativa, fotos, auditorías, ventana de trabajo del supervisor |
 | `produccion/` | Semáforo, ratio, proyección de cierre, paradas, reportes, horarios, pausas |
 | `planificacion/` | Planificación, etapas 1 a 5, diseño visual, auditoría |
 | `personal-tareo/` | Tareo (guardado concurrente, edición continua, horas extras) y distribución de personal |

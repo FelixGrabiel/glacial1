@@ -25,6 +25,17 @@ function entorno(programaciones,opc){
   sb.escuchar();
   return {N,sb,NS:sb.NS,H:sb.glacialHorarios,M:sb.NS.modos,S:sb.NS.secuencia};
 }
+/* Escenario de la configuración ANTERIOR al corte de las 19:00 (Noche 22:00–07:00 para PET1/PET2/B7L; C20L/B20L Intermedio 14:00–22:00 sin Noche).
+   Las secciones 5–7 la usan para probar comportamientos generales (bloque deshabilitado, tolerancia, proyección hasta el cierre), que siguen vigentes
+   aunque la «configuración aprobada» actual sea otra. Se aplica por el mismo camino (una sola operación) cambiando solo la lista de reglas. */
+async function aplicarConfigAnterior(H,desde,motivo){
+  const orig=H.configuracionAprobada;
+  H.configuracionAprobada=(d,m)=>{const b={tipoVigencia:'ABIERTA',desde:d,hasta:'',motivo:m,habilitado:true};return [
+    Object.assign({kind:'HORARIO',lineas:['PET1','PET2','B7L'],bloque:'NOCHE',inicio:'22:00',fin:'07:00',etiqueta:''},b),
+    Object.assign({kind:'HORARIO',lineas:['C20L','B20L'],bloque:'DÍA',inicio:'14:00',fin:'22:00',etiqueta:'Intermedio'},b),
+    Object.assign({kind:'HABILITACION',lineas:['C20L','B20L'],bloque:'NOCHE'},b,{habilitado:false})];};
+  try{return await H.aplicarConfiguracionAprobada(desde,motivo);}finally{H.configuracionAprobada=orig;}
+}
 const regla=(extra)=>Object.assign({kind:'HORARIO',lineas:['C20L'],bloque:'DÍA',inicio:'14:00',fin:'20:00',tipoVigencia:'ABIERTA',desde:D1,hasta:'',motivo:'Instrucción de Gerencia'},extra||{});
 const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacion:'20 Litros',tipoFin,cantidad:'',hora:'',cambioPrevioMin:null,modo:'FIJA',saldo:false,version:undefined,itemClave:''},extra||{});
 
@@ -48,11 +59,11 @@ const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacio
   const r=await H.aplicarConfiguracionAprobada(D1,'Instrucción de Gerencia: nuevo horario');
   ok(r.reglas.length===3&&H.datos().version===1,'«Aplicar configuración aprobada» crea las tres reglas en una sola operación y sube la versión');
   const nuevaNoche=H.resolver('PET1',D1,'NOCHE'),viejaNoche=H.resolver('PET1',D0,'NOCHE');
-  ok(nuevaNoche.horario==='22:00–07:00'&&nuevaNoche.duracionMin===540&&nuevaNoche.inicioMs===T(D1,'22:00')&&nuevaNoche.finMs===T(D2,'07:00'),'Noche 22:00–07:00 desde la fecha de inicio: 9 horas, fin al día siguiente');
+  ok(nuevaNoche.horario==='19:00–07:00'&&nuevaNoche.duracionMin===720&&nuevaNoche.inicioMs===T(D1,'19:00')&&nuevaNoche.finMs===T(D2,'07:00'),'corte 19:00: Noche 19:00–07:00 desde la fecha de inicio: 12 horas, fin al día siguiente');
   ok(viejaNoche.horario==='21:00–07:00'&&viejaNoche.duracionMin===600&&viejaNoche.origen==='BASE','lo anterior a la fecha de inicio conserva su horario original (no es retroactivo)');
   const c=H.resolver('C20L',D1,'DÍA'),b=H.resolver('B20L',D1,'DÍA');
-  ok(c.horario==='14:00–22:00'&&c.duracionMin===480&&c.etiqueta==='Intermedio'&&b.horario==='14:00–22:00'&&b.etiqueta==='Intermedio','C20L y B20L: Intermedio 14:00–22:00 (8 h brutas)');
-  ok(H.resolver('C20L',D1,'NOCHE').habilitado===false&&H.resolver('B20L',D1,'NOCHE').habilitado===false&&H.resolver('PET2',D1,'NOCHE').habilitado===true&&H.resolver('B7L',D1,'NOCHE').horario==='22:00–07:00','Noche deshabilitada para C20L/B20L y habilitada 22:00–07:00 para las demás líneas');
+  ok(c.horario==='14:00–19:00'&&c.duracionMin===300&&c.etiqueta==='Intermedio'&&b.horario==='14:00–19:00'&&b.etiqueta==='Intermedio','C20L y B20L: Intermedio 14:00–19:00 (5 h brutas)');
+  ok(H.resolver('C20L',D1,'NOCHE').habilitado===true&&H.resolver('B20L',D1,'NOCHE').horario==='19:00–07:00'&&H.resolver('PET2',D1,'NOCHE').habilitado===true&&H.resolver('B7L',D1,'NOCHE').horario==='19:00–07:00','Noche 19:00–07:00 habilitada para todas las líneas (C20L/B20L pueden producir después de las 19:00)');
   ok(H.resolver('PET1',D1,'DÍA').horario==='07:00–19:00'&&H.resolver('PET1',D1,'DÍA').duracionMin===720,'las líneas diurnas conservan 07:00–19:00');
   const h=historial(N);
   ok(h.length===3&&h.every(x=>x.uid==='uid-Ana'&&/^HORARIOS:/.test(x.referencia)&&x.horarios.version===1&&x.motivo==='Instrucción de Gerencia: nuevo horario'&&/desde el 2099-03-08 hasta nuevo cambio/.test(x.horarios.vigencia)),'historial: usuario/UID, hora de servidor, antes/después, motivo y vigencia');
@@ -60,8 +71,8 @@ const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacio
   const {NS:NS2,sb:sb2,N:N2,H:H2}=entorno([F('PET1',D1,'NOCHE','Scala','2.5 Litros',9000,200),F('C20L',D1,'DÍA','Cuisine','20 Litros',400,200),F('PET1',D0,'NOCHE','Scala','2.5 Litros',9000,200)]);
   await H2.aplicarConfiguracionAprobada(D1,'Instrucción de Gerencia');
   const capN=NS2.capacidadVigente(D1,'NOCHE','PET1'),capC=NS2.capacidadVigente(D1,'DÍA','C20L'),capH=NS2.capacidadVigente(D0,'NOCHE','PET1');
-  ok(capN.brutoMin===540&&capN.disponibleMin===540&&capC.brutoMin===480&&capH.brutoMin===600,'capacidad: Noche 22:00–07:00 = 9 h; C20L 14:00–22:00 = 8 h; la Noche histórica sigue en 10 h (no se recalcula con el valor nuevo)');
-  ok(NS2.bloqueDe(D1,'NOCHE','PET1').inicioMs===T(D1,'22:00')&&NS2.bloqueDe(D1,'DÍA','C20L').inicioMs===T(D1,'14:00'),'el bloque (inicio y duración) sale del resolvedor por línea');
+  ok(capN.brutoMin===720&&capN.disponibleMin===720&&capC.brutoMin===300&&capH.brutoMin===600,'capacidad: Noche 19:00–07:00 = 12 h; C20L 14:00–19:00 = 5 h; la Noche histórica sigue en 10 h (no se recalcula con el valor nuevo)');
+  ok(NS2.bloqueDe(D1,'NOCHE','PET1').inicioMs===T(D1,'19:00')&&NS2.bloqueDe(D1,'DÍA','C20L').inicioMs===T(D1,'14:00'),'el bloque (inicio y duración) sale del resolvedor por línea');
 }
 /* ---------- 3) excepción, retorno explícito y vigencias ---------- */
 {
@@ -103,7 +114,7 @@ const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacio
 /* ---------- 5) tolerancia de Noche ---------- */
 {
   const {H,NS}=entorno([]);
-  await H.aplicarConfiguracionAprobada(D0,'Instrucción de Gerencia');
+  await aplicarConfigAnterior(H,D0,'Instrucción de Gerencia');
   const n=H.resolver('PET1',D0,'NOCHE');
   ok(n.tolerancia&&n.tolerancia.min===30&&n.tolerancia.hasta==='07:30'&&n.tolerancia.finMs===T(D1,'07:30')&&n.finMs===T(D1,'07:00'),'la tolerancia es al FINAL (hasta las 07:30); el fin programado sigue siendo las 07:00');
   ok(n.inicioMs===T(D0,'22:00')&&n.duracionMin===540&&n.inicioMs!==T(D0,'21:30')&&n.inicioMs!==T(D0,'22:30'),'no habilita una apertura anticipada (21:30), no desplaza el inicio (22:30) y la duración productiva sigue en 9 h (no 9 h 30)');
@@ -113,18 +124,18 @@ const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacio
   ok(H.resolver('C20L',D0,'NOCHE').tolerancia===null,'un bloque deshabilitado no tiene tolerancia');
   // capacidad: la tolerancia no suma
   const e=entorno([F('PET1',D0,'NOCHE','Scala','2.5 Litros',9000,200)]);
-  await e.H.aplicarConfiguracionAprobada(D0,'Instrucción de Gerencia');
+  await aplicarConfigAnterior(e.H,D0,'Instrucción de Gerencia');
   const c=e.NS.capacidadVigente(D0,'NOCHE','PET1');
   ok(c.disponibleMin===540&&c.brutoMin===540,'la tolerancia no forma parte de la capacidad productiva');
   ok(!/En tolerancia/.test(e.H.htmlResumen(D0,'NOCHE')),'a las 12:00 el resumen de Programación no muestra la tolerancia: solo cuando corresponde');
   const e2=entorno([],{ahora:T(D1,'07:10')});
-  await e2.H.aplicarConfiguracionAprobada(D0,'Instrucción de Gerencia');
+  await aplicarConfigAnterior(e2.H,D0,'Instrucción de Gerencia');
   ok(/Noche · En tolerancia para registro\/cierre \(hasta 07:30\)/.test(e2.H.htmlResumen(D0,'NOCHE').replace(/<[^>]+>/g,''))&&!/En tolerancia/.test(e2.H.htmlResumen(D0,'DÍA')),'a las 07:10 el resumen de la Noche muestra la tolerancia (y el bloque diurno no)');
 }
 /* ---------- 6) efecto en planes: validar, copiar, Completar cantidad, secuencia ---------- */
 {
   const {H,NS,M,S,N}=entorno([F('C20L',D0,'NOCHE','Cuisine','20 Litros',300,200),F('C20L',D1,'DÍA','Cuisine','20 Litros',400,200)]);
-  await H.aplicarConfiguracionAprobada(D1,'Instrucción de Gerencia');
+  await aplicarConfigAnterior(H,D1,'Instrucción de Gerencia');
   const v=NS.validar({linea:'C20L',fecha:D1,turno:'NOCHE',marca:'Cuisine',presentacion:'20 Litros',cantidad:100,upp:200});
   ok(v.errores.some(x=>/Noche está deshabilitado para CAJAS 20L/.test(x)),'no se programa producción nocturna nueva para C20L/B20L mientras Noche esté deshabilitado');
   const vh=NS.validar({linea:'C20L',fecha:D0,turno:'NOCHE',marca:'Cuisine',presentacion:'20 Litros',cantidad:100,upp:200});
@@ -152,7 +163,7 @@ const fila=(marca,tipoFin,extra)=>Object.assign({id:'t_'+marca,marca,presentacio
 /* ---------- 7) selector por línea y pestaña ---------- */
 {
   const {H,NS}=entorno([]);
-  await H.aplicarConfiguracionAprobada(D1,'Instrucción de Gerencia');
+  await aplicarConfigAnterior(H,D1,'Instrucción de Gerencia');
   const txt=H.htmlResumen(D1,'NOCHE').replace(/<[^>]+>/g,'');
   ok(/PET 1 22:00–07:00/.test(txt)||/22:00–07:00/.test(txt)&&/Deshabilitado: CAJAS 20L, B20L/.test(txt),'Noche muestra solo las líneas habilitadas (22:00–07:00) y avisa las deshabilitadas');
   const dia=H.htmlResumen(D1,'DÍA').replace(/<[^>]+>/g,'');

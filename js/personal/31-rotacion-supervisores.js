@@ -14,6 +14,14 @@ const ROT_SUP_HORARIOS_BASE={
   'NOCHE':{inicio:'22:00',fin:'07:00'}
 };
 
+/* Turnos de 12 h (cuando un supervisor descansa y otros dos cubren): siguen siendo DÍA y NOCHE (tareo e indicadores no cambian),
+   solo cambian las horas de la celda. La ventana de trabajo (17b) usa esas horas: 12 h Día abre 06:45 y cierra 19:00;
+   12 h Noche abre 18:45 y cierra 07:30 (tolerancia de Noche). */
+const ROT_SUP_ATAJOS={
+  'DÍA':[{etq:'12 h día (07:00–19:00)',inicio:'07:00',fin:'19:00'}],
+  'NOCHE':[{etq:'12 h noche (19:00–07:00)',inicio:'19:00',fin:'07:00'}]
+};
+
 let rotSupSemanaVista=null;
 let rotSupFiltroHistorial='';
 
@@ -493,7 +501,7 @@ function rotSupConfigCuadro(r,dias,supervisores,bloqueado){
       return {id:u.username,nombre:u.nombre||u.username,sub:u.linea||'Todas las líneas',
         celdas:dias.map(f=>{const a=d.dias?.[f]||{turno:'DESCANSO',inicio:'',fin:''};return {valor:a.turno||'DESCANSO',inicio:a.inicio||'',fin:a.fin||''};})};
     }),
-    catalogo:ROT_SUP_TURNOS.map(t=>({valor:t,etq:t,clase:ROT_SUP_CLASE_TURNO[t]||'otro',horas:['DÍA','INTERMEDIO','NOCHE'].includes(t),base:ROT_SUP_HORARIOS_BASE[t]||null})),
+    catalogo:ROT_SUP_TURNOS.map(t=>({valor:t,etq:t,clase:ROT_SUP_CLASE_TURNO[t]||'otro',horas:['DÍA','INTERMEDIO','NOCHE'].includes(t),base:ROT_SUP_HORARIOS_BASE[t]||null,atajos:ROT_SUP_ATAJOS[t]||[]})),
     bloqueado,mensajeBloqueo:'La rotación está CERRADA: reábrela para editar.',
     aplicar:'rotSupAplicarCeldaGrid',rerender:'renderRotacionSupervisores'
   };

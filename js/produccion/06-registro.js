@@ -2045,12 +2045,18 @@ function blankRecord(lineKey){
   // FECHA-OPERATIVA: el reporte nuevo nace con la fecha OPERATIVA y el turno en curso (hora de Lima). Antes usaba la fecha de calendario
   // y turno DÍA fijo: a la 01:31 el formulario nacía con 16/10 DÍA cuando el turno en curso era la NOCHE del 15/10 (día juliano y semana +1).
   // El turno DÍA / INTERMEDIO queda igual que siempre: nace como DÍA con la fecha de hoy.
+  // CORTE 19:00 (17b-ventana-supervisor.js): si la Noche de ESTA línea ya empezó según su horario de producción (p. ej. 19:00), el reporte
+  // nace como NOCHE; el supervisor que entra 15 min antes nace en SU turno (no en el del supervisor que sale). Sin 17b: la regla de siempre.
   const GF = window.GlacialFecha;
   const ahoraMsReg = GF ? GF.ahoraMs() : Date.now();
-  const turnoInicial = GF && GF.turnoActual(ahoraMsReg) === 'NOCHE' ? 'NOCHE' : 'DÍA';
+  let ctxNuevo = null;
+  try{ ctxNuevo = window.glacialVentanaSupervisor ? window.glacialVentanaSupervisor.contextoNuevoRegistro(lineKey) : null; }catch(e){ ctxNuevo = null; }
+  const turnoInicial = ctxNuevo ? ctxNuevo.turno : (GF && GF.turnoActual(ahoraMsReg) === 'NOCHE' ? 'NOCHE' : 'DÍA');
 
   const today =
-    GF
+    ctxNuevo
+      ? ctxNuevo.fecha
+      : GF
       ? GF.fechaOperativa(ahoraMsReg, turnoInicial)
       : (function(){
           const a = new Date();
