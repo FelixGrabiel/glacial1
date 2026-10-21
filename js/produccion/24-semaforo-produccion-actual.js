@@ -48,7 +48,8 @@
      «INTERVENIR» es el botón existente «Intervención terminada» (estado LISTA). */
   const ACCIONES_BITACORA={detener:'DETENER',pausa:'PAUSAR',lista:'INTERVENIR',reanudar:'REANUDAR',
     // Lote 4 · Parte A: acciones de Producción sobre la programación/línea (CORREGIR_FIN se registra en corregirFinalizacion).
-    iniciar:'INICIAR',finalizar:'FINALIZAR',cancelar:'CANCELAR',reabrir:'REABRIR',corregirInicio:'CORREGIR_INICIO'};
+    iniciar:'INICIAR',finalizar:'FINALIZAR',cancelar:'CANCELAR',reabrir:'REABRIR',corregirInicio:'CORREGIR_INICIO',
+    reactivar:'REABRIR'};   // reactivar una CANCELADA usa el evento REABRIR (la regla del servidor solo admite esas acciones) con tipoReabrir:'CANCELACION'
   const COLECCION_BITACORA='bitacoraMantenimiento';
 
   function datosQuienOpera(){
@@ -456,6 +457,8 @@
       nivel,texto,horas,ratio,esperado,real:desdeInicio,vivo,
       puede:quienControla(l)};
   }
+  // Reactivar una presentación CANCELADA (por error) es exclusivo del Administrador.
+  const esAdministradorPA=()=>!!state.user && (String(state.user.rol||'').trim()==='Administrador' || normalizarPermisosUsuario(state.user)==='todos');
   function puedeReabrirProduccion(){
     return !!state.user && tienePermiso('reabrirProduccion');
   }
@@ -1277,10 +1280,13 @@
                     const cancelar=x.puede==='supervisor' && !['CANCELADA','COMPLETADA'].includes(estado.key)
                       ? `<button type="button" class="pa-cancel-btn" title="Cancelar programación" aria-label="Cancelar programación"
                           data-pa-accion="cancelar" data-pa-indice="${idx}">✕</button>` : '';
+                    const reactivar=estado.key==='CANCELADA' && esAdministradorPA() && x.puede==='supervisor'
+                      ? `<button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px" title="Solo el Administrador puede reactivar una programación cancelada"
+                          data-pa-accion="reactivar" data-pa-indice="${idx}">↺ Reactivar</button>` : '';
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
                         ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
-                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div></div>
+                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div>${reactivar}</div>
                     </div>`;
                   }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
                 }</div>`;
@@ -2095,6 +2101,10 @@
       return;
     }
 
+    if(accion==='reactivar' && !esAdministradorPA()){
+      alert('Solo el Administrador puede reactivar una programación cancelada.');
+      return;
+    }
     // Reabrir es una acción administrativa independiente: puede hacerse
     // sobre una producción finalizada aunque el turno ya haya terminado.
     if(accion==='reabrir'){
@@ -2215,6 +2225,15 @@
         finParadaMs=r;                    // null = usar estándar / hora de cierre
       }
     }
+    let motivoReactivacion='';
+    if(accion==='reactivar'){
+      if(x.op?.estado!=='CANCELADA'){alert('Esta presentación no está cancelada.');return;}
+      motivoReactivacion=String(prompt('Reactivar «'+x.marca+'» ('+x.linea+'): vuelve a quedar disponible para producir.\n\nMotivo (obligatorio, mínimo 5 caracteres):')||'').trim().slice(0,160);
+      if(motivoReactivacion.length<5){
+        alert('El motivo es obligatorio (mínimo 5 caracteres). No se reactivó.');
+        return;
+      }
+    }
     if(accion==='cancelar'){
       motivoCancelacion=prompt(
         'Motivo de cancelación (opcional):'
@@ -2246,6 +2265,7 @@
         finalizar:['EN_PRODUCCION','DETENIDA','LISTA'].includes(e),
         cancelar:e!=='CANCELADA' && e!=='FINALIZADA',
         reabrir:e==='FINALIZADA',
+        reactivar:e==='CANCELADA',
         corregirInicio:['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(e)
       };
       // Varios técnicos a la vez: si otro ya hizo esta misma acción, se avisa y NO se duplica la parada.
@@ -2354,6 +2374,14 @@
         };
         op.pausaDesde=0;op.detenidaDesde=0;op.estado='EN_PRODUCCION';op.motivo='';op.motivoPausa='';op.equipo='';op.causa='';
         op.paradas=cerrarParadasAbiertas(op.paradas,ahora);
+      } else if(accion==='reactivar'){
+        /* Solo el Administrador. Sin hora de inicio previa vuelve a PENDIENTE; si ya había empezado, queda «Lista para reanudar» (conserva su inicio y lo producido).
+           El tiempo cancelado no cuenta como parada. La cancelación queda en op.cancelaciones con su motivo y el de la reactivación. */
+        op.cancelaciones=[...(Array.isArray(previo.cancelaciones)?previo.cancelaciones:[]),
+          {canceladaEn:num(previo.canceladaEn)||null,motivoCancelacion:previo.motivoCancelacion||'',reactivadaEn:ahora,reactivadaPor:nombreOperador(),motivoReactivacion}].slice(-20);
+        op.estado=num(previo.inicio)>0?'LISTA':'PENDIENTE';
+        op.finalizadaEn=0;op.canceladaEn=0;op.motivoCancelacion='';op.pausaDesde=0;op.detenidaDesde=0;
+        op.motivo='';op.equipo='';op.causa='';op.motivoPausa='';
       } else if(accion==='cancelar'){
         op.paradas=cerrarParadasAbiertas(op.paradas,ahora);
         if(e==='PAUSA' && num(op.pausaDesde)>0)
@@ -2542,6 +2570,7 @@
           datosEvento.programado=Math.round(progDe(x));
         }
         if(accion==='reabrir')datosEvento.finalizadaEnAnterior=num(previo.finalizadaEn);
+        if(accion==='reactivar'){datosEvento.tipoReabrir='CANCELACION';datosEvento.finalizadaEnAnterior=num(previo.canceladaEn);datosEvento.motivo=motivoReactivacion;}
         if(accion==='corregirInicio'){
           datosEvento.valorAnterior=inicioCorregido.anterior;       // hora de inicio anterior (ms)
           datosEvento.valorNuevo=inicioCorregido.ms;                // hora de inicio nueva (ms)

@@ -131,7 +131,7 @@
       case 'INICIAR': return 'Inicio '+horaCorta(e.inicioMs)+(e.inicioHoraManual?' (hora indicada '+e.inicioHoraManual+')':'');
       case 'FINALIZAR': return 'Cierre '+horaCorta(e.cierreMs)+' · producido '+fmtN(e.producido)+' de '+fmtN(e.programado);
       case 'CANCELAR': return e.motivo?'Motivo: '+e.motivo:'Sin motivo indicado';
-      case 'REABRIR': return 'Reabierta (cierre anterior a las '+horaCorta(e.finalizadaEnAnterior)+')';
+      case 'REABRIR': return e.tipoReabrir==='CANCELACION'?'Reactivada tras cancelación (cancelada a las '+horaCorta(e.finalizadaEnAnterior)+')'+(e.motivo?' · Motivo: '+e.motivo:''):'Reabierta (cierre anterior a las '+horaCorta(e.finalizadaEnAnterior)+')';
       case 'CORREGIR_INICIO': return 'Inicio '+horaCorta(e.valorAnterior)+' → '+horaCorta(e.valorNuevo)+corr;
       case 'CORREGIR_FIN':{
         const a=e.valorAnterior||{},n=e.valorNuevo||{};
