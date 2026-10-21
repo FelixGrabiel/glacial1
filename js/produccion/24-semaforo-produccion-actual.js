@@ -2104,8 +2104,8 @@
       const operacionAbierta=['EN_PRODUCCION','DETENIDA','LISTA','PAUSA'].includes(estadoActual);
       if(!quienControla(x.linea))return;
       // Una operación abierta conserva sus controles entre cambios de turno.
-      // Para iniciar una nueva presentación sí se exige el turno vigente.
-      if(!operacionAbierta && accion==='iniciar' && !turnoActivo(x.fecha,x.turno))return;
+      // Iniciar una presentación NUEVA fuera del bloque vigente ya no se ignora en silencio: el supervisor la inicia tras una confirmación explícita
+      // (más abajo; es lo que anuncia el aviso «Al iniciar se solicitará confirmación»). Caso típico: la línea arranca a las 19:00 y el bloque Noche empieza a las 21:00.
     }
 
     const controlador=quienControla(x.linea);
@@ -2138,10 +2138,12 @@
 
     let inicioElegido=null;
     if(accion==='iniciar'){
-      if(!x.vivo){
-        const vigente=turnoVigente();
-        const ok=confirm(
-          `La programación seleccionada es ${x.fecha} · ${x.turno}, pero el turno operativo vigente es ${vigente.fecha} · ${vigente.turno}.\n\n¿Deseas iniciar esta presentación de todas formas?`
+      if(!turnoActivo(x.fecha,x.turno)){
+        const vigente=turnoVigente(),bl=bloqueAhora();
+        const enFranja=!!(bl && bl.enFranja && bl.reanudaMs);
+        const ok=confirm(enFranja
+          ? `La planta figura «sin producción» hasta las ${hhmmBloque(bl.reanudaMs)} (inicio del bloque ${GlacialIndicadores.nombreBloque(x.turno,'pantalla','titulo')}), pero vas a iniciar ${x.marca} de ${x.linea} (${x.fecha} · ${x.turno}) ahora.\n\nLa hora de inicio que indiques quedará registrada como inicio real.\n\n¿Iniciar esta presentación?`
+          : `La programación seleccionada es ${x.fecha} · ${x.turno}, pero el turno operativo vigente es ${vigente.fecha} · ${vigente.turno}.\n\n¿Deseas iniciar esta presentación de todas formas?`
         );
         if(!ok)return;
       }
