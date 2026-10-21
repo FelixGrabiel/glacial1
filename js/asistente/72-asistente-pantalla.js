@@ -114,6 +114,11 @@
   const presUI=c=>{try{return typeof nombrePresentacionUI==='function'?(nombrePresentacionUI(c.linea,c.marca,c.presentacion)||c.presentacion):c.presentacion;}catch(_){return c.presentacion;}};
   const nombreLinea=l=>N.lineaInfo(l).nombre;
   const nombreCuadro=c=>`${nombreLinea(c.linea)} · ${c.codigo} · ${c.marca} ${presUI(c)}`;
+  const EN=()=>window.glacialAlmacenEnlaceDatos||null;
+  /* Stock de Almacén (Inventario de insumos) de un insumo → {estado, disponible, base, entregado, …} o null si el enlace no está cargado. */
+  const stockAlm=c=>{const e=EN();return e?e.stockDe(c):null;};
+  const txtStockAlm=(c,u)=>{const st=stockAlm(c);if(!st)return '—';if(st.estado!=='OK')return `<span title="${esc((window.glacialAlmacenEnlace&&window.glacialAlmacenEnlace.TXT_ESTADO[st.estado])||'')}">—</span>`;
+    return `${fmt(st.disponible)} ${esc(u||'')}`;};
   const insumoDe=c=>D.cache.insumos.find(i=>i.codigo===c)||{codigo:c,nombre:c==='PRODUCTO'?'Producto terminado':c,unidad:''};
   const opcionesInsumos=(sel,filtro)=>D.cache.insumos.filter(i=>i.activo!==false&&(!filtro||filtro(i))).sort((a,b)=>a.nombre.localeCompare(b.nombre))
     .map(i=>`<option value="${esc(i.codigo)}" ${i.codigo===sel?'selected':''}>${esc(i.nombre)}</option>`).join('');
@@ -269,7 +274,7 @@
       const falt=obs?0:N.red(Math.max(pend-disp,0),4);
       const u=esc(i.unidad);
       return `<tr><td data-label="Insumo"><b>${esc(i.nombre)}</b></td><td data-label="${obs?'Observado':'Utilizable'}" class="ap-num">${fmt(util)} ${u}</td><td data-label="Reservado otras órdenes" class="ap-num">${fmt(reservOtras)} ${u}</td>
-        <td data-label="Disponible" class="ap-num">${obs?pill('No disponible','rojo'):fmt(disp)+' '+u}</td><td data-label="Requerido" class="ap-num">${fmt(reqT)} ${u}</td><td data-label="Faltante" class="ap-num ${falt>0?'ap-rojo':''}">${fmt(falt)} ${u}</td></tr>`;}).join('');
+        <td data-label="Disponible" class="ap-num">${obs?pill('No disponible','rojo'):fmt(disp)+' '+u}</td><td data-label="En Almacén" class="ap-num">${txtStockAlm(i.codigo,i.unidad)}</td><td data-label="Requerido" class="ap-num">${fmt(reqT)} ${u}</td><td data-label="Faltante" class="ap-num ${falt>0?'ap-rojo':''}">${fmt(falt)} ${u}</td></tr>`;}).join('');
     const ed=puede('asistenteProduccion');
     const tipos=[['DEVOLUCION','Devolución a Almacén'],['TRANSFERENCIA_ENTRADA','Transferencia recibida'],['TRANSFERENCIA_SALIDA','Transferencia enviada']];
     const sel=D.cache.insumos.filter(i=>i.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre))[0];
@@ -289,7 +294,7 @@
     const traz=tarjeta('Último conteo',`<ul class="ap-traz">
         <li>${ico('usuario')}<div><b>Verificado por</b><small>${ult?`${esc(ult.usuario||'—')} · ${esc(fechaHora(ult.en))} · ${esc(insumoDe(ult.insumo).nombre)}${posteriores?` · ${posteriores} movimiento(s) posteriores`:''}`:'Sin conteos registrados'}</small></div></li></ul>
       <button type="button" class="ap-link" onclick="apIr('historial')">Ver movimientos ${ico('flecha')}</button>`);
-    return `${filtros}<div class="ap-card ap-card-in"><h3>Saldo verificado y disponibilidad</h3>${filas?tabla(['Insumo',obs?'#Observado':'#Utilizable','#Reservado otras órdenes','#Disponible','#Requerido','#Faltante'],filas,'ap-t-plano'):vacio('Sin insumos en el catálogo (Factores).')}</div>
+    return `${filtros}<div class="ap-card ap-card-in"><h3>Saldo verificado y disponibilidad</h3>${filas?tabla(['Insumo',obs?'#Observado':'#Utilizable','#Reservado otras órdenes','#Disponible','#En Almacén','#Requerido','#Faltante'],filas,'ap-t-plano'):vacio('Sin insumos en el catálogo (Factores).')}</div>
       ${pie('Material observado o dañado excluido del disponible.','aviso')}
       <div class="ap-2 ap-2-par">${form}${traz}</div>`;
   }
@@ -339,14 +344,22 @@
     const filas=lista.map(s=>`<tr class="ap-clic" onclick="apVerSolicitud('${esc(s.id)}')"><td data-label="Solicitud"><b>${esc(s.id)}</b></td><td data-label="Fecha">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Día'}</td>
       <td data-label="Ítems">${(s.items||[]).map(i=>`${esc(insumoDe(i.insumo).nombre)} ${fmt(i.solicitado)} ${esc(i.unidad)}`).join(' · ')}</td><td data-label="Estado">${pillSolicitud(s.estado)}</td></tr>`).join('');
     const nueva=asist?`<h3 class="ap-h3">Preparar solicitud a Almacén</h3><p class="ap-sub">${faltantes.length?'Se proponen los faltantes del bloque; ajusta las cantidades si hace falta.':'No hay faltantes calculados; agrega los insumos que necesites.'}</p>
-      ${tabla(['Insumo','#Faltante','Cantidad a solicitar'],D.cache.insumos.filter(i=>i.activo!==false).map(i=>{const f=faltantes.find(x=>x.insumo.codigo===i.codigo);return `<tr><td data-label="Insumo">${esc(i.nombre)} (${esc(i.unidad)})</td><td data-label="Faltante" class="ap-num">${f?fmt(f.faltante):'—'}</td>
-        <td data-label="Cantidad"><input class="ap-sol-cant" data-insumo="${esc(i.codigo)}" data-unidad="${esc(i.unidad)}" type="number" min="0" step="any" value="${f?Math.ceil(f.faltante*100)/100:''}"></td></tr>`;}).join(''))}
+      ${tabla(['Insumo','#Faltante','#En Almacén','Cantidad a solicitar'],D.cache.insumos.filter(i=>i.activo!==false).map(i=>{const f=faltantes.find(x=>x.insumo.codigo===i.codigo);return `<tr><td data-label="Insumo">${esc(i.nombre)} (${esc(i.unidad)})</td><td data-label="Faltante" class="ap-num">${f?fmt(f.faltante):'—'}</td><td data-label="En Almacén" class="ap-num">${txtStockAlm(i.codigo,i.unidad)}</td>
+        <td data-label="Cantidad"><input class="ap-sol-cant" data-insumo="${esc(i.codigo)}" data-unidad="${esc(i.unidad)}" onchange="apAvisoStock()" type="number" min="0" step="any" value="${f?Math.ceil(f.faltante*100)/100:''}"></td></tr>`;}).join(''))}
+      <div id="ap-sol-aviso"></div>
       ${campo('Observaciones','<input id="ap-sol-obs" maxlength="200">','ap-ancho')}
       <div class="ap-acc"><button type="button" class="ap-btn ap-btn-o" onclick="apCrearSolicitud(false)">Guardar borrador</button><button type="button" class="ap-btn" onclick="apCrearSolicitud(true)">Enviar a Almacén</button></div>`:'';
     return `${nueva}<h3 class="ap-h3">Solicitudes${alm?' · vista de Almacén':''}</h3>${filas?tabla(['Solicitud','Fecha','Ítems','Estado'],filas,'ap-t-click'):vacio('Sin solicitudes en los últimos 60 días.')}
       ${pie('Solicitudes, reservas y entregas son operaciones distintas. Solo una recepción confirmada por Producción incrementa las existencias en Producción.')}`;
   }
   const pillSolicitud=e=>{const t=SOL_TXT[e]||e;return ['CERRADA','RECIBIDA'].includes(e)?pill(t,'verde','check'):e==='CANCELADA'?pill(t,'gris'):e==='OBSERVADA'?pill(t,'rojo','alerta'):pill(t,'gris','reloj_arena');};
+  /* Avisa (sin impedir pedir) cuando lo solicitado supera el stock que Almacén tiene según el Inventario. */
+  window.apAvisoStock=()=>{
+    const el=document.getElementById('ap-sol-aviso');if(!el)return;
+    const falt=[...document.querySelectorAll('.ap-sol-cant')].map(i=>({i,q:num(i.value),st:stockAlm(i.dataset.insumo)})).filter(x=>x.q>0&&x.st&&x.st.estado==='OK'&&x.q>Math.max(x.st.disponible,0))
+      .map(x=>`${esc(insumoDe(x.i.dataset.insumo).nombre)}: pides ${fmt(x.q)} y Almacén tiene ${fmt(Math.max(x.st.disponible,0))}`);
+    el.innerHTML=falt.length?pie('Almacén no alcanza para: '+falt.join(' · ')+'. Puedes enviar igual; Almacén entregará lo que tenga.','aviso'):'';
+  };
   window.apCrearSolicitud=enviar=>{
     const items=[...document.querySelectorAll('.ap-sol-cant')].map(i=>({insumo:i.dataset.insumo,unidad:i.dataset.unidad,solicitado:i.value})).filter(i=>num(i.solicitado)>0);
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:valor('ap-sol-obs'),enviar}),id=>'Solicitud '+id+(enviar?' enviada a Almacén.':' guardada como borrador.'));
@@ -354,8 +367,12 @@
   window.apVerSolicitud=function(id){
     const s=D.cache.solicitudes.find(x=>x.id===id);if(!s)return;const ctx=contexto();AP.solSel=id;
     const asist=puede('asistenteProduccion'),alm=puede('moduloAlmacen');
-    const it=(s.items||[]).map(i=>`<tr><td data-label="Insumo">${esc(insumoDe(i.insumo).nombre)}</td><td data-label="Solicitado" class="ap-num">${fmt(i.solicitado)}</td><td data-label="Entregado" class="ap-num">${fmt(i.entregado)}</td><td data-label="Recibido" class="ap-num">${fmt(i.recibido)}</td>
-      <td data-label="">${alm&&['EN_PREPARACION','ENTREGADA_PARCIAL'].includes(s.estado)?`<input class="ap-ent" data-insumo="${esc(i.insumo)}" type="number" min="0" step="any" placeholder="Entregar">`:''}
+    const columnaStock=alm&&['EN_PREPARACION','ENTREGADA_PARCIAL','SOLICITADA'].includes(s.estado);
+    /* Lo pendiente de entregar, sin pasar de lo que Almacén tiene (si el Inventario no lo informa, lo pendiente completo). */
+    const sugeridoEntrega=i=>{const pend=N.red(Math.max(num(i.solicitado)-num(i.entregado),0),4);const st=stockAlm(i.insumo);
+      return st&&st.estado==='OK'?N.red(Math.min(pend,Math.max(st.disponible,0)),4)||'':pend||'';};
+    const it=(s.items||[]).map(i=>`<tr><td data-label="Insumo">${esc(insumoDe(i.insumo).nombre)}</td><td data-label="Solicitado" class="ap-num">${fmt(i.solicitado)}</td><td data-label="Entregado" class="ap-num">${fmt(i.entregado)}</td><td data-label="Recibido" class="ap-num">${fmt(i.recibido)}</td>${columnaStock?`<td data-label="Stock Almacén" class="ap-num">${txtStockAlm(i.insumo,i.unidad)}</td>`:''}
+      <td data-label="">${alm&&['EN_PREPARACION','ENTREGADA_PARCIAL'].includes(s.estado)?`<input class="ap-ent" data-insumo="${esc(i.insumo)}" type="number" min="0" step="any" placeholder="Entregar" value="${sugeridoEntrega(i)}">`:''}
       ${asist&&['ENTREGADA','ENTREGADA_PARCIAL','OBSERVADA'].includes(s.estado)&&num(i.entregado)>num(i.recibido)?`<input class="ap-rec" data-insumo="${esc(i.insumo)}" type="number" min="0" step="any" placeholder="Recibido" value="${N.red(num(i.entregado)-num(i.recibido),4)}">`:''}</td></tr>`).join('');
     const b=(estado,txt,cls)=>N.puedeTransicion(s.estado,estado)&&((N.ACTOR_ESTADO[estado]==='almacen'&&alm)||(N.ACTOR_ESTADO[estado]==='asistente'&&asist))
       ?`<button type="button" class="ap-btn ${cls||''}" onclick="apEstadoSolicitud('${esc(s.id)}','${estado}',${num(s.version)})">${txt}</button>`:'';
@@ -365,7 +382,8 @@
     const entregar=alm&&['EN_PREPARACION','ENTREGADA_PARCIAL'].includes(s.estado)?`<button type="button" class="ap-btn" onclick="apEstadoSolicitud('${esc(s.id)}','ENTREGADA',${num(s.version)})">Registrar entrega</button>`:'';
     const hist=(s.historial||[]).map(h=>`<li>${fechaHora(h.en)} · <b>${esc(SOL_TXT[h.estado]||h.estado)}</b> · ${esc(h.por)}${h.nota?' — '+esc(h.nota):''}</li>`).join('');
     modal('Solicitud '+esc(s.id),`<p class="ap-sub">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Mañana + Intermedio'} · ${pillSolicitud(s.estado)}${s.observaciones?' · '+esc(s.observaciones):''}</p>
-      ${tabla(['Insumo','#Solicitado','#Entregado','#Recibido',''],it)}
+      ${tabla(['Insumo','#Solicitado','#Entregado','#Recibido',...(columnaStock?['#Stock Almacén']:[]),''],it)}
+      ${alm&&['EN_PREPARACION','ENTREGADA_PARCIAL'].includes(s.estado)&&EN()?`<div class="ap-form ap-form-2">${campo('Entregar sin stock suficiente (solo si Almacén lo autoriza)','<input id="ap-sin-stock" maxlength="160" placeholder="Motivo; déjalo vacío si hay stock">','ap-ancho')}</div>`:''}
       ${campo('Nota (opcional)','<input id="ap-sol-nota" maxlength="200">','ap-ancho')}
       <div class="ap-acc ap-acc-wrap">${b('SOLICITADA','Enviar a Almacén')}${b('EN_PREPARACION','Iniciar preparación')}${entregar}${recibir}${b('OBSERVADA','Observar','ap-btn-o')}${b('CERRADA','Cerrar','ap-btn-o')}${b('CANCELADA','Cancelar','ap-btn-o')}</div>
       <h4>Historial</h4><ul class="ap-hist">${hist}</ul>`);
@@ -375,7 +393,8 @@
     document.querySelectorAll('.ap-ent').forEach(i=>{if(num(i.value)>0)ent[i.dataset.insumo]=num(i.value);});
     document.querySelectorAll('.ap-rec').forEach(i=>{if(num(i.value)>0)rec[i.dataset.insumo]=num(i.value);});
     const ctx=contexto();const clave=valor('ap-rec-cuadro');const c=ctx.cuadros.find(x=>x.clave===clave);
-    const datos={entregas:ent,recepciones:rec,cuadro:clave,linea:c?c.linea:'',lote:valor('ap-rec-lote'),nota:valor('ap-sol-nota')};
+    const motivoSS=valor('ap-sin-stock').trim();
+    const datos={entregas:ent,autorizarSinStock:!!motivoSS,motivoSinStock:motivoSS,recepciones:rec,cuadro:clave,linea:c?c.linea:'',lote:valor('ap-rec-lote'),nota:valor('ap-sol-nota')};
     if(typeof closeModal==='function')closeModal();
     ejecutar(()=>D.cambiarEstadoSolicitud(id,estado,version,datos),'Solicitud actualizada.');
   };
@@ -579,10 +598,13 @@
     const i=D.cache.insumos.find(x=>x.codigo===codigo)||{codigo:'',nombre:'',unidad:'UND',tipo:'otro',activo:true,version:0};
     modal(codigo?'Editar insumo':'Nuevo insumo',`<div class="ap-form ap-form-2">${campo('Código',`<input id="ap-i-cod" value="${esc(i.codigo)}" ${codigo?'readonly':''} maxlength="40">`)}${campo('Nombre',`<input id="ap-i-nom" value="${esc(i.nombre)}" maxlength="80">`)}
       ${campo('Unidad',`<select id="ap-i-und">${N.UNIDADES.map(u=>`<option ${u===i.unidad?'selected':''}>${u}</option>`).join('')}</select>`)}${campo('Tipo',`<select id="ap-i-tipo">${N.TIPOS_INSUMO.map(u=>`<option ${u===i.tipo?'selected':''}>${u}</option>`).join('')}</select>`)}
-      ${campo('Estado',`<select id="ap-i-act"><option value="1">Activo</option><option value="0" ${i.activo===false?'selected':''}>Inactivo</option></select>`)}</div>
+      ${campo('Estado',`<select id="ap-i-act"><option value="1">Activo</option><option value="0" ${i.activo===false?'selected':''}>Inactivo</option></select>`)}
+      ${campo('Código SAP (enlace con el Inventario de insumos)',`<input id="ap-i-sap" list="ap-i-sap-lista" value="${esc(i.itemCode||'')}" maxlength="40" placeholder="Opcional · ej. código del artículo en SAP">
+        <datalist id="ap-i-sap-lista">${(EN()?(i.itemCode?EN().articulos():EN().sugerir(i.nombre).concat(EN().articulos().slice(0,40))):[]).map(a=>`<option value="${esc(a.itemCode)}">${esc(a.nombre)}</option>`).join('')}</datalist>`,'ap-ancho')}</div>
+      <p class="ap-sub">${EN()&&EN().articulos().length?'Con el código SAP, cada entrega de Almacén descuenta su stock en el Inventario.':'Importa un corte de stock en el Inventario de insumos para poder elegir el artículo.'}</p>
       <div class="ap-acc"><button type="button" class="ap-btn" onclick="apGuardarInsumo(${num(i.version)})">Guardar</button></div>`);
   };
-  window.apGuardarInsumo=version=>{const d={codigo:valor('ap-i-cod').trim().toUpperCase(),nombre:valor('ap-i-nom'),unidad:valor('ap-i-und'),tipo:valor('ap-i-tipo'),activo:valor('ap-i-act')==='1'};
+  window.apGuardarInsumo=version=>{const d={codigo:valor('ap-i-cod').trim().toUpperCase(),nombre:valor('ap-i-nom'),unidad:valor('ap-i-und'),tipo:valor('ap-i-tipo'),itemCode:valor('ap-i-sap').trim().toUpperCase(),activo:valor('ap-i-act')==='1'};
     if(typeof closeModal==='function')closeModal();ejecutar(()=>D.guardarInsumo(d,version),'Insumo guardado.');};
   /* Marca y presentación del factor: «* Todas» o una de las listas del Nuevo registro (01-config.js) para la línea elegida, sin texto libre. */
   const listaDeLinea=(tabla,linea)=>{let t=null;try{t=(0,eval)(tabla);}catch(_){}      // constantes globales de 01-config.js
@@ -655,7 +677,11 @@
     window.scrollTo(0,scroll);
   }
   window.apCtx=(k,v)=>{if(k==='fecha'&&!/^\d{4}-\d{2}-\d{2}$/.test(v))return;AP[k]=v;AP.cuadro='';AP.insumo='';AP.solSel='';pintar();};
-  D.alCambiar(()=>{if(typeof state!=='undefined'&&state.currentTab==='asistente'&&!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus,#modal-root .modal'))pintar();});
+  const repintar=()=>{if(typeof state!=='undefined'&&state.currentTab==='asistente'&&!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus,#modal-root .modal'))pintar();};
+  D.alCambiar(repintar);
+  // 81-almacen-enlace-datos.js se carga después de este archivo: la suscripción se hace en cuanto existe.
+  const enganchar=()=>{if(window.glacialAlmacenEnlaceDatos)window.glacialAlmacenEnlaceDatos.alCambiar(repintar);else setTimeout(enganchar,500);};
+  enganchar();
   ['onPaletasUpdated','onProgramacionesUpdated'].forEach(n=>{const a=globalThis[n];if(typeof a!=='function')return;globalThis[n]=function(){const r=a.apply(this,arguments);if(state.currentTab==='asistente'&&!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus'))pintar();return r;};});
 
   /* ---------- navegación (patrón de 43-bitacora-mantenimiento.js) ---------- */
