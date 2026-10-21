@@ -10,8 +10,8 @@ Almacén entrega     ──► Insumos y Suministros −N      (libro apAlmacenM
 Producción recibe   ──► Producción +N                 (libro apMovimientos, tipo RECEPCION: ya existía)
 ```
 
-**Stock de Almacén = columna «AP - INSUMOS Y SUMINISTROS» del último corte − entregas con fecha posterior a la fecha del corte** (ignora las anuladas).
-Un corte nuevo de SAP pasa a ser la base y las entregas anteriores a su fecha dejan de restar (SAP ya las trae). Las entregas del mismo día del corte se consideran incluidas en el corte.
+**Stock de Almacén = columna «AP - INSUMOS Y SUMINISTROS» del último corte − entregas + devoluciones utilizables, con fecha igual o posterior a la fecha del corte** (ignora las anuladas).
+El corte lo escribe contabilidad a mano y el programa todavía NO registra nada en SAP: por eso lo hecho el mismo día del corte SÍ cuenta. Un corte nuevo pasa a ser la base y lo anterior a su fecha deja de contar.
 
 ## Unión de los dos maestros
 `apInsumos.itemCode` = código SAP del artículo del catálogo del Inventario (`insumosCatalogo`). Se elige al crear/editar el insumo (Insumos → Factores → editar insumo; la lista sugiere por nombre). **Sin código SAP no hay descuento** para ese insumo.
@@ -22,7 +22,7 @@ Un corte nuevo de SAP pasa a ser la base y las entregas anteriores a su fecha de
 - El libro `apAlmacenMov` es inmutable (solo se crea). Una corrección se hace con un movimiento `ANULACION` (`anulaA`).
 - Al solicitar, el Asistente ve «En Almacén» por insumo y un aviso si pide más de lo que hay (no se bloquea el pedido).
 - En «Existencias» se agrega la columna «En Almacén». La pantalla de la solicitud (Almacén) muestra el stock y propone entregar lo pendiente sin pasar del stock.
-- **No incluido (a propósito):** las devoluciones de Producción a Almacén no suman al stock de Almacén hasta que SAP las refleje en un corte; el material «en tránsito» no se descuenta dos veces.
+- **Devoluciones:** una devolución UTILIZABLE registrada por Producción (Existencias › «Otro movimiento») sube el stock de Almacén en el mismo instante; lo observado o dañado no vuelve al stock. Anular la devolución la quita.
 
 ## Datos y permisos
 | Pieza | Detalle |
@@ -49,3 +49,10 @@ En la previsualización se corrige en el **dato original** (con historial, motiv
 - ✎ Saldos inicial y final del consumo (conciliación). Una conciliación **confirmada** solo la reabre quien valida (botón «Reabrir»).
 - ✎ Mermas **pendientes** de validar (material, cantidad, cuadro, causa, etapa, lote, observaciones): `editarMerma` (71) + regla `glacial_28`. Una merma validada no se edita.
 Programación, Paletas, Cierre, paradas y Tareo se ven pero se corrigen en su módulo. Migración: `glacial_28_asistente_corrige_mermas.sql` (PRUEBAS y PRODUCCIÓN: aplicada el 2026-10-21). Pruebas: `node tests/asistente-reportes-edicion.test.js`.
+
+## Tiempo real (todo el programa)
+Todo lo que guarda otra persona llega solo, sin recargar, a todos los usuarios con acceso:
+- **Avisos emergentes:** «Luis entregó parcialmente la solicitud…», «Rosa devolvió a Almacén 500 UND de…», solicitud nueva (a Almacén), recepción u observación (a Almacén), Almacén empezó a preparar (a Producción). Lo que hace uno mismo no se avisa.
+- **Sin quitarte lo que escribes:** si estás escribiendo o tienes una ventana abierta, la pantalla no se actualiza encima: sale «Hay información nueva · Actualizar ahora» y se actualiza sola al terminar. Si la solicitud abierta cambia, la ventana avisa «Esta solicitud cambió · Ver lo nuevo».
+- **Panel «Entregas y devoluciones de hoy»** (Insumos › Solicitudes) y columna **«Almacén hoy»** en el Inventario (stock del corte − entregas + devoluciones, con el detalle −/+), ambos en vivo.
+- Escuchas: `apSolicitudes`, `apMovimientos`, `apAlmacenMov`, catálogo y cortes (onSnapshot). Prueba: `node tests/asistente-tiempo-real.e2e.js` (Chromium + Playwright).
