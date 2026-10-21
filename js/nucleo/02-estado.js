@@ -98,6 +98,23 @@ let _programacionesReady = false;
    "desaparezca" silenciosamente más tarde.
 */
 
+/* PROTECCIÓN DE LISTAS COMPLETAS (incidente del 21/10/2026, 102 reportes de líneas dados de baja):
+   saveRecords / saveTareos / savePaletas / … envían la lista ENTERA. Si el equipo todavía no terminó de cargar esa lista (carga lenta o fallida),
+   guardar «uno solo» le diría al servidor que los demás ya no existen. Por eso, mientras la lista no esté cargada, NO se guarda nada
+   (ni se toca la copia local) y se avisa. Además el servidor rechaza bajas masivas de reportes (glacial_30). */
+function _puedeGuardarLista(nombreDato, listo){
+  if(listo) return true;
+  console.error('Guardado de "' + nombreDato + '" bloqueado: la lista aún no terminó de cargar en este equipo.');
+  alert(
+    'Todavía se están cargando los datos de "' + nombreDato + '".\n\n' +
+    'No se guardó nada para no borrar lo que otras personas ya registraron.\n' +
+    'Espera unos segundos y vuelve a intentarlo. Si el aviso se repite, recarga la página (Ctrl + F5) y revisa tu conexión.'
+  );
+  return false;
+}
+window._puedeGuardarLista = _puedeGuardarLista;
+
+
 function _avisarErrorGuardado(nombreDato, error){
 
   console.error(
@@ -1459,12 +1476,19 @@ function loadRecords(){
 
 
 function saveRecords(r){
+  if(!_puedeGuardarLista('reportes', _recordsReady)) return Promise.resolve(false);
+
+  const previo = _recordsCache;
   _recordsCache = r;
 
   return db.collection('sync').doc('records').set({
     items: r,
     updatedAt: Date.now()
-  }).catch(err => _avisarErrorGuardado('reportes', err));
+  }).catch(err => {
+    // El servidor no lo aceptó (p. ej. quitaba demasiados reportes de golpe): la copia local vuelve a lo que había y se recarga lo del servidor.
+    if(_recordsCache === r) _recordsCache = previo;
+    _avisarErrorGuardado('reportes', err);
+  });
 }
 
 
@@ -1480,6 +1504,8 @@ function loadWorkers(){
 
 
 function saveWorkers(w){
+
+  if(!_puedeGuardarLista('trabajadores', _workersReady)) return;
 
   _workersCache = w;
 
@@ -1504,6 +1530,8 @@ function loadRotaciones(){
 
 function saveRotaciones(r){
 
+  if(!_puedeGuardarLista('rotación semanal', _rotacionesReady)) return;
+
   _rotacionesCache = r;
 
   db.collection('sync').doc('rotaciones').set({
@@ -1526,6 +1554,8 @@ function loadRotacionesMantenimiento(){
 
 
 function saveRotacionesMantenimiento(r){
+
+  if(!_puedeGuardarLista('rotación semanal de mantenimiento', _rotacionesMantenimientoReady)) return;
 
   _rotacionesMantenimientoCache = Array.isArray(r) ? r : [];
 
@@ -1573,6 +1603,8 @@ function loadTareos(){
 
 function saveTareos(t){
 
+  if(!_puedeGuardarLista('tareo', _tareosReady)) return;
+
   _tareosCache = t;
 
   db.collection('sync').doc('tareos').set({
@@ -1596,6 +1628,8 @@ function loadPaletas(){
 
 function savePaletas(p){
 
+  if(!_puedeGuardarLista('paletas', _paletasReady)) return Promise.resolve(false);
+
   _paletasCache = p;
 
   return db.collection('sync').doc('paletas').set({
@@ -1618,6 +1652,8 @@ function loadProgramaciones(){
 
 
 function saveProgramaciones(p){
+
+  if(!_puedeGuardarLista('programación de paletas', _programacionesReady)) return Promise.resolve(false);
 
   _programacionesCache = p;
 
