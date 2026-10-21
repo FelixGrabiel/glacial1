@@ -60,17 +60,22 @@
     const mostrar=filas.slice(0,II.limite);
     const c=corteElegido();
     const fc=c?fechaDmy(c.fechaCorte):'';
-    const cab=`<thead><tr class="ii-g"><th colspan="4">ARTÍCULO</th><th colspan="3" class="ii-g-res">RESULTADO SEGÚN SAP</th><th colspan="${alm.length}" class="ii-g-sap">STOCK SAP POR ALMACÉN${fc?' · corte del '+esc(fc):''}</th></tr>
-      <tr><th>Código</th><th>Artículo</th><th>Categoría</th><th>Marca</th><th class="ii-num ii-b-res">Total SAP</th><th class="ii-num">Mínimo</th><th>Semáforo</th>
+    const EN=window.glacialAlmacenEnlaceDatos,aj=EN?EN.ajustes():{};
+    const esUltimo=!!(c&&D.cache.cortes[0]&&D.cache.cortes[0].id===c.id);
+    const hoy=x=>{if(!x.enCorte)return '—';const a=esUltimo&&x.itemCode?aj[String(x.itemCode).trim().toUpperCase()]:null;
+      if(!a)return fmt(x.w[0]);
+      return `<b>${fmt(x.w[0]+a.neto)}</b><small class="ii-delta" title="Entregado a Producción / devuelto por Producción desde el corte">${a.entregado?'−'+fmt(a.entregado):''}${a.devuelto?' +'+fmt(a.devuelto):''}</small>`;};
+    const cab=`<thead><tr class="ii-g"><th colspan="4">ARTÍCULO</th><th colspan="3" class="ii-g-res">RESULTADO SEGÚN SAP</th><th class="ii-g-hoy">TIEMPO REAL</th><th colspan="${alm.length}" class="ii-g-sap">STOCK SAP POR ALMACÉN${fc?' · corte del '+esc(fc):''}</th></tr>
+      <tr><th>Código</th><th>Artículo</th><th>Categoría</th><th>Marca</th><th class="ii-num ii-b-res">Total SAP</th><th class="ii-num">Mínimo</th><th>Semáforo</th><th class="ii-num ii-b-hoy" title="Insumos y Suministros del corte, menos lo entregado a Producción y más lo devuelto desde la fecha del corte. Se actualiza solo.">Almacén hoy</th>
       ${alm.map((a,k)=>`<th class="ii-num ${k===0?'ii-b-sap':''} ${a.clave===II.f.almacen?'ii-col-act':''}" title="${esc(a.nombre)}">${esc(a.corto)}</th>`).join('')}</tr></thead>`;
     const cuerpo=mostrar.map(x=>`<tr class="${x.enCorte?'':'ii-sin-corte'} ${x.sinUso?'ii-sin-uso':''}"><td class="ii-cod">${celdaCodigo(x)}</td><td class="ii-nom">${esc(x.nombre)}${x.activo===false?' <em>(inactivo)</em>':''}</td>
       <td>${esc(x.categoria)}${x.subtipo?` <small>${esc(x.subtipo)}</small>`:''}</td><td>${esc(x.marca||'—')}</td>
       <td class="ii-num ii-b-res"><b>${x.enCorte?fmt(x.total):'—'}</b></td><td class="ii-num">${num(x.stockMinimo)>0?fmt(x.stockMinimo):'—'}</td>
-      <td>${x.enCorte?semaforoHtml(x.semaforo):'<span class="ii-pill ii-p-gris"><i></i>Sin corte</span>'}${x.sinUso?' <span class="ii-pill ii-p-sinuso" title="Marcado como sin uso: sigue en el inventario pero va al final de la lista">Sin uso</span>':''}</td>
+      <td>${x.enCorte?semaforoHtml(x.semaforo):'<span class="ii-pill ii-p-gris"><i></i>Sin corte</span>'}${x.sinUso?' <span class="ii-pill ii-p-sinuso" title="Marcado como sin uso: sigue en el inventario pero va al final de la lista">Sin uso</span>':''}</td><td class="ii-num ii-b-hoy">${hoy(x)}</td>
       ${x.w.map((v,k)=>`<td class="ii-num ${k===0?'ii-b-sap':''} ${alm[k].clave===II.f.almacen?'ii-col-act':''}">${x.enCorte?fmt(v):'—'}</td>`).join('')}</tr>`).join('');
     const mas=filas.length>mostrar.length?`<div class="ii-mas"><button type="button" class="ii-btn ii-btn-o" onclick="iiMasFilas()">Mostrar ${Math.min(PASO_FILAS,filas.length-mostrar.length)} más (${fmt(filas.length-mostrar.length,0)} restantes)</button></div>`:'';
     const nSin=filas.filter(x=>x.sinUso).length;
-    return `<div class="ii-tw"><table class="ii-t">${cab}<tbody>${cuerpo||`<tr><td colspan="${alm.length+7}" class="ii-vacio">Ningún artículo coincide con los filtros.</td></tr>`}</tbody></table></div>${mas}
+    return `<div class="ii-tw"><table class="ii-t">${cab}<tbody>${cuerpo||`<tr><td colspan="${alm.length+8}" class="ii-vacio">Ningún artículo coincide con los filtros.</td></tr>`}</tbody></table></div>${mas}
       <p class="ii-pie">${fmt(filas.length,0)} artículo(s)${nSin?` · ${fmt(nSin,0)} sin uso${II.f.sinUsoAlFinal?' (al final de la lista)':''}`:''}. El semáforo usa ${II.f.almacen?esc(N.almacenInfo(II.f.almacen).nombre):'el total de los 6 almacenes AP'}.</p>`;
   }
   const num=N.num;
@@ -147,10 +152,22 @@
     D.asignarCodigosFaltantes().then(r=>{if(r.asignados){II.msg={tipo:'ok',texto:`Se asignaron ${fmt(r.asignados,0)} códigos internos (INS-0001…).`};}})
       .catch(e=>{falloCodigos=true;II.msg={tipo:'error',texto:D.mensajeError(e)};}).finally(()=>{asignandoCodigos=false;});
   }
+  /* «Almacén hoy» (80/81-almacen-enlace): el stock del corte con las entregas y devoluciones hechas en el programa, en tiempo real. */
+  let enlaceEnganchado=false;
+  function enlazarAlmacen(){
+    const EN=window.glacialAlmacenEnlaceDatos;if(!EN)return;
+    EN.escuchar();
+    if(enlaceEnganchado)return;enlaceEnganchado=true;
+    EN.alCambiar(()=>{
+      if(typeof state==='undefined'||state.currentTab!==TAB||II.tab!=='stock')return;
+      if(document.querySelector('.ii input:focus,.ii select:focus,#modal-root .modal'))return;
+      pintarTabla();
+    });
+  }
   function pintar(){
     if(state.currentTab!==TAB)return;
     const main=document.getElementById('main');if(!main)return;
-    D.escuchar();
+    D.escuchar();enlazarAlmacen();
     autoCodigos();
     const modoVista=!D.puedeEscribir();
     const tabs=[['stock','Stock actual'],['conteo','Conteo físico'],['conciliacion','Conciliación'],['auditoria','Auditoría'],['catalogo','Catálogo']].map(([k,t])=>`<button type="button" role="tab" class="ii-tab ${II.tab===k?'ii-tab-act':''}" aria-selected="${II.tab===k}" onclick="iiTab('${k}')">${t}</button>`).join('');
@@ -387,6 +404,7 @@
   function estilos(){return `<style id="ii-estilos">${window.iiConteoUI?window.iiConteoUI.css:''}${window.iiConciliacionUI?window.iiConciliacionUI.css:''}${window.iiAuditoriaUI?window.iiAuditoriaUI.css:''}
 .ii,.ii-modal{--ii-azul:#0b5cc4;--ii-linea:#dde6ef;--ii-mut:#5f7382}      /* los modales viven en #modal-root, fuera de .ii: necesitan las mismas variables */
 .ii{color:#0f2547;font-size:15px}
+.ii-g-hoy{background:#e6f4ea;color:#14532d}.ii-b-hoy{background:#f3faf5}.ii-delta{display:block;font-size:11px;color:#5f7382}
 .ii-modal [hidden]{display:none!important}
 .ii [hidden]{display:none!important}
 .ii-cab{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 14px}.ii-cab h1{margin:0;font-size:30px;font-weight:800;color:#0f2547}
