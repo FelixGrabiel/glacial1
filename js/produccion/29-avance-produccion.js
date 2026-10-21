@@ -408,6 +408,16 @@ function avVentanaTurno(fecha,turno){
   if(a&&b&&b<=a)b+=86400000;
   return {ini:a,fin:b,txt:bl.inicio+' - '+bl.fin};
 }
+/* Ventana donde se aceptan las paradas del turno. El DÍA + Intermedio termina a las 19:00, pero la planta sigue hasta que arranca la Noche (21:00): una parada
+   que cruza las 19:00 o se registra después se acepta hasta el inicio de la Noche. La Noche termina cuando empieza el Día (sin franja), así que no se amplía. */
+function avVentanaParadas(fecha,turno){
+  const w=avVentanaTurno(fecha,turno);
+  if(turno==='NOCHE'||!w.ini||!w.fin)return w;
+  const cfg=avBloquesCfg(),sig=avHoraMs(fecha,cfg.noche.inicio,'NOCHE');
+  if(!sig||sig<=w.fin)return w;
+  const d=new Date(sig);
+  return {ini:w.ini,fin:sig,txt:w.txt.split(' - ')[0]+' - '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+}
 /* Hora de fin = hora de inicio + minutos. */
 function avHoraFinCalculada(m,p){
   const a=avHoraMs(m.fecha,p.horaInicio,m.turno);
@@ -419,7 +429,7 @@ function avValidarCatalogoParada(m,p){
   if(err)return err;
   if(p.origen==='REGISTRO')return '';                      // Nuevo registro no tiene hora de inicio en este modal
   if(!p.horaInicio)return '';                                // sin hora: vale la duración en minutos (no se inventa un horario)
-  const w=avVentanaTurno(m.fecha,m.turno),a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=a+Math.round(avNum(p.minutos))*60000;
+  const w=avVentanaParadas(m.fecha,m.turno),a=avHoraMs(m.fecha,p.horaInicio,m.turno),b=a+Math.round(avNum(p.minutos))*60000;
   if(a<w.ini||b>w.fin)return 'la parada ('+p.horaInicio+' + '+avFmt(p.minutos)+' min) cae fuera del turno ('+w.txt+').';
   return '';
 }

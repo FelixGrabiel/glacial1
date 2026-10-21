@@ -81,7 +81,7 @@ function dispositivo(usuario,opc){
   const sb29={console,Math,Number,Array,Object,String,Date,JSON,window:{glacialMotivosParada:M}};vm.createContext(sb29);
   vm.runInContext('function avNum(v){const n=Number(v);return Number.isFinite(n)?n:0;}function avFmt(v){return Math.round(avNum(v)).toLocaleString("es-PE");}'+
     'function avBloquesCfg(){return {diaInter:{inicio:"07:00",fin:"19:00"},noche:{inicio:"21:00",fin:"07:00"}};}'+
-    extraer(s29,'avHoraMs')+extraer(s29,'avCat')+extraer(s29,'avUsaCatalogo')+extraer(s29,'avHoraTxt')+extraer(s29,'avVentanaTurno')+extraer(s29,'avHoraFinCalculada')+extraer(s29,'avValidarCatalogoParada')+
+    extraer(s29,'avHoraMs')+extraer(s29,'avCat')+extraer(s29,'avUsaCatalogo')+extraer(s29,'avHoraTxt')+extraer(s29,'avVentanaTurno')+extraer(s29,'avVentanaParadas')+extraer(s29,'avHoraFinCalculada')+extraer(s29,'avValidarCatalogoParada')+
     'this.v=avValidarCatalogoParada;this.f=avHoraFinCalculada;this.u=avUsaCatalogo;',sb29);
   docs.set('sync/configMantenimiento',{});oyentes.forEach(f=>f());
   const mDia={fecha:'2026-10-12',turno:'DÍA'},mNoche={fecha:'2026-10-12',turno:'NOCHE'};
@@ -89,7 +89,9 @@ function dispositivo(usuario,opc){
   ok(sb29.v(mDia,fila({minutos:10}))==='','hasta 15 minutos: la hora de inicio es opcional');
   ok(sb29.v(mDia,fila({minutos:16}))===''&&sb29.v(mDia,fila({minutos:15}))===''&&sb29.v(mDia,fila({minutos:120}))==='','la hora de inicio es opcional para cualquier duración (15, 16 y 120 min se validan sin hora)');
   ok(sb29.v(mDia,fila({minutos:30,horaInicio:'08:00'}))==='','con hora de inicio dentro del turno se guarda');
-  ok(/fuera del turno/.test(sb29.v(mDia,fila({minutos:30,horaInicio:'06:50'})))&&/fuera del turno/.test(sb29.v(mDia,fila({minutos:30,horaInicio:'18:45'})))&&sb29.v(mDia,fila({minutos:30,horaInicio:'18:30'}))==='','no puede caer fuera del turno de día (07:00–19:00)');
+  ok(/fuera del turno/.test(sb29.v(mDia,fila({minutos:30,horaInicio:'06:50'})))&&sb29.v(mDia,fila({minutos:30,horaInicio:'18:30'}))==='','no puede empezar antes del turno de día (07:00)');
+  ok(sb29.v(mDia,fila({minutos:30,horaInicio:'18:45'}))===''&&sb29.v(mDia,fila({minutos:30,horaInicio:'19:30'}))===''&&sb29.v(mDia,fila({minutos:60,horaInicio:'20:00'}))==='','pasadas las 19:00 todavía se pueden ingresar paradas (cruzar las 19:00 o registrarse después), hasta que arranca la Noche (21:00)');
+  ok(/fuera del turno \(07:00 - 21:00\)/.test(sb29.v(mDia,fila({minutos:45,horaInicio:'20:30'})))&&/fuera del turno/.test(sb29.v(mDia,fila({minutos:30,horaInicio:'21:10'}))),'después del inicio de la Noche (21:00) ya no corresponde al turno de día');
   ok(sb29.v(mNoche,fila({minutos:30,horaInicio:'23:50'}))===''&&sb29.v(mNoche,fila({minutos:30,horaInicio:'02:10'}))===''&&/fuera del turno/.test(sb29.v(mNoche,fila({minutos:30,horaInicio:'06:45'})))&&/fuera del turno/.test(sb29.v(mNoche,fila({minutos:30,horaInicio:'20:30'}))),'turno de noche (21:00–07:00): cruza la medianoche');
   ok(sb29.f(mDia,{horaInicio:'08:10',minutos:35})==='08:45'&&sb29.f(mNoche,{horaInicio:'23:50',minutos:30})==='00:20'&&sb29.f(mDia,{horaInicio:'08:10',minutos:0})==='','hora de fin = hora de inicio + minutos');
   ok(/mínimo 10/.test(sb29.v(mDia,fila({causa:'Otro',motivoCat:'Otro',detalle:'corto'})))&&sb29.v(mDia,fila({causa:'Otro',motivoCat:'Otro',detalle:'detalle suficiente'}))==='','«Otro» sin detalle suficiente no se guarda');

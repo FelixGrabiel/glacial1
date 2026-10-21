@@ -251,7 +251,7 @@ const parada=(id,min,x)=>Object.assign({id,descripcion:'Calibración '+id,minuto
   {
     const sb={Math,Number,Array,Object,String,Date,JSON,Map,Set,RegExp,Error,GlacialIndicadores:{normalizarBloques:b=>({diaInter:{inicio:'07:00',fin:'22:00'},noche:{inicio:'21:00',fin:'07:00'}})}};
     vm.createContext(sb);sb.window=sb;
-    ['avNum','avFmt','avHoraMs','avHoraFinCalculada','avValidarCatalogoParada','avValidarDuracionIntervalo','avVentanaTurno','avBloquesCfg','avUsaCatalogo','avCat','avAvisoTotalParadas'].forEach(n=>{try{vm.runInContext(extraer(src29,n),sb);}catch(e){throw new Error(n+': '+e.message);}});
+    ['avNum','avFmt','avHoraMs','avHoraFinCalculada','avValidarCatalogoParada','avValidarDuracionIntervalo','avVentanaTurno','avVentanaParadas','avBloquesCfg','avUsaCatalogo','avCat','avAvisoTotalParadas'].forEach(n=>{try{vm.runInContext(extraer(src29,n),sb);}catch(e){throw new Error(n+': '+e.message);}});
     sb.window.glacialMotivosParada={validar:()=>''};
     const m={fecha:'2026-10-13',turno:'DÍA'};
     const cat=min=>({tipo:'NO_PROGRAMADA',causa:'Ajuste o calibración',motivoCat:'x',nueva:true,minutos:min,descripcion:'x'});
