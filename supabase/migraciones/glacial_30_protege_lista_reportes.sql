@@ -1,4 +1,4 @@
--- GLACIAL · glacial_30 · El servidor NO acepta un guardado que borre de golpe los reportes de líneas (sync/records)
+-- GLACIAL · glacial_30 · El servidor NO acepta un guardado que borre de golpe los reportes de líneas (sync/records)     *** APLICADA EN PRUEBAS y en PRODUCCION el 2026-10-21 ***
 --
 -- Por qué: el 21/10/2026 a las 07:33 (Lima) un equipo que aún no había terminado de cargar la lista de reportes guardó UN reporte con un «set» a ciegas
 -- (el puente envía entonces «la lista enviada es la lista completa») y el servidor dio de baja los otros 102 (26/09 → 21/10). Quedaron marcados como
