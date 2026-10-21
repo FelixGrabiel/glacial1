@@ -165,6 +165,21 @@
   }
 
   /* =========================================================== RESUMEN OPERATIVO */
+  /* Faltantes del bloque que aún no cubre una solicitud abierta o material ya entregado y sin recibir (evita pedir dos veces lo mismo). */
+  function faltantesNetos(ctx){
+    const E=window.glacialAlmacenEnlace;const tc=E?E.transitoYComprometido(ctx.solicitudes):{};
+    return ctx.resumen.filter(r=>r.faltante>0).map(r=>{const t=tc[r.insumo.codigo]||{transito:0,comprometido:0};
+      return {insumo:r.insumo,faltante:r.faltante,cubierto:N.red(t.transito+t.comprometido,4),neto:N.red(Math.max(r.faltante-t.transito-t.comprometido,0),4)};}).filter(x=>x.neto>0);
+  }
+  /* Un clic: crea y envía a Almacén una solicitud con los faltantes netos del bloque (redondeados hacia arriba). */
+  window.apSolicitarFaltantes=()=>{
+    const ctx=contexto();const lista=faltantesNetos(ctx);
+    if(!lista.length){AP.msg={tipo:'ok',texto:'No hay faltantes por solicitar: lo que falta ya está pedido o en camino.'};pintar();return;}
+    const items=lista.map(x=>({insumo:x.insumo.codigo,unidad:x.insumo.unidad,solicitado:Math.ceil(x.neto*100)/100}));
+    const resumen=lista.map(x=>`• ${x.insumo.nombre}: ${fmt(Math.ceil(x.neto*100)/100)} ${x.insumo.unidad}${x.cubierto>0?` (ya hay ${fmt(x.cubierto)} pedido o en camino)`:''}`).join('\n');
+    if(!confirm('¿Enviar esta solicitud a Almacén?\n\n'+resumen))return;
+    ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:'Faltantes del bloque',enviar:true}),id=>'Solicitud '+id+' enviada a Almacén con '+items.length+' insumo(s).');
+  };
   function tabResumen(ctx){
     const lineasCon=ctx.lineas.filter(l=>ctx.cuadros.some(c=>c.linea===l&&c.producido>0));
     const falt=ctx.resumen.filter(r=>r.faltante>0);
@@ -176,8 +191,11 @@
         <td data-label="Requerido" class="ap-num">${fmt(r.requerido)} ${esc(r.insumo.unidad)}</td><td data-label="Disponible" class="ap-num">${fmt(r.utilizable)} ${esc(r.insumo.unidad)}</td>
         <td data-label="Faltante" class="ap-num"><span class="ap-cel ${r.faltante>0?'ap-cel-rojo':'ap-cel-verde'}">${fmt(r.faltante)} ${esc(r.insumo.unidad)}</span></td></tr>`).join(''))
       +'<p class="ap-nota-pie">Disponible = utilizable − reservado para otras órdenes.</p>'
-      :vacio(D.cache.factores.length?'Sin requerimientos para este bloque.':'Aún no hay factores de consumo: cárgalos en Insumos › Factores.');
+      :(D.cache.factores.length?vacio('Sin requerimientos para este bloque.'):`<div class="ap-info ap-info-acc">${ico('info','ap-info-ico')}<div><b>Aún no hay factores de consumo.</b> ${puede('gestionarFactores')?'Actívalos con un clic: se copian los del Nuevo registro al catálogo (sin pisar nada).':'Pide a un administrador que los active (Insumos › Factores).'}</div>
+        ${puede('gestionarFactores')?`<button type="button" class="ap-btn" onclick="apMigrar(true)">Activar factores</button>`:''}</div>`);
     const atender=[];
+    const netos=faltantesNetos(ctx);
+    if(puede('asistenteProduccion')&&netos.length)atender.push({ico:'doc',cls:'rojo',txt:`Solicitar a Almacén los ${netos.length} faltante(s) de una vez`,acc:`apSolicitarFaltantes()`});
     falt.forEach(r=>atender.push({ico:'alerta',cls:'rojo',txt:`Solicitar ${fmt(r.faltante)} ${r.insumo.unidad} de ${r.insumo.nombre.toLowerCase()}`,acc:`apIr('insumos','solicitudes')`}));
     sinConteo.forEach(r=>atender.push({ico:'doc',cls:'ambar',txt:`Verificar conteo de ${r.insumo.nombre.toLowerCase()}`,acc:`apIrConteo()`}));
     ctx.mermas.filter(m=>m.estado==='PENDIENTE').forEach(m=>atender.push({ico:'reloj',cls:'gris',txt:`Validar merma de ${insumoDe(m.insumo).nombre.toLowerCase()} (${nombreLinea(m.linea)})`,acc:`apIr('merma')`}));
@@ -219,7 +237,11 @@
     const porCuadro=new Map();ctx.req.forEach(f=>{const k=f.cuadro.clave;if(!porCuadro.has(k))porCuadro.set(k,[]);porCuadro.get(k).push(f);});
     const conFalt=ctx.cuadros.filter(c=>(porCuadro.get(c.clave)||[]).some(f=>f.faltante>0)).length;
     const pendCierre=ctx.cuadros.filter(c=>c.completar&&!(c.programado>0)).length;
-    const MODO={FIJA:'Cantidad fija',COMPLETAR:'Completar cantidad',TURNO:'Todo el turno',HORA:'Hasta una hora'};
+    const MODO={FIJA:'Cantidad fija',COMPLETAR:'Completar cantidad',TURNO:'Resto del turno',HORA:'Hasta una hora'};
+    /* Un producto en secuencia dice cómo termina su tramo (cantidad, hora o cierre); si no, la modalidad de la programación. */
+    const modalidadTxt=p=>{if(!p)return 'Sin programación';const t=(p.tramosSecuencia||[]).slice().sort((a,b)=>num(a.orden)-num(b.orden));
+      if(!t.length)return MODO[p.modo]||'Programada';
+      return t.map(x=>x.tipoFin==='HORA'?'Hasta las '+(x.horaFin||'—'):x.tipoFin==='CIERRE'?'Resto del turno':'Hasta '+fmt(x.cantidadObjetivo,0)+' und').join(' → ');};
     const progs=typeof loadProgramaciones==='function'?loadProgramaciones():[];
     const filas=ctx.cuadros.map(c=>{
       const fs=porCuadro.get(c.clave)||[];
@@ -228,7 +250,7 @@
         :falt.length?falt.map(f=>pill('Falta '+f.insumo.nombre.toLowerCase(),'rojo')).join(' '):sin.length?pill(sin.length+' sin factor','ambar')
         :c.estado==='PENDIENTE'&&!(c.producido>0)&&!fs.length?pill('Sin inicio','gris'):fs.length?(fs.every(f=>f.conteo)?pill('Cubierto','verde'):pill('Por verificar','verde')):pill('Sin requerimientos','gris');
       const p=progs.find(x=>c.programaciones.includes(x.id));
-      return `<tr><td data-label="Línea">${esc(nombreLinea(c.linea))}</td><td data-label="Marca">${esc(c.marca)} ${esc(presUI(c))}</td><td data-label="Modalidad">${esc(p?MODO[p.modo]||'Programada':'Sin programación')}</td>
+      return `<tr><td data-label="Línea">${esc(nombreLinea(c.linea))}</td><td data-label="Marca">${esc(c.marca)} ${esc(presUI(c))}</td><td data-label="Modalidad">${esc(modalidadTxt(p))}</td>
         <td data-label="Materiales">${est}</td><td data-label="Acción"><button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apVerCuadro('${esc(c.clave)}')">${ico('doc')} Ver detalle</button></td></tr>`;}).join('');
     const ed=puede('asistenteProduccion');
     const coord=`${ed?`${campo('Observación',`<textarea id="ap-co-tx" rows="3" maxlength="300" placeholder="Registrar pendiente, responsable y seguimiento…"></textarea>`,'ap-ancho')}
@@ -343,7 +365,7 @@
     const lista=D.cache.solicitudes.slice().sort((a,b)=>String(b.id).localeCompare(String(a.id)));
     const filas=lista.map(s=>`<tr class="ap-clic" onclick="apVerSolicitud('${esc(s.id)}')"><td data-label="Solicitud"><b>${esc(s.id)}</b></td><td data-label="Fecha">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Día'}</td>
       <td data-label="Ítems">${(s.items||[]).map(i=>`${esc(insumoDe(i.insumo).nombre)} ${fmt(i.solicitado)} ${esc(i.unidad)}`).join(' · ')}</td><td data-label="Estado">${pillSolicitud(s.estado)}</td></tr>`).join('');
-    const nueva=asist?`<h3 class="ap-h3">Preparar solicitud a Almacén</h3><p class="ap-sub">${faltantes.length?'Se proponen los faltantes del bloque; ajusta las cantidades si hace falta.':'No hay faltantes calculados; agrega los insumos que necesites.'}</p>
+    const nueva=asist?`<h3 class="ap-h3">Preparar solicitud a Almacén</h3>${faltantesNetos(ctx).length?`<div class="ap-acc"><button type="button" class="ap-btn" onclick="apSolicitarFaltantes()">${ico('doc')} Solicitar todos los faltantes (${faltantesNetos(ctx).length})</button></div>`:''}<p class="ap-sub">${faltantes.length?'Se proponen los faltantes del bloque; ajusta las cantidades si hace falta.':'No hay faltantes calculados; agrega los insumos que necesites.'}</p>
       ${tabla(['Insumo','#Faltante','#En Almacén','Cantidad a solicitar'],D.cache.insumos.filter(i=>i.activo!==false).map(i=>{const f=faltantes.find(x=>x.insumo.codigo===i.codigo);return `<tr><td data-label="Insumo">${esc(i.nombre)} (${esc(i.unidad)})</td><td data-label="Faltante" class="ap-num">${f?fmt(f.faltante):'—'}</td><td data-label="En Almacén" class="ap-num">${txtStockAlm(i.codigo,i.unidad)}</td>
         <td data-label="Cantidad"><input class="ap-sol-cant" data-insumo="${esc(i.codigo)}" data-unidad="${esc(i.unidad)}" onchange="apAvisoStock()" type="number" min="0" step="any" value="${f?Math.ceil(f.faltante*100)/100:''}"></td></tr>`;}).join(''))}
       <div id="ap-sol-aviso"></div>
@@ -592,8 +614,8 @@
   };
 
   /* ---------- formularios de catálogo (modales) ---------- */
-  window.apMigrar=()=>{if(!confirm('¿Copiar al catálogo los factores fijos del Nuevo registro? No se borra ni se pisa nada.'))return;
-    ejecutar(()=>D.migrarFactoresDelCodigo(),r=>`Migración: ${r.creados} creados, ${r.existentes} ya existían.`);};
+  window.apMigrar=directo=>{if(!directo&&!confirm('¿Copiar al catálogo los factores fijos del Nuevo registro? No se borra ni se pisa nada.'))return;
+    ejecutar(()=>D.migrarFactoresDelCodigo(),r=>`Factores activados: ${r.creados} creados, ${r.existentes} ya existían.`);};
   window.apInsumoForm=codigo=>{
     const i=D.cache.insumos.find(x=>x.codigo===codigo)||{codigo:'',nombre:'',unidad:'UND',tipo:'otro',activo:true,version:0};
     modal(codigo?'Editar insumo':'Nuevo insumo',`<div class="ap-form ap-form-2">${campo('Código',`<input id="ap-i-cod" value="${esc(i.codigo)}" ${codigo?'readonly':''} maxlength="40">`)}${campo('Nombre',`<input id="ap-i-nom" value="${esc(i.nombre)}" maxlength="80">`)}
