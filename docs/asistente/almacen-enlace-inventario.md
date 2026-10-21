@@ -48,4 +48,4 @@ Cada uno tiene **Previsualizar** (lo mismo que irá al Excel, con avisos y detal
 En la previsualización se corrige en el **dato original** (con historial, motivo y auditoría):
 - ✎ Saldos inicial y final del consumo (conciliación). Una conciliación **confirmada** solo la reabre quien valida (botón «Reabrir»).
 - ✎ Mermas **pendientes** de validar (material, cantidad, cuadro, causa, etapa, lote, observaciones): `editarMerma` (71) + regla `glacial_28`. Una merma validada no se edita.
-Programación, Paletas, Cierre, paradas y Tareo se ven pero se corrigen en su módulo. Migración: `glacial_28_asistente_corrige_mermas.sql` (PRUEBAS aplicada; PRODUCCIÓN pendiente). Pruebas: `node tests/asistente-reportes-edicion.test.js`.
+Programación, Paletas, Cierre, paradas y Tareo se ven pero se corrigen en su módulo. Migración: `glacial_28_asistente_corrige_mermas.sql` (PRUEBAS y PRODUCCIÓN: aplicada el 2026-10-21). Pruebas: `node tests/asistente-reportes-edicion.test.js`.

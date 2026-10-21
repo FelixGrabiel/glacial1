@@ -1,4 +1,4 @@
--- GLACIAL · glacial_28 · El Asistente de Producción puede CORREGIR una merma que sigue PENDIENTE de validar
+-- GLACIAL · glacial_28 · El Asistente de Producción puede CORREGIR una merma que sigue PENDIENTE de validar     *** APLICADA EN PRUEBAS y en PRODUCCION el 2026-10-21 ***
 --
 -- Por qué: en la previsualización del reporte (Historial › Reportes) la Asistente corrige errores de captura (cantidad, insumo, cuadro, causa…)
 -- en el dato original. Hasta ahora una merma solo la cambiaba quien valida (VALIDADA / RECHAZADA).
