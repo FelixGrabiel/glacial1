@@ -127,8 +127,8 @@
     ((e.prevision && e.prevision.filas) || []).forEach(f => {
       if (f.estado === 'OK') return;
       const cuando = f.primerFalta ? 'desde el ' + f.primerFalta.slice(8, 10) + '/' + f.primerFalta.slice(5, 7) : 'en los próximos días';
-      if (f.estado === 'SIN_STOCK') a.push({ nivel: 'critico', tipo: 'PREVISION', texto: f.insumo.nombre + ': ni con el stock de Almacén alcanza ' + cuando + ' (faltan ' + N.fmt(f.faltaTotal) + ' ' + f.insumo.unidad + ').', acc: 'prevision' });
-      else a.push({ nivel: 'atencion', tipo: 'PREVISION', texto: f.insumo.nombre + ': hay que pedir ' + N.fmt(f.faltaProd) + ' ' + f.insumo.unidad + ' a Almacén ' + cuando + '.', acc: 'prevision' });
+      if (f.estado === 'SIN_STOCK') a.push({ nivel: 'critico', tipo: 'PREVISION', insumo: f.insumo.nombre, texto: f.insumo.nombre + ': ni con el stock de Almacén alcanza ' + cuando + ' (faltan ' + N.fmt(f.faltaTotal) + ' ' + f.insumo.unidad + ').', acc: 'prevision' });
+      else a.push({ nivel: 'atencion', tipo: 'PREVISION', insumo: f.insumo.nombre, texto: f.insumo.nombre + ': hay que pedir ' + N.fmt(f.faltaProd) + ' ' + f.insumo.unidad + ' a Almacén ' + cuando + '.', acc: 'prevision' });
     });
     (e.solicitudes || []).forEach(s => {
       const ult = (s.historial || []).slice(-1)[0] || {};

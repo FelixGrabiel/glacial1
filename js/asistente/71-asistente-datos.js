@@ -356,6 +356,26 @@
     });
     return id;
   }
+  /* Corrección de una merma que sigue PENDIENTE (previsualización del reporte). Campos corregibles: insumo, unidad, cantidad, cuadro (marca y presentación),
+     causa, etapa, lote y observaciones. Una merma VALIDADA o RECHAZADA no se edita. Queda en el historial de la merma y en la auditoría, con el motivo. */
+  const CAMPOS_MERMA=['categoria','insumo','unidad','cantidad','cuadro','marca','presentacion','causa','etapa','lote','observaciones'];
+  async function editarMerma(id,cambios,versionEsperada,motivo){
+    if(!puede('asistenteProduccion'))throw falla('PERMISO','No tienes permiso para corregir mermas.');
+    if(String(motivo||'').trim().length<5)throw falla('VALIDACION','Indica el motivo de la corrección (mínimo 5 caracteres).');
+    const ref=col('apMermas').doc(id);const u=usuario();
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);if(!s.exists)throw falla('VALIDACION','La merma no existe.');
+      const m=s.data();
+      if(num(m.version)!==num(versionEsperada))throw falla('CONFLICTO','La merma cambió mientras la corregías. Vuelve a abrirla.');
+      if(m.estado!=='PENDIENTE')throw falla('VALIDACION','La merma ya fue '+String(m.estado).toLowerCase()+': no se puede corregir. Pide a quien valida que la rechace y registra una nueva.');
+      const nuevo={...m};CAMPOS_MERMA.forEach(k=>{if(cambios&&cambios[k]!==undefined)nuevo[k]=k==='cantidad'?N.red(num(cambios[k]),4):cambios[k];});
+      const err=N.validarMerma(nuevo,causasMerma());if(err.length)throw falla('VALIDACION',err.join(' · '));
+      const antes={},despues={};CAMPOS_MERMA.forEach(k=>{if(String(m[k]??'')!==String(nuevo[k]??'')){antes[k]=m[k]??null;despues[k]=nuevo[k]??null;}});
+      if(!Object.keys(despues).length)throw falla('VALIDACION','No hay cambios que guardar.');
+      const d={...nuevo,version:num(m.version)+1,historial:[...(m.historial||[]),{estado:'PENDIENTE',por:u.nombre,uid:u.uid,en:ahora(),nota:'Corregida: '+String(motivo).trim(),edicion:true}].map(h=>limpio(h)),...autor()};
+      tx.set(ref,d);auditar(tx,'apMermas',id,'CORREGIR',{...antes,motivo:null},{...despues,motivo:String(motivo).trim()});
+    });
+  }
   async function validarMerma(id,estado,versionEsperada,nota){
     if(!puede('validarMermas'))throw falla('PERMISO','No tienes permiso para validar mermas.');
     if(!['VALIDADA','RECHAZADA'].includes(estado))throw falla('VALIDACION','Estado no válido.');
@@ -462,7 +482,7 @@
   window.glacialAsistenteDatos={
     CAPACIDADES,capacidad,puede,cache,escucharTodo,detener,cargarFecha,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
     guardarInsumo,guardarFactor,migrarFactoresDelCodigo,registrarMovimiento,anularMovimiento,validarMovimiento,crearSolicitud,cambiarEstadoSolicitud,
-    registrarMerma,validarMerma,guardarConciliacion,idConciliacion,auditoriaDe,mensajeError,nuevoId,ahora,
+    registrarMerma,editarMerma,validarMerma,guardarConciliacion,idConciliacion,auditoriaDe,mensajeError,nuevoId,ahora,
     RESPONSABLES,PRIORIDADES,registrarCoordinacion,cerrarCoordinacion,
     escucharCatalogo,causasMerma,etapasMerma,puedeConfigurarMerma,guardarParametrosMerma
   };
