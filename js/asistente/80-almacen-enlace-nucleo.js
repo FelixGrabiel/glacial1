@@ -3,10 +3,12 @@
    -------------------------------------------------------------
    Sin pantalla ni base de datos. Lo usan 81-almacen-enlace-datos.js, 71 (entregas), 72 (pantalla) y tests/almacen-enlace.test.js.
 
-   Idea: el Inventario guarda el stock de SAP por cortes (almacén «AP - INSUMOS Y SUMINISTROS»). Cuando Almacén entrega lo que
-   Producción pidió, el stock de Almacén baja SIN esperar al siguiente corte de SAP:
-        stock de Almacén = stock del último corte (columna Insumos y Suministros) − entregas posteriores a la fecha del corte
-   Un corte nuevo de SAP pasa a ser la base y las entregas anteriores a su fecha dejan de restar (SAP ya las trae).
+   Idea: el Inventario guarda el stock por cortes (almacén «AP - INSUMOS Y SUMINISTROS»; contabilidad los pone a mano: el programa todavía
+   NO registra nada en SAP). Cuando Almacén entrega lo que Producción pidió, o Producción devuelve material, el stock de Almacén cambia al
+   instante, sin esperar al siguiente corte:
+        stock de Almacén = stock del último corte (columna Insumos y Suministros) − entregas + devoluciones UTILIZABLES, todas con fecha
+                           igual o posterior a la fecha del corte (el corte no incluye nada hecho en el programa)
+   Un corte nuevo pasa a ser la base: lo anterior a su fecha deja de contar.
    Libro de Almacén (apAlmacenMov, inmutable, id = opId):
      { opId, tipo:'ENTREGA'|'ANULACION', insumo (código AP), itemCode (SAP), cantidad, unidad, fecha 'YYYY-MM-DD', solicitudId, anulaA,
        sinStock (true si se entregó sin stock suficiente), motivo, en, uid, usuario, guardadoEn }
@@ -38,16 +40,23 @@
     return corte.items.find(i => ids.includes(i.id)) || null;
   }
 
-  /* Entregas netas (ENTREGA menos las anuladas) de un insumo con fecha POSTERIOR a la del corte. */
+  const anuladosDe = movs => new Set((movs || []).filter(m => m && m.tipo === 'ANULACION' && m.anulaA).map(m => m.anulaA));
+  /* Entregas netas (ENTREGA menos las anuladas) de un insumo con fecha IGUAL O POSTERIOR a la del corte. */
   function entregasPosteriores(movs, insumo, fechaCorte) {
-    const anulados = new Set((movs || []).filter(m => m && m.tipo === 'ANULACION' && m.anulaA).map(m => m.anulaA));
-    return red((movs || []).filter(m => m && m.tipo === 'ENTREGA' && m.insumo === insumo && !anulados.has(m.opId) && texto(m.fecha) > texto(fechaCorte))
+    const anulados = anuladosDe(movs);
+    return red((movs || []).filter(m => m && m.tipo === 'ENTREGA' && m.insumo === insumo && !anulados.has(m.opId) && texto(m.fecha) >= texto(fechaCorte))
+      .reduce((s, m) => s + num(m.cantidad), 0));
+  }
+  /* Devoluciones de Producción a Almacén (libro apMovimientos, tipo DEVOLUCION, condición UTILIZABLE; lo observado o dañado no vuelve al stock). */
+  function devolucionesPosteriores(devs, insumo, fechaCorte) {
+    const anulados = anuladosDe(devs);
+    return red((devs || []).filter(m => m && m.tipo === 'DEVOLUCION' && m.insumo === insumo && (m.condicion || 'UTILIZABLE') === 'UTILIZABLE' && !anulados.has(m.opId) && texto(m.fecha) >= texto(fechaCorte))
       .reduce((s, m) => s + num(m.cantidad), 0));
   }
 
   /* Stock de Almacén de un insumo.
      → { estado:'OK'|'SIN_ENLACE'|'SIN_ARTICULO'|'SIN_CORTE'|'SIN_FILA', base, entregado, disponible, fechaCorte, articulo } */
-  function stockAlmacen({ insumo, catalogo, corte, corteMeta, movs }) {
+  function stockAlmacen({ insumo, catalogo, corte, corteMeta, movs, devs }) {
     if (!insumo || !texto(insumo.itemCode)) return { estado: 'SIN_ENLACE', base: 0, entregado: 0, disponible: 0, fechaCorte: '', articulo: null };
     const articulo = resolverArticulo(insumo, catalogo);
     if (!articulo) return { estado: 'SIN_ARTICULO', base: 0, entregado: 0, disponible: 0, fechaCorte: '', articulo: null };
@@ -57,7 +66,22 @@
     if (!fila) return { estado: 'SIN_FILA', base: 0, entregado: 0, disponible: 0, fechaCorte, articulo };
     const base = red(num(fila.w && fila.w[IDX_INSUMOS]));
     const entregado = entregasPosteriores(movs, insumo.codigo, fechaCorte);
-    return { estado: 'OK', base, entregado, disponible: red(base - entregado), fechaCorte, articulo };
+    const devuelto = devolucionesPosteriores(devs, insumo.codigo, fechaCorte);
+    return { estado: 'OK', base, entregado, devuelto, disponible: red(base - entregado + devuelto), fechaCorte, articulo };
+  }
+
+  /* Movimiento neto por artículo (clave = código SAP en mayúsculas): { entregado, devuelto, neto, n }. Sirve para mostrar el «Almacén hoy» en el Inventario. */
+  function ajustes({ insumos, movs, devs, fechaCorte }) {
+    const out = {};
+    (insumos || []).forEach(i => {
+      const k = clave(i.itemCode);
+      if (!k) return;
+      const e = entregasPosteriores(movs, i.codigo, fechaCorte), d = devolucionesPosteriores(devs, i.codigo, fechaCorte);
+      if (!e && !d) return;
+      const x = out[k] || (out[k] = { entregado: 0, devuelto: 0, neto: 0, n: 0 });
+      x.entregado = red(x.entregado + e); x.devuelto = red(x.devuelto + d); x.neto = red(x.devuelto - x.entregado); x.n++;
+    });
+    return out;
   }
 
   /* Texto corto del estado del enlace para mostrar en pantalla. */
@@ -133,7 +157,7 @@
     });
   }
 
-  const API = { IDX_INSUMOS, MIN_MOTIVO, TXT_ESTADO, resolverArticulo, filaDelCorte, entregasPosteriores, stockAlmacen, revisarPedido,
+  const API = { IDX_INSUMOS, MIN_MOTIVO, TXT_ESTADO, resolverArticulo, filaDelCorte, entregasPosteriores, devolucionesPosteriores, ajustes, stockAlmacen, revisarPedido,
     validarEntregaContraStock, movimientosEntrega, transitoYComprometido, resumenEntrega };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof window !== 'undefined') window.glacialAlmacenEnlace = API;

@@ -17,13 +17,19 @@ const ins={codigo:'PREFORMA',itemCode:'100123',unidad:'UND'};
   const movs=[
     {opId:'a',tipo:'ENTREGA',insumo:'PREFORMA',cantidad:200,fecha:'2026-10-16'},
     {opId:'b',tipo:'ENTREGA',insumo:'PREFORMA',cantidad:50,fecha:'2026-10-17'},
-    {opId:'c',tipo:'ENTREGA',insumo:'PREFORMA',cantidad:70,fecha:'2026-10-15'},          // del mismo día del corte: SAP ya la trae
+    {opId:'c',tipo:'ENTREGA',insumo:'PREFORMA',cantidad:70,fecha:'2026-10-15'},          // del mismo día del corte: cuenta (contabilidad no la tiene)
     {opId:'d',tipo:'ENTREGA',insumo:'TAPA',cantidad:99,fecha:'2026-10-16'},
     {opId:'x',tipo:'ANULACION',insumo:'PREFORMA',anulaA:'b',cantidad:50,fecha:'2026-10-17'}];
   const s=E.stockAlmacen({insumo:ins,catalogo,corte,corteMeta:meta,movs});
-  ok(s.entregado===200&&s.disponible===800,'resta las entregas posteriores a la fecha del corte, ignora las anuladas y las del día del corte');
+  ok(s.entregado===270&&s.disponible===730,'resta las entregas desde la fecha del corte (incluido ese día: el corte no trae nada del programa) e ignora las anuladas');
   const s2=E.stockAlmacen({insumo:ins,catalogo,corte,corteMeta:{id:'C2',fechaCorte:'2026-10-17'},movs});
   ok(s2.entregado===0&&s2.disponible===1000,'un corte nuevo de SAP pasa a ser la base: las entregas anteriores a su fecha ya no restan');
+  const devs=[{opId:'d1',tipo:'DEVOLUCION',insumo:'PREFORMA',cantidad:100,fecha:'2026-10-16',condicion:'UTILIZABLE'},{opId:'d2',tipo:'DEVOLUCION',insumo:'PREFORMA',cantidad:40,fecha:'2026-10-16',condicion:'OBSERVADO'},
+    {opId:'d3',tipo:'DEVOLUCION',insumo:'PREFORMA',cantidad:25,fecha:'2026-10-17'},{opId:'x3',tipo:'ANULACION',anulaA:'d3'},{opId:'d4',tipo:'DEVOLUCION',insumo:'PREFORMA',cantidad:9,fecha:'2026-10-14'}];
+  const sd=E.stockAlmacen({insumo:ins,catalogo,corte,corteMeta:meta,movs,devs});
+  ok(sd.devuelto===100&&sd.disponible===830,'las devoluciones utilizables suben el stock de Almacén (lo observado, lo anulado y lo anterior al corte no)');
+  const aj=E.ajustes({insumos:[ins,{codigo:'TAPA',itemCode:'100200'}],movs,devs,fechaCorte:'2026-10-15'});
+  ok(aj['100123'].entregado===270&&aj['100123'].devuelto===100&&aj['100123'].neto===-170&&aj['100200'].entregado===99&&aj['100200'].neto===-99,'movimiento neto por artículo desde el corte (para el «Almacén hoy» del Inventario)');
   ok(E.stockAlmacen({insumo:{codigo:'X'},catalogo,corte,corteMeta:meta,movs}).estado==='SIN_ENLACE','insumo sin código SAP: sin enlace, no se descuenta');
   ok(E.stockAlmacen({insumo:{codigo:'X',itemCode:'ZZZ'},catalogo,corte,corteMeta:meta,movs}).estado==='SIN_ARTICULO','código SAP que no está en el catálogo');
   ok(E.stockAlmacen({insumo:{codigo:'N',itemCode:'100999'},catalogo,corte,corteMeta:meta,movs}).estado==='SIN_FILA','artículo del catálogo que no viene en el último corte');
@@ -122,5 +128,7 @@ const espera=async p=>{try{await p;return null;}catch(e){return e;}};
   ok(/apMigrar\(true\)/.test(p72)&&/Activar factores/.test(p72),'72: «Activar factores» en un clic desde el Resumen');
   ok(!/TURNO:'Todo el turno'/.test(p72)&&/modalidadTxt/.test(p72)&&/tramosSecuencia/.test(p72),'72: Seguimiento dice «Resto del turno» y muestra los pasos de la secuencia');
   ok(/apCierreTurno/.test(p72)&&/apEntregarLoQueHay/.test(p72)&&/apEntCheck/.test(p72)&&/ORDEN_SOL/.test(p72)&&/apSolAgregar/.test(p72)&&/Entrega de Almacén/.test(p72)&&/histSistema/.test(p72),'72: cierre del turno, entrega con confirmación y motivo solo si hace falta, solicitudes ordenadas, historial con entregas');
+  ok(/Hay información nueva/.test(p72)&&/apActualizarYa/.test(p72)&&/vigilar\(\)/.test(p72)&&/alEvento/.test(p72)&&/Entregas y devoluciones de hoy/.test(p72),'72: tiempo real: avisos emergentes, «Hay información nueva» sin quitar lo que se escribe y panel de movimientos');
+  ok(/Almacén hoy/.test(leer('js/asistente/76-inventario-insumos-pantalla.js'))&&/enlazarAlmacen/.test(leer('js/asistente/76-inventario-insumos-pantalla.js')),'76: el Inventario muestra «Almacén hoy» en tiempo real');
   ok(/apAlmacenMov/.test(leer('supabase/migraciones/glacial_27_almacen_enlace_inventario.sql')),'existe la migración glacial_27');
 }

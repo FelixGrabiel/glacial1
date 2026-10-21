@@ -492,9 +492,13 @@
       <div class="ap-acc"><button type="button" class="ap-btn ap-btn-o" onclick="apCrearSolicitud(false)">Guardar borrador</button><button type="button" class="ap-btn" onclick="apCrearSolicitud(true)">Enviar a Almacén</button></div>`:'';
     const sel=`<div class="ap-filtros-sol">${['abiertas','cerradas','todas'].map(k=>`<button type="button" class="ap-sub ${filtro===k?'ap-sub-act':''}" onclick="AP_set('solFiltro','${k}')">${{abiertas:'Abiertas',cerradas:'Cerradas',todas:'Todas'}[k]}</button>`).join('')}</div>`;
     const titulo=alm&&!asist?'Solicitudes por entregar':'Solicitudes'+(alm?' · vista de Almacén':'');
+    const en=EN(),movs=en?en.movimientosRecientes(AP.fecha):[];
+    const panel=movs.length?tarjeta('Entregas y devoluciones de hoy · en tiempo real',tabla(['Hora','Movimiento','Insumo','#Cantidad','Responsable','Solicitud'],movs.map(m=>`<tr><td data-label="Hora">${hora(m.en)}</td>
+      <td data-label="Movimiento">${m.origen==='DEVOLUCION'?pill('Devolución de Producción','azul','flecha'):m.tipo==='ANULACION'?pill('Entrega anulada','gris','cerrar'):pill('Entrega a Producción','verde','check')}${m.sinStock?' '+pill('Sin stock autorizado','ambar'):''}</td>
+      <td data-label="Insumo">${esc(insumoDe(m.insumo).nombre)}</td><td data-label="Cantidad" class="ap-num">${m.tipo==='ANULACION'?'—':fmt(m.cantidad)+' '+esc(m.unidad||insumoDe(m.insumo).unidad)}</td><td data-label="Responsable">${esc(m.usuario||'—')}</td><td data-label="Solicitud">${esc(m.solicitudId||'—')}</td></tr>`).join('')),{icono:'subida'}):'';
     const nota=pie('Solicitudes, reservas y entregas son operaciones distintas. Solo una recepción confirmada por Producción incrementa las existencias en Producción.');
     return `${nueva}<h3 class="ap-h3">${titulo}</h3>${sel}${filas?tabla(['Solicitud','Fecha','Ítems (entregado / pedido)','Espera','Estado'],filas,'ap-t-click'):vacio(filtro==='abiertas'?'No hay solicitudes abiertas.':'Sin solicitudes en los últimos 60 días.')}
-      ${nota}`;
+      ${panel}${nota}`;
   }
   const pillSolicitud=e=>{const t=SOL_TXT[e]||e;return ['CERRADA','RECIBIDA'].includes(e)?pill(t,'verde','check'):e==='CANCELADA'?pill(t,'gris'):e==='OBSERVADA'?pill(t,'rojo','alerta'):pill(t,'gris','reloj_arena');};
   /* Avisa (sin impedir pedir) cuando lo solicitado supera el stock que Almacén tiene según el Inventario. */
@@ -510,7 +514,7 @@
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:valor('ap-sol-obs'),enviar}),id=>'Solicitud '+id+(enviar?' enviada a Almacén.':' guardada como borrador.'));
   };
   window.apVerSolicitud=function(id){
-    const s=D.cache.solicitudes.find(x=>x.id===id);if(!s)return;const ctx=contexto();AP.solSel=id;
+    const s=D.cache.solicitudes.find(x=>x.id===id);if(!s)return;const ctx=contexto();AP.solSel=id;AP.solAbierta={id,version:num(s.version)};
     const asist=puede('asistenteProduccion'),alm=puede('moduloAlmacen');
     const columnaStock=alm&&['EN_PREPARACION','ENTREGADA_PARCIAL','SOLICITADA'].includes(s.estado);
     /* Lo pendiente de entregar, sin pasar de lo que Almacén tiene (si el Inventario no lo informa, lo pendiente completo). */
@@ -875,10 +879,74 @@
     window.scrollTo(0,scroll);
   }
   window.apCtx=(k,v)=>{if(k==='fecha'&&!/^\d{4}-\d{2}-\d{2}$/.test(v))return;AP[k]=v;AP.cuadro='';AP.insumo='';AP.solSel='';pintar();};
-  const repintar=()=>{if(typeof state!=='undefined'&&state.currentTab==='asistente'&&!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus,#modal-root .modal'))pintar();};
+  /* ---------- tiempo real ----------
+     Todo lo que guarda otra persona (entrega de Almacén, devolución, solicitud nueva, recepción…) llega solo por las escuchas en vivo.
+     · Si no estás escribiendo, la pantalla se actualiza sola.
+     · Si estás escribiendo o tienes una ventana abierta, NO se te quita lo que haces: sale «Hay información nueva» y se actualiza al terminar.
+     · Aparece un aviso emergente con lo que pasó (quién, qué y cuánto). */
+  const miUid=()=>{try{return (firebase.auth().currentUser||{}).uid||'';}catch(_){return '';}};
+  const bloqueado=()=>!!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus,#modal-root .modal');
+  function aviso_(texto,tipo){
+    let c=document.getElementById('ap-toasts');
+    if(!c){c=document.createElement('div');c.id='ap-toasts';c.setAttribute('aria-live','polite');c.style.cssText='position:fixed;top:14px;right:14px;z-index:90;display:grid;gap:8px;max-width:360px';document.body.appendChild(c);}
+    const d=document.createElement('div');
+    const col={ok:'#166534',aviso:'#92400e',info:'#0b5cc4'}[tipo||'info'];
+    d.style.cssText=`background:#fff;border:1px solid #dde6ef;border-left:5px solid ${col};border-radius:10px;padding:10px 14px;box-shadow:0 8px 24px rgba(15,37,71,.18);font-size:14px;cursor:pointer`;
+    d.textContent=texto;d.onclick=()=>d.remove();c.appendChild(d);setTimeout(()=>d.remove(),9000);
+  }
+  let firmaSol=null;
+  function vigilar(){
+    const C=D.cache;if(!C.listo.solicitudes)return;
+    const sig=new Map(C.solicitudes.map(x=>[x.id,x.estado+'|'+num(x.version)]));
+    if(firmaSol===null){firmaSol=sig;return;}
+    const yo=miUid(),alm=puede('moduloAlmacen'),asist=puede('asistenteProduccion');
+    sig.forEach((v,id)=>{
+      if(firmaSol.get(id)===v)return;
+      const x=C.solicitudes.find(y=>y.id===id);if(!x)return;
+      const h=(x.historial||[]).slice(-1)[0]||{};if(h.uid&&h.uid===yo)return;                 // lo que hice yo no se avisa
+      const items=(x.items||[]).map(i=>`${insumoDe(i.insumo).nombre} ${fmt(i.solicitado)}`).join(', ');
+      const nuevo=firmaSol.get(id)===undefined;
+      if(nuevo&&x.estado==='SOLICITADA'&&alm)aviso_(`Nueva solicitud ${id} de ${h.por||'Producción'}: ${items}`,'info');
+      else if(['ENTREGADA','ENTREGADA_PARCIAL'].includes(x.estado)&&(asist||puede('ver_asistente')))aviso_(`${h.por||'Almacén'} entregó ${x.estado==='ENTREGADA'?'completa':'parcialmente'} la solicitud ${id}: ${(x.items||[]).filter(i=>num(i.entregado)>0).map(i=>`${insumoDe(i.insumo).nombre} ${fmt(i.entregado)}`).join(', ')}`,'ok');
+      else if(x.estado==='EN_PREPARACION'&&asist)aviso_(`${h.por||'Almacén'} empezó a preparar la solicitud ${id}`,'info');
+      else if(x.estado==='RECIBIDA'&&alm)aviso_(`${h.por||'Producción'} confirmó la recepción de ${id}`,'ok');
+      else if(x.estado==='OBSERVADA'&&alm)aviso_(`${h.por||'Producción'} observó la solicitud ${id}${h.nota?': '+h.nota:''}`,'aviso');
+      else if(x.estado==='CANCELADA'&&alm)aviso_(`${h.por||'Producción'} canceló la solicitud ${id}`,'aviso');
+    });
+    firmaSol=sig;
+    // La solicitud abierta en pantalla cambió mientras se miraba.
+    const ab=AP.solAbierta,cur=ab&&C.solicitudes.find(y=>y.id===ab.id);
+    const modal_=document.querySelector('#modal-root .ap-modal');
+    if(ab&&cur&&modal_&&num(cur.version)!==ab.version&&!document.getElementById('ap-sol-cambio')){
+      const b=document.createElement('div');b.id='ap-sol-cambio';b.className='ap-msg ap-msg-info';
+      b.innerHTML=`${ico('reloj')}<span>Esta solicitud cambió (${esc(SOL_TXT[cur.estado]||cur.estado)}). </span><button type="button" class="ap-link" onclick="apVerSolicitud('${esc(cur.id)}')">Ver lo nuevo</button>`;
+      const body=modal_.querySelector('.modal-body');if(body)body.insertBefore(b,body.firstChild);
+    }
+  }
+  function cartelPendiente(visible){
+    let c=document.getElementById('ap-pend');
+    if(!visible){if(c)c.remove();return;}
+    if(c)return;
+    c=document.createElement('div');c.id='ap-pend';c.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:80;background:#0f2547;color:#fff;border-radius:999px;padding:10px 18px;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:14px;display:flex;gap:12px;align-items:center';
+    c.innerHTML='<span>Hay información nueva</span><button type="button" style="background:#fff;color:#0f2547;border:0;border-radius:999px;padding:5px 12px;cursor:pointer;font-weight:600" onclick="apActualizarYa()">Actualizar ahora</button>';
+    document.body.appendChild(c);
+  }
+  window.apActualizarYa=()=>{AP.pendiente=false;cartelPendiente(false);const a=document.activeElement;if(a&&a.blur)a.blur();pintar();};
+  const repintar=()=>{
+    if(typeof state==='undefined'||state.currentTab!=='asistente'){cartelPendiente(false);return;}
+    vigilar();
+    if(bloqueado()){AP.pendiente=true;cartelPendiente(true);return;}
+    AP.pendiente=false;cartelPendiente(false);pintar();
+  };
+  setInterval(()=>{if(AP.pendiente&&typeof state!=='undefined'&&state.currentTab==='asistente'&&!bloqueado()){AP.pendiente=false;cartelPendiente(false);pintar();}},1500);
   D.alCambiar(repintar);
   // 81-almacen-enlace-datos.js se carga después de este archivo: la suscripción se hace en cuanto existe.
-  const enganchar=()=>{if(window.glacialAlmacenEnlaceDatos)window.glacialAlmacenEnlaceDatos.alCambiar(repintar);else setTimeout(enganchar,500);};
+  const enganchar=()=>{const EN_=window.glacialAlmacenEnlaceDatos;if(!EN_){setTimeout(enganchar,500);return;}
+    EN_.alCambiar(repintar);
+    EN_.alEvento(ev=>{const yo=miUid();ev.forEach(e=>{const m=e.mov;if(m.uid&&m.uid===yo)return;
+      const ins=insumoDe(m.insumo).nombre,cant=`${fmt(m.cantidad)} ${m.unidad||insumoDe(m.insumo).unidad}`;
+      if(e.tipo==='DEVOLUCION')aviso_(`${m.usuario||'Producción'} devolvió a Almacén ${cant} de ${ins}`,'info');
+      else if(e.tipo==='ANULACION_ENTREGA')aviso_(`${m.usuario||'Almacén'} anuló una entrega de ${ins}`,'aviso');});});};
   enganchar();
   ['onPaletasUpdated','onProgramacionesUpdated'].forEach(n=>{const a=globalThis[n];if(typeof a!=='function')return;globalThis[n]=function(){const r=a.apply(this,arguments);if(state.currentTab==='asistente'&&!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus'))pintar();return r;};});
 
@@ -924,7 +992,7 @@
   }
 
   function estilos(){return `<style id="ap-estilos">
-.ap-acc-agregar{display:flex;gap:8px;margin:10px 0}.ap-acc-agregar select{flex:1;padding:9px;border:1px solid var(--ap-linea);border-radius:8px}.ap-filtros-sol{display:flex;gap:6px;margin:6px 0 10px}
+.ap-p-azul{background:#e0f2fe;color:#075985}.ap-acc-agregar{display:flex;gap:8px;margin:10px 0}.ap-acc-agregar select{flex:1;padding:9px;border:1px solid var(--ap-linea);border-radius:8px}.ap-filtros-sol{display:flex;gap:6px;margin:6px 0 10px}
 .ap-modal-xl{max-width:1240px!important;width:96%!important}.ap-2-rep{display:grid;grid-template-columns:1fr 1fr;gap:14px}.ap-rep{border:1px solid var(--ap-linea);border-radius:12px;padding:14px}.ap-rep h4{margin:0 0 4px;display:flex;gap:8px;align-items:center}
 .ap-chks{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 10px}.ap-chk{display:inline-flex;gap:6px;align-items:center;font-size:14px}.ap-in-s{width:110px;padding:6px 8px;border:1px solid var(--ap-linea);border-radius:8px;text-align:right}.ap-in-s:disabled{background:#f1f4f8;color:#6b7a8a}
 .ap-obs{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.ap-obs li{font-size:14px}.ap-edit{border:2px solid #f0b429}@media(max-width:760px){.ap-2-rep{grid-template-columns:1fr}}
