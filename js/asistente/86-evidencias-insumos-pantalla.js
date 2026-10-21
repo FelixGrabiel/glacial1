@@ -6,7 +6,8 @@
    regla del validador o una persona). Los datos dudosos (p. ej. 100 vs 1000) exigen «Confirmar» o corregir antes de aprobar.
    Acciones: Guardar cambios · Aprobar datos · Solicitar corrección o nueva foto · Rechazar · Reabrir (solo Administrador). Todo con auditoría.
    APROBAR DATOS NO REGISTRA STOCK: aquí no existe ninguna operación de inventario (recepción, transferencia ni consumo: Fase 4, otro permiso).
-   Se integra en la pantalla de 76-inventario-insumos-pantalla.js (window.iiEvidenciasUI); cargar DESPUÉS de 85-evidencias-insumos-datos.js.
+   Vive en el ASISTENTE DE PRODUCCIÓN (pestaña «Evidencias» de 72-asistente-pantalla.js): ese módulo llama a window.iiEvidenciasUI.usar({pintar, activo}) y reutiliza
+   los estilos del Inventario (__inventarioInsumosPantalla.estilos). Cargar DESPUÉS de 85-evidencias-insumos-datos.js.
    ============================================================= */
 (function instalarEvidenciasInsumosPantalla(){
   'use strict';
@@ -14,7 +15,8 @@
   if(!N||!E)return;
   const esc=v=>typeof escaparHtml==='function'?escaparHtml(String(v==null?'':v)):String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const raiz=()=>document.getElementById('modal-root');
-  const repintar=()=>{const p=window.__inventarioInsumosPantalla;if(p)p.pintar();};
+  let host={pintar:()=>{},activo:()=>false};       // el módulo anfitrión (Asistente de Producción) dice cómo repintarse y cuándo está a la vista
+  const repintar=()=>host.pintar();
   const fotos=()=>window.glacialFotos||null;
   const S={sel:'',estado:'pendiente',texto:'',borr:{},rot:{},msg:null,imp:null};
   const PILL={pendiente:'ii-p-naranja',requiere_correccion:'ii-p-rojo',aprobado_dato:'ii-p-verde',rechazado:'ii-p-gris',registrado:'ii-p-verde'};
@@ -276,14 +278,13 @@
 @media(max-width:900px){.ie-grid{grid-template-columns:1fr}.ie-cols{grid-template-columns:1fr}.ie-col-foto{position:static}.ie-top{grid-template-columns:1fr}.ie-t th{width:auto}}
 @media(max-width:560px){.ie-t,.ie-t tbody,.ie-t tr,.ie-t th,.ie-t td{display:block;width:100%}.ie-t tr{border-top:1px solid #edf2f7;padding:6px 0}.ie-t td{border-top:0}.ie-duda{padding:0!important}}`;
 
-  window.iiEvidenciasUI={html,css,estado:S,hayEdicion:()=>!!S.sel&&hayBorrador()};
+  window.iiEvidenciasUI={html,css,estado:S,hayEdicion:()=>!!S.sel&&hayBorrador(),usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
   window.__inventarioInsumosEvidencias={S,cambiosPendientes};
 
   /* Tiempo real: lo que otra persona valide aparece solo, sin pisar lo que se está escribiendo. */
   E.alCambiar(()=>{
-    const p=window.__inventarioInsumosPantalla;
-    if(!p||typeof state==='undefined'||state.currentTab!=='inventario-insumos'||p.II.tab!=='evidencias')return;
+    if(!host.activo())return;
     if(document.querySelector('.ii input:focus,.ii select:focus,.ii textarea:focus,#modal-root .modal'))return;
-    p.pintar();
+    host.pintar();
   });
 })();

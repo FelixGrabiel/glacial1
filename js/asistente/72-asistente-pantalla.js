@@ -56,7 +56,7 @@
   };
   const ico=(n,cls)=>`<svg class="ap-ico ${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||P.info}</svg>`;
 
-  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['historial','Historial','reloj']];
+  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['historial','Historial','reloj']];
   const SUBINSUMOS=[['existencias','Existencias en Producción'],['factores','Factores'],['requerimientos','Requerimientos'],['solicitudes','Solicitudes'],['prevision','Previsión'],['desviacion','Desviación de consumo']];
   const ESTADO_TXT={EN_PRODUCCION:['En curso','curso'],PAUSA:['En pausa','pausa'],DETENIDA:['Detenida','rojo'],LISTA:['Programada','prog'],PENDIENTE:['Programada','prog'],
     FINALIZADA:['Finalizada','verde'],CANCELADA:['Cancelada','gris']};
@@ -362,6 +362,15 @@
     return `${sel}<div class="ap-card ap-card-in"><h3>Consumo real frente al teórico</h3>${dv.filas.length?tabla(['Insumo','#Teórico','#Real','#Diferencia','#%','#Cuadros','Estado'],dv.filas.map(x=>fila(x,false)).join(''),'ap-t-plano'):vacio('Aún no hay consumos confirmados en el período (se confirman en Consumo › conciliación).')}</div>
       ${dv.porLinea.length?`<div class="ap-card ap-card-in"><h3>Por línea</h3>${tabla(['Línea','Insumo','#Teórico','#Real','#Diferencia','#%','#Cuadros','Estado'],dv.porLinea.map(x=>fila(x,true)).join(''),'ap-t-plano')}</div>`:''}
       ${nota}`;
+  }
+
+  /* =========================================================== EVIDENCIAS (bandeja de validación de etiquetas leídas por la IA)
+     La lógica vive en 84-86 (evidencias-insumos-*): aquí solo se monta. No toca stock. */
+  function tabEvidencias(){
+    const UI=window.iiEvidenciasUI,P=window.__inventarioInsumosPantalla;
+    if(!UI||!P)return `<section class="ap-card"><div class="ap-msg ap-msg-info">${ico('info')}<span>La bandeja de evidencias no está disponible en esta versión.</span></div></section>`;
+    UI.usar({pintar:()=>pintar(),activo:()=>typeof state!=='undefined'&&state.currentTab==='asistente'&&AP.tab==='evidencias'});
+    return `<div class="ii">${P.estilos()}${UI.html()}</div>`;
   }
 
   /* =========================================================== INSUMOS */
@@ -879,8 +888,12 @@
     contextoInicial();D.escucharTodo(AP.fecha);
     if(!puede('ver_asistente')&&puede('moduloAlmacen')){AP.tab='insumos';AP.sub='solicitudes';}
     const ctx=contexto();
-    const tabs=PESTANAS.map(([k,t,i])=>`<button type="button" role="tab" class="ap-tab ${AP.tab===k?'ap-tab-act':''}" aria-selected="${AP.tab===k}" onclick="AP_set('tab','${k}')">${ico(i)}<span>${t}</span></button>`).join('');
-    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,consumo:tabConsumo,merma:tabMerma,historial:tabHistorial}[AP.tab]||tabResumen;
+    const ev=window.glacialEvidenciasDatos;
+    const evVisible=!!(ev&&ev.puedeVer());                                   // la bandeja usa los permisos del Inventario de insumos
+    if(AP.tab==='evidencias'&&!evVisible)AP.tab='resumen';
+    if(AP.tab!=='evidencias'&&ev)ev.detener();                                  // la escucha en vivo solo está abierta mientras se mira la bandeja
+    const tabs=PESTANAS.filter(([k])=>k!=='evidencias'||evVisible).map(([k,t,i])=>`<button type="button" role="tab" class="ap-tab ${AP.tab===k?'ap-tab-act':''}" aria-selected="${AP.tab===k}" onclick="AP_set('tab','${k}')">${ico(i)}<span>${t}</span></button>`).join('');
+    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,consumo:tabConsumo,merma:tabMerma,historial:tabHistorial}[AP.tab]||tabResumen;
     const modoVista=!!(window.glacialVista&&window.glacialVista.activo&&window.glacialVista.activo());
     const noche=AP.bloque==='NOCHE';
     const scroll=window.scrollY;

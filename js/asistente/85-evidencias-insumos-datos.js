@@ -34,9 +34,7 @@
     activo=false;
     if(cierre){try{cierre();}catch(_){/* ya cerrada */}cierre=null;}
   }
-  // El módulo de Inventario llama D.detener() al salir de la pestaña: la escucha de evidencias se cierra con ella.
-  const detenerInventario=D.detener;
-  D.detener=function(){detener();return detenerInventario.apply(this,arguments);};
+  // La escucha se cierra al cambiar de pestaña dentro del Asistente (72-asistente-pantalla.js llama a detener()) y al cerrar sesión.
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();cache.lista=[];cache.listo=false;});
 
   const refDe=id=>col(COL).doc(id);

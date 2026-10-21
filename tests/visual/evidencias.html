@@ -1,5 +1,5 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Validación visual · Evidencias de insumos (datos de prueba)</title>
+<title>Validación visual · Asistente de Producción › Evidencias (datos de prueba)</title>
 <link rel="stylesheet" href="../../css/styles.css">
 <style>body{background:#f3f6f8;margin:0;padding:12px}.aviso-prueba{font:700 13px system-ui;color:#991B1B;margin:0 0 8px}</style>
 </head><body>
@@ -9,19 +9,21 @@
 /* Escenario aislado: base de documentos en memoria y foto simulada (SVG). Usa los scripts REALES del Inventario de insumos y de Evidencias. */
 var ROL=(location.search.match(/rol=(\w+)/)||[])[1]||'asistente';
 var ROLES={asistente:{rol:'Asistente de Producción',permisos:[]},jefe:{rol:'Jefe de Operaciones',permisos:[]},admin:{rol:'Administrador',permisos:'todos'}};
-var state={user:Object.assign({username:'ana',nombre:'Ana (prueba)'},ROLES[ROL]),currentTab:'inventario-insumos',showWelcome:false};
+var state={user:Object.assign({username:'ana',nombre:'Ana (prueba)'},ROLES[ROL]),currentTab:'asistente',showWelcome:false};
 var PERMISOS_APP=[];function tienePermiso(){return false;}
 function escaparHtml(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function renderMain(){}function renderSidebar(){}function ajustarVistaSegunPermisos(){}
+var LINES=[{key:'PET1',name:'PET 1'},{key:'PET2',name:'PET 2'},{key:'B7L',name:'B7L'},{key:'C20L',name:'C20L'},{key:'B20L',name:'B20L'}];
+function loadProgramaciones(){return [];}function loadRecords(){return [];}function obtenerTareos(){return [];}
 function closeModal(){var r=document.getElementById('modal-root');if(r)r.innerHTML='';}
 window.tareoAhoraServidor=function(){return new Date(2026,9,21,16,0).getTime();};
 /* Base de documentos mínima (misma interfaz que usa el puente). */
 var DOCS={},OYENTES=[];
 function snap(k){return {exists:k in DOCS,data:function(){return JSON.parse(JSON.stringify(DOCS[k]));}};}
 function avisar(){OYENTES.slice().forEach(function(f){f();});}
-var db={collection:function(c){return {doc:function(id){return {k:c+'/'+(id||('a'+Math.random().toString(36).slice(2))),get:function(){return Promise.resolve(snap(this.k));},set:function(d){DOCS[this.k]=JSON.parse(JSON.stringify(d));avisar();return Promise.resolve();},
+var db={collection:function(c){var self={where:function(){return self;},orderBy:function(){return self;},limit:function(){return self;},get:function(){return Promise.resolve({docs:[]});},doc:function(id){return {k:c+'/'+(id||('a'+Math.random().toString(36).slice(2))),get:function(){return Promise.resolve(snap(this.k));},set:function(d){DOCS[this.k]=JSON.parse(JSON.stringify(d));avisar();return Promise.resolve();},
   onSnapshot:function(cb){var k=this.k,f=function(){cb(snap(k));};OYENTES.push(f);f();return function(){OYENTES=OYENTES.filter(function(x){return x!==f;});};}};},
-  onSnapshot:function(cb){var f=function(){cb({docs:Object.keys(DOCS).filter(function(k){return k.indexOf(c+'/')===0;}).map(function(k){return {data:function(){return JSON.parse(JSON.stringify(DOCS[k]));}};})});};OYENTES.push(f);f();return function(){OYENTES=OYENTES.filter(function(x){return x!==f;});};}};},
+  onSnapshot:function(cb){var f=function(){cb({docs:Object.keys(DOCS).filter(function(k){return k.indexOf(c+'/')===0;}).map(function(k){return {data:function(){return JSON.parse(JSON.stringify(DOCS[k]));}};})});};OYENTES.push(f);f();return function(){OYENTES=OYENTES.filter(function(x){return x!==f;});};}};return self;},
   runTransaction:function(fn){var w=[];var t={get:function(r){return Promise.resolve(snap(r.k));},set:function(r,d){w.push([r,d]);}};return fn(t).then(function(){w.forEach(function(x){DOCS[x[0].k]=JSON.parse(JSON.stringify(x[1]));});avisar();});}};
 var firebase={firestore:{FieldValue:{serverTimestamp:function(){return '__TS__';}}},auth:function(){return {currentUser:{uid:'u1'}};}};
 /* Foto simulada: una etiqueta dibujada, para ver el diseño (en la app es una foto privada con enlace firmado). */
@@ -31,6 +33,10 @@ function etiquetaSvg(t){var l=['FULL PACK S.A.C.','CLIENTE: CONSORCIO FRAP S.A.C
 window.glacialFotos={PREFIJO:'supabase:glacial-fotos/',disponible:function(){return true;},subir:function(){return Promise.resolve({url:''});},
   atributosImg:function(u){return 'src="'+etiquetaSvg('ETIQUETA (foto simulada)')+'"';},atributosEnlace:function(u){return 'href="#"';}};
 </script>
+<script src="../../js/nucleo/45-indicadores.js"></script>
+<script src="../../js/asistente/70-asistente-nucleo.js"></script>
+<script src="../../js/asistente/71-asistente-datos.js"></script>
+<script src="../../js/asistente/72-asistente-pantalla.js"></script>
 <script src="../../js/asistente/74-inventario-insumos-nucleo.js"></script>
 <script src="../../js/asistente/75-inventario-insumos-datos.js"></script>
 <script src="../../js/asistente/76-inventario-insumos-pantalla.js"></script>
@@ -58,7 +64,7 @@ window.glacialFotos={PREFIJO:'supabase:glacial-fotos/',disponible:function(){ret
     if((location.search.match(/estado=(\w+)/)||[])[1]==='aprobado_dato'&&i===1){d.estado='aprobado_dato';}
     DOCS['insumosEvidencias/'+d.id]=d;});
   var sel=Number((location.search.match(/sel=(\d)/)||[])[1]);
-  goInventarioInsumos();iiTab('evidencias');
+  goAsistente('evidencias');
   if(!isNaN(sel)){var ids=Object.keys(DOCS).filter(function(k){return k.indexOf('insumosEvidencias/')===0;}).map(function(k){return DOCS[k].id;});ieSel(ids[sel]);}
 })();
 </script>

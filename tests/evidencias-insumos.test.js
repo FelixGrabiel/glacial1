@@ -221,8 +221,15 @@ const ejecutar=async f=>{try{return {r:await f()};}catch(e){return {e};}};
   /* integración con el Inventario de insumos */
   const html=leer('index.html'),pos=n=>html.indexOf('js/asistente/'+n);
   ok(pos('84-evidencias-insumos-nucleo.js')>pos('79-inventario-insumos-auditoria.js')&&pos('85-evidencias-insumos-datos.js')>pos('84-evidencias-insumos-nucleo.js')&&pos('86-evidencias-insumos-pantalla.js')>pos('85-evidencias-insumos-datos.js')&&pos('86-evidencias-insumos-pantalla.js')<html.indexOf('js/nucleo/12-init.js'),'index.html carga 84, 85 y 86 después del inventario y antes de 12-init');
-  const p76=leer('js/asistente/76-inventario-insumos-pantalla.js');
-  ok(/\['evidencias','Evidencias'\]/.test(p76)&&/iiEvidenciasUI\.html\(\)/.test(p76)&&/iiEvidenciasUI\.css/.test(p76),'el Inventario de insumos tiene la pestaña «Evidencias»');
+  const p72=leer('js/asistente/72-asistente-pantalla.js'),p76=leer('js/asistente/76-inventario-insumos-pantalla.js');
+  ok(/\['evidencias','Evidencias','doc'\]/.test(p72)&&/evidencias:tabEvidencias/.test(p72)&&/function tabEvidencias\(\)/.test(p72)&&/iiEvidenciasUI/.test(p72)&&/\.usar\(\{pintar/.test(p72),'el Asistente de Producción tiene la pestaña «Evidencias» (y la monta con su propio repintado)');
+  ok(/glacialEvidenciasDatos[\s\S]{0,80}puedeVer\(\)/.test(p72)&&/PESTANAS\.filter\(\(\[k\]\)=>k!=='evidencias'\|\|evVisible\)/.test(p72),'la pestaña solo aparece a quien puede ver el Inventario de insumos');
+  ok(/ev\.detener\(\)/.test(p72),'la escucha en vivo se cierra al salir de la pestaña (sin bucles de repintado)');
+  ok(!/\['evidencias','Evidencias'\]/.test(p76)&&!/iiEvidenciasUI\.html\(\)/.test(p76)&&/estilos\}/.test(p76),'el Inventario de insumos ya no duplica la pestaña; solo comparte sus estilos con el Asistente');
+  let repintados=0;
+  UI.usar({pintar:()=>{repintados++;},activo:()=>true});
+  vm.runInContext("window.ieSel('"+SHA+"')",asistente);
+  ok(repintados===1,'el anfitrión (Asistente) decide cómo repintar la bandeja');
   const n74=vm.runInContext('window.glacialInventarioNucleo',asistente);
   ok(['IMPORTAR_EVIDENCIA','EDITAR_EVIDENCIA','CONFIRMAR_CAMPO','CAMBIAR_ESTADO_EVIDENCIA'].every(t=>n74.TIPOS_AUDITORIA[t]&&n74.GRUPOS_AUDITORIA[n74.TIPOS_AUDITORIA[t].grupo]),'los 4 tipos de auditoría de evidencias existen y tienen grupo para filtrar');
   const sql=leer('supabase/migraciones/glacial_31_evidencias_insumos.sql');

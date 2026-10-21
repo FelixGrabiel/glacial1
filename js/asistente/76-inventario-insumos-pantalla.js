@@ -170,11 +170,11 @@
     D.escuchar();enlazarAlmacen();
     autoCodigos();
     const modoVista=!D.puedeEscribir();
-    const tabs=[['stock','Stock actual'],['conteo','Conteo físico'],['conciliacion','Conciliación'],['evidencias','Evidencias'],['auditoria','Auditoría'],['catalogo','Catálogo']].map(([k,t])=>`<button type="button" role="tab" class="ii-tab ${II.tab===k?'ii-tab-act':''}" aria-selected="${II.tab===k}" onclick="iiTab('${k}')">${t}</button>`).join('');
+    const tabs=[['stock','Stock actual'],['conteo','Conteo físico'],['conciliacion','Conciliación'],['auditoria','Auditoría'],['catalogo','Catálogo']].map(([k,t])=>`<button type="button" role="tab" class="ii-tab ${II.tab===k?'ii-tab-act':''}" aria-selected="${II.tab===k}" onclick="iiTab('${k}')">${t}</button>`).join('');
     const scroll=window.scrollY;
     main.innerHTML=`<section class="ii">${estilos()}<header class="ii-cab"><h1>INVENTARIO DE INSUMOS</h1><div class="ii-cab-der">
       ${modoVista?'<span class="ii-chip">Solo consulta</span>':'<button type="button" class="ii-btn" onclick="iiImportar()">Importar stock SAP</button>'}</div></header>
-      <nav class="ii-tabs" role="tablist">${tabs}</nav>${mensaje()}${II.tab==='catalogo'?tabCatalogo():II.tab==='conteo'&&window.iiConteoUI?window.iiConteoUI.html():II.tab==='conciliacion'&&window.iiConciliacionUI?window.iiConciliacionUI.html():II.tab==='evidencias'&&window.iiEvidenciasUI?window.iiEvidenciasUI.html():II.tab==='auditoria'&&window.iiAuditoriaUI?window.iiAuditoriaUI.html():tabStock()}</section>`;
+      <nav class="ii-tabs" role="tablist">${tabs}</nav>${mensaje()}${II.tab==='catalogo'?tabCatalogo():II.tab==='conteo'&&window.iiConteoUI?window.iiConteoUI.html():II.tab==='conciliacion'&&window.iiConciliacionUI?window.iiConciliacionUI.html():II.tab==='auditoria'&&window.iiAuditoriaUI?window.iiAuditoriaUI.html():tabStock()}</section>`;
     window.scrollTo(0,scroll);
   }
   function pintarTabla(){
@@ -442,5 +442,5 @@
 @media(max-width:700px){.ii-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-cab h1{font-size:24px}.ii-form{grid-template-columns:1fr}.ii-nom{min-width:180px}}
 </style>`;}
 
-  window.__inventarioInsumosPantalla={II,filasFiltradas,pintar};
+  window.__inventarioInsumosPantalla={II,filasFiltradas,pintar,estilos};      // estilos(): el Asistente de Producción los reutiliza en su pestaña «Evidencias»
 })();

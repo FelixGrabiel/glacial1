@@ -1,7 +1,7 @@
 # Evidencias de insumos — bandeja de validación (Fase 3)
 
-Pestaña **Evidencias** dentro de **Inventario de insumos** (Asistente de Producción · Almacén). Archivos: `js/asistente/84-evidencias-insumos-nucleo.js`,
-`85-evidencias-insumos-datos.js`, `86-evidencias-insumos-pantalla.js`; migración `supabase/migraciones/glacial_31_evidencias_insumos.sql` (**sin aplicar**).
+Pestaña **Evidencias** del módulo **Asistente de Producción** (entre «Insumos» y «Consumo»; la ven quienes tienen permiso sobre el Inventario de insumos). Archivos: `js/asistente/84-evidencias-insumos-nucleo.js`,
+`85-evidencias-insumos-datos.js`, `86-evidencias-insumos-pantalla.js`, montada por `72-asistente-pantalla.js` (reutiliza los estilos del Inventario); migración `supabase/migraciones/glacial_31_evidencias_insumos.sql` (**sin aplicar**).
 
 ## Principio
 WhatsApp aporta **evidencia**, OpenAI **propone** datos, una persona autorizada los **valida**, y **solo una operación explícitamente aprobada** (Fase 4,
