@@ -121,5 +121,6 @@ const espera=async p=>{try{await p;return null;}catch(e){return e;}};
   ok(/apSolicitarFaltantes/.test(p72)&&/faltantesNetos/.test(p72)&&/transitoYComprometido/.test(p72),'72: «Solicitar todos los faltantes» en un clic, sin repetir lo ya pedido o en camino');
   ok(/apMigrar\(true\)/.test(p72)&&/Activar factores/.test(p72),'72: «Activar factores» en un clic desde el Resumen');
   ok(!/TURNO:'Todo el turno'/.test(p72)&&/modalidadTxt/.test(p72)&&/tramosSecuencia/.test(p72),'72: Seguimiento dice «Resto del turno» y muestra los pasos de la secuencia');
+  ok(/apCierreTurno/.test(p72)&&/apEntregarLoQueHay/.test(p72)&&/apEntCheck/.test(p72)&&/ORDEN_SOL/.test(p72)&&/apSolAgregar/.test(p72)&&/Entrega de Almacén/.test(p72)&&/histSistema/.test(p72),'72: cierre del turno, entrega con confirmación y motivo solo si hace falta, solicitudes ordenadas, historial con entregas');
   ok(/apAlmacenMov/.test(leer('supabase/migraciones/glacial_27_almacen_enlace_inventario.sql')),'existe la migración glacial_27');
 }

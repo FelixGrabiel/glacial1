@@ -39,3 +39,13 @@ Pruebas: `node tests/almacen-enlace.test.js`.
 - **Insumos › Desviación de consumo:** consumo real confirmado (conciliaciones) frente al teórico, por insumo y por línea, en 3/7/15/30 días. Tolerancia normal ±3 %.
 - **Alertas en «Por atender» (Resumen):** no alcanza ni con Almacén, hay que pedir a Almacén, solicitud sin entregar > 4 h, entregada sin recibir > 12 h, consumo fuera de tolerancia (≥ 2 cuadros) y stock de Almacén bajo el mínimo del catálogo.
 - Pruebas: `node tests/asistente-prevision.test.js`.
+
+## Reportes en Excel con previsualización y corrección (`83-asistente-reportes-pantalla.js`)
+Historial › **Reportes en Excel**, para el día elegido:
+- **Resumen general:** todas las líneas (Resumen del día + una hoja por línea).
+- **Resumen por línea:** solo las líneas marcadas.
+Cada uno tiene **Previsualizar** (lo mismo que irá al Excel, con avisos y detalle por línea) y **Descargar Excel** (se arma otra vez con los datos vivos: sale con las correcciones).
+En la previsualización se corrige en el **dato original** (con historial, motivo y auditoría):
+- ✎ Saldos inicial y final del consumo (conciliación). Una conciliación **confirmada** solo la reabre quien valida (botón «Reabrir»).
+- ✎ Mermas **pendientes** de validar (material, cantidad, cuadro, causa, etapa, lote, observaciones): `editarMerma` (71) + regla `glacial_28`. Una merma validada no se edita.
+Programación, Paletas, Cierre, paradas y Tareo se ven pero se corrigen en su módulo. Migración: `glacial_28_asistente_corrige_mermas.sql` (PRUEBAS aplicada; PRODUCCIÓN pendiente). Pruebas: `node tests/asistente-reportes-edicion.test.js`.
