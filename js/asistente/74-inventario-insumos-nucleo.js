@@ -559,7 +559,7 @@
   }
 
   /* ---------- auditoría (Fase 4) ---------- */
-  const GRUPOS_AUDITORIA={IMPORTACION:'Importaciones',CATALOGO:'Mínimos y catálogo',CONTEO:'Conteos',LINEA:'Líneas de conteo',COMENTARIO:'Comentarios'};
+  const GRUPOS_AUDITORIA={IMPORTACION:'Importaciones',CATALOGO:'Mínimos y catálogo',CONTEO:'Conteos',LINEA:'Líneas de conteo',COMENTARIO:'Comentarios',EVIDENCIA:'Evidencias de etiquetas'};
   const TIPOS_AUDITORIA={
     IMPORTAR_STOCK:{txt:'Importación de stock SAP',grupo:'IMPORTACION'},
     EDITAR_ARTICULO:{txt:'Edición de artículo (mínimos, reorden, unidad…)',grupo:'CATALOGO'},
@@ -567,8 +567,12 @@
     CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},BORRAR_CONTEO:{txt:'Conteo borrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
     CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},BORRAR_UBICACION:{txt:'Líneas borradas por ubicación',grupo:'LINEA'},
     ASIGNAR_CODIGOS:{txt:'Códigos internos asignados',grupo:'CATALOGO'},MARCAR_SIN_USO:{txt:'Artículos marcados sin uso',grupo:'CATALOGO'},IMPORTAR_CONTEO:{txt:'Conteo importado desde Excel',grupo:'LINEA'},
-    COMENTARIO_CONCILIACION:{txt:'Comentario de conciliación',grupo:'COMENTARIO'}};
-  const CAMPOS_AUDITORIA={sinUso:'Sin uso',stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',
+    COMENTARIO_CONCILIACION:{txt:'Comentario de conciliación',grupo:'COMENTARIO'},
+    IMPORTAR_EVIDENCIA:{txt:'Evidencia de etiqueta importada',grupo:'EVIDENCIA'},EDITAR_EVIDENCIA:{txt:'Dato de evidencia corregido',grupo:'EVIDENCIA'},
+    CONFIRMAR_CAMPO:{txt:'Dato de evidencia confirmado',grupo:'EVIDENCIA'},CAMBIAR_ESTADO_EVIDENCIA:{txt:'Estado de evidencia',grupo:'EVIDENCIA'}};
+  const CAMPOS_AUDITORIA={proveedor:'Proveedor',cliente:'Cliente',marca:'Marca',producto:'Producto',presentacion:'Presentación',codigo_producto:'Código del producto',lote:'Lote',numero_caja_bobina:'N.º de caja / bobina',
+    orden_interna:'Orden interna',orden_compra:'Orden de compra',fecha_produccion:'Fecha de producción',fecha_proceso:'Fecha de proceso',fecha_etiqueta:'Fecha de la etiqueta',fecha_vencimiento:'Fecha de vencimiento',
+    cantidad_valor:'Cantidad',cantidad_unidad:'Unidad',peso_neto_kg:'Peso neto (kg)',peso_bruto_kg:'Peso bruto (kg)',peso_declarado_kg:'Peso declarado (kg)',medidas:'Medidas',categoria:'Categoría',tipoDocumento:'Tipo de documento',sinUso:'Sin uso',stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',
     texto:'Comentario',estado:'Estado',motivo:'Motivo',observacion:'Observación',fecha:'Fecha',almacen:'Almacén',fechaCorte:'Fecha del corte',formato:'Formato',articulos:'Artículos',
     nuevos:'Nuevos',actualizados:'Actualizados',adoptados:'Adoptados',excluidos:'Excluidos',almacenes:'Almacenes',lineas:'Líneas',asignados:'Códigos asignados',desde:'Desde',hasta:'Hasta',por:'Registró',conteo:'Conteo'};
   const grupoAuditoria=t=>(TIPOS_AUDITORIA[t]||{}).grupo||'';

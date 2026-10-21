@@ -1,0 +1,65 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Evidencias de insumos (datos de prueba)</title>
+<link rel="stylesheet" href="../../css/styles.css">
+<style>body{background:#f3f6f8;margin:0;padding:12px}.aviso-prueba{font:700 13px system-ui;color:#991B1B;margin:0 0 8px}</style>
+</head><body>
+<p class="aviso-prueba">Datos de PRUEBA (no reales), sin Supabase · ?rol=asistente|jefe|admin · ?sel=0|1|2 · ?estado=pendiente|aprobado_dato|</p>
+<div id="main"></div><div id="modal-root"></div>
+<script>
+/* Escenario aislado: base de documentos en memoria y foto simulada (SVG). Usa los scripts REALES del Inventario de insumos y de Evidencias. */
+var ROL=(location.search.match(/rol=(\w+)/)||[])[1]||'asistente';
+var ROLES={asistente:{rol:'Asistente de Producción',permisos:[]},jefe:{rol:'Jefe de Operaciones',permisos:[]},admin:{rol:'Administrador',permisos:'todos'}};
+var state={user:Object.assign({username:'ana',nombre:'Ana (prueba)'},ROLES[ROL]),currentTab:'inventario-insumos',showWelcome:false};
+var PERMISOS_APP=[];function tienePermiso(){return false;}
+function escaparHtml(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function renderMain(){}function renderSidebar(){}function ajustarVistaSegunPermisos(){}
+function closeModal(){var r=document.getElementById('modal-root');if(r)r.innerHTML='';}
+window.tareoAhoraServidor=function(){return new Date(2026,9,21,16,0).getTime();};
+/* Base de documentos mínima (misma interfaz que usa el puente). */
+var DOCS={},OYENTES=[];
+function snap(k){return {exists:k in DOCS,data:function(){return JSON.parse(JSON.stringify(DOCS[k]));}};}
+function avisar(){OYENTES.slice().forEach(function(f){f();});}
+var db={collection:function(c){return {doc:function(id){return {k:c+'/'+(id||('a'+Math.random().toString(36).slice(2))),get:function(){return Promise.resolve(snap(this.k));},set:function(d){DOCS[this.k]=JSON.parse(JSON.stringify(d));avisar();return Promise.resolve();},
+  onSnapshot:function(cb){var k=this.k,f=function(){cb(snap(k));};OYENTES.push(f);f();return function(){OYENTES=OYENTES.filter(function(x){return x!==f;});};}};},
+  onSnapshot:function(cb){var f=function(){cb({docs:Object.keys(DOCS).filter(function(k){return k.indexOf(c+'/')===0;}).map(function(k){return {data:function(){return JSON.parse(JSON.stringify(DOCS[k]));}};})});};OYENTES.push(f);f();return function(){OYENTES=OYENTES.filter(function(x){return x!==f;});};}};},
+  runTransaction:function(fn){var w=[];var t={get:function(r){return Promise.resolve(snap(r.k));},set:function(r,d){w.push([r,d]);}};return fn(t).then(function(){w.forEach(function(x){DOCS[x[0].k]=JSON.parse(JSON.stringify(x[1]));});avisar();});}};
+var firebase={firestore:{FieldValue:{serverTimestamp:function(){return '__TS__';}}},auth:function(){return {currentUser:{uid:'u1'}};}};
+/* Foto simulada: una etiqueta dibujada, para ver el diseño (en la app es una foto privada con enlace firmado). */
+function etiquetaSvg(t){var l=['FULL PACK S.A.C.','CLIENTE: CONSORCIO FRAP S.A.C.','PRODUCTO: BOLSAS CON EVA','MEDIDA: 60CM X 114CM X 17MILS','ORDEN DE COMPRA: 10820','LOTE: 472-2026','F. VENC.: 23-09-2026','F. PROC.: 24-09-2026','CANTIDAD: 1000 UNIDADES'];
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="520" height="680"><rect width="520" height="680" fill="#cfd8dc"/><rect x="40" y="50" width="440" height="580" rx="8" fill="#fff" stroke="#90a4ae" stroke-width="3"/><text x="70" y="110" font-family="Arial" font-size="26" font-weight="700" fill="#102a43">'+t+'</text>'+l.map(function(x,i){return '<text x="70" y="'+(170+i*52)+'" font-family="Arial" font-size="22" fill="#243b53">'+x+'</text>';}).join('')+'</svg>';
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s);}
+window.glacialFotos={PREFIJO:'supabase:glacial-fotos/',disponible:function(){return true;},subir:function(){return Promise.resolve({url:''});},
+  atributosImg:function(u){return 'src="'+etiquetaSvg('ETIQUETA (foto simulada)')+'"';},atributosEnlace:function(u){return 'href="#"';}};
+</script>
+<script src="../../js/asistente/74-inventario-insumos-nucleo.js"></script>
+<script src="../../js/asistente/75-inventario-insumos-datos.js"></script>
+<script src="../../js/asistente/76-inventario-insumos-pantalla.js"></script>
+<script src="../../js/asistente/84-evidencias-insumos-nucleo.js"></script>
+<script src="../../js/asistente/85-evidencias-insumos-datos.js"></script>
+<script src="../../js/asistente/86-evidencias-insumos-pantalla.js"></script>
+<script>
+(function(){
+  var N=window.glacialEvidenciasNucleo,H=function(c){return c.repeat(64).slice(0,64);};
+  function campos(o){var m={};N.CAMPOS.forEach(function(d){m[d.campo]={literal:null,valor:null,estado:'ausente',origen:'imagen',historial:[]};});
+    Object.keys(o).forEach(function(k){var v=o[k];m[k]={literal:v[0],valor:v[1],estado:v[2]||'legible',origen:v[3]||'imagen',historial:[]};});return m;}
+  function reg(sha,archivo,cat,cs,dudas,adv,texto,reglas){return {sha256:sha,archivo_original:archivo,version_procesador:'vision-v2',analizado_en:'2026-10-21T03:55:43.756Z',modelo:'gpt-5.4-mini',
+    extraccion:{tipo_documento:'etiqueta_insumo',categoria:cat,texto_relevante:texto,advertencias:adv},campos:cs,revision_local:{version:'validador-v3',reglas_aplicadas:reglas,campos_en_duda:dudas}};}
+  var r1=reg(H('a'),'bolsones.jpg','bolsas',campos({proveedor:['FULL PACK S.A.C.','FULL PACK S.A.C.'],cliente:['CONSORCIO FRAP SAC','CONSORCIO FRAP SAC'],producto:['BOLSAS CON EVA','BOLSAS CON EVA'],lote:['472-2026','472-2026'],orden_compra:['10820','10820'],
+      fecha_proceso:['24-09-2026','2026-09-24','requiere_revision','regla:fullpack-fechas'],cantidad_valor:['1000 UNIDADES',1000],cantidad_unidad:['UNIDADES','UND'],medidas:['60CM X 114CM X 17MILS','60CM X 114CM X 17MILS']}),
+    [{campo:'cantidad_unidades',motivo:'Se leyó 1000; con FULL PACK ya hubo confusión 100 vs 1000. Confirmar contra la foto antes de aprobar.'},{campo:'medidas',motivo:'Se leyó 17 mils; las bolsas FULL PACK suelen ser ~1.7 mils. Confirmar contra la foto (¿1.7?).'},
+     {campo:'fecha_produccion',motivo:'FULL PACK no rotula vencimiento: el «F. VENC.» leído probablemente es «F. PROD.». Confirmar contra la foto.',valor_sugerido:'2026-09-23'}],
+    ['La etiqueta está girada; algunos textos fueron leídos tras rotación mental.','Este revisor utiliza la transcripcion anterior; NO relee la fotografia. Confirmar cada correccion contra la imagen.'],
+    'CLIENTE: CONSORCIO FRAP SAC. PRODUCTO: BOLSAS CON EVA. MEDIDA: 60CM X 114CM X 17MILS. ORDEN DE COMPRA: 10820. LOTE: 472-2026. F. VENC.: 23-09-2026. F. PROC.: 24-09-2026. CANTIDAD: 1000 UNIDADES.',['fullpack-fechas','fullpack-bolsas','general']);
+  var r2=reg(H('b'),'preformas_smi.jpg','preformas',campos({proveedor:['SAN MIGUEL INDUSTRIAS PET S.A.','SAN MIGUEL INDUSTRIAS PET S.A.'],producto:['42.7gr. Cr.1881','42.7gr. Cr.1881'],lote:['260925G33C','260925G33C'],numero_caja_bobina:['1061891637','1061891637'],
+      fecha_produccion:['25.09.26','2026-09-25'],cantidad_valor:['8141',8141],cantidad_unidad:['UND','UND'],peso_neto_kg:['346.590',346.59],peso_bruto_kg:['372.590',372.59]}),[],['SMI: 42.7 g es el peso de una preforma, no el de la caja.'],'FECHA / DATE 25.09.26; PRODUCTO 42.7gr. Cr.1881; UNIDADES 8141; PESO NETO 346.590','smi,general'.split(','));
+  var r3=reg(H('c'),'bobinaTottus.jpg','bolsas',campos({proveedor:['CORPORACION ASK','CORPORACION ASK'],producto:['BOBINA HIELO EN CUBOS TOTTUS 3 KG','BOBINA HIELO EN CUBOS TOTTUS 3 KG'],marca:['TOTTUS','TOTTUS'],lote:['11749','11749'],numero_caja_bobina:['91','91'],fecha_etiqueta:['25/08/2026','2026-08-25'],
+      peso_declarado_kg:['PESO 17.50 KG',17.5,'legible','regla:general']}),[],['PESO sin «NETO»: no calcular unidades hasta que una persona confirme que es peso neto útil.'],'FECHA 25/08/2026; N° BOB 91; LOTE 11749; PESO 17.50 KG',['ask','general']);
+  [[r1,'a'],[r2,'b'],[r3,'c']].forEach(function(p,i){var d=N.construirDocumento(p[0],{sha256:H(p[1]),foto:{url:'supabase:glacial-fotos/asistente/evidencias/'+H(p[1])+'.jpg',mimetype:'image/jpeg',bytes:130000},usuario:'Ana (prueba)',uid:'u1',ahora:Date.now()-i*3600000});
+    if((location.search.match(/estado=(\w+)/)||[])[1]==='aprobado_dato'&&i===1){d.estado='aprobado_dato';}
+    DOCS['insumosEvidencias/'+d.id]=d;});
+  var sel=Number((location.search.match(/sel=(\d)/)||[])[1]);
+  goInventarioInsumos();iiTab('evidencias');
+  if(!isNaN(sel)){var ids=Object.keys(DOCS).filter(function(k){return k.indexOf('insumosEvidencias/')===0;}).map(function(k){return DOCS[k].id;});ieSel(ids[sel]);}
+})();
+</script>
+</body></html>

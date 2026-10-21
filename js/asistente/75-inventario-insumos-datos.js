@@ -457,5 +457,6 @@
 
   window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,asignarCodigosFaltantes,importarCorte,vistaPrevia,mensajeError,
     escucharConteo,crearConteo,importarConteo,agregarLinea,agregarLineasLote,borrarLineasUbicacion,detectarSinMovimiento,marcarSinUso,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,borrarConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
+    _ayudas:{auditar,usuario,ahora,col,serverTs,falla},      // para el módulo de evidencias (85-evidencias-insumos-datos.js)
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
 })();

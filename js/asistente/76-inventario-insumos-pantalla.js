@@ -160,7 +160,7 @@
     if(enlaceEnganchado)return;enlaceEnganchado=true;
     EN.alCambiar(()=>{
       if(typeof state==='undefined'||state.currentTab!==TAB||II.tab!=='stock')return;
-      if(document.querySelector('.ii input:focus,.ii select:focus,#modal-root .modal'))return;
+      if(document.querySelector('.ii input:focus,.ii select:focus,.ii textarea:focus,#modal-root .modal'))return;
       pintarTabla();
     });
   }
@@ -170,11 +170,11 @@
     D.escuchar();enlazarAlmacen();
     autoCodigos();
     const modoVista=!D.puedeEscribir();
-    const tabs=[['stock','Stock actual'],['conteo','Conteo físico'],['conciliacion','Conciliación'],['auditoria','Auditoría'],['catalogo','Catálogo']].map(([k,t])=>`<button type="button" role="tab" class="ii-tab ${II.tab===k?'ii-tab-act':''}" aria-selected="${II.tab===k}" onclick="iiTab('${k}')">${t}</button>`).join('');
+    const tabs=[['stock','Stock actual'],['conteo','Conteo físico'],['conciliacion','Conciliación'],['evidencias','Evidencias'],['auditoria','Auditoría'],['catalogo','Catálogo']].map(([k,t])=>`<button type="button" role="tab" class="ii-tab ${II.tab===k?'ii-tab-act':''}" aria-selected="${II.tab===k}" onclick="iiTab('${k}')">${t}</button>`).join('');
     const scroll=window.scrollY;
     main.innerHTML=`<section class="ii">${estilos()}<header class="ii-cab"><h1>INVENTARIO DE INSUMOS</h1><div class="ii-cab-der">
       ${modoVista?'<span class="ii-chip">Solo consulta</span>':'<button type="button" class="ii-btn" onclick="iiImportar()">Importar stock SAP</button>'}</div></header>
-      <nav class="ii-tabs" role="tablist">${tabs}</nav>${mensaje()}${II.tab==='catalogo'?tabCatalogo():II.tab==='conteo'&&window.iiConteoUI?window.iiConteoUI.html():II.tab==='conciliacion'&&window.iiConciliacionUI?window.iiConciliacionUI.html():II.tab==='auditoria'&&window.iiAuditoriaUI?window.iiAuditoriaUI.html():tabStock()}</section>`;
+      <nav class="ii-tabs" role="tablist">${tabs}</nav>${mensaje()}${II.tab==='catalogo'?tabCatalogo():II.tab==='conteo'&&window.iiConteoUI?window.iiConteoUI.html():II.tab==='conciliacion'&&window.iiConciliacionUI?window.iiConciliacionUI.html():II.tab==='evidencias'&&window.iiEvidenciasUI?window.iiEvidenciasUI.html():II.tab==='auditoria'&&window.iiAuditoriaUI?window.iiAuditoriaUI.html():tabStock()}</section>`;
     window.scrollTo(0,scroll);
   }
   function pintarTabla(){
@@ -401,7 +401,7 @@
     pintar();
   });
 
-  function estilos(){return `<style id="ii-estilos">${window.iiConteoUI?window.iiConteoUI.css:''}${window.iiConciliacionUI?window.iiConciliacionUI.css:''}${window.iiAuditoriaUI?window.iiAuditoriaUI.css:''}
+  function estilos(){return `<style id="ii-estilos">${window.iiConteoUI?window.iiConteoUI.css:''}${window.iiConciliacionUI?window.iiConciliacionUI.css:''}${window.iiAuditoriaUI?window.iiAuditoriaUI.css:''}${window.iiEvidenciasUI?window.iiEvidenciasUI.css:''}
 .ii,.ii-modal{--ii-azul:#0b5cc4;--ii-linea:#dde6ef;--ii-mut:#5f7382}      /* los modales viven en #modal-root, fuera de .ii: necesitan las mismas variables */
 .ii{color:#0f2547;font-size:15px}
 .ii-g-hoy{background:#e6f4ea;color:#14532d}.ii-b-hoy{background:#f3faf5}.ii-delta{display:block;font-size:11px;color:#5f7382}
