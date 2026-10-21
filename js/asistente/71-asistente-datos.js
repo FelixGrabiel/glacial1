@@ -93,6 +93,7 @@
     const desde=new Date(fecha+'T00:00:00').getTime()-DIAS_MOV*86400000;
     const fechaDesde=new Date(desde).toISOString().slice(0,10);
     escucharCatalogo();
+    if(window.glacialAlmacenEnlaceDatos)window.glacialAlmacenEnlaceDatos.escuchar();   // stock de Almacén (Inventario de insumos) para el descuento por entregas
     const sub=(nombre,q,mapear)=>{
       cache.listo[nombre]=false;cache.error[nombre]='';
       cierres.push(q.onSnapshot(s=>{cache[nombre]=s.docs.map(d=>mapear?mapear(d):d.data());cache.listo[nombre]=true;cache.error[nombre]='';avisar();},
@@ -154,7 +155,7 @@
     await db.runTransaction(async tx=>{
       const s=await tx.get(ref);const antes=s.exists?s.data():null;
       if(num(antes&&antes.version)!==num(versionEsperada))throw falla('CONFLICTO','El insumo cambió mientras lo editabas. Vuelve a abrirlo.');
-      const d={codigo:ins.codigo,nombre:String(ins.nombre).trim(),unidad:ins.unidad,tipo:ins.tipo,activo:ins.activo!==false,version:num(antes&&antes.version)+1,...autor()};
+      const d={codigo:ins.codigo,nombre:String(ins.nombre).trim(),unidad:ins.unidad,tipo:ins.tipo,itemCode:String(ins.itemCode||'').trim().toUpperCase(),activo:ins.activo!==false,version:num(antes&&antes.version)+1,...autor()};
       tx.set(ref,d);auditar(tx,'apInsumos',ins.codigo,antes?'EDITAR':'CREAR',antes,d);
     });
   }
@@ -283,10 +284,19 @@
       const s=await tx.get(ref);if(!s.exists)throw falla('VALIDACION','La solicitud no existe.');
       const sol=s.data();
       if(num(sol.version)!==num(versionEsperada))throw falla('CONFLICTO','La solicitud cambió mientras la revisabas (otra persona guardó). Vuelve a abrirla.');
-      let items=sol.items,estado=estadoNuevo,movs=[];
+      let items=sol.items,estado=estadoNuevo,movs=[],movsAlm=[];
       if(estadoNuevo==='ENTREGADA'||estadoNuevo==='ENTREGADA_PARCIAL'){
         const r=N.aplicarEntrega(sol,datos.entregas||{},{permitirExceso:!!datos.permitirExceso});if(r.errores)throw falla('VALIDACION',r.errores.join(' · '));
         items=r.items;estado=r.estado;
+        // Enlace con el Inventario: la entrega resta del stock de Almacén (libro apAlmacenMov, mismo commit que la solicitud).
+        const enl=window.glacialAlmacenEnlaceDatos;
+        if(enl){
+          const ent=datos.entregas||{};
+          const rev=enl.revisarEntrega(sol,ent,{autorizarSinStock:!!datos.autorizarSinStock,motivo:datos.motivoSinStock});
+          if(rev.errores.length)throw falla('VALIDACION',rev.errores.join(' · '));
+          const nEnt=(sol.historial||[]).filter(h=>h.entrega).length;
+          movsAlm=enl.movimientosEntrega(sol,ent,nEnt+1,{en:ahora(),sinStock:rev.sinStock,motivo:datos.motivoSinStock,fecha:sol.fecha});
+        }
       }else if(estadoNuevo==='RECIBIDA'){
         const r=N.aplicarRecepcion(sol,datos.recepciones||{});if(r.errores)throw falla('VALIDACION',r.errores.join(' · '));
         if(!r.movimientos.length)throw falla('VALIDACION','Indica lo realmente recibido.');
@@ -302,8 +312,13 @@
           condicion:'UTILIZABLE',lote:datos.lote||'',solicitudId:id,motivo:'',en:ahora()+j,uid:u.uid,usuario:u.nombre,guardadoEn:serverTs()};
         tx.set(col('apMovimientos').doc(opId),d);auditar(tx,'apMovimientos',opId,'CREAR',null,d);
       });
+      movsAlm.forEach(m=>{
+        const d={...m,uid:u.uid,usuario:u.nombre,guardadoEn:serverTs()};
+        tx.set(col('apAlmacenMov').doc(m.opId),d);auditar(tx,'apAlmacenMov',m.opId,'CREAR',null,d);
+      });
       const nuevo={...sol,items,estado,version:num(sol.version)+1,
-        historial:[...(sol.historial||[]),{estado,por:u.nombre,uid:u.uid,en:ahora(),nota:String(datos.nota||'').trim(),recepcion:movs.length?true:undefined}].map(h=>limpio(h)),...autor()};
+        historial:[...(sol.historial||[]),{estado,por:u.nombre,uid:u.uid,en:ahora(),nota:String(datos.nota||'').trim(),recepcion:movs.length?true:undefined,
+          entrega:(estadoNuevo==='ENTREGADA'||estadoNuevo==='ENTREGADA_PARCIAL')?true:undefined}].map(h=>limpio(h)),...autor()};
       tx.set(ref,nuevo);auditar(tx,'apSolicitudes',id,'ESTADO_'+estado,{estado:sol.estado,items:sol.items},{estado,items});
     });
   }

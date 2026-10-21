@@ -32,11 +32,11 @@ revoke all on function glacial_fs.cap_ii_ver(boolean, boolean, boolean, text, js
 do $m$
 declare
   def text; cuenta integer;
-  -- final del return de ctx tal como lo dejó glacial_23 (última marca: ap_alm)
-  anc_ctx_ret constant text := $a$'ap_alm',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'moduloAlmacen', array[]::text[]));$a$;
+  -- la entrada ap_alm de ctx (sin el cierre «);»): sirve tanto si es la última marca (glacial_23) como si glacial_26 ya añadió las suyas después
+  anc_ctx_ret constant text := $a$'ap_alm',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'moduloAlmacen', array[]::text[])$a$;
   rep_ctx_ret constant text := $a$'ap_alm',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'moduloAlmacen', array[]::text[]),
    'ii_ver',  glacial_fs.cap_ii_ver(aut, v_mant, v_admin, rol, perm),
-   'ii_esc',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'inventarioInsumos', array['Asistente de Producción']));$a$;
+   'ii_esc',  glacial_fs.cap_ap(aut, v_mant, v_solo, v_admin, rol, perm, 'inventarioInsumos', array['Asistente de Producción'])$a$;
   anc_fin constant text := E'\n end if;\n return false;';
   rama_aut constant text := $r$
  elsif c in ('insumosCatalogo','insumosCortesIndice','insumosCortesDetalle','insumosConteosIndice','insumosConteosDetalle','insumosConteosComentarios','insumosAuditoria') then
