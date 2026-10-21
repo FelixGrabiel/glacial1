@@ -1116,12 +1116,18 @@ async function addUser(){
 
     try{
 
+      // Si ya existe una cuenta vieja con ese nombre en Authentication (usuarios borrados antes), se usa el siguiente correo libre.
       seguro=
-        await crearCuentaSegura(
-          username,
-          password,
-          0
-        );
+        typeof crearCuentaSeguraLibre==='function'
+          ? await crearCuentaSeguraLibre(
+              username,
+              password
+            )
+          : await crearCuentaSegura(
+              username,
+              password,
+              0
+            );
 
     }catch(e){
 
@@ -1163,7 +1169,7 @@ async function addUser(){
         ? {
             authUid:seguro.uid,
             authEmail:seguro.email,
-            authIdx:0
+            authIdx:seguro.idx||0
           }
         : {
             salt:cred.salt,

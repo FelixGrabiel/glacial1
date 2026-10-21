@@ -60,10 +60,14 @@
   }
   window.crearCuentaSegura=crearCuentaSegura;
 
-  /* Crea una cuenta probando sufijos si el correo ya existe. */
+  /* Crea una cuenta probando sufijos (usuario, usuario.1, usuario.2…) si el correo ya existe en Authentication.
+     Las cuentas viejas NO se borran al eliminar un usuario ni al restablecer su clave (quedan sin uso), así que tras varias pruebas un mismo nombre puede
+     tener muchas: antes solo se probaban 6 sufijos y el alta o el restablecimiento fallaban con «No se pudo crear una cuenta única». Ahora se prueban hasta
+     INTENTOS_CUENTA y, si de verdad no hay ninguno libre, el mensaje dice qué hacer. */
+  const INTENTOS_CUENTA=40;
   async function crearConReintentos(username,clave,desde,usados){
     let idx=desde;
-    for(let i=0;i<6;i++,idx++){
+    for(let i=0;i<INTENTOS_CUENTA;i++,idx++){
       const email=emailDe(username,idx);
       if(usados.has(email))continue;
       try{
@@ -75,8 +79,17 @@
         throw e;
       }
     }
-    throw new Error('No se pudo crear una cuenta única para '+username);
+    const e=new Error('Ya existen cuentas de acceso para «'+username+'» ('+emailDe(username,desde)+' … '+emailDe(username,idx-1)+') y no se encontró un correo libre. '+
+      'Borra las cuentas sin uso de ese usuario en Supabase › Authentication › Users, o elige otro nombre de usuario.');
+    e.code='glacial/sin-correo-libre';
+    throw e;
   }
+  /* Alta de un usuario nuevo: igual que restablecer, pero desde el correo sin sufijo. Devuelve {uid,email,idx}. */
+  async function crearCuentaSeguraLibre(username,clave){
+    const usados=new Set((typeof loadUsers==='function'?loadUsers():[]).map(u=>u&&u.authEmail).filter(Boolean));
+    return crearConReintentos(username,clave,0,usados);
+  }
+  window.crearCuentaSeguraLibre=crearCuentaSeguraLibre;
 
   /* ---------- inicio de sesión ---------- */
   window.autenticarConFirebase=async function(usuario,pass){
