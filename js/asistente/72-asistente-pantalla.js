@@ -529,15 +529,29 @@
       ?`<div class="ap-form ap-form-2">${campo('Cuadro al que se destina',`<select id="ap-rec-cuadro"><option value="">— Elegir —</option>${ctx.cuadros.map(c=>`<option value="${esc(c.clave)}">${esc(nombreCuadro(c))}</option>`).join('')}</select>`)}${campo('Lote (opcional)','<input id="ap-rec-lote" maxlength="40">')}</div>
         <button type="button" class="ap-btn" onclick="apEstadoSolicitud('${esc(s.id)}','RECIBIDA',${num(s.version)})">Confirmar lo recibido</button>`:'';
     const entregar=alm&&['EN_PREPARACION','ENTREGADA_PARCIAL'].includes(s.estado)?`<button type="button" class="ap-btn ap-btn-o" onclick="apEntregarLoQueHay()">Entregar lo que hay</button><button type="button" class="ap-btn" onclick="apEstadoSolicitud('${esc(s.id)}','ENTREGADA',${num(s.version)})">Registrar entrega</button>`:'';
+    // Entregas registradas (solo Almacén las anula): una fila por entrega, con su detalle y su estado.
+    const entregasReg=(s.historial||[]).filter(h=>h&&h.entrega);
+    const listaEntregas=alm&&['ENTREGADA','ENTREGADA_PARCIAL'].includes(s.estado)&&entregasReg.length?`<h4>Entregas registradas</h4>${tabla(['N.º','Cuándo','Responsable','Detalle','Estado',''],entregasReg.map((h,k)=>{
+      const n=k+1,anulada=(s.historial||[]).some(x=>x&&x.anulaEntrega===n);
+      const det=h.entregas?Object.entries(h.entregas).map(([i,q])=>`${esc(insumoDe(i).nombre)} ${fmt(q)}`).join(' · '):'<span class="ap-mut">sin detalle</span>';
+      return `<tr><td data-label="N.º">${n}</td><td data-label="Cuándo">${esc(fechaHora(h.en))}</td><td data-label="Responsable">${esc(h.por||'—')}</td><td data-label="Detalle">${det}</td>
+        <td data-label="Estado">${anulada?pill('Anulada','gris','cerrar'):pill('Vigente','verde','check')}</td><td data-label="">${!anulada&&h.entregas?`<button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apAnularEntrega('${esc(s.id)}',${n},${num(s.version)})">Anular</button>`:''}</td></tr>`;}).join(''))}`:'';
     const hist=(s.historial||[]).map(h=>`<li>${fechaHora(h.en)} · <b>${esc(SOL_TXT[h.estado]||h.estado)}</b> · ${esc(h.por)}${h.nota?' — '+esc(h.nota):''}</li>`).join('');
     modal('Solicitud '+esc(s.id),`<p class="ap-sub">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Mañana + Intermedio'} · ${pillSolicitud(s.estado)}${s.observaciones?' · '+esc(s.observaciones):''}</p>
       ${tabla(['Insumo','#Solicitado','#Entregado','#Recibido',...(columnaStock?['#Stock Almacén']:[]),''],it)}
       ${alm&&['EN_PREPARACION','ENTREGADA_PARCIAL'].includes(s.estado)&&EN()?`<div id="ap-sin-box" class="ap-form ap-form-2" style="display:none">${pie('Estás entregando más de lo que Almacén tiene según el Inventario. Solo si Almacén lo autoriza, escribe el motivo.','aviso')}${campo('Motivo para entregar sin stock suficiente (obligatorio)','<input id="ap-sin-stock" maxlength="160" placeholder="Ej.: llega camión mañana">','ap-ancho')}</div>`:''}
       ${campo('Nota (opcional)','<input id="ap-sol-nota" maxlength="200">','ap-ancho')}
       <div class="ap-acc ap-acc-wrap">${b('SOLICITADA','Enviar a Almacén')}${b('EN_PREPARACION','Iniciar preparación')}${entregar}${recibir}${b('OBSERVADA','Observar','ap-btn-o')}${b('CERRADA','Cerrar','ap-btn-o')}${b('CANCELADA','Cancelar','ap-btn-o')}</div>
+      ${listaEntregas}
       <h4>Historial</h4><ul class="ap-hist">${hist}</ul>`);
   };
   /* Muestra el campo del motivo solo cuando lo escrito supera el stock de Almacén. */
+  window.apAnularEntrega=(id,n,version)=>{
+    const motivo=(prompt(`Anular la entrega n.º ${n} de la solicitud ${id}.\nEl material vuelve al stock de Almacén y la solicitud queda con menos entregado.\n\nMotivo (mínimo 5 caracteres):`,'')||'').trim();
+    if(!motivo)return;
+    if(typeof closeModal==='function')closeModal();
+    ejecutar(()=>D.anularEntrega(id,n,version,motivo),'Entrega anulada: el stock volvió a Almacén y la solicitud se actualizó.');
+  };
   window.apEntCheck=()=>{
     const box=document.getElementById('ap-sin-box');if(!box)return;
     const pasa=[...document.querySelectorAll('.ap-ent')].some(i=>i.dataset.stock!==''&&num(i.value)>num(i.dataset.stock)+1e-9);
@@ -906,7 +920,8 @@
       const h=(x.historial||[]).slice(-1)[0]||{};if(h.uid&&h.uid===yo)return;                 // lo que hice yo no se avisa
       const items=(x.items||[]).map(i=>`${insumoDe(i.insumo).nombre} ${fmt(i.solicitado)}`).join(', ');
       const nuevo=firmaSol.get(id)===undefined;
-      if(nuevo&&x.estado==='SOLICITADA'&&alm)aviso_(`Nueva solicitud ${id} de ${h.por||'Producción'}: ${items}`,'info');
+      if(h.anulaEntrega)aviso_(`${h.por||'Almacén'} anuló la entrega n.º ${h.anulaEntrega} de la solicitud ${id}${h.nota?' ('+h.nota.replace(/^Entrega n\.º \d+ anulada: /,'')+')':''}`,'aviso');
+      else if(nuevo&&x.estado==='SOLICITADA'&&alm)aviso_(`Nueva solicitud ${id} de ${h.por||'Producción'}: ${items}`,'info');
       else if(['ENTREGADA','ENTREGADA_PARCIAL'].includes(x.estado)&&(asist||puede('ver_asistente')))aviso_(`${h.por||'Almacén'} entregó ${x.estado==='ENTREGADA'?'completa':'parcialmente'} la solicitud ${id}: ${(x.items||[]).filter(i=>num(i.entregado)>0).map(i=>`${insumoDe(i.insumo).nombre} ${fmt(i.entregado)}`).join(', ')}`,'ok');
       else if(x.estado==='EN_PREPARACION'&&asist)aviso_(`${h.por||'Almacén'} empezó a preparar la solicitud ${id}`,'info');
       else if(x.estado==='RECIBIDA'&&alm)aviso_(`${h.por||'Producción'} confirmó la recepción de ${id}`,'ok');
@@ -945,8 +960,7 @@
     EN_.alCambiar(repintar);
     EN_.alEvento(ev=>{const yo=miUid();ev.forEach(e=>{const m=e.mov;if(m.uid&&m.uid===yo)return;
       const ins=insumoDe(m.insumo).nombre,cant=`${fmt(m.cantidad)} ${m.unidad||insumoDe(m.insumo).unidad}`;
-      if(e.tipo==='DEVOLUCION')aviso_(`${m.usuario||'Producción'} devolvió a Almacén ${cant} de ${ins}`,'info');
-      else if(e.tipo==='ANULACION_ENTREGA')aviso_(`${m.usuario||'Almacén'} anuló una entrega de ${ins}`,'aviso');});});};
+      if(e.tipo==='DEVOLUCION')aviso_(`${m.usuario||'Producción'} devolvió a Almacén ${cant} de ${ins}`,'info');});});};
   enganchar();
   ['onPaletasUpdated','onProgramacionesUpdated'].forEach(n=>{const a=globalThis[n];if(typeof a!=='function')return;globalThis[n]=function(){const r=a.apply(this,arguments);if(state.currentTab==='asistente'&&!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus'))pintar();return r;};});
 
