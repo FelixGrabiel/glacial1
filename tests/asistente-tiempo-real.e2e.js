@@ -79,7 +79,7 @@ const SEMILLA=()=>{
     items:[{insumo:'ETIQUETA',unidad:'UND',solicitado:8000,entregado:0,recibido:0},{insumo:'PREFORMA',unidad:'UND',solicitado:6000,entregado:0,recibido:0}],
     historial:[{estado:'SOLICITADA',por:'Ana Torres',en:h(6),nota:'Creada'},{estado:'EN_PREPARACION',por:'Luis Quispe',en:h(5)}]});
   put('apSolicitudes','SOL-DEMO-B',{id:'SOL-DEMO-B',fecha:F,bloque:'DIA',estado:'ENTREGADA_PARCIAL',version:4,items:[{insumo:'TAPA',unidad:'UND',solicitado:10000,entregado:6000,recibido:0}],
-    historial:[{estado:'SOLICITADA',por:'Ana Torres',en:h(14)},{estado:'ENTREGADA_PARCIAL',por:'Luis Quispe',en:h(13),entrega:true}]});
+    historial:[{estado:'SOLICITADA',por:'Ana Torres',en:h(14)},{estado:'ENTREGADA_PARCIAL',por:'Luis Quispe',en:h(13),entrega:true,entregas:{TAPA:6000}}]});
   // Mermas y coordinación
   const K=glacialAsistenteNucleo.claveCuadro(F,'DIA','PET1','Scala','2.5L'),K2=glacialAsistenteNucleo.claveCuadro(F,'DIA','PET1','Fontlife','2.5L');
   put('apMermas','M1',{id:'M1',fecha:F,bloque:'DIA',linea:'PET1',cuadro:K,categoria:'MATERIAL',insumo:'PREFORMA',cantidad:120,unidad:'UND',causa:'Arranque de línea',etapa:'Soplado',estado:'PENDIENTE',creadoPor:'Ana Torres',historial:[{en:h(3)}],version:1});
@@ -156,6 +156,23 @@ const SEMILLA=()=>{
   await page.waitForTimeout(600);
   ok(await page.evaluate(()=>!!document.getElementById('ap-sol-cambio')),'si la solicitud abierta cambia, la ventana avisa «Esta solicitud cambió»');
   await page.evaluate(()=>closeModal());
+
+  /* Almacén anula una entrega: el stock vuelve y la solicitud se actualiza */
+  await page.evaluate(()=>{state.user={rol:'Personalizado',uid:'u2',nombre:'Luis Quispe',username:'luis',permisos:['moduloAlmacen']};AP_set('tab','insumos');AP_set('sub','solicitudes');});
+  await page.waitForTimeout(500);
+  await page.evaluate(()=>{apVerSolicitud('SOL-DEMO-B');});
+  await page.waitForTimeout(300);
+  ok(/Entregas registradas/.test(await page.evaluate(()=>document.querySelector('.ap-modal').innerText))&&await page.evaluate(()=>!!document.querySelector('.ap-modal button[onclick^="apAnularEntrega"]')),'Almacén ve «Entregas registradas» con el botón Anular');
+  if(process.env.SHOTS)await page.screenshot({path:process.env.SHOTS+'/tr4-entregas-registradas.png'});
+  const antes=(await page.evaluate(()=>glacialAlmacenEnlaceDatos.stockDe('TAPA'))).disponible;
+  await page.evaluate(()=>{window.prompt=()=>'entrega hecha por error';});
+  await page.evaluate(()=>{document.querySelector('.ap-modal button[onclick^="apAnularEntrega"]').click();});
+  await page.waitForTimeout(800);
+  const des=(await page.evaluate(()=>glacialAlmacenEnlaceDatos.stockDe('TAPA'))).disponible;
+  ok(des===antes+6000,'al anular, el stock vuelve a Almacén al instante (+6,000)');
+  const sB=await page.evaluate(()=>window.__docs.get('apSolicitudes/SOL-DEMO-B'));
+  ok(sB.estado==='ENTREGADA_PARCIAL'&&sB.items[0].entregado===4000&&sB.historial.slice(-1)[0].anulaEntrega===1,'la solicitud baja lo entregado (10,000 − 6,000 = 4,000) y deja la anulación en su historial');
+  await page.evaluate(()=>{state.user={rol:'Asistente de Producción',uid:'u1',nombre:'Ana Torres',username:'ana',permisos:[]};});
 
   /* Inventario: «Almacén hoy» */
   await page.evaluate(()=>{state.currentTab='inventario-insumos';goInventarioInsumos();});

@@ -318,8 +318,51 @@
       });
       const nuevo={...sol,items,estado,version:num(sol.version)+1,
         historial:[...(sol.historial||[]),{estado,por:u.nombre,uid:u.uid,en:ahora(),nota:String(datos.nota||'').trim(),recepcion:movs.length?true:undefined,
-          entrega:(estadoNuevo==='ENTREGADA'||estadoNuevo==='ENTREGADA_PARCIAL')?true:undefined}].map(h=>limpio(h)),...autor()};
+          entrega:(estadoNuevo==='ENTREGADA'||estadoNuevo==='ENTREGADA_PARCIAL')?true:undefined,
+          entregas:(estadoNuevo==='ENTREGADA'||estadoNuevo==='ENTREGADA_PARCIAL')?Object.fromEntries(Object.entries(datos.entregas||{}).filter(([,q])=>num(q)>0).map(([k,q])=>[k,N.red(num(q),4)])):undefined}].map(h=>limpio(h)),...autor()};
       tx.set(ref,nuevo);auditar(tx,'apSolicitudes',id,'ESTADO_'+estado,{estado:sol.estado,items:sol.items},{estado,items});
+    });
+  }
+
+  /* Anular una entrega de Almacén (n = número de entrega dentro de la solicitud, 1, 2…). Solo Almacén. Devuelve el stock a Almacén (movimiento ANULACION
+     en apAlmacenMov, el original no se toca), baja lo «entregado» de la solicitud y la deja EN_PREPARACION / ENTREGADA_PARCIAL / ENTREGADA según lo que quede.
+     No se puede si Producción ya confirmó la recepción de ese material (entregado − anulado < recibido). */
+  async function anularEntrega(id,n,versionEsperada,motivo){
+    if(!puede('moduloAlmacen'))throw falla('PERMISO','Solo Almacén anula sus entregas.');
+    if(String(motivo||'').trim().length<5)throw falla('VALIDACION','Indica el motivo de la anulación (mínimo 5 caracteres).');
+    const ref=col('apSolicitudes').doc(id);const u=usuario();
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);if(!s.exists)throw falla('VALIDACION','La solicitud no existe.');
+      const sol=s.data();
+      if(num(sol.version)!==num(versionEsperada))throw falla('CONFLICTO','La solicitud cambió mientras la revisabas (otra persona guardó). Vuelve a abrirla.');
+      if(!['ENTREGADA','ENTREGADA_PARCIAL'].includes(sol.estado))throw falla('VALIDACION','Solo se anula una entrega mientras la solicitud está «Entregada» o «Entregada parcialmente».');
+      const entregas=(sol.historial||[]).filter(h=>h&&h.entrega);const e=entregas[num(n)-1];
+      if(!e)throw falla('VALIDACION','No existe la entrega n.º '+n+'.');
+      if((sol.historial||[]).some(h=>h&&h.anulaEntrega===num(n)))throw falla('VALIDACION','Esa entrega ya fue anulada.');
+      if(!e.entregas||!Object.keys(e.entregas).length)throw falla('VALIDACION','Esta entrega es anterior al detalle por insumo y no se puede anular desde aquí.');
+      const items=(sol.items||[]).map(i=>({...i}));const errores=[],movs=[];
+      Object.keys(e.entregas).forEach(ins=>{
+        const it=items.find(i=>i.insumo===ins);if(!it)return;
+        const q=num(e.entregas[ins]);const nuevo=N.red(num(it.entregado)-q,4);
+        if(nuevo<num(it.recibido)-1e-9)errores.push(`${ins}: Producción ya confirmó ${num(it.recibido)} recibidos; no se pueden anular ${q}.`);
+        it.entregado=Math.max(nuevo,0);
+      });
+      if(errores.length)throw falla('VALIDACION',errores.join(' · ')+' Pide a Producción que haga la devolución.');
+      // movimientos ya creados por esa entrega (solo los insumos enlazados con el Inventario)
+      const lecturas=[];
+      for(const ins of Object.keys(e.entregas)){
+        const opId=id+'_ENT'+num(n)+'_'+ins;
+        const o=await tx.get(col('apAlmacenMov').doc(opId));
+        const a=await tx.get(col('apAlmacenMov').doc('ANUL_'+opId));
+        lecturas.push({opId,o,a});
+      }
+      lecturas.forEach(({opId,o,a})=>{if(o.exists&&!a.exists)movs.push({opId:'ANUL_'+opId,tipo:'ANULACION',insumo:o.data().insumo,itemCode:o.data().itemCode,cantidad:o.data().cantidad,unidad:o.data().unidad,fecha:o.data().fecha,solicitudId:id,anulaA:opId,motivo:String(motivo).trim(),en:ahora()});});
+      const completo=items.every(i=>num(i.entregado)>=num(i.solicitado));const algo=items.some(i=>num(i.entregado)>0);
+      const estado=completo?'ENTREGADA':(algo?'ENTREGADA_PARCIAL':'EN_PREPARACION');
+      movs.forEach(m=>{const d={...m,uid:u.uid,usuario:u.nombre,guardadoEn:serverTs()};tx.set(col('apAlmacenMov').doc(m.opId),d);auditar(tx,'apAlmacenMov',m.opId,'ANULAR',null,d);});
+      const nuevo={...sol,items,estado,version:num(sol.version)+1,
+        historial:[...(sol.historial||[]),{estado,por:u.nombre,uid:u.uid,en:ahora(),nota:'Entrega n.º '+num(n)+' anulada: '+String(motivo).trim(),anulaEntrega:num(n)}].map(h=>limpio(h)),...autor()};
+      tx.set(ref,nuevo);auditar(tx,'apSolicitudes',id,'ANULAR_ENTREGA',{estado:sol.estado,items:sol.items},{estado,items,entrega:num(n),motivo:String(motivo).trim()});
     });
   }
 
@@ -481,7 +524,7 @@
 
   window.glacialAsistenteDatos={
     CAPACIDADES,capacidad,puede,cache,escucharTodo,detener,cargarFecha,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
-    guardarInsumo,guardarFactor,migrarFactoresDelCodigo,registrarMovimiento,anularMovimiento,validarMovimiento,crearSolicitud,cambiarEstadoSolicitud,
+    guardarInsumo,guardarFactor,migrarFactoresDelCodigo,registrarMovimiento,anularMovimiento,validarMovimiento,crearSolicitud,cambiarEstadoSolicitud,anularEntrega,
     registrarMerma,editarMerma,validarMerma,guardarConciliacion,idConciliacion,auditoriaDe,mensajeError,nuevoId,ahora,
     RESPONSABLES,PRIORIDADES,registrarCoordinacion,cerrarCoordinacion,
     escucharCatalogo,causasMerma,etapasMerma,puedeConfigurarMerma,guardarParametrosMerma

@@ -115,6 +115,26 @@ const espera=async p=>{try{await p;return null;}catch(e){return e;}};
 
   const tc=asis.sb.glacialAlmacenEnlace.transitoYComprometido([sol()]);
   ok(tc.PREFORMA.transito===1500,'lo entregado y no recibido queda «en tránsito» hacia Producción');
+  /* ---- anular una entrega ---- */
+  const ver=()=>sol().version;
+  ok(sol().historial.filter(h=>h.entrega).every(h=>h.entregas&&Object.keys(h.entregas).length),'cada entrega guarda su detalle por insumo en el historial');
+  ok((await espera(asis.D.anularEntrega(id,3,ver(),'se equivocaron de material')))?.codigo==='PERMISO','solo Almacén anula entregas');
+  ok((await espera(alm.D.anularEntrega(id,3,ver(),'x')))?.codigo==='VALIDACION','anular exige motivo (mínimo 5 caracteres)');
+  ok((await espera(alm.D.anularEntrega(id,3,ver()-1,'se equivocaron de material')))?.codigo==='CONFLICTO','con la versión vieja: CONFLICTO');
+  ok((await espera(alm.D.anularEntrega(id,9,ver(),'se equivocaron de material')))?.codigo==='VALIDACION','no existe esa entrega');
+  const antesDisp=alm.EN.stockDe('PREFORMA').disponible;
+  await alm.D.anularEntrega(id,3,ver(),'entrega hecha por error');
+  recarga();
+  ok(sol().items[0].entregado===1000&&sol().estado==='ENTREGADA_PARCIAL','la solicitud baja lo entregado (1,500 → 1,000) y sigue «Entregada parcialmente»');
+  ok(alm.EN.stockDe('PREFORMA').disponible===antesDisp+500&&asis.EN.stockDe('PREFORMA').disponible===antesDisp+500,'el stock vuelve a Almacén (+500) para todos, al instante');
+  const anul=movs().find(m=>m.opId==='ANUL_'+id+'_ENT3_PREFORMA');
+  ok(anul&&anul.tipo==='ANULACION'&&anul.anulaA===id+'_ENT3_PREFORMA'&&anul.cantidad===500&&movs().find(m=>m.opId===id+'_ENT3_PREFORMA').tipo==='ENTREGA','crea un movimiento ANULACION y el original no se toca');
+  const h2=sol().historial.slice(-1)[0];
+  ok(h2.anulaEntrega===3&&/entrega hecha por error/.test(h2.nota),'el historial dice qué entrega se anuló y por qué');
+  ok(/ya fue anulada/.test((await espera(alm.D.anularEntrega(id,3,ver(),'entrega hecha por error'))).message),'no se anula dos veces la misma entrega');
+  // Producción ya recibió parte: no se puede dejar menos entregado que lo recibido
+  await asis.D.cambiarEstadoSolicitud(id,'RECIBIDA',ver(),{recepciones:{PREFORMA:1000},cuadro:'k',linea:'PET1'});
+  ok((await espera(alm.D.anularEntrega(id,1,ver(),'se equivocaron de material')))?.codigo==='VALIDACION','no se anula si Producción ya confirmó la recepción de ese material');
   console.log(fallas?`\n${fallas} fallas`:'\nTodo en orden');
 })();
 
@@ -128,6 +148,7 @@ const espera=async p=>{try{await p;return null;}catch(e){return e;}};
   ok(/apMigrar\(true\)/.test(p72)&&/Activar factores/.test(p72),'72: «Activar factores» en un clic desde el Resumen');
   ok(!/TURNO:'Todo el turno'/.test(p72)&&/modalidadTxt/.test(p72)&&/tramosSecuencia/.test(p72),'72: Seguimiento dice «Resto del turno» y muestra los pasos de la secuencia');
   ok(/apCierreTurno/.test(p72)&&/apEntregarLoQueHay/.test(p72)&&/apEntCheck/.test(p72)&&/ORDEN_SOL/.test(p72)&&/apSolAgregar/.test(p72)&&/Entrega de Almacén/.test(p72)&&/histSistema/.test(p72),'72: cierre del turno, entrega con confirmación y motivo solo si hace falta, solicitudes ordenadas, historial con entregas');
+  ok(/apAnularEntrega/.test(p72)&&/Entregas registradas/.test(p72)&&/anulaEntrega/.test(p72),'72: botón «Anular» en las entregas registradas (solo Almacén) con aviso en tiempo real');
   ok(/Hay información nueva/.test(p72)&&/apActualizarYa/.test(p72)&&/vigilar\(\)/.test(p72)&&/alEvento/.test(p72)&&/Entregas y devoluciones de hoy/.test(p72),'72: tiempo real: avisos emergentes, «Hay información nueva» sin quitar lo que se escribe y panel de movimientos');
   ok(/Almacén hoy/.test(leer('js/asistente/76-inventario-insumos-pantalla.js'))&&/enlazarAlmacen/.test(leer('js/asistente/76-inventario-insumos-pantalla.js')),'76: el Inventario muestra «Almacén hoy» en tiempo real');
   ok(/apAlmacenMov/.test(leer('supabase/migraciones/glacial_27_almacen_enlace_inventario.sql')),'existe la migración glacial_27');

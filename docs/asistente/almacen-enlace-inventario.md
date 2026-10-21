@@ -24,6 +24,9 @@ El corte lo escribe contabilidad a mano y el programa todavía NO registra nada 
 - En «Existencias» se agrega la columna «En Almacén». La pantalla de la solicitud (Almacén) muestra el stock y propone entregar lo pendiente sin pasar del stock.
 - **Devoluciones:** una devolución UTILIZABLE registrada por Producción (Existencias › «Otro movimiento») sube el stock de Almacén en el mismo instante; lo observado o dañado no vuelve al stock. Anular la devolución la quita.
 
+## Anular una entrega
+En la solicitud (Almacén): **Entregas registradas** → **Anular** (motivo obligatorio). El material vuelve al stock de Almacén al instante (movimiento `ANULACION` en `apAlmacenMov`; el original no se toca), la solicitud baja lo «entregado» y queda En preparación / Entregada parcialmente / Entregada según lo que quede, y el historial dice qué entrega se anuló y por qué. Solo Almacén; no se puede si Producción ya confirmó la recepción de ese material (primero Producción devuelve). Cada entrega guarda su detalle por insumo en el historial (las anteriores a esta función aparecen «sin detalle» y no se anulan desde aquí). Todos los usuarios reciben el aviso en tiempo real. No necesita migración nueva (glacial_27 ya acepta `ANULACION`).
+
 ## Datos y permisos
 | Pieza | Detalle |
 |---|---|
