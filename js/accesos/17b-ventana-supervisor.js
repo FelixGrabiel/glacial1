@@ -173,7 +173,7 @@
     }, err => {
       ampliacionesListas = true;
       ampliacionesError = (err && err.message) || String(err);
-      console.warn('Ampliaciones de turno: no se pudieron leer (¿falta aplicar glacial_28 en Supabase?).', ampliacionesError);
+      console.warn('Ampliaciones de turno: no se pudieron leer (¿falta aplicar glacial_29 en Supabase?).', ampliacionesError);
       avisar();
     });
   }

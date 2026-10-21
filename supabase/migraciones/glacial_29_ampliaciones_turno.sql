@@ -1,4 +1,4 @@
--- GLACIAL · glacial_28 · Reglas de Supabase para el TIEMPO EXTRA DE SUPERVISORES (colección ampliacionesTurno)   *** PENDIENTE: PRUEBAS y PRODUCCION ***
+-- GLACIAL · glacial_29 · Reglas de Supabase para el TIEMPO EXTRA DE SUPERVISORES (colección ampliacionesTurno)   *** PENDIENTE: PRUEBAS y PRODUCCION ***
 --
 -- Qué hace (mismo método que glacial_23, 24 y 26: inserta ramas en las funciones del puente; no crea tablas — los datos viven en fs_docs):
 --  1) ctx: marca amp_adm = Administrador con sesión, que no es la cuenta compartida de Mantenimiento ni una cuenta de solo consulta.

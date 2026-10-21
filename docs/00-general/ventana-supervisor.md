@@ -3,7 +3,7 @@
 Cambio del 21-10-2026. Archivos: `js/accesos/17b-ventana-supervisor.js` (nuevo), `js/accesos/17c-ampliaciones-turno.js` (nuevo),
 `js/accesos/17-modo-trabajo.js`, `js/produccion/06-registro.js`, `js/produccion/29-avance-produccion.js`,
 `js/personal/31-rotacion-supervisores.js`, `js/personal/31a-rotacion-grid.js`, `js/produccion/51b-horarios-produccion.js`, `index.html`
-y la migración `supabase/migraciones/glacial_28_ampliaciones_turno.sql`.
+y la migración `supabase/migraciones/glacial_29_ampliaciones_turno.sql`.
 
 ## Qué hace
 
@@ -38,7 +38,7 @@ Muestra el estado de cada supervisor y el botón **Dar tiempo**: 15, 30, 60 min 
   (30 min dados a las 16:00 a un turno que cerró a las 15:00 → hasta las 16:30).
 - El supervisor lo recibe en vivo: se le habilita Trabajar sin recargar.
 - Una ampliación equivocada se **anula** con motivo (no se borra). Queda quién la dio, cuándo y por qué.
-- Se guarda en la colección `ampliacionesTurno`. **Requiere aplicar `glacial_28`** (primero PRUEBAS, después PRODUCCIÓN):
+- Se guarda en la colección `ampliacionesTurno`. **Requiere aplicar `glacial_29`** (primero PRUEBAS, después PRODUCCIÓN):
   sin ella el panel avisa que no puede leer ni guardar, y el resto funciona igual.
 
 ## Relevo sin cruzarse (entrada 15 min antes)

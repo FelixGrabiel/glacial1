@@ -8,7 +8,7 @@
      { id, username, nombre, fechaOperativa, turno, minutos, motivo, estado:'VIGENTE'|'ANULADA',
        creadoUid, creadoPor, creadoEn (hora del servidor), motivoAnulacion?, anuladoUid?, anuladoPor?, anuladoEn? }
    Nada se borra: una ampliación equivocada se ANULA con motivo y queda el registro.
-   Regla del servidor: supabase/migraciones/glacial_28_ampliaciones_turno.sql (solo el Administrador crea o anula;
+   Regla del servidor: supabase/migraciones/glacial_29_ampliaciones_turno.sql (solo el Administrador crea o anula;
    lee todo usuario con sesión, para que cada supervisor vea su tiempo extra).
 
    Los minutos se suman al cierre del turno; si el turno ya había cerrado, cuentan desde el momento en que se dan.
@@ -100,7 +100,7 @@
         <div><h3 style="margin:0">Tiempo de supervisores</h3>
           <div class="rot-sup-muted">Solo el Administrador. Al cerrar su turno, el supervisor queda en modo visualización; aquí puedes darle más minutos con un motivo.</div></div>
       </div>
-      ${estAmp.error ? `<div class="amp-msg error" style="margin-top:8px">No se pudieron leer las ampliaciones: falta aplicar la migración glacial_28 en Supabase.</div>` : ''}
+      ${estAmp.error ? `<div class="amp-msg error" style="margin-top:8px">No se pudieron leer las ampliaciones: falta aplicar la migración glacial_29 en Supabase.</div>` : ''}
       <table style="margin-top:10px"><thead><tr><th>Supervisor</th><th>Turno</th><th>Estado ahora</th><th></th></tr></thead>
         <tbody>${filas || '<tr><td colspan="4" class="amp-gris">No hay supervisores en la rotación.</td></tr>'}</tbody></table>
       ${historial ? `<h4 style="margin:14px 0 4px">Tiempo dado (últimos días)</h4>
@@ -194,7 +194,7 @@
       if(typeof _mtToastTurno === 'function') _mtToastTurno('✅ Se dieron ' + minutos + ' min a ' + (u.nombre || u.username) + '.');
     }catch(e){
       console.error('No se pudo guardar la ampliación de turno:', e);
-      mensaje = 'No se pudo guardar. ' + ((e && e.message) || '') + ' (¿está aplicada la migración glacial_28 en Supabase?)';
+      mensaje = 'No se pudo guardar. ' + ((e && e.message) || '') + ' (¿está aplicada la migración glacial_29 en Supabase?)';
       pintar();
     }
   };
