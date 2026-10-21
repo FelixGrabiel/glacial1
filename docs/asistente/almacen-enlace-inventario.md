@@ -33,3 +33,9 @@ Un corte nuevo de SAP pasa a ser la base y las entregas anteriores a su fecha de
 | Migración | `supabase/migraciones/glacial_27_almacen_enlace_inventario.sql` (requiere glacial_23 y 24). PRUEBAS: aplicada. PRODUCCIÓN: **pendiente** |
 
 Pruebas: `node tests/almacen-enlace.test.js`.
+
+## Previsión, alertas y desviación de consumo (`82-asistente-prevision-nucleo.js`)
+- **Insumos › Previsión:** para 2, 3, 5 o 7 días, lo que falta producir de la programación publicada × el factor vigente, frente a lo que hay en Producción, lo que viene en camino (pedido o entregado sin recibir) y el stock de Almacén. Dice hasta qué día alcanza y permite **Solicitar lo que falta** en un clic.
+- **Insumos › Desviación de consumo:** consumo real confirmado (conciliaciones) frente al teórico, por insumo y por línea, en 3/7/15/30 días. Tolerancia normal ±3 %.
+- **Alertas en «Por atender» (Resumen):** no alcanza ni con Almacén, hay que pedir a Almacén, solicitud sin entregar > 4 h, entregada sin recibir > 12 h, consumo fuera de tolerancia (≥ 2 cuadros) y stock de Almacén bajo el mínimo del catálogo.
+- Pruebas: `node tests/asistente-prevision.test.js`.

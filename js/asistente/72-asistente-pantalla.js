@@ -57,7 +57,7 @@
   const ico=(n,cls)=>`<svg class="ap-ico ${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||P.info}</svg>`;
 
   const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['historial','Historial','reloj']];
-  const SUBINSUMOS=[['existencias','Existencias en Producción'],['factores','Factores'],['requerimientos','Requerimientos'],['solicitudes','Solicitudes']];
+  const SUBINSUMOS=[['existencias','Existencias en Producción'],['factores','Factores'],['requerimientos','Requerimientos'],['solicitudes','Solicitudes'],['prevision','Previsión'],['desviacion','Desviación de consumo']];
   const ESTADO_TXT={EN_PRODUCCION:['En curso','curso'],PAUSA:['En pausa','pausa'],DETENIDA:['Detenida','rojo'],LISTA:['Programada','prog'],PENDIENTE:['Programada','prog'],
     FINALIZADA:['Finalizada','verde'],CANCELADA:['Cancelada','gris']};
   const SOL_TXT={BORRADOR:'Borrador',SOLICITADA:'Solicitada',EN_PREPARACION:'En preparación',ENTREGADA_PARCIAL:'Entregada parcialmente',ENTREGADA:'Entregada',RECIBIDA:'Recibida',
@@ -65,7 +65,7 @@
   const CONC_TXT={SIN_REGISTRO:['Sin registro','gris'],BORRADOR:['Borrador','prog'],EN_REVISION:['Pendiente de revisión','ambar'],CONFIRMADA:['Confirmada','verde']};
 
   const AP={tab:'resumen',sub:'existencias',fecha:'',bloque:'',linea:'',marca:'',presentacion:'',cuadro:'',insumo:'',msg:null,factLinea:'',factInsumo:'',
-    exLinea:'',exEstado:'UTILIZABLE',histLinea:'',histTipo:'',histResp:'',solSel:'',mermaLinea:''};
+    exLinea:'',exEstado:'UTILIZABLE',previDias:3,desvDias:7,histLinea:'',histTipo:'',histResp:'',solSel:'',mermaLinea:''};
   function contextoInicial(){
     if(AP.fecha)return;
     let b=null;try{b=window.GlacialIndicadores.bloqueVigente(D.ahora(),typeof window.glacialBloquesConfig==='function'?window.glacialBloquesConfig():undefined);}catch(_){b=null;}
@@ -195,8 +195,11 @@
         ${puede('gestionarFactores')?`<button type="button" class="ap-btn" onclick="apMigrar(true)">Activar factores</button>`:''}</div>`);
     const atender=[];
     const netos=faltantesNetos(ctx);
+    const extra=alertasPrevision();
     if(puede('asistenteProduccion')&&netos.length)atender.push({ico:'doc',cls:'rojo',txt:`Solicitar a Almacén los ${netos.length} faltante(s) de una vez`,acc:`apSolicitarFaltantes()`});
     falt.forEach(r=>atender.push({ico:'alerta',cls:'rojo',txt:`Solicitar ${fmt(r.faltante)} ${r.insumo.unidad} de ${r.insumo.nombre.toLowerCase()}`,acc:`apIr('insumos','solicitudes')`}));
+    extra.forEach(x=>atender.push({ico:x.nivel==='info'?'reloj':'alerta',cls:x.nivel==='critico'?'rojo':x.nivel==='atencion'?'ambar':'gris',txt:x.texto,
+      acc:x.acc==='solicitudes'?`apIr('insumos','solicitudes')`:x.acc==='desviacion'?`apIr('insumos','desviacion')`:`apIr('insumos','prevision')`}));
     sinConteo.forEach(r=>atender.push({ico:'doc',cls:'ambar',txt:`Verificar conteo de ${r.insumo.nombre.toLowerCase()}`,acc:`apIrConteo()`}));
     ctx.mermas.filter(m=>m.estado==='PENDIENTE').forEach(m=>atender.push({ico:'reloj',cls:'gris',txt:`Validar merma de ${insumoDe(m.insumo).nombre.toLowerCase()} (${nombreLinea(m.linea)})`,acc:`apIr('merma')`}));
     ctx.concil.filter(c=>c.porRevisar!==null&&Math.abs(c.porRevisar)>0.0001).forEach(c=>atender.push({ico:'balanza',cls:'ambar',txt:`Revisar consumo: ${c.etiqueta} (${fmt(c.porRevisar)} ${c.unidad})`,acc:`apAbrirConsumo('${esc(c.cuadro.linea)}|${esc(c.cuadro.clave)}|${esc(c.insumo.codigo)}')`}));
@@ -268,11 +271,88 @@
   window.apRegistrarCoord=()=>ejecutar(()=>D.registrarCoordinacion({id:D.nuevoId('coo'),fecha:AP.fecha,bloque:AP.bloque,texto:valor('ap-co-tx'),responsable:valor('ap-co-resp'),prioridad:valor('ap-co-prio')}),'Seguimiento registrado.');
   window.apCerrarCoord=(id,v)=>{const n=prompt('Nota de cierre (opcional):','');if(n===null)return;ejecutar(()=>D.cerrarCoordinacion(id,v,n),'Seguimiento cerrado.');};
 
+
+  /* =========================================================== PREVISIÓN, ALERTAS Y DESVIACIÓN (82-asistente-prevision-nucleo.js) */
+  const PV=()=>window.glacialAsistentePrevision;
+  const lineasPermitidas=()=>(typeof LINES!=='undefined'?LINES.map(l=>l.key):N.LINEAS.map(l=>l.codigo)).filter(l=>N.LINEAS.some(x=>x.codigo===l));
+  /* Cuadros de una fecha (DÍA + NOCHE) con lo programado, lo producido y el factor del catálogo. */
+  function cuadrosDeFecha(fecha){
+    const lineas=lineasPermitidas();
+    const base={fecha,lineas,programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecords==='function'?loadRecords():[],
+      produccionAlCorte:window.glacialProduccionPaletasAlCorte,unidadesPorPaleta:typeof obtenerUnidadesPorPalet==='function'?obtenerUnidadesPorPalet:null};
+    return ['DIA','NOCHE'].flatMap(b=>N.cuadrosDelBloque({...base,bloque:b}));
+  }
+  function datosPrevision(nDias){
+    const E=window.glacialAlmacenEnlace,C=D.cache;
+    const dias=[...Array(nDias).keys()].map(i=>{const f=PV().sumarDias(AP.fecha,i);return {fecha:f,cuadros:cuadrosDeFecha(f)};});
+    const tc=E?E.transitoYComprometido(C.solicitudes):{};
+    const stockProd={},stockAlm={},enCamino={};
+    C.insumos.filter(i=>i.activo!==false).forEach(i=>{
+      stockProd[i.codigo]=N.saldoInsumo(C.movimientos,i.codigo).utilizable;
+      stockAlm[i.codigo]=stockAlm_(i.codigo);
+      const t=tc[i.codigo]||{transito:0,comprometido:0};enCamino[i.codigo]=N.red(t.transito+t.comprometido,4);
+    });
+    return PV().prevision({dias,factores:C.factores,insumos:C.insumos,stockProd,stockAlm,enCamino});
+  }
+  function stockAlm_(c){const e=EN();return e?e.stockDe(c):null;}
+  function datosDesviacion(nDias){
+    const C=D.cache,cuadros=[...Array(nDias).keys()].flatMap(i=>cuadrosDeFecha(PV().sumarDias(AP.fecha,-i)));
+    return PV().desviacionConsumo({cuadros,factores:C.factores,insumos:C.insumos,movimientos:C.movimientos});
+  }
+  /* Avisos de la pestaña Resumen que salen de la previsión (3 días), de las demoras de las solicitudes y de la desviación (7 días). */
+  function alertasPrevision(){
+    try{
+      const prev=datosPrevision(3),desv=datosDesviacion(7);
+      const mins=[];
+      D.cache.insumos.filter(i=>i.activo!==false).forEach(i=>{const st=stockAlm_(i.codigo);
+        if(st&&st.estado==='OK'&&st.articulo&&num(st.articulo.stockMinimo)>0)mins.push({insumo:i,disponible:st.disponible,minimo:num(st.articulo.stockMinimo)});});
+      return PV().alertasExtra({prevision:prev,desviaciones:desv,solicitudes:D.cache.solicitudes,ahora:D.ahora(),stockMinimoAlmacen:mins});
+    }catch(e){console.warn('Asistente: alertas de previsión',e);return [];}
+  }
+  const diaCorto=f=>{const d=new Date(f+'T00:00:00');return ['dom','lun','mar','mié','jue','vie','sáb'][d.getDay()]+' '+f.slice(8,10)+'/'+f.slice(5,7);};
+  window.apPreviDias=n=>{AP.previDias=Number(n)||3;pintar();};
+  window.apDesvDias=n=>{AP.desvDias=Number(n)||7;pintar();};
+  function subPrevision(ctx){
+    const pv=datosPrevision(AP.previDias);
+    const sel=`<div class="ap-form ap-form-3">${campo('Días a prever',`<select onchange="apPreviDias(this.value)">${[2,3,5,7].map(n=>`<option value="${n}" ${n===AP.previDias?'selected':''}>${n} días desde ${diaCorto(AP.fecha)}</option>`).join('')}</select>`)}</div>`;
+    const pedir=pv.filas.filter(f=>f.faltaProd>0);
+    const filas=pv.filas.map(f=>{
+      const u=esc(f.insumo.unidad);
+      const est=f.estado==='OK'?pill('Alcanza','verde','check'):f.estado==='PEDIR'?pill('Pedir '+fmt(f.faltaProd)+' '+f.insumo.unidad,'ambar','alerta'):pill('No alcanza ni con Almacén','rojo','alerta');
+      return `<tr><td data-label="Insumo"><b>${esc(f.insumo.nombre)}</b></td>${pv.dias.map(d=>`<td data-label="${esc(diaCorto(d))}" class="ap-num">${f.porDia[d]>0?fmt(f.porDia[d]):'—'}</td>`).join('')}
+        <td data-label="Total" class="ap-num"><b>${fmt(f.total)} ${u}</b></td><td data-label="En Producción" class="ap-num">${fmt(f.stockProd)} ${u}</td><td data-label="En camino" class="ap-num">${f.enCamino>0?fmt(f.enCamino)+' '+u:'—'}</td>
+        <td data-label="En Almacén" class="ap-num">${f.stockAlm===null?'—':fmt(f.stockAlm)+' '+u}</td><td data-label="Alcanza hasta">${f.estado==='OK'?'Todo el período':(f.alcanzaHasta?esc(diaCorto(f.alcanzaHasta)):'No alcanza hoy')}</td><td data-label="Estado">${est}</td></tr>`;}).join('');
+    const nota=pie('Requerido = lo que falta producir de la programación publicada × el factor vigente. «En camino» es lo pedido a Almacén o entregado y aún sin recibir. «En Almacén» sale del Inventario de insumos (según el último corte y las entregas).'+(pv.sinFactor?` ${pv.sinFactor} cuadro(s) sin factor no entran en el cálculo.`:'')+(pv.pendientesCierre?` ${pv.pendientesCierre} cuadro(s) «completar cantidad» esperan un cierre previo.`:''));
+    const btn=puede('asistenteProduccion')&&pedir.length?`<div class="ap-acc"><button type="button" class="ap-btn" onclick="apSolicitarPrevision()">${ico('doc')} Solicitar lo que falta (${pedir.length})</button></div>`:'';
+    return `${sel}<div class="ap-card ap-card-in"><h3>Insumos que harán falta</h3>${filas?tabla(['Insumo',...pv.dias.map(diaCorto),'#Total','#En Producción','#En camino','#En Almacén','Alcanza hasta','Estado'].map(c=>/^(lun|mar|mié|jue|vie|sáb|dom) /.test(c)?'#'+c:c),filas,'ap-t-plano'):vacio('No hay producción programada con factor de consumo en estos días.')}</div>
+      ${btn}${nota}`;
+  }
+  window.apSolicitarPrevision=()=>{
+    const pv=datosPrevision(AP.previDias);const lista=pv.filas.filter(f=>f.faltaProd>0);
+    if(!lista.length){AP.msg={tipo:'ok',texto:'Con lo que hay y lo que viene en camino alcanza para el período.'};pintar();return;}
+    const items=lista.map(f=>({insumo:f.insumo.codigo,unidad:f.insumo.unidad,solicitado:Math.ceil(f.faltaProd*100)/100}));
+    const txt=lista.map(f=>`• ${f.insumo.nombre}: ${fmt(Math.ceil(f.faltaProd*100)/100)} ${f.insumo.unidad}${f.estado==='SIN_STOCK'?' (Almacén no alcanza)':''}`).join('\n');
+    if(!confirm('¿Enviar a Almacén lo que falta para los próximos '+AP.previDias+' días?\n\n'+txt))return;
+    ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:'Previsión de '+AP.previDias+' días',enviar:true}),id=>'Solicitud '+id+' enviada a Almacén.');
+  };
+  function subDesviacion(ctx){
+    const dv=datosDesviacion(AP.desvDias);
+    const sel=`<div class="ap-form ap-form-3">${campo('Período',`<select onchange="apDesvDias(this.value)">${[3,7,15,30].map(n=>`<option value="${n}" ${n===AP.desvDias?'selected':''}>Últimos ${n} días</option>`).join('')}</select>`)}</div>`;
+    const nota=pie('Solo se comparan los cuadros con consumo real confirmado: teórico = producido × factor vigente; real = saldo inicial + recibido − devuelto − saldo final. Tolerancia normal: ±'+(dv.tolerancia*100)+' %.');
+    const pc=x=>(x.pct>0?'+':'')+fmt(x.pct*100,1)+' %';
+    const pillD=x=>x.estado==='NORMAL'?pill('Normal','verde','check'):x.estado==='EXCESO'?pill('Consumo alto','rojo','alerta'):pill('Consumo bajo','ambar','alerta');
+    const fila=(x,conLinea)=>`<tr>${conLinea?`<td data-label="Línea">${esc(nombreLinea(x.linea))}</td>`:''}<td data-label="Insumo"><b>${esc(x.insumo.nombre)}</b></td><td data-label="Teórico" class="ap-num">${fmt(x.teorico)} ${esc(x.insumo.unidad)}</td>
+      <td data-label="Real" class="ap-num">${fmt(x.real)} ${esc(x.insumo.unidad)}</td><td data-label="Diferencia" class="ap-num">${fmt(x.desviacion)} ${esc(x.insumo.unidad)}</td><td data-label="%" class="ap-num">${pc(x)}</td><td data-label="Cuadros" class="ap-num">${x.cuadros}</td><td data-label="Estado">${pillD(x)}</td></tr>`;
+    return `${sel}<div class="ap-card ap-card-in"><h3>Consumo real frente al teórico</h3>${dv.filas.length?tabla(['Insumo','#Teórico','#Real','#Diferencia','#%','#Cuadros','Estado'],dv.filas.map(x=>fila(x,false)).join(''),'ap-t-plano'):vacio('Aún no hay consumos confirmados en el período (se confirman en Consumo › conciliación).')}</div>
+      ${dv.porLinea.length?`<div class="ap-card ap-card-in"><h3>Por línea</h3>${tabla(['Línea','Insumo','#Teórico','#Real','#Diferencia','#%','#Cuadros','Estado'],dv.porLinea.map(x=>fila(x,true)).join(''),'ap-t-plano')}</div>`:''}
+      ${nota}`;
+  }
+
   /* =========================================================== INSUMOS */
   function tabInsumos(ctx){
     const ed=puede('asistenteProduccion');
     const sub=SUBINSUMOS.map(([k,t])=>`<button type="button" class="ap-sub ${AP.sub===k?'ap-sub-act':''}" onclick="AP_set('sub','${k}')">${t}</button>`).join('');
-    const cuerpo={existencias:subExistencias,factores:subFactores,requerimientos:subRequerimientos,solicitudes:subSolicitudes}[AP.sub]||subExistencias;
+    const cuerpo={existencias:subExistencias,factores:subFactores,requerimientos:subRequerimientos,solicitudes:subSolicitudes,prevision:subPrevision,desviacion:subDesviacion}[AP.sub]||subExistencias;
     return `<section class="ap-card"><div class="ap-tit-acc"><h2 class="ap-h2 ap-h2-in">Existencias y requerimientos</h2><div class="ap-acc">
         ${ed?`<button type="button" class="ap-btn ap-btn-o" onclick="apIrConteo()">${ico('mas')} Registrar conteo</button>
         <button type="button" class="ap-btn" onclick="apIr('insumos','solicitudes')">${ico('doc')} Preparar solicitud</button>`:''}</div></div>
