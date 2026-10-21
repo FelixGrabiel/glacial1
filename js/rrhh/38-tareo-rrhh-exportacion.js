@@ -592,6 +592,12 @@
      5) IMAGEN PARA WHATSAPP
      --------------------------------------------------------- */
   const GRUPOS_IMAGEN={'Producción':['SUP','MAQ','OPE','DIA'],'Mantenimiento':['SMT','MAQ','TEC','DIA']};
+  /* UNA IMAGEN (o varias páginas si pasan de 25 personas) POR CADA SECCIÓN, en vez de una sola imagen con todo el personal mezclado.
+     Producción: Supervisores · Maquinistas · Operarios (el personal por día va con los operarios). Mantenimiento: Supervisor · Maquinistas · Técnicos · Personal por día. */
+  const SECCIONES_IMAGEN={
+    'Producción':[{clave:'supervisores',titulo:'Supervisores',grupos:['SUP']},{clave:'maquinistas',titulo:'Maquinistas',grupos:['MAQ']},{clave:'operarios',titulo:'Operarios',grupos:['OPE','DIA']}],
+    'Mantenimiento':[{clave:'supervisor',titulo:'Supervisor de mantenimiento',grupos:['SMT']},{clave:'maquinistas',titulo:'Maquinistas',grupos:['MAQ']},{clave:'tecnicos',titulo:'Técnicos',grupos:['TEC']},{clave:'personal_por_dia',titulo:'Personal por día',grupos:['DIA']}]
+  };
   const ESTADO_CORTO={
     'Falta por justificar':'FALTA','Falta justificada':'FALTA JUSTIF.','Descanso':'DESCANSO',
     'Descanso médico':'DESC. MÉDICO','Vacaciones':'VACACIONES','Suspensión':'SUSPENSIÓN',
@@ -796,49 +802,64 @@
   }
 
   function generarImagenes(cfg){
+    const area=cfg.area&&SECCIONES_IMAGEN[cfg.area]?cfg.area:'Producción';
     const grupos=cfg.grupos||GRUPOS_IMAGEN[cfg.area]||GRUPOS_IMAGEN['Producción'];
     const L=tareoListaUnica({fechas:[cfg.fecha],turnos:[cfg.turno],grupos,areaPorDia:cfg.area});
     const sinClasificar=tareoListaUnica({fechas:[cfg.fecha],turnos:[cfg.turno],grupos:['SIN']}).filas.length;
-    const paginas=paginarImagen(L.filas,document.createElement('canvas').getContext('2d'));
     const [y,m,d]=cfg.fecha.split('-').map(Number);
     const fechaTxt=capitalizar(new Date(y,m-1,d).toLocaleDateString('es-PE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}));
-    const resumen=resumenImagen(L.filas);
-    const meta0={titulo:cfg.titulo||'Tareo de producción',fechaTxt,turno:cfg.turno,resumen,total:L.filas.length,
-      generado:ahoraTxt().slice(-5),registradores:L.registradores.join(', '),paginas:paginas.length};
-    const imagenes=paginas.map((pag,i)=>{
-      const meta=Object.assign({},meta0,{n:i+1});
-      const medidor=document.createElement('canvas');
-      medidor.width=IMG_W;medidor.height=10;
-      const alto=Math.ceil(dibujarPagina(medidor.getContext('2d'),pag,meta,null));
-      const lienzo=document.createElement('canvas');
-      lienzo.width=IMG_W;lienzo.height=alto;
-      dibujarPagina(lienzo.getContext('2d'),pag,meta,alto);
-      return lienzo.toDataURL('image/png');
+    const generado=ahoraTxt().slice(-5);
+    const ctxMedir=document.createElement('canvas').getContext('2d');
+    // Una sección por cada grupo de personal; si se pidieron grupos concretos (cfg.grupos), cada uno de ellos es una sección.
+    let secciones=(cfg.grupos?cfg.grupos.map(g=>({clave:String(g).toLowerCase(),titulo:(GRUPOS[g]||{}).hoja||g,grupos:[g]})):SECCIONES_IMAGEN[area]);
+    const imagenes=[],items=[],resultado=[];
+    secciones.forEach(sec=>{
+      const filas=L.filas.filter(f=>sec.grupos.includes(f.grupo));
+      if(!filas.length)return;
+      const paginas=paginarImagen(filas,ctxMedir);
+      const resumen=resumenImagen(filas);
+      const registradores=[...new Set(filas.map(f=>f.registradoPor).filter(Boolean))];
+      const meta0={titulo:(cfg.titulo||'Tareo de producción')+' · '+sec.titulo,fechaTxt,turno:cfg.turno,resumen,total:personasDistintas(filas),
+        generado,registradores:(registradores.length?registradores:L.registradores).join(', '),paginas:paginas.length};
+      const urls=paginas.map((pag,i)=>{
+        const meta=Object.assign({},meta0,{n:i+1});
+        const medidor=document.createElement('canvas');
+        medidor.width=IMG_W;medidor.height=10;
+        const alto=Math.ceil(dibujarPagina(medidor.getContext('2d'),pag,meta,null));
+        const lienzo=document.createElement('canvas');
+        lienzo.width=IMG_W;lienzo.height=alto;
+        dibujarPagina(lienzo.getContext('2d'),pag,meta,alto);
+        const url=lienzo.toDataURL('image/png');
+        imagenes.push(url);
+        items.push({url,seccion:sec.clave,titulo:sec.titulo,pagina:i+1,paginas:paginas.length});
+        return url;
+      });
+      resultado.push({clave:sec.clave,titulo:sec.titulo,total:meta0.total,resumen,imagenes:urls});
     });
-    return {imagenes,filas:L.filas,sinClasificar,total:L.filas.length,resumen};
+    return {imagenes,items,secciones:resultado,filas:L.filas,sinClasificar,total:L.filas.length,resumen:resumenImagen(L.filas)};
   }
   window.tareoGenerarImagenesRRHH=generarImagenes;
 
-  /* Nombre: Tareo_produccion_AAAA-MM-DD_turno_p1.png */
-  function nombreImagen(cfg,n){
-    return 'Tareo_'+norm(cfg.area||'produccion').replace(/[^a-z0-9]/g,'_')+'_'+cfg.fecha+'_'+norm(cfg.turno)+'_p'+n+'.png';
+  /* Nombre: Tareo_produccion_AAAA-MM-DD_turno_supervisores.png (y _p2, _p3… si la sección pasa de 25 personas) */
+  function nombreImagen(cfg,it){
+    return 'Tareo_'+norm(cfg.area||'produccion').replace(/[^a-z0-9]/g,'_')+'_'+cfg.fecha+'_'+norm(cfg.turno)+'_'+it.seccion+(it.paginas>1?'_p'+it.pagina:'')+'.png';
   }
   function descargarImagen(url,nombre){
     const a=document.createElement('a');
     a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();
   }
-  window.__tareoImgDescargar=(i)=>{const s=window.__tareoImgEstado;if(s)descargarImagen(s.imagenes[i],nombreImagen(s.cfg,i+1,s.imagenes.length));};
+  window.__tareoImgDescargar=(i)=>{const s=window.__tareoImgEstado;if(s&&s.items[i])descargarImagen(s.items[i].url,nombreImagen(s.cfg,s.items[i]));};
   window.__tareoImgDescargarTodas=()=>{
     const s=window.__tareoImgEstado;if(!s)return;
-    s.imagenes.forEach((u,i)=>setTimeout(()=>descargarImagen(u,nombreImagen(s.cfg,i+1,s.imagenes.length)),i*400));
+    s.items.forEach((it,i)=>setTimeout(()=>descargarImagen(it.url,nombreImagen(s.cfg,it)),i*400));
   };
   async function compartirImagenes(){
     const s=window.__tareoImgEstado;
     if(!s)return;
     try{
-      const archivos=await Promise.all(s.imagenes.map(async(u,i)=>{
-        const b=await (await fetch(u)).blob();
-        return new File([b],nombreImagen(s.cfg,i+1,s.imagenes.length),{type:'image/png'});
+      const archivos=await Promise.all(s.items.map(async it=>{
+        const b=await (await fetch(it.url)).blob();
+        return new File([b],nombreImagen(s.cfg,it),{type:'image/png'});
       }));
       if(navigator.canShare&&navigator.canShare({files:archivos}))await navigator.share({files:archivos,title:'Tareo GLACIAL'});
       else window.__tareoImgDescargarTodas();
@@ -851,7 +872,7 @@
     if(!root){alert('No se pudo abrir la vista previa.');return;}
     const r=generarImagenes(cfg);
     if(!r.imagenes.length){alert('No hay personal para generar la imagen.');return;}
-    window.__tareoImgEstado={cfg,imagenes:r.imagenes};
+    window.__tareoImgEstado={cfg,imagenes:r.imagenes,items:r.items};
     // En celular: el menú de compartir del teléfono (Web Share con archivos) lleva todas las páginas a WhatsApp.
     let puedeCompartir=false;
     try{puedeCompartir=!!(navigator.canShare&&navigator.canShare({files:[new File(['x'],'x.png',{type:'image/png'})]}));}catch(_){/* sin Web Share */}
@@ -863,15 +884,17 @@
             <p class="small-muted">${r.total} persona(s) · ${r.imagenes.length} imagen(es) · presentes ${r.resumen.asistieron}${r.resumen.enComision?` (${r.resumen.enComision} en comisión)`:''} + faltas ${r.resumen.faltas} + descansos ${r.resumen.descansos} + otros ausentes ${r.resumen.otros} + sin registrar ${r.resumen.pendientes} = ${r.resumen.asistieron+r.resumen.faltas+r.resumen.descansos+r.resumen.otros+r.resumen.pendientes}${r.sinClasificar?` · <strong>${r.sinClasificar} sin clasificar no se muestran</strong> (solo salen en el Excel General)`:''}</p>
             <div class="actions-row" style="margin-bottom:10px;">
               ${puedeCompartir
-                ? `<button class="btn btn-primary" onclick="__tareoImgCompartir()">Compartir ${r.imagenes.length>1?'todas las páginas':'imagen'}</button>
+                ? `<button class="btn btn-primary" onclick="__tareoImgCompartir()">Compartir ${r.imagenes.length>1?'las '+r.imagenes.length+' imágenes':'imagen'}</button>
                    <button class="btn btn-ghost" onclick="__tareoImgDescargarTodas()">Descargar</button>`
                 : `<button class="btn btn-primary" onclick="__tareoImgDescargarTodas()">Descargar ${r.imagenes.length>1?'todas':'imagen'}</button>`}
             </div>
-            ${r.imagenes.map((u,i)=>`
+            ${(()=>{let i=-1;return r.secciones.map(sec=>`
+              <h4 style="margin:14px 0 6px;">${esc(sec.titulo)} <small class="small-muted">· ${sec.total} persona(s)${sec.imagenes.length>1?' · '+sec.imagenes.length+' páginas':''}</small></h4>
+              ${sec.imagenes.map((u,k)=>{i++;return `
               <div style="margin-bottom:14px;">
-                <img src="${u}" alt="Página ${i+1}" style="width:100%;border:1px solid #d5dfe8;border-radius:8px;">
-                <button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick="__tareoImgDescargar(${i})">Descargar página ${i+1}</button>
-              </div>`).join('')}
+                <img src="${u}" alt="${esc(sec.titulo)}${sec.imagenes.length>1?' · página '+(k+1):''}" style="width:100%;border:1px solid #d5dfe8;border-radius:8px;">
+                <button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick="__tareoImgDescargar(${i})">Descargar imagen de ${esc(sec.titulo.toLowerCase())}${sec.imagenes.length>1?' · página '+(k+1):''}</button>
+              </div>`;}).join('')}`).join('');})()}
           </div>
         </div>
       </div>`;
