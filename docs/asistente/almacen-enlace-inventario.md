@@ -30,7 +30,7 @@ Un corte nuevo de SAP pasa a ser la base y las entregas anteriores a su fecha de
 | Colección nueva `apAlmacenMov` | `{opId, tipo ENTREGA/ANULACION, insumo, itemCode, cantidad, unidad, fecha, solicitudId, sinStock, motivo, en, uid, usuario, guardadoEn}` |
 | Escribe | quien tiene `moduloAlmacen` (entregas) — regla `glacial_27` |
 | Lee | catálogo y cortes del Inventario: `inventarioInsumos`, Asistente (`ap_asis`) y Almacén (`ap_alm`); `apAlmacenMov`: igual que el resto del Asistente |
-| Migración | `supabase/migraciones/glacial_27_almacen_enlace_inventario.sql` (requiere glacial_23 y 24). PRUEBAS: aplicada. PRODUCCIÓN: **pendiente** |
+| Migración | `supabase/migraciones/glacial_27_almacen_enlace_inventario.sql` (requiere glacial_23 y 24). PRUEBAS y PRODUCCIÓN: aplicada (2026-10-21) |
 
 Pruebas: `node tests/almacen-enlace.test.js`.
 

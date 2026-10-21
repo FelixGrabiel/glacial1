@@ -1,4 +1,4 @@
--- GLACIAL · glacial_27 · Enlace Asistente de Producción ↔ Inventario de insumos (descuento de stock por entregas de Almacén)
+-- GLACIAL · glacial_27 · Enlace Asistente de Producción ↔ Inventario de insumos (descuento de stock por entregas de Almacén)     *** APLICADA EN PRUEBAS y en PRODUCCION el 2026-10-21 ***
 --
 -- Qué hace (mismo método que glacial_23/24/26: inserta ramas en autorizar y puede_leer por «anclas» de texto; si un ancla no aparece
 -- exactamente una vez, se detiene con un mensaje y no cambia nada):

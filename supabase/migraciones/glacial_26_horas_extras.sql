@@ -1,4 +1,4 @@
--- GLACIAL · glacial_26 · Reglas de Supabase para el REGISTRO DE HORAS EXTRAS (Tareo)            *** APLICADA EN PRUEBAS (mvxjopvnnagqytegtexi) el 2026-10-20; PRODUCCION pendiente ***
+-- GLACIAL · glacial_26 · Reglas de Supabase para el REGISTRO DE HORAS EXTRAS (Tareo)            *** APLICADA EN PRUEBAS (mvxjopvnnagqytegtexi) el 2026-10-20 y en PRODUCCION (ehtbwmvwoxcdefvlxttu) el 2026-10-21 ***
 --
 -- Qué hace (mismo método que glacial_23 y glacial_24: inserta ramas en las funciones del puente; no crea tablas — los datos viven en fs_docs):
 --  1) glacial_fs.cap_he_esc / cap_he_ver: quién ESCRIBE y quién VE las horas extras de cada área.

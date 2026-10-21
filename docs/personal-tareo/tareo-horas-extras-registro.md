@@ -40,7 +40,7 @@ Técnico con PIN (cuenta compartida de Mantenimiento): ve solo **sus** horas ext
 | `js/nucleo/02-estado.js` | permiso `horasExtras` en el catálogo |
 | `js/accesos/10-usuarios.js` | `horasExtras` sugerido para Supervisor, Mantenimiento y RRHH |
 | `index.html` | carga de 47a y 47 después de 46 |
-| `supabase/migraciones/glacial_26_horas_extras.sql` | reglas del servidor (**NO aplicada**, ver abajo) |
+| `supabase/migraciones/glacial_26_horas_extras.sql` | reglas del servidor (aplicada en PRUEBAS y PRODUCCIÓN el 2026-10-21) |
 | `tests/horas-extras-registro.test.js` / `.e2e.js` | reglas puras y navegador (formulario, choque, edición, anulación, marca, ficha, resumen, permisos, PIN) |
 
 ## Migración SQL — aplicada en PRUEBAS (20-10-2026), PRODUCCION pendiente
