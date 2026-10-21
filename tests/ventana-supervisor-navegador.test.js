@@ -13,8 +13,8 @@ const iso = ms => { const d = new Date(ms - 5 * 3600000); return d.getUTCFullYea
 const sumar = (f, n) => { const [y, m, d] = f.split('-').map(Number); return iso(Date.UTC(y, m - 1, d + n, 12)); };
 
 /* rotacion: { 'YYYY-MM-DD': { username: {turno, inicio, fin} } } (solo fechas publicadas). nocheDesde: hora de inicio de la Noche de producción. */
-function entorno({ ahora, usuario, rotacion, nocheDesde, ampliaciones }){
-  let cbAmp = null;
+function entorno({ ahora, usuario, rotacion, nocheDesde, ampliaciones, cierre }){
+  let cbAmp = null, cbCfg = null;
   const sb = {
     console,
     document: {},
@@ -43,12 +43,15 @@ function entorno({ ahora, usuario, rotacion, nocheDesde, ampliaciones }){
       }
     },
     db: {
-      collection: () => ({ where: () => ({ onSnapshot: (cb) => { cbAmp = cb; return () => {}; } }) })
+      collection: () => ({ where: () => ({ onSnapshot: (cb) => { cbAmp = cb; return () => {}; } }), doc: () => ({ onSnapshot: (cb) => { cbCfg = cb; return () => {}; } }) })
     }
   };
   sb.window = sb; sb.globalThis = sb;
   vm.createContext(sb);
   vm.runInContext(codigo, sb);
+  // Interruptor del Administrador: por defecto en estas pruebas, ACTIVADO (cierre=undefined). cierre=null → sin documento (apagado).
+  const cfg = cierre === undefined ? { cierreActivo: true, desde: '' } : cierre;
+  if(cbCfg) cbCfg(cfg === null ? { exists: false, data: () => ({}) } : { exists: true, data: () => cfg });
   if(ampliaciones && cbAmp){
     cbAmp({ docs: ampliaciones.map(a => ({ id: a.id || 'x', data: () => a })) });
   }
@@ -62,6 +65,21 @@ const HOY = '2026-10-21', AYER = '2026-10-20';
   const VS = entorno({ ahora: L(HOY, '10:00'), usuario: { username: 'admin', rol: 'Administrador' }, rotacion: {} });
   const st = VS.estado();
   ok(st.estado === 'NO_APLICA' && st.puedeTrabajar === true, 'el Administrador no tiene ventana: nunca se le bloquea');
+}
+
+/* ---------- 1b) interruptor del Administrador (apagado por defecto) ---------- */
+{
+  const rot = { [AYER]: {}, [HOY]: { ana: { turno: 'DÍA', inicio: '07:00', fin: '15:00' } } };
+  const sinDoc = entorno({ ahora: L(HOY, '16:00'), usuario: sup('ana'), rotacion: rot, cierre: null });
+  const st = sinDoc.estado();
+  ok(st.puedeTrabajar === true && st.cierreDesactivado === true && st.estado === 'CERRADA', 'sin el interruptor (documento inexistente): fuera de turno igual puede trabajar; el cronómetro solo informa');
+  ok(sinDoc.cierreActivo() === false, 'el cierre automático está APAGADO por defecto');
+  const apagado = entorno({ ahora: L(HOY, '14:50'), usuario: sup('ana'), rotacion: rot, cierre: { cierreActivo: false } });
+  ok(apagado.estado().porCerrar === false, 'apagado: no hay aviso de «por cerrar»');
+  const futuro = entorno({ ahora: L(HOY, '16:00'), usuario: sup('ana'), rotacion: rot, cierre: { cierreActivo: true, desde: sumar(HOY, 1) } });
+  ok(futuro.estado().puedeTrabajar === true && futuro.cierreActivo() === false, 'activado «a partir de mañana»: hoy todavía no se aplica');
+  const desdeHoy = entorno({ ahora: L(HOY, '16:00'), usuario: sup('ana'), rotacion: rot, cierre: { cierreActivo: true, desde: HOY } });
+  ok(desdeHoy.estado().puedeTrabajar === false, 'activado «a partir de hoy»: se aplica');
 }
 
 /* ---------- 2) rotación publicada ---------- */

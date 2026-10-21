@@ -42,7 +42,9 @@
     if(st.estado === 'SIN_HORARIO') return '<span class="amp-ambar">Sin rotación ni horario</span>';
     if(st.puedeTrabajar && st.ventana) return '<span class="amp-verde">Trabajando · cierra ' + hora(st.ventana.cierreMs) + '</span>';
     if(st.estado === 'ANTES' && st.proxima) return '<span class="amp-gris">Abre ' + hora(st.proxima.aperturaMs) + '</span>';
-    if(st.estado === 'CERRADA' && st.ultima) return '<span class="amp-rojo">🔒 Cerró ' + hora(st.ultima.cierreMs) + '</span>';
+    if(st.estado === 'CERRADA' && st.ultima) return st.cierreDesactivado
+      ? '<span class="amp-gris">Fuera de horario (terminó ' + hora(st.ultima.cierreMs) + ')</span>'
+      : '<span class="amp-rojo">🔒 Cerró ' + hora(st.ultima.cierreMs) + '</span>';
     return '<span class="amp-gris">' + (st.descansoHoy ? 'Descanso' : 'Sin turno') + '</span>';
   }
 
@@ -61,6 +63,25 @@
         <span><button type="button" class="btn btn-ghost" onclick="ampTurnoCancelar()">Cancelar</button>
         <button type="button" class="btn btn-glacial" onclick="ampTurnoConfirmar('${esc(u.username)}')">Confirmar</button></span></div>
       ${mensaje ? `<div class="amp-msg ${mensajeTipo}" role="${mensajeTipo === 'error' ? 'alert' : 'status'}">${esc(mensaje)}</div>` : ''}
+    </div>`;
+  }
+
+  /* Interruptor «Cierre automático del modo Trabajar» (apagado por defecto). Ver 17b → VS.configCierre / VS.cierreActivo. */
+  function htmlInterruptor(){
+    const c = VS.configCierre(), hoyActivo = VS.cierreActivo();
+    let estado;
+    if(!c.cierreActivo) estado = '<span class="amp-gris"><b>DESACTIVADO</b> · los supervisores pueden trabajar a cualquier hora (el cronómetro solo informa).</span>';
+    else if(!hoyActivo) estado = '<span class="amp-ambar"><b>PROGRAMADO</b> · empieza a aplicarse el ' + esc(c.desde) + '.</span>';
+    else estado = '<span class="amp-verde"><b>ACTIVADO</b>' + (c.desde ? ' desde el ' + esc(c.desde) : '') + ' · al terminar su turno el supervisor queda en solo visualización.</span>';
+    const quien = c.actualizadoPor ? ' <span class="amp-gris">(último cambio: ' + esc(c.actualizadoPor) + (c.actualizadoEnMs ? ' · ' + new Date(c.actualizadoEnMs).toLocaleString('es-PE') : '') + ')</span>' : '';
+    return `<div class="amp-interruptor">
+      <div><b>Cierre automático del modo Trabajar</b><br>${estado}${quien}</div>
+      <div class="amp-int-acciones">
+        ${c.cierreActivo
+          ? `<button type="button" class="btn btn-ghost" onclick="ampCierreGuardar(false)">Desactivar</button>`
+          : `<label class="amp-otro">A partir del <input type="date" id="amp-cierre-desde" value="${esc(c.desde || '')}"></label>
+             <button type="button" class="btn btn-glacial" onclick="ampCierreGuardar(true)">Activar</button>`}
+      </div>
     </div>`;
   }
 
@@ -94,12 +115,15 @@
         .amp-otro{display:flex;gap:6px;align-items:center;font-size:12.5px}.amp-otro input{width:80px}
         .amp-mot{display:grid;gap:4px;font-size:12.5px}.amp-mot textarea{width:100%;box-sizing:border-box}
         .amp-pie{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+        .amp-interruptor{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;padding:10px 12px;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:#f7f9fb;font-size:13px;line-height:1.5}
+        .amp-int-acciones{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
         .amp-msg{font-size:13px}.amp-msg.error{color:#a32d2d}.amp-msg.ok{color:#166534}
       </style>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
         <div><h3 style="margin:0">Tiempo de supervisores</h3>
-          <div class="rot-sup-muted">Solo el Administrador. Al cerrar su turno, el supervisor queda en modo visualización; aquí puedes darle más minutos con un motivo.</div></div>
+          <div class="rot-sup-muted">Solo el Administrador. Con el cierre automático activado, al terminar su turno el supervisor queda en modo visualización; aquí puedes darle más minutos con un motivo.</div></div>
       </div>
+      ${htmlInterruptor()}
       ${estAmp.error ? `<div class="amp-msg error" style="margin-top:8px">No se pudieron leer las ampliaciones: falta aplicar la migración glacial_29 en Supabase.</div>` : ''}
       <table style="margin-top:10px"><thead><tr><th>Supervisor</th><th>Turno</th><th>Estado ahora</th><th></th></tr></thead>
         <tbody>${filas || '<tr><td colspan="4" class="amp-gris">No hay supervisores en la rotación.</td></tr>'}</tbody></table>
@@ -134,7 +158,7 @@
   const refrescar = () => {
     if(!esAdmin() || !document.getElementById('amp-turno-panel')) return;
     const enfoque = document.activeElement;
-    if(enfoque && enfoque.closest && enfoque.closest('#amp-turno-panel .amp-form')) return;
+    if(enfoque && enfoque.closest && enfoque.closest('#amp-turno-panel .amp-form, #amp-turno-panel .amp-interruptor')) return;
     pintar();
   };
   VS.alCambiar(refrescar);
@@ -196,6 +220,29 @@
       console.error('No se pudo guardar la ampliación de turno:', e);
       mensaje = 'No se pudo guardar. ' + ((e && e.message) || '') + ' (¿está aplicada la migración glacial_29 en Supabase?)';
       pintar();
+    }
+  };
+
+  window.ampCierreGuardar = async function(activar){
+    if(!esAdmin()){ alert('Solo el Administrador puede cambiar el cierre automático.'); return; }
+    const desde = activar ? String((document.getElementById('amp-cierre-desde') || {}).value || '').trim() : '';
+    if(desde && !/^\d{4}-\d{2}-\d{2}$/.test(desde)){ alert('La fecha no es válida.'); return; }
+    const pregunta = activar
+      ? '¿Activar el cierre automático del modo Trabajar' + (desde ? ' a partir del ' + desde : ' desde HOY') + '?\n\nAl terminar su turno (Noche: 30 min de tolerancia) cada supervisor quedará en solo visualización. Solo tú podrás darle más tiempo.'
+      : '¿Desactivar el cierre automático del modo Trabajar?\n\nLos supervisores podrán trabajar a cualquier hora; el cronómetro solo informará.';
+    if(!confirm(pregunta)) return;
+    const uid = uidActual();
+    if(!uid){ alert('No hay una sesión segura activa. Vuelve a iniciar sesión.'); return; }
+    try{
+      await db.collection('ampliacionesTurno').doc('config').set({
+        id: 'config', cierreActivo: !!activar, desde,
+        actualizadoPor: state.user.nombre || state.user.username || '', actualizadoUid: uid,
+        actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      if(typeof _mtToastTurno === 'function') _mtToastTurno(activar ? '✅ Cierre automático ' + (desde ? 'programado desde el ' + desde : 'activado') + '.' : 'Cierre automático desactivado.');
+    }catch(e){
+      console.error('No se pudo cambiar el cierre automático:', e);
+      alert('No se pudo guardar: ' + ((e && e.message) || e) + '\n\n¿Está aplicada la migración glacial_29 en Supabase?');
     }
   };
 

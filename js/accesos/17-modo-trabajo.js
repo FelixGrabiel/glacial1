@@ -333,6 +333,17 @@ function renderCronometroVentana(box){
     return;
   }
 
+  if(st.cierreDesactivado){
+    // Interruptor del Administrador apagado: solo informa (no bloquea).
+    const texto = VS.textoBloqueo(st);
+    box.innerHTML = `
+      <div class="cro-turno-nombre">Fuera de tu horario</div>
+      ${texto ? `<div class="cro-nota">${_mtEsc(texto)}</div>` : ''}
+      <div class="cro-nota">Cierre automático desactivado por el administrador.</div>`;
+    actualizarIndicadorAutoguardado();
+    return;
+  }
+
   box.classList.add('cro-cerrado');
   box.innerHTML = `
     <div class="cro-turno-nombre">🔒 Solo visualización</div>

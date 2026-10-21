@@ -8,6 +8,8 @@
 --       Cambiar: solo amp_adm y solo para ANULAR (VIGENTE → ANULADA) con motivoAnulacion de 5 o más caracteres, anuladoUid = quien escribe,
 --                anuladoEn = hora del servidor; usuario, fecha, turno, minutos, motivo y autor originales no cambian.
 --       Borrar:  nunca (se anula y queda el registro).
+--       Documento 'config' (interruptor «Cierre automático del modo Trabajar», APAGADO si no existe): solo amp_adm lo crea o cambia;
+--                cierreActivo booleano, desde vacío o AAAA-MM-DD, actualizadoUid = quien escribe, actualizadoEn = hora del servidor.
 --  3) puede_leer: todo usuario con sesión salvo la cuenta compartida de Mantenimiento (cada supervisor necesita leer su tiempo extra).
 --
 -- NOTA DE APLICACIÓN (leer ANTES de ejecutar):
@@ -34,6 +36,13 @@ declare
      adm boolean := coalesce((k->>'amp_adm')::boolean, false);
    begin
      if accion = 'delete' or not adm then return false; end if;
+     -- Interruptor «Cierre automático del modo Trabajar» (documento 'config'): solo el Administrador lo enciende o apaga.
+     if d = 'config' then
+       return n->>'id' = 'config'
+         and jsonb_typeof(n->'cierreActivo') = 'boolean'
+         and coalesce(n->>'desde', '') ~ '^([0-9]{4}-[0-9]{2}-[0-9]{2})?$'
+         and n->>'actualizadoUid' = u and n->'actualizadoEn' = ahora;
+     end if;
      if accion = 'create' then
        return n->>'id' = d
          and n->>'estado' = 'VIGENTE'

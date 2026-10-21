@@ -5,7 +5,15 @@ Cambio del 21-10-2026. Archivos: `js/accesos/17b-ventana-supervisor.js` (nuevo),
 `js/personal/31-rotacion-supervisores.js`, `js/personal/31a-rotacion-grid.js`, `js/produccion/51b-horarios-produccion.js`, `index.html`
 y la migración `supabase/migraciones/glacial_29_ampliaciones_turno.sql`.
 
-## Qué hace
+## Interruptor del Administrador (APAGADO por defecto)
+
+El cierre automático **no se aplica hasta que el Administrador lo active**: Producción → Rotación de supervisores →
+«Tiempo de supervisores» → **Cierre automático del modo Trabajar** → **Activar** (opcional: «A partir del» una fecha).
+Mientras esté apagado, los supervisores trabajan a cualquier hora y el cronómetro solo informa su horario
+(«Fuera de tu horario · cierre automático desactivado»). Se puede **Desactivar** en cualquier momento.
+Se guarda en `ampliacionesTurno/config` (requiere `glacial_29`); si ese documento no existe o no se puede leer, queda **apagado**.
+
+## Qué hace (con el cierre automático activado)
 
 Cada supervisor (rol **Supervisor**, los de la rotación) solo puede usar el modo **TRABAJAR** dentro de su ventana de turno.
 Fuera de ella queda en **VISUALIZAR**: consulta todo, pero no registra. **Solo el Administrador** puede darle más tiempo.

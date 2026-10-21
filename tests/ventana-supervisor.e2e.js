@@ -139,11 +139,34 @@ window.supabase = { createClient(url, key, opts){
   const foto = (D, nombre) => process.env.FOTOS ? D.page.screenshot({ path: path.join(process.env.FOTOS, nombre + '.png') }) : null;
   const limpiar = D => D.page.evaluate(() => { const m = document.getElementById('modal-root'); if (m) m.innerHTML = ''; });
 
+  /* 0) Interruptor APAGADO por defecto: a las 15:05 el Sup Día puede trabajar; el Administrador lo activa y el supervisor se cierra en vivo. */
+  const Z = await abrir('dia-1505-apagado', sim(HOY + 'T15:05'));
+  await entrar(Z, 'sdia', 'Super#2026');
+  await Z.page.evaluate(() => establecerModoTrabajo('trabajar'));
+  let e = await estado(Z);
+  ok(e.modo === 'trabajar' && e.puede === true && /desactivado/.test(e.crono) && e.avance === true, 'cierre automático APAGADO por defecto: a las 15:05 sigue en TRABAJAR y el cronómetro solo informa');
+  const AD = await abrir('admin', sim(HOY + 'T15:05'));
+  ok(await entrar(AD, 'admin', 'Admin#2026') === 'admin', 'el Administrador inicia sesión');
+  await AD.page.evaluate(() => { window.confirm = () => true; establecerModoTrabajo('visualizar', { silencioso: true }); });
+  await limpiar(AD);
+  await AD.page.evaluate(() => goRotacionSupervisores());
+  await AD.page.waitForTimeout(500);
+  ok(await AD.page.evaluate(() => /Cierre automático del modo Trabajar/.test(document.getElementById('amp-turno-panel').textContent) && /DESACTIVADO/.test(document.getElementById('amp-turno-panel').textContent)), 'el Administrador ve el interruptor «Cierre automático del modo Trabajar» en DESACTIVADO');
+  await foto(AD, '0-interruptor-apagado');
+  await AD.page.evaluate(() => ampCierreGuardar(true));
+  await AD.page.waitForTimeout(800);
+  const cfg = [...S.docs.values()].find(r => r.coleccion === 'ampliacionesTurno' && r.id === 'config');
+  ok(!!cfg && cfg.datos.cierreActivo === true && cfg.datos.actualizadoUid === UID.admin, 'el Administrador lo activa (queda guardado con su uid)');
+  ok(await AD.page.evaluate(() => /ACTIVADO/.test(document.getElementById('amp-turno-panel').textContent)), 'el panel muestra ACTIVADO');
+  await Z.page.waitForFunction(() => state.workMode === 'visualizar', null, { timeout: 10000 }).catch(() => {});
+  e = await estado(Z);
+  ok(e.modo === 'visualizar' && e.btnBloqueado, 'al activarlo, el supervisor fuera de turno pasa en vivo a VISUALIZAR');
+
   /* 1) Supervisor de Día a las 10:00: trabaja con normalidad. */
   const A = await abrir('dia-10', sim(HOY + 'T10:00'));
   ok(await entrar(A, 'sdia', 'Super#2026') === 'sdia', 'Sup Día inicia sesión (hora simulada 10:00)');
   await A.page.evaluate(() => establecerModoTrabajo('trabajar'));
-  let e = await estado(A);
+  e = await estado(A);
   ok(e.estado === 'ABIERTA' && e.modo === 'trabajar' && !e.btnBloqueado, 'a las 10:00 puede usar TRABAJAR (estado ' + e.estado + ', modo ' + e.modo + ')');
   ok(/Turno Día/.test(e.crono) && /Cierre/.test(e.crono) && /15:00/.test(e.crono), 'el cronómetro muestra su turno y el cierre a las 15:00');
   ok(e.avance === true, 'en su turno puede generar avances');
@@ -172,9 +195,6 @@ window.supabase = { createClient(url, key, opts){
   await limpiar(C); await foto(C, '2b-cerrado-cronometro');
 
   /* 4) El Administrador le da 30 min desde «Rotación de supervisores»; el supervisor lo recibe en vivo. */
-  const AD = await abrir('admin', sim(HOY + 'T15:05'));
-  ok(await entrar(AD, 'admin', 'Admin#2026') === 'admin', 'el Administrador inicia sesión');
-  await AD.page.evaluate(() => establecerModoTrabajo('visualizar', { silencioso: true }));
   await limpiar(AD);
   await AD.page.evaluate(() => goRotacionSupervisores());
   await AD.page.waitForTimeout(500);
@@ -187,7 +207,7 @@ window.supabase = { createClient(url, key, opts){
   await foto(AD, '3a-formulario-admin');
   await AD.page.evaluate(() => ampTurnoConfirmar('sdia'));
   await AD.page.waitForTimeout(800);
-  const doc = [...S.docs.values()].find(r => r.coleccion === 'ampliacionesTurno' && !r.eliminado_en);
+  const doc = [...S.docs.values()].find(r => r.coleccion === 'ampliacionesTurno' && r.id !== 'config' && !r.eliminado_en);
   await foto(AD, '3-panel-admin');
   ok(!!doc && doc.datos.minutos === 30 && doc.datos.turno === 'DÍA' && doc.datos.fechaOperativa === HOY && doc.datos.creadoUid === UID.admin, 'se guarda la ampliación (30 min, Día ' + HOY + ', con el uid del Administrador)');
   await C.page.waitForFunction(() => window.glacialVentanaSupervisor.estado().puedeTrabajar === true, null, { timeout: 10000 }).catch(() => {});
@@ -228,7 +248,7 @@ window.supabase = { createClient(url, key, opts){
   await I2.page.waitForFunction(() => window.glacialHorarios && window.glacialHorarios.datos().reglas.length >= 3, null, { timeout: 10000 }).catch(() => {});
   ok(await I2.page.evaluate(() => avCtx().turno) === 'DÍA', 'a las 18:30 el Avance del intermedio sigue en el bloque Día');
 
-  for (const X of [A, B, C, AD, D, N, N2, I, I2]) {
+  for (const X of [Z, A, B, C, AD, D, N, N2, I, I2]) {
     const errs = X.errores.filter(t => !/favicon|ResizeObserver/.test(t));
     ok(errs.length === 0, 'sin errores de JavaScript en «' + X.nombre + '»' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   }

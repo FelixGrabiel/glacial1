@@ -183,6 +183,39 @@
     try{ escucharAmpliaciones(); }catch(e){ console.warn('Ampliaciones de turno:', e); }
   }
   VS.ampliaciones = () => ampliaciones.slice();
+
+  /* ---------- INTERRUPTOR DEL ADMINISTRADOR: «Cierre automático del modo Trabajar» ----------
+     Documento ampliacionesTurno/config: { id:'config', cierreActivo:true|false, desde:'' | 'AAAA-MM-DD', actualizadoPor, actualizadoUid, actualizadoEn }.
+     APAGADO POR DEFECTO: si el documento no existe, aún no llegó o no se puede leer (p. ej. sin la migración glacial_29),
+     el cierre NO se aplica. Apagado, el cronómetro solo informa: nadie queda bloqueado y no hay avisos de cierre.
+     Con «desde», el cierre empieza a aplicarse ese día operativo (hora de Lima). */
+  let configCierre = { cierreActivo: false, desde: '' }, configCierreLista = false;
+  function escucharConfigCierre(){
+    if(typeof db === 'undefined') return null;
+    return db.collection('ampliacionesTurno').doc('config').onSnapshot(snap => {
+      const d = snap && snap.exists ? (snap.data() || {}) : {};
+      configCierre = { cierreActivo: d.cierreActivo === true, desde: /^\d{4}-\d{2}-\d{2}$/.test(String(d.desde || '')) ? d.desde : '',
+        actualizadoPor: d.actualizadoPor || '', actualizadoEnMs: tsMs(d.actualizadoEn) };
+      configCierreLista = true;
+      avisar();
+    }, err => {
+      configCierre = { cierreActivo: false, desde: '' }; configCierreLista = true;
+      console.warn('Cierre automático del modo Trabajar: no se pudo leer el interruptor (queda APAGADO).', (err && err.message) || err);
+      avisar();
+    });
+  }
+  if(typeof _escuchaRestringida === 'function'){
+    _escuchaRestringida('ampliacionesTurnoConfig', escucharConfigCierre);
+  }else{
+    try{ escucharConfigCierre(); }catch(e){ console.warn('Cierre automático del modo Trabajar:', e); }
+  }
+  VS.configCierre = () => Object.assign({ lista: configCierreLista }, configCierre);
+  /* ¿El cierre automático se aplica HOY? */
+  VS.cierreActivo = function(){
+    if(!configCierre.cierreActivo) return false;
+    if(configCierre.desde && fechaHoy(ahoraMs()) < configCierre.desde) return false;
+    return true;
+  };
   VS.estadoAmpliaciones = () => ({ listas: ampliacionesListas, error: ampliacionesError });
 
   /* ---------- asignaciones del supervisor: rotación publicada o perfil ---------- */
@@ -235,7 +268,10 @@
     const r = calcularVentana({ ahoraMs: ms, asignaciones: asig.lista, ampliaciones: propias, toleranciaNocheMin: toleranciaNoche() });
     // Con descanso hoy y un cierre de hace más de 6 h, se informa el descanso (no «tu turno cerró ayer»).
     if(r.estado === 'CERRADA' && asig.descansoHoy && r.ultima && ms - r.ultima.cierreMs >= 6 * 3600000) r.estado = 'SIN_TURNO';
-    return Object.assign(r, { aplica: true, sinRotacionHoy: asig.sinRotacionHoy, descansoHoy: asig.descansoHoy });
+    Object.assign(r, { aplica: true, sinRotacionHoy: asig.sinRotacionHoy, descansoHoy: asig.descansoHoy });
+    // Interruptor del Administrador apagado: el cronómetro informa, pero no cierra ni avisa.
+    if(!VS.cierreActivo()){ r.cierreDesactivado = true; r.puedeTrabajar = true; r.porCerrar = false; }
+    return r;
   };
   VS.puedeTrabajar = u => VS.estado(u).puedeTrabajar !== false;
 
