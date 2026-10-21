@@ -671,7 +671,7 @@
       ${campo('Línea',`<select onchange="AP_set('histLinea',this.value)">${opcionesLineas(AP.histLinea,true)}</select>`)}
       ${campo('Tipo',`<select onchange="AP_set('histTipo',this.value)"><option value="">Todos</option>${tipos.map(t=>`<option ${t===AP.histTipo?'selected':''}>${esc(t)}</option>`).join('')}</select>`)}
       ${campo('Responsable',`<select onchange="AP_set('histResp',this.value)"><option value="">Todos</option>${resps.map(t=>`<option ${t===AP.histResp?'selected':''}>${esc(t)}</option>`).join('')}</select>`)}
-      <div class="ap-acc">${exp?`<button type="button" class="ap-btn ap-btn-excel" onclick="apExportar()">${ico('excel')} Exportar Excel</button>`:''}<button type="button" class="ap-btn ap-btn-o ap-btn-gris" onclick="window.print()">${ico('imprimir')} Resumen imprimible</button></div></div></section>`;
+      <div class="ap-acc"><button type="button" class="ap-btn ap-btn-o ap-btn-gris" onclick="window.print()">${ico('imprimir')} Resumen imprimible</button></div></div></section>`;
     const filas=lista.map(e=>`<tr class="${e.sol?'ap-clic':''}" ${e.sol?`onclick="AP_set('solSel','${esc(e.sol)}')"`:''}><td data-label="Hora">${e.en?hora(e.en):'—'}</td><td data-label="Evento">${esc(e.evento)}</td><td data-label="Insumo">${esc(e.insumo?insumoDe(e.insumo).nombre:'—')}</td>
       <td data-label="Cantidad">${esc(e.cant||'—')}</td><td data-label="Responsable">${esc(e.por||'—')}</td><td data-label="Estado">${pill(e.estado[0],e.estado[1],e.estado[2])}</td></tr>`).join('');
     const sols=D.cache.solicitudes.filter(s=>s.fecha===AP.fecha);
@@ -685,7 +685,8 @@
         <p class="ap-mut">Verificado: ${esc(ultC.usuario||'—')} · ${hora(ultC.en)}</p>
         <p>${esc(insumoDe(ultC.insumo).nombre)}: ${fmt(ultC.cantidad)} ${esc(ultC.unidad||'')}<br>Ajuste vinculado al conteo<br>Versiones y correcciones conservadas</p>
         <button type="button" class="ap-link" onclick="apHistorialDoc('apMovimientos','${esc(ultC.opId)}')">Ver antes y después ${ico('flecha')}</button></div></div>`:vacio('Sin conteos en esta fecha.'));
-    return `<h2 class="ap-h2">Historial y reportes</h2>${filtros}${tarjeta('Movimientos y decisiones',filas?tabla(['Hora','Evento','Insumo','Cantidad','Responsable','Estado'],filas):vacio('Sin movimientos en esta fecha.'))}
+    const reportes=window.glacialAsistenteReportes?window.glacialAsistenteReportes.tarjeta():'';
+    return `<h2 class="ap-h2">Historial y reportes</h2>${reportes}${filtros}${tarjeta('Movimientos y decisiones',filas?tabla(['Hora','Evento','Insumo','Cantidad','Responsable','Estado'],filas):vacio('Sin movimientos en esta fecha.'))}
       <div class="ap-2 ap-2-hist">${det}${aud}</div>`;
   }
   window.apExportar=()=>{
@@ -744,9 +745,9 @@
   };
 
   /* ---------- modal ---------- */
-  function modal(titulo,cuerpo){
+  function modal(titulo,cuerpo,clase){
     const raiz=document.getElementById('modal-root');if(!raiz)return;
-    raiz.innerHTML=`<div class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal ap-modal" role="dialog" aria-modal="true" aria-label="${titulo}">
+    raiz.innerHTML=`<div class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal ap-modal ${clase||''}" role="dialog" aria-modal="true" aria-label="${titulo}">
       <div class="modal-head"><h3>${titulo}</h3><button class="modal-close" onclick="closeModal()" aria-label="Cerrar">✕</button></div><div class="modal-body ap">${estilos()}${cuerpo}</div></div></div>`;
   }
 
@@ -785,6 +786,9 @@
   const enganchar=()=>{if(window.glacialAlmacenEnlaceDatos)window.glacialAlmacenEnlaceDatos.alCambiar(repintar);else setTimeout(enganchar,500);};
   enganchar();
   ['onPaletasUpdated','onProgramacionesUpdated'].forEach(n=>{const a=globalThis[n];if(typeof a!=='function')return;globalThis[n]=function(){const r=a.apply(this,arguments);if(state.currentTab==='asistente'&&!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus'))pintar();return r;};});
+
+  /* Ayudantes para 83-asistente-reportes-pantalla.js (se carga después). */
+  window.glacialAsistenteUI={esc,fmt,ico,pill,pie,vacio,tabla,tarjeta,campo,modal,nombreLinea,puede,AP,pintar,ejecutar};
 
   /* ---------- navegación (patrón de 43-bitacora-mantenimiento.js) ---------- */
   window.goAsistente=function(tab,sub){
@@ -825,6 +829,9 @@
   }
 
   function estilos(){return `<style id="ap-estilos">
+.ap-modal-xl{max-width:1240px!important;width:96%!important}.ap-2-rep{display:grid;grid-template-columns:1fr 1fr;gap:14px}.ap-rep{border:1px solid var(--ap-linea);border-radius:12px;padding:14px}.ap-rep h4{margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.ap-chks{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 10px}.ap-chk{display:inline-flex;gap:6px;align-items:center;font-size:14px}.ap-in-s{width:110px;padding:6px 8px;border:1px solid var(--ap-linea);border-radius:8px;text-align:right}.ap-in-s:disabled{background:#f1f4f8;color:#6b7a8a}
+.ap-obs{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.ap-obs li{font-size:14px}.ap-edit{border:2px solid #f0b429}@media(max-width:760px){.ap-2-rep{grid-template-columns:1fr}}
 .ap{--ap-azul:#0b5cc4;--ap-azul-o:#0a4fa8;--ap-linea:#dde6ef;--ap-mut:#5f7382;--ap-nar:#e8710a;color:#0f2547;font-size:15px}
 .ap [hidden]{display:none!important}
 .ap .ap-ico{width:20px;height:20px;flex:0 0 auto;vertical-align:middle}

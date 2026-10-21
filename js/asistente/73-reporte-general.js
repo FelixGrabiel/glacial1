@@ -33,7 +33,9 @@
     ['DIA','NOCHE'].forEach(b=>N.cuadrosDelBloque({fecha:f.fecha,bloque:b,lineas:lineasCod,programaciones:f.programaciones,records:f.records,
       produccionAlCorte:f.produccionAlCorte,unidadesPorPaleta:f.unidadesPorPaleta}).forEach(c=>cuadrosDia.push(c)));
     const observaciones=[];
-    const lineas=N.LINEAS.map(L=>{
+    // f.lineas: códigos de las líneas a incluir (Resumen por línea); sin él, todas (Resumen general).
+    const LIN=f.lineas&&f.lineas.length?N.LINEAS.filter(l=>f.lineas.includes(l.codigo)):N.LINEAS;
+    const lineas=LIN.map(L=>{
       const cs=cuadrosDia.filter(c=>c.linea===L.codigo).sort((a,b)=>(a.bloque===b.bloque?0:a.bloque==='DIA'?-1:1)||String(a.codigo).localeCompare(String(b.codigo)));
       cs.forEach((c,i)=>{c.codigoDia='C'+String(i+1).padStart(2,'0');});      // código único en la hoja (Día y Noche juntos)
       const codigoDe=clave=>{const c=cs.find(x=>x.clave===clave);return c?c.codigoDia:'';};
@@ -58,7 +60,8 @@
       });
       paradas.forEach((p,i)=>{p.evento='P'+String(i+1).padStart(2,'0');});
       const mermas=(f.mermas||[]).filter(m=>m&&m.linea===L.codigo&&m.fecha===f.fecha&&m.estado!=='RECHAZADA').map((m,i)=>({evento:'M'+String(i+1).padStart(2,'0'),
-        cuadro:codigoDe(m.cuadro)||'Sin cuadro',material:insumoDe(m.insumo).nombre,unidad:m.unidad,cantidad:num(m.cantidad),validacion:m.estado==='VALIDADA'?'Validada':'Pendiente',causa:m.causa,categoria:m.categoria}));
+        cuadro:codigoDe(m.cuadro)||'Sin cuadro',material:insumoDe(m.insumo).nombre,unidad:m.unidad,cantidad:num(m.cantidad),validacion:m.estado==='VALIDADA'?'Validada':'Pendiente',causa:m.causa,categoria:m.categoria,
+        id:m.id,version:num(m.version),estadoRaw:m.estado,insumoCodigo:m.insumo,claveCuadro:m.cuadro,etapa:m.etapa||'',lote:m.lote||'',observaciones:m.observaciones||'',bloque:m.bloque,linea:m.linea,fecha:m.fecha}));
       mermas.filter(m=>m.cuadro==='Sin cuadro').forEach(m=>observaciones.push({nivel:'atencion',texto:`${L.nombre}: la merma ${m.evento} no corresponde a un cuadro del día.`}));
       // Insumos y consumo: cada cuadro × insumo con factor (≠ 0) o con datos del Asistente.
       const insumos=[];
@@ -75,7 +78,9 @@
           insumos.push({cuadro:c.codigoDia,insumo:i.nombre,unidad:i.unidad,factorPorUnd:porUnd===null?null:N.red(porUnd,10),
             saldoInicial:doc&&doc.saldoInicial!==null&&doc.saldoInicial!==undefined?num(doc.saldoInicial):null,
             entregado:N.red(mov.entregado+mov.transfEntrada-mov.transfSalida,4),devuelto:mov.devuelto,
-            saldoFinal:doc&&doc.saldoFinal!==null&&doc.saldoFinal!==undefined?num(doc.saldoFinal):null,conTransferencias:!!(mov.transfEntrada||mov.transfSalida)});
+            saldoFinal:doc&&doc.saldoFinal!==null&&doc.saldoFinal!==undefined?num(doc.saldoFinal):null,conTransferencias:!!(mov.transfEntrada||mov.transfSalida),
+            claveCuadro:c.clave,insumoCodigo:i.codigo,linea:L.codigo,bloque:c.bloque,fecha:f.fecha,estadoConcil:doc?doc.estado:'SIN_REGISTRO',version:doc?num(doc.version):0,
+            observaciones:doc&&doc.observaciones||'',consumoReal:doc&&doc.consumoReal!==undefined?doc.consumoReal:null});
         });
       });
       // Personal: Tareo de Producción del día con la línea del trabajador; sin línea → Resumen (apoyo / sin asignar).
@@ -504,15 +509,15 @@
       title:{text:'Paradas por línea (min)',style:{fontSize:'22px'}},xaxis:{categories:L.map(l=>l.nombre)},yaxis:{min:0}}));
     return pngs.map(u=>u.replace(/^data:image\/png;base64,/,'')).filter(Boolean);
   }
-  async function exportar(fecha){
+  /* Arma el modelo del reporte con los datos VIVOS (lo que hay hoy en el sistema). opc.lineas: códigos de línea (Resumen por línea). */
+  async function modeloDeFecha(fecha,opc){
     const D=global.glacialAsistenteDatos;
-    if(!D||!D.puede('reporteGeneral'))throw new Error('No tienes permiso para exportar el Reporte General.');
-    if(global.glacialVista&&global.glacialVista.activo&&global.glacialVista.activo()&&typeof tienePermiso==='function'&&!tienePermiso('exportarExcel'))throw new Error('El modo visualización no permite exportar.');
+    if(!D||!D.puede('reporteGeneral'))throw new Error('No tienes permiso para ver o exportar el Reporte General.');
     const extra=await D.cargarFecha(fecha);
     let factores=D.cache.factores,insumos=D.cache.insumos;
     if(!D.cache.listo.factores){const [a,b]=await Promise.all([db.collection('apFactores').get(),db.collection('apInsumos').get()]);factores=a.docs.map(d=>d.data());insumos=b.docs.map(d=>d.data());}
     const I=global.glacialIncidencias;
-    const m=modelo({fecha,programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecords==='function'?loadRecords():[],
+    return modelo({fecha,lineas:opc&&opc.lineas,programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecords==='function'?loadRecords():[],
       produccionAlCorte:global.glacialProduccionPaletasAlCorte,unidadesPorPaleta:typeof obtenerUnidadesPorPalet==='function'?obtenerUnidadesPorPalet:null,
       mermas:extra.mermas,conciliaciones:extra.conciliaciones,movimientos:D.cache.movimientos.concat(extra.movimientos.filter(x=>!D.cache.movimientos.some(y=>y.opId===x.opId))),
       factores,insumos,tareos:typeof obtenerTareos==='function'?obtenerTareos():[],
@@ -521,15 +526,22 @@
       etiquetaBloque:(linea,f,b)=>{const H=global.glacialHorarios;if(!H||typeof H.resolver!=='function')return '';const r=H.resolver(linea,f,b==='NOCHE'?'NOCHE':'DÍA');
         return r&&r.origen==='REGLA'?`${r.etiqueta} ${r.horario}`:'';},
       motivoSinProduccion:(linea,f)=>{if(!I||typeof I.doc!=='function')return '';const d=I.doc(f,'DIA',linea)||I.doc(f,'NOCHE',linea);return d&&d.motivo?'Sin producción: '+d.motivo+(d.descripcion?' ('+d.descripcion+')':''):'';}});
+  }
+  /* Nombre del archivo: general (todas las líneas) o por línea. */
+  const nombreArchivo=(fecha,lineas)=>lineas&&lineas.length?`GLACIAL_Resumen_${lineas.map(l=>HOJA[l]||l).join('-').replace(/\s+/g,'')}_${fecha}.xlsx`:`GLACIAL_Reporte_General_${fecha}.xlsx`;
+  /* exportar(fecha, {lineas}) vuelve a leer los datos vivos, así que sale con las correcciones hechas en la previsualización. */
+  async function exportar(fecha,opc){
+    if(global.glacialVista&&global.glacialVista.activo&&global.glacialVista.activo()&&typeof tienePermiso==='function'&&!tienePermiso('exportarExcel'))throw new Error('El modo visualización no permite exportar.');
+    const m=await modeloDeFecha(fecha,opc);
     const ExcelJS=await asegurarExcelJS();
     const wb=escribir(ExcelJS,m,{graficos:await graficos(m)});
     const buf=await wb.xlsx.writeBuffer();
-    const nombre=`GLACIAL_Reporte_General_${fecha}.xlsx`;
+    const nombre=nombreArchivo(fecha,opc&&opc.lineas);
     const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     if(typeof descargarArchivo==='function')descargarArchivo(blob,nombre);
     else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
     return nombre;
   }
 
-  global.glacialReporteGeneral={modelo,escribir,exportar,graficos,HOJA,FMT};
+  global.glacialReporteGeneral={modelo,modeloDeFecha,nombreArchivo,escribir,exportar,graficos,HOJA,FMT};
 })(typeof window!=='undefined'?window:globalThis);
