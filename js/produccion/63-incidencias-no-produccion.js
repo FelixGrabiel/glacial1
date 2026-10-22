@@ -10,7 +10,7 @@
    MODELO (colección incidenciasNoProduccion, un documento por fecha operativa + bloque + línea → no hay vigentes duplicadas):
      {linea, fecha, bloque:'DIA_INTERMEDIO'|'NOCHE', estado:'VIGENTE'|'RESUELTA', motivo, descripcion,
       registradoPor, registradoUid, registradoEn (ms), resueltoEn, resueltoPor, resueltoPorEvento,
-      historial:[{accion:'REGISTRO'|'CORRECCION'|'RESOLUCION', en, por, uid, motivo, descripcion, anterior|evento}],
+      historial:[{accion:'REGISTRO'|'CORRECCION'|'RESOLUCION', en, por, usuarioUid, motivo, descripcion, anterior|evento}],
       actualizadoUid, actualizadoEn (hora del servidor)}
    Un nuevo motivo después de una resolución reabre el mismo documento y conserva lo anterior en `historial`.
    Un motivo de ayer o de otro bloque nunca se reutiliza: el documento es de su fecha y bloque.
@@ -108,7 +108,7 @@
       const previo = snap.exists ? snap.data() : null;
       const vigente = !!previo && previo.estado === 'VIGENTE';
       accion = vigente ? 'CORRECCION' : 'REGISTRO';
-      const paso = {accion, en: ts, por: quien.nombre, uid: quien.uid, motivo: entrada.motivo, descripcion};
+      const paso = {accion, en: ts, por: quien.nombre, usuarioUid: quien.uid, motivo: entrada.motivo, descripcion};
       if(vigente) paso.anterior = {motivo: previo.motivo, descripcion: previo.descripcion || ''};
       tx.set(ref, {
         linea: entrada.linea, fecha: entrada.fecha, bloque, estado: 'VIGENTE',
@@ -136,7 +136,7 @@
         if(d.estado !== 'VIGENTE' || !(num(d.registradoEn) < ts)) return;     // un evento anterior no la cierra
         tx.set(ref, Object.assign({}, d, {
           estado: 'RESUELTA', resueltoEn: ts, resueltoPor: quien.nombre, resueltoPorEvento: evento || '',
-          historial: [...(Array.isArray(d.historial) ? d.historial : []), {accion: 'RESOLUCION', en: ts, por: quien.nombre, uid: quien.uid, evento: evento || ''}].slice(-50),
+          historial: [...(Array.isArray(d.historial) ? d.historial : []), {accion: 'RESOLUCION', en: ts, por: quien.nombre, usuarioUid: quien.uid, evento: evento || ''}].slice(-50),
           actualizadoUid: quien.uid, actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
         }));
         resuelta = true;
