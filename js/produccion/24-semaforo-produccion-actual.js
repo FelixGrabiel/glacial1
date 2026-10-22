@@ -398,6 +398,14 @@
   };
   // Programado del producto en el BLOQUE (suma Día + Intermedio, sin canceladas).
   const progDe=x=>x.programadoBloque!=null ? x.programadoBloque : num(x.prog?.cantidadProgramada);
+  /* Lo programado del PRODUCTO mismo (suma de sus filas del bloque, también si está cancelado). El programado del bloque (progDe) no cuenta las canceladas para no
+     inflar el plan; la tarjeta de un producto cancelado, en cambio, debe mostrar lo producido frente a lo que tenía programado y no «producido / 0». */
+  function programadoPropio(x){
+    const turnos=x.turno==='NOCHE' ? ['NOCHE'] : ['DÍA','INTERMEDIO'];
+    return (loadProgramaciones() || []).reduce((s,p)=>s+((p && p.linea===x.linea && p.fecha===x.fecha && p.marca===x.marca &&
+      p.presentacion===x.presentacion && turnos.includes(p.turno)) ? num(p.cantidadProgramada) : 0),0);
+  }
+  const progTarjeta=x=>x.op?.estado==='CANCELADA' ? (programadoPropio(x) || progDe(x)) : progDe(x);
   function estadoFila(l,f,t,m,p,ahora){
     // Fila de programación que lleva el ESTADO del bloque: la de Día si existe; si no, la de Intermedio. El programado
     // del bloque (suma de las filas) se calcula aparte con glacialProgramadoBloque. Noche tiene la suya.
@@ -822,7 +830,9 @@
         //      Aro 380 ml + Scala 1.5 L => dos totales independientes.
         const mapaTotalesPresentacion=new Map();
         items.forEach(x=>{
-          if(x.op?.estado==='CANCELADA')return;
+          // Un producto cancelado ya no suma programado, pero lo que produjo antes de cancelarse sí cuenta en el total de su presentación.
+          const cancelado=x.op?.estado==='CANCELADA';
+          if(cancelado && !(producidoDe(x)>0))return;
   
           const etiqueta=presUI(x.linea,x.marca,x.presentacion);
           const clave=String(etiqueta || x.presentacion || 'SIN PRESENTACIÓN')
@@ -830,7 +840,7 @@
             .toUpperCase();
   
           const producido=producidoDe(x);
-          const programado=progDe(x);
+          const programado=cancelado ? 0 : progDe(x);
   
           const actual=mapaTotalesPresentacion.get(clave) || {
             clave,
@@ -1274,7 +1284,7 @@
                 </div>
                 <div class="pa-program-list pa-program-list-horizontal">${
                   ordenados.length ? ordenados.map(({x,estado})=>{
-                    const prog=Math.round(progDe(x));
+                    const prog=Math.round(progTarjeta(x));
                     const idx=filasActuales.indexOf(x);
                     // «Cancelar programación» vivía en el bloque Historial / Avance, que ya no se muestra aquí: se conserva en la fila.
                     const cancelar=x.puede==='supervisor' && !['CANCELADA','COMPLETADA'].includes(estado.key)

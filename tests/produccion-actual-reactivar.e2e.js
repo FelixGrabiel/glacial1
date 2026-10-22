@@ -36,6 +36,8 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await pintar(sup);
   ok(await pagina.evaluate(() => document.querySelectorAll('[data-pa-accion="reactivar"]').length) === 0, 'el supervisor NO ve «Reactivar» en las canceladas');
   ok(await pagina.evaluate(() => document.querySelectorAll('.pa-program-state-cancelada').length) === 2, 'hay 2 presentaciones canceladas en la secuencia');
+  const textosCanc = await pagina.evaluate(() => [...document.querySelectorAll('.pa-program-state-cancelada .pa-program-right strong')].map(e => e.textContent));
+  ok(textosCanc.length === 2 && textosCanc.every(t => /\/ 1,000 UND/.test(t) && !/\/ 0 UND/.test(t)), 'una presentación cancelada muestra lo producido frente a lo que tenía programado (no «/ 0») → ' + textosCanc.join(' | '));
   await pintar(adm);
   const botones = await pagina.evaluate(() => document.querySelectorAll('[data-pa-accion="reactivar"]').length);
   ok(botones === 2, 'el Administrador ve «↺ Reactivar» en cada cancelada (' + botones + ')');
