@@ -655,6 +655,8 @@ function initRealtimeSync(){
 
         _usersReady = true;
 
+        if(typeof window.glacialLiberarTurnoCarga === 'function') window.glacialLiberarTurnoCarga();   // ya llegaron los usuarios: empiezan las demás lecturas
+
         onUsersUpdated();
 
       },

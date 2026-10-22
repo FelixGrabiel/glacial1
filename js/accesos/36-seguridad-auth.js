@@ -108,10 +108,15 @@
   window.iniciarSincronizacionSegura=function(){
     if(sincIniciada)return;
     sincIniciada=true;
+    /* Los usuarios se leen primero: el resto de las lecturas espera a que lleguen (máx. 3 s) para no competir con ellos (ver rpc() en 00b-puente-supabase.js). */
+    window.glacialTurnoCarga=new Promise(ok=>{
+      const t=setTimeout(()=>{window.glacialTurnoCarga=null;ok();},3000);
+      window.glacialLiberarTurnoCarga=()=>{clearTimeout(t);window.glacialTurnoCarga=null;ok();};
+    });
     initRealtimeSync();
   };
   // Al cerrar sesión (02-estado.js: detenerSincronizacion) el siguiente inicio de sesión vuelve a abrir las escuchas.
-  window.reiniciarSincronizacionSegura=function(){sincIniciada=false;};
+  window.reiniciarSincronizacionSegura=function(){sincIniciada=false;window.glacialTurnoCarga=null;};
   window.esperarUsuariosListos=async function(ms){
     const limite=Date.now()+(ms||8000);
     while(typeof _usersReady!=='undefined'&&!_usersReady&&Date.now()<limite){
@@ -121,11 +126,15 @@
   };
   /* Antes de poder leer usuarios hay que autenticarse: el correo de cada
      usuario se busca en sync/accesos (documento público con solo usuario → correo). */
+  try{if(typeof db!=='undefined'&&db&&(typeof auth==='undefined'||!auth||!auth.currentUser))window.__accesosPrevio=db.collection('sync').doc('accesos').get();window.__accesosPrevio&&window.__accesosPrevio.catch(()=>{});}catch(_){window.__accesosPrevio=null;}
   window.loginEstricto=async function(username,pass){
     try{
-      const doc=await db.collection('sync').doc('accesos').get();
-      const mapa=doc.exists?(doc.data().map||{}):{};
-            const email=mapa[String(username||'').trim().toLowerCase()];
+      const clave=String(username||'').trim().toLowerCase();
+      /* El mapa usuario → correo se pide al abrir la página (mientras la persona escribe); si no sirve o no trae al usuario, se vuelve a pedir. */
+      let mapa={};
+      try{const previo=window.__accesosPrevio;window.__accesosPrevio=null;if(previo){const d0=await previo;mapa=d0&&d0.exists?(d0.data().map||{}):{};}}catch(_){mapa={};}
+      if(!mapa[clave]){const doc=await db.collection('sync').doc('accesos').get();mapa=doc.exists?(doc.data().map||{}):{};}
+      const email=mapa[clave];
       if(!email)return {ok:false};
       await (window.__authPersistenciaLista||Promise.resolve());   // la persistencia debe quedar fijada antes de crear la sesión
       await auth.signInWithEmailAndPassword(email,pass);

@@ -96,7 +96,7 @@ function crearDispositivo(S, nombre, opciones){
     __GLACIAL_TRANSPORTE__: () => transporte };
   sb.window = sb; sb.globalThis = sb;
   vm.createContext(sb); vm.runInContext(CODIGO, sb);
-  D.firebase = sb.firebase; D.puente = sb.__GLACIAL_PUENTE__;
+  D.sb = sb; D.firebase = sb.firebase; D.puente = sb.__GLACIAL_PUENTE__;
   D.firebase.initializeApp({ projectId: 'prueba' });
   D.db = D.firebase.firestore(); D.auth = D.firebase.auth();
   D.FieldValue = D.firebase.firestore.FieldValue; D.Timestamp = D.firebase.firestore.Timestamp;
@@ -433,6 +433,18 @@ const ids = l => (l || []).map(x => x.id).join(',');
     ok(!perdidos.length, 'Semilla ' + semilla + ': ningún elemento registrado se pierde por guardados simultáneos' + (perdidos.length ? ' — perdidos: ' + perdidos.join(',') : ''));
     const filas = [...S.items.values()].filter(i => !i.eliminado_en).length;
     ok(filas === real.items.length && new Set(real.items.map(x => x.id)).size === real.items.length, 'Semilla ' + semilla + ': sin elementos duplicados ni filas huérfanas');
+  }
+
+  /* ===== Inicio de sesión rápido: primero llegan los usuarios, el resto de las lecturas espera su turno ===== */
+  {
+    const S = crearServidor(), A = crearDispositivo(S, 'A');
+    S.sembrar && S.sembrar('sync', 'users', { items: [{ username: 'u' }] });
+    let liberar; A.sb.glacialTurnoCarga = new Promise(r => { liberar = () => { A.sb.glacialTurnoCarga = null; r(); }; });
+    const eU = A.escuchar('sync', 'users'), eP = A.escuchar('sync', 'paletas');
+    await pausa(80);
+    ok(A.llamadas.fs_leer === 1, 'con el turno cerrado solo se pide el documento de usuarios (' + A.llamadas.fs_leer + ' lectura)');
+    liberar(); await pausa(80);
+    ok(A.llamadas.fs_leer === 2, 'al llegar los usuarios se piden las demás lecturas (' + A.llamadas.fs_leer + ' lecturas)');
   }
 
   console.log(fallas ? '\n✘ ' + fallas + ' falla(s)' : '\n✔ Puente Supabase: todas las pruebas pasaron');

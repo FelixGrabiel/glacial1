@@ -312,6 +312,11 @@
 
     /* ---- llamadas al servidor ---- */
     async function rpc(nombre, args){
+      /* Al iniciar sesión primero llegan los usuarios (de eso depende entrar): las demás lecturas esperan ese turno (máximo unos segundos)
+         en vez de competir con ellos en el servidor. Fuera de ese momento «glacialTurnoCarga» no existe y no se espera nada. */
+      if (global.glacialTurnoCarga && (nombre === 'fs_leer' || nombre === 'fs_consulta') && !(args && args.p_c === 'sync' && args.p_d === 'users')) {
+        await global.glacialTurnoCarga;
+      }
       try {
         const r = await T.rpc(nombre, args);
         if (r && Number.isFinite(Number(r.ahora))) anotarHoraServidor(Number(r.ahora));
