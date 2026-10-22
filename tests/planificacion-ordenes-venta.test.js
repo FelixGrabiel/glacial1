@@ -151,6 +151,12 @@ const prog=(clave,linea,fecha,turno,marca,pres,cant,extra)=>Object.assign({clave
   const rdd=N.importarFilas(fd,[],{equivalencias:EQ2,hoy:'2026-10-19',diasDespachadas:60});
   ok(rdd.despachadasAntiguas===1&&rdd.crear.length===2&&rdd.crear.some(o=>o.numero==='2')&&rdd.crear.some(o=>o.numero==='3'),'la línea despachada hace más de 60 días se omite; la pendiente (aunque vieja) y la despachada reciente se guardan');
   ok(N.importarFilas(fd,[],{equivalencias:EQ2,hoy:'2026-10-19'}).crear.length===3,'sin el límite de días se guardan todas');
+  /* solo lo vigente: las líneas NUEVAS despachadas, canceladas o muy viejas no se guardan; las que ya existen se actualizan */
+  const fv=fd.concat([{OC:'4',TIENDA:'T','FECHA ENTREGA':'12/10/2026',PRODUCTO:'BELL-S-AGUA-BT-625-ML','UND SOLICITADAS':10,'UND DESPACHO':3}]);
+  const rvg=N.importarFilas(fv,[],{equivalencias:EQ2,hoy:'2026-10-19',diasPendientes:30});
+  ok(rvg.noVigentes===3&&rvg.crear.length===1&&rvg.crear[0].numero==='4','con diasPendientes solo se guarda lo vigente (despachadas y la pendiente de enero no entran)');
+  const prev=N.importarFilas(fv,[Object.assign({id:'x'},rdd.crear.find(o=>o.numero==='2'))],{equivalencias:EQ2,hoy:'2026-10-19',diasPendientes:30});
+  ok(prev.noVigentes===2&&prev.crear.length===1&&prev.sinCambio===1,'una orden que ya existe no se descarta aunque sea vieja (se sigue actualizando)');
   const rv=N.resumenOrdenes([{id:'a',cantidad:100,despachado:100,fechaEntrega:'2026-10-10',estado:'ABIERTA'},{id:'b',cantidad:100,despachado:50,fechaEntrega:'2026-10-12',estado:'ABIERTA'},{id:'c',cantidad:100,despachado:0,fechaEntrega:'2026-01-05',estado:'ABIERTA'},{id:'d',cantidad:100,despachado:0,fechaEntrega:'2026-12-01',estado:'ABIERTA'}],new Map(),'2026-10-19',null,60);
   ok(rv.solicitado===200&&rv.despachado===150&&Math.abs(rv.nivelServicio-0.75)<1e-9,'el nivel de servicio cuenta solo entregas de los últimos N días (hasta hoy): ni la historia vieja ni lo futuro lo sesgan');
   ok(/^2025-1[01]-\d\d$/.test(N.leerFecha(45955))&&N.leerFecha('19/10/26')==='2026-10-19'&&N.leerFecha(new Date(2026,9,19))==='2026-10-19','fecha como serie de Excel, dd/mm/aa y objeto Date');

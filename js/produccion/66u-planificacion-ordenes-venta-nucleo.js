@@ -244,6 +244,12 @@
       if(!(num(orden.cantidad)>0)&&orden.numero&&orden.cliente&&fechaE){out.sinCantidad=(out.sinCantidad||0)+1;return;}     // línea de la hoja con 0 solicitadas: no hay nada que producir
       /* Historia ya cerrada: una línea completamente despachada hace más de N días no se guarda (miles de filas que no cambian y que el servidor tarda en escribir). */
       if(Number.isFinite(opc.diasDespachadas)&&orden.estado!=='CANCELADA'&&num(orden.cantidad)>0&&num(orden.despachado)>=num(orden.cantidad)&&fechaE&&diasEntre(hoy,fechaE)<-opc.diasDespachadas){out.despachadasAntiguas=(out.despachadasAntiguas||0)+1;return;}
+      /* Solo lo vigente: una línea NUEVA que ya está despachada, cancelada o con entrega de hace más de N días no se guarda (el archivo trae toda la historia y el servidor
+         llegó a leer 10 mil filas en 50 s). Las que ya existen sí se actualizan para que muestren su último despacho. */
+      if(Number.isFinite(opc.diasPendientes)&&!porNumero.has(claveOrden(orden))){
+        const completa=num(orden.cantidad)>0&&num(orden.despachado)>=num(orden.cantidad);
+        if(orden.estado==='CANCELADA'||completa||(fechaE&&diasEntre(hoy,fechaE)<-opc.diasPendientes)){out.noVigentes=(out.noVigentes||0)+1;return;}
+      }
       cand.push({orden,fila:f.__fila||i+2,hoja:f.__hoja||''});
     });
     /* «OC DUPLICADA» / anulada: si la misma línea (OC + producto) también viene vigente, la anulada se omite en vez de contarla como repetida. */
