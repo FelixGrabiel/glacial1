@@ -68,6 +68,9 @@ ok(I.enProduccion({producido:1})&&!I.enProduccion({producido:0})&&!I.enProduccio
   const d1=almacen.get('2026-10-09_NOCHE_B20L');
   ok(a1==='REGISTRO'&&d1&&d1.estado==='VIGENTE'&&d1.registradoPor==='Ana Supervisora'&&d1.registradoEn===1000000&&d1.historial.length===1,'registrar: guarda motivo, responsable, hora e historial');
   ok(d1.actualizadoUid==='uid-ana'&&d1.actualizadoEn==='SERVER_TS','registrar: uid propio y hora del servidor');
+  /* El puente parte en filas toda lista cuyos elementos tengan un «id», «username», «clave», «opId», «email» o «uid» distinto; el historial no debe cumplirlo
+     (con un solo registro, «uid» lo partía y el servidor rechazaba el primer guardado: permission-denied). */
+  ok(Array.isArray(d1.historial)&&d1.historial.length>=1&&d1.historial.every(h=>!['id','username','clave','opId','email','uid'].some(c=>c in h)),'el historial no trae claves que el puente use para partir la lista (id, username, clave, opId, email, uid)');
   sb.__ahora=1100000;
   const a2=await I.registrar(Object.assign({},ctx,{motivo:'Falla de máquina'}));
   const d2=almacen.get('2026-10-09_NOCHE_B20L');
