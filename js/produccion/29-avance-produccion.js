@@ -1654,6 +1654,21 @@ function avDetalleRatioLinea(l){
     out.push(`<p class="small-muted">Tiempo efectivo ${avFmt(l.minutosEfectivos)} min = ${avFmt(l.minutosTranscurridos)} transcurridos − ${avFmt(desc)} descontados. La suma de paradas listadas es ${avFmt(l.totalParadas)} min: los solapes, las duraciones estándar y el corte del reporte ajustan lo descontado.</p>`);
   return out.join('');
 }
+/* Preparación para calcular sin abrir la pestaña Avance (la usa el bot de WhatsApp en Chromium sin pantalla).
+   Lee de nuevo sync/avancesTurno y deja en memoria las paradas que el supervisor guardó hasta este instante (paradasOperativas), fija el
+   turno y la fecha operativos (salvo que se haya elegido otro a mano) y activa la escucha para los cambios siguientes.
+   Si la lectura falla LANZA el error: no se debe generar un reporte con «0 paradas» por no haber podido leer. Devuelve cuántas paradas hay. */
+window.glacialAvancePreparar=async function(){
+  const ctx=avCtx();
+  if(!avanceEstado.manual||!avanceEstado.fecha||!avanceEstado.turno){avanceEstado.fecha=ctx.fecha;avanceEstado.turno=ctx.turno;}
+  const doc=await avRef().get();
+  const data=doc.exists?doc.data():{};
+  avanceEstado.paradasOperativas=Array.isArray(data.paradasOperativas)?data.paradasOperativas:[];
+  avanceEstado.avancesUpdatedAt=avNum(data.updatedAt);
+  if(!avanceEstado.unsubscribe)avEscuchar();
+  const delTurno=avanceEstado.paradasOperativas.filter(p=>p&&!p.eliminada&&p.fecha===avanceEstado.fecha&&avTurnoCanon(p.turno)===avanceEstado.turno);
+  return {ok:true,fecha:avanceEstado.fecha,turno:avanceEstado.turno,paradasOperativas:delTurno.length};
+};
 /* Último avance o cierre guardado de una línea (sus datos congelados), para compararlo con el semáforo actual. */
 window.glacialUltimoAvanceLinea=function(linea,fecha,turno){
   const t=avTurnoCanon(turno);
