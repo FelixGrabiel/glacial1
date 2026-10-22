@@ -109,6 +109,65 @@
     });
   }
 
-  window.glacialEvidenciasDatos={COL,cache,escuchar,detener,importar,guardarEdiciones,cambiarEstado,porId,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,mensajeError:D.mensajeError,
+  /* ---------- entrada automática (el bot de WhatsApp → función evidencias-ingesta → tabla evidencias_entrada) ----------
+     La bandeja de entrada (glacial_33) NO se lee directamente: solo a través de dos funciones de servidor que exigen el permiso de validar (ii_esc). Cada evidencia
+     pendiente se IMPORTA con la misma lógica que la importación manual (construirDocumento + transacción + auditoría); la foto ya está en el bucket privado. */
+  const cliente=()=>window.glacialSupabaseCliente||null;
+  const PREFIJO_FOTO='supabase:glacial-fotos/';
+  let sincronizando=false;
+  async function rpcEntrada(nombre,args){
+    const c=cliente();
+    if(!c||typeof c.rpc!=='function')return {disponible:false};
+    const r=await c.rpc(nombre,args);
+    if(r&&r.error){
+      const m=String(r.error.message||''),cod=String(r.error.code||'');
+      if(cod==='PGRST202'||cod==='42883'||/could not find the function|does not exist|schema cache/i.test(m))return {disponible:false,error:m};   // falta aplicar glacial_33
+      throw falla('ENTRADA',m||'No se pudo consultar la entrada automática de evidencias.');
+    }
+    return {disponible:true,data:r?r.data:null};
+  }
+  const marcarEntrada=(sha,error)=>rpcEntrada('evidencias_entrada_marcar',{p_sha:sha,p_error:error||null});
+  /** item: fila de evidencias_entrada {sha256, registro, foto_ruta, mime, bytes}. Devuelve 'importada' | 'duplicada'. */
+  async function importarDeEntrada(item){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para importar evidencias.');
+    const sha=String(item&&item.sha256||'').toLowerCase();
+    if(!/^[a-f0-9]{64}$/.test(sha)||!/^asistente\/evidencias\/[a-f0-9]{64}\.(jpg|png|webp)$/.test(String(item.foto_ruta||''))||!/^image\/(jpeg|png|webp)$/.test(String(item.mime||'')))throw falla('FORMATO','La evidencia recibida no tiene el formato esperado.');
+    if(porId(sha)){await marcarEntrada(sha);return 'duplicada';}
+    const u=usuario(),t=ahora();
+    const doc=N.construirDocumento(item.registro,{sha256:sha,foto:{url:PREFIJO_FOTO+item.foto_ruta,mimetype:item.mime,bytes:Number(item.bytes)||0},usuario:u.nombre,uid:u.uid,ahora:t});
+    const ref=refDe(sha);let estado='importada';
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);
+      if(s.exists){estado='duplicada';return;}
+      tx.set(ref,doc);
+      auditar(tx,'IMPORTAR_EVIDENCIA',sha,nombreAuditoria(doc),null,{estado:'pendiente',archivo:doc.archivoOriginal,version:doc.versionProcesador||'vision-v2',origen:'bot'},{evidenciaId:sha});
+    });
+    await marcarEntrada(sha);
+    return estado;
+  }
+  /** Importa todas las evidencias pendientes de la bandeja de entrada. Una evidencia mal formada se marca con error y no se vuelve a ofrecer. */
+  async function sincronizarEntrada(){
+    const vacio={importadas:0,duplicadas:0,conError:0,errores:[],disponible:true};
+    if(!yoEscribo()||sincronizando)return vacio;
+    sincronizando=true;
+    try{
+      const p=await rpcEntrada('evidencias_entrada_pendientes',{p_limite:50});
+      if(!p.disponible)return {...vacio,disponible:false};
+      const r={...vacio,errores:[]};
+      for(const item of (Array.isArray(p.data)?p.data:[])){
+        try{
+          const est=await importarDeEntrada(item);
+          if(est==='importada')r.importadas++;else r.duplicadas++;
+        }catch(e){
+          const permanente=e&&['FORMATO','FOTO_NO_COINCIDE'].includes(e.codigo);
+          if(permanente){try{await marcarEntrada(item&&item.sha256,e.message);}catch(_){/* se reintentará */}r.conError++;}
+          r.errores.push(((item&&item.sha256)||'?').slice(0,12)+': '+D.mensajeError(e));
+        }
+      }
+      return r;
+    }finally{sincronizando=false;}
+  }
+
+  window.glacialEvidenciasDatos={COL,cache,escuchar,detener,importar,guardarEdiciones,cambiarEstado,porId,sincronizarEntrada,importarDeEntrada,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,mensajeError:D.mensajeError,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}};
 })();

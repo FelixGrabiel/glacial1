@@ -18,7 +18,7 @@
   let host={pintar:()=>{},activo:()=>false};       // el módulo anfitrión (Asistente de Producción) dice cómo repintarse y cuándo está a la vista
   const repintar=()=>host.pintar();
   const fotos=()=>window.glacialFotos||null;
-  const S={sel:'',estado:'pendiente',texto:'',borr:{},rot:{},msg:null,imp:null};
+  const S={sel:'',estado:'pendiente',texto:'',borr:{},rot:{},msg:null,imp:null,sync:{en:0,enCurso:false,disponible:null}};
   const PILL={pendiente:'ii-p-naranja',requiere_correccion:'ii-p-rojo',aprobado_dato:'ii-p-verde',rechazado:'ii-p-gris',registrado:'ii-p-verde'};
   const hora=ms=>{if(!ms)return '';const d=new Date(Number(ms)-5*3600000),p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());};
   const pill=e=>`<span class="ii-pill ${PILL[e]||'ii-p-gris'}"><i></i>${esc(N.ESTADOS[e]||e)}</span>`;
@@ -109,11 +109,28 @@
       <div class="ie-acc">${acciones(d)}</div>
       <details class="ie-adv"><summary>Historial de estados (${(d.historialEstados||[]).length})</summary><ul>${hist}</ul></details></div>`;
   }
+  /* ---------- entrada automática: trae las evidencias que dejó el bot (al abrir, cada minuto y con el botón) ---------- */
+  const ocupado=()=>!!(typeof document!=='undefined'&&document.querySelector('.ii input:focus,.ii select:focus,.ii textarea:focus,#modal-root .modal'));
+  function sincronizar(manual){
+    if(!puedeEscribir()||S.sync.enCurso)return;
+    S.sync.enCurso=true;S.sync.en=Date.now();
+    E.sincronizarEntrada().then(r=>{
+      S.sync.disponible=r.disponible!==false;
+      if(r.importadas){aviso('ok',`Se importaron ${r.importadas} evidencia${r.importadas===1?'':'s'} nueva${r.importadas===1?'':'s'} del bot.`);}
+      else if(r.errores.length){aviso('error','No se pudieron importar algunas evidencias: '+r.errores.join(' · '));}
+      else if(manual)aviso('info',r.disponible===false?'La entrada automática no está configurada en este servidor (falta aplicar glacial_33 y desplegar evidencias-ingesta).':'No hay evidencias nuevas del bot.');
+      return r.importadas>0||r.errores.length>0||!!manual;
+    }).catch(e=>{if(manual)aviso('error',E.mensajeError(e));return !!manual;})
+      .then(repintarAhora=>{S.sync.enCurso=false;if(repintarAhora&&!ocupado())repintar();});
+  }
+  window.ieBuscarNuevas=()=>sincronizar(true);
+  if(typeof setInterval==='function')setInterval(()=>{if(host.activo()&&Date.now()-S.sync.en>=60000&&!(typeof document!=='undefined'&&document.hidden))sincronizar(false);},30000);
   function html(){
     E.escuchar();
+    if(puedeEscribir()&&Date.now()-S.sync.en>=60000)setTimeout(()=>sincronizar(false),0);
     const msg=S.msg?`<div class="ii-msg ii-msg-${S.msg.tipo}" role="${S.msg.tipo==='error'?'alert':'status'}">${esc(S.msg.texto)}</div>`:'';
     const error=E.cache.error?`<div class="ii-msg ii-msg-error" role="alert">No se pudieron leer las evidencias: ${esc(E.cache.error)}</div>`:'';
-    const importar=puedeEscribir()?'<button type="button" class="ii-btn" onclick="ieImportar()">Importar evidencias</button>':'<span class="ii-chip">Solo consulta</span>';
+    const importar=puedeEscribir()?'<span class="ie-botones"><button type="button" class="ii-btn ii-btn-o" onclick="ieBuscarNuevas()" title="Trae las fotos que dejó el bot de WhatsApp">Buscar nuevas del bot</button> <button type="button" class="ii-btn" onclick="ieImportar()">Importar evidencias</button></span>':'<span class="ii-chip">Solo consulta</span>';
     return `<div class="ii-card"><div class="ii-fila-t"><h3>Evidencias de etiquetas</h3>${importar}</div>
       <p class="ii-mut">Fotografías del grupo autorizado de WhatsApp, leídas por la IA. La IA solo propone: una persona autorizada valida cada dato contra la foto.</p>${msg}${error}</div>
       <div class="ie-grid"><aside class="ii-card ie-lista"><div class="ie-filtros">${filtros()}</div><div id="ie-lista">${listaHtml()}</div></aside><section>${detalle()}</section></div>`;
@@ -256,6 +273,7 @@
   };
 
   const css=`
+.ie-botones{display:flex;gap:8px;flex-wrap:wrap}
 .ie-grid{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:14px;align-items:start}
 .ie-lista{padding:12px}.ie-filtros{display:grid;gap:10px;margin-bottom:10px}
 .ie-chips{display:flex;gap:6px;flex-wrap:wrap}.ie-chip{border:1px solid var(--ii-linea);background:#fff;border-radius:99px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;color:#334a66}
