@@ -233,7 +233,7 @@ const ejecutar=async f=>{try{return {r:await f()};}catch(e){return {e};}};
   const n74=vm.runInContext('window.glacialInventarioNucleo',asistente);
   ok(['IMPORTAR_EVIDENCIA','EDITAR_EVIDENCIA','CONFIRMAR_CAMPO','CAMBIAR_ESTADO_EVIDENCIA'].every(t=>n74.TIPOS_AUDITORIA[t]&&n74.GRUPOS_AUDITORIA[n74.TIPOS_AUDITORIA[t].grupo]),'los 4 tipos de auditoría de evidencias existen y tienen grupo para filtrar');
   const sql=leer('supabase/migraciones/glacial_31_evidencias_insumos.sql');
-  ok(/insumosEvidencias/.test(sql)&&/accion = 'delete' then return false/.test(sql)&&/ii_esc/.test(sql)&&/ii_ver/.test(sql)&&/SIN APLICAR/.test(sql)&&!/storage\./.test(sql),'migración glacial_31: solo la colección de evidencias (no se borra, escribe ii_esc, lee ii_ver), marcada SIN APLICAR');
+  ok(/insumosEvidencias/.test(sql)&&/accion = 'delete' then return false/.test(sql)&&/ii_esc/.test(sql)&&/ii_ver/.test(sql)&&/APLICADA en PRUEBAS y PRODUCCIÓN/.test(sql)&&!/storage\./.test(sql),'migración glacial_31: solo la colección de evidencias (no se borra, escribe ii_esc, lee ii_ver), marcada como APLICADA');
   ok(/evidencias-insumos|glacial_31/.test(leer('docs/asistente/evidencias-insumos.md'))&&/evidencias-insumos/.test(leer('INDICE.md')),'documentación e INDICE');
   console.log(fallas?fallas+' fallas':'todo correcto');
 })();

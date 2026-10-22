@@ -1,4 +1,4 @@
--- GLACIAL · glacial_31 · Reglas de Supabase para la BANDEJA DE EVIDENCIAS DE INSUMOS (Fase 3 del flujo WhatsApp + OpenAI)      *** SIN APLICAR ***
+-- GLACIAL · glacial_31 · Reglas de Supabase para la BANDEJA DE EVIDENCIAS DE INSUMOS (Fase 3 del flujo WhatsApp + OpenAI)      *** APLICADA en PRUEBAS y PRODUCCIÓN el 2026-10-21 ***
 --
 -- Qué hace (mismo método que glacial_24, que insertó las colecciones del Inventario de insumos):
 --  1) autorizar: rama para la colección nueva «insumosEvidencias» (un documento por fotografía, id = SHA-256 de la foto).
@@ -12,7 +12,7 @@
 --     esta migración no las toca.
 --  4) NO crea nada de stock: esta bandeja no mueve inventario. Las entradas, transferencias y consumos (Fase 4) tendrán otra migración y otro permiso.
 --
--- ANTES DE APLICAR
+-- ANTES DE APLICAR (ya aplicada en PRUEBAS y PRODUCCIÓN; sigue valiendo si hay que repetirla)
 --  · Requiere glacial_23 y glacial_24 aplicadas (usa la marca ii_esc/ii_ver y las mismas «anclas» de texto). Si un ancla no se encuentra exactamente una vez,
 --    la migración se detiene con un mensaje y no cambia nada.
 --  · Orden: primero PRUEBAS (mvxjopvnnagqytegtexi); probar con una foto real y un -revisado.json; comparar la huella de las funciones; solo después PRODUCCION

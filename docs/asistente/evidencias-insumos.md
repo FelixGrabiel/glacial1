@@ -1,7 +1,7 @@
 # Evidencias de insumos — bandeja de validación (Fase 3)
 
 Pestaña **Evidencias** del módulo **Asistente de Producción** (entre «Insumos» y «Consumo»; la ven quienes tienen permiso sobre el Inventario de insumos). Archivos: `js/asistente/84-evidencias-insumos-nucleo.js`,
-`85-evidencias-insumos-datos.js`, `86-evidencias-insumos-pantalla.js`, montada por `72-asistente-pantalla.js` (reutiliza los estilos del Inventario); migración `supabase/migraciones/glacial_31_evidencias_insumos.sql` (**sin aplicar**).
+`85-evidencias-insumos-datos.js`, `86-evidencias-insumos-pantalla.js`, montada por `72-asistente-pantalla.js` (reutiliza los estilos del Inventario); migración `supabase/migraciones/glacial_31_evidencias_insumos.sql` (**aplicada** en PRUEBAS y PRODUCCIÓN el 2026-10-21).
 
 ## Principio
 WhatsApp aporta **evidencia**, OpenAI **propone** datos, una persona autorizada los **valida**, y **solo una operación explícitamente aprobada** (Fase 4,
@@ -36,9 +36,9 @@ historial por dato (valor anterior, quién, cuándo) y el historial de estados v
 Los del Inventario de insumos (`inventarioInsumos`): ven Asistente de Producción, Jefe de Operaciones y Administrador; validan Asistente de Producción y
 Administrador; los roles de solo consulta ven sin botones. La cuenta compartida de Mantenimiento no entra.
 
-## Migración `glacial_31` (SIN APLICAR)
+## Migración `glacial_31` (aplicada en PRUEBAS y PRODUCCIÓN el 2026-10-21)
 Agrega la colección `insumosEvidencias` a `autorizar` (se crea una vez y se actualiza; no se borra; escribe `ii_esc`) y a `puede_leer` (`ii_ver`). Requiere
-`glacial_23` y `glacial_24`. Aplicar primero en PRUEBAS, probar con una foto real y después en PRODUCCIÓN. Las transiciones de estado las exige la aplicación (las
+`glacial_23` y `glacial_24`. Se aplicó primero en PRUEBAS y después en PRODUCCIÓN (verificado: `autorizar` y `puede_leer` tienen la rama nueva y conservan las de `insumosCatalogo` e `insumosConteosIndice`). Las transiciones de estado las exige la aplicación (las
 reglas no comparan estado anterior → nuevo, igual que en los conteos).
 
 ## Pendiente (otras fases)

@@ -55,7 +55,7 @@ const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
   ok(/create table if not exists public\.evidencias_entrada/.test(sql)&&/enable row level security/.test(sql)&&/revoke all on public\.evidencias_entrada from public, anon, authenticated/.test(sql)&&!/create policy/i.test(sql),'glacial_33: tabla con RLS activada, sin permisos para anon ni authenticated y sin ninguna política (solo la llave de servicio entra)');
   ok(/security definer/.test(sql)&&(sql.match(/ii_esc/g)||[]).length>=3&&/grant execute on function public\.evidencias_entrada_pendientes\(integer\) to authenticated/.test(sql)&&/revoke all on function public\.evidencias_entrada_marcar\(text, text\) from public, anon/.test(sql),'las dos funciones exigen ii_esc (validar evidencias) y solo se ejecutan con sesión');
   ok(/foto_ruta like 'asistente\/evidencias\/%'/.test(sql)&&/\\\.\\\./.test(sql)&&/sha256 ~ '\^\[a-f0-9\]\{64\}\$'/.test(sql),'restricciones: la ruta solo puede ser de la carpeta de evidencias (sin ..) y la huella debe ser SHA-256');
-  ok(/SIN APLICAR/.test(sql)&&!/storage\./.test(sql.replace(/--.*$/gm,''))&&!/insumosCortes|insumosConteos|insumosCatalogo/.test(sql),'glacial_33 marcada SIN APLICAR; no toca storage ni stock');
+  ok(/APLICADA en PRUEBAS y PRODUCCIÓN/.test(sql)&&!/storage\./.test(sql.replace(/--.*$/gm,''))&&!/insumosCortes|insumosConteos|insumosCatalogo/.test(sql),'glacial_33 marcada como APLICADA; no toca storage ni stock');
 
   /* ================= bandeja del Asistente: importación automática ================= */
   const JSON_REG=(extra={})=>({sha256:SHA,version_procesador:'vision-v3',archivo_original:'bolsones.jpg',analizado_en:'2026-10-21T03:55:43.756Z',modelo:'gpt-5.4-mini',

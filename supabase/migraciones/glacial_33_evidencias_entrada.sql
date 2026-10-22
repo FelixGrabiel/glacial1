@@ -1,4 +1,4 @@
--- GLACIAL · glacial_33 · BANDEJA DE ENTRADA de evidencias de insumos (la llena la función evidencias-ingesta, la vacía la bandeja del Asistente)      *** SIN APLICAR ***
+-- GLACIAL · glacial_33 · BANDEJA DE ENTRADA de evidencias de insumos (la llena la función evidencias-ingesta, la vacía la bandeja del Asistente)      *** APLICADA en PRUEBAS y PRODUCCIÓN el 2026-10-21 ***
 --
 -- Qué hace
 --  1) Crea public.evidencias_entrada: una fila por fotografía recibida del bot de WhatsApp (id = SHA-256 de la foto), con la lectura de la IA (registro, jsonb),
@@ -10,7 +10,7 @@
 --  4) public.evidencias_entrada_marcar(p_sha, p_error): marca una fila como importada (sin p_error) o con error (con p_error: no se vuelve a ofrecer). Misma exigencia ii_esc.
 --  5) NO toca stock, catálogo, cortes ni conteos. Las evidencias importadas pasan a la colección insumosEvidencias (glacial_31), donde una persona las valida.
 --
--- ANTES DE APLICAR
+-- ANTES DE APLICAR (ya aplicada en PRUEBAS y PRODUCCIÓN; sigue valiendo si hay que repetirla)
 --  · Requiere glacial_24 (marca ii_esc en glacial_fs.ctx) y glacial_31 (colección insumosEvidencias). Si falta ii_esc, la migración se detiene sin cambiar nada.
 --  · Orden: primero PRUEBAS (mvxjopvnnagqytegtexi), probar con una foto real y la función desplegada; solo después PRODUCCION (ehtbwmvwoxcdefvlxttu).
 --  · Se puede ejecutar más de una vez.

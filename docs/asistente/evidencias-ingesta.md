@@ -7,7 +7,7 @@ Completa `docs/asistente/evidencias-insumos.md`: antes la foto y la lectura de l
 | Pieza | Dónde | Qué hace |
 |---|---|---|
 | Función de servidor | `supabase/functions/evidencias-ingesta/` (`index.ts` + `nucleo.mjs`) | Recibe `{sha256, mime, foto_base64, registro}` con la cabecera `x-glacial-ingesta: <secreto>`; valida; guarda la foto en el bucket privado `glacial-fotos` (`asistente/evidencias/<sha>.<ext>`) y la lectura en `public.evidencias_entrada`. |
-| Tabla de entrada | `supabase/migraciones/glacial_33_evidencias_entrada.sql` (**sin aplicar**) | RLS activada **sin políticas** y sin permisos para anon/authenticated: solo entra la función (llave de servicio). Se lee/marca por dos RPC que exigen `ii_esc` (validar evidencias). |
+| Tabla de entrada | `supabase/migraciones/glacial_33_evidencias_entrada.sql` (**aplicada** en PRUEBAS y PRODUCCIÓN el 2026-10-21) | RLS activada **sin políticas** y sin permisos para anon/authenticated: solo entra la función (llave de servicio). Se lee/marca por dos RPC que exigen `ii_esc` (validar evidencias). |
 | Importación automática | `85-evidencias-insumos-datos.js` (`sincronizarEntrada`) + `86-…-pantalla.js` | Al abrir la pestaña, cada minuto mientras está a la vista y con «Buscar nuevas del bot»: importa cada fila con la misma lógica de la importación manual (documento `insumosEvidencias`, auditoría `IMPORTAR_EVIDENCIA` con origen «bot»). No sube la foto otra vez. |
 | Subidor | `glacial-whatsapp/subidor-evidencias.js` | Manda las fotos que el monitor ya leyó y revisó; idempotente; se detiene ante 401/403/429; error permanente en 400/413; reintenta ante 5xx o sin red. |
 
@@ -18,6 +18,8 @@ Completa `docs/asistente/evidencias-insumos.md`: antes la foto y la lectura de l
 - Una fila mal formada o con ruta fuera de `asistente/evidencias/` se marca con error y no se vuelve a ofrecer (no bloquea las demás).
 
 ## Puesta en marcha (lo hace una persona con acceso a Supabase; primero PRUEBAS)
+Estado a 2026-10-21: `glacial_31` y `glacial_33` aplicadas y la función `evidencias-ingesta` desplegada (sin JWT) en PRODUCCIÓN con su secreto; el bot ya envía a PRODUCCIÓN y se probó una foto real de punta a punta (envío → bandeja de entrada → importación en el Asistente). En PRUEBAS la función está desplegada pero sin secreto (responde 500 `sin_configurar`).
+
 1. Aplicar `glacial_31` y `glacial_33`.
 2. Secreto `INGESTA_SECRETO` en *Edge Functions › Secrets*.
 3. `supabase functions deploy evidencias-ingesta --no-verify-jwt --project-ref <PRUEBAS | PRODUCCION>`.
