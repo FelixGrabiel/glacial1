@@ -1293,10 +1293,15 @@
                     const reactivar=estado.key==='CANCELADA' && esAdministradorPA() && x.puede==='supervisor'
                       ? `<button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px" title="Solo el Administrador puede reactivar una programación cancelada"
                           data-pa-accion="reactivar" data-pa-indice="${idx}">↺ Reactivar</button>` : '';
+                    // Una presentación FINALIZADA por error se puede reabrir desde su tarjeta (antes solo había botón si quedaba otra presentación activa o pendiente).
+                    // Misma regla de siempre: permiso «Reabrir producción» (el Administrador lo tiene); no se borra nada y queda en la bitácora.
+                    const reabrir=x.op?.estado==='FINALIZADA' && puedeReabrirProduccion()
+                      ? `<button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px" title="Reabrir esta presentación finalizada (no se borra ningún dato)"
+                          data-pa-accion="reabrir" data-pa-indice="${idx}">↺ Reabrir</button>` : '';
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
                         ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
-                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div>${reactivar}</div>
+                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div>${reactivar}${reabrir}</div>
                     </div>`;
                   }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
                 }</div>`;

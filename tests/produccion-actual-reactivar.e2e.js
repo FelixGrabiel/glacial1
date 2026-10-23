@@ -20,6 +20,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     const P = (m, op) => ({ clave: claveProgramacionPaleta('C20L', ymd, 'DÍA', m, 'Caja 20 Litros'), linea: 'C20L', fecha: ymd, turno: 'DÍA', marca: m, presentacion: 'Caja 20 Litros', cantidadProgramada: 1000, unidadesPorPaleta: 50, version: 1, estadoOperacion: op });
     _programacionesCache = [P('San Jorge', null),
       P('Cuisine', { estado: 'CANCELADA', canceladaEn: ahora - 3600000, finalizadaEn: ahora - 3600000, motivoCancelacion: 'error de carga' }),
+      P('Bells', { estado: 'FINALIZADA', inicio: ahora - 9000000, finalizadaEn: ahora - 1800000, finalizadaPor: 'Sup' }),
       P('Aro', { estado: 'CANCELADA', inicio: ahora - 7200000, canceladaEn: ahora - 3600000, finalizadaEn: ahora - 3600000, motivoCancelacion: 'se canceló a media producción' })];
     _programacionesReady = true;
     window.__escrito = [];
@@ -35,6 +36,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const adm = { rol: 'Administrador', nombre: 'Admin', username: 'admin', permisos: 'todos' };
   await pintar(sup);
   ok(await pagina.evaluate(() => document.querySelectorAll('[data-pa-accion="reactivar"]').length) === 0, 'el supervisor NO ve «Reactivar» en las canceladas');
+  ok(await pagina.evaluate(() => document.querySelectorAll('[data-pa-accion="reabrir"]').length) === 0, 'el supervisor SIN el permiso «Reabrir producción» no ve «↺ Reabrir» en la finalizada');
   ok(await pagina.evaluate(() => document.querySelectorAll('.pa-program-state-cancelada').length) === 2, 'hay 2 presentaciones canceladas en la secuencia');
   const textosCanc = await pagina.evaluate(() => [...document.querySelectorAll('.pa-program-state-cancelada .pa-program-right strong')].map(e => e.textContent));
   ok(textosCanc.length === 2 && textosCanc.every(t => /\/ 1,000 UND/.test(t) && !/\/ 0 UND/.test(t)), 'una presentación cancelada muestra lo producido frente a lo que tenía programado (no «/ 0») → ' + textosCanc.join(' | '));
@@ -44,7 +46,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   /* motivo corto: no cambia nada */
   await pagina.evaluate(() => { window.__respuesta = 'x'; document.querySelector('[data-pa-accion="reactivar"]').click(); });
   await pagina.waitForTimeout(500);
-  ok(await pagina.evaluate(() => window.__m.alert.some(a => /motivo es obligatorio/.test(a)) && _programacionesCache.every(p => !p.estadoOperacion || p.estadoOperacion.estado === 'CANCELADA' || !p.estadoOperacion)), 'con un motivo de menos de 5 caracteres no se reactiva');
+  ok(await pagina.evaluate(() => window.__m.alert.some(a => /motivo es obligatorio/.test(a)) && _programacionesCache.every(p => !p.estadoOperacion || ['CANCELADA', 'FINALIZADA'].includes(p.estadoOperacion.estado))), 'con un motivo de menos de 5 caracteres no se reactiva');
   /* reactivar la que nunca empezó (Cuisine) */
   const r1 = await pagina.evaluate(async () => {
     window.__respuesta = 'Se canceló por error del turno';
@@ -64,6 +66,17 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     return _programacionesCache.find(x => x.marca === 'Aro').estadoOperacion;
   });
   ok(r2.estado === 'LISTA' && r2.inicio > 0, 'Aro (ya había empezado) queda «Lista para reanudar» y conserva su inicio');
+  /* reabrir una presentación FINALIZADA por error (Bells), desde su propia tarjeta */
+  ok(await pagina.evaluate(() => [...document.querySelectorAll('[data-pa-accion="reabrir"]')].filter(b => /Bells/.test(b.closest('.pa-program-row').innerText)).length) === 1, 'el Administrador ve «↺ Reabrir» en la tarjeta de la presentación finalizada');
+  const r3 = await pagina.evaluate(async () => {
+    window.__escrito.length = 0;
+    const b = [...document.querySelectorAll('[data-pa-accion="reabrir"]')].find(x => /Bells/.test(x.closest('.pa-program-row').innerText));
+    b.click(); await new Promise(r => setTimeout(r, 900));
+    const op = _programacionesCache.find(x => x.marca === 'Bells').estadoOperacion;
+    const ev = window.__escrito.find(d => d && d.accion);
+    return { estado: op.estado, reabierta: op.reabierta, fin: op.finalizadaEn, antes: op.ultimaFinalizacion && op.ultimaFinalizacion.finalizadaPor, ev: ev && ev.accion };
+  });
+  ok(r3.estado === 'LISTA' && r3.reabierta === true && !r3.fin && r3.antes === 'Sup' && r3.ev === 'REABRIR', 'Reabrir deja la presentación «Lista para reanudar», conserva el cierre anterior y queda en la bitácora: ' + JSON.stringify(r3));
   /* un supervisor que intenta la acción por la consola */
   const rs = await pagina.evaluate(async () => { state.user = { rol: 'Supervisor', nombre: 'Sup', username: 'sup', permisos: ['paletas', 'produccionActual'], linea: 'C20L' }; window.__m.alert.length = 0; const x = { linea: 'C20L', fecha: window.__ymd, turno: 'DÍA', turnoPlan: 'DÍA', marca: 'Cuisine', presentacion: 'Caja 20 Litros', puede: 'supervisor', op: { estado: 'CANCELADA' }, prog: { cantidadProgramada: 1000 } }; await glacialSemaforo.cambiarEstado(x, 'reactivar'); return window.__m.alert; });
   ok(rs.some(a => /Solo el Administrador/.test(a)), 'un supervisor no puede reactivar ni forzando la acción: «Solo el Administrador…»');
