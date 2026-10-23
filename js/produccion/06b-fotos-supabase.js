@@ -33,6 +33,10 @@
     opciones=opciones||{};
     if(!disponible())throw new Error('Supabase Storage no está disponible.');
     if(!blob)throw new Error('No hay archivo para subir.');
+    /* Solo se sube un archivo real. Si el objeto perdió su contenido (p. ej. al copiar el formulario como texto, queda «{}»), Storage lo guardaba como el texto
+       «[object Object]» (15 bytes) y la foto salía rota para siempre: mejor detener el guardado y pedir que se vuelva a elegir. */
+    if(typeof Blob!=='undefined'&&!(blob instanceof Blob))throw new Error('el archivo de la foto se perdió (recarga o copia del formulario). Vuelve a seleccionarla.');
+    if(blob.size===0)throw new Error('el archivo de la foto está vacío. Vuelve a seleccionarla.');
     const mime=tipo||blob.type||'image/jpeg';
     const ext=/pdf/.test(mime)?'pdf':/png/.test(mime)?'png':/webp/.test(mime)?'webp':'jpg';
     const ruta=String(carpeta||'sin_carpeta').replace(/^\/+|\/+$/g,'')+'/'+String(id||('f_'+ahora().toString(36)))+'.'+ext;

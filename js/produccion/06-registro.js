@@ -2748,7 +2748,14 @@ async function finalizarCuadroProduccion(i){
     turno:draft.turno
   });
 
-  await guardarAvanceReporte({silencioso:true});
+  let guardado=await guardarAvanceReporte({silencioso:true});
+  if(guardado===null){await new Promise(r=>setTimeout(r,900));guardado=await guardarAvanceReporte({silencioso:true});}   // había otro guardado en curso
+  if(guardado===false && q.estadoCuadro==='FINALIZADO'){
+    // No quedó guardado en el servidor: la producción sigue abierta (si no, parecería finalizada y al recargar volvería a estar abierta).
+    q.estadoCuadro='ABIERTO';delete q.finalizadoEn;delete q.finalizadoPor;
+    if(Array.isArray(q.auditoriaCuadro)) q.auditoriaCuadro.pop();
+    alert('No se pudo guardar la finalización de Producción '+(i+1)+' · '+q.marca+'.\n\nSigue abierta y no se perdió nada. Inténtalo de nuevo en un momento.');
+  }
   renderFormTab();
 }
 
@@ -2899,7 +2906,8 @@ function asegurarIdReporte(){
 }
 
 async function guardarAvanceReporte({silencioso=false}={}){
-  if(!draft || reporteEstaBloqueado() || _autosaveReporteGuardando) return false;
+  // null = no se intentó (otro guardado en curso o reporte bloqueado); false = se intentó y el servidor no lo guardó; true = guardado.
+  if(!draft || reporteEstaBloqueado() || _autosaveReporteGuardando) return null;
 
   asegurarIdReporte();
   normalizarCuadros(draft);
@@ -2925,7 +2933,8 @@ async function guardarAvanceReporte({silencioso=false}={}){
       const records=loadRecords().slice();
       const idx=records.findIndex(r=>r.id===draft.id);
       if(idx>=0) records[idx]=limpio; else records.push(limpio);
-      await saveRecords(records);
+      // saveRecords devuelve false si el servidor no lo guardó: no se debe mostrar «Guardado» ni seguir como si hubiera quedado.
+      if(await saveRecords(records)===false) throw new Error('El servidor no guardó el avance.');
     }
     actualizarIndicadorGuardado('guardado');
     if(!silencioso) mostrarToastReporte('Avance guardado');
@@ -3121,6 +3130,8 @@ async function finalizarReporteProduccion(){
       draft.evidenciasPT=await subirEvidenciasPT(draft.id);
     }
 
+    const antesFinalizar={estadoRegistro:draft.estadoRegistro,finalizadoEn:draft.finalizadoEn,finalizadoPor:draft.finalizadoPor,actualizadoEn:draft.actualizadoEn,
+      actualizadoPor:draft.actualizadoPor,auditoria:Array.isArray(draft.auditoria)?draft.auditoria.slice():draft.auditoria};
     const ahora=Date.now();
     draft.estadoRegistro='FINALIZADO';
     draft.finalizadoEn=ahora;
@@ -3137,7 +3148,11 @@ async function finalizarReporteProduccion(){
       const records=loadRecords().slice();
       const idx=records.findIndex(r=>r.id===draft.id);
       if(idx>=0) records[idx]=limpio; else records.push(limpio);
-      await saveRecords(records);
+      if(await saveRecords(records)===false){
+        // El servidor no lo guardó: el reporte vuelve a quedar abierto y con todo lo que había (no se vacía el formulario ni se bloquea).
+        Object.assign(draft,antesFinalizar);
+        throw new Error('El servidor no guardó el cierre del reporte. No se perdió nada: inténtalo de nuevo en un momento.');
+      }
     }
 
     // Cerrar el turno: las pausas REALES que sigan abiertas (p. ej. un refrigerio olvidado) se cierran al fin del turno y quedan registradas

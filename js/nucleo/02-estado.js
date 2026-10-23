@@ -1483,13 +1483,16 @@ function saveRecords(r){
   const previo = _recordsCache;
   _recordsCache = r;
 
+  /* Devuelve true si el servidor lo guardó y false si no (antes devolvía lo mismo en los dos casos y quien guardaba un reporte creía que había quedado
+     guardado: «Finalizar reporte» seguía de largo y el reporte aparecía luego EN REGISTRO sin lo que se había hecho). */
   return db.collection('sync').doc('records').set({
     items: r,
     updatedAt: Date.now()
-  }).catch(err => {
+  }).then(() => true, err => {
     // El servidor no lo aceptó (p. ej. quitaba demasiados reportes de golpe): la copia local vuelve a lo que había y se recarga lo del servidor.
     if(_recordsCache === r) _recordsCache = previo;
     _avisarErrorGuardado('reportes', err);
+    return false;
   });
 }
 
