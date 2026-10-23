@@ -139,7 +139,7 @@
       await (window.__authPersistenciaLista||Promise.resolve());   // la persistencia debe quedar fijada antes de crear la sesión
       await auth.signInWithEmailAndPassword(email,pass);
       window.iniciarSincronizacionSegura();
-      await window.esperarUsuariosListos();
+      await window.esperarUsuariosListos(30000);   // con el servidor lento los usuarios pueden tardar más de los 8 s de antes
       return {ok:true};
     }catch(e){
       console.warn('Login estricto rechazado:',e&&e.code);

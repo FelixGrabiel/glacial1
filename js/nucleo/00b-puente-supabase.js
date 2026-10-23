@@ -697,14 +697,19 @@
       programar(ms){
         if (this.cerrada) return;
         clearTimeout(this.reloj);
-        this.reloj = setTimeout(() => this.correr(), ms === undefined ? 120 : ms);
+        /* Una consulta lenta no se repite sin descanso: entre una lectura y la siguiente espera 1.5 veces lo que tardó (máx. 8 s). Antes, con una colección que cambia
+           seguido y una consulta de varios segundos, cada equipo la pedía una y otra vez y saturaba el servidor. */
+        const espera = Math.min(8000, Math.round((this.ultimaDur || 0) * 1.5));
+        this.reloj = setTimeout(() => this.correr(), Math.max(ms === undefined ? 120 : ms, espera));
       }
       async correr(){
         if (this.cerrada) return;
         if (this.corriendo) { this.otra = true; return; }
         this.corriendo = true;
+        const inicio = Date.now();
         try {
           const filas = await this.q._leer();
+          this.ultimaDur = Date.now() - inicio;
           if (this.cerrada) return;
           const antes = this.filas, cambios = [];
           const previo = new Map((antes || []).map((f, i) => [f.id, { f, i }]));
