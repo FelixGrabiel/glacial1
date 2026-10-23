@@ -128,6 +128,11 @@ const big=nube();big.docs.set('sync/avancesTurno',{items:[{t:'x'.repeat(900000)}
 const altos=await dispositivo(big,'Administrador').window.glacialAvancesItems.revisarTamanos();
 ok(altos.length===1&&altos[0].doc==='avancesTurno'&&altos[0].porcentaje>=80,'aviso: se detecta un documento de sync por encima del 80 % del límite');
 ok((await dispositivo(big,'Supervisor').window.glacialAvancesItems.revisarTamanos()).length===0,'el aviso de capacidad es solo para el Administrador');
+/* listas que Supabase parte en una fila por elemento (clave única) no pesan contra el límite de 1 MiB: records y tareos ya no avisan en falso */
+const partidas=nube();partidas.docs.set('sync/records',{items:Array.from({length:120},(_,i)=>({id:'r'+i,t:'x'.repeat(9000)})),updatedAt:1});
+partidas.docs.set('sync/tareos',{items:[{t:'x'.repeat(900000)}],updatedAt:1});
+const altos2=await dispositivo(partidas,'Administrador').window.glacialAvancesItems.revisarTamanos();
+ok(altos2.length===1&&altos2[0].doc==='tareos','lista con ids únicos (se parte en filas) no avisa; la lista sin clave única que sí queda en un documento sigue avisando');
 const me=nube();me.docs.set('sync/avancesTurno',{items:[],paradasOperativas:[{id:'a',fecha:'2026-10-01',descripcion:'x'.repeat(100),minutos:5},{id:'b',fecha:'2026-10-10',descripcion:'y'.repeat(100),minutos:7}],updatedAt:1});
 const med=await dispositivo(me,'Administrador').window.glacialAvancesItems.medir();
 ok(med.paradas===2&&med.dias===10&&med.crecimientoBytesDia>0&&med.bytesPorParada>100&&med.diasRestantesSoloParadas>1000,'medir(): paradas, bytes por parada, crecimiento por día y plazo estimado');
