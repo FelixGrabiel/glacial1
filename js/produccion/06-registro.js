@@ -2258,7 +2258,7 @@ function renderMain(){
         <div class="welcome-logo">
 
           <img
-            src="/assets/img/logo_glacial.png"
+            src="assets/img/logo_glacial.jpeg"
             alt="GLACIAL"
           >
 
