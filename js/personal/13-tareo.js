@@ -2160,6 +2160,11 @@ function normalizarTurno(valor) {
         return 'Noche';
     }
 
+    // El turno INTERMEDIO trabaja dentro del bloque Día (comparten programación y tareo); lo que lo distingue es su hora de ingreso (14:00).
+    if (texto.includes('intermedio')) {
+        return 'Día';
+    }
+
     if (
         texto.includes('dia') ||
         texto.includes('día') ||
@@ -2169,6 +2174,47 @@ function normalizarTurno(valor) {
     }
 
     return '';
+}
+
+
+/* Horario de una persona según el texto de la rotación semanal (columna TURNO u hora de ingreso):
+   Día → 07:00 · Intermedio → 14:00 · Noche → 21:00 o 22:00 (si el texto lo dice; si no, queda vacío y se usa la «Hora programada» del tareo).
+   También acepta una hora explícita del catálogo (07, 10, 13, 14, 19, 20, 21, 22), p. ej. «Noche 21» o «Día 10:00».
+   → { turno: 'Día'|'Noche'|'', horario: 'Día'|'Intermedio'|'Noche'|'', hora: 'HH:MM'|'' } */
+const TAREO_HORAS_CATALOGO = ['07:00', '10:00', '13:00', '14:00', '19:00', '20:00', '21:00', '22:00'];
+
+function tareoHoraDeCatalogoEnTexto(valor) {
+
+    const t = String(valor == null ? '' : valor);
+
+    const numeros = t.match(/\d{1,2}(?::\d{2})?/g) || [];
+
+    for (const n of numeros) {
+        const hh = String(parseInt(n, 10)).padStart(2, '0') + ':00';
+        if (TAREO_HORAS_CATALOGO.includes(hh)) return hh;
+    }
+
+    return '';
+}
+
+
+function tareoHorarioDeTexto(valor) {
+
+    const texto = tareoNormalizarTexto(valor);
+
+    const turno = normalizarTurno(valor);
+
+    const horario = texto.includes('intermedio')
+        ? 'Intermedio'
+        : turno;
+
+    const explicita = tareoHoraDeCatalogoEnTexto(valor);
+
+    const porDefecto = horario === 'Intermedio'
+        ? '14:00'
+        : (horario === 'Día' ? '07:00' : '');
+
+    return { turno, horario, hora: explicita || porDefecto };
 }
 
 
@@ -2482,6 +2528,14 @@ function tareoNuevaPersona(
 
         tardanzaMinutos:
             0,
+
+        // Hora de ingreso propia de la persona según la rotación semanal (Día 07:00 · Intermedio 14:00 · Noche 21:00 / 22:00).
+        // Vacía = se usa la «Hora programada» del tareo.
+        horaProgramadaIngreso:
+            trabajador.horaProgramadaIngreso || '',
+
+        horarioRotacion:
+            trabajador.horario || '',
 
         actualizadoEn:
             0,
@@ -4064,6 +4118,14 @@ function renderTareoFormulario(tareo) {
 
                 </div>
 
+                <p class="small-muted" style="margin:8px 0 0;">
+                    «Hora programada» vale para quien no tenga horario propio. Con la rotación semanal cada persona trae el suyo:
+                    Día 07:00 · Intermedio 14:00 · Noche 21:00 o 22:00 (se ve debajo de su nombre).
+                    ${tareoPuedeEditar(tareo)
+                        ? `<button type="button" class="btn btn-sm btn-ghost" onclick="tareoAplicarHorariosRotacion()">Aplicar los horarios de la rotación</button>`
+                        : ''}
+                </p>
+
                 <div class="tareo-rotation-note">
 
                     ${
@@ -4334,6 +4396,65 @@ function tareoRefrescarFormularioRemoto() {
     if (!tareo) return;
 
     renderTareoFormulario(tareo);
+}
+
+
+/* Pasa a cada persona del tareo el horario de la rotación semanal vigente (Día 07:00 · Intermedio 14:00 · Noche 21:00 / 22:00)
+   y recalcula tardanzas. Sirve para los tareos ya creados antes de que la rotación trajera horarios. Quien no figura en la rotación no cambia. */
+function tareoAplicarHorariosRotacion() {
+
+    const tareo = tareoObtenerActual();
+
+    if (!tareo || !tareoPuedeEditar(tareo)) return;
+
+    const rotacion = obtenerRotacionVigente(tareo.fecha);
+
+    if (!rotacion || !Array.isArray(rotacion.personal) || !rotacion.personal.length) {
+        alert('No hay una rotación semanal vigente para esta fecha.');
+        return;
+    }
+
+    const porFirma = new Map();
+
+    rotacion.personal.forEach(r => porFirma.set(tareoFirmaNombreMigracion(r.nombre), r));
+
+    let cambiadas = 0;
+
+    tareo.personal.forEach(persona => {
+
+        const r = porFirma.get(tareoFirmaNombreMigracion(persona.nombre));
+
+        if (!r) return;
+
+        const h = tareoHorarioDeTexto(r.horario || r.turno);
+
+        const hora = r.horaProgramadaIngreso || h.hora;
+
+        if (!hora) return;
+
+        const horario = r.horario || h.horario;
+
+        if (persona.horaProgramadaIngreso === hora && persona.horarioRotacion === horario) return;
+
+        persona.horaProgramadaIngreso = hora;
+        persona.horarioRotacion = horario;
+
+        recalcularPersonaTareo(persona, tareo);
+
+        persona.actualizadoEn = tareoAhoraMs();
+
+        cambiadas++;
+    });
+
+    tareo.configActualizadoEn = Date.now();
+
+    guardarTareoEnMemoria(tareo);
+
+    renderTareoFormulario(tareo);
+
+    alert(cambiadas
+        ? 'Se aplicó el horario de la rotación a ' + cambiadas + ' persona(s).'
+        : 'Nada que cambiar: las personas ya tienen el horario de la rotación (o no figuran en ella).');
 }
 
 
@@ -5485,6 +5606,10 @@ function renderFilaPersonalTareo(
                         ${escaparHTML(persona.dni)}
                     </small>
 
+                    ${persona.horaProgramadaIngreso
+                        ? `<small class="tareo-hora-prog" title="Hora de ingreso programada de esta persona (rotación semanal)">Ingreso ${escaparHTML(persona.horaProgramadaIngreso)}${persona.horarioRotacion ? ' · ' + escaparHTML(persona.horarioRotacion) : ''}</small>`
+                        : ''}
+
                 </div>
 
             </td>
@@ -5989,7 +6114,7 @@ function recalcularPersonaTareo(
     persona.tardanzaMinutos =
         calcularTardanza(
             persona.horaIngreso,
-            tareo.horaProgramadaIngreso
+            persona.horaProgramadaIngreso || tareo.horaProgramadaIngreso
         );
 }
 
@@ -8532,6 +8657,17 @@ function interpretarRotacionExcel(
             ]
         );
 
+    // Columna opcional con la hora de ingreso de cada persona (p. ej. Noche 21:00 o 22:00).
+    const columnaHoraIngreso =
+        encontrarColumna(
+            filas,
+            [
+                'hora de ingreso',
+                'hora ingreso',
+                'hora entrada'
+            ]
+        );
+
     const columnaDNI =
         encontrarColumna(
             filas,
@@ -8596,6 +8732,19 @@ function interpretarRotacionExcel(
             normalizarTurno(
                 turnoOriginal
             );
+
+        // Horario propio de la persona (Día 07:00 · Intermedio 14:00 · Noche 21:00 / 22:00): sale del TURNO y, si existe, de una columna HORA DE INGRESO.
+        const horarioPersona =
+            tareoHorarioDeTexto(
+                turnoOriginal
+            );
+
+        const horaColumna =
+            columnaHoraIngreso
+                ? tareoHoraDeCatalogoEnTexto(
+                    fila[columnaHoraIngreso] || ''
+                  )
+                : '';
 
         const cargo =
             tareoCargoDesdePuesto(
@@ -8716,6 +8865,8 @@ function interpretarRotacionExcel(
             puesto: cargo,
             linea: '',
             turno,
+            horario: horarioPersona.horario,
+            horaProgramadaIngreso: horaColumna || horarioPersona.hora,
             filaExcel: numeroFila,
             origen: 'ROTACION_EXCEL'
         });
