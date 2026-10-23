@@ -162,7 +162,8 @@ function avCorteCierre(ahora){const b=avHorarioBloque();return b?avHoraHHMM(Math
 function avHoraHHMM(ms){const d=new Date(ms);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 /* Versión del cálculo guardada en cada snapshot nuevo (1 = anteriores sin este dato). */
 const AV_VERSION_CALCULO=2;
-function avTituloSnapshot(s){return s.tipo==='CIERRE'?(s.relevo?'RELEVO DE TURNO':'CIERRE DE PRODUCCIÓN'):'AVANCE DE PRODUCCIÓN';}
+/* Un cierre se llama siempre «CIERRE», también si se genera antes de que termine el bloque (s.relevo solo marca que el bloque sigue abierto; no cambia el título). */
+function avTituloSnapshot(s){return s.tipo==='CIERRE'?'CIERRE DE PRODUCCIÓN':'AVANCE DE PRODUCCIÓN';}
 
 function avCorteMs(hora,tipo){
   if(tipo==='CIERRE')return avHoraMs(avanceEstado.fecha,avCorteCierre(),avanceEstado.turno);

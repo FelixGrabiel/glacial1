@@ -6,7 +6,7 @@
 - **Horarios de los bloques** (sync/configIndicadores → `bloques`; ver docs/produccion/proyeccion-cierre.md): Día + Intermedio 07:00–19:00, planta parada 19:00–21:00, Noche 21:00–07:00 (fecha = día en que empieza).
 - **Franja 19:00–21:00:** no hay bloque. La proyección del bloque Día + Intermedio muestra su resultado final; el tiempo no suma como parada ni como disponible (el tiempo del bloque se corta en el fin del bloque); no hay alertas de parada abierta, sin registrar producción ni programación sin iniciar; el semáforo muestra «Planta sin producción hasta las 21:00».
 - **Cambio de supervisor ≠ cambio de programación:** al entrar Intermedio se ve el mismo programado, producido, pendiente, avance y proyección (el resumen de programación devuelve siempre el bloque completo).
-- **Relevo ≠ cierre:** el «Cierre» de Avance/Cierre generado antes del fin del bloque es un **RELEVO DE TURNO**: se corta a la hora real, queda registrado (`relevo:true`) y NO fija el fin del bloque. Solo «Finalizar presentación» (Producción actual) termina la programación.
+- **Cierre antes del fin del bloque:** el «Cierre» de Avance/Cierre generado antes del fin del bloque se titula siempre **CIERRE DE PRODUCCIÓN** (nunca «relevo»): se corta a la hora real, queda registrado (`relevo:true`) y NO fija el fin del bloque. Solo «Finalizar presentación» (Producción actual) termina la programación.
 - **Trazabilidad:** cada avance, parada y paleta conserva su usuario, turno y hora; la tarjeta de proyección muestra lo producido por turno dentro del bloque. El ritmo y la proyección usan siempre el bloque completo (no se muestra un ratio por supervisor).
 
 ## Representación sin duplicar datos
