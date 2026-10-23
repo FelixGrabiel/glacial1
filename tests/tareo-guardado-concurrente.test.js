@@ -146,7 +146,7 @@ const persona=(cl,id,clave)=>{const t=cl.vista().find(x=>x.id===id);return t&&t.
   /* estructura */
   const reglas=leerDisco('_archivo/firebase/firestore.rules.etapa2.txt');
   ok(/match \/tareos\/\{id\}[\s\S]*?allow create, update: if autenticado\(\) && !esMantCompartido\(\) && !soloVista\(\)[\s\S]*?request\.resource\.data\.id == id[\s\S]*?allow delete: if false/.test(reglas),'reglas: tareos/{id} con los mismos permisos que sync/tareos, id coherente y sin borrado');
-  ok(/TAREO_POR_DOCUMENTO_POR_ENTORNO = \{ PRODUCCION: false, PRUEBAS: true \}/.test(leerDisco('js/nucleo/01-config.js')),'la Fase 2 está encendida solo en PRUEBAS (las reglas tareos/{id} ya están en ambos proyectos); PRODUCCION sigue apagada hasta validarla');
+  ok(/TAREO_POR_DOCUMENTO_POR_ENTORNO = \{ PRODUCCION: true, PRUEBAS: true \}/.test(leerDisco('js/nucleo/01-config.js')),'la Fase 2 (un documento por tareo) está encendida en PRODUCCION y en PRUEBAS: las reglas tareos/{id} ya están en ambos proyectos');
   const s13=leerDisco('js/personal/13-tareo.js');
   ok(!/guardarTareos\(\s*obtenerTareos\(\)\.filter/.test(s13),'eliminar ya no reescribe el documento completo con la copia local');
   restaurar();

@@ -205,7 +205,7 @@ const ETAPAS_POR_ENTORNO = {
    false = como siempre: todos los tareos en sync/tareos. true = cada tareo en su propio documento (se migra solo al guardarlo; sync/tareos
    queda de solo lectura y no se borra). Activarlo SOLO después de publicar en ESE proyecto las reglas con «match /tareos/{id}»
    (firestore.rules.etapa2.txt): sin ellas el Tareo no podría guardar. Probar primero en PRUEBAS. */
-const TAREO_POR_DOCUMENTO_POR_ENTORNO = { PRODUCCION: false, PRUEBAS: true };   // PRUEBAS desde 2026-10-23: se valida allí antes de activarlo en PRODUCCION
+const TAREO_POR_DOCUMENTO_POR_ENTORNO = { PRODUCCION: true, PRUEBAS: true };   // desde 2026-10-23 en ambos: un documento por tareo evita los conflictos de sync/tareos (reglas tareos/{id} aplicadas en los dos proyectos)
 window.TAREO_POR_DOCUMENTO = !!TAREO_POR_DOCUMENTO_POR_ENTORNO[ENTORNO];
 
 const LOGIN_LEGACY_PERMITIDO = ETAPAS_POR_ENTORNO[ENTORNO].LOGIN_LEGACY_PERMITIDO;
