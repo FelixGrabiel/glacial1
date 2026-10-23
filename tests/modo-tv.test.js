@@ -96,7 +96,9 @@ ok(/CAJ/.test(hl)&&/BID/.test(hl)&&/UND/.test(hl),'conserva las unidades por lí
 const mar=T.marco('lineas',e2,'23/10/2026 · DÍA + INTERMEDIO',hl);
 ok(/PRODUCCIÓN POR LÍNEA/.test(mar)&&/SIN CONEXIÓN/.test(mar)&&/tv-chip-sinconexion/.test(mar)&&/GLACIAL/.test(mar)&&/assets\/img\/logo_glacial\.jpeg/.test(mar),'el marco trae título, estado de conexión en ámbar, marca y el logo nuevo');
 ok(sinInteractivo(mar),'el marco completo tampoco tiene nada pulsable');
-ok(/Vista en preparación/.test(T.htmlProximamente()),'«actual» muestra «Vista en preparación» (llega en la fase 2)');
+const hA=T.htmlActual(m);
+ok((hA.match(/<article class="tv-act /g)||[]).length===5&&/EN PAUSA/.test(hA)&&/EN CURSO/.test(hA)&&/COMPLETADA/.test(hA)&&/CANCELADA/.test(hA)&&/SIN PRODUCCIÓN/.test(hA),'«actual»: una tarjeta por línea con su estado en texto');
+ok(!/<(button|a|input|select)[ >]/i.test(hA),'«actual» sin controles');
 
 /* ---------- aislamiento ---------- */
 const clases=new Set();
