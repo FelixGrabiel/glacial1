@@ -103,6 +103,21 @@ html.modo-tv *::-webkit-scrollbar{display:none}
 #glacial-tv .tv-l-pct .tv-barra{height:12px;margin-top:5px}
 #glacial-tv .tv-l-est .tv-ins{font-size:20px;padding:6px 14px}
 
+/* ---------- vista PRODUCCIÓN ACTUAL ---------- */
+#glacial-tv .tv-actual{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:12px;height:100%}
+#glacial-tv .tv-act{display:flex;flex-direction:column;justify-content:space-between;background:#fff;border-radius:14px;padding:12px 18px;border-top:10px solid #94a3b8;box-shadow:0 1px 3px rgba(11,49,92,.16);overflow:hidden;min-height:0}
+#glacial-tv .tv-act-curso,#glacial-tv .tv-act-pausa{border-top-color:#f97316}
+#glacial-tv .tv-act-completada{border-top-color:#22a34a}
+#glacial-tv .tv-act-detenida,#glacial-tv .tv-act-cancelada,#glacial-tv .tv-act-sinprod{border-top-color:#e03131}
+#glacial-tv .tv-a-cab{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#glacial-tv .tv-a-cab b{font-size:36px;font-weight:800;color:#0b315c;white-space:nowrap}
+#glacial-tv .tv-a-prod{font-size:21px;font-weight:700;line-height:1.15;min-height:24px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#glacial-tv .tv-a-pct{font-size:56px;font-weight:800;line-height:1;color:#0b315c}
+#glacial-tv .tv-act .tv-barra{height:12px;margin:0}
+#glacial-tv .tv-a-cant{font-size:21px;color:#4a5b6b;white-space:nowrap}
+#glacial-tv .tv-a-cant b{font-size:30px;color:#0b315c}
+#glacial-tv .tv-a-pie{font-size:15px;color:#5b6b7b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* ---------- avisos ---------- */
 #glacial-tv .tv-aviso{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#0b315c}
 #glacial-tv .tv-aviso h2{margin:0 0 10px;font-size:44px}

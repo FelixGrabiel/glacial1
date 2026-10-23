@@ -178,8 +178,17 @@
     return `<div class="tv-lineas">${filas||'<p class="tv-mut">Sin líneas para mostrar</p>'}</div>`;
   }
 
-  function htmlProximamente(){
-    return `<div class="tv-aviso"><h2>Vista en preparación</h2><p>«Producción actual» llegará en la siguiente fase.</p></div>`;
+  /* Producción actual: tablero de tarjetas, una por línea, con el estado real (sin inventar paradas ni ratios). */
+  function htmlActual(m){
+    const tarjetas=m.lineas.map(l=>`<article class="tv-act tv-act-${l.estado.cls}">
+        <div class="tv-a-cab"><b>${esc(l.nombre)}</b>${insignia(l.estado)}</div>
+        <div class="tv-a-prod">${esc(l.producto)}</div>
+        <div class="tv-a-pct">${l.pct==null?'—':fmtPct(l.pct)}</div>
+        ${l.pct==null?'':barra(l.pct,barraCls(l.estado))}
+        <div class="tv-a-cant">${l.producido==null?'—':`<b>${esc(fmtNum(l.producido))}</b>${l.programado>0?` / ${esc(fmtNum(l.programado))}`:''} ${esc(l.unidad)}`}</div>
+        <div class="tv-a-pie">${l.nota?esc(l.nota)+' · ':''}Último registro: ${esc(l.ultimo)}</div>
+      </article>`).join('');
+    return `<div class="tv-actual">${tarjetas||'<p class="tv-mut">Sin líneas para mostrar</p>'}</div>`;
   }
   function htmlMensaje(titulo,texto){
     return `<div class="tv-aviso"><h2>${esc(titulo)}</h2><p>${esc(texto)}</p></div>`;
@@ -224,7 +233,7 @@
         if(!d)throw new Error('sin datos');
         const m=modeloInicio(d,depNavegador());
         sub=subtituloDe(m);
-        cuerpo=ctx.params.vista==='lineas'?htmlLineas(m):ctx.params.vista==='actual'?htmlProximamente():htmlInicio(m);
+        cuerpo=ctx.params.vista==='lineas'?htmlLineas(m):ctx.params.vista==='actual'?htmlActual(m):htmlInicio(m);
         ctx.ultimoOk=ahoraMs();
       }
     }catch(e){
@@ -263,7 +272,7 @@
     },1000);
   }
 
-  window.glacialTV={VISTAS,TITULOS,ESTADOS,leerParametros,modeloLineas,modeloPersonal,modeloInicio,estadoDatos,htmlInicio,htmlLineas,htmlProximamente,marco,subtituloDe,
+  window.glacialTV={VISTAS,TITULOS,ESTADOS,leerParametros,modeloLineas,modeloPersonal,modeloInicio,estadoDatos,htmlInicio,htmlLineas,htmlActual,marco,subtituloDe,
     SIN_DATOS_MS,REFRESCO_MS,_dibujarParaPruebas:dibujar,_ctx:ctx};
   iniciar();
 })();
