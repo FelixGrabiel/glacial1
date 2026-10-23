@@ -113,6 +113,18 @@ function avPresentacion(linea,marca,p){
 }
 function avUnidadRatio(linea){return linea==='C20L'?'C/H':'B/H';}
 
+/* ÚLTIMO REGISTRO: hora (ms) del último ingreso de información del turno (paleta o registro) hasta el corte; 0 si no hay. */
+function avUltimoRegistroMs(corteMs){
+  let m=0;
+  const ver=x=>{const t=avNum(x&&(x.actualizadoEn||x.creadoEn));if(t&&(!corteMs||t<=corteMs)&&t>m)m=t;};
+  avPaletas().forEach(ver);
+  avRegistros().forEach(ver);
+  return m;
+}
+function avTextoUltimoRegistro(s){
+  const h=avHoraDesdeMs(avNum(s&&s.ultimoRegistroMs));
+  return h||'—';
+}
 function avRegistros(){
   const rs=typeof loadRecords==='function'?loadRecords():[];
   return rs.filter(r=>r&&AVANCE_LINEAS.includes(r.linea)&&r.fecha===avanceEstado.fecha&&avTurnoRecord(r)===avanceEstado.turno);
@@ -1008,7 +1020,7 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
         relevo:tipo==='CIERRE'&&avEsRelevo(ahoraMs),versionCalculo:AV_VERSION_CALCULO,corteMs:ahoraMs,    // true = relevo de turno: el bloque sigue abierto
     supervisor:avNombreUsuario(),generadoPor:state.user?.username||'',
     createdAt:Date.now(),createdBy:state.user?.username||'',
-    generadoEn:Date.now(),estado:'GENERADO',lineas,
+    generadoEn:Date.now(),ultimoRegistroMs:avUltimoRegistroMs(ahoraMs),estado:'GENERADO',lineas,
     resumen:{
       produccionTotal:totalPlanta,programado:totalProgramado,cumplimiento,
       faltante:Math.max(0,totalProgramado-totalPlanta),
@@ -1232,7 +1244,7 @@ function avTextoWhatsApp(s){
   const fecha=s.fecha.split('-').reverse().join('/');
   const out=[
     `*${avTituloSnapshot(s)} – TURNO ${s.turno}*`,
-    '',`*Fecha: ${fecha}*`,`*Hora: ${s.horaCorte}*`+(avTextoGenerado(s)?`\n_${avTextoGenerado(s).replace(' · ','')}_`:'')];
+    '',`*Fecha: ${fecha}*`,`*Hora: ${s.horaCorte}*`,`*Último registro: ${avTextoUltimoRegistro(s)}*`+(avTextoGenerado(s)?`\n_${avTextoGenerado(s).replace(' · ','')}_`:'')];
   if(!(s.lineas||[]).length)out.push('',AV_SIN_LINEAS);
 
   s.lineas.forEach((l,idxLinea)=>{
@@ -1755,7 +1767,7 @@ function avCanvasSnapshot(s){
   x.fillStyle=WHITE;x.font=`700 ${Math.round(31*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('GLACIAL',55,56);
   x.font=`700 ${Math.round(40*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(avTituloSnapshot(s),275,62);
   x.font=`700 ${Math.round(26*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`TURNO ${s.turno}`,275,101);
-  x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);
+  x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);x.fillText(`Último registro: ${avTextoUltimoRegistro(s)}`,480,154);
   x.font=`${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}${avTextoGenerado(s)}`,55,184);
 
   let y=228;
