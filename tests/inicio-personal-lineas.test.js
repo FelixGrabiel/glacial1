@@ -23,7 +23,7 @@ ok(/D\(\)\.disponiblesTareo\(/.test(leer('js/personal/44-distribucion-personal-p
 const s32=leer('js/accesos/32-dashboard-perfiles.js');
 const ejec=s32.slice(s32.indexOf('function cpEjecutivoHTML'),s32.indexOf('function cpEjecutivoStyles'));
 ok(/const enCursoReal=filas\.filter\(cpEnProduccion\)/.test(s32)&&/I\.enProduccion\(f\)/.test(s32),'«Líneas en producción» usa el mismo criterio que «Líneas sin producción» (unidades > 0)');
-ok(/\$\{cabecera\}\$\{kpis\}\$\{tarjetaSP\}/.test(ejec),'orden: tarjetas (con Distribución de personal) → líneas sin producción; la tabla de personal pasó al detalle');
+ok(/\$\{cabecera\}\$\{kpis\}\$\{tarjetaLineas\}/.test(ejec)&&/tarjeta\('pause','Líneas sin producción',tSinProd,'cp-np'\)/.test(ejec),'orden: 6 tarjetas (la sexta es Líneas sin producción) → producción por línea; la tabla de personal pasó al detalle');
 ok(/D\.consultar\(d\.fecha,bloque,l,corte\)/.test(s32)&&/D\.disponiblesTareo\(/.test(s32)&&/cpPersonalEscuchar\(d\.fecha,bloque\)/.test(s32),'personal: Distribución vigente al corte de la fecha y el bloque seleccionados, comparada con la asistencia del Tareo');
 ok(/Tiene personal y no produce/.test(s32)&&/Produce sin personal confirmado/.test(s32)&&/Sin asignar/.test(s32),'personal: resalta personal parado y producción sin personal; muestra «Sin asignar»');
 ok(!/'Estado del turno'/.test(ejec)&&/'Distribución de personal'/.test(ejec),'la tarjeta «Estado del turno» se reemplazó por «Distribución de personal»');
