@@ -45,6 +45,21 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     require('fs').mkdirSync(process.env.SHOTS, { recursive: true });
     ['supervisores', 'maquinistas', 'operarios_p1', 'operarios_p2'].forEach((n, i) => require('fs').writeFileSync(process.env.SHOTS + '/tareo_' + n + '.png', Buffer.from(imgs[i].split(',')[1], 'base64')));
   }
+  /* Mantenimiento: el supervisor y todos los técnicos salen juntos en UNA sola imagen */
+  await D.page.evaluate(([hoy]) => {
+    let n = 900; const P = (id, nombre, cargo) => ({ id, trabajadorId: id, nombre, dni: String(50000000 + (++n)), cargo, asistencia: 'Asistió', horaIngreso: '07:00', horaSalida: '15:00' });
+    const pers = [P('sm1', 'Cristian Meza', 'Supervisor de Mantenimiento')].concat(Array.from({ length: 12 }, (_, i) => P('t' + i, 'Técnico Número ' + (i + 1), i % 2 ? 'Técnico Eléctrico' : 'Técnico Mecánico')));
+    _tareosCache = _tareosCache.concat([{ id: 'tm1', fecha: hoy, turno: 'Día', area: 'Mantenimiento', estado: 'Abierto', jornadaNormal: 8, creadoPor: 'admin', personal: pers }]);
+  }, [hoy]);
+  const rm = await D.page.evaluate(([hoy]) => {
+    const x = tareoGenerarImagenesRRHH({ fecha: hoy, turno: 'Día', area: 'Mantenimiento', titulo: 'Tareo de mantenimiento' });
+    return { secciones: x.secciones.map(s => ({ clave: s.clave, total: s.total, imgs: s.imagenes.length })), total: x.imagenes.length };
+  }, [hoy]);
+  ok(rm.secciones.length === 1 && rm.secciones[0].clave === 'mantenimiento' && rm.secciones[0].total === 13 && rm.total === 1, 'Mantenimiento: el supervisor y los 12 técnicos salen en UNA sola imagen (' + JSON.stringify(rm) + ')');
+  await D.page.evaluate(() => { document.getElementById('modal-root').innerHTML = ''; exportarTareoPNG('tm1'); });
+  await D.page.waitForSelector('#modal-root img');
+  const mm = await D.page.evaluate(() => ({ imgs: document.querySelectorAll('#modal-root img').length, botones: [...document.querySelectorAll('#modal-root button')].map(b => b.textContent.trim()).filter(t => /Descargar imagen de /.test(t)) }));
+  ok(mm.imgs === 1 && mm.botones.length === 1, 'la ventana de Mantenimiento muestra una sola imagen con un solo botón de descarga (' + mm.imgs + ' imagen, ' + mm.botones.join(' | ') + ')');
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ': ' + D.errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar();
   console.log(fallas ? '\n' + fallas + ' fallas' : '\nTodo bien');

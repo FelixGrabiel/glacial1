@@ -11,7 +11,7 @@ const g=sb.g;
 ok(g('Supervisor de Mantenimiento')==='SMT'&&g('SUPERVISOR MTTO')==='SMT','supervisor de mantenimiento → grupo SMT');
 ok(g('Supervisor de Producción')==='SUP','supervisor de producción sigue en SUP');
 ok(g('Técnico de Mantenimiento')==='TEC'&&g('Maquinista de Producción')==='MAQ','técnicos y maquinistas sin cambios');
-ok(/'Mantenimiento':\['SMT','MAQ','TEC','DIA'\]/.test(src),'la imagen de mantenimiento incluye SMT');
+ok(/'Mantenimiento':\['SMT','TEC','DIA'\]/.test(src),'la imagen de mantenimiento incluye SMT (supervisor) y técnicos, en una sola imagen');
 ok(/SMT:\{clave:'SMT',orden:2/.test(src)&&/orden:3,etiqueta:'Mantenimiento \/ maquinistas'/.test(src),'SMT va primero en mantenimiento, antes de maquinistas');
 ok(/\['SUP'\],\['SMT'\],\['MAQ'\]/.test(src),'el control del Excel general suma también SMT');
 console.log(fallas?fallas+' fallas':'todo correcto');
