@@ -218,13 +218,16 @@ function tareoIngresoPorDefecto(turno) {
     return (c && c.ingresoDia) || '07:00';
 }
 
-/* Opciones del selector «Hora programada»: las del catálogo más la hora actual del tareo si no está en la lista (tareos antiguos). */
-function tareoOpcionesHoraProgramada(actual) {
+/* Opciones del selector «Hora programada»: las del catálogo que corresponden al turno (Día/Intermedio: 07:00, 10:00, 13:00, 14:00 · Noche: 19:00, 20:00, 21:00, 22:00)
+   más la hora actual del tareo si no está en la lista (tareos antiguos). Una hora es de Noche si es de las 19:00 en adelante o antes de las 05:00. */
+const tareoHoraEsNoche = h => { const n = parseInt(String(h).split(':')[0], 10); return Number.isFinite(n) && (n >= 19 || n < 5); };
+function tareoOpcionesHoraProgramada(actual, turno) {
     const c = typeof window.tareoHorasIngreso === 'function' ? window.tareoHorasIngreso() : null;
-    const horas = (c && c.horas.length ? c.horas : ['07:00', '10:00', '13:00', '14:00', '19:00', '20:00', '21:00', '22:00']).slice();
+    const todas = (c && c.horas.length ? c.horas : ['07:00', '10:00', '13:00', '14:00', '19:00', '20:00', '21:00', '22:00']).slice();
+    const horas = turno ? todas.filter(h => tareoHoraEsNoche(h) === (turno === 'Noche')) : todas;
     if (actual && !horas.includes(actual)) horas.push(actual);
     horas.sort();
-    return horas.map(h => `<option value="${escaparHTML(h)}" ${h === actual ? 'selected' : ''}>${escaparHTML(h)}${c && c.horas.includes(h) ? '' : ' (fuera del catálogo)'}</option>`).join('');
+    return horas.map(h => `<option value="${escaparHTML(h)}" ${h === actual ? 'selected' : ''}>${escaparHTML(h)}${todas.includes(h) ? '' : ' (fuera del catálogo)'}</option>`).join('');
 }
 
 function obtenerFechaHoy() {
@@ -4043,7 +4046,7 @@ function renderTareoFormulario(tareo) {
                         <select
                             id="tareo-hora-programada"
                             onchange="tareoActualizarConfig()"
-                        >${tareoOpcionesHoraProgramada(tareo.horaProgramadaIngreso)}</select>
+                        >${tareoOpcionesHoraProgramada(tareo.horaProgramadaIngreso, tareo.turno)}</select>
                     </div>
 
                     <div class="field-sm">
