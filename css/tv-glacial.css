@@ -1,0 +1,109 @@
+/* =========================================================
+   GLACIAL TV · MODO TELEVISIÓN  (js/tv/glacial-tv.js)
+   ---------------------------------------------------------
+   Pantalla de 1280×720 (16:9) pensada para un televisor de 32" visto a distancia: letra grande, alto contraste y sin nada
+   pulsable. Se escala sola si la ventana tiene otro tamaño (variable --tv-escala que calcula el script).
+   TODO está acotado a #glacial-tv y html.modo-tv: sin ?modo=tv no cambia ninguna pantalla de la aplicación.
+   Colores del sistema: En curso y En pausa = naranja (se distinguen por texto e icono), Pendiente = gris, Completada = verde,
+   Cancelada y Detenida = rojo.
+   ========================================================= */
+html.modo-tv,html.modo-tv body{overflow:hidden!important;margin:0;background:#0b315c}
+html.modo-tv *{scrollbar-width:none}
+html.modo-tv *::-webkit-scrollbar{display:none}
+
+#glacial-tv{position:fixed;inset:0;z-index:2147483000;background:#0b315c;overflow:hidden;
+  font-family:'IBM Plex Sans','Segoe UI',Arial,sans-serif;-webkit-font-smoothing:antialiased}
+#glacial-tv *{box-sizing:border-box}
+#glacial-tv .tv-escenario{position:absolute;left:50%;top:50%;width:1280px;height:720px;
+  transform:translate(-50%,-50%) scale(var(--tv-escala,1));background:#e9f0f9;color:#0b2540;display:flex;flex-direction:column;overflow:hidden}
+
+/* ---------- cabecera ---------- */
+#glacial-tv .tv-cab{flex:0 0 64px;background:#0b315c;color:#fff;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 22px}
+#glacial-tv .tv-marca{display:flex;align-items:center;gap:10px;font-weight:800;font-size:30px;letter-spacing:.5px}
+#glacial-tv .tv-logo{width:46px;height:46px;object-fit:cover;clip-path:circle(44% at 50% 50%)}
+#glacial-tv .tv-marca em{font-style:normal;color:#67c6ff;font-size:24px}
+#glacial-tv .tv-cab h1{margin:0;font-size:32px;font-weight:800;letter-spacing:.5px;text-align:center;white-space:nowrap}
+#glacial-tv .tv-meta{justify-self:end;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+#glacial-tv .tv-turno{font-size:18px;font-weight:700;color:#d6eaff}
+#glacial-tv .tv-chip{font-size:16px;font-weight:800;padding:1px 12px;border-radius:999px;background:#dff3e6;color:#14532d}
+#glacial-tv .tv-chip-sinconexion{background:#ffedc2;color:#7a4a00;box-shadow:0 0 0 2px #f0a500}
+#glacial-tv .tv-chip-sindatos{background:#ffd6d6;color:#7a0f0f;box-shadow:0 0 0 2px #d63a3a}
+
+#glacial-tv .tv-cuerpo{flex:1 1 auto;min-height:0;padding:12px 16px 14px}
+
+/* ---------- tarjetas ---------- */
+#glacial-tv .tv-card{background:#fff;border-radius:14px;padding:10px 16px;box-shadow:0 1px 3px rgba(11,49,92,.16);overflow:hidden;min-height:0}
+#glacial-tv .tv-card h2{margin:0 0 4px;font-size:16px;font-weight:800;color:#005b96;text-transform:uppercase;letter-spacing:.5px}
+#glacial-tv .tv-grande{font-size:50px;font-weight:800;line-height:1.05;color:#0b315c}
+#glacial-tv .tv-peq{margin:4px 0 0;font-size:16px;color:#4a5b6b}
+#glacial-tv .tv-mut{margin:6px 0;font-size:18px;color:#6b7b8b}
+#glacial-tv .tv-par{margin:5px 0;font-size:22px}
+#glacial-tv .tv-mot{margin:4px 0;font-size:19px;line-height:1.2}
+#glacial-tv .tv-pt{display:inline-block;width:13px;height:13px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+#glacial-tv .tv-pt-prog{background:#f59f1b}
+#glacial-tv .tv-pt-noprog{background:#e03131}
+#glacial-tv .tv-per{display:grid;grid-template-columns:1fr auto 1fr auto;column-gap:14px;row-gap:3px;font-size:20px;align-items:baseline}
+#glacial-tv .tv-per b{font-size:22px;text-align:right}
+#glacial-tv .tv-per .tv-alerta{color:#b24a00;font-weight:700}
+#glacial-tv .tv-per .tv-pend{color:#8a5a00;font-size:15px}
+#glacial-tv .tv-card-sp{background:#fff7e0;box-shadow:0 0 0 2px #f6c453}
+#glacial-tv .tv-sp{margin:2px 0;font-size:22px}
+#glacial-tv .tv-sp b{display:block;font-size:30px;color:#0b315c;line-height:1.1}
+
+/* barras */
+#glacial-tv .tv-barra{height:10px;margin-top:6px;border-radius:6px;background:#dbe6f3;overflow:hidden}
+#glacial-tv .tv-barra i{display:block;height:100%;border-radius:6px}
+#glacial-tv .tv-azul{background:#1976d2}#glacial-tv .tv-naranja{background:#f97316}
+#glacial-tv .tv-verde{background:#22a34a}#glacial-tv .tv-rojo{background:#e03131}
+
+/* insignias de estado: icono + texto, nunca solo color */
+#glacial-tv .tv-ins{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:999px;font-size:17px;font-weight:800;white-space:nowrap}
+#glacial-tv .tv-ins b{font-size:14px}
+#glacial-tv .tv-ins-curso{background:#fff0dc;color:#b24a00}
+#glacial-tv .tv-ins-pausa{background:#ffe0b8;color:#8f3b00}
+#glacial-tv .tv-ins-pendiente{background:#e6ebf1;color:#4a5b6b}
+#glacial-tv .tv-ins-completada{background:#dcf5e5;color:#14633a}
+#glacial-tv .tv-ins-detenida{background:#ffdede;color:#a40e0e}
+#glacial-tv .tv-ins-cancelada{background:#ffd2d2;color:#8d0b0b}
+#glacial-tv .tv-ins-sinprog{background:#eef2f6;color:#66788a}
+#glacial-tv .tv-ins-sinprod{background:#ffdede;color:#a40e0e}
+
+/* ---------- vista INICIO ---------- */
+#glacial-tv .tv-inicio{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:148px 172px minmax(0,1fr);gap:12px;height:100%}
+#glacial-tv .tv-tabla{grid-column:1 / -1;padding:8px 16px}
+#glacial-tv .tv-tabla h2{display:none}
+#glacial-tv .tv-tabla table{width:100%;border-collapse:collapse;font-size:19px}
+#glacial-tv .tv-tabla thead th{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#66788a;text-align:left;padding:0 8px 2px}
+#glacial-tv .tv-tabla tbody tr{border-top:1px solid #e1e9f3}
+#glacial-tv .tv-tabla th,#glacial-tv .tv-tabla td{padding:4px 8px;text-align:left;vertical-align:middle}
+#glacial-tv .tv-tabla tbody th{font-size:23px;font-weight:800;color:#0b315c;width:130px}
+#glacial-tv .tv-prod{max-width:300px;font-size:18px;line-height:1.15}
+#glacial-tv .tv-prod small{display:block;font-size:13px;color:#8a5a00}
+#glacial-tv .tv-num{white-space:nowrap}
+#glacial-tv .tv-num b{font-size:23px}
+#glacial-tv .tv-cum{width:190px}
+#glacial-tv .tv-cum b{font-size:21px}
+#glacial-tv .tv-cum .tv-barra{height:8px;margin-top:3px}
+
+/* ---------- vista PRODUCCIÓN POR LÍNEA ---------- */
+#glacial-tv .tv-lineas{display:grid;grid-template-rows:repeat(5,minmax(0,1fr));gap:10px;height:100%}
+#glacial-tv .tv-linea{display:grid;grid-template-columns:205px minmax(0,1fr) 280px 220px 225px;align-items:center;gap:14px;
+  background:#fff;border-radius:14px;padding:0 20px 0 18px;border-left:12px solid #94a3b8;box-shadow:0 1px 3px rgba(11,49,92,.16);overflow:hidden}
+#glacial-tv .tv-linea-curso{border-left-color:#f97316}#glacial-tv .tv-linea-pausa{border-left-color:#f97316}
+#glacial-tv .tv-linea-completada{border-left-color:#22a34a}
+#glacial-tv .tv-linea-detenida,#glacial-tv .tv-linea-cancelada,#glacial-tv .tv-linea-sinprod{border-left-color:#e03131}
+#glacial-tv .tv-l-nombre{font-size:38px;font-weight:800;color:#0b315c;line-height:1;white-space:nowrap}
+#glacial-tv .tv-l-prod b{display:block;font-size:24px;line-height:1.15}
+#glacial-tv .tv-l-prod small{display:block;font-size:15px;color:#5b6b7b}
+#glacial-tv .tv-l-cant{white-space:nowrap}
+#glacial-tv .tv-l-cant b{font-size:42px;font-weight:800;color:#0b315c}
+#glacial-tv .tv-l-cant span{font-size:25px;color:#4a5b6b}
+#glacial-tv .tv-l-cant em{font-style:normal;font-size:18px;color:#5b6b7b;margin-left:6px}
+#glacial-tv .tv-l-pct b{font-size:36px;font-weight:800}
+#glacial-tv .tv-l-pct .tv-barra{height:12px;margin-top:5px}
+#glacial-tv .tv-l-est .tv-ins{font-size:20px;padding:6px 14px}
+
+/* ---------- avisos ---------- */
+#glacial-tv .tv-aviso{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#0b315c}
+#glacial-tv .tv-aviso h2{margin:0 0 10px;font-size:44px}
+#glacial-tv .tv-aviso p{margin:0;font-size:26px;color:#4a5b6b}
