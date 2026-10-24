@@ -297,11 +297,26 @@
   const claveDoc = (c, d) => c + '\u0000' + d;
   const raizDe = c => String(c).split('/')[0];
 
+  /* Espera antes de volver a intentar tras fallos SEGUIDOS del servidor o de la red (de todos los pedidos juntos, no de uno solo):
+     3 s sin fallos, y luego 6, 12, 24, 48 s con tope de 60 s, con una variación al azar de ±25 % para que los equipos no insistan a la vez.
+     Antes cada escucha y cada consulta reintentaba a los 3 s fijos: con el servidor caído, cientos de pedidos por minuto lo mantenían saturado.
+     Un solo acierto lo reinicia todo. */
+  function retrasoDeReintento(fallos, azar){
+    const n = Math.max(0, Number(fallos) || 0);
+    const base = Math.min(60000, 3000 * Math.pow(2, Math.floor(Math.log2(n + 1))));
+    const r = typeof azar === 'function' ? azar() : Math.random();
+    return Math.round(base * (0.75 + r * 0.5));
+  }
+
   function crearBaseDeDatos(T){
     const vivos = new Map();          // claveDoc → DocVivo (documentos con escuchas)
     const consultas = new Set();      // ConsultaViva
     const canales = new Map();        // raíz → canal de tiempo real
     let enLinea = true;
+    let fallosSeguidos = 0, ultimoFalloMs = 0;      // fallos de red/servidor sin ningún acierto entre medio (ver retrasoDeReintento)
+    const proximoReintento = () => retrasoDeReintento(fallosSeguidos);
+    /* Las relecturas automáticas (cada 3 min, al volver a la pestaña) esperan mientras el servidor esté fallando seguido. */
+    const puedeResincronizar = () => fallosSeguidos < 3 || Date.now() - ultimoFalloMs >= retrasoDeReintento(fallosSeguidos, () => 0.5);
     const oyentesConexion = new Set();
     function marcarConexion(v){
       if (enLinea === v) return;
@@ -320,11 +335,12 @@
       try {
         const r = await T.rpc(nombre, args);
         if (r && Number.isFinite(Number(r.ahora))) anotarHoraServidor(Number(r.ahora));
+        fallosSeguidos = 0;
         marcarConexion(true);
         return r;
       } catch (e) {
         const err = traducirError(e);
-        if (err.red) marcarConexion(false);
+        if (err.red) { fallosSeguidos++; ultimoFalloMs = Date.now(); marcarConexion(false); }
         throw err;
       }
     }
@@ -397,7 +413,7 @@
           if (!err.red) { this._avisarError(err); return; }
           this.atrasado = true;
           /* Sin conexión la escucha no falla: espera y lo vuelve a intentar (como Firestore). */
-          setTimeout(() => { if (!this.conf && this.oyentes.size && this.vivo()) this.cargar(); }, 3000);
+          setTimeout(() => { if (!this.conf && this.oyentes.size && this.vivo()) this.cargar(); }, proximoReintento());
         });
         return this.cargando;
       }
@@ -574,10 +590,10 @@
     }
     const visible = () => !(global.document && global.document.visibilityState === 'hidden');
     if (global.document && global.document.addEventListener) {
-      global.document.addEventListener('visibilitychange', () => { if (visible() && (vivos.size || consultas.size)) resincronizar(); });
+      global.document.addEventListener('visibilitychange', () => { if (visible() && (vivos.size || consultas.size) && puedeResincronizar()) resincronizar(); });
     }
     if (typeof global.setInterval === 'function') {
-      global.setInterval(() => { if (visible() && (vivos.size || consultas.size)) resincronizar(); }, 180000);
+      global.setInterval(() => { if (visible() && (vivos.size || consultas.size) && puedeResincronizar()) resincronizar(); }, 180000);
     }
 
     /* Reparte a los documentos con escuchas lo que el servidor confirmó. idPend = guardado que ya se mostraba por adelantado. */
@@ -723,7 +739,7 @@
           this.filas = filas;
           if (antes === null || cambios.length) { try { this.o.next(new FotoConsulta(this.c, filas, cambios)); } catch (e) { console.error('GLACIAL · una escucha de ' + this.c + ' falló:', e); } }
         } catch (e) {
-          if (e.red) this.programar(3000);                                  // sin conexión: se reintenta
+          if (e.red) this.programar(proximoReintento());                    // sin conexión: se reintenta, cada vez más despacio
           else if (this.filas === null || e.code === 'permission-denied') { if (this.o.error) { try { this.o.error(e); } catch (_) { /* nada */ } } }
         } finally {
           this.corriendo = false;
