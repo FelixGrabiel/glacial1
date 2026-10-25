@@ -401,7 +401,7 @@
     pintar();
   });
 
-  function estilos(){return `<style id="ii-estilos">${window.iiConteoUI?window.iiConteoUI.css:''}${window.iiConciliacionUI?window.iiConciliacionUI.css:''}${window.iiAuditoriaUI?window.iiAuditoriaUI.css:''}${window.iiEvidenciasUI?window.iiEvidenciasUI.css:''}
+  function estilos(){return `<style id="ii-estilos">${window.iiConteoUI?window.iiConteoUI.css:''}${window.iiConciliacionUI?window.iiConciliacionUI.css:''}${window.iiAuditoriaUI?window.iiAuditoriaUI.css:''}${window.iiEvidenciasUI?window.iiEvidenciasUI.css:''}${window.iiLotesUI?window.iiLotesUI.css:''}
 .ii,.ii-modal{--ii-azul:#0b5cc4;--ii-linea:#dde6ef;--ii-mut:#5f7382}      /* los modales viven en #modal-root, fuera de .ii: necesitan las mismas variables */
 .ii{color:#0f2547;font-size:15px}
 .ii-g-hoy{background:#e6f4ea;color:#14532d}.ii-b-hoy{background:#f3faf5}.ii-delta{display:block;font-size:11px;color:#5f7382}

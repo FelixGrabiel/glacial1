@@ -3,7 +3,7 @@
 // (tabla public.evidencias_entrada + bucket privado glacial-fotos). NO modifica stock ni inventario: una persona autorizada importa y valida
 // cada evidencia desde Asistente de Producción › Evidencias.
 //
-//   POST   cabecera  x-glacial-ingesta: <secreto>      cuerpo  { sha256, mime, foto_base64, registro }
+//   POST   cabecera  x-glacial-ingesta: <secreto>      cuerpo  { sha256, mime, foto_base64, registro, leyenda? }
 //   200 → { ok: true, estado: 'recibida' | 'duplicada' }      4xx/5xx → { ok: false, codigo, error }
 //
 // El bot NO lleva ninguna llave de Supabase: solo este secreto (que solo sirve para esta función). La función usa su propia llave de servicio.
@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
       return responder({ ok: false, codigo: 'foto', error: 'No se pudo guardar la foto.' }, 502);
     }
     const fila = await admin.from('evidencias_entrada').upsert(
-      { sha256: v.sha256, registro: v.registro, foto_ruta: ruta, mime: v.mime, bytes: v.bytes.length, origen: 'bot' },
+      { sha256: v.sha256, registro: v.registro, foto_ruta: ruta, mime: v.mime, bytes: v.bytes.length, origen: 'bot', ...(v.leyenda ? { leyenda: v.leyenda } : {}) },       // la columna la agrega glacial_34: sin leyenda la fila se guarda igual que antes
       { onConflict: 'sha256', ignoreDuplicates: true },
     );
     if (fila.error) return responder({ ok: false, codigo: 'base', error: 'No se pudo guardar la evidencia.' }, 502);
