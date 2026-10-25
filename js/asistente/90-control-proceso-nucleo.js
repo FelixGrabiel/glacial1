@@ -1,0 +1,142 @@
+/* =============================================================
+   GLACIAL · CONTROL DE PROCESO EN EL ENVASADO (CF - CA - F - 047) — NÚCLEO (puro: sin ExcelJS ni pantalla; se prueba con node)
+   -------------------------------------------------------------
+   Arma, desde los reportes de producción de una línea y un mes, el modelo del formulario «Control de proceso en el envasado» que hoy se lleva
+   a mano en Drive (un libro por línea y mes, p. ej. «C.P_BIDON_7L-OCTUBRE», con UNA HOJA POR MARCA y UNA FILA POR CUADRO de producción).
+   Columnas del formulario (B7L):
+     SOPLADO     MAN · LAV · LLEN · L.PREFORMA · CIERRE · CANT          ENVASADO   CANT · L.TAPA · CONF
+     ETIQUETADO  LOTE · ROTUL                                          EMPAQUETADO LOTE ASA · CONF · CANT          FECHA · (turno D/N)
+   GLACIAL llena lo que ya sabe: lote de producción, cantidades, fecha y turno (del reporte) y los lotes de insumo usados en el cuadro (preforma, tapa,
+   etiqueta y asa, de la trazabilidad de lotes). Las columnas de verificación (MAN, LAV, LLEN, CIERRE, CONF, ROTUL) las completa planta: GLACIAL no las inventa.
+   NO toca producción, ratio, paradas, Avance/Cierre, tareo ni stock SAP: solo LEE los reportes y los lotes de insumo registrados en cada cuadro.
+   Documento de diseño: docs/asistente/control-proceso-drive.md.
+   ============================================================= */
+(function instalarControlProcesoNucleo(global){
+  'use strict';
+
+  const FORMULARIO={codigo:'CF - CA - F - 047',titulo:'CONTROL DE PORCESO EN EL ENVASADO'};      // el título conserva la grafía del formulario controlado
+  /* Líneas con formulario conocido. Las demás (PET1, PET2, C20L, B20L) tienen su propio formulario: se agregan aquí cuando se conozca su formato. */
+  const LINEAS={B7L:{codigo:'B7L',nombre:'BIDÓN 7L',presentacion:'7L',archivo:'C.P_BIDON_7L'}};
+  const MESES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SETIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  /* Categoría del lote de insumo (trazabilidad) → columna del formulario. */
+  const COLUMNA_DE_CATEGORIA={preformas:'preforma',tapas:'tapa',etiquetas:'etiqueta',asas:'asa'};
+  const COLUMNAS_LOTES=['preforma','tapa','etiqueta','asa'];
+  const ETIQUETA_COLUMNA={preforma:'L.PREFORMA',tapa:'L.TAPA',etiqueta:'LOTE ETIQUETA',asa:'LOTE ASA'};
+  /* De dónde sale cada CANT del formulario (campo de cuadro.produccion). En el Drive actual las tres cantidades suelen coincidir; se deja configurable. */
+  const MAPEO_CANTIDADES_DEFECTO={soplado:'sopladas',envasado:'efectiva',empaquetado:'efectiva'};
+  const SEPARADOR_LOTES=' + ';
+
+  const norm=v=>String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
+  const texto=v=>String(v==null?'':v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').trim();
+  const mm=n=>String(n).padStart(2,'0');
+
+  /* ---------- fechas y códigos ---------- */
+  const esFechaIso=v=>{
+    if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}/.test(v))return false;
+    const [a,m,d]=v.slice(0,10).split('-').map(Number),f=new Date(Date.UTC(a,m-1,d));
+    return f.getUTCFullYear()===a&&f.getUTCMonth()===m-1&&f.getUTCDate()===d;
+  };
+  /** '2027-10-01' → '01102027' (formato del lote de producción en el Drive: CF3-01102027). */
+  function ddmmaaaa(iso){
+    if(!esFechaIso(iso))return '';
+    const [a,m,d]=iso.slice(0,10).split('-');
+    return d+m+a;
+  }
+  /** Lote de producción tal como lo escribe planta: código del lote + «-» + vencimiento DDMMAAAA (CF3-01102027). Sin vencimiento: solo el código. */
+  function lotePT(c){
+    const l=texto(c&&c.lote),v=ddmmaaaa(c&&c.fechaVencimiento);
+    return l&&v?l+'-'+v:l;
+  }
+  /** Turno del formulario: «D» (día e intermedio) o «N» (noche). */
+  function turnoLetra(t){
+    const s=norm(t);
+    if(!s)return '';
+    return s.includes('NOCHE')?'N':'D';
+  }
+  const bloqueDe=t=>String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DIA';
+  /** Misma clave de cuadro que usa el Asistente de Producción (fecha|bloque|línea|marca|presentación). */
+  const normClave=v=>String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+    .replace(/(\d)\s*(litros?|lts?)(?![a-z])/g,'$1l').replace(/\s+/g,' ').trim();      // igual que el norm del Asistente (70): «7 litros» = «7l»
+  const claveCuadro=(fecha,turno,linea,marca,presentacion)=>[fecha,bloqueDe(turno),linea,normClave(marca),normClave(presentacion)].join('|');
+
+  /* ---------- lotes de insumo del cuadro ---------- */
+  /**
+   * cuadro.lotesInsumo = [{unidadId, loteId, loteProveedor, categoria, insumo, …}] (lo llena la trazabilidad de lotes al usar una unidad en el cuadro).
+   * Devuelve {preforma, tapa, etiqueta, asa}: los lotes del proveedor distintos de cada categoría, unidos con « + » (si en el cuadro se cambió de lote).
+   */
+  function lotesDelCuadro(cuadro){
+    const out={preforma:[],tapa:[],etiqueta:[],asa:[]};
+    (Array.isArray(cuadro&&cuadro.lotesInsumo)?cuadro.lotesInsumo:[]).forEach(l=>{
+      const col=COLUMNA_DE_CATEGORIA[String(l&&l.categoria||'').toLowerCase()],lote=texto(l&&l.loteProveedor);
+      if(col&&lote&&!out[col].includes(lote))out[col].push(lote);
+    });
+    return Object.fromEntries(Object.entries(out).map(([k,v])=>[k,v.join(SEPARADOR_LOTES)]));
+  }
+
+  /* ---------- filas del mes ---------- */
+  /** Un cuadro entra al formulario si tiene marca y produjo algo (sopladas o producción efectiva). Los cuadros solo programados no se registran. */
+  const cuadroProducido=c=>!!c&&!!texto(c.marca)&&(num(c.produccion&&c.produccion.efectiva)>0||num(c.produccion&&c.produccion.sopladas)>0);
+  const mesDe=(anio,mes)=>String(anio)+'-'+mm(mes);
+
+  /**
+   * registros: reportes de producción ({fecha, turno, linea, cuadros:[{numero, marca, presentacion, lote, fechaVencimiento, produccion, lotesInsumo?}]}).
+   * Una fila por cuadro producido de esa línea en ese mes. Ordenadas por fecha, turno (D antes que N) y n.º de cuadro.
+   */
+  function filasDeRegistros(registros,{linea,anio,mes,mapeo}){
+    const mp=Object.assign({},MAPEO_CANTIDADES_DEFECTO,mapeo||{}),prefijo=mesDe(anio,mes),filas=[];
+    (Array.isArray(registros)?registros:[]).forEach(r=>{
+      if(!r||r.linea!==linea||String(r.fecha||'').slice(0,7)!==prefijo||!esFechaIso(String(r.fecha)))return;
+      (Array.isArray(r.cuadros)?r.cuadros:[]).forEach((c,i)=>{
+        if(!cuadroProducido(c))return;
+        const p=c.produccion||{},lotes=lotesDelCuadro(c),f={
+          clave:claveCuadro(String(r.fecha).slice(0,10),r.turno,linea,c.marca,c.presentacion),
+          fecha:String(r.fecha).slice(0,10),turno:turnoLetra(r.turno),numero:num(c.numero)||i+1,marca:texto(c.marca),presentacion:texto(c.presentacion),
+          lotePT:lotePT(c),soplado:num(p[mp.soplado]),envasado:num(p[mp.envasado]),empaquetado:num(p[mp.empaquetado]),
+          preforma:lotes.preforma,tapa:lotes.tapa,etiqueta:lotes.etiqueta,asa:lotes.asa,registroId:texto(r.id)
+        };
+        f.sinLotes=COLUMNAS_LOTES.filter(k=>!f[k]);
+        filas.push(f);
+      });
+    });
+    return filas.sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.turno==='N')-(b.turno==='N')||a.numero-b.numero||a.clave.localeCompare(b.clave));
+  }
+
+  /** Nombre de hoja válido en Excel/Sheets: sin \ / ? * [ ] :, máximo 31 y único (sin distinguir mayúsculas). */
+  function nombreHoja(marca,usados){
+    let base=texto(marca).replace(/[\\/?*\[\]:]/g,' ').replace(/\s+/g,' ').trim().slice(0,31)||'SIN MARCA',n=base,i=2;
+    while(usados.has(n.toLowerCase())){const suf=' ('+i+')';n=base.slice(0,31-suf.length)+suf;i++;}
+    usados.add(n.toLowerCase());
+    return n;
+  }
+  /** Una hoja por marca (orden alfabético), cada una con sus filas. */
+  function hojasPorMarca(filas,presentacionDefecto){
+    const por=new Map();
+    filas.forEach(f=>{const k=norm(f.marca);if(!por.has(k))por.set(k,{marca:f.marca,filas:[]});por.get(k).filas.push(f);});
+    const usados=new Set();
+    return [...por.values()].sort((a,b)=>norm(a.marca).localeCompare(norm(b.marca),'es')).map(h=>({
+      marca:h.marca.toUpperCase(),nombre:nombreHoja(h.marca.toUpperCase(),usados),
+      presentacion:(h.filas.find(f=>f.presentacion)||{}).presentacion||presentacionDefecto,filas:h.filas
+    }));
+  }
+  const nombreArchivo=(linea,anio,mes)=>{
+    const L=LINEAS[linea];
+    return L?L.archivo+'-'+MESES[Number(mes)-1]+'-'+anio+'.xlsx':'';
+  };
+  /** Modelo completo del mes: hojas por marca, totales y cuántas filas no tienen todos los lotes de insumo (para avisar antes de exportar). */
+  function modeloMes(registros,{linea,anio,mes,mapeo}){
+    const L=LINEAS[linea];
+    if(!L)return {error:'La línea '+linea+' todavía no tiene formulario de control de proceso configurado.'};
+    if(!(Number(anio)>=2020&&Number(anio)<=2100)||!(Number(mes)>=1&&Number(mes)<=12))return {error:'Elige un mes válido.'};
+    const filas=filasDeRegistros(registros,{linea,anio:Number(anio),mes:Number(mes),mapeo});
+    return {linea,nombreLinea:L.nombre,presentacion:L.presentacion,anio:Number(anio),mes:Number(mes),mesNombre:MESES[Number(mes)-1],archivo:nombreArchivo(linea,Number(anio),Number(mes)),
+      hojas:hojasPorMarca(filas,L.presentacion),total:filas.length,
+      sinLotes:filas.filter(f=>f.sinLotes.length).length,sinLotesPorColumna:Object.fromEntries(COLUMNAS_LOTES.map(k=>[k,filas.filter(f=>!f[k]).length])),
+      sinVencimiento:filas.filter(f=>f.lotePT&&!/-\d{8}$/.test(f.lotePT)).length};
+  }
+
+  const API={FORMULARIO,LINEAS,MESES,COLUMNA_DE_CATEGORIA,COLUMNAS_LOTES,ETIQUETA_COLUMNA,MAPEO_CANTIDADES_DEFECTO,SEPARADOR_LOTES,ddmmaaaa,lotePT,turnoLetra,claveCuadro,lotesDelCuadro,cuadroProducido,
+    filasDeRegistros,nombreHoja,hojasPorMarca,nombreArchivo,modeloMes,esFechaIso,norm};
+  global.glacialControlProcesoNucleo=API;
+  if(typeof module!=='undefined'&&module.exports)module.exports=API;
+})(typeof window!=='undefined'?window:globalThis);

@@ -73,3 +73,6 @@ Contrato nuevo, opcional y compatible hacia atrás: el cuerpo del POST a `eviden
 
 ## Guía de uso
 Ver `docs/asistente/guia-uso-trazabilidad-lotes.md` (paso a paso, casos frecuentes y prueba rápida en PRUEBAS).
+
+## Cambio en la Etapa 3: la exportación a Drive es el «Control de proceso en el envasado»
+El Drive de planta ya lleva el formulario CF - CA - F - 047 (un libro por línea y mes, una hoja por marca, una fila por cuadro). La copia a Drive de la Etapa 3 **genera ese formulario** en vez de la hoja «LOTES GLACIAL» por unidad. Para que se llenen las columnas de lotes, cada entrada de `cuadro.lotesInsumo[]` (Etapa 2) debe guardar también la **`categoria`** de la unidad (`preformas`, `tapas`, `etiquetas`, `asas`). El Excel del mes ya se descarga desde la pestaña Lotes. Diseño, mapeo y preguntas abiertas: `docs/asistente/control-proceso-drive.md`.
