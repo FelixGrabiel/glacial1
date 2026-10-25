@@ -44,9 +44,18 @@
     const [a,m,d]=iso.slice(0,10).split('-');
     return d+m+a;
   }
-  /** Lote de producción tal como lo escribe planta: código del lote + «-» + vencimiento DDMMAAAA (CF3-01102027). Sin vencimiento: solo el código. */
-  function lotePT(c){
-    const l=texto(c&&c.lote),v=ddmmaaaa(c&&c.fechaVencimiento);
+  /** Vencimiento por defecto cuando el cuadro no trae fecha de vencimiento: un año después de la fecha del lote. El turno NOCHE termina de madrugada del día siguiente, así que su lote lleva la fecha del día siguiente
+   *  (en el Drive: 01/10 DÍA → CF3-01102027, 01/10 NOCHE → CF3-02102027). */
+  function vencimientoPorDefecto(fecha,turno){
+    if(!esFechaIso(fecha))return '';
+    const [a,m,d]=fecha.slice(0,10).split('-').map(Number),f=new Date(Date.UTC(a,m-1,d));
+    if(norm(turno).includes('NOCHE'))f.setUTCDate(f.getUTCDate()+1);
+    f.setUTCFullYear(f.getUTCFullYear()+1);
+    return f.getUTCFullYear()+'-'+mm(f.getUTCMonth()+1)+'-'+mm(f.getUTCDate());
+  }
+  /** Lote de producción tal como lo escribe planta: código del lote + «-» + vencimiento DDMMAAAA (CF3-01102027). El vencimiento sale del cuadro; si no lo trae (ctx={fecha,turno} del reporte), se calcula; sin nada, solo el código. */
+  function lotePT(c,ctx){
+    const l=texto(c&&c.lote),v=ddmmaaaa(c&&c.fechaVencimiento)||(ctx?ddmmaaaa(vencimientoPorDefecto(String(ctx.fecha||''),ctx.turno)):'');
     return l&&v?l+'-'+v:l;
   }
   /** Turno del formulario: «D» (día e intermedio) o «N» (noche). */
@@ -96,7 +105,7 @@
         const p=c.produccion||{},lotes=lotesDelCuadro(c),f={
           clave:claveFila(r,c,i,linea),claveCuadro:claveCuadro(String(r.fecha).slice(0,10),r.turno,linea,c.marca,c.presentacion),
           fecha:String(r.fecha).slice(0,10),turno:turnoLetra(r.turno),numero:num(c.numero)||i+1,marca:texto(c.marca),presentacion:texto(c.presentacion),
-          lotePT:lotePT(c),soplado:num(p[mp.soplado]),envasado:num(p[mp.envasado]),empaquetado:num(p[mp.empaquetado]),
+          lotePT:lotePT(c,{fecha:String(r.fecha).slice(0,10),turno:r.turno}),soplado:num(p[mp.soplado]),envasado:num(p[mp.envasado]),empaquetado:num(p[mp.empaquetado]),
           preforma:lotes.preforma,tapa:lotes.tapa,etiqueta:lotes.etiqueta,asa:lotes.asa,registroId:texto(r.id)
         };
         f.sinLotes=COLUMNAS_LOTES.filter(k=>!f[k]);
@@ -139,7 +148,7 @@
       sinVencimiento:filas.filter(f=>f.lotePT&&!/-\d{8}$/.test(f.lotePT)).length};
   }
 
-  const API={FORMULARIO,LINEAS,MESES,COLUMNA_DE_CATEGORIA,COLUMNAS_LOTES,ETIQUETA_COLUMNA,MAPEO_CANTIDADES_DEFECTO,SEPARADOR_LOTES,ddmmaaaa,lotePT,turnoLetra,claveCuadro,lotesDelCuadro,cuadroProducido,
+  const API={FORMULARIO,LINEAS,MESES,COLUMNA_DE_CATEGORIA,COLUMNAS_LOTES,ETIQUETA_COLUMNA,MAPEO_CANTIDADES_DEFECTO,SEPARADOR_LOTES,ddmmaaaa,vencimientoPorDefecto,lotePT,turnoLetra,claveCuadro,lotesDelCuadro,cuadroProducido,
     filasDeRegistros,nombreHoja,hojasPorMarca,nombreArchivo,modeloMes,esFechaIso,norm};
   global.glacialControlProcesoNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
