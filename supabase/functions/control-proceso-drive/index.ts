@@ -16,11 +16,18 @@ import { LOGO_BASE64 } from './logo.mjs';
 import { mesesASincronizar, secretoValido, sincronizarMes } from './sync.mjs';
 
 const LINEAS = ['B7L'];                                  // líneas con formulario conocido (ver LINEAS en el núcleo)
+// Permisos de navegador (CORS): el botón «Sincronizar ahora» llama a la función desde la página. La protección real es la sesión + el permiso ii_esc, no el origen.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 const responder = (cuerpo: unknown, estado = 200) =>
-  new Response(JSON.stringify(cuerpo), { status: estado, headers: { 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify(cuerpo), { status: estado, headers: { 'Content-Type': 'application/json', ...CORS } });
 
 Deno.serve(async (req: Request) => {
   try {
+    if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
     if (req.method !== 'POST') return responder({ ok: false, codigo: 'metodo', error: 'Método no permitido.' }, 405);
     const url = Deno.env.get('SUPABASE_URL')!;
     const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } });
