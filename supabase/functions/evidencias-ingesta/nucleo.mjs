@@ -76,7 +76,9 @@ export async function validarSolicitud({ metodo, secretoRecibido, secretoEsperad
   if (!registro.extraccion || typeof registro.extraccion !== 'object' || Array.isArray(registro.extraccion)) return falla(400, 'registro', 'El resultado no trae «extraccion».');
   if (registro.sha256 && String(registro.sha256).toLowerCase() !== sha256) return falla(400, 'registro_otra_foto', 'El resultado pertenece a otra foto (huella distinta).');
   if (JSON.stringify(registro).length > MAX_REGISTRO) return falla(413, 'registro_tamano', 'El resultado de la lectura es demasiado grande.');
-  return { ok: true, sha256, mime, ext, bytes, registro };
+  // Leyenda opcional: el texto que acompañó la foto en WhatsApp (RECEPCIÓN, PET2…). Se limpia y se acorta; la interpreta la aplicación (trazabilidad de lotes).
+  const leyenda = c.leyenda === undefined || c.leyenda === null ? null : String(c.leyenda).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) || null;
+  return { ok: true, sha256, mime, ext, bytes, registro, leyenda };
 }
 
 /** Ruta privada de la foto: la misma carpeta que ya autorizan las reglas de storage (glacial_25). */

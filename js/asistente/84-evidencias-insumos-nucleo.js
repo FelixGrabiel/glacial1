@@ -113,7 +113,7 @@
    * registro: contenido de un «-revisado.json» (v2 o v3). Exige que la huella de la foto coincida con registro.sha256: una foto que no es la
    * de ese JSON no se importa (evita mezclar datos de una etiqueta con la imagen de otra).
    */
-  function construirDocumento(registro,{sha256,foto,usuario,uid,ahora}){
+  function construirDocumento(registro,{sha256,foto,usuario,uid,ahora,leyenda}){
     if(!registro||typeof registro!=='object'||!registro.extraccion||typeof registro.extraccion!=='object')throw falla('FORMATO','El archivo no es un resultado de lectura de etiquetas (falta «extraccion»).');
     if(!/^[a-f0-9]{64}$/.test(texto(sha256)))throw falla('FORMATO','Falta la huella (SHA-256) de la foto.');
     if(registro.sha256&&String(registro.sha256).toLowerCase()!==sha256)throw falla('FOTO_NO_COINCIDE','La foto no corresponde a este resultado (la huella SHA-256 es distinta).');
@@ -136,7 +136,7 @@
     });
     const en=Number(ahora)||Date.now();
     return {
-      id:sha256,estado:'pendiente',rev:1,
+      id:sha256,estado:'pendiente',rev:1,leyenda:recortar(leyenda||registro.leyenda,40),     // texto que acompañó la foto en WhatsApp (RECEPCIÓN, PET2…); lo interpreta la trazabilidad de lotes
       versionProcesador:recortar(registro.version_procesador,30),archivoOriginal:recortar(String(registro.archivo_original||'').split(/[\\/]/).pop(),120),
       analizadoEn:recortar(registro.analizado_en,40),modelo:recortar(registro.modelo,60),
       foto:{url:recortar(foto&&foto.url,300),mimetype:recortar(foto&&foto.mimetype,40),bytes:Number(foto&&foto.bytes)||0},
