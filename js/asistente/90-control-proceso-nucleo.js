@@ -60,6 +60,9 @@
     .replace(/(\d)\s*(litros?|lts?)(?![a-z])/g,'$1l').replace(/\s+/g,' ').trim();      // igual que el norm del Asistente (70): «7 litros» = «7l»
   const claveCuadro=(fecha,turno,linea,marca,presentacion)=>[fecha,bloqueDe(turno),linea,normClave(marca),normClave(presentacion)].join('|');
 
+  /** Clave única de la fila en el formulario (columna R): reporte + n.º de cuadro. Sigue al cuadro aunque se corrija su marca (la fila no se duplica); sin id de reporte, la clave del Asistente. */
+  const claveFila=(r,c,i,linea)=>texto(r&&r.id)?texto(r.id)+'#'+(num(c&&c.numero)||i+1):claveCuadro(String(r.fecha).slice(0,10),r.turno,linea,c&&c.marca,c&&c.presentacion);
+
   /* ---------- lotes de insumo del cuadro ---------- */
   /**
    * cuadro.lotesInsumo = [{unidadId, loteId, loteProveedor, categoria, insumo, …}] (lo llena la trazabilidad de lotes al usar una unidad en el cuadro).
@@ -90,7 +93,7 @@
       (Array.isArray(r.cuadros)?r.cuadros:[]).forEach((c,i)=>{
         if(!cuadroProducido(c))return;
         const p=c.produccion||{},lotes=lotesDelCuadro(c),f={
-          clave:claveCuadro(String(r.fecha).slice(0,10),r.turno,linea,c.marca,c.presentacion),
+          clave:claveFila(r,c,i,linea),claveCuadro:claveCuadro(String(r.fecha).slice(0,10),r.turno,linea,c.marca,c.presentacion),
           fecha:String(r.fecha).slice(0,10),turno:turnoLetra(r.turno),numero:num(c.numero)||i+1,marca:texto(c.marca),presentacion:texto(c.presentacion),
           lotePT:lotePT(c),soplado:num(p[mp.soplado]),envasado:num(p[mp.envasado]),empaquetado:num(p[mp.empaquetado]),
           preforma:lotes.preforma,tapa:lotes.tapa,etiqueta:lotes.etiqueta,asa:lotes.asa,registroId:texto(r.id)
@@ -116,7 +119,7 @@
     const usados=new Set();
     return [...por.values()].sort((a,b)=>norm(a.marca).localeCompare(norm(b.marca),'es')).map(h=>({
       marca:h.marca.toUpperCase(),nombre:nombreHoja(h.marca.toUpperCase(),usados),
-      presentacion:(h.filas.find(f=>f.presentacion)||{}).presentacion||presentacionDefecto,filas:h.filas
+      presentacion:presentacionDefecto,filas:h.filas      // el formulario lleva la presentación de la línea («7L»), no el texto largo del reporte
     }));
   }
   const nombreArchivo=(linea,anio,mes)=>{

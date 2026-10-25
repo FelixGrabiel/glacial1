@@ -86,7 +86,7 @@ let ExcelJS=null;try{ExcelJS=require(process.env.EXCELJS||'exceljs');}catch(_){c
       ok(ws.getCell(r,1).value===o[0]&&ws.getCell(r,5).value==='2605008F300'&&ws.getCell(r,7).value===o[1]&&ws.getCell(r,8).value===o[1]&&ws.getCell(r,9).value==='30/05-B'&&ws.getCell(r,11).value==='0468-26'&&ws.getCell(r,13).value==='01/06-B'&&ws.getCell(r,15).value===o[1]&&fecha.toISOString().slice(0,10)===o[2]&&ws.getCell(r,17).value===o[3],'fila '+r+' igual a la del Drive: '+o[0]+' · '+o[1]+' · '+o[2]+' · '+o[3]);
     }
     ok(['B','C','D','F','J','L','N'].every(c=>[9,10,11,12,13,14].every(r=>ws.getCell(c+r).value===null||ws.getCell(c+r).value===undefined)),'MAN, LAV, LLEN, CIERRE y los CONF / ROTUL quedan vacíos para planta');
-    ok(ws.getCell(9,18).value===P.claveCuadro('2026-10-01','DÍA','B7L','SCALA','7L'),'la clave del cuadro viaja oculta en la columna R');
+    ok(ws.getCell(9,18).value==='r-2026-10-01DÍA#1','la clave de la fila (reporte + n.º de cuadro) viaja oculta en la columna R');
     ok(ws.getCell('A9').border.left.style==='thin'&&ws.getCell('P9').border.bottom.style==='thin'&&ws.getCell('A30').border.top.style==='thin'&&ws.getCell('A30').value===null&&!(ws.getCell('A31').border&&ws.getCell('A31').border.top),'filas con borde fino y, como el formulario impreso, se completan filas vacías (hasta 22: caben en una hoja A4 horizontal)');
     ok(ws.getCell('P9').numFmt==='dd/mm/yyyy'&&ws.getCell('G9').numFmt==='#,##0','fecha dd/mm/aaaa y cantidades con separador de miles');
     ok(ws.pageSetup.orientation==='landscape'&&ws.pageSetup.paperSize===9&&ws.views[0].ySplit===8&&ws.getImages().length===1,'A4 horizontal, encabezado fijo y el logo de GLACIAL');

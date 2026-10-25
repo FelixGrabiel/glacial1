@@ -98,7 +98,7 @@
   /* ---------- tarjeta en la pestaña Lotes ---------- */
   const esc=v=>typeof escaparHtml==='function'?escaparHtml(String(v==null?'':v)):String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const limaHoy=()=>new Date(Date.now()-5*3600000).toISOString().slice(0,7);
-  const S={linea:'B7L',mes:limaHoy(),msg:null,ocupado:false};
+  const S={linea:'B7L',mes:limaHoy(),msg:null,ocupado:false,drive:{filas:[],disponible:null,error:'',en:0,enCurso:false,sincronizando:false}};
   const registros=()=>typeof loadRecords==='function'?loadRecords():[];
   const modeloActual=()=>{const [a,m]=S.mes.split('-').map(Number);return P.modeloMes(registros(),{linea:S.linea,anio:a,mes:m});};
   let repintar=()=>{};
@@ -111,7 +111,40 @@
     return `<div class="ii-resumen"><div><b>${m.total}</b><span>filas (cuadros)</span></div><div><b>${m.hojas.length}</b><span>hojas (marcas)</span></div></div>
       <ul class="ii-lista-sm">${faltan}${venc}<li>Hojas: ${esc(m.hojas.map(h=>h.nombre+' ('+h.filas.length+')').join(' · '))}.</li></ul>`;
   }
+  /* ---------- copia a Drive (estado y «Sincronizar ahora») ---------- */
+  const cliente=()=>global.glacialSupabaseCliente||null;
+  const puedeSincronizar=()=>!global.glacialTrazabilidadDatos||global.glacialTrazabilidadDatos.puedeEscribir();
+  const faltaFuncion=(cod,m)=>cod==='PGRST202'||cod==='42883'||/could not find the function|does not exist|schema cache/i.test(String(m||''));
+  async function cargarDrive(){
+    const c=cliente(),D=S.drive;
+    if(!c||typeof c.rpc!=='function'||D.enCurso)return;
+    D.enCurso=true;D.en=Date.now();
+    try{
+      const r=await c.rpc('control_proceso_estado');
+      if(r&&r.error){
+        if(faltaFuncion(String(r.error.code||''),r.error.message)){D.disponible=false;D.error='';}
+        else{D.disponible=true;D.error=String(r.error.message||'No se pudo leer el estado de la copia a Drive.');}
+      }else{D.filas=Array.isArray(r&&r.data)?r.data:[];D.disponible=true;D.error='';}
+    }catch(e){D.error=String((e&&e.message)||e);}
+    finally{D.enCurso=false;repintar();}
+  }
+  const hace=ms=>{const s=Math.max(0,Math.round((Date.now()-Date.parse(ms))/1000));return s<90?'unos segundos':s<3600?'hace '+Math.round(s/60)+' min':s<172800?'hace '+Math.round(s/3600)+' h':'hace '+Math.round(s/86400)+' días';};
+  const enlaceLibro=u=>/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[\w-]+/.test(String(u||''))?`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">Abrir en Drive</a>`:'';
+  function driveHtml(m){
+    if(m.error)return '';
+    const D=S.drive,fila=D.filas.find(x=>x.linea===S.linea&&x.mes===S.mes);
+    let estado;
+    if(D.disponible===false)estado='<span class="ii-mut">La copia a Drive no está activada en este servidor (falta aplicar glacial_35 y desplegar control-proceso-drive).</span>';
+    else if(D.error)estado=`<span class="cp-err">No se pudo leer el estado: ${esc(D.error)}</span>`;
+    else if(!D.filas.length&&D.en===0)estado='<span class="ii-mut">Consultando…</span>';
+    else if(!fila)estado='<span class="ii-mut">Este mes todavía no se copió a Drive. Cuando Drive esté configurado se copia solo cada 5 minutos.</span>';
+    else if(fila.ok)estado=`<span class="cp-ok">✓ Copiado a Drive ${esc(hace(fila.sincronizado_en))}</span> · ${esc(fila.filas==null?'':fila.filas+' filas')} ${enlaceLibro(fila.libro_url)}`;
+    else estado=`<span class="cp-err">La última copia a Drive falló: ${esc(fila.error||'error desconocido')}</span> <span class="ii-mut">(reintentos: ${esc(fila.intentos)}; se vuelve a intentar sola)</span> ${enlaceLibro(fila.libro_url)}`;
+    const boton=D.disponible===false||!puedeSincronizar()?'':`<button type="button" class="ii-btn ii-btn-o" onclick="cpSincronizar()" ${D.sincronizando||!m.total?'disabled':''}>${D.sincronizando?'Sincronizando…':'Sincronizar ahora con Drive'}</button>`;
+    return `<div class="cp-drive"><b>Drive:</b> ${estado} ${boton}</div>`;
+  }
   function html(){
+    if(Date.now()-S.drive.en>60000&&!S.drive.enCurso)setTimeout(cargarDrive,0);
     const m=modeloActual();
     const msg=S.msg?`<div class="ii-msg ii-msg-${S.msg.tipo}" role="${S.msg.tipo==='error'?'alert':'status'}">${esc(S.msg.texto)}</div>`:'';
     const puede=!m.error&&m.total>0&&!S.ocupado;
@@ -120,8 +153,21 @@
       <div class="cp-controles"><label class="ii-campo"><span>Línea</span><select onchange="cpLinea(this.value)">${Object.values(P.LINEAS).map(l=>`<option value="${esc(l.codigo)}" ${l.codigo===S.linea?'selected':''}>${esc(l.codigo)} · ${esc(l.nombre)}</option>`).join('')}</select></label>
         <label class="ii-campo"><span>Mes</span><input type="month" value="${esc(S.mes)}" onchange="cpMes(this.value)"></label>
         <button type="button" class="ii-btn" onclick="cpExportar()" ${puede?'':'disabled'}>${S.ocupado?'Generando…':'Descargar Excel'}</button></div>
-      ${msg}${resumenHtml(m)}</div>`;
+      ${msg}${resumenHtml(m)}${driveHtml(m)}</div>`;
   }
+  global.cpSincronizar=async()=>{
+    const c=cliente(),D=S.drive;
+    if(!c||!c.functions||D.sincronizando||!puedeSincronizar())return;
+    D.sincronizando=true;S.msg=null;repintar();
+    try{
+      const r=await c.functions.invoke('control-proceso-drive',{body:{forzar:true,mes:S.mes}});
+      const data=r&&r.data,res=data&&Array.isArray(data.resultados)?data.resultados[0]:null;
+      if(r&&r.error&&!res)throw new Error(r.error.message||'La función de Drive no respondió.');
+      if(res&&res.ok)S.msg={tipo:'ok',texto:res.estado==='sincronizado'?'Copiado a Drive: '+res.filas+' filas en '+res.hojas+' hojas.':res.estado==='sin_datos'?'No hay cuadros para copiar en ese mes.':'Ya estaba al día en Drive.'};
+      else S.msg={tipo:'error',texto:'No se pudo copiar a Drive: '+((res&&res.error)||(data&&data.error)||'error desconocido')};
+    }catch(e){S.msg={tipo:'error',texto:'No se pudo copiar a Drive: '+((e&&e.message)||e)};}
+    finally{D.sincronizando=false;D.en=0;repintar();}
+  };
   global.cpLinea=v=>{S.linea=v;S.msg=null;repintar();};
   global.cpMes=v=>{if(/^\d{4}-\d{2}$/.test(v)){S.mes=v;S.msg=null;repintar();}};
   global.cpExportar=async()=>{
@@ -139,7 +185,7 @@
     finally{S.ocupado=false;repintar();}
   };
 
-  const css=`.cp-controles{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:10px 0}.cp-card .ii-resumen{margin-top:8px}@media(max-width:560px){.cp-controles .ii-btn{width:100%}}`;
+  const css=`.cp-drive{margin-top:10px;padding-top:10px;border-top:1px solid var(--ii-linea,#dfe6ee);display:flex;gap:10px;flex-wrap:wrap;align-items:center}.cp-ok{color:#166534;font-weight:600}.cp-err{color:#b42318}.cp-drive a{color:#0b5cc4}.cp-controles{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:10px 0}.cp-card .ii-resumen{margin-top:8px}@media(max-width:560px){.cp-controles .ii-btn{width:100%}}`;
   global.iiControlProcesoUI={html,css,estado:S,usar:f=>{if(typeof f==='function')repintar=f;},construirLibro,ANCHOS,ENCABEZADOS};
   if(typeof module!=='undefined'&&module.exports)module.exports={construirLibro,ANCHOS,ENCABEZADOS};
 })(typeof window!=='undefined'?window:globalThis);
