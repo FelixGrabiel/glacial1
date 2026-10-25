@@ -76,10 +76,12 @@
 
   function html(){
     Z.escuchar();EV.escuchar();
+    const CP=window.iiControlProcesoUI;if(CP)CP.usar(repintar);                  // tarjeta «Control de proceso en el envasado» (90-91)
     const msg=S.msg?`<div class="ii-msg ii-msg-${S.msg.tipo}" role="${S.msg.tipo==='error'?'alert':'status'}">${esc(S.msg.texto)}</div>`:'';
     const error=Z.cache.error?`<div class="ii-msg ii-msg-error" role="alert">No se pudieron leer los lotes: ${esc(Z.cache.error)}</div>`:'';
     return `<div class="ii-card"><div class="ii-fila-t"><h3>Lotes de insumos</h3>${Z.puedeEscribir()?'':'<span class="ii-chip">Solo consulta</span>'}</div>
       <p class="ii-mut">Cada etiqueta validada en Evidencias se convierte en una unidad de un lote rastreable: del proveedor a la línea y al cuadro de producción. No mueve el stock SAP.</p>${msg}${error}</div>
+      ${CP?CP.html():''}
       <div class="ie-grid"><aside class="ii-card ie-lista"><div class="ie-filtros">${filtros()}</div><div id="il-lista">${listaHtml()}</div></aside><section>${fichaHtml()}</section></div>`;
   }
 
