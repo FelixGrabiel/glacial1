@@ -96,7 +96,8 @@ function crearHoja_(libro, h, meta) {
   var hoja = libro.insertSheet(h.nombre);
   for (var i = 0; i < ANCHOS.length; i++) hoja.setColumnWidth(i + 1, Math.round(ANCHOS[i] * 7 + 5));
   hoja.hideColumns(COL_CLAVE);
-  hoja.getRange('B1:J3').merge().setValue(meta.titulo).setFontSize(28).setFontWeight('bold').setHorizontalAlignment('center').setVerticalAlignment('middle').setWrap(true);
+  hoja.setRowHeights(1, 3, 34);                                                  // el título (2 líneas) y el logo necesitan alto: con el alto por defecto se cortaban
+  hoja.getRange('B1:J3').merge().setValue(meta.titulo).setFontSize(24).setFontWeight('bold').setHorizontalAlignment('center').setVerticalAlignment('middle').setWrap(true);
   hoja.getRange('K1:O3').merge().setValue(meta.codigo).setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setVerticalAlignment('middle');
   hoja.getRange('B1:J3').setBorder(true, true, true, true, null, null, '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   hoja.getRange('K1:O3').setBorder(true, true, true, true, null, null, '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
@@ -121,7 +122,7 @@ function crearHoja_(libro, h, meta) {
       var blob = Utilities.newBlob(Utilities.base64Decode(meta.logo), 'image/png', 'glacial.png');
       var img = hoja.insertImage(blob, 2, 2);
       img.setWidth(73).setHeight(46);
-    } catch (e) { /* sin logo el formulario igual funciona */ }
+    } catch (e) { hoja.getRange('A1').setNote('No se pudo poner el logo: ' + String(e && e.message || e).slice(0, 200)); }   // sin logo el formulario igual funciona; la nota dice por qué
   }
   return hoja;
 }

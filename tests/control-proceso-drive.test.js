@@ -16,7 +16,7 @@ function google({secreto='x'.repeat(30),carpeta='CARPETA1'}={}){
     getName(){return this.nombre;}
     getLastRow(){let m=0;for(const [k,v] of this.celdas)if(v!==''&&v!==null&&v!==undefined)m=Math.max(m,Number(k.split(',')[0]));return m;}
     getRange(a,b,c,d){const [r,col,nr,nc]=typeof a==='string'?a1(a):[a,b,c||1,d||1];return rango(this,r,col,nr,nc);}
-    hideColumns(c){this.ocultas.push(c);}setFrozenRows(x){this.congeladas=x;}setHiddenGridlines(){}setColumnWidth(){}
+    hideColumns(c){this.ocultas.push(c);}setFrozenRows(x){this.congeladas=x;}setHiddenGridlines(){}setColumnWidth(){}setRowHeights(){}
     insertImage(blob){this.imagenes++;return {setWidth(){return this;},setHeight(){return this;}};}
     get(r,c){const v=this.celdas.get(r+','+c);return v===undefined?'':v;}
     poner(r,c,v){this.celdas.set(r+','+c,v);}
