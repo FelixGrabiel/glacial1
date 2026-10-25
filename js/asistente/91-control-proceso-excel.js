@@ -105,11 +105,12 @@
 
   function resumenHtml(m){
     if(m.error)return `<div class="ii-msg ii-msg-error" role="alert">${esc(m.error)}</div>`;
-    if(!m.total)return `<div class="ii-msg ii-msg-info" role="status">No hay cuadros producidos en ${esc(m.nombreLinea)} en ${esc(m.mesNombre.toLowerCase())} de ${m.anio}.</div>`;
+    if(!m.total)return `<div class="ii-msg ii-msg-info" role="status">${m.sinFinalizar?m.sinFinalizar+' cuadros siguen sin finalizar; ':''}No hay cuadros finalizados en ${esc(m.nombreLinea)} en ${esc(m.mesNombre.toLowerCase())} de ${m.anio}.</div>`;
     const faltan=m.sinLotes?`<li><b>${m.sinLotes}</b> de ${m.total} filas no tienen todos los lotes de insumo (preforma ${m.sinLotesPorColumna.preforma}, tapa ${m.sinLotesPorColumna.tapa}, etiqueta ${m.sinLotesPorColumna.etiqueta}, asa ${m.sinLotesPorColumna.asa}). Salen en blanco: se llenan al registrar el uso de lotes en cada cuadro.</li>`:'<li>Todas las filas traen sus lotes de insumo.</li>';
+    const pend=m.sinFinalizar?`<li><b>${m.sinFinalizar}</b> cuadros con producción aún sin finalizar no se incluyen: aparecen al pulsar «Finalizar marca».</li>`:'';
     const venc=m.sinVencimiento?`<li><b>${m.sinVencimiento}</b> filas sin fecha de vencimiento: el lote de producción sale solo con su código.</li>`:'';
     return `<div class="ii-resumen"><div><b>${m.total}</b><span>filas (cuadros)</span></div><div><b>${m.hojas.length}</b><span>hojas (marcas)</span></div></div>
-      <ul class="ii-lista-sm">${faltan}${venc}<li>Hojas: ${esc(m.hojas.map(h=>h.nombre+' ('+h.filas.length+')').join(' · '))}.</li></ul>`;
+      <ul class="ii-lista-sm">${pend}${faltan}${venc}<li>Hojas: ${esc(m.hojas.map(h=>h.nombre+' ('+h.filas.length+')').join(' · '))}.</li></ul>`;
   }
   /* ---------- copia a Drive (estado y «Sincronizar ahora») ---------- */
   const cliente=()=>global.glacialSupabaseCliente||null;

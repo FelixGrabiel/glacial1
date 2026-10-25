@@ -7,7 +7,7 @@ const leer=f=>fs.readFileSync(R+'/'+f,'utf8').replace(/\r\n/g,'\n');
 const P=require('../js/asistente/90-control-proceso-nucleo.js');
 
 const LOTES=[{categoria:'preformas',loteProveedor:'2605008F300'},{categoria:'tapas',loteProveedor:'30/05-B'},{categoria:'etiquetas',loteProveedor:'0468-26'},{categoria:'asas',loteProveedor:'01/06-B'}];
-const rep=(id,fecha,turno,e,venc,extra={})=>({id,fecha,turno,linea:'B7L',cuadros:[{numero:1,marca:'SCALA',presentacion:'Bidón 7 Litros',lote:'CF3',fechaVencimiento:venc,produccion:{efectiva:e,sopladas:e,programada:e},lotesInsumo:LOTES,...extra}]});
+const rep=(id,fecha,turno,e,venc,extra={})=>({id,fecha,turno,linea:'B7L',cuadros:[{estadoCuadro:'FINALIZADO',numero:1,marca:'SCALA',presentacion:'Bidón 7 Litros',lote:'CF3',fechaVencimiento:venc,produccion:{efectiva:e,sopladas:e,programada:e},lotesInsumo:LOTES,...extra}]});
 const REGS=[rep('r1','2026-10-01','DÍA',6552,'2027-10-01'),rep('r2','2026-10-01','NOCHE',5808,'2027-10-02')];
 
 (async()=>{

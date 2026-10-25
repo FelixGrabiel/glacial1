@@ -9,7 +9,7 @@ require('../js/asistente/70-asistente-nucleo.js');const A=globalThis.glacialAsis
 
 /* ---------- reportes de ejemplo: las 6 filas de la hoja SCALA del libro original ---------- */
 const LOTES_SCALA=[{categoria:'preformas',loteProveedor:'2605008F300'},{categoria:'tapas',loteProveedor:'30/05-B'},{categoria:'etiquetas',loteProveedor:'0468-26'},{categoria:'asas',loteProveedor:'01/06-B'}];
-const cuadro=(o={})=>({numero:1,marca:'SCALA',presentacion:'7L',lote:'CF3',fechaVencimiento:'2027-10-01',produccion:{programada:0,efectiva:0,sopladas:0,calidad:0,paletas:0},lotesInsumo:LOTES_SCALA,...o,produccion:{programada:0,efectiva:0,sopladas:0,calidad:0,paletas:0,...(o.produccion||{})}});
+const cuadro=(o={})=>({estadoCuadro:'FINALIZADO',numero:1,marca:'SCALA',presentacion:'7L',lote:'CF3',fechaVencimiento:'2027-10-01',produccion:{programada:0,efectiva:0,sopladas:0,calidad:0,paletas:0},lotesInsumo:LOTES_SCALA,...o,produccion:{programada:0,efectiva:0,sopladas:0,calidad:0,paletas:0,...(o.produccion||{})}});
 const reg=(fecha,turno,cuadros,linea='B7L')=>({id:'r-'+fecha+turno,fecha,turno,linea,cuadros});
 const REG=[
   reg('2026-10-01','DÍA',[cuadro({fechaVencimiento:'2027-10-01',produccion:{efectiva:6552,sopladas:6552}})]),
@@ -106,5 +106,12 @@ let ExcelJS=null;try{ExcelJS=require(process.env.EXCELJS||'exceljs');}catch(_){c
   ok(!/saveRecords|db\.collection|runTransaction|insumosCortes|insumosConteos|insumosCatalogo|apMovimientos|tareo/i.test(codigo.replace(/Solo LEE[^\n]*|NO toca[^\n]*|no modifica[^\n]*/gi,'')),'solo lee reportes: no escribe en ninguna colección ni toca stock SAP, producción o tareo');
   const doc=leer('docs/asistente/control-proceso-drive.md');
   ok(/CF - CA - F - 047/.test(doc)&&/MAN/.test(doc)&&/Etapa 3/.test(doc)&&/Preguntas abiertas/i.test(doc),'el documento de diseño existe y recoge el formulario, la Etapa 3 y las preguntas abiertas');
+  { // solo entran los cuadros finalizados (FINALIZAR MARCA) o de un reporte finalizado
+    const R=(id,est,cuadros)=>({id,fecha:'2026-10-09',turno:'DÍA',linea:'B7L',estadoRegistro:est,cuadros});
+    const C=(n,est)=>cuadro({numero:n,marca:'SCALA',estadoCuadro:est,produccion:{efectiva:100,sopladas:100}});
+    const m=P.modeloMes([R('a','EN_REGISTRO',[C(1,'FINALIZADO'),C(2,'ABIERTO'),C(3,undefined)]),R('b','FINALIZADO',[C(1,'ABIERTO'),C(2,undefined)]),R('c','REABIERTO',[C(1,'ABIERTO')])],{linea:'B7L',anio:2026,mes:10});
+    ok(m.total===3&&m.sinFinalizar===3&&P.cuadroFinalizado({estadoRegistro:'FINALIZADO'},{})&&!P.cuadroFinalizado({estadoRegistro:'EN_REGISTRO'},{estadoCuadro:'ABIERTO'}),'solo entran los cuadros finalizados o de un reporte finalizado; los demás se cuentan como «sin finalizar»');
+  }
   console.log(fallas?('\n'+fallas+' fallas'):'\ntodo correcto');
 })();
+

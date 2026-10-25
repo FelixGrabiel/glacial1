@@ -90,18 +90,21 @@
   /* ---------- filas del mes ---------- */
   /** Un cuadro entra al formulario si tiene marca y produjo algo (sopladas o producción efectiva). Los cuadros solo programados no se registran. */
   const cuadroProducido=c=>!!c&&!!texto(c.marca)&&(num(c.produccion&&c.produccion.efectiva)>0||num(c.produccion&&c.produccion.sopladas)>0);
+  /** Un cuadro entra al formulario cuando planta lo finalizó («FINALIZAR MARCA») o cuando el reporte completo ya está finalizado. Los demás son producción en curso: aparecen cuando se finalicen. */
+  const cuadroFinalizado=(r,c)=>texto(c&&c.estadoCuadro).toUpperCase()==='FINALIZADO'||texto(r&&r.estadoRegistro).toUpperCase()==='FINALIZADO';
   const mesDe=(anio,mes)=>String(anio)+'-'+mm(mes);
 
   /**
    * registros: reportes de producción ({fecha, turno, linea, cuadros:[{numero, marca, presentacion, lote, fechaVencimiento, produccion, lotesInsumo?}]}).
    * Una fila por cuadro producido de esa línea en ese mes. Ordenadas por fecha, turno (D antes que N) y n.º de cuadro.
    */
-  function filasDeRegistros(registros,{linea,anio,mes,mapeo}){
-    const mp=Object.assign({},MAPEO_CANTIDADES_DEFECTO,mapeo||{}),prefijo=mesDe(anio,mes),filas=[];
+  function filasDeRegistros(registros,{linea,anio,mes,mapeo,pendientes:pend}){
+    const mp=Object.assign({},MAPEO_CANTIDADES_DEFECTO,mapeo||{}),prefijo=mesDe(anio,mes),filas=[],pendientes=pend||{n:0};
     (Array.isArray(registros)?registros:[]).forEach(r=>{
       if(!r||r.linea!==linea||String(r.fecha||'').slice(0,7)!==prefijo||!esFechaIso(String(r.fecha)))return;
       (Array.isArray(r.cuadros)?r.cuadros:[]).forEach((c,i)=>{
         if(!cuadroProducido(c))return;
+        if(!cuadroFinalizado(r,c)){pendientes.n++;return;}
         const p=c.produccion||{},lotes=lotesDelCuadro(c),f={
           clave:claveFila(r,c,i,linea),claveCuadro:claveCuadro(String(r.fecha).slice(0,10),r.turno,linea,c.marca,c.presentacion),
           fecha:String(r.fecha).slice(0,10),turno:turnoLetra(r.turno),numero:num(c.numero)||i+1,marca:texto(c.marca),presentacion:texto(c.presentacion),
@@ -141,14 +144,14 @@
     const L=LINEAS[linea];
     if(!L)return {error:'La línea '+linea+' todavía no tiene formulario de control de proceso configurado.'};
     if(!(Number(anio)>=2020&&Number(anio)<=2100)||!(Number(mes)>=1&&Number(mes)<=12))return {error:'Elige un mes válido.'};
-    const filas=filasDeRegistros(registros,{linea,anio:Number(anio),mes:Number(mes),mapeo});
+    const pendientes={n:0},filas=filasDeRegistros(registros,{linea,anio:Number(anio),mes:Number(mes),mapeo,pendientes});
     return {linea,nombreLinea:L.nombre,presentacion:L.presentacion,anio:Number(anio),mes:Number(mes),mesNombre:MESES[Number(mes)-1],archivo:nombreArchivo(linea,Number(anio),Number(mes)),
-      hojas:hojasPorMarca(filas,L.presentacion),total:filas.length,
+      hojas:hojasPorMarca(filas,L.presentacion),total:filas.length,sinFinalizar:pendientes.n,
       sinLotes:filas.filter(f=>f.sinLotes.length).length,sinLotesPorColumna:Object.fromEntries(COLUMNAS_LOTES.map(k=>[k,filas.filter(f=>!f[k]).length])),
       sinVencimiento:filas.filter(f=>f.lotePT&&!/-\d{8}$/.test(f.lotePT)).length};
   }
 
-  const API={FORMULARIO,LINEAS,MESES,COLUMNA_DE_CATEGORIA,COLUMNAS_LOTES,ETIQUETA_COLUMNA,MAPEO_CANTIDADES_DEFECTO,SEPARADOR_LOTES,ddmmaaaa,vencimientoPorDefecto,lotePT,turnoLetra,claveCuadro,lotesDelCuadro,cuadroProducido,
+  const API={FORMULARIO,LINEAS,MESES,COLUMNA_DE_CATEGORIA,COLUMNAS_LOTES,ETIQUETA_COLUMNA,MAPEO_CANTIDADES_DEFECTO,SEPARADOR_LOTES,ddmmaaaa,vencimientoPorDefecto,lotePT,turnoLetra,claveCuadro,lotesDelCuadro,cuadroProducido,cuadroFinalizado,
     filasDeRegistros,nombreHoja,hojasPorMarca,nombreArchivo,modeloMes,esFechaIso,norm};
   global.glacialControlProcesoNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
