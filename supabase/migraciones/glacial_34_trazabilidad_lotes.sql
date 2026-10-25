@@ -1,4 +1,4 @@
--- GLACIAL · glacial_34 · TRAZABILIDAD DE LOTES DE INSUMOS (Fase 4, Etapa 1: lote + unidad + movimientos)      *** NO APLICADA (preparada; aplicar primero en PRUEBAS) ***
+-- GLACIAL · glacial_34 · TRAZABILIDAD DE LOTES DE INSUMOS (Fase 4, Etapa 1: lote + unidad + movimientos)      *** APLICADA en PRUEBAS el 2026-10-25; PRODUCCIÓN pendiente (solo con la aprobación del dueño) ***
 --
 -- Qué hace (mismo método que glacial_24 y glacial_31):
 --  1) autorizar: ramas para las colecciones nuevas del puente

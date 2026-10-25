@@ -210,7 +210,7 @@ const auditoria=sb=>coleccion(sb,'insumosAuditoria');
   ok(/insumosLotes/.test(sql)&&/insumosUnidades/.test(sql)&&/insumosLoteMovimientos/.test(sql)&&/insumosLotesClaves/.test(sql)&&/insumosParametros/.test(sql)&&/ii_esc/.test(sql)&&/ii_ver/.test(sql),'la migración define las 5 colecciones con las marcas ii_esc / ii_ver');
   ok(/if accion = 'delete' then return false/.test(sql)&&/if accion <> 'create' then return false/.test(sql)&&/n->>'uid' = u and n->'en' = ahora/.test(sql)&&/accion = 'create' and n->>'id' = d/.test(sql),'migración: nada se borra; los movimientos son inmutables (solo create, con uid y hora del servidor); el índice solo se crea');
   ok(/add column if not exists leyenda/.test(sql)&&/'leyenda', t\.leyenda/.test(sql)&&/raise exception/.test(sql)&&/glacial_24/.test(sql)&&/glacial_31/.test(sql)&&/glacial_33/.test(sql),'migración: columna leyenda opcional, pendientes la devuelve, y se detiene sin cambiar nada si faltan las migraciones previas');
-  ok(/NO APLICADA/.test(sql)&&!/stock_sap|OnHand/.test(sql),'migración marcada como NO aplicada y sin nada de stock');
+  ok(/APLICADA en PRUEBAS/.test(sql)&&/PRODUCCIÓN pendiente/.test(sql)&&!/stock_sap|OnHand/.test(sql),'migración marcada como aplicada en PRUEBAS (PRODUCCIÓN pendiente) y sin nada de stock');
   const ing=leer('supabase/functions/evidencias-ingesta/index.ts'),ingN=leer('supabase/functions/evidencias-ingesta/nucleo.mjs');
   ok(/\.\.\.\(v\.leyenda \? \{ leyenda: v\.leyenda \} : \{\}\)/.test(ing)&&/slice\(0, 40\)/.test(ingN)&&/leyenda/.test(ingN),'la ingesta acepta la leyenda opcional (limpia y de máximo 40 caracteres) y la guarda');
 

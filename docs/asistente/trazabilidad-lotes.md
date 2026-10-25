@@ -17,7 +17,7 @@ esas etapas no cambien los datos.
 | `js/asistente/88-trazabilidad-lotes-datos.js` | Capa de datos del puente: escuchas en vivo y la transacción «Confirmar y crear lote». |
 | `js/asistente/89-trazabilidad-lotes-pantalla.js` | Pestaña **Lotes** del Asistente de Producción y el diálogo «Confirmar y crear lote». |
 | `js/asistente/84–86` | Evidencias: el botón «Aprobar datos» pasa a «Confirmar y crear lote» cuando 87–89 están cargados; guardan la `leyenda` de la foto. |
-| `supabase/migraciones/glacial_34_trazabilidad_lotes.sql` | Reglas de las colecciones nuevas y la columna `leyenda` (**NO aplicada**). |
+| `supabase/migraciones/glacial_34_trazabilidad_lotes.sql` | Reglas de las colecciones nuevas y la columna `leyenda` (**aplicada en PRUEBAS**; PRODUCCIÓN pendiente). |
 | `supabase/functions/evidencias-ingesta/` | Acepta `leyenda` (opcional) y la guarda. |
 | `tests/trazabilidad-lotes-nucleo.test.js`, `tests/trazabilidad-lotes-datos.test.js` | Pruebas. |
 
@@ -59,10 +59,10 @@ Los umbrales (tolerancia de consumo, días de aviso de vencimiento) **no se inve
 ## Permisos
 Los de Evidencias/Inventario (`inventarioInsumos`): ven Asistente de Producción, Jefe de Operaciones y Administrador; crean lotes (`ii_esc`) Asistente de Producción y Administrador. Los roles de solo consulta ven sin botones; la cuenta compartida de Mantenimiento no entra.
 
-## Migración `glacial_34` (NO aplicada)
+## Migración `glacial_34` (aplicada en PRUEBAS el 2026-10-25; PRODUCCIÓN pendiente)
 Agrega las 5 colecciones a `autorizar` (nada se borra; los movimientos y el índice solo se crean; los movimientos exigen `uid` y hora del servidor) y a `puede_leer` (`ii_ver`), y la columna opcional `evidencias_entrada.leyenda` (las filas actuales quedan en `null`; `evidencias_entrada_pendientes` la devuelve). Requiere `glacial_24`, `glacial_31` y `glacial_33`; si falta una ancla o una marca se detiene sin cambiar nada. Se puede ejecutar más de una vez.
 **Orden**: primero PRUEBAS (`mvxjopvnnagqytegtexi`), probar «Confirmar y crear lote» con una evidencia real y comparar la huella de las funciones; PRODUCCIÓN (`ehtbwmvwoxcdefvlxttu`) solo con la aprobación del dueño.
-Mientras no se aplique, el servidor rechaza las lecturas y escrituras de las colecciones nuevas (el Asistente muestra el error); la bandeja de Evidencias sigue funcionando.
+En PRODUCCIÓN, mientras no se aplique, el servidor rechaza las lecturas y escrituras de las colecciones nuevas (el Asistente muestra el error); la bandeja de Evidencias sigue funcionando.
 
 ## Bot de WhatsApp (proyecto aparte `glacial-whatsapp`)
 Contrato nuevo, opcional y compatible hacia atrás: el cuerpo del POST a `evidencias-ingesta` puede traer `leyenda` (texto que acompañó la foto). La función la limpia (sin caracteres de control, máximo 40) y la guarda; el Asistente la interpreta. Lo pendiente en ese proyecto (no está en este repositorio): leer el texto que acompaña la foto y enviarlo en `leyenda`. Ver `docs/asistente/evidencias-ingesta.md`.
@@ -70,3 +70,6 @@ Contrato nuevo, opcional y compatible hacia atrás: el cuerpo del POST a `eviden
 ## Pruebas
 `tests/trazabilidad-lotes-nucleo.test.js`: identificadores, llaves, leyenda, validación, artículo sugerido, crear lote/unidad (nuevo, unidad agregada, duplicado, leyenda de línea), máquina de estados, búsqueda y línea de tiempo.
 `tests/trazabilidad-lotes-datos.test.js` (base simulada): transacción única (evidencia + lote + unidad + movimiento + índice + correlativo + memoria + auditoría), doble clic y concurrencia, duplicados, validaciones, permisos por rol, tiempo real, pantallas (Lotes, diálogo, Evidencias con y sin lotes), solo consulta, celular, integración (index.html, pestaña, migración, ingesta) y ninguna colección de stock.
+
+## Guía de uso
+Ver `docs/asistente/guia-uso-trazabilidad-lotes.md` (paso a paso, casos frecuentes y prueba rápida en PRUEBAS).
