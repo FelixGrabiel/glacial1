@@ -2,7 +2,7 @@
    MANTENIMIENTO · VELOCIDADES ESTÁNDAR (UND/h por línea y formato) con historial
    -------------------------------------------------------------
    Antes la velocidad se editaba dentro de Planificación (catálogo) y en el editor de metas de Análisis de paradas. Ahora se cambia AQUÍ,
-   en Mantenimiento: Administrador y quienes tienen el permiso «moduloMantenimiento». Planificación y los demás módulos solo la leen.
+   en Mantenimiento: Administrador, Jefatura y quienes tienen el permiso «moduloMantenimiento» o «configurar_umbrales». Planificación y los demás módulos solo la leen.
    La tabla sigue siendo sync/configIndicadores → velocidades (la que ya leen Planificación, Resumen, Registro y Análisis), así que un cambio
    se ve en todo el sistema en segundos. Cada cambio guarda desde cuándo rige la nueva y deja lo anterior en un HISTORIAL oculto (se abre
    con «Ver historial»); nada se borra. Lógica pura y pruebas: js/nucleo/45b-velocidades-vigencia.js y tests/velocidades-vigencia.test.js.
@@ -20,17 +20,18 @@
   const cuando=ms=>{if(!ms)return '';const d=new Date(ms);return isNaN(d)?'':d.toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});};
 
   /* ---------- permisos ---------- */
+  const JEFATURA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];     // los mismos que cambian las metas en Análisis de paradas
   const rol=()=>String((typeof state!=='undefined'&&state.user&&state.user.rol)||'').trim();
   function puedeEditar(){
     if(typeof state==='undefined'||!state.user)return false;
     if(typeof esMantCompartido==='function'&&esMantCompartido(state.user))return false;       // la cuenta compartida solo consulta
-    return rol()==='Administrador'||(typeof tienePermiso==='function'&&tienePermiso('moduloMantenimiento'));
+    return rol()==='Administrador'||JEFATURA.includes(rol())||(typeof tienePermiso==='function'&&(tienePermiso('moduloMantenimiento')||tienePermiso('configurar_umbrales')));
   }
   function puedeVer(){
     if(typeof state==='undefined'||!state.user)return false;
     if(puedeEditar())return true;
     const P=window.glacialPlanificacion;
-    const jef=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'].includes(rol());
+    const jef=JEFATURA.includes(rol());
     return jef||(typeof tienePermiso==='function'&&tienePermiso('planificacion'))||!!(P&&P.puedeVer&&P.puedeVer());
   }
 
@@ -124,7 +125,7 @@
     main.innerHTML='<div class="vel-wrap" id="vel-raiz"><div class="main-head"><div><h2>Velocidades estándar</h2><div class="sub">Unidades por hora de cada línea y formato. Es la base del rendimiento y del OEE en todo el sistema.</div></div>'+
       (window.glacialEstadoDatos?'<div>'+window.glacialEstadoDatos.chip()+'</div>':'')+'</div>'+
       (editar?'<div class="vel-nota"><b>Cómo funciona:</b> al cambiar una velocidad, la nueva rige desde la fecha que indiques y se ve en todo el sistema (Planificación, Resumen, Registro). La anterior no se pierde: queda en el <b>historial</b>, oculto, y se abre con «Ver historial». Los reportes ya registrados conservan su propia velocidad.</div>'
-        :'<div class="vel-nota vel-solo"><b>Solo consulta.</b> Las velocidades las cambian Mantenimiento y el Administrador. Aquí puedes ver el valor vigente y su historial.</div>')+
+        :'<div class="vel-nota vel-solo"><b>Solo consulta.</b> Las velocidades las cambian Mantenimiento, Jefatura y el Administrador. Aquí puedes ver el valor vigente y su historial.</div>')+
       '<div class="vel-barra"><label>Línea<select id="vel-linea"><option value="">Todas</option>'+lineas.map(l=>'<option value="'+esc(l)+'"'+(UI.linea===l?' selected':'')+'>'+esc(nombreLinea(l))+'</option>').join('')+'</select></label></div>'+
       (porLinea||'<div class="vel-nota vel-solo">No hay velocidades para mostrar.</div>')+'</div>';
   }
@@ -133,7 +134,7 @@
   function abrirCambio(clave){
     const f=filas().find(x=>GV().normClave(x.clave)===GV().normClave(clave));
     if(!f)return;
-    if(!puedeEditar()){alert('Solo Mantenimiento y el Administrador pueden cambiar la velocidad estándar.');return;}
+    if(!puedeEditar()){alert('Solo Mantenimiento, Jefatura y el Administrador pueden cambiar la velocidad estándar.');return;}
     const fondo=document.createElement('div');fondo.className='vel-modal';
     const min=f.desde||'';
     fondo.innerHTML='<div role="dialog" aria-modal="true" aria-label="Cambiar velocidad estándar"><h3 style="margin:0 0 4px">'+(f.valor?'Cambiar':'Cargar')+' velocidad estándar</h3>'+
