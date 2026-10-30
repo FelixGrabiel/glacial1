@@ -44,7 +44,7 @@
     const u=usuario();
     if(!u)return {ver:false,escribir:false,puedeCorregir:false,puedeVerificar:false,consulta:true};
     if(window.glacialVista&&window.glacialVista.activo&&window.glacialVista.activo()){const ok=!!window.glacialVista.puedeModulo('intervenciones');return {ver:ok,escribir:false,puedeCorregir:false,puedeVerificar:false,consulta:true};}
-    const ver=compartida()||consulta()||esSupervisorMtto()||(typeof puedeVerBitacoraMtto==='function'&&!!puedeVerBitacoraMtto())||tiene('moduloMantenimiento');
+    const ver=compartida()||consulta()||esSupervisorMtto()||(typeof puedeVerBitacoraMtto==='function'&&!!puedeVerBitacoraMtto())||tiene('moduloMantenimiento')||tiene('ver_banco_paradas');
     const escribir=!consulta()&&(compartida()||esSupervisorMtto());
     return {ver:!!ver,escribir:!!escribir,puedeCorregir:esSupervisorMtto(),puedeVerificar:esSupervisorMtto(),consulta:consulta()};
   }

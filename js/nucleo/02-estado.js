@@ -173,6 +173,7 @@ const PERMISOS_APP=[
   {key:'gestionar_tareo_mantenimiento',area:'mantenimiento',label:'GESTIONAR Tareo de Mantenimiento (registrar, editar, validar)'},
   {key:'ver_tareo_mantenimiento',area:'mantenimiento',label:'VER Tareo de Mantenimiento (solo visualización)'},
   {key:'ver_bitacora_mantenimiento',area:'mantenimiento',label:'VER Bitácora de Mantenimiento y Análisis de paradas (solo lectura)'},
+  {key:'ver_banco_paradas',area:'mantenimiento',label:'VER el Banco de paradas por clasificar (solo lectura; también lee la bitácora de paradas. Reclasificar lo hacen el Supervisor de Mantenimiento y el Administrador)'},
   {key:'completar_motivo_parada',area:'mantenimiento',label:'Completar el motivo de paradas pendientes (necesita ver la bitácora)'},
   {key:'editar_salida_maquinistas',area:'mantenimiento',label:'Editar SOLO la hora de salida de maquinistas (con motivo; no cambia asistencia ni refrigerio)'},
   {key:'moduloRRHH',area:'rrhh',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},

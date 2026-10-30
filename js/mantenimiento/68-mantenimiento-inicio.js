@@ -23,6 +23,7 @@
     {titulo:'Análisis',subtitulo:'Para entender dónde se pierde tiempo.',color:'#7a3fb0',tarjetas:[
       {boton:'btn-analisis-paradas',icono:'📊',titulo:'Análisis de paradas',desc:'Qué causas y qué equipos paran más las líneas, con minutos y unidades perdidas.',abrir:()=>window.goAnalisisParadas&&window.goAnalisisParadas()},
       {boton:'btn-intervenciones',icono:'⏱',titulo:'Indicadores por equipo',desc:'Tiempo medio de reparación (MTTR) y entre fallas (MTBF) de cada máquina.',abrir:()=>window.intervencionesAbrir&&window.intervencionesAbrir({tab:'indicadores'})},
+      {boton:'btn-intervenciones',icono:'🗄️',titulo:'Banco de paradas',desc:'Paradas sin clasificar y ya reclasificadas, en una lista para consultar y descargar.',abrir:()=>window.intervencionesAbrir&&window.intervencionesAbrir({tab:'banco-paradas'})},
       {boton:'btn-intervenciones',icono:'🔁',titulo:'Reclasificar paradas',desc:'Corregir la causa o el equipo de una parada ya registrada.',abrir:()=>window.intervencionesAbrir&&window.intervencionesAbrir({tab:'reclasificar'})}
     ]},
     {titulo:'Máquinas y datos de referencia',subtitulo:'Lo que se configura pocas veces y alimenta el resto del sistema.',color:'#1a7f4b',tarjetas:[
