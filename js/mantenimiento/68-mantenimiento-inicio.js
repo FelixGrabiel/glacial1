@@ -37,6 +37,13 @@
   const botonesDelGrupo=()=>['btn-intervenciones','btn-bitacora-mtto','btn-analisis-paradas','btn-velocidades','btn-productos-parametros','btn-mantenimiento'];
   const hayAcceso=()=>botonesDelGrupo().some(visible);
 
+  /* El menú lateral de Mantenimiento muestra solo «Inicio»: lo demás se abre desde las tarjetas. Los botones siguen existiendo (ocultos por CSS) porque su visibilidad decide qué tarjetas se ven. */
+  if(!document.getElementById('mi-menu-css')){
+    const m=document.createElement('style');m.id='mi-menu-css';
+    m.textContent='#sidebar-panel-mantenimiento .sidebar-subaction:not(#btn-mant-inicio){display:none!important}';
+    document.head.appendChild(m);
+  }
+
   function estilos(){
     if(document.getElementById('mi-inicio-css'))return;
     const s=document.createElement('style');s.id='mi-inicio-css';
