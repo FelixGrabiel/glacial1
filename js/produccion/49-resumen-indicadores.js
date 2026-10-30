@@ -640,7 +640,7 @@
     ['Merma','Suma de las mermas ÷ producción efectiva (una sola fórmula en toda la pantalla).'],
     ['Cumplimiento','Producido ÷ programado, con la misma ventana de fechas y sin programaciones canceladas.'],
     ['Rendimiento','Ratio ÷ velocidad estándar. Si pasa de 100 %, se muestra el aviso «revisar velocidad estándar».'],
-    ['OEE','Disponibilidad × rendimiento. Solo se calcula si el producto tiene velocidad estándar.'],
+    ['OEE','Disponibilidad × rendimiento × calidad (las botellas no conformes ya están descontadas de la producción de este resumen). Solo se calcula si el producto tiene velocidad estándar.'],
     ['Fuente de los datos','Día en curso: semáforo en vivo. Turnos anteriores: registro del turno; si difiere de Paletas o de la bitácora en más de 2 % se avisa.'],
     ['Periodo anterior','Día contra el día anterior; 7, 30 y 90 días contra los mismos días inmediatamente anteriores; rango contra el rango previo de igual duración.']
   ];

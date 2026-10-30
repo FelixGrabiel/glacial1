@@ -16,7 +16,8 @@
      Tiempo planificado = duración de la programación − paradas programadas
      Disponibilidad  = (tiempo planificado − paradas no programadas) ÷ tiempo planificado
      Rendimiento     = ratio ÷ velocidad estándar (la de sync/configIndicadores)
-     OEE             = disponibilidad × rendimiento   (solo con velocidad estándar)
+     Calidad         = botellas conformes ÷ botellas sopladas (solo donde se registran sopladas)
+     OEE             = disponibilidad × rendimiento × calidad   (solo con velocidad estándar; sin sopladas, disponibilidad × rendimiento)
      Merma           = suma de mermas ÷ producción efectiva (con desglose por componente)
      Cumplimiento    = producido ÷ programado
         · Programado: la programación vigente, sin las canceladas.
@@ -71,10 +72,23 @@
   }
   const rendimientoARevisar=r=>esNum(r)&&r>1;
 
-  /* OEE = disponibilidad × rendimiento. Sin alguno de los dos (sin velocidad estándar) no se calcula. */
-  function oee(disp,rend){
+  /* CALIDAD = piezas buenas ÷ piezas producidas (fracción, máx. 1). Buenas = producción efectiva (conformes); producidas = sopladas.
+     Solo se mide donde se registran sopladas (PET 1 y PET 2); sin sopladas no hay dato y devuelve null (no se inventa un 100 %). */
+  function calidad(buenas,producidas){
+    if(!(num(producidas)>0))return null;
+    return Math.min(num(buenas)/num(producidas),1);
+  }
+  /* Piezas producidas para el rendimiento: las sopladas si hay (si las conformes las superan, el dato está mal y se usan las conformes);
+     sin sopladas, las conformes. Así Rendimiento × Calidad = conformes ÷ producción nominal: las malas se descuentan UNA sola vez. */
+  function unidadesProducidas(buenas,sopladas){
+    return num(sopladas)>0?Math.max(num(sopladas),num(buenas)):num(buenas);
+  }
+
+  /* OEE = disponibilidad × rendimiento × calidad. La calidad es opcional: sin ella (línea sin sopladas) el OEE es disponibilidad × rendimiento.
+     Sin disponibilidad o sin rendimiento (sin velocidad estándar) no se calcula. */
+  function oee(disp,rend,cal){
     if(!esNum(disp)||!esNum(rend))return null;
-    return disp*rend;
+    return disp*rend*(esNum(cal)?cal:1);
   }
 
   /* ---------------------------------------------------------
@@ -166,6 +180,7 @@
     ratio:{verde:95,ambar:85},               // % de la velocidad estándar
     disponibilidad:{verde:90,ambar:80},
     merma:{verde:2,ambar:3},                 // máximo aceptable (%)
+    calidad:{verde:98,ambar:95},             // botellas conformes ÷ sopladas (%)
     oee:{verde:85,ambar:75}
   });
   const INDICADORES_MENOR=['merma'];
@@ -308,7 +323,7 @@
      --------------------------------------------------------- */
   function resumenIndicadores(partes){
     let prod=0,progU=0,prodU=0,mermas=0,disponibleMin=0,planMin=0,prodConTiempo=0,npMin=0,progMin=0,durMin=0;
-    let standar=0,dispV=0,planV=0,prodV=0,prodConT=0;
+    let standar=0,dispV=0,planV=0,prodV=0,prodTotV=0,prodConT=0,calBuenas=0,calTotal=0;
     const faltantes=[];
     (Array.isArray(partes)?partes:[]).forEach(p=>{
       if(!p)return;
@@ -319,25 +334,27 @@
       const disp=Math.max(0,plan-np);                       // minutos en marcha
       const pd=num(p.producido);
       prod+=pd;mermas+=num(p.mermaTotal);
+      if(num(p.sopladas)>0){calBuenas+=Math.min(pd,num(p.sopladas));calTotal+=num(p.sopladas);}
       if(p.programacionVigente){progU+=num(p.programado);prodU+=pd;}
       npMin+=np;progMin+=pr;durMin+=dur;
       if(plan>0)planMin+=plan;
       if(disp>0){
         disponibleMin+=disp;prodConTiempo+=pd;prodConT+=pd;
         const v=num(p.velocidad);
-        if(v>0){standar+=disp/60*v;dispV+=disp;planV+=plan;prodV+=pd;}
+        if(v>0){standar+=disp/60*v;dispV+=disp;planV+=plan;prodV+=pd;prodTotV+=unidadesProducidas(pd,p.sopladas);}
         else if(pd>0)faltantes.push(p.etiqueta||'(sin nombre)');
       }
     });
     const horas=disponibleMin/60;
     const disp=planMin>0?disponibleMin/planMin:null;
-    const rend=standar>0?prodV/standar:null;
+    const rend=standar>0?prodTotV/standar:null;          // con las sopladas si las hay
+    const rendConf=standar>0?prodV/standar:null;         // con las conformes: Rendimiento × Calidad = esto
     const dispConVel=planV>0?dispV/planV:null;
     return {
       produccion:prod,programado:progU,producidoConProgramacion:prodU,cumplimiento:cumplimiento(prodU,progU),
       horasEfectivas:horas,ratio:ratio(prodConTiempo,horas),disponibilidad:disp,
       merma:merma(mermas,prod),sumaMermas:mermas,
-      rendimiento:rend,oee:oee(dispConVel,rend),
+      rendimiento:rend,calidad:calidad(calBuenas,calTotal),oee:oee(dispConVel,rendConf),
       coberturaVelocidad:prodConT>0?prodV/prodConT:null,faltantesVelocidad:[...new Set(faltantes)],
       paradasNoProgramadasMin:npMin,paradasProgramadasMin:progMin,planificadoMin:planMin,transcurridoMin:durMin
     };
@@ -645,7 +662,8 @@
     ['Tiempo planificado','Duración de la programación − paradas programadas.'],
     ['Disponibilidad','(Tiempo planificado − paradas no programadas) ÷ tiempo planificado.'],
     ['Rendimiento','Ratio ÷ velocidad estándar (la de la tabla de velocidades). Si pasa de 100 %, se muestra «revisar velocidad estándar».'],
-    ['OEE','Disponibilidad × rendimiento. Solo se calcula si el producto tiene velocidad estándar.'],
+    ['OEE','Disponibilidad × rendimiento × calidad. Solo se calcula si el producto tiene velocidad estándar; donde no se registran sopladas es disponibilidad × rendimiento.'],
+    ['Calidad','Botellas conformes ÷ botellas sopladas. Solo se mide donde se registran sopladas (PET 1 y PET 2).'],
     ['Merma','Suma de mermas ÷ producción efectiva, con desglose por componente (cada uno en su unidad).'],
     ['Cumplimiento','Producido ÷ programado. Programado: la programación vigente, sin las canceladas. Producido: en el turno en curso, lo registrado en Paletas; en turnos cerrados, el registro del turno.'],
     ['Estado de línea','El del semáforo: detenida, en curso, pausa, pendiente, completada o cancelada, por prioridad.'],
@@ -654,7 +672,7 @@
   ]);
 
   const API=Object.freeze({
-    horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,oee,
+    horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,calidad,unidadesProducidas,oee,
     merma,componenteMerma,desgloseMerma,ORDEN_COMPONENTES,
     cumplimiento,programadoVigente,produccionVigente,
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,

@@ -60,10 +60,13 @@ function calcDerivedLegacy(r){
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
   /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. */
   const conVelocidad = produccionNominal > 0;
-  const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(efectiva, horasEfectivas), ratio);
+  /* Rendimiento con las botellas producidas (sopladas, si hay); Calidad = conformes ÷ sopladas; OEE = Disp × Rend × Calidad (= Disp × conformes ÷ nominal). */
+  const producidas = GlacialIndicadores.unidadesProducidas(efectiva, sopladas);
+  const calidad = GlacialIndicadores.calidad(efectiva, sopladas);
+  const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(producidas, horasEfectivas), ratio);
   const rendimiento = rendimientoReal ?? 0;
 
-  const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal) ?? 0;
+  const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal, calidad) ?? 0;
   const planMinVel = conVelocidad ? planificadoH * 60 : 0;
   const npMinVel = conVelocidad ? pNoProg * 60 : 0;
   const efectivaVel = conVelocidad ? efectiva : 0;
@@ -84,7 +87,11 @@ function calcDerivedLegacy(r){
     ratioEfectivo,
     pProg,
     pNoProg,
-    conVelocidad, planMinVel, npMinVel, efectivaVel
+    calidad,
+    conVelocidad, planMinVel, npMinVel, efectivaVel,
+    producidasVel: conVelocidad ? producidas : 0,
+    buenasCal: sopladas > 0 ? Math.min(efectiva, sopladas) : 0,
+    totalCal: sopladas > 0 ? sopladas : 0
   };
 }
 
@@ -107,10 +114,13 @@ function calcDerivedCuadro(cuadro){
   const disponibilidad = GlacialIndicadores.disponibilidad(planificadoH * 60, pNoProg * 60) ?? 0;
   /* Rendimiento = ratio ÷ velocidad estándar (sin tope); OEE = disponibilidad × rendimiento, solo con velocidad. */
   const conVelocidad = produccionNominal > 0;
-  const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(efectiva, horasEfectivas), ratio);
+  /* Rendimiento con las botellas producidas (sopladas, si hay); Calidad = conformes ÷ sopladas; OEE = Disp × Rend × Calidad (= Disp × conformes ÷ nominal). */
+  const producidas = GlacialIndicadores.unidadesProducidas(efectiva, sopladas);
+  const calidad = GlacialIndicadores.calidad(efectiva, sopladas);
+  const rendimientoReal = GlacialIndicadores.rendimiento(GlacialIndicadores.ratio(producidas, horasEfectivas), ratio);
   const rendimiento = rendimientoReal ?? 0;
 
-  const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal) ?? 0;
+  const oee = GlacialIndicadores.oee(disponibilidad, rendimientoReal, calidad) ?? 0;
   const planMinVel = conVelocidad ? planificadoH * 60 : 0;
   const npMinVel = conVelocidad ? pNoProg * 60 : 0;
   const efectivaVel = conVelocidad ? efectiva : 0;
@@ -131,7 +141,11 @@ function calcDerivedCuadro(cuadro){
     ratioEfectivo,
     pProg,
     pNoProg,
-    conVelocidad, planMinVel, npMinVel, efectivaVel
+    calidad,
+    conVelocidad, planMinVel, npMinVel, efectivaVel,
+    producidasVel: conVelocidad ? producidas : 0,
+    buenasCal: sopladas > 0 ? Math.min(efectiva, sopladas) : 0,
+    totalCal: sopladas > 0 ? sopladas : 0
   };
 }
 
@@ -158,10 +172,15 @@ function calcDerivedMulti(r){
   const planMinVel = ds.reduce((a,d) => a + num(d.planMinVel), 0);
   const npMinVel = ds.reduce((a,d) => a + num(d.npMinVel), 0);
   const efectivaVel = ds.reduce((a,d) => a + num(d.efectivaVel), 0);
-  const rendimientoReal = produccionNominal > 0 ? GlacialIndicadores.rendimiento(efectivaVel, produccionNominal) : null;
+  const producidasVel = ds.reduce((a,d) => a + num(d.producidasVel), 0);
+  const buenasCal = ds.reduce((a,d) => a + num(d.buenasCal), 0);
+  const totalCal = ds.reduce((a,d) => a + num(d.totalCal), 0);
+  const calidad = GlacialIndicadores.calidad(buenasCal, totalCal);
+  const rendimientoReal = produccionNominal > 0 ? GlacialIndicadores.rendimiento(producidasVel, produccionNominal) : null;
   const rendimiento = rendimientoReal ?? 0;
-
-  const oee = GlacialIndicadores.oee(GlacialIndicadores.disponibilidad(planMinVel, npMinVel), rendimientoReal) ?? 0;
+  /* OEE = Disp × (conformes ÷ nominal) = Disp × Rendimiento × Calidad cuando todo lo del registro tiene sopladas. */
+  const rendConformes = produccionNominal > 0 ? GlacialIndicadores.rendimiento(efectivaVel, produccionNominal) : null;
+  const oee = GlacialIndicadores.oee(GlacialIndicadores.disponibilidad(planMinVel, npMinVel), rendConformes) ?? 0;
   const cumplimiento = GlacialIndicadores.cumplimiento(efectiva, programada) ?? 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
@@ -183,7 +202,8 @@ function calcDerivedMulti(r){
     efectiva,
     programada,
     sopladas,
-    planMinVel, npMinVel, efectivaVel,
+    calidad,
+    planMinVel, npMinVel, efectivaVel, producidasVel, buenasCal, totalCal,
     cuadros: ds
   };
 }
@@ -193,11 +213,13 @@ function calcDerivedMulti(r){
 function glacialAgregarDerivados(lista){
   const s = c => lista.reduce((a,d) => a + num(d[c]), 0);
   const nominal = s('produccionNominal');
-  const rend = nominal > 0 ? GlacialIndicadores.rendimiento(s('efectivaVel'), nominal) : null;
+  const rend = nominal > 0 ? GlacialIndicadores.rendimiento(s('producidasVel'), nominal) : null;
+  const rendConformes = nominal > 0 ? GlacialIndicadores.rendimiento(s('efectivaVel'), nominal) : null;
   const disp = GlacialIndicadores.disponibilidad(s('planMinVel'), s('npMinVel'));
   return {
     rendimiento: rend ?? 0,
-    oee: GlacialIndicadores.oee(disp, rend) ?? 0,
+    calidad: GlacialIndicadores.calidad(s('buenasCal'), s('totalCal')),
+    oee: GlacialIndicadores.oee(disp, rendConformes) ?? 0,
     aRevisar: GlacialIndicadores.rendimientoARevisar(rend)
   };
 }

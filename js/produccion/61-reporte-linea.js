@@ -70,7 +70,7 @@
         rend=GlacialIndicadores.rendimiento(l.ratio,velPond);velOk=rend!==null;
       }
     }
-    const oee=GlacialIndicadores.oee(disp,rend);
+    const oee=GlacialIndicadores.oee(disp,rend);   // el reporte de línea no trae sopladas: disp. × rend. (la Calidad se ve en el registro del turno)
     const metas=typeof window.glacialMetasIndicadores==='function'?window.glacialMetasIndicadores():GlacialIndicadores.METAS_INICIALES;
     const col=(n,v)=>GlacialIndicadores.colorIndicador(n,v,metas);
     return {
