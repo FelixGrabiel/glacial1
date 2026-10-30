@@ -29,6 +29,14 @@ const rep=(o={})=>Object.assign({id:'r1',linea:'PET1',fecha:'2026-10-28',turno:'
   const r=rep({id:'n1',turno:'NOCHE',fecha:'2026-10-28'});
   ok(I.reportesSinFinalizar([r],L(2026,10,29,8,59)).length===0&&I.reportesSinFinalizar([r],L(2026,10,29,9,0)).length===1,'turno NOCHE: el bloque termina a las 07:00 del día siguiente');
 }
+/* Borrador viejo de un turno que ya tiene su reporte FINALIZADO: quedó reemplazado */
+{
+  const n=L(2026,10,30,12,0);
+  const borrador=rep({id:'b1',fecha:'2026-10-28'}),final=rep({id:'f1',fecha:'2026-10-28',estadoRegistro:'FINALIZADO'});
+  ok(I.reportesSinFinalizar([borrador,final],n).length===0,'un borrador del mismo turno (línea, fecha y turno) con otro reporte FINALIZADO ya no avisa');
+  ok(I.reportesSinFinalizar([borrador,rep({id:'f2',linea:'PET2',fecha:'2026-10-28',estadoRegistro:'FINALIZADO'})],n).length===1,'otro turno u otra línea finalizada no tapa al borrador');
+  ok(I.reportesSinFinalizar([rep({id:'r9',estadoRegistro:'REABIERTO',fecha:'2026-10-28'}),rep({id:'r9',estadoRegistro:'FINALIZADO',fecha:'2026-10-28'})],n).length===1,'el mismo registro no se tapa a sí mismo');
+}
 /* Lo que no debe avisar */
 {
   const n=L(2026,10,30,12,0);

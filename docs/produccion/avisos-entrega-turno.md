@@ -9,3 +9,5 @@
 **Bot:** `window.glacialAvisos.pendientesEntrega()` devuelve `{items, total, mensaje}` con el texto listo para WhatsApp («⚠️ FALTA ENTREGAR EL TURNO …»). No avisa mientras la lista de entregas no ha cargado (no hay falsos avisos). El bot se conecta más adelante.
 
 Código: núcleo `entregasPendientes` en `js/nucleo/45-indicadores.js`; conexión en `js/produccion/46-proyeccion-avisos.js`. Prueba: `tests/avisos-entrega.test.js`.
+
+**Fecha de inicio:** el aviso solo cuenta los turnos desde el **31/10/2026** (`ENTREGA_DESDE` en `46-proyeccion-avisos.js`); los anteriores nunca tuvieron entrega y no se avisan. Para cambiarla basta guardar `entregaDesde = 'AAAA-MM-DD'` en `sync/configAlertas`.
