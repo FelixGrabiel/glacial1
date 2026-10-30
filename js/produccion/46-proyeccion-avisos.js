@@ -9,6 +9,7 @@
        c) Proyección realista < N % pasada la mitad del turno (proyeccionAlertaPct, 90)
        d) Programación sin iniciar N min después del inicio del turno (noIniciadaMin, 15)
        e) Tareo con pendientes que se bloquea en menos de N min (tareoBloqueoMin, 30)
+       h) Reporte de producción sin finalizar N min después de terminar su bloque (finalizarGraciaMin, 120), hasta N días atrás (finalizarDiasMax, 7)
    · Cada aviso desaparece solo cuando la condición se resuelve. «Visto» se guarda en el dispositivo.
    · Cada rol ve lo suyo (ver ambito()). La cuenta compartida de Mantenimiento solo ve paradas.
    · Umbrales: sync/configAlertas, escuchado en vivo; se editan con una transacción que cambia SOLO los
@@ -20,7 +21,7 @@
 
   const DEFECTOS={
     paradaMin:30,sinRegistroMin:60,proyeccionAlertaPct:90,noIniciadaMin:15,tareoBloqueoMin:30,
-    proyeccionVerdePct:100,proyeccionAmbarPct:90
+    proyeccionVerdePct:100,proyeccionAmbarPct:90,finalizarGraciaMin:120,finalizarDiasMax:7
   };
   const ETIQUETAS=[
     ['paradaMin','Parada abierta más de (min)',1,1440],
@@ -29,10 +30,12 @@
     ['noIniciadaMin','Programación sin iniciar tras el inicio del turno (min)',1,1440],
     ['tareoBloqueoMin','Tareo con pendientes que se bloquea en menos de (min)',1,1440],
     ['proyeccionVerdePct','Proyección en verde desde (%)',1,300],
-    ['proyeccionAmbarPct','Proyección en ámbar desde (%)',1,300]
+    ['proyeccionAmbarPct','Proyección en ámbar desde (%)',1,300],
+    ['finalizarGraciaMin','Reporte sin finalizar: avisar tras terminar el bloque (min)',1,1440],
+    ['finalizarDiasMax','Reporte sin finalizar: avisar hasta (días atrás)',1,60]
   ];
   const JEFATURA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];   // = reglas etapa 2
-  const TODOS=['parada','paletas','proyeccion','noiniciada','tareo'];
+  const TODOS=['parada','paletas','proyeccion','noiniciada','tareo','finalizar'];
   const MS_MIN=60000;
 
   const ahora=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
@@ -144,6 +147,15 @@
     return {sinEstado,sinSalida,total:sinEstado+sinSalida};
   }
 
+  /* Reportes sin finalizar de TODAS las líneas, sin filtrar por quién mira (la página y el bot usan este mismo cálculo).
+     opciones.linea limita a una línea. Devuelve {generadoEn,total,items[{…,texto}],mensaje}; `mensaje` es el texto listo para WhatsApp. */
+  function pendientesFinalizar(opciones){
+    const cfg=config();
+    let regs=[];try{regs=loadRecords()||[];}catch(_){regs=[];}
+    let bloques=null;try{bloques=typeof window.glacialConfigIndicadores==='function'?(window.glacialConfigIndicadores()||{}).bloques:null;}catch(_){bloques=null;}
+    const lista=GlacialIndicadores.reportesSinFinalizar(regs,ahora(),bloques,{graciaMin:cfg.finalizarGraciaMin,diasMax:cfg.finalizarDiasMax,linea:opciones&&opciones.linea});
+    return {generadoEn:ahora(),total:lista.length,items:lista.map(x=>Object.assign({},x,{texto:GlacialIndicadores.textoReporteSinFinalizar(x),textoCorto:GlacialIndicadores.textoReporteSinFinalizar(x,true)})),mensaje:GlacialIndicadores.mensajeReportesSinFinalizar(lista)};
+  }
   function calcular(){
     const a=ambito();
     if(!a)return [];
@@ -236,6 +248,14 @@
       });
     }
 
+    /* h) reportes de producción sin finalizar (bloques ya terminados): para supervisores de la línea, Jefatura y Administrador. El mismo cálculo lo usa el bot (pendientesFinalizar). */
+    if(a.tipos.includes('finalizar')){
+      pendientesFinalizar().items.forEach(x=>{
+        if(!enAmbito(a,x.linea))return;
+        add('fin|'+x.id,'finalizar',x.linea,x.textoCorto,x.finMs+cfg.finalizarGraciaMin*MS_MIN,{severidad:x.nivel,fecha:x.fecha,turno:x.turno,registroId:x.id});
+      });
+    }
+
     /* f) solicitudes de programación (54-planificacion-solicitudes.js): pendientes para quien planifica, resultado para quien las pidió */
     if(window.glacialPlanificacion&&typeof window.glacialPlanificacion.avisos==='function'){
       try{window.glacialPlanificacion.avisos().forEach(x=>add(x.id,x.tipo||'solicitud',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar',fecha:x.fecha||'',bloque:x.bloque||''}));}catch(_){/* informativo */}
@@ -269,6 +289,7 @@
         if(typeof goTareo==='function')goTareo();
         return;
       }
+      if(x.tipo==='finalizar'){if(x.registroId&&typeof cargarReporteParaCorreccion==='function'){cargarReporteParaCorreccion(x.registroId);}else if(typeof goHistorial==='function'){goHistorial();}return;}
       if(x.tipo==='mant'){if(typeof window.intervencionesAbrir==='function')window.intervencionesAbrir({tab:x.tab||'intervenciones',abrir:x.abrir||undefined});return;}
       if(x.tipo==='plan'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion&&window.glacialPlanificacion.irAProgramacion)window.glacialPlanificacion.irAProgramacion(x.fecha,x.bloque);}return;}
       if(x.tipo==='solicitud'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion)window.glacialPlanificacion.irASolicitudes();}return;}
@@ -426,5 +447,5 @@
   }
 
   window.glacialAvisos={puede,ambito,listar:calcular,visto:marcarVisto,ir,puedeConfigurar,abrirConfig,
-    recalcular,escucharConfig,defectos:DEFECTOS};
+    recalcular,escucharConfig,defectos:DEFECTOS,pendientesFinalizar};
 })();

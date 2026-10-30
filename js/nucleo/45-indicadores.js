@@ -593,6 +593,50 @@
   }
 
   /* ---------------------------------------------------------
+     REPORTES SIN FINALIZAR (aviso para supervisores y base de los mensajes del bot)
+     Un reporte «EN_REGISTRO» o «REABIERTO» con producción cuyo bloque (Día + Intermedio / Noche) ya terminó hace más de `graciaMin`
+     minutos (120 por defecto) está atrasado. Los de hace más de `diasMax` días (7 por defecto) ya no se avisan: son historia, no una tarea del
+     turno. Un borrador sin producción (nada que finalizar) no cuenta. Es una función pura: recibe los reportes y la hora, no lee la pantalla.
+     Devuelve [{id,linea,fecha,turno,estadoRegistro,cuadros,sinFinalizar,finMs,atrasoMin,nivel}] del más atrasado al menos atrasado.
+     nivel: 'roja' desde 24 h de atraso, 'ambar' antes.
+     --------------------------------------------------------- */
+  function reportesSinFinalizar(registros,ahoraMs,cfgBloques,opciones){
+    const o=opciones||{},gracia=num(o.graciaMin)>0?num(o.graciaMin):120,diasMax=num(o.diasMax)>0?num(o.diasMax):7,ahora=Number(ahoraMs);
+    if(!Number.isFinite(ahora))return [];
+    const res=[];
+    (Array.isArray(registros)?registros:[]).forEach(r=>{
+      if(!r||!['EN_REGISTRO','REABIERTO'].includes(String(r.estadoRegistro||'')))return;
+      if(o.linea&&r.linea!==o.linea)return;
+      const cuadros=(Array.isArray(r.cuadros)?r.cuadros:[]).filter(c=>c&&String(c.marca||'').trim()&&(num(c.produccion&&c.produccion.efectiva)>0||num(c.produccion&&c.produccion.sopladas)>0));
+      if(!cuadros.length)return;
+      const h=horarioBloque(r.fecha,r.turno,cfgBloques);
+      if(!h)return;
+      const atrasoMin=(ahora-h.fin)/60000;
+      if(atrasoMin<gracia||atrasoMin>diasMax*1440)return;
+      res.push({id:String(r.id||''),linea:r.linea,fecha:r.fecha,turno:r.turno,estadoRegistro:r.estadoRegistro,cuadros:cuadros.length,
+        sinFinalizar:cuadros.filter(c=>c.estadoCuadro!=='FINALIZADO').length,finMs:h.fin,atrasoMin:Math.round(atrasoMin),nivel:atrasoMin>=1440?'roja':'ambar'});
+    });
+    return res.sort((x,y)=>y.atrasoMin-x.atrasoMin||String(x.linea).localeCompare(String(y.linea)));
+  }
+  function textoAtraso(min){
+    const m=Math.max(0,Math.round(num(min)));
+    if(m>=1440)return Math.floor(m/1440)+' d '+Math.floor((m%1440)/60)+' h';
+    return m>=60?Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min':m+' min';
+  }
+  const ddmm=f=>{const m=String(f||'').match(/^\d{4}-(\d{2})-(\d{2})/);return m?m[2]+'/'+m[1]:String(f||'');};
+  /* Texto de un aviso (pantalla y bot): una sola redacción para los dos. */
+  function textoReporteSinFinalizar(x,sinLinea){
+    const turno=nombreBloque(x.turno,'reporte');
+    return (sinLinea?'':x.linea+' · ')+turno+' '+ddmm(x.fecha)+': reporte sin finalizar ('+x.sinFinalizar+' de '+x.cuadros+(x.cuadros===1?' cuadro':' cuadros')+' sin finalizar) · hace '+textoAtraso(x.atrasoMin);
+  }
+  /* Mensaje listo para WhatsApp con todos los pendientes; vacío si no hay ninguno. */
+  function mensajeReportesSinFinalizar(lista){
+    const l=Array.isArray(lista)?lista:[];
+    if(!l.length)return '';
+    return '⚠️ *REPORTES SIN FINALIZAR*\n'+l.map(x=>'• '+textoReporteSinFinalizar(x)).join('\n')+'\nFinalícenlos en GLACIAL: Historial › Continuar reporte.';
+  }
+
+  /* ---------------------------------------------------------
      DEFINICIONES PARA «¿CÓMO SE CALCULA?» (las mismas que este archivo)
      --------------------------------------------------------- */
   const DEFINICIONES=Object.freeze([
@@ -617,7 +661,8 @@
     turnoVigente,diaOperativo,horarioTurno,HORARIOS_TURNO,
     BLOQUES_INICIALES,NOMBRES_TURNO,nombreBloque,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
     estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,desgloseLineaPorMarca,produccionPlanYFuera,
-    resumenIndicadores,DEFINICIONES,LINEAS_CON_SOPLADAS,faltaSopladas
+    resumenIndicadores,DEFINICIONES,LINEAS_CON_SOPLADAS,faltaSopladas,
+    reportesSinFinalizar,textoReporteSinFinalizar,mensajeReportesSinFinalizar
   });
 
   raiz.GlacialIndicadores=API;
