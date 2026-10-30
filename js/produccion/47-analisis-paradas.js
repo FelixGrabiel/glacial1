@@ -95,7 +95,7 @@
   const velocidadDe=(linea,pres)=>velocidades()[normVel(claveVel(linea,pres))]||
     (typeof window.glacialVelocidadEstandar==='function'?window.glacialVelocidadEstandar(linea,pres,''):0)||0;
   // bloques: horarios de los bloques productivos y pausas previstas (la proyección de cierre los lee con GlacialIndicadores.normalizarBloques).
-  window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{}),metasReporte:Object.assign({},remota.metasReporte||{}),bloques:remota.bloques&&typeof remota.bloques==='object'?JSON.parse(JSON.stringify(remota.bloques)):undefined});
+  window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{}),velocidadesVigencia:JSON.parse(JSON.stringify(remota.velocidadesVigencia||{})),velocidadesHistorial:JSON.parse(JSON.stringify(remota.velocidadesHistorial||{})),metasReporte:Object.assign({},remota.metasReporte||{}),bloques:remota.bloques&&typeof remota.bloques==='object'?JSON.parse(JSON.stringify(remota.bloques)):undefined});
   window.glacialConfigIndicadoresOyentes=window.glacialConfigIndicadoresOyentes||[];
   const nivelDisp=p=>{
     const m=metas();
@@ -866,7 +866,7 @@
     if(!puedeConfigurar()){alert('Solo el Administrador o Jefatura pueden cambiar las metas y velocidades.');return;}
     escucharConfig();
     const m=metas(),vel=remota.velocidades||{};
-    const formatos=formatosConocidos();
+    const formatos=[];
     const fondo=document.createElement('div');
     fondo.style.cssText='position:fixed;inset:0;background:rgba(10,30,50,.6);display:flex;align-items:center;justify-content:center;z-index:10060;padding:16px;';
     const valorActual=(l,p)=>{const k=normVel(claveVel(l,p));const e=Object.entries(vel).find(([kk])=>normVel(kk)===k);return e?e[1]:'';};
@@ -875,14 +875,15 @@
       '<p class="small-muted" style="margin:0 0 10px">Se ven en todos los dispositivos en segundos. Solo se guardan los campos que cambies.</p>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><label style="flex:1;font-size:13px">Verde desde (%)<input type="number" data-meta="verdePct" min="1" max="100" value="'+m.verdePct+'" style="display:block;width:100%;padding:6px"></label>'+
       '<label style="flex:1;font-size:13px">Ámbar desde (%)<input type="number" data-meta="ambarPct" min="1" max="100" value="'+m.ambarPct+'" style="display:block;width:100%;padding:6px"></label></div>'+
-      '<h4 style="margin:12px 0 4px">Velocidad estándar (UND/h) por línea y formato</h4>'+
-      '<table style="width:100%;font-size:13px"><thead><tr><th align="left">Línea</th><th align="left">Formato (presentación)</th><th align="left">UND/h</th></tr></thead><tbody>'+
-      formatos.map(f=>'<tr><td>'+esc(nombreLinea(f.linea))+'</td><td>'+esc(f.pres)+'</td><td><input type="number" min="0" data-vel="'+esc(claveVel(f.linea,f.pres))+'" data-orig="'+esc(valorActual(f.linea,f.pres))+'" value="'+esc(valorActual(f.linea,f.pres))+'" placeholder="'+esc(typeof window.glacialVelocidadCatalogo==='function'&&window.glacialVelocidadCatalogo(f.linea,f.pres,'')>0?'catálogo: '+window.glacialVelocidadCatalogo(f.linea,f.pres,''):'sin definir')+'" style="width:110px;padding:4px"></td></tr>').join('')+'</tbody></table>'+
+      '<h4 style="margin:12px 0 4px">Velocidad estándar (UND/h)</h4>'+
+      '<p class="small-muted" style="margin:0 0 8px">La velocidad estándar de cada línea y formato ya no se cambia aquí: la administra Mantenimiento en <b>Mantenimiento › Velocidades estándar</b>, donde queda el historial de cambios.</p>'+
+      '<button type="button" class="btn btn-ghost btn-sm" data-cfg-ir-velocidades>Ir a Velocidades estándar</button>'+
       '<div data-cfg-error style="color:#c62828;font-size:12px;min-height:16px;margin-top:6px"></div>'+
       '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" class="btn btn-ghost" data-cfg-x>Cancelar</button><button type="button" class="btn btn-primary" data-cfg-ok>Guardar</button></div></div>';
     document.body.appendChild(fondo);
     const err=t=>{const e=fondo.querySelector('[data-cfg-error]');if(e)e.textContent=t;};
     fondo.querySelector('[data-cfg-x]').onclick=()=>fondo.remove();
+    fondo.querySelector('[data-cfg-ir-velocidades]').onclick=()=>{fondo.remove();if(typeof window.goVelocidadesEstandar==='function')window.goVelocidadesEstandar();};
     fondo.querySelector('[data-cfg-ok]').onclick=async()=>{
       const metasNuevas={},velNuevas={};
       const mv=Number(fondo.querySelector('[data-meta="verdePct"]').value),ma=Number(fondo.querySelector('[data-meta="ambarPct"]').value);

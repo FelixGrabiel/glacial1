@@ -3103,25 +3103,33 @@
                                 <span class="sidebar-chevron" aria-hidden="true">⌃</span>
                             </button>
                             <div class="sidebar-group-panel" id="sidebar-panel-mantenimiento" hidden>
-                                <button type="button" class="side-action sidebar-subaction" id="btn-mantenimiento"
-                                        onclick="goMantenimiento()" style="display:none">
-                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Tareo de mantenimiento</span>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-mant-inicio"
+                                        onclick="goMantenimientoInicio()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Inicio de Mantenimiento</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-intervenciones"
+                                        onclick="goIntervenciones()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Intervenciones y equipos</span>
                                 </button>
                                 <button type="button" class="side-action sidebar-subaction" id="btn-bitacora-mtto"
                                         onclick="goBitacoraMtto()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Bitácora de Mantenimiento</span>
                                 </button>
-                                <button type="button" class="side-action sidebar-subaction" id="btn-intervenciones"
-                                        onclick="goIntervenciones()" style="display:none">
-                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Intervenciones</span>
-                                </button>
                                 <button type="button" class="side-action sidebar-subaction" id="btn-analisis-paradas"
                                         onclick="goAnalisisParadas()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Análisis de paradas</span>
                                 </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-velocidades"
+                                        onclick="goVelocidadesEstandar()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Velocidades estándar</span>
+                                </button>
                                 <button type="button" class="side-action sidebar-subaction" id="btn-productos-parametros"
                                         onclick="goProductosParametros()" hidden style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Productos y parámetros</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-mantenimiento"
+                                        onclick="goMantenimiento()" style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Tareo de mantenimiento</span>
                                 </button>
                             </div>
                         </section>
@@ -3370,12 +3378,13 @@
     <script src="js/nucleo/01-config.js?v=20261023-td2"></script>
     <script src="js/nucleo/01b-fecha-operativa.js?v=20261018-fe1"></script>
     <script src="js/nucleo/45-indicadores.js?v=20261030-fe2"></script>
+    <script src="js/nucleo/45b-velocidades-vigencia.js?v=20261030-ve1"></script>
 
     <script src="js/nucleo/02-estado.js?v=20261023-rg1"></script>
 
     <script src="js/accesos/03-auth.js?v=20261023-lg2"></script>
 
-    <script src="js/nucleo/04-sidebar.js?v=20261019-ov1"></script>
+    <script src="js/nucleo/04-sidebar.js?v=20261030-mi1"></script>
 
     <script src="js/nucleo/05-utils.js?v=20261015-fc1"></script>
 
@@ -3457,10 +3466,10 @@
     <script src="js/nucleo/44-estado-datos.js?v=20261004-b1"></script>
     <script src="js/produccion/46-proyeccion-avisos.js?v=20261030-fe2"></script>
     <script src="js/mantenimiento/67i-graficos.js?v=20261013-gm1"></script>
-    <script src="js/produccion/47-analisis-paradas.js?v=20261019-ico1"></script>
+    <script src="js/produccion/47-analisis-paradas.js?v=20261030-ico2"></script>
     <script src="js/produccion/47b-analisis-paradas-mejoras.js?v=20261019-ico1"></script>
     <script src="js/produccion/48-resumen-turno.js?v=20261011-eq1"></script>
-    <script src="js/produccion/49-resumen-indicadores.js?v=20261019-ord2"></script>
+    <script src="js/produccion/49-resumen-indicadores.js?v=20261030-ord3"></script>
     <script src="js/produccion/49b-resumen-graficos-diferidos.js?v=20261019-gx3"></script>
     <script src="js/produccion/50-impacto-economico.js?v=20261010-eco1"></script>
     <script src="js/produccion/55-valores-economicos.js?v=20261018-fe1"></script>
@@ -3473,7 +3482,7 @@
     <script src="js/produccion/51-planificacion-nucleo.js?v=20261013-pl8"></script>
     <script src="js/produccion/52-planificacion-pantalla.js?v=20261019-sq1"></script>
     <script src="js/produccion/51b-horarios-produccion.js?v=20261021-hz10"></script>
-    <script src="js/produccion/53-planificacion-catalogo.js?v=20261019-pl9"></script>
+    <script src="js/produccion/53-planificacion-catalogo.js?v=20261030-pl9"></script>
     <script src="js/produccion/54-planificacion-solicitudes.js?v=20261019-ov1"></script>
     <script src="js/produccion/64-planificacion-avance.js?v=20261013-pl8"></script>
     <script src="js/produccion/65b-planificacion-motor.js?v=20261019-sq1"></script>
@@ -3495,6 +3504,8 @@
     <script src="js/mantenimiento/67f-indicadores-equipo.js?v=20261013-gm1"></script>
     <script src="js/mantenimiento/67g-reclasificacion-datos.js?v=20261012-rc1"></script>
     <script src="js/mantenimiento/67h-reclasificacion-pantalla.js?v=20261013-gm1"></script>
+    <script src="js/mantenimiento/69-velocidades-estandar.js?v=20261030-ve1"></script>
+    <script src="js/mantenimiento/68-mantenimiento-inicio.js?v=20261030-mi1"></script>
     <!-- Asistente de Producción (docs/asistente/asistente-produccion.md): núcleo puro, datos/permisos, pantalla y Reporte General. -->
     <script src="js/asistente/70-asistente-nucleo.js?v=20261015-fc1"></script>
     <script src="js/asistente/71-asistente-datos.js?v=20261021-an1"></script>

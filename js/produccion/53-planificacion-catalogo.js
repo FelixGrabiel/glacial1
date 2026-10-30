@@ -114,7 +114,8 @@
   }
   const velocidadEfectiva=(l,p,m)=>typeof window.glacialVelocidadEstandar==='function'?num(window.glacialVelocidadEstandar(l,p,m)):0;
   const velocidadCodigo=(l,p,m)=>typeof window.glacialVelocidadCatalogo==='function'?num(window.glacialVelocidadCatalogo(l,p,m)):0;
-  const puedeVelocidad=()=>NS.puede()&&typeof window.glacialGuardarConfigIndicadores==='function';
+  /* La velocidad estándar ya NO se edita aquí: la administra Mantenimiento (Mantenimiento › Velocidades estándar, 69-velocidades-estandar.js) con historial. En esta pantalla solo se muestra. */
+  const puedeVelocidad=()=>false;
 
   /* Velocidades iniciales: copia los ratios fijos del código a la tabla donde todavía no hay valor (con la excepción por marca). */
   function velocidadesPorCargar(){
@@ -150,7 +151,7 @@
       NS.lineas().map(l=>'<option value="'+esc(l.key)+'"'+(l.key===F.linea?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></label>'+
       (planifica?'<span style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-cat-nuevo>+ Agregar producto</button>'+
         '<button type="button" class="btn btn-ghost btn-sm" data-cat-iniciales>Cargar valores iniciales</button>'+
-        (puedeVelocidad()?'<button type="button" class="btn btn-ghost btn-sm" data-cat-vel-iniciales>Cargar velocidades iniciales</button>':''):'')+
+        '':'')+
       '</div><div id="cat-tabla"></div><div id="cat-tiempos"></div>'+
       '<p class="plan-nota">La velocidad estándar es la misma tabla de Análisis de paradas y del Resumen (sync/configIndicadores): aquí se muestra y se edita, no se duplica. «valor inicial» = viene del ratio fijo del código y no está en la tabla.</p>';
     pintarTablaCatalogo();pintarTiempos();
@@ -201,7 +202,7 @@
       '<label>Marca<select id="cp-marca"'+(x?' disabled':'')+'></select></label>'+
       '<label class="completo">Presentación<select id="cp-pres"'+(x?' disabled':'')+'></select></label>'+
       '<label>Unidades por paleta<input type="number" id="cp-upp" min="1" step="1" value="'+esc(base.unidadesPorPaleta)+'"></label>'+
-      '<label>Velocidad estándar (UND/h)<input type="number" id="cp-vel" min="0" step="1"'+(puedeVelocidad()?'':' disabled')+'></label>'+
+      '<label>Velocidad estándar (UND/h)<input type="number" id="cp-vel" min="0" step="1" disabled><small class="plan-nota" style="display:block;margin-top:3px">La cambia Mantenimiento en «Velocidades estándar».</small></label>'+
       '<label class="completo" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="cp-activo"'+(base.activo!==false?' checked':'')+'> Producto activo</label></div>'+
       '<div class="plan-aviso" id="cp-nota"></div><div class="plan-error" id="cp-error"></div>'+
       '<div class="plan-acciones"><button type="button" class="btn btn-ghost" id="cp-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="cp-guardar">Guardar</button></div>');

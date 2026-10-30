@@ -96,20 +96,23 @@
     return indiceVel;
   }
   const catalogoBase=typeof obtenerRatioNominal==='function'?obtenerRatioNominal:null;
-  function velTabla(linea,pres,marca){
+  /* fecha (AAAA-MM-DD, opcional): la velocidad que regía ese día según el historial de Mantenimiento (45b-velocidades-vigencia.js). Sin fecha: la vigente. */
+  function velTabla(linea,pres,marca,fecha){
     const ix=indice(),vars=[pres];
     try{if(typeof normalizarPresentacionRegular==='function')vars.push(normalizarPresentacionRegular(pres));}catch(_){/* sin alias */}
+    const V=fecha&&window.GlacialVelocidades?window.GlacialVelocidades:null,c=V?cfg():null;
+    const dato=clave=>{const a=ix.get(normVel(clave));if(!(a>0))return 0;return V?(V.velocidadEn(c,clave,fecha)||a):a;};
     for(const p of vars){
-      if(marca){const a=ix.get(normVel(linea+'|'+p+'|'+marca));if(a>0)return a;}
-      const b=ix.get(normVel(linea+'|'+p));if(b>0)return b;
+      if(marca){const a=dato(linea+'|'+p+'|'+marca);if(a>0)return a;}
+      const b=dato(linea+'|'+p);if(b>0)return b;
     }
     return 0;
   }
   function velocidadCatalogo(linea,pres,marca){
     try{return catalogoBase?num(catalogoBase(linea,pres,marca)):0;}catch(_){return 0;}
   }
-  function velocidadEstandar(linea,pres,marca){
-    const t=velTabla(linea,pres,marca);
+  function velocidadEstandar(linea,pres,marca,fecha){
+    const t=velTabla(linea,pres,marca,fecha);
     return t>0?t:velocidadCatalogo(linea,pres,marca);
   }
   window.glacialVelocidadEstandar=velocidadEstandar;
