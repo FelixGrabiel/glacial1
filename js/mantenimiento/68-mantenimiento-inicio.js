@@ -137,9 +137,28 @@
         if(m&&state.currentTab===TAB)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
       }
       if(typeof actualizarGruposSidebar==='function')actualizarGruposSidebar();
+      botonVolver();
       return r;
     };
   }
+  /* Botón «Inicio de Mantenimiento» arriba de cada pantalla del módulo, dentro de #main. Cada pantalla repinta #main entero, por eso un observador lo vuelve a poner. */
+  const PANTALLAS=['intervenciones','bitacora-mtto','analisis-paradas','velocidades-estandar','productos-parametros','mantenimiento'];
+  function botonVolver(){
+    const main=document.getElementById('main');
+    if(!main)return;
+    const actual=main.querySelector(':scope > #mi-volver');
+    const mostrar=typeof state!=='undefined'&&PANTALLAS.includes(state.currentTab)&&!state.showWelcome&&hayAcceso();
+    if(!mostrar){if(actual)actual.remove();return;}
+    if(actual&&main.firstElementChild===actual)return;
+    const b=actual||document.createElement('button');
+    if(!actual){b.type='button';b.id='mi-volver';b.className='btn btn-ghost btn-sm';b.textContent='← Inicio de Mantenimiento';b.style.cssText='margin:0 0 10px;display:inline-block';b.addEventListener('click',ir);}
+    main.insertBefore(b,main.firstChild);
+  }
+  (function vigilar(){
+    const main=document.getElementById('main');
+    if(!main){document.addEventListener('DOMContentLoaded',vigilar,{once:true});return;}
+    new MutationObserver(()=>botonVolver()).observe(main,{childList:true});
+  })();
   /* Los avisos cambian solos: si la pantalla está abierta, se repinta el recuadro de hoy cada 30 s sin tocar las tarjetas. */
   setInterval(()=>{
     try{
