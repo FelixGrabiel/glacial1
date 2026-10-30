@@ -59,7 +59,7 @@ const s47=leer('js/produccion/47-analisis-paradas.js'),s08=leer('js/produccion/0
 ok(/calidad=GlacialIndicadores\.calidad\(datos\.efectivas,datos\.sopladas\)/.test(s47)&&/<th>Calidad<\/th>/.test(s47)&&/Calidad %/.test(s47),'Análisis de paradas: base del OEE con columna Calidad (pantalla y Excel)');
 ok(/perdidaCalidad/.test(s08)&&/No conformes/.test(s08)&&/Calidad \(conformes ÷ sopladas\)/.test(s08),'reporte del turno: cascada con escalón de no conformes y tarjeta de Calidad');
 const html=leer('index.html');
-ok(['45-indicadores','06-registro','08-graficos','47-analisis-paradas','49-resumen-indicadores'].every(n=>new RegExp(n+'\\.js\\?v=20261030-(ca|pt)1').test(html)),'index.html: versiones ?v= subidas para los scripts de la Calidad');
+ok(['06-registro','08-graficos','47-analisis-paradas','49-resumen-indicadores'].every(n=>new RegExp(n+'\\.js\\?v=20261030-(ca|pt)1').test(html)),'index.html: versiones ?v= subidas para los scripts de la Calidad');
 
 console.log(fallas?'\n'+fallas+' fallas':'\nCalidad en el OEE correcta');
 process.exit(fallas?1:0);

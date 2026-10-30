@@ -70,12 +70,12 @@ const rep=(o={})=>Object.assign({id:'r1',linea:'PET1',fecha:'2026-10-28',turno:'
 /* Conexión con el Centro de alertas */
 {
   const s46=leer('js/produccion/46-proyeccion-avisos.js'),html=leer('index.html');
-  ok(/const TODOS=\[[^\]]*'finalizar'\]/.test(s46)&&/finalizarGraciaMin:120,finalizarDiasMax:7/.test(s46),'tipo «finalizar» para los roles con avisos y umbrales por defecto (120 min, 7 días)');
+  ok(/const TODOS=\[[^\]]*'finalizar'[^\]]*\]/.test(s46)&&/finalizarGraciaMin:120,finalizarDiasMax:7/.test(s46),'tipo «finalizar» para los roles con avisos y umbrales por defecto (120 min, 7 días)');
   ok(/\['finalizarGraciaMin'/.test(s46)&&/\['finalizarDiasMax'/.test(s46),'los dos umbrales se editan en la pantalla de umbrales (Administrador y Jefatura)');
   ok(/a\.tipos\.includes\('finalizar'\)/.test(s46)&&/add\('fin\|'\+x\.id,'finalizar'/.test(s46)&&/enAmbito\(a,x\.linea\)/.test(s46),'el aviso se calcula con el mismo cálculo y respeta la línea del supervisor');
   ok(/x\.tipo==='finalizar'/.test(s46)&&/cargarReporteParaCorreccion\(x\.registroId\)/.test(s46),'al tocar el aviso se abre el reporte para continuarlo');
-  ok(/pendientesFinalizar\}\);|,pendientesFinalizar\};/.test(s46)&&/function pendientesFinalizar/.test(s46),'el bot dispone de glacialAvisos.pendientesFinalizar()');
-  ok(!/ambito\(\)[^;]*pendientesFinalizar/.test(s46.slice(s46.indexOf('function pendientesFinalizar'),s46.indexOf('function calcular'))),'pendientesFinalizar no depende de quién mira (sirve a un usuario de solo consulta)');
+  ok(/pendientesFinalizar\}\);|,pendientesFinalizar[,}]/.test(s46)&&/function pendientesFinalizar/.test(s46),'el bot dispone de glacialAvisos.pendientesFinalizar()');
+  ok(!/ambito\(\)[^;]*pendientesFinalizar/.test(s46.slice(s46.indexOf('function pendientesFinalizar'),s46.indexOf('function pendientesEntrega'))),'pendientesFinalizar no depende de quién mira (sirve a un usuario de solo consulta)');
   ok(/46-proyeccion-avisos\.js\?v=2026(10(2[7-9]|3\d)|1[12]\d\d)-[a-z]+\d+/.test(html)&&/45-indicadores\.js\?v=20261030/.test(html),'index.html con versión nueva de 45 y 46');
   ok(fs.existsSync(path.join(raiz,'docs/produccion/avisos-finalizar-reportes.md')),'documento para el bot: docs/produccion/avisos-finalizar-reportes.md');
 }

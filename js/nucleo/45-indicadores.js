@@ -635,6 +635,36 @@
     });
     return res.sort((x,y)=>y.atrasoMin-x.atrasoMin||String(x.linea).localeCompare(String(y.linea)));
   }
+  /* ENTREGAS DE TURNO PENDIENTES. Cada turno con producción registrada (DÍA, INTERMEDIO, NOCHE) debe tener su entrega al siguiente supervisor
+     (colección entregasTurno, id «AAAA-MM-DD_DIA|INTERMEDIO|NOCHE»). Avisa cuando el turno terminó hace al menos graciaMin (60) y hasta diasMax (3) días
+     y no hay entrega. entregadas = lista de ids ya entregados. Una entrega por fecha y turno (no por línea).
+     Devuelve [{id,fecha,turno,finMs,atrasoMin,nivel}], los más atrasados primero. */
+  const turnoEntrega=t=>{const x=String(t||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');return x.includes('NOCHE')?'NOCHE':x.includes('INTER')?'INTERMEDIO':'DIA';};
+  function entregasPendientes(registros,entregadas,ahoraMs,cfgBloques,opciones){
+    const o=opciones||{},gracia=num(o.graciaMin)>0?num(o.graciaMin):60,diasMax=num(o.diasMax)>0?num(o.diasMax):3,ahora=Number(ahoraMs);
+    if(!Number.isFinite(ahora))return [];
+    const hechas=new Set((Array.isArray(entregadas)?entregadas:[]).map(String));
+    const vistos=new Map();
+    (Array.isArray(registros)?registros:[]).forEach(r=>{
+      if(!r||!r.fecha)return;
+      const hayProduccion=(Array.isArray(r.cuadros)?r.cuadros:[]).some(c=>c&&String(c.marca||'').trim()&&(num(c.produccion&&c.produccion.efectiva)>0||num(c.produccion&&c.produccion.sopladas)>0));
+      if(!hayProduccion)return;
+      const turno=turnoEntrega(r.turno),id=r.fecha+'_'+turno;
+      if(hechas.has(id)||vistos.has(id))return;
+      const h=horarioBloque(r.fecha,turno==='DIA'?'DÍA':turno,cfgBloques);
+      if(!h)return;
+      const atrasoMin=(ahora-h.fin)/60000;
+      if(atrasoMin<gracia||atrasoMin>diasMax*1440)return;
+      vistos.set(id,{id,fecha:r.fecha,turno,finMs:h.fin,atrasoMin:Math.round(atrasoMin),nivel:atrasoMin>=720?'roja':'ambar'});
+    });
+    return [...vistos.values()].sort((x,y)=>y.atrasoMin-x.atrasoMin);
+  }
+  const textoEntregaPendiente=x=>'Falta entregar el turno '+nombreBloque(x.turno==='DIA'?'DÍA':x.turno,'reporte')+' '+ddmm(x.fecha)+' al siguiente supervisor · hace '+textoAtraso(x.atrasoMin);
+  function mensajeEntregasPendientes(lista){
+    const l=Array.isArray(lista)?lista:[];
+    if(!l.length)return '';
+    return '⚠️ *FALTA ENTREGAR EL TURNO*\n'+l.map(x=>'• '+textoEntregaPendiente(x)).join('\n')+'\nEntrégalo en GLACIAL: Entrega de turno.';
+  }
   function textoAtraso(min){
     const m=Math.max(0,Math.round(num(min)));
     if(m>=1440)return Math.floor(m/1440)+' d '+Math.floor((m%1440)/60)+' h';
@@ -672,7 +702,7 @@
   ]);
 
   const API=Object.freeze({
-    horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,calidad,unidadesProducidas,oee,
+    horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,calidad,unidadesProducidas,entregasPendientes,textoEntregaPendiente,mensajeEntregasPendientes,oee,
     merma,componenteMerma,desgloseMerma,ORDEN_COMPONENTES,
     cumplimiento,programadoVigente,produccionVigente,
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,
