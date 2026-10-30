@@ -580,6 +580,19 @@
   }
 
   /* ---------------------------------------------------------
+     REGISTRO COMPLETO AL FINALIZAR (botellas sopladas)
+     En PET1, PET2 y B7L el cuadro tiene el campo «Botellas sopladas». Sin él no se puede comparar lo soplado con lo envasado ni medir la merma real,
+     así que es obligatorio al finalizar un cuadro con producción efectiva. En B20L ese campo significa otra cosa («Bidones disponibles») y
+     en C20L no existe: no se exige.
+     --------------------------------------------------------- */
+  const LINEAS_CON_SOPLADAS=Object.freeze(['PET1','PET2','B7L']);
+  function faltaSopladas(linea,cuadro){
+    if(!LINEAS_CON_SOPLADAS.includes(String(linea==null?'':linea)))return false;
+    const p=(cuadro&&cuadro.produccion)||{};
+    return num(p.efectiva)>0&&!(num(p.sopladas)>0);
+  }
+
+  /* ---------------------------------------------------------
      DEFINICIONES PARA «¿CÓMO SE CALCULA?» (las mismas que este archivo)
      --------------------------------------------------------- */
   const DEFINICIONES=Object.freeze([
@@ -604,7 +617,7 @@
     turnoVigente,diaOperativo,horarioTurno,HORARIOS_TURNO,
     BLOQUES_INICIALES,NOMBRES_TURNO,nombreBloque,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
     estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,desgloseLineaPorMarca,produccionPlanYFuera,
-    resumenIndicadores,DEFINICIONES
+    resumenIndicadores,DEFINICIONES,LINEAS_CON_SOPLADAS,faltaSopladas
   });
 
   raiz.GlacialIndicadores=API;

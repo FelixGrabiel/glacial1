@@ -2729,6 +2729,7 @@ async function finalizarCuadroProduccion(i){
   if(!q.presentacion) faltan.push('Presentación');
   if(!q.horaInicio) faltan.push('Hora inicio');
   if(!q.horaFin) faltan.push('Hora fin');
+  if(GlacialIndicadores.faltaSopladas(draft.linea,q)) faltan.push('Botellas sopladas');
 
   if(faltan.length){
     alert('Falta completar en Producción '+(i+1)+':\n\n• '+faltan.join('\n• '));
@@ -3044,6 +3045,7 @@ function validarReporteParaFinalizar(){
     if(!q.presentacion) faltan.push(`Producción ${n}: presentación`);
     if(!q.horaInicio) faltan.push(`Producción ${n}: hora inicio`);
     if(!q.horaFin) faltan.push(`Producción ${n}: hora fin`);
+    if(GlacialIndicadores.faltaSopladas(draft.linea,q)) faltan.push(`Producción ${n}: botellas sopladas`);
     // Paradas por «Falla de máquina»: el equipo es obligatorio (la lista «Falta para finalizar» lo muestra; no se bloquea el guardado en tiempo real).
     // Causa y motivo del catálogo (el detalle es obligatorio en «Otro»).
     if(window.glacialMotivosParada) (q.paradasNoProgramadas || []).forEach(p => {

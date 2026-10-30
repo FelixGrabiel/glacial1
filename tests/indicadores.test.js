@@ -170,4 +170,13 @@ ok(I.estadoLineaDesdeItems(['COMPLETADA','PENDIENTE'])==='PENDIENTE'&&I.estadoLi
 ok(I.DEFINICIONES.length===11&&I.DEFINICIONES.every(d=>d.length===2&&d[0]&&d[1]),'las definiciones para «¿Cómo se calcula?» están completas (11)');
 ok(I.DEFINICIONES.some(d=>d[0]==='OEE'&&/Disponibilidad × rendimiento/.test(d[1])&&!/alidad/.test(d[1]))&&I.DEFINICIONES.some(d=>d[0]==='Disponibilidad'&&/planificado/.test(d[1])),'las definiciones dicen lo mismo que las funciones (el OEE ya no menciona Calidad)');
 
+/* ============ botellas sopladas obligatorias al finalizar (PET1, PET2, B7L) ============ */
+{
+  const c=(efectiva,sopladas)=>({produccion:{efectiva,sopladas}});
+  ok(I.faltaSopladas('PET1',c(1000,0))===true&&I.faltaSopladas('PET2',c(500,undefined))===true&&I.faltaSopladas('B7L',c(300,''))===true,'PET1, PET2 y B7L con producción y sin sopladas: falta');
+  ok(I.faltaSopladas('PET1',c(1000,1200))===false&&I.faltaSopladas('B7L',c(0,0))===false,'con sopladas, o sin producción efectiva: no falta');
+  ok(I.faltaSopladas('B20L',c(100,0))===false&&I.faltaSopladas('C20L',c(100,0))===false&&I.faltaSopladas('',c(100,0))===false&&I.faltaSopladas('PET1',null)===false,'B20L, C20L, línea vacía o cuadro vacío: no se exige');
+  ok(I.LINEAS_CON_SOPLADAS.join()==='PET1,PET2,B7L'&&Object.isFrozen(I.LINEAS_CON_SOPLADAS),'las líneas con sopladas son PET1, PET2 y B7L (lista fija)');
+}
+
 console.log('\n'+(total-fallas)+' de '+total+' pruebas correctas'+(fallas?' · '+fallas+' FALLAN':''));
