@@ -262,7 +262,7 @@ function guardarEstadoGruposSidebar(){
 function grupoSidebarActivo(){
   // 'produccion-actual' ya no pertenece al grupo Producción: es un módulo raíz.
   if(PESTANAS_LINEA.includes(state.currentTab) || state.currentTab==='avance-produccion')return 'produccion';
-  if(['tareo','rotacion-supervisores'].includes(state.currentTab))return 'produccion';
+  if(['tareo','rotacion-supervisores','prod-inicio','resumenes-turno','entrega-turno'].includes(state.currentTab))return 'produccion';
   if(['mantenimiento','productos-parametros','mant-inicio','velocidades-estandar','intervenciones'].includes(state.currentTab))return 'mantenimiento';
   if(state.currentTab==='horario-produccion')return 'produccion';
   if(state.currentTab==='inventario-insumos')return 'almacen';

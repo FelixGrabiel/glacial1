@@ -114,7 +114,7 @@
     if(typeof renderMain==='function')renderMain();
   }
   window.goMantenimientoInicio=ir;
-  window.glacialMantInicio={GRUPOS,pintar,hayAcceso};
+  window.glacialMantInicio={GRUPOS,pintar,hayAcceso,estilos};      // estilos: también los usa el inicio de Producción
 
   if(typeof ajustarVistaSegunPermisos==='function'){
     const a=ajustarVistaSegunPermisos;
