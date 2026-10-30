@@ -7592,6 +7592,12 @@ function personalTable(
       Las posiciones sin personal pueden quedar vacías.
     </div>
 
+    ${
+      typeof personalTareoHtml === 'function'
+        ? personalTareoHtml(linea)
+        : ''
+    }
+
     <datalist
       id="personal-workers-datalist"
     >
