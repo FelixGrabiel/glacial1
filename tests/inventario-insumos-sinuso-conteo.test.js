@@ -40,6 +40,6 @@ const N=require('../js/asistente/74-inventario-insumos-nucleo.js');
   ok(pant.indexOf('Total SAP')<pant.indexOf('${alm.map((a,k)=>`<th'),'primero el resultado (Total SAP, mínimo, semáforo) y al final el detalle por almacén');
   ok(/iiSinMov/.test(pant)&&/ii-e-sinuso/.test(pant)&&/marcarSinUso/.test(dat)&&/detectarSinMovimiento/.test(dat),'pantalla y datos: detectar y marcar sin uso');
   ok(/iicImportarExcel/.test(con)&&/agregarLineasLote/.test(con)&&/agregarLineasLote/.test(dat)&&/IMPORTAR_CONTEO/.test(N.TIPOS_AUDITORIA?'IMPORTAR_CONTEO':'')||/IMPORTAR_CONTEO/.test(leer('js/asistente/74-inventario-insumos-nucleo.js')),'conteo: importar desde Excel en una transacción con auditoría');
-  ok(/74-inventario-insumos-nucleo\.js\?v=2026\d{4}-(ii10|ic\d|ev\d|tz\d)/.test(html)&&/77-inventario-insumos-conteo\.js\?v=20261018-(ii10|ic2|ic3|ic4|ic5)/.test(html),'index.html con las versiones nuevas de los scripts');
+  ok(/74-inventario-insumos-nucleo\.js\?v=2026\d{4}-(ii10|ic\d|ev\d|tz\d|lc\d)/.test(html)&&/77-inventario-insumos-conteo\.js\?v=20261018-(ii10|ic2|ic3|ic4|ic5)/.test(html),'index.html con las versiones nuevas de los scripts');
 }
 console.log(fallas?fallas+' fallas':'todo correcto');

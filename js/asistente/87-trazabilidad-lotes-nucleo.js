@@ -190,6 +190,38 @@
     return {lote,unidad,movimiento:mov,clave,nuevo,accion:nuevo?'lote_nuevo':'unidad_agregada',avisos:v.avisos};
   }
 
+  /* ---------- entrega a línea (Etapa 2) ---------- */
+  /** Estado de vencimiento de un lote. fecha y hoy en AAAA-MM-DD. diasAviso null = no hay umbral definido (solo se distingue vencido / vigente). */
+  function estadoVencimiento(fecha,hoy,diasAviso){
+    const f=texto(fecha).slice(0,10),h=texto(hoy).slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(f)||!/^\d{4}-\d{2}-\d{2}$/.test(h))return {tipo:'sin_fecha',dias:null};
+    const dias=Math.round((Date.UTC(+f.slice(0,4),+f.slice(5,7)-1,+f.slice(8,10))-Date.UTC(+h.slice(0,4),+h.slice(5,7)-1,+h.slice(8,10)))/86400000);
+    if(dias<0)return {tipo:'vencido',dias};
+    if(Number.isFinite(Number(diasAviso))&&diasAviso!==null&&dias<=Number(diasAviso))return {tipo:'por_vencer',dias};
+    return {tipo:'vigente',dias};
+  }
+  /**
+   * Plan de «Entregar a línea» (puro): la unidad pasa de EN_ALMACEN a ENTREGADA_LINEA en la línea elegida y queda un movimiento ENTREGA_LINEA.
+   * Un lote vencido NO se entrega (se puede marcar la unidad como observada); uno por vencer se entrega con aviso.
+   */
+  function planEntregaLinea({unidad,lote,linea,usuario,uid,en,hoy,parametros}){
+    if(!LINEAS.includes(linea))throw falla('VALIDACION','Elige la línea a la que se entrega.');
+    const motivo=motivoNoPermitido(unidad,'ENTREGA_LINEA');
+    if(motivo)throw falla('ESTADO',motivo);
+    const venc=estadoVencimiento(lote&&lote.fechaVencimiento,hoy,parametros&&parametros.diasAvisoVencimiento);
+    if(venc.tipo==='vencido')throw falla('VENCIDO','El lote '+(lote&&lote.loteProveedor||'')+' venció hace '+Math.abs(venc.dias)+' día(s): no se entrega a línea. Si la unidad sigue en almacén, márcala como observada.');
+    const ahora=Number(en)||Date.now(),por=recortar(usuario,80),nueva=clonar(unidad);
+    const antes={estado:unidad.estado,pesoActual:unidad.pesoActual===undefined?null:unidad.pesoActual,linea:unidad.linea||''};
+    nueva.estado='ENTREGADA_LINEA';nueva.linea=linea;nueva.rev=(Number(unidad.rev)||1)+1;nueva.actualizadoPor=por;nueva.actualizadoEn=ahora;
+    nueva.historial=(unidad.historial||[]).concat([{estado:'ENTREGADA_LINEA',accion:'ENTREGA_LINEA',por,en:ahora}]).slice(-200);
+    const mov={id:'MOV-'+recortar(unidad.id,60)+'-ENTREGA_LINEA-'+ahora,tipo:'ENTREGA_LINEA',loteId:unidad.loteId,unidadId:unidad.id,antes,
+      despues:{estado:'ENTREGADA_LINEA',pesoActual:antes.pesoActual,linea},evidenciaId:recortar(unidad.evidenciaId||'',80),por,uid:recortar(uid,80),enMs:ahora,motivo:'',anula:''};
+    const avisos=[];
+    if(venc.tipo==='por_vencer')avisos.push('El lote vence en '+venc.dias+' día(s).');
+    if(venc.tipo==='sin_fecha')avisos.push('El lote no tiene fecha de vencimiento registrada.');
+    return {unidad:nueva,movimiento:mov,vencimiento:venc,avisos};
+  }
+
   /** Marca la evidencia con el lote y la unidad que nacieron de ella (no cambia su estado). */
   function evidenciaConLote(doc,{loteId,unidadId,usuario,en}){
     const n=clonar(doc),ahora=Number(en)||Date.now();
@@ -249,7 +281,7 @@
   }
 
   const API={LINEAS,ESTADOS,TRANSICIONES,MOVIMIENTOS,LEYENDAS_DEFECTO,PARAMETROS_DEFECTO,CATEGORIAS_CATALOGO,idLote,esIdLote,claveLote,numeroUnidad,idUnidad,interpretarLeyenda,datosDeEvidencia,
-    validarParaLote,claveMemoria,sugerirArticulos,planCrearLote,evidenciaConLote,transicionPermitida,motivoNoPermitido,unidadesDeLote,resumenLote,filtrarLotes,lineaDeTiempo,textoMovimiento,norm};
+    validarParaLote,claveMemoria,sugerirArticulos,planCrearLote,estadoVencimiento,planEntregaLinea,evidenciaConLote,transicionPermitida,motivoNoPermitido,unidadesDeLote,resumenLote,filtrarLotes,lineaDeTiempo,textoMovimiento,norm};
   global.glacialTrazabilidadNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);
