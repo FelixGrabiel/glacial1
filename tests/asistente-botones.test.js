@@ -9,6 +9,11 @@ ok(/window\.apIr=\(tab,sub\)=>\{[\s\S]*?ap-sol-nueva[\s\S]*?scrollIntoView[\s\S]
 ok(/<div id="ap-sol-nueva"><\/div><h3 class="ap-h3">Preparar solicitud a Almacén<\/h3>/.test(p72),'el formulario tiene su ancla');
 ok(/motivoVacio/.test(p72)&&/Todavía no hay factores de consumo cargados/.test(p72),'si no hay faltantes, el formulario explica por qué (faltan factores, o nada falta) en vez de quedar mudo');
 
+/* «Cuadro al que se destina» al recibir una solicitud: los cuadros son los de la FECHA y el TURNO DE LA SOLICITUD, no los de la pantalla */
+ok(/function cuadrosPara\(fecha,bloque\)/.test(p72)&&/const cuadrosSol=cuadrosPara\(s\.fecha,s\.bloque\)/.test(p72)&&/\$\{cuadrosSol\.map\(c=>/.test(p72),'la lista de cuadros al recibir sale de la fecha y el turno de la solicitud (antes salía vacía si la pantalla estaba en otro día o turno)');
+ok(/cuadrosPara\(solicitud\.fecha,solicitud\.bloque\)/.test(p72),'el cuadro elegido se busca con esos mismos cuadros');
+ok(/No hay cuadros programados para/.test(p72),'si de verdad no hay cuadros, se explica y se puede confirmar sin cuadro');
+
 /* validarMovimiento (71) con el núcleo real */
 global.window=global;
 require(R+'/js/asistente/70-asistente-nucleo.js');
@@ -22,6 +27,6 @@ ok(sb.validar(Object.assign({},base,{cantidad:''})).length>0&&sb.validar(Object.
 ok(sb.validar(Object.assign({},base,{cantidad:'0'})).length===0&&sb.validar(Object.assign({},base,{cantidad:0})).length===0,'un conteo en 0 escrito a propósito sí se guarda');
 ok(sb.validar(Object.assign({},base,{cantidad:'125.5'})).length===0,'un conteo normal se guarda');
 ok(sb.validar({tipo:'DEVOLUCION',insumo:'C01',cantidad:'0',cuadro:'k'}).length>0,'una devolución en 0 sigue sin guardarse');
-ok(/71-asistente-datos\.js\?v=20261031-ar1/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar1/.test(html),'index.html: versiones subidas');
+ok(/71-asistente-datos\.js\?v=20261031-ar1/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar2/.test(html),'index.html: versiones subidas');
 console.log(fallas?'\n'+fallas+' fallas':'\nBotones del Asistente correctos');
 process.exit(fallas?1:0);

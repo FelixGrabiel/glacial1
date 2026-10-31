@@ -74,12 +74,17 @@
   }
 
   /* ---------- contexto calculado (una sola fuente para todas las pestañas) ---------- */
+  /* Cuadros de una fecha y bloque cualquiera (la pantalla usa el suyo; una solicitud de otro día o turno usa el de ella). */
+  function cuadrosPara(fecha,bloque){
+    const lineasPermitidas=(typeof LINES!=='undefined'?LINES.map(l=>l.key):N.LINEAS.map(l=>l.codigo)).filter(l=>N.LINEAS.some(x=>x.codigo===l));
+    return N.cuadrosDelBloque({fecha,bloque,lineas:lineasPermitidas,
+      programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecords==='function'?loadRecords():[],
+      produccionAlCorte:window.glacialProduccionPaletasAlCorte,unidadesPorPaleta:typeof obtenerUnidadesPorPalet==='function'?obtenerUnidadesPorPalet:null});
+  }
   function contexto(){
     const C=D.cache;
     const lineasPermitidas=(typeof LINES!=='undefined'?LINES.map(l=>l.key):N.LINEAS.map(l=>l.codigo)).filter(l=>N.LINEAS.some(x=>x.codigo===l));
-    const cuadros=N.cuadrosDelBloque({fecha:AP.fecha,bloque:AP.bloque,lineas:lineasPermitidas,
-      programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecords==='function'?loadRecords():[],
-      produccionAlCorte:window.glacialProduccionPaletasAlCorte,unidadesPorPaleta:typeof obtenerUnidadesPorPalet==='function'?obtenerUnidadesPorPalet:null});
+    const cuadros=cuadrosPara(AP.fecha,AP.bloque);
     const req=N.requerimientos({cuadros,factores:C.factores,insumos:C.insumos,movimientos:C.movimientos});
     const mermasBloque=C.mermas.filter(m=>m.bloque===N.bloqueDe(AP.bloque));
     const concil=[];
@@ -539,7 +544,7 @@
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:valor('ap-sol-obs'),enviar}),id=>'Solicitud '+id+(enviar?' enviada a Almacén.':' guardada como borrador.'));
   };
   window.apVerSolicitud=function(id){
-    const s=D.cache.solicitudes.find(x=>x.id===id);if(!s)return;const ctx=contexto();AP.solSel=id;AP.solAbierta={id,version:num(s.version)};
+    const s=D.cache.solicitudes.find(x=>x.id===id);if(!s)return;const ctx=contexto();const cuadrosSol=cuadrosPara(s.fecha,s.bloque);AP.solSel=id;AP.solAbierta={id,version:num(s.version)};
     const asist=puede('asistenteProduccion'),alm=puede('moduloAlmacen');
     const columnaStock=alm&&['EN_PREPARACION','ENTREGADA_PARCIAL','SOLICITADA'].includes(s.estado);
     /* Lo pendiente de entregar, sin pasar de lo que Almacén tiene (si el Inventario no lo informa, lo pendiente completo). */
@@ -551,7 +556,7 @@
     const b=(estado,txt,cls)=>N.puedeTransicion(s.estado,estado)&&((N.ACTOR_ESTADO[estado]==='almacen'&&alm)||(N.ACTOR_ESTADO[estado]==='asistente'&&asist))
       ?`<button type="button" class="ap-btn ${cls||''}" onclick="apEstadoSolicitud('${esc(s.id)}','${estado}',${num(s.version)})">${txt}</button>`:'';
     const recibir=asist&&['ENTREGADA','ENTREGADA_PARCIAL','OBSERVADA'].includes(s.estado)
-      ?`<div class="ap-form ap-form-2">${campo('Cuadro al que se destina',`<select id="ap-rec-cuadro"><option value="">— Elegir —</option>${ctx.cuadros.map(c=>`<option value="${esc(c.clave)}">${esc(nombreCuadro(c))}</option>`).join('')}</select>`)}${campo('Lote (opcional)','<input id="ap-rec-lote" maxlength="40">')}</div>
+      ?`<div class="ap-form ap-form-2">${campo('Cuadro al que se destina',`<select id="ap-rec-cuadro"><option value="">— Elegir —</option>${cuadrosSol.map(c=>`<option value="${esc(c.clave)}">${esc(nombreCuadro(c))}</option>`).join('')}</select>${cuadrosSol.length?'':'<small class="ap-mut">No hay cuadros programados para '+esc(s.fecha)+' · '+(s.bloque==='NOCHE'?'Noche':'Día')+': puedes confirmar la recepción sin elegir cuadro.</small>'}`)}${campo('Lote (opcional)','<input id="ap-rec-lote" maxlength="40">')}</div>
         <button type="button" class="ap-btn" onclick="apEstadoSolicitud('${esc(s.id)}','RECIBIDA',${num(s.version)})">Confirmar lo recibido</button>`:'';
     const entregar=alm&&['EN_PREPARACION','ENTREGADA_PARCIAL'].includes(s.estado)?`<button type="button" class="ap-btn ap-btn-o" onclick="apEntregarLoQueHay()">Entregar lo que hay</button><button type="button" class="ap-btn" onclick="apEstadoSolicitud('${esc(s.id)}','ENTREGADA',${num(s.version)})">Registrar entrega</button>`:'';
     // Entregas registradas (solo Almacén las anula): una fila por entrega, con su detalle y su estado.
@@ -591,7 +596,7 @@
     const ent={},rec={};
     document.querySelectorAll('.ap-ent').forEach(i=>{if(num(i.value)>0)ent[i.dataset.insumo]=num(i.value);});
     document.querySelectorAll('.ap-rec').forEach(i=>{if(num(i.value)>0)rec[i.dataset.insumo]=num(i.value);});
-    const ctx=contexto();const clave=valor('ap-rec-cuadro');const c=ctx.cuadros.find(x=>x.clave===clave);
+    const solicitud=D.cache.solicitudes.find(x=>x.id===id);const clave=valor('ap-rec-cuadro');const c=(solicitud?cuadrosPara(solicitud.fecha,solicitud.bloque):contexto().cuadros).find(x=>x.clave===clave);
     const motivoSS=valor('ap-sin-stock').trim();
     if(estado==='ENTREGADA'||estado==='ENTREGADA_PARCIAL'){
       const E=window.glacialAlmacenEnlace,en=EN();
