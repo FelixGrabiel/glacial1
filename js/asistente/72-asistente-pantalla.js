@@ -531,13 +531,13 @@
         <td data-label="Cantidad"><input class="ap-sol-cant" data-insumo="${esc(i.codigo)}" data-unidad="${esc(i.unidad)}" onchange="apSolVal(this);apAvisoStock()" type="number" min="0" step="any" value="${esc(vals[i.codigo]!==undefined?vals[i.codigo]:def)}"></td></tr>`;}).join('');
     const otros=D.cache.insumos.filter(i=>i.activo!==false&&!faltantes.some(x=>x.insumo.codigo===i.codigo)&&!extra.includes(i.codigo));
     const motivoVacio=D.cache.factores.length?'Con lo registrado hoy no falta ningún insumo para este bloque (o lo que falta ya está pedido o en camino).':'Todavía no hay factores de consumo cargados (pestaña «Factores»): sin ellos el sistema no calcula lo que falta y no inventa valores.';
-    const nueva=asist?`<div id="ap-sol-nueva"></div><h3 class="ap-h3">Preparar solicitud a Almacén</h3>${faltantesNetos(ctx).length?`<div class="ap-acc"><button type="button" class="ap-btn" onclick="apSolicitarFaltantes()">${ico('doc')} Solicitar todos los faltantes (${faltantesNetos(ctx).length})</button></div>`:''}
+    const nueva=asist?`<div id="ap-sol-nueva"></div><div class="ap-nueva"><div class="ap-tit-acc"><h3 class="ap-h3">Preparar solicitud a Almacén</h3>${faltantesNetos(ctx).length?`<button type="button" class="ap-btn" onclick="apSolicitarFaltantes()">${ico('doc')} Solicitar todos los faltantes (${faltantesNetos(ctx).length})</button>`:''}</div>
       <p class="ap-sub">${faltantes.length?'Se proponen los faltantes del bloque; ajusta las cantidades si hace falta.':'No hay faltantes calculados. '+motivoVacio+' Agrega a mano los insumos que necesites.'}</p>
       ${filasNueva?tabla(['Insumo','#Faltante','#En Almacén','Cantidad a solicitar'],filasNueva):vacio('Ningún insumo con faltante. Agrega abajo el que necesites.')}
       ${otros.length?`<div class="ap-acc ap-acc-agregar"><select id="ap-sol-extra"><option value="">Agregar otro insumo…</option>${otros.map(i=>`<option value="${esc(i.codigo)}">${esc(i.nombre)}</option>`).join('')}</select><button type="button" class="ap-btn ap-btn-o" onclick="apSolAgregar()">${ico('mas')} Agregar</button></div>`:''}
       <div id="ap-sol-aviso"></div>
       ${campo('Observaciones','<input id="ap-sol-obs" maxlength="200">','ap-ancho')}
-      <div class="ap-acc"><button type="button" class="ap-btn ap-btn-o" onclick="apCrearSolicitud(false)">Guardar borrador</button><button type="button" class="ap-btn" onclick="apCrearSolicitud(true)">Enviar a Almacén</button></div>`:'';
+      <div class="ap-acc"><button type="button" class="ap-btn ap-btn-o" onclick="apCrearSolicitud(false)">Guardar borrador</button><button type="button" class="ap-btn" onclick="apCrearSolicitud(true)">Enviar a Almacén</button></div></div>`:'';
     const sel=`<div class="ap-filtros-sol">${['abiertas','cerradas','todas'].map(k=>`<button type="button" class="ap-sub ${filtro===k?'ap-sub-act':''}" onclick="AP_set('solFiltro','${k}')">${{abiertas:'Abiertas',cerradas:'Cerradas',todas:'Todas'}[k]}</button>`).join('')}</div>`;
     const titulo=alm&&!asist?'Solicitudes por entregar':'Solicitudes'+(alm?' · vista de Almacén':'');
     const en=EN(),movs=en?en.movimientosRecientes(AP.fecha):[];
@@ -1158,6 +1158,19 @@
 .ap-coord{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}.ap-coord li{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 12px;border:1px solid var(--ap-linea);border-radius:10px}
 .ap-coord small{display:block;color:var(--ap-mut);font-size:13px}.ap-coord li.ap-cerrada{opacity:.65}
 .ap-filtros{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:14px;align-items:end}
+/* Orden visual (31/10/2026): casillas con su tamaño, botones chicos sin partir el texto, filtros del Historial en dos filas, «Preparar solicitud» como bloque propio. */
+.ap input[type=checkbox],.ap input[type=radio]{width:18px;height:18px;min-height:0;padding:0;flex:none;accent-color:var(--ap-azul);cursor:pointer}
+.ap-chk{cursor:pointer;line-height:1.3}
+.ap-btn,.ap-btn-s{white-space:nowrap}
+.ap-filtros .ap-chk{grid-column:1/4;align-self:center}.ap-filtros .ap-acc{grid-column:4/-1;justify-content:flex-end}
+.ap-nueva{border:1px solid var(--ap-linea);border-radius:12px;background:#fbfdff;padding:16px 18px;margin:0 0 22px;display:grid;gap:12px}
+.ap-nueva>*{margin:0}.ap-nueva .ap-acc-agregar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.ap-nueva .ap-tit-acc{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.ap-nueva .ap-h3{margin:0}
+.ap-t td .ap-btn-s{margin:0}
+p.ap-sub{padding:0;border:0;background:none;flex:none;font-size:14px;color:var(--ap-mut);margin:4px 0 10px}   /* «ap-sub» también es la subpestaña: el párrafo no debe heredar su relleno */
+.ap-tw+.ap-card,.ap-tw+section{margin-top:16px}
+@media(max-width:560px){.ap-atender li{flex-wrap:wrap}.ap-at-tx{flex:1 1 calc(100% - 48px)}.ap-atender li .ap-link{margin-left:38px;padding:2px 0}.ap-kpis-4,.ap-kpis-3{grid-template-columns:1fr 1fr!important;gap:10px}.ap-flujo-b{padding:7px 9px}}
+@media(max-width:700px){.ap-filtros .ap-chk,.ap-filtros .ap-acc{grid-column:1/-1}.ap-filtros{grid-template-columns:1fr 1fr}.ap-nueva{padding:12px}}
 .ap-aud{display:flex;gap:16px;align-items:flex-start}.ap-aud h4{margin:0 0 4px;font-size:20px}.ap-aud p{margin:6px 0}
 .ap-hist{font-size:14px;padding-left:18px}.ap-modal{max-width:920px}
 @media(max-width:1100px){.ap-kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-filtros .ap-acc{grid-column:1/-1;justify-content:flex-start}.ap-form-4{grid-template-columns:repeat(2,minmax(0,1fr))}}

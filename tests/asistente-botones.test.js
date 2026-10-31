@@ -6,7 +6,7 @@ const leer=f=>fs.readFileSync(R+'/'+f,'utf8').replace(/\r\n/g,'\n');
 const p72=leer('js/asistente/72-asistente-pantalla.js'),p71=leer('js/asistente/71-asistente-datos.js'),html=leer('index.html');
 
 ok(/window\.apIr=\(tab,sub\)=>\{[\s\S]*?ap-sol-nueva[\s\S]*?scrollIntoView[\s\S]*?\.focus\(/.test(p72),'«Preparar solicitud» lleva al formulario y lo enfoca aunque ya se estuviera en Solicitudes');
-ok(/<div id="ap-sol-nueva"><\/div><h3 class="ap-h3">Preparar solicitud a Almacén<\/h3>/.test(p72),'el formulario tiene su ancla');
+ok(/<div id="ap-sol-nueva"><\/div><div class="ap-nueva">/.test(p72),'el formulario tiene su ancla');
 ok(/motivoVacio/.test(p72)&&/Todavía no hay factores de consumo cargados/.test(p72),'si no hay faltantes, el formulario explica por qué (faltan factores, o nada falta) en vez de quedar mudo');
 
 /* «Cuadro al que se destina» al recibir una solicitud: los cuadros son los de la FECHA y el TURNO DE LA SOLICITUD, no los de la pantalla */
@@ -24,6 +24,14 @@ ok(['Catálogo de insumos','Factores de consumo','Programación de este turno','
 ok(['Contar','Ver faltantes','Solicitar','Recibir','Consumo y merma'].every(t=>p72.includes("'"+t+"'")),'el flujo del turno tiene sus cinco pasos con botón');
 ok(/'Para empezar · '\+pend\.length/.test(p72)&&/'Flujo del turno'/.test(p72),'la tarjeta se reduce a «Flujo del turno» cuando todo está configurado');
 
+/* Orden visual (31/10/2026) */
+ok(/\.ap input\[type=checkbox\],\.ap input\[type=radio\]\{width:18px;height:18px;min-height:0/.test(p72),'las casillas dejan de heredar el tamaño de los campos de texto (en Historial salían gigantes)');
+ok(/\.ap-filtros \.ap-chk\{grid-column:1\/4/.test(p72)&&/\.ap-filtros \.ap-acc\{grid-column:4\/-1/.test(p72),'los filtros del Historial quedan en dos filas ordenadas');
+ok(/\.ap-btn,\.ap-btn-s\{white-space:nowrap\}/.test(p72),'los botones no parten su texto («Ver detalle»)');
+ok(/<div class="ap-nueva"><div class="ap-tit-acc"><h3 class="ap-h3">Preparar solicitud a Almacén/.test(p72)&&/\.ap-nueva\{border:1px solid/.test(p72),'«Preparar solicitud a Almacén» es un bloque propio con su botón de faltantes en el título');
+ok(/p\.ap-sub\{padding:0/.test(p72),'el párrafo «ap-sub» ya no hereda el relleno de la subpestaña');
+ok(/@media\(max-width:560px\)\{\.ap-atender li\{flex-wrap:wrap\}/.test(p72)&&/\.ap-kpis-4,\.ap-kpis-3\{grid-template-columns:1fr 1fr!important/.test(p72),'en el celular, «Por atender» deja el texto a todo el ancho y los indicadores van de dos en dos');
+
 /* validarMovimiento (71) con el núcleo real */
 global.window=global;
 require(R+'/js/asistente/70-asistente-nucleo.js');
@@ -37,6 +45,6 @@ ok(sb.validar(Object.assign({},base,{cantidad:''})).length>0&&sb.validar(Object.
 ok(sb.validar(Object.assign({},base,{cantidad:'0'})).length===0&&sb.validar(Object.assign({},base,{cantidad:0})).length===0,'un conteo en 0 escrito a propósito sí se guarda');
 ok(sb.validar(Object.assign({},base,{cantidad:'125.5'})).length===0,'un conteo normal se guarda');
 ok(sb.validar({tipo:'DEVOLUCION',insumo:'C01',cantidad:'0',cuadro:'k'}).length>0,'una devolución en 0 sigue sin guardarse');
-ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar4/.test(html),'index.html: versiones subidas');
+ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar5/.test(html),'index.html: versiones subidas');
 console.log(fallas?'\n'+fallas+' fallas':'\nBotones del Asistente correctos');
 process.exit(fallas?1:0);
