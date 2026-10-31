@@ -86,6 +86,23 @@
       <h4 class="ie-g">Línea de tiempo</h4>${Z.cache.listo.movimientos?(hist?`<ul class="il-tl">${hist}</ul>`:'<p class="ii-mut">Sin movimientos.</p>'):'<p class="ii-mut">Consultando…</p>'}</div>`;
   }
 
+  /* Parámetros (solo quien crea lotes): aviso de vencimiento y leyenda obligatoria. */
+  function parametrosHtml(){
+    if(!Z.puedeEscribir())return '';
+    const p=Z.cache.parametros||{};
+    return `<details class="ii-card il-params"><summary><b>Parámetros de lotes</b> <span class="ii-mut">· aviso de vencimiento: ${p.diasAvisoVencimiento?esc(p.diasAvisoVencimiento)+' días':'sin aviso'}</span></summary>
+      <div class="il-params-f"><label class="ii-et">Avisar cuántos días antes de vencer
+        <input id="il-p-dias" type="number" min="1" max="365" step="1" inputmode="numeric" value="${p.diasAvisoVencimiento?esc(p.diasAvisoVencimiento):''}" placeholder="Vacío = no avisar"></label>
+        <label class="il-op"><input id="il-p-ley" type="checkbox" ${p.leyendaObligatoria?'checked':''}><span><b>La foto debe traer leyenda</b><small class="ii-mut">Recepción o línea de destino (PET1, B7L…)</small></span></label>
+        <div class="ii-acc"><button type="button" class="ii-btn" onclick="ilGuardarParametros()">Guardar parámetros</button></div></div></details>`;
+  }
+  window.ilGuardarParametros=async()=>{
+    try{
+      await Z.guardarParametros({diasAvisoVencimiento:(document.getElementById('il-p-dias')||{}).value,leyendaObligatoria:(document.getElementById('il-p-ley')||{}).checked});
+      aviso('ok','Parámetros guardados.');
+    }catch(e){aviso('error',Z.mensajeError(e));}
+    repintar();
+  };
   function html(){
     Z.escuchar();EV.escuchar();
     const CP=window.iiControlProcesoUI;if(CP)CP.usar(repintar);                  // tarjeta «Control de proceso en el envasado» (90-91)
@@ -93,6 +110,7 @@
     const error=Z.cache.error?`<div class="ii-msg ii-msg-error" role="alert">No se pudieron leer los lotes: ${esc(Z.cache.error)}</div>`:'';
     return `<div class="ii-card"><div class="ii-fila-t"><h3>Lotes de insumos</h3>${Z.puedeEscribir()?'':'<span class="ii-chip">Solo consulta</span>'}</div>
       <p class="ii-mut">Cada etiqueta validada en Evidencias se convierte en una unidad de un lote rastreable: del proveedor a la línea y al cuadro de producción. No mueve el stock SAP.</p>${msg}${error}</div>
+      ${parametrosHtml()}
       ${CP?CP.html():''}
       <div class="ie-grid"><aside class="ii-card ie-lista"><div class="ie-filtros">${filtros()}</div><div id="il-lista">${listaHtml()}</div></aside><section>${fichaHtml()}</section></div>`;
   }
@@ -190,6 +208,7 @@
 .il-datos th{width:42%}.il-tabla-w{overflow-x:auto}.il-unidades th{text-align:left;font-size:12px;color:#475467;background:#f4f8fc}.il-unidades td{vertical-align:top}.il-unidades td small{display:block}.il-unidades td:nth-child(2){min-width:150px}.il-unidades .ii-pill{white-space:nowrap;max-width:100%}.il-unidades .ii-btn{white-space:nowrap}.il-unidades{table-layout:auto;min-width:760px}.il-unidades td:nth-child(n+4){white-space:nowrap}
 .il-tl{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}.il-tl li{background:#f8fbff;border:1px solid var(--ii-linea);border-radius:8px;padding:8px 10px;font-size:13.5px}
 .il-art{border:1px solid var(--ii-linea);border-radius:10px;margin:10px 0;padding:8px 12px}.il-art legend{font-weight:600;font-size:13px;padding:0 6px}.il-op{display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer}.il-op small{display:block}
+.il-params summary{cursor:pointer}.il-params-f{display:grid;gap:12px;margin-top:10px;max-width:520px}.il-params .ii-et input{max-width:200px}
 @media(max-width:900px){.il-cols{grid-template-columns:1fr}}
 @media(max-width:560px){.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
 

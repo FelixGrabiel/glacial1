@@ -570,7 +570,7 @@
     COMENTARIO_CONCILIACION:{txt:'Comentario de conciliación',grupo:'COMENTARIO'},
     IMPORTAR_EVIDENCIA:{txt:'Evidencia de etiqueta importada',grupo:'EVIDENCIA'},EDITAR_EVIDENCIA:{txt:'Dato de evidencia corregido',grupo:'EVIDENCIA'},
     CONFIRMAR_CAMPO:{txt:'Dato de evidencia confirmado',grupo:'EVIDENCIA'},CAMBIAR_ESTADO_EVIDENCIA:{txt:'Estado de evidencia',grupo:'EVIDENCIA'},
-    CREAR_LOTE:{txt:'Lote creado desde una evidencia',grupo:'LOTE'},AGREGAR_UNIDAD_LOTE:{txt:'Unidad agregada a un lote',grupo:'LOTE'},ENTREGAR_LINEA:{txt:'Unidad entregada a línea',grupo:'LOTE'}};
+    CREAR_LOTE:{txt:'Lote creado desde una evidencia',grupo:'LOTE'},AGREGAR_UNIDAD_LOTE:{txt:'Unidad agregada a un lote',grupo:'LOTE'},ENTREGAR_LINEA:{txt:'Unidad entregada a línea',grupo:'LOTE'},CAMBIAR_PARAMETROS_LOTES:{txt:'Parámetros de lotes cambiados',grupo:'LOTE'}};
   const CAMPOS_AUDITORIA={proveedor:'Proveedor',cliente:'Cliente',marca:'Marca',producto:'Producto',presentacion:'Presentación',codigo_producto:'Código del producto',lote:'Lote',numero_caja_bobina:'N.º de caja / bobina',
     orden_interna:'Orden interna',orden_compra:'Orden de compra',fecha_produccion:'Fecha de producción',fecha_proceso:'Fecha de proceso',fecha_etiqueta:'Fecha de la etiqueta',fecha_vencimiento:'Fecha de vencimiento',
     cantidad_valor:'Cantidad',cantidad_unidad:'Unidad',peso_neto_kg:'Peso neto (kg)',peso_bruto_kg:'Peso bruto (kg)',peso_declarado_kg:'Peso declarado (kg)',medidas:'Medidas',categoria:'Categoría',tipoDocumento:'Tipo de documento',sinUso:'Sin uso',stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',

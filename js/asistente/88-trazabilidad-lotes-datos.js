@@ -156,6 +156,26 @@
     return {entregadas:salida};
   }
 
-  window.glacialTrazabilidadDatos={C,cache,entregarALinea,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
+  /** Parámetros editables: días de aviso de vencimiento (vacío = sin aviso) y si la leyenda de la foto es obligatoria. Una transacción con control de revisión. */
+  async function guardarParametros({diasAvisoVencimiento,leyendaObligatoria}){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para cambiar los parámetros de lotes.');
+    const crudo=String(diasAvisoVencimiento==null?'':diasAvisoVencimiento).trim();
+    let dias=null;
+    if(crudo!==''){
+      dias=Number(crudo);
+      if(!Number.isInteger(dias)||dias<1||dias>365)throw falla('VALIDACION','Los días de aviso deben ser un número entero entre 1 y 365 (o déjalo vacío para no avisar).');
+    }
+    const u=usuario(),t=ahora();
+    await db.runTransaction(async tx=>{
+      const r=ref(C.parametros,'trazabilidad'),s=await tx.get(r);
+      const previo=s.exists?s.data():{};
+      const nuevo=Object.assign({},T.PARAMETROS_DEFECTO,previo,{id:'trazabilidad',diasAvisoVencimiento:dias,leyendaObligatoria:!!leyendaObligatoria,rev:(Number(previo.rev)||0)+1,actualizadoPor:u.nombre,actualizadoEn:t});
+      tx.set(r,nuevo);
+      auditar(tx,'CAMBIAR_PARAMETROS_LOTES','trazabilidad','Parámetros de lotes',{diasAvisoVencimiento:previo.diasAvisoVencimiento===undefined?null:previo.diasAvisoVencimiento,leyendaObligatoria:!!previo.leyendaObligatoria},{diasAvisoVencimiento:dias,leyendaObligatoria:!!leyendaObligatoria});
+    });
+    return {diasAvisoVencimiento:dias,leyendaObligatoria:!!leyendaObligatoria};
+  }
+
+  window.glacialTrazabilidadDatos={C,cache,entregarALinea,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
     mensajeError:D.mensajeError,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}};
 })();

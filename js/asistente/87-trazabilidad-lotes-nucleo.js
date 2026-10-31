@@ -222,6 +222,55 @@
     return {unidad:nueva,movimiento:mov,vencimiento:venc,avisos};
   }
 
+  /* ---------- uso en el cuadro y peso final (Etapa 2b) ---------- */
+  const textoCuadro=c=>String((c&&(c.texto||c.clave))||'').slice(0,160);
+  /**
+   * El supervisor marca que la unidad entró en uso en un cuadro: ENTREGADA_LINEA → EN_USO (misma línea) con el movimiento USO_CUADRO.
+   * cuadro = {clave, fecha, bloque, texto}. Puro.
+   */
+  function planUsoEnCuadro({unidad,cuadro,usuario,uid,en}){
+    const motivo=motivoNoPermitido(unidad,'USO_CUADRO');
+    if(motivo)throw falla('ESTADO',motivo);
+    if(!cuadro||!texto(cuadro.clave))throw falla('VALIDACION','Falta el cuadro en el que se usa la unidad.');
+    const ahora=Number(en)||Date.now(),por=recortar(usuario,80),nueva=clonar(unidad);
+    const antes={estado:unidad.estado,pesoActual:num(unidad.pesoActual),linea:unidad.linea||''};
+    nueva.estado='EN_USO';nueva.bloque=recortar(cuadro.bloque,20);nueva.fecha=recortar(cuadro.fecha,10);nueva.cuadro=recortar(cuadro.clave,200);
+    nueva.rev=(Number(unidad.rev)||1)+1;nueva.actualizadoPor=por;nueva.actualizadoEn=ahora;
+    nueva.historial=(unidad.historial||[]).concat([{estado:'EN_USO',accion:'USO_CUADRO',por,en:ahora,motivo:textoCuadro(cuadro)}]).slice(-200);
+    const mov={id:'MOV-'+recortar(unidad.id,60)+'-USO_CUADRO-'+ahora,tipo:'USO_CUADRO',loteId:unidad.loteId,unidadId:unidad.id,antes,
+      despues:{estado:'EN_USO',pesoActual:antes.pesoActual,linea:antes.linea},evidenciaId:recortar(unidad.evidenciaId||'',80),por,uid:recortar(uid,80),enMs:ahora,motivo:textoCuadro(cuadro),anula:''};
+    return {unidad:nueva,movimiento:mov};
+  }
+  /**
+   * Cierre de una unidad en uso: «CONSUMIDA» (se terminó: peso 0) o «EN_ALMACEN» (devolución parcial con su peso final, mayor que 0 y no mayor que el que tenía).
+   * Devuelve además cuánto se consumió (kg). Puro.
+   */
+  function planCierreUnidad({unidad,destino,pesoFinal,usuario,uid,en}){
+    const tipo=destino==='CONSUMIDA'?'CONSUMO':destino==='EN_ALMACEN'?'DEVOLUCION':'';
+    if(!tipo)throw falla('VALIDACION','Elige si la unidad se consumió o se devuelve a almacén.');
+    const motivo=motivoNoPermitido(unidad,tipo);
+    if(motivo)throw falla('ESTADO',motivo);
+    const antesKg=num(unidad.pesoActual);
+    let peso=0;
+    if(tipo==='DEVOLUCION'){
+      peso=Number(String(pesoFinal==null?'':pesoFinal).replace(',','.'));
+      if(String(pesoFinal==null?'':pesoFinal).trim()===''||!Number.isFinite(peso))throw falla('VALIDACION','Escribe el peso final que queda, en kg.');
+      if(peso<=0)throw falla('VALIDACION','Una devolución parcial debe tener peso mayor que 0. Si no queda nada, marca la unidad como consumida.');
+      if(peso>antesKg+1e-9)throw falla('VALIDACION','El peso final ('+red(peso)+' kg) no puede ser mayor que el que tenía la unidad ('+red(antesKg)+' kg).');
+    }
+    const ahora=Number(en)||Date.now(),por=recortar(usuario,80),nueva=clonar(unidad);
+    const antes={estado:unidad.estado,pesoActual:antesKg,linea:unidad.linea||''};
+    nueva.estado=destino;nueva.pesoActual=red(peso);
+    if(tipo==='DEVOLUCION'){nueva.linea='';nueva.bloque='';nueva.fecha='';nueva.cuadro='';}
+    nueva.rev=(Number(unidad.rev)||1)+1;nueva.actualizadoPor=por;nueva.actualizadoEn=ahora;
+    const consumidoKg=red(antesKg-peso);
+    nueva.historial=(unidad.historial||[]).concat([{estado:destino,accion:tipo,por,en:ahora,motivo:'Consumido '+consumidoKg+' kg'}]).slice(-200);
+    const mov={id:'MOV-'+recortar(unidad.id,60)+'-'+tipo+'-'+ahora,tipo,loteId:unidad.loteId,unidadId:unidad.id,antes,
+      despues:{estado:destino,pesoActual:red(peso),linea:nueva.linea},evidenciaId:recortar(unidad.evidenciaId||'',80),por,uid:recortar(uid,80),enMs:ahora,
+      motivo:'Consumido '+consumidoKg+' kg',consumidoKg,anula:''};
+    return {unidad:nueva,movimiento:mov,consumidoKg};
+  }
+
   /** Marca la evidencia con el lote y la unidad que nacieron de ella (no cambia su estado). */
   function evidenciaConLote(doc,{loteId,unidadId,usuario,en}){
     const n=clonar(doc),ahora=Number(en)||Date.now();
@@ -281,7 +330,7 @@
   }
 
   const API={LINEAS,ESTADOS,TRANSICIONES,MOVIMIENTOS,LEYENDAS_DEFECTO,PARAMETROS_DEFECTO,CATEGORIAS_CATALOGO,idLote,esIdLote,claveLote,numeroUnidad,idUnidad,interpretarLeyenda,datosDeEvidencia,
-    validarParaLote,claveMemoria,sugerirArticulos,planCrearLote,estadoVencimiento,planEntregaLinea,evidenciaConLote,transicionPermitida,motivoNoPermitido,unidadesDeLote,resumenLote,filtrarLotes,lineaDeTiempo,textoMovimiento,norm};
+    validarParaLote,claveMemoria,sugerirArticulos,planCrearLote,estadoVencimiento,planEntregaLinea,planUsoEnCuadro,planCierreUnidad,evidenciaConLote,transicionPermitida,motivoNoPermitido,unidadesDeLote,resumenLote,filtrarLotes,lineaDeTiempo,textoMovimiento,norm};
   global.glacialTrazabilidadNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);
