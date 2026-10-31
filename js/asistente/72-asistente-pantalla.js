@@ -951,7 +951,11 @@
       ${modoVista||(!puede('asistenteProduccion')&&!puede('moduloAlmacen'))?'<span class="ap-chip-vista">Solo consulta</span>':''}</div></header>
       <nav class="ap-tabs" role="tablist">${tabs}</nav>${cargando()}${aviso()}${cuerpo(ctx)}</section>`;
     window.scrollTo(0,scroll);
+    main.querySelectorAll('.ap-clic').forEach(e=>{if(!e.hasAttribute('tabindex')){e.setAttribute('tabindex','0');e.setAttribute('role','button');}});   // filas que se abren con un clic: también con el teclado
   }
+  document.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.classList&&e.target.classList.contains('ap-clic')&&e.target.closest('.ap')){e.preventDefault();e.target.click();}
+  });
   window.apCtx=(k,v)=>{if(k==='fecha'&&!/^\d{4}-\d{2}-\d{2}$/.test(v))return;AP[k]=v;AP.cuadro='';AP.insumo='';AP.solSel='';pintar();};
   /* ---------- tiempo real ----------
      Todo lo que guarda otra persona (entrega de Almacén, devolución, solicitud nueva, recepción…) llega solo por las escuchas en vivo.
@@ -1169,6 +1173,8 @@
 .ap-nueva .ap-tit-acc{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.ap-nueva .ap-h3{margin:0}
 .ap-t td .ap-btn-s{margin:0}
 p.ap-sub{padding:0;border:0;background:none;flex:none;font-size:14px;color:var(--ap-mut);margin:4px 0 10px}   /* «ap-sub» también es la subpestaña: el párrafo no debe heredar su relleno */
+/* Accesibilidad: el foco del teclado se ve en botones, pestañas, campos y filas que se pueden abrir. */
+.ap button:focus-visible,.ap a:focus-visible,.ap [role=button]:focus-visible,.ap summary:focus-visible,.ap input:focus-visible,.ap select:focus-visible,.ap textarea:focus-visible,.ap .ap-clic:focus-visible{outline:3px solid #7fb8d6;outline-offset:2px}
 .ap-tw+.ap-card,.ap-tw+section{margin-top:16px}
 .ap .ap-t th{white-space:normal;line-height:1.25}.ap .ap-t th,.ap-t td{padding-left:10px;padding-right:10px}   /* tablas de muchas columnas (Previsión) caben sin cortar «Estado» */
 @media(max-width:560px){.ap-nueva .ap-acc-agregar{grid-template-columns:1fr}.ap-kpi{gap:10px;padding:12px}.ap-kpi-ico{width:42px;height:42px}.ap .ap-kpi-ico .ap-ico{width:22px;height:22px}.ap-kpi-tx>span{font-size:14px}.ap-kpi-tx b{font-size:26px}.ap-atender li{flex-wrap:wrap}.ap-at-tx{flex:1 1 calc(100% - 48px)}.ap-atender li .ap-link{margin-left:38px;padding:2px 0}.ap-kpis-4,.ap-kpis-3{grid-template-columns:1fr 1fr!important;gap:10px}.ap-flujo-b{padding:7px 9px}}
@@ -1187,7 +1193,9 @@ p.ap-sub{padding:0;border:0;background:none;flex:none;font-size:14px;color:var(-
   .ap .ap-t-bal td,.ap .ap-t-bal th{display:table-cell;text-align:left;border-top:1px solid #e7eef4;padding:8px}.ap .ap-t-bal td:last-child,.ap .ap-t-bal th:last-child{text-align:right}.ap .ap-t-bal td:before{content:none}
   .ap-seg li{grid-template-columns:auto minmax(0,1fr) 20px}.ap-seg .ap-pill{grid-column:2;justify-self:start}.ap-reservas{align-items:flex-start}
   .ap-tit-acc .ap-acc{width:100%}.ap-acc .ap-btn{flex:1 1 auto}.ap-tab{padding:12px}.ap-atender li{flex-wrap:wrap}}
-@media print{.ap-tabs,.ap-acc,.ap-form,.ap-cab-der,.ap-filtros,.ap-evid{display:none!important}.ap-card{break-inside:avoid;box-shadow:none}}
+@media print{.ap-tabs,.ap-acc,.ap-form,.ap-cab-der,.ap-filtros,.ap-evid{display:none!important}.ap-card{break-inside:avoid;box-shadow:none}
+  /* «Resumen imprimible»: sin el menú ni la cabecera de la aplicación, a todo el ancho de la hoja */
+  #glacial-sidebar,.sidebar,.topbar,#ap-toasts,.modal-backdrop{display:none!important}.ap-card:has(.ap-filtros){display:none!important}.shell{display:block!important}#main,.main{margin:0!important;padding:0!important;max-width:none!important;width:100%!important}.ap{max-width:none}.ap-tw{overflow:visible}.ap-t{font-size:12px}}
 </style>`;}
   window.glacialAsistentePantalla={pintar,contexto,AP};
 })();

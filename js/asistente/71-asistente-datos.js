@@ -213,6 +213,8 @@
   }
 
   /* ---------- movimientos (libro inmutable) ---------- */
+  const ETQ_SOL={BORRADOR:'Borrador',SOLICITADA:'Solicitada',EN_PREPARACION:'En preparación',ENTREGADA_PARCIAL:'Entregada parcialmente',ENTREGADA:'Entregada',RECIBIDA:'Recibida',OBSERVADA:'Observada',CANCELADA:'Cancelada',CERRADA:'Cerrada'};
+  const etiquetaEstadoSol=e=>ETQ_SOL[e]||String(e||'');
   function validarMovimiento(m){
     const e=[];
     if(!N.TIPOS_MOV.includes(m.tipo)||m.tipo==='ANULACION'||m.tipo==='CONSUMO')e.push('Tipo de movimiento no válido.');
@@ -308,7 +310,7 @@
         }
         items=r.items;estado=r.estado;movs=r.movimientos;
       }
-      if(estado!==sol.estado&&!N.puedeTransicion(sol.estado,estado))throw falla('VALIDACION','No se puede pasar de '+sol.estado+' a '+estado+'.');
+      if(estado!==sol.estado&&!N.puedeTransicion(sol.estado,estado))throw falla('VALIDACION','La solicitud está «'+etiquetaEstadoSol(sol.estado)+'» y no puede pasar a «'+etiquetaEstadoSol(estado)+'». Actualiza la pantalla: puede que otra persona ya la cambió.');
       const nRec=(sol.historial||[]).filter(h=>h.recepcion).length;
       // Cada recepción crea su movimiento RECEPCION con id determinista (solicitud + número de recepción): un reintento no duplica stock.
       movs.forEach((m,j)=>{

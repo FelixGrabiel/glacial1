@@ -41,6 +41,14 @@ ok(/@media\(max-width:1500px\)\{\.ie-cols\{grid-template-columns:1fr\}/.test(p86
 ok(/falt\.length>2\?pill\('Faltan '\+falt\.length\+' insumos','rojo'\)/.test(p72),'Seguimiento: con más de dos faltantes se muestra «Faltan N insumos» y los nombres debajo (antes una etiqueta por insumo en cada fila)');
 ok(/\.ap \.ap-t th\{white-space:normal;line-height:1\.25\}/.test(p72),'las tablas de muchas columnas (Previsión) caben sin cortar «Estado»');
 
+/* Accesibilidad, impresión y mensajes */
+ok(/\.ap button:focus-visible[\s\S]*?outline:3px solid #7fb8d6/.test(p72),'el foco del teclado se ve en botones, pestañas, campos y filas');
+ok(/querySelectorAll\('\.ap-clic'\)[\s\S]*?setAttribute\('tabindex','0'\)/.test(p72)&&/e\.key==='Enter'\|\|e\.key===' '/.test(p72),'las filas que se abren con un clic también se abren con el teclado (Enter o espacio)');
+ok(/@media print\{[\s\S]*?#glacial-sidebar,\.sidebar,\.topbar/.test(p72)&&/\.ap-card:has\(\.ap-filtros\)\{display:none!important\}/.test(p72),'«Resumen imprimible» sale sin el menú ni la cabecera de la aplicación ni la tarjeta de filtros');
+const p70=leer('js/asistente/70-asistente-nucleo.js');
+ok(!/Unidad no válida|Tipo no válido|La base debe ser UND o PALETA|Vigente desde: fecha AAAA-MM-DD/.test(p70)&&/Elige la unidad del insumo/.test(p70)&&/Indica desde qué fecha rige el factor/.test(p70),'los mensajes de insumos y factores dicen qué hacer');
+ok(!/No se puede pasar de '\+sol\.estado/.test(p71)&&/etiquetaEstadoSol\(sol\.estado\)/.test(p71),'al cambiar una solicitud ya modificada por otra persona, el mensaje usa los nombres de los estados y explica qué hacer');
+
 /* validarMovimiento (71) con el núcleo real */
 global.window=global;
 require(R+'/js/asistente/70-asistente-nucleo.js');
@@ -54,6 +62,6 @@ ok(sb.validar(Object.assign({},base,{cantidad:''})).length>0&&sb.validar(Object.
 ok(sb.validar(Object.assign({},base,{cantidad:'0'})).length===0&&sb.validar(Object.assign({},base,{cantidad:0})).length===0,'un conteo en 0 escrito a propósito sí se guarda');
 ok(sb.validar(Object.assign({},base,{cantidad:'125.5'})).length===0,'un conteo normal se guarda');
 ok(sb.validar({tipo:'DEVOLUCION',insumo:'C01',cantidad:'0',cuadro:'k'}).length>0,'una devolución en 0 sigue sin guardarse');
-ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar8/.test(html),'index.html: versiones subidas');
+ok(/71-asistente-datos\.js\?v=20261031-ar9/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar9/.test(html),'index.html: versiones subidas');
 console.log(fallas?'\n'+fallas+' fallas':'\nBotones del Asistente correctos');
 process.exit(fallas?1:0);
