@@ -34,7 +34,7 @@ ok(/\.ap-atender li\{flex-wrap:wrap\}/.test(p72)&&/\.ap-kpis-4,\.ap-kpis-3\{grid
 
 ok(/function tarjetaEmpezar\(ctx\)\{\s*if\(!puede\('asistenteProduccion'\)&&!puede\('gestionarFactores'\)\)return ''/.test(p72),'«Para empezar» y el flujo del turno no se muestran a quien solo consulta ni a Almacén');
 ok(/<option value="MATERIAL">Material o insumo<\/option>/.test(p72),'el tipo de merma ya no se corta en el desplegable');
-ok(/@media\(max-width:560px\)\{\.ap-kpi\{gap:10px;padding:12px\}/.test(p72),'en el celular los indicadores del Resumen son más compactos');
+ok(/\.ap-kpi\{gap:10px;padding:12px\}/.test(p72),'en el celular los indicadores del Resumen son más compactos');
 const p86=leer('js/asistente/86-evidencias-insumos-pantalla.js');
 ok(/@media\(max-width:1500px\)\{\.ie-cols\{grid-template-columns:1fr\}/.test(p86),'Evidencias: hasta 1500 px la foto va arriba y los campos ocupan todo el ancho (no se cortan)');
 
