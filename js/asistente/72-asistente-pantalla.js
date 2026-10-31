@@ -556,7 +556,7 @@
     const b=(estado,txt,cls)=>N.puedeTransicion(s.estado,estado)&&((N.ACTOR_ESTADO[estado]==='almacen'&&alm)||(N.ACTOR_ESTADO[estado]==='asistente'&&asist))
       ?`<button type="button" class="ap-btn ${cls||''}" onclick="apEstadoSolicitud('${esc(s.id)}','${estado}',${num(s.version)})">${txt}</button>`:'';
     const recibir=asist&&['ENTREGADA','ENTREGADA_PARCIAL','OBSERVADA'].includes(s.estado)
-      ?`<div class="ap-form ap-form-2">${campo('Cuadro al que se destina',`<select id="ap-rec-cuadro"><option value="">— Elegir —</option>${cuadrosSol.map(c=>`<option value="${esc(c.clave)}">${esc(nombreCuadro(c))}</option>`).join('')}</select>${cuadrosSol.length?'':'<small class="ap-mut">No hay cuadros programados para '+esc(s.fecha)+' · '+(s.bloque==='NOCHE'?'Noche':'Día')+': puedes confirmar la recepción sin elegir cuadro.</small>'}`)}${campo('Lote (opcional)','<input id="ap-rec-lote" maxlength="40">')}</div>
+      ?`<div class="ap-form ap-form-2">${campo('Cuadro al que se destina',`<select id="ap-rec-cuadro"><option value="">— Elegir —</option>${cuadrosSol.map(c=>`<option value="${esc(c.clave)}">${esc(nombreCuadro(c))}</option>`).join('')}</select>${cuadrosSol.length?'':'<small class="ap-mut">No hay cuadros programados para '+esc(s.fecha)+' · '+(s.bloque==='NOCHE'?'Noche':'Día')+': elige la línea a la que se destina (abajo).</small>'}`)}${cuadrosSol.length?'':campo('Línea a la que se destina',`<select id="ap-rec-linea"><option value="">— Elegir —</option>${N.LINEAS.map(l=>`<option value="${esc(l.codigo)}">${esc(l.nombre)}</option>`).join('')}</select>`)}${campo('Lote (opcional)','<input id="ap-rec-lote" maxlength="40">')}</div>
         <button type="button" class="ap-btn" onclick="apEstadoSolicitud('${esc(s.id)}','RECIBIDA',${num(s.version)})">Confirmar lo recibido</button>`:'';
     const entregar=alm&&['EN_PREPARACION','ENTREGADA_PARCIAL'].includes(s.estado)?`<button type="button" class="ap-btn ap-btn-o" onclick="apEntregarLoQueHay()">Entregar lo que hay</button><button type="button" class="ap-btn" onclick="apEstadoSolicitud('${esc(s.id)}','ENTREGADA',${num(s.version)})">Registrar entrega</button>`:'';
     // Entregas registradas (solo Almacén las anula): una fila por entrega, con su detalle y su estado.
@@ -605,7 +605,12 @@
       const linea=r=>`• ${insumoDe(r.insumo).nombre}: ${fmt(r.cantidad)} ${insumoDe(r.insumo).unidad}`+(r.antes===null?' (sin dato de stock en el Inventario)':` · en Almacén ${fmt(r.antes)} → ${fmt(r.despues)}`);
       if(!confirm('¿Registrar esta entrega?\n\n'+(res.length?res.map(linea).join('\n'):Object.keys(ent).map(k=>`• ${insumoDe(k).nombre}: ${fmt(ent[k])}`).join('\n'))+'\n\nQueda en tránsito hasta que Producción confirme la recepción.'))return;
     }
-    const datos={entregas:ent,autorizarSinStock:!!motivoSS,motivoSinStock:motivoSS,recepciones:rec,cuadro:clave,linea:c?c.linea:'',lote:valor('ap-rec-lote'),nota:valor('ap-sol-nota')};
+    const sinCuadros=!!solicitud&&cuadrosPara(solicitud.fecha,solicitud.bloque).length===0;
+    const datos={entregas:ent,autorizarSinStock:!!motivoSS,motivoSinStock:motivoSS,recepciones:rec,cuadro:clave,linea:c?c.linea:(sinCuadros?valor('ap-rec-linea'):''),sinCuadros,lote:valor('ap-rec-lote'),nota:valor('ap-sol-nota')};
+    if(estado==='RECIBIDA'&&!String(clave||'').trim()){
+      if(!sinCuadros){alert('Elige el cuadro al que se destina lo recibido.');return;}
+      if(!String(datos.linea||'').trim()){alert('No hay cuadros programados para esa fecha y turno: elige la línea a la que se destina lo recibido.');return;}
+    }
     if(typeof closeModal==='function')closeModal();
     ejecutar(()=>D.cambiarEstadoSolicitud(id,estado,version,datos),'Solicitud actualizada.');
   };
