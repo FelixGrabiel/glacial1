@@ -217,7 +217,8 @@
     const e=[];
     if(!N.TIPOS_MOV.includes(m.tipo)||m.tipo==='ANULACION'||m.tipo==='CONSUMO')e.push('Tipo de movimiento no válido.');
     if(!String(m.insumo||'').trim())e.push('Indica el insumo.');
-    if(!(num(m.cantidad)>=0)||(m.tipo!=='CONTEO'&&!(num(m.cantidad)>0)))e.push('La cantidad debe ser mayor que 0 (un conteo puede ser 0).');
+    if(m.cantidad===undefined||m.cantidad===null||String(m.cantidad).trim()==='')e.push('Escribe la cantidad (en un conteo, escribe 0 si no hay nada: un campo vacío no se guarda como 0).');
+    else if(!(num(m.cantidad)>=0)||(m.tipo!=='CONTEO'&&!(num(m.cantidad)>0)))e.push('La cantidad debe ser mayor que 0 (un conteo puede ser 0).');
     if(!['UTILIZABLE','OBSERVADO'].includes(m.condicion||'UTILIZABLE'))e.push('Condición no válida.');
     if(m.tipo!=='CONTEO'&&!String(m.cuadro||'').trim())e.push('Indica el cuadro (línea, marca y presentación) al que corresponde.');
     return e;
