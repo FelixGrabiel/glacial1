@@ -301,7 +301,11 @@
       }else if(estadoNuevo==='RECIBIDA'){
         const r=N.aplicarRecepcion(sol,datos.recepciones||{});if(r.errores)throw falla('VALIDACION',r.errores.join(' · '));
         if(!r.movimientos.length)throw falla('VALIDACION','Indica lo realmente recibido.');
-        if(!String(datos.cuadro||'').trim())throw falla('VALIDACION','Indica el cuadro al que se destina lo recibido.');
+        /* Con cuadros programados se exige el cuadro; si ese día y turno no tiene ninguno (no se cargó la programación), se exige al menos la línea. */
+        if(!String(datos.cuadro||'').trim()){
+          if(!datos.sinCuadros)throw falla('VALIDACION','Indica el cuadro al que se destina lo recibido.');
+          if(!String(datos.linea||sol.linea||'').trim())throw falla('VALIDACION','No hay cuadros programados para esa fecha y turno: indica la línea a la que se destina lo recibido.');
+        }
         items=r.items;estado=r.estado;movs=r.movimientos;
       }
       if(estado!==sol.estado&&!N.puedeTransicion(sol.estado,estado))throw falla('VALIDACION','No se puede pasar de '+sol.estado+' a '+estado+'.');

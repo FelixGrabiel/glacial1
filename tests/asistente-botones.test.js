@@ -14,6 +14,10 @@ ok(/function cuadrosPara\(fecha,bloque\)/.test(p72)&&/const cuadrosSol=cuadrosPa
 ok(/cuadrosPara\(solicitud\.fecha,solicitud\.bloque\)/.test(p72),'el cuadro elegido se busca con esos mismos cuadros');
 ok(/No hay cuadros programados para/.test(p72),'si de verdad no hay cuadros, se explica y se puede confirmar sin cuadro');
 
+ok(/sinCuadros/.test(p71)&&/No hay cuadros programados para esa fecha y turno: indica la línea/.test(p71),'sin cuadros programados, la recepción exige al menos la línea (antes quedaba bloqueada sin salida)');
+ok(/id="ap-rec-linea"/.test(p72)&&/sinCuadros\?valor\('ap-rec-linea'\)/.test(p72.replace(/\s+/g,' ').replace('sinCuadros ? valor','sinCuadros?valor')),'la ventana ofrece «Línea a la que se destina» cuando no hay cuadros');
+ok(/alert\('Elige el cuadro al que se destina lo recibido\.'\)/.test(p72)&&/return;\}\s*if\(!String\(datos\.linea/.test(p72),'se avisa antes de cerrar la ventana (no se pierde lo escrito)');
+
 /* validarMovimiento (71) con el núcleo real */
 global.window=global;
 require(R+'/js/asistente/70-asistente-nucleo.js');
@@ -27,6 +31,6 @@ ok(sb.validar(Object.assign({},base,{cantidad:''})).length>0&&sb.validar(Object.
 ok(sb.validar(Object.assign({},base,{cantidad:'0'})).length===0&&sb.validar(Object.assign({},base,{cantidad:0})).length===0,'un conteo en 0 escrito a propósito sí se guarda');
 ok(sb.validar(Object.assign({},base,{cantidad:'125.5'})).length===0,'un conteo normal se guarda');
 ok(sb.validar({tipo:'DEVOLUCION',insumo:'C01',cantidad:'0',cuadro:'k'}).length>0,'una devolución en 0 sigue sin guardarse');
-ok(/71-asistente-datos\.js\?v=20261031-ar1/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar2/.test(html),'index.html: versiones subidas');
+ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar3/.test(html),'index.html: versiones subidas');
 console.log(fallas?'\n'+fallas+' fallas':'\nBotones del Asistente correctos');
 process.exit(fallas?1:0);
