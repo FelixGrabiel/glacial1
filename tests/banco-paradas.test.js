@@ -8,7 +8,7 @@ const mig=leer('supabase/migraciones/glacial_37_permiso_banco_paradas.sql');
 
 ok(/key:'ver_banco_paradas',area:'mantenimiento'/.test(est),'el panel de gestionar usuarios ofrece el permiso «ver_banco_paradas» (área Mantenimiento)');
 ok(/tiene\('ver_banco_paradas'\)/.test(b67),'quien tiene ese permiso entra al panel de Mantenimiento (lectura)');
-ok(/ver_banco_paradas/.test(mig)&&/ver_bitacora_mantenimiento/.test(mig)&&/NO APLICADA en PRODUCCIÓN/.test(mig),'migración glacial_37: lectura para el permiso nuevo, avisa que falta aplicarla en producción');
+ok(/ver_banco_paradas/.test(mig)&&/ver_bitacora_mantenimiento/.test(mig)&&/APLICADA en PRUEBAS y PRODUCCIÓN/.test(mig),'migración glacial_37: lectura para el permiso nuevo, avisa que falta aplicarla en producción');
 ok(html.indexOf('70-banco-paradas.js')>html.indexOf('67h-reclasificacion-pantalla.js')&&/70-banco-paradas\.js\?v=20261030-bp1/.test(html),'index.html carga el banco después de 67h');
 ok(/Banco de paradas/.test(hub)&&/tab:'banco-paradas'/.test(hub),'el inicio de Mantenimiento tiene la tarjeta «Banco de paradas»');
 ok(!/\.set\(|\.update\(|\.add\(|runTransaction|reclasificar\(/.test(src.replace(/R\.puedeReclasificar/g,'')),'el banco no escribe nada (solo lectura)');

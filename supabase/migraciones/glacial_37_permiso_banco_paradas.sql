@@ -1,4 +1,4 @@
--- GLACIAL · glacial_37 · PERMISO «ver_banco_paradas» (Banco de paradas por clasificar)                                  *** NO APLICADA en PRODUCCIÓN (aplicar primero en PRUEBAS) ***
+-- GLACIAL · glacial_37 · PERMISO «ver_banco_paradas» (Banco de paradas por clasificar)                                  *** APLICADA en PRUEBAS y PRODUCCIÓN (31/10/2026) ***
 --
 -- Qué hace
 --  El Banco de paradas (Mantenimiento › Intervenciones y equipos › Banco de paradas) lee la colección reclasificacionesParada, que hoy solo lee la marca «bitacora»

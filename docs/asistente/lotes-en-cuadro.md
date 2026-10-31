@@ -13,7 +13,7 @@
 
 **Servidor**
 - `glacial_38`: los supervisores LEEN lotes y unidades.
-- `glacial_39`: los supervisores pueden, sobre una unidad, SOLO pasar ENTREGADA_LINEA → EN_USO (misma línea) y EN_USO → CONSUMIDA / EN_ALMACEN con el peso entre 0 y el anterior, tocando solo estado, línea, bloque, fecha, cuadro, peso, rev, actualizadoPor, actualizadoEn e historial; y crear solo movimientos USO_CUADRO, CONSUMO o DEVOLUCION. Aplicadas en PRUEBAS; **PRODUCCIÓN pendiente**. Sin ellas el panel no aparece (lectura) o avisa que falta el permiso (acciones) y no cambia nada.
+- `glacial_39`: los supervisores pueden, sobre una unidad, SOLO pasar ENTREGADA_LINEA → EN_USO (misma línea) y EN_USO → CONSUMIDA / EN_ALMACEN con el peso entre 0 y el anterior, tocando solo estado, línea, bloque, fecha, cuadro, peso, rev, actualizadoPor, actualizadoEn e historial; y crear solo movimientos USO_CUADRO, CONSUMO o DEVOLUCION. Aplicadas en PRUEBAS y en PRODUCCIÓN (31/10/2026). Sin ellas el panel no aparece (lectura) o avisa que falta el permiso (acciones) y no cambia nada.
 
 **Lo que sigue sin hacerse**
 - **Tolerancia de consumo:** no tiene una definición única (peso contra unidades, por cuadro o por turno), así que no se implementó ni se inventó un número. Cuando se defina cómo medirla, se agrega.

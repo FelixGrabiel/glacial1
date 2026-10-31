@@ -1,4 +1,4 @@
--- GLACIAL · glacial_38 · LOS SUPERVISORES PUEDEN LEER LOS LOTES Y UNIDADES (para elegir los lotes de insumo usados en cada cuadro)       *** NO APLICADA en PRODUCCIÓN (aplicar primero en PRUEBAS) ***
+-- GLACIAL · glacial_38 · LOS SUPERVISORES PUEDEN LEER LOS LOTES Y UNIDADES (para elegir los lotes de insumo usados en cada cuadro)       *** APLICADA en PRUEBAS y PRODUCCIÓN (31/10/2026) ***
 --
 -- Qué hace
 --  En el cuadro del reporte el supervisor marca qué lotes de preforma, tapa, etiqueta y asa usó (Etapa 2 de la trazabilidad). Para listar los que están en su línea necesita LEER

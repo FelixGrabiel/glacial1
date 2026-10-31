@@ -48,7 +48,7 @@ ok(/lotesCuadroHtml\(i\)/.test(s06),'cada cuadro del formulario muestra «Lotes 
 ok(html.indexOf('92-lotes-en-cuadro.js')>html.indexOf('91-control-proceso-excel.js')&&/92-lotes-en-cuadro\.js\?v=20261031-lc2/.test(html),'index.html carga el módulo');
 ok(/async function entregarALinea/.test(s88)&&/db\.runTransaction/.test(s88)&&/ENTREGAR_LINEA/.test(s88)&&/entregarALinea,/.test(s88),'la entrega a línea es una transacción con movimiento y auditoría');
 ok(/ilAbrirEntrega/.test(s89)&&/Entregar a línea/.test(s89)&&/accionUnidad/.test(s89),'la ficha del lote tiene «Entregar a línea» (solo quien crea lotes y solo unidades en almacén)');
-ok(/NO APLICADA en PRODUCCIÓN/.test(mig)&&/opera/.test(mig)&&!/insumosLoteMovimientos'\) then return coalesce\(\(k->>'ii_ver'\)::boolean, false\) or/.test(mig),'glacial_38: los supervisores solo LEEN lotes y unidades; movimientos, índice y parámetros siguen cerrados; avisa que falta producción');
+ok(/APLICADA en PRUEBAS y PRODUCCIÓN/.test(mig)&&/opera/.test(mig)&&!/insumosLoteMovimientos'\) then return coalesce\(\(k->>'ii_ver'\)::boolean, false\) or/.test(mig),'glacial_38: los supervisores solo LEEN lotes y unidades; movimientos, índice y parámetros siguen cerrados; avisa que falta producción');
 ok(!/tx\.set|\.doc\(|\.add\(|runTransaction|\.update\(/.test(s92),'los lotes en el cuadro no escriben en la base de lotes (solo se anotan en el reporte)');
 ok(!/alert\(|confirm\(|prompt\(/.test(s92),'sin alert/confirm/prompt');
 ok(/function chipVence\(l\)/.test(s89)&&/Vencido hace/.test(s89)&&/Vence en \$\{v\.dias\} d/.test(s89)&&/\$\{chipVence\(l\)/.test(s89),'la lista y la ficha del lote marcan «Vencido» o «Vence en N d» (este último solo con umbral definido)');
@@ -73,7 +73,7 @@ const s93=leer('js/asistente/93-lotes-uso-cuadro.js'),mig39=leer('supabase/migra
 ok(/window\.loteUsoMarcar/.test(s93)&&/window\.loteUsoCerrar/.test(s93)&&/runTransaction/.test(s93)&&/insumosLoteMovimientos/.test(s93)&&!/alert\(|confirm\(|prompt\(/.test(s93),'las acciones del supervisor son transacciones (unidad + movimiento) y sin alert/confirm/prompt');
 ok(/loteUsoMarcar\(/.test(s92)&&/loteUsoCerrar\(/.test(s92)&&/permission\|permiso\|denied/.test(s92),'el panel del cuadro ofrece «Marcar en uso» y «Registrar peso final»; sin permiso del servidor no estorba');
 ok(html.indexOf('93-lotes-uso-cuadro.js')>html.indexOf('92-lotes-en-cuadro.js')&&/93-lotes-uso-cuadro\.js\?v=20261031-lc2/.test(html),'index.html carga las acciones después del panel');
-ok(/NO APLICADA en PRODUCCIÓN/.test(mig39)&&/USO_CUADRO','CONSUMO','DEVOLUCION/.test(mig39)&&/'ENTREGADA_LINEA' and n->>'estado' = 'EN_USO'/.test(mig39)&&/between 0 and \(v->>'pesoActual'\)::numeric/.test(mig39),'glacial_39: solo las tres transiciones, peso entre 0 y el anterior, solo esos movimientos; avisa que falta producción');
+ok(/APLICADA en PRUEBAS y PRODUCCIÓN/.test(mig39)&&/USO_CUADRO','CONSUMO','DEVOLUCION/.test(mig39)&&/'ENTREGADA_LINEA' and n->>'estado' = 'EN_USO'/.test(mig39)&&/between 0 and \(v->>'pesoActual'\)::numeric/.test(mig39),'glacial_39: solo las tres transiciones, peso entre 0 y el anterior, solo esos movimientos; avisa que falta producción');
 ok(/async function guardarParametros/.test(s88)&&/ilGuardarParametros/.test(s89)&&/Parámetros de lotes/.test(s89)&&/Los días de aviso deben ser un número entero/.test(s88),'los parámetros (días de aviso y leyenda obligatoria) se editan desde Lotes');
 console.log(fallas?'\n'+fallas+' fallas':'\nLotes en el cuadro correcto');
 process.exit(fallas?1:0);

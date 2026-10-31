@@ -1,4 +1,4 @@
--- GLACIAL · glacial_39 · LOS SUPERVISORES REGISTRAN EL USO Y EL PESO FINAL DE LAS UNIDADES (Etapa 2b de la trazabilidad de lotes)         *** NO APLICADA en PRODUCCIÓN (aplicar primero en PRUEBAS) ***
+-- GLACIAL · glacial_39 · LOS SUPERVISORES REGISTRAN EL USO Y EL PESO FINAL DE LAS UNIDADES (Etapa 2b de la trazabilidad de lotes)         *** APLICADA en PRUEBAS y PRODUCCIÓN (31/10/2026) ***
 --
 -- Qué hace
 --  Hasta ahora solo quien crea lotes (marca «ii_esc»: Asistente de Producción y Administrador) podía cambiar una unidad. Esta migración deja que la marca «opera»
@@ -17,9 +17,10 @@
 do $m$
 declare
   def text; cuenta integer;
-  anc_u constant text := '-- lotes, unidades y parámetros: se crean una vez y se actualizan';
-  nuevo_u constant text := $u$-- lotes, unidades y parámetros: se crean una vez y se actualizan
-       -- glacial_39: el supervisor registra uso, consumo o devolución de una unidad de su línea (solo esos campos y esas transiciones)
+  /* Punto de inserción de las unidades: el «else … return esc and (accion = 'update' or n->>'id' = d);» de la rama de lotes. Se busca por su forma (con o sin comentarios y con
+     cualquier espaciado), porque PRUEBAS y PRODUCCIÓN tienen el mismo código escrito con espacios y comentarios distintos. */
+  pat_u constant text := $p$(elsif c = 'insumosLotesClaves' then\s+return esc and accion = 'create' and n->>'id' = d;[^;]*?else)(\s+(?:--[^\n]*\n\s*)?)(return esc and \(accion = 'update' or n->>'id' = d\);)$p$;
+  bloque constant text := $u$-- glacial_39: el supervisor registra uso, consumo o devolución de una unidad de su línea (solo esos campos y esas transiciones)
        if c = 'insumosUnidades' and coalesce((k->>'opera')::boolean, false) and accion = 'update'
           and jsonb_typeof(n->'pesoActual') = 'number' and jsonb_typeof(v->'pesoActual') = 'number'
           and (n->>'pesoActual')::numeric between 0 and (v->>'pesoActual')::numeric
@@ -35,9 +36,9 @@ begin
   if def is null then raise exception 'glacial_fs.autorizar no existe'; end if;
   if position('glacial_39' in def) > 0 then return; end if;                               -- ya aplicada
   if position('insumosLotes' in def) = 0 then raise exception 'autorizar no tiene las reglas de lotes: aplica antes glacial_34'; end if;
-  cuenta := (length(def) - length(replace(def, anc_u, ''))) / length(anc_u);
+  select count(*) into cuenta from regexp_matches(def, pat_u, 'g');
   if cuenta <> 1 then raise exception 'autorizar: punto de inserción (unidades) encontrado % veces', cuenta; end if;
-  def := replace(def, anc_u, nuevo_u);
+  def := regexp_replace(def, pat_u, E'\\1\\2' || bloque || E'\\2\\3');
   cuenta := (length(def) - length(replace(def, anc_m, ''))) / length(anc_m);
   if cuenta <> 1 then raise exception 'autorizar: punto de inserción (movimientos) encontrado % veces', cuenta; end if;
   def := replace(def, anc_m, nuevo_m);

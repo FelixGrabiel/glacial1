@@ -1,4 +1,4 @@
--- GLACIAL · glacial_36 · VELOCIDADES ESTÁNDAR ADMINISTRADAS POR MANTENIMIENTO (con historial)                    *** NO APLICADA en PRODUCCIÓN (aplicar primero en PRUEBAS) ***
+-- GLACIAL · glacial_36 · VELOCIDADES ESTÁNDAR ADMINISTRADAS POR MANTENIMIENTO (con historial)                    *** APLICADA en PRUEBAS y PRODUCCIÓN (31/10/2026) ***
 --
 -- Qué hace
 --  La pantalla «Mantenimiento › Velocidades estándar» (js/mantenimiento/69-velocidades-estandar.js) escribe tres campos de sync/configIndicadores:
