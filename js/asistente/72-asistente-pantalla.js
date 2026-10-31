@@ -143,7 +143,14 @@
   }
   const valor=id=>{const el=document.getElementById(id);return el?el.value:'';};
   window.AP_set=(k,v)=>{AP[k]=v;pintar();};
-  window.apIr=(tab,sub)=>{AP.tab=tab;if(sub)AP.sub=sub;pintar();window.scrollTo(0,0);};
+  /* «Preparar solicitud»: lleva a Solicitudes y deja al usuario en el formulario (aunque ya estuviera en esa pestaña, donde antes parecía no hacer nada). */
+  window.apIr=(tab,sub)=>{
+    AP.tab=tab;if(sub)AP.sub=sub;pintar();window.scrollTo(0,0);
+    if(tab==='insumos'&&sub==='solicitudes')setTimeout(()=>{
+      const f=document.getElementById('ap-sol-nueva');
+      if(f){f.scrollIntoView({behavior:'smooth',block:'start'});const c=document.querySelector('.ap-sol-cant,#ap-sol-extra');if(c)setTimeout(()=>c.focus({preventScroll:true}),350);}
+    },60);
+  };
   window.apEnfocar=id=>{const el=document.getElementById(id);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>el.focus(),300);}};
   window.apIrConteo=()=>{AP.tab='insumos';AP.sub='existencias';pintar();window.apEnfocar('ap-mov-cant');};
 
@@ -500,8 +507,9 @@
       return `<tr><td data-label="Insumo">${esc(i.nombre)} (${esc(i.unidad)})</td><td data-label="Faltante" class="ap-num">${f?fmt(f.faltante):'—'}</td><td data-label="En Almacén" class="ap-num">${txtStockAlm(i.codigo,i.unidad)}</td>
         <td data-label="Cantidad"><input class="ap-sol-cant" data-insumo="${esc(i.codigo)}" data-unidad="${esc(i.unidad)}" onchange="apSolVal(this);apAvisoStock()" type="number" min="0" step="any" value="${esc(vals[i.codigo]!==undefined?vals[i.codigo]:def)}"></td></tr>`;}).join('');
     const otros=D.cache.insumos.filter(i=>i.activo!==false&&!faltantes.some(x=>x.insumo.codigo===i.codigo)&&!extra.includes(i.codigo));
-    const nueva=asist?`<h3 class="ap-h3">Preparar solicitud a Almacén</h3>${faltantesNetos(ctx).length?`<div class="ap-acc"><button type="button" class="ap-btn" onclick="apSolicitarFaltantes()">${ico('doc')} Solicitar todos los faltantes (${faltantesNetos(ctx).length})</button></div>`:''}
-      <p class="ap-sub">${faltantes.length?'Se proponen los faltantes del bloque; ajusta las cantidades si hace falta.':'No hay faltantes calculados; agrega los insumos que necesites.'}</p>
+    const motivoVacio=D.cache.factores.length?'Con lo registrado hoy no falta ningún insumo para este bloque (o lo que falta ya está pedido o en camino).':'Todavía no hay factores de consumo cargados (pestaña «Factores»): sin ellos el sistema no calcula lo que falta y no inventa valores.';
+    const nueva=asist?`<div id="ap-sol-nueva"></div><h3 class="ap-h3">Preparar solicitud a Almacén</h3>${faltantesNetos(ctx).length?`<div class="ap-acc"><button type="button" class="ap-btn" onclick="apSolicitarFaltantes()">${ico('doc')} Solicitar todos los faltantes (${faltantesNetos(ctx).length})</button></div>`:''}
+      <p class="ap-sub">${faltantes.length?'Se proponen los faltantes del bloque; ajusta las cantidades si hace falta.':'No hay faltantes calculados. '+motivoVacio+' Agrega a mano los insumos que necesites.'}</p>
       ${filasNueva?tabla(['Insumo','#Faltante','#En Almacén','Cantidad a solicitar'],filasNueva):vacio('Ningún insumo con faltante. Agrega abajo el que necesites.')}
       ${otros.length?`<div class="ap-acc ap-acc-agregar"><select id="ap-sol-extra"><option value="">Agregar otro insumo…</option>${otros.map(i=>`<option value="${esc(i.codigo)}">${esc(i.nombre)}</option>`).join('')}</select><button type="button" class="ap-btn ap-btn-o" onclick="apSolAgregar()">${ico('mas')} Agregar</button></div>`:''}
       <div id="ap-sol-aviso"></div>
