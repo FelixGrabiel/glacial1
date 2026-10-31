@@ -51,6 +51,6 @@ ok(sb.validar(Object.assign({},base,{cantidad:''})).length>0&&sb.validar(Object.
 ok(sb.validar(Object.assign({},base,{cantidad:'0'})).length===0&&sb.validar(Object.assign({},base,{cantidad:0})).length===0,'un conteo en 0 escrito a propósito sí se guarda');
 ok(sb.validar(Object.assign({},base,{cantidad:'125.5'})).length===0,'un conteo normal se guarda');
 ok(sb.validar({tipo:'DEVOLUCION',insumo:'C01',cantidad:'0',cuadro:'k'}).length>0,'una devolución en 0 sigue sin guardarse');
-ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar6/.test(html),'index.html: versiones subidas');
+ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar7/.test(html),'index.html: versiones subidas');
 console.log(fallas?'\n'+fallas+' fallas':'\nBotones del Asistente correctos');
 process.exit(fallas?1:0);

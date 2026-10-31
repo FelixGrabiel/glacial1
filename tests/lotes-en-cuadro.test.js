@@ -51,5 +51,8 @@ ok(/ilAbrirEntrega/.test(s89)&&/Entregar a línea/.test(s89)&&/accionUnidad/.tes
 ok(/NO APLICADA en PRODUCCIÓN/.test(mig)&&/opera/.test(mig)&&!/insumosLoteMovimientos'\) then return coalesce\(\(k->>'ii_ver'\)::boolean, false\) or/.test(mig),'glacial_38: los supervisores solo LEEN lotes y unidades; movimientos, índice y parámetros siguen cerrados; avisa que falta producción');
 ok(!/tx\.set|\.doc\(|\.add\(|runTransaction|\.update\(/.test(s92),'los lotes en el cuadro no escriben en la base de lotes (solo se anotan en el reporte)');
 ok(!/alert\(|confirm\(|prompt\(/.test(s92),'sin alert/confirm/prompt');
+ok(/function chipVence\(l\)/.test(s89)&&/Vencido hace/.test(s89)&&/Vence en \$\{v\.dias\} d/.test(s89)&&/\$\{chipVence\(l\)/.test(s89),'la lista y la ficha del lote marcan «Vencido» o «Vence en N d» (este último solo con umbral definido)');
+ok(/\.il-unidades\{table-layout:auto;min-width:760px\}/.test(s89)&&/\.il-unidades \.ii-btn\{white-space:nowrap\}/.test(s89),'la tabla de unidades ya no encima el estado con la línea ni parte «Entregar a línea»');
+ok(fs.existsSync(R+'/tests/visual/lotes.html'),'hay página de validación visual de Lotes (tests/visual/lotes.html)');
 console.log(fallas?'\n'+fallas+' fallas':'\nLotes en el cuadro correcto');
 process.exit(fallas?1:0);

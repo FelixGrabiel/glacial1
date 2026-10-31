@@ -28,11 +28,16 @@
   const fotos=()=>window.glacialFotos||null;
 
   /* ---------- lista ---------- */
+  /* Vencimiento del lote: «Vencido» (rojo) o «Vence en N días» (naranja, solo si hay umbral definido). */
+  function chipVence(l){
+    const v=T.estadoVencimiento(l.fechaVencimiento,hoyIso(),Z.cache.parametros.diasAvisoVencimiento);
+    return v.tipo==='vencido'?`<span class="ii-pill ii-p-rojo"><i></i>Vencido hace ${Math.abs(v.dias)} d</span>`:v.tipo==='por_vencer'?`<span class="ii-pill ii-p-naranja"><i></i>Vence en ${v.dias} d</span>`:'';
+  }
   function itemLista(l){
     const r=T.resumenLote(l,Z.cache.unidades);
     const est=Object.entries(r.porEstado).filter(([,n])=>n).map(([k,n])=>`${n} ${T.ESTADOS[k].toLowerCase()}`).join(' · ');
     return `<button type="button" class="ie-item ${l.id===S.sel?'ie-item-act':''}" onclick="ilSel('${esc(l.id)}')"><span class="ie-it-t"><b>${esc(l.producto)}</b><span class="ii-pill ii-p-azul"><i></i>${esc(l.id)}</span></span>
-      <small>${esc(l.proveedor)} · lote ${esc(l.loteProveedor)}</small><small>${r.total} unidad${r.total===1?'':'es'}${est?' · '+esc(est):''} · ${esc(hora(l.creadoEn))}</small></button>`;
+      <small>${esc(l.proveedor)} · lote ${esc(l.loteProveedor)}</small><small>${r.total} unidad${r.total===1?'':'es'}${est?' · '+esc(est):''} · ${esc(hora(l.creadoEn))}</small>${chipVence(l)?`<small>${chipVence(l)}</small>`:''}</button>`;
   }
   function filtros(){
     const opt=(lista,valor,todos)=>`<option value="">${todos}</option>`+lista.map(([v,t])=>`<option value="${esc(v)}" ${v===valor?'selected':''}>${esc(t)}</option>`).join('');
@@ -74,7 +79,7 @@
       <div class="ii-msg ii-msg-info" role="note">El lote es trazabilidad: <b>no mueve el stock SAP</b>. Cada cambio de una unidad queda como un movimiento que no se edita ni se borra.</div>
       <div class="il-cols"><div><h4 class="ie-g">Datos de la etiqueta</h4><table class="ie-t il-datos"><tbody>
         ${fila('Proveedor',esc(l.proveedor))}${fila('Producto',esc(l.producto))}${fila('Categoría',esc(l.categoria))}${fila('Lote del proveedor',esc(l.loteProveedor))}${fila('Orden interna (OI)',esc(l.ordenInterna))}${fila('Orden de compra',esc(l.ordenCompra))}
-        ${fila('Fecha de producción',esc(fecha(l.fechaProduccion)))}${fila('Fecha de vencimiento',esc(fecha(l.fechaVencimiento)))}${fila('Artículo del catálogo',l.itemNombre?esc(l.itemNombre)+(l.itemCode?' <small class="ii-mut">('+esc(l.itemCode)+')</small>':''):'')}
+        ${fila('Fecha de producción',esc(fecha(l.fechaProduccion)))}${fila('Fecha de vencimiento',esc(fecha(l.fechaVencimiento))+(chipVence(l)?' '+chipVence(l):''))}${fila('Artículo del catálogo',l.itemNombre?esc(l.itemNombre)+(l.itemCode?' <small class="ii-mut">('+esc(l.itemCode)+')</small>':''):'')}
         ${fila('Creado',esc(hora(l.creadoEn))+' · '+esc(l.creadoPor||'—'))}</tbody></table></div>
         <div><h4 class="ie-g">Resumen</h4><div class="ii-resumen"><div><b>${r.total}</b><span>unidades</span></div><div><b>${r.porEstado.EN_ALMACEN}</b><span>en almacén</span></div><div><b>${r.porEstado.ENTREGADA_LINEA+r.porEstado.EN_USO}</b><span>en línea</span></div><div><b>${esc(kg(r.pesoActualKg))}</b><span>peso actual</span></div></div></div></div>
       <h4 class="ie-g">Unidades (caja / bobina)</h4><div class="il-tabla-w"><table class="ie-t il-unidades"><thead><tr><th>Unidad</th><th>Estado</th><th>Línea</th><th>Peso neto</th><th>Peso actual</th><th>Cantidad</th><th>Origen</th><th>Acción</th></tr></thead><tbody>${unidades||'<tr><td colspan="8" class="ii-mut">Sin unidades.</td></tr>'}</tbody></table></div>
@@ -182,11 +187,11 @@
 
   const css=`
 .ii-p-azul{background:#dbeafe;color:#1d4ed8}.il-filtros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.il-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:8px}
-.il-datos th{width:42%}.il-tabla-w{overflow-x:auto}.il-unidades th{text-align:left;font-size:12px;color:#475467;background:#f4f8fc}.il-unidades td{vertical-align:top}.il-unidades td small{display:block}.il-unidades td:nth-child(2){min-width:150px}.il-unidades .ii-pill{white-space:normal;max-width:100%}
+.il-datos th{width:42%}.il-tabla-w{overflow-x:auto}.il-unidades th{text-align:left;font-size:12px;color:#475467;background:#f4f8fc}.il-unidades td{vertical-align:top}.il-unidades td small{display:block}.il-unidades td:nth-child(2){min-width:150px}.il-unidades .ii-pill{white-space:nowrap;max-width:100%}.il-unidades .ii-btn{white-space:nowrap}.il-unidades{table-layout:auto;min-width:760px}.il-unidades td:nth-child(n+4){white-space:nowrap}
 .il-tl{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}.il-tl li{background:#f8fbff;border:1px solid var(--ii-linea);border-radius:8px;padding:8px 10px;font-size:13.5px}
 .il-art{border:1px solid var(--ii-linea);border-radius:10px;margin:10px 0;padding:8px 12px}.il-art legend{font-weight:600;font-size:13px;padding:0 6px}.il-op{display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer}.il-op small{display:block}
 @media(max-width:900px){.il-cols{grid-template-columns:1fr}}
-@media(max-width:560px){.il-filtros{grid-template-columns:1fr}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
+@media(max-width:560px){.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
 
   window.iiLotesUI={html,css,estado:S,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
   window.__trazabilidadLotesPantalla={S,diagnostico};
