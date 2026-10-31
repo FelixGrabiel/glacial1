@@ -4313,6 +4313,13 @@ function renderFormTab(){
             </div>
 
 
+            ${
+              typeof lotesCuadroHtml === 'function'
+                ? lotesCuadroHtml(i)
+                : ''
+            }
+
+
             <div
               class="panel"
               style="margin:10px 0 0;"

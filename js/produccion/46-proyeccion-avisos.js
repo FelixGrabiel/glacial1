@@ -54,7 +54,11 @@
     Object.keys(DEFECTOS).forEach(k=>{const v=Number(o&&o[k]);if(Number.isFinite(v)&&v>0)r[k]=v;});
     return r;
   }
-  function config(){return Object.assign({},DEFECTOS,limpiar(remota));}
+  /* Entrega de turno: el aviso cuenta solo los turnos desde esta fecha (la función se estrenó con esa fecha; antes nadie entregaba y no tiene sentido avisar de todo el pasado).
+     Se puede cambiar guardando entregaDesde = 'AAAA-MM-DD' en sync/configAlertas. */
+  const ENTREGA_DESDE='2026-10-31';
+  const fechaIsoValida=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T12:00:00'));
+  function config(){return Object.assign({},DEFECTOS,limpiar(remota),{entregaDesde:fechaIsoValida(remota&&remota.entregaDesde)?remota.entregaDesde:ENTREGA_DESDE});}
   window.glacialConfigAlertas=config;
 
   function escucharConfig(){
@@ -166,7 +170,7 @@
     if(!est||!est.listo||est.error)return {generadoEn:ahora(),total:0,items:[],mensaje:'',listo:false};
     let regs=[];try{regs=loadRecords()||[];}catch(_){regs=[];}
     let bloques=null;try{bloques=typeof window.glacialConfigIndicadores==='function'?(window.glacialConfigIndicadores()||{}).bloques:null;}catch(_){bloques=null;}
-    const lista=GlacialIndicadores.entregasPendientes(regs,(est.docs||[]).map(d=>d.id),ahora(),bloques,{graciaMin:cfg.entregaGraciaMin,diasMax:cfg.entregaDiasMax});
+    const lista=GlacialIndicadores.entregasPendientes(regs,(est.docs||[]).map(d=>d.id),ahora(),bloques,{graciaMin:cfg.entregaGraciaMin,diasMax:cfg.entregaDiasMax,desde:cfg.entregaDesde});
     return {generadoEn:ahora(),total:lista.length,listo:true,items:lista.map(x=>Object.assign({},x,{texto:GlacialIndicadores.textoEntregaPendiente(x)})),mensaje:GlacialIndicadores.mensajeEntregasPendientes(lista)};
   }
   function calcular(){

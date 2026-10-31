@@ -295,6 +295,8 @@
 .ie-adv{margin-top:12px;font-size:13px}.ie-adv ul{margin:6px 0 0;padding-left:20px}.ie-texto{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f8fc;border-radius:8px;padding:10px;margin:6px 0 0}
 .ie-acc{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--ii-linea)}
 .ie-vacio-det{text-align:center;padding:40px 16px}
+/* Orden visual (31/10/2026): en pantallas de hasta 1500 px la foto va arriba y la tabla ocupa todo el ancho (antes los campos quedaban de ~120 px y los textos se cortaban). */
+@media(max-width:1500px){.ie-cols{grid-template-columns:1fr}.ie-col-foto{position:static}.ie-foto{max-height:300px}.ie-foto-caja{min-height:180px}.ie-t th{width:34%}}
 @media(max-width:900px){.ie-grid{grid-template-columns:1fr}.ie-cols{grid-template-columns:1fr}.ie-col-foto{position:static}.ie-top{grid-template-columns:1fr}.ie-t th{width:auto}}
 @media(max-width:560px){.ie-t,.ie-t tbody,.ie-t tr,.ie-t th,.ie-t td{display:block;width:100%}.ie-t tr{border-top:1px solid #edf2f7;padding:6px 0}.ie-t td{border-top:0}.ie-duda{padding:0!important}}`;
 

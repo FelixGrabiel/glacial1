@@ -28,11 +28,16 @@
   const fotos=()=>window.glacialFotos||null;
 
   /* ---------- lista ---------- */
+  /* Vencimiento del lote: «Vencido» (rojo) o «Vence en N días» (naranja, solo si hay umbral definido). */
+  function chipVence(l){
+    const v=T.estadoVencimiento(l.fechaVencimiento,hoyIso(),Z.cache.parametros.diasAvisoVencimiento);
+    return v.tipo==='vencido'?`<span class="ii-pill ii-p-rojo"><i></i>Vencido hace ${Math.abs(v.dias)} d</span>`:v.tipo==='por_vencer'?`<span class="ii-pill ii-p-naranja"><i></i>Vence en ${v.dias} d</span>`:'';
+  }
   function itemLista(l){
     const r=T.resumenLote(l,Z.cache.unidades);
     const est=Object.entries(r.porEstado).filter(([,n])=>n).map(([k,n])=>`${n} ${T.ESTADOS[k].toLowerCase()}`).join(' · ');
     return `<button type="button" class="ie-item ${l.id===S.sel?'ie-item-act':''}" onclick="ilSel('${esc(l.id)}')"><span class="ie-it-t"><b>${esc(l.producto)}</b><span class="ii-pill ii-p-azul"><i></i>${esc(l.id)}</span></span>
-      <small>${esc(l.proveedor)} · lote ${esc(l.loteProveedor)}</small><small>${r.total} unidad${r.total===1?'':'es'}${est?' · '+esc(est):''} · ${esc(hora(l.creadoEn))}</small></button>`;
+      <small>${esc(l.proveedor)} · lote ${esc(l.loteProveedor)}</small><small>${r.total} unidad${r.total===1?'':'es'}${est?' · '+esc(est):''} · ${esc(hora(l.creadoEn))}</small>${chipVence(l)?`<small>${chipVence(l)}</small>`:''}</button>`;
   }
   function filtros(){
     const opt=(lista,valor,todos)=>`<option value="">${todos}</option>`+lista.map(([v,t])=>`<option value="${esc(v)}" ${v===valor?'selected':''}>${esc(t)}</option>`).join('');
@@ -54,6 +59,13 @@
     if(!ev||!ev.foto||!ev.foto.url||!F)return '';
     return `<a class="ii-btn ii-btn-o ii-btn-s" ${F.atributosEnlace(ev.foto.url)} rel="noopener noreferrer">Ver foto</a> <button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilVerEvidencia('${esc(u.evidenciaId)}')">Evidencia</button>`;
   }
+  /* Entregar a línea: solo la unidad que está en almacén y solo quien puede crear lotes. Con el lote vencido el botón no sirve (se explica). */
+  function accionUnidad(u,l){
+    if(!Z.puedeEscribir()||u.estado!=='EN_ALMACEN')return '';
+    const v=T.estadoVencimiento(l.fechaVencimiento,hoyIso(),Z.cache.parametros.diasAvisoVencimiento);
+    return v.tipo==='vencido'?'<span class="ii-mut" title="El lote está vencido">Vencido</span>':`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilAbrirEntrega('${esc(u.id)}')">Entregar a línea</button>`;
+  }
+  const hoyIso=()=>typeof GlacialFecha!=='undefined'&&GlacialFecha.fechaISOLocal?GlacialFecha.fechaISOLocal(typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()):'';
   function fichaHtml(){
     const l=loteActual();
     if(!l)return '<div class="ii-card ie-vacio-det"><p class="ii-mut">Elige un lote de la lista para ver sus datos, sus unidades y su línea de tiempo.</p></div>';
@@ -61,19 +73,36 @@
     const tl=T.lineaDeTiempo(Z.cache.movimientos,{loteId:l.id});
     const unidades=us.map(u=>`<tr><td data-t="Unidad"><b>${esc(u.numero)}</b><small class="ii-mut">${esc(u.id)}</small></td><td data-t="Estado">${pill(u.estado)}</td>
       <td data-t="Línea">${esc(u.linea)||'<span class="ii-mut">—</span>'}</td><td data-t="Peso neto">${kg(u.pesoNeto)}</td><td data-t="Peso actual">${kg(u.pesoActual)}</td>
-      <td data-t="Cantidad">${u.cantidad===null||u.cantidad===undefined?'—':esc(u.cantidad)+' '+esc(u.unidadCantidad||'')}</td><td data-t="Origen">${fotoDe(u)}</td></tr>`).join('');
+      <td data-t="Cantidad">${u.cantidad===null||u.cantidad===undefined?'—':esc(u.cantidad)+' '+esc(u.unidadCantidad||'')}</td><td data-t="Origen">${fotoDe(u)}</td><td data-t="Acción">${accionUnidad(u,l)}</td></tr>`).join('');
     const hist=tl.map(m=>`<li><b>${esc(hora(m.enMs))}</b> · ${esc(m.unidadId)} · ${esc(T.textoMovimiento(m))} <span class="ii-mut">— ${esc(m.por||'—')}</span></li>`).join('');
     return `<div class="ii-card ie-det"><div class="ie-det-cab"><div><h3>${esc(l.producto)}</h3><p class="ii-mut">${esc(l.proveedor)} · lote del proveedor <b>${esc(l.loteProveedor)}</b></p></div><span class="ii-pill ii-p-azul"><i></i>${esc(l.id)}</span></div>
       <div class="ii-msg ii-msg-info" role="note">El lote es trazabilidad: <b>no mueve el stock SAP</b>. Cada cambio de una unidad queda como un movimiento que no se edita ni se borra.</div>
       <div class="il-cols"><div><h4 class="ie-g">Datos de la etiqueta</h4><table class="ie-t il-datos"><tbody>
         ${fila('Proveedor',esc(l.proveedor))}${fila('Producto',esc(l.producto))}${fila('Categoría',esc(l.categoria))}${fila('Lote del proveedor',esc(l.loteProveedor))}${fila('Orden interna (OI)',esc(l.ordenInterna))}${fila('Orden de compra',esc(l.ordenCompra))}
-        ${fila('Fecha de producción',esc(fecha(l.fechaProduccion)))}${fila('Fecha de vencimiento',esc(fecha(l.fechaVencimiento)))}${fila('Artículo del catálogo',l.itemNombre?esc(l.itemNombre)+(l.itemCode?' <small class="ii-mut">('+esc(l.itemCode)+')</small>':''):'')}
+        ${fila('Fecha de producción',esc(fecha(l.fechaProduccion)))}${fila('Fecha de vencimiento',esc(fecha(l.fechaVencimiento))+(chipVence(l)?' '+chipVence(l):''))}${fila('Artículo del catálogo',l.itemNombre?esc(l.itemNombre)+(l.itemCode?' <small class="ii-mut">('+esc(l.itemCode)+')</small>':''):'')}
         ${fila('Creado',esc(hora(l.creadoEn))+' · '+esc(l.creadoPor||'—'))}</tbody></table></div>
         <div><h4 class="ie-g">Resumen</h4><div class="ii-resumen"><div><b>${r.total}</b><span>unidades</span></div><div><b>${r.porEstado.EN_ALMACEN}</b><span>en almacén</span></div><div><b>${r.porEstado.ENTREGADA_LINEA+r.porEstado.EN_USO}</b><span>en línea</span></div><div><b>${esc(kg(r.pesoActualKg))}</b><span>peso actual</span></div></div></div></div>
-      <h4 class="ie-g">Unidades (caja / bobina)</h4><div class="il-tabla-w"><table class="ie-t il-unidades"><thead><tr><th>Unidad</th><th>Estado</th><th>Línea</th><th>Peso neto</th><th>Peso actual</th><th>Cantidad</th><th>Origen</th></tr></thead><tbody>${unidades||'<tr><td colspan="7" class="ii-mut">Sin unidades.</td></tr>'}</tbody></table></div>
+      <h4 class="ie-g">Unidades (caja / bobina)</h4><div class="il-tabla-w"><table class="ie-t il-unidades"><thead><tr><th>Unidad</th><th>Estado</th><th>Línea</th><th>Peso neto</th><th>Peso actual</th><th>Cantidad</th><th>Origen</th><th>Acción</th></tr></thead><tbody>${unidades||'<tr><td colspan="8" class="ii-mut">Sin unidades.</td></tr>'}</tbody></table></div>
       <h4 class="ie-g">Línea de tiempo</h4>${Z.cache.listo.movimientos?(hist?`<ul class="il-tl">${hist}</ul>`:'<p class="ii-mut">Sin movimientos.</p>'):'<p class="ii-mut">Consultando…</p>'}</div>`;
   }
 
+  /* Parámetros (solo quien crea lotes): aviso de vencimiento y leyenda obligatoria. */
+  function parametrosHtml(){
+    if(!Z.puedeEscribir())return '';
+    const p=Z.cache.parametros||{};
+    return `<details class="ii-card il-params"><summary><b>Parámetros de lotes</b> <span class="ii-mut">· aviso de vencimiento: ${p.diasAvisoVencimiento?esc(p.diasAvisoVencimiento)+' días':'sin aviso'}</span></summary>
+      <div class="il-params-f"><label class="ii-et">Avisar cuántos días antes de vencer
+        <input id="il-p-dias" type="number" min="1" max="365" step="1" inputmode="numeric" value="${p.diasAvisoVencimiento?esc(p.diasAvisoVencimiento):''}" placeholder="Vacío = no avisar"></label>
+        <label class="il-op"><input id="il-p-ley" type="checkbox" ${p.leyendaObligatoria?'checked':''}><span><b>La foto debe traer leyenda</b><small class="ii-mut">Recepción o línea de destino (PET1, B7L…)</small></span></label>
+        <div class="ii-acc"><button type="button" class="ii-btn" onclick="ilGuardarParametros()">Guardar parámetros</button></div></div></details>`;
+  }
+  window.ilGuardarParametros=async()=>{
+    try{
+      await Z.guardarParametros({diasAvisoVencimiento:(document.getElementById('il-p-dias')||{}).value,leyendaObligatoria:(document.getElementById('il-p-ley')||{}).checked});
+      aviso('ok','Parámetros guardados.');
+    }catch(e){aviso('error',Z.mensajeError(e));}
+    repintar();
+  };
   function html(){
     Z.escuchar();EV.escuchar();
     const CP=window.iiControlProcesoUI;if(CP)CP.usar(repintar);                  // tarjeta «Control de proceso en el envasado» (90-91)
@@ -81,6 +110,7 @@
     const error=Z.cache.error?`<div class="ii-msg ii-msg-error" role="alert">No se pudieron leer los lotes: ${esc(Z.cache.error)}</div>`:'';
     return `<div class="ii-card"><div class="ii-fila-t"><h3>Lotes de insumos</h3>${Z.puedeEscribir()?'':'<span class="ii-chip">Solo consulta</span>'}</div>
       <p class="ii-mut">Cada etiqueta validada en Evidencias se convierte en una unidad de un lote rastreable: del proveedor a la línea y al cuadro de producción. No mueve el stock SAP.</p>${msg}${error}</div>
+      ${parametrosHtml()}
       ${CP?CP.html():''}
       <div class="ie-grid"><aside class="ii-card ie-lista"><div class="ie-filtros">${filtros()}</div><div id="il-lista">${listaHtml()}</div></aside><section>${fichaHtml()}</section></div>`;
   }
@@ -148,13 +178,39 @@
     }catch(e){errorModal(Z.mensajeError(e));if(b)b.disabled=false;}
   };
 
+  /* ---------- diálogo «Entregar a línea» (Etapa 2) ---------- */
+  window.ilAbrirEntrega=id=>{
+    const u=Z.unidadPorId(id),l=u&&Z.porId(u.loteId);if(!u||!l||!Z.puedeEscribir())return;
+    S.entrega={id:u.id};
+    const v=T.estadoVencimiento(l.fechaVencimiento,hoyIso(),Z.cache.parametros.diasAvisoVencimiento);
+    const venc=v.tipo==='sin_fecha'?'<div class="ii-msg ii-msg-info">El lote no tiene fecha de vencimiento registrada.</div>':
+      v.tipo==='por_vencer'?`<div class="ii-msg ii-msg-error" role="alert">El lote vence en <b>${v.dias}</b> día(s) (${esc(fecha(l.fechaVencimiento))}).</div>`:
+      `<p class="ii-mut">Vence el ${esc(fecha(l.fechaVencimiento))}${v.dias!==null?' (en '+v.dias+' días)':''}.</p>`;
+    abrirModal('Entregar a línea',`<p>Unidad <b>${esc(u.numero)}</b> del lote <b>${esc(l.loteProveedor)}</b> · ${esc(l.producto)} <small class="ii-mut">(${esc(u.id)})</small></p>${venc}
+      <label class="ii-et">Línea a la que se entrega<select id="il-ent-linea"><option value="">Elige la línea…</option>${T.LINEAS.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></label>
+      <p class="ii-mut">La unidad pasa a «Entregada a línea» y queda un movimiento que no se edita. El supervisor de esa línea podrá marcar este lote como usado en su cuadro. No se mueve el stock SAP.</p>
+      <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="ilCerrar()">Cancelar</button><button type="button" class="ii-btn" id="il-ent-ok" onclick="ilEntregarOk()">Entregar</button></div>`);
+  };
+  window.ilEntregarOk=async()=>{
+    const e=S.entrega;if(!e)return;
+    const linea=(document.getElementById('il-ent-linea')||{}).value||'';
+    if(!linea){errorModal('Elige la línea a la que se entrega.');return;}
+    const b=document.getElementById('il-ent-ok');if(b)b.disabled=true;errorModal('');
+    try{
+      const r=await Z.entregarALinea([e.id],linea);
+      ilCerrar();S.entrega=null;
+      aviso('ok','Unidad '+e.id+' entregada a '+linea+'.'+(r.entregadas[0]&&r.entregadas[0].avisos.length?' '+r.entregadas[0].avisos.join(' '):''));repintar();
+    }catch(err){errorModal(Z.mensajeError(err));if(b)b.disabled=false;}
+  };
+
   const css=`
 .ii-p-azul{background:#dbeafe;color:#1d4ed8}.il-filtros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.il-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:8px}
-.il-datos th{width:42%}.il-tabla-w{overflow-x:auto}.il-unidades th{text-align:left;font-size:12px;color:#475467;background:#f4f8fc}.il-unidades td{vertical-align:top}.il-unidades td small{display:block}.il-unidades td:nth-child(2){min-width:150px}.il-unidades .ii-pill{white-space:normal;max-width:100%}
+.il-datos th{width:42%}.il-tabla-w{overflow-x:auto}.il-unidades th{text-align:left;font-size:12px;color:#475467;background:#f4f8fc}.il-unidades td{vertical-align:top}.il-unidades td small{display:block}.il-unidades td:nth-child(2){min-width:150px}.il-unidades .ii-pill{white-space:nowrap;max-width:100%}.il-unidades .ii-btn{white-space:nowrap}.il-unidades{table-layout:auto;min-width:760px}.il-unidades td:nth-child(n+4){white-space:nowrap}
 .il-tl{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}.il-tl li{background:#f8fbff;border:1px solid var(--ii-linea);border-radius:8px;padding:8px 10px;font-size:13.5px}
 .il-art{border:1px solid var(--ii-linea);border-radius:10px;margin:10px 0;padding:8px 12px}.il-art legend{font-weight:600;font-size:13px;padding:0 6px}.il-op{display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer}.il-op small{display:block}
+.il-params summary{cursor:pointer}.il-params-f{display:grid;gap:12px;margin-top:10px;max-width:520px}.il-params .ii-et input{max-width:200px}
 @media(max-width:900px){.il-cols{grid-template-columns:1fr}}
-@media(max-width:560px){.il-filtros{grid-template-columns:1fr}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
+@media(max-width:560px){.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
 
   window.iiLotesUI={html,css,estado:S,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
   window.__trazabilidadLotesPantalla={S,diagnostico};

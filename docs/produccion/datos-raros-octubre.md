@@ -1,0 +1,7 @@
+# Datos raros de Producción (revisión del 30/10/2026, PET 1 y PET 2 desde el 28/09)
+
+1. **Reportes duplicados del mismo turno.** Hay varios registros de la misma línea, fecha y turno (hasta 5 en PET 2 del 15/10 Noche); solo uno quedó FINALIZADO y el resto son borradores viejos en EN_REGISTRO. Casos: PET1 06/10, 20/10 Noche, 22/10 y 23/10 Día; PET2 06/10, 13/10, 14/10 Noche, 15/10 Noche, 20/10 Noche, 22/10 y 23/10 Día. Los números oficiales usan solo los FINALIZADOS, así que **no cambian**. Lo que sí hacían era generar avisos «reporte sin finalizar» falsos: corregido (un borrador de un turno que ya tiene su reporte FINALIZADO no avisa).
+2. **Sopladas en 0 con producción.** Solo aparecen en reportes EN_REGISTRO (ninguno FINALIZADO): desde que Sopladas es obligatoria para finalizar, no se repite.
+3. **Turnos sin finalizar de verdad (sin otro reporte que los reemplace):** PET1 10/10 Día, 17/10 Día, 21/10 Noche y 23/10 Noche; PET2 10/10 Día y 17/10 Día. Tienen producción y nadie los finalizó: no entran al OEE hasta que alguien los finalice.
+4. **Cuadros con horas imposibles.** Un borrador de PET2 del 23/10 Día tiene un cuadro de 20:30 a 17:00 (20,5 h) dentro de un turno de Día; está reemplazado por el reporte FINALIZADO. PET2 15/10 Noche tiene cuadros con 0 h y sin horas de inicio/fin (borradores).
+5. **Limpieza pendiente (no se hizo):** borrar los borradores duplicados de la base es destructivo; solo se haría con la aprobación del dueño, uno por uno.

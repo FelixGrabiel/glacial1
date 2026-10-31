@@ -33,8 +33,17 @@ ok(P.proponer(dia,f3,'PET1').every(x=>x.nombre!=='PEREZ SOTO LUIS'),'no repite a
 const sin=P.sinUbicar(dia,filas(),'PET1');
 ok(sin.some(p=>p.nombre==='DIAZ MORA ROSA')&&!sin.some(p=>p.nombre==='LUNA RUIZ ANA'),'sin ubicar: el resto de presentes, sin los de otra línea fija');
 
+/* puesto fijado al trabajador: manda sobre el cargo y cubre a los operarios */
+{
+  const ws=[{id:'w3',nombre:'DIAZ MORA ROSA',cargo:'OPERARIO DE PRODUCCION',puestoMaquina:'Pantallista',linea:''},{id:'w1',nombre:'LUNA RUIZ ANA',cargo:'MAQUINISTA SOPLADOR T1',puestoMaquina:'Paletizado',linea:''}];
+  const l=P.presentes(tareos,'2026-10-20','DÍA',ws);
+  ok(l.find(p=>p.id==='w3').posicion==='Pantallista'&&l.find(p=>p.id==='w1').posicion==='Paletizado','el puesto fijado al trabajador manda (también para un operario sin puesto en el cargo)');
+  const fs=['Sopladora','Pantallista','Paletizado'].map(p=>({posicion:p,nombre:'',cargo:''}));
+  const r=P.proponer(l,fs,'PET1');
+  ok(r.length===2&&r.find(x=>x.i===1).nombre==='DIAZ MORA ROSA'&&r.find(x=>x.i===2).nombre==='LUNA RUIZ ANA','completa Pantallista con la operaria y Paletizado con quien lo tiene fijado; Sopladora queda vacía');
+}
 const s06=leer('js/produccion/06-registro.js'),html=leer('index.html');
 ok(/personalTareoHtml\(linea\)/.test(s06),'el formulario «Personal del turno» muestra la pieza del tareo');
-ok(html.indexOf('35b-personal-desde-tareo.js')>html.indexOf('35-autollenado-registro.js')&&/35b-personal-desde-tareo\.js\?v=20261030-pt1/.test(html),'index.html carga el módulo');
+ok(html.indexOf('35b-personal-desde-tareo.js')>html.indexOf('35-autollenado-registro.js')&&/35b-personal-desde-tareo\.js\?v=20261030-pt2/.test(html),'index.html carga el módulo');
 console.log(fallas?'\n'+fallas+' fallas':'\nPersonal desde el tareo correcto');
 process.exit(fallas?1:0);

@@ -128,6 +128,54 @@
     return salida;
   }
 
-  window.glacialTrazabilidadDatos={C,cache,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
+  /** Entrega a línea (Etapa 2): una transacción por unidad con su movimiento y auditoría. ids: ids de unidad. Devuelve {entregadas:[{unidadId,avisos}]}; si una falla, no se entrega ninguna. */
+  async function entregarALinea(ids,linea){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para entregar unidades a línea.');
+    const lista=[...new Set((Array.isArray(ids)?ids:[]).map(String).filter(Boolean))];
+    if(!lista.length)throw falla('VALIDACION','Elige al menos una unidad.');
+    const u=usuario(),t=ahora(),hoy=(typeof GlacialFecha!=='undefined'&&GlacialFecha.fechaISOLocal)?GlacialFecha.fechaISOLocal(t):'';
+    let salida=[];
+    await db.runTransaction(async tx=>{
+      salida=[];
+      const leidas=[];
+      for(const id of lista){
+        const sU=await tx.get(ref(C.unidades,id));
+        if(!sU.exists)throw falla('VALIDACION','La unidad '+id+' ya no existe.');
+        const unidad=sU.data(),sL=await tx.get(ref(C.lotes,unidad.loteId));
+        if(!sL.exists)throw falla('VALIDACION','El lote '+unidad.loteId+' de la unidad '+id+' no existe.');
+        leidas.push({unidad,lote:sL.data()});
+      }
+      leidas.forEach(({unidad,lote})=>{
+        const plan=T.planEntregaLinea({unidad,lote,linea,usuario:u.nombre,uid:u.uid,en:t,hoy,parametros:cache.parametros});
+        tx.set(ref(C.unidades,unidad.id),plan.unidad);
+        tx.set(ref(C.movimientos,plan.movimiento.id),Object.assign({},plan.movimiento,{en:serverTs()}));
+        auditar(tx,'ENTREGAR_LINEA',unidad.id,(lote.producto||'')+' · '+(lote.loteProveedor||''),{estado:unidad.estado,linea:unidad.linea||''},{estado:'ENTREGADA_LINEA',linea},{loteId:unidad.loteId,unidadId:unidad.id});
+        salida.push({unidadId:unidad.id,avisos:plan.avisos});
+      });
+    });
+    return {entregadas:salida};
+  }
+
+  /** Parámetros editables: días de aviso de vencimiento (vacío = sin aviso) y si la leyenda de la foto es obligatoria. Una transacción con control de revisión. */
+  async function guardarParametros({diasAvisoVencimiento,leyendaObligatoria}){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para cambiar los parámetros de lotes.');
+    const crudo=String(diasAvisoVencimiento==null?'':diasAvisoVencimiento).trim();
+    let dias=null;
+    if(crudo!==''){
+      dias=Number(crudo);
+      if(!Number.isInteger(dias)||dias<1||dias>365)throw falla('VALIDACION','Los días de aviso deben ser un número entero entre 1 y 365 (o déjalo vacío para no avisar).');
+    }
+    const u=usuario(),t=ahora();
+    await db.runTransaction(async tx=>{
+      const r=ref(C.parametros,'trazabilidad'),s=await tx.get(r);
+      const previo=s.exists?s.data():{};
+      const nuevo=Object.assign({},T.PARAMETROS_DEFECTO,previo,{id:'trazabilidad',diasAvisoVencimiento:dias,leyendaObligatoria:!!leyendaObligatoria,rev:(Number(previo.rev)||0)+1,actualizadoPor:u.nombre,actualizadoEn:t});
+      tx.set(r,nuevo);
+      auditar(tx,'CAMBIAR_PARAMETROS_LOTES','trazabilidad','Parámetros de lotes',{diasAvisoVencimiento:previo.diasAvisoVencimiento===undefined?null:previo.diasAvisoVencimiento,leyendaObligatoria:!!previo.leyendaObligatoria},{diasAvisoVencimiento:dias,leyendaObligatoria:!!leyendaObligatoria});
+    });
+    return {diasAvisoVencimiento:dias,leyendaObligatoria:!!leyendaObligatoria};
+  }
+
+  window.glacialTrazabilidadDatos={C,cache,entregarALinea,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
     mensajeError:D.mensajeError,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}};
 })();

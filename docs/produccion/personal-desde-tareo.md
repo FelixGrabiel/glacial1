@@ -8,6 +8,6 @@
 - Nunca pisa lo ya escrito ni repite a una persona; todo se puede corregir a mano.
 - Si el tareo del turno aún no existe, solo avisa (no se inventa que nadie vino).
 
-**Límite:** el tareo no guarda en qué puesto trabajó cada operario, solo su cargo; por eso solo los maquinistas se ubican solos. Para ubicar al resto hace falta guardar el puesto en el tareo o la distribución (decisión pendiente).
+**Puesto en máquina (habitual):** en Trabajadores hay un campo nuevo con el puesto de cada persona (Sopladora, Envasadora, Pantallista, Paletizado, etc.). Si está fijado, manda sobre el cargo y permite ubicar también a los operarios. Es el puesto de siempre: si alguien cubre otro puesto un día, se cambia a mano en el registro. Sin puesto fijado se deduce del cargo (solo maquinistas).
 
 Prueba: `tests/personal-desde-tareo.test.js`.

@@ -4,7 +4,8 @@
    El supervisor ya no escribe los nombres a mano: el Tareo de Producción del mismo día y turno dice quién vino. Este módulo
      · lista a los PRESENTES (asistió, tardanza, feriado trabajado, comisión) del bloque del reporte (Día + Intermedio / Noche), con su cargo;
      · «Completar con el tareo» llena SOLO las filas vacías cuya posición se reconoce por el cargo (MAQUINISTA SOPLADOR → Sopladora, ENVASADOR →
-       Envasadora, ETIQUETADOR → Etiquetadora, EMPAQUETADOR → Empaquetadora); un maquinista fijado a otra línea no se propone aquí;
+       Envasadora, ETIQUETADOR → Etiquetadora, EMPAQUETADOR → Empaquetadora) o, mejor, por el «Puesto en máquina (habitual)» fijado al trabajador en Trabajadores (manda sobre el cargo);
+       un trabajador fijado a otra línea no se propone aquí;
      · los demás presentes salen como botones: un clic los pone en la primera fila vacía.
    Nunca pisa lo que el supervisor ya escribió, y todo se puede corregir a mano. Si el Tareo del turno aún no existe, no se inventa nada.
    Funciones puras (presentes, posicionDeCargo, proponer) + la pieza de pantalla; la lista y los cálculos no leen el reloj.
@@ -45,7 +46,7 @@
       if(vistos.has(k))return;
       const w=porId.get(String(p.trabajadorId||''))||porId.get('n:'+norm(nombre))||null;
       const cargo=String(p.cargo||(w&&w.cargo)||'').trim();
-      vistos.set(k,{id:k,nombre,cargo,linea:String((w&&w.linea)||''),posicion:posicionDeCargo(cargo)});
+      vistos.set(k,{id:k,nombre,cargo,linea:String((w&&w.linea)||''),posicion:String((w&&w.puestoMaquina)||'').trim()||posicionDeCargo(cargo)});   // el puesto fijado al trabajador manda; si no, se deduce del cargo
     }));
     return [...vistos.values()].sort((a,b)=>(a.posicion?0:1)-(b.posicion?0:1)||a.nombre.localeCompare(b.nombre,'es'));
   }
@@ -57,7 +58,7 @@
     const res=[];
     filasOk.forEach((f,i)=>{
       if(!f||String(f.nombre||'').trim())return;
-      const p=(lista||[]).find(x=>x.posicion&&x.posicion===f.posicion&&!usados.has(norm(x.nombre))&&(!x.linea||x.linea===linea));
+      const p=(lista||[]).find(x=>x.posicion&&norm(x.posicion)===norm(f.posicion)&&!usados.has(norm(x.nombre))&&(!x.linea||x.linea===linea));
       if(!p)return;
       usados.add(norm(p.nombre));res.push({i,nombre:p.nombre,cargo:p.cargo});
     });

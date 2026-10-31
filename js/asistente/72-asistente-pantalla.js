@@ -198,6 +198,24 @@
     if(!confirm('¿Enviar esta solicitud a Almacén?\n\n'+resumen))return;
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:'Faltantes del bloque',enviar:true}),id=>'Solicitud '+id+' enviada a Almacén con '+items.length+' insumo(s).');
   };
+  /* «Para empezar»: lo que debe estar configurado para que el Asistente calcule (se oculta solo cuando todo está listo) + el orden de trabajo del turno. */
+  function pasosEmpezar(ctx){
+    const ins=D.cache.insumos.filter(i=>i.activo!==false),gest=puede('gestionarFactores'),asis=puede('asistenteProduccion');
+    return [
+      {ok:ins.length>0,txt:'Catálogo de insumos',det:ins.length?ins.length+' insumo(s) cargados':'Todavía no hay insumos: son lo que se cuenta, se pide y se consume.',acc:gest||asis?`apIr('insumos','factores')`:'',btn:'Cargar insumos'},
+      {ok:D.cache.factores.length>0,txt:'Factores de consumo',det:D.cache.factores.length?D.cache.factores.length+' factor(es) vigentes':'Sin factores el sistema no calcula lo que falta y no inventa valores.',acc:`apIr('insumos','factores')`,btn:'Cargar factores'},
+      {ok:ctx.cuadros.length>0,txt:'Programación de este turno',det:ctx.cuadros.length?ctx.cuadros.length+' cuadro(s) programados':'No hay cuadros programados para esta fecha y turno (se cargan en Planificación).',acc:'',btn:''},
+      {ok:ctx.resumen.length>0&&ctx.resumen.every(r=>r.conteo),txt:'Conteo de existencias en Producción',det:ctx.resumen.length?(ctx.resumen.filter(r=>!r.conteo).length?ctx.resumen.filter(r=>!r.conteo).length+' insumo(s) sin conteo verificado':'Todo contado'):'Se verifica cuando hay insumos con requerimiento.',acc:asis?`apIrConteo()`:'',btn:'Registrar conteo'}
+    ];
+  }
+  function tarjetaEmpezar(ctx){
+    if(!puede('asistenteProduccion')&&!puede('gestionarFactores'))return '';      // quien solo consulta (o es de Almacén) no tiene qué configurar ni los pasos del turno que ejecutar
+    const pasos=pasosEmpezar(ctx),pend=pasos.filter(p=>!p.ok);
+    const flujo=[['1','Contar','lo que hay en Producción','apIrConteo()'],['2','Ver faltantes','de este turno y los próximos',`apIr('insumos','requerimientos')`],['3','Solicitar','a Almacén',`apIr('insumos','solicitudes')`],['4','Recibir','y destinar a un cuadro',`apIr('insumos','solicitudes')`],['5','Consumo y merma','conciliar al cerrar el cuadro',`apIr('consumo')`]];
+    const f=`<ol class="ap-flujo">${flujo.map(([n,t,d,a])=>`<li><button type="button" class="ap-flujo-b" onclick="${a}"><b>${n}</b><span><strong>${esc(t)}</strong><small>${esc(d)}</small></span></button></li>`).join('')}</ol>`;
+    const lista=pend.length?`<ul class="ap-empezar">${pasos.map(p=>`<li class="${p.ok?'ap-em-ok':'ap-em-pend'}"><span class="ap-em-ico">${p.ok?'✔':'●'}</span><span class="ap-em-tx"><b>${esc(p.txt)}</b><small>${esc(p.det)}</small></span>${!p.ok&&p.acc?`<button type="button" class="ap-link" onclick="${p.acc}">${esc(p.btn)} ${ico('flecha')}</button>`:''}</li>`).join('')}</ul>`:'';
+    return tarjeta(pend.length?'Para empezar · '+pend.length+' pendiente'+(pend.length===1?'':'s'):'Flujo del turno',lista+f,{icono:'lista'})+`<style>.ap-empezar{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.ap-empezar li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e3e8ee;border-radius:10px;background:#fff}.ap-em-ico{width:22px;text-align:center;font-weight:700}.ap-em-ok .ap-em-ico{color:#15803d}.ap-em-pend .ap-em-ico{color:#d97706}.ap-em-tx{flex:1;display:flex;flex-direction:column}.ap-em-tx small{color:#5a6b7b;font-size:12.5px}.ap-flujo{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.ap-flujo-b{width:100%;display:flex;gap:8px;align-items:center;text-align:left;border:1px solid #d6e2ee;background:#f7fafd;border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit}.ap-flujo-b b{display:inline-flex;width:24px;height:24px;border-radius:50%;background:#0b5cc4;color:#fff;align-items:center;justify-content:center;font-size:13px;flex:none}.ap-flujo-b span{display:flex;flex-direction:column}.ap-flujo-b small{color:#5a6b7b;font-size:12px}@media(max-width:900px){.ap-flujo{grid-template-columns:1fr}}</style>`;
+  }
   function tabResumen(ctx){
     const lineasCon=ctx.lineas.filter(l=>ctx.cuadros.some(c=>c.linea===l&&c.producido>0));
     const falt=ctx.resumen.filter(r=>r.faltante>0);
@@ -249,6 +267,7 @@
         <span class="ap-seg-n">${esc(nombreLinea(l))} · ${esc(c.marca)}</span>${pill(e[0],e[1])}<span class="ap-chev">${ico('chevron')}</span></li>`;}).join('');
     }).join('');
     return `<h2 class="ap-h2">Resumen operativo</h2>${kpis}
+      ${tarjetaEmpezar(ctx)}
       ${tarjeta('Por atender',lineaConteo+porAtender,{icono:'campana'})}
       <div class="ap-2">${tarjeta('Producción y seguimiento',`<ul class="ap-seg">${seg}</ul>`,{icono:'grafico'})}${tarjeta('Cobertura de la programación',cob,{icono:'capas'})}</div>`;
   }
@@ -278,7 +297,7 @@
       const fs=porCuadro.get(c.clave)||[];
       const falt=fs.filter(f=>f.faltante>0),sin=fs.filter(f=>f.estado==='SIN_FACTOR'||f.estado==='FACTOR_AMBIGUO');
       const est=c.estado==='FINALIZADA'?pill('Finalizada','verde'):c.completar&&!(c.programado>0)?pill('Pendiente del cierre','ambar')
-        :falt.length?falt.map(f=>pill('Falta '+f.insumo.nombre.toLowerCase(),'rojo')).join(' '):sin.length?pill(sin.length+' sin factor','ambar')
+        :falt.length>2?pill('Faltan '+falt.length+' insumos','rojo')+` <small class="ap-mut ap-blk">${esc(falt.map(f=>f.insumo.nombre).join(' · '))}</small>`:falt.length?falt.map(f=>pill('Falta '+f.insumo.nombre.toLowerCase(),'rojo')).join(' '):sin.length?pill(sin.length+' sin factor','ambar')
         :c.estado==='PENDIENTE'&&!(c.producido>0)&&!fs.length?pill('Sin inicio','gris'):fs.length?(fs.every(f=>f.conteo)?pill('Cubierto','verde'):pill('Por verificar','verde')):pill('Sin requerimientos','gris');
       const p=progs.find(x=>c.programaciones.includes(x.id));
       return `<tr><td data-label="Línea">${esc(nombreLinea(c.linea))}</td><td data-label="Marca">${esc(c.marca)} ${esc(presUI(c))}</td><td data-label="Modalidad">${esc(modalidadTxt(p))}</td>
@@ -513,13 +532,13 @@
         <td data-label="Cantidad"><input class="ap-sol-cant" data-insumo="${esc(i.codigo)}" data-unidad="${esc(i.unidad)}" onchange="apSolVal(this);apAvisoStock()" type="number" min="0" step="any" value="${esc(vals[i.codigo]!==undefined?vals[i.codigo]:def)}"></td></tr>`;}).join('');
     const otros=D.cache.insumos.filter(i=>i.activo!==false&&!faltantes.some(x=>x.insumo.codigo===i.codigo)&&!extra.includes(i.codigo));
     const motivoVacio=D.cache.factores.length?'Con lo registrado hoy no falta ningún insumo para este bloque (o lo que falta ya está pedido o en camino).':'Todavía no hay factores de consumo cargados (pestaña «Factores»): sin ellos el sistema no calcula lo que falta y no inventa valores.';
-    const nueva=asist?`<div id="ap-sol-nueva"></div><h3 class="ap-h3">Preparar solicitud a Almacén</h3>${faltantesNetos(ctx).length?`<div class="ap-acc"><button type="button" class="ap-btn" onclick="apSolicitarFaltantes()">${ico('doc')} Solicitar todos los faltantes (${faltantesNetos(ctx).length})</button></div>`:''}
+    const nueva=asist?`<div id="ap-sol-nueva"></div><div class="ap-nueva"><div class="ap-tit-acc"><h3 class="ap-h3">Preparar solicitud a Almacén</h3>${faltantesNetos(ctx).length?`<button type="button" class="ap-btn" onclick="apSolicitarFaltantes()">${ico('doc')} Solicitar todos los faltantes (${faltantesNetos(ctx).length})</button>`:''}</div>
       <p class="ap-sub">${faltantes.length?'Se proponen los faltantes del bloque; ajusta las cantidades si hace falta.':'No hay faltantes calculados. '+motivoVacio+' Agrega a mano los insumos que necesites.'}</p>
       ${filasNueva?tabla(['Insumo','#Faltante','#En Almacén','Cantidad a solicitar'],filasNueva):vacio('Ningún insumo con faltante. Agrega abajo el que necesites.')}
       ${otros.length?`<div class="ap-acc ap-acc-agregar"><select id="ap-sol-extra"><option value="">Agregar otro insumo…</option>${otros.map(i=>`<option value="${esc(i.codigo)}">${esc(i.nombre)}</option>`).join('')}</select><button type="button" class="ap-btn ap-btn-o" onclick="apSolAgregar()">${ico('mas')} Agregar</button></div>`:''}
       <div id="ap-sol-aviso"></div>
       ${campo('Observaciones','<input id="ap-sol-obs" maxlength="200">','ap-ancho')}
-      <div class="ap-acc"><button type="button" class="ap-btn ap-btn-o" onclick="apCrearSolicitud(false)">Guardar borrador</button><button type="button" class="ap-btn" onclick="apCrearSolicitud(true)">Enviar a Almacén</button></div>`:'';
+      <div class="ap-acc"><button type="button" class="ap-btn ap-btn-o" onclick="apCrearSolicitud(false)">Guardar borrador</button><button type="button" class="ap-btn" onclick="apCrearSolicitud(true)">Enviar a Almacén</button></div></div>`:'';
     const sel=`<div class="ap-filtros-sol">${['abiertas','cerradas','todas'].map(k=>`<button type="button" class="ap-sub ${filtro===k?'ap-sub-act':''}" onclick="AP_set('solFiltro','${k}')">${{abiertas:'Abiertas',cerradas:'Cerradas',todas:'Todas'}[k]}</button>`).join('')}</div>`;
     const titulo=alm&&!asist?'Solicitudes por entregar':'Solicitudes'+(alm?' · vista de Almacén':'');
     const en=EN(),movs=en?en.movimientosRecientes(AP.fecha):[];
@@ -732,7 +751,7 @@
     const insIni=D.cache.insumos.filter(i=>i.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre))[0];
     const form=ed?tarjeta('Nueva merma',`<div class="ap-form ap-form-2">${campo('Línea',`<select id="ap-m-linea" onchange="AP_set('mermaLinea',this.value)">${lineas.map(l=>`<option value="${l}" ${l===AP.mermaLinea?'selected':''}>${esc(nombreLinea(l))}</option>`).join('')}</select>`)}
         ${campo('Producto (orden)',`<select id="ap-m-cuadro">${ctx.cuadros.filter(c=>c.linea===AP.mermaLinea).map(c=>`<option value="${esc(c.clave)}">${esc(c.codigo+' · '+c.marca+' '+presUI(c))}</option>`).join('')}</select>`)}
-        ${campo('Tipo','<select id="ap-m-cat" onchange="apMermaCat()"><option value="MATERIAL">Materia prima / empaque</option><option value="PRODUCTO">Producto terminado</option></select>')}
+        ${campo('Tipo','<select id="ap-m-cat" onchange="apMermaCat()"><option value="MATERIAL">Material o insumo</option><option value="PRODUCTO">Producto terminado</option></select>')}
         ${campo('Insumo',`<select id="ap-m-insumo" onchange="apMermaUnidad()">${opcionesInsumos(insIni&&insIni.codigo)}</select>`,'ap-m-mat')}
         ${campo('Cantidad',`<span class="ap-con-unidad"><input id="ap-m-cant" type="number" min="0" step="any"><b id="ap-m-und">${esc(insIni?insIni.unidad:'')}</b></span>`)}
         ${campo('Motivo',`<select id="ap-m-causa">${D.causasMerma().map(c=>`<option>${esc(c)}</option>`).join('')}</select>`)}
@@ -932,7 +951,11 @@
       ${modoVista||(!puede('asistenteProduccion')&&!puede('moduloAlmacen'))?'<span class="ap-chip-vista">Solo consulta</span>':''}</div></header>
       <nav class="ap-tabs" role="tablist">${tabs}</nav>${cargando()}${aviso()}${cuerpo(ctx)}</section>`;
     window.scrollTo(0,scroll);
+    main.querySelectorAll('.ap-clic').forEach(e=>{if(!e.hasAttribute('tabindex')){e.setAttribute('tabindex','0');e.setAttribute('role','button');}});   // filas que se abren con un clic: también con el teclado
   }
+  document.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.classList&&e.target.classList.contains('ap-clic')&&e.target.closest('.ap')){e.preventDefault();e.target.click();}
+  });
   window.apCtx=(k,v)=>{if(k==='fecha'&&!/^\d{4}-\d{2}-\d{2}$/.test(v))return;AP[k]=v;AP.cuadro='';AP.insumo='';AP.solSel='';pintar();};
   /* ---------- tiempo real ----------
      Todo lo que guarda otra persona (entrega de Almacén, devolución, solicitud nueva, recepción…) llega solo por las escuchas en vivo.
@@ -1140,6 +1163,22 @@
 .ap-coord{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}.ap-coord li{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 12px;border:1px solid var(--ap-linea);border-radius:10px}
 .ap-coord small{display:block;color:var(--ap-mut);font-size:13px}.ap-coord li.ap-cerrada{opacity:.65}
 .ap-filtros{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:14px;align-items:end}
+/* Orden visual (31/10/2026): casillas con su tamaño, botones chicos sin partir el texto, filtros del Historial en dos filas, «Preparar solicitud» como bloque propio. */
+.ap input[type=checkbox],.ap input[type=radio]{width:18px;height:18px;min-height:0;padding:0;flex:none;accent-color:var(--ap-azul);cursor:pointer}
+.ap-chk{cursor:pointer;line-height:1.3}
+.ap-btn,.ap-btn-s{white-space:nowrap}
+.ap-filtros .ap-chk{grid-column:1/4;align-self:center}.ap-filtros .ap-acc{grid-column:4/-1;justify-content:flex-end}
+.ap-nueva{border:1px solid var(--ap-linea);border-radius:12px;background:#fbfdff;padding:16px 18px;margin:0 0 22px;display:grid;gap:12px}
+.ap-nueva>*{margin:0}.ap-nueva .ap-acc-agregar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.ap-nueva .ap-tit-acc{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.ap-nueva .ap-h3{margin:0}
+.ap-t td .ap-btn-s{margin:0}
+p.ap-sub{padding:0;border:0;background:none;flex:none;font-size:14px;color:var(--ap-mut);margin:4px 0 10px}   /* «ap-sub» también es la subpestaña: el párrafo no debe heredar su relleno */
+/* Accesibilidad: el foco del teclado se ve en botones, pestañas, campos y filas que se pueden abrir. */
+.ap button:focus-visible,.ap a:focus-visible,.ap [role=button]:focus-visible,.ap summary:focus-visible,.ap input:focus-visible,.ap select:focus-visible,.ap textarea:focus-visible,.ap .ap-clic:focus-visible{outline:3px solid #7fb8d6;outline-offset:2px}
+.ap-tw+.ap-card,.ap-tw+section{margin-top:16px}
+.ap .ap-t th{white-space:normal;line-height:1.25}.ap .ap-t th,.ap-t td{padding-left:10px;padding-right:10px}   /* tablas de muchas columnas (Previsión) caben sin cortar «Estado» */
+@media(max-width:560px){.ap-nueva .ap-acc-agregar{grid-template-columns:1fr}.ap-kpi{gap:10px;padding:12px}.ap-kpi-ico{width:42px;height:42px}.ap .ap-kpi-ico .ap-ico{width:22px;height:22px}.ap-kpi-tx>span{font-size:14px}.ap-kpi-tx b{font-size:26px}.ap-atender li{flex-wrap:wrap}.ap-at-tx{flex:1 1 calc(100% - 48px)}.ap-atender li .ap-link{margin-left:38px;padding:2px 0}.ap-kpis-4,.ap-kpis-3{grid-template-columns:1fr 1fr!important;gap:10px}.ap-flujo-b{padding:7px 9px}}
+@media(max-width:700px){.ap-filtros .ap-chk,.ap-filtros .ap-acc{grid-column:1/-1}.ap-filtros{grid-template-columns:1fr 1fr}.ap-nueva{padding:12px}}
 .ap-aud{display:flex;gap:16px;align-items:flex-start}.ap-aud h4{margin:0 0 4px;font-size:20px}.ap-aud p{margin:6px 0}
 .ap-hist{font-size:14px;padding-left:18px}.ap-modal{max-width:920px}
 @media(max-width:1100px){.ap-kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-filtros .ap-acc{grid-column:1/-1;justify-content:flex-start}.ap-form-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -1154,7 +1193,9 @@
   .ap .ap-t-bal td,.ap .ap-t-bal th{display:table-cell;text-align:left;border-top:1px solid #e7eef4;padding:8px}.ap .ap-t-bal td:last-child,.ap .ap-t-bal th:last-child{text-align:right}.ap .ap-t-bal td:before{content:none}
   .ap-seg li{grid-template-columns:auto minmax(0,1fr) 20px}.ap-seg .ap-pill{grid-column:2;justify-self:start}.ap-reservas{align-items:flex-start}
   .ap-tit-acc .ap-acc{width:100%}.ap-acc .ap-btn{flex:1 1 auto}.ap-tab{padding:12px}.ap-atender li{flex-wrap:wrap}}
-@media print{.ap-tabs,.ap-acc,.ap-form,.ap-cab-der,.ap-filtros,.ap-evid{display:none!important}.ap-card{break-inside:avoid;box-shadow:none}}
+@media print{.ap-tabs,.ap-acc,.ap-form,.ap-cab-der,.ap-filtros,.ap-evid{display:none!important}.ap-card{break-inside:avoid;box-shadow:none}
+  /* «Resumen imprimible»: sin el menú ni la cabecera de la aplicación, a todo el ancho de la hoja */
+  #glacial-sidebar,.sidebar,.topbar,#ap-toasts,.modal-backdrop{display:none!important}.ap-card:has(.ap-filtros){display:none!important}.shell{display:block!important}#main,.main{margin:0!important;padding:0!important;max-width:none!important;width:100%!important}.ap{max-width:none}.ap-tw{overflow:visible}.ap-t{font-size:12px}}
 </style>`;}
   window.glacialAsistentePantalla={pintar,contexto,AP};
 })();

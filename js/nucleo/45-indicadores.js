@@ -621,9 +621,15 @@
     const o=opciones||{},gracia=num(o.graciaMin)>0?num(o.graciaMin):120,diasMax=num(o.diasMax)>0?num(o.diasMax):7,ahora=Number(ahoraMs);
     if(!Number.isFinite(ahora))return [];
     const res=[];
+    /* Un borrador viejo del MISMO turno (misma línea, fecha y turno) que ya tiene otro reporte FINALIZADO quedó reemplazado: no se avisa por él.
+       (En octubre hubo hasta 5 registros del mismo turno; solo uno se finalizó.) */
+    const finalizados=new Map();
+    (Array.isArray(registros)?registros:[]).forEach(r=>{if(r&&String(r.estadoRegistro||'')==='FINALIZADO')finalizados.set(r.linea+'|'+r.fecha+'|'+turnoEntrega(r.turno),String(r.id||''));});
     (Array.isArray(registros)?registros:[]).forEach(r=>{
       if(!r||!['EN_REGISTRO','REABIERTO'].includes(String(r.estadoRegistro||'')))return;
       if(o.linea&&r.linea!==o.linea)return;
+      const hermano=finalizados.get(r.linea+'|'+r.fecha+'|'+turnoEntrega(r.turno));
+      if(hermano!==undefined&&hermano!==String(r.id||''))return;
       const cuadros=(Array.isArray(r.cuadros)?r.cuadros:[]).filter(c=>c&&String(c.marca||'').trim()&&(num(c.produccion&&c.produccion.efectiva)>0||num(c.produccion&&c.produccion.sopladas)>0));
       if(!cuadros.length)return;
       const h=horarioBloque(r.fecha,r.turno,cfgBloques);
@@ -651,6 +657,7 @@
       if(!hayProduccion)return;
       const turno=turnoEntrega(r.turno),id=r.fecha+'_'+turno;
       if(hechas.has(id)||vistos.has(id))return;
+      if(o.desde&&r.fecha<o.desde)return;                  // el aviso solo cuenta desde la fecha de inicio (los turnos anteriores nunca tuvieron entrega)
       const h=horarioBloque(r.fecha,turno==='DIA'?'DÍA':turno,cfgBloques);
       if(!h)return;
       const atrasoMin=(ahora-h.fin)/60000;
