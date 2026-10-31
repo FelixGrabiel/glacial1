@@ -209,6 +209,7 @@
     ];
   }
   function tarjetaEmpezar(ctx){
+    if(!puede('asistenteProduccion')&&!puede('gestionarFactores'))return '';      // quien solo consulta (o es de Almacén) no tiene qué configurar ni los pasos del turno que ejecutar
     const pasos=pasosEmpezar(ctx),pend=pasos.filter(p=>!p.ok);
     const flujo=[['1','Contar','lo que hay en Producción','apIrConteo()'],['2','Ver faltantes','de este turno y los próximos',`apIr('insumos','requerimientos')`],['3','Solicitar','a Almacén',`apIr('insumos','solicitudes')`],['4','Recibir','y destinar a un cuadro',`apIr('insumos','solicitudes')`],['5','Consumo y merma','conciliar al cerrar el cuadro',`apIr('consumo')`]];
     const f=`<ol class="ap-flujo">${flujo.map(([n,t,d,a])=>`<li><button type="button" class="ap-flujo-b" onclick="${a}"><b>${n}</b><span><strong>${esc(t)}</strong><small>${esc(d)}</small></span></button></li>`).join('')}</ol>`;
@@ -750,7 +751,7 @@
     const insIni=D.cache.insumos.filter(i=>i.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre))[0];
     const form=ed?tarjeta('Nueva merma',`<div class="ap-form ap-form-2">${campo('Línea',`<select id="ap-m-linea" onchange="AP_set('mermaLinea',this.value)">${lineas.map(l=>`<option value="${l}" ${l===AP.mermaLinea?'selected':''}>${esc(nombreLinea(l))}</option>`).join('')}</select>`)}
         ${campo('Producto (orden)',`<select id="ap-m-cuadro">${ctx.cuadros.filter(c=>c.linea===AP.mermaLinea).map(c=>`<option value="${esc(c.clave)}">${esc(c.codigo+' · '+c.marca+' '+presUI(c))}</option>`).join('')}</select>`)}
-        ${campo('Tipo','<select id="ap-m-cat" onchange="apMermaCat()"><option value="MATERIAL">Materia prima / empaque</option><option value="PRODUCTO">Producto terminado</option></select>')}
+        ${campo('Tipo','<select id="ap-m-cat" onchange="apMermaCat()"><option value="MATERIAL">Material o insumo</option><option value="PRODUCTO">Producto terminado</option></select>')}
         ${campo('Insumo',`<select id="ap-m-insumo" onchange="apMermaUnidad()">${opcionesInsumos(insIni&&insIni.codigo)}</select>`,'ap-m-mat')}
         ${campo('Cantidad',`<span class="ap-con-unidad"><input id="ap-m-cant" type="number" min="0" step="any"><b id="ap-m-und">${esc(insIni?insIni.unidad:'')}</b></span>`)}
         ${campo('Motivo',`<select id="ap-m-causa">${D.causasMerma().map(c=>`<option>${esc(c)}</option>`).join('')}</select>`)}
@@ -1169,7 +1170,7 @@
 .ap-t td .ap-btn-s{margin:0}
 p.ap-sub{padding:0;border:0;background:none;flex:none;font-size:14px;color:var(--ap-mut);margin:4px 0 10px}   /* «ap-sub» también es la subpestaña: el párrafo no debe heredar su relleno */
 .ap-tw+.ap-card,.ap-tw+section{margin-top:16px}
-@media(max-width:560px){.ap-atender li{flex-wrap:wrap}.ap-at-tx{flex:1 1 calc(100% - 48px)}.ap-atender li .ap-link{margin-left:38px;padding:2px 0}.ap-kpis-4,.ap-kpis-3{grid-template-columns:1fr 1fr!important;gap:10px}.ap-flujo-b{padding:7px 9px}}
+@media(max-width:560px){.ap-kpi{gap:10px;padding:12px}.ap-kpi-ico{width:42px;height:42px}.ap .ap-kpi-ico .ap-ico{width:22px;height:22px}.ap-kpi-tx>span{font-size:14px}.ap-kpi-tx b{font-size:26px}.ap-atender li{flex-wrap:wrap}.ap-at-tx{flex:1 1 calc(100% - 48px)}.ap-atender li .ap-link{margin-left:38px;padding:2px 0}.ap-kpis-4,.ap-kpis-3{grid-template-columns:1fr 1fr!important;gap:10px}.ap-flujo-b{padding:7px 9px}}
 @media(max-width:700px){.ap-filtros .ap-chk,.ap-filtros .ap-acc{grid-column:1/-1}.ap-filtros{grid-template-columns:1fr 1fr}.ap-nueva{padding:12px}}
 .ap-aud{display:flex;gap:16px;align-items:flex-start}.ap-aud h4{margin:0 0 4px;font-size:20px}.ap-aud p{margin:6px 0}
 .ap-hist{font-size:14px;padding-left:18px}.ap-modal{max-width:920px}
