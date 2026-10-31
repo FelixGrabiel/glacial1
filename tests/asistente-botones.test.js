@@ -38,6 +38,9 @@ ok(/\.ap-kpi\{gap:10px;padding:12px\}/.test(p72),'en el celular los indicadores 
 const p86=leer('js/asistente/86-evidencias-insumos-pantalla.js');
 ok(/@media\(max-width:1500px\)\{\.ie-cols\{grid-template-columns:1fr\}/.test(p86),'Evidencias: hasta 1500 px la foto va arriba y los campos ocupan todo el ancho (no se cortan)');
 
+ok(/falt\.length>2\?pill\('Faltan '\+falt\.length\+' insumos','rojo'\)/.test(p72),'Seguimiento: con más de dos faltantes se muestra «Faltan N insumos» y los nombres debajo (antes una etiqueta por insumo en cada fila)');
+ok(/\.ap \.ap-t th\{white-space:normal;line-height:1\.25\}/.test(p72),'las tablas de muchas columnas (Previsión) caben sin cortar «Estado»');
+
 /* validarMovimiento (71) con el núcleo real */
 global.window=global;
 require(R+'/js/asistente/70-asistente-nucleo.js');
@@ -51,6 +54,6 @@ ok(sb.validar(Object.assign({},base,{cantidad:''})).length>0&&sb.validar(Object.
 ok(sb.validar(Object.assign({},base,{cantidad:'0'})).length===0&&sb.validar(Object.assign({},base,{cantidad:0})).length===0,'un conteo en 0 escrito a propósito sí se guarda');
 ok(sb.validar(Object.assign({},base,{cantidad:'125.5'})).length===0,'un conteo normal se guarda');
 ok(sb.validar({tipo:'DEVOLUCION',insumo:'C01',cantidad:'0',cuadro:'k'}).length>0,'una devolución en 0 sigue sin guardarse');
-ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar7/.test(html),'index.html: versiones subidas');
+ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar8/.test(html),'index.html: versiones subidas');
 console.log(fallas?'\n'+fallas+' fallas':'\nBotones del Asistente correctos');
 process.exit(fallas?1:0);

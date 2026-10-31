@@ -297,7 +297,7 @@
       const fs=porCuadro.get(c.clave)||[];
       const falt=fs.filter(f=>f.faltante>0),sin=fs.filter(f=>f.estado==='SIN_FACTOR'||f.estado==='FACTOR_AMBIGUO');
       const est=c.estado==='FINALIZADA'?pill('Finalizada','verde'):c.completar&&!(c.programado>0)?pill('Pendiente del cierre','ambar')
-        :falt.length?falt.map(f=>pill('Falta '+f.insumo.nombre.toLowerCase(),'rojo')).join(' '):sin.length?pill(sin.length+' sin factor','ambar')
+        :falt.length>2?pill('Faltan '+falt.length+' insumos','rojo')+` <small class="ap-mut ap-blk">${esc(falt.map(f=>f.insumo.nombre).join(' · '))}</small>`:falt.length?falt.map(f=>pill('Falta '+f.insumo.nombre.toLowerCase(),'rojo')).join(' '):sin.length?pill(sin.length+' sin factor','ambar')
         :c.estado==='PENDIENTE'&&!(c.producido>0)&&!fs.length?pill('Sin inicio','gris'):fs.length?(fs.every(f=>f.conteo)?pill('Cubierto','verde'):pill('Por verificar','verde')):pill('Sin requerimientos','gris');
       const p=progs.find(x=>c.programaciones.includes(x.id));
       return `<tr><td data-label="Línea">${esc(nombreLinea(c.linea))}</td><td data-label="Marca">${esc(c.marca)} ${esc(presUI(c))}</td><td data-label="Modalidad">${esc(modalidadTxt(p))}</td>
@@ -1170,6 +1170,7 @@
 .ap-t td .ap-btn-s{margin:0}
 p.ap-sub{padding:0;border:0;background:none;flex:none;font-size:14px;color:var(--ap-mut);margin:4px 0 10px}   /* «ap-sub» también es la subpestaña: el párrafo no debe heredar su relleno */
 .ap-tw+.ap-card,.ap-tw+section{margin-top:16px}
+.ap .ap-t th{white-space:normal;line-height:1.25}.ap .ap-t th,.ap-t td{padding-left:10px;padding-right:10px}   /* tablas de muchas columnas (Previsión) caben sin cortar «Estado» */
 @media(max-width:560px){.ap-nueva .ap-acc-agregar{grid-template-columns:1fr}.ap-kpi{gap:10px;padding:12px}.ap-kpi-ico{width:42px;height:42px}.ap .ap-kpi-ico .ap-ico{width:22px;height:22px}.ap-kpi-tx>span{font-size:14px}.ap-kpi-tx b{font-size:26px}.ap-atender li{flex-wrap:wrap}.ap-at-tx{flex:1 1 calc(100% - 48px)}.ap-atender li .ap-link{margin-left:38px;padding:2px 0}.ap-kpis-4,.ap-kpis-3{grid-template-columns:1fr 1fr!important;gap:10px}.ap-flujo-b{padding:7px 9px}}
 @media(max-width:700px){.ap-filtros .ap-chk,.ap-filtros .ap-acc{grid-column:1/-1}.ap-filtros{grid-template-columns:1fr 1fr}.ap-nueva{padding:12px}}
 .ap-aud{display:flex;gap:16px;align-items:flex-start}.ap-aud h4{margin:0 0 4px;font-size:20px}.ap-aud p{margin:6px 0}
