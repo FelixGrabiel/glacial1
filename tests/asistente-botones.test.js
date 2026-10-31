@@ -18,6 +18,12 @@ ok(/sinCuadros/.test(p71)&&/No hay cuadros programados para esa fecha y turno: i
 ok(/id="ap-rec-linea"/.test(p72)&&/sinCuadros\?valor\('ap-rec-linea'\)/.test(p72.replace(/\s+/g,' ').replace('sinCuadros ? valor','sinCuadros?valor')),'la ventana ofrece «Línea a la que se destina» cuando no hay cuadros');
 ok(/alert\('Elige el cuadro al que se destina lo recibido\.'\)/.test(p72)&&/return;\}\s*if\(!String\(datos\.linea/.test(p72),'se avisa antes de cerrar la ventana (no se pierde lo escrito)');
 
+/* Resumen: «Para empezar» (configuración pendiente) y flujo del turno */
+ok(/function pasosEmpezar\(ctx\)/.test(p72)&&/function tarjetaEmpezar\(ctx\)/.test(p72)&&/\$\{tarjetaEmpezar\(ctx\)\}/.test(p72),'el Resumen muestra «Para empezar»');
+ok(['Catálogo de insumos','Factores de consumo','Programación de este turno','Conteo de existencias en Producción'].every(t=>p72.includes(t)),'revisa catálogo, factores, programación y conteo');
+ok(['Contar','Ver faltantes','Solicitar','Recibir','Consumo y merma'].every(t=>p72.includes("'"+t+"'")),'el flujo del turno tiene sus cinco pasos con botón');
+ok(/'Para empezar · '\+pend\.length/.test(p72)&&/'Flujo del turno'/.test(p72),'la tarjeta se reduce a «Flujo del turno» cuando todo está configurado');
+
 /* validarMovimiento (71) con el núcleo real */
 global.window=global;
 require(R+'/js/asistente/70-asistente-nucleo.js');
@@ -31,6 +37,6 @@ ok(sb.validar(Object.assign({},base,{cantidad:''})).length>0&&sb.validar(Object.
 ok(sb.validar(Object.assign({},base,{cantidad:'0'})).length===0&&sb.validar(Object.assign({},base,{cantidad:0})).length===0,'un conteo en 0 escrito a propósito sí se guarda');
 ok(sb.validar(Object.assign({},base,{cantidad:'125.5'})).length===0,'un conteo normal se guarda');
 ok(sb.validar({tipo:'DEVOLUCION',insumo:'C01',cantidad:'0',cuadro:'k'}).length>0,'una devolución en 0 sigue sin guardarse');
-ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar3/.test(html),'index.html: versiones subidas');
+ok(/71-asistente-datos\.js\?v=20261031-ar3/.test(html)&&/72-asistente-pantalla\.js\?v=20261031-ar4/.test(html),'index.html: versiones subidas');
 console.log(fallas?'\n'+fallas+' fallas':'\nBotones del Asistente correctos');
 process.exit(fallas?1:0);

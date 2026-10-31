@@ -198,6 +198,23 @@
     if(!confirm('¿Enviar esta solicitud a Almacén?\n\n'+resumen))return;
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:'Faltantes del bloque',enviar:true}),id=>'Solicitud '+id+' enviada a Almacén con '+items.length+' insumo(s).');
   };
+  /* «Para empezar»: lo que debe estar configurado para que el Asistente calcule (se oculta solo cuando todo está listo) + el orden de trabajo del turno. */
+  function pasosEmpezar(ctx){
+    const ins=D.cache.insumos.filter(i=>i.activo!==false),gest=puede('gestionarFactores'),asis=puede('asistenteProduccion');
+    return [
+      {ok:ins.length>0,txt:'Catálogo de insumos',det:ins.length?ins.length+' insumo(s) cargados':'Todavía no hay insumos: son lo que se cuenta, se pide y se consume.',acc:gest||asis?`apIr('insumos','factores')`:'',btn:'Cargar insumos'},
+      {ok:D.cache.factores.length>0,txt:'Factores de consumo',det:D.cache.factores.length?D.cache.factores.length+' factor(es) vigentes':'Sin factores el sistema no calcula lo que falta y no inventa valores.',acc:`apIr('insumos','factores')`,btn:'Cargar factores'},
+      {ok:ctx.cuadros.length>0,txt:'Programación de este turno',det:ctx.cuadros.length?ctx.cuadros.length+' cuadro(s) programados':'No hay cuadros programados para esta fecha y turno (se cargan en Planificación).',acc:'',btn:''},
+      {ok:ctx.resumen.length>0&&ctx.resumen.every(r=>r.conteo),txt:'Conteo de existencias en Producción',det:ctx.resumen.length?(ctx.resumen.filter(r=>!r.conteo).length?ctx.resumen.filter(r=>!r.conteo).length+' insumo(s) sin conteo verificado':'Todo contado'):'Se verifica cuando hay insumos con requerimiento.',acc:asis?`apIrConteo()`:'',btn:'Registrar conteo'}
+    ];
+  }
+  function tarjetaEmpezar(ctx){
+    const pasos=pasosEmpezar(ctx),pend=pasos.filter(p=>!p.ok);
+    const flujo=[['1','Contar','lo que hay en Producción','apIrConteo()'],['2','Ver faltantes','de este turno y los próximos',`apIr('insumos','requerimientos')`],['3','Solicitar','a Almacén',`apIr('insumos','solicitudes')`],['4','Recibir','y destinar a un cuadro',`apIr('insumos','solicitudes')`],['5','Consumo y merma','conciliar al cerrar el cuadro',`apIr('consumo')`]];
+    const f=`<ol class="ap-flujo">${flujo.map(([n,t,d,a])=>`<li><button type="button" class="ap-flujo-b" onclick="${a}"><b>${n}</b><span><strong>${esc(t)}</strong><small>${esc(d)}</small></span></button></li>`).join('')}</ol>`;
+    const lista=pend.length?`<ul class="ap-empezar">${pasos.map(p=>`<li class="${p.ok?'ap-em-ok':'ap-em-pend'}"><span class="ap-em-ico">${p.ok?'✔':'●'}</span><span class="ap-em-tx"><b>${esc(p.txt)}</b><small>${esc(p.det)}</small></span>${!p.ok&&p.acc?`<button type="button" class="ap-link" onclick="${p.acc}">${esc(p.btn)} ${ico('flecha')}</button>`:''}</li>`).join('')}</ul>`:'';
+    return tarjeta(pend.length?'Para empezar · '+pend.length+' pendiente'+(pend.length===1?'':'s'):'Flujo del turno',lista+f,{icono:'lista'})+`<style>.ap-empezar{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.ap-empezar li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e3e8ee;border-radius:10px;background:#fff}.ap-em-ico{width:22px;text-align:center;font-weight:700}.ap-em-ok .ap-em-ico{color:#15803d}.ap-em-pend .ap-em-ico{color:#d97706}.ap-em-tx{flex:1;display:flex;flex-direction:column}.ap-em-tx small{color:#5a6b7b;font-size:12.5px}.ap-flujo{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.ap-flujo-b{width:100%;display:flex;gap:8px;align-items:center;text-align:left;border:1px solid #d6e2ee;background:#f7fafd;border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit}.ap-flujo-b b{display:inline-flex;width:24px;height:24px;border-radius:50%;background:#0b5cc4;color:#fff;align-items:center;justify-content:center;font-size:13px;flex:none}.ap-flujo-b span{display:flex;flex-direction:column}.ap-flujo-b small{color:#5a6b7b;font-size:12px}@media(max-width:900px){.ap-flujo{grid-template-columns:1fr}}</style>`;
+  }
   function tabResumen(ctx){
     const lineasCon=ctx.lineas.filter(l=>ctx.cuadros.some(c=>c.linea===l&&c.producido>0));
     const falt=ctx.resumen.filter(r=>r.faltante>0);
@@ -249,6 +266,7 @@
         <span class="ap-seg-n">${esc(nombreLinea(l))} · ${esc(c.marca)}</span>${pill(e[0],e[1])}<span class="ap-chev">${ico('chevron')}</span></li>`;}).join('');
     }).join('');
     return `<h2 class="ap-h2">Resumen operativo</h2>${kpis}
+      ${tarjetaEmpezar(ctx)}
       ${tarjeta('Por atender',lineaConteo+porAtender,{icono:'campana'})}
       <div class="ap-2">${tarjeta('Producción y seguimiento',`<ul class="ap-seg">${seg}</ul>`,{icono:'grafico'})}${tarjeta('Cobertura de la programación',cob,{icono:'capas'})}</div>`;
   }
