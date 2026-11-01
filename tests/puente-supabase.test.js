@@ -447,6 +447,20 @@ const ids = l => (l || []).map(x => x.id).join(',');
     ok(A.llamadas.fs_leer === 2, 'al llegar los usuarios se piden las demás lecturas (' + A.llamadas.fs_leer + ' lecturas)');
   }
 
+  /* Reintentos sin tormenta: la espera crece con los fallos seguidos y tiene tope; las escuchas y consultas usan esa espera. */
+  {
+    const i = CODIGO.indexOf('function retrasoDeReintento'), j = CODIGO.indexOf('function crearBaseDeDatos');
+    const ctx = vm.createContext({ Math });
+    vm.runInContext(CODIGO.slice(i, j), ctx);
+    const r = (n, azar) => vm.runInContext('retrasoDeReintento(' + n + ',' + (azar === undefined ? '()=>0.5' : '()=>' + azar) + ')', ctx);
+    igual([r(0), r(1), r(3), r(7), r(15), r(31), r(5000)], [3000, 6000, 12000, 24000, 48000, 60000, 60000], 'la espera de reintento: 3 s, 6, 12, 24, 48 y tope de 60 s según los fallos seguidos');
+    ok(r(7, 0) === 18000 && r(7, 1) === 30000, 'con variación al azar de ±25 % (18–30 s alrededor de 24 s)');
+    ok(/setTimeout\(\(\) => \{ if \(!this\.conf[^\n]*proximoReintento\(\)\)/.test(CODIGO) && /this\.programar\(proximoReintento\(\)\)/.test(CODIGO) && !/programar\(3000\)/.test(CODIGO),
+       'las escuchas de documentos y las consultas ya no reintentan a 3 s fijos');
+    ok(/fallosSeguidos = 0;\s*marcarConexion\(true\)/.test(CODIGO) && /fallosSeguidos\+\+/.test(CODIGO), 'un acierto reinicia la cuenta de fallos; un fallo de red/servidor la sube');
+    ok((CODIGO.match(/puedeResincronizar\(\)/g) || []).length >= 2, 'las relecturas automáticas (3 min y al volver a la pestaña) esperan mientras el servidor falle seguido');
+  }
+
   console.log(fallas ? '\n✘ ' + fallas + ' falla(s)' : '\n✔ Puente Supabase: todas las pruebas pasaron');
   process.exit(fallas ? 1 : 0);
 })().catch(e => { console.error('ERROR EN LA PRUEBA', e); process.exit(1); });

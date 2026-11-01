@@ -220,6 +220,14 @@
   const DOCS_SYNC=['users','records','workers','rotaciones','rotacionesMantenimiento','rotacionMaquinistas','tecnicosMant','borradoresNuevoRegistro',
     'tareos','paletas','programaciones','avancesTurno','perfiles','accesos','configTareo','configAlertas','configIndicadores','catalogoPlanificacion','configMantenimiento'];
   const UMBRAL=0.8;
+  /* El límite de 1 MiB es por documento de Firestore. En Supabase (puente) una lista cuyos elementos traen una clave única (id, username, clave, opId, email
+     o uid) se guarda en una fila por elemento, así que ya no pesa contra ese límite: solo cuenta lo que SÍ queda dentro del documento
+     (campos sueltos y listas sin clave única). Sin esto, records y tareos mostraban el aviso aunque cada fila pese unos KB. */
+  function sinListasPartidas(data){
+    const r={};
+    Object.keys(data||{}).forEach(k=>{if(!(Array.isArray(data[k])&&claveDeLista(data[k])))r[k]=data[k];});
+    return r;
+  }
   async function revisarTamanos(){
     if(!esAdmin()||typeof db==='undefined')return [];
     const altos=[];
@@ -227,7 +235,7 @@
       try{
         const d=await db.collection('sync').doc(n).get();
         if(!d.exists)continue;
-        const b=estimarBytes(d.data())+n.length+32;
+        const b=estimarBytes(sinListasPartidas(d.data()))+n.length+32;
         if(b>=LIMITE*UMBRAL)altos.push({doc:n,bytes:b,porcentaje:Math.round(b/LIMITE*1000)/10});
       }catch(_){/* sin permiso o sin red: se ignora ese documento */}
     }

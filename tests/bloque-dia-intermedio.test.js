@@ -83,7 +83,7 @@ let ahora=ms(15);
 sb29.avanceEstado={fecha:FECHA,turno:'DÍA'};sb29.tareoAhoraServidor=()=>ahora;
 vm.runInContext('function avHoraDesdeMs(ms){return ms?new Date(ms).toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit",hour12:false}):"";}function avCtx(){return {fin:"15:00"};}'+s29.slice(i0,i1)+';this.esRelevo=avEsRelevo;this.corte=avCorteCierre;this.titulo=avTituloSnapshot;',sb29);
 ok(sb29.esRelevo()===true&&sb29.corte()==='15:00','el cierre del supervisor de Día a las 15:00 es un RELEVO: corta a la hora real y no fija el fin del bloque');
-ok(sb29.titulo({tipo:'CIERRE',relevo:true})==='RELEVO DE TURNO'&&sb29.titulo({tipo:'CIERRE',relevo:false})==='CIERRE DE PRODUCCIÓN'&&sb29.titulo({tipo:'AVANCE'})==='AVANCE DE PRODUCCIÓN','el relevo se titula distinto del cierre del bloque');
+ok(sb29.titulo({tipo:'CIERRE',relevo:true})==='CIERRE DE PRODUCCIÓN'&&sb29.titulo({tipo:'CIERRE',relevo:false})==='CIERRE DE PRODUCCIÓN'&&sb29.titulo({tipo:'AVANCE'})==='AVANCE DE PRODUCCIÓN','un cierre se titula siempre CIERRE, también el que se genera antes de que termine el bloque');
 ahora=ms(19,30);
 ok(sb29.esRelevo()===false&&sb29.corte()==='19:00','el cierre después del fin del bloque se corta en el fin del bloque (19:00)');
 ok(!/saveProgramaciones|estadoOperacion\s*=/.test(s29),'Avance/Cierre no cierra programaciones: solo «Finalizar presentación» termina el bloque');

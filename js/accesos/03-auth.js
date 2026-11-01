@@ -374,7 +374,7 @@ function goReportSelect(){
    recuperación en curso para que una respuesta tardía no vuelva a ingresar al usuario. */
 
 const SESION_ESPERA_AUTH_MS = 15000;     // máximo para que Auth informe su estado inicial
-const SESION_ESPERA_PERFIL_MS = 20000;   // máximo para que lleguen los usuarios (perfil) después de iniciar la sincronización
+const SESION_ESPERA_PERFIL_MS = 45000;   // máximo para que lleguen los usuarios (perfil) después de iniciar la sincronización
 const _recuperacionSesion = { n: 0 };    // identificador de la recuperación vigente; handleLogout lo invalida
 
 /* Contexto local auxiliar: JSON inválido o inexistente = null (se ignora, no se bloquea nada). */

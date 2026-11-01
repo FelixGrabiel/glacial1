@@ -1112,33 +1112,27 @@ function cpEjecutivoHTML(){
   const sp=cpFilasSinProduccion(d);
   const tDistribucion=cpDistribucionKpi(cpPersonalPorLinea(d));
 
-  const tarjeta=(icono,titulo,cuerpo,extra='')=>`<div class="cp-ex-kpi ${extra}"><span class="cp-ex-kpi-t">${cpIcon(icono)}${titulo}</span>${cuerpo}</div>`;
-  const kpis=`<div class="cp-ex-kpis">${tarjeta('bars','Avance del turno',tAvance)}${tarjeta('chart','Líneas en producción',tEnCurso)}${tarjeta('pause','Paradas del turno',tParadas)}${tarjeta('list','Motivos registrados',tMotivos)}${tarjeta('team','Distribución de personal',tDistribucion,'cp-ds')}</div>`;
-
-  // LÍNEAS SIN PRODUCCIÓN: todas las líneas autorizadas sin unidades en el bloque, cada una con su motivo, «Sin programación» o «Motivo pendiente».
-  // Inicio solo muestra: el motivo lo informa el supervisor en Producción Actual («Informar motivo de no producción»).
+  // 6) LÍNEAS SIN PRODUCCIÓN (sexta tarjeta de la fila): todas las líneas autorizadas sin unidades en el bloque, cada una con su motivo, «Sin programación» o «Motivo pendiente».
+  // Es informativo: el motivo lo informa el supervisor en Producción Actual («Informar motivo de no producción») y no suma en Paradas del turno.
   const I=window.glacialIncidencias;
-  const textoCausa={SIN_PROGRAMACION:['Sin programación','No tiene programación en este bloque.'],CANCELADA:['Programación cancelada','Toda su programación del bloque está cancelada.'],
-    BLOQUE_NO_INICIA:['El bloque aún no inicia',`El bloque empieza a las ${cpEsc(cpHoraCorta(sp.inicio))}.`]};
+  const textoCausa={SIN_PROGRAMACION:'Sin programación',CANCELADA:'Programación cancelada',BLOQUE_NO_INICIA:'El bloque aún no inicia'};
   const filasSP=sp.filas.map(f=>{
+    const estado=f.pendiente?`<b class="cp-np-pend">⚠ ${CP_MOTIVO_PENDIENTE}</b>`
+      :f.causa==='INFORMADA'?`<b title="${cpEsc(f.descripcion||'')}">${cpEsc(f.motivo)}</b>`
+      :`<b class="cp-np-auto">${textoCausa[f.causa]||cpEsc(f.causa)}</b>`;
     const irRegistrar=f.pendiente&&I&&I.puedeInformar(f.linea)&&cpPuede('produccionActual')
-      ?` <button type="button" class="cp-ex-enlace cp-np-ir" onclick="goProduccionActual()">Registrar en Producción Actual →</button>`:'';
-    const cuerpo=f.pendiente
-      ?`<b class="cp-np-pend">⚠ ${CP_MOTIVO_PENDIENTE}</b>${irRegistrar}<small>${f.causa==='DETENIDA'?'La línea figura detenida y nadie ha informado el motivo.':'Tiene programación y no registra producción en este bloque.'}</small>`
-      :f.causa==='INFORMADA'
-        ?`<b>Motivo: ${cpEsc(f.motivo)}</b>${f.descripcion?` <span class="cp-np-desc">— ${cpEsc(f.descripcion)}</span>`:''}<small>Registrado por ${cpEsc(f.por||'—')} · ${cpEsc(cpHoraCorta(f.en))}</small>`
-        :`<b class="cp-np-auto">${textoCausa[f.causa][0]}</b><small>${textoCausa[f.causa][1]}</small>`;
-    return `<div class="cp-np-fila${f.pendiente?' cp-np-fila-pend':''}"><strong class="cp-np-linea">${cpEsc(cpNombreLinea(f.linea))}</strong><span class="cp-np-chip">Sin producción</span>
-      <span class="cp-np-ico" aria-hidden="true">${f.pendiente?'!':'i'}</span><div class="cp-np-motivo">${cuerpo}</div>
+      ?`<button type="button" class="cp-ex-enlace cp-np-ir" onclick="goProduccionActual()">Registrar en Producción Actual →</button>`:'';
+    return `<div class="cp-np-fila${f.pendiente?' cp-np-fila-pend':''}"><strong class="cp-np-linea">${cpEsc(cpNombreLinea(f.linea))}</strong>${estado}${irRegistrar}
       <button type="button" class="cp-ex-enlace" onclick="cpVerIncidencia('${cpEsc(f.linea)}')">Ver detalle →</button></div>`;
   }).join('');
   const vacioSP=sp.estado==='sin_modulo'?'No se cargó el registro de motivos.'
     :sp.estado==='error'?'No se pudo consultar el registro de motivos en este momento.'
     :sp.estado==='cargando'?'Consultando los motivos informados…'
     :'Todas las líneas están en producción.';
-  const tarjetaSP=`<section class="cp-card cp-np" aria-label="Líneas sin producción"><div class="cp-card-head"><div class="cp-card-title"><span class="cp-np-alerta" aria-hidden="true">!</span><div><h3>LÍNEAS SIN PRODUCCIÓN</h3>
-      <p>Motivo informado por el supervisor de la línea. Es informativo: no es una parada oficial ni suma en Paradas del turno.</p></div></div></div>${filasSP||`<div class="cp-empty">${vacioSP}</div>`}</section>`;
+  const tSinProd=`<b>${sp.filas.length}</b>${filasSP||`<div class="cp-ex-mot cp-ex-mut">${vacioSP}</div>`}<small>Informativo: no es una parada oficial ni suma en Paradas del turno</small>`;
 
+  const tarjeta=(icono,titulo,cuerpo,extra='')=>`<div class="cp-ex-kpi ${extra}"><span class="cp-ex-kpi-t">${cpIcon(icono)}${titulo}</span>${cuerpo}</div>`;
+  const kpis=`<div class="cp-ex-kpis">${tarjeta('bars','Avance del turno',tAvance)}${tarjeta('chart','Líneas en producción',tEnCurso)}${tarjeta('pause','Paradas del turno',tParadas)}${tarjeta('list','Motivos registrados',tMotivos)}${tarjeta('team','Distribución de personal',tDistribucion,'cp-ds')}${tarjeta('pause','Líneas sin producción',tSinProd,'cp-np')}</div>`;
 
   // PRODUCCIÓN POR LÍNEA: una tabla (línea · estado · producción · cumplimiento · último registro) con las unidades propias de cada línea.
   const porLinea=new Map(d.filas.map(f=>[f.linea,f]));
@@ -1186,11 +1180,11 @@ function cpEjecutivoHTML(){
   const tarjetaAlertas=`<section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('info')}<div><h3>Alertas importantes</h3><p>Solo situaciones vigentes que requieren atención.</p></div></div></div>
       <div class="cp-ex-alerts">${alertas}</div></section>`;
 
-  // Orden: encabezado → 5 tarjetas → líneas sin producción → producción por línea → alertas → RESUMEN DE PRODUCCIÓN al final.
+  // Orden: encabezado → 6 tarjetas (la sexta es «Líneas sin producción») → producción por línea → alertas → RESUMEN DE PRODUCCIÓN al final.
   // La tabla «Personal por línea» ya no se repite aquí: su detalle se abre desde «Ver distribución →» (cpVerDistribucion).
   // Las tarjetas «Paradas de hoy», «Proyección del turno» y «Disponibilidad de hoy» (43, 46 y 47) se insertan justo después de .cp-title-row,
   // por eso siguen dentro del bloque final.
-  return `${cabecera}${kpis}${tarjetaSP}${tarjetaLineas}${tarjetaAlertas}
+  return `${cabecera}${kpis}${tarjetaLineas}${tarjetaAlertas}
     <section class="cp-resumen-prod" aria-label="Resumen de producción"><div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2><p>Detalle del turno seleccionado.</p></div></div></section>`;
 }
 function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
@@ -1265,19 +1259,19 @@ function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-ex-bloque{background:linear-gradient(135deg,#0a3a7a,#0868db);border-color:#0b62d0;color:#fff}.cp-ex-bloque select{color:#fff}.cp-ex-bloque select option{color:#10265f}
 .cp-ex-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .cp-ex-cab .cp-ex-meta{display:block}.cp-ex-cab .cp-ex-meta small{color:var(--cp-muted);font-size:12px}
-.cp-shell .cp-ex-kpis{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.cp-shell .cp-ex-kpis{grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
 .cp-ex-kpi-t{display:flex!important;align-items:center;gap:8px;color:#10265f}.cp-ex-kpi-t .cp-icon{width:24px;height:24px;padding:4px;border-radius:7px;background:#e8f2ff;color:var(--cp-blue)}
 .cp-ex-kpi>b{font-size:30px}.cp-ex-par{margin-top:4px;color:#10265f;font-size:14px}.cp-ex-par b{font-size:17px}
 .cp-pt{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle}.cp-pt-prog{background:var(--ie-curso)}.cp-pt-noprog{background:var(--ie-det)}
 .cp-ex-mot{margin-top:5px;font-size:13px;color:#28415a;line-height:1.3}.cp-ex-mut{color:var(--cp-muted)}
 .cp-ex-enlace{display:inline-block;margin-top:6px;padding:4px 0;min-height:32px;background:none;border:0;color:#0b67d8;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-align:left}
 .cp-btn-link{background:none;border:0;color:#0b67d8;font-size:13px}
-.cp-np{border-color:#f2d58a;background:#fffdf6}.cp-np .cp-card-head{border-bottom:0}
+.cp-ex-kpi.cp-np{border-color:#f2d58a;background:#fffdf6}
 .cp-np-alerta{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#f5b335;color:#fff;font-weight:900;font-size:20px}
-.cp-np-fila{display:grid;grid-template-columns:70px 150px 28px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid #f0e2b8}
-.cp-np-linea{font-size:18px;color:#10265f}.cp-np-chip{display:inline-block;padding:6px 14px;border-radius:999px;background:#eef0f3;color:#33475b;font-weight:700;font-size:13px;text-align:center}
+.cp-np-fila{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;padding:5px 0;border-top:1px solid #f0e2b8;font-size:12px}
+.cp-np-linea{font-size:13px;color:#10265f}.cp-np-chip{display:inline-block;padding:6px 14px;border-radius:999px;background:#eef0f3;color:#33475b;font-weight:700;font-size:13px;text-align:center}
 .cp-np-ico{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#f5b335;color:#fff;font-weight:900;font-size:14px}
-.cp-np-motivo b{font-size:17px;color:#10265f}.cp-np-motivo small{display:block;color:#5f7382;font-size:13px;margin-top:2px}.cp-np-desc{color:#33475b;font-size:14px}.cp-np-pend{color:#9a5b00!important}
+.cp-np-motivo b{font-size:13px;color:#10265f}.cp-np-motivo small{display:block;color:#5f7382;font-size:13px;margin-top:2px}.cp-np-desc{color:#33475b;font-size:14px}.cp-np-pend{color:#9a5b00!important}
 .cp-np-pend{color:#b42318!important}.cp-np-fila-pend{background:#fff5f5}.cp-np-auto{color:#5f7382!important}.cp-np-ir{margin-left:8px}
 .cp-pl .cp-ex-table td{vertical-align:middle}.cp-pl-parado td{background:#fff8e6}.cp-pl-sinpersonal td{background:#fff1f1}
 .cp-pl-obs{color:#9a3412;font-weight:700;font-size:13px}.cp-pl-pend{color:#9a5b00;font-weight:700;font-size:13px}
@@ -1312,10 +1306,11 @@ function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-ds-totdet div{border:1px solid var(--cp-line,#dbe5ee);border-radius:10px;padding:8px 10px;background:#f7fafc}
 .cp-ds-totdet span{display:block;font-size:11px;font-weight:700;color:#466ba7;text-transform:uppercase}.cp-ds-totdet b{font-size:20px;color:#10265f}
 @media(max-width:700px){.cp-ds-totdet{grid-template-columns:1fr 1fr}.cp-shell .cp-ds li>span,.cp-shell .cp-ds li{font-size:14px}}
+@media(max-width:1500px){.cp-shell .cp-ex-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:1180px){.cp-shell .cp-ex-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){
   .cp-shell .cp-ex-kpis{grid-template-columns:1fr}.cp-ex-cab h1{font-size:26px}.cp-ex-cab-der{width:100%}.cp-ex-ctl{flex:1 1 auto}
-  .cp-np-fila{grid-template-columns:auto 1fr;gap:6px 10px}.cp-np-chip{grid-column:2;justify-self:start}.cp-np-ico{display:none}.cp-np-motivo{grid-column:1/-1}.cp-np-fila .cp-ex-enlace{grid-column:1/-1}
+  
   .cp-ex-table-wrap{overflow-x:auto}
 }
 </style>`;}

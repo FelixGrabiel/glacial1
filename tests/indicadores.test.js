@@ -27,7 +27,7 @@ const local=(y,m,d,h,mi)=>new Date(y,m-1,d,h,mi||0).getTime();
   ok(cerca(r,2304)&&Math.round(r)===2304,'caso oficial: ratio = 2,304 UND/h');
   ok(cerca(rend*100,92.16,1e-9)&&(rend*100).toFixed(1)==='92.2','caso oficial: rendimiento = 92.2 %');
   ok((o*100).toFixed(1)==='82.3'&&cerca(o,0.8571428571428571*0+disp*rend),'caso oficial: OEE = 82.3 %');
-  ok(I.NOTA_CALIDAD===undefined&&!('calidad' in I.resumenIndicadores([{producido:100,programado:100,programacionVigente:true,durMin:480,progMin:0,npMin:0,mermaTotal:0,velocidad:100,etiqueta:'x'}])),'caso oficial: no existe el indicador «Calidad» (ni su nota) en el módulo');
+  ok(I.NOTA_CALIDAD===undefined&&I.resumenIndicadores([{producido:100,programado:100,programacionVigente:true,durMin:480,progMin:0,npMin:0,mermaTotal:0,velocidad:100,etiqueta:'x'}]).calidad===null,'caso oficial: sin sopladas la calidad es null (no se inventa un 100 %)');
   const res=I.resumenIndicadores([{producido:14400,programado:16000,programacionVigente:true,durMin:480,progMin:60,npMin:45,mermaTotal:288,velocidad:2500,etiqueta:'Cielo 625 ml'}]);
   ok(cerca(res.horasEfectivas,6.25)&&Math.round(res.ratio)===2304&&(res.disponibilidad*100).toFixed(1)==='89.3'&&(res.rendimiento*100).toFixed(1)==='92.2'&&(res.oee*100).toFixed(1)==='82.3',
     'caso oficial por el resumen de partes: los cinco valores coinciden');
@@ -167,7 +167,16 @@ ok(I.estadoLineaDesdeItems(['COMPLETADA','PENDIENTE'])==='PENDIENTE'&&I.estadoLi
 }
 
 /* ============ definiciones para «¿Cómo se calcula?» ============ */
-ok(I.DEFINICIONES.length===11&&I.DEFINICIONES.every(d=>d.length===2&&d[0]&&d[1]),'las definiciones para «¿Cómo se calcula?» están completas (11)');
-ok(I.DEFINICIONES.some(d=>d[0]==='OEE'&&/Disponibilidad × rendimiento/.test(d[1])&&!/alidad/.test(d[1]))&&I.DEFINICIONES.some(d=>d[0]==='Disponibilidad'&&/planificado/.test(d[1])),'las definiciones dicen lo mismo que las funciones (el OEE ya no menciona Calidad)');
+ok(I.DEFINICIONES.length===12&&I.DEFINICIONES.every(d=>d.length===2&&d[0]&&d[1]),'las definiciones para «¿Cómo se calcula?» están completas (12)');
+ok(I.DEFINICIONES.some(d=>d[0]==='OEE'&&/Disponibilidad × rendimiento × calidad/.test(d[1]))&&I.DEFINICIONES.some(d=>d[0]==='Calidad'&&/conformes ÷ botellas sopladas/.test(d[1]))&&I.DEFINICIONES.some(d=>d[0]==='Disponibilidad'&&/planificado/.test(d[1])),'las definiciones dicen lo mismo que las funciones (el OEE incluye la Calidad)');
+
+/* ============ botellas sopladas obligatorias al finalizar (PET1, PET2, B7L) ============ */
+{
+  const c=(efectiva,sopladas)=>({produccion:{efectiva,sopladas}});
+  ok(I.faltaSopladas('PET1',c(1000,0))===true&&I.faltaSopladas('PET2',c(500,undefined))===true&&I.faltaSopladas('B7L',c(300,''))===true,'PET1, PET2 y B7L con producción y sin sopladas: falta');
+  ok(I.faltaSopladas('PET1',c(1000,1200))===false&&I.faltaSopladas('B7L',c(0,0))===false,'con sopladas, o sin producción efectiva: no falta');
+  ok(I.faltaSopladas('B20L',c(100,0))===false&&I.faltaSopladas('C20L',c(100,0))===false&&I.faltaSopladas('',c(100,0))===false&&I.faltaSopladas('PET1',null)===false,'B20L, C20L, línea vacía o cuadro vacío: no se exige');
+  ok(I.LINEAS_CON_SOPLADAS.join()==='PET1,PET2,B7L'&&Object.isFrozen(I.LINEAS_CON_SOPLADAS),'las líneas con sopladas son PET1, PET2 y B7L (lista fija)');
+}
 
 console.log('\n'+(total-fallas)+' de '+total+' pruebas correctas'+(fallas?' · '+fallas+' FALLAN':''));

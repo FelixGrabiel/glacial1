@@ -1,0 +1,62 @@
+/* =========================================================
+   LOGO GLACIAL · círculo azul (assets/img/logo_glacial.jpeg)
+   ---------------------------------------------------------
+   El logo es un JPEG cuadrado de 1280×1280 con fondo blanco (el anterior era un PNG transparente en forma de palabra).
+   Para que NO se vea el cuadrado blanco en fondos oscuros, cada <img> se recorta en círculo con clip-path: el círculo azul
+   ocupa el 90 % del ancho de la imagen, por eso se recorta al 44 % de radio (deja fuera el borde claro del JPEG).
+   Se carga DESPUÉS de styles.css, sidebar-glacial.css y mobile-glacial.css y reemplaza sus reglas del logo anterior
+   (alto fijo con ancho automático, filtro blanco brightness(0) invert(1) de la barra lateral, etc.).
+   ========================================================= */
+:root{ --logo-circulo: circle(44% at 50% 50%); }
+
+/* Pantalla de acceso */
+.login-logo{
+  display:block;
+  width:112px;
+  height:112px;
+  max-width:none;
+  max-height:none;
+  object-fit:cover;
+  clip-path:var(--logo-circulo);
+}
+@media (max-width:700px){ .login-logo{ width:92px; height:92px; max-height:none; } }
+@media (max-width:400px){ .login-logo{ width:80px; height:80px; } }
+
+/* Selector de reporte (index.html declara sus reglas con #id; este selector tiene la misma fuerza y llega después) */
+#report-select-screen .report-select-logo{
+  display:block;
+  width:88px;
+  height:88px;
+  max-width:none;
+  object-fit:cover;
+  clip-path:var(--logo-circulo);
+}
+@media (max-width:640px){ #report-select-screen .report-select-logo{ width:76px; height:76px; max-width:none; } }
+
+/* Bienvenida: círculo translúcido que ya tenía el logo anterior */
+.welcome-logo img{
+  width:150px;
+  height:150px;
+  max-height:none;
+  object-fit:cover;
+  clip-path:var(--logo-circulo);
+}
+@media (max-width:900px){ .welcome-logo img{ width:125px; height:125px; max-height:none; } }
+@media (max-width:700px){ .welcome-logo img{ width:112px; height:112px; max-height:none; } }
+@media (max-width:400px){ .welcome-logo img{ width:94px;  height:94px;  max-height:none; } }
+
+/* Barra lateral: sin el filtro que volvía blanco el logo anterior (con un JPEG pintaría un cuadrado blanco liso) */
+#app-screen .sidebar-brand-logo{
+  display:block;
+  width:76px;
+  height:76px;
+  max-width:none;
+  max-height:none;
+  object-fit:cover;
+  object-position:center;
+  filter:none;
+  clip-path:var(--logo-circulo);
+}
+@media (max-width:700px){
+  #app-screen .sidebar .sidebar-brand-logo{ width:58px!important; height:58px!important; max-width:none!important; filter:none!important; }
+}

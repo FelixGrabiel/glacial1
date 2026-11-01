@@ -53,5 +53,19 @@ function entorno(conCliente){
   ok(pdf.path==='asistente/2026-10/ev1.pdf','los PDF del Asistente conservan su extensión');
   const sql=leer('supabase/migraciones/glacial_25_fotos_privadas.sql');
   ok(/'glacial-fotos',\s*'glacial-fotos',\s*false/.test(sql)&&/for select to authenticated/.test(sql)&&/for insert to authenticated/.test(sql)&&!/for (update|delete)/.test(sql)&&/hojas_producto_terminado\/%/.test(sql)&&/mantenimiento\/%/.test(sql)&&/asistente\/%/.test(sql)&&/application\/pdf/.test(sql),'migración: bucket privado, 3 carpetas, leer y subir con sesión, sin actualizar ni borrar');
+  /* Un objeto que perdió su contenido («{}» tras copiar el formulario como texto) ya no se sube como «[object Object]» (15 bytes) */
+  {
+    const sb2={console,Date,Promise,Map,Set,Array,Object,String,Number,JSON,Error,setTimeout,clearTimeout,Blob};vm.createContext(sb2);sb2.window=sb2;
+    const subidas2=[];
+    sb2.glacialSupabaseCliente={storage:{from:()=>({upload:async(ruta,blob)=>{subidas2.push(ruta);return {data:{path:ruta}};},createSignedUrls:async()=>({data:[]})})}};
+    vm.runInContext(fs.readFileSync(path.join(R,'js/produccion/06b-fotos-supabase.js'),'utf8'),sb2);
+    const F3=sb2.glacialFotos;
+    let e1=null;try{await F3.subir({},{carpeta:'c',id:'x',tipo:'image/jpeg'});}catch(e){e1=e;}
+    ok(e1&&/se perdió/.test(e1.message)&&subidas2.length===0,'un objeto que no es un archivo real no se sube (antes quedaba una foto de 15 bytes)');
+    let e2=null;try{await F3.subir(new Blob([]),{carpeta:'c',id:'y',tipo:'image/jpeg'});}catch(e){e2=e;}
+    ok(e2&&/vacío/.test(e2.message)&&subidas2.length===0,'un archivo vacío no se sube');
+    await F3.subir(new Blob(['abc'],{type:'image/jpeg'}),{carpeta:'c',id:'z',tipo:'image/jpeg'});
+    ok(subidas2.length===1,'un archivo real sí se sube');
+  }
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })();

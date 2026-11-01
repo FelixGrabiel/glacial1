@@ -36,6 +36,17 @@ function entorno(listo,fallar){
   await vm.runInContext('saveRecords([{id:"solo"}])',e.sb);
   ok(e.llamadas.errores===1&&vm.runInContext('_recordsCache.length===1&&_recordsCache[0].id==="viejo"',e.sb),'si el servidor rechaza el guardado, se avisa y la copia local no se queda con la lista recortada');
 
+  /* saveRecords dice si el servidor guardó: quien finaliza un reporte no debe seguir como si hubiera quedado guardado */
+  e=entorno(true);
+  ok(await vm.runInContext('saveRecords([{id:"a"}])',e.sb)===true,'saveRecords devuelve true cuando el servidor lo guardó');
+  e=entorno(true,true);
+  ok(await vm.runInContext('saveRecords([{id:"solo"}])',e.sb)===false,'saveRecords devuelve false cuando el servidor no lo guardó (antes devolvía lo mismo en los dos casos)');
+  e=entorno(false);
+  ok(await vm.runInContext('saveRecords([{id:"a"}])',e.sb)===false,'saveRecords devuelve false si la lista aún no se cargó');
+  const reg=fs.readFileSync(R+'/js/produccion/06-registro.js','utf8');
+  ok(/saveRecords\(records\)===false\)\{[\s\S]*?Object\.assign\(draft,antesFinalizar\)[\s\S]*?throw new Error/.test(reg),'Finalizar reporte: si el servidor no lo guardó, el reporte vuelve a quedar abierto y no se vacía el formulario');
+  ok(/guardado===false && q\.estadoCuadro==='FINALIZADO'/.test(reg)&&/if\(await saveRecords\(records\)===false\) throw/.test(reg),'Finalizar producción y Guardar avance no dan por guardado lo que el servidor no guardó');
+
   /* Archivos */
   const sql=fs.readFileSync(R+'/supabase/migraciones/glacial_30_protege_lista_reportes.sql','utf8');
   ok(/d = 'records'/.test(sql)&&/items_antes/.test(sql)&&/> 5/.test(sql)&&/accion = 'delete' then return false/.test(sql),'glacial_30: nunca se borra el documento y se rechazan bajas de más de 5 reportes por guardado');

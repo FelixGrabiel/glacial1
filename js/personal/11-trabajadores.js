@@ -20,6 +20,13 @@ const RRHH_PUESTOS_POR_AREA = {
   'Mantenimiento': ['Técnico de Mantenimiento','Maquinista de Mantenimiento']
 };
 
+/* Puestos en máquina que se pueden fijar a un operario (los de «Personal del turno» de todas las líneas, sin repetir). Sirven para completar el personal del turno desde el tareo. */
+const PUESTOS_MAQUINA = (() => {
+  const vistos = [];
+  Object.values(typeof PERSONAL_POSICIONES_POR_LINEA !== 'undefined' ? PERSONAL_POSICIONES_POR_LINEA : {}).forEach(l => l.forEach(p => { if(!vistos.includes(p)) vistos.push(p); }));
+  return vistos.length ? vistos : ['Sopladora','Envasadora','Etiquetadora','Empaquetadora','Apoyo Sopladora','Revisión de tapas','Pantallista','Paletizado'];
+})();
+
 function rrhhAreaTrabajador(worker){
   if(worker && RRHH_PUESTOS_POR_AREA[worker.area]) return worker.area;
   const cargo = normalizarTexto(worker?.cargo || '');
@@ -205,6 +212,15 @@ function openWorkersModal(){
 
 
             <div class="field-sm">
+              <label>Puesto en máquina (habitual)</label>
+              <select id="tw-puesto-maquina">
+                <option value="">Sin puesto fijo</option>
+                ${PUESTOS_MAQUINA.map(p => `<option value="${p}">${p}</option>`).join('')}
+              </select>
+            </div>
+
+
+            <div class="field-sm">
 
               <label>
                 Estado
@@ -363,7 +379,7 @@ function renderWorkerList(){
 
               <div class="small-muted">
 
-                ${rrhhAreaTrabajador(w)} · ${w.cargo || 'Sin puesto'}
+                ${rrhhAreaTrabajador(w)} · ${w.cargo || 'Sin puesto'}${w.puestoMaquina ? ' · ' + escaparHtml(w.puestoMaquina) : ''}
                 ·
                 ${lineaNombre}
                 ${w.dni ? ' · ' + (w.tipoDocumento || 'DNI') + ' ' + w.dni : ''}
@@ -428,6 +444,9 @@ function saveWorkerForm(){
   const linea =
     document.getElementById('tw-linea').value;
 
+  const puestoMaquina =
+    document.getElementById('tw-puesto-maquina')?.value || '';
+
   const estado =
     document.getElementById('tw-estado').value;
 
@@ -462,6 +481,7 @@ function saveWorkerForm(){
         area,
         cargo,
         linea,
+        puestoMaquina,
         estado
       };
 
@@ -499,6 +519,7 @@ function saveWorkerForm(){
       area,
       cargo,
       linea,
+      puestoMaquina,
       estado: estado || 'Activo'
 
     });
@@ -540,6 +561,7 @@ function startEditWorker(id){
   document.getElementById('tw-area').value = rrhhAreaTrabajador(worker);
   rrhhActualizarPuestos(worker.cargo || '');
   document.getElementById('tw-linea').value = worker.linea || '';
+  if(document.getElementById('tw-puesto-maquina'))document.getElementById('tw-puesto-maquina').value = worker.puestoMaquina || '';
   document.getElementById('tw-estado').value = worker.estado || 'Activo';
 
 
@@ -573,6 +595,7 @@ function cancelWorkerEdit(){
   document.getElementById('tw-area').value = 'Producción';
   rrhhActualizarPuestos();
   document.getElementById('tw-linea').value = '';
+  if(document.getElementById('tw-puesto-maquina'))document.getElementById('tw-puesto-maquina').value = '';
   document.getElementById('tw-estado').value = 'Activo';
 
 

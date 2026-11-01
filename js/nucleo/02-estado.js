@@ -173,6 +173,7 @@ const PERMISOS_APP=[
   {key:'gestionar_tareo_mantenimiento',area:'mantenimiento',label:'GESTIONAR Tareo de Mantenimiento (registrar, editar, validar)'},
   {key:'ver_tareo_mantenimiento',area:'mantenimiento',label:'VER Tareo de Mantenimiento (solo visualización)'},
   {key:'ver_bitacora_mantenimiento',area:'mantenimiento',label:'VER Bitácora de Mantenimiento y Análisis de paradas (solo lectura)'},
+  {key:'ver_banco_paradas',area:'mantenimiento',label:'VER el Banco de paradas por clasificar (solo lectura; también lee la bitácora de paradas. Reclasificar lo hacen el Supervisor de Mantenimiento y el Administrador)'},
   {key:'completar_motivo_parada',area:'mantenimiento',label:'Completar el motivo de paradas pendientes (necesita ver la bitácora)'},
   {key:'editar_salida_maquinistas',area:'mantenimiento',label:'Editar SOLO la hora de salida de maquinistas (con motivo; no cambia asistencia ni refrigerio)'},
   {key:'moduloRRHH',area:'rrhh',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},
@@ -1483,13 +1484,16 @@ function saveRecords(r){
   const previo = _recordsCache;
   _recordsCache = r;
 
+  /* Devuelve true si el servidor lo guardó y false si no (antes devolvía lo mismo en los dos casos y quien guardaba un reporte creía que había quedado
+     guardado: «Finalizar reporte» seguía de largo y el reporte aparecía luego EN REGISTRO sin lo que se había hecho). */
   return db.collection('sync').doc('records').set({
     items: r,
     updatedAt: Date.now()
-  }).catch(err => {
+  }).then(() => true, err => {
     // El servidor no lo aceptó (p. ej. quitaba demasiados reportes de golpe): la copia local vuelve a lo que había y se recarga lo del servidor.
     if(_recordsCache === r) _recordsCache = previo;
     _avisarErrorGuardado('reportes', err);
+    return false;
   });
 }
 

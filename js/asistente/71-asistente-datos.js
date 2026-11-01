@@ -213,11 +213,14 @@
   }
 
   /* ---------- movimientos (libro inmutable) ---------- */
+  const ETQ_SOL={BORRADOR:'Borrador',SOLICITADA:'Solicitada',EN_PREPARACION:'En preparación',ENTREGADA_PARCIAL:'Entregada parcialmente',ENTREGADA:'Entregada',RECIBIDA:'Recibida',OBSERVADA:'Observada',CANCELADA:'Cancelada',CERRADA:'Cerrada'};
+  const etiquetaEstadoSol=e=>ETQ_SOL[e]||String(e||'');
   function validarMovimiento(m){
     const e=[];
     if(!N.TIPOS_MOV.includes(m.tipo)||m.tipo==='ANULACION'||m.tipo==='CONSUMO')e.push('Tipo de movimiento no válido.');
     if(!String(m.insumo||'').trim())e.push('Indica el insumo.');
-    if(!(num(m.cantidad)>=0)||(m.tipo!=='CONTEO'&&!(num(m.cantidad)>0)))e.push('La cantidad debe ser mayor que 0 (un conteo puede ser 0).');
+    if(m.cantidad===undefined||m.cantidad===null||String(m.cantidad).trim()==='')e.push('Escribe la cantidad (en un conteo, escribe 0 si no hay nada: un campo vacío no se guarda como 0).');
+    else if(!(num(m.cantidad)>=0)||(m.tipo!=='CONTEO'&&!(num(m.cantidad)>0)))e.push('La cantidad debe ser mayor que 0 (un conteo puede ser 0).');
     if(!['UTILIZABLE','OBSERVADO'].includes(m.condicion||'UTILIZABLE'))e.push('Condición no válida.');
     if(m.tipo!=='CONTEO'&&!String(m.cuadro||'').trim())e.push('Indica el cuadro (línea, marca y presentación) al que corresponde.');
     return e;
@@ -300,10 +303,14 @@
       }else if(estadoNuevo==='RECIBIDA'){
         const r=N.aplicarRecepcion(sol,datos.recepciones||{});if(r.errores)throw falla('VALIDACION',r.errores.join(' · '));
         if(!r.movimientos.length)throw falla('VALIDACION','Indica lo realmente recibido.');
-        if(!String(datos.cuadro||'').trim())throw falla('VALIDACION','Indica el cuadro al que se destina lo recibido.');
+        /* Con cuadros programados se exige el cuadro; si ese día y turno no tiene ninguno (no se cargó la programación), se exige al menos la línea. */
+        if(!String(datos.cuadro||'').trim()){
+          if(!datos.sinCuadros)throw falla('VALIDACION','Indica el cuadro al que se destina lo recibido.');
+          if(!String(datos.linea||sol.linea||'').trim())throw falla('VALIDACION','No hay cuadros programados para esa fecha y turno: indica la línea a la que se destina lo recibido.');
+        }
         items=r.items;estado=r.estado;movs=r.movimientos;
       }
-      if(estado!==sol.estado&&!N.puedeTransicion(sol.estado,estado))throw falla('VALIDACION','No se puede pasar de '+sol.estado+' a '+estado+'.');
+      if(estado!==sol.estado&&!N.puedeTransicion(sol.estado,estado))throw falla('VALIDACION','La solicitud está «'+etiquetaEstadoSol(sol.estado)+'» y no puede pasar a «'+etiquetaEstadoSol(estado)+'». Actualiza la pantalla: puede que otra persona ya la cambió.');
       const nRec=(sol.historial||[]).filter(h=>h.recepcion).length;
       // Cada recepción crea su movimiento RECEPCION con id determinista (solicitud + número de recepción): un reintento no duplica stock.
       movs.forEach((m,j)=>{

@@ -9,6 +9,7 @@
        c) Proyección realista < N % pasada la mitad del turno (proyeccionAlertaPct, 90)
        d) Programación sin iniciar N min después del inicio del turno (noIniciadaMin, 15)
        e) Tareo con pendientes que se bloquea en menos de N min (tareoBloqueoMin, 30)
+       h) Reporte de producción sin finalizar N min después de terminar su bloque (finalizarGraciaMin, 120), hasta N días atrás (finalizarDiasMax, 7)
    · Cada aviso desaparece solo cuando la condición se resuelve. «Visto» se guarda en el dispositivo.
    · Cada rol ve lo suyo (ver ambito()). La cuenta compartida de Mantenimiento solo ve paradas.
    · Umbrales: sync/configAlertas, escuchado en vivo; se editan con una transacción que cambia SOLO los
@@ -20,7 +21,7 @@
 
   const DEFECTOS={
     paradaMin:30,sinRegistroMin:60,proyeccionAlertaPct:90,noIniciadaMin:15,tareoBloqueoMin:30,
-    proyeccionVerdePct:100,proyeccionAmbarPct:90
+    proyeccionVerdePct:100,proyeccionAmbarPct:90,finalizarGraciaMin:120,finalizarDiasMax:7,entregaGraciaMin:60,entregaDiasMax:3
   };
   const ETIQUETAS=[
     ['paradaMin','Parada abierta más de (min)',1,1440],
@@ -29,10 +30,14 @@
     ['noIniciadaMin','Programación sin iniciar tras el inicio del turno (min)',1,1440],
     ['tareoBloqueoMin','Tareo con pendientes que se bloquea en menos de (min)',1,1440],
     ['proyeccionVerdePct','Proyección en verde desde (%)',1,300],
-    ['proyeccionAmbarPct','Proyección en ámbar desde (%)',1,300]
+    ['proyeccionAmbarPct','Proyección en ámbar desde (%)',1,300],
+    ['finalizarGraciaMin','Reporte sin finalizar: avisar tras terminar el bloque (min)',1,1440],
+    ['finalizarDiasMax','Reporte sin finalizar: avisar hasta (días atrás)',1,60],
+    ['entregaGraciaMin','Entrega de turno pendiente: avisar tras terminar el turno (min)',1,1440],
+    ['entregaDiasMax','Entrega de turno pendiente: avisar hasta (días atrás)',1,30]
   ];
   const JEFATURA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];   // = reglas etapa 2
-  const TODOS=['parada','paletas','proyeccion','noiniciada','tareo'];
+  const TODOS=['parada','paletas','proyeccion','noiniciada','tareo','finalizar','entrega'];
   const MS_MIN=60000;
 
   const ahora=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
@@ -49,7 +54,11 @@
     Object.keys(DEFECTOS).forEach(k=>{const v=Number(o&&o[k]);if(Number.isFinite(v)&&v>0)r[k]=v;});
     return r;
   }
-  function config(){return Object.assign({},DEFECTOS,limpiar(remota));}
+  /* Entrega de turno: el aviso cuenta solo los turnos desde esta fecha (la función se estrenó con esa fecha; antes nadie entregaba y no tiene sentido avisar de todo el pasado).
+     Se puede cambiar guardando entregaDesde = 'AAAA-MM-DD' en sync/configAlertas. */
+  const ENTREGA_DESDE='2026-10-31';
+  const fechaIsoValida=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T12:00:00'));
+  function config(){return Object.assign({},DEFECTOS,limpiar(remota),{entregaDesde:fechaIsoValida(remota&&remota.entregaDesde)?remota.entregaDesde:ENTREGA_DESDE});}
   window.glacialConfigAlertas=config;
 
   function escucharConfig(){
@@ -63,9 +72,28 @@
       },()=>{desubConfig=null;});          // sin permiso o sin sesión: se reintenta en el siguiente ciclo
     }catch(_){desubConfig=null;}
   }
+  /* Salud del sistema (glacial_40): el servidor se revisa una vez al día y publica saludSistema/actual; solo el Administrador lo puede leer. */
+  let salud=null,desubSalud=null;
+  const HORAS_SIN_REVISION=36;
+  function escucharSalud(){
+    if(desubSalud||typeof db==='undefined'||typeof state==='undefined'||!state.user||String(state.user.rol||'').trim()!=='Administrador')return;
+    try{
+      desubSalud=db.collection('saludSistema').doc('actual').onSnapshot(snap=>{salud=snap.exists?(snap.data()||null):null;recalcular(true);},()=>{desubSalud=null;});   // sin la migración: no hay documento y no pasa nada
+    }catch(_){desubSalud=null;}
+  }
+  /* Avisos de la salud del sistema (puro sobre el documento): un aviso por problema y uno si la revisión diaria dejó de correr. */
+  function avisosSalud(doc,ahoraMs){
+    if(!doc||typeof doc!=='object')return [];
+    const lista=[],rev=Number(doc.revisadoEn)||0;
+    (Array.isArray(doc.problemas)?doc.problemas:[]).forEach((p,i)=>{if(p&&p.texto)lista.push({id:'sis|'+rev+'|'+i,texto:String(p.texto),severidad:p.nivel==='roja'?'roja':'ambar',desdeMs:rev});});
+    if(rev&&ahoraMs-rev>HORAS_SIN_REVISION*3600000)lista.push({id:'sis|sinrevision',texto:'La revisión diaria del sistema no se ha ejecutado en más de '+HORAS_SIN_REVISION+' horas.',severidad:'ambar',desdeMs:rev});
+    return lista;
+  }
   function detenerConfig(){
     if(desubConfig){try{desubConfig();}catch(_){/* ya cerrado */}}
     desubConfig=null;remota={};configListo=false;
+    if(desubSalud){try{desubSalud();}catch(_){/* ya cerrado */}}
+    desubSalud=null;salud=null;
   }
 
   /* ---------- quién ve qué ---------- */
@@ -75,7 +103,8 @@
     const rol=String(u.rol||'').trim();
     const tiene=p=>{try{return typeof tienePermiso==='function'&&tienePermiso(p);}catch(_){return false;}};
     if(typeof esMantCompartido==='function'&&esMantCompartido(u))return {tipos:['parada'],lineas:null,tareo:null};
-    if(rol==='Administrador'||JEFATURA.includes(rol))return {tipos:TODOS.slice(),lineas:null,tareo:'todas'};
+    if(rol==='Administrador')return {tipos:TODOS.concat(['sistema']),lineas:null,tareo:'todas'};              // «sistema» (salud del servidor) solo para el Administrador
+    if(JEFATURA.includes(rol))return {tipos:TODOS.slice(),lineas:null,tareo:'todas'};
     if(rol==='Supervisor'||rol==='Supervisor de Producción')return {tipos:TODOS.slice(),lineas:u.linea||null,tareo:'Producción'};
     if(tiene('planificacion'))return {tipos:[],lineas:null,tareo:null};     // quien planifica recibe los avisos de Planificación (saldos, solicitudes)
     if(rol==='Mantenimiento'||tiene('moduloMantenimiento')||tiene('control_operativo_lineas')||tiene('recibirAlertasProduccion'))
@@ -144,6 +173,26 @@
     return {sinEstado,sinSalida,total:sinEstado+sinSalida};
   }
 
+  /* Reportes sin finalizar de TODAS las líneas, sin filtrar por quién mira (la página y el bot usan este mismo cálculo).
+     opciones.linea limita a una línea. Devuelve {generadoEn,total,items[{…,texto}],mensaje}; `mensaje` es el texto listo para WhatsApp. */
+  function pendientesFinalizar(opciones){
+    const cfg=config();
+    let regs=[];try{regs=loadRecords()||[];}catch(_){regs=[];}
+    let bloques=null;try{bloques=typeof window.glacialConfigIndicadores==='function'?(window.glacialConfigIndicadores()||{}).bloques:null;}catch(_){bloques=null;}
+    const lista=GlacialIndicadores.reportesSinFinalizar(regs,ahora(),bloques,{graciaMin:cfg.finalizarGraciaMin,diasMax:cfg.finalizarDiasMax,linea:opciones&&opciones.linea});
+    return {generadoEn:ahora(),total:lista.length,items:lista.map(x=>Object.assign({},x,{texto:GlacialIndicadores.textoReporteSinFinalizar(x),textoCorto:GlacialIndicadores.textoReporteSinFinalizar(x,true)})),mensaje:GlacialIndicadores.mensajeReportesSinFinalizar(lista)};
+  }
+  /* Entregas de turno que faltan (todas las líneas; la página y el bot usan este mismo cálculo). Solo se calcula cuando la lista de entregas ya cargó:
+     antes de eso no se sabe si faltan o aún no llegaron (no se avisa en falso). */
+  function pendientesEntrega(){
+    const cfg=config();
+    const G=window.glacialEntregaTurno,est=G&&typeof G.estado==='function'?G.estado():null;
+    if(!est||!est.listo||est.error)return {generadoEn:ahora(),total:0,items:[],mensaje:'',listo:false};
+    let regs=[];try{regs=loadRecords()||[];}catch(_){regs=[];}
+    let bloques=null;try{bloques=typeof window.glacialConfigIndicadores==='function'?(window.glacialConfigIndicadores()||{}).bloques:null;}catch(_){bloques=null;}
+    const lista=GlacialIndicadores.entregasPendientes(regs,(est.docs||[]).map(d=>d.id),ahora(),bloques,{graciaMin:cfg.entregaGraciaMin,diasMax:cfg.entregaDiasMax,desde:cfg.entregaDesde});
+    return {generadoEn:ahora(),total:lista.length,listo:true,items:lista.map(x=>Object.assign({},x,{texto:GlacialIndicadores.textoEntregaPendiente(x)})),mensaje:GlacialIndicadores.mensajeEntregasPendientes(lista)};
+  }
   function calcular(){
     const a=ambito();
     if(!a)return [];
@@ -236,6 +285,25 @@
       });
     }
 
+    /* h) reportes de producción sin finalizar (bloques ya terminados): para supervisores de la línea, Jefatura y Administrador. El mismo cálculo lo usa el bot (pendientesFinalizar). */
+    if(a.tipos.includes('finalizar')){
+      pendientesFinalizar().items.forEach(x=>{
+        if(!enAmbito(a,x.linea))return;
+        add('fin|'+x.id,'finalizar',x.linea,x.textoCorto,x.finMs+cfg.finalizarGraciaMin*MS_MIN,{severidad:x.nivel,fecha:x.fecha,turno:x.turno,registroId:x.id});
+      });
+    }
+
+    /* i) entrega de turno pendiente: para supervisores, Jefatura y Administrador (el mismo cálculo lo puede usar el bot: pendientesEntrega) */
+    if(a.tipos.includes('entrega')){
+      pendientesEntrega().items.forEach(x=>add('ent|'+x.id,'entrega','',x.texto,x.finMs+cfg.entregaGraciaMin*MS_MIN,{severidad:x.nivel,fecha:x.fecha,turno:x.turno}));
+    }
+
+    /* j) salud del servidor (solo Administrador): lo que revisa el servidor cada día */
+    if(a.tipos.includes('sistema')){
+      escucharSalud();
+      avisosSalud(salud,n).forEach(x=>add(x.id,'sistema','',x.texto,x.desdeMs,{severidad:x.severidad}));
+    }
+
     /* f) solicitudes de programación (54-planificacion-solicitudes.js): pendientes para quien planifica, resultado para quien las pidió */
     if(window.glacialPlanificacion&&typeof window.glacialPlanificacion.avisos==='function'){
       try{window.glacialPlanificacion.avisos().forEach(x=>add(x.id,x.tipo||'solicitud',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar',fecha:x.fecha||'',bloque:x.bloque||''}));}catch(_){/* informativo */}
@@ -269,6 +337,9 @@
         if(typeof goTareo==='function')goTareo();
         return;
       }
+      if(x.tipo==='sistema')return;                                       // solo informa: se resuelve en el servidor (Supabase)
+      if(x.tipo==='entrega'){if(typeof window.goEntregaTurno==='function')window.goEntregaTurno();return;}
+      if(x.tipo==='finalizar'){if(x.registroId&&typeof cargarReporteParaCorreccion==='function'){cargarReporteParaCorreccion(x.registroId);}else if(typeof goHistorial==='function'){goHistorial();}return;}
       if(x.tipo==='mant'){if(typeof window.intervencionesAbrir==='function')window.intervencionesAbrir({tab:x.tab||'intervenciones',abrir:x.abrir||undefined});return;}
       if(x.tipo==='plan'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion&&window.glacialPlanificacion.irAProgramacion)window.glacialPlanificacion.irAProgramacion(x.fecha,x.bloque);}return;}
       if(x.tipo==='solicitud'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion)window.glacialPlanificacion.irASolicitudes();}return;}
@@ -426,5 +497,5 @@
   }
 
   window.glacialAvisos={puede,ambito,listar:calcular,visto:marcarVisto,ir,puedeConfigurar,abrirConfig,
-    recalcular,escucharConfig,defectos:DEFECTOS};
+    recalcular,escucharConfig,defectos:DEFECTOS,pendientesFinalizar,pendientesEntrega,avisosSalud};
 })();

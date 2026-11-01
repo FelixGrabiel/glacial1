@@ -253,22 +253,24 @@ function calcCascada(rec){
 
   /*
      Los escalones se derivan de los MISMOS factores
-     que producen el OEE del tablero (D y R), encadenados
+     que producen el OEE del tablero (D, R y C), encadenados
      uno tras otro:
 
        tras paradas      = Capacidad × D
-       producción buena  = Capacidad × D × R = Capacidad × OEE
+       tras ritmo        = Capacidad × D × R
+       producción buena  = Capacidad × D × R × C = Capacidad × OEE
 
      Así la cascada siempre cierra exactamente contra el OEE
-     mostrado.
+     mostrado. Sin sopladas (sin Calidad) el escalón de calidad es 0.
   */
 
   const D = num(d.disponibilidad);
   const R = num(d.rendimiento);
+  const C = d.calidad == null ? 1 : num(d.calidad);
 
   const trasParadas = capacidadTeorica * D;
   const trasRitmo = trasParadas * R;
-  const buena = trasRitmo;
+  const buena = trasRitmo * C;
 
   const perdidaDisponibilidad =
     Math.max(capacidadTeorica - trasParadas, 0);
@@ -276,10 +278,14 @@ function calcCascada(rec){
   const perdidaRendimiento =
     Math.max(trasParadas - trasRitmo, 0);
 
+  const perdidaCalidad =
+    Math.max(trasRitmo - buena, 0);
+
   return {
     capacidadTeorica,
     perdidaDisponibilidad,
     perdidaRendimiento,
+    perdidaCalidad,
     buena,
     oee: num(d.oee)
   };
@@ -1593,14 +1599,16 @@ function xlHojaReporte(wb, ctx){
     { t:'Disponibilidad', v:d.disponibilidad,
       s:`${xlN1(d.horasEfectivas)} h efectivas de ${xlN1(d.horasTurno)} h` },
     { t:'Rendimiento', v:d.rendimiento,
-      s:`${xlN(d.efectiva)} de ${xlN(d.produccionNominal)} bot. nominales` },
+      s:`${xlN(d.producidasVel ?? d.efectiva)} de ${xlN(d.produccionNominal)} bot. nominales` },
+    ...(d.calidad == null ? [] : [{ t:'Calidad', v:d.calidad,
+      s:`${xlN(Math.min(d.efectiva, d.sopladas))} conformes de ${xlN(d.sopladas)} sopladas` }]),
     { t:'OEE', v:d.oee, s:xlEstado(d.oee) },
     { t:'Cumplimiento', v:d.cumplimiento,
       s:`${xlN(d.efectiva)} de ${xlN(d.programada)} programadas` },
     { t:'Eficiencia', v:d.eficiencia, s:'Efectiva / nominal' }
   ];
 
-  const spansKpi = [[2,5],[6,9],[10,13],[14,17],[18,21]];
+  const spansKpi = kpis.length > 5 ? [[2,4],[5,7],[8,10],[11,13],[14,17],[18,21]] : [[2,5],[6,9],[10,13],[14,17],[18,21]];
 
   kpis.forEach((k,i) => {
 
@@ -1647,7 +1655,8 @@ function xlHojaReporte(wb, ctx){
 
   const perdidas = [
     ['paradas (disponibilidad)', cascada.perdidaDisponibilidad],
-    ['ritmo lento (rendimiento)', cascada.perdidaRendimiento]
+    ['ritmo lento (rendimiento)', cascada.perdidaRendimiento],
+    ['calidad (botellas no conformes)', cascada.perdidaCalidad]
   ].sort((a,b) => b[1] - a[1]);
 
   const minNoProg = paradas.filas
@@ -1875,6 +1884,9 @@ function xlHojaReporte(wb, ctx){
       { etiqueta:'− Ritmo lento', valor:cascada.perdidaRendimiento,
         color:'#E69F00',
         texto:'− ' + xlN(cascada.perdidaRendimiento) },
+      { etiqueta:'− Botellas no conformes', valor:cascada.perdidaCalidad,
+        color:'#CC79A7',
+        texto:'− ' + xlN(cascada.perdidaCalidad) },
       { etiqueta:'Producción buena', valor:cascada.buena,
         color:'#' + XL.verde,
         texto:xlN(cascada.buena) }
@@ -1949,6 +1961,7 @@ function xlHojaReporte(wb, ctx){
     ['Capacidad teórica del turno', cascada.capacidadTeorica, false],
     ['− Pérdida por paradas', cascada.perdidaDisponibilidad, false],
     ['− Pérdida por ritmo lento', cascada.perdidaRendimiento, false],
+    ['− Pérdida por calidad (no conformes)', cascada.perdidaCalidad, false],
     ['= Producción buena', cascada.buena, true]
   ];
 
@@ -2891,6 +2904,7 @@ function xlHojaPortadaEjecutiva(wb, ctx){
     ['OEE del turno', pct(d.oee), METAS.oee, d.oee],
     ['Disponibilidad', pct(d.disponibilidad), METAS.disponibilidad, d.disponibilidad],
     ['Rendimiento', pct(d.rendimiento), METAS.rendimiento, d.rendimiento],
+    ...(d.calidad == null ? [] : [['Calidad (conformes ÷ sopladas)', pct(d.calidad), 0.98, d.calidad]]),
     ['Cumplimiento vs. programado', pct(d.cumplimiento), 1, d.cumplimiento],
     ['Producción efectiva', xlN(d.efectiva) + ' und.', null, null]
   ];
@@ -2980,6 +2994,9 @@ function xlHojaPortadaEjecutiva(wb, ctx){
       { etiqueta:'− Ritmo lento', valor:cascada.perdidaRendimiento,
         color:'#E69F00',
         texto:'− ' + xlN(cascada.perdidaRendimiento) },
+      { etiqueta:'− Botellas no conformes', valor:cascada.perdidaCalidad,
+        color:'#CC79A7',
+        texto:'− ' + xlN(cascada.perdidaCalidad) },
       { etiqueta:'Producción buena', valor:cascada.buena,
         color:'#' + XL.verde,
         texto:xlN(cascada.buena) }
@@ -3065,9 +3082,10 @@ function xlHojaDefiniciones(wb, ctx){
   fila += 2;
 
   const definiciones = [
-    ['OEE', 'Disponibilidad × Rendimiento. Mide qué tan bien se aprovechó el tiempo de turno para producir botellas/bidones/cajas. Solo se calcula si el producto tiene velocidad estándar.'],
+    ['OEE', 'Disponibilidad × Rendimiento × Calidad (sin sopladas: Disponibilidad × Rendimiento). Mide qué tan bien se aprovechó el tiempo de turno para producir botellas/bidones/cajas. Solo se calcula si el producto tiene velocidad estándar.'],
     ['Disponibilidad', 'Horas efectivas ÷ Horas de turno. Horas efectivas = horas de turno menos las paradas programadas y no programadas.'],
-    ['Rendimiento', 'Producción efectiva ÷ Producción nominal. Producción nominal = ratio nominal (BPH) × horas efectivas.'],
+    ['Rendimiento', 'Botellas producidas (sopladas, si se registran) ÷ Producción nominal. Producción nominal = ratio nominal (BPH) × horas efectivas.'],
+    ['Calidad', 'Botellas conformes ÷ botellas sopladas. Solo donde se registran sopladas.'],
     ['Cumplimiento', 'Producción efectiva ÷ Producción programada.'],
     ['Merma', 'Unidades de merma (botellas, preformas, tapas, etiqueta, polietileno) sobre la producción efectiva del turno.']
   ];
@@ -3975,7 +3993,7 @@ function renderGraficosTab(){
           class="small-muted"
           style="text-align:center;margin-top:6px;font-size:11px;"
         >
-          OEE = Disponibilidad × Rendimiento
+          OEE = Disponibilidad × Rendimiento × Calidad
         </div>
 
       </div>
@@ -4161,12 +4179,13 @@ function renderGraficosTab(){
 
   /* =====================================================
      DISPONIBILIDAD · RENDIMIENTO · CUMPLIMIENTO — tres medidores compactos en un solo gráfico
-     (OEE = Disponibilidad × Rendimiento)
+     (OEE = Disponibilidad × Rendimiento × Calidad)
   ===================================================== */
   registrarGx('componentes', 'chart-componentes',
     velocimetrosCompactos('chart-componentes', [
       { nombre:'Disponibilidad', valor:r1(d.disponibilidad * 100), clave:'disponibilidad' },
       { nombre:'Rendimiento', valor:r1(d.rendimiento * 100), clave:'rendimiento' },
+      ...(d.calidad == null ? [] : [{ nombre:'Calidad', valor:r1(d.calidad * 100), clave:'calidad' }]),
       { nombre:'Cumplimiento', valor:r1(d.cumplimiento * 100), clave:'cumplimiento', max:120, meta:MG.cumplimiento }
     ]));
 
@@ -4207,11 +4226,13 @@ function renderGraficosTab(){
   const p1 = casc.capacidadTeorica;
   const p2 = p1 - casc.perdidaDisponibilidad;
   const p3 = p2 - casc.perdidaRendimiento;
-  const cascadaEtiquetas = ['Capacidad teórica', '− Paradas', '− Ritmo lento', 'Producción buena'];
+  const p4 = p3 - casc.perdidaCalidad;
+  const cascadaEtiquetas = ['Capacidad teórica', '− Paradas', '− Ritmo lento', '− No conformes', 'Producción buena'];
   const cascadaMagnitudes = [
     casc.capacidadTeorica,
     casc.perdidaDisponibilidad,
     casc.perdidaRendimiento,
+    casc.perdidaCalidad,
     casc.buena
   ];
   registrarGx('cascada', 'chart-cascada', apexCrear('chart-cascada', {
@@ -4222,7 +4243,8 @@ function renderGraficosTab(){
         { x:cascadaEtiquetas[0], y:[0, p1], fillColor:PAL.gris },
         { x:cascadaEtiquetas[1], y:[p2, p1], fillColor:PAL.rojo },
         { x:cascadaEtiquetas[2], y:[p3, p2], fillColor:PAL.ambar },
-        { x:cascadaEtiquetas[3], y:[0, Math.max(casc.buena, 0)], fillColor:PAL.verde }
+        { x:cascadaEtiquetas[3], y:[p4, p3], fillColor:'#8E5B9E' },
+        { x:cascadaEtiquetas[4], y:[0, Math.max(casc.buena, 0)], fillColor:PAL.verde }
       ]
     }],
     plotOptions:{ bar:{ horizontal:false, columnWidth:'58%', borderRadius:4 } },

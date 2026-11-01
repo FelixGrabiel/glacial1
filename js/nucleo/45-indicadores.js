@@ -16,7 +16,8 @@
      Tiempo planificado = duración de la programación − paradas programadas
      Disponibilidad  = (tiempo planificado − paradas no programadas) ÷ tiempo planificado
      Rendimiento     = ratio ÷ velocidad estándar (la de sync/configIndicadores)
-     OEE             = disponibilidad × rendimiento   (solo con velocidad estándar)
+     Calidad         = botellas conformes ÷ botellas sopladas (solo donde se registran sopladas)
+     OEE             = disponibilidad × rendimiento × calidad   (solo con velocidad estándar; sin sopladas, disponibilidad × rendimiento)
      Merma           = suma de mermas ÷ producción efectiva (con desglose por componente)
      Cumplimiento    = producido ÷ programado
         · Programado: la programación vigente, sin las canceladas.
@@ -71,10 +72,23 @@
   }
   const rendimientoARevisar=r=>esNum(r)&&r>1;
 
-  /* OEE = disponibilidad × rendimiento. Sin alguno de los dos (sin velocidad estándar) no se calcula. */
-  function oee(disp,rend){
+  /* CALIDAD = piezas buenas ÷ piezas producidas (fracción, máx. 1). Buenas = producción efectiva (conformes); producidas = sopladas.
+     Solo se mide donde se registran sopladas (PET 1 y PET 2); sin sopladas no hay dato y devuelve null (no se inventa un 100 %). */
+  function calidad(buenas,producidas){
+    if(!(num(producidas)>0))return null;
+    return Math.min(num(buenas)/num(producidas),1);
+  }
+  /* Piezas producidas para el rendimiento: las sopladas si hay (si las conformes las superan, el dato está mal y se usan las conformes);
+     sin sopladas, las conformes. Así Rendimiento × Calidad = conformes ÷ producción nominal: las malas se descuentan UNA sola vez. */
+  function unidadesProducidas(buenas,sopladas){
+    return num(sopladas)>0?Math.max(num(sopladas),num(buenas)):num(buenas);
+  }
+
+  /* OEE = disponibilidad × rendimiento × calidad. La calidad es opcional: sin ella (línea sin sopladas) el OEE es disponibilidad × rendimiento.
+     Sin disponibilidad o sin rendimiento (sin velocidad estándar) no se calcula. */
+  function oee(disp,rend,cal){
     if(!esNum(disp)||!esNum(rend))return null;
-    return disp*rend;
+    return disp*rend*(esNum(cal)?cal:1);
   }
 
   /* ---------------------------------------------------------
@@ -166,6 +180,7 @@
     ratio:{verde:95,ambar:85},               // % de la velocidad estándar
     disponibilidad:{verde:90,ambar:80},
     merma:{verde:2,ambar:3},                 // máximo aceptable (%)
+    calidad:{verde:98,ambar:95},             // botellas conformes ÷ sopladas (%)
     oee:{verde:85,ambar:75}
   });
   const INDICADORES_MENOR=['merma'];
@@ -308,7 +323,7 @@
      --------------------------------------------------------- */
   function resumenIndicadores(partes){
     let prod=0,progU=0,prodU=0,mermas=0,disponibleMin=0,planMin=0,prodConTiempo=0,npMin=0,progMin=0,durMin=0;
-    let standar=0,dispV=0,planV=0,prodV=0,prodConT=0;
+    let standar=0,dispV=0,planV=0,prodV=0,prodTotV=0,prodConT=0,calBuenas=0,calTotal=0;
     const faltantes=[];
     (Array.isArray(partes)?partes:[]).forEach(p=>{
       if(!p)return;
@@ -319,25 +334,27 @@
       const disp=Math.max(0,plan-np);                       // minutos en marcha
       const pd=num(p.producido);
       prod+=pd;mermas+=num(p.mermaTotal);
+      if(num(p.sopladas)>0){calBuenas+=Math.min(pd,num(p.sopladas));calTotal+=num(p.sopladas);}
       if(p.programacionVigente){progU+=num(p.programado);prodU+=pd;}
       npMin+=np;progMin+=pr;durMin+=dur;
       if(plan>0)planMin+=plan;
       if(disp>0){
         disponibleMin+=disp;prodConTiempo+=pd;prodConT+=pd;
         const v=num(p.velocidad);
-        if(v>0){standar+=disp/60*v;dispV+=disp;planV+=plan;prodV+=pd;}
+        if(v>0){standar+=disp/60*v;dispV+=disp;planV+=plan;prodV+=pd;prodTotV+=unidadesProducidas(pd,p.sopladas);}
         else if(pd>0)faltantes.push(p.etiqueta||'(sin nombre)');
       }
     });
     const horas=disponibleMin/60;
     const disp=planMin>0?disponibleMin/planMin:null;
-    const rend=standar>0?prodV/standar:null;
+    const rend=standar>0?prodTotV/standar:null;          // con las sopladas si las hay
+    const rendConf=standar>0?prodV/standar:null;         // con las conformes: Rendimiento × Calidad = esto
     const dispConVel=planV>0?dispV/planV:null;
     return {
       produccion:prod,programado:progU,producidoConProgramacion:prodU,cumplimiento:cumplimiento(prodU,progU),
       horasEfectivas:horas,ratio:ratio(prodConTiempo,horas),disponibilidad:disp,
       merma:merma(mermas,prod),sumaMermas:mermas,
-      rendimiento:rend,oee:oee(dispConVel,rend),
+      rendimiento:rend,calidad:calidad(calBuenas,calTotal),oee:oee(dispConVel,rendConf),
       coberturaVelocidad:prodConT>0?prodV/prodConT:null,faltantesVelocidad:[...new Set(faltantes)],
       paradasNoProgramadasMin:npMin,paradasProgramadasMin:progMin,planificadoMin:planMin,transcurridoMin:durMin
     };
@@ -580,6 +597,100 @@
   }
 
   /* ---------------------------------------------------------
+     REGISTRO COMPLETO AL FINALIZAR (botellas sopladas)
+     En PET1, PET2 y B7L el cuadro tiene el campo «Botellas sopladas». Sin él no se puede comparar lo soplado con lo envasado ni medir la merma real,
+     así que es obligatorio al finalizar un cuadro con producción efectiva. En B20L ese campo significa otra cosa («Bidones disponibles») y
+     en C20L no existe: no se exige.
+     --------------------------------------------------------- */
+  const LINEAS_CON_SOPLADAS=Object.freeze(['PET1','PET2','B7L']);
+  function faltaSopladas(linea,cuadro){
+    if(!LINEAS_CON_SOPLADAS.includes(String(linea==null?'':linea)))return false;
+    const p=(cuadro&&cuadro.produccion)||{};
+    return num(p.efectiva)>0&&!(num(p.sopladas)>0);
+  }
+
+  /* ---------------------------------------------------------
+     REPORTES SIN FINALIZAR (aviso para supervisores y base de los mensajes del bot)
+     Un reporte «EN_REGISTRO» o «REABIERTO» con producción cuyo bloque (Día + Intermedio / Noche) ya terminó hace más de `graciaMin`
+     minutos (120 por defecto) está atrasado. Los de hace más de `diasMax` días (7 por defecto) ya no se avisan: son historia, no una tarea del
+     turno. Un borrador sin producción (nada que finalizar) no cuenta. Es una función pura: recibe los reportes y la hora, no lee la pantalla.
+     Devuelve [{id,linea,fecha,turno,estadoRegistro,cuadros,sinFinalizar,finMs,atrasoMin,nivel}] del más atrasado al menos atrasado.
+     nivel: 'roja' desde 24 h de atraso, 'ambar' antes.
+     --------------------------------------------------------- */
+  function reportesSinFinalizar(registros,ahoraMs,cfgBloques,opciones){
+    const o=opciones||{},gracia=num(o.graciaMin)>0?num(o.graciaMin):120,diasMax=num(o.diasMax)>0?num(o.diasMax):7,ahora=Number(ahoraMs);
+    if(!Number.isFinite(ahora))return [];
+    const res=[];
+    /* Un borrador viejo del MISMO turno (misma línea, fecha y turno) que ya tiene otro reporte FINALIZADO quedó reemplazado: no se avisa por él.
+       (En octubre hubo hasta 5 registros del mismo turno; solo uno se finalizó.) */
+    const finalizados=new Map();
+    (Array.isArray(registros)?registros:[]).forEach(r=>{if(r&&String(r.estadoRegistro||'')==='FINALIZADO')finalizados.set(r.linea+'|'+r.fecha+'|'+turnoEntrega(r.turno),String(r.id||''));});
+    (Array.isArray(registros)?registros:[]).forEach(r=>{
+      if(!r||!['EN_REGISTRO','REABIERTO'].includes(String(r.estadoRegistro||'')))return;
+      if(o.linea&&r.linea!==o.linea)return;
+      const hermano=finalizados.get(r.linea+'|'+r.fecha+'|'+turnoEntrega(r.turno));
+      if(hermano!==undefined&&hermano!==String(r.id||''))return;
+      const cuadros=(Array.isArray(r.cuadros)?r.cuadros:[]).filter(c=>c&&String(c.marca||'').trim()&&(num(c.produccion&&c.produccion.efectiva)>0||num(c.produccion&&c.produccion.sopladas)>0));
+      if(!cuadros.length)return;
+      const h=horarioBloque(r.fecha,r.turno,cfgBloques);
+      if(!h)return;
+      const atrasoMin=(ahora-h.fin)/60000;
+      if(atrasoMin<gracia||atrasoMin>diasMax*1440)return;
+      res.push({id:String(r.id||''),linea:r.linea,fecha:r.fecha,turno:r.turno,estadoRegistro:r.estadoRegistro,cuadros:cuadros.length,
+        sinFinalizar:cuadros.filter(c=>c.estadoCuadro!=='FINALIZADO').length,finMs:h.fin,atrasoMin:Math.round(atrasoMin),nivel:atrasoMin>=1440?'roja':'ambar'});
+    });
+    return res.sort((x,y)=>y.atrasoMin-x.atrasoMin||String(x.linea).localeCompare(String(y.linea)));
+  }
+  /* ENTREGAS DE TURNO PENDIENTES. Cada turno con producción registrada (DÍA, INTERMEDIO, NOCHE) debe tener su entrega al siguiente supervisor
+     (colección entregasTurno, id «AAAA-MM-DD_DIA|INTERMEDIO|NOCHE»). Avisa cuando el turno terminó hace al menos graciaMin (60) y hasta diasMax (3) días
+     y no hay entrega. entregadas = lista de ids ya entregados. Una entrega por fecha y turno (no por línea).
+     Devuelve [{id,fecha,turno,finMs,atrasoMin,nivel}], los más atrasados primero. */
+  const turnoEntrega=t=>{const x=String(t||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');return x.includes('NOCHE')?'NOCHE':x.includes('INTER')?'INTERMEDIO':'DIA';};
+  function entregasPendientes(registros,entregadas,ahoraMs,cfgBloques,opciones){
+    const o=opciones||{},gracia=num(o.graciaMin)>0?num(o.graciaMin):60,diasMax=num(o.diasMax)>0?num(o.diasMax):3,ahora=Number(ahoraMs);
+    if(!Number.isFinite(ahora))return [];
+    const hechas=new Set((Array.isArray(entregadas)?entregadas:[]).map(String));
+    const vistos=new Map();
+    (Array.isArray(registros)?registros:[]).forEach(r=>{
+      if(!r||!r.fecha)return;
+      const hayProduccion=(Array.isArray(r.cuadros)?r.cuadros:[]).some(c=>c&&String(c.marca||'').trim()&&(num(c.produccion&&c.produccion.efectiva)>0||num(c.produccion&&c.produccion.sopladas)>0));
+      if(!hayProduccion)return;
+      const turno=turnoEntrega(r.turno),id=r.fecha+'_'+turno;
+      if(hechas.has(id)||vistos.has(id))return;
+      if(o.desde&&r.fecha<o.desde)return;                  // el aviso solo cuenta desde la fecha de inicio (los turnos anteriores nunca tuvieron entrega)
+      const h=horarioBloque(r.fecha,turno==='DIA'?'DÍA':turno,cfgBloques);
+      if(!h)return;
+      const atrasoMin=(ahora-h.fin)/60000;
+      if(atrasoMin<gracia||atrasoMin>diasMax*1440)return;
+      vistos.set(id,{id,fecha:r.fecha,turno,finMs:h.fin,atrasoMin:Math.round(atrasoMin),nivel:atrasoMin>=720?'roja':'ambar'});
+    });
+    return [...vistos.values()].sort((x,y)=>y.atrasoMin-x.atrasoMin);
+  }
+  const textoEntregaPendiente=x=>'Falta entregar el turno '+nombreBloque(x.turno==='DIA'?'DÍA':x.turno,'reporte')+' '+ddmm(x.fecha)+' al siguiente supervisor · hace '+textoAtraso(x.atrasoMin);
+  function mensajeEntregasPendientes(lista){
+    const l=Array.isArray(lista)?lista:[];
+    if(!l.length)return '';
+    return '⚠️ *FALTA ENTREGAR EL TURNO*\n'+l.map(x=>'• '+textoEntregaPendiente(x)).join('\n')+'\nEntrégalo en GLACIAL: Entrega de turno.';
+  }
+  function textoAtraso(min){
+    const m=Math.max(0,Math.round(num(min)));
+    if(m>=1440)return Math.floor(m/1440)+' d '+Math.floor((m%1440)/60)+' h';
+    return m>=60?Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min':m+' min';
+  }
+  const ddmm=f=>{const m=String(f||'').match(/^\d{4}-(\d{2})-(\d{2})/);return m?m[2]+'/'+m[1]:String(f||'');};
+  /* Texto de un aviso (pantalla y bot): una sola redacción para los dos. */
+  function textoReporteSinFinalizar(x,sinLinea){
+    const turno=nombreBloque(x.turno,'reporte');
+    return (sinLinea?'':x.linea+' · ')+turno+' '+ddmm(x.fecha)+': reporte sin finalizar ('+x.sinFinalizar+' de '+x.cuadros+(x.cuadros===1?' cuadro':' cuadros')+' sin finalizar) · hace '+textoAtraso(x.atrasoMin);
+  }
+  /* Mensaje listo para WhatsApp con todos los pendientes; vacío si no hay ninguno. */
+  function mensajeReportesSinFinalizar(lista){
+    const l=Array.isArray(lista)?lista:[];
+    if(!l.length)return '';
+    return '⚠️ *REPORTES SIN FINALIZAR*\n'+l.map(x=>'• '+textoReporteSinFinalizar(x)).join('\n')+'\nFinalícenlos en GLACIAL: Historial › Continuar reporte.';
+  }
+
+  /* ---------------------------------------------------------
      DEFINICIONES PARA «¿CÓMO SE CALCULA?» (las mismas que este archivo)
      --------------------------------------------------------- */
   const DEFINICIONES=Object.freeze([
@@ -588,7 +699,8 @@
     ['Tiempo planificado','Duración de la programación − paradas programadas.'],
     ['Disponibilidad','(Tiempo planificado − paradas no programadas) ÷ tiempo planificado.'],
     ['Rendimiento','Ratio ÷ velocidad estándar (la de la tabla de velocidades). Si pasa de 100 %, se muestra «revisar velocidad estándar».'],
-    ['OEE','Disponibilidad × rendimiento. Solo se calcula si el producto tiene velocidad estándar.'],
+    ['OEE','Disponibilidad × rendimiento × calidad. Solo se calcula si el producto tiene velocidad estándar; donde no se registran sopladas es disponibilidad × rendimiento.'],
+    ['Calidad','Botellas conformes ÷ botellas sopladas. Solo se mide donde se registran sopladas (PET 1 y PET 2).'],
     ['Merma','Suma de mermas ÷ producción efectiva, con desglose por componente (cada uno en su unidad).'],
     ['Cumplimiento','Producido ÷ programado. Programado: la programación vigente, sin las canceladas. Producido: en el turno en curso, lo registrado en Paletas; en turnos cerrados, el registro del turno.'],
     ['Estado de línea','El del semáforo: detenida, en curso, pausa, pendiente, completada o cancelada, por prioridad.'],
@@ -597,14 +709,15 @@
   ]);
 
   const API=Object.freeze({
-    horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,oee,
+    horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,calidad,unidadesProducidas,entregasPendientes,textoEntregaPendiente,mensajeEntregasPendientes,oee,
     merma,componenteMerma,desgloseMerma,ORDEN_COMPONENTES,
     cumplimiento,programadoVigente,produccionVigente,
     colorSegunMeta,colorIndicador,normalizarMetas,METAS_INICIALES,
     turnoVigente,diaOperativo,horarioTurno,HORARIOS_TURNO,
     BLOQUES_INICIALES,NOMBRES_TURNO,nombreBloque,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
     estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,desgloseLineaPorMarca,produccionPlanYFuera,
-    resumenIndicadores,DEFINICIONES
+    resumenIndicadores,DEFINICIONES,LINEAS_CON_SOPLADAS,faltaSopladas,
+    reportesSinFinalizar,textoReporteSinFinalizar,mensajeReportesSinFinalizar
   });
 
   raiz.GlacialIndicadores=API;

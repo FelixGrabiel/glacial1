@@ -591,12 +591,13 @@
   /* ---------------------------------------------------------
      5) IMAGEN PARA WHATSAPP
      --------------------------------------------------------- */
-  const GRUPOS_IMAGEN={'Producción':['SUP','MAQ','OPE','DIA'],'Mantenimiento':['SMT','MAQ','TEC','DIA']};
+  const GRUPOS_IMAGEN={'Producción':['SUP','MAQ','OPE','DIA'],'Mantenimiento':['SMT','TEC','DIA']};
   /* UNA IMAGEN (o varias páginas si pasan de 25 personas) POR CADA SECCIÓN, en vez de una sola imagen con todo el personal mezclado.
-     Producción: Supervisores · Maquinistas · Operarios (el personal por día va con los operarios). Mantenimiento: Supervisor · Maquinistas · Técnicos · Personal por día. */
+     Producción: Supervisores · Maquinistas · Operarios (el personal por día va con los operarios). Mantenimiento: supervisor y técnicos en una sola imagen. */
   const SECCIONES_IMAGEN={
     'Producción':[{clave:'supervisores',titulo:'Supervisores',grupos:['SUP']},{clave:'maquinistas',titulo:'Maquinistas',grupos:['MAQ']},{clave:'operarios',titulo:'Operarios',grupos:['OPE','DIA']}],
-    'Mantenimiento':[{clave:'supervisor',titulo:'Supervisor de mantenimiento',grupos:['SMT']},{clave:'maquinistas',titulo:'Maquinistas',grupos:['MAQ']},{clave:'tecnicos',titulo:'Técnicos',grupos:['TEC']},{clave:'personal_por_dia',titulo:'Personal por día',grupos:['DIA']}]
+    // Mantenimiento: el supervisor y TODOS los técnicos (y el personal por día) en UNA sola imagen, cada grupo con su título; los maquinistas ya salen en la imagen de Producción; solo se parte en páginas si pasa de 60 personas.
+    'Mantenimiento':[{clave:'mantenimiento',titulo:'Mantenimiento',grupos:['SMT','TEC','DIA'],maxFilas:60}]
   };
   const ESTADO_CORTO={
     'Falta por justificar':'FALTA','Falta justificada':'FALTA JUSTIF.','Descanso':'DESCANSO',
@@ -646,7 +647,8 @@
     return {lineas,alto:lineas.length>1?IMG_FILA+(lineas.length-1)*28:IMG_FILA};
   }
 
-  function paginarImagen(filas,ctx){
+  function paginarImagen(filas,ctx,maxFilas){
+    const MAX=maxFilas||IMG_FILAS;
     const bloques=ORDEN_GRUPOS.map(k=>({clave:k,filas:filas.filter(f=>f.grupo===k)})).filter(b=>b.filas.length);
     const paginas=[];
     let pag={items:[],personas:0};
@@ -658,9 +660,9 @@
       while(i<filasM.length){
         // El título de un bloque nunca queda solo al final: necesita sitio para 2 filas (o todas si son menos).
         const minimo=Math.min(2,filasM.length-i);
-        if(pag.personas&&IMG_FILAS-pag.personas<minimo)nueva();
+        if(pag.personas&&MAX-pag.personas<minimo)nueva();
         pag.items.push({tipo:'titulo',clave:b.clave,total,continuacion});
-        const cabe=IMG_FILAS-pag.personas;
+        const cabe=MAX-pag.personas;
         filasM.slice(i,i+cabe).forEach(x=>{pag.items.push(x);pag.personas++;});
         i+=cabe;continuacion=true;
         if(i<filasM.length)nueva();
@@ -816,7 +818,7 @@
     secciones.forEach(sec=>{
       const filas=L.filas.filter(f=>sec.grupos.includes(f.grupo));
       if(!filas.length)return;
-      const paginas=paginarImagen(filas,ctxMedir);
+      const paginas=paginarImagen(filas,ctxMedir,sec.maxFilas);
       const resumen=resumenImagen(filas);
       const registradores=[...new Set(filas.map(f=>f.registradoPor).filter(Boolean))];
       const meta0={titulo:(cfg.titulo||'Tareo de producción')+' · '+sec.titulo,fechaTxt,turno:cfg.turno,resumen,total:personasDistintas(filas),

@@ -43,13 +43,14 @@
   }
 
   /* ---------- sugerencia de causa según el texto (solo sugerencia: nada se guarda sin confirmar) ---------- */
+  /* Se revisan en orden: gana la primera que coincide. Un texto que solo nombra una máquina («parada por env», «parada sop») se sugiere como Falla de máquina. */
   const REGLAS=[
     ['Servicios (agua, aire comprimido, energía)',/\b(agua|aire|compresor|presion|energia|luz|corte|vapor|caldero|caldera)\b/],
     ['Falta de insumos',/\b(insumo|insumos|preforma|preformas|tapa|tapas|etiqueta|etiquetas|paleta|paletas|material|materiales|envase|envases|botella|botellas|film|stretch|jarabe)\b/],
     ['Falta de personal o apoyo a otra línea',/\b(personal|apoyo|rotacion|operario|operarios|gente|ayuda)\b/],
     ['Calidad / producto no conforme',/\b(calidad|no conforme|rechazo|contamin\w*|muestra)\b/],
     ['Ajuste o calibración',/\b(calibr\w*|ajust\w*|regul\w*|llenado|carril|guia|atasco|atasc\w*|formato|cambio)\b/],
-    ['Falla de máquina',/\b(falla|fallo|averia|roto|rota|rompio|trabo|trabado|motor|sensor|mantenimiento|reparacion|reparar)\b/]
+    ['Falla de máquina',/\b(falla|fallo|averia|roto|rota|rompio|trabo|trabado|motor|sensor|mantenimiento|reparacion|reparar|malograd\w*|danad\w*|env|envas\w*|sop|soplad\w*|etiquet\w*|empaquet\w*|hidrolav\w*|horno|pinza|pinzas|tobera|rinser|tapadora|lavadora|transportador)\b/]
   ];
   function sugerirCausa(texto){
     const t=' '+norm(texto)+' ';

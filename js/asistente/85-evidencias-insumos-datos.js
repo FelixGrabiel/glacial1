@@ -134,7 +134,7 @@
     if(!/^[a-f0-9]{64}$/.test(sha)||!/^asistente\/evidencias\/[a-f0-9]{64}\.(jpg|png|webp)$/.test(String(item.foto_ruta||''))||!/^image\/(jpeg|png|webp)$/.test(String(item.mime||'')))throw falla('FORMATO','La evidencia recibida no tiene el formato esperado.');
     if(porId(sha)){await marcarEntrada(sha);return 'duplicada';}
     const u=usuario(),t=ahora();
-    const doc=N.construirDocumento(item.registro,{sha256:sha,foto:{url:PREFIJO_FOTO+item.foto_ruta,mimetype:item.mime,bytes:Number(item.bytes)||0},usuario:u.nombre,uid:u.uid,ahora:t});
+    const doc=N.construirDocumento(item.registro,{sha256:sha,foto:{url:PREFIJO_FOTO+item.foto_ruta,mimetype:item.mime,bytes:Number(item.bytes)||0},usuario:u.nombre,uid:u.uid,ahora:t,leyenda:item.leyenda});
     const ref=refDe(sha);let estado='importada';
     await db.runTransaction(async tx=>{
       const s=await tx.get(ref);

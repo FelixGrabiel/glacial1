@@ -379,6 +379,24 @@
     }catch(err){f.querySelector('#pv-ej').innerHTML='<span style="color:#8c1d18">No se pudo leer el historial de ejecuciones: '+esc((err&&err.message)||err)+'</span>';}
   }
 
+  /* SUGERENCIAS por tipo de equipo: punto de partida editable al crear un plan nuevo (nunca se guardan solas). */
+  const SUGERENCIAS={
+    sopladora:{titulo:'Revisión mensual de sopladora',cada:1,tipo:'MESES',tareas:['Revisar presión de aire de soplado','Inspeccionar y lubricar guías y cadenas','Limpiar filtros y revisar fugas de aire','Revisar hornos y lámparas de calentamiento','Verificar sensores y paros de emergencia']},
+    envasadora:{titulo:'Revisión mensual de envasadora',cada:1,tipo:'MESES',tareas:['Revisar boquillas y válvulas de llenado','Verificar sellos y empaques','Lubricar partes móviles','Limpiar y sanitizar según procedimiento','Verificar sensores y paros de emergencia']},
+    etiquetadora:{titulo:'Revisión mensual de etiquetadora',cada:1,tipo:'MESES',tareas:['Limpiar rodillos y cuchillas','Revisar el sistema de pegado','Verificar sensores de etiqueta','Lubricar partes móviles']},
+    empaquetadora:{titulo:'Revisión mensual de empaquetadora',cada:1,tipo:'MESES',tareas:['Revisar la resistencia y cuchilla de sellado','Inspeccionar fajas y rodillos','Verificar sensores y paros de emergencia','Lubricar partes móviles']},
+    compresor:{titulo:'Revisión de compresor',cada:1,tipo:'MESES',tareas:['Drenar condensado','Revisar nivel y estado del aceite','Limpiar o cambiar filtros','Revisar fugas y presión de trabajo']}
+  };
+  const sugerenciaDe=eq=>SUGERENCIAS[norm(eq&&eq.tipo)]||null;
+  document.addEventListener('change',ev=>{
+    const t=ev.target;if(!t||t.id!=='p-eq')return;
+    const E=window.glacialEquiposMaestro,eq=E&&E.lista().find(e=>e.id===t.value),sg=sugerenciaDe(eq),f=t.closest('form')||document;
+    const ti=f.querySelector('#p-ti'),ta=f.querySelector('#p-ta');
+    if(!sg||!ti||!ta||ti.value.trim()||ta.value.trim())return;   // solo si el plan está en blanco
+    ti.value=sg.titulo;ta.value=sg.tareas.join('\n');
+    const ca=f.querySelector('#p-ca'),un=f.querySelector('#p-un');if(ca)ca.value=sg.cada;if(un)un.value=sg.tipo;
+  });
+
   function formPlan(id){
     const A=API(),E=window.glacialEquiposMaestro,pl=id?porId(id):null;
     const b=pl||{equipoId:'',titulo:'',descripcion:'',frecuencia:{tipo:'MESES',cada:1},politica:'CALENDARIO',proximaFecha:hoyOperativo(),ventana:null,responsable:{tipo:'GRUPO'},tareas:[],avisoDias:7,activo:true};

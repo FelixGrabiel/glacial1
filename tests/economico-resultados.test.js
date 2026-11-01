@@ -34,7 +34,7 @@ function entorno(rol,inicial,partes){
   ['56-impacto-resultados','57-impacto-estado','59-impacto-analisis','58-impacto-dashboard'].forEach(n=>vm.runInContext(leer('js/produccion/'+n+'.js'),sb));
   return {sb,F};
 }
-const parte={linea:'PET1',fecha:'2026-10-10',grupo:'DIA',marca:'Scala',pres:'2.5L',marcaN:'Scala',cat:'2.5 L',pkey:'2.5L|Scala',producido:300,programado:1000,progUnit:true,
+const parte={linea:'PET1',fecha:'2026-10-10',grupo:'DIA',marca:'Scala',pres:'2.5L',marcaN:'Scala',cat:'2.5 L',pkey:'2.5L|Scala',producido:3000,programado:1000,progUnit:true,
   planMin:480,availMin:420,npMin:60,vel:1000,paradas:[{motivo:'Falla de sopladora',minutos:60,estimada:false}],mermas:{Botellas:{unidades:100,peso:0}}};
 const valores={'valoresUnitarios/P__pet1__scala__2-5-l':{tipo:'producto',linea:'PET1',marca:'Scala',presentacion:'2.5 L',clave:'pet1__scala__2-5-l',valorUnitario:0.40,vigencias:{'2020-01-01':0.40},activo:true,version:1},
   'valoresUnitarios/I__pet1--botellas':{tipo:'insumo',linea:'PET1',componente:'Botellas',clave:'pet1--botellas',valorUnitario:0.5,vigencias:{'2020-01-01':0.5},activo:true,version:1},
@@ -49,8 +49,8 @@ await g.sb.window.glacialImpactoResultados.publicar(true);await espera();
 const dia=g.F.docs.get('resultadosEconomicos/2026-10-10');
 ok(!!dia&&dia.generadoPorUid==='u-Gerente'&&dia.generadoEn.__ts&&dia.v===2,'Gerencia publica el día con su UID, la hora del servidor y versión 2');
 const sumS=dia.filas.reduce((a,f)=>a+(f.s||0),0);
-// paradas: 60 min × 1000 UND/h × 0,40 = 400 · velocidad: (1000×7 h − 300) × 0,40 = 2 680 · mermas: 100 × 0,50 = 50
-ok(Math.abs(sumS-3130)<0.01&&dia.filas.filter(f=>f.t==='P').length===1&&dia.filas.filter(f=>f.t==='V').length===1&&dia.filas.filter(f=>f.t==='M').length===1,'los soles publicados son los del motor (400 + 2 680 + 50 = 3 130) en 3 eventos');
+// paradas: 60 min × 1000 UND/h × 0,40 = 400 · velocidad: (1000×7 h − 3 000) × 0,40 = 1 600 · mermas: 100 × 0,50 = 50
+ok(Math.abs(sumS-2050)<0.01&&dia.filas.filter(f=>f.t==='P').length===1&&dia.filas.filter(f=>f.t==='V').length===1&&dia.filas.filter(f=>f.t==='M').length===1,'los soles publicados son los del motor (400 + 1 600 + 50 = 2 050) en 3 eventos');
 const texto=JSON.stringify(dia).toLowerCase();
 ok(!/valorunitario|margen|costo|precio|vigencia/.test(texto),'el documento publicado NO trae valores unitarios, márgenes, costos ni precios');
 ok(g.F.docs.get('resultadosEconomicos/meta').metaPerdidaMes===1000,'publica también la meta mensual');
@@ -59,7 +59,7 @@ const n0=g.F.escritos.length;await g.sb.window.glacialImpactoResultados.publicar
 ok(g.F.escritos.length===n0,'si nada cambió, no vuelve a escribir (sin escrituras innecesarias)');
 /* Gerencia: carga de filas con valores */
 const cg=await new Promise(r=>g.sb.window.glacialImpactoResultados.cargar('2026-10-10','2026-10-10',(f,i)=>r({f,i})));
-ok(cg.f.length===3&&Math.abs(cg.f.reduce((a,x)=>a+(x.s||0),0)-3130)<0.01&&cg.f.every(x=>x.linea==='PET 1'),'Gerencia: el dashboard recibe los 3 eventos valorizados con el nombre legible de la línea');
+ok(cg.f.length===3&&Math.abs(cg.f.reduce((a,x)=>a+(x.s||0),0)-2050)<0.01&&cg.f.every(x=>x.linea==='PET 1'),'Gerencia: el dashboard recibe los 3 eventos valorizados con el nombre legible de la línea');
 /* ---------- Los demás no publican ni leen resultados; calculan SIN valores ---------- */
 for(const rol of ['Administrador','Supervisor','Ventas']){
   const x=entorno(rol,Object.assign({},valores,{'resultadosEconomicos/2026-10-10':dia}),[parte]);
@@ -71,6 +71,12 @@ for(const rol of ['Administrador','Supervisor','Ventas']){
   const m={innerHTML:''};x.sb.window.renderPerdidasSoles(m);
   ok(!/S\/|Valores unitarios|soles|costo|precio|margen/i.test(m.innerHTML.replace(/<[^>]+>/g,' ')),rol+': la pantalla no contiene ninguna palabra ni cifra económica');
 }
+/* ---------- dato dudoso: sin producción registrada, la «velocidad reducida» no entra al total ---------- */
+{const IE=g.sb.window.glacialImpactoEconomico;
+ const rD=IE.calcularImpacto([Object.assign({},parte,{producido:0})],IE.provDefecto());
+ ok(rD.dudosas===1&&rD.filas.filter(f=>f.tipo==='V').length===0&&rD.velS===0,'producido 0: la velocidad reducida queda como dato dudoso y no suma al total');
+ const rB=IE.calcularImpacto([parte],IE.provDefecto());
+ ok(rB.dudosas===0&&rB.filas.filter(f=>f.tipo==='V').length===1&&Math.abs(rB.velS-1600)<0.01,'producción normal: la velocidad reducida sí se calcula (1 600)');}
 /* ---------- Jefatura: lee resultados, nunca valores ---------- */
 const j=entorno('Jefe de Producción',{'resultadosEconomicos/2026-10-10':Object.assign({},dia,{generadoEn:{toMillis:()=>Date.now()}}),'resultadosEconomicos/2026-09-30':{fecha:'2026-09-30',v:1,totales:{total:5}},'resultadosEconomicos/meta':{metaPerdidaMes:1000,fecha:'9999-12-31'}},[parte]);
 j.sb.window.glacialEconomicoEscuchas();await tick();
@@ -78,7 +84,7 @@ ok(j.F.abiertas.length===1&&j.F.abiertas[0]==='resultadosEconomicos'&&!j.F.abier
 await j.sb.window.glacialImpactoResultados.publicar(true);
 ok(j.F.escritos.length===0,'Jefatura no publica ni escribe nada');
 const cj=await new Promise(r=>j.sb.window.glacialImpactoResultados.cargar('2026-09-30','2026-10-10',(f,i)=>r({f,i})));
-ok(cj.f.length===3&&Math.abs(cj.f.reduce((a,x)=>a+(x.s||0),0)-3130)<0.01&&cj.f[0].linea==='PET 1','Jefatura expande los eventos publicados (soles y unidades) e ignora documentos de la versión anterior');
+ok(cj.f.length===3&&Math.abs(cj.f.reduce((a,x)=>a+(x.s||0),0)-2050)<0.01&&cj.f[0].linea==='PET 1','Jefatura expande los eventos publicados (soles y unidades) e ignora documentos de la versión anterior');
 ok(cj.i.diasSinPublicar===10&&j.sb.window.glacialImpactoResultados.meta()===1000,'Jefatura sabe cuántos días no están publicados y lee la meta');
 const mj={innerHTML:''};j.sb.window.renderPerdidasSoles(mj);
 ok(!/valor unitario|margen|precio|costo unitario|Valores unitarios|Supuestos/i.test(mj.innerHTML),'Jefatura: la pantalla NO tiene pestaña ni acceso a valores unitarios');

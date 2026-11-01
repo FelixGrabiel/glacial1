@@ -39,7 +39,7 @@ const disp=((420+240)-(45+0))/(420+240),rend=(14400+9600)/((375/60)*2400+4*2400)
 ok(Math.abs(k-disp*rend)<1e-9,'planta (09): OEE '+(k*100).toFixed(2)+' % = disponibilidad × rendimiento de lo que tiene velocidad');
 console.log('  [antes → ahora] OEE de planta: '+(antes.calcularKPIsPlanta(regs).oee*100).toFixed(2)+' % → '+(k*100).toFixed(2)+' %');
 const s=f=>leer('js/produccion/'+f);
-ok(/GlacialIndicadores\.rendimiento\(ratioSop,velocidad\)/.test(s('47-analisis-paradas.js'))&&/GlacialIndicadores\.oee\(u\.disp,rend\)/.test(s('47-analisis-paradas.js')),'47: rendimiento y OEE del módulo; sin calidad');
+ok(/GlacialIndicadores\.rendimiento\(ratioSop,velocidad\)/.test(s('47-analisis-paradas.js'))&&/GlacialIndicadores\.oee\(u\.disp,rend,calidad\)/.test(s('47-analisis-paradas.js')),'47: rendimiento, calidad y OEE del módulo');
 ok(/GlacialIndicadores\.oee\(dispVF,rendF\)/.test(s('49-resumen-indicadores.js')),'49: OEE del Resumen del módulo');
 ok(!/MIN\(K\$\{/.test(s('08-graficos.js'))&&/`Q\$\{f\}\*R\$\{f\}`/.test(s('08-graficos.js')),'Excel por línea: rendimiento sin MIN(…,1) y OEE = disponibilidad × rendimiento');
 ok(!/oeeXhoras/.test(s('09-resumen.js')+s('14-exportar-general.js')+s('08-graficos.js')),'ya no quedan promedios de OEE ponderados por horas');

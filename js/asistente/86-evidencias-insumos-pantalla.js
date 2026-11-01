@@ -35,7 +35,7 @@
     const titulo=(c.producto&&c.producto.valor)||d.archivoOriginal||'Etiqueta sin identificar';
     return `<button type="button" class="ie-item ${d.id===S.sel?'ie-item-act':''}" onclick="ieSel('${esc(d.id)}')"><span class="ie-it-t"><b>${esc(titulo)}</b>${pill(d.estado)}</span>
       <small>${esc((c.proveedor&&c.proveedor.valor)||'Proveedor sin leer')} · ${esc(d.categoria)}</small>
-      <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}${esc(hora(d.creadoEn))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}</small></button>`;
+      <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}${esc(hora(d.creadoEn))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}${d.loteId?' · <b>'+esc(d.loteId)+'</b>':''}${d.leyenda?' · '+esc(d.leyenda):''}</small></button>`;
   }
   function listaHtml(){
     const todos=E.cache.lista,lista=N.filtrar(todos,{estado:S.estado,texto:S.texto});
@@ -79,10 +79,12 @@
   }
   function acciones(d){
     if(!puedeEscribir())return '<p class="ii-mut">Solo consulta: tu usuario no puede validar evidencias.</p>';
-    if(d.estado==='aprobado_dato')return `<p class="ii-mut">Datos aprobados. No se registró stock: ningún movimiento de inventario nace de esta pantalla.</p>${E.esAdmin()?'<button type="button" class="ii-btn ii-btn-o" onclick="ieEstado(\'pendiente\')">Reabrir…</button>':''}`;
+    const TL=window.iiLotesUI;                                                  // trazabilidad de lotes (87-89): si está cargada, aprobar = «Confirmar y crear lote»
+    if(d.estado==='aprobado_dato')return `<p class="ii-mut">Datos aprobados. No se registró stock SAP ni ningún movimiento de inventario.${d.loteId?` Lote <b>${esc(d.loteId)}</b> · unidad <b>${esc(d.unidadId||'')}</b>.`:''}</p>
+      ${TL&&d.loteId?`<button type="button" class="ii-btn" onclick="ilVerLote('${esc(d.loteId)}')">Ver el lote</button>`:''}${TL&&!d.loteId?`<button type="button" class="ii-btn" onclick="ilAbrirCrear('${esc(d.id)}')">Crear lote desde esta evidencia</button>`:''}${E.esAdmin()&&!d.loteId?'<button type="button" class="ii-btn ii-btn-o" onclick="ieEstado(\'pendiente\')">Reabrir…</button>':''}`;
     if(d.estado==='rechazado')return `<p class="ii-mut">Rechazada.</p>${E.esAdmin()?'<button type="button" class="ii-btn ii-btn-o" onclick="ieEstado(\'pendiente\')">Reabrir…</button>':''}`;
     return `<button type="button" class="ii-btn ii-btn-o" onclick="ieGuardar()">Guardar cambios${hayBorrador()?' •':''}</button>
-      <button type="button" class="ii-btn" onclick="ieEstado('aprobado_dato')">Aprobar datos</button>
+      ${TL?`<button type="button" class="ii-btn" onclick="ilAbrirCrear('${esc(d.id)}')">Confirmar y crear lote</button>`:`<button type="button" class="ii-btn" onclick="ieEstado('aprobado_dato')">Aprobar datos</button>`}
       <button type="button" class="ii-btn ii-btn-o" onclick="ieEstado('requiere_correccion')">Solicitar corrección o nueva foto</button>
       <button type="button" class="ii-btn ii-btn-o ii-peligro" onclick="ieEstado('rechazado')">Rechazar</button>`;
   }
@@ -293,10 +295,12 @@
 .ie-adv{margin-top:12px;font-size:13px}.ie-adv ul{margin:6px 0 0;padding-left:20px}.ie-texto{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f8fc;border-radius:8px;padding:10px;margin:6px 0 0}
 .ie-acc{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--ii-linea)}
 .ie-vacio-det{text-align:center;padding:40px 16px}
+/* Orden visual (31/10/2026): en pantallas de hasta 1500 px la foto va arriba y la tabla ocupa todo el ancho (antes los campos quedaban de ~120 px y los textos se cortaban). */
+@media(max-width:1500px){.ie-cols{grid-template-columns:1fr}.ie-col-foto{position:static}.ie-foto{max-height:300px}.ie-foto-caja{min-height:180px}.ie-t th{width:34%}}
 @media(max-width:900px){.ie-grid{grid-template-columns:1fr}.ie-cols{grid-template-columns:1fr}.ie-col-foto{position:static}.ie-top{grid-template-columns:1fr}.ie-t th{width:auto}}
 @media(max-width:560px){.ie-t,.ie-t tbody,.ie-t tr,.ie-t th,.ie-t td{display:block;width:100%}.ie-t tr{border-top:1px solid #edf2f7;padding:6px 0}.ie-t td{border-top:0}.ie-duda{padding:0!important}}`;
 
-  window.iiEvidenciasUI={html,css,estado:S,hayEdicion:()=>!!S.sel&&hayBorrador(),usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
+  window.iiEvidenciasUI={html,css,estado:S,hayEdicion:()=>!!S.sel&&hayBorrador(),aviso,seleccionar:id=>{S.sel=id;},cambiosPendientes:d=>cambiosPendientes(d),repintar,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
   window.__inventarioInsumosEvidencias={S,cambiosPendientes};
 
   /* Tiempo real: lo que otra persona valide aparece solo, sin pisar lo que se está escribiendo. */

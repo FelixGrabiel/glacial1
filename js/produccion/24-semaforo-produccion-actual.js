@@ -398,6 +398,14 @@
   };
   // Programado del producto en el BLOQUE (suma Día + Intermedio, sin canceladas).
   const progDe=x=>x.programadoBloque!=null ? x.programadoBloque : num(x.prog?.cantidadProgramada);
+  /* Lo programado del PRODUCTO mismo (suma de sus filas del bloque, también si está cancelado). El programado del bloque (progDe) no cuenta las canceladas para no
+     inflar el plan; la tarjeta de un producto cancelado, en cambio, debe mostrar lo producido frente a lo que tenía programado y no «producido / 0». */
+  function programadoPropio(x){
+    const turnos=x.turno==='NOCHE' ? ['NOCHE'] : ['DÍA','INTERMEDIO'];
+    return (loadProgramaciones() || []).reduce((s,p)=>s+((p && p.linea===x.linea && p.fecha===x.fecha && p.marca===x.marca &&
+      p.presentacion===x.presentacion && turnos.includes(p.turno)) ? num(p.cantidadProgramada) : 0),0);
+  }
+  const progTarjeta=x=>x.op?.estado==='CANCELADA' ? (programadoPropio(x) || progDe(x)) : progDe(x);
   function estadoFila(l,f,t,m,p,ahora){
     // Fila de programación que lleva el ESTADO del bloque: la de Día si existe; si no, la de Intermedio. El programado
     // del bloque (suma de las filas) se calcula aparte con glacialProgramadoBloque. Noche tiene la suya.
@@ -822,7 +830,9 @@
         //      Aro 380 ml + Scala 1.5 L => dos totales independientes.
         const mapaTotalesPresentacion=new Map();
         items.forEach(x=>{
-          if(x.op?.estado==='CANCELADA')return;
+          // Un producto cancelado ya no suma programado, pero lo que produjo antes de cancelarse sí cuenta en el total de su presentación.
+          const cancelado=x.op?.estado==='CANCELADA';
+          if(cancelado && !(producidoDe(x)>0))return;
   
           const etiqueta=presUI(x.linea,x.marca,x.presentacion);
           const clave=String(etiqueta || x.presentacion || 'SIN PRESENTACIÓN')
@@ -830,7 +840,7 @@
             .toUpperCase();
   
           const producido=producidoDe(x);
-          const programado=progDe(x);
+          const programado=cancelado ? 0 : progDe(x);
   
           const actual=mapaTotalesPresentacion.get(clave) || {
             clave,
@@ -1274,7 +1284,7 @@
                 </div>
                 <div class="pa-program-list pa-program-list-horizontal">${
                   ordenados.length ? ordenados.map(({x,estado})=>{
-                    const prog=Math.round(progDe(x));
+                    const prog=Math.round(progTarjeta(x));
                     const idx=filasActuales.indexOf(x);
                     // «Cancelar programación» vivía en el bloque Historial / Avance, que ya no se muestra aquí: se conserva en la fila.
                     const cancelar=x.puede==='supervisor' && !['CANCELADA','COMPLETADA'].includes(estado.key)
@@ -1283,10 +1293,15 @@
                     const reactivar=estado.key==='CANCELADA' && esAdministradorPA() && x.puede==='supervisor'
                       ? `<button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px" title="Solo el Administrador puede reactivar una programación cancelada"
                           data-pa-accion="reactivar" data-pa-indice="${idx}">↺ Reactivar</button>` : '';
+                    // Una presentación FINALIZADA por error se puede reabrir desde su tarjeta (antes solo había botón si quedaba otra presentación activa o pendiente).
+                    // Misma regla de siempre: permiso «Reabrir producción» (el Administrador lo tiene); no se borra nada y queda en la bitácora.
+                    const reabrir=x.op?.estado==='FINALIZADA' && puedeReabrirProduccion()
+                      ? `<button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px" title="Reabrir esta presentación finalizada (no se borra ningún dato)"
+                          data-pa-accion="reabrir" data-pa-indice="${idx}">↺ Reabrir</button>` : '';
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
                         ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
-                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div>${reactivar}</div>
+                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div>${reactivar}${reabrir}</div>
                     </div>`;
                   }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
                 }</div>`;

@@ -54,8 +54,8 @@
     const e=[];
     if(!/^[A-Z0-9_]{2,40}$/.test(String(i&&i.codigo||'')))e.push('Código: 2 a 40 caracteres en MAYÚSCULAS, números o «_».');
     if(!String(i&&i.nombre||'').trim())e.push('Indica el nombre del insumo.');
-    if(!UNIDADES.includes(i&&i.unidad))e.push('Unidad no válida.');
-    if(!TIPOS_INSUMO.includes(i&&i.tipo))e.push('Tipo no válido.');
+    if(!UNIDADES.includes(i&&i.unidad))e.push('Elige la unidad del insumo.');
+    if(!TIPOS_INSUMO.includes(i&&i.tipo))e.push('Elige el tipo de insumo.');
     return e;
   }
 
@@ -64,12 +64,12 @@
   function validarFactor(f){
     const e=[];
     if(!f||!String(f.insumo||'').trim())e.push('Indica el insumo.');
-    if(!f||!codigoLinea(f.linea))e.push('Línea no válida.');
-    if(!f||!['UND','PALETA'].includes(f.base))e.push('La base debe ser UND o PALETA.');
+    if(!f||!codigoLinea(f.linea))e.push('Elige la línea del factor.');
+    if(!f||!['UND','PALETA'].includes(f.base))e.push('Elige la base del factor: por unidad producida (UND) o por paleta.');
     if(!f||!(Number(f.cantidadBase)>0))e.push('La cantidad base debe ser mayor que 0.');
     if(!f||!Number.isFinite(Number(f.factor))||Number(f.factor)<0)e.push('El factor debe ser un número ≥ 0.');
-    if(!f||!fechaOk(f.vigenteDesde))e.push('Vigente desde: fecha AAAA-MM-DD.');
-    if(f&&f.vigenteHasta&&(!fechaOk(f.vigenteHasta)||f.vigenteHasta<f.vigenteDesde))e.push('Vigente hasta debe ser posterior a Vigente desde.');
+    if(!f||!fechaOk(f.vigenteDesde))e.push('Indica desde qué fecha rige el factor.');
+    if(f&&f.vigenteHasta&&(!fechaOk(f.vigenteHasta)||f.vigenteHasta<f.vigenteDesde))e.push('«Vigente hasta» debe ser una fecha posterior a «Vigente desde».');
     return e;
   }
   const vigenteEn=(f,fecha)=>f&&f.activo!==false&&String(f.vigenteDesde||'')<=fecha&&(!f.vigenteHasta||fecha<=f.vigenteHasta);
@@ -293,7 +293,7 @@
   }
   function validarMerma(m,causas){
     const e=[];const lista=listaOk(causas,CAUSAS_MERMA);
-    if(!m||!codigoLinea(m.linea))e.push('Línea no válida.');
+    if(!m||!codigoLinea(m.linea))e.push('Elige la línea de la merma.');
     if(!m||!String(m.cuadro||'').trim())e.push('Indica el cuadro (marca y presentación) al que pertenece.');
     if(!m||!['MATERIAL','PRODUCTO'].includes(m.categoria))e.push('Indica si es materia prima/empaque o producto terminado.');
     if(!m||!String(m.insumo||'').trim())e.push('Indica el material o producto.');
