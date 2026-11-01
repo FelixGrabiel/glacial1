@@ -95,7 +95,7 @@
       badge=document.createElement('span');
       badge.id='mant-solo-lectura';
       badge.textContent='TAREO SOLO LECTURA · CONTROL DE LÍNEAS CON PIN';
-      badge.style.cssText='display:inline-block;margin-top:2px;padding:1px 8px;border-radius:999px;background:#fff1d6;border:1px solid #f0c36a;color:#8a5a00;font-size:10px;font-weight:800;letter-spacing:.04em;';
+      badge.style.cssText='display:inline-block;margin-top:2px;padding:1px 8px;border-radius:999px;background:#fff1d6;border:1px solid #f0c36a;color:#8a5a00;font-size:11px;font-weight:800;letter-spacing:.04em;';
       contenedor.appendChild(badge);
     }
   }

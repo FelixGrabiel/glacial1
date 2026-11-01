@@ -2372,7 +2372,7 @@ function renderResumenIndustrial(records,rangoLabel){
       .ri-pulse h3,.ri-box h3,.ri-read h3{margin:0 0 10px;color:#033350;font-size:14px}
       .ri-status{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.ri-state{padding:9px;border:1px solid #e5ebef;border-radius:8px;font-size:11px}
       .ri-state b{display:block;margin-bottom:3px}.ri-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#aab7bf}.ri-dot.run{background:#F97316}.ri-dot.stop{background:#c4472b}.ri-dot.pause{background:#FACC15}.ri-dot.done{background:#4FC4F5}
-      .ri-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:12px}.ri-kpi{background:#fff;border:1px solid #dce5ea;border-radius:9px;padding:12px}.ri-kpi span{font-size:10px;text-transform:uppercase;color:#71828d;font-weight:700}.ri-kpi b{display:block;font-size:22px;color:#17384d;margin-top:4px}.ri-kpi small{color:#82919a}
+      .ri-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:12px}.ri-kpi{background:#fff;border:1px solid #dce5ea;border-radius:9px;padding:12px}.ri-kpi span{font-size:11px;text-transform:uppercase;color:#71828d;font-weight:700}.ri-kpi b{display:block;font-size:22px;color:#17384d;margin-top:4px}.ri-kpi small{color:#82919a}
       .ri-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ri-box{background:#fff;border:1px solid #dce5ea;border-radius:10px;padding:14px;min-width:0}.ri-box.wide{grid-column:1/-1}.ri-canvas{height:250px;position:relative}.ri-canvas.tall{height:300px}
       .ri-read{margin-top:12px;background:#f7fafc;border:1px solid #dce5ea;border-left:4px solid #4FC4F5;border-radius:9px;padding:14px}.ri-read ul{margin:0;padding-left:19px}.ri-read li{margin:5px 0;color:#435b69;font-size:12px}
       @media(max-width:900px){.ri-status,.ri-kpis{grid-template-columns:repeat(2,1fr)}.ri-grid{grid-template-columns:1fr}.ri-box.wide{grid-column:auto}}@media(max-width:520px){.ri-status,.ri-kpis{grid-template-columns:1fr}}
@@ -2522,7 +2522,7 @@ function renderResumen(main){
         overflow:hidden;
       }
       .resumen-pro .kpi-prod-sub{
-        font-size:10.5px;
+        font-size:11px;
         color:var(--rs-soft);
         margin-top:-2px;
       }
@@ -2550,12 +2550,12 @@ function renderResumen(main){
         align-items:center;
         gap:5px;
         min-width:0;
-        font-size:10.5px;
+        font-size:11px;
         color:var(--rs-soft);
       }
       .resumen-pro .kpi-prod-item strong{
         color:var(--rs-ink);
-        font-size:10.5px;
+        font-size:11px;
       }
       .resumen-pro .kpi-prod-dot{
         width:7px;height:7px;border-radius:50%;background:#0877A6;
@@ -2587,7 +2587,7 @@ function renderResumen(main){
       }
       .resumen-pro .rs-lp-eyebrow{
         color:#6F98B8;
-        font-size:9px;
+        font-size:11px;
         font-weight:700;
         letter-spacing:.13em;
         text-transform:uppercase;
@@ -2652,7 +2652,7 @@ function renderResumen(main){
       .resumen-pro .rs-lp-share span{
         display:block;
         margin-top:2px;
-        font-size:8.5px;
+        font-size:11px;
       }
       .resumen-pro .rs-lp-table-head{
         display:grid;
@@ -2661,7 +2661,7 @@ function renderResumen(main){
         padding:7px 13px;
         color:#63788A;
         background:#F3F7FA;
-        font-size:8.5px;
+        font-size:11px;
         font-weight:700;
         letter-spacing:.08em;
         text-transform:uppercase;
@@ -2675,7 +2675,7 @@ function renderResumen(main){
         min-height:27px;
         border-bottom:1px solid #EDF1F4;
         color:#415262;
-        font-size:10.5px;
+        font-size:11px;
       }
       .resumen-pro .rs-lp-row:last-child{border-bottom:0}
       .resumen-pro .rs-lp-row-left{
@@ -2691,7 +2691,7 @@ function renderResumen(main){
       }
       .resumen-pro .rs-lp-row strong{
         color:#23384B;
-        font-size:10.5px;
+        font-size:11px;
       }
       .resumen-pro .rs-lp-dot{
         flex:0 0 auto;
@@ -2727,7 +2727,7 @@ function renderResumen(main){
       }
       .resumen-pro .rs-date-control small{
         display:block;
-        font-size:9px;
+        font-size:11px;
         line-height:1;
         text-transform:uppercase;
         letter-spacing:.09em;

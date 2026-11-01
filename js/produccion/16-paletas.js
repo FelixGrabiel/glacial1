@@ -2531,7 +2531,7 @@ const PALETAS_CSS = `
 
   .pl-semaforo-texto{
     display:inline-block;
-    font-size:10.5px;
+    font-size:11px;
     font-weight:700;
     letter-spacing:.03em;
     text-transform:uppercase;

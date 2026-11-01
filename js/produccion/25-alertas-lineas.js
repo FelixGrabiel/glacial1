@@ -135,7 +135,7 @@
     #al-host .al-kpi{padding:7px 6px;border:1px solid #dbe5eb;border-radius:8px;
       background:#fff;text-align:center}
     #al-host .al-kpi b{display:block;font-size:15px}
-    #al-host .al-kpi span{font-size:10.5px;color:#5b6e7d}
+    #al-host .al-kpi span{font-size:11px;color:#5b6e7d}
     #al-host .al-tabs{display:flex;border-bottom:1px solid #e1e9ee;background:#fff}
     #al-host .al-tab{flex:1;border:0;background:#fff;padding:9px 8px;color:#526879;font-weight:700}
     #al-host .al-tab.activo{color:#033350;box-shadow:inset 0 -3px 0 #0877A6}
@@ -343,7 +343,7 @@
       }
 
       #al-host .al-kpi span{
-        font-size:10px;
+        font-size:11px;
       }
 
       #al-host .al-list{

@@ -1576,10 +1576,10 @@ function tareoInyectarEstilos() {
         .tareo-saldo-pos{color:#1e7f4e;}
         .tareo-saldo-neg{color:#c62828;}
         .tareo-saldo-cero{color:#8a98a5;}
-        .tar2-salida-orig{display:block;font-size:10px;color:#8a98a5;text-decoration:line-through;}
+        .tar2-salida-orig{display:block;font-size:11px;color:#8a98a5;text-decoration:line-through;}
         .tar2-editado{display:inline-block;margin-left:4px;font-size:11px;color:#8a4b0f;cursor:help;}
         .tar2-alerta-salida{margin:0 0 12px;padding:10px 12px;border:1px solid #efc98a;border-left:4px solid #e0a100;border-radius:8px;background:#fff8e6;color:#6b4a00;font-size:13px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;}
-        .tar2-chip-descanso{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;background:#eceff2;color:#5a7083;}
+        .tar2-chip-descanso{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;background:#eceff2;color:#5a7083;}
         .tar2-chip-trabajo-desc{background:#fdf0e1;color:#8a4b0f;}
         .tar2-totales{margin:0 0 12px;padding:8px 12px;border:1px solid var(--line,#d9e2e8);border-radius:8px;background:#f3f8fc;font-size:13px;color:var(--text-soft,#405261);}
         .tar2-totales strong{color:#033350;}

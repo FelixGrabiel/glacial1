@@ -94,7 +94,7 @@
 .tareo-kpi-label{
     display:block;
     color:var(--steel);
-    font-size:10px;
+    font-size:11px;
     text-transform:uppercase;
     letter-spacing:.07em;
     font-weight:600;
@@ -113,12 +113,12 @@
 .tareo-kpi small{
     display:block;
     color:var(--muted);
-    font-size:10.5px;
+    font-size:11px;
     margin-top:7px;
 }
 
 .tareo-good{
-    color:var(--good) !important;
+    color:#1F7A4D !important;
 }
 
 .tareo-warn{
@@ -194,7 +194,7 @@
 .tareo-worker small{
     color:var(--muted);
     font-family:var(--font-mono);
-    font-size:9.5px;
+    font-size:11px;
 }
 
 
@@ -212,7 +212,7 @@
     background:var(--blue-light);
     color:var(--blue-deep);
     font-family:var(--font-mono);
-    font-size:10px;
+    font-size:11px;
     font-weight:600;
 }
 
@@ -268,7 +268,7 @@
 }
 
 .tareo-hours-extra{
-    color:var(--amber-deep);
+    color:#8A5A00;
     font-family:var(--font-mono);
     font-size:12px;
 }
@@ -280,7 +280,7 @@
 }
 
 .tareo-on-time{
-    color:var(--good);
+    color:#1F7A4D;
     font-size:11px;
 }
 
@@ -296,14 +296,14 @@
     min-height:24px;
     padding:3px 9px;
     border-radius:20px;
-    font-size:10px;
+    font-size:11px;
     font-weight:600;
     white-space:nowrap;
 }
 
 .tareo-status.asistio{
     background:var(--good-bg);
-    color:var(--good);
+    color:#1F7A4D;
 }
 
 .tareo-status.neutral{
@@ -333,7 +333,7 @@
     min-width:65px;
     padding:4px 9px;
     border-radius:20px;
-    font-size:10px;
+    font-size:11px;
     font-weight:600;
 }
 
@@ -353,7 +353,7 @@
    ========================================================= */
 
 .tareo-number-good{
-    color:var(--good);
+    color:#1F7A4D;
     font-weight:700;
 }
 
@@ -379,14 +379,14 @@
     padding:4px 9px;
     border-radius:20px;
     font-family:var(--font-mono);
-    font-size:9px;
+    font-size:11px;
     font-weight:600;
     letter-spacing:.04em;
 }
 
 .tareo-rotation-active{
     background:var(--good-bg);
-    color:var(--good);
+    color:#1F7A4D;
 }
 
 .tareo-rotation-pending{
@@ -427,7 +427,7 @@
     background:var(--blue-light);
     color:var(--blue-deep);
     font-family:var(--font-mono);
-    font-size:9.5px;
+    font-size:11px;
     font-weight:600;
 }
 
@@ -578,7 +578,7 @@
 .tareo-preview-label{
     color:var(--muted);
     font-family:var(--font-mono);
-    font-size:9px;
+    font-size:11px;
     letter-spacing:.09em;
 }
 
@@ -595,13 +595,13 @@
     padding:5px 10px;
     border-radius:20px;
     font-family:var(--font-mono);
-    font-size:9px;
+    font-size:11px;
     font-weight:600;
 }
 
 .tareo-preview-status.valid{
     background:var(--good-bg);
-    color:var(--good);
+    color:#1F7A4D;
 }
 
 .tareo-preview-status.warning{
@@ -632,7 +632,7 @@
 .tareo-preview-kpis span{
     display:block;
     color:var(--steel);
-    font-size:9px;
+    font-size:11px;
     text-transform:uppercase;
     letter-spacing:.05em;
     margin-bottom:5px;
@@ -645,7 +645,7 @@
 }
 
 .tareo-preview-kpis strong.good{
-    color:var(--good);
+    color:#1F7A4D;
 }
 
 .tareo-preview-kpis strong.bad{
@@ -857,7 +857,7 @@
 .tareo-control-kpis b{font-size:26px;color:var(--blue-deep)}
 .tareo-control-kpis span{font-size:12px;color:var(--steel)}
 .tareo-control-estado{display:inline-block;padding:5px 9px;border-radius:5px;font-weight:700;font-size:11px;white-space:nowrap}
-.tareo-control-estado.ok{background:var(--good-bg);color:var(--good)}
+.tareo-control-estado.ok{background:var(--good-bg);color:#1F7A4D}
 .tareo-control-estado.warn{background:var(--warn-bg);color:var(--warn)}
 .tareo-control-estado.bad{background:var(--bad-bg);color:var(--bad)}
 .tareo-control-error{color:var(--bad)}
@@ -885,15 +885,15 @@
     border-radius:5px;
     min-height:30px;
     padding:5px 9px;
-    font-size:10px;
+    font-size:11px;
     font-weight:700;
     cursor:pointer;
     white-space:nowrap;
 }
 .tar2-action-btn:hover{ filter:brightness(.97); }
 .tar2-marcacion .tar2-auto{
-    font-size:9px;
-    color:var(--good);
+    font-size:11px;
+    color:#1F7A4D;
     font-weight:700;
 }
 @media(max-width:700px){

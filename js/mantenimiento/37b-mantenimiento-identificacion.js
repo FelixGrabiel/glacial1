@@ -331,7 +331,7 @@
       '#mant-id-overlay .mid-err{color:#b3261e;font-size:13px;font-weight:700;min-height:18px;margin-bottom:6px}',
       '#mant-id-overlay .mid-pin{letter-spacing:.4em;text-align:center;font-size:22px!important}',
       '#mant-id-overlay label.mid-chk{display:flex;gap:6px;align-items:center;font-size:13px;color:#5b6b7a;margin-bottom:10px}',
-      '#mant-tecnico-chip{display:inline-block;margin:2px 0 0 6px;padding:1px 8px;border-radius:999px;background:#e3f1ff;border:1px solid #9cc8f0;color:#065F86;font-size:10px;font-weight:800;cursor:pointer}'
+      '#mant-tecnico-chip{display:inline-block;margin:2px 0 0 6px;padding:1px 8px;border-radius:999px;background:#e3f1ff;border:1px solid #9cc8f0;color:#065F86;font-size:11px;font-weight:800;cursor:pointer}'
     ].join('\n');
     document.head.appendChild(st);
   }

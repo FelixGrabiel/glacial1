@@ -117,10 +117,10 @@
     .gm-col:hover,.gm-col:focus-visible{background:#eef4f9;outline:none}
     .gm-col b{font-size:11px;color:#033350;margin-bottom:2px}
     .gm-colbar{width:70%;max-width:34px;border-radius:6px 6px 2px 2px;transform-origin:bottom center;animation:gm-rise .6s cubic-bezier(.2,.8,.2,1) both;height:0;margin:0 auto;flex:0 0 auto}
-    .gm-col span{font-size:10px;color:#5a6b78;margin-top:4px;white-space:nowrap}
+    .gm-col span{font-size:11px;color:#5a6b78;margin-top:4px;white-space:nowrap}
     .gm-dona{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.gm-dona svg{width:132px;height:132px;flex:0 0 auto}
     .gm-seg{transition:stroke-width .15s,opacity .15s;animation:gm-fade .7s ease both}.gm-seg:hover,.gm-seg:focus-visible{stroke-width:7.4;outline:none}
-    .gm-dona-n{font-size:7px;font-weight:800;fill:#033350}.gm-dona-s{font-size:2.8px;fill:#5a6b78}
+    .gm-dona-n{font-size:11px;font-weight:800;fill:#033350}.gm-dona-s{font-size:2.8px;fill:#5a6b78}
     .gm-leyenda{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:13px;flex:1;min-width:130px}
     .gm-leyenda li{display:flex;align-items:center;gap:6px;padding:2px 6px;border-radius:6px}.gm-leyenda li:hover{background:#eef4f9}.gm-leyenda i{width:10px;height:10px;border-radius:3px;flex:0 0 auto}.gm-leyenda b{margin-left:auto}
     .gm-vacio{padding:12px;border:1px dashed #c5d0db;border-radius:10px;color:#5a6b78;font-size:12px;background:#f8fafc}

@@ -157,7 +157,7 @@
   .topbar-title strong::after{font-size:15px}
   .main{padding-inline:12px!important}
   .grid-2,.grid-3{grid-template-columns:minmax(0,1fr)!important}
-  .kpi-label{font-size:9px}
+  .kpi-label{font-size:11px}
 }
 
 @media (prefers-reduced-motion:reduce){

@@ -332,11 +332,11 @@
     if(document.getElementById('autollenado-css'))return;
     const s=document.createElement('style');s.id='autollenado-css';
     s.textContent=`
-      .tag-auto{display:inline-block;padding:1px 7px;border-radius:999px;background:#e3f1fb;color:#0877A6;font-size:10px;font-weight:800;}
-      .tag-manual{display:inline-block;padding:1px 7px;border-radius:999px;background:#eceff2;color:#5a7083;font-size:10px;font-weight:800;}
+      .tag-auto{display:inline-block;padding:1px 7px;border-radius:999px;background:#e3f1fb;color:#0877A6;font-size:11px;font-weight:800;}
+      .tag-manual{display:inline-block;padding:1px 7px;border-radius:999px;background:#eceff2;color:#5a7083;font-size:11px;font-weight:800;}
       .link-origen{margin-left:6px;font-size:11px;color:#0877A6;text-decoration:underline;}
       .fila-auto td{background:#f6fbff;}
-      .nota-auto{margin:6px 5px 0;font-size:11px;color:#667784;}
+      .nota-auto{margin:6px 5px 0;font-size:11px;color:#5C6E7B;}
       .aviso-dup{color:#a86f00;font-weight:700;}
       .auto-aviso{margin:0 0 12px;padding:10px 12px;border:1px solid #efc98a;border-left:4px solid #e0a100;border-radius:8px;background:#fff8e6;color:#6b4a00;font-size:13px;}
       .auto-aviso select{margin-left:8px;}

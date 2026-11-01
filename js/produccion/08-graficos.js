@@ -4135,7 +4135,7 @@ function renderGraficosTab(){
     const accionesTexto = analisisUI.textoEditado
       ? escaparHtml(analisisUI.textoEditado).replace(/\n/g,'<br>')
       : analisisUI.acciones.map((a,i)=>`<div style="margin-top:6px;"><b>${i+1}. ${escaparHtml(a.dato)}</b> → ${escaparHtml(a.texto)}</div>`).join('');
-    analisisEl.innerHTML = `<div><b>Hallazgos:</b> ${analisisUI.hallazgos.map(escaparHtml).join(' · ')}</div><div style="margin-top:8px;"><b>Acciones:</b>${accionesTexto}</div><div style="margin-top:8px;font-size:10px;font-weight:700;">${analisisUI.estado}</div>`;
+    analisisEl.innerHTML = `<div><b>Hallazgos:</b> ${analisisUI.hallazgos.map(escaparHtml).join(' · ')}</div><div style="margin-top:8px;"><b>Acciones:</b>${accionesTexto}</div><div style="margin-top:8px;font-size:11px;font-weight:700;">${analisisUI.estado}</div>`;
   }
 
 
@@ -4254,7 +4254,7 @@ function renderGraficosTab(){
       style:{ colors:['#fff'], fontSize:'11px', fontWeight:700 },
       dropShadow:{ enabled:true, top:1, left:0, blur:1, opacity:.45 }
     },
-    xaxis:{ labels:{ style:{ fontSize:'9px' }, rotate:0, trim:false, hideOverlappingLabels:false, maxHeight:48 } },
+    xaxis:{ labels:{ style:{ fontSize:'10px' }, rotate:0, trim:false, hideOverlappingLabels:false, maxHeight:48 } },
     yaxis:{ min:0, labels:{ formatter:v => formatearNumero(v) }, title:{ text:'Unidades' } },
     legend:{ show:false },
     tooltip:{

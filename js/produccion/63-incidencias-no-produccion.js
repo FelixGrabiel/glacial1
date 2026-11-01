@@ -195,7 +195,7 @@
       '.inp-modal h3{margin:0 0 4px;color:#033350}.inp-modal .inp-sub{margin:0 0 12px;color:#5f7382;font-size:12px}' +
       '.inp-modal label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:#35506a}' +
       '.inp-modal select,.inp-modal textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd8e0;border-radius:7px;font:inherit}' +
-      '.inp-modal .inp-nota{margin-top:10px;font-size:11px;color:#667784;line-height:1.4}.inp-modal .inp-error{color:#b42318;font-size:12px;min-height:16px;margin-top:6px}' +
+      '.inp-modal .inp-nota{margin-top:10px;font-size:11px;color:#5C6E7B;line-height:1.4}.inp-modal .inp-error{color:#b42318;font-size:12px;min-height:16px;margin-top:6px}' +
       '.inp-acc{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}' +
       '.inp-tag{display:inline-flex;gap:6px;align-items:center;margin:4px 0 0;padding:4px 10px;border-radius:8px;background:#fff7e0;border:1px solid #f0d98c;color:#7a5200;font-size:12px;font-weight:700}';
     document.head.appendChild(s);

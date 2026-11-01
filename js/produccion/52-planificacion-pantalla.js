@@ -140,7 +140,7 @@
     #plan-root .plan-gantt-eje{display:flex;justify-content:space-between;margin-top:3px;font-size:11px;color:var(--pl-muted);font-variant-numeric:tabular-nums}
     #plan-root .plan-seq details{margin-top:8px}
     #plan-root .plan-seq summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--pl-blue);padding:4px 0}
-    #plan-root .plan-carga{display:inline-block;margin-top:4px;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700}
+    #plan-root .plan-carga{display:inline-block;margin-top:4px;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700}
     #plan-root .plan-carga.cabe{background:#DCFCE7;color:#166534}
     #plan-root .plan-carga.justo{background:#FEF9C3;color:#713F12}
     #plan-root .plan-carga.exceso{background:#FEE2E2;color:#991B1B}

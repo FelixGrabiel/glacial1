@@ -33,15 +33,15 @@
       #plan-root .sem-sub{border-radius:9px;padding:5px 6px;margin-bottom:4px;cursor:pointer;border:1px solid var(--pc-b,#CBD5E1);background:var(--pc-bg,#fff);line-height:1.3}
       #plan-root .sem-sub:last-child{margin-bottom:0}
       #plan-root .sem-sub:hover,#plan-root .sem-sub:focus-visible{box-shadow:0 0 0 2px #7db4f0}
-      #plan-root .sem-sub .sc-t{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#46627a}
+      #plan-root .sem-sub .sc-t{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#46627a}
       #plan-root .sem-sub .sc-c{font-size:11px;font-weight:800;color:var(--pc-c,#334155)}
       #plan-root .sem-sub .sc-n{font-variant-numeric:tabular-nums;color:#1b2a38}
       #plan-root .sem-sub .sc-l{font-size:11px;color:#46627a}
-      #plan-root .sem-sub.sem-sin{border-style:dashed;background:#fff;color:#94a3b8}
+      #plan-root .sem-sub.sem-sin{border-style:dashed;background:#fff;color:#64748B}
       #plan-root .sem-sub.sem-inc{border-style:dashed}
       #plan-root .sem-sub.sem-dim{opacity:.28}
-      #plan-root .sem-sub .plan-badge{font-size:10px;padding:1px 7px;margin-top:2px;display:inline-block}
-      #plan-root .sem-desf{font-size:10px;color:#7A5200;font-weight:700}
+      #plan-root .sem-sub .plan-badge{font-size:11px;padding:1px 7px;margin-top:2px;display:inline-block}
+      #plan-root .sem-desf{font-size:11px;color:#7A5200;font-weight:700}
       @media (max-width:640px){#plan-root .sem-tabla td{min-width:116px}}
     `;
     s.textContent=css+css.replace(/#plan-root/g,'.plan-dialogo');

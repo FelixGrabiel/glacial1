@@ -198,7 +198,7 @@
     const fila=n=>'<tr><td><b>'+n+'</b></td>'+orden.map(h=>celda(mc.celdas[n][h])).join('')+'</tr>';
     return '<h3 class="ap-sec">Mapa de calor: minutos de parada por hora del día</h3>'+
       '<p class="ap-nota">Solo cuenta las paradas con hora de inicio ('+mc.dentro+' paradas, '+fmt(mc.dentroMin)+' min). <b>Quedan fuera '+mc.fuera+' paradas ('+fmt(mc.fueraMin)+' min) por no tener hora de inicio.</b></p>'+
-      (mc.dentro?'<div class="ap-tabla-scroll"><table class="tareo-table" style="min-width:640px"><thead><tr><th></th>'+orden.map(h=>'<th style="font-size:10px;padding:3px 2px">'+String(h).padStart(2,'0')+'</th>').join('')+'</tr></thead><tbody>'+fila('DÍA')+fila('NOCHE')+'</tbody></table></div>':'<div class="apar-vacio">Todavía no hay paradas con hora de inicio en este rango.</div>');
+      (mc.dentro?'<div class="ap-tabla-scroll"><table class="tareo-table" style="min-width:640px"><thead><tr><th></th>'+orden.map(h=>'<th style="font-size:11px;padding:3px 2px">'+String(h).padStart(2,'0')+'</th>').join('')+'</tr></thead><tbody>'+fila('DÍA')+fila('NOCHE')+'</tbody></table></div>':'<div class="apar-vacio">Todavía no hay paradas con hora de inicio en este rango.</div>');
   }
 
   window.glacialAnalisisMejoras={LARGA_MIN,FRECUENTE_MIN,TIPOS_FD,velocidadDeParada,conUnidadesPerdidas,fallasRepetitivas,frecuenciaDuracion,mapaCalor,indicadoresDato,intervencionDe,tecnicoDeIntervencion,

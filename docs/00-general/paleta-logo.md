@@ -13,3 +13,7 @@ El logo es celeste (#0DB5F3) y blanco. Desde el 02/11/2026 la interfaz parte de 
 Rampa completa: `--brand-50` a `--brand-950` en `css/styles.css`. El celeste del logo (#0DB5F3) se usa para detalles y sobre fondo oscuro; sobre blanco no se usa como texto (contraste 2,35:1).
 
 Paso 2 (02/11/2026): los azules escritos dentro de los módulos (JS) se llevaron a la rampa por luminosidad: marinos y azul índigo → #033350/#022235; azules de acción y azul rey → #0877A6; celestes claros → #4FC4F5; fondos claros → #E8F7FE/#C6EBFC. Se dejaron como estaban los grises azulados de texto (#172B3A, #17384d, #1b2a38) y los violetas. Quedan unos 160 usos de azules fuera de la rampa (casi todos tintas de texto y tonos de gráficos).
+
+## Paso 3 · legibilidad (02/11/2026)
+- **Tamaño de letra:** ningún texto por debajo de 11 px (184 usos de 5–10,5 px pasaron a 11 px; `<small>` no baja de 11 px; los rótulos de los gráficos de 9 px pasaron a 10 px). El modo TV (`tv-glacial.css`) no se tocó.
+- **Contraste:** `--muted` #87949D → #5F7280 y `--steel` #667784 → #5C6E7B (ambos ≥ 4,5:1 sobre el fondo); texto en ámbar → #8A5A00 (5,5:1); texto en verde → #1F7A4D (4,9:1). Solo cambia el color del texto, no el de barras ni fondos.

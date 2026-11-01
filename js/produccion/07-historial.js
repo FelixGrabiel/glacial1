@@ -850,7 +850,7 @@ function instalarEstilosParadasHistorial(){
     .hist-report-stop-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:11px 16px;border-top:1px solid #e6edf1;background:#fff}
     .hist-report-stop-row:first-child{border-top:0}
     .hist-report-stop-row strong{display:block;color:#033350;font-size:12px}
-    .hist-report-stop-row small{display:block;margin-top:2px;color:#6b7d89;font-size:10px}
+    .hist-report-stop-row small{display:block;margin-top:2px;color:#6b7d89;font-size:11px}
     .hist-report-stop-row>b{white-space:nowrap;color:#033350;font-size:13px}
   `;
   document.head.appendChild(st);

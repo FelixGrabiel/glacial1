@@ -82,10 +82,10 @@
     const s=document.createElement('style');s.id='dp-css';
     s.textContent=`
       .dp{max-width:760px;margin:0 auto;padding:4px 2px 40px}
-      .dp h3{margin:0 0 4px}.dp .dp-sub{color:#667784;font-size:13px;margin-bottom:12px}
+      .dp h3{margin:0 0 4px}.dp .dp-sub{color:#5C6E7B;font-size:13px;margin-bottom:12px}
       .dp-card{background:#fff;border:1px solid #D7DBD4;border-radius:10px;padding:12px 14px;margin-bottom:12px}
       .dp-ctx{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-      .dp-ctx label,.dp-campo label{display:block;font-size:12px;color:#667784;margin-bottom:3px}
+      .dp-ctx label,.dp-campo label{display:block;font-size:12px;color:#5C6E7B;margin-bottom:3px}
       .dp input,.dp select,.dp textarea{width:100%;box-sizing:border-box;min-height:46px;font-size:17px;padding:8px 10px;border:1px solid #B9C4CC;border-radius:8px}
       .dp textarea{min-height:60px;font-size:15px}
       .dp-fila{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #EEF2F5}
@@ -99,7 +99,7 @@
       .dp-primario{background:#0877A6;color:#fff}.dp-sec{background:#E8F7FE;color:#033350}.dp-btns button[disabled]{opacity:.45;cursor:not-allowed}
       .dp-aviso{padding:9px 12px;border-radius:8px;font-size:13px;margin-bottom:10px;background:#FFF4DC;color:#7A5200}
       .dp-error{background:#FDE7E5;color:#8A1C13}.dp-bien{background:#E3F4EA;color:#14532D}
-      .dp-nota{font-size:12px;color:#667784;margin-top:6px}
+      .dp-nota{font-size:12px;color:#5C6E7B;margin-top:6px}
       .dp-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-end;justify-content:center}
       .dp-modal>div{background:#fff;width:min(780px,100%);max-height:88vh;overflow:auto;border-radius:14px 14px 0 0;padding:14px}
       .dp-tabla{width:100%;border-collapse:collapse;font-size:12px;min-width:560px}.dp-tabla th,.dp-tabla td{border-bottom:1px solid #E2E8EC;padding:6px 5px;text-align:left;vertical-align:top}
@@ -112,7 +112,7 @@
     const filas=D().LINEAS.map(l=>{
       const p=D().personalAlCorte(eventos,l,corte);
       return `<div class="dp-vig"><b>${esc(ETQ[l])}</b>${p.estado==='CONFIRMADO'
-        ?`<span class="dp-ok">${p.cantidad} <small style="font-weight:400;color:#667784">desde ${hhmm(p.desdeMs)}</small></span>`
+        ?`<span class="dp-ok">${p.cantidad} <small style="font-weight:400;color:#5C6E7B">desde ${hhmm(p.desdeMs)}</small></span>`
         :'<span class="dp-pend">Pendiente de confirmar</span>'}</div>`;
     }).join('');
     const total=D().LINEAS.reduce((s,l)=>s+(D().personalAlCorte(eventos,l,corte).cantidad||0),0);

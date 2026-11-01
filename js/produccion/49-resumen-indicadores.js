@@ -518,7 +518,7 @@
       .rgx-k:hover{border-color:#033350}.rgx-k.verde{border-left-color:#2e8b57}.rgx-k.ambar{border-left-color:#d89216}.rgx-k.roja{border-left-color:#c4472b}
       .rgx-k span{display:block;font-size:11px;text-transform:uppercase;color:#71828d;font-weight:700}
       .rgx-k b{display:block;font-size:22px;color:#17384d;margin:3px 0}.rgx-k small{display:block;color:#6B7784;font-size:11px}
-      .rgx-var.bien{color:#2e8b57}.rgx-var.mal{color:#c4472b}.rgx-var.neutro{color:#6B7784}
+      .rgx-var.bien{color:#1F7A4D}.rgx-var.mal{color:#c4472b}.rgx-var.neutro{color:#6B7784}
       .rgx-box{background:#fff;border:1px solid #dce5ea;border-radius:10px;padding:12px 14px;margin:10px 0}
       .rgx-box h4{margin:0 0 8px;font-size:13px;color:#033350}.rgx-box ol,.rgx-box ul{margin:0;padding-left:18px}.rgx-box li{margin:3px 0}
       .rgx-tabla{width:100%;border-collapse:collapse;font-size:12px}.rgx-tabla th{font-weight:600;color:#6B7784;text-align:right;padding:5px 6px;border-bottom:1px solid #e6ebef}
