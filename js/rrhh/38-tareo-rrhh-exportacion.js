@@ -1175,7 +1175,7 @@
       const html=tabsAnterior.apply(this,arguments);
       if(!puedeExportarRRHH()||html.indexOf('btn-exportar-rrhh')>=0)return html;
       const boton='<button type="button" id="btn-exportar-rrhh" class="btn btn-sm btn-primary" '+
-        'style="margin-left:auto;align-self:center;" onclick="abrirExportacionRRHH()">Exportar RRHH</button>';
+        'style="margin-left:auto;align-self:center;min-height:34px;padding:6px 14px;font-size:13px;" onclick="abrirExportacionRRHH()">Exportar RRHH</button>';
       return html.replace('</div>',boton+'</div>');
     };
     window.tareoRenderTabs=tareoRenderTabs;

@@ -160,9 +160,14 @@
     .plan-aviso{color:#8a6d1d;font-size:12px;margin-top:6px;white-space:pre-line}
     .plan-acciones{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #edf2f6;flex-wrap:wrap}
     /* celular: la tabla de Programación pasa a tarjetas, una por producto */
+    #plan-root .plan-sem-ayuda{margin:0 0 10px}
+    #plan-root .plan-sem-ayuda>summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--pl-muted);min-height:30px;display:flex;align-items:center}
     @media(max-width:640px){
       #plan-root .plan-campos,.plan-campos{grid-template-columns:1fr}
       #plan-root .plan-bar{padding:10px}
+      #plan-root .plan-bar-sem{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+      #plan-root .plan-bar-sem>label,#plan-root .plan-bar-sem>.btn{width:100%;min-width:0;box-sizing:border-box}
+      #plan-root .plan-bar-sem select,#plan-root .plan-bar-sem input[type=date]{width:100%;min-width:0}
       #plan-root .plan-bar .plan-f,#plan-root .plan-grupo,#plan-root .plan-turnos{width:100%}
       #plan-root .plan-grupo button{flex:1}
       #plan-root .plan-pill{flex:1}

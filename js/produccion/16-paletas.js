@@ -2625,6 +2625,16 @@ const PRODUCCION_ACTUAL_COMPACTA_CSS = `
   .pa-detalle-productos-body{padding:0 15px 15px;border-top:1px solid var(--border)}
   .pa-detalle-tabla{margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
   .pa-detalle-tabla>summary{padding:8px 0}
+  /* tarjetas por producto: cuatro cifras en una cuadrícula pareja (antes se apilaban con anchos distintos) */
+  .pa-detalle-productos .pl-grupo-card{border-radius:14px;box-shadow:0 1px 2px rgba(40,60,80,.05);padding:14px 16px}
+  .pa-detalle-productos .pl-grupo-card-header{padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid #edf1f4}
+  .pa-detalle-productos .pl-grupo-title{font-size:15px;margin-bottom:2px}
+  .pa-detalle-productos .pl-kpis-prog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:0}
+  .pa-detalle-productos .pl-kpis-prog .pl-kpi{min-width:0;padding:9px 12px;border-radius:10px;background:#fff}
+  .pa-detalle-productos .pl-kpis-prog .pl-kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .pa-detalle-productos .pl-kpis-prog .pl-kpi-value{font-size:20px;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+  .pa-detalle-productos .pl-kpis-prog .small-muted{font-size:11px;line-height:1.35}
+  .pa-detalle-productos .section-title{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 8px}
 `;
 /* =========================================================
    RENDER COMPLETO DE LA PESTAÑA "PALETAS"
@@ -3346,7 +3356,7 @@ function renderProductoProduccionActualCard(p){
                 <div class="pl-kpi-label">Producido</div>
                 <div class="pl-kpi-value">${p.unidadesProducidas.toLocaleString('es-PE')} UND</div>
                 <div class="small-muted">
-                  ${p.paletasCompletas} completas
+                  ${p.paletasCompletas} completa${p.paletasCompletas === 1 ? '' : 's'}
                   ${p.paletasIncompletasCount ? ' + ' + p.unidadesIncompletas.toLocaleString('es-PE') + ' und. incompleta' : ''}
                 </div>
               </div>

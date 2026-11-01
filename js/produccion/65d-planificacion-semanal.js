@@ -89,7 +89,7 @@
     const E=NS.estado;
     if(!fechaOk(E.semana))E.semana=E.fecha;
     estilos();if(typeof NS.estilosCap==='function')NS.estilosCap();
-    cont.innerHTML='<div class="plan-bar"><button type="button" class="btn btn-ghost btn-sm" data-sem="-7">◀ Semana anterior</button>'+
+    cont.innerHTML='<div class="plan-bar plan-bar-sem"><button type="button" class="btn btn-ghost btn-sm" data-sem="-7">◀ Semana anterior</button>'+
       '<label>Semana de<input type="date" id="sem-fecha" value="'+esc(E.semana)+'"></label>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-sem="7">Semana siguiente ▶</button>'+
       '<button type="button" class="btn btn-ghost btn-sm" data-sem="hoy">Esta semana</button>'+
@@ -97,7 +97,7 @@
       '<label>Línea<select id="sem-linea"><option value="">Todas</option>'+NS.lineas().map(l=>'<option value="'+esc(l.key)+'"'+(l.key===F.linea?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></label>'+
       '<label>Estado de capacidad<select id="sem-cap"><option value="">Todos</option>'+[['CABE','Cabe (incluye ajustado)'],['EXCESO','No cabe'],['INCOMPLETA','Cálculo parcial'],['SIN_PROG','Sin programación'],['NODATOS','Datos no disponibles']].map(([v,t])=>'<option value="'+v+'"'+(F.cap===v?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'+
       '</div>'+(typeof NS.leyendaCapacidad==='function'?NS.leyendaCapacidad():'')+
-      '<p class="plan-nota" style="margin:0 0 8px">Cada celda: tiempo requerido / disponible, utilización, tiempo libre o exceso y productos. Toca una celda para ver el desglose. Con «Ambos» los bloques no se suman. La barra superior azul marca hoy. La capacidad es una previsión de planificación; el estado operativo (en producción, pausa, detenida, finalizada, pendiente) es la ejecución real.</p>'+
+      '<details class="plan-sem-ayuda"'+(window.innerWidth>=700?' open':'')+'><summary>Cómo leer la tabla</summary>'+'<p class="plan-nota" style="margin:0 0 8px">Cada celda: tiempo requerido / disponible, utilización, tiempo libre o exceso y productos. Toca una celda para ver el desglose. Con «Ambos» los bloques no se suman. La barra superior azul marca hoy. La capacidad es una previsión de planificación; el estado operativo (en producción, pausa, detenida, finalizada, pendiente) es la ejecución real.</p>'+'</details>'+
       '<div id="sem-grilla"></div>';
     pintarGrilla();
   }
