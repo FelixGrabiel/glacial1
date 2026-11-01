@@ -40,7 +40,7 @@
     document.head.appendChild(m);
   }
 
-  const TIPOS_HOY=['parada','paletas','proyeccion','noiniciada','tareo','finalizar','entrega'];
+  const TIPOS_HOY=['parada','paletas','proyeccion','noiniciada','tareo','finalizar','entrega','sinprogramacion'];
   function avisosHoy(){
     try{const A=window.glacialAvisos;if(!A||!A.puede||!A.puede())return null;return A.listar().filter(x=>TIPOS_HOY.includes(x.tipo));}catch(_){return null;}
   }

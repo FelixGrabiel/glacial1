@@ -37,7 +37,7 @@
     ['entregaDiasMax','Entrega de turno pendiente: avisar hasta (días atrás)',1,30]
   ];
   const JEFATURA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];   // = reglas etapa 2
-  const TODOS=['parada','paletas','proyeccion','noiniciada','tareo','finalizar','entrega'];
+  const TODOS=['parada','paletas','proyeccion','noiniciada','tareo','finalizar','entrega','sinprogramacion'];
   const MS_MIN=60000;
 
   const ahora=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
@@ -46,6 +46,16 @@
   const hhmm=ms=>new Date(ms).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false});
   const fmt=n=>Math.round(n).toLocaleString('es-PE');
   const norm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+
+  /* Falta la programación del bloque: avisa desde 60 min antes de que empiece y hasta que termina; en rojo si ya empezó.
+     No avisa mientras la programación no haya cargado (listo=false) ni fuera del horario de producción (bv.activo). Función pura. */
+  function avisoSinProgramacion(bv,prog,n,listo,nombre){
+    if(!listo||!bv||!bv.activo||!bv.inicio||!bv.fin||!(n>=bv.inicio-60*MS_MIN&&n<bv.fin))return null;
+    const tp=bv.bloque==='noche'?'noche':'diaInter';
+    const hay=(Array.isArray(prog)?prog:[]).some(p=>p&&p.fecha===bv.fecha&&Number(p.cantidadProgramada)>0&&(p.turno==='NOCHE'?'noche':'diaInter')===tp&&!(p.estadoOperacion&&p.estadoOperacion.estado==='CANCELADA'));
+    if(hay)return null;
+    return {id:'sinprog|'+bv.fecha+'|'+bv.bloque,texto:'No hay programación cargada para '+(nombre||'el turno')+' del '+bv.fecha+' (Planificación → Programación turno)',desde:bv.inicio-60*MS_MIN,severidad:n>=bv.inicio?'roja':'ambar'};
+  }
 
   /* ---------- umbrales (sync/configAlertas) ---------- */
   let remota={},desubConfig=null,configListo=false;
@@ -106,7 +116,7 @@
     if(rol==='Administrador')return {tipos:TODOS.concat(['sistema']),lineas:null,tareo:'todas'};              // «sistema» (salud del servidor) solo para el Administrador
     if(JEFATURA.includes(rol))return {tipos:TODOS.slice(),lineas:null,tareo:'todas'};
     if(rol==='Supervisor'||rol==='Supervisor de Producción')return {tipos:TODOS.slice(),lineas:u.linea||null,tareo:'Producción'};
-    if(tiene('planificacion'))return {tipos:[],lineas:null,tareo:null};     // quien planifica recibe los avisos de Planificación (saldos, solicitudes)
+    if(tiene('planificacion'))return {tipos:['sinprogramacion'],lineas:null,tareo:null};     // quien planifica recibe los avisos de Planificación (saldos, solicitudes)
     if(rol==='Mantenimiento'||tiene('moduloMantenimiento')||tiene('control_operativo_lineas')||tiene('recibirAlertasProduccion'))
       return {tipos:['parada'],lineas:null,tareo:null};
     return null;
@@ -267,6 +277,17 @@
       }
     }
 
+    /* d2) falta la programación del bloque (ver avisoSinProgramacion). Solo quien ve todas las líneas. */
+    if(a.tipos.includes('sinprogramacion')&&!franja&&a.lineas==null&&typeof window.glacialBloqueVigente==='function'){
+      let bv=null,prog=[];
+      try{bv=window.glacialBloqueVigente();}catch(_){bv=null;}
+      try{prog=loadProgramaciones()||[];}catch(_){prog=[];}
+      const listo=typeof _programacionesReady!=='undefined'&&_programacionesReady;
+      const nom=bv&&bv.bloque?GlacialIndicadores.nombreBloque(bv.bloque==='noche'?'NOCHE':'DÍA','pantalla','titulo'):'';
+      const x=avisoSinProgramacion(bv,prog,n,listo,nom);
+      if(x)add(x.id,'sinprogramacion','',x.texto,x.desde,{severidad:x.severidad});
+    }
+
     /* e) tareo con pendientes que se bloquea pronto */
     if(a.tipos.includes('tareo')&&a.tareo&&typeof loadTareos==='function'&&typeof window.tareoBloqueoInfo==='function'){
       let tareos=[];try{tareos=loadTareos()||[];}catch(_){tareos=[];}
@@ -338,6 +359,7 @@
         return;
       }
       if(x.tipo==='sistema')return;                                       // solo informa: se resuelve en el servidor (Supabase)
+      if(x.tipo==='sinprogramacion'){if(typeof goPlanificacion==='function'){goPlanificacion();if(window.glacialPlanificacion&&window.glacialPlanificacion.irAProgramacion)window.glacialPlanificacion.irAProgramacion();}return;}
       if(x.tipo==='entrega'){if(typeof window.goEntregaTurno==='function')window.goEntregaTurno();return;}
       if(x.tipo==='finalizar'){if(x.registroId&&typeof cargarReporteParaCorreccion==='function'){cargarReporteParaCorreccion(x.registroId);}else if(typeof goHistorial==='function'){goHistorial();}return;}
       if(x.tipo==='mant'){if(typeof window.intervencionesAbrir==='function')window.intervencionesAbrir({tab:x.tab||'intervenciones',abrir:x.abrir||undefined});return;}
@@ -496,6 +518,6 @@
     window.renderCentroPerfil=renderCentroPerfil;
   }
 
-  window.glacialAvisos={puede,ambito,listar:calcular,visto:marcarVisto,ir,puedeConfigurar,abrirConfig,
+  window.glacialAvisos={avisoSinProgramacion,puede,ambito,listar:calcular,visto:marcarVisto,ir,puedeConfigurar,abrirConfig,
     recalcular,escucharConfig,defectos:DEFECTOS,pendientesFinalizar,pendientesEntrega,avisosSalud};
 })();

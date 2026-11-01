@@ -1,0 +1,26 @@
+/* Aviso «Falta la programación» del bloque (46-proyeccion-avisos.js › avisoSinProgramacion). */
+'use strict';
+const fs=require('fs'),path=require('path'),vm=require('vm');
+const raiz=path.join(__dirname,'..'),leer=r=>fs.readFileSync(path.join(raiz,r),'utf8');
+let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c){fallas++;process.exitCode=1;}};
+const s46=leer('js/produccion/46-proyeccion-avisos.js');
+const i=s46.indexOf('function avisoSinProgramacion'),j=s46.indexOf('/* ---------- umbrales');
+const sb={MS_MIN:60000};vm.createContext(sb);vm.runInContext('const MS_MIN=60000;'+s46.slice(i,j)+';this.f=avisoSinProgramacion;',sb);
+const L=(d,h,m)=>new Date(2026,9,d,h,m||0).getTime();
+const bv={activo:true,fecha:'2026-10-29',bloque:'diaInter',inicio:L(29,7),fin:L(29,19)};
+const P=(o)=>Object.assign({linea:'PET1',fecha:'2026-10-29',turno:'DÍA',cantidadProgramada:1000},o||{});
+ok(sb.f(bv,[],L(29,5,59),true,'Día')===null&&sb.f(bv,[],L(29,6,0),true,'Día').severidad==='ambar','avisa desde 60 min antes del inicio (ámbar), no antes');
+ok(sb.f(bv,[],L(29,7,1),true,'Día').severidad==='roja','si el bloque ya empezó el aviso es rojo');
+ok(sb.f(bv,[],L(29,19,0),true,'Día')===null,'al terminar el bloque ya no avisa');
+ok(sb.f(bv,[P()],L(29,8),true,'Día')===null&&sb.f(bv,[P({turno:'INTERMEDIO'})],L(29,8),true,'Día')===null,'con programación del bloque (Día o Intermedio, que forman un solo bloque) no avisa');
+ok(sb.f(bv,[P({cantidadProgramada:0})],L(29,8),true,'Día')!==null&&sb.f(bv,[P({estadoOperacion:{estado:'CANCELADA'}})],L(29,8),true,'Día')!==null,'programación en cero o cancelada no cuenta');
+ok(sb.f(bv,[P({fecha:'2026-10-28'}),P({turno:'NOCHE'})],L(29,8),true,'Día')!==null,'programación de otra fecha o de otro bloque no cuenta');
+ok(sb.f(bv,[],L(29,8),false,'Día')===null,'mientras la programación no ha cargado no avisa (evita falsas alarmas al abrir)');
+ok(sb.f(null,[],L(29,8),true)===null&&sb.f(Object.assign({},bv,{activo:false}),[],L(29,8),true)===null,'sin bloque vigente o fuera del horario no avisa');
+const x=sb.f(bv,[],L(29,8),true,'Día');
+ok(x.id==='sinprog|2026-10-29|diaInter'&&/No hay programación cargada para Día del 2026-10-29/.test(x.texto),'datos del aviso: id por fecha y bloque y texto claro');
+const noche={activo:true,fecha:'2026-10-29',bloque:'noche',inicio:L(29,19),fin:L(30,7)};
+ok(sb.f(noche,[P({turno:'NOCHE'})],L(29,22),true,'Noche')===null&&sb.f(noche,[P()],L(29,22),true,'Noche')!==null,'bloque Noche: solo cuenta la programación de NOCHE');
+ok(/const TODOS=\[[^\]]*'sinprogramacion'[^\]]*\]/.test(s46)&&/tiene\('planificacion'\)\)return \{tipos:\['sinprogramacion'\]/.test(s46)&&/a\.lineas==null/.test(s46),'lo ven Jefatura, Administrador y quien planifica; el supervisor de una línea no');
+ok(/x\.tipo==='sinprogramacion'\)\{if\(typeof goPlanificacion/.test(s46),'tocar el aviso abre Planificación');
+console.log(fallas?'\n'+fallas+' fallas':'\nAviso sin programación correcto');

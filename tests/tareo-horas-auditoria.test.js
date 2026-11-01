@@ -82,5 +82,10 @@ ok(p.alerta||p.horasSospechosas||p.pendiente,'3. salida registrada sin hora de i
  ok(ev('tareoHorasValidas(__v)')===9&&ev('tareoExtrasValidas(__v)')===1,'10b. un registro normal sigue contando igual (9 h, 1 extra)');
 }
 
+/* ---- la exportación a RRHH explica por qué una jornada sale en 0 h ---- */
+{const src=require('fs').readFileSync(require('path').join(__dirname,'..','js/rrhh/38-tareo-rrhh-exportacion.js'),'utf8');
+ ok(/POR REVISAR \(horas en 0\): '\+revisar/.test(src)&&/tareoMotivoRevisionHoras\(p\)/.test(src),'11. la columna «Observación» del Excel de RRHH dice «POR REVISAR (horas en 0)» y el motivo');
+}
+
 console.log(fallas?'\n'+fallas+' fallas confirmadas':'\ntodo correcto');
 process.exit(fallas?1:0);

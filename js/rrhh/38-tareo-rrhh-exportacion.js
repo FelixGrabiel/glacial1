@@ -104,6 +104,8 @@
     if(p.agregadoManual){
       partes.push((p.nuevoIngreso?'Personal nuevo':'Agregado manualmente')+(p.agregadoPor?' por '+p.agregadoPor:''));
     }
+    const revisar=!porDia&&typeof tareoMotivoRevisionHoras==='function'?tareoMotivoRevisionHoras(p):'';
+    if(revisar)partes.push('POR REVISAR (horas en 0): '+revisar);
     const libre=porDia?p.observacion:(p.observacion||p.observaciones);
     if(libre)partes.push(String(libre));
     return partes.join(' · ');
