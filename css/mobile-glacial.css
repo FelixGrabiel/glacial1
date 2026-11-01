@@ -23,21 +23,21 @@
   .topbar-title strong{font-size:0;line-height:1}
   .topbar-title strong::after{content:'GLACIAL';font-size:16px;font-weight:700;letter-spacing:.04em}
   .topbar-title small,.topbar-separator{display:none}
-  .topbar-logo-wrap{width:35px;height:35px;padding:0;background:#005b96;border-radius:9px}
+  .topbar-logo-wrap{width:35px;height:35px;padding:0;background:#0877A6;border-radius:9px}
   .topbar-logo{display:none}
   .topbar-logo-wrap::after{content:'G';font:700 21px/35px Arial,sans-serif;color:#fff}
   .mobile-menu-toggle{
     display:inline-flex;align-items:center;justify-content:center;flex:none;
     width:42px;height:42px;border:1px solid #d7e4ed;border-radius:9px;
-    background:#f7fbfe;color:#005b96;font-size:22px;cursor:pointer
+    background:#f7fbfe;color:#0877A6;font-size:22px;cursor:pointer
   }
   .mobile-menu-toggle:focus-visible,.mobile-line-btn:focus-visible{
-    outline:2px solid #005b96;outline-offset:2px
+    outline:2px solid #0877A6;outline-offset:2px
   }
   .topbar .btn-topbar{
     display:inline-flex;align-items:center;justify-content:center;
     flex:none;min-width:39px;width:39px;height:39px;padding:0;
-    border:1px solid #d7e4ed;background:#f7fbfe;color:#005b96;
+    border:1px solid #d7e4ed;background:#f7fbfe;color:#0877A6;
     font-size:0;border-radius:8px
   }
   .topbar .btn-topbar>span:first-child,.topbar .btn-topbar .logout-icon{
@@ -65,7 +65,7 @@
     border-radius:18px;background:#f6f9fb;color:#4a6474;
     font-size:12px;font-weight:700;white-space:nowrap
   }
-  .mobile-line-btn.active{background:#e8f4fc;border-color:#b7d7ec;color:#005b96}
+  .mobile-line-btn.active{background:#e8f4fc;border-color:#b7d7ec;color:#0877A6}
 
   #app-screen .shell{display:block;width:100%;min-width:0}
   #app-screen .shell>.sidebar{
@@ -98,7 +98,7 @@
     padding:9px 28px 9px 13px;border:1px solid transparent;
     border-left:3px solid transparent;border-radius:8px
   }
-  #app-screen .sidebar .line-btn.active{border-left-color:#f5b335;background:#eaf5fc}
+  #app-screen .sidebar .line-btn.active{border-left-color:#f5b335;background:#E8F7FE}
   #app-screen .sidebar .sidebar-divider{width:auto;height:1px;margin:18px 10px}
   .mobile-nav-backdrop{
     position:fixed;inset:0;z-index:80;width:100%;height:100%;padding:0;

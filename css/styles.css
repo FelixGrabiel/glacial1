@@ -1,11 +1,24 @@
 :root{
 
     /* COLORES PRINCIPALES */
-    --blue:#005B96;
-    --blue-deep:#003B5C;
-    --blue-dark:#002C45;
-    --blue-light:#EAF5FC;
-    --blue-soft:#D8ECF8;
+    --blue:#0877A6;
+    --blue-deep:#033350;
+    --blue-dark:#022235;
+    --blue-light:#E8F7FE;
+    --blue-soft:#C6EBFC;
+
+    /* MARCA (celeste del logo) y rampa */
+    --brand:#0DB5F3;
+    --brand-50:#E8F7FE;
+    --brand-100:#C6EBFC;
+    --brand-200:#8FD9F9;
+    --brand-300:#4FC4F5;
+    --brand-500:#0993C9;
+    --brand-600:#0877A6;
+    --brand-700:#065F86;
+    --brand-800:#05496A;
+    --brand-900:#033350;
+    --brand-950:#022235;
 
     /* ACENTO */
     --amber:#F5B335;
@@ -122,7 +135,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 .tab:focus-visible{
-    outline:3px solid rgba(0,91,150,.25);
+    outline:3px solid rgba(8,119,166,.28);
     outline-offset:2px;
 }
 
@@ -143,8 +156,8 @@ textarea:focus-visible,
 
     background:
         linear-gradient(
-            rgba(0,35,65,.80),
-            rgba(0,35,65,.80)
+            rgba(2,34,53,.82),
+            rgba(2,34,53,.82)
         ),
         url("/assets/img/fondo_glacial.jpg");
 
@@ -522,7 +535,7 @@ textarea:focus-visible,
     border:1px solid var(--blue);
 
     box-shadow:
-        0 5px 14px rgba(0,91,150,.25);
+        0 5px 14px rgba(8,119,166,.28);
 
     transition:
         background .15s ease,
@@ -801,7 +814,7 @@ textarea:focus-visible,
 
     z-index:20;
 
-    border-bottom:4px solid var(--amber);
+    border-bottom:4px solid var(--brand);
 
     box-shadow:
         0 2px 8px rgba(0,0,0,.12);
@@ -1359,7 +1372,7 @@ textarea:focus-visible,
     background:
         linear-gradient(
             135deg,
-            #005B96 0%,
+            #0877A6 0%,
             #0077B6 60%,
             #003B5C 100%
         );
@@ -4456,7 +4469,7 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
 
 .hist-report-body::-webkit-scrollbar-thumb:hover,
 .hist-report-body .table-scroll::-webkit-scrollbar-thumb:hover{
-    background:#005B96 !important;
+    background:#0877A6 !important;
 }
 
 /* La tabla conserva ancho suficiente para activar scroll horizontal */
@@ -4568,7 +4581,7 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
 
 .hist-report-body::-webkit-scrollbar-thumb:hover,
 .hist-report-personal-scroll::-webkit-scrollbar-thumb:hover{
-  background:#005B96 !important;
+  background:#0877A6 !important;
 }
 
 /* La rueda del mouse y el gesto táctil trabajan sobre la tabla de personal. */
@@ -5467,10 +5480,10 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
  * Este bloque centraliza la paleta visual solicitada.
  */
 :root{
-    --gl-navy:#0B2849;
-    --gl-primary:#086BEA;
-    --gl-primary-hover:#0056C8;
-    --gl-primary-soft:#EAF3FF;
+    --gl-navy:#033350;
+    --gl-primary:#0877A6;
+    --gl-primary-hover:#065F86;
+    --gl-primary-soft:#E8F7FE;
     --gl-page:#F3F6FA;
     --gl-surface:#FFFFFF;
     --gl-text:#17324D;
@@ -5478,8 +5491,8 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
     --gl-border:#DCE5EF;
     --gl-radius:11px;
     --gl-radius-sm:9px;
-    --gl-shadow:0 4px 18px rgba(11,40,73,.07);
-    --gl-shadow-hover:0 8px 24px rgba(11,40,73,.10);
+    --gl-shadow:0 4px 18px rgba(3,51,80,.07);
+    --gl-shadow-hover:0 8px 24px rgba(3,51,80,.10);
     --gl-control-height:44px;
 }
 
@@ -5576,7 +5589,7 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
     border-radius:var(--gl-radius-sm);
     background:var(--gl-primary);
     color:#fff;
-    box-shadow:0 3px 9px rgba(8,107,234,.15);
+    box-shadow:0 3px 9px rgba(8,119,166,.18);
 }
 
 #app-screen .btn-primary:hover:not(:disabled),

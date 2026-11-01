@@ -4,9 +4,9 @@
    ============================================================= */
 
 #app-screen .shell > .sidebar{
-  --sb-bg:#0B2849;
-  --sb-bg-deep:#071f3b;
-  --sb-active:#0968d8;
+  --sb-bg:#033350;
+  --sb-bg-deep:#022235;
+  --sb-active:#0877A6;
   --sb-hover:rgba(255,255,255,.075);
   --sb-text:#f5f9ff;
   --sb-muted:#a9bdd3;
@@ -101,7 +101,7 @@
 #app-screen .sidebar-group-toggle:focus-visible,
 #app-screen .sidebar-subgroup-toggle:focus-visible,
 #app-screen .line-btn:focus-visible{
-  outline:2px solid #72b7ff;
+  outline:2px solid #4FC4F5;
   outline-offset:2px;
 }
 #app-screen .side-action-icon{
@@ -206,18 +206,18 @@
 #app-screen .sidebar-subaction:hover{background:rgba(255,255,255,.07);color:#fff}
 #app-screen .line-btn.active,
 #app-screen .sidebar-subaction.active{
-  background:linear-gradient(90deg,#0871e6,#075fca);
+  background:linear-gradient(90deg,#0877A6,#065F86);
   color:#fff;
   font-weight:700;
-  box-shadow:0 5px 14px rgba(0,82,177,.25);
+  box-shadow:0 5px 14px rgba(2,34,53,.35);
 }
 #app-screen .line-btn.active::before,
 #app-screen .sidebar-subaction.active .sidebar-dot{background:#fff}
 
 #app-screen .sidebar-root-action.active{
-  background:linear-gradient(90deg,#0871e6,#075fca);
+  background:linear-gradient(90deg,#0877A6,#065F86);
   color:#fff;
-  box-shadow:0 5px 14px rgba(0,82,177,.25);
+  box-shadow:0 5px 14px rgba(2,34,53,.35);
 }
 #app-screen .sidebar-root-action.active .side-action-icon{color:#fff;background:transparent}
 #app-screen .sidebar-disabled,
@@ -258,10 +258,10 @@
    ========================================================= */
 :root{
   --gl-sidebar-w:250px;
-  --gl-sidebar-bg:#071f3b;
-  --gl-sidebar-bg2:#0b2d53;
-  --gl-sidebar-open:rgba(27,103,176,.22);
-  --gl-sidebar-active:#0877d7;
+  --gl-sidebar-bg:#022235;
+  --gl-sidebar-bg2:#044363;
+  --gl-sidebar-open:rgba(13,181,243,.16);
+  --gl-sidebar-active:#0877A6;
   --gl-sidebar-text:#f4f8fc;
   --gl-sidebar-muted:#a9bfd4;
   --gl-sidebar-line:rgba(174,205,232,.22);
@@ -364,8 +364,8 @@
 }
 #app-screen .sidebar .sidebar-submenu .side-action.active,
 #app-screen .sidebar .sidebar-submenu .line-btn.active{
-  background:linear-gradient(90deg,#0877d7,#0868bd);
-  color:#fff;font-weight:600;box-shadow:0 5px 14px rgba(0,83,166,.22);
+  background:linear-gradient(90deg,#0877A6,#065F86);
+  color:#fff;font-weight:600;box-shadow:0 5px 14px rgba(2,34,53,.32);
 }
 #app-screen .sidebar .sidebar-submenu .side-action.active::before,
 #app-screen .sidebar .sidebar-submenu .line-btn.active::before{background:#6fc0ff}
@@ -420,13 +420,13 @@
  */
 #app-screen .shell > .sidebar,
 #app-screen #glacial-sidebar{
-    --sb-bg:#0B2849;
-    --sb-bg-deep:#071F3B;
-    --sb-active:#086BEA;
-    --sb-hover:rgba(8,107,234,.18);
-    background:linear-gradient(180deg,#0B2849 0%,#08233F 100%);
+    --sb-bg:#033350;
+    --sb-bg-deep:#022235;
+    --sb-active:#0877A6;
+    --sb-hover:rgba(13,181,243,.16);
+    background:linear-gradient(180deg,#033350 0%,#022A43 100%);
     border-right:1px solid rgba(255,255,255,.08);
-    box-shadow:4px 0 18px rgba(11,40,73,.10);
+    box-shadow:4px 0 18px rgba(3,51,80,.10);
 }
 
 #app-screen .sidebar .side-action,
@@ -447,23 +447,32 @@
 #app-screen .sidebar .sidebar-root-action.active,
 #app-screen .sidebar .line-btn.active,
 #app-screen .sidebar .sidebar-subaction.active{
-    background:#086BEA;
+    background:#0877A6;
     color:#fff;
 }
 
 #app-screen .sidebar button:focus-visible,
 #app-screen .sidebar a:focus-visible{
-    outline:2px solid #72B7FF;
+    outline:2px solid #4FC4F5;
     outline-offset:2px;
 }
 
 /* =============================================================
    PÁGINA DEL MISMO AZUL QUE EL MENÚ LATERAL (marco)
-   El fondo de toda la página es el azul del menú (#0B2849) y el contenido se muestra sobre una hoja clara con bordes redondeados,
+   El fondo de toda la página es el azul del menú (#033350) y el contenido se muestra sobre una hoja clara con bordes redondeados,
    así ningún texto pensado para fondo claro se pierde sobre el azul. Para volver al fondo claro, borrar este bloque.
    ============================================================= */
-html,body,#app-screen,#app-screen .shell{background:#0B2849}
+html,body,#app-screen,#app-screen .shell{background:#033350}
 #app-screen .shell>.main{background:var(--bg,#f3f6f9)}
 @media (min-width:801px){
   #app-screen .shell>.main{border-radius:18px;margin:12px 14px 12px 0}
+}
+
+
+/* MARCA: franja celeste del logo en el ítem activo del menú (el fondo azul se mantiene con texto blanco para el contraste) */
+#app-screen .sidebar .side-action.active,
+#app-screen .sidebar .sidebar-root-action.active,
+#app-screen .sidebar .line-btn.active,
+#app-screen .sidebar .sidebar-subaction.active{
+    box-shadow:inset 3px 0 0 #0DB5F3, 0 5px 14px rgba(2,34,53,.32);
 }

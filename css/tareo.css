@@ -53,7 +53,7 @@
 
 .tareo-tab.active{
     color:var(--blue-deep);
-    border-bottom-color:var(--amber);
+    border-bottom-color:var(--brand);
 }
 
 
