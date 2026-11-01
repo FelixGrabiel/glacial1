@@ -48,7 +48,7 @@
     const rec=A().recolectar(fecha,fecha,{linea:'',motivosSistema:true});
     const res=IE().calcularImpacto(rec.partes,modo==='eco'?IE().provDefecto():IE().provSinValores());
     const filas=res.filas.map(f=>Object.assign({},f,{lineaKey:f.linea,linea:IE().nombreImp(f.linea)}));
-    const o={t:ahora,filas,faltan:{productos:res.faltan.margen.length,insumos:res.faltan.costo.length,dudosas:res.dudosas||0}};
+    const o={t:ahora,filas,faltan:{productos:res.faltan.margen.length,insumos:res.faltan.costo.length,dudosas:res.dudosas||0},dud:(res.dudosasLista||[]).slice(0,60),alt:res.velAltas||[]};
     cache.set(k,o);
     return o;
   }
@@ -62,7 +62,7 @@
   const PUB={ultimo:0,error:'',publicando:false};
   const estadoPub=()=>Object.assign({},PUB);
   const compactar=f=>({t:f.tipo,h:f.hora||'',tu:f.turno,g:f.grupo,l:f.lineaKey,m:f.marca,p:f.pres,mq:f.maquina||'',c:f.causa,mi:r2(f.min),u:r2(f.u),s:f.s==null?null:r2(f.s),e:f.est?1:0,f:f.falta||null});
-  const docDia=(fecha,c)=>({fecha,v:VERSION,filas:c.filas.map(compactar),faltan:c.faltan});
+  const docDia=(fecha,c)=>({fecha,v:VERSION,filas:c.filas.map(compactar),faltan:c.faltan,dud:c.dud||[],alt:c.alt||[]});
   async function publicar(completa){
     if(publicando)return;
     try{
@@ -136,12 +136,18 @@
      4) API DE CARGA PARA EL DASHBOARD
      ========================================================= */
   let ticket=0;
+  /* Acumula el detalle de casos dudosos y de velocidades estándar demasiado altas para el aviso del dashboard. */
+  function acumDud(info,fecha,dud,alt){
+    info.dudosos=info.dudosos||[];info.altas=info.altas||new Map();
+    (Array.isArray(dud)?dud:[]).forEach(x=>info.dudosos.push(Object.assign({fecha},x)));
+    (Array.isArray(alt)?alt:[]).forEach(x=>info.altas.set(x.linea+'|'+x.etiqueta,x));
+  }
   const modoDe=()=>eco().esGerencia()?'eco':eco().esJefatura()?'jef':'op';
   /* cargar(desde,hasta,cb): cb(filas, info). Calcula por tandas para no congelar la pantalla; una carga nueva anula la anterior. */
   function cargar(desde,hasta,cb){
     const modo=modoDe(),lista=dias(desde,hasta),id=++ticket,out=[],info={modo,diasSinPublicar:0,ultimo:RES.ultimo,faltan:{productos:0,insumos:0}};
     if(modo==='jef'){
-      lista.forEach(f=>{const x=RES.dias.get(f);if(!x){info.diasSinPublicar++;return;}out.push(...expandir(x,f));});
+      lista.forEach(f=>{const x=RES.dias.get(f);if(!x){info.diasSinPublicar++;return;}out.push(...expandir(x,f));info.faltan.dudosas=(info.faltan.dudosas||0)+(Array.isArray(x.dud)?x.dud.length:0);acumDud(info,f,x.dud,x.alt);});
       cb(out,info);return id;
     }
     let i=0;
@@ -150,7 +156,7 @@
       const fin=Date.now()+14;
       while(i<lista.length&&Date.now()<fin){
         const c=filasCalculadas(lista[i],modo);
-        out.push(...c.filas);info.faltan.productos=Math.max(info.faltan.productos,c.faltan.productos);info.faltan.insumos=Math.max(info.faltan.insumos,c.faltan.insumos);info.faltan.dudosas=(info.faltan.dudosas||0)+(c.faltan.dudosas||0);
+        out.push(...c.filas);info.faltan.productos=Math.max(info.faltan.productos,c.faltan.productos);info.faltan.insumos=Math.max(info.faltan.insumos,c.faltan.insumos);info.faltan.dudosas=(info.faltan.dudosas||0)+(c.faltan.dudosas||0);acumDud(info,lista[i],c.dud,c.alt);
         i++;
       }
       if(i<lista.length)setTimeout(paso,0);else cb(out,info);

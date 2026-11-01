@@ -77,6 +77,17 @@ for(const rol of ['Administrador','Supervisor','Ventas']){
  ok(rD.dudosas===1&&rD.filas.filter(f=>f.tipo==='V').length===0&&rD.velS===0,'producido 0: la velocidad reducida queda como dato dudoso y no suma al total');
  const rB=IE.calcularImpacto([parte],IE.provDefecto());
  ok(rB.dudosas===0&&rB.filas.filter(f=>f.tipo==='V').length===1&&Math.abs(rB.velS-1600)<0.01,'producción normal: la velocidad reducida sí se calcula (1 600)');}
+/* ---------- detalle de dudosos y velocidad estándar mayor que la capacidad de la máquina ---------- */
+{const IE=g.sb.window.glacialImpactoEconomico;
+ const rD=IE.calcularImpacto([Object.assign({},parte,{producido:0})],IE.provDefecto());
+ ok(rD.dudosasLista.length===1&&rD.dudosasLista[0].mo==='sin'&&rD.dudosasLista[0].l==='PET1','el detalle del caso dudoso dice línea y motivo («sin producción»)');
+ g.sb.window.glacialEquiposMaestro={capacidadLinea:l=>l==='PET1'?{capacidad:500,equipo:'Sopladora 1'}:null};
+ const rA=IE.calcularImpacto([parte],IE.provDefecto());
+ ok(rA.velAltas.length===1&&rA.velAltas[0].cap===500&&rA.velAltas[0].equipo==='Sopladora 1'&&rA.dudosasLista[0].mo==='estandar'&&rA.velS===0,'velocidad estándar (1000) > capacidad (500): se avisa y la pérdida no suma');
+ g.sb.window.glacialEquiposMaestro={capacidadLinea:()=>({capacidad:5000,equipo:'X'})};
+ const rO=IE.calcularImpacto([parte],IE.provDefecto());
+ ok(rO.velAltas.length===0&&rO.dudosas===0&&Math.abs(rO.velS-1600)<0.01,'capacidad suficiente: todo se calcula igual que antes');
+ g.sb.window.glacialEquiposMaestro=undefined;}
 /* ---------- Jefatura: lee resultados, nunca valores ---------- */
 const j=entorno('Jefe de Producción',{'resultadosEconomicos/2026-10-10':Object.assign({},dia,{generadoEn:{toMillis:()=>Date.now()}}),'resultadosEconomicos/2026-09-30':{fecha:'2026-09-30',v:1,totales:{total:5}},'resultadosEconomicos/meta':{metaPerdidaMes:1000,fecha:'9999-12-31'}},[parte]);
 j.sb.window.glacialEconomicoEscuchas();await tick();

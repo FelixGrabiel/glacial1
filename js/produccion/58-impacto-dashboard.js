@@ -20,6 +20,7 @@
   const E=()=>window.GlacialImpactoEstado;
   const AN=()=>window.GlacialImpactoAnalisis;
   const R=()=>window.glacialImpactoResultados;
+  const nombreLin=l=>{try{const I=window.glacialImpactoEconomico;return I&&I.nombreImp?I.nombreImp(l):String(l||'');}catch(_){return String(l||'');}};
   const A=()=>window.glacialReporteIndicadores;
   const eco=()=>window.glacialEconomico;
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
@@ -222,7 +223,18 @@
       }else h+='<div class="id-aviso"><b>Cobertura de valorización: '+pct+' %.</b> '+nf(v.sinValor)+' de '+nf(tot)+' evento(s) no tienen valor configurado por Gerencia y no están incluidos en los soles.</div>';
     }
     const du=S.info&&S.info.faltan&&S.info.faltan.dudosas;
-    if(du>0)h+='<div class="id-aviso"><b>'+nf(du)+' caso(s) de velocidad reducida quedaron fuera del total por dato dudoso</b> (turno sin producción cargada o producción menor al 10 % de lo esperado). Revisa los reportes sin finalizar o la velocidad estándar de ese producto.</div>';
+    if(du>0){
+      const MO={sin:'sin producción cargada',bajo:'produjo menos del 10 % de lo esperado',estandar:'la velocidad estándar supera la capacidad de la máquina'};
+      const det=(S.info.dudosos||[]).slice(0,12).map(x=>'<li>'+esc(x.fecha)+' · '+esc(nombreLin(x.l))+' · '+esc(x.m+' '+x.p)+(x.g?' · '+esc(x.g):'')+': '+esc(MO[x.mo]||'dato dudoso')+(x.mo==='sin'?'':' (producido '+nf(x.pr)+' de '+nf(x.es)+' esperados)')+'</li>').join('');
+      h+='<div class="id-aviso"><b>'+nf(du)+' caso(s) de velocidad reducida quedaron fuera del total por dato dudoso.</b> Revisa el reporte de ese día o la velocidad estándar del producto.'+
+        (det?'<details style="margin-top:6px"><summary>Ver los casos</summary><ul style="margin:6px 0 0 18px">'+det+((S.info.dudosos||[]).length>12?'<li>… y '+nf((S.info.dudosos||[]).length-12)+' más</li>':'')+'</ul></details>':'')+'</div>';
+    }
+    const altas=S.info&&S.info.altas?[...S.info.altas.values()]:[];
+    if(altas.length){
+      h+='<div class="id-aviso"><b>'+nf(altas.length)+' velocidad(es) estándar superan la capacidad de la máquina más lenta de la línea.</b><ul style="margin:6px 0 0 18px">'+
+        altas.slice(0,8).map(x=>'<li>'+esc(nombreLin(x.linea))+' · '+esc(x.etiqueta)+': estándar '+nf(x.vel)+' unid/h, máquina '+nf(x.cap)+' unid/h ('+esc(x.equipo)+')</li>').join('')+
+        '</ul>Corrige la velocidad estándar o el tiempo de ciclo del equipo (Mantenimiento → Equipos).</div>';
+    }
     cont.innerHTML=h;
   }
   function pintarFoco(){

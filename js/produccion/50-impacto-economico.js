@@ -96,7 +96,7 @@
   const etiquetaParte=p=>nombreImp(lineaReal(p))+' · '+A().etiquetaProd(p.marca,p.pres);
   function calcularImpacto(partes,prov){
     const T={potencialU:0,paradasU:0,velU:0,paradasS:0,velS:0,mermaS:0,incumplS:0,planMin:0,npMin:0,horasEf:0};
-    const faltan={velocidad:new Map(),margen:new Map(),costo:new Map()};
+    const faltan={velocidad:new Map(),margen:new Map(),costo:new Map()},velAltas=new Map(),dudosasLista=[];
     const supuestos=new Map();
     const filas=[];
     let contador=0;
@@ -138,8 +138,13 @@
       const velU=Math.max(p.vel*hEf-p.producido,0);                 // (velocidad estándar − ratio) × horas efectivas, nunca negativa
       /* DATO DUDOSO: sin producción registrada, o producción menor al 10 % de lo que daba la velocidad estándar en las horas de marcha, la «pérdida por
          velocidad» es en realidad un turno sin cargar o una velocidad mal definida. No se suma al total (ni a las filas); se cuenta para avisar. */
-      const dudoso=velU>0&&(!(p.producido>0)||p.producido<0.1*p.vel*hEf);
-      if(dudoso){T.dudosas=(T.dudosas||0)+1;T.dudosaU=(T.dudosaU||0)+velU;}
+      /* También es dudosa si la velocidad estándar supera la capacidad de la máquina más lenta de la línea (equipos con tiempo de ciclo): la pérdida saldría inflada. */
+      let cap=null;try{const E=window.glacialEquiposMaestro;cap=E&&E.capacidadLinea?E.capacidadLinea(p.linea):null;}catch(_){cap=null;}
+      const altaVel=!!(cap&&p.vel>cap.capacidad*1.1);
+      if(altaVel)velAltas.set(p.linea+'|'+p.pkey,{linea:p.linea,etiqueta:etq,vel:Math.round(p.vel),cap:cap.capacidad,equipo:cap.equipo});
+      const motivoDud=altaVel?'estandar':!(p.producido>0)?'sin':p.producido<0.1*p.vel*hEf?'bajo':'';
+      const dudoso=velU>0&&!!motivoDud;
+      if(dudoso){T.dudosas=(T.dudosas||0)+1;T.dudosaU=(T.dudosaU||0)+velU;dudosasLista.push({l:p.linea,m:p.marcaN||p.marca||'',p:p.cat||p.pres||'',g:p.grupo||'',pr:Math.round(p.producido||0),es:Math.round(p.vel*hEf),mo:motivoDud});}
       T.potencialU+=potencial;T.paradasU+=paradasU;T.velU+=dudoso?0:velU;T.planMin+=p.planMin;T.npMin+=p.npMin;T.horasEf+=hEf;
       if(m){T.paradasS+=paradasU*m.valor;T.velS+=(dudoso?0:velU)*m.valor;}      // sin valor no se calcula la pérdida en soles
       if(velU>0&&!dudoso)fila(p,'V',{causa:'Velocidad reducida',u:velU,s:m?velU*m.valor:null,falta:m?null:'valor'});
@@ -157,7 +162,7 @@
     return {T,total,paradasS:T.paradasS,velS:T.velS,mermaS:T.mermaS,incumplS:T.incumplS,filas,
       faltan:{velocidad:[...faltan.velocidad.values()],margen:[...faltan.margen.values()],costo:[...faltan.costo.values()]},
       supuestos:[...supuestos.values()].sort((a,b)=>a.tipo.localeCompare(b.tipo,'es')||a.etiqueta.localeCompare(b.etiqueta,'es')),
-      dudosas:T.dudosas||0,dudosasU:Math.round(T.dudosaU||0),
+      dudosas:T.dudosas||0,dudosasU:Math.round(T.dudosaU||0),dudosasLista,velAltas:[...velAltas.values()],
       hayFaltantes:faltan.velocidad.size+faltan.margen.size+faltan.costo.size>0};
   }
 

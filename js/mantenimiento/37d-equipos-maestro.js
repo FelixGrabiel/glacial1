@@ -23,6 +23,16 @@
   const numPos=v=>{const n=Number(String(v==null?'':v).replace(',','.'));return isFinite(n)&&n>0?Math.round(n*1000)/1000:0;};
   /* Capacidad nominal (unidades/hora) = porCiclo × 3600 / cicloSeg; 0 si falta algún dato. */
   const capacidadHora=eq=>{const d=(eq&&eq.datos)||{};return d.cicloSeg>0&&d.porCiclo>0?Math.round(d.porCiclo*3600/d.cicloSeg):0;};
+  /* Capacidad de una línea = la del equipo más lento con capacidad cargada (cuello de botella); los equipos «compartidos con» la línea también cuentan.
+     Devuelve {capacidad,equipo} o null si ningún equipo activo tiene tiempo de ciclo y unidades por ciclo. */
+  function capacidadLinea(linea){
+    let mejor=null;
+    items.forEach(e=>{
+      if(e.activo===false||!(e.linea===linea||(e.compartidoCon||[]).includes(linea)))return;
+      const c=capacidadHora(e);if(c>0&&(!mejor||c<mejor.capacidad))mejor={capacidad:c,equipo:e.nombre};
+    });
+    return mejor;
+  }
   const txt=v=>String(v==null?'':v).trim();
   const ahora=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
   const nombreLinea=k=>{if(k===PLANTA)return 'Planta / servicios';try{const l=(typeof LINES!=='undefined'?LINES:[]).find(x=>x.key===k);return l?l.name:k;}catch(_){return k;}};
@@ -175,6 +185,6 @@
     });
   }
 
-  window.glacialEquiposMaestro={LINEAS,PLANTA,TIPOS_SUGERIDOS,capacidadHora,importarDeLista,codigoDe,tipoDeNombre,lista,porId,delaLinea,buscarPorNombre,etiqueta,nombreLinea,validar,guardar,cambiarActivo,puedeConfigurar,
+  window.glacialEquiposMaestro={LINEAS,PLANTA,TIPOS_SUGERIDOS,capacidadHora,capacidadLinea,importarDeLista,codigoDe,tipoDeNombre,lista,porId,delaLinea,buscarPorNombre,etiqueta,nombreLinea,validar,guardar,cambiarActivo,puedeConfigurar,
     listo:()=>listo,alCambiar:f=>{if(typeof f==='function'&&!oyentes.includes(f))oyentes.push(f);},escuchar,cerrar};
 })();
