@@ -404,24 +404,26 @@
       (puede?'<div class="mi-acc"><button type="button" class="btn btn-primary btn-sm" data-mi-eq-nuevo>+ Agregar equipo</button><button type="button" class="btn '+(E.lista().length?'btn-ghost':'btn-primary')+' btn-sm" data-mi-eq-importar>Cargar las máquinas de cada línea</button></div>':'<div class="mi-meta">Solo el Supervisor de Mantenimiento o el Administrador pueden cambiar el catálogo.</div>')+
       (!E.listo()?'<div class="mi-vacio">Cargando el catálogo…</div>':lista.length?lista.map(e=>'<div class="mi-card" style="--c:'+(e.activo?'#0e7490':'#9ca3af')+';cursor:default"><h4>'+esc(e.nombre)+' <small style="font-weight:500;color:#5a6b78">· '+esc(e.codigo)+'</small></h4>'+
         '<span class="mi-chip">'+esc(e.tipo)+'</span><span class="mi-chip">'+esc(E.nombreLinea(e.linea))+'</span>'+e.compartidoCon.map(l=>'<span class="mi-chip">compartido: '+esc(E.nombreLinea(l))+'</span>').join('')+(e.activo?'':'<span class="mi-chip e-CANCELADA">Inactivo</span>')+
+        (EQ().capacidadHora(e)?'<div class="mi-meta">Ciclo '+esc(e.datos.cicloSeg)+' s · '+esc(e.datos.porCiclo)+' por ciclo = '+EQ().capacidadHora(e).toLocaleString('es-PE')+' unid/h</div>':'')+
         (e.datos.marca||e.datos.modelo||e.datos.serie?'<div class="mi-meta">'+esc([e.datos.marca,e.datos.modelo,e.datos.serie&&'Serie '+e.datos.serie].filter(Boolean).join(' · '))+'</div>':'')+
         '<div class="mi-acc">'+(puede?'<button type="button" class="btn btn-ghost btn-sm" data-mi-eq-editar="'+esc(e.id)+'">Editar</button><button type="button" class="btn btn-ghost btn-sm" data-mi-eq-activo="'+esc(e.id)+'">'+(e.activo?'Desactivar':'Activar')+'</button>':'')+(typeof window.glacialFotosDeEquipo==='function'?'<button type="button" class="btn btn-ghost btn-sm" data-mi-eq-fotos="'+esc(e.id)+'">Fotos</button>':'')+'</div></div>').join('')
         :'<div class="mi-vacio"><b>No hay equipos'+(E.lista().length?' con estos filtros':' en el catálogo')+'.</b><br>'+(puede?'Agrega los equipos reales de cada línea. Tipos sugeridos: '+E.TIPOS_SUGERIDOS.join(', ')+' (son ejemplos de tipo, no un inventario cargado).':'El Supervisor de Mantenimiento registra los equipos.')+'</div>');
   }
   function formEquipo(id){
     const E=EQ(),x=id?E.porId(id):null;
-    const b=x||{codigo:'',nombre:'',linea:UI.equipoFiltro.linea||'PET1',tipo:'',activo:true,compartidoCon:[],datos:{marca:'',modelo:'',serie:'',notas:''}};
+    const b=x||{codigo:'',nombre:'',linea:UI.equipoFiltro.linea||'PET1',tipo:'',activo:true,compartidoCon:[],datos:{marca:'',modelo:'',serie:'',notas:'',cicloSeg:0,porCiclo:0}};
     formulario(x?'Editar equipo':'Agregar equipo',
       '<label>Código<input id="e-cod" maxlength="20" value="'+esc(b.codigo)+'" placeholder="Por ejemplo PET1-SOP-01"></label><label>Nombre visible<input id="e-nom" maxlength="60" value="'+esc(b.nombre)+'" placeholder="Por ejemplo Sopladora 1"></label>'+
       '<label>Línea o ubicación<select id="e-li">'+E.LINEAS.concat([E.PLANTA]).map(l=>'<option value="'+l+'"'+(b.linea===l?' selected':'')+'>'+esc(E.nombreLinea(l))+'</option>').join('')+'</select></label>'+
       '<label>Tipo<input id="e-ti" list="e-tipos" maxlength="40" value="'+esc(b.tipo)+'"><datalist id="e-tipos">'+E.TIPOS_SUGERIDOS.map(t=>'<option value="'+esc(t)+'">').join('')+'</datalist></label>'+
       '<div class="completo"><b style="font-size:12px;color:#5a6b78">COMPARTIDO CON (si la máquina sirve a más de una línea)</b><div>'+E.LINEAS.map(l=>'<label style="flex-direction:row;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-weight:500;display:inline-flex;margin-right:10px"><input type="checkbox" class="e-comp" value="'+l+'" style="width:auto"'+(b.compartidoCon.includes(l)?' checked':'')+'> '+esc(E.nombreLinea(l))+'</label>').join('')+'</div></div>'+
       '<label>Marca<input id="e-ma" maxlength="80" value="'+esc(b.datos.marca)+'"></label><label>Modelo<input id="e-mo" maxlength="80" value="'+esc(b.datos.modelo)+'"></label><label>Serie<input id="e-se" maxlength="80" value="'+esc(b.datos.serie)+'"></label>'+
+      '<label>Tiempo de ciclo (segundos)<input id="e-ci" inputmode="decimal" maxlength="8" placeholder="p. ej. 12" value="'+esc(b.datos.cicloSeg||'')+'"></label><label>Unidades por ciclo<input id="e-pc" inputmode="decimal" maxlength="8" placeholder="p. ej. 4" value="'+esc(b.datos.porCiclo||'')+'"></label>'+
       campoTexto('e-no','Notas técnicas (opcional)',b.datos.notas,'',2)+
       '<label class="completo" style="flex-direction:row;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-weight:600"><input type="checkbox" id="e-ac" style="width:auto"'+(b.activo!==false?' checked':'')+'> Equipo activo (los inactivos no se ofrecen para intervenciones nuevas pero se conservan en el historial)</label>','Guardar',
       async (q,f)=>{
         await E.guardar({id:x?x.id:'',codigo:q('#e-cod').value,nombre:q('#e-nom').value,linea:q('#e-li').value,tipo:q('#e-ti').value,compartidoCon:[...f.querySelectorAll('.e-comp:checked')].map(c=>c.value),
-          activo:q('#e-ac').checked,datos:{marca:q('#e-ma').value,modelo:q('#e-mo').value,serie:q('#e-se').value,notas:q('#e-no').value}},{esperadoEn:x?x.actualizadoEn:undefined});
+          activo:q('#e-ac').checked,datos:{marca:q('#e-ma').value,modelo:q('#e-mo').value,serie:q('#e-se').value,notas:q('#e-no').value,cicloSeg:q('#e-ci').value,porCiclo:q('#e-pc').value}},{esperadoEn:x?x.actualizadoEn:undefined});
       },{dos:true});
   }
 

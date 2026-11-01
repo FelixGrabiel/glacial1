@@ -20,6 +20,9 @@
   const LINEAS=['PET1','PET2','B7L','C20L','B20L'],PLANTA='PLANTA';
   const TIPOS_SUGERIDOS=['Sopladora','Envasadora','Etiquetadora','Empaquetadora','Rinser','Tapadora','Lavadora','Compresor','Transportador','Otro'];
   const norm=t=>String(t==null?'':t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const numPos=v=>{const n=Number(String(v==null?'':v).replace(',','.'));return isFinite(n)&&n>0?Math.round(n*1000)/1000:0;};
+  /* Capacidad nominal (unidades/hora) = porCiclo × 3600 / cicloSeg; 0 si falta algún dato. */
+  const capacidadHora=eq=>{const d=(eq&&eq.datos)||{};return d.cicloSeg>0&&d.porCiclo>0?Math.round(d.porCiclo*3600/d.cicloSeg):0;};
   const txt=v=>String(v==null?'':v).trim();
   const ahora=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
   const nombreLinea=k=>{if(k===PLANTA)return 'Planta / servicios';try{const l=(typeof LINES!=='undefined'?LINES:[]).find(x=>x.key===k);return l?l.name:k;}catch(_){return k;}};
@@ -33,7 +36,7 @@
       id:String(e.id),codigo:txt(e.codigo),nombre:txt(e.nombre),linea:LINEAS.includes(e.linea)||e.linea===PLANTA?e.linea:PLANTA,
       compartidoCon:(Array.isArray(e.compartidoCon)?e.compartidoCon:[]).filter(l=>LINEAS.includes(l)&&l!==e.linea),
       tipo:txt(e.tipo),activo:e.activo!==false,
-      datos:{marca:txt(e.datos&&e.datos.marca),modelo:txt(e.datos&&e.datos.modelo),serie:txt(e.datos&&e.datos.serie),notas:txt(e.datos&&e.datos.notas)},
+      datos:{marca:txt(e.datos&&e.datos.marca),modelo:txt(e.datos&&e.datos.modelo),serie:txt(e.datos&&e.datos.serie),notas:txt(e.datos&&e.datos.notas),cicloSeg:numPos(e.datos&&e.datos.cicloSeg),porCiclo:numPos(e.datos&&e.datos.porCiclo)},
       creadoPor:txt(e.creadoPor),creadoEn:Number(e.creadoEn)||0,actualizadoPor:txt(e.actualizadoPor),actualizadoEn:Number(e.actualizadoEn)||0}));
   }
 
@@ -78,6 +81,7 @@
     const comp=Array.isArray(eq.compartidoCon)?eq.compartidoCon:[];
     if(comp.some(l=>!LINEAS.includes(l)))errores.push('Una línea compartida no es válida.');
     if(comp.includes(eq.linea))errores.push('La línea principal no se repite como compartida.');
+    ['cicloSeg','porCiclo'].forEach(k=>{const v=eq.datos&&eq.datos[k];if(v!==undefined&&v!==''&&v!==0&&numPos(v)===0)errores.push('El '+(k==='cicloSeg'?'tiempo de ciclo':'número de unidades por ciclo')+' debe ser un número mayor que 0.');});
     ['marca','modelo','serie','notas'].forEach(k=>{if(txt(eq.datos&&eq.datos[k]).length>(k==='notas'?200:80))errores.push('El dato técnico «'+k+'» es demasiado largo.');});
     (existentes||[]).forEach(x=>{
       if(x.id===eq.id)return;
@@ -118,7 +122,7 @@
   async function guardar(eq,opc){
     const o=opc||{};
     const nuevo={id:txt(eq.id),codigo:txt(eq.codigo),nombre:txt(eq.nombre),linea:eq.linea,compartidoCon:Array.isArray(eq.compartidoCon)?eq.compartidoCon.slice():[],tipo:txt(eq.tipo),
-      activo:eq.activo!==false,datos:{marca:txt(eq.datos&&eq.datos.marca),modelo:txt(eq.datos&&eq.datos.modelo),serie:txt(eq.datos&&eq.datos.serie),notas:txt(eq.datos&&eq.datos.notas)}};
+      activo:eq.activo!==false,datos:{marca:txt(eq.datos&&eq.datos.marca),modelo:txt(eq.datos&&eq.datos.modelo),serie:txt(eq.datos&&eq.datos.serie),notas:txt(eq.datos&&eq.datos.notas),cicloSeg:numPos(eq.datos&&eq.datos.cicloSeg),porCiclo:numPos(eq.datos&&eq.datos.porCiclo)}};
     return modificar(actuales=>{
       const v=validar(nuevo,actuales);
       if(v.errores.length)throw new Error(v.errores.join(' '));
@@ -171,6 +175,6 @@
     });
   }
 
-  window.glacialEquiposMaestro={LINEAS,PLANTA,TIPOS_SUGERIDOS,importarDeLista,codigoDe,tipoDeNombre,lista,porId,delaLinea,buscarPorNombre,etiqueta,nombreLinea,validar,guardar,cambiarActivo,puedeConfigurar,
+  window.glacialEquiposMaestro={LINEAS,PLANTA,TIPOS_SUGERIDOS,capacidadHora,importarDeLista,codigoDe,tipoDeNombre,lista,porId,delaLinea,buscarPorNombre,etiqueta,nombreLinea,validar,guardar,cambiarActivo,puedeConfigurar,
     listo:()=>listo,alCambiar:f=>{if(typeof f==='function'&&!oyentes.includes(f))oyentes.push(f);},escuchar,cerrar};
 })();
