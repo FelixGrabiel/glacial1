@@ -1,4 +1,4 @@
--- GLACIAL · glacial_40 · SALUD DEL SISTEMA (revisión diaria + aviso al Administrador en la campana)                  *** NO APLICADA en PRODUCCIÓN (aplicar primero en PRUEBAS) ***
+-- GLACIAL · glacial_40 · SALUD DEL SISTEMA (revisión diaria + aviso al Administrador en la campana)                  *** APLICADA en PRUEBAS y en PRODUCCIÓN (01/11/2026) ***
 --
 -- Qué hace
 --  Una vez al día (07:30 hora de Lima) la base se revisa a sí misma y deja el resultado en un documento (saludSistema/actual) que SOLO lee el Administrador (marca «admin»):
