@@ -41,7 +41,7 @@ function crear(opc){
   sb.emitir=()=>(oyentes['mant:tecnico']||[]).forEach(f=>f({detail:sb.tecnico}));
   sb.main=main;
   /* funciones REALES de 13-tareo.js */
-  const reales=['tareoNormalizarTexto','tareoNormalizarDNI','tareoIdentidades','tareoAreaDe','tareoEstadoCanonico','tareoClavePersona','convertirHoraMinutos','tareoSaldoHoras','obtenerResumenMensualTareo','tareoContadores']
+  const reales=['tareoNormalizarTexto','tareoNormalizarDNI','tareoIdentidades','tareoAreaDe','tareoEstadoCanonico','tareoClavePersona','convertirHoraMinutos','tareoSaldoHoras','tareoMotivoRevisionHoras','tareoFirmaHoras','tareoHorasValidas','tareoExtrasValidas','calcularMinutosRefrigerio','calcularHorasTrabajadas','obtenerResumenMensualTareo','tareoContadores']
     .map(n=>{try{return extraer(t13,n);}catch(e){return '';}}).join('\n');
   vm.runInContext(reales,sb);
   /* dependencias simuladas de 13-tareo.js */

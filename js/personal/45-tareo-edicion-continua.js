@@ -21,7 +21,7 @@
   'use strict';
 
   /* Campos que edita el supervisor (los calculados —horas, extras, tardanza— se recalculan sobre el trabajador correcto). */
-  const CAMPOS = ['asistencia','registradoEn','registradoPor','horaIngreso','horaIngresoAuto','salidaRefrigerio','retornoRefrigerio','horaSalida','refrigerio'];
+  const CAMPOS = ['asistencia','registradoEn','registradoPor','horaIngreso','horaIngresoAuto','salidaRefrigerio','retornoRefrigerio','horaSalida','refrigerio','horasConfirmadas','horasConfirmadasFirma'];
 
   const copia = v => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
   const num = v => Number(v) || 0;
@@ -468,7 +468,7 @@
   }
   function firma(p){
     return [p.asistencia, p.horaIngreso, p.horaIngresoAuto, p.salidaRefrigerio, p.retornoRefrigerio, p.horaSalida, p.horasTrabajadas,
-      p.horasExtras, p.tardanzaMinutos, p.refrigerio, p.salidaEditada, p.salidaOriginal, p.trabajoEnDescanso, p.linea, p.cargo].map(v => String(v == null ? '' : v)).join('¦');
+      p.horasExtras, p.tardanzaMinutos, p.refrigerio, p.salidaEditada, p.salidaOriginal, p.trabajoEnDescanso, p.linea, p.cargo, p.horasConfirmadas, p.motivoRevision].map(v => String(v == null ? '' : v)).join('¦');
   }
   function reemplazarFila(tr, persona, tareo){
     const indice = Number(tr.getAttribute('data-tareo-persona')) || 0;

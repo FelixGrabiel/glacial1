@@ -88,7 +88,7 @@
       dni,String(p.nombre||ficha?.nombre||''),
       String(ficha?.cargo||p.cargo||''),tareoEtiquetaEstado(p.asistencia),
       String(p.horaIngreso||''),String(p.horaSalida||''),
-      numero(p.horasTrabajadas),numero(tareoSaldoNumero(tareoSaldoHoras(p,tareo.jornadaNormal))),
+      numero(tareoHorasValidas(p)),numero(tareoSaldoNumero(tareoSaldoHoras(p,tareo.jornadaNormal))),
       numero(p.tardanzaMinutos),numero(p.refrigerio)
     ];
   }

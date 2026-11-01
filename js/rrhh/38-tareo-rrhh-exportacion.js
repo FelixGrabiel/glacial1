@@ -131,7 +131,7 @@
     const saldoBruto=(atendio||porDia)?tareoSaldoHoras(p,tareo.jornadaNormal):null;
     const saldoMin=(saldoBruto===null||saldoBruto===undefined||Number.isNaN(saldoBruto))
       ? null : Math.round(saldoBruto*60);
-    const horas=porDia?tareoHorasPorDia(p):Number(p.horasTrabajadas||0);
+    const horas=porDia?tareoHorasPorDia(p):tareoHorasValidas(p);
     return {
       fecha:tareo.fecha,
       turno:normalizarTurno(tareo.turno),

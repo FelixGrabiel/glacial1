@@ -177,8 +177,8 @@
         retornoRefrigerio: p.retornoRefrigerio || '',
         refrigerio: Number(p.refrigerio || 0),
         horaSalida: p.horaSalida || '',
-        horasTrabajadas: Number(p.horasTrabajadas || 0),
-        horasExtras: Number(p.horasExtras || 0),
+        horasTrabajadas: tareoHorasValidas(p),
+        horasExtras: tareoExtrasValidas(p),
         tardanzaMinutos: Number(p.tardanzaMinutos || 0),
         registradoPor: p.registradoPor || '',
         actualizadoEn: Number(p.actualizadoEn || 0),
@@ -262,7 +262,7 @@
                       <td>${p.horaIngreso || '—'}</td>
                       <td>${Number(p.refrigerio || 0) > 0 ? escaparHTML(String(p.refrigerio)) + ' h' : '—'}</td>
                       <td>${p.horaSalida || '—'}${tareoMarcaSalidaEditada(p)}${(typeof tareoPuedeEditarSalidaMaquinistas==='function' && tareoPuedeEditarSalidaMaquinistas() && p.horaSalida) ? '<button type="button" class="tar2-inline-btn" onclick="tareoEditarSalidaMaquinista(' + tareoArg(p._tareoId) + ',' + tareoArg(p._clave) + ')">Editar salida</button>' : ''}</td>
-                      <td>${formatearHoras(p.horasTrabajadas)}</td>
+                      <td>${formatearHoras(tareoHorasValidas(p))}</td>
                       <td>${tareoSaldoHTML(tareoSaldoHoras(p._persona))}</td>
                       <td>${Number(p.tardanzaMinutos || 0) > 0 ? formatearMinutos(p.tardanzaMinutos) : '—'}</td>
                       <td><span class="tar-maq-origin">Producción</span></td>

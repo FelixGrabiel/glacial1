@@ -933,7 +933,8 @@ function tareoSaldoHoras(persona, jornada) {
     if (
         tareoEstadoCanonico(persona.asistencia) !== 'Asistió' ||
         !persona.horaIngreso ||
-        !persona.horaSalida
+        !persona.horaSalida ||
+        tareoMotivoRevisionHoras(persona)
     ) {
         return null;
     }
@@ -1014,8 +1015,8 @@ function tareoContadores(personal, jornada) {
 
         /* la asistencia se cuenta con el criterio único (tareoResumenAsistencia) */
 
-        c.horas += Number(persona.horasTrabajadas || 0);
-        c.extras += Number(persona.horasExtras || 0);
+        c.horas += tareoHorasValidas(persona);
+        c.extras += tareoExtrasValidas(persona);
 
         const s = tareoSaldoHoras(persona, jornada);
 
@@ -3522,8 +3523,8 @@ function tareoSincronizarConRotacion(tareo) {
         if (persona?.salidaRefrigerio) puntos += 5;
         if (persona?.retornoRefrigerio) puntos += 5;
         if (persona?.horaSalida) puntos += 20;
-        puntos += Number(persona?.horasTrabajadas || 0);
-        puntos += Number(persona?.horasExtras || 0);
+        puntos += tareoHorasValidas(persona);
+        puntos += tareoExtrasValidas(persona);
         puntos += Number(persona?.actualizadoEn || 0) / 1e15;
         return puntos;
     };
@@ -5757,8 +5758,25 @@ function renderFilaPersonalTareo(
             <td>
 
                 <strong class="tareo-hours">
-                    ${formatearHoras(persona.horasTrabajadas)}
+                    ${formatearHoras(tareoHorasValidas(persona))}
                 </strong>
+
+                ${
+                    tareoMotivoRevisionHoras(persona)
+                        ? `
+                        <div class="tareo-revisar" title="${escaparHTML(tareoMotivoRevisionHoras(persona))}">
+                            ⚠ Revisar
+                            ${persona.horaIngreso && persona.horaSalida ? `<small>(${formatearHoras(persona.horasCalculadas || persona.horasTrabajadas)} h calculadas)</small>` : ''}
+                            <small>${escaparHTML(tareoMotivoRevisionHoras(persona))}</small>
+                            ${
+                                persona.horaIngreso && persona.horaSalida && typeof tareoPuedeEditar === 'function' && tareoPuedeEditar(tareoObtenerPorId(tareoId))
+                                    ? `<button type="button" class="tar2-inline-btn" title="Dar por buenas estas horas" onclick="tareoConfirmarHoras(${clave})">Confirmar horas</button>`
+                                    : ''
+                            }
+                        </div>
+                        `
+                        : ''
+                }
 
             </td>
 
@@ -6076,6 +6094,86 @@ function actualizarAsistenciaTareo(
 
 
 
+/* =========================================================
+   REVISIÓN DE HORAS (auditoría de octubre 2026)
+   Una jornada no se da por buena, ni cuenta para horas extras, cuando:
+     · tiene salida y NO tiene ingreso;
+     · el refrigerio dura más de 2 horas;
+     · el turno suma más de 16 horas (casi siempre es una hora mal escrita).
+   Quien tiene permiso de edición puede CONFIRMAR las horas: la confirmación vale solo para esos mismos ingreso, salida y refrigerio
+   (si se cambia alguno, vuelve a quedar por revisar). Devuelve el motivo, o '' si todo está en orden.
+   ========================================================= */
+function tareoFirmaHoras(persona) {
+    return [
+        persona.horaIngreso || '',
+        persona.horaSalida || '',
+        persona.salidaRefrigerio || '',
+        persona.retornoRefrigerio || ''
+    ].join('|');
+}
+
+function tareoMotivoRevisionHoras(persona) {
+
+    const MAX_HORAS_TURNO = 16;
+    const MAX_REFRIGERIO_MIN = 120;
+
+    if (!persona || persona.asistencia !== 'Asistió') return '';
+    if (persona.tipo === 'POR DÍA') return '';
+
+    if (persona.horaSalida && !persona.horaIngreso) {
+        return 'Falta la hora de ingreso';
+    }
+
+    if (!persona.horaIngreso || !persona.horaSalida) return '';
+
+    const confirmada =
+        persona.horasConfirmadas === true &&
+        persona.horasConfirmadasFirma === tareoFirmaHoras(persona);
+
+    if (confirmada) return '';
+
+    const minutosRef = calcularMinutosRefrigerio(
+        persona.salidaRefrigerio,
+        persona.retornoRefrigerio
+    );
+
+    if (minutosRef > MAX_REFRIGERIO_MIN) {
+        return 'Refrigerio de más de 2 horas: revisa las horas de refrigerio';
+    }
+
+    const horas = calcularHorasTrabajadas(
+        persona.horaIngreso,
+        persona.horaSalida,
+        minutosRef / 60
+    );
+
+    if (horas > MAX_HORAS_TURNO) {
+        return 'Más de 16 horas en un turno: revisa el ingreso y la salida';
+    }
+
+    return '';
+}
+
+/* Horas extras que cuentan: 0 si la jornada está por revisar. */
+function tareoExtrasValidas(persona) {
+    if (!persona) return 0;
+    return tareoMotivoRevisionHoras(persona) ? 0 : Number(persona.horasExtras || 0);
+}
+
+/* Horas que cuentan de verdad: 0 si la jornada está por revisar (también en registros guardados antes de esta regla). */
+function tareoHorasValidas(persona) {
+    if (!persona) return 0;
+    return tareoMotivoRevisionHoras(persona) ? 0 : Number(persona.horasTrabajadas || 0);
+}
+
+function tareoConfirmarHoras(clave) {
+    tareoEditarPersona(clave, persona => {
+        persona.horasConfirmadas = true;
+        persona.horasConfirmadasFirma = tareoFirmaHoras(persona);
+    });
+}
+
+
 function recalcularPersonaTareo(
     persona,
     tareo
@@ -6088,6 +6186,8 @@ function recalcularPersonaTareo(
         persona.horasTrabajadas = 0;
         persona.horasExtras = 0;
         persona.tardanzaMinutos = 0;
+        persona.motivoRevision = '';
+        persona.horasSospechosas = false;
 
         return;
     }
@@ -6116,6 +6216,19 @@ function recalcularPersonaTareo(
             persona.horaIngreso,
             persona.horaProgramadaIngreso || tareo.horaProgramadaIngreso
         );
+
+    /* Jornada dudosa: se guarda el motivo y NO suma horas ni horas extras hasta que alguien la confirme. */
+    const motivo = tareoMotivoRevisionHoras(persona);
+    persona.motivoRevision = motivo;
+    persona.horasSospechosas = !!motivo;
+
+    if (motivo) {
+        persona.horasCalculadas = persona.horasTrabajadas;
+        persona.horasTrabajadas = 0;
+        persona.horasExtras = 0;
+    } else {
+        persona.horasCalculadas = 0;
+    }
 }
 
 
@@ -7188,7 +7301,7 @@ function renderTareoLectura(tareo) {
 
                                     <td>${persona.horaSalida || "—"}${tareoMarcaSalidaEditada(persona)}${tareoBotonEditarSalida(tareo, persona)}</td>
 
-                                    <td>${formatearHoras(persona.horasTrabajadas)} h</td>
+                                    <td>${formatearHoras(tareoHorasValidas(persona))} h</td>
 
                                     <td>${tareoSaldoHTML(tareoSaldoHoras(persona, tareo.jornadaNormal))}</td>
 
@@ -7303,8 +7416,8 @@ function tareoResumenDeRegistros(registros, año, mes) {
         else if (estado === 'Descanso médico') r.descansosMedicos++;
         else if (estado === 'Vacaciones') r.vacaciones++;
 
-        r.horas += Number(persona.horasTrabajadas || 0);
-        r.extras += Number(persona.horasExtras || 0);
+        r.horas += tareoHorasValidas(persona);
+        r.extras += tareoExtrasValidas(persona);
         { const s = tareoSaldoHoras(persona); if (s !== null) r.saldo += s; }
 
         if (Number(persona.tardanzaMinutos || 0) > 0) {
@@ -7438,7 +7551,7 @@ function tareoAbrirFicha(clave, tareoId) {
                                 ${dato('Hora programada', escaparHTML(seleccionado.tareo.horaProgramadaIngreso || '—'))}
                                 ${dato('Tardanza', Number(turnoActual.tardanzaMinutos || 0) > 0 ? formatearMinutos(turnoActual.tardanzaMinutos) : (turnoActual.horaIngreso ? 'A tiempo' : '—'))}
                                 ${dato('Salida', turnoActual.horaSalida ? escaparHTML(turnoActual.horaSalida) : '—')}
-                                ${dato('Horas / HORAS EXTRAS', `${formatearHoras(turnoActual.horasTrabajadas)} / ${tareoTextoSaldo(tareoSaldoHoras(turnoActual))}`)}
+                                ${dato('Horas / HORAS EXTRAS', `${formatearHoras(tareoHorasValidas(turnoActual))} / ${tareoTextoSaldo(tareoSaldoHoras(turnoActual))}`)}
                             </div>
 
                             ${
@@ -7510,7 +7623,7 @@ function tareoAbrirFicha(clave, tareoId) {
                                                 </td>
                                                 <td>${persona.horaIngreso || '—'}</td>
                                                 <td>${Number(persona.tardanzaMinutos || 0) > 0 ? formatearMinutos(persona.tardanzaMinutos) : '—'}</td>
-                                                <td>${formatearHoras(persona.horasTrabajadas)} h</td>
+                                                <td>${formatearHoras(tareoHorasValidas(persona))} h</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -7877,7 +7990,7 @@ function renderTareoGeneral() {
                                             </td>
                                             <td>${Number(persona.refrigerio || 0) > 0 ? escaparHTML(String(persona.refrigerio)) + ' h' : '—'}</td>
                                             <td>${persona.horaSalida || "—"}${tareoMarcaSalidaEditada(persona)}</td>
-                                            <td>${formatearHoras(persona.horasTrabajadas)} h</td>
+                                            <td>${formatearHoras(tareoHorasValidas(persona))} h</td>
                                             <td>${tareoSaldoHTML(tareoSaldoHoras(persona, tareo.jornadaNormal))}</td>
                                         </tr>
                                     `).join('')}
@@ -8047,7 +8160,7 @@ function exportarTareoGeneralExcel() {
         'Hora ingreso': persona.horaIngreso || '',
         'Tardanza (min)': Number(persona.tardanzaMinutos || 0),
         'Hora salida': persona.horaSalida || '',
-        'Horas trabajadas': Number(Number(persona.horasTrabajadas || 0).toFixed(2)),
+        'Horas trabajadas': Number(tareoHorasValidas(persona).toFixed(2)),
         'HORAS EXTRAS': tareoSaldoNumero(tareoSaldoHoras(persona, tareo.jornadaNormal)),
         'Registrado por': persona.registradoPor || ''
     }));
@@ -9731,7 +9844,7 @@ function obtenerResumenMensualTareo(
                 }
 
                 resumen.horasTrabajadas +=
-                    Number(persona.horasTrabajadas || 0);
+                    tareoHorasValidas(persona);
 
                 {
                     const s = tareoSaldoHoras(persona, tareo.jornadaNormal);
@@ -9740,7 +9853,7 @@ function obtenerResumenMensualTareo(
                 }
 
                 resumen.horasExtras +=
-                    Number(persona.horasExtras || 0);
+                    tareoExtrasValidas(persona);
 
                 if (Number(persona.tardanzaMinutos || 0) > 0) {
 
@@ -10314,10 +10427,7 @@ function exportarTareoExcel(id) {
                     '',
 
                 'Horas trabajadas':
-                    Number(
-                        persona.horasTrabajadas ||
-                        0
-                    ),
+                    tareoHorasValidas(persona),
 
                 'HORAS EXTRAS':
                     tareoSaldoNumero(tareoSaldoHoras(persona, tareo.jornadaNormal)),
@@ -10384,10 +10494,7 @@ function exportarTareoExcel(id) {
                 persona
             ) =>
                 total +
-                Number(
-                    persona.horasTrabajadas ||
-                    0
-                ),
+                tareoHorasValidas(persona),
             0
         );
 
@@ -10604,10 +10711,7 @@ function exportarTareoExcel(id) {
                     '',
 
                 'Horas trabajadas':
-                    Number(
-                        persona.horasTrabajadas ||
-                        0
-                    ),
+                    tareoHorasValidas(persona),
 
                 'HORAS EXTRAS':
                     tareoSaldoNumero(tareoSaldoHoras(persona, tareo.jornadaNormal)),
@@ -11074,7 +11178,7 @@ function exportarTareoPNG(id) {
 
             ctx.fillText(
                 formatearHoras(
-                    persona.horasTrabajadas
+                    tareoHorasValidas(persona)
                 ),
                 posiciones[6],
                 y

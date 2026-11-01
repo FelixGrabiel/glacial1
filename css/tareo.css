@@ -970,3 +970,22 @@
 }
 
 /* ! Estados .good/.warn/.bad/.asistio/.falta NO se sobrescriben aquí. */
+
+/* Jornada con horas dudosas (más de 16 h, refrigerio de más de 2 h o salida sin ingreso): se marca y no suma hasta confirmarla */
+.tareo-revisar{
+    margin-top:4px;
+    padding:4px 8px;
+    border:1px solid #ecd48b;
+    border-left:4px solid #d9a21b;
+    border-radius:8px;
+    background:#fff8e6;
+    color:#6d5410;
+    font-size:11px;
+    font-weight:700;
+    line-height:1.35;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    align-items:flex-start;
+}
+.tareo-revisar small{font-weight:500;color:#7a5a0c}

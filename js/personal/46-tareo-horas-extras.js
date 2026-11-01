@@ -106,6 +106,8 @@
     if(ing === null || ing === undefined){ r.estado = 'pendiente'; r.motivo = 'Falta la hora de ingreso'; return r; }
     if(sal === null || sal === undefined){ r.estado = 'pendiente'; r.motivo = 'Falta la hora de salida'; return r; }
     if(!!p.salidaRefrigerio !== !!p.retornoRefrigerio){ r.estado = 'pendiente'; r.motivo = 'Refrigerio incompleto'; return r; }
+    const rev = typeof tareoMotivoRevisionHoras === 'function' ? tareoMotivoRevisionHoras(p) : '';
+    if(rev){ r.estado = 'pendiente'; r.motivo = rev; return r; }                       // más de 16 h o refrigerio > 2 h: no cuenta hasta confirmarlo
     const ref = typeof calcularMinutosRefrigerio === 'function' ? calcularMinutosRefrigerio(p.salidaRefrigerio, p.retornoRefrigerio) : 0;
     r.laborada = Math.round(calcularHorasTrabajadas(p.horaIngreso, p.horaSalida, ref / 60) * 60);
     r.saldo = r.laborada - prog;

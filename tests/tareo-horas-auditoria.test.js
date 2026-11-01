@@ -1,8 +1,8 @@
-/* AUDITORÍA de las horas del tareo: reproduce con las funciones reales (13-tareo.js y 46-tareo-horas-extras.js) los casos que hoy salen mal
-   en los datos de producción (octubre 2026). Cada ✘ es una falla confirmada; cuando se corrija, todas deben salir ✔.
-   Uso: node tests/auditoria/tareo-horas.auditoria.js  (no forma parte de la suite rápida: hoy FALLA a propósito) */
+/* AUDITORÍA de las horas del tareo (corregida): con las funciones reales (13-tareo.js y 46-tareo-horas-extras.js) comprueba los casos que en octubre 2026
+   salían mal en producción: más de 16 h, refrigerio de más de 2 h y salida sin ingreso. Ya NO deben fallar.
+   Uso: node tests/tareo-horas-auditoria.test.js */
 const vm=require('vm');
-const {cargarCliente,crearNube,leerDisco}=require('../tareo-harness.js');
+const {cargarCliente,crearNube,leerDisco}=require('./tareo-harness.js');
 let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c)fallas++;};
 
 const cli=cargarCliente(crearNube({}),{});const sb=cli.sb;
@@ -49,6 +49,37 @@ ok(p.alerta||p.horasSospechosas||p.pendiente,'3. salida registrada sin hora de i
  sb._tareosCache=JSON.parse(JSON.stringify([t]));HE.estado.grupo='Producción';
  const d=HE.datos();
  ok((d.pendientes||[]).length===1&&/salida/i.test(((d.pendientes||[])[0]||{}).motivo||''),'5. quien tiene ingreso y no salida aparece como PENDIENTE «Falta la hora de salida» (no como 0 h)');
+}
+
+
+/* ---- Regla: más de 16 h / refrigerio > 2 h no suman horas ni extras y salen como PENDIENTE en el módulo de horas extras ---- */
+{const mk=(id,extra)=>{const t=Object.assign(tareo('Día'),{id:'t'+id,area:'Producción',fecha:'2026-10-0'+id,estado:'Abierto',actualizadoEn:1,personalPorDia:[]});
+   const pr=persona(Object.assign({trabajadorId:id,cargo:'Operario',area:'Producción'},extra));calc(pr,t);t.personal=[pr];return {t,pr};};
+ const a=mk('3',{horaIngreso:'00:00',horaSalida:'22:00',salidaRefrigerio:'',retornoRefrigerio:''});
+ ok(a.pr.horasTrabajadas===0&&a.pr.horasExtras===0&&a.pr.horasCalculadas===22&&/16 horas/.test(a.pr.motivoRevision),'6. 22 h seguidas: no suman horas ni extras, se guardan como «calculadas» (22 h) con el motivo');
+ sb._tareosCache=JSON.parse(JSON.stringify([a.t]));HE.estado.grupo='Producción';
+ let d=HE.datos();
+ ok((d.pendientes||[]).length===1&&/16 horas/.test(d.pendientes[0].motivo)&&(d.validos||[]).length===0&&d.favor===0,'6b. el módulo de horas extras lo deja PENDIENTE y no suma horas a favor');
+ /* confirmar vale solo para esas mismas horas */
+ a.pr.horasConfirmadas=true;a.pr.horasConfirmadasFirma=ev('tareoFirmaHoras')(a.pr);calc(a.pr,a.t);
+ ok(a.pr.horasTrabajadas===22&&a.pr.horasExtras===14&&!a.pr.horasSospechosas,'7. confirmadas las horas: cuentan completas (22 h, 14 extras)');
+ a.pr.horaSalida='21:00';calc(a.pr,a.t);
+ ok(a.pr.horasTrabajadas===0&&a.pr.horasSospechosas,'7b. si se cambia la salida, la confirmación se pierde y vuelve a quedar por revisar');
+ const lim=mk('4',{horaIngreso:'06:00',horaSalida:'22:00',salidaRefrigerio:'',retornoRefrigerio:''});
+ ok(lim.pr.horasTrabajadas===16&&lim.pr.horasExtras===8&&!lim.pr.horasSospechosas,'8. exactamente 16 h (límite) es válido: 16 h y 8 extras');
+ const ref=mk('5',{horaIngreso:'07:00',horaSalida:'17:00',salidaRefrigerio:'11:00',retornoRefrigerio:'13:00'});
+ ok(ref.pr.horasTrabajadas===8&&!ref.pr.horasSospechosas,'8b. refrigerio de exactamente 2 h (límite) es válido: 10 h − 2 h = 8 h');
+ const sinIng=mk('6',{horaIngreso:'',horaSalida:'09:00',salidaRefrigerio:'',retornoRefrigerio:''});
+ sb._tareosCache=JSON.parse(JSON.stringify([sinIng.t]));d=HE.datos();
+ ok((d.pendientes||[]).length===1&&d.pendientes[0].motivo==='Falta la hora de ingreso','9. salida sin ingreso: pendiente «Falta la hora de ingreso» en horas extras');
+}
+
+/* ---- registros guardados ANTES de la regla (21,5 h ya almacenadas) también cuentan 0 en totales y exportes ---- */
+{const viejo=persona({horaIngreso:'10:00',horaSalida:'07:30',salidaRefrigerio:'',retornoRefrigerio:'',horasTrabajadas:21.5,horasExtras:13.5});
+ sb.__v=viejo;
+ ok(ev('tareoHorasValidas(__v)')===0&&ev('tareoExtrasValidas(__v)')===0,'10. un registro viejo con 21,5 h guardadas cuenta 0 h y 0 extras en totales y exportes (sin tener que editarlo)');
+ const bueno=persona({horasTrabajadas:9,horasExtras:1});sb.__v=bueno;
+ ok(ev('tareoHorasValidas(__v)')===9&&ev('tareoExtrasValidas(__v)')===1,'10b. un registro normal sigue contando igual (9 h, 1 extra)');
 }
 
 console.log(fallas?'\n'+fallas+' fallas confirmadas':'\ntodo correcto');
