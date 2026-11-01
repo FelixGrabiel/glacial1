@@ -530,6 +530,28 @@
       .rgx-det{border:2px solid #073f68}
       .rgx-como dt{font-weight:700;margin-top:6px}.rgx-como dd{margin:0 0 0 0;color:#435b69}
       @media(max-width:600px){.rgx-kpis{grid-template-columns:repeat(2,1fr)}}
+      /* ORDEN VISUAL: mismas esquinas, sombra y títulos en todo el Resumen general (cabecera, industrial y gráficos) */
+      .resumen-pro .rgx-box,.resumen-pro .rgx-k,.resumen-pro .ri-pulse,.resumen-pro .ri-box,.resumen-pro .rgx-aviso{border-radius:14px}
+      .resumen-pro .rgx-box,.resumen-pro .rgx-k,.resumen-pro .ri-pulse,.resumen-pro .ri-box{border-color:var(--rs-line,#e6ebef);box-shadow:0 1px 2px rgba(40,60,80,.05)}
+      .resumen-pro .rgx-k{border-left-color:#aab7bf}.resumen-pro .rgx-k.verde{border-left-color:#2e8b57}.resumen-pro .rgx-k.ambar{border-left-color:#d89216}.resumen-pro .rgx-k.roja{border-left-color:#c4472b}   /* conserva el semáforo de cada indicador */
+      .resumen-pro .rgx-box{padding:16px 20px}
+      .resumen-pro .rgx-box h4,.resumen-pro .ri-pulse h3,.resumen-pro .ri-box h3,.resumen-pro .ri-read h3{margin:0 0 10px;font-size:15px;font-weight:600;color:var(--rs-ink,#2e3a46)}
+      .resumen-pro .rgx-bar h3{font-size:16px;font-weight:700}
+      .resumen-pro .rgx-kpis{gap:12px}
+      .resumen-pro .rgx-k{padding:13px 16px;display:flex;flex-direction:column;gap:2px}
+      .resumen-pro .rgx-k b{font-size:26px;line-height:1.15;margin:2px 0;font-variant-numeric:tabular-nums}
+      .resumen-pro .rgx-k span{letter-spacing:.05em}
+      /* la variación contra el período anterior es una nota, no un título: sin mayúsculas ni negrita pesada */
+      .resumen-pro .rgx-k span.rgx-var{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600}
+      .resumen-pro .rgx-k span.rgx-var.neutro{font-weight:400;color:#8896a1}
+      .resumen-pro .rgx-k small{font-size:12px;line-height:1.4}
+      .resumen-pro .rgx-aviso{border-left:5px solid #e0a43a;font-size:13px;line-height:1.5}
+      .resumen-pro .rgx-box ul{display:flex;flex-direction:column;gap:2px}
+      .resumen-pro .rgx-box li{margin:0;line-height:1.5}
+      .resumen-pro .rgx-tabla th{font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+      .resumen-pro .rgx-tabla th,.resumen-pro .rgx-tabla td{padding:8px 8px}
+      .resumen-pro .rgx-tabla tbody tr:nth-child(even){background:#fafcfd}
+      .resumen-pro .chart-box.rs-w5:last-child{grid-column:1/-1}   /* una tarjeta angosta que quedó sola ocupa todo el ancho */
     `;
     document.head.appendChild(s);
   }
@@ -610,7 +632,7 @@
   function htmlLectura(R){
     const I=window.glacialResumenIndustrial,extra=I&&I.frases&&I.frases.length?I.frases:[];
     return '<div class="rgx-box"><h4>Lectura del período</h4>'+
-      (R.queFrases.length?'<ol>'+R.queFrases.map(t=>'<li>'+t+'</li>').join('')+'</ol>':'<div class="rgx-nota">No hay datos suficientes en el periodo.</div>')+
+      (R.queFrases.length?'<ul style="margin:0;padding-left:19px">'+R.queFrases.map(t=>'<li>'+t+'</li>').join('')+'</ul>':'<div class="rgx-nota">No hay datos suficientes en el periodo.</div>')+
       (extra.length?'<ul style="margin:8px 0 0;padding-left:19px">'+extra.map(t=>'<li>'+esc(t)+'</li>').join('')+'</ul>':'')+'</div>';
   }
   function htmlTablaComparativa(titulo,filas,conClick){
