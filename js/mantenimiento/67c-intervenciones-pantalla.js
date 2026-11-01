@@ -401,7 +401,7 @@
       '<label>Estado<select data-mi-ef="activo"><option value="">Todos</option><option value="true"'+(fl.activo==='true'?' selected':'')+'>Activos</option><option value="false"'+(fl.activo==='false'?' selected':'')+'>Inactivos</option></select></label>'+
       '<label>Buscar<input type="search" data-mi-ef="q" value="'+esc(fl.q)+'"></label></div>'+
       (typeof window.glacialEvidenciasConfigHtml==='function'?window.glacialEvidenciasConfigHtml():'')+
-      (puede?'<div class="mi-acc"><button type="button" class="btn btn-primary btn-sm" data-mi-eq-nuevo>+ Agregar equipo</button></div>':'<div class="mi-meta">Solo el Supervisor de Mantenimiento o el Administrador pueden cambiar el catálogo.</div>')+
+      (puede?'<div class="mi-acc"><button type="button" class="btn btn-primary btn-sm" data-mi-eq-nuevo>+ Agregar equipo</button><button type="button" class="btn '+(E.lista().length?'btn-ghost':'btn-primary')+' btn-sm" data-mi-eq-importar>Cargar las máquinas de cada línea</button></div>':'<div class="mi-meta">Solo el Supervisor de Mantenimiento o el Administrador pueden cambiar el catálogo.</div>')+
       (!E.listo()?'<div class="mi-vacio">Cargando el catálogo…</div>':lista.length?lista.map(e=>'<div class="mi-card" style="--c:'+(e.activo?'#0e7490':'#9ca3af')+';cursor:default"><h4>'+esc(e.nombre)+' <small style="font-weight:500;color:#5a6b78">· '+esc(e.codigo)+'</small></h4>'+
         '<span class="mi-chip">'+esc(e.tipo)+'</span><span class="mi-chip">'+esc(E.nombreLinea(e.linea))+'</span>'+e.compartidoCon.map(l=>'<span class="mi-chip">compartido: '+esc(E.nombreLinea(l))+'</span>').join('')+(e.activo?'':'<span class="mi-chip e-CANCELADA">Inactivo</span>')+
         (e.datos.marca||e.datos.modelo||e.datos.serie?'<div class="mi-meta">'+esc([e.datos.marca,e.datos.modelo,e.datos.serie&&'Serie '+e.datos.serie].filter(Boolean).join(' · '))+'</div>':'')+
@@ -499,6 +499,13 @@
       return;
     }
     if(t.closest('[data-mi-eq-nuevo]')){formEquipo('');return;}
+    if(t.closest('[data-mi-eq-importar]')){
+      formulario('Cargar las máquinas de cada línea','<p class="completo">Se toman las máquinas que Mantenimiento ya tiene listadas por línea (Sopladora, Envasadora, Etiquetadora, Empaquetadora…) y se crean en este catálogo las que falten, con un código y un tipo sugeridos. <b>No se cambia ni se borra nada de lo que ya existe</b>; después puedes completar marca, modelo y serie de cada una.</p>','Cargar equipos',async()=>{
+        const r=await EQ().importarDeLista();
+        aviso('Equipos cargados',r.creados.length?r.creados.length+' equipo(s) creados'+(r.omitidos?' y '+r.omitidos+' ya existían.':'.'):'Todos los equipos de la lista ya estaban en el catálogo.');
+      });
+      return;
+    }
     const ee=t.closest('[data-mi-eq-editar]');if(ee){formEquipo(ee.dataset.miEqEditar);return;}
     const ea=t.closest('[data-mi-eq-activo]');
     if(ea){const x=EQ().porId(ea.dataset.miEqActivo);if(x){try{await EQ().cambiarActivo(x.id,!x.activo);}catch(err){aviso('No se pudo cambiar',(err&&err.message)||String(err));}}return;}

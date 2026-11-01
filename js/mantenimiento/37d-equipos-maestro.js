@@ -108,7 +108,7 @@
       const doc=snap.exists?snap.data():{};
       const actuales=limpiar(doc[CAMPO]);
       const crudos=Array.isArray(doc[CAMPO])?doc[CAMPO].slice():[];
-      const r=fn(actuales,crudos);
+      const r=fn(actuales,crudos,doc);
       tx.set(ref,{[CAMPO]:r.lista,updatedAt:Date.now()},{merge:true});
       resultado=r.resultado;
     });
@@ -130,6 +130,37 @@
       return {lista,resultado:reg};
     });
   }
+  /* ---------- carga inicial desde la lista de máquinas por línea de Mantenimiento (sync/configMantenimiento → equipos) ---------- */
+  const TIPOS_POR_PALABRA=[['sopla','Sopladora'],['envas','Envasadora'],['etiquet','Etiquetadora'],['empaquet','Empaquetadora'],['rinser','Rinser'],['tapad','Tapadora'],['lavad','Lavadora'],['compres','Compresor'],['transport','Transportador']];
+  const tipoDeNombre=n=>{const t=norm(n);const h=TIPOS_POR_PALABRA.find(([p])=>t.includes(p));return h?h[1]:'Otro';};
+  /* Código corto y único: línea + 3 letras del nombre + su número («Sopladora 2» en B7L → B7L-SOP2). Si ya existe, se le agrega -2, -3… */
+  function codigoDe(linea,nombre,usados){
+    const t=norm(nombre),num=(t.match(/(\d+)\s*$/)||[])[1]||'',letras=t.replace(/[^a-z]/g,'').slice(0,3).toUpperCase()||'EQ';
+    const base=(linea+'-'+letras+num).slice(0,18);let c=base,i=2;
+    while(usados.has(norm(c))){c=(base+'-'+i).slice(0,20);i++;}
+    usados.add(norm(c));return c;
+  }
+  /**
+   * Crea en el catálogo las máquinas que figuran en la lista de Mantenimiento por línea y todavía no están (misma línea y mismo nombre). No cambia ni borra nada
+   * existente. Una sola transacción: o entran todas o ninguna. Devuelve {creados:[nombres con línea], omitidos:n}.
+   */
+  async function importarDeLista(){
+    return modificar((actuales,crudos,doc)=>{
+      const lista=actuales.slice(),usados=new Set(actuales.map(e=>norm(e.codigo))),creados=[];let omitidos=0;
+      const base=doc&&doc.equipos&&typeof doc.equipos==='object'?doc.equipos:{};
+      LINEAS.forEach(l=>{
+        (Array.isArray(base[l])?base[l]:[]).map(txt).filter(Boolean).forEach(nombre=>{
+          if(lista.some(e=>e.linea===l&&norm(e.nombre)===norm(nombre))){omitidos++;return;}
+          const eq={id:idNuevo(),codigo:codigoDe(l,nombre,usados),nombre:nombre.slice(0,60),linea:l,compartidoCon:[],tipo:tipoDeNombre(nombre),activo:true,datos:{marca:'',modelo:'',serie:'',notas:''},
+            creadoPor:quien(),creadoEn:ahora(),actualizadoPor:quien(),actualizadoEn:ahora()};
+          const v=validar(eq,lista);if(v.errores.length)throw new Error('«'+nombre+'» ('+nombreLinea(l)+'): '+v.errores.join(' '));
+          lista.push(eq);creados.push(nombre+' · '+nombreLinea(l));
+        });
+      });
+      if(!creados.length&&!omitidos)throw new Error('La lista de máquinas de Mantenimiento está vacía: no hay nada que cargar.');
+      return {lista,resultado:{creados,omitidos}};
+    });
+  }
   async function cambiarActivo(id,activo){
     return modificar(actuales=>{
       const i=actuales.findIndex(e=>e.id===id);
@@ -140,6 +171,6 @@
     });
   }
 
-  window.glacialEquiposMaestro={LINEAS,PLANTA,TIPOS_SUGERIDOS,lista,porId,delaLinea,buscarPorNombre,etiqueta,nombreLinea,validar,guardar,cambiarActivo,puedeConfigurar,
+  window.glacialEquiposMaestro={LINEAS,PLANTA,TIPOS_SUGERIDOS,importarDeLista,codigoDe,tipoDeNombre,lista,porId,delaLinea,buscarPorNombre,etiqueta,nombreLinea,validar,guardar,cambiarActivo,puedeConfigurar,
     listo:()=>listo,alCambiar:f=>{if(typeof f==='function'&&!oyentes.includes(f))oyentes.push(f);},escuchar,cerrar};
 })();
