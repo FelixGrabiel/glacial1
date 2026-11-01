@@ -295,7 +295,7 @@
   function delDia() { return todos().filter(r => r.area === E.area && r.fecha === E.fecha).sort((a, b) => String(a.horaInicio).localeCompare(String(b.horaInicio)) || String(a.trabajadorNombre).localeCompare(String(b.trabajadorNombre), 'es')); }
   function htmlTarjetas(lista) {
     const r = N.resumen(lista);
-    return `<div class="he-kpis"><div style="--c:#005b96"><span>Horas extras hoy</span><b>${N.textoHoras(r.horas)}</b><small>${r.registros} registro(s)</small></div>
+    return `<div class="he-kpis"><div style="--c:#0877A6"><span>Horas extras hoy</span><b>${N.textoHoras(r.horas)}</b><small>${r.registros} registro(s)</small></div>
       <div style="--c:#3f8f5f"><span>Trabajadores con HE</span><b>${r.trabajadores}</b></div>
       <div style="--c:${r.sinAutorizar ? '#df8b00' : '#9aa9b8'}"><span>Registros sin autorizar</span><b>${r.sinAutorizar}</b><small>sin autorizador</small></div></div>`;
   }
@@ -320,19 +320,19 @@
 
   /* ---------- pantalla ---------- */
   const CSS = `
-    .he{display:block}.he h3{margin:0 0 10px;color:#003b5c;font-size:15px}.he-grid{display:grid;grid-template-columns:minmax(290px,340px) 1fr;gap:14px;align-items:start}
+    .he{display:block}.he h3{margin:0 0 10px;color:#033350;font-size:15px}.he-grid{display:grid;grid-template-columns:minmax(290px,340px) 1fr;gap:14px;align-items:start}
     .he-card{background:#fff;border:1px solid #dce5ec;border-radius:12px;padding:14px;margin-bottom:12px}
     .he-card label{display:block;font-weight:600;font-size:12px;margin:9px 0 3px;color:#41525e}.he-card select,.he-card input,.he-card textarea{width:100%;box-sizing:border-box;border:1px solid #cfdbe3;border-radius:8px;padding:7px 9px;font:inherit;background:#fff}
     .he-card input[readonly]{background:#f2f6f9}.he-req{color:#c4472b}.he-nota{color:#5a6b78;font-weight:400}
     .he-fila{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.he-acciones{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
     .he-falta{color:#8a5a1e;font-size:12px;margin-top:6px;min-height:14px}.he-error{color:#a32020;font-size:13px;margin-top:6px}.he-aviso{background:#e6f6ec;border:1px solid #b6e0c4;color:#1d6b3a;border-radius:8px;padding:8px 12px;margin-bottom:10px}
     .he-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}.he-kpis div{background:#fff;border:1px solid #dce5ec;border-left:5px solid var(--c,#9aa9b8);border-radius:12px;padding:10px 14px}
-    .he-kpis span{display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#5a6b78}.he-kpis b{font-size:24px;color:#003b5c}.he-kpis small{display:block;color:#5a6b78;font-size:12px}
+    .he-kpis span{display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#5a6b78}.he-kpis b{font-size:24px;color:#033350}.he-kpis small{display:block;color:#5a6b78;font-size:12px}
     .he-scroll{overflow-x:auto}.he-tabla{width:100%;border-collapse:collapse;font-size:13px}.he-tabla th{text-align:left;font-size:11px;text-transform:uppercase;color:#5a6b78;padding:7px;border-bottom:2px solid #dce5ec;white-space:nowrap}
     .he-tabla td{padding:8px 7px;border-top:1px solid #edf2f6;vertical-align:top}.he-tabla small{display:block;color:#5a6b78}.he-tabla .he-dest{background:#fff9e8}.he-tabla th.he-dest{background:#fff3cf}
     .he-sinaut td{background:#fff1e0!important}.he-tag-na{color:#c4472b;font-weight:700}.he-anulado td{opacity:.55;text-decoration:line-through}.he-anulado td.he-acc{text-decoration:none}.he-tag-an{font-weight:700;color:#6b7280}
     .he-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:0 0 12px}.he-bar label{font-size:12px;font-weight:600;color:#41525e;display:block}.he-bar select,.he-bar input{padding:7px 9px;border:1px solid #cfdbe3;border-radius:8px;font:inherit}
-    .he-sub{display:inline-flex;background:#e5ebef;border-radius:10px;padding:3px;gap:3px;margin-bottom:12px}.he-sub button{border:0;background:transparent;padding:6px 14px;border-radius:8px;font-weight:600;color:#5a6b78;cursor:pointer}.he-sub .on{background:#fff;color:#003b5c}
+    .he-sub{display:inline-flex;background:#e5ebef;border-radius:10px;padding:3px;gap:3px;margin-bottom:12px}.he-sub button{border:0;background:transparent;padding:6px 14px;border-radius:8px;font-weight:600;color:#5a6b78;cursor:pointer}.he-sub .on{background:#fff;color:#033350}
     .he-marca{display:inline-block;margin-left:6px;background:#fde8c8;color:#8a5a1e;font-weight:700;border-radius:999px;padding:1px 8px;font-size:11px;cursor:pointer;border:0;vertical-align:middle}
     @media(max-width:860px){.he-grid{grid-template-columns:1fr}.he-kpis{grid-template-columns:1fr}}`;
   function estilos() { if (document.getElementById('he-css')) return; const s = document.createElement('style'); s.id = 'he-css'; s.textContent = CSS; document.head.appendChild(s); }
@@ -372,7 +372,7 @@
       <div><label>Hasta</label><input type="date" id="hf-hasta" value="${esc(f.hasta)}" onchange="glacialHorasExtras.filtro('hasta',this.value)"></div>
       <div><label>Estado</label>${sel('hf-estado', f.estado, [['vigentes', 'Vigentes'], ['anulados', 'Anulados'], ['todos', 'Todos']])}</div>
       <div><button type="button" class="btn btn-ghost btn-sm" onclick="glacialHorasExtras.consultar()">${E.cargando ? 'Consultando…' : 'Cargar más antiguos'}</button> <button type="button" class="btn btn-ghost btn-sm" onclick="glacialHorasExtras.excel()">Excel</button></div></div>
-      <div class="he-kpis"><div style="--c:#005b96"><span>Horas extras</span><b>${N.textoHoras(tot.horas)}</b><small>${tot.registros} registro(s)</small></div><div style="--c:#3f8f5f"><span>Trabajadores</span><b>${tot.trabajadores}</b></div><div style="--c:${tot.sinAutorizar ? '#df8b00' : '#9aa9b8'}"><span>Sin autorizar</span><b>${tot.sinAutorizar}</b></div></div>`;
+      <div class="he-kpis"><div style="--c:#0877A6"><span>Horas extras</span><b>${N.textoHoras(tot.horas)}</b><small>${tot.registros} registro(s)</small></div><div style="--c:#3f8f5f"><span>Trabajadores</span><b>${tot.trabajadores}</b></div><div style="--c:${tot.sinAutorizar ? '#df8b00' : '#9aa9b8'}"><span>Sin autorizar</span><b>${tot.sinAutorizar}</b></div></div>`;
   }
   function htmlGeneral() {
     const o = { fecha: true, area: true }, lista = N.filtrar(todos(), E.filtros);

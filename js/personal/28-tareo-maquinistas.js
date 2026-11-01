@@ -377,10 +377,10 @@
     const style = document.createElement('style');
     style.id = 'tar-maq-espejo-style';
     style.textContent = `
-      .tar-maq-espejo{margin-top:16px;border-left:4px solid var(--blue,#005B96)}
+      .tar-maq-espejo{margin-top:16px;border-left:4px solid var(--blue,#0877A6)}
       .tar-maq-espejo .panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
       .tar-maq-espejo .panel-head h3{margin:0 0 3px}
-      .tar-maq-lock,.tar-maq-origin{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:700;background:#eaf5fc;color:#003b5c;border:1px solid #c9e1ef}
+      .tar-maq-lock,.tar-maq-origin{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:700;background:#E8F7FE;color:#033350;border:1px solid #c9e1ef}
       .tar-maq-readonly{background:#f8fafb}
       .tar-maq-readonly td{opacity:.92}
       .tar-maq-aviso{margin-bottom:12px;padding:10px 12px;border-radius:8px;background:#fff4d9;border:1px solid #efd69a;color:#72520e;font-size:12px;line-height:1.45}

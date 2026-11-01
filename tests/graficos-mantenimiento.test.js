@@ -32,6 +32,6 @@ ok(/panelGraficos\(A\)/.test(s67c)&&/G\.dona\(porEstado/.test(s67c)&&/G\.columna
 ok(/graficosEquipos\(r\)/.test(s67f)&&/data-gm-grupo="ie-equipo"/.test(s67f),'Indicadores: fallas y MTTR por equipo; tocar abre el detalle');
 ok(/rc-grupo/.test(s67h),'Reclasificar: minutos sin clasificar por grupo; tocar abre la asignación');
 ok(/class="gm-svg-bar" data-tip=/.test(s47)&&/gm-svg-barh/.test(s47)&&/circle data-tip=/.test(s47),'el Pareto y la tendencia de Análisis de paradas también muestran el globo y se animan');
-ok(html.indexOf('67i-graficos.js')>0&&html.indexOf('67i-graficos.js')<html.indexOf('47-analisis-paradas.js')&&html.indexOf('67i-graficos.js')<html.indexOf('67c-intervenciones-pantalla.js')&&/67i-graficos\.js\?v=20261013-gm1/.test(html),'index.html carga 67i antes de 47 y 67c');
+ok(html.indexOf('67i-graficos.js')>0&&html.indexOf('67i-graficos.js')<html.indexOf('47-analisis-paradas.js')&&html.indexOf('67i-graficos.js')<html.indexOf('67c-intervenciones-pantalla.js')&&/67i-graficos\.js\?v=\d{8}-[a-z0-9]+/.test(html),'index.html carga 67i antes de 47 y 67c');
 ok(!/[^.\w]alert\(|[^.\w]confirm\(|[^.\w]prompt\(/.test(css.replace(/\/\/.*$/gm,''))&&!/arrayUnion|increment\(|array-contains|'!='/.test(css),'sin alert/confirm/prompt ni nada incompatible con Supabase');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

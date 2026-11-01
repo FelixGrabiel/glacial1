@@ -1542,7 +1542,7 @@ function tareoInyectarEstilos() {
         .tar2-live::before{content:'';width:8px;height:8px;border-radius:50%;background:#1e9e5a;box-shadow:0 0 0 3px rgba(30,158,90,.18);}
         .tar2-area-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;}
         .tar2-area-pill{border:1px solid var(--line,#d9e2e8);background:#fff;border-radius:999px;padding:7px 16px;font-weight:600;font-size:13px;cursor:pointer;color:var(--text-soft,#405261);}
-        .tar2-area-pill.active{background:#003B5C;border-color:#003B5C;color:#fff;}
+        .tar2-area-pill.active{background:#033350;border-color:#033350;color:#fff;}
         .tar2-turno-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;}
         .tar2-card{border:1px solid var(--line,#d9e2e8);border-radius:10px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:10px;}
         .tar2-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;}
@@ -1553,7 +1553,7 @@ function tareoInyectarEstilos() {
         .tar2-card-meta{font-size:13px;color:var(--text-soft,#5a6b78);line-height:1.5;}
         .tar2-progress{height:8px;border-radius:999px;background:#e8eef2;overflow:hidden;}
         .tar2-progress span{display:block;height:100%;background:#2f8f6b;border-radius:999px;transition:width .3s;}
-        .tar2-name-btn{background:none;border:0;padding:2px 0;margin:0;font:inherit;font-weight:700;color:#005B96;cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:rgba(0,91,150,.35);text-underline-offset:3px;min-height:28px;}
+        .tar2-name-btn{background:none;border:0;padding:2px 0;margin:0;font:inherit;font-weight:700;color:#0877A6;cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:rgba(8,119,166,.35);text-underline-offset:3px;min-height:28px;}
         .tar2-name-btn:hover,.tar2-name-btn:focus-visible{text-decoration-color:currentColor;outline:none;}
         .tar2-quick{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
         .tar2-quick select{max-width:160px;}
@@ -1561,7 +1561,7 @@ function tareoInyectarEstilos() {
         .tar2-inline-btn{border:1px solid var(--line,#d9e2e8);background:#fff;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;margin-left:4px;}
         .tar2-row-pendiente td{background:#fffdf3;}
         .tareo-status.pendiente{background:#fff4d6;color:#8a6d1d;}
-        .tar2-area-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;background:#e6f0f7;color:#003B5C;}
+        .tar2-area-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;background:#e6f0f7;color:#033350;}
         .tar2-area-badge.mant{background:#fdf0e1;color:#8a4b0f;}
         .tar2-toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
         .tar2-toolbar .field-sm{min-width:150px;}
@@ -1582,7 +1582,7 @@ function tareoInyectarEstilos() {
         .tar2-chip-descanso{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;background:#eceff2;color:#5a7083;}
         .tar2-chip-trabajo-desc{background:#fdf0e1;color:#8a4b0f;}
         .tar2-totales{margin:0 0 12px;padding:8px 12px;border:1px solid var(--line,#d9e2e8);border-radius:8px;background:#f3f8fc;font-size:13px;color:var(--text-soft,#405261);}
-        .tar2-totales strong{color:#003B5C;}
+        .tar2-totales strong{color:#033350;}
         .tar2-tecnicos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px;}
         .tar2-tecnicos li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0;border-bottom:1px dashed #e5edf3;}
         .tareo-consulta-badge{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#eef3f7;color:#4a6072;border:1px solid #d3dee6;}
@@ -11007,7 +11007,7 @@ function exportarTareoPNG(id) {
     );
 
     ctx.fillStyle =
-        '#003B5C';
+        '#033350';
 
     ctx.fillRect(
         0,

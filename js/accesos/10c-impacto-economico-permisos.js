@@ -55,7 +55,7 @@
     const p = P().de(u), rol = String(u.rol || '').trim();
     const adm = rol === 'Administrador';
     return '<div id="eco-form" style="border:1px solid #cfe0f2;background:#f7fbff;border-radius:12px;padding:14px;margin-bottom:14px">' +
-      '<h4 style="margin:0 0 4px;color:#10265f">IMPACTO ECONÓMICO</h4>' +
+      '<h4 style="margin:0 0 4px;color:#033350">IMPACTO ECONÓMICO</h4>' +
       '<p style="margin:0 0 10px;font-size:12px;color:#53657a">El rol solo indica quién puede recibir el acceso; aquí se concede. «Todos los permisos» no lo incluye.' +
       (adm ? ' <b>Habilitación temporal:</b> se puede revocar en cualquier momento.' : '') + '</p>' +
       '<label style="display:flex;gap:8px;align-items:center;margin:6px 0;cursor:pointer"><input type="checkbox" id="eco-ver"' + (p.ver ? ' checked' : '') + '> Ver impacto económico</label>' +

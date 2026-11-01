@@ -14,7 +14,7 @@
 
   /* Cada tarjeta: botón del menú que decide si se muestra (permiso), qué abre y cómo se explica. */
   const GRUPOS=[
-    {titulo:'Lo de hoy y el trabajo diario',subtitulo:'Lo que se usa todos los turnos.',color:'#006b8f',tarjetas:[
+    {titulo:'Lo de hoy y el trabajo diario',subtitulo:'Lo que se usa todos los turnos.',color:'#065F86',tarjetas:[
       {boton:'btn-intervenciones',icono:'🛠',titulo:'Intervenciones',desc:'Registrar y seguir reparaciones y mantenimientos: pendientes, en espera y cerradas.',abrir:()=>window.goIntervenciones&&window.goIntervenciones()},
       {boton:'btn-bitacora-mtto',icono:'📒',titulo:'Bitácora de Mantenimiento',desc:'Todas las paradas por día y línea, con su motivo, equipo y quién las atendió.',abrir:()=>window.goBitacoraMtto&&window.goBitacoraMtto()},
       {boton:'btn-intervenciones',icono:'🗓',titulo:'Preventivos',desc:'Planes de mantenimiento por calendario: próximos, de hoy y vencidos.',abrir:()=>window.intervencionesAbrir&&window.intervencionesAbrir({tab:'preventivos'})},
@@ -51,20 +51,20 @@
     s.textContent=
       '.mi-wrap{max-width:1100px}'+
       '.mi-hoy{border:1px solid #d5e3ec;background:#f6fafd;border-radius:12px;padding:12px 14px;margin:6px 0 18px}'+
-      '.mi-hoy h3{margin:0 0 6px;font-size:14px;color:#003b5c}'+
+      '.mi-hoy h3{margin:0 0 6px;font-size:14px;color:#033350}'+
       '.mi-hoy.mi-alerta{background:#fff8f2;border-color:#f0c8a0}'+
       '.mi-hoy ul{margin:0;padding-left:18px;font-size:13px}.mi-hoy li{margin:3px 0}'+
       '.mi-hoy .mi-ok{font-size:13px;color:#1a7f4b}'+
-      '.mi-sec{margin:22px 0 2px;font-size:16px;color:#003b5c}'+
+      '.mi-sec{margin:22px 0 2px;font-size:16px;color:#033350}'+
       '.mi-sub{margin:0 0 10px;font-size:13px;color:#5a6b7b}'+
       '.mi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}'+
-      '.mi-card{display:flex;flex-direction:column;gap:6px;text-align:left;background:#fff;border:1px solid #d5e3ec;border-left:5px solid var(--mi-color,#006b8f);border-radius:12px;padding:14px;cursor:pointer;font:inherit;color:inherit;min-height:132px;transition:box-shadow .15s,transform .15s}'+
-      '.mi-card:hover,.mi-card:focus-visible{box-shadow:0 4px 14px rgba(0,59,92,.15);transform:translateY(-1px);outline:none}'+
-      '.mi-card:focus-visible{outline:3px solid #7fb8d6}'+
+      '.mi-card{display:flex;flex-direction:column;gap:6px;text-align:left;background:#fff;border:1px solid #d5e3ec;border-left:5px solid var(--mi-color,#065F86);border-radius:12px;padding:14px;cursor:pointer;font:inherit;color:inherit;min-height:132px;transition:box-shadow .15s,transform .15s}'+
+      '.mi-card:hover,.mi-card:focus-visible{box-shadow:0 4px 14px rgba(3,51,80,.15);transform:translateY(-1px);outline:none}'+
+      '.mi-card:focus-visible{outline:3px solid #4FC4F5}'+
       '.mi-ico{font-size:24px;line-height:1}'+
-      '.mi-tit{font-weight:700;font-size:15px;color:#003b5c}'+
+      '.mi-tit{font-weight:700;font-size:15px;color:#033350}'+
       '.mi-desc{font-size:13px;color:#4a5b6b;line-height:1.35;flex:1}'+
-      '.mi-go{font-size:12px;font-weight:700;color:var(--mi-color,#006b8f)}'+
+      '.mi-go{font-size:12px;font-weight:700;color:var(--mi-color,#065F86)}'+
       '.mi-vacio{padding:18px;border:1px dashed #b8c6d2;border-radius:12px;color:#5a6b7b}'+
       '@media (max-width:520px){.mi-grid{grid-template-columns:1fr}.mi-card{min-height:0}}';
     document.head.appendChild(s);

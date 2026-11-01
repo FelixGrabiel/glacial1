@@ -369,7 +369,7 @@
       (clase==='bloqueado'?'background:#fdecec;border:1px solid #f2b8b8;color:#8a1c1c;':
        clase==='correccion'?'background:#fff4dc;border:1px solid #f0c36a;color:#7a4b00;':
        clase==='urgente'?'background:#fff4dc;border:1px solid #f0c36a;color:#7a4b00;':
-       'background:#eef5fb;border:1px solid #c9dcec;color:#0b3a5c;')+'">'+html+'</div>';
+       'background:#eef5fb;border:1px solid #c9dcec;color:#033350;')+'">'+html+'</div>';
     const boton=(txt,fn,extra)=>'<button type="button" class="btn btn-sm '+(extra||'btn-ghost')+'" style="margin-left:10px;" onclick="'+fn+'">'+txt+'</button>';
     const q=esc(t.id).replace(/'/g,'');
 

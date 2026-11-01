@@ -355,7 +355,7 @@
     const prog=NS.existente(d.linea,d.fecha,d.turno,d.marca,d.presentacion);
     const delBloque=typeof window.glacialProgramadoBloque==='function'?window.glacialProgramadoBloque(d.linea,d.fecha,d.turno,{marca:d.marca,presentacion:d.presentacion}).cantidad:num(prog&&prog.cantidadProgramada);
     const hay=delBloque>0;
-    const btn='background:none;border:0;padding:0;color:#005b96;cursor:pointer;font:inherit;font-weight:600;text-decoration:underline';
+    const btn='background:none;border:0;padding:0;color:#0877A6;cursor:pointer;font:inherit;font-weight:600;text-decoration:underline';
     let h='';
     if(NS.puedeVer())h+='<button type="button" style="'+btn+'" onclick="glacialPlanificacion.irA(\''+esc(d.fecha)+'\',\''+esc(d.turno)+'\')">Ver en Planificación →</button>';
     if(!hay&&!puede()&&typeof NS.solicitarProgramacion==='function'&&d.marca&&d.presentacion){

@@ -30,7 +30,7 @@ const METAS = {
    ========================================================= */
 
 const PAL = {
-  azul:    '#2F6690',
+  azul:    '#0877A6',
   azulSuave:'#7FA5BF',
   ambar:   '#F2A93B',
   verde:   '#3F8F5F',
@@ -3627,7 +3627,7 @@ async function exportarPNGDetalle(){
     ];
     const resH=170;
     card(P+24,y,W-P*2-48,resH);
-    ctx.fillStyle='#005B96';ctx.font='700 15px Arial';
+    ctx.fillStyle='#0877A6';ctx.font='700 15px Arial';
     ctx.fillText('RESUMEN DEL TURNO',P+40,y+27);
     const kw=(W-P*2-80)/4;
     kpis.forEach((k,i)=>{
@@ -3661,14 +3661,14 @@ async function exportarPNGDetalle(){
     const visiblesMarcas=filasMarcas.slice(0,maxFilasMarcas);
     const marcasH=Math.max(1,visiblesMarcas.length)*20+86+(filasMarcas.length>maxFilasMarcas?16:0);
     card(P+24,y,W-P*2-48,marcasH);
-    ctx.fillStyle='#005B96';ctx.font='700 15px Arial';
+    ctx.fillStyle='#0877A6';ctx.font='700 15px Arial';
     ctx.fillText('MARCAS PRODUCIDAS',P+40,y+27);
     ctx.fillStyle='#667784';ctx.font='11px Arial';
     ctx.fillText('Presentación / marca',P+40,y+50);
     ctx.textAlign='right';ctx.fillText('Producción',W-P-40,y+50);ctx.textAlign='left';
     let my=y+72;
     visiblesMarcas.forEach(f=>{
-      if(f.t==='f'){ctx.fillStyle='#005B96';ctx.font='700 12px Arial';ctx.fillText(f.a,P+40,my);}
+      if(f.t==='f'){ctx.fillStyle='#0877A6';ctx.font='700 12px Arial';ctx.fillText(f.a,P+40,my);}
       else{ctx.fillStyle='#405261';ctx.font='12px Arial';ctx.fillText(f.a,P+54,my);}
       ctx.textAlign='right';ctx.fillText(f.b,W-P-40,my);ctx.textAlign='left';
       my+=20;
@@ -3738,8 +3738,8 @@ async function exportarPNGDetalle(){
     /* ---------- análisis compacto al final ---------- */
     const ah=Math.max(245,H-y-92);
     card(P+24,y,W-P*2-48,ah);
-    ctx.fillStyle='#005B96';ctx.font='700 14px Arial';ctx.fillText('ANÁLISIS Y ACCIÓN PARA MAÑANA',P+40,y+25);
-    ctx.fillStyle=analisis.estado==='AUTOMÁTICO'?'#EAF5FC':'#FFF1D6';ctx.fillRect(W-P-210,y+9,145,23);
+    ctx.fillStyle='#0877A6';ctx.font='700 14px Arial';ctx.fillText('ANÁLISIS Y ACCIÓN PARA MAÑANA',P+40,y+25);
+    ctx.fillStyle=analisis.estado==='AUTOMÁTICO'?'#E8F7FE':'#FFF1D6';ctx.fillRect(W-P-210,y+9,145,23);
     ctx.fillStyle='#405261';ctx.font='700 9px Arial';ctx.fillText(analisis.estado,W-P-198,y+25);
 
     const mitad=(W-P*2-88)/2;

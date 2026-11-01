@@ -23,7 +23,7 @@
   padding:0;
   overflow:hidden;
   color:var(--sb-text);
-  background:linear-gradient(180deg,#0d3159 0%,var(--sb-bg) 48%,var(--sb-bg-deep) 100%);
+  background:linear-gradient(180deg,#033350 0%,var(--sb-bg) 48%,var(--sb-bg-deep) 100%);
   border:0;
   border-right:1px solid rgba(255,255,255,.08);
   box-shadow:8px 0 24px rgba(2,22,43,.12);
@@ -133,7 +133,7 @@
   color:#fff;
   background:rgba(10,104,216,.20);
 }
-#app-screen .sidebar-group.has-active > .sidebar-group-toggle{box-shadow:inset 3px 0 0 #4fa4ff}
+#app-screen .sidebar-group.has-active > .sidebar-group-toggle{box-shadow:inset 3px 0 0 #4FC4F5}
 #app-screen .sidebar-group.has-active > .sidebar-group-toggle .side-action-icon,
 #app-screen .sidebar-group.is-open > .sidebar-group-toggle .side-action-icon{color:#fff}
 
@@ -259,7 +259,7 @@
 :root{
   --gl-sidebar-w:250px;
   --gl-sidebar-bg:#022235;
-  --gl-sidebar-bg2:#044363;
+  --gl-sidebar-bg2:#033350;
   --gl-sidebar-open:rgba(13,181,243,.16);
   --gl-sidebar-active:#0877A6;
   --gl-sidebar-text:#f4f8fc;
@@ -269,7 +269,7 @@
 
 #app-screen .shell>.sidebar{
   width:var(--gl-sidebar-w);
-  background:linear-gradient(180deg,var(--gl-sidebar-bg2) 0%,var(--gl-sidebar-bg) 58%,#061a31 100%);
+  background:linear-gradient(180deg,var(--gl-sidebar-bg2) 0%,var(--gl-sidebar-bg) 58%,#022235 100%);
   color:var(--gl-sidebar-text);
   border-right:1px solid rgba(255,255,255,.07);
   box-shadow:8px 0 28px rgba(3,19,36,.12);
@@ -424,7 +424,7 @@
     --sb-bg-deep:#022235;
     --sb-active:#0877A6;
     --sb-hover:rgba(13,181,243,.16);
-    background:linear-gradient(180deg,#033350 0%,#022A43 100%);
+    background:linear-gradient(180deg,#033350 0%,#033350 100%);
     border-right:1px solid rgba(255,255,255,.08);
     box-shadow:4px 0 18px rgba(3,51,80,.10);
 }

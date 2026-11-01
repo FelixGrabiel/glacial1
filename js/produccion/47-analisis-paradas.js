@@ -32,7 +32,7 @@
   const DEF_METAS={verdePct:90,ambarPct:80};
   const JEFATURA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];   // = reglas etapa 2
   const TURNOS=['DÍA','INTERMEDIO','NOCHE'];
-  const COLORES=['#d93a3a','#df8b00','#2f7fd0','#13814a','#7a4fd0'];
+  const COLORES=['#d93a3a','#df8b00','#0877A6','#13814a','#7a4fd0'];
   const SIN_TECNICO='Sin técnico registrado';
 
   /* ---------- utilidades ---------- */
@@ -453,15 +453,15 @@
     s.textContent=`
       .ap-modal-fondo{position:fixed;inset:0;background:rgba(10,30,50,.5);z-index:10040;display:flex;align-items:flex-start;justify-content:center;padding:12px;overflow:auto}
       .apar-modal{background:#fff;border-radius:14px;padding:14px 16px;width:min(900px,100%);margin:auto;box-shadow:0 16px 48px rgba(0,0,0,.28)}
-      .apar-modal h3{margin:0 0 4px;color:#103b57}
+      .apar-modal h3{margin:0 0 4px;color:#033350}
       .ap-rangos{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
       .ap-rangos button{border:1px solid #c5d0db;background:#fff;border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer}
-      .ap-rangos button.active{background:#10265f;color:#fff;border-color:#10265f}
+      .ap-rangos button.active{background:#033350;color:#fff;border-color:#033350}
       .apar-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}
       .apar-kpi{border:1px solid #dfe4ea;border-radius:10px;padding:10px 12px;background:#fff;border-left:6px solid #9aa9b8}
       .apar-kpi span{display:block;font-size:12px;color:#5a6b7b}.apar-kpi b{font-size:22px;color:#1b2a38}.apar-kpi small{display:block;font-size:11px;color:#5a6b7b}
       .apar-kpi.verde{border-left-color:#13814a}.apar-kpi.ambar{border-left-color:#df8b00}.apar-kpi.roja{border-left-color:#d93a3a}
-      .ap-sec{margin:14px 0 6px;font-size:15px;color:#10265f}
+      .ap-sec{margin:14px 0 6px;font-size:15px;color:#033350}
       .ap-nota{font-size:12px;color:#5a6b7b;margin:4px 0}
       .ap-aviso{padding:8px 12px;border-radius:8px;background:#fff8e6;border:1px solid #f0c36a;margin:8px 0;font-size:13px}
       .apar-vacio{padding:14px;border:1px dashed #c5d0db;border-radius:10px;color:#4a5b6b;font-size:13px;background:#f8fafc;margin:8px 0}
@@ -472,7 +472,7 @@
       .ap-leyenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
       .dh-card{border:1px solid #dfe4ea;border-left:8px solid #9aa9b8;border-radius:12px;background:#fff;padding:12px 16px;margin-bottom:12px;cursor:pointer;box-shadow:0 3px 12px rgba(17,57,91,.055)}
       .dh-card.verde{border-left-color:#13814a}.dh-card.ambar{border-left-color:#df8b00}.dh-card.roja{border-left-color:#d93a3a}
-      .dh-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.dh-top h3{margin:0;font-size:14px;letter-spacing:.04em;color:#10265f}
+      .dh-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.dh-top h3{margin:0;font-size:14px;letter-spacing:.04em;color:#033350}
       .dh-fila{display:flex;justify-content:space-between;gap:10px;margin-top:6px;padding:6px 10px;border-radius:8px;background:#f7f9fb;font-size:13px;border-left:5px solid #9aa9b8}
       .dh-fila.verde{border-left-color:#13814a;background:#effbf4}.dh-fila.ambar{border-left-color:#df8b00;background:#fffbea}.dh-fila.roja{border-left-color:#d93a3a;background:#fff5f5}
       .dh-motivo{margin-top:8px;font-size:13px;color:#31475c}
@@ -497,7 +497,7 @@
     const g=filas.map((f,i)=>{
       const y=4+i*fila,w=Math.max(2,f.valor/max*ancho),nombre=f.clave.length>44?f.clave.slice(0,43)+'…':f.clave;
       return '<g data-tip="'+esc(f.clave+': '+fmt(f.valor)+unidadTxt(p.metrica))+'"'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+'><text x="'+mL+'" y="'+(y+13)+'" font-size="13" fill="#1b2a38">'+esc(nombre)+'</text>'+
-        '<rect class="gm-svg-barh" x="'+mL+'" y="'+(y+19)+'" width="'+w.toFixed(1)+'" height="16" rx="3" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
+        '<rect class="gm-svg-barh" x="'+mL+'" y="'+(y+19)+'" width="'+w.toFixed(1)+'" height="16" rx="3" fill="#0877A6"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
         '<text x="'+(mL+w+6).toFixed(1)+'" y="'+(y+32)+'" font-size="13" font-weight="700" fill="#1b2a38">'+fmt(f.valor)+'</text>'+
         '<text x="'+(W-4)+'" y="'+(y+32)+'" font-size="12" text-anchor="end" fill="#d93a3a">'+Math.round((f.acum||0)*100)+' %</text></g>';
     }).join('');
@@ -516,7 +516,7 @@
       const h=(f.valor/max)*alto,x=mL+i*bw+bw*0.12,y=mT+alto-h;
       const cx=mL+i*bw+bw/2;
       const nombre=f.clave.length>22?f.clave.slice(0,21)+'…':f.clave;
-      return '<rect class="gm-svg-bar" data-tip="'+esc(f.clave+': '+fmt(f.valor)+unidadTxt(p.metrica))+'"'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+' x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw*0.76).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="#2f7fd0"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
+      return '<rect class="gm-svg-bar" data-tip="'+esc(f.clave+': '+fmt(f.valor)+unidadTxt(p.metrica))+'"'+(f.resto?'':' data-ap-det="'+i+'" style="cursor:pointer"')+' x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw*0.76).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="#0877A6"><title>'+esc(f.clave)+': '+fmt(f.valor)+unidadTxt(p.metrica)+'</title></rect>'+
         '<text x="'+cx.toFixed(1)+'" y="'+(y-3).toFixed(1)+'" font-size="10" text-anchor="middle" fill="#1b2a38">'+fmt(f.valor)+'</text>'+
         '<text transform="translate('+cx.toFixed(1)+','+(mT+alto+12)+') rotate(-40)" font-size="10" text-anchor="end" fill="#31475c">'+esc(nombre)+'</text>';
     }).join('');

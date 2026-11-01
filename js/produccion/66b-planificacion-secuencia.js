@@ -285,7 +285,7 @@
       .seq-linea .seq-hora{color:#5a6b78;font-variant-numeric:tabular-nums}
       .sq-fila{display:grid;grid-template-columns:30px minmax(120px,1.2fr) minmax(120px,1.2fr) 120px minmax(90px,.8fr) 70px minmax(150px,1.2fr) auto;gap:8px;align-items:center;padding:8px;border:1px solid #e3eaf0;border-radius:10px;margin:6px 0;background:#fff}
       .sq-fila select,.sq-fila input{width:100%;box-sizing:border-box;min-height:38px}
-      .sq-fila .sq-n{font-weight:800;color:#005b96}.sq-est{font-size:12px;color:#46627a;line-height:1.35}.sq-est b{color:#003b5c}
+      .sq-fila .sq-n{font-weight:800;color:#0877A6}.sq-est{font-size:12px;color:#46627a;line-height:1.35}.sq-est b{color:#033350}
       .sq-cambio{margin:-2px 0 2px 38px;padding:4px 8px;border-left:3px solid #7C3AED;background:#f5f3ff;color:#4c1d95;font-size:12px;border-radius:0 8px 8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
       .sq-cambio input{width:76px;min-height:30px}
       .sq-botones{display:flex;gap:4px}.sq-botones button{min-width:36px;min-height:36px}

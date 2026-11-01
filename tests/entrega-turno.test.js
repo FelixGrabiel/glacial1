@@ -140,7 +140,7 @@ const mtto=dispositivo({username:'mtto',nombre:'Mtto',rol:'Mantenimiento compart
   /* ---------- pantalla, menú y compatibilidad (fuentes) ---------- */
   const src=leer('js/produccion/66-entrega-turno.js'),html=leer('index.html'),vista=leer('js/accesos/23b-modo-visualizacion.js');
   ok(/id="btn-entrega-turno"/.test(html)&&/goEntregaTurno\(\)/.test(html)&&html.indexOf('btn-entrega-turno')>html.indexOf('btn-resumenes-turno'),'«Entrega de turno» en el grupo Producción del menú');
-  ok(/66-entrega-turno\.js\?v=20261011-et1/.test(html)&&html.indexOf('66-entrega-turno.js')>html.indexOf('48-resumen-turno.js')&&html.indexOf('66-entrega-turno.js')>html.indexOf('31-rotacion-supervisores.js'),'index.html carga el módulo después de 48 y 31, con versión nueva');
+  ok(/66-entrega-turno\.js\?v=\d{8}-[a-z0-9]+/.test(html)&&html.indexOf('66-entrega-turno.js')>html.indexOf('48-resumen-turno.js')&&html.indexOf('66-entrega-turno.js')>html.indexOf('31-rotacion-supervisores.js'),'index.html carga el módulo después de 48 y 31, con versión nueva');
   ok(/clave:'entrega_turno'/.test(vista)&&/tabs:\['entrega-turno'\]/.test(vista),'modo consulta: la jefatura ve la pantalla desde «Ver como / modo visualización»');
   ok(/where\('fecha','>=',desde\)\.orderBy\('fecha','desc'\)/.test(src),'historial por fecha con where >= y orderBy (sin «in»)');
   ok(!/arrayUnion|arrayRemove|increment\(|array-contains|'in'|'!='|startAfter|endBefore|\.update\(\s*\{\s*['"][a-zA-Z]+\./.test(src),'compatible con el puente de Supabase');

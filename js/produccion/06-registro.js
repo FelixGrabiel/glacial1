@@ -3623,7 +3623,7 @@ function renderFormTab(){
               background:
                 linear-gradient(
                   135deg,
-                  #0f8fc8,
+                  #0877A6,
                   #14b8c4
                 );
               color:#fff;
@@ -3665,7 +3665,7 @@ function renderFormTab(){
                        style="
                          border:1px solid rgba(255,255,255,.85);
                          background:#fff;
-                         color:#006b8f;
+                         color:#065F86;
                          border-radius:6px;
                          padding:7px 10px;
                          font-size:11px;
@@ -3685,7 +3685,7 @@ function renderFormTab(){
                              style="
                                border:1px solid rgba(255,255,255,.9);
                                background:#fff;
-                               color:#006b8f;
+                               color:#065F86;
                                border-radius:6px;
                                padding:7px 10px;
                                font-size:11px;
@@ -4613,7 +4613,7 @@ function renderFormTab(){
     </div>
 
     ${typeof avAbrirParadas==='function' ? `
-    <div class="panel" style="margin-bottom:14px;border-left:4px solid #005b96;">
+    <div class="panel" style="margin-bottom:14px;border-left:4px solid #0877A6;">
       <div class="panel-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <div><h3 style="margin:0;">Paradas del turno</h3><small>Fuente común con Avance y Cierre. Las paradas generales no se duplican por marca.</small></div>
         <button type="button" class="btn btn-ghost btn-sm" data-no-autosave onclick="avAbrirParadas(draft.linea,draft.fecha,draft.turno)">+ AGREGAR / REVISAR PARADAS</button>
@@ -7589,7 +7589,7 @@ function personalTable(
       margin:0 0 10px;
       padding:9px 12px;
       border:1px solid #d8e6ef;
-      border-left:4px solid #005B96;
+      border-left:4px solid #0877A6;
       border-radius:6px;
       background:#f7fbfd;
       color:#405261;

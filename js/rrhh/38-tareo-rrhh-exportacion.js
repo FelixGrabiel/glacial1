@@ -791,7 +791,7 @@
     // Pie
     y+=22;
     if(dib){
-      ctx.fillStyle='#1F5FA8';ctx.font=fuente(24);ctx.textAlign='left';
+      ctx.fillStyle='#0877A6';ctx.font=fuente(24);ctx.textAlign='left';
       ctx.fillText('¿Ves un error en tus horas? Avisa a tu supervisor',M,y+30);
       ctx.fillStyle='#8A949E';ctx.textAlign='right';
       ctx.fillText('Generado '+meta.generado+' · Página '+meta.n+' de '+meta.paginas,W-M,y+30);
@@ -1139,7 +1139,7 @@
       const G=GRUPOS[b.g];
       const n=personasDistintas(b.l);
       const aviso=b.g==='DIA'?' · no suma a los totales':'';
-      const resaltado=b.g==='SIN'?'background:#fff3cd;color:#7a4b00;':'background:#e8f0f6;color:#003b5c;';
+      const resaltado=b.g==='SIN'?'background:#fff3cd;color:#7a4b00;':'background:#e8f0f6;color:#033350;';
       return '<div style="margin:16px 0 8px;padding:9px 14px;border-radius:8px;font-weight:800;letter-spacing:.02em;'+resaltado+'">'+
         esc(G.bloque)+' · '+n+(n===1?' persona':' personas')+'<span style="font-weight:600;">'+aviso+'</span></div>'+
         tablaBloque(b.l,hayTurnos);

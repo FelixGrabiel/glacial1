@@ -332,9 +332,9 @@
     if(document.getElementById('autollenado-css'))return;
     const s=document.createElement('style');s.id='autollenado-css';
     s.textContent=`
-      .tag-auto{display:inline-block;padding:1px 7px;border-radius:999px;background:#e3f1fb;color:#005b96;font-size:10px;font-weight:800;}
+      .tag-auto{display:inline-block;padding:1px 7px;border-radius:999px;background:#e3f1fb;color:#0877A6;font-size:10px;font-weight:800;}
       .tag-manual{display:inline-block;padding:1px 7px;border-radius:999px;background:#eceff2;color:#5a7083;font-size:10px;font-weight:800;}
-      .link-origen{margin-left:6px;font-size:11px;color:#005b96;text-decoration:underline;}
+      .link-origen{margin-left:6px;font-size:11px;color:#0877A6;text-decoration:underline;}
       .fila-auto td{background:#f6fbff;}
       .nota-auto{margin:6px 5px 0;font-size:11px;color:#667784;}
       .aviso-dup{color:#a86f00;font-weight:700;}

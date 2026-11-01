@@ -18,7 +18,7 @@
    ============================================================= */
 (function(global){
   'use strict';
-  const COLOR={azul:'#2F6690',azulSuave:'#7FA5BF',ambar:'#F2A93B',verde:'#3F8F5F',rojo:'#C4472B',naranja:'#E8731A',gris:'#B7C4CC',grisSuave:'#E8EAE4',texto:'#3A4551',grilla:'#EFF2F4',oscuro:'#1F2D3A'};
+  const COLOR={azul:'#0877A6',azulSuave:'#7FA5BF',ambar:'#F2A93B',verde:'#3F8F5F',rojo:'#C4472B',naranja:'#E8731A',gris:'#B7C4CC',grisSuave:'#E8EAE4',texto:'#3A4551',grilla:'#EFF2F4',oscuro:'#1F2D3A'};
   const FUENTE='"IBM Plex Sans", sans-serif';
 
   /* ---------- metas y colores: UNA sola fuente = la tabla configurada (sync/configIndicadores → glacialMetasIndicadores) ----------

@@ -67,11 +67,11 @@
       .rg-tabla{border-collapse:separate;border-spacing:0;width:100%;min-width:max-content;font-size:14px;color:#17384d}
       .rg-tabla th,.rg-tabla td{border-right:1px solid #cdd8e1;border-bottom:1px solid #cdd8e1;padding:0;vertical-align:middle;background:#fff}
       .rg-tabla tr>*:last-child{border-right:0}.rg-tabla tbody tr:last-child>*{border-bottom:0}
-      .rg-tabla thead th{position:sticky;top:0;z-index:3;background:#003B5C;color:#fff;font-size:13px;font-weight:800;text-align:center;padding:10px 8px;letter-spacing:.02em;white-space:nowrap;border-color:#1b567a}
+      .rg-tabla thead th{position:sticky;top:0;z-index:3;background:#033350;color:#fff;font-size:13px;font-weight:800;text-align:center;padding:10px 8px;letter-spacing:.02em;white-space:nowrap;border-color:#065F86}
       .rg-tabla thead th small{display:block;font-weight:600;opacity:.85;font-size:12px}
-      .rg-tabla thead th.rg-hoy{background:#0b5f8f}
+      .rg-tabla thead th.rg-hoy{background:#065F86}
       .rg-n{position:sticky;left:0;z-index:2;width:46px;min-width:46px;text-align:center;color:#5b6e7d;font-weight:700}
-      .rg-p{position:sticky;left:46px;z-index:2;min-width:190px;max-width:240px;padding:8px 12px!important;text-align:left;font-weight:400;box-shadow:2px 0 0 rgba(0,59,92,.08)}
+      .rg-p{position:sticky;left:46px;z-index:2;min-width:190px;max-width:240px;padding:8px 12px!important;text-align:left;font-weight:400;box-shadow:2px 0 0 rgba(3,51,80,.08)}
       .rg-tabla thead th.rg-n,.rg-tabla thead th.rg-p{z-index:5;text-align:left}
       .rg-tabla thead th.rg-n{text-align:center}
       .rg-p strong{display:block;font-size:14px;line-height:1.25;overflow-wrap:anywhere}.rg-p span{display:block;font-size:12px;color:#5b6e7d;margin-top:2px}
@@ -82,8 +82,8 @@
       .rg-vacaciones{background:#E1F3E8}.rg-licencia{background:#FCE4E4}.rg-otro{background:#F4EBDD}
       .rg-fusion{min-width:0}
       .rg-c:hover{filter:brightness(.97)}
-      .rg-c.rg-sel{box-shadow:inset 0 0 0 3px #1565C0;z-index:1}
-      .rg-c:focus-visible{box-shadow:inset 0 0 0 3px #1565C0,0 0 0 2px #fff,0 0 0 4px #0b5f8f}
+      .rg-c.rg-sel{box-shadow:inset 0 0 0 3px #0877A6;z-index:1}
+      .rg-c:focus-visible{box-shadow:inset 0 0 0 3px #0877A6,0 0 0 2px #fff,0 0 0 4px #065F86}
       .rg-c.rg-cambio::after{content:'';position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:#e08a00}
       .rg-editor{margin-top:12px;background:#fff;border:1px solid #cdd8e1;border-radius:10px;padding:12px 14px}
       .rg-ed-fila{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
@@ -92,14 +92,14 @@
       .rg-ed label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#4a5d6d;font-weight:700;min-width:120px;flex:1 1 130px}
       .rg-ed select,.rg-ed input{min-height:44px;font-size:15px;padding:6px 10px;border:1px solid #b9c8d4;border-radius:8px;background:#fff;color:#17384d;width:100%;box-sizing:border-box}
       .rg-ed button{min-height:44px;padding:0 20px;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;border:1px solid #b9c8d4;background:#fff;color:#17384d}
-      .rg-ed button.rg-aplicar{background:#0B6BCB;color:#fff;border-color:#0B6BCB}
+      .rg-ed button.rg-aplicar{background:#0877A6;color:#fff;border-color:#0877A6}
       .rg-ed button[disabled],.rg-ed select[disabled],.rg-ed input[disabled]{opacity:.55;cursor:not-allowed}
       .rg-ed [hidden]{display:none!important}
       .rg-msg{flex:1 1 100%;font-size:13px;min-height:18px}.rg-msg.ok{color:#1F7A44}.rg-msg.error{color:#B3261E;font-weight:700}
       .rg-ayuda{margin-top:8px;font-size:12px;color:#5b6e7d}
       /* Refuerzo: las reglas globales de tablas del sistema (th en mayúsculas, colores, relleno) no deben alterar este cuadro. */
-      .rg .rg-tabla thead th{background:#003B5C!important;color:#fff!important;text-transform:none!important;font-size:13px!important;padding:10px 8px!important;white-space:nowrap;border-color:#1b567a!important;text-align:center}
-      .rg .rg-tabla thead th.rg-hoy{background:#0b5f8f!important}
+      .rg .rg-tabla thead th{background:#033350!important;color:#fff!important;text-transform:none!important;font-size:13px!important;padding:10px 8px!important;white-space:nowrap;border-color:#065F86!important;text-align:center}
+      .rg .rg-tabla thead th.rg-hoy{background:#065F86!important}
       .rg .rg-tabla thead th.rg-n,.rg .rg-tabla thead th.rg-p{text-align:left}
       .rg .rg-tabla thead th.rg-n{text-align:center}
       .rg .rg-tabla tbody th.rg-p{background:#fff!important;color:#17384d!important;text-transform:none!important;font-size:14px!important;font-weight:400!important;white-space:normal;overflow-wrap:anywhere;width:190px;min-width:190px;max-width:190px;letter-spacing:0!important}

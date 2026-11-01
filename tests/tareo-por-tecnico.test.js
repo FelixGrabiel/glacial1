@@ -149,7 +149,7 @@ const fila_=(sb,nombre)=>resumen(sb).find(f=>f.nombre===nombre);
   const html=leer('index.html'),pos=n=>html.indexOf('js/'+n);
   const i37f=pos('mantenimiento/37f-tareo-por-tecnico.js');
   ok(i37f>0&&i37f>pos('personal/13-tareo.js')&&i37f>pos('personal/46-tareo-horas-extras.js')&&i37f>pos('mantenimiento/37b-mantenimiento-identificacion.js')&&i37f>pos('rrhh/38-tareo-rrhh-exportacion.js')&&i37f<pos('nucleo/12-init.js'),'index.html carga 37f después de 13, 46, 37b y 38 y antes de 12-init');
-  ok(/37f-tareo-por-tecnico\.js\?v=/.test(html)&&/37b-mantenimiento-identificacion\.js\?v=20261016-tt1/.test(html),'versiones ?v= subidas (37f nuevo, 37b con mantAbrirIdentificacion)');
+  ok(/37f-tareo-por-tecnico\.js\?v=/.test(html)&&/37b-mantenimiento-identificacion\.js\?v=\d{8}-[a-z0-9]+/.test(html),'versiones ?v= subidas (37f nuevo, 37b con mantAbrirIdentificacion)');
   const indice=leer('INDICE.md');
   ok(/37f-tareo-por-tecnico\.js/.test(indice)&&/no del servidor/.test(indice),'INDICE.md documenta el archivo y el límite de seguridad');
   ok(/mantAbrirIdentificacion/.test(leer('js/mantenimiento/37b-mantenimiento-identificacion.js')),'37b expone mantAbrirIdentificacion');

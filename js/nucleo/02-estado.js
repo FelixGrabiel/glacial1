@@ -212,7 +212,7 @@ function htmlPermisosPorArea(o){
     if(!lista.length)return '';
     return '<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;'+
       'margin-top:10px;padding:6px 0 4px;border-bottom:1px solid #d5dee6;">'+
-      '<strong style="font-size:13px;color:#10265f;letter-spacing:.03em;">'+a.titulo.toUpperCase()+'</strong>'+
+      '<strong style="font-size:13px;color:#033350;letter-spacing:.03em;">'+a.titulo.toUpperCase()+'</strong>'+
       (op.deshabilitado?'':'<button type="button" class="btn btn-ghost btn-sm" data-perm-area-btn="'+a.clave+'" '+
         'onclick="marcarAreaPermisos(\''+a.clave+'\',\''+op.clase+'\')">Marcar / quitar toda el área</button>')+'</div>'+
       lista.map(p=>'<label style="display:flex;align-items:center;gap:8px;cursor:'+(op.deshabilitado?'not-allowed':'pointer')+';font-size:13px;">'+

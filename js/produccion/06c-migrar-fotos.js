@@ -119,7 +119,7 @@
     const p=pendientes(),t=total(p);
     if(estado==='listo'||estado==='corriendo'){
       const hechas=res?res.fotosOk+res.fotosError:0,pct=res&&res.fotosTotal?Math.round(hechas/res.fotosTotal*100):0;
-      return `<div style="height:12px;border-radius:99px;background:#e6edf3;overflow:hidden;margin:10px 0"><i style="display:block;height:100%;width:${pct}%;background:#0b5cc4"></i></div>
+      return `<div style="height:12px;border-radius:99px;background:#e6edf3;overflow:hidden;margin:10px 0"><i style="display:block;height:100%;width:${pct}%;background:#0877A6"></i></div>
         <p><b>${hechas}</b> de <b>${res?res.fotosTotal:0}</b> fotos · ${res?res.fotosOk:0} bien · ${res?res.fotosError:0} con error${res&&res.cancelada?' · <b>cancelado</b>':''}${res&&res.simulado?' · <i>prueba: no se subió ni se cambió nada</i>':''}</p>
         ${res&&res.errores.length?`<details open><summary>${res.errores.length} error(es)</summary><ul style="max-height:180px;overflow:auto;font-size:12px">${res.errores.slice(0,60).map(e=>`<li>${ESC(e.fecha)} · ${ESC(e.recordId)} · ${ESC(e.foto)}: ${ESC(e.mensaje)}</li>`).join('')}</ul></details>`:''}
         ${estado==='corriendo'?'<button type="button" class="btn btn-ghost" onclick="glacialMigrarFotos.cancelar()">Cancelar</button>':'<button type="button" class="btn btn-ghost" onclick="glacialMigrarFotos.cerrar()">Cerrar</button>'}`;

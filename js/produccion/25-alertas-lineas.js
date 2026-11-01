@@ -98,7 +98,7 @@
     }
     #al-host{
       position:relative;z-index:10020;width:256px;
-      font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;color:#17334a
+      font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;color:#033350
     }
     /* ! El host NO cambia de ancho al abrirse.
        * Así nunca empuja ni invade Visualizar / Trabajar. */
@@ -106,7 +106,7 @@
     #al-host .al-panel{
       border:1px solid #cbdbe5;background:#fff;border-radius:11px;overflow:hidden
     }
-    #al-host:not(.open) .al-panel{box-shadow:0 3px 12px rgba(11,40,73,.07)}
+    #al-host:not(.open) .al-panel{box-shadow:0 3px 12px rgba(3,51,80,.07)}
 
     /* * Abierto: solo el panel sale del flujo y cae debajo del botón.
        ? right:0 mantiene alineado el borde derecho del panel con el botón. */
@@ -115,7 +115,7 @@
       width:410px;max-width:calc(100vw - 28px);
       filter:drop-shadow(0 12px 26px rgba(10,35,55,.18))
     }
-    #al-host .al-bar{background:#053d60;color:#fff;display:flex;align-items:center;
+    #al-host .al-bar{background:#033350;color:#fff;display:flex;align-items:center;
       justify-content:space-between;gap:8px;padding:10px 12px}
     #al-host:not(.open) .al-bar{
       min-height:44px;background:#fff;color:#17324d;padding:0 11px
@@ -138,7 +138,7 @@
     #al-host .al-kpi span{font-size:10.5px;color:#5b6e7d}
     #al-host .al-tabs{display:flex;border-bottom:1px solid #e1e9ee;background:#fff}
     #al-host .al-tab{flex:1;border:0;background:#fff;padding:9px 8px;color:#526879;font-weight:700}
-    #al-host .al-tab.activo{color:#053d60;box-shadow:inset 0 -3px 0 #0b6fa4}
+    #al-host .al-tab.activo{color:#033350;box-shadow:inset 0 -3px 0 #0877A6}
     #al-host .al-list{max-height:min(52vh,390px);overflow-y:auto}
     #al-host .al-aviso{padding:11px 12px;border-top:1px solid #e9eef2;
       border-left:4px solid #198754;background:#fff}
@@ -236,14 +236,14 @@
         max-height:calc(100dvh - 92px);
         overflow:hidden;
         border-radius:14px;
-        box-shadow:0 18px 50px rgba(11,40,73,.24);
+        box-shadow:0 18px 50px rgba(3,51,80,.24);
         filter:none;
       }
 
       #al-host.open .al-bar{
         min-height:58px;
         padding:10px 14px;
-        background:#0B4D73;
+        background:#033350;
       }
 
       #al-host.open .al-bar strong{

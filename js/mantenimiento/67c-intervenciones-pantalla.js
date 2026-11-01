@@ -43,16 +43,16 @@
     s.textContent=`
       .mi-tabs{display:flex;gap:4px;margin:10px 0 12px;padding:4px;background:#e8eff4;border-radius:12px;overflow-x:auto}
       .mi-tab{flex:1 0 auto;border:0;background:transparent;padding:9px 14px;border-radius:9px;font:inherit;font-weight:700;font-size:13px;color:#4f6272;cursor:pointer;white-space:nowrap}
-      .mi-tab.active{background:#fff;color:#003b5c;box-shadow:0 1px 3px rgba(0,43,70,.2)}
+      .mi-tab.active{background:#fff;color:#033350;box-shadow:0 1px 3px rgba(0,43,70,.2)}
       .mi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:0 0 12px}
       .mi-kpi{background:#fff;border:1px solid #dce5ec;border-left:5px solid var(--c,#64748b);border-radius:12px;padding:8px 10px}
-      .mi-kpi b{display:block;font-size:22px;color:#003b5c;font-variant-numeric:tabular-nums}.mi-kpi span{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#5a6b78}
+      .mi-kpi b{display:block;font-size:22px;color:#033350;font-variant-numeric:tabular-nums}.mi-kpi span{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#5a6b78}
       .mi-card{background:#fff;border:1px solid #dce5ec;border-left:5px solid var(--c,#64748b);border-radius:12px;padding:10px 12px;margin:8px 0;cursor:pointer}
-      .mi-card:hover{box-shadow:0 2px 8px rgba(0,43,70,.12)}.mi-card h4{margin:0 0 4px;font-size:15px;color:#003b5c}
+      .mi-card:hover{box-shadow:0 2px 8px rgba(0,43,70,.12)}.mi-card h4{margin:0 0 4px;font-size:15px;color:#033350}
       .mi-card .mi-p{font-size:13px;color:#1b2a38;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
       .mi-meta{font-size:12px;color:#5a6b78;margin-top:4px}
       .mi-chip{display:inline-flex;align-items:center;gap:3px;padding:1px 9px;margin:0 4px 2px 0;border-radius:999px;font-size:11px;font-weight:800;border:1px solid var(--b,#94a3b8);background:var(--g,#f8fafc);color:var(--t,#334155);white-space:nowrap}
-      .e-PENDIENTE{--c:#64748b;--b:#94a3b8;--g:#f1f5f9;--t:#334155}.e-EN_INTERVENCION{--c:#1d4ed8;--b:#93c5fd;--g:#dbeafe;--t:#1e3a8a}
+      .e-PENDIENTE{--c:#64748b;--b:#94a3b8;--g:#f1f5f9;--t:#334155}.e-EN_INTERVENCION{--c:#0877A6;--b:#93c5fd;--g:#C6EBFC;--t:#0877A6}
       .e-EN_ESPERA{--c:#7c3aed;--b:#c4b5fd;--g:#ede9fe;--t:#5b21b6}.e-CERRADA{--c:#0e7490;--b:#67e8f9;--g:#cffafe;--t:#155e75}
       .e-CANCELADA{--c:#9ca3af;--b:#d1d5db;--g:#fff;--t:#6b7280}.e-CANCELADA.mi-chip{border-style:dashed}
       .r-OPERATIVO_VERIFICADO{--b:#67e8f9;--g:#cffafe;--t:#155e75}.r-OPERATIVO_OBSERVACION{--b:#c4b5fd;--g:#ede9fe;--t:#5b21b6}
@@ -68,7 +68,7 @@
       .mi-fondo{position:fixed;inset:0;background:rgba(10,20,40,.55);z-index:10060;display:flex;align-items:flex-start;justify-content:center;padding:12px;overflow:auto}
       .mi-fondo.sub{z-index:10070}
       .mi-modal{background:#fff;border-radius:14px;max-width:640px;width:100%;padding:16px;box-shadow:0 14px 40px rgba(0,0,0,.3);margin:auto}
-      .mi-modal h3{margin:0 0 8px;font-size:17px;color:#003b5c}.mi-modal h5{margin:12px 0 4px;font-size:13px;color:#003b5c}
+      .mi-modal h3{margin:0 0 8px;font-size:17px;color:#033350}.mi-modal h5{margin:12px 0 4px;font-size:13px;color:#033350}
       .mi-acc{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
       .mi-form{display:grid;grid-template-columns:1fr;gap:10px}
       .mi-tabla{width:100%;border-collapse:collapse;font-size:12px}.mi-tabla th{text-align:left;color:#46627a;font-size:11px;padding:4px 6px;border-bottom:1px solid #dce5ec}.mi-tabla td{padding:4px 6px;border-bottom:1px solid #edf2f6;vertical-align:top}
@@ -162,10 +162,10 @@
   function panelGraficos(A){
     const G=window.glacialGraficos;if(!G)return '';
     const todas=A.todas();if(!todas.length)return '';
-    const COL={PENDIENTE:'#64748b',EN_INTERVENCION:'#1d4ed8',EN_ESPERA:'#7c3aed',CERRADA:'#0e7490',CANCELADA:'#9ca3af'};
+    const COL={PENDIENTE:'#64748b',EN_INTERVENCION:'#0877A6',EN_ESPERA:'#7c3aed',CERRADA:'#0e7490',CANCELADA:'#9ca3af'};
     const porEstado=Object.keys(M.ESTADOS).map(k=>({id:k,etiqueta:M.ESTADOS[k],valor:todas.filter(d=>d.estado===k).length,color:COL[k]}));
     const cuentaEq=new Map();
-    todas.forEach(d=>{const id=d.equipoId||'__sin__',x=cuentaEq.get(id)||{id,etiqueta:d.equipoNombre||M.SIN_EQUIPO,valor:0,color:id==='__sin__'?'#a21caf':'#2f7fd0'};x.valor++;cuentaEq.set(id,x);});
+    todas.forEach(d=>{const id=d.equipoId||'__sin__',x=cuentaEq.get(id)||{id,etiqueta:d.equipoNombre||M.SIN_EQUIPO,valor:0,color:id==='__sin__'?'#a21caf':'#0877A6'};x.valor++;cuentaEq.set(id,x);});
     const top=[...cuentaEq.values()].sort((a,b)=>b.valor-a.valor).slice(0,6);
     const lunes=ms=>{const d=new Date(ms);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime();};
     const l0=lunes(ahora()),sem=[];for(let i=7;i>=0;i--)sem.push(l0-i*7*86400000);
@@ -192,7 +192,7 @@
     const lista=filtradas();
     cont.innerHTML=
       (errLeer?'<div class="mi-error">'+esc(errLeer)+'</div>':'')+
-      '<div class="mi-kpis">'+kpi('Pendientes',cuenta('PENDIENTE'),'#64748b')+kpi('En intervención',cuenta('EN_INTERVENCION'),'#1d4ed8')+kpi('En espera',cuenta('EN_ESPERA'),'#7c3aed')+kpi('Con pendientes',conPend,'#a21caf')+
+      '<div class="mi-kpis">'+kpi('Pendientes',cuenta('PENDIENTE'),'#64748b')+kpi('En intervención',cuenta('EN_INTERVENCION'),'#0877A6')+kpi('En espera',cuenta('EN_ESPERA'),'#7c3aed')+kpi('Con pendientes',conPend,'#a21caf')+
         (typeof window.glacialPreventivosResumen==='function'?window.glacialPreventivosResumen():'')+'</div>'+
       panelGraficos(A)+
       (detenidas.length?'<div class="mi-aviso"><b>Líneas detenidas sin intervención</b>'+detenidas.map(x=>'<div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span><b>'+esc(nombreLinea(x.linea))+'</b> · '+esc(x.motivo||'sin motivo')+(x.equipoTexto?' · '+esc(x.equipoTexto):'')+(x.desdeMs?' · desde hace '+hace(x.desdeMs):'')+'</span>'+
@@ -201,7 +201,7 @@
       (UI.aviso?'<div class="mi-aviso">'+esc(UI.aviso)+'</div>':'')+
       '<div class="mi-acc">'+(p.escribir?'<button type="button" class="btn btn-primary btn-sm" data-mi-nueva>+ Nueva intervención</button>':'')+
         (p.consulta?'<span class="mi-meta">Modo consulta: puedes ver las intervenciones, no modificarlas.</span>':'')+'</div>'+
-      '<details'+(Object.keys(F).some(k=>F[k])?' open':'')+' style="margin:0 0 8px"><summary style="cursor:pointer;font-weight:700;color:#003b5c;padding:4px 0">Filtros</summary><div class="mi-filtros">'+
+      '<details'+(Object.keys(F).some(k=>F[k])?' open':'')+' style="margin:0 0 8px"><summary style="cursor:pointer;font-weight:700;color:#033350;padding:4px 0">Filtros</summary><div class="mi-filtros">'+
         '<label>Línea<select data-mi-f="linea"><option value="">Todas</option>'+M.LINEAS.map(l=>'<option value="'+l+'"'+(F.linea===l?' selected':'')+'>'+esc(nombreLinea(l))+'</option>').join('')+'</select></label>'+
         '<label>Equipo<select data-mi-f="equipo"><option value="">Todos</option><option value="__sin__"'+(F.equipo==='__sin__'?' selected':'')+'>'+esc(M.SIN_EQUIPO)+'</option>'+eqs.map(e=>'<option value="'+esc(e.id)+'"'+(F.equipo===e.id?' selected':'')+'>'+esc(EQ().etiqueta(e))+'</option>').join('')+'</select></label>'+
         '<label>Tipo<select data-mi-f="tipo">'+opts(M.TIPOS,F.tipo,'Todos')+'</select></label>'+

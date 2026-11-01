@@ -187,7 +187,7 @@
   /* =========================================================
      DIBUJO (canvas 1080 px)
      ========================================================= */
-  const C={navy:'#003B5C',azul:'#005B96',celeste:'#E4F1FA',celeste2:'#D3E7F5',borde:'#C6DAEA',texto:'#172B3A',gris:'#667784',
+  const C={navy:'#033350',azul:'#0877A6',celeste:'#E4F1FA',celeste2:'#D3E7F5',borde:'#C6DAEA',texto:'#172B3A',gris:'#667784',
     verde:'#1F7A44',verdeFondo:'#1E8A4C',ambar:'#C98200',ambarFondo:'#FCE9B2',rojo:'#B3261E',blanco:'#FFFFFF'};
   const W=1080,PAD=18,IW=W-PAD*2,RES_H=290;
   const NIVEL={verde:C.verde,ambar:C.ambar,roja:C.rojo,gris:C.texto};

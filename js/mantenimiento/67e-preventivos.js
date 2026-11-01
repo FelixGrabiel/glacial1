@@ -333,7 +333,7 @@
 
   function tarjetaPlan(pl){
     const hoy=hoyOperativo(),est=estadoDe(pl),atr=atrasoOriginal(pl,hoy);
-    return '<div class="mi-card" data-pv-abrir="'+esc(pl.id)+'" tabindex="0" role="button" style="--c:'+(est==='VENCIDO'?'#a21caf':est==='PENDIENTE'?'#c2410c':est==='EN_EJECUCION'?'#1d4ed8':'#0e7490')+'">'+
+    return '<div class="mi-card" data-pv-abrir="'+esc(pl.id)+'" tabindex="0" role="button" style="--c:'+(est==='VENCIDO'?'#a21caf':est==='PENDIENTE'?'#c2410c':est==='EN_EJECUCION'?'#0877A6':'#0e7490')+'">'+
       '<h4>'+esc(pl.titulo)+' <small style="font-weight:500;color:#5a6b78">· '+esc(pl.equipoNombre)+' · '+esc(UIM().nombreLinea(pl.linea))+'</small></h4>'+chip(est)+
       '<span class="mi-chip">'+esc(textoFrec(pl.frecuencia))+'</span>'+(atr?'<span class="mi-chip p-CRITICA">Atraso original: '+atr+' d (reprogramado)</span>':'')+
       '<div class="mi-meta">Próxima: <b>'+esc(fecha(pl.proximaFecha))+'</b>'+(pl.ventana?' · ventana '+esc(pl.ventana.inicio)+(pl.ventana.fin?'–'+esc(pl.ventana.fin):''):'')+' · Responsable: '+esc(pl.responsable&&pl.responsable.tipo==='TECNICO'?pl.responsable.nombre:'Grupo Mantenimiento')+

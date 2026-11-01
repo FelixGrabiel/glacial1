@@ -264,7 +264,7 @@
       .rotmaq-grid td,.rotmaq-grid th{text-align:center}
       .rotmaq-grid td:first-child,.rotmaq-grid th:first-child{text-align:left}
       .rotmaq-cel{min-width:84px;padding:6px 8px;border-radius:7px;border:1px solid transparent;font-weight:700;font-size:12px;cursor:pointer;background:#eef3f7;color:#5a7083}
-      .rotmaq-cel.dia{background:#e3f1fb;color:#005b96;border-color:#bcdcf3}
+      .rotmaq-cel.dia{background:#e3f1fb;color:#0877A6;border-color:#bcdcf3}
       .rotmaq-cel.noche{background:#1d3550;color:#fff}
       .rotmaq-cel.descanso{background:#eceff2;color:#7a8b98}
       .rotmaq-cel[disabled]{cursor:default;opacity:1}

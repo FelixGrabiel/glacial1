@@ -4,10 +4,10 @@
 
   const CSS = `
     .pt-card{flex:1 1 480px;max-width:750px;min-width:0;padding:12px 16px;
-      background:#fff;border:1px solid #dce3e8;border-left:4px solid #005b96;
-      border-radius:10px;box-shadow:0 2px 8px rgba(0,44,69,.06)}
+      background:#fff;border:1px solid #dce3e8;border-left:4px solid #0877A6;
+      border-radius:10px;box-shadow:0 2px 8px rgba(2,34,53,.06)}
     .pt-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
-    .pt-title{margin:0;font-size:14px;font-weight:700;color:#003b5c}
+    .pt-title{margin:0;font-size:14px;font-weight:700;color:#033350}
     .pt-context{font-size:11px;color:#667784}
     .pt-list{margin-top:8px;display:grid;gap:6px}
     .pt-list.is-expanded{max-height:220px;overflow-y:auto;overscroll-behavior:contain}
@@ -16,20 +16,20 @@
     .pt-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;
       gap:8px;align-items:center;border-top:1px solid #edf1f4;padding-top:6px;font-size:12px}
     .pt-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .pt-row strong{white-space:nowrap;color:#003b5c}
+    .pt-row strong{white-space:nowrap;color:#033350}
     .pt-empty{font-size:12px;color:#667784;padding-top:8px}
-    .pt-more{margin-top:7px;border:0;background:transparent;color:#005b96;
+    .pt-more{margin-top:7px;border:0;background:transparent;color:#0877A6;
       cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;padding:4px 0}
     .pt-more:hover{text-decoration:underline}
     .pt-overlay{position:fixed;inset:0;z-index:10000;background:rgba(10,30,43,.55);
       display:flex;justify-content:center;align-items:center;padding:18px}
     .pt-dialog{width:min(100%,480px);background:#fff;border-radius:14px;padding:24px;
       color:#172b3a;box-shadow:0 18px 55px rgba(0,0,0,.25)}
-    .pt-dialog h3{margin:0 0 10px;font-size:20px;color:#003b5c}
+    .pt-dialog h3{margin:0 0 10px;font-size:20px;color:#033350}
     .pt-dialog p{margin:8px 0;line-height:1.5}
     .pt-dialog ul{padding-left:20px;max-height:40vh;overflow:auto}
     .pt-dialog li{margin:7px 0}
-    .pt-dialog button{margin-top:12px;background:#005b96;color:#fff;border:0;
+    .pt-dialog button{margin-top:12px;background:#0877A6;color:#fff;border:0;
       border-radius:7px;padding:10px 18px;cursor:pointer;font-weight:700}
     @media(max-width:800px){.main-head .pt-card{width:100%;max-width:none;flex-basis:100%}}
     @media(max-width:520px){.pt-columns{display:none}

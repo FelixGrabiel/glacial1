@@ -429,7 +429,7 @@ function verEvidenciasPTHistorial(id){
               style="
                 font-size:17px;
                 font-weight:700;
-                color:#003B5C;
+                color:#033350;
               "
             >
               📷 Hojas de Producto Terminado
@@ -586,7 +586,7 @@ function verEvidenciasPTHistorial(id){
                           style="
                             display:inline-block;
                             margin-top:7px;
-                            color:#005B96;
+                            color:#0877A6;
                             font-size:12px;
                             font-weight:600;
                             text-decoration:none;
@@ -849,9 +849,9 @@ function instalarEstilosParadasHistorial(){
     .hist-report-stops-list{display:grid}
     .hist-report-stop-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:11px 16px;border-top:1px solid #e6edf1;background:#fff}
     .hist-report-stop-row:first-child{border-top:0}
-    .hist-report-stop-row strong{display:block;color:#17334a;font-size:12px}
+    .hist-report-stop-row strong{display:block;color:#033350;font-size:12px}
     .hist-report-stop-row small{display:block;margin-top:2px;color:#6b7d89;font-size:10px}
-    .hist-report-stop-row>b{white-space:nowrap;color:#003b5c;font-size:13px}
+    .hist-report-stop-row>b{white-space:nowrap;color:#033350;font-size:13px}
   `;
   document.head.appendChild(st);
 }

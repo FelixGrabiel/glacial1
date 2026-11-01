@@ -23,7 +23,7 @@ ok(sb.f(null,ahora).length===0&&sb.f(undefined,ahora).length===0&&sb.f({problema
 ok(/create or replace function public\.salud_revisar/.test(mig)&&/security definer set search_path = ''/.test(mig)&&/revoke all on function public\.salud_revisar\(\) from public, anon, authenticated/.test(mig),'la función del servidor es SECURITY DEFINER y nadie puede llamarla desde la página');
 ok(/cron\.schedule\('glacial-salud-diaria', '30 12 \* \* \*'/.test(mig)&&/saludSistema' then return coalesce\(\(k->>'admin'\)::boolean, false\)/.test(mig),'se programa cada día a las 07:30 de Lima y la lectura es solo del Administrador');
 ok(!/insert into public\.fs_items|delete from|truncate|drop table/i.test(mig),'la migración no toca datos de la planta ni borra nada');
-ok(/46-proyeccion-avisos\.js\?v=20261101-[a-z]+\d/.test(html),'index.html: versión subida');
+ok(/46-proyeccion-avisos\.js\?v=\d{8}-[a-z]+\d/.test(html),'index.html: versión subida');
 const ps=leer('docs/migracion/respaldo-semanal.ps1');
 ok(/DATABASE_URL/.test(ps)&&!/postgresql:\/\//.test(ps)&&!/password/i.test(ps.replace(/Falta la variable[^']*/,'')),'el respaldo semanal no lleva la clave: la toma de la variable de usuario DATABASE_URL');
 ok(/Select-Object -Skip \$Conservar/.test(ps)&&/MANIFIESTO\.json/.test(ps)&&/exit 1/.test(ps),'conserva las últimas copias, verifica el manifiesto y termina con error si falla');

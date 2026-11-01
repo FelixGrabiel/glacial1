@@ -96,7 +96,7 @@
       .dp-total{display:flex;justify-content:space-between;font-weight:700;font-size:16px;padding-top:8px}
       .dp-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
       .dp-btns button{flex:1 1 150px;min-height:50px;font-size:16px;font-weight:700;border-radius:10px;border:0;cursor:pointer}
-      .dp-primario{background:#005B96;color:#fff}.dp-sec{background:#EAF5FC;color:#003B5C}.dp-btns button[disabled]{opacity:.45;cursor:not-allowed}
+      .dp-primario{background:#0877A6;color:#fff}.dp-sec{background:#E8F7FE;color:#033350}.dp-btns button[disabled]{opacity:.45;cursor:not-allowed}
       .dp-aviso{padding:9px 12px;border-radius:8px;font-size:13px;margin-bottom:10px;background:#FFF4DC;color:#7A5200}
       .dp-error{background:#FDE7E5;color:#8A1C13}.dp-bien{background:#E3F4EA;color:#14532D}
       .dp-nota{font-size:12px;color:#667784;margin-top:6px}

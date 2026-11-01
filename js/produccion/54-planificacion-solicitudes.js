@@ -297,7 +297,7 @@
      PESTAÑA SOLICITUDES
      ========================================================= */
   function pintarSolicitudes(cont){
-    cont.innerHTML='<div id="sol-lista"></div>'+(puedeVerHistorial()?'<h3 style="margin:22px 0 8px;color:#003b5c">Historial de cambios</h3><div id="sol-historial"></div>':'');
+    cont.innerHTML='<div id="sol-lista"></div>'+(puedeVerHistorial()?'<h3 style="margin:22px 0 8px;color:#033350">Historial de cambios</h3><div id="sol-historial"></div>':'');
     pintarLista();
     if(puedeVerHistorial())pintarHistorial();
   }
@@ -352,7 +352,7 @@
 
   /* ---------- Historial de cambios: ahora al pie de «Programación turno» (antes vivía en la pestaña Solicitudes) ---------- */
   NS.htmlHistorial=function(){
-    return puedeVerHistorial()?'<details class="plan-det" id="sol-hist-det" style="margin-top:18px"><summary style="cursor:pointer;font-weight:700;color:#003b5c">Historial de cambios</summary><div id="sol-historial" style="margin-top:8px"></div></details>':'';
+    return puedeVerHistorial()?'<details class="plan-det" id="sol-hist-det" style="margin-top:18px"><summary style="cursor:pointer;font-weight:700;color:#033350">Historial de cambios</summary><div id="sol-historial" style="margin-top:8px"></div></details>':'';
   };
   document.addEventListener('toggle',e=>{
     const d=e.target;
@@ -442,7 +442,7 @@
         (conOriginal?'<td class="num" style="background:'+FONDOS[color(co)]+'"><b>'+pct(co)+'</b></td>':'')+'<td class="num">'+(f.sinRegistro?f.sinRegistro+' sin registro':'')+'</td></tr>';
     };
     const nc=conOriginal?7:5;
-    return '<h4 style="margin:14px 0 6px;color:#003b5c">'+titulo+'</h4><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>'+etiqueta+'</th><th class="num">Programado vigente</th>'+(conOriginal?'<th class="num">Original al inicio</th>':'')+'<th class="num">Producido</th><th class="num">Cumplimiento vigente</th>'+(conOriginal?'<th class="num">Cumplimiento vs original</th>':'')+'<th class="num">Avisos</th></tr></thead><tbody>'+
+    return '<h4 style="margin:14px 0 6px;color:#033350">'+titulo+'</h4><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>'+etiqueta+'</th><th class="num">Programado vigente</th>'+(conOriginal?'<th class="num">Original al inicio</th>':'')+'<th class="num">Producido</th><th class="num">Cumplimiento vigente</th>'+(conOriginal?'<th class="num">Cumplimiento vs original</th>':'')+'<th class="num">Avisos</th></tr></thead><tbody>'+
       (filas.length?filas.map(f=>fila(etiqueta==='Línea'?NS.nombreLinea(f.clave):etiqueta==='Semana'?'Semana del '+f.clave:f.clave,f)).join('')+fila('Total',total,true):'<tr><td colspan="'+nc+'">Sin programaciones en el rango.</td></tr>')+'</tbody></table></div>';
   }
   function pintarCuerpoCumplimiento(){

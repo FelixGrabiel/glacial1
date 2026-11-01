@@ -257,10 +257,10 @@
     const s=document.createElement('style');s.id='et-css';
     s.textContent=`
       .et-card{border:1px solid #f0c36a;border-left:6px solid #df8b00;border-radius:12px;background:#fffbea;padding:12px 14px;margin:10px 0}
-      .et-card h4{margin:0 0 4px;font-size:15px;color:#10265f}.et-card small,.et-nota{color:#5a6b7b;font-size:12px}
-      .et-nov{margin:6px 0 0;padding-left:18px;font-size:13px}.et-nov b{color:#10265f}
+      .et-card h4{margin:0 0 4px;font-size:15px;color:#033350}.et-card small,.et-nota{color:#5a6b7b;font-size:12px}
+      .et-nov{margin:6px 0 0;padding-left:18px;font-size:13px}.et-nov b{color:#033350}
       .et-acciones{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-      .et-sec{margin:16px 0 6px;font-size:15px;color:#10265f}
+      .et-sec{margin:16px 0 6px;font-size:15px;color:#033350}
       .et-chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700}
       .et-chip.ent{background:#fff3d6;color:#8a5a00}.et-chip.rec{background:#e3f6ea;color:#0e6b3b}
       .et-fila{display:grid;grid-template-columns:130px 1fr auto;gap:8px;margin:6px 0;align-items:center}
@@ -270,10 +270,10 @@
       .et-ok{padding:8px 12px;border-radius:8px;background:#effbf4;border:1px solid #13814a;margin:8px 0;font-size:13px}
       .et-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:8px}
       .et-hist{border:1px solid #dfe4ea;border-left:6px solid #df8b00;border-radius:10px;padding:10px 14px;background:#fff;cursor:pointer}
-      .et-hist.rec{border-left-color:#13814a}.et-hist h4{margin:0 0 4px;font-size:15px;color:#10265f}
+      .et-hist.rec{border-left-color:#13814a}.et-hist h4{margin:0 0 4px;font-size:15px;color:#033350}
       .et-modal-fondo{position:fixed;inset:0;background:rgba(10,20,40,.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px}
       .et-modal{background:#fff;border-radius:14px;max-width:420px;width:100%;padding:18px;box-shadow:0 14px 40px rgba(0,0,0,.3)}
-      .et-modal h3{margin:0 0 8px;font-size:17px;color:#10265f}.et-modal p{margin:0 0 10px;font-size:14px}
+      .et-modal h3{margin:0 0 8px;font-size:17px;color:#033350}.et-modal p{margin:0 0 10px;font-size:14px}
       .et-toast{position:fixed;left:16px;right:16px;bottom:16px;max-width:380px;z-index:10050;padding:12px 14px;border-radius:10px;background:#fff3d6;border:1px solid #f0c36a;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px}
       @media (max-width:520px){.et-fila{grid-template-columns:1fr}.et-fila button{justify-self:end}}
     `;

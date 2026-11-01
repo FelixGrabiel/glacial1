@@ -844,7 +844,7 @@ function htmlSecuenciaTurnoPaletas(){
     ? tramos.map((t,i)=>`
         <div style="display:grid;grid-template-columns:34px minmax(0,1fr) minmax(0,1fr) auto;
           gap:10px;align-items:center;padding:9px 10px;border-top:1px solid #e7edf2;">
-          <strong style="color:#005B96;">${i+1}</strong>
+          <strong style="color:#0877A6;">${i+1}</strong>
           <div>
             <strong>${escaparHtml(t.marca || '—')}</strong>
             <div class="small-muted">${escaparHtml(t.presentacion || '')}</div>
@@ -869,7 +869,7 @@ function htmlSecuenciaTurnoPaletas(){
     <div class="panel-body" style="border-top:1px solid #e3e9ee;">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
         <div>
-          <h4 style="margin:0;color:#003B5C;">Secuencia del turno</h4>
+          <h4 style="margin:0;color:#033350;">Secuencia del turno</h4>
           <div class="small-muted" style="margin-top:4px;">
             Permite SCALA → BELLS → SCALA sin duplicar la cantidad programada total.
           </div>
@@ -880,7 +880,7 @@ function htmlSecuenciaTurnoPaletas(){
       <div class="grid grid-4" style="align-items:end;margin-top:12px;">
         <div class="field-sm">
           <label>Marca / presentación del tramo</label>
-          <div style="min-height:36px;display:flex;align-items:center;font-weight:700;color:#003B5C;">
+          <div style="min-height:36px;display:flex;align-items:center;font-weight:700;color:#033350;">
             ${escaparHtml(draftPaleta.marca || '—')} · ${escaparHtml(draftPaleta.presentacion || '—')}
           </div>
         </div>

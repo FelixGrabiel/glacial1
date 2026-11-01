@@ -111,7 +111,7 @@
         .amp-form{background:#f7f9fb;border:1px solid var(--line,#e5e7eb);border-radius:10px;padding:12px;display:grid;gap:10px}
         .amp-form-tit{font-size:13px}.amp-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
         .amp-chip{border:1px solid #c9d3dc;background:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:600}
-        .amp-chip.on{background:#e3eefb;border-color:#5b8fd6;color:#0c447c}
+        .amp-chip.on{background:#e3eefb;border-color:#4FC4F5;color:#065F86}
         .amp-otro{display:flex;gap:6px;align-items:center;font-size:12.5px}.amp-otro input{width:80px}
         .amp-mot{display:grid;gap:4px;font-size:12.5px}.amp-mot textarea{width:100%;box-sizing:border-box}
         .amp-pie{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}

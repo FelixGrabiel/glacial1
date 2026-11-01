@@ -97,13 +97,13 @@
     INCOMPLETA:{txt:'Cálculo parcial',ico:'◐',cls:'pc-inc'},SIN_PROG:{txt:'Sin programación',ico:'—',cls:'pc-sin'},NODATOS:{txt:'Datos no disponibles',ico:'⚠',cls:'pc-nodatos'}};
   NS.CAP=CAP;
   NS.estilosCap=()=>estilosCap();
-  const COLORES=['#005b96','#F97316','#0e9f6e','#8b5cf6','#d946ef','#0891b2'];
+  const COLORES=['#0877A6','#F97316','#0e9f6e','#8b5cf6','#d946ef','#0891b2'];
   function estilosCap(){
     if(document.getElementById('plan-cap-css'))return;
     const s=document.createElement('style');s.id='plan-cap-css';
     const css=`
       #plan-root .pc-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid var(--pc-b);background:var(--pc-bg);color:var(--pc-c);white-space:nowrap}
-      #plan-root .pc-cabe{--pc-c:#075985;--pc-bg:#E0F2FE;--pc-b:#7DD3FC}
+      #plan-root .pc-cabe{--pc-c:#065F86;--pc-bg:#E8F7FE;--pc-b:#7DD3FC}
       #plan-root .pc-justo{--pc-c:#5B21B6;--pc-bg:#EDE9FE;--pc-b:#C4B5FD}
       #plan-root .pc-exceso{--pc-c:#86198F;--pc-bg:#FAE8FF;--pc-b:#E879F9}
       #plan-root .pc-inc{--pc-c:#334155;--pc-bg:#F8FAFC;--pc-b:#94A3B8}
@@ -118,7 +118,7 @@
       #plan-root .pc-det th{text-align:left;color:#46627a;font-size:11px;padding:3px 6px;border-bottom:1px solid #dce5ec}
       #plan-root .pc-det td{padding:3px 6px;border-bottom:1px solid #edf2f6;vertical-align:top}
       #plan-root .pc-det td.num,#plan-root .pc-det th.num{text-align:right;font-variant-numeric:tabular-nums}
-      #plan-root .pc-det h6{margin:10px 0 2px;font-size:12px;color:#003b5c}
+      #plan-root .pc-det h6{margin:10px 0 2px;font-size:12px;color:#033350}
       #plan-root .plan-gantt .g-vent{position:absolute;z-index:3;top:0;bottom:0;background:repeating-linear-gradient(135deg,#94A3B8,#94A3B8 4px,#CBD5E1 4px,#CBD5E1 8px);opacity:.7}
       #plan-root .plan-gantt .g-prep{position:absolute;top:10px;bottom:10px;background:#475569;border-radius:4px;opacity:.9}
     `;

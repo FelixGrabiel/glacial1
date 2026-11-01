@@ -29,7 +29,7 @@
       #plan-root .sem-tabla th.sem-linea,#plan-root .sem-tabla td.sem-linea{position:sticky;left:0;z-index:2;background:#fff;text-align:left;border-left:0;font-weight:800;color:var(--pl-navy);min-width:72px;border-right:2px solid #dce5ec}
       #plan-root .sem-tabla th.sem-linea{background:#f1f6fa}
       #plan-root .sem-tabla td{vertical-align:top;border-top:1px solid #edf2f6;border-left:1px solid #edf2f6;padding:5px;min-width:128px}
-      #plan-root .sem-hoy{box-shadow:inset 0 3px 0 var(--pl-blue,#005b96)}
+      #plan-root .sem-hoy{box-shadow:inset 0 3px 0 var(--pl-blue,#0877A6)}
       #plan-root .sem-sub{border-radius:9px;padding:5px 6px;margin-bottom:4px;cursor:pointer;border:1px solid var(--pc-b,#CBD5E1);background:var(--pc-bg,#fff);line-height:1.3}
       #plan-root .sem-sub:last-child{margin-bottom:0}
       #plan-root .sem-sub:hover,#plan-root .sem-sub:focus-visible{box-shadow:0 0 0 2px #7db4f0}
@@ -118,7 +118,7 @@
       });
       return {alguna,html:'<tr><td class="sem-linea">'+esc(l.name)+'</td>'+tds.join('')+'</tr>'};
     }).filter(f=>!F.cap||f.alguna);
-    cont.innerHTML='<div class="plan-scroll"><table class="sem-tabla"><thead><tr><th class="sem-linea">Línea</th>'+dias.map((d,i)=>'<th'+(d===hoy?' style="color:#003b5c;background:#e4f0fa"':'')+'>'+NOMBRES[i]+' '+d.slice(8)+'/'+d.slice(5,7)+'</th>').join('')+'</tr></thead><tbody>'+
+    cont.innerHTML='<div class="plan-scroll"><table class="sem-tabla"><thead><tr><th class="sem-linea">Línea</th>'+dias.map((d,i)=>'<th'+(d===hoy?' style="color:#033350;background:#e4f0fa"':'')+'>'+NOMBRES[i]+' '+d.slice(8)+'/'+d.slice(5,7)+'</th>').join('')+'</tr></thead><tbody>'+
       (filas.length?filas.map(f=>f.html).join(''):'<tr><td colspan="8" class="plan-nota">Ninguna línea coincide con el filtro de estado.</td></tr>')+'</tbody></table></div>'+
       (NS.evaluacionFallo?'<p class="plan-error">No se pudo guardar alguna evaluación de capacidad: '+esc(NS.evaluacionFallo)+'</p>':'');
   }
@@ -135,7 +135,7 @@
       h+='<p>'+NS.chipCapacidad(c.estado)+' <span class="plan-badge '+clasesOp(d.op)+'">'+esc(textoOp(d.op))+'</span>'+(c.congelada?' <span class="sem-desf">evaluación guardada con los parámetros v'+num(c.versionGuardada)+'</span>':'')+'</p>';
       if(d.ev.desfasada)h+='<div class="pc-desf">Los parámetros cambiaron desde que se guardó este plan. Con los de hoy: '+esc(NS.CAP[d.ev.vigente.estado].txt)+' ('+hm(d.ev.vigente.requeridoMin)+' / '+hm(d.ev.vigente.disponibleMin)+'). '+(NS.puede()?'Puedes recalcular en Catálogo → Tiempos previstos.':'')+'</div>';
       if(c.motivoExceso)h+='<div class="cap-falta" style="background:#FAE8FF;color:#86198F">'+esc(c.motivoExceso)+'</div>';
-      h+='<h5 style="margin:10px 0 4px;color:#003b5c">Productos y secuencia</h5><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Producto</th><th class="num">UND</th><th>Estado</th></tr></thead><tbody>'+
+      h+='<h5 style="margin:10px 0 4px;color:#033350">Productos y secuencia</h5><div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Producto</th><th class="num">UND</th><th>Estado</th></tr></thead><tbody>'+
         d.filas.map(p=>'<tr><td>'+esc(p.marca)+' '+esc(NS.etiquetaPresentacion(p.linea,p.marca,p.presentacion))+'</td><td class="num">'+fmt(p.cantidadProgramada)+'</td><td><span class="plan-badge '+clasesOp(NS.estadoDe(p))+'">'+esc(textoOp(NS.estadoDe(p)))+'</span></td></tr>').join('')+'</tbody></table></div>';
       const sec=NS.secuenciaLinea(fecha,bloque,linea);
       if(sec){

@@ -14,7 +14,7 @@
   const esc=t=>typeof escaparHtml==='function'?escaparHtml(t):String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   const GRUPOS=[
-    {titulo:'Cada turno',subtitulo:'Lo que se usa todos los días en planta.',color:'#006b8f',tarjetas:[
+    {titulo:'Cada turno',subtitulo:'Lo que se usa todos los días en planta.',color:'#065F86',tarjetas:[
       {boton:'btn-avance-produccion',icono:'📈',titulo:'Avance y cierre',desc:'Avance del turno por línea y cierre al terminar.',abrir:()=>window.goAvanceProduccion&&window.goAvanceProduccion()},
       {boton:'btn-entrega-turno',icono:'🤝',titulo:'Entrega de turno',desc:'Entregar pendientes al siguiente supervisor y confirmar lo recibido.',abrir:()=>window.goEntregaTurno&&window.goEntregaTurno()},
       {boton:'btn-resumenes-turno',icono:'🧾',titulo:'Resúmenes de turno',desc:'Cómo cerró cada turno: producción, paradas y pendientes.',abrir:()=>window.goResumenesTurno&&window.goResumenesTurno()}

@@ -505,29 +505,29 @@
     s.textContent=`
       .rgx{margin:0 0 18px;font-size:13px;color:#2E3A46}
       .rgx-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:0 0 8px}
-      .rgx-bar h3{margin:0;font-size:15px;color:#073f68}.rgx-sub{color:#6B7784;font-size:12px}
+      .rgx-bar h3{margin:0;font-size:15px;color:#033350}.rgx-sub{color:#6B7784;font-size:12px}
       .rgx-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
       .rgx-ctl select,.rgx-ctl input[type=date]{padding:5px 8px;border:1px solid #d8e2e8;border-radius:8px;font-size:12px;background:#fff}
-      .rgx-btn{border:1px solid #d8e2e8;background:#fff;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:#073f68}
-      .rgx-btn.on{background:#073f68;color:#fff;border-color:#073f68}
+      .rgx-btn{border:1px solid #d8e2e8;background:#fff;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:#033350}
+      .rgx-btn.on{background:#033350;color:#fff;border-color:#033350}
       .rgx-nota{font-size:11px;color:#6B7784;margin:4px 0 8px}
       .rgx-aviso{background:#FFF7ED;border:1px solid #FCE3C0;color:#8A5A1E;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px}
       .rgx-aviso ul{margin:4px 0 0;padding-left:18px}
       .rgx-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:8px 0}@media(max-width:900px){.rgx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
       .rgx-k{background:#fff;border:1px solid #dce5ea;border-left:5px solid #aab7bf;border-radius:10px;padding:10px 12px;cursor:pointer}
-      .rgx-k:hover{border-color:#073f68}.rgx-k.verde{border-left-color:#2e8b57}.rgx-k.ambar{border-left-color:#d89216}.rgx-k.roja{border-left-color:#c4472b}
+      .rgx-k:hover{border-color:#033350}.rgx-k.verde{border-left-color:#2e8b57}.rgx-k.ambar{border-left-color:#d89216}.rgx-k.roja{border-left-color:#c4472b}
       .rgx-k span{display:block;font-size:11px;text-transform:uppercase;color:#71828d;font-weight:700}
       .rgx-k b{display:block;font-size:22px;color:#17384d;margin:3px 0}.rgx-k small{display:block;color:#6B7784;font-size:11px}
       .rgx-var.bien{color:#2e8b57}.rgx-var.mal{color:#c4472b}.rgx-var.neutro{color:#6B7784}
       .rgx-box{background:#fff;border:1px solid #dce5ea;border-radius:10px;padding:12px 14px;margin:10px 0}
-      .rgx-box h4{margin:0 0 8px;font-size:13px;color:#073f68}.rgx-box ol,.rgx-box ul{margin:0;padding-left:18px}.rgx-box li{margin:3px 0}
+      .rgx-box h4{margin:0 0 8px;font-size:13px;color:#033350}.rgx-box ol,.rgx-box ul{margin:0;padding-left:18px}.rgx-box li{margin:3px 0}
       .rgx-tabla{width:100%;border-collapse:collapse;font-size:12px}.rgx-tabla th{font-weight:600;color:#6B7784;text-align:right;padding:5px 6px;border-bottom:1px solid #e6ebef}
       .rgx-tabla td{padding:5px 6px;border-bottom:1px solid #eef1f4;text-align:right}.rgx-tabla th:first-child,.rgx-tabla td:first-child{text-align:left}
       .rgx-tabla tr[data-rgx-linea]{cursor:pointer}.rgx-tabla tr[data-rgx-linea]:hover{background:#f4f8fb}
       .rgx-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#aab7bf}
       .rgx-dot.verde{background:#2e8b57}.rgx-dot.ambar{background:#d89216}.rgx-dot.roja{background:#c4472b}
       .rgx-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
-      .rgx-det{border:2px solid #073f68}
+      .rgx-det{border:2px solid #033350}
       .rgx-como dt{font-weight:700;margin-top:6px}.rgx-como dd{margin:0 0 0 0;color:#435b69}
       @media(max-width:600px){.rgx-kpis{grid-template-columns:repeat(2,1fr)}}
       /* ORDEN VISUAL: mismas esquinas, sombra y títulos en todo el Resumen general (cabecera, industrial y gráficos) */
@@ -562,7 +562,7 @@
     const W=70,H=18,max=Math.max(...pts.map(x=>x.v),1),min=Math.min(...pts.map(x=>x.v),0);
     const n=vals.length-1||1,rg=(max-min)||1;
     const d=pts.map(x=>(x.i/n*W).toFixed(1)+','+(H-((x.v-min)/rg*(H-2))-1).toFixed(1)).join(' ');
-    return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true"><polyline fill="none" stroke="#073f68" stroke-width="1.5" points="'+d+'"/></svg>';
+    return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true"><polyline fill="none" stroke="#033350" stroke-width="1.5" points="'+d+'"/></svg>';
   }
   function textoVar(ind,v){
     if(!v)return '<span class="rgx-var neutro">sin periodo anterior comparable</span>';

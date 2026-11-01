@@ -14,7 +14,7 @@
     position:sticky;top:0;z-index:60;display:flex;flex-wrap:wrap;
     align-items:center;gap:7px;min-height:62px;padding:8px 12px;
     background:#fff;color:#17384d;border:0;border-bottom:1px solid #dce6ed;
-    box-shadow:0 2px 8px rgba(0,44,69,.05)
+    box-shadow:0 2px 8px rgba(2,34,53,.05)
   }
   .topbar-left{order:1;flex:1 1 148px;min-width:0;gap:8px}
   .topbar-right{display:contents}
@@ -65,7 +65,7 @@
     border-radius:18px;background:#f6f9fb;color:#4a6474;
     font-size:12px;font-weight:700;white-space:nowrap
   }
-  .mobile-line-btn.active{background:#e8f4fc;border-color:#b7d7ec;color:#0877A6}
+  .mobile-line-btn.active{background:#E8F7FE;border-color:#b7d7ec;color:#0877A6}
 
   #app-screen .shell{display:block;width:100%;min-width:0}
   #app-screen .shell>.sidebar{
@@ -172,7 +172,7 @@
 @media (max-width:700px){
   #app-screen .shell>.sidebar{
     width:min(320px,88vw)!important;
-    background:linear-gradient(180deg,#0d3159 0%,#0B2849 48%,#071f3b 100%)!important;
+    background:linear-gradient(180deg,#033350 0%,#033350 48%,#022235 100%)!important;
     border-radius:0 14px 14px 0!important;
     color:#fff!important;
   }
@@ -263,7 +263,7 @@
     border:1px solid #d4e0e9;
     border-radius:10px;
     background:#f7fafc;
-    color:#075f9f;
+    color:#0877A6;
     font-size:0;
   }
 

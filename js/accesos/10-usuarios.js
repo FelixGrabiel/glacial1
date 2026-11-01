@@ -539,7 +539,7 @@ function mostrarAvisoPermisosAutomaticos(texto){
       border-radius:8px;
       background:#eaf5fb;
       border:1px solid #b9dceb;
-      color:#005B96;
+      color:#0877A6;
       font-size:12px;
       font-weight:600;
 

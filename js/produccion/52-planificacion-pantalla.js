@@ -33,8 +33,8 @@
   }
 
   const CSS=`
-    /* ===== Planificación · diseño visual (estilo GLACIAL: azul marino #003b5c / azul #005b96, tarjetas blancas, bordes suaves) ===== */
-    #plan-root{--pl-navy:#003b5c;--pl-blue:#005b96;--pl-line:#dce5ec;--pl-soft:#f4f8fb;--pl-muted:#5a6b78}
+    /* ===== Planificación · diseño visual (estilo GLACIAL: azul marino #033350 / azul #0877A6, tarjetas blancas, bordes suaves) ===== */
+    #plan-root{--pl-navy:#033350;--pl-blue:#0877A6;--pl-line:#dce5ec;--pl-soft:#f4f8fb;--pl-muted:#5a6b78}
     #plan-root :focus-visible{outline:3px solid #7db4f0;outline-offset:2px}
     #plan-root .plan-h4{margin:22px 0 6px;color:var(--pl-navy);font-size:16px}
     #plan-root .plan-h4 small{font-weight:500;color:var(--pl-muted);font-size:12px}
@@ -55,12 +55,12 @@
     #plan-root .plan-turnos{display:inline-flex;padding:3px;background:#e8eff4;border-radius:12px;gap:2px}
     #plan-root .plan-pill{border:0;background:transparent;border-radius:9px;padding:7px 14px;font:inherit;font-weight:700;font-size:13px;color:#4f6272;cursor:pointer;white-space:nowrap;line-height:1.2;text-align:left}
     #plan-root .plan-pill small{display:block;font-weight:500;font-size:11px;opacity:.85}
-    #plan-root .plan-pill.active{background:var(--pl-navy);color:#fff;box-shadow:0 2px 6px rgba(0,59,92,.3)}
+    #plan-root .plan-pill.active{background:var(--pl-navy);color:#fff;box-shadow:0 2px 6px rgba(3,51,80,.3)}
     #plan-root .plan-acc-barra{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
     /* tarjetas de resumen del bloque */
     #plan-root .plan-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 14px}
     #plan-root .plan-kpi{position:relative;overflow:hidden;background:#fff;border:1px solid var(--pl-line);border-radius:14px;padding:12px 14px 12px 18px;box-shadow:0 1px 2px rgba(0,43,70,.05)}
-    #plan-root .plan-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--k,#005b96)}
+    #plan-root .plan-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--k,#0877A6)}
     #plan-root .plan-kpi .k-t{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--pl-muted)}
     #plan-root .plan-kpi .k-v{margin-top:2px;font-size:26px;font-weight:800;line-height:1.15;color:var(--pl-navy);font-variant-numeric:tabular-nums}
     #plan-root .plan-kpi .k-s{margin-top:2px;font-size:12px;color:var(--pl-muted)}
@@ -68,7 +68,7 @@
     #plan-root .plan-chip.rojo{background:#FEE2E2;color:#991B1B}
     #plan-root .plan-chip.naranja{background:#FFEDD5;color:#9A3412}
     #plan-root .plan-chip.gris{background:#F3F4F6;color:#4B5563}
-    #plan-root .plan-chip.azul{background:#DBEAFE;color:#1E40AF}
+    #plan-root .plan-chip.azul{background:#C6EBFC;color:#0877A6}
     #plan-root .plan-chip.verde{background:#DCFCE7;color:#166534}
     /* tablas */
     #plan-root .plan-scroll{overflow-x:auto;background:#fff;border:1px solid var(--pl-line);border-radius:14px;box-shadow:0 1px 2px rgba(0,43,70,.05)}
@@ -85,14 +85,14 @@
     #plan-root .plan-tabla tfoot td{background:#f1f6fa;border-bottom:0}
     #plan-root .plan-sin td{background:#fff8e6;color:#8a6d1d;border-bottom:1px solid #f4e6bd}
     #plan-root .plan-sin td.c-linea{color:#8a6d1d;border-left-color:#f0c36a}
-    #plan-root .plan-linea td{background:#f6f9fb;font-weight:700;color:#003b5c}
+    #plan-root .plan-linea td{background:#f6f9fb;font-weight:700;color:#033350}
     #plan-root .plan-sub td{background:#f1f6fa;font-size:12px;color:#3d5365;border-bottom:2px solid #d9e2e8}
     #plan-root .plan-pal{display:block}
     #plan-root .plan-upp{display:block;font-size:11px;font-weight:500;color:var(--pl-muted)}
     #plan-root .plan-prog td.c-linea b.rep{visibility:hidden}
     #plan-root .plan-sinreg{color:#6b7280;font-style:italic}
     #plan-root .plan-inc{margin:0;font-style:italic}
-    #plan-root .plan-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#e6f0f7;color:#003b5c;white-space:nowrap}
+    #plan-root .plan-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#e6f0f7;color:#033350;white-space:nowrap}
     #plan-root .plan-badge.prod{background:#e1f4e8;color:#1e7f4e}
     #plan-root .plan-badge.pausa{background:#fff4d6;color:#8a6d1d}
     #plan-root .plan-badge.stop{background:#fde6e6;color:#a32020}
@@ -147,12 +147,12 @@
     #plan-root .plan-carga.inc{background:#F3F4F6;color:#6B7280}
     /* campos */
     #plan-root input,#plan-root select,.plan-dialogo input,.plan-dialogo select,.plan-dialogo textarea{padding:7px 10px;border:1px solid #cfdbe3;border-radius:9px;font:inherit;background:#fff}
-    #plan-root input:focus,#plan-root select:focus,.plan-dialogo input:focus,.plan-dialogo select:focus,.plan-dialogo textarea:focus{border-color:var(--pl-blue,#005b96);outline:3px solid #cfe4f7;outline-offset:0}
+    #plan-root input:focus,#plan-root select:focus,.plan-dialogo input:focus,.plan-dialogo select:focus,.plan-dialogo textarea:focus{border-color:var(--pl-blue,#0877A6);outline:3px solid #cfe4f7;outline-offset:0}
     /* diálogos */
     .plan-fondo{position:fixed;inset:0;background:rgba(10,30,50,.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px}
     .plan-dialogo{background:#fff;border-radius:16px;padding:20px 22px;width:100%;max-width:560px;max-height:92vh;overflow:auto;box-shadow:0 22px 60px rgba(0,0,0,.28)}
     .plan-dialogo.ancho{max-width:900px}
-    .plan-dialogo h3{margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid #e3eaf0;color:#003b5c;font-size:18px}
+    .plan-dialogo h3{margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid #e3eaf0;color:#033350;font-size:18px}
     .plan-campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .plan-campos label{font-size:12px;font-weight:600;color:#5a6b78;display:flex;flex-direction:column;gap:4px}
     .plan-campos .completo{grid-column:1/-1}
@@ -323,13 +323,13 @@
     if(cambios.length)aten.push('<span class="plan-chip naranja">'+cambios.length+(cambios.length===1?' reprogramación':' reprogramaciones')+'</span>');
     if(pendSol)aten.push('<span class="plan-chip azul">'+pendSol+(pendSol===1?' solicitud pendiente':' solicitudes pendientes')+'</span>');
     cont.innerHTML=
-      '<div class="plan-kpi" style="--k:#005b96"><div class="k-t">Programado</div><div class="k-v">'+fmt(prog)+'</div><div class="k-s">UND · '+productos+(productos===1?' producto':' productos')+' · '+lineas.size+(lineas.size===1?' línea':' líneas')+'</div></div>'+
+      '<div class="plan-kpi" style="--k:#0877A6"><div class="k-t">Programado</div><div class="k-v">'+fmt(prog)+'</div><div class="k-s">UND · '+productos+(productos===1?' producto':' productos')+' · '+lineas.size+(lineas.size===1?' línea':' líneas')+'</div></div>'+
       '<div class="plan-kpi" style="--k:#F97316"><div class="k-t">Producido</div><div class="k-v">'+(progReg>0||!sin?fmt(prod):'—')+'</div><div class="k-s">'+(av===null?'Sin registro de producción':(av*100).toLocaleString('es-PE',{maximumFractionDigits:0})+' % de lo programado'+(sin?' · '+sin+' sin registro':''))+'</div></div>'+
       '<div class="plan-kpi" style="--k:#9CA3AF"><div class="k-t">Pendiente</div><div class="k-v">'+(progReg>0?fmt(pend):'—')+'</div><div class="k-s">'+(sobre>0?'<b style="color:#9A3412">+'+fmt(sobre)+' sobreproducción</b>':'UND por producir')+'</div></div>'+
       '<div class="plan-kpi" style="--k:'+(aten.length?'#F97316':'#22C55E')+'"><div class="k-t">Atención</div><div class="k-v" style="font-size:15px;line-height:1.5;font-weight:700">'+(aten.length?aten.join(' '):'<span class="plan-chip verde">Todo en orden</span>')+'</div><div class="k-s">UND de todas las líneas: solo referencia.</div></div>'+
       (()=>{const rm=NS.modos?NS.modos.resumenModos(NS.items(NS.estado.fecha,NS.estado.turno)):{metas:0,turno:0};
         return (rm.metas?'<div class="plan-kpi" style="--k:#7C3AED"><div class="k-t">Metas entre bloques</div><div class="k-v">'+rm.metas+'</div><div class="k-s">'+(rm.pendientes?rm.pendientes+(rm.pendientes===1?' con saldo por calcular (pendiente de cierre)':' con saldo por calcular (pendientes de cierre)'):'el bloque guarda solo el saldo')+'</div></div>':'')+
-          (rm.turno?'<div class="plan-kpi" style="--k:#2563EB"><div class="k-t">Todo el turno</div><div class="k-v">'+rm.turno+'</div><div class="k-s">cantidad estimada, no firme</div></div>':'');})();
+          (rm.turno?'<div class="plan-kpi" style="--k:#4FC4F5"><div class="k-t">Todo el turno</div><div class="k-v">'+rm.turno+'</div><div class="k-s">cantidad estimada, no firme</div></div>':'');})();
   }
 
   function pintarTabla(){

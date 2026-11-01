@@ -216,8 +216,8 @@
     repintar();
   };
   const css=`
-.ii-kpis5{grid-template-columns:repeat(5,minmax(0,1fr))}.ii-kb{font:inherit;text-align:left;cursor:pointer;color:inherit}.ii-kb-act{outline:3px solid #0b5cc4}
-.ii-k-verde b{color:#166534}.ii-p-azul{background:#dbeafe;color:#0b5cc4}.ii-com{min-width:200px}.ii-com input{min-height:36px!important;font-size:14px!important}
+.ii-kpis5{grid-template-columns:repeat(5,minmax(0,1fr))}.ii-kb{font:inherit;text-align:left;cursor:pointer;color:inherit}.ii-kb-act{outline:3px solid #0877A6}
+.ii-k-verde b{color:#166534}.ii-p-azul{background:#C6EBFC;color:#0877A6}.ii-com{min-width:200px}.ii-com input{min-height:36px!important;font-size:14px!important}
 .ii-dif-CRITICO{color:#b42318;font-weight:700}.ii-dif-OBSERVADO{color:#9a3412;font-weight:700}.ii-nom small{display:block}
 @media(max-width:700px){.ii-kpis5{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
   global.iiConciliacionUI={html,css,activoEnEdicion:()=>!!document.querySelector('#ii-q-tabla input:focus,#ii-q-texto:focus')};

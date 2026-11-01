@@ -258,10 +258,10 @@
     .vu-fondo{position:fixed;inset:0;background:rgba(10,30,50,.6);z-index:10060;display:flex;align-items:flex-start;justify-content:center;padding:12px;overflow:auto}
     .vu-panel{background:#fff;border-radius:12px;width:100%;max-width:980px;padding:16px;margin:auto 0;box-shadow:0 18px 55px rgba(0,0,0,.3)}
     .vu-cab{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-    .vu-cab h3{margin:0;color:#003b5c}
+    .vu-cab h3{margin:0;color:#033350}
     .vu-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;border-bottom:1px solid #d9e2e8}
     .vu-tab{border:0;background:none;padding:8px 12px;font:inherit;font-weight:700;color:#5a6b78;cursor:pointer;border-bottom:3px solid transparent}
-    .vu-tab.on{color:#003b5c;border-bottom-color:#005b96}
+    .vu-tab.on{color:#033350;border-bottom-color:#0877A6}
     .vu-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;margin:8px 0 12px}
     .vu-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#5a6b78}
     .vu-form input,.vu-form select{padding:9px 8px;border:1px solid #cfdbe3;border-radius:7px;font:inherit;min-height:40px}
@@ -272,12 +272,12 @@
     .vu-error{color:#c62828;font-size:12px;min-height:16px;margin:6px 0;white-space:pre-line}
     .vu-ok{color:#1e7f4e;font-size:12px}
     .vu-btn{border:1px solid #cfdbe3;background:#fff;border-radius:8px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:40px}
-    .vu-btn.p{background:#005b96;color:#fff;border-color:#005b96}
-    .vu-sub{color:#5a6b78;font-size:12px}.vu-aviso{padding:10px 12px;background:#eef6fc;border:1px solid #cfe0ee;border-radius:8px;margin:8px 0;color:#0b3a73;font-size:13px}
+    .vu-btn.p{background:#0877A6;color:#fff;border-color:#0877A6}
+    .vu-sub{color:#5a6b78;font-size:12px}.vu-aviso{padding:10px 12px;background:#eef6fc;border:1px solid #cfe0ee;border-radius:8px;margin:8px 0;color:#033350;font-size:13px}
     .vu-lineas td{vertical-align:middle}.vu-lineas input[type=text],.vu-lineas input[type=date]{padding:9px 8px;border:1px solid #cfdbe3;border-radius:7px;font:inherit;min-height:40px;width:100%;box-sizing:border-box;min-width:130px}
     .vu-lineas .vu-sub-fila td{border-bottom:1px solid #dfe7ed;padding-top:0}
     .vu-est{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}.vu-est.ok{background:#e6f4ea;color:#1e7f4e}.vu-est.no{background:#fff1d6;color:#8a5a00}
-    .vu-link{background:none;border:0;color:#0b67d8;text-decoration:underline;cursor:pointer;font:inherit;padding:6px}.vu-exc{margin-top:10px}.vu-pie{margin-top:8px;min-height:18px}
+    .vu-link{background:none;border:0;color:#0877A6;text-decoration:underline;cursor:pointer;font:inherit;padding:6px}.vu-exc{margin-top:10px}.vu-pie{margin-top:8px;min-height:18px}
     @media(max-width:640px){.vu-panel{padding:12px}.vu-lineas input[type=text],.vu-lineas input[type=date]{min-width:110px}}
   `;
   function estilos(){if(document.getElementById('vu-css'))return;const s=document.createElement('style');s.id='vu-css';s.textContent=CSS;document.head.appendChild(s);}

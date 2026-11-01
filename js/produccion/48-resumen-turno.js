@@ -241,7 +241,7 @@
       const fuente=(px,neg)=>(neg?'bold ':'')+px+'px Arial, Helvetica, sans-serif';
       const texto=(t,x,px,neg,color,alineado)=>{
         c.font=fuente(px,neg);
-        if(dibujar){c.fillStyle=color||'#10265f';c.textAlign=alineado||'left';c.fillText(String(t),alineado==='right'?W-M:x,y+px);}
+        if(dibujar){c.fillStyle=color||'#033350';c.textAlign=alineado||'left';c.fillText(String(t),alineado==='right'?W-M:x,y+px);}
       };
       const ajustar=(t,px,neg,max)=>{
         c.font=fuente(px,neg);
@@ -253,11 +253,11 @@
         ajustar(t,px,neg,W-2*M-(sangria||0)).forEach(l=>{texto(l,M+(sangria||0),px,neg,color);y+=px+12;});
       };
       const caja=(alto,color)=>{if(dibujar){c.fillStyle=color;c.fillRect(M-16,y,W-2*M+32,alto);}};
-      const titulo=(t)=>{y+=18;if(dibujar){c.fillStyle='#10265f';c.fillRect(M-16,y,W-2*M+32,64);}texto(t.toUpperCase(),M,40,true,'#ffffff');if(dibujar){}y+=64+14;};
+      const titulo=(t)=>{y+=18;if(dibujar){c.fillStyle='#033350';c.fillRect(M-16,y,W-2*M+32,64);}texto(t.toUpperCase(),M,40,true,'#ffffff');if(dibujar){}y+=64+14;};
       // encabezado
             y=26;
-      texto('GLACIAL · RESUMEN DE TURNO',M,46,true,'#10265f');y+=62;
-      texto(fmtFecha(d.fecha)+' · TURNO '+etiquetaTurno(d.turno),M,44,true,'#0868db');y+=58;
+      texto('GLACIAL · RESUMEN DE TURNO',M,46,true,'#033350');y+=62;
+      texto(fmtFecha(d.fecha)+' · TURNO '+etiquetaTurno(d.turno),M,44,true,'#0877A6');y+=58;
       if(preliminar){texto('RESUMEN PRELIMINAR · turno en curso · '+hhmm(d.generadoMs),M,34,true,'#8a5a00');y+=48;}
       else{texto('Turno cerrado',M,34,false,'#13814a');y+=46;}
       // planta
@@ -269,7 +269,7 @@
       if(!d.lineas.length){bloqueTexto('Sin líneas con inicio real en este turno.',36,false,'#4a5b6b');}
       d.lineas.forEach(l=>{
         caja(188,'#f2f6fa');y+=8;
-        texto(l.nombre,M,46,true,'#10265f');
+        texto(l.nombre,M,46,true,'#033350');
         texto(fmtPct(l.cumplimiento),M,46,true,colorCump(l.cumplimiento),'right');y+=58;
         texto('Programado '+fmt(l.programado)+'  ·  Producido '+fmt(l.producido),M,38,false,'#1b2a38');y+=50;
         texto('Ratio '+(l.ratio==null?'—':fmt(l.ratio)+' UND/h'),M,38,true,'#1b2a38');y+=50;
@@ -280,7 +280,7 @@
       texto('No programadas: '+fmt(d.paradas.cantidadNoProg)+' · '+fmt(d.paradas.minNoProg)+' min',M,40,true,'#a92f27');y+=52;
       texto('Programadas: '+fmt(d.paradas.cantidadProg)+' · '+fmt(d.paradas.minProg)+' min',M,40,false,'#1b2a38');y+=54;
       if(d.paradas.top.length){
-        texto('Motivos principales',M,36,true,'#10265f');y+=46;
+        texto('Motivos principales',M,36,true,'#033350');y+=46;
         d.paradas.top.forEach((p,i)=>bloqueTexto((i+1)+'. '+p.motivo+' — '+fmt(p.minutos)+' min',36,false,'#1b2a38',16));
         if(d.paradas.equipoTop)bloqueTexto('Equipo con más minutos de falla: '+d.paradas.equipoTop.nombre+' — '+fmt(d.paradas.equipoTop.minutos)+' min',36,false,'#1b2a38',16);
       }else bloqueTexto('Sin paradas no programadas.',36,false,'#13814a');
@@ -439,8 +439,8 @@
     s.textContent=`
       .rt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:10px}
       .rt-card{border:1px solid #dfe4ea;border-left:6px solid #13814a;border-radius:10px;padding:10px 14px;background:#fff;cursor:pointer}
-      .rt-card.pre{border-left-color:#df8b00;background:#fffbea}.rt-card h4{margin:0 0 4px;font-size:15px;color:#10265f}
-      .rt-card small{color:#5a6b7b}.rt-sec{margin:16px 0 6px;font-size:15px;color:#10265f}
+      .rt-card.pre{border-left-color:#df8b00;background:#fffbea}.rt-card h4{margin:0 0 4px;font-size:15px;color:#033350}
+      .rt-card small{color:#5a6b7b}.rt-sec{margin:16px 0 6px;font-size:15px;color:#033350}
       .rt-acciones{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
       .rt-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:8px 0}
       .rt-kpi{border:1px solid #dfe4ea;border-radius:10px;padding:10px 12px;background:#fff}.rt-kpi span{display:block;font-size:12px;color:#5a6b7b}.rt-kpi b{font-size:22px;color:#1b2a38}

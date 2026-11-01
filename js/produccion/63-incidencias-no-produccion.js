@@ -192,7 +192,7 @@
     s.textContent =
       '.inp-fondo{position:fixed;inset:0;background:rgba(10,30,50,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px}' +
       '.inp-modal{background:#fff;border-radius:12px;padding:18px 20px;width:min(460px,100%);max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25)}' +
-      '.inp-modal h3{margin:0 0 4px;color:#103b57}.inp-modal .inp-sub{margin:0 0 12px;color:#5f7382;font-size:12px}' +
+      '.inp-modal h3{margin:0 0 4px;color:#033350}.inp-modal .inp-sub{margin:0 0 12px;color:#5f7382;font-size:12px}' +
       '.inp-modal label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:#35506a}' +
       '.inp-modal select,.inp-modal textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd8e0;border-radius:7px;font:inherit}' +
       '.inp-modal .inp-nota{margin-top:10px;font-size:11px;color:#667784;line-height:1.4}.inp-modal .inp-error{color:#b42318;font-size:12px;min-height:16px;margin-top:6px}' +

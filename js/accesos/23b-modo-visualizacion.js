@@ -460,9 +460,9 @@
     if(document.getElementById('vista-css')) return;
     const s = document.createElement('style'); s.id = 'vista-css';
     s.textContent =
-      '#vista-aviso{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#10265f;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:10050;opacity:0;pointer-events:none;transition:.2s;max-width:90vw;text-align:center}' +
+      '#vista-aviso{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#033350;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:10050;opacity:0;pointer-events:none;transition:.2s;max-width:90vw;text-align:center}' +
       '#vista-aviso.visible{opacity:1;transform:translate(-50%,0)}' +
-      '.vista-etiqueta{display:none;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:#e8f1fb;color:#0b4a8a;font-size:12px;font-weight:700;white-space:nowrap}' +
+      '.vista-etiqueta{display:none;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:#e8f1fb;color:#065F86;font-size:12px;font-weight:700;white-space:nowrap}' +
       'body.glacial-vista .vista-etiqueta{display:inline-flex}.vista-etiqueta svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}' +
       'body.glacial-vista #app-screen #modo-turno-box,body.glacial-vista #app-screen .modo-turno-box,body.glacial-vista #app-screen .modo-switch,body.glacial-vista .topbar #modo-turno-box{display:none!important}' +
       '.vista-sin-acceso{max-width:520px;margin:40px auto}' +

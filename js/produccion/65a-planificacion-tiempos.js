@@ -305,7 +305,7 @@
       (desf.length?'<div class="plan-aviso" style="padding:8px 12px;background:#fff8e6;border:1px solid #f0c36a;border-radius:10px"><b>'+desf.length+(desf.length===1?' plan evaluado':' planes evaluados')+' con parámetros anteriores.</b> Sus números guardados no cambiaron. '+
         (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ti-recalcular>Revisar y recalcular…</button>':'')+'</div>':'')+
       /* A. cambios y limpieza */
-      '<h5 style="margin:16px 0 6px;color:#003b5c">A. Cambios y limpieza</h5>'+
+      '<h5 style="margin:16px 0 6px;color:#033350">A. Cambios y limpieza</h5>'+
       '<p class="plan-nota">Gana la regla más específica (origen y destino); un valor general de la línea (sin origen ni destino) sirve de respaldo. Si cambian marca y formato a la vez es una sola intervención: usa «Cambio de marca y formato»; sin esa regla se aplica la mayor de las dos, nunca la suma. No necesitas configurar todas las combinaciones para empezar.</p>'+
       (planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ti-regla-nueva>+ Agregar regla</button></p>':'')+
       '<div class="plan-scroll"><table class="plan-tabla"><thead><tr><th>Línea</th><th>Tipo</th><th>De</th><th>A</th><th class="num">Minutos</th><th>Estado</th><th>Modificó</th><th></th></tr></thead><tbody>'+
@@ -314,7 +314,7 @@
         '<td><small>'+esc(r.actualizadoPor)+'<br>'+esc(fechaHora(r.actualizadoEn))+'</small></td><td class="acc">'+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ti-regla-editar="'+esc(r.id)+'">Editar</button> <button type="button" class="btn btn-ghost btn-sm" data-ti-regla-activo="'+esc(r.id)+'">'+(r.activo===false?'Activar':'Desactivar')+'</button>':'')+'</td></tr>').join('')
         :'<tr><td colspan="8" class="plan-nota">Todavía no hay reglas'+(F.linea?' para esta línea':'')+'. Las capacidades con cambio de producto dirán «Estimación incompleta» hasta configurar el tiempo del cambio (o un valor general de respaldo).</td></tr>')+'</tbody></table></div>'+
       /* B. ventanas */
-      '<h5 style="margin:18px 0 6px;color:#003b5c">B. Ventanas de indisponibilidad <small style="font-weight:500;color:#5a6b78">(mantenimiento previsto, refrigerio con detención, limpieza fija, otras)</small></h5>'+
+      '<h5 style="margin:18px 0 6px;color:#033350">B. Ventanas de indisponibilidad <small style="font-weight:500;color:#5a6b78">(mantenimiento previsto, refrigerio con detención, limpieza fija, otras)</small></h5>'+
       '<p class="plan-nota">Registra solo lo que realmente detiene la línea: el refrigerio del personal no detiene la línea por sí solo. Las ventanas superpuestas se descuentan una sola vez (unión).</p>'+
       '<div class="plan-bar" style="margin-bottom:8px"><label>Desde<input type="date" id="ti-desde" value="'+esc(F.desde)+'"></label><label>Hasta<input type="date" id="ti-hasta" value="'+esc(F.hasta)+'"></label>'+
       (planifica?'<span style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-ti-ventana-nueva>+ Agregar ventana</button>':'')+'</div>'+
@@ -324,7 +324,7 @@
         '<td class="acc">'+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ti-ventana-quitar="'+esc(x.id)+'">Quitar</button>':'')+'</td></tr>';}).join('')
         :'<tr><td colspan="9" class="plan-nota">No hay ventanas registradas en este rango.</td></tr>')+'</tbody></table></div>'+
       /* C. respaldo */
-      '<details style="margin-top:16px"'+(t.cambioMin!==undefined&&t.cambioMin!==null||t.fijoDiaMin!==undefined&&t.fijoDiaMin!==null||t.fijoNocheMin!==undefined&&t.fijoNocheMin!==null?' open':'')+'><summary style="cursor:pointer;font-weight:700;color:#003b5c">C. Valores generales de respaldo (etapa anterior)</summary>'+
+      '<details style="margin-top:16px"'+(t.cambioMin!==undefined&&t.cambioMin!==null||t.fijoDiaMin!==undefined&&t.fijoDiaMin!==null||t.fijoNocheMin!==undefined&&t.fijoNocheMin!==null?' open':'')+'><summary style="cursor:pointer;font-weight:700;color:#033350">C. Valores generales de respaldo (etapa anterior)</summary>'+
       '<p class="plan-nota">Se usan solo cuando no hay una regla para la transición (cambios) o una ventana con horario en esa línea y día (paradas). Vacío = sin configurar; 0 = confirmas que no hay tiempo adicional.</p>'+
       '<div class="plan-campos" style="max-width:720px">'+
       '<label>Minutos por cambio de marca o formato (todas las líneas)<input type="number" id="ti-cambio" min="0" max="'+M.MAX_MIN+'" step="1" inputmode="numeric" value="'+v(t.cambioMin)+'"'+(planifica?'':' disabled')+' placeholder="sin configurar"></label>'+

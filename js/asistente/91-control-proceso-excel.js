@@ -186,7 +186,7 @@
     finally{S.ocupado=false;repintar();}
   };
 
-  const css=`.cp-drive{margin-top:10px;padding-top:10px;border-top:1px solid var(--ii-linea,#dfe6ee);display:flex;gap:10px;flex-wrap:wrap;align-items:center}.cp-ok{color:#166534;font-weight:600}.cp-err{color:#b42318}.cp-drive a{color:#0b5cc4}.cp-controles{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:10px 0}.cp-card .ii-resumen{margin-top:8px}@media(max-width:560px){.cp-controles .ii-btn{width:100%}}`;
+  const css=`.cp-drive{margin-top:10px;padding-top:10px;border-top:1px solid var(--ii-linea,#dfe6ee);display:flex;gap:10px;flex-wrap:wrap;align-items:center}.cp-ok{color:#166534;font-weight:600}.cp-err{color:#b42318}.cp-drive a{color:#0877A6}.cp-controles{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:10px 0}.cp-card .ii-resumen{margin-top:8px}@media(max-width:560px){.cp-controles .ii-btn{width:100%}}`;
   global.iiControlProcesoUI={html,css,estado:S,usar:f=>{if(typeof f==='function')repintar=f;},construirLibro,ANCHOS,ENCABEZADOS};
   if(typeof module!=='undefined'&&module.exports)module.exports={construirLibro,ANCHOS,ENCABEZADOS};
 })(typeof window!=='undefined'?window:globalThis);

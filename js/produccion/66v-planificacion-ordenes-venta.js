@@ -157,12 +157,12 @@
     #plan-root .ov-kpis,.plan-dialogo .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
     .ov-k{background:#fff;border:1px solid #dce5ec;border-left:5px solid var(--c,#9aa9b8);border-radius:12px;padding:10px 14px}
     .ov-k span{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#5a6b78}
-    .ov-k b{display:block;font-size:24px;font-weight:800;color:#003b5c;font-variant-numeric:tabular-nums}.ov-k small{display:block;color:#5a6b78;font-size:12px}
+    .ov-k b{display:block;font-size:24px;font-weight:800;color:#033350;font-variant-numeric:tabular-nums}.ov-k small{display:block;color:#5a6b78;font-size:12px}
     .ov-barra{height:10px;border-radius:6px;background:#e5ebef;position:relative;overflow:hidden;min-width:140px}
-    .ov-barra i{position:absolute;left:0;top:0;bottom:0}.ov-barra .p{background:#9fc3e8}.ov-barra .q{background:#2f6690}
+    .ov-barra i{position:absolute;left:0;top:0;bottom:0}.ov-barra .p{background:#9fc3e8}.ov-barra .q{background:#0877A6}
     .ov-leyenda{font-size:11px;color:#5a6b78;margin-top:3px}
     .ov-chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
-    .ov-chip.verde{background:#dcfce7;color:#166534}.ov-chip.azul{background:#dbeafe;color:#1e40af}.ov-chip.ambar{background:#fff4d6;color:#8a6d1d}.ov-chip.rojo{background:#fee2e2;color:#991b1b}.ov-chip.gris{background:#eceff3;color:#4b5563}
+    .ov-chip.verde{background:#dcfce7;color:#166534}.ov-chip.azul{background:#C6EBFC;color:#0877A6}.ov-chip.ambar{background:#fff4d6;color:#8a6d1d}.ov-chip.rojo{background:#fee2e2;color:#991b1b}.ov-chip.gris{background:#eceff3;color:#4b5563}
     .ov-venc{font-size:11px;font-weight:700;color:#991b1b}.ov-falta{color:#a32020;font-weight:800}
     .ov-fila{cursor:pointer}.ov-fila:hover td{background:#f7fbfe}.ov-cerrada td{opacity:.6}
     .ov-det .li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #edf2f6;font-size:13px}
@@ -232,10 +232,10 @@
     const hoy=NS.hoyOperativo(),cob=cobertura(),r=N.resumenOrdenes(ordenes,cob,hoy,diasMax(),diasDesp());
     const pct=(a,b)=>b>0?(a/b*100).toFixed(1).replace('.',',')+' % de lo pendiente':'';
     kp.innerHTML='<div class="ov-kpis">'+
-      '<div class="ov-k" style="--c:#005b96"><span>Órdenes abiertas</span><b>'+fmt(r.abiertas)+'</b><small>'+(r.porVencer?r.porVencer+' por vencer en 3 días':'sin entregas próximas')+'</small></div>'+
+      '<div class="ov-k" style="--c:#0877A6"><span>Órdenes abiertas</span><b>'+fmt(r.abiertas)+'</b><small>'+(r.porVencer?r.porVencer+' por vencer en 3 días':'sin entregas próximas')+'</small></div>'+
       '<div class="ov-k" style="--c:#3f8f5f"><span>Nivel de servicio</span><b>'+(r.nivelServicio==null?'—':(r.nivelServicio*100).toFixed(1).replace('.',',')+' %')+'</b><small>'+fmt(r.despachado)+' despachadas de '+fmt(r.solicitado)+' · entregas de los últimos '+diasDesp()+' días</small></div>'+
       '<div class="ov-k"><span>Por despachar</span><b>'+fmt(r.pedidas)+'</b><small>unidades pendientes</small></div>'+
-      '<div class="ov-k" style="--c:#2f6690"><span>Programado</span><b>'+fmt(r.programado)+'</b><small>'+pct(r.programado,r.pedidas)+'</small></div>'+
+      '<div class="ov-k" style="--c:#0877A6"><span>Programado</span><b>'+fmt(r.programado)+'</b><small>'+pct(r.programado,r.pedidas)+'</small></div>'+
       '<div class="ov-k" style="--c:#3f8f5f"><span>Producido</span><b>'+fmt(r.producido)+'</b><small>'+pct(r.producido,r.pedidas)+'</small></div>'+
       '<div class="ov-k" style="--c:#df8b00"><span>Falta programar</span><b>'+fmt(r.falta)+'</b><small>'+r.sinCubrir+(r.sinCubrir===1?' orden sin cubrir':' órdenes sin cubrir')+'</small></div>'+
       '<div class="ov-k" style="--c:#c4472b"><span>Atrasadas</span><b>'+fmt(r.atrasadas)+'</b><small>'+(r.vencidas?fmt(r.vencidas)+' más, vencidas hace más de '+diasMax()+' días':'entrega vencida')+'</small></div></div>';
@@ -264,19 +264,19 @@
     const cont=document.getElementById('ov-sheets');
     if(!cont)return;
     const mapeo=config.mapeo||{},planifica=NS.puede(),eqs=Object.values(config.equivalencias||{});
-    cont.innerHTML='<details class="ov-sheets"><summary style="cursor:pointer;font-weight:700;color:#003b5c;margin:10px 0 4px">Conexión con Google Sheets <span class="ov-chip gris">Preparada · sin conectar</span></summary>'+
+    cont.innerHTML='<details class="ov-sheets"><summary style="cursor:pointer;font-weight:700;color:#033350;margin:10px 0 4px">Conexión con Google Sheets <span class="ov-chip gris">Preparada · sin conectar</span></summary>'+
       '<p class="plan-nota">Hoy se usa al <b>importar Excel/CSV</b>; la misma lógica servirá para la hoja. Escribe el encabezado exacto de cada columna de tu hoja (si lo dejas vacío se reconoce por el nombre habitual: «Pedido», «Razón social», «Formato», «Entrega»…).</p>'+
       '<div class="plan-scroll"><table><thead><tr><th>Dato del sistema</th><th>Encabezado en la hoja</th></tr></thead><tbody>'+
       N.COLUMNAS.map(c=>'<tr><td>'+esc(c.etq)+'</td><td><input data-ov-map="'+c.clave+'" value="'+esc(mapeo[c.clave]||'')+'" placeholder="automático"'+(planifica?'':' disabled')+'></td></tr>').join('')+'</tbody></table></div>'+
       '<ul class="plan-nota"><li>Si el N.º ya existe, la orden se <b>actualiza</b> (no se duplica).</li><li>Si una orden desaparece de la hoja, se marca <b>«Retirada»</b>; no se borra.</li><li>Las órdenes creadas a mano nunca se retiran por una sincronización.</li></ul>'+
       (planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-mapa>Guardar columnas</button> <span class="plan-error" id="ov-mapa-error" style="display:inline"></span></p>':'')+
-      '<h4 style="margin:14px 0 4px;color:#003b5c">Fecha de corte</h4><p class="plan-nota">Solo entran órdenes con fecha de entrega desde esta fecha; lo anterior se ignora al importar o sincronizar.</p>'+
+      '<h4 style="margin:14px 0 4px;color:#033350">Fecha de corte</h4><p class="plan-nota">Solo entran órdenes con fecha de entrega desde esta fecha; lo anterior se ignora al importar o sincronizar.</p>'+
       '<p><input type="date" id="ov-corte" value="'+esc(config.fechaCorte||'')+'"'+(planifica?'':' disabled')+'> '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-corte>Guardar fecha</button>':'')+'</p>'+
-      '<h4 style="margin:14px 0 4px;color:#003b5c">Órdenes vencidas</h4><p class="plan-nota">Una orden sin despachar con más días de atraso que este número se considera histórica: sale de «Atrasadas» y no reserva programaciones.</p>'+
+      '<h4 style="margin:14px 0 4px;color:#033350">Órdenes vencidas</h4><p class="plan-nota">Una orden sin despachar con más días de atraso que este número se considera histórica: sale de «Atrasadas» y no reserva programaciones.</p>'+
       '<p><input type="number" id="ov-dias" min="0" step="1" value="'+esc(diasMax())+'" style="width:90px"'+(planifica?'':' disabled')+'> días '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-dias>Guardar</button>':'')+'</p>'+
-      '<h4 style="margin:14px 0 4px;color:#003b5c">Historia despachada</h4><p class="plan-nota">Al importar, las líneas completamente despachadas hace más de estos días no se guardan (son miles de filas que ya no cambian y alargan cada guardado). El nivel de servicio cuenta solo lo guardado.</p>'+
+      '<h4 style="margin:14px 0 4px;color:#033350">Historia despachada</h4><p class="plan-nota">Al importar, las líneas completamente despachadas hace más de estos días no se guardan (son miles de filas que ya no cambian y alargan cada guardado). El nivel de servicio cuenta solo lo guardado.</p>'+
       '<p><input type="number" id="ov-dias-desp" min="0" step="1" value="'+esc(diasDesp())+'" style="width:90px"'+(planifica?'':' disabled')+'> días '+(planifica?'<button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-desp>Guardar</button>':'')+'</p>'+
-      '<h4 style="margin:14px 0 4px;color:#003b5c">Equivalencias de productos <span class="ov-chip gris">'+eqs.length+'</span></h4><p class="plan-nota">Traducen el texto de la hoja (p. ej. «SCALA-AGUA-SIN-GAS-BT-1-L») a la marca y presentación del sistema. Las nuevas se piden al importar.</p>'+
+      '<h4 style="margin:14px 0 4px;color:#033350">Equivalencias de productos <span class="ov-chip gris">'+eqs.length+'</span></h4><p class="plan-nota">Traducen el texto de la hoja (p. ej. «SCALA-AGUA-SIN-GAS-BT-1-L») a la marca y presentación del sistema. Las nuevas se piden al importar.</p>'+
       (eqs.length?htmlTablaEquiv(eqs.map(e=>htmlFilaEquiv(e.texto,e,'')))+(planifica?'<p><button type="button" class="btn btn-ghost btn-sm" data-ov-guardar-eqs>Guardar cambios</button> <span class="plan-error" id="ov-eq-error" style="display:inline"></span></p>':''):'<p class="plan-nota">Todavía no hay equivalencias guardadas.</p>')+
       '</details>';
   }
@@ -334,7 +334,7 @@
     const fondo=NS.abrirDialogo('<div class="ov-det"><h3 style="display:flex;justify-content:space-between;gap:10px;align-items:center">Orden '+esc(o.numero)+' <span class="ov-chip '+st.nivel+'">'+esc(st.etiqueta)+'</span></h3>'+
       li('Cliente',esc(o.cliente))+li('Producto',etiquetaProducto(o)+(o.linea?' · '+esc(NS.nombreLinea(o.linea)):''))+li('Solicitado',fmt(o.cantidad)+' UND')+li('Despachado',fmt(o.despachado)+' UND')+li('Pendiente',fmt(Math.max(0,num(o.cantidad)-num(o.despachado)))+' UND')+(o.cadena?li('Cadena',esc(o.cadena)):'')+(o.producto?li('Producto en la hoja',esc(o.producto)):'')+li('Entrega',textoEntrega(o,st))+
       (c?li('Programado · Producido',fmt(c.programado)+' · '+fmt(c.producido)+' UND')+li('Falta programar','<span class="'+(c.falta>0?'ov-falta':'')+'">'+fmt(c.falta)+' UND</span>'):'')+
-      (c&&c.detalle.length?'<h4 style="margin:14px 0 4px;color:#003b5c">Programaciones que la cubren</h4>'+c.detalle.map(d=>'<div class="li"><span>'+esc(NS.nombreLinea(d.linea))+' · '+esc(d.fecha)+' · '+esc(NS.etiquetaBloque(d.turno))+'</span><span><b>'+fmt(d.cantidad)+' UND</b> <button type="button" class="btn btn-ghost btn-sm" data-ov-ir="'+esc(d.fecha)+'|'+esc(d.turno)+'">Ver</button></span></div>').join(''):'')+
+      (c&&c.detalle.length?'<h4 style="margin:14px 0 4px;color:#033350">Programaciones que la cubren</h4>'+c.detalle.map(d=>'<div class="li"><span>'+esc(NS.nombreLinea(d.linea))+' · '+esc(d.fecha)+' · '+esc(NS.etiquetaBloque(d.turno))+'</span><span><b>'+fmt(d.cantidad)+' UND</b> <button type="button" class="btn btn-ghost btn-sm" data-ov-ir="'+esc(d.fecha)+'|'+esc(d.turno)+'">Ver</button></span></div>').join(''):'')+
       (o.observaciones?li('Observaciones',esc(o.observaciones)):'')+
       li('Origen',esc(o.origen==='manual'?'Manual':o.origen==='sheets'?'Google Sheets':'Excel / CSV')+(o.idExterno?' · '+esc(o.idExterno):''))+
       li('Última actualización',esc(o.actualizadoPor||'—')+(o.actualizadoEn?' · '+new Date(o.actualizadoEn).toLocaleString('es-PE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''))+'</div>'+
@@ -506,7 +506,7 @@
     q('ovi-aplicar').onclick=async()=>{
       q('ovi-aplicar').disabled=true;q('ovi-error').textContent='';
       const btn=q('ovi-aplicar'),texto0=btn.textContent;
-      const prog=(h,t)=>{btn.textContent=t?'Importando… '+Math.round(h/t*100)+' %':'Importando…';q('ovi-error').style.color='#1e40af';q('ovi-error').textContent=t?'Guardando '+h.toLocaleString('es-PE')+' de '+t.toLocaleString('es-PE')+' líneas. No cierres esta ventana.':'Guardando…';};
+      const prog=(h,t)=>{btn.textContent=t?'Importando… '+Math.round(h/t*100)+' %':'Importando…';q('ovi-error').style.color='#0877A6';q('ovi-error').textContent=t?'Guardando '+h.toLocaleString('es-PE')+' de '+t.toLocaleString('es-PE')+' líneas. No cierres esta ventana.':'Guardando…';};
       try{
         prog(0,0);
         const corte=q('ovi-corte').value||'';

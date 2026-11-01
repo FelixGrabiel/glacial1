@@ -172,17 +172,17 @@
       '.he-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}.he-kpis3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}' +
       '.he-kpis .tareo-kpi,.he-kpis3 .tareo-kpi{min-height:112px}' +
       '.he-card-extras .he-sel{margin-left:8px;border:1px solid #cfdbe3;border-radius:8px;padding:2px 6px;font-size:12px;background:#fff;max-width:130px}' +
-      '.he-card-extras strong{font-size:30px;display:block;margin:4px 0}.he-favor{color:#1e7f4e;font-weight:700;display:block}.he-enlace{background:none;border:0;color:#0b67d8;font-weight:700;cursor:pointer;padding:4px 0;font:inherit;font-size:13px}' +
-      '.he-periodo{display:inline-flex;border:1px solid #cfdbe3;border-radius:10px;overflow:hidden;background:#fff}.he-periodo button{border:0;background:#fff;padding:9px 14px;font:inherit;font-size:13px;cursor:pointer;color:#33475b}.he-periodo button.activo{background:#0b67d8;color:#fff;font-weight:700}' +
-      '.he-banner{display:flex;gap:10px;align-items:center;margin:0 0 12px;padding:10px 14px;border:1px solid #cfe0f2;background:#eaf3fd;border-radius:10px;color:#0b3a73}.he-banner b{font-weight:700}' +
-      '.he-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.he-chip{border:1px solid #cfdbe3;background:#fff;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;color:#33475b}.he-chip.activo{background:#0b67d8;border-color:#0b67d8;color:#fff;font-weight:700}' +
+      '.he-card-extras strong{font-size:30px;display:block;margin:4px 0}.he-favor{color:#1e7f4e;font-weight:700;display:block}.he-enlace{background:none;border:0;color:#0877A6;font-weight:700;cursor:pointer;padding:4px 0;font:inherit;font-size:13px}' +
+      '.he-periodo{display:inline-flex;border:1px solid #cfdbe3;border-radius:10px;overflow:hidden;background:#fff}.he-periodo button{border:0;background:#fff;padding:9px 14px;font:inherit;font-size:13px;cursor:pointer;color:#33475b}.he-periodo button.activo{background:#0877A6;color:#fff;font-weight:700}' +
+      '.he-banner{display:flex;gap:10px;align-items:center;margin:0 0 12px;padding:10px 14px;border:1px solid #cfe0f2;background:#eaf3fd;border-radius:10px;color:#033350}.he-banner b{font-weight:700}' +
+      '.he-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.he-chip{border:1px solid #cfdbe3;background:#fff;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;color:#33475b}.he-chip.activo{background:#0877A6;border-color:#0877A6;color:#fff;font-weight:700}' +
       '.he-estado{margin-left:auto;display:inline-flex;gap:6px;align-items:center;padding:7px 12px;border-radius:8px;font-size:13px;font-weight:700}.he-estado.ok{background:#e6f4ea;color:#1e7f4e}.he-estado.pend{background:#fff4d9;color:#8a5a00}' +
       '.he-ind{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}.he-ind>div{border:1px solid #e1e8ed;border-radius:12px;padding:14px 16px;background:#fff}.he-ind small{display:block;color:#5a6b78}.he-ind strong{font-size:26px;display:block;margin-top:4px}' +
-      '.he-ind .favor strong{color:#10265f}.he-ind .contra strong{color:#c62828}.he-ind .pend strong{color:#8a5a00}' +
+      '.he-ind .favor strong{color:#033350}.he-ind .contra strong{color:#c62828}.he-ind .pend strong{color:#8a5a00}' +
       '.he-graf{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px;margin-bottom:12px}.he-graf .panel-body{position:relative}.he-lienzo{position:relative;height:300px}' +
       '.he-vacio{padding:26px;text-align:center;color:#667784}.he-nota{font-size:12px;color:#667784}' +
       '.he-aviso{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:12px 0;padding:12px 16px;border:1px solid #f0d98c;background:#fff8e1;border-radius:10px;color:#6b4a00;flex-wrap:wrap}' +
-      '.he-tabla td,.he-tabla th{white-space:nowrap}.he-pend{color:#8a5a00;font-weight:700}.he-neg{color:#c62828;font-weight:700}.he-link{background:none;border:0;padding:0;color:#005B96;cursor:pointer;font:inherit;text-decoration:underline;text-decoration-color:rgba(0,91,150,.35)}' +
+      '.he-tabla td,.he-tabla th{white-space:nowrap}.he-pend{color:#8a5a00;font-weight:700}.he-neg{color:#c62828;font-weight:700}.he-link{background:none;border:0;padding:0;color:#0877A6;cursor:pointer;font:inherit;text-decoration:underline;text-decoration-color:rgba(8,119,166,.35)}' +
       '.he-cab{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}.he-cab .field-sm{min-width:150px}' +
       '@media(max-width:1000px){.he-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.he-kpis3{grid-template-columns:repeat(2,minmax(0,1fr))}.he-graf{grid-template-columns:1fr}.he-ind{grid-template-columns:1fr}.he-estado{margin-left:0}}' +
       '@media(max-width:560px){.he-kpis,.he-kpis3{grid-template-columns:1fr}.he-periodo button{padding:9px 10px}}';
@@ -213,9 +213,9 @@
     crearGrafico('he-g-dias', {
       chart: {type: 'bar', events: alClic(i => abrirDia(d.porDia[i].fecha))},
       series: [{name: 'Horas extras a favor', data: d.porDia.map(x => x.validos > 0 ? x.favor / 60 : null)}],   // sin información suficiente = ausencia, no cero
-      colors: ['#0b72e0'],
+      colors: ['#0877A6'],
       plotOptions: {bar: {borderRadius: 3, columnWidth: '60%', dataLabels: {position: 'top'}}},
-      dataLabels: {enabled: true, offsetY: -18, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#10265f']}},
+      dataLabels: {enabled: true, offsetY: -18, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#033350']}},
       xaxis: {categories: d.porDia.map(x => fechaCorta(x.fecha))},
       yaxis: ejeHoras, legend: {show: false},
       tooltip: {custom: ({dataPointIndex}) => { const x = d.porDia[dataPointIndex];
@@ -227,9 +227,9 @@
     crearGrafico('he-g-rank', {
       chart: {type: 'bar', events: alClic(i => { if(!top[i].otros) abrirDetalle(top[i].clave); })},
       series: [{name: 'Horas extras a favor', data: top.map(x => x.favor / 60)}],
-      colors: top.map(x => x.otros ? '#9fb3c8' : '#0b72e0'),
+      colors: top.map(x => x.otros ? '#9fb3c8' : '#0877A6'),
       plotOptions: {bar: {horizontal: true, distributed: true, borderRadius: 3, barHeight: '60%', dataLabels: {position: 'top'}}},
-      dataLabels: {enabled: true, textAnchor: 'start', offsetX: 22, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#10265f']}},
+      dataLabels: {enabled: true, textAnchor: 'start', offsetX: 22, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#033350']}},
       xaxis: {categories: top.map(x => x.nombre), min: 0, max: Math.max(...top.map(x => x.favor / 60)) * 1.22, tickAmount: 5, labels: {formatter: v => Math.round(v * 10) / 10 + ' h'}},
       grid: {padding: {right: 50}}, legend: {show: false},
       tooltip: {custom: ({dataPointIndex}) => '<div class="gx-tip"><b>' + esc(top[dataPointIndex].nombre) + '</b><br>Horas extras a favor: ' + dur(top[dataPointIndex].favor) + '</div>'}
@@ -445,9 +445,9 @@
         crearGrafico('he-g-det', {
           chart: {type: 'bar', events: alClic(i => abrirDiaPersona(d.porDia[i].fecha))},
           series: [{name: 'Horas extras a favor', data: d.porDia.map(x => x.validos > 0 ? x.favor / 60 : null)}],
-          colors: ['#0b72e0'],
+          colors: ['#0877A6'],
           plotOptions: {bar: {borderRadius: 3, columnWidth: '60%', dataLabels: {position: 'top'}}},
-          dataLabels: {enabled: true, offsetY: -18, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#10265f']}},
+          dataLabels: {enabled: true, offsetY: -18, formatter: etiquetaHoras, style: {fontSize: '11px', fontWeight: 600, colors: ['#033350']}},
           xaxis: {categories: cats}, yaxis: ejeHoras, legend: {show: false},
           tooltip: {custom: ({dataPointIndex}) => '<div class="gx-tip"><b>' + fechaLarga(d.porDia[dataPointIndex].fecha) + '</b><br>Horas extras: ' + dur(d.porDia[dataPointIndex].favor) + '</div>'}
         });
@@ -456,7 +456,7 @@
           chart: {type: 'bar', events: alClic(i => abrirDiaPersona(d.porDia[i].fecha))},
           series: [{name: 'Jornada programada', data: d.porDia.map(x => x.validos > 0 ? x.programada / 60 : null)},
                    {name: 'Jornada laborada', data: d.porDia.map(x => x.validos > 0 ? x.laborada / 60 : null)}],
-          colors: ['#9aa8b1', '#0b72e0'],
+          colors: ['#9aa8b1', '#0877A6'],
           plotOptions: {bar: {borderRadius: 3, columnWidth: '60%'}},
           dataLabels: {enabled: false},
           xaxis: {categories: cats}, yaxis: ejeHoras, legend: {show: true, position: 'bottom'},
