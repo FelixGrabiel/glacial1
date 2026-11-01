@@ -4761,21 +4761,29 @@ function tareoMarcaSalidaEditada(persona) {
     );
 }
 
-/* Botón "Editar salida" para quien tiene el permiso (solo maquinistas con salida). */
+/* ¿Se puede registrar o corregir la salida de este maquinista? Debe haber asistido y tener hora de ingreso;
+   la salida puede estar vacía (Producción casi nunca la marca: antes no aparecía ningún botón y Mantenimiento no podía completarla). */
+function tareoMaquinistaAdmiteSalida(persona) {
+    return !!persona &&
+        tareoEstadoCanonico(persona.asistencia) === 'Asistió' &&
+        !!persona.horaIngreso;
+}
+
+/* Botón "Registrar salida" (aún sin salida) o "Editar salida" para quien tiene el permiso (solo maquinistas). */
 function tareoBotonEditarSalida(tareo, persona) {
 
     if (
         !tareoPuedeEditarSalidaMaquinistas() ||
         tareoAreaDe(tareo) !== 'Producción' ||
         !tareoEsMaquinista(persona) ||
-        !persona.horaSalida
+        !tareoMaquinistaAdmiteSalida(persona)
     ) {
         return '';
     }
 
     return `<button type="button" class="tar2-inline-btn"
         onclick="tareoEditarSalidaMaquinista(${tareoArg(tareo.id)}, ${tareoArg(tareoClavePersona(persona))})">
-        Editar salida</button>`;
+        ${persona.horaSalida ? 'Editar salida' : 'Registrar salida'}</button>`;
 }
 
 function tareoEditarSalidaMaquinista(tareoId, clave) {
@@ -4793,6 +4801,11 @@ function tareoEditarSalidaMaquinista(tareoId, clave) {
 
     if (!persona || !tareoEsMaquinista(persona)) return;
 
+    if (!tareoMaquinistaAdmiteSalida(persona)) {
+        alert('Para registrar la salida el maquinista debe figurar como «Asistió» y tener hora de ingreso.');
+        return;
+    }
+
     const root = document.getElementById('modal-root');
 
     if (!root) return;
@@ -4801,17 +4814,17 @@ function tareoEditarSalidaMaquinista(tareoId, clave) {
         <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
             <div class="modal">
                 <div class="modal-head">
-                    <h3>Editar salida · ${escaparHTML(persona.nombre)}</h3>
+                    <h3>${persona.horaSalida ? 'Editar' : 'Registrar'} salida · ${escaparHTML(persona.nombre)}</h3>
                     <button class="modal-close" onclick="closeModal()">✕</button>
                 </div>
                 <div class="modal-body">
                     <p class="small-muted" style="margin:0 0 10px;">
-                        Salida actual: <strong>${escaparHTML(persona.horaSalida || '—')}</strong>
-                        ${persona.salidaOriginal ? ` · Original: ${escaparHTML(persona.salidaOriginal)}` : ''}.
-                        Solo se modifica la hora de salida; la original queda guardada.
+                        ${persona.horaSalida
+                            ? `Salida actual: <strong>${escaparHTML(persona.horaSalida)}</strong>${persona.salidaOriginal ? ` · Original: ${escaparHTML(persona.salidaOriginal)}` : ''}. Solo se modifica la hora de salida; la original queda guardada.`
+                            : `Ingresó a las <strong>${escaparHTML(persona.horaIngreso || '—')}</strong> y todavía no tiene salida. Queda registrado quién la puso y el motivo.`}
                     </p>
                     <div class="field-sm">
-                        <label>Nueva hora de salida</label>
+                        <label>${persona.horaSalida ? 'Nueva hora de salida' : 'Hora de salida'}</label>
                         <input type="time" id="tsm-hora" value="${escaparHTML(persona.horaSalida || '')}">
                     </div>
                     <div class="field-sm">
@@ -4871,13 +4884,17 @@ async function tareoGuardarSalidaMaquinista(tareoId, clave) {
                 throw new Error('Solo se puede editar la salida de maquinistas.');
             }
 
+            if (!tareoMaquinistaAdmiteSalida(persona)) {
+                throw new Error('El maquinista debe figurar como «Asistió» y tener hora de ingreso.');
+            }
+
             const anterior = persona.horaSalida || '';
 
             if (anterior === hora) throw new Error('La hora no cambió.');
 
             const ahora = Date.now();
 
-            if (!persona.salidaOriginal) persona.salidaOriginal = anterior;
+            if (!persona.salidaOriginal && anterior) persona.salidaOriginal = anterior;
 
             persona.edicionesSalida = [
                 ...(Array.isArray(persona.edicionesSalida) ? persona.edicionesSalida : []),
@@ -4989,6 +5006,7 @@ window.tareoEditarSalidaMaquinista = tareoEditarSalidaMaquinista;
 window.tareoGuardarSalidaMaquinista = tareoGuardarSalidaMaquinista;
 window.tareoMarcarSalidaVista = tareoMarcarSalidaVista;
 window.tareoPuedeEditarSalidaMaquinistas = tareoPuedeEditarSalidaMaquinistas;
+window.tareoMaquinistaAdmiteSalida = tareoMaquinistaAdmiteSalida;
 window.tareoMarcaSalidaEditada = tareoMarcaSalidaEditada;
 
 

@@ -261,7 +261,7 @@
                       </td>
                       <td>${p.horaIngreso || '—'}</td>
                       <td>${Number(p.refrigerio || 0) > 0 ? escaparHTML(String(p.refrigerio)) + ' h' : '—'}</td>
-                      <td>${p.horaSalida || '—'}${tareoMarcaSalidaEditada(p)}${(typeof tareoPuedeEditarSalidaMaquinistas==='function' && tareoPuedeEditarSalidaMaquinistas() && p.horaSalida) ? '<button type="button" class="tar2-inline-btn" onclick="tareoEditarSalidaMaquinista(' + tareoArg(p._tareoId) + ',' + tareoArg(p._clave) + ')">Editar salida</button>' : ''}</td>
+                      <td>${p.horaSalida || '—'}${tareoMarcaSalidaEditada(p)}${(typeof tareoPuedeEditarSalidaMaquinistas==='function' && tareoPuedeEditarSalidaMaquinistas() && typeof tareoMaquinistaAdmiteSalida==='function' && tareoMaquinistaAdmiteSalida(p._persona)) ? '<button type="button" class="tar2-inline-btn" onclick="tareoEditarSalidaMaquinista(' + tareoArg(p._tareoId) + ',' + tareoArg(p._clave) + ')">' + (p.horaSalida ? 'Editar salida' : 'Registrar salida') + '</button>' : ''}</td>
                       <td>${formatearHoras(tareoHorasValidas(p))}</td>
                       <td>${tareoSaldoHTML(tareoSaldoHoras(p._persona))}</td>
                       <td>${Number(p.tardanzaMinutos || 0) > 0 ? formatearMinutos(p.tardanzaMinutos) : '—'}</td>
