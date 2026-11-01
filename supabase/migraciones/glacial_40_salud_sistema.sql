@@ -7,7 +7,7 @@
 --    · copia a Drive (control_proceso_sync) con error,
 --    · días sin reportes de producción (aviso desde 3 días).
 --  La página muestra cada problema como un aviso en la campana del Administrador; si la propia revisión no corre en 36 horas, también avisa de eso.
---  Además guarda un historial (public.salud_log, sin acceso desde la página). NO cambia ningún dato de la planta, no borra nada y no modifica reglas de escritura:
+--  Además guarda un historial de una fila por día (public.salud_log, sin acceso desde la página). NO cambia ningún dato de la planta, no borra nada y no modifica reglas de escritura:
 --  nadie puede escribir saludSistema desde la página (solo la función del servidor). Se puede ejecutar más de una vez.
 --
 -- ANTES DE APLICAR: PRUEBAS (mvxjopvnnagqytegtexi) primero; PRODUCCION (ehtbwmvwoxcdefvlxttu) solo con la aprobación del dueño.
@@ -25,7 +25,7 @@ language plpgsql security definer set search_path = '' as $f$
 declare
   mb numeric := round(pg_database_size(current_database()) / 1048576.0, 1);
   prob jsonb := '[]'::jsonb;
-  fallos integer := 0; errs integer := 0; dias integer; ultimo date; doc jsonb;
+  fallos integer := 0; errs integer := 0; dias integer; ultimo date; resultado jsonb;
   hoy date := (now() at time zone 'America/Lima')::date;
 begin
   if mb >= 450 then
@@ -60,11 +60,10 @@ begin
   end if;
 
   insert into public.salud_log (db_mb, problemas) values (mb, prob);
-  delete from public.salud_log where en < now() - interval '90 days';
-  doc := jsonb_build_object('id', 'actual', 'revisadoEn', (extract(epoch from now()) * 1000)::bigint, 'dbMb', mb, 'problemas', prob);
-  insert into public.fs_docs (coleccion, id, datos, version) values ('saludSistema', 'actual', doc, 1)
+  resultado := jsonb_build_object('id', 'actual', 'revisadoEn', (extract(epoch from now()) * 1000)::bigint, 'dbMb', mb, 'problemas', prob);
+  insert into public.fs_docs (coleccion, id, datos, version) values ('saludSistema', 'actual', resultado, 1)
   on conflict (coleccion, id) do update set datos = excluded.datos, version = public.fs_docs.version + 1, actualizado_en = now(), eliminado_en = null;
-  return doc;
+  return resultado;
 end $f$;
 revoke all on function public.salud_revisar() from public, anon, authenticated;
 

@@ -72,9 +72,28 @@
       },()=>{desubConfig=null;});          // sin permiso o sin sesión: se reintenta en el siguiente ciclo
     }catch(_){desubConfig=null;}
   }
+  /* Salud del sistema (glacial_40): el servidor se revisa una vez al día y publica saludSistema/actual; solo el Administrador lo puede leer. */
+  let salud=null,desubSalud=null;
+  const HORAS_SIN_REVISION=36;
+  function escucharSalud(){
+    if(desubSalud||typeof db==='undefined'||typeof state==='undefined'||!state.user||String(state.user.rol||'').trim()!=='Administrador')return;
+    try{
+      desubSalud=db.collection('saludSistema').doc('actual').onSnapshot(snap=>{salud=snap.exists?(snap.data()||null):null;recalcular(true);},()=>{desubSalud=null;});   // sin la migración: no hay documento y no pasa nada
+    }catch(_){desubSalud=null;}
+  }
+  /* Avisos de la salud del sistema (puro sobre el documento): un aviso por problema y uno si la revisión diaria dejó de correr. */
+  function avisosSalud(doc,ahoraMs){
+    if(!doc||typeof doc!=='object')return [];
+    const lista=[],rev=Number(doc.revisadoEn)||0;
+    (Array.isArray(doc.problemas)?doc.problemas:[]).forEach((p,i)=>{if(p&&p.texto)lista.push({id:'sis|'+rev+'|'+i,texto:String(p.texto),severidad:p.nivel==='roja'?'roja':'ambar',desdeMs:rev});});
+    if(rev&&ahoraMs-rev>HORAS_SIN_REVISION*3600000)lista.push({id:'sis|sinrevision',texto:'La revisión diaria del sistema no se ha ejecutado en más de '+HORAS_SIN_REVISION+' horas.',severidad:'ambar',desdeMs:rev});
+    return lista;
+  }
   function detenerConfig(){
     if(desubConfig){try{desubConfig();}catch(_){/* ya cerrado */}}
     desubConfig=null;remota={};configListo=false;
+    if(desubSalud){try{desubSalud();}catch(_){/* ya cerrado */}}
+    desubSalud=null;salud=null;
   }
 
   /* ---------- quién ve qué ---------- */
@@ -84,7 +103,8 @@
     const rol=String(u.rol||'').trim();
     const tiene=p=>{try{return typeof tienePermiso==='function'&&tienePermiso(p);}catch(_){return false;}};
     if(typeof esMantCompartido==='function'&&esMantCompartido(u))return {tipos:['parada'],lineas:null,tareo:null};
-    if(rol==='Administrador'||JEFATURA.includes(rol))return {tipos:TODOS.slice(),lineas:null,tareo:'todas'};
+    if(rol==='Administrador')return {tipos:TODOS.concat(['sistema']),lineas:null,tareo:'todas'};              // «sistema» (salud del servidor) solo para el Administrador
+    if(JEFATURA.includes(rol))return {tipos:TODOS.slice(),lineas:null,tareo:'todas'};
     if(rol==='Supervisor'||rol==='Supervisor de Producción')return {tipos:TODOS.slice(),lineas:u.linea||null,tareo:'Producción'};
     if(tiene('planificacion'))return {tipos:[],lineas:null,tareo:null};     // quien planifica recibe los avisos de Planificación (saldos, solicitudes)
     if(rol==='Mantenimiento'||tiene('moduloMantenimiento')||tiene('control_operativo_lineas')||tiene('recibirAlertasProduccion'))
@@ -278,6 +298,12 @@
       pendientesEntrega().items.forEach(x=>add('ent|'+x.id,'entrega','',x.texto,x.finMs+cfg.entregaGraciaMin*MS_MIN,{severidad:x.nivel,fecha:x.fecha,turno:x.turno}));
     }
 
+    /* j) salud del servidor (solo Administrador): lo que revisa el servidor cada día */
+    if(a.tipos.includes('sistema')){
+      escucharSalud();
+      avisosSalud(salud,n).forEach(x=>add(x.id,'sistema','',x.texto,x.desdeMs,{severidad:x.severidad}));
+    }
+
     /* f) solicitudes de programación (54-planificacion-solicitudes.js): pendientes para quien planifica, resultado para quien las pidió */
     if(window.glacialPlanificacion&&typeof window.glacialPlanificacion.avisos==='function'){
       try{window.glacialPlanificacion.avisos().forEach(x=>add(x.id,x.tipo||'solicitud',x.linea||'',x.texto,x.desdeMs,{severidad:x.severidad||'ambar',fecha:x.fecha||'',bloque:x.bloque||''}));}catch(_){/* informativo */}
@@ -311,6 +337,7 @@
         if(typeof goTareo==='function')goTareo();
         return;
       }
+      if(x.tipo==='sistema')return;                                       // solo informa: se resuelve en el servidor (Supabase)
       if(x.tipo==='entrega'){if(typeof window.goEntregaTurno==='function')window.goEntregaTurno();return;}
       if(x.tipo==='finalizar'){if(x.registroId&&typeof cargarReporteParaCorreccion==='function'){cargarReporteParaCorreccion(x.registroId);}else if(typeof goHistorial==='function'){goHistorial();}return;}
       if(x.tipo==='mant'){if(typeof window.intervencionesAbrir==='function')window.intervencionesAbrir({tab:x.tab||'intervenciones',abrir:x.abrir||undefined});return;}
@@ -470,5 +497,5 @@
   }
 
   window.glacialAvisos={puede,ambito,listar:calcular,visto:marcarVisto,ir,puedeConfigurar,abrirConfig,
-    recalcular,escucharConfig,defectos:DEFECTOS,pendientesFinalizar,pendientesEntrega};
+    recalcular,escucharConfig,defectos:DEFECTOS,pendientesFinalizar,pendientesEntrega,avisosSalud};
 })();
