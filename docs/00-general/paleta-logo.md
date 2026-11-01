@@ -17,3 +17,5 @@ Paso 2 (02/11/2026): los azules escritos dentro de los módulos (JS) se llevaron
 ## Paso 3 · legibilidad (02/11/2026)
 - **Tamaño de letra:** ningún texto por debajo de 11 px (184 usos de 5–10,5 px pasaron a 11 px; `<small>` no baja de 11 px; los rótulos de los gráficos de 9 px pasaron a 10 px). El modo TV (`tv-glacial.css`) no se tocó.
 - **Contraste:** `--muted` #87949D → #5F7280 y `--steel` #667784 → #5C6E7B (ambos ≥ 4,5:1 sobre el fondo); texto en ámbar → #8A5A00 (5,5:1); texto en verde → #1F7A4D (4,9:1). Solo cambia el color del texto, no el de barras ni fondos.
+
+Títulos de tarjeta (02/11/2026): `--card-title` 16 px, peso 700, azul `--blue-deep`, aplicado a las tarjetas de Tareo, Asistente, Producción actual, Resumen general e Impacto económico.

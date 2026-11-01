@@ -24,6 +24,7 @@
     --card-radius:14px;
     --tile-radius:12px;
     --card-shadow:0 1px 2px rgba(3,51,80,.05);
+    --card-title:16px;
 
     /* ACENTO */
     --amber:#F5B335;
@@ -5758,4 +5759,16 @@ small{font-size:max(11px,.85em)}
 #app-screen #main .mi-aviso{
     border-radius:var(--tile-radius);
     box-shadow:var(--card-shadow);
+}
+
+/* Títulos de tarjeta: mismo tamaño, peso y color en Tareo, Asistente, Producción actual, Resumen general e Impacto económico (antes de 15 a 21 px) */
+#app-screen #main .panel-head h3,
+#app-screen #main .ap-card-cab h3,
+#app-screen #main .rs-panel-head h3,
+#app-screen #main .chart-box h4,
+#app-screen #main .id-card h4{
+    font-size:var(--card-title);
+    font-weight:700;
+    line-height:1.25;
+    color:var(--blue-deep);
 }
