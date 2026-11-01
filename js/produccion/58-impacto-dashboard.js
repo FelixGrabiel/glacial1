@@ -54,54 +54,91 @@
   const rgba=(hex,a)=>{const n=parseInt(hex.slice(1),16);return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')';};
 
   const CSS=`
-    .id{max-width:1240px;margin:0 auto;padding:4px 2px 28px;color:#1d2b36}
-    .id h2{margin:0;color:#003b5c}.id h4{margin:0;color:#003b5c;font-size:15px}
-    .id-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px}
-    .id-sub{font-size:12px;color:#5a6b78}
-    .id-btn{border:1px solid #cfdbe3;background:#fff;border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:40px;color:#1d2b36}
-    .id-btn.on{background:#003b5c;border-color:#003b5c;color:#fff}.id-btn.p{background:#2d7fc0;border-color:#2d7fc0;color:#fff}
-    .id-btn:focus-visible,.id-chip:focus-visible,.id-link:focus-visible{outline:3px solid #8ec5ee;outline-offset:1px}
-    .id-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
-    .id-filtros{background:#fff;border:1px solid #dce3e8;border-radius:10px;padding:8px 12px;margin:8px 0}
-    .id-filtros summary{cursor:pointer;font-weight:700;color:#003b5c;min-height:30px;display:flex;align-items:center}
-    .id-fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:8px 0}
-    .id-fgrid label{display:flex;flex-direction:column;font-size:12px;color:#5a6b78;gap:3px}
-    .id select,.id input[type=date]{padding:8px;border:1px solid #cfdbe3;border-radius:7px;font:inherit;min-height:40px;min-width:0;background:#fff;color:#1d2b36}
-    .id-per{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+    .id{--id-ink:#1d2b36;--id-mut:#5a6b78;--id-line:#dce3e8;--id-azul:#003b5c;--id-acc:#2d7fc0;--id-rojo:#b3382b;
+      max-width:1240px;margin:0 auto;padding:4px 2px 28px;color:var(--id-ink)}
+    .id h2{margin:0;color:var(--id-azul);font-size:26px;letter-spacing:-.02em;line-height:1.15}.id h4{margin:0;color:var(--id-azul);font-size:15px;font-weight:700}
+    .id-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+    .id-head>div:last-child{display:flex;gap:8px;flex-wrap:wrap}
+    .id-sub{font-size:13px;color:var(--id-mut);margin-top:2px}
+    .id-btn{border:1px solid #cfdbe3;background:#fff;border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:40px;color:var(--id-ink);transition:background .15s,border-color .15s}
+    .id-btn:hover{background:#f2f8fd;border-color:#9fc3e0}
+    .id-btn.on{background:var(--id-azul);border-color:var(--id-azul);color:#fff}.id-btn.p{background:var(--id-acc);border-color:var(--id-acc);color:#fff;font-size:13px;letter-spacing:.02em}
+    .id-btn.p:hover{background:#2570ab}
+    .id-btn:focus-visible,.id-chip:focus-visible,.id-link:focus-visible,.id-filtros summary:focus-visible{outline:3px solid #8ec5ee;outline-offset:1px}
+    /* pestañas: barra con línea inferior, la activa se marca con trazo azul */
+    .id-tabs{display:flex;gap:2px;flex-wrap:nowrap;overflow-x:auto;margin:6px 0 12px;border-bottom:2px solid var(--id-line);scrollbar-width:none}
+    .id-tabs::-webkit-scrollbar{display:none}
+    .id-tabs .id-btn{border:0;border-radius:8px 8px 0 0;background:transparent;color:var(--id-mut);padding:10px 16px;white-space:nowrap;margin-bottom:-2px;border-bottom:3px solid transparent}
+    .id-tabs .id-btn:hover{background:#eaf2f8;color:var(--id-azul)}
+    .id-tabs .id-btn.on{background:#fff;color:var(--id-azul);border-bottom-color:var(--id-azul)}
+    .id-filtros{background:#fff;border:1px solid var(--id-line);border-radius:12px;padding:6px 14px 12px;margin:8px 0;box-shadow:0 1px 2px rgba(0,59,92,.04)}
+    .id-filtros summary{cursor:pointer;font-weight:700;color:var(--id-azul);min-height:34px;display:flex;align-items:center}
+    .id-fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 10px;margin:10px 0 4px}
+    .id-fgrid label{display:flex;flex-direction:column;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--id-mut);gap:4px}
+    .id-fgrid select{font-weight:400;text-transform:none;letter-spacing:0}
+    .id select,.id input[type=date]{padding:8px;border:1px solid #cfdbe3;border-radius:8px;font:inherit;min-height:40px;min-width:0;background:#fff;color:var(--id-ink)}
+    .id-per{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    .id-per .id-btn{min-height:36px;padding:6px 14px}
     .id-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0;min-height:4px}
-    .id-chip{border:1px solid #2d7fc0;background:#e8f2fb;color:#154a73;border-radius:16px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;min-height:34px}
-    .id-link{border:0;background:none;color:#2d7fc0;font:inherit;font-weight:600;cursor:pointer;padding:6px 4px;min-height:34px}
-    .id-aviso{background:#fff4d6;border:1px solid #ecd48b;border-radius:10px;padding:10px 14px;margin:8px 0;color:#6d5410;font-size:13px}
-    .id-reserva{background:#eef3f7;border:1px solid #d3dfe8;border-radius:10px;padding:10px 14px;margin:8px 0;color:#3d5365;font-size:13px}
-    .id-foco{background:#eaf4ee;border:1px solid #bcdcc8;border-radius:10px;padding:10px 14px;margin:8px 0;font-size:14px}
-    .id-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:10px 0}
-    .id-k{background:#fff;border:1px solid #dce3e8;border-radius:10px;padding:12px;min-width:0}
-    .id-k span{display:block;font-size:12px;color:#5a6b78}.id-k b{display:block;font-size:22px;color:#003b5c;margin-top:2px;overflow-wrap:anywhere}.id-k small{color:#5a6b78;display:block}
-    .id-k.rojo b{color:#b3382b}.id-up{color:#b3382b;font-weight:700}.id-down{color:#2e8b57;font-weight:700}
-    .id-sem{display:inline-block;border-radius:10px;padding:1px 9px;font-size:12px;font-weight:700;margin-top:3px}
+    .id-chip{border:1px solid var(--id-acc);background:#e8f2fb;color:#154a73;border-radius:16px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;min-height:34px}
+    .id-link{border:0;background:none;color:var(--id-acc);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:6px 8px;min-height:34px;border-radius:6px}
+    .id-link:hover{background:#eaf4fb}
+    /* avisos: tarjeta con franja a la izquierda */
+    .id-aviso,.id-reserva,.id-foco{border-radius:10px;padding:10px 14px;margin:8px 0;font-size:13px;line-height:1.5;border:1px solid;border-left-width:5px}
+    .id-aviso{background:#fff8e6;border-color:#ecd48b;border-left-color:#d9a21b;color:#5e480d}
+    .id-aviso ul{padding-left:18px}.id-aviso details summary{cursor:pointer;font-weight:600;color:#7a5a0c}
+    .id-reserva{background:#eef3f7;border-color:#d3dfe8;border-left-color:#7d98ad;color:#3d5365}
+    .id-foco{background:#eaf4ee;border-color:#bcdcc8;border-left-color:#2e8b57;font-size:14px}
+    /* indicadores: el primero (pérdida total) destaca */
+    .id-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0}
+    .id-k{background:#fff;border:1px solid var(--id-line);border-radius:12px;padding:14px;min-width:0;display:flex;flex-direction:column;gap:3px;box-shadow:0 1px 2px rgba(0,59,92,.04)}
+    .id-k span{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--id-mut)}
+    .id-k b{display:block;font-size:24px;line-height:1.15;color:var(--id-azul);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+    .id-k small{color:var(--id-mut);display:block;font-size:12px;line-height:1.35}
+    .id-k:first-child{border-top:4px solid var(--id-rojo)}.id-k:first-child b{font-size:28px}
+    .id-k.rojo b{color:var(--id-rojo)}.id-up{color:var(--id-rojo);font-weight:700}.id-down{color:#2e8b57;font-weight:700}
+    .id-sem{display:inline-block;border-radius:10px;padding:1px 9px;font-size:12px;font-weight:700;margin-top:3px;width:fit-content}
     .id-sem.fav{background:#dff3e6;color:#1f6b3d}.id-sem.ate{background:#fff1d6;color:#8a5a1e}.id-sem.cri{background:#fadbd8;color:#a02b20}
     .id-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:8px}
-    .id-card{background:#fff;border:1px solid #dce3e8;border-radius:10px;padding:12px;min-width:0}
-    .id-card header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+    .id-card{background:#fff;border:1px solid var(--id-line);border-radius:12px;padding:14px;min-width:0;box-shadow:0 1px 2px rgba(0,59,92,.04)}
+    .id-card header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:8px;border-bottom:1px solid #edf1f4}
     .id-card.ancha{grid-column:1/-1}
     .id-cv{position:relative;height:270px}
-    .id-an{margin-top:8px;border-top:1px solid #edf1f4;padding-top:8px;font-size:13px;line-height:1.45}
-    .id-an p{margin:4px 0}.id-an-h{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#5a6b78}
-    .id-an .vacio{color:#5a6b78}
-    .id-t{width:100%;border-collapse:collapse;font-size:13px}
-    .id-t th{text-align:right;padding:6px 8px;background:#eef3f7;color:#3d5365;font-size:12px;white-space:nowrap}
-    .id-t td{padding:6px 8px;border-bottom:1px solid #edf1f4;text-align:right;font-variant-numeric:tabular-nums}
+    /* análisis automático: bloque aparte con su rótulo */
+    .id-an{margin-top:10px;background:#f6f9fb;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5}
+    .id-an p{margin:4px 0}.id-an-h{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--id-mut)}
+    .id-an p b{color:var(--id-azul)}
+    .id-an .vacio{color:var(--id-mut)}
+    /* tablas: encabezado fijo, filas alternas, números alineados */
+    .id-scroll{overflow:auto;max-height:560px;border:1px solid #edf1f4;border-radius:10px}
+    .id-t{width:100%;min-width:0;border-collapse:separate;border-spacing:0;font-size:13px}   /* anula el ancho mínimo global de las tablas */
+    .id-t th{position:sticky;top:0;z-index:1;text-align:right;padding:8px 10px;background:#eef3f7;color:#3d5365;font-size:11px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;border-bottom:1px solid #dbe5ec}
+    .id-t td{padding:8px 10px;border-bottom:1px solid #edf1f4;text-align:right;font-variant-numeric:tabular-nums}
+    .id-t tbody tr:nth-child(even) td{background:#fafcfd}
     .id-t th.l,.id-t td.l{text-align:left}.id-t tr[data-id-fila]{cursor:pointer}.id-t tr[data-id-fila]:hover td{background:#f2f8fd}
-    .id-scroll{overflow-x:auto}
+    .id-t tbody tr:hover td{background:#f2f8fd}
+    .id-tp{display:inline-block;border-radius:10px;padding:1px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+    .id-tp-P{background:#fbe3e0;color:#9a2b20}.id-tp-V{background:#e0f1f0;color:#1d6b6b}.id-tp-M{background:#e4e8fa;color:#3b4aa8}
     .id-sv{display:inline-block;padding:0 6px;border-radius:8px;background:#fff1d6;color:#8a5a1e;font-size:11px}
     .id-modal{position:fixed;inset:0;background:rgba(10,25,38,.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:12px}
-    .id-modal>div{background:#fff;border-radius:12px;max-width:1000px;width:100%;max-height:92vh;overflow:auto;padding:14px}
+    .id-modal>div{background:#fff;border-radius:14px;max-width:1000px;width:100%;max-height:92vh;overflow:auto;padding:16px}
     .id-modal-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
     .id-mig{font-size:13px;margin:6px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center}
-    .id-cargando{padding:18px;text-align:center;color:#5a6b78}
+    .id-cargando{padding:22px;text-align:center;color:var(--id-mut)}
+    .id-ord{display:flex;gap:6px;flex-wrap:wrap}.id-ord .id-btn{min-height:34px;padding:5px 12px;font-size:13px}
     @media(max-width:900px){.id-grid{grid-template-columns:1fr}}
-    @media(max-width:640px){.id-kpis{grid-template-columns:1fr 1fr}.id-k b{font-size:18px}.id-cv{height:240px}.id-btn{padding:8px 10px}}
+    @media(max-width:640px){
+      .id h2{font-size:22px}
+      .id-kpis{grid-template-columns:1fr 1fr;gap:8px}.id-k{padding:11px}.id-k b{font-size:19px}.id-k:first-child{grid-column:1/-1}.id-k:first-child b{font-size:24px}
+      .id-cv{height:250px}.id-btn{padding:8px 10px}.id-card{padding:12px}
+      .id-head>div:last-child{width:100%}.id-head>div:last-child .id-btn{flex:1 1 auto}
+      .id-t .m-oc{display:none}.id-tp{max-width:92px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;padding:2px 8px}
+      .id-hev{flex-direction:column;align-items:flex-start!important}.id-ord{width:100%}.id-ord .id-btn{flex:1 1 auto}
+      .id-scroll{max-height:none}
+      .id-t{font-size:12px}.id-t th,.id-t td{padding:7px 5px}.id-t td.cz{white-space:normal;min-width:80px;max-width:110px;line-height:1.25}.id-t th{font-size:10px}
+    }
   `;
+
   const estilos=()=>{if(document.getElementById('id-css'))return;const s=document.createElement('style');s.id='id-css';s.textContent=CSS;document.head.appendChild(s);};
 
   /* =========================================================
@@ -304,7 +341,8 @@
     const dim=card.dim,datos=topN(lista,dim,top||8),etqs=datos.map(x=>x.k),hex=COLOR[card.id];
     const total=lista.reduce((a,x)=>a+med(x),0);
     asegurarGrafico(card.id,{chart:{type:'treemap',events:clickA(dim,etqs)},
-      series:[{data:datos.map(x=>({x:corto(x.k,26),y:Math.max(med(x),0.0001)}))}],colors:colores(dim,etqs,hex),
+      series:[{data:datos.map(x=>({x:corto(x.k,26),y:Math.max(med(x),0.0001)}))}],
+      colors:etqs.map((x,i)=>(!dim||!hay(dim)||seleccionado(dim,x))?rgba(hex,1-0.3*(i/Math.max(etqs.length-1,1))):rgba(hex,0.18)),   // el de mayor pérdida, el más intenso
       plotOptions:{treemap:{distributed:true,enableShades:false}},
       stroke:{show:true,width:3,colors:['#ffffff']},
       dataLabels:{enabled:true,style:{fontSize:'12px',fontWeight:700},formatter:(texto,o)=>[texto,fmtM(Math.max(0,o.value))]},
@@ -345,6 +383,8 @@
       tooltip:{shared:true,intersect:false,custom:({dataPointIndex:i})=>{const x=datos[i];if(!x)return '';
         return tipA(etqs[i],[fmtM(med(x))+(total>0?' · '+nf(med(x)/total*100,1)+' %':''),'Acumulado: '+nf(acumVis[i],1)+' %']);}}});
   }
+  /* Eje de fechas: en pantallas angostas no dibuja las 31 fechas encimadas, solo las que caben. */
+  const ejeDias=()=>({labels:{rotate:-45,hideOverlappingLabels:true,style:{fontSize:'10px'}},tickAmount:window.innerWidth<640?7:undefined});
   function graficoEvolucion(card,v){
     const ev=v.series.evolucion,porDia=ev.unidad==='día',etqs=ev.claves;
     const labels=etqs.map(x=>porDia?fFecha(x):x);
@@ -355,7 +395,7 @@
     asegurarGrafico(card.id,{chart:{type:'line',events:porDia?clickA('dia',etqs):{}},series,colors:colores_,
       stroke:{width:series.map((x,i)=>i===0?0:2),curve:'smooth',dashArray:estilos},markers:{size:0},
       plotOptions:{bar:{columnWidth:'65%',borderRadius:3}},dataLabels:{enabled:false},
-      xaxis:{labels:{rotate:-45,style:{fontSize:'10px'}}},yaxis:ejeValorA(),legend:{position:'bottom'},
+      xaxis:ejeDias(),yaxis:ejeValorA(),legend:{position:'bottom'},
       tooltip:{shared:true,intersect:false,y:{formatter:y=>y==null?'—':fmtM(y)}}});
   }
   function graficoAcumulada(card,v){
@@ -363,7 +403,7 @@
     asegurarGrafico(card.id,{chart:{type:'area'},series:[{name:'Acumulado',data:ac.valores}],colors:[COLOR.acumulada],
       stroke:{curve:'smooth',width:2.5},fill:{type:'gradient',gradient:{shadeIntensity:1,opacityFrom:.38,opacityTo:.04,stops:[0,100]}},
       dataLabels:{enabled:false},markers:{size:0},
-      xaxis:{categories:ac.claves.map(x=>porDia?fFecha(x):x),labels:{rotate:-45,style:{fontSize:'10px'}}},yaxis:ejeValorA(),legend:{show:false},
+      xaxis:Object.assign({categories:ac.claves.map(x=>porDia?fFecha(x):x)},ejeDias()),yaxis:ejeValorA(),legend:{show:false},
       tooltip:{y:{formatter:y=>'Acumulado: '+fmtM(y)}}});
   }
   function pintarTarjetas(){
@@ -404,14 +444,14 @@
   function tablaEventos(lista,{limite}){
     const filas=filasEvento(lista).slice(0,limite);
     if(!filas.length)return '<div class="id-sub">No hay eventos con los filtros seleccionados.</div>';
-    return '<div class="id-scroll"><table class="id-t"><thead><tr><th class="l">Fecha</th><th class="l">Hora</th><th class="l">Turno</th><th class="l">Línea</th><th class="l">Marca</th><th class="l">Presentación</th><th class="l">Máquina</th><th class="l">Causa</th><th class="l">Tipo</th><th>Min</th><th>Unid.</th>'+(S.econ?'<th>Pérdida</th>':'')+'</tr></thead><tbody>'+
-      filas.map(f=>'<tr><td class="l">'+fFecha(f.fecha)+'</td><td class="l">'+esc(f.hora||'—')+'</td><td class="l">'+esc(f.turno)+'</td><td class="l">'+esc(f.linea)+'</td><td class="l">'+esc(f.marca)+'</td><td class="l">'+esc(f.pres)+'</td><td class="l">'+esc(f.tipo==='P'?(f.maquina||'Sin clasificar'):'—')+'</td><td class="l">'+esc(corto(f.causa,44))+(f.est?' <span class="id-sv" title="El motivo se dedujo del texto del registro">estimado</span>':'')+'</td><td class="l">'+esc(tipoTxt(f))+'</td><td>'+nf(f.min)+'</td><td>'+nf(f.u)+'</td>'+
+    return '<div class="id-scroll"><table class="id-t"><thead><tr><th class="l">Fecha</th><th class="l m-oc">Hora</th><th class="l m-oc">Turno</th><th class="l">Línea</th><th class="l m-oc">Marca</th><th class="l m-oc">Presentación</th><th class="l m-oc">Máquina</th><th class="l">Causa</th><th class="l">Tipo</th><th class="'+(S.econ?'m-oc':'')+'">Min</th><th class="m-oc">Unid.</th>'+(S.econ?'<th>Pérdida</th>':'')+'</tr></thead><tbody>'+
+      filas.map(f=>'<tr><td class="l">'+fFecha(f.fecha)+'</td><td class="l m-oc">'+esc(f.hora||'—')+'</td><td class="l m-oc">'+esc(f.turno)+'</td><td class="l">'+esc(f.linea)+'</td><td class="l m-oc">'+esc(f.marca)+'</td><td class="l m-oc">'+esc(f.pres)+'</td><td class="l m-oc">'+esc(f.tipo==='P'?(f.maquina||'Sin clasificar'):'—')+'</td><td class="l cz">'+esc(corto(f.causa,44))+(f.est?' <span class="id-sv" title="El motivo se dedujo del texto del registro">estimado</span>':'')+'</td><td class="l"><span class="id-tp id-tp-'+esc(f.tipo)+'" title="'+esc(tipoTxt(f))+'">'+esc(tipoTxt(f))+'</span></td><td class="'+(S.econ?'m-oc':'')+'">'+nf(f.min)+'</td><td class="m-oc">'+nf(f.u)+'</td>'+
         (S.econ?'<td>'+(f.s==null?'<span class="id-sv">Sin valor</span>':fS(f.s))+'</td>':'')+'</tr>').join('')+'</tbody></table></div>';
   }
   function pintarTabla(){
     const w=document.getElementById('id-tabla-wrap');if(!w)return;
     const ord=[['impacto',S.econ?'Mayor pérdida':'Mayor tiempo'],['duracion','Mayor duración'],['unidades','Mayores unidades']];
-    w.innerHTML='<section class="id-card"><header><h4>Eventos de mayor impacto</h4><div style="display:flex;gap:6px;flex-wrap:wrap">'+ord.map(([k,t])=>'<button type="button" class="id-btn'+(S.orden===k?' on':'')+'" data-id-orden="'+k+'">'+t+'</button>').join('')+'</div></header>'+
+    w.innerHTML='<section class="id-card"><header class="id-hev"><h4>Eventos de mayor impacto</h4><div class="id-ord">'+ord.map(([k,t])=>'<button type="button" class="id-btn'+(S.orden===k?' on':'')+'" data-id-orden="'+k+'">'+t+'</button>').join('')+'</div></header>'+
       tablaEventos(S.vista.tabla,{limite:15})+'<div class="id-sub" style="margin-top:6px">Se muestran los 15 principales de '+nf(S.vista.tabla.length)+' evento(s) con los filtros actuales. «Ver detalle» de cada gráfico lista todos.</div></section>';
   }
 
