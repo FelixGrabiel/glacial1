@@ -221,6 +221,8 @@
           ' <button type="button" class="id-link" data-id-valores>Configurar valores →</button></div>';
       }else h+='<div class="id-aviso"><b>Cobertura de valorización: '+pct+' %.</b> '+nf(v.sinValor)+' de '+nf(tot)+' evento(s) no tienen valor configurado por Gerencia y no están incluidos en los soles.</div>';
     }
+    const du=S.info&&S.info.faltan&&S.info.faltan.dudosas;
+    if(du>0)h+='<div class="id-aviso"><b>'+nf(du)+' caso(s) de velocidad reducida quedaron fuera del total por dato dudoso</b> (turno sin producción cargada o producción menor al 10 % de lo esperado). Revisa los reportes sin finalizar o la velocidad estándar de ese producto.</div>';
     cont.innerHTML=h;
   }
   function pintarFoco(){

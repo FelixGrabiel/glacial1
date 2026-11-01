@@ -48,7 +48,7 @@
     const rec=A().recolectar(fecha,fecha,{linea:'',motivosSistema:true});
     const res=IE().calcularImpacto(rec.partes,modo==='eco'?IE().provDefecto():IE().provSinValores());
     const filas=res.filas.map(f=>Object.assign({},f,{lineaKey:f.linea,linea:IE().nombreImp(f.linea)}));
-    const o={t:ahora,filas,faltan:{productos:res.faltan.margen.length,insumos:res.faltan.costo.length}};
+    const o={t:ahora,filas,faltan:{productos:res.faltan.margen.length,insumos:res.faltan.costo.length,dudosas:res.dudosas||0}};
     cache.set(k,o);
     return o;
   }
@@ -150,7 +150,7 @@
       const fin=Date.now()+14;
       while(i<lista.length&&Date.now()<fin){
         const c=filasCalculadas(lista[i],modo);
-        out.push(...c.filas);info.faltan.productos=Math.max(info.faltan.productos,c.faltan.productos);info.faltan.insumos=Math.max(info.faltan.insumos,c.faltan.insumos);
+        out.push(...c.filas);info.faltan.productos=Math.max(info.faltan.productos,c.faltan.productos);info.faltan.insumos=Math.max(info.faltan.insumos,c.faltan.insumos);info.faltan.dudosas=(info.faltan.dudosas||0)+(c.faltan.dudosas||0);
         i++;
       }
       if(i<lista.length)setTimeout(paso,0);else cb(out,info);

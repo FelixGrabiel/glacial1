@@ -136,9 +136,13 @@
       const potencial=p.planMin/60*p.vel;
       const paradasU=p.npMin/60*p.vel;
       const velU=Math.max(p.vel*hEf-p.producido,0);                 // (velocidad estándar − ratio) × horas efectivas, nunca negativa
-      T.potencialU+=potencial;T.paradasU+=paradasU;T.velU+=velU;T.planMin+=p.planMin;T.npMin+=p.npMin;T.horasEf+=hEf;
-      if(m){T.paradasS+=paradasU*m.valor;T.velS+=velU*m.valor;}      // sin valor no se calcula la pérdida en soles
-      if(velU>0)fila(p,'V',{causa:'Velocidad reducida',u:velU,s:m?velU*m.valor:null,falta:m?null:'valor'});
+      /* DATO DUDOSO: sin producción registrada, o producción menor al 10 % de lo que daba la velocidad estándar en las horas de marcha, la «pérdida por
+         velocidad» es en realidad un turno sin cargar o una velocidad mal definida. No se suma al total (ni a las filas); se cuenta para avisar. */
+      const dudoso=velU>0&&(!(p.producido>0)||p.producido<0.1*p.vel*hEf);
+      if(dudoso){T.dudosas=(T.dudosas||0)+1;T.dudosaU=(T.dudosaU||0)+velU;}
+      T.potencialU+=potencial;T.paradasU+=paradasU;T.velU+=dudoso?0:velU;T.planMin+=p.planMin;T.npMin+=p.npMin;T.horasEf+=hEf;
+      if(m){T.paradasS+=paradasU*m.valor;T.velS+=(dudoso?0:velU)*m.valor;}      // sin valor no se calcula la pérdida en soles
+      if(velU>0&&!dudoso)fila(p,'V',{causa:'Velocidad reducida',u:velU,s:m?velU*m.valor:null,falta:m?null:'valor'});
       let items=(p.paradas||[]).filter(i=>num(i.minutos)>0);
       const tot=items.reduce((s,i)=>s+num(i.minutos),0);
       if(p.npMin>0){
@@ -153,6 +157,7 @@
     return {T,total,paradasS:T.paradasS,velS:T.velS,mermaS:T.mermaS,incumplS:T.incumplS,filas,
       faltan:{velocidad:[...faltan.velocidad.values()],margen:[...faltan.margen.values()],costo:[...faltan.costo.values()]},
       supuestos:[...supuestos.values()].sort((a,b)=>a.tipo.localeCompare(b.tipo,'es')||a.etiqueta.localeCompare(b.etiqueta,'es')),
+      dudosas:T.dudosas||0,dudosasU:Math.round(T.dudosaU||0),
       hayFaltantes:faltan.velocidad.size+faltan.margen.size+faltan.costo.size>0};
   }
 
