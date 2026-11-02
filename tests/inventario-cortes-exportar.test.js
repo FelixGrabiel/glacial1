@@ -18,6 +18,8 @@ ok(l[1]==='INS-0001;I1;"BOLSA ""A""";"Insumos";"X";10.5;5;8;OK;10.5;0'.replace('
 ok(/Sin corte;;$/.test(l[2]),'artículo sin corte sale con celdas vacías, no con ceros');
 const idx=fs.readFileSync(__dirname+'/../index.html','utf8');
 ok(!/id="btn-almacen"/.test(idx),'el botón «Almacén · Próximamente» ya no está en el menú');
+const fs2=[{id:'a',marca:'GLACIAL',activo:true},{id:'b',marca:'',activo:true},{id:'c',activo:true}].map(c=>({...c,enCorte:true,total:1,w:[1],semaforo:'verde',categoria:'X'}));
+ok(N.filtrarStock(fs2,{marca:'__sin',activos:true}).map(x=>x.id).join()==='b,c'&&N.filtrarStock(fs2,{marca:'GLACIAL',activos:true}).length===1&&N.filtrarStock(fs2,{activos:true}).length===3,'filtro «Sin marca» lista los genéricos; el filtro por marca sigue igual');
 global.window=global.window||{};
 require('../js/asistente/84-evidencias-insumos-nucleo.js');
 const EN=(global.window&&global.window.glacialEvidenciasNucleo)||{};

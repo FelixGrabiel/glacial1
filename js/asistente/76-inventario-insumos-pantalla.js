@@ -39,6 +39,8 @@
   /* ---------- piezas ---------- */
   const PILL={rojo:['ii-p-rojo','Bajo mínimo'],naranja:['ii-p-naranja','Reorden'],verde:['ii-p-verde','OK'],gris:['ii-p-gris','Sin mínimo']};
   const semaforoHtml=s=>{const p=PILL[s]||PILL.gris;return `<span class="ii-pill ${p[0]}" title="${esc(N.SEMAFORO_TXT[s]||'')}"><i></i>${p[1]}</span>`;};
+  /* Marca: además de las marcas presentes, «Sin marca» (genéricos como tapas, preformas o químicos, que no pertenecen a una marca). */
+  function opcionesMarca(sel){return `<option value="">Todas</option><option value="__sin" ${sel==='__sin'?'selected':''}>Sin marca (${fmt(D.cache.catalogo.filter(x=>x.activo!==false&&!x.marca).length,0)})</option>`+marcasPresentes().map(v=>`<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(v)}</option>`).join('');}
   function opciones(lista,sel,todos){return `<option value="">${esc(todos)}</option>`+lista.map(v=>`<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(v)}</option>`).join('');}
   function marcasPresentes(){return [...new Set(D.cache.catalogo.map(c=>c.marca).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));}
   function categoriasPresentes(){const s=new Set(D.cache.catalogo.map(c=>c.categoria));return N.CATEGORIAS.filter(c=>s.has(c));}
@@ -96,7 +98,7 @@
     return `<div class="ii-filtros">
       <label class="ii-campo"><span>Buscar</span><input type="search" id="ii-texto" value="${esc(f.texto)}" placeholder="Nombre o código (INS-0001 / SAP)" oninput="iiTexto(this.value)" autocomplete="off"></label>
       <label class="ii-campo"><span>Categoría</span><select onchange="iiFiltro('categoria',this.value)">${opciones(categoriasPresentes(),f.categoria,'Todas')}</select></label>
-      <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opciones(marcasPresentes(),f.marca,'Todas')}</select></label>
+      <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opcionesMarca(f.marca)}</select></label>
       <label class="ii-campo"><span>Almacén (para el semáforo)</span><select onchange="iiFiltro('almacen',this.value)"><option value="" ${f.almacen===''?'selected':''}>Total (6 almacenes AP)</option>
         ${N.ALMACENES.map(a=>`<option value="${a.clave}" ${a.clave===f.almacen?'selected':''}>${esc(a.nombre)}</option>`).join('')}</select></label>
       <div class="ii-chips" role="group" aria-label="Opciones de la lista">
@@ -159,7 +161,7 @@
     return `<div class="ii-card">${acciones}<div class="ii-filtros">
       <label class="ii-campo"><span>Buscar</span><input type="search" id="ii-texto" value="${esc(f.texto)}" placeholder="Nombre o código (INS-0001 / SAP)" oninput="iiTexto(this.value)" autocomplete="off"></label>
       <label class="ii-campo"><span>Categoría</span><select onchange="iiFiltro('categoria',this.value)">${opciones(categoriasPresentes(),f.categoria,'Todas')}</select></label>
-      <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opciones(marcasPresentes(),f.marca,'Todas')}</select></label>
+      <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opcionesMarca(f.marca)}</select></label>
       <div class="ii-chips" role="group" aria-label="Opciones de la lista">
       <label class="ii-chk"><input type="checkbox" ${f.prioritarios?'checked':''} onchange="iiFiltro('prioritarios',this.checked)"> Solo prioritarios</label>
       <label class="ii-chk"><input type="checkbox" ${f.inactivos?'checked':''} onchange="iiFiltro('inactivos',this.checked)"> Incluir inactivos</label></div></div>

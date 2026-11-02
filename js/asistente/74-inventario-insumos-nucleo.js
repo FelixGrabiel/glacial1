@@ -329,7 +329,7 @@
       if(f.activos!==false&&x.activo===false)return false;
       if(f.prioritarios&&!x.prioritario)return false;
       if(f.categoria&&x.categoria!==f.categoria)return false;
-      if(f.marca&&x.marca!==f.marca)return false;
+      if(f.marca==='__sin'){if(x.marca)return false;}else if(f.marca&&x.marca!==f.marca)return false;
       if(f.soloBajoMinimo&&!(x.semaforo==='rojo'))return false;
       if(t&&!(norm(x.nombre).includes(t)||norm(x.itemCode).includes(t)||norm(x.codigo).includes(t)))return false;
       return true;
