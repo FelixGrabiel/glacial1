@@ -636,6 +636,28 @@
       .sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo))).map(x=>[x.codigo,q(x.nombre),num(x.stockMinimo),num(x.puntoReorden)].join(';'))).join('\r\n');
   }
 
+  /* Corte repetido: misma fecha, mismo archivo y mismo número de artículos que uno ya guardado. */
+  const claveRepetido=c=>[c.fechaCorte||'',String(c.archivo||'').trim().toLowerCase(),num(c.articulos)].join('|');
+  function corteRepetido(cortes,fechaCorte,archivo,articulos){
+    const k=claveRepetido({fechaCorte,archivo,articulos});
+    return (cortes||[]).find(c=>claveRepetido(c)===k)||null;
+  }
+  /* Deja un solo corte por grupo idéntico (el más reciente de cada grupo); «repetidos» cuenta los omitidos. */
+  function cortesUnicos(cortes){
+    const vistos=new Map(),out=[];
+    (cortes||[]).forEach(c=>{const k=claveRepetido(c);if(vistos.has(k)){vistos.get(k).repetidos++;return;}const x=Object.assign({},c,{repetidos:0});vistos.set(k,x);out.push(x);});
+    return out;
+  }
+  /* CSV (con «;») del Stock actual tal como se ve: código, artículo, categoría, marca, total, mínimo, reorden, semáforo y un almacén por columna. */
+  function csvStock(filas,almacenes){
+    const q=t=>'"'+String(t==null?'':t).replace(/"/g,'""')+'"';
+    const alm=almacenes||[];
+    const cab=['Código','Código SAP','Artículo','Categoría','Marca','Total SAP','Stock mínimo','Punto de reorden','Semáforo'].concat(alm.map(a=>a.corto||a.nombre));
+    const lin=(filas||[]).map(x=>[x.codigo||'',x.itemCode||'',q(x.nombre),q(x.categoria),q(x.marca||''),x.enCorte?num(x.total):'',num(x.stockMinimo),num(x.puntoReorden),
+      x.enCorte?(SEMAFORO_TXT[x.semaforo]||x.semaforo||''):'Sin corte'].concat((x.w||[]).map(v=>x.enCorte?num(v):'')).join(';'));
+    return [cab.join(';')].concat(lin).join('\r\n');
+  }
+
   /* ---------- permisos (reglas puras; el módulo de datos las aplica al usuario) ---------- */
   const ROLES_SOLO_CONSULTA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];
   const ROLES_VER_DEFECTO=['Asistente de Producción','Jefe de Operaciones'];
@@ -644,7 +666,7 @@
   const API={GRUPOS_VALIDOS,GRUPOS_NOMBRE,ALMACENES,CATEGORIAS,PRIORITARIAS,MARCAS,CAMPOS_EDITABLES,ROLES_SOLO_CONSULTA,ROLES_VER_DEFECTO,ROLES_ESCRIBIR_DEFECTO,
     num,norm,red,fmt,esExcluido,categoriaDe,marcaDe,presentacionDe,esPrioritaria,almacenDe,almacenInfo,idPorNombre,esIdNombre,prefiltrarFilas,leerLibro,
     registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock,
-    detectarSinMovimiento,leerConteoExcel,leerConteoResumen,ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
+    corteRepetido,cortesUnicos,csvStock,detectarSinMovimiento,leerConteoExcel,leerConteoResumen,ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
     PREFIJO_CODIGO,asignarCodigos,UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones,
     leerMinimos,plantillaMinimos,GRUPOS_AUDITORIA,TIPOS_AUDITORIA,CAMPOS_AUDITORIA,grupoAuditoria,cambiosAuditoria,resumenAuditoria,filtrarAuditoria,ordenAuditoria};
   global.glacialInventarioNucleo=API;

@@ -95,10 +95,12 @@
   }
 
   function selectorCorte(){
-    const cortes=D.cache.cortes;
-    if(!cortes.length)return '';
+    const todos=D.cache.cortes;
+    if(!todos.length)return '';
+    let cortes=N.cortesUnicos(todos);
+    if(!cortes.some(c=>c.id===D.cache.corteId)){const a=todos.find(c=>c.id===D.cache.corteId);if(a)cortes=cortes.concat([Object.assign({},a,{repetidos:0})]);}
     return `<label class="ii-campo ii-corte"><span>Corte de stock</span><select onchange="iiCorte(this.value)">${cortes.map(c=>
-      `<option value="${esc(c.id)}" ${c.id===D.cache.corteId?'selected':''}>${esc(c.fechaCorte)} · ${esc(c.archivo||'sin archivo')} · ${esc(c.importadoPor||'')}</option>`).join('')}</select></label>`;
+      `<option value="${esc(c.id)}" ${c.id===D.cache.corteId?'selected':''}>${esc(c.fechaCorte)} · ${esc(c.archivo||'sin archivo')} · ${esc(c.importadoPor||'')}${c.repetidos?` (+${c.repetidos} igual${c.repetidos>1?'es':''})`:''}</option>`).join('')}</select></label>`;
   }
 
   /* Avisos de calidad del dato (no bloquean nada): corte viejo y artículos prioritarios sin stock mínimo (sin mínimo el semáforo no puede avisar). */
@@ -121,8 +123,9 @@
     }
     const c=corteElegido();
     const nota=`<div class="ii-msg ii-msg-info ii-nota-sap" role="note"><b>Todas las cantidades de esta pantalla son el stock según SAP</b>${c?` (corte del ${esc(fechaDmy(c.fechaCorte))}, importado por ${esc(c.importadoPor||'—')})`:''}. No es el conteo físico: el conteo se registra en «Conteo físico» y se compara con SAP en «Conciliación».</div>`;
+    const exportar='<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iiExportarStock()" title="Descarga en CSV (se abre en Excel) lo que ves en la tabla, con los filtros aplicados">Exportar a Excel</button>';
     const detectar=D.puedeEscribir()?'<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iiSinMov()" title="Compara los últimos cortes de SAP y propone los artículos cuyo stock no se mueve">Detectar sin movimiento</button>':'';
-    return `${tarjetas()}<div class="ii-card">${avisosStock()}${nota}${filtrosStock()}<div class="ii-fila-sm">${selectorCorte()}${detectar}</div><div id="ii-tabla">${tablaStock(filasFiltradas())}</div></div>`;
+    return `${tarjetas()}<div class="ii-card">${avisosStock()}${nota}${filtrosStock()}<div class="ii-fila-sm">${selectorCorte()}${exportar}${detectar}</div><div id="ii-tabla">${tablaStock(filasFiltradas())}</div></div>`;
   }
 
   /* ---------- catálogo ---------- */
@@ -226,6 +229,11 @@
   };
   /* ---------- carga masiva de mínimos ---------- */
   let minPrevio=null;
+  window.iiExportarStock=()=>{
+    const c=corteElegido(),csv='\ufeff'+N.csvStock(filasFiltradas(),N.ALMACENES);
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='stock-insumos-'+(c?c.fechaCorte:hoyIso())+'.csv';
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  };
   window.iiPlantilla=()=>{
     const csv='\ufeff'+N.plantillaMinimos(D.cache.catalogo);
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='minimos-insumos.csv';
@@ -368,6 +376,7 @@
         <p class="ii-mut">Excluidos: ${fmt(l.resumen.excluidosNombre||0,0)} por «NO USAR» / «ETIQUETA ERROR» y ${fmt(l.resumen.fueraDeGrupo||0,0)} fuera de los grupos 105, 106, 107 y 109.
         Almacenes: ${l.almacenes.map(a=>esc(N.almacenInfo(a).corto)).join(', ')||'ninguno'}.</p>
         ${l.avisos.map(a=>`<div class="ii-msg ii-msg-info">${esc(a)}</div>`).join('')}
+        ${repetidoHtml(i)}
         <label class="ii-campo"><span>Fecha del corte</span><input type="date" id="ii-fecha" value="${esc(i.fecha)}" onchange="II_fecha(this.value)"></label>
         <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iiImportar()">Elegir otro archivo</button><button type="button" class="ii-btn" onclick="iiConfirmarImportar()">Guardar corte</button></div>`;
     }
@@ -380,7 +389,11 @@
       <div class="modal-head"><h3>Importar stock SAP</h3>${cerrable?'<button class="modal-close" onclick="iiCerrar()" aria-label="Cerrar">✕</button>':''}</div>
       <div class="modal-body" id="ii-imp-cuerpo">${cuerpoImportar()}</div></div></div>`;
   }
-  window.II_fecha=v=>{if(II.imp&&/^\d{4}-\d{2}-\d{2}$/.test(v))II.imp.fecha=v;};
+  window.II_fecha=v=>{if(II.imp&&/^\d{4}-\d{2}-\d{2}$/.test(v)){II.imp.fecha=v;if(II.imp.fase==='resumen')pintarImportar();}};
+  function repetidoHtml(i){
+    const r=N.corteRepetido(D.cache.cortes,i.fecha,i.archivo,i.lectura.articulos.length);
+    return r?`<div class="ii-msg ii-msg-aviso" role="alert"><b>Este archivo ya se importó.</b> Hay un corte del ${esc(fechaDmy(r.fechaCorte))} con el mismo archivo y los mismos ${fmt(r.articulos,0)} artículos (lo subió ${esc(r.importadoPor||'—')}). Si lo guardas se crea un corte duplicado que no se puede borrar desde la app. Usa «Elegir otro archivo» o cambia la fecha si es un corte distinto.</div>`:'';
+  }
   window.iiImportar=()=>{
     if(!D.puedeEscribir())return;
     II.imp={fase:'elegir',fecha:hoyIso(),pct:0,texto:''};pintarImportar();
