@@ -101,6 +101,18 @@
       `<option value="${esc(c.id)}" ${c.id===D.cache.corteId?'selected':''}>${esc(c.fechaCorte)} · ${esc(c.archivo||'sin archivo')} · ${esc(c.importadoPor||'')}</option>`).join('')}</select></label>`;
   }
 
+  /* Avisos de calidad del dato (no bloquean nada): corte viejo y artículos prioritarios sin stock mínimo (sin mínimo el semáforo no puede avisar). */
+  const DIAS_CORTE_AMBAR=7,DIAS_CORTE_ROJO=15;
+  function diasDesde(fechaIso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(fechaIso||'');if(!m)return null;return Math.floor((Date.parse(hoyIso()+'T12:00:00Z')-Date.parse(fechaIso+'T12:00:00Z'))/86400000);}
+  function avisosStock(){
+    const out=[];
+    const ultimo=D.cache.cortes[0]||null,dias=ultimo?diasDesde(ultimo.fechaCorte):null;
+    if(dias!==null&&dias>=DIAS_CORTE_AMBAR)out.push(`<div class="ii-msg ii-msg-${dias>=DIAS_CORTE_ROJO?'error':'aviso'}" role="alert"><b>El último corte de SAP tiene ${fmt(dias,0)} días (${esc(fechaDmy(ultimo.fechaCorte))}).</b> El stock y la columna «Tiempo real» pueden estar lejos de la realidad.${D.puedeEscribir()?' <button type="button" class="ii-enlace" onclick="iiImportar()">Importar un corte nuevo →</button>':' Pide a la Asistente de Producción que importe el stock.'}</div>`);
+    const prio=D.cache.catalogo.filter(x=>x.prioritario&&x.activo!==false),sinMin=prio.filter(x=>!(num(x.stockMinimo)>0)).length;
+    if(prio.length&&sinMin>=Math.ceil(prio.length*0.5))out.push(`<div class="ii-msg ii-msg-aviso" role="note"><b>${fmt(sinMin,0)} de ${fmt(prio.length,0)} artículos prioritarios no tienen stock mínimo.</b> Sin mínimo el semáforo siempre dice «Sin mínimo» y no avisa cuando falta material.${D.puedeEscribir()?' <button type="button" class="ii-enlace" onclick="iiMinimos()">Cargar mínimos →</button>':''}</div>`);
+    return out.join('');
+  }
+
   function tabStock(){
     const hayCatalogo=D.cache.catalogo.length>0;
     if(!hayCatalogo&&D.cache.listo.catalogo){
@@ -110,7 +122,7 @@
     const c=corteElegido();
     const nota=`<div class="ii-msg ii-msg-info ii-nota-sap" role="note"><b>Todas las cantidades de esta pantalla son el stock según SAP</b>${c?` (corte del ${esc(fechaDmy(c.fechaCorte))}, importado por ${esc(c.importadoPor||'—')})`:''}. No es el conteo físico: el conteo se registra en «Conteo físico» y se compara con SAP en «Conciliación».</div>`;
     const detectar=D.puedeEscribir()?'<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iiSinMov()" title="Compara los últimos cortes de SAP y propone los artículos cuyo stock no se mueve">Detectar sin movimiento</button>':'';
-    return `${tarjetas()}<div class="ii-card">${nota}${filtrosStock()}<div class="ii-fila-sm">${selectorCorte()}${detectar}</div><div id="ii-tabla">${tablaStock(filasFiltradas())}</div></div>`;
+    return `${tarjetas()}<div class="ii-card">${avisosStock()}${nota}${filtrosStock()}<div class="ii-fila-sm">${selectorCorte()}${detectar}</div><div id="ii-tabla">${tablaStock(filasFiltradas())}</div></div>`;
   }
 
   /* ---------- catálogo ---------- */
@@ -129,7 +141,8 @@
   }
   function tabCatalogo(){
     const f=II.f;
-    return `<div class="ii-card"><div class="ii-filtros">
+    const acciones=D.puedeEscribir()?'<div class="ii-fila-t"><h3>Catálogo de insumos</h3><div class="ii-acc-l"><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="iiPlantilla()" title="Descarga un CSV con todos los artículos y sus mínimos actuales para llenarlo en Excel">Descargar plantilla</button><button type="button" class="ii-btn ii-btn-s" onclick="iiMinimos()">Cargar mínimos y reorden</button></div></div>':'';
+    return `<div class="ii-card">${acciones}<div class="ii-filtros">
       <label class="ii-campo"><span>Buscar</span><input type="search" id="ii-texto" value="${esc(f.texto)}" placeholder="Nombre o código (INS-0001 / SAP)" oninput="iiTexto(this.value)" autocomplete="off"></label>
       <label class="ii-campo"><span>Categoría</span><select onchange="iiFiltro('categoria',this.value)">${opciones(categoriasPresentes(),f.categoria,'Todas')}</select></label>
       <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opciones(marcasPresentes(),f.marca,'Todas')}</select></label>
@@ -210,6 +223,46 @@
         <label class="ii-chk"><input id="ii-e-sinuso" type="checkbox" ${x.sinUso?'checked':''}> Sin uso (sigue en el inventario, pero va al final de la lista)</label>
         <div class="ii-msg ii-msg-error" id="ii-e-error" hidden></div>
         <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iiCerrar()">Cancelar</button><button type="button" class="ii-btn" id="ii-e-ok" onclick="iiGuardarEdicion()">Guardar</button></div></div></div></div>`;
+  };
+  /* ---------- carga masiva de mínimos ---------- */
+  let minPrevio=null;
+  window.iiPlantilla=()=>{
+    const csv='\ufeff'+N.plantillaMinimos(D.cache.catalogo);
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='minimos-insumos.csv';
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  };
+  window.iiMinimos=()=>{
+    if(!D.puedeEscribir()||!raiz())return;minPrevio=null;
+    raiz().innerHTML=`<div class="modal-backdrop" onclick="if(event.target===this)iiCerrar()"><div class="modal ii-modal ii-modal-ancho" role="dialog" aria-modal="true">
+      <div class="modal-head"><h3>Cargar mínimos y puntos de reorden</h3><button class="modal-close" onclick="iiCerrar()" aria-label="Cerrar">✕</button></div>
+      <div class="modal-body"><ol class="ii-pasos"><li>Pulsa «Descargar plantilla» en el Catálogo y llena las columnas <b>Stock mínimo</b> y <b>Punto de reorden</b> en Excel.</li>
+        <li>Copia las filas (o solo las columnas Código, Mínimo y Reorden) y pégalas aquí, o sube el archivo CSV.</li><li>Revisa el resultado y pulsa «Aplicar».</li></ol>
+        <textarea id="ii-min-txt" rows="7" class="ii-area" placeholder="INS-0001&#9;500&#9;800&#10;INS-0002&#9;1200&#9;1500" oninput="iiMinimosVer()"></textarea>
+        <label class="ii-campo"><span>O sube un archivo (.csv / .txt)</span><input type="file" id="ii-min-arch" accept=".csv,.txt,text/csv,text/plain" onchange="iiMinimosArchivo(this)"></label>
+        <div id="ii-min-prev" class="ii-min-prev" aria-live="polite"></div>
+        <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="iiCerrar()">Cancelar</button><button type="button" class="ii-btn" id="ii-min-ok" onclick="iiMinimosAplicar()" disabled>Aplicar</button></div></div></div></div>`;
+  };
+  window.iiMinimosArchivo=inp=>{
+    const f=inp&&inp.files&&inp.files[0];if(!f)return;
+    if(f.size>1000000){const p=document.getElementById('ii-min-prev');if(p)p.innerHTML='<div class="ii-msg ii-msg-error">El archivo es demasiado grande (máximo 1 MB).</div>';return;}
+    const r=new FileReader();r.onload=()=>{const t=document.getElementById('ii-min-txt');if(t){t.value=String(r.result||'');iiMinimosVer();}};r.readAsText(f,'utf-8');
+  };
+  window.iiMinimosVer=()=>{
+    const t=document.getElementById('ii-min-txt'),p=document.getElementById('ii-min-prev'),ok=document.getElementById('ii-min-ok');if(!t||!p||!ok)return;
+    if(!t.value.trim()){minPrevio=null;p.innerHTML='';ok.disabled=true;ok.textContent='Aplicar';return;}
+    const r=N.leerMinimos(t.value,D.cache.catalogo);minPrevio=r;
+    const ejemplo=r.filas.slice(0,6).map(f=>`<tr><td><b>${esc(f.codigo)}</b></td><td>${esc(f.nombre)}</td><td class="ii-num">${fmt(f.antesMin)} → <b>${fmt(f.stockMinimo)}</b></td><td class="ii-num">${fmt(f.antesReorden)} → <b>${fmt(f.puntoReorden)}</b></td></tr>`).join('');
+    p.innerHTML=`<div class="ii-resumen"><div><b>${fmt(r.cambian,0)}</b><span>artículos cambian</span></div><div><b>${fmt(r.sinCambio,0)}</b><span>sin cambio</span></div><div><b>${fmt(r.errores.length,0)}</b><span>con error (no se aplican)</span></div></div>`+
+      (ejemplo?`<div class="ii-tw"><table class="ii-t"><thead><tr><th>Código</th><th>Artículo</th><th class="ii-num">Mínimo</th><th class="ii-num">Reorden</th></tr></thead><tbody>${ejemplo}</tbody></table></div>${r.filas.length>6?`<p class="ii-mut">… y ${fmt(r.filas.length-6,0)} más.</p>`:''}`:'')+
+      (r.errores.length?`<div class="ii-msg ii-msg-error" role="alert"><b>Corrige estas líneas si quieres aplicarlas:</b><ul class="ii-lista-err">${r.errores.slice(0,8).map(e=>`<li>Línea ${e.linea}: ${esc(e.motivo)}</li>`).join('')}${r.errores.length>8?`<li>… y ${fmt(r.errores.length-8,0)} más.</li>`:''}</ul></div>`:'');
+    ok.disabled=!r.cambian;ok.textContent=r.cambian?`Aplicar ${fmt(r.cambian,0)} cambio${r.cambian===1?'':'s'}`:'Aplicar';
+  };
+  window.iiMinimosAplicar=async()=>{
+    const r=minPrevio;if(!r||!r.cambian)return;const ok=document.getElementById('ii-min-ok');if(ok){ok.disabled=true;ok.textContent='Guardando…';}
+    try{
+      const res=await D.guardarMinimos(r.filas);
+      iiCerrar();II.msg={tipo:'ok',texto:`Se actualizaron ${fmt(res.cambiados,0)} artículos (stock mínimo y punto de reorden). El semáforo ya los usa.`+(r.errores.length?` ${fmt(r.errores.length,0)} línea(s) con error no se aplicaron.`:'')};pintar();
+    }catch(e){const p=document.getElementById('ii-min-prev');if(p)p.insertAdjacentHTML('afterbegin',`<div class="ii-msg ii-msg-error" role="alert">${esc(D.mensajeError(e))}</div>`);if(ok){ok.disabled=false;ok.textContent=`Aplicar ${fmt(r.cambian,0)} cambios`;}}
   };
   window.iiGuardarEdicion=async()=>{
     const id=II.edicion;if(!id)return;
@@ -469,6 +522,10 @@
 .ii-t tbody tr td.ii-cod{background:#fff}.ii-t tbody tr:nth-child(even) td.ii-cod{background:#fafcfe}
 .ii-t thead th:first-child{left:0;z-index:3}
 .ii-pie{font-size:12.5px}
+.ii-msg-aviso{background:#fff8e6;color:#6d4a00;border:1px solid #ecd48b}.ii-enlace{border:0;background:none;color:#0877A6;font:inherit;font-weight:700;cursor:pointer;padding:0;text-decoration:underline}
+.ii-acc-l{display:flex;gap:8px;flex-wrap:wrap}.ii-pasos{margin:0 0 10px;padding-left:20px;font-size:13px;line-height:1.5;color:#334a66}.ii-area{width:100%;box-sizing:border-box;font:13px/1.4 ui-monospace,Consolas,monospace;border:1px solid #c9d6e2;border-radius:8px;padding:8px 10px;margin-bottom:8px;resize:vertical}
+.ii-lista-err{margin:6px 0 0;padding-left:18px}.ii-min-prev{margin:8px 0}
+.ii-modal-ancho{max-height:92vh;overflow:auto}.ii-min-prev td:first-child{white-space:nowrap}
 @media(max-width:700px){.ii-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-filtros>.ii-campo:first-child{grid-column:1/-1}.ii-chips .ii-chk{flex:1 1 auto}.ii-t thead tr:nth-child(2) th{top:32px}.ii-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-cab h1{font-size:24px}.ii-form{grid-template-columns:1fr}.ii-nom{min-width:180px}}
 </style>`;}
 

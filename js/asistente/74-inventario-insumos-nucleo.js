@@ -563,6 +563,7 @@
   const TIPOS_AUDITORIA={
     IMPORTAR_STOCK:{txt:'Importación de stock SAP',grupo:'IMPORTACION'},
     EDITAR_ARTICULO:{txt:'Edición de artículo (mínimos, reorden, unidad…)',grupo:'CATALOGO'},
+    EDITAR_MINIMOS:{txt:'Carga masiva de mínimos y puntos de reorden',grupo:'CATALOGO'},
     CREAR_CONTEO:{txt:'Conteo creado',grupo:'CONTEO'},EDITAR_CONTEO:{txt:'Observación del conteo',grupo:'CONTEO'},
     CERRAR_CONTEO:{txt:'Conteo cerrado',grupo:'CONTEO'},BORRAR_CONTEO:{txt:'Conteo borrado',grupo:'CONTEO'},REABRIR_CONTEO:{txt:'Conteo reabierto',grupo:'CONTEO'},
     CREAR_LINEA:{txt:'Línea agregada',grupo:'LINEA'},EDITAR_LINEA:{txt:'Línea editada',grupo:'LINEA'},BORRAR_LINEA:{txt:'Línea borrada',grupo:'LINEA'},BORRAR_UBICACION:{txt:'Líneas borradas por ubicación',grupo:'LINEA'},
@@ -597,6 +598,44 @@
   }
   const ordenAuditoria=l=>(l||[]).slice().sort((a,b)=>num(b.enMs)-num(a.enMs));
 
+  /* ---------- carga masiva de mínimos (tabla pegada desde Excel o CSV) ----------
+     Cada línea: código (INS-0001 o el ItemCode de SAP) · stock mínimo · punto de reorden (opcional). Separador: tabulación (copiar y pegar desde Excel), «;» o «,».
+     Devuelve {filas:[{id,codigo,nombre,stockMinimo,puntoReorden,cambia}], errores:[{linea,texto,motivo}], sinCambio, cambian}. No guarda nada. */
+  function leerMinimos(texto,catalogo){
+    const cat=Array.isArray(catalogo)?catalogo:[];
+    const porClave=new Map();
+    cat.forEach(x=>{if(x.codigo)porClave.set(String(x.codigo).trim().toUpperCase(),x);if(x.itemCode)porClave.set(String(x.itemCode).trim().toUpperCase(),x);});
+    const numero=v=>{const t=String(v==null?'':v).trim().replace(/\s/g,'');if(t==='')return null;const c=t.lastIndexOf(','),d=t.lastIndexOf('.');const n=Number(c>=0&&d>=0?(c>d?t.replace(/\./g,'').replace(',','.'):t.replace(/,/g,'')):c>=0?t.replace(',','.'):t);return Number.isFinite(n)?n:NaN;};   // «1.200,5» (coma decimal) y «1,200.5» (punto decimal)
+    const filas=[],errores=[],vistos=new Set();let sinCambio=0;
+    String(texto||'').split(/\r?\n/).forEach((linea,i)=>{
+      if(!linea.trim())return;
+      const sep=linea.indexOf('\t')>=0?'\t':linea.indexOf(';')>=0?';':',';
+      const c=linea.split(sep).map(x=>x.trim().replace(/^"|"$/g,''));
+      const art=porClave.get(String(c[0]||'').toUpperCase());
+      if(!art){
+        if(i===0&&c.length>=2&&!(numero(c[1])>=0))return;                       // encabezado («Código; Mínimo; Reorden»)
+        errores.push({linea:i+1,texto:linea.slice(0,60),motivo:'No se encontró el código «'+String(c[0]||'').slice(0,24)+'» en el catálogo.'});return;
+      }
+      if(vistos.has(art.id)){errores.push({linea:i+1,texto:linea.slice(0,60),motivo:'El código '+c[0]+' está repetido en la lista.'});return;}
+      const min=numero(c[1]),reo=c.length>=3?numero(c[2]):null;
+      if(min===null||Number.isNaN(min)||min<0){errores.push({linea:i+1,texto:linea.slice(0,60),motivo:'El stock mínimo debe ser un número mayor o igual a 0.'});return;}
+      if(reo!==null&&(Number.isNaN(reo)||reo<0)){errores.push({linea:i+1,texto:linea.slice(0,60),motivo:'El punto de reorden debe ser un número mayor o igual a 0.'});return;}
+      const reorden=reo===null?num(art.puntoReorden):reo;
+      if(reorden>0&&min>reorden){errores.push({linea:i+1,texto:linea.slice(0,60),motivo:'El punto de reorden ('+reorden+') no puede ser menor que el stock mínimo ('+min+').'});return;}
+      vistos.add(art.id);
+      const cambia=red(min,2)!==red(num(art.stockMinimo),2)||red(reorden,2)!==red(num(art.puntoReorden),2);
+      if(!cambia){sinCambio++;return;}
+      filas.push({id:art.id,codigo:art.codigo||'',nombre:art.nombre,stockMinimo:red(min,2),puntoReorden:red(reorden,2),antesMin:num(art.stockMinimo),antesReorden:num(art.puntoReorden)});
+    });
+    return {filas,errores,sinCambio,cambian:filas.length};
+  }
+  /* Plantilla para llenar en Excel: código, artículo y los valores actuales (CSV con «;», lo abre Excel en español). */
+  function plantillaMinimos(catalogo){
+    const q=t=>'"'+String(t==null?'':t).replace(/"/g,'""')+'"';
+    return ['Código;Artículo;Stock mínimo;Punto de reorden'].concat((catalogo||[]).filter(x=>x.activo!==false&&x.prioritario!==false&&x.codigo)
+      .sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo))).map(x=>[x.codigo,q(x.nombre),num(x.stockMinimo),num(x.puntoReorden)].join(';'))).join('\r\n');
+  }
+
   /* ---------- permisos (reglas puras; el módulo de datos las aplica al usuario) ---------- */
   const ROLES_SOLO_CONSULTA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];
   const ROLES_VER_DEFECTO=['Asistente de Producción','Jefe de Operaciones'];
@@ -607,7 +646,7 @@
     registroCatalogo,combinarCatalogo,validarEdicion,filaCorte,claveCorte,semaforo,SEMAFORO_TXT,filasStock,filtrarStock,ordenarStock,resumenStock,
     detectarSinMovimiento,leerConteoExcel,leerConteoResumen,ESTADOS_CONTEO,claveConteo,claveLinea,ubicacionLimpia,validarConteo,validarLinea,indiceCatalogo,totalesConteo,filasConteo,progresoConteo,ubicacionesUsadas,resumenCierre,
     PREFIJO_CODIGO,asignarCodigos,UMBRAL_OK,UMBRAL_OBSERVADO,ESTADOS_CONCILIACION,almacenesDeConteo,estadoConciliacion,conciliar,resumenConciliacion,validarComentario,detalleUbicaciones,
-    GRUPOS_AUDITORIA,TIPOS_AUDITORIA,CAMPOS_AUDITORIA,grupoAuditoria,cambiosAuditoria,resumenAuditoria,filtrarAuditoria,ordenAuditoria};
+    leerMinimos,plantillaMinimos,GRUPOS_AUDITORIA,TIPOS_AUDITORIA,CAMPOS_AUDITORIA,grupoAuditoria,cambiosAuditoria,resumenAuditoria,filtrarAuditoria,ordenAuditoria};
   global.glacialInventarioNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);

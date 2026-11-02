@@ -167,6 +167,30 @@
     return resultado;
   }
 
+  /* Carga masiva de mínimos: filas = N.leerMinimos(...).filas. UNA transacción sobre el catálogo (cada artículo cambia solo en stockMinimo y puntoReorden)
+     y UN evento de auditoría con el resumen (no 200 eventos). */
+  async function guardarMinimos(filas){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para editar el catálogo de insumos.');
+    if(!Array.isArray(filas)||!filas.length)throw falla('VALIDACION','No hay cambios para guardar.');
+    if(filas.length>400)throw falla('VALIDACION','Máximo 400 artículos por carga.');
+    const ref=col('insumosCatalogo').doc('catalogo');let cambiados=0;
+    await db.runTransaction(async tx=>{
+      const s=await tx.get(ref);
+      const lista=(s.exists&&Array.isArray(s.data().items))?s.data().items.map(x=>({...x})):[];
+      const idx=new Map(lista.map(x=>[x.id,x]));
+      filas.forEach(f=>{
+        const x=idx.get(f.id);if(!x)throw falla('VALIDACION','El artículo '+(f.codigo||f.id)+' ya no existe en el catálogo.');
+        const min=N.red(Number(f.stockMinimo),2),reo=N.red(Number(f.puntoReorden),2);
+        if(!(min>=0)||!(reo>=0)||(reo>0&&min>reo))throw falla('VALIDACION','Valores no válidos para '+(f.codigo||f.id)+'.');
+        if(x.stockMinimo!==min||x.puntoReorden!==reo){x.stockMinimo=min;x.puntoReorden=reo;cambiados++;}
+      });
+      if(!cambiados)return;
+      tx.set(ref,{items:lista,actualizadoPor:usuario().nombre,actualizadoEn:serverTs()});
+      auditar(tx,'EDITAR_MINIMOS','catalogo','Carga masiva de mínimos',null,{articulos:cambiados});
+    });
+    return {cambiados};
+  }
+
   /* Códigos internos (INS-0001…): asigna a los artículos que aún no tienen. En una transacción (si dos personas lo piden a la vez, la segunda
      ya encuentra los códigos puestos y no hace nada). Los artículos nuevos de una importación los reciben solos. */
   async function asignarCodigosFaltantes(){
@@ -455,7 +479,7 @@
     return {nuevos:comb.nuevos,existentes:comb.actualizados+comb.sinCambio+comb.adoptados,adoptados:comb.adoptados};
   }
 
-  window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,asignarCodigosFaltantes,importarCorte,vistaPrevia,mensajeError,
+  window.glacialInventarioDatos={CLAVE,cache,puedeVer:yoVeo,puedeEscribir:yoEscribo,escuchar,detener,elegirCorte,guardarEdicion,asignarCodigosFaltantes,importarCorte,guardarMinimos,vistaPrevia,mensajeError,
     escucharConteo,crearConteo,importarConteo,agregarLinea,agregarLineasLote,borrarLineasUbicacion,detectarSinMovimiento,marcarSinUso,editarLinea,borrarLinea,cerrarConteo,reabrirConteo,borrarConteo,guardarObservacion,guardarComentario,consultarAuditoria,esAdmin,
     _ayudas:{auditar,usuario,ahora,col,serverTs,falla},      // para el módulo de evidencias (85-evidencias-insumos-datos.js)
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},_puedeVer:puedeVer,_puedeEscribir:puedeEscribir};
