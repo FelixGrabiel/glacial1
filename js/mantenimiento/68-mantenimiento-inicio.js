@@ -150,9 +150,11 @@
     const actual=main.querySelector(':scope > #mi-volver');
     const mostrar=typeof state!=='undefined'&&PANTALLAS.includes(state.currentTab)&&!state.showWelcome&&hayAcceso();
     if(!mostrar){if(actual)actual.remove();return;}
+    const dePro=state.currentTab==='bitacora-mtto'&&window.__bitDesdeProduccion===true&&typeof window.goProduccionInicio==='function';   // la bitácora de Producción comparte pantalla con esta
+    if(actual){const t=dePro?'← Inicio de Producción':'← Inicio de Mantenimiento';if(actual.textContent!==t)actual.textContent=t;actual.dataset.destino=dePro?'prod':'mtto';}
     if(actual&&main.firstElementChild===actual)return;
     const b=actual||document.createElement('button');
-    if(!actual){b.type='button';b.id='mi-volver';b.className='btn btn-ghost btn-sm';b.textContent='← Inicio de Mantenimiento';b.style.cssText='margin:0 0 10px;display:inline-block';b.addEventListener('click',ir);}
+    if(!actual){b.type='button';b.id='mi-volver';b.className='btn btn-ghost btn-sm';b.textContent=dePro?'← Inicio de Producción':'← Inicio de Mantenimiento';b.dataset.destino=dePro?'prod':'mtto';b.style.cssText='margin:0 0 10px;display:inline-block';b.addEventListener('click',()=>{if(b.dataset.destino==='prod'&&typeof window.goProduccionInicio==='function')window.goProduccionInicio();else ir();});}
     main.insertBefore(b,main.firstChild);
   }
   (function vigilar(){

@@ -949,6 +949,7 @@
     if(!puedeVerBitacoraMtto()){alert('No tienes permiso para ver la bitácora de Mantenimiento.');return;}
     if(typeof confirmarAbandonoRotacionPendiente==='function'&&!confirmarAbandonoRotacionPendiente())return;
     const o=opciones||{};
+    window.__bitDesdeProduccion=o.desdeProduccion===true;   // quién la abrió decide a qué inicio vuelve el botón de arriba
     if(carga.usuario!==state.user.username){carga.usuario=state.user.username;carga.clave='';carga.eventos=[];carga.error='';}
     if(o.rango){aplicarRango(o.rango);}
     else if(F.rango!=='personalizado'||!fechaOk(F.desde)||!fechaOk(F.hasta))aplicarRango(F.rango==='personalizado'?'personalizado':(F.rango||'hoy'));
@@ -963,7 +964,7 @@
   window.__paradasHoy={datosTarjeta,htmlTarjeta,dia};              // solo para las pruebas automáticas (tests/pausas-sin-cerrar.e2e.js)
   window.goBitacoraMtto=()=>window.bitacoraMttoAbrir({origen:''});
   // «Bitácora de producción»: la misma pantalla filtrada por origen Producción (se abre desde el grupo Producción del menú).
-  window.goBitacoraProduccion=()=>window.bitacoraMttoAbrir({rango:'hoy',origen:'PRODUCCION'});
+  window.goBitacoraProduccion=()=>window.bitacoraMttoAbrir({rango:'hoy',origen:'PRODUCCION',desdeProduccion:true});
 
   if(typeof ajustarVistaSegunPermisos==='function'){
     const ajustarAnterior=ajustarVistaSegunPermisos;
