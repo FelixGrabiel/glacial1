@@ -1281,7 +1281,10 @@ function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-ex-cab .cp-ex-bloque select{color:#fff!important}.cp-ex-cab .cp-ex-bloque select option{color:#033350;background:#fff}
 .cp-ex-table td,.cp-ex-table th{padding:10px 16px;font-size:13px}.cp-fila-link{cursor:pointer}.cp-fila-link:focus-visible{outline:3px solid rgba(8,120,249,.3);outline-offset:-3px}
 .cp-ex-table td .cp-ex-bar{display:inline-block;width:140px;margin-left:10px;vertical-align:middle}
-.cp-ex-kpis{align-items:stretch}
+.cp-ex-kpis{align-items:start}   /* cada tarjeta mide lo que necesita: antes todas se estiraban a la altura de la más larga y quedaban vacías */
+/* «Líneas sin producción»: el motivo de cada línea es texto normal, no la cifra grande de la tarjeta (el estilo de las cifras le llegaba por herencia) */
+.cp-ex-kpi .cp-np-fila b{display:inline;margin:0;font-size:13px;line-height:1.3}
+.cp-ex-kpi .cp-np-fila{align-items:center}
 /* ---- Distribución de personal: lista compacta (línea a la izquierda, personal a la derecha) ---- */
 .cp-shell .cp-ds{display:flex;flex-direction:column}
 .cp-shell .cp-ds .cp-ds-lista,.cp-shell .cp-ds .cp-ds-tot{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:2px}
