@@ -53,6 +53,10 @@
       ${t('ii-k-gris','Último corte',c?esc(c.fechaCorte):'—',c?('Importó '+c.importadoPor):'Aún no hay cortes')}</div>`;
   }
 
+  const MQ_MOVIL=typeof window!=='undefined'&&window.matchMedia?window.matchMedia('(max-width:700px)'):null;
+  const esMovil=()=>!!(MQ_MOVIL&&MQ_MOVIL.matches);
+  if(MQ_MOVIL){const repintar=()=>{try{if(II.tab==='stock')pintar();}catch(_){/* la pantalla aún no existe */}};
+    if(MQ_MOVIL.addEventListener)MQ_MOVIL.addEventListener('change',repintar);else if(MQ_MOVIL.addListener)MQ_MOVIL.addListener(repintar);}
   const fechaDmy=f=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(f||'');return m?m[3]+'/'+m[2]+'/'+m[1]:(f||'');};
   /* Orden de lectura: primero el artículo, luego el resultado (total SAP, mínimo, semáforo) y al final el detalle del stock SAP por almacén. */
   function tablaStock(filas){
@@ -73,9 +77,16 @@
       <td class="ii-num ii-b-res"><b>${x.enCorte?fmt(x.total):'—'}</b></td><td class="ii-num">${num(x.stockMinimo)>0?fmt(x.stockMinimo):'—'}</td>
       <td>${x.enCorte?semaforoHtml(x.semaforo):'<span class="ii-pill ii-p-gris"><i></i>Sin corte</span>'}${x.sinUso?' <span class="ii-pill ii-p-sinuso" title="Marcado como sin uso: sigue en el inventario pero va al final de la lista">Sin uso</span>':''}</td><td class="ii-num ii-b-hoy">${hoy(x)}</td>
       ${x.w.map((v,k)=>`<td class="ii-num ${k===0?'ii-b-sap':''} ${alm[k].clave===II.f.almacen?'ii-col-act':''}">${x.enCorte?fmt(v):'—'}</td>`).join('')}</tr>`).join('');
+    /* Celular: la misma lista como tarjetas (la tabla de 14 columnas no se lee en pantallas angostas); se dibuja solo una de las dos. */
+    const tarjetasMovil=esMovil()?mostrar.map(x=>`<article class="ii-tj ${x.enCorte?'':'ii-sin-corte'} ${x.sinUso?'ii-sin-uso':''}">
+      <header><div><b class="ii-tj-nom">${esc(x.nombre)}${x.activo===false?' <em>(inactivo)</em>':''}</b><span class="ii-tj-sub">${celdaCodigo(x)} · ${esc(x.categoria)}${x.marca?' · '+esc(x.marca):''}</span></div>
+        <div>${x.enCorte?semaforoHtml(x.semaforo):'<span class="ii-pill ii-p-gris"><i></i>Sin corte</span>'}${x.sinUso?' <span class="ii-pill ii-p-sinuso">Sin uso</span>':''}</div></header>
+      <dl><div><dt>Total SAP</dt><dd><b>${x.enCorte?fmt(x.total):'—'}</b></dd></div><div><dt>Mínimo</dt><dd>${num(x.stockMinimo)>0?fmt(x.stockMinimo):'—'}</dd></div><div><dt>Almacén hoy</dt><dd>${hoy(x)}</dd></div></dl>
+      <details><summary>Stock por almacén</summary><ul>${x.w.map((v,k)=>`<li class="${alm[k].clave===II.f.almacen?'ii-col-act':''}"><span>${esc(alm[k].corto)}</span><b>${x.enCorte?fmt(v):'—'}</b></li>`).join('')}</ul></details></article>`).join('')||'<p class="ii-vacio">Ningún artículo coincide con los filtros.</p>':'';
     const mas=filas.length>mostrar.length?`<div class="ii-mas"><button type="button" class="ii-btn ii-btn-o" onclick="iiMasFilas()">Mostrar ${Math.min(PASO_FILAS,filas.length-mostrar.length)} más (${fmt(filas.length-mostrar.length,0)} restantes)</button></div>`:'';
     const nSin=filas.filter(x=>x.sinUso).length;
-    return `<div class="ii-tw"><table class="ii-t">${cab}<tbody>${cuerpo||`<tr><td colspan="${alm.length+8}" class="ii-vacio">Ningún artículo coincide con los filtros.</td></tr>`}</tbody></table></div>${mas}
+    const tabla=esMovil()?`<div class="ii-tj-lista">${tarjetasMovil}</div>`:`<div class="ii-tw ii-tw-tabla"><table class="ii-t">${cab}<tbody>${cuerpo||`<tr><td colspan="${alm.length+8}" class="ii-vacio">Ningún artículo coincide con los filtros.</td></tr>`}</tbody></table></div>`;
+    return `${tabla}${mas}
       <p class="ii-pie">${fmt(filas.length,0)} artículo(s)${nSin?` · ${fmt(nSin,0)} sin uso${II.f.sinUsoAlFinal?' (al final de la lista)':''}`:''}. El semáforo usa ${II.f.almacen?esc(N.almacenInfo(II.f.almacen).nombre):'el total de los 6 almacenes AP'}.</p>`;
   }
   const num=N.num;
@@ -539,6 +550,11 @@
 .ii-acc-l{display:flex;gap:8px;flex-wrap:wrap}.ii-pasos{margin:0 0 10px;padding-left:20px;font-size:13px;line-height:1.5;color:#334a66}.ii-area{width:100%;box-sizing:border-box;font:13px/1.4 ui-monospace,Consolas,monospace;border:1px solid #c9d6e2;border-radius:8px;padding:8px 10px;margin-bottom:8px;resize:vertical}
 .ii-lista-err{margin:6px 0 0;padding-left:18px}.ii-min-prev{margin:8px 0}
 .ii-modal-ancho{max-height:92vh;overflow:auto}.ii-min-prev td:first-child{white-space:nowrap}
+.ii-tj{background:#fff;border:1px solid var(--ii-linea);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(3,51,80,.05)}
+.ii-tj header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}.ii-tj header>div{min-width:0}.ii-tj header>div:last-child{text-align:right}.ii-tj .ii-pill{margin:0}.ii-tj-nom{display:block;font-size:15px;overflow-wrap:anywhere}.ii-tj-sub{display:block;color:#5b6b79;margin-top:2px;overflow-wrap:anywhere}.ii-tj-sub small{margin-left:4px}
+.ii-tj dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 6px}.ii-tj dt{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:#5b6b79}.ii-tj dd{margin:2px 0 0;font-size:15px}
+.ii-tj details{border-top:1px solid #edf2f7;padding-top:6px}.ii-tj summary{cursor:pointer;color:#0b6e99;font-weight:600;font-size:13.5px;padding:6px 0}.ii-tj ul{list-style:none;margin:4px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px}
+.ii-tj li{display:flex;justify-content:space-between;gap:6px;font-size:13.5px}.ii-tj .ii-col-act{background:#e8f6fd;border-radius:6px;padding:0 4px}
 @media(max-width:700px){.ii-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-filtros>.ii-campo:first-child{grid-column:1/-1}.ii-chips .ii-chk{flex:1 1 auto}.ii-t thead tr:nth-child(2) th{top:32px}.ii-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-cab h1{font-size:24px}.ii-form{grid-template-columns:1fr}.ii-nom{min-width:180px}}
 </style>`;}
 

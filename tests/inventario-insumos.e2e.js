@@ -119,6 +119,18 @@ const servidor=http.createServer((q,r)=>{
   const filasIniciales=await page.locator('#ii-tabla tbody tr').count();
   ok(filasIniciales>0&&filasIniciales<=150,'la tabla se dibuja (de a 150 filas): '+filasIniciales);
   ok(await page.locator('#ii-tabla th').count()>=14,'una columna por almacén AP, total, mínimo, semáforo y corte');
+  /* Celular: la tabla de 14 columnas se reemplaza por tarjetas; no hay desborde horizontal de la página. */
+  await page.setViewportSize({width:390,height:800});
+  await page.evaluate(()=>{state.currentTab='inventario-insumos';goInventarioInsumos();});
+  await page.waitForSelector('.ii-tj');
+  const movil=await page.evaluate(()=>({tj:document.querySelectorAll('.ii-tj').length,tabla:document.querySelectorAll('.ii-t').length,
+    desborde:document.documentElement.scrollWidth-document.documentElement.clientWidth}));
+  ok(movil.tj>0&&movil.tabla===0,'celular: se ven tarjetas y se oculta la tabla ('+movil.tj+' tarjetas)');
+  ok(movil.desborde<=1,'celular: la página no se desborda de lado ('+movil.desborde+' px)');
+  if(process.env.CAPTURA_MOVIL){await page.locator('.ii-tj-lista').first().scrollIntoViewIfNeeded();await page.screenshot({path:process.env.CAPTURA_MOVIL});}
+  await page.setViewportSize({width:1280,height:900});
+  await page.waitForTimeout(100);
+  ok(await page.evaluate(()=>document.querySelectorAll('.ii-tj').length===0&&document.querySelectorAll('.ii-t').length>0),'escritorio: vuelve la tabla y no quedan tarjetas');
   const cabecera=await page.locator('#ii-tabla thead').innerText();
   ok(cabecera.indexOf('Insumos y Suministros')<cabecera.indexOf('Producción'),'Insumos y Suministros va primero entre los almacenes');
   await page.selectOption('select >> nth=0','');            // (categoría) sin cambio
