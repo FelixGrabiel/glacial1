@@ -33,4 +33,9 @@ ok(/if \(!persona\.salidaOriginal && anterior\) persona\.salidaOriginal = anteri
 const pr=M({horaSalida:'',salidaRefrigerio:'12:00',retornoRefrigerio:'13:00',refrigerio:1});
 pr.horaSalida='19:00';sb.__p=pr;sb.__t={jornadaNormal:8,horaProgramadaIngreso:'07:00',turno:'Día'};ev('recalcularPersonaTareo(__p,__t)');
 ok(pr.horasTrabajadas===11&&pr.horasExtras===3,'con la salida registrada se calculan las horas (07:00–19:00 con 1 h: 11 h, 3 extras)');
+/* la tabla espejo tiene tantas celdas por fila como encabezados (antes faltaba una y todo se corría una columna) */
+{const i=s28.indexOf('<thead>'),j=s28.indexOf('</thead>');const ths=(s28.slice(i,j).match(/<th>/g)||[]).length;
+ const k=s28.indexOf("lista.map(p => `"),l=s28.indexOf('</tr>',k);const tds=(s28.slice(k,l).match(/<td[ >]/g)||[]).length;
+ ok(ths===tds&&ths>0,'la tabla de maquinistas: '+ths+' encabezados y '+tds+' celdas por fila (alineadas)');}
+
 console.log(fallas?'\n'+fallas+' fallas':'\nSalida de maquinistas correcta');process.exit(fallas?1:0);
