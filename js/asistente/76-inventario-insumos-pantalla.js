@@ -88,9 +88,10 @@
       <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opciones(marcasPresentes(),f.marca,'Todas')}</select></label>
       <label class="ii-campo"><span>Almacén (para el semáforo)</span><select onchange="iiFiltro('almacen',this.value)"><option value="" ${f.almacen===''?'selected':''}>Total (6 almacenes AP)</option>
         ${N.ALMACENES.map(a=>`<option value="${a.clave}" ${a.clave===f.almacen?'selected':''}>${esc(a.nombre)}</option>`).join('')}</select></label>
+      <div class="ii-chips" role="group" aria-label="Opciones de la lista">
       <label class="ii-chk"><input type="checkbox" ${f.prioritarios?'checked':''} onchange="iiFiltro('prioritarios',this.checked)"> Solo prioritarios</label>
       <label class="ii-chk"><input type="checkbox" ${f.soloBajoMinimo?'checked':''} onchange="iiFiltro('soloBajoMinimo',this.checked)"> Solo bajo mínimo</label>
-      <label class="ii-chk"><input type="checkbox" ${f.sinUsoAlFinal?'checked':''} onchange="iiFiltro('sinUsoAlFinal',this.checked)"> Sin uso al final</label></div>`;
+      <label class="ii-chk"><input type="checkbox" ${f.sinUsoAlFinal?'checked':''} onchange="iiFiltro('sinUsoAlFinal',this.checked)"> Sin uso al final</label></div></div>`;
   }
 
   function selectorCorte(){
@@ -132,8 +133,9 @@
       <label class="ii-campo"><span>Buscar</span><input type="search" id="ii-texto" value="${esc(f.texto)}" placeholder="Nombre o código (INS-0001 / SAP)" oninput="iiTexto(this.value)" autocomplete="off"></label>
       <label class="ii-campo"><span>Categoría</span><select onchange="iiFiltro('categoria',this.value)">${opciones(categoriasPresentes(),f.categoria,'Todas')}</select></label>
       <label class="ii-campo"><span>Marca</span><select onchange="iiFiltro('marca',this.value)">${opciones(marcasPresentes(),f.marca,'Todas')}</select></label>
+      <div class="ii-chips" role="group" aria-label="Opciones de la lista">
       <label class="ii-chk"><input type="checkbox" ${f.prioritarios?'checked':''} onchange="iiFiltro('prioritarios',this.checked)"> Solo prioritarios</label>
-      <label class="ii-chk"><input type="checkbox" ${f.inactivos?'checked':''} onchange="iiFiltro('inactivos',this.checked)"> Incluir inactivos</label></div>
+      <label class="ii-chk"><input type="checkbox" ${f.inactivos?'checked':''} onchange="iiFiltro('inactivos',this.checked)"> Incluir inactivos</label></div></div>
       <div id="ii-tabla">${tablaCatalogo()}</div></div>`;
   }
 
@@ -439,6 +441,34 @@
 .ii-barra{height:12px;border-radius:99px;background:#e6edf3;overflow:hidden;margin:10px 0 6px}.ii-barra i{display:block;height:100%;background:#0877A6;border-radius:99px;transition:width .2s}
 .ii-resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0}.ii-resumen div{background:#f4f8fc;border-radius:10px;padding:10px 12px}
 .ii-resumen b{display:block;font-size:22px}.ii-resumen span{font-size:12px;color:var(--ii-mut)}
+/* ===== ORDEN VISUAL DEL MÓDULO (mismas medidas que el resto de la página) ===== */
+.ii-tab{font-size:14px;transition:color .15s,background .15s}.ii-tab:hover{color:#033350;background:#f4f9fc}
+.ii-tab-act,.ii-tab-act:hover{color:#0877A6;border-bottom-color:#0DB5F3}
+.ii-card,.ii-kpi,.ii-tw,.ii-tabs,.ii-cc,.ii-art{box-shadow:0 1px 2px rgba(3,51,80,.05)}
+.ii-card,.ii-tabs{border-radius:14px}.ii-kpi,.ii-cc,.ii-art,.ii-tw{border-radius:12px}
+.ii-kpi{padding:12px 16px;display:flex;flex-direction:column;gap:2px}
+.ii-kpi>span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5f7382}
+.ii-kpi b{font-variant-numeric:tabular-nums}.ii-kpi small{line-height:1.35}
+.ii-kpis.ii-kpis5{grid-template-columns:repeat(5,minmax(0,1fr))}.ii-kpis5 .ii-k-gris b{font-size:28px}
+.ii-msg{font-size:13px;padding:8px 12px;line-height:1.45}.ii-nota-sap{margin-bottom:10px}
+.ii-fila-t h3,.ii-h{font-size:17px;font-weight:700}
+/* filtros: buscador ancho y listas en una fila; las opciones como botones de marcar en otra */
+.ii-filtros{grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr));gap:10px 12px;align-items:end}
+.ii-campo>span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5f7382}
+.ii-chips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
+.ii-chips .ii-chk{min-height:34px;padding:0 14px;border:1px solid #c9d6e2;border-radius:999px;background:#fff;cursor:pointer;font-size:13px;transition:background .15s,border-color .15s}
+.ii-chips .ii-chk:hover{border-color:#0877A6}
+.ii-chips .ii-chk:has(input:checked){background:#E8F7FE;border-color:#0877A6;color:#065F86;font-weight:600}
+.ii-fila-sm{align-items:flex-end;padding-top:6px;border-top:1px solid #edf2f7}.ii-corte{max-width:560px;flex:1 1 360px}
+/* tablas: encabezado fijo, primera columna fija, filas alternas y más compactas */
+.ii-tw{max-height:72vh;overflow:auto}
+.ii-t{font-size:13.5px}.ii-t th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;padding:9px 12px}.ii-t td{padding:7px 12px}
+.ii-t thead th{position:sticky;top:0;z-index:2}.ii-t thead tr.ii-g th{top:0}.ii-t thead tr:nth-child(2) th{top:34px;box-shadow:inset 0 -1px 0 #dbe5ee}
+.ii-t tbody tr:nth-child(even) td{background-color:#fafcfe}.ii-t tbody tr:hover td{background-color:#f1f8fd}
+.ii-t td.ii-cod,.ii-t tbody td:first-child{position:sticky;left:0;z-index:1;background-color:inherit}
+.ii-t tbody tr td.ii-cod{background:#fff}.ii-t tbody tr:nth-child(even) td.ii-cod{background:#fafcfe}
+.ii-t thead th:first-child{left:0;z-index:3}
+.ii-pie{font-size:12.5px}
 @media(max-width:700px){.ii-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-cab h1{font-size:24px}.ii-form{grid-template-columns:1fr}.ii-nom{min-width:180px}}
 </style>`;}
 

@@ -575,7 +575,7 @@
     orden_interna:'Orden interna',orden_compra:'Orden de compra',fecha_produccion:'Fecha de producción',fecha_proceso:'Fecha de proceso',fecha_etiqueta:'Fecha de la etiqueta',fecha_vencimiento:'Fecha de vencimiento',
     cantidad_valor:'Cantidad',cantidad_unidad:'Unidad',peso_neto_kg:'Peso neto (kg)',peso_bruto_kg:'Peso bruto (kg)',peso_declarado_kg:'Peso declarado (kg)',medidas:'Medidas',categoria:'Categoría',tipoDocumento:'Tipo de documento',sinUso:'Sin uso',stockMinimo:'Stock mínimo',puntoReorden:'Punto de reorden',unidad:'Unidad',prioritario:'Prioritario',activo:'Activo',ubicacion:'Ubicación',cantidad:'Cantidad',
     loteId:'Lote GLACIAL',unidadId:'Unidad',loteProveedor:'Lote del proveedor',linea:'Línea',pesoNeto:'Peso neto (kg)',itemNombre:'Artículo del catálogo',texto:'Comentario',estado:'Estado',motivo:'Motivo',observacion:'Observación',fecha:'Fecha',almacen:'Almacén',fechaCorte:'Fecha del corte',formato:'Formato',articulos:'Artículos',
-    nuevos:'Nuevos',actualizados:'Actualizados',adoptados:'Adoptados',excluidos:'Excluidos',almacenes:'Almacenes',lineas:'Líneas',asignados:'Códigos asignados',desde:'Desde',hasta:'Hasta',por:'Registró',conteo:'Conteo'};
+    nuevos:'Nuevos',actualizados:'Actualizados',adoptados:'Adoptados',excluidos:'Excluidos',almacenes:'Almacenes',lineas:'Líneas',asignados:'Códigos asignados',codigosAsignados:'Códigos asignados',desde:'Desde',hasta:'Hasta',por:'Registró',conteo:'Conteo'};
   const grupoAuditoria=t=>(TIPOS_AUDITORIA[t]||{}).grupo||'';
   function valorAuditoria(v){
     if(v===null||v===undefined||v==='')return '—';
