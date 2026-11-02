@@ -469,7 +469,7 @@
 .ii-t tbody tr td.ii-cod{background:#fff}.ii-t tbody tr:nth-child(even) td.ii-cod{background:#fafcfe}
 .ii-t thead th:first-child{left:0;z-index:3}
 .ii-pie{font-size:12.5px}
-@media(max-width:700px){.ii-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-cab h1{font-size:24px}.ii-form{grid-template-columns:1fr}.ii-nom{min-width:180px}}
+@media(max-width:700px){.ii-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-filtros>.ii-campo:first-child{grid-column:1/-1}.ii-chips .ii-chk{flex:1 1 auto}.ii-t thead tr:nth-child(2) th{top:32px}.ii-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-cab h1{font-size:24px}.ii-form{grid-template-columns:1fr}.ii-nom{min-width:180px}}
 </style>`;}
 
   window.__inventarioInsumosPantalla={II,filasFiltradas,pintar,estilos};      // estilos(): el Asistente de Producción los reutiliza en su pestaña «Evidencias»
