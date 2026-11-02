@@ -18,4 +18,10 @@ ok(l[1]==='INS-0001;I1;"BOLSA ""A""";"Insumos";"X";10.5;5;8;OK;10.5;0'.replace('
 ok(/Sin corte;;$/.test(l[2]),'artículo sin corte sale con celdas vacías, no con ceros');
 const idx=fs.readFileSync(__dirname+'/../index.html','utf8');
 ok(!/id="btn-almacen"/.test(idx),'el botón «Almacén · Próximamente» ya no está en el menú');
+global.window=global.window||{};
+require('../js/asistente/84-evidencias-insumos-nucleo.js');
+const EN=(global.window&&global.window.glacialEvidenciasNucleo)||{};
+const ahora=Date.UTC(2026,10,2),dia=86400000;
+const pa=EN.pendientesAntiguas?EN.pendientesAntiguas([{estado:'pendiente',creadoEn:ahora-9*dia},{estado:'requiere_correccion',creadoEn:ahora-20*dia},{estado:'pendiente',creadoEn:ahora-2*dia},{estado:'aprobado_dato',creadoEn:ahora-30*dia}],ahora,7):null;
+ok(pa&&pa.cantidad===2&&pa.masAntigua===20,'evidencias pendientes o por corregir con más de 7 días: cuenta 2, la más antigua 20 días (las aprobadas y recientes no)');
 process.exit(fallas?1:0);

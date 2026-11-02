@@ -44,7 +44,9 @@
   function filtros(){
     const n=N.contarPorEstado(E.cache.lista);
     const chip=(valor,txt,cant)=>`<button type="button" class="ie-chip ${S.estado===valor?'ie-chip-act':''}" onclick="ieFiltro('${valor}')">${esc(txt)}${cant!==undefined?` <b>${cant}</b>`:''}</button>`;
-    return `<div class="ie-chips">${chip('pendiente','Pendientes',n.pendiente)}${chip('requiere_correccion','Con corrección',n.requiere_correccion)}${chip('aprobado_dato','Aprobadas',n.aprobado_dato)}${chip('rechazado','Rechazadas',n.rechazado)}${chip('','Todas',n.total)}</div>
+    const ant=N.pendientesAntiguas(E.cache.lista,Date.now(),7);
+    const aviso=ant.cantidad?`<div class="ii-msg ii-msg-aviso" role="note"><b>${ant.cantidad} evidencia${ant.cantidad===1?'':'s'} llevan más de 7 días sin revisar</b> (la más antigua, ${ant.masAntigua} días). Apruébalas o recházalas para que los lotes y el stock no queden sin respaldo.</div>`:'';
+    return `${aviso}<div class="ie-chips">${chip('pendiente','Pendientes',n.pendiente)}${chip('requiere_correccion','Con corrección',n.requiere_correccion)}${chip('aprobado_dato','Aprobadas',n.aprobado_dato)}${chip('rechazado','Rechazadas',n.rechazado)}${chip('','Todas',n.total)}</div>
       <label class="ii-campo"><span>Buscar</span><input type="search" id="ie-texto" value="${esc(S.texto)}" placeholder="Producto, proveedor, lote o archivo" oninput="ieTexto(this.value)" autocomplete="off"></label>`;
   }
 

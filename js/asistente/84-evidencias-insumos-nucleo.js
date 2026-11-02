@@ -254,6 +254,12 @@
     return lista.filter(d=>(!estado||d.estado===estado)&&(!q||[d.archivoOriginal,d.campos&&d.campos.producto&&d.campos.producto.valor,d.campos&&d.campos.proveedor&&d.campos.proveedor.valor,
       d.campos&&d.campos.lote&&d.campos.lote.valor,d.categoria].some(v=>norm(v).includes(q))));
   }
+  /* Evidencias que siguen «pendiente» o «requiere corrección» desde hace más de N días: {cantidad, masAntigua (días)}. */
+  function pendientesAntiguas(lista,ahoraMs,dias){
+    const lim=(Number(dias)||7)*86400000;let cantidad=0,max=0;
+    (lista||[]).forEach(d=>{if(!d||(d.estado!=='pendiente'&&d.estado!=='requiere_correccion'))return;const t=Number(d.creadoEn);if(!(t>0))return;const edad=ahoraMs-t;if(edad>lim){cantidad++;if(edad>max)max=edad;}});
+    return {cantidad,masAntigua:Math.floor(max/86400000)};
+  }
   const ordenar=lista=>lista.slice().sort((a,b)=>(ORDEN_ESTADO[a.estado]-ORDEN_ESTADO[b.estado])||(Number(b.creadoEn)||0)-(Number(a.creadoEn)||0));
 
   /* Escoge, por huella, el mejor resultado cuando se seleccionan varios JSON de la misma foto (revisado v3 > v2, y el más reciente). */
@@ -269,7 +275,7 @@
   }
 
   const API={ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
-    etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,elegirPorFoto,fechaPantalla,esFechaIso,campoDe};
+    etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe};
   global.glacialEvidenciasNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);
