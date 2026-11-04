@@ -38,7 +38,7 @@
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();cache.lista=[];cache.listo=false;});
 
   const refDe=id=>col(COL).doc(id);
-  const nombreAuditoria=d=>(d&&d.campos&&d.campos.producto&&d.campos.producto.valor)||(d&&d.archivoOriginal)||'';
+  const nombreAuditoria=d=>N.tituloEvidencia(d);
 
   /* ---------- importar (resultado revisado + foto) ---------- */
   /** registro: contenido de un -revisado.json; archivoFoto: File/Blob con la fotografía. Idempotente por huella SHA-256. */
