@@ -95,7 +95,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 24a-estados-visuales.js | Mapa único de estados visuales de Producción: de aquí sale el color de cada estado (`docs/produccion/estados-visuales-semaforo.md`) |
 | 24b-pausas-sin-cerrar.js | Qué cuenta como «parada abierta» (umbrales por tipo, sin «cambio temporal», solo < 24 h), «Pausas sin cerrar (revisar)» y «Cerrar pausa» (Supervisor/Jefe de Operaciones/Administrador); cierres automáticos. Doc: docs/produccion/pausas-sin-cerrar.md |
 | 25-alertas-lineas.js | Centro de alertas de líneas (detenciones + pestaña Avisos con contador) |
-| 29-avance-produccion.js | Avance y cierre de turno |
+| 29-avance-produccion.js | Avance y cierre de turno. `window.glacialAvancePreparar()` (para el bot de WhatsApp): lee de nuevo `sync/avancesTurno`, carga las paradas del supervisor y lanza error si no puede leer; prueba: tests/avance-preparar-paradas.test.js |
 | 29a-avances-items.js | Avances y cierres: un documento por snapshot (colección `avancesTurnoItems`) (`docs/produccion/avances-un-documento-por-snapshot.md`) |
 | 29b-correccion-paradas.js | Corregir y reasignar paradas (quitar de una marca, cambiar de marca o de línea) con motivo y constancia |
 | 35-autollenado-registro.js | Autollenado del registro desde paletas/paradas |
