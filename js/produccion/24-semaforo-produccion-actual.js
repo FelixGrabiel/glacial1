@@ -291,10 +291,23 @@
   }
 
   function aplicarEstadoVisualSecuencia(items,linea,fecha,turnoPlan,turnoVista,ahora){
+    // Una línea produce UN producto a la vez: el que tiene estado guardado EN PRODUCCIÓN (lo inició el supervisor o se le registraron paletas).
+    // Los demás no pueden quedar «en curso» solo por tener unidades de antes (estadoOrdenItem usa esta marca).
+    const enProduccion=items.filter(x=>x.op?.estado==='EN_PRODUCCION');
+    items.forEach(x=>{ x.otroEnProduccion=enProduccion.some(o=>o!==x); });
+
     const sec=estadoSecuenciaLinea(linea,fecha,turnoPlan,turnoVista,ahora);
     if(!sec || !sec.tramos.length)return null;
 
     const claveCombo=t=>llave(t.linea,t.fecha,t.turno,t.marca,t.presentacion);
+    // Si la línea ya pasó a un tramo POSTERIOR (está en producción), los anteriores terminaron aunque por hora o cantidad todavía no les tocaba
+    // (p. ej. BELLS → SCALA «hasta las 03:00» → ARO: si ARO arrancó a la 01:30, SCALA terminó ahí). La secuencia avanza a ese tramo.
+    if(sec.indiceActivo>=0 && enProduccion.length){
+      const claves=new Set(enProduccion.map(x=>llave(x.linea,x.fecha,x.turnoPlan || x.turno,x.marca,x.presentacion)));
+      for(let i=sec.indiceActivo+1;i<sec.tramos.length;i++){
+        if(claves.has(claveCombo(sec.tramos[i]))){sec.indiceActivo=i;sec.activo=sec.tramos[i];break;}
+      }
+    }
     const activoKey=sec.activo ? claveCombo(sec.activo) : '';
     // Una marca sin evidencia de inicio (ni estado operativo, ni hora de inicio) nunca arrancó. Producido = 0 NO decide: una marca iniciada puede no tener unidades.
     const sinIniciar=x=>(!x.op?.estado || x.op.estado==='PENDIENTE') && !num(x.op?.inicio);
@@ -359,7 +372,10 @@
   function estadoOrdenItem(x){
     const producido=Math.round(producidoDe(x));
     const programado=Math.round(progDe(x));
-    const operativo=x.op?.estado || x.estadoVisual || 'PENDIENTE';
+    // Un estado guardado «PENDIENTE» no dice nada nuevo (también lo deja 16-paletas.js en el producto anterior al registrar paletas del siguiente):
+    // en ese caso manda la secuencia (estadoVisual), igual que sin estado guardado.
+    const opEstado=x.op?.estado;
+    const operativo=(opEstado && opEstado!=='PENDIENTE') ? opEstado : (x.estadoVisual || 'PENDIENTE');
     if(operativo==='CANCELADA')return {key:'CANCELADA',label:'CANCELADA',rank:4,cls:'cancelada'};
     // Al llegar al objetivo, la marca está completada aunque el último
     // estado operativo guardado siga diciendo EN_PRODUCCION.
@@ -387,8 +403,11 @@
     // solo corrige el estado visual usando producción real.
     // FINALIZADA/CANCELADA/PAUSA/DETENIDA ya fueron resueltas arriba y conservan
     // prioridad, por lo que una marca cerrada nunca vuelve a abrirse por paletas.
-    if(producido>0 && (programado<=0 || producido<programado))
+    if(producido>0 && (programado<=0 || producido<programado)){
+      // Otro producto de la línea está EN PRODUCCIÓN: este ya no corre (la línea cambió); queda en pausa, como cuando el supervisor inicia otro.
+      if(x.otroEnProduccion)return {key:'PAUSA',label:'EN PAUSA',rank:1,cls:'pausa',porCambio:true};
       return {key:'EN_CURSO',label:'EN CURSO',rank:0,cls:'curso'};
+    }
 
     return {key:'PENDIENTE',label:'PENDIENTE',rank:2,cls:'pendiente'};
   }
