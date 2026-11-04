@@ -45,7 +45,7 @@ ok(/preformas:'preforma',tapas:'tapa',etiquetas:'etiqueta',asas:'asa'/.test(cp)&
 /* ---------- conexión ---------- */
 const html=leer('index.html'),s06=leer('js/produccion/06-registro.js'),s88=leer('js/asistente/88-trazabilidad-lotes-datos.js'),s89=leer('js/asistente/89-trazabilidad-lotes-pantalla.js'),mig=leer('supabase/migraciones/glacial_38_lotes_lectura_supervisores.sql'),s92=leer('js/asistente/92-lotes-en-cuadro.js');
 ok(/lotesCuadroHtml\(i\)/.test(s06),'cada cuadro del formulario muestra «Lotes de insumo usados»');
-ok(html.indexOf('92-lotes-en-cuadro.js')>html.indexOf('91-control-proceso-excel.js')&&/92-lotes-en-cuadro\.js\?v=20261031-lc2/.test(html),'index.html carga el módulo');
+ok(html.indexOf('92-lotes-en-cuadro.js')>html.indexOf('91-control-proceso-excel.js')&&(m=>!!m&&m[1]>='20261031')(/92-lotes-en-cuadro\.js\?v=(\d{8})-[a-z]+\d+/.exec(html)),'index.html carga el módulo');
 ok(/async function entregarALinea/.test(s88)&&/db\.runTransaction/.test(s88)&&/ENTREGAR_LINEA/.test(s88)&&/entregarALinea,/.test(s88),'la entrega a línea es una transacción con movimiento y auditoría');
 ok(/ilAbrirEntrega/.test(s89)&&/Entregar a línea/.test(s89)&&/accionUnidad/.test(s89),'la ficha del lote tiene «Entregar a línea» (solo quien crea lotes y solo unidades en almacén)');
 ok(/APLICADA en PRUEBAS y PRODUCCIÓN/.test(mig)&&/opera/.test(mig)&&!/insumosLoteMovimientos'\) then return coalesce\(\(k->>'ii_ver'\)::boolean, false\) or/.test(mig),'glacial_38: los supervisores solo LEEN lotes y unidades; movimientos, índice y parámetros siguen cerrados; avisa que falta producción');

@@ -79,7 +79,8 @@
     const acc=typeof window.loteUsoMarcar==='function';
     const us=cache.unidades.filter(u=>u.loteId===loteId&&u.linea===draft.linea&&ESTADOS_EN_LINEA.includes(u.estado)).sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'es',{numeric:true}));
     if(!us.length)return '';
-    return '<div class="lc-uni">'+us.map(u=>'<div class="lc-u"><span><b>Unidad '+esc(u.numero)+'</b> · '+esc(ETQ_ESTADO[u.estado]||u.estado)+' · '+esc(kg(u.pesoActual))+'</span>'+
+    const lote=cache.lotes.find(l=>l.id===loteId),T=raiz.glacialTrazabilidadNucleo,uf=T&&T.unidadFisica?T.unidadFisica(lote&&lote.categoria):{titulo:'Unidad'};
+    return '<div class="lc-uni">'+us.map(u=>'<div class="lc-u"><span><b>'+esc(uf.titulo)+' '+esc(u.numero)+'</b> · '+esc(ETQ_ESTADO[u.estado]||u.estado)+' · '+esc(kg(u.pesoActual))+'</span>'+
       (acc&&!cerrado?(u.estado==='ENTREGADA_LINEA'?'<button type="button" class="btn btn-ghost btn-sm" onclick="loteUsoMarcar('+i+',\''+esc(u.id)+'\')">Marcar en uso</button>':'<button type="button" class="btn btn-ghost btn-sm" onclick="loteUsoCerrar('+i+',\''+esc(u.id)+'\')">Registrar peso final</button>'):'')+'</div>').join('')+'</div>';
   }
 

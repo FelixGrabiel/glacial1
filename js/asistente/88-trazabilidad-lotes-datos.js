@@ -103,7 +103,8 @@
         correlativo=sContador.exists?Number(sContador.data().siguiente)||1:1;
       }
       const sMem=await tx.get(ref(C.parametros,'memoriaArticulos'));
-      const plan=T.planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda:T.interpretarLeyenda(doc.leyenda,leyendaParam),usuario:u.nombre,uid:u.uid,en:t,parametros:leyendaParam});
+      const ff=N.fechaFoto(doc);
+      const plan=T.planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda:T.interpretarLeyenda(doc.leyenda,leyendaParam),usuario:u.nombre,uid:u.uid,en:t,parametros:leyendaParam,fotoEn:ff.ms,fotoEnOrigen:ff.origen});
       const marcada=T.evidenciaConLote(doc,{loteId:plan.lote.id,unidadId:plan.unidad.id,usuario:u.nombre,en:t});
       tx.set(ref(C.lotes,plan.lote.id),plan.lote);
       tx.set(ref(C.unidades,plan.unidad.id),plan.unidad);
@@ -121,7 +122,7 @@
       const nombre=(datos.producto||'')+' · '+datos.loteProveedor;
       if(evento)auditar(tx,'CAMBIAR_ESTADO_EVIDENCIA',id,nombre,evento.antes,evento.despues,{evidenciaId:id,loteId:plan.lote.id});
       auditar(tx,plan.nuevo?'CREAR_LOTE':'AGREGAR_UNIDAD_LOTE',plan.lote.id,nombre,null,
-        {loteId:plan.lote.id,unidadId:plan.unidad.id,loteProveedor:datos.loteProveedor,estado:plan.unidad.estado,linea:plan.unidad.linea||'',pesoNeto:plan.unidad.pesoNeto,itemNombre:articulo?articulo.nombre:''},
+        {loteId:plan.lote.id,unidadId:plan.unidad.id,loteProveedor:datos.loteProveedor,fotoEn:plan.unidad.recibidaEn,estado:plan.unidad.estado,linea:plan.unidad.linea||'',pesoNeto:plan.unidad.pesoNeto,itemNombre:articulo?articulo.nombre:''},
         {evidenciaId:id,loteId:plan.lote.id,unidadId:plan.unidad.id});
       salida={loteId:plan.lote.id,unidadId:plan.unidad.id,accion:plan.accion,avisos:plan.avisos,estado:plan.unidad.estado,linea:plan.unidad.linea};
     });
@@ -176,6 +177,38 @@
     return {diasAvisoVencimiento:dias,leyendaObligatoria:!!leyendaObligatoria};
   }
 
-  window.glacialTrazabilidadDatos={C,cache,entregarALinea,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
+  /** Busca en TODO el catálogo del Inventario (cuando el artículo correcto no está entre los sugeridos). */
+  const buscarArticulos=(consulta,max)=>T.buscarArticulos(catalogo(),consulta,max);
+  /**
+   * Asigna o cambia el artículo del catálogo de un lote ya creado (p. ej. se creó con «Ninguno / elegir después»). Los datos de la etiqueta, las unidades y los
+   * movimientos no cambian. Revisión del lote, memoria del proveedor+producto y auditoría (antes → después) en una transacción. articuloId '' = quitar el artículo.
+   */
+  async function asignarArticulo(loteId,revEsperada,articuloId){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para cambiar el artículo de un lote.');
+    const articulo=articuloId?articuloDe(articuloId):null;
+    if(articuloId&&!articulo)throw falla('VALIDACION','El artículo elegido ya no está en el catálogo del Inventario.');
+    const u=usuario(),t=ahora();
+    await db.runTransaction(async tx=>{
+      const r=ref(C.lotes,loteId),sL=await tx.get(r);
+      if(!sL.exists)throw falla('VALIDACION','El lote ya no existe.');
+      const sMem=articulo?await tx.get(ref(C.parametros,'memoriaArticulos')):null;
+      const l=sL.data();
+      if(Number(l.rev)!==Number(revEsperada))throw falla('CONCURRENCIA','Otra persona cambió este lote mientras lo revisabas. Se actualizó la pantalla: vuelve a intentar.');
+      const antes={itemId:l.itemId||'',itemCode:l.itemCode||'',itemNombre:l.itemNombre||''};
+      const despues={itemId:articulo?articulo.id:'',itemCode:articulo?articulo.itemCode:'',itemNombre:articulo?articulo.nombre:''};
+      if(antes.itemId===despues.itemId)return;
+      const n=Object.assign({},l,despues,{rev:(Number(l.rev)||1)+1,actualizadoPor:u.nombre,actualizadoEn:t,
+        historial:(l.historial||[]).concat([{accion:'articulo_cambiado',por:u.nombre,en:t,motivo:(antes.itemNombre||'sin artículo')+' → '+(despues.itemNombre||'sin artículo')}]).slice(-200)});
+      tx.set(r,n);
+      if(articulo){
+        const mapa=Object.assign({},sMem.exists&&sMem.data().mapa?sMem.data().mapa:{});
+        mapa[T.claveMemoria({proveedor:l.proveedor,producto:l.producto})]=articulo.id;
+        tx.set(ref(C.parametros,'memoriaArticulos'),{id:'memoriaArticulos',mapa,rev:(sMem.exists?Number(sMem.data().rev)||1:0)+1});
+      }
+      auditar(tx,'CAMBIAR_ARTICULO_LOTE',loteId,(l.producto||'')+' · '+(l.loteProveedor||''),antes,despues,{loteId});
+    });
+  }
+
+  window.glacialTrazabilidadDatos={C,cache,entregarALinea,buscarArticulos,asignarArticulo,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
     mensajeError:D.mensajeError,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}};
 })();
