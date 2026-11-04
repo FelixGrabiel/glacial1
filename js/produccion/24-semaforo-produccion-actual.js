@@ -186,7 +186,8 @@
   // Producción de una presentación. Si el supervisor corrigió la finalización
   // (producción final), esa cifra manda; si no, la de Paletas.
   /* Producido vigente (módulo de indicadores): turno en curso → Paletas; turno cerrado → registro del turno.
-     Si el turno cerrado no tiene registro, no se sustituye por Paletas: devuelve 0 y producidoSinRegistro(x) es true. */
+     Si el turno cerrado todavía no tiene registro (o el registro no trae ese producto), se muestra lo de Paletas y se avisa en la tarjeta
+     («según Paletas: falta el registro del turno»): antes salía 0 en todas las líneas hasta que el supervisor hiciera el registro. */
   const quitarTilde=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
   // En la franja sin producción el bloque Día + Intermedio acaba de terminar: su producción sigue saliendo de Paletas
   // (el supervisor todavía no cierra el reporte), no de «sin registro».
@@ -200,20 +201,24 @@
     // Día e Intermedio comparten reporte: se toman los registros de todo el bloque.
     const delTurno=recs.filter(r=>r&&r.linea===x.linea&&r.fecha===x.fecha&&GlacialIndicadores.claveBloque(r.turno)===bloque);
     if(!delTurno.length)return null;
-    let suma=0;
+    let suma=0,hallado=false;
     delTurno.forEach(r=>{
       const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
       cuadros.forEach(q=>{
-        if(quitarTilde(q&&q.marca)===marca&&quitarTilde(q&&q.presentacion)===pres)suma+=num(q&&q.produccion&&q.produccion.efectiva);
+        if(quitarTilde(q&&q.marca)===marca&&quitarTilde(q&&q.presentacion)===pres){hallado=true;suma+=num(q&&q.produccion&&q.produccion.efectiva);}
       });
     });
-    return suma;
+    return hallado?suma:null;                 // el registro existe pero no trae este producto: no hay dato del registro
   }
   function producidoVigenteDe(x){
     const paletas=num(resumenProgramacionCombinacionTurnos(
       x.linea,x.fecha,[x.turno],x.marca,x.presentacion).unidadesProducidas);
     const enCurso=produccionDesdePaletas(x);
-    return GlacialIndicadores.produccionVigente({turnoEnCurso:enCurso,paletas,registro:enCurso?null:registroDeTurno(x)});
+    const registro=enCurso?null:registroDeTurno(x);
+    // Turno cerrado sin dato del registro: vale Paletas (marcado para avisarlo); sin paletas tampoco, no hay dato (null).
+    const segunPaletas=!enCurso&&registro===null&&paletas>0;
+    x.produccionSegunPaletas=segunPaletas;
+    return GlacialIndicadores.produccionVigente({turnoEnCurso:enCurso||segunPaletas,paletas,registro});
   }
   const producidoSinRegistro=x=>producidoVigenteDe(x)===null;
   function producidoDe(x){
@@ -1320,7 +1325,7 @@
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
                         ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
-                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong><div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div>${reactivar}${reabrir}</div>
+                      <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong>${x.produccionSegunPaletas?'<small class="pa-segun-paletas" title="El turno terminó y todavía no hay registro del turno con este producto: se muestra lo registrado en Paletas.">Según Paletas · falta el registro del turno</small>':''}<div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div>${reactivar}${reabrir}</div>
                     </div>`;
                   }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
                 }</div>`;
@@ -1520,6 +1525,7 @@
     .pa-state-counts .curso{color:#c46f00}.pa-state-counts .pausa{color:#a77b00}.pa-state-counts .pendiente{color:#5C6E7B}
     .pa-state-counts .completada{color:#198754}.pa-state-counts .cancelada{color:#c0392b}
     .pa-program-right{display:flex;align-items:flex-end;flex-direction:column;gap:4px}
+    .pa-segun-paletas{font-size:11.5px;color:#8a4b00;font-weight:600}
     .pa-state-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:999px;font-size:11px;font-weight:900;white-space:nowrap}
     .pa-state-badge>span{width:7px;height:7px;border-radius:50%}
     .pa-state-curso{background:#fff0dc;color:#a85d00}.pa-state-curso>span{background:#f28c28}
