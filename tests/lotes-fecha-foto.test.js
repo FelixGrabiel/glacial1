@@ -23,6 +23,14 @@ ok(N.fechaFoto(viejo).ms===LIMA('2026-11-01T08:00:00')&&N.fechaFoto({creadoEn:90
 const doc=N.construirDocumento({extraccion:{categoria:'etiquetas',tipo_documento:'etiqueta_insumo'},analizado_en:'2026-11-03T18:00:00-05:00'},{sha256:sha('x'),foto:{url:'u'},usuario:'Ana',uid:'u1',ahora:LIMA('2026-11-04T09:00:00'),recibidoEn:'2026-11-03T22:12:00Z'});
 ok(doc.fotoEn===Date.parse('2026-11-03T22:12:00Z')&&doc.fotoEnOrigen==='bandeja'&&doc.creadoEn===LIMA('2026-11-04T09:00:00'),'la evidencia importada guarda la fecha de la foto aparte de la de importación');
 
+/* ---------- título de una evidencia sin producto leído ---------- */
+const hash='0a871f61bc81cbed773283c521374d43a435422227b035e071b0beec26ebeaef.jpg';
+const sinProd=(campos,extra)=>Object.assign({campos,archivoOriginal:hash,categoria:'bolsas'},extra||{});
+ok(N.tituloEvidencia(sinProd({producto:{valor:'BOLSA 3 KG'}}))==='BOLSA 3 KG','título: el producto leído');
+ok(N.tituloEvidencia(sinProd({marca:{valor:'Glacial'},presentacion:{valor:'3 kg'}}))==='Glacial · 3 kg','sin producto: marca y presentación');
+ok(N.tituloEvidencia(sinProd({}))==='Etiqueta de bolsas sin producto leído','sin datos: nunca el nombre técnico del archivo (huella de la foto)');
+ok(N.tituloEvidencia(sinProd({},{archivoOriginal:'etiqueta-bobina.jpg'}))==='etiqueta-bobina.jpg','un nombre de archivo puesto por una persona sí se muestra');
+
 /* ---------- plan del lote con la fecha de la foto ---------- */
 /* ---------- evidencia lista (todo legible) ---------- */
 function evidencia(o={}){

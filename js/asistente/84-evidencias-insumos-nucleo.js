@@ -123,6 +123,18 @@
     const l=msDe(doc.analizadoEn);if(l)return {ms:l,origen:'lectura'};
     return Number(doc.creadoEn)>0?{ms:Number(doc.creadoEn),origen:'importacion'}:{ms:null,origen:''};
   }
+  /* Nombre legible de una evidencia para listas y auditoría. Sin producto leído usa marca, presentación o código; el nombre del archivo solo si lo puso
+     una persona (los del bot son la huella de la foto, «0a87…f.jpg», y no le dicen nada a nadie). */
+  function tituloEvidencia(d){
+    const v=c=>{const x=d&&d.campos&&d.campos[c];return x&&x.valor!==null&&x.valor!==undefined?String(x.valor).trim():'';};
+    if(v('producto'))return v('producto');
+    const otro=[v('marca'),v('presentacion')].filter(Boolean).join(' · ')||v('codigo_producto');
+    if(otro)return otro;
+    const arch=texto(d&&d.archivoOriginal).trim();
+    if(arch&&!/^[a-f0-9]{32,}\.[a-z0-9]{2,5}$/i.test(arch))return arch;
+    const cat=d&&d.categoria&&d.categoria!=='otro'?' de '+d.categoria:'';
+    return 'Etiqueta'+cat+' sin producto leído';
+  }
   const ORIGEN_FECHA_FOTO={whatsapp:'hora del mensaje de WhatsApp',bandeja:'llegada al sistema',lectura:'lectura de la etiqueta',importacion:'importación (no se conoce la hora de envío)'};
 
   /* ---------- construir el documento desde el resultado del validador ---------- */
@@ -309,7 +321,7 @@
   }
 
   const API={ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
-    etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe,msDe,fechaFotoDeRegistro,fechaFoto,ORIGEN_FECHA_FOTO};
+    etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe,msDe,fechaFotoDeRegistro,fechaFoto,ORIGEN_FECHA_FOTO,tituloEvidencia};
   global.glacialEvidenciasNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);

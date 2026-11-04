@@ -32,7 +32,7 @@
   /* ---------- lista ---------- */
   function itemLista(d){
     const c=d.campos,sin=N.camposSinConfirmar(d).length;
-    const titulo=(c.producto&&c.producto.valor)||d.archivoOriginal||'Etiqueta sin identificar';
+    const titulo=N.tituloEvidencia(d);
     return `<button type="button" class="ie-item ${d.id===S.sel?'ie-item-act':''}" onclick="ieSel('${esc(d.id)}')"><span class="ie-it-t"><b>${esc(titulo)}</b>${pill(d.estado)}</span>
       <small>${esc((c.proveedor&&c.proveedor.valor)||'Proveedor sin leer')} · ${esc(d.categoria)}</small>
       <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}foto ${esc(hora(N.fechaFoto(d).ms))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}${d.loteId?' · <b>'+esc(d.loteId)+'</b>':''}${d.leyenda?' · '+esc(d.leyenda):''}</small></button>`;
@@ -99,8 +99,8 @@
     const hist=(d.historialEstados||[]).slice().reverse().map(h=>`<li><b>${esc(N.ESTADOS[h.estado]||h.estado)}</b> · ${esc(h.por||'—')} · ${esc(hora(h.en))}${h.motivo?` — ${esc(h.motivo)}`:''}</li>`).join('');
     const sin=N.camposSinConfirmar(d).length;
     return `<div class="ii-card ie-det">
-      <div class="ie-det-cab"><div><h3>${esc((d.campos.producto&&d.campos.producto.valor)||d.archivoOriginal||'Etiqueta')}</h3>
-        <p class="ii-mut"><b>Foto enviada: ${esc(hora(N.fechaFoto(d).ms))}</b>${N.fechaFoto(d).origen!=='whatsapp'?' ('+esc(N.ORIGEN_FECHA_FOTO[N.fechaFoto(d).origen]||'')+')':''} · importada ${esc(hora(d.creadoEn))} · ${esc(d.archivoOriginal)} · leída ${esc(d.analizadoEn?d.analizadoEn.slice(0,16).replace('T',' '):'')} ${d.modelo?'por '+esc(d.modelo):''} · importó ${esc(d.creadoPor||'—')}${d.versionProcesador?' · '+esc(d.versionProcesador):''}</p></div>${pill(d.estado)}</div>
+      <div class="ie-det-cab"><div><h3>${esc(N.tituloEvidencia(d))}</h3>
+        <p class="ii-mut"><b>Foto enviada: ${esc(hora(N.fechaFoto(d).ms))}</b>${N.fechaFoto(d).origen!=='whatsapp'?' ('+esc(N.ORIGEN_FECHA_FOTO[N.fechaFoto(d).origen]||'')+')':''} · importada ${esc(hora(d.creadoEn))}${d.archivoOriginal&&!/^[a-f0-9]{32,}\.[a-z0-9]{2,5}$/i.test(d.archivoOriginal)?' · '+esc(d.archivoOriginal):''} · leída ${esc(d.analizadoEn?d.analizadoEn.slice(0,16).replace('T',' '):'')} ${d.modelo?'por '+esc(d.modelo):''} · importó ${esc(d.creadoPor||'—')}${d.versionProcesador?' · '+esc(d.versionProcesador):''}</p></div>${pill(d.estado)}</div>
       <div class="ii-msg ii-msg-info" role="note">Aprobar los datos <b>no registra stock</b>. Las entradas, transferencias y consumos se hacen en otra operación, con otro permiso (Fase 4).</div>
       ${sin&&edit?`<div class="ii-msg ii-msg-error" role="status"><b>${sin} dato${sin>1?'s':''} por confirmar.</b> Compáralos con la foto y pulsa «Confirmar» o corrígelos antes de aprobar.</div>`:''}
       <div class="ie-cols"><div class="ie-col-foto">${fotoHtml(d)}</div>
@@ -283,7 +283,7 @@
 .ie-chips{display:flex;gap:6px;flex-wrap:wrap}.ie-chip{border:1px solid var(--ii-linea);background:#fff;border-radius:99px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;color:#334a66}
 .ie-chip-act{background:#0877A6;border-color:#0877A6;color:#fff}.ie-chip b{font-weight:700}
 .ie-item{display:flex;flex-direction:column;gap:3px;text-align:left;width:100%;background:#f8fbff;border:1px solid var(--ii-linea);border-radius:10px;padding:10px 12px;margin-bottom:8px;font:inherit;color:inherit;cursor:pointer}
-.ie-item-act{border-color:#0877A6;background:#eaf2fd}.ie-it-t{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.ie-item small{color:var(--ii-mut)}.ie-por-conf{color:#b42318}
+.ie-item-act{border-color:#0877A6;background:#eaf2fd}.ie-it-t{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;min-width:0}.ie-it-t b{min-width:0;overflow-wrap:anywhere}.ie-it-t .ii-pill{flex:0 0 auto}.ie-item small{color:var(--ii-mut)}.ie-por-conf{color:#b42318}
 .ie-det-cab{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.ie-det-cab h3{margin:0 0 4px;font-size:19px}
 .ie-cols{display:grid;grid-template-columns:minmax(220px,38%) minmax(0,1fr);gap:16px;margin-top:12px;align-items:start}
 .ie-col-foto{position:sticky;top:8px}.ie-foto-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
