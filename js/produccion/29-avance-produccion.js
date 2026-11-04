@@ -1033,8 +1033,24 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
   return snap;
 }
 
+/* Tipo de agua según la MARCA (MARCAS_POR_LINEA en 01-config.js lo lleva en el nombre): «Bells_Gas», «Scala_Gas», «Cuisine_Gas» → CON GAS;
+   «Bells_Manzana», «Scala_Maracuya», «Bells_Piña_Kion»… → SABORIZADA; el resto → REGULAR. Regular, con gas y saborizada van en bloques distintos. */
+const AV_TIPOS_AGUA={REGULAR:'REGULAR',GAS:'CON GAS',SABORIZADA:'SABORIZADA'};
+function avTipoAgua(marca){
+  const t=String(marca||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  if(/(^|[_\s-])gas($|[_\s-])/.test(t))return 'GAS';
+  if(/manzana|maracuy|pina|kion|sabor|fresa|limon|naranja|durazno|mango/.test(t))return 'SABORIZADA';
+  return 'REGULAR';
+}
+/* «scala_Manzana» → «Scala · Manzana», «Bells_Piña_Kion» → «Bells · Piña Kion»; las marcas sin variante quedan igual. */
+function avNombreMarca(marca){
+  const partes=String(marca||'').trim().split('_').filter(Boolean);
+  if(partes.length<2)return String(marca||'').trim();
+  const base=partes[0].charAt(0).toUpperCase()+partes[0].slice(1);
+  return base+' · '+partes.slice(1).join(' ');
+}
 function avProductoWhatsApp(p){
-  const marca=String(p?.marca||'').trim();
+  const marca=avNombreMarca(p?.marca);
   const codigo=String(p?.presentacion||'').toLowerCase();
   const conSticker=codigo.includes('sticker')||codigo.includes('(y)');
   return `${marca}${conSticker?' C/S':''}`;
@@ -1117,10 +1133,12 @@ function avCalcularBloquesPresentacion(l){
   const nuevo=!!l.corte;   // snapshots nuevos fijan el corte de la línea; los anteriores conservan el cálculo con el que se generaron
   const msHora=h=>h?avHoraMs(avanceEstado.fecha,h,avanceEstado.turno):0;
   const corteMs=nuevo?msHora(l.corte):0;
+  // Bloque = FORMATO (volumen) + TIPO de agua (regular / con gas / saborizada).
+  const claveBloque=(presentacion,marca)=>avClaveFormatoPresentacion(presentacion)+'|'+avTipoAgua(marca);
   (l.productos||[]).filter(p=>avNum(p.produccion)>0).forEach(p=>{
-    const clave=avClaveFormatoPresentacion(p.presentacion);
+    const clave=claveBloque(p.presentacion,p.marca);
     if(!mapa.has(clave))mapa.set(clave,{
-      claveFormato:clave,
+      claveFormato:clave,tipo:avTipoAgua(p.marca),
       presentacion:p.presentacion||'',
       etiqueta:p.etiqueta||avPresentacion(l.linea,p.marca,p.presentacion),
       productos:[],inicio:'',fin:'',paradas:[],observaciones:[],produccionTotal:0,
@@ -1136,7 +1154,7 @@ function avCalcularBloquesPresentacion(l){
   avRegistros().filter(r=>r.linea===l.linea).forEach(r=>{
     const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
     cuadros.forEach(q=>{
-      const clave=avClaveFormatoPresentacion(q?.presentacion);
+      const clave=claveBloque(q?.presentacion,q?.marca);
       const b=mapa.get(clave); if(!b)return;
       // Un cuadro que empieza después del corte del reporte no entra en él.
       if(corteMs&&q?.horaInicio&&msHora(q.horaInicio)>corteMs)return;
@@ -1224,6 +1242,11 @@ function avParadasAvanceNuevas(l,paradasBloque){
 }
 
 function avTituloPresentacion(linea,b){
+  // Los snapshots anteriores a esta separación no traen tipo: su título queda como se generó.
+  const tipo=b&&b.tipo&&AV_TIPOS_AGUA[b.tipo]?' · '+AV_TIPOS_AGUA[b.tipo]:'';
+  return avTituloFormato(linea,b)+tipo;
+}
+function avTituloFormato(linea,b){
   const volumen=avVolumenFormatoPresentacion(b?.presentacion,linea);
   if(volumen)return `${AVANCE_NOMBRES[linea]||linea} – ${volumen}`;
 
@@ -1721,7 +1744,9 @@ function avCanvasSnapshot(s){
   (s.lineas||[]).forEach(l=>{
     const bloques=avBloquesPresentacionLinea(l);
     if(bloques.length){
-      bloques.forEach(b=>grupos.push({linea:l,bloque:b,sinProduccion:false}));
+      // Con más de un formato (tamaño o tipo de agua), un encabezado agrupa los de la línea: «PET2 · 3 FORMATOS».
+      bloques.forEach((b,i)=>grupos.push({linea:l,bloque:b,sinProduccion:false,
+        cabecera:i===0&&bloques.length>1?`${AVANCE_NOMBRES[l.linea]||l.nombre||l.linea} · ${bloques.length} FORMATOS`:''}));
     }else{
       grupos.push({linea:l,bloque:null,sinProduccion:true});
     }
@@ -1764,7 +1789,8 @@ function avCanvasSnapshot(s){
   const altoResumen=columnasResumen===4?105:140;
   const altoVacio=grupos.length?0:90;
 
-  const H=Math.max(grupos.length?1350:0,250+altoVacio+grupos.reduce((a,g)=>a+altoRealGrupo(g)+18,0)+altoResumen+180);
+  const ALTO_CABECERA=paso(34);
+  const H=Math.max(grupos.length?1350:0,250+altoVacio+grupos.reduce((a,g)=>a+altoRealGrupo(g)+18+(g.cabecera?ALTO_CABECERA:0),0)+altoResumen+180);
   c.height=H;
   const rr=(cx,cy,cw,ch,r=10)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
   const card=(cx,cy,cw,ch,fill=WHITE,stroke=LINE)=>{x.fillStyle=fill;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=stroke;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
@@ -1808,10 +1834,17 @@ function avCanvasSnapshot(s){
     // Usar exactamente el mismo cálculo empleado para dimensionar el canvas.
     // Así ninguna línea finalizada queda fuera de la imagen por recorte vertical.
     const h=altoRealGrupo(g);
+    if(g.cabecera){
+      x.fillStyle=DARK;x.font=`700 ${fz(16)}px Arial`;x.fillText(g.cabecera,PAD+4,y+paso(20));
+      const fin=PAD+4+x.measureText(g.cabecera).width+12;
+      x.strokeStyle=BLUE;x.globalAlpha=.35;x.lineWidth=2;x.beginPath();x.moveTo(fin,y+paso(14));x.lineTo(W-PAD,y+paso(14));x.stroke();x.globalAlpha=1;x.lineWidth=1;
+      y+=ALTO_CABECERA;
+    }
 
     card(PAD,y,W-PAD*2,h);
     x.fillStyle='#E8F7FE';rr(PAD,y,W-PAD*2,58,9);x.fill();
-    x.fillStyle=DARK;x.font=`700 ${Math.round(25*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(titulo,PAD+20,y+37);
+    // El título puede llevar el tipo de agua («PET2 – 625 ML · SABORIZADA»): se achica si no cabe junto a «PRODUCCIÓN REGISTRADA».
+    x.fillStyle=DARK;fit(titulo,W-PAD*2-40-Math.round(260*AV_IMAGEN_ESCALA_TEXTO),25,'700');x.fillText(titulo,PAD+20,y+37);
     x.textAlign='right';x.fillStyle=g.sinProduccion?WARN:GOOD;x.font=`700 ${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(g.sinProduccion?'LÍNEA INICIADA':'PRODUCCIÓN REGISTRADA',W-PAD-20,y+35);x.textAlign='left';
 
     let cy=y+82;

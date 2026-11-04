@@ -2,7 +2,7 @@
 <title>Validación visual · Imagen del Avance (datos de prueba)</title>
 <style>body{background:#e9eef2;margin:0;padding:12px;font:13px system-ui}canvas{max-width:100%;height:auto;display:block;margin:8px 0;background:#fff}</style>
 </head><body>
-<b>Datos de PRUEBA (no reales) · Avance Noche 13/10/2026 23:19 · ?caso=vacio: ninguna línea produciendo</b>
+<b>Datos de PRUEBA (no reales) · Avance Noche 13/10/2026 23:19 · ?caso=vacio: ninguna línea produciendo · ?caso=formatos: PET2 regular, saborizada y con gas</b>
 <div id="raiz"></div>
 <script>
 var AHORA=new Date(2026,9,13,23,19).getTime();
@@ -14,7 +14,20 @@ function pal(l,m,p,t,h){return {linea:l,fecha:F,turno:'NOCHE',marca:m,presentaci
 var vacio=/caso=vacio/.test(location.search);
 var PROGS=[prog('PET1','Scala','2.5 L',ms(7)),prog('PET2','Fontlife','1 L',ms(21)),prog('B7L','Bells','7 L',ms(21))];
 var PALS=vacio?[pal('PET1','Scala','2.5 L',17766,'15:00')]:[pal('PET1','Scala','2.5 L',17766,'15:00'),pal('PET2','Fontlife','1 L',2880,'22:40'),pal('B7L','Bells','7 L',1338,'22:10')];
-var RECS=[
+// ?caso=formatos: PET2 hace 625 ml regular, 625 ml saborizada y 1 L con gas (bloques distintos por tamaño y tipo de agua).
+if(/caso=formatos/.test(location.search)){
+  var P625='Pack_Regular_625mlx15und/ln',P1L='Pack_Regular_SC_1Lx6und/ln';
+  PROGS=[prog('PET2','Bells',P625,ms(21)),prog('PET2','scala_Manzana',P625,ms(21,45)),prog('PET2','Scala_Maracuya',P625,ms(22,15)),prog('PET2','Bells_Gas',P1L,ms(22,45)),prog('B7L','Bells','7 L',ms(21))];
+  PALS=[pal('PET2','Bells',P625,9600,'21:35'),pal('PET2','scala_Manzana',P625,6000,'22:10'),pal('PET2','Scala_Maracuya',P625,4800,'22:40'),pal('PET2','Bells_Gas',P1L,3600,'23:10'),pal('B7L','Bells','7 L',1338,'22:10')];
+}
+var RECS=/caso=formatos/.test(location.search)?[
+  {linea:'PET2',fecha:F,turno:'NOCHE',cuadros:[
+    {marca:'Bells',presentacion:'Pack_Regular_625mlx15und/ln',horaInicio:'21:00',horaFin:'21:40',paradasNoProgramadas:[{descripcion:'Calibración — Pernos sueltos',tiempoMin:15,horaInicio:'21:10'}]},
+    {marca:'scala_Manzana',presentacion:'Pack_Regular_625mlx15und/ln',horaInicio:'21:45',horaFin:'22:12',paradasProgramadas:[{descripcion:'Cambio de formato a saborizada',tiempoMin:10,horaInicio:'21:45'}]},
+    {marca:'Scala_Maracuya',presentacion:'Pack_Regular_625mlx15und/ln',horaInicio:'22:15',horaFin:'22:42'},
+    {marca:'Bells_Gas',presentacion:'Pack_Regular_SC_1Lx6und/ln',horaInicio:'22:45',paradasNoProgramadas:[{descripcion:'Falla de máquina — Carbonatador',tiempoMin:12,horaInicio:'22:55'}]}]},
+  {linea:'B7L',fecha:F,turno:'NOCHE',cuadros:[{marca:'Bells',presentacion:'7 L',horaInicio:'21:00'}]}]:[
+
   {linea:'PET2',fecha:F,turno:'NOCHE',cuadros:[{marca:'Fontlife',presentacion:'1 L',horaInicio:'21:00',
     paradasProgramadas:[{descripcion:'Charla de ingreso',tiempoMin:10,horaInicio:'21:00'}],
     paradasNoProgramadas:[{descripcion:'Calibración de la llenadora por cambio de formato, se ajustaron guías y sensores de nivel antes de reanudar',tiempoMin:35,horaInicio:'21:40'},
