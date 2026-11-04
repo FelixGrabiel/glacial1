@@ -21,9 +21,15 @@ ok(e.producidoDe(item)===5000,'turno en curso: producido = Paletas (5 000), aunq
 e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[reg('DÍA',4800)]});
 ok(e.producidoDe(item)===4800,'turno cerrado con registro: producido = registro del turno (4 800), solo de esa marca y presentación');
 e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[]});
-ok(e.producidoDe(item)===0&&vm.runInContext('producidoSinRegistro',e)(item)===true,'turno cerrado sin registro: no se sustituye por Paletas → sin registro (suma 0)');
+ok(e.producidoDe(item)===5000&&item.produccionSegunPaletas===true&&vm.runInContext('producidoSinRegistro',e)(item)===false,'turno cerrado todavía sin registro: se muestra lo de Paletas (5 000) y se marca «según Paletas» (antes salía 0 en todas las líneas)');
 e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[reg('NOCHE',3000)]});
-ok(vm.runInContext('producidoSinRegistro',e)(item)===true,'el registro de otro bloque (Noche) no vale para el bloque Día + Intermedio');
+ok(e.producidoDe(item)===5000&&item.produccionSegunPaletas===true,'el registro de otro bloque (Noche) no vale para el bloque Día + Intermedio: sigue Paletas, marcado');
+e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[{linea:'PET1',fecha:'2026-10-04',turno:'DÍA',cuadros:[{marca:'Scala',presentacion:'1.5 L',produccion:{efectiva:7777}}]}]});
+ok(e.producidoDe(item)===5000&&item.produccionSegunPaletas===true,'el registro del turno existe pero no trae este producto: Paletas, marcado (no 0)');
+e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[reg('DÍA',4800)]});
+ok(e.producidoDe(item)===4800&&item.produccionSegunPaletas===false,'con registro del producto manda el registro y no se marca');
+e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:0,registros:[]});
+ok(e.producidoDe(item)===0&&vm.runInContext('producidoSinRegistro',e)(item)===true,'sin registro y sin paletas: no hay dato (0, sin registro)');
 e=entorno({activo:true,fecha:'2026-10-04',turno:'NOCHE',paletas:5000,registros:[reg('INTERMEDIO',3000)]});
 ok(e.producidoDe(item)===3000,'Día e Intermedio comparten el reporte: el registro de Intermedio vale para el bloque Día + Intermedio');
 const G=vm.runInContext('GlacialIndicadores',e);
