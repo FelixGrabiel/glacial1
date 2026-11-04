@@ -35,7 +35,7 @@
     const titulo=(c.producto&&c.producto.valor)||d.archivoOriginal||'Etiqueta sin identificar';
     return `<button type="button" class="ie-item ${d.id===S.sel?'ie-item-act':''}" onclick="ieSel('${esc(d.id)}')"><span class="ie-it-t"><b>${esc(titulo)}</b>${pill(d.estado)}</span>
       <small>${esc((c.proveedor&&c.proveedor.valor)||'Proveedor sin leer')} · ${esc(d.categoria)}</small>
-      <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}${esc(hora(d.creadoEn))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}${d.loteId?' · <b>'+esc(d.loteId)+'</b>':''}${d.leyenda?' · '+esc(d.leyenda):''}</small></button>`;
+      <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}foto ${esc(hora(N.fechaFoto(d).ms))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}${d.loteId?' · <b>'+esc(d.loteId)+'</b>':''}${d.leyenda?' · '+esc(d.leyenda):''}</small></button>`;
   }
   function listaHtml(){
     const todos=E.cache.lista,lista=N.filtrar(todos,{estado:S.estado,texto:S.texto});
@@ -100,7 +100,7 @@
     const sin=N.camposSinConfirmar(d).length;
     return `<div class="ii-card ie-det">
       <div class="ie-det-cab"><div><h3>${esc((d.campos.producto&&d.campos.producto.valor)||d.archivoOriginal||'Etiqueta')}</h3>
-        <p class="ii-mut">${esc(d.archivoOriginal)} · leída ${esc(d.analizadoEn?d.analizadoEn.slice(0,16).replace('T',' '):'')} ${d.modelo?'por '+esc(d.modelo):''} · importó ${esc(d.creadoPor||'—')}${d.versionProcesador?' · '+esc(d.versionProcesador):''}</p></div>${pill(d.estado)}</div>
+        <p class="ii-mut"><b>Foto enviada: ${esc(hora(N.fechaFoto(d).ms))}</b>${N.fechaFoto(d).origen!=='whatsapp'?' ('+esc(N.ORIGEN_FECHA_FOTO[N.fechaFoto(d).origen]||'')+')':''} · importada ${esc(hora(d.creadoEn))} · ${esc(d.archivoOriginal)} · leída ${esc(d.analizadoEn?d.analizadoEn.slice(0,16).replace('T',' '):'')} ${d.modelo?'por '+esc(d.modelo):''} · importó ${esc(d.creadoPor||'—')}${d.versionProcesador?' · '+esc(d.versionProcesador):''}</p></div>${pill(d.estado)}</div>
       <div class="ii-msg ii-msg-info" role="note">Aprobar los datos <b>no registra stock</b>. Las entradas, transferencias y consumos se hacen en otra operación, con otro permiso (Fase 4).</div>
       ${sin&&edit?`<div class="ii-msg ii-msg-error" role="status"><b>${sin} dato${sin>1?'s':''} por confirmar.</b> Compáralos con la foto y pulsa «Confirmar» o corrígelos antes de aprobar.</div>`:''}
       <div class="ie-cols"><div class="ie-col-foto">${fotoHtml(d)}</div>

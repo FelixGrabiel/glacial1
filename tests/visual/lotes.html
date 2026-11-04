@@ -56,7 +56,7 @@ window.glacialFotos={PREFIJO:'supabase:glacial-fotos/',disponible:function(){ret
          lote('LI-000002','CORPORACION ASK','Bobina hielo en cubos Tottus 3 kg','polietileno','11749','2026-11-03',2),
          lote('LI-000003','FULL PACK S.A.C.','Bolsas con EVA 60x114','etiquetas','472-2026','2026-10-01',1)];
   var U=[unidad('LI-000001',1,'EN_ALMACEN','',346.6),unidad('LI-000001',2,'ENTREGADA_LINEA','PET1',346.6),unidad('LI-000001',3,'EN_USO','PET1',210.2),
-         unidad('LI-000002',1,'EN_ALMACEN','',17.5),unidad('LI-000002',2,'OBSERVADA','',17.5),unidad('LI-000003',1,'EN_ALMACEN','',12)];
+         unidad('LI-000002',1,'EN_ALMACEN','',17.5),unidad('LI-000002',2,'OBSERVADA','',17.5),Object.assign(unidad('LI-000003',50,'EN_ALMACEN','',37.74),{cantidad:1026,unidadCantidad:'UND',recibidaEn:h(40),recibidaOrigen:'whatsapp'})];
   var M=[mov('MOV-a','LI-000001','LI-000001-02','RECEPCION',{estado:null,pesoActual:null,linea:''},{estado:'EN_ALMACEN',pesoActual:346.6,linea:''},30),
          mov('MOV-b','LI-000001','LI-000001-02','ENTREGA_LINEA',{estado:'EN_ALMACEN',pesoActual:346.6,linea:''},{estado:'ENTREGADA_LINEA',pesoActual:346.6,linea:'PET1'},12,'Ana (prueba)')];
   L.forEach(function(x){DOCS['insumosLotes/'+x.id]=x;});U.forEach(function(x){DOCS['insumosUnidades/'+x.id]=x;});M.forEach(function(x){DOCS['insumosLoteMovimientos/'+x.id]=x;});

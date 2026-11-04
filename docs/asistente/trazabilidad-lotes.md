@@ -76,3 +76,14 @@ Ver `docs/asistente/guia-uso-trazabilidad-lotes.md` (paso a paso, casos frecuent
 
 ## Cambio en la Etapa 3: la exportación a Drive es el «Control de proceso en el envasado»
 El Drive de planta ya lleva el formulario CF - CA - F - 047 (un libro por línea y mes, una hoja por marca, una fila por cuadro). La copia a Drive de la Etapa 3 **genera ese formulario** en vez de la hoja «LOTES GLACIAL» por unidad. Para que se llenen las columnas de lotes, cada entrada de `cuadro.lotesInsumo[]` (Etapa 2) debe guardar también la **`categoria`** de la unidad (`preformas`, `tapas`, `etiquetas`, `asas`). El Excel del mes ya se descarga desde la pestaña Lotes. Diseño, mapeo y preguntas abiertas: `docs/asistente/control-proceso-drive.md`.
+
+## Fecha de la foto, caja/bobina y artículo (2026-11-04)
+**Dos fechas distintas.** La trazabilidad usa la **fecha en que se envió la foto** (cuando llegó o se usó el insumo), no la de validación:
+- La evidencia guarda `fotoEn` y `fotoEnOrigen`. Se toma, en este orden: la hora del mensaje de WhatsApp que mande el bot (`enviado_en`, `mensaje_en`, `fecha_mensaje`, `whatsapp_en` o `recibido_en` en la lectura, en ISO o segundos), la llegada a la bandeja del servidor (`evidencias_entrada.recibido_en`), la lectura de la IA (`analizado_en`) y, por último, la importación.
+- Al crear el lote: la unidad guarda `recibidaEn`, el lote `recibidoEn` (la foto más antigua) y el movimiento de recepción o entrega `ocurridoEnMs`; `creadoEn` y `enMs` siguen siendo cuándo se validó y registró.
+- La ficha muestra **«Foto enviada (recepción)»** y **«Validado y registrado»** por separado; la lista y la línea de tiempo se ordenan por la foto. Los lotes creados antes toman la fecha de su evidencia (sin migrar datos).
+- **Pendiente en el bot** (`glacial-whatsapp`): mandar `enviado_en` con la hora del mensaje de WhatsApp. Mientras tanto vale la llegada al servidor, que es casi la misma si el bot envía enseguida.
+
+**Caja / bobina y contenido.** «Unidad» se cambió por el nombre físico según la categoría: **bobina** (etiquetas, bolsas, polietileno) o **caja** (preformas, tapas, asas). El Resumen cuenta cajas/bobinas (cada foto es una) y suma el **contenido** que dice cada etiqueta (p. ej. 1 026 UND). El n.º de la tabla (Bobina 50) es el número impreso en la etiqueta, no una cantidad.
+
+**Artículo del catálogo.** El diálogo «Confirmar y crear lote» tiene un buscador en todo el catálogo (además de los 5 sugeridos). Con «Ninguno / elegir después» el lote se crea igual con todos los datos (queda en el historial) y el artículo se asigna o cambia luego desde la ficha (**Asignar artículo / Cambiar**), con revisión, memoria y auditoría (`CAMBIAR_ARTICULO_LOTE`). Prueba: `tests/lotes-fecha-foto.test.js`.

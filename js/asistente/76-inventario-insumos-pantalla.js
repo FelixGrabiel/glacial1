@@ -501,7 +501,7 @@
 .ii-k-azul b{color:#0877A6}.ii-k-rojo b{color:#c0281c}.ii-k-ambar b{color:#b45309}.ii-k-gris b{color:#033350;font-size:22px}
 .ii-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;margin-bottom:12px}
 .ii-campo{display:flex;flex-direction:column;gap:5px;font-size:13px;color:#334a66;min-width:0}.ii-corte{margin-bottom:12px;max-width:520px}
-.ii input[type=search],.ii input[type=text],.ii input[type=number],.ii input[type=date],.ii input[type=file],.ii select,.ii-modal input:not([type=checkbox]){font:inherit;font-size:15px;padding:8px 10px;border:1px solid #c9d6e2;border-radius:8px;min-height:42px;background:#fff;color:#033350;max-width:100%;width:100%;box-sizing:border-box}
+.ii input[type=search],.ii input[type=text],.ii input[type=number],.ii input[type=date],.ii input[type=file],.ii select,.ii-modal input:not([type=checkbox]):not([type=radio]){font:inherit;font-size:15px;padding:8px 10px;border:1px solid #c9d6e2;border-radius:8px;min-height:42px;background:#fff;color:#033350;max-width:100%;width:100%;box-sizing:border-box}
 .ii-chk{display:flex;align-items:center;gap:8px;font-size:14px;min-height:42px}.ii-chk input{width:auto;min-height:0}
 .ii-tw{overflow-x:auto;border:1px solid var(--ii-linea);border-radius:10px}.ii-t{width:100%;border-collapse:collapse;font-size:14px}
 .ii-t th{background:#eef3fa;text-align:left;padding:10px 12px;font-size:13px;font-weight:700;color:#033350;white-space:nowrap}.ii-t td{padding:9px 12px;border-top:1px solid #edf2f7;vertical-align:top}

@@ -147,6 +147,17 @@
     return out.sort((x,y)=>y.puntaje-x.puntaje||String(x.nombre).localeCompare(String(y.nombre),'es')).slice(0,max);
   }
 
+  /** Búsqueda libre en TODO el catálogo (cuando el artículo no está entre los sugeridos): por nombre o código, palabras en cualquier orden. */
+  function buscarArticulos(catalogo,consulta,max){
+    const todas=v=>norm(v).replace(/[^A-Z0-9.]+/g,' ').split(' ').filter(Boolean);       // aquí cuentan también «3» y «KG» (3 kg ≠ 1 kg)
+    const q=todas(consulta);if(!q.length)return [];
+    return (catalogo||[]).filter(a=>a&&a.activo!==false).map(a=>{
+      const tn=todas(a.nombre+' '+(a.itemCode||'')),cod=norm(a.itemCode);
+      const ok=q.every(t=>tn.some(x=>x.startsWith(t))||cod===t);
+      return ok?{id:a.id,itemCode:a.itemCode||'',nombre:a.nombre,categoria:a.categoria||'',razones:['búsqueda']}:null;
+    }).filter(Boolean).sort((x,y)=>String(x.nombre).localeCompare(String(y.nombre),'es')).slice(0,max||8);
+  }
+
   /* ---------- crear lote y unidad desde una evidencia ---------- */
   /**
    * Plan de la transacción «Confirmar y crear lote». Es PURO: recibe lo leído dentro de la transacción y devuelve los documentos a escribir.
@@ -154,11 +165,13 @@
    *  correlativo: siguiente número de lote (si el lote es nuevo); articulo: {id,itemCode,nombre} elegido del catálogo (opcional); leyenda: resultado de interpretarLeyenda.
    * Reglas: un lote por proveedor+lote+producto (mismo lote con otro n.º de unidad suma una unidad); una unidad por lote+n.º (si ya existe, DUPLICADO y no se crea).
    * Con leyenda de línea, la unidad nace ENTREGADA_LINEA (movimiento ENTREGA_LINEA); si no, EN_ALMACEN (RECEPCION).
+   * fotoEn: cuándo se envió la foto (ms). Es la fecha del HECHO (recepción o entrega a línea) y la que vale para la trazabilidad; `en` es cuándo se validó y registró.
    */
-  function planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda,usuario,uid,en,parametros}){
+  function planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda,usuario,uid,en,parametros,fotoEn,fotoEnOrigen}){
     const v=validarParaLote(doc,{parametros});
     if(v.errores.length)throw falla('VALIDACION',v.errores.join(' '));
     const d=v.datos,ahora=Number(en)||Date.now(),por=recortar(usuario,80);
+    const foto=Number(fotoEn)>0?Number(fotoEn):ahora,fotoOrigen=Number(fotoEn)>0?recortar(fotoEnOrigen||'whatsapp',20):'importacion';
     if(doc.loteId)throw falla('DUPLICADO','Esta evidencia ya creó el lote '+doc.loteId+'.');
     const clave=claveLote(d);
     let lote;const nuevo=!lotePrevio;
@@ -167,12 +180,13 @@
       lote={id:idLote(correlativo),clave,proveedor:recortar(d.proveedor,120),producto:recortar(d.producto,160),marca:recortar(d.marca,60),categoria:d.categoria,loteProveedor:recortar(d.loteProveedor,60),
         fechaProduccion:d.fechaProduccion,fechaVencimiento:d.fechaVencimiento,ordenInterna:recortar(d.ordenInterna,60),ordenCompra:recortar(d.ordenCompra,60),
         itemId:articulo?recortar(articulo.id,80):'',itemCode:articulo?recortar(articulo.itemCode,40):'',itemNombre:articulo?recortar(articulo.nombre,160):'',
-        unidades:0,rev:1,creadoPor:por,creadoUid:recortar(uid,80),creadoEn:ahora,actualizadoPor:por,actualizadoEn:ahora,historial:[]};
+        unidades:0,recibidoEn:foto,rev:1,creadoPor:por,creadoUid:recortar(uid,80),creadoEn:ahora,actualizadoPor:por,actualizadoEn:ahora,historial:[]};
     }else{
       lote=clonar(lotePrevio);
       if(lote.clave!==clave)throw falla('CLAVE','El lote existente no corresponde a esta llave (proveedor, lote y producto).');
       if(articulo&&!lote.itemId){lote.itemId=recortar(articulo.id,80);lote.itemCode=recortar(articulo.itemCode,40);lote.itemNombre=recortar(articulo.nombre,160);}
       if(!lote.fechaVencimiento&&d.fechaVencimiento)lote.fechaVencimiento=d.fechaVencimiento;
+      if(!(Number(lote.recibidoEn)>0)||foto<Number(lote.recibidoEn))lote.recibidoEn=foto;          // primera foto del lote
     }
     const uId=idUnidad(lote.id,d.numero);
     if(unidadPrevia)throw falla('DUPLICADO','La unidad '+d.numero+' del lote '+d.loteProveedor+' ya existe ('+uId+'). No se crea otra.');
@@ -181,10 +195,11 @@
     const tipoMov=aLinea?'ENTREGA_LINEA':'RECEPCION';
     const unidad={id:uId,loteId:lote.id,numero:d.numero,pesoNeto:d.pesoNeto,pesoBruto:d.pesoBruto,cantidad:d.cantidad,unidadCantidad:recortar(d.unidadCantidad,20),pesoActual:d.pesoNeto,
       estado,linea:aLinea?leyenda.linea:'',bloque:'',fecha:'',cuadro:'',evidenciaId:recortar(doc.id,80),leyenda:recortar(doc.leyenda||'',40),observacion:'',
-      rev:1,creadoPor:por,creadoUid:recortar(uid,80),creadoEn:ahora,actualizadoPor:por,actualizadoEn:ahora,historial:[{estado,accion:tipoMov,por,en:ahora}]};
+      recibidaEn:foto,recibidaOrigen:fotoOrigen,
+      rev:1,creadoPor:por,creadoUid:recortar(uid,80),creadoEn:ahora,actualizadoPor:por,actualizadoEn:ahora,historial:[{estado,accion:tipoMov,por,en:foto,registradoEn:ahora}]};
     const mov={id:'MOV-'+recortar(doc.id,64)+'-'+tipoMov,tipo:tipoMov,loteId:lote.id,unidadId:uId,
       antes:{estado:null,pesoActual:null,linea:''},despues:{estado,pesoActual:d.pesoNeto,linea:unidad.linea},evidenciaId:recortar(doc.id,80),
-      por,uid:recortar(uid,80),enMs:ahora,motivo:'',anula:''};
+      por,uid:recortar(uid,80),enMs:ahora,ocurridoEnMs:foto,ocurridoOrigen:fotoOrigen,motivo:'',anula:''};
     lote.unidades=num(lote.unidades)+1;lote.rev=(Number(lote.rev)||1)+(nuevo?0:1);lote.actualizadoPor=por;lote.actualizadoEn=ahora;
     lote.historial=(lote.historial||[]).concat([{accion:nuevo?'lote_creado':'unidad_agregada',unidadId:uId,por,en:ahora}]).slice(-200);
     return {lote,unidad,movimiento:mov,clave,nuevo,accion:nuevo?'lote_nuevo':'unidad_agregada',avisos:v.avisos};
@@ -313,11 +328,30 @@
       if(f.linea&&!us.some(u=>u.linea===f.linea))return false;
       if(q&&![l.id,l.loteProveedor,l.producto,l.proveedor,l.ordenInterna,l.ordenCompra,l.itemNombre,l.itemCode].some(x=>norm(x).includes(q))&&!us.some(u=>norm(u.id).includes(q)))return false;
       return true;
-    }).sort((a,b)=>num(b.creadoEn)-num(a.creadoEn)||String(b.id).localeCompare(String(a.id)));
+    }).sort((a,b)=>(num(b.recibidoEn)||num(b.creadoEn))-(num(a.recibidoEn)||num(a.creadoEn))||String(b.id).localeCompare(String(a.id)));
   }
   /** Línea de tiempo de un lote o de una unidad: movimientos más recientes primero. */
+  /** Cuándo ocurrió un movimiento: la foto para la recepción o entrega que nació de una foto; si no, cuándo se registró. */
+  const ocurrido=m=>num(m&&m.ocurridoEnMs)>0?num(m.ocurridoEnMs):num(m&&m.enMs);
   function lineaDeTiempo(movimientos,{loteId,unidadId}={}){
-    return (movimientos||[]).filter(m=>(!loteId||m.loteId===loteId)&&(!unidadId||m.unidadId===unidadId)).sort((a,b)=>num(b.enMs)-num(a.enMs)||String(b.id).localeCompare(String(a.id)));
+    return (movimientos||[]).filter(m=>(!loteId||m.loteId===loteId)&&(!unidadId||m.unidadId===unidadId)).sort((a,b)=>ocurrido(b)-ocurrido(a)||String(b.id).localeCompare(String(a.id)));
+  }
+  /* ---------- cómo se llama la unidad física según la categoría (para no confundir «unidad» con lo que trae dentro) ---------- */
+  const FISICA={preformas:['caja','cajas'],tapas:['caja','cajas'],cajas:['paquete','paquetes'],asas:['caja','cajas'],etiquetas:['bobina','bobinas'],bolsas:['bobina','bobinas'],polietileno:['bobina','bobinas']};
+  /** {uno, varios, titulo} de la unidad física del lote: «bobina» para etiquetas, bolsas y polietileno; «caja» para preformas, tapas y asas. */
+  function unidadFisica(categoria){
+    const f=FISICA[String(categoria||'').toLowerCase()]||['caja / bobina','cajas / bobinas'];
+    return {uno:f[0],varios:f[1],titulo:f[0].charAt(0).toUpperCase()+f[0].slice(1)};
+  }
+  /** Contenido total según las etiquetas (p. ej. 1026 UND), agrupado por la unidad escrita en la etiqueta. Solo unidades que siguen en planta. */
+  function contenidoLote(unidades){
+    const m=new Map();
+    (unidades||[]).forEach(u=>{
+      if(!u||u.estado==='CONSUMIDA'||u.estado==='DEVUELTA_PROVEEDOR'||u.cantidad===null||u.cantidad===undefined||u.cantidad==='')return;
+      const k=String(u.unidadCantidad||'UND').trim().toUpperCase()||'UND';
+      m.set(k,red((m.get(k)||0)+num(u.cantidad),3));
+    });
+    return [...m.entries()].map(([unidad,cantidad])=>({unidad,cantidad}));
   }
   /** Texto legible de un movimiento para la línea de tiempo. */
   function textoMovimiento(m){
@@ -330,7 +364,7 @@
   }
 
   const API={LINEAS,ESTADOS,TRANSICIONES,MOVIMIENTOS,LEYENDAS_DEFECTO,PARAMETROS_DEFECTO,CATEGORIAS_CATALOGO,idLote,esIdLote,claveLote,numeroUnidad,idUnidad,interpretarLeyenda,datosDeEvidencia,
-    validarParaLote,claveMemoria,sugerirArticulos,planCrearLote,estadoVencimiento,planEntregaLinea,planUsoEnCuadro,planCierreUnidad,evidenciaConLote,transicionPermitida,motivoNoPermitido,unidadesDeLote,resumenLote,filtrarLotes,lineaDeTiempo,textoMovimiento,norm};
+    validarParaLote,claveMemoria,sugerirArticulos,buscarArticulos,planCrearLote,estadoVencimiento,planEntregaLinea,planUsoEnCuadro,planCierreUnidad,evidenciaConLote,transicionPermitida,motivoNoPermitido,unidadesDeLote,resumenLote,filtrarLotes,lineaDeTiempo,textoMovimiento,norm,ocurrido,unidadFisica,contenidoLote};
   global.glacialTrazabilidadNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);

@@ -92,6 +92,39 @@
     return {valor:recortar(s,200)};
   }
 
+  /* ---------- fecha de la foto (cuándo se envió), distinta de cuándo se importó o validó ---------- */
+  /* Acepta milisegundos, segundos (WhatsApp) o texto ISO; un ISO sin zona se toma en hora de Lima (-05:00). → ms o null. */
+  function msDe(v){
+    if(typeof v==='number'&&Number.isFinite(v)&&v>0)return v<1e11?Math.round(v*1000):Math.round(v);
+    const t=texto(v).trim();if(!t)return null;
+    if(/^\d{9,13}$/.test(t))return msDe(Number(t));
+    if(!/^\d{4}-\d{2}-\d{2}/.test(t))return null;
+    const conZona=/(Z|[+-]\d{2}:?\d{2})$/i.test(t),iso=t.length===10?t+'T12:00:00':t.replace(' ','T');
+    const ms=Date.parse(conZona?iso:iso+'-05:00');
+    return Number.isFinite(ms)&&ms>0?ms:null;
+  }
+  /* Campos con que el bot puede informar la hora del mensaje de WhatsApp (el primero que venga manda). */
+  const CAMPOS_ENVIO=['enviado_en','mensaje_en','fecha_mensaje','whatsapp_en','recibido_en'];
+  /**
+   * Cuándo se envió la foto. Es la fecha que vale para la trazabilidad (el insumo se recibió o se usó ese día), no la de importación ni la de validación.
+   * Orden: hora del mensaje que manda el bot → llegada a la bandeja del servidor → lectura de la IA → importación. Devuelve {ms, origen}.
+   */
+  function fechaFotoDeRegistro(registro,recibidoEn,en){
+    const r=registro&&typeof registro==='object'?registro:{};
+    for(const c of CAMPOS_ENVIO){const ms=msDe(r[c]);if(ms)return {ms,origen:'whatsapp'};}
+    const b=msDe(recibidoEn);if(b)return {ms:b,origen:'bandeja'};
+    const l=msDe(r.analizado_en);if(l)return {ms:l,origen:'lectura'};
+    return {ms:Number(en)||Date.now(),origen:'importacion'};
+  }
+  /** Fecha de la foto de una evidencia ya guardada (las importadas antes de este cambio la calculan con la lectura o la importación). */
+  function fechaFoto(doc){
+    if(!doc)return {ms:null,origen:''};
+    if(Number(doc.fotoEn)>0)return {ms:Number(doc.fotoEn),origen:doc.fotoEnOrigen||'whatsapp'};
+    const l=msDe(doc.analizadoEn);if(l)return {ms:l,origen:'lectura'};
+    return Number(doc.creadoEn)>0?{ms:Number(doc.creadoEn),origen:'importacion'}:{ms:null,origen:''};
+  }
+  const ORIGEN_FECHA_FOTO={whatsapp:'hora del mensaje de WhatsApp',bandeja:'llegada al sistema',lectura:'lectura de la etiqueta',importacion:'importación (no se conoce la hora de envío)'};
+
   /* ---------- construir el documento desde el resultado del validador ---------- */
   function campoSaneado(def,c){
     c=c&&typeof c==='object'?c:{};
@@ -113,7 +146,7 @@
    * registro: contenido de un «-revisado.json» (v2 o v3). Exige que la huella de la foto coincida con registro.sha256: una foto que no es la
    * de ese JSON no se importa (evita mezclar datos de una etiqueta con la imagen de otra).
    */
-  function construirDocumento(registro,{sha256,foto,usuario,uid,ahora,leyenda}){
+  function construirDocumento(registro,{sha256,foto,usuario,uid,ahora,leyenda,recibidoEn}){
     if(!registro||typeof registro!=='object'||!registro.extraccion||typeof registro.extraccion!=='object')throw falla('FORMATO','El archivo no es un resultado de lectura de etiquetas (falta «extraccion»).');
     if(!/^[a-f0-9]{64}$/.test(texto(sha256)))throw falla('FORMATO','Falta la huella (SHA-256) de la foto.');
     if(registro.sha256&&String(registro.sha256).toLowerCase()!==sha256)throw falla('FOTO_NO_COINCIDE','La foto no corresponde a este resultado (la huella SHA-256 es distinta).');
@@ -135,8 +168,9 @@
         if(d.valor_sugerido!==undefined&&d.valor_sugerido!==null)campos[k].valor_sugerido=recortar(String(d.valor_sugerido),200);}
     });
     const en=Number(ahora)||Date.now();
+    const ff=fechaFotoDeRegistro(registro,recibidoEn,en);
     return {
-      id:sha256,estado:'pendiente',rev:1,leyenda:recortar(leyenda||registro.leyenda,40),     // texto que acompañó la foto en WhatsApp (RECEPCIÓN, PET2…); lo interpreta la trazabilidad de lotes
+      id:sha256,estado:'pendiente',rev:1,fotoEn:ff.ms,fotoEnOrigen:ff.origen,leyenda:recortar(leyenda||registro.leyenda,40),     // texto que acompañó la foto en WhatsApp (RECEPCIÓN, PET2…); lo interpreta la trazabilidad de lotes
       versionProcesador:recortar(registro.version_procesador,30),archivoOriginal:recortar(String(registro.archivo_original||'').split(/[\\/]/).pop(),120),
       analizadoEn:recortar(registro.analizado_en,40),modelo:recortar(registro.modelo,60),
       foto:{url:recortar(foto&&foto.url,300),mimetype:recortar(foto&&foto.mimetype,40),bytes:Number(foto&&foto.bytes)||0},
@@ -275,7 +309,7 @@
   }
 
   const API={ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
-    etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe};
+    etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe,msDe,fechaFotoDeRegistro,fechaFoto,ORIGEN_FECHA_FOTO};
   global.glacialEvidenciasNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);
