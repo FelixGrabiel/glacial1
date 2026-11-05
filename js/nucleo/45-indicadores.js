@@ -726,14 +726,49 @@
       if(fa!==fb)return fb?b:a;
       return momento(b)>=momento(a)?b:a;
     };
+    const grupos=new Map();
     arr.forEach(r=>{
       if(!r||!r.linea||!r.fecha)return;
       const k=r.linea+'|'+r.fecha+'|'+turnoDe(r);
       const a=elegido.get(k);
       elegido.set(k,a?mejor(a,r):r);
+      if(!grupos.has(k))grupos.set(k,[]);
+      grupos.get(k).push(r);
     });
     const quedan=new Set(elegido.values());
+    /* Dos FINALIZADOS del mismo turno que se complementan (otras marcas y otro horario) cuentan los dos:
+       p. ej. un reporte con 4 marcas y otro con la 5.ª, porque un reporte admite 4 cuadros. */
+    grupos.forEach((lista,k)=>{
+      const base=elegido.get(k);
+      if(!base||base.estadoRegistro!=='FINALIZADO'||lista.length<2)return;
+      const noche=/NOCHE/.test(k.split('|')[2]||'');
+      const contados=[base];
+      lista.filter(r=>r!==base&&r.estadoRegistro==='FINALIZADO').sort((a,b)=>momento(b)-momento(a)).forEach(r=>{
+        if(contados.every(c=>reportesComplementarios(c,r,noche))){contados.push(r);quedan.add(r);}
+      });
+    });
     return arr.filter(r=>!r||!r.linea||!r.fecha||quedan.has(r));
+  }
+  /* Tolerancia de cruce de horario entre dos reportes complementarios (cambio de producto anotado con minutos de diferencia). */
+  const TOLERANCIA_CRUCE_MIN=30;
+  function tramosReporte(r,noche){
+    const cuadros=Array.isArray(r&&r.cuadros)&&r.cuadros.length?r.cuadros:[r||{}];
+    const min=h=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(h||'').trim());return m?(+m[1])*60+(+m[2]):null;};
+    return cuadros.filter(q=>q&&String(q.marca||'').trim()).map(q=>{
+      let i=min(q.horaInicio),f=min(q.horaFin);
+      if(i===null||f===null)return {marca:String(q.marca).trim().toLowerCase(),i:null,f:null};
+      if(noche&&i<720){i+=1440;f+=1440;}
+      if(f<=i)f+=1440;
+      return {marca:String(q.marca).trim().toLowerCase(),i,f};
+    });
+  }
+  function reportesComplementarios(a,b,noche){
+    const ta=tramosReporte(a,noche),tb=tramosReporte(b,noche);
+    if(!ta.length||!tb.length)return false;
+    if(ta.concat(tb).some(t=>t.i===null))return false;                 // sin horario no se puede comprobar: no se suma
+    const marcas=new Set(ta.map(t=>t.marca));
+    if(tb.some(t=>marcas.has(t.marca)))return false;                    // repite marca: es otra versión del mismo reporte
+    return ta.every(x=>tb.every(y=>Math.min(x.f,y.f)-Math.max(x.i,y.i)<=TOLERANCIA_CRUCE_MIN));
   }
 
   const API=Object.freeze({
