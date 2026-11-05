@@ -19,3 +19,18 @@ begin
   if position('using errcode = ''40001''' in d) = 0 then raise exception 'glacial_41: ancla no encontrada, no se cambia nada'; end if;
   execute replace(d, 'using errcode = ''40001''', 'using errcode = ''PT409''');
 end $$;
+
+-- Ampliación (2026-11-05, misma noche): el mismo cambio en las 13 funciones de glacial_priv que señalaban «revisión desactualizada» con 40001
+-- (corregir_linea, corregir_tareo, editar_salida_maquinista, estado_cuadro, estado_linea, estado_orden, estado_tareo, guardar_config,
+--  guardar_cuadro, guardar_distribucion, marcar_tareo, modificar_orden, reabrir_orden). Tenían el mismo riesgo de reintento sin fin.
+-- La página (js/) no llama a ninguna de ellas ni depende del código 40001. Solo existen en PRODUCCIÓN (PRUEBAS no tiene el esquema
+-- glacial_priv). Verificado después: ninguna función de los esquemas propios usa 40001 en ninguno de los dos proyectos.
+do $$
+declare r record;
+begin
+  if to_regnamespace('glacial_priv') is null then return; end if;
+  for r in select p.oid from pg_proc p join pg_namespace s on s.oid=p.pronamespace
+           where s.nspname='glacial_priv' and p.prokind='f' and pg_get_functiondef(p.oid) ~ 'errcode\s*=\s*''40001''' loop
+    execute regexp_replace(pg_get_functiondef(r.oid), 'errcode\s*=\s*''40001''', 'errcode=''PT409''', 'g');
+  end loop;
+end $$;
