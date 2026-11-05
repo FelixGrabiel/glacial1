@@ -19,6 +19,18 @@ ok(of.filter(r=>r.linea==='PET2').map(r=>r.ef).join()==='300','5 registros de PE
 ok(of.filter(r=>r.linea==='PET1'&&r.fecha==='2026-11-04').map(r=>r.ef).join()==='20','dos abiertos del mismo turno sin finalizar: cuenta solo el último actualizado');
 ok(of.filter(r=>r.fecha==='2099-03-01').map(r=>r.ef).join()==='4800,2900','reportes antiguos separados de Día e Intermedio: cuentan los dos');
 ok(of.some(r=>r.sinLinea)&&of.length===5,'lo que no tiene línea o fecha se conserva tal cual');
+/* dos FINALIZADOS que se complementan (caso real PET2 06/10: 4 marcas + Scala_Gas) */
+const q=(marca,hi,hf)=>({marca,horaInicio:hi,horaFin:hf});
+const fin=(id,t,cuadros,turno)=>({id,linea:'PET2',fecha:'2026-10-06',turno:turno||'DÍA',estadoRegistro:'FINALIZADO',finalizadoEn:t,actualizadoEn:t,cuadros});
+const cuatro=fin('a',1,[q('Merkat','07:00','09:00'),q('Bells','09:00','10:40'),q('Scala','10:40','12:40'),q('Glacial','12:40','16:20')]);
+const gas=fin('b',2,[q('Scala_Gas','16:00','18:30')]);
+ok(G.registrosOficiales([cuatro,gas]).map(r=>r.id).sort().join()==='a,b','dos finalizados con otras marcas y otro horario (cruce ≤ 30 min): cuentan los dos');
+ok(G.registrosOficiales([cuatro,fin('c',2,[q('Glacial','12:40','16:20')])]).map(r=>r.id).join()==='c','dos finalizados que repiten marca: cuenta solo el último (es otra versión)');
+ok(G.registrosOficiales([cuatro,fin('d',2,[q('Scala_Gas','11:00','14:00')])]).map(r=>r.id).join()==='d','otra marca pero en el mismo horario: cuenta solo el último');
+ok(G.registrosOficiales([cuatro,fin('e',2,[q('Scala_Gas','','')])]).map(r=>r.id).join()==='e','sin horario no se puede comprobar: cuenta solo el último');
+ok(G.registrosOficiales([cuatro,gas,Object.assign(fin('f',3,[q('Aro','16:00','17:00')]),{estadoRegistro:'EN_REGISTRO'})]).map(r=>r.id).sort().join()==='a,b','un abierto del mismo turno no se suma a los finalizados');
+const n1=fin('n1',1,[q('Scala','20:00','02:00')],'NOCHE'),n2=fin('n2',2,[q('Bells','02:00','07:00')],'NOCHE'),n3=fin('n3',3,[q('Aro','01:00','03:00')],'NOCHE');
+ok(G.registrosOficiales([n1,n2]).length===2&&G.registrosOficiales([n1,n3]).length===1,'NOCHE: los horarios después de medianoche se comparan bien');
 const usos=['js/produccion/09-resumen.js','js/produccion/49-resumen-indicadores.js','js/produccion/29-avance-produccion.js','js/produccion/24-semaforo-produccion-actual.js',
   'js/produccion/23b-tiempos-linea.js','js/produccion/14-exportar-general.js','js/produccion/08-graficos.js','js/produccion/46-proyeccion-avisos.js','js/produccion/47-analisis-paradas.js',
   'js/asistente/72-asistente-pantalla.js','js/asistente/73-reporte-general.js','js/asistente/91-control-proceso-excel.js'];
