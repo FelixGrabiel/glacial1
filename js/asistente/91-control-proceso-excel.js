@@ -99,7 +99,7 @@
   const esc=v=>typeof escaparHtml==='function'?escaparHtml(String(v==null?'':v)):String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const limaHoy=()=>new Date(Date.now()-5*3600000).toISOString().slice(0,7);
   const S={linea:'B7L',mes:limaHoy(),msg:null,ocupado:false,drive:{filas:[],disponible:null,error:'',en:0,enCurso:false,sincronizando:false}};
-  const registros=()=>typeof loadRecords==='function'?loadRecords():[];
+  const registros=()=>typeof loadRecordsOficiales==='function'?loadRecordsOficiales():(typeof loadRecords==='function'?loadRecords():[]);
   const modeloActual=()=>{const [a,m]=S.mes.split('-').map(Number);return P.modeloMes(registros(),{linea:S.linea,anio:a,mes:m});};
   let repintar=()=>{};
 

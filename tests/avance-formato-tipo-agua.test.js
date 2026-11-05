@@ -31,5 +31,5 @@ ok(/claveBloque=\(presentacion,marca\)=>avClaveFormatoPresentacion\(presentacion
 ok(sb.avClaveFormatoPresentacion('Pack_Regular_625mlx6und/la')===sb.avClaveFormatoPresentacion('Pack_Regular_625mlx15und/ln'),'el mismo tamaño en distinto pack sigue en un bloque (sin cambiar)');
 const img=extraer(s29,'avCanvasSnapshot');
 ok(/FORMATOS`/.test(img)&&/g\.cabecera/.test(img)&&/ALTO_CABECERA/.test(img),'imagen: encabezado «PET2 · 3 FORMATOS» cuando la línea tiene más de un formato (y se suma a la altura)');
-ok(/20261104-/.test((leer('index.html').match(/29-avance-produccion\.js\?v=[^"]+/)||[''])[0]),'index.html sube la versión de 29-avance-produccion.js');
+ok((m=>!!m&&m[1]>='20261104')(/29-avance-produccion\.js\?v=(\d{8})-/.exec(leer('index.html'))),'index.html sube la versión de 29-avance-produccion.js');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

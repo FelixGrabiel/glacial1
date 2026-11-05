@@ -151,7 +151,7 @@ function datosExportacionGeneral(){
   const lineasVisibles = lineasConsultables();
 
   const todos =
-    loadRecords().filter(
+    loadRecordsOficiales().filter(
       r => lineasVisibles.some(l => l.key === r.linea)
     );
 
@@ -1351,7 +1351,7 @@ function xlgHojaDatos(wb, ctx){
         return;
       }
 
-      const d = calcDerivedCuadro(c);
+      const d = calcDerivedCuadro(c, r.linea);
       const mermaCuadro = (c.mermas || []).reduce((a,m) => a + num(m.unidades), 0);
       const paradasProgMin = (c.paradasProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0);
       const paradasNoProgMin = (c.paradasNoProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0);
@@ -1417,7 +1417,7 @@ function xlgHojaAlertas(wb, ctx){
         return;
       }
 
-      const d = calcDerivedCuadro(c);
+      const d = calcDerivedCuadro(c, r.linea);
       const motivos = [];
 
       if(efectiva > 0 && num(c.horasTurno) === 0){

@@ -175,11 +175,17 @@
     // 1) Paletas → solo la cantidad en UND
     // Todo lo que consulta normalizarCuadros() se calcula ANTES de escribir: cada llamada
     // crea objetos nuevos y dejaría huérfano el cuadro que se está modificando.
-    const P=paletasDe(q);
-    const Pr=programadoDe(q);
+    // El mismo producto (marca + presentación) en dos o más cuadros: Paletas y la programación son totales del PRODUCTO en el turno,
+    // así que se cargan solo en el primer cuadro de ese producto; los siguientes no los repiten (antes se sumaban dos veces).
+    const primero=cuadrosConProducto().find(({q:x})=>mismoProducto(x,q));
+    const repetido=!!primero&&primero.i!==i;
+    const P=repetido?{ids:[],total:0,paletas:0}:paletasDe(q);
+    const Pr=repetido?0:programadoDe(q);
     const deseadas=paradasDeseadas(i,q);
     const w=normalizarCuadros(draft)[i];
     if(!w)return false;
+    const dupDe=repetido?primero.i+1:undefined;
+    if(w.autoDuplicadoDe!==dupDe){if(dupDe)w.autoDuplicadoDe=dupDe;else delete w.autoDuplicadoDe;cambio=true;}
     const forzarEf=forzar&&(!campo||campo==='paletas');
     const forzarPr=forzar&&(!campo||campo==='programada');
     {

@@ -52,7 +52,7 @@ function calcDerivedLegacy(r){
   const produccionNominal = ratio * horasEfectivas;
   const efectiva = num(r.produccion?.efectiva);
   const programada = num(r.produccion?.programada);
-  const sopladas = num(r.produccion?.sopladas);
+  const sopladas = ((!(r.linea)||!GlacialIndicadores.LINEAS_CON_SOPLADAS||GlacialIndicadores.LINEAS_CON_SOPLADAS.includes(r.linea))?num(r.produccion?.sopladas):0);
 
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
@@ -96,7 +96,10 @@ function calcDerivedLegacy(r){
 }
 
 
-function calcDerivedCuadro(cuadro){
+/* linea: las «sopladas» solo cuentan en las líneas que las registran (GlacialIndicadores.LINEAS_CON_SOPLADAS). En B20L ese campo
+   guarda «Bidones disponibles» y antes entraba a calidad, rendimiento y OEE como si fueran botellas sopladas.
+   (Se escribe en cada cálculo, sin función aparte, porque las pruebas extraen estas funciones sueltas.) */
+function calcDerivedCuadro(cuadro,linea){
 
   const horasTurno = num(cuadro?.horasTurno);
   const pProg = num((cuadro?.paradasProgramadas || []).reduce((a,p) => a + num(p.tiempoMin), 0)) / 60;
@@ -106,7 +109,7 @@ function calcDerivedCuadro(cuadro){
   const produccionNominal = ratio * horasEfectivas;
   const efectiva = num(cuadro?.produccion?.efectiva);
   const programada = num(cuadro?.produccion?.programada);
-  const sopladas = num(cuadro?.produccion?.sopladas);
+  const sopladas = ((!(linea || cuadro?.linea)||!GlacialIndicadores.LINEAS_CON_SOPLADAS||GlacialIndicadores.LINEAS_CON_SOPLADAS.includes(linea || cuadro?.linea))?num(cuadro?.produccion?.sopladas):0);
 
 
   /* Definición oficial: planificado = duración − paradas programadas; disponibilidad = (planificado − no programadas) ÷ planificado. */
@@ -153,14 +156,14 @@ function calcDerivedCuadro(cuadro){
 function calcDerivedMulti(r){
 
   const cuadros = Array.isArray(r?.cuadros) ? r.cuadros : [];
-  const ds = cuadros.map(calcDerivedCuadro);
+  const ds = cuadros.map(c => calcDerivedCuadro(c, r?.linea));
 
   const horasTurno = ds.reduce((a,d) => a + num(d.horasEfectivas + d.pProg + d.pNoProg), 0);
   const horasEfectivas = ds.reduce((a,d) => a + num(d.horasEfectivas), 0);
   const produccionNominal = ds.reduce((a,d) => a + num(d.produccionNominal), 0);
   const efectiva = cuadros.reduce((a,c) => a + num(c?.produccion?.efectiva), 0);
   const programada = cuadros.reduce((a,c) => a + num(c?.produccion?.programada), 0);
-  const sopladas = cuadros.reduce((a,c) => a + num(c?.produccion?.sopladas), 0);
+  const sopladas = cuadros.reduce((a,c) => a + ((!(r?.linea)||!GlacialIndicadores.LINEAS_CON_SOPLADAS||GlacialIndicadores.LINEAS_CON_SOPLADAS.includes(r?.linea))?num(c?.produccion?.sopladas):0), 0);
 
 
   const pProg = ds.reduce((a,d) => a + num(d.pProg), 0);
@@ -181,7 +184,10 @@ function calcDerivedMulti(r){
   /* OEE = Disp × (conformes ÷ nominal) = Disp × Rendimiento × Calidad cuando todo lo del registro tiene sopladas. */
   const rendConformes = produccionNominal > 0 ? GlacialIndicadores.rendimiento(efectivaVel, produccionNominal) : null;
   const oee = GlacialIndicadores.oee(GlacialIndicadores.disponibilidad(planMinVel, npMinVel), rendConformes) ?? 0;
-  const cumplimiento = GlacialIndicadores.cumplimiento(efectiva, programada) ?? 0;
+  /* Cumplimiento = lo producido DE LO PROGRAMADO ÷ programado: lo producido fuera de programación (cuadros con programada 0) no suma al
+     numerador (igual que Producción actual, GlacialIndicadores.produccionPlanYFuera). Antes un cuadro fuera del plan daba 160 %. */
+  const efectivaPlan = cuadros.reduce((a,c) => a + (num(c?.produccion?.programada) > 0 ? num(c?.produccion?.efectiva) : 0), 0);
+  const cumplimiento = GlacialIndicadores.cumplimiento(efectivaPlan, programada) ?? 0;
   const eficiencia = produccionNominal > 0 ? efectiva / produccionNominal : 0;
   const noCumplida = Math.max(produccionNominal - efectiva, 0);
   const ratioEfectivo = GlacialIndicadores.ratio(efectiva, horasEfectivas) ?? 0;
@@ -1070,7 +1076,19 @@ function generarIdParadaProduccion(){
   return 'pr_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
 }
 
-function blankCuadro(lineKey, numero){
+/* Horas por defecto del cuadro 1 según el turno: las del bloque configurado (Día+Intermedio o Noche, Mantenimiento › Horarios).
+   Antes eran siempre 07:00–19:00, también en NOCHE: un reporte de noche sin editar se finalizaba con 12 h equivocadas. */
+function horasDefectoCuadro(turno){
+  try{
+    let cfg=null;
+    try{ cfg = typeof window.glacialConfigIndicadores === 'function' ? (window.glacialConfigIndicadores() || {}).bloques : null; }catch(_){ cfg = null; }
+    const b = GlacialIndicadores.normalizarBloques(cfg)[GlacialIndicadores.claveBloque(turno || 'DÍA')];
+    if(b && /^\d{2}:\d{2}$/.test(b.inicio) && /^\d{2}:\d{2}$/.test(b.fin)) return { inicio: b.inicio, fin: b.fin };
+  }catch(_){ /* sin configuración: valores de siempre */ }
+  return String(turno || '').toUpperCase().includes('NOCHE') ? { inicio: '19:00', fin: '07:00' } : { inicio: '07:00', fin: '19:00' };
+}
+
+function blankCuadro(lineKey, numero, turno){
 
   const marcas =
     MARCAS_POR_LINEA[lineKey] || [];
@@ -1091,14 +1109,19 @@ function blankCuadro(lineKey, numero){
       ? presentaciones[0]
       : '';
 
+  const horasDef =
+    activo
+      ? horasDefectoCuadro(turno)
+      : null;
+
   const horaInicio =
     activo
-      ? '07:00'
+      ? horasDef.inicio
       : '';
 
   const horaFin =
     activo
-      ? '19:00'
+      ? horasDef.fin
       : '';
 
 
@@ -1213,7 +1236,8 @@ function normalizarCuadros(record){
         n =>
           blankCuadro(
             record.linea,
-            n
+            n,
+            record.turno
           )
       );
 
@@ -1338,7 +1362,8 @@ function normalizarCuadros(record){
         const base =
           blankCuadro(
             record.linea,
-            i+1
+            i+1,
+            record.turno
           );
 
 
@@ -2120,7 +2145,8 @@ function blankRecord(lineKey){
         n =>
           blankCuadro(
             lineKey,
-            n
+            n,
+            turnoInicial
           )
       ),
 
@@ -3052,6 +3078,43 @@ function mostrarToastReporte(texto){
   setTimeout(()=>el.classList.remove('visible'),1800);
 }
 
+/* Datos imposibles de un cuadro (bloquean «Finalizar»; el avance se sigue guardando). Puro sobre el cuadro y el reporte.
+   Antes se finalizaban paradas de 5 000 min, minutos o producción negativos, cuadros de 07:00 a 07:00 (24 h) y cumplimientos de millones de %. */
+function datosImposiblesCuadro(q,reporte){
+  const r=[];
+  if(!q)return r;
+  const negativo=v=>v!==''&&v!==null&&v!==undefined&&Number(v)<0;
+  const p=q.produccion||{};
+  [['programada','la producción programada'],['efectiva','la producción efectiva'],['sopladas','las botellas sopladas'],['calidad','las botellas de calidad'],['paletas','las paletas']]
+    .forEach(([k,t])=>{if(negativo(p[k]))r.push(t+' no puede ser negativa');});
+  const paradas=[...(q.paradasProgramadas||[]),...(q.paradasNoProgramadas||[])].filter(x=>x&&!x.eliminada);
+  if(paradas.some(x=>negativo(x.tiempoMin)))r.push('una parada tiene minutos negativos');
+  if((q.mermas||[]).some(m=>m&&(negativo(m.peso)||negativo(m.unidades)||negativo(m.kg)||negativo(m.pesoIngresadoKg))))r.push('una merma tiene valores negativos');
+  if(q.horaInicio&&q.horaFin){
+    if(q.horaInicio===q.horaFin)r.push('la hora de inicio y la de fin son iguales');
+    else{
+      const durMin=Math.round(num(calcularHorasTurno(q.horaInicio,q.horaFin))*60);
+      let bloqueMin=0;
+      try{
+        let cfg=null;try{cfg=typeof window.glacialConfigIndicadores==='function'?(window.glacialConfigIndicadores()||{}).bloques:null;}catch(_){cfg=null;}
+        const b=GlacialIndicadores.horarioBloque(reporte&&reporte.fecha,reporte&&reporte.turno,cfg);
+        if(b)bloqueMin=Math.round((b.fin-b.inicio)/60000);
+      }catch(_){bloqueMin=0;}
+      if(bloqueMin>0&&durMin>bloqueMin+60)r.push(`el cuadro dura ${Math.round(durMin/6)/10} h y el turno tiene ${Math.round(bloqueMin/6)/10} h: revisa las horas`);
+      const minParadas=paradas.reduce((a,x)=>a+Math.max(0,num(x.tiempoMin)),0);
+      if(durMin>0&&minParadas>durMin)r.push(`las paradas suman ${minParadas} min y el cuadro dura ${durMin} min`);
+      // Producción imposible: más del DOBLE de lo que la línea puede hacer en ese tiempo a su velocidad estándar (con los datos reales,
+      // entre 1,5 y 2 veces aparecen horas mal puestas o velocidades que cambiaron: no se bloquea; desde 2 veces son errores claros).
+      const nominal=num(q.ratioNominal),ef=num(p.efectiva);
+      if(nominal>0&&durMin>0&&ef>nominal*(durMin/60)*2)r.push(`la producción efectiva (${Math.round(ef).toLocaleString('es-PE')}) es más del doble de lo que la línea puede hacer en ${Math.round(durMin/6)/10} h a su velocidad estándar: revisa la producción o las horas`);
+    }
+  }
+  // Efectiva un poco mayor que sopladas es frecuente (el contador de la sopladora y Paletas no cortan igual): solo se bloquea si la pasa en más de 50 %.
+  if(GlacialIndicadores.LINEAS_CON_SOPLADAS&&GlacialIndicadores.LINEAS_CON_SOPLADAS.includes(reporte&&reporte.linea)&&num(p.sopladas)>0&&num(p.efectiva)>num(p.sopladas)*1.5)
+    r.push(`la producción efectiva (${Math.round(num(p.efectiva)).toLocaleString('es-PE')}) es mucho mayor que las botellas sopladas (${Math.round(num(p.sopladas)).toLocaleString('es-PE')}): revisa las sopladas`);
+  return r;
+}
+
 function validarReporteParaFinalizar(){
   const faltan=[];
   normalizarCuadros(draft);
@@ -3062,12 +3125,14 @@ function validarReporteParaFinalizar(){
 
   if(!usados.length) faltan.push('Al menos un cuadro de producción');
   usados.forEach((q,i)=>{
-    const n=i+1;
+    // Número real del cuadro (antes se numeraba por posición entre los usados: con el cuadro 1 vacío, el 3 salía como «Producción 1»).
+    const n=num(q.numero)||((draft.cuadros||[]).indexOf(q)+1)||i+1;
     if(!q.marca) faltan.push(`Producción ${n}: marca`);
     if(!q.presentacion) faltan.push(`Producción ${n}: presentación`);
     if(!q.horaInicio) faltan.push(`Producción ${n}: hora inicio`);
     if(!q.horaFin) faltan.push(`Producción ${n}: hora fin`);
     if(GlacialIndicadores.faltaSopladas(draft.linea,q)) faltan.push(`Producción ${n}: botellas sopladas`);
+    datosImposiblesCuadro(q,draft).forEach(t=>faltan.push(`Producción ${n}: ${t}`));
     // Paradas por «Falla de máquina»: el equipo es obligatorio (la lista «Falta para finalizar» lo muestra; no se bloquea el guardado en tiempo real).
     // Causa y motivo del catálogo (el detalle es obligatorio en «Otro»).
     if(window.glacialMotivosParada) (q.paradasNoProgramadas || []).forEach(p => {
@@ -3399,7 +3464,7 @@ function renderFormTab(){
     (q,i) => {
 
       const dq =
-        calcDerivedCuadro(q);
+        calcDerivedCuadro(q, draft.linea);
 
 
       const paradaProg =
@@ -4033,6 +4098,8 @@ function renderFormTab(){
                       /* Autollenado desde Paletas (35-autollenado-registro.js) */
                       q.autoPaletas
                         ? ''
+                        : q.autoDuplicadoDe
+                          ? ` <small title="Paletas y la programación son totales del producto en el turno: se cargan una sola vez">Mismo producto que la Producción ${q.autoDuplicadoDe}: Paletas se cuenta allí</small>`
                         : (
                             q.autoPaletasDisponible
                               ? ` <small>Paletas: ${Number(q.autoPaletasDisponible).toLocaleString('es-PE')} UND <a href="#" class="link-origen" onclick="registroUsarPaletas(${i});return false;">Usar</a></small>`
@@ -5267,6 +5334,9 @@ function updateField(
   val
 ){
 
+  const previo =
+    draft[name];
+
   draft[name] =
     val;
 
@@ -5306,6 +5376,14 @@ function updateField(
   ){
 
     draft.grupoTurno=grupoTurnoReporte(val);
+
+    // Si el cuadro conserva las horas por defecto del turno anterior (nadie las editó), pasan a las del turno nuevo (p. ej. DÍA → NOCHE).
+    const antes=horasDefectoCuadro(previo),ahora=horasDefectoCuadro(val);
+    if(antes.inicio!==ahora.inicio||antes.fin!==ahora.fin){
+      (normalizarCuadros(draft)||[]).forEach(q=>{
+        if(q&&q.estadoCuadro!=='FINALIZADO'&&q.horaInicio===antes.inicio&&q.horaFin===antes.fin){q.horaInicio=ahora.inicio;q.horaFin=ahora.fin;}
+      });
+    }
 
     if(val==='INTERMEDIO'){
       intentarContinuarReporteCompartido(val);

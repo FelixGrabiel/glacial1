@@ -517,7 +517,7 @@
     let factores=D.cache.factores,insumos=D.cache.insumos;
     if(!D.cache.listo.factores){const [a,b]=await Promise.all([db.collection('apFactores').get(),db.collection('apInsumos').get()]);factores=a.docs.map(d=>d.data());insumos=b.docs.map(d=>d.data());}
     const I=global.glacialIncidencias;
-    return modelo({fecha,lineas:opc&&opc.lineas,programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecords==='function'?loadRecords():[],
+    return modelo({fecha,lineas:opc&&opc.lineas,programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecordsOficiales==='function'?loadRecordsOficiales():(typeof loadRecords==='function'?loadRecords():[]),
       produccionAlCorte:global.glacialProduccionPaletasAlCorte,unidadesPorPaleta:typeof obtenerUnidadesPorPalet==='function'?obtenerUnidadesPorPalet:null,
       mermas:extra.mermas,conciliaciones:extra.conciliaciones,movimientos:D.cache.movimientos.concat(extra.movimientos.filter(x=>!D.cache.movimientos.some(y=>y.opId===x.opId))),
       factores,insumos,tareos:typeof obtenerTareos==='function'?obtenerTareos():[],

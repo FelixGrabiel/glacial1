@@ -187,7 +187,7 @@
      opciones.linea limita a una línea. Devuelve {generadoEn,total,items[{…,texto}],mensaje}; `mensaje` es el texto listo para WhatsApp. */
   function pendientesFinalizar(opciones){
     const cfg=config();
-    let regs=[];try{regs=loadRecords()||[];}catch(_){regs=[];}
+    let regs=[];try{regs=loadRecordsOficiales()||[];}catch(_){regs=[];}
     let bloques=null;try{bloques=typeof window.glacialConfigIndicadores==='function'?(window.glacialConfigIndicadores()||{}).bloques:null;}catch(_){bloques=null;}
     const lista=GlacialIndicadores.reportesSinFinalizar(regs,ahora(),bloques,{graciaMin:cfg.finalizarGraciaMin,diasMax:cfg.finalizarDiasMax,linea:opciones&&opciones.linea});
     return {generadoEn:ahora(),total:lista.length,items:lista.map(x=>Object.assign({},x,{texto:GlacialIndicadores.textoReporteSinFinalizar(x),textoCorto:GlacialIndicadores.textoReporteSinFinalizar(x,true)})),mensaje:GlacialIndicadores.mensajeReportesSinFinalizar(lista)};
@@ -198,7 +198,7 @@
     const cfg=config();
     const G=window.glacialEntregaTurno,est=G&&typeof G.estado==='function'?G.estado():null;
     if(!est||!est.listo||est.error)return {generadoEn:ahora(),total:0,items:[],mensaje:'',listo:false};
-    let regs=[];try{regs=loadRecords()||[];}catch(_){regs=[];}
+    let regs=[];try{regs=loadRecordsOficiales()||[];}catch(_){regs=[];}
     let bloques=null;try{bloques=typeof window.glacialConfigIndicadores==='function'?(window.glacialConfigIndicadores()||{}).bloques:null;}catch(_){bloques=null;}
     const lista=GlacialIndicadores.entregasPendientes(regs,(est.docs||[]).map(d=>d.id),ahora(),bloques,{graciaMin:cfg.entregaGraciaMin,diasMax:cfg.entregaDiasMax,desde:cfg.entregaDesde});
     return {generadoEn:ahora(),total:lista.length,listo:true,items:lista.map(x=>Object.assign({},x,{texto:GlacialIndicadores.textoEntregaPendiente(x)})),mensaje:GlacialIndicadores.mensajeEntregasPendientes(lista)};

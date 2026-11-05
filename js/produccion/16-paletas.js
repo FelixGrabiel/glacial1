@@ -344,6 +344,36 @@ function paletasDeCombinacionPaletas(claveNormalizada){
 }
 
 
+/*
+   Unidades producidas de una lista de registros de Paletas (Resumen, indicadores).
+   Paletas guarda ACUMULADOS («Completa 4 → 1 296», luego «Completa 5 → 1 620»): no se pueden sumar fila por fila.
+   Por cada línea + fecha + bloque (Día+Intermedio o Noche) + producto se toma el producido del módulo de Paletas
+   (resumenProgramacionCombinacionTurnos, el mismo de Producción actual) una sola vez.
+*/
+function glacialPaletasProducidas(paletas){
+
+  const combos = new Map();
+
+  (paletas || []).forEach(p => {
+    if(!p || !p.linea || !p.fecha) return;
+    const noche = String(p.turno || '').toUpperCase().includes('NOCHE');
+    const k = [p.linea, p.fecha, noche ? 'NOCHE' : 'DIA', normalizarClavePaletas(p.marca), normalizarClavePaletas(p.presentacion)].join('|');
+    if(!combos.has(k)) combos.set(k, { p, turnos: noche ? ['NOCHE'] : ['DÍA','INTERMEDIO'] });
+  });
+
+  let total = 0;
+
+  combos.forEach(({ p, turnos }) => {
+    try{
+      total += num(resumenProgramacionCombinacionTurnos(p.linea, p.fecha, turnos, p.marca, p.presentacion).unidadesProducidas);
+    }catch(_){ /* sin dato de esa combinación */ }
+  });
+
+  return total;
+
+}
+
+
 function obtenerProgramacionPaleta(linea, fecha, turno, marca, presentacion){
 
   const clave =

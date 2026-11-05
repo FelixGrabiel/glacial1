@@ -84,7 +84,7 @@ const rep=(o={})=>Object.assign({id:'r1',linea:'PET1',fecha:'2026-10-28',turno:'
   ok(/x\.tipo==='finalizar'/.test(s46)&&/cargarReporteParaCorreccion\(x\.registroId\)/.test(s46),'al tocar el aviso se abre el reporte para continuarlo');
   ok(/pendientesFinalizar\}\);|,pendientesFinalizar[,}]/.test(s46)&&/function pendientesFinalizar/.test(s46),'el bot dispone de glacialAvisos.pendientesFinalizar()');
   ok(!/ambito\(\)[^;]*pendientesFinalizar/.test(s46.slice(s46.indexOf('function pendientesFinalizar'),s46.indexOf('function pendientesEntrega'))),'pendientesFinalizar no depende de quién mira (sirve a un usuario de solo consulta)');
-  ok(/46-proyeccion-avisos\.js\?v=2026(10(2[7-9]|3\d)|1[12]\d\d)-[a-z]+\d+/.test(html)&&/45-indicadores\.js\?v=20261030/.test(html),'index.html con versión nueva de 45 y 46');
+  ok(/46-proyeccion-avisos\.js\?v=2026(10(2[7-9]|3\d)|1[12]\d\d)-[a-z]+\d+/.test(html)&&(m=>!!m&&m[1]>='20261030')(/45-indicadores\.js\?v=(\d{8})-/.exec(html)),'index.html con versión nueva de 45 y 46');
   ok(fs.existsSync(path.join(raiz,'docs/produccion/avisos-finalizar-reportes.md')),'documento para el bot: docs/produccion/avisos-finalizar-reportes.md');
 }
 console.log('\n'+(total-fallas)+' de '+total+' pruebas correctas'+(fallas?' · '+fallas+' FALLAN':''));

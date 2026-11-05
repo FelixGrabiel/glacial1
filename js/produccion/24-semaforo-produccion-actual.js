@@ -196,7 +196,7 @@
     return turnoActivo(x.fecha,x.turno) || !!(bl && bl.enFranja && bl.fecha===x.fecha && GlacialIndicadores.claveBloque(x.turno)==='diaInter');
   }
   function registroDeTurno(x){
-    let recs=[];try{recs=(typeof loadRecords==='function'?loadRecords():[])||[];}catch(_){recs=[];}
+    let recs=[];try{recs=(typeof loadRecordsOficiales==='function'?loadRecordsOficiales():(typeof loadRecords==='function'?loadRecords():[]))||[];}catch(_){recs=[];}
     const bloque=GlacialIndicadores.claveBloque(x.turno),marca=quitarTilde(x.marca),pres=quitarTilde(x.presentacion);
     // Día e Intermedio comparten reporte: se toman los registros de todo el bloque.
     const delTurno=recs.filter(r=>r&&r.linea===x.linea&&r.fecha===x.fecha&&GlacialIndicadores.claveBloque(r.turno)===bloque);

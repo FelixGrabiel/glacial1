@@ -719,7 +719,7 @@ function agruparOEEPorMarca(all){
 
       r.cuadros.forEach(c => {
 
-        const dc = calcDerivedCuadro(c);
+        const dc = calcDerivedCuadro(c, r.linea);
 
         agregar(c?.marca, dc.horasEfectivas, dc);
 
@@ -918,7 +918,7 @@ function nombreArchivoSeguro(texto){
 
 function obtenerRegistroExportacion(){
 
-  const all = loadRecords()
+  const all = loadRecordsOficiales()
     .filter(r => r.linea === state.currentLine)
     .sort((a,b) =>
       (a.timestamp || '').localeCompare(b.timestamp || '')
@@ -1767,7 +1767,7 @@ function xlHojaReporte(wb, ctx){
   cuadros.forEach((c,i) => {
 
     const f = rc0 + i;
-    const dc = calcDerivedCuadro(c);
+    const dc = calcDerivedCuadro(c, rec && rec.linea);
     const par = fmt => ({ numFmt:fmt, align:'right' });
 
     xlSet(ws, f, 2, c.numero, { align:'center' });
@@ -1815,7 +1815,7 @@ function xlHojaReporte(wb, ctx){
     xlFx(
       `SUM(${xlLetra(col)}${rc0}:${xlLetra(col)}${rc1})`,
       cuadros.reduce((a,c) => {
-        const dc = calcDerivedCuadro(c);
+        const dc = calcDerivedCuadro(c, rec && rec.linea);
         return a + ({
           8:num(c.horasTurno), 9:dc.horasEfectivas,
           10:num(c.produccion?.programada), 11:num(c.produccion?.efectiva),
@@ -2628,7 +2628,7 @@ function xlEstadisticasLinea(regs){
 
 function xlHojaResumenLineas(wb, ctx){
 
-  const registros = loadRecords();
+  const registros = loadRecordsOficiales();
 
   registros.forEach(r => normalizarCuadros(r));
 
@@ -3796,7 +3796,7 @@ function renderGraficosTab(){
 
   const all =
 
-    loadRecords()
+    loadRecordsOficiales()
 
       .filter(
         r => r.linea === state.currentLine

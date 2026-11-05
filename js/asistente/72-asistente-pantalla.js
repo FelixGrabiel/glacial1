@@ -78,7 +78,7 @@
   function cuadrosPara(fecha,bloque){
     const lineasPermitidas=(typeof LINES!=='undefined'?LINES.map(l=>l.key):N.LINEAS.map(l=>l.codigo)).filter(l=>N.LINEAS.some(x=>x.codigo===l));
     return N.cuadrosDelBloque({fecha,bloque,lineas:lineasPermitidas,
-      programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecords==='function'?loadRecords():[],
+      programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecordsOficiales==='function'?loadRecordsOficiales():(typeof loadRecords==='function'?loadRecords():[]),
       produccionAlCorte:window.glacialProduccionPaletasAlCorte,unidadesPorPaleta:typeof obtenerUnidadesPorPalet==='function'?obtenerUnidadesPorPalet:null});
   }
   function contexto(){
@@ -325,7 +325,7 @@
   /* Cuadros de una fecha (DÍA + NOCHE) con lo programado, lo producido y el factor del catálogo. */
   function cuadrosDeFecha(fecha){
     const lineas=lineasPermitidas();
-    const base={fecha,lineas,programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecords==='function'?loadRecords():[],
+    const base={fecha,lineas,programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecordsOficiales==='function'?loadRecordsOficiales():(typeof loadRecords==='function'?loadRecords():[]),
       produccionAlCorte:window.glacialProduccionPaletasAlCorte,unidadesPorPaleta:typeof obtenerUnidadesPorPalet==='function'?obtenerUnidadesPorPalet:null};
     return ['DIA','NOCHE'].flatMap(b=>N.cuadrosDelBloque({...base,bloque:b}));
   }

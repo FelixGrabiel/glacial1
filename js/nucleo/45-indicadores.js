@@ -708,6 +708,34 @@
     ['Metas y colores','Una sola tabla en Firestore (verde, ámbar y rojo según la meta de cada indicador; en la merma la meta es un máximo).']
   ]);
 
+  /* ---------------------------------------------------------
+     REGISTROS OFICIALES (los que cuentan en los números)
+     ---------------------------------------------------------
+     Puede haber varios registros para la misma línea, fecha y turno (dos supervisores abrieron el formulario a la vez, borradores viejos).
+     Para no sumarlos dos o más veces, por cada línea + fecha + turno (Día, Intermedio o Noche; los reportes antiguos de Día e Intermedio
+     separados siguen contando los dos) cuenta UNO: el último FINALIZADO si lo hay; si no, el último actualizado (el que se está llenando).
+     El Historial y el formulario siguen viendo todos; esto es solo para Resumen, indicadores, Cierre, Producción actual, gráficos y reportes.
+     Conserva el orden original de la lista. */
+  function registrosOficiales(lista){
+    const arr=Array.isArray(lista)?lista:[];
+    const momento=r=>num(r&&(r.finalizadoEn||r.actualizadoEn))||Date.parse(r&&r.timestamp)||num(r&&r.creadoEn)||0;
+    const turnoDe=r=>String(r&&(r.turno||r.grupoTurno)||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    const elegido=new Map();
+    const mejor=(a,b)=>{
+      const fa=a.estadoRegistro==='FINALIZADO',fb=b.estadoRegistro==='FINALIZADO';
+      if(fa!==fb)return fb?b:a;
+      return momento(b)>=momento(a)?b:a;
+    };
+    arr.forEach(r=>{
+      if(!r||!r.linea||!r.fecha)return;
+      const k=r.linea+'|'+r.fecha+'|'+turnoDe(r);
+      const a=elegido.get(k);
+      elegido.set(k,a?mejor(a,r):r);
+    });
+    const quedan=new Set(elegido.values());
+    return arr.filter(r=>!r||!r.linea||!r.fecha||quedan.has(r));
+  }
+
   const API=Object.freeze({
     horasEfectivas,tiempoPlanificadoMin,ratio,disponibilidad,rendimiento,rendimientoARevisar,calidad,unidadesProducidas,entregasPendientes,textoEntregaPendiente,mensajeEntregasPendientes,oee,
     merma,componenteMerma,desgloseMerma,ORDEN_COMPONENTES,
@@ -717,9 +745,17 @@
     BLOQUES_INICIALES,NOMBRES_TURNO,nombreBloque,normalizarBloques,horarioBloque,bloqueVigente,claveBloque,pausasPrevistas,pausasPendientesMin,proyeccionCierre,analisisProyeccion,
     estadoLineaDesdeItems,PRIORIDAD_ESTADO_LINEA,desgloseLineaPorMarca,produccionPlanYFuera,
     resumenIndicadores,DEFINICIONES,LINEAS_CON_SOPLADAS,faltaSopladas,
-    reportesSinFinalizar,textoReporteSinFinalizar,mensajeReportesSinFinalizar
+    reportesSinFinalizar,textoReporteSinFinalizar,mensajeReportesSinFinalizar,registrosOficiales
   });
 
   raiz.GlacialIndicadores=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);
+
+/* Registros que cuentan en los números (GlacialIndicadores.registrosOficiales sobre loadRecords). El Historial y el formulario usan loadRecords(). */
+function loadRecordsOficiales(){
+  let lista=[];
+  try{lista=typeof loadRecords==='function'?(loadRecords()||[]):[];}catch(_){lista=[];}
+  return (typeof GlacialIndicadores!=='undefined'&&GlacialIndicadores.registrosOficiales)?GlacialIndicadores.registrosOficiales(lista):lista;
+}
+
