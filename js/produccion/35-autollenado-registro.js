@@ -399,7 +399,12 @@
     // Finalizados y reabiertos (corrección de un histórico) no se marcan. Lo escrito a mano no se pisa (solo se ofrece «Usar»).
     const abierto=!draft.id||!draft.estadoRegistro||draft.estadoRegistro==='EN_REGISTRO';
     if(draft.autollenadoV1===undefined&&abierto)draft.autollenadoV1=true;
-    const cambio=autollenarRegistro();
+    // Punto 4: el cuadro 1 de un reporte abierto toma el producto de la programación en vez de la 1.ª marca del catálogo.
+    let cambioCuadro1=false;
+    if(abierto&&activo()&&typeof cuadro1DesdeProgramacion==='function'){
+      try{cambioCuadro1=cuadro1DesdeProgramacion();}catch(e){console.warn('Autollenado (cuadro 1):',e);}
+    }
+    const cambio=autollenarRegistro()||cambioCuadro1;
     if(cambio&&typeof programarGuardadoAutomaticoReporte==='function'){
       programarGuardadoAutomaticoReporte();
     }
@@ -428,7 +433,11 @@
     const main=document.getElementById('main');
     const a=document.activeElement;
     const escribiendo=main&&a&&main.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
-    if(!autollenarRegistro()){
+    let cambioCuadro1=false;
+    if(!escribiendo&&typeof cuadro1DesdeProgramacion==='function'){
+      try{cambioCuadro1=cuadro1DesdeProgramacion();}catch(_){cambioCuadro1=false;}
+    }
+    if(!autollenarRegistro()&&!cambioCuadro1){
       // Aunque no cambie el llenado, los avisos pueden cambiar.
       if(!escribiendo)inyectarAvisos();
       return;

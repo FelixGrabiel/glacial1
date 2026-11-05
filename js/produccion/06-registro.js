@@ -1131,6 +1131,10 @@ function blankCuadro(lineKey, numero, turno){
 
     marca,
 
+    /* La 1.ª marca del catálogo puesta solo para no dejar el cuadro 1 vacío: el autollenado la cambia por el producto
+       de la programación del turno (35-autollenado-registro.js). Se quita en cuanto alguien elige marca o presentación. */
+    marcaPorDefecto: activo && !!marca,
+
     presentacion,
 
     gramajePreforma: 0,
@@ -1249,6 +1253,8 @@ function normalizarCuadros(record){
     legacy.marca =
       record.marca ||
       legacy.marca;
+
+    if(record.marca) legacy.marcaPorDefecto = false;
 
 
     legacy.presentacion =
@@ -2711,6 +2717,215 @@ function setTab(t){
 /* =========================================================
    DÍA + INTERMEDIO · REPORTE COMPARTIDO
    ========================================================= */
+/* =========================================================
+   UNA MARCA A LA VEZ (auditoría 2026-11-05, punto 4 · parte 1)
+   Los 4 cuadros siguen en el reporte y en la pantalla (todo el código que los busca por
+   data-cuadro-index sigue igual), pero solo se ve el de la pestaña elegida. Las pestañas
+   muestran las producciones en uso; «+ Agregar marca» abre la siguiente (con el siguiente
+   producto de la programación que aún no está en el reporte). Lo que se ve es solo de la
+   pantalla: no se guarda en el reporte.
+   ========================================================= */
+let _vistaCuadros = {clave:null, activo:0, abiertos:1};
+
+function cuadroEnUso(q, i){
+  if(!q) return false;
+  if(i === 0) return true;
+  const paradas = [...(q.paradasProgramadas || []), ...(q.paradasNoProgramadas || [])];
+  return !!(
+    String(q.marca || '').trim() ||
+    q.estadoCuadro === 'FINALIZADO' ||
+    num(q.produccion?.efectiva) > 0 ||
+    num(q.produccion?.programada) > 0 ||
+    paradas.some(p => num(p?.tiempoMin) > 0 || String(p?.descripcion || '').trim())
+  );
+}
+
+function claveVistaCuadros(){
+  return draft ? (draft.id || ['nuevo', draft.linea, draft.fecha, draft.turno].join('|')) : '';
+}
+
+/* Cuántas producciones se muestran (1 a 4): hasta la última en uso, o más si se agregaron. */
+function cuadrosVisiblesRegistro(){
+  const cuadros = Array.isArray(draft?.cuadros) ? draft.cuadros : [];
+  const clave = claveVistaCuadros();
+  if(_vistaCuadros.clave !== clave) _vistaCuadros = {clave, activo:0, abiertos:1};
+  let ultimo = 0;
+  cuadros.forEach((q, i) => { if(cuadroEnUso(q, i)) ultimo = i; });
+  const visibles = Math.min(cuadros.length || 1, Math.max(1, ultimo + 1, _vistaCuadros.abiertos));
+  _vistaCuadros.abiertos = visibles;
+  if(_vistaCuadros.activo >= visibles) _vistaCuadros.activo = visibles - 1;
+  return visibles;
+}
+
+function cuadroActivoRegistro(){
+  cuadrosVisiblesRegistro();
+  return _vistaCuadros.activo;
+}
+
+/* Cambia de pestaña sin volver a dibujar el formulario (no se pierde lo que se está escribiendo). */
+function seleccionarCuadroRegistro(i){
+  const visibles = cuadrosVisiblesRegistro();
+  if(!(i >= 0 && i < visibles)) return;
+  _vistaCuadros.activo = i;
+  document.querySelectorAll('#tab-content .production-card[data-cuadro-index]').forEach(card => {
+    card.style.display = Number(card.dataset.cuadroIndex) === i ? '' : 'none';
+  });
+  document.querySelectorAll('#tab-content [data-tab-cuadro]').forEach(b => {
+    const act = Number(b.dataset.tabCuadro) === i;
+    b.classList.toggle('is-active', act);
+    b.setAttribute('aria-selected', act ? 'true' : 'false');
+  });
+}
+
+/* Productos de la programación del turno (bloque Día/Intermedio o Noche), en orden: el que está en curso primero,
+   después los pendientes y al final los completados; sin cancelados ni repetidos. */
+function productosProgramadosRegistro(){
+  if(!draft || typeof loadProgramaciones !== 'function') return [];
+  const bloque = String(draft.turno || '').toUpperCase().includes('NOCHE') ? ['NOCHE'] : ['DÍA', 'INTERMEDIO'];
+  const clave = v => typeof normalizarClavePaletas === 'function' ? normalizarClavePaletas(v) : String(v || '').toLowerCase().trim();
+  const rango = p => {
+    const e = p?.estadoOperacion?.estado || '';
+    return (e === 'EN_CURSO' || e === 'PAUSA') ? 0 : e === 'COMPLETADA' ? 2 : 1;
+  };
+  const vistos = new Set();
+  return (loadProgramaciones() || [])
+    .filter(p => p && p.linea === draft.linea && p.fecha === draft.fecha && bloque.includes(p.turno) &&
+      p.marca && p.presentacion && num(p.cantidadProgramada) > 0 && p?.estadoOperacion?.estado !== 'CANCELADA')
+    .sort((a, b) => rango(a) - rango(b) ||
+      (num(a.posicion) || 1e9) - (num(b.posicion) || 1e9) ||
+      num(a.creadoEn) - num(b.creadoEn) ||
+      String(a.marca).localeCompare(String(b.marca), 'es'))
+    .filter(p => {
+      const k = clave(p.marca) + '|' + clave(p.presentacion);
+      if(vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    })
+    .map(p => ({marca:p.marca, presentacion:p.presentacion}));
+}
+
+/* El primer producto programado que todavía no está en ningún cuadro del reporte. */
+function siguienteProductoProgramado(excepto){
+  const clave = v => typeof normalizarClavePaletas === 'function' ? normalizarClavePaletas(v) : String(v || '').toLowerCase().trim();
+  const usados = new Set((draft?.cuadros || [])
+    .filter((q, i) => i !== excepto && q && q.marca && !q.marcaPorDefecto)
+    .map(q => clave(q.marca) + '|' + clave(q.presentacion)));
+  return productosProgramadosRegistro().find(p => !usados.has(clave(p.marca) + '|' + clave(p.presentacion))) || null;
+}
+
+function ponerProductoEnCuadro(q, prod){
+  q.marca = prod.marca;
+  q.presentacion = prod.presentacion;
+  q.marcaPorDefecto = false;
+  q.ratioNominal = obtenerRatioNominal(draft.linea, q.presentacion, q.marca);
+  q.lote = generarLoteCuadro(q);
+}
+
+/* Cuadro 1 de un reporte nuevo: si todavía tiene la marca puesta por defecto, toma el producto de la programación.
+   Devuelve true si cambió algo. Lo llama el autollenado antes de llenar programada/efectiva/paletas. */
+function cuadro1DesdeProgramacion(){
+  const q = draft?.cuadros?.[0];
+  if(!q || !q.marcaPorDefecto || q.estadoCuadro === 'FINALIZADO') return false;
+  if(typeof reporteEstaBloqueado === 'function' && reporteEstaBloqueado()) return false;
+  const prod = siguienteProductoProgramado(0);
+  if(!prod) return false;
+  ponerProductoEnCuadro(q, prod);
+  actualizarCuadro(0);
+  return true;
+}
+
+function agregarMarcaRegistro(){
+  if(!draft || (typeof reporteEstaBloqueado === 'function' && reporteEstaBloqueado())) return;
+  const visibles = cuadrosVisiblesRegistro();
+  const cuadros = normalizarCuadros(draft);
+  if(visibles >= cuadros.length){
+    mostrarToastReporte('Un reporte admite 4 producciones. Si hubo una 5.ª marca, regístrala en otro reporte del mismo turno.');
+    return;
+  }
+  const i = visibles;
+  const q = cuadros[i];
+  if(q && !String(q.marca || '').trim() && q.estadoCuadro !== 'FINALIZADO'){
+    const prod = siguienteProductoProgramado(i);
+    if(prod){
+      ponerProductoEnCuadro(q, prod);
+      if(!q.horaInicio){
+        const anterior = cuadros[i - 1];
+        if(anterior?.horaFin){ q.horaInicio = anterior.horaFin; }
+      }
+      actualizarCuadro(i);
+      if(typeof programarGuardadoAutomaticoReporte === 'function') programarGuardadoAutomaticoReporte();
+    }
+  }
+  _vistaCuadros.abiertos = i + 1;
+  _vistaCuadros.activo = i;
+  renderFormTab();
+}
+
+/* Quita la última pestaña agregada mientras siga vacía (no borra datos: si tiene algo, no se puede quitar). */
+function quitarMarcaRegistro(i){
+  const cuadros = normalizarCuadros(draft);
+  const visibles = cuadrosVisiblesRegistro();
+  if(i !== visibles - 1 || i === 0) return;
+  const q = cuadros[i];
+  const conDatos = !q || q.estadoCuadro === 'FINALIZADO' || num(q.produccion?.efectiva) > 0 ||
+    [...(q.paradasProgramadas || []), ...(q.paradasNoProgramadas || [])].some(p => num(p?.tiempoMin) > 0);
+  if(conDatos) {
+    mostrarToastReporte('Esta producción ya tiene datos: no se puede quitar.');
+    return;
+  }
+  cuadros[i] = blankCuadro(draft.linea, i + 1, draft.turno);
+  _vistaCuadros.abiertos = i;
+  _vistaCuadros.activo = i - 1;
+  if(typeof programarGuardadoAutomaticoReporte === 'function') programarGuardadoAutomaticoReporte();
+  renderFormTab();
+}
+
+function pestanasCuadrosHtml(cuadros, visibles, activo, bloqueado){
+  const tabs = cuadros.slice(0, visibles).map((q, i) => {
+    const marca = String(q.marca || '').trim();
+    const pres = String(q.presentacion || '').trim();
+    const presUI = pres && typeof nombrePresentacionUI === 'function' ? nombrePresentacionUI(draft.linea, marca, pres) : pres;
+    const fin = q.estadoCuadro === 'FINALIZADO';
+    return `<button type="button" role="tab" class="reg-tab-cuadro${i === activo ? ' is-active' : ''}${fin ? ' is-fin' : ''}"
+        data-tab-cuadro="${i}" data-no-autosave aria-selected="${i === activo}" aria-controls="reg-cuadro-${i}"
+        onclick="seleccionarCuadroRegistro(${i})">
+        <span class="reg-tab-num">${i + 1}</span>
+        <span class="reg-tab-txt"><strong>${escaparHtml(marca || 'Sin marca')}</strong>${presUI ? `<small>${escaparHtml(presUI)}</small>` : ''}</span>
+        ${fin ? '<span class="reg-tab-ok" aria-label="Marca finalizada">✓</span>' : ''}
+      </button>`;
+  }).join('');
+  const agregar = !bloqueado && visibles < cuadros.length
+    ? `<button type="button" class="reg-tab-cuadro reg-tab-agregar" data-no-autosave onclick="agregarMarcaRegistro()">+ Agregar marca</button>`
+    : '';
+  return `<div class="reg-tabs-cuadros" role="tablist" aria-label="Producciones del turno">${tabs}${agregar}</div>`;
+}
+
+function instalarEstilosPestanasCuadros(){
+  if(document.getElementById('reg-tabs-cuadros-css')) return;
+  const s = document.createElement('style');
+  s.id = 'reg-tabs-cuadros-css';
+  s.textContent = `
+    .reg-tabs-cuadros{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;margin:4px 0 6px;scrollbar-width:thin}
+    .reg-tab-cuadro{flex:0 0 auto;display:flex;align-items:center;gap:8px;min-height:48px;padding:7px 12px;border:1px solid #cfd9e2;
+      border-radius:12px;background:#fff;color:#0b2a4a;cursor:pointer;font:inherit;text-align:left;max-width:240px}
+    .reg-tab-cuadro .reg-tab-num{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#e8f1f7;color:#065F86;
+      display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
+    .reg-tab-cuadro .reg-tab-txt{display:flex;flex-direction:column;min-width:0}
+    .reg-tab-cuadro strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .reg-tab-cuadro small{font-size:11px;color:#5b6b7c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .reg-tab-cuadro .reg-tab-ok{color:#16a34a;font-weight:900}
+    .reg-tab-cuadro.is-active{background:#0b2a4a;border-color:#0b2a4a;color:#fff}
+    #tab-content .reg-tab-cuadro strong{color:#0b2a4a}#tab-content .reg-tab-cuadro.is-active strong{color:#fff}
+    .reg-tab-cuadro.is-active .reg-tab-num{background:#fff;color:#0b2a4a}
+    .reg-tab-cuadro.is-active small{color:#cfe3f3}.reg-tab-cuadro.is-active .reg-tab-ok{color:#7ee2a2}
+    .reg-tab-cuadro:focus-visible{outline:3px solid #14b8c4;outline-offset:2px}
+    .reg-tab-agregar{border-style:dashed;border-color:#0877A6;color:#0877A6;background:transparent;font-weight:800}
+    .reg-quitar-marca{border:0;background:transparent;color:#b42318;font:inherit;font-size:13px;font-weight:700;cursor:pointer;
+      padding:10px 0;min-height:44px}
+  `;
+  document.head.appendChild(s);
+}
+
 function grupoTurnoReporte(turno){
   return ['DÍA','INTERMEDIO'].includes(turno) ? 'DIA_INTERMEDIO' : 'NOCHE';
 }
@@ -3629,6 +3844,11 @@ function renderFormTab(){
     };
 
 
+  instalarEstilosPestanasCuadros();
+  const visiblesVista = cuadrosVisiblesRegistro();
+  const activoVista = cuadroActivoRegistro();
+  const bloqueadoVista = typeof reporteEstaBloqueado === 'function' && reporteEstaBloqueado();
+
   const cuadroCard =
     (q,i) => {
 
@@ -3841,7 +4061,10 @@ function renderFormTab(){
         <div
           class="production-card ${q.estadoCuadro==='FINALIZADO'?'cuadro-finalizado':''}"
           data-cuadro-index="${i}"
+          id="reg-cuadro-${i}"
+          role="tabpanel"
           style="
+            ${i===activoVista?'':'display:none;'}
             border:1px solid #D7DBD4;
             border-radius:10px;
             background:#fff;
@@ -3940,6 +4163,11 @@ function renderFormTab(){
 
             ${q.estadoCuadro==='FINALIZADO'
               ? `<div class="cuadro-cierre-mini"><span>🔒 Marca cerrada por ${escaparHtml(q.finalizadoPor||'—')}</span></div>`
+              : ''}
+
+            ${i>0 && i===visiblesVista-1 && q.estadoCuadro!=='FINALIZADO' && !bloqueadoVista
+              ? `<div style="text-align:right;margin:-6px 0 2px;"><button type="button" class="reg-quitar-marca" data-no-autosave
+                   onclick="quitarMarcaRegistro(${i})" title="Solo si todavía no tiene producción ni paradas">✕ Quitar esta producción</button></div>`
               : ''}
 
             <div class="grid grid-2">
@@ -4921,18 +5149,9 @@ function renderFormTab(){
     </div>
 
 
-    <div
-      style="
-        display:grid;
-        grid-template-columns:
-          repeat(
-            4,
-            minmax(0,1fr)
-          );
-        gap:10px;
-        align-items:start;
-      "
-    >
+    ${pestanasCuadrosHtml(cuadros, visiblesVista, activoVista, bloqueadoVista)}
+
+    <div class="reg-cuadros-una-marca" style="display:block;">
 
       ${
         cuadros
@@ -5284,6 +5503,8 @@ function updateCuadroField(
     name === 'marca' ||
     name === 'presentacion'
   ){
+
+    q.marcaPorDefecto = false;
 
     q.ratioNominal =
       obtenerRatioNominal(
