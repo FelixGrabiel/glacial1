@@ -2859,7 +2859,16 @@ async function reabrirCuadroProduccion(i){
     finalizadoPorAnterior:q.ultimaFinalizacion.finalizadoPor
   });
 
-  await guardarAvanceReporte({silencioso:true});
+  let guardado=await guardarAvanceReporte({silencioso:true});
+  if(guardado===null && _autosaveReporteGuardando){ await new Promise(r=>setTimeout(r,1200)); guardado=await guardarAvanceReporte({silencioso:true}); }
+  if(guardado!==true){
+    // No quedó guardado: la producción sigue finalizada (antes decía «reabierta» aunque el servidor no lo hubiera guardado).
+    q.estadoCuadro='FINALIZADO';delete q.reabiertoEn;delete q.reabiertoPor;
+    if(Array.isArray(q.auditoriaCuadro)) q.auditoriaCuadro.pop();
+    renderFormTab();
+    alert('No se pudo reabrir Producción '+(i+1)+': el servidor no lo guardó. Sigue finalizada; inténtalo de nuevo en un momento.');
+    return;
+  }
   renderFormTab();
   mostrarToastReporte('Producción reabierta para edición');
 }
@@ -2887,7 +2896,72 @@ function aplicarBloqueoCuadrosFinalizados(){
 let _autosaveReporteTimer = null;
 let _autosaveReporteInstalado = false;
 let _autosaveReporteGuardando = false;
+let _autosaveReportePendiente = false;      // llegó un cambio mientras se guardaba: se guarda otra vez al terminar
 let _ultimoRemotoAplicado = 0;
+
+/* =========================================================
+   GUARDADO SIN PISAR A OTRO SUPERVISOR (auditoría 2026-11-05, punto 2)
+   ---------------------------------------------------------
+   Antes cada guardado enviaba el reporte completo y ganaba el último: si dos supervisores editaban el mismo reporte, el que
+   guardaba con su copia vieja borraba lo que el otro había escrito.
+   Ahora el formulario recuerda cómo estaba el reporte en el servidor la última vez que lo leyó o guardó (la BASE). Al guardar,
+   si el servidor ya tiene otra versión, se MEZCLA campo por campo: lo que este equipo cambió respecto a la base se queda;
+   lo demás se toma del servidor (lo que cambió el otro). Paradas, mermas y fotos se mezclan por id; las listas sin id (auditoría)
+   se unen; los 4 cuadros, por posición. Solo si los dos cambiaron el MISMO dato gana el que está guardando.
+   ========================================================= */
+let _baseReporte = null;
+const _META_REPORTE = ['actualizadoEn','actualizadoPor','versionReporte'];
+const _clonReporte = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+const _textoSinMeta = v => v === undefined ? 'undefined' : JSON.stringify(v, (k,x) => _META_REPORTE.includes(k) ? undefined : x);
+const _mismoContenido = (a,b) => _textoSinMeta(a) === _textoSinMeta(b);
+
+function fijarBaseReporte(r){ _baseReporte = r ? _clonReporte(r) : null; }
+function baseReporteDe(id){ return id && _baseReporte && _baseReporte.id === id ? _baseReporte : null; }
+
+/* Mezcla de tres versiones (puro): base = la que se leyó, local = la de este equipo, remota = la del servidor ahora. */
+function mezclarVersionesReporte(base, local, remota){
+  if(_mismoContenido(local, base)) return _clonReporte(remota);
+  if(_mismoContenido(remota, base) || _mismoContenido(local, remota)) return _clonReporte(local);
+  const esObj = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+  if(esObj(local) && esObj(remota)){
+    const b = esObj(base) ? base : {};
+    const out = {};
+    new Set([...Object.keys(b), ...Object.keys(local), ...Object.keys(remota)]).forEach(k => {
+      const v = mezclarVersionesReporte(b[k], local[k], remota[k]);
+      if(v !== undefined) out[k] = v;
+    });
+    return out;
+  }
+  if(Array.isArray(local) && Array.isArray(remota)){
+    const b = Array.isArray(base) ? base : [];
+    const conId = a => a.length > 0 && a.every(x => esObj(x) && x.id !== undefined && x.id !== null && x.id !== '');
+    if(conId(local) || conId(remota)){
+      const porId = a => new Map(a.filter(x => esObj(x) && x.id !== undefined).map(x => [String(x.id), x]));
+      const mb = porId(b), ml = porId(local), mr = porId(remota);
+      const out = [];
+      const vistos = new Set();
+      const poner = id => {
+        if(vistos.has(id)) return; vistos.add(id);
+        const enL = ml.has(id), enR = mr.has(id), enB = mb.has(id);
+        if(enL && enR) out.push(mezclarVersionesReporte(mb.get(id), ml.get(id), mr.get(id)));
+        else if(enL && !enB) out.push(_clonReporte(ml.get(id)));        // nuevo de este equipo
+        else if(enR && !enB) out.push(_clonReporte(mr.get(id)));        // nuevo del otro
+        // en la base y quitado por uno de los dos: queda quitado
+      };
+      remota.forEach(x => esObj(x) && x.id !== undefined && poner(String(x.id)));
+      local.forEach(x => esObj(x) && x.id !== undefined && poner(String(x.id)));
+      return out;
+    }
+    if(local.length === remota.length && (b.length === local.length || !b.length)){
+      return local.map((x,i) => mezclarVersionesReporte(b[i], x, remota[i]));       // cuadros (siempre 4), personal: por posición
+    }
+    // Listas sin id (auditoría): lo de la remota + lo que este equipo agregó.
+    const t = x => JSON.stringify(x);
+    const enBase = new Set(b.map(t)), enRemota = new Set(remota.map(t));
+    return [..._clonReporte(remota), ...local.filter(x => !enBase.has(t(x)) && !enRemota.has(t(x))).map(_clonReporte)];
+  }
+  return _clonReporte(local);                                                       // los dos cambiaron el mismo dato: gana el que guarda
+}
 
 /*
    SINCRONIZACIÓN DEL FORMULARIO ENTRE N SUPERVISORES
@@ -2898,28 +2972,24 @@ function sincronizarDraftReporteRemoto(){
   if(!draft || !draft.id || state.currentTab!=='nuevo') return;
 
   const remoto=loadRecords().find(r=>r && r.id===draft.id);
-  if(!remoto) return;
+  if(!remoto) return;                              // eliminado: lo resuelve el próximo guardado (no se vuelve a crear)
 
-  const remotoTs=num(remoto.actualizadoEn || 0);
-  const localTs=num(draft.actualizadoEn || 0);
+  const base=baseReporteDe(draft.id);
+  if(base && _mismoContenido(remoto, base)) return;   // nada nuevo del servidor (incluido nuestro propio eco)
+  if(!base && _mismoContenido(remoto, draft)){ fijarBaseReporte(remoto); return; }
 
-  // No re-renderizar por nuestro propio eco ni por una versión antigua.
-  if(remotoTs<=localTs || remotoTs<=_ultimoRemotoAplicado) return;
+  // Si el supervisor está escribiendo o hay un guardado pendiente, no se toca el formulario: la mezcla se hace al guardar.
+  if(_autosaveReporteGuardando || _autosaveReporteTimer) return;
 
-  // Si el usuario está escribiendo y hay un autosave pendiente, primero
-  // dejamos que ese cambio se confirme para no borrar texto a medio escribir.
-  if(_autosaveReporteGuardando || _autosaveReporteTimer){
-    // No aplicamos el remoto encima de lo que el supervisor está escribiendo.
-    // Al terminar el autosave se vuelve a ejecutar esta función.
-    return;
-  }
-
-  _ultimoRemotoAplicado=remotoTs;
-  draft=JSON.parse(JSON.stringify(remoto));
+  const huboCambiosLocales=base && !_mismoContenido(draft, base);
+  draft=huboCambiosLocales ? mezclarVersionesReporte(base, draft, remoto) : JSON.parse(JSON.stringify(remoto));
+  fijarBaseReporte(remoto);
+  _ultimoRemotoAplicado=num(remoto.actualizadoEn||0);
 
   // Mantener la línea abierta y refrescar todos los campos del reporte.
   state.currentLine=draft.linea || state.currentLine;
   renderFormTab();
+  if(huboCambiosLocales) programarGuardadoAutomaticoReporte();
 
   if(typeof mostrarToastReporte==='function'){
     const quien=remoto.actualizadoPor ? ` por ${remoto.actualizadoPor}` : '';
@@ -2954,11 +3024,72 @@ function asegurarIdReporte(){
   draft.grupoTurno=grupoTurnoReporte(draft.turno);
 }
 
-async function guardarAvanceReporte({silencioso=false}={}){
-  // null = no se intentó (otro guardado en curso o reporte bloqueado); false = se intentó y el servidor no lo guardó; true = guardado.
-  if(!draft || reporteEstaBloqueado() || _autosaveReporteGuardando) return null;
+/* ¿Este equipo puede escribir el registro? No en modo VISUALIZAR (incluido el turno cerrado, que deja la cuenta en VISUALIZAR),
+   ni en el modo visualización de la cuenta, ni Jefatura/Gerencia (solo lectura). Antes el autollenado guardaba igual desde un equipo
+   en VISUALIZAR, con su copia vieja, encima del trabajo del supervisor entrante. */
+function puedeEscribirRegistro(){
+  try{ if(typeof esModoSoloLectura==='function' && esModoSoloLectura()) return false; }catch(_){ /* sin módulo */ }
+  try{ if(window.glacialVista && typeof window.glacialVista.activo==='function' && window.glacialVista.activo()) return false; }catch(_){ /* sin módulo */ }
+  try{ if(typeof esGerenteSoloLectura==='function' && esGerenteSoloLectura(state.user)) return false; }catch(_){ /* sin módulo */ }
+  return true;
+}
 
+/* Otro reporte ABIERTO de la misma línea, fecha y grupo de turno creado por otra persona casi al mismo tiempo (los dos abrieron el
+   formulario vacío y cada uno generó su id): este equipo se une a ese en vez de crear un duplicado. */
+function reporteHermanoAbierto(r){
+  if(!r || !r.linea || !r.fecha) return null;
+  const grupo=grupoTurnoReporte(r.turno);
+  return loadRecords()
+    .filter(x=>x && x.id!==r.id && x.linea===r.linea && x.fecha===r.fecha && (x.grupoTurno||grupoTurnoReporte(x.turno))===grupo && x.estadoRegistro!=='FINALIZADO')
+    .sort((a,b)=>num(b.actualizadoEn||0)-num(a.actualizadoEn||0))[0] || null;
+}
+
+async function guardarAvanceReporte({silencioso=false}={}){
+  // null = no se intentó (otro guardado en curso, reporte bloqueado o sin permiso de escribir); false = se intentó y no quedó; true = guardado.
+  if(!draft || reporteEstaBloqueado()) return null;
+  if(!puedeEscribirRegistro()) return null;
+  if(_autosaveReporteGuardando){ _autosaveReportePendiente=true; return null; }
+
+  const idAntes=draft.id;
   asegurarIdReporte();
+  const remoto=loadRecords().find(r=>r && r.id===draft.id) || null;
+  const base=baseReporteDe(draft.id);
+
+  // a) Lo eliminaron desde el Historial mientras estaba abierto aquí: no se vuelve a crear.
+  if(idAntes && base && !remoto){
+    actualizarIndicadorGuardado('error');
+    if(!silencioso || !draft._avisoEliminado){
+      draft._avisoEliminado=true;
+      mostrarToastReporte('Este reporte fue eliminado desde el Historial: ya no se guarda. Abre la línea de nuevo para empezar otro.');
+    }
+    return false;
+  }
+  // b) Otra persona lo FINALIZÓ: se muestra la versión final (no se reabre por este guardado).
+  if(remoto && remoto.estadoRegistro==='FINALIZADO' && draft.estadoRegistro!=='FINALIZADO'){
+    draft=JSON.parse(JSON.stringify(remoto));
+    fijarBaseReporte(remoto);
+    actualizarIndicadorGuardado('guardado');
+    renderFormTab();
+    mostrarToastReporte(`Este reporte ya fue finalizado${remoto.finalizadoPor?' por '+remoto.finalizadoPor:''}: se muestra la versión final.`);
+    return null;
+  }
+  // c) Otra persona guardó mientras tanto: se mezclan los cambios (no gana el último).
+  if(remoto && base && !_mismoContenido(remoto, base)){
+    draft=mezclarVersionesReporte(base, draft, remoto);
+  }
+  // d) Reporte nuevo y otra persona creó a la vez el de este mismo turno: este equipo se une a ese.
+  if(!remoto && !base){
+    const hermano=reporteHermanoAbierto(draft);
+    if(hermano){
+      const vacio=JSON.parse(JSON.stringify(blankRecord(draft.linea)));
+      vacio.id=hermano.id;
+      const propio=JSON.parse(JSON.stringify(draft));propio.id=hermano.id;
+      draft=mezclarVersionesReporte(vacio, propio, hermano);
+      draft.id=hermano.id;
+      fijarBaseReporte(hermano);
+    }
+  }
+
   normalizarCuadros(draft);
   actualizarTodosCuadros();
   actualizarMermasAutomaticas();
@@ -2967,9 +3098,12 @@ async function guardarAvanceReporte({silencioso=false}={}){
   actualizarLotesCuadros();
   syncLegacyFromCuadro1();
 
+  const enServidor=loadRecords().find(r=>r && r.id===draft.id) || null;
+  draft.versionReporte=Math.max(num(enServidor&&enServidor.versionReporte), num(draft.versionReporte))+1;
   draft.actualizadoEn=Date.now();
   draft.actualizadoPor=state.user?.nombre || '';
   if(draft.estadoRegistro!=='REABIERTO') draft.estadoRegistro='EN_REGISTRO';
+  delete draft._avisoEliminado;
 
   const limpio=copiaReporteParaFirestore(draft);
 
@@ -2985,7 +3119,9 @@ async function guardarAvanceReporte({silencioso=false}={}){
       // saveRecords devuelve false si el servidor no lo guardó: no se debe mostrar «Guardado» ni seguir como si hubiera quedado.
       if(await saveRecords(records)===false) throw new Error('El servidor no guardó el avance.');
     }
-    actualizarIndicadorGuardado('guardado');
+    fijarBaseReporte(limpio);
+    // Solo «Guardado» si no quedó nada pendiente (antes se mostraba aunque se hubieran perdido las últimas teclas).
+    actualizarIndicadorGuardado(_autosaveReportePendiente||_autosaveReporteTimer ? 'pendiente' : 'guardado');
     if(!silencioso) mostrarToastReporte('Avance guardado');
     return true;
   }catch(e){
@@ -2995,11 +3131,12 @@ async function guardarAvanceReporte({silencioso=false}={}){
     return false;
   }finally{
     _autosaveReporteGuardando=false;
+    if(_autosaveReportePendiente){ _autosaveReportePendiente=false; programarGuardadoAutomaticoReporte(); }
   }
 }
 
 function programarGuardadoAutomaticoReporte(){
-  if(!draft || reporteEstaBloqueado()) return;
+  if(!draft || reporteEstaBloqueado() || !puedeEscribirRegistro()) return;
 
   if(_autosaveReporteTimer){
     clearTimeout(_autosaveReporteTimer);
@@ -3202,6 +3339,10 @@ function renderEstadoCierreReporte(){
 
 async function finalizarReporteProduccion(){
   if(!draft || reporteEstaBloqueado()) return;
+  if(!puedeEscribirRegistro()){
+    alert('Estás en modo VISUALIZAR (solo consulta): no se puede finalizar el reporte.\n\nCambia a modo TRABAJAR para finalizarlo.');
+    return;
+  }
   const faltan=validarReporteParaFinalizar();
   if(faltan.length){
     alert('Aún faltan datos para finalizar:\n\n• '+faltan.join('\n• '));
@@ -3218,6 +3359,13 @@ async function finalizarReporteProduccion(){
       actualizarIndicadorGuardado('guardando');
       draft.evidenciasPT=await subirEvidenciasPT(draft.id);
     }
+
+    // Antes de cerrar se guarda el avance con la mezcla de cambios: si otro supervisor escribió algo en los últimos segundos, no se pierde.
+    if(_autosaveReporteTimer){ clearTimeout(_autosaveReporteTimer); _autosaveReporteTimer=null; }
+    let previo=await guardarAvanceReporte({silencioso:true});
+    if(previo===null && _autosaveReporteGuardando){ await new Promise(r=>setTimeout(r,1200)); previo=await guardarAvanceReporte({silencioso:true}); }
+    if(reporteEstaBloqueado()) return;                 // otra persona ya lo finalizó: se muestra su versión
+    if(previo===false) throw new Error('No se pudo guardar el avance antes de finalizar. No se perdió nada: inténtalo de nuevo en un momento.');
 
     const antesFinalizar={estadoRegistro:draft.estadoRegistro,finalizadoEn:draft.finalizadoEn,finalizadoPor:draft.finalizadoPor,actualizadoEn:draft.actualizadoEn,
       actualizadoPor:draft.actualizadoPor,auditoria:Array.isArray(draft.auditoria)?draft.auditoria.slice():draft.auditoria};
@@ -3242,6 +3390,12 @@ async function finalizarReporteProduccion(){
         Object.assign(draft,antesFinalizar);
         throw new Error('El servidor no guardó el cierre del reporte. No se perdió nada: inténtalo de nuevo en un momento.');
       }
+    }
+
+    fijarBaseReporte(limpio);
+    // El borrador de este turno ya no sirve: si quedara, al volver a abrir la línea traería la versión de antes de finalizar.
+    if(typeof eliminarBorradorNuevoRegistro==='function'){
+      try{ eliminarBorradorNuevoRegistro(draft.linea,{fecha:draft.fecha,turno:draft.turno}); }catch(_){ /* sin borradores */ }
     }
 
     // Cerrar el turno: las pausas REALES que sigan abiertas (p. ej. un refrigerio olvidado) se cierran al fin del turno y quedan registradas
@@ -3269,25 +3423,35 @@ async function reabrirReporteProduccion(id){
     alert('No tienes permiso para reabrir reportes finalizados.');
     return;
   }
+  if(!puedeEscribirRegistro()){
+    alert('Estás en modo VISUALIZAR (solo consulta): no se puede reabrir el reporte.');
+    return;
+  }
   const records=loadRecords().slice();
   const idx=records.findIndex(r=>r.id===id);
   if(idx<0) return;
-  const r=records[idx];
-  if(r.estadoRegistro!=='FINALIZADO') return;
+  if(records[idx].estadoRegistro!=='FINALIZADO') return;
   if(!confirm('¿Reabrir este reporte para corrección?')) return;
 
+  // Copia: antes se modificaba el reporte dentro de la lista en memoria y, si el servidor rechazaba, quedaba «reabierto» igual.
+  const r=JSON.parse(JSON.stringify(records[idx]));
   const ahora=Date.now();
   r.estadoRegistro='REABIERTO';
   r.reabiertoEn=ahora;
   r.reabiertoPor=state.user?.nombre || '';
   r.actualizadoEn=ahora;
   r.actualizadoPor=r.reabiertoPor;
+  r.versionReporte=num(r.versionReporte)+1;
   r.auditoria=Array.isArray(r.auditoria)?r.auditoria:[];
   r.auditoria.push({accion:'REABIERTO',fecha:ahora,usuario:r.reabiertoPor});
   records[idx]=r;
-  await saveRecords(records);
+  if(await saveRecords(records)===false){
+    alert('No se pudo reabrir el reporte: el servidor no lo guardó. Sigue finalizado; inténtalo de nuevo en un momento.');
+    return;
+  }
 
   draft=JSON.parse(JSON.stringify(r));
+  fijarBaseReporte(r);
   state.currentLine=r.linea;
   state.currentTab='nuevo';
   renderMain();
@@ -3416,6 +3580,11 @@ function renderFormTab(){
 
   if(!draft.estadoRegistro) draft.estadoRegistro='EN_REGISTRO';
   if(!Array.isArray(draft.auditoria)) draft.auditoria=[];
+  // Base para mezclar cambios: el reporte tal como está ahora en el servidor (al abrirlo desde el Historial, al continuarlo, etc.).
+  if(draft.id && !baseReporteDe(draft.id)){
+    const enServidor=loadRecords().find(r=>r && r.id===draft.id);
+    if(enServidor) fijarBaseReporte(enServidor);
+  }
   instalarAutosaveReporte();
 
 
@@ -7897,3 +8066,25 @@ function resetDraft(){
 async function saveDraft(){
   return guardarAvanceReporte();
 }
+
+/* Cambios de OTROS equipos en el reporte abierto (auditoría 2026-11-05, punto 2): antes el formulario solo los revisaba después de su
+   propio guardado, así que quien no escribía (o estaba en VISUALIZAR) veía la copia vieja. Ahora, al llegar la lista de reportes,
+   se aplican (mezclados con lo propio). Si la persona tiene el cursor en un campo, se espera a que lo suelte para no quitarle el foco. */
+(function escucharCambiosDelReporteAbierto(){
+  if(typeof onRecordsUpdated!=='function') return;
+  const anterior=onRecordsUpdated;
+  let espera=null;
+  function intentar(){
+    espera=null;
+    if(!state || state.currentTab!=='nuevo' || !draft || !draft.id) return;
+    const a=typeof document!=='undefined'?document.activeElement:null;
+    const escribiendo=a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest && a.closest('#tab-content');
+    if(escribiendo){ espera=setTimeout(intentar,2500); return; }
+    try{ sincronizarDraftReporteRemoto(); }catch(e){ console.warn('GLACIAL · no se pudo aplicar el cambio remoto del reporte:',e); }
+  }
+  onRecordsUpdated=function(){
+    const r=anterior.apply(this,arguments);
+    if(state && state.currentTab==='nuevo'){ clearTimeout(espera); espera=setTimeout(intentar,600); }
+    return r;
+  };
+})();

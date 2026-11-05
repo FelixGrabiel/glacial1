@@ -691,30 +691,63 @@ function cerrarModalEvidenciasPT(event){
    ELIMINAR REGISTRO
    ========================================================= */
 
-function deleteRecord(id){
+/* Eliminar un reporte (auditoría 2026-11-05, punto 2): pide el motivo, deja una CONSTANCIA con quién, cuándo, por qué y una copia del
+   reporte (colección auditoriaRegistros: se puede recuperar), espera a que el servidor confirme y borra el borrador de ese turno.
+   Antes un clic en ✕ lo borraba sin preguntar, sin esperar el resultado y sin dejar rastro. */
+async function deleteRecord(id){
 
-  if(
-    !tienePermiso(
-      'eliminarRegistros'
-    )
-  ){
-
-    alert(
-      'No tienes permiso para eliminar registros.'
-    );
-
+  if(!tienePermiso('eliminarRegistros')){
+    alert('No tienes permiso para eliminar registros.');
     return;
-
+  }
+  if(typeof puedeEscribirRegistro==='function' && !puedeEscribirRegistro()){
+    alert('Estás en modo VISUALIZAR (solo consulta): no se puede eliminar.');
+    return;
   }
 
+  const r=loadRecords().find(x=>x && x.id===id);
+  if(!r) return;
 
-  saveRecords(
-    loadRecords()
-      .filter(
-        r => r.id !== id
-      )
+  const estado=r.estadoRegistro==='FINALIZADO'?'FINALIZADO':(r.estadoRegistro==='REABIERTO'?'REABIERTO':'EN REGISTRO');
+  const fecha=String(r.fecha||'').split('-').reverse().join('/');
+  const motivo=prompt(
+    `¿Eliminar el reporte de ${r.linea} del ${fecha} (${r.turno||''}, ${estado})?\n\n`+
+    'Escribe el motivo (mínimo 5 caracteres). Queda una constancia con una copia del reporte y se puede recuperar.'
   );
+  if(motivo===null) return;
+  if(String(motivo).trim().length<5){
+    alert('Indica el motivo (mínimo 5 caracteres). No se eliminó nada.');
+    return;
+  }
 
+  // 1) Constancia primero: si no se puede dejar, no se elimina.
+  try{
+    const u=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+    await db.collection('auditoriaRegistros').doc('elim_'+id+'_'+Date.now()).set({
+      accion:'ELIMINAR',registroId:id,linea:r.linea||'',fecha:r.fecha||'',turno:r.turno||'',estadoRegistro:r.estadoRegistro||'',
+      motivo:String(motivo).trim().slice(0,300),
+      uid:u?u.uid:'',usuario:state.user?.nombre||state.user?.username||'',
+      timestamp:firebase.firestore.FieldValue.serverTimestamp(),
+      copia:JSON.parse(JSON.stringify(r))
+    });
+  }catch(e){
+    console.error('No se pudo dejar la constancia de eliminación:',e);
+    alert('No se pudo dejar la constancia de la eliminación, así que el reporte NO se eliminó.\n\n'+((e&&e.message)||e));
+    return;
+  }
+
+  // 2) Eliminar y esperar el resultado.
+  const ok=await saveRecords(loadRecords().filter(x=>x.id!==id));
+  if(ok===false){
+    alert('El servidor no eliminó el reporte (sigue en el Historial). Inténtalo de nuevo en un momento.');
+    renderHistorialTab();
+    return;
+  }
+
+  // 3) Su borrador ya no sirve (si quedara, al abrir la línea lo traería de vuelta).
+  if(typeof eliminarBorradorNuevoRegistro==='function'){
+    try{ eliminarBorradorNuevoRegistro(r.linea,{fecha:r.fecha,turno:r.turno}); }catch(_){ /* sin borradores */ }
+  }
 
   renderHistorialTab();
 
