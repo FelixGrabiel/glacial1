@@ -769,7 +769,27 @@ function obtenerBorradorNuevoRegistro(linea, fecha, turno){
 
 }
 
+/* Firma del último borrador guardado por este equipo (para no reescribir el documento cada 30 s si nada cambió). */
+let _mtUltimaFirmaBorrador = '';
+
+/* ¿Hace falta un borrador? No si el reporte ya está guardado en la lista de reportes (se guarda solo en tiempo real) o si está finalizado:
+   en esos casos el borrador solo puede traer una versión vieja (auditoría 2026-11-05: un borrador de antes de finalizar volvía a
+   dejar el reporte «En registro»). */
+function _mtBorradorNecesario(draftObj){
+  if(!draftObj || draftObj.estadoRegistro === 'FINALIZADO') return false;
+  if(draftObj.id && typeof loadRecords === 'function'){
+    try{ if((loadRecords() || []).some(r => r && r.id === draftObj.id)) return false; }catch(_){ /* sin lista */ }
+  }
+  return true;
+}
+
 function guardarBorradorNuevoRegistro(linea, draftObj){
+
+  // Sin la lista de borradores cargada, guardar la reemplazaría entera por una de un solo elemento (borraría los de las demás líneas).
+  if(!_borradoresNuevoRegistroReady) return Promise.resolve(false);
+  if(!_mtBorradorNecesario(draftObj)) return Promise.resolve(false);
+  const firma = linea + '|' + JSON.stringify(draftObj);
+  if(firma === _mtUltimaFirmaBorrador) return Promise.resolve(false);
 
   const items = loadBorradoresNuevoRegistro().slice();
 
@@ -791,15 +811,19 @@ function guardarBorradorNuevoRegistro(linea, draftObj){
   }
 
   _borradoresNuevoRegistroCache = items;
+  _mtUltimaFirmaBorrador = firma;
 
   return db.collection('sync').doc('borradoresNuevoRegistro').set({
     items,
     updatedAt: Date.now()
-  });
+  }).catch(err => { _mtUltimaFirmaBorrador = ''; throw err; });
 
 }
 
 function eliminarBorradorNuevoRegistro(linea, clave){
+
+  if(!_borradoresNuevoRegistroReady) return Promise.resolve();
+  if(!loadBorradoresNuevoRegistro().some(b => clave && clave.fecha ? _mtMismoBorrador(b, linea, clave.fecha, clave.turno) : b.linea === linea)) return Promise.resolve();
 
   // Con clave (fecha y turno del registro guardado) se borra SOLO el borrador de ese turno: el del otro turno de la línea se conserva.
   const items =
@@ -1039,6 +1063,21 @@ function intentarRestaurarBorrador(lineKey){
   const guardado = obtenerBorradorNuevoRegistro(lineKey, ctx.fecha, ctx.turno);
 
   if(!guardado || !guardado.draft) return null;
+
+  /* Si ese reporte ya está en la lista de reportes, manda la lista (siempre más nueva que el borrador): finalizado → no se restaura nada
+     y se borra el borrador; abierto → se abre la versión de la lista. */
+  const idBorrador = guardado.draft.id;
+  if(idBorrador && typeof loadRecords === 'function'){
+    let enLista = null;
+    try{ enLista = (loadRecords() || []).find(r => r && r.id === idBorrador) || null; }catch(_){ enLista = null; }
+    if(enLista){
+      if(enLista.estadoRegistro === 'FINALIZADO'){
+        eliminarBorradorNuevoRegistro(lineKey, { fecha: guardado.fecha, turno: guardado.turno });
+        return null;
+      }
+      return JSON.parse(JSON.stringify(enLista));
+    }
+  }
 
   try{
 

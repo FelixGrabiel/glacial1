@@ -3498,11 +3498,12 @@ async function editarSugerenciaReporte(){
   const base=auto.textoEditado || auto.acciones.map((a,i)=>`${i+1}. ${a.dato} → ${a.texto}`).join('\n');
   const texto=prompt('Editar sugerencia para revisión del supervisor:',base);
   if(texto===null) return;
-  const registros=loadRecords();
-  const idx=registros.findIndex(r=>r===rec || (r.timestamp&&rec.timestamp&&r.timestamp===rec.timestamp));
+  // Copia de la lista y del registro: antes se modificaba la lista en memoria y, si el servidor rechazaba, la sugerencia quedaba igual.
+  const registros=loadRecords().slice();
+  const idx=registros.findIndex(r=>r===rec || (rec.id&&r.id===rec.id) || (r.timestamp&&rec.timestamp&&r.timestamp===rec.timestamp));
   if(idx<0){ alert('No se pudo identificar el registro para guardar la sugerencia.'); return; }
-  registros[idx].sugerenciaReporte={texto:String(texto).trim(),editado:true,editadoPor:state.user?.nombre||state.user?.username||'',editadoEn:Date.now()};
-  if(typeof saveRecords==='function') await saveRecords(registros);
+  registros[idx]={...registros[idx],sugerenciaReporte:{texto:String(texto).trim(),editado:true,editadoPor:state.user?.nombre||state.user?.username||'',editadoEn:Date.now()}};
+  if(typeof saveRecords==='function' && await saveRecords(registros)===false){ alert('No se pudo guardar la sugerencia: el servidor no la aceptó.'); return; }
   renderGraficosTab();
 }
 
