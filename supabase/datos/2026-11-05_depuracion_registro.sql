@@ -9,6 +9,8 @@
 -- Seguridad: se detiene si algún reporte no existe, ya estaba eliminado o ya no está «abierto» (alguien lo tocó desde el análisis).
 -- Compara los totales de los registros oficiales (misma regla que registrosOficiales en 45-indicadores.js) antes y después:
 -- solo pueden cambiar B7L 15/10 DÍA (+5040), B7L 21/10 DÍA (+3580) y PET1 21/10 DÍA (desaparece, 0).
+-- Estado: ENSAYO OK y APLICADO en PRODUCCIÓN el 05/11/2026 (total oficial 1 066 581 → 1 075 201; 35 constancias en auditoriaRegistros).
+--   No volver a ejecutar: la comprobación de «63 reportes abiertos» lo impediría de todos modos.
 -- Modo ensayo: con ensayo = true termina con un error que lleva el resumen, y no queda nada guardado.
 
 do $dep$
