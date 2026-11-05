@@ -248,7 +248,7 @@
 
   /* Cuadros de producción de la unidad (registro del supervisor) con su presentación y hora de inicio y fin: para saber qué corría cuando se paró (unidades perdidas). */
   function cuadrosDeUnidad(u){
-    let recs=[];try{recs=loadRecords()||[];}catch(_){recs=[];}
+    let recs=[];try{recs=loadRecordsOficiales()||[];}catch(_){recs=[];}
     const sal=[];
     const hms=(fecha,h)=>{if(!h)return 0;const d=new Date(fecha+'T'+h+':00');if(u.bloque==='NOCHE'&&Number(String(h).slice(0,2))<12)d.setDate(d.getDate()+1);return d.getTime();};
     recs.forEach(r=>{
@@ -305,7 +305,7 @@
 
   /* OEE (base): rendimiento con las sopladas TOTALES. */
   function datosRegistro(u){
-    let recs=[];try{recs=loadRecords()||[];}catch(_){recs=[];}
+    let recs=[];try{recs=loadRecordsOficiales()||[];}catch(_){recs=[];}
     let sop=0,efe=0,hay=false;const porPres=new Map();
     recs.forEach(r=>{
       if(!r||r.linea!==u.linea||r.fecha!==u.fecha)return;

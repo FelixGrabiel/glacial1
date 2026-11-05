@@ -126,7 +126,7 @@ function avTextoUltimoRegistro(s){
   return h||'—';
 }
 function avRegistros(){
-  const rs=typeof loadRecords==='function'?loadRecords():[];
+  const rs=typeof loadRecordsOficiales==='function'?loadRecordsOficiales():(typeof loadRecords==='function'?loadRecords():[]);
   return rs.filter(r=>r&&AVANCE_LINEAS.includes(r.linea)&&r.fecha===avanceEstado.fecha&&avTurnoRecord(r)===avanceEstado.turno);
 }
 function avPaletas(){

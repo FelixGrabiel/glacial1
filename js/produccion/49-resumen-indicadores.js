@@ -274,7 +274,7 @@
     }
 
     /* 3) Registros del turno (turnos anteriores) y mermas */
-    let records=[];try{records=loadRecords()||[];}catch(_){records=[];}
+    let records=[];try{records=loadRecordsOficiales()||[];}catch(_){records=[];}
     let paletas=[];try{paletas=(typeof loadPaletas==='function'?loadPaletas():[])||[];}catch(_){paletas=[];}
     const cuadrosDe=r=>typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
     records.forEach(r=>{
@@ -333,7 +333,9 @@
       const prodU=[...u.partes.values()].reduce((s,p)=>s+p.producido,0);
       if(pasado&&u.programado<=0&&prodU>0)salida.avisos.sinProgramacion.push({linea:u.linea,fecha:u.fecha,grupo:u.grupo});
       if(pasado&&tieneReg){                            // registro vs Paletas y vs bitácora (> 2 %)
-        const sumP=paletas.reduce((s,p)=>(p&&p.linea===u.linea&&p.fecha===u.fecha&&grupoDeTurno(p.turno)===u.grupo)?s+(num(p.totalUnidades)||num(p.unidadesIncompleta)):s,0);
+        // Paletas guarda acumulados: el producido sale del módulo de Paletas (glacialPaletasProducidas), no de sumar filas (avisos falsos de diferencia).
+        const delGrupo=paletas.filter(p=>p&&p.linea===u.linea&&p.fecha===u.fecha&&grupoDeTurno(p.turno)===u.grupo);
+        const sumP=typeof glacialPaletasProducidas==='function'?glacialPaletasProducidas(delGrupo):delGrupo.reduce((s,p)=>s+(num(p.totalUnidades)||num(p.unidadesIncompleta)),0);
         if(sumP>0&&Math.abs(prodU-sumP)/Math.max(prodU,sumP)>UMBRAL_DIF)
           salida.avisos.discrepancias.push({tipo:'Producción',linea:u.linea,fecha:u.fecha,grupo:u.grupo,registro:prodU,otro:sumP,fuente:'Paletas'});
         const npReg=[...u.partes.values()].reduce((s,p)=>s+p.npMin,0);

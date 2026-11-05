@@ -2293,7 +2293,8 @@ function rsDatosIndustriales(records){
     const programado=pp.reduce((a,p)=>a+rsNum(p.cantidadProgramada),0);
     let producido=rr.reduce((a,r)=>a+rsProd(r),0);
     const palLinea=pals.filter(p=>p.linea===linea);
-    if(!producido&&palLinea.length)producido=palLinea.reduce((a,p)=>a+rsNum(p.totalUnidades||p.unidadesIncompleta),0);
+    // Paletas guarda acumulados: se toma el producido del módulo de Paletas, no la suma de filas (16-paletas.js, glacialPaletasProducidas).
+    if(!producido&&palLinea.length)producido=typeof glacialPaletasProducidas==='function'?glacialPaletasProducidas(palLinea):palLinea.reduce((a,p)=>a+rsNum(p.totalUnidades||p.unidadesIncompleta),0);
     const paradas=rr.flatMap(rsParadas);
     const minParadas=paradas.reduce((a,p)=>a+rsNum(p.tiempoMin),0);
     const minCalendario=rr.reduce((a,r)=>a+rsMinProduccion(r),0);
@@ -2435,7 +2436,7 @@ function renderResumen(main){
   const lineasVisibles = lineasConsultables();
 
   const todos =
-    loadRecords().filter(
+    loadRecordsOficiales().filter(
       r => lineasVisibles.some(l => l.key === r.linea)
     );
 

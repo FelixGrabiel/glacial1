@@ -165,7 +165,7 @@
   /* Lista de paradas del supervisor: {motivo,clasif,minutos,inicio?,fin?,origen}. */
   function paradasSupervisor(linea,fecha,turno,finCalculo){
     const salida=[];
-    const records=typeof loadRecords==='function'?(loadRecords()||[]):[];
+    const records=typeof loadRecordsOficiales==='function'?(loadRecordsOficiales()||[]):(typeof loadRecords==='function'?(loadRecords()||[]):[]);
     records.forEach(r=>{
       if(!r||r.linea!==linea||r.fecha!==fecha)return;
       const grupo=r.grupoTurno||(typeof grupoTurnoReporte==='function'
