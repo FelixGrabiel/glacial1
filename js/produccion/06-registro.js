@@ -2999,7 +2999,8 @@ async function finalizarCuadroProduccion(i){
     return;
   }
 
-  if(!confirm(`¿Finalizar Producción ${i+1} · ${q.marca}?\n\nEsta producción quedará bloqueada para el turno INTERMEDIO.`)) return;
+  const sinLotesQ=cuadrosSinLotesInsumo([q]).length;
+  if(!confirm(`¿Finalizar Producción ${i+1} · ${q.marca}?\n\nEsta producción quedará bloqueada para el turno INTERMEDIO.${sinLotesQ?'\n\n⚠ No tiene lotes de insumo marcados: no se podrá rastrear. Si los usaste, cancela y márcalos en «Lotes de insumo usados».':''}`)) return;
 
   q.estadoCuadro='FINALIZADO';
   q.finalizadoEn=Date.now();
@@ -3519,6 +3520,15 @@ function validarReporteParaFinalizar(){
   return [...new Set(faltan)];
 }
 
+/* Trazabilidad (06/11/2026): producciones con producción y SIN lotes de insumo marcados. Solo AVISA (no impide finalizar): sin lotes, esa producción no se
+   podrá rastrear en el informe de trazabilidad ni llenará las columnas de lotes del Control de proceso. Solo si el panel de lotes está cargado (92). */
+function cuadrosSinLotesInsumo(lista){
+  if(typeof window==='undefined'||typeof window.lotesCuadroHtml!=='function')return [];
+  return (lista||[]).map((q,i)=>({q,n:num(q&&q.numero)||i+1}))
+    .filter(({q})=>q&&String(q.marca||'').trim()&&num(q.produccion?.efectiva)>0&&!(Array.isArray(q.lotesInsumo)&&q.lotesInsumo.length))
+    .map(({q,n})=>`Producción ${n} · ${q.marca}`);
+}
+
 function renderEstadoCierreReporte(){
   const estado=draft?.estadoRegistro || 'EN_REGISTRO';
   const bloqueado=estado==='FINALIZADO';
@@ -3539,6 +3549,8 @@ function renderEstadoCierreReporte(){
           : !bloqueado
             ? `<div class="reporte-listo">✓ Todos los campos obligatorios están completos.</div>`
             : `<div class="reporte-listo">Finalizado por ${escaparHtml(draft.finalizadoPor||'—')}.</div>`}
+        ${(()=>{const sin=bloqueado?[]:cuadrosSinLotesInsumo(draft.cuadros);return sin.length
+          ?`<div class="reporte-faltantes reporte-aviso-lotes" style="background:#fff7e6;border-color:#f5c26b;color:#8a4b00">⚠ Sin lotes de insumo marcados: ${sin.map(escaparHtml).join(' · ')}. No impide finalizar, pero esa producción no se podrá rastrear. Márcalos en «Lotes de insumo usados» (o tómalos del almacén).</div>`:'';})()}
       </div>
       <div class="reporte-cierre-acciones">
         ${!bloqueado ? `
@@ -3564,7 +3576,9 @@ async function finalizarReporteProduccion(){
     renderFormTab();
     return;
   }
-  if(!confirm(`¿Finalizar reporte ${draft.linea} — ${draft.turno}?\n\nDespués de finalizar quedará bloqueado y solo un usuario con permiso podrá reabrirlo.`)) return;
+  const sinLotes=cuadrosSinLotesInsumo(draft.cuadros);
+  const avisoLotes=sinLotes.length?`\n\n⚠ Sin lotes de insumo marcados (no se podrán rastrear):\n• ${sinLotes.join('\n• ')}\n\nSi los usaste, cancela y márcalos en «Lotes de insumo usados».`:'';
+  if(!confirm(`¿Finalizar reporte ${draft.linea} — ${draft.turno}?\n\nDespués de finalizar quedará bloqueado y solo un usuario con permiso podrá reabrirlo.${avisoLotes}`)) return;
 
   guardandoRegistro=true;
   asegurarIdReporte();

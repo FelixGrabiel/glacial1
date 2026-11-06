@@ -119,3 +119,8 @@ El Drive de planta ya lleva el formulario CF - CA - F - 047 (un libro por línea
 - El supervisor no escribe auditoría (es del Asistente); queda el movimiento inmutable con su uid y la hora del servidor.
 
 Prueba: `tests/trazabilidad-informe-correcciones.test.js` (T4, T5 con base simulada).
+
+## Aviso al finalizar y validación en bloque (06/11/2026)
+**Aviso de lotes al finalizar** (`06-registro.js`, `cuadrosSinLotesInsumo`): si una producción con producción efectiva no tiene lotes de insumo marcados, el estado del reporte lo muestra («⚠ Sin lotes de insumo marcados: Producción 1 · Bells…») y las confirmaciones de **Finalizar reporte** y **Finalizar marca** lo recuerdan. **No bloquea**: sin lotes, esa producción no se podrá rastrear. Solo aparece si el panel de lotes (92) está cargado.
+
+**Validación en bloque** (Evidencias › «Confirmar y crear lote», `89`, `companerasDe`): el diálogo lista las otras fotos sin lote con el **mismo lote del proveedor y la misma categoría**. Vienen marcadas solo las que cumplen todas las reglas de aprobación (datos confirmados, etiqueta de insumo, sin errores) y tienen otro n.º de caja/bobina; las demás aparecen con su motivo para revisarlas una por una contra su foto (la IA solo propone: una persona valida). Al confirmar, la foto abierta crea o amplía el lote y las marcadas se confirman **en el mismo lote** (una transacción cada una; si una falla, las demás siguen y el aviso dice cuáles). Mismo artículo del catálogo para todas.
