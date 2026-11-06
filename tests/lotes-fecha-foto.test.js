@@ -128,6 +128,6 @@ ok(T.buscarArticulos(CAT,'bolsa 3').map(a=>a.id).join()==='b1'&&T.buscarArticulo
   const s89=leer('js/asistente/89-trazabilidad-lotes-pantalla.js');
   ok(/¿No está en la lista\? Busca en todo el catálogo/.test(s89)&&/Ninguno \/ elegir después/.test(s89),'diálogo: buscador en todo el catálogo y «Ninguno / elegir después» con su explicación');
   const html=leer('index.html');
-  ok(['84-evidencias-insumos-nucleo','85-evidencias-insumos-datos','86-evidencias-insumos-pantalla','87-trazabilidad-lotes-nucleo','88-trazabilidad-lotes-datos','89-trazabilidad-lotes-pantalla','92-lotes-en-cuadro'].every(n=>new RegExp(n+'\\.js\\?v=20261104-').test(html)),'index.html sube la versión de los archivos tocados');
+  ok(['84-evidencias-insumos-nucleo','85-evidencias-insumos-datos','86-evidencias-insumos-pantalla','87-trazabilidad-lotes-nucleo','88-trazabilidad-lotes-datos','89-trazabilidad-lotes-pantalla','92-lotes-en-cuadro'].every(n=>{const m=new RegExp(n+'\\.js\\?v=(\\d{8})-').exec(html);return m&&m[1]>='20261104';}),'index.html sube la versión de los archivos tocados');
   console.log(fallas?fallas+' fallas':'todo correcto');
 })().catch(e=>{console.error(e);process.exit(1);});
