@@ -90,7 +90,7 @@
   /* ---------- filas del mes ---------- */
   /** Un cuadro entra al formulario si tiene marca y produjo algo (sopladas o producción efectiva). Los cuadros solo programados no se registran. */
   const cuadroProducido=c=>!!c&&!!texto(c.marca)&&(num(c.produccion&&c.produccion.efectiva)>0||num(c.produccion&&c.produccion.sopladas)>0);
-  /** Un cuadro entra al formulario cuando planta lo finalizó («FINALIZAR MARCA») o cuando el reporte completo ya está finalizado. Los demás son producción en curso: aparecen cuando se finalicen. */
+  /** ¿El cuadro está cerrado? (planta lo finalizó con «FINALIZAR MARCA» o el reporte completo está finalizado). Desde el 06/11/2026 los no cerrados también entran (marcados «en curso»). */
   const cuadroFinalizado=(r,c)=>texto(c&&c.estadoCuadro).toUpperCase()==='FINALIZADO'||texto(r&&r.estadoRegistro).toUpperCase()==='FINALIZADO';
   const mesDe=(anio,mes)=>String(anio)+'-'+mm(mes);
 
@@ -104,8 +104,10 @@
       if(!r||r.linea!==linea||String(r.fecha||'').slice(0,7)!==prefijo||!esFechaIso(String(r.fecha)))return;
       (Array.isArray(r.cuadros)?r.cuadros:[]).forEach((c,i)=>{
         if(!cuadroProducido(c))return;
-        if(!cuadroFinalizado(r,c)){pendientes.n++;return;}
-        const p=c.produccion||{},lotes=lotesDelCuadro(c),f={
+        // Desde el 06/11/2026 entran también los cuadros sin finalizar (el Drive no espera el cierre): se marcan «en curso» y se actualizan solos.
+        const enCurso=!cuadroFinalizado(r,c);
+        if(enCurso)pendientes.n++;
+        const p=c.produccion||{},lotes=lotesDelCuadro(c),f={enCurso,
           clave:claveFila(r,c,i,linea),claveCuadro:claveCuadro(String(r.fecha).slice(0,10),r.turno,linea,c.marca,c.presentacion),
           fecha:String(r.fecha).slice(0,10),turno:turnoLetra(r.turno),numero:num(c.numero)||i+1,marca:texto(c.marca),presentacion:texto(c.presentacion),
           lotePT:lotePT(c,{fecha:String(r.fecha).slice(0,10),turno:r.turno}),soplado:num(p[mp.soplado]),envasado:num(p[mp.envasado]),empaquetado:num(p[mp.empaquetado]),
