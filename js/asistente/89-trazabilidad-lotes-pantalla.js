@@ -198,6 +198,23 @@
     return {errores,avisos,datos,lote,unidad,duplicados,leyenda:T.interpretarLeyenda(d.leyenda,p),clave};
   }
 
+  /* Validación en bloque (06/11/2026): otras fotos sin lote con el MISMO lote del proveedor y la misma categoría. Solo se ofrecen marcadas las que ya
+     cumplen todas las reglas (datos confirmados, sin errores, n.º de caja/bobina distinto): las demás se revisan una por una contra su foto. */
+  function companerasDe(d,g){
+    const alnum=v=>T.norm(v).replace(/[^A-Z0-9]/g,'');
+    const lp=alnum(g.datos.loteProveedor);if(!lp)return [];
+    const nums=new Set([g.datos.numero]);
+    return (EV.cache.lista||[]).filter(x=>x&&x.id!==d.id&&!x.loteId&&x.categoria===d.categoria&&(N.EDITABLES.includes(x.estado)||x.estado==='aprobado_dato')&&
+        alnum(x.campos&&x.campos.lote&&x.campos.lote.valor)===lp)
+      .sort((a,b)=>(N.fechaFoto(a).ms||0)-(N.fechaFoto(b).ms||0))
+      .map(x=>{
+        const gx=diagnostico(x),errores=gx.errores.filter(e=>!/ya existe/.test(e));
+        if(gx.datos.numero&&nums.has(gx.datos.numero))errores.push('Mismo n.º de '+T.unidadFisica(x.categoria).uno+' ('+gx.datos.numero+') que otra foto: puede ser la misma etiqueta dos veces.');
+        if(gx.unidad)errores.push('La '+T.unidadFisica(x.categoria).uno+' '+gx.datos.numero+' ya existe ('+gx.unidad.id+').');
+        if(gx.datos.numero)nums.add(gx.datos.numero);
+        return {doc:x,datos:gx.datos,errores};
+      });
+  }
   window.ilAbrirCrear=id=>{
     const d=EV.porId(id);if(!d||!Z.puedeEscribir())return;
     const U=window.iiEvidenciasUI;
@@ -215,8 +232,13 @@
       <p class="ii-mut">Ya hay ${g.duplicados.length===1?'un lote':'lotes'} con el mismo lote del proveedor <b>${esc(g.datos.loteProveedor)}</b>, pero con el proveedor o el producto escritos distinto. Si es el mismo lote, agrégala ahí para no partirlo en dos.</p>
       ${g.duplicados.map(x=>`<label class="il-op"><input type="radio" name="il-dest" value="${esc(x.lote.id)}" ${x.lote.id===S.crear.destino?'checked':''} ${x.unidad?'disabled':''} onchange="ilDestino(this.value)"><span><b>Agregar al lote ${esc(x.lote.id)}</b><small class="ii-mut">${esc(x.lote.proveedor)} · ${esc(x.lote.producto)} · ${esc(x.lote.categoria)}</small>${x.unidad?`<small class="il-err">Ya tiene la ${esc(T.unidadFisica(x.lote.categoria).uno)} n.º ${esc(g.datos.numero)} (${esc(x.unidad.id)}): sería la misma etiqueta dos veces.</small>`:''}</span></label>`).join('')}
       <label class="il-op"><input type="radio" name="il-dest" value="" ${S.crear.destino?'':'checked'} onchange="ilDestino(this.value)"><span><b>No, es otro lote: crear un lote nuevo</b></span></label></fieldset>`:'';
+    const comp=companerasDe(d,g);S.crear.companeras=comp.filter(c=>!c.errores.length).map(c=>({id:c.doc.id,rev:c.doc.rev}));
+    const uf=T.unidadFisica(g.datos.categoria);
+    const compHtml=comp.length?`<fieldset class="il-art il-comp"><legend>Otras fotos del mismo lote ${esc(g.datos.loteProveedor)} (${comp.length})</legend>
+      <p class="ii-mut">Se confirman junto con esta, cada una como una ${esc(uf.uno)} del mismo lote. Solo vienen marcadas las que tienen todos sus datos confirmados; las demás revísalas una por una contra su foto.</p>
+      ${comp.map(c=>`<label class="il-op"><input type="checkbox" class="il-comp-x" value="${esc(c.doc.id)}" data-rev="${esc(c.doc.rev)}" ${c.errores.length?'disabled':'checked'}><span><b>${esc(uf.titulo)} ${esc(c.datos.numero||'—')}</b> · ${esc(c.datos.producto)} <small class="ii-mut">${esc(c.datos.proveedor)} · foto ${esc(hora(N.fechaFoto(c.doc).ms))}${c.datos.pesoNeto!=null?' · '+esc(kg(c.datos.pesoNeto)):''}</small>${c.errores.length?`<small class="il-err">${esc(c.errores[0])}</small>`:''}</span></label>`).join('')}</fieldset>`:'';
     const ok=!g.errores.length;
-    abrirModal(d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote',`<p>${que}</p>${dupHtml}
+    abrirModal(d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote',`<p>${que}</p>${dupHtml}${compHtml}
       ${g.errores.length?`<div class="ii-msg ii-msg-error" role="alert"><b>No se puede crear todavía:</b><ul class="ii-lista-sm">${g.errores.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
       ${g.avisos.length?`<ul class="ii-lista-sm">${g.avisos.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
       <table class="ie-t il-datos"><tbody>${fila('Proveedor',esc(g.datos.proveedor))}${fila('Producto',esc(g.datos.producto))}${fila('Lote del proveedor',esc(g.datos.loteProveedor))}${fila('N.º '+T.unidadFisica(g.datos.categoria).uno,esc(g.datos.numero))}${fila('Contenido (etiqueta)',g.datos.cantidad===null?'':esc(fmtCant(g.datos.cantidad))+' '+esc(g.datos.unidadCantidad||''))}${fila('Foto enviada',(()=>{const f=N.fechaFoto(d);return f.ms?esc(hora(f.ms))+notaOrigen(f.origen):'';})())}${fila('Peso neto',esc(kg(g.datos.pesoNeto)))}${fila('Peso bruto',esc(kg(g.datos.pesoBruto)))}${fila('OI / OC',esc([g.datos.ordenInterna,g.datos.ordenCompra].filter(Boolean).join(' · ')))}</tbody></table>
@@ -264,11 +286,23 @@
   window.ilCrearOk=async()=>{
     const c=S.crear;if(!c)return;
     const b=document.getElementById('il-m-ok');if(b)b.disabled=true;errorModal('');
+    const otras=(typeof document.querySelectorAll==='function'?[...document.querySelectorAll('.il-comp-x:checked')]:[]).map(x=>({id:x.value,rev:x.dataset.rev}));
     try{
       const r=await Z.crearLoteDesdeEvidencia(c.id,c.rev,{articuloId:c.articulo,loteDestinoId:c.destino||''});
+      // Las demás, una transacción cada una, al MISMO lote (aunque el proveedor se haya leído distinto): si una falla, las otras siguen.
+      const hechas=[],fallas=[];
+      for(const o of otras){
+        if(b)b.textContent='Confirmando '+(hechas.length+fallas.length+2)+' de '+(otras.length+1)+'…';
+        try{const x=await Z.crearLoteDesdeEvidencia(o.id,o.rev,{articuloId:c.articulo,loteDestinoId:r.loteId});hechas.push(x.unidadId);}
+        catch(e){const ev=EV.porId(o.id);fallas.push((ev?N.tituloEvidencia(ev):o.id)+': '+Z.mensajeError(e));}
+      }
       const U=window.iiEvidenciasUI;
       ilCerrar();
-      if(U){U.aviso('ok',(r.accion==='lote_nuevo'?'Lote ':'Unidad agregada al lote ')+r.loteId+' · unidad '+r.unidadId+' ('+T.ESTADOS[r.estado].toLowerCase()+(r.linea?' en '+r.linea:'')+').');U.repintar();}
+      if(U){
+        const base=(r.accion==='lote_nuevo'?'Lote ':'Unidad agregada al lote ')+r.loteId+' · unidad '+r.unidadId+' ('+T.ESTADOS[r.estado].toLowerCase()+(r.linea?' en '+r.linea:'')+').';
+        const mas=hechas.length?' También se confirmaron '+hechas.length+' foto(s) más del mismo lote ('+hechas.join(', ')+').':'';
+        U.aviso(fallas.length?'error':'ok',base+mas+(fallas.length?' No se pudieron confirmar '+fallas.length+': '+fallas.join(' · '):''));U.repintar();
+      }
     }catch(e){errorModal(Z.mensajeError(e));if(b)b.disabled=false;}
   };
 
@@ -393,13 +427,13 @@
 .il-nota{font-size:12.5px;margin:6px 0 0}.il-op input[type=radio]{width:auto;min-width:0;height:auto;flex:0 0 auto;margin:3px 0 0;padding:0;box-shadow:none}.il-op span{flex:1 1 auto;text-align:left}.il-busca{margin:6px 0}.il-busca input{width:100%}
 .il-vistas{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}.il-vista{border:1px solid var(--ii-linea);background:#fff;border-radius:10px;padding:9px 14px;min-height:44px;font:inherit;font-weight:600;cursor:pointer;color:#0b2a4a}
 .il-vista.il-vista-act,.ii .il-vista.il-vista-act{background:#0b2a4a;color:#fff!important;border-color:#0b2a4a}.il-dup{border-color:#f5c2c0;background:#fffafa}.il-err{display:block;color:#b42318}
-.il-acc-u{display:flex;gap:6px;flex-wrap:wrap}
+.il-acc-u{display:flex;gap:6px;flex-wrap:wrap}.il-comp{background:#f8fbff}
 .il-params summary{cursor:pointer}.il-params-f{display:grid;gap:12px;margin-top:10px;max-width:520px}.il-params .ii-et input{max-width:200px}
 @media(max-width:900px){.il-cols{grid-template-columns:1fr}}
 @media(max-width:560px){.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
 
   window.iiLotesUI={html,css,estado:S,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
-  window.__trazabilidadLotesPantalla={S,diagnostico};
+  window.__trazabilidadLotesPantalla={S,diagnostico,companerasDe};
 
   /* Tiempo real: lo que otra persona cree o cambie aparece solo, sin pisar lo que se está escribiendo. */
   Z.alCambiar(()=>{

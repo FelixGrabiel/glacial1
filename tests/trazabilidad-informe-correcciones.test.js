@@ -239,6 +239,36 @@ ok(cob.total===4&&cob.con===3&&cob.sin===1,'cobertura: cuántas producciones tie
   await sv.loteTomarAlmacen(0,'LI-000041-01');
   ok(sv.docs.get('insumosUnidades/LI-000041-01').estado==='EN_ALMACEN'&&sv.draft.cuadros[0].lotesInsumo.length===1,'T5: un lote vencido no se toma');
 
+  /* ================= validación en bloque (fotos del mismo lote) ================= */
+  const vb=entorno('Asistente de Producción'),ZB=vb.glacialTrazabilidadDatos,EB=vb.glacialEvidenciasDatos;
+  vb.docs.set('insumosCatalogo/catalogo',{id:'catalogo',items:CATALOGO});
+  ZB.escuchar();EB.escuchar();
+  const evB=(id,bobina,o)=>{const e=evidencia({id,lote:'B-500',bobina});Object.assign(e,o||{});return e;};
+  const b1=evB('901','01'),b2=evB('902','02'),b3=evB('903','03',{}),b4=evB('904','01'),b5=evidencia({id:'905',lote:'OTRO-1',bobina:'05'});
+  b3.campos.peso_neto_kg.estado='requiere_revision';
+  [b1,b2,b3,b4,b5].forEach(e=>sembrar(vb,e));
+  const PB=vb.__trazabilidadLotesPantalla;
+  const comp=PB.companerasDe(EB.porId(b1.id),PB.diagnostico(EB.porId(b1.id)));
+  ok(comp.length===3&&comp.find(c=>c.doc.id===b2.id).errores.length===0,'bloque: encuentra las otras fotos del mismo lote del proveedor (no las de otro lote)');
+  ok(/Confirma o corrige/.test((comp.find(c=>c.doc.id===b3.id).errores||[]).join(' ')),'bloque: una foto con datos por confirmar no entra (se revisa una por una)');
+  ok(/Mismo n\.º/.test((comp.find(c=>c.doc.id===b4.id).errores||[]).join(' ')),'bloque: una foto con el mismo n.º de bobina no entra (sería la misma etiqueta dos veces)');
+  vb.ilAbrirCrear(b1.id);
+  ok(vb.__trazabilidadLotesPantalla.S.crear.companeras.map(x=>x.id).join()===b2.id,'bloque: el diálogo ofrece marcada solo la que está lista');
+  vb.document.querySelectorAll=sel=>sel==='.il-comp-x:checked'?[{value:b2.id,dataset:{rev:'1'}}]:[];
+  await vb.ilCrearOk();
+  const l2=coleccion(vb,'insumosUnidades');
+  ok(l2.length===2&&new Set(l2.map(u=>u.loteId)).size===1&&vb.docs.get('insumosEvidencias/'+b2.id).estado==='aprobado_dato'&&vb.docs.get('insumosEvidencias/'+b2.id).loteId,'bloque: se confirman las dos fotos en el mismo lote (dos bobinas)');
+  ok(!vb.docs.get('insumosEvidencias/'+b3.id).loteId&&vb.docs.get('insumosEvidencias/'+b3.id).estado==='pendiente','bloque: la que tenía datos por confirmar sigue pendiente');
+
+  /* ================= aviso de lotes al finalizar (Registro) ================= */
+  const s06=leer('js/produccion/06-registro.js');
+  const ext=n=>{const m=new RegExp('function[ ]+'+n+'[ ]*[(]').exec(s06);let i=s06.indexOf('{',s06.indexOf(')',m.index)),d=0,j=i;for(;j<s06.length;j++){if(s06[j]==='{')d++;else if(s06[j]==='}'){d--;if(d===0)break;}}return s06.slice(m.index,j+1);};
+  const rs={num:v=>{const n=Number(v);return Number.isFinite(n)?n:0;},window:{lotesCuadroHtml:()=>''}};vm.createContext(rs);vm.runInContext(ext('cuadrosSinLotesInsumo')+';this.f=cuadrosSinLotesInsumo;',rs);
+  const sinL=rs.f([{numero:1,marca:'Bells',produccion:{efectiva:100},lotesInsumo:[]},{numero:2,marca:'Scala',produccion:{efectiva:50},lotesInsumo:[{loteId:'x'}]},{numero:3,marca:'Aro',produccion:{efectiva:0}},{numero:4,marca:'',produccion:{efectiva:10}}]);
+  ok(sinL.join()==='Producción 1 · Bells','aviso al finalizar: solo las producciones con producción y sin lotes marcados');
+  rs.window={};ok(rs.f([{numero:1,marca:'Bells',produccion:{efectiva:100}}]).length===0,'sin el panel de lotes cargado no avisa');
+  ok(/reporte-aviso-lotes/.test(s06)&&/Sin lotes de insumo marcados \(no se podrán rastrear\)/.test(s06)&&/No tiene lotes de insumo marcados: no se podrá rastrear/.test(s06),'el aviso sale en el estado del reporte, al finalizar el reporte y al finalizar la marca (no bloquea)');
+
   /* integración */
   const html=leer('index.html'),s89=leer('js/asistente/89-trazabilidad-lotes-pantalla.js');
   ok(/94-trazabilidad-informe\.js\?v=20261106-/.test(html)&&html.indexOf('94-trazabilidad-informe')>html.indexOf('90-control-proceso-nucleo'),'index.html carga el informe después del Control de proceso');

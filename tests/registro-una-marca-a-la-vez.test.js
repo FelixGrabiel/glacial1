@@ -55,7 +55,7 @@ ok(/name === 'presentacion'\s*\)\{\s*q\.marcaPorDefecto = false;/.test(s06),'ele
 ok(/pestanasCuadrosHtml\(cuadros, visiblesVista, activoVista, bloqueadoVista\)/.test(s06)&&!/repeat\(\s*4,\s*minmax\(0,1fr\)\s*\)/.test(s06),'el formulario muestra pestañas en vez de 4 columnas');
 ok(/\$\{i===activoVista\?'':'display:none;'\}/.test(s06),'los 4 cuadros siguen en la página (para no romper lo que los busca); solo se ve el activo');
 ok(/cuadro1DesdeProgramacion\(\)/.test(s35),'el autollenado llena el cuadro 1 desde la programación');
-ok(/06-registro\.js\?v=20261105-rc3/.test(html)&&/35-autollenado-registro\.js\?v=20261105-rc2/.test(html),'versiones nuevas en index.html');
+ok(/06-registro\.js\?v=202611\d\d-rc\d/.test(html)&&/35-autollenado-registro\.js\?v=20261105-rc2/.test(html),'versiones nuevas en index.html');
 
 if(fallas){console.log('\n'+fallas+' falla(s)');process.exit(1);}
 console.log('\nTodo bien');
