@@ -49,6 +49,8 @@ const dep={
 };
 
 const m=T.modeloInicio(d,dep);
+ok(m.ultimoRegistroMs===Math.max(...m.lineas.map(l=>l.ultimoMs||0))&&m.ultimoRegistroMs>0,'Inicio: el último registro es el dato más reciente de cualquier línea');
+ok(/Último registro/.test(T.htmlInicio(m)),'la tabla de Inicio muestra el último registro de cada línea');
 ok(m.avance.pct===35&&/29,898 de 72,600 UND/.test(m.avance.detalle),'avance: 35 % y, con una sola unidad, «producido de programado UND» (misma regla que el Inicio)');
 const mixto=T.modeloInicio({...d,vigentes:[fila('PET1','PAUSA',{producido:1,programado:2}),fila('B7L','EN_CURSO',{producido:1,programado:2})]},dep);
 ok(/Promedio de 2 líneas con programación/.test(mixto.avance.detalle),'avance: con unidades distintas (UND y BID) NO se suman: «Promedio de 2 líneas con programación»');
@@ -77,7 +79,9 @@ ok(T.modeloPersonal(null,dep).estado==='sin_modulo'&&T.modeloPersonal({error:tru
 /* ---------- frescura ---------- */
 const hora=ms=>'h'+ms;
 const e1=T.estadoDatos({ahora:1000,ultimoOk:900,estadoPagina:{warn:false,texto:'Actualizado a las 10:00'},hora});
-ok(!e1.warn&&e1.nivel==='ok'&&e1.texto==='Actualizado h900','con conexión y datos recientes: «Actualizado hh:mm»');
+ok(!e1.warn&&e1.nivel==='ok'&&e1.texto==='Sin registros en el turno · pantalla h900','con conexión y sin registros en el turno: lo dice, con la hora de la pantalla');
+const e1b=T.estadoDatos({ahora:1000,ultimoOk:900,estadoPagina:{warn:false},hora,ultimoRegistro:700});
+ok(e1b.texto==='Último registro h700 · pantalla h900','caso 05/11: la cabecera muestra la hora del último registro (17:02) y la de la pantalla (18:44), no solo «Actualizado»');
 const e2=T.estadoDatos({ahora:1000,ultimoOk:900,estadoPagina:{warn:true,texto:'Sin conexión · datos de las 14:58'},hora});
 ok(e2.warn&&e2.nivel==='sinconexion'&&e2.texto==='SIN CONEXIÓN · datos de las 14:58','sin conexión: SIN CONEXIÓN · datos de las hh:mm (ámbar) y nunca «Actualizado»');
 const e3=T.estadoDatos({ahora:T.SIN_DATOS_MS+5000,ultimoOk:1000,estadoPagina:null,hora});
