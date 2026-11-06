@@ -71,7 +71,7 @@
    * Si la evidencia está pendiente o por corregir se APRUEBAN sus datos (con las mismas reglas de Evidencias) y se crea el lote; si ya estaba aprobada
    * y todavía no tiene lote (aprobadas antes de esta fase) solo se crea el lote. Devuelve {loteId, unidadId, accion, avisos}.
    */
-  async function crearLoteDesdeEvidencia(id,revEsperada,{articuloId=''}={}){
+  async function crearLoteDesdeEvidencia(id,revEsperada,{articuloId='',loteDestinoId=''}={}){
     if(!yoEscribo())throw falla('PERMISO','No tienes permiso para crear lotes.');
     const u=usuario(),t=ahora(),articulo=articuloId?articuloDe(articuloId):null;
     if(articuloId&&!articulo)throw falla('VALIDACION','El artículo elegido ya no está en el catálogo del Inventario.');
@@ -90,25 +90,43 @@
       }
       const datos=T.datosDeEvidencia(doc),clave=T.claveLote(datos);
       const refClave=ref(C.claves,clave),sClave=await tx.get(refClave);
-      let lotePrevio=null,unidadPrevia=null,correlativo=null,sContador=null;
+      let lotePrevio=null,unidadPrevia=null,correlativo=null,sContador=null,unirAlLote=false;
+      /* Lee un lote siguiendo sus uniones (un lote unido a otro manda al que lo recibió) y busca la caja/bobina con ese n.º en él y en los lotes que se le unieron. */
+      const leerLote=async loteId=>{
+        let actual=loteId,l=null;
+        for(let i=0;i<10;i++){
+          const sL=await tx.get(ref(C.lotes,actual));
+          if(!sL.exists)throw falla('VALIDACION','El índice apunta al lote '+actual+' pero no existe. Avisa a un Administrador.');
+          l=sL.data();
+          if(!l.unidoEn)break;
+          actual=l.unidoEn;
+        }
+        let previa=null;
+        for(const lid of [l.id].concat(Array.isArray(l.lotesUnidos)?l.lotesUnidos:[])){
+          const sU=await tx.get(ref(C.unidades,T.idUnidad(lid,datos.numero)));
+          if(sU.exists&&sU.data().loteId===l.id){previa=sU.data();break;}
+        }
+        return {lote:l,previa};
+      };
       if(sClave.exists){
-        const loteId=sClave.data().loteId;
-        const sLote=await tx.get(ref(C.lotes,loteId));
-        if(!sLote.exists)throw falla('VALIDACION','El índice apunta al lote '+loteId+' pero no existe. Avisa a un Administrador.');
-        lotePrevio=sLote.data();
-        const sU=await tx.get(ref(C.unidades,T.idUnidad(loteId,datos.numero)));
-        unidadPrevia=sU.exists?sU.data():null;
+        const r=await leerLote(sClave.data().loteId);
+        lotePrevio=r.lote;unidadPrevia=r.previa;
+      }else if(loteDestinoId){
+        // La persona eligió agregar esta foto a un lote parecido (posible repetido): se suma a ese lote y su llave queda recordada.
+        const r=await leerLote(loteDestinoId);
+        lotePrevio=r.lote;unidadPrevia=r.previa;unirAlLote=true;
       }else{
         sContador=await tx.get(ref(C.parametros,'contador'));
         correlativo=sContador.exists?Number(sContador.data().siguiente)||1:1;
       }
       const sMem=await tx.get(ref(C.parametros,'memoriaArticulos'));
       const ff=N.fechaFoto(doc);
-      const plan=T.planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda:T.interpretarLeyenda(doc.leyenda,leyendaParam),usuario:u.nombre,uid:u.uid,en:t,parametros:leyendaParam,fotoEn:ff.ms,fotoEnOrigen:ff.origen});
+      const plan=T.planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda:T.interpretarLeyenda(doc.leyenda,leyendaParam),usuario:u.nombre,uid:u.uid,en:t,parametros:leyendaParam,fotoEn:ff.ms,fotoEnOrigen:ff.origen,unirAlLote});
       const marcada=T.evidenciaConLote(doc,{loteId:plan.lote.id,unidadId:plan.unidad.id,usuario:u.nombre,en:t});
       tx.set(ref(C.lotes,plan.lote.id),plan.lote);
       tx.set(ref(C.unidades,plan.unidad.id),plan.unidad);
       tx.set(ref(C.movimientos,plan.movimiento.id),Object.assign({},plan.movimiento,{en:serverTs()}));
+      if(unirAlLote)tx.set(refClave,{id:clave,loteId:plan.lote.id,creadoEn:t,creadoPor:u.nombre,unidoPorPersona:true});
       if(plan.nuevo){
         tx.set(refClave,{id:clave,loteId:plan.lote.id,creadoEn:t,creadoPor:u.nombre});
         tx.set(ref(C.parametros,'contador'),{id:'contador',siguiente:correlativo+1,rev:(sContador.exists?Number(sContador.data().rev)||1:0)+1});
@@ -209,6 +227,57 @@
     });
   }
 
-  window.glacialTrazabilidadDatos={C,cache,entregarALinea,buscarArticulos,asignarArticulo,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
+  /* ---------- correcciones del lote (T3) ---------- */
+  /** Cambia la categoría de un lote mal clasificado. Revisión del lote, historial y auditoría en una transacción. */
+  async function cambiarCategoria(loteId,revEsperada,categoria,motivo){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para corregir lotes.');
+    const u=usuario(),t=ahora();
+    await db.runTransaction(async tx=>{
+      const r=ref(C.lotes,loteId),sL=await tx.get(r);
+      if(!sL.exists)throw falla('VALIDACION','El lote ya no existe.');
+      const l=sL.data();
+      if(Number(l.rev)!==Number(revEsperada))throw falla('CONCURRENCIA','Otra persona cambió este lote mientras lo revisabas. Se actualizó la pantalla: vuelve a intentar.');
+      const plan=T.planCambiarCategoria({lote:l,categoria,motivo,usuario:u.nombre,en:t});
+      tx.set(r,plan.lote);
+      auditar(tx,'CAMBIAR_CATEGORIA_LOTE',loteId,(l.producto||'')+' · '+(l.loteProveedor||''),plan.antes,Object.assign({},plan.despues,{motivo:plan.motivo}),{loteId});
+    });
+  }
+  /**
+   * Une el lote repetido `origenId` al lote `destinoId`: una transacción que mueve sus cajas/bobinas (con un movimiento UNION_LOTE cada una), deja el
+   * origen «unido a» el destino (no se borra) y la auditoría. Las cajas/bobinas se leen dentro de la transacción (las de la caché solo dicen cuáles son).
+   */
+  async function unirLotes(origenId,destinoId,motivo){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para unir lotes.');
+    const u=usuario(),t=ahora();
+    let salida=null;
+    await db.runTransaction(async tx=>{
+      const sO=await tx.get(ref(C.lotes,origenId)),sD=await tx.get(ref(C.lotes,destinoId));
+      if(!sO.exists||!sD.exists)throw falla('VALIDACION','Uno de los lotes ya no existe.');
+      const leer=async loteId=>{
+        const out=[];
+        for(const x of cache.unidades.filter(z=>z.loteId===loteId)){
+          const sU=await tx.get(ref(C.unidades,x.id));
+          if(sU.exists&&sU.data().loteId===loteId)out.push(sU.data());
+        }
+        return out;
+      };
+      const usO=await leer(origenId),usD=await leer(destinoId);
+      const origen=sO.data(),destino=sD.data();
+      if(usO.length<Number(origen.unidades||0))
+        throw falla('CONCURRENCIA','Todavía se están cargando las cajas/bobinas del lote '+origenId+'. Espera unos segundos y vuelve a intentar.');
+      const plan=T.planUnirLotes({origen,destino,unidadesOrigen:usO,unidadesDestino:usD,motivo,usuario:u.nombre,uid:u.uid,en:t});
+      tx.set(ref(C.lotes,destino.id),plan.destino);
+      tx.set(ref(C.lotes,origen.id),plan.origen);
+      plan.unidades.forEach(x=>tx.set(ref(C.unidades,x.id),x));
+      plan.movimientos.forEach(m=>tx.set(ref(C.movimientos,m.id),Object.assign({},m,{en:serverTs()})));
+      auditar(tx,'UNIR_LOTES',destino.id,(destino.producto||'')+' · '+(destino.loteProveedor||''),
+        {origen:origen.id,unidadesOrigen:usO.map(x=>x.id),unidadesDestino:Number(destino.unidades||0)},
+        {destino:destino.id,unidades:plan.destino.unidades,motivo:plan.motivo},{loteId:destino.id,origenId:origen.id});
+      salida={destinoId:destino.id,unidades:plan.unidades.length};
+    });
+    return salida;
+  }
+
+  window.glacialTrazabilidadDatos={C,cache,entregarALinea,cambiarCategoria,unirLotes,buscarArticulos,asignarArticulo,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
     mensajeError:D.mensajeError,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}};
 })();

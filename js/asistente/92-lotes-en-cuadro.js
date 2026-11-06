@@ -10,7 +10,9 @@
    ============================================================= */
 (function(raiz){
   'use strict';
-  const CATEGORIAS=[['preformas','Preformas'],['tapas','Tapas'],['etiquetas','Etiquetas'],['asas','Asas']];
+  /* Todas las categorías de insumo con lote (auditoría 2026-11-06, T2): las 4 primeras llenan columnas del Control de proceso; bolsas, cajas y
+     polietileno también quedan en el cuadro para el informe de trazabilidad (planta de hielo, C20L, B20L…). «otro» no se ofrece. */
+  const CATEGORIAS=[['preformas','Preformas'],['tapas','Tapas'],['etiquetas','Etiquetas'],['asas','Asas'],['bolsas','Bolsas'],['cajas','Cajas'],['polietileno','Polietileno']];
   const ESTADOS_EN_LINEA=['ENTREGADA_LINEA','EN_USO'];
   const texto=v=>(typeof v==='string'?v:(typeof v==='number'?String(v):''));
 
@@ -106,9 +108,9 @@
     }).join('');
     const msg=cache.error?'<div class="lc-nota lc-err">No se pudieron leer los lotes de la línea. Si el problema sigue, avisa al Administrador.</div>':
       !cache.listo?'<div class="lc-nota">Consultando los lotes de '+esc(draft.linea)+'…</div>':
-      !grupos?'<div class="lc-nota">No hay lotes de preforma, tapa, etiqueta o asa entregados a '+esc(draft.linea)+'. Pide al Asistente de Producción que los entregue a línea (Asistente › Lotes).</div>':'';
+      !grupos?'<div class="lc-nota">No hay lotes de insumo (preformas, tapas, etiquetas, asas, bolsas, cajas o polietileno) entregados a '+esc(draft.linea)+'. Pide al Asistente de Producción que los entregue a línea (Asistente › Lotes).</div>':'';
     return '<div class="panel lc-panel" style="margin:10px 0 0;"><style>.lc-grupo{margin:6px 0}.lc-fila{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:13px;cursor:pointer}.lc-fila small{display:block;color:#5a6b7b}.lc-nota{font-size:13px;color:#5a6b7b}.lc-err{color:#c62828}.lc-uni{margin:0 0 6px 26px;display:grid;gap:4px}.lc-u{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:13px;padding:4px 8px;border:1px solid #e3e8ee;border-radius:8px}</style>'+
-      '<div class="panel-head"><h4 style="margin:0;">Lotes de insumo usados <small style="font-weight:400;color:#5a6b7b">(llenan el Control de proceso)</small></h4></div><div class="panel-body">'+
+      '<div class="panel-head"><h4 style="margin:0;">Lotes de insumo usados <small style="font-weight:400;color:#5a6b7b">(trazabilidad y Control de proceso)</small></h4></div><div class="panel-body">'+
       (grupos||'')+msg+(marcados.length?'<div class="lc-nota" style="margin-top:6px">En este cuadro: '+marcados.map(m=>esc(m.loteProveedor)).join(' · ')+'</div>':'')+'</div></div>';
   };
   raiz.loteCuadroAlternar=function(i,loteId,marcado){

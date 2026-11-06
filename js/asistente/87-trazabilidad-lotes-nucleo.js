@@ -33,8 +33,11 @@
     OBSERVAR:{txt:'Observada',de:['EN_ALMACEN'],a:'OBSERVADA'},
     LIBERAR:{txt:'Liberada',de:['OBSERVADA'],a:'EN_ALMACEN'},
     DEVOLUCION_PROVEEDOR:{txt:'Devuelta al proveedor',de:['OBSERVADA'],a:'DEVUELTA_PROVEEDOR'},
-    ANULACION:{txt:'Anulación de un movimiento',de:null,a:null}
+    ANULACION:{txt:'Anulación de un movimiento',de:null,a:null},
+    UNION_LOTE:{txt:'Unida a otro lote (corrección de lote repetido)',de:null,a:null}       // no cambia el estado: la caja/bobina pasa a otro lote
   };
+  /* Categorías de un lote (las mismas de Evidencias, 84-evidencias-insumos-nucleo.js). */
+  const CATEGORIAS_LOTE=['preformas','tapas','etiquetas','bolsas','polietileno','cajas','asas','otro'];
   const LEYENDAS_DEFECTO=['RECEPCION','PET1','PET2','B7L','C20L','B20L','DEVOLUCION'];
   /* Parámetros editables (Etapa 2/3 los usan). No se inventan umbrales: sin configurar quedan en null y la pantalla pide definirlos. */
   const PARAMETROS_DEFECTO={version:1,toleranciaConsumoPct:null,diasAvisoVencimiento:null,leyendasValidas:LEYENDAS_DEFECTO.slice(),leyendaObligatoria:false};
@@ -167,7 +170,7 @@
    * Con leyenda de línea, la unidad nace ENTREGADA_LINEA (movimiento ENTREGA_LINEA); si no, EN_ALMACEN (RECEPCION).
    * fotoEn: cuándo se envió la foto (ms). Es la fecha del HECHO (recepción o entrega a línea) y la que vale para la trazabilidad; `en` es cuándo se validó y registró.
    */
-  function planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda,usuario,uid,en,parametros,fotoEn,fotoEnOrigen}){
+  function planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda,usuario,uid,en,parametros,fotoEn,fotoEnOrigen,unirAlLote}){
     const v=validarParaLote(doc,{parametros});
     if(v.errores.length)throw falla('VALIDACION',v.errores.join(' '));
     const d=v.datos,ahora=Number(en)||Date.now(),por=recortar(usuario,80);
@@ -183,7 +186,13 @@
         unidades:0,recibidoEn:foto,rev:1,creadoPor:por,creadoUid:recortar(uid,80),creadoEn:ahora,actualizadoPor:por,actualizadoEn:ahora,historial:[]};
     }else{
       lote=clonar(lotePrevio);
-      if(lote.clave!==clave)throw falla('CLAVE','El lote existente no corresponde a esta llave (proveedor, lote y producto).');
+      const clavesDelLote=[lote.clave].concat(Array.isArray(lote.clavesUnidas)?lote.clavesUnidas:[]);
+      if(!clavesDelLote.includes(clave)){
+        // La persona eligió agregarla a un lote parecido (posible repetido: el proveedor se leyó distinto). Se recuerda la llave para la próxima foto.
+        if(!unirAlLote)throw falla('CLAVE','El lote existente no corresponde a esta llave (proveedor, lote y producto).');
+        if(norm(lote.loteProveedor).replace(/[^A-Z0-9]/g,'')!==norm(d.loteProveedor).replace(/[^A-Z0-9]/g,''))throw falla('CLAVE','Solo se puede agregar a un lote con el mismo lote del proveedor.');
+        lote.clavesUnidas=(Array.isArray(lote.clavesUnidas)?lote.clavesUnidas:[]).concat([clave]).slice(-50);
+      }
       if(articulo&&!lote.itemId){lote.itemId=recortar(articulo.id,80);lote.itemCode=recortar(articulo.itemCode,40);lote.itemNombre=recortar(articulo.nombre,160);}
       if(!lote.fechaVencimiento&&d.fechaVencimiento)lote.fechaVencimiento=d.fechaVencimiento;
       if(!(Number(lote.recibidoEn)>0)||foto<Number(lote.recibidoEn))lote.recibidoEn=foto;          // primera foto del lote
@@ -300,7 +309,7 @@
   function motivoNoPermitido(unidad,tipo){
     const m=MOVIMIENTOS[tipo];
     if(!m)return 'Movimiento desconocido: '+tipo+'.';
-    if(tipo==='ANULACION')return '';
+    if(tipo==='ANULACION'||tipo==='UNION_LOTE')return '';
     if(!unidad)return 'La unidad no existe.';
     if(tipo==='ENTREGA_LINEA'&&unidad.estado==='OBSERVADA')return 'Una unidad observada no se puede entregar a línea: libérala primero.';
     if(!m.de.includes(unidad.estado))return 'No se puede registrar «'+m.txt+'» en una unidad «'+(ESTADOS[unidad.estado]||unidad.estado)+'».';
@@ -322,6 +331,7 @@
     f=f||{};const q=norm(f.texto||'');
     const porLote=new Map();(unidades||[]).forEach(u=>{if(!porLote.has(u.loteId))porLote.set(u.loteId,[]);porLote.get(u.loteId).push(u);});
     return (lotes||[]).filter(l=>{
+      if(l.unidoEn&&!(q&&norm(l.id)===q))return false;            // un lote unido a otro solo aparece si se busca por su ID
       const us=porLote.get(l.id)||[];
       if(f.categoria&&l.categoria!==f.categoria)return false;
       if(f.estado&&!us.some(u=>u.estado===f.estado))return false;
@@ -363,7 +373,91 @@
     return partes.join(' ');
   }
 
-  const API={LINEAS,ESTADOS,TRANSICIONES,MOVIMIENTOS,LEYENDAS_DEFECTO,PARAMETROS_DEFECTO,CATEGORIAS_CATALOGO,idLote,esIdLote,claveLote,numeroUnidad,idUnidad,interpretarLeyenda,datosDeEvidencia,
+  /* ---------- correcciones del lote (T3, auditoría 2026-11-06) ---------- */
+  const alnum=v=>norm(v).replace(/[^A-Z0-9]/g,'');
+  /** Sigue las uniones: un lote unido a otro (unidoEn) apunta al lote que lo recibió. Devuelve el id final (o el mismo). */
+  function resolverLoteId(id,lotes){
+    const porId=new Map((lotes||[]).map(l=>[l.id,l]));
+    let actual=String(id||'');
+    for(let i=0;i<10;i++){const l=porId.get(actual);if(!l||!l.unidoEn)break;actual=String(l.unidoEn);}
+    return actual;
+  }
+  /**
+   * Lotes que parecen el MISMO lote del proveedor aunque su llave sea otra (la lectura de la foto escribió distinto al proveedor o al producto):
+   * mismo lote del proveedor (sin separadores) y misma categoría o palabras del producto en común. Sin los lotes unidos a otro.
+   */
+  function posiblesDuplicados(datos,lotes,{excepto}={}){
+    const lp=alnum(datos&&datos.loteProveedor);if(!lp)return [];
+    const clave=datos&&datos.clave?datos.clave:claveLote(datos||{});
+    const tp=new Set(tokens(datos&&datos.producto));
+    return (lotes||[]).filter(l=>{
+      if(!l||l.unidoEn||l.id===excepto)return false;
+      const claves=[l.clave].concat(Array.isArray(l.clavesUnidas)?l.clavesUnidas:[]);
+      if(claves.includes(clave))return false;                    // es su propio lote, no un posible repetido
+      if(alnum(l.loteProveedor)!==lp)return false;
+      if(datos.categoria&&l.categoria===datos.categoria)return true;
+      const ta=tokens(l.producto);
+      return ta.length>0&&ta.filter(t=>tp.has(t)).length>=Math.ceil(Math.min(ta.length,tp.size||1)/2);
+    }).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  }
+  /** Cambiar la categoría de un lote mal clasificado (p. ej. una etiqueta guardada como preforma). Puro. */
+  function planCambiarCategoria({lote,categoria,motivo,usuario,en}){
+    if(!lote)throw falla('VALIDACION','El lote no existe.');
+    if(lote.unidoEn)throw falla('ESTADO','Este lote se unió al '+lote.unidoEn+': corrige ese lote.');
+    const cat=String(categoria||'').toLowerCase();
+    if(!CATEGORIAS_LOTE.includes(cat))throw falla('VALIDACION','Elige una categoría válida.');
+    if(cat===lote.categoria)throw falla('VALIDACION','El lote ya tiene esa categoría.');
+    const m=recortar(motivo,200).trim();
+    if(m.length<5)throw falla('VALIDACION','Escribe el motivo del cambio (al menos 5 caracteres).');
+    const ahora=Number(en)||Date.now(),por=recortar(usuario,80),n=clonar(lote);
+    n.categoria=cat;n.rev=(Number(lote.rev)||1)+1;n.actualizadoPor=por;n.actualizadoEn=ahora;
+    n.historial=(lote.historial||[]).concat([{accion:'categoria_cambiada',por,en:ahora,motivo:(lote.categoria||'—')+' → '+cat+' · '+m}]).slice(-200);
+    return {lote:n,antes:{categoria:lote.categoria||''},despues:{categoria:cat},motivo:m};
+  }
+  /**
+   * Unir un lote repetido (origen) a otro (destino): sus cajas/bobinas pasan al destino (conservan su id, estado, pesos e historial), el origen queda
+   * «unido a» el destino con 0 unidades (no se borra) y cada caja/bobina deja un movimiento UNION_LOTE. Exige el mismo lote del proveedor.
+   * Si el destino ya tiene una caja/bobina con el mismo n.º, no se une (sería la misma etiqueta dos veces): se corrige primero. Puro.
+   */
+  function planUnirLotes({origen,destino,unidadesOrigen,unidadesDestino,motivo,usuario,uid,en}){
+    if(!origen||!destino)throw falla('VALIDACION','Falta uno de los lotes.');
+    if(origen.id===destino.id)throw falla('VALIDACION','Elige dos lotes distintos.');
+    if(origen.unidoEn)throw falla('ESTADO','El lote '+origen.id+' ya se unió al '+origen.unidoEn+'.');
+    if(destino.unidoEn)throw falla('ESTADO','El lote '+destino.id+' ya se unió al '+destino.unidoEn+': únelo a ese.');
+    if(alnum(origen.loteProveedor)!==alnum(destino.loteProveedor))throw falla('VALIDACION','Solo se unen lotes con el mismo lote del proveedor ('+origen.loteProveedor+' ≠ '+destino.loteProveedor+').');
+    const m=recortar(motivo,200).trim();
+    if(m.length<5)throw falla('VALIDACION','Escribe el motivo de la unión (al menos 5 caracteres).');
+    const usO=(unidadesOrigen||[]).filter(u=>u&&u.loteId===origen.id),usD=(unidadesDestino||[]).filter(u=>u&&u.loteId===destino.id);
+    const numD=new Set(usD.map(u=>numeroUnidad(u.numero)));
+    const choque=usO.filter(u=>numD.has(numeroUnidad(u.numero)));
+    if(choque.length)throw falla('DUPLICADO','El lote '+destino.id+' ya tiene '+choque.map(u=>'el n.º '+u.numero).join(', ')+': revisa si es la misma etiqueta repetida antes de unir.');
+    const ahora=Number(en)||Date.now(),por=recortar(usuario,80);
+    const d=clonar(destino),o=clonar(origen);
+    d.unidades=num(d.unidades)+usO.length;
+    d.clavesUnidas=[...new Set((Array.isArray(d.clavesUnidas)?d.clavesUnidas:[]).concat([o.clave],Array.isArray(o.clavesUnidas)?o.clavesUnidas:[]).filter(Boolean))].slice(-50);
+    d.lotesUnidos=[...new Set((Array.isArray(d.lotesUnidos)?d.lotesUnidos:[]).concat([o.id],Array.isArray(o.lotesUnidos)?o.lotesUnidos:[]))].slice(-50);
+    if(!d.fechaVencimiento&&o.fechaVencimiento)d.fechaVencimiento=o.fechaVencimiento;
+    if(!d.itemId&&o.itemId){d.itemId=o.itemId;d.itemCode=o.itemCode||'';d.itemNombre=o.itemNombre||'';}
+    if(num(o.recibidoEn)>0&&(!(num(d.recibidoEn)>0)||num(o.recibidoEn)<num(d.recibidoEn)))d.recibidoEn=num(o.recibidoEn);
+    d.rev=(Number(destino.rev)||1)+1;d.actualizadoPor=por;d.actualizadoEn=ahora;
+    d.historial=(destino.historial||[]).concat([{accion:'lote_unido',por,en:ahora,motivo:'Recibe '+usO.length+' de '+o.id+' · '+m}]).slice(-200);
+    o.unidoEn=d.id;o.unidades=0;o.rev=(Number(origen.rev)||1)+1;o.actualizadoPor=por;o.actualizadoEn=ahora;
+    o.historial=(origen.historial||[]).concat([{accion:'unido_a',por,en:ahora,motivo:'Unido a '+d.id+' · '+m}]).slice(-200);
+    const unidades=[],movimientos=[];
+    usO.forEach(u=>{
+      const n=clonar(u);
+      n.loteId=d.id;n.loteOrigen=u.loteOrigen||o.id;n.rev=(Number(u.rev)||1)+1;n.actualizadoPor=por;n.actualizadoEn=ahora;
+      n.historial=(u.historial||[]).concat([{estado:u.estado,accion:'UNION_LOTE',por,en:ahora,motivo:o.id+' → '+d.id}]).slice(-200);
+      unidades.push(n);
+      movimientos.push({id:'MOV-'+recortar(u.id,60)+'-UNION_LOTE-'+ahora,tipo:'UNION_LOTE',loteId:d.id,unidadId:u.id,
+        antes:{estado:u.estado,pesoActual:u.pesoActual===undefined?null:u.pesoActual,linea:u.linea||'',loteId:o.id},
+        despues:{estado:u.estado,pesoActual:u.pesoActual===undefined?null:u.pesoActual,linea:u.linea||'',loteId:d.id},
+        evidenciaId:recortar(u.evidenciaId||'',80),por,uid:recortar(uid,80),enMs:ahora,motivo:'Unida desde '+o.id+' · '+m,anula:''});
+    });
+    return {destino:d,origen:o,unidades,movimientos,motivo:m};
+  }
+
+  const API={LINEAS,CATEGORIAS_LOTE,resolverLoteId,posiblesDuplicados,planCambiarCategoria,planUnirLotes,ESTADOS,TRANSICIONES,MOVIMIENTOS,LEYENDAS_DEFECTO,PARAMETROS_DEFECTO,CATEGORIAS_CATALOGO,idLote,esIdLote,claveLote,numeroUnidad,idUnidad,interpretarLeyenda,datosDeEvidencia,
     validarParaLote,claveMemoria,sugerirArticulos,buscarArticulos,planCrearLote,estadoVencimiento,planEntregaLinea,planUsoEnCuadro,planCierreUnidad,evidenciaConLote,transicionPermitida,motivoNoPermitido,unidadesDeLote,resumenLote,filtrarLotes,lineaDeTiempo,textoMovimiento,norm,ocurrido,unidadFisica,contenidoLote};
   global.glacialTrazabilidadNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

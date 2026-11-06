@@ -33,7 +33,7 @@ const lotes=[lote,{id:'LI-000002',loteProveedor:'T-77',producto:'Tapa 28mm',cate
 const us=[{id:'LI-000001-01',loteId:'LI-000001',numero:'1',estado:'ENTREGADA_LINEA',linea:'PET1'},{id:'LI-000001-02',loteId:'LI-000001',numero:'2',estado:'EN_USO',linea:'PET1'},{id:'LI-000002-01',loteId:'LI-000002',numero:'1',estado:'ENTREGADA_LINEA',linea:'PET2'},
   {id:'LI-000003-01',loteId:'LI-000003',numero:'1',estado:'ENTREGADA_LINEA',linea:'PET1'},{id:'LI-000004-01',loteId:'LI-000004',numero:'1',estado:'EN_ALMACEN',linea:''}];
 const d=L.disponibles(lotes,us,'PET1');
-ok(d.length===1&&d[0].lote.id==='LI-000001'&&d[0].unidades.length===2,'solo salen lotes con unidades en la línea (entregadas o en uso) y de las categorías del formulario (la caja y lo de otra línea o en almacén no)');
+ok(d.length===2&&d[0].lote.id==='LI-000001'&&d[0].unidades.length===2&&d[1].lote.id==='LI-000003','solo salen lotes con unidades en la línea (entregadas o en uso); desde T2 también cajas, bolsas y polietileno (lo de otra línea o en almacén no)');
 const e=L.entradaDeLote(d[0].lote,d[0].unidades);
 ok(e.loteProveedor==='2605008F300'&&e.categoria==='preformas'&&e.unidadIds.length===2&&e.fechaVencimiento==='2027-01-10','la entrada guarda lote del proveedor, categoría y unidades');
 let lista=L.alternar([],e,true);lista=L.alternar(lista,e,true);
