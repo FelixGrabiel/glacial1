@@ -103,3 +103,19 @@ El Drive de planta ya lleva el formulario CF - CA - F - 047 (un libro por línea
 - **Aviso de posible repetido al crear:** si ya hay un lote con el mismo lote del proveedor (y misma categoría o palabras del producto en común) pero otra llave, «Confirmar y crear lote» ofrece **agregar la foto a ese lote** (queda marcado por defecto) o crear uno nuevo. Al agregarla se crea su llave en el índice apuntando a ese lote.
 - No necesitan migración: las reglas de `glacial_34` ya permiten a `ii_esc` actualizar lotes y unidades y crear movimientos de cualquier tipo.
 - Núcleo: `posiblesDuplicados`, `planCambiarCategoria`, `planUnirLotes`, `resolverLoteId`, `planCrearLote({unirAlLote})` (87); datos: `cambiarCategoria`, `unirLotes`, `crearLoteDesdeEvidencia({loteDestinoId})` (88); pantalla (89). Prueba: `tests/trazabilidad-informe-correcciones.test.js`.
+
+## Almacén ágil y el supervisor toma del almacén (06/11/2026: T7, T4, T5)
+**T7 · Datos corregidos en PRODUCCIÓN** (06/11/2026, `supabase/datos/2026-11-06_t7_correccion_lotes.sql`): `LI-000001` pasó de preformas a **etiquetas**; `LI-000011` y `LI-000014` (lote del proveedor 12158) se **unieron a `LI-000007`** (3 bobinas: 03, 41, 42). Calculado con el mismo núcleo 87 que la pantalla, con movimientos `UNION_LOTE` y auditoría.
+
+**T4 · Almacén** (ficha del lote, quien crea lotes):
+- **«Entregar varias a línea…»**: todas las cajas/bobinas en almacén del lote, marcadas, a una línea, en una transacción (si una no se puede, no se entrega ninguna).
+- Botones por caja/bobina según su estado: *En almacén* → Entregar a línea · **Observar** (con motivo); *Observada* → **Liberar** · **Devolver al proveedor** (con motivo, estado final); *Entregada a línea* → **Devolver a almacén** (vuelve sin usar, movimiento nuevo `RETORNO_ALMACEN`: ENTREGADA_LINEA → EN_ALMACEN).
+- Núcleo `planMovimientoUnidad` (87), datos `moverUnidades` (88), auditoría `OBSERVAR_UNIDAD`, `LIBERAR_UNIDAD`, `DEVOLVER_PROVEEDOR`, `RETORNO_ALMACEN`.
+
+**T5 · El supervisor toma del almacén** (panel «Lotes de insumo usados» de cada producción):
+- Debajo de cada categoría, **«En almacén: tomar para <línea>»** lista los lotes con cajas/bobinas en almacén (sin vencidos ni lotes unidos). **«Tomar para PET1»** pasa esa caja/bobina a *Entregada a línea* (movimiento `ENTREGA_LINEA` con el motivo «Tomada del almacén por el supervisor para …») y **marca el lote en la producción** con esa unidad. Después se usa «Marcar en uso» y «Registrar peso final» como siempre.
+- Ya no hace falta que Almacén entregue antes; Almacén sigue pudiendo entregar desde la ficha.
+- Servidor: **`glacial_43`** permite a la marca «opera» SOLO EN_ALMACEN → ENTREGADA_LINEA (línea válida; solo estado, línea, rev, actualizadoPor, actualizadoEn e historial: el peso y el lote no cambian) y crear el movimiento `ENTREGA_LINEA`. Aplicada en **PRUEBAS** (06/11/2026) y comprobada (permitido / cambia peso / cambia lote / a consumida / línea inválida / sin «opera»). **PRODUCCIÓN: pendiente de aprobación**; sin ella el botón avisa que falta el permiso y no cambia nada.
+- El supervisor no escribe auditoría (es del Asistente); queda el movimiento inmutable con su uid y la hora del servidor.
+
+Prueba: `tests/trazabilidad-informe-correcciones.test.js` (T4, T5 con base simulada).

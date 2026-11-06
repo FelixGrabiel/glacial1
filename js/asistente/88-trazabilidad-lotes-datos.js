@@ -175,6 +175,39 @@
     return {entregadas:salida};
   }
 
+  /**
+   * Observar, liberar, devolver al proveedor o devolver a almacén sin usar (T4): una transacción para todas las cajas/bobinas elegidas, cada una con su
+   * movimiento y su auditoría. Si una no se puede, no se mueve ninguna. Devuelve {movidas:[ids]}.
+   */
+  const AUDITORIA_MOV={OBSERVAR:'OBSERVAR_UNIDAD',LIBERAR:'LIBERAR_UNIDAD',DEVOLUCION_PROVEEDOR:'DEVOLVER_PROVEEDOR',RETORNO_ALMACEN:'RETORNO_ALMACEN'};
+  async function moverUnidades(ids,tipo,motivo){
+    if(!yoEscribo())throw falla('PERMISO','No tienes permiso para mover unidades de lote.');
+    if(!AUDITORIA_MOV[tipo])throw falla('VALIDACION','Movimiento no permitido.');
+    const lista=[...new Set((Array.isArray(ids)?ids:[]).map(String).filter(Boolean))];
+    if(!lista.length)throw falla('VALIDACION','Elige al menos una caja o bobina.');
+    const u=usuario(),t=ahora();
+    const movidas=[];
+    await db.runTransaction(async tx=>{
+      movidas.length=0;
+      const leidas=[];
+      for(const id of lista){
+        const sU=await tx.get(ref(C.unidades,id));
+        if(!sU.exists)throw falla('VALIDACION','La unidad '+id+' ya no existe.');
+        leidas.push(sU.data());
+      }
+      leidas.forEach(unidad=>{
+        const plan=T.planMovimientoUnidad({unidad,tipo,motivo,usuario:u.nombre,uid:u.uid,en:t});
+        tx.set(ref(C.unidades,unidad.id),plan.unidad);
+        tx.set(ref(C.movimientos,plan.movimiento.id),Object.assign({},plan.movimiento,{en:serverTs()}));
+        const l=porId(unidad.loteId)||{};
+        auditar(tx,AUDITORIA_MOV[tipo],unidad.id,(l.producto||'')+' · '+(l.loteProveedor||''),{estado:unidad.estado,linea:unidad.linea||''},
+          {estado:plan.unidad.estado,linea:plan.unidad.linea||'',motivo:plan.movimiento.motivo},{loteId:unidad.loteId,unidadId:unidad.id});
+        movidas.push(unidad.id);
+      });
+    });
+    return {movidas:movidas.slice()};
+  }
+
   /** Parámetros editables: días de aviso de vencimiento (vacío = sin aviso) y si la leyenda de la foto es obligatoria. Una transacción con control de revisión. */
   async function guardarParametros({diasAvisoVencimiento,leyendaObligatoria}){
     if(!yoEscribo())throw falla('PERMISO','No tienes permiso para cambiar los parámetros de lotes.');
@@ -278,6 +311,6 @@
     return salida;
   }
 
-  window.glacialTrazabilidadDatos={C,cache,entregarALinea,cambiarCategoria,unirLotes,buscarArticulos,asignarArticulo,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
+  window.glacialTrazabilidadDatos={C,cache,entregarALinea,moverUnidades,cambiarCategoria,unirLotes,buscarArticulos,asignarArticulo,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
     mensajeError:D.mensajeError,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}};
 })();

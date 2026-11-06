@@ -72,7 +72,7 @@ ok((lanza(()=>T.planCierreUnidad({unidad:enLinea,destino:'CONSUMIDA',usuario:'x'
 const s93=leer('js/asistente/93-lotes-uso-cuadro.js'),mig39=leer('supabase/migraciones/glacial_39_uso_lotes_supervisores.sql');
 ok(/window\.loteUsoMarcar/.test(s93)&&/window\.loteUsoCerrar/.test(s93)&&/runTransaction/.test(s93)&&/insumosLoteMovimientos/.test(s93)&&!/alert\(|confirm\(|prompt\(/.test(s93),'las acciones del supervisor son transacciones (unidad + movimiento) y sin alert/confirm/prompt');
 ok(/loteUsoMarcar\(/.test(s92)&&/loteUsoCerrar\(/.test(s92)&&/permission\|permiso\|denied/.test(s92),'el panel del cuadro ofrece «Marcar en uso» y «Registrar peso final»; sin permiso del servidor no estorba');
-ok(html.indexOf('93-lotes-uso-cuadro.js')>html.indexOf('92-lotes-en-cuadro.js')&&/93-lotes-uso-cuadro\.js\?v=20261031-lc2/.test(html),'index.html carga las acciones después del panel');
+ok(html.indexOf('93-lotes-uso-cuadro.js')>html.indexOf('92-lotes-en-cuadro.js')&&/93-lotes-uso-cuadro\.js\?v=2026\d{4}-/.test(html),'index.html carga las acciones después del panel');
 ok(/APLICADA en PRUEBAS y PRODUCCIÓN/.test(mig39)&&/USO_CUADRO','CONSUMO','DEVOLUCION/.test(mig39)&&/'ENTREGADA_LINEA' and n->>'estado' = 'EN_USO'/.test(mig39)&&/between 0 and \(v->>'pesoActual'\)::numeric/.test(mig39),'glacial_39: solo las tres transiciones, peso entre 0 y el anterior, solo esos movimientos; avisa que falta producción');
 ok(/async function guardarParametros/.test(s88)&&/ilGuardarParametros/.test(s89)&&/Parámetros de lotes/.test(s89)&&/Los días de aviso deben ser un número entero/.test(s88),'los parámetros (días de aviso y leyenda obligatoria) se editan desde Lotes');
 console.log(fallas?'\n'+fallas+' fallas':'\nLotes en el cuadro correcto');
