@@ -10,7 +10,7 @@
    así los porcentajes, estados y cifras coinciden con la página. Quien abre esta vista debe iniciar sesión con un usuario de SOLO
    LECTURA (Modo visualización con Inicio); la restricción es real, no depende de ocultar botones.
 
-   FRESCURA: la cabecera muestra la hora de la última actualización. Si no hay conexión o los datos están viejos, lo dice en ámbar
+   FRESCURA: la cabecera muestra la hora del ÚLTIMO REGISTRO (dato más reciente ingresado) y la de la pantalla (refresco). Si no hay conexión o los datos están viejos, lo dice en ámbar
    («SIN CONEXIÓN · datos de las hh:mm») y, si deja de poder calcular, «SIN DATOS». Nunca aparece «Actualizado» con datos vencidos.
 
    Funciones puras (modelos y HTML) expuestas en window.glacialTV para poder probarlas sin navegador (tests/modo-tv.test.js).
@@ -56,7 +56,7 @@
       const nombre=dep.nombreLinea(k),u=dep.unidad(k),f=porLinea.get(k),causa=sinProd.get(k);
       if(!f){
         const e=causa?ESTADOS.SIN_PRODUCCION:ESTADOS.SIN_PROGRAMACION;
-        return {linea:k,nombre,estado:e,producto:'—',producido:null,programado:null,unidad:u,pct:null,ultimo:'—',nota:causa?notaCausa(causa):''};
+        return {linea:k,nombre,estado:e,producto:'—',producido:null,programado:null,unidad:u,pct:null,ultimo:'—',ultimoMs:0,nota:causa?notaCausa(causa):''};
       }
       const g=f.desglose,act=g&&g.actual;
       const clave=(g&&g.estado)||f.estado;
@@ -69,7 +69,7 @@
         producto:nombreMarca||dep.productoActual(f),
         producido:prod,programado:prog,unidad:u,
         pct:prog>0?Math.round(pct):null,
-        ultimo:f.ultimoMs?dep.hora(f.ultimoMs):'—',
+        ultimo:f.ultimoMs?dep.hora(f.ultimoMs):'—',ultimoMs:Number(f.ultimoMs)||0,
         nota:causa?notaCausa(causa):''};
     });
   }
@@ -97,8 +97,10 @@
       ?(unidades.length===1?`${dep.fmt(totProd)} de ${dep.fmt(totProg)} ${unidades[0]}`:`Promedio de ${vig.length} línea${vig.length>1?'s':''} con programación`)
       :'Sin programación para evaluar';
     const sp=dep.sinProduccion?dep.sinProduccion(d):{filas:[],estado:'sin_modulo'};
+    const lineas=modeloLineas(d,dep);
     return {
       fecha:d.fecha,turno:d.turno,
+      ultimoRegistroMs:lineas.reduce((mx,l)=>Math.max(mx,l.ultimoMs||0),0),     // dato más reciente ingresado en cualquier línea (no la hora del refresco)
       avance:{pct:vig.length?Math.round(d.avance):null,detalle},
       enProduccion:{n:d.enCurso,total:d.totalLineas,nombres:d.nombresEnCurso||[]},
       paradas:{prog:dep.duracion(d.paradas.prog),noProg:dep.duracion(d.paradas.noProg)},
@@ -106,16 +108,19 @@
         .map(m=>({linea:m.linea,motivo:m.motivo,min:dep.duracion(m.minutos),prog:m.clasif==='PROGRAMADA'})),
       personal:modeloPersonal(dep.personal?dep.personal(d):null,dep),
       sinProduccion:{estado:sp.estado,filas:(sp.filas||[]).map(f=>({nombre:dep.nombreLinea(f.linea),texto:notaCausa(f)}))},
-      lineas:modeloLineas(d,dep)
+      lineas
     };
   }
 
   /* ---------- frescura ---------- */
   /* estadoPagina = glacialEstadoDatos.estado() (conexión de la página); ultimoOk = instante del último cálculo correcto. */
-  function estadoDatos({ahora,ultimoOk,estadoPagina,hora}){
+  /* ultimoRegistro: hora del último dato ingresado en el turno (paletas/avance). La cabecera muestra las DOS horas para no confundir
+     «la pantalla está al día» con «hubo un registro reciente» (caso 05/11: «Actualizado 18:44» con el último registro de las 17:02). */
+  function estadoDatos({ahora,ultimoOk,estadoPagina,hora,ultimoRegistro}){
     if(!ultimoOk||ahora-ultimoOk>SIN_DATOS_MS)return {warn:true,nivel:'sindatos',texto:'SIN DATOS'+(ultimoOk?' · última actualización '+hora(ultimoOk):'')};
     if(estadoPagina&&estadoPagina.warn)return {warn:true,nivel:'sinconexion',texto:String(estadoPagina.texto||'').replace(/^Sin conexión/,'SIN CONEXIÓN')};
-    return {warn:false,nivel:'ok',texto:'Actualizado '+hora(ultimoOk)};
+    const reg=Number(ultimoRegistro)>0?'Último registro '+hora(ultimoRegistro):'Sin registros en el turno';
+    return {warn:false,nivel:'ok',texto:reg+' · pantalla '+hora(ultimoOk)};
   }
 
   /* ---------- HTML (sin botones ni enlaces) ---------- */
@@ -155,7 +160,7 @@
       ?m.sinProduccion.filas.slice(0,2).map(f=>`<p class="tv-sp"><b>${esc(f.nombre)}</b>${esc(f.texto)}</p>`).join('')+(m.sinProduccion.filas.length>2?`<p class="tv-peq">+${m.sinProduccion.filas.length-2} más</p>`:'')+'<p class="tv-peq">Informativo: no es una parada oficial</p>'
       :`<p class="tv-mut">${m.sinProduccion.estado==='listo'?'Todas las líneas están en producción.':'Consultando…'}</p>`;
     const filas=m.lineas.map(l=>`<tr><th>${esc(l.nombre)}</th>
-        <td class="tv-prod">${esc(l.producto)}${l.nota?`<small>${esc(l.nota)}</small>`:''}</td>
+        <td class="tv-prod">${esc(l.producto)}${l.nota?`<small>${esc(l.nota)}</small>`:''}${l.ultimoMs?`<small>Último registro ${esc(l.ultimo)}</small>`:''}</td>
         <td class="tv-num">${l.producido==null?'—':`<b>${esc(fmtNum(l.producido))}</b>${l.programado>0?` / ${esc(fmtNum(l.programado))}`:''} ${esc(l.unidad)}`}</td>
         <td class="tv-cum">${l.pct==null?'—':`<b>${fmtPct(l.pct)}</b>${barra(l.pct,barraCls(l.estado))}`}</td>
         <td>${insignia(l.estado)}</td></tr>`).join('');
@@ -214,7 +219,7 @@
   }
 
   /* ---------- ejecución en el navegador ---------- */
-  const ctx={params:null,raiz:null,ultimoOk:0,ultimoHtml:'',ultimoSub:''};
+  const ctx={params:null,raiz:null,ultimoOk:0,ultimoHtml:'',ultimoSub:'',ultimoRegistro:0};
 
   function ajustarEscala(){
     if(!ctx.raiz)return;
@@ -233,6 +238,7 @@
         if(!d)throw new Error('sin datos');
         const m=modeloInicio(d,depNavegador());
         sub=subtituloDe(m);
+        ctx.ultimoRegistro=m.ultimoRegistroMs||0;
         cuerpo=ctx.params.vista==='lineas'?htmlLineas(m):ctx.params.vista==='actual'?htmlActual(m):htmlInicio(m);
         ctx.ultimoOk=ahoraMs();
       }
@@ -241,7 +247,7 @@
       cuerpo=ctx.ultimoHtml||htmlMensaje('SIN DATOS','Esperando la información de GLACIAL…');     // se conserva la última pantalla válida
     }
     let est=null;try{est=window.glacialEstadoDatos&&window.glacialEstadoDatos.estado?window.glacialEstadoDatos.estado():null;}catch(_){est=null;}
-    const estado=estadoDatos({ahora:ahoraMs(),ultimoOk:ctx.ultimoOk,estadoPagina:est,hora:horaCorta});
+    const estado=estadoDatos({ahora:ahoraMs(),ultimoOk:ctx.ultimoOk,estadoPagina:est,hora:horaCorta,ultimoRegistro:ctx.ultimoRegistro});
     if(ctx.ultimoOk&&cuerpo&&!/tv-aviso/.test(cuerpo))ctx.ultimoHtml=cuerpo;
     ctx.ultimoSub=sub;
     ctx.raiz.innerHTML=marco(ctx.params.vista,estado,sub||'—',cuerpo);
