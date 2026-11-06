@@ -106,11 +106,12 @@ let ExcelJS=null;try{ExcelJS=require(process.env.EXCELJS||'exceljs');}catch(_){c
   ok(!/saveRecords|db\.collection|runTransaction|insumosCortes|insumosConteos|insumosCatalogo|apMovimientos|tareo/i.test(codigo.replace(/Solo LEE[^\n]*|NO toca[^\n]*|no modifica[^\n]*/gi,'')),'solo lee reportes: no escribe en ninguna colección ni toca stock SAP, producción o tareo');
   const doc=leer('docs/asistente/control-proceso-drive.md');
   ok(/CF - CA - F - 047/.test(doc)&&/MAN/.test(doc)&&/Etapa 3/.test(doc)&&/Preguntas abiertas/i.test(doc),'el documento de diseño existe y recoge el formulario, la Etapa 3 y las preguntas abiertas');
-  { // solo entran los cuadros finalizados (FINALIZAR MARCA) o de un reporte finalizado
+  { // entran los cuadros con producción, finalizados o no (el Drive no espera el cierre)
     const R=(id,est,cuadros)=>({id,fecha:'2026-10-09',turno:'DÍA',linea:'B7L',estadoRegistro:est,cuadros});
     const C=(n,est)=>cuadro({numero:n,marca:'SCALA',estadoCuadro:est,produccion:{efectiva:100,sopladas:100}});
     const m=P.modeloMes([R('a','EN_REGISTRO',[C(1,'FINALIZADO'),C(2,'ABIERTO'),C(3,undefined)]),R('b','FINALIZADO',[C(1,'ABIERTO'),C(2,undefined)]),R('c','REABIERTO',[C(1,'ABIERTO')])],{linea:'B7L',anio:2026,mes:10});
-    ok(m.total===3&&m.sinFinalizar===3&&P.cuadroFinalizado({estadoRegistro:'FINALIZADO'},{})&&!P.cuadroFinalizado({estadoRegistro:'EN_REGISTRO'},{estadoCuadro:'ABIERTO'}),'solo entran los cuadros finalizados o de un reporte finalizado; los demás se cuentan como «sin finalizar»');
+    const filas=m.hojas.flatMap(h=>h.filas);
+    ok(m.total===6&&m.sinFinalizar===3&&filas.filter(f=>f.enCurso).length===3&&P.cuadroFinalizado({estadoRegistro:'FINALIZADO'},{})&&!P.cuadroFinalizado({estadoRegistro:'EN_REGISTRO'},{estadoCuadro:'ABIERTO'}),'desde el 06/11/2026 entran todos los cuadros con producción aunque no estén finalizados (se marcan «en curso» y se cuentan aparte)');
   }
   console.log(fallas?('\n'+fallas+' fallas'):'\ntodo correcto');
 })();
