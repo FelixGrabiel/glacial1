@@ -18,7 +18,7 @@
   /* Transiciones permitidas de la unidad (las exige el núcleo, no solo la pantalla). */
   const TRANSICIONES={
     EN_ALMACEN:['ENTREGADA_LINEA','OBSERVADA'],
-    ENTREGADA_LINEA:['EN_USO'],
+    ENTREGADA_LINEA:['EN_USO','EN_ALMACEN'],          // ENTREGADA_LINEA → EN_ALMACEN = vuelve sin usar (T4)
     EN_USO:['CONSUMIDA','EN_ALMACEN'],               // EN_USO → EN_ALMACEN = devolución parcial con peso
     OBSERVADA:['EN_ALMACEN','DEVUELTA_PROVEEDOR'],
     CONSUMIDA:[],DEVUELTA_PROVEEDOR:[]
@@ -28,6 +28,7 @@
     RECEPCION:{txt:'Recepción en almacén',de:[null],a:'EN_ALMACEN'},
     ENTREGA_LINEA:{txt:'Entrega a línea',de:['EN_ALMACEN',null],a:'ENTREGADA_LINEA'},       // «null»: la leyenda de línea la entrega al validar
     USO_CUADRO:{txt:'Uso en el cuadro',de:['ENTREGADA_LINEA'],a:'EN_USO'},
+    RETORNO_ALMACEN:{txt:'Devuelta a almacén sin usar',de:['ENTREGADA_LINEA'],a:'EN_ALMACEN'},
     CONSUMO:{txt:'Consumo completo',de:['EN_USO'],a:'CONSUMIDA'},
     DEVOLUCION:{txt:'Devolución parcial a almacén',de:['EN_USO'],a:'EN_ALMACEN'},
     OBSERVAR:{txt:'Observada',de:['EN_ALMACEN'],a:'OBSERVADA'},
@@ -228,7 +229,7 @@
    * Plan de «Entregar a línea» (puro): la unidad pasa de EN_ALMACEN a ENTREGADA_LINEA en la línea elegida y queda un movimiento ENTREGA_LINEA.
    * Un lote vencido NO se entrega (se puede marcar la unidad como observada); uno por vencer se entrega con aviso.
    */
-  function planEntregaLinea({unidad,lote,linea,usuario,uid,en,hoy,parametros}){
+  function planEntregaLinea({unidad,lote,linea,usuario,uid,en,hoy,parametros,motivo:nota}){
     if(!LINEAS.includes(linea))throw falla('VALIDACION','Elige la línea a la que se entrega.');
     const motivo=motivoNoPermitido(unidad,'ENTREGA_LINEA');
     if(motivo)throw falla('ESTADO',motivo);
@@ -237,13 +238,37 @@
     const ahora=Number(en)||Date.now(),por=recortar(usuario,80),nueva=clonar(unidad);
     const antes={estado:unidad.estado,pesoActual:unidad.pesoActual===undefined?null:unidad.pesoActual,linea:unidad.linea||''};
     nueva.estado='ENTREGADA_LINEA';nueva.linea=linea;nueva.rev=(Number(unidad.rev)||1)+1;nueva.actualizadoPor=por;nueva.actualizadoEn=ahora;
-    nueva.historial=(unidad.historial||[]).concat([{estado:'ENTREGADA_LINEA',accion:'ENTREGA_LINEA',por,en:ahora}]).slice(-200);
+    const m=recortar(nota||'',200);
+    nueva.historial=(unidad.historial||[]).concat([Object.assign({estado:'ENTREGADA_LINEA',accion:'ENTREGA_LINEA',por,en:ahora},m?{motivo:m}:{})]).slice(-200);
     const mov={id:'MOV-'+recortar(unidad.id,60)+'-ENTREGA_LINEA-'+ahora,tipo:'ENTREGA_LINEA',loteId:unidad.loteId,unidadId:unidad.id,antes,
-      despues:{estado:'ENTREGADA_LINEA',pesoActual:antes.pesoActual,linea},evidenciaId:recortar(unidad.evidenciaId||'',80),por,uid:recortar(uid,80),enMs:ahora,motivo:'',anula:''};
+      despues:{estado:'ENTREGADA_LINEA',pesoActual:antes.pesoActual,linea},evidenciaId:recortar(unidad.evidenciaId||'',80),por,uid:recortar(uid,80),enMs:ahora,motivo:m,anula:''};
     const avisos=[];
     if(venc.tipo==='por_vencer')avisos.push('El lote vence en '+venc.dias+' día(s).');
     if(venc.tipo==='sin_fecha')avisos.push('El lote no tiene fecha de vencimiento registrada.');
     return {unidad:nueva,movimiento:mov,vencimiento:venc,avisos};
+  }
+
+  /* ---------- movimientos de almacén (T4): observar, liberar, devolver al proveedor, devolver a almacén sin usar ---------- */
+  const MOV_SIMPLES={OBSERVAR:{motivo:true},LIBERAR:{motivo:false},DEVOLUCION_PROVEEDOR:{motivo:true},RETORNO_ALMACEN:{motivo:false}};
+  /** Plan de un movimiento que solo cambia el estado (y, al volver a almacén, deja la línea). Puro. */
+  function planMovimientoUnidad({unidad,tipo,motivo,usuario,uid,en}){
+    const cfg=MOV_SIMPLES[tipo];
+    if(!cfg)throw falla('VALIDACION','Movimiento no permitido aquí: '+tipo+'.');
+    const no=motivoNoPermitido(unidad,tipo);
+    if(no)throw falla('ESTADO',no);
+    const m=recortar(motivo||'',200).trim();
+    if(cfg.motivo&&m.length<5)throw falla('VALIDACION','Escribe el motivo (al menos 5 caracteres).');
+    const ahora=Number(en)||Date.now(),por=recortar(usuario,80),nueva=clonar(unidad),destino=MOVIMIENTOS[tipo].a;
+    const antes={estado:unidad.estado,pesoActual:unidad.pesoActual===undefined?null:unidad.pesoActual,linea:unidad.linea||''};
+    nueva.estado=destino;
+    if(destino==='EN_ALMACEN'){nueva.linea='';nueva.bloque='';nueva.fecha='';nueva.cuadro='';}
+    if(tipo==='OBSERVAR')nueva.observacion=m;
+    if(tipo==='LIBERAR')nueva.observacion='';
+    nueva.rev=(Number(unidad.rev)||1)+1;nueva.actualizadoPor=por;nueva.actualizadoEn=ahora;
+    nueva.historial=(unidad.historial||[]).concat([Object.assign({estado:destino,accion:tipo,por,en:ahora},m?{motivo:m}:{})]).slice(-200);
+    const mov={id:'MOV-'+recortar(unidad.id,60)+'-'+tipo+'-'+ahora,tipo,loteId:unidad.loteId,unidadId:unidad.id,antes,
+      despues:{estado:destino,pesoActual:antes.pesoActual,linea:nueva.linea||''},evidenciaId:recortar(unidad.evidenciaId||'',80),por,uid:recortar(uid,80),enMs:ahora,motivo:m,anula:''};
+    return {unidad:nueva,movimiento:mov};
   }
 
   /* ---------- uso en el cuadro y peso final (Etapa 2b) ---------- */
@@ -457,7 +482,7 @@
     return {destino:d,origen:o,unidades,movimientos,motivo:m};
   }
 
-  const API={LINEAS,CATEGORIAS_LOTE,resolverLoteId,posiblesDuplicados,planCambiarCategoria,planUnirLotes,ESTADOS,TRANSICIONES,MOVIMIENTOS,LEYENDAS_DEFECTO,PARAMETROS_DEFECTO,CATEGORIAS_CATALOGO,idLote,esIdLote,claveLote,numeroUnidad,idUnidad,interpretarLeyenda,datosDeEvidencia,
+  const API={LINEAS,CATEGORIAS_LOTE,MOV_SIMPLES,planMovimientoUnidad,resolverLoteId,posiblesDuplicados,planCambiarCategoria,planUnirLotes,ESTADOS,TRANSICIONES,MOVIMIENTOS,LEYENDAS_DEFECTO,PARAMETROS_DEFECTO,CATEGORIAS_CATALOGO,idLote,esIdLote,claveLote,numeroUnidad,idUnidad,interpretarLeyenda,datosDeEvidencia,
     validarParaLote,claveMemoria,sugerirArticulos,buscarArticulos,planCrearLote,estadoVencimiento,planEntregaLinea,planUsoEnCuadro,planCierreUnidad,evidenciaConLote,transicionPermitida,motivoNoPermitido,unidadesDeLote,resumenLote,filtrarLotes,lineaDeTiempo,textoMovimiento,norm,ocurrido,unidadFisica,contenidoLote};
   global.glacialTrazabilidadNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

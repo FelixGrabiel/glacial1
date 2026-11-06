@@ -251,8 +251,8 @@ const MARCAS_POR_LINEA = {
     'Glacial',
     'Aro',
     'Cuisine',
-    'Fontlife'
-     
+    'Fontlife',
+    'Merkat'
   ],
 
   PET2: [

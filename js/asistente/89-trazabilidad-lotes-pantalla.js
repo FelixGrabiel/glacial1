@@ -78,10 +78,18 @@
     return `<a class="ii-btn ii-btn-o ii-btn-s" ${F.atributosEnlace(ev.foto.url)} rel="noopener noreferrer">Ver foto</a> <button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilVerEvidencia('${esc(u.evidenciaId)}')">Evidencia</button>`;
   }
   /* Entregar a línea: solo la unidad que está en almacén y solo quien puede crear lotes. Con el lote vencido el botón no sirve (se explica). */
+  /* T4: según el estado, los botones de la caja/bobina (Entregar, Observar, Liberar, Devolver al proveedor, Devolver a almacén). */
   function accionUnidad(u,l){
-    if(!Z.puedeEscribir()||u.estado!=='EN_ALMACEN')return '';
-    const v=T.estadoVencimiento(l.fechaVencimiento,hoyIso(),Z.cache.parametros.diasAvisoVencimiento);
-    return v.tipo==='vencido'?'<span class="ii-mut" title="El lote está vencido">Vencido</span>':`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilAbrirEntrega('${esc(u.id)}')">Entregar a línea</button>`;
+    if(!Z.puedeEscribir()||l.unidoEn)return '';
+    const b=(txt,fn)=>`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="${fn}">${txt}</button>`;
+    const id=esc(u.id);
+    if(u.estado==='EN_ALMACEN'){
+      const v=T.estadoVencimiento(l.fechaVencimiento,hoyIso(),Z.cache.parametros.diasAvisoVencimiento);
+      return `<div class="il-acc-u">${v.tipo==='vencido'?'<span class="ii-mut" title="El lote está vencido">Vencido</span>':b('Entregar a línea',`ilAbrirEntrega('${id}')`)}${b('Observar',`ilAbrirMover('${id}','OBSERVAR')`)}</div>`;
+    }
+    if(u.estado==='OBSERVADA')return `<div class="il-acc-u">${b('Liberar',`ilAbrirMover('${id}','LIBERAR')`)}${b('Devolver al proveedor',`ilAbrirMover('${id}','DEVOLUCION_PROVEEDOR')`)}</div>`;
+    if(u.estado==='ENTREGADA_LINEA')return `<div class="il-acc-u">${b('Devolver a almacén',`ilAbrirMover('${id}','RETORNO_ALMACEN')`)}</div>`;
+    return '';
   }
   const hoyIso=()=>typeof GlacialFecha!=='undefined'&&GlacialFecha.fechaISOLocal?GlacialFecha.fechaISOLocal(typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()):'';
   function fichaHtml(){
@@ -113,7 +121,7 @@
         <p class="ii-mut il-nota">La trazabilidad usa la <b>fecha en que se envió la foto</b> (cuando llegó o se usó el insumo), no la de validación.</p></div>
         <div><h4 class="ie-g">Resumen</h4><div class="ii-resumen"><div><b>${r.total}</b><span>${esc(r.total===1?uf.uno:uf.varios)}</span></div>${contenido.map(c=>`<div><b>${esc(fmtCant(c.cantidad))}</b><span>${esc(c.unidad)} en total (etiqueta)</span></div>`).join('')}<div><b>${r.porEstado.EN_ALMACEN}</b><span>en almacén</span></div><div><b>${r.porEstado.ENTREGADA_LINEA+r.porEstado.EN_USO}</b><span>en línea</span></div><div><b>${esc(kg(r.pesoActualKg))}</b><span>peso actual</span></div></div>
           <p class="ii-mut il-nota">Cada foto es <b>una ${esc(uf.uno)}</b>. El n.º (p. ej. ${esc(uf.titulo)} ${esc((us[0]&&us[0].numero)||'50')}) es el que trae su etiqueta, no una cantidad. «Contenido» es lo que trae dentro según la etiqueta.</p></div></div>
-      <h4 class="ie-g">${esc(uf.varios.charAt(0).toUpperCase()+uf.varios.slice(1))} del lote</h4><div class="il-tabla-w"><table class="ie-t il-unidades"><thead><tr><th>N.º ${esc(uf.uno)}</th><th>Estado</th><th>Línea</th><th>Foto enviada</th><th>Peso neto</th><th>Peso actual</th><th>Contenido (etiqueta)</th><th>Origen</th><th>Acción</th></tr></thead><tbody>${unidades||'<tr><td colspan="9" class="ii-mut">Sin unidades.</td></tr>'}</tbody></table></div>
+      <h4 class="ie-g">${esc(uf.varios.charAt(0).toUpperCase()+uf.varios.slice(1))} del lote${corregir&&us.filter(u=>u.estado==='EN_ALMACEN').length>1?` <button type="button" class="ii-btn ii-btn-s" onclick="ilAbrirEntregaLote('${esc(l.id)}')">Entregar varias a línea…</button>`:''}</h4><div class="il-tabla-w"><table class="ie-t il-unidades"><thead><tr><th>N.º ${esc(uf.uno)}</th><th>Estado</th><th>Línea</th><th>Foto enviada</th><th>Peso neto</th><th>Peso actual</th><th>Contenido (etiqueta)</th><th>Origen</th><th>Acción</th></tr></thead><tbody>${unidades||'<tr><td colspan="9" class="ii-mut">Sin unidades.</td></tr>'}</tbody></table></div>
       <h4 class="ie-g">Línea de tiempo</h4>${Z.cache.listo.movimientos?(hist?`<ul class="il-tl">${hist}</ul>`:'<p class="ii-mut">Sin movimientos.</p>'):'<p class="ii-mut">Consultando…</p>'}</div>`;
   }
 
@@ -309,6 +317,24 @@
   };
 
   /* ---------- diálogo «Entregar a línea» (Etapa 2) ---------- */
+  /* Entregar varias cajas/bobinas del lote de una vez (T4): todas las que están en almacén, marcadas; una transacción. */
+  window.ilAbrirEntregaLote=loteId=>{
+    const l=Z.porId(loteId);if(!l||!Z.puedeEscribir())return;
+    const us=T.unidadesDeLote(l,Z.cache.unidades).filter(u=>u.estado==='EN_ALMACEN');
+    if(!us.length)return;
+    const v=T.estadoVencimiento(l.fechaVencimiento,hoyIso(),Z.cache.parametros.diasAvisoVencimiento);
+    if(v.tipo==='vencido'){aviso('error','El lote '+l.loteProveedor+' está vencido: no se entrega a línea.');repintar();return;}
+    const uf=T.unidadFisica(l.categoria);
+    S.entrega={varias:true};
+    abrirModal('Entregar a línea',`<p>Lote <b>${esc(l.loteProveedor)}</b> · ${esc(l.producto)} <small class="ii-mut">(${esc(l.id)})</small></p>
+      ${v.tipo==='sin_fecha'?'<div class="ii-msg ii-msg-info">El lote no tiene fecha de vencimiento registrada.</div>':v.tipo==='por_vencer'?`<div class="ii-msg ii-msg-error" role="alert">El lote vence en <b>${v.dias}</b> día(s).</div>`:''}
+      <fieldset class="il-art"><legend>${esc(uf.varios.charAt(0).toUpperCase()+uf.varios.slice(1))} en almacén</legend>
+        <label class="il-op"><input type="checkbox" checked onchange="document.querySelectorAll('.il-ent-u').forEach(x=>x.checked=this.checked)"><span><b>Todas (${us.length})</b></span></label>
+        ${us.map(u=>`<label class="il-op"><input type="checkbox" class="il-ent-u" value="${esc(u.id)}" checked><span>${esc(uf.titulo)} <b>${esc(u.numero)}</b> <small class="ii-mut">${esc(kg(u.pesoActual))}${u.cantidad!=null&&u.cantidad!==''?' · '+esc(fmtCant(u.cantidad))+' '+esc(u.unidadCantidad||''):''}</small></span></label>`).join('')}</fieldset>
+      <label class="ii-et">Línea a la que se entregan<select id="il-ent-linea"><option value="">Elige la línea…</option>${T.LINEAS.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></label>
+      <p class="ii-mut">Cada una pasa a «Entregada a línea» con su movimiento. Si una no se puede entregar, no se entrega ninguna. No se mueve el stock SAP.</p>
+      <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="ilCerrar()">Cancelar</button><button type="button" class="ii-btn" id="il-ent-ok" onclick="ilEntregarOk()">Entregar</button></div>`);
+  };
   window.ilAbrirEntrega=id=>{
     const u=Z.unidadPorId(id),l=u&&Z.porId(u.loteId);if(!u||!l||!Z.puedeEscribir())return;
     S.entrega={id:u.id};
@@ -325,12 +351,38 @@
     const e=S.entrega;if(!e)return;
     const linea=(document.getElementById('il-ent-linea')||{}).value||'';
     if(!linea){errorModal('Elige la línea a la que se entrega.');return;}
+    const ids=e.varias?[...document.querySelectorAll('.il-ent-u:checked')].map(x=>x.value):[e.id];
+    if(!ids.length){errorModal('Marca al menos una.');return;}
     const b=document.getElementById('il-ent-ok');if(b)b.disabled=true;errorModal('');
     try{
-      const r=await Z.entregarALinea([e.id],linea);
+      const r=await Z.entregarALinea(ids,linea);
       ilCerrar();S.entrega=null;
-      aviso('ok','Unidad '+e.id+' entregada a '+linea+'.'+(r.entregadas[0]&&r.entregadas[0].avisos.length?' '+r.entregadas[0].avisos.join(' '):''));repintar();
+      const av=[...new Set(r.entregadas.flatMap(x=>x.avisos||[]))];
+      aviso('ok',(ids.length===1?'Unidad '+ids[0]+' entregada':ids.length+' entregadas')+' a '+linea+'.'+(av.length?' '+av.join(' '):''));repintar();
     }catch(err){errorModal(Z.mensajeError(err));if(b)b.disabled=false;}
+  };
+
+  /* Observar, liberar, devolver al proveedor o devolver a almacén sin usar (T4). */
+  const TXT_MOV={OBSERVAR:['Observar','Queda «Observada»: no se entrega a línea hasta liberarla. P. ej.: caja dañada, etiqueta ilegible, peso dudoso.','Motivo de la observación'],
+    LIBERAR:['Liberar','Vuelve a «En almacén» y se puede entregar.','Motivo (opcional)'],
+    DEVOLUCION_PROVEEDOR:['Devolver al proveedor','Queda «Devuelta al proveedor» (estado final). No se puede deshacer.','Motivo de la devolución'],
+    RETORNO_ALMACEN:['Devolver a almacén','Vuelve de la línea a «En almacén» sin haberse usado (sin consumo).','Motivo (opcional)']};
+  window.ilAbrirMover=(id,tipo)=>{
+    const u=Z.unidadPorId(id),l=u&&Z.porId(u.loteId),t=TXT_MOV[tipo];if(!u||!l||!t||!Z.puedeEscribir())return;
+    S.mover={id:u.id,tipo};
+    const req=T.MOV_SIMPLES[tipo]&&T.MOV_SIMPLES[tipo].motivo;
+    abrirModal(t[0],`<p>${esc(T.unidadFisica(l.categoria).titulo)} <b>${esc(u.numero)}</b> del lote <b>${esc(l.loteProveedor)}</b> · ${esc(l.producto)} <small class="ii-mut">(${esc(u.id)} · ${esc(T.ESTADOS[u.estado]||u.estado)}${u.linea?' · '+esc(u.linea):''})</small></p>
+      <p class="ii-mut">${esc(t[1])}</p>
+      <label class="ii-et">${esc(t[2])}<input id="il-mov-motivo" type="text" maxlength="200" ${req?'required':''}></label>
+      <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="ilCerrar()">Cancelar</button><button type="button" class="ii-btn" id="il-mov-ok" onclick="ilMoverOk()">${esc(t[0])}</button></div>`);
+  };
+  window.ilMoverOk=async()=>{
+    const m=S.mover;if(!m)return;
+    const b=document.getElementById('il-mov-ok');if(b)b.disabled=true;errorModal('');
+    try{
+      await Z.moverUnidades([m.id],m.tipo,(document.getElementById('il-mov-motivo')||{}).value);
+      S.mover=null;ilCerrar();aviso('ok',TXT_MOV[m.tipo][0]+': '+m.id+'.');repintar();
+    }catch(e){errorModal(Z.mensajeError(e));if(b)b.disabled=false;}
   };
 
   const css=`
@@ -341,6 +393,7 @@
 .il-nota{font-size:12.5px;margin:6px 0 0}.il-op input[type=radio]{width:auto;min-width:0;height:auto;flex:0 0 auto;margin:3px 0 0;padding:0;box-shadow:none}.il-op span{flex:1 1 auto;text-align:left}.il-busca{margin:6px 0}.il-busca input{width:100%}
 .il-vistas{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}.il-vista{border:1px solid var(--ii-linea);background:#fff;border-radius:10px;padding:9px 14px;min-height:44px;font:inherit;font-weight:600;cursor:pointer;color:#0b2a4a}
 .il-vista.il-vista-act,.ii .il-vista.il-vista-act{background:#0b2a4a;color:#fff!important;border-color:#0b2a4a}.il-dup{border-color:#f5c2c0;background:#fffafa}.il-err{display:block;color:#b42318}
+.il-acc-u{display:flex;gap:6px;flex-wrap:wrap}
 .il-params summary{cursor:pointer}.il-params-f{display:grid;gap:12px;margin-top:10px;max-width:520px}.il-params .ii-et input{max-width:200px}
 @media(max-width:900px){.il-cols{grid-template-columns:1fr}}
 @media(max-width:560px){.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;

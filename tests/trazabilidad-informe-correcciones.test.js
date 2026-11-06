@@ -105,6 +105,26 @@ const disp=L.disponibles([{id:'B',categoria:'bolsas',loteProveedor:'1'},{id:'C',
   ['B','C','P','O'].map(x=>({id:x+'-01',loteId:x,numero:'1',estado:'ENTREGADA_LINEA',linea:'C20L'})),'C20L');
 ok(disp.map(d=>d.lote.id).join()==='B,C,P','T2: el supervisor ve bolsas, cajas y polietileno de su línea (no «otro»)');
 
+/* ================= T4 · núcleo ================= */
+const ent=T.planMovimientoUnidad({unidad:u('U9','L9','09','ENTREGADA_LINEA'),tipo:'RETORNO_ALMACEN',usuario:'Ana',en:3});
+ok(ent.unidad.estado==='EN_ALMACEN'&&ent.movimiento.tipo==='RETORNO_ALMACEN','RETORNO_ALMACEN: entregada → en almacén');
+ok((lanza(()=>T.planMovimientoUnidad({unidad:u('U9','L9','09','EN_USO'),tipo:'RETORNO_ALMACEN',usuario:'Ana'}))||{}).codigo==='ESTADO','una caja en uso vuelve con «peso final», no con «devolver a almacén»');
+ok(T.planMovimientoUnidad({unidad:Object.assign(u('U9','L9','09','OBSERVADA'),{observacion:'x'}),tipo:'LIBERAR',usuario:'Ana'}).unidad.observacion==='','liberar borra la observación');
+ok(T.planEntregaLinea({unidad:u('U8','L8','08'),lote:{},linea:'PET1',motivo:'Tomada por el supervisor'}).movimiento.motivo==='Tomada por el supervisor','la entrega a línea guarda quién/por qué (supervisor)');
+
+/* ================= T5 · el supervisor toma del almacén ================= */
+const almL=[{id:'A1',categoria:'preformas',loteProveedor:'X1',fechaVencimiento:'2030-01-01'},{id:'A2',categoria:'tapas',loteProveedor:'X2',fechaVencimiento:'2020-01-01'},{id:'A3',categoria:'bolsas',loteProveedor:'X3',unidoEn:'A1'},{id:'A4',categoria:'otro',loteProveedor:'X4'}];
+const almU=[u('A1-01','A1','01'),u('A1-02','A1','02','ENTREGADA_LINEA'),u('A2-01','A2','01'),u('A3-01','A3','01'),u('A4-01','A4','01')];
+const ea=L.enAlmacen(almL,almU,{hoy:'2026-11-06'});
+ok(ea.map(x=>x.lote.id).join()==='A2,A1'&&ea.find(x=>x.lote.id==='A1').unidades.length===1,'T5: en almacén, solo cajas EN_ALMACEN, sin lotes unidos ni «otro»');
+ok(ea.find(x=>x.lote.id==='A2').vencido===true&&ea.find(x=>x.lote.id==='A1').vencido===false,'T5: marca los lotes vencidos (no se toman)');
+let lst=L.marcarConUnidad([],almL[0],'A1-01');lst=L.marcarConUnidad(lst,almL[0],'A1-02');
+ok(lst.length===1&&lst[0].unidadIds.join()==='A1-01,A1-02'&&lst[0].categoria==='preformas','T5: la caja tomada queda marcada en el cuadro (sin repetir el lote)');
+const s93=leer('js/asistente/93-lotes-uso-cuadro.js'),s92=leer('js/asistente/92-lotes-en-cuadro.js'),m43=leer('supabase/migraciones/glacial_43_supervisor_toma_de_almacen.sql');
+ok(/loteTomarAlmacen/.test(s93)&&/planEntregaLinea/.test(s93)&&/loteCuadroMarcarTomada/.test(s93),'T5: «Tomar» registra la entrega con el núcleo y marca el lote en el cuadro');
+ok(/where\('estado','==','EN_ALMACEN'\)/.test(s92)&&/En almacén: tomar para/.test(s92),'T5: el panel lee lo que hay en almacén y lo ofrece');
+ok(/EN_ALMACEN' and n->>'estado' = 'ENTREGADA_LINEA'/.test(m43)&&/'USO_CUADRO','CONSUMO','DEVOLUCION','ENTREGA_LINEA'/.test(m43)&&/afectadas\(v, n\) <@ array\['estado','linea','rev','actualizadoPor','actualizadoEn','historial'\]/.test(m43),'glacial_43: solo EN_ALMACEN → ENTREGADA_LINEA, solo esos campos, y el movimiento ENTREGA_LINEA');
+
 /* ================= T1 · informe ================= */
 const regs=[
   {id:'r1',linea:'B7L',fecha:'2026-11-02',turno:'NOCHE',estadoRegistro:'FINALIZADO',cuadros:[
@@ -177,10 +197,52 @@ ok(cob.total===4&&cob.con===3&&cob.sin===1,'cobertura: cuántas producciones tie
   const c3=await Z.crearLoteDesdeEvidencia(ev3.id,1,{loteDestinoId:'LI-000007'});
   ok(c3.loteId==='LI-000007'&&sb.docs.get('insumosLotesClaves/'+T.claveLote(T.datosDeEvidencia(ev3))).loteId==='LI-000007','agregada al lote elegido; su llave queda en el índice apuntando a ese lote');
 
+  /* ================= T4 · almacén ================= */
+  set('insumosLotes',lote('LI-000030',{loteProveedor:'P-30',producto:'PREFORMA 21.7',categoria:'preformas',unidades:3}));
+  ['01','02','03'].forEach(n=>set('insumosUnidades',u('LI-000030-'+n,'LI-000030',n)));
+  sb.avisar();
+  const ent=await Z.entregarALinea(['LI-000030-01','LI-000030-02'],'PET1');
+  ok(ent.entregadas.length===2&&['01','02'].every(n=>sb.docs.get('insumosUnidades/LI-000030-'+n).estado==='ENTREGADA_LINEA'),'T4: entregar varias cajas de una vez');
+  await Z.moverUnidades(['LI-000030-02'],'RETORNO_ALMACEN','');
+  const r02=sb.docs.get('insumosUnidades/LI-000030-02');
+  ok(r02.estado==='EN_ALMACEN'&&r02.linea==='','T4: devolver a almacén una caja entregada que no se usó');
+  const sinMot=await ejecutar(()=>Z.moverUnidades(['LI-000030-03'],'OBSERVAR','x'));
+  ok(sinMot.e&&sinMot.e.codigo==='VALIDACION','T4: observar exige motivo');
+  await Z.moverUnidades(['LI-000030-03'],'OBSERVAR','Caja golpeada');
+  ok(sb.docs.get('insumosUnidades/LI-000030-03').estado==='OBSERVADA'&&sb.docs.get('insumosUnidades/LI-000030-03').observacion==='Caja golpeada','T4: observar guarda el motivo');
+  const ob=await ejecutar(()=>Z.entregarALinea(['LI-000030-03'],'PET1'));
+  ok(ob.e&&ob.e.codigo==='ESTADO','T4: una caja observada no se entrega');
+  await Z.moverUnidades(['LI-000030-03'],'DEVOLUCION_PROVEEDOR','Defecto de fabricación');
+  ok(sb.docs.get('insumosUnidades/LI-000030-03').estado==='DEVUELTA_PROVEEDOR','T4: devolver al proveedor');
+  const mal=await ejecutar(()=>Z.moverUnidades(['LI-000030-01','LI-000030-03'],'RETORNO_ALMACEN',''));
+  ok(mal.e&&sb.docs.get('insumosUnidades/LI-000030-01').estado==='ENTREGADA_LINEA','T4: si una no se puede mover, no se mueve ninguna');
+  ok(['OBSERVAR_UNIDAD','DEVOLVER_PROVEEDOR','RETORNO_ALMACEN'].every(t=>coleccion(sb,'insumosAuditoria').some(a=>a.tipo===t))&&coleccion(sb,'insumosLoteMovimientos').some(m=>m.tipo==='RETORNO_ALMACEN'),'T4: cada movimiento deja auditoría y movimiento');
+  const sc=entorno('Jefe de Operaciones').glacialTrazabilidadDatos;
+  const e4=await ejecutar(()=>sc.moverUnidades(['LI-000030-01'],'RETORNO_ALMACEN',''));
+  ok(e4.e&&e4.e.codigo==='PERMISO','T4: solo consulta no mueve cajas');
+
+  /* ================= T5 · «Tomar» en el cuadro (base simulada) ================= */
+  const sv=entorno('Supervisor');
+  sv.docs.set('insumosLotes/LI-000040',lote('LI-000040',{loteProveedor:'T-40',producto:'TAPA AZUL',categoria:'tapas',fechaVencimiento:'2030-01-01'}));
+  sv.docs.set('insumosUnidades/LI-000040-01',u('LI-000040-01','LI-000040','01'));
+  sv.docs.set('insumosLotes/LI-000041',lote('LI-000041',{loteProveedor:'T-41',producto:'TAPA ROJA',categoria:'tapas',fechaVencimiento:'2020-01-01'}));
+  sv.docs.set('insumosUnidades/LI-000041-01',u('LI-000041-01','LI-000041','01'));
+  vm.runInContext(`var draft={linea:'PET1',fecha:'2026-11-06',turno:'DÍA',cuadros:[{numero:1,marca:'Glacial',presentacion:'625',lotesInsumo:[]}]};
+    function normalizarCuadros(d){return d.cuadros;} function renderFormTab(){} function programarGuardadoAutomaticoReporte(){} window.requestAnimationFrame=f=>f(); window.scrollTo=()=>{}; window.scrollY=0;
+    document.body={appendChild(){}}; document.createElement=()=>({style:{},setAttribute(){},appendChild(){},remove(){}});`,sv);
+  ['92-lotes-en-cuadro','93-lotes-uso-cuadro'].forEach(n=>vm.runInContext(leer('js/asistente/'+n+'.js'),sv));
+  await sv.loteTomarAlmacen(0,'LI-000040-01');
+  const tom=sv.docs.get('insumosUnidades/LI-000040-01');
+  ok(tom.estado==='ENTREGADA_LINEA'&&tom.linea==='PET1'&&coleccion(sv,'insumosLoteMovimientos').some(m=>m.tipo==='ENTREGA_LINEA'&&/supervisor/.test(m.motivo)),'T5: el supervisor toma la caja del almacén: queda entregada a PET1 con su movimiento');
+  ok(sv.draft.cuadros[0].lotesInsumo.length===1&&sv.draft.cuadros[0].lotesInsumo[0].loteId==='LI-000040'&&sv.draft.cuadros[0].lotesInsumo[0].unidadIds[0]==='LI-000040-01','T5: y el lote queda marcado en la producción con esa caja');
+  ok(Object.keys(tom).every(k=>k in u('x','y','1')||['actualizadoPor','actualizadoEn'].includes(k))&&tom.pesoActual===10&&tom.loteId==='LI-000040','T5: solo cambia lo que permite glacial_43 (peso y lote igual)');
+  await sv.loteTomarAlmacen(0,'LI-000041-01');
+  ok(sv.docs.get('insumosUnidades/LI-000041-01').estado==='EN_ALMACEN'&&sv.draft.cuadros[0].lotesInsumo.length===1,'T5: un lote vencido no se toma');
+
   /* integración */
   const html=leer('index.html'),s89=leer('js/asistente/89-trazabilidad-lotes-pantalla.js');
   ok(/94-trazabilidad-informe\.js\?v=20261106-/.test(html)&&html.indexOf('94-trazabilidad-informe')>html.indexOf('90-control-proceso-nucleo'),'index.html carga el informe después del Control de proceso');
-  ok(['87-trazabilidad-lotes-nucleo','88-trazabilidad-lotes-datos','89-trazabilidad-lotes-pantalla','92-lotes-en-cuadro'].every(n=>new RegExp(n+'\\.js\\?v=20261106-').test(html)),'versiones nuevas de 87, 88, 89 y 92');
+  ok(['87-trazabilidad-lotes-nucleo','88-trazabilidad-lotes-datos','89-trazabilidad-lotes-pantalla','92-lotes-en-cuadro'].every(n=>new RegExp(n+'\\.js\\?v=20261106-').test(html)),'versiones nuevas de 87, 88, 89 y 92 (T5)');
   ok(/Informe de trazabilidad/.test(s89)&&/ilAbrirCategoria/.test(s89)&&/ilAbrirUnir/.test(s89)&&/Posible lote repetido/.test(s89),'Lotes: vista «Informe de trazabilidad», botones de categoría y unir, y aviso de posible repetido');
   ok(!/insumosStock|stockSap/i.test(leer('js/asistente/94-trazabilidad-informe.js')),'el informe no toca stock SAP');
   if(fallas){console.log('\n'+fallas+' falla(s)');process.exit(1);}
