@@ -474,6 +474,32 @@
       }
       res.innerHTML=h;
     };
+    /* Tiempo de cambio que falta (p. ej. cambio de formato Scala 1 L → Scala 625 ml): se carga aquí mismo como regla de la línea
+       (Catálogo › Tiempos previstos, con su auditoría) y se recalcula. Así «Resto del turno» se puede guardar sin salir de la ventana. */
+    const cambiosPend=[];
+    const htmlCambiosFaltantes=(est,linea)=>{
+      cambiosPend.length=0;
+      const lista=(est.faltantes||[]).map(x=>x.cambio).filter(Boolean);
+      if(!lista.length||typeof NS.guardarRegla!=='function'||!(typeof NS.puede==='function'&&NS.puede()))return '';
+      const TIPO={CAMBIO_FORMATO:'Cambio de formato',CAMBIO_MARCA:'Cambio de marca',CAMBIO_MARCA_FORMATO:'Cambio de marca y formato'};
+      return '<div class="pm-res" style="margin-top:8px">'+lista.map(cb=>{cambiosPend.push(Object.assign({linea},cb));const i=cambiosPend.length-1;
+        return '<div class="fila" style="flex-wrap:wrap;gap:6px;align-items:center"><span><b>'+esc(TIPO[cb.tipo]||'Cambio')+'</b>: '+esc(cb.desde)+' → '+esc(cb.hacia)+'</span>'+
+          '<span style="display:inline-flex;gap:6px;align-items:center"><input type="number" min="0" step="1" inputmode="numeric" id="plancb-min-'+i+'" placeholder="min" style="width:90px" aria-label="Minutos del cambio">'+
+          '<button type="button" class="btn btn-ghost btn-sm" data-pm-cambio="'+i+'">Guardar tiempo y calcular</button></span></div>';}).join('')+
+        '<div class="pm-info" style="margin:6px 0 0">El tiempo queda guardado para esta transición en Catálogo › Tiempos previstos y se usa en las próximas programaciones.</div><div class="plan-error" id="pm-cb-error"></div></div>';
+    };
+    fondo.addEventListener('click',async e=>{
+      const b=e.target&&e.target.closest&&e.target.closest('[data-pm-cambio]');if(!b)return;
+      const cb=cambiosPend[Number(b.getAttribute('data-pm-cambio'))];if(!cb)return;
+      const inp=fondo.querySelector('#plancb-min-'+b.getAttribute('data-pm-cambio')),err=fondo.querySelector('#pm-cb-error');
+      const min=inp?inp.value:'';
+      if(!(min!==''&&Number.isInteger(Number(min))&&Number(min)>=0)){if(err)err.textContent='Escribe los minutos del cambio (número entero, 0 o más).';return;}
+      b.disabled=true;if(err)err.textContent='';
+      try{
+        await NS.guardarRegla({linea:cb.linea,tipo:cb.tipo,origen:cb.origen,destino:cb.destino,minutos:Number(min),activo:true,descripcion:'',motivo:'Cargado desde Nueva programación'});
+        aplicarModo();
+      }catch(ex){b.disabled=false;if(err)err.textContent=(ex&&ex.message)||String(ex);}
+    });
     const pintarTurno=()=>{
       const c=campos(),res=pt.querySelector('#pm-t-res');
       if(!c.linea||!c.marca||!c.presentacion){res.innerHTML='<div class="pm-info">Elige línea, marca y presentación.</div>';calc=null;return;}
@@ -492,6 +518,7 @@
         cant.value=est.cantidad;textoBoton('Guardar Todo el turno');guardarBtn.disabled=false;
       }else{
         h+='<div class="pm-adv">'+esc(est.motivo||'Estimación pendiente.')+(est.cotaSuperior?' <br><small>Como referencia, sin lo que falta serían como máximo '+fmt(est.cotaSuperior)+' UND (no se guarda).</small>':'')+'</div>';
+        h+=htmlCambiosFaltantes(est,c.linea);
         if(est.estado==='CONFLICTO'&&pt.querySelector('#pm-alcance').value==='TODO_TURNO')h+='<div class="pm-info">«Todo el turno» y «Tiempo restante» son distintos: elegir el segundo descuenta las cantidades fijas, los cambios y las ventanas de los demás productos.</div>';
         cant.value='';textoBoton('Guardar Todo el turno');guardarBtn.disabled=true;
       }
