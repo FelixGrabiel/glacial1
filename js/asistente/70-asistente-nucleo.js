@@ -259,7 +259,8 @@
       :red(num(d.saldoInicial)+num(d.entregado)+num(d.transfEntrada)-num(d.transfSalida)-num(d.devuelto)-num(d.saldoFinal),4);
     const desv=real===null||d.teorico===null||d.teorico===undefined?null:red(real-num(d.teorico),4);
     const desvPct=desv===null||!(num(d.teorico)>0)?null:red(desv/num(d.teorico),4);
-    const porRevisar=desv===null?null:red(desv-num(d.mermaValidada),4);
+    // Lo que explica la desviación: la merma validada del Asistente y la merma que el supervisor registró en su reporte (Registro de producción).
+    const porRevisar=desv===null?null:red(desv-num(d.mermaValidada)-num(d.mermaRegistro),4);
     return {real,desviacion:desv,desviacionPct:desvPct,porRevisar,pendiente:falta.length>0,falta,
       texto:falta.length?'Pendiente de conciliación ('+falta.join(', ')+')':''};
   }
@@ -305,6 +306,17 @@
   }
   /* Merma validada de un cuadro y material (misma unidad). Las pendientes y rechazadas no cuentan. */
   const mermaValidada=(mermas,clave,insumo,unidad)=>red((mermas||[]).filter(m=>m&&m.cuadro===clave&&m.insumo===insumo&&m.unidad===unidad&&m.estado==='VALIDADA'&&m.categoria!=='PRODUCTO').reduce((s,m)=>s+num(m.cantidad),0),4);
+  /* Merma que el supervisor registró en el Registro de producción para ese cuadro y ese insumo, en la MISMA unidad del insumo
+     (nunca se mezclan UND con kg): tapas y etiquetas en UND, polietileno en kg. Preformas (el insumo va en cajas), cartón y stretch no se
+     toman. cuadroReporte: el cuadro del reporte ({mermas:[{item,peso,unidades}]}). → {cantidad, items:[nombres]} o null si no aplica. */
+  const MERMA_REGISTRO={tapa:{re:/^Tapa/i,unidad:'UND',campo:'unidades'},etiqueta:{re:/^Etiqueta/i,unidad:'UND',campo:'unidades'},polietileno:{re:/^Polietileno/i,unidad:'kg',campo:'peso'}};
+  function mermaRegistro(cuadroReporte,insumo){
+    const regla=insumo&&MERMA_REGISTRO[insumo.tipo];
+    if(!regla||String(insumo.unidad||'').toLowerCase()!==regla.unidad.toLowerCase())return null;
+    const filas=(cuadroReporte&&Array.isArray(cuadroReporte.mermas)?cuadroReporte.mermas:[]).filter(m=>m&&regla.re.test(String(m.item||''))&&num(m[regla.campo])>0);
+    if(!filas.length)return null;
+    return {cantidad:red(filas.reduce((s,m)=>s+num(m[regla.campo]),0),4),items:filas.map(m=>m.item)};
+  }
   /* Por material + unidad (nunca se suman kg con UND). */
   function resumenMermas(mermas){
     const m=new Map();
@@ -373,7 +385,7 @@
       if(f.estado==='FACTOR_AMBIGUO')a.push({nivel:'critico',tipo:'FACTOR',texto:n+': hay dos factores vigentes iguales para '+f.insumo.nombre+'. Corrige el catálogo.'});
       if(f.estado==='OK'&&f.faltante>0)a.push({nivel:'critico',tipo:'DESABASTECIMIENTO',texto:n+': faltan '+fmt(f.faltante)+' '+f.insumo.unidad+' de '+f.insumo.nombre+'.'});
     });
-    (e.conciliaciones||[]).forEach(c=>{if(c.porRevisar!==null&&c.porRevisar!==undefined&&Math.abs(c.porRevisar)>0.0001)a.push({nivel:'atencion',tipo:'POR_REVISAR',texto:c.etiqueta+': '+fmt(c.porRevisar)+' '+c.unidad+' por revisar (desviación no explicada por merma validada).'});});
+    (e.conciliaciones||[]).forEach(c=>{if(c.porRevisar!==null&&c.porRevisar!==undefined&&Math.abs(c.porRevisar)>0.0001)a.push({nivel:'atencion',tipo:'POR_REVISAR',texto:c.etiqueta+': '+fmt(c.porRevisar)+' '+c.unidad+' por revisar (desviación no explicada por la merma validada ni por la del Registro).'});});
     const pend=(e.mermas||[]).filter(m=>m.estado==='PENDIENTE').length;
     if(pend)a.push({nivel:'info',tipo:'MERMA',texto:pend+' merma'+(pend===1?'':'s')+' pendiente'+(pend===1?'':'s')+' de validar.'});
     const sol=(e.solicitudes||[]).filter(s=>!['CERRADA','CANCELADA','RECIBIDA'].includes(s.estado)).length;
@@ -475,7 +487,7 @@
     LINEAS,lineaInfo,codigoLinea,red,norm,bloqueDe,turnosDeBloque,claveCuadro,
     TIPOS_INSUMO,UNIDADES,validarInsumo,validarFactor,vigenteEn,factorVigente,teorico,idFactor,
     cuadrosDelBloque,cuadroAbierto,TIPOS_MOV,saldoInsumo,requerimientos,resumenInsumos,
-    conciliar,movimientosCuadro,CAUSAS_MERMA,ETAPAS_MERMA,listaOk,validarListaMerma,validarMerma,consumoCatalogo,mermaValidada,resumenMermas,
+    conciliar,movimientosCuadro,CAUSAS_MERMA,ETAPAS_MERMA,listaOk,validarListaMerma,validarMerma,consumoCatalogo,mermaValidada,mermaRegistro,resumenMermas,
     ESTADOS_SOLICITUD,TRANSICIONES,ACTOR_ESTADO,puedeTransicion,aplicarEntrega,aplicarRecepcion,
     alertas,pendientesDeCierre,INSUMOS_BASE,factoresDesdeCodigo,fmt
   };

@@ -397,7 +397,7 @@
     const y=r.scrollTop;
     r.innerHTML=`${estilos()}<div class="hl-app"><nav class="hl-side" aria-label="Menú de Hielo"><h2>❄ GLACIAL · HIELO</h2><small>Reporte Hielo</small>
       ${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${t}</button>`).join('')}
-      <div class="hl-sep"></div><button type="button" onclick="hlSalir()">← Cambiar a Reporte Agua</button></nav>
+      <div class="hl-sep"></div><button type="button" onclick="hlSalir()">← Volver a Reporte Agua</button></nav>
       <main class="hl-main">${aviso()}${cuerpo()}</main></div>`;
     r.scrollTop=y;
   }
@@ -478,12 +478,16 @@
   };
   function abrir(){
     const sel=document.getElementById('report-select-screen'),app=document.getElementById('app-screen');
+    S.desdeAgua=!!(app&&app.style.display!=='none'&&getComputedStyle(app).display!=='none');      // se abrió con el botón del Reporte Agua
     if(sel)sel.style.display='none';if(app)app.style.display='none';
     raiz().style.display='block';escuchar();if(!S.fecha)S.fecha=hoy();pintar();
   }
   window.hlSalir=()=>{
     if(temporizador){clearTimeout(temporizador);temporizador=null;window.hlGuardar('GUARDAR',true);}
-    raiz().style.display='none';const sel=document.getElementById('report-select-screen');if(sel)sel.style.display='flex';
+    raiz().style.display='none';
+    const app=document.getElementById('app-screen'),sel=document.getElementById('report-select-screen');
+    if(S.desdeAgua&&app){app.style.display='block';if(typeof renderMain==='function')try{renderMain();}catch(_){/* vuelve igual */}}
+    else if(sel)sel.style.display='flex';
   };
   // La tarjeta «Reporte Hielo» de la pantalla de selección abre esta página (antes mostraba «en desarrollo», 03-auth.js).
   window.goReporteHielo=abrir;

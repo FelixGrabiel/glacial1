@@ -81,6 +81,13 @@
       programaciones:typeof loadProgramaciones==='function'?loadProgramaciones():[],records:typeof loadRecordsOficiales==='function'?loadRecordsOficiales():(typeof loadRecords==='function'?loadRecords():[]),
       produccionAlCorte:window.glacialProduccionPaletasAlCorte,unidadesPorPaleta:typeof obtenerUnidadesPorPalet==='function'?obtenerUnidadesPorPalet:null});
   }
+  /* Cuadro del reporte del supervisor que corresponde a un cuadro del Asistente (para leer sus mermas). */
+  function cuadroDelReporte(c){
+    if(!c||!c.reporte||!c.reporte.recordId)return null;
+    const regs=typeof loadRecordsOficiales==='function'?loadRecordsOficiales():(typeof loadRecords==='function'?loadRecords():[]);
+    const r=(regs||[]).find(x=>x&&x.id===c.reporte.recordId);
+    return r&&Array.isArray(r.cuadros)?r.cuadros[c.reporte.indice]||null:null;
+  }
   function contexto(){
     const C=D.cache;
     const lineasPermitidas=(typeof LINES!=='undefined'?LINES.map(l=>l.key):N.LINEAS.map(l=>l.codigo)).filter(l=>N.LINEAS.some(x=>x.codigo===l));
@@ -97,8 +104,10 @@
         const mv=N.movimientosCuadro(C.movimientos,c.clave,i.codigo);
         const teo=fv.factor?N.teorico(c.producido,c.unidadesPorPaleta,fv.factor):null;
         const mval=N.mermaValidada(mermasBloque,c.clave,i.codigo,i.unidad);
-        const r=N.conciliar({saldoInicial:doc?doc.saldoInicial:null,saldoFinal:doc?doc.saldoFinal:null,...mv,teorico:teo,mermaValidada:mval});
-        concil.push({cuadro:c,insumo:i,factor:fv.factor||null,factorError:fv.error||'',doc,mov:mv,teorico:teo,mermaValidada:mval,...r,unidad:i.unidad,
+        // Merma que el supervisor ya registró en su reporte (Registro de producción): también explica la desviación, sin volver a registrarla.
+        const mreg=N.mermaRegistro(cuadroDelReporte(c),i);
+        const r=N.conciliar({saldoInicial:doc?doc.saldoInicial:null,saldoFinal:doc?doc.saldoFinal:null,...mv,teorico:teo,mermaValidada:mval,mermaRegistro:mreg?mreg.cantidad:0});
+        concil.push({cuadro:c,insumo:i,factor:fv.factor||null,factorError:fv.error||'',doc,mov:mv,teorico:teo,mermaValidada:mval,mermaRegistro:mreg?mreg.cantidad:0,mermaRegistroItems:mreg?mreg.items:[],...r,unidad:i.unidad,
           etiqueta:N.lineaInfo(c.linea).nombre+' · '+c.codigo+' · '+i.nombre,estado:doc?doc.estado:'SIN_REGISTRO'});
       });
     });
@@ -686,7 +695,7 @@
       ${fila('Saldo inicial utilizable',inp('ap-c-si',doc&&doc.saldoInicial))}${fila('Entrega confirmada',signo(x.mov.entregado))}${fila('Transferencias recibidas',signo(x.mov.transfEntrada))}
       ${fila('Devoluciones',x.mov.devuelto?'−'+fmt(x.mov.devuelto):'0')}${fila('Transferencias salientes',x.mov.transfSalida?'−'+fmt(x.mov.transfSalida):'0')}
       ${fila('Saldo final utilizable',inp('ap-c-sf',doc&&doc.saldoFinal))}${fila('<b>Consumo real</b>',`<b>${x.real===null?'Pendiente':fmt(x.real)}</b>`,'ap-tot')}
-      ${fila('Merma validada (incluida en el real)',fmt(x.mermaValidada))}${fila('<b>Por revisar</b>',`<b>${x.porRevisar===null?'—':fmt(x.porRevisar)}</b>`,x.porRevisar?'ap-fila-ambar':'')}</tbody></table>
+      ${fila('Merma validada (incluida en el real)',fmt(x.mermaValidada))}${fila('Merma del Registro (supervisor)',x.mermaRegistro?`${fmt(x.mermaRegistro)} <small class="ap-mut">${esc((x.mermaRegistroItems||[]).join(', '))}</small>`:'—')}${x.mermaRegistro&&x.mermaValidada?fila('',`<small class="ap-ambar-tx">Hay merma en el Asistente y en el Registro: revisa que no sea la misma.</small>`):''}${fila('<b>Por revisar</b>',`<b>${x.porRevisar===null?'—':fmt(x.porRevisar)}</b>`,x.porRevisar?'ap-fila-ambar':'')}</tbody></table>
       ${x.pendiente?`<p class="ap-nota-pie">${esc(x.texto)}.</p>`:''}`;
     const est=CONC_TXT[x.estado]||CONC_TXT.SIN_REGISTRO;
     const rev=`<ul class="ap-checks"><li class="${fe?'':'ap-no'}">${ico(fe?'check':'alerta')}${fe?`Factor ${fe.origen==='codigo'?'migrado del código':'aprobado'} · versión ${num(fe.version)||1}`:'Falta el factor de consumo'}</li>

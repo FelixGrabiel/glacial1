@@ -72,7 +72,7 @@
 
         <link
             rel="stylesheet"
-            href="css/styles.css?v=20261107-fx7"
+            href="css/styles.css?v=20261107-hl1"
         >
         <link rel="stylesheet" 
             href="css/tareo.css?v=20261102-leg3"
@@ -2485,7 +2485,7 @@
         </style>
 
         <link rel="stylesheet" href="css/sidebar-glacial.css?v=20261102-leg3">
-        <link rel="stylesheet" href="css/mobile-glacial.css?v=20261102-leg3">
+        <link rel="stylesheet" href="css/mobile-glacial.css?v=20261107-hl3">
         <link rel="stylesheet" href="css/logo-glacial.css?v=20261023-logo1">
         <link rel="stylesheet" href="css/tv-glacial.css?v=20261102-pal2">
 
@@ -2941,6 +2941,22 @@
                 </div>
 
                 <!--
+                    * IR A REPORTE DE HIELO (js/hielo/97-hielo.js): abre la página de Hielo; desde ahí «← Volver a Reporte Agua» regresa aquí.
+                -->
+                <button
+                    type="button"
+                    class="btn btn-topbar topbar-hielo"
+                    onclick="goReporteHielo()"
+                    aria-label="Ir a Reporte de Hielo"
+                    title="Ir a Reporte de Hielo"
+                >
+                    <svg class="logout-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 2v20M4.2 6.5l15.6 11M19.8 6.5l-15.6 11"/>
+                    </svg>
+                    <span class="topbar-hielo-txt">Ir a Reporte de Hielo</span>
+                </button>
+
+                <!--
                     * SALIDA
                     ! IMPORTANTE: conservar handleLogout(); mantiene la lógica actual de cierre de sesión.
                 -->
@@ -3186,6 +3202,12 @@
 
                     </nav>
                 </div>
+
+                <!-- Ir a Reporte de Hielo en el teléfono (en PC está en el encabezado, junto a «Salir»; css/mobile-glacial.css). -->
+                <button type="button" class="side-action sidebar-root-action sidebar-hielo" id="btn-ir-hielo"
+                        onclick="if(typeof cerrarMenuMovil==='function')cerrarMenuMovil();goReporteHielo()">
+                    <span class="side-action-icon" aria-hidden="true">❄</span><span>Ir a Reporte de Hielo</span>
+                </button>
 
                 <div class="sidebar-footer">
                     <span class="status-dot" aria-hidden="true"></span>
@@ -3507,11 +3529,11 @@
     <script src="js/mantenimiento/70-banco-paradas.js?v=20261030-bp1"></script>
     <script src="js/mantenimiento/69-velocidades-estandar.js?v=20261102-pal2"></script>
     <script src="js/mantenimiento/68-mantenimiento-inicio.js?v=20261103-fx6"></script>
-    <script src="js/produccion/67-produccion-inicio.js?v=20261102-pal2"></script>
+    <script src="js/produccion/67-produccion-inicio.js?v=20261107-av1"></script>
     <!-- Asistente de Producción (docs/asistente/asistente-produccion.md): núcleo puro, datos/permisos, pantalla y Reporte General. -->
-    <script src="js/asistente/70-asistente-nucleo.js?v=20261031-ar9"></script>
+    <script src="js/asistente/70-asistente-nucleo.js?v=20261107-ar10"></script>
     <script src="js/asistente/71-asistente-datos.js?v=20261107-cv2"></script>
-    <script src="js/asistente/72-asistente-pantalla.js?v=20261107-rc4"></script>
+    <script src="js/asistente/72-asistente-pantalla.js?v=20261107-rc5"></script>
     <script src="js/asistente/73-reporte-general.js?v=20261105-rc1"></script>
     <script src="js/asistente/74-inventario-insumos-nucleo.js?v=20261107-lc6"></script>
     <script src="js/asistente/75-inventario-insumos-datos.js?v=20261103-al5"></script>
@@ -3533,7 +3555,7 @@
     <script src="js/asistente/95-conversiones.js?v=20261107-cv2"></script>
     <script src="js/asistente/96-proveedores.js?v=20261107-pv1"></script>
     <!-- Reporte Hielo (docs/hielo/reporte-hielo.md): página propia desde la tarjeta «Reporte Hielo». -->
-    <script src="js/hielo/97-hielo.js?v=20261107-hl1"></script>
+    <script src="js/hielo/97-hielo.js?v=20261107-hl2"></script>
     <script src="js/asistente/80-almacen-enlace-nucleo.js?v=20261021-tr1"></script>
     <script src="js/asistente/81-almacen-enlace-datos.js?v=20261021-tr1"></script>
     <script src="js/asistente/82-asistente-prevision-nucleo.js?v=20261021-mj1"></script>

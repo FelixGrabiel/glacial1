@@ -59,5 +59,9 @@ ok(/window\.goReporteHielo=abrir/.test(js)&&/onclick="goReporteHielo\(\)"/.test(
 ok(/Bolsas de \$\{esc\(p\)\}/.test(js)&&/p==='3 kg'\|\|p==='1\.5 kg'/.test(js),'Inicio: una tarjeta de bolsas por presentación (3 kg y 1.5 kg siempre)');
 ok(/hieloReportes','hieloProgramacion','hieloParametros/.test(mg)&&/v->>'estado' = 'FINALIZADO' and not adm/.test(mg)&&/accion = 'delete'/.test(mg)&&/position\('glacial_46' in def\) = 0/.test(mg),'glacial_46: reportes (opera), finalizado solo Administrador, sin borrar, idempotente');
 
+const mob=leer('css/mobile-glacial.css');
+ok(/class="btn btn-topbar topbar-hielo"[\s\S]{0,80}onclick="goReporteHielo\(\)"/.test(html)&&/id="btn-ir-hielo"[\s\S]{0,120}goReporteHielo\(\)/.test(html),'Reporte Agua: botón «Ir a Reporte de Hielo» en el encabezado (PC) y en el menú lateral (teléfono)');
+ok(/\.btn-topbar\.topbar-hielo\{display:none!important\}/.test(mob)&&/\.sidebar-hielo\{display:none\}/.test(mob),'en el teléfono el acceso va en el menú (el encabezado no tiene lugar)');
+ok(/S\.desdeAgua=/.test(js)&&/Volver a Reporte Agua/.test(js),'desde Hielo se vuelve al Reporte Agua si se entró desde ahí');
 console.log(fallas?`\n${fallas} falla(s)`:'\nTodo correcto');
 process.exit(fallas?1:0);
