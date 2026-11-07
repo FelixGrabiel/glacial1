@@ -34,6 +34,9 @@ Confirmados por Producción: **1 tapa y 1 etiqueta por unidad producida**, en to
 - Tapas: PET1, PET2, B7L y B20L. Etiquetas: PET1, PET2 y B7L.
 - Están cargados en PRUEBAS y en PRODUCCIÓN, con su auditoría (`supabase/datos/2026-11-07_factores_tapas_etiquetas.sql`).
 - **C20L no usa tapa ni etiqueta** (confirmado): factor 0 «No aplica» (`supabase/datos/2026-11-07_factores_c20l_no_aplica.sql`).
+- **B20L no lleva etiqueta** (confirmado): factor 0 «No aplica» (`supabase/datos/2026-11-07_factores_b20l_sin_etiqueta.sql`).
+- La «Tapa» de las mermas de C20L en el Registro se deja como está (decisión del dueño).
+- Con esto, todas las líneas tienen factor para cada insumo activo (comprobado en PRODUCCIÓN), salvo el insumo duplicado «Strech film 17kg» (C01).
 
 ## Permisos (revisados el 07/11/2026)
 - **Almacén y factores:** los da el Administrador desde Usuarios a quien corresponda. Hoy los tienen Nayeli Antho (todos los permisos) y Jesus Garcia (Jefe de Operaciones).
