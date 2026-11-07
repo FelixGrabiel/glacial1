@@ -138,7 +138,8 @@
   /* Tiempo del cambio entre dos productos de una línea, o el dato que falta. Un cambio de marca Y formato no suma ambos. */
   M.resolverCambio=function(tp,linea,A,B){
     const cm=norm(A.marca)!==norm(B.marca),cf=norm(A.presentacion)!==norm(B.presentacion);
-    const base={tipo:'CAMBIO',desde:nombreProd(A),hacia:nombreProd(B),cambiaMarca:cm,cambiaFormato:cf};
+    const base={tipo:'CAMBIO',desde:nombreProd(A),hacia:nombreProd(B),cambiaMarca:cm,cambiaFormato:cf,
+      origen:{marca:A.marca||'',presentacion:A.presentacion||''},destino:{marca:B.marca||'',presentacion:B.presentacion||''},tipoRegla:cm&&cf?'CAMBIO_MARCA_FORMATO':cm?'CAMBIO_MARCA':'CAMBIO_FORMATO'};
     if(!cm&&!cf)return Object.assign(base,{minutos:0,cambio:false,explicacion:'Mismo producto: no hay cambio.'});
     const ya=(r,txt,extra)=>Object.assign(base,{minutos:r.minutos,cambio:true,regla:{id:r.id,tipo:r.tipo,descripcion:r.descripcion},explicacion:txt},extra||{});
     const alcance=r=>r.origen||r.destino?'regla específica':'valor general de la línea';
@@ -338,7 +339,7 @@
     const vt=M.ventanasDe(tp,e.linea,e.fecha,e.bloqueClave,b);
     const ord=ordenEjecucion(prods,tramos);
     const prep=M.preparaciones(tp,e.linea,ord.orden,{limpiezaEnVentana:vt.lista.some(v=>v.tipo==='LIMPIEZA'),overrides:M.overridesDeTramos(tramos)});
-    prep.tareas.forEach(t=>{if(t.minutos===null)sal.faltantes.push({dato:t.faltante||('tiempo de '+t.etiqueta)});});
+    prep.tareas.forEach(t=>{if(t.minutos===null)sal.faltantes.push({dato:t.faltante||('tiempo de '+t.etiqueta),cambio:t.tipo==='CAMBIO'&&t.tipoRegla?{tipo:t.tipoRegla,origen:t.origen,destino:t.destino,desde:t.desde,hacia:t.hacia}:undefined});});
     sal.transiciones=prep.tareas.filter(t=>t.tipo==='CAMBIO').map(t=>({desde:t.desde,hacia:t.hacia,minutos:t.minutos,inicial:!!t.inicial,ajuste:!!t.ajuste,respaldo:!!t.respaldo,advertencia:!!t.advertencia,explicacion:t.explicacion,faltante:t.faltante||''}));
     prep.omitidas.forEach(o=>sal.avisos.push(o.etiqueta+': '+o.motivo));
     const porPos={INICIO:prep.tareas.filter(x=>x.posicion==='INICIO'),FIN:prep.tareas.filter(x=>x.posicion==='FIN'||x.posicion==='BLOQUE')};
@@ -422,7 +423,8 @@
     const ord=ordenEjecucion(prods,e.tramos);
     const limpiezaVentana=vt.lista.some(v=>v.tipo==='LIMPIEZA');
     const prep=M.preparaciones(tp,e.linea,ord.orden,{limpiezaEnVentana:limpiezaVentana,overrides:M.overridesDeTramos(e.tramos)});
-    prep.tareas.forEach(t=>{if(t.minutos===null)faltantes.push({marca:'',presentacion:'',etiqueta:'',dato:t.faltante||('tiempo de '+t.etiqueta)});});
+    prep.tareas.forEach(t=>{if(t.minutos===null)faltantes.push({marca:'',presentacion:'',etiqueta:'',dato:t.faltante||('tiempo de '+t.etiqueta),
+      cambio:t.tipo==='CAMBIO'&&t.tipoRegla?{tipo:t.tipoRegla,origen:t.origen,destino:t.destino,desde:t.desde,hacia:t.hacia}:undefined});});
     prep.omitidas.forEach(o=>notas.push(o.etiqueta+': '+o.motivo));
     if(!ord.conSecuencia&&ord.orden.length>1)notas.push('No hay secuencia definida en Paletas: el número de cambios supone un cambio entre productos consecutivos de la lista.');
     const preparacionMin=prep.tareas.reduce((s,t)=>s+(t.minutos||0),0);

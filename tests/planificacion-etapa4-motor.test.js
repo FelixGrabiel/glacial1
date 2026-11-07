@@ -170,4 +170,15 @@ const BELLS_SCALA=filas(['Bells','625',12000],['Scala','380',6000]);       // 30
 {
   ok(M.huella(filas(['Bells','625',100]))===M.huella(filas(['Bells','625',60],['Bells','625',40]))&&M.huella(filas(['Bells','625',100]))!==M.huella(filas(['Bells','625',101])),'la huella no cambia si el plan es el mismo y cambia si cambia una cantidad');
 }
+/* ---------- cambio de formato sin regla: el faltante dice qué cambio es (para cargarlo desde Nueva programación) ---------- */
+{
+  const c=M.capacidad(entrada(filas(['Scala','1L',3000],['Scala','625',2000]),{tp:tp(),vel:(m,p)=>p==='1L'?4500:4500}));
+  const f=(c.faltantes||[]).find(x=>x.cambio);
+  ok(f&&f.cambio.tipo==='CAMBIO_FORMATO'&&f.cambio.origen.presentacion==='1L'&&f.cambio.destino.presentacion==='625'&&f.cambio.origen.marca==='Scala','sin regla de cambio de formato: el faltante trae tipo, origen y destino');
+  const r=M.resolverCambio(tp({reglas:[regla('x','CAMBIO_FORMATO',30,{linea:'PET1',origen:{marca:'Scala',presentacion:'1L'},destino:{marca:'Scala',presentacion:'625'}})]}),'PET1',{marca:'Scala',presentacion:'1L'},{marca:'Scala',presentacion:'625'});
+  ok(r.minutos===30&&!r.faltante,'con la regla guardada (Scala 1L → 625, 30 min) ya no falta');
+  const p66=fs.readFileSync(R+'/js/produccion/66p-planificacion-modos.js','utf8');
+  ok(/data-pm-cambio/.test(p66)&&/NS\.guardarRegla\(\{linea:cb\.linea,tipo:cb\.tipo,origen:cb\.origen,destino:cb\.destino/.test(p66),'Nueva programación: el tiempo que falta se carga ahí mismo como regla de la línea');
+}
+
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
