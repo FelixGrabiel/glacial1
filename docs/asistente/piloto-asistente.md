@@ -29,11 +29,12 @@
 - Insumos que faltan en el catálogo o con un factor que no corresponde.
 - Quién hizo cada paso y si tenía el permiso (o le apareció «sin permiso»).
 
-## Factores que faltan (necesitan confirmación de Producción)
-El código no tenía estos factores; quedan «Pendiente de configurar» hasta cargarlos. Propuesta a confirmar:
-| Insumo | Línea | Propuesta | Por confirmar |
-|---|---|---|---|
-| Tapas | PET1, PET2, B7L | **1 tapa por unidad producida** (base UND) | ¿Alguna presentación sin tapa o con dos? |
-| Etiquetas | PET1, PET2, B7L | **1 etiqueta por unidad** en las presentaciones con etiqueta | ¿Cuáles van sin etiqueta (p. ej. «c/Sticker»)? ¿Se mide por unidad o por kg/metros de bobina? |
-| Tapas | B20L | 1 por bidón | Confirmar |
-| Tapas / etiquetas | C20L | — | ¿C20L usa tapa o etiqueta? |
+## Factores de tapas y etiquetas (cargados el 07/11/2026)
+Confirmados por Producción: **1 tapa y 1 etiqueta por unidad producida**, en todas las marcas y presentaciones, con vigencia desde el 07/11/2026.
+- Tapas: PET1, PET2, B7L y B20L. Etiquetas: PET1, PET2 y B7L.
+- Están cargados en PRUEBAS y en PRODUCCIÓN, con su auditoría (`supabase/datos/2026-11-07_factores_tapas_etiquetas.sql`).
+- **Pendiente:** ¿C20L usa tapa o etiqueta? Si las usa, se cargan desde Insumos › Factores.
+
+## Permisos (revisados el 07/11/2026)
+- **Almacén y factores:** los da el Administrador desde Usuarios a quien corresponda. Hoy los tienen Nayeli Antho (todos los permisos) y Jesus Garcia (Jefe de Operaciones).
+- **Cuenta del bot (`bot.lectura`):** tiene «todos» los permisos, pero también el modo Visualizar (`soloVista`). El servidor le anula todas las escrituras, así que en la práctica es solo de lectura. No se cambian sus permisos para no cortar lo que el bot lee.
