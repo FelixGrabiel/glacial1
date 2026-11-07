@@ -33,7 +33,7 @@
 Confirmados por Producción: **1 tapa y 1 etiqueta por unidad producida**, en todas las marcas y presentaciones, con vigencia desde el 07/11/2026.
 - Tapas: PET1, PET2, B7L y B20L. Etiquetas: PET1, PET2 y B7L.
 - Están cargados en PRUEBAS y en PRODUCCIÓN, con su auditoría (`supabase/datos/2026-11-07_factores_tapas_etiquetas.sql`).
-- **Pendiente:** ¿C20L usa tapa o etiqueta? Si las usa, se cargan desde Insumos › Factores.
+- **C20L no usa tapa ni etiqueta** (confirmado): factor 0 «No aplica» (`supabase/datos/2026-11-07_factores_c20l_no_aplica.sql`).
 
 ## Permisos (revisados el 07/11/2026)
 - **Almacén y factores:** los da el Administrador desde Usuarios a quien corresponda. Hoy los tienen Nayeli Antho (todos los permisos) y Jesus Garcia (Jefe de Operaciones).
