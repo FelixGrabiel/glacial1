@@ -70,6 +70,9 @@ ok(L.B7L.estado.txt==='COMPLETADA'&&L.C20L.estado.txt==='CANCELADA','completada 
 ok(L.C20L.unidad==='CAJ'&&L.B7L.unidad==='BID'&&L.PET1.unidad==='UND'&&L.C20L.nombre==='CAJAS 20L','cada línea conserva su unidad y su nombre (no se mezclan UND, BID y CAJ)');
 ok(L.B20L.estado.txt==='SIN PRODUCCIÓN'&&L.B20L.nota==='Falta de personal','línea con programación y sin producción = SIN PRODUCCIÓN con su motivo (informativo)');
 ok(L.PET1.ultimo==='01:00'.replace('01','01')||L.PET1.ultimo==='01:00'||/:00$/.test(L.PET1.ultimo),'último registro de la línea');
+const mp=T.modeloLineas(d,{...dep,proximoCambio:k=>k==='PET2'?'Próximo: cambio de formato a 625 ml ≈ 09:00 (30 min)':''});
+ok(mp.find(l=>l.linea==='PET2').nota==='Próximo: cambio de formato a 625 ml ≈ 09:00 (30 min)'&&mp.find(l=>l.linea==='PET1').nota==='','TV: Producción actual muestra el próximo cambio de formato en la nota de la línea (y solo donde hay)');
+ok(mp.find(l=>l.linea==='B20L').nota==='Falta de personal','la causa de «sin producción» tiene prioridad sobre el aviso de cambio');
 const dSinFila={...d,filas:d.filas.filter(f=>f.linea!=='B7L')};
 ok(T.modeloLineas(dSinFila,dep).find(l=>l.linea==='B7L').estado.txt==='SIN PROGRAMACIÓN','línea sin fila = SIN PROGRAMACIÓN');
 const dVacio={...d,vigentes:[],avance:0};

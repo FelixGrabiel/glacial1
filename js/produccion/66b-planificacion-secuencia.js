@@ -251,9 +251,49 @@
       return cam+t.marca+' '+etiquetaFin(t)+q;
     }).join(' → ');
   };
-  const textoCambio=t=>{
-    if(t.cambioAntesMin===null||t.cambioAntesMin===undefined)return t.cambioFaltante?'Cambio: falta configurar ('+esc(t.cambioFaltante)+')':'';
-    return 'Cambio previsto: '+t.cambioAntesMin+' min'+(t.cambioAjuste?' (ajuste del plan)':t.cambioInicial?' (valor inicial)':'');
+  /* «Cambio de formato: Scala 1 L → Scala 625 ml · 30 min» (o «Cambio de marca» / «Cambio de marca y formato»): dice QUÉ cambia, no solo la marca. */
+  const rotuloCambio=(linea,a,b)=>{
+    const cm=norm(a.marca)!==norm(b.marca),cf=norm(a.presentacion)!==norm(b.presentacion);
+    const nom=x=>(x.marca||'')+(x.presentacion?' '+NS.etiquetaPresentacion(linea,x.marca,x.presentacion):'');
+    return (cm&&cf?'Cambio de marca y formato':cm?'Cambio de marca':'Cambio de formato')+': '+nom(a)+' → '+nom(b);
+  };
+  S.rotuloCambio=rotuloCambio;
+  /* Cambios entre productos que el plan de la línea prevé en ese bloque, con sus minutos planificados: [{rotulo,tipo,minutos}].
+     El Registro los propone como parada programada «Cambio de formato» (el supervisor confirma los minutos reales). Sin minutos configurados no se propone nada. */
+  /* Próximo cambio de la línea que todavía no empezó (según el plan): «Cambio de formato a 10 Litros ≈ 09:00 (30 min)». '' si no hay.
+     alProducto (opcional {marca,presentacion}): solo el cambio que llega a ese producto. */
+  S.proximoCambioTexto=function(linea,fecha,turno,alProducto){
+    const filas=S.filasDe(linea,fecha,turno);
+    if(filas.length<2)return '';
+    const e=S.estimar(linea,fecha,turno,filas),ahora=ahoraMs();
+    for(let i=1;i<filas.length;i++){
+      const a=filas[i-1],b=filas[i],t=e.tramos[i],ant=e.tramos[i-1];
+      if(!a.marca||!b.marca||claveP(a.marca,a.presentacion)===claveP(b.marca,b.presentacion))continue;
+      if(alProducto&&claveP(alProducto.marca,alProducto.presentacion)!==claveP(b.marca,b.presentacion))continue;
+      if(!t||!ant||ant.finOff===null||ant.finOff===undefined||t.cambioAntesMin===null||t.cambioAntesMin===undefined||!(Number(t.cambioAntesMin)>0))continue;
+      if(t.estado==='REAL'||(e.bloque.inicioMs+ant.finOff*60000)<ahora)continue;
+      const cm=norm(a.marca)!==norm(b.marca),cf=norm(a.presentacion)!==norm(b.presentacion);
+      const dest=cm?(b.marca+(cf?' '+NS.etiquetaPresentacion(linea,b.marca,b.presentacion):'')):NS.etiquetaPresentacion(linea,b.marca,b.presentacion);
+      return (cm&&cf?'Cambio de marca y formato':cm?'Cambio de marca':'Cambio de formato')+' a '+dest+' ≈ '+S.hora(e.bloque,ant.finOff)+' ('+Number(t.cambioAntesMin)+' min)';
+    }
+    return '';
+  };
+  S.cambiosPlanificados=function(linea,fecha,turno){
+    const filas=S.filasDe(linea,fecha,turno);
+    if(filas.length<2)return [];
+    const e=S.estimar(linea,fecha,turno,filas),out=[];
+    e.tramos.forEach((t,i)=>{
+      const a=filas[i-1],b=filas[i];
+      if(i===0||!a||!b||!a.marca||!b.marca||claveP(a.marca,a.presentacion)===claveP(b.marca,b.presentacion))return;
+      if(t.cambioAntesMin===null||t.cambioAntesMin===undefined||!(Number(t.cambioAntesMin)>0))return;
+      const cm=norm(a.marca)!==norm(b.marca),cf=norm(a.presentacion)!==norm(b.presentacion);
+      out.push({rotulo:rotuloCambio(linea,a,b),tipo:cm&&cf?'marca y formato':cm?'marca':'formato',minutos:Number(t.cambioAntesMin)});
+    });
+    return out;
+  };
+  const minutosCambio=t=>{
+    if(t.cambioAntesMin===null||t.cambioAntesMin===undefined)return t.cambioFaltante?'falta configurar ('+t.cambioFaltante+')':'—';
+    return t.cambioAntesMin+' min'+(t.cambioAjuste?' (ajuste del plan)':t.cambioInicial?' (valor inicial)':'');
   };
   S.htmlBloque=function(linea,fecha,turno){
     const filas=S.filasDe(linea,fecha,turno);
@@ -263,7 +303,7 @@
     const filasH=e.tramos.map((t,i)=>{
       const f=filas[i]||{};
       const cant=t.temporal?(t.cantidad!==null&&t.cantidad!==undefined?'≈ '+fmt(t.cantidad)+' UND <small>estimadas</small>':'<i>estimación pendiente</i>'):(f.saldo&&!(num(f.cantidad)>0)?'<i>saldo por calcular</i>':fmt(f.cantidad)+' UND');
-      return (i>0&&claveP(filas[i-1].marca,filas[i-1].presentacion)!==claveP(f.marca,f.presentacion)?'<div class="seq-cambio">'+esc(filas[i-1].marca)+' → '+esc(f.marca)+' · '+esc(textoCambio(t).replace(/&/g,'&amp;'))+(planifica?' · <a href="#" data-plan-seq="'+esc(linea)+'">Editar</a>':'')+'</div>':'')+
+      return (i>0&&claveP(filas[i-1].marca,filas[i-1].presentacion)!==claveP(f.marca,f.presentacion)?'<div class="seq-cambio">'+esc(rotuloCambio(linea,filas[i-1],f))+' · '+esc(minutosCambio(t))+(planifica?' · <a href="#" data-plan-seq="'+esc(linea)+'">Editar</a>':'')+'</div>':'')+
         '<div class="seq-tramo"><b>'+(i+1)+'. '+esc(t.marca)+'</b> <small>'+esc(NS.etiquetaPresentacion(linea,t.marca,t.presentacion))+'</small> · '+esc(S.TERMINA[t.tipoFin]||'')+(t.tipoFin==='HORA'?' '+esc(t.horaFin):'')+' · '+cant+
           ' <span class="seq-hora">'+(t.inicioOff!==null&&t.inicioOff!==undefined?S.hora(b,t.inicioOff)+'–'+S.hora(b,t.finOff):'')+'</span> '+chip(t)+(t.motivo&&t.estado!=='REAL'?'<small class="plan-subt plan-warn">'+esc(t.motivo)+'</small>':'')+'</div>';
     }).join('');
@@ -292,12 +332,18 @@
       @media(max-width:760px){.sq-fila{grid-template-columns:1fr 1fr}.sq-fila .sq-n{grid-column:1/-1}.sq-cambio{margin-left:8px}}`;
     document.head.appendChild(s);
   }
-  S.abrir=function(linea,fecha,turno){
+  S.abrir=function(linea,fecha,turno,primero){
     if(!NS.puede())return;
     estilos();MD.estilos();
     const E=NS.estado;fecha=fecha||E.fecha;turno=turno||E.turno;
     let filas=S.filasDe(linea,fecha,turno).map(f=>Object.assign({},f));
     if(!filas.length)filas=[{id:idNuevo(),marca:'',presentacion:'',tipoFin:'CANTIDAD',cantidad:'',hora:'',cambioPrevioMin:null,modo:'FIJA',saldo:false,version:undefined,itemClave:'',upp:0}];
+    /* «Con cambio de formato» (formulario Nueva programación): el producto ya elegido entra de primero, o al final si la línea ya tenía productos. */
+    if(primero&&primero.marca&&primero.presentacion){
+      const nuevo={id:idNuevo(),marca:primero.marca,presentacion:primero.presentacion,tipoFin:'CANTIDAD',cantidad:primero.cantidad||'',hora:'',cambioPrevioMin:null,modo:'FIJA',saldo:false,version:undefined,itemClave:'',upp:primero.upp||0};
+      const vacia=filas.length===1&&!filas[0].marca&&!filas[0].presentacion&&!filas[0].version;
+      if(vacia)filas=[nuevo];else filas.push(nuevo);
+    }
     const iniciado=filas.some(f=>NS.enProduccion({estadoOperacion:{estado:f.estadoOp}}))||NS.inicioBloqueMs(fecha,bl(turno))<=ahoraMs();
     const fondo=NS.abrirDialogo('<h3>Secuencia de la línea · '+esc(NS.nombreLinea(linea))+'</h3><div class="small-muted" style="margin-bottom:8px">'+esc(fecha)+' · '+esc(NS.etiquetaBloqueConHorario(turno))+
       '</div><p class="plan-nota">Cada producto termina por <b>cantidad</b>, por una <b>hora</b> o <b>hasta el cierre</b>. Las marcas sin cantidad generan una cantidad <b>estimada</b> con la velocidad nominal y el tiempo productivo; no cambian la marca por sí solas: el supervisor confirma el cambio real.</p>'+
@@ -315,7 +361,7 @@
         const t=e.tramos[i]||{};
         const bloqueado=f.saldo;                         // Completar cantidad: su cantidad es el saldo
         const cambia=i>0&&claveP(filas[i-1].marca,filas[i-1].presentacion)!==claveP(f.marca,f.presentacion)&&f.marca&&filas[i-1].marca;
-        return (cambia?'<div class="sq-cambio">'+esc(filas[i-1].marca)+' → '+esc(f.marca)+' · <span>'+esc(textoCambio(t)||'Cambio previsto: —')+'</span> <label style="display:inline-flex;gap:4px;align-items:center">Ajustar (min): <input type="number" min="0" step="1" data-sq-cambio="'+i+'" value="'+esc(f.cambioPrevioMin===null||f.cambioPrevioMin===undefined?'':f.cambioPrevioMin)+'" placeholder="auto"></label></div>':'')+
+        return (cambia?'<div class="sq-cambio">'+esc(rotuloCambio(linea,filas[i-1],f))+' · <span>'+esc(minutosCambio(t))+'</span> <label style="display:inline-flex;gap:4px;align-items:center">Ajustar (min): <input type="number" min="0" step="1" data-sq-cambio="'+i+'" value="'+esc(f.cambioPrevioMin===null||f.cambioPrevioMin===undefined?'':f.cambioPrevioMin)+'" placeholder="auto"></label></div>':'')+
           '<div class="sq-fila" data-sq="'+i+'"><div class="sq-n">'+(i+1)+'</div>'+
           '<select data-sq-campo="marca" aria-label="Marca"'+(bloqueado?' disabled':'')+'>'+opcionesMarca(f.marca)+'</select>'+
           '<select data-sq-campo="presentacion" aria-label="Presentación"'+(bloqueado?' disabled':'')+'>'+opcionesPres(f.presentacion)+'</select>'+

@@ -350,7 +350,7 @@
       if(!propios.length&&NS.horarios&&!NS.horarios.habilitado(l.key,E.fecha,E.turno))return;
       if(!propios.length){
         filas.push('<tr class="plan-sin"><td class="c-linea" data-titulo="1"><b>'+esc(l.name)+'</b></td><td colspan="8">Sin programación</td><td></td><td class="acc">'+
-          (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button>':
+          (planifica?'<button type="button" class="btn btn-ghost btn-sm" data-plan-nueva="'+esc(l.key)+'">+ Agregar</button> <button type="button" class="btn btn-ghost btn-sm" data-plan-seq="'+esc(l.key)+'" title="Programar varios productos seguidos, con el tiempo de cambio de formato entre ellos">Secuencia</button>':
             (typeof NS.solicitarProgramacion==='function'?'<button type="button" class="btn btn-ghost btn-sm" data-plan-pedir="'+esc(l.key)+'">Pedir programación</button>':''))+'</td></tr>');
         return;
       }
@@ -503,6 +503,13 @@
       const motivo=q('pe-motivo').value.trim();
       q('pe-guardar').disabled=true;q('pe-error').textContent='';
       try{
+        if(MD&&MD.modo()==='CAMBIO'){
+          if(!fila.marca||!fila.presentacion)throw new Error('Elige marca y presentación del primer producto.');
+          if(!NS.secuencia||!NS.secuencia.abrir)throw new Error('La secuencia de la línea no está disponible.');
+          fondo.remove();                                        // «Con cambio de formato»: se sigue en la secuencia de la línea, con este producto de primero
+          NS.secuencia.abrir(fila.linea,fila.fecha,fila.turno,{marca:fila.marca,presentacion:fila.presentacion,cantidad:Number(fila.cantidad)>0?Number(fila.cantidad):'',upp:Number(fila.upp)||0});
+          return;
+        }
         if(MD&&MD.modo()==='HORA'){
           const m=MD.leer();                                     // «Hasta una hora»: un paso más al final de la secuencia de la línea
           if(!fila.marca||!fila.presentacion)throw new Error('Elige marca y presentación.');

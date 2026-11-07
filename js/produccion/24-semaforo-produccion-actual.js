@@ -1324,7 +1324,13 @@
                           data-pa-accion="reabrir" data-pa-indice="${idx}">↺ Reabrir</button>` : '';
                     return `<div class="pa-program-row pa-program-state-${estado.cls}">
                       <span><b>${esc(x.marca || '—')}</b>${x.presentacion
-                        ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}</span>
+                        ? '<small>'+esc(presUI(x.linea,x.marca,x.presentacion))+'</small>' : ''}${(()=>{
+                          // 2.1 D: el próximo producto muestra el cambio que prevé el plan (tipo, hora aproximada y minutos)
+                          if(!estado.proximo)return '';
+                          try{const S=window.glacialPlanificacion&&window.glacialPlanificacion.secuencia;
+                            const t=S&&S.proximoCambioTexto?S.proximoCambioTexto(x.linea,x.fecha,x.turno,{marca:x.marca,presentacion:x.presentacion}):'';
+                            return t?'<small class="pa-prox-cambio">Próximo: '+esc(t.charAt(0).toLowerCase()+t.slice(1))+'</small>':'';}catch(_){return '';}
+                        })()}</span>
                       <div class="pa-program-right"><strong>${Math.round(producidoDe(x)).toLocaleString('es-PE')} / ${prog.toLocaleString('es-PE')} UND${g.esEstimado(x)?' estimadas':''}${prog>0?' · '+Math.round(producidoDe(x)/prog*100)+' %'+(g.esEstimado(x)?' del estimado':''):''}</strong>${x.produccionSegunPaletas?'<small class="pa-segun-paletas" title="El turno terminó y todavía no hay registro del turno con este producto: se muestra lo registrado en Paletas.">Según Paletas · falta el registro del turno</small>':''}<div class="pa-program-right-fila">${tarjetaEstado(estado)}${cancelar}</div>${reactivar}${reabrir}</div>
                     </div>`;
                   }).join('') : '<div class="small-muted">Sin programación para el período seleccionado.</div>'
@@ -1401,6 +1407,7 @@
     .pa-live-board .pa-program-list-horizontal .pa-program-state-pausa{border-top-color:var(--est-pausa);background:#fffdf0}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-detenida{border-top-color:var(--est-det);background:#fff6f6}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-completada{border-top-color:var(--est-fin);background:#f4fcf6}
+    .pa-live-board .pa-prox-cambio{display:block;color:#7a5200;font-weight:600}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-proximo{border-top-color:var(--est-pausa);background:#fffdf0}
     .pa-live-board .pa-program-list-horizontal .pa-program-state-pendiente{border-top-color:var(--est-pend);background:#f8f9fa}
     .pa-marca-actual{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:10px 18px;border-bottom:1px solid #d8e4ec;background:#fff9f1}

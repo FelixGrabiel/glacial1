@@ -320,5 +320,28 @@ function num0(x){return Number(x)||0;}
   ok(/sq-subir|data-sq-subir/.test(s66b)&&/data-sq-bajar/.test(s66b)&&/@media\(max-width:760px\)/.test(s66b),'la secuencia se reordena con botones ▲▼ (no solo arrastrando) y se adapta a celular');
   ok(/Tiempo de cambio de marca/.test(s66b)&&/CAMBIO_INICIAL_MIN=5/.test(m),'el catálogo muestra «Tiempo de cambio de marca» con 5 minutos como valor inicial');
 }
+/* ---------- B) el aviso entre productos dice QUÉ cambia ---------- */
+{
+  const {S}=entorno([]);
+  const a={marca:'Scala',presentacion:'7 Litros'},b={marca:'Scala',presentacion:'10 Litros'},c={marca:'Aro',presentacion:'7 Litros'},d={marca:'Cuisine',presentacion:'10 Litros'};
+  const r1=S.rotuloCambio('B7L',a,b),r2=S.rotuloCambio('B7L',a,c),r3=S.rotuloCambio('B7L',a,d);
+  ok(/^Cambio de formato: Scala .*→ Scala /.test(r1)&&!/Cambio de marca/.test(r1),'misma marca y otra presentación: «Cambio de formato: Scala … → Scala …» ('+r1+')');
+  ok(/^Cambio de marca: Scala .*→ Aro /.test(r2),'otra marca y misma presentación: «Cambio de marca» ('+r2+')');
+  ok(/^Cambio de marca y formato: /.test(r3),'cambian marca y presentación: «Cambio de marca y formato»');
+}
+/* ---------- C) cambios previstos por el plan, para proponerlos en el Registro ---------- */
+{
+  const {S}=entorno([],{tiempos:{reglas:[regla('rf','B7L','CAMBIO_FORMATO',30),regla('rmf','B7L','CAMBIO_MARCA_FORMATO',45)],ventanas:[],version:1}});
+  await S.guardar('B7L',FECHA,'DÍA',[fila('Scala','CANTIDAD',{cantidad:1200}),Object.assign(fila('Scala','CANTIDAD',{cantidad:800}),{presentacion:'10 Litros'}),fila('Cuisine','CIERRE')],{});
+  const c=S.cambiosPlanificados('B7L',FECHA,'DÍA');
+  ok(c.length===2&&c[0].tipo==='formato'&&c[1].tipo==='marca y formato'&&c[0].minutos===30&&c[1].minutos===45&&c.every(x=>/^Cambio de /.test(x.rotulo)),'el plan de 3 productos prevé 2 cambios (formato; marca y formato) con minutos: '+JSON.stringify(c.map(x=>x.tipo+' '+x.minutos)));
+  const px=S.proximoCambioTexto('B7L',FECHA,'DÍA');
+  ok(/^Cambio de formato a .* ≈ \d\d:\d\d \(30 min\)$/.test(px),'el próximo cambio se dice «Cambio de formato a … ≈ 09:00 (30 min)»: '+px);
+    ok(/^Cambio de marca y formato a Cuisine .* \(45 min\)$/.test(S.proximoCambioTexto('B7L',FECHA,'DÍA',{marca:'Cuisine',presentacion:'7 Litros'})),'filtrando por producto destino se obtiene el cambio que llega a él');
+  ok(S.proximoCambioTexto('B7L',FECHA,'DÍA',{marca:'Scala',presentacion:'7 Litros'})==='','el primer producto no tiene cambio previo');
+  ok(S.cambiosPlanificados('B7L',FECHA,'NOCHE').length===0&&S.cambiosPlanificados('PET1',FECHA,'DÍA').length===0,'sin secuencia o con un solo producto no se propone nada');
+  const s29=leer('js/produccion/29-avance-produccion.js');
+  ok(/cambiosPlanificados/.test(s29)&&/Agregar como parada programada/.test(s29)&&/tipo:'PROGRAMADA'/.test(s29.slice(s29.indexOf('function avParadaCambioPlanificado'),s29.indexOf('function avCambioPlanificadoHtml'))),'el registro de paradas ofrece agregarlo como parada PROGRAMADA con los minutos del plan');
+}
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
