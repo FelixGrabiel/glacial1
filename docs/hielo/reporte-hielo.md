@@ -1,6 +1,6 @@
 # Reporte Hielo
 
-Página propia, que se abre desde la tarjeta **«Reporte Hielo»** de la pantalla de selección (antes mostraba «en desarrollo»). Código: `js/hielo/97-hielo.js`. Servidor: `supabase/migraciones/glacial_46_reporte_hielo.sql`.
+Página propia, que se abre desde la tarjeta **«Reporte Hielo»** de la pantalla de selección (antes mostraba «en desarrollo»). Código: `js/hielo/97-hielo.js`. Servidor: `supabase/migraciones/glacial_46_reporte_hielo.sql` (aplicada en PRUEBAS y PRODUCCIÓN, 07/11/2026).
 
 ## Secciones
 - **Inicio:** fecha y turno (o todo el día).

@@ -1,4 +1,4 @@
--- GLACIAL · glacial_46 · REPORTE HIELO (js/hielo/97-hielo.js · docs/hielo/reporte-hielo.md)         *** APLICADA en PRUEBAS (07/11/2026) · PRODUCCIÓN pendiente ***
+-- GLACIAL · glacial_46 · REPORTE HIELO (js/hielo/97-hielo.js · docs/hielo/reporte-hielo.md)         *** APLICADA en PRUEBAS (07/11/2026) · PRODUCCIÓN (07/11/2026) ***
 --
 -- Colecciones nuevas:
 --   · hieloReportes/{AAAA-MM-DD_TURNO}  un reporte por fecha y turno (producción en bolsas por marca y presentación, paradas, mermas).
