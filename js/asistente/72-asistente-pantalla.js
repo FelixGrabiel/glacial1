@@ -56,7 +56,7 @@
   };
   const ico=(n,cls)=>`<svg class="ap-ico ${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||P.info}</svg>`;
 
-  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['lotes','Lotes','cajas'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['historial','Historial','reloj']];
+  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['lotes','Lotes','cajas'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['conversiones','Conversiones','lista'],['historial','Historial','reloj']];
   const SUBINSUMOS=[['existencias','Existencias en Producción'],['factores','Factores'],['requerimientos','Requerimientos'],['solicitudes','Solicitudes'],['prevision','Previsión'],['desviacion','Desviación de consumo']];
   const ESTADO_TXT={EN_PRODUCCION:['En curso','curso'],PAUSA:['En pausa','pausa'],DETENIDA:['Detenida','rojo'],LISTA:['Programada','prog'],PENDIENTE:['Programada','prog'],
     FINALIZADA:['Finalizada','verde'],CANCELADA:['Cancelada','gris']};
@@ -410,6 +410,14 @@
     if(!UI||!P)return `<section class="ap-card"><div class="ap-msg ap-msg-info">${ico('info')}<span>La trazabilidad de lotes no está disponible en esta versión.</span></div></section>`;
     UI.usar({pintar:()=>pintar(),activo:()=>typeof state!=='undefined'&&state.currentTab==='asistente'&&AP.tab==='lotes'});
     return `<div class="ii">${P.estilos()}${UI.html()}</div>`;
+  }
+
+  /* =========================================================== CONVERSIONES (cómo se convierte cada merma; lógica en 95-conversiones.js) */
+  function tabConversiones(){
+    const UI=window.apConversionesUI;
+    if(!UI)return `<section class="ap-card"><div class="ap-msg ap-msg-info">${ico('info')}<span>Las conversiones no están disponibles en esta versión.</span></div></section>`;
+    UI.usar({pintar:()=>pintar(),activo:()=>typeof state!=='undefined'&&state.currentTab==='asistente'&&AP.tab==='conversiones'});
+    return UI.html();
   }
 
   /* =========================================================== INSUMOS */
@@ -940,7 +948,7 @@
     const tz=window.glacialTrazabilidadDatos;
     if(AP.tab!=='lotes'&&AP.tab!=='evidencias'&&tz)tz.detener();
     const tabs=PESTANAS.filter(([k])=>(k!=='evidencias'&&k!=='lotes')||evVisible).map(([k,t,i])=>`<button type="button" role="tab" class="ap-tab ${AP.tab===k?'ap-tab-act':''}" aria-selected="${AP.tab===k}" onclick="AP_set('tab','${k}')">${ico(i)}<span>${t}</span></button>`).join('');
-    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,lotes:tabLotes,consumo:tabConsumo,merma:tabMerma,historial:tabHistorial}[AP.tab]||tabResumen;
+    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,lotes:tabLotes,consumo:tabConsumo,merma:tabMerma,conversiones:tabConversiones,historial:tabHistorial}[AP.tab]||tabResumen;
     const modoVista=!!(window.glacialVista&&window.glacialVista.activo&&window.glacialVista.activo());
     const noche=AP.bloque==='NOCHE';
     const scroll=window.scrollY;

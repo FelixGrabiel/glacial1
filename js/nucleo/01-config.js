@@ -773,8 +773,23 @@ const MERMA_CONVERSION_FISICA_POR_LINEA = {
     'Polietileno 54 cm':   { entrada: 'peso',     factor: 0.36   }
   }
 };
-function mermaConversionFisica(linea, item){
+/* Conversión vigente guardada en Asistente › Conversiones (95-conversiones.js) para la FECHA DEL REPORTE.
+   undefined = no hay documento, no se pudo leer o no hay entrada: se usan las tablas de arriba, como siempre. */
+function mermaConfigVigente(linea, item, fecha){
+  const C = typeof window !== 'undefined' ? window.glacialConversiones : null;
+  if(!C || typeof C.config !== 'function') return undefined;
+  try{ return C.config(linea, item, fecha); }catch(_){ return undefined; }
+}
+function mermaConversionFisica(linea, item, fecha){
+  const c = mermaConfigVigente(linea, item, fecha);
+  if(c && typeof c === 'object' && c.entrada) return c;
   return (MERMA_CONVERSION_FISICA_POR_LINEA[linea] || {})[item] || null;
+}
+/* Divisor de merma (kg → UND) vigente para la fecha del reporte; mismo formato que MERMA_DIVISORES_POR_LINEA. */
+function mermaDivisor(linea, item, fecha){
+  const c = mermaConfigVigente(linea, item, fecha);
+  if(c !== undefined && c !== null && !(typeof c === 'object' && c.entrada)) return c;
+  return (MERMA_DIVISORES_POR_LINEA[linea] || {})[item];
 }
 
 /* PET2 usa exactamente las mismas fórmulas que PET1. */

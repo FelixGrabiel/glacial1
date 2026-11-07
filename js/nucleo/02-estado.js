@@ -932,6 +932,9 @@ function initRealtimeSync(){
   // Catálogo de insumos y factores del Asistente (71-asistente-datos.js): lo usan el Nuevo registro y la tarjeta de Inicio.
   if(typeof glacialFactoresCatalogoEscuchas==='function') glacialFactoresCatalogoEscuchas();
 
+  // Conversiones de mermas (95-conversiones.js): el Registro elige la vigente por la fecha del reporte.
+  if(typeof glacialConversionesEscuchas==='function') glacialConversionesEscuchas();
+
 
 
   /*
