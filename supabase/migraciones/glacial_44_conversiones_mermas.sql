@@ -1,4 +1,4 @@
--- GLACIAL · glacial_44 · CONVERSIONES DE MERMAS EN EL ASISTENTE (apParametros/conversiones · js/asistente/95-conversiones.js)         *** APLICADA en PRUEBAS (07/11/2026) · PRODUCCIÓN pendiente ***
+-- GLACIAL · glacial_44 · CONVERSIONES DE MERMAS EN EL ASISTENTE (apParametros/conversiones · js/asistente/95-conversiones.js)         *** APLICADA en PRUEBAS (07/11/2026) · PRODUCCIÓN (07/11/2026) ***
 --
 -- Por qué: las conversiones de merma (kg → UND, UND → kg) estaban fijas en el código. Ahora se cambian en
 -- Asistente de Producción › Conversiones, con fecha de vigencia e historial; el Registro usa la vigente para la fecha del reporte.
