@@ -1,0 +1,34 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación visual · Reporte Hielo (datos de prueba)</title>
+<style>body{margin:0}</style></head><body>
+<div id="report-select-screen" style="display:flex"></div><div id="app-screen" style="display:none"></div><div id="modal-root"></div>
+<script>
+/* Escenario aislado sin Supabase: ?rol=supervisor|admin|planificacion|gerente · ?vista=inicio|registro|historial|programacion|config. Datos de PRUEBA. */
+var ROL=(location.search.match(/rol=(\w+)/)||[])[1]||'supervisor';
+var ROLES={supervisor:{rol:'Supervisor',permisos:[]},admin:{rol:'Administrador',permisos:'todos'},planificacion:{rol:'Planificación',permisos:[]},gerente:{rol:'Gerente General',permisos:[]}};
+var state={user:Object.assign({username:'ana',nombre:'Ana (prueba)'},ROLES[ROL])};
+var MARCAS_HIELO=['Bells','Scala','Glacial','Listo','Cuisine','Tottus','Aro','Certificado','Austral'],PRESENTACIONES_HIELO=['1.5 kg','3 kg','5 kg'];
+var DOCS={},OYENTES=[];
+function snap(k){return {exists:k in DOCS,data:function(){return JSON.parse(JSON.stringify(DOCS[k]));}};}
+function avisar(){OYENTES.slice().forEach(function(f){f();});}
+var db={collection:function(c){var self={where:function(){return self;},orderBy:function(){return self;},limit:function(){return self;},get:function(){return Promise.resolve({docs:[]});},doc:function(id){return {k:c+'/'+(id||('a'+Math.random().toString(36).slice(2))),get:function(){return Promise.resolve(snap(this.k));},set:function(d){DOCS[this.k]=JSON.parse(JSON.stringify(d));avisar();return Promise.resolve();},
+  onSnapshot:function(cb){var k=this.k,f=function(){cb(snap(k));};OYENTES.push(f);f();return function(){OYENTES=OYENTES.filter(function(x){return x!==f;});};}};},
+  onSnapshot:function(cb){var f=function(){cb({docs:Object.keys(DOCS).filter(function(k){return k.indexOf(c+'/')===0;}).map(function(k){return {data:function(){return JSON.parse(JSON.stringify(DOCS[k]));}};})});};OYENTES.push(f);f();return function(){OYENTES=OYENTES.filter(function(x){return x!==f;});};}};return self;},
+  runTransaction:function(fn){var w=[];var t={get:function(r){return Promise.resolve(snap(r.k));},set:function(r,d){w.push([r,d]);}};return fn(t).then(function(){w.forEach(function(x){DOCS[x[0].k]=JSON.parse(JSON.stringify(x[1]));});avisar();});}};
+var firebase={firestore:{FieldValue:{serverTimestamp:function(){return '__TS__';}}},auth:function(){return {currentUser:{uid:'u1'}};}};
+</script>
+<script src="../../js/nucleo/01b-fecha-operativa.js"></script>
+<script src="../../js/hielo/97-hielo.js"></script>
+<script>
+(function(){
+  var f=GlacialFecha.fechaOperativa(),ay=GlacialFecha.sumarDias(f,-1);
+  function rep(fecha,turno,estado,prod,par,mer){return {id:fecha+'_'+turno,fecha:fecha,turno:turno,estado:estado,supervisor:'Ana (prueba)',horaInicio:'07:00',horaFin:'15:00',produccion:prod,paradas:par||[],mermas:mer||[],observaciones:'',rev:1,historial:[],actualizadoUid:'u1'};}
+  DOCS['hieloReportes/'+f+'_DÍA']=rep(f,'DÍA','EN_REGISTRO',[{marca:'Glacial',presentacion:'3 kg',lote:'',bolsas:2600},{marca:'Tottus',presentacion:'3 kg',lote:'',bolsas:1700},{marca:'Glacial',presentacion:'1.5 kg',lote:'',bolsas:500}],
+    [{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15,nota:''}],[{item:'Bolsas',cantidad:50,unidad:'UND'}]);
+  DOCS['hieloReportes/'+ay+'_NOCHE']=rep(ay,'NOCHE','FINALIZADO',[{marca:'Glacial',presentacion:'3 kg',lote:'',bolsas:3100}]);
+  DOCS['hieloProgramacion/'+f+'_DÍA']={id:f+'_DÍA',fecha:f,turno:'DÍA',items:[{marca:'Glacial',presentacion:'3 kg',bolsas:3000},{marca:'Tottus',presentacion:'3 kg',bolsas:2000},{marca:'Glacial',presentacion:'1.5 kg',bolsas:1000}],rev:1};
+  DOCS['hieloParametros/config']={id:'config',marcas:MARCAS_HIELO,presentaciones:['3 kg','1.5 kg','5 kg'],equipos:['Embolsadora'],motivos:['Mantenimiento','Falla de equipo','Falta de insumo','Otros'],mermas:['Bolsas','Bobina','Hielo (producto)'],rev:1,actualizadoPor:'Ana (prueba)'};
+  goReporteHielo();
+  var v=(location.search.match(/vista=(\w+)/)||[])[1];if(v)hlVista(v);
+})();
+</script></body></html>
