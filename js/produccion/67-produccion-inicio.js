@@ -52,6 +52,50 @@
     return '<div class="mi-hoy mi-alerta"><h3>Atención de hoy · '+av.length+(av.length===1?' aviso':' avisos')+'</h3><ul>'+filas+'</ul>'+(av.length>6?'<div class="mi-sub">Y '+(av.length-6)+' más en el Centro de alertas (campana de arriba).</div>':'')+'</div>';
   }
 
+  /* A · Reportes sin finalizar de turnos ya terminados (últimos días), todos con su botón «Abrir». Antes solo salían mezclados en «Atención de hoy»
+     (máximo 6) y pasaban desapercibidos: del 03 al 06/11/2026 quedaron 39 reportes sin finalizar. Mismo cálculo y alcance que el aviso (46). */
+  function pendientesFinalizar(){
+    const A=window.glacialAvisos;
+    if(!A||typeof A.ambito!=='function'||typeof A.pendientesFinalizar!=='function')return null;
+    const a=A.ambito();if(!a||!a.tipos.includes('finalizar'))return null;
+    try{return (A.pendientesFinalizar().items||[]).filter(x=>!a.lineas||a.lineas===x.linea);}catch(_){return null;}
+  }
+  function htmlSinFinalizar(){
+    const items=pendientesFinalizar();
+    if(!items||!items.length)return '';
+    const nom=l=>typeof nombreLineaCorto==='function'?nombreLineaCorto(l):l;
+    const ddmm=f=>String(f||'').split('-').reverse().slice(0,2).join('/');
+    const filas=items.map(x=>'<li class="pi-fin-item"><span><b>'+esc(x.nivel==='roja'?'🔴':'🟠')+' '+esc(nom(x.linea))+'</b> · '+esc(x.turno)+' '+esc(ddmm(x.fecha))+' · '+
+      esc(x.sinFinalizar)+' de '+esc(x.cuadros)+(x.cuadros===1?' cuadro':' cuadros')+' sin finalizar</span><button type="button" class="btn btn-ghost btn-sm" data-pi-reporte="'+esc(x.id)+'">Abrir</button></li>').join('');
+    return '<div class="mi-hoy mi-alerta" id="pi-sin-finalizar"><h3>Reportes sin finalizar · '+items.length+'</h3><p class="mi-sub">Turnos que ya terminaron. Mientras no se finalicen, los reportes que se complementan no suman en los indicadores.</p><ul class="pi-fin">'+filas+'</ul></div>';
+  }
+  /* B · Rotación de supervisores sin publicar: la semana en curso (roja) y, desde el jueves, la siguiente (ámbar). El turno de cada supervisor sale
+     de la rotación publicada: sin ella el sistema no sabe quién cubre cada turno. Solo para quien gestiona la rotación, Jefatura y Administrador. */
+  function avisoRotacion(){
+    if(typeof rotSupBuscarSemanaPorFecha!=='function'||!window.GlacialFecha)return null;
+    if(typeof _rotacionesReady!=='undefined'&&!_rotacionesReady)return null;
+    const rol=String((typeof state!=='undefined'&&state.user&&state.user.rol)||'');
+    if(!(visible('btn-rotacion-supervisores')||rol==='Administrador'||['Jefe de Producción','Jefe de Operaciones','Jefatura'].includes(rol)))return null;
+    const G=window.GlacialFecha,hoy=G.fechaOperativa();
+    const [y,m,d]=hoy.split('-').map(Number);const dow=new Date(y,m-1,d).getDay()||7;     // 1 = lunes … 7 = domingo (desde las partes: sin zona horaria)
+    const lunes=G.sumarDias(hoy,1-dow),proximo=G.sumarDias(lunes,7);
+    const txt=f=>f.split('-').reverse().slice(0,2).join('/');
+    if(!rotSupBuscarSemanaPorFecha(hoy,true))return {nivel:'roja',texto:'No hay rotación de supervisores publicada para esta semana ('+txt(lunes)+' al '+txt(G.sumarDias(lunes,6))+', semana '+G.semanaISO(hoy)+').'};
+    if(dow>=4&&!rotSupBuscarSemanaPorFecha(proximo,true))return {nivel:'ambar',texto:'Falta publicar la rotación de la próxima semana ('+txt(proximo)+' al '+txt(G.sumarDias(proximo,6))+').'};
+    return null;
+  }
+  function htmlRotacion(){
+    const a=avisoRotacion();if(!a)return '';
+    const ir=typeof goRotacionSupervisores==='function'?'<button type="button" class="btn btn-ghost btn-sm" data-pi-rotacion="1">Abrir rotación</button>':'';
+    return '<div class="mi-hoy mi-alerta" id="pi-rotacion"><h3>'+esc(a.nivel==='roja'?'🔴':'🟠')+' Rotación de supervisores</h3><div class="pi-fin-item"><span>'+esc(a.texto)+'</span>'+ir+'</div></div>';
+  }
+  function estilosPendientes(){
+    if(document.getElementById('pi-pend-css'))return;
+    const s=document.createElement('style');s.id='pi-pend-css';
+    s.textContent='.pi-fin{list-style:none;margin:8px 0 0;padding:0}.pi-fin-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid rgba(0,0,0,.06);flex-wrap:wrap}.pi-fin-item .btn{min-height:40px}';
+    document.head.appendChild(s);
+  }
+
   function pintar(main){
     if(window.glacialMantInicio&&window.glacialMantInicio.estilos)window.glacialMantInicio.estilos();
     ABRIR.length=0;
@@ -63,10 +107,15 @@
     }).join('');
     main.innerHTML='<div class="mi-wrap" id="pi-inicio"><div class="main-head"><div><h2>Producción</h2><div class="sub">Lo de cada turno, el personal y el seguimiento. El registro de cada línea está en el menú de la izquierda.</div></div>'+
       (window.glacialEstadoDatos?'<div>'+window.glacialEstadoDatos.chip()+'</div>':'')+'</div>'+
+      (estilosPendientes(),htmlRotacion())+htmlSinFinalizar()+
       (grupos?htmlHoy()+grupos:'<div class="mi-vacio">Tu usuario no tiene más pantallas de Producción disponibles. Usa el registro de tu línea en el menú.</div>')+'</div>';
   }
 
   document.addEventListener('click',e=>{
+    const rep=e.target.closest&&e.target.closest('[data-pi-reporte]');
+    if(rep&&rep.closest('#pi-inicio')){try{if(typeof cargarReporteParaCorreccion==='function')cargarReporteParaCorreccion(rep.getAttribute('data-pi-reporte'));else if(typeof goHistorial==='function')goHistorial();}catch(err){console.warn('Producción · inicio:',err&&err.message||err);}return;}
+    const rot=e.target.closest&&e.target.closest('[data-pi-rotacion]');
+    if(rot&&rot.closest('#pi-inicio')){try{goRotacionSupervisores();}catch(err){console.warn('Producción · inicio:',err&&err.message||err);}return;}
     const b=e.target.closest&&e.target.closest('[data-pi-ir]');
     if(!b||!b.closest('#pi-inicio'))return;
     const f=ABRIR[Number(b.getAttribute('data-pi-ir'))];
@@ -81,7 +130,7 @@
     if(typeof renderMain==='function')renderMain();
   }
   window.goProduccionInicio=ir;
-  window.glacialProdInicio={GRUPOS,pintar,hayAcceso};
+  window.glacialProdInicio={GRUPOS,pintar,hayAcceso,pendientesFinalizar,avisoRotacion};
 
   if(typeof ajustarVistaSegunPermisos==='function'){
     const a=ajustarVistaSegunPermisos;
