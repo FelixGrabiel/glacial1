@@ -171,17 +171,21 @@
    * Con leyenda de línea, la unidad nace ENTREGADA_LINEA (movimiento ENTREGA_LINEA); si no, EN_ALMACEN (RECEPCION).
    * fotoEn: cuándo se envió la foto (ms). Es la fecha del HECHO (recepción o entrega a línea) y la que vale para la trazabilidad; `en` es cuándo se validó y registró.
    */
-  function planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda,usuario,uid,en,parametros,fotoEn,fotoEnOrigen,unirAlLote}){
+  function planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda,usuario,uid,en,parametros,fotoEn,fotoEnOrigen,unirAlLote,proveedorBanco}){
     const v=validarParaLote(doc,{parametros});
     if(v.errores.length)throw falla('VALIDACION',v.errores.join(' '));
     const d=v.datos,ahora=Number(en)||Date.now(),por=recortar(usuario,80);
+    // Banco de proveedores (96-proveedores.js): el lote usa el nombre del banco (la llave ya no depende de cómo se leyó la etiqueta).
+    if(proveedorBanco&&proveedorBanco.tipo==='CLIENTE')throw falla('VALIDACION','«'+d.proveedor+'» es el cliente ('+proveedorBanco.nombre+'), no el proveedor. Corrige el proveedor en la evidencia.');
+    const proveedorLeido=d.proveedor;
+    if(proveedorBanco&&proveedorBanco.nombre)d.proveedor=texto(proveedorBanco.nombre);
     const foto=Number(fotoEn)>0?Number(fotoEn):ahora,fotoOrigen=Number(fotoEn)>0?recortar(fotoEnOrigen||'whatsapp',20):'importacion';
     if(doc.loteId)throw falla('DUPLICADO','Esta evidencia ya creó el lote '+doc.loteId+'.');
     const clave=claveLote(d);
     let lote;const nuevo=!lotePrevio;
     if(nuevo){
       if(!Number.isFinite(Number(correlativo))||Number(correlativo)<1)throw falla('CORRELATIVO','No se pudo obtener el número de lote.');
-      lote={id:idLote(correlativo),clave,proveedor:recortar(d.proveedor,120),producto:recortar(d.producto,160),marca:recortar(d.marca,60),categoria:d.categoria,loteProveedor:recortar(d.loteProveedor,60),
+      lote={id:idLote(correlativo),clave,proveedor:recortar(d.proveedor,120),proveedorId:proveedorBanco?recortar(proveedorBanco.id,80):'',proveedorLeido:recortar(proveedorLeido,120),producto:recortar(d.producto,160),marca:recortar(d.marca,60),categoria:d.categoria,loteProveedor:recortar(d.loteProveedor,60),
         fechaProduccion:d.fechaProduccion,fechaVencimiento:d.fechaVencimiento,ordenInterna:recortar(d.ordenInterna,60),ordenCompra:recortar(d.ordenCompra,60),
         itemId:articulo?recortar(articulo.id,80):'',itemCode:articulo?recortar(articulo.itemCode,40):'',itemNombre:articulo?recortar(articulo.nombre,160):'',
         unidades:0,recibidoEn:foto,rev:1,creadoPor:por,creadoUid:recortar(uid,80),creadoEn:ahora,actualizadoPor:por,actualizadoEn:ahora,historial:[]};
@@ -194,6 +198,7 @@
         if(norm(lote.loteProveedor).replace(/[^A-Z0-9]/g,'')!==norm(d.loteProveedor).replace(/[^A-Z0-9]/g,''))throw falla('CLAVE','Solo se puede agregar a un lote con el mismo lote del proveedor.');
         lote.clavesUnidas=(Array.isArray(lote.clavesUnidas)?lote.clavesUnidas:[]).concat([clave]).slice(-50);
       }
+      if(proveedorBanco&&!lote.proveedorId)lote.proveedorId=recortar(proveedorBanco.id,80);
       if(articulo&&!lote.itemId){lote.itemId=recortar(articulo.id,80);lote.itemCode=recortar(articulo.itemCode,40);lote.itemNombre=recortar(articulo.nombre,160);}
       if(!lote.fechaVencimiento&&d.fechaVencimiento)lote.fechaVencimiento=d.fechaVencimiento;
       if(!(Number(lote.recibidoEn)>0)||foto<Number(lote.recibidoEn))lote.recibidoEn=foto;          // primera foto del lote

@@ -88,8 +88,13 @@
         const r=N.cambiarEstado(doc,'aprobado_dato',{usuario:u.nombre,motivo:'',esAdmin:D.esAdmin(),en:t});
         doc=r.doc;evento=r.evento;
       }
-      const datos=T.datosDeEvidencia(doc),clave=T.claveLote(datos);
+      const datos=T.datosDeEvidencia(doc);
+      // Banco de proveedores (96): la llave usa el nombre del banco; los lotes creados antes con el nombre leído se siguen encontrando.
+      const PB=window.glacialProveedores,banco=PB&&PB.listo&&PB.listo()?PB.resolver(datos.proveedor):null;
+      if(banco&&banco.tipo==='CLIENTE')throw falla('VALIDACION','«'+datos.proveedor+'» es el cliente ('+banco.nombre+'), no el proveedor. Corrige el proveedor en la evidencia.');
+      const clave=T.claveLote(banco?Object.assign({},datos,{proveedor:banco.nombre}):datos),claveLeida=T.claveLote(datos);
       const refClave=ref(C.claves,clave),sClave=await tx.get(refClave);
+      const sClaveLeida=!sClave.exists&&claveLeida!==clave?await tx.get(ref(C.claves,claveLeida)):null;
       let lotePrevio=null,unidadPrevia=null,correlativo=null,sContador=null,unirAlLote=false;
       /* Lee un lote siguiendo sus uniones (un lote unido a otro manda al que lo recibió) y busca la caja/bobina con ese n.º en él y en los lotes que se le unieron. */
       const leerLote=async loteId=>{
@@ -111,6 +116,10 @@
       if(sClave.exists){
         const r=await leerLote(sClave.data().loteId);
         lotePrevio=r.lote;unidadPrevia=r.previa;
+      }else if(sClaveLeida&&sClaveLeida.exists){
+        // Lote creado antes con el nombre leído: la foto se suma a ese lote y la llave del banco queda recordada.
+        const r=await leerLote(sClaveLeida.data().loteId);
+        lotePrevio=r.lote;unidadPrevia=r.previa;unirAlLote=true;
       }else if(loteDestinoId){
         // La persona eligió agregar esta foto a un lote parecido (posible repetido): se suma a ese lote y su llave queda recordada.
         const r=await leerLote(loteDestinoId);
@@ -121,7 +130,7 @@
       }
       const sMem=await tx.get(ref(C.parametros,'memoriaArticulos'));
       const ff=N.fechaFoto(doc);
-      const plan=T.planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda:T.interpretarLeyenda(doc.leyenda,leyendaParam),usuario:u.nombre,uid:u.uid,en:t,parametros:leyendaParam,fotoEn:ff.ms,fotoEnOrigen:ff.origen,unirAlLote});
+      const plan=T.planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda:T.interpretarLeyenda(doc.leyenda,leyendaParam),usuario:u.nombre,uid:u.uid,en:t,parametros:leyendaParam,fotoEn:ff.ms,fotoEnOrigen:ff.origen,unirAlLote,proveedorBanco:banco});
       const marcada=T.evidenciaConLote(doc,{loteId:plan.lote.id,unidadId:plan.unidad.id,usuario:u.nombre,en:t});
       tx.set(ref(C.lotes,plan.lote.id),plan.lote);
       tx.set(ref(C.unidades,plan.unidad.id),plan.unidad);

@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="../../css/styles.css">
 <style>body{background:#f3f6f8;margin:0;padding:12px}.aviso-prueba{font:700 13px system-ui;color:#991B1B;margin:0 0 8px}</style>
 </head><body>
-<p class="aviso-prueba">Datos de PRUEBA (no reales), sin Supabase · ?rol=asistente|jefe|admin · ?sel=LI-000001|LI-000002|LI-000003 ·</p>
+<p class="aviso-prueba">Datos de PRUEBA (no reales), sin Supabase · ?rol=asistente|jefe|admin · ?sel=LI-000001|LI-000002|LI-000003 · ?tab=proveedores&vista=proveedores|unificar|pendientes ·</p>
 <div id="main"></div><div id="modal-root"></div>
 <script>
 /* Escenario aislado: base de documentos en memoria y foto simulada (SVG). Usa los scripts REALES del Inventario de insumos y de Evidencias. */
@@ -46,6 +46,7 @@ window.glacialFotos={PREFIJO:'supabase:glacial-fotos/',disponible:function(){ret
 <script src="../../js/asistente/87-trazabilidad-lotes-nucleo.js"></script>
 <script src="../../js/asistente/88-trazabilidad-lotes-datos.js"></script>
 <script src="../../js/asistente/89-trazabilidad-lotes-pantalla.js"></script>
+<script src="../../js/asistente/96-proveedores.js"></script>
 <script>
 (function(){
   var ahora=Date.now(),h=function(n){return ahora-n*3600000;};
@@ -61,8 +62,16 @@ window.glacialFotos={PREFIJO:'supabase:glacial-fotos/',disponible:function(){ret
          mov('MOV-b','LI-000001','LI-000001-02','ENTREGA_LINEA',{estado:'EN_ALMACEN',pesoActual:346.6,linea:''},{estado:'ENTREGADA_LINEA',pesoActual:346.6,linea:'PET1'},12,'Ana (prueba)')];
   L.forEach(function(x){DOCS['insumosLotes/'+x.id]=x;});U.forEach(function(x){DOCS['insumosUnidades/'+x.id]=x;});M.forEach(function(x){DOCS['insumosLoteMovimientos/'+x.id]=x;});
   var sel=(location.search.match(/sel=([\w-]+)/)||[])[1]||'LI-000001';
-  goAsistente('lotes');
-  if(window.ilSel)ilSel(sel);
+  /* Banco de proveedores (96): San Miguel ya registrado; fotos pendientes con nombres escritos de varias formas. */
+  DOCS['insumosProveedores/PRV-SAN-MIGUEL-INDUSTRIAS-PET']={id:'PRV-SAN-MIGUEL-INDUSTRIAS-PET',tipo:'PROVEEDOR',nombre:'SAN MIGUEL INDUSTRIAS PET S.A.',nombreCorto:'SMI',alias:['SM INDUSTRIAS PET S.A.','SW'],categorias:['preformas'],activo:true,rev:1,historial:[{accion:'CREAR',por:'Ana (prueba)',en:h(5),motivo:'Unificar nombres'}],creadoPor:'Ana (prueba)',creadoEn:h(5),actualizadoPor:'Ana (prueba)',actualizadoEn:h(5)};
+  function evid(id,prov,lote,caja,cat){return {id:id,estado:'pendiente',rev:1,categoria:cat,tipoDocumento:'etiqueta_insumo',creadoEn:h(10),historialEstados:[],advertencias:[],campos:{proveedor:{valor:prov,literal:prov,estado:'legible'},lote:{valor:lote,literal:lote,estado:'legible'},numero_caja_bobina:{valor:caja,literal:caja,estado:'legible'},producto:{valor:'Producto',literal:'Producto',estado:'legible'}}};}
+  [evid('e1','CORPORACION ASK S.A.','12158','26','bolsas'),evid('e2','Corpacim ASK','12158','38','polietileno'),evid('e3','FilPack PLAST SAC','FPP2028-01012','31','etiquetas'),
+   evid('e4','FiPack PLAST SAC','ETIQ-12-2025','26','etiquetas'),evid('e5','SM INDUSTRIAS PET S.A.','261011F320','1062345455','preformas'),evid('e6','CONSORCIO FRAP S.A.C.','','5','cajas'),evid('e7','','','','otro')]
+   .forEach(function(x){DOCS['insumosEvidencias/'+x.id]=x;});
+  var tab=(location.search.match(/tab=(\w+)/)||[])[1]||'lotes',vista=(location.search.match(/vista=(\w+)/)||[])[1];
+  goAsistente(tab);
+  if(tab==='lotes'&&window.ilSel)ilSel(sel);
+  if(vista&&window.pvVista)setTimeout(function(){pvVista(vista);},50);
 })();
 </script>
 </body></html>
