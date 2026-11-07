@@ -2880,7 +2880,7 @@ function quitarMarcaRegistro(i){
   renderFormTab();
 }
 
-function pestanasCuadrosHtml(cuadros, visibles, activo, bloqueado){
+function pestanasCuadrosHtml(cuadros, visibles, activo, bloqueado, faltanPorCuadro){
   const tabs = cuadros.slice(0, visibles).map((q, i) => {
     const marca = String(q.marca || '').trim();
     const pres = String(q.presentacion || '').trim();
@@ -2892,6 +2892,7 @@ function pestanasCuadrosHtml(cuadros, visibles, activo, bloqueado){
         <span class="reg-tab-num">${i + 1}</span>
         <span class="reg-tab-txt"><strong>${escaparHtml(marca || 'Sin marca')}</strong>${presUI ? `<small>${escaparHtml(presUI)}</small>` : ''}</span>
         ${fin ? '<span class="reg-tab-ok" aria-label="Marca finalizada">✓</span>' : ''}
+        ${!fin && faltanPorCuadro && faltanPorCuadro[i] ? `<span class="reg-tab-falta" title="Datos que faltan para finalizar">${faltanPorCuadro[i]}</span>` : ''}
       </button>`;
   }).join('');
   const agregar = !bloqueado && visibles < cuadros.length
@@ -2920,11 +2921,91 @@ function instalarEstilosPestanasCuadros(){
     .reg-tab-cuadro.is-active small{color:#cfe3f3}.reg-tab-cuadro.is-active .reg-tab-ok{color:#7ee2a2}
     .reg-tab-cuadro:focus-visible{outline:3px solid #14b8c4;outline-offset:2px}
     .reg-tab-agregar{border-style:dashed;border-color:#0877A6;color:#0877A6;background:transparent;font-weight:800}
+    .reg-tab-falta{min-width:22px;height:22px;border-radius:11px;background:#dc2626;color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
+    .reg-falta{border:1px solid #f3b8b8;background:#fff;color:#b42318;border-radius:999px;padding:6px 11px;margin:3px 2px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;min-height:34px;text-align:left}
+    .reg-falta:hover{background:#fff5f5}
+    .reg-resaltar{outline:3px solid #dc2626 !important;outline-offset:3px;border-radius:8px;transition:outline-color .3s}
+    .kpi.is-vacio{border-top-color:#cbd5e1}.kpi.is-vacio .kpi-value{color:#94a3b8}
+    .reg-barra{position:fixed;bottom:0;left:0;right:0;z-index:900;margin:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:#fff;border:1px solid #dbe3ea;
+      border-radius:14px 14px 0 0;box-shadow:0 -6px 18px rgba(11,42,74,.10);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .reg-barra-est{flex:1 1 160px;font-weight:800;font-size:14px;color:#166534;min-width:0}
+    .reg-barra-est small{display:block;font-weight:500;color:#5b6b7c}
+    .reg-barra-est.pendiente,.reg-barra-est.guardando{color:#b45309}.reg-barra-est.error{color:#b42318}
+    .reg-barra .btn{min-height:46px}
+    body.con-barra-registro #av-floating-trigger.av-floating-trigger{bottom:calc(92px + env(safe-area-inset-bottom)) !important}
+    body.con-barra-registro #tab-content{padding-bottom:110px}
+    @media(max-width:560px){.reg-barra .btn{flex:1 1 0}.reg-barra-est{flex-basis:100%}}
     .reg-quitar-marca{border:0;background:transparent;color:#b42318;font:inherit;font-size:13px;font-weight:700;cursor:pointer;
       padding:10px 0;min-height:44px}
   `;
   document.head.appendChild(s);
 }
+
+/* =========================================================
+   DESPUÉS DE DIBUJAR EL FORMULARIO (punto 4 · parte 2)
+   · Campos numéricos editables en 0 se ven VACÍOS (con «0» gris de referencia) y abren el teclado numérico. El dato guardado no cambia
+     (un campo vacío vale 0 en todos los cálculos, como antes cuando se borraba).
+   · Barra fija abajo: estado del guardado (hace cuánto), «Revisar (N)» y «Finalizar reporte».
+   ========================================================= */
+function textoGuardadoRegistro(){
+  const e=_estadoGuardadoRegistro||{estado:'guardado',en:Date.now()};
+  const seg=Math.max(0,Math.round((Date.now()-e.en)/1000));
+  const hace=seg<10?'recién':seg<60?'hace '+seg+' s':'hace '+Math.round(seg/60)+' min';
+  const t={pendiente:['● Cambios sin guardar','se guardan solos en unos segundos'],guardando:['● Guardando…',''],
+    error:['⚠ No se pudo guardar','se reintenta solo; no cierres la página'],guardado:['✓ Guardado',hace+' · se guarda solo']}[e.estado]||['✓ Guardado',hace];
+  return {clase:e.estado,titulo:t[0],detalle:t[1]};
+}
+function pintarEstadoBarraRegistro(){
+  const el=document.getElementById('reg-barra-est');if(!el)return;
+  const t=textoGuardadoRegistro();
+  el.className='reg-barra-est '+t.clase;
+  el.innerHTML=escaparHtml(t.titulo)+(t.detalle?'<small>'+escaparHtml(t.detalle)+'</small>':'');
+}
+function barraRegistroHtml(){
+  if(!draft)return '';
+  const bloqueado=reporteEstaBloqueado();
+  if(bloqueado)return `<div class="reg-barra" id="reg-barra"><div class="reg-barra-est guardado">🔒 Reporte finalizado<small>${escaparHtml(draft.finalizadoPor||'')}</small></div></div>`;
+  if(typeof puedeEscribirRegistro==='function'&&!puedeEscribirRegistro())return `<div class="reg-barra" id="reg-barra"><div class="reg-barra-est">Modo VISUALIZAR<small>solo consulta: no se guarda nada</small></div></div>`;
+  const faltan=validarReporteParaFinalizar();
+  return `<div class="reg-barra" id="reg-barra" role="region" aria-label="Guardado y cierre del reporte">
+    <div class="reg-barra-est" id="reg-barra-est"></div>
+    ${faltan.length?`<button type="button" class="btn btn-ghost" data-no-autosave data-falta="${escaparHtml(faltan[0])}" onclick="irAFaltanteRegistro(this.dataset.falta)">Revisar (${faltan.length})</button>`:''}
+    <button type="button" class="btn btn-primary" data-no-autosave onclick="finalizarReporteProduccion()" ${faltan.length?'title="Faltan datos: pulsa «Revisar»"':''}>✓ Finalizar reporte</button>
+  </div>`;
+}
+function prepararCamposRegistro(){
+  const raiz=document.getElementById('tab-content');
+  if(!raiz||typeof state==='undefined'||state.currentTab!=='nuevo'||!draft){document.body.classList.remove('con-barra-registro');return;}
+  const activo=document.activeElement;
+  raiz.querySelectorAll('input[type="number"]').forEach(el=>{
+    if(!el.getAttribute('inputmode'))el.setAttribute('inputmode',el.step&&/^\d+$/.test(el.step)?'numeric':'decimal');
+    if(el.readOnly||el.disabled||el===activo)return;
+    if(el.value==='0'||el.value==='0.00'||el.value==='0.0'){el.value='';if(!el.placeholder)el.placeholder='0';}
+  });
+  raiz.querySelector('#reg-barra')?.remove();
+  raiz.insertAdjacentHTML('beforeend',barraRegistroHtml());
+  pintarEstadoBarraRegistro();
+  ubicarBarraRegistro();
+  document.body.classList.toggle('con-barra-registro',!!document.getElementById('reg-barra'));
+}
+/* La barra es fija abajo, con el mismo ancho que el contenido (no tapa el menú lateral en PC). */
+function ubicarBarraRegistro(){
+  const b=document.getElementById('reg-barra'),c=document.getElementById('tab-content');
+  if(!b||!c)return;
+  const r=c.getBoundingClientRect();
+  if(window.innerWidth<=700){b.style.left='0';b.style.right='0';b.style.width='';return;}
+  b.style.left=Math.max(0,Math.round(r.left))+'px';b.style.right='auto';b.style.width=Math.round(r.width)+'px';
+}
+if(typeof window!=='undefined'&&window.addEventListener)window.addEventListener('resize',()=>{try{ubicarBarraRegistro();}catch(_){/* sin barra */}});
+(function(){
+  if(typeof setInterval!=='function')return;
+  setInterval(()=>{
+    try{
+      if(!document.getElementById('reg-barra')){document.body.classList.remove('con-barra-registro');return;}
+      pintarEstadoBarraRegistro();
+    }catch(_){/* siguiente ciclo */}
+  },10000);
+})();
 
 function grupoTurnoReporte(turno){
   return ['DÍA','INTERMEDIO'].includes(turno) ? 'DIA_INTERMEDIO' : 'NOCHE';
@@ -2995,7 +3076,9 @@ async function finalizarCuadroProduccion(i){
   if(GlacialIndicadores.faltaSopladas(draft.linea,q)) faltan.push('Botellas sopladas');
 
   if(faltan.length){
-    alert('Falta completar en Producción '+(i+1)+':\n\n• '+faltan.join('\n• '));
+    const n=num(q.numero)||i+1;
+    mostrarToastReporte('Falta en Producción '+n+': '+faltan.join(', ')+'.');
+    irAFaltanteRegistro('Producción '+n+': '+faltan[0].toLowerCase());
     return;
   }
 
@@ -3417,6 +3500,15 @@ function actualizarIndicadorGuardado(estado){
   el.textContent=txt;
   el.className='reporte-sync-status '+clase;
 }
+/* La barra fija de abajo (punto 4 · parte 2) sigue al indicador de guardado. Se envuelve aquí para no tocar cada llamada. */
+let _estadoGuardadoRegistro={estado:'guardado',en:Date.now()};
+(function(){
+  const original=actualizarIndicadorGuardado;
+  actualizarIndicadorGuardado=function(estado){
+    _estadoGuardadoRegistro={estado:estado||'guardado',en:Date.now()};
+    try{original(estado);}finally{try{pintarEstadoBarraRegistro();}catch(_){/* sin barra */}}
+  };
+})();
 
 function mostrarToastReporte(texto){
   let el=document.getElementById('reporte-toast');
@@ -3520,6 +3612,63 @@ function validarReporteParaFinalizar(){
   return [...new Set(faltan)];
 }
 
+/* =========================================================
+   LO QUE FALTA PARA FINALIZAR, EN LA PÁGINA (punto 4 · parte 2)
+   Cada faltante es un enlace: abre la pestaña de esa producción, lleva al campo y lo resalta. Sin ventanas emergentes.
+   ========================================================= */
+function destinoFaltanteRegistro(texto){
+  const t=String(texto||'');
+  const m=/^Producción (\d+): (.*)$/.exec(t);
+  if(!m){
+    if(/Fotograf/i.test(t))return {tipo:'fotos'};
+    return {tipo:'general'};
+  }
+  const n=Number(m[1]),r=m[2].toLowerCase();
+  const idx=(draft&&Array.isArray(draft.cuadros)?draft.cuadros.findIndex(q=>num(q&&q.numero)===n):-1);
+  const i=idx>=0?idx:n-1;
+  const campo=/^marca/.test(r)?'marca':/^presentaci/.test(r)?'presentacion':/hora inicio/.test(r)?'horaInicio':/hora fin/.test(r)?'horaFin':
+    /sopladas/.test(r)?'produccion.sopladas':/efectiva|producci[oó]n efectiva/.test(r)?'produccion.efectiva':/parada|equipo/.test(r)?'paradas':'';
+  return {tipo:'cuadro',i,campo};
+}
+function irAFaltanteRegistro(texto){
+  const marcado=aplicarIrAFaltanteRegistro(texto);
+  // Si un guardado o una actualización vuelve a dibujar el formulario justo después, el campo se reemplaza: se vuelve a llevar a él.
+  [450,1100].forEach(ms=>setTimeout(()=>{const m=marcado&&marcado.isConnected;if(!m)aplicarIrAFaltanteRegistro(texto,true);},ms));
+}
+function aplicarIrAFaltanteRegistro(texto,sinDesplazar){
+  const d=destinoFaltanteRegistro(texto);
+  let el=null;
+  if(d.tipo==='cuadro'){
+    if(typeof seleccionarCuadroRegistro==='function')seleccionarCuadroRegistro(d.i);
+    const card=document.getElementById('reg-cuadro-'+d.i);
+    if(card){
+      if(d.campo==='paradas'){
+        el=[...card.querySelectorAll('h3,h4,strong,.panel-head')].find(x=>/no programadas/i.test(x.textContent||''))||card;
+      }else if(d.campo){
+        el=card.querySelector(`[onchange*="'${d.campo}'"],[oninput*="'${d.campo}'"]`);
+      }
+      el=el||card;
+    }
+  }else if(d.tipo==='fotos'){
+    el=[...document.querySelectorAll('h3,h4')].find(x=>/Producto Terminado/i.test(x.textContent||''));
+  }else{
+    el=document.querySelector('.reg-tabs-cuadros')||document.querySelector('.reporte-cierre-panel');
+  }
+  if(!el)return null;
+  try{el.scrollIntoView({behavior:sinDesplazar?'auto':'smooth',block:'center'});}catch(_){el.scrollIntoView();}
+  const marcar=el.closest&&(el.closest('.field-sm')||el.closest('.panel'))||el;
+  marcar.classList.add('reg-resaltar');setTimeout(()=>marcar.classList.remove('reg-resaltar'),2600);
+  if(/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName))setTimeout(()=>{try{el.focus({preventScroll:true});}catch(_){el.focus();}},sinDesplazar?0:350);
+  return marcar;
+}
+window.irAFaltanteRegistro=irAFaltanteRegistro;
+/* Cuántos faltantes tiene cada producción (para marcar su pestaña). */
+function faltantesPorCuadroRegistro(faltan){
+  const out={};
+  (faltan||[]).forEach(t=>{const d=destinoFaltanteRegistro(t);if(d.tipo==='cuadro')out[d.i]=(out[d.i]||0)+1;});
+  return out;
+}
+
 /* Trazabilidad (06/11/2026): producciones con producción y SIN lotes de insumo marcados. Solo AVISA (no impide finalizar): sin lotes, esa producción no se
    podrá rastrear en el informe de trazabilidad ni llenará las columnas de lotes del Control de proceso. Solo si el panel de lotes está cargado (92). */
 function cuadrosSinLotesInsumo(lista){
@@ -3545,7 +3694,7 @@ function renderEstadoCierreReporte(){
           ${bloqueado?'🔒 Reporte bloqueado':'✓ Guardado en tiempo real'}
         </div>
         ${!bloqueado && faltan.length
-          ? `<div class="reporte-faltantes">Falta para finalizar: ${faltan.map(escaparHtml).join(' · ')}</div>`
+          ? `<div class="reporte-faltantes" id="reporte-faltantes"><b>Falta para finalizar (${faltan.length}):</b> ${faltan.map(t=>`<button type="button" class="reg-falta" data-no-autosave data-falta="${escaparHtml(t)}" onclick="irAFaltanteRegistro(this.dataset.falta)">${escaparHtml(t)}</button>`).join(' ')}</div>`
           : !bloqueado
             ? `<div class="reporte-listo">✓ Todos los campos obligatorios están completos.</div>`
             : `<div class="reporte-listo">Finalizado por ${escaparHtml(draft.finalizadoPor||'—')}.</div>`}
@@ -3572,8 +3721,10 @@ async function finalizarReporteProduccion(){
   }
   const faltan=validarReporteParaFinalizar();
   if(faltan.length){
-    alert('Aún faltan datos para finalizar:\n\n• '+faltan.join('\n• '));
+    // Sin ventana emergente: se lleva al primer dato que falta y la lista queda a la vista con enlaces a cada uno.
+    mostrarToastReporte('Faltan '+faltan.length+' dato'+(faltan.length===1?'':'s')+' para finalizar.');
     renderFormTab();
+    irAFaltanteRegistro(faltan[0]);
     return;
   }
   const sinLotes=cuadrosSinLotesInsumo(draft.cuadros);
@@ -5038,57 +5189,7 @@ function renderFormTab(){
 
   c.innerHTML = `
 
-    <div class="kpi-row">
-
-      ${
-        kpi(
-          'Disponibilidad',
-          pct(d.disponibilidad),
-          d.disponibilidad
-        )
-      }
-
-
-      ${
-        kpi(
-          'Rendimiento',
-          pct(d.rendimiento),
-          d.rendimiento
-        )
-      }
-
-
-      ${
-        kpi(
-          'OEE',
-          pct(d.oee),
-          d.oee
-        )
-      }
-
-
-      ${
-        kpi(
-          'Cumplimiento',
-          pct(d.cumplimiento),
-          d.cumplimiento
-        )
-      }
-
-
-      ${
-        kpi(
-          'Producción efectiva',
-          Math.round(
-            d.efectiva || 0
-          ).toLocaleString(
-            'es-PE'
-          ),
-          1
-        )
-      }
-
-    </div>
+    <div class="kpi-row">${kpisRegistroHtml(d)}</div>
 
     ${typeof avAbrirParadas==='function' ? `
     <div class="panel" style="margin-bottom:14px;border-left:4px solid #0877A6;">
@@ -5163,7 +5264,7 @@ function renderFormTab(){
     </div>
 
 
-    ${pestanasCuadrosHtml(cuadros, visiblesVista, activoVista, bloqueadoVista)}
+    ${pestanasCuadrosHtml(cuadros, visiblesVista, activoVista, bloqueadoVista, bloqueadoVista ? {} : faltantesPorCuadroRegistro(validarReporteParaFinalizar()))}
 
     <div class="reg-cuadros-una-marca" style="display:block;">
 
@@ -5279,10 +5380,24 @@ function renderFormTab(){
    KPI
    ========================================================= */
 
+/* Indicadores del reporte (auditoría, punto 4 · parte 2): mientras no hay producción efectiva muestran «—» en gris (antes, 100 % de
+   disponibilidad y 0 % en rojo antes de empezar). El cumplimiento también va en «—» si no hay programado. */
+function kpisRegistroHtml(d){
+  const sinDatos=!(num(d&&d.efectiva)>0);
+  const k=(label,v,esPct)=>{
+    const vacio=sinDatos||v===null||v===undefined||!Number.isFinite(Number(v));
+    return kpi(label,vacio?'—':(esPct?pct(v):v),vacio?null:(esPct?v:1),vacio);
+  };
+  return k('Disponibilidad',d.disponibilidad,true)+k('Rendimiento',d.rendimiento,true)+k('OEE',d.oee,true)+
+    k('Cumplimiento',num(d.programada)>0||num(d.cumplimiento)>0?d.cumplimiento:null,true)+
+    (sinDatos?kpi('Producción efectiva','—',null,true):kpi('Producción efectiva',Math.round(num(d.efectiva)).toLocaleString('es-PE'),1,false));
+}
+
 function kpi(
   label,
   value,
-  ratio
+  ratio,
+  vacio
 ){
 
   return `
@@ -5290,8 +5405,9 @@ function kpi(
     <div
       class="
         kpi
-        ${statusClass(ratio)}
+        ${vacio?'is-vacio':statusClass(ratio)}
       "
+      ${vacio?'title="Sin producción registrada todavía"':''}
     >
 
       <div class="kpi-label">
@@ -6138,56 +6254,7 @@ function refreshKpisOnly(){
 
   if(row){
 
-    row.innerHTML = `
-
-      ${
-        kpi(
-          'Disponibilidad',
-          pct(d.disponibilidad),
-          d.disponibilidad
-        )
-      }
-
-      ${
-        kpi(
-          'Rendimiento',
-          pct(d.rendimiento),
-          d.rendimiento
-        )
-      }
-
-      ${
-        kpi(
-          'OEE',
-          pct(d.oee),
-          d.oee
-        )
-      }
-
-      ${
-        kpi(
-          'Cumplimiento',
-          pct(d.cumplimiento),
-          d.cumplimiento
-        )
-      }
-
-      ${
-        kpi(
-          'Producción efectiva',
-          Math.round(
-            d.efectiva ??
-            num(
-              draft.produccion?.efectiva
-            )
-          ).toLocaleString(
-            'es-PE'
-          ),
-          1
-        )
-      }
-
-    `;
+    row.innerHTML = kpisRegistroHtml(d);
 
   }
 
@@ -8322,4 +8389,16 @@ async function saveDraft(){
     if(state && state.currentTab==='nuevo'){ clearTimeout(espera); espera=setTimeout(intentar,600); }
     return r;
   };
+})();
+
+/* Punto 4 · parte 2: después de cada dibujado del formulario, los campos numéricos en 0 se ven vacíos y se pone la barra fija de abajo. */
+(function instalarPrepararCamposRegistro(){
+  if(typeof renderFormTab!=='function')return;
+  const original=renderFormTab;
+  renderFormTab=function(){
+    const r=original.apply(this,arguments);
+    try{prepararCamposRegistro();}catch(e){console.warn('GLACIAL · preparar campos del registro:',e);}
+    return r;
+  };
+  if(typeof window!=='undefined')window.renderFormTab=renderFormTab;
 })();
