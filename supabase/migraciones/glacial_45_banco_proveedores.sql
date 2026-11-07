@@ -1,4 +1,4 @@
--- GLACIAL · glacial_45 · BANCO DE PROVEEDORES (insumosProveedores · js/asistente/96-proveedores.js)         *** APLICADA en PRUEBAS (07/11/2026) · PRODUCCIÓN pendiente ***
+-- GLACIAL · glacial_45 · BANCO DE PROVEEDORES (insumosProveedores · js/asistente/96-proveedores.js)         *** APLICADA en PRUEBAS (07/11/2026) · PRODUCCIÓN (07/11/2026) ***
 --
 -- Por qué: el proveedor llegaba como texto libre leído de la foto y cada forma distinta («CORPORACION ASK S.A.», «Corpacim ASK»…)
 -- creaba otro lote. El banco guarda una ficha por proveedor (o cliente) con los nombres con que aparece en las etiquetas (alias).

@@ -34,7 +34,7 @@
 
 ## Datos y servidor
 - Colección `insumosProveedores/{PRV-…}`: `tipo` (PROVEEDOR o CLIENTE), `nombre`, `nombreCorto`, `alias[]`, `categorias[]`, `activo`, `rev` e `historial[]`. Cada alta o cambio queda en `insumosAuditoria` (CREAR_PROVEEDOR / EDITAR_PROVEEDOR).
-- `supabase/migraciones/glacial_45_banco_proveedores.sql`: lectura con `ii_ver`; creación y edición con `ii_esc`, como los lotes. Nunca se borra. Está aplicada en PRUEBAS; en PRODUCCIÓN está pendiente de aprobación.
+- `supabase/migraciones/glacial_45_banco_proveedores.sql`: lectura con `ii_ver`; creación y edición con `ii_esc`, como los lotes. Nunca se borra. Está aplicada en PRUEBAS y en PRODUCCIÓN (07/11/2026).
 
 ## Pruebas
 `tests/proveedores-banco.test.js`: normalización, resolución con nombres reales (ASK, San Miguel, FRAP como cliente), validaciones, agrupación, historial de lotes, resumen de pendientes y la llave única del lote con y sin banco.
