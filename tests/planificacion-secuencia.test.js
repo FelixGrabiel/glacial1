@@ -320,5 +320,14 @@ function num0(x){return Number(x)||0;}
   ok(/sq-subir|data-sq-subir/.test(s66b)&&/data-sq-bajar/.test(s66b)&&/@media\(max-width:760px\)/.test(s66b),'la secuencia se reordena con botones ▲▼ (no solo arrastrando) y se adapta a celular');
   ok(/Tiempo de cambio de marca/.test(s66b)&&/CAMBIO_INICIAL_MIN=5/.test(m),'el catálogo muestra «Tiempo de cambio de marca» con 5 minutos como valor inicial');
 }
+/* ---------- B) el aviso entre productos dice QUÉ cambia ---------- */
+{
+  const {S}=entorno([]);
+  const a={marca:'Scala',presentacion:'7 Litros'},b={marca:'Scala',presentacion:'10 Litros'},c={marca:'Aro',presentacion:'7 Litros'},d={marca:'Cuisine',presentacion:'10 Litros'};
+  const r1=S.rotuloCambio('B7L',a,b),r2=S.rotuloCambio('B7L',a,c),r3=S.rotuloCambio('B7L',a,d);
+  ok(/^Cambio de formato: Scala .*→ Scala /.test(r1)&&!/Cambio de marca/.test(r1),'misma marca y otra presentación: «Cambio de formato: Scala … → Scala …» ('+r1+')');
+  ok(/^Cambio de marca: Scala .*→ Aro /.test(r2),'otra marca y misma presentación: «Cambio de marca» ('+r2+')');
+  ok(/^Cambio de marca y formato: /.test(r3),'cambian marca y presentación: «Cambio de marca y formato»');
+}
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

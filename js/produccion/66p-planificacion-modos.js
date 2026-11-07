@@ -33,7 +33,8 @@
   const hm=m=>typeof NS.textoDuracion==='function'?NS.textoDuracion(m):Math.round(m)+' min';
 
   M.MODOS={FIJA:'Cantidad fija',COMPLETAR:'Completar cantidad',TURNO:'Resto del turno',HORA:'Hasta una hora'};
-  M.MODOS_FORM=['FIJA','COMPLETAR','TURNO','HORA'];                // «Hasta una hora» solo al AGREGAR un producto: se guarda como un paso más de la secuencia de la línea (66b)
+  M.MODOS_FORM=['FIJA','COMPLETAR','TURNO','HORA','CAMBIO'];                // «Hasta una hora» solo al AGREGAR un producto: se guarda como un paso más de la secuencia de la línea (66b)
+  M.MODO_SOLO_FORM={CAMBIO:'Con cambio de formato'};                // opción del formulario que no se guarda como modo: abre la secuencia de la línea con este producto de primero
   M.esTemporal=p=>M.modoDe(p)==='TURNO'||M.modoDe(p)==='HORA';       // sin cantidad fija: la cantidad es ESTIMADA
   M.modoDe=item=>item&&M.MODOS[item.modo]?item.modo:'FIJA';          // lo antiguo (sin modo) es Cantidad fija
   M.ALCANCES={TODO_TURNO:'Todo el turno',TIEMPO_RESTANTE:'Producir durante el tiempo restante'};
@@ -357,6 +358,7 @@
         conservarCero=pend||num(datos.cantidad)===0;
       }
       if(modo==='HORA')throw new Error('«Hasta una hora» se define en la secuencia de la línea.');
+      if(modo==='CAMBIO')throw new Error('«Con cambio de formato» se define en la secuencia de la línea.');
       if(modo==='TURNO'&&!(extra.estimado&&num(extra.estimado.cantidad)>0))throw new Error('La estimación de «Todo el turno» está incompleta: no se guarda un valor inventado.');
       // no reducir por debajo de lo ya producido
       const ex=NS.existente(fila.linea,fila.fecha,NS.turnoDeGuardado(fila),fila.marca,fila.presentacion);
@@ -394,7 +396,7 @@
   };
   M.htmlSelector=function(existente){
     const m=M.modoDe(existente);
-    return '<div class="pm-modos" role="radiogroup" aria-label="Modo de programación">'+M.MODOS_FORM.filter(k=>k!=='HORA'||!existente).map(k=>'<label class="'+(k===m?'on':'')+'"><input type="radio" name="pm-modo" value="'+k+'"'+(k===m?' checked':'')+'>'+esc(M.MODOS[k])+(k===m?' ✓':'')+'</label>').join('')+'</div>'+
+    return '<div class="pm-modos" role="radiogroup" aria-label="Modo de programación">'+M.MODOS_FORM.filter(k=>(k!=='HORA'&&k!=='CAMBIO')||!existente).map(k=>'<label class="'+(k===m?'on':'')+'"><input type="radio" name="pm-modo" value="'+k+'"'+(k===m?' checked':'')+'>'+esc(M.MODOS[k]||M.MODO_SOLO_FORM[k])+(k===m?' ✓':'')+'</label>').join('')+'</div>'+
       '<div id="pm-panel-c" class="pm-panel" style="display:none"></div><div id="pm-panel-t" class="pm-panel" style="display:none"></div><div id="pm-panel-h" class="pm-panel" style="display:none"></div>';
   };
   /* Monta la lógica de los paneles sobre el diálogo ya creado. ctx: {fondo,f,existente,q,refrescar}. Devuelve {leer()}: valida con los datos más recientes y arma lo que se guarda. */
@@ -530,7 +532,8 @@
       pc.style.display=m==='COMPLETAR'?'':'none';pt.style.display=m==='TURNO'?'':'none';if(ph)ph.style.display=m==='HORA'?'':'none';
       const fija=m==='FIJA'||m==='HORA';
       cant.readOnly=!fija;cant.closest('label').firstChild.nodeValue=fija?'Cantidad programada (UND)':(m==='COMPLETAR'?'Saldo asignado al bloque (UND)':'Cantidad estimada (UND)');
-      if(m==='HORA'){textoBoton('Agregar a la secuencia');guardarBtn.disabled=false;calc=null;cant.value='';cant.placeholder='Estimada al guardar';cant.closest('label').style.display='none';}
+      if(m==='CAMBIO'){cant.closest('label').style.display='';cant.readOnly=false;cant.closest('label').firstChild.nodeValue='Cantidad programada (UND, opcional)';textoBoton('Abrir la secuencia');guardarBtn.disabled=false;calc=null;}
+      else if(m==='HORA'){textoBoton('Agregar a la secuencia');guardarBtn.disabled=false;calc=null;cant.value='';cant.placeholder='Estimada al guardar';cant.closest('label').style.display='none';}
       else if(fija){cant.closest('label').style.display='';textoBoton('Guardar');guardarBtn.disabled=false;calc=null;}
       else if(m==='COMPLETAR'){cant.closest('label').style.display='';pintarCompletar();}else{cant.closest('label').style.display='';pintarTurno();}
     };
@@ -549,6 +552,7 @@
       leer(){
         const m=modoActual(),c=campos();
         if(m==='FIJA')return {modo:'FIJA',datos:{modo:'FIJA',cantidad:Number(cant.value)}};
+        if(m==='CAMBIO')return {modo:'CAMBIO',datos:{modo:'CAMBIO',cantidad:Number(cant.value)||0}};
         if(m==='HORA'){const h=(fondo.querySelector('#pm-hora')||{}).value||'';if(!/^\d{2}:\d{2}$/.test(h))throw new Error('Elige la hora hasta la que se producirá.');return {modo:'HORA',hora:h,datos:{modo:'HORA',cantidad:0}};}
         if(m==='COMPLETAR'){
           pintarCompletar();      // vuelve a validar con lo más reciente (el cierre pudo confirmarse mientras se llenaba el formulario)

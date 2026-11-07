@@ -24,8 +24,19 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   /* línea vacía: se usa el botón + Agregar de la primera línea */
   await abrir(linea);
   const modos = await D.page.evaluate(() => [...document.querySelectorAll('.pm-modos label')].map(l => l.textContent.replace(/ ✓$/, '').trim()));
-  ok(JSON.stringify(modos) === JSON.stringify(['Cantidad fija', 'Completar cantidad', 'Resto del turno', 'Hasta una hora']), 'el selector ofrece 4 opciones: ' + modos.join(' · '));
+  ok(JSON.stringify(modos) === JSON.stringify(['Cantidad fija', 'Completar cantidad', 'Resto del turno', 'Hasta una hora', 'Con cambio de formato']), 'el selector ofrece 5 opciones: ' + modos.join(' · '));
   const f1 = await D.page.evaluate(() => ({ marca: glacialPlanificacion.marcas(document.getElementById('pe-linea').value), pres: glacialPlanificacion.presentaciones(document.getElementById('pe-linea').value).map(p => p.value) }));
+  /* «Con cambio de formato»: abre la secuencia de la línea con este producto de primero */
+  await D.page.selectOption('#pe-marca', f1.marca[0]); await D.page.selectOption('#pe-pres', f1.pres[0]); await D.page.fill('#pe-cant', '1200');
+  await D.page.click('.pm-modos label:has(input[value="CAMBIO"])');
+  ok(await D.page.evaluate(() => document.getElementById('pe-guardar').textContent === 'Abrir la secuencia'), '«Con cambio de formato» ofrece «Abrir la secuencia»');
+  await D.page.click('#pe-guardar'); await D.page.waitForSelector('#sq-filas .sq-fila', { timeout: 8000 });
+  const sec = await D.page.evaluate(() => ({ marca: document.querySelector('#sq-filas select[data-sq-campo="marca"]').value, cant: document.querySelector('#sq-filas input[data-sq-campo="cantidad"]').value, formulario: !!document.getElementById('pe-guardar'), filas: document.querySelectorAll('#sq-filas .sq-fila').length }));
+  ok(sec.marca === f1.marca[0] && sec.cant === '1200' && !sec.formulario && sec.filas === 1, 'la secuencia se abre con el primer producto ya puesto y el formulario se cierra: ' + JSON.stringify(sec));
+  await D.page.click('#sq-cancelar'); await D.page.waitForSelector('#sq-filas', { state: 'detached', timeout: 5000 });
+  /* línea sin nada programado: también tiene el botón «Secuencia» */
+  ok(await D.page.evaluate(l => !!document.querySelector('.plan-sin [data-plan-seq="' + l + '"]'), linea), 'las líneas sin programación tienen el botón «Secuencia»');
+  await abrir(linea);
   await D.page.selectOption('#pe-marca', f1.marca[0]); await D.page.selectOption('#pe-pres', f1.pres[0]);
   await D.page.fill('#pe-cant', '1200'); await D.page.fill('#pe-upp', '1200');
   await D.page.click('#pe-guardar'); await D.page.waitForSelector('#pe-guardar', { state: 'detached', timeout: 5000 });
