@@ -139,6 +139,7 @@ function renderHistorialTab(){
 
   const turnos=[...new Set(base.map(r=>r.turno).filter(Boolean))];
   const estados=[...new Set(base.map(histEstadoTexto).filter(Boolean))];
+  const marcas=[...new Set(base.flatMap(r=>histMarcasRegistro(r)))].sort((a,b)=>a.localeCompare(b,'es'));
 
   c.innerHTML=`
     <section class="historial-produccion-page">
@@ -160,6 +161,9 @@ function renderHistorialTab(){
               <button type="button" class="hist-v2-calendar-btn" id="hist-f-calendar" title="Escoger día" aria-label="Escoger día">📅</button>
             </div>
 
+            <label class="hist-v2-rango"><span>Desde</span><input type="date" id="hist-f-desde" aria-label="Desde"></label>
+            <label class="hist-v2-rango"><span>Hasta</span><input type="date" id="hist-f-hasta" aria-label="Hasta"></label>
+
             <select id="hist-f-turno" class="hist-v2-mini-select" aria-label="Filtrar por turno" title="Turno">
               <option value="">Turno: todos</option>
               ${turnos.map(v=>`<option value="${histEsc(v)}">${histEsc(v)}</option>`).join('')}
@@ -170,12 +174,19 @@ function renderHistorialTab(){
               ${estados.map(v=>`<option value="${histEsc(v)}">${histEsc(v)}</option>`).join('')}
             </select>
 
+            <select id="hist-f-marca" class="hist-v2-mini-select" aria-label="Filtrar por marca" title="Marca">
+              <option value="">Marca: todas</option>
+              ${marcas.map(v=>`<option value="${histEsc(v)}">${histEsc(v)}</option>`).join('')}
+            </select>
+
             <button type="button" class="hist-v2-clear-filter" id="hist-f-limpiar" title="Limpiar filtros" aria-label="Limpiar filtros">×</button>
+            <button type="button" class="btn btn-primary btn-sm hist-v2-exportar" id="hist-f-exportar" title="Exporta exactamente lo filtrado">⬇ Exportar Excel</button>
           </div>
         </div>
       </div>
 
       <div class="hist-v2-active-date" id="hist-v2-active-date" hidden></div>
+      <div class="hist-v2-resumen" id="hist-v2-resumen" role="status"></div>
 
       <div class="hist-v2-table-card">
         <div class="hist-v2-table-scroll">
@@ -202,9 +213,12 @@ function renderHistorialTab(){
 
                 return `
                   <tr class="hist-v2-row"
+                      data-id="${histEsc(r.id)}"
                       data-fecha="${histEsc(r.fecha)}"
                       data-turno="${histEsc(r.turno)}"
-                      data-estado="${histEsc(estado)}">
+                      data-estado="${histEsc(estado)}"
+                      data-marcas="${histEsc(histMarcasRegistro(r).join('|'))}"
+                      data-producido="${Math.round(num(d.efectiva ?? r.produccion?.efectiva))}">
                     <td>
                       <button type="button" class="hist-v2-expand" aria-expanded="false" title="Ver marcas y formatos producidos" onclick="event.stopPropagation();histToggleDetalle('${r.id}',this)">›</button>
                     </td>
@@ -259,12 +273,14 @@ function renderHistorialTab(){
     const fecha=document.getElementById('hist-f-fecha')?.value||'';
     const turno=document.getElementById('hist-f-turno')?.value||'';
     const estado=document.getElementById('hist-f-estado')?.value||'';
-    let visibles=0;
+    const desde=document.getElementById('hist-f-desde')?.value||'';
+    const hasta=document.getElementById('hist-f-hasta')?.value||'';
+    const marca=document.getElementById('hist-f-marca')?.value||'';
+    let visibles=0,producido=0;
 
     document.querySelectorAll('.hist-v2-row').forEach(row=>{
-      const ok=(!fecha||row.dataset.fecha===fecha) &&
-               (!turno||row.dataset.turno===turno) &&
-               (!estado||row.dataset.estado===estado);
+      const ok=histFilaPasaFiltros(row.dataset,{fecha,turno,estado,desde,hasta,marca});
+      if(ok)producido+=num(row.dataset.producido);
 
       row.hidden=!ok;
 
@@ -283,6 +299,8 @@ function renderHistorialTab(){
 
     const contador=document.getElementById('hist-v2-visible-count');
     if(contador)contador.textContent=visibles;
+    const resumen=document.getElementById('hist-v2-resumen');
+    if(resumen)resumen.textContent=`${visibles} reporte${visibles===1?'':'s'} · ${Math.round(producido).toLocaleString('es-PE')} UND producidas${desde||hasta||marca||fecha||turno||estado?' (filtrado)':''} · se exporta exactamente lo que se ve`;
 
     const fechaActiva=document.getElementById('hist-v2-active-date');
     if(fechaActiva){
@@ -306,15 +324,72 @@ function renderHistorialTab(){
   document.getElementById('hist-f-fecha')?.addEventListener('change',aplicar);
   document.getElementById('hist-f-turno')?.addEventListener('change',aplicar);
   document.getElementById('hist-f-estado')?.addEventListener('change',aplicar);
+  ['hist-f-desde','hist-f-hasta','hist-f-marca'].forEach(id=>document.getElementById(id)?.addEventListener('change',aplicar));
   document.getElementById('hist-f-limpiar')?.addEventListener('click',()=>{
-    const fecha=document.getElementById('hist-f-fecha');
-    const turno=document.getElementById('hist-f-turno');
-    const estado=document.getElementById('hist-f-estado');
-    if(fecha)fecha.value='';
-    if(turno)turno.value='';
-    if(estado)estado.value='';
+    ['hist-f-fecha','hist-f-turno','hist-f-estado','hist-f-desde','hist-f-hasta','hist-f-marca'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     aplicar();
   });
+  document.getElementById('hist-f-exportar')?.addEventListener('click',()=>{
+    const ids=[...document.querySelectorAll('.hist-v2-row')].filter(r=>!r.hidden).map(r=>r.dataset.id);
+    const porId=new Map(base.map(r=>[r.id,r]));
+    histExportarExcel(ids.map(id=>porId.get(id)).filter(Boolean),{marca:document.getElementById('hist-f-marca')?.value||''});
+  });
+  aplicar();
+}
+
+/* =========================================================
+   FILTROS Y EXPORTACIÓN (auditoría, punto 4 · parte 4)
+   ========================================================= */
+/* Marcas producidas en el reporte (solo las de cuadros en uso). */
+function histMarcasRegistro(r){
+  return [...new Set(histCuadrosActivos(r).map(q=>String(q.marca||'').trim()).filter(Boolean))];
+}
+/* ¿La fila pasa los filtros? f = {fecha (un día), turno, estado, desde, hasta (AAAA-MM-DD), marca}. Puro. */
+function histFilaPasaFiltros(ds,f){
+  const fecha=String(ds.fecha||'').slice(0,10);
+  const marcas=String(ds.marcas||'').split('|').filter(Boolean);
+  return (!f.fecha||fecha===f.fecha) &&
+    (!f.desde||fecha>=f.desde) && (!f.hasta||fecha<=f.hasta) &&
+    (!f.turno||ds.turno===f.turno) && (!f.estado||ds.estado===f.estado) &&
+    (!f.marca||marcas.includes(f.marca));
+}
+/* Filas del Excel: una por producción (cuadro) de cada reporte. Con filtro de marca, solo esa marca. Puro. */
+const HIST_COLUMNAS_EXCEL=['Fecha','Turno','Línea','Estado','Producción n.º','Marca','Presentación','Lote','Hora inicio','Hora fin','Programada (UND)','Efectiva (UND)','Paradas prog. (min)','Paradas no prog. (min)','Registrado por','Finalizado por'];
+function histFilasExcel(registros,{marca}={}){
+  const filas=[];
+  (registros||[]).forEach(r=>{
+    histCuadrosActivos(r).forEach((q,i)=>{
+      if(marca&&String(q.marca||'').trim()!==marca)return;
+      const min=l=>(Array.isArray(l)?l:[]).filter(p=>p&&!p.eliminada).reduce((a,p)=>a+num(p.tiempoMin),0);
+      filas.push([r.fecha||'',r.turno||'',r.linea||'',histEstadoTexto(r),num(q.numero)||i+1,q.marca||r.marca||'',histPresentacionNombre(r,q),q.lote||r.lote||'',
+        q.horaInicio||'',q.horaFin||'',Math.round(num(q.produccion?.programada)),Math.round(num(q.produccion?.efectiva)),
+        Math.round(min(q.paradasProgramadas)),Math.round(min(q.paradasNoProgramadas)),r.registradoPor||'',r.finalizadoPor||'']);
+    });
+  });
+  return filas;
+}
+async function histExportarExcel(registros,{marca}={}){
+  const filas=histFilasExcel(registros,{marca});
+  if(!filas.length){alert('No hay reportes para exportar con estos filtros.');return;}
+  try{
+    const ExcelJS=typeof cargarScriptExterno==='function'?await cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS'):window.ExcelJS;
+    if(!ExcelJS)throw new Error('No se pudo cargar la librería de Excel.');
+    const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Historial',{views:[{state:'frozen',ySplit:3}]});
+    ws.addRow([`GLACIAL · Historial de producción · ${state.currentLine||''}`]).font={bold:true,size:14};
+    ws.addRow([`${registros.length} reportes · ${filas.length} producciones${marca?' · marca '+marca:''} · generado ${new Date().toLocaleString('es-PE')}`]);
+    const cab=ws.addRow(HIST_COLUMNAS_EXCEL);cab.font={bold:true,color:{argb:'FFFFFFFF'}};
+    cab.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0B2A4A'}};c.alignment={vertical:'middle',wrapText:true};});
+    filas.forEach(f=>ws.addRow(f));
+    const tot=ws.addRow(['Total','','','','','','','','','',filas.reduce((a,f)=>a+f[10],0),filas.reduce((a,f)=>a+f[11],0),filas.reduce((a,f)=>a+f[12],0),filas.reduce((a,f)=>a+f[13],0)]);
+    tot.font={bold:true};
+    [12,11,8,14,10,18,26,10,10,10,14,14,14,14,20,20].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+    ws.autoFilter={from:{row:3,column:1},to:{row:3,column:HIST_COLUMNAS_EXCEL.length}};
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=`Historial-${state.currentLine||'linea'}${marca?'-'+marca.replace(/[^A-Za-z0-9]+/g,'_'):''}.xlsx`;
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+  }catch(e){alert('No se pudo generar el Excel: '+((e&&e.message)||e));}
 }
 
 
