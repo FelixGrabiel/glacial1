@@ -70,7 +70,7 @@
         producido:prod,programado:prog,unidad:u,
         pct:prog>0?Math.round(pct):null,
         ultimo:f.ultimoMs?dep.hora(f.ultimoMs):'—',ultimoMs:Number(f.ultimoMs)||0,
-        nota:causa?notaCausa(causa):''};
+        nota:causa?notaCausa(causa):(dep.proximoCambio?dep.proximoCambio(k,d):'')};
     });
   }
   function notaCausa(f){
@@ -207,6 +207,7 @@
       nombreLinea:k=>cpNombreLinea(k),unidad:k=>cpUnidadEjec(k),fmt:n=>cpFmt(n),duracion:m=>cpDuracionMin(m),hora:ms=>cpHoraCorta(ms),
       presentacion:(k,m)=>cpPresentacionUI({linea:k,marca:m.marca,presentacion:m.presentacion}),
       productoActual:f=>cpProductoActual(f),
+      proximoCambio:(k,d)=>{try{const S=window.glacialPlanificacion&&window.glacialPlanificacion.secuencia;const t=S&&S.proximoCambioTexto?S.proximoCambioTexto(k,d.fecha,d.turno):'';return t?'Próximo: '+t.charAt(0).toLowerCase()+t.slice(1):'';}catch(_){return '';}},
       sinProduccion:d=>cpFilasSinProduccion(d),personal:d=>cpPersonalPorLinea(d)
     };
   }

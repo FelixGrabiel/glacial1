@@ -407,6 +407,28 @@ function avCerrarParadas(){
   avanceEstado.paradasModal=null;
   if(!document.querySelector('.av-float-modal.open,.av-detail-modal.open,.av-image-modal.open'))document.body.classList.remove('av-modal-open');
 }
+/* 2.1 C — Cambio de formato previsto por la planificación (66b) que aún no está registrado como parada de esta línea y turno. */
+function avCambiosPorRegistrar(m){
+  try{
+    const S=window.glacialPlanificacion&&window.glacialPlanificacion.secuencia;
+    if(!S||typeof S.cambiosPlanificados!=='function'||!m)return [];
+    const plan=S.cambiosPlanificados(m.linea,m.fecha,m.turno);
+    if(!plan.length)return [];
+    const yaHay=(m.filas||[]).filter(p=>!p.eliminarSolicitado&&/cambio/i.test(String(p.descripcion||''))).length;
+    return plan.slice(yaHay);                         // los primeros ya registrados no se vuelven a proponer
+  }catch(_){return [];}
+}
+function avParadaCambioPlanificado(i){
+  const m=avanceEstado.paradasModal;if(!m||m.guardando)return;
+  const c=avCambiosPorRegistrar(m)[i];if(!c)return;
+  m.filas.push({id:avIdParadaNueva(),descripcion:c.tipo==='marca'?'Cambio de marca':c.tipo==='marca y formato'?'Cambio de marca y formato':'Cambio de formato',minutos:c.minutos,tipo:'PROGRAMADA',tipoOriginal:'',causa:'',origen:'AVANCE',nueva:true});
+  avRenderParadasModal();
+}
+function avCambioPlanificadoHtml(m,puedeEditar){
+  const l=avCambiosPorRegistrar(m);
+  if(!l.length)return '';
+  return `<div class="av-paradas-note"><b>El plan prevé cambio de producto en esta línea:</b><ul style="margin:6px 0 0 16px;padding:0">${l.map((c,i)=>`<li>${avEsc(c.rotulo)} · ${avFmt(c.minutos)} min planificados ${puedeEditar?`<button type="button" class="btn btn-ghost btn-sm" onclick="avParadaCambioPlanificado(${i})" ${m.guardando?'disabled':''}>Agregar como parada programada</button>`:''}</li>`).join('')}</ul><small>Se agrega con los minutos del plan: ajústalos a los minutos reales antes de guardar.</small></div>`;
+}
 function avParadaAgregarFila(){
   const m=avanceEstado.paradasModal;if(!m||m.guardando)return;
   m.filas.push({id:avIdParadaNueva(),descripcion:'',minutos:0,tipo:'',tipoOriginal:'',causa:'',origen:'AVANCE',nueva:true});
@@ -588,6 +610,7 @@ function avRenderParadasModal(){
   <div class="av-paradas-body"><datalist id="av-paradas-catalogo">${opciones}</datalist>
   <div class="av-paradas-note">Selecciona primero si la parada es <b>Programada</b> o <b>No programada</b>. Las paradas de <b>Nuevo registro</b> y <b>Avance/Cierre</b> se muestran juntas y no se copian a todas las marcas.</div>
   ${avParadasBotonHtml(m)}
+  ${avCambioPlanificadoHtml(m,puedeEditar)}
   ${!puedeEditar?`<div class="av-paradas-note"><b>Modo consulta:</b> el turno está cerrado o tu usuario no tiene permiso de edición.</div>`:''}
   ${window.glacialCorreccionParadas&&window.glacialCorreccionParadas.puede()?`<div class="av-paradas-note"><button type="button" class="btn btn-ghost" onclick="glacialCorreccionParadas.abrirAvance()" ${m.guardando?'disabled':''}>Corregir asignación</button> Pasa paradas ya registradas a otra línea (con motivo y constancia).</div>`:''}
   ${m.error?`<div class="av-paradas-error">${avEsc(m.error)}</div>`:''}

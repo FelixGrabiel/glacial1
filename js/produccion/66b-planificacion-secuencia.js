@@ -258,6 +258,39 @@
     return (cm&&cf?'Cambio de marca y formato':cm?'Cambio de marca':'Cambio de formato')+': '+nom(a)+' → '+nom(b);
   };
   S.rotuloCambio=rotuloCambio;
+  /* Cambios entre productos que el plan de la línea prevé en ese bloque, con sus minutos planificados: [{rotulo,tipo,minutos}].
+     El Registro los propone como parada programada «Cambio de formato» (el supervisor confirma los minutos reales). Sin minutos configurados no se propone nada. */
+  /* Próximo cambio de la línea que todavía no empezó (según el plan): «Cambio de formato a 10 Litros ≈ 09:00 (30 min)». '' si no hay.
+     alProducto (opcional {marca,presentacion}): solo el cambio que llega a ese producto. */
+  S.proximoCambioTexto=function(linea,fecha,turno,alProducto){
+    const filas=S.filasDe(linea,fecha,turno);
+    if(filas.length<2)return '';
+    const e=S.estimar(linea,fecha,turno,filas),ahora=ahoraMs();
+    for(let i=1;i<filas.length;i++){
+      const a=filas[i-1],b=filas[i],t=e.tramos[i],ant=e.tramos[i-1];
+      if(!a.marca||!b.marca||claveP(a.marca,a.presentacion)===claveP(b.marca,b.presentacion))continue;
+      if(alProducto&&claveP(alProducto.marca,alProducto.presentacion)!==claveP(b.marca,b.presentacion))continue;
+      if(!t||!ant||ant.finOff===null||ant.finOff===undefined||t.cambioAntesMin===null||t.cambioAntesMin===undefined||!(Number(t.cambioAntesMin)>0))continue;
+      if(t.estado==='REAL'||(e.bloque.inicioMs+ant.finOff*60000)<ahora)continue;
+      const cm=norm(a.marca)!==norm(b.marca),cf=norm(a.presentacion)!==norm(b.presentacion);
+      const dest=cm?(b.marca+(cf?' '+NS.etiquetaPresentacion(linea,b.marca,b.presentacion):'')):NS.etiquetaPresentacion(linea,b.marca,b.presentacion);
+      return (cm&&cf?'Cambio de marca y formato':cm?'Cambio de marca':'Cambio de formato')+' a '+dest+' ≈ '+S.hora(e.bloque,ant.finOff)+' ('+Number(t.cambioAntesMin)+' min)';
+    }
+    return '';
+  };
+  S.cambiosPlanificados=function(linea,fecha,turno){
+    const filas=S.filasDe(linea,fecha,turno);
+    if(filas.length<2)return [];
+    const e=S.estimar(linea,fecha,turno,filas),out=[];
+    e.tramos.forEach((t,i)=>{
+      const a=filas[i-1],b=filas[i];
+      if(i===0||!a||!b||!a.marca||!b.marca||claveP(a.marca,a.presentacion)===claveP(b.marca,b.presentacion))return;
+      if(t.cambioAntesMin===null||t.cambioAntesMin===undefined||!(Number(t.cambioAntesMin)>0))return;
+      const cm=norm(a.marca)!==norm(b.marca),cf=norm(a.presentacion)!==norm(b.presentacion);
+      out.push({rotulo:rotuloCambio(linea,a,b),tipo:cm&&cf?'marca y formato':cm?'marca':'formato',minutos:Number(t.cambioAntesMin)});
+    });
+    return out;
+  };
   const minutosCambio=t=>{
     if(t.cambioAntesMin===null||t.cambioAntesMin===undefined)return t.cambioFaltante?'falta configurar ('+t.cambioFaltante+')':'—';
     return t.cambioAntesMin+' min'+(t.cambioAjuste?' (ajuste del plan)':t.cambioInicial?' (valor inicial)':'');
