@@ -402,6 +402,9 @@
         categoria:m.categoria,insumo:m.insumo,unidad:m.unidad,cantidad:N.red(num(m.cantidad),4),causa:m.causa,etapa:m.etapa||'',lote:m.lote||'',
         evidencia:m.evidencia||'',estado:'PENDIENTE',validadoPor:'',validadoEn:null,observaciones:String(m.observaciones||'').trim(),origen:'ASISTENTE',
         historial:[{estado:'PENDIENTE',por:u.nombre,uid:u.uid,en:ahora()}],version:1,creadoPor:u.nombre,creadoUid:u.uid,...autor()};
+      // Merma pesada y convertida a UND (Asistente › Conversiones): constancia del peso y de la conversión usada.
+      if(m.unidadIngresada==='kg'&&Number(m.cantidadIngresada)>0){d.cantidadIngresada=N.red(num(m.cantidadIngresada),4);d.unidadIngresada='kg';
+        d.conversion=JSON.parse(JSON.stringify(m.conversion||null));}
       tx.set(ref,d);auditar(tx,'apMermas',id,'CREAR',null,d);
     });
     return id;

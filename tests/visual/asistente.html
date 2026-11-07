@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="../../css/styles.css">
 <style>body{background:#f3f6f8;margin:0;padding:12px}.aviso-prueba{font:700 13px system-ui;color:#991B1B;margin:0 0 8px}</style>
 </head><body>
-<p class="aviso-prueba">Datos de PRUEBA (no reales) · 14/10/2026 Mañana + Intermedio · ?tab=resumen|seguimiento|insumos|consumo|merma|historial · ?sub=existencias|factores|requerimientos|solicitudes · ?rol=asistente|jefe|almacen|gerente</p>
+<p class="aviso-prueba">Datos de PRUEBA (no reales) · 14/10/2026 Mañana + Intermedio · ?tab=resumen|seguimiento|insumos|consumo|merma|conversiones|historial · ?sub=existencias|factores|requerimientos|solicitudes · ?rol=asistente|jefe|almacen|gerente</p>
 <div id="main"></div><div id="modal-root"></div>
 <script>
 /* Escenario aislado, sin Firebase real: B7L produce tres marcas (Aro, Cuisine, Scala 7 L y Scala 2.5 L), PET1 Scala, PET2 Fontlife, CAJAS 20L y B20L sin
@@ -11,7 +11,7 @@
 var AHORA=new Date(2026,9,14,16,50).getTime(),F='2026-10-14';
 window.tareoAhoraServidor=function(){return AHORA;};
 var ROL=(location.search.match(/rol=(\w+)/)||[])[1]||'asistente';
-var ROLES={asistente:{rol:'Asistente de Producción',permisos:[]},jefe:{rol:'Jefe de Producción',permisos:[]},almacen:{rol:'Personalizado',permisos:['moduloAlmacen']},gerente:{rol:'Gerente General',permisos:[]}};
+var ROLES={admin:{rol:'Administrador',permisos:[]},asistente:{rol:'Asistente de Producción',permisos:[]},jefe:{rol:'Jefe de Producción',permisos:[]},almacen:{rol:'Personalizado',permisos:['moduloAlmacen']},gerente:{rol:'Gerente General',permisos:[]}};
 var state={user:Object.assign({username:'ana',nombre:'Ana (prueba)'},ROLES[ROL]),currentTab:'centro-perfil'};
 var PERMISOS_APP=[];function tienePermiso(){return false;}
 var LINES=[{key:'PET1',name:'PET 1'},{key:'PET2',name:'PET 2'},{key:'B7L',name:'B7L'},{key:'C20L',name:'C20L'},{key:'B20L',name:'B20L'}];
@@ -57,6 +57,11 @@ function renderMain(){}function renderSidebar(){}function ajustarVistaSegunPermi
 <script src="../../js/asistente/71-asistente-datos.js"></script>
 <script src="../../js/asistente/72-asistente-pantalla.js"></script>
 <script src="../../js/asistente/73-reporte-general.js"></script>
+<script>/* Tablas de merma reales de 01-config.js (sin cargar el archivo entero, que declara db). */
+(function(){var x=new XMLHttpRequest();x.open('GET','../../js/nucleo/01-config.js',false);x.send();var t=x.responseText;
+['MERMA_DIVISORES_POR_LINEA','MERMA_CONVERSION_FISICA_POR_LINEA'].forEach(function(n){var m=t.match(new RegExp('const '+n+'\\s*=\\s*(\\{[\\s\\S]*?\\n\\};)'));window[n]=eval('('+m[1].replace(/;$/,'')+')');});
+MERMA_DIVISORES_POR_LINEA.PET2=MERMA_DIVISORES_POR_LINEA.PET1;})();</script>
+<script src="../../js/asistente/95-conversiones.js"></script>
 <script>
 var TAB=(location.search.match(/tab=(\w+)/)||[])[1],SUB=(location.search.match(/sub=(\w+)/)||[])[1];
 goAsistente(TAB,SUB);

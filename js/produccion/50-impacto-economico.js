@@ -110,16 +110,20 @@
       const actividad=p.producido>0||p.npMin>0||p.programado>0||p.planMin>0;
       /* mermas: cada componente × su costo unitario vigente (independiente de la velocidad y del valor del producto) */
       Object.keys(p.mermas||{}).forEach(c=>{
-        const q=c==='Polietileno'?num(p.mermas[c].peso):num(p.mermas[c].unidades);
+        /* Por peso: el Polietileno (siempre) y los ítems cuya conversión solo da kg (Asistente › Conversiones, p. ej. Polietileno 54 cm de C20L). */
+        const C=window.glacialConversiones;
+        let kg=c==='Polietileno';
+        if(!kg&&C&&typeof C.mermaPorPeso==='function'){try{kg=!!C.mermaPorPeso(p.linea,c,p.fecha);}catch(_){kg=false;}}
+        const q=kg?num(p.mermas[c].peso):num(p.mermas[c].unidades);
         if(!(q>0))return;
         const co=prov.costoDe(p.linea,c,p.fecha);
         let s=null;
         if(!co)faltan.costo.set(p.linea+'|'+c,{linea:p.linea,comp:c,etiqueta:A().nombreLinea(p.linea)+' · '+c});
         else{
           s=q*co.valor;T.mermaS+=s;
-          supuestos.set('c|'+p.linea+'|'+c+'|'+co.desde,{tipo:'Costo de insumo',etiqueta:A().nombreLinea(p.linea)+' · '+c,valor:co.valor,unidad:'S/ por '+(c==='Polietileno'?'kg':'unid.'),desde:co.desde});
+          supuestos.set('c|'+p.linea+'|'+c+'|'+co.desde,{tipo:'Costo de insumo',etiqueta:A().nombreLinea(p.linea)+' · '+c,valor:co.valor,unidad:'S/ por '+(kg?'kg':'unid.'),desde:co.desde});
         }
-        fila(p,'M',{causa:'Merma: '+c,u:c==='Polietileno'?0:q,s,falta:co?null:'costo',detalleMerma:c==='Polietileno'?q+' kg':''});
+        fila(p,'M',{causa:'Merma: '+c,u:kg?0:q,s,falta:co?null:'costo',detalleMerma:kg?q+' kg':''});
       });
       if(!actividad)return;
       const m=prov.margenDe(p);

@@ -100,13 +100,25 @@
 
   const ETQ_ESTADO={ENTREGADA_LINEA:'Entregada a línea',EN_USO:'En uso'};
   const kg=n=>(Math.round(Number(n||0)*1000)/1000).toLocaleString('es-PE',{maximumFractionDigits:3})+' kg';
+  /* UND estimadas por peso con la conversión vigente de la línea (Asistente › Conversiones). Solo si hay UNA conversión para esa
+     categoría en la línea (p. ej. tapas de B7L); si hay dos con distinto peso o ninguna, no se estima. Es una referencia: el peso de la
+     caja/bobina puede incluir el empaque. */
+  function estimadoUnd(categoria,kgv){
+    const C=window.glacialConversiones;if(!C||typeof C.opcionesKg!=='function'||!draft)return '';
+    try{const ops=C.opcionesKg(draft.linea,categoria,draft.fecha);if(ops.length!==1)return '';
+      const u=C.kgAUnidades(ops[0].config,kgv);return u>0?'≈ '+u.toLocaleString('es-PE')+' UND':'';}catch(_){return '';}
+  }
+  window.loteUnidadesEstimadas=(unidadId,kgv)=>{
+    const u=cache.unidades.find(x=>x.id===unidadId);const lote=u&&cache.lotes.find(l=>l.id===u.loteId);
+    return lote?estimadoUnd(lote.categoria,kgv):'';
+  };
   /* Unidades del lote que están en la línea, con sus botones: «Marcar en uso» y «Registrar peso final» (las acciones las define 93-lotes-uso-cuadro.js). */
   function unidadesHtml(i,loteId,cerrado){
     const acc=typeof window.loteUsoMarcar==='function';
     const us=cache.unidades.filter(u=>u.loteId===loteId&&u.linea===draft.linea&&ESTADOS_EN_LINEA.includes(u.estado)).sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'es',{numeric:true}));
     if(!us.length)return '';
     const lote=cache.lotes.find(l=>l.id===loteId),T=raiz.glacialTrazabilidadNucleo,uf=T&&T.unidadFisica?T.unidadFisica(lote&&lote.categoria):{titulo:'Unidad'};
-    return '<div class="lc-uni">'+us.map(u=>'<div class="lc-u"><span><b>'+esc(uf.titulo)+' '+esc(u.numero)+'</b> · '+esc(ETQ_ESTADO[u.estado]||u.estado)+' · '+esc(kg(u.pesoActual))+'</span>'+
+    return '<div class="lc-uni">'+us.map(u=>'<div class="lc-u"><span><b>'+esc(uf.titulo)+' '+esc(u.numero)+'</b> · '+esc(ETQ_ESTADO[u.estado]||u.estado)+' · '+esc(kg(u.pesoActual))+(estimadoUnd(lote&&lote.categoria,u.pesoActual)?' <small style="color:#5a6b7b">('+esc(estimadoUnd(lote&&lote.categoria,u.pesoActual))+')</small>':'')+'</span>'+
       (acc&&!cerrado?(u.estado==='ENTREGADA_LINEA'?'<button type="button" class="btn btn-ghost btn-sm" onclick="loteUsoMarcar('+i+',\''+esc(u.id)+'\')">Marcar en uso</button>':'<button type="button" class="btn btn-ghost btn-sm" onclick="loteUsoCerrar('+i+',\''+esc(u.id)+'\')">Registrar peso final</button>'):'')+'</div>').join('')+'</div>';
   }
 

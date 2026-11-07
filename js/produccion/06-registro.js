@@ -6929,9 +6929,10 @@ function removeArrItemCuadro(
    Única función que sabe CÓMO convertir el peso ingresado
    (en kg) a unidades de merma, para cualquier línea y
    componente. Los números de conversión (divisores) NO
-   están aquí — viven en MERMA_DIVISORES_POR_LINEA
-   (01-config.js), que es el único lugar que hay que tocar
-   si cambia el peso unitario de un componente.
+   están aquí — se eligen en Asistente › Conversiones por la
+   fecha del reporte (mermaDivisor / mermaConversionFisica en
+   01-config.js); sin cambios guardados se usan los valores de
+   MERMA_DIVISORES_POR_LINEA, como siempre.
 
    obtenerValoresMermaCuadro() y obtenerValoresMerma() son
    apenas dos envoltorios que solo resuelven de dónde sale
@@ -6956,13 +6957,18 @@ function calcularMermaFisica(r, cfg){
   }
   return { peso: valido(r.pesoIngresadoKg) * cfg.factor, unidades: 0 };
 }
+/* Fecha del reporte en edición: la conversión vigente se elige por esa fecha (Asistente › Conversiones). */
+function fechaMermaRegistro(){
+  return (typeof draft !== 'undefined' && draft && draft.fecha) || '';
+}
 function calcularValoresMerma(
   r,
   linea,
-  gramajePreforma
+  gramajePreforma,
+  fecha
 ){
   const fisica = typeof mermaConversionFisica === 'function'
-    ? mermaConversionFisica(linea, r.item)
+    ? mermaConversionFisica(linea, r.item, fecha)
     : null;
   if(fisica){
     return calcularMermaFisica(r, fisica);
@@ -6977,7 +6983,9 @@ function calcularValoresMerma(
     );
 
   const config =
-    (MERMA_DIVISORES_POR_LINEA[linea] || {})[r.item];
+    typeof mermaDivisor === 'function'
+      ? mermaDivisor(linea, r.item, fecha)
+      : (MERMA_DIVISORES_POR_LINEA[linea] || {})[r.item];
 
 
   /* =====================================================
@@ -7104,7 +7112,8 @@ function obtenerValoresMermaCuadro(
   return calcularValoresMerma(
     r,
     linea,
-    cuadro?.gramajePreforma
+    cuadro?.gramajePreforma,
+    typeof fechaMermaRegistro === 'function' ? fechaMermaRegistro() : ''
   );
 
 }
@@ -7169,7 +7178,7 @@ function mermasTableC20L(rows, produccionEfectiva, linea, llamada, q, conScroll)
   const efectiva = num(produccionEfectiva) || 0;
   let totalKg = 0;
   const filas = (rows || []).map((r,i) => {
-    const cfg = mermaConversionFisica(linea, r.item);
+    const cfg = mermaConversionFisica(linea, r.item, (typeof fechaMermaRegistro === 'function' ? fechaMermaRegistro() : ''));
     const v = obtenerValoresMermaCuadro(r, linea, q);
     totalKg += v.peso;
     const ro = 'readonly tabindex="-1" style="width:100%;box-sizing:border-box;background:#f1f3f5;font-weight:700;cursor:not-allowed;text-align:center"';
@@ -7460,7 +7469,7 @@ function mermasTableCuadro(
 
 /* C20L: cada componente solo permite su dato de entrada (UND o kg ingresados); el peso calculado nunca se edita. */
 function mermaCampoEditableC20L(item, field){
-  const cfg = mermaConversionFisica('C20L', item);
+  const cfg = mermaConversionFisica('C20L', item, (typeof fechaMermaRegistro === 'function' ? fechaMermaRegistro() : ''));
   if(!cfg) return field === 'unidades';
   return field === (cfg.entrada === 'peso' ? 'pesoIngresadoKg' : 'unidades');
 }
@@ -7815,7 +7824,8 @@ function obtenerValoresMerma(
   return calcularValoresMerma(
     r,
     linea,
-    draft?.gramajePreforma
+    draft?.gramajePreforma,
+    typeof fechaMermaRegistro === 'function' ? fechaMermaRegistro() : ''
   );
 
 }

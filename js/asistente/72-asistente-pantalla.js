@@ -56,7 +56,7 @@
   };
   const ico=(n,cls)=>`<svg class="ap-ico ${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||P.info}</svg>`;
 
-  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['lotes','Lotes','cajas'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['historial','Historial','reloj']];
+  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['lotes','Lotes','cajas'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['conversiones','Conversiones','lista'],['historial','Historial','reloj']];
   const SUBINSUMOS=[['existencias','Existencias en Producción'],['factores','Factores'],['requerimientos','Requerimientos'],['solicitudes','Solicitudes'],['prevision','Previsión'],['desviacion','Desviación de consumo']];
   const ESTADO_TXT={EN_PRODUCCION:['En curso','curso'],PAUSA:['En pausa','pausa'],DETENIDA:['Detenida','rojo'],LISTA:['Programada','prog'],PENDIENTE:['Programada','prog'],
     FINALIZADA:['Finalizada','verde'],CANCELADA:['Cancelada','gris']};
@@ -412,6 +412,14 @@
     return `<div class="ii">${P.estilos()}${UI.html()}</div>`;
   }
 
+  /* =========================================================== CONVERSIONES (cómo se convierte cada merma; lógica en 95-conversiones.js) */
+  function tabConversiones(){
+    const UI=window.apConversionesUI;
+    if(!UI)return `<section class="ap-card"><div class="ap-msg ap-msg-info">${ico('info')}<span>Las conversiones no están disponibles en esta versión.</span></div></section>`;
+    UI.usar({pintar:()=>pintar(),activo:()=>typeof state!=='undefined'&&state.currentTab==='asistente'&&AP.tab==='conversiones'});
+    return UI.html();
+  }
+
   /* =========================================================== INSUMOS */
   function tabInsumos(ctx){
     const ed=puede('asistenteProduccion');
@@ -743,17 +751,17 @@
     const obs=D.cache.insumos.map(i=>({i,s:N.saldoInsumo(D.cache.movimientos,i.codigo)})).filter(x=>x.s.observado>0);
     const EST={PENDIENTE:['Pendiente','gris'],VALIDADA:['Validada','verde'],RECHAZADA:['Rechazada','rojo']};
     const filas=m.map(x=>`<tr><td data-label="Línea"><b>${esc(nombreLinea(x.linea))}</b></td><td data-label="Insumo">${x.categoria==='PRODUCTO'?'Producto terminado':esc(insumoDe(x.insumo).nombre)}<small class="ap-mut ap-blk">${esc(x.marca)} ${esc(presUI({linea:x.linea,marca:x.marca,presentacion:x.presentacion}))}</small></td>
-      <td data-label="Cantidad" class="ap-num">${fmt(x.cantidad)} ${esc(x.unidad)}</td><td data-label="Motivo">${esc(x.causa)}${x.observaciones?`<small class="ap-mut ap-blk">${esc(x.observaciones)}</small>`:''}</td>
+      <td data-label="Cantidad" class="ap-num">${fmt(x.cantidad)} ${esc(x.unidad)}${x.unidadIngresada==='kg'?`<small class="ap-mut ap-blk">pesado: ${fmt(x.cantidadIngresada)} kg${x.conversion&&x.conversion.texto?' · '+esc(x.conversion.texto):''}</small>`:''}</td><td data-label="Motivo">${esc(x.causa)}${x.observaciones?`<small class="ap-mut ap-blk">${esc(x.observaciones)}</small>`:''}</td>
       <td data-label="Estado">${pill(EST[x.estado][0],EST[x.estado][1])}${x.validadoPor?`<small class="ap-mut ap-blk">${esc(x.validadoPor)}</small>`:''}
         ${val&&x.estado==='PENDIENTE'?`<span class="ap-acc-in"><button type="button" class="ap-btn ap-btn-s" onclick="apValidarMerma('${esc(x.id)}','VALIDADA',${num(x.version)})">Validar</button><button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apValidarMerma('${esc(x.id)}','RECHAZADA',${num(x.version)})">Rechazar</button></span>`:''}</td></tr>`).join('');
     const lineas=[...new Set(ctx.cuadros.map(c=>c.linea))];
     if(!lineas.includes(AP.mermaLinea))AP.mermaLinea=lineas[0]||'';
     const insIni=D.cache.insumos.filter(i=>i.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre))[0];
     const form=ed?tarjeta('Nueva merma',`<div class="ap-form ap-form-2">${campo('Línea',`<select id="ap-m-linea" onchange="AP_set('mermaLinea',this.value)">${lineas.map(l=>`<option value="${l}" ${l===AP.mermaLinea?'selected':''}>${esc(nombreLinea(l))}</option>`).join('')}</select>`)}
-        ${campo('Producto (orden)',`<select id="ap-m-cuadro">${ctx.cuadros.filter(c=>c.linea===AP.mermaLinea).map(c=>`<option value="${esc(c.clave)}">${esc(c.codigo+' · '+c.marca+' '+presUI(c))}</option>`).join('')}</select>`)}
+        ${campo('Producto (orden)',`<select id="ap-m-cuadro" onchange="apMermaConv()">${ctx.cuadros.filter(c=>c.linea===AP.mermaLinea).map(c=>`<option value="${esc(c.clave)}">${esc(c.codigo+' · '+c.marca+' '+presUI(c))}</option>`).join('')}</select>`)}
         ${campo('Tipo','<select id="ap-m-cat" onchange="apMermaCat()"><option value="MATERIAL">Material o insumo</option><option value="PRODUCTO">Producto terminado</option></select>')}
         ${campo('Insumo',`<select id="ap-m-insumo" onchange="apMermaUnidad()">${opcionesInsumos(insIni&&insIni.codigo)}</select>`,'ap-m-mat')}
-        ${campo('Cantidad',`<span class="ap-con-unidad"><input id="ap-m-cant" type="number" min="0" step="any"><b id="ap-m-und">${esc(insIni?insIni.unidad:'')}</b></span>`)}
+        ${campo('Cantidad',`<span class="ap-con-unidad"><input id="ap-m-cant" type="number" min="0" step="any" oninput="apMermaEq()"><b id="ap-m-und">${esc(insIni?insIni.unidad:'')}</b></span><span id="ap-m-convbox">${convMermaHtml((ctx.cuadros.find(c=>c.linea===AP.mermaLinea)||{}).linea,insIni)}</span>`)}
         ${campo('Motivo',`<select id="ap-m-causa">${D.causasMerma().map(c=>`<option>${esc(c)}</option>`).join('')}</select>`)}
         ${campo('Etapa',`<select id="ap-m-etapa"><option value="">—</option>${D.etapasMerma().map(c=>`<option>${esc(c)}</option>`).join('')}</select>`)}${campo('Lote afectado','<input id="ap-m-lote" maxlength="40">')}</div>
         ${campo('Descripción','<textarea id="ap-m-obs" rows="2" maxlength="300" placeholder="Material descartado durante el ajuste"></textarea>','ap-ancho')}
@@ -788,14 +796,49 @@
     ejecutar(()=>D.guardarParametrosMerma({causas:lista('ap-cm-causas'),etapas:lista('ap-cm-etapas')},p?p.version:0),'Causas y etapas de merma guardadas.');
   };
   window.apMermaCat=()=>{const p=valor('ap-m-cat')==='PRODUCTO';document.querySelectorAll('.ap-m-mat').forEach(e=>{e.hidden=p;});
-    const und=document.getElementById('ap-m-und');if(und){const ctx=contexto();const c=ctx.cuadros.find(x=>x.clave===valor('ap-m-cuadro'));und.textContent=p?(c?N.lineaInfo(c.linea).unidad:'UND'):insumoDe(valor('ap-m-insumo')).unidad;}};
-  window.apMermaUnidad=()=>{const und=document.getElementById('ap-m-und');if(und)und.textContent=insumoDe(valor('ap-m-insumo')).unidad;};
+    const und=document.getElementById('ap-m-und');if(und){const ctx=contexto();const c=ctx.cuadros.find(x=>x.clave===valor('ap-m-cuadro'));und.textContent=p?(c?N.lineaInfo(c.linea).unidad:'UND'):insumoDe(valor('ap-m-insumo')).unidad;}window.apMermaConv();};
+  window.apMermaUnidad=()=>{const und=document.getElementById('ap-m-und');if(und)und.textContent=insumoDe(valor('ap-m-insumo')).unidad;window.apMermaConv();};
+  /* Merma pesada (Asistente › Conversiones): tapas, etiquetas, asas… en UND se pueden ingresar en kg; se guarda en UND con la conversión
+     vigente de la línea para la fecha del Asistente, y queda constancia del peso y de la conversión usada. */
+  function opcionesConvMerma(linea,ins){
+    const C=window.glacialConversiones;
+    if(!C||!C.opcionesKg||!linea||!ins||ins.unidad!=='UND')return [];
+    try{return C.opcionesKg(linea,ins.tipo,AP.fecha);}catch(_){return [];}
+  }
+  function convMermaHtml(linea,ins){
+    const ops=opcionesConvMerma(linea,ins);if(!ops.length)return '';
+    return `<label class="ap-mut ap-blk" style="margin-top:6px">¿Se pesó? <select id="ap-m-en" onchange="apMermaEq()"><option value="">No: cantidad en UND</option><option value="kg">Sí: ingresar en kg</option></select></label>
+      ${ops.length>1?`<select id="ap-m-conv" onchange="apMermaEq()" aria-label="Conversión" style="margin-top:4px">${ops.map((o,k)=>`<option value="${k}">${esc(o.items.join(' / '))} · ${esc(o.texto)}</option>`).join('')}</select>`:''}
+      <small id="ap-m-eq" class="ap-mut ap-blk"></small>`;
+  }
+  const convMermaElegida=()=>{
+    const ctx=contexto();const c=ctx.cuadros.find(x=>x.clave===valor('ap-m-cuadro'));
+    if(valor('ap-m-cat')==='PRODUCTO'||valor('ap-m-en')!=='kg')return null;
+    const ops=opcionesConvMerma(c&&c.linea,insumoDe(valor('ap-m-insumo')));
+    return ops[Number(valor('ap-m-conv'))||0]||null;
+  };
+  window.apMermaConv=()=>{
+    const box=document.getElementById('ap-m-convbox');if(!box)return;
+    const ctx=contexto();const c=ctx.cuadros.find(x=>x.clave===valor('ap-m-cuadro'));
+    box.innerHTML=valor('ap-m-cat')==='PRODUCTO'?'':convMermaHtml(c&&c.linea,insumoDe(valor('ap-m-insumo')));window.apMermaEq();
+  };
+  window.apMermaEq=()=>{
+    const und=document.getElementById('ap-m-und'),eq=document.getElementById('ap-m-eq');const o=convMermaElegida();
+    if(und&&valor('ap-m-cat')!=='PRODUCTO')und.textContent=o?'kg':insumoDe(valor('ap-m-insumo')).unidad;
+    if(!eq)return;
+    if(!o){eq.textContent='';return;}
+    const kg=valor('ap-m-cant'),u=window.glacialConversiones.kgAUnidades(o.config,kg);
+    eq.textContent=`= ${fmt(u)} UND · ${o.texto}${o.vigenteDesde&&o.vigenteDesde!=='2000-01-01'?' (desde '+o.vigenteDesde.split('-').reverse().join('/')+')':''}`;
+  };
   window.apGuardarMerma=()=>{
     const ctx=contexto();const c=ctx.cuadros.find(x=>x.clave===valor('ap-m-cuadro'));const cat=valor('ap-m-cat');
     const ins=cat==='PRODUCTO'?{codigo:'PRODUCTO',unidad:c?N.lineaInfo(c.linea).unidad:'UND'}:insumoDe(valor('ap-m-insumo'));
     ejecutar(async()=>{
       const m={id:D.nuevoId('mer'),fecha:AP.fecha,bloque:AP.bloque,linea:c?c.linea:'',cuadro:c?c.clave:'',marca:c?c.marca:'',presentacion:c?c.presentacion:'',
         categoria:cat,insumo:ins.codigo,unidad:ins.unidad,cantidad:valor('ap-m-cant'),causa:valor('ap-m-causa'),etapa:valor('ap-m-etapa'),lote:valor('ap-m-lote')||(c&&c.reporte?c.reporte.lote:''),observaciones:valor('ap-m-obs')};
+      const o=cat==='PRODUCTO'?null:convMermaElegida();
+      if(o){const kg=Number(m.cantidad);m.cantidadIngresada=kg;m.unidadIngresada='kg';m.cantidad=window.glacialConversiones.kgAUnidades(o.config,kg);
+        m.conversion={items:o.items,texto:o.texto,vigenteDesde:o.vigenteDesde,version:o.version};}
       const err=N.validarMerma(m,D.causasMerma());if(err.length){const e=new Error(err.join(' · '));e.codigo='VALIDACION';throw e;}
       m.evidencia=await subirEvidencia('ap-m-evid');
       return D.registrarMerma(m);
@@ -940,7 +983,7 @@
     const tz=window.glacialTrazabilidadDatos;
     if(AP.tab!=='lotes'&&AP.tab!=='evidencias'&&tz)tz.detener();
     const tabs=PESTANAS.filter(([k])=>(k!=='evidencias'&&k!=='lotes')||evVisible).map(([k,t,i])=>`<button type="button" role="tab" class="ap-tab ${AP.tab===k?'ap-tab-act':''}" aria-selected="${AP.tab===k}" onclick="AP_set('tab','${k}')">${ico(i)}<span>${t}</span></button>`).join('');
-    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,lotes:tabLotes,consumo:tabConsumo,merma:tabMerma,historial:tabHistorial}[AP.tab]||tabResumen;
+    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,lotes:tabLotes,consumo:tabConsumo,merma:tabMerma,conversiones:tabConversiones,historial:tabHistorial}[AP.tab]||tabResumen;
     const modoVista=!!(window.glacialVista&&window.glacialVista.activo&&window.glacialVista.activo());
     const noche=AP.bloque==='NOCHE';
     const scroll=window.scrollY;
