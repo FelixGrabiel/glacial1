@@ -187,15 +187,20 @@
     if(edit){const v=N.validarAprobacion(d);errores.push(...v.errores);avisos.push(...v.avisos);}
     const v=T.validarParaLote(d,{parametros:p});
     v.errores.forEach(e=>{if(!errores.includes(e))errores.push(e);});v.avisos.forEach(a=>{if(!avisos.includes(a))avisos.push(a);});
-    const datos=v.datos||T.datosDeEvidencia(d),clave=T.claveLote(datos);
-    const directo=Z.cache.lotes.find(l=>l.clave===clave||(Array.isArray(l.clavesUnidas)&&l.clavesUnidas.includes(clave)))||null;
+    const datos=v.datos||T.datosDeEvidencia(d);
+    // Banco de proveedores (96): la llave usa el nombre del banco; también se busca el lote por el nombre leído (lotes creados antes).
+    const PB=window.glacialProveedores,banco=PB&&PB.listo&&PB.listo()?PB.resolver(datos.proveedor):null;
+    if(banco&&banco.tipo==='CLIENTE')errores.unshift('«'+datos.proveedor+'» es el cliente ('+banco.nombre+'), no el proveedor. Corrige el proveedor en la evidencia.');
+    const clave=T.claveLote(banco?Object.assign({},datos,{proveedor:banco.nombre}):datos),claveLeida=T.claveLote(datos);
+    const tiene=(l,k)=>l.clave===k||(Array.isArray(l.clavesUnidas)&&l.clavesUnidas.includes(k));
+    const directo=Z.cache.lotes.find(l=>tiene(l,clave))||Z.cache.lotes.find(l=>tiene(l,claveLeida))||null;
     const lote=directo?(Z.porId(T.resolverLoteId(directo.id,Z.cache.lotes))||directo):null;
     const unidadEn=l=>l&&datos.numero?Z.cache.unidades.find(u=>u.loteId===l.id&&T.numeroUnidad(u.numero)===datos.numero)||null:null;
     const unidad=unidadEn(lote);
     if(unidad)errores.unshift('La unidad '+datos.numero+' del lote '+datos.loteProveedor+' ya existe ('+unidad.id+'): es un duplicado y no se crea otra.');
     /* Posible lote repetido: mismo lote del proveedor con el proveedor o el producto escritos distinto. */
     const duplicados=lote?[]:T.posiblesDuplicados(Object.assign({},datos,{clave}),Z.cache.lotes).map(l=>({lote:l,unidad:unidadEn(l)}));
-    return {errores,avisos,datos,lote,unidad,duplicados,leyenda:T.interpretarLeyenda(d.leyenda,p),clave};
+    return {errores,avisos,datos,lote,unidad,duplicados,leyenda:T.interpretarLeyenda(d.leyenda,p),clave,banco};
   }
 
   /* Validación en bloque (06/11/2026): otras fotos sin lote con el MISMO lote del proveedor y la misma categoría. Solo se ofrecen marcadas las que ya
@@ -241,7 +246,7 @@
     abrirModal(d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote',`<p>${que}</p>${dupHtml}${compHtml}
       ${g.errores.length?`<div class="ii-msg ii-msg-error" role="alert"><b>No se puede crear todavía:</b><ul class="ii-lista-sm">${g.errores.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
       ${g.avisos.length?`<ul class="ii-lista-sm">${g.avisos.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
-      <table class="ie-t il-datos"><tbody>${fila('Proveedor',esc(g.datos.proveedor))}${fila('Producto',esc(g.datos.producto))}${fila('Lote del proveedor',esc(g.datos.loteProveedor))}${fila('N.º '+T.unidadFisica(g.datos.categoria).uno,esc(g.datos.numero))}${fila('Contenido (etiqueta)',g.datos.cantidad===null?'':esc(fmtCant(g.datos.cantidad))+' '+esc(g.datos.unidadCantidad||''))}${fila('Foto enviada',(()=>{const f=N.fechaFoto(d);return f.ms?esc(hora(f.ms))+notaOrigen(f.origen):'';})())}${fila('Peso neto',esc(kg(g.datos.pesoNeto)))}${fila('Peso bruto',esc(kg(g.datos.pesoBruto)))}${fila('OI / OC',esc([g.datos.ordenInterna,g.datos.ordenCompra].filter(Boolean).join(' · ')))}</tbody></table>
+      <table class="ie-t il-datos"><tbody>${fila('Proveedor',g.banco&&g.banco.tipo!=='CLIENTE'?`<b>${esc(g.banco.nombre)}</b>${g.banco.nombre!==g.datos.proveedor?` <small class="ii-mut">(leído: ${esc(g.datos.proveedor)})</small>`:''}`:`${esc(g.datos.proveedor)}${window.glacialProveedores&&!g.banco?' <small class="ii-mut">(no está en el banco de proveedores)</small>':''}`)}${fila('Producto',esc(g.datos.producto))}${fila('Lote del proveedor',esc(g.datos.loteProveedor))}${fila('N.º '+T.unidadFisica(g.datos.categoria).uno,esc(g.datos.numero))}${fila('Contenido (etiqueta)',g.datos.cantidad===null?'':esc(fmtCant(g.datos.cantidad))+' '+esc(g.datos.unidadCantidad||''))}${fila('Foto enviada',(()=>{const f=N.fechaFoto(d);return f.ms?esc(hora(f.ms))+notaOrigen(f.origen):'';})())}${fila('Peso neto',esc(kg(g.datos.pesoNeto)))}${fila('Peso bruto',esc(kg(g.datos.pesoBruto)))}${fila('OI / OC',esc([g.datos.ordenInterna,g.datos.ordenCompra].filter(Boolean).join(' · ')))}</tbody></table>
       ${leyenda}${cand}
       <p class="ii-mut">${d.estado==='aprobado_dato'?'Los datos ya estaban aprobados.':'Al confirmar también se aprueban los datos de la evidencia.'} No se registra stock SAP.</p>
       <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="ilCerrar()">Cancelar</button><button type="button" class="ii-btn" id="il-m-ok" onclick="ilCrearOk()" ${ok?'':'disabled'}>${d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote'}</button></div>`);
