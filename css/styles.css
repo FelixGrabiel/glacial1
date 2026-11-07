@@ -5794,3 +5794,7 @@ small{font-size:max(11px,.85em)}
   .historial-produccion-page .hist-v2-rango input{width:100%;font-size:16px}
   .historial-produccion-page .hist-v2-exportar{flex:1 1 100%;min-height:44px}
 }
+
+/* Botón «Ir a Reporte de Hielo» del encabezado (07/11/2026): en el celular solo el ícono. */
+#app-screen .topbar-hielo{margin-right:6px}
+@media(max-width:760px){#app-screen .topbar-hielo .topbar-hielo-txt{display:none}#app-screen .topbar-hielo{padding-left:10px;padding-right:10px}}
