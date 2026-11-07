@@ -2935,6 +2935,24 @@ function instalarEstilosPestanasCuadros(){
     body.con-barra-registro #av-floating-trigger.av-floating-trigger{bottom:calc(92px + env(safe-area-inset-bottom)) !important}
     body.con-barra-registro #tab-content{padding-bottom:110px}
     @media(max-width:560px){.reg-barra .btn{flex:1 1 0}.reg-barra-est{flex-basis:100%}}
+    .reg-plegable>.panel-head{cursor:pointer;gap:10px;flex-wrap:wrap;min-height:48px}
+    .reg-plegable-res{font-size:13px;font-weight:600;color:#5b6b7c;margin-left:auto;margin-right:4px}
+    .reg-plegable-chev{color:#5b6b7c;font-size:14px;transform:none !important}
+    .reg-plegable.reg-cerrado>:not(.panel-head){display:none !important}
+    .reg-plegable>.panel-head:focus-visible{outline:3px solid #14b8c4;outline-offset:2px}
+    .reg-btn-x{min-width:44px;min-height:44px}
+    @media(max-width:640px){
+      .production-card .mermas-cuadro-scroll,.production-card .panel-body,.production-card [style*="overflow"]{overflow:visible !important}
+      table.reg-tarjetas{min-width:0 !important;width:100% !important;border:0}
+      table.reg-tarjetas thead{display:none}
+      table.reg-tarjetas,table.reg-tarjetas tbody,table.reg-tarjetas tr,table.reg-tarjetas td{display:block;width:100%}
+      table.reg-tarjetas tbody tr{border:1px solid #dbe3ea;border-radius:12px;padding:8px 10px;margin:8px 0;background:#fff}
+      table.reg-tarjetas td{border:0 !important;padding:5px 0 !important;text-align:left !important}
+      table.reg-tarjetas td[data-t]::before{content:attr(data-t);display:block;font-size:12px;font-weight:700;color:#5b6b7c;margin-bottom:3px}
+      table.reg-tarjetas td[data-t=""]::before{display:none}
+      table.reg-tarjetas td input,table.reg-tarjetas td select,table.reg-tarjetas td textarea{width:100% !important;min-height:44px;font-size:16px}
+      table.reg-tarjetas tfoot{display:block}
+    }
     .reg-quitar-marca{border:0;background:transparent;color:#b42318;font:inherit;font-size:13px;font-weight:700;cursor:pointer;
       padding:10px 0;min-height:44px}
   `;
@@ -2982,12 +3000,84 @@ function prepararCamposRegistro(){
     if(el.readOnly||el.disabled||el===activo)return;
     if(el.value==='0'||el.value==='0.00'||el.value==='0.0'){el.value='';if(!el.placeholder)el.placeholder='0';}
   });
+  try{plegablesYTarjetasRegistro(raiz);}catch(e){console.warn('GLACIAL · secciones plegables del registro:',e);}
   raiz.querySelector('#reg-barra')?.remove();
   raiz.insertAdjacentHTML('beforeend',barraRegistroHtml());
   pintarEstadoBarraRegistro();
   ubicarBarraRegistro();
   document.body.classList.toggle('con-barra-registro',!!document.getElementById('reg-barra'));
 }
+/* =========================================================
+   CELULAR (punto 4 · parte 3)
+   · Secciones de cada producción (paradas, mermas, lotes, insumos) PLEGABLES con un resumen en el encabezado
+     («2 · 35 min», «3 ítems · 4.1 kg»). En el celular empiezan cerradas; en PC abiertas. Se recuerda lo que abre o cierra cada persona.
+   · Tablas como TARJETAS en el celular (cada dato con su etiqueta), botones ✕ de 44 px y etiqueta accesible en cada campo.
+   ========================================================= */
+const _plegadoRegistro=new Map();
+const SECCIONES_PLEGABLES=[/^paradas programadas/i,/^paradas no programadas/i,/^mermas/i,/^lotes de insumo/i,/^insumos/i,/^personal del turno/i];
+function resumenSeccionRegistro(titulo,q){
+  const t=String(titulo||'').toLowerCase();
+  const fmt=n=>(Math.round(num(n)*10)/10).toLocaleString('es-PE');
+  if(!q&&!/personal/.test(t))return '';
+  if(/^paradas (no )?programadas/.test(t)){
+    const lista=(/no programadas/.test(t)?q.paradasNoProgramadas:q.paradasProgramadas)||[];
+    const con=lista.filter(p=>p&&!p.eliminada&&num(p.tiempoMin)>0);
+    return con.length?con.length+' · '+fmt(con.reduce((a,p)=>a+num(p.tiempoMin),0))+' min':'sin paradas';
+  }
+  if(/^mermas/.test(t)){
+    const m=(q.mermas||[]).filter(x=>x&&(num(x.peso)>0||num(x.unidades)>0));
+    return m.length?m.length+' ítem'+(m.length===1?'':'s')+' · '+fmt(m.reduce((a,x)=>a+num(x.peso),0))+' kg':'sin mermas';
+  }
+  if(/^lotes de insumo/.test(t)){const n=Array.isArray(q.lotesInsumo)?q.lotesInsumo.length:0;return n?n+' marcado'+(n===1?'':'s'):'ninguno marcado';}
+  if(/^insumos/.test(t))return 'calculados';
+  if(/personal/.test(t)){const n=(draft&&draft.personal||[]).filter(p=>String(p&&p.nombre||'').trim()).length;return n?n+' persona'+(n===1?'':'s'):'sin registrar';}
+  return '';
+}
+function plegablesYTarjetasRegistro(raiz){
+  const movil=typeof window!=='undefined'&&window.innerWidth<=700;
+  const clave=(i,t)=>(draft&&(draft.id||'nuevo'))+'|'+i+'|'+t;
+  raiz.querySelectorAll('.panel').forEach(panel=>{
+    const head=panel.querySelector(':scope > .panel-head');if(!head||panel.classList.contains('reg-plegable'))return;
+    const h=head.querySelector('h3,h4');const titulo=String(h&&h.textContent||'').replace(/\s+/g,' ').trim();
+    if(!SECCIONES_PLEGABLES.some(r=>r.test(titulo)))return;
+    const card=panel.closest('.production-card');
+    const i=card?Number(card.dataset.cuadroIndex):-1;
+    const q=i>=0&&draft&&draft.cuadros?draft.cuadros[i]:null;
+    const k=clave(i,titulo.toLowerCase());
+    const abierto=_plegadoRegistro.has(k)?_plegadoRegistro.get(k):!movil;
+    panel.classList.add('reg-plegable');panel.classList.toggle('reg-cerrado',!abierto);
+    const res=document.createElement('span');res.className='reg-plegable-res';res.textContent=resumenSeccionRegistro(titulo,q);
+    const chev=document.createElement('span');chev.className='reg-plegable-chev';chev.setAttribute('aria-hidden','true');chev.textContent=abierto?'▾':'▸';
+    (h||head).after(res);head.appendChild(chev);
+    head.setAttribute('role','button');head.setAttribute('tabindex','0');head.setAttribute('aria-expanded',abierto?'true':'false');
+    const alternar=ev=>{
+      if(ev&&ev.target&&ev.target.closest&&ev.target.closest('button,input,select,a,label'))return;      // «+ Agregar» y demás siguen funcionando
+      const cerrar=!panel.classList.contains('reg-cerrado');
+      panel.classList.toggle('reg-cerrado',cerrar);head.setAttribute('aria-expanded',cerrar?'false':'true');chev.textContent=cerrar?'▸':'▾';_plegadoRegistro.set(k,!cerrar);
+    };
+    head.addEventListener('click',alternar);
+    head.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();alternar();}});
+  });
+  // Tablas → tarjetas en el celular: cada celda lleva el nombre de su columna.
+  raiz.querySelectorAll('.production-card table, .panel table').forEach(tabla=>{
+    const ths=[...tabla.querySelectorAll('thead th')].map(th=>String(th.textContent||'').replace(/\s+/g,' ').trim());
+    if(!ths.length)return;
+    tabla.classList.add('reg-tarjetas');
+    tabla.querySelectorAll('tbody tr').forEach(tr=>{
+      [...tr.children].forEach((td,j)=>{
+        if(ths[j]&&!td.dataset.t)td.dataset.t=ths[j];
+        td.querySelectorAll('input,select,textarea').forEach(el=>{if(!el.getAttribute('aria-label')&&!(el.labels&&el.labels.length)&&ths[j])el.setAttribute('aria-label',ths[j]);});
+      });
+    });
+  });
+  raiz.querySelectorAll('button').forEach(b=>{if(String(b.textContent||'').trim()==='✕')b.classList.add('reg-btn-x');});
+  // Campos con su etiqueta visible al lado (field-sm) pero sin enlace: se les da el nombre accesible.
+  raiz.querySelectorAll('.field-sm').forEach(f=>{
+    const l=f.querySelector('label'),el=f.querySelector('input,select,textarea');
+    if(l&&el&&!el.getAttribute('aria-label')&&!(el.labels&&el.labels.length))el.setAttribute('aria-label',String(l.textContent||'').replace(/\s+/g,' ').trim());
+  });
+}
+
 /* La barra es fija abajo, con el mismo ancho que el contenido (no tapa el menú lateral en PC). */
 function ubicarBarraRegistro(){
   const b=document.getElementById('reg-barra'),c=document.getElementById('tab-content');
@@ -3655,6 +3745,8 @@ function aplicarIrAFaltanteRegistro(texto,sinDesplazar){
     el=document.querySelector('.reg-tabs-cuadros')||document.querySelector('.reporte-cierre-panel');
   }
   if(!el)return null;
+  const plegada=el.closest&&el.closest('.reg-plegable.reg-cerrado');
+  if(plegada){plegada.querySelector(':scope > .panel-head')?.click();}
   try{el.scrollIntoView({behavior:sinDesplazar?'auto':'smooth',block:'center'});}catch(_){el.scrollIntoView();}
   const marcar=el.closest&&(el.closest('.field-sm')||el.closest('.panel'))||el;
   marcar.classList.add('reg-resaltar');setTimeout(()=>marcar.classList.remove('reg-resaltar'),2600);
