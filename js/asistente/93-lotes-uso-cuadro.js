@@ -101,11 +101,15 @@
       '<label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="radio" name="lc-dest" value="CONSUMIDA" checked> Se consumió completa</label>'+
       '<label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="radio" name="lc-dest" value="EN_ALMACEN"> Sobró: devolver a almacén</label>'+
       '<label id="lc-peso-et" style="display:none;font-size:14px;margin:8px 0">Peso que queda (kg)<input id="lc-peso" type="number" min="0" step="any" inputmode="decimal" style="display:block;width:100%;padding:8px;margin-top:3px;border:1px solid #b8c6d2;border-radius:8px;box-sizing:border-box"></label>'+
+      '<div id="lc-peso-und" style="font-size:13px;color:#5a6b7b;min-height:16px"></div>'+
       '<div id="lc-error" role="alert" style="color:#c62828;font-size:13px;min-height:16px"></div>'+
       '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button type="button" class="btn btn-ghost" id="lc-x">Cancelar</button><button type="button" class="btn btn-primary" id="lc-ok">Guardar</button></div></div>';
     document.body.appendChild(f);
     const q=s=>f.querySelector(s);
     f.querySelectorAll('input[name=lc-dest]').forEach(r=>r.addEventListener('change',()=>{q('#lc-peso-et').style.display=q('input[name=lc-dest]:checked').value==='EN_ALMACEN'?'block':'none';}));
+    // UND estimadas por el peso que queda (Asistente › Conversiones), solo como referencia.
+    q('#lc-peso').addEventListener('input',()=>{const t=typeof window.loteUnidadesEstimadas==='function'?window.loteUnidadesEstimadas(unidadId,q('#lc-peso').value):'';
+      q('#lc-peso-und').textContent=t?t+' (estimado por peso, con la conversión vigente)':'';});
     q('#lc-x').onclick=cerrarVentana;
     q('#lc-ok').onclick=async()=>{
       const destino=q('input[name=lc-dest]:checked').value,peso=q('#lc-peso').value,a=actor();

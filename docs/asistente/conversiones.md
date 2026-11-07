@@ -17,5 +17,9 @@
 ## Servidor
 `supabase/migraciones/glacial_44_conversiones_mermas.sql`: permite crear y editar `apParametros/conversiones` con versión +1, historial +1, autor y hora del servidor, y entre 1 y 300 conversiones. Está aplicada en PRUEBAS. En PRODUCCIÓN se aplica con la aprobación del dueño.
 
-## Siguiente etapa
-Usar las conversiones también en el Asistente (requerimientos, consumo, desviación, existencias), en Lotes, en Control de proceso y en el Impacto económico.
+## Parte 2 · dónde más se usan
+- **Asistente › Merma:** una merma de tapas, etiquetas, asas, cajas o bolsas (insumos en UND) se puede ingresar **pesada en kg**. Se guarda en UND con la conversión vigente de la línea para la fecha del Asistente, con la misma fórmula del Registro, y queda constancia del peso y de la conversión usada (`cantidadIngresada`, `unidadIngresada`, `conversion`). Si en una línea hay dos conversiones con distinto peso (por ejemplo Tapa Plana y Sport Cap después de un cambio), se elige cuál.
+- **Lotes:** junto al peso de cada caja o bobina en la línea se muestran las UND estimadas, también al devolverla con el peso que queda. Solo se estima cuando hay una única conversión para esa categoría en la línea. Es una referencia, porque el peso puede incluir el empaque.
+- **Impacto económico:** el costo de la merma se calcula por peso para el Polietileno, como siempre, y para los ítems cuya conversión da kg (Polietileno 54 cm de C20L). Antes ese ítem se valoraba con sus UND, que siempre son 0, y quedaba fuera del costo.
+- **Requerimientos, consumo, desviación y existencias:** usan los **factores de consumo** (cuánto insumo por unidad producida o por paleta), que se definen en **Insumos › Factores**, también con vigencia. La pestaña lo indica.
+- **Control de proceso:** no usa mermas, así que no cambia.

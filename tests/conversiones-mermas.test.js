@@ -100,5 +100,24 @@ ok(/mermaDivisor\(linea, r\.item, fecha\)/.test(r06),'Registro: usa mermaDivisor
 const mg=leer('supabase/migraciones/glacial_44_conversiones_mermas.sql');
 ok(/d = 'conversiones'/.test(mg)&&/fac and autor and ver and hist/.test(mg)&&/position\('glacial_44' in def\) > 0 then return/.test(mg)&&/encontrado % veces/.test(mg),'glacial_44: solo «administrar factores», versión e historial; idempotente y se detiene si no encuentra el punto');
 
+/* ---------- parte 2: Asistente, Lotes, Impacto ---------- */
+const opT=N.opcionesKg(COD,'PET1','tapa','2026-11-07');
+ok(opT.length===1&&opT[0].items.join()==='Tapa Plana,Tapa Sport Cap'&&opT[0].gramos===1.34,'opcionesKg: PET1 tapas → una conversión (Tapa Plana y Sport Cap pesan igual)');
+ok(N.kgAUnidades(opT[0].config,13.4)===10000,'kgAUnidades: 13,4 kg de tapa PET1 → 10 000 UND (misma fórmula del Registro)');
+const r3=N.planCambio(COD,{...p0,lineas:['PET1'],item:'Tapa Sport Cap',valor:1.5});
+ok(N.opcionesKg(r3.conversiones,'PET1','tapa','2026-11-08').length===2&&N.opcionesKg(r3.conversiones,'PET1','tapa','2026-11-07').length===1,'opcionesKg: si Sport Cap cambia, desde su vigencia hay dos opciones (se elige); antes, una');
+ok(N.opcionesKg(COD,'B7L','etiquetas','2026-11-07')[0].gramos===2.9&&N.opcionesKg(COD,'B7L','asas','2026-11-07')[0].gramos===6.6,'opcionesKg: categorías de Lotes (etiquetas, asas) de B7L');
+const opC=N.opcionesKg(COD,'C20L','cajas','2026-11-07');
+ok(opC.length===1&&N.kgAUnidades(opC[0].config,5.6)===10,'opcionesKg: Cajas C20L (1 UND = 560 g) → 5,6 kg = 10 UND');
+ok(!N.opcionesKg(COD,'PET1','polietileno','2026-11-07').length&&!N.opcionesKg(COD,'PET1','preforma','2026-11-07').length,'opcionesKg: polietileno (ya en kg) y preformas (gramaje del cuadro) no se convierten');
+ok(N.mermaPorPeso(COD,'C20L','Polietileno 54 cm','2026-11-07')&&!N.mermaPorPeso(COD,'C20L','Cajas','2026-11-07')&&!N.mermaPorPeso(COD,'PET1','Tapa Plana','2026-11-07'),'mermaPorPeso: solo la merma cuya conversión da kg');
+const p72b=leer('js/asistente/72-asistente-pantalla.js'),d71=leer('js/asistente/71-asistente-datos.js');
+ok(/m\.cantidad=window\.glacialConversiones\.kgAUnidades\(o\.config,kg\)/.test(p72b)&&/unidadIngresada='kg'/.test(p72b)&&/pesado: /.test(p72b),'Asistente › Merma: pesada en kg se guarda en UND y se muestra el peso');
+ok(/d\.cantidadIngresada=/.test(d71)&&/d\.conversion=/.test(d71),'Asistente (datos): guarda el peso ingresado y la conversión usada');
+const i50=leer('js/produccion/50-impacto-economico.js');
+ok(/C\.mermaPorPeso\(p\.linea,c,p\.fecha\)/.test(i50)&&/let kg=c==='Polietileno'/.test(i50),'Impacto económico: se valora por peso el Polietileno y lo que la conversión da en kg');
+const l92=leer('js/asistente/92-lotes-en-cuadro.js'),l93=leer('js/asistente/93-lotes-uso-cuadro.js');
+ok(/window\.loteUnidadesEstimadas=/.test(l92)&&/ops\.length!==1/.test(l92)&&/loteUnidadesEstimadas\(unidadId/.test(l93),'Lotes: UND estimadas solo con una conversión clara, también al devolver con peso');
+
 console.log(fallas?`\n${fallas} falla(s)`:'\nTodo correcto');
 process.exit(fallas?1:0);

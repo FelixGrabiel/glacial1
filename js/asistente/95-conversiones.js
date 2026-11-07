@@ -146,10 +146,40 @@
     const historial={por:p.por||'',uid:p.uid||'',en:p.en||0,item:p.item,lineas,valor,unidad:p.unidad,vigenteDesde:p.vigenteDesde,motivo};
     return {conversiones:[...(lista||[]).map(copia),...nuevas],nuevas,historial};
   }
+  /* Clase de insumo (tipo del Asistente o categoría de Lotes) → ítems de merma del Registro que la representan. */
+  const PATRONES={tapa:/^Tapa/i,tapas:/^Tapa/i,etiqueta:/^Etiqueta/i,etiquetas:/^Etiqueta/i,asa:/^Asa/i,asas:/^Asa/i,cajas:/^Cajas$/i,caja:/^Cajas$/i,bolsas:/^Bolsas/i,bolsa:/^Bolsas/i};
+  /* Conversiones «1 unidad = X g» vigentes en una línea para esa clase (sin repetir el mismo peso). Polietileno y preformas no:
+     el polietileno ya se mide en kg y la preforma depende del gramaje del cuadro. */
+  function opcionesKg(lista,linea,clase,fecha){
+    const re=PATRONES[String(clase||'').toLowerCase()];if(!re)return [];
+    const items=[...new Set((lista||[]).filter(x=>x&&x.linea===linea&&re.test(x.item)).map(x=>x.item))];
+    const out=[];
+    items.forEach(item=>{
+      const e=vigenteEntrada(lista,linea,item,fecha);if(!e)return;
+      const t=tipoDe(e.config);if(t!=='PESO_A_UND'&&t!=='UND_A_PESO')return;
+      if(t==='PESO_A_UND'&&typeof e.config==='object'&&e.config.decimales!==undefined)return;
+      const g=gramosPorUnidad(e.config);
+      const igual=out.find(o=>o.gramos===g);
+      if(igual){igual.items.push(item);return;}
+      out.push({item,items:[item],linea,config:copia(e.config),unidad:e.unidad,gramos:g,texto:texto(e.config,e.unidad),vigenteDesde:e.vigenteDesde,version:Number(e.version)||0});
+    });
+    return out;
+  }
+  /* kg pesados → unidades enteras, con la misma fórmula del Registro (kg × 1000 ÷ g, redondeado). */
+  function kgAUnidades(cfg,kg){
+    const t=tipoDe(cfg),n=Number(kg);if(!(Number.isFinite(n)&&n>=0))return 0;
+    if(t==='PESO_A_UND')return calcular(cfg,n).valor;
+    if(t==='UND_A_PESO')return cfg.factor>0?Math.round(n/cfg.factor):0;
+    return 0;
+  }
+  /* ¿La merma de este ítem se valora por peso (kg)? Sí cuando su conversión solo da kg (p. ej. Polietileno 54 cm de C20L). */
+  function mermaPorPeso(lista,linea,item,fecha){
+    const e=vigenteEntrada(lista,linea,item,fecha);return !!(e&&tipoDe(e.config)==='FACTOR_PESO');
+  }
   /* Variación porcentual del valor (para el aviso antes de guardar). */
   const variacion=(antes,despues)=>Number(antes)>0?((Number(despues)-Number(antes))/Number(antes))*100:null;
 
-  const N={UNIDADES,DESDE_CODIGO,tipoDe,gramosPorUnidad,conValor,valorEditable,texto,comoSeUsa,calcular,desdeCodigo,vigente,vigenteEntrada,versiones,grupos,planCambio,variacion};
+  const N={UNIDADES,DESDE_CODIGO,opcionesKg,kgAUnidades,mermaPorPeso,tipoDe,gramosPorUnidad,conValor,valorEditable,texto,comoSeUsa,calcular,desdeCodigo,vigente,vigenteEntrada,versiones,grupos,planCambio,variacion};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.GlacialConversionesNucleo=N;
@@ -187,6 +217,10 @@
       if(!(cache.listo&&!cache.error&&cache.doc&&Array.isArray(cache.doc.conversiones)))return undefined;
       return vigente(cache.doc.conversiones,linea,item,esFecha(fecha)?fecha:hoy());
     },
+    /* Para el Asistente, Lotes e Impacto: con la lista en uso (la guardada o la del código) y la fecha indicada. */
+    opcionesKg:(linea,clase,fecha)=>opcionesKg(lista(),linea,clase,esFecha(fecha)?fecha:hoy()),
+    kgAUnidades,
+    mermaPorPeso:(linea,item,fecha)=>mermaPorPeso(lista(),linea,item,esFecha(fecha)?fecha:hoy()),
     lista,escuchar,detener,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}
   };
   window.glacialConversionesEscuchas=escuchar;
@@ -289,7 +323,12 @@
         <div class="ap-tw"><table class="ap-t"><thead><tr><th>Línea</th><th>Equivalencia</th><th>Cómo se usa</th><th>Vigente desde</th><th>Origen</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>
         ${calc}</section>
         <section class="ap-card"><h3 class="ap-h3" style="margin-top:0">Dónde se usa</h3>
-        <p class="cv-nota" style="font-size:13px">Registro de producción › Mermas (al ingresar o corregir la merma de un reporte con fecha desde la vigencia). El resultado queda guardado en el reporte y de ahí lo leen el Historial, el Reporte General, Inicio y los gráficos. Los reportes de fechas anteriores no cambian.</p></section>
+        <ul class="cv-nota" style="font-size:13px;margin:0;padding-left:18px">
+          <li><b>Registro de producción › Mermas:</b> al ingresar o corregir la merma de un reporte con fecha desde la vigencia. El resultado queda guardado en el reporte y de ahí lo leen el Historial, el Reporte General, Inicio y los gráficos.</li>
+          <li><b>Asistente › Merma:</b> una merma de tapas, etiquetas, asas, cajas o bolsas se puede ingresar pesada (kg); se guarda en UND con esta conversión y queda constancia del peso.</li>
+          <li><b>Lotes:</b> UND estimadas de una caja o bobina en la línea, y del peso que queda al devolverla.</li>
+          <li><b>Impacto económico:</b> las mermas cuya conversión da kg se valoran por peso.</li></ul>
+        <p class="cv-nota">Los reportes de fechas anteriores no cambian. Cuánto insumo se consume por unidad producida (requerimientos, consumo, desviación y existencias) se define en <b>Insumos › Factores</b>, también con vigencia.</p></section>
         <section class="ap-card"><h3 class="ap-h3" style="margin-top:0">Historial</h3>
         ${hist.length?`<ul class="ap-hist">${hist.map(x=>`<li>${esc(enTxt(x.en))} · <b>${esc(x.linea)}</b> · ${esc(texto(x.config,x.unidad))} desde ${esc(fechaTxt(x.vigenteDesde))} · ${esc(x.por||'')}<br><small>Antes: ${esc(x.antes)} · Motivo: ${esc(x.motivo||'')}</small></li>`).join('')}</ul>`:'<div class="ap-vacio">Sin cambios: valores del código.</div>'}</section>`;
     }
