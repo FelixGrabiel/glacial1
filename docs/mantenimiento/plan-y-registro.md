@@ -1,6 +1,6 @@
 # Mantenimiento · Plan anual y Registro CFA-CA-F-023
 
-Estado: **Etapa 1 en curso** (datos del Plan anual en PRUEBAS). PRODUCCIÓN: nada aplicado.
+Estado: **Etapa 1 completa en PRUEBAS** (datos, pantalla Plan anual, impreso A4 horizontal y exportación a Excel). PRODUCCIÓN: nada aplicado.
 
 ## Decisiones
 - **Tablas propias `mtto_*`** (no colecciones del puente), como pidió el dueño. RLS activada; tiempo real por `supabase_realtime`.
@@ -30,3 +30,10 @@ Estado: **Etapa 1 en curso** (datos del Plan anual en PRUEBAS). PRODUCCIÓN: nad
 2. Programa semanal.
 3. Registro CFA-CA-F-023 (celular) + impreso de 1 hoja (`glacial_48`: registros, actividades, piezas).
 4. Historial.
+
+## Impreso y Excel del Plan anual (etapa 1)
+- `js/mantenimiento/74-plan-anual-impresion.js`: arma el HTML del impreso por máquina (A4 horizontal, márgenes 0,7" / 0,92" / 0,75", Calibri Light 8 pt, encabezado de página con el logo `assets/img/mtto-logo.png` — el del Excel —, dos filas de título repetidas por hoja, «1 - 52» combinado, bordes medianos entre bloques) y el libro de Excel con una hoja por máquina.
+- Salto de hoja como en el Excel: 21 filas de datos por hoja (SOP: hoja 1 = 18 semanales + 3 mensuales; hoja 2 = 8 semestrales + 8 anuales).
+- «Imprimir» usa un marco oculto y el diálogo de impresión del navegador; «Exportar Excel» baja el libro de todas las máquinas de la línea y el año elegidos.
+- Límite de ExcelJS: el encabezado de página del Excel exportado lleva el texto (título, máquina, CONSORCIO FRAP / CF-CA-PL-002) pero NO el logo (ExcelJS no admite imágenes en el encabezado).
+- Pruebas: `tests/mantenimiento-plan-impresion.test.js` (con ExcelJS si hay `GLX_LIBS`), `tests/mantenimiento-plan-anual.test.js`, `tests/mantenimiento-plan-anual.e2e.js`.

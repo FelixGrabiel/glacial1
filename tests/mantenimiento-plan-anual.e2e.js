@@ -58,6 +58,13 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   ok(await P.evaluate(() => !!document.querySelector('[data-mp-nueva]')) && await P.evaluate(() => document.querySelectorAll('[data-mp-editar]').length) === 37, 'el Administrador ve «+ Actividad» y editar en cada fila');
   if (process.env.GLX_CAPTURAS) { await P.evaluate(() => { document.querySelector('.mp-tw').style.maxHeight = 'none'; }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-anual.png', fullPage: true }); await P.evaluate(() => { document.querySelector('.mp-tw').style.maxHeight = ''; }); }
 
+  /* imprimir: arma el documento A4 horizontal en un marco oculto (SOP = 2 hojas) y abre el diálogo de impresión */
+  ok(await P.evaluate(() => !!document.querySelector('[data-mp-imprimir]') && !!document.querySelector('[data-mp-excel]')), 'botones «Exportar Excel» e «Imprimir»');
+  await P.evaluate(() => { HTMLIFrameElement.prototype.__p = 0; });
+  await P.click('[data-mp-imprimir]');
+  await P.waitForSelector('iframe[aria-hidden="true"]', { state: 'attached' });
+  const doc = await P.evaluate(() => document.querySelector('iframe[aria-hidden="true"]').srcdoc);
+  ok((doc.match(/<section class="hoja/g) || []).length === 2 && /A4 landscape/.test(doc) && /<i>SOPLADORA<\/i>/.test(doc) && /assets\/img\/mtto-logo\.png/.test(doc), 'Imprimir arma el impreso de la máquina (2 hojas A4 horizontales, encabezado y logo)');
   /* hoja CARB: pendiente de confirmar */
   await P.click('[data-mp-maq="m-SOP-CARB"]');
   ok(/Pendiente de confirmar/.test(await txt('.mp')) && /SOPLADORA 8 CAVIDADES/.test(await txt('.mp-cab h2')), 'la hoja CARB muestra «Pendiente de confirmar» y su nombre');
@@ -81,6 +88,8 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   await P.fill('#mpe-act', 'ACTIVIDAD NUEVA / REVISIÓN'); await P.selectOption('#mpe-frec', 'MENSUAL'); await P.fill('#mpe-item', '4'); await P.evaluate(() => { document.getElementById('mpe-todo').click(); });
   await P.fill('[data-mpe-mes="2"]', '9'); await P.fill('[data-mpe-mes="8"]', '35');
   await P.click('#mpe-ok'); await P.waitForSelector('.mp-modal', { state: 'detached' });
+  await P.waitForFunction(() => __bd.actividades.some(x => x.actividad === 'ACTIVIDAD NUEVA / REVISIÓN'), null, { timeout: 3000 }).catch(() => {});
+  if (process.env.GLX_DEPURAR) console.log('DBG', await P.evaluate(() => JSON.stringify(__bd.actividades.filter(x => /NUEVA/.test(x.actividad)))));
   ok(await P.evaluate(() => { const a = __bd.actividades.find(x => x.actividad === 'ACTIVIDAD NUEVA / REVISIÓN'); return !!a && a.semanas.join() === '9,35' && a.bloque_orden === 3 && a.semanas_por_mes[2] === '9'; }), 'agregar una actividad mensual con semanas 9 y 35');
   ok(/ACTIVIDAD NUEVA/.test(await txt('.mp-t')) && await P.evaluate(() => [...document.querySelectorAll('.mp-grupo b')].map(b => b.textContent).join()) === 'SEMANAL,MENSUAL,SEMESTRAL,ANUAL', 'la nueva aparece dentro del bloque MENSUAL');
   await P.click('[data-mp-editar="nuevo-' + (MUESTRA.actividades.length + 1) + '"]'); await P.waitForSelector('.mp-modal');

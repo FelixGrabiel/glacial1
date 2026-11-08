@@ -112,7 +112,7 @@
       '<div class="mp-filtros"><span class="mp-vivo '+(c.enVivo?'on':'')+'" role="status">'+(c.enVivo?'● En vivo':'○ Sin tiempo real')+'</span>'+
       '<label>Línea<select data-mp-linea>'+lineas.map(l=>'<option'+(l===UI.linea?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>'+
       '<label>Año<select data-mp-anio>'+(anios.length?anios:[UI.anio]).map(a=>'<option'+(a===UI.anio?' selected':'')+'>'+a+'</option>').join('')+'</select></label>'+
-      (editar&&maq?'<button type="button" class="btn btn-primary" data-mp-nueva>+ Actividad</button>':'')+'</div></header>'+
+      (maq&&c.listo?'<button type="button" class="btn btn-ghost" data-mp-excel>Exportar Excel</button><button type="button" class="btn btn-ghost" data-mp-imprimir>Imprimir</button>':'')+(editar&&maq?'<button type="button" class="btn btn-primary" data-mp-nueva>+ Actividad</button>':'')+'</div></header>'+
       '<nav class="mp-chips" aria-label="Máquinas">'+ms.map(m=>'<button type="button" class="mp-chip'+(m.id===UI.maquina?' on':'')+(m.pendiente_confirmar?' pend':'')+'" data-mp-maq="'+esc(m.id)+'" aria-pressed="'+(m.id===UI.maquina)+'" title="'+esc(m.nombre)+(m.pendiente_confirmar?' · pendiente de confirmar a qué línea pertenece':'')+'">'+esc(m.codigo_hoja)+(m.pendiente_confirmar?' <b>?</b>':'')+'</button>').join('')+'</nav>'+
       cuerpo+'</section>';
   }
@@ -159,9 +159,27 @@
       if(quitar.dataset.seguro!=='1'){quitar.dataset.seguro='1';quitar.textContent='¿Seguro? Pulsa otra vez';return;}
       try{await D.quitarActividad(ex.id);fondo.remove();repintar(true);}catch(e){err(e.message||String(e));}
     };
-    setTimeout(()=>{try{q('#mpe-act').focus();}catch(_){/* ya cerrado */}},50);
+    setTimeout(()=>{try{if(!fondo.contains(document.activeElement))q('#mpe-act').focus();}catch(_){/* ya cerrado */}},50);       // no le roba el foco a quien ya empezó a escribir
   }
 
+  /* ---------- imprimir (A4 horizontal, igual que la hoja del Excel) y exportar ---------- */
+  const IMP=()=>window.glacialMttoPlanImpresion;
+  function imprimir(){
+    const maq=D.cache.maquinas.find(m=>m.id===UI.maquina);if(!maq||!IMP())return;
+    const html=IMP().htmlImpresion(maq,D.actividadesDe(maq.id,UI.anio),UI.anio,new URL('assets/img/mtto-logo.png',location.href).href);
+    const f=document.createElement('iframe');f.setAttribute('aria-hidden','true');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    f.onload=()=>setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print();}catch(_){alert('No se pudo abrir la impresión.');}setTimeout(()=>f.remove(),60000);},250);
+    f.srcdoc=html;document.body.appendChild(f);
+  }
+  async function exportarExcel(){
+    if(typeof ExcelJS==='undefined'||!IMP()){alert('No se pudo cargar el generador de Excel. Revisa tu conexión y recarga la página.');return;}
+    try{
+      const items=D.cache.maquinas.filter(m=>m.activo!==false&&(m.linea_impresion||'PET')===UI.linea).map(m=>({maquina:m,acts:D.actividadesDe(m.id,UI.anio)}));
+      const wb=IMP().libroExcel(ExcelJS,items,UI.anio),buf=await wb.xlsx.writeBuffer();
+      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+      a.download='PLAN-PROGRAMA_MTTO_'+UI.anio+'_PLANTA_DE_AGUA_'+UI.linea+'.xlsx';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+    }catch(e){alert('No se pudo generar el Excel: '+((e&&e.message)||e));}
+  }
   function repintar(forzar){
     if(typeof state==='undefined'||state.currentTab!==TAB)return;
     const m=document.getElementById('main');
@@ -177,6 +195,8 @@
     const ed=e.target.closest('[data-mp-editar]');if(ed){abrirEdicion(ed.getAttribute('data-mp-editar'));return;}
     if(e.target.closest('[data-mp-nueva]')){abrirEdicion('');return;}
     if(e.target.closest('[data-mp-recargar]')){D.cargar();return;}
+    if(e.target.closest('[data-mp-imprimir]')){imprimir();return;}
+    if(e.target.closest('[data-mp-excel]')){exportarExcel();return;}
   });
   document.addEventListener('change',e=>{
     const t=e.target;if(!t||!t.closest||!t.closest('#mp-raiz'))return;
