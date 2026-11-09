@@ -69,12 +69,12 @@
   /* ---------- navegador: abrir el diálogo de impresión ---------- */
   if(typeof window!=='undefined'&&raiz===window){
     const D=()=>window.glacialMttoPlanDatos;
-    API.imprimir=function(registroId){
+    API.imprimir=async function(registroId){
       const d=D();if(!d)return;
-      const reg=d.cache.registros.find(r=>r.id===registroId);if(!reg)return;
-      const maq=d.cache.maquinas.find(m=>m.id===reg.maquina_id)||{nombre:'',planta:'AGUA',linea_impresion:'PET'};
-      const acts=d.cache.regActs.filter(a=>a.registro_id===reg.id),piezas=d.cache.piezas.filter(p=>p.registro_id===reg.id);
-      const html=htmlRegistro(reg,maq,acts,piezas,(d.cache.config&&d.cache.config.datos)||{},new URL('assets/img/mtto-logo.png',location.href).href);
+      let det;try{det=await d.detalleRegistro(registroId);}catch(e){alert('No se pudo preparar el impreso: '+((e&&e.message)||e));return;}
+      if(!det)return;
+      const reg=det.reg,maq=d.cache.maquinas.find(m=>m.id===reg.maquina_id)||{nombre:'',planta:'AGUA',linea_impresion:'PET'};
+      const html=htmlRegistro(reg,maq,det.acts,det.piezas,(d.cache.config&&d.cache.config.datos)||{},new URL('assets/img/mtto-logo.png',location.href).href);
       const f=document.createElement('iframe');f.setAttribute('aria-hidden','true');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
       f.onload=()=>setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print();}catch(_){alert('No se pudo abrir la impresión.');}setTimeout(()=>f.remove(),60000);},250);
       f.srcdoc=html;document.body.appendChild(f);

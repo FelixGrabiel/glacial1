@@ -52,3 +52,9 @@ Estado: **Etapa 1 completa en PRUEBAS** (datos, pantalla Plan anual, impreso A4 
 - Impreso `js/mantenimiento/77-registro-impresion.js`: A4 horizontal, 1 sola hoja, 22 actividades máximo (11 + 11), línea solo «PET», sin nada de la interfaz. «Vista de impresión» en la pantalla.
 - Pendiente de esta etapa: adjuntar foto de evidencia al registro (reutilizar el mecanismo de evidencias); aviso a la otra persona cuando dos editan el mismo campo.
 - Pruebas: `tests/mantenimiento-registro-impresion.test.js`, `tests/mantenimiento-registro.e2e.js`.
+
+## Historial (etapa 4)
+- `js/mantenimiento/78-historial-pantalla.js`: registros de un año (los más recientes primero), filtros por año, máquina, semana, técnico o maquinista (sin tildes ni mayúsculas) y estado (con el conteo de cada uno); «Mostrar más» de 50 en 50; **Abrir** (solo lectura si está cerrado o validado) e **Imprimir** (el formato CFA-CA-F-023 de 1 hoja; pide al servidor las actividades y piezas de ese registro). En vivo: un registro que se cierra o valida cambia de estado sin recargar.
+- Datos: `cargarHistorial(anio)` y `detalleRegistro(id)` en `72-plan-anual-datos.js`; filtrado puro `filtrarHistorial` / `conteoEstados` en el núcleo.
+- La pestaña «Registros» del prompt no se hizo aparte: el Programa semanal (registros de la semana) y el Historial la cubren.
+- Pruebas: `tests/mantenimiento-historial.e2e.js` y las del núcleo en `tests/mantenimiento-plan-anual.test.js`.

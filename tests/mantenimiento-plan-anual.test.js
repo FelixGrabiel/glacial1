@@ -58,4 +58,15 @@ const rs=P.resumenSemana([f,P.filaSemana({id:'m2'},acts,45,{id:'r2',estado:'CERR
 ok(rs.actividades===5&&rs.realizadas===2&&rs.abiertos===1&&rs.porValidar===1&&rs.maquinas===3,'tarjetas: actividades de la semana, realizadas, registros abiertos ahora, por validar');
 const ev=P.eventosEnVivo([reg,{id:'r2',maquina_id:'m1',estado:'VALIDADO',cerrado_en:new Date(ahoraMs-3600000).toISOString(),validado_en:new Date(ahoraMs-1800000).toISOString(),validado_por:'CRISTIAN MEZA',tecnico_senior:'JOSÉ'}],ra,[mq],10);
 ok(ev.length===3&&/^marcó «TOBERAS \/ REVISIÓN» en SOPLADORA$/.test(ev[0].texto)&&ev[1].texto==='validó SOPLADORA'&&ev[2].texto==='cerró el registro de SOPLADORA'&&ev[0].ms>ev[1].ms&&ev[1].ms>ev[2].ms,'panel «En vivo»: marcas, validaciones y cierres, lo más reciente primero');
+
+/* ---------- Historial ---------- */
+const mqs=[{id:'a',orden:1,nombre:'SOPLADORA'},{id:'b',orden:2,nombre:'ENVASADORA'}];
+const regs=[{id:'1',maquina_id:'b',anio:2026,semana:44,estado:'VALIDADO',tecnico_senior:'José Betancourt',maquinista:'Ana Pérez'},{id:'2',maquina_id:'a',anio:2026,semana:45,estado:'EN_CURSO',tecnico_senior:'CESAR ALPELIMA',maquinista:'ELISEO ARVI'},
+  {id:'3',maquina_id:'b',anio:2026,semana:45,estado:'CERRADO',tecnico_senior:'Jose Betancourt',maquinista:''},{id:'4',maquina_id:'a',anio:2026,semana:44,estado:'VALIDADO',tecnico_senior:'César Alpelima',maquinista:''}];
+ok(N_ids(P.filtrarHistorial(regs,mqs,{}))==='2,3,4,1','orden: semana más reciente primero y, dentro de la semana, el orden de las máquinas');
+function N_ids(l){return l.map(r=>r.id).join();}
+ok(N_ids(P.filtrarHistorial(regs,mqs,{maquinaId:'b'}))==='3,1'&&N_ids(P.filtrarHistorial(regs,mqs,{semana:'44'}))==='4,1'&&N_ids(P.filtrarHistorial(regs,mqs,{estado:'VALIDADO'}))==='4,1','filtra por máquina, semana y estado');
+ok(N_ids(P.filtrarHistorial(regs,mqs,{texto:'jose'}))==='3,1'&&N_ids(P.filtrarHistorial(regs,mqs,{texto:'CÉSAR'}))==='2,4'&&N_ids(P.filtrarHistorial(regs,mqs,{texto:'arvi'}))==='2','busca técnico o maquinista sin importar tildes ni mayúsculas');
+ok(N_ids(P.filtrarHistorial(regs,mqs,{maquinaId:'a',estado:'VALIDADO',texto:'cesar'}))==='4'&&P.filtrarHistorial(regs,mqs,{texto:'nadie'}).length===0,'los filtros se combinan');
+const ce=P.conteoEstados(regs);ok(ce.VALIDADO===2&&ce.CERRADO===1&&ce.EN_CURSO===1&&ce.PENDIENTE===0,'conteo por estado para las etiquetas del filtro');
 process.exit(fallas?1:0);

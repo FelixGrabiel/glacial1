@@ -4,7 +4,7 @@
    actividades que manda el plan esa semana (por frecuencia), avance, estado, técnico y maquinista, «hace X min», y un panel «En vivo» con lo último
    que hicieron los técnicos. Los registros (mtto_registros, glacial_48) se leen en tiempo real; llenarlos es la etapa siguiente (Registro CFA-CA-F-023).
    Las máquinas «pendientes de confirmar» (hojas CARB) no entran: duplicarían las actividades de la semana.
-   También define la barra de pestañas de Mantenimiento (Plan anual · Programa semanal) que usa el Plan anual.
+   También define la barra de pestañas de Mantenimiento (Plan anual · Programa semanal · Historial) que usa el Plan anual.
    ===================================================================================================================== */
 (function(){
   'use strict';
@@ -20,9 +20,10 @@
   const puedeVer=()=>!!(PANT()&&PANT().puedeVer());
 
   /* ---------- pestañas de Mantenimiento (las comparte el Plan anual) ---------- */
-  const TABS=[{k:'plan',t:'Plan anual',ir:()=>window.goPlanAnualMtto&&window.goPlanAnualMtto()},{k:'semanal',t:'Programa semanal',ir:()=>window.goProgramaSemanalMtto&&window.goProgramaSemanalMtto()}];
+  const TABS=[{k:'plan',t:'Plan anual',ir:()=>window.goPlanAnualMtto&&window.goPlanAnualMtto()},{k:'semanal',t:'Programa semanal',ir:()=>window.goProgramaSemanalMtto&&window.goProgramaSemanalMtto()},{k:'historial',t:'Historial',ir:()=>window.goHistorialMtto&&window.goHistorialMtto()}];
   window.glacialMttoTabs={html:activa=>'<nav class="mt-tabs" role="tablist" aria-label="Mantenimiento">'+TABS.map(x=>'<button type="button" role="tab" class="mt-tab'+(x.k===activa?' on':'')+'" aria-selected="'+(x.k===activa)+'" data-mt-tab="'+x.k+'">'+x.t+'</button>').join('')+'</nav>',
-    css:'.mt-tabs{display:flex;gap:4px;border-bottom:1px solid #dbe5ee;margin:0 0 12px;overflow-x:auto}.mt-tab{border:0;background:none;padding:10px 14px;font-size:14px;color:#46627a;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}.mt-tab.on{color:var(--brand-700,#0877A6);font-weight:700;border-bottom-color:var(--brand,#0DB5F3)}'};
+    css:'.mt-tabs{display:flex;gap:4px;border-bottom:1px solid #dbe5ee;margin:0 0 12px;overflow-x:auto}.mt-tab{border:0;background:none;padding:10px 14px;font-size:14px;color:#46627a;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}.mt-tab.on{color:var(--brand-700,#0877A6);font-weight:700;border-bottom-color:var(--brand,#0DB5F3)}'+
+      '.ps-est{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;letter-spacing:.02em}.ps-pend{background:#eef1f4;color:#46627a}.ps-curso{background:#dff1fb;color:#065F86}.ps-validar{background:#fff1d6;color:#8a5a00}.ps-ok{background:#dff3e6;color:#14532d}'};
   document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-mt-tab]');if(!b)return;const t=TABS.find(x=>x.k===b.getAttribute('data-mt-tab'));if(t)t.ir();});
 
   /* ---------- datos de la semana ---------- */

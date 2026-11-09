@@ -212,9 +212,20 @@
     };
   }
 
+  /* ---------- Historial de registros ---------- */
+  const sinTildes=t=>String(t==null?'':t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  /** Filtra por máquina, semana, técnico/maquinista (texto) y estado; orden: semana más reciente primero y, dentro de ella, el orden de las máquinas. */
+  function filtrarHistorial(registros,maquinas,f){
+    const o=f||{},orden=new Map((maquinas||[]).map(m=>[m.id,num(m.orden)])),q=sinTildes(o.texto||'').trim();
+    return (registros||[]).filter(r=>(!o.maquinaId||r.maquina_id===o.maquinaId)&&(!o.semana||r.semana===Number(o.semana))&&(!o.estado||r.estado===o.estado)&&
+      (!q||sinTildes(r.tecnico_senior+' '+r.maquinista).includes(q))).sort((a,b)=>b.anio-a.anio||b.semana-a.semana||(orden.get(a.maquina_id)||0)-(orden.get(b.maquina_id)||0));
+  }
+  /** Conteo por estado, para las etiquetas del filtro. */
+  function conteoEstados(registros){const c={PENDIENTE:0,EN_CURSO:0,CERRADO:0,VALIDADO:0};(registros||[]).forEach(r=>{if(c[r.estado]!==undefined)c[r.estado]++;});return c;}
+
   const API={BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
     semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
-    INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
+    filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialMttoPlan=API;
 })(typeof window!=='undefined'?window:globalThis);

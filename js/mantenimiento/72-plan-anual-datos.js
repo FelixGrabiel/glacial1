@@ -7,7 +7,7 @@
 (function(){
   'use strict';
   const N=window.glacialMttoPlan;
-  const cache={maquinas:[],actividades:[],config:null,listo:false,cargando:false,error:'',enVivo:false,registros:[],regActs:[],piezas:[],semana:null,errorSemana:''};
+  const cache={maquinas:[],actividades:[],config:null,listo:false,cargando:false,error:'',enVivo:false,registros:[],regActs:[],piezas:[],semana:null,errorSemana:'',historial:[],anioHistorial:null,errorHistorial:'',cargandoHistorial:false};
   const oyentes=[];
   let cliente=null,canal=null,activo=false;
   const sb=()=>cliente||window.glacialSupabaseCliente||null;
@@ -40,6 +40,10 @@
       if(t==='DELETE'&&o)cache.actividades=cache.actividades.filter(x=>x.id!==o.id);else if(n&&n.id)reemplazar(cache.actividades,n);
     }else if(tabla==='mtto_config'&&n)cache.config=n;
     else if(tabla==='mtto_registros'){
+      if(cache.anioHistorial!==null){
+        if(t==='DELETE'&&o)cache.historial=cache.historial.filter(x=>x.id!==o.id);
+        else if(n&&n.id&&n.anio===cache.anioHistorial)reemplazar(cache.historial,n);
+      }
       const sm=cache.semana;
       if(t==='DELETE'&&o)cache.registros=cache.registros.filter(x=>x.id!==o.id);
       else if(n&&n.id&&sm&&n.anio===sm.anio&&n.semana===sm.semana)reemplazar(cache.registros,n);
@@ -71,6 +75,27 @@
     }catch(e){cache.errorSemana=msg(e);}
     avisar();
   }
+  /** Historial: los registros de un año (los más recientes primero). El detalle de uno (actividades y piezas) se pide al abrirlo o imprimirlo. */
+  async function cargarHistorial(anio){
+    const c=sb();if(!c)return;
+    cache.anioHistorial=anio;cache.cargandoHistorial=true;cache.errorHistorial='';avisar();
+    try{
+      const r=await c.from('mtto_registros').select('*').eq('anio',anio).order('semana',{ascending:false}).limit(2000);
+      if(r.error)throw r.error;
+      if(cache.anioHistorial===anio)cache.historial=r.data||[];
+    }catch(e){cache.errorHistorial=msg(e);}
+    cache.cargandoHistorial=false;avisar();
+  }
+  /** {reg, acts, piezas} de un registro cualquiera (de la semana cargada, del historial o del servidor). */
+  async function detalleRegistro(id){
+    const c=sb();
+    const reg=cache.registros.find(r=>r.id===id)||cache.historial.find(r=>r.id===id)||null;if(!reg)return null;
+    if(cache.registros.some(r=>r.id===id))return {reg,acts:cache.regActs.filter(a=>a.registro_id===id),piezas:cache.piezas.filter(p=>p.registro_id===id)};
+    if(!c)throw new Error('Sin conexión con la base de datos.');
+    const [a,z]=await Promise.all([c.from('mtto_registro_actividades').select('*').eq('registro_id',id).order('item').limit(500),c.from('mtto_registro_piezas').select('*').eq('registro_id',id).order('orden')]);
+    if(a.error||z.error)throw new Error(msg(a.error||z.error));
+    return {reg,acts:a.data||[],piezas:z.data||[]};
+  }
   /** Empieza a escuchar (una sola vez): carga inicial + tiempo real. */
   function escuchar(){
     if(activo)return;activo=true;
@@ -81,7 +106,7 @@
     ch.subscribe(estado=>{
       const vivo=estado==='SUBSCRIBED';
       if(vivo!==cache.enVivo){cache.enVivo=vivo;avisar();}
-      if(vivo&&cache.listo){cargar();if(cache.semana)cargarSemana(cache.semana.anio,cache.semana.semana);}                       // al reconectar se vuelve a leer, por si hubo cambios mientras se cayó la conexión
+      if(vivo&&cache.listo){cargar();if(cache.semana)cargarSemana(cache.semana.anio,cache.semana.semana);if(cache.anioHistorial!==null)cargarHistorial(cache.anioHistorial);}                       // al reconectar se vuelve a leer, por si hubo cambios mientras se cayó la conexión
     });
     canal=ch;
   }
@@ -190,7 +215,7 @@
   const validarRegistro=(reg,quien)=>actualizarReg(reg.id,{estado:'VALIDADO',supervisor:quien||reg.supervisor||''});
   const reabrirRegistro=reg=>actualizarReg(reg.id,{estado:'EN_CURSO'});
 
-  const API={cache,escuchar,detener,cargar,cargarSemana,iniciarRegistro,marcarActividad,guardarObservacion,guardarCampos,guardarPieza,cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
+  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,iniciarRegistro,marcarActividad,guardarObservacion,guardarCampos,guardarPieza,cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
     actividadesDe:(maquinaId,anio)=>cache.actividades.filter(a=>a.maquina_id===maquinaId&&a.anio===anio).sort((a,b)=>(a.orden||0)-(b.orden||0)),
     anios:()=>[...new Set(cache.actividades.map(a=>a.anio))].sort((a,b)=>b-a)};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
