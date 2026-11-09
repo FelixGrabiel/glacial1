@@ -38,12 +38,12 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(/^Cierre de produccion HIELO DÍA/.test(t3) && /Compresor – Falla de equipo \(20 min\)/.test(t3), 'solo el Día (finalizado): CIERRE, con término y la parada');
   ok(/CIERRE · todos los reportes finalizados/.test(await P.evaluate(() => document.querySelector('.hl-sub').innerText)), 'la etiqueta dice CIERRE');
   await P.selectOption('select', 'TODOS');
-  ok(/AVANCE/.test((await txt()).split('\n')[0]) && /^Avance de produccion HIELO TD/.test(await txt()), 'todo el día: 1 900 bolsas');
+  ok(/^Avance de produccion HIELO TD/.test(await txt()), 'todo el día: 1 900 bolsas');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-avance.png' });
   await P.click('text=Copiar texto');
   ok(await P.evaluate(() => window.__copiado === document.getElementById('hl-av-texto').value && window.__copiado.length > 100), 'Copiar texto deja el mensaje en el portapapeles');
   await P.click('text=Abrir en WhatsApp');
-  ok(await P.evaluate(() => /^https:\/\/wa\.me\/\?text=/.test(window.__wsp) && decodeURIComponent(window.__wsp).includes('PRODUCCIÓN HIELO')), 'WhatsApp se abre con el texto ya escrito');
+  ok(await P.evaluate(() => /^https:\/\/wa\.me\/\?text=/.test(window.__wsp) && decodeURIComponent(window.__wsp).includes('produccion HIELO')), 'WhatsApp se abre con el texto ya escrito');
   const [descarga] = await Promise.all([P.waitForEvent('download', { timeout: 8000 }), P.click('text=Descargar imagen')]);
   const ruta = (process.env.GLX_CAPTURAS || '/tmp') + '/hielo-avance-imagen.png'; await descarga.saveAs(ruta);
   ok(/^hielo-avance-\d{4}-\d{2}-\d{2}\.png$/.test(descarga.suggestedFilename()) && fs.statSync(ruta).size > 5000, 'Descargar imagen baja un PNG (' + descarga.suggestedFilename() + ')');

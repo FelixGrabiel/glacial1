@@ -470,30 +470,59 @@
   };
   window.hlAvWsp=()=>{window.open('https://wa.me/?text='+encodeURIComponent(N.textoAvanceCierre(modeloAv())),'_blank','noopener');};
   /** Imagen PNG del avance o cierre: encabezado, bolsas por presentación, totales, paradas y merma. */
+  /** Imagen PNG con el mismo estilo que la del Avance de Agua: cabecera oscura, tarjeta por estación, resumen y pie. */
   function dibujarImagen(m){
-    const W=1080,P=44,paradas=m.paradas.slice(0,10),mermas=m.merma.slice(0,6);
-    const filasPres=Math.ceil(m.presentaciones.length/2);
-    const H=230+filasPres*130+170+(paradas.length?90+paradas.length*34:90)+(mermas.length?70+mermas.length*30:0)+90;
-    const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
-    const azul='#0b2a4a',cel='#0877A6',tinta='#16263a',gris='#5b6b7c';
-    x.fillStyle='#eef6fb';x.fillRect(0,0,W,H);
-    x.fillStyle=azul;x.fillRect(0,0,W,150);x.fillStyle='#fff';x.font='700 34px Arial';x.fillText('❄ '+m.titulo,P,62);
-    x.font='400 24px Arial';x.fillStyle='#bfe3f6';x.fillText((m.turnoTxt||'')+' · '+fechaTxt(m.fecha)+(m.hora?' · '+m.hora:''),P,104);
-    x.fillStyle=m.tipo==='CIERRE'?'#16a34a':'#f59e0b';x.beginPath();x.roundRect?x.roundRect(W-P-170,44,170,44,22):x.rect(W-P-170,44,170,44);x.fill();x.fillStyle='#fff';x.font='700 22px Arial';x.textAlign='center';x.fillText(m.tipo,W-P-85,74);x.textAlign='left';
-    let y=190;
-    const tarjeta=(px,py,w,h,t,v,sub)=>{x.fillStyle='#fff';x.strokeStyle='#d6e4ee';x.lineWidth=2;x.beginPath();x.roundRect?x.roundRect(px,py,w,h,16):x.rect(px,py,w,h);x.fill();x.stroke();
-      x.fillStyle=gris;x.font='700 20px Arial';x.fillText(t,px+22,py+34);x.fillStyle=azul;x.font='700 46px Arial';x.fillText(v,px+22,py+80);if(sub){x.fillStyle=gris;x.font='400 18px Arial';x.fillText(sub,px+22,py+h-14);}};
-    m.presentaciones.forEach((p,i)=>tarjeta(P+(i%2)*((W-2*P)/2+8),y+Math.floor(i/2)*130,(W-2*P)/2-8,118,'BOLSAS DE '+p.presentacion.toUpperCase(),f0(p.bolsas),f0(p.kg,1)+' kg'));
-    y+=filasPres*130+16;
-    tarjeta(P,y,(W-2*P)/3-8,130,'PRODUCCIÓN TOTAL',f0(m.bolsas),f0(m.kg,1)+' kg');
-    tarjeta(P+(W-2*P)/3,y,(W-2*P)/3-8,130,'CUMPLIMIENTO',m.cumplimiento===null?'—':f0(m.cumplimiento*100)+' %',m.programado?'de '+f0(m.programado)+' programadas':'sin programación');
-    tarjeta(P+2*(W-2*P)/3,y,(W-2*P)/3,130,'PARADAS',f0(m.paradasMin)+' min',m.paradas.length+' evento'+(m.paradas.length===1?'':'s'));
-    y+=170;x.fillStyle=azul;x.font='700 26px Arial';x.fillText('Paradas',P,y);y+=14;
-    x.font='400 22px Arial';
-    if(!paradas.length){y+=34;x.fillStyle=gris;x.fillText('Sin paradas registradas.',P,y);y+=20;}
-    paradas.forEach(p=>{y+=34;x.fillStyle=tinta;x.fillText((p.inicio?p.inicio+'  ':'')+[p.equipo,p.motivo].filter(Boolean).join(' – ')+'  ·  '+f0(p.minutos)+' min',P,y);});
-    if(mermas.length){y+=56;x.fillStyle=azul;x.font='700 26px Arial';x.fillText('Merma',P,y);x.font='400 22px Arial';mermas.forEach(z=>{y+=30;x.fillStyle=tinta;x.fillText(z.item+': '+f0(z.cantidad,3)+' '+z.unidad,P,y);});}
-    x.fillStyle=gris;x.font='400 20px Arial';x.fillText('Generado por '+(m.generadoPor||'—')+' · GLACIAL - Control de Producción',P,H-34);
+    const W=1080,PAD=28,E=1.25,fz=v=>Math.round(v*E);
+    const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#667784',MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
+    const pk=v=>String(v||'').replace(/\s+/g,'');
+    const grupos=(m.estaciones||[]).map(e=>({titulo:e.estacion||'PRODUCCIÓN',filas:e.filas}));
+    const obs=m.observaciones.map(o=>o.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+f0(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(z=>'Merma '+z.item+': '+f0(z.cantidad,3)+' '+z.unidad));
+    const pres=m.presentaciones.filter(p=>p.bolsas>0);
+    function pintar(c,H){
+      const x=c.getContext('2d');
+      const rr=(cx,cy,cw,ch,r)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
+      const card=(cx,cy,cw,ch,fill)=>{x.fillStyle=fill||WHITE;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=LINE;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
+      const wrap=(t,max)=>{const out=[];let row='';String(t||'').split(/\s+/).forEach(w=>{const q=row?row+' '+w:w;if(x.measureText(q).width>max&&row){out.push(row);row=w;}else row=q;});if(row)out.push(row);return out.length?out:[''];};
+      x.fillStyle=BG;x.fillRect(0,0,W,H);
+      x.fillStyle=DARK;x.fillRect(0,0,W,205);x.fillStyle=WHITE;
+      x.font='700 '+fz(31)+'px Arial';x.fillText('GLACIAL',55,56);
+      x.font='700 '+fz(34)+'px Arial';x.fillText((m.tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO',275,62);
+      x.font='700 '+fz(26)+'px Arial';x.fillText((m.turnoTxt||'').toUpperCase(),275,101);
+      x.font=fz(19)+'px Arial';x.fillText('Fecha: '+fechaDmy(m.fecha),55,154);if(m.hora)x.fillText('Hora: '+m.hora,330,154);
+      if(m.inicio||m.fin){x.font=fz(16)+'px Arial';x.fillStyle='#D9EAF3';x.fillText('Inicio: '+(m.inicio||'—')+(m.tipo==='CIERRE'&&m.fin?' · Término: '+m.fin:''),55,184);}
+      let y=228;
+      x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 '+fz(22)+'px Arial';x.fillText('DETALLE DE PRODUCCIÓN POR ESTACIÓN',48,y+31);y+=64;
+      if(!m.reportes){card(PAD,y,W-PAD*2,72,'#F8FBFD');x.fillStyle=STEEL;x.font='700 '+fz(17)+'px Arial';x.fillText('Todavía no hay reporte de hielo en este turno.',PAD+20,y+44);y+=90;}
+      grupos.forEach(g=>{
+        const h=58+16+g.filas.length*fz(34);
+        card(PAD,y,W-PAD*2,h);x.fillStyle='#E8F7FE';rr(PAD,y,W-PAD*2,58,9);x.fill();
+        x.fillStyle=DARK;x.font='700 '+fz(22)+'px Arial';x.fillText(g.titulo.toUpperCase(),PAD+20,y+38);
+        const tot=g.filas.reduce((q,f)=>q+f.bolsas,0);x.textAlign='right';x.fillStyle=GOOD;x.font='700 '+fz(15)+'px Arial';x.fillText(f0(tot)+' BOLSAS',W-PAD-20,y+36);x.textAlign='left';
+        let cy=y+58+30;
+        g.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca+' '+pk(f.presentacion),PAD+28,cy);x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' bolsas',W-PAD-22,cy);x.textAlign='left';cy+=fz(34);});
+        y+=h+18;
+      });
+      const filasR=Math.max(1,pres.length),hR=48+filasR*fz(62)+(m.programado>0?fz(34):0);
+      card(PAD,y,W-PAD*2,hR,'#F8FBFD');x.fillStyle=BLUE;x.font='700 '+fz(17)+'px Arial';x.fillText('RESUMEN DEL AVANCE',PAD+20,y+30);
+      let ry=y+30+fz(36);
+      pres.forEach(p=>{x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Producción de bolsas '+pk(p.presentacion)+': '+f0(p.bolsas),PAD+20,ry);x.fillStyle=STEEL;x.font=fz(16)+'px Arial';x.fillText('Producción de '+pk(p.presentacion)+': '+f0(p.kg,1)+' kg',PAD+20,ry+fz(26));ry+=fz(62);});
+      if(m.programado>0){x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Programado: '+f0(m.programado)+' bolsas · Cumplimiento: '+f0(m.cumplimiento*100)+' %',PAD+20,ry-fz(8));}
+      y+=hR+18;
+      if(m.caidas){const h=fz(46);x.fillStyle='#FDECEA';rr(PAD,y,W-PAD*2,h,9);x.fill();x.strokeStyle=BAD;rr(PAD,y,W-PAD*2,h,9);x.stroke();x.fillStyle=BAD;x.font='700 '+fz(17)+'px Arial';x.fillText('🚨 SE VIENE TRABAJANDO POR CAÍDAS',PAD+20,y+fz(30));y+=h+18;}
+      if(obs.length){
+        x.font=fz(15)+'px Arial';const filas=obs.slice(0,12).map(o=>wrap('• '+o,W-PAD*2-60).slice(0,2));
+        const h=fz(40)+filas.reduce((q,f)=>q+f.length*fz(24),0)+16;
+        card(PAD,y,W-PAD*2,h);x.fillStyle=BLUE;x.font='700 '+fz(15)+'px Arial';x.fillText('OBSERVACIONES',PAD+20,y+fz(28));
+        let oy=y+fz(28)+fz(10);x.fillStyle=STEEL;x.font=fz(15)+'px Arial';filas.forEach(f=>f.forEach(r=>{oy+=fz(24);x.fillText(r,PAD+28,oy);}));y+=h+18;
+      }
+      y+=10;x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD,y);x.lineTo(W-PAD,y);x.stroke();y+=36;
+      x.fillStyle=STEEL;x.font=fz(15)+'px Arial';x.fillText('Generado por: '+(m.generadoPor||m.supervisores.join(', ')||'—'),PAD,y);
+      x.textAlign='right';x.fillStyle=DARK;x.font='700 '+fz(18)+'px Arial';x.fillText('GLACIAL · Control de Producción',W-PAD,y);x.textAlign='left';
+      return y+36;
+    }
+    /* primera pasada en un lienzo alto para medir; la segunda ya con el alto exacto */
+    const t=document.createElement('canvas');t.width=W;t.height=4000;const H=pintar(t,4000);
+    const c=document.createElement('canvas');c.width=W;c.height=H;pintar(c,H);
     return c;
   }
   window.hlAvImagen=()=>{
