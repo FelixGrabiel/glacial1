@@ -531,6 +531,8 @@
     const c=document.createElement('canvas');c.width=W;c.height=H;pintar(c,H);
     return c;
   }
+  /* Expuesta para el bot de WhatsApp (proyecto glacial-whatsapp › servicio-hielo.js): dibuja la MISMA imagen que «Descargar imagen», así no hay una copia que mantener. Solo lectura. */
+  N.dibujarImagen=dibujarImagen;
   window.hlAvImagen=()=>{
     try{
       const m=modeloAv(),c=dibujarImagen(m);
