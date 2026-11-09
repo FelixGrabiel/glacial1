@@ -107,7 +107,7 @@
     }
     const anios=D.anios();
     const lineas=[...new Set(c.maquinas.filter(m=>m.activo!==false).map(m=>m.linea_impresion||'PET'))];
-    main.innerHTML='<section class="mp" id="mp-raiz">'+
+    main.innerHTML='<section class="mp" id="mp-raiz">'+(window.glacialMttoTabs?window.glacialMttoTabs.html('plan'):'')+
       '<header class="mp-cab"><div><small>Planta de Agua · '+esc(UI.linea)+' · Programa '+UI.anio+'</small><h2>Plan de mantenimiento'+(maq?' · '+esc(maq.nombre):'')+'</h2></div>'+
       '<div class="mp-filtros"><span class="mp-vivo '+(c.enVivo?'on':'')+'" role="status">'+(c.enVivo?'● En vivo':'○ Sin tiempo real')+'</span>'+
       '<label>Línea<select data-mp-linea>'+lineas.map(l=>'<option'+(l===UI.linea?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>'+
@@ -208,7 +208,7 @@
   function estilos(){
     if(document.getElementById('mp-estilos'))return;
     const s=document.createElement('style');s.id='mp-estilos';
-    s.textContent='.mp{max-width:1280px;margin:0 auto;padding:4px 2px 24px}.mp-cab{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}'+
+    s.textContent=(window.glacialMttoTabs?window.glacialMttoTabs.css:'')+'.mp{max-width:1280px;margin:0 auto;padding:4px 2px 24px}.mp-cab{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}'+
       '.mp-cab small{color:#5b6b79;font-size:12px}.mp-cab h2{margin:2px 0 0;font-size:22px}.mp-filtros{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}.mp-filtros label{display:flex;flex-direction:column;font-size:11.5px;color:#5b6b79;gap:2px}'+
       '.mp-filtros select{min-height:38px;border:1px solid #cfdbe3;border-radius:8px;padding:0 10px;background:#fff;font-size:14px}.mp-vivo{font-size:12.5px;color:#7a8794;align-self:center}.mp-vivo.on{color:#1a7f4b;font-weight:600}'+
       '.mp-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}.mp-chip{border:1px solid #cfdbe3;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer;min-height:38px}'+

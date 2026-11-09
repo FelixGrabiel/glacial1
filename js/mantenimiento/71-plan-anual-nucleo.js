@@ -115,8 +115,73 @@
   /** Texto de una actividad para el filtro de búsqueda. */
   const textoBusqueda=a=>[a.item,a.actividad,a.insumos,a.frecuencia].join(' ').toLowerCase();
 
+
+  /* ---------- Programa semanal (lo que antes hacía el botón BUSCAR del Excel: la semana se arma sola desde el Plan anual) ---------- */
+  const PLURAL={SEMANAL:['semanal','semanales'],QUINCENAL:['quincenal','quincenales'],MENSUAL:['mensual','mensuales'],BIMESTRAL:['bimestral','bimestrales'],TRIMESTRAL:['trimestral','trimestrales'],
+    SEMESTRAL:['semestral','semestrales'],ANUAL:['anual','anuales'],'18 MESES':['de 18 meses','de 18 meses'],BIANUAL:['bianual','bianuales']};
+  const DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const MESES_MIN=MESES_NOMBRE.map(m=>m.toLowerCase());
+  /** «Lunes 2 al domingo 8 de noviembre de 2026» (o con los dos meses si la semana cruza de mes o de año). */
+  function textoRango(anio,semana){
+    const r=rangoSemana(anio,semana),a=new Date(aUtc(r.desde)),b=new Date(aUtc(r.hasta));
+    const dia=(d)=>DIAS[d.getUTCDay()].replace(/^./,c=>c.toUpperCase());
+    const mismoMes=a.getUTCMonth()===b.getUTCMonth()&&a.getUTCFullYear()===b.getUTCFullYear();
+    const mes=d=>MESES_MIN[d.getUTCMonth()];
+    return mismoMes?dia(a)+' '+a.getUTCDate()+' al '+DIAS[b.getUTCDay()]+' '+b.getUTCDate()+' de '+mes(b)+' de '+b.getUTCFullYear()
+      :dia(a)+' '+a.getUTCDate()+' de '+mes(a)+(a.getUTCFullYear()!==b.getUTCFullYear()?' de '+a.getUTCFullYear():'')+' al '+DIAS[b.getUTCDay()]+' '+b.getUTCDate()+' de '+mes(b)+' de '+b.getUTCFullYear();
+  }
+  /** Semana anterior / siguiente (con cambio de año ISO). */
+  function moverSemana(anio,semana,delta){
+    const r=rangoSemana(anio,semana),t=aUtc(r.desde)+delta*7*DIA;
+    return semanaIso(aIso(t));
+  }
+  const actividadesDeSemana=(acts,semana)=>(acts||[]).filter(a=>(a.semanas||[]).includes(semana));
+  /** «10 semanales + 2 quincenales» (en el orden de las frecuencias). */
+  function resumenFrecuencias(acts){
+    const c=new Map();
+    (acts||[]).slice().sort((a,b)=>bloqueOrden(a.frecuencia)-bloqueOrden(b.frecuencia)).forEach(a=>{const f=String(a.frecuencia||'').toUpperCase();c.set(f,(c.get(f)||0)+1);});
+    return [...c].map(([f,n])=>{const p=PLURAL[f]||[f.toLowerCase(),f.toLowerCase()];return n+' '+(n===1?p[0]:p[1]);}).join(' + ');
+  }
+  const ESTADOS_REG={PENDIENTE:{txt:'PENDIENTE',cls:'pend'},EN_CURSO:{txt:'EN CURSO',cls:'curso'},CERRADO:{txt:'POR VALIDAR',cls:'validar'},VALIDADO:{txt:'VALIDADO',cls:'ok'}};
+  /** «hace 4 min» */
+  function haceTexto(desdeMs,ahoraMs){
+    if(!(desdeMs>0))return '';
+    const m=Math.max(0,Math.floor((ahoraMs-desdeMs)/60000));
+    return m<1?'hace un momento':m<60?'hace '+m+' min':m<1440?'hace '+Math.floor(m/60)+' h':'hace '+Math.floor(m/1440)+' d';
+  }
+  /**
+   * Una fila del Programa semanal por máquina. registro = fila de mtto_registros de esa máquina y semana (o null), regActs = sus actividades.
+   * Con registro, el avance sale del registro (realizadas / actividades copiadas); sin registro, 0 de las que el plan manda esa semana.
+   */
+  function filaSemana(maquina,actsPlan,semana,registro,regActs,ahoraMs){
+    const delPlan=actividadesDeSemana(actsPlan,semana);
+    const ra=registro?(regActs||[]):[];
+    const total=registro?ra.length:delPlan.length,hechas=ra.filter(a=>a.realizado).length;
+    const marcas=ra.map(a=>Date.parse(a.marcado_en||'')||0).filter(x=>x>0),ult=Math.max(registro?Date.parse(registro.actualizado_en||'')||0:0,...marcas,0);
+    const estado=registro&&ESTADOS_REG[registro.estado]?registro.estado:'PENDIENTE';
+    return {maquina,total,hechas,pct:total?Math.round(hechas/total*100):0,frecuencias:resumenFrecuencias(delPlan),delPlan,registro:registro||null,estado,
+      tecnico:registro?registro.tecnico_senior:'',maquinista:registro?registro.maquinista:'',hace:ult?haceTexto(ult,ahoraMs):''};
+  }
+  /** Tarjetas del Programa semanal. */
+  function resumenSemana(filas){
+    const t=filas.reduce((s,f)=>s+f.total,0),h=filas.reduce((s,f)=>s+f.hechas,0);
+    return {actividades:t,maquinas:filas.length,realizadas:h,abiertos:filas.filter(f=>f.estado==='EN_CURSO').length,porValidar:filas.filter(f=>f.estado==='CERRADO').length};
+  }
+  /** Últimos eventos para el panel «En vivo»: marcas de actividades y registros cerrados / validados, más recientes primero. */
+  function eventosEnVivo(registros,regActs,maquinas,limite){
+    const maq=new Map((maquinas||[]).map(m=>[m.id,m])),reg=new Map((registros||[]).map(r=>[r.id,r])),ev=[];
+    (regActs||[]).forEach(a=>{const r=reg.get(a.registro_id),t=Date.parse(a.marcado_en||'');if(!r||!t)return;
+      ev.push({ms:t,quien:a.marcado_por||'—',texto:(a.realizado?'marcó':'desmarcó')+' «'+[a.equipo,a.actividad].filter(Boolean).join(' / ')+'» en '+((maq.get(r.maquina_id)||{}).nombre||'')});});
+    (registros||[]).forEach(r=>{const n=(maq.get(r.maquina_id)||{}).nombre||'';
+      const c=Date.parse(r.cerrado_en||''),v=Date.parse(r.validado_en||'');
+      if(c)ev.push({ms:c,quien:r.tecnico_senior||'—',texto:'cerró el registro de '+n});
+      if(v)ev.push({ms:v,quien:r.validado_por||'—',texto:'validó '+n});});
+    return ev.sort((a,b)=>b.ms-a.ms).slice(0,limite||12);
+  }
+
   const API={BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
-    semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda};
+    semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
+    textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialMttoPlan=API;
 })(typeof window!=='undefined'?window:globalThis);

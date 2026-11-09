@@ -7,7 +7,7 @@
 (function(){
   'use strict';
   const N=window.glacialMttoPlan;
-  const cache={maquinas:[],actividades:[],config:null,listo:false,cargando:false,error:'',enVivo:false};
+  const cache={maquinas:[],actividades:[],config:null,listo:false,cargando:false,error:'',enVivo:false,registros:[],regActs:[],semana:null,errorSemana:''};
   const oyentes=[];
   let cliente=null,canal=null,activo=false;
   const sb=()=>cliente||window.glacialSupabaseCliente||null;
@@ -39,6 +39,31 @@
     }else if(tabla==='mtto_plan_actividades'){
       if(t==='DELETE'&&o)cache.actividades=cache.actividades.filter(x=>x.id!==o.id);else if(n&&n.id)reemplazar(cache.actividades,n);
     }else if(tabla==='mtto_config'&&n)cache.config=n;
+    else if(tabla==='mtto_registros'){
+      const sm=cache.semana;
+      if(t==='DELETE'&&o)cache.registros=cache.registros.filter(x=>x.id!==o.id);
+      else if(n&&n.id&&sm&&n.anio===sm.anio&&n.semana===sm.semana)reemplazar(cache.registros,n);
+    }else if(tabla==='mtto_registro_actividades'){
+      if(t==='DELETE'&&o)cache.regActs=cache.regActs.filter(x=>x.id!==o.id);
+      else if(n&&n.id&&cache.registros.some(r=>r.id===n.registro_id))reemplazar(cache.regActs,n);
+    }
+    avisar();
+  }
+  /** Registros de UNA semana (y sus actividades): lo que muestra el Programa semanal. */
+  async function cargarSemana(anio,semana){
+    const c=sb();if(!c)return;
+    cache.semana={anio,semana};cache.errorSemana='';
+    try{
+      const r=await c.from('mtto_registros').select('*').eq('anio',anio).eq('semana',semana);
+      if(r.error)throw r.error;
+      const regs=r.data||[];let acts=[];
+      if(regs.length){
+        const a=await c.from('mtto_registro_actividades').select('*').in('registro_id',regs.map(x=>x.id)).order('item').limit(5000);
+        if(a.error)throw a.error;acts=a.data||[];
+      }
+      if(!cache.semana||cache.semana.anio!==anio||cache.semana.semana!==semana)return;      // mientras tanto se pidió otra semana
+      cache.registros=regs;cache.regActs=acts;
+    }catch(e){cache.errorSemana=msg(e);}
     avisar();
   }
   /** Empieza a escuchar (una sola vez): carga inicial + tiempo real. */
@@ -47,11 +72,11 @@
     cargar();
     const c=sb();if(!c||typeof c.channel!=='function')return;
     let ch=c.channel('mtto-plan-anual');
-    ['mtto_maquinas','mtto_plan_actividades','mtto_config'].forEach(t=>{ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t},p=>alCambio(t,p));});
+    ['mtto_maquinas','mtto_plan_actividades','mtto_config','mtto_registros','mtto_registro_actividades'].forEach(t=>{ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t},p=>alCambio(t,p));});
     ch.subscribe(estado=>{
       const vivo=estado==='SUBSCRIBED';
       if(vivo!==cache.enVivo){cache.enVivo=vivo;avisar();}
-      if(vivo&&cache.listo)cargar();                       // al reconectar se vuelve a leer, por si hubo cambios mientras se cayó la conexión
+      if(vivo&&cache.listo){cargar();if(cache.semana)cargarSemana(cache.semana.anio,cache.semana.semana);}                       // al reconectar se vuelve a leer, por si hubo cambios mientras se cayó la conexión
     });
     canal=ch;
   }
@@ -95,7 +120,7 @@
     alCambio('mtto_plan_actividades',{eventType:'DELETE',old:{id}});
   }
 
-  const API={cache,escuchar,detener,cargar,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
+  const API={cache,escuchar,detener,cargar,cargarSemana,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
     actividadesDe:(maquinaId,anio)=>cache.actividades.filter(a=>a.maquina_id===maquinaId&&a.anio===anio).sort((a,b)=>(a.orden||0)-(b.orden||0)),
     anios:()=>[...new Set(cache.actividades.map(a=>a.anio))].sort((a,b)=>b-a)};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

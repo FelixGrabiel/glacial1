@@ -39,4 +39,23 @@ ok(r.total===4&&r.estaSemana===2&&r.proxima.semana===48&&r.proxima.extras===1&&r
 const r2=P.resumen(acts,P.semanaDeHoy('2026-11-07'),{conRegistros:true,ejecutadasDe:(a,s)=>a.id===3&&s<20});
 ok(r2.vencidas>0,'con registros las vencidas se cuentan por actividad y semana');
 const av=P.avanceAnio(hoy,2026);ok(av.transcurridas===45&&av.total===53&&av.pct===85,'avance del año para la barra semanal (45 de 53)');
+
+/* ---------- Programa semanal ---------- */
+ok(P.textoRango(2026,45)==='Lunes 2 al domingo 8 de noviembre de 2026'&&P.textoRango(2026,1)==='Lunes 29 de diciembre de 2025 al domingo 4 de enero de 2026','texto de la semana: «Lunes 2 al domingo 8 de noviembre de 2026» y semanas que cruzan de mes o de año');
+ok(JSON.stringify(P.moverSemana(2026,45,1))==='{"anio":2026,"semana":46}'&&JSON.stringify(P.moverSemana(2026,1,-1))==='{"anio":2025,"semana":52}'&&JSON.stringify(P.moverSemana(2026,53,1))==='{"anio":2027,"semana":1}','◀ ▶ cambian de semana también entre años');
+ok(P.resumenFrecuencias([{frecuencia:'SEMANAL'},{frecuencia:'SEMANAL'},{frecuencia:'QUINCENAL'},{frecuencia:'QUINCENAL'},{frecuencia:'MENSUAL'}])==='2 semanales + 2 quincenales + 1 mensual'&&P.resumenFrecuencias([{frecuencia:'SEMANAL'}])==='1 semanal','«10 semanales + 2 quincenales»: cantidades por frecuencia, singular y plural');
+ok(P.haceTexto(Date.now()-30000,Date.now())==='hace un momento'&&P.haceTexto(Date.now()-4*60000,Date.now())==='hace 4 min'&&P.haceTexto(Date.now()-3*3600000,Date.now())==='hace 3 h'&&P.haceTexto(0,Date.now())==='','«hace X min»');
+const ahoraMs=Date.parse('2026-11-07T14:00:00Z');
+const mq={id:'m1',nombre:'SOPLADORA'};
+let f=P.filaSemana(mq,acts,45,null,[],ahoraMs);
+ok(f.total===2&&f.hechas===0&&f.estado==='PENDIENTE'&&f.frecuencias==='2 semanales'&&f.hace==='','sin registro: las actividades que manda el plan esta semana, 0 hechas, PENDIENTE');
+f=P.filaSemana(mq,acts,48,null,[],ahoraMs);ok(f.total===3&&f.frecuencias==='2 semanales + 1 mensual','semana 48: 2 semanales + 1 mensual (según las semanas del plan)');
+const reg={id:'r1',maquina_id:'m1',estado:'EN_CURSO',tecnico_senior:'CESAR ALPELIMA',maquinista:'ELISEO ARVI',actualizado_en:new Date(ahoraMs-60000).toISOString()};
+const ra=[{registro_id:'r1',realizado:true,marcado_en:new Date(ahoraMs-4*60000).toISOString(),marcado_por:'CESAR',equipo:'TOBERAS',actividad:'REVISIÓN'},{registro_id:'r1',realizado:false}];
+f=P.filaSemana(mq,acts,45,reg,ra,ahoraMs);
+ok(f.total===2&&f.hechas===1&&f.pct===50&&f.estado==='EN_CURSO'&&f.tecnico==='CESAR ALPELIMA'&&f.hace==='hace un momento'||f.hace==='hace 1 min','con registro: avance 1 de 2 (50 %), estado EN CURSO, técnico y maquinista, «hace X»');
+const rs=P.resumenSemana([f,P.filaSemana({id:'m2'},acts,45,{id:'r2',estado:'CERRADO'},[{realizado:true}],ahoraMs),P.filaSemana({id:'m3'},acts,45,null,[],ahoraMs)]);
+ok(rs.actividades===5&&rs.realizadas===2&&rs.abiertos===1&&rs.porValidar===1&&rs.maquinas===3,'tarjetas: actividades de la semana, realizadas, registros abiertos ahora, por validar');
+const ev=P.eventosEnVivo([reg,{id:'r2',maquina_id:'m1',estado:'VALIDADO',cerrado_en:new Date(ahoraMs-3600000).toISOString(),validado_en:new Date(ahoraMs-1800000).toISOString(),validado_por:'CRISTIAN MEZA',tecnico_senior:'JOSÉ'}],ra,[mq],10);
+ok(ev.length===3&&/^marcó «TOBERAS \/ REVISIÓN» en SOPLADORA$/.test(ev[0].texto)&&ev[1].texto==='validó SOPLADORA'&&ev[2].texto==='cerró el registro de SOPLADORA'&&ev[0].ms>ev[1].ms&&ev[1].ms>ev[2].ms,'panel «En vivo»: marcas, validaciones y cierres, lo más reciente primero');
 process.exit(fallas?1:0);

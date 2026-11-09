@@ -37,3 +37,9 @@ Estado: **Etapa 1 completa en PRUEBAS** (datos, pantalla Plan anual, impreso A4 
 - «Imprimir» usa un marco oculto y el diálogo de impresión del navegador; «Exportar Excel» baja el libro de todas las máquinas de la línea y el año elegidos.
 - Límite de ExcelJS: el encabezado de página del Excel exportado lleva el texto (título, máquina, CONSORCIO FRAP / CF-CA-PL-002) pero NO el logo (ExcelJS no admite imágenes en el encabezado).
 - Pruebas: `tests/mantenimiento-plan-impresion.test.js` (con ExcelJS si hay `GLX_LIBS`), `tests/mantenimiento-plan-anual.test.js`, `tests/mantenimiento-plan-anual.e2e.js`.
+
+## Programa semanal (etapa 2)
+- `glacial_48_mantenimiento_registros.sql` (APLICADA en PRUEBAS 09/11/2026): `mtto_registros`, `mtto_registro_actividades`, `mtto_registro_piezas` con RLS, auditoría y tiempo real. Escribir: cuenta compartida de Mantenimiento y supervisor/jefe; validar o reabrir un registro validado: solo supervisor/jefe (lo exige un disparador). PRODUCCIÓN: pendiente de aprobación.
+- Pantalla `js/mantenimiento/75-programa-semanal-pantalla.js`: selector de semana (‹ SEM_45 ›), una fila por máquina (sin las hojas CARB pendientes) con las actividades que manda el plan por frecuencia, avance, estado, técnico/maquinista y «hace X min»; panel «En vivo»; botón «Actividades» (lista de la semana, reemplaza al BUSCAR). Los botones Iniciar / Ver en vivo / Validar aparecen cuando exista el Registro (etapa 3).
+- Pestañas de Mantenimiento: Plan anual · Programa semanal (`window.glacialMttoTabs`).
+- Pruebas: `tests/mantenimiento-plan-anual.test.js` (núcleo), `tests/mantenimiento-programa-semanal.e2e.js`.
