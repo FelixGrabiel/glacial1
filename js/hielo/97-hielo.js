@@ -18,6 +18,12 @@
     motivos:['Mantenimiento','Falla de equipo','Falta de insumo','Otros'],
     mermas:['Bolsas','Bobina','Hielo (producto)']
   };
+  /** Marcas que se hacen en una presentación (catálogo de la planta); sin catálogo o sin presentación, todas. */
+  function marcasDe(cfg,pres){
+    const cat=typeof PRODUCTOS_HIELO!=='undefined'?PRODUCTOS_HIELO:[];
+    const l=cat.filter(x=>x[1]===pres).map(x=>x[0]).filter(m=>cfg.marcas.includes(m));
+    return l.length?l:cfg.marcas;
+  }
   const UNIDADES_MERMA=['UND','KG'];
   const num=v=>{const n=Number(String(v===undefined||v===null?'':v).replace(',','.'));return Number.isFinite(n)?n:0;};
   const texto=v=>v===undefined||v===null?'':String(v).trim();
@@ -171,7 +177,7 @@
     }
     return out.join('\n');
   }
-  const N={TURNOS,DEFECTO,modeloAvanceCierre,textoAvanceCierre,kgDe,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
+  const N={TURNOS,DEFECTO,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.glacialHieloNucleo=N;
@@ -357,7 +363,7 @@
     const bloq=fin&&!esAdmin()||!puedeRegistrar();
     const dis=bloq?'disabled':'';
     const t=totales([r]);
-    const prod=r.produccion.map((p,i)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlCampo('produccion',${i},'marca',this.value)">${opciones(cfg.marcas.includes(p.marca)||!p.marca?cfg.marcas:[p.marca].concat(cfg.marcas),p.marca,'— marca —')}</select></td>
+    const prod=r.produccion.map((p,i)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlCampo('produccion',${i},'marca',this.value)">${opciones(marcasDe(cfg,p.presentacion).includes(p.marca)||!p.marca?marcasDe(cfg,p.presentacion):[p.marca].concat(marcasDe(cfg,p.presentacion)),p.marca,'— marca —')}</select></td>
       <td data-label="Presentación"><select ${dis} onchange="hlCampo('produccion',${i},'presentacion',this.value)">${opciones(cfg.presentaciones.includes(p.presentacion)||!p.presentacion?cfg.presentaciones:[p.presentacion].concat(cfg.presentaciones),p.presentacion,'—')}</select></td>
       <td data-label="Estación"><select ${dis} onchange="hlCampo('produccion',${i},'estacion',this.value)">${opciones(cfg.estaciones.includes(p.estacion)||!p.estacion?cfg.estaciones:[p.estacion].concat(cfg.estaciones),p.estacion,'— estación —')}</select></td>
       <td data-label="Lote"><input ${dis} maxlength="40" value="${esc(p.lote)}" placeholder="opcional" oninput="hlCampo('produccion',${i},'lote',this.value)" aria-label="Lote del producto"></td>
@@ -421,7 +427,7 @@
     const doc=cache.programacion.find(p=>p.id===idReporte(f,t));
     if(S.pItems===null){S.pItems=doc?JSON.parse(JSON.stringify(doc.items||[])):[];S.pRev=doc?Number(doc.rev)||0:0;}
     const ed=puedeProgramar(),dis=ed?'':'disabled';
-    const filas=S.pItems.map((i,k)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlPItem(${k},'marca',this.value)">${opciones(cfg.marcas,i.marca,'— marca —')}</select></td><td data-label="Presentación"><select ${dis} onchange="hlPItem(${k},'presentacion',this.value)">${opciones(cfg.presentaciones,i.presentacion,'—')}</select></td>
+    const filas=S.pItems.map((i,k)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlPItem(${k},'marca',this.value)">${opciones(marcasDe(cfg,i.presentacion),i.marca,'— marca —')}</select></td><td data-label="Presentación"><select ${dis} onchange="hlPItem(${k},'presentacion',this.value)">${opciones(cfg.presentaciones,i.presentacion,'—')}</select></td>
       <td data-label="Bolsas"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(i.bolsas)}" oninput="hlPItem(${k},'bolsas',this.value,true)" aria-label="Bolsas"></td><td data-label="">${ed?`<button type="button" class="hl-btn o x" onclick="hlPQuitar(${k})" aria-label="Quitar">✕</button>`:''}</td></tr>`).join('');
     const prox=cache.programacion.filter(p=>p.fecha>=hoy()).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:TURNOS.indexOf(a.turno)-TURNOS.indexOf(b.turno)).slice(0,20);
     return `<h1>Programación · Hielo</h1><p class="hl-sub">Bolsas a producir por turno, por marca y presentación.</p>
@@ -564,7 +570,7 @@
     const e=document.getElementById('hl-tot');if(e)e.innerHTML=(ordenPres(Object.keys(t.porPres)).map(p=>`${fmt(t.porPres[p])} bolsas de ${esc(p)}`).join(' · ')||'0 bolsas')+` · <b>${fmt(t.kg,1)} kg</b>`;
   }
   window.hlDato=(k,v)=>{if(!S.ed)return;S.ed[k]=v;cambio(false);};
-  window.hlCampo=(lista,i,k,v)=>{if(!S.ed||!S.ed[lista][i])return;S.ed[lista][i][k]=v;cambio(k==='presentacion'||k==='motivo');};
+  window.hlCampo=(lista,i,k,v)=>{if(!S.ed||!S.ed[lista][i])return;S.ed[lista][i][k]=v;if(lista==='produccion'&&k==='presentacion'&&S.ed[lista][i].marca&&!marcasDe(config(),v).includes(S.ed[lista][i].marca))S.ed[lista][i].marca='';cambio(k==='presentacion'||k==='motivo');};
   window.hlAgregar=lista=>{if(!S.ed)return;const c=config();
     S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',estacion:'',lote:'',bolsas:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',cantidad:'',unidad:'UND'});cambio(true);};
   window.hlQuitar=(lista,i)=>{if(!S.ed)return;S.ed[lista].splice(i,1);cambio(true);};
@@ -590,7 +596,7 @@
     try{const doc=await guardarReporte(S.ed,'REABRIR',m);S.ed.rev=doc.rev;S.ed.estado=doc.estado;ok('Reporte reabierto.');}catch(e){mal(e);}
   };
   window.hlPSel=(f,t)=>{S.pFecha=f||S.pFecha||hoy();S.pTurno=t||S.pTurno||'DÍA';S.pItems=null;S.vista='programacion';S.msg=null;pintar();};
-  window.hlPItem=(k,campo,v,sinPintar)=>{if(!S.pItems||!S.pItems[k])return;S.pItems[k][campo]=v;if(!sinPintar)pintar();};
+  window.hlPItem=(k,campo,v,sinPintar)=>{if(!S.pItems||!S.pItems[k])return;S.pItems[k][campo]=v;if(campo==='presentacion'&&S.pItems[k].marca&&!marcasDe(config(),v).includes(S.pItems[k].marca))S.pItems[k].marca='';if(!sinPintar)pintar();};
   window.hlPAgregar=()=>{const c=config();S.pItems.push({marca:'',presentacion:c.presentaciones[0]||'',bolsas:''});pintar();};
   window.hlPQuitar=k=>{S.pItems.splice(k,1);pintar();};
   window.hlPGuardar=async()=>{try{await guardarProgramacion(S.pFecha||hoy(),S.pTurno||'DÍA',S.pItems,S.pRev);S.pItems=null;ok('Programación guardada.');}catch(e){S.pItems=null;mal(e);}};
