@@ -1,7 +1,10 @@
 # Mantenimiento · Plan anual y Registros · paso a PRODUCCIÓN
 
-**Estado (09/11/2026):** todo está en PRUEBAS (`mvxjopvnnagqytegtexi`) y en la rama `main-h08qur`. **En PRODUCCIÓN (`ehtbwmvwoxcdefvlxttu`) no se ha tocado nada.**
+**Estado (09/11/2026):** pasos 1 a 5 **APLICADOS Y VERIFICADOS en PRODUCCIÓN** (`ehtbwmvwoxcdefvlxttu`) con la aprobación del dueño: `glacial_47`, `glacial_48`, 19 máquinas · 307 actividades, inicio en la semana 46, 0 registros. **Falta el paso 6** (PR de `main-h08qur` a `main`), que se hace solo cuando el dueño lo pida.
 Nada de esto se ejecuta sin la aprobación explícita del dueño.
+
+## Verificación en PRODUCCIÓN (hecha tras aplicar)
+19 máquinas (5 «pendiente de confirmar») · 307 actividades (148 semanales «1 - 52») · 0 registros · inicio {2026, 46} · 7 tablas `mtto_*` con RLS · 24 políticas · 6 tablas en tiempo real · 12 disparadores · 328 eventos de auditoría de la carga (19 + 307 + configuración) · las 40 tablas `g_*` existentes intactas.
 
 ## Revisión previa (hecha, solo lectura)
 - PRODUCCIÓN ya tiene `glacial_fs.ctx()` con las marcas que usan las reglas (`aut`, `supmtto`, `mant`, `solo`, `jef`, `admin`), el documento `sync/perfiles` y la publicación `supabase_realtime`.
@@ -27,7 +30,7 @@ select count(*) from public.mtto_plan_actividades;                -- 307
 select count(*) from public.mtto_registros;                       -- 0 (se empieza desde cero)
 select datos->'inicioRegistros' from public.mtto_config where id='config';   -- {"anio":2026,"semana":46}
 select count(*) from pg_policies where tablename like 'mtto_%';   -- 24
-select string_agg(tablename, ',') from pg_publication_tables where pubname='supabase_realtime' and tablename like 'mtto_%';  -- 8 tablas
+select string_agg(tablename, ',') from pg_publication_tables where pubname='supabase_realtime' and tablename like 'mtto_%';  -- 6 tablas
 ```
 
 ## Cómo deshacerlo (si hiciera falta)
