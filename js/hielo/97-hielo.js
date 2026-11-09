@@ -198,7 +198,7 @@
         historial:(previo&&previo.historial||[]).concat([{por:u.nombre,en:ahora()}]).slice(-50),actualizadoPor:u.nombre,actualizadoUid:u.uid,actualizadoEn:ahora()}));
     });
   }
-  window.glacialHieloDatos={C,cache,escuchar,detener,guardarReporte,guardarProgramacion,guardarConfig,config,puedeRegistrar,puedeProgramar,puedeConfigurar,esAdmin};
+  window.glacialHieloDatos={C,cache,alCambiar:f=>oyentes.push(f),escuchar,detener,guardarReporte,guardarProgramacion,guardarConfig,config,puedeRegistrar,puedeProgramar,puedeConfigurar,esAdmin};
 
   /* ------------------------------------------------------------------ pantalla */
   const esc=s=>String(s===undefined||s===null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -213,7 +213,9 @@
   }
   const visible=()=>{const r=document.getElementById('hielo-screen');return !!(r&&r.style.display!=='none');};
   /* Cambios en vivo (otro usuario o el propio guardado automático): no se redibuja mientras se escribe en un campo. */
+  const oyentes=[];
   function repintar(){
+    oyentes.slice().forEach(f=>{try{f();}catch(_){/* un oyente no rompe a los demás */}});          // p. ej. la tarjeta de Hielo del Inicio (98-hielo-inicio.js)
     if(!visible())return;
     const a=document.activeElement;
     if((S.vista==='registro'||S.vista==='programacion'||S.vista==='config')&&a&&raiz().contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return;

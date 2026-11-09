@@ -39,8 +39,14 @@ Nadie en modo Visualizar escribe, y nada se borra.
 - ¿Se cuenta también por sacos o paquetes, o se paletiza?
 - Puestos del personal (tareo de hielo).
 - Lotes de insumo usados (bolsas y bobinas) y su consumo. Ya existen en Lotes y en el banco de proveedores.
-- Que el hielo aparezca en Inicio y en el Reporte General de la empresa.
+- Que el hielo aparezca en el Reporte General de la empresa (Excel). **El Inicio ya lo muestra** (ver abajo).
 
 ## Pruebas
 - `tests/reporte-hielo.test.js`: kg por presentación, totales separados por presentación, cumplimiento, validaciones para finalizar, versiones e historial, configuración, Excel y conexiones.
 - Visual: `tests/visual/hielo.html?vista=inicio|registro|historial|programacion|config&rol=supervisor|admin|planificacion|gerente`.
+
+## Hielo en el Inicio (09/11/2026)
+- `js/hielo/98-hielo-inicio.js`: tarjeta **«HIELO · Día + Intermedio / Noche»** en el Inicio (dentro de «Resumen de producción», junto a Paradas de hoy y Proyección del turno). Sigue la fecha y el bloque que se eligen arriba en el Inicio.
+- Muestra bolsas de **3 kg** y **1.5 kg** (siempre) y las otras presentaciones solo si tuvieron producción o programación, kilos, cumplimiento contra lo programado, paradas y el estado del reporte (Sin reporte / En registro / Finalizado), con el botón «Abrir Reporte Hielo». Solo lectura.
+- «Día» incluye el turno Intermedio, igual que en la TV. La ven los usuarios del Inicio, salvo la cuenta compartida de mantenimiento.
+- Pruebas: `tests/hielo-inicio.test.js` y `tests/hielo-inicio.e2e.js`.
