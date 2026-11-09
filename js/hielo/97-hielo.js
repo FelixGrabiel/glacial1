@@ -14,6 +14,7 @@
     marcas:typeof MARCAS_HIELO!=='undefined'?MARCAS_HIELO.slice():['Glacial'],
     presentaciones:typeof PRESENTACIONES_HIELO!=='undefined'?PRESENTACIONES_HIELO.slice():['1.5 kg','3 kg','5 kg'],
     equipos:[],
+    estaciones:['Tolva manual','Env. automática'],
     motivos:['Mantenimiento','Falla de equipo','Falta de insumo','Otros'],
     mermas:['Bolsas','Bobina','Hielo (producto)']
   };
@@ -92,10 +93,10 @@
     const estado=accion==='FINALIZAR'?'FINALIZADO':accion==='REABRIR'?'EN_REGISTRO':(previo&&previo.estado)||'EN_REGISTRO';
     const doc={id:idReporte(r.fecha,r.turno),fecha:r.fecha,turno:r.turno,estado,
       supervisor:texto(r.supervisor||usuario).slice(0,80),horaInicio:texto(r.horaInicio),horaFin:texto(r.horaFin),
-      produccion:limpiar(r.produccion).map(p=>({marca:texto(p.marca),presentacion:texto(p.presentacion),lote:texto(p.lote).slice(0,40),bolsas:Math.max(0,Math.round(num(p.bolsas)))})),
+      produccion:limpiar(r.produccion).map(p=>({marca:texto(p.marca),presentacion:texto(p.presentacion),estacion:texto(p.estacion).slice(0,40),lote:texto(p.lote).slice(0,40),bolsas:Math.max(0,Math.round(num(p.bolsas)))})),
       paradas:limpiar(r.paradas).map(p=>({inicio:texto(p.inicio),equipo:texto(p.equipo),motivo:texto(p.motivo),minutos:Math.max(0,Math.round(num(p.minutos))),nota:texto(p.nota).slice(0,200)})),
       mermas:limpiar(r.mermas).map(m=>({item:texto(m.item),cantidad:Math.max(0,num(m.cantidad)),unidad:UNIDADES_MERMA.includes(m.unidad)?m.unidad:'UND'})),
-      observaciones:texto(r.observaciones).slice(0,500),
+      observaciones:texto(r.observaciones).slice(0,500),caidas:!!r.caidas,
       rev:(Number(previo&&previo.rev)||0)+1,
       historial:(previo&&Array.isArray(previo.historial)?previo.historial:[]).concat(accion==='GUARDAR'&&previo?[]:[{accion,por:texto(usuario),uid:texto(uid),en:ahora,motivo:texto(motivo).slice(0,200)}]).slice(-100),
       creadoPor:previo?previo.creadoPor:texto(usuario),creadoEn:previo?previo.creadoEn:ahora,actualizadoPor:texto(usuario),actualizadoUid:texto(uid),actualizadoEn:ahora};
@@ -104,7 +105,7 @@
   /** Listas de Configuración: limpias, sin repetidos; las presentaciones deben tener kg. */
   function validarConfig(c){
     const e=[];const lista=v=>[...new Set((v||[]).map(texto).filter(Boolean))];
-    const out={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones)),equipos:lista(c.equipos),motivos:lista(c.motivos),mermas:lista(c.mermas)};
+    const out={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones)),equipos:lista(c.equipos),estaciones:lista(c.estaciones),motivos:lista(c.motivos),mermas:lista(c.mermas)};
     if(!out.marcas.length)e.push('Agrega al menos una marca.');
     if(!out.presentaciones.length)e.push('Agrega al menos una presentación.');
     out.presentaciones.forEach(p=>{if(!kgDe(p))e.push(`La presentación «${p}» debe tener los kg (por ejemplo «3 kg»).`);});
@@ -121,7 +122,56 @@
     });
     return filas;
   }
-  const N={TURNOS,DEFECTO,kgDe,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
+    /* ---------- Avance y cierre del turno (texto para WhatsApp e imagen) ---------- */
+  const f0=(n,d)=>Number(n||0).toLocaleString('es-PE',{maximumFractionDigits:d===undefined?0:d});
+  const fechaDmy=f=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(f||'');return m?m[3]+'/'+m[2]+'/'+m[1]:String(f||'');};
+  /** Datos del avance o cierre de un conjunto de reportes (un turno, varios o todo el día). tipo = CIERRE si todos están finalizados; si no, AVANCE. */
+  function modeloAvanceCierre(o){
+    const rs=(o.reportes||[]).filter(Boolean),ps=(o.programas||[]).filter(Boolean),t=totales(rs),prog=programado(ps);
+    const tipo=rs.length&&rs.every(r=>r.estado==='FINALIZADO')?'CIERRE':'AVANCE';
+    const marcas=[...new Set(t.porMarca.map(x=>x.marca))].sort((a,b)=>a.localeCompare(b,'es')).map(m=>{
+      const filas=t.porMarca.filter(x=>x.marca===m).sort((a,b)=>kgDe(b.presentacion)-kgDe(a.presentacion));
+      const bolsas=filas.reduce((s,x)=>s+x.bolsas,0),kg=Math.round(filas.reduce((s,x)=>s+x.bolsas*kgDe(x.presentacion),0)*100)/100;
+      return {marca:m,filas,bolsas,kg};
+    });
+    const pres=ordenPres([...new Set(['3 kg','1.5 kg'].concat(Object.keys(t.porPres)))].filter(p=>['3 kg','1.5 kg'].includes(p)||t.porPres[p]>0));
+    const paradas=rs.flatMap(r=>(r.paradas||[]).map(p=>Object.assign({turno:r.turno},p))).filter(p=>num(p.minutos)>0).sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
+    const est=new Map();
+    rs.forEach(r=>(r.produccion||[]).forEach(p=>{const b=Math.max(0,Math.round(num(p.bolsas)));if(!b)return;const e=texto(p.estacion),k=texto(p.marca)+'|'+texto(p.presentacion);
+      if(!est.has(e))est.set(e,new Map());est.get(e).set(k,(est.get(e).get(k)||0)+b);}));
+    const estaciones=[...est.entries()].map(([estacion,mp])=>({estacion,filas:[...mp.entries()].map(([k,bolsas])=>{const [marca,presentacion]=k.split('|');return {marca,presentacion,bolsas};})
+      .sort((a,b)=>a.marca.localeCompare(b.marca,'es')||kgDe(b.presentacion)-kgDe(a.presentacion))})).sort((a,b)=>(a.estacion===''?1:0)-(b.estacion===''?1:0));
+    const horas=rs.map(r=>r.horaInicio).filter(Boolean).sort(),fines=rs.map(r=>r.horaFin).filter(Boolean).sort();
+    return {tipo,fecha:o.fecha,turnoTxt:o.turnoTxt||'',turnoCod:o.turnoCod||'',caidas:rs.some(r=>r.caidas),estaciones,hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
+      titulo:(tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO',
+      presentaciones:pres.map(p=>({presentacion:p,bolsas:t.porPres[p]||0,kg:Math.round((t.porPres[p]||0)*kgDe(p)*100)/100})),marcas,
+      bolsas:t.bolsas,kg:t.kg,programado:prog.total,cumplimiento:prog.total>0?t.bolsas/prog.total:null,paradas,paradasMin:t.paradasMin,merma:t.merma,
+      observaciones:rs.filter(r=>texto(r.observaciones)).map(r=>({turno:r.turno,texto:texto(r.observaciones)})),
+      supervisores:[...new Set(rs.map(r=>texto(r.supervisor)).filter(Boolean))],inicio:horas[0]||'',fin:fines.length?fines[fines.length-1]:''};
+  }
+  /** Texto para WhatsApp en el formato que usa la planta: «Avance de produccion HIELO TD», fecha DD_MM_AA, bloques por estación, totales por presentación. */
+  function textoAvanceCierre(m){
+    const pl=(n,d)=>String(Math.round(Number(n||0)*Math.pow(10,d===undefined?0:d))/Math.pow(10,d===undefined?0:d)).replace('.',',');
+    const pk=p=>String(p||'').replace(/\s+/g,'');
+    const fecha=(/^(\d{4})-(\d{2})-(\d{2})$/.exec(m.fecha||'')||[]);
+    const out=[(m.tipo==='CIERRE'?'Cierre':'Avance')+' de produccion HIELO'+(m.turnoCod?' '+m.turnoCod:''),fecha[1]?fecha[3]+'_'+fecha[2]+'_'+fecha[1].slice(2):String(m.fecha||'')];
+    if(m.hora)out.push('Hora: '+m.hora);
+    if(!m.reportes){out.push('','Todavía no hay reporte de hielo en este turno.');}
+    else{
+      m.estaciones.forEach(e=>{
+        out.push('');
+        if(e.estacion)out.push(e.estacion.toUpperCase());
+        e.filas.forEach(f=>out.push(f.marca+' '+pk(f.presentacion)+': '+pl(f.bolsas)));
+      });
+      m.presentaciones.filter(p=>p.bolsas>0).forEach(p=>{out.push('','Producción de bolsas '+pk(p.presentacion)+': '+pl(p.bolsas),'Producción de '+pk(p.presentacion)+': '+pl(p.kg,1)+'kg');});
+      if(m.programado>0)out.push('','Programado: '+pl(m.programado)+' bolsas · Cumplimiento: '+pl(m.cumplimiento*100)+' %');
+      if(m.caidas)out.push('','🚨SE VIENE TRABAJANDO POR CAÍDAS');
+      const obs=m.observaciones.map(x=>x.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+pl(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(x=>'Merma '+x.item+': '+pl(x.cantidad,3)+' '+x.unidad));
+      if(obs.length){out.push('','Observaciones');obs.forEach(x=>out.push(x));}
+    }
+    return out.join('\n');
+  }
+  const N={TURNOS,DEFECTO,modeloAvanceCierre,textoAvanceCierre,kgDe,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.glacialHieloNucleo=N;
@@ -198,13 +248,13 @@
         historial:(previo&&previo.historial||[]).concat([{por:u.nombre,en:ahora()}]).slice(-50),actualizadoPor:u.nombre,actualizadoUid:u.uid,actualizadoEn:ahora()}));
     });
   }
-  window.glacialHieloDatos={C,cache,escuchar,detener,guardarReporte,guardarProgramacion,guardarConfig,config,puedeRegistrar,puedeProgramar,puedeConfigurar,esAdmin};
+  window.glacialHieloDatos={C,cache,alCambiar:f=>oyentes.push(f),escuchar,detener,guardarReporte,guardarProgramacion,guardarConfig,config,puedeRegistrar,puedeProgramar,puedeConfigurar,esAdmin};
 
   /* ------------------------------------------------------------------ pantalla */
   const esc=s=>String(s===undefined||s===null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d)=>{const x=Number(n);if(!Number.isFinite(x))return '—';const t=String(Number(Math.abs(x).toFixed(d===undefined?0:d))).split('.');return (x<0?'−':'')+t[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ')+(t[1]?','+t[1]:'');};
   const fechaTxt=f=>esFecha(f)?f.split('-').reverse().join('/'):'—';
-  const S={vista:'inicio',fecha:'',turno:'TODOS',ed:null,msg:null,guardado:'',hDesde:'',hHasta:'',hTurno:'',hMarca:'',pFecha:'',pTurno:'',pItems:null,pRev:0};
+  const S={vista:'inicio',aFecha:'',aTurno:'',fecha:'',turno:'TODOS',ed:null,msg:null,guardado:'',hDesde:'',hHasta:'',hTurno:'',hMarca:'',pFecha:'',pTurno:'',pItems:null,pRev:0};
   let temporizador=null;
   function raiz(){
     let r=document.getElementById('hielo-screen');
@@ -213,7 +263,9 @@
   }
   const visible=()=>{const r=document.getElementById('hielo-screen');return !!(r&&r.style.display!=='none');};
   /* Cambios en vivo (otro usuario o el propio guardado automático): no se redibuja mientras se escribe en un campo. */
+  const oyentes=[];
   function repintar(){
+    oyentes.slice().forEach(f=>{try{f();}catch(_){/* un oyente no rompe a los demás */}});          // p. ej. la tarjeta de Hielo del Inicio (98-hielo-inicio.js)
     if(!visible())return;
     const a=document.activeElement;
     if((S.vista==='registro'||S.vista==='programacion'||S.vista==='config')&&a&&raiz().contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return;
@@ -295,7 +347,7 @@
     S.ed=r?JSON.parse(JSON.stringify(r)):{fecha,turno,estado:'EN_REGISTRO',supervisor:yo().nombre,horaInicio:'',horaFin:'',produccion:[],paradas:[],mermas:[],observaciones:'',rev:0};
     if(!r){ // nuevo: una fila por lo programado de ese turno, o una vacía
       const prog=programasDe(fecha,turno).flatMap(p=>p.items||[]);
-      S.ed.produccion=prog.length?prog.map(i=>({marca:i.marca,presentacion:i.presentacion,lote:'',bolsas:''})):[{marca:config().marcas[0]||'',presentacion:config().presentaciones[0]||'',lote:'',bolsas:''}];
+      S.ed.produccion=prog.length?prog.map(i=>({marca:i.marca,presentacion:i.presentacion,estacion:'',lote:'',bolsas:''})):[{marca:config().marcas[0]||'',presentacion:config().presentaciones[0]||'',estacion:'',lote:'',bolsas:''}];
     }
     S.guardado=r?'Guardado':'';
   }
@@ -307,6 +359,7 @@
     const t=totales([r]);
     const prod=r.produccion.map((p,i)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlCampo('produccion',${i},'marca',this.value)">${opciones(cfg.marcas.includes(p.marca)||!p.marca?cfg.marcas:[p.marca].concat(cfg.marcas),p.marca,'— marca —')}</select></td>
       <td data-label="Presentación"><select ${dis} onchange="hlCampo('produccion',${i},'presentacion',this.value)">${opciones(cfg.presentaciones.includes(p.presentacion)||!p.presentacion?cfg.presentaciones:[p.presentacion].concat(cfg.presentaciones),p.presentacion,'—')}</select></td>
+      <td data-label="Estación"><select ${dis} onchange="hlCampo('produccion',${i},'estacion',this.value)">${opciones(cfg.estaciones.includes(p.estacion)||!p.estacion?cfg.estaciones:[p.estacion].concat(cfg.estaciones),p.estacion,'— estación —')}</select></td>
       <td data-label="Lote"><input ${dis} maxlength="40" value="${esc(p.lote)}" placeholder="opcional" oninput="hlCampo('produccion',${i},'lote',this.value)" aria-label="Lote del producto"></td>
       <td data-label="Bolsas"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(p.bolsas)}" oninput="hlCampo('produccion',${i},'bolsas',this.value)" aria-label="Bolsas"></td>
       <td data-label="Kilos"><input readonly tabindex="-1" id="hl-kg-${i}" value="${fmt(num(p.bolsas)*kgDe(p.presentacion),1)}" aria-label="Kilos"></td>
@@ -331,7 +384,7 @@
         <label>Hora inicio<input ${dis} type="time" value="${esc(r.horaInicio)}" onchange="hlDato('horaInicio',this.value)"></label>
         <label>Hora fin<input ${dis} type="time" value="${esc(r.horaFin)}" onchange="hlDato('horaFin',this.value)"></label></div></div>
       <div class="hl-card"><h3>Producción (bolsas)</h3>
-        ${prod?`<table class="hl-ed"><thead><tr><th>Marca</th><th>Presentación</th><th>Lote</th><th>Bolsas</th><th>Kilos</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
+        ${prod?`<table class="hl-ed"><thead><tr><th>Marca</th><th>Presentación</th><th>Estación</th><th>Lote</th><th>Bolsas</th><th>Kilos</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
         <div class="hl-acc" style="margin-top:8px">${bloq?'':'<button type="button" class="hl-btn o" onclick="hlAgregar(\'produccion\')">+ Agregar marca</button>'}
           <span class="hl-sub" id="hl-tot" style="margin:0">${pres.map(p=>`${fmt(t.porPres[p])} bolsas de ${esc(p)}`).join(' · ')||'0 bolsas'} · <b>${fmt(t.kg,1)} kg</b></span></div></div>
       <div class="hl-2"><div class="hl-card"><h3>Paradas</h3>
@@ -341,7 +394,7 @@
         <div class="hl-card"><h3>Merma</h3>
         ${mer?`<table class="hl-ed"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead><tbody>${mer}</tbody></table>`:'<div class="hl-vacio">Sin merma.</div>'}
         ${bloq?'':'<div class="hl-acc" style="margin-top:8px"><button type="button" class="hl-btn o" onclick="hlAgregar(\'mermas\')">+ Agregar merma</button></div>'}</div></div>
-      <div class="hl-card"><h3>Observaciones</h3><textarea ${dis} rows="3" maxlength="500" oninput="hlDato('observaciones',this.value)">${esc(r.observaciones)}</textarea></div>
+      <div class="hl-card"><h3>Observaciones</h3><label class="hl-sub" style="display:block;margin:0 0 6px"><input type="checkbox" ${dis} ${r.caidas?'checked':''} onchange="hlDato('caidas',this.checked)"> 🚨 Se viene trabajando por caídas</label><textarea ${dis} rows="3" maxlength="500" oninput="hlDato('observaciones',this.value)">${esc(r.observaciones)}</textarea></div>
       <div class="hl-acc">${puedeRegistrar()&&!fin?'<button type="button" class="hl-btn o" onclick="hlGuardar(\'GUARDAR\')">Guardar</button><button type="button" class="hl-btn" onclick="hlGuardar(\'FINALIZAR\')">Finalizar reporte</button>':''}
         ${fin&&esAdmin()?'<button type="button" class="hl-btn o" onclick="hlReabrir()">Reabrir (Administrador)</button>':''}</div>`;
   }
@@ -386,14 +439,102 @@
       ${!ed?'<div class="hl-msg i">Solo consulta: la cambian el Administrador y los jefes.</div>':''}
       ${!cache.config?'<div class="hl-msg i">Todavía no se guardó la configuración: se muestran las marcas y presentaciones del programa.</div>':''}
       <div class="hl-card"><div class="hl-form">${area('hl-c-marcas','Marcas',c.marcas,'')}${area('hl-c-pres','Presentaciones',c.presentaciones,'Con sus kg, por ejemplo «3 kg».')}
-        ${area('hl-c-equipos','Equipos de la planta',c.equipos,'Para las paradas.')}${area('hl-c-motivos','Motivos de parada',c.motivos,'«Otros» pide describir la parada.')}${area('hl-c-mermas','Ítems de merma',c.mermas,'')}</div>
+        ${area('hl-c-estaciones','Estaciones de producción',c.estaciones,'Para agrupar el avance (ej. Tolva manual).')}${area('hl-c-equipos','Equipos de la planta',c.equipos,'Para las paradas.')}${area('hl-c-motivos','Motivos de parada',c.motivos,'«Otros» pide describir la parada.')}${area('hl-c-mermas','Ítems de merma',c.mermas,'')}</div>
         ${ed?'<div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlGuardarConfig()">Guardar configuración</button></div>':''}
         ${cache.config&&cache.config.actualizadoPor?`<p class="hl-sub" style="margin:8px 0 0">Última modificación: ${esc(cache.config.actualizadoPor)} · versión ${esc(cache.config.rev)}</p>`:''}</div>`;
   }
+  /* ---------- Avance y cierre (texto para WhatsApp e imagen del turno) ---------- */
+  const TURNOS_AV=[['DI','Día + Intermedio'],['DÍA','Día'],['INTERMEDIO','Intermedio'],['NOCHE','Noche'],['TODOS','Todo el día']];
+  const turnosDeAv=t=>t==='TODOS'?TURNOS:t==='DI'?['DÍA','INTERMEDIO']:[t];
+  function avPorDefecto(){if(!S.aFecha)S.aFecha=hoy();if(!S.aTurno)S.aTurno=turnoAhora()==='NOCHE'?'NOCHE':'DI';}
+  function modeloAv(){
+    avPorDefecto();const ts=turnosDeAv(S.aTurno),etq=(TURNOS_AV.find(x=>x[0]===S.aTurno)||[])[1]||S.aTurno;
+    const hora=F()?F().ahoraLima(ahora()).texto.slice(-5):'';
+    return N.modeloAvanceCierre({fecha:S.aFecha,turnoTxt:'Turno '+etq,turnoCod:({TODOS:'TD',DI:'D+I',DÍA:'DÍA',INTERMEDIO:'INT',NOCHE:'NOCHE'})[S.aTurno]||'',reportes:cache.reportes.filter(r=>r.fecha===S.aFecha&&ts.includes(r.turno)),programas:cache.programacion.filter(p=>p.fecha===S.aFecha&&ts.includes(p.turno)),hora,generadoPor:yo().nombre});
+  }
+  function vistaAvance(){
+    const m=modeloAv(),texto=N.textoAvanceCierre(m);
+    const pill=!m.reportes?'<span class="hl-pill hl-gr">sin reporte</span>':m.tipo==='CIERRE'?'<span class="hl-pill hl-ok">CIERRE · todos los reportes finalizados</span>':'<span class="hl-pill hl-av">AVANCE · hay reportes en registro</span>';
+    return `<h1>Avance y cierre · Hielo</h1><p class="hl-sub">Arma el texto para WhatsApp y la imagen del turno con lo registrado. ${pill}</p>
+      <div class="hl-filtros"><label>Fecha<input type="date" value="${esc(S.aFecha)}" onchange="hlAvSet('aFecha',this.value)"></label>
+        <label>Turno<select onchange="hlAvSet('aTurno',this.value)">${TURNOS_AV.map(([k,t])=>`<option value="${k}" ${k===S.aTurno?'selected':''}>${t}</option>`).join('')}</select></label></div>
+      <div class="hl-card"><h3>Texto para WhatsApp</h3><textarea id="hl-av-texto" readonly rows="16" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.45">${esc(texto)}</textarea>
+        <div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlAvCopiar()">📋 Copiar texto</button><button type="button" class="hl-btn o" onclick="hlAvWsp()">📲 Abrir en WhatsApp</button><button type="button" class="hl-btn o" onclick="hlAvImagen()">🖼 Descargar imagen</button></div>
+        <p class="hl-sub" style="margin:10px 0 0">Se arma al momento con lo guardado: si falta algo, regístralo en «Nuevo registro» y vuelve aquí. El cierre se marca cuando todos los reportes del turno están finalizados.</p></div>`;
+  }
+  window.hlAvSet=(k,v)=>{S[k]=v;pintar();};
+  window.hlAvCopiar=async()=>{
+    const t=N.textoAvanceCierre(modeloAv());
+    try{await navigator.clipboard.writeText(t);ok('Texto copiado. Pégalo en WhatsApp.');}
+    catch(_){const a=document.getElementById('hl-av-texto');if(a){a.removeAttribute('readonly');a.select();try{document.execCommand('copy');ok('Texto copiado. Pégalo en WhatsApp.');}catch(e){mal('No se pudo copiar: selecciona el texto y cópialo a mano.');}a.setAttribute('readonly','');}}
+  };
+  window.hlAvWsp=()=>{window.open('https://wa.me/?text='+encodeURIComponent(N.textoAvanceCierre(modeloAv())),'_blank','noopener');};
+  /** Imagen PNG del avance o cierre: encabezado, bolsas por presentación, totales, paradas y merma. */
+  /** Imagen PNG con el mismo estilo que la del Avance de Agua: cabecera oscura, tarjeta por estación, resumen y pie. */
+  function dibujarImagen(m){
+    const W=1080,PAD=28,E=1.25,fz=v=>Math.round(v*E);
+    const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#667784',MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
+    const pk=v=>String(v||'').replace(/\s+/g,'');
+    const grupos=(m.estaciones||[]).map(e=>({titulo:e.estacion||'PRODUCCIÓN',filas:e.filas}));
+    const obs=m.observaciones.map(o=>o.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+f0(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(z=>'Merma '+z.item+': '+f0(z.cantidad,3)+' '+z.unidad));
+    const pres=m.presentaciones.filter(p=>p.bolsas>0);
+    function pintar(c,H){
+      const x=c.getContext('2d');
+      const rr=(cx,cy,cw,ch,r)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
+      const card=(cx,cy,cw,ch,fill)=>{x.fillStyle=fill||WHITE;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=LINE;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
+      const wrap=(t,max)=>{const out=[];let row='';String(t||'').split(/\s+/).forEach(w=>{const q=row?row+' '+w:w;if(x.measureText(q).width>max&&row){out.push(row);row=w;}else row=q;});if(row)out.push(row);return out.length?out:[''];};
+      x.fillStyle=BG;x.fillRect(0,0,W,H);
+      x.fillStyle=DARK;x.fillRect(0,0,W,205);x.fillStyle=WHITE;
+      x.font='700 '+fz(31)+'px Arial';x.fillText('GLACIAL',55,56);
+      x.font='700 '+fz(34)+'px Arial';x.fillText((m.tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO',275,62);
+      x.font='700 '+fz(26)+'px Arial';x.fillText((m.turnoTxt||'').toUpperCase(),275,101);
+      x.font=fz(19)+'px Arial';x.fillText('Fecha: '+fechaDmy(m.fecha),55,154);if(m.hora)x.fillText('Hora: '+m.hora,330,154);
+      if(m.inicio||m.fin){x.font=fz(16)+'px Arial';x.fillStyle='#D9EAF3';x.fillText('Inicio: '+(m.inicio||'—')+(m.tipo==='CIERRE'&&m.fin?' · Término: '+m.fin:''),55,184);}
+      let y=228;
+      x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 '+fz(22)+'px Arial';x.fillText('DETALLE DE PRODUCCIÓN POR ESTACIÓN',48,y+31);y+=64;
+      if(!m.reportes){card(PAD,y,W-PAD*2,72,'#F8FBFD');x.fillStyle=STEEL;x.font='700 '+fz(17)+'px Arial';x.fillText('Todavía no hay reporte de hielo en este turno.',PAD+20,y+44);y+=90;}
+      grupos.forEach(g=>{
+        const h=58+16+g.filas.length*fz(34);
+        card(PAD,y,W-PAD*2,h);x.fillStyle='#E8F7FE';rr(PAD,y,W-PAD*2,58,9);x.fill();
+        x.fillStyle=DARK;x.font='700 '+fz(22)+'px Arial';x.fillText(g.titulo.toUpperCase(),PAD+20,y+38);
+        const tot=g.filas.reduce((q,f)=>q+f.bolsas,0);x.textAlign='right';x.fillStyle=GOOD;x.font='700 '+fz(15)+'px Arial';x.fillText(f0(tot)+' BOLSAS',W-PAD-20,y+36);x.textAlign='left';
+        let cy=y+58+30;
+        g.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca+' '+pk(f.presentacion),PAD+28,cy);x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' bolsas',W-PAD-22,cy);x.textAlign='left';cy+=fz(34);});
+        y+=h+18;
+      });
+      const filasR=Math.max(1,pres.length),hR=48+filasR*fz(62)+(m.programado>0?fz(34):0);
+      card(PAD,y,W-PAD*2,hR,'#F8FBFD');x.fillStyle=BLUE;x.font='700 '+fz(17)+'px Arial';x.fillText('RESUMEN DEL AVANCE',PAD+20,y+30);
+      let ry=y+30+fz(36);
+      pres.forEach(p=>{x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Producción de bolsas '+pk(p.presentacion)+': '+f0(p.bolsas),PAD+20,ry);x.fillStyle=STEEL;x.font=fz(16)+'px Arial';x.fillText('Producción de '+pk(p.presentacion)+': '+f0(p.kg,1)+' kg',PAD+20,ry+fz(26));ry+=fz(62);});
+      if(m.programado>0){x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Programado: '+f0(m.programado)+' bolsas · Cumplimiento: '+f0(m.cumplimiento*100)+' %',PAD+20,ry-fz(8));}
+      y+=hR+18;
+      if(m.caidas){const h=fz(46);x.fillStyle='#FDECEA';rr(PAD,y,W-PAD*2,h,9);x.fill();x.strokeStyle=BAD;rr(PAD,y,W-PAD*2,h,9);x.stroke();x.fillStyle=BAD;x.font='700 '+fz(17)+'px Arial';x.fillText('🚨 SE VIENE TRABAJANDO POR CAÍDAS',PAD+20,y+fz(30));y+=h+18;}
+      if(obs.length){
+        x.font=fz(15)+'px Arial';const filas=obs.slice(0,12).map(o=>wrap('• '+o,W-PAD*2-60).slice(0,2));
+        const h=fz(40)+filas.reduce((q,f)=>q+f.length*fz(24),0)+16;
+        card(PAD,y,W-PAD*2,h);x.fillStyle=BLUE;x.font='700 '+fz(15)+'px Arial';x.fillText('OBSERVACIONES',PAD+20,y+fz(28));
+        let oy=y+fz(28)+fz(10);x.fillStyle=STEEL;x.font=fz(15)+'px Arial';filas.forEach(f=>f.forEach(r=>{oy+=fz(24);x.fillText(r,PAD+28,oy);}));y+=h+18;
+      }
+      y+=10;x.strokeStyle=LINE;x.beginPath();x.moveTo(PAD,y);x.lineTo(W-PAD,y);x.stroke();y+=36;
+      x.fillStyle=STEEL;x.font=fz(15)+'px Arial';x.fillText('Generado por: '+(m.generadoPor||m.supervisores.join(', ')||'—'),PAD,y);
+      x.textAlign='right';x.fillStyle=DARK;x.font='700 '+fz(18)+'px Arial';x.fillText('GLACIAL · Control de Producción',W-PAD,y);x.textAlign='left';
+      return y+36;
+    }
+    /* primera pasada en un lienzo alto para medir; la segunda ya con el alto exacto */
+    const t=document.createElement('canvas');t.width=W;t.height=4000;const H=pintar(t,4000);
+    const c=document.createElement('canvas');c.width=W;c.height=H;pintar(c,H);
+    return c;
+  }
+  window.hlAvImagen=()=>{
+    try{
+      const m=modeloAv(),c=dibujarImagen(m);
+      c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='hielo-'+m.tipo.toLowerCase()+'-'+m.fecha+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);ok('Imagen descargada.');},'image/png');
+    }catch(e){mal('No se pudo generar la imagen: '+((e&&e.message)||e));}
+  };
   function pintar(){
     const r=raiz();
-    const MENU=[['inicio','Inicio'],['registro','Nuevo registro'],['historial','Historial'],['programacion','Programación'],['config','Configuración']];
-    const cuerpo={inicio:vistaInicio,registro:vistaRegistro,historial:vistaHistorial,programacion:vistaProgramacion,config:vistaConfig}[S.vista]||vistaInicio;
+    const MENU=[['inicio','Inicio'],['registro','Nuevo registro'],['avance','Avance y cierre'],['historial','Historial'],['programacion','Programación'],['config','Configuración']];
+    const cuerpo={inicio:vistaInicio,registro:vistaRegistro,avance:vistaAvance,historial:vistaHistorial,programacion:vistaProgramacion,config:vistaConfig}[S.vista]||vistaInicio;
     const y=r.scrollTop;
     r.innerHTML=`${estilos()}<div class="hl-app"><nav class="hl-side" aria-label="Menú de Hielo"><h2>❄ GLACIAL · HIELO</h2><small>Reporte Hielo</small>
       ${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${t}</button>`).join('')}
@@ -425,7 +566,7 @@
   window.hlDato=(k,v)=>{if(!S.ed)return;S.ed[k]=v;cambio(false);};
   window.hlCampo=(lista,i,k,v)=>{if(!S.ed||!S.ed[lista][i])return;S.ed[lista][i][k]=v;cambio(k==='presentacion'||k==='motivo');};
   window.hlAgregar=lista=>{if(!S.ed)return;const c=config();
-    S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',lote:'',bolsas:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',cantidad:'',unidad:'UND'});cambio(true);};
+    S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',estacion:'',lote:'',bolsas:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',cantidad:'',unidad:'UND'});cambio(true);};
   window.hlQuitar=(lista,i)=>{if(!S.ed)return;S.ed[lista].splice(i,1);cambio(true);};
   window.hlGuardar=async(accion,auto)=>{
     if(!S.ed)return;
@@ -455,7 +596,7 @@
   window.hlPGuardar=async()=>{try{await guardarProgramacion(S.pFecha||hoy(),S.pTurno||'DÍA',S.pItems,S.pRev);S.pItems=null;ok('Programación guardada.');}catch(e){S.pItems=null;mal(e);}};
   window.hlGuardarConfig=async()=>{
     const v=id=>((document.getElementById(id)||{}).value||'').split('\n');
-    try{await guardarConfig({marcas:v('hl-c-marcas'),presentaciones:v('hl-c-pres'),equipos:v('hl-c-equipos'),motivos:v('hl-c-motivos'),mermas:v('hl-c-mermas')});ok('Configuración guardada.');}catch(e){mal(e);}
+    try{await guardarConfig({marcas:v('hl-c-marcas'),presentaciones:v('hl-c-pres'),estaciones:v('hl-c-estaciones'),equipos:v('hl-c-equipos'),motivos:v('hl-c-motivos'),mermas:v('hl-c-mermas')});ok('Configuración guardada.');}catch(e){mal(e);}
   };
   window.hlExcel=async()=>{
     try{
