@@ -179,9 +179,42 @@
     return ev.sort((a,b)=>b.ms-a.ms).slice(0,limite||12);
   }
 
+  /* ---------- Registro CFA-CA-F-023 ---------- */
+  const INFORME_DEFECTO='Se han realizado las actividades mencionadas en la tabla superior cumpliendo con lo programado. Máquina en condiciones normales de operación.';
+  const MAX_IMPRESO=22;
+  const sumarDias=(iso,n)=>aIso(aUtc(iso)+n*DIA);
+  /** Próxima revisión = fecha + 7 días. */
+  const proximaRevision=fecha=>esFecha(fecha)?sumarDias(fecha,7):'';
+  /** Actividades de un registro nuevo: las del plan que manda esa semana, por bloque de frecuencia y luego por orden; «equipo» = antes de « / », «actividad» = después. */
+  function actividadesParaRegistro(actsPlan,semana){
+    const lista=actividadesDeSemana(actsPlan,semana).slice().sort((a,b)=>(num(a.bloque_orden)||bloqueOrden(a.frecuencia))-(num(b.bloque_orden)||bloqueOrden(b.frecuencia))||num(a.orden)-num(b.orden));
+    return lista.map((a,i)=>{const p=partirActividad(a.actividad);return {plan_actividad_id:a.id,item:i+1,equipo:p.equipo,actividad:p.tarea,frecuencia:a.frecuencia};});
+  }
+  /** Avance de un registro: {hechas, total, pct}. */
+  function progresoRegistro(regActs){const t=(regActs||[]).length,h=(regActs||[]).filter(a=>a.realizado).length;return {hechas:h,total:t,pct:t?Math.round(h/t*100):0};}
+  /** El formato impreso solo muestra las primeras 22 actividades. */
+  const excedeImpreso=n=>n>MAX_IMPRESO;
+  /** Horas entre dos horas «HH:MM» (si la segunda es menor, cruza la medianoche). */
+  function horasEntre(ini,fin){
+    const m=h=>{const x=/^(\d{2}):(\d{2})/.exec(h||'');return x?+x[1]*60+ +x[2]:null;};
+    const a=m(ini),b=m(fin);if(a===null||b===null)return 0;
+    return Math.round(((b>=a?b-a:b+1440-a)/60)*100)/100;
+  }
+  /** Qué puede hacer cada persona con un registro según su estado: editar (técnico), cerrar, validar, reabrir. sup = supervisor/jefe (marca supmtto). */
+  function permisosRegistro(estado,sup,tecnico){
+    const e=ESTADOS_REG[estado]?estado:'PENDIENTE';
+    return {
+      editar:(e==='PENDIENTE'||e==='EN_CURSO')&&(!!sup||!!tecnico),
+      cerrar:(e==='PENDIENTE'||e==='EN_CURSO')&&(!!sup||!!tecnico),
+      validar:e==='CERRADO'&&!!sup,
+      reabrir:(e==='CERRADO'||e==='VALIDADO')&&!!sup,
+      soloLectura:!(((e==='PENDIENTE'||e==='EN_CURSO')&&(!!sup||!!tecnico)))
+    };
+  }
+
   const API={BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
     semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
-    textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
+    INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialMttoPlan=API;
 })(typeof window!=='undefined'?window:globalThis);

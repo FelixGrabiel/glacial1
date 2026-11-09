@@ -42,7 +42,6 @@
   function pedirSemana(){D.cargarSemana(UI.sem.anio,UI.sem.semana);}
 
   /* ---------- pintar ---------- */
-  const BOTON_ESTADO={PENDIENTE:'Iniciar',EN_CURSO:'Ver en vivo',CERRADO:'Validar',VALIDADO:'Ver'};
   function pintar(main){
     estilos();
     const lineas=normalizar(),c=D.cache,hoy=N.semanaDeHoy(hoyIso());
@@ -60,7 +59,7 @@
           '<td><span class="ps-est ps-'+e.cls+'">'+e.txt+'</span></td>'+
           '<td>'+(f.tecnico||f.maquinista?'<b>'+esc(f.tecnico||'—')+'</b>'+(f.maquinista?' · '+esc(f.maquinista):'')+'<small>'+esc(f.hace)+'</small>':'<span class="ps-mut">—</span>')+'</td>'+
           '<td class="ps-acc"><button type="button" class="btn btn-ghost btn-sm" data-ps-ver="'+esc(f.maquina.id)+'" aria-expanded="'+abierta+'">'+(abierta?'Ocultar':'Actividades')+'</button>'+
-          (reg&&reg.abrir?' <button type="button" class="btn btn-ghost btn-sm" data-ps-abrir="'+esc(f.maquina.id)+'">'+BOTON_ESTADO[f.estado]+'</button>':'')+'</td></tr>'+
+          (reg&&reg.botonPara&&reg.botonPara(f.estado)?' <button type="button" class="btn btn-ghost btn-sm" data-ps-abrir="'+esc(f.maquina.id)+'">'+esc(reg.botonPara(f.estado))+'</button>':'')+'</td></tr>'+
           (abierta?'<tr class="ps-det"><td colspan="5"><ol>'+f.delPlan.map(a=>{const p=N.partirActividad(a.actividad);return '<li><b>'+esc(p.equipo)+'</b>'+(p.tarea?' / '+esc(p.tarea):'')+' <small>'+esc(a.frecuencia)+(a.insumos&&a.insumos!=='N/A'?' · '+esc(a.insumos):'')+'</small></li>';}).join('')+'</ol></td></tr>':'');
       }).join('')+'</tbody></table></div>':'<div class="ps-aviso">No hay actividades programadas esta semana.</div>';
       cuerpo='<div class="ps-cards">'+
@@ -71,7 +70,7 @@
         (c.errorSemana?'<div class="ps-aviso">'+esc(c.errorSemana)+'</div>':'')+
         '<div class="ps-cols">'+tabla+'<aside class="ps-vivo"><h3>En vivo <small class="'+(c.enVivo?'on':'')+'">'+(c.enVivo?'● Actualizando':'○ Sin tiempo real')+'</small></h3>'+
         (ev.length?'<ul>'+ev.map(x=>'<li><span>'+esc(hhmm(x.ms))+'</span> <b>'+esc(x.quien)+'</b> '+esc(x.texto)+'</li>').join('')+'</ul>':'<p class="ps-mut">Aquí aparecerán, al instante, las actividades que marquen los técnicos y los registros que cierren o validen.</p>')+'</aside></div>'+
-        '<p class="ps-pie">Reemplaza al botón BUSCAR del Excel: la semana se arma sola desde el Plan anual.'+(reg&&reg.abrir?'':' El registro de cada máquina (CFA-CA-F-023) se llena en la próxima etapa.')+'</p>';
+        '<p class="ps-pie">Reemplaza al botón BUSCAR del Excel: la semana se arma sola desde el Plan anual.'+(reg&&reg.abrir?' Toca «Iniciar» para abrir el registro CFA-CA-F-023 de la máquina.':' El registro de cada máquina (CFA-CA-F-023) se llena en la próxima etapa.')+'</p>';
     }
     main.innerHTML='<section class="ps" id="ps-raiz">'+(window.glacialMttoTabs?window.glacialMttoTabs.html('semanal'):'')+
       '<header class="ps-cab"><div class="ps-sem"><button type="button" class="btn btn-ghost" data-ps-mover="-1" aria-label="Semana anterior">‹</button>'+

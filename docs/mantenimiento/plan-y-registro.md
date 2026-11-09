@@ -43,3 +43,12 @@ Estado: **Etapa 1 completa en PRUEBAS** (datos, pantalla Plan anual, impreso A4 
 - Pantalla `js/mantenimiento/75-programa-semanal-pantalla.js`: selector de semana (‹ SEM_45 ›), una fila por máquina (sin las hojas CARB pendientes) con las actividades que manda el plan por frecuencia, avance, estado, técnico/maquinista y «hace X min»; panel «En vivo»; botón «Actividades» (lista de la semana, reemplaza al BUSCAR). Los botones Iniciar / Ver en vivo / Validar aparecen cuando exista el Registro (etapa 3).
 - Pestañas de Mantenimiento: Plan anual · Programa semanal (`window.glacialMttoTabs`).
 - Pruebas: `tests/mantenimiento-plan-anual.test.js` (núcleo), `tests/mantenimiento-programa-semanal.e2e.js`.
+
+## Registro CFA-CA-F-023 (etapa 3)
+- Pantalla `js/mantenimiento/76-registro-pantalla.js` (celular primero): se crea con «Iniciar» desde el Programa semanal con las actividades que manda el plan; casillas de 48 px, observación por actividad, tipo (Predictivo/Preventivo/Correctivo), condición (Interno/Externo), horas reales, hasta 4 piezas, insumos químicos fijos, informe final. Todo se guarda al instante («Guardado») y se propaga en vivo.
+- Estados: PENDIENTE → EN CURSO (al marcar la primera; guarda la hora real de inicio) → POR VALIDAR (el técnico «Cierra y firma»; guarda la hora de fin) → VALIDADO (solo supervisor/jefe; solo ellos reabren). Las reglas de la base lo exigen (glacial_48).
+- Técnico = quien se identificó con su PIN (`mantTecnicoActivo`); el supervisor puede escribirlo. Maquinista: se propone solo si la Rotación de Maquinistas deja uno para ese día.
+- Datos: `72-plan-anual-datos.js` (iniciarRegistro, marcarActividad, guardarCampos, guardarPieza, cerrar/validar/reabrir). Núcleo: `actividadesParaRegistro`, `permisosRegistro`.
+- Impreso `js/mantenimiento/77-registro-impresion.js`: A4 horizontal, 1 sola hoja, 22 actividades máximo (11 + 11), línea solo «PET», sin nada de la interfaz. «Vista de impresión» en la pantalla.
+- Pendiente de esta etapa: adjuntar foto de evidencia al registro (reutilizar el mecanismo de evidencias); aviso a la otra persona cuando dos editan el mismo campo.
+- Pruebas: `tests/mantenimiento-registro-impresion.test.js`, `tests/mantenimiento-registro.e2e.js`.
