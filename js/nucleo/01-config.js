@@ -478,23 +478,29 @@ function obtenerRatioNominal(linea, presentacion, marca){
    LISTAS DE HIELO
    ========================================================= */
 
-const MARCAS_HIELO = [
-  'Bells',
-  'Scala',
-  'Glacial',
-  'Listo',
-  'Cuisine',
-  'Tottus',
-  'Aro',
-  'Certificado',
-  'Austral'
+/* Catálogo de productos de hielo: [marca, presentación]. Fuente: tabla «Presentación» de la planta. */
+const PRODUCTOS_HIELO = [
+  ['Certificado', '3 kg'],
+  ['Rappi', '3 kg'],
+  ['Glacial', '3 kg'],
+  ["Bell's", '3 kg'],
+  ['Listo', '3 kg'],
+  ['Tottus CD', '3 kg'],
+  ['Cusine & Co', '3 kg'],
+  ['Molitalia', '3 kg'],
+  ['Hoteles', '3 kg'],
+  ['Precio Uno', '1.5 kg'],
+  ['Glacial', '1.5 kg'],
+  ['Scala', '1.5 kg'],
+  ['Listo', '1.5 kg'],
+  ['Austral', '1.5 kg']
 ];
 
+const MARCAS_HIELO = [...new Set(PRODUCTOS_HIELO.map(p => p[0]))];
 
 const PRESENTACIONES_HIELO = [
   '1.5 kg',
-  '3 kg',
-  '5 kg'
+  '3 kg'
 ];
 
 
