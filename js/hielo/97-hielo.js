@@ -121,7 +121,55 @@
     });
     return filas;
   }
-  const N={TURNOS,DEFECTO,kgDe,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
+    /* ---------- Avance y cierre del turno (texto para WhatsApp e imagen) ---------- */
+  const f0=(n,d)=>Number(n||0).toLocaleString('es-PE',{maximumFractionDigits:d===undefined?0:d});
+  const fechaDmy=f=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(f||'');return m?m[3]+'/'+m[2]+'/'+m[1]:String(f||'');};
+  /** Datos del avance o cierre de un conjunto de reportes (un turno, varios o todo el día). tipo = CIERRE si todos están finalizados; si no, AVANCE. */
+  function modeloAvanceCierre(o){
+    const rs=(o.reportes||[]).filter(Boolean),ps=(o.programas||[]).filter(Boolean),t=totales(rs),prog=programado(ps);
+    const tipo=rs.length&&rs.every(r=>r.estado==='FINALIZADO')?'CIERRE':'AVANCE';
+    const marcas=[...new Set(t.porMarca.map(x=>x.marca))].sort((a,b)=>a.localeCompare(b,'es')).map(m=>{
+      const filas=t.porMarca.filter(x=>x.marca===m).sort((a,b)=>kgDe(b.presentacion)-kgDe(a.presentacion));
+      const bolsas=filas.reduce((s,x)=>s+x.bolsas,0),kg=Math.round(filas.reduce((s,x)=>s+x.bolsas*kgDe(x.presentacion),0)*100)/100;
+      return {marca:m,filas,bolsas,kg};
+    });
+    const pres=ordenPres([...new Set(['3 kg','1.5 kg'].concat(Object.keys(t.porPres)))].filter(p=>['3 kg','1.5 kg'].includes(p)||t.porPres[p]>0));
+    const paradas=rs.flatMap(r=>(r.paradas||[]).map(p=>Object.assign({turno:r.turno},p))).filter(p=>num(p.minutos)>0).sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
+    const horas=rs.map(r=>r.horaInicio).filter(Boolean).sort(),fines=rs.map(r=>r.horaFin).filter(Boolean).sort();
+    return {tipo,fecha:o.fecha,turnoTxt:o.turnoTxt||'',hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
+      titulo:(tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO',
+      presentaciones:pres.map(p=>({presentacion:p,bolsas:t.porPres[p]||0,kg:Math.round((t.porPres[p]||0)*kgDe(p)*100)/100})),marcas,
+      bolsas:t.bolsas,kg:t.kg,programado:prog.total,cumplimiento:prog.total>0?t.bolsas/prog.total:null,paradas,paradasMin:t.paradasMin,merma:t.merma,
+      observaciones:rs.filter(r=>texto(r.observaciones)).map(r=>({turno:r.turno,texto:texto(r.observaciones)})),
+      supervisores:[...new Set(rs.map(r=>texto(r.supervisor)).filter(Boolean))],inicio:horas[0]||'',fin:fines.length?fines[fines.length-1]:''};
+  }
+  /** Texto para pegar en WhatsApp (mismo estilo que el Avance y Cierre de Agua). */
+  function textoAvanceCierre(m){
+    const out=['*'+m.titulo+(m.turnoTxt?' – '+m.turnoTxt.toUpperCase():'')+'*','','*Fecha: '+fechaDmy(m.fecha)+'*'];
+    if(m.hora)out.push('*Hora: '+m.hora+'*');
+    if(!m.reportes){out.push('','Todavía no hay reporte de hielo en este turno.');}
+    else{
+      if(m.inicio||(m.tipo==='CIERRE'&&m.fin))out.push('',(m.inicio?'Inicio: '+m.inicio:'')+(m.tipo==='CIERRE'&&m.fin?(m.inicio?' · ':'')+'Término: '+m.fin:''));
+      m.marcas.forEach(x=>{
+        out.push('','*'+x.marca.toUpperCase()+'*','');
+        x.filas.forEach(f=>out.push('Bolsas de '+f.presentacion+': '+f0(f.bolsas)));
+        out.push('','Producción: '+f0(x.bolsas)+' bolsas · '+f0(x.kg,1)+' kg');
+      });
+      out.push('','*TOTAL HIELO*','');
+      m.presentaciones.forEach(p=>out.push('Bolsas de '+p.presentacion+': '+f0(p.bolsas)+' ('+f0(p.kg,1)+' kg)'));
+      out.push('','Producción total: '+f0(m.bolsas)+' bolsas · '+f0(m.kg,1)+' kg');
+      out.push(m.programado>0?'Programado: '+f0(m.programado)+' bolsas · Cumplimiento: '+f0(m.cumplimiento*100)+' %':'Programado: sin programación');
+      out.push('','*PARADAS*','');
+      if(m.paradas.length)m.paradas.forEach(p=>out.push((p.inicio?p.inicio+' · ':'')+[p.equipo,p.motivo].filter(Boolean).join(' – ')+' – '+f0(p.minutos)+' min'+(p.nota?' ('+p.nota+')':'')));
+      else out.push('Sin paradas registradas.');
+      out.push('','Total paradas: '+f0(m.paradasMin)+' min');
+      if(m.merma.length){out.push('','*MERMA*','');m.merma.forEach(x=>out.push(x.item+': '+f0(x.cantidad,3)+' '+x.unidad));}
+      if(m.observaciones.length){out.push('','*OBSERVACIONES*');m.observaciones.forEach(x=>out.push('- '+x.texto));}
+    }
+    out.push('','','Generado por:',m.generadoPor||m.supervisores.join(', ')||'—','','GLACIAL - Control de Producción');
+    return out.join('\n');
+  }
+  const N={TURNOS,DEFECTO,modeloAvanceCierre,textoAvanceCierre,kgDe,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.glacialHieloNucleo=N;
@@ -204,7 +252,7 @@
   const esc=s=>String(s===undefined||s===null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d)=>{const x=Number(n);if(!Number.isFinite(x))return '—';const t=String(Number(Math.abs(x).toFixed(d===undefined?0:d))).split('.');return (x<0?'−':'')+t[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ')+(t[1]?','+t[1]:'');};
   const fechaTxt=f=>esFecha(f)?f.split('-').reverse().join('/'):'—';
-  const S={vista:'inicio',fecha:'',turno:'TODOS',ed:null,msg:null,guardado:'',hDesde:'',hHasta:'',hTurno:'',hMarca:'',pFecha:'',pTurno:'',pItems:null,pRev:0};
+  const S={vista:'inicio',aFecha:'',aTurno:'',fecha:'',turno:'TODOS',ed:null,msg:null,guardado:'',hDesde:'',hHasta:'',hTurno:'',hMarca:'',pFecha:'',pTurno:'',pItems:null,pRev:0};
   let temporizador=null;
   function raiz(){
     let r=document.getElementById('hielo-screen');
@@ -392,10 +440,69 @@
         ${ed?'<div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlGuardarConfig()">Guardar configuración</button></div>':''}
         ${cache.config&&cache.config.actualizadoPor?`<p class="hl-sub" style="margin:8px 0 0">Última modificación: ${esc(cache.config.actualizadoPor)} · versión ${esc(cache.config.rev)}</p>`:''}</div>`;
   }
+  /* ---------- Avance y cierre (texto para WhatsApp e imagen del turno) ---------- */
+  const TURNOS_AV=[['DI','Día + Intermedio'],['DÍA','Día'],['INTERMEDIO','Intermedio'],['NOCHE','Noche'],['TODOS','Todo el día']];
+  const turnosDeAv=t=>t==='TODOS'?TURNOS:t==='DI'?['DÍA','INTERMEDIO']:[t];
+  function avPorDefecto(){if(!S.aFecha)S.aFecha=hoy();if(!S.aTurno)S.aTurno=turnoAhora()==='NOCHE'?'NOCHE':'DI';}
+  function modeloAv(){
+    avPorDefecto();const ts=turnosDeAv(S.aTurno),etq=(TURNOS_AV.find(x=>x[0]===S.aTurno)||[])[1]||S.aTurno;
+    const hora=F()?F().ahoraLima(ahora()).texto.slice(-5):'';
+    return N.modeloAvanceCierre({fecha:S.aFecha,turnoTxt:'Turno '+etq,reportes:cache.reportes.filter(r=>r.fecha===S.aFecha&&ts.includes(r.turno)),programas:cache.programacion.filter(p=>p.fecha===S.aFecha&&ts.includes(p.turno)),hora,generadoPor:yo().nombre});
+  }
+  function vistaAvance(){
+    const m=modeloAv(),texto=N.textoAvanceCierre(m);
+    const pill=!m.reportes?'<span class="hl-pill hl-gr">sin reporte</span>':m.tipo==='CIERRE'?'<span class="hl-pill hl-ok">CIERRE · todos los reportes finalizados</span>':'<span class="hl-pill hl-av">AVANCE · hay reportes en registro</span>';
+    return `<h1>Avance y cierre · Hielo</h1><p class="hl-sub">Arma el texto para WhatsApp y la imagen del turno con lo registrado. ${pill}</p>
+      <div class="hl-filtros"><label>Fecha<input type="date" value="${esc(S.aFecha)}" onchange="hlAvSet('aFecha',this.value)"></label>
+        <label>Turno<select onchange="hlAvSet('aTurno',this.value)">${TURNOS_AV.map(([k,t])=>`<option value="${k}" ${k===S.aTurno?'selected':''}>${t}</option>`).join('')}</select></label></div>
+      <div class="hl-card"><h3>Texto para WhatsApp</h3><textarea id="hl-av-texto" readonly rows="16" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.45">${esc(texto)}</textarea>
+        <div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlAvCopiar()">📋 Copiar texto</button><button type="button" class="hl-btn o" onclick="hlAvWsp()">📲 Abrir en WhatsApp</button><button type="button" class="hl-btn o" onclick="hlAvImagen()">🖼 Descargar imagen</button></div>
+        <p class="hl-sub" style="margin:10px 0 0">Se arma al momento con lo guardado: si falta algo, regístralo en «Nuevo registro» y vuelve aquí. El cierre se marca cuando todos los reportes del turno están finalizados.</p></div>`;
+  }
+  window.hlAvSet=(k,v)=>{S[k]=v;pintar();};
+  window.hlAvCopiar=async()=>{
+    const t=N.textoAvanceCierre(modeloAv());
+    try{await navigator.clipboard.writeText(t);ok('Texto copiado. Pégalo en WhatsApp.');}
+    catch(_){const a=document.getElementById('hl-av-texto');if(a){a.removeAttribute('readonly');a.select();try{document.execCommand('copy');ok('Texto copiado. Pégalo en WhatsApp.');}catch(e){mal('No se pudo copiar: selecciona el texto y cópialo a mano.');}a.setAttribute('readonly','');}}
+  };
+  window.hlAvWsp=()=>{window.open('https://wa.me/?text='+encodeURIComponent(N.textoAvanceCierre(modeloAv())),'_blank','noopener');};
+  /** Imagen PNG del avance o cierre: encabezado, bolsas por presentación, totales, paradas y merma. */
+  function dibujarImagen(m){
+    const W=1080,P=44,paradas=m.paradas.slice(0,10),mermas=m.merma.slice(0,6);
+    const filasPres=Math.ceil(m.presentaciones.length/2);
+    const H=230+filasPres*130+170+(paradas.length?90+paradas.length*34:90)+(mermas.length?70+mermas.length*30:0)+90;
+    const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+    const azul='#0b2a4a',cel='#0877A6',tinta='#16263a',gris='#5b6b7c';
+    x.fillStyle='#eef6fb';x.fillRect(0,0,W,H);
+    x.fillStyle=azul;x.fillRect(0,0,W,150);x.fillStyle='#fff';x.font='700 34px Arial';x.fillText('❄ '+m.titulo,P,62);
+    x.font='400 24px Arial';x.fillStyle='#bfe3f6';x.fillText((m.turnoTxt||'')+' · '+fechaTxt(m.fecha)+(m.hora?' · '+m.hora:''),P,104);
+    x.fillStyle=m.tipo==='CIERRE'?'#16a34a':'#f59e0b';x.beginPath();x.roundRect?x.roundRect(W-P-170,44,170,44,22):x.rect(W-P-170,44,170,44);x.fill();x.fillStyle='#fff';x.font='700 22px Arial';x.textAlign='center';x.fillText(m.tipo,W-P-85,74);x.textAlign='left';
+    let y=190;
+    const tarjeta=(px,py,w,h,t,v,sub)=>{x.fillStyle='#fff';x.strokeStyle='#d6e4ee';x.lineWidth=2;x.beginPath();x.roundRect?x.roundRect(px,py,w,h,16):x.rect(px,py,w,h);x.fill();x.stroke();
+      x.fillStyle=gris;x.font='700 20px Arial';x.fillText(t,px+22,py+34);x.fillStyle=azul;x.font='700 46px Arial';x.fillText(v,px+22,py+80);if(sub){x.fillStyle=gris;x.font='400 18px Arial';x.fillText(sub,px+22,py+h-14);}};
+    m.presentaciones.forEach((p,i)=>tarjeta(P+(i%2)*((W-2*P)/2+8),y+Math.floor(i/2)*130,(W-2*P)/2-8,118,'BOLSAS DE '+p.presentacion.toUpperCase(),f0(p.bolsas),f0(p.kg,1)+' kg'));
+    y+=filasPres*130+16;
+    tarjeta(P,y,(W-2*P)/3-8,130,'PRODUCCIÓN TOTAL',f0(m.bolsas),f0(m.kg,1)+' kg');
+    tarjeta(P+(W-2*P)/3,y,(W-2*P)/3-8,130,'CUMPLIMIENTO',m.cumplimiento===null?'—':f0(m.cumplimiento*100)+' %',m.programado?'de '+f0(m.programado)+' programadas':'sin programación');
+    tarjeta(P+2*(W-2*P)/3,y,(W-2*P)/3,130,'PARADAS',f0(m.paradasMin)+' min',m.paradas.length+' evento'+(m.paradas.length===1?'':'s'));
+    y+=170;x.fillStyle=azul;x.font='700 26px Arial';x.fillText('Paradas',P,y);y+=14;
+    x.font='400 22px Arial';
+    if(!paradas.length){y+=34;x.fillStyle=gris;x.fillText('Sin paradas registradas.',P,y);y+=20;}
+    paradas.forEach(p=>{y+=34;x.fillStyle=tinta;x.fillText((p.inicio?p.inicio+'  ':'')+[p.equipo,p.motivo].filter(Boolean).join(' – ')+'  ·  '+f0(p.minutos)+' min',P,y);});
+    if(mermas.length){y+=56;x.fillStyle=azul;x.font='700 26px Arial';x.fillText('Merma',P,y);x.font='400 22px Arial';mermas.forEach(z=>{y+=30;x.fillStyle=tinta;x.fillText(z.item+': '+f0(z.cantidad,3)+' '+z.unidad,P,y);});}
+    x.fillStyle=gris;x.font='400 20px Arial';x.fillText('Generado por '+(m.generadoPor||'—')+' · GLACIAL - Control de Producción',P,H-34);
+    return c;
+  }
+  window.hlAvImagen=()=>{
+    try{
+      const m=modeloAv(),c=dibujarImagen(m);
+      c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='hielo-'+m.tipo.toLowerCase()+'-'+m.fecha+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);ok('Imagen descargada.');},'image/png');
+    }catch(e){mal('No se pudo generar la imagen: '+((e&&e.message)||e));}
+  };
   function pintar(){
     const r=raiz();
-    const MENU=[['inicio','Inicio'],['registro','Nuevo registro'],['historial','Historial'],['programacion','Programación'],['config','Configuración']];
-    const cuerpo={inicio:vistaInicio,registro:vistaRegistro,historial:vistaHistorial,programacion:vistaProgramacion,config:vistaConfig}[S.vista]||vistaInicio;
+    const MENU=[['inicio','Inicio'],['registro','Nuevo registro'],['avance','Avance y cierre'],['historial','Historial'],['programacion','Programación'],['config','Configuración']];
+    const cuerpo={inicio:vistaInicio,registro:vistaRegistro,avance:vistaAvance,historial:vistaHistorial,programacion:vistaProgramacion,config:vistaConfig}[S.vista]||vistaInicio;
     const y=r.scrollTop;
     r.innerHTML=`${estilos()}<div class="hl-app"><nav class="hl-side" aria-label="Menú de Hielo"><h2>❄ GLACIAL · HIELO</h2><small>Reporte Hielo</small>
       ${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${t}</button>`).join('')}

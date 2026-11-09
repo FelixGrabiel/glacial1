@@ -1,0 +1,32 @@
+/* Reporte Hielo · Avance y cierre: modelo y texto para WhatsApp (js/hielo/97-hielo.js › modeloAvanceCierre / textoAvanceCierre). */
+'use strict';
+const H=require('../js/hielo/97-hielo.js');
+let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c)fallas++;};
+const R=(turno,estado,prod,extra)=>Object.assign({id:'2026-11-09_'+turno,fecha:'2026-11-09',turno,estado,supervisor:'Ana',horaInicio:turno==='DÍA'?'07:00':'14:00',horaFin:estado==='FINALIZADO'?(turno==='DÍA'?'14:00':'19:00'):'',produccion:prod,paradas:[],mermas:[],observaciones:''},extra||{});
+const dia=R('DÍA','FINALIZADO',[{marca:'Glacial',presentacion:'3 kg',bolsas:800},{marca:'Glacial',presentacion:'1.5 kg',bolsas:400}],{paradas:[{inicio:'09:10',equipo:'Compresor',motivo:'Falla de equipo',minutos:20,nota:''}],mermas:[{item:'Bolsas',cantidad:12,unidad:'UND'}],observaciones:'Cambio de bobina a las 10:00'});
+const inter=R('INTERMEDIO','EN_REGISTRO',[{marca:'Glacial',presentacion:'3 kg',bolsas:200}]);
+const progs=[{fecha:'2026-11-09',turno:'DÍA',items:[{marca:'Glacial',presentacion:'3 kg',bolsas:1500},{marca:'Glacial',presentacion:'1.5 kg',bolsas:500}]}];
+const base={fecha:'2026-11-09',turnoTxt:'Turno Día + Intermedio',hora:'14:05',generadoPor:'Ana'};
+
+let m=H.modeloAvanceCierre({...base,reportes:[dia],programas:progs});
+ok(m.tipo==='CIERRE'&&m.titulo==='CIERRE DE PRODUCCIÓN HIELO'&&m.bolsas===1200&&m.kg===3000&&m.programado===2000&&Math.round(m.cumplimiento*100)===60,'todos finalizados = CIERRE: 1 200 bolsas, 3 000 kg, 60 % de 2 000');
+m=H.modeloAvanceCierre({...base,reportes:[dia,inter],programas:progs});
+ok(m.tipo==='AVANCE'&&m.titulo==='AVANCE DE PRODUCCIÓN HIELO'&&m.bolsas===1400,'si algún reporte sigue en registro = AVANCE');
+ok(H.modeloAvanceCierre({...base,reportes:[],programas:progs}).tipo==='AVANCE'&&H.modeloAvanceCierre({...base,reportes:[],programas:[]}).reportes===0,'sin reportes no hay cierre');
+ok(m.presentaciones.map(p=>p.presentacion+':'+p.bolsas+':'+p.kg).join()==='3 kg:1000:3000,1.5 kg:400:600'&&m.marcas.length===1&&m.marcas[0].bolsas===1400,'3 kg y 1.5 kg por separado con sus kilos, y total por marca');
+const t=H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[dia],programas:progs}));
+ok(/^\*CIERRE DE PRODUCCIÓN HIELO – TURNO DÍA \+ INTERMEDIO\*/.test(t)&&/\*Fecha: 09\/11\/2026\*/.test(t)&&/\*Hora: 14:05\*/.test(t),'encabezado como el de Agua: *CIERRE DE PRODUCCIÓN HIELO – TURNO …*, fecha y hora');
+ok(/\*GLACIAL\*/.test(t)&&/Bolsas de 3 kg: 800/.test(t)&&/Bolsas de 1\.5 kg: 400/.test(t)&&/Producción: 1\.200 bolsas · 3\.000 kg|Producción: 1,200 bolsas · 3,000 kg|Producción: 1 200 bolsas/.test(t.replace(/ /g,' ')),'producción por marca y presentación');
+ok(/Programado: 2.000 bolsas · Cumplimiento: 60 %/.test(t.replace(/ /g,' '))||/Programado: 2,000 bolsas · Cumplimiento: 60 %/.test(t),'programado y cumplimiento');
+ok(/\*PARADAS\*/.test(t)&&/09:10 · Compresor – Falla de equipo – 20 min/.test(t)&&/Total paradas: 20 min/.test(t),'paradas con hora, equipo, motivo y minutos');
+ok(/\*MERMA\*/.test(t)&&/Bolsas: 12 UND/.test(t)&&/\*OBSERVACIONES\*/.test(t)&&/- Cambio de bobina a las 10:00/.test(t),'merma y observaciones');
+ok(/Inicio: 07:00 · Término: 14:00/.test(t)&&/Generado por:\nAna\n\nGLACIAL - Control de Producción$/.test(t),'inicio y término (solo en el cierre) y pie «Generado por»');
+const a=H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[dia,inter],programas:progs}));
+ok(/^\*AVANCE DE PRODUCCIÓN HIELO/.test(a)&&!/Término:/.test(a),'el avance no lleva «Término»');
+const vacio=H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[],programas:[]}));
+ok(/Todavía no hay reporte de hielo en este turno\./.test(vacio)&&!/\*PARADAS\*/.test(vacio),'sin reporte: lo dice en vez de inventar ceros');
+const sinParadas=H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[inter],programas:[]}));
+ok(/Sin paradas registradas\./.test(sinParadas)&&/Programado: sin programación/.test(sinParadas),'sin paradas y sin programación se dicen');
+const dos=H.modeloAvanceCierre({...base,reportes:[R('DÍA','FINALIZADO',[{marca:'Glacial',presentacion:'3 kg',bolsas:100},{marca:'Otra',presentacion:'3 kg',bolsas:50}])],programas:[]});
+ok(dos.marcas.length===2&&/\*GLACIAL\*[\s\S]*\*OTRA\*[\s\S]*\*TOTAL HIELO\*/.test(H.textoAvanceCierre(dos)),'con dos marcas: un bloque por marca y el total de hielo');
+process.exit(fallas?1:0);

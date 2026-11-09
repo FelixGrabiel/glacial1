@@ -12,6 +12,7 @@ Página propia, que se abre desde la tarjeta **«Reporte Hielo»** de la pantall
   - Paradas (hora, equipo, motivo, minutos y detalle), merma (ítem, cantidad y UND o KG) y observaciones.
   - Al abrir un turno nuevo se precarga lo programado.
   - Se guarda solo (borrador) y se **finaliza** con validaciones. Un reporte finalizado solo lo reabre o corrige el Administrador, con motivo.
+- **Avance y cierre:** arma, con lo registrado, el **texto para WhatsApp** (mismo estilo que el Avance y Cierre de Agua: `*AVANCE DE PRODUCCIÓN HIELO – TURNO …*` / `*CIERRE DE PRODUCCIÓN HIELO – …*`) y una **imagen PNG** del turno. Se elige fecha y turno (Día + Intermedio, Día, Intermedio, Noche o todo el día). Es **CIERRE** cuando todos los reportes del turno están finalizados y **AVANCE** si alguno sigue en registro. Botones: Copiar texto, Abrir en WhatsApp (wa.me con el texto ya escrito) y Descargar imagen. No guarda nada: se arma al momento (el envío automático por el bot de WhatsApp, como en Agua, queda fuera: el bot vive en otro proyecto).
 - **Historial:** filtros por fechas, turno y marca; bolsas por presentación, kg, paradas y estado. **Descargar Excel**, con una fila por producción.
 - **Programación:** bolsas a producir por fecha, turno, marca y presentación, y los próximos turnos programados.
 - **Configuración:** marcas, presentaciones (con sus kg), **equipos de la planta**, motivos de parada e ítems de merma.
