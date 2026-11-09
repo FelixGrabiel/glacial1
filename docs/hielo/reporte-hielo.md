@@ -51,3 +51,9 @@ Nadie en modo Visualizar escribe, y nada se borra.
 - Muestra bolsas de **3 kg** y **1.5 kg** (siempre) y las otras presentaciones solo si tuvieron producción o programación, kilos, cumplimiento contra lo programado, paradas y el estado del reporte (Sin reporte / En registro / Finalizado), con el botón «Abrir Reporte Hielo». Solo lectura.
 - «Día» incluye el turno Intermedio, igual que en la TV. La ven los usuarios del Inicio, salvo la cuenta compartida de mantenimiento.
 - Pruebas: `tests/hielo-inicio.test.js` y `tests/hielo-inicio.e2e.js`.
+
+## Avance y cierre: formato de la planta
+
+El texto de WhatsApp sigue el formato que ya envía la planta: `Avance de produccion HIELO TD` (TD = todo el día; también D+I, DÍA, INT, NOCHE), fecha `DD_MM_AA`, bloques por **estación** (Tolva manual, Env. automática…), totales «Producción de bolsas 3kg / Producción de 3kg: N kg», aviso `🚨SE VIENE TRABAJANDO POR CAÍDAS` (casilla en Observaciones del reporte) y «Observaciones» (texto libre + paradas + merma).
+- Cada línea de producción tiene una **Estación** (lista editable en Configuración › Estaciones de producción). Las líneas sin estación salen sin encabezado.
+- Los totales se calculan con las líneas registradas; en el ejemplo de la planta no coincidían con la suma de sus líneas, el sistema siempre suma lo registrado.

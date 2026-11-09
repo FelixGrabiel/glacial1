@@ -14,6 +14,7 @@
     marcas:typeof MARCAS_HIELO!=='undefined'?MARCAS_HIELO.slice():['Glacial'],
     presentaciones:typeof PRESENTACIONES_HIELO!=='undefined'?PRESENTACIONES_HIELO.slice():['1.5 kg','3 kg','5 kg'],
     equipos:[],
+    estaciones:['Tolva manual','Env. automática'],
     motivos:['Mantenimiento','Falla de equipo','Falta de insumo','Otros'],
     mermas:['Bolsas','Bobina','Hielo (producto)']
   };
@@ -92,10 +93,10 @@
     const estado=accion==='FINALIZAR'?'FINALIZADO':accion==='REABRIR'?'EN_REGISTRO':(previo&&previo.estado)||'EN_REGISTRO';
     const doc={id:idReporte(r.fecha,r.turno),fecha:r.fecha,turno:r.turno,estado,
       supervisor:texto(r.supervisor||usuario).slice(0,80),horaInicio:texto(r.horaInicio),horaFin:texto(r.horaFin),
-      produccion:limpiar(r.produccion).map(p=>({marca:texto(p.marca),presentacion:texto(p.presentacion),lote:texto(p.lote).slice(0,40),bolsas:Math.max(0,Math.round(num(p.bolsas)))})),
+      produccion:limpiar(r.produccion).map(p=>({marca:texto(p.marca),presentacion:texto(p.presentacion),estacion:texto(p.estacion).slice(0,40),lote:texto(p.lote).slice(0,40),bolsas:Math.max(0,Math.round(num(p.bolsas)))})),
       paradas:limpiar(r.paradas).map(p=>({inicio:texto(p.inicio),equipo:texto(p.equipo),motivo:texto(p.motivo),minutos:Math.max(0,Math.round(num(p.minutos))),nota:texto(p.nota).slice(0,200)})),
       mermas:limpiar(r.mermas).map(m=>({item:texto(m.item),cantidad:Math.max(0,num(m.cantidad)),unidad:UNIDADES_MERMA.includes(m.unidad)?m.unidad:'UND'})),
-      observaciones:texto(r.observaciones).slice(0,500),
+      observaciones:texto(r.observaciones).slice(0,500),caidas:!!r.caidas,
       rev:(Number(previo&&previo.rev)||0)+1,
       historial:(previo&&Array.isArray(previo.historial)?previo.historial:[]).concat(accion==='GUARDAR'&&previo?[]:[{accion,por:texto(usuario),uid:texto(uid),en:ahora,motivo:texto(motivo).slice(0,200)}]).slice(-100),
       creadoPor:previo?previo.creadoPor:texto(usuario),creadoEn:previo?previo.creadoEn:ahora,actualizadoPor:texto(usuario),actualizadoUid:texto(uid),actualizadoEn:ahora};
@@ -104,7 +105,7 @@
   /** Listas de Configuración: limpias, sin repetidos; las presentaciones deben tener kg. */
   function validarConfig(c){
     const e=[];const lista=v=>[...new Set((v||[]).map(texto).filter(Boolean))];
-    const out={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones)),equipos:lista(c.equipos),motivos:lista(c.motivos),mermas:lista(c.mermas)};
+    const out={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones)),equipos:lista(c.equipos),estaciones:lista(c.estaciones),motivos:lista(c.motivos),mermas:lista(c.mermas)};
     if(!out.marcas.length)e.push('Agrega al menos una marca.');
     if(!out.presentaciones.length)e.push('Agrega al menos una presentación.');
     out.presentaciones.forEach(p=>{if(!kgDe(p))e.push(`La presentación «${p}» debe tener los kg (por ejemplo «3 kg»).`);});
@@ -135,38 +136,39 @@
     });
     const pres=ordenPres([...new Set(['3 kg','1.5 kg'].concat(Object.keys(t.porPres)))].filter(p=>['3 kg','1.5 kg'].includes(p)||t.porPres[p]>0));
     const paradas=rs.flatMap(r=>(r.paradas||[]).map(p=>Object.assign({turno:r.turno},p))).filter(p=>num(p.minutos)>0).sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
+    const est=new Map();
+    rs.forEach(r=>(r.produccion||[]).forEach(p=>{const b=Math.max(0,Math.round(num(p.bolsas)));if(!b)return;const e=texto(p.estacion),k=texto(p.marca)+'|'+texto(p.presentacion);
+      if(!est.has(e))est.set(e,new Map());est.get(e).set(k,(est.get(e).get(k)||0)+b);}));
+    const estaciones=[...est.entries()].map(([estacion,mp])=>({estacion,filas:[...mp.entries()].map(([k,bolsas])=>{const [marca,presentacion]=k.split('|');return {marca,presentacion,bolsas};})
+      .sort((a,b)=>a.marca.localeCompare(b.marca,'es')||kgDe(b.presentacion)-kgDe(a.presentacion))})).sort((a,b)=>(a.estacion===''?1:0)-(b.estacion===''?1:0));
     const horas=rs.map(r=>r.horaInicio).filter(Boolean).sort(),fines=rs.map(r=>r.horaFin).filter(Boolean).sort();
-    return {tipo,fecha:o.fecha,turnoTxt:o.turnoTxt||'',hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
+    return {tipo,fecha:o.fecha,turnoTxt:o.turnoTxt||'',turnoCod:o.turnoCod||'',caidas:rs.some(r=>r.caidas),estaciones,hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
       titulo:(tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO',
       presentaciones:pres.map(p=>({presentacion:p,bolsas:t.porPres[p]||0,kg:Math.round((t.porPres[p]||0)*kgDe(p)*100)/100})),marcas,
       bolsas:t.bolsas,kg:t.kg,programado:prog.total,cumplimiento:prog.total>0?t.bolsas/prog.total:null,paradas,paradasMin:t.paradasMin,merma:t.merma,
       observaciones:rs.filter(r=>texto(r.observaciones)).map(r=>({turno:r.turno,texto:texto(r.observaciones)})),
       supervisores:[...new Set(rs.map(r=>texto(r.supervisor)).filter(Boolean))],inicio:horas[0]||'',fin:fines.length?fines[fines.length-1]:''};
   }
-  /** Texto para pegar en WhatsApp (mismo estilo que el Avance y Cierre de Agua). */
+  /** Texto para WhatsApp en el formato que usa la planta: «Avance de produccion HIELO TD», fecha DD_MM_AA, bloques por estación, totales por presentación. */
   function textoAvanceCierre(m){
-    const out=['*'+m.titulo+(m.turnoTxt?' – '+m.turnoTxt.toUpperCase():'')+'*','','*Fecha: '+fechaDmy(m.fecha)+'*'];
-    if(m.hora)out.push('*Hora: '+m.hora+'*');
+    const pl=(n,d)=>String(Math.round(Number(n||0)*Math.pow(10,d===undefined?0:d))/Math.pow(10,d===undefined?0:d)).replace('.',',');
+    const pk=p=>String(p||'').replace(/\s+/g,'');
+    const fecha=(/^(\d{4})-(\d{2})-(\d{2})$/.exec(m.fecha||'')||[]);
+    const out=[(m.tipo==='CIERRE'?'Cierre':'Avance')+' de produccion HIELO'+(m.turnoCod?' '+m.turnoCod:''),fecha[1]?fecha[3]+'_'+fecha[2]+'_'+fecha[1].slice(2):String(m.fecha||'')];
+    if(m.hora)out.push('Hora: '+m.hora);
     if(!m.reportes){out.push('','Todavía no hay reporte de hielo en este turno.');}
     else{
-      if(m.inicio||(m.tipo==='CIERRE'&&m.fin))out.push('',(m.inicio?'Inicio: '+m.inicio:'')+(m.tipo==='CIERRE'&&m.fin?(m.inicio?' · ':'')+'Término: '+m.fin:''));
-      m.marcas.forEach(x=>{
-        out.push('','*'+x.marca.toUpperCase()+'*','');
-        x.filas.forEach(f=>out.push('Bolsas de '+f.presentacion+': '+f0(f.bolsas)));
-        out.push('','Producción: '+f0(x.bolsas)+' bolsas · '+f0(x.kg,1)+' kg');
+      m.estaciones.forEach(e=>{
+        out.push('');
+        if(e.estacion)out.push(e.estacion.toUpperCase());
+        e.filas.forEach(f=>out.push(f.marca+' '+pk(f.presentacion)+': '+pl(f.bolsas)));
       });
-      out.push('','*TOTAL HIELO*','');
-      m.presentaciones.forEach(p=>out.push('Bolsas de '+p.presentacion+': '+f0(p.bolsas)+' ('+f0(p.kg,1)+' kg)'));
-      out.push('','Producción total: '+f0(m.bolsas)+' bolsas · '+f0(m.kg,1)+' kg');
-      out.push(m.programado>0?'Programado: '+f0(m.programado)+' bolsas · Cumplimiento: '+f0(m.cumplimiento*100)+' %':'Programado: sin programación');
-      out.push('','*PARADAS*','');
-      if(m.paradas.length)m.paradas.forEach(p=>out.push((p.inicio?p.inicio+' · ':'')+[p.equipo,p.motivo].filter(Boolean).join(' – ')+' – '+f0(p.minutos)+' min'+(p.nota?' ('+p.nota+')':'')));
-      else out.push('Sin paradas registradas.');
-      out.push('','Total paradas: '+f0(m.paradasMin)+' min');
-      if(m.merma.length){out.push('','*MERMA*','');m.merma.forEach(x=>out.push(x.item+': '+f0(x.cantidad,3)+' '+x.unidad));}
-      if(m.observaciones.length){out.push('','*OBSERVACIONES*');m.observaciones.forEach(x=>out.push('- '+x.texto));}
+      m.presentaciones.filter(p=>p.bolsas>0).forEach(p=>{out.push('','Producción de bolsas '+pk(p.presentacion)+': '+pl(p.bolsas),'Producción de '+pk(p.presentacion)+': '+pl(p.kg,1)+'kg');});
+      if(m.programado>0)out.push('','Programado: '+pl(m.programado)+' bolsas · Cumplimiento: '+pl(m.cumplimiento*100)+' %');
+      if(m.caidas)out.push('','🚨SE VIENE TRABAJANDO POR CAÍDAS');
+      const obs=m.observaciones.map(x=>x.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+pl(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(x=>'Merma '+x.item+': '+pl(x.cantidad,3)+' '+x.unidad));
+      if(obs.length){out.push('','Observaciones');obs.forEach(x=>out.push(x));}
     }
-    out.push('','','Generado por:',m.generadoPor||m.supervisores.join(', ')||'—','','GLACIAL - Control de Producción');
     return out.join('\n');
   }
   const N={TURNOS,DEFECTO,modeloAvanceCierre,textoAvanceCierre,kgDe,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
@@ -345,7 +347,7 @@
     S.ed=r?JSON.parse(JSON.stringify(r)):{fecha,turno,estado:'EN_REGISTRO',supervisor:yo().nombre,horaInicio:'',horaFin:'',produccion:[],paradas:[],mermas:[],observaciones:'',rev:0};
     if(!r){ // nuevo: una fila por lo programado de ese turno, o una vacía
       const prog=programasDe(fecha,turno).flatMap(p=>p.items||[]);
-      S.ed.produccion=prog.length?prog.map(i=>({marca:i.marca,presentacion:i.presentacion,lote:'',bolsas:''})):[{marca:config().marcas[0]||'',presentacion:config().presentaciones[0]||'',lote:'',bolsas:''}];
+      S.ed.produccion=prog.length?prog.map(i=>({marca:i.marca,presentacion:i.presentacion,estacion:'',lote:'',bolsas:''})):[{marca:config().marcas[0]||'',presentacion:config().presentaciones[0]||'',estacion:'',lote:'',bolsas:''}];
     }
     S.guardado=r?'Guardado':'';
   }
@@ -357,6 +359,7 @@
     const t=totales([r]);
     const prod=r.produccion.map((p,i)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlCampo('produccion',${i},'marca',this.value)">${opciones(cfg.marcas.includes(p.marca)||!p.marca?cfg.marcas:[p.marca].concat(cfg.marcas),p.marca,'— marca —')}</select></td>
       <td data-label="Presentación"><select ${dis} onchange="hlCampo('produccion',${i},'presentacion',this.value)">${opciones(cfg.presentaciones.includes(p.presentacion)||!p.presentacion?cfg.presentaciones:[p.presentacion].concat(cfg.presentaciones),p.presentacion,'—')}</select></td>
+      <td data-label="Estación"><select ${dis} onchange="hlCampo('produccion',${i},'estacion',this.value)">${opciones(cfg.estaciones.includes(p.estacion)||!p.estacion?cfg.estaciones:[p.estacion].concat(cfg.estaciones),p.estacion,'— estación —')}</select></td>
       <td data-label="Lote"><input ${dis} maxlength="40" value="${esc(p.lote)}" placeholder="opcional" oninput="hlCampo('produccion',${i},'lote',this.value)" aria-label="Lote del producto"></td>
       <td data-label="Bolsas"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(p.bolsas)}" oninput="hlCampo('produccion',${i},'bolsas',this.value)" aria-label="Bolsas"></td>
       <td data-label="Kilos"><input readonly tabindex="-1" id="hl-kg-${i}" value="${fmt(num(p.bolsas)*kgDe(p.presentacion),1)}" aria-label="Kilos"></td>
@@ -381,7 +384,7 @@
         <label>Hora inicio<input ${dis} type="time" value="${esc(r.horaInicio)}" onchange="hlDato('horaInicio',this.value)"></label>
         <label>Hora fin<input ${dis} type="time" value="${esc(r.horaFin)}" onchange="hlDato('horaFin',this.value)"></label></div></div>
       <div class="hl-card"><h3>Producción (bolsas)</h3>
-        ${prod?`<table class="hl-ed"><thead><tr><th>Marca</th><th>Presentación</th><th>Lote</th><th>Bolsas</th><th>Kilos</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
+        ${prod?`<table class="hl-ed"><thead><tr><th>Marca</th><th>Presentación</th><th>Estación</th><th>Lote</th><th>Bolsas</th><th>Kilos</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
         <div class="hl-acc" style="margin-top:8px">${bloq?'':'<button type="button" class="hl-btn o" onclick="hlAgregar(\'produccion\')">+ Agregar marca</button>'}
           <span class="hl-sub" id="hl-tot" style="margin:0">${pres.map(p=>`${fmt(t.porPres[p])} bolsas de ${esc(p)}`).join(' · ')||'0 bolsas'} · <b>${fmt(t.kg,1)} kg</b></span></div></div>
       <div class="hl-2"><div class="hl-card"><h3>Paradas</h3>
@@ -391,7 +394,7 @@
         <div class="hl-card"><h3>Merma</h3>
         ${mer?`<table class="hl-ed"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead><tbody>${mer}</tbody></table>`:'<div class="hl-vacio">Sin merma.</div>'}
         ${bloq?'':'<div class="hl-acc" style="margin-top:8px"><button type="button" class="hl-btn o" onclick="hlAgregar(\'mermas\')">+ Agregar merma</button></div>'}</div></div>
-      <div class="hl-card"><h3>Observaciones</h3><textarea ${dis} rows="3" maxlength="500" oninput="hlDato('observaciones',this.value)">${esc(r.observaciones)}</textarea></div>
+      <div class="hl-card"><h3>Observaciones</h3><label class="hl-sub" style="display:block;margin:0 0 6px"><input type="checkbox" ${dis} ${r.caidas?'checked':''} onchange="hlDato('caidas',this.checked)"> 🚨 Se viene trabajando por caídas</label><textarea ${dis} rows="3" maxlength="500" oninput="hlDato('observaciones',this.value)">${esc(r.observaciones)}</textarea></div>
       <div class="hl-acc">${puedeRegistrar()&&!fin?'<button type="button" class="hl-btn o" onclick="hlGuardar(\'GUARDAR\')">Guardar</button><button type="button" class="hl-btn" onclick="hlGuardar(\'FINALIZAR\')">Finalizar reporte</button>':''}
         ${fin&&esAdmin()?'<button type="button" class="hl-btn o" onclick="hlReabrir()">Reabrir (Administrador)</button>':''}</div>`;
   }
@@ -436,7 +439,7 @@
       ${!ed?'<div class="hl-msg i">Solo consulta: la cambian el Administrador y los jefes.</div>':''}
       ${!cache.config?'<div class="hl-msg i">Todavía no se guardó la configuración: se muestran las marcas y presentaciones del programa.</div>':''}
       <div class="hl-card"><div class="hl-form">${area('hl-c-marcas','Marcas',c.marcas,'')}${area('hl-c-pres','Presentaciones',c.presentaciones,'Con sus kg, por ejemplo «3 kg».')}
-        ${area('hl-c-equipos','Equipos de la planta',c.equipos,'Para las paradas.')}${area('hl-c-motivos','Motivos de parada',c.motivos,'«Otros» pide describir la parada.')}${area('hl-c-mermas','Ítems de merma',c.mermas,'')}</div>
+        ${area('hl-c-estaciones','Estaciones de producción',c.estaciones,'Para agrupar el avance (ej. Tolva manual).')}${area('hl-c-equipos','Equipos de la planta',c.equipos,'Para las paradas.')}${area('hl-c-motivos','Motivos de parada',c.motivos,'«Otros» pide describir la parada.')}${area('hl-c-mermas','Ítems de merma',c.mermas,'')}</div>
         ${ed?'<div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlGuardarConfig()">Guardar configuración</button></div>':''}
         ${cache.config&&cache.config.actualizadoPor?`<p class="hl-sub" style="margin:8px 0 0">Última modificación: ${esc(cache.config.actualizadoPor)} · versión ${esc(cache.config.rev)}</p>`:''}</div>`;
   }
@@ -447,7 +450,7 @@
   function modeloAv(){
     avPorDefecto();const ts=turnosDeAv(S.aTurno),etq=(TURNOS_AV.find(x=>x[0]===S.aTurno)||[])[1]||S.aTurno;
     const hora=F()?F().ahoraLima(ahora()).texto.slice(-5):'';
-    return N.modeloAvanceCierre({fecha:S.aFecha,turnoTxt:'Turno '+etq,reportes:cache.reportes.filter(r=>r.fecha===S.aFecha&&ts.includes(r.turno)),programas:cache.programacion.filter(p=>p.fecha===S.aFecha&&ts.includes(p.turno)),hora,generadoPor:yo().nombre});
+    return N.modeloAvanceCierre({fecha:S.aFecha,turnoTxt:'Turno '+etq,turnoCod:({TODOS:'TD',DI:'D+I',DÍA:'DÍA',INTERMEDIO:'INT',NOCHE:'NOCHE'})[S.aTurno]||'',reportes:cache.reportes.filter(r=>r.fecha===S.aFecha&&ts.includes(r.turno)),programas:cache.programacion.filter(p=>p.fecha===S.aFecha&&ts.includes(p.turno)),hora,generadoPor:yo().nombre});
   }
   function vistaAvance(){
     const m=modeloAv(),texto=N.textoAvanceCierre(m);
@@ -534,7 +537,7 @@
   window.hlDato=(k,v)=>{if(!S.ed)return;S.ed[k]=v;cambio(false);};
   window.hlCampo=(lista,i,k,v)=>{if(!S.ed||!S.ed[lista][i])return;S.ed[lista][i][k]=v;cambio(k==='presentacion'||k==='motivo');};
   window.hlAgregar=lista=>{if(!S.ed)return;const c=config();
-    S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',lote:'',bolsas:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',cantidad:'',unidad:'UND'});cambio(true);};
+    S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',estacion:'',lote:'',bolsas:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',cantidad:'',unidad:'UND'});cambio(true);};
   window.hlQuitar=(lista,i)=>{if(!S.ed)return;S.ed[lista].splice(i,1);cambio(true);};
   window.hlGuardar=async(accion,auto)=>{
     if(!S.ed)return;
@@ -564,7 +567,7 @@
   window.hlPGuardar=async()=>{try{await guardarProgramacion(S.pFecha||hoy(),S.pTurno||'DÍA',S.pItems,S.pRev);S.pItems=null;ok('Programación guardada.');}catch(e){S.pItems=null;mal(e);}};
   window.hlGuardarConfig=async()=>{
     const v=id=>((document.getElementById(id)||{}).value||'').split('\n');
-    try{await guardarConfig({marcas:v('hl-c-marcas'),presentaciones:v('hl-c-pres'),equipos:v('hl-c-equipos'),motivos:v('hl-c-motivos'),mermas:v('hl-c-mermas')});ok('Configuración guardada.');}catch(e){mal(e);}
+    try{await guardarConfig({marcas:v('hl-c-marcas'),presentaciones:v('hl-c-pres'),estaciones:v('hl-c-estaciones'),equipos:v('hl-c-equipos'),motivos:v('hl-c-motivos'),mermas:v('hl-c-mermas')});ok('Configuración guardada.');}catch(e){mal(e);}
   };
   window.hlExcel=async()=>{
     try{
