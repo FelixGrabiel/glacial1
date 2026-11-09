@@ -18,6 +18,9 @@
       {boton:'btn-intervenciones',icono:'🛠',titulo:'Intervenciones',desc:'Registrar y seguir reparaciones y mantenimientos: pendientes, en espera y cerradas.',abrir:()=>window.goIntervenciones&&window.goIntervenciones()},
       {boton:'btn-bitacora-mtto',icono:'📒',titulo:'Bitácora de Mantenimiento',desc:'Todas las paradas por día y línea, con su motivo, equipo y quién las atendió.',abrir:()=>window.goBitacoraMtto&&window.goBitacoraMtto()},
       {boton:'btn-intervenciones',icono:'🗓',titulo:'Preventivos',desc:'Planes de mantenimiento por calendario: próximos, de hoy y vencidos.',abrir:()=>window.intervencionesAbrir&&window.intervencionesAbrir({tab:'preventivos'})},
+      {boton:'btn-plan-anual-mtto',icono:'📅',titulo:'Plan anual de mantenimiento',desc:'Actividades de cada máquina de la Planta de Agua por semana del año, igual que el Excel PLAN-PROGRAMA MTTO.',abrir:()=>window.goPlanAnualMtto&&window.goPlanAnualMtto()},
+      {boton:'btn-programa-semanal-mtto',icono:'🗓️',titulo:'Programa semanal de mantenimiento',desc:'Qué actividades toca cada semana en cada máquina, con avance y estado en vivo. Reemplaza al botón BUSCAR del Excel.',abrir:()=>window.goProgramaSemanalMtto&&window.goProgramaSemanalMtto()},
+      {boton:'btn-historial-mtto',icono:'🗂️',titulo:'Historial de registros de mantenimiento',desc:'Los registros CFA-CA-F-023 de cada máquina y semana: filtrar, revisar su estado y reimprimirlos.',abrir:()=>window.goHistorialMtto&&window.goHistorialMtto()},
       {boton:'btn-mantenimiento',icono:'👷',titulo:'Tareo de mantenimiento',desc:'Asistencia y horas del personal técnico.',abrir:()=>typeof goMantenimiento==='function'&&goMantenimiento()}
     ]},
     {titulo:'Análisis',subtitulo:'Para entender dónde se pierde tiempo.',color:'#7a3fb0',tarjetas:[
@@ -35,7 +38,7 @@
   const ABRIR=[];            // las funciones abrir() de las tarjetas pintadas (se llaman por número)
 
   const visible=id=>{const b=document.getElementById(id);return !!b&&!b.hidden&&b.style.display!=='none';};
-  const botonesDelGrupo=()=>['btn-intervenciones','btn-bitacora-mtto','btn-analisis-paradas','btn-velocidades','btn-productos-parametros','btn-mantenimiento'];
+  const botonesDelGrupo=()=>['btn-intervenciones','btn-bitacora-mtto','btn-analisis-paradas','btn-velocidades','btn-productos-parametros','btn-mantenimiento','btn-plan-anual-mtto','btn-programa-semanal-mtto','btn-historial-mtto'];
   const hayAcceso=()=>botonesDelGrupo().some(visible);
 
   /* El menú lateral de Mantenimiento muestra solo «Inicio»: lo demás se abre desde las tarjetas. Los botones siguen existiendo (ocultos por CSS) porque su visibilidad decide qué tarjetas se ven. */

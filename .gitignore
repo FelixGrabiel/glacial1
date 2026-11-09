@@ -7,3 +7,6 @@ respaldo-glacial-*.json
 
 # copias de seguridad locales de Supabase (datos de la planta: nunca a GitHub)
 respaldo_*/
+
+__pycache__/
+*.pyc
