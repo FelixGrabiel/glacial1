@@ -30,7 +30,7 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
       const q = { filtros: [], en: null, orden: null };
       const api = {
         select() { return api; }, order(c) { q.orden = c; return api; }, limit() { return api; }, eq(k, v) { q.filtros.push([k, v]); return api; }, in(k, vs) { q.en = [k, vs]; return api; },
-        maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+        maybeSingle() { return Promise.resolve({ data: nombre === 'mtto_config' ? { id: 'config', datos: { inicioRegistros: { anio: 2026, semana: 1 } } } : null, error: null }); },
         then(res, rej) {
           if (nombre === 'mtto_config') return Promise.resolve({ data: null, error: null }).then(res, rej);
           let h = (bd[T[nombre]] || []).filter(r => q.filtros.every(([k, v]) => r[k] === v) && (!q.en || q.en[1].includes(r[q.en[0]])));
@@ -87,6 +87,15 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   await P.click('[data-mt-tab="semanal"]'); await P.waitForSelector('.ps-t');
   ok(await P.evaluate(() => document.querySelector('.mt-tab.on').textContent === 'Programa semanal'), 'y vuelve al Programa semanal');
 
+  /* los registros empiezan en la semana 46: antes no se pueden iniciar (config sin «inicioRegistros» = semana 46 de 2026) */
+  await P.evaluate(() => { glacialMttoPlanDatos.cache.config = null; glacialMttoProgramaSemanal.UI.sem = { anio: 2026, semana: 45 }; glacialMttoProgramaSemanal.pintar(document.getElementById('main')); });
+  ok(/Semana anterior al inicio de los registros/.test(await txt('.ps')) && /empiezan en la semana 46/.test(await txt('.ps')) && await P.evaluate(() => document.querySelector('[data-ps-mover="-1"]').disabled === true), 'semana 45: aviso «los registros empiezan en la semana 46» y la flecha ‹ ya no baja de la 46');
+  await P.evaluate(() => { __bd.registros = []; __bd.regActs = []; glacialMttoPlanDatos.cache.registros = []; glacialMttoPlanDatos.cache.regActs = []; glacialMttoProgramaSemanal.pintar(document.getElementById('main')); });
+  ok(await P.evaluate(() => !document.querySelector('[data-ps-abrir]')), 'semana 45 sin registro: no hay botón «Iniciar»');
+  const err = await P.evaluate(async () => { try { await glacialMttoPlanDatos.iniciarRegistro(glacialMttoPlanDatos.cache.maquinas[0], 2026, 45, { fecha: '2026-11-07' }); return ''; } catch (e) { return e.message; } });
+  ok(/empiezan en la semana 46/.test(err), 'y aunque se intente por otro camino, la capa de datos rechaza iniciar un registro de la semana 45 → ' + err.slice(0, 70));
+  await P.evaluate(() => { glacialMttoProgramaSemanal.UI.sem = { anio: 2026, semana: 46 }; glacialMttoProgramaSemanal.pintar(document.getElementById('main')); });
+  ok(!/Semana anterior al inicio/.test(await txt('.ps')) && await P.evaluate(() => document.querySelector('[data-ps-mover="-1"]').disabled === true && [...document.querySelectorAll('[data-ps-abrir]')].every(b => /Iniciar/.test(b.textContent)) && document.querySelectorAll('[data-ps-abrir]').length === 2), 'semana 46: sin aviso, ‹ deshabilitada y «Iniciar» en cada máquina');
   /* Producción: lectura */
   await P.evaluate(() => { state.user = { rol: 'Supervisor de Producción', nombre: 'Pedro', username: 'pedro', permisos: {} }; glacialMttoProgramaSemanal.pintar(document.getElementById('main')); });
   ok((await filas()).length === 2, 'un usuario de Producción también ve el programa (solo lectura)');

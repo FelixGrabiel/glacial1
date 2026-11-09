@@ -69,4 +69,8 @@ ok(N_ids(P.filtrarHistorial(regs,mqs,{maquinaId:'b'}))==='3,1'&&N_ids(P.filtrarH
 ok(N_ids(P.filtrarHistorial(regs,mqs,{texto:'jose'}))==='3,1'&&N_ids(P.filtrarHistorial(regs,mqs,{texto:'CÉSAR'}))==='2,4'&&N_ids(P.filtrarHistorial(regs,mqs,{texto:'arvi'}))==='2','busca técnico o maquinista sin importar tildes ni mayúsculas');
 ok(N_ids(P.filtrarHistorial(regs,mqs,{maquinaId:'a',estado:'VALIDADO',texto:'cesar'}))==='4'&&P.filtrarHistorial(regs,mqs,{texto:'nadie'}).length===0,'los filtros se combinan');
 const ce=P.conteoEstados(regs);ok(ce.VALIDADO===2&&ce.CERRADO===1&&ce.EN_CURSO===1&&ce.PENDIENTE===0,'conteo por estado para las etiquetas del filtro');
+
+/* ---------- Inicio de los registros: semana 46 de 2026 ---------- */
+ok(JSON.stringify(P.inicioRegistros(null))==='{"anio":2026,"semana":46}'&&JSON.stringify(P.inicioRegistros({datos:{inicioRegistros:{anio:2027,semana:3}}}))==='{"anio":2027,"semana":3}'&&P.inicioRegistros({datos:{inicioRegistros:{anio:2026,semana:99}}}).semana===46,'inicio de los registros: semana 46 de 2026 por defecto; se puede cambiar en la configuración y un valor inválido se ignora');
+ok(P.antesDelInicio(2026,45)&&!P.antesDelInicio(2026,46)&&!P.antesDelInicio(2026,47)&&P.antesDelInicio(2025,52)&&!P.antesDelInicio(2027,1)&&P.antesDelInicio(2026,45,{anio:2026,semana:46}),'las semanas anteriores a la 46 son «antes del inicio» (no se inician registros); la 46 en adelante sí');
 process.exit(fallas?1:0);

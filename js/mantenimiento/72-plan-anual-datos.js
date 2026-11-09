@@ -159,6 +159,8 @@
   async function iniciarRegistro(maquina,anio,semana,o){
     const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
     const previo=cache.registros.find(r=>r.maquina_id===maquina.id&&r.anio===anio&&r.semana===semana);if(previo)return previo;
+    const ini=N.inicioRegistros(cache.config);
+    if(N.antesDelInicio(anio,semana,ini))throw new Error('Los registros en GLACIAL empiezan en la semana '+ini.semana+' de '+ini.anio+': no se pueden iniciar registros de semanas anteriores.');
     const fecha=o.fecha;
     const fila={maquina_id:maquina.id,anio,semana,fecha,proxima_revision:N.proximaRevision(fecha),tecnico_senior:o.tecnico?o.tecnico.nombre:'',tecnico_senior_id:o.tecnico?String(o.tecnico.id||''):'',
       maquinista:o.maquinista?o.maquinista.nombre:'',maquinista_id:o.maquinista?String(o.maquinista.id||''):'',supervisor:o.supervisor||'',creado_por:o.creadoPor||''};

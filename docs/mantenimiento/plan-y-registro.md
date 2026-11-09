@@ -58,3 +58,8 @@ Estado: **Etapa 1 completa en PRUEBAS** (datos, pantalla Plan anual, impreso A4 
 - Datos: `cargarHistorial(anio)` y `detalleRegistro(id)` en `72-plan-anual-datos.js`; filtrado puro `filtrarHistorial` / `conteoEstados` en el núcleo.
 - La pestaña «Registros» del prompt no se hizo aparte: el Programa semanal (registros de la semana) y el Historial la cubren.
 - Pruebas: `tests/mantenimiento-historial.e2e.js` y las del núcleo en `tests/mantenimiento-plan-anual.test.js`.
+
+## Empezar desde cero (decisión del dueño, 09/11/2026)
+- Los registros en GLACIAL empiezan **en la semana 46 de 2026**; no se cargan registros anteriores ni se calculan semanas «vencidas» (la tarjeta «Vencidas» sigue en «—»).
+- `mtto_config.datos.inicioRegistros = {anio:2026, semana:46}` (por defecto en el código si falta). Antes de esa semana el Programa semanal muestra un aviso, no ofrece «Iniciar», la flecha ‹ no baja de la 46 y la capa de datos rechaza iniciar el registro.
+- PRUEBAS verificada sin registros (0 en las tres tablas). Datos: `supabase/datos/2026-11-09_mtto_inicio_registros.sql`.

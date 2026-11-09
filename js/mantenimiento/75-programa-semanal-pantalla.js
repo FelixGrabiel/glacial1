@@ -45,7 +45,8 @@
   /* ---------- pintar ---------- */
   function pintar(main){
     estilos();
-    const lineas=normalizar(),c=D.cache,hoy=N.semanaDeHoy(hoyIso());
+    const lineas=normalizar(),c=D.cache,hoy=N.semanaDeHoy(hoyIso()),ini=N.inicioRegistros(c.config),antes=N.antesDelInicio(UI.sem.anio,UI.sem.semana,ini);
+    if(window.glacialMttoRegistroPantalla)window.glacialMttoRegistroPantalla.UI.semanaVista=UI.sem;
     const esHoy=hoy.anio===UI.sem.anio&&hoy.semana===UI.sem.semana;
     let cuerpo;
     if(!c.listo){
@@ -63,7 +64,7 @@
           (reg&&reg.botonPara&&reg.botonPara(f.estado)?' <button type="button" class="btn btn-ghost btn-sm" data-ps-abrir="'+esc(f.maquina.id)+'">'+esc(reg.botonPara(f.estado))+'</button>':'')+'</td></tr>'+
           (abierta?'<tr class="ps-det"><td colspan="5"><ol>'+f.delPlan.map(a=>{const p=N.partirActividad(a.actividad);return '<li><b>'+esc(p.equipo)+'</b>'+(p.tarea?' / '+esc(p.tarea):'')+' <small>'+esc(a.frecuencia)+(a.insumos&&a.insumos!=='N/A'?' · '+esc(a.insumos):'')+'</small></li>';}).join('')+'</ol></td></tr>':'');
       }).join('')+'</tbody></table></div>':'<div class="ps-aviso">No hay actividades programadas esta semana.</div>';
-      cuerpo='<div class="ps-cards">'+
+      cuerpo=(antes?'<div class="ps-aviso ps-amb"><b>Semana anterior al inicio de los registros.</b> En GLACIAL los registros empiezan en la semana '+ini.semana+' de '+ini.anio+' ('+esc(N.ddmmaaaa(N.rangoSemana(ini.anio,ini.semana).desde))+'). Esta semana se ve solo como referencia del plan: no se pueden iniciar registros.</div>':'')+'<div class="ps-cards">'+
         '<div class="ps-card"><span>Actividades de la semana</span><b>'+r.actividades+' en '+r.maquinas+' máquinas</b></div>'+
         '<div class="ps-card"><span>Realizadas</span><b>'+r.realizadas+' de '+r.actividades+'</b></div>'+
         '<div class="ps-card"><span>Registros abiertos ahora</span><b class="az">'+r.abiertos+'</b></div>'+
@@ -74,7 +75,7 @@
         '<p class="ps-pie">Reemplaza al botón BUSCAR del Excel: la semana se arma sola desde el Plan anual.'+(reg&&reg.abrir?' Toca «Iniciar» para abrir el registro CFA-CA-F-023 de la máquina.':' El registro de cada máquina (CFA-CA-F-023) se llena en la próxima etapa.')+'</p>';
     }
     main.innerHTML='<section class="ps" id="ps-raiz">'+(window.glacialMttoTabs?window.glacialMttoTabs.html('semanal'):'')+
-      '<header class="ps-cab"><div class="ps-sem"><button type="button" class="btn btn-ghost" data-ps-mover="-1" aria-label="Semana anterior">‹</button>'+
+      '<header class="ps-cab"><div class="ps-sem"><button type="button" class="btn btn-ghost" data-ps-mover="-1" aria-label="Semana anterior"'+(N.antesDelInicio(N.moverSemana(UI.sem.anio,UI.sem.semana,-1).anio,N.moverSemana(UI.sem.anio,UI.sem.semana,-1).semana,N.inicioRegistros(c.config))?' disabled title="Los registros empiezan en la semana '+N.inicioRegistros(c.config).semana+'"':'')+'>‹</button>'+
       '<div><h2>Semana '+UI.sem.semana+(esHoy?' <em>actual</em>':'')+' <small>'+esc(N.etiquetaSemana(UI.sem.semana))+'</small></h2><small>'+esc(N.textoRango(UI.sem.anio,UI.sem.semana))+' · Planta de Agua</small></div>'+
       '<button type="button" class="btn btn-ghost" data-ps-mover="1" aria-label="Semana siguiente">›</button>'+(esHoy?'':'<button type="button" class="btn btn-ghost btn-sm" data-ps-hoy>Ir a esta semana</button>')+'</div>'+
       '<div class="ps-filtros"><label>Línea<select data-ps-linea>'+lineas.map(l=>'<option'+(l===UI.linea?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label></div></header>'+cuerpo+'</section>';
@@ -114,7 +115,7 @@
       '.ps-acc{white-space:nowrap;text-align:right}.ps-det td{background:#f6f9fc}.ps-det ol{margin:0;padding-left:22px;columns:2;column-gap:28px;font-size:13px}.ps-det li{margin:3px 0;break-inside:avoid}.ps-det small{display:inline;color:#7a8794}.ps-mut{color:#9aa7b3}'+
       '.ps-vivo{background:#fff;border:1px solid #dbe5ee;border-radius:var(--card-radius,14px);padding:12px 14px}.ps-vivo h3{margin:0 0 8px;font-size:15px;display:flex;justify-content:space-between;align-items:center}.ps-vivo h3 small{font-size:11.5px;color:#9aa7b3;font-weight:400}.ps-vivo h3 small.on{color:#1a7f4b;font-weight:600}'+
       '.ps-vivo ul{list-style:none;margin:0;padding:0}.ps-vivo li{padding:7px 0;border-top:1px solid #edf2f7;font-size:12.5px;color:#46627a;overflow-wrap:anywhere}.ps-vivo li span{color:#7a8794;margin-right:4px}.ps-vivo li b{color:#033350}.ps-vivo p{font-size:12.5px;margin:0}'+
-      '.ps-aviso{background:#fff;border:1px dashed #cfdbe3;border-radius:12px;padding:16px;color:#46627a;margin:8px 0}.ps-pie{font-size:12px;color:#7a8794;margin-top:10px}'+
+      '.ps-aviso{background:#fff;border:1px dashed #cfdbe3;border-radius:12px;padding:16px;color:#46627a;margin:8px 0}.ps-pie{font-size:12px;color:#7a8794;margin-top:10px}.ps-amb{background:#fff8e6;border:1px solid #ecd48b;border-style:solid;color:#6d4a00}.ps-sem button:disabled{opacity:.4;cursor:not-allowed}'+
       '@media(max-width:900px){.ps-sem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;width:100%}.ps-sem .btn-sm{grid-column:1/-1;justify-self:start}.ps-cols{grid-template-columns:1fr}.ps-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.ps-det ol{columns:1}.ps-sem h2{font-size:19px}}';
     document.head.appendChild(s);
   }

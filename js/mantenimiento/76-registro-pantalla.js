@@ -13,7 +13,7 @@
   const esc=t=>typeof escaparHtml==='function'?escaparHtml(t):String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const ahoraMs=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
   const hoyIso=()=>GlacialFecha.fechaISOLocal(ahoraMs());          // fecha de hoy en hora de Lima (01b-fecha-operativa.js)
-  const UI={reg:null,guardado:'ok',error:'',obs:new Set(),pendiente:false,aviso:''};
+  const UI={semanaVista:null,reg:null,guardado:'ok',error:'',obs:new Set(),pendiente:false,aviso:''};
   const PANT=()=>window.glacialMttoPlanPantalla;
   const usuario=()=>(typeof state!=='undefined'&&state.user)||null;
   const compartida=()=>{try{return typeof esMantCompartido==='function'&&esMantCompartido(usuario());}catch(_){return false;}};
@@ -77,9 +77,10 @@
     if(typeof renderSidebar==='function')renderSidebar();
     if(typeof renderMain==='function')renderMain();
   }
+  const antes=sm=>!!sm&&N.antesDelInicio(sm.anio,sm.semana,N.inicioRegistros(D.cache.config));
   /** Texto del botón de la fila del Programa semanal según el estado (vacío = sin botón). */
   function botonPara(estado){
-    if(estado==='PENDIENTE')return puedeLlenar()?'Iniciar':'';
+    if(estado==='PENDIENTE')return puedeLlenar()&&!antes(UI.semanaVista)?'Iniciar':'';
     if(estado==='EN_CURSO')return puedeLlenar()?'Continuar':'Ver en vivo';
     if(estado==='CERRADO')return esSup()?'Validar':'Ver';
     return 'Ver';

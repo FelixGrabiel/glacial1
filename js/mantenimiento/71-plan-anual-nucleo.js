@@ -223,9 +223,19 @@
   /** Conteo por estado, para las etiquetas del filtro. */
   function conteoEstados(registros){const c={PENDIENTE:0,EN_CURSO:0,CERRADO:0,VALIDADO:0};(registros||[]).forEach(r=>{if(c[r.estado]!==undefined)c[r.estado]++;});return c;}
 
+  /* ---------- Inicio de los registros en GLACIAL ---------- */
+  /** Primera semana en que se llenan registros en GLACIAL (el dueño empezó desde cero en la semana 46 de 2026; se puede cambiar en mtto_config → inicioRegistros). */
+  const INICIO_REGISTROS={anio:2026,semana:46};
+  function inicioRegistros(cfg){
+    const i=cfg&&cfg.datos&&cfg.datos.inicioRegistros;
+    return i&&Number(i.anio)>=2000&&Number(i.semana)>=1&&Number(i.semana)<=53?{anio:Number(i.anio),semana:Number(i.semana)}:{...INICIO_REGISTROS};
+  }
+  /** ¿La semana es anterior al inicio? Esas semanas se ven como referencia del plan, pero no se pueden iniciar registros. */
+  const antesDelInicio=(anio,semana,inicio)=>{const i=inicio||INICIO_REGISTROS;return anio<i.anio||(anio===i.anio&&semana<i.semana);};
+
   const API={BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
     semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
-    filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
+    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialMttoPlan=API;
 })(typeof window!=='undefined'?window:globalThis);

@@ -32,7 +32,7 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
       };
       const api = {
         select() { if (q.op === 'select' || q.op === 'x') q.op = 'select'; return api; }, order(c) { q.orden = c; return api; }, limit() { return api; },
-        eq(k, v) { q.filtros.push([k, v]); return api; }, maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+        eq(k, v) { q.filtros.push([k, v]); return api; }, maybeSingle() { return Promise.resolve({ data: nombre === 'mtto_config' ? { id: 'config', datos: { inicioRegistros: { anio: 2026, semana: 1 } } } : null, error: null }); },
         update(f) { q.op = 'update'; q.fila = f; return api; }, insert(f) { q.op = 'insert'; q.fila = f; return api; }, delete() { q.op = 'delete'; return api; },
         then(res, rej) { return Promise.resolve(ejecutar()).then(res, rej); }
       };

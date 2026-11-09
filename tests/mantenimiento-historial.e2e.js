@@ -31,7 +31,7 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
       const q = { filtros: [], en: null, orden: null };
       const api = {
         select() { return api; }, order(c, o) { q.orden = [c, o && o.ascending === false ? -1 : 1]; return api; }, limit() { return api; }, eq(k, v) { q.filtros.push([k, v]); return api; }, in(k, v) { q.en = [k, v]; return api; },
-        maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+        maybeSingle() { return Promise.resolve({ data: nombre === 'mtto_config' ? { id: 'config', datos: { inicioRegistros: { anio: 2026, semana: 1 } } } : null, error: null }); },
         then(res, rej) {
           if (nombre === 'mtto_config') return Promise.resolve({ data: null, error: null }).then(res, rej);
           let h = (bd[T[nombre]] || []).filter(r => q.filtros.every(([k, v]) => r[k] === v) && (!q.en || q.en[1].includes(r[q.en[0]])));
