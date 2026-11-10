@@ -7,8 +7,8 @@
 (function(){
   'use strict';
   const N=window.glacialMttoPlan;
-  const cache={maquinas:[],actividades:[],config:null,listo:false,cargando:false,error:'',enVivo:false,registros:[],regActs:[],piezas:[],semana:null,errorSemana:'',historial:[],anioHistorial:null,errorHistorial:'',cargandoHistorial:false};
-  const oyentes=[];
+  const cache={maquinas:[],actividades:[],config:null,listo:false,cargando:false,error:'',enVivo:false,registros:[],regActs:[],piezas:[],fotos:[],fotosOk:true,semana:null,errorSemana:'',historial:[],anioHistorial:null,errorHistorial:'',cargandoHistorial:false};
+  const oyentes=[],remotos=[];
   let cliente=null,canal=null,activo=false;
   const sb=()=>cliente||window.glacialSupabaseCliente||null;
   const avisar=()=>oyentes.slice().forEach(f=>{try{f();}catch(_){/* un oyente no rompe a los demás */}});
@@ -32,8 +32,15 @@
     cache.cargando=false;avisar();
   }
   const reemplazar=(lista,fila,clave)=>{const i=lista.findIndex(x=>x[clave||'id']===fila[clave||'id']);if(i<0)lista.push(fila);else lista[i]=fila;};
+  /** Cada cambio que llega (propio o de otro dispositivo) con la fila anterior del caché: así la pantalla detecta cuando otra persona pisa lo que se está editando. */
+  const filaPrevia=(tabla,n)=>{
+    const l={mtto_registros:cache.registros,mtto_registro_actividades:cache.regActs,mtto_registro_piezas:cache.piezas,mtto_registro_fotos:cache.fotos}[tabla];
+    const f=l&&n&&n.id?l.find(x=>x.id===n.id):null;return f?Object.assign({},f):null;
+  };
   function alCambio(tabla,p){
     const t=p&&p.eventType,n=p&&p.new,o=p&&p.old;
+    const previa=(t==='UPDATE'||t==='INSERT')&&n?filaPrevia(tabla,n):null;
+    if(previa||t==='UPDATE')remotos.slice().forEach(f=>{try{f(tabla,previa,n);}catch(_){/* un oyente no rompe a los demás */}});
     if(tabla==='mtto_maquinas'){
       if(t==='DELETE'&&o)cache.maquinas=cache.maquinas.filter(x=>x.id!==o.id);else if(n&&n.id){reemplazar(cache.maquinas,n);cache.maquinas=ordenM(cache.maquinas);}
     }else if(tabla==='mtto_plan_actividades'){
@@ -53,6 +60,9 @@
     }else if(tabla==='mtto_registro_actividades'){
       if(t==='DELETE'&&o)cache.regActs=cache.regActs.filter(x=>x.id!==o.id);
       else if(n&&n.id&&cache.registros.some(r=>r.id===n.registro_id))reemplazar(cache.regActs,n);
+    }else if(tabla==='mtto_registro_fotos'){
+      if(t==='DELETE'&&o)cache.fotos=cache.fotos.filter(x=>x.id!==o.id);
+      else if(n&&n.id&&cache.registros.some(r=>r.id===n.registro_id))reemplazar(cache.fotos,n);
     }
     avisar();
   }
@@ -70,8 +80,10 @@
         const z=await c.from('mtto_registro_piezas').select('*').in('registro_id',regs.map(x=>x.id)).order('orden');
         if(z.error)throw z.error;pzs=z.data||[];
       }
+      let fts=[];cache.fotosOk=true;
+      if(regs.length){const f=await c.from('mtto_registro_fotos').select('*').in('registro_id',regs.map(x=>x.id)).order('creado_en');if(f.error)cache.fotosOk=false;else fts=f.data||[];}   // sin glacial_49 no hay fotos, pero lo demás funciona
       if(!cache.semana||cache.semana.anio!==anio||cache.semana.semana!==semana)return;      // mientras tanto se pidió otra semana
-      cache.registros=regs;cache.regActs=acts;cache.piezas=pzs;
+      cache.registros=regs;cache.regActs=acts;cache.piezas=pzs;cache.fotos=fts;
     }catch(e){cache.errorSemana=msg(e);}
     avisar();
   }
@@ -102,7 +114,7 @@
     cargar();
     const c=sb();if(!c||typeof c.channel!=='function')return;
     let ch=c.channel('mtto-plan-anual');
-    ['mtto_maquinas','mtto_plan_actividades','mtto_config','mtto_registros','mtto_registro_actividades','mtto_registro_piezas'].forEach(t=>{ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t},p=>alCambio(t,p));});
+    ['mtto_maquinas','mtto_plan_actividades','mtto_config','mtto_registros','mtto_registro_actividades','mtto_registro_piezas','mtto_registro_fotos'].forEach(t=>{ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t},p=>alCambio(t,p));});
     ch.subscribe(estado=>{
       const vivo=estado==='SUBSCRIBED';
       if(vivo!==cache.enVivo){cache.enVivo=vivo;avisar();}
@@ -213,11 +225,33 @@
     if(r.error)throw new Error(msg(r.error));
     if(r.data&&r.data[0])alCambio('mtto_registro_piezas',{eventType:'UPDATE',new:r.data[0]});
   }
+  /** Guarda la referencia de una foto YA subida a Storage (primero el archivo, después la referencia: nunca queda una referencia a un archivo que no existe). */
+  async function agregarFoto(registroId,{ruta,actividadId,descripcion,quien}){
+    const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
+    const r=await c.from('mtto_registro_fotos').insert({registro_id:registroId,actividad_id:actividadId||null,ruta,descripcion:String(descripcion||'').slice(0,200),subido_por:quien||''}).select();
+    if(r.error){if(/20 fotos|23514/i.test(String(r.error.message||r.error.code)))throw new Error('Un registro admite hasta 20 fotos.');throw new Error(msg(r.error));}
+    if(r.data&&r.data[0])alCambio('mtto_registro_fotos',{eventType:'INSERT',new:r.data[0]});
+    return r.data&&r.data[0];
+  }
+  async function guardarDescripcionFoto(id,texto){
+    const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
+    const r=await c.from('mtto_registro_fotos').update({descripcion:String(texto||'').slice(0,200)}).eq('id',id).select();
+    if(r.error)throw new Error(msg(r.error));
+    if(r.data&&r.data[0])alCambio('mtto_registro_fotos',{eventType:'UPDATE',new:r.data[0]});
+  }
+  /** Quita la referencia (el archivo queda en Storage: las reglas no permiten borrarlo desde la página). Solo el supervisor. */
+  async function quitarFoto(id){
+    const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
+    const r=await c.from('mtto_registro_fotos').delete().eq('id',id).select();
+    if(r.error)throw new Error(msg(r.error));
+    if(!r.data||!r.data.length)throw new Error('No se pudo quitar: ya no existe o no tienes permiso.');
+    alCambio('mtto_registro_fotos',{eventType:'DELETE',old:{id}});
+  }
   const cerrarRegistro=(reg,quien)=>actualizarReg(reg.id,{estado:'CERRADO',hora_fin_real:reg.hora_fin_real||hhmmAhora(),tecnico_senior:reg.tecnico_senior||quien||''});
   const validarRegistro=(reg,quien)=>actualizarReg(reg.id,{estado:'VALIDADO',supervisor:quien||reg.supervisor||''});
   const reabrirRegistro=reg=>actualizarReg(reg.id,{estado:'EN_CURSO'});
 
-  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,iniciarRegistro,marcarActividad,guardarObservacion,guardarCampos,guardarPieza,cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
+  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,iniciarRegistro,marcarActividad,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
     actividadesDe:(maquinaId,anio)=>cache.actividades.filter(a=>a.maquina_id===maquinaId&&a.anio===anio).sort((a,b)=>(a.orden||0)-(b.orden||0)),
     anios:()=>[...new Set(cache.actividades.map(a=>a.anio))].sort((a,b)=>b-a)};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

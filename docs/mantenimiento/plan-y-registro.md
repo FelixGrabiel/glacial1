@@ -63,3 +63,10 @@ Estado: **Etapa 1 completa en PRUEBAS** (datos, pantalla Plan anual, impreso A4 
 - Los registros en GLACIAL empiezan **en la semana 46 de 2026**; no se cargan registros anteriores ni se calculan semanas «vencidas» (la tarjeta «Vencidas» sigue en «—»).
 - `mtto_config.datos.inicioRegistros = {anio:2026, semana:46}` (por defecto en el código si falta). Antes de esa semana el Programa semanal muestra un aviso, no ofrece «Iniciar», la flecha ‹ no baja de la 46 y la capa de datos rechaza iniciar el registro.
 - PRUEBAS verificada sin registros (0 en las tres tablas). Datos: `supabase/datos/2026-11-09_mtto_inicio_registros.sql`.
+
+## Actualización 10/11/2026 · fotos de evidencia y aviso de edición simultánea
+**Fotos de evidencia en el Registro** (`glacial_49`, tabla `mtto_registro_fotos`): tarjeta «Evidencia fotográfica» con «📷 Agregar foto» (cámara o galería, varias a la vez) y una cámara por actividad para ligar la foto a esa actividad. Máximo 20 por registro.
+- La foto se comprime en el celular, se sube a Storage (`mantenimiento/registros/<registro>/…`, bucket privado `glacial-fotos`, ya permitido a la cuenta compartida de Mantenimiento) y **solo después** se guarda su referencia. Se muestra con enlace firmado.
+- Cada foto lleva descripción opcional y quién la subió. Solo el supervisor puede quitar la referencia (el archivo no se borra: las reglas de Storage no lo permiten). Un registro VALIDADO no admite fotos nuevas (disparador de la base).
+- Sin aplicar `glacial_49` el Registro funciona igual y la tarjeta avisa que las fotos se activan con esa actualización.
+**Aviso cuando dos personas editan el mismo campo:** si otra persona cambia un campo que acabas de cambiar (últimos 5 min) o que estás escribiendo, aparece un aviso amarillo que dice quién fue y qué quedó («Entendido» lo cierra). No avisa por cambios en campos que no tocaste. Campos vigilados: fecha, tipo, condición, técnico, maquinista, horas reales, informe final, marca y observación de cada actividad y cada pieza. El último cambio sigue ganando; el aviso permite volver a ponerlo.

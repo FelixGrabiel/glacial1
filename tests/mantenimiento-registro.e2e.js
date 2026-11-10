@@ -17,8 +17,8 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
     const AHORA = Date.parse('2026-11-07T09:30:00-05:00'); window.tareoAhoraServidor = () => AHORA;
     window.confirm = () => true;
     state.user = { rol: 'Administrador', nombre: 'Cristian Meza', username: 'cmeza', permisos: 'todos' }; state.showWelcome = false;
-    const bd = JSON.parse(JSON.stringify(muestra)); Object.assign(bd, { registros: [], regActs: [], piezas: [] }); window.__bd = bd; window.__canal = []; window.__n = 0;
-    const T = { mtto_maquinas: 'maquinas', mtto_plan_actividades: 'actividades', mtto_registros: 'registros', mtto_registro_actividades: 'regActs', mtto_registro_piezas: 'piezas' };
+    const bd = JSON.parse(JSON.stringify(muestra)); Object.assign(bd, { registros: [], regActs: [], piezas: [], fotos: [] }); window.__bd = bd; window.__canal = []; window.__n = 0;
+    const T = { mtto_maquinas: 'maquinas', mtto_plan_actividades: 'actividades', mtto_registros: 'registros', mtto_registro_actividades: 'regActs', mtto_registro_piezas: 'piezas', mtto_registro_fotos: 'fotos' };
     const consulta = nombre => {
       const q = { op: 'select', filtros: [], en: null, orden: null, fila: null, conf: null };
       const tabla = () => bd[T[nombre]];
@@ -89,6 +89,44 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   await P.evaluate(() => { const a = __bd.regActs[1]; Object.assign(a, { realizado: true, marcado_por: 'ELISEO ARVI', marcado_en: new Date().toISOString(), version: 2 }); __canal.filter(c => c.tabla === 'mtto_registro_actividades').forEach(c => c.cb({ eventType: 'UPDATE', new: { ...a } })); });
   await P.waitForFunction(() => /2 de 18/.test(document.getElementById('rg-prog-txt').textContent), null, { timeout: 3000 });
   ok(true, 'tiempo real: lo que marca otro dispositivo aparece sin recargar (2 de 18)');
+
+  /* dos personas en el mismo campo: aviso (informe final guardado por mí y cambiado por otra persona) */
+  await P.fill('.rg-informe', 'Informe de Cristian'); await P.click('[data-rg-input="tecnico_senior"]');
+  await P.waitForFunction(() => __bd.registros[0].informe_final === 'Informe de Cristian', null, { timeout: 3000 });
+  await P.evaluate(() => { const r = __bd.registros[0]; Object.assign(r, { informe_final: 'Informe de Eliseo', actualizado_por: 'ELISEO ARVI', version: r.version + 1 }); __canal.filter(c => c.tabla === 'mtto_registros').forEach(c => c.cb({ eventType: 'UPDATE', new: { ...r } })); });
+  await P.waitForFunction(() => /Quedó su versión/.test(document.getElementById('rg-avisos').innerText), null, { timeout: 3000 });
+  ok(/ELISEO ARVI cambió el informe final que acabas de cambiar/.test(await txt('#rg-avisos')) && /Informe de Eliseo/.test(await txt('#rg-avisos')), 'aviso: otra persona cambió el informe final que acabas de cambiar (dice quién y cuál quedó)');
+  await P.click('[data-rg-aviso-ok]');
+  ok(await P.evaluate(() => document.getElementById('rg-avisos').hidden), '«Entendido» cierra el aviso');
+  /* y mientras se escribe: otra persona cambia el mismo campo */
+  await P.evaluate(() => { document.querySelector('.rg-informe').focus(); document.querySelector('.rg-informe').value = 'Estoy escribiendo…'; });
+  await P.evaluate(() => { const r = __bd.registros[0]; Object.assign(r, { informe_final: 'Otro texto de Eliseo', actualizado_por: 'ELISEO ARVI', version: r.version + 1 }); __canal.filter(c => c.tabla === 'mtto_registros').forEach(c => c.cb({ eventType: 'UPDATE', new: { ...r } })); });
+  await P.waitForFunction(() => /mientras lo escribías/.test(document.getElementById('rg-avisos').innerText), null, { timeout: 3000 });
+  ok(/Si sales del campo, lo tuyo reemplaza su cambio/.test(await txt('#rg-avisos')), 'aviso mientras se escribe: «Si sales del campo, lo tuyo reemplaza su cambio»');
+  await P.click('[data-rg-aviso-ok]'); await P.fill('.rg-informe', 'Informe final de Cristian'); await P.click('[data-rg-input="tecnico_senior"]');
+  /* un cambio de otro dispositivo en algo que yo no toqué NO avisa */
+  await P.evaluate(() => { const a = __bd.regActs[2]; Object.assign(a, { observacion: 'nota de otro', marcado_por: 'ELISEO ARVI', version: 3 }); __canal.filter(c => c.tabla === 'mtto_registro_actividades').forEach(c => c.cb({ eventType: 'UPDATE', new: { ...a } })); });
+  await P.waitForTimeout(300);
+  ok(await P.evaluate(() => document.getElementById('rg-avisos').hidden), 'un cambio de otra persona en algo que no tocaste no genera aviso');
+
+  /* foto de evidencia: se comprime, se sube y se guarda la referencia */
+  await P.evaluate(() => {
+    window.glacialEvidencias = window.glacialEvidencias || {}; window.glacialEvidencias.preparar = async () => ({ blob: new Blob(['x'], { type: 'image/jpeg' }) });
+    window.__subidas = []; window.glacialFotos = Object.assign(window.glacialFotos || {}, { disponible: () => true, subir: async (b, o) => { __subidas.push(o); return { url: 'supabase:glacial-fotos/' + o.carpeta + '/' + o.id + '.jpg' }; } });
+    glacialMttoRegistroPantalla.pintar(document.getElementById('main'));
+  });
+  ok(await P.evaluate(() => !!document.querySelector('[data-rg-foto-nueva]') && !!document.querySelector('[data-rg-foto-act]')), 'el registro ofrece «Agregar foto» y una cámara por actividad');
+  await P.setInputFiles('#rg-foto-input', { name: 'a.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('x') });
+  await P.waitForFunction(() => __bd.fotos.length === 1, null, { timeout: 4000 });
+  const ft = await P.evaluate(() => ({ r: __bd.fotos[0].ruta, a: __bd.fotos[0].actividad_id, c: __subidas[0].carpeta, por: __bd.fotos[0].subido_por, fig: document.querySelectorAll('.rg-foto').length }));
+  ok(/^supabase:glacial-fotos\/mantenimiento\/registros\//.test(ft.r) && ft.a === null && /^mantenimiento\/registros\//.test(ft.c) && ft.por === 'Cristian Meza' && ft.fig === 1, 'la foto se sube a mantenimiento/registros/… y se guarda su referencia con quién la subió → ' + JSON.stringify(ft));
+  await P.click('[data-rg-foto-act]'); await P.setInputFiles('#rg-foto-input', { name: 'b.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('y') });
+  await P.waitForFunction(() => __bd.fotos.length === 2, null, { timeout: 4000 });
+  ok(await P.evaluate(() => !!__bd.fotos[1].actividad_id && /📷 1/.test(document.querySelector('[data-rg-foto-act]').textContent)), 'la foto de una actividad queda ligada a ella y su cámara muestra «1»');
+  await P.fill('[data-rg-foto-desc]', 'Filtro cambiado'); await P.click('[data-rg-input="tecnico_senior"]');
+  await P.waitForFunction(() => __bd.fotos[0].descripcion === 'Filtro cambiado', null, { timeout: 3000 });
+  ok(true, 'la descripción de la foto se guarda');
+  if (process.env.GLX_CAPTURAS) { await P.setViewportSize({ width: 430, height: 900 }); await P.waitForTimeout(300); await P.evaluate(() => document.querySelector('.rg-foto').scrollIntoView({ block: 'center' })); await P.waitForTimeout(200); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/registro-fotos.png' }); await P.setViewportSize({ width: 1500, height: 950 }); }
 
   /* cerrar y firmar */
   await P.click('[data-rg-cerrar]');

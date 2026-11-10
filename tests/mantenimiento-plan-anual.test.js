@@ -73,4 +73,18 @@ const ce=P.conteoEstados(regs);ok(ce.VALIDADO===2&&ce.CERRADO===1&&ce.EN_CURSO==
 /* ---------- Inicio de los registros: semana 46 de 2026 ---------- */
 ok(JSON.stringify(P.inicioRegistros(null))==='{"anio":2026,"semana":46}'&&JSON.stringify(P.inicioRegistros({datos:{inicioRegistros:{anio:2027,semana:3}}}))==='{"anio":2027,"semana":3}'&&P.inicioRegistros({datos:{inicioRegistros:{anio:2026,semana:99}}}).semana===46,'inicio de los registros: semana 46 de 2026 por defecto; se puede cambiar en la configuración y un valor inválido se ignora');
 ok(P.antesDelInicio(2026,45)&&!P.antesDelInicio(2026,46)&&!P.antesDelInicio(2026,47)&&P.antesDelInicio(2025,52)&&!P.antesDelInicio(2027,1)&&P.antesDelInicio(2026,45,{anio:2026,semana:46}),'las semanas anteriores a la 46 son «antes del inicio» (no se inician registros); la 46 en adelante sí');
+/* ---- dos personas en el mismo campo ---- */
+{
+  const ahora=1e12,mio=(v,hace)=>({v,en:ahora-hace*1000});
+  const c=o=>P.conflictoCampo(Object.assign({ahora},o));
+  ok(c({previo:'A',nuevo:'B',mios:[mio('A',60)],editando:null})===true,'lo escribí hace 1 min y otra persona lo cambió: avisa');
+  ok(c({previo:'A',nuevo:'A',mios:[mio('A',60)],editando:null})===false,'si el valor no cambió no avisa');
+  ok(c({previo:'A',nuevo:'A2',mios:[mio('A',10),mio('A2',5)],editando:null})===false,'el eco de mi propio guardado (un valor mío más reciente) no avisa');
+  ok(c({previo:'A',nuevo:'B',mios:[mio('A',20*60)],editando:null})===false,'lo escribí hace 20 min (fuera de la ventana de 5): no avisa');
+  ok(c({previo:'A',nuevo:'B',mios:[],editando:null})===false,'algo que no toqué y no estoy escribiendo: no avisa');
+  ok(c({previo:'A',nuevo:'B',mios:[],editando:'texto a medias'})===true,'estoy escribiendo y otra persona lo cambió: avisa');
+  ok(c({previo:'A',nuevo:'B',mios:[],editando:'B'})===false,'estoy escribiendo lo mismo que llegó: no avisa');
+  ok(c({previo:null,nuevo:'',mios:[mio('',5)],editando:null})===false&&c({previo:true,nuevo:false,mios:[mio(true,30)],editando:null})===true,'vacío y null cuentan igual; también funciona con casillas (true/false)');
+  ok(P.CAMPOS_AVISO.informe_final==='el informe final'&&Object.keys(P.CAMPOS_AVISO).length===8,'campos vigilados del registro, con su nombre para el aviso');
+}
 process.exit(fallas?1:0);
