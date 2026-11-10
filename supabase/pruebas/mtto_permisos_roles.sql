@@ -54,6 +54,7 @@ begin
     res := res || ' · borra ' || n || E'\n';
     execute 'reset role';
   end loop;
+  delete from public.mtto_registro_fotos where registro_id = rid;           -- limpia lo que no pudieron borrar los perfiles sin permiso
   for i in 1..20 loop insert into public.mtto_registro_fotos(registro_id, ruta) values (rid, 'supabase:glacial-fotos/mantenimiento/registros/x/l'||i||'.jpg'); end loop;
   begin insert into public.mtto_registro_fotos(registro_id, ruta) values (rid, 'supabase:glacial-fotos/mantenimiento/registros/x/l21.jpg'); res := res || 'LÍMITE: la foto 21 SÍ entró (mal)' || E'\n'; exception when others then res := res || 'LÍMITE: la foto 21 se rechaza (' || sqlerrm || ')' || E'\n'; end;
   delete from public.mtto_registro_fotos where registro_id = rid;
