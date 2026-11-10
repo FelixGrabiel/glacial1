@@ -1,3 +1,4 @@
+-- Resultado de la prueba en PRUEBAS (10/11/2026, todo deshecho): ADM y SUP suben, editan, validan y borran fotos; TEC (cuenta compartida) sube y edita pero no valida ni borra; PROD, SOLO y JEFE solo leen; SINPERFIL no ve nada; límite 21 rechazado; registro VALIDADO bloquea al técnico; ruta fuera de mantenimiento/ rechazada.
 -- GLACIAL · Mantenimiento · prueba de permisos simulando cada rol (glacial_47, 48 y 49). SOLO PRUEBAS (mvxjopvnnagqytegtexi).
 -- Crea perfiles y un registro de mentira DENTRO de una transacción y termina con un error que lleva el resultado: no queda nada guardado.
 -- Resultado esperado (T = sí, F = no):
