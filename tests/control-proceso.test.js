@@ -54,7 +54,7 @@ ok(P.claveCuadro('2026-10-01','DÍA','B7L','Scala','7L')===A.claveCuadro('2026-1
   const m=P.modeloMes(REG.concat([reg('2026-10-07','DÍA',[cuadro({marca:'Bells',produccion:{efectiva:1200},lotesInsumo:[],fechaVencimiento:''}),cuadro({numero:2,marca:'Aro',produccion:{efectiva:900}})])]),{linea:'B7L',anio:2026,mes:10});
   ok(!m.error&&m.total===8&&m.hojas.map(h=>h.nombre).join()==='ARO,BELLS,SCALA'&&m.hojas[2].filas.length===6&&m.hojas[2].presentacion==='7L','el modelo del mes tiene una hoja por marca (orden alfabético) con sus filas');
   ok(m.archivo==='C.P_BIDON_7L-OCTUBRE-2026.xlsx'&&m.sinLotes===1&&m.sinLotesPorColumna.preforma===1&&m.sinVencimiento===0&&m.mesNombre==='OCTUBRE'&&m.nombreLinea==='BIDÓN 7L','nombre del archivo como el del Drive; cuenta las filas sin lotes de insumo y sin vencimiento');
-  ok(P.modeloMes(REG,{linea:'PET1',anio:2026,mes:10}).error&&P.modeloMes(REG,{linea:'B7L',anio:2026,mes:13}).error&&P.modeloMes(REG,{linea:'B7L',anio:1999,mes:1}).error&&P.modeloMes(null,{linea:'B7L',anio:2026,mes:10}).total===0,'una línea sin formulario o un mes no válido da error claro; sin reportes, cero filas');
+  ok(P.modeloMes(REG,{linea:'XXX',anio:2026,mes:10}).error&&P.modeloMes(REG,{linea:'B7L',anio:2026,mes:13}).error&&P.modeloMes(REG,{linea:'B7L',anio:1999,mes:1}).error&&P.modeloMes(null,{linea:'B7L',anio:2026,mes:10}).total===0,'una línea sin formulario o un mes no válido da error claro; sin reportes, cero filas');
   ok(P.FORMULARIO.codigo==='CF - CA - F - 047'&&P.FORMULARIO.titulo==='CONTROL DE PORCESO EN EL ENVASADO'&&P.MESES.length===12&&P.MESES[9]==='OCTUBRE','el formulario conserva su código y su título tal como están en el Drive');
 }
 
@@ -112,6 +112,17 @@ let ExcelJS=null;try{ExcelJS=require(process.env.EXCELJS||'exceljs');}catch(_){c
     const m=P.modeloMes([R('a','EN_REGISTRO',[C(1,'FINALIZADO'),C(2,'ABIERTO'),C(3,undefined)]),R('b','FINALIZADO',[C(1,'ABIERTO'),C(2,undefined)]),R('c','REABIERTO',[C(1,'ABIERTO')])],{linea:'B7L',anio:2026,mes:10});
     const filas=m.hojas.flatMap(h=>h.filas);
     ok(m.total===6&&m.sinFinalizar===3&&filas.filter(f=>f.enCurso).length===3&&P.cuadroFinalizado({estadoRegistro:'FINALIZADO'},{})&&!P.cuadroFinalizado({estadoRegistro:'EN_REGISTRO'},{estadoCuadro:'ABIERTO'}),'desde el 06/11/2026 entran todos los cuadros con producción aunque no estén finalizados (se marcan «en curso» y se cuentan aparte)');
+  }
+  /* ---- PET1, PET2, C20L y B20L usan el mismo formulario que B7L (10/11/2026) ---- */
+  {
+    const T=P.tamanoPresentacion;
+    ok(T('Pack_Regular_625mlx15und/ln')==='625 ML'&&T('Pack_Regular_SC_1Lx12und/lN')==='1 L'&&T('Pack_Regular_2.5Lx6und')==='2.5 L'&&T('Bidón 20 Litros')==='20 L'&&T('')==='','el tamaño se lee del texto de la presentación (ML, L y litros)');
+    ok(['B7L','PET1','PET2','C20L','B20L'].every(l=>P.LINEAS[l])&&P.nombreArchivo?true:['PET1','PET2','C20L','B20L'].every(l=>P.LINEAS[l]),'las 5 líneas tienen formulario');
+    const cu=(n,pr,m)=>({estadoCuadro:'FINALIZADO',numero:n,marca:m||'Scala',presentacion:pr,lote:'CF4',produccion:{efectiva:100,sopladas:100}});
+    const m2=P.modeloMes([{id:'p2',fecha:'2026-11-03',turno:'DÍA',linea:'PET2',estado:'FINALIZADO',cuadros:[cu(1,'Pack_Regular_SC_1Lx12und/ln'),cu(2,'Pack_Regular_625mlx15und/ln'),cu(3,'Pack_Regular_380mlx24und/la')]}],{linea:'PET2',anio:2026,mes:11});
+    ok(!m2.error&&m2.archivo==='C.P_PET2-NOVIEMBRE-2026.xlsx'&&m2.hojas.length===1&&m2.hojas[0].presentacion==='380 ML / 625 ML / 1 L'&&m2.total===3,'PET2: libro C.P_PET2-NOVIEMBRE-2026, una hoja por marca y la presentación con los tamaños que trae (de menor a mayor)');
+    const m3=P.modeloMes([{id:'b2',fecha:'2026-11-03',turno:'NOCHE',linea:'B20L',estado:'FINALIZADO',cuadros:[cu(1,'Bidón 20 Litros','Glacial')]}],{linea:'B20L',anio:2026,mes:11});
+    ok(!m3.error&&m3.hojas[0].presentacion==='20 L'&&m3.archivo==='C.P_BIDON_20L-NOVIEMBRE-2026.xlsx'&&P.modeloMes([],{linea:'B7L',anio:2026,mes:11}).presentacion==='7L','B20L: «20 L»; B7L sigue con «7L»');
   }
   console.log(fallas?('\n'+fallas+' fallas'):'\ntodo correcto');
 })();

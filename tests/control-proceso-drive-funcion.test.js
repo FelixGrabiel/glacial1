@@ -100,7 +100,7 @@ const REGS=[rep('r1','2026-10-01','DÍA',6552,'2027-10-01'),rep('r2','2026-10-01
   const lee=mundo(REGS);lee.deps.leerRegistros=async()=>{throw new Error('timeout');};
   x=await S.sincronizarMes(lee.deps,{linea:'B7L',anio:2026,mes:10});
   ok(!x.ok&&/No se pudieron leer los reportes/.test(x.error)&&lee.llamadas===0&&lee.guardados.length===0,'si no se pueden leer los reportes no llama a Google ni pisa el estado anterior');
-  ok((await S.sincronizarMes(w.deps,{linea:'PET1',anio:2026,mes:10})).estado==='error'&&(await S.sincronizarMes(w.deps,{linea:'B7L',anio:2026,mes:13})).ok===false,'una línea sin formulario o un mes no válido no llaman a Google');
+  ok((await S.sincronizarMes(w.deps,{linea:'XXX',anio:2026,mes:10})).estado==='error'&&(await S.sincronizarMes(w.deps,{linea:'B7L',anio:2026,mes:13})).ok===false,'una línea sin formulario o un mes no válido no llaman a Google');
   const sinCfg=mundo(REGS);sinCfg.deps.appsUrl='';
   x=await S.sincronizarMes(sinCfg.deps,{linea:'B7L',anio:2026,mes:10});
   ok(!x.ok&&sinCfg.guardados[0].intentos>=3,'sin la dirección del Apps Script queda como error de configuración');
