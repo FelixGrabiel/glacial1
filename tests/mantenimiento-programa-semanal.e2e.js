@@ -103,6 +103,15 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   ok(await P.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1, 'celular: la página no se desborda de lado');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/programa-semanal-movil.png' });
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
+  /* hoja CARB ya confirmada (PET2): entra al Programa semanal como una máquina más, con sus propias actividades */
+  await P.evaluate(() => { const c = glacialMttoPlanDatos.cache; const m = c.maquinas.find(x => x.id === 'm-SOP-CARB'); Object.assign(m, { pendiente_confirmar: false, linea: 'PET2' }); glacialMttoPlanDatos.cargarSemana(c.semana.anio, c.semana.semana); });
+  await P.waitForTimeout(500);
+  await P.evaluate(() => goProgramaSemanalMtto());
+  await P.waitForSelector('.ps-t');
+  const fc = await filas();
+  ok(fc.length === 3 && fc.some(x => /SOPLADORA 8 CAVIDADES/.test(x) && /PENDIENTE/.test(x) && /semanales/.test(x)), 'con la hoja CARB confirmada: 3 filas; «SOPLADORA 8 CAVIDADES» entra como máquina propia → ' + fc.map(x => x.slice(0, 40)).join(' | '));
+  const tc = await P.evaluate(() => [...document.querySelectorAll('.ps-card')].map(c => c.innerText.replace(/\s+/g, ' ')));
+  ok(/en 3 máquinas/.test(tc[0]), 'la tarjeta de actividades cuenta 3 máquinas');
   await H.cerrar();
   console.log(fallas ? '\n' + fallas + ' FALLAS' : '\nTodo bien');
   process.exit(fallas ? 1 : 0);
