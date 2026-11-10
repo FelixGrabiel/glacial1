@@ -188,8 +188,11 @@
   const enVista=()=>!!(window.glacialVista&&window.glacialVista.activo&&window.glacialVista.activo());
   const rol=()=>String((usr()&&usr().rol)||'');
   const esAdmin=()=>rol()==='Administrador';
-  const puedeRegistrar=()=>!!usr()&&!enVista()&&rol()!=='mantenimiento_compartido'&&(esAdmin()||['Jefe de Producción','Jefe de Operaciones','Supervisor','Supervisor de Producción'].includes(rol())||tiene(usr(),'paletas'));
-  const puedeProgramar=()=>!!usr()&&!enVista()&&rol()!=='mantenimiento_compartido'&&(esAdmin()||tiene(usr(),'planificacion')||(['Jefe de Producción','Planificación','Ventas y Planificación'].includes(rol())&&!tiene(usr(),'-planificacion')));
+  /* Permisos propios de Hielo (glacial_50): independientes de los de Agua («paletas»/«planificacion»). Los roles de planta
+     siguen teniendo acceso por defecto (como siempre), pero ya no por tener «paletas» o «planificacion» de Agua: el
+     Administrador puede quitárselo a alguien con «-hielo» / «-programarHielo» sin tocar sus permisos de Agua, ni al revés. */
+  const puedeRegistrar=()=>!!usr()&&!enVista()&&rol()!=='mantenimiento_compartido'&&(esAdmin()||tiene(usr(),'hielo')||(['Jefe de Producción','Jefe de Operaciones','Supervisor','Supervisor de Producción'].includes(rol())&&!tiene(usr(),'-hielo')));
+  const puedeProgramar=()=>!!usr()&&!enVista()&&rol()!=='mantenimiento_compartido'&&(esAdmin()||tiene(usr(),'programarHielo')||(['Jefe de Producción','Planificación','Ventas y Planificación'].includes(rol())&&!tiene(usr(),'-programarHielo')));
   const puedeConfigurar=()=>!!usr()&&!enVista()&&(esAdmin()||['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'].includes(rol()));
 
   /* ------------------------------------------------------------------ datos */
