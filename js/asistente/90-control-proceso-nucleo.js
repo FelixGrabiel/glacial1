@@ -15,8 +15,13 @@
   'use strict';
 
   const FORMULARIO={codigo:'CF - CA - F - 047',titulo:'CONTROL DE PORCESO EN EL ENVASADO'};      // el título conserva la grafía del formulario controlado
-  /* Líneas con formulario conocido. Las demás (PET1, PET2, C20L, B20L) tienen su propio formulario: se agregan aquí cuando se conozca su formato. */
-  const LINEAS={B7L:{codigo:'B7L',nombre:'BIDÓN 7L',presentacion:'7L',archivo:'C.P_BIDON_7L'}};
+  /* Líneas con formulario. PET1, PET2, C20L y B20L usan el MISMO formulario que B7L (decisión del dueño, 10/11/2026); como tienen varios tamaños, su presentación se arma
+     con los tamaños que trae cada hoja («presentacion: \'\'» = tomarla de los cuadros). Las columnas que la línea no usa (p. ej. asa en PET) quedan vacías. */
+  const LINEAS={B7L:{codigo:'B7L',nombre:'BIDÓN 7L',presentacion:'7L',archivo:'C.P_BIDON_7L'},
+    PET1:{codigo:'PET1',nombre:'PET1',presentacion:'',archivo:'C.P_PET1'},
+    PET2:{codigo:'PET2',nombre:'PET2',presentacion:'',archivo:'C.P_PET2'},
+    C20L:{codigo:'C20L',nombre:'CAJA 20L',presentacion:'',archivo:'C.P_CAJA_20L'},
+    B20L:{codigo:'B20L',nombre:'BIDÓN 20L',presentacion:'',archivo:'C.P_BIDON_20L'}};
   const MESES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SETIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   /* Categoría del lote de insumo (trazabilidad) → columna del formulario. */
   const COLUMNA_DE_CATEGORIA={preformas:'preforma',tapas:'tapa',etiquetas:'etiqueta',asas:'asa'};
@@ -126,6 +131,18 @@
     usados.add(n.toLowerCase());
     return n;
   }
+  /** Tamaño corto de un texto de presentación: «Pack_Regular_625mlx15und/ln» → «625 ML» · «Pack_Regular_2.5Lx6und» → «2.5 L» · «Bidón 20 Litros» → «20 L». Sin tamaño: ''. */
+  function tamanoPresentacion(t){
+    const m=/(\d+(?:[.,]\d+)?)\s*(ml|litros?|lts?|l)(?![a-wyz])/i.exec(String(t||'').replace(/_/g,' '));
+    if(!m)return '';
+    return m[1].replace(',','.')+(/^ml$/i.test(m[2])?' ML':' L');
+  }
+  /** Presentación de una hoja: la de la línea si es fija («7L»); si no, los tamaños distintos de sus filas, de menor a mayor («380 ML / 625 ML / 1 L»). */
+  function presentacionDeHoja(filas,fija){
+    if(fija)return fija;
+    const v=x=>/ML$/.test(x)?parseFloat(x)/1000:parseFloat(x);
+    return [...new Set(filas.map(f=>tamanoPresentacion(f.presentacion)).filter(Boolean))].sort((a,b)=>v(a)-v(b)).join(' / ');
+  }
   /** Una hoja por marca (orden alfabético), cada una con sus filas. */
   function hojasPorMarca(filas,presentacionDefecto){
     const por=new Map();
@@ -133,7 +150,7 @@
     const usados=new Set();
     return [...por.values()].sort((a,b)=>norm(a.marca).localeCompare(norm(b.marca),'es')).map(h=>({
       marca:h.marca.toUpperCase(),nombre:nombreHoja(h.marca.toUpperCase(),usados),
-      presentacion:presentacionDefecto,filas:h.filas      // el formulario lleva la presentación de la línea («7L»), no el texto largo del reporte
+      presentacion:presentacionDeHoja(h.filas,presentacionDefecto),filas:h.filas      // el formulario lleva la presentación corta («7L», «625 ML / 1 L»), no el texto largo del reporte
     }));
   }
   const nombreArchivo=(linea,anio,mes)=>{
@@ -152,7 +169,7 @@
       sinVencimiento:filas.filter(f=>f.lotePT&&!/-\d{8}$/.test(f.lotePT)).length};
   }
 
-  const API={FORMULARIO,LINEAS,MESES,COLUMNA_DE_CATEGORIA,COLUMNAS_LOTES,ETIQUETA_COLUMNA,MAPEO_CANTIDADES_DEFECTO,SEPARADOR_LOTES,ddmmaaaa,vencimientoPorDefecto,lotePT,turnoLetra,claveCuadro,lotesDelCuadro,cuadroProducido,cuadroFinalizado,
+  const API={tamanoPresentacion,FORMULARIO,LINEAS,MESES,COLUMNA_DE_CATEGORIA,COLUMNAS_LOTES,ETIQUETA_COLUMNA,MAPEO_CANTIDADES_DEFECTO,SEPARADOR_LOTES,ddmmaaaa,vencimientoPorDefecto,lotePT,turnoLetra,claveCuadro,lotesDelCuadro,cuadroProducido,cuadroFinalizado,
     filasDeRegistros,nombreHoja,hojasPorMarca,nombreArchivo,modeloMes,esFechaIso,norm};
   global.glacialControlProcesoNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

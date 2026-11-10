@@ -132,3 +132,9 @@ La seguridad es la clave: quien tenga la URL pero no `GLACIAL_SECRETO` no puede 
 - Si ves el error «no fue creada por GLACIAL», el libro o la hoja ya existían a mano: cámbiales el nombre.
 - Las cuotas gratuitas de Apps Script sobran para este uso (una llamada cada 5 minutos solo si algo cambió).
 - **No está probado contra tu Google real**: las pruebas usan un Google simulado. Por eso el primer paso es PRUEBAS, con un libro y una carpeta de ensayo.
+
+## Actualización 10/11/2026 · PET1, PET2, C20L y B20L
+Decisión del dueño: **tienen el mismo formulario que B7L**. El Excel descargable (Asistente de Producción › Lotes › Control de proceso en el envasado) ya permite elegir PET1, PET2, Caja 20L (C20L) y Bidón 20L (B20L): un libro por línea y mes (`C.P_PET1-NOVIEMBRE-2026`, …), una hoja por marca y una fila por cuadro.
+- La **presentación** del encabezado de cada hoja se arma con los tamaños que trae esa marca en el mes, de menor a mayor (p. ej. «380 ML / 625 ML / 1 L», «20 L»). B7L sigue con «7L».
+- Las columnas que la línea no usa (p. ej. asa en PET) quedan vacías; MAN, LAV, LLEN, CIERRE, CONF y ROTUL las llena planta.
+- La **copia automática a Drive** sigue solo con B7L (todavía no está conectada); se amplía cuando se conecte.
