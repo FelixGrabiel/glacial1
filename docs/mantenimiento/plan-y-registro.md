@@ -6,7 +6,7 @@ Estado: **Etapa 1 completa en PRUEBAS** (datos, pantalla Plan anual, impreso A4 
 - **Tablas propias `mtto_*`** (no colecciones del puente), como pidió el dueño. RLS activada; tiempo real por `supabase_realtime`.
 - Los permisos salen de `glacial_fs.ctx()`: leer = cualquier usuario con sesión; escribir plan/máquinas/configuración = marca `supmtto`.
 - La configuración (firmas e insumos químicos fijos) vive en `mtto_config` (una fila `config`), no en la colección de configuración del puente.
-- Las hojas «CARB» se importan con `pendiente_confirmar = true` y sin línea (no se asignan a PET2).
+- Las hojas «CARB» se importaron con `pendiente_confirmar = true` y sin línea. **Confirmadas por el dueño el 10/11/2026: son de PET2** (`supabase/datos/2026-11-10_mtto_carb_pet2.sql`, aplicado en PRUEBAS y PRODUCCIÓN). Ahora entran al Programa semanal como máquinas propias (Sopladora 8 cavidades, Envasadora isobárica de 32 válvulas, 2 dispensadores de tapas y Compresores de alta presión de la sopladora de 8 cavidades): +46 actividades por semana (sem. 46: 18+10+4+4+10). Su impreso sigue diciendo «LÍNEA PET», igual que el Plan original.
 - Los textos se importan tal cual (solo se quitan espacios sobrantes): VETILADOR, ELECTROVÁVULAS, RODILLLOS, COMPONENETES, el ítem 16 repetido de SOP… se mantienen porque el impreso debe salir idéntico al Excel.
 
 ## Archivos

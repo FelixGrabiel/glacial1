@@ -189,11 +189,14 @@ const PERMISOS_APP=[
   {key:'configuracion',area:'administracion',label:'Configuración'},
   {key:'administracion',area:'administracion',label:'Administración'},
   {key:'moduloAlmacen',area:'almacen',label:'Módulo de Almacén (próximamente)'},
+  {key:'hielo',area:'hielo',label:'Registrar Hielo (Nuevo registro, Avance y cierre)'},
+  {key:'programarHielo',area:'hielo',label:'Programar Hielo (Programación) y configurar sus listas'},
 ];
 
 /* Áreas del catálogo (el orden es el de la pantalla de usuarios). */
 const AREAS_PERMISOS=[
-  {clave:'produccion',titulo:'Producción'},
+  {clave:'produccion',titulo:'Producción (Agua)'},
+  {clave:'hielo',titulo:'Hielo'},
   {clave:'tareo',titulo:'Tareo de Producción y general'},
   {clave:'mantenimiento',titulo:'Mantenimiento'},
   {clave:'rrhh',titulo:'Recursos Humanos (RRHH)'},

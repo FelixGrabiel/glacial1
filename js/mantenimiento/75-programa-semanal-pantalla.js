@@ -3,7 +3,7 @@
    Reemplaza al botón BUSCAR del Excel: la semana se arma sola desde el Plan anual. Selector de semana (◀ SEM_45 ▶), una fila por máquina con las
    actividades que manda el plan esa semana (por frecuencia), avance, estado, técnico y maquinista, «hace X min», y un panel «En vivo» con lo último
    que hicieron los técnicos. Los registros (mtto_registros, glacial_48) se leen en tiempo real; llenarlos es la etapa siguiente (Registro CFA-CA-F-023).
-   Las máquinas «pendientes de confirmar» (hojas CARB) no entran: duplicarían las actividades de la semana.
+   Las máquinas «pendientes de confirmar» no entran (hasta confirmar su línea). Las hojas CARB ya están confirmadas (PET2, 10/11/2026) y entran como máquinas propias.
    También define la barra de pestañas de Mantenimiento (Plan anual · Programa semanal · Historial) que usa el Plan anual.
    ===================================================================================================================== */
 (function(){

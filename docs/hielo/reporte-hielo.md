@@ -57,3 +57,14 @@ Nadie en modo Visualizar escribe, y nada se borra.
 El texto de WhatsApp sigue el formato que ya envía la planta: `Avance de produccion HIELO TD` (TD = todo el día; también D+I, DÍA, INT, NOCHE), fecha `DD_MM_AA`, bloques por **estación** (Tolva manual, Env. automática…), totales «Producción de bolsas 3kg / Producción de 3kg: N kg», aviso `🚨SE VIENE TRABAJANDO POR CAÍDAS` (casilla en Observaciones del reporte) y «Observaciones» (texto libre + paradas + merma).
 - Cada línea de producción tiene una **Estación** (lista editable en Configuración › Estaciones de producción). Las líneas sin estación salen sin encabezado.
 - Los totales se calculan con las líneas registradas; en el ejemplo de la planta no coincidían con la suma de sus líneas, el sistema siempre suma lo registrado.
+
+## Permisos propios, separados de Agua (10/11/2026, glacial_50)
+Antes, registrar o programar Hielo dependía de los mismos permisos de Agua (`paletas` para registrar, `planificacion` para programar). Quien tenía esos permisos de Agua entraba a Hielo sin que el Administrador se lo diera, y quitarle a alguien el permiso de Agua también le quitaba Hielo sin querer.
+
+Ahora, en **Gestión de usuarios**, hay un área propia **«Hielo»** en el catálogo de permisos, con dos permisos:
+- **«Registrar Hielo»** (`hielo`): Nuevo registro y Avance y cierre. Por defecto lo tienen el Administrador y los mismos roles de planta de siempre (Jefe de Producción, Jefe de Operaciones, Supervisor, Supervisor de Producción); el Administrador puede quitárselo a uno de ellos marcándole «-hielo» en su lista de permisos, sin tocar sus permisos de Agua.
+- **«Programar Hielo»** (`programarHielo`): Programación y Configuración de Hielo. Mismo criterio, con «-programarHielo».
+
+La Configuración de Hielo (editar marcas, presentaciones, estaciones…) sigue siendo del Administrador o Jefatura, igual que antes.
+
+Servidor: `supabase/migraciones/glacial_50_permisos_hielo_separados.sql` (aplicada en PRUEBAS; PRODUCCIÓN pendiente de aprobación). Prueba repetible: `supabase/pruebas/hielo_permisos_separados.sql`.
