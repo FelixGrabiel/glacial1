@@ -212,6 +212,25 @@
     };
   }
 
+  /* ---------- Edición simultánea (dos personas en el mismo campo) ---------- */
+  /** Campos del registro que se vigilan y cómo se llaman en el aviso. */
+  const CAMPOS_AVISO={fecha:'la fecha',tipo_mtto:'el tipo de mantenimiento',condicion:'la condición',tecnico_senior:'el técnico ejecutor',maquinista:'el maquinista ejecutor',
+    hora_inicio_real:'la hora real de inicio',hora_fin_real:'la hora real de fin',informe_final:'el informe final'};
+  const MIN_VENTANA_MIO=5;                                                 // «lo acabo de cambiar yo» = en los últimos 5 minutos
+  /** Valores que ESTA persona escribió en un campo (mios: [{v, en}] con en en ms) vigentes en la ventana. */
+  const misValoresVigentes=(mios,ahora)=>(mios||[]).filter(x=>ahora-x.en<=MIN_VENTANA_MIO*60000);
+  /** ¿El cambio que llega de otro dispositivo pisa algo que esta persona acaba de cambiar o está escribiendo?
+   *  previo / nuevo: valor del campo antes y después del cambio que llegó · mios: lo que esta persona escribió · editando: texto sin guardar en el campo (o null) · ahora: ms.
+   *  No avisa si el valor que llega es uno de los míos (es el eco de mi propio guardado) ni si no cambió nada. */
+  function conflictoCampo({previo,nuevo,mios,editando,ahora}){
+    const norm=v=>v===null||v===undefined?'':String(v);
+    if(norm(previo)===norm(nuevo))return false;
+    const vig=misValoresVigentes(mios,ahora||Date.now());
+    if(vig.some(x=>norm(x.v)===norm(nuevo)))return false;
+    if(editando!==null&&editando!==undefined&&norm(editando)!==norm(nuevo))return true;     // estaba escribiendo otra cosa
+    return vig.length>0;                                                                 // lo había cambiado hace poco y ahora lo cambió otra persona
+  }
+
   /* ---------- Historial de registros ---------- */
   const sinTildes=t=>String(t==null?'':t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   /** Filtra por máquina, semana, técnico/maquinista (texto) y estado; orden: semana más reciente primero y, dentro de ella, el orden de las máquinas. */
@@ -233,7 +252,7 @@
   /** ¿La semana es anterior al inicio? Esas semanas se ven como referencia del plan, pero no se pueden iniciar registros. */
   const antesDelInicio=(anio,semana,inicio)=>{const i=inicio||INICIO_REGISTROS;return anio<i.anio||(anio===i.anio&&semana<i.semana);};
 
-  const API={BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
+  const API={CAMPOS_AVISO,conflictoCampo,misValoresVigentes,BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
     semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
     INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
