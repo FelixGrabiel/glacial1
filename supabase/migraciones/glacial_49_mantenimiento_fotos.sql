@@ -1,4 +1,4 @@
--- GLACIAL · glacial_49 · MANTENIMIENTO · FOTOS DE EVIDENCIA EN EL REGISTRO CFA-CA-F-023                  *** PENDIENTE de aplicar (PRUEBAS primero; PRODUCCIÓN con la aprobación del dueño) ***
+-- GLACIAL · glacial_49 · MANTENIMIENTO · FOTOS DE EVIDENCIA EN EL REGISTRO CFA-CA-F-023                  *** APLICADA en PRUEBAS (10/11/2026) · PRODUCCIÓN: pendiente de aprobación ***
 --
 -- Tabla nueva (Requiere glacial_47 y glacial_48):
 --   · public.mtto_registro_fotos   una fila por foto del registro: referencia «supabase:glacial-fotos/mantenimiento/registros/<registro>/<foto>.jpg», descripción opcional,
