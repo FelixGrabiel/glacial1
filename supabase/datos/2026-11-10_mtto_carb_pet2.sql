@@ -1,7 +1,7 @@
 -- GLACIAL · Mantenimiento · las 5 hojas «CARB» son de PET2 · confirmado por el dueño el 10/11/2026
 -- (evidencia: la producción de agua con gas —Bells_Gas, Scala_Gas, Cuisine_Gas— solo aparece en PET2).
 -- Asigna linea = 'PET2' y quita «pendiente de confirmar» a: SOP CARB, ENV CARB, DISP CARB, DISP CARB (2) y COMP. AP CARB. No toca actividades ni registros.
--- Se detiene si no encuentra exactamente esas 5 hojas pendientes. Estado: APLICADO en PRUEBAS el 10/11/2026 · PRODUCCIÓN: pendiente de aprobación.
+-- Se detiene si no encuentra exactamente esas 5 hojas pendientes. Estado: APLICADO en PRUEBAS y PRODUCCIÓN el 10/11/2026 (5 hojas). No volver a ejecutar.
 do $c$
 declare n integer;
 begin
