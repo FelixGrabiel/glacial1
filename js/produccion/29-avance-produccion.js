@@ -1026,7 +1026,10 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
   const totalPlanta=lineas.reduce((s,l)=>s+l.produccionTotal,0);
   const totalProgramado=lineas.reduce((s,l)=>s+avNum(l.programado),0);
   const cumplimiento=(GlacialIndicadores.cumplimiento(totalPlanta,totalProgramado)??0)*100;
-    const ctx=avCtx();
+  // Horario del TURNO QUE SE ESTÁ CERRANDO (avanceEstado.turno/fecha), nunca el de «ahora mismo» (avCtx()): si el supervisor genera
+  // el cierre después de la hora de fin del turno (p. ej. cierra la Noche a las 07:29, cuando el Día ya empezó), avCtx() ya habría
+  // cambiado de turno y el reporte quedaba con el horario del turno siguiente. Incidente 10/11/2026 (docs/00-general/incidente…).
+  const blqTurno=avBloquesCfg()[avanceEstado.turno==='NOCHE'?'noche':'diaInter']||{};
   // Modelo del reporte por línea (61-reporte-linea.js): se calcula UNA vez y queda congelado en el snapshot.
   if(window.glacialReporteLinea){
     const idSnap=avSnapshotId(tipo,hora);
@@ -1039,7 +1042,7 @@ function avConstruirSnapshot(hora,tipo='AVANCE'){
     id:avSnapshotId(tipo,hora),fecha:avanceEstado.fecha,turno:avanceEstado.turno,
     tipo,horaCorte:horaReal,
     horaReferencia:tipo==='CIERRE'?'CIERRE':hora,
-    inicioTurno:ctx.inicio,finTurno:ctx.fin,
+    inicioTurno:blqTurno.inicio,finTurno:blqTurno.fin,
         relevo:tipo==='CIERRE'&&avEsRelevo(ahoraMs),versionCalculo:AV_VERSION_CALCULO,corteMs:ahoraMs,    // true = relevo de turno: el bloque sigue abierto
     supervisor:avNombreUsuario(),generadoPor:state.user?.username||'',
     createdAt:Date.now(),createdBy:state.user?.username||'',
