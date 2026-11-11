@@ -153,7 +153,14 @@
       presentaciones:pres.map(p=>({presentacion:p,bolsas:t.porPres[p]||0,kg:Math.round((t.porPres[p]||0)*kgDe(p)*100)/100})),marcas,
       bolsas:t.bolsas,kg:t.kg,programado:prog.total,cumplimiento:prog.total>0?t.bolsas/prog.total:null,paradas,paradasMin:t.paradasMin,merma:t.merma,
       observaciones:rs.filter(r=>texto(r.observaciones)).map(r=>({turno:r.turno,texto:texto(r.observaciones)})),
-      supervisores:[...new Set(rs.map(r=>texto(r.supervisor)).filter(Boolean))],inicio:horas[0]||'',fin:fines.length?fines[fines.length-1]:''};
+      supervisores:[...new Set(rs.map(r=>texto(r.supervisor)).filter(Boolean))],inicio:horas[0]||'',fin:fines.length?fines[fines.length-1]:'',
+      ultimoRegistro:horaUltimoRegistro(rs)};
+  }
+  /** Hora (Lima, HH:MM) del último guardado entre los reportes: la mayor «actualizadoEn» (o «creadoEn»). '' si ninguno trae marca de tiempo. */
+  function horaUltimoRegistro(rs){
+    const ms=(rs||[]).reduce((q,r)=>Math.max(q,num(r&&r.actualizadoEn)||num(r&&r.creadoEn)),0);
+    if(!(ms>0))return '';
+    try{return new Date(ms).toLocaleTimeString('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit',hour12:false});}catch(_){return '';}
   }
   /** Texto para WhatsApp en el formato que usa la planta: «Avance de produccion HIELO TD», fecha DD_MM_AA, bloques por estación, totales por presentación. */
   function textoAvanceCierre(m){
@@ -162,6 +169,7 @@
     const fecha=(/^(\d{4})-(\d{2})-(\d{2})$/.exec(m.fecha||'')||[]);
     const out=[(m.tipo==='CIERRE'?'Cierre':'Avance')+' de produccion HIELO'+(m.turnoCod?' '+m.turnoCod:''),fecha[1]?fecha[3]+'_'+fecha[2]+'_'+fecha[1].slice(2):String(m.fecha||'')];
     if(m.hora)out.push('Hora: '+m.hora);
+    if(m.ultimoRegistro)out.push('Último registro: '+m.ultimoRegistro);
     if(!m.reportes){out.push('','Todavía no hay reporte de hielo en este turno.');}
     else{
       m.estaciones.forEach(e=>{
@@ -499,6 +507,7 @@
       x.font='700 '+fz(26)+'px Arial';x.fillText((m.turnoTxt||'').toUpperCase(),275,101);
       x.font=fz(19)+'px Arial';x.fillText('Fecha: '+fechaDmy(m.fecha),55,154);if(m.hora)x.fillText('Hora: '+m.hora,330,154);
       if(m.inicio||m.fin){x.font=fz(16)+'px Arial';x.fillStyle='#D9EAF3';x.fillText('Inicio: '+(m.inicio||'—')+(m.tipo==='CIERRE'&&m.fin?' · Término: '+m.fin:''),55,184);}
+      if(m.ultimoRegistro){x.font=fz(16)+'px Arial';x.fillStyle='#D9EAF3';x.fillText('Último registro: '+m.ultimoRegistro,330,184);}
       let y=228;
       x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 '+fz(22)+'px Arial';x.fillText('DETALLE DE PRODUCCIÓN POR ESTACIÓN',48,y+31);y+=64;
       if(!m.reportes){card(PAD,y,W-PAD*2,72,'#F8FBFD');x.fillStyle=STEEL;x.font='700 '+fz(17)+'px Arial';x.fillText('Todavía no hay reporte de hielo en este turno.',PAD+20,y+44);y+=90;}

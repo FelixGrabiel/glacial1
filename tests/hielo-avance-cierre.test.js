@@ -28,4 +28,11 @@ ok(/^Avance de produccion HIELO/.test(a),'con algún reporte en registro = Avanc
 const vacio=H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[],programas:[]}));
 ok(/Todavía no hay reporte de hielo en este turno\./.test(vacio),'sin reporte: lo dice en vez de inventar ceros');
 
+/* Último registro: la mayor actualizadoEn (hora de Lima) entre los reportes del turno; sin marca de tiempo no se muestra. */
+const ur1={...dia,actualizadoEn:Date.UTC(2026,10,10,4,47)},ur2={...inter,actualizadoEn:Date.UTC(2026,10,10,2,5)};
+const mu=H.modeloAvanceCierre({...base,reportes:[ur2,ur1],programas:[]});
+ok(mu.ultimoRegistro==='23:47','último registro = el guardado más reciente, en hora de Lima (04:47 UTC = 23:47)');
+ok(/\nHora: 14:05\nÚltimo registro: 23:47\n/.test(H.textoAvanceCierre(mu)),'el texto lo trae justo debajo de «Hora:»');
+ok(H.modeloAvanceCierre({...base,reportes:[dia],programas:[]}).ultimoRegistro===''&&!/Último registro/.test(H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[dia],programas:[]}))),'sin marca de tiempo: no se inventa la hora');
+
 process.exit(fallas?1:0);
