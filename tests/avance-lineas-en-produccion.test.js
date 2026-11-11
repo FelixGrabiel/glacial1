@@ -102,6 +102,16 @@ sb=entorno({
 snap=sb.avConstruirSnapshot('CIERRE','CIERRE');
 ok(snap.lineas[0].totalParadas===15&&snap.lineas[0].paradas.length===1,'7b · cierre cerrado tarde (07:29): conserva la parada de 15 min de PET2 que está en el registro');
 
+/* 7c) Incidente 11/11/2026: una paleta registrada DESPUÉS de la hora nominal de fin del turno (ya marcada con ese turno) debe
+   contar igual en el CIERRE, no quedar fuera por el reloj (caso real: PET2 Noche 10/11, paleta de las 07:11 de un turno 21:00–07:00). */
+sb=entorno({
+  ahora:ms(7,29,14),
+  programaciones:[prog('PET2','Fontlife','1 L',ms(21))],
+  paletas:[pal('PET2','Fontlife','1 L',25650,'05:53'),pal('PET2','Fontlife','1 L',29700,'07:11'),pal('PET2','Fontlife','1 L',30525,'07:12')]
+});
+snap=sb.avConstruirSnapshot('CIERRE','CIERRE');
+ok(snap.lineas[0].produccionTotal===30525,'7c · cierre cerrado tarde: la paleta de las 07:11 (después del fin nominal) sigue contando → '+snap.lineas[0].produccionTotal);
+
 /* 7) Incidente 10/11/2026: cerrar la Noche DESPUÉS de las 07:00 (el Día ya empezó según el reloj) no debe tomar el horario del Día. */
 sb=entorno({
   ahora:ms(7,29,14),   // 14/10 07:29: 29 min después del fin de la Noche del 13/10

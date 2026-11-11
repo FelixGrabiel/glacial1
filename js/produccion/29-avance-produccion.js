@@ -205,7 +205,11 @@ function avProduccionEfectiva(linea,marca,presentacion){
 }
 
 function avProduccionPaletasHasta(linea,marca,presentacion,hora,tipo){
-  const corte=avCorteMs(hora,tipo);
+  // El CIERRE confía en el turno que ya trae cada paleta (fecha+turno), no en la hora del reloj: una paleta registrada
+  // unos minutos después de la hora nominal de fin (p. ej. 07:11 de un turno que termina a las 07:00) sigue siendo de
+  // ESE turno si así quedó marcada, y debe contar completa. Sin este corte, el AVANCE sí necesita «hasta tal hora»
+  // para reconstruir lo que se sabía en ese momento al reabrir un avance antiguo. Incidente 11/11/2026 (PET2, 4 875 UND).
+  const corte=tipo==='CIERRE'?0:avCorteMs(hora,tipo);
   // Servicio compartido con Producción Actual (16): último acumulado por turno, turnos del bloque sumados, hasta el corte.
   if(typeof window.glacialProduccionPaletasAlCorte==='function'){
     const turnos=avanceEstado.turno==='NOCHE'?['NOCHE']:['DÍA','INTERMEDIO'];

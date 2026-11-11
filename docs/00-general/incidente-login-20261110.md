@@ -32,3 +32,23 @@ Es un ajuste de configuración del rol, no de código ni de datos: no cambia qu�
 **Pendiente (no es una emergencia):** por qué se crearon 3 Cierres del mismo turno en vez de que el segundo y tercer intento fallaran con «ya existe»; si conviene dejar solo uno de los tres documentos.
 
 **Pruebas:** `tests/avance-lineas-en-produccion.test.js` (caso 7: cerrar a las 07:29 un turno que terminó a las 07:00 conserva el horario 21:00–07:00).
+
+---
+
+# Incidente 11/11/2026 · PET2 (Noche 10/11) con 4 875 UND menos de lo real, y paradas sin ratio recalculado
+
+**Dos cosas más del mismo Cierre:**
+
+1. **Las paradas solo se habían corregido en un lugar.** Cada línea guarda sus paradas en dos sitios dentro del mismo documento: uno general (corregido el 10/11) y otro por formato/presentación — el que realmente usan la imagen y el detalle por tarjeta. Se corrigió también ese segundo lugar en los 4 documentos de Cierre (`CIERRE`, `v2`, `v3` y un cuarto, `v4`, generado antes de que el arreglo del 10/11 quedara publicado).
+
+2. **PET2 mostraba 25 650 UND cuando la producción real fue 30 525 UND.** Las dos últimas paletas de esa línea se guardaron a las 07:11 y 07:12, 11-12 min después de la hora nominal de fin del turno (07:00), aunque ya estaban marcadas con turno NOCHE. El Cierre las descartaba por el reloj, sin mirar que el dato ya decía a qué turno pertenecían.
+
+**Causa de fondo (confirmada en el código):** `avProduccionPaletasHasta` (`js/produccion/29-avance-produccion.js`) aplicaba un corte por hora de reloj a las paletas incluso cuando ya estaban filtradas por `fecha`+`turno` (es decir, ya sabía que esa paleta era de esa Noche, pero igual la cortaba por el reloj). Afecta a cualquier línea y cualquier turno cuando se registra producción unos minutos después de la hora nominal de cierre — algo frecuente en la práctica.
+
+**Decisión del dueño (11/11/2026):** una paleta cuenta siempre para el turno que diga su propio dato, sin importar la hora del reloj en que se guardó. Se aplicó así para el CIERRE (el AVANCE sigue usando «hasta tal hora», porque sí necesita reconstruir lo que se sabía en ese momento al reabrir un avance antiguo).
+
+**Corrección de los datos (PRODUCCIÓN, 11/11/2026):** en los 4 documentos de Cierre se corrigió PET2 a 30 525 UND y se recalculó el ratio y el tiempo efectivo de las 5 líneas (habían quedado calculados como si no hubiera paradas, por la misma corrección a medias del 10/11). Producción total de la planta: 48 130 → 53 005 UND; cumplimiento: 71.4 %.
+
+**Corrección del código:** para el tipo `CIERRE`, `avProduccionPaletasHasta` ya no aplica el corte por hora — toma todas las paletas ya filtradas por fecha y turno. Sin cambios para el `AVANCE`.
+
+**Pruebas:** `tests/avance-lineas-en-produccion.test.js` (caso 7c: una paleta registrada después del fin nominal del turno sigue contando en el Cierre; se confirmó que sin el arreglo la prueba falla con el mismo número equivocado, 25 650).
