@@ -65,30 +65,8 @@
     }catch(e){aviso(mensajeError(e),'error');}
   };
 
-  /* T5: el supervisor toma una caja/bobina que está EN ALMACÉN para su línea desde el cuadro: queda ENTREGADA a su línea (movimiento ENTREGA_LINEA,
-     servidor: glacial_43) y el lote se marca en el cuadro. Un lote vencido no se toma (lo decide el núcleo 87, igual que la entrega de Almacén). */
-  window.loteTomarAlmacen=async function(i,unidadId){
-    try{
-      const a=actor(),cuadro=cuadroDe(i);
-      if(typeof reporteEstaBloqueado==='function'&&reporteEstaBloqueado())throw Object.assign(new Error('El reporte está finalizado: no se puede cambiar.'),{codigo:'ESTADO'});
-      const hoy=typeof GlacialFecha!=='undefined'&&GlacialFecha.fechaISOLocal?GlacialFecha.fechaISOLocal(ahora()):(d=>d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'))(new Date(ahora()-5*3600000));   // respaldo: hora de Perú
-      let lote=null;
-      const refU=db.collection('insumosUnidades').doc(unidadId);
-      await db.runTransaction(async tx=>{
-        const s=await tx.get(refU);
-        if(!s.exists)throw Object.assign(new Error('La caja/bobina ya no existe.'),{codigo:'VALIDACION'});
-        const u=s.data(),sl=await tx.get(db.collection('insumosLotes').doc(u.loteId));
-        if(!sl.exists)throw Object.assign(new Error('El lote de esta caja/bobina no existe.'),{codigo:'VALIDACION'});
-        lote=sl.data();
-        const plan=T.planEntregaLinea({unidad:u,lote,linea:draft.linea,usuario:a.nombre,uid:a.uid,en:ahora(),hoy,parametros:{diasAvisoVencimiento:null},
-          motivo:'Tomada del almacén por el supervisor para '+cuadro.texto});
-        tx.set(refU,plan.unidad);
-        tx.set(db.collection('insumosLoteMovimientos').doc(plan.movimiento.id),Object.assign({},plan.movimiento,{en:serverTs()}));
-      });
-      if(typeof window.loteCuadroMarcarTomada==='function')window.loteCuadroMarcarTomada(i,lote,unidadId);
-      aviso('Caja/bobina '+unidadId+' tomada para '+draft.linea+' y marcada en '+cuadro.texto+'. Márcala «en uso» cuando empiece a usarse.');
-    }catch(e){aviso(mensajeError(e),'error');}
-  };
+  /* El supervisor ya NO toma cajas/bobinas del almacén desde el cuadro (12/11/2026): la Asistente de Producción elige los lotes y la línea en
+     Asistente › Lotes › «Entregar a líneas» (89). Aquí solo se marca el uso y el peso final de lo que ya está en la línea. */
 
   let abierto=null;
   function cerrarVentana(){const v=document.getElementById('lc-fondo');if(v)v.remove();abierto=null;}
