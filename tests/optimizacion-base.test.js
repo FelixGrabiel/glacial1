@@ -32,10 +32,22 @@ ok(/id: _mtIdBorrador\(\{ linea, fecha: draftObj\.fecha, turno: draftObj\.turno 
 
 /* ---------- 2 · librerías sin bloquear ---------- */
 const H=leer('index.html');
-['apexcharts.min.js','echarts.min.js','gauge.min.js','xlsx.full.min.js','exceljs.min.js'].forEach(lib=>{
+['apexcharts.min.js','echarts.min.js','gauge.min.js'].forEach(lib=>{
   const m=H.match(new RegExp('<script([^>]*)\\s+src="[^"]*'+lib.replace(/\./g,'\\.')+'"'));
   ok(!!m&&/\bdefer\b/.test(m[1]),lib+' se carga con defer');
 });
+ok(!/<script[^>]*src="[^"]*(xlsx\.full|exceljs)\.min\.js"/.test(H),'las librerías de Excel ya no se cargan al abrir la página (pantalla de inicio de sesión)');
+ok(/window\.glacialCargarExcel = \(function/.test(H)&&/'XLSX', 'https:\/\/cdn\.sheetjs\.com/.test(H)&&/'ExcelJS', 'https:\/\/cdnjs/.test(H),'glacialCargarExcel pide XLSX y ExcelJS una sola vez');
+ok(/addEventListener\('pointerdown', una, true\)/.test(H),'también se piden con el primer toque o tecla, por si se usa antes de entrar');
+ok(/function enterApp\(\)\{\s*\/\*[^*]*\*\/\s*if\(typeof window\.glacialCargarExcel === 'function'\) window\.glacialCargarExcel\(\);/.test(leer('js/accesos/03-auth.js')),'al entrar a la aplicación se piden las librerías de Excel');
+{
+  const i=H.indexOf('window.glacialCargarExcel = (function'),j=H.indexOf('</script>',i);
+  const cuerpo=H.slice(i,j);const agregados=[];
+  const w={document:{createElement:()=>{const e={};return e;},head:{appendChild:e=>{agregados.push(e);setTimeout(()=>e.onload(),0);}}},console,Promise,addEventListener(){},removeEventListener(){}};
+  w.window=w;vm.runInNewContext(cuerpo,w);
+  const p1=w.glacialCargarExcel(),p2=w.glacialCargarExcel();
+  ok(p1===p2&&agregados.length===2&&agregados.every(e=>e.async),'el cargador agrega los dos scripts (async) y no los repite');
+}
 const libs=['ApexCharts','echarts','RadialGauge'];
 const base=leer('js/produccion/08a-graficos-base.js');
 ok(libs.every(l=>base.includes("typeof "+l+"==='undefined'")),'los gráficos comprueban que su librería exista antes de usarla');
