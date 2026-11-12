@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm install --no-save --no-audit --no-fund terser@5.31.6 && node scripts/construir-publicacion.js _sitio",
+  "outputDirectory": "_sitio",
+  "installCommand": "true"
+}
