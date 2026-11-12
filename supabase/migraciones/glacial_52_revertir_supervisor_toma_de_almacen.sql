@@ -1,4 +1,4 @@
--- GLACIAL · glacial_52 · REVIERTE glacial_43: EL SUPERVISOR YA NO TOMA CAJAS/BOBINAS DEL ALMACÉN (12/11/2026)         *** PENDIENTE: PRUEBAS y PRODUCCIÓN ***
+-- GLACIAL · glacial_52 · REVIERTE glacial_43: EL SUPERVISOR YA NO TOMA CAJAS/BOBINAS DEL ALMACÉN (12/11/2026)         *** APLICADA en PRUEBAS (12/11/2026) · PRODUCCIÓN pendiente ***
 --
 -- Por qué: desde el 12/11/2026 la Asistente de Producción elige los lotes y decide a qué línea va cada caja/bobina (Asistente › Lotes › «Entregar a líneas»).
 -- El botón «Tomar para <línea>» se quitó del Registro de producción; esta migración cierra también el permiso en el servidor.
