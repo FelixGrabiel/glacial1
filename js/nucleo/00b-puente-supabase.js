@@ -341,10 +341,80 @@
     return null;
   }
 
+  /* =========================================================
+     COPIA LOCAL DE LOS DOCUMENTOS DE «sync» (12/11/2026)
+     Cada ingreso descargaba ~8 MB (reportes, paletas, programaciones, tareos… con todo su historial). Ahora el equipo guarda
+     una copia por usuario (IndexedDB) y al volver a entrar pide a la base SOLO lo que cambió desde esa copia (fs_cambios).
+     La página ve exactamente lo mismo que antes:
+       · no se muestra nada de la copia sin ponerlo al día primero con el servidor;
+       · si los conteos no cuadran, si la versión del servidor es menor o si algo falla, se descarta y se lee todo, como antes;
+       · un documento que el servidor niega por permiso borra su copia.
+     Solo la colección «sync», separada por usuario; se conservan como mucho las copias de los 3 últimos usuarios del equipo.
+     ========================================================= */
+  const CACHE_FORMATO = 1, CACHE_MAX_USUARIOS = 3, CACHE_ESPERA_MS = 8000;
+  function crearCacheLocal(){
+    if (global.__GLACIAL_CACHE__) return global.__GLACIAL_CACHE__;               // pruebas
+    const idb = global.indexedDB;
+    if (!idb || typeof idb.open !== 'function') return null;
+    let abierta = null;
+    const abrir = () => abierta || (abierta = new Promise((ok, mal) => {
+      let r; try { r = idb.open('glacial-copia-local', 1); } catch (e) { mal(e); return; }
+      r.onupgradeneeded = () => { try { r.result.createObjectStore('docs'); } catch (_) { /* ya existe */ } };
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => mal(r.error);
+      r.onblocked = () => mal(new Error('bloqueada'));
+    }));
+    const pedir = (modo, fn) => abrir().then(bd => new Promise((ok, mal) => {
+      const t = bd.transaction('docs', modo), r = fn(t.objectStore('docs'));
+      t.oncomplete = () => ok(r ? r.result : undefined);
+      t.onerror = () => mal(t.error); t.onabort = () => mal(t.error);
+    }));
+    return {
+      leer: k => pedir('readonly', st => st.get(k)).catch(() => null),
+      guardar: (k, v) => pedir('readwrite', st => st.put(v, k)).catch(() => {}),
+      borrar: k => pedir('readwrite', st => st.delete(k)).catch(() => {}),
+      claves: () => pedir('readonly', st => st.getAllKeys()).catch(() => [])
+    };
+  }
+  function estadoACopia(e, uid, c, d){
+    const partes = [];
+    e.partes.forEach((m, campo) => { const filas = []; m.forEach((x, id) => filas.push([id, x.pos, x.datos])); partes.push([campo, filas]); });
+    return { f: CACHE_FORMATO, uid, c, d, en: Date.now(), version: e.version, existe: e.existe, datos: e.datos, conteos: e.conteos, partes };
+  }
+  function copiaAEstado(x, uid, c, d){
+    if (!x || x.f !== CACHE_FORMATO || x.uid !== uid || x.c !== c || x.d !== d || !(Number(x.version) > 0) || !x.existe) return null;
+    const e = new Estado();
+    e.version = Number(x.version); e.existe = true; e.datos = x.datos || {}; e.conteos = x.conteos || {};
+    (x.partes || []).forEach(([campo, filas]) => {
+      const m = new Map(); (filas || []).forEach(([id, pos, datos]) => m.set(String(id), { pos: Number(pos), datos, txt: canon(datos) }));
+      e.partes.set(campo, m);
+    });
+    return e.partesCompletas() ? e : null;
+  }
+
   function crearBaseDeDatos(T){
     const vivos = new Map();          // claveDoc → DocVivo (documentos con escuchas)
     const consultas = new Set();      // ConsultaViva
     const canales = new Map();        // raíz → canal de tiempo real
+    const copia = crearCacheLocal();   // copia local de «sync» (ver arriba); null si el navegador no la permite
+    let uidCopia = null;
+    const usaCopia = c => !!copia && !!uidCopia && c === 'sync';
+    const claveCopia = (c, d) => uidCopia + '|' + c + '|' + d;
+    let usuariosAnotados = false;
+    async function anotarUsuarioCopia(){
+      if (usuariosAnotados || !copia || !uidCopia) return;
+      usuariosAnotados = true;
+      try {
+        const meta = (await copia.leer('meta:usuarios')) || [];
+        const lista = [{ uid: uidCopia, en: Date.now() }].concat((Array.isArray(meta) ? meta : []).filter(x => x && x.uid !== uidCopia));
+        const quedan = lista.slice(0, CACHE_MAX_USUARIOS), salen = new Set(lista.slice(CACHE_MAX_USUARIOS).map(x => x.uid));
+        await copia.guardar('meta:usuarios', quedan);
+        if (salen.size) {
+          const claves = (await copia.claves()) || [];
+          for (const k of claves) if (typeof k === 'string' && salen.has(k.split('|')[0])) await copia.borrar(k);
+        }
+      } catch (_) { /* la copia es opcional */ }
+    }
     let enLinea = true;
     let fallosSeguidos = 0, ultimoFalloMs = 0;      // fallos de red/servidor sin ningún acierto entre medio (ver retrasoDeReintento)
     const proximoReintento = () => retrasoDeReintento(fallosSeguidos);
@@ -433,9 +503,45 @@
         return this.vista().huella() !== antes;                         // true = al soltarlos cambió lo que se ve
       }
       _avisarError(err){ this.error = err; this.errorEn = Date.now(); this.oyentes.forEach(o => { if (o.error) { try { o.error(err); } catch (_) { /* nada */ } } }); }
+      /* Primera lectura con copia local: se pide solo lo que cambió desde la copia y recién entonces se muestra. */
+      async _desdeCopia(){
+        const clave = claveCopia(this.c, this.d), uid = uidCopia;
+        let e = null;
+        try { e = copiaAEstado(await copia.leer(clave), uid, this.c, this.d); } catch (_) { e = null; }
+        if (!e || uidCopia !== uid || !this.vivo()) { this.cargando = null; return this.cargar(); }
+        let r;
+        try { r = await rpc('fs_cambios', { p_c: this.c, p_d: this.d, p_desde: e.version }); }
+        catch (err) {
+          this.cargando = null;
+          if (err && err.code === 'permission-denied') copia.borrar(clave);
+          return this.cargar();                                          // el camino de siempre decide (error, sin conexión…)
+        }
+        this.cargando = null;
+        if (this.conf || uidCopia !== uid) return;
+        if ((Number(r && r.version) || 0) < e.version) { copia.borrar(clave); return this.cargar(); }   // la base no conoce esa versión
+        this.conf = e;
+        this._aplicarCambios(r);
+        if (!this.conf.partesCompletas()) { this.conf = null; copia.borrar(clave); return this.cargar(); }
+        this.error = null; this.atrasado = false; this.desdeCopia = true; this._limpiar(); this.emitir();
+        if (this.visto > this.conf.version) this.ponerAlDia();
+      }
+      /* Guarda la copia local (un rato después del último cambio, para no escribirla en cada aviso). */
+      _programarCopia(){
+        if (!usaCopia(this.c) || !this.conf || !this.conf.existe || this.conf.ciega) return;
+        if (this.versionCopia === this.conf.version) return;
+        clearTimeout(this.relojCopia);
+        this.relojCopia = setTimeout(() => {
+          if (!this.conf || !this.vivo() || !uidCopia || this.versionCopia === this.conf.version) return;
+          if (!this.conf.partesCompletas()) return;
+          this.versionCopia = this.conf.version;
+          anotarUsuarioCopia();
+          copia.guardar(claveCopia(this.c, this.d), estadoACopia(this.conf, uidCopia, this.c, this.d));
+        }, CACHE_ESPERA_MS);
+      }
       /* Primera lectura (o relectura completa). */
       cargar(){
         if (this.cargando) return this.cargando;
+        if (!this.conf && !this.copiaProbada && usaCopia(this.c)) { this.copiaProbada = true; this.cargando = this._desdeCopia(); return this.cargando; }
         this.cargando = leerEstado(this.c, this.d).then(e => {
           this.cargando = null;
           if (this.conf && e.version < this.conf.version) return;      // una lectura vieja nunca pisa lo más nuevo
@@ -502,6 +608,7 @@
         this.programada = true;
         Promise.resolve().then(() => {
           this.programada = false;
+          this._programarCopia();
           const v = this.vista(); if (!v) return;
           const forzar = this.forzar; this.forzar = false;
           const cambio = this.cambios !== this.firma; this.firma = this.cambios;
@@ -912,6 +1019,7 @@
       runTransaction(funcion){ return runTransaction(funcion); }
       batch(){ return new Lote(); }
       _reiniciar(){ reiniciar(); }
+      _usuarioCopia(uid){ if (uid !== uidCopia) { uidCopia = uid || null; usuariosAnotados = false; } }
       _enLinea(){ return enLinea; }
       _alCambiarConexion(f){ oyentesConexion.add(f); return () => oyentesConexion.delete(f); }
       _pendientes(){ return cola.vacia(); }
@@ -952,6 +1060,7 @@
       const uidAntes = actual ? actual.uid : null, uidAhora = u ? u.id : null;
       if (uidAntes === uidAhora && inicial) { if (u) actual = new Usuario(u); return; }
       if (uidAntes !== uidAhora) db._reiniciar();              // otra cuenta (o ninguna): no se conserva nada de la anterior
+      if (db._usuarioCopia) db._usuarioCopia(uidAhora);        // la copia local es por usuario
       actual = u ? new Usuario(u) : null; inicial = true;
       observadores.forEach(o => { try { o.next(actual); } catch (e) { console.error('GLACIAL · observador de sesión:', e); } });
     }

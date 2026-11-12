@@ -53,3 +53,29 @@ Medición del 12/11 tras el reinicio (`pg_stat_statements`):
   de Auditoría de tareos (`auditoriaTareos`, 9 361 documentos, `orderBy timestamp desc limit 500`) tarda ~166 ms. Se podría
   escribir la ruta como texto fijo en la consulta y crear índices por expresión para las colecciones grandes.
 - Limpiar los borradores de turnos ya cerrados (hay borradores desde el 23/10). Es un cambio de datos: pedir aprobación antes.
+
+## Copia local por usuario (12/11/2026, punto 1 de la prueba de carga)
+Prueba en PRODUCCIÓN con los 20 perfiles reales, solo lectura: cada ingreso descargaba ~8 MB. Con 20 ingresos en el mismo
+segundo, cada uno tardaba 7–9 s en la base (0,7 s con un usuario solo).
+
+La propuesta original era cargar solo los últimos días. Se descartó porque `saveRecords` y las demás guardan la lista completa:
+con una lista recortada, el puente habría borrado el historial que no se cargó. Además, varias pantallas (Historial,
+indicadores, exportaciones) usan datos viejos.
+
+**Lo que se hizo** (`js/nucleo/00b-puente-supabase.js`, «COPIA LOCAL»):
+- El equipo guarda en IndexedDB una copia, por usuario, de los documentos de `sync`. Al volver a entrar, pide solo lo que
+  cambió desde esa copia (`fs_cambios`) y no el documento entero. La página ve exactamente lo mismo.
+- Nunca se muestra la copia sin ponerla al día con el servidor.
+- Si los conteos no cuadran, si la versión no coincide o si algo falla, se descarta la copia y se lee todo, como antes.
+- Si el servidor niega un documento por permiso, se borra su copia.
+- Se guardan como mucho las copias de los 3 últimos usuarios de cada equipo.
+
+Medido en PRODUCCIÓN (records, paletas, tareos, catalogoPlanificacion, programaciones, avancesTurno):
+
+| Caso | Descarga |
+|---|---|
+| Lectura completa | 5,7 MB |
+| Volver a entrar 12 h después | ~110 KB |
+| Volver a entrar 24 h después | ~250 KB |
+
+La primera vez en un equipo nuevo (o con otro usuario) se descarga todo, como antes.
