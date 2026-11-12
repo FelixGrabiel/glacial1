@@ -94,6 +94,7 @@ function crearDispositivo(S, nombre, opciones){
     crypto: require('crypto').webcrypto, clearTimeout,
     setTimeout: (f, ms) => setTimeout(f, Math.min(Number(ms) || 0, opciones.relojRapido === false ? 1e9 : 12)),     // las esperas largas se acortan
     __GLACIAL_TRANSPORTE__: () => transporte };
+  if (opciones.copia) sb.__GLACIAL_CACHE__ = opciones.copia;            // copia local simulada (en lugar de IndexedDB)
   sb.window = sb; sb.globalThis = sb;
   vm.createContext(sb); vm.runInContext(CODIGO, sb);
   D.sb = sb; D.firebase = sb.firebase; D.puente = sb.__GLACIAL_PUENTE__;
@@ -474,6 +475,67 @@ const ids = l => (l || []).map(x => x.id).join(',');
     ok(despues === antes, 'cinco reconexiones no vuelven a pedir el documento negado (' + (despues - antes) + ' lecturas extra)');
     ok(/NEGADO_REINTENTO_MS = 15 \* 60 \* 1000/.test(CODIGO) && /this\.errorEn = Date\.now\(\)/.test(CODIGO), 'se reintenta como mucho cada 15 min, por si el permiso cambió');
     S.reglas = null;
+  }
+
+  /* Copia local (12/11/2026): al volver a entrar se pide solo lo que cambió desde la copia, y la página ve lo mismo que antes. */
+  {
+    const crearCopia = () => { const m = new Map(); return { m,
+      leer: async k => (m.has(k) ? JSON.parse(m.get(k)) : null), guardar: async (k, v) => { m.set(k, JSON.stringify(v)); },
+      borrar: async k => { m.delete(k); }, claves: async () => [...m.keys()] }; };
+    const S = crearServidor();
+    ['ana', 'beto', 'caro', 'dani', 'eva'].forEach((n, i) => S.usuarios.set(n + '@glacial.app', { id: 'uid-' + n, clave: 'clave123', meta: {} }));
+    const entrar = async (D, n) => { await D.auth.signInWithEmailAndPassword(n + '@glacial.app', 'clave123'); await quieto(); };
+    const copia = crearCopia();
+    const A = crearDispositivo(S, 'A', { copia });
+    await entrar(A, 'ana');
+    const lista = []; for (let i = 0; i < 40; i++) lista.push({ id: 'r' + i, fecha: '2026-11-' + String(1 + (i % 12)).padStart(2, '0'), n: i });
+    await A.db.collection('sync').doc('records').set({ items: lista, updatedAt: 1 });
+    const eA = A.escuchar('sync', 'records');
+    await quieto(80);
+    const clave = 'uid-ana|sync|records';
+    ok(copia.m.has(clave) && JSON.parse(copia.m.get(clave)).partes[0][1].length === 40, 'el equipo guarda una copia local de sync/records (por usuario)');
+    eA.parar();
+    /* Mientras tanto otro usuario cambia uno, agrega uno y quita uno. */
+    const B = crearDispositivo(S, 'B'); await entrar(B, 'beto');
+    const ref = B.db.collection('sync').doc('records');
+    const actual = (await ref.get()).data().items;
+    const nueva = actual.filter(x => x.id !== 'r3').map(x => x.id === 'r5' ? Object.assign({}, x, { n: 500 }) : x).concat([{ id: 'r99', fecha: '2026-11-12', n: 99 }]);
+    await ref.set({ items: nueva, updatedAt: 2 });
+    await quieto(40);
+    /* Ana vuelve a entrar en el mismo equipo. */
+    const A2 = crearDispositivo(S, 'A2', { copia }); await entrar(A2, 'ana');
+    const e2 = A2.escuchar('sync', 'records');
+    await quieto(80);
+    const C = crearDispositivo(S, 'C'); await entrar(C, 'caro');
+    const eC = C.escuchar('sync', 'records'); await quieto(60);
+    ok((A2.llamadas.fs_leer || 0) === 0 && (A2.llamadas.fs_cambios || 0) >= 1, 'al volver a entrar NO se descarga el documento entero: se pide solo lo que cambió (fs_cambios)');
+    ok(JSON.stringify(e2.ultimo) === JSON.stringify(eC.ultimo) && e2.ultimo.items.length === 40, 'lo que ve con la copia es idéntico a una lectura completa (cambio, alta y baja incluidos)');
+    ok(e2.fotos.length >= 1 && e2.fotos.every(f => f.datos.items.some(x => x.id === 'r99')), 'nunca muestra la copia sin ponerla al día antes');
+    /* Otro usuario en el mismo equipo no usa la copia de Ana. */
+    const D2 = crearDispositivo(S, 'D2', { copia }); await entrar(D2, 'dani');
+    D2.escuchar('sync', 'records'); await quieto(60);
+    ok((D2.llamadas.fs_leer || 0) === 1, 'otro usuario en el mismo equipo no usa la copia de Ana (lee todo)');
+    /* Una copia que no cuadra se descarta y se lee todo. */
+    const x = JSON.parse(copia.m.get(clave)); x.partes[0][1].pop(); copia.m.set(clave, JSON.stringify(x));
+    const A3 = crearDispositivo(S, 'A3', { copia }); await entrar(A3, 'ana');
+    const e3 = A3.escuchar('sync', 'records'); await quieto(80);
+    ok((A3.llamadas.fs_leer || 0) === 1 && JSON.stringify(e3.ultimo) === JSON.stringify(eC.ultimo), 'una copia que no cuadra (conteos) se descarta y se lee todo, con el resultado correcto');
+    /* Guardar desde un equipo que entró con la copia solo envía lo que cambió y no borra nada más. */
+    const lista3 = e3.ultimo.items.map(i => i.id === 'r7' ? Object.assign({}, i, { n: 700 }) : i);
+    await A3.db.collection('sync').doc('records').set({ items: lista3, updatedAt: 3 });
+    await quieto(40);
+    const final = (await C.db.collection('sync').doc('records').get()).data().items;
+    ok(final.length === 40 && final.find(i => i.id === 'r7').n === 700 && final.find(i => i.id === 'r5').n === 500, 'guardar después de entrar con la copia conserva todo lo demás');
+    /* Si pierde el permiso, la copia se borra. */
+    const A4 = crearDispositivo(S, 'A4', { copia }); await entrar(A4, 'ana');
+    S.reglas = (uid, accion, c, d) => !(uid === 'uid-ana' && c === 'sync' && d === 'records');
+    const e4 = A4.escuchar('sync', 'records'); await quieto(80);
+    ok(!copia.m.has(clave) && e4.errores.length >= 1 && e4.errores[0].code === 'permission-denied', 'si el servidor niega el documento, se borra su copia local y la escucha recibe el error');
+    S.reglas = null;
+    /* Como mucho 3 usuarios con copia en el mismo equipo. */
+    for (const n of ['beto', 'caro', 'eva']) { const Dn = crearDispositivo(S, 'X' + n, { copia }); await entrar(Dn, n); Dn.escuchar('sync', 'records'); await quieto(60); }
+    const uids = new Set([...copia.m.keys()].filter(k => k.indexOf('|') > 0).map(k => k.split('|')[0]));
+    ok(uids.size <= 3 && uids.has('uid-eva') && !uids.has('uid-dani'), 'el equipo guarda copias de como mucho 3 usuarios (se borra la más antigua)');
   }
 
   /* Optimización 12/11/2026: un guardado que no puede afectar una consulta en vivo no la repite en cada equipo. */
