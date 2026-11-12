@@ -40,6 +40,18 @@ const libs=['ApexCharts','echarts','RadialGauge'];
 const base=leer('js/produccion/08a-graficos-base.js');
 ok(libs.every(l=>base.includes("typeof "+l+"==='undefined'")),'los gráficos comprueban que su librería exista antes de usarla');
 
+['fonts.googleapis.com/css2','css/tareo.css','css/tv-glacial.css'].forEach(h=>{
+  const m=H.match(new RegExp('<link[^>]*href="[^"]*'+h.replace(/[./]/g,'\\$&')+'[^"]*"[^>]*>'));
+  ok(!!m&&/media="print"/.test(m[0])&&/onload="this\.media='all'"/.test(m[0]),h+' no bloquea el primer dibujo (print → all al cargar)');
+});
+const sinCom=leer('css/tareo.css').replace(/\/\*[\s\S]*?\*\//g,'');
+const tareo=[...sinCom.matchAll(/([^{}]+)\{/g)].map(m=>m[1].trim()).filter(x=>!x.startsWith('@'));
+ok(tareo.length>50&&tareo.every(sel=>sel.split(',').every(x=>/^(\.tareo|\.tar2|#tareo)/.test(x.trim()))),'tareo.css solo tiene reglas de Tareo: cargarla después no cambia la pantalla de inicio');
+['css/styles.css','css/sidebar-glacial.css','css/mobile-glacial.css'].forEach(h=>{
+  const m=H.match(new RegExp('<link[^>]*href="'+h.replace(/[./]/g,'\\$&')+'[^"]*"[^>]*>'))||H.match(new RegExp('<link[^>]*\\s+href="'+h.replace(/[./]/g,'\\$&')+'[^"]*"'));
+  ok(!!m&&!/media="print"/.test(m[0]),h+' sigue cargándose antes del primer dibujo (la necesita la pantalla de inicio)');
+});
+
 /* ---------- 3 · glacial_51 ---------- */
 const M=leer('supabase/migraciones/glacial_51_tiempo_real_liviano.sql');
 ok(/drop table public\.%I/.test(M)&&/tablename = 'fs_items' or tablename like 'g\\_%'/.test(M),'glacial_51 quita fs_items y las tablas g_* del tiempo real');
