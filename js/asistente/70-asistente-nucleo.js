@@ -487,7 +487,7 @@
     LINEAS,lineaInfo,codigoLinea,red,norm,bloqueDe,turnosDeBloque,claveCuadro,
     TIPOS_INSUMO,UNIDADES,validarInsumo,validarFactor,vigenteEn,factorVigente,teorico,idFactor,
     cuadrosDelBloque,cuadroAbierto,TIPOS_MOV,saldoInsumo,requerimientos,resumenInsumos,
-    conciliar,movimientosCuadro,CAUSAS_MERMA,ETAPAS_MERMA,listaOk,validarListaMerma,validarMerma,consumoCatalogo,mermaValidada,mermaRegistro,resumenMermas,
+    conciliar,movimientosCuadro,CAUSAS_MERMA,ETAPAS_MERMA,listaOk,validarListaMerma,validarMerma,consumoCatalogo,mermaValidada,mermaRegistro,MERMA_REGISTRO,resumenMermas,
     ESTADOS_SOLICITUD,TRANSICIONES,ACTOR_ESTADO,puedeTransicion,aplicarEntrega,aplicarRecepcion,
     alertas,pendientesDeCierre,INSUMOS_BASE,factoresDesdeCodigo,fmt
   };
