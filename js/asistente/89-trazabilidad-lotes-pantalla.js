@@ -91,7 +91,9 @@
     if(u.estado==='ENTREGADA_LINEA')return `<div class="il-acc-u">${b('Devolver a almacén',`ilAbrirMover('${id}','RETORNO_ALMACEN')`)}</div>`;
     return '';
   }
-  const hoyIso=()=>typeof GlacialFecha!=='undefined'&&GlacialFecha.fechaISOLocal?GlacialFecha.fechaISOLocal(typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now()):'';
+  const hoyIso=()=>{const t=typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
+    if(typeof GlacialFecha!=='undefined'&&GlacialFecha.fechaISOLocal)return GlacialFecha.fechaISOLocal(t);
+    const d=new Date(t-5*3600000),p=n=>String(n).padStart(2,'0');return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate());};                        // respaldo: fecha de Perú (UTC-5), así un lote vencido nunca se ofrece
   function fichaHtml(){
     const l=loteActual();
     if(!l)return '<div class="ii-card ie-vacio-det"><p class="ii-mut">Elige un lote de la lista para ver sus datos, sus unidades y su línea de tiempo.</p></div>';
@@ -125,6 +127,95 @@
       <h4 class="ie-g">Línea de tiempo</h4>${Z.cache.listo.movimientos?(hist?`<ul class="il-tl">${hist}</ul>`:'<p class="ii-mut">Sin movimientos.</p>'):'<p class="ii-mut">Consultando…</p>'}</div>`;
   }
 
+  /* ---------- «Entregar a líneas» (12/11/2026): la Asistente de Producción elige los lotes del almacén y decide a qué línea va cada caja/bobina ----------
+     Reemplaza el «Tomar del almacén» que tenía el supervisor en el Registro de producción: el supervisor ahora solo ve y marca lo que ya se entregó a su línea.
+     Por categoría (preformas, tapas, etiquetas, asas, bolsas, cajas, polietileno), los lotes con cajas/bobinas EN ALMACÉN, el que vence antes primero (FEFO),
+     sin lotes unidos a otro; un lote vencido se ve pero no se elige. Se marcan cajas/bobinas (o el lote entero), se elige la línea y Z.entregarALinea las entrega
+     en una transacción (si una no se puede, no se entrega ninguna). Debajo, lo que ya está en cada línea, con «Devolver a almacén» si se equivocó de línea. */
+  const CATS_ENT=[['preformas','Preformas'],['tapas','Tapas'],['etiquetas','Etiquetas'],['asas','Asas'],['bolsas','Bolsas'],['cajas','Cajas'],['polietileno','Polietileno']];
+  S.ent={linea:'',sel:new Set(),texto:''};
+  const numOrden=(a,b)=>String(a.numero).localeCompare(String(b.numero),'es',{numeric:true});
+  /* Puro: lotes con cajas/bobinas en un estado dado, agrupados por lote. */
+  function agruparUnidades(lotes,unidades,filtro){
+    const por=new Map();
+    (unidades||[]).forEach(u=>{if(u&&filtro(u)){if(!por.has(u.loteId))por.set(u.loteId,[]);por.get(u.loteId).push(u);}});
+    return (lotes||[]).filter(l=>l&&!l.unidoEn&&por.has(l.id)).map(l=>({lote:l,unidades:por.get(l.id).sort(numOrden)}));
+  }
+  function almacenPorCategoria(){
+    const hoy=hoyIso(),dias=Z.cache.parametros.diasAvisoVencimiento,q=T.norm?T.norm(S.ent.texto||''):String(S.ent.texto||'').toUpperCase();
+    const grupos=agruparUnidades(Z.cache.lotes,Z.cache.unidades,u=>u.estado==='EN_ALMACEN')
+      .filter(g=>!q||[g.lote.loteProveedor,g.lote.id,g.lote.producto,g.lote.proveedor,g.lote.ordenInterna].some(v=>(T.norm?T.norm(String(v||'')):String(v||'').toUpperCase()).includes(q)))
+      .map(g=>Object.assign(g,{venc:T.estadoVencimiento(g.lote.fechaVencimiento,hoy,dias)}))
+      .sort((a,b)=>String(a.lote.fechaVencimiento||'9999').localeCompare(String(b.lote.fechaVencimiento||'9999'))||String(a.lote.loteProveedor).localeCompare(String(b.lote.loteProveedor)));
+    return CATS_ENT.map(([c,t])=>({clave:c,titulo:t,lotes:grupos.filter(g=>String(g.lote.categoria||'').toLowerCase()===c)})).filter(x=>x.lotes.length);
+  }
+  /* Quita de la selección lo que ya no está en almacén (otra persona lo movió) o es de un lote vencido. */
+  function selValida(){
+    const ok=new Set();
+    almacenPorCategoria().forEach(c=>c.lotes.forEach(g=>{if(g.venc.tipo!=='vencido')g.unidades.forEach(u=>ok.add(u.id));}));
+    [...S.ent.sel].forEach(id=>{if(!ok.has(id))S.ent.sel.delete(id);});
+    return S.ent.sel;
+  }
+  const textoBotonEnt=()=>{const n=S.ent.sel.size;return n?`Entregar ${n} ${n===1?'caja/bobina':'cajas/bobinas'}${S.ent.linea?' a '+S.ent.linea:''}`:'Marca cajas/bobinas para entregar';};
+  function entregarHtml(){
+    if(!Z.cache.listo.lotes||!Z.cache.listo.unidades)return '<div class="ii-card"><p class="ii-mut">Consultando el almacén…</p></div>';
+    const puede=Z.puedeEscribir(),cats=almacenPorCategoria();selValida();
+    const lineaSel=`<label class="ii-campo"><span>Línea a la que van</span><select id="il-ent-l" onchange="ilEntLinea(this.value)"><option value="">Elige la línea…</option>${T.LINEAS.map(x=>`<option value="${esc(x)}" ${x===S.ent.linea?'selected':''}>${esc(x)}</option>`).join('')}</select></label>`;
+    const buscar=`<label class="ii-campo"><span>Buscar</span><input type="search" value="${esc(S.ent.texto)}" placeholder="Lote del proveedor, LI-…, producto u OI" oninput="ilEntTexto(this.value)" autocomplete="off"></label>`;
+    const lotes=cats.map(c=>`<div class="il-ent-cat"><h4 class="ie-g">${esc(c.titulo)} <small class="ii-mut">(${c.lotes.length} lote${c.lotes.length===1?'':'s'})</small></h4>${c.lotes.map(g=>{
+        const l=g.lote,uf=T.unidadFisica(l.categoria),venc=g.venc.tipo==='vencido',todas=!venc&&g.unidades.every(u=>S.ent.sel.has(u.id));
+        const cab=`<b>${esc(l.loteProveedor)}</b> · ${esc(l.producto)} <small class="ii-mut">${esc(l.id)} · ${esc(l.proveedor||'')} · vence ${esc(fecha(l.fechaVencimiento)||'sin fecha')} · ${g.unidades.length} ${esc(g.unidades.length===1?uf.uno:uf.varios)} en almacén</small>`;
+        return `<div class="il-ent-lote${venc?' il-ent-venc':''}">${puede&&!venc?`<label class="il-op"><input type="checkbox" data-ent-lote="${esc(l.id)}" ${todas?'checked':''} onchange="ilEntLote('${esc(l.id)}',this.checked)"><span>${cab}</span></label>`:`<div class="il-op"><span>${cab}</span></div>`}
+          ${chipVence(l)?`<div>${chipVence(l)}${venc?' <small class="ii-mut">No se entrega a línea.</small>':''}</div>`:''}
+          ${venc?'':`<div class="il-ent-us">${g.unidades.map(u=>puede?`<label class="il-op il-ent-u"><input type="checkbox" data-ent-u="${esc(u.id)}" data-lote="${esc(l.id)}" ${S.ent.sel.has(u.id)?'checked':''} onchange="ilEntU('${esc(u.id)}',this.checked)"><span>${esc(uf.titulo)} <b>${esc(u.numero)}</b><small class="ii-mut">${esc(kg(u.pesoActual))}${u.cantidad!=null&&u.cantidad!==''?' · '+esc(fmtCant(u.cantidad))+' '+esc(u.unidadCantidad||''):''}</small></span></label>`:`<div class="il-op il-ent-u"><span>${esc(uf.titulo)} <b>${esc(u.numero)}</b><small class="ii-mut">${esc(kg(u.pesoActual))}</small></span></div>`).join('')}</div>`}</div>`;
+      }).join('')}</div>`).join('');
+    /* Lo que ya está en cada línea (entregado o en uso), para ver el reparto y corregir una línea equivocada. */
+    const enLinea=T.LINEAS.map(lin=>{
+      const gs=agruparUnidades(Z.cache.lotes,Z.cache.unidades,u=>u.linea===lin&&(u.estado==='ENTREGADA_LINEA'||u.estado==='EN_USO'));
+      if(!gs.length)return '';
+      return `<div class="il-ent-lin"><h4 class="ie-g">${esc(lin)}</h4>${gs.map(g=>{const uf=T.unidadFisica(g.lote.categoria);
+        return `<div class="il-ent-lote"><div><b>${esc(g.lote.loteProveedor)}</b> · ${esc(g.lote.producto)} <small class="ii-mut">${esc(g.lote.categoria)} · ${esc(g.lote.id)}</small></div><div class="il-ent-us">${g.unidades.map(u=>`<div class="il-op il-ent-u"><span>${esc(uf.titulo)} <b>${esc(u.numero)}</b> ${pill(u.estado)}</span>${puede&&u.estado==='ENTREGADA_LINEA'?`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilAbrirMover('${esc(u.id)}','RETORNO_ALMACEN')">Devolver a almacén</button>`:''}</div>`).join('')}</div></div>`;}).join('')}</div>`;
+    }).join('');
+    const barra=puede?`<div class="il-ent-barra">${lineaSel}<div class="ii-acc"><button type="button" class="ii-btn" id="il-ent-btn" ${S.ent.sel.size?'':'disabled'} onclick="ilEntregarSel()">${esc(textoBotonEnt())}</button></div></div>`:'';
+    return `<div class="ii-card"><div class="ii-fila-t"><h3>Entregar a líneas</h3>${puede?'':'<span class="ii-chip">Solo consulta</span>'}</div>
+      <p class="ii-mut">Elige los lotes del almacén y la línea a la que va cada caja/bobina. El supervisor de esa línea verá en el Registro de producción solo lo que entregues aquí y lo marcará en su producción («Marcar en uso» y «Registrar peso final»). No se mueve el stock SAP.</p>
+      ${barra}<div class="il-ent-f">${buscar}</div>
+      ${lotes||`<p class="ii-vacio">${S.ent.texto?'Ningún lote en almacén coincide con la búsqueda.':'No hay cajas/bobinas en almacén. Los lotes nacen de las fotos validadas en Evidencias.'}</p>`}</div>
+      <div class="ii-card"><h3>En cada línea ahora</h3><p class="ii-mut">Entregadas y en uso. Si una caja/bobina fue a la línea equivocada y no se usó, «Devolver a almacén» y vuelve a entregarla.</p>${enLinea||'<p class="ii-mut">Ninguna línea tiene cajas/bobinas entregadas.</p>'}</div>`;
+  }
+  const refrescarBotonEnt=()=>{const b=document.getElementById('il-ent-btn');if(b){b.textContent=textoBotonEnt();b.disabled=!S.ent.sel.size;}};
+  window.ilEntLinea=v=>{S.ent.linea=T.LINEAS.includes(v)?v:'';refrescarBotonEnt();};
+  window.ilEntU=(id,on)=>{
+    if(on)S.ent.sel.add(id);else S.ent.sel.delete(id);
+    const c=document.querySelector(`[data-ent-u="${id}"]`),lote=c&&c.getAttribute('data-lote'),todo=lote&&document.querySelector(`[data-ent-lote="${lote}"]`);
+    if(todo)todo.checked=[...document.querySelectorAll(`[data-lote="${lote}"]`)].every(x=>x.checked);
+    refrescarBotonEnt();
+  };
+  window.ilEntLote=(loteId,on)=>{
+    const l=Z.porId(loteId);if(!l)return;
+    if(T.estadoVencimiento(l.fechaVencimiento,hoyIso(),Z.cache.parametros.diasAvisoVencimiento).tipo==='vencido')return;
+    T.unidadesDeLote(l,Z.cache.unidades).filter(u=>u.estado==='EN_ALMACEN').forEach(u=>{if(on)S.ent.sel.add(u.id);else S.ent.sel.delete(u.id);});
+    document.querySelectorAll(`[data-lote="${loteId}"]`).forEach(x=>{x.checked=!!on;});
+    refrescarBotonEnt();
+  };
+  let esperaEnt=null;
+  window.ilEntTexto=v=>{S.ent.texto=v;clearTimeout(esperaEnt);esperaEnt=setTimeout(()=>{repintar();const i=document.querySelector('.il-ent-f input');if(i){i.focus();try{i.setSelectionRange(v.length,v.length);}catch(_){/* sin cursor */}}},250);};
+  /* Resumen antes de entregar: por categoría y lote, cuántas cajas/bobinas van a la línea. */
+  window.ilEntregarSel=()=>{
+    if(!Z.puedeEscribir())return;
+    const ids=[...selValida()];
+    if(!ids.length){aviso('error','Marca al menos una caja/bobina del almacén.');repintar();return;}
+    if(!S.ent.linea){aviso('error','Elige la línea a la que van las cajas/bobinas marcadas.');repintar();return;}
+    const por=new Map();
+    ids.forEach(id=>{const u=Z.unidadPorId(id);if(!u)return;if(!por.has(u.loteId))por.set(u.loteId,[]);por.get(u.loteId).push(u);});
+    const filas=[...por.entries()].map(([lid,us])=>{const l=Z.porId(lid)||{},uf=T.unidadFisica(l.categoria);
+      return `<li><b>${esc(l.loteProveedor||lid)}</b> · ${esc(l.producto||'')} <small class="ii-mut">(${esc(l.categoria||'')})</small>: ${us.sort(numOrden).map(u=>esc(uf.titulo)+' '+esc(u.numero)).join(', ')}</li>`;}).join('');
+    S.entrega={lista:ids,linea:S.ent.linea};
+    abrirModal('Entregar a '+S.ent.linea,`<p>Van a <b>${esc(S.ent.linea)}</b> ${ids.length} ${ids.length===1?'caja/bobina':'cajas/bobinas'}:</p><ul class="il-ent-res">${filas}</ul>
+      <p class="ii-mut">Cada una pasa a «Entregada a línea» con su movimiento. Si una no se puede entregar, no se entrega ninguna. No se mueve el stock SAP.</p>
+      <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="ilCerrar()">Cancelar</button><button type="button" class="ii-btn" id="il-ent-ok" onclick="ilEntregarOk()">Entregar a ${esc(S.ent.linea)}</button></div>`);
+  };
+
   /* Parámetros (solo quien crea lotes): aviso de vencimiento y leyenda obligatoria. */
   function parametrosHtml(){
     if(!Z.puedeEscribir())return '';
@@ -151,18 +242,17 @@
     return `<div class="ii-card"><div class="ii-fila-t"><h3>Lotes de insumos</h3>${Z.puedeEscribir()?'':'<span class="ii-chip">Solo consulta</span>'}</div>
       <p class="ii-mut">Cada etiqueta validada en Evidencias se convierte en una unidad de un lote rastreable: del proveedor a la línea y al cuadro de producción. No mueve el stock SAP.</p>${msg}${error}</div>
       ${vistasHtml()}
-      ${S.vista==='informe'&&IT?IT.html():`${parametrosHtml()}
+      ${S.vista==='entregar'?entregarHtml():S.vista==='informe'&&IT?IT.html():`${parametrosHtml()}
       ${CP?CP.html():''}
       <div class="ie-grid"><aside class="ii-card ie-lista"><div class="ie-filtros">${filtros()}</div><div id="il-lista">${listaHtml()}</div></aside><section>${fichaHtml()}</section></div>`}`;
   }
 
-  /* Dos vistas: la lista de lotes y el informe de trazabilidad (94-trazabilidad-informe.js). */
+  /* Vistas: la lista de lotes, «Entregar a líneas» (la Asistente elige lotes y línea) y el informe de trazabilidad (94-trazabilidad-informe.js). */
   function vistasHtml(){
-    if(!window.iiTrazabilidadInformeUI)return '';
     const b=(v,t)=>`<button type="button" role="tab" class="il-vista ${S.vista===v?'il-vista-act':''}" aria-selected="${S.vista===v}" onclick="ilVista('${v}')">${t}</button>`;
-    return `<div class="il-vistas" role="tablist" aria-label="Vista de lotes">${b('lotes','Lotes')}${b('informe','Informe de trazabilidad')}</div>`;
+    return `<div class="il-vistas" role="tablist" aria-label="Vista de lotes">${b('lotes','Lotes')}${b('entregar','Entregar a líneas')}${window.iiTrazabilidadInformeUI?b('informe','Informe de trazabilidad'):''}</div>`;
   }
-  window.ilVista=v=>{S.vista=v==='informe'?'informe':'lotes';repintar();};
+  window.ilVista=v=>{S.vista=['informe','entregar'].includes(v)?v:'lotes';repintar();};
   window.ilSel=id=>{S.vista='lotes';S.sel=id;S.msg=null;Z.escucharMovimientos(id);repintar();};
   window.ilFiltro=(k,v)=>{S[k]=v;repintar();};
   let espera=null;
@@ -388,14 +478,14 @@
   };
   window.ilEntregarOk=async()=>{
     const e=S.entrega;if(!e)return;
-    const linea=(document.getElementById('il-ent-linea')||{}).value||'';
+    const linea=e.lista?e.linea:((document.getElementById('il-ent-linea')||{}).value||'');
     if(!linea){errorModal('Elige la línea a la que se entrega.');return;}
-    const ids=e.varias?[...document.querySelectorAll('.il-ent-u:checked')].map(x=>x.value):[e.id];
+    const ids=e.lista?e.lista.slice():e.varias?[...document.querySelectorAll('.il-ent-u:checked')].map(x=>x.value):[e.id];
     if(!ids.length){errorModal('Marca al menos una.');return;}
     const b=document.getElementById('il-ent-ok');if(b)b.disabled=true;errorModal('');
     try{
       const r=await Z.entregarALinea(ids,linea);
-      ilCerrar();S.entrega=null;
+      ilCerrar();if(e.lista)ids.forEach(id=>S.ent.sel.delete(id));S.entrega=null;
       const av=[...new Set(r.entregadas.flatMap(x=>x.avisos||[]))];
       aviso('ok',(ids.length===1?'Unidad '+ids[0]+' entregada':ids.length+' entregadas')+' a '+linea+'.'+(av.length?' '+av.join(' '):''));repintar();
     }catch(err){errorModal(Z.mensajeError(err));if(b)b.disabled=false;}
@@ -433,12 +523,15 @@
 .il-vistas{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}.il-vista{border:1px solid var(--ii-linea);background:#fff;border-radius:10px;padding:9px 14px;min-height:44px;font:inherit;font-weight:600;cursor:pointer;color:#0b2a4a}
 .il-vista.il-vista-act,.ii .il-vista.il-vista-act{background:#0b2a4a;color:#fff!important;border-color:#0b2a4a}.il-dup{border-color:#f5c2c0;background:#fffafa}.il-err{display:block;color:#b42318}
 .il-acc-u{display:flex;gap:6px;flex-wrap:wrap}.il-comp{background:#f8fbff}
+.il-ent-barra{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;position:sticky;top:0;z-index:2;background:#fff;padding:8px 0;border-bottom:1px solid var(--ii-linea)}.il-ent-barra .ii-campo{min-width:200px}.il-ent-f{margin:8px 0}
+.il-ent-lote{border:1px solid var(--ii-linea);border-radius:10px;padding:6px 12px;margin:6px 0}.il-ent-venc{background:#fffafa;border-color:#f5c2c0}.il-ent-us{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 10px;margin:0 0 4px 26px}
+.il-ent-u{align-items:center;flex-wrap:wrap}.il-ent-u small{display:block}.il-ent-lin .il-ent-us{margin-left:0;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}.il-ent-res{margin:6px 0 10px;padding-left:18px;font-size:13.5px}
 .il-params summary{cursor:pointer}.il-params-f{display:grid;gap:12px;margin-top:10px;max-width:520px}.il-params .ii-et input{max-width:200px}
 @media(max-width:900px){.il-cols{grid-template-columns:1fr}}
-@media(max-width:560px){.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
+@media(max-width:560px){.il-ent-us{margin-left:0;grid-template-columns:1fr 1fr}.il-ent-barra .ii-campo{min-width:0;flex:1 1 100%}.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
 
   window.iiLotesUI={html,css,estado:S,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
-  window.__trazabilidadLotesPantalla={S,diagnostico,companerasDe};
+  window.__trazabilidadLotesPantalla={S,diagnostico,companerasDe,almacenPorCategoria};
 
   /* Tiempo real: lo que otra persona cree o cambie aparece solo, sin pisar lo que se está escribiendo. */
   Z.alCambiar(()=>{

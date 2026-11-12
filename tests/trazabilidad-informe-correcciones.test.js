@@ -112,7 +112,7 @@ ok((lanza(()=>T.planMovimientoUnidad({unidad:u('U9','L9','09','EN_USO'),tipo:'RE
 ok(T.planMovimientoUnidad({unidad:Object.assign(u('U9','L9','09','OBSERVADA'),{observacion:'x'}),tipo:'LIBERAR',usuario:'Ana'}).unidad.observacion==='','liberar borra la observación');
 ok(T.planEntregaLinea({unidad:u('U8','L8','08'),lote:{},linea:'PET1',motivo:'Tomada por el supervisor'}).movimiento.motivo==='Tomada por el supervisor','la entrega a línea guarda quién/por qué (supervisor)');
 
-/* ================= T5 · el supervisor toma del almacén ================= */
+/* ================= T5 (12/11/2026) · la Asistente elige lotes y línea; el supervisor ya no toma del almacén ================= */
 const almL=[{id:'A1',categoria:'preformas',loteProveedor:'X1',fechaVencimiento:'2030-01-01'},{id:'A2',categoria:'tapas',loteProveedor:'X2',fechaVencimiento:'2020-01-01'},{id:'A3',categoria:'bolsas',loteProveedor:'X3',unidoEn:'A1'},{id:'A4',categoria:'otro',loteProveedor:'X4'}];
 const almU=[u('A1-01','A1','01'),u('A1-02','A1','02','ENTREGADA_LINEA'),u('A2-01','A2','01'),u('A3-01','A3','01'),u('A4-01','A4','01')];
 const ea=L.enAlmacen(almL,almU,{hoy:'2026-11-06'});
@@ -121,9 +121,13 @@ ok(ea.find(x=>x.lote.id==='A2').vencido===true&&ea.find(x=>x.lote.id==='A1').ven
 let lst=L.marcarConUnidad([],almL[0],'A1-01');lst=L.marcarConUnidad(lst,almL[0],'A1-02');
 ok(lst.length===1&&lst[0].unidadIds.join()==='A1-01,A1-02'&&lst[0].categoria==='preformas','T5: la caja tomada queda marcada en el cuadro (sin repetir el lote)');
 const s93=leer('js/asistente/93-lotes-uso-cuadro.js'),s92=leer('js/asistente/92-lotes-en-cuadro.js'),m43=leer('supabase/migraciones/glacial_43_supervisor_toma_de_almacen.sql');
-ok(/loteTomarAlmacen/.test(s93)&&/planEntregaLinea/.test(s93)&&/loteCuadroMarcarTomada/.test(s93),'T5: «Tomar» registra la entrega con el núcleo y marca el lote en el cuadro');
-ok(/where\('estado','==','EN_ALMACEN'\)/.test(s92)&&/En almacén: tomar para/.test(s92),'T5: el panel lee lo que hay en almacén y lo ofrece');
+ok(!/window\.loteTomarAlmacen\s*=/.test(s93)&&!/planEntregaLinea/.test(s93)&&!/loteCuadroMarcarTomada\s*=/.test(s92),'T5: el Registro de producción ya no tiene «Tomar del almacén»');
+ok(!/where\('estado','==','EN_ALMACEN'\)/.test(s92)&&!/En almacén: tomar para/.test(s92)&&/Entregar a líneas/.test(s92),'T5: el panel del cuadro no lee el almacén y remite a «Entregar a líneas» del Asistente');
 ok(/EN_ALMACEN' and n->>'estado' = 'ENTREGADA_LINEA'/.test(m43)&&/'USO_CUADRO','CONSUMO','DEVOLUCION','ENTREGA_LINEA'/.test(m43)&&/afectadas\(v, n\) <@ array\['estado','linea','rev','actualizadoPor','actualizadoEn','historial'\]/.test(m43),'glacial_43: solo EN_ALMACEN → ENTREGADA_LINEA, solo esos campos, y el movimiento ENTREGA_LINEA');
+
+const m52=leer('supabase/migraciones/glacial_52_revertir_supervisor_toma_de_almacen.sql');
+ok(m52.includes(m43.slice(m43.indexOf('-- glacial_43: el supervisor toma'),m43.indexOf('       $u$;')))&&/'USO_CUADRO','CONSUMO','DEVOLUCION'\)\$a\$/.test(m52)&&/no se cambia nada/.test(m52)&&!/ii_esc'\)::boolean/.test(m52),
+  'glacial_52: quita exactamente el bloque de glacial_43 y vuelve los movimientos de «opera» a USO_CUADRO, CONSUMO y DEVOLUCION (no toca ii_esc)');
 
 /* ================= T1 · informe ================= */
 const regs=[
@@ -221,23 +225,33 @@ ok(cob.total===4&&cob.con===3&&cob.sin===1,'cobertura: cuántas producciones tie
   const e4=await ejecutar(()=>sc.moverUnidades(['LI-000030-01'],'RETORNO_ALMACEN',''));
   ok(e4.e&&e4.e.codigo==='PERMISO','T4: solo consulta no mueve cajas');
 
-  /* ================= T5 · «Tomar» en el cuadro (base simulada) ================= */
-  const sv=entorno('Supervisor');
-  sv.docs.set('insumosLotes/LI-000040',lote('LI-000040',{loteProveedor:'T-40',producto:'TAPA AZUL',categoria:'tapas',fechaVencimiento:'2030-01-01'}));
-  sv.docs.set('insumosUnidades/LI-000040-01',u('LI-000040-01','LI-000040','01'));
-  sv.docs.set('insumosLotes/LI-000041',lote('LI-000041',{loteProveedor:'T-41',producto:'TAPA ROJA',categoria:'tapas',fechaVencimiento:'2020-01-01'}));
-  sv.docs.set('insumosUnidades/LI-000041-01',u('LI-000041-01','LI-000041','01'));
-  vm.runInContext(`var draft={linea:'PET1',fecha:'2026-11-06',turno:'DÍA',cuadros:[{numero:1,marca:'Glacial',presentacion:'625',lotesInsumo:[]}]};
-    function normalizarCuadros(d){return d.cuadros;} function renderFormTab(){} function programarGuardadoAutomaticoReporte(){} window.requestAnimationFrame=f=>f(); window.scrollTo=()=>{}; window.scrollY=0;
-    document.body={appendChild(){}}; document.createElement=()=>({style:{},setAttribute(){},appendChild(){},remove(){}});`,sv);
-  ['92-lotes-en-cuadro','93-lotes-uso-cuadro'].forEach(n=>vm.runInContext(leer('js/asistente/'+n+'.js'),sv));
-  await sv.loteTomarAlmacen(0,'LI-000040-01');
-  const tom=sv.docs.get('insumosUnidades/LI-000040-01');
-  ok(tom.estado==='ENTREGADA_LINEA'&&tom.linea==='PET1'&&coleccion(sv,'insumosLoteMovimientos').some(m=>m.tipo==='ENTREGA_LINEA'&&/supervisor/.test(m.motivo)),'T5: el supervisor toma la caja del almacén: queda entregada a PET1 con su movimiento');
-  ok(sv.draft.cuadros[0].lotesInsumo.length===1&&sv.draft.cuadros[0].lotesInsumo[0].loteId==='LI-000040'&&sv.draft.cuadros[0].lotesInsumo[0].unidadIds[0]==='LI-000040-01','T5: y el lote queda marcado en la producción con esa caja');
-  ok(Object.keys(tom).every(k=>k in u('x','y','1')||['actualizadoPor','actualizadoEn'].includes(k))&&tom.pesoActual===10&&tom.loteId==='LI-000040','T5: solo cambia lo que permite glacial_43 (peso y lote igual)');
-  await sv.loteTomarAlmacen(0,'LI-000041-01');
-  ok(sv.docs.get('insumosUnidades/LI-000041-01').estado==='EN_ALMACEN'&&sv.draft.cuadros[0].lotesInsumo.length===1,'T5: un lote vencido no se toma');
+  /* ================= T5 · «Entregar a líneas» en el Asistente (base simulada) ================= */
+  const as=entorno('Asistente de Producción'),ZA=as.glacialTrazabilidadDatos,PA=as.__trazabilidadLotesPantalla;
+  as.docs.set('insumosLotes/LI-000040',lote('LI-000040',{loteProveedor:'T-40',producto:'TAPA AZUL',categoria:'tapas',fechaVencimiento:'2030-01-01',unidades:2,clave:'K40'}));
+  ['01','02'].forEach(n=>as.docs.set('insumosUnidades/LI-000040-'+n,u('LI-000040-'+n,'LI-000040',n)));
+  as.docs.set('insumosLotes/LI-000041',lote('LI-000041',{loteProveedor:'T-41',producto:'TAPA ROJA',categoria:'tapas',fechaVencimiento:'2020-01-01',clave:'K41'}));
+  as.docs.set('insumosUnidades/LI-000041-01',u('LI-000041-01','LI-000041','01'));
+  as.docs.set('insumosLotes/LI-000042',lote('LI-000042',{loteProveedor:'P-42',producto:'PREFORMA 21.7',categoria:'preformas',fechaVencimiento:'2029-01-01',clave:'K42'}));
+  as.docs.set('insumosUnidades/LI-000042-01',u('LI-000042-01','LI-000042','01'));
+  as.document.querySelectorAll=()=>[];ZA.escuchar();as.avisar();
+  as.ilVista('entregar');
+  const hE=as.iiLotesUI.html();
+  ok(/Entregar a líneas/.test(hE)&&/T-40/.test(hE)&&/P-42/.test(hE)&&hE.indexOf('Preformas')<hE.indexOf('Tapas'),'T5: la Asistente ve el almacén por categoría (preformas, tapas…)');
+  ok(!/data-ent-u="LI-000041-01"/.test(hE)&&/T-41/.test(hE),'T5: un lote vencido se ve pero no se puede elegir');
+  as.ilEntLote('LI-000040',true);as.ilEntU('LI-000042-01',true);as.ilEntU('LI-000041-01',true);
+  as.ilEntregarSel();
+  ok(PA.S.entrega===null||PA.S.entrega===undefined||!PA.S.entrega.lista,'T5: sin línea no se entrega (pide elegirla)');
+  as.ilEntLinea('PET2');as.ilEntregarSel();
+  ok(PA.S.entrega&&PA.S.entrega.lista.sort().join()==='LI-000040-01,LI-000040-02,LI-000042-01'&&PA.S.entrega.linea==='PET2'&&/Entregar a PET2/.test(as.modal.innerHTML),'T5: la Asistente elige lotes de varias categorías y la línea (sin el vencido) y confirma');
+  await as.ilEntregarOk();
+  ok(['LI-000040-01','LI-000040-02','LI-000042-01'].every(id=>as.docs.get('insumosUnidades/'+id).estado==='ENTREGADA_LINEA'&&as.docs.get('insumosUnidades/'+id).linea==='PET2')&&as.docs.get('insumosUnidades/LI-000041-01').estado==='EN_ALMACEN','T5: quedan entregadas a PET2 con su movimiento; el vencido sigue en almacén');
+  ok(coleccion(as,'insumosLoteMovimientos').filter(m=>m.tipo==='ENTREGA_LINEA').length===3&&coleccion(as,'insumosAuditoria').filter(a=>a.tipo==='ENTREGAR_LINEA').length===3&&PA.S.ent.sel.size===0,'T5: un movimiento y una auditoría por caja/bobina; la selección se limpia');
+  const hE2=as.iiLotesUI.html();
+  ok(/En cada línea ahora/.test(hE2)&&/PET2/.test(hE2)&&/Devolver a almacén/.test(hE2),'T5: «En cada línea ahora» muestra lo entregado a PET2 con «Devolver a almacén»');
+  const jc=entorno('Jefe de Operaciones');jc.docs.set('insumosLotes/LI-000040',lote('LI-000040',{loteProveedor:'T-40',producto:'TAPA AZUL',categoria:'tapas',fechaVencimiento:'2030-01-01',clave:'K40'}));
+  jc.docs.set('insumosUnidades/LI-000040-01',u('LI-000040-01','LI-000040','01'));jc.glacialTrazabilidadDatos.escuchar();jc.avisar();jc.ilVista('entregar');
+  const hJ=jc.iiLotesUI.html();
+  ok(/Solo consulta/.test(hJ)&&!/data-ent-u=/.test(hJ)&&!/il-ent-btn/.test(hJ),'T5: solo consulta ve el almacén sin poder elegir ni entregar');
 
   /* ================= validación en bloque (fotos del mismo lote) ================= */
   const vb=entorno('Asistente de Producción'),ZB=vb.glacialTrazabilidadDatos,EB=vb.glacialEvidenciasDatos;

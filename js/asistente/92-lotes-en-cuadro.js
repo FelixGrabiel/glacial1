@@ -39,7 +39,8 @@
     const sin=(Array.isArray(lista)?lista:[]).filter(x=>x&&x.loteId!==entrada.loteId);
     return marcado?sin.concat([entrada]):sin;
   }
-  /* T5: lotes con cajas/bobinas EN ALMACÉN (de las categorías del panel, sin los unidos a otro), con su vencimiento: el supervisor las puede tomar para su línea. */
+  /* Lotes con cajas/bobinas EN ALMACÉN (de las categorías del panel, sin los unidos a otro), con su vencimiento. Desde el 12/11/2026 lo usa la vista
+     «Entregar a líneas» del Asistente de Producción (89): es la Asistente quien elige los lotes y la línea; el supervisor ya no toma del almacén. */
   function enAlmacen(lotes,unidades,{hoy,excluir}={}){
     const cats=CATEGORIAS.map(c=>c[0]),fuera=new Set(excluir||[]);
     const T=raiz.glacialTrazabilidadNucleo;
@@ -68,19 +69,17 @@
   /* ---------- pantalla (solo navegador) ---------- */
   if(typeof document==='undefined'||typeof window==='undefined')return;
   const esc=t=>typeof escaparHtml==='function'?escaparHtml(t):String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const cache={lotes:[],unidades:[],almacen:[],linea:'',listo:false,error:''};
+  const cache={lotes:[],unidades:[],linea:'',listo:false,error:''};
   let cierres=[];
   function cerrar(){cierres.forEach(c=>{try{c();}catch(_){/* ya cerrada */}});cierres=[];}
   function escuchar(linea){
     if(!linea||typeof db==='undefined'||typeof state==='undefined'||!state.user)return;
     if(cache.linea===linea&&cierres.length)return;
-    cerrar();cache.linea=linea;cache.lotes=[];cache.unidades=[];cache.almacen=[];cache.listo=false;cache.error='';
+    cerrar();cache.linea=linea;cache.lotes=[];cache.unidades=[];cache.listo=false;cache.error='';
     const fallo=e=>{cache.error=(e&&(e.code||e.message))||'error';cache.listo=true;repintar();};
     try{
       cierres.push(db.collection('insumosUnidades').where('linea','==',linea).onSnapshot(s=>{cache.unidades=s.docs.map(d=>d.data()).filter(x=>x&&x.id&&x.loteId);cache.listo=true;cache.error='';repintar();},fallo));
       cierres.push(db.collection('insumosLotes').onSnapshot(s=>{cache.lotes=s.docs.map(d=>d.data()).filter(x=>x&&x.id);repintar();},fallo));
-      // T5: lo que está en almacén, para que el supervisor lo tome para su línea (glacial_43). Si falla la lectura, solo no se ofrece.
-      cierres.push(db.collection('insumosUnidades').where('estado','==','EN_ALMACEN').onSnapshot(s=>{cache.almacen=s.docs.map(d=>d.data()).filter(x=>x&&x.id&&x.loteId);repintar();},()=>{cache.almacen=[];}));
     }catch(e){fallo(e);}
   }
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{cerrar();cache.linea='';cache.lotes=[];cache.unidades=[];cache.listo=false;});
@@ -133,47 +132,21 @@
     const disp=cache.linea===draft.linea?disponibles(cache.lotes,cache.unidades,draft.linea):[];
     const idsDisp=new Set(disp.map(d=>d.lote.id));
     const fuera=marcados.filter(m=>!idsDisp.has(m.loteId));      // marcados que ya no están en la línea (siguen en el reporte)
-    const hoy=typeof GlacialFecha!=='undefined'&&GlacialFecha.fechaISOLocal?GlacialFecha.fechaISOLocal(Date.now()):(d=>d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'))(new Date(Date.now()-5*3600000));
-    const puedeTomar=!cerrado&&typeof window.loteTomarAlmacen==='function'&&!(typeof reporteEstaBloqueado==='function'&&reporteEstaBloqueado());
-    const alm=puedeTomar?enAlmacen(cache.lotes,cache.almacen,{hoy}):[];
-    const T=raiz.glacialTrazabilidadNucleo;
-    const almHtml=clave=>{
-      const ls=alm.filter(a=>String(a.lote.categoria).toLowerCase()===clave);
-      if(!ls.length)return '';
-      return '<details class="lc-alm"><summary>En almacén: tomar para '+esc(draft.linea)+' ('+ls.length+' lote'+(ls.length===1?'':'s')+')</summary>'+ls.map(a=>{
-        const uf=T&&T.unidadFisica?T.unidadFisica(a.lote.categoria):{titulo:'Caja'};
-        const visibles=a.unidades.slice(0,8);
-        return '<div class="lc-fila lc-fila-alm"><span><b>'+esc(a.lote.loteProveedor)+'</b> · '+esc(a.lote.producto)+' <small>vence '+esc(fmtVence(a.lote.fechaVencimiento))+' · '+a.unidades.length+' en almacén</small></span></div>'+
-          (a.vencido?'<div class="lc-nota lc-err" style="margin-left:26px">Lote vencido: no se toma.</div>':
-          '<div class="lc-uni">'+visibles.map(u=>'<div class="lc-u"><span><b>'+esc(uf.titulo)+' '+esc(u.numero)+'</b> · '+esc(kg(u.pesoActual))+'</span><button type="button" class="btn btn-ghost btn-sm" onclick="loteTomarAlmacen('+i+',\''+esc(u.id)+'\')">Tomar para '+esc(draft.linea)+'</button></div>').join('')+
-          (a.unidades.length>visibles.length?'<div class="lc-nota">… y '+(a.unidades.length-visibles.length)+' más.</div>':'')+'</div>');
-      }).join('')+'</details>';
-    };
     const grupos=CATEGORIAS.map(([clave,titulo])=>{
       const items=disp.filter(d=>String(d.lote.categoria).toLowerCase()===clave);
       const extra=fuera.filter(m=>m.categoria===clave);
-      const almacenHtml=almHtml(clave);
-      if(!items.length&&!extra.length&&!almacenHtml)return '';
+      if(!items.length&&!extra.length)return '';
       return '<div class="lc-grupo"><b>'+esc(titulo)+'</b>'+items.map(d=>{
         const on=marcados.some(m=>m.loteId===d.lote.id);
         return '<label class="lc-fila"><input type="checkbox" '+(on?'checked ':'')+(cerrado?'disabled ':'')+'onchange="loteCuadroAlternar('+i+',\''+esc(d.lote.id)+'\',this.checked)"> <span><b>'+esc(d.lote.loteProveedor)+'</b> · '+esc(d.lote.producto)+' <small>vence '+esc(fmtVence(d.lote.fechaVencimiento))+' · '+d.unidades.length+' unidad(es) en línea</small></span></label>'+(on?unidadesHtml(i,d.lote.id,cerrado):'');
-      }).join('')+extra.map(m=>'<label class="lc-fila"><input type="checkbox" checked '+(cerrado?'disabled ':'')+'onchange="loteCuadroAlternar('+i+',\''+esc(m.loteId)+'\',this.checked)"> <span><b>'+esc(m.loteProveedor)+'</b> · '+esc(m.insumo)+' <small>ya no figura en la línea (se conserva en el reporte)</small></span></label>').join('')+almacenHtml+'</div>';
+      }).join('')+extra.map(m=>'<label class="lc-fila"><input type="checkbox" checked '+(cerrado?'disabled ':'')+'onchange="loteCuadroAlternar('+i+',\''+esc(m.loteId)+'\',this.checked)"> <span><b>'+esc(m.loteProveedor)+'</b> · '+esc(m.insumo)+' <small>ya no figura en la línea (se conserva en el reporte)</small></span></label>').join('')+'</div>';
     }).join('');
     const msg=cache.error?'<div class="lc-nota lc-err">No se pudieron leer los lotes de la línea. Si el problema sigue, avisa al Administrador.</div>':
       !cache.listo?'<div class="lc-nota">Consultando los lotes de '+esc(draft.linea)+'…</div>':
-      !grupos?'<div class="lc-nota">No hay lotes de insumo (preformas, tapas, etiquetas, asas, bolsas, cajas o polietileno) entregados a '+esc(draft.linea)+' ni en almacén. Los lotes nacen de las fotos validadas en Asistente › Evidencias.</div>':'';
-    return '<div class="panel lc-panel" style="margin:10px 0 0;"><style>.lc-grupo{margin:6px 0}.lc-fila{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:13px;cursor:pointer}.lc-fila small{display:block;color:#5a6b7b}.lc-nota{font-size:13px;color:#5a6b7b}.lc-err{color:#c62828}.lc-uni{margin:0 0 6px 26px;display:grid;gap:4px}.lc-u{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:13px;padding:4px 8px;border:1px solid #e3e8ee;border-radius:8px}.lc-alm{margin:4px 0 2px 0;font-size:13px}.lc-alm summary{cursor:pointer;color:#0877A6;font-weight:700;padding:8px 0;min-height:36px}.lc-fila-alm{cursor:default;padding-left:26px}.lc-u .btn{min-height:40px}</style>'+
+      !grupos?'<div class="lc-nota">No hay lotes de insumo (preformas, tapas, etiquetas, asas, bolsas, cajas o polietileno) entregados a '+esc(draft.linea)+'. La Asistente de Producción elige los lotes y los entrega a cada línea (Asistente › Lotes › «Entregar a líneas»).</div>':'';
+    return '<div class="panel lc-panel" style="margin:10px 0 0;"><style>.lc-grupo{margin:6px 0}.lc-fila{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:13px;cursor:pointer}.lc-fila small{display:block;color:#5a6b7b}.lc-nota{font-size:13px;color:#5a6b7b}.lc-err{color:#c62828}.lc-uni{margin:0 0 6px 26px;display:grid;gap:4px}.lc-u{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:13px;padding:4px 8px;border:1px solid #e3e8ee;border-radius:8px}.lc-u .btn{min-height:40px}</style>'+
       '<div class="panel-head"><h4 style="margin:0;">Lotes de insumo usados <small style="font-weight:400;color:#5a6b7b">(trazabilidad y Control de proceso)</small></h4></div><div class="panel-body">'+
       (grupos||'')+msg+(marcados.length?'<div class="lc-nota" style="margin-top:6px">En este cuadro: '+marcados.map(m=>esc(m.loteProveedor)).join(' · ')+'</div>':'')+'</div></div>';
-  };
-  /* T5: tras tomar una caja/bobina del almacén (93), el lote queda marcado en el cuadro con esa unidad. */
-  raiz.loteCuadroMarcarTomada=function(i,lote,unidadId){
-    if(typeof draft==='undefined'||!draft||typeof normalizarCuadros!=='function'||!lote)return;
-    const q=normalizarCuadros(draft)[i];if(!q||q.estadoCuadro==='FINALIZADO')return;
-    q.lotesInsumo=marcarConUnidad(q.lotesInsumo,lote,unidadId);
-    if(typeof programarGuardadoAutomaticoReporte==='function')programarGuardadoAutomaticoReporte();
-    const y=window.scrollY;
-    if(typeof renderFormTab==='function'){renderFormTab();requestAnimationFrame(()=>window.scrollTo(0,y));}
   };
   raiz.loteCuadroAlternar=function(i,loteId,marcado){
     if(typeof draft==='undefined'||!draft||typeof normalizarCuadros!=='function')return;
