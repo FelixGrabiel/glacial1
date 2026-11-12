@@ -1,0 +1,47 @@
+# GLACIAL · publicar la página en GitHub Pages con los archivos JS comprimidos (12/11/2026)
+# En cada cambio en main: corre las pruebas rápidas, arma _sitio/ con scripts/construir-publicacion.js
+# (cada archivo JS comprimido por separado, sin unirlos) y lo publica. Si una prueba falla, NO se publica
+# y la página sigue con la versión anterior.
+# Solo se publican index.html, js/, css/ y assets/ (ya no docs/, supabase/, tests/…).
+# Requiere: Settings › Pages › Build and deployment › Source = «GitHub Actions».
+name: Publicar página
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # algunas pruebas comparan con commits antiguos
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pruebas rápidas
+        run: node tests/correr-todo.js
+      - name: Instalar el compresor
+        run: npm install --no-save --no-audit --no-fund terser@5.31.6
+      - name: Armar el sitio
+        run: node scripts/construir-publicacion.js _sitio
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _sitio
+      - id: despliegue
+        uses: actions/deploy-pages@v4

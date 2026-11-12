@@ -10,3 +10,5 @@ respaldo_*/
 
 __pycache__/
 *.pyc
+_sitio/
+node_modules/
