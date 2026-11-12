@@ -285,7 +285,7 @@ ok(cob.total===4&&cob.con===3&&cob.sin===1,'cobertura: cuántas producciones tie
 
   /* integración */
   const html=leer('index.html'),s89=leer('js/asistente/89-trazabilidad-lotes-pantalla.js');
-  ok(/94-trazabilidad-informe\.js\?v=20261106-/.test(html)&&html.indexOf('94-trazabilidad-informe')>html.indexOf('90-control-proceso-nucleo'),'index.html carga el informe después del Control de proceso');
+  ok(/94-trazabilidad-informe\.js\?v=2026\d{4}-/.test(html)&&html.indexOf('94-trazabilidad-informe')>html.indexOf('90-control-proceso-nucleo'),'index.html carga el informe después del Control de proceso');
   ok(['87-trazabilidad-lotes-nucleo','88-trazabilidad-lotes-datos','89-trazabilidad-lotes-pantalla','92-lotes-en-cuadro'].every(n=>new RegExp(n+'\\.js\\?v=202611(0[6-9]|[1-3]\\d)-').test(html)),'versiones nuevas de 87, 88, 89 y 92 (T5)');
   ok(/Informe de trazabilidad/.test(s89)&&/ilAbrirCategoria/.test(s89)&&/ilAbrirUnir/.test(s89)&&/Posible lote repetido/.test(s89),'Lotes: vista «Informe de trazabilidad», botones de categoría y unir, y aviso de posible repetido');
   ok(!/insumosStock|stockSap/i.test(leer('js/asistente/94-trazabilidad-informe.js')),'el informe no toca stock SAP');
