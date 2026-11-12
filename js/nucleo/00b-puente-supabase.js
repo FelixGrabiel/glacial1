@@ -308,6 +308,39 @@
     return Math.round(base * (0.75 + r * 0.5));
   }
 
+  /* Evalúa en el equipo los filtros de una consulta sobre los datos de un aviso (formato guardado). null = no se puede decidir aquí. */
+  function cumpleFiltros(datos, filtros){
+    for (const fl of filtros || []) {
+      let v = datos;
+      for (const parte of String(fl.campo).split('.')) { v = esObj(v) ? v[parte] : undefined; }
+      const r = compararFiltro(v, fl.op, fl.valor);
+      if (r === null) return true;                                   // no se puede decidir aquí: que decida el servidor
+      if (!r) return false;
+    }
+    return true;
+  }
+  function compararFiltro(v, op, valor){
+    if (op === '==') {
+      if (v === undefined || v === null) return false;
+      if (canon(v) === canon(valor)) return true;
+      return typeof v === typeof valor && esObj(v) === esObj(valor) ? false : null;   // tipos distintos: decide el servidor
+    }
+    const num = x => (typeof x === 'number' ? x : (esHora(x) ? x.__ts : null));
+    /* Textos: solo los que se ordenan igual aquí y en la base (fechas, horas, códigos sin letras); el resto lo decide el servidor. */
+    const textoSeguro = x => typeof x === 'string' && /^[0-9 :T._\-]*$/.test(x);
+    let a = num(v), b = num(valor);
+    if (a === null || b === null) {
+      if (textoSeguro(v) && textoSeguro(valor)) { a = v; b = valor; }
+      else if (v === undefined || v === null) return false;          // sin el campo no cumple un rango
+      else return null;
+    }
+    if (op === '<') return a < b;
+    if (op === '<=') return a <= b;
+    if (op === '>') return a > b;
+    if (op === '>=') return a >= b;
+    return null;
+  }
+
   function crearBaseDeDatos(T){
     const vivos = new Map();          // claveDoc → DocVivo (documentos con escuchas)
     const consultas = new Set();      // ConsultaViva
@@ -538,6 +571,19 @@
       }
     }
 
+    /* ¿Este aviso de tiempo real puede cambiar el resultado de la consulta? Antes CADA guardado en la colección hacía que cada equipo
+       volviera a pedir TODAS sus consultas de esa colección (p. ej. un guardado de otra fecha repetía la consulta de hoy en todas las
+       pantallas abiertas). Ahora se salta solo cuando es seguro: el documento no está en el resultado y sus datos no cumplen los filtros.
+       Ante cualquier duda (sin datos en el aviso, tipos distintos, un filtro que no se puede evaluar) se vuelve a pedir, como antes. */
+    function filaPuedeAfectar(q, f){
+      try {
+        if (!q.filas || q.filas.some(x => x && x.id === f.id)) return true;
+        if (f.eliminado_en) return false;                              // no estaba en el resultado y ya no existe
+        const datos = f.datos;
+        if (!esObj(datos)) return true;
+        return cumpleFiltros(datos, q.q._f);
+      } catch (_) { return true; }
+    }
     /* Un canal de tiempo real por colección raíz: un aviso por cada guardado (la fila del documento). */
     function suscribirRaiz(raiz){
       if (canales.has(raiz)) return;
@@ -547,7 +593,7 @@
         { tabla: 'fs_docs', filtro: 'raiz=eq.' + raiz, alCambiar: f => {
             if (!f || !f.coleccion) return;
             const doc = vivos.get(claveDoc(f.coleccion, f.id)); if (doc) doc.alCambiarFila(f);
-            consultas.forEach(q => { if (q.c === f.coleccion) q.programar(); });
+            consultas.forEach(q => { if (q.c === f.coleccion && filaPuedeAfectar(q, f)) q.programar(); });
           } }
       ], estado => {
         if (canales.get(raiz) !== reg) return;                       // canal ya cerrado por nosotros
@@ -1044,5 +1090,5 @@
 
   global.firebase = { initializeApp, apps, app: () => exigir(), firestore, auth, storage, SDK_VERSION: 'puente-supabase-1' };
   /* Para las pruebas automáticas. */
-  global.__GLACIAL_PUENTE__ = { aEnvio, aPagina, canon, claveDeLista, diferenciaDeLista, fijosCrecientes, Estado, construirOp, mezclar, resolver, Timestamp, FieldValue };
+  global.__GLACIAL_PUENTE__ = { cumpleFiltros, compararFiltro, aEnvio, aPagina, canon, claveDeLista, diferenciaDeLista, fijosCrecientes, Estado, construirOp, mezclar, resolver, Timestamp, FieldValue };
 })(typeof window !== 'undefined' ? window : globalThis);

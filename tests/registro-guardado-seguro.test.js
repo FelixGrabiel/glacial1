@@ -123,6 +123,7 @@ const J=v=>JSON.parse(JSON.stringify(v));
       function _mtGrupoBorrador(t){return String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DIA_INTERMEDIO';}
       function _mtMismoBorrador(b,l,f,t){return b&&b.linea===l&&b.fecha===f&&_mtGrupoBorrador(b.turno)===_mtGrupoBorrador(t);}
       function obtenerBorradorNuevoRegistro(l,f,t){return _borradoresNuevoRegistroCache.find(b=>_mtMismoBorrador(b,l,f,t))||null;}
+      `+extraer(s17,'_mtIdBorrador')+extraer(s17,'_mtConIds')+`
       function _mtFechaHoyISO(){return '2026-11-05';}
       `+s17.slice(s17.indexOf('let _mtUltimaFirmaBorrador'),s17.indexOf('function eliminarBorradorNuevoRegistro'))+extraer(s17,'eliminarBorradorNuevoRegistro')+extraer(s17,'intentarRestaurarBorrador'),sb);
     await sb.guardarBorradorNuevoRegistro('PET1',{linea:'PET1',fecha:'2026-11-05',turno:'DÍA',observaciones:'x'});

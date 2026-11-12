@@ -46,22 +46,25 @@
 
         <!-- =====================================================
             GRÁFICOS (migrados desde Chart.js, ya retirado): ApexCharts (MIT) · ECharts (Apache 2.0) · canvas-gauges (MIT)
+            «defer» (12/11/2026): las librerías de gráficos y de Excel (~3 MB) se descargan en paralelo y ya no frenan el primer
+            dibujo de la página. Se ejecutan en orden, al terminar de leer el HTML y antes de DOMContentLoaded: los gráficos y las
+            exportaciones se usan después (al llegar los datos o al hacer clic), y cada uso comprueba que la librería exista.
         ====================================================== -->
-        <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/canvas-gauges@2.1.7/gauge.min.js"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
+        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/canvas-gauges@2.1.7/gauge.min.js"></script>
 
 
         <!-- =====================================================
             SHEETJS / XLSX
         ====================================================== -->
 
-        <script
+        <script defer
             src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js">
         </script>
 
         <!-- EXCELJS: Excel de tareo para RRHH con colores, filtros e impresión -->
-        <script
+        <script defer
             src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js">
         </script>
 
@@ -3397,7 +3400,7 @@
     <!-- Los datos viven en Supabase. El puente (00b-puente-supabase.js) ofrece a la página los mismos objetos
          «firebase», «db» y «auth» de siempre; por eso el resto de los archivos no cambia. Ya no se carga Firebase. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-    <script src="js/nucleo/00b-puente-supabase.js?v=20261112-ng1"></script>
+    <script src="js/nucleo/00b-puente-supabase.js?v=20261112-op1"></script>
 
 
     <!-- ORDEN DE CARGA: los scripts siguientes se ejecutan en este orden exacto y NO debe cambiarse.
@@ -3439,7 +3442,7 @@
     <script src="js/personal/11-trabajadores.js?v=20261030-pu1"></script>
     <script src="js/produccion/16-paletas.js?v=20261105-rc1"></script>
     <script src="js/accesos/17b-ventana-supervisor.js?v=20261021-vs2"></script>
-    <script src="js/accesos/17-modo-trabajo.js?v=20261105-rc2"></script>
+    <script src="js/accesos/17-modo-trabajo.js?v=20261112-op1"></script>
     <script src="js/mantenimiento/18-mantenimiento.js?v=20261002-tareo-permisos-1"></script>
    
     <script src="js/rrhh/19-rrhh.js"></script>
