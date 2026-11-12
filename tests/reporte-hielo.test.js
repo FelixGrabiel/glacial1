@@ -63,5 +63,43 @@ const mob=leer('css/mobile-glacial.css');
 ok(/class="btn btn-topbar topbar-hielo"[\s\S]{0,80}onclick="goReporteHielo\(\)"/.test(html)&&/id="btn-ir-hielo"[\s\S]{0,120}goReporteHielo\(\)/.test(html),'Reporte Agua: botón «Ir a Reporte de Hielo» en el encabezado (PC) y en el menú lateral (teléfono)');
 ok(/\.btn-topbar\.topbar-hielo\{display:none!important\}/.test(mob)&&/\.sidebar-hielo\{display:none\}/.test(mob),'en el teléfono el acceso va en el menú (el encabezado no tiene lugar)');
 ok(/S\.desdeAgua=/.test(js)&&/Volver a Reporte Agua/.test(js),'desde Hielo se vuelve al Reporte Agua si se entró desde ahí');
-console.log(fallas?`\n${fallas} falla(s)`:'\nTodo correcto');
-process.exit(fallas?1:0);
+/* ---------- guardado con la base lenta: dos guardados del MISMO usuario no chocan; otro usuario sí ---------- */
+(async()=>{
+  const vm=require('vm');
+  function entorno(uid){
+    const docs={};let ver=0;
+    const sb={console,Math,Number,Array,Object,String,Date,JSON,Set,Map,RegExp,Promise,setTimeout,clearTimeout};vm.createContext(sb);sb.window=sb;
+    sb.state={user:{rol:'Supervisor',nombre:'Ana',username:'ana',permisos:[]}};
+    sb.firebase={auth:()=>({currentUser:{uid}})};
+    sb.document={getElementById:()=>null,createElement:()=>({style:{}}),body:{appendChild(){}},activeElement:null};
+    /* Como el servidor: lee, calcula y al confirmar revisa que el documento no cambió; si cambió, REINTENTA la función (Firestore). */
+    sb.db={collection:c=>({doc:id=>({k:c+'/'+id}),where:()=>({onSnapshot:()=>()=>{}})}),
+      runTransaction:async fn=>{for(let i=0;i<5;i++){const leido={};const w=[];
+        const tx={get:async r=>{leido[r.k]=docs[r.k]?docs[r.k].__v:0;await new Promise(x=>setTimeout(x,5));return {exists:!!docs[r.k],data:()=>JSON.parse(JSON.stringify(docs[r.k]))};},set:(r,d)=>w.push([r,d])};
+        const res=await fn(tx);
+        if(Object.keys(leido).some(k=>(docs[k]?docs[k].__v:0)!==leido[k]))continue;      // otro guardó entre medio: reintento
+        w.forEach(([r,d])=>{docs[r.k]=Object.assign(JSON.parse(JSON.stringify(d)),{__v:++ver});});return res;}
+        throw new Error('aborted');}};
+    vm.runInContext(leer('js/hielo/97-hielo.js'),sb);
+    return {D:sb.glacialHieloDatos,docs,sb};
+  }
+  const base={fecha:'2026-11-11',turno:'DÍA',estado:'EN_REGISTRO',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:100}],paradas:[],mermas:[],rev:0};
+  const e1=entorno('u1');
+  await e1.D.guardarReporte(Object.assign({},base),'GUARDAR');                         // versión 1
+  const vista=Object.assign({},base,{rev:1});
+  // dos guardados seguidos con la misma versión vista (el segundo sale antes de que llegue la respuesta del primero)
+  const [a,b2]=await Promise.allSettled([e1.D.guardarReporte(Object.assign({},vista,{produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:200}]}),'GUARDAR'),
+    e1.D.guardarReporte(Object.assign({},vista,{produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:300}]}),'GUARDAR')]);
+  ok(a.status==='fulfilled'&&b2.status==='fulfilled','base lenta: dos guardados seguidos del mismo usuario no dan «otra persona guardó»');
+  const final=e1.docs['hieloReportes/2026-11-11_DÍA'];
+  ok(final.rev===3&&[200,300].includes(final.produccion[0].bolsas),'quedan las dos versiones en orden (versión 3)');
+  // otro usuario guardó entre medio → sí es conflicto
+  final.actualizadoUid='otro';
+  let err=null;try{await e1.D.guardarReporte(Object.assign({},base,{rev:2}),'GUARDAR');}catch(x){err=x;}
+  ok(err&&err.codigo==='CONFLICTO','si otra persona guardó entre medio, sigue el aviso de conflicto');
+  const js2=leer('js/hielo/97-hielo.js');
+  ok(/let guardandoAhora=null,repetirAuto=false/.test(js2)&&/if\(auto\)\{repetirAuto=true;return;\}/.test(js2),'los guardados automáticos van de a uno (el siguiente espera al anterior)');
+  console.log(fallas?`\n${fallas} falla(s)`:'\nTodo correcto');
+  process.exit(fallas?1:0);
+})();
+/* (el resultado final lo imprime la prueba asíncrona de arriba) */

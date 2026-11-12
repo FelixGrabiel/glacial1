@@ -399,7 +399,7 @@
         this.pend = this.pend.filter(p => !(p.ver && p.ver <= n));
         return this.vista().huella() !== antes;                         // true = al soltarlos cambió lo que se ve
       }
-      _avisarError(err){ this.error = err; this.oyentes.forEach(o => { if (o.error) { try { o.error(err); } catch (_) { /* nada */ } } }); }
+      _avisarError(err){ this.error = err; this.errorEn = Date.now(); this.oyentes.forEach(o => { if (o.error) { try { o.error(err); } catch (_) { /* nada */ } } }); }
       /* Primera lectura (o relectura completa). */
       cargar(){
         if (this.cargando) return this.cargando;
@@ -564,9 +564,13 @@
     /* Comprueba qué documentos cambiaron sin que llegara su aviso (al conectar, al reconectar, al volver a la pestaña
        y cada pocos minutos como red de seguridad). Es una sola consulta pequeña para todos los documentos abiertos. */
     let resincronizando = false;
+    const NEGADO_REINTENTO_MS = 15 * 60 * 1000;
     async function resincronizar(raiz){
       const deRaiz = [...vivos.values()].filter(doc => !raiz || raizDe(doc.c) === raiz);
-      deRaiz.forEach(doc => { if (!doc.conf) doc.cargar(); });
+      /* Un documento que el servidor NEGÓ por permiso no se vuelve a pedir en cada reconexión (con Realtime inestable eran cientos de
+         pedidos al día por pantalla, p. ej. ampliacionesTurno/config sin glacial_29): se reintenta como mucho cada 15 min, por si el
+         permiso cambió. Al cerrar sesión las escuchas se cierran y el siguiente inicio de sesión vuelve a leer desde cero. */
+      deRaiz.forEach(doc => { if (!doc.conf && !(doc.error && doc.error.code === 'permission-denied' && Date.now() - (doc.errorEn || 0) < NEGADO_REINTENTO_MS)) doc.cargar(); });
       consultas.forEach(q => { if (!raiz || raizDe(q.c) === raiz) q.programar(); });
       const lista = deRaiz.filter(doc => doc.conf);
       if (!lista.length || resincronizando) return;

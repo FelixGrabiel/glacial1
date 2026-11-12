@@ -461,6 +461,21 @@ const ids = l => (l || []).map(x => x.id).join(',');
     ok((CODIGO.match(/puedeResincronizar\(\)/g) || []).length >= 2, 'las relecturas automáticas (3 min y al volver a la pestaña) esperan mientras el servidor falle seguido');
   }
 
+  /* Un documento NEGADO por permiso no se vuelve a pedir en cada reconexión (ampliacionesTurno/config: 996 lecturas negadas al día). */
+  {
+    const S = crearServidor(), A = crearDispositivo(S, 'A');
+    S.reglas = (uid, accion, c, d) => !(c === 'ampliacionesTurno' && d === 'config');
+    const eN = A.escuchar('ampliacionesTurno', 'config');
+    await pausa(60);
+    const antes = A.llamadas.fs_leer || 0;
+    for (let i = 0; i < 5; i++) { A.desconectar(); A.conectar(); await pausa(30); }         // Realtime inestable: 5 reconexiones
+    const despues = A.llamadas.fs_leer || 0;
+    ok(eN.errores.length >= 1 && eN.errores[0].code === 'permission-denied', 'la escucha negada recibe «permission-denied»');
+    ok(despues === antes, 'cinco reconexiones no vuelven a pedir el documento negado (' + (despues - antes) + ' lecturas extra)');
+    ok(/NEGADO_REINTENTO_MS = 15 \* 60 \* 1000/.test(CODIGO) && /this\.errorEn = Date\.now\(\)/.test(CODIGO), 'se reintenta como mucho cada 15 min, por si el permiso cambió');
+    S.reglas = null;
+  }
+
   console.log(fallas ? '\n✘ ' + fallas + ' falla(s)' : '\n✔ Puente Supabase: todas las pruebas pasaron');
   process.exit(fallas ? 1 : 0);
 })().catch(e => { console.error('ERROR EN LA PRUEBA', e); process.exit(1); });

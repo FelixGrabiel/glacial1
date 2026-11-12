@@ -234,7 +234,10 @@
     let doc=null;
     await db.runTransaction(async tx=>{
       const s=await tx.get(ref);const previo=s.exists?s.data():null;
-      if(previo&&Number(previo.rev)!==Number(r.rev||0))throw Object.assign(new Error('Otra persona guardó este reporte mientras lo editabas. Se cargó su versión: revisa y vuelve a guardar.'),{codigo:'CONFLICTO'});
+      // Versión distinta: si la guardó ESTE mismo usuario (un guardado anterior que se completó aunque la respuesta se cortó, o dos guardados
+      // seguidos con la base lenta), no es un conflicto: se guarda encima con lo que hay en pantalla. Solo otra persona provoca el conflicto.
+      const propio=previo&&String(previo.actualizadoUid||'')===String(u.uid||'')&&!!u.uid;
+      if(previo&&Number(previo.rev)!==Number(r.rev||0)&&!propio)throw Object.assign(new Error('Otra persona guardó este reporte mientras lo editabas. Se cargó su versión: revisa y vuelve a guardar.'),{codigo:'CONFLICTO'});
       if(!previo&&Number(r.rev||0)>0)throw Object.assign(new Error('El reporte ya no existe.'),{codigo:'CONFLICTO'});
       if(previo&&previo.estado==='FINALIZADO'&&accion!=='REABRIR'&&!esAdmin())throw new Error('El reporte está finalizado: solo el Administrador puede cambiarlo.');
       doc=planGuardar({previo,r,accion,usuario:u.nombre,uid:u.uid,en:ahora(),motivo});
@@ -588,9 +591,18 @@
   window.hlAgregar=lista=>{if(!S.ed)return;const c=config();
     S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',estacion:'',lote:'',bolsas:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',cantidad:'',unidad:'UND'});cambio(true);};
   window.hlQuitar=(lista,i)=>{if(!S.ed)return;S.ed[lista].splice(i,1);cambio(true);};
+  /* Los guardados van DE A UNO: con la base lenta, un guardado automático podía salir mientras el anterior seguía en curso, con la versión
+     vieja, y chocar consigo mismo («cambió mientras se guardaba», 10 y 11/11/2026). Si hay uno en curso, el automático queda pendiente y
+     sale al terminar; Guardar / Finalizar esperan a que termine. */
+  let guardandoAhora=null,repetirAuto=false;
   window.hlGuardar=async(accion,auto)=>{
     if(!S.ed)return;
     if(accion!=='GUARDAR'&&temporizador){clearTimeout(temporizador);temporizador=null;}
+    if(guardandoAhora){
+      if(auto){repetirAuto=true;return;}
+      try{await guardandoAhora;}catch(_){/* el anterior ya informó su error */}
+    }
+    let fin;guardandoAhora=new Promise(res=>{fin=res;});
     try{
       const doc=await guardarReporte(S.ed,accion);
       const enPantalla=S.ed;
@@ -602,6 +614,10 @@
       if(e&&e.codigo==='CONFLICTO'){abrirEdicion(S.ed.fecha,S.ed.turno);}
       if(auto){S.guardado='No se guardó: '+String(e&&e.message||e);const g=document.getElementById('hl-guardado');if(g)g.textContent=S.guardado;if(e&&e.codigo==='CONFLICTO')mal(e);return;}
       mal(e);
+    }finally{
+      guardandoAhora=null;fin();
+      // cambios hechos mientras se guardaba: un guardado automático más, ya con la versión nueva
+      if(repetirAuto){repetirAuto=false;if(S.ed&&S.ed.estado!=='FINALIZADO'&&puedeRegistrar())setTimeout(()=>window.hlGuardar('GUARDAR',true),0);}
     }
   };
   window.hlReabrir=async()=>{
