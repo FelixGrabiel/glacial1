@@ -38,9 +38,11 @@
             crossorigin
         >
 
+        <!-- Sin bloquear el primer dibujo (12/11/2026): la hoja de fuentes se pide como «print» y pasa a «all» al llegar.
+             Con display=swap el texto se ve de inmediato con la fuente del sistema y cambia a la definitiva al cargar. -->
         <link
             href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap"
-            rel="stylesheet"
+            rel="stylesheet" media="print" onload="this.media='all'"
         >
 
 
@@ -77,7 +79,9 @@
             rel="stylesheet"
             href="css/styles.css?v=20261107-hl1"
         >
-        <link rel="stylesheet" 
+        <!-- tareo.css solo tiene reglas .tareo-*/.tar2-*/#tareo-* (pantallas de Tareo, que se abren después de entrar):
+             no bloquea el primer dibujo. Conserva su lugar en la cascada aunque llegue después. -->
+        <link rel="stylesheet" media="print" onload="this.media='all'"
             href="css/tareo.css?v=20261102-leg3"
         >
         <!-- =====================================================
@@ -2490,7 +2494,8 @@
         <link rel="stylesheet" href="css/sidebar-glacial.css?v=20261102-leg3">
         <link rel="stylesheet" href="css/mobile-glacial.css?v=20261107-hl3">
         <link rel="stylesheet" href="css/logo-glacial.css?v=20261023-logo1">
-        <link rel="stylesheet" href="css/tv-glacial.css?v=20261102-pal2">
+        <!-- La hoja del modo TV solo aplica con ?modo=tv (#glacial-tv, html.modo-tv): no bloquea el primer dibujo de la aplicación. -->
+        <link rel="stylesheet" href="css/tv-glacial.css?v=20261102-pal2" media="print" onload="this.media='all'">
 
     </head>
 
