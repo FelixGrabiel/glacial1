@@ -125,6 +125,10 @@ ok(!/window\.loteTomarAlmacen\s*=/.test(s93)&&!/planEntregaLinea/.test(s93)&&!/l
 ok(!/where\('estado','==','EN_ALMACEN'\)/.test(s92)&&!/En almacén: tomar para/.test(s92)&&/Entregar a líneas/.test(s92),'T5: el panel del cuadro no lee el almacén y remite a «Entregar a líneas» del Asistente');
 ok(/EN_ALMACEN' and n->>'estado' = 'ENTREGADA_LINEA'/.test(m43)&&/'USO_CUADRO','CONSUMO','DEVOLUCION','ENTREGA_LINEA'/.test(m43)&&/afectadas\(v, n\) <@ array\['estado','linea','rev','actualizadoPor','actualizadoEn','historial'\]/.test(m43),'glacial_43: solo EN_ALMACEN → ENTREGADA_LINEA, solo esos campos, y el movimiento ENTREGA_LINEA');
 
+const m52=leer('supabase/migraciones/glacial_52_revertir_supervisor_toma_de_almacen.sql');
+ok(m52.includes(m43.slice(m43.indexOf('-- glacial_43: el supervisor toma'),m43.indexOf('       $u$;')))&&/'USO_CUADRO','CONSUMO','DEVOLUCION'\)\$a\$/.test(m52)&&/no se cambia nada/.test(m52)&&!/ii_esc'\)::boolean/.test(m52),
+  'glacial_52: quita exactamente el bloque de glacial_43 y vuelve los movimientos de «opera» a USO_CUADRO, CONSUMO y DEVOLUCION (no toca ii_esc)');
+
 /* ================= T1 · informe ================= */
 const regs=[
   {id:'r1',linea:'B7L',fecha:'2026-11-02',turno:'NOCHE',estadoRegistro:'FINALIZADO',cuadros:[

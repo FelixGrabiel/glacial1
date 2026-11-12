@@ -1,4 +1,4 @@
--- GLACIAL · glacial_43 · EL SUPERVISOR TOMA UNA CAJA/BOBINA DEL ALMACÉN PARA SU LÍNEA (auditoría de trazabilidad 06/11/2026, T5)         *** APLICADA en PRUEBAS y PRODUCCIÓN (06/11/2026) ***
+-- GLACIAL · glacial_43 · EL SUPERVISOR TOMA UNA CAJA/BOBINA DEL ALMACÉN PARA SU LÍNEA (auditoría de trazabilidad 06/11/2026, T5)         *** APLICADA en PRUEBAS y PRODUCCIÓN (06/11/2026) · la revierte glacial_52 ***
 --
 -- Por qué: la trazabilidad se cortaba porque el supervisor solo veía lotes ya ENTREGADOS a su línea (y en 12 días hubo 1 entrega).
 -- Con esta migración la marca «opera» (Administrador, jefes de Producción/Operaciones, Supervisores) puede, sobre una unidad:
