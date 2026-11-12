@@ -48,6 +48,26 @@ const cu=(fecha,programado,producido,extra)=>Object.assign({clave:fecha+'|PET1|s
   ok(P.desviacionConsumo({cuadros,factores,insumos:ins,movimientos:[]}).filas.length===0,'sin consumos confirmados no se compara nada');
 }
 {
+  /* Sin conciliación: se estima con la merma del Registro de producción (teórico + merma registrada). */
+  const rep=(clave,extra)=>cu('2026-10-20',1000,1000,Object.assign({clave,reporte:{recordId:'r'+clave,indice:0}},extra||{}));
+  const mermas={k1:{TAPA:50},k2:{TAPA:10},k3:{TAPA:0}};
+  const mermaDe=(c,i)=>i.codigo==='TAPA'?((mermas[c.clave]||{}).TAPA??0):null;
+  const d=P.desviacionConsumo({cuadros:[rep('k1'),rep('k2'),rep('k3'),cu('2026-10-20',1000,1000,{clave:'sinrep'})],factores,insumos:ins,movimientos:[],mermaDe});
+  const tap=d.filas.find(x=>x.insumo.codigo==='TAPA');
+  ok(tap&&tap.teorico===3000&&tap.real===3060&&tap.cuadros===3&&tap.estimados===3&&tap.confirmados===0,'sin conciliar: real estimado = teórico + merma del Registro (solo cuadros con reporte)');
+  ok(Math.abs(tap.pct-0.02)<1e-9&&tap.estado==='NORMAL'&&d.estimados===3,'merma 60 de 3000 = 2 %: dentro de la tolerancia');
+  ok(!d.filas.some(x=>x.insumo.codigo==='PREFORMA'),'un insumo que no se registra en el Registro (mermaDe → null) no se estima');
+  const alto=P.desviacionConsumo({cuadros:[rep('k1'),rep('k2')],factores,insumos:ins,movimientos:[],mermaDe:(c,i)=>i.codigo==='TAPA'?60:null});
+  ok(alto.filas[0].estado==='EXCESO'&&Math.abs(alto.filas[0].pct-0.06)<1e-9,'merma del 6 % → consumo alto');
+  const al=P.alertasExtra({desviaciones:alto});
+  ok(al.length===1&&/merma del Registro es 6 % del teórico/.test(al[0].texto),'el aviso dice que sale de la merma del Registro');
+  const mix=P.desviacionConsumo({cuadros:[rep('k1'),rep('k2')],factores,insumos:ins,movimientos:[{opId:'9',tipo:'CONSUMO',cuadro:'k1',insumo:'TAPA',cantidad:1200}],mermaDe:(c,i)=>i.codigo==='TAPA'?999:null});
+  const m=mix.filas[0];
+  ok(m.confirmados===1&&m.estimados===1&&m.real===1200+1999,'si un cuadro está conciliado se usa el real conciliado (no se suma la merma) y el otro se estima');
+  const sinProd=P.desviacionConsumo({cuadros:[cu('2026-10-20',1000,0,{clave:'z',reporte:{recordId:'x',indice:0}})],factores,insumos:ins,movimientos:[],mermaDe:()=>5});
+  ok(sinProd.filas.length===0,'un reporte sin producción no se compara');
+}
+{
   const ahora=100*3600000;
   const sols=[{id:'S1',estado:'SOLICITADA',historial:[{en:ahora-5*3600000}],items:[]},{id:'S2',estado:'SOLICITADA',historial:[{en:ahora-1*3600000}],items:[]},
     {id:'S3',estado:'ENTREGADA',historial:[{en:ahora-13*3600000}],items:[{insumo:'A',entregado:10,recibido:0}]},{id:'S4',estado:'ENTREGADA',historial:[{en:ahora-13*3600000}],items:[{insumo:'A',entregado:10,recibido:10}]}];

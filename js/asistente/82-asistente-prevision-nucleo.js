@@ -4,7 +4,9 @@
    Sin pantalla ni base de datos. Lo usan 72-asistente-pantalla.js y tests/asistente-prevision.test.js.
      · prevision(): insumos que harán falta en los próximos días (programación publicada × factores) frente a lo que hay en Producción,
        lo que viene en camino (pedido o entregado sin recibir) y lo que Almacén tiene según el Inventario.
-     · desviacionConsumo(): consumo real confirmado (conciliaciones) frente al teórico (producido × factor) en un rango de días.
+     · desviacionConsumo(): consumo real frente al teórico (producido × factor) en un rango de días. El real sale de la conciliación
+       (CONFIRMADO) o, mientras no se concilie, se ESTIMA con el Registro de producción: teórico + la merma que el supervisor registró
+       en su reporte (tapas, etiquetas, polietileno). Así la desviación funciona desde ya con los datos que la planta registra cada turno.
      · alertasExtra(): avisos que se calculan con lo anterior y con el tiempo de las solicitudes.
    ============================================================= */
 (function (raiz) {
@@ -83,9 +85,13 @@
     return { dias: fechas, filas, sinFactor, pendientesCierre };
   }
 
-  /* e: { cuadros:[…cuadros de los días a revisar con producido…], factores, insumos, movimientos, tolerancia }
-     Solo se compara lo que ya tiene consumo REAL confirmado (movimiento CONSUMO): teórico y real del mismo cuadro e insumo.
-     → { filas:[{insumo, teorico, real, desviacion, pct, estado, cuadros}], porLinea:[{linea, insumo, teorico, real, pct, estado}] } */
+  /* e: { cuadros:[…cuadros de los días a revisar con producido…], factores, insumos, movimientos, tolerancia,
+          mermaDe?: (cuadro, insumo) → merma del Registro en la unidad del insumo, 0 si no hubo, o null si ese insumo no se registra ahí }
+     Por cada cuadro e insumo:
+       · si tiene consumo REAL confirmado (movimiento CONSUMO) se usa ese (fuente CONFIRMADO);
+       · si no, y el cuadro tiene reporte del Registro con producción, real estimado = teórico + merma registrada (fuente REGISTRO).
+     Nunca se mezclan las dos fuentes en un mismo cuadro e insumo.
+     → { filas:[{insumo, teorico, real, desviacion, pct, estado, cuadros, confirmados, estimados}], porLinea:[…igual + linea], estimados } */
   function desviacionConsumo(e) {
     const tol = e.tolerancia === undefined ? TOLERANCIA_DEFECTO : e.tolerancia;
     const insumos = (e.insumos || []).filter(i => i.activo !== false);
@@ -93,20 +99,30 @@
     const anulados = new Set(movs.filter(m => m && m.tipo === 'ANULACION' && m.anulaA).map(m => m.anulaA));
     const consumos = movs.filter(m => m && m.tipo === 'CONSUMO' && !anulados.has(m.opId));
     const porInsumo = new Map(), porLinea = new Map();
-    const sumar = (mapa, k, base, teo, real, n) => {
-      if (!mapa.has(k)) mapa.set(k, Object.assign({}, base, { teorico: 0, real: 0, cuadros: 0 }));
-      const x = mapa.get(k); x.teorico = red(x.teorico + teo); x.real = red(x.real + real); x.cuadros += n;
+    const sumar = (mapa, k, base, teo, real, fuente) => {
+      if (!mapa.has(k)) mapa.set(k, Object.assign({}, base, { teorico: 0, real: 0, cuadros: 0, confirmados: 0, estimados: 0 }));
+      const x = mapa.get(k); x.teorico = red(x.teorico + teo); x.real = red(x.real + real); x.cuadros += 1;
+      if (fuente === 'CONFIRMADO') x.confirmados += 1; else x.estimados += 1;
     };
+    let estimados = 0;
     (e.cuadros || []).forEach(c => {
       insumos.forEach(i => {
-        const real = consumos.filter(m => m.cuadro === c.clave && m.insumo === i.codigo).reduce((s, m) => s + num(m.cantidad), 0);
-        if (!(real > 0)) return;
+        const confirmado = consumos.filter(m => m.cuadro === c.clave && m.insumo === i.codigo).reduce((s, m) => s + num(m.cantidad), 0);
+        let fuente = confirmado > 0 ? 'CONFIRMADO' : null;
+        let merma = null;
+        if (!fuente && typeof e.mermaDe === 'function' && c.reporte && num(c.producido) > 0) {
+          merma = e.mermaDe(c, i);
+          if (merma !== null && merma !== undefined && Number.isFinite(Number(merma)) && Number(merma) >= 0) fuente = 'REGISTRO';
+        }
+        if (!fuente) return;
         const fv = N.factorVigente(e.factores, { insumo: i.codigo, linea: c.linea, marca: c.marca, presentacion: c.presentacion, fecha: c.fecha });
         if (fv.error || Number(fv.factor.factor) === 0) return;
         const teo = N.teorico(c.producido, c.unidadesPorPaleta, fv.factor);
         if (teo === null || !(teo > 0)) return;
-        sumar(porInsumo, i.codigo, { insumo: i }, teo, real, 1);
-        sumar(porLinea, c.linea + '|' + i.codigo, { insumo: i, linea: c.linea }, teo, real, 1);
+        const real = fuente === 'CONFIRMADO' ? confirmado : red(teo + num(merma));
+        if (fuente === 'REGISTRO') estimados += 1;
+        sumar(porInsumo, i.codigo, { insumo: i }, teo, real, fuente);
+        sumar(porLinea, c.linea + '|' + i.codigo, { insumo: i, linea: c.linea }, teo, real, fuente);
       });
     });
     const cerrar = x => {
@@ -115,7 +131,7 @@
       return Object.assign({}, x, { desviacion, pct, estado });
     };
     const ord = (a, b) => Math.abs(b.pct) - Math.abs(a.pct);
-    return { tolerancia: tol, filas: [...porInsumo.values()].map(cerrar).sort(ord), porLinea: [...porLinea.values()].map(cerrar).sort(ord) };
+    return { tolerancia: tol, estimados, filas: [...porInsumo.values()].map(cerrar).sort(ord), porLinea: [...porLinea.values()].map(cerrar).sort(ord) };
   }
 
   /* e: { prevision, desviaciones, solicitudes, ahora (ms), horasSolicitud, horasTransito, stockMinimoAlmacen:[{insumo, disponible, minimo}] }
@@ -139,7 +155,8 @@
         a.push({ nivel: 'info', tipo: 'SIN_RECIBIR', texto: 'Almacén entregó la solicitud ' + s.id + ' hace ' + fh(edad) + ' y Producción no ha confirmado la recepción.', acc: 'solicitudes' });
     });
     ((e.desviaciones && e.desviaciones.filas) || []).filter(d => d.estado !== 'NORMAL' && d.cuadros >= 2).forEach(d => {
-      a.push({ nivel: 'atencion', tipo: 'DESVIACION', texto: d.insumo.nombre + ': consumo ' + (d.pct > 0 ? 'por encima' : 'por debajo') + ' del teórico (' + (d.pct > 0 ? '+' : '') + N.fmt(d.pct * 100) + ' %).', acc: 'desviacion' });
+      const soloRegistro = d.estimados > 0 && !d.confirmados;
+      a.push({ nivel: 'atencion', tipo: 'DESVIACION', texto: d.insumo.nombre + ': ' + (soloRegistro ? 'la merma del Registro es ' + N.fmt(d.pct * 100) + ' % del teórico (tolerancia ' + N.fmt(((e.desviaciones.tolerancia) || TOLERANCIA_DEFECTO) * 100) + ' %).' : 'consumo ' + (d.pct > 0 ? 'por encima' : 'por debajo') + ' del teórico (' + (d.pct > 0 ? '+' : '') + N.fmt(d.pct * 100) + ' %).'), acc: 'desviacion' });
     });
     (e.stockMinimoAlmacen || []).forEach(s => {
       if (s.minimo > 0 && s.disponible < s.minimo) a.push({ nivel: 'atencion', tipo: 'MINIMO_ALMACEN', texto: s.insumo.nombre + ': Almacén tiene ' + N.fmt(s.disponible) + ' y el mínimo es ' + N.fmt(s.minimo) + '.', acc: 'prevision' });

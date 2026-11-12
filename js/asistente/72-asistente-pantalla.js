@@ -351,9 +351,17 @@
     return PV().prevision({dias,factores:C.factores,insumos:C.insumos,stockProd,stockAlm,enCamino});
   }
   function stockAlm_(c){const e=EN();return e?e.stockDe(c):null;}
+  /* Merma que el supervisor registró en su reporte para ese insumo (en la unidad del insumo): 0 si no registró, null si ese insumo
+     no se registra en el Registro (p. ej. preformas en cajas) o el cuadro no tiene reporte. La usa la desviación mientras no se concilie. */
+  function mermaRegistroDe(c,i){
+    const regla=N.MERMA_REGISTRO&&N.MERMA_REGISTRO[i.tipo];
+    if(!regla||String(i.unidad||'').toLowerCase()!==regla.unidad.toLowerCase())return null;
+    const q=cuadroDelReporte(c);if(!q)return null;
+    const m=N.mermaRegistro(q,i);return m?m.cantidad:0;
+  }
   function datosDesviacion(nDias){
     const C=D.cache,cuadros=[...Array(nDias).keys()].flatMap(i=>cuadrosDeFecha(PV().sumarDias(AP.fecha,-i)));
-    return PV().desviacionConsumo({cuadros,factores:C.factores,insumos:C.insumos,movimientos:C.movimientos});
+    return PV().desviacionConsumo({cuadros,factores:C.factores,insumos:C.insumos,movimientos:C.movimientos,mermaDe:mermaRegistroDe});
   }
   /* Avisos de la pestaña Resumen que salen de la previsión (3 días), de las demoras de las solicitudes y de la desviación (7 días). */
   function alertasPrevision(){
@@ -394,13 +402,14 @@
   function subDesviacion(ctx){
     const dv=datosDesviacion(AP.desvDias);
     const sel=`<div class="ap-form ap-form-3">${campo('Período',`<select onchange="apDesvDias(this.value)">${[3,7,15,30].map(n=>`<option value="${n}" ${n===AP.desvDias?'selected':''}>Últimos ${n} días</option>`).join('')}</select>`)}</div>`;
-    const nota=pie('Solo se comparan los cuadros con consumo real confirmado: teórico = producido × factor vigente; real = saldo inicial + recibido − devuelto − saldo final. Tolerancia normal: ±'+(dv.tolerancia*100)+' %.');
+    const nota=pie('Teórico = producido × factor vigente. Real: si el cuadro se concilió, saldo inicial + recibido − devuelto − saldo final («Conciliado»); si no, se estima con el Registro de producción: teórico + la merma que el supervisor registró en su reporte («Registro»: tapas, etiquetas y polietileno). Tolerancia normal: ±'+(dv.tolerancia*100)+' %.'+(dv.estimados?' '+dv.estimados+' comparación(es) estimadas con el Registro: la conciliación las vuelve exactas.':''));
+    const fuente=x=>x.confirmados&&x.estimados?pill('Mixto','gris','info'):x.confirmados?pill('Conciliado','verde','check'):pill('Registro','ambar','info');
     const pc=x=>(x.pct>0?'+':'')+fmt(x.pct*100,1)+' %';
     const pillD=x=>x.estado==='NORMAL'?pill('Normal','verde','check'):x.estado==='EXCESO'?pill('Consumo alto','rojo','alerta'):pill('Consumo bajo','ambar','alerta');
     const fila=(x,conLinea)=>`<tr>${conLinea?`<td data-label="Línea">${esc(nombreLinea(x.linea))}</td>`:''}<td data-label="Insumo"><b>${esc(x.insumo.nombre)}</b></td><td data-label="Teórico" class="ap-num">${fmt(x.teorico)} ${esc(x.insumo.unidad)}</td>
-      <td data-label="Real" class="ap-num">${fmt(x.real)} ${esc(x.insumo.unidad)}</td><td data-label="Diferencia" class="ap-num">${fmt(x.desviacion)} ${esc(x.insumo.unidad)}</td><td data-label="%" class="ap-num">${pc(x)}</td><td data-label="Cuadros" class="ap-num">${x.cuadros}</td><td data-label="Estado">${pillD(x)}</td></tr>`;
-    return `${sel}<div class="ap-card ap-card-in"><h3>Consumo real frente al teórico</h3>${dv.filas.length?tabla(['Insumo','#Teórico','#Real','#Diferencia','#%','#Cuadros','Estado'],dv.filas.map(x=>fila(x,false)).join(''),'ap-t-plano'):vacio('Aún no hay consumos confirmados en el período (se confirman en Consumo › conciliación).')}</div>
-      ${dv.porLinea.length?`<div class="ap-card ap-card-in"><h3>Por línea</h3>${tabla(['Línea','Insumo','#Teórico','#Real','#Diferencia','#%','#Cuadros','Estado'],dv.porLinea.map(x=>fila(x,true)).join(''),'ap-t-plano')}</div>`:''}
+      <td data-label="Real" class="ap-num">${fmt(x.real)} ${esc(x.insumo.unidad)}</td><td data-label="Diferencia" class="ap-num">${fmt(x.desviacion)} ${esc(x.insumo.unidad)}</td><td data-label="%" class="ap-num">${pc(x)}</td><td data-label="Cuadros" class="ap-num">${x.cuadros}</td><td data-label="Fuente">${fuente(x)}</td><td data-label="Estado">${pillD(x)}</td></tr>`;
+    return `${sel}<div class="ap-card ap-card-in"><h3>Consumo real frente al teórico</h3>${dv.filas.length?tabla(['Insumo','#Teórico','#Real','#Diferencia','#%','#Cuadros','Fuente','Estado'],dv.filas.map(x=>fila(x,false)).join(''),'ap-t-plano'):vacio('No hay cuadros con producción y factor en el período: ni conciliados ni con reporte en el Registro de producción.')}</div>
+      ${dv.porLinea.length?`<div class="ap-card ap-card-in"><h3>Por línea</h3>${tabla(['Línea','Insumo','#Teórico','#Real','#Diferencia','#%','#Cuadros','Fuente','Estado'],dv.porLinea.map(x=>fila(x,true)).join(''),'ap-t-plano')}</div>`:''}
       ${nota}`;
   }
 
