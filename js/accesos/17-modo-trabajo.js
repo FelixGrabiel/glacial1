@@ -759,6 +759,23 @@ function _mtMismoBorrador(b, linea, fecha, turno){
   return b && b.linea === linea && b.fecha === fecha && _mtGrupoBorrador(b.turno) === _mtGrupoBorrador(turno);
 }
 
+/* Cada borrador lleva un id fijo (línea|fecha|grupo de turno). Con esa clave el puente guarda cada borrador en su propia fila
+   (fs_items): un autoguardado envía SOLO el borrador que cambió (~8 KB) y no la lista entera. Antes la lista de 45 borradores pesaba
+   ~78 KB comprimida y viajaba completa en cada autoguardado, a la base y por tiempo real a cada equipo conectado (12/11/2026).
+   Si quedaran dos con la misma clave se conserva el más reciente. */
+function _mtIdBorrador(b){
+  return String(b && b.linea || '') + '|' + String(b && b.fecha || '') + '|' + _mtGrupoBorrador(b && b.turno);
+}
+function _mtConIds(items){
+  const porId = new Map();
+  (items || []).forEach(b => {
+    if(!b || typeof b !== 'object') return;
+    const id = _mtIdBorrador(b), previo = porId.get(id);
+    if(!previo || Number(b.actualizadoEn || 0) >= Number(previo.actualizadoEn || 0)) porId.set(id, b.id === id ? b : Object.assign({}, b, { id }));
+  });
+  return [...porId.values()];
+}
+
 function obtenerBorradorNuevoRegistro(linea, fecha, turno){
 
   const items = loadBorradoresNuevoRegistro();
@@ -796,6 +813,7 @@ function guardarBorradorNuevoRegistro(linea, draftObj){
   const idx = items.findIndex(b => _mtMismoBorrador(b, linea, draftObj.fecha, draftObj.turno));
 
   const entry = {
+    id: _mtIdBorrador({ linea, fecha: draftObj.fecha, turno: draftObj.turno }),
     linea,
     fecha: draftObj.fecha,
     turno: draftObj.turno,
@@ -810,11 +828,12 @@ function guardarBorradorNuevoRegistro(linea, draftObj){
     items.push(entry);
   }
 
-  _borradoresNuevoRegistroCache = items;
+  const conIds = _mtConIds(items);
+  _borradoresNuevoRegistroCache = conIds;
   _mtUltimaFirmaBorrador = firma;
 
   return db.collection('sync').doc('borradoresNuevoRegistro').set({
-    items,
+    items: conIds,
     updatedAt: Date.now()
   }).catch(err => { _mtUltimaFirmaBorrador = ''; throw err; });
 
@@ -830,10 +849,11 @@ function eliminarBorradorNuevoRegistro(linea, clave){
     loadBorradoresNuevoRegistro().filter(b =>
       clave && clave.fecha ? !_mtMismoBorrador(b, linea, clave.fecha, clave.turno) : b.linea !== linea);
 
-  _borradoresNuevoRegistroCache = items;
+  const conIds = _mtConIds(items);
+  _borradoresNuevoRegistroCache = conIds;
 
   return db.collection('sync').doc('borradoresNuevoRegistro').set({
-    items,
+    items: conIds,
     updatedAt: Date.now()
   }).catch(err => {
 

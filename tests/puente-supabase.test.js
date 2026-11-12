@@ -476,6 +476,32 @@ const ids = l => (l || []).map(x => x.id).join(',');
     S.reglas = null;
   }
 
+  /* Optimización 12/11/2026: un guardado que no puede afectar una consulta en vivo no la repite en cada equipo. */
+  {
+    const S = crearServidor(), A = crearDispositivo(S, 'A'), B = crearDispositivo(S, 'B');
+    const vistas = [];
+    B.db.collection('historialProgramacion').where('fecha', '==', '2026-11-12').onSnapshot(s => vistas.push(s.docs.map(d => d.id).sort().join()));
+    await quieto(60);
+    const base = B.llamadas.fs_consulta || 0;
+    for (let i = 0; i < 4; i++) await A.db.collection('historialProgramacion').doc('otro' + i).set({ fecha: '2026-11-0' + (i + 1), n: i });
+    await quieto(80);
+    ok((B.llamadas.fs_consulta || 0) === base, 'cuatro guardados de OTRA fecha no repiten la consulta de hoy (' + ((B.llamadas.fs_consulta || 0) - base) + ' consultas extra)');
+    await A.db.collection('historialProgramacion').doc('hoy').set({ fecha: '2026-11-12', n: 9 });
+    await quieto(80);
+    ok(vistas[vistas.length - 1] === 'hoy', 'un guardado que SÍ cumple el filtro llega a la consulta');
+    await A.db.collection('historialProgramacion').doc('hoy').set({ fecha: '2026-11-11', n: 9 });
+    await quieto(80);
+    ok(vistas[vistas.length - 1] === '', 'un documento que estaba en el resultado y deja de cumplir el filtro sale de la consulta');
+    const P = A.puente;
+    ok(P.cumpleFiltros({ ts: { __ts: 50 } }, [{ campo: 'ts', op: '>=', valor: { __ts: 10 } }]) === true
+       && P.cumpleFiltros({ ts: { __ts: 5 } }, [{ campo: 'ts', op: '>=', valor: { __ts: 10 } }]) === false
+       && P.cumpleFiltros({ a: { b: 'x' } }, [{ campo: 'a.b', op: '==', valor: 'x' }]) === true
+       && P.cumpleFiltros({}, [{ campo: 'fecha', op: '<', valor: '2026-11-12' }]) === false,
+       'los filtros se evalúan igual que en el servidor: horas, campos anidados y campos ausentes');
+    ok(P.compararFiltro('Bolsa', '<', 'agua') === null && P.compararFiltro(1, '==', '1') === null && P.compararFiltro({ x: 1 }, '<', 3) === null,
+       'ante textos con letras (otro orden en la base), tipos distintos u objetos decide el servidor (se vuelve a consultar)');
+  }
+
   console.log(fallas ? '\n✘ ' + fallas + ' falla(s)' : '\n✔ Puente Supabase: todas las pruebas pasaron');
   process.exit(fallas ? 1 : 0);
 })().catch(e => { console.error('ERROR EN LA PRUEBA', e); process.exit(1); });
