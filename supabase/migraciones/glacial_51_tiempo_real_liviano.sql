@@ -1,4 +1,4 @@
--- GLACIAL · glacial_51 · TIEMPO REAL MÁS LIVIANO                                             *** APLICADA en PRUEBAS (12/11/2026) · PRODUCCIÓN pendiente ***
+-- GLACIAL · glacial_51 · TIEMPO REAL MÁS LIVIANO                                             *** APLICADA en PRUEBAS (12/11/2026) · PRODUCCIÓN (12/11/2026) ***
 --
 -- Por qué (base de PRODUCCIÓN saturada el 12/11/2026, compute Micro):
 --   Supabase Realtime lee TODOS los cambios de las tablas de la publicación «supabase_realtime» (consulta de WAL: más del 50 % del
