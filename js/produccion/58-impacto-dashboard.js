@@ -318,7 +318,7 @@
   const estadosA={active:{filter:{type:'none'}},hover:{filter:{type:'lighten',value:.08}}};
   function asegurarGrafico(id,opciones){
     const el=document.getElementById('idc-'+id);
-    if(!el||typeof apexCrear!=='function'||typeof ApexCharts==='undefined')return null;
+    if(!el||typeof apexCrear!=='function'||(typeof ApexCharts==='undefined'&&typeof glacialCargarGraficos!=='function'))return null;
     opciones.states=Object.assign({},estadosA,opciones.states||{});
     S.charts[id]={destroy(){graficosDestruir('idc-'+id);}};
     return apexCrear('idc-'+id,opciones);
@@ -414,7 +414,7 @@
       const r=AN()[FN_ANALISIS[c.id]](v);
       if(an)an.innerHTML=htmlAn(r);
       if(c.pane!==S.tab)return;
-      if(typeof ApexCharts==='undefined'){return;}
+      if(typeof ApexCharts==='undefined'&&typeof glacialCargarGraficos!=='function'){return;}   // apexCrear espera la librería si se está cargando
       switch(c.id){
         case 'evolucion':graficoEvolucion(c,v);break;
         case 'linea':graficoRanking(c,v.series.linea,{horizontal:true,top:8});break;

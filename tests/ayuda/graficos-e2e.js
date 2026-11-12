@@ -42,6 +42,8 @@ async function iniciar() {
       return ruta.abort();
     });
     await page.goto(base, { waitUntil: 'load' });
+    /* Las librerías de gráficos se piden al entrar (12/11/2026): aquí se piden como lo hace enterApp. */
+    await page.evaluate(() => window.glacialCargarGraficos && window.glacialCargarGraficos());
     await page.waitForFunction(() => typeof renderGraficosTab === 'function' && typeof ApexCharts !== 'undefined' && typeof echarts !== 'undefined' && typeof RadialGauge !== 'undefined');
     return D;
   }

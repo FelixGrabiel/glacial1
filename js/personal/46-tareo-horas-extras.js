@@ -197,7 +197,7 @@
   function crearGrafico(id, opciones){
     const el = document.getElementById(id);
     if(!el) return null;
-    if(typeof apexCrear !== 'function' || typeof ApexCharts === 'undefined'){ el.parentNode.innerHTML = '<div class="he-vacio">No se cargó la biblioteca de gráficos. Los datos siguen disponibles en la tabla.</div>'; return null; }
+    if(typeof apexCrear !== 'function' || (typeof ApexCharts === 'undefined' && typeof glacialCargarGraficos !== 'function')){ el.parentNode.innerHTML = '<div class="he-vacio">No se cargó la biblioteca de gráficos. Los datos siguen disponibles en la tabla.</div>'; return null; }
     const c = apexCrear(id, opciones);
     if(c && !charts.some(x => x.id === id)) charts.push({id, destroy: () => graficosDestruir(id)});
     return c;

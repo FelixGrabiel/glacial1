@@ -1,7 +1,7 @@
 /* Optimización por la base saturada (12/11/2026):
    1 · los borradores de Nuevo Registro llevan un id fijo: el puente guarda cada uno en su propia fila y un autoguardado
        envía solo el borrador que cambió (antes la lista de 45 borradores, ~78 KB, viajaba entera en cada autoguardado);
-   2 · las librerías de gráficos y de Excel ya no frenan el primer dibujo de la página (defer);
+   2 · las librerías de gráficos y de Excel ya no se cargan en la pantalla de inicio de sesión (se piden al entrar);
    3 · glacial_51 quita del tiempo real las tablas que nadie escucha. */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const R=path.resolve(__dirname,'..');
@@ -32,16 +32,15 @@ ok(/id: _mtIdBorrador\(\{ linea, fecha: draftObj\.fecha, turno: draftObj\.turno 
 
 /* ---------- 2 · librerías sin bloquear ---------- */
 const H=leer('index.html');
-['apexcharts.min.js','echarts.min.js','gauge.min.js'].forEach(lib=>{
-  const m=H.match(new RegExp('<script([^>]*)\\s+src="[^"]*'+lib.replace(/\./g,'\\.')+'"'));
-  ok(!!m&&/\bdefer\b/.test(m[1]),lib+' se carga con defer');
-});
+ok(!/<script[^>]*src="[^"]*(apexcharts|echarts|gauge)\.min\.js"/.test(H),'las librerías de gráficos ya no se cargan al abrir la página (pantalla de inicio de sesión)');
+ok(/window\.glacialCargarGraficos = window\.glacialCargadorLibrerias\(/.test(H)&&['ApexCharts','echarts','RadialGauge'].every(g=>H.includes("['"+g+"', 'https://")),'glacialCargarGraficos pide ApexCharts, ECharts y canvas-gauges');
+ok(/window\.glacialCargarGraficos\(\); window\.glacialCargarExcel\(\);/.test(H)&&/glacialCargarGraficos === 'function'\) window\.glacialCargarGraficos\(\)/.test(leer('js/accesos/03-auth.js')),'los gráficos se piden al entrar y con el primer toque o tecla');
 ok(!/<script[^>]*src="[^"]*(xlsx\.full|exceljs)\.min\.js"/.test(H),'las librerías de Excel ya no se cargan al abrir la página (pantalla de inicio de sesión)');
-ok(/window\.glacialCargarExcel = \(function/.test(H)&&/'XLSX', 'https:\/\/cdn\.sheetjs\.com/.test(H)&&/'ExcelJS', 'https:\/\/cdnjs/.test(H),'glacialCargarExcel pide XLSX y ExcelJS una sola vez');
+ok(/window\.glacialCargarExcel = window\.glacialCargadorLibrerias\(\[/.test(H)&&/'XLSX', 'https:\/\/cdn\.sheetjs\.com/.test(H)&&/'ExcelJS', 'https:\/\/cdnjs/.test(H),'glacialCargarExcel pide XLSX y ExcelJS una sola vez');
 ok(/addEventListener\('pointerdown', una, true\)/.test(H),'también se piden con el primer toque o tecla, por si se usa antes de entrar');
-ok(/function enterApp\(\)\{\s*\/\*[^*]*\*\/\s*if\(typeof window\.glacialCargarExcel === 'function'\) window\.glacialCargarExcel\(\);/.test(leer('js/accesos/03-auth.js')),'al entrar a la aplicación se piden las librerías de Excel');
+ok(/function enterApp\(\)\{\s*\/\*[^*]*\*\/\s*if\(typeof window\.glacialCargarGraficos === 'function'\) window\.glacialCargarGraficos\(\);\s*if\(typeof window\.glacialCargarExcel === 'function'\) window\.glacialCargarExcel\(\);/.test(leer('js/accesos/03-auth.js')),'al entrar a la aplicación se piden las librerías de Excel');
 {
-  const i=H.indexOf('window.glacialCargarExcel = (function'),j=H.indexOf('</script>',i);
+  const i=H.indexOf('window.glacialCargadorLibrerias = function'),j=H.indexOf('</script>',i);
   const cuerpo=H.slice(i,j);const agregados=[];
   const w={document:{createElement:()=>{const e={};return e;},head:{appendChild:e=>{agregados.push(e);setTimeout(()=>e.onload(),0);}}},console,Promise,addEventListener(){},removeEventListener(){}};
   w.window=w;vm.runInNewContext(cuerpo,w);
