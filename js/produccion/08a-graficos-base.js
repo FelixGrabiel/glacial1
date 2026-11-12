@@ -1,7 +1,7 @@
 /* =============================================================
    GLACIAL · BASE DE GRÁFICOS (ApexCharts · ECharts · canvas-gauges)
    -------------------------------------------------------------
-   // GRAFICOS: capa común para los gráficos nuevos. Las librerías se cargan en index.html ANTES de los scripts de js/:
+   // GRAFICOS: capa común para los gráficos nuevos. Las librerías las pide glacialCargarGraficos (index.html) al entrar o con el primer gráfico:
      ApexCharts 3.45.2 (columnas, líneas, áreas, dona, treemap, heatmap…) · ECharts 5.4.3 (velocímetros) · canvas-gauges 2.1.7 (velocímetro analógico).
    API (window.*):
      METAS_GRAFICOS / metaGrafico(k)  metas en %, LEÍDAS de la tabla configurada (sync/configIndicadores): las mismas de las tarjetas, insights y Excel
@@ -113,10 +113,27 @@
       noData:{text:'Sin datos',style:{color:t.texto,fontFamily:FUENTE}}
     };
   }
+  /* Las librerías de gráficos ya no se cargan al abrir la página (pantalla de inicio de sesión): las pide glacialCargarGraficos
+     (index.html) al entrar o con el primer gráfico. Un gráfico pedido antes de que llegue su librería muestra «Cargando gráfico…»
+     y se dibuja solo al llegar, con las ÚLTIMAS opciones pedidas para ese contenedor. Si la librería no llega, el aviso de siempre. */
+  const PENDIENTES={};
+  function esperarLibreria(el,id,nombre,hayLib,rehacer){
+    if(typeof global.glacialCargarGraficos!=='function'){mensajeSinLibreria(el,nombre);return null;}
+    if(!el.querySelector('.glx-graf-cargando'))el.innerHTML='<div class="small-muted glx-graf-cargando" style="padding:20px;text-align:center;">Cargando gráfico…</div>';
+    const ya=PENDIENTES[id];PENDIENTES[id]=rehacer;
+    if(ya)return null;                                          // ya se está esperando: solo se actualizan las opciones
+    Promise.resolve(global.glacialCargarGraficos()).then(()=>{
+      const f=PENDIENTES[id];delete PENDIENTES[id];
+      const el2=document.getElementById(id);if(!f||!el2)return;   // el contenedor ya no está (cambió de pantalla)
+      if(!hayLib()){mensajeSinLibreria(el2,nombre);return;}
+      try{f();}catch(e){console.error('GLACIAL · gráfico '+id+':',e);}
+    });
+    return null;
+  }
   function mensajeSinLibreria(el,nombre){if(el)el.innerHTML='<div class="small-muted" style="padding:20px;text-align:center;">No se cargó la librería de gráficos ('+nombre+'). Revisa tu conexión a internet y recarga la página.</div>';}
   function apexCrear(id,opciones){
     const el=document.getElementById(id);if(!el)return null;
-    if(typeof ApexCharts==='undefined'){mensajeSinLibreria(el,'ApexCharts');return null;}
+    if(typeof ApexCharts==='undefined')return esperarLibreria(el,id,'ApexCharts',()=>typeof ApexCharts!=='undefined',()=>apexCrear(id,opciones));
     const op=opciones||{};
     const alto=Number(op.alto)||el.clientHeight||Number(op.chart&&op.chart.height)||280;   // altura NUMÉRICA: height:'100%' desborda la tarjeta
     const sinAlto=Object.assign({},op);delete sinAlto.alto;
@@ -158,7 +175,7 @@
   }
   function montarEcharts(id,option){
     const el=document.getElementById(id);if(!el)return null;
-    if(typeof echarts==='undefined'){mensajeSinLibreria(el,'ECharts');return null;}
+    if(typeof echarts==='undefined')return esperarLibreria(el,id,'ECharts',()=>typeof echarts!=='undefined',()=>montarEcharts(id,option));
     const reg=REG.echarts[id];
     if(reg&&reg.el===el&&!reg.cambio)return reg;
     destruirUno('echarts',id);
@@ -218,7 +235,7 @@
   function velocimetroAnalogico(id,valor,op){
     op=op||{};
     const el=document.getElementById(id);if(!el)return null;
-    if(typeof RadialGauge==='undefined'){mensajeSinLibreria(el,'canvas-gauges');return null;}
+    if(typeof RadialGauge==='undefined')return esperarLibreria(el,id,'canvas-gauges',()=>typeof RadialGauge!=='undefined',()=>velocimetroAnalogico(id,valor,op));
     const clave=op.clave||'oee',mt=metaDe(clave),m=mt.verde,am=mt.ambar,t=tema();
     const reg=REG.gauge[id];
     if(reg&&reg.el===el){reg.inst.value=valor;return reg.inst;}

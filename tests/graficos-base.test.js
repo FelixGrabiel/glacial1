@@ -38,7 +38,7 @@ ok(destruidos===4&&B.graficosActivos().apex.length+B.graficosActivos().echarts.l
 /* Integración */
 const html=leer('index.html'),pos=n=>html.indexOf(n);
 ok(pos('apexcharts@3.45.2')>0&&pos('echarts/5.4.3')>0&&pos('canvas-gauges@2.1.7')>0,'index.html carga ApexCharts 3.45.2, ECharts 5.4.3 y canvas-gauges 2.1.7');
-ok(pos('apexcharts@3.45.2')<pos('js/nucleo/01-config.js')&&pos('canvas-gauges@2.1.7')<pos('js/nucleo/01-config.js'),'las librerías cargan ANTES de los scripts de js/');
+ok(pos('window.glacialCargarGraficos =')>0&&pos('window.glacialCargarGraficos =')<pos('js/nucleo/01-config.js'),'el cargador de las librerías (glacialCargarGraficos) se define ANTES de los scripts de js/');
 ok(pos('08a-graficos-base.js')>0&&pos('08a-graficos-base.js')<pos('js/produccion/08-graficos.js'),'08a-graficos-base.js carga antes de 08-graficos.js');
 const g=leer('js/produccion/08-graficos.js'),ini=g.indexOf('function renderGraficosTab'),fn=g.slice(ini);
 ok(!/new Chart\(/.test(fn),'renderGraficosTab ya no usa Chart.js (los 10 gráficos son ApexCharts/ECharts)');
@@ -96,4 +96,27 @@ ok(/\.gx\{/.test(leer('css/styles.css'))&&/\.gx\.gx-gauge/.test(leer('css/styles
   ok(resto.length===1&&/49b-/.test(resto[0]),'en js/ solo queda el tolerante 49b (usa Chart si existe, no lo exige): '+resto.join(', '));
   ok(!/chart\.umd|Chart\.js\/4/.test(leer('index.html').replace(/<!--[\s\S]*?-->/g,'')),'index.html ya no carga Chart.js');
 }
-console.log(fallas?'\n'+fallas+' FALLAS':'\nTodo bien');process.exit(fallas?1:0);
+/* Librería todavía en camino: «Cargando gráfico…» y se dibuja solo al llegar, con las últimas opciones pedidas */
+{
+  const els={};const el=id=>els[id]||(els[id]={id,innerHTML:'',clientHeight:200,clientWidth:300,style:{},querySelector(sel){return this.innerHTML.includes('glx-graf-cargando')?{}:null;},appendChild(){}});
+  sb.document={getElementById:id=>el(id),createElement:()=>({getContext:()=>null})};
+  let soltar;const pedida=new Promise(r=>{soltar=r;});let pedidas=0;
+  sb.glacialCargarGraficos=()=>{pedidas++;return pedida;};
+  const r1=sb.apexCrear('g1',{chart:{type:'bar'},series:[{data:[1]}]});
+  sb.apexCrear('g1',{chart:{type:'bar'},series:[{data:[2]}]});
+  sb.velocimetroAnalogico('g2',50);
+  ok(r1===null&&els.g1.innerHTML.includes('Cargando gráfico')&&els.g2.innerHTML.includes('Cargando gráfico'),'mientras llega la librería el gráfico muestra «Cargando gráfico…» (sin error)');
+  const creados=[];
+  sb.ApexCharts=function(e,o){this.e=e;this.o=o;creados.push(this);};sb.ApexCharts.prototype.render=function(){};sb.ApexCharts.prototype.destroy=function(){};
+  soltar(true);
+  (async()=>{
+    await new Promise(r=>setTimeout(r,5));
+    ok(creados.length===1&&creados[0].o.series[0].data[0]===2&&creados[0].e===els.g1,'al llegar ApexCharts se dibuja UNA vez y con las últimas opciones pedidas');
+    ok(els.g2.innerHTML.includes('No se cargó la librería de gráficos (canvas-gauges)'),'si una librería no llegó se muestra el aviso de siempre');
+    delete sb.ApexCharts;delete sb.glacialCargarGraficos;
+    sb.document={getElementById:()=>({innerHTML:'',clientHeight:200,style:{}})};
+    finalizar();
+  })();
+}
+function finalizar(){console.log(fallas?'\n'+fallas+' FALLAS':'\nTodo bien');process.exit(fallas?1:0);}
+

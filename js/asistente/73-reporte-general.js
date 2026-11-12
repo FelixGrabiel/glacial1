@@ -489,6 +489,7 @@
   }
   /* Dos gráficos ApexCharts dibujados fuera de pantalla y exportados a PNG (dataURI) para incrustarlos con ExcelJS. */
   async function graficos(m){
+    if(typeof ApexCharts==='undefined'&&typeof global.glacialCargarGraficos==='function'){try{await global.glacialCargarGraficos();}catch(_){/* sin gráficos */}}
     if(typeof ApexCharts==='undefined'||typeof document==='undefined')return [];
     const L=m.lineas;
     const dibujar=async opciones=>{

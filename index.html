@@ -53,13 +53,11 @@
 
         <!-- =====================================================
             GRÁFICOS (migrados desde Chart.js, ya retirado): ApexCharts (MIT) · ECharts (Apache 2.0) · canvas-gauges (MIT)
-            «defer» (12/11/2026): las librerías de gráficos (~1,6 MB) se descargan en paralelo y ya no frenan el primer
-            dibujo de la página. Se ejecutan en orden, al terminar de leer el HTML y antes de DOMContentLoaded: los gráficos se
-            dibujan después (al llegar los datos) y cada uso comprueba que la librería exista. Las de Excel van más abajo.
+            Ya no se cargan al abrir la página (12/11/2026, PageSpeed: «Tiempo total de bloqueo»): la pantalla de inicio de sesión no
+            dibuja gráficos. Las pide window.glacialCargarGraficos al entrar (enterApp), con el primer toque/tecla o con el primer
+            gráfico que se pida. Mientras llegan, cada gráfico muestra «Cargando gráfico…» y se dibuja solo (08a-graficos-base.js).
         ====================================================== -->
-        <script defer src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
-        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/canvas-gauges@2.1.7/gauge.min.js"></script>
+        <!-- Las tres librerías de gráficos las pide window.glacialCargarGraficos (más abajo, junto a las de Excel). -->
 
 
         <!-- =====================================================
@@ -69,12 +67,8 @@
             (enterApp en js/accesos/03-auth.js) o con el primer toque/tecla, lo que ocurra antes. Cada uso comprueba que existan.
         ====================================================== -->
         <script>
-            window.glacialCargarExcel = (function(){
+            window.glacialCargadorLibrerias = function(LIBS){
                 var promesa = null;
-                var LIBS = [
-                    ['XLSX', 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'],
-                    ['ExcelJS', 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js']
-                ];
                 return function(){
                     if (promesa) return promesa;
                     promesa = Promise.all(LIBS.map(function(l){
@@ -89,9 +83,18 @@
                     }));
                     return promesa;
                 };
-            })();
+            };
+            window.glacialCargarExcel = window.glacialCargadorLibrerias([
+                ['XLSX', 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'],
+                ['ExcelJS', 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js']
+            ]);
+            window.glacialCargarGraficos = window.glacialCargadorLibrerias([
+                ['ApexCharts', 'https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js'],
+                ['echarts', 'https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js'],
+                ['RadialGauge', 'https://cdn.jsdelivr.net/npm/canvas-gauges@2.1.7/gauge.min.js']
+            ]);
             (function(){
-                var una = function(){ window.removeEventListener('pointerdown', una, true); window.removeEventListener('keydown', una, true); window.glacialCargarExcel(); };
+                var una = function(){ window.removeEventListener('pointerdown', una, true); window.removeEventListener('keydown', una, true); window.glacialCargarGraficos(); window.glacialCargarExcel(); };
                 window.addEventListener('pointerdown', una, true);
                 window.addEventListener('keydown', una, true);
             })();
@@ -3450,7 +3453,7 @@
 
     <script src="js/nucleo/02-estado.js?v=20261110-pm1"></script>
 
-    <script src="js/accesos/03-auth.js?v=20261112-xl1"></script>
+    <script src="js/accesos/03-auth.js?v=20261112-gr1"></script>
 
     <script src="js/nucleo/04-sidebar.js?v=20261030-pi1"></script>
 
@@ -3463,7 +3466,7 @@
 
     <script src="js/produccion/07-historial.js?v=20261107-rc3"></script>
 
-    <script src="js/produccion/08a-graficos-base.js?v=20261102-pal2"></script>
+    <script src="js/produccion/08a-graficos-base.js?v=20261112-gr1"></script>
     <script src="js/produccion/08-graficos.js?v=20261105-rc2"></script>
 
     <script src="js/produccion/09-resumen.js?v=20261105-rc1"></script>
@@ -3489,7 +3492,7 @@
     <script src="js/personal/13-tareo.js?v=20261102-ms1"></script>
     <script src="js/personal/20-tareo-control.js?v=20261004-pestanas"></script>
     <script src="js/personal/45-tareo-edicion-continua.js?v=20261101-hv1"></script>
-    <script src="js/personal/46-tareo-horas-extras.js?v=20261102-leg3"></script>
+    <script src="js/personal/46-tareo-horas-extras.js?v=20261112-gr1"></script>
     <script src="js/personal/47a-horas-extras-nucleo.js?v=20261019-he1"></script>
     <script src="js/personal/47-horas-extras-registro.js?v=20261102-pal2"></script>
     <script src="js/produccion/21-programacion-turno.js?v=20261102-leg3"></script>
@@ -3546,7 +3549,7 @@
     <script src="js/produccion/56-impacto-resultados.js?v=20261010-eco1"></script>
     <script src="js/produccion/57-impacto-estado.js?v=20261007-dash1"></script>
     <script src="js/produccion/59-impacto-analisis.js?v=20261007-dash1"></script>
-    <script src="js/produccion/58-impacto-dashboard.js?v=20261102-leg3"></script>
+    <script src="js/produccion/58-impacto-dashboard.js?v=20261112-gr1"></script>
     <script src="js/produccion/60-impacto-excel.js?v=20261007-dash1"></script>
     <script src="js/produccion/51-planificacion-nucleo.js?v=20261102-pal2"></script>
     <script src="js/produccion/52-planificacion-pantalla.js?v=20261107-cf2"></script>
@@ -3589,7 +3592,7 @@
     <script src="js/asistente/70-asistente-nucleo.js?v=20261107-ar10"></script>
     <script src="js/asistente/71-asistente-datos.js?v=20261107-cv2"></script>
     <script src="js/asistente/72-asistente-pantalla.js?v=20261107-rc5"></script>
-    <script src="js/asistente/73-reporte-general.js?v=20261105-rc1"></script>
+    <script src="js/asistente/73-reporte-general.js?v=20261112-gr1"></script>
     <script src="js/asistente/74-inventario-insumos-nucleo.js?v=20261107-lc6"></script>
     <script src="js/asistente/75-inventario-insumos-datos.js?v=20261103-al5"></script>
     <script src="js/asistente/76-inventario-insumos-pantalla.js?v=20261104-al7"></script>
