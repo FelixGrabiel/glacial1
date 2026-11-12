@@ -750,6 +750,9 @@ async function cerrarSesionFirebaseControlado(){
 
 function enterApp(){
 
+  /* Librerías de Excel: se piden al entrar (no en la pantalla de inicio de sesión). Ver index.html, «EXCEL». */
+  if(typeof window.glacialCargarExcel === 'function') window.glacialCargarExcel();
+
   document.getElementById('login-screen').style.display = 'none';
 
   document.getElementById('app-screen').style.display = 'none';
