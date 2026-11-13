@@ -70,3 +70,14 @@ Estado: **Etapa 1 completa en PRUEBAS** (datos, pantalla Plan anual, impreso A4 
 - Cada foto lleva descripción opcional y quién la subió. Solo el supervisor puede quitar la referencia (el archivo no se borra: las reglas de Storage no lo permiten). Un registro VALIDADO no admite fotos nuevas (disparador de la base).
 - Sin aplicar `glacial_49` el Registro funciona igual y la tarjeta avisa que las fotos se activan con esa actualización.
 **Aviso cuando dos personas editan el mismo campo:** si otra persona cambia un campo que acabas de cambiar (últimos 5 min) o que estás escribiendo, aparece un aviso amarillo que dice quién fue y qué quedó («Entendido» lo cierra). No avisa por cambios en campos que no tocaste. Campos vigilados: fecha, tipo, condición, técnico, maquinista, horas reales, informe final, marca y observación de cada actividad y cada pieza. El último cambio sigue ganando; el aviso permite volver a ponerlo.
+
+## Actividades «No se realizó» con motivo y arrastre a la semana siguiente (13/11/2026)
+
+En el Registro (CFA-CA-F-023), cada actividad tiene dos casillas: ✓ realizada y ✗ **No se realizó**.
+- Al marcar ✗ se abre el motivo (obligatorio): se escribe o se elige uno frecuente (máquina en producción, falta de repuesto o material, falta de tiempo, falta de personal, esperando al proveedor, requiere parada programada). Hasta que haya motivo no se guarda.
+- Lo «no realizado» **pasa a las actividades de la próxima semana** de esa máquina, al principio de la lista, con «Pendiente desde la semana N · Motivo: …». Si en esa semana tampoco se hace y se vuelve a marcar ✗, pasa a la siguiente, y así hasta que se realice. Conserva la semana de origen.
+- Si se marca ✓ la actividad (o se quita la ✗), la copia que ya hubiera pasado a la semana siguiente se quita sola si nadie la tocó (sin marca, observación ni fotos).
+- Al abrir un registro que ya estaba iniciado, se traen los pendientes marcados después de crearlo (una actividad entra una sola vez).
+- El avance dice «N de M realizadas · K no realizadas». Al cerrar, avisa de lo que quedó sin decidir y de lo que pasará a la próxima semana. El impreso marca «(NO REALIZADA)».
+- Base de datos: `supabase/migraciones/glacial_53_mantenimiento_no_realizadas.sql` (columnas `no_realizado`, `motivo_no`, `origen_actividad_id`, `anio_origen`, `semana_origen`, `motivo_origen`, restricciones y la función `mtto_pendientes_arrastrables`). **Aplicada en PRUEBAS; PRODUCCIÓN pendiente de aprobación.** Sin ella, el Registro funciona como antes (sin pendientes).
+- Pruebas: `tests/mantenimiento-no-realizadas.test.js` y el caso nuevo de `tests/mantenimiento-registro.e2e.js`.

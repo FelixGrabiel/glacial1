@@ -186,12 +186,31 @@
   /** Próxima revisión = fecha + 7 días. */
   const proximaRevision=fecha=>esFecha(fecha)?sumarDias(fecha,7):'';
   /** Actividades de un registro nuevo: las del plan que manda esa semana, por bloque de frecuencia y luego por orden; «equipo» = antes de « / », «actividad» = después. */
-  function actividadesParaRegistro(actsPlan,semana){
+  function actividadesParaRegistro(actsPlan,semana,pendientes){
     const lista=actividadesDeSemana(actsPlan,semana).slice().sort((a,b)=>(num(a.bloque_orden)||bloqueOrden(a.frecuencia))-(num(b.bloque_orden)||bloqueOrden(b.frecuencia))||num(a.orden)-num(b.orden));
-    return lista.map((a,i)=>{const p=partirActividad(a.actividad);return {plan_actividad_id:a.id,item:i+1,equipo:p.equipo,actividad:p.tarea,frecuencia:a.frecuencia};});
+    const arr=filasArrastradas(pendientes);                                                  // primero lo que quedó pendiente de semanas anteriores
+    return arr.concat(lista.map(a=>{const p=partirActividad(a.actividad);return {plan_actividad_id:a.id,equipo:p.equipo,actividad:p.tarea,frecuencia:a.frecuencia};})).map((x,i)=>Object.assign(x,{item:i+1}));
+  }
+  /** Motivos frecuentes al marcar «No se realizó» (el técnico puede escribir el suyo). */
+  const MOTIVOS_NO_REALIZADO=['Máquina en producción','Falta de repuesto o material','Falta de tiempo','Falta de personal','Esperando al proveedor','Requiere parada programada','Otros'];
+  /** Filas de un registro nuevo para lo pendiente de semanas anteriores (salida de mtto_pendientes_arrastrables): mismas equipo, actividad y frecuencia, enlazadas a la anterior. */
+  function filasArrastradas(pendientes){
+    return (pendientes||[]).map(p=>({plan_actividad_id:p.plan_actividad_id||null,equipo:p.equipo,actividad:p.actividad,frecuencia:p.frecuencia,origen_actividad_id:p.id,anio_origen:p.anio_origen,semana_origen:p.semana_origen,motivo_origen:p.motivo_no||''}));
+  }
+  /** Actividades pendientes que aún no están en este registro (para registros ya iniciados): evita traer dos veces la misma. */
+  function pendientesFaltantes(pendientes,actsDelRegistro){
+    const ya=new Set((actsDelRegistro||[]).map(a=>a.origen_actividad_id).filter(Boolean));
+    return (pendientes||[]).filter(p=>!ya.has(p.id));
+  }
+  /** Estado de una actividad: 'ok' (realizada), 'no' (no se realizó) o 'sin' (sin decidir). */
+  const estadoActividad=a=>a&&a.realizado?'ok':a&&a.no_realizado?'no':'sin';
+  /** «Pendiente desde la semana 45 de 2026» (vacío si no viene arrastrada). */
+  function textoOrigen(a,anioActual){
+    if(!a||!a.origen_actividad_id||!a.semana_origen)return '';
+    return 'Pendiente desde la semana '+a.semana_origen+(a.anio_origen&&a.anio_origen!==anioActual?' de '+a.anio_origen:'');
   }
   /** Avance de un registro: {hechas, total, pct}. */
-  function progresoRegistro(regActs){const t=(regActs||[]).length,h=(regActs||[]).filter(a=>a.realizado).length;return {hechas:h,total:t,pct:t?Math.round(h/t*100):0};}
+  function progresoRegistro(regActs){const l=regActs||[],t=l.length,h=l.filter(a=>a.realizado).length,n=l.filter(a=>a.no_realizado&&!a.realizado).length;return {hechas:h,no:n,sin:t-h-n,total:t,pct:t?Math.round(h/t*100):0};}
   /** El formato impreso solo muestra las primeras 22 actividades. */
   const excedeImpreso=n=>n>MAX_IMPRESO;
   /** Horas entre dos horas «HH:MM» (si la segunda es menor, cruza la medianoche). */
@@ -254,7 +273,7 @@
 
   const API={CAMPOS_AVISO,conflictoCampo,misValoresVigentes,BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
     semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
-    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
+    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,MOTIVOS_NO_REALIZADO,filasArrastradas,pendientesFaltantes,estadoActividad,textoOrigen,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialMttoPlan=API;
 })(typeof window!=='undefined'?window:globalThis);

@@ -187,10 +187,28 @@
     }else reg=r.data[0];
     if(!cache.registros.some(x=>x.id===reg.id)){
       alCambio('mtto_registros',{eventType:'INSERT',new:reg});                       // primero el registro: las actividades solo entran al caché si su registro ya está
-      const acts=N.actividadesParaRegistro(actividadesDeMaquina(maquina.id,anio),semana).map(a=>Object.assign({registro_id:reg.id},a));
+      const pend=await pendientesDe(maquina.id,anio,semana);                         // «No se realizó» de semanas anteriores que aún no pasaron a otra semana
+      const acts=N.actividadesParaRegistro(actividadesDeMaquina(maquina.id,anio),semana,pend).map(a=>Object.assign({registro_id:reg.id},a));
       if(acts.length){const ins=await c.from('mtto_registro_actividades').insert(acts).select();if(ins.error)throw new Error(msg(ins.error));ins.data.forEach(a=>alCambio('mtto_registro_actividades',{eventType:'INSERT',new:a}));}
     }
     return reg;
+  }
+  /** Pendientes (no realizadas) de semanas anteriores de la máquina que todavía no pasaron a una semana posterior. Si la función de la base no está (glacial_53), no hay pendientes. */
+  async function pendientesDe(maquinaId,anio,semana){
+    const c=sb();if(!c||typeof c.rpc!=='function')return [];
+    const r=await c.rpc('mtto_pendientes_arrastrables',{p_maquina:maquinaId,p_anio:anio,p_semana:semana});
+    if(r.error){if(/mtto_pendientes_arrastrables|PGRST202|42883/i.test(String(r.error.message||r.error.code||'')))return [];throw new Error(msg(r.error));}
+    return r.data||[];
+  }
+  /** Al abrir un registro que ya existe y sigue abierto: trae lo que se marcó «No se realizó» después de que se creó (idempotente: una actividad pendiente entra una sola vez). */
+  async function traerPendientes(reg){
+    const c=sb();if(!c||!reg||!['PENDIENTE','EN_CURSO'].includes(reg.estado))return 0;
+    const pend=N.pendientesFaltantes(await pendientesDe(reg.maquina_id,reg.anio,reg.semana),cache.regActs.filter(a=>a.registro_id===reg.id));
+    if(!pend.length)return 0;
+    const ult=Math.max(0,...cache.regActs.filter(a=>a.registro_id===reg.id).map(a=>a.item||0));
+    const filas=N.filasArrastradas(pend).map((a,i)=>Object.assign({registro_id:reg.id,item:ult+i+1},a));
+    const ins=await c.from('mtto_registro_actividades').insert(filas).select();if(ins.error)throw new Error(msg(ins.error));
+    ins.data.forEach(a=>alCambio('mtto_registro_actividades',{eventType:'INSERT',new:a}));return ins.data.length;
   }
   const actividadesDeMaquina=(maquinaId,anio)=>cache.actividades.filter(a=>a.maquina_id===maquinaId&&a.anio===anio);
   async function actualizarReg(id,campos){
@@ -203,13 +221,45 @@
   /** Marca o desmarca una actividad; al marcar la primera, el registro pasa a EN_CURSO y guarda la hora real de inicio. */
   async function marcarActividad(act,realizado,quien){
     const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
-    const r=await c.from('mtto_registro_actividades').update({realizado:!!realizado,marcado_por:quien||'',marcado_en:ahoraIso()}).eq('id',act.id).select();
+    const campos={realizado:!!realizado,marcado_por:quien||'',marcado_en:ahoraIso()};if(realizado){campos.no_realizado=false;campos.motivo_no='';}
+    const r=await c.from('mtto_registro_actividades').update(campos).eq('id',act.id).select();
     if(r.error)throw new Error(msg(r.error));
     if(!r.data||!r.data.length)throw new Error('No se pudo guardar: la actividad ya no existe o el registro está validado.');
     alCambio('mtto_registro_actividades',{eventType:'UPDATE',new:r.data[0]});
     const reg=cache.registros.find(x=>x.id===act.registro_id);
     if(reg&&reg.estado==='PENDIENTE'&&realizado)await actualizarReg(reg.id,{estado:'EN_CURSO',hora_inicio_real:reg.hora_inicio_real||hhmmAhora()});
+    if(realizado)await quitarArrastradaSinTocar(act.id);        // ya no está pendiente: la copia que pasó a la semana siguiente sobra
     return r.data[0];
+  }
+  /** «No se realizó» con su motivo (obligatorio). Pasa a la semana siguiente hasta que se haga. */
+  async function marcarNoRealizada(act,motivo,quien){
+    const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
+    const m=String(motivo||'').trim().slice(0,300);if(!m)throw new Error('Escribe el motivo por el que no se realizó.');
+    const r=await c.from('mtto_registro_actividades').update({no_realizado:true,motivo_no:m,realizado:false,marcado_por:quien||'',marcado_en:ahoraIso()}).eq('id',act.id).select();
+    if(r.error)throw new Error(msg(r.error));
+    if(!r.data||!r.data.length)throw new Error('No se pudo guardar: la actividad ya no existe o el registro está validado.');
+    alCambio('mtto_registro_actividades',{eventType:'UPDATE',new:r.data[0]});return r.data[0];
+  }
+  /** Quita la marca «No se realizó» (queda sin decidir) y la copia que ya hubiera pasado a la semana siguiente si nadie la tocó. */
+  async function quitarNoRealizada(act){
+    const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
+    const r=await c.from('mtto_registro_actividades').update({no_realizado:false,motivo_no:''}).eq('id',act.id).select();
+    if(r.error)throw new Error(msg(r.error));
+    if(!r.data||!r.data.length)throw new Error('No se pudo guardar: la actividad ya no existe o el registro está validado.');
+    alCambio('mtto_registro_actividades',{eventType:'UPDATE',new:r.data[0]});
+    await quitarArrastradaSinTocar(act.id);return r.data[0];
+  }
+  /** Borra la copia arrastrada de una actividad si sigue sin marcar, sin observación y sin fotos. */
+  async function quitarArrastradaSinTocar(origenId){
+    const c=sb();if(!c)return;
+    const q=await c.from('mtto_registro_actividades').select('id,realizado,no_realizado,observacion').eq('origen_actividad_id',origenId);
+    if(q.error||!q.data)return;
+    for(const h of q.data){
+      if(h.realizado||h.no_realizado||String(h.observacion||'').trim())continue;
+      if(cache.fotos.some(f=>f.actividad_id===h.id))continue;
+      const d=await c.from('mtto_registro_actividades').delete().eq('id',h.id).select();
+      if(!d.error&&d.data&&d.data.length)alCambio('mtto_registro_actividades',{eventType:'DELETE',old:{id:h.id}});
+    }
   }
   async function guardarObservacion(act,texto,quien){
     const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
@@ -251,7 +301,7 @@
   const validarRegistro=(reg,quien)=>actualizarReg(reg.id,{estado:'VALIDADO',supervisor:quien||reg.supervisor||''});
   const reabrirRegistro=reg=>actualizarReg(reg.id,{estado:'EN_CURSO'});
 
-  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,iniciarRegistro,marcarActividad,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
+  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,iniciarRegistro,traerPendientes,marcarActividad,marcarNoRealizada,quitarNoRealizada,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
     actividadesDe:(maquinaId,anio)=>cache.actividades.filter(a=>a.maquina_id===maquinaId&&a.anio===anio).sort((a,b)=>(a.orden||0)-(b.orden||0)),
     anios:()=>[...new Set(cache.actividades.map(a=>a.anio))].sort((a,b)=>b-a)};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
