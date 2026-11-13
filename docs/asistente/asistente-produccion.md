@@ -199,3 +199,19 @@ Estado de PRODUCCIÓN al 13/11/2026: catálogo de 7 insumos y 244 factores carga
 - Las mermas ya registradas conservan su causa. Con «Otros» se sigue exigiendo la descripción.
 - Reglas: bloque `match /apParametros/{doc}` en `_archivo/firebase/firestore.rules.etapa2.txt` (emulador 67/67).
 
+
+## 9. Insumos por variante (13/11/2026)
+
+Para pedir, contar y recibir exactamente lo que se usa, cada variante es su propio insumo (campo `grupo` = el insumo base; el base queda inactivo).
+
+| Grupo | Variantes | Regla |
+|---|---|---|
+| Cajas de preformas | 12.7, 15.7, 17.7, 21.7, 33.7, 42.7 y 90 g | Por presentación: 380 ml 12.7 · 625 ml regular 15.7, saborizada 17.7, con gas 21.7 · 1 L 21.7 · 1.5 L 33.7 · 2.5 L 42.7 · B7L 90. Preformas por caja = capacidad física del gramaje (22 000 · 18 000 · 18 500 · 14 000 · 9 928 · 7 500 · 2 800). |
+| Polietileno | 48, 54 y 56 cm | B7L 48 · C20L 54 · todo lo demás 56. |
+| Stretch film | rollo de 17 kg y de 2 kg | Todo va a rollo de 17 kg (factor = kg ÷ 17); el de 2 kg se pide a mano. Nuevo registro e Inicio lo siguen mostrando en kg. |
+| Etiquetas | roll feed 380 ml, 625 ml, 1 L, 1.5 L · bobina 2.5 L · B7L · B10L | Una por presentación; B10L sin factores hasta que exista su línea. |
+
+- Código: `variantesDeFactores` / `aplicarVariantes` (70), consumo por grupo y rollos a kg (71). Pruebas: `tests/asistente-variantes.test.js`.
+- Datos: `supabase/datos/2026-11-13_variantes_insumos.sql` (ensayo primero). Los factores viejos quedan inactivos con nota; nada se borra. **Aplicado en PRUEBAS**; PRODUCCIÓN pendiente de aprobación.
+- Cambia el cálculo: las preformas por caja pasan a la capacidad por gramaje del Inicio (antes el Nuevo registro usaba 18 750 para todo 625 ml, 21 500 para 380 ml, 14 250 para 1 L y 2 900 para B7L). Los reportes ya guardados conservan sus valores.
+- Por confirmar: 625 ml con gas o saborizada (el catálogo no ve el tipo; queda 15.7 g salvo que la presentación diga «sabor» o «gas»), qué líneas usan rollo de 2 kg, y la línea de B10L.

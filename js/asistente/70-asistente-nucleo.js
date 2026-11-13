@@ -207,6 +207,7 @@
       insumos.forEach(i=>{
         const fv=factorVigente(e.factores,{insumo:i.codigo,linea:c.linea,marca:c.marca,presentacion:c.presentacion,fecha:c.fecha});
         if(fv.error){
+          if(fv.error==='SIN_FACTOR'&&hermanoConFactor(e,i,c))return;   // otra variante del mismo grupo (p. ej. otro gramaje) es la que usa este cuadro
           if(aplicaInsumo(e.factores,i.codigo,c.linea))filas.push({cuadro:c,insumo:i,estado:fv.error==='AMBIGUO'?'FACTOR_AMBIGUO':'SIN_FACTOR'});
           return;
         }
@@ -233,6 +234,12 @@
     return filas;
   }
   const anulado=(movs,m)=>(movs||[]).some(x=>x&&x.tipo==='ANULACION'&&x.anulaA===m.opId);
+  /* ¿Alguna otra variante del mismo grupo (gramaje, ancho, tipo de etiqueta…) tiene factor vigente para este cuadro? */
+  const hermanoConFactor=(e,i,c)=>{
+    const g=i.grupo||'';if(!g)return false;
+    return (e.insumos||[]).some(j=>j.codigo!==i.codigo&&(j.grupo===g||j.codigo===g)
+      &&!factorVigente(e.factores,{insumo:j.codigo,linea:c.linea,marca:c.marca,presentacion:c.presentacion,fecha:c.fecha}).error);
+  };
   const aplicaInsumo=(factores,insumo,linea)=>(factores||[]).some(f=>f&&f.insumo===insumo&&codigoLinea(f.linea)===codigoLinea(linea));
   /* Resumen por insumo (sin mezclar unidades): requerido, consumido, disponible, reservado y faltante del bloque. */
   function resumenInsumos(filas){
@@ -424,12 +431,12 @@
   /* Lee las constantes del Nuevo registro y las convierte en factores versión 1 (origen 'codigo'). Ids deterministas: repetir la
      migración no duplica ni pisa factores ya editados. c: {CAJAS_PREFORMAS_DIVISOR, FACTOR_CARTON_PET, …, PRESENTACIONES_POR_LINEA}. */
   const INSUMOS_BASE=[
-    {codigo:'CAJA_PREFORMA',nombre:'Cajas de preformas',unidad:'caja',tipo:'preforma'},
+    {codigo:'CAJA_PREFORMA',nombre:'Cajas de preformas',unidad:'caja',tipo:'preforma',activo:false},
     {codigo:'CARTON',nombre:'Planchas de cartón',unidad:'plancha',tipo:'carton'},
-    {codigo:'POLIETILENO',nombre:'Polietileno',unidad:'kg',tipo:'polietileno'},
-    {codigo:'STRETCH',nombre:'Stretch film',unidad:'kg',tipo:'stretch'},
+    {codigo:'POLIETILENO',nombre:'Polietileno',unidad:'kg',tipo:'polietileno',activo:false},
+    {codigo:'STRETCH',nombre:'Stretch film',unidad:'kg',tipo:'stretch',activo:false},
     {codigo:'TAPA',nombre:'Tapas',unidad:'UND',tipo:'tapa'},
-    {codigo:'ETIQUETA',nombre:'Etiquetas',unidad:'UND',tipo:'etiqueta'}
+    {codigo:'ETIQUETA',nombre:'Etiquetas',unidad:'UND',tipo:'etiqueta',activo:false}
   ];
   function idFactor(f){
     const s=v=>norm(v||'*').replace(/[^a-z0-9.]+/g,'-').replace(/^-|-$/g,'')||'x';
@@ -483,12 +490,78 @@
     const vistos=new Set();return out.filter(f=>vistos.has(f.id)?false:(vistos.add(f.id),true));
   }
 
+  /* ---------- variantes de insumo (gramaje de la preforma, ancho del polietileno, rollo de stretch, tipo de etiqueta) ----------
+     Cada variante es su propio insumo (con `grupo` = el insumo base) para pedirla, contarla y recibirla por separado. Los factores
+     (capacidad por caja, kg por paleta…) viven en la variante. Los datos salen del código (Inicio › preformas.capacidadPorGramaje,
+     gramajePorPresentacion; merma «Polietileno 48cm» de B7L y «54 cm» de C20L) y de lo indicado por Producción (13/11/2026). */
+  const CAPACIDAD_PREFORMA={'12.7':22000,'15.7':18000,'17.7':18500,'21.7':14000,'33.7':9928,'42.7':7500,'90':2800};
+  const ROLLO_KG={STRETCH_17KG:17,STRETCH_2KG:2};
+  const INSUMOS_VARIANTE=[].concat(
+    Object.keys(CAPACIDAD_PREFORMA).map(g=>({codigo:'PREFORMA_'+g.replace('.','_'),nombre:'Cajas de preformas '+g+' g',unidad:'caja',tipo:'preforma',grupo:'CAJA_PREFORMA'})),
+    [48,54,56].map(c=>({codigo:'POLIETILENO_'+c,nombre:'Polietileno '+c+' cm',unidad:'kg',tipo:'polietileno',grupo:'POLIETILENO'})),
+    [['STRETCH_17KG','Stretch film · rollo de 17 kg',17],['STRETCH_2KG','Stretch film · rollo de 2 kg',2]].map(([codigo,nombre,kg])=>({codigo,nombre,unidad:'rollo',tipo:'stretch',grupo:'STRETCH',kgPorUnidad:kg})),
+    [['ETIQUETA_RF_380','Etiqueta roll feed 380 ml'],['ETIQUETA_RF_625','Etiqueta roll feed 625 ml'],['ETIQUETA_RF_1L','Etiqueta roll feed 1 L'],['ETIQUETA_RF_1_5L','Etiqueta roll feed 1.5 L'],
+     ['ETIQUETA_BOBINA_2_5L','Etiqueta bobina 2.5 L'],['ETIQUETA_B7L','Etiqueta B7L'],['ETIQUETA_B10L','Etiqueta B10L']].map(([codigo,nombre])=>({codigo,nombre,unidad:'UND',tipo:'etiqueta',grupo:'ETIQUETA'}))
+  );
+  /* Tamaño de la presentación («pack_regular_625mlx6und/la» → '625ML'). */
+  function tamanoPresentacion(p){
+    const t=norm(p).replace(/\s+/g,'');
+    if(/380ml/.test(t))return '380ML';if(/625ml/.test(t))return '625ML';
+    if(/1\.5l|1500ml/.test(t))return '1.5L';if(/2\.5l|2500ml/.test(t))return '2.5L';
+    if(/(^|[^\d.])1l|1000ml/.test(t))return '1L';return '';
+  }
+  /* Gramaje de la preforma: B7L 90 g; PET por tamaño (625 ml: 15.7 regular, 17.7 saborizada, 21.7 con gas; sin dato, regular). null si no se reconoce. */
+  function gramajeDe(linea,presentacion){
+    if(codigoLinea(linea)==='B7L')return '90';
+    const t=tamanoPresentacion(presentacion),n=norm(presentacion);
+    if(t==='380ML')return '12.7';
+    if(t==='625ML')return /sabor/.test(n)?'17.7':/(^|[^a-z])gas([^a-z]|$)/.test(n)?'21.7':'15.7';
+    if(t==='1L')return '21.7';if(t==='1.5L')return '33.7';if(t==='2.5L')return '42.7';return null;
+  }
+  const ETIQUETA_POR_TAMANO={'380ML':'ETIQUETA_RF_380','625ML':'ETIQUETA_RF_625','1L':'ETIQUETA_RF_1L','1.5L':'ETIQUETA_RF_1_5L','2.5L':'ETIQUETA_BOBINA_2_5L'};
+  /* Qué factores existentes pasan a variante. → [{orig, nuevos:[{insumo, linea, marca, presentacion, base, cantidadBase, factor, nota}]}] (solo los que cambian).
+     Los factores «No aplica» de C20L/B20L en preformas y etiquetas se quedan en el insumo base. */
+  function variantesDeFactores(factores){
+    const lista=(factores||[]).filter(f=>f&&f.activo!==false&&!f.vigenteHasta);
+    const presPorLinea={};
+    lista.filter(f=>f.insumo==='CAJA_PREFORMA'&&f.presentacion&&f.presentacion!=='*').forEach(f=>{
+      const l=codigoLinea(f.linea);(presPorLinea[l]=presPorLinea[l]||new Set()).add(f.presentacion);});
+    const out=[];
+    lista.forEach(f=>{
+      const l=codigoLinea(f.linea),base={linea:f.linea,marca:f.marca||'*',presentacion:f.presentacion||'*',base:f.base,cantidadBase:f.cantidadBase,factor:f.factor};
+      if(f.insumo==='CAJA_PREFORMA'&&['PET1','PET2','B7L'].includes(l)&&Number(f.factor)>0){
+        const g=gramajeDe(f.linea,f.presentacion);if(!g)return;
+        out.push({orig:f,nuevos:[{...base,insumo:'PREFORMA_'+g.replace('.','_'),cantidadBase:CAPACIDAD_PREFORMA[g],factor:1,nota:'producción ÷ '+CAPACIDAD_PREFORMA[g]+' (preforma de '+g+' g)'}]});
+      }else if(f.insumo==='POLIETILENO'){
+        const c=l==='B7L'?48:l==='C20L'?54:56;
+        out.push({orig:f,nuevos:[{...base,insumo:'POLIETILENO_'+c,nota:(f.nota?f.nota+' · ':'')+'polietileno de '+c+' cm'}]});
+      }else if(f.insumo==='STRETCH'){
+        out.push({orig:f,nuevos:[{...base,insumo:'STRETCH_17KG',factor:Number(f.factor)/17,nota:'rollo de 17 kg · '+f.factor+' kg ÷ 17'}]});
+      }else if(f.insumo==='ETIQUETA'&&Number(f.factor)>0){
+        if(l==='B7L')out.push({orig:f,nuevos:[{...base,insumo:'ETIQUETA_B7L'}]});
+        else if(['PET1','PET2'].includes(l)){
+          const nuevos=[...(presPorLinea[l]||[])].map(p=>({p,t:ETIQUETA_POR_TAMANO[tamanoPresentacion(p)]})).filter(x=>x.t)
+            .map(x=>({...base,presentacion:x.p,insumo:x.t,nota:'etiqueta según la presentación'}));
+          if(nuevos.length)out.push({orig:f,nuevos});
+        }
+      }
+    });
+    return out;
+  }
+  /* Para una migración desde cero: devuelve la lista final (lo que no cambia + las variantes). */
+  function aplicarVariantes(factores){
+    const mapa=variantesDeFactores(factores),cambia=new Set(mapa.map(m=>m.orig)),out=(factores||[]).filter(f=>!cambia.has(f));
+    mapa.forEach(m=>m.nuevos.forEach(n=>{const f={...m.orig,...n,origen:m.orig.origen||'codigo'};f.id=idFactor(f);out.push(f);}));
+    const vistos=new Set();return out.filter(f=>vistos.has(f.id)?false:(vistos.add(f.id),true));
+  }
+
   global.glacialAsistenteNucleo={
     LINEAS,lineaInfo,codigoLinea,red,norm,bloqueDe,turnosDeBloque,claveCuadro,
     TIPOS_INSUMO,UNIDADES,validarInsumo,validarFactor,vigenteEn,factorVigente,teorico,idFactor,
     cuadrosDelBloque,cuadroAbierto,TIPOS_MOV,saldoInsumo,requerimientos,resumenInsumos,
     conciliar,movimientosCuadro,CAUSAS_MERMA,ETAPAS_MERMA,listaOk,validarListaMerma,validarMerma,consumoCatalogo,mermaValidada,mermaRegistro,MERMA_REGISTRO,resumenMermas,
     ESTADOS_SOLICITUD,TRANSICIONES,ACTOR_ESTADO,puedeTransicion,aplicarEntrega,aplicarRecepcion,
-    alertas,pendientesDeCierre,INSUMOS_BASE,factoresDesdeCodigo,fmt
+    alertas,pendientesDeCierre,INSUMOS_BASE,factoresDesdeCodigo,fmt,
+    INSUMOS_VARIANTE,CAPACIDAD_PREFORMA,ROLLO_KG,tamanoPresentacion,gramajeDe,variantesDeFactores,aplicarVariantes
   };
 })(typeof window!=='undefined'?window:globalThis);
