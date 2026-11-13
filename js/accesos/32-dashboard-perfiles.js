@@ -1180,14 +1180,19 @@ function cpEjecutivoHTML(){
   const tarjetaAlertas=`<section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('info')}<div><h3>Alertas importantes</h3><p>Solo situaciones vigentes que requieren atención.</p></div></div></div>
       <div class="cp-ex-alerts">${alertas}</div></section>`;
 
-  // Orden: encabezado → 6 tarjetas (la sexta es «Líneas sin producción») → producción por línea → alertas → RESUMEN DE PRODUCCIÓN al final.
+  // Orden (13/11/2026): encabezado → PLANTA DE AGUA (6 tarjetas, la sexta «Líneas sin producción», y producción por línea) → PLANTA DE HIELO
+  // (#cp-hielo-slot: la tarjeta de 98-hielo-inicio.js se pone ahí con su título; sin permiso de Hielo queda vacío) → alertas → RESUMEN DE PRODUCCIÓN al final.
   // La tabla «Personal por línea» ya no se repite aquí: su detalle se abre desde «Ver distribución →» (cpVerDistribucion).
   // Las tarjetas «Paradas de hoy», «Proyección del turno» y «Disponibilidad de hoy» (43, 46 y 47) se insertan justo después de .cp-title-row,
   // por eso siguen dentro del bloque final.
-  return `${cabecera}${kpis}${tarjetaLineas}${tarjetaAlertas}
+  const lineasAgua=d.lineasAutorizadas.map(k=>cpNombreLinea(k)).join(', ');
+  const tituloAgua=`<div class="cp-planta-tit cp-pt-agua"><h2><i aria-hidden="true"></i>PLANTA DE AGUA</h2>${lineasAgua?`<p>${cpEsc(lineasAgua)} · cada línea con su unidad.</p>`:''}</div>`;
+  return `${cabecera}${tituloAgua}${kpis}${tarjetaLineas}<div id="cp-hielo-slot"></div>${tarjetaAlertas}
     <section class="cp-resumen-prod" aria-label="Resumen de producción"><div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2><p>Detalle del turno seleccionado.</p></div></div></section>`;
 }
 function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
+.cp-planta-tit{margin:6px 0 10px}.cp-planta-tit h2{display:flex;align-items:center;gap:10px;margin:0;font-size:19px;letter-spacing:.04em;color:#033350}.cp-planta-tit h2 i{width:9px;height:22px;border-radius:3px;background:#0877A6}
+.cp-planta-tit p{margin:2px 0 0 19px;color:var(--cp-muted);font-size:12.5px}.cp-pt-hielo{margin-top:16px}.cp-pt-hielo h2 i{background:#4FC4F5}#cp-hielo-slot:empty{display:none}#cp-hielo-slot{margin-bottom:12px}#cp-hielo-slot .hli-card{margin-bottom:0}
 .cp-resumen-prod{margin-top:16px;padding:14px 16px 12px;background:#fff;border:1px solid var(--cp-line);border-radius:14px;box-shadow:0 3px 12px rgba(17,57,91,.055)}.cp-resumen-prod .cp-title-row{margin-bottom:10px}
 .cp-ex-meta{display:flex;align-items:center;gap:16px}.cp-ex-meta b{display:block;color:#033350;font-size:14px}.cp-ex-meta small{color:var(--cp-muted);font-size:11px}
 .cp-ex-turno{background:linear-gradient(135deg,#065F86,#0877A6);border-radius:10px;padding:8px 18px}.cp-ex-turno b,.cp-ex-turno small{color:#fff}

@@ -111,7 +111,7 @@ const texto=html=>html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ');
   /* 7) Estructura de Inicio. */
   const ejec=s32.slice(s32.indexOf('function cpEjecutivoHTML'),s32.indexOf('function cpEjecutivoStyles'));
   ok(/tarjeta\('team','Distribución de personal',tDistribucion,'cp-ds'\)\}\$\{tarjeta\('pause','Líneas sin producción'/.test(ejec)&&!/'Estado del turno'/.test(ejec),'la quinta tarjeta es «Distribución de personal» y la sexta «Líneas sin producción»; «Estado del turno» ya no está');
-  ok(/\$\{cabecera\}\$\{kpis\}\$\{tarjetaLineas\}/.test(ejec)&&!/cpPersonalPorLineaHTML|tarjetaPersonal/.test(s32),'la tabla grande «Personal por línea» ya no se repite en Inicio');
+  ok(/\$\{cabecera\}\$\{tituloAgua\}\$\{kpis\}\$\{tarjetaLineas\}/.test(ejec)&&!/cpPersonalPorLineaHTML|tarjetaPersonal/.test(s32),'la tabla grande «Personal por línea» ya no se repite en Inicio');
   ok(/cpRefrescarDistribucionAbierta\(\);/.test(fn('cpRefrescarEjecutivo')),'el detalle abierto se actualiza con los cambios');
   const s43=leer('js/personal/43-distribucion-personal.js');
   ok(/c\.listo=conParent&&conEventos/.test(s43)&&/const fallo=e=>\{c\.error=/.test(s43),'43: «listo» exige versión e historial; los errores de lectura quedan registrados');
