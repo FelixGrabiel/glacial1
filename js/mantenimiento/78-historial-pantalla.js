@@ -38,7 +38,7 @@
       const vis=lista.slice(0,UI.limite);
       cuerpo='<div class="hs-tw"><table class="hs-t"><thead><tr><th>SEMANA</th><th>MÁQUINA</th><th>TÉCNICO / MAQUINISTA</th><th>ESTADO</th><th>CIERRE / VALIDACIÓN</th><th></th></tr></thead><tbody>'+vis.map(r=>{
         const e=N.ESTADOS_REG[r.estado]||N.ESTADOS_REG.PENDIENTE,rg=N.rangoSemana(r.anio,r.semana);
-        return '<tr><td><b>'+esc(N.etiquetaSemana(r.semana))+'</b><small>'+esc(N.ddmm(rg.desde))+' al '+esc(N.ddmm(rg.hasta))+' · '+esc(N.ddmmaaaa(r.fecha))+'</small></td>'+
+        return '<tr><td><b>'+esc(N.etiquetaSemana(r.semana))+'</b><span class="hs-rango">del '+esc(N.ddmm(rg.desde))+' al '+esc(N.ddmmaaaa(rg.hasta))+'</span>'+(r.fecha?'<small>Registro del '+esc(N.ddmmaaaa(r.fecha))+'</small>':'')+'</td>'+
           '<td><b>'+esc(maq(r.maquina_id).nombre)+'</b><small>'+esc(r.tipo_mtto?r.tipo_mtto.charAt(0)+r.tipo_mtto.slice(1).toLowerCase():'')+' · '+esc(r.condicion?r.condicion.charAt(0)+r.condicion.slice(1).toLowerCase():'')+'</small></td>'+
           '<td>'+(r.tecnico_senior||r.maquinista?'<b>'+esc(r.tecnico_senior||'—')+'</b>'+(r.maquinista?'<small>'+esc(r.maquinista)+'</small>':''):'<span class="hs-mut">—</span>')+'</td>'+
           '<td><span class="ps-est ps-'+e.cls+'">'+e.txt+'</span></td>'+
@@ -48,12 +48,19 @@
         (lista.length>vis.length?'<div class="hs-mas"><button type="button" class="btn btn-ghost" data-hs-mas>Mostrar '+Math.min(PASO,lista.length-vis.length)+' más ('+(lista.length-vis.length)+' restantes)</button></div>':'')+
         '<p class="hs-pie">'+lista.length+' registro'+(lista.length===1?'':'s')+(lista.length!==todos.length?' de '+todos.length:'')+' en '+UI.anio+'.</p>';
     }
+    /* Semana (13/11/2026): cada opción dice de qué día a qué día es (lunes a domingo, semana ISO) y cuántos registros tiene; la de hoy, marcada. */
+    const hoySem=N.semanaDeHoy(hoyIso()),porSemana=new Map();
+    todos.forEach(r=>porSemana.set(r.semana,(porSemana.get(r.semana)||0)+1));
+    const semanaOpc=Array.from({length:N.semanasDelAnio(UI.anio)},(_,i)=>N.semanasDelAnio(UI.anio)-i).map(sm=>{
+      const rg=N.rangoSemana(UI.anio,sm),n=porSemana.get(sm)||0,esHoy=hoySem.anio===UI.anio&&hoySem.semana===sm;
+      return '<option value="'+sm+'"'+(String(UI.semana)===String(sm)?' selected':'')+'>'+esc(N.etiquetaSemana(sm))+' · '+esc(N.ddmm(rg.desde))+' al '+esc(N.ddmm(rg.hasta))+(esHoy?' · esta semana':'')+(n?' ('+n+')':'')+'</option>';
+    }).join('');
     const estadoOpc=['PENDIENTE','EN_CURSO','CERRADO','VALIDADO'].map(k=>'<option value="'+k+'"'+(UI.estado===k?' selected':'')+'>'+N.ESTADOS_REG[k].txt+' ('+cont[k]+')</option>').join('');
     main.innerHTML='<section class="hs" id="hs-raiz">'+(window.glacialMttoTabs?window.glacialMttoTabs.html('historial'):'')+
       '<header class="hs-cab"><div><small>Planta de Agua · Registros CFA-CA-F-023</small><h2>Historial de registros</h2></div></header>'+
       '<div class="hs-filtros"><label>Año<select data-hs="anio">'+anios.map(a=>'<option'+(a===UI.anio?' selected':'')+'>'+a+'</option>').join('')+'</select></label>'+
       '<label>Máquina<select data-hs="maquinaId"><option value="">Todas</option>'+maqs.map(m=>'<option value="'+esc(m.id)+'"'+(UI.maquinaId===m.id?' selected':'')+'>'+esc(m.codigo_hoja)+' · '+esc(m.nombre)+'</option>').join('')+'</select></label>'+
-      '<label>Semana<input type="number" min="1" max="53" inputmode="numeric" data-hs="semana" value="'+esc(UI.semana)+'" placeholder="Todas"></label>'+
+      '<label>Semana<select data-hs="semana"><option value="">Todas</option>'+semanaOpc+'</select></label>'+
       '<label>Técnico o maquinista<input type="search" data-hs="texto" value="'+esc(UI.texto)+'" placeholder="Nombre"></label>'+
       '<label>Estado<select data-hs="estado"><option value="">Todos</option>'+estadoOpc+'</select></label></div>'+cuerpo+'</section>';
   }
@@ -67,12 +74,12 @@
     if(e.target.closest('[data-hs-mas]')){UI.limite+=PASO;repintar(false);return;}
     if(e.target.closest('[data-hs-recargar]'))D.cargarHistorial(UI.anio);
   });
-  /* Los filtros de texto y semana se aplican al escribir sin perder el foco: solo se repinta la lista. */
+  /* El filtro de texto se aplica al escribir sin perder el foco: solo se repinta la lista. */
   function aplicar(t){
     const k=t.getAttribute('data-hs');if(!k)return;
     UI[k]=k==='anio'?Number(t.value):t.value;UI.limite=PASO;
     if(k==='anio'){D.cargarHistorial(UI.anio);}
-    repintar(k==='texto'||k==='semana');
+    repintar(k==='texto');
   }
   document.addEventListener('change',e=>{const t=e.target;if(t&&t.closest&&t.closest('#hs-raiz')&&t.hasAttribute('data-hs')&&t.tagName==='SELECT')aplicar(t);});          // los textos ya se aplican al escribir (input)
   document.addEventListener('input',e=>{const t=e.target;if(t&&t.closest&&t.closest('#hs-raiz')&&t.hasAttribute('data-hs')&&(t.type==='search'||t.type==='number'))aplicar(t);});
@@ -95,10 +102,10 @@
     if(document.getElementById('hs-estilos'))return;
     const s=document.createElement('style');s.id='hs-estilos';
     s.textContent=window.glacialMttoTabs.css+'.hs{max-width:1280px;margin:0 auto;padding:4px 2px 24px}.hs-cab small{color:#5b6b79;font-size:12px}.hs-cab h2{margin:2px 0 12px;font-size:22px}'+
-      '.hs-filtros{display:grid;grid-template-columns:110px minmax(180px,1.4fr) 110px minmax(160px,1fr) 170px;gap:10px;margin-bottom:12px}.hs-filtros label{display:flex;flex-direction:column;font-size:11.5px;color:#5b6b79;gap:2px;min-width:0}'+
+      '.hs-filtros{display:grid;grid-template-columns:110px minmax(180px,1.3fr) minmax(220px,1fr) minmax(160px,1fr) 170px;gap:10px;margin-bottom:12px}.hs-filtros label{display:flex;flex-direction:column;font-size:11.5px;color:#5b6b79;gap:2px;min-width:0}'+
       '.hs-filtros select,.hs-filtros input{min-height:40px;border:1px solid #cfdbe3;border-radius:8px;padding:0 10px;background:#fff;font-size:14px;width:100%;box-sizing:border-box}'+
       '.hs-tw{background:#fff;border:1px solid #dbe5ee;border-radius:var(--card-radius,14px);overflow:auto}.hs-t{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px}.hs-t th{background:#eef3fa;color:#033350;font-size:11.5px;letter-spacing:.03em;padding:9px 10px;text-align:left}'+
-      '.hs-t td{padding:9px 10px;border-top:1px solid #edf2f7;vertical-align:middle}.hs-t td small{display:block;color:#7a8794;font-size:11.5px;margin-top:2px}.hs-acc{white-space:nowrap;text-align:right}.hs-mut{color:#9aa7b3}'+
+      '.hs-t td{padding:9px 10px;border-top:1px solid #edf2f7;vertical-align:middle}.hs-t td small{display:block;color:#7a8794;font-size:11.5px;margin-top:2px}.hs-rango{display:block;color:#033350;font-size:12.5px;margin-top:2px;white-space:nowrap}.hs-acc{white-space:nowrap;text-align:right}.hs-mut{color:#9aa7b3}'+
       '.hs-aviso{background:#fff;border:1px dashed #cfdbe3;border-radius:12px;padding:16px;color:#46627a;margin:8px 0}.hs-mas{text-align:center;margin:12px 0}.hs-pie{font-size:12px;color:#7a8794;margin-top:8px}'+
       '@media(max-width:900px){.hs-filtros{grid-template-columns:1fr 1fr}.hs-cab h2{font-size:19px}}';
     document.head.appendChild(s);
