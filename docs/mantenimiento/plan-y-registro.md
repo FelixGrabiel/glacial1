@@ -92,3 +92,10 @@ En el Registro (CFA-CA-F-023), cada actividad tiene dos casillas: ✓ realizada 
 **Inicio de Mantenimiento · «Esta semana en Mantenimiento»** (`situacionSemana`): qué toca (actividades y máquinas), avance, **máquinas sin registro iniciado**, vencidas (con las máquinas que más se atrasan), pendientes «No se realizó» abiertas y **registros cerrados por validar**. Desde el jueves, si hay máquinas sin registro, sale un aviso amarillo. Accesos al Programa semanal y al Plan anual. No cuenta las hojas pendientes de confirmar (CARB).
 
 Pruebas: `tests/mantenimiento-situacion-semana.test.js` y los casos nuevos de `tests/mantenimiento-plan-anual.e2e.js`.
+
+## Líneas del Plan anual y «+ Máquina» (13/11/2026)
+- El selector «Línea» muestra siempre **PET, B7L, C20L y B20L** (y cualquier otra línea que ya tenga máquinas), aunque todavía no tengan plan. Antes solo aparecía PET porque era la única con máquinas cargadas (las 19 hojas del Excel).
+- Una línea sin máquinas dice «Todavía no hay plan de mantenimiento para B7L» y ofrece **«+ Máquina en B7L»**. El supervisor / jefe de Mantenimiento crea la máquina (nombre y línea; no se repite el nombre dentro de una línea) y después agrega sus actividades con «+ Actividad». Las reglas RLS de siempre (`supmtto`) deciden quién puede; no hace falta migración.
+- La máquina nueva queda en la planta AGUA, con código de hoja `LÍNEA-NOMBRE-xxxx` y su línea real (B7L, C20L…). Aparece también en el Programa semanal y se puede registrar igual que las de PET.
+- Para cargar el plan completo de una línea desde su Excel sigue valiendo `supabase/datos/importar_plan_mtto.py` (mismo formato que el de PET).
+- Aún no hay botón para archivar o renombrar una máquina creada por error: hoy se hace desde la base.
