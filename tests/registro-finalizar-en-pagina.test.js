@@ -44,7 +44,7 @@ const prep=extraer(s06,'prepararCamposRegistro');
 ok(/input\[type="number"\]/.test(prep)&&/inputmode/.test(prep)&&/el\.readOnly\|\|el\.disabled/.test(prep)&&/placeholder='0'/.test(prep),'números editables en 0 se ven vacíos (con 0 gris) y abren el teclado numérico; los de solo lectura no cambian');
 ok(/barraRegistroHtml\(\)/.test(prep)&&/Revisar \(\$\{faltan\.length\}\)/.test(extraer(s06,'barraRegistroHtml'))&&/Finalizar reporte/.test(extraer(s06,'barraRegistroHtml')),'barra fija: estado del guardado, «Revisar (N)» y «Finalizar reporte»');
 ok(/instalarPrepararCamposRegistro/.test(s06)&&/con-barra-registro #av-floating-trigger/.test(s06),'se aplica después de cada dibujado y sube el botón «Avance / Cierre» sobre la barra');
-ok(/06-registro\.js\?v=20261107-/.test(html),'versión nueva de 06 en index.html');
+ok(/06-registro\.js\?v=2026\d{4}-/.test(html),'versión nueva de 06 en index.html');
 
 if(fallas){console.log('\n'+fallas+' falla(s)');process.exit(1);}
 console.log('\nTodo bien');

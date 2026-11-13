@@ -132,7 +132,20 @@
     });
     return {lista,origen:lista.length?origen:''};
   }
-  const API={CATEGORIAS,disponibles,entradaDeLote,alternar,enAlmacen,marcarConUnidad,esManual,claveManual,entradaManual,resolverManual,arrastrables};
+  /* ---------- Cajas/bobinas en uso sin peso final (auditoría 13/11/2026, punto 4) ----------
+     Una caja o bobina «En uso» que se acabó en el turno debe cerrarse con su peso final (0 = consumida); si sigue en la máquina, queda en uso para el
+     turno siguiente. Esto solo AVISA al finalizar el reporte y al generar el cierre del turno: no bloquea. */
+  function enUsoSinPeso(unidades,lotes,linea){
+    const porId=new Map((Array.isArray(lotes)?lotes:[]).map(l=>[l.id,l]));
+    const T=raiz.glacialTrazabilidadNucleo;
+    return (Array.isArray(unidades)?unidades:[]).filter(u=>u&&u.estado==='EN_USO'&&(!linea||u.linea===linea))
+      .map(u=>{const l=porId.get(u.loteId)||{};const uf=T&&T.unidadFisica?T.unidadFisica(l.categoria):{titulo:'Caja / bobina'};
+        return {unidadId:texto(u.id),linea:texto(u.linea),numero:texto(u.numero),titulo:uf.titulo,loteProveedor:texto(l.loteProveedor),producto:texto(l.producto),categoria:texto(l.categoria),pesoActual:Number(u.pesoActual)||0};})
+      .sort((a,b)=>a.linea.localeCompare(b.linea)||a.loteProveedor.localeCompare(b.loteProveedor)||a.numero.localeCompare(b.numero,'es',{numeric:true}));
+  }
+  /** «PET1 · Bobina 03 del lote PG-77 (etiqueta Cielo)» */
+  const textoEnUso=x=>(x.linea?x.linea+' · ':'')+x.titulo+(x.numero?' '+x.numero:'')+(x.loteProveedor?' del lote '+x.loteProveedor:'')+(x.producto?' ('+x.producto+')':'');
+  const API={CATEGORIAS,disponibles,entradaDeLote,alternar,enAlmacen,marcarConUnidad,esManual,claveManual,entradaManual,resolverManual,arrastrables,enUsoSinPeso,textoEnUso};
   raiz.GlacialLotesEnCuadro=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 
@@ -258,6 +271,11 @@
     if(typeof programarGuardadoAutomaticoReporte==='function')programarGuardadoAutomaticoReporte();
     const y=window.scrollY;
     if(typeof renderFormTab==='function'){renderFormTab();requestAnimationFrame(()=>window.scrollTo(0,y));}
+  };
+  /* Punto 4: cajas/bobinas en uso de la línea del reporte abierto (de las que ya se leyeron). null = todavía no se sabe. */
+  raiz.lotesEnUsoLinea=function(linea){
+    if(!linea||cache.linea!==linea||!cache.listo||cache.error)return null;
+    return enUsoSinPeso(cache.unidades,cache.lotes,linea);
   };
   /* Punto 1: agrega al cuadro un lote escrito a mano. */
   raiz.loteCuadroManual=function(i){

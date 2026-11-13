@@ -159,3 +159,12 @@ Medido en PRODUCCIÓN el 13/11/2026: 96 fotos de etiquetas pendientes; **34 list
 - **No crea con un clic** si hay un posible lote repetido (se abre completo). El artículo del catálogo solo se pone si ya se eligió antes para ese proveedor y producto; si no, se asigna después desde la ficha.
 - Espera a leer los lotes y cajas/bobinas antes de mostrar la primera foto. No necesita migración.
 Prueba: `tests/validar-rapido.test.js`.
+
+## Aviso de cajas/bobinas en uso sin peso final (auditoría 13/11/2026, punto 4)
+Medido en PRODUCCIÓN: ninguna caja/bobina se había cerrado por peso; una caja de preforma de B7L seguía «En uso» desde el 06/11. Sin el peso final no se puede comparar lo consumido con lo producido por lote.
+
+Solo **avisa** (una caja o bobina puede seguir en la máquina para el turno siguiente):
+- **Registro de producción** (`06`, `unidadesEnUsoReporte`): el estado del reporte muestra «ℹ En uso en PET1 sin peso final: Bobina 03 del lote 12158 (…)» y la confirmación de **Finalizar reporte** lo recuerda. Usa las cajas/bobinas de la línea que ya leyó el panel (`92`, `lotesEnUsoLinea`).
+- **Avance y cierre** (`29`, `avGenerarCierreAhora`): al **Generar cierre de turno**, la confirmación lista las cajas/bobinas EN USO de todas las líneas (`93`, `lotesEnUsoTodas`: lectura puntual de hasta 4 s; si falla, el cierre sigue sin aviso).
+- El peso final se registra donde ya existía: «Lotes de insumo usados» › «Registrar peso final» (0 = consumida; con peso = devolución parcial a almacén).
+Prueba: `tests/lotes-en-uso-cierre.test.js`.

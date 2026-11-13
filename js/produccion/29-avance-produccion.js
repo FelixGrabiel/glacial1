@@ -1636,8 +1636,16 @@ async function avGenerarAhora(){
   await avGenerar(avHoraActual(),'AVANCE');
   avDibujarFlotante();
 }
+/* Trazabilidad (13/11/2026, punto 4): antes del cierre, recuerda las cajas/bobinas que siguen EN USO sin peso final. No bloquea. */
+function avTextoEnUso(lista){
+  const L=typeof window!=='undefined'?window.GlacialLotesEnCuadro:null;
+  return (lista||[]).map(x=>L&&L.textoEnUso?L.textoEnUso(x):x.unidadId);
+}
 async function avGenerarCierreAhora(){
-  if(!confirm('¿Deseas generar el cierre definitivo del turno?'))return;
+  const enUso=typeof window.lotesEnUsoTodas==='function'?await window.lotesEnUsoTodas():null;
+  const aviso=enUso&&enUso.length?'\n\nℹ Quedan '+enUso.length+' caja(s)/bobina(s) EN USO sin peso final:\n• '+avTextoEnUso(enUso).slice(0,12).join('\n• ')+(enUso.length>12?'\n• … y '+(enUso.length-12)+' más':'')+
+    '\n\nSi alguna se acabó en este turno, cancela y registra su peso final en el Registro de producción («Lotes de insumo usados» › «Registrar peso final»; 0 si se terminó). Si siguen en la máquina, continúa.':'';
+  if(!confirm('¿Deseas generar el cierre definitivo del turno?'+aviso))return;
   await avGenerar('CIERRE','CIERRE');
   avDibujarFlotante();
 }

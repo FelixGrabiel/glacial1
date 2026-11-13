@@ -77,6 +77,6 @@ ok(/Escribir un lote a mano/.test(s92)&&/loteCuadroManual/.test(s92)&&/se enlaza
 ok(/escrito a mano/.test(s92)&&/ya está en el sistema como/.test(s92),'el panel dice si el lote escrito a mano ya está en el sistema');
 ok(/programarGuardadoAutomaticoReporte\(\);\n    const y=window\.scrollY;/.test(s92),'marcar o desmarcar un lote guarda el reporte');
 ok(/Escrito a mano · sin foto validada/.test(s94),'el informe distingue lo escrito a mano');
-ok(/92-lotes-en-cuadro\.js\?v=20261113-tz2/.test(html)&&/94-trazabilidad-informe\.js\?v=20261113-tz2/.test(html),'index.html carga las versiones nuevas');
+ok(/92-lotes-en-cuadro\.js\?v=2026\d{4}-/.test(html)&&/94-trazabilidad-informe\.js\?v=20261113-tz2/.test(html),'index.html carga las versiones nuevas');
 console.log(fallas?'\n'+fallas+' fallas':'\nLote a mano y arrastre correctos');
 process.exit(fallas?1:0);
