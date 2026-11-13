@@ -138,6 +138,6 @@ Prueba: `tests/trazabilidad-informe-correcciones.test.js` (T5: vista por categor
 
 ## Evidencias sin N.º de caja / bobina (2026-11-13)
 
-- El formulario de Evidencias ya **no muestra** Cliente, Marca, Código del producto, Orden interna (OI), Orden de compra, Fecha de proceso, Fecha de la etiqueta, Fecha de vencimiento ni Medidas (`oculto:true` en `CAMPOS`, `84`). Se siguen leyendo de la foto y guardando: el lote conserva la OI y la OC.
+- El formulario de Evidencias ya **no muestra** Cliente, Marca, Código del producto, Orden interna (OI), Orden de compra, Fecha de proceso, Fecha de la etiqueta, Fecha de vencimiento, Medidas ni Presentación (`oculto:true` en `CAMPOS`, `84`). Se siguen leyendo de la foto y guardando: el lote conserva la OI y la OC.
 - El **N.º de caja / bobina se quitó por completo**: no se lee, no se guarda en la evidencia y no se pide para crear el lote. Cada foto que entra a un lote recibe el **siguiente n.º del lote** (`siguienteUnidad` en `insumosLotes`; 01, 02, 03…). La transacción salta los números ya ocupados (lotes de antes con n.º de etiqueta).
 - Consecuencia: ya no se detecta «la misma etiqueta fotografiada dos veces» por el n.º (la misma foto exacta sigue bloqueada por su huella SHA-256).

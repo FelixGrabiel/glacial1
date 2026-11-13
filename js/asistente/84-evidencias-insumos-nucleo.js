@@ -38,7 +38,7 @@
     {campo:'cliente',etiqueta:'Cliente',tipo:'texto',grupo:'Identificación',oculto:true},
     {campo:'marca',etiqueta:'Marca',tipo:'texto',grupo:'Identificación',oculto:true},
     {campo:'producto',etiqueta:'Producto',tipo:'texto',grupo:'Identificación'},
-    {campo:'presentacion',etiqueta:'Presentación',tipo:'texto',grupo:'Identificación'},
+    {campo:'presentacion',etiqueta:'Presentación',tipo:'texto',grupo:'Identificación',oculto:true},
     {campo:'codigo_producto',etiqueta:'Código del producto',tipo:'texto',grupo:'Identificación',oculto:true},
     {campo:'lote',etiqueta:'Lote',tipo:'texto',grupo:'Trazabilidad'},
     {campo:'orden_interna',etiqueta:'Orden interna (OI)',tipo:'texto',grupo:'Trazabilidad',oculto:true},
