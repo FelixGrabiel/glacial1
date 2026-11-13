@@ -58,9 +58,11 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   /* filtros */
   await P.selectOption('[data-hs="maquinaId"]', 'm-ENV');
   ok(await filas() === 30 && /30 registros de 60/.test(await txt('.hs-pie')), 'filtro por máquina (Envasadora): 30');
-  await P.fill('[data-hs="semana"]', '14');
+  await P.selectOption('[data-hs="semana"]', '14');
   ok(await filas() === 1 && /SEM_14/.test(await txt('.hs-t tbody')), 'filtro por semana 14: 1 registro');
-  await P.fill('[data-hs="semana"]', '');
+  ok(/SEM_14 · 30\/03 al 05\/04 \(2\)/.test(await P.$eval('[data-hs="semana"] option[value="14"]', o => o.textContent)), 'cada semana del filtro dice de qué día a qué día es y cuántos registros tiene');
+  ok(/del 30\/03 al 05\/04\/2026/.test(await txt('.hs-t tbody')), 'la columna SEMANA dice de qué día a qué día es');
+  await P.selectOption('[data-hs="semana"]', '');
   await P.selectOption('[data-hs="maquinaId"]', '');
   await P.selectOption('[data-hs="estado"]', 'CERRADO');
   ok(await filas() === 1 && /POR VALIDAR/.test(await txt('.hs-t tbody')), 'filtro por estado POR VALIDAR: 1');
@@ -73,7 +75,7 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/historial.png' });
 
   /* reimprimir un registro que NO es el de la semana cargada: pide sus actividades y piezas */
-  await P.fill('[data-hs="semana"]', '14'); await P.selectOption('[data-hs="maquinaId"]', 'm-SOP');
+  await P.selectOption('[data-hs="semana"]', '14'); await P.selectOption('[data-hs="maquinaId"]', 'm-SOP');
   await P.click('[data-hs-imprimir]'); await P.waitForSelector('iframe[aria-hidden="true"]', { state: 'attached' });
   const doc = await P.evaluate(() => document.querySelector('iframe[aria-hidden="true"]').srcdoc);
   ok(/CFA - CA - F - 023/.test(doc) && /<u>SEM_14<\/u>/.test(doc) && /Pieza de prueba SEM 14/.test(doc) && /<td class="t">TOBERAS<\/td>/.test(doc), 'Imprimir reimprime el registro de esa semana con sus actividades y piezas');
@@ -85,7 +87,7 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   await P.evaluate(() => goHistorialMtto()); await P.waitForSelector('.hs-t');
 
   /* tiempo real: el supervisor valida el registro por validar desde otro dispositivo */
-  await P.fill('[data-hs="semana"]', ''); await P.selectOption('[data-hs="maquinaId"]', ''); await P.selectOption('[data-hs="estado"]', 'CERRADO');
+  await P.selectOption('[data-hs="semana"]', ''); await P.selectOption('[data-hs="maquinaId"]', ''); await P.selectOption('[data-hs="estado"]', 'CERRADO');
   await P.evaluate(() => { const r = __bd.registros.find(x => x.estado === 'CERRADO'); Object.assign(r, { estado: 'VALIDADO', validado_por: 'CRISTIAN MEZA', validado_en: '2026-11-07T14:00:00Z', version: 2 }); __canal.filter(c => c.tabla === 'mtto_registros').forEach(c => c.cb({ eventType: 'UPDATE', new: { ...r } })); });
   await P.waitForTimeout(700); if (process.env.GLX_DEPURAR) console.log('DBG2', await P.evaluate(() => JSON.stringify({ t: document.querySelector('.hs').innerText.slice(-300), est: document.querySelector('[data-hs=estado]').value, hist: glacialMttoPlanDatos.cache.historial.filter(r => r.estado === 'CERRADO').length })));
   await P.waitForFunction(() => /Ningún registro coincide/.test(document.querySelector('.hs').innerText), null, { timeout: 3000 });
