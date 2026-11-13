@@ -84,10 +84,46 @@
    */
   function estadoSemana(sem,actual,opc){
     const o=opc||{};
+    const e=o.ejecucion&&o.ejecucion.get?o.ejecucion.get(sem):null;                                // lo que dice el Registro de esa semana
+    if(e){if(e.estado==='ok')return 'ejecutada';if(e.estado==='tarde')return 'tarde';if(e.estado==='no')return 'noreal';}
     if(o.ejecutadas&&o.ejecutadas.has&&o.ejecutadas.has(sem))return 'ejecutada';
     if(actual&&sem===actual.semana)return 'actual';
-    if(actual&&sem<actual.semana&&o.conRegistros)return 'vencida';
+    if(actual&&sem<actual.semana&&o.conRegistros&&(o.desde===undefined||sem>=o.desde))return 'vencida';
     return 'programada';
+  }
+  /** Mapa de ejecución a partir del Registro: planId → Map(semana → {estado, motivo}). estado: ok (hecha) · tarde (no se hizo en su semana y se hizo después) ·
+      no (no se realizó y sigue pendiente) · sin (registro cerrado sin marcar) · curso (registro abierto sin marcar). Solo cuentan las actividades propias de la semana
+      (las arrastradas de otra semana no cambian el estado de esta). */
+  function mapaEjecucion(registros,acts){
+    const reg=new Map((registros||[]).map(r=>[r.id,r])),hijo=new Map();
+    (acts||[]).forEach(a=>{if(a.origen_actividad_id)hijo.set(a.origen_actividad_id,a);});
+    const despues=a=>{let x=hijo.get(a.id),n=0;while(x&&n++<60){if(x.realizado)return true;x=hijo.get(x.id);}return false;};
+    const out=new Map();
+    (acts||[]).forEach(a=>{
+      if(!a.plan_actividad_id||a.origen_actividad_id)return;
+      const r=reg.get(a.registro_id);if(!r)return;
+      const estado=a.realizado?'ok':a.no_realizado?(despues(a)?'tarde':'no'):(r.estado==='CERRADO'||r.estado==='VALIDADO'?'sin':'curso');
+      if(!out.has(a.plan_actividad_id))out.set(a.plan_actividad_id,new Map());
+      out.get(a.plan_actividad_id).set(r.semana,{estado,motivo:a.motivo_no||''});
+    });
+    return out;
+  }
+  /** Primera semana desde la que se cuentan «vencidas» (la del inicio de los registros). Años anteriores al inicio: ninguna (Infinity); años posteriores: la 1. */
+  const semanaDesde=(anio,inicio)=>{const i=inicio||INICIO_REGISTROS;return anio<i.anio?Infinity:anio>i.anio?1:i.semana;};
+  /** Vencidas, cumplidas y no realizadas de una lista de actividades hasta la semana actual (sin contarla). ejec: mapa de mapaEjecucion. */
+  function cumplimiento(acts,actual,ejec,desde){
+    let base=0,hechas=0,no=0,vencidas=0;
+    if(!actual)return {base,hechas,no,vencidas,pct:null};
+    (acts||[]).forEach(a=>{
+      if(a.anio!==actual.anio)return;
+      const m=ejec&&ejec.get(a.id);
+      (a.semanas||[]).forEach(s=>{
+        if(s>=actual.semana||s<desde)return;
+        base++;const e=m&&m.get(s),st=e?e.estado:'';
+        if(st==='ok'||st==='tarde')hechas++;else{vencidas++;if(st==='no')no++;}
+      });
+    });
+    return {base,hechas,no,vencidas,pct:base?Math.round(hechas/base*100):null};
   }
   /** Tarjetas resumen de la máquina: total, de esta semana, próxima semana con extras (no semanales) y vencidas. */
   function resumen(acts,actual,opc){
@@ -102,7 +138,7 @@
     let vencidas=null;
     if(o.conRegistros&&actual){
       vencidas=0;
-      lista.forEach(a=>(a.semanas||[]).forEach(s=>{if(s<actual.semana&&!(o.ejecutadasDe&&o.ejecutadasDe(a,s)))vencidas++;}));
+      lista.forEach(a=>(a.semanas||[]).forEach(s=>{if(s<actual.semana&&(o.desde===undefined||s>=o.desde)&&!(o.ejecutadasDe&&o.ejecutadasDe(a,s)))vencidas++;}));
     }
     return {total:lista.length,estaSemana:estaSemana.length,proxima,vencidas};
   }
@@ -111,6 +147,33 @@
     if(!actual||actual.anio!==anio)return {transcurridas:0,total:semanasDelAnio(anio),pct:0};
     const total=semanasDelAnio(anio);
     return {transcurridas:actual.semana,total,pct:Math.min(100,Math.round(actual.semana/total*100))};
+  }
+  /** Situación de Mantenimiento en la semana en curso (tarjeta del Inicio): qué toca, cuánto se hizo, qué está vencido o pendiente y qué falta iniciar o validar.
+      d: {maquinas, actividades (del plan), registros y acts (del año, del Registro), actual {anio, semana}, inicio {anio, semana}, diaSemana (1 lunes … 7 domingo)}. */
+  function situacionSemana(d){
+    const actual=d.actual,ms=(d.maquinas||[]).filter(m=>m.activo!==false&&!m.pendiente_confirmar);
+    if(!actual)return null;
+    const ejec=mapaEjecucion(d.registros,d.acts),desde=semanaDesde(actual.anio,d.inicio),regs=d.registros||[],acts=d.acts||[];
+    const porMaquina=ms.map(m=>{
+      const plan=(d.actividades||[]).filter(a=>a.maquina_id===m.id&&a.anio===actual.anio);
+      const toca=plan.filter(a=>(a.semanas||[]).includes(actual.semana)),reg=regs.find(r=>r.maquina_id===m.id&&r.semana===actual.semana)||null;
+      const hechas=toca.filter(a=>{const e=ejec.get(a.id)&&ejec.get(a.id).get(actual.semana);return e&&(e.estado==='ok'||e.estado==='tarde');}).length;
+      return {maquina:m,toca:toca.length,hechas,registro:reg,venc:cumplimiento(plan,actual,ejec,desde)};
+    }).filter(x=>x.toca>0||x.venc.vencidas>0);
+    const idsMaq=new Set(ms.map(m=>m.id)),hijos=new Set(acts.map(a=>a.origen_actividad_id).filter(Boolean));
+    const regMaq=new Map(regs.map(r=>[r.id,r]));
+    const pendientes=acts.filter(a=>a.no_realizado&&!hijos.has(a.id)&&regMaq.get(a.registro_id)&&idsMaq.has(regMaq.get(a.registro_id).maquina_id));
+    const conToca=porMaquina.filter(x=>x.toca>0);
+    const total=conToca.reduce((s,x)=>s+x.toca,0),hechas=conToca.reduce((s,x)=>s+x.hechas,0);
+    return {actual,rango:rangoSemana(actual.anio,actual.semana),desde,
+      toca:{actividades:total,maquinas:conToca.length},hechas,pct:total?Math.round(hechas/total*100):null,
+      sinRegistro:conToca.filter(x=>!x.registro).map(x=>x.maquina),
+      enCurso:regs.filter(r=>r.estado==='EN_CURSO'||r.estado==='PENDIENTE').filter(r=>r.semana===actual.semana).length,
+      vencidas:porMaquina.reduce((s,x)=>s+x.venc.vencidas,0),
+      topVencidas:porMaquina.filter(x=>x.venc.vencidas>0).sort((a,b)=>b.venc.vencidas-a.venc.vencidas).slice(0,3).map(x=>({maquina:x.maquina,n:x.venc.vencidas})),
+      pendientes:pendientes.length,
+      porValidar:regs.filter(r=>r.estado==='CERRADO').length,
+      aviso:(d.diaSemana||1)>=4&&conToca.some(x=>!x.registro)};          // jueves o después y todavía hay máquinas sin registro
   }
   /** Texto de una actividad para el filtro de búsqueda. */
   const textoBusqueda=a=>[a.item,a.actividad,a.insumos,a.frecuencia].join(' ').toLowerCase();
@@ -273,7 +336,7 @@
 
   const API={CAMPOS_AVISO,conflictoCampo,misValoresVigentes,BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
     semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
-    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,MOTIVOS_NO_REALIZADO,filasArrastradas,pendientesFaltantes,estadoActividad,textoOrigen,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
+    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,mapaEjecucion,semanaDesde,cumplimiento,situacionSemana,MOTIVOS_NO_REALIZADO,filasArrastradas,pendientesFaltantes,estadoActividad,textoOrigen,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialMttoPlan=API;
 })(typeof window!=='undefined'?window:globalThis);

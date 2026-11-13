@@ -18,13 +18,14 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
     state.user = { rol: 'Administrador', nombre: 'Cristian Meza', username: 'cmeza', permisos: 'todos' }; state.showWelcome = false;
     /* cliente de Supabase simulado: tablas en memoria, versión por fila y canal en vivo que el test dispara a mano */
     const bd = JSON.parse(JSON.stringify(muestra)); window.__bd = bd; window.__canal = [];
-    const tabla = n => n === 'mtto_maquinas' ? bd.maquinas : n === 'mtto_plan_actividades' ? bd.actividades : null;
+    bd.registros = bd.registros || []; bd.regActs = bd.regActs || [];
+    const tabla = n => n === 'mtto_maquinas' ? bd.maquinas : n === 'mtto_plan_actividades' ? bd.actividades : n === 'mtto_registros' ? bd.registros : n === 'mtto_registro_actividades' ? bd.regActs : null;
     const consulta = (nombre) => {
-      const q = { nombre, filtros: [], orden: null, op: 'select', fila: null };
+      const q = { nombre, filtros: [], orden: null, op: 'select', fila: null, en: null };
       const ejecutar = () => {
         const t = tabla(nombre);
         if (nombre === 'mtto_config') return { data: q.op === 'select' ? null : null, error: null };
-        let hit = t.filter(r => q.filtros.every(([k, v]) => r[k] === v));
+        let hit = t.filter(r => q.filtros.every(([k, v]) => r[k] === v) && (!q.en || q.en[1].includes(r[q.en[0]])));
         if (q.op === 'select') { if (q.orden) hit = hit.slice().sort((a, b) => (a[q.orden] || 0) - (b[q.orden] || 0)); return { data: hit.map(r => ({ ...r })), error: null }; }
         if (q.op === 'update') { hit.forEach(r => Object.assign(r, q.fila, { version: r.version + 1 })); return { data: hit.map(r => ({ ...r })), error: null }; }
         if (q.op === 'insert') { const n = { id: 'nuevo-' + (t.length + 1), version: 1, anio: 2026, ...q.fila }; t.push(n); return { data: [{ ...n }], error: null }; }
@@ -32,7 +33,7 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
       };
       const api = {
         select() { if (q.op === 'select' || q.op === 'x') q.op = 'select'; return api; }, order(c) { q.orden = c; return api; }, limit() { return api; },
-        eq(k, v) { q.filtros.push([k, v]); return api; }, maybeSingle() { return Promise.resolve({ data: nombre === 'mtto_config' ? { id: 'config', datos: { inicioRegistros: { anio: 2026, semana: 1 } } } : null, error: null }); },
+        eq(k, v) { q.filtros.push([k, v]); return api; }, in(k, vals) { q.en = [k, vals]; return api; }, maybeSingle() { return Promise.resolve({ data: nombre === 'mtto_config' ? { id: 'config', datos: { inicioRegistros: { anio: 2026, semana: 1 } } } : null, error: null }); },
         update(f) { q.op = 'update'; q.fila = f; return api; }, insert(f) { q.op = 'insert'; q.fila = f; return api; }, delete() { q.op = 'delete'; return api; },
         then(res, rej) { return Promise.resolve(ejecutar()).then(res, rej); }
       };
@@ -53,8 +54,8 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   ok(await P.evaluate(() => [...document.querySelectorAll('.mp-grupo b')].map(b => b.textContent).join()) === 'SEMANAL,MENSUAL,SEMESTRAL,ANUAL', 'agrupado por bloque de frecuencia, como el Excel');
   ok(await P.evaluate(() => document.querySelectorAll('.mp-todo-pill').length) === 18, 'las 18 actividades semanales muestran «Todas las semanas · 1 – 52»');
   const tarj = await P.evaluate(() => [...document.querySelectorAll('.mp-card')].map(c => c.innerText.replace(/\s+/g, ' ')));
-  ok(/37/.test(tarj[0]) && /18 actividades/.test(tarj[1]) && /S48/.test(tarj[2]) && /\+5/.test(tarj[2]) && /—/.test(tarj[3]), 'tarjetas: 37 en el plan · 18 esta semana (S45) · próxima con extras S48 · +5 · vencidas aún sin registros → ' + tarj.join(' | '));
-  ok(await P.evaluate(() => !!document.querySelector('.mp-t .mp-sem.mp-programada')) && !(await P.evaluate(() => !!document.querySelector('.mp-t .mp-sem.mp-vencida'))), 'sin módulo de registros lo pasado se ve «programado», no vencido en rojo');
+  ok(/37/.test(tarj[0]) && /18 actividades/.test(tarj[1]) && /S48/.test(tarj[2]) && /\+5/.test(tarj[2]) && /Cumplimiento del plan/.test(tarj[3]) && /Vencidas/.test(tarj[4]), 'tarjetas: 37 en el plan · 18 esta semana (S45) · próxima con extras S48 · +5 · cumplimiento y vencidas → ' + tarj.join(' | '));
+  ok(await P.evaluate(() => !!document.querySelector('.mp-t .mp-sem.mp-programada')), 'las semanas que vienen se ven «programadas»');
   ok(await P.evaluate(() => !!document.querySelector('[data-mp-nueva]')) && await P.evaluate(() => document.querySelectorAll('[data-mp-editar]').length) === 37, 'el Administrador ve «+ Actividad» y editar en cada fila');
   /* buscador, filtros por frecuencia y detalle al tocar una actividad */
   const nFilas = () => P.evaluate(() => document.querySelectorAll('tr.mp-fila').length);
@@ -129,6 +130,31 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   await P.setViewportSize({ width: 390, height: 844 }); await P.waitForTimeout(150);
   ok(await P.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1, 'celular: la página no se desborda de lado (la tabla se desliza dentro de su cuadro)');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-anual-movil.png' });
+  /* ejecución del plan según el Registro: hecha, no realizada y vencida; cumplimiento y vencidas por máquina (el Registro empezó en la S41) */
+  const inj = await P.evaluate(() => {
+    const D = window.glacialMttoPlanDatos, m = D.cache.maquinas.find(x => D.cache.actividades.some(a => a.maquina_id === x.id && a.es_todo_el_anio)), a = D.cache.actividades.find(x => x.maquina_id === m.id && x.es_todo_el_anio);
+    D.cache.config = { datos: { inicioRegistros: { anio: 2026, semana: 41 } } };
+    const reg = (sem, est) => { const r = { id: 'rj' + sem, maquina_id: m.id, anio: 2026, semana: sem, estado: est, version: 1 }; __bd.registros.push(r); return r; };
+    reg(43, 'VALIDADO'); reg(44, 'CERRADO');
+    __bd.regActs.push({ id: 'aj1', registro_id: 'rj43', plan_actividad_id: a.id, realizado: true, no_realizado: false, motivo_no: '', origen_actividad_id: null },
+      { id: 'aj2', registro_id: 'rj44', plan_actividad_id: a.id, realizado: false, no_realizado: true, motivo_no: 'Falta de repuesto', origen_actividad_id: null });
+    return { m: m.id, a: a.id };
+  });
+  await P.evaluate(() => glacialMttoPlanDatos.cargarEjecucion(2026)); await P.click('[data-mp-maq="' + inj.m + '"]'); await P.waitForTimeout(300);
+  await P.locator('tr.mp-fila[data-mp-fila="' + inj.a + '"] .mp-act').click();
+  ok(await P.evaluate(() => !!document.querySelector('.mp-det .mp-cal-ok') && !!document.querySelector('.mp-det .mp-cal-noreal') && !!document.querySelector('.mp-det .mp-cal-venc')), 'el calendario pinta lo hecho (S43), lo no realizado (S44) y lo vencido (S41-S42)');
+  ok(await P.evaluate(() => /Falta de repuesto/.test(document.querySelector('.mp-det .mp-cal-noreal').title)), 'al pasar sobre «No se realizó» se ve su motivo');
+  ok(/Cumplimiento del plan/.test(await txt('.mp-cards')) && await P.evaluate(() => [...document.querySelectorAll('.mp-card')].some(c => /Cumplimiento/.test(c.textContent) && /\d+ %/.test(c.textContent))), 'tarjeta «Cumplimiento del plan» con su porcentaje');
+  ok(await P.evaluate(() => !!document.querySelector('.mp-chip b.mp-venc')) && /vencida/.test(await txt('tr.mp-fila[data-mp-fila="' + inj.a + '"]')), 'la máquina muestra su número de vencidas y la fila su «✓ n de m · k vencidas»');
+  if (process.env.GLX_CAPTURAS) { await P.setViewportSize({ width: 1500, height: 900 }); await P.waitForTimeout(300); await P.evaluate(() => { document.querySelector('.mp-tw').style.maxHeight = 'none'; }); const bx = await P.evaluate(() => { const a = document.querySelector('.mp-cards').getBoundingClientRect(), b = document.querySelector('.mp-det').getBoundingClientRect(); return { y: a.top + scrollY - 70, h: b.bottom - a.top + 90 }; }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-anual-ejecucion.png', fullPage: true, clip: { x: 0, y: Math.max(bx.y, 0), width: 1500, height: bx.h } }); }
+  /* Inicio de Mantenimiento: «Esta semana en Mantenimiento» */
+  await P.setViewportSize({ width: 1500, height: 950 });
+  await P.evaluate(() => { state.currentTab = 'mant-inicio'; if (typeof renderSidebar === 'function') renderSidebar(); renderMain(); });
+  await P.waitForSelector('#mi-semana .mi-k', { timeout: 4000 }).catch(() => {});
+  const sem = await txt('#mi-semana');
+  ok(/Esta semana en Mantenimiento · S45/.test(sem) && /Toca esta semana/.test(sem) && /Sin registro iniciado/.test(sem) && /Vencidas/.test(sem) && /Registros por validar/.test(sem), 'el Inicio de Mantenimiento muestra «Esta semana en Mantenimiento» (S45) con lo que toca, lo sin registro, lo vencido y lo por validar → ' + sem.replace(/\s+/g, ' ').slice(0, 160));
+  ok(await P.evaluate(() => !!document.querySelector('#mi-semana [data-mi-sem="programa"]') && !!document.querySelector('#mi-semana [data-mi-sem="plan"]')), 'tiene los accesos al Programa semanal y al Plan anual');
+  if (process.env.GLX_CAPTURAS) { const el = await P.$('#mi-semana'); if (el) await el.screenshot({ path: process.env.GLX_CAPTURAS + '/mant-inicio-semana.png' }); }
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar();
   console.log(fallas ? '\n' + fallas + ' FALLAS' : '\nTodo bien');

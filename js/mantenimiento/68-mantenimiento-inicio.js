@@ -58,6 +58,12 @@
       '.mi-hoy.mi-alerta{background:#fff8f2;border-color:#f0c8a0}'+
       '.mi-hoy ul{margin:0;padding-left:18px;font-size:13px}.mi-hoy li{margin:3px 0}'+
       '.mi-hoy .mi-ok{font-size:13px;color:#1a7f4b}'+
+      '.mi-sem{border:1px solid #d5e3ec;background:#fff;border-radius:12px;padding:14px;margin:0 0 18px}.mi-sem h3{margin:0 0 10px;font-size:15px;color:#033350}'+
+      '.mi-ks{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.mi-k{background:#f6fafd;border:1px solid #dbe5ee;border-radius:10px;padding:10px 12px}.mi-k span{display:block;font-size:12px;color:#5a6b7b}'+
+      '.mi-k b{display:block;font-size:24px;color:#033350;margin:2px 0}.mi-k b small{font-size:12px;font-weight:500;color:#5a6b7b}.mi-k small{display:block;font-size:12px;color:#5a6b7b;overflow-wrap:anywhere}'+
+      '.mi-k.mi-mal{background:#fff6f6;border-color:#f0b9b9}.mi-k.mi-mal b{color:#b42318}.mi-k.mi-aten{background:#fff8f2;border-color:#f0c8a0}.mi-k.mi-aten b{color:#b45309}'+
+      '.mi-barra{display:block;height:8px;border-radius:6px;background:#e4ecf3;overflow:hidden;margin-top:6px}.mi-barra i{display:block;height:100%;background:linear-gradient(90deg,#8ec9e6,#0DB5F3)}'+
+      '.mi-aviso{background:#fff4d6;border:1px solid #ecd48b;color:#6b4a00;border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13.5px}.mi-sem-acc{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}'+
       '.mi-sec{margin:22px 0 2px;font-size:16px;color:#033350}'+
       '.mi-sub{margin:0 0 10px;font-size:13px;color:#5a6b7b}'+
       '.mi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}'+
@@ -88,6 +94,51 @@
     return '<div class="mi-hoy mi-alerta"><h3>Atención de hoy · '+av.length+(av.length===1?' aviso':' avisos')+'</h3><ul>'+filas+'</ul>'+(av.length>5?'<div class="mi-sub">Y '+(av.length-5)+' más en el Centro de alertas (campana de arriba).</div>':'')+'</div>';
   }
 
+  /* «Esta semana en Mantenimiento»: lo que toca, cuánto se hizo, lo vencido, lo pendiente y lo que falta iniciar o validar. Sale de las mismas tablas del Plan anual y del Registro. */
+  const D=()=>window.glacialMttoPlanDatos,NP=()=>window.glacialMttoPlan;
+  const ddmm=iso=>NP().ddmm?NP().ddmm(iso):iso;
+  function situacion(){
+    const d=D(),n=NP();if(!d||!n||!n.situacionSemana||!visible('btn-plan-anual-mtto'))return null;
+    d.escuchar();
+    const c=d.cache;if(!c.listo)return {estado:c.error?'error':'cargando',error:c.error};
+    const ahora=typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
+    if(typeof GlacialFecha==='undefined')return {estado:'cargando'};                        // la fecha de Lima la da 01b-fecha-operativa.js
+    const hoy=GlacialFecha.fechaISOLocal(ahora);
+    const actual=n.semanaDeHoy(hoy),ej=d.ejecucion(actual.anio);
+    if(!ej)return {estado:'cargando'};
+    const dia=((new Date(hoy+'T12:00:00').getDay()+6)%7)+1;
+    return {estado:'ok',s:n.situacionSemana({maquinas:c.maquinas,actividades:c.actividades,registros:ej.registros,acts:ej.acts,actual,inicio:n.inicioRegistros(c.config),diaSemana:dia}),error:ej.error};
+  }
+  function htmlSemana(){
+    const x=situacion();if(x===null)return '';
+    if(x.estado==='cargando')return '<div class="mi-sem" id="mi-semana"><h3>Esta semana en Mantenimiento</h3><div class="mi-sub">Leyendo el plan y el Registro…</div></div>';
+    if(x.estado==='error')return '<div class="mi-sem" id="mi-semana"><h3>Esta semana en Mantenimiento</h3><div class="mi-sub">No se pudo leer el plan: '+esc(x.error)+'</div></div>';
+    const s=x.s;if(!s)return '';
+    const k=(titulo,valor,sub,cls)=>'<div class="mi-k '+(cls||'')+'"><span>'+esc(titulo)+'</span><b>'+valor+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
+    const lista=(arr,f)=>arr.slice(0,3).map(f).join(', ')+(arr.length>3?' y '+(arr.length-3)+' más':'');
+    const nom=m=>esc(m.codigo_hoja||m.nombre);
+    const barra='<span class="mi-barra" role="img" aria-label="'+(s.pct||0)+' % hecho"><i style="width:'+(s.pct||0)+'%"></i></span>';
+    return '<div class="mi-sem" id="mi-semana"><h3>Esta semana en Mantenimiento · S'+s.actual.semana+' · '+esc(ddmm(s.rango.desde))+' al '+esc(ddmm(s.rango.hasta))+'</h3>'+
+      (s.aviso?'<div class="mi-aviso" role="alert">Ya pasó el miércoles y '+s.sinRegistro.length+' máquina'+(s.sinRegistro.length===1?'':'s')+' todavía no tiene registro: <b>'+lista(s.sinRegistro,nom)+'</b>.</div>':'')+
+      '<div class="mi-ks">'+
+        k('Toca esta semana',s.toca.actividades+' <small>actividades</small>','en '+s.toca.maquinas+' máquina'+(s.toca.maquinas===1?'':'s'))+
+        k('Avance',(s.pct===null?'—':s.pct+' %'),s.hechas+' de '+s.toca.actividades+' hechas'+barra)+
+        k('Sin registro iniciado',s.sinRegistro.length,s.sinRegistro.length?lista(s.sinRegistro,nom):'todas ya empezaron',s.sinRegistro.length&&s.aviso?'mi-mal':'')+
+        k('Vencidas',s.vencidas,s.vencidas?lista(s.topVencidas,t=>nom(t.maquina)+' ('+t.n+')'):'al día desde que empezó el Registro',s.vencidas?'mi-mal':'')+
+        k('Pendientes «No se realizó»',s.pendientes,s.pendientes?'pasan a la próxima semana hasta que se hagan':'ninguna pendiente',s.pendientes?'mi-aten':'')+
+        k('Registros por validar',s.porValidar,s.porValidar?'cerrados, esperan al supervisor':'ninguno',s.porValidar?'mi-aten':'')+
+      '</div><div class="mi-sem-acc"><button type="button" class="btn btn-primary btn-sm" data-mi-sem="programa">Abrir el Programa semanal</button><button type="button" class="btn btn-ghost btn-sm" data-mi-sem="plan">Ver el Plan anual</button></div></div>';
+  }
+  let oyenteSemana=false;
+  function repintarSemana(){
+    try{
+      if(typeof state==='undefined'||state.currentTab!==TAB)return;
+      const caja=document.getElementById('mi-semana'),nuevo=htmlSemana();
+      if(!nuevo)return;const t=document.createElement('div');t.innerHTML=nuevo;
+      if(caja){if(t.firstChild&&t.firstChild.outerHTML!==caja.outerHTML)caja.replaceWith(t.firstChild);}
+      else{const h=document.querySelector('#mi-inicio .mi-hoy');if(h)h.insertAdjacentElement('afterend',t.firstChild);}
+    }catch(_){/* informativo */}
+  }
   function pintar(main){
     estilos();
     ABRIR.length=0;
@@ -97,12 +148,15 @@
       return '<h3 class="mi-sec">'+esc(g.titulo)+'</h3><p class="mi-sub">'+esc(g.subtitulo)+'</p><div class="mi-grid" style="--mi-color:'+g.color+'">'+
         t.map(c=>{ABRIR.push(c.abrir);return '<button type="button" class="mi-card" data-mi-ir="'+(ABRIR.length-1)+'"><span class="mi-ico" aria-hidden="true">'+c.icono+'</span><span class="mi-tit">'+esc(c.titulo)+'</span><span class="mi-desc">'+esc(c.desc)+'</span><span class="mi-go">Abrir →</span></button>';}).join('')+'</div>';
     }).join('');
+    if(!oyenteSemana&&D()&&D().alCambiar){oyenteSemana=true;D().alCambiar(repintarSemana);}
     main.innerHTML='<div class="mi-wrap" id="mi-inicio"><div class="main-head"><div><h2>Mantenimiento</h2><div class="sub">Todo el área en un solo lugar: lo de hoy, el trabajo diario, el análisis y los datos de las máquinas.</div></div>'+
       (window.glacialEstadoDatos?'<div>'+window.glacialEstadoDatos.chip()+'</div>':'')+'</div>'+
-      (grupos?htmlHoy()+grupos:'<div class="mi-vacio">Tu usuario no tiene pantallas de Mantenimiento disponibles. Si las necesitas, pídele al Administrador el permiso.</div>')+'</div>';
+      (grupos?htmlHoy()+htmlSemana()+grupos:'<div class="mi-vacio">Tu usuario no tiene pantallas de Mantenimiento disponibles. Si las necesitas, pídele al Administrador el permiso.</div>')+'</div>';
   }
 
   document.addEventListener('click',e=>{
+    const sm=e.target.closest&&e.target.closest('[data-mi-sem]');
+    if(sm&&sm.closest('#mi-inicio')){const f=sm.getAttribute('data-mi-sem')==='plan'?window.goPlanAnualMtto:window.goProgramaSemanalMtto;try{if(typeof f==='function')f();}catch(err){console.warn('Mantenimiento · inicio:',err&&err.message||err);}return;}
     const b=e.target.closest&&e.target.closest('[data-mi-ir]');
     if(!b||!b.closest('#mi-inicio'))return;
     const f=ABRIR[Number(b.getAttribute('data-mi-ir'))];

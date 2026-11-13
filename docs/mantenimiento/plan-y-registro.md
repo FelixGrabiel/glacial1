@@ -79,5 +79,16 @@ En el Registro (CFA-CA-F-023), cada actividad tiene dos casillas: ✓ realizada 
 - Si se marca ✓ la actividad (o se quita la ✗), la copia que ya hubiera pasado a la semana siguiente se quita sola si nadie la tocó (sin marca, observación ni fotos).
 - Al abrir un registro que ya estaba iniciado, se traen los pendientes marcados después de crearlo (una actividad entra una sola vez).
 - El avance dice «N de M realizadas · K no realizadas». Al cerrar, avisa de lo que quedó sin decidir y de lo que pasará a la próxima semana. El impreso marca «(NO REALIZADA)».
-- Base de datos: `supabase/migraciones/glacial_53_mantenimiento_no_realizadas.sql` (columnas `no_realizado`, `motivo_no`, `origen_actividad_id`, `anio_origen`, `semana_origen`, `motivo_origen`, restricciones y la función `mtto_pendientes_arrastrables`). **Aplicada en PRUEBAS; PRODUCCIÓN pendiente de aprobación.** Sin ella, el Registro funciona como antes (sin pendientes).
+- Base de datos: `supabase/migraciones/glacial_53_mantenimiento_no_realizadas.sql` (columnas `no_realizado`, `motivo_no`, `origen_actividad_id`, `anio_origen`, `semana_origen`, `motivo_origen`, restricciones y la función `mtto_pendientes_arrastrables`). **Aplicada en PRUEBAS y en PRODUCCIÓN (13/11/2026).**
 - Pruebas: `tests/mantenimiento-no-realizadas.test.js` y el caso nuevo de `tests/mantenimiento-registro.e2e.js`.
+
+## Ejecución del plan y «Esta semana en Mantenimiento» (13/11/2026)
+
+**Plan anual pintado con lo ejecutado** (`mapaEjecucion` en `71-plan-anual-nucleo.js`; se lee del Registro del año y se actualiza solo):
+- En el calendario de cada actividad y en la grilla de meses: **hecha** (verde), **hecha tarde** (verde claro: no se hizo en su semana y se hizo después), **No se realizó** (naranja, con su motivo al pasar el cursor), **vencida** (rojo) y semana actual.
+- «Vencida» = semana ya pasada, programada, sin hacer, **desde la semana en que empezó el Registro** (`inicioRegistros`, hoy S46 de 2026). Antes de esa semana no se marca nada.
+- Tarjetas: **Cumplimiento del plan** (hechas / programadas hasta la semana pasada) y **Vencidas**; cada máquina muestra su número de vencidas y cada actividad de todo el año «✓ n de m · k vencidas».
+
+**Inicio de Mantenimiento · «Esta semana en Mantenimiento»** (`situacionSemana`): qué toca (actividades y máquinas), avance, **máquinas sin registro iniciado**, vencidas (con las máquinas que más se atrasan), pendientes «No se realizó» abiertas y **registros cerrados por validar**. Desde el jueves, si hay máquinas sin registro, sale un aviso amarillo. Accesos al Programa semanal y al Plan anual. No cuenta las hojas pendientes de confirmar (CARB).
+
+Pruebas: `tests/mantenimiento-situacion-semana.test.js` y los casos nuevos de `tests/mantenimiento-plan-anual.e2e.js`.
