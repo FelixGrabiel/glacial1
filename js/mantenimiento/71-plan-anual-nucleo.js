@@ -254,6 +254,12 @@
     const arr=filasArrastradas(pendientes);                                                  // primero lo que quedó pendiente de semanas anteriores
     return arr.concat(lista.map(a=>{const p=partirActividad(a.actividad);return {plan_actividad_id:a.id,equipo:p.equipo,actividad:p.tarea,frecuencia:a.frecuencia};})).map((x,i)=>Object.assign(x,{item:i+1}));
   }
+  /** Líneas de la Planta de Agua que pueden tener plan de mantenimiento (el selector «Línea» las muestra aunque todavía no tengan máquinas). */
+  const LINEAS_PLAN=['PET','B7L','C20L','B20L'];
+  /** Líneas para el selector: las de la planta y, después, cualquier otra que ya tenga máquinas cargadas. */
+  const lineasDelSelector=maquinas=>{const extra=[...new Set((maquinas||[]).filter(m=>m.activo!==false).map(m=>m.linea_impresion||'PET'))].filter(l=>!LINEAS_PLAN.includes(l));return LINEAS_PLAN.concat(extra);};
+  /** Código único de la hoja de una máquina creada en la página (las del Excel traen el suyo): LINEA-NOMBRE-xxxx. */
+  const codigoHojaNuevo=(linea,nombre,azar)=>(String(linea||'PET')+'-'+String(nombre||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,18)+'-'+(azar||Math.random().toString(36).slice(2,6).toUpperCase())).slice(0,40);
   /** Motivos frecuentes al marcar «No se realizó» (el técnico puede escribir el suyo). */
   const MOTIVOS_NO_REALIZADO=['Máquina en producción','Falta de repuesto o material','Falta de tiempo','Falta de personal','Esperando al proveedor','Requiere parada programada','Otros'];
   /** Filas de un registro nuevo para lo pendiente de semanas anteriores (salida de mtto_pendientes_arrastrables): mismas equipo, actividad y frecuencia, enlazadas a la anterior. */
@@ -336,7 +342,7 @@
 
   const API={CAMPOS_AVISO,conflictoCampo,misValoresVigentes,BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
     semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
-    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,mapaEjecucion,semanaDesde,cumplimiento,situacionSemana,MOTIVOS_NO_REALIZADO,filasArrastradas,pendientesFaltantes,estadoActividad,textoOrigen,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
+    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,LINEAS_PLAN,lineasDelSelector,codigoHojaNuevo,mapaEjecucion,semanaDesde,cumplimiento,situacionSemana,MOTIVOS_NO_REALIZADO,filasArrastradas,pendientesFaltantes,estadoActividad,textoOrigen,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialMttoPlan=API;
 })(typeof window!=='undefined'?window:globalThis);

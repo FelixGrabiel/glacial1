@@ -161,6 +161,20 @@
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();cache.maquinas=[];cache.actividades=[];cache.config=null;cache.listo=false;});
 
   /* ---------- escritura (solo supervisor / jefe de Mantenimiento: lo exigen las reglas RLS) ---------- */
+  /** Crea una máquina del plan en una línea (solo supervisor / jefe de Mantenimiento: lo exigen las reglas RLS). Devuelve la máquina creada. */
+  async function crearMaquina(nombre,linea){
+    const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
+    const n=String(nombre||'').replace(/\s+/g,' ').trim().slice(0,80),l=String(linea||'').trim();
+    if(!n)throw new Error('Escribe el nombre de la máquina.');
+    if(!N.LINEAS_PLAN.includes(l))throw new Error('Elige la línea de la máquina.');
+    if(cache.maquinas.some(m=>(m.linea_impresion||'PET')===l&&String(m.nombre).trim().toLowerCase()===n.toLowerCase()))throw new Error('Ya hay una máquina con ese nombre en '+l+'.');
+    const orden=Math.max(0,...cache.maquinas.map(m=>m.orden||0))+1;
+    const fila={planta:'AGUA',linea_impresion:l,codigo_hoja:N.codigoHojaNuevo(l,n),nombre:n,orden,activo:true,pendiente_confirmar:false,linea:l==='PET'?null:l};
+    const r=await c.from('mtto_maquinas').insert(fila).select();
+    if(r.error)throw new Error(msg(r.error));
+    if(!r.data||!r.data[0])throw new Error('No se pudo guardar: no tienes permiso para crear máquinas.');
+    alCambio('mtto_maquinas',{eventType:'INSERT',new:r.data[0]});return r.data[0];
+  }
   /** datos: {frecuencia, item, actividad, insumos, n_tecnicos, semanas_por_mes[12], semanas[], es_todo_el_anio}. id + version = edición; sin id = actividad nueva de la máquina. */
   async function guardarActividad(maquinaId,anio,datos,id,version){
     const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
@@ -332,7 +346,7 @@
   const validarRegistro=(reg,quien)=>actualizarReg(reg.id,{estado:'VALIDADO',supervisor:quien||reg.supervisor||''});
   const reabrirRegistro=reg=>actualizarReg(reg.id,{estado:'EN_CURSO'});
 
-  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,iniciarRegistro,traerPendientes,cargarEjecucion,ejecucion,marcarActividad,marcarNoRealizada,quitarNoRealizada,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
+  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,crearMaquina,iniciarRegistro,traerPendientes,cargarEjecucion,ejecucion,marcarActividad,marcarNoRealizada,quitarNoRealizada,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
     actividadesDe:(maquinaId,anio)=>cache.actividades.filter(a=>a.maquina_id===maquinaId&&a.anio===anio).sort((a,b)=>(a.orden||0)-(b.orden||0)),
     anios:()=>[...new Set(cache.actividades.map(a=>a.anio))].sort((a,b)=>b-a)};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

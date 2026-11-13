@@ -130,6 +130,22 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   await P.setViewportSize({ width: 390, height: 844 }); await P.waitForTimeout(150);
   ok(await P.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1, 'celular: la página no se desborda de lado (la tabla se desliza dentro de su cuadro)');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-anual-movil.png' });
+  /* líneas: el selector muestra todas las de la planta; una línea sin máquinas ofrece crear la primera */
+  ok(await P.evaluate(() => [...document.querySelectorAll('[data-mp-linea] option')].map(o => o.textContent).join()) === 'PET,B7L,C20L,B20L', 'el selector «Línea» muestra PET, B7L, C20L y B20L aunque todavía no tengan máquinas');
+  await P.selectOption('[data-mp-linea]', 'B7L');
+  ok(/Todavía no hay plan de mantenimiento para B7L/.test(await txt('.mp-vacio')) && await P.evaluate(() => !!document.querySelector('.mp-vacio [data-mp-maquina]')), 'B7L sin máquinas lo dice y ofrece «+ Máquina en B7L»');
+  if (process.env.GLX_CAPTURAS) { await P.setViewportSize({ width: 1500, height: 800 }); await P.waitForTimeout(250); const bx = await P.evaluate(() => { const a = document.querySelector('.mp-cab').getBoundingClientRect(), b = document.querySelector('.mp-vacio').getBoundingClientRect(); return { y: a.top + scrollY - 20, h: b.bottom - a.top + 40 }; }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-linea-vacia.png', fullPage: true, clip: { x: 260, y: Math.max(bx.y, 0), width: 1240, height: bx.h } }); }
+  await P.click('.mp-vacio [data-mp-maquina]');
+  await P.fill('#mpm-nombre', ''); await P.click('#mpm-ok'); ok(/Escribe el nombre/.test(await txt('#mpm-err')), 'sin nombre no se crea');
+  await P.fill('#mpm-nombre', 'Llenadora de bidones'); await P.click('#mpm-ok');
+  await P.waitForSelector('.mp-chip.on', { timeout: 3000 });
+  const nm = await P.evaluate(() => { const m = __bd.maquinas.find(x => x.nombre === 'Llenadora de bidones'); return m ? { l: m.linea_impresion, c: m.codigo_hoja, p: m.planta, lr: m.linea } : null; });
+  ok(nm && nm.l === 'B7L' && nm.p === 'AGUA' && nm.lr === 'B7L' && /^B7L-LLENADORA-DE-BIDON/.test(nm.c), 'la máquina se crea en B7L con su código de hoja → ' + JSON.stringify(nm));
+  ok(await P.evaluate(() => document.querySelectorAll('.mp-chip').length) === 1 && await P.evaluate(() => !!document.querySelector('[data-mp-nueva]')) && /B7L/.test(await txt('.mp-cab')), 'aparece su pestaña y ya se pueden agregar actividades con «+ Actividad»');
+  await P.click('[data-mp-maquina]'); await P.fill('#mpm-nombre', 'llenadora de bidones'); await P.click('#mpm-ok');
+  ok(/Ya hay una máquina/.test(await txt('#mpm-err')), 'no deja crear dos máquinas con el mismo nombre en la línea'); await P.click('#mpm-x');
+  await P.selectOption('[data-mp-linea]', 'PET'); await P.waitForTimeout(150);
+
   /* ejecución del plan según el Registro: hecha, no realizada y vencida; cumplimiento y vencidas por máquina (el Registro empezó en la S41) */
   const inj = await P.evaluate(() => {
     const D = window.glacialMttoPlanDatos, m = D.cache.maquinas.find(x => D.cache.actividades.some(a => a.maquina_id === x.id && a.es_todo_el_anio)), a = D.cache.actividades.find(x => x.maquina_id === m.id && x.es_todo_el_anio);

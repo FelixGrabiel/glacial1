@@ -42,6 +42,9 @@ ok(sit.vencidas===0&&sit.porValidar===1&&sit.pendientes===0,'vencidas 0 · 1 reg
 const sit2=N.situacionSemana({maquinas,actividades:act,registros,acts:regActs.filter(a=>a.id!=='x3'),actual,inicio,diaSemana:5});
 ok(sit2.pendientes===1&&sit2.vencidas===1&&sit2.topVencidas[0].maquina.codigo_hoja==='SOP','si la arrastrada no se hizo: 1 pendiente abierta y a2 (S46) vencida en SOP');
 
+/* líneas del selector y máquinas nuevas */
+ok(N.lineasDelSelector([]).join()==='PET,B7L,C20L,B20L'&&N.lineasDelSelector([{linea_impresion:'PET'},{linea_impresion:'HIELO'}]).join()==='PET,B7L,C20L,B20L,HIELO','el selector siempre trae PET, B7L, C20L y B20L, y suma otra línea si ya tiene máquinas');
+ok(N.codigoHojaNuevo('B7L','Llenadora de bidones','AB12')==='B7L-LLENADORA-DE-BIDON-AB12'&&N.codigoHojaNuevo('C20L','Máquina ñandú','Z9')==='C20L-MAQUINA-NANDU-Z9'&&N.codigoHojaNuevo('PET','x').length<=40,'código de hoja: línea + nombre sin tildes ni símbolos + 4 al azar');
 /* conexión */
 const d72=leer('js/mantenimiento/72-plan-anual-datos.js'),p73=leer('js/mantenimiento/73-plan-anual-pantalla.js'),p68=leer('js/mantenimiento/68-mantenimiento-inicio.js');
 ok(/cargarEjecucion/.test(d72)&&/programarEjecucion/.test(d72)&&/mtto_registro_actividades/.test(d72),'datos: lee la ejecución del año y la vuelve a leer cuando cambia el Registro');
