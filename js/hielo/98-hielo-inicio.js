@@ -79,8 +79,10 @@
             estilos();D().escuchar();
             const dat=datos();
             const html='<section id="hli-inicio" class="hli-card" aria-label="Hielo">'+(dat?htmlTarjeta(dat,typeof window.goReporteHielo==='function'):'')+'</section>';
-            const titulo=shell.querySelector('.cp-title-row'),pry=m.querySelector('#pry-turno');
-            if(pry&&pry.insertAdjacentHTML)pry.insertAdjacentHTML('afterend',html);
+            const titulo=shell.querySelector('.cp-title-row'),pry=m.querySelector('#pry-turno'),slot=m.querySelector('#cp-hielo-slot');
+            /* Inicio ejecutivo (13/11/2026): Hielo va arriba, junto a la Planta de Agua, con su propio título. */
+            if(slot)slot.innerHTML='<div class="cp-planta-tit cp-pt-hielo"><h2><i aria-hidden="true"></i>PLANTA DE HIELO</h2><p>Bolsas de 3 kg y 1.5 kg del turno seleccionado.</p></div>'+html;
+            else if(pry&&pry.insertAdjacentHTML)pry.insertAdjacentHTML('afterend',html);
             else if(titulo)titulo.insertAdjacentHTML('afterend',html);
             else shell.insertAdjacentHTML('afterbegin',html);
           }
