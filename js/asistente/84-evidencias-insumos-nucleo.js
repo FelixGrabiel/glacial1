@@ -30,8 +30,9 @@
   const MOTIVO_MIN=5;
 
   /* Campos con procedencia, en el orden en que se muestran. tipo: texto | fecha | numero.
-     oculto:true (13/11/2026): no se muestran en el formulario de Evidencias, pero se siguen leyendo de la foto y guardando (la trazabilidad de lotes
-     usa el n.º de caja/bobina, la OI y la OC). Un dato oculto no pide «Confirmar»: no habría dónde hacerlo. */
+     oculto:true (13/11/2026): no se muestran en el formulario de Evidencias, pero se siguen leyendo de la foto y guardando (el lote guarda la OI y la OC).
+     Un dato oculto no pide «Confirmar»: no habría dónde hacerlo. El N.º de caja / bobina se quitó por completo (13/11/2026): ya no se lee ni se guarda;
+     la trazabilidad numera cada caja/bobina sola dentro de su lote (01, 02, 03…). */
   const CAMPOS=[
     {campo:'proveedor',etiqueta:'Proveedor',tipo:'texto',grupo:'Identificación'},
     {campo:'cliente',etiqueta:'Cliente',tipo:'texto',grupo:'Identificación',oculto:true},
@@ -40,7 +41,6 @@
     {campo:'presentacion',etiqueta:'Presentación',tipo:'texto',grupo:'Identificación'},
     {campo:'codigo_producto',etiqueta:'Código del producto',tipo:'texto',grupo:'Identificación',oculto:true},
     {campo:'lote',etiqueta:'Lote',tipo:'texto',grupo:'Trazabilidad'},
-    {campo:'numero_caja_bobina',etiqueta:'N.º de caja / bobina',tipo:'texto',grupo:'Trazabilidad',oculto:true},
     {campo:'orden_interna',etiqueta:'Orden interna (OI)',tipo:'texto',grupo:'Trazabilidad',oculto:true},
     {campo:'orden_compra',etiqueta:'Orden de compra',tipo:'texto',grupo:'Trazabilidad',oculto:true},
     {campo:'fecha_produccion',etiqueta:'Fecha de producción',tipo:'fecha',grupo:'Fechas'},

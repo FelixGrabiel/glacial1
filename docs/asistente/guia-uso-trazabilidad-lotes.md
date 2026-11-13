@@ -23,7 +23,7 @@ Las ven Asistente de Producción, Jefe de Operaciones y Administrador. Crean lot
 1. Elige la evidencia de la lista. La **foto** queda al lado de los datos (puedes girarla y abrirla).
 2. Revisa cada dato: muestra lo que leyó la IA, el valor editable y su estado. Los marcados **«Confirmar»** (dudosos) se comparan con la foto y se confirman o se corrigen.
 3. Corrige lo que haga falta y pulsa **«Guardar cambios»**.
-Para crear el lote **deben estar bien**: proveedor, producto, **lote del proveedor**, **n.º de caja o bobina**, y **peso neto o cantidad**. El peso bruto no puede ser menor que el neto. La categoría no puede quedar en «otro».
+Para crear el lote **deben estar bien**: proveedor, producto, **lote del proveedor** y **peso neto o cantidad**. El n.º de caja o bobina ya no se pide: el sistema numera cada foto del lote en orden (01, 02, 03…). El peso bruto no puede ser menor que el neto. La categoría no puede quedar en «otro».
 
 ### Paso 3 · Confirmar y crear lote
 1. Pulsa **«Confirmar y crear lote»** (en las evidencias que ya estaban aprobadas antes de esta etapa dice **«Crear lote desde esta evidencia»**).

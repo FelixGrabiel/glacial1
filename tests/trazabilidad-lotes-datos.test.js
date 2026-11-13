@@ -64,11 +64,11 @@ const auditoria=sb=>coleccion(sb,'insumosAuditoria');
   const s=Z.sugerencias(EVD.porId(e1.id));
   ok(s.candidatos.length>=1&&s.candidatos[0].id==='a1'&&s.datos.loteProveedor==='2410-118','sugiere el artículo del catálogo del Inventario para esa etiqueta');
   let r=await ejecutar(()=>Z.crearLoteDesdeEvidencia(e1.id,1,{articuloId:'a1'}));
-  ok(r.r&&r.r.loteId==='LI-000001'&&r.r.unidadId==='LI-000001-07'&&r.r.accion==='lote_nuevo'&&r.r.estado==='EN_ALMACEN','confirmar y crear: lote LI-000001 y unidad LI-000001-07 en almacén');
-  const lote=sb.docs.get('insumosLotes/LI-000001'),un=sb.docs.get('insumosUnidades/LI-000001-07'),mov=sb.docs.get('insumosLoteMovimientos/MOV-'+e1.id+'-RECEPCION'),ev=sb.docs.get('insumosEvidencias/'+e1.id);
+  ok(r.r&&r.r.loteId==='LI-000001'&&r.r.unidadId==='LI-000001-01'&&r.r.accion==='lote_nuevo'&&r.r.estado==='EN_ALMACEN','confirmar y crear: lote LI-000001 y su primera unidad LI-000001-01 (n.º automático) en almacén');
+  const lote=sb.docs.get('insumosLotes/LI-000001'),un=sb.docs.get('insumosUnidades/LI-000001-01'),mov=sb.docs.get('insumosLoteMovimientos/MOV-'+e1.id+'-RECEPCION'),ev=sb.docs.get('insumosEvidencias/'+e1.id);
   ok(lote&&lote.itemId==='a1'&&lote.unidades===1&&un&&un.pesoActual===25.4&&un.evidenciaId===e1.id&&un.estado==='EN_ALMACEN','el lote guarda el artículo elegido y la unidad su peso y su evidencia de origen');
   ok(mov&&mov.tipo==='RECEPCION'&&mov.en==='__TS__'&&mov.uid==='u1'&&mov.por==='Ana'&&mov.despues.estado==='EN_ALMACEN','el movimiento RECEPCION lleva quién y la hora del servidor');
-  ok(ev.estado==='aprobado_dato'&&ev.loteId==='LI-000001'&&ev.unidadId==='LI-000001-07'&&ev.rev===3,'en la misma transacción la evidencia queda aprobada y marcada con su lote (aprobar + crear)');
+  ok(ev.estado==='aprobado_dato'&&ev.loteId==='LI-000001'&&ev.unidadId==='LI-000001-01'&&ev.rev===3,'en la misma transacción la evidencia queda aprobada y marcada con su lote (aprobar + crear)');
   const ind=sb.docs.get('insumosLotesClaves/'+lote.clave),cont=sb.docs.get('insumosParametros/contador'),mem=sb.docs.get('insumosParametros/memoriaArticulos');
   ok(ind&&ind.loteId==='LI-000001'&&cont.siguiente===2&&mem&&Object.values(mem.mapa)[0]==='a1','índice de unicidad, correlativo siguiente y memoria del artículo elegido');
   const aud=auditoria(sb);
@@ -86,19 +86,19 @@ const auditoria=sb=>coleccion(sb,'insumosAuditoria');
   /* ---------- mismo lote, otra bobina ---------- */
   const e2=evidencia({id:'2',bobina:'08'});sembrar(sb,e2);
   r=await ejecutar(()=>Z.crearLoteDesdeEvidencia(e2.id,1,{}));
-  ok(r.r&&r.r.accion==='unidad_agregada'&&r.r.loteId==='LI-000001'&&r.r.unidadId==='LI-000001-08'&&sb.docs.get('insumosLotes/LI-000001').unidades===2&&sb.docs.get('insumosParametros/contador').siguiente===2,'mismo lote del proveedor con otro n.º: se suma una unidad al lote existente (mismo LI-, sin gastar correlativo)');
-  ok(auditoria(sb).some(a=>a.tipo==='AGREGAR_UNIDAD_LOTE'&&a.despues.unidadId==='LI-000001-08'),'queda auditado como unidad agregada');
+  ok(r.r&&r.r.accion==='unidad_agregada'&&r.r.loteId==='LI-000001'&&r.r.unidadId==='LI-000001-02'&&sb.docs.get('insumosLotes/LI-000001').unidades===2&&sb.docs.get('insumosParametros/contador').siguiente===2,'mismo lote del proveedor, otra foto: se suma la unidad 02 una unidad al lote existente (mismo LI-, sin gastar correlativo)');
+  ok(auditoria(sb).some(a=>a.tipo==='AGREGAR_UNIDAD_LOTE'&&a.despues.unidadId==='LI-000001-02'),'queda auditado como unidad agregada');
 
-  /* ---------- duplicado: misma bobina de nuevo ---------- */
+  /* ---------- n.º automático (13/11/2026): el de la etiqueta ya no cuenta; si el siguiente ya está ocupado (lotes de antes) se salta ---------- */
+  sb.docs.set('insumosUnidades/LI-000001-03',{id:'LI-000001-03',loteId:'LI-000001',numero:'03',estado:'EN_ALMACEN'});     // una bobina antigua con su n.º de etiqueta
   const e3=evidencia({id:'3',bobina:'7'});sembrar(sb,e3);
-  const antes=sb.escrituras.length;
   r=await ejecutar(()=>Z.crearLoteDesdeEvidencia(e3.id,1,{}));
-  ok(r.e&&r.e.codigo==='DUPLICADO'&&/ya existe/.test(r.e.message)&&sb.escrituras.length===antes&&sb.docs.get('insumosEvidencias/'+e3.id).estado==='pendiente','la misma bobina («7» = «07») otra vez: duplicado, no crea nada y la evidencia sigue pendiente (ni se aprueba)');
+  ok(r.r&&r.r.unidadId==='LI-000001-04'&&sb.docs.get('insumosLotes/LI-000001').siguienteUnidad===5,'n.º automático: el 03 ya existía (n.º de etiqueta antiguo), la foto nueva queda como 04 sin chocar');
 
   /* ---------- lote nuevo (otro lote del proveedor) con leyenda de línea ---------- */
   const e4=evidencia({id:'4',lote:'2410-200',leyenda:'Pet 2'});sembrar(sb,e4);
   r=await ejecutar(()=>Z.crearLoteDesdeEvidencia(e4.id,1,{}));
-  const u4=sb.docs.get('insumosUnidades/LI-000002-07'),m4=sb.docs.get('insumosLoteMovimientos/MOV-'+e4.id+'-ENTREGA_LINEA');
+  const u4=sb.docs.get('insumosUnidades/LI-000002-01'),m4=sb.docs.get('insumosLoteMovimientos/MOV-'+e4.id+'-ENTREGA_LINEA');
   ok(r.r&&r.r.loteId==='LI-000002'&&r.r.estado==='ENTREGADA_LINEA'&&u4&&u4.linea==='PET2'&&m4&&m4.tipo==='ENTREGA_LINEA'&&sb.docs.get('insumosParametros/contador').siguiente===3,'otro lote del proveedor: LI-000002; con la leyenda «Pet 2» la unidad nace ENTREGADA_LINEA en PET2 (movimiento ENTREGA_LINEA)');
 
   /* ---------- validaciones del núcleo dentro de la transacción ---------- */
@@ -141,7 +141,7 @@ const auditoria=sb=>coleccion(sb,'insumosAuditoria');
   vm.runInContext("window.ilSel('LI-000001')",sb);
   h=UI.html();
   ok(/Datos de la etiqueta/.test(h)&&/OI-4411/.test(h)&&/LAMINA TERMOENCOGIBLE 17 MICRAS/.test(h)&&/10\/10\/2026/.test(h)&&/10\/10\/2027/.test(h),'ficha del lote: datos de la etiqueta, OI, fechas y artículo del catálogo');
-  ok(/LI-000001-07/.test(h)&&/LI-000001-08/.test(h)&&/En almacén/.test(h)&&/25\.4 kg/.test(h)&&/data-foto-ref="supabase:glacial-fotos\/asistente\/evidencias\//.test(h),'ficha: unidades con estado, pesos y enlace a la foto de origen (enlace firmado)');
+  ok(/LI-000001-01/.test(h)&&/LI-000001-02/.test(h)&&/En almacén/.test(h)&&/25\.4 kg/.test(h)&&/data-foto-ref="supabase:glacial-fotos\/asistente\/evidencias\//.test(h),'ficha: unidades con estado, pesos y enlace a la foto de origen (enlace firmado)');
   ok(/Línea de tiempo/.test(h)&&/Recepción en almacén/.test(h)&&!/<script/i.test(h),'ficha: línea de tiempo con los movimientos (y todo escapado)');
   ok(/@media\(max-width:560px\)/.test(UI.css)&&/@media\(max-width:900px\)/.test(UI.css)&&/data-t=/.test(h),'celular 360 px: la tabla de unidades pasa a tarjetas y las columnas a una sola');
   vm.runInContext("window.ilFiltro('linea','PET2')",sb);
@@ -161,14 +161,14 @@ const auditoria=sb=>coleccion(sb,'insumosAuditoria');
   const e11=evidencia({id:'11',bobina:'01',leyenda:'RECEPCIÓN'});sembrar(sb,e11);
   vm.runInContext("window.ilAbrirCrear('"+e11.id+"')",sb);
   let m=sb.modal.innerHTML;
-  ok(/Confirmar y crear lote/.test(m)&&/lote nuevo|Se agregará la unidad/.test(m)&&/Leyenda de la foto: <b>RECEPCION<\/b>/.test(m)&&/En almacén/.test(m)&&/name="il-art"/.test(m)&&/No se registra stock SAP/.test(m),'el diálogo muestra qué se creará, la leyenda con que llegó la foto, el artículo sugerido y que no hay stock SAP');
+  ok(/Confirmar y crear lote/.test(m)&&/lote nuevo|Se agregará la/.test(m)&&/n\.º automático/.test(m)&&/Leyenda de la foto: <b>RECEPCION<\/b>/.test(m)&&/En almacén/.test(m)&&/name="il-art"/.test(m)&&/No se registra stock SAP/.test(m),'el diálogo muestra qué se creará, la leyenda con que llegó la foto, el artículo sugerido y que no hay stock SAP');
   const dup=evidencia({id:'12',bobina:'7',lote:'2410-118'});sembrar(sb,dup);
   vm.runInContext("window.ilAbrirCrear('"+dup.id+"')",sb);
   m=sb.modal.innerHTML;
-  ok(/duplicado y no se crea otra/.test(m)&&/id="il-m-ok" onclick="ilCrearOk\(\)" disabled/.test(m),'si la unidad ya existe, el diálogo avisa del duplicado y bloquea el botón');
-  const malo=evidencia({id:'13'});malo.campos.numero_caja_bobina.valor=null;sembrar(sb,malo);
+  ok(!/duplicado y no se crea otra/.test(m)&&!/id="il-m-ok" onclick="ilCrearOk\(\)" disabled/.test(m)&&/Se agregará la .* <b>05<\/b> \(n\.º automático\)/.test(m),'otra foto del mismo lote (aunque su etiqueta diga 7) no es duplicado: se agrega con el siguiente n.º');
+  const malo=evidencia({id:'13'});malo.campos.lote.valor=null;sembrar(sb,malo);
   vm.runInContext("window.ilAbrirCrear('"+malo.id+"')",sb);
-  ok(/No se puede crear todavía/.test(sb.modal.innerHTML)&&/n\.º de caja/.test(sb.modal.innerHTML)&&/disabled/.test(sb.modal.innerHTML),'con datos incompletos explica qué falta y no deja confirmar');
+  ok(/No se puede crear todavía/.test(sb.modal.innerHTML)&&/lote del proveedor/.test(sb.modal.innerHTML)&&/disabled/.test(sb.modal.innerHTML),'con datos incompletos explica qué falta y no deja confirmar');
   vm.runInContext("window.ilAbrirCrear('"+e11.id+"')",sb);
   await vm.runInContext("window.ilCrearOk()",sb);
   ok(sb.docs.get('insumosEvidencias/'+e11.id).loteId&&/LI-0000\d\d/.test(sb.docs.get('insumosEvidencias/'+e11.id).loteId),'al confirmar en el diálogo se crea el lote desde la pantalla');

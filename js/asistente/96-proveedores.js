@@ -157,8 +157,8 @@
     const grupos={completas:[],casi:[],sinLote:[],sinDatos:[]};
     const porLote=new Map();
     pend.forEach(e=>{
-      const prov=valor(e,'proveedor'),lote=valor(e,'lote'),caja=valor(e,'numero_caja_bobina');
-      if(prov&&lote&&caja&&e.tipoDocumento==='etiqueta_insumo')grupos.completas.push(e);
+      const prov=valor(e,'proveedor'),lote=valor(e,'lote');     // el n.º de caja/bobina ya no se pide (13/11/2026): lo numera la trazabilidad
+      if(prov&&lote&&e.tipoDocumento==='etiqueta_insumo')grupos.completas.push(e);
       else if(prov&&lote)grupos.casi.push(e);
       else if(prov)grupos.sinLote.push(e);
       else grupos.sinDatos.push(e);

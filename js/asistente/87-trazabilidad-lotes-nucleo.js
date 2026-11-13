@@ -97,7 +97,8 @@
     const v=c=>valorDe(doc,c),s=c=>{const x=v(c);return x===null||x===undefined?'':String(x).trim();};
     const neto=v('peso_neto_kg'),decl=v('peso_declarado_kg');
     return {
-      proveedor:s('proveedor'),producto:s('producto'),marca:s('marca'),categoria:(doc&&doc.categoria)||'otro',loteProveedor:s('lote'),numero:numeroUnidad(v('numero_caja_bobina')),
+      proveedor:s('proveedor'),producto:s('producto'),marca:s('marca'),categoria:(doc&&doc.categoria)||'otro',loteProveedor:s('lote'),numero:'',     // el n.º de caja/bobina ya no viene de la foto: lo asigna planCrearLote (correlativo del lote)
+      
       ordenInterna:s('orden_interna'),ordenCompra:s('orden_compra'),fechaProduccion:s('fecha_produccion')||s('fecha_proceso')||s('fecha_etiqueta'),fechaVencimiento:s('fecha_vencimiento'),
       cantidad:v('cantidad_valor')!==null&&v('cantidad_valor')!==undefined?num(v('cantidad_valor')):null,unidadCantidad:s('cantidad_unidad'),
       pesoNeto:neto!==null&&neto!==undefined?num(neto):(decl!==null&&decl!==undefined?num(decl):null),pesoBruto:v('peso_bruto_kg')!==null&&v('peso_bruto_kg')!==undefined?num(v('peso_bruto_kg')):null,
@@ -112,7 +113,6 @@
     if(!d.proveedor)errores.push('Falta el proveedor: es parte de la llave única del lote.');
     if(!d.producto)errores.push('Falta el producto.');
     if(!d.loteProveedor)errores.push('Falta el lote del proveedor: sin él no se puede crear un lote rastreable.');
-    if(!d.numero)errores.push('Falta el n.º de caja o bobina: cada unidad se identifica por lote + n.º.');
     if(d.pesoNeto===null&&d.cantidad===null)errores.push('Falta el peso neto o la cantidad de la unidad.');
     if(d.pesoNeto!==null&&d.pesoNeto<=0)errores.push('El peso neto debe ser mayor que 0.');
     if(d.pesoNeto!==null&&d.pesoBruto!==null&&d.pesoBruto<d.pesoNeto)errores.push('El peso bruto no puede ser menor que el peso neto.');
@@ -171,7 +171,7 @@
    * Con leyenda de línea, la unidad nace ENTREGADA_LINEA (movimiento ENTREGA_LINEA); si no, EN_ALMACEN (RECEPCION).
    * fotoEn: cuándo se envió la foto (ms). Es la fecha del HECHO (recepción o entrega a línea) y la que vale para la trazabilidad; `en` es cuándo se validó y registró.
    */
-  function planCrearLote({doc,lotePrevio,unidadPrevia,correlativo,articulo,leyenda,usuario,uid,en,parametros,fotoEn,fotoEnOrigen,unirAlLote,proveedorBanco}){
+  function planCrearLote({doc,lotePrevio,unidadPrevia,numeroLibre,correlativo,articulo,leyenda,usuario,uid,en,parametros,fotoEn,fotoEnOrigen,unirAlLote,proveedorBanco}){
     const v=validarParaLote(doc,{parametros});
     if(v.errores.length)throw falla('VALIDACION',v.errores.join(' '));
     const d=v.datos,ahora=Number(en)||Date.now(),por=recortar(usuario,80);
@@ -203,6 +203,10 @@
       if(!lote.fechaVencimiento&&d.fechaVencimiento)lote.fechaVencimiento=d.fechaVencimiento;
       if(!(Number(lote.recibidoEn)>0)||foto<Number(lote.recibidoEn))lote.recibidoEn=foto;          // primera foto del lote
     }
+    /* N.º automático (13/11/2026): la siguiente caja/bobina del lote. numeroLibre lo pasa la transacción cuando el correlativo ya estaba ocupado
+       (lotes con números de etiqueta de antes de este cambio). */
+    const sigUnidad=Math.max(1,Math.floor(num(numeroLibre))||Math.floor(num(lote.siguienteUnidad))||(num(lote.unidades)+1));
+    d.numero=numeroUnidad(String(sigUnidad));lote.siguienteUnidad=sigUnidad+1;
     const uId=idUnidad(lote.id,d.numero);
     if(unidadPrevia)throw falla('DUPLICADO','La unidad '+d.numero+' del lote '+d.loteProveedor+' ya existe ('+uId+'). No se crea otra.');
     const aLinea=!!(leyenda&&leyenda.tipo==='LINEA');

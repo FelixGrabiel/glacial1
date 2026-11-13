@@ -46,11 +46,11 @@ ok(T.idUnidad('LI-000231','07')==='LI-000231-07'&&T.idUnidad('LI-000231',7)==='L
 /* ================= datos y validación ================= */
 {
   const d=T.datosDeEvidencia(evidencia());
-  ok(d.loteProveedor==='2410-118'&&d.numero==='07'&&d.pesoNeto===25.4&&d.pesoBruto===26.9&&d.fechaProduccion==='2026-10-10'&&d.ordenInterna==='OI-4411','los datos del lote salen de la evidencia validada');
+  ok(d.loteProveedor==='2410-118'&&d.numero===''&&d.pesoNeto===25.4&&d.pesoBruto===26.9&&d.fechaProduccion==='2026-10-10'&&d.ordenInterna==='OI-4411','los datos del lote salen de la evidencia validada');
   ok(T.datosDeEvidencia(evidencia({peso_neto_kg:null,peso_declarado_kg:30})).pesoNeto===30&&T.datosDeEvidencia(evidencia({fecha_produccion:null,fecha_proceso:'2026-10-09'})).fechaProduccion==='2026-10-09','sin peso neto usa el declarado; sin fecha de producción usa la de proceso');
   ok(T.validarParaLote(evidencia()).errores.length===0,'la evidencia completa del ejemplo no tiene errores');
   const v=(c,o)=>T.validarParaLote(evidencia(c),o).errores.join(' ');
-  ok(/lote del proveedor/.test(v({lote:null}))&&/n\.º de caja/.test(v({numero_caja_bobina:null}))&&/proveedor/.test(v({proveedor:null}))&&/producto/.test(v({producto:null})),'sin proveedor, producto, lote o n.º de unidad no se crea el lote (llave incompleta)');
+  ok(/lote del proveedor/.test(v({lote:null}))&&!/n\.º de caja/.test(v({numero_caja_bobina:null}))&&/proveedor/.test(v({proveedor:null}))&&/producto/.test(v({producto:null})),'sin proveedor, producto o lote no se crea el lote (llave incompleta); el n.º de caja ya no se pide (lo numera el sistema) — llave incompleta)');
   ok(/peso neto o la cantidad/.test(v({peso_neto_kg:null,cantidad_valor:null})),'sin peso ni cantidad no se crea');
   ok(/mayor que 0/.test(v({peso_neto_kg:0}))&&/peso bruto/.test(v({peso_neto_kg:30,peso_bruto_kg:20})),'peso neto 0 o bruto menor que neto: error');
   ok(T.validarParaLote(evidencia({peso_neto_kg:null,cantidad_valor:1000})).errores.length===0&&T.validarParaLote(evidencia({peso_neto_kg:null,cantidad_valor:1000})).avisos.some(x=>/cantidad/.test(x)),'solo con cantidad (bolsas, tapas) sí se crea y avisa que no cerrará por peso');
@@ -78,10 +78,10 @@ ok(T.idUnidad('LI-000231','07')==='LI-000231-07'&&T.idUnidad('LI-000231',7)==='L
 /* ================= crear lote y unidad ================= */
 {
   const p=plan();
-  ok(p.nuevo&&p.accion==='lote_nuevo'&&p.lote.id==='LI-000231'&&p.unidad.id==='LI-000231-07'&&p.unidad.loteId==='LI-000231','lote nuevo: LI-000231 y unidad LI-000231-07');
+  ok(p.nuevo&&p.accion==='lote_nuevo'&&p.lote.id==='LI-000231'&&p.unidad.id==='LI-000231-01'&&p.unidad.numero==='01'&&p.lote.siguienteUnidad===2&&p.unidad.loteId==='LI-000231','lote nuevo: LI-000231 y su primera unidad LI-000231-01 (n.º automático)');
   ok(p.lote.loteProveedor==='2410-118'&&p.lote.proveedor==='PLASTICOS DEL SUR S.A.'&&p.lote.unidades===1&&p.lote.clave===T.claveLote(T.datosDeEvidencia(evidencia())),'el lote guarda los datos de la etiqueta, la llave y el conteo de unidades');
   ok(p.unidad.estado==='EN_ALMACEN'&&p.unidad.pesoNeto===25.4&&p.unidad.pesoBruto===26.9&&p.unidad.pesoActual===25.4&&p.unidad.linea===''&&p.unidad.evidenciaId===evidencia().id,'sin leyenda de línea la unidad nace EN_ALMACEN con su peso actual = neto y su evidencia de origen');
-  ok(p.movimiento.tipo==='RECEPCION'&&p.movimiento.antes.estado===null&&p.movimiento.despues.estado==='EN_ALMACEN'&&p.movimiento.unidadId==='LI-000231-07'&&p.movimiento.por==='Ana','movimiento RECEPCION (antes → después, quién)');
+  ok(p.movimiento.tipo==='RECEPCION'&&p.movimiento.antes.estado===null&&p.movimiento.despues.estado==='EN_ALMACEN'&&p.movimiento.unidadId==='LI-000231-01'&&p.movimiento.por==='Ana','movimiento RECEPCION (antes → después, quién)');
   ok(p.movimiento.id==='MOV-'+evidencia().id+'-RECEPCION','el id del movimiento sale de la evidencia: un doble clic cae en el mismo documento');
   const l=plan({leyenda:T.interpretarLeyenda('PET2')});
   ok(l.unidad.estado==='ENTREGADA_LINEA'&&l.unidad.linea==='PET2'&&l.movimiento.tipo==='ENTREGA_LINEA'&&l.movimiento.despues.linea==='PET2','con leyenda de línea la unidad nace ENTREGADA_LINEA en esa línea (movimiento ENTREGA_LINEA)');
@@ -90,7 +90,7 @@ ok(T.idUnidad('LI-000231','07')==='LI-000231-07'&&T.idUnidad('LI-000231',7)==='L
   ok(art.lote.itemId==='a1'&&art.lote.itemCode==='105-001'&&art.lote.itemNombre.startsWith('LAMINA'),'guarda el artículo del catálogo elegido');
   /* mismo lote, otra bobina: se suma una unidad */
   const otra=T.planCrearLote({doc:evidencia({numero_caja_bobina:'08'},{id:'b'.repeat(64)}),lotePrevio:p.lote,unidadPrevia:null,correlativo:999,articulo:null,leyenda:T.interpretarLeyenda(''),usuario:'Ana',uid:'u1',en:2000});
-  ok(!otra.nuevo&&otra.accion==='unidad_agregada'&&otra.lote.id==='LI-000231'&&otra.unidad.id==='LI-000231-08'&&otra.lote.unidades===2&&otra.lote.rev===2,'mismo lote con otro n.º de unidad: se suma una unidad al lote existente (no usa otro correlativo)');
+  ok(!otra.nuevo&&otra.accion==='unidad_agregada'&&otra.lote.id==='LI-000231'&&otra.unidad.id==='LI-000231-02'&&otra.lote.siguienteUnidad===3&&otra.lote.unidades===2&&otra.lote.rev===2,'mismo lote, otra foto: se suma la unidad siguiente (02) al lote existente (no usa otro correlativo)');
   ok(p.lote.unidades===1&&p.lote.rev===1,'el lote previo no se muta');
   /* duplicado */
   let e;try{T.planCrearLote({doc:evidencia({},{id:'c'.repeat(64)}),lotePrevio:p.lote,unidadPrevia:p.unidad,correlativo:1,articulo:null,leyenda:T.interpretarLeyenda(''),usuario:'Ana',uid:'u1',en:1});}catch(x){e=x;}
@@ -127,7 +127,7 @@ ok(T.idUnidad('LI-000231','07')==='LI-000231-07'&&T.idUnidad('LI-000231',7)==='L
   const p1=plan(),p2=T.planCrearLote({doc:evidencia({lote:'2410-200',numero_caja_bobina:'01',producto:'TAPA 38 MM'},{id:'d'.repeat(64),categoria:'tapas'}),lotePrevio:null,unidadPrevia:null,correlativo:232,articulo:null,leyenda:T.interpretarLeyenda('PET1'),usuario:'Luis',uid:'u2',en:5000});
   const lotes=[p1.lote,p2.lote],unidades=[p1.unidad,p2.unidad];
   ok(T.filtrarLotes(lotes,unidades,{texto:'2410-118'}).length===1&&T.filtrarLotes(lotes,unidades,{texto:'li-000232'})[0].id==='LI-000232'&&T.filtrarLotes(lotes,unidades,{texto:'oi-4411'}).length===2,'buscador: lote del proveedor, ID LI, OI');
-  ok(T.filtrarLotes(lotes,unidades,{texto:'LI-000231-07'}).length===1&&T.filtrarLotes(lotes,unidades,{texto:'termocontraible'}).length===1,'buscador: ID de unidad y producto (sin tildes ni mayúsculas)');
+  ok(T.filtrarLotes(lotes,unidades,{texto:'LI-000231-01'}).length===1&&T.filtrarLotes(lotes,unidades,{texto:'termocontraible'}).length===1,'buscador: ID de unidad y producto (sin tildes ni mayúsculas)');
   ok(T.filtrarLotes(lotes,unidades,{estado:'ENTREGADA_LINEA'})[0].id==='LI-000232'&&T.filtrarLotes(lotes,unidades,{linea:'PET1'}).length===1&&T.filtrarLotes(lotes,unidades,{categoria:'tapas'}).length===1,'filtros por estado, línea y categoría');
   ok(T.filtrarLotes(lotes,unidades,{})[0].id==='LI-000232','los lotes más recientes salen primero');
   const r=T.resumenLote(p1.lote,unidades);

@@ -122,7 +122,7 @@ ok(T.buscarArticulos(CAT,'bolsa 3').map(a=>a.id).join()==='b1'&&T.buscarArticulo
   sb.iiLotesUI.estado.sel=lote.id;Z.escucharMovimientos(lote.id);
   const h=sb.iiLotesUI.html();
   ok(/Foto enviada \(recepción\)/.test(h)&&/Validado y registrado/.test(h)&&/03\/11 07:40/.test(h),'ficha: «Foto enviada (recepción)» con la hora de la foto y «Validado y registrado» aparte');
-  ok(/N\.º bobina/.test(h)&&/Bobina 07/.test(h)&&/Contenido \(etiqueta\)/.test(h)&&/Cada foto es <b>una bobina<\/b>/.test(h),'ficha: la unidad se llama bobina (con su n.º de etiqueta) y la cantidad se llama «Contenido»');
+  ok(/N\.º bobina/.test(h)&&/Bobina 01/.test(h)&&/Contenido \(etiqueta\)/.test(h)&&/Cada foto es <b>una bobina<\/b>/.test(h),'ficha: la unidad se llama bobina (con su n.º automático) y la cantidad se llama «Contenido»');
   ok(/03\/11 07:40<\/b> <span class="ii-mut">\(foto\)/.test(h),'línea de tiempo: la recepción con la hora de la foto');
   ok(/Cambiar<\/button>/.test(h)&&/ilAbrirArticulo/.test(h),'ficha: botón para cambiar el artículo');
   const s89=leer('js/asistente/89-trazabilidad-lotes-pantalla.js');
