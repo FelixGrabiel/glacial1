@@ -222,7 +222,7 @@
     if(puedeEscribir()&&Date.now()-S.sync.en>=60000)setTimeout(()=>sincronizar(false),0);
     const msg=S.msg?`<div class="ii-msg ii-msg-${S.msg.tipo}" role="${S.msg.tipo==='error'?'alert':'status'}">${esc(S.msg.texto)}</div>`:'';
     const error=E.cache.error?`<div class="ii-msg ii-msg-error" role="alert">No se pudieron leer las evidencias: ${esc(E.cache.error)}</div>`:'';
-    const importar=puedeEscribir()?'<span class="ie-botones"><button type="button" class="ii-btn ii-btn-o" onclick="ieBuscarNuevas()" title="Trae las fotos que dejó el bot de WhatsApp">Buscar nuevas del bot</button> <button type="button" class="ii-btn" onclick="ieImportar()">Importar evidencias</button></span>':'<span class="ii-chip">Solo consulta</span>';
+    const importar=puedeEscribir()?'<span class="ie-botones"><button type="button" class="ii-btn ii-btn-o" onclick="ieBuscarNuevas()" title="Trae las fotos que dejó el bot de WhatsApp">Buscar nuevas del bot</button> <button type="button" class="ii-btn" onclick="ieImportar()">Importar evidencias</button>'+(typeof window.ieVrBoton==='function'?window.ieVrBoton():'')+'</span>':'<span class="ii-chip">Solo consulta</span>';
     return `<div class="ii-card"><div class="ii-fila-t"><h3>Evidencias de etiquetas</h3>${importar}</div>
       <p class="ii-mut">Fotografías del grupo autorizado de WhatsApp, leídas por la IA. La IA solo propone: una persona autorizada valida cada dato contra la foto.</p>${msg}${error}</div>
       <div class="ie-grid"><aside class="ii-card ie-lista"><div class="ie-filtros">${filtros()}</div><div id="ie-lista">${listaHtml()}</div></aside><section>${detalle()}</section></div>`;
