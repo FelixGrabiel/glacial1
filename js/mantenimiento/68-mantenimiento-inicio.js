@@ -127,9 +127,10 @@
         k('Vencidas',s.vencidas,s.vencidas?lista(s.topVencidas,t=>nom(t.maquina)+' ('+t.n+')'):'al día desde que empezó el Registro',s.vencidas?'mi-mal':'')+
         k('Pendientes «No se realizó»',s.pendientes,s.pendientes?'pasan a la próxima semana hasta que se hagan':'ninguna pendiente',s.pendientes?'mi-aten':'')+
         k('Registros por validar',s.porValidar,s.porValidar?'cerrados, esperan al supervisor':'ninguno',s.porValidar?'mi-aten':'')+
-      '</div><div class="mi-sem-acc"><button type="button" class="btn btn-primary btn-sm" data-mi-sem="programa">Abrir el Programa semanal</button><button type="button" class="btn btn-ghost btn-sm" data-mi-sem="plan">Ver el Plan anual</button></div></div>';
+      '</div>'+(window.glacialMttoParadas?window.glacialMttoParadas.htmlInicio():'')+'<div class="mi-sem-acc"><button type="button" class="btn btn-primary btn-sm" data-mi-sem="programa">Abrir el Programa semanal</button><button type="button" class="btn btn-ghost btn-sm" data-mi-sem="plan">Ver el Plan anual</button></div></div>';
   }
   let oyenteSemana=false;
+  setInterval(()=>{try{repintarSemana();}catch(_){/* informativo */}},60000);                    // las paradas de Producción cambian solas
   function repintarSemana(){
     try{
       if(typeof state==='undefined'||state.currentTab!==TAB)return;

@@ -175,6 +175,53 @@
       porValidar:regs.filter(r=>r.estado==='CERRADO').length,
       aviso:(d.diaSemana||1)>=4&&conToca.some(x=>!x.registro)};          // jueves o después y todavía hay máquinas sin registro
   }
+  /* ---------- paradas de Producción ↔ máquinas del plan ---------- */
+  const normT=t=>String(t==null?'':t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+  /** Equivalencias de partida «equipo de la parada → hoja del plan» (se pueden cambiar desde el Plan anual; se guardan en mtto_config.datos.equiposPlan).
+      Las hojas «CARB» son de la planta carbonatada (PET2). Las demás hojas del Excel se atribuyen a PET1; etiquetadora y empaquetadora sirven a las dos líneas. */
+  const EQUIPOS_PLAN_DEFECTO=[
+    {linea:'PET1',equipo:'Sopladora',hoja:'SOP'},{linea:'PET1',equipo:'Envasadora',hoja:'ENV'},{linea:'PET1',equipo:'Etiquetadora',hoja:'ETIQ'},{linea:'PET1',equipo:'Empaquetadora',hoja:'EMP'},
+    {linea:'PET2',equipo:'Sopladora',hoja:'SOP CARB'},{linea:'PET2',equipo:'Envasadora',hoja:'ENV CARB'},{linea:'PET2',equipo:'Etiquetadora',hoja:'ETIQ'},{linea:'PET2',equipo:'Empaquetadora',hoja:'EMP'}
+  ];
+  /** Máquina del plan a la que corresponde el equipo de una parada: por la tabla de equivalencias y, si ese equipo no está en la tabla, por el nombre (solo si hay una única coincidencia). */
+  function maquinaDeParada(linea,equipo,maquinas,equiposPlan){
+    const tabla=equiposPlan&&equiposPlan.length?equiposPlan:EQUIPOS_PLAN_DEFECTO,k=normT(equipo);
+    if(!k)return null;
+    const fila=tabla.find(r=>r.linea===linea&&normT(r.equipo)===k);
+    if(fila)return fila.hoja?((maquinas||[]).find(m=>m.codigo_hoja===fila.hoja)||null):null;          // hoja vacía = a propósito sin equivalencia
+    const cand=(maquinas||[]).filter(m=>m.activo!==false&&normT(m.nombre).startsWith(k)&&(m.linea?m.linea===linea:(linea==='PET1'||linea==='PET2')&&!/carb/i.test(m.codigo_hoja)));
+    return cand.length===1?cand[0]:null;
+  }
+  /** Paradas por falla agrupadas por máquina del plan. unidades: de Análisis de paradas (cada una con linea, fecha, turno y npItems); equipoDe(it) → texto del equipo o null si la
+      causa no pide equipo. cfg: {fallasUmbral, fallasDias}; hasta: último día (ISO). → Map(maquinaId → {fallas, minutos, ultima, items, repetitiva}). */
+  function paradasPorMaquina(unidades,maquinas,equiposPlan,equipoDe,cfg,hasta){
+    const out=new Map(),umbral=(cfg&&cfg.fallasUmbral)||3,dias=(cfg&&cfg.fallasDias)||7;
+    (unidades||[]).forEach(u=>(u.npItems||[]).forEach(it=>{
+      const eq=equipoDe(it);if(!eq||/sin indicar/i.test(eq))return;
+      const m=maquinaDeParada(u.linea,eq,maquinas,equiposPlan);if(!m)return;
+      const g=out.get(m.id)||{maquina:m,fallas:0,minutos:0,ultima:'',items:[],repetitiva:null};
+      g.fallas++;g.minutos+=Number(it.minutos)||0;if(!g.ultima||u.fecha>g.ultima)g.ultima=u.fecha;
+      g.items.push({fecha:u.fecha,linea:u.linea,turno:u.turno,minutos:Number(it.minutos)||0,motivo:it.motivo||'',equipo:eq});out.set(m.id,g);
+    }));
+    const dia=f=>Math.round(new Date(f+'T12:00:00').getTime()/86400000),hoy=hasta?dia(hasta):null;
+    out.forEach(g=>{
+      g.items.sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.minutos-a.minutos);
+      if(hoy===null)return;
+      const rec=g.items.filter(x=>hoy-dia(x.fecha)<dias&&hoy-dia(x.fecha)>=0);                  // las que cayeron en los últimos `dias` días
+      if(rec.length>=umbral)g.repetitiva={n:rec.length,desde:rec[rec.length-1].fecha,hasta:rec[0].fecha,minutos:rec.reduce((s,x)=>s+x.minutos,0),dias};
+    });
+    return out;
+  }
+  /** Estado del mantenimiento preventivo de una máquina: vencidas, «No se realizó» abiertas con su motivo y la última actividad hecha. ejec: mapa de mapaEjecucion. */
+  function estadoPreventivo(maquinaId,actividades,ejec,actual,desde){
+    const mias=(actividades||[]).filter(a=>a.maquina_id===maquinaId&&actual&&a.anio===actual.anio);
+    const c=cumplimiento(mias,actual,ejec,desde),no=[];let ultima=null;
+    mias.forEach(a=>{const m=ejec&&ejec.get(a.id);if(!m)return;m.forEach((e,sem)=>{
+      if(e.estado==='no')no.push({actividad:a.actividad,semana:sem,motivo:e.motivo});
+      if((e.estado==='ok'||e.estado==='tarde')&&(!ultima||sem>ultima.semana))ultima={semana:sem,actividad:a.actividad};});});
+    no.sort((x,y)=>x.semana-y.semana);
+    return {vencidas:c.vencidas,base:c.base,pct:c.pct,noRealizadas:no,ultimaHecha:ultima};
+  }
   /** Texto de una actividad para el filtro de búsqueda. */
   const textoBusqueda=a=>[a.item,a.actividad,a.insumos,a.frecuencia].join(' ').toLowerCase();
 
@@ -342,7 +389,7 @@
 
   const API={CAMPOS_AVISO,conflictoCampo,misValoresVigentes,BLOQUES,MESES,MESES_NOMBRE,semanaIso,rangoSemana,semanasDelAnio,ddmm,ddmmaaaa,etiquetaSemana,leerSemanas,armarSemanas,bloqueOrden,agruparPorBloque,partirActividad,
     semanaDeHoy,estadoSemana,resumen,avanceAnio,textoBusqueda,
-    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,LINEAS_PLAN,lineasDelSelector,codigoHojaNuevo,mapaEjecucion,semanaDesde,cumplimiento,situacionSemana,MOTIVOS_NO_REALIZADO,filasArrastradas,pendientesFaltantes,estadoActividad,textoOrigen,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
+    INICIO_REGISTROS,inicioRegistros,antesDelInicio,filtrarHistorial,conteoEstados,INFORME_DEFECTO,MAX_IMPRESO,proximaRevision,actividadesParaRegistro,EQUIPOS_PLAN_DEFECTO,maquinaDeParada,paradasPorMaquina,estadoPreventivo,LINEAS_PLAN,lineasDelSelector,codigoHojaNuevo,mapaEjecucion,semanaDesde,cumplimiento,situacionSemana,MOTIVOS_NO_REALIZADO,filasArrastradas,pendientesFaltantes,estadoActividad,textoOrigen,progresoRegistro,excedeImpreso,horasEntre,permisosRegistro,sumarDias,textoRango,moverSemana,actividadesDeSemana,resumenFrecuencias,ESTADOS_REG,haceTexto,filaSemana,resumenSemana,eventosEnVivo};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialMttoPlan=API;
 })(typeof window!=='undefined'?window:globalThis);

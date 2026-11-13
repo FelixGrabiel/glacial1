@@ -163,12 +163,32 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   ok(/Cumplimiento del plan/.test(await txt('.mp-cards')) && await P.evaluate(() => [...document.querySelectorAll('.mp-card')].some(c => /Cumplimiento/.test(c.textContent) && /\d+ %/.test(c.textContent))), 'tarjeta «Cumplimiento del plan» con su porcentaje');
   ok(await P.evaluate(() => !!document.querySelector('.mp-chip b.mp-venc')) && /vencida/.test(await txt('tr.mp-fila[data-mp-fila="' + inj.a + '"]')), 'la máquina muestra su número de vencidas y la fila su «✓ n de m · k vencidas»');
   if (process.env.GLX_CAPTURAS) { await P.setViewportSize({ width: 1500, height: 900 }); await P.waitForTimeout(300); await P.evaluate(() => { document.querySelector('.mp-tw').style.maxHeight = 'none'; }); const bx = await P.evaluate(() => { const a = document.querySelector('.mp-cards').getBoundingClientRect(), b = document.querySelector('.mp-det').getBoundingClientRect(); return { y: a.top + scrollY - 70, h: b.bottom - a.top + 90 }; }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-anual-ejecucion.png', fullPage: true, clip: { x: 0, y: Math.max(bx.y, 0), width: 1500, height: bx.h } }); }
+  /* paradas de Producción por máquina del plan (Mantenimiento ↔ Producción) */
+  await P.evaluate(() => {
+    const it = (m, e) => ({ equipo: e, minutos: m, causa: 'Falla de máquina', motivo: 'Ruptura de correa' });
+    const U = [{ fecha: '2026-11-03', linea: 'PET1', turno: 'DÍA', npItems: [it(30, 'Sopladora')] }, { fecha: '2026-11-05', linea: 'PET1', turno: 'NOCHE', npItems: [it(20, 'Sopladora')] },
+      { fecha: '2026-11-06', linea: 'PET1', turno: 'DÍA', npItems: [it(45, 'Sopladora'), { equipo: '', minutos: 7, causa: 'Cambio de formato', motivo: 'x' }] }];
+    window.glacialAnalisisParadas = { listarUnidades: () => ({ unidades: U }), equipoDeParada: x => /falla/i.test(x.causa) ? (x.equipo || 'Equipo sin indicar') : null };
+  });
+  const idDe = n => P.evaluate(t => (glacialMttoPlanDatos.cache.maquinas.find(m => m.codigo_hoja === t) || {}).id, n);
+  await P.click('[data-mp-maq="' + await idDe('SOP') + '"]');
+  ok(await P.evaluate(() => { const t = (document.querySelector('.mpd') || {}).textContent || ''; return /Falla repetitiva/.test(t) && /3 paradas por falla/.test(t) && /95 min/.test(t); }), 'Plan anual · SOP: alerta de falla repetitiva (3 paradas, 95 min) con las paradas de Producción de PET1');
+  ok(await P.evaluate(() => /Preventivo vencido/.test(document.querySelector('.mpd').textContent) && /Último preventivo hecho/.test(document.querySelector('.mpd').textContent) && !!document.querySelector('.mpd details')), 'la tarjeta junta las paradas con el estado del preventivo y la lista de paradas');
+  await P.click('[data-mp-maq="' + await idDe('ENV') + '"]');
+  ok(await P.evaluate(() => /sin paradas por falla/.test(document.querySelector('.mpd').textContent)), 'ENV: la envasadora no tuvo fallas');
+  ok(await P.evaluate(async () => { const m = glacialMttoPlanDatos.cache.maquinas.find(x => x.codigo_hoja === 'SOP'); const h = glacialMttoParadas.htmlPanelRegistro(m, { anio: 2026, semana: 45 }); return /Paradas de Producción de esta semana/.test(h) && /3 paradas por falla/.test(h) && /Revísalas antes de marcar/.test(h); }), 'Registro · el panel de la semana 45 lista las 3 paradas de SOP');
+  await P.click('[data-mp-maq="' + await idDe('SOP') + '"]'); await P.click('[data-mpd-equiv]');
+  ok(await P.evaluate(() => document.querySelectorAll('.mpd-eq select').length) >= 8, 'las equivalencias con Producción se pueden editar (una fila por equipo y línea)');
+  await P.click('#mpd-x');
+  if (process.env.GLX_CAPTURAS) { await P.setViewportSize({ width: 1500, height: 900 }); await P.waitForTimeout(250); const bx = await P.evaluate(() => { const a = document.querySelector('.mp-cards').getBoundingClientRect(), b = document.querySelector('.mpd').getBoundingClientRect(); return { y: a.top + scrollY - 20, h: b.bottom - a.top + 40 }; }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-paradas.png', fullPage: true, clip: { x: 260, y: Math.max(bx.y, 0), width: 1240, height: bx.h } }); }
+
   /* Inicio de Mantenimiento: «Esta semana en Mantenimiento» */
   await P.setViewportSize({ width: 1500, height: 950 });
   await P.evaluate(() => { state.currentTab = 'mant-inicio'; if (typeof renderSidebar === 'function') renderSidebar(); renderMain(); });
   await P.waitForSelector('#mi-semana .mi-k', { timeout: 4000 }).catch(() => {});
   const sem = await txt('#mi-semana');
   ok(/Esta semana en Mantenimiento · S45/.test(sem) && /Toca esta semana/.test(sem) && /Sin registro iniciado/.test(sem) && /Vencidas/.test(sem) && /Registros por validar/.test(sem), 'el Inicio de Mantenimiento muestra «Esta semana en Mantenimiento» (S45) con lo que toca, lo sin registro, lo vencido y lo por validar → ' + sem.replace(/\s+/g, ' ').slice(0, 160));
+  ok(await P.evaluate(() => { const t = (document.querySelector('#mi-semana .mpd-inicio') || {}).textContent || ''; return /Fallas repetitivas/.test(t) && /SOPLADORA/.test(t); }), 'el Inicio avisa de la falla repetitiva de SOPLADORA y lista las máquinas con más paradas');
   ok(await P.evaluate(() => !!document.querySelector('#mi-semana [data-mi-sem="programa"]') && !!document.querySelector('#mi-semana [data-mi-sem="plan"]')), 'tiene los accesos al Programa semanal y al Plan anual');
   if (process.env.GLX_CAPTURAS) { const el = await P.$('#mi-semana'); if (el) await el.screenshot({ path: process.env.GLX_CAPTURAS + '/mant-inicio-semana.png' }); }
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
