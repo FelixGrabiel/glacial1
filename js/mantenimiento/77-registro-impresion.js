@@ -18,7 +18,7 @@
     return String(hh).padStart(2,'0')+':'+m[2]+' '+ap;
   }
   const raya=(marcada)=>'<span class="raya">'+(marcada?'x':'&nbsp;')+'</span>';
-  const celdaAct=(a,n)=>a?'<td class="c">'+esc(a.item)+'</td><td class="t">'+esc(a.equipo)+'</td><td class="t">'+esc(a.actividad)+'</td><td class="t">'+esc(a.frecuencia)+'</td>'
+  const celdaAct=(a,n)=>a?'<td class="c">'+esc(a.item)+'</td><td class="t">'+esc(a.equipo)+'</td><td class="t">'+esc(a.actividad)+(a.no_realizado&&!a.realizado?' (NO REALIZADA)':'')+'</td><td class="t">'+esc(a.frecuencia)+'</td>'
     :'<td class="c">'+n+'</td><td></td><td></td><td></td>';
 
   const CSS='@page{size:A4 landscape;margin:.35in .4in}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:11px}'+

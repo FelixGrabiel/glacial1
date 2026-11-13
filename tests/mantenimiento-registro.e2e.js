@@ -80,6 +80,7 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   ok(await P.evaluate(() => document.querySelector('[data-rg-campo="tipo_mtto"][data-rg-valor="CORRECTIVO"]').classList.contains('on')), 'el botón elegido queda marcado');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/registro-escritorio.png', fullPage: true });
 
+
   /* vista de impresión: el formato CFA-CA-F-023 de esta máquina y semana */
   await P.click('[data-rg-imprimir]'); await P.waitForSelector('iframe[aria-hidden="true"]', { state: 'attached' });
   const doc = await P.evaluate(() => document.querySelector('iframe[aria-hidden="true"]').srcdoc);
@@ -155,6 +156,20 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   await P.setViewportSize({ width: 390, height: 844 }); await P.waitForTimeout(200);
   ok(await P.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1, 'celular: la página no se desborda de lado');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/registro-movil.png' });
+  /* «No se realizó» con motivo obligatorio (glacial_53): se abre con ✗, sin motivo no se guarda, con un motivo queda registrada y se puede quitar */
+  const f2 = '.rg-act:nth-child(2)', id2 = await P.evaluate(() => document.querySelector('.rg-act:nth-child(2)').getAttribute('data-rg-fila'));
+  const act2 = () => P.evaluate(id => { const a = __bd.regActs.find(x => x.id === id); return { no: a.no_realizado, motivo: a.motivo_no, hecho: a.realizado }; }, id2);
+  await P.click(f2 + ' [data-rg-no]');
+  ok(await P.evaluate(() => !!document.querySelector('.rg-act:nth-child(2) [data-rg-motivo]')), '✗ abre el cuadro del motivo');
+  ok((await act2()).no !== true, 'sin motivo no se guarda nada');
+  await P.locator(f2 + ' [data-rg-chip]').nth(1).click();
+  await P.waitForFunction(id => { const a = __bd.regActs.find(x => x.id === id); return a.no_realizado === true && a.motivo_no === 'Falta de repuesto o material' && a.realizado === false; }, id2, { timeout: 3000 });
+  ok(/1 no realizada/.test(await txt('#rg-prog-txt')), 'elegir un motivo guarda «No se realizó» y el avance dice «1 no realizada»');
+  ok(await P.evaluate(() => document.querySelector('.rg-act:nth-child(2)').classList.contains('no') && /pasará a las actividades de la próxima semana/i.test(document.querySelector('.rg-act:nth-child(2)').textContent)), 'la actividad se ve «no realizada» y avisa que pasa a la próxima semana');
+  if (process.env.GLX_CAPTURAS) { await P.setViewportSize({ width: 900, height: 900 }); await P.waitForTimeout(250); await P.evaluate(() => [...document.querySelectorAll('body *')].filter(e => getComputedStyle(e).position === 'fixed' && /BASE DE PRUEBAS/.test(e.textContent)).forEach(e => { e.style.display = 'none'; })); const bx = await P.evaluate(() => { const a = document.querySelector('.rg-act:nth-child(1)').getBoundingClientRect(), b = document.querySelector('.rg-act:nth-child(4)').getBoundingClientRect(); return { x: a.left - 12, y: a.top + scrollY - 70, w: a.width + 24, h: b.bottom - a.top + 80 }; }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/registro-no-realizada.png', fullPage: true, clip: { x: Math.max(bx.x, 0), y: Math.max(bx.y, 0), width: bx.w, height: bx.h } }); }
+  await P.click(f2 + ' [data-rg-no]');
+  await P.waitForFunction(id => { const a = __bd.regActs.find(x => x.id === id); return a.no_realizado === false && a.motivo_no === ''; }, id2, { timeout: 3000 });
+  ok(true, 'quitar la marca ✗ la deja sin decidir y borra el motivo');
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar();
   console.log(fallas ? '\n' + fallas + ' FALLAS' : '\nTodo bien');
