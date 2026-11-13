@@ -343,5 +343,18 @@ function num0(x){return Number(x)||0;}
   const s29=leer('js/produccion/29-avance-produccion.js');
   ok(/cambiosPlanificados/.test(s29)&&/Agregar como parada programada/.test(s29)&&/tipo:'PROGRAMADA'/.test(s29.slice(s29.indexOf('function avParadaCambioPlanificado'),s29.indexOf('function avCambioPlanificadoHtml'))),'el registro de paradas ofrece agregarlo como parada PROGRAMADA con los minutos del plan');
 }
+/* ---------- B7L noche: Scala hasta las 03:00 → Merkat 3.780 (pasa del cierre) → Scala «NO PARA» (sin cantidad) ---------- */
+{
+  const {S,N}=entorno([]);
+  const f=[fila('Scala','HORA',{hora:'03:00'}),fila('Aro','CANTIDAD',{cantidad:3780}),fila('Scala','CIERRE')];
+  const e=S.estimar('B7L',FECHA,'NOCHE',f);
+  const t3=e.tramos[2];
+  ok(e.conflictos.length===0&&e.estado==='PARCIAL','tercera marca tras un tramo que llena el bloque: sin conflicto (queda parcial)');
+  ok(t3.estado==='PENDIENTE'&&t3.continua===true&&/siguiente turno/.test(t3.motivo),'el 3.er tramo queda «continúa en el siguiente turno»: '+t3.motivo);
+  await S.guardar('B7L',FECHA,'NOCHE',f,{});
+  const its=items(N),sc=its.find(p=>p.marca==='Scala'),ar=its.find(p=>p.marca==='Aro');
+  ok(its.length===2&&ar.cantidadProgramada===3780&&sc.tramosSecuencia.length===2&&sc.tramosSecuencia[1].tipoFin==='CIERRE','se guarda: Scala con sus 2 tramos (hora y resto) y la otra marca con su cantidad');
+  ok(sc.estimado&&sc.estimado.estado!=='PENDIENTE'&&sc.cantidadProgramada>0,'la parte de Scala hasta las 03:00 conserva su estimado (el tramo que continúa no lo deja pendiente)');
+}
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
