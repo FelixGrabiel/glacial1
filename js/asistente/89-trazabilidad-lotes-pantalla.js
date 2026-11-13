@@ -531,7 +531,7 @@
 @media(max-width:900px){.il-cols{grid-template-columns:1fr}}
 @media(max-width:560px){.il-ent-us{margin-left:0;grid-template-columns:1fr 1fr}.il-ent-barra .ii-campo{min-width:0;flex:1 1 100%}.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
 
-  window.iiLotesUI={html,css,estado:S,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
+  window.iiLotesUI={html,css,estado:S,diagnostico,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
   window.__trazabilidadLotesPantalla={S,diagnostico,companerasDe,almacenPorCategoria};
 
   /* Tiempo real: lo que otra persona cree o cambie aparece solo, sin pisar lo que se está escribiendo. */
