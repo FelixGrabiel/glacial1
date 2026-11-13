@@ -37,6 +37,11 @@ const OPCIONES = {
   fs.mkdirSync(SALIDA, { recursive: true });
   COPIAR.forEach(n => copiar(path.join(R, n), path.join(SALIDA, n)));
   fs.writeFileSync(path.join(SALIDA, '.nojekyll'), '');
+  // Sello de esta publicación: lo usa la página abierta para avisar «HAY UNA ACTUALIZACIÓN NUEVA».
+  const idBuild = (process.env.GITHUB_SHA || 'local').slice(0, 12) + '|' + new Date().toISOString().replace(/[-:]/g, '').slice(0, 13);
+  const idx = path.join(SALIDA, 'index.html');
+  fs.writeFileSync(idx, require('./sello-build.js').sellar(fs.readFileSync(idx, 'utf8'), idBuild));
+  console.log('Sello de la publicación: ' + idBuild);
   let antes = 0, despues = 0; const fallidos = [];
   for (const f of archivos(path.join(SALIDA, 'js'), '.js')) {
     const codigo = fs.readFileSync(f, 'utf8'); antes += Buffer.byteLength(codigo);
