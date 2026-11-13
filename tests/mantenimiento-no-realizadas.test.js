@@ -15,7 +15,7 @@ ok(N.estadoActividad({realizado:true})==='ok'&&N.estadoActividad({no_realizado:t
 ok(N.textoOrigen({origen_actividad_id:'a1',semana_origen:40,anio_origen:2026},2026)==='Pendiente desde la semana 40'&&N.textoOrigen({origen_actividad_id:'a1',semana_origen:51,anio_origen:2025},2026)==='Pendiente desde la semana 51 de 2025'&&N.textoOrigen({},2026)==='','texto «Pendiente desde la semana N»');
 const pr=N.progresoRegistro([{realizado:true},{no_realizado:true,motivo_no:'x'},{},{}]);
 ok(pr.hechas===1&&pr.no===1&&pr.sin===2&&pr.total===4,'progreso: 1 realizada, 1 no realizada, 2 sin decidir');
-ok(N.MOTIVOS_NO_REALIZADO.length>=4,'hay motivos frecuentes para elegir');
+ok(N.MOTIVOS_NO_REALIZADO.length>=4&&N.MOTIVOS_NO_REALIZADO[N.MOTIVOS_NO_REALIZADO.length-1]==='Otros','hay motivos frecuentes y al final «Otros» (se escribe a mano)');
 
 /* pantalla y datos */
 const d72=leer('js/mantenimiento/72-plan-anual-datos.js'),p76=leer('js/mantenimiento/76-registro-pantalla.js'),p77=leer('js/mantenimiento/77-registro-impresion.js'),idx=leer('index.html');

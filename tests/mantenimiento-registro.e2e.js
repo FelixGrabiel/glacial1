@@ -162,6 +162,12 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   await P.click(f2 + ' [data-rg-no]');
   ok(await P.evaluate(() => !!document.querySelector('.rg-act:nth-child(2) [data-rg-motivo]')), '✗ abre el cuadro del motivo');
   ok((await act2()).no !== true, 'sin motivo no se guarda nada');
+  await P.locator(f2 + ' [data-rg-chip]', { hasText: 'Otros' }).click();
+  ok(await P.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-rg-motivo')), '«Otros» deja el cursor en el cuadro para escribir el motivo a mano');
+  ok((await act2()).no !== true, '«Otros» por sí solo no guarda nada');
+  await P.fill(f2 + ' [data-rg-motivo]', 'Se rompió la manguera de grasa'); await P.locator(f2 + ' [data-rg-motivo]').blur();
+  await P.waitForFunction(id => { const a = __bd.regActs.find(x => x.id === id); return a.no_realizado === true && a.motivo_no === 'Se rompió la manguera de grasa'; }, id2, { timeout: 3000 });
+  ok(await P.evaluate(() => /Otros/.test(document.querySelector('.rg-act:nth-child(2) .rg-chip.on').textContent)), 'el motivo escrito a mano se guarda y «Otros» queda marcado');
   await P.locator(f2 + ' [data-rg-chip]').nth(1).click();
   await P.waitForFunction(id => { const a = __bd.regActs.find(x => x.id === id); return a.no_realizado === true && a.motivo_no === 'Falta de repuesto o material' && a.realizado === false; }, id2, { timeout: 3000 });
   ok(/1 no realizada/.test(await txt('#rg-prog-txt')), 'elegir un motivo guarda «No se realizó» y el avance dice «1 no realizada»');

@@ -192,7 +192,7 @@
     return arr.concat(lista.map(a=>{const p=partirActividad(a.actividad);return {plan_actividad_id:a.id,equipo:p.equipo,actividad:p.tarea,frecuencia:a.frecuencia};})).map((x,i)=>Object.assign(x,{item:i+1}));
   }
   /** Motivos frecuentes al marcar «No se realizó» (el técnico puede escribir el suyo). */
-  const MOTIVOS_NO_REALIZADO=['Máquina en producción','Falta de repuesto o material','Falta de tiempo','Falta de personal','Esperando al proveedor','Requiere parada programada'];
+  const MOTIVOS_NO_REALIZADO=['Máquina en producción','Falta de repuesto o material','Falta de tiempo','Falta de personal','Esperando al proveedor','Requiere parada programada','Otros'];
   /** Filas de un registro nuevo para lo pendiente de semanas anteriores (salida de mtto_pendientes_arrastrables): mismas equipo, actividad y frecuencia, enlazadas a la anterior. */
   function filasArrastradas(pendientes){
     return (pendientes||[]).map(p=>({plan_actividad_id:p.plan_actividad_id||null,equipo:p.equipo,actividad:p.actividad,frecuencia:p.frecuencia,origen_actividad_id:p.id,anio_origen:p.anio_origen,semana_origen:p.semana_origen,motivo_origen:p.motivo_no||''}));

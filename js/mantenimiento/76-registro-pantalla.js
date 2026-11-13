@@ -153,7 +153,8 @@
       const obsAbierta=UI.obs.has(a.id)||!!a.observacion;
       const e=N.estadoActividad(a),editaMotivo=e==='no'||UI.noAbierta.has(a.id),origen=N.textoOrigen(a,reg.anio);
       const motivo=editaMotivo?'<div class="rg-motivo"><label for="rg-m-'+esc(a.id)+'">Motivo de por qué no se realizó</label><textarea id="rg-m-'+esc(a.id)+'" class="rg-obs rg-obs-no" data-rg-motivo="'+esc(a.id)+'" rows="2" maxlength="300" placeholder="Obligatorio: escribe el motivo o elige uno"'+dis+'>'+esc(a.motivo_no)+'</textarea>'+
-        (ed?'<div class="rg-chips">'+N.MOTIVOS_NO_REALIZADO.map(m=>'<button type="button" class="rg-chip" data-rg-chip="'+esc(a.id)+'" data-rg-valor="'+esc(m)+'">'+esc(m)+'</button>').join('')+'</div>':'')+
+        (ed?'<div class="rg-chips">'+N.MOTIVOS_NO_REALIZADO.map(m=>{const otro=m==='Otros',escrito=String(a.motivo_no||'').trim(),lista=N.MOTIVOS_NO_REALIZADO.filter(x=>x!=='Otros'),on=otro?(!!escrito&&!lista.includes(escrito)):escrito===m;
+        return '<button type="button" class="rg-chip'+(on?' on':'')+'" aria-pressed="'+on+'" data-rg-chip="'+esc(a.id)+'" data-rg-valor="'+esc(m)+'">'+esc(m)+(otro?' (escribirlo)':'')+'</button>';}).join('')+'</div>':'')+
         (e==='no'?'<small class="rg-quien">Pasará a las actividades de la próxima semana hasta que se realice.</small>':'<small class="rg-quien">Se guarda al escribir el motivo.</small>')+'</div>':'';
       return '<li class="rg-act'+(e==='ok'?' ok':'')+(e==='no'?' no':'')+(origen?' arr':'')+'" data-rg-fila="'+esc(a.id)+'"><div class="rg-botones"><button type="button" class="rg-chk" data-rg-marcar="'+esc(a.id)+'" aria-pressed="'+(e==='ok')+'" aria-label="'+(e==='ok'?'Desmarcar':'Marcar como realizada')+' '+esc(a.equipo)+'"'+dis+'>'+(e==='ok'?'✓':'')+'</button>'+
         '<button type="button" class="rg-chk rg-nok" data-rg-no="'+esc(a.id)+'" aria-pressed="'+(e==='no'||UI.noAbierta.has(a.id))+'" aria-label="No se realizó: '+esc(a.equipo)+'" title="No se realizó"'+dis+'>'+(e==='no'||UI.noAbierta.has(a.id)?'✗':'')+'</button></div>'+
@@ -222,7 +223,15 @@
       UI.noAbierta.add(a.id);repintar(true);const t=document.querySelector('[data-rg-motivo="'+a.id+'"]');if(t)t.focus();return;
     }
     const chip=e.target.closest('[data-rg-chip]');
-    if(chip){guardarMotivo(chip.getAttribute('data-rg-chip'),chip.getAttribute('data-rg-valor'));return;}
+    if(chip){
+      const id=chip.getAttribute('data-rg-chip'),v=chip.getAttribute('data-rg-valor');
+      if(v==='Otros'){                                                                                   // «Otros»: el motivo se escribe a mano
+        const t=document.querySelector('[data-rg-motivo="'+id+'"]');
+        if(t){if(N.MOTIVOS_NO_REALIZADO.includes(String(t.value).trim()))t.value='';t.placeholder='Escribe aquí el motivo';t.focus();}
+        return;
+      }
+      guardarMotivo(id,v);return;
+    }
     const oa=e.target.closest('[data-rg-obs-abrir]');
     if(oa){UI.obs.add(oa.getAttribute('data-rg-obs-abrir'));repintar(true);const t=document.querySelector('[data-rg-obs="'+oa.getAttribute('data-rg-obs-abrir')+'"]');if(t)t.focus();return;}
     const op=e.target.closest('[data-rg-campo]');
@@ -265,7 +274,10 @@
   function guardarMotivo(id,texto){
     const a=D.cache.regActs.find(x=>x.id===id);if(!a)return;
     const m=String(texto||'').trim().slice(0,300);
-    if(!m){if(a.no_realizado)alert('El motivo es obligatorio: escribe por qué no se realizó o quita la marca ✗.');return;}
+    if(!m||m==='Otros'){                                                                                 // vacío o solo «Otros»: no se guarda; si ya tenía motivo, se conserva
+      if(a.no_realizado){const t=document.querySelector('[data-rg-motivo="'+id+'"]');if(t)t.value=a.motivo_no;alert('El motivo es obligatorio: escribe por qué no se realizó o quita la marca ✗.');}
+      return;
+    }
     if(a.no_realizado&&a.motivo_no===m)return;
     const previo={realizado:a.realizado,no_realizado:a.no_realizado,motivo_no:a.motivo_no,marcado_por:a.marcado_por};
     a.realizado=false;a.no_realizado=true;a.motivo_no=m;a.marcado_por=quien();UI.noAbierta.delete(a.id);marcarMio('a:'+a.id+':realizado',false);repintar(true);
@@ -330,7 +342,7 @@
       '[data-rg-foto-act]{margin-left:10px;cursor:pointer}.rg-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:8px 0}.rg-foto{margin:0;border:1px solid #dbe5ee;border-radius:10px;overflow:hidden;background:#fff}.rg-foto img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#eef3f7}.rg-foto figcaption{padding:6px;display:flex;flex-direction:column;gap:4px}.rg-foto input{width:100%;box-sizing:border-box;border:1px solid #cfdbe3;border-radius:8px;min-height:36px;padding:0 8px;font-size:13px}'+
       '.rg-botones{display:flex;flex-direction:column;gap:6px}.rg-nok{flex:0 0 44px;width:44px;height:44px;font-size:22px;border-color:#d6a3a3;color:#fff}.rg-nok[aria-pressed="true"]{background:#c0392b;border-color:#c0392b}.rg-act.no{background:#fff5f4;border-radius:10px}.rg-act.arr{border-left:4px solid #e0a100;padding-left:8px}'+
       '.rg-origen{color:#8a6100!important;font-weight:600}.rg-motivo{margin-top:6px}.rg-motivo label{display:block;font-size:12.5px;color:#9b1c1c;font-weight:600}.rg-obs-no{border-color:#e2a6a0;background:#fff}.rg-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}'+
-      '.rg-chip{border:1px solid #cfdbe3;background:#fff;border-radius:999px;padding:6px 10px;font-size:12.5px;color:#033350;cursor:pointer;min-height:34px}.rg-chip:active{background:#e8f7fe}'+
+      '.rg-chip{border:1px solid #cfdbe3;background:#fff;border-radius:999px;padding:6px 10px;font-size:12.5px;color:#033350;cursor:pointer;min-height:34px}.rg-chip:active{background:#e8f7fe}.rg-chip.on{background:#033350;border-color:#033350;color:#fff}'+
       '@media(max-width:520px){.rg-datos{grid-template-columns:1fr}}';
     document.head.appendChild(s);
   }
