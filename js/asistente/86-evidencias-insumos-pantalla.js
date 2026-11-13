@@ -92,9 +92,16 @@
   }
   /* ---------- calculadora de conversión (13/11/2026) ----------
      kg de la etiqueta ↔ UND con el peso de 1 unidad: el de Asistente › Conversiones para la línea y la categoría (tapas, etiquetas, asas, cajas, bolsas),
-     o el gramaje del Producto en las preformas. Compara con la cantidad de la etiqueta. Solo calcula: no guarda nada ni cambia la evidencia. */
+     o el gramaje del Producto en las preformas. Compara con la cantidad de la etiqueta. Solo calcula: no guarda nada ni cambia la evidencia.
+     Conversión a mano (13/11/2026): si no hay conversión guardada para la línea y la categoría, o se elige «Escribir a mano», el usuario escribe el peso
+     de 1 unidad en gramos o cuántas UND hay en 1 kg. Se recuerda por categoría mientras dura la sesión (y en este navegador) para las fotos siguientes. */
   const fmtN=(n,d)=>Number(n).toLocaleString('es-PE',{maximumFractionDigits:d===undefined?3:d});
   const valorCampo=(d,c)=>{const b=S.borr[d.id]||{};if(b[c]!==undefined)return b[c];const x=d.campos&&d.campos[c];return x&&x.valor!==null&&x.valor!==undefined?x.valor:'';};
+  const MEM_CALC='glacial-calc-manual';
+  const memoriaManual=()=>{if(!S.calc.manualCat){S.calc.manualCat={};try{const m=JSON.parse(localStorage.getItem(MEM_CALC)||'{}');if(m&&typeof m==='object')S.calc.manualCat=m;}catch(_){/* sin almacenamiento: solo en la sesión */}}return S.calc.manualCat;};
+  const numPos=v=>{const n=Number(String(v==null?'':v).replace(',','.'));return Number.isFinite(n)&&n>0?n:null;};
+  /* Gramos de 1 unidad desde lo escrito: {modo:'g'|'undkg', valor}. */
+  const gramosManual=m=>{const n=numPos(m&&m.valor);if(!n)return null;return m.modo==='undkg'?1000/n:n;};
   function opcionesCalc(d){
     const C=window.glacialConversiones,cat=(S.borr[d.id]||{}).categoria||d.categoria,st=S.calc[d.id]||(S.calc[d.id]={});
     if(cat==='preformas'){
@@ -105,8 +112,11 @@
     const opsDe=l=>{try{return C&&l?C.opcionesKg(l,cat):[];}catch(_){return [];}};
     if(!st.linea||!lineas.includes(st.linea))st.linea=lineas.find(l=>opsDe(l).length)||lineas[0]||'';     // la primera línea que tenga conversión para esta categoría
     const ops=opsDe(st.linea);
-    const op=ops[Math.min(Number(st.op)||0,Math.max(0,ops.length-1))]||null;
-    return {cat,preforma:false,gramos:op?op.gramos:null,ops,op,lineas,linea:st.linea};
+    const manual=st.modo==='manual'||!ops.length;
+    const op=manual?null:(ops[Math.min(Number(st.op)||0,Math.max(0,ops.length-1))]||null);
+    const mem=memoriaManual()[cat]||{};
+    const man={modo:st.manModo||mem.modo||'g',valor:st.manValor!==undefined?st.manValor:(mem.valor||'')};
+    return {cat,preforma:false,manual,man,gramos:manual?gramosManual(man):(op?op.gramos:null),ops,op,lineas,linea:st.linea};
   }
   function resultadoCalc(d,o){
     const st=S.calc[d.id]||{},kg0=valorCampo(d,'peso_neto_kg')!==''?valorCampo(d,'peso_neto_kg'):valorCampo(d,'peso_declarado_kg');
@@ -122,9 +132,16 @@
     let fuente;
     if(o.preforma)fuente=`<label class="ii-campo"><span>Peso de 1 preforma (g)</span><input class="ie-in" type="number" min="0" step="any" inputmode="decimal" value="${esc(o.gramosTxt)}" oninput="ieCalc('gramos',this.value)" aria-label="Peso de 1 preforma en gramos"></label>
       <small class="ii-mut">Tomado del Producto («${esc(valorCampo(d,'producto'))}»). Cámbialo si no corresponde.</small>`;
-    else if(!o.lineas.length)fuente='<p class="ii-mut">Las conversiones todavía se están cargando.</p>';
-    else fuente=`<div class="ie-top"><label class="ii-campo"><span>Línea</span><select class="ie-in" onchange="ieCalc('linea',this.value)">${o.lineas.map(l=>`<option ${l===o.linea?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
-      <div class="ii-campo"><span>Conversión</span>${o.ops.length?`<select class="ie-in" onchange="ieCalc('op',this.value)">${o.ops.map((x,i)=>`<option value="${i}" ${x===o.op?'selected':''}>${esc(x.items.join(', '))} · ${esc(x.texto)}</option>`).join('')}</select>`:`<p class="ii-mut ie-calc-sin">No hay conversión kg ↔ UND de ${esc(o.cat)} en ${esc(o.linea)} (Asistente › Conversiones).</p>`}</div></div>`;
+    else{
+      const manHtml=o.manual?`<div class="ie-calc-man"><label class="ii-campo"><span>Conversión a mano</span><select class="ie-in" onchange="ieCalc('manModo',this.value)" aria-label="Cómo escribes la conversión">
+          <option value="g" ${o.man.modo!=='undkg'?'selected':''}>Peso de 1 unidad (g)</option><option value="undkg" ${o.man.modo==='undkg'?'selected':''}>Unidades en 1 kg</option></select></label>
+        <label class="ii-campo"><span>${o.man.modo==='undkg'?'UND en 1 kg':'Gramos de 1 UND'}</span><input id="ie-calc-man" class="ie-in" type="number" min="0" step="any" inputmode="decimal" value="${esc(o.man.valor)}" placeholder="${o.man.modo==='undkg'?'p. ej. 500':'p. ej. 2,1'}" oninput="ieCalc('manValor',this.value)" aria-label="${o.man.modo==='undkg'?'Unidades en 1 kilo':'Gramos de una unidad'}"></label></div>
+        <small class="ii-mut" id="ie-calc-man-eq">${o.gramos?esc(equivTexto(o.gramos)):'Escribe la conversión que indica la ficha o la etiqueta del proveedor.'}</small>`:'';
+      const conv=o.ops.length?`<select class="ie-in" onchange="ieCalc('op',this.value)">${o.ops.map((x,i)=>`<option value="${i}" ${x===o.op?'selected':''}>${esc(x.items.join(', '))} · ${esc(x.texto)}</option>`).join('')}<option value="m" ${o.manual?'selected':''}>✍ Escribir a mano</option></select>`:
+        `<p class="ii-mut ie-calc-sin">Sin conversión guardada de ${esc(o.cat)} en ${esc(o.linea||'ninguna línea')}: escríbela a mano.</p>`;
+      fuente=(o.lineas.length?`<div class="ie-top"><label class="ii-campo"><span>Línea</span><select class="ie-in" onchange="ieCalc('linea',this.value)">${o.lineas.map(l=>`<option ${l===o.linea?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
+      <div class="ii-campo"><span>Conversión</span>${conv}</div></div>`:conv)+manHtml;
+    }
     const ok=!!o.gramos;
     return `<details class="ie-calc" ${S.calc.abierta?'open':''} ontoggle="ieCalc('abierta',this.open)"><summary><b>Calculadora de conversión</b> <small class="ii-mut">kg ↔ UND</small></summary>
       ${fuente}
@@ -132,14 +149,23 @@
         <span class="ie-calc-eq" aria-hidden="true">⇄</span>
         <label class="ii-campo"><span>Unidades (UND)</span><input id="ie-calc-und" class="ie-in" type="number" min="0" step="1" inputmode="numeric" value="${esc(r.und)}" oninput="ieCalc('und',this.value)" ${ok?'':'disabled'} aria-label="Unidades"></label></div>
       <p class="ie-calc-comp" id="ie-calc-comp">${r.comp}</p>
-      <p class="ii-mut ie-calc-nota">${ok?`1 UND = ${esc(fmtN(o.gramos,4))} g. `:''}Solo calcula: no cambia los datos de la evidencia. El peso puede incluir el empaque.</p></details>`;
+      <p class="ii-mut ie-calc-nota"><span id="ie-calc-eqn">${ok&&!o.manual?`1 UND = ${esc(fmtN(o.gramos,4))} g. `:''}</span>Solo calcula: no cambia los datos de la evidencia. El peso puede incluir el empaque.</p></details>`;
   }
+  const equivTexto=g=>'1 UND = '+fmtN(g,4)+' g · 1 kg ≈ '+fmtN(1000/g,1)+' UND';
   window.ieCalc=(k,v)=>{
     const d=docActual();if(!d)return;
     if(k==='abierta'){S.calc.abierta=!!v;return;}
     const st=S.calc[d.id]||(S.calc[d.id]={});
     if(k==='linea'){st.linea=v;st.op=0;repintar();return;}
-    if(k==='op'){st.op=Number(v)||0;repintar();return;}
+    if(k==='op'){if(v==='m'){st.modo='manual';}else{st.modo='guardada';st.op=Number(v)||0;}repintar();return;}
+    if(k==='manModo'||k==='manValor'){
+      const cat=(S.borr[d.id]||{}).categoria||d.categoria,mem=memoriaManual();
+      if(k==='manModo'){st.manModo=v==='undkg'?'undkg':'g';st.manValor='';}else st.manValor=v;
+      const o0=opcionesCalc(d);
+      mem[cat]={modo:o0.man.modo,valor:o0.man.valor};
+      try{localStorage.setItem(MEM_CALC,JSON.stringify(mem));}catch(_){/* solo en la sesión */}
+      if(k==='manModo'){repintar();return;}
+    }
     if(k==='gramos')st.gramos=v;
     if(k==='kg'){st.kg=v;st.desde='kg';}
     if(k==='und'){st.und=v;st.desde='und';}
@@ -147,6 +173,9 @@
     if(k!=='kg'&&$('ie-calc-kg'))$('ie-calc-kg').value=r.kg;
     if(k!=='und'&&$('ie-calc-und'))$('ie-calc-und').value=r.und;
     if($('ie-calc-comp'))$('ie-calc-comp').innerHTML=r.comp;
+    ['ie-calc-kg','ie-calc-und'].forEach(id=>{if($(id))$(id).disabled=!o.gramos;});
+    if($('ie-calc-eqn'))$('ie-calc-eqn').textContent=o.gramos&&!o.manual?'1 UND = '+fmtN(o.gramos,4)+' g. ':'';
+    if($('ie-calc-man-eq'))$('ie-calc-man-eq').textContent=o.gramos?equivTexto(o.gramos):'Escribe la conversión que indica la ficha o la etiqueta del proveedor.';
   };
   function detalle(){
     const d=docActual();
@@ -350,7 +379,7 @@
 .ie-foto{max-width:100%;max-height:68vh;object-fit:contain;transition:transform .15s}
 .ie-calc{margin:14px 0;border:1px solid #cfe0ea;border-radius:10px;padding:10px 12px;background:#f6fafc}.ie-calc summary{cursor:pointer;color:#033350;font-size:14px}
 .ie-calc[open] summary{margin-bottom:10px}.ie-calc-io{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end;margin-top:8px}.ie-calc-eq{font-size:20px;color:#5b7a8c;padding-bottom:8px}
-.ie-calc-comp{margin:8px 0 0;font-size:13.5px}.ie-calc-ok{color:#166534}.ie-calc-mal{color:#b42318}.ie-calc-nota{font-size:12px;margin:6px 0 0}.ie-calc-sin{display:block;padding:8px 0}
+.ie-calc-comp{margin:8px 0 0;font-size:13.5px}.ie-calc-ok{color:#166534}.ie-calc-mal{color:#b42318}.ie-calc-nota{font-size:12px;margin:6px 0 0}.ie-calc-sin{display:block;padding:8px 0}.ie-calc-man{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}@media(max-width:520px){.ie-calc-man{grid-template-columns:1fr}}
 .ie-top{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}.ie-g{margin:14px 0 6px;font-size:14px;color:#033350}
 .ie-t{width:100%;border-collapse:collapse;font-size:14px}.ie-t{table-layout:fixed}.ie-t th{text-align:left;text-transform:none;letter-spacing:0;font-size:14px;color:#033350;background:transparent;font-weight:600;width:30%;padding:7px 8px 7px 0;vertical-align:top}.ie-t th small{display:block;font-weight:400;color:var(--ii-mut);font-size:11.5px;overflow-wrap:anywhere}
 .ie-t td{padding:5px 6px;vertical-align:top;border-top:1px solid #edf2f7}.ie-f-dudoso td,.ie-f-dudoso th{background:#fff7f6}.ie-or{display:block;font-size:11px}.ie-ac{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}

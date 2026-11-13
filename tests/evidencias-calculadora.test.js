@@ -13,3 +13,8 @@ ok(N.convertir({gramos:0,kg:10}).und===null&&N.convertir({gramos:5,kg:''}).und==
 ok(N.diferenciaPct(8117,8141)===-0.3&&N.diferenciaPct(100,0)===null,'diferencia con la etiqueta en % (sin cantidad en la etiqueta no compara)');
 const P=fs.readFileSync(R+'/js/asistente/86-evidencias-insumos-pantalla.js','utf8');
 ok(/calculadoraHtml\(d\)/.test(P)&&/Solo calcula: no cambia los datos de la evidencia/.test(P)&&!/ieCalc[^\n]*borrador\(\)/.test(P),'la pantalla muestra la calculadora y no escribe en el borrador de la evidencia');
+/* Conversión escrita a mano (13/11/2026). */
+ok(/✍ Escribir a mano/.test(P)&&/value="m"/.test(P)&&/manual=st\.modo==='manual'\|\|!ops\.length/.test(P),'si no hay conversión guardada (o se elige «Escribir a mano») se escribe la conversión a mano');
+ok(/Peso de 1 unidad \(g\)/.test(P)&&/Unidades en 1 kg/.test(P)&&/m\.modo==='undkg'\?1000\/n:n/.test(P),'a mano: gramos de 1 UND o UND en 1 kg (1000 ÷ UND por kg = gramos)');
+ok(/glacial-calc-manual/.test(P)&&/try\{localStorage\.setItem/.test(P)&&/catch\(_\)\{\/\* sin almacenamiento/.test(P),'la conversión a mano se recuerda por categoría (sin romper si el navegador no guarda)');
+ok(/\$\(id\)\.disabled=!o\.gramos/.test(P),'kilos y unidades se habilitan apenas hay conversión');
