@@ -14,7 +14,7 @@
   const esc=t=>typeof escaparHtml==='function'?escaparHtml(t):String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const ahoraMs=()=>typeof window.tareoAhoraServidor==='function'?window.tareoAhoraServidor():Date.now();
   const hoyIso=()=>GlacialFecha.fechaISOLocal(ahoraMs());          // fecha de hoy en hora de Lima (01b-fecha-operativa.js)
-  const UI={maquina:'',anio:0,linea:'',conRegistros:false};      // conRegistros pasará a true cuando exista el módulo de registros
+  const UI={maquina:'',anio:0,linea:'',conRegistros:false,buscar:'',frec:'',soloSemana:false,abiertas:new Set(),enfocarBuscar:null};      // conRegistros pasará a true cuando exista el módulo de registros
 
   /* ---------- permisos ---------- */
   const JEFATURA=['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'];
@@ -61,12 +61,40 @@
     const act='<b>'+esc(p.equipo)+'</b>'+(p.tarea?' <span class="mp-tarea">/ '+esc(p.tarea)+'</span>':'');
     let celdas;
     if(a.es_todo_el_anio){
-      const av=N.avanceAnio(actual,a.anio);
-      celdas='<td class="mp-todo" colspan="12"><div class="mp-barra" role="img" aria-label="Semanas 1 a 52, '+av.transcurridas+' de '+av.total+' transcurridas"><i style="width:'+av.pct+'%"></i></div>'+
-        '<span class="mp-barra-txt">1 – 52'+(actual&&actual.anio===a.anio?' · S'+actual.semana+' en curso':'')+'</span></td>';
+      celdas='<td class="mp-todo" colspan="12"><span class="mp-todo-pill" title="Se hace todas las semanas del año (1 – 52)"><b>↻ Todas las semanas</b> 1 – 52</span>'+
+        (actual&&actual.anio===a.anio?'<span class="mp-barra-txt">Semana '+actual.semana+' en curso</span>':'')+'</td>';
     }else celdas=celdaSemanas(a,actual);
-    return '<tr data-mp-fila="'+esc(a.id)+'"><td class="mp-item">'+esc(a.item)+'</td><td class="mp-act">'+act+'</td><td class="mp-ins">'+esc(a.insumos)+'</td><td class="mp-n">'+esc(a.n_tecnicos)+'</td><td class="mp-frec">'+esc(a.frecuencia)+'</td>'+celdas+
-      (editar?'<td class="mp-edit"><button type="button" class="btn btn-ghost btn-sm" data-mp-editar="'+esc(a.id)+'" aria-label="Editar actividad">✎</button></td>':'')+'</tr>';
+    const abierta=UI.abiertas.has(a.id),estaSemana=!!(actual&&actual.anio===a.anio&&(a.semanas||[]).includes(actual.semana));
+    return '<tr class="mp-fila'+(abierta?' abierta':'')+'" data-mp-fila="'+esc(a.id)+'" data-mp-abrir="'+esc(a.id)+'" tabindex="0" aria-expanded="'+abierta+'" title="Toca para ver cuándo se hace"><td class="mp-item"><span class="mp-chev" aria-hidden="true">'+(abierta?'▾':'▸')+'</span> '+esc(a.item)+'</td><td class="mp-act">'+act+(estaSemana?' <span class="mp-hoy">Esta semana</span>':'')+'</td><td class="mp-ins">'+esc(a.insumos)+'</td><td class="mp-n">'+esc(a.n_tecnicos)+'</td><td class="mp-frec">'+esc(a.frecuencia)+'</td>'+celdas+
+      (editar?'<td class="mp-edit"><button type="button" class="btn btn-ghost btn-sm" data-mp-editar="'+esc(a.id)+'" aria-label="Editar actividad">✎</button></td>':'')+'</tr>'+(abierta?filaDetalle(a,actual,editar):'');
+  }
+  /** Detalle de una actividad: calendario de las 52 semanas y próximas fechas (se abre al tocar la fila). */
+  function filaDetalle(a,actual,editar){
+    const total=N.semanasDelAnio(a.anio),prog=new Set(a.semanas||[]),act=actual&&actual.anio===a.anio?actual.semana:0;
+    const celdas=[];for(let sem=1;sem<=total;sem++){
+      const r=N.rangoSemana(a.anio,sem),on=prog.has(sem),cls=!on?'no':sem===act?'actual':act&&sem<act?'pasada':'prox';
+      celdas.push('<span class="mp-cal mp-cal-'+cls+'" title="Semana '+sem+' · '+N.ddmm(r.desde)+' al '+N.ddmm(r.hasta)+(on?(sem===act?' · esta semana':act&&sem<act?' · ya pasó':' · programada'):' · no se hace')+'">'+sem+'</span>');
+    }
+    const futuras=[...prog].filter(x=>x>=act).sort((x,y)=>x-y).slice(0,4);
+    const prox=futuras.length?futuras.map(x=>{const r=N.rangoSemana(a.anio,x);return '<li><b>Semana '+x+'</b>'+(x===act?' <em>(esta semana)</em>':'')+'<small>'+N.ddmm(r.desde)+' al '+N.ddmm(r.hasta)+'</small></li>';}).join(''):'<li><small>No quedan semanas programadas este año.</small></li>';
+    const nTxt=a.es_todo_el_anio?'Todas las semanas del año':prog.size+' semana'+(prog.size===1?'':'s')+' al año';
+    return '<tr class="mp-det"><td colspan="'+(5+12+(editar?1:0))+'"><div class="mp-det-in"><div><h4>'+esc(nTxt)+' · '+esc(a.frecuencia)+'</h4><div class="mp-cal-g" role="img" aria-label="Calendario de semanas del año">'+celdas.join('')+'</div>'+
+      '<div class="mp-cal-ley"><span><i class="mp-cal mp-cal-prox"></i>Programada</span><span><i class="mp-cal mp-cal-actual"></i>Esta semana</span><span><i class="mp-cal mp-cal-pasada"></i>Ya pasó</span><span><i class="mp-cal mp-cal-no"></i>No se hace</span></div></div>'+
+      '<div><h4>Próximas</h4><ul class="mp-prox">'+prox+'</ul>'+(a.insumos&&a.insumos!=='N/A'?'<p class="mp-ins2"><b>Insumos:</b> '+esc(a.insumos)+'</p>':'')+'<p class="mp-ins2"><b>Técnicos:</b> '+esc(a.n_tecnicos)+'</p></div></div></td></tr>';
+  }
+  /** Filtros de la tabla: búsqueda, frecuencia y «solo esta semana». */
+  function filtrar(acts,actual){
+    const q=String(UI.buscar||'').trim().toLowerCase();
+    return acts.filter(a=>(!q||N.textoBusqueda(a).includes(q))&&(!UI.frec||a.frecuencia===UI.frec)&&(!UI.soloSemana||!!(actual&&actual.anio===a.anio&&(a.semanas||[]).includes(actual.semana))));
+  }
+  function herramientas(acts,vistas,actual){
+    const cuenta={};acts.forEach(a=>{cuenta[a.frecuencia]=(cuenta[a.frecuencia]||0)+1;});
+    const orden=N.BLOQUES.filter(b=>cuenta[b]);
+    const chip=(v,txt,n)=>'<button type="button" class="mp-fchip'+(UI.frec===v?' on':'')+'" data-mp-frec="'+esc(v)+'" aria-pressed="'+(UI.frec===v)+'">'+esc(txt)+' <b>'+n+'</b></button>';
+    return '<div class="mp-herr"><input type="search" class="mp-buscar" data-mp-buscar placeholder="Buscar equipo, actividad o insumo…" value="'+esc(UI.buscar)+'" aria-label="Buscar en el plan">'+
+      '<div class="mp-fchips">'+chip('','Todas',acts.length)+orden.map(b=>chip(b,b,cuenta[b])).join('')+'</div>'+
+      '<label class="mp-solo"><input type="checkbox" data-mp-solo'+(UI.soloSemana?' checked':'')+(actual?'':' disabled')+'> Solo lo de esta semana</label>'+
+      (vistas!==acts.length?'<span class="mp-cuenta">Mostrando '+vistas+' de '+acts.length+'</span>':'')+'</div>';
   }
   function tarjetas(r,actual){
     const t=(titulo,valor,sub,cls)=>'<div class="mp-card '+(cls||'')+'"><span>'+titulo+'</span><b>'+valor+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
@@ -90,8 +118,8 @@
     }else if(!ms.length||!maq){
       cuerpo='<div class="mp-aviso">Todavía no hay máquinas cargadas en el plan.</div>';
     }else{
-      const acts=D.actividadesDe(maq.id,UI.anio);
-      const grupos=N.agruparPorBloque(acts);
+      const acts=D.actividadesDe(maq.id,UI.anio),actualA=actual&&actual.anio===UI.anio?actual:null,vistas=filtrar(acts,actualA);
+      const grupos=N.agruparPorBloque(vistas);
       const r=N.resumen(acts,actual&&actual.anio===UI.anio?actual:null,{conRegistros:UI.conRegistros});
       const colg='<colgroup><col style="width:44px"><col style="width:240px"><col style="width:150px"><col style="width:52px"><col style="width:92px">'+N.MESES.map(()=>'<col style="width:44px">').join('')+(editar?'<col style="width:44px">':'')+'</colgroup>';
       const cab=colg+'<thead><tr><th rowspan="2">ÍTEM</th><th rowspan="2">ACTIVIDAD (COMPONENTE / TAREA)</th><th rowspan="2">INSUMOS</th><th rowspan="2" title="Número de técnicos">N° TÉC.</th><th rowspan="2">FRECUENCIA</th><th colspan="12">MES / SEMANA</th>'+(editar?'<th rowspan="2"></th>':'')+'</tr>'+
@@ -101,8 +129,8 @@
       cuerpo=(maq.pendiente_confirmar?'<div class="mp-aviso mp-aviso-amb"><b>Pendiente de confirmar:</b> todavía no se sabe a qué línea pertenece esta máquina. No está asignada a PET1 ni a PET2.</div>':'')+
         tarjetas(r,actual&&actual.anio===UI.anio?actual:null)+
         '<div class="mp-leyenda"><span><i class="mp-sem mp-ejecutada"></i>Ejecutada</span><span><i class="mp-sem mp-actual"></i>Semana actual</span><span><i class="mp-sem mp-programada"></i>Programada</span><span><i class="mp-sem mp-vencida"></i>Vencida</span>'+
-        '<em>'+(editar?'Puedes editar el plan (supervisor / jefe de Mantenimiento).':'Solo el Supervisor / Jefe de Mantenimiento puede editar.')+'</em></div>'+
-        (acts.length?'<div class="mp-tw"><table class="mp-t">'+cab+'<tbody>'+filas+'</tbody></table></div>':'<div class="mp-aviso">Esta máquina no tiene actividades para '+UI.anio+'.</div>')+
+        '<em>'+(editar?'Puedes editar el plan (supervisor / jefe de Mantenimiento). Toca una actividad para ver cuándo se hace.':'Solo el Supervisor / Jefe de Mantenimiento puede editar. Toca una actividad para ver cuándo se hace.')+'</em></div>'+
+        (acts.length?herramientas(acts,vistas.length,actualA)+(vistas.length?'<div class="mp-tw"><table class="mp-t">'+cab+'<tbody>'+filas+'</tbody></table></div>':'<div class="mp-aviso">Ninguna actividad coincide con lo que buscas. <button type="button" class="btn btn-ghost btn-sm" data-mp-limpiar>Quitar filtros</button></div>'):'<div class="mp-aviso">Esta máquina no tiene actividades para '+UI.anio+'.</div>')+
         '<p class="mp-pie">Los números dentro de cada mes son las semanas programadas, igual que en el Excel PLAN-PROGRAMA MTTO '+UI.anio+'. Los textos se muestran tal cual vienen del plan.</p>';
     }
     const anios=D.anios();
@@ -115,6 +143,7 @@
       (maq&&c.listo?'<button type="button" class="btn btn-ghost" data-mp-excel>Exportar Excel</button><button type="button" class="btn btn-ghost" data-mp-imprimir>Imprimir</button>':'')+(editar&&maq?'<button type="button" class="btn btn-primary" data-mp-nueva>+ Actividad</button>':'')+'</div></header>'+
       '<nav class="mp-chips" aria-label="Máquinas">'+ms.map(m=>'<button type="button" class="mp-chip'+(m.id===UI.maquina?' on':'')+(m.pendiente_confirmar?' pend':'')+'" data-mp-maq="'+esc(m.id)+'" aria-pressed="'+(m.id===UI.maquina)+'" title="'+esc(m.nombre)+(m.pendiente_confirmar?' · pendiente de confirmar a qué línea pertenece':'')+'">'+esc(m.codigo_hoja)+(m.pendiente_confirmar?' <b>?</b>':'')+'</button>').join('')+'</nav>'+
       cuerpo+'</section>';
+    if(UI.enfocarBuscar!==null){const i=main.querySelector('[data-mp-buscar]');if(i){i.focus();try{i.setSelectionRange(UI.enfocarBuscar,UI.enfocarBuscar);}catch(_){/* sin cursor */}}UI.enfocarBuscar=null;}
   }
 
   /* ---------- editar / agregar actividad ---------- */
@@ -193,6 +222,10 @@
     if(!raiz)return;
     const m=e.target.closest('[data-mp-maq]');if(m){UI.maquina=m.getAttribute('data-mp-maq');repintar(true);return;}
     const ed=e.target.closest('[data-mp-editar]');if(ed){abrirEdicion(ed.getAttribute('data-mp-editar'));return;}
+    const fq=e.target.closest('[data-mp-frec]');if(fq){UI.frec=fq.getAttribute('data-mp-frec');repintar(true);return;}
+    if(e.target.closest('[data-mp-limpiar]')){UI.buscar='';UI.frec='';UI.soloSemana=false;repintar(true);return;}
+    const fa=e.target.closest('[data-mp-abrir]');
+    if(fa&&!e.target.closest('input,button,select,textarea,a')){const id=fa.getAttribute('data-mp-abrir');if(UI.abiertas.has(id))UI.abiertas.delete(id);else UI.abiertas.add(id);repintar(true);return;}
     if(e.target.closest('[data-mp-nueva]')){abrirEdicion('');return;}
     if(e.target.closest('[data-mp-recargar]')){D.cargar();return;}
     if(e.target.closest('[data-mp-imprimir]')){imprimir();return;}
@@ -202,6 +235,16 @@
     const t=e.target;if(!t||!t.closest||!t.closest('#mp-raiz'))return;
     if(t.hasAttribute('data-mp-linea')){UI.linea=t.value;UI.maquina='';repintar(true);}
     if(t.hasAttribute('data-mp-anio')){UI.anio=Number(t.value)||UI.anio;repintar(true);}
+    if(t.hasAttribute('data-mp-solo')){UI.soloSemana=!!t.checked;repintar(true);}
+  });
+  document.addEventListener('input',e=>{
+    const t=e.target;if(!t||!t.hasAttribute||!t.hasAttribute('data-mp-buscar')||!t.closest('#mp-raiz'))return;
+    UI.buscar=t.value;UI.enfocarBuscar=t.selectionStart==null?t.value.length:t.selectionStart;repintar(true);
+  });
+  document.addEventListener('keydown',e=>{                                    // Enter o espacio abre/cierra una actividad con el teclado
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    const f=e.target&&e.target.closest&&e.target.closest('tr[data-mp-abrir]');if(!f||e.target!==f||!f.closest('#mp-raiz'))return;
+    e.preventDefault();const id=f.getAttribute('data-mp-abrir');if(UI.abiertas.has(id))UI.abiertas.delete(id);else UI.abiertas.add(id);repintar(true);
   });
 
   /* ---------- estilos (variables de la paleta del logo) ---------- */
@@ -221,7 +264,8 @@
       '.mp-t td{padding:7px 8px;border-bottom:1px solid #edf2f7;vertical-align:middle}.mp-grupo td{background:#f6f9fc;font-size:12.5px;color:#033350;border-bottom:1px solid #dbe5ee}.mp-grupo span{color:#7a8794;font-weight:400;margin-left:6px}'+
       '.mp-item,.mp-n{text-align:center;color:#46627a;width:44px}.mp-act{overflow-wrap:anywhere}.mp-tarea{color:#46627a}.mp-ins{color:#46627a;font-size:12px;overflow-wrap:anywhere}.mp-frec{font-size:11.5px;color:#46627a;white-space:nowrap}'+
       '.mp-mes{text-align:center;min-width:44px;white-space:normal}.mp-todo{padding:6px 10px}.mp-barra{height:10px;border-radius:6px;background:#e4ecf3;overflow:hidden;display:inline-block;width:calc(100% - 140px);vertical-align:middle;min-width:100px}'+
-      '.mp-barra i{display:block;height:100%;background:linear-gradient(90deg,#8ec9e6,var(--brand,#0DB5F3))}.mp-barra-txt{font-size:12px;color:#46627a;margin-left:8px;white-space:nowrap}'+
+      '.mp-barra i{display:block;height:100%;background:linear-gradient(90deg,#8ec9e6,var(--brand,#0DB5F3))}.mp-barra-txt{font-size:12px;color:#46627a;margin-left:10px;white-space:nowrap}'+
+      '.mp-todo-pill{display:inline-flex;gap:8px;align-items:center;background:#e8f7fe;color:#065F86;border:1px solid #bfe3f4;border-radius:999px;padding:5px 14px;font-size:12.5px}.mp-todo-pill b{font-weight:700}.mp-fila{cursor:pointer}.mp-fila:hover td{background:#f3f9fd}.mp-fila.abierta td{background:#eaf5fb}.mp-fila:focus-visible{outline:2px solid var(--brand,#0DB5F3);outline-offset:-2px}.mp-chev{display:inline-block;width:12px;color:#5b6b79;font-size:11px}.mp-hoy{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:#fff4d6;border:1px solid #ecd48b;color:#8a6100;font-size:11px;font-weight:700;white-space:nowrap}.mp-herr{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:0 0 10px}.mp-buscar{flex:1 1 260px;min-height:42px;border:1px solid #cfdbe3;border-radius:10px;padding:0 12px;font-size:14px;background:#fff}.mp-fchips{display:flex;gap:6px;flex-wrap:wrap}.mp-fchip{border:1px solid #cfdbe3;background:#fff;border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;min-height:36px;color:#033350}.mp-fchip b{color:#7a8794;font-weight:600;margin-left:2px}.mp-fchip.on{background:var(--brand-700,#0877A6);border-color:var(--brand-700,#0877A6);color:#fff}.mp-fchip.on b{color:#d6f0fb}.mp-solo{display:flex;gap:6px;align-items:center;font-size:13px;color:#033350;cursor:pointer}.mp-cuenta{font-size:12.5px;color:#7a8794}.mp-det td{background:#f7fbfe;padding:12px 16px 16px;border-bottom:2px solid #dbe5ee}.mp-det-in{display:grid;grid-template-columns:minmax(0,2fr) minmax(220px,1fr);gap:18px}.mp-det h4{margin:0 0 8px;font-size:13px;color:#033350}.mp-cal-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:4px}.mp-cal{display:inline-flex;align-items:center;justify-content:center;min-height:26px;border-radius:6px;font-size:11.5px;font-weight:600;border:1px solid transparent}.mp-cal-prox{background:#d9eefa;color:#065F86;border-color:#b6dcf0}.mp-cal-actual{background:#fff;color:#065F86;border:2px solid var(--brand,#0DB5F3)}.mp-cal-pasada{background:#e9edf1;color:#7a8794}.mp-cal-no{background:transparent;color:#b7c2cc;border-color:#edf2f7;font-weight:400}.mp-cal-ley{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:12px;color:#46627a}.mp-cal-ley i.mp-cal{width:16px;min-height:16px;height:16px;margin-right:5px;vertical-align:-3px}.mp-prox{list-style:none;margin:0;padding:0;display:grid;gap:6px}.mp-prox li{display:flex;justify-content:space-between;gap:8px;background:#fff;border:1px solid #dbe5ee;border-radius:8px;padding:6px 10px;font-size:13px}.mp-prox em{color:#8a6100;font-style:normal;font-size:12px}.mp-prox small{color:#5b6b79}.mp-ins2{margin:8px 0 0;font-size:12.5px;color:#46627a}@media(max-width:760px){.mp-det-in{grid-template-columns:1fr}}'+
       '.mp-sem{display:inline-block;min-width:26px;padding:2px 6px;margin:1px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid transparent;line-height:1.5}'+
       '.mp-programada{background:#eef1f4;color:#46627a;border-color:#dfe5ea}.mp-actual{background:#fff;color:var(--brand-700,#0877A6);border:2px solid var(--brand,#0DB5F3)}.mp-ejecutada{background:#dff3e6;color:#14532d;border-color:#b6e0c4}.mp-vencida{background:#fde8e8;color:#9b1c1c;border-color:#f3b6b6}'+
       '.mp-aviso{background:#fff;border:1px dashed #cfdbe3;border-radius:12px;padding:16px;color:#46627a;margin:8px 0}.mp-aviso-amb{background:#fff8e6;border:1px solid #ecd48b;color:#6d4a00}.mp-pie{font-size:12px;color:#7a8794;margin-top:8px}'+
