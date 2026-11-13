@@ -44,15 +44,15 @@
     {campo:'orden_interna',etiqueta:'Orden interna (OI)',tipo:'texto',grupo:'Trazabilidad',oculto:true},
     {campo:'orden_compra',etiqueta:'Orden de compra',tipo:'texto',grupo:'Trazabilidad',oculto:true},
     {campo:'fecha_produccion',etiqueta:'Fecha de producción',tipo:'fecha',grupo:'Fechas'},
-    {campo:'fecha_proceso',etiqueta:'Fecha de proceso',tipo:'fecha',grupo:'Fechas'},
-    {campo:'fecha_etiqueta',etiqueta:'Fecha de la etiqueta (sin rótulo)',tipo:'fecha',grupo:'Fechas'},
-    {campo:'fecha_vencimiento',etiqueta:'Fecha de vencimiento',tipo:'fecha',grupo:'Fechas'},
+    {campo:'fecha_proceso',etiqueta:'Fecha de proceso',tipo:'fecha',grupo:'Fechas',oculto:true},
+    {campo:'fecha_etiqueta',etiqueta:'Fecha de la etiqueta (sin rótulo)',tipo:'fecha',grupo:'Fechas',oculto:true},
+    {campo:'fecha_vencimiento',etiqueta:'Fecha de vencimiento',tipo:'fecha',grupo:'Fechas',oculto:true},
     {campo:'cantidad_valor',etiqueta:'Cantidad',tipo:'numero',grupo:'Cantidad y pesos'},
     {campo:'cantidad_unidad',etiqueta:'Unidad de la cantidad',tipo:'texto',grupo:'Cantidad y pesos'},
     {campo:'peso_neto_kg',etiqueta:'Peso neto (kg)',tipo:'numero',grupo:'Cantidad y pesos'},
     {campo:'peso_bruto_kg',etiqueta:'Peso bruto (kg)',tipo:'numero',grupo:'Cantidad y pesos'},
     {campo:'peso_declarado_kg',etiqueta:'Peso declarado (kg, sin «neto»)',tipo:'numero',grupo:'Cantidad y pesos'},
-    {campo:'medidas',etiqueta:'Medidas',tipo:'texto',grupo:'Cantidad y pesos'}
+    {campo:'medidas',etiqueta:'Medidas',tipo:'texto',grupo:'Cantidad y pesos',oculto:true}
   ];
   const DEF=Object.fromEntries(CAMPOS.map(c=>[c.campo,c]));
   /* El validador usa nombres planos de la v2; en `campos` v3 la cantidad se llama cantidad_valor. */

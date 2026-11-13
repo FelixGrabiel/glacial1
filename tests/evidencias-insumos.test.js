@@ -65,7 +65,7 @@ const nuevoDoc=(extra)=>N.construirDocumento(registroV3(extra),{sha256:SHA,foto:
 {
   const d=nuevoDoc();
   let v=N.validarAprobacion(d);
-  ok(v.errores.length>=1&&/Confirma o corrige/.test(v.errores[0])&&/Cantidad/.test(v.errores[0])&&/Medidas/.test(v.errores[0]),'con datos dudosos sin confirmar NO se puede aprobar (dice cuáles)');
+  ok(v.errores.length>=1&&/Confirma o corrige/.test(v.errores[0])&&/Cantidad/.test(v.errores[0])&&!/Medidas/.test(v.errores[0]),'con datos dudosos sin confirmar NO se puede aprobar (dice cuáles; Medidas ya no se muestra ni se confirma)');
   const listo=N.aplicarEdiciones(d,{cambios:{cantidad_valor:'100',medidas:'60CM X 114CM X 1.7MILS',fecha_produccion:'2026-09-23'}},'Ana',2).doc;
   v=N.validarAprobacion(listo);
   ok(v.errores.length===0,'corregidos o confirmados todos los dudosos, se puede aprobar');
@@ -200,7 +200,7 @@ const ejecutar=async f=>{try{return {r:await f()};}catch(e){return {e};}};
   const UI=asistente.iiEvidenciasUI,E2=asistente.glacialEvidenciasDatos;
   let h=UI.html();
   ok(/Evidencias de etiquetas/.test(h)&&/Importar evidencias/.test(h)&&/Pendientes <b>1<\/b>/.test(h)&&/Aprobadas <b>1<\/b>/.test(h),'la bandeja muestra el título, el botón Importar y los contadores por estado');
-  ok(/ie-item/.test(h)&&/3 por confirmar/.test(h),'cada evidencia de la lista dice cuántos datos faltan por confirmar');
+  ok(/ie-item/.test(h)&&/2 por confirmar/.test(h),'cada evidencia de la lista dice cuántos datos faltan por confirmar');
   asistente.vm_sel=vm.runInContext("window.ieSel('"+SHA+"');window.iiEvidenciasUI.estado.sel",asistente);
   h=UI.html();
   ok(/data-foto-ref="supabase:glacial-fotos\/asistente\/evidencias\//.test(h)&&/ie-col-foto/.test(h)&&/ie-col-datos/.test(h),'detalle: la FOTO (enlace firmado por glacialFotos) va al lado de los datos');
