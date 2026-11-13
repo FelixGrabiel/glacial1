@@ -26,5 +26,13 @@ ok(!/[<>"]/.test(/content="([^"]*)"/.exec(sellar('<head></head>','a"><script>x')
 const idx=leer('index.html'),con=leer('scripts/construir-publicacion.js'),js=leer('js/nucleo/03-actualizacion.js');
 ok(/03-actualizacion\.js\?v=\d{8}-ac\d/.test(idx),'index.html carga el aviso');
 ok(/sello-build\.js/.test(con)&&/GITHUB_SHA/.test(con),'la publicación sella index.html con el commit');
-ok(/HAY UNA ACTUALIZACIÓN NUEVA/.test(js)&&/Actualizar ahora/.test(js)&&/Más tarde/.test(js)&&/cache:'no-store'/.test(js)&&!/location\.reload\(\);\s*\}\s*\)\s*;\s*$/.test(js),'el aviso dice lo pedido, baja index.html sin caché y no recarga sola');
+ok(/HAY UNA ACTUALIZACIÓN NUEVA/.test(js)&&/Actualizar ahora/.test(js)&&/Más tarde/.test(js)&&/cache:'no-store'/.test(js)&&!/location\.reload\(\);\s*\}\s*\)\s*;\s*$/.test(js),'el aviso dice lo pedido y baja index.html sin caché');
+/* Recarga automática segura (13/11/2026). */
+const e0={escribiendo:false,modal:false,guardando:false,oculta:false,inactivoMs:0,tv:false,pospuestoHasta:0,ahora:1e9};
+const S=x=>A.esSeguroRecargar(Object.assign({},e0,x));
+ok(!S({})&&S({inactivoMs:A.INACTIVO_MS})&&S({oculta:true}),'se recarga sola solo con la pestaña en segundo plano o 2 minutos sin tocar nada');
+ok(!S({oculta:true,escribiendo:true})&&!S({oculta:true,modal:true})&&!S({oculta:true,guardando:true}),'nunca mientras alguien escribe, hay una ventana abierta o se está guardando');
+ok(S({tv:true})&&!S({tv:true,modal:true}),'en la TV de planta, en cuanto es seguro');
+ok(!S({oculta:true,pospuestoHasta:2e9})&&S({oculta:true,pospuestoHasta:5e8}),'«Más tarde» la pospone (30 minutos)');
+ok(/REINTENTO_MS/.test(js)&&/sessionStorage\.setItem\(CLAVE/.test(js)&&/setInterval\(probarRecarga,REVISAR_SEGURO_MS\)/.test(js),'revisa cada 15 s si ya es seguro y no recarga en bucle si la caché devuelve la página vieja');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
