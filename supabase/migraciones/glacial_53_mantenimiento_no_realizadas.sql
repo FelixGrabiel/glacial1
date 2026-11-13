@@ -1,4 +1,4 @@
--- GLACIAL · glacial_53 · MANTENIMIENTO · ACTIVIDADES «NO REALIZADAS» CON MOTIVO, QUE PASAN A LA SEMANA SIGUIENTE      *** PRUEBAS: pendiente · PRODUCCIÓN: pendiente de aprobación
+-- GLACIAL · glacial_53 · MANTENIMIENTO · ACTIVIDADES «NO REALIZADAS» CON MOTIVO, QUE PASAN A LA SEMANA SIGUIENTE      *** APLICADA en PRUEBAS (13/11/2026) y en PRODUCCIÓN (13/11/2026)
 --
 -- Agrega a public.mtto_registro_actividades (Requiere glacial_48):
 --   · no_realizado          la actividad NO se hizo (no puede estar también «realizada»).

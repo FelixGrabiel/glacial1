@@ -7,7 +7,7 @@
 (function(){
   'use strict';
   const N=window.glacialMttoPlan;
-  const cache={maquinas:[],actividades:[],config:null,listo:false,cargando:false,error:'',enVivo:false,registros:[],regActs:[],piezas:[],fotos:[],fotosOk:true,semana:null,errorSemana:'',historial:[],anioHistorial:null,errorHistorial:'',cargandoHistorial:false};
+  const cache={ejec:{},maquinas:[],actividades:[],config:null,listo:false,cargando:false,error:'',enVivo:false,registros:[],regActs:[],piezas:[],fotos:[],fotosOk:true,semana:null,errorSemana:'',historial:[],anioHistorial:null,errorHistorial:'',cargandoHistorial:false};
   const oyentes=[],remotos=[];
   let cliente=null,canal=null,activo=false;
   const sb=()=>cliente||window.glacialSupabaseCliente||null;
@@ -39,6 +39,7 @@
   };
   function alCambio(tabla,p){
     const t=p&&p.eventType,n=p&&p.new,o=p&&p.old;
+    if(tabla==='mtto_registros'||tabla==='mtto_registro_actividades')programarEjecucion();      // el Registro cambió: la ejecución del año se vuelve a leer
     const previa=(t==='UPDATE'||t==='INSERT')&&n?filaPrevia(tabla,n):null;
     if(previa||t==='UPDATE')remotos.slice().forEach(f=>{try{f(tabla,previa,n);}catch(_){/* un oyente no rompe a los demás */}});
     if(tabla==='mtto_maquinas'){
@@ -65,6 +66,36 @@
       else if(n&&n.id&&cache.registros.some(r=>r.id===n.registro_id))reemplazar(cache.fotos,n);
     }
     avisar();
+  }
+  /* ---------- ejecución del año (Registro) ----------
+     Registros y actividades marcadas de UN año: con ellos el Plan anual pinta lo hecho, lo no realizado y lo vencido, y el Inicio arma «Esta semana en Mantenimiento».
+     Se piden una vez por año y se vuelven a pedir (con una pausa) cuando cambia el Registro, aquí o en otro dispositivo. */
+  let tEjec=null;
+  async function cargarEjecucion(anio){
+    const c=sb();if(!c||!Number.isFinite(Number(anio)))return null;
+    const previo=cache.ejec[anio];if(previo&&previo.cargando)return previo;
+    cache.ejec[anio]=Object.assign(previo||{registros:[],acts:[]},{cargando:true});
+    try{
+      const r=await c.from('mtto_registros').select('id,maquina_id,anio,semana,estado,actualizado_en').eq('anio',anio).limit(3000);
+      if(r.error)throw r.error;
+      const registros=r.data||[],acts=[];
+      for(let i=0;i<registros.length;i+=60){
+        const a=await c.from('mtto_registro_actividades').select('id,registro_id,plan_actividad_id,realizado,no_realizado,motivo_no,origen_actividad_id,item,equipo,actividad').in('registro_id',registros.slice(i,i+60).map(x=>x.id)).limit(5000);
+        if(a.error)throw a.error;acts.push(...(a.data||[]));
+      }
+      cache.ejec[anio]={registros,acts,listo:true,cargando:false,error:'',en:Date.now()};
+    }catch(e){cache.ejec[anio]={registros:[],acts:[],listo:false,cargando:false,error:msg(e),en:Date.now()};}
+    avisar();return cache.ejec[anio];
+  }
+  /** Ejecución del año si ya está leída; si no, la pide (una sola vez) y avisa a las pantallas cuando llegue. */
+  function ejecucion(anio){
+    const e=cache.ejec[anio];
+    if(!e||(!e.listo&&!e.cargando&&!e.error))cargarEjecucion(anio);
+    return e&&(e.listo||e.error)?e:null;
+  }
+  function programarEjecucion(){
+    clearTimeout(tEjec);
+    tEjec=setTimeout(()=>{Object.keys(cache.ejec).forEach(a=>{if(cache.ejec[a]&&cache.ejec[a].listo)cargarEjecucion(Number(a));});},1500);
   }
   /** Registros de UNA semana (y sus actividades): lo que muestra el Programa semanal. */
   async function cargarSemana(anio,semana){
@@ -301,7 +332,7 @@
   const validarRegistro=(reg,quien)=>actualizarReg(reg.id,{estado:'VALIDADO',supervisor:quien||reg.supervisor||''});
   const reabrirRegistro=reg=>actualizarReg(reg.id,{estado:'EN_CURSO'});
 
-  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,iniciarRegistro,traerPendientes,marcarActividad,marcarNoRealizada,quitarNoRealizada,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
+  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,iniciarRegistro,traerPendientes,cargarEjecucion,ejecucion,marcarActividad,marcarNoRealizada,quitarNoRealizada,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
     actividadesDe:(maquinaId,anio)=>cache.actividades.filter(a=>a.maquina_id===maquinaId&&a.anio===anio).sort((a,b)=>(a.orden||0)-(b.orden||0)),
     anios:()=>[...new Set(cache.actividades.map(a=>a.anio))].sort((a,b)=>b-a)};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
