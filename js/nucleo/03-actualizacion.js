@@ -4,7 +4,10 @@
      · el sello de la publicación (<meta name="glacial-build">, lo pone scripts/construir-publicacion.js) y
      · las versiones «?v=…» de los scripts y estilos (cada cambio de código las sube).
    Si algo cambió, sale una barra arriba con «Actualizar ahora». «Más tarde» la reduce a una etiqueta que vuelve a abrirse a los 10 minutos.
-   No recarga sola (se podría perder lo que se está escribiendo). Sin red o sin index.html, no hace nada. */
+   Recarga sola (13/11/2026) SOLO cuando es seguro, para no perder lo que se está escribiendo: nadie escribiendo en un campo, sin ventanas
+   abiertas, sin un guardado del Registro en curso, y con la pestaña en segundo plano o 2 minutos sin tocar nada; en la TV de planta (modo TV),
+   en cuanto es seguro. «Más tarde» la pospone 30 minutos. Si tras recargar el navegador vuelve a dar la página vieja (caché), no insiste
+   hasta 15 minutos después. Lo que se llena en el Registro ya queda en borrador y la sesión sigue. Sin red o sin index.html, no hace nada. */
 (function(raiz){
   'use strict';
   const INTERVALO_MS=3*60*1000, RECORDAR_MS=10*60*1000, PRIMERA_REVISION_MS=45*1000, MIN_ENTRE_REVISIONES_MS=30*1000, MIN_RECURSOS=10;
@@ -30,11 +33,37 @@
     const mios=new Set(actual.recursos);                                  // un recurso publicado que esta página no cargó = versión nueva (los que cargó un script por su cuenta no cuentan)
     return publicada.recursos.some(r=>!mios.has(r));
   }
-  const API={firmaDeTexto,firmaDeDocumento,hayCambio,INTERVALO_MS,RECORDAR_MS};
+  const INACTIVO_MS=2*60*1000,REVISAR_SEGURO_MS=15*1000,POSPONER_MS=30*60*1000,REINTENTO_MS=15*60*1000;
+  /** ¿Se puede recargar sola sin molestar? e: {escribiendo, modal, guardando, oculta, inactivoMs, tv, pospuestoHasta, ahora} */
+  function esSeguroRecargar(e){
+    if(!e||e.escribiendo||e.modal||e.guardando)return false;
+    if(!e.tv&&e.pospuestoHasta&&e.ahora<e.pospuestoHasta)return false;
+    return !!(e.tv||e.oculta||e.inactivoMs>=INACTIVO_MS);
+  }
+  const API={firmaDeTexto,firmaDeDocumento,hayCambio,esSeguroRecargar,INTERVALO_MS,RECORDAR_MS,INACTIVO_MS};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   if(typeof document==='undefined'||typeof raiz.fetch!=='function'||!raiz.location||raiz.location.protocol==='file:')return;
 
-  let base=null,hay=false,ultima=0,reabrir=null;
+  let base=null,hay=false,ultima=0,reabrir=null,ultimoToque=Date.now(),pospuestoHasta=0,vigilando=null;
+  ['pointerdown','keydown','touchstart','wheel'].forEach(t=>document.addEventListener(t,()=>{ultimoToque=Date.now();},{passive:true,capture:true}));
+  /* Recarga automática segura. La firma publicada se recuerda para no recargar en bucle si la caché devuelve la página vieja. */
+  const CLAVE='glacial-recarga-auto';
+  const intento=()=>{try{return JSON.parse(sessionStorage.getItem(CLAVE)||'null');}catch(_){return null;}};
+  function estadoPagina(){
+    const a=document.activeElement;
+    const escribiendo=!!(a&&(/^(TEXTAREA|SELECT)$/.test(a.tagName)||(a.tagName==='INPUT'&&!/^(button|submit|checkbox|radio|range|color|file|reset)$/i.test(a.type||''))||a.isContentEditable));
+    const modal=!!document.querySelector('#modal-root .modal-backdrop,#modal-root [role="dialog"],.av-detail-modal,dialog[open]');
+    let guardando=false;
+    try{guardando=(typeof guardandoRegistro!=='undefined'&&!!guardandoRegistro)||(typeof _autosaveReporteTimer!=='undefined'&&!!_autosaveReporteTimer);}catch(_){guardando=false;}
+    return {escribiendo,modal,guardando,oculta:document.visibilityState==='hidden',inactivoMs:Date.now()-ultimoToque,
+      tv:document.documentElement.classList.contains('modo-tv'),pospuestoHasta,ahora:Date.now()};
+  }
+  function recargar(){try{sessionStorage.setItem(CLAVE,JSON.stringify({en:Date.now()}));}catch(_){/* igual recarga */}raiz.location.reload();}
+  function probarRecarga(){
+    if(!hay)return;
+    const i=intento();if(i&&Date.now()-i.en<REINTENTO_MS)return;                     // ya se recargó hace poco y siguió vieja: no insistir
+    if(esSeguroRecargar(estadoPagina()))recargar();
+  }
   function estilos(){
     if(document.getElementById('gl-act-estilos'))return;
     const s=document.createElement('style');s.id='gl-act-estilos';
@@ -51,17 +80,20 @@
     let e=document.getElementById('gl-act');
     if(!e){e=document.createElement('div');e.id='gl-act';e.setAttribute('role','alert');document.body.appendChild(e);}
     e.className=mini?'gl-mini':'';
-    e.innerHTML='<b>'+(mini?'Actualización nueva':'HAY UNA ACTUALIZACIÓN NUEVA')+'</b><span>Guarda lo que estás haciendo y actualiza la página para tener los últimos cambios.</span>'+
+    e.innerHTML='<b>'+(mini?'Actualización nueva':'HAY UNA ACTUALIZACIÓN NUEVA')+'</b><span>Guarda lo que estás haciendo y actualiza la página para tener los últimos cambios. Si no la usas, se actualizará sola.</span>'+
       '<div class="gl-btns"><button type="button" class="gl-si" data-gl-act="ya">'+(mini?'Actualizar':'Actualizar ahora')+'</button><button type="button" class="gl-no" data-gl-act="luego">Más tarde</button></div>';
   }
   function mostrar(){
     hay=true;pintar(false);
     if(reabrir)clearTimeout(reabrir);
+    probarRecarga();
+    if(!vigilando)vigilando=setInterval(probarRecarga,REVISAR_SEGURO_MS);
   }
   document.addEventListener('click',ev=>{
     const b=ev.target&&ev.target.closest&&ev.target.closest('[data-gl-act]');if(!b)return;
-    if(b.getAttribute('data-gl-act')==='ya'){raiz.location.reload();return;}
-    pintar(true);reabrir=setTimeout(()=>pintar(false),RECORDAR_MS);                          // «Más tarde»: queda una etiqueta y vuelve a abrirse
+    if(b.getAttribute('data-gl-act')==='ya'){recargar();return;}
+    pospuestoHasta=Date.now()+POSPONER_MS;                                                   // «Más tarde»: tampoco se recarga sola durante 30 minutos
+    pintar(true);reabrir=setTimeout(()=>pintar(false),RECORDAR_MS);                          // queda una etiqueta y vuelve a abrirse
   });
   async function revisar(forzar){
     if(hay||!base)return;
@@ -76,7 +108,7 @@
     base=firmaDeDocumento(document);
     setTimeout(()=>revisar(true),PRIMERA_REVISION_MS);
     setInterval(()=>revisar(false),INTERVALO_MS);
-    document.addEventListener('visibilitychange',()=>{if(!document.hidden)revisar(false);});
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)revisar(false);else probarRecarga();});
     raiz.addEventListener('online',()=>revisar(true));
   }
   API.revisarAhora=()=>revisar(true);API.mostrar=mostrar;API.base=()=>base;
