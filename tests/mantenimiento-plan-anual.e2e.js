@@ -51,11 +51,27 @@ const MUESTRA = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'mtto-p
   const txt = async s => P.evaluate(x => (document.querySelector(x) || {}).innerText || '', s);
   ok(await P.evaluate(() => document.querySelectorAll('.mp-chip').length) === 3, 'una pestaña por máquina (3 de la muestra)');
   ok(await P.evaluate(() => [...document.querySelectorAll('.mp-grupo b')].map(b => b.textContent).join()) === 'SEMANAL,MENSUAL,SEMESTRAL,ANUAL', 'agrupado por bloque de frecuencia, como el Excel');
-  ok(await P.evaluate(() => document.querySelectorAll('.mp-barra').length) === 18, 'las 18 actividades semanales muestran la barra «1 – 52»');
+  ok(await P.evaluate(() => document.querySelectorAll('.mp-todo-pill').length) === 18, 'las 18 actividades semanales muestran «Todas las semanas · 1 – 52»');
   const tarj = await P.evaluate(() => [...document.querySelectorAll('.mp-card')].map(c => c.innerText.replace(/\s+/g, ' ')));
   ok(/37/.test(tarj[0]) && /18 actividades/.test(tarj[1]) && /S48/.test(tarj[2]) && /\+5/.test(tarj[2]) && /—/.test(tarj[3]), 'tarjetas: 37 en el plan · 18 esta semana (S45) · próxima con extras S48 · +5 · vencidas aún sin registros → ' + tarj.join(' | '));
   ok(await P.evaluate(() => !!document.querySelector('.mp-t .mp-sem.mp-programada')) && !(await P.evaluate(() => !!document.querySelector('.mp-t .mp-sem.mp-vencida'))), 'sin módulo de registros lo pasado se ve «programado», no vencido en rojo');
   ok(await P.evaluate(() => !!document.querySelector('[data-mp-nueva]')) && await P.evaluate(() => document.querySelectorAll('[data-mp-editar]').length) === 37, 'el Administrador ve «+ Actividad» y editar en cada fila');
+  /* buscador, filtros por frecuencia y detalle al tocar una actividad */
+  const nFilas = () => P.evaluate(() => document.querySelectorAll('tr.mp-fila').length);
+  await P.fill('[data-mp-buscar]', 'horno');
+  ok(await P.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-mp-buscar')) && (await nFilas()) > 0 && (await nFilas()) < 37 && await P.evaluate(() => [...document.querySelectorAll('tr.mp-fila')].every(r => /horno/i.test(r.textContent))), 'el buscador filtra mientras escribes y no pierde el cursor');
+  ok(/Mostrando \d+ de 37/.test(await txt('.mp-herr')), 'dice cuántas muestra de cuántas');
+  await P.fill('[data-mp-buscar]', 'zzzz'); ok(/Ninguna actividad coincide/.test(await txt('.mp')), 'sin coincidencias avisa y ofrece quitar filtros');
+  await P.click('[data-mp-limpiar]'); ok((await nFilas()) === 37, 'quitar filtros muestra todas otra vez');
+  await P.click('[data-mp-frec="MENSUAL"]');
+  ok(await P.evaluate(() => [...document.querySelectorAll('tr.mp-fila .mp-frec')].every(c => c.textContent.trim() === 'MENSUAL')) && (await nFilas()) > 0, 'el botón de frecuencia deja solo las mensuales');
+  await P.click('[data-mp-frec=""]');
+  await P.locator('tr.mp-fila').first().locator('.mp-act').click();
+  ok(await P.evaluate(() => document.querySelectorAll('.mp-det .mp-cal-g .mp-cal').length) >= 52 && await P.evaluate(() => !!document.querySelector('tr.mp-fila.abierta[aria-expanded="true"]')), 'al tocar una actividad se abre el calendario de todas las semanas del año (52 o 53)');
+  ok(await P.evaluate(() => !!document.querySelector('.mp-det .mp-cal-actual')) && /Próximas/.test(await txt('.mp-det')) && /Todas las semanas del año/.test(await txt('.mp-det')), 'el detalle marca la semana actual, las próximas y cómo se programa');
+  if (process.env.GLX_CAPTURAS) { await P.evaluate(() => { document.querySelector('.mp-tw').style.maxHeight = 'none'; }); const bx = await P.evaluate(() => { const a = document.querySelector('.mp-herr').getBoundingClientRect(), b = document.querySelector('.mp-det').getBoundingClientRect(); return { y: a.top + scrollY - 40, h: b.bottom - a.top + 60 }; }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-anual-interactivo.png', fullPage: true, clip: { x: 0, y: Math.max(bx.y, 0), width: 1500, height: bx.h } }); }
+  await P.locator('tr.mp-fila').first().locator('.mp-act').click(); ok(await P.evaluate(() => !document.querySelector('.mp-det')), 'tocar otra vez la cierra');
+  await P.click('[data-mp-solo]'); ok((await nFilas()) === 18, '«Solo lo de esta semana» deja las 18 de esta semana (S45)'); await P.click('[data-mp-solo]');
   if (process.env.GLX_CAPTURAS) { await P.evaluate(() => { document.querySelector('.mp-tw').style.maxHeight = 'none'; }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/plan-anual.png', fullPage: true }); await P.evaluate(() => { document.querySelector('.mp-tw').style.maxHeight = ''; }); }
 
   /* imprimir: arma el documento A4 horizontal en un marco oculto (SOP = 2 hojas) y abre el diálogo de impresión */
