@@ -94,7 +94,7 @@ ok(T.motivoNoPermitido(u('x','y','1','CONSUMIDA'),'UNION_LOTE')==='','el movimie
 /* planCrearLote con lote elegido por la persona (posible repetido) */
 const evDoc=o=>({id:'ev1',rev:1,estado:'aprobado_dato',categoria:'bolsas',campos:Object.fromEntries(Object.entries(Object.assign({proveedor:'CORPORACION ASK SAC',producto:'BOBINA BOLSA GLACIAL 3KG',lote:'12158',numero_caja_bobina:'05',peso_neto_kg:20},o||{})).map(([k,v])=>[k,{valor:v}]))});
 const conUnion=T.planCrearLote({doc:evDoc(),lotePrevio:plan.destino,unidadPrevia:null,usuario:'Ana',en:10,unirAlLote:true});
-ok(conUnion.lote.id==='LI-000007'&&conUnion.lote.clavesUnidas.includes(T.claveLote(T.datosDeEvidencia(evDoc())))&&conUnion.unidad.id==='LI-000007-05','crear con «agregar al lote parecido»: la foto suma una caja/bobina a ese lote y su llave queda recordada');
+ok(conUnion.lote.id==='LI-000007'&&conUnion.lote.clavesUnidas.includes(T.claveLote(T.datosDeEvidencia(evDoc())))&&conUnion.unidad.id==='LI-000007-03','crear con «agregar al lote parecido»: la foto suma una caja/bobina a ese lote y su llave queda recordada');
 ok((lanza(()=>T.planCrearLote({doc:evDoc(),lotePrevio:plan.destino,unidadPrevia:null,usuario:'Ana',en:10}))||{}).codigo==='CLAVE','sin elegirlo, una llave distinta no entra a otro lote');
 ok((lanza(()=>T.planCrearLote({doc:evDoc({lote:'777'}),lotePrevio:plan.destino,unidadPrevia:null,usuario:'Ana',en:10,unirAlLote:true}))||{}).codigo==='CLAVE','tampoco si el lote del proveedor es otro');
 const dl=Object.assign({},plan.destino,{clavesUnidas:[T.claveLote(T.datosDeEvidencia(evDoc()))]});
@@ -187,12 +187,12 @@ ok(cob.total===4&&cob.con===3&&cob.sin===1,'cobertura: cuántas producciones tie
   pone('proveedor','CORPORACION ASK');pone('producto','BOBINA BOLSA GLACIAL 3KG');pone('lote','12158');pone('numero_caja_bobina','09');pone('fecha_vencimiento','2027-10-10');
   sembrar(sb,ev);
   const c=await Z.crearLoteDesdeEvidencia(ev.id,1,{});
-  ok(c.loteId==='LI-000007'&&c.unidadId==='LI-000007-09','una foto con la llave del lote unido (LI-000014) entra sola al lote que lo recibió');
-  /* la misma bobina (n.º 03 vino de LI-000014) no se duplica aunque su id diga LI-000014-03 */
+  ok(c.loteId==='LI-000007'&&c.unidadId==='LI-000007-04','una foto con la llave del lote unido (LI-000014) entra sola al lote que lo recibió');
+  /* n.º automático (13/11/2026): otra foto se suma como la siguiente del lote, diga lo que diga su etiqueta */
   const ev2=JSON.parse(JSON.stringify(ev));ev2.id=sha('foto-78');ev2.campos.numero_caja_bobina.valor='03';ev2.campos.numero_caja_bobina.literal='03';delete ev2.loteId;ev2.rev=1;
   sembrar(sb,ev2);
   const c2=await ejecutar(()=>Z.crearLoteDesdeEvidencia(ev2.id,1,{}));
-  ok(c2.e&&c2.e.codigo==='DUPLICADO','la bobina 03 que vino del lote unido se reconoce como duplicada');
+  ok(!c2.e&&c2.r&&c2.r.unidadId==='LI-000007-05','otra foto del lote (su etiqueta dice 03) se suma como la siguiente: LI-000007-05');
   /* foto con el proveedor escrito de otra forma: la persona elige agregarla al lote parecido */
   const ev3=JSON.parse(JSON.stringify(ev));ev3.id=sha('foto-79');ev3.campos.proveedor.valor='CORP. A.S.K. S.A.C.';ev3.campos.numero_caja_bobina.valor='10';delete ev3.loteId;ev3.rev=1;
   sembrar(sb,ev3);
@@ -265,9 +265,9 @@ ok(cob.total===4&&cob.con===3&&cob.sin===1,'cobertura: cuántas producciones tie
   const comp=PB.companerasDe(EB.porId(b1.id),PB.diagnostico(EB.porId(b1.id)));
   ok(comp.length===3&&comp.find(c=>c.doc.id===b2.id).errores.length===0,'bloque: encuentra las otras fotos del mismo lote del proveedor (no las de otro lote)');
   ok(/Confirma o corrige/.test((comp.find(c=>c.doc.id===b3.id).errores||[]).join(' ')),'bloque: una foto con datos por confirmar no entra (se revisa una por una)');
-  ok(/Mismo n\.º/.test((comp.find(c=>c.doc.id===b4.id).errores||[]).join(' ')),'bloque: una foto con el mismo n.º de bobina no entra (sería la misma etiqueta dos veces)');
+  ok(comp.find(c=>c.doc.id===b4.id).errores.length===0,'bloque: el n.º de la etiqueta ya no cuenta (lo numera el sistema): otra foto con el mismo n.º también está lista');
   vb.ilAbrirCrear(b1.id);
-  ok(vb.__trazabilidadLotesPantalla.S.crear.companeras.map(x=>x.id).join()===b2.id,'bloque: el diálogo ofrece marcada solo la que está lista');
+  ok(vb.__trazabilidadLotesPantalla.S.crear.companeras.map(x=>x.id).sort().join()===[b2.id,b4.id].sort().join(),'bloque: el diálogo ofrece marcadas solo las que están listas');
   vb.document.querySelectorAll=sel=>sel==='.il-comp-x:checked'?[{value:b2.id,dataset:{rev:'1'}}]:[];
   await vb.ilCrearOk();
   const l2=coleccion(vb,'insumosUnidades');

@@ -94,8 +94,8 @@
     const d=docActual();
     if(!d)return '<div class="ii-card ie-vacio-det"><p class="ii-mut">Elige una evidencia de la lista para ver la foto y los datos que propuso la IA.</p></div>';
     const edit=editable(d),b=S.borr[d.id]||{};
-    const grupos=[...new Set(N.CAMPOS.map(c=>c.grupo))];
-    const tablas=grupos.map(g=>`<h4 class="ie-g">${esc(g)}</h4><table class="ie-t"><tbody>${N.CAMPOS.filter(c=>c.grupo===g).map(def=>filaCampo(def,d,edit)).join('')}</tbody></table>`).join('');
+    const VIS=N.CAMPOS_VISIBLES||N.CAMPOS,grupos=[...new Set(VIS.map(c=>c.grupo))];
+    const tablas=grupos.map(g=>`<h4 class="ie-g">${esc(g)}</h4><table class="ie-t"><tbody>${VIS.filter(c=>c.grupo===g).map(def=>filaCampo(def,d,edit)).join('')}</tbody></table>`).join('');
     const hist=(d.historialEstados||[]).slice().reverse().map(h=>`<li><b>${esc(N.ESTADOS[h.estado]||h.estado)}</b> · ${esc(h.por||'—')} · ${esc(hora(h.en))}${h.motivo?` — ${esc(h.motivo)}`:''}</li>`).join('');
     const sin=N.camposSinConfirmar(d).length;
     return `<div class="ii-card ie-det">

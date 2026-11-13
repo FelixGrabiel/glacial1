@@ -135,3 +135,9 @@ Prueba: `tests/trazabilidad-informe-correcciones.test.js` (T4, T5 con base simul
 - **Servidor:** **`glacial_52`** revierte `glacial_43`: quita a «opera» el paso EN_ALMACEN → ENTREGADA_LINEA y el movimiento `ENTREGA_LINEA` (vuelve a USO_CUADRO, CONSUMO y DEVOLUCION). La Asistente y el Administrador siguen entregando con `ii_esc`; lo de `glacial_39` no cambia; no toca datos (las entregas ya hechas por supervisores quedan). Comprobada en seco contra la función de PRUEBAS (12/11/2026: el bloque se encuentra una vez y el resultado no deja rastro de glacial_43). **Aplicada en PRUEBAS** (12/11/2026) y comprobada llamando a `autorizar`: supervisor almacén → línea = no; supervisor movimiento `ENTREGA_LINEA` = no; supervisor `USO_CUADRO` = sí; Asistente (`ii_esc`) entrega y su movimiento = sí. **Aplicada en PRODUCCIÓN** (12/11/2026, con la aprobación del dueño) y comprobada con los mismos casos.
 
 Prueba: `tests/trazabilidad-informe-correcciones.test.js` (T5: vista por categoría, vencido no elegible, sin línea no entrega, entrega de varias categorías, «En cada línea ahora», solo consulta; y el registro sin «Tomar»).
+
+## Evidencias sin N.º de caja / bobina (2026-11-13)
+
+- El formulario de Evidencias ya **no muestra** Cliente, Marca, Código del producto, Orden interna (OI), Orden de compra, Fecha de proceso, Fecha de la etiqueta, Fecha de vencimiento, Medidas ni Presentación (`oculto:true` en `CAMPOS`, `84`). Se siguen leyendo de la foto y guardando: el lote conserva la OI y la OC.
+- El **N.º de caja / bobina se quitó por completo**: no se lee, no se guarda en la evidencia y no se pide para crear el lote. Cada foto que entra a un lote recibe el **siguiente n.º del lote** (`siguienteUnidad` en `insumosLotes`; 01, 02, 03…). La transacción salta los números ya ocupados (lotes de antes con n.º de etiqueta).
+- Consecuencia: ya no se detecta «la misma etiqueta fotografiada dos veces» por el n.º (la misma foto exacta sigue bloqueada por su huella SHA-256).
