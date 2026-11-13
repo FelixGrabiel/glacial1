@@ -29,18 +29,20 @@
   const TIPOS_DOCUMENTO=['etiqueta_insumo','hoja_produccion','otro'];
   const MOTIVO_MIN=5;
 
-  /* Campos con procedencia, en el orden en que se muestran. tipo: texto | fecha | numero. */
+  /* Campos con procedencia, en el orden en que se muestran. tipo: texto | fecha | numero.
+     oculto:true (13/11/2026): no se muestran en el formulario de Evidencias, pero se siguen leyendo de la foto y guardando (la trazabilidad de lotes
+     usa el n.º de caja/bobina, la OI y la OC). Un dato oculto no pide «Confirmar»: no habría dónde hacerlo. */
   const CAMPOS=[
     {campo:'proveedor',etiqueta:'Proveedor',tipo:'texto',grupo:'Identificación'},
-    {campo:'cliente',etiqueta:'Cliente',tipo:'texto',grupo:'Identificación'},
-    {campo:'marca',etiqueta:'Marca',tipo:'texto',grupo:'Identificación'},
+    {campo:'cliente',etiqueta:'Cliente',tipo:'texto',grupo:'Identificación',oculto:true},
+    {campo:'marca',etiqueta:'Marca',tipo:'texto',grupo:'Identificación',oculto:true},
     {campo:'producto',etiqueta:'Producto',tipo:'texto',grupo:'Identificación'},
     {campo:'presentacion',etiqueta:'Presentación',tipo:'texto',grupo:'Identificación'},
-    {campo:'codigo_producto',etiqueta:'Código del producto',tipo:'texto',grupo:'Identificación'},
+    {campo:'codigo_producto',etiqueta:'Código del producto',tipo:'texto',grupo:'Identificación',oculto:true},
     {campo:'lote',etiqueta:'Lote',tipo:'texto',grupo:'Trazabilidad'},
-    {campo:'numero_caja_bobina',etiqueta:'N.º de caja / bobina',tipo:'texto',grupo:'Trazabilidad'},
-    {campo:'orden_interna',etiqueta:'Orden interna (OI)',tipo:'texto',grupo:'Trazabilidad'},
-    {campo:'orden_compra',etiqueta:'Orden de compra',tipo:'texto',grupo:'Trazabilidad'},
+    {campo:'numero_caja_bobina',etiqueta:'N.º de caja / bobina',tipo:'texto',grupo:'Trazabilidad',oculto:true},
+    {campo:'orden_interna',etiqueta:'Orden interna (OI)',tipo:'texto',grupo:'Trazabilidad',oculto:true},
+    {campo:'orden_compra',etiqueta:'Orden de compra',tipo:'texto',grupo:'Trazabilidad',oculto:true},
     {campo:'fecha_produccion',etiqueta:'Fecha de producción',tipo:'fecha',grupo:'Fechas'},
     {campo:'fecha_proceso',etiqueta:'Fecha de proceso',tipo:'fecha',grupo:'Fechas'},
     {campo:'fecha_etiqueta',etiqueta:'Fecha de la etiqueta (sin rótulo)',tipo:'fecha',grupo:'Fechas'},
@@ -198,7 +200,8 @@
   }
 
   /* ---------- confirmaciones y ediciones ---------- */
-  const camposSinConfirmar=doc=>CAMPOS.filter(def=>doc&&doc.campos&&doc.campos[def.campo]&&SIN_CONFIRMAR.includes(doc.campos[def.campo].estado)).map(def=>def.campo);
+  const CAMPOS_VISIBLES=CAMPOS.filter(c=>!c.oculto);
+  const camposSinConfirmar=doc=>CAMPOS_VISIBLES.filter(def=>doc&&doc.campos&&doc.campos[def.campo]&&SIN_CONFIRMAR.includes(doc.campos[def.campo].estado)).map(def=>def.campo);
   const etiquetaCampo=c=>(DEF[c]||{etiqueta:c}).etiqueta;
 
   /**
@@ -320,7 +323,7 @@
     return mejor;
   }
 
-  const API={ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
+  const API={ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,CAMPOS_VISIBLES,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
     etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe,msDe,fechaFotoDeRegistro,fechaFoto,ORIGEN_FECHA_FOTO,tituloEvidencia};
   global.glacialEvidenciasNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
