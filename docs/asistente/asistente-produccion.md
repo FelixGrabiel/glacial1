@@ -154,13 +154,21 @@ Las RLS replican las funciones de la sección 3.2.
 
 **Visual:** `tests/visual/asistente.html` muestra todas las pestañas en escritorio y celular con datos de prueba, sin errores ni desborde horizontal.
 
-### Cómo activarlo en PRUEBAS
+### Cómo activarlo (Supabase)
 
-1. **Publica las reglas.** Copia `_archivo/firebase/firestore.rules.etapa2.txt` en Firebase Console › Firestore › Reglas del proyecto `pruebas-b11b7`.
-2. **Abre la vista previa de la rama.** Al no estar en el dominio de producción, la app usa la base de pruebas y muestra la franja roja.
-3. **Asigna los roles.** En Gestión de usuarios: rol «Asistente de Producción» o los permisos nuevos (área Producción y Almacén).
-4. **Carga los factores.** Un Administrador abre Asistente › Parámetros › «Migrar factores del código». Crea los insumos base y los factores versión 1.
-5. **Registra datos de prueba:** conteos (Insumos), una solicitud (Solicitudes), su entrega desde un usuario con `moduloAlmacen`, la recepción, una merma y una conciliación.
+La app ya no usa Firebase: todo pasa por el puente de Supabase. Las reglas del Asistente (`apInsumos`, `apFactores`, `apMovimientos`, `apSolicitudes`, `apMermas`, `apConciliaciones`, `apCoordinaciones`, `apParametros`, `apAuditoria`, `apAlmacenMov`) viven en `glacial_fs.autorizar` y `glacial_fs.puede_leer` (migraciones `glacial_23`, `27` y `28`) y **ya están aplicadas en PRUEBAS y en PRODUCCIÓN**. No hay nada que publicar en Firebase.
+
+Estado de PRODUCCIÓN al 13/11/2026: catálogo de 7 insumos y 244 factores cargados; sin conteos, recepciones, mermas ni conciliaciones.
+
+1. **Permisos.** En Gestión de usuarios, cada persona con el rol o los permisos que le toquen:
+   - Asistente de Producción: rol «Asistente de Producción» (trae `ver_asistente` y `asistenteProduccion`).
+   - Quien valida mermas y confirma conciliaciones: `validarMermas` (Jefe de Producción y Jefe de Operaciones lo traen).
+   - Quien administra insumos y factores: `gestionarFactores` (solo Administrador por defecto).
+   - Almacén: `moduloAlmacen` para quien prepara y entrega solicitudes (no lo trae ningún rol).
+2. **Factores.** Ya están cargados. Solo si el catálogo estuviera vacío (otro entorno): Administrador › Asistente › Insumos › Factores › «Migrar factores del código». Crea los insumos base y los factores versión 1, sin pisar nada.
+3. **Primer conteo físico de Producción.** Sin él el saldo no se calcula. Sigue `docs/asistente/primer-conteo-produccion.md`.
+4. **Corrida de prueba de punta a punta** con una solicitud pequeña: pedir (Asistente) → preparar y entregar (Almacén) → recibir (Asistente) → registrar una merma → conciliar el cuadro → confirmar (quien valida). Hacerla primero en la vista previa de la rama (base PRUEBAS, franja roja) y, si sale bien, repetirla en producción con una cantidad real y pequeña.
+5. **Revisar** en Historial › Auditoría que cada paso quedó registrado.
 
 ### Limitaciones reales
 
