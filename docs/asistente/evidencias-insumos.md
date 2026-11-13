@@ -41,6 +41,12 @@ Agrega la colección `insumosEvidencias` a `autorizar` (se crea una vez y se act
 `glacial_23` y `glacial_24`. Se aplicó primero en PRUEBAS y después en PRODUCCIÓN (verificado: `autorizar` y `puede_leer` tienen la rama nueva y conservan las de `insumosCatalogo` e `insumosConteosIndice`). Las transiciones de estado las exige la aplicación (las
 reglas no comparan estado anterior → nuevo, igual que en los conteos).
 
+## Calculadora de conversión (2026-11-13)
+En el detalle de cada evidencia, debajo de los datos, «Calculadora de conversión» (kg ↔ UND): toma el peso neto de la etiqueta (o el declarado) y el peso de
+1 unidad —el de **Asistente › Conversiones** para la línea elegida y la categoría (tapas, etiquetas, asas, cajas, bolsas) o, en preformas, el gramaje del
+Producto («42.7gr.»)— y compara las UND calculadas con la cantidad de la etiqueta. Solo calcula: no guarda nada ni cambia la evidencia.
+Pruebas: `tests/evidencias-calculadora.test.js`.
+
 ## Pendiente (otras fases)
 Subida automática desde el bot (necesita credenciales y backend confiable), calculadora de bobinas (UND/kg), identidad comercial de cada caja/bobina y los
 movimientos de inventario (recepción, transferencia, consumo): **Fase 4**.

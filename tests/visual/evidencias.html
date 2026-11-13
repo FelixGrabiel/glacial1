@@ -40,9 +40,15 @@ window.glacialFotos={PREFIJO:'supabase:glacial-fotos/',disponible:function(){ret
 <script src="../../js/asistente/74-inventario-insumos-nucleo.js"></script>
 <script src="../../js/asistente/75-inventario-insumos-datos.js"></script>
 <script src="../../js/asistente/76-inventario-insumos-pantalla.js"></script>
+<script>
+/* Conversiones del código (01-config.js) para la calculadora: solo las dos tablas de mermas, sin cargar Firebase. */
+(function(){var x=new XMLHttpRequest();x.open('GET','../../js/nucleo/01-config.js',false);x.send();var t=x.responseText,i=t.indexOf('const MERMA_DIVISORES_POR_LINEA'),j=t.indexOf('\n};',t.indexOf('const MERMA_CONVERSION_FISICA_POR_LINEA'))+3;
+  (0,eval)(t.slice(i,j).replace(/^const /gm,'var '));})();
+</script>
 <script src="../../js/asistente/84-evidencias-insumos-nucleo.js"></script>
 <script src="../../js/asistente/85-evidencias-insumos-datos.js"></script>
 <script src="../../js/asistente/86-evidencias-insumos-pantalla.js"></script>
+<script src="../../js/asistente/95-conversiones.js"></script>
 <script>
 (function(){
   var N=window.glacialEvidenciasNucleo,H=function(c){return c.repeat(64).slice(0,64);};

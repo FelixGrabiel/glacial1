@@ -323,7 +323,26 @@
     return mejor;
   }
 
-  const API={ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,CAMPOS_VISIBLES,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
+  /* ---------- calculadora de conversión (13/11/2026): kg ↔ UND con el peso de 1 unidad. Solo calcula: no cambia la evidencia ---------- */
+  /** Gramaje escrito en un texto («42.7gr. Cr.1881», «21,7 g») → número de gramos o null. */
+  function gramajeDeTexto(t){
+    const m=/(\d+(?:[.,]\d+)?)\s*(?:gr|grs|gramos|g)\b\.?/i.exec(texto(t));
+    const n=m?Number(m[1].replace(',','.')):NaN;
+    return Number.isFinite(n)&&n>0?n:null;
+  }
+  /** {gramos, kg} → UND enteras; {gramos, und} → kg. Lo que falte o no sea válido da null. */
+  function convertir({gramos,kg,und}){
+    const g=Number(gramos);if(!(Number.isFinite(g)&&g>0))return {und:null,kg:null};
+    const k=kg===''||kg===null||kg===undefined?NaN:Number(String(kg).replace(',','.'));
+    if(Number.isFinite(k)&&k>=0)return {kg:k,und:Math.round(k*1000/g)};
+    const u=und===''||und===null||und===undefined?NaN:Number(String(und).replace(',','.'));
+    if(Number.isFinite(u)&&u>=0)return {und:u,kg:Math.round(u*g)/1000};
+    return {und:null,kg:null};
+  }
+  /** Diferencia porcentual entre lo calculado y lo que dice la etiqueta (null si no se puede comparar). */
+  const diferenciaPct=(calculado,etiqueta)=>Number(etiqueta)>0&&Number.isFinite(Number(calculado))?Math.round((Number(calculado)-Number(etiqueta))/Number(etiqueta)*1000)/10:null;
+
+  const API={gramajeDeTexto,convertir,diferenciaPct,ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,CAMPOS_VISIBLES,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
     etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe,msDe,fechaFotoDeRegistro,fechaFoto,ORIGEN_FECHA_FOTO,tituloEvidencia};
   global.glacialEvidenciasNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
