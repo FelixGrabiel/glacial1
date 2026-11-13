@@ -151,6 +151,7 @@
       const filas=grupos.map(g=>'<tr class="mp-grupo"><td colspan="'+cols+'"><b>'+esc(g.frecuencia)+'</b> <span>'+g.items.length+' actividad'+(g.items.length===1?'':'es')+'</span></td></tr>'+g.items.map(a=>filaActividad(a,actual,editar)).join('')).join('');
       cuerpo=(maq.pendiente_confirmar?'<div class="mp-aviso mp-aviso-amb"><b>Pendiente de confirmar:</b> todavía no se sabe a qué línea pertenece esta máquina. No está asignada a PET1 ni a PET2.</div>':'')+
         tarjetas(r,actual&&actual.anio===UI.anio?actual:null,cump)+
+        (window.glacialMttoParadas?window.glacialMttoParadas.htmlTarjetaPlan(maq,{actual:actual&&actual.anio===UI.anio?actual:null,ejec:EJ.mapa,desde:EJ.desde,editar}):'')+
         '<div class="mp-leyenda"><span><i class="mp-sem mp-ejecutada"></i>Hecha</span><span><i class="mp-sem mp-tarde"></i>Hecha tarde</span><span><i class="mp-sem mp-noreal"></i>No se realizó</span><span><i class="mp-sem mp-actual"></i>Semana actual</span><span><i class="mp-sem mp-programada"></i>Programada</span><span><i class="mp-sem mp-vencida"></i>Vencida</span>'+
         '<em>'+(editar?'Puedes editar el plan (supervisor / jefe de Mantenimiento). Toca una actividad para ver cuándo se hace.':'Solo el Supervisor / Jefe de Mantenimiento puede editar. Toca una actividad para ver cuándo se hace.')+'</em></div>'+
         (acts.length?herramientas(acts,vistas.length,actualA)+(vistas.length?'<div class="mp-tw"><table class="mp-t">'+cab+'<tbody>'+filas+'</tbody></table></div>':'<div class="mp-aviso">Ninguna actividad coincide con lo que buscas. <button type="button" class="btn btn-ghost btn-sm" data-mp-limpiar>Quitar filtros</button></div>'):'<div class="mp-aviso">Esta máquina no tiene actividades para '+UI.anio+'.</div>')+
@@ -335,7 +336,7 @@
     if(typeof renderMain==='function')renderMain();
   }
   window.goPlanAnualMtto=ir;
-  window.glacialMttoPlanPantalla={puedeEditar,puedeVer,pintar,UI,abrirEdicion};
+  window.glacialMttoPlanPantalla={puedeEditar,puedeVer,pintar,UI,abrirEdicion,repintar:()=>repintar(true)};
 
   if(typeof ajustarVistaSegunPermisos==='function'){
     const a=ajustarVistaSegunPermisos;

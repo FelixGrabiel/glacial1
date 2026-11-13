@@ -182,6 +182,7 @@
       '<div class="rg-grupo"><span>Tipo de mantenimiento</span><div class="rg-ops">'+btn('tipo_mtto','PREDICTIVO','Predictivo')+btn('tipo_mtto','PREVENTIVO','Preventivo')+btn('tipo_mtto','CORRECTIVO','Correctivo')+'</div></div>'+
       '<div class="rg-grupo"><span>Condición</span><div class="rg-ops dos">'+btn('condicion','INTERNO','Interno')+btn('condicion','EXTERNO','Externo')+'</div></div>'+
       '<div class="rg-horas"><label>Hora real de inicio<input type="time" data-rg-input="hora_inicio_real" value="'+esc(hhmm(reg.hora_inicio_real))+'"'+dis+'></label><label>Hora real de fin<input type="time" data-rg-input="hora_fin_real" value="'+esc(hhmm(reg.hora_fin_real))+'"'+dis+'></label></div></div>'+
+      (window.glacialMttoParadas?window.glacialMttoParadas.htmlPanelRegistro(maq,reg):'')+
       '<div class="rg-card"><h3>Actividades de la semana</h3><p class="rg-sub">Mantenimiento preventivo · traídas del Plan anual</p>'+(acts.length?'<ul class="rg-lista">'+filas+'</ul>':'<p class="rg-sub">El plan no manda actividades para esta máquina en esta semana.</p>')+'</div>'+
       '<div class="rg-card"><h3>Cambio o reparación de piezas</h3>'+piezas.map((d,i)=>'<label class="rg-pieza"><span>'+(i+1)+'.-</span><input type="text" data-rg-pieza="'+(i+1)+'" value="'+esc(d)+'" maxlength="200" placeholder="Pieza y cantidad"'+dis+'></label>').join('')+'</div>'+
       tarjetaFotos+

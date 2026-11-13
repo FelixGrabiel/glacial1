@@ -161,6 +161,22 @@
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{detener();cache.maquinas=[];cache.actividades=[];cache.config=null;cache.listo=false;});
 
   /* ---------- escritura (solo supervisor / jefe de Mantenimiento: lo exigen las reglas RLS) ---------- */
+  /** Guarda las equivalencias «equipo de Producción → hoja del plan» en mtto_config.datos.equiposPlan (sin tocar el resto de la configuración). */
+  async function guardarEquivalencias(filas){
+    const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
+    const lista=(filas||[]).map(r=>({linea:String(r.linea||'').trim(),equipo:String(r.equipo||'').trim().slice(0,60),hoja:String(r.hoja||'').trim()})).filter(r=>r.linea&&r.equipo);
+    const cfg=cache.config;
+    if(cfg){
+      const datos=Object.assign({},cfg.datos||{},{equiposPlan:lista});
+      const r=await c.from('mtto_config').update({datos}).eq('id','config').eq('version',cfg.version).select();
+      if(r.error)throw new Error(msg(r.error));
+      if(!r.data||!r.data.length)throw Object.assign(new Error('Otra persona cambió la configuración mientras la editabas. Ábrela de nuevo.'),{conflicto:true});
+      alCambio('mtto_config',{eventType:'UPDATE',new:r.data[0]});return r.data[0];
+    }
+    const r=await c.from('mtto_config').insert({id:'config',datos:{equiposPlan:lista}}).select();
+    if(r.error)throw new Error(msg(r.error));
+    if(r.data&&r.data[0])alCambio('mtto_config',{eventType:'INSERT',new:r.data[0]});return r.data&&r.data[0];
+  }
   /** Crea una máquina del plan en una línea (solo supervisor / jefe de Mantenimiento: lo exigen las reglas RLS). Devuelve la máquina creada. */
   async function crearMaquina(nombre,linea){
     const c=sb();if(!c)throw new Error('Sin conexión con la base de datos.');
@@ -346,7 +362,7 @@
   const validarRegistro=(reg,quien)=>actualizarReg(reg.id,{estado:'VALIDADO',supervisor:quien||reg.supervisor||''});
   const reabrirRegistro=reg=>actualizarReg(reg.id,{estado:'EN_CURSO'});
 
-  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,crearMaquina,iniciarRegistro,traerPendientes,cargarEjecucion,ejecucion,marcarActividad,marcarNoRealizada,quitarNoRealizada,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
+  const API={cache,escuchar,detener,cargar,cargarSemana,cargarHistorial,detalleRegistro,crearMaquina,guardarEquivalencias,iniciarRegistro,traerPendientes,cargarEjecucion,ejecucion,marcarActividad,marcarNoRealizada,quitarNoRealizada,guardarObservacion,guardarCampos,guardarPieza,agregarFoto,quitarFoto,guardarDescripcionFoto,alCambioRemoto:f=>{if(typeof f==='function')remotos.push(f);},cerrarRegistro,validarRegistro,reabrirRegistro,guardarActividad,quitarActividad,ordenNuevo,alCambiar:f=>oyentes.push(f),usarCliente:c=>{cliente=c;},mensajeError:msg,
     actividadesDe:(maquinaId,anio)=>cache.actividades.filter(a=>a.maquina_id===maquinaId&&a.anio===anio).sort((a,b)=>(a.orden||0)-(b.orden||0)),
     anios:()=>[...new Set(cache.actividades.map(a=>a.anio))].sort((a,b)=>b-a)};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

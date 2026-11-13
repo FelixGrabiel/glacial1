@@ -99,3 +99,11 @@ Pruebas: `tests/mantenimiento-situacion-semana.test.js` y los casos nuevos de `t
 - La máquina nueva queda en la planta AGUA, con código de hoja `LÍNEA-NOMBRE-xxxx` y su línea real (B7L, C20L…). Aparece también en el Programa semanal y se puede registrar igual que las de PET.
 - Para cargar el plan completo de una línea desde su Excel sigue valiendo `supabase/datos/importar_plan_mtto.py` (mismo formato que el de PET).
 - Aún no hay botón para archivar o renombrar una máquina creada por error: hoy se hace desde la base.
+
+## Mantenimiento ↔ Producción: paradas por falla de cada máquina (13/11/2026)
+`js/mantenimiento/79-paradas-mantenimiento.js` une las paradas que registra Producción (Análisis de paradas: línea, equipo, minutos, motivo) con las máquinas del Plan anual. Solo lee; no escribe paradas.
+- **Equivalencias** «equipo de la parada → hoja del plan» (`mtto_config.datos.equiposPlan`; botón «Equivalencias con Producción» en la tarjeta del Plan anual, para el supervisor / jefe de Mantenimiento). De partida: PET1 → SOP, ENV, ETIQ, EMP; PET2 → SOP CARB, ENV CARB, ETIQ, EMP (las hojas «CARB» son de PET2). Un equipo que no está en la tabla se asocia por nombre solo si hay una única coincidencia; una equivalencia con «Ninguna» deja ese equipo fuera. «Equipo sin indicar» no se atribuye a ninguna máquina.
+- **Plan anual · «Paradas y mantenimiento»** (por máquina): paradas por falla de los últimos 30 días (cantidad, minutos, última), alerta de **falla repetitiva** (umbral de Análisis de paradas: hoy 3 en 7 días), preventivo vencido, último preventivo hecho, «No se realizó» abiertos con su motivo y la lista de las últimas paradas.
+- **Registro · «Paradas de Producción de esta semana»**: las paradas por falla de esa máquina en la semana del registro, para revisarlas antes de marcar actividades.
+- **Inicio de Mantenimiento**: «Paradas de Producción por máquina» con las fallas repetitivas y las 3 máquinas con más minutos (con salto al Plan anual de la máquina). Se actualiza cada minuto.
+- Pruebas: `tests/mantenimiento-paradas.test.js` y los casos nuevos de `tests/mantenimiento-plan-anual.e2e.js`.
