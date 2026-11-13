@@ -3770,6 +3770,14 @@ function cuadrosSinLotesInsumo(lista){
     .map(({q,n})=>`Producción ${n} · ${q.marca}`);
 }
 
+/* Trazabilidad (13/11/2026, punto 4): cajas/bobinas EN USO en la línea del reporte. Solo avisa: si se acabaron, se registra su peso final
+   («Lotes de insumo usados» › «Registrar peso final»; 0 = consumida); si siguen en la máquina, quedan en uso para el turno siguiente. */
+function unidadesEnUsoReporte(){
+  if(typeof window==='undefined'||typeof window.lotesEnUsoLinea!=='function'||!draft)return [];
+  const L=window.GlacialLotesEnCuadro,lista=window.lotesEnUsoLinea(draft.linea)||[];
+  return lista.map(x=>L&&L.textoEnUso?L.textoEnUso(Object.assign({},x,{linea:''})):x.unidadId);
+}
+
 function renderEstadoCierreReporte(){
   const estado=draft?.estadoRegistro || 'EN_REGISTRO';
   const bloqueado=estado==='FINALIZADO';
@@ -3791,7 +3799,9 @@ function renderEstadoCierreReporte(){
             ? `<div class="reporte-listo">✓ Todos los campos obligatorios están completos.</div>`
             : `<div class="reporte-listo">Finalizado por ${escaparHtml(draft.finalizadoPor||'—')}.</div>`}
         ${(()=>{const sin=bloqueado?[]:cuadrosSinLotesInsumo(draft.cuadros);return sin.length
-          ?`<div class="reporte-faltantes reporte-aviso-lotes" style="background:#fff7e6;border-color:#f5c26b;color:#8a4b00">⚠ Sin lotes de insumo marcados: ${sin.map(escaparHtml).join(' · ')}. No impide finalizar, pero esa producción no se podrá rastrear. Márcalos en «Lotes de insumo usados» (o tómalos del almacén).</div>`:'';})()}
+          ?`<div class="reporte-faltantes reporte-aviso-lotes" style="background:#fff7e6;border-color:#f5c26b;color:#8a4b00">⚠ Sin lotes de insumo marcados: ${sin.map(escaparHtml).join(' · ')}. No impide finalizar, pero esa producción no se podrá rastrear. Márcalos en «Lotes de insumo usados» (o escríbelos a mano).</div>`:'';})()}
+        ${(()=>{const uso=bloqueado?[]:unidadesEnUsoReporte();return uso.length
+          ?`<div class="reporte-faltantes reporte-aviso-uso" style="background:#eef6fb;border-color:#cfe3ef;color:#0f3a55">ℹ En uso en ${escaparHtml(draft.linea)} sin peso final: ${uso.map(escaparHtml).join(' · ')}. Si se acabó en este turno, registra su peso final en «Lotes de insumo usados» (0 si se terminó). Si sigue en la máquina, déjala en uso.</div>`:'';})()}
       </div>
       <div class="reporte-cierre-acciones">
         ${!bloqueado ? `
@@ -3820,7 +3830,9 @@ async function finalizarReporteProduccion(){
     return;
   }
   const sinLotes=cuadrosSinLotesInsumo(draft.cuadros);
-  const avisoLotes=sinLotes.length?`\n\n⚠ Sin lotes de insumo marcados (no se podrán rastrear):\n• ${sinLotes.join('\n• ')}\n\nSi los usaste, cancela y márcalos en «Lotes de insumo usados».`:'';
+  const enUso=unidadesEnUsoReporte();
+  const avisoLotes=(sinLotes.length?`\n\n⚠ Sin lotes de insumo marcados (no se podrán rastrear):\n• ${sinLotes.join('\n• ')}\n\nSi los usaste, cancela y márcalos en «Lotes de insumo usados».`:'')+
+    (enUso.length?`\n\nℹ En uso sin peso final:\n• ${enUso.join('\n• ')}\n\nSi se acabó en este turno, cancela y registra su peso final (0 si se terminó). Si sigue en la máquina, continúa.`:'');
   if(!confirm(`¿Finalizar reporte ${draft.linea} — ${draft.turno}?\n\nDespués de finalizar quedará bloqueado y solo un usuario con permiso podrá reabrirlo.${avisoLotes}`)) return;
 
   guardandoRegistro=true;

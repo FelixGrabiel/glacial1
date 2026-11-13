@@ -40,7 +40,7 @@ ok(hs.f.histFilasExcel(regs,{marca:'Scala'}).length===2,'Excel con filtro de mar
 ok(/id="hist-f-desde"/.test(s07)&&/id="hist-f-hasta"/.test(s07)&&/id="hist-f-marca"/.test(s07)&&/id="hist-f-exportar"/.test(s07)&&/id="hist-v2-resumen"/.test(s07),'Historial: controles Desde, Hasta, Marca, Exportar y resumen');
 ok(/\.filter\(r=>!r\.hidden\)/.test(s07),'se exporta exactamente lo que se ve (filas visibles)');
 ok(/hist-v2-rango/.test(css)&&/hist-v2-exportar/.test(css),'estilos del Historial');
-ok(/06-registro\.js\?v=20261107-rc\d/.test(html)&&/07-historial\.js\?v=20261107-/.test(html)&&/styles\.css\?v=20261107-/.test(html),'versiones nuevas en index.html');
+ok(/06-registro\.js\?v=2026\d{4}-rc\d/.test(html)&&/07-historial\.js\?v=20261107-/.test(html)&&/styles\.css\?v=20261107-/.test(html),'versiones nuevas en index.html');
 
 if(fallas){console.log('\n'+fallas+' falla(s)');process.exit(1);}
 console.log('\nTodo bien');

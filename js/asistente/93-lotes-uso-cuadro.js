@@ -101,4 +101,16 @@
     setTimeout(()=>{try{q('input[name=lc-dest]').focus();}catch(_){/* ya cerrada */}},50);
   };
   window.__lotesUsoCuadro={cuadroDe};
+  /* Punto 4 (13/11/2026): todas las cajas/bobinas en uso (de todas las líneas), para el aviso del cierre del turno. Lectura puntual; si no hay permiso
+     o conexión devuelve null y el cierre sigue sin aviso. */
+  window.lotesEnUsoTodas=async function(){
+    const L=window.GlacialLotesEnCuadro;
+    if(!L||typeof db==='undefined')return null;
+    try{
+      const espera=new Promise(r=>setTimeout(()=>r(null),4000));
+      const lee=Promise.all([db.collection('insumosUnidades').where('estado','==','EN_USO').get(),db.collection('insumosLotes').get()])
+        .then(([u,l])=>L.enUsoSinPeso(u.docs.map(d=>d.data()),l.docs.map(d=>d.data()),''));
+      return await Promise.race([lee,espera]);
+    }catch(_){return null;}
+  };
 })();
