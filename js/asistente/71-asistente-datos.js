@@ -134,9 +134,15 @@
       if(!cierresCatalogo.length&&typeof state!=='undefined'&&state.user)escucharCatalogo();   // por si la sesión empezó antes de cargar este archivo
       if(!(cache.listo.factores&&!cache.error.factores)||!cache.factores.length)return null;
       const f=/^\d{4}-\d{2}-\d{2}$/.test(String(fecha||''))?fecha:new Date(ahora()-5*3600000).toISOString().slice(0,10);
-      const r=N.consumoCatalogo(cache.factores,{insumo,linea,marca,presentacion,fecha:f},cant||{});
-      if(r.error)return null;
-      const ins=cache.insumos.find(i=>i.codigo===insumo);
+      /* `insumo` puede ser un grupo (CAJA_PREFORMA, POLIETILENO, STRETCH, ETIQUETA): se busca entre sus variantes la que tiene factor para este caso. */
+      const cands=[insumo,...cache.insumos.filter(i=>i.grupo===insumo).map(i=>i.codigo)];
+      const aciertos=[];
+      cands.forEach(code=>{const r=N.consumoCatalogo(cache.factores,{insumo:code,linea,marca,presentacion,fecha:f},cant||{});if(!r.error)aciertos.push({code,r});});
+      if(aciertos.length!==1)return null;                       // sin factor o dos variantes a la vez: quien llama usa su cálculo anterior
+      const {code,r}=aciertos[0],ins=cache.insumos.find(i=>i.codigo===code);
+      const kg=ins&&Number(ins.kgPorUnidad)>0?Number(ins.kgPorUnidad):0;   // stretch por rollo: el Nuevo registro y el Inicio lo siguen mostrando en kg
+      if(kg){const base=ins.grupo&&cache.insumos.find(i=>i.codigo===ins.grupo);
+        return {valor:r.valor*kg,factor:{...r.factor,factor:Number(r.factor.factor)*kg},paletas:r.paletas,unidad:(base&&base.unidad)||'kg',nombre:(base&&base.nombre)||insumo};}
       return {valor:r.valor,factor:r.factor,paletas:r.paletas,unidad:(ins&&ins.unidad)||'',nombre:(ins&&ins.nombre)||insumo};
     }
   };
@@ -156,6 +162,7 @@
       const s=await tx.get(ref);const antes=s.exists?s.data():null;
       if(num(antes&&antes.version)!==num(versionEsperada))throw falla('CONFLICTO','El insumo cambió mientras lo editabas. Vuelve a abrirlo.');
       const d={codigo:ins.codigo,nombre:String(ins.nombre).trim(),unidad:ins.unidad,tipo:ins.tipo,itemCode:String(ins.itemCode||'').trim().toUpperCase(),activo:ins.activo!==false,version:num(antes&&antes.version)+1,...autor()};
+      if(antes&&antes.grupo)d.grupo=antes.grupo;if(antes&&Number(antes.kgPorUnidad)>0)d.kgPorUnidad=antes.kgPorUnidad;   // una variante conserva su grupo y el peso de su rollo al editarla
       tx.set(ref,d);auditar(tx,'apInsumos',ins.codigo,antes?'EDITAR':'CREAR',antes,d);
     });
   }
@@ -192,9 +199,9 @@
     ['CAJAS_PREFORMAS_DIVISOR','FACTOR_CARTON_PET','FACTOR_POLIETILENO_PET','FACTOR_STRETCHFILM_PET','CARTON_FIJO_B7L','CARTON_C20L_SAN_FERNANDO','CARTON_C20L_DEFAULT','CARTON_FIJO_B20L',
       'POLIETILENO_B7L_FACTOR','POLIETILENO_C20L_FACTOR','MARCAS_POLIETILENO_B7L_SI','STRETCHFILM_B7L_FACTOR','STRETCHFILM_C20L_FACTOR','STRETCHFILM_B20L_FACTOR','PRESENTACIONES_POR_LINEA']
       .forEach(n=>{try{c[n]=(0,eval)(n);}catch(_){c[n]=undefined;}});      // constantes globales de 01-config.js / 05-utils.js
-    const factores=N.factoresDesdeCodigo(c,'2020-01-01');
+    const factores=N.aplicarVariantes(N.factoresDesdeCodigo(c,'2020-01-01'));      // preformas por gramaje, polietileno por ancho, stretch por rollo y etiquetas por tipo
     let creados=0,existentes=0;
-    const todos=[...N.INSUMOS_BASE.map(i=>({tipo:'insumo',d:i})),...factores.map(f=>({tipo:'factor',d:f}))];
+    const todos=[...N.INSUMOS_BASE.concat(N.INSUMOS_VARIANTE).map(i=>({tipo:'insumo',d:i})),...factores.map(f=>({tipo:'factor',d:f}))];
     for(let i=0;i<todos.length;i+=200){           // lotes pequeños: cada transacción admite como máximo 500 escrituras
       const lote=todos.slice(i,i+200);
       await db.runTransaction(async tx=>{
@@ -203,7 +210,7 @@
         let c1=0,c2=0;
         lote.forEach((x,j)=>{
           if(snaps[j].exists){c2++;return;}
-          const d={...x.d,activo:true,version:1,...autor()};
+          const d={...x.d,activo:x.d.activo!==false,version:1,...autor()};
           tx.set(refs[j],d);auditar(tx,x.tipo==='insumo'?'apInsumos':'apFactores',x.tipo==='insumo'?x.d.codigo:x.d.id,'MIGRAR_CODIGO',null,d);c1++;
         });
         creados+=c1;existentes+=c2;

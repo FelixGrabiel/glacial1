@@ -198,12 +198,12 @@
     return ctx.resumen.filter(r=>r.faltante>0).map(r=>{const t=tc[r.insumo.codigo]||{transito:0,comprometido:0};
       return {insumo:r.insumo,faltante:r.faltante,cubierto:N.red(t.transito+t.comprometido,4),neto:N.red(Math.max(r.faltante-t.transito-t.comprometido,0),4)};}).filter(x=>x.neto>0);
   }
-  /* Un clic: crea y envía a Almacén una solicitud con los faltantes netos del bloque (redondeados hacia arriba). */
+  /* Un clic: crea y envía a Almacén una solicitud con los faltantes netos del bloque (redondeados hacia arriba: enteros en cajas, planchas y unidades; 2 decimales en kg). */
   window.apSolicitarFaltantes=()=>{
     const ctx=contexto();const lista=faltantesNetos(ctx);
     if(!lista.length){AP.msg={tipo:'ok',texto:'No hay faltantes por solicitar: lo que falta ya está pedido o en camino.'};pintar();return;}
-    const items=lista.map(x=>({insumo:x.insumo.codigo,unidad:x.insumo.unidad,solicitado:Math.ceil(x.neto*100)/100}));
-    const resumen=lista.map(x=>`• ${x.insumo.nombre}: ${fmt(Math.ceil(x.neto*100)/100)} ${x.insumo.unidad}${x.cubierto>0?` (ya hay ${fmt(x.cubierto)} pedido o en camino)`:''}`).join('\n');
+    const items=lista.map(x=>({insumo:x.insumo.codigo,unidad:x.insumo.unidad,solicitado:redondeoSol(x.insumo.unidad,x.neto)}));
+    const resumen=lista.map(x=>`• ${x.insumo.nombre}: ${fmt(redondeoSol(x.insumo.unidad,x.neto))} ${x.insumo.unidad}${x.cubierto>0?` (ya hay ${fmt(x.cubierto)} pedido o en camino)`:''}`).join('\n');
     if(!confirm('¿Enviar esta solicitud a Almacén?\n\n'+resumen))return;
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:'Faltantes del bloque',enviar:true}),id=>'Solicitud '+id+' enviada a Almacén con '+items.length+' insumo(s).');
   };
@@ -542,9 +542,14 @@
   /* «hace 5 h» desde un instante en ms. */
   const hace=ms=>{if(!ms)return '—';const m=Math.max(Math.round((D.ahora()-num(ms))/60000),0);return m<60?m+' min':m<1440?Math.floor(m/60)+' h':Math.floor(m/1440)+' d';};
   window.apSolVal=el=>{AP.solVal=AP.solVal||{};AP.solVal[el.dataset.insumo]=el.value;};
+  /* Quita una línea de la solicitud en preparación (no borra nada: el insumo vuelve a salir en «Agregar otro insumo»). */
+  window.apSolQuitar=c=>{document.querySelectorAll('.ap-sol-cant').forEach(window.apSolVal);AP.solQuit=[...new Set([...(AP.solQuit||[]),c])];AP.solExtra=(AP.solExtra||[]).filter(x=>x!==c);pintar();};
+  /* Piezas que se cuentan enteras (cajas, planchas, unidades): se pide el entero siguiente; kg y similares, con 2 decimales. */
+  const UNIDAD_ENTERA=u=>/^(caja|plancha|und|unidad|paleta|rollo|bobina)s?$/i.test(String(u||'').trim());
+  const redondeoSol=(u,v)=>UNIDAD_ENTERA(u)?Math.ceil(v-1e-9):Math.ceil(v*100-1e-9)/100;
   window.apSolAgregar=()=>{
     document.querySelectorAll('.ap-sol-cant').forEach(window.apSolVal);
-    const c=valor('ap-sol-extra');if(!c)return;AP.solExtra=[...new Set([...(AP.solExtra||[]),c])];pintar();
+    const c=valor('ap-sol-extra');if(!c)return;AP.solExtra=[...new Set([...(AP.solExtra||[]),c])];AP.solQuit=(AP.solQuit||[]).filter(x=>x!==c);pintar();
   };
   function subSolicitudes(ctx){
     const asist=puede('asistenteProduccion'),alm=puede('moduloAlmacen');
@@ -559,16 +564,21 @@
     const filas=lista.map(s=>`<tr class="ap-clic" onclick="apVerSolicitud('${esc(s.id)}')"><td data-label="Solicitud"><b>${esc(s.id)}</b></td><td data-label="Fecha">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Día'}</td>
       <td data-label="Ítems">${(s.items||[]).map(itemTxt).join(' · ')}</td><td data-label="Espera">${SOL_ABIERTAS.includes(s.estado)?hace(ultimo(s)):'—'}</td><td data-label="Estado">${pillSolicitud(s.estado)}</td></tr>`).join('');
     // Solicitud nueva: solo lo que falta + los insumos que la Asistente agrega a mano.
-    const vals=AP.solVal||{},extra=AP.solExtra||[];
-    const filasNueva=D.cache.insumos.filter(i=>i.activo!==false).filter(i=>faltantes.some(x=>x.insumo.codigo===i.codigo)||extra.includes(i.codigo)).map(i=>{
-      const f=faltantes.find(x=>x.insumo.codigo===i.codigo);const def=f?Math.ceil(f.faltante*100)/100:'';
-      return `<tr><td data-label="Insumo">${esc(i.nombre)} (${esc(i.unidad)})</td><td data-label="Faltante" class="ap-num">${f?fmt(f.faltante):'—'}</td><td data-label="En Almacén" class="ap-num">${txtStockAlm(i.codigo,i.unidad)}</td>
-        <td data-label="Cantidad"><input class="ap-sol-cant" data-insumo="${esc(i.codigo)}" data-unidad="${esc(i.unidad)}" onchange="apSolVal(this);apAvisoStock()" type="number" min="0" step="any" value="${esc(vals[i.codigo]!==undefined?vals[i.codigo]:def)}"></td></tr>`;}).join('');
-    const otros=D.cache.insumos.filter(i=>i.activo!==false&&!faltantes.some(x=>x.insumo.codigo===i.codigo)&&!extra.includes(i.codigo));
+    const vals=AP.solVal||{},extra=AP.solExtra||[],quit=AP.solQuit||[];
+    const mostrados=D.cache.insumos.filter(i=>i.activo!==false&&!quit.includes(i.codigo)&&(faltantes.some(x=>x.insumo.codigo===i.codigo)||extra.includes(i.codigo)));
+    // Si NINGUNO tiene código SAP, la columna «En Almacén» solo repetiría «Sin código SAP»: se omite y se avisa una vez.
+    const sinSap=mostrados.length>0&&mostrados.every(i=>{const st=stockAlm(i.codigo);return st&&st.estado==='SIN_ENLACE';});
+    const filasNueva=mostrados.map(i=>{
+      const f=faltantes.find(x=>x.insumo.codigo===i.codigo),ent=UNIDAD_ENTERA(i.unidad);
+      const def=f?redondeoSol(i.unidad,f.faltante):'';
+      return `<tr><td data-label="Insumo">${esc(i.nombre)}</td><td data-label="Faltante" class="ap-num">${f?fmt(f.faltante)+' '+esc(i.unidad):'—'}</td>${sinSap?'':`<td data-label="En Almacén" class="ap-num">${txtStockAlm(i.codigo,i.unidad)}</td>`}
+        <td data-label="Cantidad a solicitar"><span class="ap-cant-w"><input class="ap-sol-cant" data-insumo="${esc(i.codigo)}" data-unidad="${esc(i.unidad)}" onchange="apSolVal(this);apAvisoStock()" type="number" min="0" step="${ent?1:'any'}" inputmode="decimal" value="${esc(vals[i.codigo]!==undefined?vals[i.codigo]:def)}"><small>${esc(i.unidad)}</small></span></td>
+        <td data-label="" class="ap-quitar"><button type="button" class="ap-quitar-b" title="Quitar de la solicitud" aria-label="Quitar ${esc(i.nombre)} de la solicitud" onclick="apSolQuitar('${esc(i.codigo)}')">${ico('cerrar')}</button></td></tr>`;}).join('');
+    const otros=D.cache.insumos.filter(i=>i.activo!==false&&!mostrados.some(x=>x.codigo===i.codigo));
     const motivoVacio=D.cache.factores.length?'Con lo registrado hoy no falta ningún insumo para este bloque (o lo que falta ya está pedido o en camino).':'Todavía no hay factores de consumo cargados (pestaña «Factores»): sin ellos el sistema no calcula lo que falta y no inventa valores.';
     const nueva=asist?`<div id="ap-sol-nueva"></div><div class="ap-nueva"><div class="ap-tit-acc"><h3 class="ap-h3">Preparar solicitud a Almacén</h3>${faltantesNetos(ctx).length?`<button type="button" class="ap-btn" onclick="apSolicitarFaltantes()">${ico('doc')} Solicitar todos los faltantes (${faltantesNetos(ctx).length})</button>`:''}</div>
       <p class="ap-sub">${faltantes.length?'Se proponen los faltantes del bloque; ajusta las cantidades si hace falta.':'No hay faltantes calculados. '+motivoVacio+' Agrega a mano los insumos que necesites.'}</p>
-      ${filasNueva?tabla(['Insumo','#Faltante','#En Almacén','Cantidad a solicitar'],filasNueva):vacio('Ningún insumo con faltante. Agrega abajo el que necesites.')}
+      ${filasNueva?tabla(sinSap?['Insumo','#Faltante','Cantidad a solicitar','']:['Insumo','#Faltante','#En Almacén','Cantidad a solicitar',''],filasNueva)+(sinSap?pie('Estos insumos aún no tienen código SAP, por eso no se muestra el stock de Almacén. Un Administrador los enlaza en Insumos › Factores › Editar. Puedes solicitar igual.'):'')+`<p class="ap-sol-res">${mostrados.length} insumo${mostrados.length===1?'':'s'} en la solicitud${quit.length?` · ${quit.length} quitado${quit.length===1?'':'s'}`:''}</p>`:vacio('Ningún insumo con faltante. Agrega abajo el que necesites.')}
       ${otros.length?`<div class="ap-acc ap-acc-agregar"><select id="ap-sol-extra"><option value="">Agregar otro insumo…</option>${otros.map(i=>`<option value="${esc(i.codigo)}">${esc(i.nombre)}</option>`).join('')}</select><button type="button" class="ap-btn ap-btn-o" onclick="apSolAgregar()">${ico('mas')} Agregar</button></div>`:''}
       <div id="ap-sol-aviso"></div>
       ${campo('Observaciones','<input id="ap-sol-obs" maxlength="200">','ap-ancho')}
@@ -593,7 +603,7 @@
   };
   window.apCrearSolicitud=enviar=>{
     const items=[...document.querySelectorAll('.ap-sol-cant')].map(i=>({insumo:i.dataset.insumo,unidad:i.dataset.unidad,solicitado:i.value})).filter(i=>num(i.solicitado)>0);
-    AP.solExtra=[];AP.solVal={};
+    AP.solExtra=[];AP.solVal={};AP.solQuit=[];
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:valor('ap-sol-obs'),enviar}),id=>'Solicitud '+id+(enviar?' enviada a Almacén.':' guardada como borrador.'));
   };
   window.apVerSolicitud=function(id){
@@ -1241,7 +1251,7 @@
 .ap-btn,.ap-btn-s{white-space:nowrap}
 .ap-filtros .ap-chk{grid-column:1/4;align-self:center}.ap-filtros .ap-acc{grid-column:4/-1;justify-content:flex-end}
 .ap-nueva{border:1px solid var(--ap-linea);border-radius:12px;background:#fbfdff;padding:16px 18px;margin:0 0 22px;display:grid;gap:12px}
-.ap-nueva>*{margin:0}.ap-nueva .ap-acc-agregar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.ap-cant-w{display:flex;align-items:center;gap:8px}.ap-cant-w input{flex:1;min-width:0}.ap-cant-w small{min-width:48px;color:var(--ap-mut)}.ap-quitar{width:44px;text-align:center}.ap-quitar-b{border:0;background:transparent;cursor:pointer;color:var(--ap-mut);padding:8px;border-radius:8px}.ap-quitar-b:hover{background:#FDECEC;color:#B42318}.ap-sol-res{margin:8px 0;font-size:14px;color:var(--ap-mut)}.ap-nueva>*{margin:0}.ap-nueva .ap-acc-agregar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
 .ap-nueva .ap-tit-acc{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.ap-nueva .ap-h3{margin:0}
 .ap-t td .ap-btn-s{margin:0}
 p.ap-sub{padding:0;border:0;background:none;flex:none;font-size:14px;color:var(--ap-mut);margin:4px 0 10px}   /* «ap-sub» también es la subpestaña: el párrafo no debe heredar su relleno */

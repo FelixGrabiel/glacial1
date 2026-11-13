@@ -63,6 +63,13 @@ function renderMain(){}function renderSidebar(){}function ajustarVistaSegunPermi
 ['MERMA_DIVISORES_POR_LINEA','MERMA_CONVERSION_FISICA_POR_LINEA'].forEach(function(n){var m=t.match(new RegExp('const '+n+'\\s*=\\s*(\\{[\\s\\S]*?\\n\\};)'));window[n]=eval('('+m[1].replace(/;$/,'')+')');});
 MERMA_DIVISORES_POR_LINEA.PET2=MERMA_DIVISORES_POR_LINEA.PET1;})();</script>
 <script src="../../js/asistente/95-conversiones.js"></script>
+<script>/* ?variantes=1: el catálogo con insumos por variante (gramaje, ancho de polietileno, rollo de stretch, tipo de etiqueta), como queda tras 2026-11-13_variantes_insumos.sql. */
+if(/variantes=1/.test(location.search)){var NN=glacialAsistenteNucleo;
+  D0.apInsumos=D0.apInsumos.filter(function(i){return ['CAJA_PREFORMA','POLIETILENO','STRETCH','ETIQUETA'].indexOf(i.codigo)<0;}).concat(NN.INSUMOS_VARIANTE.map(function(i){return Object.assign({activo:true,version:1},i);}));
+  var antes=D0.apFactores.length?D0.apFactores:[];
+  [['PET1','pack_regular_2.5lx6und'],['PET2','Pack_Regular_625mlx15und/ln']].forEach(function(x){D0.apFactores.push({id:'et_'+x[0],insumo:'ETIQUETA',linea:x[0],marca:'*',presentacion:'*',base:'UND',cantidadBase:1,factor:1,vigenteDesde:'2020-01-01',vigenteHasta:null,activo:true,origen:'manual'});});
+  D0.apFactores=NN.aplicarVariantes(D0.apFactores);}
+</script>
 <script>
 var TAB=(location.search.match(/tab=(\w+)/)||[])[1],SUB=(location.search.match(/sub=(\w+)/)||[])[1];
 goAsistente(TAB,SUB);
