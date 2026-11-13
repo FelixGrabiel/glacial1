@@ -28,6 +28,9 @@
     if(T&&T.resolverLoteId)return T.resolverLoteId(id,lotes);
     return String(id||'');
   }
+  /* Lote escrito a mano en el cuadro (92, punto 1): si ya existe en el sistema (misma categoría y lote del proveedor) se cuenta en ese lote. */
+  const LC=()=>raiz.GlacialLotesEnCuadro||null;
+  const esManual=m=>!!m&&(m.manual===true||/^MAN-/.test(String(m.loteId||'')));
   function lotePTDe(r,c){
     const cp=CP();
     if(cp&&cp.lotePT)return cp.lotePT(c,{fecha:r.fecha,turno:r.turno});
@@ -48,11 +51,14 @@
       r.cuadros.forEach((c,i)=>{
         const lista=Array.isArray(c&&c.lotesInsumo)?c.lotesInsumo:[];
         if(!lista.length)return;
-        const lpt=lotePTDe(r,c);
+        const lpt=lotePTDe(r,c),vistos=new Set();
         lista.forEach(m=>{
           if(!m||!m.loteId)return;
-          const id=resolver(m.loteId,lotes),l=porId.get(id)||null;
-          out.push({loteId:id,loteIdGuardado:texto(m.loteId),loteProveedor:texto((l&&l.loteProveedor)||m.loteProveedor),
+          const man=esManual(m),enlazado=man&&LC()&&LC().resolverManual?LC().resolverManual(m,lotes):null;
+          const id=man?(enlazado?enlazado.id:texto(m.loteId)):resolver(m.loteId,lotes),l=porId.get(id)||null;
+          if(vistos.has(id))return;                                   // el mismo lote escrito a mano y luego tomado del sistema: una sola fila
+          vistos.add(id);
+          out.push({loteId:id,loteIdGuardado:texto(m.loteId),manual:man,loteProveedor:texto((l&&l.loteProveedor)||m.loteProveedor),
             categoria:String((l&&l.categoria)||m.categoria||'otro').toLowerCase(),insumo:texto((l&&l.producto)||m.insumo),proveedor:texto(l&&l.proveedor),
             unidadIds:Array.isArray(m.unidadIds)?m.unidadIds.slice():[],
             reporteId:texto(r.id),linea:texto(r.linea),fecha:texto(r.fecha).slice(0,10),turno:texto(r.turno),cuadro:num(c&&c.numero)||i+1,
@@ -94,6 +100,15 @@
         insumos.push({lote,unidades:(unidadesPorLote.get(lote.id)||[]).slice().sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'es',{numeric:true})),
           usos:usosF.filter(u=>u.loteId===lote.id)});
       });
+      /* Lotes escritos a mano que todavía no están en el sistema: se agrupan por su clave (MAN-…). */
+      const manuales=new Map();
+      usosF.filter(u=>/^MAN-/.test(u.loteId)).forEach(u=>{
+        const ok=[u.loteId,u.loteProveedor,u.insumo].some(x=>{const n=norm(x);return n&&(n.includes(q)||(qa.length>=3&&n.replace(/[^A-Z0-9]/g,'').includes(qa)));});
+        if(!ok)return;
+        if(!manuales.has(u.loteId))manuales.set(u.loteId,{lote:{id:u.loteId,manual:true,loteProveedor:u.loteProveedor,producto:u.insumo||'(insumo no indicado)',categoria:u.categoria,proveedor:''},unidades:[],usos:[]});
+        manuales.get(u.loteId).usos.push(u);
+      });
+      manuales.forEach(x=>insumos.push(x));
       insumos.sort((a,b)=>b.usos.length-a.usos.length||String(a.lote.id).localeCompare(String(b.lote.id)));
     }
     const prodMap=new Map();
@@ -116,7 +131,7 @@
   /** Filas planas para el Excel (una por cuadro × lote de insumo), en el orden de las columnas de COLUMNAS_EXCEL. */
   const COLUMNAS_EXCEL=['Lote de insumo (GLACIAL)','Lote del proveedor','Categoría','Insumo','Proveedor','Línea','Fecha','Turno','Producción n.º','Marca','Presentación','Lote de producto','Producción efectiva','Estado del reporte','Cajas/bobinas'];
   function filasExcel(usos){
-    return (usos||[]).map(u=>[u.loteId,u.loteProveedor,NOMBRE_CAT[u.categoria]||u.categoria,u.insumo,u.proveedor,u.linea,u.fecha,turnoTexto(u.turno),u.cuadro,u.marca,u.presentacion,u.lotePT,u.efectiva,
+    return (usos||[]).map(u=>[/^MAN-/.test(u.loteId)?'Escrito a mano (sin foto validada)':u.loteId,u.loteProveedor,NOMBRE_CAT[u.categoria]||u.categoria,u.insumo,u.proveedor,u.linea,u.fecha,turnoTexto(u.turno),u.cuadro,u.marca,u.presentacion,u.lotePT,u.efectiva,
       u.estadoReporte==='FINALIZADO'?'Finalizado':'En registro',u.unidadIds.join(', ')]);
   }
   /** Cobertura: cuántos cuadros producidos tienen al menos un lote de insumo marcado (para saber cuánto falta registrar). */
@@ -171,7 +186,7 @@
     const lineasUsadas=[...new Set(x.usos.map(u=>u.linea))];
     const prod=x.usos.reduce((s,u)=>s+u.efectiva,0);
     return `<article class="ii-card it-card"><div class="ie-det-cab"><div><h4>${esc(l.producto)}</h4><p class="ii-mut">${esc(l.proveedor)} · lote del proveedor <b>${esc(l.loteProveedor)}</b> · ${esc(NOMBRE_CAT[l.categoria]||l.categoria)}</p></div>
-      <button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilSel('${esc(l.id)}')">${esc(l.id)} · ver ficha</button></div>
+      ${l.manual?'<span class="ii-pill ii-p-naranja"><i></i>Escrito a mano · sin foto validada</span>':`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilSel('${esc(l.id)}')">${esc(l.id)} · ver ficha</button>`}</div>
       <div class="ii-resumen"><div><b>${x.unidades.length}</b><span>${esc(uf.varios)}</span></div><div><b>${x.usos.length}</b><span>producciones</span></div><div><b>${esc(lineasUsadas.join(', ')||'—')}</b><span>líneas</span></div><div><b>${esc(fmtN(prod))}</b><span>producido con este lote</span></div></div>
       <h5 class="ie-g">Dónde se usó (hacia adelante)</h5>${tablaUsos(x.usos)}</article>`;
   }
@@ -179,7 +194,7 @@
     const cats=ORDEN_CAT.filter(c=>p.insumos[c]&&p.insumos[c].length);
     return `<article class="ii-card it-card"><div class="ie-det-cab"><div><h4>Lote de producto <b>${esc(p.lotePT||'—')}</b></h4><p class="ii-mut">${esc(p.linea)} · ${esc(fFecha(p.fecha))} · ${esc(turnoTexto(p.turno))} · ${esc(p.marca)} ${esc(p.presentacion)} · ${esc(fmtN(p.efectiva))} producidas</p></div></div>
       <h5 class="ie-g">Lotes de insumo que lleva (hacia atrás)</h5>
-      <ul class="it-ins">${cats.map(c=>`<li><b>${esc(NOMBRE_CAT[c]||c)}:</b> ${p.insumos[c].map(i=>`<button type="button" class="it-link" onclick="itBuscar('${esc(i.loteId)}')">${esc(i.loteProveedor)}</button> <small class="ii-mut">${esc(i.insumo)}${i.proveedor?' · '+esc(i.proveedor):''} (${esc(i.loteId)})</small>`).join(' · ')}</li>`).join('')}</ul></article>`;
+      <ul class="it-ins">${cats.map(c=>`<li><b>${esc(NOMBRE_CAT[c]||c)}:</b> ${p.insumos[c].map(i=>`<button type="button" class="it-link" onclick="itBuscar('${esc(i.loteId)}')">${esc(i.loteProveedor)}</button> <small class="ii-mut">${esc(i.insumo)}${i.proveedor?' · '+esc(i.proveedor):''} (${/^MAN-/.test(i.loteId)?'escrito a mano':esc(i.loteId)})</small>`).join(' · ')}</li>`).join('')}</ul></article>`;
   }
 
   function html(){
@@ -187,7 +202,7 @@
     const r=buscar(S.q,{lotes:d.lotes,unidades:d.unidades,usos:d.usos,filtros:f});
     const cob=cobertura(d.regs,f);
     const opt=lineas().map(l=>`<option value="${esc(l)}" ${l===S.linea?'selected':''}>${esc(l)}</option>`).join('');
-    const avisoCob=cob.total?`<div class="ii-msg ${cob.sin?'ii-msg-error':'ii-msg-info'}" role="note">${cob.con} de ${cob.total} producciones ${f.linea||f.desde||f.hasta?'del filtro ':''}tienen lotes de insumo marcados.${cob.sin?` Las otras <b>${cob.sin}</b> no se pueden rastrear: el supervisor marca los lotes en «Lotes de insumo usados» de cada producción (los insumos deben estar entregados a su línea).`:''}</div>`:'';
+    const avisoCob=cob.total?`<div class="ii-msg ${cob.sin?'ii-msg-error':'ii-msg-info'}" role="note">${cob.con} de ${cob.total} producciones ${f.linea||f.desde||f.hasta?'del filtro ':''}tienen lotes de insumo marcados.${cob.sin?` Las otras <b>${cob.sin}</b> no se pueden rastrear: el supervisor marca los lotes en «Lotes de insumo usados» de cada producción (los que están en el sistema o, si no, escritos a mano).`:''}</div>`:'';
     const resultados=!S.q&&!f.linea&&!f.desde&&!f.hasta?'<p class="ii-mut">Escribe un lote de insumo (LI-…, lote del proveedor o producto) o un lote de producto (p. ej. CF3-02112027), o elige línea y fechas.</p>':
       (r.insumos.length?`<h4 class="ie-g">Lotes de insumo (${r.insumos.length})</h4>${r.insumos.map(insumoHtml).join('')}`:'')+
       (r.productos.length?`<h4 class="ie-g">Lotes de producto (${r.productos.length})</h4>${r.productos.slice(0,60).map(productoHtml).join('')}${r.productos.length>60?`<p class="ii-mut">Se muestran 60 de ${r.productos.length}. Acota con línea y fechas, o exporta a Excel.</p>`:''}`:'')+
