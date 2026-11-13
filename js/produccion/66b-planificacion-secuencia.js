@@ -155,7 +155,7 @@
             /* Un producto puede repetirse en la línea (13 000 ahora y «el resto» más tarde): su cantidad es la SUMA de sus pasos (fijos + estimados). */
             const trs=lista.map(x=>est.tramos[x.i]);
             const fijo=lista.reduce((sum,x)=>sum+(x.f.tipoFin==='CANTIDAD'?Number(x.f.cantidad):0),0);
-            const pendientes=lista.some((x,j)=>x.f.tipoFin!=='CANTIDAD'&&!(trs[j]&&trs[j].estado==='OK'&&num(trs[j].cantidad)>0));
+            const pendientes=lista.some((x,j)=>x.f.tipoFin!=='CANTIDAD'&&!(trs[j]&&trs[j].continua)&&!(trs[j]&&trs[j].estado==='OK'&&num(trs[j].cantidad)>0));   // un tramo que «continúa en el siguiente turno» no deja pendiente el resto
             const estim=lista.reduce((sum,x,j)=>sum+(x.f.tipoFin!=='CANTIDAD'&&trs[j]&&trs[j].estado==='OK'?num(trs[j].cantidad):0),0);
             const conCierre=lista.some(x=>x.f.tipoFin==='CIERRE'),tHora=lista.find(x=>x.f.tipoFin==='HORA'),tTemp=lista.find(x=>x.f.tipoFin==='CIERRE')||tHora;
             const modo=conCierre?'TURNO':'HORA';
@@ -163,7 +163,7 @@
             const base={tipoFin:tTemp.f.tipoFin,horaFin:tTemp.f.hora||'',parametrosVersion:num(est.parametrosVersion),calculadoEn:t0,por:quienN};
             if(!pendientes){
               cantidad=fijo+estim;
-              const t1=trs[lista.indexOf(tTemp)];
+              const t1=trs[lista.indexOf(tTemp)]&&!trs[lista.indexOf(tTemp)].continua?trs[lista.indexOf(tTemp)]:trs.filter(t=>t&&t.temporal&&t.estado==='OK').pop()||trs[0];
               extra.estimado=Object.assign({cantidad,ratio:t1.velocidad,tiempoProdMin:Math.round(trs.reduce((sum,t)=>sum+num(t&&t.tiempoMin),0)*10)/10,
                 inicioMs:est.bloque.inicioMs+trs[0].inicioOff*60000,finMs:est.bloque.inicioMs+t1.finOff*60000},base);
             }else{
@@ -299,7 +299,7 @@
     const filas=S.filasDe(linea,fecha,turno);
     if(!filas.length)return '';
     const e=S.estimar(linea,fecha,turno,filas),b=e.bloque,planifica=NS.puede();
-    const chip=t=>t.estado==='OK'||t.estado==='REAL'?'':'<span class="plan-chip '+(t.estado==='CONFLICTO'?'rojo':'gris')+'">'+(t.estado==='CONFLICTO'?'Conflicto':'Pendiente')+'</span>';
+    const chip=t=>t.estado==='OK'||t.estado==='REAL'?'':'<span class="plan-chip '+(t.estado==='CONFLICTO'?'rojo':'gris')+'">'+(t.estado==='CONFLICTO'?'Conflicto':t.continua?'Sigue en el turno siguiente':'Pendiente')+'</span>';
     const filasH=e.tramos.map((t,i)=>{
       const f=filas[i]||{};
       const cant=t.temporal?(t.cantidad!==null&&t.cantidad!==undefined?'≈ '+fmt(t.cantidad)+' UND <small>estimadas</small>':'<i>estimación pendiente</i>'):(f.saldo&&!(num(f.cantidad)>0)?'<i>saldo por calcular</i>':fmt(f.cantidad)+' UND');

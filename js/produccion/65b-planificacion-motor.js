@@ -283,7 +283,9 @@
         // Hasta el cierre del bloque: desde el inicio de este tramo hasta el final, descontando ventanas.
         if(i!==tramos.length-1)conflictos.push('«Hasta el cierre» normalmente es el último tramo, pero hay otro después de '+p.marca+': revisa la secuencia.');
         const tope=b.duracionMin;
-        if(tope<=ini){conflictos.push('El tramo '+t.orden+' ('+p.marca+') no tiene tiempo antes del cierre: no puede empezar antes de las '+M.hhmm(b.inicioMs+ini*60000)+'.');qty=0;fin=ini;}
+        if(tope<=ini){
+          // el tramo anterior ya ocupa todo el bloque: no es un error, el producto NO PARA y sigue en el siguiente turno
+          ev.motivo='Continúa en el siguiente turno: el tramo anterior ocupa el bloque hasta las '+M.hhmm(b.inicioMs+ini*60000)+' (después del cierre).';ev.continua=true;qty=0;fin=ini;}
         else{qty=v*tl.libreEntre(ini,tope)/60;fin=tope;}
       }else{
         // cada tramo por cantidad produce SU cantidad (un producto puede repetirse: 13 000 ahora y el resto del turno más tarde)
@@ -379,7 +381,7 @@
       if(!(v>0)){f.estado='PENDIENTE';f.motivo='falta la velocidad estándar (ratio nominal) de este producto';}
       else if(pendienteDesde!==null&&i>=pendienteDesde){f.estado='PENDIENTE';f.motivo='depende de un cambio sin tiempo configurado';}
       else if(ev.real){f.estado='REAL';f.motivo='ya finalizado (dato real)';}
-      else if(ev.motivo){f.estado='PENDIENTE';f.motivo=ev.motivo;}
+      else if(ev.motivo){f.estado='PENDIENTE';f.motivo=ev.motivo;f.continua=!!ev.continua;}
       else if(ev.a===null||ev.a===undefined){f.estado='PENDIENTE';f.motivo='sin datos suficientes';}
       else{
         const dur=ev.z-ev.a;
