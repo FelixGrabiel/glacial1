@@ -1174,12 +1174,6 @@ function cpEjecutivoHTML(){
     ${n?`<div class="cp-table-wrap"><table class="cp-table cp-ex-table"><thead><tr><th>Línea</th><th>Estado</th><th>Producción</th><th>Cumplimiento</th><th>Último registro</th></tr></thead><tbody>${filasTabla}</tbody></table></div>`
       :'<div class="cp-empty">No hay líneas autorizadas para consultar.</div>'}</section>`;
 
-  const alertas=d.alertas.length
-    ?d.alertas.map(a=>`<div class="cp-ex-alert cp-ex-alert-${a.tipo==='DETENIDA'?'detenida':'pausa'}"><b>${cpEsc(a.linea)} — ${a.tipo}</b><span>${cpEsc(a.texto)}</span></div>`).join('')
-    :`<div class="cp-ex-ok">${cpIcon('info')} Operación sin alertas críticas.</div>`;
-  const tarjetaAlertas=`<section class="cp-card"><div class="cp-card-head"><div class="cp-card-title">${cpIcon('info')}<div><h3>Alertas importantes</h3><p>Solo situaciones vigentes que requieren atención.</p></div></div></div>
-      <div class="cp-ex-alerts">${alertas}</div></section>`;
-
   // Orden (13/11/2026): encabezado → PLANTA DE AGUA (6 tarjetas, la sexta «Líneas sin producción», y producción por línea) → PLANTA DE HIELO
   // (#cp-hielo-slot: la tarjeta de 98-hielo-inicio.js se pone ahí con su título; sin permiso de Hielo queda vacío) → alertas → RESUMEN DE PRODUCCIÓN al final.
   // La tabla «Personal por línea» ya no se repite aquí: su detalle se abre desde «Ver distribución →» (cpVerDistribucion).
@@ -1187,13 +1181,17 @@ function cpEjecutivoHTML(){
   // por eso siguen dentro del bloque final.
   const lineasAgua=d.lineasAutorizadas.map(k=>cpNombreLinea(k)).join(', ');
   const tituloAgua=`<div class="cp-planta-tit cp-pt-agua"><h2><i aria-hidden="true"></i>PLANTA DE AGUA</h2>${lineasAgua?`<p>${cpEsc(lineasAgua)} · cada línea con su unidad.</p>`:''}</div>`;
-  return `${cabecera}${tituloAgua}${kpis}${tarjetaLineas}<div id="cp-hielo-slot"></div>${tarjetaAlertas}
-    <section class="cp-resumen-prod" aria-label="Resumen de producción"><div class="cp-title-row"><div><h2>RESUMEN DE PRODUCCIÓN</h2><p>Detalle del turno seleccionado.</p></div></div></section>`;
+  // Orden (14/11/2026): agua → RESULTADO DE LA PLANTA (producción vs meta, merma, mantenimiento) → hielo → DETALLE DEL TURNO. Las alertas ya no se repiten:
+  // «Retrasada/Detenida» está en el estado de cada línea y las paradas abiertas en «Paradas de hoy».
+  let resultado='';
+  try{resultado=window.glacialInicioResultado?window.glacialInicioResultado.html(d.fecha||cpEjecCtx.fecha||cpFechaISO()):'';}catch(e){console.warn('Inicio: resultado de la planta',e);}
+  return `${cabecera}${tituloAgua}${kpis}${tarjetaLineas}${resultado}<div id="cp-hielo-slot"></div>
+    <section class="cp-resumen-prod" aria-label="Detalle del turno"><div class="cp-title-row cp-planta-tit cp-pt-det"><h2><i aria-hidden="true"></i>DETALLE DEL TURNO</h2><p>Paradas, proyección y disponibilidad del turno seleccionado.</p></div></section>`;
 }
 function cpEjecutivoStyles(){return `<style id="cp-ejecutivo-estilos">
 .cp-planta-tit{margin:6px 0 10px}.cp-planta-tit h2{display:flex;align-items:center;gap:10px;margin:0;font-size:19px;letter-spacing:.04em;color:#033350}.cp-planta-tit h2 i{width:9px;height:22px;border-radius:3px;background:#0877A6}
 .cp-planta-tit p{margin:2px 0 0 19px;color:var(--cp-muted);font-size:12.5px}.cp-pt-hielo{margin-top:16px}.cp-pt-hielo h2 i{background:#4FC4F5}#cp-hielo-slot:empty{display:none}#cp-hielo-slot{margin-bottom:12px}#cp-hielo-slot .hli-card{margin-bottom:0}
-.cp-resumen-prod{margin-top:16px;padding:14px 16px 12px;background:#fff;border:1px solid var(--cp-line);border-radius:14px;box-shadow:0 3px 12px rgba(17,57,91,.055)}.cp-resumen-prod .cp-title-row{margin-bottom:10px}
+.cp-resumen-prod{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;align-items:start}.cp-resumen-prod>*{margin:0!important;min-width:0}.cp-resumen-prod>.cp-title-row{grid-column:1/-1}.cp-pt-det h2 i{background:#7b8fa1}.cp-pt-res h2 i{background:#13814a}.cp-resumen-prod .cp-title-row{margin-bottom:10px}
 .cp-ex-meta{display:flex;align-items:center;gap:16px}.cp-ex-meta b{display:block;color:#033350;font-size:14px}.cp-ex-meta small{color:var(--cp-muted);font-size:11px}
 .cp-ex-turno{background:linear-gradient(135deg,#065F86,#0877A6);border-radius:10px;padding:8px 18px}.cp-ex-turno b,.cp-ex-turno small{color:#fff}
 .cp-ex-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
