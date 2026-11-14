@@ -1379,6 +1379,60 @@ function xlgHojaDatos(wb, ctx){
 
 
 /* =========================================================
+   HOJA «Hielo» — producción de la Planta de Hielo en el mismo libro
+   Sale de hieloReportes (los reportes que la app tiene cargados, ver DIAS en js/hielo/97-hielo.js), dentro del mismo rango de fechas
+   del Excel. Sin permiso o sin datos, la hoja no se agrega. Bolsas por marca y presentación; los kilos son bolsas × kg de la presentación.
+   ========================================================= */
+async function xlgDatosHielo(records){
+  const D = window.glacialHieloDatos, N = window.glacialHieloNucleo;
+  if(!D || !N || typeof D.escuchar !== 'function') return null;
+  try{
+    D.escuchar();
+    for(let i = 0; i < 20 && !(D.cache.listo && D.cache.listo.reportes) && !D.cache.error; i++){
+      await new Promise(r => setTimeout(r, 150));
+    }
+  }catch(_){ return null; }
+  if(!(D.cache.listo && D.cache.listo.reportes)) return null;
+  const fechas = (records || []).map(r => r.fecha).filter(Boolean).sort();
+  if(!fechas.length) return null;
+  const desde = fechas[0], hasta = fechas[fechas.length - 1];
+  const rep = (D.cache.reportes || []).filter(r => r && r.fecha >= desde && r.fecha <= hasta);
+  return rep.length ? { rep, desde, hasta, N } : null;
+}
+
+function xlgHojaHielo(wb, datosHielo){
+  const { rep, desde, hasta, N } = datosHielo;
+  const ws = wb.addWorksheet('Hielo', { views:[{ showGridLines:false, state:'frozen', ySplit:4 }] });
+  const COL = ['Fecha','Turno','Estado','Supervisor','Estación','Marca','Presentación','Lote','Bolsas','Kg','Paradas del turno (min)'];
+  ws.addRow(['PLANTA DE HIELO · producción']).font = xlgFont({ bold:true, size:14, color:XLG.negro });
+  ws.addRow(['Del ' + xlFechaTexto(desde) + ' al ' + xlFechaTexto(hasta) + ' · ' + rep.length + ' reportes · lo que la app tiene cargado de Hielo en ese rango']).font = xlgFont({ color:XLG.grisTexto });
+  ws.addRow([]);
+  const cab = ws.addRow(COL);
+  cab.eachCell(c => { c.font = xlgFont({ bold:true, color:XLG.blanco }); c.fill = xlFill(XLG.azul); c.border = XLG_BORDER; });
+  const porPres = new Map();
+  rep.slice().sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : N.TURNOS.indexOf(a.turno) - N.TURNOS.indexOf(b.turno)).forEach(r => {
+    const paradas = (r.paradas || []).reduce((a, p) => a + num(p.minutos), 0);
+    const prods = (r.produccion || []).filter(p => num(p.bolsas) > 0);
+    (prods.length ? prods : [{ marca:'', presentacion:'', bolsas:0 }]).forEach(p => {
+      const kg = Math.round(num(p.bolsas) * N.kgDe(p.presentacion) * 100) / 100;
+      ws.addRow([xlFechaTexto(r.fecha), r.turno, r.estado === 'FINALIZADO' ? 'Finalizado' : 'En registro', r.supervisor || '', p.estacion || '', p.marca || '', p.presentacion || '', p.lote || '', Math.round(num(p.bolsas)), kg, paradas]);
+      if(num(p.bolsas) > 0){
+        const o = porPres.get(p.presentacion) || { bolsas:0, kg:0 };
+        o.bolsas += Math.round(num(p.bolsas)); o.kg += kg; porPres.set(p.presentacion, o);
+      }
+    });
+  });
+  ws.addRow([]);
+  const t = ws.addRow(['Total por presentación']); t.font = xlgFont({ bold:true });
+  [...porPres.entries()].sort((a, b) => N.kgDe(b[0]) - N.kgDe(a[0])).forEach(([pres, o]) => {
+    ws.addRow(['', '', '', '', '', '', pres, '', o.bolsas, Math.round(o.kg * 100) / 100, '']);
+  });
+  ws.eachRow((row, i) => { if(i >= 5) row.eachCell(c => { if(!c.font || !c.font.bold) c.font = xlgFont({}); }); });
+  [12, 12, 13, 22, 18, 16, 14, 14, 10, 10, 14].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  ws.autoFilter = { from:{ row:4, column:1 }, to:{ row:4, column:COL.length } };
+}
+
+/* =========================================================
    HOJA 8 — ALERTAS DE CALIDAD DE DATOS
    ========================================================= */
 
@@ -1687,6 +1741,8 @@ async function exportarExcelGeneral(btn){
     xlgHojaTendencia(wb, ctx);
     xlgHojaAlertas(wb, ctx);
     xlgHojaDatos(wb, ctx);
+
+    try{ const dh = await xlgDatosHielo(records); if(dh) xlgHojaHielo(wb, dh); }catch(e){ console.warn('Excel general: hoja Hielo', e && e.message || e); }
 
     xlgEmbellecerLibro(wb);
 

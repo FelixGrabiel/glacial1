@@ -1,4 +1,4 @@
--- GLACIAL · glacial_50 · HIELO: permisos propios, separados de los de Agua                              *** APLICADA en PRUEBAS (10/11/2026) · PRODUCCIÓN: pendiente de aprobación ***
+-- GLACIAL · glacial_50 · HIELO: permisos propios, separados de los de Agua                              *** APLICADA en PRUEBAS (10/11/2026) · PRODUCCIÓN: ya aplicada (verificado 14/11/2026) ***
 --
 -- Por qué: registrar y programar Hielo dependían de los mismos permisos de Agua («paletas» y «planificacion», vía glacial_fs.ctx()
 -- → opera/planifica). Quien tenía «paletas» o «planificacion» de Agua podía escribir en Hielo aunque el Administrador no se lo
