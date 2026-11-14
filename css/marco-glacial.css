@@ -1,0 +1,76 @@
+/* =========================================================
+   MARCO GLACIAL (14/11/2026) · nuevo estilo de la estructura general
+   Selección de reporte con la foto de la planta, menú lateral con íconos de línea y encabezado ligero.
+   Solo estilos: no cambia IDs, funciones ni permisos. Cargar DESPUÉS de sidebar/mobile/logo (gana por orden y por #app-screen).
+   El celular (≤700 px) conserva su diseño propio (css/mobile-glacial.css) salvo los colores de fondo.
+   ========================================================= */
+
+/* ---------- selección de reporte: foto de la planta ---------- */
+#report-select-screen{
+  background:linear-gradient(90deg,rgba(6,35,70,.22),rgba(6,35,70,.5)),#0b4f9c url("../assets/img/fondo_login.webp") no-repeat 0 center/cover!important;
+}
+#report-select-screen::before,#report-select-screen::after{content:none!important}
+#report-select-screen .report-select-card{
+  background:rgba(251,253,255,.96);border-radius:26px;border:0;box-shadow:0 30px 80px rgba(0,20,40,.45);
+}
+#report-select-screen .report-select-logo-container{display:none}
+#report-select-screen .report-select-head{text-align:left}
+#report-select-screen .report-select-head h1{font-family:"Oswald","Arial Narrow",sans-serif;text-transform:uppercase;letter-spacing:.01em;font-size:30px;line-height:1.1;color:#0b1f33;text-align:left}
+#report-select-screen .plant-tag{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;letter-spacing:.14em;border-radius:6px}
+#report-select-screen .report-type-card{border:1px solid #d6e5ef;border-radius:18px;box-shadow:0 6px 18px rgba(15,50,90,.06);transition:transform .15s,box-shadow .2s,border-color .2s}
+#report-select-screen .report-type-card:hover{transform:translateY(-2px);border-color:#7cc3e3;box-shadow:0 14px 30px rgba(15,50,90,.14)}
+#report-select-screen .report-type-icon{background:linear-gradient(135deg,#dff1fb,#bfe4f6);border-radius:14px}
+#report-select-screen .report-type-icon svg{stroke:#0877a6}
+@media(min-width:861px){
+  #report-select-screen{justify-content:flex-end;padding-right:max(32px,6vw)}
+  #report-select-screen .report-select-card{width:min(640px,52vw);max-width:640px;margin:0}
+}
+
+/* ---------- aplicación: fondo, encabezado y menú ---------- */
+#app-screen{
+  background:#eaf3f9 radial-gradient(1100px 480px at 85% -8%,#d6ecf8,rgba(214,236,248,0) 70%) no-repeat;
+}
+#app-screen .shell{background:transparent}
+#app-screen .shell>.main{background:transparent;border-radius:0;box-shadow:none}
+#app-screen .topbar{
+  background:transparent;border-bottom:0;box-shadow:none;
+}
+#app-screen .topbar-title strong{font-size:17px}
+#app-screen .topbar-hielo .topbar-hielo-txt{white-space:nowrap}
+#app-screen .topbar-title strong{color:#0b2a4a;letter-spacing:-.005em}
+#app-screen .topbar-title small{color:#587087}
+#app-screen .topbar .btn-topbar{border-radius:10px;border:1px solid #cddfec;background:#fff;box-shadow:0 1px 2px rgba(15,50,90,.05);font-weight:600}
+#app-screen .topbar .btn-topbar:hover{border-color:#7cc3e3;background:#f4fafe}
+
+#app-screen .shell>.sidebar,
+#app-screen #glacial-sidebar{
+  --sb-bg:#0a2745;--sb-bg-deep:#0c3358;--sb-active:rgba(56,189,248,.18);--sb-hover:rgba(255,255,255,.08);
+  background:linear-gradient(180deg,#0a2745 0%,#0b2f52 55%,#0c3358 100%);
+  border-right:0;box-shadow:none;
+}
+#app-screen .sidebar-brand{background:none;border-bottom:1px solid rgba(255,255,255,.1);min-height:76px;padding:14px 18px}
+#app-screen .sidebar-brand-logo{height:44px;width:44px;max-width:none;object-fit:cover;border-radius:50%;filter:none}
+#app-screen .sidebar-brand::after{content:"GLACIAL";margin-left:12px;color:#fff;font:700 17px/1 "Oswald","Arial Narrow",sans-serif;letter-spacing:.14em}
+
+#app-screen .side-action,#app-screen .sidebar-group-toggle{border-radius:10px;min-height:44px;font-weight:600;transition:background .15s}
+#app-screen .side-action-icon{display:inline-grid;place-items:center;width:22px;height:22px;flex:none;font-size:0;color:#cfe2f5}
+#app-screen .side-action-icon svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.88}
+#app-screen .side-action.active,#app-screen .side-action[aria-current="page"]{
+  background:rgba(56,189,248,.18)!important;color:#fff;box-shadow:inset 3px 0 0 #38bdf8;
+}
+#app-screen .side-action.active .side-action-icon,#app-screen .side-action[aria-current="page"] .side-action-icon{color:#7dd3fc}
+#app-screen .sidebar-group.has-active>.sidebar-group-toggle,#app-screen .sidebar-group.is-open>.sidebar-group-toggle{background:rgba(56,189,248,.12)}
+#app-screen .sidebar-group.has-active>.sidebar-group-toggle{box-shadow:inset 3px 0 0 #38bdf8}
+#app-screen .sidebar-group.has-active>.sidebar-group-toggle .side-action-icon{color:#7dd3fc}
+#app-screen .sidebar-chevron{color:#8fc4ec}
+
+/* rail oscuro continuo desde el borde superior (≥1051 px, donde el menú mide 264 px) */
+@media(min-width:1051px){
+  #app-screen .topbar{position:relative;padding-left:288px}
+  #app-screen .topbar::before{content:"GLACIAL";position:absolute;left:0;top:0;bottom:0;width:264px;box-sizing:border-box;background:#0a2745;z-index:-1;display:flex;align-items:center;padding-left:78px;color:#fff;font:700 17px/1 "Oswald","Arial Narrow",sans-serif;letter-spacing:.14em}
+  #app-screen .topbar::after{content:"";position:absolute;left:20px;top:50%;width:44px;height:44px;margin-top:-22px;border-radius:50%;background:url("../assets/img/logo_glacial.jpeg") center/cover;box-shadow:0 0 0 2px rgba(255,255,255,.18)}
+  #app-screen .sidebar-brand{display:none}
+}
+@media(max-width:700px){
+  #app-screen .topbar{background:#fff;border-bottom:1px solid #dce4e9}
+}
