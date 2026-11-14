@@ -40,7 +40,7 @@ Nadie en modo Visualizar escribe, y nada se borra.
 - ¿Se cuenta también por sacos o paquetes, o se paletiza?
 - Puestos del personal (tareo de hielo).
 - Lotes de insumo usados (bolsas y bobinas) y su consumo. Ya existen en Lotes y en el banco de proveedores.
-- Que el hielo aparezca en el Reporte General de la empresa (Excel). **El Inicio ya lo muestra** (ver abajo).
+- ~~Que el hielo aparezca en el Reporte General de la empresa (Excel).~~ **Hecho (14/11/2026):** el Excel general de planta agrega la hoja **«Hielo»** (producción por fecha, turno, marca y presentación, con bolsas y kg, y el total por presentación) dentro del mismo rango de fechas. Solo incluye los reportes que la app tiene cargados de Hielo; sin datos no se agrega. Código: `xlgHojaHielo` en `js/produccion/14-exportar-general.js`. El Inicio también lo muestra (ver abajo).
 
 ## Pruebas
 - `tests/reporte-hielo.test.js`: kg por presentación, totales separados por presentación, cumplimiento, validaciones para finalizar, versiones e historial, configuración, Excel y conexiones.
@@ -67,4 +67,4 @@ Ahora, en **Gestión de usuarios**, hay un área propia **«Hielo»** en el cat�
 
 La Configuración de Hielo (editar marcas, presentaciones, estaciones…) sigue siendo del Administrador o Jefatura, igual que antes.
 
-Servidor: `supabase/migraciones/glacial_50_permisos_hielo_separados.sql` (aplicada en PRUEBAS; PRODUCCIÓN pendiente de aprobación). Prueba repetible: `supabase/pruebas/hielo_permisos_separados.sql`.
+Servidor: `supabase/migraciones/glacial_50_permisos_hielo_separados.sql` (aplicada en PRUEBAS y PRODUCCIÓN; verificado 14/11/2026). Prueba repetible: `supabase/pruebas/hielo_permisos_separados.sql`.

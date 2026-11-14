@@ -99,6 +99,24 @@ ok(/S\.desdeAgua=/.test(js)&&/Volver a Reporte Agua/.test(js),'desde Hielo se vu
   ok(err&&err.codigo==='CONFLICTO','si otra persona guardó entre medio, sigue el aviso de conflicto');
   const js2=leer('js/hielo/97-hielo.js');
   ok(/let guardandoAhora=null,repetirAuto=false/.test(js2)&&/if\(auto\)\{repetirAuto=true;return;\}/.test(js2),'los guardados automáticos van de a uno (el siguiente espera al anterior)');
+  /* ---------- Excel general de planta: hoja «Hielo» ---------- */
+  {
+    const x=leer('js/produccion/14-exportar-general.js');
+    const ini=x.indexOf('async function xlgDatosHielo'),fin=x.indexOf('/* =========================================================\n   HOJA 8');
+    ok(ini>0&&fin>ini&&/xlgHojaHielo\(wb, dh\)/.test(x),'el Excel general agrega la hoja Hielo (si hay datos y permiso)');
+    const filas=[];
+    const ws={addRow(f){filas.push(f);return {eachCell(){}};},eachRow(){},getColumn(){return {};},set autoFilter(v){}};
+    const wb={addWorksheet(n){ws.nombre=n;return ws;}};
+    const cargar=new Function('window','XLG','XLG_BORDER','xlFill','xlFechaTexto','xlgFont','num',x.slice(ini,fin)+';return {xlgDatosHielo,xlgHojaHielo};');
+    const env={glacialHieloDatos:{escuchar(){},cache:{listo:{reportes:true},error:'',reportes:[Object.assign({estado:'FINALIZADO',supervisor:'Ana'},r1),r2,{fecha:'2026-12-31',turno:'DÍA',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:99}]}]}},glacialHieloNucleo:H};
+    const E=cargar(env,{negro:'0',grisTexto:'0',blanco:'0',azul:'0'},{},()=>({}),f=>f,()=>({}),v=>Number(v)||0);
+    const dh=await E.xlgDatosHielo([{fecha:'2026-11-07'},{fecha:'2026-11-08'}]);
+    ok(dh&&dh.rep.length===2&&dh.desde==='2026-11-07'&&dh.hasta==='2026-11-08','la hoja toma solo los reportes del rango del Excel');
+    ok(await E.xlgDatosHielo([])===null,'sin registros en el rango no se agrega la hoja');
+    E.xlgHojaHielo(wb,dh);
+    const tot=filas.filter(f=>f[0]===''&&f[1]===''&&f[6]);
+    ok(ws.nombre==='Hielo'&&tot.some(f=>f[6]==='3 kg'&&f[8]===5300&&f[9]===15900)&&tot.some(f=>f[6]==='1.5 kg'&&f[8]===400&&f[9]===600),'la hoja suma bolsas y kilos por presentación');
+  }
   console.log(fallas?`\n${fallas} falla(s)`:'\nTodo correcto');
   process.exit(fallas?1:0);
 })();
