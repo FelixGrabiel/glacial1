@@ -5,10 +5,16 @@
    ========================================================= */
 #login-screen{
   padding:0;align-items:stretch;justify-content:stretch;min-height:100vh;
-  background:linear-gradient(135deg,#021f33 0,#04476b 55%,#0a79a8 100%);
+  /* fondo corporativo: azul marino sobrio con un leve brillo de marca arriba a la derecha y trama fina de líneas */
+  background:
+    radial-gradient(900px 520px at 88% -8%,rgba(14,134,184,.38) 0,rgba(14,134,184,0) 70%),
+    linear-gradient(180deg,#0b2a4a 0,#08213b 100%);
 }
-#login-screen::before{opacity:1;background:none;width:620px;height:620px;left:-180px;top:-200px;right:auto;bottom:auto;inset:auto;border-radius:50%;background:rgba(255,255,255,.04)}
-#login-screen::after{left:auto;right:-120px;bottom:-120px;width:380px;height:380px;border-radius:50%;background:rgba(56,189,248,.10);height:380px}
+#login-screen::before{content:"";position:absolute;inset:0;width:auto;height:auto;border-radius:0;
+  background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+  background-size:56px 56px;opacity:1;pointer-events:none;
+  -webkit-mask-image:linear-gradient(90deg,#000 0,rgba(0,0,0,.25) 100%);mask-image:linear-gradient(90deg,#000 0,rgba(0,0,0,.25) 100%)}
+#login-screen::after{left:0;right:0;bottom:0;width:auto;height:4px;border-radius:0;background:linear-gradient(90deg,#0877a6,#38bdf8)}
 .login-showcase{position:relative;z-index:1;flex:1.15 1 0;min-width:0;padding:56px clamp(24px,5vw,72px) 40px;display:flex;flex-direction:column;justify-content:space-between;gap:32px;color:#fff}
 .lg-marca{display:flex;align-items:center;gap:14px}
 .lg-marca img{width:54px;height:54px;border-radius:50%}
