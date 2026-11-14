@@ -792,10 +792,16 @@ function avEstadoOperacion(linea,marca,presentacion){
 function avOrdenarHoras(horas){
   return horas.slice().sort((a,b)=>avHoraMs(avanceEstado.fecha,a,avanceEstado.turno)-avHoraMs(avanceEstado.fecha,b,avanceEstado.turno));
 }
+/* Hora de inicio CORREGIDA en Producción Actual («Corregir hora inicio») de esa marca y presentación, si cae dentro del turno del reporte.
+   Manda sobre la hora del cuadro del supervisor: sin esto, «la más temprana» ignoraba una corrección hacia una hora más tarde. */
+function avInicioCorregido(linea,marca,presentacion){
+  const p=avProgramaciones().find(x=>x.linea===linea&&x.marca===marca&&x.presentacion===presentacion&&x.estadoOperacion?.inicioCorregido&&avNum(x.estadoOperacion.inicio)>0&&avMsEnTurno(Number(x.estadoOperacion.inicio)));
+  return p?avHoraDesdeMs(p.estadoOperacion.inicio):'';
+}
 function avInicioLinea(linea){
   const horas=[];
   avRegistros().filter(r=>r.linea===linea).forEach(r=>(typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[])).forEach(q=>{
-    if(q?.horaInicio&&(q?.marca||avNum(q?.produccion?.efectiva)>0)&&avHoraEnTurno(q.horaInicio))horas.push(q.horaInicio);
+    if(q?.horaInicio&&(q?.marca||avNum(q?.produccion?.efectiva)>0)&&avHoraEnTurno(q.horaInicio)&&!avInicioCorregido(linea,q.marca,q.presentacion))horas.push(q.horaInicio);   // si Producción Actual la corrigió, vale la corregida (abajo)
   }));
   // Un inicio operativo fuera de la ventana del turno (p. ej. 07:00 en un reporte de Noche) es de otro turno: no fija el inicio.
   avProgramaciones().filter(p=>p.linea===linea).forEach(p=>{if(p?.estadoOperacion?.inicio&&avMsEnTurno(Number(p.estadoOperacion.inicio)))horas.push(avHoraDesdeMs(p.estadoOperacion.inicio));});
@@ -1189,7 +1195,8 @@ function avCalcularBloquesPresentacion(l){
       // Un cuadro que empieza después del corte del reporte no entra en él.
       if(corteMs&&q?.horaInicio&&msHora(q.horaInicio)>corteMs)return;
       // Se comparan INSTANTES (en la noche 01:00 es posterior a 23:00), no el texto de la hora.
-      if(q?.horaInicio && (!b.inicio || msHora(q.horaInicio)<msHora(b.inicio)))b.inicio=q.horaInicio;
+      const hIni=avInicioCorregido(l.linea,q?.marca,q?.presentacion)||q?.horaInicio;      // la hora corregida en Producción Actual reemplaza a la del cuadro
+      if(hIni && (!b.inicio || msHora(hIni)<msHora(b.inicio)))b.inicio=hIni;
       if(q?.horaFin && (!b.fin || msHora(q.horaFin)>msHora(b.fin)))b.fin=q.horaFin;
       // Se conserva la identidad de cada fila (origenId/origen/auto) para no contar dos veces la misma parada.
       (q?.paradasProgramadas||[]).forEach(p=>{if(p?.descripcion&&!p.eliminada&&avNum(p.tiempoMin)>0)b.paradas.push({descripcion:p.descripcion,minutos:avNum(p.tiempoMin),tipo:'PROGRAMADA',origenId:p.origenId||'',origen:p.origen||'',auto:!!p.auto});});

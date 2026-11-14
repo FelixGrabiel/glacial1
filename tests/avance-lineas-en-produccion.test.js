@@ -121,4 +121,24 @@ sb=entorno({
 snap=sb.avConstruirSnapshot('CIERRE','CIERRE');
 ok(snap.inicioTurno==='21:00'&&snap.finTurno==='07:00','7 · cierre generado a las 07:29 (ya empezó el Día): el horario guardado sigue siendo el de la Noche (21:00–07:00), no el del Día (07:00–19:00)');
 
+/* 8) hora de inicio CORREGIDA en Producción Actual: debe verse en Avance y Cierre (antes mandaba la hora más temprana del cuadro) */
+sb=entorno({turno:'DÍA',ahora:ms(12),
+  programaciones:[Object.assign(prog('PET1','Scala','2.5 L',ms(10,11),{inicioCorregido:true,inicioAnterior:ms(7,15)}),{turno:'DÍA'}),
+                  Object.assign(prog('PET2','Aro','340 ml',ms(7,15),{inicioCorregido:true,inicioAnterior:ms(7,0)}),{turno:'DÍA'}),
+                  Object.assign(prog('B7L','Scala','7 L',ms(7,30)),{turno:'DÍA'})],
+  paletas:[Object.assign(pal('PET1','Scala','2.5 L',6000,'11:30'),{turno:'DÍA'}),Object.assign(pal('PET2','Aro','340 ml',3000,'09:30'),{turno:'DÍA'}),Object.assign(pal('B7L','Scala','7 L',1200,'09:00'),{turno:'DÍA'})],
+  records:[{linea:'PET1',fecha:FECHA,turno:'DÍA',cuadros:[{marca:'Scala',presentacion:'2.5 L',horaInicio:'07:15',produccion:{efectiva:6000}}]},
+           {linea:'PET2',fecha:FECHA,turno:'DÍA',cuadros:[{marca:'Aro',presentacion:'340 ml',horaInicio:'07:00',produccion:{efectiva:3000}}]},
+           {linea:'B7L',fecha:FECHA,turno:'DÍA',cuadros:[{marca:'Scala',presentacion:'7 L',horaInicio:'07:30',produccion:{efectiva:1200}}]}]});
+ok(sb.avInicioLinea('PET1')==='10:11','8 · PET1: el inicio corregido (10:11) manda sobre el 07:15 del cuadro del supervisor');
+ok(sb.avInicioLinea('PET2')==='07:15','8 · PET2: el inicio corregido (07:15) manda sobre el 07:00 del cuadro');
+ok(sb.avInicioLinea('B7L')==='07:30','8 · B7L sin corrección: sigue la hora del cuadro');
+snap=sb.avConstruirSnapshot('12:00','AVANCE');
+const lp1=snap.lineas.find(x=>x.linea==='PET1'),lp2=snap.lineas.find(x=>x.linea==='PET2');
+ok(lp1&&lp1.inicio==='10:11'&&lp1.bloques.every(b=>b.inicio==='10:11'),'8 · el Avance muestra «Inicio: 10:11» en la línea y en su bloque de PET1');
+ok(lp2&&lp2.inicio==='07:15'&&/Inicio: 07:15/.test(snap.texto),'8 · el texto del Avance dice «Inicio: 07:15» para PET2');
+ok(/Inicio: 10:11/.test(snap.texto)&&!/Inicio: 07:00/.test(snap.texto),'8 · el texto de WhatsApp ya no trae las horas viejas');
+let sbC=sb;snap=sbC.avConstruirSnapshot('CIERRE','CIERRE');
+ok(/Inicio: 10:11/.test(snap.texto),'8 · el Cierre también usa la hora corregida');
+
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
