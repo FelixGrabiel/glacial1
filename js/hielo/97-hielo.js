@@ -292,43 +292,59 @@
     pintar();
   }
   function estilos(){return `<style>
-#hielo-screen{position:fixed;inset:0;z-index:40;background:#eef6fb;overflow:auto;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#16263a;font-size:14px}
-.hl-app{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100%}
-.hl-side{background:#0b2a4a;color:#dbeafe;padding:16px 10px}
-.hl-side h2{font-size:15px;margin:0 6px 2px;color:#fff}.hl-side small{display:block;margin:0 6px 14px;color:#93c5fd}
-.hl-side button{display:block;width:100%;text-align:left;border:0;background:none;color:#dbeafe;padding:10px 12px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;min-height:44px}
-.hl-side button.act{background:rgba(56,189,248,.2);color:#fff;box-shadow:inset 3px 0 0 #38bdf8}
-.hl-sep{border-top:1px solid rgba(255,255,255,.14);margin:10px 6px}
-.hl-main{padding:16px 18px 60px;min-width:0;max-width:1180px}
-.hl-main h1{font-size:22px;margin:0 0 4px}.hl-sub{color:#5b6b7c;margin:0 0 12px}
-.hl-card{background:#fff;border:1px solid #d6e4ee;border-radius:12px;padding:14px;margin-bottom:12px;overflow-x:auto;min-width:0}
-.hl-card h3{font-size:15px;margin:0 0 8px}
-.hl-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
-.hl-kpi{background:#fff;border:1px solid #d6e4ee;border-radius:12px;padding:12px}.hl-kpi b{display:block;font-size:24px;color:#0b2a4a}.hl-kpi span{color:#5b6b7c;font-size:12px}.hl-kpi i{display:block;font-style:normal;font-size:12px;margin-top:4px;color:#5b6b7c}
-.hl-kpi.hl-pres{border-top:4px solid #38bdf8}
-.hl-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
-.hl-main table{width:100%;border-collapse:collapse}.hl-main th,.hl-main td{text-align:left;padding:8px;border-bottom:1px solid #edf2f7;vertical-align:middle}.hl-main th{font-size:12px;color:#5b6b7c;background:#f5f9fc}
-.hl-main td.n,.hl-main th.n{text-align:right}
-.hl-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
-.hl-main label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:#5b6b7c}
-.hl-main input,.hl-main select,.hl-main textarea{font:inherit;font-size:15px;padding:9px 10px;border:1px solid #d6e4ee;border-radius:10px;min-height:44px;width:100%;box-sizing:border-box;background:#fff;color:#16263a}
-.hl-main input[readonly]{background:#f1f5f9;font-weight:800;color:#0b2a4a}
-.hl-btn{border:0;border-radius:10px;padding:10px 14px;min-height:44px;font:inherit;font-weight:700;cursor:pointer;background:#0877A6;color:#fff}
-.hl-btn.o{background:#fff;color:#0877A6;border:1px solid #0877A6}.hl-btn.x{min-width:44px;padding:8px}
-.hl-btn:disabled{opacity:.5;cursor:not-allowed}
-.hl-pill{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap}
-.hl-ok{background:#e7f6ec;color:#15803d}.hl-av{background:#fff4e5;color:#b45309}.hl-gr{background:#eef1f4;color:#5b6b7c}
-.hl-bar{height:12px;border-radius:6px;background:#e2edf5;overflow:hidden;min-width:80px}.hl-bar i{display:block;height:100%;background:#38bdf8}
-.hl-msg{border-radius:10px;padding:10px 12px;margin:0 0 12px}.hl-msg.e{background:#fdecec;color:#991b1b;border:1px solid #f5b5b5}.hl-msg.k{background:#e7f6ec;color:#15803d;border:1px solid #b7e4c7}.hl-msg.i{background:#eef6fb;color:#0b4a6b;border:1px solid #bfdcec}
+#hielo-screen{position:fixed;inset:0;z-index:40;background:#eaf3f9;background-image:radial-gradient(1200px 500px at 85% -10%,#d6ecf8 0,rgba(214,236,248,0) 70%);overflow:auto;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#14263a;font-size:14px;line-height:1.4}
+.hl-app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100%}
+.hl-side{background:linear-gradient(180deg,#0a2745 0,#0c3358 100%);color:#d6e6f7;padding:18px 12px;display:flex;flex-direction:column;gap:2px}
+.hl-marca{display:flex;align-items:center;gap:10px;margin:0 6px 18px}.hl-marca b{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#fff;font-size:20px;box-shadow:0 4px 12px rgba(14,165,233,.35)}
+.hl-marca h2{font-size:15px;margin:0;color:#fff;letter-spacing:.04em}.hl-marca small{display:block;margin:1px 0 0;color:#8fc4ec;font-size:12px}
+.hl-side button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;border:0;background:none;color:#cfe2f5;padding:10px 12px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer;min-height:44px;transition:background .15s}
+.hl-side button svg{width:19px;height:19px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+.hl-side button:hover{background:rgba(255,255,255,.08)}
+.hl-side button.act{background:rgba(56,189,248,.18);color:#fff;box-shadow:inset 3px 0 0 #38bdf8}.hl-side button.act svg{opacity:1;stroke:#7dd3fc}
+.hl-sep{border-top:1px solid rgba(255,255,255,.12);margin:12px 6px}
+.hl-main{padding:22px 26px 64px;min-width:0;max-width:1240px}
+.hl-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px}
+.hl-main h1{font-size:25px;letter-spacing:-.01em;margin:0 0 3px;color:#0b2a4a}.hl-sub{color:#587087;margin:0 0 16px}
+.hl-card{background:#fff;border:1px solid #d9e7f1;border-radius:16px;padding:16px 18px;margin-bottom:14px;overflow-x:auto;min-width:0;box-shadow:0 1px 2px rgba(15,50,90,.04),0 6px 18px rgba(15,50,90,.05)}
+.hl-card h3{font-size:12px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.07em;color:#3c5a75;display:flex;align-items:center;gap:8px}
+.hl-card h3::before{content:"";width:4px;height:14px;border-radius:3px;background:#38bdf8}
+.hl-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:14px}
+.hl-kpi{background:#fff;border:1px solid #d9e7f1;border-radius:16px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,50,90,.04),0 6px 18px rgba(15,50,90,.05);position:relative;overflow:hidden}
+.hl-kpi span{display:block;color:#587087;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.hl-kpi b{display:block;font-size:30px;line-height:1.15;margin:6px 0 4px;color:#0b2a4a;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.hl-kpi i{display:block;font-style:normal;font-size:12px;color:#587087}
+.hl-kpi.hl-pres{background:linear-gradient(160deg,#fff 55%,#eaf6fd 100%)}.hl-kpi.hl-pres::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,#38bdf8,#0ea5e9)}
+.hl-2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px}.hl-2>.hl-card{margin-bottom:14px}
+.hl-main table{width:100%;border-collapse:collapse}
+.hl-main th,.hl-main td{text-align:left;padding:10px 10px;border-bottom:1px solid #eaf1f7;vertical-align:middle}
+.hl-main th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#587087;background:#f4f9fd;font-weight:700}
+.hl-main th:first-child{border-radius:8px 0 0 8px}.hl-main th:last-child{border-radius:0 8px 8px 0}
+.hl-main tbody tr:last-child td{border-bottom:0}.hl-main td.n,.hl-main th.n{text-align:right;font-variant-numeric:tabular-nums}
+.hl-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px}
+.hl-main label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:700;color:#587087;text-transform:uppercase;letter-spacing:.05em}
+.hl-main input,.hl-main select,.hl-main textarea{font:inherit;font-size:15px;font-weight:500;text-transform:none;letter-spacing:0;padding:9px 12px;border:1px solid #cddfec;border-radius:10px;min-height:44px;width:100%;box-sizing:border-box;background:#fff;color:#14263a;transition:border-color .15s,box-shadow .15s}
+.hl-main input:focus,.hl-main select:focus,.hl-main textarea:focus{outline:0;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.18)}
+.hl-main input[readonly]{background:#f1f6fa;font-weight:800;color:#0b2a4a}
+.hl-main label small{text-transform:none;letter-spacing:0;font-weight:500;font-size:12px;color:#6b8197}
+.hl-main label.hl-chk{flex-direction:row;align-items:center;gap:10px;margin:0 0 10px;padding:10px 12px;border:1px solid #f2c9c9;background:#fff6f6;border-radius:10px;font-size:13.5px;font-weight:700;color:#8a2a2a;text-transform:none;letter-spacing:0;cursor:pointer;min-height:44px}
+.hl-main label.hl-chk input{width:22px;height:22px;min-height:0;padding:0;flex:none;accent-color:#dc2626}
+.hl-btn{border:0;border-radius:10px;padding:10px 16px;min-height:44px;font:inherit;font-weight:700;cursor:pointer;background:linear-gradient(180deg,#0e86b8,#0877A6);color:#fff;box-shadow:0 2px 6px rgba(8,119,166,.28);transition:transform .1s,box-shadow .15s}
+.hl-btn:hover{box-shadow:0 4px 12px rgba(8,119,166,.35)}.hl-btn:active{transform:translateY(1px)}
+.hl-btn.o{background:#fff;color:#0877A6;border:1px solid #9fd0e6;box-shadow:none}.hl-btn.o:hover{background:#f1f9fd}.hl-btn.x{min-width:44px;padding:8px}
+.hl-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.hl-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap;letter-spacing:.02em}
+.hl-ok{background:#dff5e7;color:#157a3b}.hl-av{background:#ffedd5;color:#b45309}.hl-gr{background:#e8eef4;color:#587087}
+.hl-bar{height:10px;border-radius:999px;background:#e2edf5;overflow:hidden;min-width:90px}.hl-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#38bdf8,#0ea5e9)}
+.hl-msg{border-radius:12px;padding:11px 14px;margin:0 0 14px}.hl-msg.e{background:#fdecec;color:#991b1b;border:1px solid #f5b5b5}.hl-msg.k{background:#e7f6ec;color:#15803d;border:1px solid #b7e4c7}.hl-msg.i{background:#eaf5fc;color:#0b4a6b;border:1px solid #bfdcec}
 .hl-acc{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.hl-vacio{color:#5b6b7c;padding:10px;border:1px dashed #d6e4ee;border-radius:10px;text-align:center}
-.hl-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px}
-.hl-clic{cursor:pointer}.hl-clic:hover{background:#f3f9fc}
-@media(max-width:700px){.hl-ed thead{display:none}.hl-ed tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #e2ebf2}
- .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#5b6b7c}
+.hl-vacio{color:#587087;padding:16px;border:1px dashed #c3d8e8;border-radius:12px;text-align:center;background:#fafcfe}
+.hl-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:0 0 14px;padding:12px 14px;background:#fff;border:1px solid #d9e7f1;border-radius:16px;box-shadow:0 1px 2px rgba(15,50,90,.04)}
+.hl-clic{cursor:pointer}.hl-clic:hover td{background:#f1f8fd}
+@media(max-width:700px){.hl-ed thead{display:none}.hl-ed tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid #e2ebf2}
+ .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
  .hl-ed td[data-label=""]{grid-column:1/-1;align-items:flex-end}}
-@media(max-width:860px){.hl-app{grid-template-columns:minmax(0,1fr)}.hl-side{display:flex;gap:4px;overflow-x:auto;padding:8px;position:sticky;top:0;z-index:2}.hl-side h2,.hl-side small,.hl-sep{display:none}
- .hl-side button{white-space:nowrap;width:auto}.hl-2{grid-template-columns:minmax(0,1fr)}.hl-main{padding:12px 16px 60px}}
+@media(max-width:860px){.hl-app{grid-template-columns:minmax(0,1fr)}.hl-side{flex-direction:row;gap:4px;overflow-x:auto;padding:8px;position:sticky;top:0;z-index:2}.hl-marca,.hl-sep{display:none}
+ .hl-side button{white-space:nowrap;width:auto}.hl-2{grid-template-columns:minmax(0,1fr)}.hl-main{padding:14px 16px 60px}.hl-main h1{font-size:22px}}
 </style>`;}
   const opciones=(lista,sel,vacio)=>(vacio!==undefined?`<option value="">${esc(vacio)}</option>`:'')+lista.map(x=>`<option ${x===sel?'selected':''}>${esc(x)}</option>`).join('');
   const reportesDe=(fecha,turno)=>cache.reportes.filter(r=>r.fecha===fecha&&(turno==='TODOS'||r.turno===turno));
@@ -414,7 +430,7 @@
         <div class="hl-card"><h3>Merma</h3>
         ${mer?`<table class="hl-ed"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead><tbody>${mer}</tbody></table>`:'<div class="hl-vacio">Sin merma.</div>'}
         ${bloq?'':'<div class="hl-acc" style="margin-top:8px"><button type="button" class="hl-btn o" onclick="hlAgregar(\'mermas\')">+ Agregar merma</button></div>'}</div></div>
-      <div class="hl-card"><h3>Observaciones</h3><label class="hl-sub" style="display:block;margin:0 0 6px"><input type="checkbox" ${dis} ${r.caidas?'checked':''} onchange="hlDato('caidas',this.checked)"> 🚨 Se viene trabajando por caídas</label><textarea ${dis} rows="3" maxlength="500" oninput="hlDato('observaciones',this.value)">${esc(r.observaciones)}</textarea></div>
+      <div class="hl-card"><h3>Observaciones</h3><label class="hl-chk"><input type="checkbox" ${dis} ${r.caidas?'checked':''} onchange="hlDato('caidas',this.checked)"> 🚨 Se viene trabajando por caídas</label><textarea ${dis} rows="3" maxlength="500" oninput="hlDato('observaciones',this.value)">${esc(r.observaciones)}</textarea></div>
       <div class="hl-acc">${puedeRegistrar()&&!fin?'<button type="button" class="hl-btn o" onclick="hlGuardar(\'GUARDAR\')">Guardar</button><button type="button" class="hl-btn" onclick="hlGuardar(\'FINALIZAR\')">Finalizar reporte</button>':''}
         ${fin&&esAdmin()?'<button type="button" class="hl-btn o" onclick="hlReabrir()">Reabrir (Administrador)</button>':''}</div>`;
   }
@@ -559,9 +575,11 @@
     const MENU=[['inicio','Inicio'],['registro','Nuevo registro'],['avance','Avance y cierre'],['historial','Historial'],['programacion','Programación'],['config','Configuración']];
     const cuerpo={inicio:vistaInicio,registro:vistaRegistro,avance:vistaAvance,historial:vistaHistorial,programacion:vistaProgramacion,config:vistaConfig}[S.vista]||vistaInicio;
     const y=r.scrollTop;
-    r.innerHTML=`${estilos()}<div class="hl-app"><nav class="hl-side" aria-label="Menú de Hielo"><h2>❄ GLACIAL · HIELO</h2><small>Reporte Hielo</small>
-      ${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${t}</button>`).join('')}
-      <div class="hl-sep"></div><button type="button" onclick="hlSalir()">← Volver a Reporte Agua</button></nav>
+    const IC={inicio:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',registro:'<path d="M12 5v14M5 12h14"/>',avance:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',historial:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',programacion:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',config:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',volver:'<path d="M15 6l-6 6 6 6"/>'};
+    const ico=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]||''}</svg>`;
+    r.innerHTML=`${estilos()}<div class="hl-app"><nav class="hl-side" aria-label="Menú de Hielo"><div class="hl-marca"><b aria-hidden="true">❄</b><div><h2>GLACIAL · HIELO</h2><small>Reporte Hielo</small></div></div>
+      ${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${ico(k)}<span>${t}</span></button>`).join('')}
+      <div class="hl-sep"></div><button type="button" onclick="hlSalir()">${ico('volver')}<span>Volver a Reporte Agua</span></button></nav>
       <main class="hl-main">${aviso()}${cuerpo()}</main></div>`;
     r.scrollTop=y;
   }
