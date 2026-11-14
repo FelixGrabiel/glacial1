@@ -1,0 +1,73 @@
+/* =========================================================
+   LOGIN · pantalla dividida con carrusel (14/11/2026)
+   #login-screen sigue siendo el contenedor que 03-auth.js muestra (display:flex) y oculta (none). Dentro:
+   .login-showcase (carrusel, texto fijo: sin datos de planta antes de ingresar) y .login-panel (la tarjeta de siempre).
+   ========================================================= */
+#login-screen{
+  padding:0;align-items:stretch;justify-content:stretch;min-height:100vh;
+  background:linear-gradient(135deg,#021f33 0,#04476b 55%,#0a79a8 100%);
+}
+#login-screen::before{opacity:1;background:none;width:620px;height:620px;left:-180px;top:-200px;right:auto;bottom:auto;inset:auto;border-radius:50%;background:rgba(255,255,255,.04)}
+#login-screen::after{left:auto;right:-120px;bottom:-120px;width:380px;height:380px;border-radius:50%;background:rgba(56,189,248,.10);height:380px}
+.login-showcase{position:relative;z-index:1;flex:1.15 1 0;min-width:0;padding:56px clamp(24px,5vw,72px) 40px;display:flex;flex-direction:column;justify-content:space-between;gap:32px;color:#fff}
+.lg-marca{display:flex;align-items:center;gap:14px}
+.lg-marca img{width:54px;height:54px;border-radius:50%}
+.lg-marca b{display:block;font:700 22px/1 "Oswald","Arial Narrow",sans-serif;letter-spacing:.12em}
+.lg-marca small{display:block;font:500 11px/1.2 "IBM Plex Mono",ui-monospace,Consolas,monospace;letter-spacing:.14em;color:#8fd3f5;margin-top:5px}
+.lg-pistas{position:relative;min-height:330px}
+.lg-slide{position:absolute;inset:0;max-width:580px;opacity:0;transform:translateX(24px);visibility:hidden;transition:opacity .55s ease,transform .55s ease,visibility 0s .55s}
+.lg-slide.on{opacity:1;transform:none;visibility:visible;transition:opacity .55s ease,transform .55s ease}
+.lg-ico{width:84px;height:84px;border-radius:24px;background:linear-gradient(135deg,rgba(56,189,248,.35),rgba(56,189,248,.08));border:1px solid rgba(143,211,245,.35);display:grid;place-items:center;margin-bottom:24px;box-shadow:0 14px 40px rgba(0,0,0,.25)}
+.lg-ico svg{width:42px;height:42px;stroke:#7dd3fc;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.lg-slide h2{font:700 clamp(30px,3.6vw,46px)/1.08 "Oswald","Arial Narrow",sans-serif;margin:0 0 12px;text-transform:uppercase;color:#fff;text-wrap:balance}
+.lg-slide h2 span{color:#38bdf8}
+.lg-slide p{margin:0;font-size:17px;line-height:1.45;color:#c7e3f4;max-width:480px}
+.lg-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.lg-chips span{font:600 12px/1 "IBM Plex Mono",ui-monospace,Consolas,monospace;letter-spacing:.08em;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#e3f3fc}
+.lg-ctl{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.lg-dots{display:flex;gap:8px}
+.lg-dots button{height:12px;width:12px;padding:0;border:0;border-radius:99px;background:rgba(255,255,255,.28);cursor:pointer;transition:width .3s,background .3s;position:relative;min-height:0}
+.lg-dots button::after{content:"";position:absolute;inset:-16px -4px}
+.lg-dots button.on{width:36px;background:#38bdf8}
+.lg-flechas{display:flex;gap:8px}
+.lg-flechas button{width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.05);color:#fff;font-size:20px;cursor:pointer;display:grid;place-items:center;transition:background .2s}
+.lg-flechas button:hover{background:rgba(255,255,255,.16)}
+.lg-dots button:focus-visible,.lg-flechas button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.lg-prog{height:3px;background:rgba(255,255,255,.15);border-radius:3px;margin-top:18px;overflow:hidden}
+.lg-prog i{display:block;height:100%;width:0;background:#38bdf8}
+.lg-prog i.corre{animation:lg-llenar var(--t,6s) linear forwards}
+.lg-prog i.pausa{animation-play-state:paused}
+@keyframes lg-llenar{from{width:0}to{width:100%}}
+
+.login-panel{position:relative;z-index:1;flex:1 1 0;min-width:0;display:grid;place-items:center;padding:32px clamp(16px,3vw,40px)}
+#login-screen .login-card{width:min(470px,100%);max-width:470px;background:#fbfdff;border-radius:26px;border-top:0;box-shadow:0 30px 80px rgba(0,20,40,.45);padding:34px clamp(22px,4vw,38px) 0}
+#login-screen .login-logo-container{display:none}
+#login-screen .login-head{padding:0 0 18px;text-align:left;border:0}
+#login-screen .login-head h1{font-size:32px;line-height:1.05;text-align:left;margin:14px 0 6px}
+#login-screen .login-description{text-align:left;margin:0}
+#login-screen .login-body{padding:6px 0 18px}
+#login-screen .field label{font:600 11.5px/1 "IBM Plex Mono",ui-monospace,Consolas,monospace;letter-spacing:.12em;margin-bottom:7px}
+#login-screen .field{margin-bottom:16px}
+#login-screen .input-wrap{display:flex;align-items:center}
+#login-screen .input-icon{left:14px;width:20px;height:20px;border:0;opacity:1;font-size:0;background:no-repeat center/20px 20px}
+#login-screen .input-icon.lg-user{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230877a6' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21c1-4 4-6 8-6s7 2 8 6'/%3E%3C/svg%3E")}
+#login-screen .input-icon.lg-lock{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230877a6' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='10' width='16' height='11' rx='2'/%3E%3Cpath d='M8 10V7a4 4 0 018 0v3'/%3E%3C/svg%3E")}
+#login-screen .field input{height:52px;padding:10px 46px 10px 46px;border:1.5px solid #cfe0ec;border-radius:12px;font-size:16px}
+#login-screen .field input:focus{border-color:#0ea5e9;box-shadow:0 0 0 4px rgba(14,165,233,.15)}
+#login-screen .password-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);min-width:44px;min-height:44px;border:0;background:none;cursor:pointer;font-size:16px;opacity:.75}
+#login-screen .login-submit{height:54px;min-height:54px;border-radius:12px;justify-content:space-between;padding:0 20px;letter-spacing:.06em;font-size:15px;font-weight:700;background:linear-gradient(180deg,#0e86b8,#0877a6);box-shadow:0 10px 24px rgba(8,119,166,.35)}
+#login-screen .login-submit:hover{box-shadow:0 14px 28px rgba(8,119,166,.45)}
+#login-screen .btn-arrow{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;margin:0;font-size:16px}
+#login-screen .login-footer{margin-top:0;padding:14px 0 18px}
+
+@media(max-width:860px){
+  #login-screen{flex-direction:column;align-items:stretch}
+  .login-showcase{flex:none;padding:22px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));gap:14px}
+  .lg-pistas{min-height:270px}
+  .lg-ico{width:52px;height:52px;border-radius:16px;margin-bottom:12px}.lg-ico svg{width:28px;height:28px}
+  .lg-slide h2{font-size:28px}.lg-slide p{font-size:15px}.lg-chips{margin-top:12px}.lg-prog{margin-top:10px}
+  .login-panel{flex:none;padding:8px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px))}
+  #login-screen .login-card{max-width:100%}
+  #login-screen .login-head h1{font-size:26px}
+}
+@media(prefers-reduced-motion:reduce){.lg-slide{transition:none}.lg-prog i.corre{animation:none;width:100%}}

@@ -2524,6 +2524,7 @@
         <link rel="stylesheet" href="css/sidebar-glacial.css?v=20261102-leg3">
         <link rel="stylesheet" href="css/mobile-glacial.css?v=20261107-hl3">
         <link rel="stylesheet" href="css/logo-glacial.css?v=20261023-logo1">
+        <link rel="stylesheet" href="css/login-glacial.css?v=20261114-lg1">
         <!-- La hoja del modo TV solo aplica con ?modo=tv (#glacial-tv, html.modo-tv): no bloquea el primer dibujo de la aplicación. -->
         <link rel="stylesheet" href="css/tv-glacial.css?v=20261102-pal2" media="print" onload="this.media='all'">
 
@@ -2554,6 +2555,49 @@
         setTimeout(function(){if(!window.__sesionIniciada){var t=ov&&ov.querySelector('[data-sesion-texto]');if(t)t.textContent='No se pudo cargar la aplicación. Recarga la página (Ctrl+F5).';var sp=ov&&ov.querySelector('[data-sesion-spinner]');if(sp)sp.style.display='none';}},30000);}}catch(e){}})();
     </script>
     <div id="login-screen">
+
+        <!-- Carrusel (texto fijo, sin datos de planta: se ve antes de ingresar). Ver css/login-glacial.css y js/accesos/03b-login-carrusel.js -->
+        <section class="login-showcase" id="login-carrusel" aria-roledescription="carrusel" aria-label="Qué hace el sistema">
+            <div class="lg-marca">
+                <img src="assets/img/logo_glacial.jpeg" alt="Logo GLACIAL">
+                <div><b>GLACIAL</b><small>PLANTA DE ENVASADO</small></div>
+            </div>
+            <div class="lg-pistas">
+                <article class="lg-slide on" aria-roledescription="diapositiva" aria-label="1 de 4">
+                    <div class="lg-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 12l5-3M12 5v2M12 17v2M5 12h2M17 12h2"/></svg></div>
+                    <h2>Centro de <span>Operaciones</span></h2>
+                    <p>Producción, paradas y proyección de cada línea, al día y en un solo lugar.</p>
+                    <div class="lg-chips"><span>PET1</span><span>PET2</span><span>B7L</span><span>C20L</span><span>B20L</span><span>HIELO</span></div>
+                </article>
+                <article class="lg-slide" aria-roledescription="diapositiva" aria-label="2 de 4" aria-hidden="true">
+                    <div class="lg-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 15h3"/></svg></div>
+                    <h2>Planificación <span>y Asistente</span></h2>
+                    <p>Programa cada turno, calcula los insumos que hacen falta y pídelos a Almacén sin llamadas.</p>
+                    <div class="lg-chips"><span>PROGRAMACIÓN</span><span>INSUMOS</span><span>SOLICITUDES</span></div>
+                </article>
+                <article class="lg-slide" aria-roledescription="diapositiva" aria-label="3 de 4" aria-hidden="true">
+                    <div class="lg-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.4 2.4-2.6-.6-.6-2.6z"/></svg></div>
+                    <h2>Mantenimiento <span>al día</span></h2>
+                    <p>Plan anual, registro semanal de preventivos y paradas por falla de cada máquina.</p>
+                    <div class="lg-chips"><span>PLAN ANUAL</span><span>PREVENTIVOS</span><span>FALLAS</span></div>
+                </article>
+                <article class="lg-slide" aria-roledescription="diapositiva" aria-label="4 de 4" aria-hidden="true">
+                    <div class="lg-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M8.5 12l2.5 2.5L16 9.5"/></svg></div>
+                    <h2>Calidad <span>y trazabilidad</span></h2>
+                    <p>Lotes, evidencias de insumos y reportes de Hielo con cada dato respaldado.</p>
+                    <div class="lg-chips"><span>LOTES</span><span>EVIDENCIAS</span><span>REPORTE HIELO</span></div>
+                </article>
+            </div>
+            <div>
+                <div class="lg-ctl">
+                    <div class="lg-dots" aria-label="Elegir diapositiva"></div>
+                    <div class="lg-flechas"><button type="button" data-lg="ant" aria-label="Diapositiva anterior">‹</button><button type="button" data-lg="sig" aria-label="Diapositiva siguiente">›</button></div>
+                </div>
+                <div class="lg-prog" aria-hidden="true"><i></i></div>
+            </div>
+        </section>
+
+        <div class="login-panel">
 
         <div class="login-card">
 
@@ -2605,7 +2649,7 @@
                     <div class="input-wrap">
 
                         <span
-                            class="input-icon"
+                            class="input-icon lg-user"
                             aria-hidden="true"
                         >
                             👤
@@ -2633,7 +2677,7 @@
                     <div class="input-wrap">
 
                         <span
-                            class="input-icon"
+                            class="input-icon lg-lock"
                             aria-hidden="true"
                         >
                             🔒
@@ -2706,6 +2750,8 @@
             </div>
 
         </div>
+
+        </div><!-- /login-panel -->
 
     </div>
 
@@ -3455,6 +3501,7 @@
     <script src="js/nucleo/02-estado.js?v=20261110-pm1"></script>
 
     <script src="js/accesos/03-auth.js?v=20261112-gr1"></script>
+    <script src="js/accesos/03b-login-carrusel.js?v=20261114-lg1"></script>
 
     <script src="js/nucleo/04-sidebar.js?v=20261030-pi1"></script>
 
