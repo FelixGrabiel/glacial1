@@ -3,7 +3,7 @@
    -------------------------------------------------------------
    Pestaña de la aplicación: state.currentTab='calidad', grupo «Calidad» del menú (#btn-calidad-validacion), goCalidad(tab).
    Hoy tiene una sola pantalla: «Validación de lotes» (lo que valida el bot de WhatsApp; lógica en 99-validacion-lotes.js).
-   · Permisos: los mismos que Evidencias y Lotes (Inventario de insumos: Asistente de Producción, Jefe de Operaciones y Administrador). El servidor los exige igual.
+   · Permisos propios (Gestión de usuarios › Calidad): «calidadVer» y «calidadRevisar» (98-calidad-permisos.js). El servidor los exige igual (glacial_55).
    · No toca stock, lotes ni evidencias.
    Mismo patrón de navegación que 76-inventario-insumos-pantalla.js. Cargar DESPUÉS de 99-validacion-lotes.js.
    ============================================================= */
@@ -13,7 +13,7 @@
   const PANTALLAS=[['validacion','Validación de lotes']];
   const CAL={tab:'validacion'};
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const puede=()=>{try{return !!(typeof state!=='undefined'&&state.user&&window.glacialInventarioDatos&&window.glacialInventarioDatos.puedeVer&&window.glacialInventarioDatos.puedeVer());}catch(_){return false;}};
+  const puede=()=>{try{return !!(typeof state!=='undefined'&&state.user&&window.glacialCalidadPermisos&&window.glacialCalidadPermisos.puedeVer());}catch(_){return false;}};
   const VL=()=>window.apValidacionLotesUI||null;
 
   function estilos(){return `<style>

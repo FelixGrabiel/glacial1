@@ -60,10 +60,30 @@ const base={clave:'wa-120363@3EB0ABC123',lote:' L2411-07 ',resultado:'ok',insumo
   ok(!/validaciones/.test(a72.replace(/validaciones_/g,''))&&!/apValidacionLotesUI/.test(a72),'el Asistente ya no tiene la pestaña de validación de lotes');
   ok(/id="sidebar-group-calidad"/.test(idx)&&/data-sidebar-group="calidad"/.test(idx)&&/id="btn-calidad-validacion"[\s\S]{0,120}goCalidad\('validacion'\)/.test(idx)&&/Calidad<\/span>/.test(idx),'el menú lateral tiene el grupo «Calidad» con «Validación de lotes»');
   ok(/state\.currentTab==='calidad'\)return 'calidad'/.test(sb),'el grupo Calidad se abre solo cuando se está en él');
-  ok(/glacialInventarioDatos[\s\S]{0,80}puedeVer/.test(cal)&&/window\.goCalidad=/.test(cal)&&/ajustarVistaSegunPermisos=function/.test(cal)&&/renderSidebar=function/.test(cal),'Calidad usa los permisos de Evidencias/Lotes y se engancha a la navegación');
-  ok(idx.indexOf('98-validar-rapido.js')<idx.indexOf('js/calidad/99-validacion-lotes.js')&&idx.indexOf('js/calidad/99-validacion-lotes.js')<idx.indexOf('js/calidad/100-calidad-pantalla.js'),'index: orden de carga (Evidencias → validación → pantalla de Calidad)');
+  ok(/glacialCalidadPermisos[\s\S]{0,80}puedeVer/.test(cal)&&!/glacialInventarioDatos/.test(cal)&&!/glacialInventarioDatos/.test(leer('js/calidad/99-validacion-lotes.js'))&&/window\.goCalidad=/.test(cal)&&/ajustarVistaSegunPermisos=function/.test(cal)&&/renderSidebar=function/.test(cal),'Calidad usa sus propios permisos (no los del Inventario) y se engancha a la navegación');
+  ok(idx.indexOf('js/calidad/98-calidad-permisos.js')<idx.indexOf('js/calidad/99-validacion-lotes.js')&&idx.indexOf('js/calidad/99-validacion-lotes.js')<idx.indexOf('js/calidad/100-calidad-pantalla.js'),'index: orden de carga (permisos → validación → pantalla de Calidad)');
   const js=leer('js/calidad/99-validacion-lotes.js');
   ok(/validaciones_lotes_listar/.test(js)&&/validaciones_lotes_revisar/.test(js)&&!/\.from\(['"]validaciones_lotes/.test(js),'la página usa solo las funciones del servidor, nunca la tabla directa');
   ok(fs.existsSync(R+'/docs/asistente/validacion-lotes.md')||fs.existsSync(R+'/docs/calidad/validacion-lotes.md'),'existe la guía con el contrato para el bot');
+
+  // permisos propios de Calidad (glacial_55 + Gestión de usuarios)
+  const PC=require(R+'/js/calidad/98-calidad-permisos.js');
+  const U=(rol,permisos)=>({rol,permisos});
+  ok(PC.puedeVer(U('Administrador','todos'))&&PC.puedeVer(U('Administrador',[]))&&PC.puedeRevisar(U('Administrador','todos')),'el Administrador ve y revisa');
+  ok(PC.puedeVer(U('Asistente de Producción',[]))&&PC.puedeRevisar(U('Asistente de Producción',[])),'por defecto el Asistente de Producción ve y revisa');
+  ok(PC.puedeVer(U('Jefe de Operaciones',[]))&&!PC.puedeRevisar(U('Jefe de Operaciones',[])),'el Jefe de Operaciones ve pero no revisa (solo consulta)');
+  ok(!PC.puedeVer(U('Supervisor',[]))&&PC.puedeVer(U('Supervisor',['calidadVer']))&&!PC.puedeRevisar(U('Supervisor',['calidadVer']))&&PC.puedeRevisar(U('Supervisor',['calidadVer','calidadRevisar'])),'un Supervisor no ve por defecto; con «calidadVer» ve y con «calidadRevisar» además revisa');
+  ok(!PC.puedeVer(U('Asistente de Producción',['-calidadVer']))&&!PC.puedeRevisar(U('Asistente de Producción',['-calidadVer'])),'«-calidadVer» quita el acceso por defecto');
+  ok(PC.puedeVer(U('Asistente de Producción',[]))&&!PC.puedeRevisar(U('Asistente de Producción',['-calidadRevisar'])),'«-calidadRevisar» le quita solo la revisión');
+  ok(!PC.puedeVer(U('mantenimiento_compartido',['calidadVer']))&&!PC.puedeVer(null),'la cuenta compartida de Mantenimiento y sin sesión nunca ven');
+  ok(!PC.puedeRevisar(U('Asistente de Producción',[]),true)&&!PC.puedeRevisar(U('Administrador','todos'),true),'en modo «Visualizar» nadie revisa');
+  ok(PC.puedeVer(U('Supervisor',['calidadVer']),true)&&!PC.puedeVer(U('Asistente de Producción',[]),true),'en modo «Visualizar» solo vale el permiso marcado: el acceso por rol por defecto no se concede');
+  const e02=leer('js/nucleo/02-estado.js'),p98=leer('js/calidad/98-calidad-permisos.js');
+  ok(/area:'calidad',label:'VER Calidad/.test(p98)&&/area:'calidad',label:'REVISAR Calidad/.test(p98)&&/clave:'calidad',titulo:'Calidad'/.test(p98)&&/const AREAS_PERMISOS=/.test(e02),'Gestión de usuarios: área «Calidad» con los permisos «VER» y «REVISAR»');
+  const sql55=leer('supabase/migraciones/glacial_55_permisos_calidad.sql');
+  ok(/cap_cal_ver/.test(sql55)&&/'cal_ver'/.test(sql55)&&/'cal_esc'/.test(sql55)&&/'calidadRevisar'/.test(sql55)&&/'calidadVer'/.test(sql55),'glacial_55: marcas cal_ver / cal_esc en ctx con los permisos calidadVer y calidadRevisar');
+  ok(/cuenta <> 1 then raise exception/.test(sql55)&&/position\('cal_ver' in def\) = 0/.test(sql55),'glacial_55: ancla de texto verificada (se detiene si no aparece una sola vez) y repetible');
+  const lis=sql55.split('validaciones_lotes_listar(p_desde')[1].split('$f$')[1],rev=sql55.split('validaciones_lotes_revisar(p_clave')[1].split('$f$')[1];
+  ok(/'cal_ver'/.test(lis)&&!/ii_ver/.test(lis)&&/'cal_esc'/.test(rev)&&!/ii_esc/.test(rev),'glacial_55: listar exige cal_ver y revisar exige cal_esc (ya no los del Inventario)');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
