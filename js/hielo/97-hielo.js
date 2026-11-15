@@ -178,6 +178,7 @@
         e.filas.forEach(f=>out.push(f.marca+' '+pk(f.presentacion)+': '+pl(f.bolsas)));
       });
       m.presentaciones.filter(p=>p.bolsas>0).forEach(p=>{out.push('','Producción de bolsas '+pk(p.presentacion)+': '+pl(p.bolsas),'Producción de '+pk(p.presentacion)+': '+pl(p.kg,1)+'kg');});
+      if(m.kg>0)out.push('','TOTAL KILOS: '+pl(m.kg,1)+'kg');          // suma de todas las presentaciones (3 kg + 1.5 kg…)
       if(m.programado>0)out.push('','Programado: '+pl(m.programado)+' bolsas · Cumplimiento: '+pl(m.cumplimiento*100)+' %');
       if(m.caidas)out.push('','🚨SE VIENE TRABAJANDO POR CAÍDAS');
       const obs=m.observaciones.map(x=>x.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+pl(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(x=>'Merma '+x.item+': '+pl(x.cantidad,3)+' '+x.unidad));
@@ -539,10 +540,15 @@
         g.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca+' '+pk(f.presentacion),PAD+28,cy);x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' bolsas',W-PAD-22,cy);x.textAlign='left';cy+=fz(34);});
         y+=h+18;
       });
-      const filasR=Math.max(1,pres.length),hR=48+filasR*fz(62)+(m.programado>0?fz(34):0);
+      const filasR=Math.max(1,pres.length),hR=48+filasR*fz(62)+(m.kg>0?fz(56):0)+(m.programado>0?fz(34):0);
       card(PAD,y,W-PAD*2,hR,'#F8FBFD');x.fillStyle=BLUE;x.font='700 '+fz(17)+'px Arial';x.fillText('RESUMEN DEL AVANCE',PAD+20,y+30);
       let ry=y+30+fz(36);
       pres.forEach(p=>{x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Producción de bolsas '+pk(p.presentacion)+': '+f0(p.bolsas),PAD+20,ry);x.fillStyle=STEEL;x.font=fz(16)+'px Arial';x.fillText('Producción de '+pk(p.presentacion)+': '+f0(p.kg,1)+' kg',PAD+20,ry+fz(26));ry+=fz(62);});
+      if(m.kg>0){      // total de kilos de todas las presentaciones, destacado
+        x.strokeStyle=LINE;x.lineWidth=1;x.beginPath();x.moveTo(PAD+20,ry-fz(16));x.lineTo(W-PAD-20,ry-fz(16));x.stroke();
+        x.fillStyle=BLUE;x.font='700 '+fz(19)+'px Arial';x.fillText('TOTAL KILOS',PAD+20,ry+fz(14));
+        x.textAlign='right';x.fillStyle=DARK;x.font='700 '+fz(24)+'px Arial';x.fillText(f0(m.kg,1)+' kg',W-PAD-22,ry+fz(14));x.textAlign='left';ry+=fz(56);
+      }
       if(m.programado>0){x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Programado: '+f0(m.programado)+' bolsas · Cumplimiento: '+f0(m.cumplimiento*100)+' %',PAD+20,ry-fz(8));}
       y+=hR+18;
       if(m.caidas){const h=fz(46);x.fillStyle='#FDECEA';rr(PAD,y,W-PAD*2,h,9);x.fill();x.strokeStyle=BAD;rr(PAD,y,W-PAD*2,h,9);x.stroke();x.fillStyle=BAD;x.font='700 '+fz(17)+'px Arial';x.fillText('🚨 SE VIENE TRABAJANDO POR CAÍDAS',PAD+20,y+fz(30));y+=h+18;}
