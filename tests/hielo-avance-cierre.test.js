@@ -19,6 +19,8 @@ const t=H.textoAvanceCierre(H.modeloAvanceCierre({...base,turnoCod:'TD',reportes
 ok(/^Cierre de produccion HIELO TD\n09_11_26\nHora: 14:05\n/.test(t),'encabezado como el de la planta: «… HIELO TD» y fecha DD_MM_AA');
 ok(/\nTOLVA MANUAL\nGlacial 3kg: 240\nListo 1\.5kg: 1200\n/.test(t)&&/\nENV\. AUTOMÁTICA\nTottus 3kg: 660\n/.test(t),'bloques por estación con marca, presentación y bolsas');
 ok(/Producción de bolsas 3kg: 900\nProducción de 3kg: 2700kg\n/.test(t)&&/Producción de bolsas 1\.5kg: 1200\nProducción de 1\.5kg: 1800kg/.test(t.replace(/,/g,'.')),'totales por presentación en bolsas y kg');
+ok(/Producción de 1\.5kg: 1800kg\n\nTOTAL KILOS: 4500kg\n/.test(t.replace(/,/g,'.')),'el avance trae el TOTAL KILOS (3 kg + 1.5 kg = 2700 + 1800)');
+ok(!/TOTAL KILOS/.test(H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[],programas:[]}))),'sin reportes no hay total de kilos');
 ok(/\n🚨SE VIENE TRABAJANDO POR CAÍDAS\n/.test(t),'aviso de caídas cuando la casilla está marcada');
 ok(/\nObservaciones\nM7 apagada\nCompresor – Falla de equipo \(20 min\)\nMerma Bolsas: 12 UND$/.test(t),'observaciones libres, paradas y merma al final');
 const sinCaidas=H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[dia],programas:progs}));
