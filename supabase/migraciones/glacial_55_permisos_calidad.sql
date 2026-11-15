@@ -1,4 +1,4 @@
--- GLACIAL · glacial_55 · CALIDAD: permisos propios (ver y revisar), separados de los del Inventario de insumos      *** APLICADA en PRUEBAS · PRODUCCIÓN: pendiente de aprobación ***
+-- GLACIAL · glacial_55 · CALIDAD: permisos propios (ver y revisar), separados de los del Inventario de insumos      *** APLICADA en PRUEBAS y PRODUCCIÓN (15/11/2026) ***
 --
 -- Por qué: la pantalla Calidad › Validación de lotes (glacial_54) usaba los permisos del Inventario de insumos (ii_ver / ii_esc). Ahora Calidad tiene los suyos en
 -- Gestión de usuarios (área «Calidad»), como Hielo (glacial_50): quien ve o revisa Calidad no depende de lo que tenga en Almacén, ni al revés.
