@@ -1,12 +1,12 @@
 /* =============================================================
-   GLACIAL · ASISTENTE › VALIDACIÓN DE LOTES
+   GLACIAL · CALIDAD › VALIDACIÓN DE LOTES
    -------------------------------------------------------------
    Muestra lo que valida el bot de WhatsApp (glacial-whatsapp): una fila por validación con su resultado (OK, OBSERVADO o RECHAZADO), el lote, el insumo, los
    controles revisados y quién la revisó. Lo deja la función validaciones-lotes-ingesta en public.validaciones_lotes (glacial_54).
    · Solo lectura desde la página, salvo «Marcar como revisada» (quien escribe en el Inventario de insumos). NO toca stock, lotes ni evidencias.
    · Permisos: los mismos de Evidencias y Lotes (ver: Asistente de Producción, Jefe de Operaciones y Administrador). El servidor los exige igual.
    · Se actualiza sola cada minuto mientras la pestaña está a la vista, y con «Actualizar».
-   Se monta desde 72-asistente-pantalla.js (window.apValidacionLotesUI). Cargar DESPUÉS de 98-validar-rapido.js.
+   Se monta desde 100-calidad-pantalla.js (window.apValidacionLotesUI). Cargar DESPUÉS de 98-validar-rapido.js.
    ============================================================= */
 (function(raiz){
   'use strict';
@@ -155,7 +155,7 @@
 @media(max-width:700px){.vl-t thead{display:none}.vl-t tr.vl-fila{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;border-top:1px solid #eaf1f7}.vl-t td{display:block;border:0;padding:2px 4px}.vl-t td[data-label]::before{content:attr(data-label);display:block;font-size:11px;font-weight:700;color:#587087;text-transform:uppercase}.vl-det td{display:block}.vl-det{display:block}}
 </style>`;}
   function html(){
-    if(!puedeVer())return `<section class="ap-card"><div class="vl-msg vl-msg-e">No tienes permiso para ver las validaciones de lotes.</div></section>`;
+    if(!puedeVer())return `<div class="vl-msg vl-msg-e">No tienes permiso para ver las validaciones de lotes.</div>`;
     escuchar();
     const lista=ES.lista,r=resumen(lista),vis=filtrar(lista,ES);
     return `<div class="vl">${estilos()}<div class="vl-nota" role="note">Aquí llega lo que <b>valida el bot de WhatsApp</b> de cada lote. Es solo un registro: <b>no mueve el stock ni cambia los lotes</b>. Las observadas y rechazadas esperan que una persona las marque como revisadas.</div>

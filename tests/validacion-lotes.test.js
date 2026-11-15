@@ -1,4 +1,4 @@
-/* Asistente › Validación de lotes: función de ingesta (núcleo), migración glacial_54, lógica de la pestaña y conexiones. */
+/* Calidad › Validación de lotes: función de ingesta (núcleo), migración glacial_54, lógica de la pestaña y conexiones. */
 const fs=require('fs'),path=require('path');
 const R=path.resolve(__dirname,'..');
 let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c)fallas++;};
@@ -40,7 +40,7 @@ const base={clave:'wa-120363@3EB0ABC123',lote:' L2411-07 ',resultado:'ok',insumo
   ok(!/INGESTA_SECRETO/.test(ts),'el secreto es distinto del de Evidencias');
 
   // lógica de la pestaña
-  const P=require(R+'/js/asistente/99-validacion-lotes.js');
+  const P=require(R+'/js/calidad/99-validacion-lotes.js');
   const filas=[
     {clave:'a',lote:'L1',resultado:'OK',validada_en:'2026-11-15T10:00:00Z',controles:[{nombre:'x',resultado:'OK'}]},
     {clave:'b',lote:'L2',resultado:'OBSERVADO',insumo:'Polietileno 56 cm',validada_en:'2026-11-15T11:00:00Z',controles:[{nombre:'Fecha',resultado:'FALLA'}]},
@@ -55,12 +55,15 @@ const base={clave:'wa-120363@3EB0ABC123',lote:' L2411-07 ',resultado:'ok',insumo
   ok(P.filtrar(filas,{}).map(x=>x.clave).join()==='b,a,c,d','orden: la más reciente primero');
   ok(P.normalizar(null).lote==='—'&&P.normalizar({}).controles.length===0,'normalizar no lanza con datos vacíos');
 
-  // conexiones
-  const a72=leer('js/asistente/72-asistente-pantalla.js'),idx=leer('index.html');
-  ok(/\['validaciones','Validación de lotes','check'\]/.test(a72)&&/TZ_TABS=\['evidencias','validaciones'/.test(a72)&&/validaciones:tabValidaciones/.test(a72),'la pestaña «Validación de lotes» está en el Asistente con los permisos de Evidencias');
-  ok(idx.indexOf('98-validar-rapido.js')<idx.indexOf('99-validacion-lotes.js'),'index: el módulo carga después de Evidencias');
-  const js=leer('js/asistente/99-validacion-lotes.js');
+  // conexiones: módulo CALIDAD propio (ya no es una pestaña del Asistente)
+  const a72=leer('js/asistente/72-asistente-pantalla.js'),idx=leer('index.html'),cal=leer('js/calidad/100-calidad-pantalla.js'),sb=leer('js/nucleo/04-sidebar.js');
+  ok(!/validaciones/.test(a72.replace(/validaciones_/g,''))&&!/apValidacionLotesUI/.test(a72),'el Asistente ya no tiene la pestaña de validación de lotes');
+  ok(/id="sidebar-group-calidad"/.test(idx)&&/data-sidebar-group="calidad"/.test(idx)&&/id="btn-calidad-validacion"[\s\S]{0,120}goCalidad\('validacion'\)/.test(idx)&&/Calidad<\/span>/.test(idx),'el menú lateral tiene el grupo «Calidad» con «Validación de lotes»');
+  ok(/state\.currentTab==='calidad'\)return 'calidad'/.test(sb),'el grupo Calidad se abre solo cuando se está en él');
+  ok(/glacialInventarioDatos[\s\S]{0,80}puedeVer/.test(cal)&&/window\.goCalidad=/.test(cal)&&/ajustarVistaSegunPermisos=function/.test(cal)&&/renderSidebar=function/.test(cal),'Calidad usa los permisos de Evidencias/Lotes y se engancha a la navegación');
+  ok(idx.indexOf('98-validar-rapido.js')<idx.indexOf('js/calidad/99-validacion-lotes.js')&&idx.indexOf('js/calidad/99-validacion-lotes.js')<idx.indexOf('js/calidad/100-calidad-pantalla.js'),'index: orden de carga (Evidencias → validación → pantalla de Calidad)');
+  const js=leer('js/calidad/99-validacion-lotes.js');
   ok(/validaciones_lotes_listar/.test(js)&&/validaciones_lotes_revisar/.test(js)&&!/\.from\(['"]validaciones_lotes/.test(js),'la página usa solo las funciones del servidor, nunca la tabla directa');
-  ok(fs.existsSync(R+'/docs/asistente/validacion-lotes.md'),'existe la guía con el contrato para el bot');
+  ok(fs.existsSync(R+'/docs/asistente/validacion-lotes.md')||fs.existsSync(R+'/docs/calidad/validacion-lotes.md'),'existe la guía con el contrato para el bot');
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});

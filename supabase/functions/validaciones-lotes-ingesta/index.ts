@@ -1,6 +1,6 @@
 // GLACIAL · validaciones-lotes-ingesta
 // Recibe del bot de la planta (WhatsApp) el resultado de la validación de un lote y lo deja en public.validaciones_lotes.
-// NO modifica stock, lotes ni evidencias: se ve en Asistente de Producción › Validación de lotes y una persona autorizada puede marcarlo como revisado.
+// NO modifica stock, lotes ni evidencias: se ve en Calidad › Validación de lotes y una persona autorizada puede marcarlo como revisado.
 //
 //   POST   cabecera  x-glacial-validaciones: <secreto>      cuerpo  { clave, lote, resultado, insumo?, proveedor?, linea?, motivo?, controles?, datos?, evidencia_sha256?, validada_en? }
 //   200 → { ok: true, estado: 'recibida' | 'duplicada' }      4xx/5xx → { ok: false, codigo, error }

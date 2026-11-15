@@ -1,6 +1,6 @@
 # Validación de lotes (bot de WhatsApp → GLACIAL)
 
-Pestaña **Asistente de Producción › Validación de lotes**. Muestra lo que el bot (`glacial-whatsapp`) **valida de cada lote** y lo sube a GLACIAL. Es solo un registro: **no mueve el stock, no crea ni cambia lotes y no toca Evidencias**.
+Pantalla **Calidad › Validación de lotes** (módulo propio del menú lateral, grupo «Calidad»; antes estaba como pestaña del Asistente). Muestra lo que el bot (`glacial-whatsapp`) **valida de cada lote** y lo sube a GLACIAL. Es solo un registro: **no mueve el stock, no crea ni cambia lotes y no toca Evidencias**.
 
 ## Piezas
 | Pieza | Dónde | Qué hace |
@@ -9,7 +9,7 @@ Pestaña **Asistente de Producción › Validación de lotes**. Muestra lo que e
 | Tabla | `supabase/migraciones/glacial_54_validaciones_lotes.sql` | `public.validaciones_lotes`, con RLS activada y **sin políticas**: la página nunca lee la tabla directamente. |
 | Lectura | función `validaciones_lotes_listar` | La pueden usar quienes ven el Inventario de insumos (Asistente de Producción, Jefe de Operaciones y Administrador), igual que Evidencias y Lotes. |
 | Revisión | función `validaciones_lotes_revisar` | Quien escribe en el Inventario (Asistente de Producción y Administrador) marca una validación como **REVISADA**, con nota. |
-| Pestaña | `js/asistente/99-validacion-lotes.js` | Tarjetas, filtros (período, resultado, revisión, búsqueda) y detalle con los controles. Se actualiza sola cada minuto. |
+| Pantalla | `js/calidad/99-validacion-lotes.js` (lógica y tabla) y `js/calidad/100-calidad-pantalla.js` (módulo, menú y permisos) | Tarjetas, filtros (período, resultado, revisión, búsqueda) y detalle con los controles. Se actualiza sola cada minuto. |
 
 ## Contrato del bot
 `POST https://<proyecto>.supabase.co/functions/v1/validaciones-lotes-ingesta` con la cabecera `x-glacial-validaciones: <secreto>` y este cuerpo JSON:

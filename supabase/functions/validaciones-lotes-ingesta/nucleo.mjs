@@ -4,7 +4,7 @@
 // El bot manda un JSON con la cabecera  x-glacial-validaciones: <secreto>:
 //   { clave, lote, resultado: 'OK'|'OBSERVADO'|'RECHAZADO', insumo?, proveedor?, linea?, motivo?, controles?: [{nombre, resultado: 'OK'|'FALLA'|'NA', detalle?}],
 //     datos?: {…}, evidencia_sha256?, validada_en? (ISO 8601) }
-// Nada de esto toca stock ni lotes: solo deja el registro en la tabla public.validaciones_lotes, que se ve en Asistente › Validación de lotes.
+// Nada de esto toca stock ni lotes: solo deja el registro en la tabla public.validaciones_lotes, que se ve en Calidad › Validación de lotes.
 
 export const MAX_CUERPO = 64_000;
 export const MIN_SECRETO = 24;
