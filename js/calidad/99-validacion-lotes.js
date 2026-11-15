@@ -3,10 +3,10 @@
    -------------------------------------------------------------
    Muestra lo que valida el bot de WhatsApp (glacial-whatsapp): una fila por validación con su resultado (OK, OBSERVADO o RECHAZADO), el lote, el insumo, los
    controles revisados y quién la revisó. Lo deja la función validaciones-lotes-ingesta en public.validaciones_lotes (glacial_54).
-   · Solo lectura desde la página, salvo «Marcar como revisada» (quien escribe en el Inventario de insumos). NO toca stock, lotes ni evidencias.
-   · Permisos: los mismos de Evidencias y Lotes (ver: Asistente de Producción, Jefe de Operaciones y Administrador). El servidor los exige igual.
+   · Solo lectura desde la página, salvo «Marcar como revisada» (quien tiene «calidadRevisar»). NO toca stock, lotes ni evidencias.
+   · Permisos propios de Calidad (98-calidad-permisos.js, glacial_55): ver = «calidadVer», revisar = «calidadRevisar». El servidor los exige igual.
    · Se actualiza sola cada minuto mientras la pestaña está a la vista, y con «Actualizar».
-   Se monta desde 100-calidad-pantalla.js (window.apValidacionLotesUI). Cargar DESPUÉS de 98-validar-rapido.js.
+   Se monta desde 100-calidad-pantalla.js (window.apValidacionLotesUI). Cargar DESPUÉS de 98-calidad-permisos.js.
    ============================================================= */
 (function(raiz){
   'use strict';
@@ -54,8 +54,8 @@
   const ES={lista:[],listo:false,error:'',cargando:false,dias:30,resultado:'',revision:'',texto:'',abierta:'',nota:'',guardando:false,aviso:'',disponible:true};
   const oyentes=[];let temporizador=null,repinta=null,activo=false;
   const cliente=()=>W.glacialSupabaseCliente||null;
-  const puedeVer=()=>{try{return !!(W.glacialInventarioDatos&&W.glacialInventarioDatos.puedeVer&&W.glacialInventarioDatos.puedeVer());}catch(_){return false;}};
-  const puedeEscribir=()=>{try{return !!(W.glacialInventarioDatos&&W.glacialInventarioDatos.puedeEscribir&&W.glacialInventarioDatos.puedeEscribir());}catch(_){return false;}};
+  const puedeVer=()=>{try{return !!(W.glacialCalidadPermisos&&W.glacialCalidadPermisos.puedeVer());}catch(_){return false;}};
+  const puedeEscribir=()=>{try{return !!(W.glacialCalidadPermisos&&W.glacialCalidadPermisos.puedeRevisar());}catch(_){return false;}};
   function msgError(r){
     const m=String((r&&r.message)||''),c=String((r&&r.code)||'');
     if(c==='PGRST202'||c==='42883'||/could not find the function|does not exist|schema cache/i.test(m))return {faltaMigracion:true,texto:'Falta aplicar glacial_54 en Supabase: todavía no existe la tabla de validaciones.'};

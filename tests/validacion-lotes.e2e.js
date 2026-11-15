@@ -38,6 +38,8 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(await P.evaluate(() => window.__llamadas.includes('validaciones_lotes_revisar')) && /Marcada como revisada/.test(await P.evaluate(() => document.querySelector('.vl').innerText)), 'marcar como revisada llama al servidor y lo avisa');
   await P.evaluate(() => vlSet('revision', ''));
   ok(await P.evaluate(() => [...document.querySelectorAll('.vl-k')].map(k => k.querySelector('b').innerText)[4]) === '0', 'después de revisar, «Por revisar» baja a 0');
+  const cat = await P.evaluate(() => { const h = htmlPermisosPorArea({}); return { area: /CALIDAD/.test(h), ver: /value="calidadVer"/.test(h), rev: /value="calidadRevisar"/.test(h), enArea: /value="calidadVer"[^>]*data-area="calidad"|data-area="calidad"[^>]*>|value="calidadVer" data-area="calidad"/.test(h) }; });
+  ok(cat.area && cat.ver && cat.rev, 'Gestión de usuarios muestra el área «Calidad» con «VER» y «REVISAR»');
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar(); console.log(fallas ? '\n' + fallas + ' FALLAS' : '\nTodo bien'); process.exit(fallas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
