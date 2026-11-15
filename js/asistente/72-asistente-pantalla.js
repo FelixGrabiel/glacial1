@@ -56,7 +56,7 @@
   };
   const ico=(n,cls)=>`<svg class="ap-ico ${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||P.info}</svg>`;
 
-  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['lotes','Lotes','cajas'],['proveedores','Proveedores','doc'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['conversiones','Conversiones','lista'],['historial','Historial','reloj']];
+  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['validaciones','Validación de lotes','check'],['lotes','Lotes','cajas'],['proveedores','Proveedores','doc'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['conversiones','Conversiones','lista'],['historial','Historial','reloj']];
   const SUBINSUMOS=[['existencias','Existencias en Producción'],['factores','Factores'],['requerimientos','Requerimientos'],['solicitudes','Solicitudes'],['prevision','Previsión'],['desviacion','Desviación de consumo']];
   const ESTADO_TXT={EN_PRODUCCION:['En curso','curso'],PAUSA:['En pausa','pausa'],DETENIDA:['Detenida','rojo'],LISTA:['Programada','prog'],PENDIENTE:['Programada','prog'],
     FINALIZADA:['Finalizada','verde'],CANCELADA:['Cancelada','gris']};
@@ -420,6 +420,14 @@
     if(!UI||!P)return `<section class="ap-card"><div class="ap-msg ap-msg-info">${ico('info')}<span>La bandeja de evidencias no está disponible en esta versión.</span></div></section>`;
     UI.usar({pintar:()=>pintar(),activo:()=>typeof state!=='undefined'&&state.currentTab==='asistente'&&AP.tab==='evidencias'});
     return `<div class="ii">${P.estilos()}${UI.html()}</div>`;
+  }
+
+  /* =========================================================== VALIDACIÓN DE LOTES (lo que valida el bot de WhatsApp; lógica en 99-validacion-lotes.js). No toca stock ni lotes. */
+  function tabValidaciones(){
+    const UI=window.apValidacionLotesUI;
+    if(!UI)return `<section class="ap-card"><div class="ap-msg ap-msg-info">${ico('info')}<span>La validación de lotes no está disponible en esta versión.</span></div></section>`;
+    UI.usar({pintar:()=>{if(typeof state!=='undefined'&&state.currentTab==='asistente'&&AP.tab==='validaciones')pintar();}});
+    return UI.html();
   }
 
   /* =========================================================== LOTES (trazabilidad de lotes de insumos; lógica en 87-89). No toca stock SAP. */
@@ -1017,15 +1025,16 @@
     const ctx=contexto();
     const ev=window.glacialEvidenciasDatos;
     const evVisible=!!(ev&&ev.puedeVer());                                   // la bandeja usa los permisos del Inventario de insumos
-    const TZ_TABS=['evidencias','lotes','proveedores'];
+    const TZ_TABS=['evidencias','validaciones','lotes','proveedores'];
     if(TZ_TABS.includes(AP.tab)&&!evVisible)AP.tab='resumen';
     if(!TZ_TABS.includes(AP.tab)&&ev)ev.detener();                // la escucha en vivo solo está abierta mientras se mira la bandeja o los lotes
     const tz=window.glacialTrazabilidadDatos;
     if(!TZ_TABS.includes(AP.tab)&&tz)tz.detener();
+    if(AP.tab!=='validaciones'&&window.apValidacionLotesUI)window.apValidacionLotesUI.detener();       // la consulta de validaciones solo corre mientras se mira esa pestaña
     // Banco de proveedores (96): abierto mientras se miran evidencias, lotes o proveedores (la creación de lotes usa sus nombres).
     if(window.glacialProveedores){if(TZ_TABS.includes(AP.tab)&&evVisible)window.glacialProveedores.escuchar();else window.glacialProveedores.detener();}
     const tabs=PESTANAS.filter(([k])=>!TZ_TABS.includes(k)||evVisible).map(([k,t,i])=>`<button type="button" role="tab" class="ap-tab ${AP.tab===k?'ap-tab-act':''}" aria-selected="${AP.tab===k}" onclick="AP_set('tab','${k}')">${ico(i)}<span>${t}</span></button>`).join('');
-    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,lotes:tabLotes,proveedores:tabProveedores,consumo:tabConsumo,merma:tabMerma,conversiones:tabConversiones,historial:tabHistorial}[AP.tab]||tabResumen;
+    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,validaciones:tabValidaciones,lotes:tabLotes,proveedores:tabProveedores,consumo:tabConsumo,merma:tabMerma,conversiones:tabConversiones,historial:tabHistorial}[AP.tab]||tabResumen;
     const modoVista=!!(window.glacialVista&&window.glacialVista.activo&&window.glacialVista.activo());
     const noche=AP.bloque==='NOCHE';
     const scroll=window.scrollY;
