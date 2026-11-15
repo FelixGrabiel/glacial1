@@ -1,4 +1,4 @@
--- GLACIAL · glacial_54 · VALIDACIÓN DE LOTES (la llena la función validaciones-lotes-ingesta con lo que valida el bot; la lee la pestaña del Asistente)      *** SIN APLICAR ***
+-- GLACIAL · glacial_54 · VALIDACIÓN DE LOTES (la llena la función validaciones-lotes-ingesta con lo que valida el bot; la lee la pestaña del Asistente)      *** APLICADA en PRUEBAS y PRODUCCIÓN (15/11/2026) ***
 --
 -- Qué hace
 --  1) public.validaciones_lotes: una fila por validación que el bot de WhatsApp (glacial-whatsapp) hace de un lote (clave idempotente), con su resultado

@@ -7,8 +7,8 @@ Pantalla **Calidad › Validación de lotes** (módulo propio del menú lateral,
 |---|---|---|
 | Función de servidor | `supabase/functions/validaciones-lotes-ingesta/` | Recibe el POST del bot, valida todo y lo guarda. **Secreto propio** (`VALIDACIONES_SECRETO`), distinto del de Evidencias. |
 | Tabla | `supabase/migraciones/glacial_54_validaciones_lotes.sql` | `public.validaciones_lotes`, con RLS activada y **sin políticas**: la página nunca lee la tabla directamente. |
-| Lectura | función `validaciones_lotes_listar` | La pueden usar quienes ven el Inventario de insumos (Asistente de Producción, Jefe de Operaciones y Administrador), igual que Evidencias y Lotes. |
-| Revisión | función `validaciones_lotes_revisar` | Quien escribe en el Inventario (Asistente de Producción y Administrador) marca una validación como **REVISADA**, con nota. |
+| Lectura | función `validaciones_lotes_listar` | Permiso propio **«VER Calidad»** (`calidadVer`, glacial_55). Por defecto: Administrador, Asistente de Producción y Jefe de Operaciones. |
+| Revisión | función `validaciones_lotes_revisar` | Permiso propio **«REVISAR Calidad»** (`calidadRevisar`). Por defecto: Administrador y Asistente de Producción (los roles de solo consulta no). Marca la validación como **REVISADA**, con nota. |
 | Pantalla | `js/calidad/99-validacion-lotes.js` (lógica y tabla) y `js/calidad/100-calidad-pantalla.js` (módulo, menú y permisos) | Tarjetas, filtros (período, resultado, revisión, búsqueda) y detalle con los controles. Se actualiza sola cada minuto. |
 
 ## Contrato del bot
@@ -51,7 +51,9 @@ Respuestas: `200 {ok:true, estado:'recibida'|'duplicada'}`; `400` campo inválid
 El bot **no lleva ninguna llave de Supabase**: solo el secreto, que solo sirve para esta función (comparación en tiempo constante; mínimo 24 caracteres; si falta o es corto el servicio no funciona). La función se despliega sin JWT porque el bot no tiene sesión. Tope diario por si el secreto se filtra.
 
 ## Puesta en marcha (primero PRUEBAS; PRODUCCIÓN solo con aprobación)
-1. Aplicar `glacial_54` (requiere `glacial_24`).
+Estado a 15/11/2026: `glacial_54` y `glacial_55` **aplicadas en PRUEBAS y PRODUCCIÓN** (misma huella de las funciones en ambas). **Falta** desplegar la función `validaciones-lotes-ingesta` con su secreto y ajustar el bot.
+
+1. Aplicar `glacial_54` y `glacial_55` (requieren `glacial_24`) — hecho.
 2. En *Edge Functions › Secrets*: `VALIDACIONES_SECRETO` (24 caracteres o más, distinto de `INGESTA_SECRETO`) y, si quieres, `VALIDACIONES_MAX_DIA`.
 3. `supabase functions deploy validaciones-lotes-ingesta --no-verify-jwt --project-ref <PRUEBAS | PRODUCCION>`.
 4. En la PC del bot: `GLACIAL_VALIDACIONES_URL` y `GLACIAL_VALIDACIONES_SECRETO` en su `.env`, y enviar cada validación con el contrato de arriba.
