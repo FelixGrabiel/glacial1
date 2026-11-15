@@ -266,6 +266,7 @@ function grupoSidebarActivo(){
   if(['mantenimiento','productos-parametros','mant-inicio','velocidades-estandar','intervenciones'].includes(state.currentTab))return 'mantenimiento';
   if(state.currentTab==='horario-produccion')return 'produccion';
   if(state.currentTab==='inventario-insumos')return 'almacen';
+  if(state.currentTab==='calidad')return 'calidad';
   if(state.currentTab==='rrhh')return 'rrhh';
   if(['resumen','perdidas'].includes(state.currentTab))return 'reportes';
   return '';
