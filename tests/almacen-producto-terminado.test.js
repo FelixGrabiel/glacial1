@@ -52,4 +52,7 @@ const idx=leer('index.html'),sb=leer('js/nucleo/04-sidebar.js'),js=leer('js/alma
 ok(/id="btn-almacen-pt"[\s\S]{0,120}goAlmacenPT\(\)/.test(idx)&&idx.indexOf('id="btn-almacen-pt"')>idx.indexOf('id="sidebar-group-almacen"')&&idx.indexOf('id="btn-almacen-pt"')<idx.indexOf('id="sidebar-group-calidad"'),'el menú Almacén tiene «Producto terminado»');
 ok(/state\.currentTab==='almacen-pt'\)return 'almacen'/.test(sb)&&/101-producto-terminado\.js/.test(idx),'el grupo Almacén se abre solo y el módulo se carga');
 ok(/tienePermiso\('moduloAlmacen'\)/.test(js)&&!/sync'\)\.doc\('paletas'\)\.(set|update)/.test(js)&&/db\.collection\('almacenPtRecepcion'\)/.test(js),'usa el permiso de Almacén, escribe solo en almacenPtRecepcion y nunca en sync/paletas');
+ok(P.INICIO_PT==='2026-11-16','el producto terminado cuenta desde el 16/11/2026');
+{const ps=[{id:'a',totalUnidades:10,fecha:'2026-11-15'},{id:'b',totalUnidades:10,fecha:'2026-11-16'},{id:'c',totalUnidades:10,fecha:'2026-11-17'}];
+ ok(P.bandeja(ps,[],P.INICIO_PT).map(x=>x.id).sort().join()==='b,c','lo anotado antes de la fecha de inicio no entra a la bandeja'&&P.bandeja(ps,[]).length===3);}
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
