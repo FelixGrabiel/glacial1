@@ -27,6 +27,14 @@
         <link rel="icon" type="image/png" sizes="192x192" href="assets/img/icono-192.png?v=20261112-ic1">
         <link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-touch-icon.png?v=20261112-ic1">
 
+        <!-- App instalable (PWA, 16/11/2026): con el manifiesto y sw.js, GLACIAL se instala como aplicación en Android, iPhone y PC.
+             El service worker no guarda caché: todo sigue llegando de la red, en tiempo real. Ver docs/00-general/app-instalable.md. -->
+        <link rel="manifest" href="manifest.webmanifest?v=20261116-pw1">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="GLACIAL">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
 
         <!-- =====================================================
             FUENTES
@@ -3505,6 +3513,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
     <script src="js/nucleo/00b-puente-supabase.js?v=20261112-cl1"></script>
     <script src="js/nucleo/03-actualizacion.js?v=20261113-ac2"></script>
+    <script src="js/nucleo/03c-app-instalable.js?v=20261116-pw1"></script>
 
 
     <!-- ORDEN DE CARGA: los scripts siguientes se ejecutan en este orden exacto y NO debe cambiarse.

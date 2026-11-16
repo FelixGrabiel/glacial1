@@ -2,7 +2,7 @@
 # En cada cambio en main: corre las pruebas rápidas, arma _sitio/ con scripts/construir-publicacion.js
 # (cada archivo JS comprimido por separado, sin unirlos) y lo publica. Si una prueba falla, NO se publica
 # y la página sigue con la versión anterior.
-# Solo se publican index.html, js/, css/ y assets/ (ya no docs/, supabase/, tests/…).
+# Solo se publican index.html, js/, css/, assets/, manifest.webmanifest y sw.js (ya no docs/, supabase/, tests/…).
 # Requiere: Settings › Pages › Build and deployment › Source = «GitHub Actions».
 name: Publicar página
 
