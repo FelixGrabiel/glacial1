@@ -74,6 +74,16 @@
     });
     return r;
   }
+  /** Agrupa las anotaciones por línea y producto: total de paletas y unidades de cada grupo (para «Por recibir»). */
+  function agrupar(items){
+    const m=new Map();
+    (items||[]).forEach(x=>{
+      const p=x.paleta,k=[p.linea||'',p.marca||'',p.presentacion||''].join('|');
+      if(!m.has(k))m.set(k,{clave:k,linea:p.linea||'',marca:p.marca||'',presentacion:p.presentacion||'',items:[],paletas:0,unidades:0,incompletas:0});
+      const g=m.get(k);g.items.push(x);g.paletas+=num(p.paletas);g.unidades+=num(p.totalUnidades);if(p.tipoPaleta==='INCOMPLETA')g.incompletas++;
+    });
+    return [...m.values()].sort((a,b)=>String(a.linea).localeCompare(String(b.linea),'es')||String(a.marca+a.presentacion).localeCompare(String(b.marca+b.presentacion),'es'));
+  }
   /** Acumulado recibido por línea y producto (RECIBIDA y DIFERENCIA suman lo que llegó; OBSERVADA no). No es un stock: no hay despachos. */
   function acumulado(items,desdeFecha){
     const m=new Map();
@@ -86,13 +96,14 @@
     });
     return [...m.values()].sort((a,b)=>b.unidades-a.unidades);
   }
-  const NUCLEO={INICIO_PT,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
+  const NUCLEO={INICIO_PT,agrupar,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
   if(typeof module!=='undefined'&&module.exports)module.exports=NUCLEO;
   if(typeof window==='undefined'||!window.document)return;
 
   /* ---------- datos ---------- */
   const W=window;
-  const ES={inicio:INICIO_PT,recs:[],listo:false,error:'',tab:'pendientes',dias:7,abierto:'',modo:'',unidades:'',motivo:'',msg:null,guardando:false};
+  function leerUnidad(){try{return localStorage.getItem('glacial.almacen.pt.unidad')==='und'?'und':'paletas';}catch(_){return 'paletas';}}
+  const ES={unidad:leerUnidad(),grupo:'',inicio:INICIO_PT,recs:[],listo:false,error:'',tab:'pendientes',dias:7,abierto:'',modo:'',unidades:'',motivo:'',msg:null,guardando:false};
   let cierre=null,activo=false;
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=n=>Number(n||0).toLocaleString('es-PE',{maximumFractionDigits:0});
@@ -155,7 +166,8 @@
 .pt-k b{display:block;font-size:28px;line-height:1.15;margin:4px 0 2px;color:#0b2a4a}.pt-k small{color:#587087;font-size:12px}.pt-k-am b{color:#b45309}.pt-k-ro b{color:#c62828}.pt-k-vd b{color:#157a3b}
 .pt-card{background:#fff;border:1px solid #d9e7f1;border-radius:14px;padding:14px 16px;overflow-x:auto}.pt-card h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#3c5a75}
 .pt-t{width:100%;border-collapse:collapse}.pt-t th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#587087;background:#f4f9fd;text-align:left;padding:9px 10px}.pt-t td{padding:10px;border-top:1px solid #eaf1f7;vertical-align:top}.pt-t td small{display:block;color:#587087;font-size:12px}
-.pt-n{text-align:right;font-variant-numeric:tabular-nums}
+.pt-n{text-align:right;font-variant-numeric:tabular-nums}.pt-n b{display:block}
+.pt-grp{border:1px solid #d9e7f1;border-radius:12px;margin:0 0 12px;padding:10px 12px;background:#fcfdff;display:grid;gap:8px}.pt-grp-c{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.pt-grp-c b{font-size:16px}.pt-grp-c small{display:block;color:#587087;font-size:12px}.pt-grp-t{text-align:right}.pt-grp-t b{display:block;font-size:20px;color:#b45309}.pt-grp-t small{font-size:12px}
 .pt-pill{display:inline-block;font-size:11px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap}.pt-pen{background:#ffedd5;color:#b45309}.pt-ok{background:#dff5e7;color:#157a3b}.pt-dif{background:#fde8e8;color:#c62828}.pt-obs{background:#e8e4fb;color:#5b3fb5}
 .pt-ac{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.pt-b{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #9fd0e6;background:#fff;color:#0877a6;font:inherit;font-weight:700;cursor:pointer}.pt-b:disabled{opacity:.55;cursor:not-allowed}
 .pt-b-v{background:#0877a6;color:#fff;border-color:#0877a6}.pt-b-r{border-color:#f0b4b4;color:#c62828}.pt-b-o{border-color:#cbbff0;color:#5b3fb5}
@@ -166,16 +178,37 @@
 .pt-vacio{background:#fafcfe;border:1px dashed #c3d8e8;border-radius:12px;padding:22px;text-align:center;color:#587087}.pt-mut{color:#587087;font-size:12.5px}.pt-av{color:#b45309;font-size:12px;font-weight:700}
 @media(max-width:700px){.pt-t thead{display:none}.pt-t tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 0;border-top:1px solid #eaf1f7}.pt-t td{display:block;border:0;padding:2px 4px}.pt-t td[data-l]::before{content:attr(data-l);display:block;font-size:11px;font-weight:700;color:#587087;text-transform:uppercase}.pt-det{display:block}.pt-det td{display:block}}
 </style>`;}
+  /** Cantidad con la unidad elegida arriba (por defecto PALETAS, que es lo que Almacén cuenta); la otra va en chico. */
+  function cant(pal,und){
+    const a=`${fmt(pal)} ${num(pal)===1?'paleta':'paletas'}`,b=`${fmt(und)} UND`;
+    return ES.unidad==='und'?`<b>${b}</b><small>${a}</small>`:`<b>${a}</b><small>${b}</small>`;
+  }
+  function filaItem(x){
+    const p=x.paleta,ab=ES.abierto===x.id,r=x.recepcion;
+    const acciones=x.estado==='PENDIENTE'?(puedeEscribir()?`<div class="pt-ac"><button type="button" class="pt-b pt-b-v" onclick="ptAccion('${esc(x.id)}','RECIBIDA')" ${ES.guardando?'disabled':''}>Recibir</button><button type="button" class="pt-b pt-b-r" onclick="ptAccion('${esc(x.id)}','DIFERENCIA')">Con diferencia</button><button type="button" class="pt-b pt-b-o" onclick="ptAccion('${esc(x.id)}','OBSERVADA')">Dañada</button></div>`:'<span class="pt-mut">Solo consulta</span>')
+      :(puedeEscribir()?`<div class="pt-ac"><button type="button" class="pt-b" onclick="ptAccion('${esc(x.id)}','ANULAR')">Anular recepción</button></div>`:'');
+    const det=r?`<small>${esc((r.almacenero&&r.almacenero.nombre)||r.usuario||'')} · ${esc(hora(r.guardadoEn&&r.guardadoEn.toMillis?r.guardadoEn.toMillis():num(r.guardadoEn)))}${r.estado==='DIFERENCIA'?` · llegaron ${fmt(r.unidadesRecibidas)} (${r.diferencia>0?'+':''}${fmt(r.diferencia)})`:''}${r.motivo?` · «${esc(r.motivo)}»`:''}</small>`:'';
+    const form=ab?`<tr class="pt-det"><td colspan="6">${formulario(x)}</td></tr>`:'';
+    return `<tr><td data-l="Anotada">${esc(hora(x.ms))}<small>${esc(p.fecha||'')} · ${esc(hace_(x.ms))}</small></td><td data-l="Línea"><b>${esc(nombreLinea(p.linea))}</b></td><td data-l="Producto">${esc(p.marca||'')} ${esc(p.presentacion||'')}<small>${esc(p.turno||'')}${p.usuario?' · '+esc(p.usuario):''}${p.tipoPaleta==='INCOMPLETA'?' · incompleta':''}</small></td>
+      <td data-l="Cantidad" class="pt-n">${cant(p.paletas,p.totalUnidades)}</td><td data-l="Estado">${pill(x.estado)}${x.cambioPosterior?'<small class="pt-av">Producción cambió la anotación después de recibirla: revísala</small>':''}${det}</td><td>${acciones}</td></tr>${form}`;
+  }
+  const CABECERA='<thead><tr><th>Anotada</th><th>Línea</th><th>Producto</th><th class="pt-n">Cantidad</th><th>Estado</th><th></th></tr></thead>';
+  /** «Por recibir»: un bloque por línea y producto, con el total de paletas y «Recibir todo» (cada anotación se guarda como su propia recepción). */
+  function tablaPendientes(lista){
+    if(!lista.length)return '<div class="pt-vacio">No hay paletas por recibir en este período. Cuando Producción anote una paleta, aparecerá aquí.</div>';
+    const grupos=agrupar(lista.slice(0,300));
+    return grupos.map(g=>{
+      const abierto=ES.grupo===g.clave,n=g.items.length;
+      const accion=puedeEscribir()&&n>1?(abierto?`<div class="pt-form"><span>¿Confirmas que llegaron las <b>${fmt(g.paletas)} paletas</b> (${fmt(g.unidades)} UND) de ${n} anotaciones?</span><button type="button" class="pt-b pt-b-v" onclick="ptGrupoConfirmar()" ${ES.guardando?'disabled':''}>${ES.guardando?'Guardando…':'Sí, recibir todo'}</button><button type="button" class="pt-b" onclick="ptGrupo('')">Cancelar</button></div>`
+        :`<button type="button" class="pt-b pt-b-v" onclick="ptGrupo(this.dataset.k)" data-k="${esc(g.clave)}">Recibir todo (${fmt(g.paletas)} ${g.paletas===1?'paleta':'paletas'})</button>`):'';
+      return `<div class="pt-grp"><div class="pt-grp-c"><div><b>${esc(nombreLinea(g.linea))} · ${esc(g.marca)} ${esc(g.presentacion)}</b><small>${n} ${n===1?'anotación':'anotaciones'}${g.incompletas?' · '+g.incompletas+' incompleta'+(g.incompletas===1?'':'s'):''}</small></div><div class="pt-grp-t">${cant(g.paletas,g.unidades)}</div></div>${accion}
+        <table class="pt-t">${CABECERA}<tbody>${g.items.map(filaItem).join('')}</tbody></table></div>`;
+    }).join('')+(lista.length>300?`<p class="pt-mut">Se muestran las 300 más recientes de ${fmt(lista.length)}. Acota el período para ver las demás.</p>`:'');
+  }
   function tabla(lista,modo){
+    if(modo==='pendientes')return tablaPendientes(lista);
     if(!lista.length)return `<div class="pt-vacio">${modo==='pendientes'?'No hay paletas por recibir en este período. Cuando Producción anote una paleta, aparecerá aquí.':'Todavía no hay nada en esta lista.'}</div>`;
-    return `<table class="pt-t"><thead><tr><th>Anotada</th><th>Línea</th><th>Producto</th><th class="pt-n">Paletas</th><th class="pt-n">Unidades</th><th>Estado</th><th></th></tr></thead><tbody>${lista.slice(0,300).map(x=>{
-      const p=x.paleta,ab=ES.abierto===x.id,r=x.recepcion;
-      const acciones=x.estado==='PENDIENTE'?(puedeEscribir()?`<div class="pt-ac"><button type="button" class="pt-b pt-b-v" onclick="ptAccion('${esc(x.id)}','RECIBIDA')" ${ES.guardando?'disabled':''}>Recibir</button><button type="button" class="pt-b pt-b-r" onclick="ptAccion('${esc(x.id)}','DIFERENCIA')">Con diferencia</button><button type="button" class="pt-b pt-b-o" onclick="ptAccion('${esc(x.id)}','OBSERVADA')">Dañada</button></div>`:'<span class="pt-mut">Solo consulta</span>')
-        :(puedeEscribir()?`<div class="pt-ac"><button type="button" class="pt-b" onclick="ptAccion('${esc(x.id)}','ANULAR')">Anular recepción</button></div>`:'');
-      const det=r?`<small>${esc((r.almacenero&&r.almacenero.nombre)||r.usuario||'')} · ${esc(hora(r.guardadoEn&&r.guardadoEn.toMillis?r.guardadoEn.toMillis():num(r.guardadoEn)))}${r.estado==='DIFERENCIA'?` · llegaron ${fmt(r.unidadesRecibidas)} (${r.diferencia>0?'+':''}${fmt(r.diferencia)})`:''}${r.motivo?` · «${esc(r.motivo)}»`:''}</small>`:'';
-      const form=ab?`<tr class="pt-det"><td colspan="7">${formulario(x)}</td></tr>`:'';
-      return `<tr><td data-l="Anotada">${esc(hora(x.ms))}<small>${esc(p.fecha||'')} · ${esc(hace_(x.ms))}</small></td><td data-l="Línea"><b>${esc(nombreLinea(p.linea))}</b></td><td data-l="Producto">${esc(p.marca||'')} ${esc(p.presentacion||'')}<small>${esc(p.turno||'')}${p.usuario?' · '+esc(p.usuario):''}</small></td>
-        <td data-l="Paletas" class="pt-n">${fmt(p.paletas)}</td><td data-l="Unidades" class="pt-n">${fmt(p.totalUnidades)}</td><td data-l="Estado">${pill(x.estado)}${x.cambioPosterior?'<small class="pt-av">Producción cambió la anotación después de recibirla: revísala</small>':''}${det}</td><td>${acciones}</td></tr>${form}`;}).join('')}</tbody></table>${lista.length>300?`<p class="pt-mut">Se muestran las 300 más recientes de ${fmt(lista.length)}. Acota el período para ver las demás.</p>`:''}`;
+    return `<table class="pt-t">${CABECERA}<tbody>${lista.slice(0,300).map(filaItem).join('')}</tbody></table>${lista.length>300?`<p class="pt-mut">Se muestran las 300 más recientes de ${fmt(lista.length)}. Acota el período para ver las demás.</p>`:''}`;
   }
   function formulario(x){
     const m=ES.modo;
@@ -212,9 +245,9 @@
       ${ES.error?`<div class="pt-msg pt-msg-e" role="alert">${esc(ES.error)}</div>`:''}${ES.msg?`<div class="pt-msg ${ES.msg.tipo==='error'?'pt-msg-e':'pt-msg-k'}" role="status">${esc(ES.msg.texto)}</div>`:''}
       ${compartida()&&!persona()?'<div class="pt-msg pt-msg-e" role="alert">Identifícate con tu PIN para recibir paletas.</div>':''}
       ${antiguas?`<div class="pt-msg pt-msg-i" role="note">Hay <b>${fmt(antiguas)}</b> paletas anotadas antes de este período que siguen por recibir. <button type="button" class="pt-b" onclick="ptDias(0)">Ver todas</button></div>`:''}
-      <div class="pt-ks">${k('Por recibir',fmt(r.pendientes),fmt(r.unidadesPendientes)+' UND en '+fmt(r.paletasPendientes)+' paletas','pt-k-am')}${k('Recibidas hoy',fmt(r.recibidasHoyPaletas),fmt(r.recibidasHoyUnidades)+' UND','pt-k-vd')}${k('Con diferencia',fmt(r.diferencias),r.faltante?'faltan '+fmt(r.faltante)+' UND':'sin faltantes',r.diferencias?'pt-k-ro':'')}${k('En observación',fmt(r.observadas),'paletas retenidas')}</div>
+      <div class="pt-ks">${k('Por recibir',ES.unidad==='und'?fmt(r.unidadesPendientes)+' UND':fmt(r.paletasPendientes)+(r.paletasPendientes===1?' paleta':' paletas'),(ES.unidad==='und'?fmt(r.paletasPendientes)+' paletas':fmt(r.unidadesPendientes)+' UND')+' · '+fmt(r.pendientes)+(r.pendientes===1?' anotación':' anotaciones'),'pt-k-am')}${k('Recibidas hoy',ES.unidad==='und'?fmt(r.recibidasHoyUnidades)+' UND':fmt(r.recibidasHoyPaletas)+(r.recibidasHoyPaletas===1?' paleta':' paletas'),ES.unidad==='und'?fmt(r.recibidasHoyPaletas)+' paletas':fmt(r.recibidasHoyUnidades)+' UND','pt-k-vd')}${k('Con diferencia',fmt(r.diferencias),r.faltante?'faltan '+fmt(r.faltante)+' UND':'sin faltantes',r.diferencias?'pt-k-ro':'')}${k('En observación',fmt(r.observadas),'paletas retenidas')}</div>
       <nav class="pt-tabs" role="tablist" aria-label="Producto terminado">${tab('pendientes','Por recibir · '+fmt(r.pendientes))}${tab('recibidas','Recibidas')}${tab('diferencias','Diferencias y observadas')}${tab('acumulado','Acumulado recibido')}${!compartida()&&puedeEscribir()?tab('almaceneros','Almaceneros'):''}</nav>
-      <div class="pt-f"><label>Período<select onchange="ptDias(Number(this.value))">${op(1,'Hoy')}${op(3,'Últimos 3 días')}${op(7,'Últimos 7 días')}${op(30,'Últimos 30 días')}${op(0,'Todo')}</select></label>${ES.listo?'':'<span class="pt-mut">Consultando…</span>'}</div>
+      <div class="pt-f"><label>Mostrar en<select onchange="ptUnidad(this.value)"><option value="paletas" ${ES.unidad==='paletas'?'selected':''}>Paletas</option><option value="und" ${ES.unidad==='und'?'selected':''}>Unidades</option></select></label><label>Período<select onchange="ptDias(Number(this.value))">${op(1,'Hoy')}${op(3,'Últimos 3 días')}${op(7,'Últimos 7 días')}${op(30,'Últimos 30 días')}${op(0,'Todo')}</select></label>${ES.listo?'':'<span class="pt-mut">Consultando…</span>'}</div>
       ${cuerpo(todas)}</section>`;
   }
   function pintar(){
@@ -225,6 +258,22 @@
   }
   const bloqueado=()=>!!document.querySelector('.pt-form input:focus,.pt-form textarea:focus');
   W.ptTab=t=>{ES.tab=t;ES.abierto='';ES.modo='';ES.msg=null;pintar();};
+  W.ptUnidad=u=>{ES.unidad=u==='und'?'und':'paletas';try{localStorage.setItem('glacial.almacen.pt.unidad',ES.unidad);}catch(_){/* sin almacenamiento */}pintar();};
+  W.ptGrupo=k=>{ES.grupo=k||'';ES.abierto='';ES.modo='';ES.msg=null;pintar();};
+  W.ptGrupoConfirmar=async()=>{
+    if(!puedeEscribir()||ES.guardando||!ES.grupo)return;
+    const g=agrupar(items().filter(x=>x.estado==='PENDIENTE')).find(x=>x.clave===ES.grupo);if(!g){ES.grupo='';pintar();return;}
+    ES.guardando=true;ES.msg=null;pintar();
+    let hechas=0,fallo='';
+    for(const it of g.items){
+      const d={tipo:'RECIBIDA',unidadesRecibidas:NaN,motivo:''};
+      const e=validarRecepcion(it,d);if(e.length){fallo=e.join(' ');break;}
+      try{await guardar(construirDocumento(it,d));hechas++;}catch(err){fallo=msgError(err);break;}
+    }
+    ES.guardando=false;ES.grupo=fallo?ES.grupo:'';
+    ES.msg=fallo?{tipo:'error',texto:'Se recibieron '+hechas+' de '+g.items.length+' anotaciones y se detuvo: '+fallo}:{tipo:'ok',texto:'Recibidas '+fmt(g.paletas)+' paletas ('+g.items.length+' anotaciones) de '+(nombreLinea(g.linea)+' · '+g.marca+' '+g.presentacion).trim()+'.'};
+    pintar();
+  };
   W.ptDias=d=>{ES.dias=d;ES.abierto='';pintar();};
   W.ptAccion=(id,modo)=>{ES.abierto=id;ES.modo=modo;ES.unidades='';ES.motivo='';ES.msg=null;pintar();};
   W.ptCerrar=()=>{ES.abierto='';ES.modo='';pintar();};
