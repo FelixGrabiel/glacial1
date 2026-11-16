@@ -16,4 +16,10 @@ ok(!ctx.P.some(p=>p.area==='produccion'&&/hielo/i.test(p.key)),'ningún permiso 
 const claves=ctx.P.map(p=>p.key);
 ok(new Set(claves).size===claves.length,'ninguna clave de permiso se repite en el catálogo');
 ok(ctx.P.every(p=>ctx.A.some(a=>a.clave===p.area)),'todo permiso pertenece a un área que existe en AREAS_PERMISOS');
+
+const tit=ctx.A.map(a=>a.clave).join();
+ok(['inicio','produccion','planificacion','hielo','tareo','mantenimiento','rrhh','asistente','almacen','reportes','administracion'].every(k=>ctx.A.some(a=>a.clave===k)),'los permisos se reparten en módulos: '+tit);
+ok(!ctx.A.some(a=>a.clave==='visualizacion')&&!ctx.P.some(p=>p.area==='visualizacion'),'ya no existe el cajón mezclado «Visualización»');
+ok(ctx.P.filter(p=>p.area==='produccion').length<=12,'Producción (Agua) ya no acumula permisos de otros módulos');
+ok(ctx.P.find(p=>p.key==='planificacion').area==='planificacion'&&ctx.P.find(p=>p.key==='exportarExcel').area==='reportes'&&ctx.P.find(p=>p.key==='recibirAlertasProduccion').area==='inicio','planificación, exportación y avisos viven en su propio módulo');
 process.exit(fallas?1:0);

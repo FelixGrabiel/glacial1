@@ -29,7 +29,7 @@
   };
   if(typeof PERMISOS_APP!=='undefined'&&Array.isArray(PERMISOS_APP)){
     Object.entries(CAPACIDADES).forEach(([key,c])=>{
-      const area=key==='moduloAlmacen'?'almacen':(key==='reporteGeneral'?'visualizacion':'produccion');
+      const area=key==='moduloAlmacen'?'almacen':(key==='reporteGeneral'?'reportes':'asistente');
       const ya=PERMISOS_APP.find(p=>p.key===key);
       if(ya){ya.label=c.label;ya.area=area;}else PERMISOS_APP.push({key,area,label:c.label});
     });

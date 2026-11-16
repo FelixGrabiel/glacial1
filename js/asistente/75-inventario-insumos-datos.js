@@ -23,7 +23,7 @@
   /* ---------- permisos ---------- */
   const CLAVE='inventarioInsumos';
   const ETIQUETA='INVENTARIO DE INSUMOS (ver stock, catálogo, conteos y conciliación; escribe la Asistente de Producción)';
-  if(typeof PERMISOS_APP!=='undefined'&&Array.isArray(PERMISOS_APP)&&!PERMISOS_APP.some(p=>p.key===CLAVE))PERMISOS_APP.push({key:CLAVE,area:'produccion',label:ETIQUETA});
+  if(typeof PERMISOS_APP!=='undefined'&&Array.isArray(PERMISOS_APP)&&!PERMISOS_APP.some(p=>p.key===CLAVE))PERMISOS_APP.push({key:CLAVE,area:'asistente',label:ETIQUETA});
   const vistaActiva=()=>!!(window.glacialVista&&typeof window.glacialVista.activo==='function'&&window.glacialVista.activo());
   function puedeVer(u){
     if(!u)return false;
