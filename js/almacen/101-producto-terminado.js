@@ -97,7 +97,9 @@
   const hace=d=>{try{return GlacialFecha.sumarDias(hoyISO(),-d);}catch(_){return '';}};
   const vistaActiva=()=>!!(W.glacialVista&&typeof W.glacialVista.activo==='function'&&W.glacialVista.activo());
   const puede=()=>{try{return !!(state&&state.user&&tienePermiso('moduloAlmacen'));}catch(_){return false;}};
-  const puedeEscribir=()=>puede()&&!vistaActiva();
+  const compartida=()=>typeof W.esAlmacenCompartido==='function'&&W.esAlmacenCompartido();
+  const persona=()=>{try{return W.glacialAlmaceneros?W.glacialAlmaceneros.activa():null;}catch(_){return null;}};     // el almacenero identificado con su PIN (solo la cuenta compartida)
+  const puedeEscribir=()=>puede()&&!vistaActiva()&&(!compartida()||!!persona());
   const paletas=()=>{try{return typeof loadPaletas==='function'?(loadPaletas()||[]):[];}catch(_){return [];}};
   const serverTs=()=>firebase.firestore.FieldValue.serverTimestamp();
   const msgError=e=>{const c=String((e&&e.code)||'').replace(/^firestore\//,'');return c==='permission-denied'?'No tienes permiso para registrar en Almacén (falta aplicar glacial_56 o tu usuario no tiene el permiso).':((e&&e.message)||String(e));};
@@ -114,7 +116,8 @@
 
   async function guardar(doc){
     const q=quien();
-    await db.collection('almacenPtRecepcion').doc(doc.opId).set({...doc,uid:q.uid,usuario:q.usuario,usuarioUsername:q.username,almacenero:null,guardadoEn:serverTs()});
+    const p=persona();
+    await db.collection('almacenPtRecepcion').doc(doc.opId).set({...doc,uid:q.uid,usuario:q.usuario,usuarioUsername:q.username,almacenero:p?{id:p.id,nombre:p.nombre}:null,guardadoEn:serverTs()});
   }
   async function recibir(item,datos){
     if(!puedeEscribir()||ES.guardando)return;
@@ -166,7 +169,7 @@
       const p=x.paleta,ab=ES.abierto===x.id,r=x.recepcion;
       const acciones=x.estado==='PENDIENTE'?(puedeEscribir()?`<div class="pt-ac"><button type="button" class="pt-b pt-b-v" onclick="ptAccion('${esc(x.id)}','RECIBIDA')" ${ES.guardando?'disabled':''}>Recibir</button><button type="button" class="pt-b pt-b-r" onclick="ptAccion('${esc(x.id)}','DIFERENCIA')">Con diferencia</button><button type="button" class="pt-b pt-b-o" onclick="ptAccion('${esc(x.id)}','OBSERVADA')">Dañada</button></div>`:'<span class="pt-mut">Solo consulta</span>')
         :(puedeEscribir()?`<div class="pt-ac"><button type="button" class="pt-b" onclick="ptAccion('${esc(x.id)}','ANULAR')">Anular recepción</button></div>`:'');
-      const det=r?`<small>${esc(r.usuario||'')} · ${esc(hora(r.guardadoEn&&r.guardadoEn.toMillis?r.guardadoEn.toMillis():num(r.guardadoEn)))}${r.estado==='DIFERENCIA'?` · llegaron ${fmt(r.unidadesRecibidas)} (${r.diferencia>0?'+':''}${fmt(r.diferencia)})`:''}${r.motivo?` · «${esc(r.motivo)}»`:''}</small>`:'';
+      const det=r?`<small>${esc((r.almacenero&&r.almacenero.nombre)||r.usuario||'')} · ${esc(hora(r.guardadoEn&&r.guardadoEn.toMillis?r.guardadoEn.toMillis():num(r.guardadoEn)))}${r.estado==='DIFERENCIA'?` · llegaron ${fmt(r.unidadesRecibidas)} (${r.diferencia>0?'+':''}${fmt(r.diferencia)})`:''}${r.motivo?` · «${esc(r.motivo)}»`:''}</small>`:'';
       const form=ab?`<tr class="pt-det"><td colspan="7">${formulario(x)}</td></tr>`:'';
       return `<tr><td data-l="Anotada">${esc(hora(x.ms))}<small>${esc(p.fecha||'')} · ${esc(hace_(x.ms))}</small></td><td data-l="Línea"><b>${esc(nombreLinea(p.linea))}</b></td><td data-l="Producto">${esc(p.marca||'')} ${esc(p.presentacion||'')}<small>${esc(p.turno||'')}${p.usuario?' · '+esc(p.usuario):''}</small></td>
         <td data-l="Paletas" class="pt-n">${fmt(p.paletas)}</td><td data-l="Unidades" class="pt-n">${fmt(p.totalUnidades)}</td><td data-l="Estado">${pill(x.estado)}${x.cambioPosterior?'<small class="pt-av">Producción cambió la anotación después de recibirla: revísala</small>':''}${det}</td><td>${acciones}</td></tr>${form}`;}).join('')}</tbody></table>${lista.length>300?`<p class="pt-mut">Se muestran las 300 más recientes de ${fmt(lista.length)}. Acota el período para ver las demás.</p>`:''}`;
@@ -186,6 +189,7 @@
   function cuerpo(todas){
     const desde=ES.dias?hace(ES.dias):'';
     const enPeriodo=x=>!desde||String(x.paleta.fecha||'')>=desde;
+    if(ES.tab==='almaceneros'&&!compartida()&&W.glacialAlmaceneros)return W.glacialAlmaceneros.htmlAdmin();
     if(ES.tab==='recibidas')return `<div class="pt-card"><h3>Recibidas</h3>${tabla(todas.filter(x=>['RECIBIDA','DIFERENCIA'].includes(x.estado)&&enPeriodo(x)),'recibidas')}</div>`;
     if(ES.tab==='diferencias')return `<div class="pt-card"><h3>Con diferencia y en observación</h3>${tabla(todas.filter(x=>['DIFERENCIA','OBSERVADA'].includes(x.estado)&&enPeriodo(x)),'diferencias')}</div>`;
     if(ES.tab==='acumulado'){
@@ -203,9 +207,10 @@
     const op=(v,t)=>`<option value="${v}" ${String(ES.dias)===String(v)?'selected':''}>${t}</option>`;
     return `<section class="pt">${estilos()}<header class="pt-cab"><h1>ALMACÉN · Producto terminado</h1><p class="pt-sub">Las paletas que Producción anota llegan aquí para que Almacén las reciba.${puedeEscribir()?'':' <b>Solo consulta.</b>'}</p></header>
       ${ES.error?`<div class="pt-msg pt-msg-e" role="alert">${esc(ES.error)}</div>`:''}${ES.msg?`<div class="pt-msg ${ES.msg.tipo==='error'?'pt-msg-e':'pt-msg-k'}" role="status">${esc(ES.msg.texto)}</div>`:''}
+      ${compartida()&&!persona()?'<div class="pt-msg pt-msg-e" role="alert">Identifícate con tu PIN para recibir paletas.</div>':''}
       ${antiguas?`<div class="pt-msg pt-msg-i" role="note">Hay <b>${fmt(antiguas)}</b> paletas anotadas antes de este período que siguen por recibir. <button type="button" class="pt-b" onclick="ptDias(0)">Ver todas</button></div>`:''}
       <div class="pt-ks">${k('Por recibir',fmt(r.pendientes),fmt(r.unidadesPendientes)+' UND en '+fmt(r.paletasPendientes)+' paletas','pt-k-am')}${k('Recibidas hoy',fmt(r.recibidasHoyPaletas),fmt(r.recibidasHoyUnidades)+' UND','pt-k-vd')}${k('Con diferencia',fmt(r.diferencias),r.faltante?'faltan '+fmt(r.faltante)+' UND':'sin faltantes',r.diferencias?'pt-k-ro':'')}${k('En observación',fmt(r.observadas),'paletas retenidas')}</div>
-      <nav class="pt-tabs" role="tablist" aria-label="Producto terminado">${tab('pendientes','Por recibir · '+fmt(r.pendientes))}${tab('recibidas','Recibidas')}${tab('diferencias','Diferencias y observadas')}${tab('acumulado','Acumulado recibido')}</nav>
+      <nav class="pt-tabs" role="tablist" aria-label="Producto terminado">${tab('pendientes','Por recibir · '+fmt(r.pendientes))}${tab('recibidas','Recibidas')}${tab('diferencias','Diferencias y observadas')}${tab('acumulado','Acumulado recibido')}${!compartida()&&puedeEscribir()?tab('almaceneros','Almaceneros'):''}</nav>
       <div class="pt-f"><label>Período<select onchange="ptDias(Number(this.value))">${op(1,'Hoy')}${op(3,'Últimos 3 días')}${op(7,'Últimos 7 días')}${op(30,'Últimos 30 días')}${op(0,'Todo')}</select></label>${ES.listo?'':'<span class="pt-mut">Consultando…</span>'}</div>
       ${cuerpo(todas)}</section>`;
   }
@@ -257,5 +262,5 @@
   }
   // Producción anota paletas en tiempo real: la bandeja se actualiza sola (sin pisar lo que se escribe).
   ['onPaletasUpdated'].forEach(n=>{const a=W[n];if(typeof a!=='function')return;W[n]=function(){const r=a.apply(this,arguments);try{pintar();}catch(_){/* informativo */}return r;};});
-  W.glacialAlmacenPT={html,estado:ES,detener};
+  W.glacialAlmacenPT={html,estado:ES,detener,repintar:()=>{try{pintar();}catch(_){/* informativo */}}};
 })(typeof window!=='undefined'?window:globalThis);

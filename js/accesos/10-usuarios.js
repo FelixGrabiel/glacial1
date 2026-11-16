@@ -248,6 +248,7 @@ function openUsersModal(){
 
                 <option value="Mantenimiento">Mantenimiento</option>
                 <option value="mantenimiento_compartido">Mantenimiento · cuenta compartida (identificación por PIN)</option>
+                <option value="almacen_compartido">Almacén · cuenta compartida (identificación por PIN)</option>
                 <option value="RRHH">RRHH</option>
                 <option value="Ventas">Ventas</option>
                 <option value="Planificación">Planificación</option>
@@ -481,6 +482,7 @@ function cambiarRolNuevoUsuario(){
           'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
           'Mantenimiento': ['moduloMantenimiento','horasExtras','produccionActual','control_operativo_lineas'],
           'mantenimiento_compartido': ['ver_tareo_mantenimiento','produccionActual','control_operativo_lineas'],
+          'almacen_compartido': ['moduloAlmacen'],
           'RRHH': ['moduloRRHH','horasExtras'],
           'Ventas': ['produccionActual'],
           'Planificación': ['produccionActual','planificacion'],

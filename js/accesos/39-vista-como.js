@@ -36,6 +36,7 @@
     {rol:'Supervisor',permisos:()=>undefined},
     {rol:'Mantenimiento',permisos:()=>['moduloMantenimiento','produccionActual','control_operativo_lineas']},
     {rol:'mantenimiento_compartido',etiqueta:'Mantenimiento · cuenta compartida',permisos:()=>undefined},
+    {rol:'almacen_compartido',etiqueta:'Almacén · cuenta compartida',permisos:()=>undefined},
     {rol:'RRHH',permisos:()=>['moduloRRHH','tareoGeneral']},
     {rol:'Ventas',permisos:()=>['produccionActual']},
     {rol:'Planificación',permisos:()=>['produccionActual']},
