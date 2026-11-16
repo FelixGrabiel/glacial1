@@ -22,24 +22,67 @@
   const INICIO_PT='2026-11-16';
 
   /* ---------- lógica pura (se prueba con node) ---------- */
-  /** paletas: registros de sync/paletas; recs: documentos de almacenPtRecepcion → una fila por anotación con su estado vigente. */
+  /* Producción anota ACUMULADOS: cada registro de sync/paletas dice «llevo N paletas completas» (o el saldo incompleto) de una combinación
+     (fecha · línea · turno · marca · presentación) y manda el ÚLTIMO de cada tipo (igual que Avance y Cierre / Producción Actual). Por eso NO se suman las
+     anotaciones: lo que falta recibir es  (acumulado actual − lo ya recibido). Cada recepción cubre el tramo que faltaba (paletasAnotadas / unidadesAnotadas). */
+  const norm=t=>String(t==null?'':t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/(\d)\s*(litros?|lts?)(?![a-z])/g,'$1l').replace(/\s+/g,'');
+  function fechaIso(f){const m=String(f==null?'':f).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):String(f==null?'':f).trim();}
+  /** Id estable y seguro de la combinación (es el «paletaId» de sus recepciones). */
+  const claveGrupo=p=>'PT_'+[fechaIso(p.fecha),p.linea,p.turno,p.marca,p.presentacion].map(x=>norm(x).replace(/[^a-z0-9]+/g,'-')).join('_');
+  /** Último acumulado de una combinación: completas (paletas y unidades) y saldo incompleto; manda el registro más reciente de cada tipo. */
+  function estadoActual(regs){
+    let c=null,sd=null;
+    (regs||[]).forEach((r,i)=>{
+      const act=r.tipoPaleta==='INCOMPLETA'?sd:c,cr=num(r.creadoEn),ant=num(act&&act.r.creadoEn),h=String(r.hora||''),ha=String(act&&act.r.hora||'');
+      if(!act||cr>ant||(cr===ant&&(h>ha||(h===ha&&i>act.i)))){if(r.tipoPaleta==='INCOMPLETA')sd={r,i};else c={r,i};}
+    });
+    return {paletas:num(c&&c.r.paletas),unidades:num(c&&c.r.totalUnidades),saldo:num(sd&&sd.r.totalUnidades),ref:(c||sd||{}).r||null};
+  }
+  const msRec=r=>r&&r.guardadoEn&&r.guardadoEn.toMillis?r.guardadoEn.toMillis():num(r&&r.guardadoEn);
+  /** paletas: registros de sync/paletas; recs: documentos de almacenPtRecepcion.
+      Devuelve «tramos por recibir» (estado PENDIENTE: lo anotado que aún no se recibió, una fila por combinación) y las recepciones vigentes (RECIBIDA / DIFERENCIA / OBSERVADA). */
   function bandeja(paletas,recs,desdeFecha){
-    const anuladas=new Set(),porPaleta=new Map();
+    const anuladas=new Set(),vigentes=new Map(),maxSeq=new Map(),grupos=new Map();
     (recs||[]).forEach(r=>{if(r&&r.tipo==='ANULACION'&&r.anulaA)anuladas.add(r.anulaA);});
-    (recs||[]).forEach(r=>{if(!r||r.tipo!=='RECEPCION'||!r.paletaId)return;if(!porPaleta.has(r.paletaId))porPaleta.set(r.paletaId,[]);porPaleta.get(r.paletaId).push(r);});
-    return (paletas||[]).filter(p=>p&&p.id&&num(p.totalUnidades)>0&&(!desdeFecha||String(p.fecha||'')>=desdeFecha)).map(p=>{
-      const lista=(porPaleta.get(p.id)||[]).slice().sort((a,b)=>num(a.secuencia)-num(b.secuencia));
-      const vigentes=lista.filter(r=>!anuladas.has(r.opId));
-      const v=vigentes.length?vigentes[vigentes.length-1]:null;
-      return {id:p.id,paleta:p,estado:v?v.estado:'PENDIENTE',recepcion:v,historial:lista,siguiente:(lista.length?num(lista[lista.length-1].secuencia):0)+1,
-        anulada:lista.length>0&&!v,cambioPosterior:!!(v&&num(p.actualizadoEn)>num(v.anotadoActualizadoEn||0)),
-        ms:num(p.creadoEn)||num(p.actualizadoEn)||0};
-    }).sort((a,b)=>b.ms-a.ms);
+    (recs||[]).forEach(r=>{
+      if(!r||r.tipo!=='RECEPCION'||!r.paletaId)return;
+      maxSeq.set(r.paletaId,Math.max(maxSeq.get(r.paletaId)||0,num(r.secuencia)));
+      if(anuladas.has(r.opId))return;
+      if(!vigentes.has(r.paletaId))vigentes.set(r.paletaId,[]);vigentes.get(r.paletaId).push(r);
+    });
+    (paletas||[]).forEach(p=>{
+      if(!p||!p.id)return;if(desdeFecha&&fechaIso(p.fecha)<desdeFecha)return;
+      const k=claveGrupo(p);if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(p);
+    });
+    const items=[],cubiertoDe=new Map();
+    vigentes.forEach((lista,k)=>cubiertoDe.set(k,{paletas:lista.reduce((n,r)=>n+num(r.paletasAnotadas),0),unidades:lista.reduce((n,r)=>n+num(r.unidadesAnotadas),0)}));
+    grupos.forEach((regs,k)=>{
+      const a=estadoActual(regs),cub=cubiertoDe.get(k)||{paletas:0,unidades:0},ref=a.ref||regs[regs.length-1];
+      const dP=a.paletas-cub.paletas;let dU=a.unidades-cub.unidades;
+      if(dP>0&&dU<=0&&a.paletas>0)dU=Math.round(dP*a.unidades/a.paletas);   // cambió la tasa de unidades por paleta: se estima con la actual
+      if(dP>0&&dU>0){
+        const ult=regs.reduce((m,r)=>Math.max(m,num(r.creadoEn)||num(r.actualizadoEn)),0);
+        items.push({id:k,paleta:{id:k,linea:ref.linea||'',fecha:fechaIso(ref.fecha),turno:ref.turno||'',marca:ref.marca||'',presentacion:ref.presentacion||'',hora:ref.hora||'',paletas:dP,totalUnidades:dU,usuario:ref.usuario||'',
+          actualizadoEn:regs.reduce((m,r)=>Math.max(m,num(r.actualizadoEn)),0)},
+          estado:'PENDIENTE',recepcion:null,historial:vigentes.get(k)||[],siguiente:(maxSeq.get(k)||0)+1,anulada:false,cambioPosterior:false,ms:ult,
+          acumulado:{paletas:a.paletas,unidades:a.unidades},cubierto:cub,saldo:a.saldo});
+      }
+    });
+    vigentes.forEach((lista,k)=>{
+      const g=grupos.get(k),a=g?estadoActual(g):null,cub=cubiertoDe.get(k);
+      lista.forEach(r=>{
+        if(desdeFecha&&fechaIso(r.fecha)<desdeFecha)return;
+        items.push({id:r.opId,paleta:{id:k,linea:r.linea||'',fecha:fechaIso(r.fecha),turno:r.turno||'',marca:r.marca||'',presentacion:r.presentacion||'',hora:r.hora||'',paletas:num(r.paletasAnotadas),totalUnidades:num(r.unidadesAnotadas),usuario:r.anotadoPor||'',actualizadoEn:num(r.anotadoActualizadoEn)},
+          estado:r.estado,recepcion:r,historial:[r],siguiente:(maxSeq.get(k)||0)+1,anulada:false,cambioPosterior:!!(a&&a.paletas<cub.paletas),ms:msRec(r)||num(r.creadoEn)||0});
+      });
+    });
+    return items.sort((x,y)=>y.ms-x.ms);
   }
   /** datos: {tipo:'RECIBIDA'|'DIFERENCIA'|'OBSERVADA', unidadesRecibidas, motivo} → lista de errores (vacía si está bien). */
   function validarRecepcion(item,datos){
     const e=[],anot=num(item&&item.paleta&&item.paleta.totalUnidades),d=datos||{};
-    if(!item||item.estado!=='PENDIENTE')return ['Esta anotación ya está recibida: para corregirla, anula la recepción primero.'];
+    if(!item||item.estado!=='PENDIENTE')return ['Esto ya está recibido: para corregirlo, anula la recepción primero.'];
+    if(!(num(item.paleta.paletas)>0&&anot>0))e.push('No hay paletas nuevas por recibir.');
     if(!['RECIBIDA','DIFERENCIA','OBSERVADA'].includes(d.tipo))e.push('Elige cómo se recibe.');
     const motivo=String(d.motivo||'').trim();
     if(d.tipo==='DIFERENCIA'){
@@ -57,12 +100,12 @@
     const rec=tipo==='RECIBIDA'?anot:tipo==='DIFERENCIA'?Number(datos.unidadesRecibidas):0;
     const opId=idRecepcion(p.id,item.siguiente);
     return {opId,tipo:'RECEPCION',estado:tipo,paletaId:p.id,secuencia:item.siguiente,linea:p.linea||'',fecha:p.fecha||'',turno:p.turno||'',marca:p.marca||'',presentacion:p.presentacion||'',hora:p.hora||'',
-      paletasAnotadas:num(p.paletas),unidadesAnotadas:anot,unidadesRecibidas:rec,diferencia:rec-anot,
+      paletasAnotadas:num(p.paletas),acumuladoPaletas:num(item.acumulado&&item.acumulado.paletas),unidadesAnotadas:anot,unidadesRecibidas:rec,diferencia:rec-anot,
       motivo:String(datos.motivo||'').trim().slice(0,300),anotadoActualizadoEn:num(p.actualizadoEn),anotadoPor:String(p.usuario||'')};
   }
   function documentoAnulacion(item,motivo){
     const r=item.recepcion;
-    return {opId:idAnulacion(r.opId),tipo:'ANULACION',anulaA:r.opId,paletaId:item.id,motivo:String(motivo||'').trim().slice(0,300)};
+    return {opId:idAnulacion(r.opId),tipo:'ANULACION',anulaA:r.opId,paletaId:r.paletaId,motivo:String(motivo||'').trim().slice(0,300)};
   }
   function resumen(items,hoy){
     const r={pendientes:0,unidadesPendientes:0,paletasPendientes:0,recibidas:0,recibidasHoyPaletas:0,recibidasHoyUnidades:0,diferencias:0,faltante:0,observadas:0,pendientesAntiguas:0};
@@ -79,8 +122,8 @@
     const m=new Map();
     (items||[]).forEach(x=>{
       const p=x.paleta,k=[p.linea||'',p.marca||'',p.presentacion||''].join('|');
-      if(!m.has(k))m.set(k,{clave:k,linea:p.linea||'',marca:p.marca||'',presentacion:p.presentacion||'',items:[],paletas:0,unidades:0,incompletas:0});
-      const g=m.get(k);g.items.push(x);g.paletas+=num(p.paletas);g.unidades+=num(p.totalUnidades);if(p.tipoPaleta==='INCOMPLETA')g.incompletas++;
+      if(!m.has(k))m.set(k,{clave:k,linea:p.linea||'',marca:p.marca||'',presentacion:p.presentacion||'',items:[],paletas:0,unidades:0,incompletas:0,saldo:0});
+      const g=m.get(k);g.items.push(x);g.paletas+=num(p.paletas);g.unidades+=num(p.totalUnidades);if(num(x.saldo)>0){g.incompletas++;g.saldo+=num(x.saldo);}
     });
     return [...m.values()].sort((a,b)=>String(a.linea).localeCompare(String(b.linea),'es')||String(a.marca+a.presentacion).localeCompare(String(b.marca+b.presentacion),'es'));
   }
@@ -96,7 +139,7 @@
     });
     return [...m.values()].sort((a,b)=>b.unidades-a.unidades);
   }
-  const NUCLEO={INICIO_PT,agrupar,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
+  const NUCLEO={INICIO_PT,claveGrupo,estadoActual,agrupar,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
   if(typeof module!=='undefined'&&module.exports)module.exports=NUCLEO;
   if(typeof window==='undefined'||!window.document)return;
 
@@ -189,19 +232,19 @@
       :(puedeEscribir()?`<div class="pt-ac"><button type="button" class="pt-b" onclick="ptAccion('${esc(x.id)}','ANULAR')">Anular recepción</button></div>`:'');
     const det=r?`<small>${esc((r.almacenero&&r.almacenero.nombre)||r.usuario||'')} · ${esc(hora(r.guardadoEn&&r.guardadoEn.toMillis?r.guardadoEn.toMillis():num(r.guardadoEn)))}${r.estado==='DIFERENCIA'?` · llegaron ${fmt(r.unidadesRecibidas)} (${r.diferencia>0?'+':''}${fmt(r.diferencia)})`:''}${r.motivo?` · «${esc(r.motivo)}»`:''}</small>`:'';
     const form=ab?`<tr class="pt-det"><td colspan="6">${formulario(x)}</td></tr>`:'';
-    return `<tr><td data-l="Anotada">${esc(hora(x.ms))}<small>${esc(p.fecha||'')} · ${esc(hace_(x.ms))}</small></td><td data-l="Línea"><b>${esc(nombreLinea(p.linea))}</b></td><td data-l="Producto">${esc(p.marca||'')} ${esc(p.presentacion||'')}<small>${esc(p.turno||'')}${p.usuario?' · '+esc(p.usuario):''}${p.tipoPaleta==='INCOMPLETA'?' · incompleta':''}</small></td>
+    return `<tr><td data-l="Anotada">${esc(hora(x.ms))}<small>${esc(p.fecha||'')} · ${esc(hace_(x.ms))}</small></td><td data-l="Línea"><b>${esc(nombreLinea(p.linea))}</b></td><td data-l="Producto">${esc(p.marca||'')} ${esc(p.presentacion||'')}<small>${esc(p.turno||'')}${p.usuario?' · '+esc(p.usuario):''}${x.estado==='PENDIENTE'&&x.acumulado?` · Producción lleva ${fmt(x.acumulado.paletas)} paletas, ya recibidas ${fmt(x.cubierto.paletas)}`:''}</small></td>
       <td data-l="Cantidad" class="pt-n">${cant(p.paletas,p.totalUnidades)}</td><td data-l="Estado">${pill(x.estado)}${x.cambioPosterior?'<small class="pt-av">Producción cambió la anotación después de recibirla: revísala</small>':''}${det}</td><td>${acciones}</td></tr>${form}`;
   }
-  const CABECERA='<thead><tr><th>Anotada</th><th>Línea</th><th>Producto</th><th class="pt-n">Cantidad</th><th>Estado</th><th></th></tr></thead>';
-  /** «Por recibir»: un bloque por línea y producto, con el total de paletas y «Recibir todo» (cada anotación se guarda como su propia recepción). */
+  const CABECERA='<thead><tr><th>Registro</th><th>Línea</th><th>Producto</th><th class="pt-n">Cantidad</th><th>Estado</th><th></th></tr></thead>';
+  /** «Por recibir»: un bloque por línea y producto, con el total de paletas nuevas y «Recibir todo» (cada turno se guarda como su propia recepción). */
   function tablaPendientes(lista){
     if(!lista.length)return '<div class="pt-vacio">No hay paletas por recibir en este período. Cuando Producción anote una paleta, aparecerá aquí.</div>';
     const grupos=agrupar(lista.slice(0,300));
     return grupos.map(g=>{
       const abierto=ES.grupo===g.clave,n=g.items.length;
-      const accion=puedeEscribir()&&n>1?(abierto?`<div class="pt-form"><span>¿Confirmas que llegaron las <b>${fmt(g.paletas)} paletas</b> (${fmt(g.unidades)} UND) de ${n} anotaciones?</span><button type="button" class="pt-b pt-b-v" onclick="ptGrupoConfirmar()" ${ES.guardando?'disabled':''}>${ES.guardando?'Guardando…':'Sí, recibir todo'}</button><button type="button" class="pt-b" onclick="ptGrupo('')">Cancelar</button></div>`
+      const accion=puedeEscribir()&&n>1?(abierto?`<div class="pt-form"><span>¿Confirmas que llegaron las <b>${fmt(g.paletas)} paletas</b> (${fmt(g.unidades)} UND) de ${n} ${n===1?'registro':'registros'}?</span><button type="button" class="pt-b pt-b-v" onclick="ptGrupoConfirmar()" ${ES.guardando?'disabled':''}>${ES.guardando?'Guardando…':'Sí, recibir todo'}</button><button type="button" class="pt-b" onclick="ptGrupo('')">Cancelar</button></div>`
         :`<button type="button" class="pt-b pt-b-v" onclick="ptGrupo(this.dataset.k)" data-k="${esc(g.clave)}">Recibir todo (${fmt(g.paletas)} ${g.paletas===1?'paleta':'paletas'})</button>`):'';
-      return `<div class="pt-grp"><div class="pt-grp-c"><div><b>${esc(nombreLinea(g.linea))} · ${esc(g.marca)} ${esc(g.presentacion)}</b><small>${n} ${n===1?'anotación':'anotaciones'}${g.incompletas?' · '+g.incompletas+' incompleta'+(g.incompletas===1?'':'s'):''}</small></div><div class="pt-grp-t">${cant(g.paletas,g.unidades)}</div></div>${accion}
+      return `<div class="pt-grp"><div class="pt-grp-c"><div><b>${esc(nombreLinea(g.linea))} · ${esc(g.marca)} ${esc(g.presentacion)}</b><small>${n} ${n===1?'turno':'turnos'} con paletas nuevas${g.saldo?' · saldo en línea: '+fmt(g.saldo)+' UND (paleta incompleta, aún no se recibe)':''}</small></div><div class="pt-grp-t">${cant(g.paletas,g.unidades)}</div></div>${accion}
         <table class="pt-t">${CABECERA}<tbody>${g.items.map(filaItem).join('')}</tbody></table></div>`;
     }).join('')+(lista.length>300?`<p class="pt-mut">Se muestran las 300 más recientes de ${fmt(lista.length)}. Acota el período para ver las demás.</p>`:'');
   }
@@ -212,9 +255,9 @@
   }
   function formulario(x){
     const m=ES.modo;
-    if(m==='RECIBIDA')return `<div class="pt-form"><span>¿Confirmas que llegó todo lo anotado (<b>${fmt(x.paleta.totalUnidades)} UND</b>)?</span><button type="button" class="pt-b pt-b-v" onclick="ptConfirmar('${esc(x.id)}')" ${ES.guardando?'disabled':''}>Sí, recibir</button><button type="button" class="pt-b" onclick="ptCerrar()">Cancelar</button></div>`;
+    if(m==='RECIBIDA')return `<div class="pt-form"><span>¿Confirmas que llegaron las <b>${fmt(x.paleta.paletas)} paletas</b> nuevas (<b>${fmt(x.paleta.totalUnidades)} UND</b>)?</span><button type="button" class="pt-b pt-b-v" onclick="ptConfirmar('${esc(x.id)}')" ${ES.guardando?'disabled':''}>Sí, recibir</button><button type="button" class="pt-b" onclick="ptCerrar()">Cancelar</button></div>`;
     if(m==='DIFERENCIA')return `<div class="pt-form"><label>Unidades que llegaron<input type="number" min="0" step="1" inputmode="numeric" value="${esc(ES.unidades)}" oninput="ptCampo('unidades',this.value)" aria-label="Unidades que llegaron"></label>
-      <label>Motivo de la diferencia<textarea rows="2" maxlength="300" oninput="ptCampo('motivo',this.value)">${esc(ES.motivo)}</textarea></label><span class="pt-mut">Se anotaron ${fmt(x.paleta.totalUnidades)} UND.</span>
+      <label>Motivo de la diferencia<textarea rows="2" maxlength="300" oninput="ptCampo('motivo',this.value)">${esc(ES.motivo)}</textarea></label><span class="pt-mut">Se anotaron ${fmt(x.paleta.totalUnidades)} UND nuevas.</span>
       <button type="button" class="pt-b pt-b-r" onclick="ptConfirmar('${esc(x.id)}')" ${ES.guardando?'disabled':''}>Guardar diferencia</button><button type="button" class="pt-b" onclick="ptCerrar()">Cancelar</button></div>`;
     if(m==='OBSERVADA')return `<div class="pt-form"><label>¿Qué le pasó a la paleta?<textarea rows="2" maxlength="300" oninput="ptCampo('motivo',this.value)">${esc(ES.motivo)}</textarea></label><span class="pt-mut">No entra al total recibido hasta que se resuelva (anula y vuelve a recibir).</span>
       <button type="button" class="pt-b pt-b-o" onclick="ptConfirmar('${esc(x.id)}')" ${ES.guardando?'disabled':''}>Poner en observación</button><button type="button" class="pt-b" onclick="ptCerrar()">Cancelar</button></div>`;
@@ -271,7 +314,7 @@
       try{await guardar(construirDocumento(it,d));hechas++;}catch(err){fallo=msgError(err);break;}
     }
     ES.guardando=false;ES.grupo=fallo?ES.grupo:'';
-    ES.msg=fallo?{tipo:'error',texto:'Se recibieron '+hechas+' de '+g.items.length+' anotaciones y se detuvo: '+fallo}:{tipo:'ok',texto:'Recibidas '+fmt(g.paletas)+' paletas ('+g.items.length+' anotaciones) de '+(nombreLinea(g.linea)+' · '+g.marca+' '+g.presentacion).trim()+'.'};
+    ES.msg=fallo?{tipo:'error',texto:'Se recibieron '+hechas+' de '+g.items.length+' registros y se detuvo: '+fallo}:{tipo:'ok',texto:'Recibidas '+fmt(g.paletas)+' paletas ('+g.items.length+' registros) de '+(nombreLinea(g.linea)+' · '+g.marca+' '+g.presentacion).trim()+'.'};
     pintar();
   };
   W.ptDias=d=>{ES.dias=d;ES.abierto='';pintar();};
