@@ -1,4 +1,4 @@
--- GLACIAL · glacial_57 · ALMACÉN: cuenta compartida de almaceneros (rol almacen_compartido) con acceso RESTRINGIDO en el servidor      *** SIN APLICAR ***
+-- GLACIAL · glacial_57 · ALMACÉN: cuenta compartida de almaceneros (rol almacen_compartido) con acceso RESTRINGIDO en el servidor      *** APLICADA en PRUEBAS y PRODUCCIÓN (16/11/2026) ***
 --
 -- Por qué: hoy cualquier cuenta que no sea la compartida de Mantenimiento puede leer casi todos los documentos de «sync» (usuarios, trabajadores, reportes,
 -- tareos…). Una cuenta compartida de Almacén, con PIN personal que solo sirve de trazabilidad, NO debe tener ese alcance.

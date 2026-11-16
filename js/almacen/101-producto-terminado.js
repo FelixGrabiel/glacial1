@@ -5,7 +5,7 @@
      · Recibir            → la anotación entra completa.
      · Con diferencia     → llegó otra cantidad: queda la diferencia con su motivo.
      · En observación     → paleta dañada o retenida: no entra al total recibido (motivo obligatorio).
-   Todo lo anotado antes también queda «por recibir» (acordado con el dueño, 16/11/2026).
+   Solo se reciben las paletas anotadas DESDE HOY (16/11/2026, fecha de inicio acordada con el dueño): lo anotado antes no entra a la bandeja (INICIO_PT).
    Cada recepción es un documento INMUTABLE en almacenPtRecepcion (id <paletaId>_R<n>); corregir = anular (ANUL_<id>, con motivo) y volver a recibir.
    Las reglas del servidor están en glacial_56. NO toca sync/paletas ni el stock de insumos. El «acumulado recibido» NO es un stock: aún no hay despachos.
    Permiso: «moduloAlmacen» (el Administrador lo tiene). En modo «Visualizar» solo se mira.
@@ -18,13 +18,16 @@
   const idRecepcion=(paletaId,n)=>String(paletaId)+'_R'+n;
   const idAnulacion=opId=>'ANUL_'+opId;
 
+  /** Primer día que cuenta: las paletas anotadas antes no se reciben en Almacén. */
+  const INICIO_PT='2026-11-16';
+
   /* ---------- lógica pura (se prueba con node) ---------- */
   /** paletas: registros de sync/paletas; recs: documentos de almacenPtRecepcion → una fila por anotación con su estado vigente. */
-  function bandeja(paletas,recs){
+  function bandeja(paletas,recs,desdeFecha){
     const anuladas=new Set(),porPaleta=new Map();
     (recs||[]).forEach(r=>{if(r&&r.tipo==='ANULACION'&&r.anulaA)anuladas.add(r.anulaA);});
     (recs||[]).forEach(r=>{if(!r||r.tipo!=='RECEPCION'||!r.paletaId)return;if(!porPaleta.has(r.paletaId))porPaleta.set(r.paletaId,[]);porPaleta.get(r.paletaId).push(r);});
-    return (paletas||[]).filter(p=>p&&p.id&&num(p.totalUnidades)>0).map(p=>{
+    return (paletas||[]).filter(p=>p&&p.id&&num(p.totalUnidades)>0&&(!desdeFecha||String(p.fecha||'')>=desdeFecha)).map(p=>{
       const lista=(porPaleta.get(p.id)||[]).slice().sort((a,b)=>num(a.secuencia)-num(b.secuencia));
       const vigentes=lista.filter(r=>!anuladas.has(r.opId));
       const v=vigentes.length?vigentes[vigentes.length-1]:null;
@@ -83,13 +86,13 @@
     });
     return [...m.values()].sort((a,b)=>b.unidades-a.unidades);
   }
-  const NUCLEO={ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
+  const NUCLEO={INICIO_PT,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
   if(typeof module!=='undefined'&&module.exports)module.exports=NUCLEO;
   if(typeof window==='undefined'||!window.document)return;
 
   /* ---------- datos ---------- */
   const W=window;
-  const ES={recs:[],listo:false,error:'',tab:'pendientes',dias:7,abierto:'',modo:'',unidades:'',motivo:'',msg:null,guardando:false};
+  const ES={inicio:INICIO_PT,recs:[],listo:false,error:'',tab:'pendientes',dias:7,abierto:'',modo:'',unidades:'',motivo:'',msg:null,guardando:false};
   let cierre=null,activo=false;
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=n=>Number(n||0).toLocaleString('es-PE',{maximumFractionDigits:0});
@@ -111,7 +114,7 @@
   }
   function detener(){activo=false;if(cierre){try{cierre();}catch(_){/* ya cerrada */}cierre=null;}}
   if(W.glacialCierresSesion)W.glacialCierresSesion.push(()=>{detener();ES.recs=[];ES.listo=false;ES.abierto='';});
-  const items=()=>bandeja(paletas(),ES.recs);
+  const items=()=>bandeja(paletas(),ES.recs,ES.inicio);
   const quien=()=>{const u=(typeof state!=='undefined'&&state.user)||{};return {uid:(function(){try{return firebase.auth().currentUser.uid;}catch(_){return '';}})(),usuario:u.nombre||u.username||'Usuario',username:u.username||''};};
 
   async function guardar(doc){
@@ -205,7 +208,7 @@
     const k=(t,v,s,c)=>`<div class="pt-k ${c||''}"><span>${esc(t)}</span><b>${v}</b><small>${esc(s)}</small></div>`;
     const tab=(id,t)=>`<button type="button" role="tab" class="pt-tab" aria-selected="${ES.tab===id}" onclick="ptTab('${id}')">${esc(t)}</button>`;
     const op=(v,t)=>`<option value="${v}" ${String(ES.dias)===String(v)?'selected':''}>${t}</option>`;
-    return `<section class="pt">${estilos()}<header class="pt-cab"><h1>ALMACÉN · Producto terminado</h1><p class="pt-sub">Las paletas que Producción anota llegan aquí para que Almacén las reciba.${puedeEscribir()?'':' <b>Solo consulta.</b>'}</p></header>
+    return `<section class="pt">${estilos()}<header class="pt-cab"><h1>ALMACÉN · Producto terminado</h1><p class="pt-sub">Las paletas que Producción anota llegan aquí para que Almacén las reciba (desde el 16/11/2026).${puedeEscribir()?'':' <b>Solo consulta.</b>'}</p></header>
       ${ES.error?`<div class="pt-msg pt-msg-e" role="alert">${esc(ES.error)}</div>`:''}${ES.msg?`<div class="pt-msg ${ES.msg.tipo==='error'?'pt-msg-e':'pt-msg-k'}" role="status">${esc(ES.msg.texto)}</div>`:''}
       ${compartida()&&!persona()?'<div class="pt-msg pt-msg-e" role="alert">Identifícate con tu PIN para recibir paletas.</div>':''}
       ${antiguas?`<div class="pt-msg pt-msg-i" role="note">Hay <b>${fmt(antiguas)}</b> paletas anotadas antes de este período que siguen por recibir. <button type="button" class="pt-b" onclick="ptDias(0)">Ver todas</button></div>`:''}

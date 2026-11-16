@@ -1,4 +1,4 @@
--- GLACIAL · glacial_56 · ALMACÉN › INGRESO DE PRODUCTO TERMINADO (recepción de las paletas que anota Producción)      *** SIN APLICAR ***
+-- GLACIAL · glacial_56 · ALMACÉN › INGRESO DE PRODUCTO TERMINADO (recepción de las paletas que anota Producción)      *** APLICADA en PRUEBAS y PRODUCCIÓN (16/11/2026) ***
 --
 -- Qué hace (mismo método que glacial_27: inserta ramas en autorizar y puede_leer por «anclas» de texto; si un ancla no aparece exactamente una vez,
 -- se detiene con un mensaje y no cambia nada):

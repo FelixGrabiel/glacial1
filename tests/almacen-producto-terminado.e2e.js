@@ -22,6 +22,10 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     state.currentTab = 'almacen-pt'; renderSidebar(); renderMain();
   });
   await P.waitForSelector('.pt-t', { timeout: 6000 });
+  // la fecha de inicio real (16/11/2026) se prueba aparte; aquí se abre la ventana para que las fechas de prueba (hoy, ayer, hace 20 días) no dependan del calendario
+  const inicioReal = await P.evaluate(() => glacialAlmacenPT.estado.inicio);
+  ok(inicioReal === '2026-11-16', 'el producto terminado cuenta desde el 16/11/2026');
+  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = '2000-01-01'; glacialAlmacenPT.repintar(); });
   const kpi = () => P.evaluate(() => [...document.querySelectorAll('.pt-k b')].map(b => b.innerText).join());
   const filas = () => P.evaluate(() => document.querySelectorAll('.pt-t tbody tr:not(.pt-det)').length);
   ok(await P.evaluate(() => { const b = document.getElementById('btn-almacen-pt'); return b && b.style.display !== 'none' && b.classList.contains('active'); }), 'el menú Almacén muestra «Producto terminado» activo');
@@ -42,6 +46,10 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(await kpi() === '1,2400,1,1' || (await kpi()).split(',')[0] === '1', 'los indicadores se actualizan (1 por recibir, 1 con diferencia, 1 en observación)');
   await P.evaluate(() => ptTab('diferencias')); ok(await filas() === 2, 'la pestaña «Diferencias y observadas» lista la diferencia y la observada');
   await P.evaluate(() => ptTab('acumulado')); ok(/3\.480|3,480|3 480/.test(await P.evaluate(() => document.querySelector('.pt-t').innerText)) && !/Scala 7 L/.test(await P.evaluate(() => document.querySelector('.pt-t').innerText)), 'el acumulado muestra lo que llegó y no incluye la observada');
+  // con la fecha de inicio real, lo anotado antes no aparece
+  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = GlacialFecha.fechaOperativa(); ptDias(0); });
+  ok(await P.evaluate(() => [...document.querySelectorAll('.pt-t tbody tr:not(.pt-det)')].every(tr => !/ayer|hace/i.test(tr.innerText)) && !document.querySelector('.pt-msg-i')), 'con inicio hoy, lo anotado antes ya no aparece ni se avisa');
+  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = '2000-01-01'; ptDias(7); });
   await P.evaluate(() => ptTab('recibidas')); await P.evaluate(() => { ptAccion('pal_1', 'ANULAR'); ptCampo('motivo', 'se recibió por error'); }); await P.evaluate(() => ptConfirmar('pal_1')); await P.waitForTimeout(300);
   ok(await P.evaluate(() => window.__guardados[3].opId === 'ANUL_pal_1_R1' && window.__guardados[3].tipo === 'ANULACION'), 'Anular crea la anulación ANUL_pal_1_R1 (el original no se toca)');
   await P.evaluate(() => ptTab('pendientes')); ok(await P.evaluate(() => /Scala.*2\.5 L/.test(document.querySelector('.pt-t').innerText)), 'la paleta anulada vuelve a «Por recibir»');
