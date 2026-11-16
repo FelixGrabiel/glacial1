@@ -188,7 +188,7 @@ const PERMISOS_APP=[
   {key:'configurar_umbrales',area:'administracion',label:'Configurar umbrales de avisos, metas de disponibilidad y velocidades estándar'},
   {key:'configuracion',area:'administracion',label:'Configuración'},
   {key:'administracion',area:'administracion',label:'Administración'},
-  {key:'moduloAlmacen',area:'almacen',label:'Módulo de Almacén (próximamente)'},
+  {key:'moduloAlmacen',area:'almacen',label:'Módulo de Almacén (entregas de insumos y recepción de producto terminado)'},
   {key:'hielo',area:'hielo',label:'Registrar Hielo (Nuevo registro, Avance y cierre)'},
   {key:'programarHielo',area:'hielo',label:'Programar Hielo (Programación) y configurar sus listas'},
 ];
