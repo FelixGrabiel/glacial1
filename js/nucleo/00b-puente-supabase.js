@@ -1043,7 +1043,16 @@
     return errorFs(code, msg || code);
   }
   function crearAuth(T, db){
-    let actual = null, inicial = false;
+    let actual = null, inicial = false, operacionLocal = 0;
+    const finLocal = () => setTimeout(() => { operacionLocal--; }, 250);   // deja pasar los avisos que supabase-js emite por esta misma operación
+    /* La sesión guardada se comparte entre las pestañas y la app instalada del mismo equipo. Si OTRA pestaña cierra la sesión o entra
+       con otra cuenta (o el servidor la da por terminada), esta página se recarga: así nunca queda mostrando los permisos de una cuenta
+       mientras guarda con otra. Al recargar, la identidad se resuelve de cero (tryResumeSession). */
+    function cambioFuera(u){
+      const pag = global.location;
+      if (global.document && pag && typeof pag.reload === 'function') { try { pag.reload(); return; } catch (_) { /* sigue abajo */ } }
+      fijar(u);
+    }
     const observadores = new Set();
     class Usuario {
       constructor(u){ this.uid = u.id; this.email = u.email || null; const m = u.user_metadata || {}; this.displayName = (m.display_name === undefined || m.display_name === '') ? null : m.display_name; }
@@ -1068,15 +1077,19 @@
       e => { observadores.forEach(o => { if (o.error) o.error(errorAuth(e)); }); });
     T.auth.onAuthStateChange((evento, sesion) => {
       setTimeout(() => {                                       // nunca dentro del propio aviso de supabase-js
-        if (evento === 'SIGNED_OUT') fijar(null);
-        else if (sesion && sesion.user) fijar(sesion.user);
-        else if (evento === 'INITIAL_SESSION') fijar(null);
+        let u;
+        if (evento === 'SIGNED_OUT') u = null;
+        else if (sesion && sesion.user) u = sesion.user;
+        else if (evento === 'INITIAL_SESSION') u = null;
+        else return;
+        if (inicial && actual && !operacionLocal && actual.uid !== (u ? u.id : null)) { cambioFuera(u); return; }
+        fijar(u);
       }, 0);
     });
     return {
       get currentUser(){ return actual; },
-      setPersistence(){                                        // la sesión vive en sessionStorage (por pestaña), como antes
-        return T.sinAlmacen ? Promise.reject(errorFs('auth/web-storage-unsupported', 'El navegador no permite guardar la sesión de esta pestaña.')) : Promise.resolve();
+      setPersistence(){                                        // la sesión se guarda en el equipo (crearAlmacenSesion): sigue iniciada al cerrar la app
+        return T.sinAlmacen ? Promise.reject(errorFs('auth/web-storage-unsupported', 'El navegador no permite guardar la sesión en este equipo.')) : Promise.resolve();
       },
       onAuthStateChanged(next, error){
         const o = { next, error };
@@ -1086,16 +1099,22 @@
       },
       async signInWithEmailAndPassword(email, clave){
         await listo;
-        const r = await T.auth.signInWithPassword({ email: String(email || '').trim(), password: clave });
-        if (r.error) throw errorAuth(r.error);
-        fijar(r.data.user);
-        return { user: actual };
+        operacionLocal++;
+        try {
+          const r = await T.auth.signInWithPassword({ email: String(email || '').trim(), password: clave });
+          if (r.error) throw errorAuth(r.error);
+          fijar(r.data.user);
+          return { user: actual };
+        } finally { finLocal(); }
       },
       async signOut(){
         db._reiniciar();
-        const r = await T.auth.signOut({ scope: 'local' });
-        fijar(null);
-        if (r && r.error && !/session/i.test(String(r.error.message))) throw errorAuth(r.error);
+        operacionLocal++;
+        try {
+          const r = await T.auth.signOut({ scope: 'local' });
+          fijar(null);
+          if (r && r.error && !/session/i.test(String(r.error.message))) throw errorAuth(r.error);
+        } finally { finLocal(); }
       }
     };
   }
@@ -1122,12 +1141,46 @@
   /* =========================================================
      7) TRANSPORTE REAL (supabase-js)
      ========================================================= */
+  /* SESIÓN GUARDADA EN EL EQUIPO (16/11/2026)
+     Antes la sesión vivía en sessionStorage (por pestaña) y se perdía al cerrar la app. Ahora se guarda en localStorage:
+     al abrir GLACIAL (página o app instalada) se entra directo, hasta que la persona cierre sesión.
+     · Vence sola a los SESION_DIAS_SIN_USO días sin abrir GLACIAL en ese equipo: se borra y se vuelve a pedir usuario y contraseña.
+       «Uso» = abrir la app o tenerla abierta (cada lectura renueva la marca, como mucho una vez por hora).
+     · La sesión que ya estaba abierta en la pestaña (sessionStorage) se pasa al equipo: nadie tiene que volver a entrar por este cambio.
+     · Sin localStorage (modo privado estricto) se usa sessionStorage, como antes.
+     local / deSesion: objetos tipo Storage (o null). ahora: reloj (para las pruebas). */
+  const SESION_DIAS_SIN_USO = 7, SESION_RENOVAR_MS = 60 * 60 * 1000;
+  function crearAlmacenSesion(local, deSesion, claveSesion, ahora){
+    const sirve = a => { try { a.setItem('__glacial_prueba', '1'); a.removeItem('__glacial_prueba'); return true; } catch (_) { return false; } };
+    const hayLocal = !!local && sirve(local), haySesion = !!deSesion && sirve(deSesion);
+    if (!hayLocal) return haySesion ? deSesion : undefined;
+    const reloj = ahora || Date.now, claveUso = claveSesion + ':ultimo-uso', MAX = SESION_DIAS_SIN_USO * 24 * 60 * 60 * 1000;
+    const marcar = () => { try { local.setItem(claveUso, String(reloj())); } catch (_) { /* almacenamiento lleno: no impide entrar */ } };
+    if (haySesion) {
+      try {
+        const vieja = deSesion.getItem(claveSesion);
+        if (vieja != null) { if (local.getItem(claveSesion) == null) { local.setItem(claveSesion, vieja); marcar(); } deSesion.removeItem(claveSesion); }
+      } catch (_) { /* no se pudo pasar: se pedirá iniciar sesión */ }
+    }
+    return {
+      vencida: false,
+      getItem(k){
+        const v = local.getItem(k);
+        if (k !== claveSesion || v == null) return v;
+        const uso = Number(local.getItem(claveUso)) || 0, t = reloj();
+        if (uso && t - uso > MAX) { local.removeItem(claveSesion); local.removeItem(claveUso); this.vencida = true; return null; }
+        if (!uso || t - uso > SESION_RENOVAR_MS) marcar();
+        return v;
+      },
+      setItem(k, v){ local.setItem(k, v); if (k === claveSesion) { this.vencida = false; marcar(); } },
+      removeItem(k){ local.removeItem(k); if (k === claveSesion) local.removeItem(claveUso); }
+    };
+  }
   function transporteSupabase(config){
     if (!global.supabase || typeof global.supabase.createClient !== 'function') throw new Error('GLACIAL · falta cargar la librería supabase-js antes del puente.');
-    let almacen;
-    try { almacen = global.sessionStorage; almacen.setItem('__glacial_prueba', '1'); almacen.removeItem('__glacial_prueba'); }
-    catch (_) { almacen = undefined; }
     const proyecto = String(config.supabaseUrl || '').replace(/^https?:\/\//, '').split('.')[0] || 'local';
+    const tomar = n => { try { return global[n] || null; } catch (_) { return null; } };   // leer window.localStorage puede lanzar si está bloqueado
+    const almacen = crearAlmacenSesion(tomar('localStorage'), tomar('sessionStorage'), 'firebase:authUser:glacial:' + proyecto);
     const sb = global.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
       /* La sesión se guarda por proyecto: una sesión de PRUEBAS nunca se confunde con una de PRODUCCION. */
       auth: { persistSession: !!almacen, storage: almacen, storageKey: 'firebase:authUser:glacial:' + proyecto, autoRefreshToken: true, detectSessionInUrl: false },
@@ -1199,5 +1252,5 @@
 
   global.firebase = { initializeApp, apps, app: () => exigir(), firestore, auth, storage, SDK_VERSION: 'puente-supabase-1' };
   /* Para las pruebas automáticas. */
-  global.__GLACIAL_PUENTE__ = { cumpleFiltros, compararFiltro, aEnvio, aPagina, canon, claveDeLista, diferenciaDeLista, fijosCrecientes, Estado, construirOp, mezclar, resolver, Timestamp, FieldValue };
+  global.__GLACIAL_PUENTE__ = { cumpleFiltros, compararFiltro, aEnvio, aPagina, canon, claveDeLista, diferenciaDeLista, fijosCrecientes, Estado, construirOp, mezclar, resolver, Timestamp, FieldValue, crearAlmacenSesion, SESION_DIAS_SIN_USO };
 })(typeof window !== 'undefined' ? window : globalThis);

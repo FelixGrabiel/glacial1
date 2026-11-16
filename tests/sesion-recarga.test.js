@@ -153,7 +153,7 @@ const visible=(sb,id)=>sb.els[id].style.display!=='none'&&sb.els[id].style.displ
 
   /* 16) configuración y ciclo de vida (estático) */
   const cfg=leer('js/nucleo/01-config.js'),seg=leer('js/accesos/36-seguridad-auth.js'),html=leer('index.html');
-  ok(/Persistence\.SESSION/.test(cfg)&&!/Persistence\.LOCAL/.test(cfg),'la persistencia sigue siendo SESSION (no se cambió a LOCAL)');
+  ok(/setPersistence\(firebase\.auth\.Auth\.Persistence\.LOCAL\)/.test(cfg)&&!/setPersistence\([^)]*SESSION/.test(cfg),'la persistencia es LOCAL: la sesión queda guardada en el equipo (16/11/2026; antes SESSION)');
   ok(!/setPersistence\([^)]*\)\.catch\(\(\)\s*=>\s*\{\}\)/.test(cfg)&&/__authPersistenciaError/.test(cfg)&&/console\.error\('GLACIAL · no se pudo fijar la persistencia/.test(cfg),'el error de persistencia ya no se silencia (consola + __authPersistenciaError)');
   ok(/await \(window\.__authPersistenciaLista\|\|Promise\.resolve\(\)\)/.test(seg),'el login espera a que la persistencia quede fijada antes de iniciar sesión');
   const sinUnload=['js/accesos/03-auth.js','js/personal/13-tareo.js'].every(f=>{const s=leer(f);const m=s.match(/addEventListener\('(beforeunload|unload|pagehide)'[\s\S]{0,400}?\}\);/g)||[];return m.every(b=>!/signOut|DB_SESSION|sessionStorage\.removeItem|\.clear\(/.test(b));});
