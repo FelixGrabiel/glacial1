@@ -146,23 +146,23 @@ function _avisarErrorGuardado(nombreDato, error){
 const PERMISOS_APP=[
   {key:'nuevo',area:'produccion',label:'Nuevo registro'},
   {key:'historial',area:'produccion',label:'Historial'},
-  {key:'graficos',area:'visualizacion',label:'Gráficos'},
-  {key:'resumen',area:'visualizacion',label:'Resumen / Reportes'},
-  {key:'perdidasSoles',area:'visualizacion',label:'Impacto Económico (paradas no programadas)'},
+  {key:'graficos',area:'reportes',label:'Gráficos'},
+  {key:'resumen',area:'reportes',label:'Resumen / Reportes'},
+  {key:'perdidasSoles',area:'reportes',label:'Impacto Económico (paradas no programadas)'},
   {key:'paletas',area:'produccion',label:'Paletas (registro en tiempo real)'},
-  {key:'programarPaletas',area:'produccion',label:'Programar producción / Secuencia del turno'},
-  {key:'planificacion',area:'produccion',label:'Planificación (crear y editar la programación y el catálogo, aprobar solicitudes)'},
-    {key:'distribuirPersonal',area:'produccion',label:'Distribución de personal por línea (confirmar y cambiar en Tareo de Producción)'},
-  {key:'gestionar_rotacion_supervisores',area:'produccion',label:'Gestionar rotación de supervisores'},
+  {key:'programarPaletas',area:'planificacion',label:'Programar producción / Secuencia del turno'},
+  {key:'planificacion',area:'planificacion',label:'Planificación (crear y editar la programación y el catálogo, aprobar solicitudes)'},
+    {key:'distribuirPersonal',area:'tareo',label:'Distribución de personal por línea (confirmar y cambiar en Tareo de Producción)'},
+  {key:'gestionar_rotacion_supervisores',area:'tareo',label:'Gestionar rotación de supervisores'},
   {key:'gestionar_rotacion_mantenimiento',area:'mantenimiento',label:'Gestionar rotación de Mantenimiento y de maquinistas (Rotación semanal MTTO / Rotación maquinista)'},
   {key:'produccionActual',area:'produccion',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
-  {key:'inicioOperativo',area:'visualizacion',label:'Ver Inicio Operativo / Mi turno'},
-  {key:'ver_inicio_ejecutivo',area:'visualizacion',label:'Ver Inicio Ejecutivo (resumen corto de planta — Gerencia / Jefatura)'},
-  {key:'ver_programacion_turno',area:'visualizacion',label:'Inicio Operativo: ver Programación del turno'},
-  {key:'ver_insumos_turno',area:'visualizacion',label:'Inicio Operativo: ver Insumos del turno'},
+  {key:'inicioOperativo',area:'inicio',label:'Ver Inicio Operativo / Mi turno'},
+  {key:'ver_inicio_ejecutivo',area:'inicio',label:'Ver Inicio Ejecutivo (resumen corto de planta — Gerencia / Jefatura)'},
+  {key:'ver_programacion_turno',area:'inicio',label:'Inicio Operativo: ver Programación del turno'},
+  {key:'ver_insumos_turno',area:'inicio',label:'Inicio Operativo: ver Insumos del turno'},
   {key:'avanceProduccion',area:'produccion',label:'Avance y Cierre de Turno'},
   {key:'control_operativo_lineas',area:'mantenimiento',label:'Control operativo de líneas (Detener / Reanudar / Intervención terminada)'},
-  {key:'recibirAlertasProduccion',area:'visualizacion',label:'Recibir notificaciones y alertas de producción'},
+  {key:'recibirAlertasProduccion',area:'inicio',label:'Recibir notificaciones y alertas de producción'},
   {key:'gestionarPersonal',area:'administracion',label:'Gestionar usuarios y trabajadores (Administración / Supervisores)'},
   {key:'verLineasProduccion',area:'produccion',label:'Ver líneas de producción en el menú lateral'},
   {key:'tareoProduccion',area:'tareo',label:'GESTIONAR Tareo de Producción (registrar, editar, validar)'},
@@ -177,9 +177,9 @@ const PERMISOS_APP=[
   {key:'completar_motivo_parada',area:'mantenimiento',label:'Completar el motivo de paradas pendientes (necesita ver la bitácora)'},
   {key:'editar_salida_maquinistas',area:'mantenimiento',label:'Editar SOLO la hora de salida de maquinistas (con motivo; no cambia asistencia ni refrigerio)'},
   {key:'moduloRRHH',area:'rrhh',label:'Módulo de RRHH (Tareo, Tareo General, Historial y Resumen mensual — con edición y eliminación)'},
-  {key:'exportarExcel',area:'visualizacion',label:'Exportar Excel'},
-  {key:'exportarExcelGeneral',area:'visualizacion',label:'Exportar Excel general de planta'},
-  {key:'exportarJPG',area:'visualizacion',label:'Exportar JPG'},
+  {key:'exportarExcel',area:'reportes',label:'Exportar Excel'},
+  {key:'exportarExcelGeneral',area:'reportes',label:'Exportar Excel general de planta'},
+  {key:'exportarJPG',area:'reportes',label:'Exportar JPG'},
   {key:'todasLasLineas',area:'produccion',label:'Todas las líneas'},
   {key:'eliminarRegistros',area:'produccion',label:'Eliminar registros'},
   {key:'reabrirReporteProduccion',area:'produccion',label:'Reabrir reportes de producción finalizados'},
@@ -195,14 +195,17 @@ const PERMISOS_APP=[
 
 /* Áreas del catálogo (el orden es el de la pantalla de usuarios). */
 const AREAS_PERMISOS=[
+  {clave:'inicio',titulo:'Inicio y avisos'},
   {clave:'produccion',titulo:'Producción (Agua)'},
+  {clave:'planificacion',titulo:'Planificación y programación'},
   {clave:'hielo',titulo:'Hielo'},
   {clave:'tareo',titulo:'Tareo de Producción y general'},
   {clave:'mantenimiento',titulo:'Mantenimiento'},
   {clave:'rrhh',titulo:'Recursos Humanos (RRHH)'},
-  {clave:'visualizacion',titulo:'Visualización, reportes y exportación'},
-  {clave:'administracion',titulo:'Administración y configuración'},
-  {clave:'almacen',titulo:'Almacén'}
+  {clave:'asistente',titulo:'Asistente de Producción e Inventario de insumos'},
+  {clave:'almacen',titulo:'Almacén'},
+  {clave:'reportes',titulo:'Reportes, gráficos y exportación'},
+  {clave:'administracion',titulo:'Administración y configuración'}
 ];
 
 /* Lista de permisos agrupada por área, con el mismo marcado de siempre (checkbox + etiqueta).
@@ -213,17 +216,29 @@ function htmlPermisosPorArea(o){
   return AREAS_PERMISOS.map(a=>{
     const lista=PERMISOS_APP.filter(p=>p.area===a.clave);
     if(!lista.length)return '';
-    return '<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;'+
-      'margin-top:10px;padding:6px 0 4px;border-bottom:1px solid #d5dee6;">'+
-      '<strong style="font-size:13px;color:#033350;letter-spacing:.03em;">'+a.titulo.toUpperCase()+'</strong>'+
+    const marcados=lista.filter(p=>op.seleccionados.includes(p.key)).length;
+    return '<details open data-perm-modulo="'+a.clave+'" data-clase="'+op.clase+'" style="grid-column:1/-1;margin-top:10px;border:1px solid #d5dee6;border-radius:10px;padding:0 12px 10px;">'+
+      '<summary style="display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;padding:10px 0;list-style:none;">'+
+      '<strong style="font-size:13px;color:#033350;letter-spacing:.03em;">'+a.titulo.toUpperCase()+
+      ' <span data-perm-cuenta="'+a.clave+'" style="font-weight:600;color:#5d7283;letter-spacing:0;">· '+marcados+' de '+lista.length+'</span></strong>'+
       (op.deshabilitado?'':'<button type="button" class="btn btn-ghost btn-sm" data-perm-area-btn="'+a.clave+'" '+
-        'onclick="marcarAreaPermisos(\''+a.clave+'\',\''+op.clase+'\')">Marcar / quitar toda el área</button>')+'</div>'+
+        'onclick="event.preventDefault();event.stopPropagation();marcarAreaPermisos(\''+a.clave+'\',\''+op.clase+'\')">Marcar / quitar todo</button>')+'</summary>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 16px;">'+
       lista.map(p=>'<label style="display:flex;align-items:center;gap:8px;cursor:'+(op.deshabilitado?'not-allowed':'pointer')+';font-size:13px;">'+
         '<input type="checkbox" class="'+op.clase+'" value="'+p.key+'" data-area="'+a.clave+'"'+
         (op.seleccionados.includes(p.key)?' checked':'')+(op.deshabilitado?' disabled':'')+
-        (op.onchange?' onchange="'+op.onchange+'"':'')+'>'+p.label+'</label>').join('');
+        (op.onchange?' onchange="'+op.onchange+'"':'')+'>'+p.label+'</label>').join('')+'</div></details>';
   }).join('');
 }
+
+/* Cuenta «n de m» de cada módulo en la cabecera (se actualiza al marcar). */
+function actualizarCuentaPermisos(){
+  document.querySelectorAll('details[data-perm-modulo]').forEach(d=>{
+    const c=Array.from(d.querySelectorAll('input[type=checkbox]')),n=d.querySelector('[data-perm-cuenta]');
+    if(n)n.textContent='· '+c.filter(x=>x.checked).length+' de '+c.length;
+  });
+}
+if(typeof document!=='undefined')document.addEventListener('change',e=>{if(e.target&&e.target.closest&&e.target.closest('details[data-perm-modulo]'))actualizarCuentaPermisos();});
 
 /* Marca o quita todas las casillas de un área y avisa a los manejadores existentes. */
 function marcarAreaPermisos(area,clase){
