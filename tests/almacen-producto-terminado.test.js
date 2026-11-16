@@ -5,42 +5,73 @@ let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c)falla
 const leer=f=>fs.readFileSync(R+'/'+f,'utf8');
 const P=require(R+'/js/almacen/101-producto-terminado.js');
 
+// Producción anota ACUMULADOS (cada registro dice «llevo N paletas»); manda el último de cada tipo. Caso real: 6, 10, 15 y 28 acumuladas de Scala 7 L (126 und por paleta) + saldos.
 const pal=(id,linea,marca,pres,paletas,und,ms,extra)=>Object.assign({id,linea,fecha:'2026-11-16',turno:'DÍA',marca,presentacion:pres,hora:'10:20',tipoPaleta:'COMPLETA',paletas,totalUnidades:und,usuario:'Yeikari M.',creadoEn:ms,actualizadoEn:ms},extra||{});
-const paletas=[pal('pal_1','PET1','Scala','2.5 L',2,2400,1000),pal('pal_2','PET2','Aro','340 ml',3,3600,2000),pal('pal_3','B7L','Scala','7 L',1,840,3000),pal('pal_0','PET1','Scala','2.5 L',1,0,500)];
-let b=P.bandeja(paletas,[]);
-ok(b.length===3&&b.every(x=>x.estado==='PENDIENTE')&&b.map(x=>x.id).join()==='pal_3,pal_2,pal_1','todo lo anotado queda «por recibir» (más recientes primero) y las anotaciones sin unidades no cuentan');
+const b7=[pal('a1','B7L','Scala','7 Litros',6,756,1000),pal('s1','B7L','Scala','7 Litros',1,10,1001,{tipoPaleta:'INCOMPLETA'}),pal('a2','B7L','Scala','7 Litros',10,1260,2000),pal('s2','B7L','Scala','7 Litros',1,88,2001,{tipoPaleta:'INCOMPLETA'}),
+  pal('a3','B7L','Scala','7 Litros',15,1890,3000),pal('s3','B7L','Scala','7 Litros',1,90,3001,{tipoPaleta:'INCOMPLETA'}),pal('a4','B7L','Scala','7 Litros',28,3528,4000)];
+let b=P.bandeja(b7,[]);
+ok(b.length===1&&b[0].estado==='PENDIENTE'&&b[0].paleta.paletas===28&&b[0].paleta.totalUnidades===3528,'las anotaciones son ACUMULADAS: 6+10+15+28 se leen como 28 paletas (no 59) y 3 528 UND');
+ok(b[0].saldo===90&&b[0].acumulado.paletas===28,'el saldo incompleto es el último (90 UND) y no se suma a las paletas completas');
+const ea=P.estadoActual(b7);ok(ea.paletas===28&&ea.unidades===3528&&ea.saldo===90,'el último acumulado coincide con Avance y Cierre (28 completas, 3 528 UND, saldo 90)');
+const id=b[0].id;
+ok(/^PT_2026-11-16_b7l_dia_scala_7l_/.test(id)||/^PT_2026-11-16_/.test(id),'el id de la combinación es seguro y estable (' + id + ')');
 
-const rec=(paleta,n,estado,extra)=>Object.assign({opId:P.idRecepcion(paleta.id,n),tipo:'RECEPCION',estado,paletaId:paleta.id,secuencia:n,unidadesAnotadas:paleta.totalUnidades,unidadesRecibidas:paleta.totalUnidades,diferencia:0,anotadoActualizadoEn:paleta.actualizadoEn,usuario:'Ana'},extra||{});
-b=P.bandeja(paletas,[rec(paletas[0],1,'RECIBIDA'),rec(paletas[1],1,'DIFERENCIA',{unidadesRecibidas:3480,diferencia:-120,motivo:'una caja rota'}),rec(paletas[2],1,'OBSERVADA',{unidadesRecibidas:0,diferencia:-840,motivo:'film roto'})]);
-const e=id=>b.find(x=>x.id===id);
-ok(e('pal_1').estado==='RECIBIDA'&&e('pal_2').estado==='DIFERENCIA'&&e('pal_3').estado==='OBSERVADA','estados: recibida, con diferencia y en observación');
+// se recibe lo que falta: a las 10:03 había 10 acumuladas → se reciben 10; luego llegan a 28 y faltan 18
+const hasta10=b7.filter(x=>x.creadoEn<=2001);
+let p10=P.bandeja(hasta10,[])[0];
+ok(p10.paleta.paletas===10&&p10.paleta.totalUnidades===1260,'a las 10:03 Producción llevaba 10 paletas: eso es lo que hay por recibir');
+const d1=P.construirDocumento(p10,{tipo:'RECIBIDA'});
+ok(d1.opId===id+'_R1'&&d1.paletaId===id&&d1.paletasAnotadas===10&&d1.unidadesAnotadas===1260&&d1.unidadesRecibidas===1260&&d1.acumuladoPaletas===10,'recibir 10 guarda el tramo: 10 paletas, 1 260 UND');
+const rec1=Object.assign({},d1,{uid:'u1',guardadoEn:5000});
+b=P.bandeja(b7,[rec1]);
+const pend=b.find(x=>x.estado==='PENDIENTE');
+ok(pend&&pend.paleta.paletas===18&&pend.paleta.totalUnidades===3528-1260&&pend.siguiente===2&&pend.cubierto.paletas===10,'con 28 acumuladas y 10 ya recibidas faltan 18 paletas (2 268 UND), no 59');
+ok(b.some(x=>x.estado==='RECIBIDA'&&x.id===d1.opId&&x.paleta.paletas===10),'la recepción vigente aparece en Recibidas');
+const d2=P.construirDocumento(pend,{tipo:'RECIBIDA'});
+b=P.bandeja(b7,[rec1,Object.assign({},d2,{uid:'u1',guardadoEn:6000})]);
+ok(!b.some(x=>x.estado==='PENDIENTE')&&b.filter(x=>x.estado==='RECIBIDA').reduce((n,x)=>n+x.paleta.paletas,0)===28,'recibidas 10 + 18 = 28: ya no queda nada por recibir');
 let r=P.resumen(b,'2026-11-16');
-ok(r.pendientes===0&&r.recibidas===2&&r.diferencias===1&&r.faltante===120&&r.observadas===1&&r.recibidasHoyUnidades===2400+3480&&r.recibidasHoyPaletas===5,'resumen: recibidas, faltante, observadas y lo de hoy');
-// anulación: vuelve a por recibir y la siguiente recepción es la R2
-const anu={opId:P.idAnulacion('pal_1_R1'),tipo:'ANULACION',anulaA:'pal_1_R1',paletaId:'pal_1',motivo:'se recibió por error'};
-b=P.bandeja(paletas,[rec(paletas[0],1,'RECIBIDA'),anu]);
-ok(e('pal_1').estado==='PENDIENTE'&&e('pal_1').anulada&&e('pal_1').siguiente===2&&P.construirDocumento(e('pal_1'),{tipo:'RECIBIDA'}).opId==='pal_1_R2','anular devuelve la paleta a «por recibir» y la nueva recepción usa el id _R2 (no se pisa el historial)');
-b=P.bandeja(paletas,[rec(paletas[0],1,'RECIBIDA'),anu,rec(paletas[0],2,'DIFERENCIA',{unidadesRecibidas:2300,diferencia:-100,motivo:'faltaron 100'})]);
-ok(e('pal_1').estado==='DIFERENCIA'&&e('pal_1').historial.length===2,'después de anular se puede volver a recibir; el historial conserva ambas');
-// el acumulado
-b=P.bandeja(paletas,[rec(paletas[0],1,'RECIBIDA'),rec(paletas[1],1,'DIFERENCIA',{unidadesRecibidas:3480,diferencia:-120,motivo:'x1234'}),rec(paletas[2],1,'OBSERVADA',{unidadesRecibidas:0,diferencia:-840,motivo:'film roto'})]);
-const ac=P.acumulado(b,'');
-ok(ac.length===2&&ac[0].unidades===3480&&ac[1].unidades===2400&&!ac.some(x=>x.linea==='B7L'),'el acumulado suma lo que llegó y NO incluye las paletas en observación');
-// cambios posteriores de Producción
-const editada=paletas.map(p=>p.id==='pal_1'?{...p,totalUnidades:2300,actualizadoEn:9999}:p);
-b=P.bandeja(editada,[rec(paletas[0],1,'RECIBIDA')]);
-ok(e('pal_1').cambioPosterior===true,'si Producción cambia la anotación después de recibirla, se avisa');
+ok(r.pendientes===0&&r.recibidas===2&&r.recibidasHoyPaletas===28&&r.recibidasHoyUnidades===3528,'resumen: 28 paletas recibidas, 3 528 UND');
+// anulación: el tramo vuelve a por recibir
+const anu={opId:P.idAnulacion(d2.opId),tipo:'ANULACION',anulaA:d2.opId,paletaId:id,motivo:'se recibió por error'};
+b=P.bandeja(b7,[rec1,Object.assign({},d2,{uid:'u1',guardadoEn:6000}),anu]);
+const pa=b.find(x=>x.estado==='PENDIENTE');
+ok(pa&&pa.paleta.paletas===18&&pa.siguiente===3&&P.construirDocumento(pa,{tipo:'RECIBIDA'}).opId===id+'_R3','anular devuelve las 18 paletas a «por recibir» y la nueva recepción usa _R3');
+const recib=b.find(x=>x.id===d1.opId);
+ok(P.documentoAnulacion(recib,'se recibió por error').paletaId===id&&P.documentoAnulacion(recib,'x').anulaA===d1.opId,'la anulación apunta a la recepción y a su combinación');
 
-// validación
-const pend=P.bandeja(paletas,[]).find(x=>x.id==='pal_1');
-ok(P.validarRecepcion(pend,{tipo:'RECIBIDA'}).length===0,'recibir completo no pide nada más');
-ok(P.validarRecepcion(pend,{tipo:'DIFERENCIA',unidadesRecibidas:2400,motivo:'lo mismo'}).length>0,'«con diferencia» con la misma cantidad se rechaza (usa Recibir)');
-ok(P.validarRecepcion(pend,{tipo:'DIFERENCIA',unidadesRecibidas:2300,motivo:'ok'}).length>0&&P.validarRecepcion(pend,{tipo:'DIFERENCIA',unidadesRecibidas:2300.5,motivo:'faltaron cajas'}).length>0&&P.validarRecepcion(pend,{tipo:'DIFERENCIA',unidadesRecibidas:-3,motivo:'faltaron cajas'}).length>0,'diferencia: motivo de 5+ caracteres y unidades enteras de 0 o más');
-ok(P.validarRecepcion(pend,{tipo:'DIFERENCIA',unidadesRecibidas:2300,motivo:'faltaron 100 UND'}).length===0&&P.validarRecepcion(pend,{tipo:'DIFERENCIA',unidadesRecibidas:0,motivo:'no llegó la paleta'}).length===0,'diferencia válida (también 0 unidades)');
-ok(P.validarRecepcion(pend,{tipo:'OBSERVADA',motivo:''}).length>0&&P.validarRecepcion(pend,{tipo:'OBSERVADA',motivo:'film roto'}).length===0,'observación: el motivo es obligatorio');
-ok(P.validarRecepcion(P.bandeja(paletas,[rec(paletas[0],1,'RECIBIDA')]).find(x=>x.id==='pal_1'),{tipo:'RECIBIDA'}).length>0,'no se puede recibir dos veces la misma anotación');
-const d=P.construirDocumento(pend,{tipo:'OBSERVADA',motivo:'film roto'});
-ok(d.estado==='OBSERVADA'&&d.unidadesRecibidas===0&&d.unidadesAnotadas===2400&&d.diferencia===-2400&&d.opId==='pal_1_R1'&&d.linea==='PET1','el documento de una observación: 0 recibidas, todo lo anotado como diferencia');
+// con diferencia / observada
+p10=P.bandeja(b7,[])[0];
+ok(P.validarRecepcion(p10,{tipo:'RECIBIDA'}).length===0,'recibir lo nuevo no pide nada más');
+ok(P.validarRecepcion(p10,{tipo:'DIFERENCIA',unidadesRecibidas:3528,motivo:'lo mismo'}).length>0,'«con diferencia» con la misma cantidad se rechaza (usa Recibir)');
+ok(P.validarRecepcion(p10,{tipo:'DIFERENCIA',unidadesRecibidas:3400,motivo:'ok'}).length>0&&P.validarRecepcion(p10,{tipo:'DIFERENCIA',unidadesRecibidas:3400.5,motivo:'faltaron cajas'}).length>0&&P.validarRecepcion(p10,{tipo:'DIFERENCIA',unidadesRecibidas:-1,motivo:'faltaron cajas'}).length>0,'la diferencia pide número entero y motivo de 5 o más caracteres');
+ok(P.validarRecepcion(p10,{tipo:'DIFERENCIA',unidadesRecibidas:3400,motivo:'faltaron 128 UND'}).length===0&&P.validarRecepcion(p10,{tipo:'OBSERVADA',motivo:'film roto'}).length===0&&P.validarRecepcion(p10,{tipo:'OBSERVADA',motivo:''}).length>0,'diferencia y observación válidas con su motivo');
+const dd=P.construirDocumento(p10,{tipo:'DIFERENCIA',unidadesRecibidas:3400,motivo:'faltaron 128 UND'});
+ok(dd.estado==='DIFERENCIA'&&dd.unidadesRecibidas===3400&&dd.diferencia===-128&&dd.unidadesAnotadas===3528&&dd.linea==='B7L','el documento con diferencia guarda lo que llegó (3 400) y la diferencia (−128)');
+b=P.bandeja(b7,[Object.assign({},dd,{uid:'u1',guardadoEn:7000})]);
+let ac=P.acumulado(b,'');
+ok(ac.length===1&&ac[0].unidades===3400&&r!==null,'el acumulado suma lo que llegó (3 400), no lo anotado');
+const dobs=P.construirDocumento(p10,{tipo:'OBSERVADA',motivo:'film roto'});
+b=P.bandeja(b7,[Object.assign({},dobs,{uid:'u1',guardadoEn:7000})]);
+ok(!b.some(x=>x.estado==='PENDIENTE')&&P.acumulado(b,'').length===0&&P.resumen(b,'').observadas===1,'una paleta en observación sale de «por recibir», cuenta como observada y NO entra al acumulado');
+
+// si Producción baja el acumulado después de recibir, se avisa
+const baja=b7.concat([pal('a5','B7L','Scala','7 Litros',20,2520,9000)]);
+b=P.bandeja(baja,[Object.assign({},d1,{uid:'u1',guardadoEn:5000}),Object.assign({},d2,{uid:'u1',guardadoEn:6000})]);
+ok(b.some(x=>x.cambioPosterior===true),'si Producción corrige el acumulado por debajo de lo recibido (28 → 20), se avisa en la recepción');
+
+// varias combinaciones: se agrupan por producto, los turnos no se mezclan
+const mix=[pal('x1','PET1','Scala','2.5 L',5,600,1000),pal('x2','PET1','Scala','2.5 L',3,360,1500,{turno:'NOCHE'}),pal('x3','PET2','Aro','340 ml',2,300,2000)];
+b=P.bandeja(mix,[]);
+const g=P.agrupar(b);
+ok(b.length===3&&g.length===2&&g[0].paletas===8&&g[0].items.length===2&&g[1].paletas===2,'cada turno acumula por separado y se agrupan por línea y producto (PET1 Scala: 5 + 3 = 8 paletas)');
+ok(P.claveGrupo(pal('q','PET1','Scala','2.5 L',1,1,1))===P.claveGrupo(pal('q','PET1','scala','2.5 litros',1,1,1)),'la combinación se normaliza igual que en Producción (2.5 L = 2.5 litros)');
+
+// cambió la tasa de unidades por paleta: igual hay paletas nuevas por recibir (se estiman unidades con la tasa actual)
+{const k=pal('k1','PET1','Scala','2.5 L',2,2400,1000),k2=pal('k2','PET1','Scala','2.5 L',3,3000,2000);
+ const dk=P.construirDocumento(P.bandeja([k],[])[0],{tipo:'RECIBIDA'});
+ const it=P.bandeja([k,k2],[Object.assign({},dk,{uid:'u',guardadoEn:1500})]).find(x=>x.estado==='PENDIENTE');
+ ok(it&&it.paleta.paletas===1&&it.paleta.totalUnidades===600,'si cambia la tasa de unidades por paleta, la paleta nueva igual se recibe (unidades estimadas con la tasa actual)');}
 
 // migración
 const sql=leer('supabase/migraciones/glacial_56_almacen_producto_terminado.sql');
@@ -53,6 +84,6 @@ ok(/id="btn-almacen-pt"[\s\S]{0,120}goAlmacenPT\(\)/.test(idx)&&idx.indexOf('id=
 ok(/state\.currentTab==='almacen-pt'\)return 'almacen'/.test(sb)&&/101-producto-terminado\.js/.test(idx),'el grupo Almacén se abre solo y el módulo se carga');
 ok(/tienePermiso\('moduloAlmacen'\)/.test(js)&&!/sync'\)\.doc\('paletas'\)\.(set|update)/.test(js)&&/db\.collection\('almacenPtRecepcion'\)/.test(js),'usa el permiso de Almacén, escribe solo en almacenPtRecepcion y nunca en sync/paletas');
 ok(P.INICIO_PT==='2026-11-16','el producto terminado cuenta desde el 16/11/2026');
-{const ps=[{id:'a',totalUnidades:10,fecha:'2026-11-15'},{id:'b',totalUnidades:10,fecha:'2026-11-16'},{id:'c',totalUnidades:10,fecha:'2026-11-17'}];
- ok(P.bandeja(ps,[],P.INICIO_PT).map(x=>x.id).sort().join()==='b,c','lo anotado antes de la fecha de inicio no entra a la bandeja'&&P.bandeja(ps,[]).length===3);}
+{const f=(id,fecha)=>pal(id,'PET1','Scala','2.5 L',2,240,1000,{fecha});const ps=[f('a','2026-11-15'),f('b','2026-11-16'),f('c','2026-11-17')];
+ ok(P.bandeja(ps,[],P.INICIO_PT).length===2&&P.bandeja(ps,[]).length===3,'lo anotado antes de la fecha de inicio no entra a la bandeja');}
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

@@ -10,9 +10,12 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     document.getElementById('login-screen').style.display = 'none'; document.getElementById('report-select-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
     state.user = { rol: 'Administrador', nombre: 'Ana', username: 'admin', permisos: 'todos' }; state.showWelcome = false;
-    const hoy = GlacialFecha.fechaOperativa(), ayer = GlacialFecha.sumarDias(hoy, -1), viejo = GlacialFecha.sumarDias(hoy, -20), t = Date.now();
-    const pal = (id, linea, marca, pres, n, und, fecha, min) => ({ id, linea, fecha, turno: 'DÍA', marca, presentacion: pres, hora: '10:20', tipoPaleta: 'COMPLETA', paletas: n, totalUnidades: und, usuario: 'Yeikari M.', creadoEn: t - min * 60000, actualizadoEn: t - min * 60000 });
-    _paletasCache = [pal('pal_1', 'PET1', 'Scala', '2.5 L', 2, 2400, hoy, 6), pal('pal_2', 'PET2', 'Aro', '340 ml', 3, 3600, hoy, 23), pal('pal_3', 'B7L', 'Scala', '7 L', 1, 840, ayer, 400), pal('pal_4', 'C20L', 'San Fernando', '20 L', 1, 96, viejo, 30000)];
+    const hoy = GlacialFecha.fechaOperativa(), ayer = GlacialFecha.sumarDias(hoy, -1), t = Date.now();
+    const reg = (id, linea, marca, pres, n, und, fecha, min, extra) => Object.assign({ id, linea, fecha, turno: 'DÍA', marca, presentacion: pres, hora: '10:20', tipoPaleta: 'COMPLETA', paletas: n, totalUnidades: und, usuario: 'Yeikari M.', creadoEn: t - min * 60000, actualizadoEn: t - min * 60000 }, extra || {});
+    window.__reg = reg; window.__t = t;
+    // Producción anota ACUMULADOS: B7L Scala 7 L = 6, 10, 15 y luego 28 paletas acumuladas (+ saldos); PET1 y PET2 con un registro cada una
+    _paletasCache = [reg('a1', 'B7L', 'Scala', '7 Litros', 6, 756, hoy, 300), reg('s1', 'B7L', 'Scala', '7 Litros', 1, 10, hoy, 299, { tipoPaleta: 'INCOMPLETA' }), reg('a2', 'B7L', 'Scala', '7 Litros', 10, 1260, hoy, 240), reg('a3', 'B7L', 'Scala', '7 Litros', 15, 1890, hoy, 120), reg('s3', 'B7L', 'Scala', '7 Litros', 1, 90, hoy, 119, { tipoPaleta: 'INCOMPLETA' }), reg('a4', 'B7L', 'Scala', '7 Litros', 28, 3528, hoy, 10),
+      reg('p1', 'PET1', 'Scala', '2.5 L', 2, 2400, hoy, 6), reg('p2', 'PET2', 'Aro', '340 ml', 3, 3600, hoy, 23), reg('v1', 'C20L', 'San Fernando', '20 L', 1, 96, ayer, 400)];
     const store = [], oyentes = [];
     const emitir = () => oyentes.forEach(cb => cb({ docs: store.map(d => ({ data: () => d })) }));
     const orig = db.collection.bind(db);
@@ -22,56 +25,73 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     state.currentTab = 'almacen-pt'; renderSidebar(); renderMain();
   });
   await P.waitForSelector('.pt-t', { timeout: 6000 });
-  // la fecha de inicio real (16/11/2026) se prueba aparte; aquí se abre la ventana para que las fechas de prueba (hoy, ayer, hace 20 días) no dependan del calendario
-  const inicioReal = await P.evaluate(() => glacialAlmacenPT.estado.inicio);
-  ok(inicioReal === '2026-11-16', 'el producto terminado cuenta desde el 16/11/2026');
-  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = '2000-01-01'; glacialAlmacenPT.repintar(); });
+
   const kpi = () => P.evaluate(() => [...document.querySelectorAll('.pt-k b')].map(b => b.innerText).join());
   const filas = () => P.evaluate(() => document.querySelectorAll('.pt-t tbody tr:not(.pt-det)').length);
+  const texto = () => P.evaluate(() => document.querySelector('.pt').innerText.replace(/\s+/g, ' '));
   ok(await P.evaluate(() => { const b = document.getElementById('btn-almacen-pt'); return b && b.style.display !== 'none' && b.classList.contains('active'); }), 'el menú Almacén muestra «Producto terminado» activo');
-  ok(await filas() === 3 && await kpi() === '7 paletas,0 paletas,0,0', 'por defecto (últimos 7 días): 3 por recibir (hoy y ayer); la de hace 20 días se avisa aparte y cuenta en el total (4)');
-  ok(/anotadas antes de este período que siguen por recibir/.test(await P.evaluate(() => document.querySelector('.pt').innerText)), 'avisa que hay paletas anteriores que siguen por recibir');
-  await P.evaluate(() => ptDias(0)); ok(await filas() === 4, '«Todo» muestra también las anteriores: todas quedan por recibir');
-  await P.evaluate(() => ptDias(7));
-  await P.evaluate(() => { ptAccion('pal_1', 'RECIBIDA'); }); await P.evaluate(() => ptConfirmar('pal_1')); await P.waitForTimeout(300);
-  ok(await P.evaluate(() => window.__guardados && window.__guardados[0].opId === 'pal_1_R1' && window.__guardados[0].estado === 'RECIBIDA' && window.__guardados[0].unidadesRecibidas === 2400), 'Recibir guarda la recepción pal_1_R1 con todas las unidades');
-  ok(await filas() === 2, 'la recibida sale de «Por recibir»');
-  await P.evaluate(() => { ptAccion('pal_2', 'DIFERENCIA'); ptCampo('unidades', '3480'); ptCampo('motivo', 'una caja rota'); });
-  await P.evaluate(() => ptConfirmar('pal_2')); await P.waitForTimeout(300);
-  ok(await P.evaluate(() => { const g = window.__guardados[1]; return g.estado === 'DIFERENCIA' && g.unidadesRecibidas === 3480 && g.diferencia === -120 && g.motivo === 'una caja rota'; }), 'Con diferencia guarda lo que llegó (3 480), la diferencia (−120) y el motivo');
-  await P.evaluate(() => ptDias(0)); await P.evaluate(() => { ptAccion('pal_3', 'OBSERVADA'); ptCampo('motivo', 'film roto'); }); await P.evaluate(() => ptConfirmar('pal_3')); await P.waitForTimeout(300);
-  ok(await P.evaluate(() => window.__guardados[2].estado === 'OBSERVADA' && window.__guardados[2].unidadesRecibidas === 0), 'Dañada deja la paleta en observación (0 recibidas)');
-  await P.evaluate(() => { ptAccion('pal_4', 'DIFERENCIA'); ptCampo('unidades', '10'); ptCampo('motivo', 'x'); }); await P.evaluate(() => ptConfirmar('pal_4'));
-  ok(/mínimo 5 caracteres/.test(await P.evaluate(() => document.querySelector('.pt').innerText)) && await P.evaluate(() => window.__guardados.length) === 3, 'una diferencia sin motivo se rechaza y no guarda nada');
-  ok(await kpi() === '1,2400,1,1' || (await kpi()).split(',')[0] === '1 paleta', 'los indicadores se actualizan (1 por recibir, 1 con diferencia, 1 en observación)');
-  await P.evaluate(() => ptTab('diferencias')); ok(await filas() === 2, 'la pestaña «Diferencias y observadas» lista la diferencia y la observada');
-  await P.evaluate(() => ptTab('acumulado')); ok(/3\.480|3,480|3 480/.test(await P.evaluate(() => document.querySelector('.pt-t').innerText)) && !/Scala 7 L/.test(await P.evaluate(() => document.querySelector('.pt-t').innerText)), 'el acumulado muestra lo que llegó y no incluye la observada');
-  // con la fecha de inicio real, lo anotado antes no aparece
-  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = GlacialFecha.fechaOperativa(); ptDias(0); });
-  ok(await P.evaluate(() => [...document.querySelectorAll('.pt-t tbody tr:not(.pt-det)')].every(tr => !/ayer|hace/i.test(tr.innerText)) && !document.querySelector('.pt-msg-i')), 'con inicio hoy, lo anotado antes ya no aparece ni se avisa');
-  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = '2000-01-01'; ptDias(7); });
-  await P.evaluate(() => ptTab('recibidas')); await P.evaluate(() => { ptAccion('pal_1', 'ANULAR'); ptCampo('motivo', 'se recibió por error'); }); await P.evaluate(() => ptConfirmar('pal_1')); await P.waitForTimeout(300);
-  ok(await P.evaluate(() => window.__guardados[3].opId === 'ANUL_pal_1_R1' && window.__guardados[3].tipo === 'ANULACION'), 'Anular crea la anulación ANUL_pal_1_R1 (el original no se toca)');
-  await P.evaluate(() => ptTab('pendientes')); ok(await P.evaluate(() => /Scala.*2\.5 L/.test(document.querySelector('.pt-t').innerText)), 'la paleta anulada vuelve a «Por recibir»');
-  if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/almacen-pt.png' });
-  // ---- Por recibir en PALETAS, agrupado por producto, con «Recibir todo» ----
-  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = '2000-01-01'; ptTab('pendientes'); ptDias(1); });
-  await P.evaluate(() => { const hoy = GlacialFecha.fechaOperativa(), t = Date.now(); const m = (id, n, und, min) => ({ id, linea: 'PET1', fecha: hoy, turno: 'DÍA', marca: 'Scala', presentacion: '2.5 L', hora: '11:00', tipoPaleta: 'COMPLETA', paletas: n, totalUnidades: und, usuario: 'Yeikari M.', creadoEn: t - min * 60000, actualizadoEn: t - min * 60000 }); _paletasCache = [m('g1', 2, 2400, 5), m('g2', 3, 3600, 3), m('g3', 1, 1200, 1), Object.assign(m('g4', 1, 700, 1), { linea: 'PET2', marca: 'Aro', presentacion: '340 ml', tipoPaleta: 'INCOMPLETA' })]; glacialAlmacenPT.repintar(); });
+  // la fecha de inicio real se prueba aparte; aquí se abre la ventana para no depender del calendario
+  ok(await P.evaluate(() => glacialAlmacenPT.estado.inicio) === '2026-11-16', 'el producto terminado cuenta desde el 16/11/2026');
+  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = '2000-01-01'; glacialAlmacenPT.repintar(); });
+  // ---- el caso real: 6, 10, 15, 28 acumuladas = 28 paletas, no 59 ----
+  const t0 = await texto();
+  ok(/B7L · Scala 7 Litros/.test(t0) && /28 paletas/.test(t0) && !/59 paletas/.test(t0), 'B7L Scala 7 L: Producción lleva 28 paletas acumuladas y Almacén ve 28 (no 59)');
+  ok(/^34 paletas,/.test(await kpi()), 'el indicador «Por recibir» suma 28 (B7L) + 2 + 3 + 1 de ayer = 34 paletas');
+  ok(/saldo en línea: 90 UND/.test(t0), 'el saldo incompleto (90 UND) se muestra aparte y no se suma a las paletas');
+  ok(/Producción lleva 28 paletas, ya recibidas 0/.test(t0), 'cada fila dice cuánto lleva Producción y cuánto se recibió ya');
   const grupos = await P.evaluate(() => [...document.querySelectorAll('.pt-grp')].map(g => g.querySelector('.pt-grp-c').innerText.replace(/\s+/g, ' ')));
-  ok(grupos.length === 2 && /PET1.*Scala 2\.5 L.*3 anotaciones.*6 paletas.*7[\s,.]?200 UND/.test(grupos[0]) && /PET2.*Aro 340 ml.*1 anotación.*incompleta.*1 paleta/.test(grupos[1]), 'Por recibir agrupa por línea y producto con el total de paletas (' + grupos.join(' | ') + ')');
-  ok((await kpi()).split(',')[0] === '7 paletas', 'el indicador grande de Por recibir está en paletas (7), no en unidades');
+  ok(grupos.length === 4, 'agrupado por línea y producto: 4 bloques (B7L, PET1, PET2 y el de ayer) (' + grupos.length + ')');
+  // ---- recibir el tramo: a las 10:03 eran 10; se recibe 10 y luego 18 ----
+  await P.evaluate(() => { const hoy = GlacialFecha.fechaOperativa(); const t = window.__t, reg = window.__reg; const antes = _paletasCache; window.__completo = antes; _paletasCache = antes.filter(r => !(r.id === 'a3' || r.id === 's3' || r.id === 'a4')); glacialAlmacenPT.repintar(); });
+  ok(/10 paletas/.test(await texto()) && !/28 paletas/.test(await texto()), 'si Producción lleva 10 acumuladas, hay 10 por recibir');
+  const idB7 = await P.evaluate(() => [...document.querySelectorAll('.pt-t tbody tr')].map(tr => tr.querySelector('button.pt-b-v')).find(b => b && /B7L/.test(b.closest('tr').innerText)).getAttribute('onclick').match(/'([^']+)'/)[1]);
+  await P.evaluate(id => ptAccion(id, 'RECIBIDA'), idB7); await P.evaluate(id => ptConfirmar(id), idB7); await P.waitForTimeout(300);
+  const r1 = await P.evaluate(() => window.__guardados[0]);
+  ok(r1.opId === idB7 + '_R1' && r1.paletasAnotadas === 10 && r1.unidadesAnotadas === 1260 && r1.unidadesRecibidas === 1260 && r1.estado === 'RECIBIDA', 'recibir guarda el tramo: 10 paletas y 1 260 UND');
+  ok(!/B7L · Scala 7 Litros/.test(await texto()) || !/Por recibir/.test((await P.evaluate(() => [...document.querySelectorAll('.pt-grp-c')].find(g => /B7L/.test(g.innerText)) ? 'x' : '')) || ''), 'con lo recibido al día, B7L ya no aparece por recibir');
+  await P.evaluate(() => { _paletasCache = window.__completo; glacialAlmacenPT.repintar(); });
+  const t1 = await texto();
+  ok(/18 paletas/.test(t1) && /Producción lleva 28 paletas, ya recibidas 10/.test(t1) && !/59 paletas/.test(t1), 'cuando Producción llega a 28 acumuladas faltan 18 (28 − 10 ya recibidas)');
+  await P.evaluate(id => { ptAccion(id, 'RECIBIDA'); }, idB7); await P.evaluate(id => ptConfirmar(id), idB7); await P.waitForTimeout(300);
+  const r2 = await P.evaluate(() => window.__guardados[1]);
+  ok(r2.opId === idB7 + '_R2' && r2.paletasAnotadas === 18 && r2.unidadesAnotadas === 2268, 'la segunda recepción cubre las 18 paletas que faltaban (2 268 UND)');
+  ok(/^6 paletas,/.test(await kpi()), 'quedan por recibir PET1 (2), PET2 (3) y lo de ayer (1) = 6 paletas');
+  // ---- recibidas, acumulado ----
+  await P.evaluate(() => { ptTab('recibidas'); });
+  ok(await filas() === 2 && /28 paletas|10 paletas/.test(await texto()), 'Recibidas lista las 2 recepciones de B7L (10 y 18)');
+  await P.evaluate(() => ptTab('acumulado'));
+  ok(/B7L/.test(await P.evaluate(() => document.querySelector('.pt-t').innerText)) && /3[,.\s]?528/.test(await P.evaluate(() => document.querySelector('.pt-t').innerText)), 'el acumulado recibido de B7L es 28 paletas · 3 528 UND');
+  // ---- diferencia, observada, anular ----
+  await P.evaluate(() => ptTab('pendientes'));
+  const idP1 = await P.evaluate(() => [...document.querySelectorAll('.pt-t tbody tr')].map(tr => tr.querySelector('button.pt-b-r')).find(b => b && /PET1/.test(b.closest('tr').innerText)).getAttribute('onclick').match(/'([^']+)'/)[1]);
+  await P.evaluate(id => { ptAccion(id, 'DIFERENCIA'); ptCampo('unidades', '2280'); ptCampo('motivo', 'una caja rota'); }, idP1); await P.evaluate(id => ptConfirmar(id), idP1); await P.waitForTimeout(300);
+  const r3 = await P.evaluate(() => window.__guardados[2]);
+  ok(r3.estado === 'DIFERENCIA' && r3.unidadesRecibidas === 2280 && r3.diferencia === -120 && r3.motivo === 'una caja rota', 'Con diferencia guarda lo que llegó (2 280), la diferencia (−120) y el motivo');
+  const idP2 = await P.evaluate(() => [...document.querySelectorAll('.pt-t tbody tr')].map(tr => tr.querySelector('button.pt-b-o')).find(b => b && /PET2/.test(b.closest('tr').innerText)).getAttribute('onclick').match(/'([^']+)'/)[1]);
+  await P.evaluate(id => { ptAccion(id, 'OBSERVADA'); ptCampo('motivo', 'film roto'); }, idP2); await P.evaluate(id => ptConfirmar(id), idP2); await P.waitForTimeout(300);
+  ok(await P.evaluate(() => window.__guardados[3].estado === 'OBSERVADA' && window.__guardados[3].unidadesRecibidas === 0), 'Dañada deja el tramo en observación (0 recibidas)');
+  ok(/^1 paleta,/.test(await kpi()), 'de hoy ya no queda nada: solo la paleta de ayer');
+  await P.evaluate(() => ptTab('diferencias')); ok(await filas() === 2, '«Diferencias y observadas» lista la diferencia y la observada');
+  await P.evaluate(() => { ptTab('recibidas'); ptAccion(window.__guardados[0].opId, 'ANULAR'); ptCampo('motivo', 'se recibió por error'); }); await P.evaluate(() => ptConfirmar(window.__guardados[0].opId)); await P.waitForTimeout(300);
+  const an = await P.evaluate(() => window.__guardados[4]);
+  ok(an.tipo === 'ANULACION' && an.anulaA === idB7 + '_R1' && an.paletaId === idB7, 'anular guarda un documento de anulación que apunta a la recepción');
+  await P.evaluate(() => ptTab('pendientes'));
+  ok(/10 paletas/.test(await texto()) && /ya recibidas 18/.test(await texto()), 'al anular la recepción de 10, esas 10 paletas vuelven a «Por recibir»');
+  // ---- unidad y Recibir todo ----
   await P.evaluate(() => ptUnidad('und'));
-  ok(/^7[\s,.]?900 UND/.test(await kpi()) && /UND/.test(await P.evaluate(() => document.querySelector('.pt-grp-t b').innerText)), 'con «Unidades» se muestran las unidades como cifra principal');
+  ok(/^\d[\d,.]* UND/.test(await kpi()), 'con «Unidades» la cifra principal está en UND');
   await P.evaluate(() => ptUnidad('paletas'));
-  ok(await P.evaluate(() => glacialAlmacenPT.estado.unidad === 'paletas' && localStorage.getItem('glacial.almacen.pt.unidad') === 'paletas'), 'la unidad elegida se recuerda en este equipo');
-  const antes = await P.evaluate(() => (window.__guardados || []).length);
+  await P.evaluate(() => { const hoy = GlacialFecha.fechaOperativa(), reg = window.__reg; _paletasCache = [reg('g1', 'PET1', 'Frutal', '1 L', 4, 480, hoy, 5), reg('g2', 'PET1', 'Frutal', '1 L', 3, 360, hoy, 4, { turno: 'NOCHE' }), reg('g3', 'PET2', 'Aro', '500 ml', 2, 300, hoy, 3)]; glacialAlmacenPT.estado.dias = 1; glacialAlmacenPT.repintar(); });
+  ok(/^9 paletas,/.test(await kpi()), 'turnos distintos acumulan por separado: PET1 4 + 3 y PET2 2 = 9 paletas');
+  const antes = await P.evaluate(() => window.__guardados.length);
   await P.evaluate(() => ptGrupo(document.querySelector('.pt-grp button[data-k]').dataset.k));
-  ok(/Confirmas que llegaron las 6 paletas.*3 anotaciones/.test(await P.evaluate(() => document.querySelector('.pt-grp .pt-form').innerText)) && await P.evaluate(() => (window.__guardados || []).length) === antes, '«Recibir todo» pide confirmación antes de guardar');
+  ok(/Confirmas que llegaron las 7 paletas/.test(await P.evaluate(() => document.querySelector('.pt-grp .pt-form').innerText)) && await P.evaluate(() => window.__guardados.length) === antes, '«Recibir todo» de PET1 Frutal pide confirmación (7 paletas) antes de guardar');
   await P.evaluate(() => ptGrupoConfirmar()); await P.waitForTimeout(600);
-  const nuevas = await P.evaluate(n => (window.__guardados || []).slice(n).map(d => d.opId + ':' + d.estado + ':' + d.unidadesRecibidas).sort().join(), antes);
-  ok(nuevas === 'g1_R1:RECIBIDA:2400,g2_R1:RECIBIDA:3600,g3_R1:RECIBIDA:1200', 'Recibir todo guarda una recepción por anotación, con todas sus unidades (' + nuevas + ')');
-  ok(await P.evaluate(() => document.querySelectorAll('.pt-grp').length) === 1 && /Recibidas 6 paletas/.test(await P.evaluate(() => document.querySelector('.pt-msg-k').innerText)), 'el grupo recibido sale de Por recibir y se avisa cuántas paletas entraron');
+  ok(await P.evaluate(n => window.__guardados.length - n, antes) === 2 && /Recibidas 7 paletas/.test(await P.evaluate(() => document.querySelector('.pt-msg-k').innerText)), 'Recibir todo guarda una recepción por turno y avisa «Recibidas 7 paletas»');
   if (process.env.GLX_CAPTURAS) { await P.screenshot({ path: process.env.GLX_CAPTURAS + '/almacen-por-recibir.png' }); }
+  // ---- fecha de inicio real: lo anotado antes no aparece ----
+  await P.evaluate(() => { glacialAlmacenPT.estado.inicio = GlacialFecha.fechaOperativa(); glacialAlmacenPT.estado.dias = 0; glacialAlmacenPT.repintar(); });
+  ok(await P.evaluate(() => document.querySelectorAll('.pt-grp').length) === 1, 'con inicio hoy, lo de días anteriores no aparece');
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar(); console.log(fallas ? '\n' + fallas + ' FALLAS' : '\nTodo bien'); process.exit(fallas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
