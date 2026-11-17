@@ -33,20 +33,22 @@
 
   /* ---------- estilos ---------- */
   function estilos(){return `<style>
-.adm{display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;color:#033350;font-size:14px;align-items:start}.adm *{box-sizing:border-box}
-.adm-menu{position:sticky;top:8px;background:linear-gradient(180deg,#0a2745,#0c3358);color:#cfe2f5;border-radius:14px;padding:14px 10px;display:flex;flex-direction:column;gap:2px;max-height:calc(100vh - 24px);overflow:auto}
-.adm-marca{display:flex;gap:10px;align-items:center;margin:0 6px 12px}.adm-marca b{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#0877A6;color:#fff;font-size:18px}.adm-marca span{display:block;font-weight:800;color:#fff;letter-spacing:.05em}.adm-marca small{color:#8fc4ec}
-.adm-g{font-size:11px;font-weight:800;letter-spacing:.1em;color:#7fa9cc;margin:12px 10px 4px}
-.adm-menu button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;color:#cfe2f5;padding:10px 12px;border-radius:9px;font:inherit;font-weight:600;cursor:pointer;min-height:44px}
-.adm-menu button:hover{background:rgba(255,255,255,.08)}.adm-menu button.act{background:rgba(56,189,248,.2);color:#fff;box-shadow:inset 3px 0 0 #38bdf8}.adm-menu button.pr{opacity:.62}
-.adm-menu button small{font-size:10.5px;font-weight:700;color:#8fc4ec;border:1px solid rgba(143,196,236,.4);border-radius:99px;padding:1px 7px;white-space:nowrap}
+.adm{display:block;color:#033350;font-size:14px}.adm *{box-sizing:border-box}
+.adm-top{background:#fff;border:1px solid #d9e7f1;border-radius:14px;padding:12px 14px 6px;margin:0 0 14px;box-shadow:0 1px 2px rgba(15,50,90,.04)}
+.adm-marca{display:flex;gap:10px;align-items:center;margin:0 0 10px}.adm-marca b{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#0877A6;color:#fff;font-size:16px}.adm-marca span{display:block;font-weight:800;letter-spacing:.04em;line-height:1.1}.adm-marca small{color:#587087}.adm-marca .adm-en{margin-left:auto}
+.adm-menu{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px 14px}
+.adm-grp{min-width:0;padding:2px 0 8px}.adm-g{font-size:10.5px;font-weight:800;letter-spacing:.1em;color:#6b8aa5;margin:0 0 3px 8px}
+.adm-menu button{display:block;width:100%;text-align:left;border:0;background:none;color:#033350;padding:6px 8px;border-radius:8px;font:inherit;font-weight:600;font-size:13.5px;cursor:pointer;min-height:34px}
+.adm-menu button:hover{background:#eef6fb}.adm-menu button.act{background:#0877A6;color:#fff}.adm-menu button small{display:none}
+@media(max-width:1000px){.adm-menu{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:640px){.adm-menu{display:flex;overflow-x:auto;gap:2px 10px;padding-bottom:4px}.adm-grp{flex:none;min-width:160px}.adm-marca .adm-en{display:none}}
 .adm-cab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-end;margin:0 0 14px}.adm-cab small{color:#587087;font-weight:700;letter-spacing:.04em}.adm-cab h1{margin:2px 0;font-size:28px}.adm-cab p{margin:0;color:#587087}
 .adm-bus{position:relative;min-width:260px;flex:1 1 280px;max-width:420px}.adm-bus label{display:block;font-size:11px;font-weight:700;color:#587087;margin:0 0 3px}.adm-bus input{width:100%}
 .adm-res{position:absolute;z-index:20;left:0;right:0;top:100%;background:#fff;border:1px solid #cddfec;border-radius:10px;box-shadow:0 8px 24px rgba(15,50,90,.16);max-height:300px;overflow:auto}.adm-res button{display:flex;justify-content:space-between;gap:8px;width:100%;border:0;background:none;padding:10px 12px;text-align:left;font:inherit;cursor:pointer;min-height:44px}.adm-res button:hover{background:#f1f8fd}.adm-res small{color:#587087}
 .adm-en{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#157a3b}.adm-en i{width:9px;height:9px;border-radius:50%;background:#16a34a}
 .adm input,.adm select,.adm textarea{font:inherit;padding:8px 10px;border:1px solid #cddfec;border-radius:9px;background:#fff;color:#14263a;min-height:44px}.adm textarea{min-height:80px}
 .adm-card{background:#fff;border:1px solid #d9e7f1;border-radius:14px;padding:14px 16px;margin:0 0 14px}.adm-card h2{margin:0 0 8px;font-size:15px}.adm-mut{color:#587087;font-size:12.5px}
-.adm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:0 0 14px}.adm-kpi{background:#fff;border:1px solid #d9e7f1;border-radius:14px;padding:12px 14px;text-align:left;font:inherit;cursor:pointer;min-height:44px}.adm-kpi span{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#587087}.adm-kpi b{display:block;font-size:30px;margin:3px 0 1px}.adm-kpi small{color:#587087}.adm-kpi.pr{opacity:.6}
+.adm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:0 0 14px}.adm-kpi{background:#fff;border:1px solid #d9e7f1;border-radius:14px;padding:12px 14px;text-align:left;font:inherit;cursor:pointer;min-height:44px}.adm-kpi span{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#587087}.adm-kpi b{display:block;font-size:30px;line-height:1.1;margin:4px 0 2px;color:#033350}.adm-kpi:hover{border-color:#9fd0e6;background:#fbfdff}.adm-kpi small{color:#587087}.adm-kpi.pr{opacity:.6}
 .adm-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:14px;align-items:start}
 .adm-caja{overflow-x:auto;border:1px solid #e2ebf2;border-radius:10px}.adm-t{width:100%;border-collapse:collapse}.adm-t th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#587087;background:#f4f9fd;text-align:left;padding:9px 10px;white-space:nowrap}.adm-t td{padding:9px 10px;border-top:1px solid #eaf1f7;vertical-align:top}.adm-t tr.sel td{background:#eaf5fc}.adm-t tr.cl{cursor:pointer}.adm-t tr.cl:hover td{background:#f4f9fd}
 .adm-b{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #9fd0e6;background:#fff;color:#0877a6;font:inherit;font-weight:700;cursor:pointer}.adm-b.p{background:#0877a6;color:#fff;border-color:#0877a6}.adm-b:disabled{opacity:.5;cursor:not-allowed}.adm button[role=tab][aria-selected=true]{background:#0877a6!important;color:#fff!important;border-color:#0877a6!important}
@@ -58,14 +60,15 @@
 .adm-msg{border-radius:10px;padding:10px 14px;margin:0 0 12px}.adm-msg.e{background:#fdecec;color:#991b1b;border:1px solid #f5b5b5}.adm-msg.k{background:#e7f6ec;color:#15803d;border:1px solid #b7e4c7}.adm-msg.i{background:#eaf5fc;color:#0b4a6b;border:1px solid #bfdcec}
 .adm-mod{position:fixed;inset:0;z-index:10050;background:rgba(7,30,48,.5);display:flex;align-items:center;justify-content:center;padding:14px}.adm-mod>div{background:#fff;border-radius:14px;padding:18px;max-width:560px;width:100%;max-height:90vh;overflow:auto}.adm-mod ul{margin:6px 0 10px 16px;padding:0;font-size:13px}
 .adm-pill{display:inline-block;font-size:11px;font-weight:800;border-radius:99px;padding:2px 9px;background:#e8eef4;color:#587087;white-space:nowrap}
+.adm-accs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.adm-acc{display:block;text-align:left;border:1px solid #d9e7f1;border-radius:10px;background:#fbfdff;padding:10px 12px;font:inherit;cursor:pointer;min-height:44px}.adm-acc:hover{border-color:#9fd0e6;background:#f1f8fd}.adm-acc b{display:block;color:#033350}.adm-acc small{color:#587087}
+.adm-ev{padding:8px 0;border-top:1px solid #eaf1f7;line-height:1.35}.adm-ev:first-of-type{border-top:0}
 .adm-vacio{padding:22px;text-align:center;color:#587087;border:1px dashed #c3d8e8;border-radius:12px}
-@media(max-width:900px){.adm{grid-template-columns:minmax(0,1fr)}.adm-menu{position:static;flex-direction:row;overflow-x:auto;max-height:none;padding:8px;gap:4px}.adm-marca,.adm-g{display:none}.adm-menu button{width:auto;white-space:nowrap}.adm-2{grid-template-columns:minmax(0,1fr)}}
 </style>`;}
 
   /* ---------- marco ---------- */
   function menuHtml(){
-    return N.GRUPOS.map(g=>`<span class="adm-g">${esc(g.toUpperCase())}</span>`+N.SECCIONES.filter(s=>s.grupo===g).map(s=>
-      `<button type="button" class="${S.sec===s.id?'act':''}${!s.hecha?' pr':''}" ${S.sec===s.id?'aria-current="page"':''} onclick="admIr('${s.id}')"><span>${esc(s.titulo)}</span>${!s.hecha?`<small>Etapa ${s.etapa}</small>`:''}</button>`).join('')).join('');
+    return N.GRUPOS.map(g=>`<div class="adm-grp"><span class="adm-g">${esc(g.toUpperCase())}</span>`+N.SECCIONES.filter(s=>s.grupo===g).map(s=>
+      `<button type="button" class="${S.sec===s.id?'act':''}${!s.hecha?' pr':''}" ${S.sec===s.id?'aria-current="page"':''} onclick="admIr('${s.id}')"><span>${esc(s.titulo)}</span>${!s.hecha?`<small>Etapa ${s.etapa}</small>`:''}</button>`).join('')+'</div>').join('');
   }
   function resultadosBusqueda(){
     const q=S.gq.trim().toLowerCase();if(q.length<2)return '';
@@ -77,10 +80,10 @@
   }
   function html(){
     const sec=N.seccion(S.sec);
-    return `${estilos()}<div class="adm"><nav class="adm-menu" aria-label="Secciones del panel"><div class="adm-marca"><b aria-hidden="true">G</b><div><span>GLACIAL</span><small>Centro de control</small></div></div>${menuHtml()}</nav>
+    return `${estilos()}<div class="adm"><div class="adm-top"><div class="adm-marca"><b aria-hidden="true">G</b><div><span>GLACIAL</span><small>Centro de control</small></div><span class="adm-en"><i></i>En vivo</span></div><nav class="adm-menu" aria-label="Secciones del panel">${menuHtml()}</nav></div>
       <div><div class="adm-cab"><div><small>Administración · ${esc(sec.grupo)}</small><h1>${esc(sec.titulo)}</h1><p>${esc(sec.sub)}</p></div>
         <div class="adm-bus"><label for="adm-gq">Buscar en GLACIAL</label><input id="adm-gq" type="search" placeholder="Usuario, trabajador o sección…" value="${esc(S.gq)}" oninput="admBuscar(this.value)" autocomplete="off">${resultadosBusqueda()}</div>
-        <span class="adm-en"><i></i>En vivo</span></div>
+        </div>
         ${S.msg?`<div class="adm-msg ${S.msg.t}" role="status">${esc(S.msg.x)}</div>`:''}
         ${DA().D.pendientes.length?`<div class="adm-msg e" role="alert">No se pudo registrar la auditoría de ${DA().D.pendientes.length} cambio(s). <button type="button" class="adm-b" onclick="admReintentar()">Reintentar</button></div>`:''}
         ${cuerpo()}${barra()}</div></div>${S.modal?modalHtml():''}`;
@@ -94,17 +97,21 @@
 
   /* ---------- Resumen ---------- */
   function resumenHtml(){
-    const aud=filasAud(),k=N.kpisResumen({usuarios:usuarios(),trabajadores:trabajadores(),registros:(()=>{try{return loadRecords()||[];}catch(_){return [];}})(),auditoria:aud,inicioHoyMs:inicioHoyMs(),hoy:hoyLima()});
-    const kp=(t,v,n,go,pr)=>`<button type="button" class="adm-kpi${pr?' pr':''}" ${go?`onclick="admIr('${go}')"`:'disabled'}><span>${esc(t)}</span><b>${esc(v)}</b><small>${esc(n)}</small></button>`;
+    const aud=filasAud(),hoyF=hoyLima();
+    let ayer='';try{ayer=GlacialFecha.sumarDias(hoyF,-1);}catch(_){ayer='';}
+    const k=N.kpisResumen({usuarios:usuarios(),trabajadores:trabajadores(),registros:(()=>{try{return loadRecords()||[];}catch(_){return [];}})(),auditoria:aud,inicioHoyMs:inicioHoyMs(),hoy:hoyF,desdeFecha:ayer});
+    const kp=(t,v,n,go)=>`<button type="button" class="adm-kpi" onclick="admIr('${go}')"><span>${esc(t)}</span><b>${esc(v)}</b><small>${esc(n)}</small></button>`;
     const recientes=aud.slice(0,8);
     const err=Object.keys(DA().D.error).filter(c=>DA().D.error[c]);
-    return `<div class="adm-kpis">${kp('Usuarios',k.usuarios,'con acceso a GLACIAL','usuarios')}${kp('Trabajadores activos',k.trabajadores,'en la lista de personal','trabajadores',true)}
-      ${kp('Registros en curso',k.registrosEnCurso,'turnos aún sin cerrar','registros',true)}${kp('Cambios registrados hoy',k.cambiosHoy,'en todas las auditorías','auditoria')}
-      ${kp('Equipos conectados','—','llega con «Salud y sesiones» (etapa 4)','',true)}${kp('Alertas de seguridad','—','llega con «Seguridad» (etapa 4)','',true)}</div>
-      <div class="adm-2"><div class="adm-card"><h2>Pendientes de aprobación</h2><p class="adm-mut">Las solicitudes de programación y las ampliaciones de turno se siguen aprobando donde siempre (Planificación y Turnos). Aquí se reunirán en la etapa 3.</p></div>
-      <div class="adm-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><h2>Últimos cambios</h2><button type="button" class="adm-b" onclick="admIr('auditoria')">Ver auditoría</button></div>
-        ${recientes.length?recientes.map(a=>`<div style="padding:7px 0;border-top:1px solid #eaf1f7"><b>${esc(a.quien||'—')}</b> · ${esc(a.accion)}<br><span class="adm-mut">${esc(fmtFecha(a.ms))} · ${esc(a.modulo)}</span></div>`).join(''):`<div class="adm-vacio">${DA().D.activo&&Object.keys(DA().D.listo).length<DA().AUDITORIAS.length?'Consultando…':'Todavía no hay cambios registrados.'}</div>`}
-        ${err.length?`<p class="adm-mut">No se pudo leer: ${esc(err.join(', '))}.</p>`:''}</div></div>`;
+    const acceso=(id,t,d)=>`<button type="button" class="adm-acc" onclick="admIr('${id}')"><b>${esc(t)}</b><small>${esc(d)}</small></button>`;
+    return `<div class="adm-kpis">${kp('Usuarios',k.usuarios,'con acceso a GLACIAL','usuarios')}${kp('Trabajadores activos',k.trabajadores,'en la lista de personal','trabajadores')}
+      ${kp('Reportes en curso',k.registrosEnCurso,'de ayer y hoy, aún sin cerrar','registros')}${kp('Cambios registrados hoy',k.cambiosHoy,'en todas las auditorías','auditoria')}</div>
+      <div class="adm-2"><div class="adm-card"><h2>Accesos rápidos</h2><div class="adm-accs">${acceso('usuarios','Usuarios y permisos','Rol, líneas y permisos por área')}${acceso('consumos','Mermas y consumos','Factores, conversiones y tolerancias')}${acceso('registros','Corrección de registros','Reabrir o eliminar reportes')}${acceso('papelera','Papelera','Recuperar reportes eliminados')}${acceso('alertas','Alertas y anuncios','Anuncio para todos y modo mantenimiento')}${acceso('respaldos','Respaldos','Copia manual y exportaciones')}</div>
+        <p class="adm-mut" style="margin:10px 0 0">Las solicitudes de programación y las ampliaciones de turno se siguen aprobando donde siempre (Planificación y rotación de supervisores).</p></div>
+      <div class="adm-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:0 0 6px"><h2 style="margin:0">Últimos cambios</h2><button type="button" class="adm-b" style="min-height:36px" onclick="admIr('auditoria')">Ver auditoría</button></div>
+        ${recientes.length?recientes.map(a=>`<div class="adm-ev"><div><b>${esc(a.quien||'—')}</b> · ${esc(a.accion)}</div><span class="adm-mut">${esc(fmtFecha(a.ms))} · ${esc(a.modulo)}</span></div>`).join(''):`<div class="adm-vacio">${DA().D.activo&&Object.keys(DA().D.listo).length<DA().AUDITORIAS.length?'Consultando…':'Todavía no hay cambios registrados.'}</div>`}
+        ${err.length?`<p class="adm-mut">No se pudo leer: ${esc(err.join(', '))}.</p>`:''}</div></div>
+      <p class="adm-mut">Equipos conectados, intentos fallidos y cuentas bloqueadas no se pueden ver desde el navegador (ver «Salud y sesiones» y «Seguridad»).</p>`;
   }
 
   /* ---------- Usuarios ---------- */

@@ -166,7 +166,7 @@
     return {
       usuarios:u.length,
       trabajadores:w.filter(x=>x&&x.activo!==false&&x.estado!=='inactivo').length,
-      registrosEnCurso:r.filter(x=>x&&x.estadoRegistro&&x.estadoRegistro!=='FINALIZADO').length,
+      registrosEnCurso:r.filter(x=>x&&x.estadoRegistro&&x.estadoRegistro!=='FINALIZADO'&&(!d.desdeFecha||String(x.fecha||'')>=d.desdeFecha)).length,
       cambiosHoy:a.filter(x=>x.ms>=inicioHoy&&inicioHoy>0).length,
       hoy
     };
