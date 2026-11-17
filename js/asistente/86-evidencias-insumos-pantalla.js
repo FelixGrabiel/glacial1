@@ -97,11 +97,11 @@
      de 1 unidad en gramos o cuántas UND hay en 1 kg. Se recuerda por categoría mientras dura la sesión (y en este navegador) para las fotos siguientes. */
   const fmtN=(n,d)=>Number(n).toLocaleString('es-PE',{maximumFractionDigits:d===undefined?3:d});
   const valorCampo=(d,c)=>{const b=S.borr[d.id]||{};if(b[c]!==undefined)return b[c];const x=d.campos&&d.campos[c];return x&&x.valor!==null&&x.valor!==undefined?x.valor:'';};
-  const MEM_CALC='glacial-calc-manual';
+  const MEM_CALC='glacial-calc-manual-v2';       // v2 (17/11/2026): por defecto se escribe en KILOS; la memoria anterior (gramos) se descarta
   const memoriaManual=()=>{if(!S.calc.manualCat){S.calc.manualCat={};try{const m=JSON.parse(localStorage.getItem(MEM_CALC)||'{}');if(m&&typeof m==='object')S.calc.manualCat=m;}catch(_){/* sin almacenamiento: solo en la sesión */}}return S.calc.manualCat;};
   const numPos=v=>{const n=Number(String(v==null?'':v).replace(',','.'));return Number.isFinite(n)&&n>0?n:null;};
-  /* Gramos de 1 unidad desde lo escrito: {modo:'g'|'undkg', valor}. */
-  const gramosManual=m=>{const n=numPos(m&&m.valor);if(!n)return null;return m.modo==='undkg'?1000/n:n;};
+  /* Gramos de 1 unidad desde lo escrito: {modo:'kg'|'g'|'undkg', valor}. */
+  const gramosManual=m=>{const n=numPos(m&&m.valor);if(!n)return null;return m.modo==='undkg'?1000/n:m.modo==='g'?n:n*1000;};   // 'kg' (por defecto): kilos de 1 unidad
   function opcionesCalc(d){
     const C=window.glacialConversiones,cat=(S.borr[d.id]||{}).categoria||d.categoria,st=S.calc[d.id]||(S.calc[d.id]={});
     if(cat==='preformas'){
@@ -111,12 +111,13 @@
     const lineas=C&&typeof C.lista==='function'?[...new Set(C.lista().map(x=>x.linea))].filter(Boolean):[];
     const opsDe=l=>{try{return C&&l?C.opcionesKg(l,cat):[];}catch(_){return [];}};
     if(!st.linea||!lineas.includes(st.linea))st.linea=lineas.find(l=>opsDe(l).length)||lineas[0]||'';     // la primera línea que tenga conversión para esta categoría
+    const hayGuardadas=lineas.some(l=>opsDe(l).length);     // si ninguna línea tiene conversión de esta categoría, la línea no importa: solo se escribe a mano
     const ops=opsDe(st.linea);
     const manual=st.modo==='manual'||!ops.length;
     const op=manual?null:(ops[Math.min(Number(st.op)||0,Math.max(0,ops.length-1))]||null);
     const mem=memoriaManual()[cat]||{};
-    const man={modo:st.manModo||mem.modo||'g',valor:st.manValor!==undefined?st.manValor:(mem.valor||'')};
-    return {cat,preforma:false,manual,man,gramos:manual?gramosManual(man):(op?op.gramos:null),ops,op,lineas,linea:st.linea};
+    const man={modo:st.manModo||mem.modo||'kg',valor:st.manValor!==undefined?st.manValor:(mem.valor||'')};
+    return {cat,preforma:false,manual,man,hayGuardadas,gramos:manual?gramosManual(man):(op?op.gramos:null),ops,op,lineas,linea:st.linea};
   }
   function resultadoCalc(d,o){
     const st=S.calc[d.id]||{},kg0=valorCampo(d,'peso_neto_kg')!==''?valorCampo(d,'peso_neto_kg'):valorCampo(d,'peso_declarado_kg');
@@ -134,12 +135,12 @@
       <small class="ii-mut">Tomado del Producto («${esc(valorCampo(d,'producto'))}»). Cámbialo si no corresponde.</small>`;
     else{
       const manHtml=o.manual?`<div class="ie-calc-man"><label class="ii-campo"><span>Conversión a mano</span><select class="ie-in" onchange="ieCalc('manModo',this.value)" aria-label="Cómo escribes la conversión">
-          <option value="g" ${o.man.modo!=='undkg'?'selected':''}>Peso de 1 unidad (g)</option><option value="undkg" ${o.man.modo==='undkg'?'selected':''}>Unidades en 1 kg</option></select></label>
-        <label class="ii-campo"><span>${o.man.modo==='undkg'?'UND en 1 kg':'Gramos de 1 UND'}</span><input id="ie-calc-man" class="ie-in" type="number" min="0" step="any" inputmode="decimal" value="${esc(o.man.valor)}" placeholder="${o.man.modo==='undkg'?'p. ej. 500':'p. ej. 2,1'}" oninput="ieCalc('manValor',this.value)" aria-label="${o.man.modo==='undkg'?'Unidades en 1 kilo':'Gramos de una unidad'}"></label></div>
+          <option value="kg" ${o.man.modo!=='undkg'&&o.man.modo!=='g'?'selected':''}>Peso de 1 unidad (kg)</option><option value="g" ${o.man.modo==='g'?'selected':''}>Peso de 1 unidad (g)</option><option value="undkg" ${o.man.modo==='undkg'?'selected':''}>Unidades en 1 kg</option></select></label>
+        <label class="ii-campo"><span>${o.man.modo==='undkg'?'UND en 1 kg':o.man.modo==='g'?'Gramos de 1 UND':'Kilos de 1 UND'}</span><input id="ie-calc-man" class="ie-in" type="number" min="0" step="any" inputmode="decimal" value="${esc(o.man.valor)}" placeholder="${o.man.modo==='undkg'?'p. ej. 500':o.man.modo==='g'?'p. ej. 2,1':'p. ej. 0,0021'}" oninput="ieCalc('manValor',this.value)" aria-label="${o.man.modo==='undkg'?'Unidades en 1 kilo':o.man.modo==='g'?'Gramos de una unidad':'Kilos de una unidad'}"></label></div>
         <small class="ii-mut" id="ie-calc-man-eq">${o.gramos?esc(equivTexto(o.gramos)):'Escribe la conversión que indica la ficha o la etiqueta del proveedor.'}</small>`:'';
-      const conv=o.ops.length?`<select class="ie-in" onchange="ieCalc('op',this.value)">${o.ops.map((x,i)=>`<option value="${i}" ${x===o.op?'selected':''}>${esc(x.items.join(', '))} · ${esc(x.texto)}</option>`).join('')}<option value="m" ${o.manual?'selected':''}>✍ Escribir a mano</option></select>`:
+      const conv=!o.hayGuardadas?'':o.ops.length?`<select class="ie-in" onchange="ieCalc('op',this.value)">${o.ops.map((x,i)=>`<option value="${i}" ${x===o.op?'selected':''}>${esc(x.items.join(', '))} · ${esc(x.texto)}</option>`).join('')}<option value="m" ${o.manual?'selected':''}>✍ Escribir a mano</option></select>`:
         `<p class="ii-mut ie-calc-sin">Sin conversión guardada de ${esc(o.cat)} en ${esc(o.linea||'ninguna línea')}: escríbela a mano.</p>`;
-      fuente=(o.lineas.length?`<div class="ie-top"><label class="ii-campo"><span>Línea</span><select class="ie-in" onchange="ieCalc('linea',this.value)">${o.lineas.map(l=>`<option ${l===o.linea?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
+      fuente=(!o.hayGuardadas?'':o.lineas.length?`<div class="ie-top"><label class="ii-campo"><span>Línea</span><select class="ie-in" onchange="ieCalc('linea',this.value)">${o.lineas.map(l=>`<option ${l===o.linea?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
       <div class="ii-campo"><span>Conversión</span>${conv}</div></div>`:conv)+manHtml;
     }
     const ok=!!o.gramos;
@@ -160,7 +161,7 @@
     if(k==='op'){if(v==='m'){st.modo='manual';}else{st.modo='guardada';st.op=Number(v)||0;}repintar();return;}
     if(k==='manModo'||k==='manValor'){
       const cat=(S.borr[d.id]||{}).categoria||d.categoria,mem=memoriaManual();
-      if(k==='manModo'){st.manModo=v==='undkg'?'undkg':'g';st.manValor='';}else st.manValor=v;
+      if(k==='manModo'){st.manModo=v==='undkg'?'undkg':v==='g'?'g':'kg';st.manValor='';}else st.manValor=v;
       const o0=opcionesCalc(d);
       mem[cat]={modo:o0.man.modo,valor:o0.man.valor};
       try{localStorage.setItem(MEM_CALC,JSON.stringify(mem));}catch(_){/* solo en la sesión */}
@@ -262,7 +263,12 @@
   };
   window.ieConfirmar=async campo=>{
     const d=docActual();if(!d||!editable(d))return;
-    if(S.borr[d.id]&&S.borr[d.id][campo]!==undefined){aviso('info','Guarda primero el valor que escribiste en ese campo.');repintar();return;}
+    const b=S.borr[d.id];
+    if(b&&b[campo]!==undefined){                                   // escribió un valor y pulsó «Confirmar»: se guarda ese valor y queda confirmado (un solo paso)
+      const r=await ejecutar(E.guardarEdiciones(d.id,d.rev,{cambios:{[campo]:b[campo]}}),'Dato guardado y confirmado.');
+      if(r)delete b[campo];
+      return;
+    }
     await ejecutar(E.guardarEdiciones(d.id,d.rev,{confirmar:[campo]}),'Dato confirmado.');
   };
 
