@@ -267,6 +267,7 @@ function grupoSidebarActivo(){
   if(state.currentTab==='horario-produccion')return 'produccion';
   if(state.currentTab==='inventario-insumos')return 'almacen';
   if(state.currentTab==='almacen-pt')return 'almacen';
+  if(state.currentTab==='admin-panel')return 'configuracion';       // Panel de Administración (solo Administrador)
   if(state.currentTab==='calidad')return 'calidad';
   if(state.currentTab==='rrhh')return 'rrhh';
   if(['resumen','perdidas'].includes(state.currentTab))return 'reportes';
