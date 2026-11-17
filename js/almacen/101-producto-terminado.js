@@ -36,7 +36,7 @@
       const act=r.tipoPaleta==='INCOMPLETA'?sd:c,cr=num(r.creadoEn),ant=num(act&&act.r.creadoEn),h=String(r.hora||''),ha=String(act&&act.r.hora||'');
       if(!act||cr>ant||(cr===ant&&(h>ha||(h===ha&&i>act.i)))){if(r.tipoPaleta==='INCOMPLETA')sd={r,i};else c={r,i};}
     });
-    return {paletas:num(c&&c.r.paletas),unidades:num(c&&c.r.totalUnidades),saldo:num(sd&&sd.r.totalUnidades),ref:(c||sd||{}).r||null};
+    return {paletas:num(c&&c.r.paletas),unidades:num(c&&c.r.totalUnidades),saldo:num(sd&&sd.r.totalUnidades),saldoPaquetes:num(sd&&sd.r.paquetesIncompleta),ref:(c||sd||{}).r||null};
   }
   const msRec=r=>r&&r.guardadoEn&&r.guardadoEn.toMillis?r.guardadoEn.toMillis():num(r&&r.guardadoEn);
   /** paletas: registros de sync/paletas; recs: documentos de almacenPtRecepcion.
@@ -139,15 +139,87 @@
     });
     return [...m.values()].sort((a,b)=>b.unidades-a.unidades);
   }
-  const NUCLEO={INICIO_PT,claveGrupo,estadoActual,agrupar,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
+  /* ---------- SALDO INCOMPLETO: doble confirmación ----------
+     El saldo (paleta incompleta) no se entrega hasta el cierre del turno o el cambio de producto. Dos personas lo declaran por separado y el sistema compara:
+       · el SUPERVISOR lo «entrega» (almacenPtSaldoEntrega, glacial_58): su cifra en unidades;
+       · ALMACÉN lo cuenta en PAQUETES (almacenPtRecepcion, paletaId <combinación>_S) y el sistema lo convierte a UND con la equivalencia.
+     Deben coincidir EXACTO. Almacén no ve la cifra del supervisor hasta registrar la suya. Lo que cuenta como recibido es el conteo de Almacén. */
+  const claveConteo=k=>k+'_S';
+  const msDoc=r=>{const g=r&&r.guardadoEn;return g&&g.toMillis?g.toMillis():num(g);};
+  /** Una fila por combinación (fecha · línea · turno · marca · presentación) con saldo en línea, entrega del supervisor y/o conteo de Almacén.
+      estado: EN_LINEA (aún sin entregar ni contar) · ENTREGADO (el supervisor lo entregó, falta contar) · SIN_ENTREGA (Almacén contó, falta la entrega) · CONFORME · DIFERENCIA.
+      eqFn(linea,marca,presentacion) → {factor} (equivalencia paquete↔UND) cuando el registro no trae paquetes. */
+  function saldos(paletas,recs,entregas,desdeFecha,eqFn){
+    const anulE=new Set(),anulS=new Set(),vigE=new Map(),vigS=new Map(),maxE=new Map(),maxS=new Map(),grupos=new Map();
+    (entregas||[]).forEach(e=>{if(e&&e.tipo==='ANULACION'&&e.anulaA)anulE.add(e.anulaA);});
+    (recs||[]).forEach(r=>{if(r&&r.tipo==='ANULACION'&&r.anulaA)anulS.add(r.anulaA);});
+    const mejor=(m,k,r)=>{const a=m.get(k);if(!a||num(r.secuencia)>=num(a.secuencia))m.set(k,r);};
+    (entregas||[]).forEach(e=>{if(!e||e.tipo!=='ENTREGA'||!e.paletaId)return;maxE.set(e.paletaId,Math.max(maxE.get(e.paletaId)||0,num(e.secuencia)));if(!anulE.has(e.opId))mejor(vigE,e.paletaId,e);});
+    (recs||[]).forEach(r=>{if(!r||r.tipo!=='RECEPCION'||!r.esSaldo||!r.claveSaldo)return;maxS.set(r.claveSaldo,Math.max(maxS.get(r.claveSaldo)||0,num(r.secuencia)));if(!anulS.has(r.opId))mejor(vigS,r.claveSaldo,r);});
+    (paletas||[]).forEach(p=>{if(!p||!p.id)return;const k=claveGrupo(p);if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(p);});
+    const claves=new Set([...grupos.keys(),...vigE.keys(),...vigS.keys()]),out=[];
+    claves.forEach(k=>{
+      const regs=grupos.get(k)||[],E=vigE.get(k)||null,S=vigS.get(k)||null,a=estadoActual(regs),ref=a.ref||regs[regs.length-1]||E||S;
+      if(!E&&!S&&!(a.saldo>0))return;
+      const fecha=fechaIso(ref.fecha);if(desdeFecha&&fecha<desdeFecha)return;
+      const eq=eqFn?eqFn(ref.linea,ref.marca,ref.presentacion):null;
+      const factor=num(E&&E.factor)||num(S&&S.factor)||(a.saldoPaquetes>0&&a.saldo>0?a.saldo/a.saldoPaquetes:0)||num(eq&&eq.factor)||null;
+      const estado=S&&E?(num(S.unidadesRecibidas)===num(E.unidades)?'CONFORME':'DIFERENCIA'):S?'SIN_ENTREGA':E?'ENTREGADO':'EN_LINEA';
+      const ms=Math.max(msDoc(S),msDoc(E),regs.reduce((m,r)=>Math.max(m,num(r.creadoEn)||num(r.actualizadoEn)),0));
+      out.push({id:k,tipo:'SALDO',paleta:{id:k,linea:ref.linea||'',fecha,turno:ref.turno||'',marca:ref.marca||'',presentacion:ref.presentacion||'',usuario:ref.usuario||''},
+        factor,unidad:{s:(eq&&eq.singular)||'paquete',p:(eq&&eq.plural)||'paquetes'},saldoLinea:{unidades:a.saldo,paquetes:a.saldoPaquetes>0?a.saldoPaquetes:(factor&&a.saldo?a.saldo/factor:0)},entrega:E,conteo:S,estado,
+        siguienteEntrega:(maxE.get(k)||0)+1,siguienteConteo:(maxS.get(k)||0)+1,ms});
+    });
+    const orden={EN_LINEA:0,ENTREGADO:0,SIN_ENTREGA:1,DIFERENCIA:1,CONFORME:2};
+    return out.sort((x,y)=>(orden[x.estado]-orden[y.estado])||y.ms-x.ms);
+  }
+  function resumenSaldos(lista){
+    const r={porContar:0,enLinea:0,entregados:0,sinEntrega:0,diferencias:0,conformes:0};
+    (lista||[]).forEach(x=>{if(x.estado==='EN_LINEA'){r.porContar++;r.enLinea++;}else if(x.estado==='ENTREGADO'){r.porContar++;r.entregados++;}else if(x.estado==='SIN_ENTREGA')r.sinEntrega++;else if(x.estado==='DIFERENCIA')r.diferencias++;else r.conformes++;});
+    return r;
+  }
+  /** Paquetes → unidades. Sin equivalencia (factor desconocido) la cantidad se cuenta directo en unidades. */
+  const aUnidades=(cantidad,factor)=>factor?Math.round(num(cantidad)*factor):num(cantidad);
+  function validarCantidadSaldo(cantidad){
+    const q=Number(cantidad);
+    return Number.isInteger(q)&&q>=1?[]:['Escribe la cantidad como número entero (1 o más).'];
+  }
+  /** Conteo de Almacén (paquetes). Va a almacenPtRecepcion como una recepción de saldo; NO lleva la cifra del supervisor (conteo a ciegas). */
+  function validarConteoSaldo(item,datos){
+    if(!item||item.tipo!=='SALDO')return ['No se encontró el saldo.'];
+    if(item.conteo)return ['Este saldo ya tiene conteo: para corregirlo, anula tu conteo primero.'];
+    return validarCantidadSaldo(datos&&datos.cantidad);
+  }
+  function construirConteoSaldo(item,datos){
+    const p=item.paleta,und=aUnidades(datos.cantidad,item.factor);
+    return {opId:idRecepcion(claveConteo(item.id),item.siguienteConteo),tipo:'RECEPCION',estado:'RECIBIDA',paletaId:claveConteo(item.id),claveSaldo:item.id,esSaldo:true,secuencia:item.siguienteConteo,
+      linea:p.linea,fecha:p.fecha,turno:p.turno,marca:p.marca,presentacion:p.presentacion,paletasAnotadas:0,unidadesAnotadas:und,unidadesRecibidas:und,diferencia:0,
+      paquetes:item.factor?Number(datos.cantidad):null,factor:item.factor||null,motivo:'',anotadoActualizadoEn:0,anotadoPor:String(p.usuario||'')};
+  }
+  /** Entrega del supervisor (almacenPtSaldoEntrega). */
+  function validarEntregaSaldo(item,datos){
+    if(!item||item.tipo!=='SALDO')return ['No se encontró el saldo.'];
+    if(item.entrega)return ['Este saldo ya tiene una entrega: para corregirla, anula la entrega primero.'];
+    return validarCantidadSaldo(datos&&datos.cantidad);
+  }
+  function construirEntregaSaldo(item,datos){
+    const p=item.paleta,und=aUnidades(datos.cantidad,item.factor);
+    return {opId:item.id+'_E'+item.siguienteEntrega,tipo:'ENTREGA',paletaId:item.id,secuencia:item.siguienteEntrega,linea:p.linea,fecha:p.fecha,turno:p.turno,marca:p.marca,presentacion:p.presentacion,
+      unidades:und,paquetes:item.factor?Number(datos.cantidad):null,factor:item.factor||null};
+  }
+  function documentoAnulacionEntrega(item,motivo){
+    const e=item.entrega;
+    return {opId:'ANUL_'+e.opId,tipo:'ANULACION',anulaA:e.opId,paletaId:item.id,motivo:String(motivo||'').trim().slice(0,300)};
+  }
+  const NUCLEO={INICIO_PT,saldos,resumenSaldos,aUnidades,validarConteoSaldo,construirConteoSaldo,validarEntregaSaldo,construirEntregaSaldo,documentoAnulacionEntrega,claveConteo,claveGrupo,estadoActual,agrupar,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
   if(typeof module!=='undefined'&&module.exports)module.exports=NUCLEO;
   if(typeof window==='undefined'||!window.document)return;
 
   /* ---------- datos ---------- */
   const W=window;
   function leerUnidad(){try{return localStorage.getItem('glacial.almacen.pt.unidad')==='und'?'und':'paletas';}catch(_){return 'paletas';}}
-  const ES={unidad:leerUnidad(),grupo:'',inicio:INICIO_PT,recs:[],listo:false,error:'',tab:'pendientes',dias:7,abierto:'',modo:'',unidades:'',motivo:'',msg:null,guardando:false};
-  let cierre=null,activo=false;
+  const ES={entregas:[],cantidad:'',unidad:leerUnidad(),grupo:'',inicio:INICIO_PT,recs:[],listo:false,error:'',tab:'pendientes',dias:7,abierto:'',modo:'',unidades:'',motivo:'',msg:null,guardando:false};
+  let cierre=null,cierreE=null,activo=false;
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=n=>Number(n||0).toLocaleString('es-PE',{maximumFractionDigits:0});
   const hoyISO=()=>{try{return GlacialFecha.fechaOperativa();}catch(_){return (typeof cpFechaISO==='function')?cpFechaISO():'';}};
@@ -165,10 +237,16 @@
     activo=true;ES.listo=false;ES.error='';
     cierre=db.collection('almacenPtRecepcion').onSnapshot(s=>{ES.recs=s.docs.map(d=>d.data()).filter(x=>x&&x.opId);ES.listo=true;ES.error='';pintar();},
       e=>{ES.error=msgError(e);ES.listo=true;pintar();});
+    cierreE=db.collection('almacenPtSaldoEntrega').onSnapshot(s=>{ES.entregas=s.docs.map(d=>d.data()).filter(x=>x&&x.opId);pintar();},
+      e=>{ES.error=msgError(e);pintar();});
   }
-  function detener(){activo=false;if(cierre){try{cierre();}catch(_){/* ya cerrada */}cierre=null;}}
-  if(W.glacialCierresSesion)W.glacialCierresSesion.push(()=>{detener();ES.recs=[];ES.listo=false;ES.abierto='';});
+  function detener(){activo=false;[cierre,cierreE].forEach(f=>{if(f){try{f();}catch(_){/* ya cerrada */}}});cierre=null;cierreE=null;}
+  if(W.glacialCierresSesion)W.glacialCierresSesion.push(()=>{detener();ES.recs=[];ES.entregas=[];ES.listo=false;ES.abierto='';});
   const items=()=>bandeja(paletas(),ES.recs,ES.inicio);
+  const eqSaldo=(l,m,p)=>{try{return typeof W.glacialEquivalenciaSaldo==='function'?W.glacialEquivalenciaSaldo(l,m,p):null;}catch(_){return null;}};
+  const saldosItems=()=>saldos(paletas(),ES.recs,ES.entregas,ES.inicio,eqSaldo);
+  /** «7 paquetes (882 UND)» · sin equivalencia, solo UND. */
+  const txtSaldo=(und,x)=>x.factor?`${fmt(und/x.factor)} ${und/x.factor===1?x.unidad.s:x.unidad.p} (${fmt(und)} UND)`:`${fmt(und)} UND`;
   const quien=()=>{const u=(typeof state!=='undefined'&&state.user)||{};return {uid:(function(){try{return firebase.auth().currentUser.uid;}catch(_){return '';}})(),usuario:u.nombre||u.username||'Usuario',username:u.username||''};};
 
   async function guardar(doc){
@@ -233,7 +311,7 @@
     const det=r?`<small>${esc((r.almacenero&&r.almacenero.nombre)||r.usuario||'')} · ${esc(hora(r.guardadoEn&&r.guardadoEn.toMillis?r.guardadoEn.toMillis():num(r.guardadoEn)))}${r.estado==='DIFERENCIA'?` · llegaron ${fmt(r.unidadesRecibidas)} (${r.diferencia>0?'+':''}${fmt(r.diferencia)})`:''}${r.motivo?` · «${esc(r.motivo)}»`:''}</small>`:'';
     const form=ab?`<tr class="pt-det"><td colspan="6">${formulario(x)}</td></tr>`:'';
     return `<tr><td data-l="Anotada">${esc(hora(x.ms))}<small>${esc(p.fecha||'')} · ${esc(hace_(x.ms))}</small></td><td data-l="Línea"><b>${esc(nombreLinea(p.linea))}</b></td><td data-l="Producto">${esc(p.marca||'')} ${esc(p.presentacion||'')}<small>${esc(p.turno||'')}${p.usuario?' · '+esc(p.usuario):''}${x.estado==='PENDIENTE'&&x.acumulado?` · Producción lleva ${fmt(x.acumulado.paletas)} paletas, ya recibidas ${fmt(x.cubierto.paletas)}`:''}</small></td>
-      <td data-l="Cantidad" class="pt-n">${cant(p.paletas,p.totalUnidades)}</td><td data-l="Estado">${pill(x.estado)}${x.cambioPosterior?'<small class="pt-av">Producción cambió la anotación después de recibirla: revísala</small>':''}${det}</td><td>${acciones}</td></tr>${form}`;
+      <td data-l="Cantidad" class="pt-n">${r&&r.esSaldo?`<b>${r.factor?fmt(r.paquetes)+' '+(r.paquetes===1?'paquete':'paquetes'):fmt(r.unidadesRecibidas)+' UND'}</b><small>${fmt(r.unidadesRecibidas)} UND · saldo incompleto</small>`:cant(p.paletas,p.totalUnidades)}</td><td data-l="Estado">${pill(x.estado)}${x.cambioPosterior?'<small class="pt-av">Producción cambió la anotación después de recibirla: revísala</small>':''}${det}</td><td>${acciones}</td></tr>${form}`;
   }
   const CABECERA='<thead><tr><th>Registro</th><th>Línea</th><th>Producto</th><th class="pt-n">Cantidad</th><th>Estado</th><th></th></tr></thead>';
   /** «Por recibir»: un bloque por línea y producto, con el total de paletas nuevas y «Recibir todo» (cada turno se guarda como su propia recepción). */
@@ -244,7 +322,7 @@
       const abierto=ES.grupo===g.clave,n=g.items.length;
       const accion=puedeEscribir()&&n>1?(abierto?`<div class="pt-form"><span>¿Confirmas que llegaron las <b>${fmt(g.paletas)} paletas</b> (${fmt(g.unidades)} UND) de ${n} ${n===1?'registro':'registros'}?</span><button type="button" class="pt-b pt-b-v" onclick="ptGrupoConfirmar()" ${ES.guardando?'disabled':''}>${ES.guardando?'Guardando…':'Sí, recibir todo'}</button><button type="button" class="pt-b" onclick="ptGrupo('')">Cancelar</button></div>`
         :`<button type="button" class="pt-b pt-b-v" onclick="ptGrupo(this.dataset.k)" data-k="${esc(g.clave)}">Recibir todo (${fmt(g.paletas)} ${g.paletas===1?'paleta':'paletas'})</button>`):'';
-      return `<div class="pt-grp"><div class="pt-grp-c"><div><b>${esc(nombreLinea(g.linea))} · ${esc(g.marca)} ${esc(g.presentacion)}</b><small>${n} ${n===1?'turno':'turnos'} con paletas nuevas${g.saldo?' · saldo en línea: '+fmt(g.saldo)+' UND (paleta incompleta, aún no se recibe)':''}</small></div><div class="pt-grp-t">${cant(g.paletas,g.unidades)}</div></div>${accion}
+      return `<div class="pt-grp"><div class="pt-grp-c"><div><b>${esc(nombreLinea(g.linea))} · ${esc(g.marca)} ${esc(g.presentacion)}</b><small>${n} ${n===1?'turno':'turnos'} con paletas nuevas</small></div><div class="pt-grp-t">${cant(g.paletas,g.unidades)}</div></div>${accion}
         <table class="pt-t">${CABECERA}<tbody>${g.items.map(filaItem).join('')}</tbody></table></div>`;
     }).join('')+(lista.length>300?`<p class="pt-mut">Se muestran las 300 más recientes de ${fmt(lista.length)}. Acota el período para ver las demás.</p>`:'');
   }
@@ -265,10 +343,42 @@
       <button type="button" class="pt-b pt-b-r" onclick="ptConfirmar('${esc(x.id)}')" ${ES.guardando?'disabled':''}>Anular recepción</button><button type="button" class="pt-b" onclick="ptCerrar()">Cancelar</button></div>`;
     return '';
   }
+  /* ---------- saldo incompleto: conteo de Almacén ---------- */
+  const PILL_SALDO={EN_LINEA:['Saldo en línea','pt-pen'],ENTREGADO:['Entregado por el supervisor','pt-pen'],SIN_ENTREGA:['Contado · falta la entrega del supervisor','pt-obs'],CONFORME:['Conforme','pt-ok'],DIFERENCIA:['Con diferencia','pt-dif']};
+  const pillSaldo=e=>{const p=PILL_SALDO[e]||PILL_SALDO.EN_LINEA;return `<span class="pt-pill ${p[1]}">${esc(p[0])}</span>`;};
+  const convTxt=(x,v)=>{const q=Number(v);return x.factor&&Number.isInteger(q)&&q>=1?`= ${fmt(q*x.factor)} UND (1 ${x.unidad.s} = ${fmt(x.factor)} UND)`:'';};
+  function formConteo(x){
+    return `<div class="pt-form"><label>${x.factor?'Paquetes que llegaron':'Unidades que llegaron'}<input type="number" min="1" step="1" inputmode="numeric" value="${esc(ES.cantidad)}" oninput="ptCantidad(this.value)" aria-label="Cantidad que llegó"></label><span class="pt-mut" id="pt-conv">${esc(convTxt(x,ES.cantidad))}</span>
+      <button type="button" class="pt-b pt-b-v" onclick="ptSaldoConfirmar('${esc(x.id)}')" ${ES.guardando?'disabled':''}>${ES.guardando?'Guardando…':'Registrar conteo'}</button><button type="button" class="pt-b" onclick="ptSaldoCerrar()">Cancelar</button>
+      <span class="pt-mut">Cuenta lo que llegó físicamente. Tu cifra se compara con la que entregó el supervisor y deben coincidir exacto.</span></div>`;
+  }
+  function filaSaldo(x,columnas){
+    const p=x.paleta,abierto=ES.saldoAbierto===x.id,c=x.conteo,e=x.entrega,puede=puedeEscribir();
+    const sup=c?(e?txtSaldo(e.unidades,x):'<span class="pt-mut">sin entrega</span>'):'<span class="pt-mut">se muestra al registrar tu conteo</span>';
+    const alm=c?txtSaldo(c.unidadesRecibidas,x):'<span class="pt-mut">sin contar</span>';
+    const acc=!puede?'<span class="pt-mut">Solo consulta</span>':c?`<div class="pt-ac"><button type="button" class="pt-b pt-b-r" onclick="ptAccion('${esc(c.opId)}','ANULAR')">Anular mi conteo</button></div>`:`<div class="pt-ac"><button type="button" class="pt-b pt-b-v" onclick="ptSaldo('${esc(x.id)}')">Contar y recibir</button></div>`;
+    const itemRec=c&&ES.abierto===c.opId?items().find(i=>i.id===c.opId):null;
+    const extra=abierto?`<tr class="pt-det"><td colspan="${columnas}">${formConteo(x)}</td></tr>`:itemRec?`<tr class="pt-det"><td colspan="${columnas}">${formulario(itemRec)}</td></tr>`:'';
+    const nota=x.estado==='DIFERENCIA'?'<small class="pt-av">No coincide: recuenten juntos. Si tu conteo estaba mal, anúlalo y vuelve a registrarlo; si la entrega del supervisor estaba mal, él la anula y la entrega de nuevo.</small>':x.estado==='SIN_ENTREGA'?'<small class="pt-av">El supervisor aún no entregó este saldo en el sistema.</small>':'';
+    return `<tr><td data-l="Producto"><b>${esc(nombreLinea(p.linea))}</b> · ${esc(p.marca)} ${esc(p.presentacion)}<small>${esc(p.turno)} · ${esc(p.fecha)}</small></td>${columnas>4?`<td data-l="Supervisor" class="pt-n">${sup}</td><td data-l="Almacén" class="pt-n">${alm}</td>`:''}<td data-l="Estado">${pillSaldo(x.estado)}${nota}</td><td>${acc}</td></tr>${extra}`;
+  }
+  /** En «Por recibir»: los saldos que Almacén todavía debe contar (sin mostrar la cifra del supervisor). */
+  function htmlSaldosPorContar(enPeriodo){
+    const l=saldosItems().filter(x=>['EN_LINEA','ENTREGADO'].includes(x.estado)&&enPeriodo({paleta:x.paleta}));
+    if(!l.length)return '';
+    return `<div class="pt-card"><h3>Saldos incompletos por contar</h3><p class="pt-mut">Paletas incompletas que se entregan al cierre del turno o al cambiar de producto. Cuenta los paquetes que llegan y regístralos: se comparan con lo que entrega el supervisor.</p>
+      <table class="pt-t"><thead><tr><th>Producto</th><th>Estado</th><th></th></tr></thead><tbody>${l.map(x=>filaSaldo(x,3)).join('')}</tbody></table></div>`;
+  }
+  function htmlSaldos(enPeriodo){
+    const l=saldosItems().filter(x=>enPeriodo({paleta:x.paleta})||['EN_LINEA','ENTREGADO','DIFERENCIA','SIN_ENTREGA'].includes(x.estado));
+    return `<div class="pt-card"><h3>Saldos incompletos: supervisor y Almacén</h3><p class="pt-mut">El supervisor entrega el saldo y Almacén lo cuenta en paquetes. Las dos cifras deben coincidir exacto; lo que cuenta como recibido es el conteo de Almacén.</p>
+      ${l.length?`<table class="pt-t"><thead><tr><th>Producto</th><th class="pt-n">Supervisor</th><th class="pt-n">Almacén</th><th>Estado</th><th></th></tr></thead><tbody>${l.map(x=>filaSaldo(x,5)).join('')}</tbody></table>`:'<div class="pt-vacio">No hay saldos incompletos en este período.</div>'}</div>`;
+  }
   function cuerpo(todas){
     const desde=ES.dias?hace(ES.dias):'';
     const enPeriodo=x=>!desde||String(x.paleta.fecha||'')>=desde;
     if(ES.tab==='almaceneros'&&!compartida()&&W.glacialAlmaceneros)return W.glacialAlmaceneros.htmlAdmin();
+    if(ES.tab==='saldos')return htmlSaldos(enPeriodo);
     if(ES.tab==='recibidas')return `<div class="pt-card"><h3>Recibidas</h3>${tabla(todas.filter(x=>['RECIBIDA','DIFERENCIA'].includes(x.estado)&&enPeriodo(x)),'recibidas')}</div>`;
     if(ES.tab==='diferencias')return `<div class="pt-card"><h3>Con diferencia y en observación</h3>${tabla(todas.filter(x=>['DIFERENCIA','OBSERVADA'].includes(x.estado)&&enPeriodo(x)),'diferencias')}</div>`;
     if(ES.tab==='acumulado'){
@@ -276,10 +386,10 @@
       return `<div class="pt-card"><h3>Acumulado recibido por producto</h3>${a.length?`<table class="pt-t"><thead><tr><th>Línea</th><th>Producto</th><th class="pt-n">Paletas completas</th><th class="pt-n">Unidades recibidas</th></tr></thead><tbody>${a.map(o=>`<tr><td data-l="Línea"><b>${esc(nombreLinea(o.linea))}</b></td><td data-l="Producto">${esc(o.marca)} ${esc(o.presentacion)}</td><td data-l="Paletas" class="pt-n">${fmt(o.paletas)}</td><td data-l="Unidades" class="pt-n">${fmt(o.unidades)}</td></tr>`).join('')}</tbody></table>`:'<div class="pt-vacio">Todavía no hay recepciones en este período.</div>'}
         <p class="pt-mut">Es lo que Almacén recibió, no un stock: todavía no se registran los despachos.</p></div>`;
     }
-    return `<div class="pt-card"><h3>Por recibir</h3>${tabla(todas.filter(x=>x.estado==='PENDIENTE'&&enPeriodo(x)),'pendientes')}</div>`;
+    return `<div class="pt-card"><h3>Por recibir</h3>${tabla(todas.filter(x=>x.estado==='PENDIENTE'&&enPeriodo(x)),'pendientes')}</div>${htmlSaldosPorContar(enPeriodo)}`;
   }
   function html(){
-    const todas=items(),r=resumen(todas,hoyISO()),desde=ES.dias?hace(ES.dias):'';
+    const todas=items(),r=resumen(todas,hoyISO()),rs=resumenSaldos(saldosItems()),desde=ES.dias?hace(ES.dias):'';
     const antiguas=desde?todas.filter(x=>x.estado==='PENDIENTE'&&String(x.paleta.fecha||'')<desde).length:0;
     const k=(t,v,s,c)=>`<div class="pt-k ${c||''}"><span>${esc(t)}</span><b>${v}</b><small>${esc(s)}</small></div>`;
     const tab=(id,t)=>`<button type="button" role="tab" class="pt-tab" aria-selected="${ES.tab===id}" onclick="ptTab('${id}')">${esc(t)}</button>`;
@@ -288,8 +398,8 @@
       ${ES.error?`<div class="pt-msg pt-msg-e" role="alert">${esc(ES.error)}</div>`:''}${ES.msg?`<div class="pt-msg ${ES.msg.tipo==='error'?'pt-msg-e':'pt-msg-k'}" role="status">${esc(ES.msg.texto)}</div>`:''}
       ${compartida()&&!persona()?'<div class="pt-msg pt-msg-e" role="alert">Identifícate con tu PIN para recibir paletas.</div>':''}
       ${antiguas?`<div class="pt-msg pt-msg-i" role="note">Hay <b>${fmt(antiguas)}</b> paletas anotadas antes de este período que siguen por recibir. <button type="button" class="pt-b" onclick="ptDias(0)">Ver todas</button></div>`:''}
-      <div class="pt-ks">${k('Por recibir',ES.unidad==='und'?fmt(r.unidadesPendientes)+' UND':fmt(r.paletasPendientes)+(r.paletasPendientes===1?' paleta':' paletas'),(ES.unidad==='und'?fmt(r.paletasPendientes)+' paletas':fmt(r.unidadesPendientes)+' UND')+' · '+fmt(r.pendientes)+(r.pendientes===1?' anotación':' anotaciones'),'pt-k-am')}${k('Recibidas hoy',ES.unidad==='und'?fmt(r.recibidasHoyUnidades)+' UND':fmt(r.recibidasHoyPaletas)+(r.recibidasHoyPaletas===1?' paleta':' paletas'),ES.unidad==='und'?fmt(r.recibidasHoyPaletas)+' paletas':fmt(r.recibidasHoyUnidades)+' UND','pt-k-vd')}${k('Con diferencia',fmt(r.diferencias),r.faltante?'faltan '+fmt(r.faltante)+' UND':'sin faltantes',r.diferencias?'pt-k-ro':'')}${k('En observación',fmt(r.observadas),'paletas retenidas')}</div>
-      <nav class="pt-tabs" role="tablist" aria-label="Producto terminado">${tab('pendientes','Por recibir · '+fmt(r.pendientes))}${tab('recibidas','Recibidas')}${tab('diferencias','Diferencias y observadas')}${tab('acumulado','Acumulado recibido')}${!compartida()&&puedeEscribir()?tab('almaceneros','Almaceneros'):''}</nav>
+      <div class="pt-ks">${k('Por recibir',ES.unidad==='und'?fmt(r.unidadesPendientes)+' UND':fmt(r.paletasPendientes)+(r.paletasPendientes===1?' paleta':' paletas'),(ES.unidad==='und'?fmt(r.paletasPendientes)+' paletas':fmt(r.unidadesPendientes)+' UND')+' · '+fmt(r.pendientes)+(r.pendientes===1?' anotación':' anotaciones'),'pt-k-am')}${k('Recibidas hoy',ES.unidad==='und'?fmt(r.recibidasHoyUnidades)+' UND':fmt(r.recibidasHoyPaletas)+(r.recibidasHoyPaletas===1?' paleta':' paletas'),ES.unidad==='und'?fmt(r.recibidasHoyPaletas)+' paletas':fmt(r.recibidasHoyUnidades)+' UND','pt-k-vd')}${k('Saldos por contar',fmt(rs.porContar),'paletas incompletas'+(rs.diferencias||rs.sinEntrega?' · '+fmt(rs.diferencias)+' con diferencia · '+fmt(rs.sinEntrega)+' sin entrega':''),rs.diferencias?'pt-k-ro':'')}${k('Con diferencia',fmt(r.diferencias),r.faltante?'faltan '+fmt(r.faltante)+' UND':'sin faltantes',r.diferencias?'pt-k-ro':'')}${k('En observación',fmt(r.observadas),'paletas retenidas')}</div>
+      <nav class="pt-tabs" role="tablist" aria-label="Producto terminado">${tab('pendientes','Por recibir · '+fmt(r.pendientes))}${tab('saldos','Saldos · '+fmt(rs.porContar+rs.diferencias+rs.sinEntrega))}${tab('recibidas','Recibidas')}${tab('diferencias','Diferencias y observadas')}${tab('acumulado','Acumulado recibido')}${!compartida()&&puedeEscribir()?tab('almaceneros','Almaceneros'):''}</nav>
       <div class="pt-f"><label>Mostrar en<select onchange="ptUnidad(this.value)"><option value="paletas" ${ES.unidad==='paletas'?'selected':''}>Paletas</option><option value="und" ${ES.unidad==='und'?'selected':''}>Unidades</option></select></label><label>Período<select onchange="ptDias(Number(this.value))">${op(1,'Hoy')}${op(3,'Últimos 3 días')}${op(7,'Últimos 7 días')}${op(30,'Últimos 30 días')}${op(0,'Todo')}</select></label>${ES.listo?'':'<span class="pt-mut">Consultando…</span>'}</div>
       ${cuerpo(todas)}</section>`;
   }
@@ -300,7 +410,19 @@
     const y=window.scrollY;main.innerHTML=html();window.scrollTo(0,y);
   }
   const bloqueado=()=>!!document.querySelector('.pt-form input:focus,.pt-form textarea:focus');
-  W.ptTab=t=>{ES.tab=t;ES.abierto='';ES.modo='';ES.msg=null;pintar();};
+  W.ptTab=t=>{ES.tab=t;ES.abierto='';ES.modo='';ES.saldoAbierto='';ES.msg=null;pintar();};
+  W.ptSaldo=id=>{ES.saldoAbierto=id;ES.cantidad='';ES.abierto='';ES.modo='';ES.msg=null;pintar();};
+  W.ptSaldoCerrar=()=>{ES.saldoAbierto='';pintar();};
+  W.ptCantidad=v=>{ES.cantidad=v;const x=saldosItems().find(i=>i.id===ES.saldoAbierto),e=document.getElementById('pt-conv');if(e&&x)e.textContent=convTxt(x,v);};
+  W.ptSaldoConfirmar=async id=>{
+    if(!puedeEscribir()||ES.guardando)return;
+    const x=saldosItems().find(i=>i.id===id);if(!x)return;
+    const e=validarConteoSaldo(x,{cantidad:ES.cantidad});if(e.length){ES.msg={tipo:'error',texto:e.join(' ')};pintar();return;}
+    ES.guardando=true;ES.msg=null;pintar();
+    try{await guardar(construirConteoSaldo(x,{cantidad:ES.cantidad}));ES.msg={tipo:'ok',texto:'Conteo del saldo registrado. Se compara con la entrega del supervisor en la pestaña «Saldos».'};ES.saldoAbierto='';ES.cantidad='';}
+    catch(err){ES.msg={tipo:'error',texto:'No se pudo guardar: '+msgError(err)};}
+    ES.guardando=false;pintar();
+  };
   W.ptUnidad=u=>{ES.unidad=u==='und'?'und':'paletas';try{localStorage.setItem('glacial.almacen.pt.unidad',ES.unidad);}catch(_){/* sin almacenamiento */}pintar();};
   W.ptGrupo=k=>{ES.grupo=k||'';ES.abierto='';ES.modo='';ES.msg=null;pintar();};
   W.ptGrupoConfirmar=async()=>{
@@ -357,5 +479,6 @@
   }
   // Producción anota paletas en tiempo real: la bandeja se actualiza sola (sin pisar lo que se escribe).
   ['onPaletasUpdated'].forEach(n=>{const a=W[n];if(typeof a!=='function')return;W[n]=function(){const r=a.apply(this,arguments);try{pintar();}catch(_){/* informativo */}return r;};});
+  W.glacialAlmacenPTNucleo=NUCLEO;
   W.glacialAlmacenPT={html,estado:ES,detener,repintar:()=>{try{pintar();}catch(_){/* informativo */}}};
 })(typeof window!=='undefined'?window:globalThis);

@@ -73,6 +73,55 @@ ok(P.claveGrupo(pal('q','PET1','Scala','2.5 L',1,1,1))===P.claveGrupo(pal('q','P
  const it=P.bandeja([k,k2],[Object.assign({},dk,{uid:'u',guardadoEn:1500})]).find(x=>x.estado==='PENDIENTE');
  ok(it&&it.paleta.paletas===1&&it.paleta.totalUnidades===600,'si cambia la tasa de unidades por paleta, la paleta nueva igual se recibe (unidades estimadas con la tasa actual)');}
 
+// ---- SALDO INCOMPLETO: el supervisor entrega, Almacén cuenta en paquetes, deben coincidir exacto ----
+{
+  const eq=(l,m,pr)=>l==='B7L'?{factor:2,singular:'paquete',plural:'paquetes'}:null;
+  // B7L Scala 7 L: el saldo en línea es 7 paquetes de 2 bidones = 14 UND (registro trae paquetesIncompleta)
+  const reg=[pal('a1','B7L','Scala','7 Litros',28,3528,1000),pal('s1','B7L','Scala','7 Litros',1,14,1001,{tipoPaleta:'INCOMPLETA',paquetesIncompleta:7,unidadesIncompleta:14})];
+  let sl=P.saldos(reg,[],[],'',eq);
+  ok(sl.length===1&&sl[0].estado==='EN_LINEA'&&sl[0].saldoLinea.unidades===14&&sl[0].saldoLinea.paquetes===7&&sl[0].factor===2,'un saldo anotado y aún no entregado aparece «en línea» (7 paquetes = 14 UND)');
+  ok(P.saldos([pal('a','B7L','Scala','7 Litros',28,3528,1)],[],[],'',eq).length===0,'sin saldo no hay nada que entregar');
+  const k=sl[0].id;
+  // el supervisor entrega
+  ok(P.validarEntregaSaldo(sl[0],{cantidad:0}).length>0&&P.validarEntregaSaldo(sl[0],{cantidad:2.5}).length>0&&P.validarEntregaSaldo(sl[0],{cantidad:7}).length===0,'la entrega pide un número entero de paquetes (1 o más)');
+  const ent=Object.assign(P.construirEntregaSaldo(sl[0],{cantidad:7}),{uid:'sup',guardadoEn:2000});
+  ok(ent.opId===k+'_E1'&&ent.tipo==='ENTREGA'&&ent.paletaId===k&&ent.unidades===14&&ent.paquetes===7&&ent.factor===2,'la entrega guarda 7 paquetes → 14 UND con su equivalencia');
+  sl=P.saldos(reg,[],[ent],'',eq);
+  ok(sl[0].estado==='ENTREGADO'&&P.resumenSaldos(sl).porContar===1,'entregado por el supervisor: falta que Almacén lo cuente');
+  // Almacén cuenta en paquetes y el sistema convierte a UND
+  ok(P.validarConteoSaldo(sl[0],{cantidad:0}).length>0&&P.validarConteoSaldo(sl[0],{cantidad:'x'}).length>0&&P.validarConteoSaldo(sl[0],{cantidad:7}).length===0,'el conteo pide un entero de paquetes');
+  const cont=P.construirConteoSaldo(sl[0],{cantidad:7});
+  ok(cont.opId===k+'_S_R1'&&cont.paletaId===k+'_S'&&cont.claveSaldo===k&&cont.esSaldo===true&&cont.unidadesRecibidas===14&&cont.unidadesAnotadas===14&&cont.paquetes===7&&cont.estado==='RECIBIDA'&&cont.tipo==='RECEPCION','Almacén cuenta 7 paquetes y se guardan 14 UND (conversión automática)');
+  ok(!('entrega' in cont)&&!JSON.stringify(cont).includes('"unidades"'),'el conteo de Almacén no lleva la cifra del supervisor (conteo a ciegas)');
+  sl=P.saldos(reg,[Object.assign({},cont,{uid:'alm',guardadoEn:3000})],[ent],'',eq);
+  ok(sl[0].estado==='CONFORME'&&P.resumenSaldos(sl).conformes===1,'7 paquetes = 7 paquetes: CONFORME');
+  // diferencia: exacto
+  const cont6=Object.assign(P.construirConteoSaldo(P.saldos(reg,[],[ent],'',eq)[0],{cantidad:6}),{uid:'alm',guardadoEn:3000});
+  sl=P.saldos(reg,[cont6],[ent],'',eq);
+  ok(sl[0].estado==='DIFERENCIA'&&sl[0].conteo.unidadesRecibidas===12&&sl[0].entrega.unidades===14&&P.resumenSaldos(sl).diferencias===1,'6 paquetes contra 7: CON DIFERENCIA (tiene que coincidir exacto)');
+  ok(P.validarConteoSaldo(sl[0],{cantidad:7}).length>0,'con un conteo vigente no se puede registrar otro: primero se anula');
+  // Almacén corrige: anula su conteo y vuelve a contar → conforme
+  const anul={opId:P.idAnulacion(cont6.opId),tipo:'ANULACION',anulaA:cont6.opId,paletaId:cont6.paletaId,motivo:'recontamos con el supervisor'};
+  sl=P.saldos(reg,[cont6,anul],[ent],'',eq);
+  ok(sl[0].estado==='ENTREGADO'&&sl[0].siguienteConteo===2,'al anular su conteo vuelve a «entregado» y el siguiente conteo es _R2');
+  const cont7=Object.assign(P.construirConteoSaldo(sl[0],{cantidad:7}),{uid:'alm',guardadoEn:4000});
+  ok(cont7.opId===k+'_S_R2'&&P.saldos(reg,[cont6,anul,cont7],[ent],'',eq)[0].estado==='CONFORME','tras recontar 7 paquetes queda CONFORME');
+  // el supervisor corrige su entrega
+  const anE=P.documentoAnulacionEntrega(P.saldos(reg,[cont6],[ent],'',eq)[0],'conté mal el saldo');
+  ok(anE.tipo==='ANULACION'&&anE.opId==='ANUL_'+ent.opId&&anE.anulaA===ent.opId&&anE.paletaId===k,'el supervisor anula su entrega con motivo');
+  sl=P.saldos(reg,[cont6],[ent,anE],'',eq);
+  ok(sl[0].estado==='SIN_ENTREGA'&&sl[0].siguienteEntrega===2,'sin entrega vigente y con conteo de Almacén: «falta la entrega del supervisor»');
+  const ent6=Object.assign(P.construirEntregaSaldo(sl[0],{cantidad:6}),{uid:'sup',guardadoEn:5000});
+  ok(ent6.opId===k+'_E2'&&P.saldos(reg,[cont6],[ent,anE,ent6],'',eq)[0].estado==='CONFORME','el supervisor entrega de nuevo 6 paquetes y coincide con lo que contó Almacén');
+  // sin equivalencia: se cuenta en unidades
+  const sinEq=P.saldos([pal('b','C20L','San Fernando','20 L',3,60,1),pal('bs','C20L','San Fernando','20 L',1,5,2,{tipoPaleta:'INCOMPLETA'})],[],[],'',null);
+  ok(sinEq[0].factor===null&&P.construirConteoSaldo(sinEq[0],{cantidad:5}).unidadesRecibidas===5&&P.construirConteoSaldo(sinEq[0],{cantidad:5}).paquetes===null,'sin equivalencia el conteo se registra directo en unidades');
+  // las recepciones de saldo aparecen en Recibidas y suman UND al acumulado (no paletas completas)
+  const b=P.bandeja(reg,[Object.assign({},cont7,{uid:'alm',guardadoEn:4000})]);
+  ok(b.some(x=>x.recepcion&&x.recepcion.esSaldo&&x.estado==='RECIBIDA')&&P.acumulado(b,'').some(a=>a.unidades===14&&a.paletas===0),'el saldo contado entra al acumulado recibido en UND y no suma paletas completas');
+  ok(b.filter(x=>x.estado==='PENDIENTE').length===1&&b.find(x=>x.estado==='PENDIENTE').paleta.paletas===28,'el conteo del saldo no descuenta paletas completas');
+}
+
 // migración
 const sql=leer('supabase/migraciones/glacial_56_almacen_producto_terminado.sql');
 ok(/almacenPtRecepcion/.test(sql)&&/if accion <> 'create' then return false; end if/.test(sql)&&/ap_alm/.test(sql)&&/pt_recepcion_valida\(n, d, u, ahora\)/.test(sql),'glacial_56: colección inmutable (solo crear), con el permiso de Almacén y validación');
@@ -86,4 +135,9 @@ ok(/tienePermiso\('moduloAlmacen'\)/.test(js)&&!/sync'\)\.doc\('paletas'\)\.(set
 ok(P.INICIO_PT==='2026-11-16','el producto terminado cuenta desde el 16/11/2026');
 {const f=(id,fecha)=>pal(id,'PET1','Scala','2.5 L',2,240,1000,{fecha});const ps=[f('a','2026-11-15'),f('b','2026-11-16'),f('c','2026-11-17')];
  ok(P.bandeja(ps,[],P.INICIO_PT).length===2&&P.bandeja(ps,[]).length===3,'lo anotado antes de la fecha de inicio no entra a la bandeja');}
+{const s58=leer('supabase/migraciones/glacial_58_almacen_saldo_entrega.sql');
+ ok(/almacenPtSaldoEntrega/.test(s58)&&/accion = 'create' and coalesce\(\(k->>'opera'\)::boolean, false\) and glacial_fs\.pt_saldo_entrega_valida/.test(s58)&&/n->'guardadoEn' = ahora/.test(s58)&&/'ENTREGA'/.test(s58)&&/>= 5/.test(s58),'glacial_58: libro inmutable de entregas, solo quien opera Producción, con hora del servidor y motivo en la anulación');
+ ok(/cuenta <> 1 then raise exception/.test(s58)&&/c in \('almacenPtRecepcion', 'almaceneros', 'almacenPtSaldoEntrega'\)/.test(s58),'glacial_58: anclas verificadas y la cuenta compartida de Almacén puede leer las entregas');
+ const j16c=leer('js/produccion/16c-saldo-entrega.js');
+ ok(/db\.collection\('almacenPtSaldoEntrega'\)\.doc\(doc\.opId\)\.set/.test(j16c)&&!/sync'\)\.doc\('paletas'\)\.(set|update)/.test(j16c),'el panel del supervisor escribe solo en almacenPtSaldoEntrega y nunca toca sync/paletas');}
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

@@ -37,7 +37,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const t0 = await texto();
   ok(/B7L · Scala 7 Litros/.test(t0) && /28 paletas/.test(t0) && !/59 paletas/.test(t0), 'B7L Scala 7 L: Producción lleva 28 paletas acumuladas y Almacén ve 28 (no 59)');
   ok(/^34 paletas,/.test(await kpi()), 'el indicador «Por recibir» suma 28 (B7L) + 2 + 3 + 1 de ayer = 34 paletas');
-  ok(/saldo en línea: 90 UND/.test(t0), 'el saldo incompleto (90 UND) se muestra aparte y no se suma a las paletas');
+  ok(/saldos incompletos por contar/i.test(t0) && !/90 UND/.test(t0) && /Saldo en línea/.test(t0), 'el saldo incompleto va aparte («Saldos incompletos por contar», sin mostrar su cifra a Almacén) y no se suma a las paletas');
   ok(/Producción lleva 28 paletas, ya recibidas 0/.test(t0), 'cada fila dice cuánto lleva Producción y cuánto se recibió ya');
   const grupos = await P.evaluate(() => [...document.querySelectorAll('.pt-grp')].map(g => g.querySelector('.pt-grp-c').innerText.replace(/\s+/g, ' ')));
   ok(grupos.length === 4, 'agrupado por línea y producto: 4 bloques (B7L, PET1, PET2 y el de ayer) (' + grupos.length + ')');

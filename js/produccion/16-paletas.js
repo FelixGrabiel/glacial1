@@ -3689,6 +3689,7 @@ function renderProduccionActualTab(){
 
     return null;
   }
+  window.glacialEquivalenciaSaldo = equivalencia;     // paquetes ↔ UND del saldo incompleto (también lo usa Almacén › Producto terminado)
 
   function ultimoEstado(registros){
     let completas = null;
