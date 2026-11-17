@@ -23,7 +23,7 @@ Diseño aprobado: prototipo interactivo (17 secciones en 5 grupos). Código: `js
 
 Diferencias con el prompt original: la tabla del prompt dice que `horasExtras` y otras auditorías están repartidas; `horasExtras` escribe en `auditoriaTareos` (con `area`), por eso ya está incluida. No existe un campo «activo/inactivo» de usuarios en el modelo actual: no se agregó «desactivar usuario» sin diseñarlo.
 
-## Etapa 1 (esta entrega)
+## Etapa 1 (construida)
 Marco con acceso solo para el Administrador (pantalla y servidor) · **Resumen** · **Usuarios** (buscar, filtrar, ficha, rol, líneas, permisos por área, «Igualar al rol», borrador con motivo) · **Roles y permisos** (plantillas por rol, quién difiere, «Igualar a la plantilla» en borrador) · **Auditoría** (consolidada, solo lectura, filtros, exportar CSV).
 
 Lo que **no** está en la etapa 1 aunque el prototipo lo muestre:
@@ -44,8 +44,31 @@ Lo que **no** está en la etapa 1 aunque el prototipo lo muestre:
 
 Limitaciones de la etapa 2: «Datos maestros» y «Metas y umbrales» abren el editor existente (no hay edición dentro del panel); no existe aún lista de proveedores/equipos/motivos dentro del panel.
 
+## Etapa 3 (construida)
+Todo reutiliza lo que ya existe (mismos documentos, funciones y reglas); cada cambio pide motivo ≥ 10 y deja su fila en `adminAuditoria`.
+- **Trabajadores** (`sync/workers`): lista con búsqueda y filtros; cambio de estado, área, cargo y línea en borrador, una sola escritura con `saveWorkers`, control de conflicto entre equipos. Agregar/importar la rotación se hace con las pantallas de siempre (botones de acceso).
+- **Cuentas compartidas**: Almacén (agregar, activar/desactivar, «Nuevo PIN» con las funciones de `102-almaceneros-pin.js`, expuestas en `glacialAlmaceneros.panel`); Mantenimiento solo consulta (`sync/tecnicosMant`; se administra en Mantenimiento).
+- **Turnos y horarios**: ampliaciones de turno vivas (`ampliacionesTurno`) y acceso a los editores de horario y rotación. Las ampliaciones se siguen dando desde la rotación de supervisores.
+- **Tareo y cierres**: estado de la regla de bloqueo (`tareoBloqueoInfo`/`tareoBloqueoConfig`), conteo de abiertos/cerrados. Reabrir lo hacen RRHH o el Administrador desde el propio tareo, con motivo.
+- **Corrección de registros**: lista de reportes con «Reabrir» (`reabrirReporteProduccion`) y «Eliminar» (`deleteRecord`, con constancia): las funciones de siempre.
+- **Papelera**: reportes de producción eliminados, leídos de la constancia (`auditoriaRegistros`, con copia) y restaurados con `saveRecords`. **No hay «borrar para siempre»**: la constancia es inmutable a propósito.
+
+## Etapa 4 (construida) y lo que NO se puede desde el navegador
+- **Alertas y anuncios**: anuncio para todos (texto, desde/hasta, activo) y modo mantenimiento → `adminConfig/anuncio` y `adminConfig/mantenimiento`; se leen en vivo en todos los equipos y se pintan como banner (`113-admin-config.js`). El modo mantenimiento **avisa, no bloquea escrituras**. La cuenta compartida de Almacén no recibe el banner (sus reglas no le dan lectura). Las alertas de producción por rol siguen siendo el permiso «Recibir notificaciones y alertas de producción» (se edita en Roles/Usuarios): no se agregó un segundo interruptor.
+- **Salud y sesiones**: estado de este equipo y la revisión diaria del servidor (`saludSistema/actual`).
+- **Seguridad**: la revisión de cuentas y perfiles que ya existía (`comprobarMigracion`).
+- **Respaldos e integraciones**: respaldo manual en JSON (usuarios **sin claves, sales ni PIN**, trabajadores, reportes, configuración del panel) y exportaciones CSV por módulo y rango de fechas.
+
+**No disponible desde el navegador (dicho también en pantalla)** — necesita una función de servidor que solo acepte al Administrador, con la llave de servicio de Supabase (patrón de `fs-cuentas`), que NO se construyó ni se desplegó:
+1. Listar equipos conectados y cerrar sesión de uno o de todos los usuarios.
+2. Intentos de ingreso fallidos y cuentas bloqueadas (están en los registros de autenticación de Supabase).
+3. Respaldos automáticos (diario/semanal): necesitan una tarea programada en el servidor y un lugar donde guardarlos.
+4. Política de «días sin uso antes de pedir la contraseña»: se configura en Supabase (Authentication › Sessions).
+5. Estado de integraciones (WhatsApp, Google Sheets): vive en el servidor/servicios externos.
+Decisión pendiente tuya: si quieres que se construya esa función de servidor (y desplegarla en PRUEBAS primero), dímelo; hace falta decidir dónde guardar los respaldos automáticos.
+
 ## Estado de la migración
-`glacial_59_panel_administracion.sql` y `glacial_60_admin_config.sql`: aplicadas en **PRUEBAS**; **PRODUCCIÓN pendiente** (59 primero, luego 60; solo con aprobación del dueño y ensayo previo). Sin ellas, el panel abre pero no puede registrar su auditoría ni guardar tolerancias o roles en producción.
+`glacial_59_panel_administracion.sql` y `glacial_60_admin_config.sql`: aplicadas en **PRUEBAS y PRODUCCIÓN** (17/11/2026, con ensayo previo, verificadas).
 
 ## Pruebas
-`tests/admin-panel.test.js` (reglas, adaptadores de auditoría, tolerancias, núcleo del Asistente, migraciones, conexiones), `tests/admin-panel-etapa2.e2e.js` (factores con vista previa, causas, tolerancias, roles) y `tests/admin-panel.e2e.js` (navegador: quién entra, 17 secciones, Resumen, Auditoría en vivo, borrador, motivo, auditoría propia, conflicto entre equipos, «Ver como»).
+`tests/admin-panel.test.js` (reglas, adaptadores de auditoría, tolerancias, núcleo del Asistente, migraciones, conexiones), `tests/admin-panel-etapa34.e2e.js` (trabajadores, cuentas compartidas, registros, papelera, anuncio, seguridad, respaldos), `tests/admin-panel-etapa2.e2e.js` (factores con vista previa, causas, tolerancias, roles) y `tests/admin-panel.e2e.js` (navegador: quién entra, 17 secciones, Resumen, Auditoría en vivo, borrador, motivo, auditoría propia, conflicto entre equipos, «Ver como»).

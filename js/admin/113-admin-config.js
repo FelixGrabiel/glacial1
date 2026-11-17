@@ -35,16 +35,32 @@
     const rol=String(state.user.rol||'');
     if(rol==='mantenimiento_compartido'||rol==='almacen_compartido')return;            // las reglas no les dan lectura: siguen con los valores del código
     C.on=true;
-    ['tolerancias','roles'].forEach(id=>{
+    ['tolerancias','roles','anuncio','mantenimiento'].forEach(id=>{
       try{
-        cierres.push(db.collection('adminConfig').doc(id).onSnapshot(s=>{C.docs[id]=s.exists?s.data():null;C.listo[id]=true;if(id==='roles')aplicarRoles();avisar();},()=>{C.listo[id]=true;}));
+        cierres.push(db.collection('adminConfig').doc(id).onSnapshot(s=>{C.docs[id]=s.exists?s.data():null;C.listo[id]=true;if(id==='roles')aplicarRoles();if(id==='anuncio'||id==='mantenimiento')pintarAvisos();avisar();},()=>{C.listo[id]=true;}));
       }catch(_){C.listo[id]=true;}
     });
   }
-  function detener(){cierres.forEach(f=>{try{f();}catch(_){/* ya cerrada */}});cierres=[];C.on=false;C.docs={};C.listo={};aplicarRoles();}
+  function detener(){cierres.forEach(f=>{try{f();}catch(_){/* ya cerrada */}});cierres=[];C.on=false;C.docs={};C.listo={};aplicarRoles();try{const b=document.getElementById('glacial-aviso-admin');if(b)b.remove();}catch(_){/* informativo */}}
   if(W.glacialCierresSesion)W.glacialCierresSesion.push(detener);
   // se empieza a leer al entrar a la app (y de nuevo si cambia el usuario)
   if(typeof enterApp==='function'){const a=enterApp;enterApp=function(){const r=a.apply(this,arguments);try{escuchar();}catch(_){/* informativo */}return r;};}
+
+  /* ---------- anuncio para todos y modo mantenimiento (banner) ---------- */
+  const vigenteAnuncio=d=>{if(!d||d.activo!==true||!String(d.texto||'').trim())return false;const t=Date.now();return !(d.desdeMs&&t<d.desdeMs)&&!(d.hastaMs&&t>d.hastaMs);};
+  function pintarAvisos(){
+    try{
+      let b=document.getElementById('glacial-aviso-admin');
+      const a=C.docs.anuncio,m=C.docs.mantenimiento,partes=[];
+      if(m&&m.activo===true)partes.push('<b>Modo mantenimiento:</b> '+esc(m.texto||'El administrador está haciendo cambios grandes. Por ahora usa GLACIAL solo para consultar.'));
+      if(vigenteAnuncio(a))partes.push('<b>Anuncio:</b> '+esc(a.texto));
+      if(!partes.length){if(b)b.remove();return;}
+      if(!b){b=document.createElement('div');b.id='glacial-aviso-admin';b.setAttribute('role','status');b.style.cssText='position:sticky;top:0;z-index:9000;background:#fff7e6;color:#7a4a00;border-bottom:1px solid #f3d38b;padding:8px 14px;font-size:14px;text-align:center';const app=document.getElementById('app-screen');(app||document.body).insertBefore(b,(app||document.body).firstChild);}
+      b.innerHTML=partes.join(' · ');
+    }catch(_){/* el aviso es informativo */}
+  }
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  setInterval(()=>{try{if(C.docs.anuncio||C.docs.mantenimiento)pintarAvisos();}catch(_){/* informativo */}},60000);    // un anuncio con fecha de fin se retira solo
 
   const lineaDoc=l=>{const d=C.docs.tolerancias;return d&&d.lineas&&d.lineas[String(l||'').toUpperCase()]||null;};
   function tolerancia(linea,campo){
@@ -83,6 +99,6 @@
     return {ok:true,version,auditoriaPendiente:r.fallidas,msg:'Guardado.'+(r.fallidas?' Atención: no se pudo registrar la auditoría; reintenta.':'')};
   }
 
-  W.glacialAdminConfig={doc:id=>C.docs[id]||null,listo:id=>!!C.listo[id],version:id=>Number(C.docs[id]&&C.docs[id].version)||0,escuchar,detener,tolerancia,lineasSinExigirMerma,rolesPropios,
+  W.glacialAdminConfig={modoMantenimiento:()=>!!(C.docs.mantenimiento&&C.docs.mantenimiento.activo===true),doc:id=>C.docs[id]||null,listo:id=>!!C.listo[id],version:id=>Number(C.docs[id]&&C.docs[id].version)||0,escuchar,detener,tolerancia,lineasSinExigirMerma,rolesPropios,
     alCambiar:f=>{oyentes.push(f);return()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},guardar};
 })();

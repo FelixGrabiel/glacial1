@@ -39,13 +39,13 @@
     {id:'maestros',grupo:'Datos',titulo:'Datos maestros',sub:'Productos, insumos, proveedores, equipos y motivos',etapa:2},
     {id:'metas',grupo:'Datos',titulo:'Metas y umbrales',sub:'Metas de indicadores y umbrales de avisos',etapa:2},
     {id:'consumos',grupo:'Datos',titulo:'Mermas y consumos',sub:'Factores de consumo, conversiones y tolerancias de merma',etapa:2},
-    {id:'papelera',grupo:'Datos',titulo:'Papelera',sub:'Lo eliminado: restaurar o borrar para siempre',etapa:3},
+    {id:'papelera',grupo:'Datos',titulo:'Papelera',sub:'Reportes eliminados: recuperarlos desde su constancia',etapa:3},
     {id:'alertas',grupo:'Control',titulo:'Alertas y anuncios',sub:'Anuncios para todos y alertas por rol',etapa:4},
     {id:'seguridad',grupo:'Control',titulo:'Seguridad',sub:'Intentos fallidos y cuentas bloqueadas',etapa:4},
     {id:'auditoria',grupo:'Control',titulo:'Auditoría',sub:'Todo lo que cambió en GLACIAL, de todos los módulos',etapa:1},
     {id:'respaldos',grupo:'Control',titulo:'Respaldos e integraciones',sub:'Respaldos, exportaciones e integraciones',etapa:4}
   ];
-  const HECHAS=new Set(['resumen','usuarios','roles','auditoria','maestros','metas','consumos']);
+  const HECHAS=new Set(SECCIONES.map(x=>x.id));          // las 17 están construidas (etapas 1 a 4); lo que el navegador no puede hacer se dice en su pantalla
   SECCIONES.forEach(x=>{x.hecha=HECHAS.has(x.id);});     // construidas hasta ahora (la etapa dice cuándo se planeó)
   const seccion=id=>SECCIONES.find(s=>s.id===id)||SECCIONES[0];
 

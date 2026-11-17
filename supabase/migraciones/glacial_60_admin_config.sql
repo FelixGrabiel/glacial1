@@ -1,4 +1,4 @@
--- GLACIAL · glacial_60 · PANEL DE ADMINISTRACIÓN (etapa 2): colección adminConfig (configuración que solo cambia el Administrador)      *** APLICADA en PRUEBAS (17/11/2026); PRODUCCIÓN pendiente ***
+-- GLACIAL · glacial_60 · PANEL DE ADMINISTRACIÓN (etapa 2): colección adminConfig (configuración que solo cambia el Administrador)      *** APLICADA en PRUEBAS y PRODUCCIÓN (17/11/2026) ***
 --
 -- Qué hace (mismo método que glacial_56…59: inserta ramas por «anclas» de texto; si un ancla no aparece exactamente una vez, se detiene y no cambia nada):
 --  1) Colección nueva adminConfig/{id}: documentos de configuración del panel. Ids permitidos: tolerancias (merma aceptable y desviación por línea), roles (plantillas de permisos
