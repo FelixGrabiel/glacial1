@@ -89,9 +89,17 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.evaluate(() => ptGrupoConfirmar()); await P.waitForTimeout(600);
   ok(await P.evaluate(n => window.__guardados.length - n, antes) === 2 && /Recibidas 7 paletas/.test(await P.evaluate(() => document.querySelector('.pt-msg-k').innerText)), 'Recibir todo guarda una recepción por turno y avisa «Recibidas 7 paletas»');
   if (process.env.GLX_CAPTURAS) { await P.screenshot({ path: process.env.GLX_CAPTURAS + '/almacen-por-recibir.png' }); }
+  // ---- filtro por TURNO: Día / Noche ----
+  await P.evaluate(() => { const hoy = GlacialFecha.fechaOperativa(), reg = window.__reg; _paletasCache = [reg('d1', 'PET1', 'Cielo', '2 L', 4, 480, hoy, 5), reg('n1', 'PET1', 'Cielo', '2 L', 3, 360, hoy, 4, { turno: 'NOCHE' }), reg('i1', 'PET2', 'Mar', '600 ml', 2, 300, hoy, 3, { turno: 'INTERMEDIO' })]; glacialAlmacenPT.estado.dias = 1; ptTurno('TODOS'); });
+  ok(/^9 paletas,/.test(await kpi()), 'sin filtro de turno se ven las 9 paletas (4 Día + 3 Noche + 2 Intermedio)');
+  await P.evaluate(() => ptTurno('NOCHE'));
+  ok(/^3 paletas,/.test(await kpi()) && /Noche/i.test(await P.evaluate(() => document.querySelector('.pt-f').innerText)) && await filas() === 1, 'turno Noche: solo las 3 paletas de la noche');
+  await P.evaluate(() => ptTurno('DIA'));
+  ok(/^6 paletas,/.test(await kpi()) && await filas() === 2, 'turno Día: las paletas del Día y del Intermedio (6)');
+  await P.evaluate(() => ptTurno('TODOS'));
   // ---- fecha de inicio real: lo anotado antes no aparece ----
   await P.evaluate(() => { glacialAlmacenPT.estado.inicio = GlacialFecha.fechaOperativa(); glacialAlmacenPT.estado.dias = 0; glacialAlmacenPT.repintar(); });
-  ok(await P.evaluate(() => document.querySelectorAll('.pt-grp').length) === 1, 'con inicio hoy, lo de días anteriores no aparece');
+  ok(await P.evaluate(() => document.querySelectorAll('.pt-grp').length) === 2, 'con inicio hoy, lo de días anteriores no aparece');
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar(); console.log(fallas ? '\n' + fallas + ' FALLAS' : '\nTodo bien'); process.exit(fallas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
