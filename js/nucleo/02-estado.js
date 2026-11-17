@@ -468,6 +468,21 @@ function puedeEntrarMantenimiento(){
 /* Permiso «planificacion»: por defecto lo tienen el Administrador, el Jefe de Producción y los roles Planificación
    y Ventas y Planificación. El Administrador lo da o lo quita a cualquier usuario: darlo = 'planificacion' en
    sus permisos; quitarlo a un rol que lo trae por defecto = '-planificacion'. */
+/* Permisos que recibe por defecto un usuario nuevo según su rol (plantillas). Los usa Gestionar usuarios y el Panel de Administración. */
+const PERMISOS_SUGERIDOS_POR_ROL = {
+  'Supervisor': ['inicioOperativo','ver_programacion_turno','ver_insumos_turno','verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','horasExtras','exportarExcel','exportarJPG'],
+  'Gerente General': PERMISOS_SOLO_CONSULTA,
+  'Jefe de Producción': [...PERMISOS_SOLO_CONSULTA,'inicioOperativo','planificacion'],
+  'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
+  'Mantenimiento': ['moduloMantenimiento','horasExtras','produccionActual','control_operativo_lineas'],
+  'mantenimiento_compartido': ['ver_tareo_mantenimiento','produccionActual','control_operativo_lineas'],
+  'almacen_compartido': ['moduloAlmacen'],
+  'RRHH': ['moduloRRHH','horasExtras'],
+  'Ventas': ['produccionActual'],
+  'Planificación': ['produccionActual','planificacion'],
+  'Ventas y Planificación': ['produccionActual','planificacion']
+};
+
 const ROLES_PLANIFICACION=['Administrador','Jefe de Producción','Planificación','Ventas y Planificación'];
 function planificacionPermitida(u){
   if(!u) return false;
