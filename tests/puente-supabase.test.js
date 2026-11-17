@@ -372,7 +372,28 @@ const ids = l => (l || []).map(x => x.id).join(',');
     await A.auth.signOut(); await quieto();
     ok(A.auth.currentUser === null && vistos[vistos.length - 1] === null && A.canales.length === 0, 'Al cerrar sesión se cortan las escuchas y no queda nada de la cuenta anterior');
     eA.parar();
-    ok(typeof A.firebase.auth.Auth.Persistence.SESSION === 'string' && (await A.auth.setPersistence('session')) === undefined, 'setPersistence se acepta (la sesión vive en la pestaña)');
+    ok(typeof A.firebase.auth.Auth.Persistence.LOCAL === 'string' && (await A.auth.setPersistence('local')) === undefined, 'setPersistence se acepta (la sesión queda guardada en el equipo)');
+  }
+
+  /* ===== 8a. Sesión guardada en el equipo: lo que pasa en OTRA pestaña (16/11/2026) ===== */
+  {
+    const S = crearServidor(), A = crearDispositivo(S, 'A');
+    S.usuarios.set('ana@glacial.app', { id: 'uid-ana', clave: 'secreta1', meta: {} });
+    S.usuarios.set('beto@glacial.app', { id: 'uid-beto', clave: 'secreta1', meta: {} });
+    let recargas = 0; A.sb.document = {}; A.sb.location = { reload(){ recargas++; } };
+    const fuera = (ev, sesion) => A.avisosAuth.forEach(cb => cb(ev, sesion));
+    await A.auth.signInWithEmailAndPassword('ana@glacial.app', 'secreta1'); await pausa(40);
+    ok(recargas === 0 && A.auth.currentUser.uid === 'uid-ana', 'Entrar en esta pestaña no recarga la página');
+    fuera('TOKEN_REFRESHED', { access_token: 't2', user: { id: 'uid-ana', email: 'ana@glacial.app', user_metadata: {} } }); await pausa(40);
+    ok(recargas === 0 && A.auth.currentUser.uid === 'uid-ana', 'Renovar la sesión de la misma cuenta no recarga');
+    fuera('SIGNED_IN', { access_token: 't3', user: { id: 'uid-beto', email: 'beto@glacial.app', user_metadata: {} } }); await pausa(40);
+    ok(recargas === 1 && A.auth.currentUser.uid === 'uid-ana', 'Otra pestaña entra con OTRA cuenta → esta página se recarga (no mezcla permisos de una cuenta con datos de otra)');
+    fuera('SIGNED_OUT', null); await pausa(40);
+    ok(recargas === 2, 'Otra pestaña cierra la sesión → esta página se recarga y vuelve al inicio de sesión');
+    await A.auth.signInWithEmailAndPassword('beto@glacial.app', 'secreta1'); await pausa(40);
+    ok(recargas === 2 && A.auth.currentUser.uid === 'uid-beto', 'Cambiar de cuenta en esta misma pestaña no recarga');
+    await A.auth.signOut(); await pausa(40);
+    ok(recargas === 2 && A.auth.currentUser === null, 'Cerrar sesión en esta misma pestaña no recarga');
   }
 
   /* ===== 8b. Bloqueo de escrituras de «Modo visualización» / «Ver como» (la página envuelve los prototipos) ===== */
