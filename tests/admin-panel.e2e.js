@@ -103,10 +103,10 @@ const preparar = async (P, user) => {
   // Roles
   await P.evaluate(() => admIr('roles')); await P.waitForSelector('.adm-ar');
   t = await P.evaluate(() => document.querySelector('.adm').innerText.replace(/\s+/g, ' '));
-  ok(/Supervisor/.test(t) && /Plantilla/.test(t) && /etapa 2/.test(t), 'Roles y permisos muestra las plantillas por rol y avisa lo que llega en la etapa 2');
+  ok(/Supervisor/.test(t) && /Plantilla/.test(t) && /Duplicar rol/.test(t), 'Roles y permisos muestra las plantillas por rol (editables desde la etapa 2)');
   // otras secciones
-  await P.evaluate(() => admIr('maestros'));
-  ok(/etapa 2/.test(await P.evaluate(() => document.querySelector('.adm').innerText)), 'las secciones de las etapas siguientes lo dicen claramente');
+  await P.evaluate(() => admIr('trabajadores'));
+  ok(/etapa 3/.test(await P.evaluate(() => document.querySelector('.adm').innerText)), 'las secciones de las etapas siguientes lo dicen claramente');
   if (process.env.GLX_CAPTURAS) { await P.evaluate(() => { admIr('usuarios'); admSel('pedro'); }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/admin-usuarios.png' }); }
   // «Ver como»: el panel se cierra y se quita del menú en ese momento
   await P.evaluate(() => { admIr('resumen'); window.__vistaComo = { nombre: 'Pedro', rol: 'Supervisor' }; });
