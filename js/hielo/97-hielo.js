@@ -275,7 +275,7 @@
   const esc=s=>String(s===undefined||s===null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d)=>{const x=Number(n);if(!Number.isFinite(x))return '—';const t=String(Number(Math.abs(x).toFixed(d===undefined?0:d))).split('.');return (x<0?'−':'')+t[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ')+(t[1]?','+t[1]:'');};
   const fechaTxt=f=>esFecha(f)?f.split('-').reverse().join('/'):'—';
-  const S={vista:'inicio',aFecha:'',aTurno:'',fecha:'',turno:'TODOS',ed:null,msg:null,guardado:'',hDesde:'',hHasta:'',hTurno:'',hMarca:'',pFecha:'',pTurno:'',pItems:null,pRev:0};
+  const S={vista:'inicio',aFecha:'',aTurno:'',fecha:'',turno:'TODOS',ed:null,msg:null,guardado:'',hDesde:'',hHasta:'',hTurno:'',hMarca:'',pFecha:'',pTurno:'',pItems:null,pRev:0,menu:false};
   let temporizador=null;
   function raiz(){
     let r=document.getElementById('hielo-screen');
@@ -344,8 +344,24 @@
 @media(max-width:700px){.hl-ed thead{display:none}.hl-ed tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid #e2ebf2}
  .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
  .hl-ed td[data-label=""]{grid-column:1/-1;align-items:flex-end}}
+.hl-top,.hl-fondo{display:none}
 @media(max-width:860px){.hl-app{grid-template-columns:minmax(0,1fr)}.hl-side{flex-direction:row;gap:4px;overflow-x:auto;padding:8px;position:sticky;top:0;z-index:2}.hl-marca,.hl-sep{display:none}
- .hl-side button{white-space:nowrap;width:auto}.hl-2{grid-template-columns:minmax(0,1fr)}.hl-main{padding:14px 16px 60px}.hl-main h1{font-size:22px}}
+
+ .hl-2{grid-template-columns:minmax(0,1fr)}.hl-main{padding:14px 16px 60px}.hl-main h1{font-size:22px}}
+/* Teléfono (igual que el menú de Agua): barra con botón ☰ y menú lateral que se abre encima, con fondo oscuro. */
+@media(max-width:700px){
+#hielo-screen.hl-menu-abierto{overflow:hidden}
+.hl-top{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30;padding:8px 12px;background:#fff;border-bottom:1px solid #d9e7f1;box-shadow:0 2px 8px rgba(15,50,90,.06)}
+.hl-hamb{display:inline-flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;border:1px solid #d7e4ed;border-radius:9px;background:#f7fbfe;color:#0877A6;cursor:pointer;padding:0}
+.hl-hamb svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}.hl-hamb:focus-visible{outline:2px solid #0877A6;outline-offset:2px}
+.hl-top-t{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}.hl-top-t b{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#fff;font-size:16px;flex:none}
+.hl-top-t strong{font-size:15px;letter-spacing:.04em;color:#033350}.hl-top-t small{color:#587087;font-size:13px;font-weight:600}.hl-top-t small::before{content:'· '}
+.hl-app .hl-side{position:fixed;top:0;left:0;bottom:0;z-index:60;flex-direction:column;gap:2px;overflow-x:hidden;overflow-y:auto;width:min(320px,86vw);height:100dvh;padding:18px 12px;border-radius:0 14px 14px 0;box-shadow:12px 0 40px rgba(10,34,52,.28);transform:translateX(-110%);transition:transform .22s ease;visibility:hidden;pointer-events:none}
+.hl-app.hl-abierto .hl-side{transform:translateX(0);visibility:visible;pointer-events:auto}
+.hl-app .hl-marca{display:flex}.hl-app .hl-sep{display:block}
+.hl-app .hl-side button{white-space:normal;width:100%}
+.hl-app .hl-fondo{position:fixed;inset:0;z-index:50;width:100%;height:100%;padding:0;border:0;background:rgba(7,30,48,.48);cursor:pointer}.hl-app.hl-abierto .hl-fondo{display:block}
+}
 </style>`;}
   const opciones=(lista,sel,vacio)=>(vacio!==undefined?`<option value="">${esc(vacio)}</option>`:'')+lista.map(x=>`<option ${x===sel?'selected':''}>${esc(x)}</option>`).join('');
   const reportesDe=(fecha,turno)=>cache.reportes.filter(r=>r.fecha===fecha&&(turno==='TODOS'||r.turno===turno));
@@ -583,7 +599,10 @@
     const y=r.scrollTop;
     const IC={inicio:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',registro:'<path d="M12 5v14M5 12h14"/>',avance:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',historial:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',programacion:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',config:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',volver:'<path d="M15 6l-6 6 6 6"/>'};
     const ico=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]||''}</svg>`;
-    r.innerHTML=`${estilos()}<div class="hl-app"><nav class="hl-side" aria-label="Menú de Hielo"><div class="hl-marca"><b aria-hidden="true">❄</b><div><h2>GLACIAL · HIELO</h2><small>Reporte Hielo</small></div></div>
+    const titulo=(MENU.find(x=>x[0]===S.vista)||MENU[0])[1];
+    r.classList.toggle('hl-menu-abierto',!!S.menu);
+    r.innerHTML=`${estilos()}<div class="hl-app${S.menu?' hl-abierto':''}"><header class="hl-top"><button type="button" class="hl-hamb" aria-label="${S.menu?'Cerrar':'Abrir'} menú de Hielo" aria-controls="hl-menu" aria-expanded="${S.menu?'true':'false'}" onclick="hlMenu()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="hl-top-t"><b aria-hidden="true">❄</b><strong>GLACIAL · HIELO</strong><small>${esc(titulo)}</small></div></header>
+      <button type="button" class="hl-fondo" aria-label="Cerrar menú" tabindex="-1" onclick="hlMenu(false)"></button><nav class="hl-side" id="hl-menu" aria-label="Menú de Hielo"><div class="hl-marca"><b aria-hidden="true">❄</b><div><h2>GLACIAL · HIELO</h2><small>Reporte Hielo</small></div></div>
       ${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${ico(k)}<span>${t}</span></button>`).join('')}
       <div class="hl-sep"></div><button type="button" onclick="hlSalir()">${ico('volver')}<span>Volver a Reporte Agua</span></button></nav>
       <main class="hl-main">${aviso()}${cuerpo()}</main></div>`;
@@ -592,7 +611,9 @@
   /* ---------- acciones ---------- */
   const ok=t=>{S.msg={tipo:'ok',texto:t};pintar();};
   const mal=e=>{S.msg={tipo:'error',texto:String(e&&e.message||e)};pintar();};
-  window.hlVista=v=>{S.vista=v;S.msg=null;if(v==='programacion')S.pItems=null;pintar();};
+  window.hlMenu=abrir=>{S.menu=abrir===undefined?!S.menu:!!abrir;pintar();if(S.menu)setTimeout(()=>{const b=document.querySelector('#hl-menu button');if(b)b.focus();},30);else{const h=document.querySelector('.hl-hamb');if(h)h.focus();}};
+  if(typeof document.addEventListener==='function')document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.menu&&visible())window.hlMenu(false);});
+  window.hlVista=v=>{S.vista=v;S.menu=false;S.msg=null;if(v==='programacion')S.pItems=null;pintar();};
   window.hlSet=(k,v)=>{S[k]=v;S.msg=null;pintar();};
   window.hlAbrir=(f,t)=>{abrirEdicion(f,t);S.vista='registro';S.msg=null;pintar();};
   window.hlCambiarTurno=(f,t)=>{
@@ -685,7 +706,7 @@
   }
   window.hlSalir=()=>{
     if(temporizador){clearTimeout(temporizador);temporizador=null;window.hlGuardar('GUARDAR',true);}
-    raiz().style.display='none';
+    S.menu=false;raiz().classList.remove('hl-menu-abierto');raiz().style.display='none';
     const app=document.getElementById('app-screen'),sel=document.getElementById('report-select-screen');
     if(S.desdeAgua&&app){app.style.display='block';if(typeof renderMain==='function')try{renderMain();}catch(_){/* vuelve igual */}}
     else if(sel)sel.style.display='flex';
