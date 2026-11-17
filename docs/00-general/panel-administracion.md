@@ -27,13 +27,25 @@ Diferencias con el prompt original: la tabla del prompt dice que `horasExtras` y
 Marco con acceso solo para el Administrador (pantalla y servidor) · **Resumen** · **Usuarios** (buscar, filtrar, ficha, rol, líneas, permisos por área, «Igualar al rol», borrador con motivo) · **Roles y permisos** (plantillas por rol, quién difiere, «Igualar a la plantilla» en borrador) · **Auditoría** (consolidada, solo lectura, filtros, exportar CSV).
 
 Lo que **no** está en la etapa 1 aunque el prototipo lo muestre:
-- Editar plantillas de rol, crear o duplicar roles: necesita un documento nuevo de plantillas en el servidor y enganchar el formulario de «Nuevo usuario». Propuesto para la etapa 2.
 - «Equipos conectados», «Alertas de seguridad», sesiones y cierre de sesión de otros: etapa 4 (función de servidor).
 - Pendientes de aprobación y «Deshacer» desde la Auditoría: etapas 3 y siguientes.
 - Desactivar usuarios, contraseña temporal y «Ver GLACIAL como esta persona» desde la ficha: «Ver como» ya existe en su botón de siempre; el resto necesita decisión (ver arriba).
 
+## Etapa 2 (construida)
+- **Mermas y consumos** (4 pestañas, con las mismas funciones y reglas del Asistente de Producción: no hay copias paralelas):
+  - *Consumo de insumos*: lista de `apFactores`, factor vigente hoy, «ambiguo» si dos empatan, **Pendientes de configurar** (lo producido sin factor), «Cambiar» (crea una **versión nueva** con fecha de vigencia y motivo; cierra la anterior con `guardarFactor`; vista previa con el consumo teórico de un turno típico y el % de cambio, en rojo desde 20 %), «Historial» y «Nuevo factor».
+  - *Conversión de mermas*: por componente y línea; cambio con «rige desde» (hoy o después) y motivo; **los reportes anteriores conservan su conversión** (nada se recalcula hacia atrás). Usa `glacialConversiones.panel.guardarCambio`.
+  - *Causas y etapas*: `apParametros/merma` con `guardarParametrosMerma` (con versión). Quitar = dejar de ofrecer (los registros viejos conservan su texto). Sin documento rigen las de siempre.
+  - *Tolerancias* (nuevo): `adminConfig/tolerancias` — merma aceptable y desviación aceptable por línea (% del teórico) y si la merma se valida antes de cerrar el turno. **Sin valor, el Asistente se comporta como hoy.** El Asistente las lee en `72-asistente-pantalla.js` → `conciliar()` (`dentroDeTolerancia`, `mermaExcede`, alerta `MERMA_ALTA`, `lineasSinExigirMerma`).
+- **Metas y umbrales** y **Datos maestros**: muestran los valores vivos y abren el editor que ya existe (Análisis de paradas, Velocidades estándar, umbrales de avisos, Planificación, Inventario de insumos…). No se duplicó ningún editor.
+- **Roles y permisos**: plantillas editables y roles propios (`adminConfig/roles`). Las plantillas cambian `PERMISOS_SUGERIDOS_POR_ROL` (lo que usa «Nuevo usuario»); los usuarios existentes no cambian solos (se usa «Igualar a la plantilla»). Los roles propios agrupan permisos: no cambian el comportamiento del sistema.
+- **Servidor** (`glacial_60`): colección `adminConfig` con ids permitidos, solo el Administrador escribe, **el servidor exige versión anterior + 1** (si dos equipos editan a la vez, el segundo es rechazado) y motivo de 10 caracteres; lectura para cualquier usuario con sesión (el Asistente y «Nuevo usuario» la leen).
+- Todo cambio deja su fila en `adminAuditoria`; además `apAuditoria` conserva su propia auditoría de factores y conversiones.
+
+Limitaciones de la etapa 2: «Datos maestros» y «Metas y umbrales» abren el editor existente (no hay edición dentro del panel); no existe aún lista de proveedores/equipos/motivos dentro del panel.
+
 ## Estado de la migración
-`glacial_59_panel_administracion.sql`: aplicada en **PRUEBAS**; **PRODUCCIÓN pendiente** (solo con aprobación del dueño, con ensayo previo). Sin ella, el panel abre pero no puede registrar su auditoría en producción.
+`glacial_59_panel_administracion.sql` y `glacial_60_admin_config.sql`: aplicadas en **PRUEBAS**; **PRODUCCIÓN pendiente** (59 primero, luego 60; solo con aprobación del dueño y ensayo previo). Sin ellas, el panel abre pero no puede registrar su auditoría ni guardar tolerancias o roles en producción.
 
 ## Pruebas
-`tests/admin-panel.test.js` (reglas, adaptadores de auditoría, migración, conexiones) y `tests/admin-panel.e2e.js` (navegador: quién entra, 17 secciones, Resumen, Auditoría en vivo, borrador, motivo, auditoría propia, conflicto entre equipos, «Ver como»).
+`tests/admin-panel.test.js` (reglas, adaptadores de auditoría, tolerancias, núcleo del Asistente, migraciones, conexiones), `tests/admin-panel-etapa2.e2e.js` (factores con vista previa, causas, tolerancias, roles) y `tests/admin-panel.e2e.js` (navegador: quién entra, 17 secciones, Resumen, Auditoría en vivo, borrador, motivo, auditoría propia, conflicto entre equipos, «Ver como»).

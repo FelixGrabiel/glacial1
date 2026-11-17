@@ -221,7 +221,10 @@
     opcionesKg:(linea,clase,fecha)=>opcionesKg(lista(),linea,clase,esFecha(fecha)?fecha:hoy()),
     kgAUnidades,
     mermaPorPeso:(linea,item,fecha)=>mermaPorPeso(lista(),linea,item,esFecha(fecha)?fecha:hoy()),
-    lista,escuchar,detener,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}
+    lista,escuchar,detener,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
+    /* Para el Panel de Administración (Mermas y consumos): las mismas funciones y reglas de siempre, sin copias. */
+    panel:{grupos:()=>grupos(lista()),versiones:clave=>versiones(lista(),clave),vigenteEntrada:(l,i,f)=>vigenteEntrada(lista(),l,i,f),texto,tipoDe,valorEditable:c=>valorEditable(c),hoy:()=>hoy(),
+      guardarCambio:p=>guardarCambio(p),version:()=>Number(cache.doc&&cache.doc.version)||0}
   };
   window.glacialConversionesEscuchas=escuchar;
 

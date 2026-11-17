@@ -106,7 +106,8 @@
         const mval=N.mermaValidada(mermasBloque,c.clave,i.codigo,i.unidad);
         // Merma que el supervisor ya registró en su reporte (Registro de producción): también explica la desviación, sin volver a registrarla.
         const mreg=N.mermaRegistro(cuadroDelReporte(c),i);
-        const r=N.conciliar({saldoInicial:doc?doc.saldoInicial:null,saldoFinal:doc?doc.saldoFinal:null,...mv,teorico:teo,mermaValidada:mval,mermaRegistro:mreg?mreg.cantidad:0});
+        const TOL=window.glacialAdminConfig||null;       // tolerancias del Panel de Administración (sin valor: como siempre)
+        const r=N.conciliar({saldoInicial:doc?doc.saldoInicial:null,saldoFinal:doc?doc.saldoFinal:null,...mv,teorico:teo,mermaValidada:mval,mermaRegistro:mreg?mreg.cantidad:0,toleranciaDesvPct:TOL?TOL.tolerancia(c.linea,'desviacionPct'):null,mermaAceptablePct:TOL?TOL.tolerancia(c.linea,'mermaPct'):null});
         concil.push({cuadro:c,insumo:i,factor:fv.factor||null,factorError:fv.error||'',doc,mov:mv,teorico:teo,mermaValidada:mval,mermaRegistro:mreg?mreg.cantidad:0,mermaRegistroItems:mreg?mreg.items:[],...r,unidad:i.unidad,
           etiqueta:N.lineaInfo(c.linea).nombre+' · '+c.codigo+' · '+i.nombre,estado:doc?doc.estado:'SIN_REGISTRO'});
       });
@@ -115,7 +116,7 @@
     const coordinaciones=(C.coordinaciones||[]).filter(x=>x.bloque===N.bloqueDe(AP.bloque));
     return {cuadros,req,resumen:N.resumenInsumos(req),concil,mermas:mermasBloque,solicitudes,coordinaciones,lineas:lineasPermitidas,
       alertas:N.alertas({requerimientos:req,conciliaciones:concil,mermas:mermasBloque,solicitudes}),
-      pendientes:N.pendientesDeCierre({solicitudes,mermas:mermasBloque,conciliaciones:concil})};
+      pendientes:N.pendientesDeCierre({solicitudes,mermas:mermasBloque,conciliaciones:concil,lineasSinExigirMerma:window.glacialAdminConfig?window.glacialAdminConfig.lineasSinExigirMerma():[]})};
   }
 
   /* ---------- piezas comunes ---------- */
