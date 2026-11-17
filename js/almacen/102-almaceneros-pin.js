@@ -179,6 +179,6 @@
   W.alAgregar=()=>hacer(async()=>{await agregar(ES.nombreNuevo);ES.nombreNuevo='';},'Almacenero agregado.');
   W.alActivar=(id,si)=>hacer(()=>activar(id,si),si?'Almacenero activado.':'Almacenero desactivado.');
   W.alReiniciar=id=>hacer(()=>reiniciarPin(id),'PIN reiniciado: creará uno nuevo la próxima vez que entre.');
-  W.glacialAlmaceneros={activa,cerrarIdentificacion,abrirIdentificacion,htmlAdmin,escuchar,detener,estado:ES,alCambiar:f=>{oyentes.push(f);}};
+  W.glacialAlmaceneros={panel:{lista:()=>ES.lista.slice(),agregar,activar,reiniciarPin,tienePin},activa,cerrarIdentificacion,abrirIdentificacion,htmlAdmin,escuchar,detener,estado:ES,alCambiar:f=>{oyentes.push(f);}};
   if(W.glacialAlmacenPT&&W.glacialAlmacenPT.repintar)oyentes.push(W.glacialAlmacenPT.repintar);       // la bandeja se actualiza cuando cambia la lista o la persona identificada
 })(typeof window!=='undefined'?window:globalThis);

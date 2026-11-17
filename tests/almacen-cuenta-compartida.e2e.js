@@ -42,9 +42,10 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const pinGuardado = await P.evaluate(() => window.__escrituras.find(e => e.nombre === 'almaceneros'));
   ok(pinGuardado && pinGuardado.id === 'a1' && pinGuardado.d.hash && pinGuardado.d.salt && !JSON.stringify(pinGuardado.d).includes('4827') && pinGuardado.d.nombre === 'Luis Ramos', 'al crear el PIN se guarda solo su hash con sal (nunca el PIN) en su ficha');
   ok(!(await P.evaluate(() => !!document.getElementById('alm-id-overlay'))) && /Luis Ramos/.test(await P.evaluate(() => document.getElementById('alm-persona') ? document.getElementById('alm-persona').innerText : '')), 'queda identificada la persona y se ve su nombre arriba');
-  await P.evaluate(() => ptAccion('pal_1', 'RECIBIDA')); await P.evaluate(() => ptConfirmar('pal_1')); await P.waitForTimeout(300);
+  const idPal = await P.evaluate(() => document.querySelector('button.pt-b-v').getAttribute('onclick').match(/'([^']+)'/)[1]);
+  await P.evaluate(id => ptAccion(id, 'RECIBIDA'), idPal); await P.evaluate(id => ptConfirmar(id), idPal); await P.waitForTimeout(300);
   const rec = await P.evaluate(() => window.__escrituras.find(e => e.nombre === 'almacenPtRecepcion'));
-  ok(rec && rec.d.opId === 'pal_1_R1' && rec.d.almacenero && rec.d.almacenero.id === 'a1' && rec.d.almacenero.nombre === 'Luis Ramos', 'la recepción guarda qué almacenero la hizo (id y nombre)');
+  ok(rec && rec.d.opId === idPal + '_R1' && rec.d.almacenero && rec.d.almacenero.id === 'a1' && rec.d.almacenero.nombre === 'Luis Ramos', 'la recepción guarda qué almacenero la hizo (id y nombre)');
   ok(/Luis Ramos/.test(await P.evaluate(() => { ptTab('recibidas'); return document.querySelector('.pt-t') ? document.querySelector('.pt-t').innerText : ''; })), 'en «Recibidas» se ve quién recibió');
   ok(!(await P.evaluate(() => [...document.querySelectorAll('.pt-tab')].some(t => /Almaceneros/.test(t.innerText)))), 'la cuenta compartida no ve la administración de almaceneros');
   // cambiar de persona y probar PIN incorrecto con bloqueo

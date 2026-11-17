@@ -375,11 +375,18 @@ function avParadasLinea(linea,hora,tipo,corteMs){
   // Los eventos generales NO se copian a cada marca/cuadro y por ello no duplican minutos.
   return [...avParadasRegistroLinea(linea,hora,tipo,corteMs),...avParadasOperativasLinea(linea,corteMs)];
 }
+/* Agregar paradas NO depende de la hora: se puede aun con el turno terminado, con la ventana del supervisor cerrada o con el cierre ya generado
+   (las paradas se olvidan o se confirman después). Solo exige el permiso de Avance y Cierre y no ser usuario de solo consulta. */
 function avPuedeEditarParadas(){
-  if(!avPuedeGenerar())return false;
-  const cierre=avanceEstado.snapshots?.some(s=>s.tipo==='CIERRE'&&s.fecha===avanceEstado.fecha&&s.turno===avanceEstado.turno);
-  if(!cierre)return true;
-  return typeof tienePermiso==='function'&&tienePermiso('reabrirReporteProduccion');
+  if(!state?.user||typeof tienePermiso!=='function'||!tienePermiso('avanceProduccion'))return false;
+  if(typeof esUsuarioSoloConsulta==='function'&&esUsuarioSoloConsulta(state.user))return false;
+  return true;
+}
+function avCierreGenerado(){return !!avanceEstado.snapshots?.some(s=>s.tipo==='CIERRE'&&s.fecha===avanceEstado.fecha&&s.turno===avanceEstado.turno);}
+/* Botón «+ AGREGAR PARADAS» para quien no puede generar avances (fuera de su ventana) o ve un turno pasado. */
+function avParadasTardiasHtml(){
+  if(!avPuedeEditarParadas())return '';
+  return `<div class="av-module-actions"><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><small class="small-muted" style="align-self:center">Se pueden agregar paradas de ${avEsc(avFechaBonita(avanceEstado.fecha))} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))} aunque el turno ya haya terminado.</small></div>`;
 }
 function avIdParadaNueva(){return `avp_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;}
 function avCatalogoMotivos(){
@@ -615,7 +622,8 @@ function avRenderParadasModal(){
   <div class="av-paradas-note">Selecciona primero si la parada es <b>Programada</b> o <b>No programada</b>. Las paradas de <b>Nuevo registro</b> y <b>Avance/Cierre</b> se muestran juntas y no se copian a todas las marcas.</div>
   ${avParadasBotonHtml(m)}
   ${avCambioPlanificadoHtml(m,puedeEditar)}
-  ${!puedeEditar?`<div class="av-paradas-note"><b>Modo consulta:</b> el turno está cerrado o tu usuario no tiene permiso de edición.</div>`:''}
+  ${!puedeEditar?`<div class="av-paradas-note"><b>Modo consulta:</b> tu usuario no tiene permiso para agregar paradas.</div>`:''}
+  ${puedeEditar&&avCierreGenerado()?`<div class="av-paradas-note"><b>El cierre de este turno ya se generó.</b> Las paradas que agregues se guardan, pero el cierre existente no cambia: después usa <b>REGENERAR CIERRE</b> para que las incluya.</div>`:''}
   ${window.glacialCorreccionParadas&&window.glacialCorreccionParadas.puede()?`<div class="av-paradas-note"><button type="button" class="btn btn-ghost" onclick="glacialCorreccionParadas.abrirAvance()" ${m.guardando?'disabled':''}>Corregir asignación</button> Pasa paradas ya registradas a otra línea (con motivo y constancia).</div>`:''}
   ${m.error?`<div class="av-paradas-error">${avEsc(m.error)}</div>`:''}
   <div class="av-paradas-list">${m.filas.map((p,i)=>p.eliminarSolicitado?'':`<div class="av-parada-row ${p.tipo==='NO_PROGRAMADA'?'is-np':'is-p'}">
@@ -1415,7 +1423,7 @@ async function avGenerarSeleccion(opc){
 }
 function avAccionesHistoricoHtml(){
   const c=avUltimoSnapshot('CIERRE');
-  return `<div class="av-module-actions">${c?`<button class="btn btn-ghost" onclick="avVer('${avEsc(c.id)}')">VER CIERRE${c.version>1?' (v'+c.version+')':''}</button><button class="btn btn-ghost" onclick="avAbrirCierreHistorico(true)">REGENERAR CIERRE</button>`
+  return `<div class="av-module-actions">${avPuedeEditarParadas()?'<button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>':''}${c?`<button class="btn btn-ghost" onclick="avVer('${avEsc(c.id)}')">VER CIERRE${c.version>1?' (v'+c.version+')':''}</button><button class="btn btn-ghost" onclick="avAbrirCierreHistorico(true)">REGENERAR CIERRE</button>`
     :'<button class="btn btn-primary" onclick="avAbrirCierreHistorico(false)">GENERAR CIERRE</button>'}<small class="small-muted" style="align-self:center">Opera sobre ${avEsc(avanceEstado.fecha)} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}; no reabre ni finaliza registros de producción.</small></div>`;
 }
 function avAbrirCierreHistorico(regenerar){
@@ -1616,7 +1624,7 @@ function avDibujarFlotante(){
           <button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>
           ${avBotonAjustarPersonal()}
           <button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button>
-        </div>`:`<div class="av-readonly">Modo consulta: puedes ver, copiar y generar imagen de los registros existentes.</div>`}
+        </div>`:`<div class="av-readonly">Modo consulta: puedes ver, copiar y generar imagen de los registros existentes.</div>${avPuedeEditarParadas()?'<div class="av-float-actions"><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button></div>':''}`}
         <section class="av-float-last">
           <div class="av-float-last-head"><div><small>ÚLTIMO AVANCE</small><strong>${ultimo?`${ultimo.horaReferencia||ultimo.horaCorte} · GENERADO`:'Todavía no generado'}</strong></div></div>
           ${ultimo?avAccionesSnapshot(ultimo,true):''}
@@ -2144,6 +2152,7 @@ function avDibujar(){
     <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'}${avChipTolerancia()} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
     ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
     ${!actual&&avPuedeGenerar()?avAccionesHistoricoHtml():''}
+    ${!avPuedeGenerar()?avParadasTardiasHtml():''}
     ${avHorariosLineasHtml()}
     ${avAdminMigracionHtml()}
     <div id="av-estado" class="av-inline-status"></div>

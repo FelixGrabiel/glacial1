@@ -249,6 +249,7 @@ function openUsersModal(){
                 <option value="Mantenimiento">Mantenimiento</option>
                 <option value="mantenimiento_compartido">Mantenimiento · cuenta compartida (identificación por PIN)</option>
                 <option value="almacen_compartido">Almacén · cuenta compartida (identificación por PIN)</option>
+                ${(window.glacialAdminConfig?window.glacialAdminConfig.rolesPropios():[]).map(r=>`<option value="${escaparHtml(r)}">${escaparHtml(r)}</option>`).join('')}
                 <option value="RRHH">RRHH</option>
                 <option value="Ventas">Ventas</option>
                 <option value="Planificación">Planificación</option>
@@ -475,19 +476,7 @@ function cambiarRolNuevoUsuario(){
 
     checks.forEach(
       c=>{
-        const sugeridos = {
-          'Supervisor': ['inicioOperativo','ver_programacion_turno','ver_insumos_turno','verLineasProduccion','nuevo','historial','graficos','paletas','programarPaletas','avanceProduccion','tareoProduccion','horasExtras','exportarExcel','exportarJPG'],
-          'Gerente General': PERMISOS_SOLO_CONSULTA,
-          'Jefe de Producción': [...PERMISOS_SOLO_CONSULTA,'inicioOperativo','planificacion'],
-          'Jefe de Operaciones': PERMISOS_SOLO_CONSULTA,
-          'Mantenimiento': ['moduloMantenimiento','horasExtras','produccionActual','control_operativo_lineas'],
-          'mantenimiento_compartido': ['ver_tareo_mantenimiento','produccionActual','control_operativo_lineas'],
-          'almacen_compartido': ['moduloAlmacen'],
-          'RRHH': ['moduloRRHH','horasExtras'],
-          'Ventas': ['produccionActual'],
-          'Planificación': ['produccionActual','planificacion'],
-          'Ventas y Planificación': ['produccionActual','planificacion']
-        };
+        const sugeridos = PERMISOS_SUGERIDOS_POR_ROL;   // plantillas por rol: definidas en js/nucleo/02-estado.js (las lee también el Panel de Administración)
         c.checked=(sugeridos[rol] || []).includes(c.value);
         c.disabled=false;
       }

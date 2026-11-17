@@ -331,7 +331,7 @@
     const comp=companerasDe(d,g);S.crear.companeras=comp.filter(c=>!c.errores.length).map(c=>({id:c.doc.id,rev:c.doc.rev}));
     const uf=T.unidadFisica(g.datos.categoria);
     const compHtml=comp.length?`<fieldset class="il-art il-comp"><legend>Otras fotos del mismo lote ${esc(g.datos.loteProveedor)} (${comp.length})</legend>
-      <p class="ii-mut">Se confirman junto con esta, cada una como una ${esc(uf.uno)} del mismo lote. Solo vienen marcadas las que tienen todos sus datos confirmados; las demás revísalas una por una contra su foto.</p>
+      <p class="ii-mut">Nada se confirma solo: estas fotos se aprueban <b>únicamente cuando tú pulsas «${d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote'}»</b>, y cada una se cuenta como una ${esc(uf.uno)} más del mismo lote. Vienen marcadas solo las que ya tienen todos sus datos confirmados; <b>desmarca</b> las que no quieras aprobar ahora (siguen pendientes) y revisa una por una las que no se pueden marcar.</p>
       ${comp.map(c=>`<label class="il-op"><input type="checkbox" class="il-comp-x" value="${esc(c.doc.id)}" data-rev="${esc(c.doc.rev)}" ${c.errores.length?'disabled':'checked'}><span><b>${esc(uf.titulo)} ${esc(c.datos.numero||'—')}</b> · ${esc(c.datos.producto)} <small class="ii-mut">${esc(c.datos.proveedor)} · foto ${esc(hora(N.fechaFoto(c.doc).ms))}${c.datos.pesoNeto!=null?' · '+esc(kg(c.datos.pesoNeto)):''}</small>${c.errores.length?`<small class="il-err">${esc(c.errores[0])}</small>`:''}</span></label>`).join('')}</fieldset>`:'';
     const ok=!g.errores.length;
     abrirModal(d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote',`<p>${que}</p>${dupHtml}${compHtml}

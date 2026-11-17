@@ -206,6 +206,20 @@ Diagnóstico, modelo de datos y permisos: `docs/asistente/asistente-produccion.m
 | 82-asistente-prevision-nucleo.js | Previsión de insumos a varios días, desviación de consumo real vs teórico y alertas del Asistente (cálculo puro) |
 | 83-asistente-reportes-pantalla.js | Historial › Reportes en Excel: Resumen general / por línea con previsualización y corrección de saldos y mermas en el dato original |
 
+### js/admin/
+
+Panel de Administración («Centro de control», solo Administrador). Diseño, reglas y etapas: `docs/00-general/panel-administracion.md`.
+
+| Archivo | Función |
+|---|---|
+| 110-admin-nucleo.js | Reglas puras: quién entra, las 17 secciones, motivo ≥ 10 caracteres, auditoría consolidada (adapta las que ya existen), borrador de usuarios |
+| 111-admin-acceso-datos.js | Acceso (entrada del menú creada solo para el Administrador), lecturas en vivo, auditoría propia (`adminAuditoria`, glacial_59) y guardado de usuarios con motivo, todo o nada |
+| 112-admin-pantalla.js | Pantalla: Resumen, Usuarios, Roles y permisos y Auditoría (etapa 1); las demás secciones aparecen con su etapa |
+| 113-admin-config.js | Configuración `adminConfig` (glacial_60): lectura para todos (tolerancias y plantillas de rol), escritura solo del Administrador con versión y motivo |
+| 115-admin-etapa3.js | Etapa 3: Trabajadores, Cuentas compartidas, Turnos y horarios, Tareo y cierres, Corrección de registros y Papelera |
+| 116-admin-etapa4.js | Etapa 4: Alertas y anuncios, Salud y sesiones, Seguridad, Respaldos e integraciones |
+| 114-admin-etapa2.js | Etapa 2: Mermas y consumos (factores, conversiones, causas y etapas, tolerancias), Metas y umbrales, Datos maestros y plantillas de Roles |
+
 ## Orden de carga (el de `index.html`)
 
 1. nucleo/01-config.js

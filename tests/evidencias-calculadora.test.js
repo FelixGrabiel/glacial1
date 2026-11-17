@@ -15,6 +15,15 @@ const P=fs.readFileSync(R+'/js/asistente/86-evidencias-insumos-pantalla.js','utf
 ok(/calculadoraHtml\(d\)/.test(P)&&/Solo calcula: no cambia los datos de la evidencia/.test(P)&&!/ieCalc[^\n]*borrador\(\)/.test(P),'la pantalla muestra la calculadora y no escribe en el borrador de la evidencia');
 /* Conversión escrita a mano (13/11/2026). */
 ok(/✍ Escribir a mano/.test(P)&&/value="m"/.test(P)&&/manual=st\.modo==='manual'\|\|!ops\.length/.test(P),'si no hay conversión guardada (o se elige «Escribir a mano») se escribe la conversión a mano');
-ok(/Peso de 1 unidad \(g\)/.test(P)&&/Unidades en 1 kg/.test(P)&&/m\.modo==='undkg'\?1000\/n:n/.test(P),'a mano: gramos de 1 UND o UND en 1 kg (1000 ÷ UND por kg = gramos)');
+ok(/Peso de 1 unidad \(g\)/.test(P)&&/Unidades en 1 kg/.test(P)&&/m\.modo==='undkg'\?1000\/n:m\.modo==='g'\?n:n\*1000/.test(P),'a mano: kilos de 1 UND (por defecto), gramos de 1 UND o UND en 1 kg (1000 ÷ UND por kg = gramos)');
 ok(/glacial-calc-manual/.test(P)&&/try\{localStorage\.setItem/.test(P)&&/catch\(_\)\{\/\* sin almacenamiento/.test(P),'la conversión a mano se recuerda por categoría (sin romper si el navegador no guarda)');
 ok(/\$\(id\)\.disabled=!o\.gramos/.test(P),'kilos y unidades se habilitan apenas hay conversión');
+
+/* 17/11/2026: en kilos por defecto, sin «Línea» cuando no aplica, y «Confirmar» que guarda. */
+ok(/<option value="kg" \$\{o\.man\.modo!=='undkg'&&o\.man\.modo!=='g'\?'selected':''\}>Peso de 1 unidad \(kg\)<\/option>/.test(P)&&/mem\.modo\|\|'kg'/.test(P)&&/Kilos de 1 UND/.test(P),'a mano se escribe en KILOS por defecto (Peso de 1 unidad (kg)); gramos y «UND en 1 kg» siguen como opciones');
+ok(/glacial-calc-manual-v2/.test(P),'la memoria anterior en gramos se descarta (clave v2) para que el kilo sea el valor por defecto');
+ok(/hayGuardadas=lineas\.some\(l=>opsDe\(l\)\.length\)/.test(P)&&/fuente=\(!o\.hayGuardadas\?'':/.test(P)&&/const conv=!o\.hayGuardadas\?'':/.test(P),'si ninguna línea tiene conversión guardada de esa categoría, no se muestra «Línea» ni el aviso: solo la conversión a mano');
+ok(/if\(b&&b\[campo\]!==undefined\)\{[^}]*guardarEdiciones\(d\.id,d\.rev,\{cambios:\{\[campo\]:b\[campo\]\}\}\)/s.test(P)&&!/Guarda primero el valor que escribiste/.test(P),'«Confirmar» con un valor escrito lo guarda y lo confirma en un solo paso (ya no pide «guarda primero»)');
+const L=fs.readFileSync(R+'/js/asistente/89-trazabilidad-lotes-pantalla.js','utf8');
+ok(/Nada se confirma solo/.test(L)&&/únicamente cuando tú pulsas/.test(L)&&/desmarca/.test(L),'«Otras fotos del mismo lote»: aclara que solo se aprueban cuando el usuario confirma y que se pueden desmarcar');
+process.exit(process.exitCode||0);
