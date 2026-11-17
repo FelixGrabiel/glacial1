@@ -36,7 +36,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.waitForSelector('.adm');
   const txt = () => P.evaluate(() => document.querySelector('.adm').innerText.replace(/\s+/g, ' '));
   const menu = await P.evaluate(() => [...document.querySelectorAll('.adm-menu button')].map(b => b.innerText.replace(/\s+/g, ' ').trim()));
-  ok(menu.filter(m => /Etapa/.test(m)).length === 10 && !/Etapa/.test(menu.find(m => /Mermas y consumos/.test(m)) + menu.find(m => /Metas y umbrales/.test(m)) + menu.find(m => /Datos maestros/.test(m))), 'Mermas y consumos, Metas y umbrales y Datos maestros ya no dicen «Etapa»: quedan 10 pendientes (3 y 4)');
+  ok(menu.filter(m => /Etapa/.test(m)).length === 0, 'las 17 secciones del menú están construidas (ninguna dice «Etapa»)');
   // ---- Mermas y consumos: factores ----
   await P.evaluate(() => admIr('consumos')); await P.waitForSelector('.adm-t');
   let t = await txt();

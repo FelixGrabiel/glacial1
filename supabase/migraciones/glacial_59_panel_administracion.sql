@@ -1,4 +1,4 @@
--- GLACIAL · glacial_59 · PANEL DE ADMINISTRACIÓN (etapa 1): marca adm_panel y libro de auditoría propio del panel      *** APLICADA en PRUEBAS (17/11/2026); PRODUCCIÓN pendiente ***
+-- GLACIAL · glacial_59 · PANEL DE ADMINISTRACIÓN (etapa 1): marca adm_panel y libro de auditoría propio del panel      *** APLICADA en PRUEBAS y PRODUCCIÓN (17/11/2026) ***
 --
 -- Qué hace (mismo método que glacial_56/57/58: inserta ramas por «anclas» de texto; si un ancla no aparece exactamente una vez, se detiene y no cambia nada):
 --  1) glacial_fs.ctx: nueva marca adm_panel = sesión de Administrador, que no sea la cuenta compartida de Mantenimiento ni de solo vista

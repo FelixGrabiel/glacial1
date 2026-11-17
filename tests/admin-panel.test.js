@@ -15,6 +15,7 @@ ok(N.puedeAcceder(null,false)===false&&N.puedeAcceder(undefined,false)===false,'
 ok(N.SECCIONES.length===17&&N.GRUPOS.join()==='General,Personas,Operación,Datos,Control','17 secciones en 5 grupos');
 ok(new Set(N.SECCIONES.map(s=>s.id)).size===17&&N.SECCIONES.every(s=>N.GRUPOS.includes(s.grupo)),'ids únicos y cada sección pertenece a un grupo');
 ok(N.SECCIONES.filter(s=>s.etapa===1).map(s=>s.id).join()==='resumen,usuarios,roles,auditoria','etapa 1: Resumen, Usuarios, Roles y permisos y Auditoría');
+ok(N.SECCIONES.every(s=>s.hecha===true),'las 17 secciones están construidas');
 ok(N.SECCIONES.filter(s=>s.etapa===2).map(s=>s.id).join()==='maestros,metas,consumos'&&N.SECCIONES.filter(s=>s.etapa===3).length===6&&N.SECCIONES.filter(s=>s.etapa===4).length===4,'etapas 2, 3 y 4 como en el plan');
 
 // ---- motivo ----
@@ -108,4 +109,15 @@ ok(/guardarFactor\(n,f\.id\)/.test(e2)&&/guardarParametrosMerma\(/.test(e2)&&/gu
 ok(!/collection\('apFactores'\)|collection\('apParametros'\)/.test(e2),'el panel no escribe directo en apFactores ni apParametros');
 ok(/runTransaction/.test(cfg)&&/CONFLICTO/.test(cfg)&&/Esto cambió en otro equipo/.test(cfg),'adminConfig: control de versión también en el navegador');
 ok(/window\.glacialAdminConfig/.test(leer('js/asistente/72-asistente-pantalla.js'))&&/panel:\{grupos/.test(leer('js/asistente/95-conversiones.js')),'el Asistente lee las tolerancias y las conversiones se exponen para el panel');
+
+// ---- etapas 3 y 4 ----
+const e3=leer('js/admin/115-admin-etapa3.js'),e4=leer('js/admin/116-admin-etapa4.js');
+ok(idx.indexOf('114-admin-etapa2.js')<idx.indexOf('115-admin-etapa3.js')&&idx.indexOf('115-admin-etapa3.js')<idx.indexOf('116-admin-etapa4.js')&&idx.indexOf('116-admin-etapa4.js')<idx.indexOf('12-init.js'),'orden de carga: 114 · 115 · 116, antes del arranque');
+ok(/saveWorkers\(nueva\)/.test(e3)&&/reabrirReporteProduccion\(id\)/.test(e3)&&/deleteRecord\(id\)/.test(e3)&&/saveRecords\(actual\)/.test(e3)&&/glacialAlmaceneros\.panel/.test(e3),'etapa 3 usa las funciones de siempre (trabajadores, reabrir, eliminar con constancia, restaurar, almaceneros)');
+ok(!/sync'\)\.doc\('workers'\)\.(set|update)/.test(e3)&&!/collection\('almaceneros'\)\.doc\([^)]*\)\.set/.test(e3),'el panel no escribe directo en sync/workers ni en almaceneros');
+ok(/No hay «borrar para siempre»/.test(e3)&&!/borrar para siempre<\/button>/.test(e3),'la Papelera no ofrece borrar para siempre (la constancia es inmutable)');
+ok(/\['password','passwordHash','salt','hash','clave','pass','pin','authUid','authEmail'\]/.test(e4)&&/usuarios:U\(\)\.usuarios\(\)\.map\(limpio\)/.test(e4),'el respaldo JSON quita claves, sales, PIN y datos de cuenta de los usuarios');
+ok(/No disponible desde el navegador/.test(e4)&&/intentos de ingreso fallidos/i.test(e4)&&/cerrar sesión/i.test(e4)&&/Respaldos automáticos/.test(e4),'lo que el navegador no puede hacer se dice en pantalla (sesiones, intentos fallidos, respaldos automáticos)');
+ok(/glacial-aviso-admin/.test(leer('js/admin/113-admin-config.js'))&&/'anuncio','mantenimiento'/.test(leer('js/admin/113-admin-config.js')),'el anuncio y el modo mantenimiento se leen en todos los equipos y se pintan como banner');
+ok(/Es un aviso: no bloquea/.test(e4),'el modo mantenimiento dice claramente que avisa y no bloquea');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

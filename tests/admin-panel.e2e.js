@@ -105,8 +105,8 @@ const preparar = async (P, user) => {
   t = await P.evaluate(() => document.querySelector('.adm').innerText.replace(/\s+/g, ' '));
   ok(/Supervisor/.test(t) && /Plantilla/.test(t) && /Duplicar rol/.test(t), 'Roles y permisos muestra las plantillas por rol (editables desde la etapa 2)');
   // otras secciones
-  await P.evaluate(() => admIr('trabajadores'));
-  ok(/etapa 3/.test(await P.evaluate(() => document.querySelector('.adm').innerText)), 'las secciones de las etapas siguientes lo dicen claramente');
+  await P.evaluate(() => admIr('seguridad'));
+  ok(/No disponible desde el navegador/.test(await P.evaluate(() => document.querySelector('.adm').innerText)), 'lo que el navegador no puede hacer se dice claramente');
   if (process.env.GLX_CAPTURAS) { await P.evaluate(() => { admIr('usuarios'); admSel('pedro'); }); await P.screenshot({ path: process.env.GLX_CAPTURAS + '/admin-usuarios.png' }); }
   // «Ver como»: el panel se cierra y se quita del menú en ese momento
   await P.evaluate(() => { admIr('resumen'); window.__vistaComo = { nombre: 'Pedro', rol: 'Supervisor' }; });
