@@ -16,4 +16,4 @@
 - **A ciegas:** Almacén no ve la cifra del supervisor hasta registrar la suya (control en pantalla; los datos sí son legibles por la cuenta de Almacén).
 - **Coincidir exacto:** CONFORME si son iguales; CON DIFERENCIA si no. Se corrige entre ambos (Almacén anula su conteo / el supervisor anula su entrega). Lo que cuenta como recibido es el conteo de Almacén.
 - Estados: en línea · entregado · contado sin entrega · conforme · con diferencia.
-- `glacial_58`: aplicada en PRUEBAS; **PRODUCCIÓN pendiente** (requiere glacial_56 y glacial_57; solo con «Aplica en producción» y ensayo previo).
+- `glacial_58`: aplicada en PRUEBAS y PRODUCCIÓN (17/11/2026).
