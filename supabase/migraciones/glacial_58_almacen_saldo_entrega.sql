@@ -1,4 +1,4 @@
--- GLACIAL · glacial_58 · ALMACÉN › SALDO INCOMPLETO: entrega del supervisor (el control contra el conteo de Almacén)      *** SIN APLICAR ***
+-- GLACIAL · glacial_58 · ALMACÉN › SALDO INCOMPLETO: entrega del supervisor (el control contra el conteo de Almacén)      *** APLICADA en PRUEBAS y PRODUCCIÓN (17/11/2026) ***
 --
 -- Qué hace (mismo método que glacial_56/57: inserta ramas por «anclas» de texto; si un ancla no aparece exactamente una vez, se detiene y no cambia nada):
 --  1) Colección nueva almacenPtSaldoEntrega: libro INMUTABLE de las ENTREGAS de saldo (paleta incompleta) que hace el supervisor, y de sus ANULACIONES.
