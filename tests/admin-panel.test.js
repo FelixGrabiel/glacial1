@@ -72,4 +72,40 @@ ok(!/sync'\)\.doc\('users'\)\.(set|update)/.test(pan+acc)&&/saveUsers\(nuevos\)/
 ok(/onSnapshot/.test(acc)&&/orderBy\(campo,'desc'\)\.limit\(LIMITE\)/.test(acc),'la auditoría se lee en vivo (onSnapshot)');
 ok(/firma\(actuales\[i\]\)!==JSON\.stringify\(c\.base\)/.test(acc)&&/Esto cambió en otro equipo/.test(acc),'control de conflictos entre equipos');
 ok(/PERMISOS_SUGERIDOS_POR_ROL/.test(leer('js/nucleo/02-estado.js'))&&/sugeridos = PERMISOS_SUGERIDOS_POR_ROL/.test(leer('js/accesos/10-usuarios.js')),'las plantillas por rol son una sola (la usan Gestionar usuarios y el panel)');
+
+// ---- etapa 2: tolerancias, roles propios, factores ----
+ok(N.validarTolerancias({PET1:{mermaPct:'2,5',desviacionPct:''},B7L:{mermaPct:100}}).length===0,'tolerancias: porcentajes válidos (con coma decimal y vacío = como hoy)');
+ok(N.validarTolerancias({PET1:{mermaPct:-1}}).length===1&&N.validarTolerancias({PET1:{desviacionPct:101}}).length===1&&N.validarTolerancias({PET1:{mermaPct:'abc'}}).length===1,'tolerancias: fuera de 0–100 o no numéricas se rechazan');
+const nt=N.normalizarTolerancias({PET1:{mermaPct:'2,5',desviacionPct:'',validarMermaAntes:true},PET2:{mermaPct:'',desviacionPct:'',validarMermaAntes:true},B7L:{mermaPct:'',desviacionPct:'3',validarMermaAntes:false}});
+ok(nt.PET1.mermaPct===2.5&&nt.PET1.desviacionPct===null&&!nt.PET2&&nt.B7L.desviacionPct===3&&nt.B7L.validarMermaAntes===false,'solo se guardan las líneas con valor (las demás siguen como hoy)');
+ok(N.variacionPct(10,12)===20&&N.variacionPct(10,8)===-20&&N.variacionPct(0,0)===0&&N.variacionPct(0,5)===null&&N.esCambioGrande(20)&&N.esCambioGrande(-25.5)&&!N.esCambioGrande(19.9)&&!N.esCambioGrande(null),'cambio porcentual y alerta roja desde 20 %');
+ok(N.validarRolNuevo('Calidad',['Supervisor']).length===0&&N.validarRolNuevo('calidad',['Calidad']).length===1&&N.validarRolNuevo('x',[]).length===1&&N.validarRolNuevo('Almacén compartida',[]).length===1&&N.validarRolNuevo('Administrador',['Administrador']).length>=1,'rol nuevo: nombre válido, único y sin pisar al sistema');
+ok(N.limpiarPlantilla(['a','b','z','a'],['a','b']).join()==='a,b','plantilla: solo permisos que existen, sin repetir');
+const nf=(fs,q)=>{const c=fs.filter(f=>f.insumo===q.insumo&&f.linea===q.linea);return c.length?{factor:c[0]}:{error:'SIN_FACTOR'};};
+const pend=N.combosSinFactor([{linea:'PET1',fecha:'2026-11-10',cuadros:[{marca:'Scala',presentacion:'2.5 L'},{marca:'Aro',presentacion:'340 ml'}]},{linea:'B7L',fecha:'2026-01-01',marca:'X',presentacion:'7 L'}],[{codigo:'TAPA',nombre:'Tapa',activo:true},{codigo:'ETI',nombre:'Etiqueta',activo:true}],[{insumo:'TAPA',linea:'PET1'}],'2026-11-17',nf,'2026-10-18');
+ok(pend.length===2&&pend[0].faltan.map(i=>i.codigo).join()==='ETI'&&pend.every(p=>p.linea==='PET1'),'pendientes: lo producido sin factor (y se ignora lo muy antiguo)');
+// ---- el Asistente usa las tolerancias; sin valor todo igual ----
+require(R+'/js/asistente/70-asistente-nucleo.js');const AN=globalThis.glacialAsistenteNucleo;
+const base={saldoInicial:100,saldoFinal:40,entregado:0,devuelto:0,transfEntrada:0,transfSalida:0,teorico:50,mermaValidada:0,mermaRegistro:0};
+const sin=AN.conciliar(base);
+ok(sin.real===60&&sin.porRevisar===10&&sin.dentroDeTolerancia===false&&sin.mermaExcede===false,'sin tolerancias el Asistente se comporta exactamente como hoy (10 por revisar)');
+const con=AN.conciliar(Object.assign({},base,{toleranciaDesvPct:25}));
+ok(con.porRevisar===0&&con.porRevisarBruto===10&&con.dentroDeTolerancia===true,'con desviación aceptable del 25 % del teórico, 10 sobre 50 (20 %) ya no es «por revisar»');
+ok(AN.conciliar(Object.assign({},base,{toleranciaDesvPct:10})).porRevisar===10&&AN.conciliar(Object.assign({},base,{toleranciaDesvPct:''})).porRevisar===10,'si la desviación supera la tolerancia (o no hay valor) sigue por revisar');
+ok(AN.conciliar(Object.assign({},base,{mermaValidada:4,mermaAceptablePct:5})).mermaExcede===true&&AN.conciliar(Object.assign({},base,{mermaValidada:2,mermaAceptablePct:5})).mermaExcede===false,'merma aceptable: avisa cuando la merma supera el % del teórico');
+const al=AN.alertas({conciliaciones:[{mermaExcede:true,mermaValidada:4,mermaRegistro:0,etiqueta:'PET1 · A',unidad:'UND',porRevisar:0}]});
+ok(al.some(a=>a.tipo==='MERMA_ALTA'),'la merma alta genera su alerta');
+ok(AN.pendientesDeCierre({mermas:[{estado:'PENDIENTE',linea:'PET1'},{estado:'PENDIENTE',linea:'B7L'}],lineasSinExigirMerma:['B7L']}).mermas===1&&AN.pendientesDeCierre({mermas:[{estado:'PENDIENTE',linea:'B7L'}]}).mermas===1,'una línea sin exigir merma validada no frena el cierre; sin configuración, como hoy');
+// ---- migración glacial_60 ----
+const s60=leer('supabase/migraciones/glacial_60_admin_config.sql');
+ok(/'tolerancias', 'roles', 'anuncio', 'mantenimiento', 'alertas', 'sesion', 'respaldos'/.test(s60)&&/accion in \('create', 'update'\) and coalesce\(\(k->>'adm_panel'\)::boolean, false\) and glacial_fs\.adm_config_valida\(n, d, u, v\)/.test(s60),'glacial_60: adminConfig solo con adm_panel, ids permitidos, sin borrar');
+ok(/\(n->>'version'\)::numeric = coalesce\(case when jsonb_typeof\(v->'version'\) = 'number' then \(v->>'version'\)::numeric end, 0\) \+ 1/.test(s60)&&/>= 10/.test(s60)&&/>= 10/.test(s60),'glacial_60: el servidor exige versión anterior + 1 y motivo de 10 caracteres');
+ok((s60.match(/cuenta <> 1 then raise exception/g)||[]).length>=2,'glacial_60: anclas verificadas');
+// ---- conexiones etapa 2 ----
+const e2=leer('js/admin/114-admin-etapa2.js'),cfg=leer('js/admin/113-admin-config.js');
+ok(idx.indexOf('111-admin-acceso-datos.js')<idx.indexOf('113-admin-config.js')&&idx.indexOf('113-admin-config.js')<idx.indexOf('112-admin-pantalla.js')&&idx.indexOf('112-admin-pantalla.js')<idx.indexOf('114-admin-etapa2.js')&&idx.indexOf('114-admin-etapa2.js')<idx.indexOf('12-init.js'),'orden de carga: 110 · 111 · 113 · 112 · 114, antes del arranque');
+ok(/guardarFactor\(n,f\.id\)/.test(e2)&&/guardarParametrosMerma\(/.test(e2)&&/guardarCambio\(/.test(e2),'consumos, causas y conversiones se guardan con las funciones del Asistente (no hay copias paralelas)');
+ok(!/collection\('apFactores'\)|collection\('apParametros'\)/.test(e2),'el panel no escribe directo en apFactores ni apParametros');
+ok(/runTransaction/.test(cfg)&&/CONFLICTO/.test(cfg)&&/Esto cambió en otro equipo/.test(cfg),'adminConfig: control de versión también en el navegador');
+ok(/window\.glacialAdminConfig/.test(leer('js/asistente/72-asistente-pantalla.js'))&&/panel:\{grupos/.test(leer('js/asistente/95-conversiones.js')),'el Asistente lee las tolerancias y las conversiones se exponen para el panel');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

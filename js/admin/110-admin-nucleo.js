@@ -45,6 +45,8 @@
     {id:'auditoria',grupo:'Control',titulo:'Auditoría',sub:'Todo lo que cambió en GLACIAL, de todos los módulos',etapa:1},
     {id:'respaldos',grupo:'Control',titulo:'Respaldos e integraciones',sub:'Respaldos, exportaciones e integraciones',etapa:4}
   ];
+  const HECHAS=new Set(['resumen','usuarios','roles','auditoria','maestros','metas','consumos']);
+  SECCIONES.forEach(x=>{x.hecha=HECHAS.has(x.id);});     // construidas hasta ahora (la etapa dice cuándo se planeó)
   const seccion=id=>SECCIONES.find(s=>s.id===id)||SECCIONES[0];
 
   /* ---------- motivo ---------- */
@@ -170,7 +172,68 @@
     };
   }
 
-  const NUCLEO={MOTIVO_MIN,GRUPOS,SECCIONES,seccion,puedeAcceder,validarMotivo,msDe,normalizarAuditoria,consolidar,modulosDe,quienesDe,filtrarAuditoria,
+  /* ---------- etapa 2: tolerancias, roles propios, factores ---------- */
+  const LINEAS=['PET1','PET2','B7L','C20L','B20L'];
+  const campoPct=v=>v===null||v===undefined||v===''?null:Number(String(v).replace(',','.'));
+  /** lineas: {PET1:{mermaPct, desviacionPct, validarMermaAntes}} (texto o número). → lista de errores. */
+  function validarTolerancias(lineas){
+    const e=[];
+    Object.keys(lineas||{}).forEach(l=>{
+      const x=lineas[l]||{};
+      [['mermaPct','merma aceptable'],['desviacionPct','desviación aceptable']].forEach(([c,t])=>{
+        const n=campoPct(x[c]);
+        if(n!==null&&(!Number.isFinite(n)||n<0||n>100))e.push(l+': la '+t+' debe ser un porcentaje entre 0 y 100 (o vacío para que siga como hoy).');
+      });
+    });
+    return e;
+  }
+  /** Solo guarda lo que tiene valor; sin valor = el Asistente se comporta como hoy. */
+  function normalizarTolerancias(lineas){
+    const o={};
+    Object.keys(lineas||{}).forEach(l=>{
+      const x=lineas[l]||{},m=campoPct(x.mermaPct),d=campoPct(x.desviacionPct),v=x.validarMermaAntes;
+      if(m===null&&d===null&&v!==false)return;
+      o[l]={mermaPct:m,desviacionPct:d,validarMermaAntes:v!==false};
+    });
+    return o;
+  }
+  /** Cambio porcentual de un valor a otro (null si no hay base). */
+  function variacionPct(actual,nuevo){
+    const a=Number(actual),n=Number(nuevo);
+    if(!Number.isFinite(a)||!Number.isFinite(n))return null;
+    if(a===0)return n===0?0:null;
+    return Math.round((n-a)/Math.abs(a)*1000)/10;
+  }
+  const esCambioGrande=p=>p!==null&&Math.abs(p)>=20;
+  const REG_NOMBRE=/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ._·-]{1,39}$/;
+  /** Rol propio nuevo: nombre válido, que no exista y que no use el nombre de una cuenta compartida. */
+  function validarRolNuevo(nombre,existentes){
+    const n=txt(nombre).trim(),e=[];
+    if(!REG_NOMBRE.test(n))e.push('El nombre del rol debe tener entre 2 y 40 caracteres (letras, números y espacios).');
+    if((existentes||[]).some(x=>txt(x).trim().toLowerCase()===n.toLowerCase()))e.push('Ya existe un rol con ese nombre.');
+    if(/compartid/i.test(n))e.push('Los roles de cuenta compartida los define el sistema.');
+    if(n==='Administrador')e.push('«Administrador» es del sistema.');
+    return e;
+  }
+  /** Plantilla de un rol: solo claves de permiso válidas (y '-planificacion'); un rol de consulta no lleva permisos de edición se mantiene tal cual lo decida el Administrador. */
+  const limpiarPlantilla=(perms,claves)=>[...new Set((perms||[]).filter(p=>claves.includes(p)))];
+  /** Combinaciones (línea · marca · presentación) producidas sin factor vigente para algún insumo. registros: reportes con producción; nf = factorVigente. */
+  function combosSinFactor(registros,insumos,factores,fecha,nf,desdeFecha){
+    const vistos=new Map();
+    (registros||[]).forEach(r=>{
+      if(!r||!r.linea||(desdeFecha&&String(r.fecha||'')<desdeFecha))return;
+      const mp=r.cuadros&&r.cuadros.length?r.cuadros:[r];
+      mp.forEach(c=>{const marca=c.marca||r.marca||'',pres=c.presentacion||r.presentacion||'';if(!marca&&!pres)return;vistos.set([r.linea,marca,pres].join('|'),{linea:r.linea,marca,presentacion:pres});});
+    });
+    const out=[];
+    vistos.forEach(c=>{
+      const faltan=(insumos||[]).filter(i=>i&&i.activo!==false).filter(i=>{const f=nf(factores,{insumo:i.codigo,linea:c.linea,marca:c.marca,presentacion:c.presentacion,fecha});return f&&f.error==='SIN_FACTOR';});
+      if(faltan.length)out.push(Object.assign({},c,{faltan:faltan.map(i=>({codigo:i.codigo,nombre:i.nombre}))}));
+    });
+    return out.sort((a,b)=>b.faltan.length-a.faltan.length||String(a.linea).localeCompare(String(b.linea)));
+  }
+
+  const NUCLEO={LINEAS,validarTolerancias,normalizarTolerancias,variacionPct,esCambioGrande,validarRolNuevo,limpiarPlantilla,combosSinFactor,MOTIVO_MIN,GRUPOS,SECCIONES,seccion,puedeAcceder,validarMotivo,msDe,normalizarAuditoria,consolidar,modulosDe,quienesDe,filtrarAuditoria,
     permisosDe,resumenPermisos,borradorDe,diffUsuario,aplicarBorrador,igualesPermisos,esAdminPrincipal,kpisResumen,TODOS};
   if(typeof module!=='undefined'&&module.exports)module.exports=NUCLEO;
   else raiz.glacialAdminNucleo=NUCLEO;

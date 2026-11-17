@@ -249,6 +249,7 @@ function openUsersModal(){
                 <option value="Mantenimiento">Mantenimiento</option>
                 <option value="mantenimiento_compartido">Mantenimiento · cuenta compartida (identificación por PIN)</option>
                 <option value="almacen_compartido">Almacén · cuenta compartida (identificación por PIN)</option>
+                ${(window.glacialAdminConfig?window.glacialAdminConfig.rolesPropios():[]).map(r=>`<option value="${escaparHtml(r)}">${escaparHtml(r)}</option>`).join('')}
                 <option value="RRHH">RRHH</option>
                 <option value="Ventas">Ventas</option>
                 <option value="Planificación">Planificación</option>

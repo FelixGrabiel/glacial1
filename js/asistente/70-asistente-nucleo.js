@@ -267,8 +267,14 @@
     const desv=real===null||d.teorico===null||d.teorico===undefined?null:red(real-num(d.teorico),4);
     const desvPct=desv===null||!(num(d.teorico)>0)?null:red(desv/num(d.teorico),4);
     // Lo que explica la desviación: la merma validada del Asistente y la merma que el supervisor registró en su reporte (Registro de producción).
-    const porRevisar=desv===null?null:red(desv-num(d.mermaValidada)-num(d.mermaRegistro),4);
-    return {real,desviacion:desv,desviacionPct:desvPct,porRevisar,pendiente:falta.length>0,falta,
+    let porRevisar=desv===null?null:red(desv-num(d.mermaValidada)-num(d.mermaRegistro),4),porRevisarBruto=null,dentroDeTolerancia=false;
+    // Tolerancias del Panel de Administración (adminConfig/tolerancias): sin valor, todo sigue como antes. Desviación aceptable = % del teórico.
+    const tol=d.toleranciaDesvPct===null||d.toleranciaDesvPct===undefined||d.toleranciaDesvPct===''?null:Number(d.toleranciaDesvPct);
+    if(porRevisar!==null&&tol!==null&&Number.isFinite(tol)&&tol>=0&&num(d.teorico)>0&&Math.abs(porRevisar)<=red(tol/100*num(d.teorico),4)){porRevisarBruto=porRevisar;porRevisar=0;dentroDeTolerancia=true;}
+    const tolM=d.mermaAceptablePct===null||d.mermaAceptablePct===undefined||d.mermaAceptablePct===''?null:Number(d.mermaAceptablePct);
+    const mermaTotal=num(d.mermaValidada)+num(d.mermaRegistro);
+    const mermaExcede=tolM!==null&&Number.isFinite(tolM)&&tolM>=0&&num(d.teorico)>0&&mermaTotal>red(tolM/100*num(d.teorico),4);
+    return {real,desviacion:desv,desviacionPct:desvPct,porRevisar,porRevisarBruto,dentroDeTolerancia,mermaExcede,pendiente:falta.length>0,falta,
       texto:falta.length?'Pendiente de conciliación ('+falta.join(', ')+')':''};
   }
   /* Totales de movimientos de un cuadro e insumo para la conciliación (sin anulados). */
@@ -393,6 +399,7 @@
       if(f.estado==='OK'&&f.faltante>0)a.push({nivel:'critico',tipo:'DESABASTECIMIENTO',texto:n+': faltan '+fmt(f.faltante)+' '+f.insumo.unidad+' de '+f.insumo.nombre+'.'});
     });
     (e.conciliaciones||[]).forEach(c=>{if(c.porRevisar!==null&&c.porRevisar!==undefined&&Math.abs(c.porRevisar)>0.0001)a.push({nivel:'atencion',tipo:'POR_REVISAR',texto:c.etiqueta+': '+fmt(c.porRevisar)+' '+c.unidad+' por revisar (desviación no explicada por la merma validada ni por la del Registro).'});});
+    (e.conciliaciones||[]).forEach(c=>{if(c.mermaExcede)a.push({nivel:'atencion',tipo:'MERMA_ALTA',texto:c.etiqueta+': la merma ('+fmt(num(c.mermaValidada)+num(c.mermaRegistro))+' '+c.unidad+') supera la merma aceptable fijada por el Administrador.'});});
     const pend=(e.mermas||[]).filter(m=>m.estado==='PENDIENTE').length;
     if(pend)a.push({nivel:'info',tipo:'MERMA',texto:pend+' merma'+(pend===1?'':'s')+' pendiente'+(pend===1?'':'s')+' de validar.'});
     const sol=(e.solicitudes||[]).filter(s=>!['CERRADA','CANCELADA','RECIBIDA'].includes(s.estado)).length;
@@ -403,7 +410,7 @@
   function pendientesDeCierre(e){
     return {
       solicitudes:(e.solicitudes||[]).filter(s=>!['CERRADA','CANCELADA'].includes(s.estado)).length,
-      mermas:(e.mermas||[]).filter(m=>m.estado==='PENDIENTE').length,
+      mermas:(e.mermas||[]).filter(m=>m.estado==='PENDIENTE'&&!(e.lineasSinExigirMerma||[]).includes(m.linea)).length,   // el Administrador puede no exigir la validación de merma antes de cerrar una línea
       porRevisar:(e.conciliaciones||[]).filter(c=>c.porRevisar!==null&&c.porRevisar!==undefined&&Math.abs(c.porRevisar)>0.0001).length,
       sinConciliar:(e.conciliaciones||[]).filter(c=>c.pendiente).length
     };

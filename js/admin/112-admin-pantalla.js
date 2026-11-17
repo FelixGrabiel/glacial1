@@ -14,6 +14,7 @@
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const S={sec:'resumen',gq:'',q:'',rolFiltro:'Todos',sel:'',borr:{},abiertas:{},rolSel:'',af:{modulo:'Todos',quien:'Todos',texto:''},aLim:100,modal:null,msg:null,guardando:false,menuAbierto:false};
   let desub=null;
+  const REG={};     // secciones registradas por otros archivos (114, 115…): {html}
 
   const claves=()=>DA().clavesPermisos();
   const etiqueta=k=>DA().etiquetaPermiso(k);
@@ -48,7 +49,7 @@
 .adm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:0 0 14px}.adm-kpi{background:#fff;border:1px solid #d9e7f1;border-radius:14px;padding:12px 14px;text-align:left;font:inherit;cursor:pointer;min-height:44px}.adm-kpi span{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#587087}.adm-kpi b{display:block;font-size:30px;margin:3px 0 1px}.adm-kpi small{color:#587087}.adm-kpi.pr{opacity:.6}
 .adm-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:14px;align-items:start}
 .adm-caja{overflow-x:auto;border:1px solid #e2ebf2;border-radius:10px}.adm-t{width:100%;border-collapse:collapse}.adm-t th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#587087;background:#f4f9fd;text-align:left;padding:9px 10px;white-space:nowrap}.adm-t td{padding:9px 10px;border-top:1px solid #eaf1f7;vertical-align:top}.adm-t tr.sel td{background:#eaf5fc}.adm-t tr.cl{cursor:pointer}.adm-t tr.cl:hover td{background:#f4f9fd}
-.adm-b{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #9fd0e6;background:#fff;color:#0877a6;font:inherit;font-weight:700;cursor:pointer}.adm-b.p{background:#0877a6;color:#fff;border-color:#0877a6}.adm-b:disabled{opacity:.5;cursor:not-allowed}
+.adm-b{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #9fd0e6;background:#fff;color:#0877a6;font:inherit;font-weight:700;cursor:pointer}.adm-b.p{background:#0877a6;color:#fff;border-color:#0877a6}.adm-b:disabled{opacity:.5;cursor:not-allowed}.adm button[role=tab][aria-selected=true]{background:#0877a6!important;color:#fff!important;border-color:#0877a6!important}
 .adm-f{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:0 0 12px}.adm-f label{display:grid;gap:3px;font-size:11px;font-weight:700;color:#587087;text-transform:uppercase;letter-spacing:.05em}
 .adm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.adm-grid label{display:grid;gap:3px;font-size:12px;font-weight:700;color:#587087}
 .adm-ar{border:1px solid #e2ebf2;border-radius:10px;margin:0 0 8px}.adm-ar>div{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 10px;background:#f7fbfe;border-radius:10px}.adm-ar>div button{border:0;background:none;font:inherit;font-weight:700;color:#033350;cursor:pointer;min-height:40px;text-align:left}
@@ -64,7 +65,7 @@
   /* ---------- marco ---------- */
   function menuHtml(){
     return N.GRUPOS.map(g=>`<span class="adm-g">${esc(g.toUpperCase())}</span>`+N.SECCIONES.filter(s=>s.grupo===g).map(s=>
-      `<button type="button" class="${S.sec===s.id?'act':''}${s.etapa>1?' pr':''}" ${S.sec===s.id?'aria-current="page"':''} onclick="admIr('${s.id}')"><span>${esc(s.titulo)}</span>${s.etapa>1?`<small>Etapa ${s.etapa}</small>`:''}</button>`).join('')).join('');
+      `<button type="button" class="${S.sec===s.id?'act':''}${!s.hecha?' pr':''}" ${S.sec===s.id?'aria-current="page"':''} onclick="admIr('${s.id}')"><span>${esc(s.titulo)}</span>${!s.hecha?`<small>Etapa ${s.etapa}</small>`:''}</button>`).join('')).join('');
   }
   function resultadosBusqueda(){
     const q=S.gq.trim().toLowerCase();if(q.length<2)return '';
@@ -86,7 +87,8 @@
   }
   function cuerpo(){
     const sec=N.seccion(S.sec);
-    if(sec.etapa>1)return `<div class="adm-card"><h2>${esc(sec.titulo)}</h2><p>${esc(sec.sub)}.</p><p class="adm-mut">Esta sección se construye en la <b>etapa ${sec.etapa}</b> del panel. Mientras tanto, esa función sigue donde siempre.</p></div>`;
+    if(REG[sec.id])return REG[sec.id].html();
+    if(!sec.hecha)return `<div class="adm-card"><h2>${esc(sec.titulo)}</h2><p>${esc(sec.sub)}.</p><p class="adm-mut">Esta sección se construye en la <b>etapa ${sec.etapa}</b> del panel. Mientras tanto, esa función sigue donde siempre.</p></div>`;
     return ({resumen:resumenHtml,usuarios:usuariosHtml,roles:rolesHtml,auditoria:auditoriaHtml}[sec.id]||(()=>''))();
   }
 
@@ -187,12 +189,12 @@
     if(typeof state==='undefined'||state.currentTab!=='admin-panel')return;
     const main=document.getElementById('main');if(!main)return;
     const a=document.activeElement;
-    if(a&&main.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&(a.id==='adm-motivo'||a.closest('.adm-card')||a.id==='adm-gq'))return;   // no se pisa lo que se escribe
+    if(a&&main.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&(a.id==='adm-motivo'||a.closest('.adm-card')||a.closest('.adm-mod')||a.id==='adm-gq'))return;   // no se pisa lo que se escribe
     const y=window.scrollY;main.innerHTML=html();window.scrollTo(0,y);
     if(!desub)desub=DA().suscribir(()=>pintar());
   }
   function reiniciar(){if(desub){desub();desub=null;}S.sec='resumen';S.sel='';S.borr={};S.modal=null;S.msg=null;S.gq='';}
-  W.glacialAdminUI={pintar,reiniciar,estado:S};
+  W.glacialAdminUI={pintar,reiniciar,estado:S,registrar:(id,m)=>{REG[id]=m;},aviso:(t,x)=>{S.msg=x?{t,x}:null;},usuarios,roles,plantillaDeRol,esc,fmtFecha,hoyLima,claves};
 
   /* ---------- acciones ---------- */
   const rep=()=>{const a=document.activeElement;if(a&&a.blur)a.blur();pintar();};
