@@ -25,9 +25,19 @@ Por eso `sw.js` no intercepta scripts, estilos, imágenes ni datos (Supabase): t
 - **iPhone / iPad (Safari):** *Compartir* → **«Agregar a pantalla de inicio»** (ahí no existe instalación automática; la página lo indica).
 - «Ahora no» oculta la oferta 14 días. No aparece si ya está instalada, en modo TV ni dentro de la aplicación.
 
+## Actualizaciones sin reinstalar (17/11/2026)
+Quien ya instaló GLACIAL **no tiene que volver a instalarla** cuando se publica una versión nueva:
+- **El código** lo trae el aviso «HAY UNA ACTUALIZACIÓN NUEVA» (`aviso-actualizacion.md`), igual que en el navegador: revisa cada 3 minutos
+  y cada vez que se vuelve a la app. Si nadie está escribiendo ni guardando, se recarga sola; si no, muestra «Actualizar ahora».
+  Funciona porque `sw.js` no guarda caché.
+- **El propio `sw.js`** se registra con `updateViaCache: 'none'` y se revisa al volver a primer plano (como mucho cada 30 min). Uno nuevo
+  toma el control solo (`skipWaiting` + `clients.claim`).
+- **Nombre e íconos**: Android los renueva solo en la app instalada (puede tardar hasta un día). iPhone conserva el ícono anterior hasta
+  reinstalar: es solo apariencia, el contenido sí se actualiza. Por eso **no se cambian** `id` ni `start_url` del manifiesto.
+
 ## Si cambia la dirección (dominio propio)
-Las rutas del manifiesto son relativas (`./`), así que sirve en `…/glacial1/` y en un dominio propio sin tocar nada. Quien la tenga
-instalada desde la dirección anterior tendrá que instalarla otra vez desde la nueva.
+Las rutas del manifiesto son relativas (`./`), así que sirve en `…/glacial1/` y en un dominio propio sin tocar nada. Es lo **único** que obliga a reinstalar:
+la app instalada queda atada a la dirección donde se instaló. Conviene que el personal la instale cuando GLACIAL ya esté en su dirección definitiva.
 
 ## Pruebas
 `node tests/app-instalable.test.js`

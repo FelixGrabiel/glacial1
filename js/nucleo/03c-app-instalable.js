@@ -5,6 +5,14 @@
         · Android y PC (Chrome/Edge): botón que abre la instalación del navegador;
         · iPhone/iPad: indica el camino (Compartir → «Agregar a pantalla de inicio»), porque ahí no existe instalación automática.
       No aparece si ya está instalada, en modo TV, ni dentro de la aplicación (solo en el inicio de sesión). «Ahora no» la oculta 14 días.
+   3) ACTUALIZACIONES SIN REINSTALAR (17/11/2026). Quien ya instaló GLACIAL nunca tiene que volver a instalarla para tener la versión nueva:
+        · el código: lo trae el aviso «HAY UNA ACTUALIZACIÓN NUEVA» (03-actualizacion.js), igual que en el navegador. Revisa cada 3 minutos
+          y al volver a la app; se recarga sola cuando es seguro o muestra «Actualizar ahora». Funciona porque el service worker no guarda caché.
+        · el propio sw.js: se registra con updateViaCache 'none' (el navegador nunca usa una copia vieja de sw.js) y se revisa al volver a
+          primer plano (como mucho cada 30 min), porque en el celular la app suele quedar abierta días sin recargarse.
+        · nombre e íconos (manifest): Android los renueva solo en la app instalada (puede tardar hasta un día); iPhone conserva el ícono
+          anterior hasta reinstalar, pero eso es solo apariencia: el contenido sí se actualiza. Por eso «id» y «start_url» del manifiesto no se cambian.
+      Lo único que obliga a reinstalar es cambiar de DIRECCIÓN (dominio): la app instalada queda atada a la dirección donde se instaló.
    No depende de ningún otro archivo ni redefine funciones: puede cargarse en cualquier punto. */
 (function(raiz){
   'use strict';
@@ -20,13 +28,26 @@
     if(e.ocultoHasta&&e.ahora<e.ocultoHasta)return false;
     return !!(e.hayAviso||e.ios);
   }
-  const API={yaInstalada,esIOS,debeOfrecer,OCULTAR_MS};
+  const REVISAR_SW_MS=30*60*1000;
+  /** ¿Toca pedirle al navegador que revise si hay un sw.js nuevo? (al volver a primer plano, como mucho cada 30 min) */
+  function tocaRevisarSW(ultima,ahora){ return !ultima||ahora-ultima>=REVISAR_SW_MS; }
+  const API={yaInstalada,esIOS,debeOfrecer,tocaRevisarSW,OCULTAR_MS,REVISAR_SW_MS};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   if(typeof document==='undefined'||!raiz.navigator||!raiz.location)return;
 
   const nav=raiz.navigator, local=/^(localhost|127\.0\.0\.1)$/.test(raiz.location.hostname);
   if('serviceWorker' in nav&&(raiz.location.protocol==='https:'||local)){
-    raiz.addEventListener('load',()=>{ nav.serviceWorker.register('sw.js').catch(e=>console.warn('GLACIAL · no se pudo registrar la app instalable',e)); });
+    let registro=null,ultimaRevision=Date.now();
+    raiz.addEventListener('load',()=>{
+      nav.serviceWorker.register('sw.js',{updateViaCache:'none'})
+        .then(r=>{registro=r;})
+        .catch(e=>console.warn('GLACIAL · no se pudo registrar la app instalable',e));
+    });
+    document.addEventListener('visibilitychange',()=>{                      // al volver a la app: ¿hay un sw.js nuevo?
+      if(document.hidden||!registro||!tocaRevisarSW(ultimaRevision,Date.now()))return;
+      ultimaRevision=Date.now();
+      registro.update().catch(()=>{/* sin red: se intenta la próxima vez */});
+    });
   }
 
   let aviso=null;                                                             // el «beforeinstallprompt» del navegador, guardado para el botón

@@ -11,6 +11,7 @@ Cada vez que se publica una versión nueva (cada fusión a `main`), las páginas
 - Una respuesta de error o incompleta no cuenta como actualización. Sin red no hace nada.
 
 **Alcance**
+- App instalada (PWA): funciona igual dentro de la app, sin reinstalar; ver `app-instalable.md`.
 - GitHub Pages (producción): avisa en cada publicación aunque no cambie ningún `?v=`.
 - Vista previa de Vercel: no tiene sello; avisa cuando cambia alguna versión `?v=` (por eso cada cambio de código debe subir su `?v=`).
 - Tarda hasta ~3 minutos en aparecer después de que termina «Publicar página».
