@@ -207,6 +207,7 @@ Diagnóstico, modelo de datos y permisos: `docs/asistente/asistente-produccion.m
 ### js/admin/
 
 Panel de Administración («Centro de control», solo Administrador). Diseño, reglas y etapas: `docs/00-general/panel-administracion.md`.
+Auditoría de seguridad 18/11/2026 (hallazgos, medidas y orden para producción): `docs/00-general/auditoria-seguridad-20261118.md`.
 
 | Archivo | Función |
 |---|---|
