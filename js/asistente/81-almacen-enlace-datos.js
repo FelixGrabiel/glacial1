@@ -100,6 +100,12 @@
     const m=corteMeta();if(!m||!hayLectura())return {};
     return E.ajustes({insumos:insumos(),movs:cache.movs,devs:cache.devs,fechaCorte:m.fechaCorte});
   }
+  /* Kardex (entradas, salidas y saldo corrido desde el último corte) de un insumo del Asistente. */
+  function kardexDe(codigo){
+    const ins=insumos().find(i=>i.codigo===codigo);
+    if(!ins||!hayLectura())return null;
+    return E.kardex({insumo:ins,catalogo:cache.catalogo,corte:cache.corte,corteMeta:corteMeta(),movs:cache.movs,devs:cache.devs});
+  }
   /* Entregas y devoluciones desde el corte, más recientes primero (para el panel de Almacén). */
   function movimientosRecientes(fecha){
     const a=cache.movs.filter(m=>!fecha||m.fecha===fecha).map(m=>({...m,origen:'ENTREGA'}));
@@ -116,7 +122,7 @@
       .filter(x=>x.p>0).sort((x,y)=>y.p-x.p).slice(0,8).map(x=>x.a);
   }
 
-  window.glacialAlmacenEnlaceDatos={cache,escuchar,detener,stockDe,stockPorInsumo,revisarEntrega,movimientosEntrega,articulos,sugerir,hayLectura,ajustes,movimientosRecientes,
+  window.glacialAlmacenEnlaceDatos={cache,escuchar,detener,stockDe,stockPorInsumo,kardexDe,revisarEntrega,movimientosEntrega,articulos,sugerir,hayLectura,ajustes,movimientosRecientes,
     alEvento:f=>{oyentesEvento.push(f);return ()=>{const i=oyentesEvento.indexOf(f);if(i>=0)oyentesEvento.splice(i,1);};},
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}};
 })();
