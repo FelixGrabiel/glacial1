@@ -598,11 +598,37 @@
     const panel=movs.length?tarjeta('Entregas y devoluciones de hoy · en tiempo real',tabla(['Hora','Movimiento','Insumo','#Cantidad','Responsable','Solicitud'],movs.map(m=>`<tr><td data-label="Hora">${hora(m.en)}</td>
       <td data-label="Movimiento">${m.origen==='DEVOLUCION'?pill('Devolución de Producción','azul','flecha'):m.tipo==='ANULACION'?pill('Entrega anulada','gris','cerrar'):pill('Entrega a Producción','verde','check')}${m.sinStock?' '+pill('Sin stock autorizado','ambar'):''}</td>
       <td data-label="Insumo">${esc(insumoDe(m.insumo).nombre)}</td><td data-label="Cantidad" class="ap-num">${m.tipo==='ANULACION'?'—':fmt(m.cantidad)+' '+esc(m.unidad||insumoDe(m.insumo).unidad)}</td><td data-label="Responsable">${esc(m.usuario||'—')}</td><td data-label="Solicitud">${esc(m.solicitudId||'—')}</td></tr>`).join('')),{icono:'subida'}):'';
+    const kardex=alm&&en?htmlKardex(en):'';
     const nota=pie('Solicitudes, reservas y entregas son operaciones distintas. Solo una recepción confirmada por Producción incrementa las existencias en Producción.');
     const avisoAtender=porAtender&&porAtender.total?pie(`Por atender: <b>${porAtender.total}</b> solicitud${porAtender.total===1?'':'es'}${porAtender.urgentes?` · <b>${porAtender.urgentes} urgente${porAtender.urgentes===1?'':'s'}</b> (más de 6 h)`:''}${porAtender.atencion?` · ${porAtender.atencion} con más de 2 h`:''} · la que más espera lleva ${AE.txtEspera(porAtender.masAntiguaMin)}. Van primero en la lista.`,porAtender.urgentes?'aviso':'info'):'';
     return `${nueva}<h3 class="ap-h3">${titulo}</h3>${avisoAtender}${sel}${filas?tabla(['Solicitud','Fecha','Ítems (entregado / pedido)','Espera','Estado'],filas,'ap-t-click'):vacio(filtro==='abiertas'?'No hay solicitudes abiertas.':'Sin solicitudes en los últimos 60 días.')}
-      ${panel}${nota}`;
+      ${panel}${kardex}${nota}`;
   }
+  /* Kardex por insumo: entradas, salidas y saldo corrido desde el último corte de stock. */
+  const TXT_KX={ENTREGA:['Entrega a Producción','verde','check'],DEVOLUCION:['Devolución de Producción','azul','flecha'],ANULACION:['Anulación','gris','cerrar']};
+  function htmlKardex(en){
+    const lista=D.cache.insumos.filter(i=>i.activo!==false&&i.itemCode).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es'));
+    if(!lista.length)return '';
+    const sel=AP.kardexIns||'';
+    const k=sel?en.kardexDe(sel):null;
+    const ins=lista.find(i=>i.codigo===sel);
+    const cuerpo=!sel?vacio('Elige un insumo para ver su historial de entradas, salidas y saldo.')
+      :!k?vacio('No se pudo leer el stock del Inventario ahora.')
+      :k.estado!=='OK'?pie(esc(window.glacialAlmacenEnlace.TXT_ESTADO[k.estado]||'Sin datos de stock para este insumo')+'.','aviso')
+      :pie('Desde el corte del <b>'+esc(k.fechaCorte)+'</b> · saldo inicial <b>'+fmt(k.base)+'</b> · entradas <b>'+fmt(k.totalEntradas)+'</b> · salidas <b>'+fmt(k.totalSalidas)+'</b> · saldo actual <b>'+fmt(k.saldo)+'</b> '+esc(ins.unidad||''))
+        +(k.filas.length?tabla(['Fecha','Movimiento','Solicitud','#Entrada','#Salida','#Saldo','Responsable'],
+          '<tr><td data-label="Fecha">'+esc(k.fechaCorte)+'</td><td data-label="Movimiento"><b>Saldo inicial (corte)</b></td><td data-label="Solicitud">—</td><td data-label="Entrada" class="ap-num">—</td><td data-label="Salida" class="ap-num">—</td><td data-label="Saldo" class="ap-num"><b>'+fmt(k.base)+'</b></td><td data-label="Responsable">—</td></tr>'
+          +k.filas.map(f=>{const t=TXT_KX[f.tipo]||[f.tipo,'gris'];return '<tr><td data-label="Fecha">'+esc(f.fecha)+(f.en?' '+hora(f.en):'')+'</td><td data-label="Movimiento">'+pill(t[0],t[1],t[2])+(f.nota?'<div class="ap-sub-nota">'+esc(f.nota)+'</div>':'')+'</td><td data-label="Solicitud">'+esc(f.solicitudId||'—')+'</td><td data-label="Entrada" class="ap-num">'+(f.entrada?fmt(f.entrada):'—')+'</td><td data-label="Salida" class="ap-num">'+(f.salida?fmt(f.salida):'—')+'</td><td data-label="Saldo" class="ap-num"><b>'+fmt(f.saldo)+'</b></td><td data-label="Responsable">'+esc(f.usuario||'—')+'</td></tr>';}).join('')
+          ):vacio('Este insumo no tiene movimientos desde el corte.'));
+    const acc=sel&&k&&k.estado==='OK'?'<button type="button" class="ap-btn ap-btn-o" onclick="apKardexCsv()">Descargar CSV</button>':'';
+    return tarjeta('Kardex por insumo',`<div class="ap-acc"><select id="ap-kx-ins" onchange="AP_set('kardexIns',this.value)" aria-label="Insumo"><option value="">Elige un insumo…</option>${lista.map(i=>`<option value="${esc(i.codigo)}"${i.codigo===sel?' selected':''}>${esc(i.nombre)}</option>`).join('')}</select>${acc}</div>${cuerpo}`);
+  }
+  window.apKardexCsv=function(){
+    const en=EN(),AE=window.glacialAlmacenEnlace,cod=AP.kardexIns;if(!en||!AE||!cod)return;
+    const k=en.kardexDe(cod),ins=insumoDe(cod);if(!k||k.estado!=='OK')return;
+    const blob=new Blob([AE.kardexCsv(k,ins.nombre)],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='kardex-'+String(ins.nombre||cod).toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
   const pillSolicitud=e=>{const t=SOL_TXT[e]||e;return ['CERRADA','RECIBIDA'].includes(e)?pill(t,'verde','check'):e==='CANCELADA'?pill(t,'gris'):e==='OBSERVADA'?pill(t,'rojo','alerta'):pill(t,'gris','reloj_arena');};
   /* Avisa (sin impedir pedir) cuando lo solicitado supera el stock que Almacén tiene según el Inventario. */
   window.apAvisoStock=()=>{

@@ -84,6 +84,48 @@
     return out;
   }
 
+  /* Kardex de un insumo desde el último corte: saldo inicial (corte) y cada movimiento con su saldo corrido.
+     Entrega = salida · Devolución utilizable = entrada · Anulación = reversa de lo anulado (queda a la vista, no se borra).
+     La devolución observada/dañada se muestra sin mover el saldo. El saldo final coincide con stockAlmacen().disponible.
+     → { estado, base, fechaCorte, filas:[{en,fecha,tipo,entrada,salida,saldo,solicitudId,usuario,nota,opId}], totalEntradas, totalSalidas, saldo } */
+  function kardex({ insumo, catalogo, corte, corteMeta, movs, devs }) {
+    const st = stockAlmacen({ insumo, catalogo, corte, corteMeta, movs, devs });
+    if (st.estado !== 'OK') return { estado: st.estado, base: 0, fechaCorte: st.fechaCorte, filas: [], totalEntradas: 0, totalSalidas: 0, saldo: 0 };
+    const cod = insumo.codigo, fc = texto(st.fechaCorte);
+    const todos = [].concat((movs || []).map(m => ({ m, libro: 'A' })), (devs || []).map(m => ({ m, libro: 'D' })));
+    const porId = {}; todos.forEach(x => { if (x.m && x.m.opId) porId[x.m.opId] = x.m; });
+    const filas = [];
+    todos.forEach(({ m }) => {
+      if (!m || texto(m.fecha) < fc) return;
+      if (m.tipo === 'ENTREGA' && m.insumo === cod) filas.push({ en: num(m.en), fecha: texto(m.fecha), tipo: 'ENTREGA', entrada: 0, salida: num(m.cantidad), solicitudId: texto(m.solicitudId), usuario: texto(m.usuario), nota: m.sinStock ? 'Sin stock autorizado' : '', opId: m.opId });
+      else if (m.tipo === 'DEVOLUCION' && m.insumo === cod) {
+        const util = (m.condicion || 'UTILIZABLE') === 'UTILIZABLE';
+        filas.push({ en: num(m.en), fecha: texto(m.fecha), tipo: 'DEVOLUCION', entrada: util ? num(m.cantidad) : 0, salida: 0, solicitudId: texto(m.solicitudId), usuario: texto(m.usuario), nota: util ? '' : 'No vuelve al stock (' + texto(m.condicion).toLowerCase() + ')', opId: m.opId, informativo: !util ? num(m.cantidad) : 0 });
+      } else if (m.tipo === 'ANULACION' && m.anulaA) {
+        const o = porId[m.anulaA];
+        if (!o || o.insumo !== cod) return;
+        const util = o.tipo === 'ENTREGA' || (o.condicion || 'UTILIZABLE') === 'UTILIZABLE';
+        if (!util) return;
+        const esEntrega = o.tipo === 'ENTREGA';
+        filas.push({ en: num(m.en), fecha: texto(m.fecha) || texto(o.fecha), tipo: 'ANULACION', entrada: esEntrega ? num(o.cantidad) : 0, salida: esEntrega ? 0 : num(o.cantidad), solicitudId: texto(o.solicitudId), usuario: texto(m.usuario), nota: 'Anula ' + (esEntrega ? 'entrega' : 'devolución') + ' ' + texto(m.anulaA), opId: m.opId });
+      }
+    });
+    filas.sort((a, b) => (a.en - b.en) || (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0));
+    let saldo = st.base, te = 0, ts = 0;
+    filas.forEach(f => { saldo = red(saldo + f.entrada - f.salida); f.saldo = saldo; te = red(te + f.entrada); ts = red(ts + f.salida); });
+    return { estado: 'OK', base: st.base, fechaCorte: st.fechaCorte, filas, totalEntradas: te, totalSalidas: ts, saldo };
+  }
+
+  /* CSV del kardex (separador «;», decimales con coma, para abrir directo en Excel en español). */
+  function kardexCsv(k, nombre) {
+    const n = v => String(red(v)).replace('.', ',');
+    const q = v => '"' + texto(v).replace(/"/g, '""') + '"';
+    const L = [['Insumo', nombre || ''], ['Corte', k.fechaCorte], [], ['Fecha', 'Movimiento', 'Solicitud', 'Entrada', 'Salida', 'Saldo', 'Responsable', 'Nota']].map(r => r.map(q).join(';'));
+    L.push(['', 'Saldo inicial (corte)', '', '', '', n(k.base), '', ''].map((v, i) => i === 5 ? v : q(v)).join(';'));
+    k.filas.forEach(f => L.push([q(f.fecha), q(f.tipo), q(f.solicitudId), f.entrada ? n(f.entrada) : '', f.salida ? n(f.salida) : '', n(f.saldo), q(f.usuario), q(f.nota)].join(';')));
+    return '\ufeff' + L.join('\r\n');
+  }
+
   /* Texto corto del estado del enlace para mostrar en pantalla. */
   const TXT_ESTADO = {
     SIN_ENLACE: 'Sin enlace con el Inventario',
@@ -210,7 +252,7 @@
 
   const API = { IDX_INSUMOS, MIN_MOTIVO, TXT_ESTADO, resolverArticulo, filaDelCorte, entregasPosteriores, devolucionesPosteriores, ajustes, stockAlmacen, revisarPedido,
     validarEntregaContraStock, movimientosEntrega, transitoYComprometido, resumenEntrega,
-    prioridadSolicitud, ordenarPorAtender, resumenPorAtender, txtEspera, armarVale, valeHtml, MIN_ATENCION, MIN_URGENTE };
+    kardex, kardexCsv, prioridadSolicitud, ordenarPorAtender, resumenPorAtender, txtEspera, armarVale, valeHtml, MIN_ATENCION, MIN_URGENTE };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof window !== 'undefined') window.glacialAlmacenEnlace = API;
   else if (raiz) raiz.glacialAlmacenEnlace = API;
