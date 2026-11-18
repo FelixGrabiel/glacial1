@@ -23,4 +23,4 @@
 - **Stock** = lo recibido por Almacén (paletas completas + unidades; el saldo contado entra solo en unidades) − lo despachado, por línea y producto. Cuenta desde el 16/11/2026.
 - **Alertas «Por atender»** dentro de Producto terminado: paletas con más de 4 h por recibir (roja pasadas 12 h), saldos entregados por el supervisor sin contar hace más de 2 h y saldos con diferencia. (No hay insignia en el menú lateral: la lectura de recepciones solo corre con la pestaña abierta.)
 - **Resumen del turno**: texto para copiar o enviar por WhatsApp con lo recibido, diferencias y observadas, lo pendiente, saldos sin cerrar, despachos del día y stock actual, por fecha y turno (Día = Día + Intermedio, o Noche).
-- `glacial_61`: aplicada en PRUEBAS; **PRODUCCIÓN pendiente** (requiere glacial_56, 57 y 60; solo con «Aplica en producción» y ensayo previo). Sin ella, «Despachos» no puede guardar en producción.
+- `glacial_61`: aplicada en PRUEBAS y PRODUCCIÓN (18/11/2026).

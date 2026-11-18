@@ -1,4 +1,4 @@
--- GLACIAL · glacial_61 · ALMACÉN › PRODUCTO TERMINADO: DESPACHOS (salidas) para calcular el stock      *** APLICADA en PRUEBAS (18/11/2026); PRODUCCIÓN pendiente ***
+-- GLACIAL · glacial_61 · ALMACÉN › PRODUCTO TERMINADO: DESPACHOS (salidas) para calcular el stock      *** APLICADA en PRUEBAS y PRODUCCIÓN (18/11/2026) ***
 --
 -- Qué hace (mismo método que glacial_56…60: inserta ramas por «anclas» de texto; si un ancla no aparece exactamente una vez, se detiene y no cambia nada):
 --  1) Colección nueva almacenPtDespacho: libro INMUTABLE de lo que sale de Almacén (DESPACHO: destino, referencia/guía opcional y de 1 a 30 líneas de producto con paletas y unidades)
