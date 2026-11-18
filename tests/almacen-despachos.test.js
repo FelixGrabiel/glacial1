@@ -68,4 +68,43 @@ const idx=leer('index.html'),pt=leer('js/almacen/101-producto-terminado.js'),d=l
 ok(idx.indexOf('103-almacen-compartido.js')<idx.indexOf('104-despachos-resumen.js')&&idx.indexOf('104-despachos-resumen.js')<idx.indexOf('12-init.js'),'orden de carga: 103 · 104, antes del arranque');
 ok(/glacialAlmacenPTDespachos\.escuchar\(pintar\)/.test(pt)&&/tab\('stock','Stock'\)/.test(pt)&&/htmlAlertas\(ctx\(\)\)/.test(pt)&&/pdResumen\(\)/.test(pt),'Producto terminado muestra las pestañas Stock y Despachos, las alertas y el botón «Resumen del turno»');
 ok(!/sync'\)\.doc\('paletas'\)\.(set|update)/.test(d)&&/db\.collection\('almacenPtDespacho'\)\.doc\(doc\.opId\)\.set/.test(d),'los despachos solo escriben en almacenPtDespacho (nunca en sync/paletas)');
+
+// ---- rendimiento por almacenero ----
+const ms=(h)=>AHORA-h*H;
+const rr=[
+ {tipo:'RECEPCION',estado:'RECIBIDA',paletasAnotadas:4,unidadesRecibidas:4800,almacenero:{nombre:'Luis Ramos'},guardadoEn:ms(1)},
+ {tipo:'RECEPCION',estado:'RECIBIDA',paletasAnotadas:6,unidadesRecibidas:7200,almacenero:{nombre:'Luis Ramos'},guardadoEn:ms(2)},
+ {tipo:'RECEPCION',estado:'DIFERENCIA',paletasAnotadas:2,unidadesRecibidas:2300,almacenero:{nombre:'Luis Ramos'},guardadoEn:ms(3)},
+ {tipo:'RECEPCION',estado:'OBSERVADA',paletasAnotadas:1,unidadesRecibidas:0,almacenero:{nombre:'Rosa Vega'},guardadoEn:ms(3)},
+ {tipo:'RECEPCION',estado:'RECIBIDA',esSaldo:true,unidadesRecibidas:14,almacenero:{nombre:'Rosa Vega'},guardadoEn:ms(4)},
+ {tipo:'ANULACION',anulaA:'x',usuario:'Ana',guardadoEn:ms(5)},
+ {tipo:'RECEPCION',estado:'RECIBIDA',paletasAnotadas:9,unidadesRecibidas:900,almacenero:{nombre:'Luis Ramos'},guardadoEn:ms(48)}];
+const dd=[{tipo:'DESPACHO',items:[{paletas:3,unidades:3600},{paletas:1,unidades:1200}],almacenero:{nombre:'Rosa Vega'},guardadoEn:ms(2)},{tipo:'ANULACION',anulaA:'d',almacenero:{nombre:'Rosa Vega'},guardadoEn:ms(1)}];
+let rd=N.rendimiento(rr,dd,0),luis=rd.find(x=>x.nombre==='Luis Ramos'),rosa=rd.find(x=>x.nombre==='Rosa Vega');
+ok(luis.recibidas===3&&luis.paletas===19&&luis.diferencias===1&&luis.unidades===4800+7200+2300+900,'Luis: recibidas, paletas, unidades y diferencias contadas');
+ok(rosa.observadas===1&&rosa.saldos===1&&rosa.despachos===1&&rosa.paletasDespachadas===4&&rosa.anulaciones===1&&rd.find(x=>x.nombre==='Ana').anulaciones===1,'Rosa: observadas, saldos contados, despachos con sus paletas y anulaciones; quien anula sin PIN aparece por su usuario');
+rd=N.rendimiento(rr,dd,AHORA-24*H);
+ok(rd.find(x=>x.nombre==='Luis Ramos').recibidas===2&&rd[0].nombre==='Luis Ramos','el período recorta lo anterior (no cuenta lo de hace 48 h) y ordena por actividad');
+
+// ---- bandeja «Por atender» y vale de entrega (Asistente › Solicitudes) ----
+const AE=require(R+'/js/asistente/80-almacen-enlace-nucleo.js');
+const sol=(id,estado,min)=>({id,estado,historial:[{estado,en:AHORA-min*60000}]});
+ok(AE.prioridadSolicitud(sol('a','SOLICITADA',30),AHORA).nivel==='normal'&&AE.prioridadSolicitud(sol('a','SOLICITADA',130),AHORA).nivel==='atencion'&&AE.prioridadSolicitud(sol('a','EN_PREPARACION',400),AHORA).nivel==='urgente'&&AE.prioridadSolicitud(sol('a','CERRADA',999),AHORA).atender===false&&AE.prioridadSolicitud(sol('a','BORRADOR',999),AHORA).atender===false,'prioridad: normal, atención (≥ 2 h) y urgente (≥ 6 h); lo cerrado o en borrador no se atiende');
+const orden={SOLICITADA:0,EN_PREPARACION:1,ENTREGADA_PARCIAL:2,ENTREGADA:4,CERRADA:7};
+const ord=AE.ordenarPorAtender([sol('c','CERRADA',10),sol('e','ENTREGADA',500),sol('s1','SOLICITADA',20),sol('s2','EN_PREPARACION',300),sol('s3','SOLICITADA',130)],AHORA,orden).map(x=>x.id).join();
+ok(ord==='s2,s3,s1,e,c','primero lo que Almacén debe atender (la que más espera arriba), luego el resto por estado');
+const ra=AE.resumenPorAtender([sol('s1','SOLICITADA',20),sol('s2','EN_PREPARACION',400),sol('s3','SOLICITADA',130),sol('c','CERRADA',999)],AHORA);
+ok(ra.total===3&&ra.urgentes===1&&ra.atencion===1&&ra.masAntiguaMin===400&&AE.txtEspera(400)==='6 h 40 min'&&AE.txtEspera(45)==='45 min'&&AE.txtEspera(3000)==='2 d','resumen por atender: total, urgentes, con más de 2 h y la más antigua');
+const insumos={TAPA:{nombre:'Tapa 28 mm',unidad:'UND'},ETI:{nombre:'Etiqueta',unidad:'UND'}};
+const solV={id:'SOL-20261118-AB12',fecha:'2026-11-18',bloque:'NOCHE',creadoPor:'Rosa Asistente',observaciones:'urgente',items:[{insumo:'TAPA',unidad:'UND',solicitado:5000},{insumo:'ETI',unidad:'UND',solicitado:3000}],
+  historial:[{estado:'SOLICITADA',en:1},{estado:'ENTREGADA_PARCIAL',entrega:true,entregas:{TAPA:3000,ETI:0},por:'Luis Ramos',en:AHORA,nota:'primera tanda'},{estado:'ENTREGADA',entrega:true,entregas:{TAPA:2000,ETI:3000},por:'Pedro Soto',en:AHORA+1000},{estado:'ENTREGADA',anulaEntrega:2,en:AHORA+2000}]};
+const v1=AE.armarVale(solV,1,c=>insumos[c]);
+ok(v1&&v1.numero==='SOL-20261118-AB12-E1'&&v1.entrego==='Luis Ramos'&&v1.solicito==='Rosa Asistente'&&v1.bloque==='Noche'&&v1.lineas.length===1&&v1.lineas[0].nombre==='Tapa 28 mm'&&v1.lineas[0].cantidad===3000&&v1.lineas[0].unidad==='UND','el vale de la entrega 1: n.º, quién entregó, quién solicitó y solo los insumos con cantidad (3 000 tapas)');
+ok(AE.armarVale(solV,2,c=>insumos[c])===null&&AE.armarVale(solV,5,c=>insumos[c])===null,'una entrega anulada o inexistente no tiene vale');
+const html=AE.valeHtml(v1,'18/11/2026 10:00');
+ok(/VALE DE ENTREGA/.test(html)&&/SOL-20261118-AB12-E1/.test(html)&&/Tapa 28 mm/.test(html)&&/Entregó · Almacén/.test(html)&&/Recibió · Producción/.test(html)&&/primera tanda/.test(html)&&!/<script/i.test(html),'el vale es un documento HTML con su n.º, los insumos, las dos firmas y sin scripts');
+ok(/&lt;b&gt;/.test(AE.valeHtml({...v1,lineas:[{codigo:'X',nombre:'<b>x</b>',cantidad:1,unidad:'UND'}]})),'el vale escapa los textos (no se inyecta HTML)');
+const p72=leer('js/asistente/72-asistente-pantalla.js');
+ok(/apValeEntrega\('\$\{esc\(s\.id\)\}',\$\{n\}\)/.test(p72)&&/AE\.ordenarPorAtender\(lista,D\.ahora\(\),ORDEN_SOL\)/.test(p72)&&/Van primero en la lista/.test(p72),'la pantalla de Solicitudes muestra el botón «Vale», ordena por prioridad y avisa lo que hay por atender');
+ok(/tab\('rendimiento','Rendimiento'\)/.test(leer('js/almacen/101-producto-terminado.js'))&&/htmlRendimiento/.test(d),'Producto terminado tiene la pestaña Rendimiento (no para la cuenta compartida)');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

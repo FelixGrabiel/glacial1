@@ -61,6 +61,12 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const an = await P.evaluate(() => window.__guardados.filter(g => g.n === 'almacenPtDespacho').pop().d);
   ok(an.tipo === 'ANULACION' && an.anulaA === opD && an.opId === 'ANUL_' + opD && an.motivo === 'Error de cliente', 'la anulación se guarda con su motivo');
   await P.evaluate(() => ptTab('stock')); ok((await P.evaluate(() => glacialAlmacenPTDespachos.nucleo.stock(glacialAlmacenPT.ctx().acumulado(), glacialAlmacenPTDespachos.estado.despachos).total.stockPal)) === 13, 'las paletas del despacho anulado vuelven al stock (13)');
+  // ---- Rendimiento por almacenero ----
+  await P.evaluate(() => ptTab('rendimiento')); await P.waitForSelector('.pt-card');
+  t = await txt();
+  ok(/Rendimiento por almacenero/i.test(t) && /Ana/.test(t) && /Despachos/i.test(t) && /Anulaciones/i.test(t), 'la pestaña Rendimiento muestra lo que registró cada persona (aquí Ana, que opera sin PIN)');
+  const rd = await P.evaluate(() => glacialAlmacenPTDespachos.nucleo.rendimiento(glacialAlmacenPT.estado.recs, glacialAlmacenPTDespachos.estado.despachos, 0).find(x => x.nombre === 'Ana'));
+  ok(rd && rd.recibidas === 2 && rd.despachos === 1 && rd.anulaciones === 1, 'Ana: 2 recepciones, 1 despacho y 1 anulación');
   // ---- Resumen del turno ----
   await P.evaluate(() => pdResumen()); await P.waitForSelector('#pd-resumen-txt');
   const r = await P.evaluate(() => document.getElementById('pd-resumen-txt').value);
