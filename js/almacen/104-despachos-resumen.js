@@ -99,7 +99,30 @@
     if(d.stock&&d.stock.total)L.push('','STOCK ACTUAL: '+f2(d.stock.total.stockPal)+' paletas · '+f2(d.stock.total.stockUnd)+' UND');
     return L.join('\n');
   }
-  const NUCLEO={claveProducto,vigentes,stock,unidadesPorPaleta,validarDespacho,idDespacho,construirDespacho,docAnulacionDespacho,alertas,resumenTurnoTexto,fechaLima};
+  /** Rendimiento por almacenero (auditoría, no sanción): lo que registró cada persona desde desdeMs. recs: almacenPtRecepcion; despachos: almacenPtDespacho. */
+  function rendimiento(recs,despachos,desdeMs){
+    const m=new Map(),quien=d=>String((d.almacenero&&d.almacenero.nombre)||d.usuario||'—');
+    const f=d=>{const k=quien(d);if(!m.has(k))m.set(k,{nombre:k,recibidas:0,paletas:0,unidades:0,diferencias:0,observadas:0,saldos:0,despachos:0,paletasDespachadas:0,anulaciones:0});return m.get(k);};
+    const ok=d=>!desdeMs||msDe(d)>=desdeMs;
+    (recs||[]).forEach(d=>{
+      if(!d||!ok(d))return;
+      if(d.tipo==='ANULACION'){f(d).anulaciones++;return;}
+      if(d.tipo!=='RECEPCION')return;
+      const x=f(d);
+      if(d.esSaldo){x.saldos++;x.unidades+=num(d.unidadesRecibidas);return;}
+      if(d.estado==='RECIBIDA'){x.recibidas++;x.paletas+=num(d.paletasAnotadas);x.unidades+=num(d.unidadesRecibidas);}
+      else if(d.estado==='DIFERENCIA'){x.diferencias++;x.unidades+=num(d.unidadesRecibidas);}
+      else if(d.estado==='OBSERVADA')x.observadas++;
+    });
+    (despachos||[]).forEach(d=>{
+      if(!d||!ok(d))return;
+      if(d.tipo==='ANULACION'){f(d).anulaciones++;return;}
+      if(d.tipo!=='DESPACHO'||!Array.isArray(d.items))return;
+      const x=f(d);x.despachos++;x.paletasDespachadas+=d.items.reduce((n,i)=>n+num(i.paletas),0);
+    });
+    return [...m.values()].sort((a,b)=>b.recibidas+b.despachos-(a.recibidas+a.despachos)||a.nombre.localeCompare(b.nombre,'es'));
+  }
+  const NUCLEO={rendimiento,claveProducto,vigentes,stock,unidadesPorPaleta,validarDespacho,idDespacho,construirDespacho,docAnulacionDespacho,alertas,resumenTurnoTexto,fechaLima};
   if(typeof module!=='undefined'&&module.exports){module.exports=NUCLEO;}
   if(typeof window==='undefined'||!window.document)return;
 
@@ -179,6 +202,14 @@
     S.guardando=false;repintar();
   };
 
+  /* ---------- rendimiento por almacenero ---------- */
+  function htmlRendimiento(c){
+    const desde=c.desde(),ms=desde?Date.parse(desde+'T00:00:00-05:00'):0,e=c.esc,fmt=c.fmt;
+    const l=rendimiento(c.recs(),S.despachos,Number.isFinite(ms)?ms:0);
+    return `<div class="pt-card"><h3>Rendimiento por almacenero</h3><p class="pt-mut">Lo que registró cada persona en el período elegido (la cuenta compartida identifica a cada almacenero con su PIN). Sirve para auditar y repartir el trabajo, no para sancionar: una diferencia puede venir de Producción.</p>
+      ${l.length?`<table class="pt-t"><thead><tr><th>Persona</th><th class="pt-n">Recibidas</th><th class="pt-n">Paletas</th><th class="pt-n">Con diferencia</th><th class="pt-n">En observación</th><th class="pt-n">Saldos contados</th><th class="pt-n">Despachos</th><th class="pt-n">Anulaciones</th></tr></thead><tbody>${l.map(x=>`<tr><td data-l="Persona"><b>${e(x.nombre)}</b></td><td data-l="Recibidas" class="pt-n">${fmt(x.recibidas)}</td><td data-l="Paletas" class="pt-n">${fmt(x.paletas)}<small>${fmt(x.unidades)} UND</small></td><td data-l="Con diferencia" class="pt-n" style="${x.diferencias?'color:#c62828':''}">${fmt(x.diferencias)}</td><td data-l="En observación" class="pt-n">${fmt(x.observadas)}</td><td data-l="Saldos contados" class="pt-n">${fmt(x.saldos)}</td><td data-l="Despachos" class="pt-n">${fmt(x.despachos)}<small>${fmt(x.paletasDespachadas)} paletas</small></td><td data-l="Anulaciones" class="pt-n">${fmt(x.anulaciones)}</td></tr>`).join('')}</tbody></table>`:'<div class="pt-vacio">Sin movimientos en este período.</div>'}</div>`;
+  }
+
   /* ---------- alertas ---------- */
   function htmlAlertas(c){
     const al=alertas(c.itemsTodos(),c.saldos(),Date.now());
@@ -211,5 +242,5 @@
   W.pdResumenCopiar=async()=>{const t=(document.getElementById('pd-resumen-txt')||{}).value||'';try{await navigator.clipboard.writeText(t);}catch(_){const e=document.getElementById('pd-resumen-txt');if(e){e.select();try{document.execCommand('copy');}catch(__){/* se puede copiar a mano */}}}};
   W.pdResumenWsp=()=>{const t=(document.getElementById('pd-resumen-txt')||{}).value||'';window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank','noopener');};
 
-  W.glacialAlmacenPTDespachos={escuchar,detener,htmlStock,htmlDespachos,htmlAlertas,estado:S,nucleo:NUCLEO};
+  W.glacialAlmacenPTDespachos={htmlRendimiento,escuchar,detener,htmlStock,htmlDespachos,htmlAlertas,estado:S,nucleo:NUCLEO};
 })(typeof window!=='undefined'?window:globalThis);

@@ -24,3 +24,9 @@
 - **Alertas «Por atender»** dentro de Producto terminado: paletas con más de 4 h por recibir (roja pasadas 12 h), saldos entregados por el supervisor sin contar hace más de 2 h y saldos con diferencia. (No hay insignia en el menú lateral: la lectura de recepciones solo corre con la pestaña abierta.)
 - **Resumen del turno**: texto para copiar o enviar por WhatsApp con lo recibido, diferencias y observadas, lo pendiente, saldos sin cerrar, despachos del día y stock actual, por fecha y turno (Día = Día + Intermedio, o Noche).
 - `glacial_61`: aplicada en PRUEBAS y PRODUCCIÓN (18/11/2026).
+
+## Más mejoras de Almacén
+- **Rendimiento por almacenero** (Producto terminado › Rendimiento; no para la cuenta compartida): por persona, recepciones, paletas, diferencias, observadas, saldos contados, despachos y anulaciones en el período elegido. Es para auditar y repartir trabajo, no para sancionar.
+- **Bandeja «Por atender»** (Asistente › Solicitudes, vista de Almacén): primero lo que Almacén debe atender, la que más espera arriba; marcada «atender» desde 2 h y «urgente» desde 6 h, con un resumen arriba (`prioridadSolicitud`, `ordenarPorAtender`, `resumenPorAtender` en `80-almacen-enlace-nucleo.js`).
+- **Vale de entrega** (botón «Vale» en cada entrega vigente de una solicitud): comprobante imprimible o PDF con n.º `<solicitud>-E<n>`, fecha y hora, quién entregó, quién solicitó, insumos y cantidades, y firmas de Almacén y Producción. Una entrega anulada no tiene vale.
+- Pendientes (no construidos, necesitan decisiones o datos nuevos): kardex por insumo, ingresos de compras, stock mínimo y reposición, conteo cíclico y etiqueta/QR por paleta.

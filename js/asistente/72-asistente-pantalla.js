@@ -559,11 +559,16 @@
     let lista=D.cache.solicitudes.slice();
     if(filtro==='abiertas')lista=lista.filter(s=>SOL_ABIERTAS.includes(s.estado));
     else if(filtro==='cerradas')lista=lista.filter(s=>!SOL_ABIERTAS.includes(s.estado));
-    lista.sort((a,b)=>(ORDEN_SOL[a.estado]??9)-(ORDEN_SOL[b.estado]??9)||String(b.id).localeCompare(String(a.id)));
+    const AE=window.glacialAlmacenEnlace;
+    // Vista de Almacén: primero lo que hay que atender, la que más espera arriba (con aviso por urgencia). El resto, como siempre.
+    if(alm&&AE&&filtro!=='cerradas')lista=AE.ordenarPorAtender(lista,D.ahora(),ORDEN_SOL);
+    else lista.sort((a,b)=>(ORDEN_SOL[a.estado]??9)-(ORDEN_SOL[b.estado]??9)||String(b.id).localeCompare(String(a.id)));
+    const porAtender=alm&&AE?AE.resumenPorAtender(D.cache.solicitudes,D.ahora()):null;
+    const nivelEspera=s=>{const p=alm&&AE?AE.prioridadSolicitud(s,D.ahora()):null;return p&&p.atender?p:null;};
     const ultimo=s=>((s.historial||[]).slice(-1)[0]||{}).en;
     const itemTxt=i=>`${esc(insumoDe(i.insumo).nombre)} ${num(i.entregado)>0?fmt(i.entregado)+' / ':''}${fmt(i.solicitado)} ${esc(i.unidad)}`;
     const filas=lista.map(s=>`<tr class="ap-clic" onclick="apVerSolicitud('${esc(s.id)}')"><td data-label="Solicitud"><b>${esc(s.id)}</b></td><td data-label="Fecha">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Día'}</td>
-      <td data-label="Ítems">${(s.items||[]).map(itemTxt).join(' · ')}</td><td data-label="Espera">${SOL_ABIERTAS.includes(s.estado)?hace(ultimo(s)):'—'}</td><td data-label="Estado">${pillSolicitud(s.estado)}</td></tr>`).join('');
+      <td data-label="Ítems">${(s.items||[]).map(itemTxt).join(' · ')}</td><td data-label="Espera">${(()=>{const p=nivelEspera(s);return p&&p.nivel!=='normal'?`<b style="color:${p.nivel==='urgente'?'#c62828':'#b45309'}">${SOL_ABIERTAS.includes(s.estado)?hace(ultimo(s)):'—'}${p.nivel==='urgente'?' · urgente':' · atender'}</b>`:(SOL_ABIERTAS.includes(s.estado)?hace(ultimo(s)):'—');})()}</td><td data-label="Estado">${pillSolicitud(s.estado)}</td></tr>`).join('');
     // Solicitud nueva: solo lo que falta + los insumos que la Asistente agrega a mano.
     const vals=AP.solVal||{},extra=AP.solExtra||[],quit=AP.solQuit||[];
     const mostrados=D.cache.insumos.filter(i=>i.activo!==false&&!quit.includes(i.codigo)&&(faltantes.some(x=>x.insumo.codigo===i.codigo)||extra.includes(i.codigo)));
@@ -594,7 +599,8 @@
       <td data-label="Movimiento">${m.origen==='DEVOLUCION'?pill('Devolución de Producción','azul','flecha'):m.tipo==='ANULACION'?pill('Entrega anulada','gris','cerrar'):pill('Entrega a Producción','verde','check')}${m.sinStock?' '+pill('Sin stock autorizado','ambar'):''}</td>
       <td data-label="Insumo">${esc(insumoDe(m.insumo).nombre)}</td><td data-label="Cantidad" class="ap-num">${m.tipo==='ANULACION'?'—':fmt(m.cantidad)+' '+esc(m.unidad||insumoDe(m.insumo).unidad)}</td><td data-label="Responsable">${esc(m.usuario||'—')}</td><td data-label="Solicitud">${esc(m.solicitudId||'—')}</td></tr>`).join('')),{icono:'subida'}):'';
     const nota=pie('Solicitudes, reservas y entregas son operaciones distintas. Solo una recepción confirmada por Producción incrementa las existencias en Producción.');
-    return `${nueva}<h3 class="ap-h3">${titulo}</h3>${sel}${filas?tabla(['Solicitud','Fecha','Ítems (entregado / pedido)','Espera','Estado'],filas,'ap-t-click'):vacio(filtro==='abiertas'?'No hay solicitudes abiertas.':'Sin solicitudes en los últimos 60 días.')}
+    const avisoAtender=porAtender&&porAtender.total?pie(`Por atender: <b>${porAtender.total}</b> solicitud${porAtender.total===1?'':'es'}${porAtender.urgentes?` · <b>${porAtender.urgentes} urgente${porAtender.urgentes===1?'':'s'}</b> (más de 6 h)`:''}${porAtender.atencion?` · ${porAtender.atencion} con más de 2 h`:''} · la que más espera lleva ${AE.txtEspera(porAtender.masAntiguaMin)}. Van primero en la lista.`,porAtender.urgentes?'aviso':'info'):'';
+    return `${nueva}<h3 class="ap-h3">${titulo}</h3>${avisoAtender}${sel}${filas?tabla(['Solicitud','Fecha','Ítems (entregado / pedido)','Espera','Estado'],filas,'ap-t-click'):vacio(filtro==='abiertas'?'No hay solicitudes abiertas.':'Sin solicitudes en los últimos 60 días.')}
       ${panel}${nota}`;
   }
   const pillSolicitud=e=>{const t=SOL_TXT[e]||e;return ['CERRADA','RECIBIDA'].includes(e)?pill(t,'verde','check'):e==='CANCELADA'?pill(t,'gris'):e==='OBSERVADA'?pill(t,'rojo','alerta'):pill(t,'gris','reloj_arena');};
@@ -609,6 +615,16 @@
     const items=[...document.querySelectorAll('.ap-sol-cant')].map(i=>({insumo:i.dataset.insumo,unidad:i.dataset.unidad,solicitado:i.value})).filter(i=>num(i.solicitado)>0);
     AP.solExtra=[];AP.solVal={};AP.solQuit=[];
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:valor('ap-sol-obs'),enviar}),id=>'Solicitud '+id+(enviar?' enviada a Almacén.':' guardada como borrador.'));
+  };
+  /* Vale de entrega: comprobante imprimible (o PDF) de una entrega a Producción. */
+  window.apValeEntrega=function(id,n){
+    const s=D.cache.solicitudes.find(x=>x.id===id),AE=window.glacialAlmacenEnlace;if(!s||!AE)return;
+    const v=AE.armarVale(s,n,c=>insumoDe(c));
+    if(!v){alert('No hay vale para esa entrega (no tiene detalle o fue anulada).');return;}
+    const w=window.open('','_blank');
+    if(!w){alert('El navegador bloqueó la ventana del vale. Permite ventanas emergentes para GLACIAL.');return;}
+    w.document.open();w.document.write(AE.valeHtml(v,new Date().toLocaleString('es-PE',{timeZone:'America/Lima',dateStyle:'short',timeStyle:'short',hour12:false})));w.document.close();
+    try{w.focus();setTimeout(()=>{try{w.print();}catch(_){/* se imprime con el menú */}},300);}catch(_){/* sin imprimir */}
   };
   window.apVerSolicitud=function(id){
     const s=D.cache.solicitudes.find(x=>x.id===id);if(!s)return;const ctx=contexto();const cuadrosSol=cuadrosPara(s.fecha,s.bloque);AP.solSel=id;AP.solAbierta={id,version:num(s.version)};
@@ -632,7 +648,7 @@
       const n=k+1,anulada=(s.historial||[]).some(x=>x&&x.anulaEntrega===n);
       const det=h.entregas?Object.entries(h.entregas).map(([i,q])=>`${esc(insumoDe(i).nombre)} ${fmt(q)}`).join(' · '):'<span class="ap-mut">sin detalle</span>';
       return `<tr><td data-label="N.º">${n}</td><td data-label="Cuándo">${esc(fechaHora(h.en))}</td><td data-label="Responsable">${esc(h.por||'—')}</td><td data-label="Detalle">${det}</td>
-        <td data-label="Estado">${anulada?pill('Anulada','gris','cerrar'):pill('Vigente','verde','check')}</td><td data-label="">${!anulada&&h.entregas?`<button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apAnularEntrega('${esc(s.id)}',${n},${num(s.version)})">Anular</button>`:''}</td></tr>`;}).join(''))}`:'';
+        <td data-label="Estado">${anulada?pill('Anulada','gris','cerrar'):pill('Vigente','verde','check')}</td><td data-label="">${!anulada&&h.entregas?`<button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apValeEntrega('${esc(s.id)}',${n})">Vale</button> <button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apAnularEntrega('${esc(s.id)}',${n},${num(s.version)})">Anular</button>`:''}</td></tr>`;}).join(''))}`:'';
     const hist=(s.historial||[]).map(h=>`<li>${fechaHora(h.en)} · <b>${esc(SOL_TXT[h.estado]||h.estado)}</b> · ${esc(h.por)}${h.nota?' — '+esc(h.nota):''}</li>`).join('');
     modal('Solicitud '+esc(s.id),`<p class="ap-sub">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Mañana + Intermedio'} · ${pillSolicitud(s.estado)}${s.observaciones?' · '+esc(s.observaciones):''}</p>
       ${tabla(['Insumo','#Solicitado','#Entregado','#Recibido',...(columnaStock?['#Stock Almacén']:[]),''],it)}
