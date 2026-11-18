@@ -1,4 +1,4 @@
--- GLACIAL · glacial_63 · Copias automáticas de los documentos críticos (paletas, tareos, programaciones, perfiles, usuarios, trabajadores)   *** APLICADA EN PRUEBAS el 2026-11-18 (en 4 partes: 63a tabla, 63b función, 63c tarea, 63d limpieza) · PRODUCCION pendiente ***
+-- GLACIAL · glacial_63 · Copias automáticas de los documentos críticos (paletas, tareos, programaciones, perfiles, usuarios, trabajadores)   *** APLICADA EN PRUEBAS y en PRODUCCION el 2026-11-18 (en 4 partes: 63a tabla, 63b función, 63c tarea, 63d limpieza) ***
 --
 -- Por qué (auditoría de seguridad 18/11/2026): cualquier usuario con sesión puede reemplazar sync/paletas o sync/tareos (el servidor solo impide
 -- borrarlos o vaciarlos), y hoy no existe forma de recuperar la versión anterior.

@@ -16,11 +16,11 @@ Revisión de solo lectura + simulación de ataque (en PRUEBAS, con transacciones
 | 2 | `glacial_62`: `sync/accesos` deja de ser público; el login pide el correo de un solo usuario con `fs_acceso_correo`. Si la función no existe, el login usa el método anterior. | PRUEBAS aplicada y verificada · PRODUCCIÓN pendiente |
 | 3 | Contraseña mínima 10 (cambio de clave y `fs-cuentas`). Falta activar «protección de contraseñas filtradas» en Supabase (Authentication › Passwords). | En código · `fs-cuentas` por desplegar |
 | 4 | Cuentas huérfanas: lista abajo, decisión del dueño (no se borró nada). | Pendiente |
-| 5 | `glacial_63`: copia de paletas, tareos, programaciones, perfiles, usuarios y trabajadores cada 12 h (solo si cambiaron, 10 días). | PRUEBAS aplicada y verificada (copias = documentos vivos) · PRODUCCIÓN pendiente |
+| 5 | `glacial_63`: copia de paletas, tareos, programaciones, perfiles, usuarios y trabajadores cada 12 h (solo si cambiaron, 10 días). | Aplicada y verificada en PRUEBAS y PRODUCCIÓN (copias = documentos vivos) |
 
 ## Orden para producción
 1. `glacial_62`: **hecho en producción** (la página nueva ya estaba publicada).
-2. `glacial_63` en 4 partes (tabla, función, tarea, limpieza): pendiente en producción.
+2. `glacial_63` en 4 partes (tabla, función, tarea, limpieza): **hecho en producción**.
 3. `fs-cuentas` (mínimo 10): **desplegada** en PRUEBAS y producción.
 
 ## Cuentas sin perfil (21 de 43)
