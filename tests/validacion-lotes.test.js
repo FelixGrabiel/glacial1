@@ -30,6 +30,36 @@ const base={clave:'wa-120363@3EB0ABC123',lote:' L2411-07 ',resultado:'ok',insumo
   ok(r.ok&&r.fila.validada_en===new Date(AHORA).toISOString()&&r.fila.motivo==='Etiqueta ilegible'&&r.fila.controles.length===0&&r.fila.insumo===null,'sin fecha usa la de recepción; el motivo se limpia; lo opcional queda en null');
   r=await v({...base,datos:{a:'x'.repeat(21000)}});ok(!r.ok&&r.codigo==='datos_tamano','«datos» demasiado grande');
 
+  // foto del rótulo
+  const jpg=Buffer.concat([Buffer.from([0xff,0xd8,0xff,0xe0]),Buffer.from('rotulo de prueba')]);
+  const png=Buffer.concat([Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]),Buffer.from('x')]);
+  const shaJpg=require('crypto').createHash('sha256').update(jpg).digest('hex');
+  const rot={clave:'wa-120363@ROTULO0001',lote:'11147323',resultado:'ok',insumo:'Glacial 1.5kg',linea:'envasado manual',motivo:'Lote y vencimiento correctos.',datos:{producto:'HIELO',turno:'noche',semana:47,dia_juliano:323,vence:'19/11/2027'}};
+  r=await v({...rot,foto_base64:jpg.toString('base64'),foto_mime:'image/jpeg'});
+  ok(r.ok&&r.foto&&r.foto.sha256===shaJpg&&r.foto.ruta==='calidad/rotulos/'+shaJpg+'.jpg'&&r.fila.foto_ruta===r.foto.ruta&&r.foto.bytes.length===jpg.length&&!('bytes' in r.fila),'foto válida: la huella la calcula el servidor y la ruta es calidad/rotulos/<sha>.jpg (los bytes no van a la fila)');
+  r=await v({...rot,foto_base64:jpg.toString('base64'),foto_mime:'image/jpeg',foto_sha256:shaJpg.toUpperCase()});ok(r.ok,'la huella enviada puede venir en mayúsculas si coincide');
+  r=await v(rot);ok(r.ok&&r.foto===null&&r.fila.foto_ruta===null,'sin foto: sigue funcionando como antes');
+  r=await v({...rot,foto_base64:jpg.toString('base64'),foto_mime:'application/pdf'});ok(!r.ok&&r.codigo==='foto_mime','tipo de foto no permitido');
+  r=await v({...rot,foto_base64:jpg.toString('base64')});ok(!r.ok&&r.codigo==='foto_mime','falta foto_mime');
+  r=await v({...rot,foto_base64:'no es base64!!',foto_mime:'image/jpeg'});ok(!r.ok&&r.codigo==='foto','base64 inválido');
+  r=await v({...rot,foto_base64:png.toString('base64'),foto_mime:'image/jpeg'});ok(!r.ok&&r.codigo==='foto_firma','el archivo no es del tipo que dice (firma)');
+  r=await v({...rot,foto_base64:jpg.toString('base64'),foto_mime:'image/jpeg',foto_sha256:'f'.repeat(64)});ok(!r.ok&&r.codigo==='foto_huella','huella enviada que no corresponde');
+  const grande=Buffer.concat([Buffer.from([0xff,0xd8,0xff]),Buffer.alloc(N.MAX_FOTO)]);
+  r=await v({...rot,foto_base64:grande.toString('base64'),foto_mime:'image/jpeg'});ok(!r.ok&&r.estado===413,'foto de más de 6 MB: 413');
+  ok(N.MAX_CUERPO>N.MAX_FOTO&&N.MAX_CUERPO<12*1024*1024,'el tope del cuerpo permite la foto pero sigue acotado');
+  const ts2=leer('supabase/functions/validaciones-lotes-ingesta/index.ts');
+  ok(/storage\.from\(BUCKET\)\.upload\(v\.foto\.ruta/.test(ts2)&&ts2.indexOf('.upload(v.foto.ruta')<ts2.indexOf(".from('validaciones_lotes').upsert("),'la foto se sube ANTES de guardar la fila');
+  const m64=leer('supabase/migraciones/glacial_64_validaciones_foto.sql');
+  ok(/add column if not exists foto_ruta/.test(m64)&&/calidad\/rotulos\/\[a-f0-9\]\{64\}/.test(m64)&&/v\.evidencia_sha256, v\.foto_ruta, v\.origen,/.test(m64)&&/cuenta <> 1/.test(m64)&&!/create policy/i.test(m64),'glacial_64: columna con restricción de ruta, listar devuelve foto_ruta, ancla única, sin políticas');
+  // pantalla: datos del rótulo
+  const UI=require('../js/calidad/99-validacion-lotes.js');
+  const x=UI.normalizar({clave:'a',lote:'11147323',resultado:'OK',insumo:'Glacial 1.5kg',linea:'envasado manual',datos:{producto:'HIELO',marca:'Glacial 1.5kg',turno:'noche',semana:47,dia_juliano:323,fecha_produccion:'2026-11-19',vence:'19/11/2027',texto_rotulo:'LT:11147323 FV:19-11-27'},foto_ruta:'calidad/rotulos/'+shaJpg+'.jpg',validada_en:'2026-11-19T06:34:00Z'});
+  ok(x.rotulo.turno==='noche'&&x.rotulo.semana==='47'&&x.rotulo.diaJuliano==='323'&&x.rotulo.vence==='19/11/2027'&&x.rotulo.leido==='LT:11147323 FV:19-11-27'&&x.fotoRuta==='calidad/rotulos/'+shaJpg+'.jpg','pantalla: lee turno, semana, día juliano, vencimiento y texto del rótulo');
+  ok(UI.normalizar({foto_ruta:'../secreto.jpg'}).fotoRuta===''&&UI.normalizar({foto_ruta:'asistente/evidencias/'+shaJpg+'.jpg'}).fotoRuta==='','pantalla: rechaza rutas de foto fuera de calidad/rotulos/');
+  ok(UI.normalizar({datos:'x'}).rotulo.turno===''&&UI.normalizar(null).fotoRuta==='','pantalla: datos raros no la rompen');
+  ok(UI.filtrar([x],{texto:'noche'}).length===1&&UI.filtrar([x],{texto:'hielo'}).length===1&&UI.filtrar([x],{texto:'turno dia'}).length===0,'pantalla: la búsqueda incluye turno, producto y marca');
+  ok(UI.refFoto('calidad/rotulos/x.jpg')==='supabase:glacial-fotos/calidad/rotulos/x.jpg','pantalla: referencia de la foto en el bucket privado');
+
   // migración y función
   const sql=leer('supabase/migraciones/glacial_54_validaciones_lotes.sql');
   ok(/enable row level security/.test(sql)&&/revoke all on public\.validaciones_lotes from public, anon, authenticated/.test(sql)&&!/create policy/i.test(sql),'glacial_54: RLS activada, sin permisos para anon/authenticated y sin políticas');

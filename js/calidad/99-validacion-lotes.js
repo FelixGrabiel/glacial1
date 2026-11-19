@@ -1,8 +1,9 @@
 /* =============================================================
    GLACIAL · CALIDAD › VALIDACIÓN DE LOTES
    -------------------------------------------------------------
-   Muestra lo que valida el bot de WhatsApp (glacial-whatsapp): una fila por validación con su resultado (OK, OBSERVADO o RECHAZADO), el lote, el insumo, los
-   controles revisados y quién la revisó. Lo deja la función validaciones-lotes-ingesta en public.validaciones_lotes (glacial_54).
+   Muestra lo que valida el bot de WhatsApp (glacial-whatsapp): una fila por validación con su resultado (OK, OBSERVADO o RECHAZADO), el lote, el vencimiento, el
+   turno, la marca, la línea, la FOTO del rótulo, los controles revisados y quién la revisó. Lo deja la función validaciones-lotes-ingesta en
+   public.validaciones_lotes (glacial_54; la foto: glacial_64). Es el rótulo del PRODUCTO TERMINADO; las etiquetas de proveedores siguen en Asistente › Evidencias.
    · Solo lectura desde la página, salvo «Marcar como revisada» (quien tiene «calidadRevisar»). NO toca stock, lotes ni evidencias.
    · Permisos propios de Calidad (98-calidad-permisos.js, glacial_55): ver = «calidadVer», revisar = «calidadRevisar». El servidor los exige igual.
    · Se actualiza sola cada minuto mientras la pestaña está a la vista, y con «Actualizar».
@@ -22,8 +23,12 @@
     const res=RESULTADOS[f.resultado]?f.resultado:'OBSERVADO';
     const ms=Date.parse(f.validada_en||f.recibido_en||'');
     const controles=(Array.isArray(f.controles)?f.controles:[]).filter(c=>c&&typeof c==='object').map(c=>({nombre:String(c.nombre||'—'),resultado:CONTROL[c.resultado]?c.resultado:'NA',detalle:String(c.detalle||'')}));
+    const d=f.datos&&typeof f.datos==='object'&&!Array.isArray(f.datos)?f.datos:{};
+    const t=v=>v==null?'':String(v).replace(/\s+/g,' ').trim();
+    const rotulo={producto:t(d.producto),marca:t(d.marca),turno:t(d.turno),semana:t(d.semana),diaJuliano:t(d.dia_juliano),fechaProduccion:t(d.fecha_produccion),vence:t(d.vence),leido:t(d.texto_rotulo)};
+    const foto=/^calidad\/rotulos\/[a-f0-9]{64}\.(jpg|png|webp)$/.test(String(f.foto_ruta||''))?String(f.foto_ruta):'';
     return {clave:String(f.clave||''),lote:String(f.lote||'—'),resultado:res,insumo:String(f.insumo||''),proveedor:String(f.proveedor||''),linea:String(f.linea||''),motivo:String(f.motivo||''),
-      controles,fallas:controles.filter(c=>c.resultado==='FALLA').length,evidencia:String(f.evidencia_sha256||''),ms:Number.isFinite(ms)?ms:0,
+      rotulo,fotoRuta:foto,controles,fallas:controles.filter(c=>c.resultado==='FALLA').length,evidencia:String(f.evidencia_sha256||''),ms:Number.isFinite(ms)?ms:0,
       revisada:f.revision_estado==='REVISADA',revisadaPor:String(f.revisada_por||''),revisadaMs:Date.parse(f.revisada_en||'')||0,nota:String(f.revision_nota||'')};
   }
   /** Una validación pide mirada si no es OK y todavía no la revisó una persona. */
@@ -41,11 +46,12 @@
       if(f.resultado&&x.resultado!==f.resultado)return false;
       if(f.revision==='REVISADA'&&!x.revisada)return false;
       if(f.revision==='PIDE'&&!pideRevision(x))return false;
-      if(q&&!alnum([x.lote,x.insumo,x.proveedor,x.linea,x.motivo].join(' ')).includes(q))return false;
+      if(q&&!alnum([x.lote,x.insumo,x.proveedor,x.linea,x.motivo,x.rotulo.producto,x.rotulo.marca,x.rotulo.turno,x.rotulo.vence].join(' ')).includes(q))return false;
       return true;
     }).sort((a,b)=>b.ms-a.ms);
   }
-  const NUCLEO={RESULTADOS,CONTROL,normalizar,pideRevision,resumen,filtrar};
+  const refFoto=ruta=>ruta?'supabase:glacial-fotos/'+ruta:'';
+  const NUCLEO={RESULTADOS,CONTROL,normalizar,pideRevision,resumen,filtrar,refFoto};
   if(typeof module!=='undefined'&&module.exports)module.exports=NUCLEO;
   if(typeof window==='undefined'||!window.document)return;
 
@@ -108,8 +114,18 @@
       <label>Período<select onchange="vlSet('dias',Number(this.value))">${[7,30,90,180].map(n=>op(String(n),'Últimos '+n+' días',String(ES.dias))).join('')}</select></label>
       <label>Resultado<select onchange="vlSet('resultado',this.value)">${op('','Todos',ES.resultado)}${op('OK','Validadas',ES.resultado)}${op('OBSERVADO','Con observación',ES.resultado)}${op('RECHAZADO','Rechazadas',ES.resultado)}</select></label>
       <label>Revisión<select onchange="vlSet('revision',this.value)">${op('','Todas',ES.revision)}${op('PIDE','Por revisar',ES.revision)}${op('REVISADA','Revisadas',ES.revision)}</select></label>
-      <label class="vl-busca">Buscar<input type="search" placeholder="Lote, insumo o proveedor" value="${esc(ES.texto)}" oninput="vlBuscar(this.value)" aria-label="Buscar validaciones"></label>
+      <label class="vl-busca">Buscar<input type="search" placeholder="Lote, producto, marca o turno" value="${esc(ES.texto)}" oninput="vlBuscar(this.value)" aria-label="Buscar validaciones"></label>
       <button type="button" class="vl-btn" onclick="vlActualizar()" ${ES.cargando?'disabled':''}>${ES.cargando?'Actualizando…':'Actualizar'}</button></div>`;
+  }
+  function imgFoto(x,cls){
+    const F=W.glacialFotos,ref=refFoto(x.fotoRuta);
+    if(!ref||!F)return `<span class="vl-sinfoto ${cls||''}">Sin foto</span>`;
+    return `<img class="vl-foto ${cls||''}" loading="lazy" alt="Rótulo del lote ${esc(x.lote)}" ${F.atributosImg(ref)}>`;
+  }
+  /* Datos del rótulo que mandó el bot (los que no vienen, no se muestran). */
+  function datosRotulo(x){
+    const r=x.rotulo,fil=[['Lote validado',x.lote],['Producto',r.producto],['Marca / presentación',r.marca||x.insumo],['Turno',r.turno],['Línea',x.linea],['Fecha de producción',r.fechaProduccion],['Vencimiento',r.vence],['Semana',r.semana],['Día juliano',r.diaJuliano],['Texto leído en la foto',r.leido]].filter(([,v])=>v);
+    return `<table class="vl-datos"><tbody>${fil.map(([k,v])=>`<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
   }
   function detalle(x){
     const ctl=x.controles.length?`<ul class="vl-ctl">${x.controles.map(c=>`<li>${pill(CONTROL[c.resultado][0],CONTROL[c.resultado][1])}<span><b>${esc(c.nombre)}</b>${c.detalle?` · ${esc(c.detalle)}`:''}</span></li>`).join('')}</ul>`:'<p class="vl-mut">El bot no envió controles detallados.</p>';
@@ -117,15 +133,18 @@
       :puedeEscribir()?`<div class="vl-accion"><label>Nota de la revisión (opcional)<textarea rows="2" maxlength="300" oninput="vlNota(this.value)">${esc(ES.nota)}</textarea></label>
           <button type="button" class="vl-btn vl-btn-p" onclick="vlRevisar('${esc(x.clave)}')" ${ES.guardando?'disabled':''}>${ES.guardando?'Guardando…':'Marcar como revisada'}</button></div>`
       :'<p class="vl-mut">Una persona autorizada puede marcarla como revisada.</p>';
-    return `<tr class="vl-det"><td colspan="7">${x.motivo?`<p class="vl-motivo"><b>Motivo:</b> ${esc(x.motivo)}</p>`:''}${ctl}${x.evidencia?`<p class="vl-mut">Evidencia: ${esc(x.evidencia.slice(0,12))}… (ver en Evidencias)</p>`:''}${rev}</td></tr>`;
+    const foto=x.fotoRuta&&W.glacialFotos?`<a class="vl-grande" ${W.glacialFotos.atributosEnlace(refFoto(x.fotoRuta))} title="Abrir la foto en tamaño completo">${imgFoto(x,'vl-foto-g')}<span>Abrir en tamaño completo</span></a>`:'';
+    return `<tr class="vl-det"><td colspan="8"><div class="vl-det-g">${foto?`<div class="vl-det-foto">${foto}</div>`:''}<div class="vl-det-datos">${datosRotulo(x)}${x.motivo?`<p class="vl-motivo"><b>Motivo:</b> ${esc(x.motivo)}</p>`:''}${ctl}${x.evidencia?`<p class="vl-mut">Evidencia: ${esc(x.evidencia.slice(0,12))}… (ver en Evidencias)</p>`:''}${rev}</div></div></td></tr>`;
   }
   function tabla(lista){
     if(!lista.length)return `<div class="vl-vacio">${ES.lista.length?'Ninguna validación coincide con el filtro.':'Todavía no hay validaciones en este período. Cuando el bot suba una, aparecerá aquí.'}</div>`;
-    return `<div class="vl-tw"><table class="vl-t"><thead><tr><th>Fecha</th><th>Lote</th><th>Insumo</th><th>Línea</th><th>Resultado</th><th>Controles</th><th>Revisión</th></tr></thead><tbody>${lista.map(x=>{
+    return `<div class="vl-tw"><table class="vl-t"><thead><tr><th>Foto</th><th>Fecha</th><th>Lote</th><th>Producto</th><th>Línea</th><th>Vence</th><th>Resultado</th><th>Revisión</th></tr></thead><tbody>${lista.map(x=>{
       const ab=ES.abierta===x.clave,r=RESULTADOS[x.resultado];
       return `<tr class="vl-fila ${ab?'vl-ab':''}" tabindex="0" role="button" aria-expanded="${ab}" onclick="vlAbrir('${esc(x.clave)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();vlAbrir('${esc(x.clave)}')}">
-        <td data-label="Fecha">${esc(fechaHora(x.ms))}</td><td data-label="Lote"><b>${esc(x.lote)}</b>${x.proveedor?`<small>${esc(x.proveedor)}</small>`:''}</td><td data-label="Insumo">${esc(x.insumo||'—')}</td><td data-label="Línea">${esc(x.linea||'—')}</td>
-        <td data-label="Resultado">${pill(r[0],r[1])}</td><td data-label="Controles">${x.controles.length?(x.fallas?pill(x.fallas+' con falla','vl-mal'):pill(x.controles.length+' OK','vl-ok')):'—'}</td>
+        <td data-label="Foto" class="vl-c-foto">${imgFoto(x,'vl-foto-m')}</td><td data-label="Fecha">${esc(fechaHora(x.ms))}</td>
+        <td data-label="Lote"><b>${esc(x.lote)}</b>${x.rotulo.turno?`<small>Turno ${esc(x.rotulo.turno)}</small>`:''}${x.proveedor?`<small>${esc(x.proveedor)}</small>`:''}</td>
+        <td data-label="Producto">${esc(x.rotulo.marca||x.insumo||x.rotulo.producto||'—')}${x.rotulo.marca&&x.rotulo.producto?`<small>${esc(x.rotulo.producto)}</small>`:''}</td><td data-label="Línea">${esc(x.linea||'—')}</td><td data-label="Vence">${esc(x.rotulo.vence||'—')}</td>
+        <td data-label="Resultado">${pill(r[0],r[1])}${x.controles.length&&x.fallas?`<small>${x.fallas} control${x.fallas===1?'':'es'} con falla</small>`:''}</td>
         <td data-label="Revisión">${x.revisada?pill('Revisada','vl-ok'):x.resultado==='OK'?'<span class="vl-mut">No requiere</span>':pill('Por revisar','vl-obs')}</td></tr>${ab?detalle(x):''}`;}).join('')}</tbody></table></div>`;
   }
   function estilos(){return `<style>
@@ -148,17 +167,22 @@
 .vl-pill{display:inline-block;font-size:11px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap}
 .vl-ok{background:#dff5e7;color:#157a3b}.vl-obs{background:#ffedd5;color:#b45309}.vl-mal{background:#fde8e8;color:#c62828}.vl-gris{background:#e8eef4;color:#587087}
 .vl-det td{background:#f8fbfe;padding:14px 16px}.vl-motivo{margin:0 0 8px}.vl-ctl{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:6px}.vl-ctl li{display:flex;gap:10px;align-items:baseline}
-.vl-mut{color:#587087;font-size:12.5px;margin:4px 0}.vl-rev{margin:6px 0;color:#157a3b}
+.vl-mut{color:#587087;font-size:12.5px;margin:4px 0}
+.vl-foto{display:block;object-fit:cover;background:#eaf1f7;border-radius:8px}.vl-foto-m{width:56px;height:56px}.vl-foto-g{width:100%;max-height:460px;object-fit:contain}
+.vl-sinfoto{display:flex;align-items:center;justify-content:center;width:56px;height:56px;background:#f1f5f9;color:#587087;font-size:10px;border-radius:8px;text-align:center}
+.vl-c-foto{width:70px}.vl-det-g{display:grid;grid-template-columns:minmax(200px,1fr) minmax(0,1.5fr);gap:16px}.vl-det-g:has(.vl-det-foto:empty){grid-template-columns:1fr}
+.vl-grande{display:grid;gap:6px;color:#0877a6;font-weight:700;font-size:13px;text-decoration:none}
+.vl-datos{width:100%;border-collapse:collapse;margin:0 0 8px}.vl-datos th{width:40%;text-align:left;font-size:12px;color:#587087;font-weight:700;padding:4px 8px 4px 0;vertical-align:top}.vl-datos td{padding:4px 0;font-weight:600;overflow-wrap:anywhere}.vl-rev{margin:6px 0;color:#157a3b}
 .vl-vacio{background:#fafcfe;border:1px dashed #c3d8e8;border-radius:12px;padding:22px;text-align:center;color:#587087}
 .vl-msg{border-radius:12px;padding:10px 14px}.vl-msg-e{background:#fdecec;color:#991b1b;border:1px solid #f5b5b5}.vl-msg-k{background:#e7f6ec;color:#15803d;border:1px solid #b7e4c7}
 .vl-fila:focus-visible,.vl-btn:focus-visible{outline:3px solid #0ea5e9;outline-offset:2px}
-@media(max-width:700px){.vl-t thead{display:none}.vl-t tr.vl-fila{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;border-top:1px solid #eaf1f7}.vl-t td{display:block;border:0;padding:2px 4px}.vl-t td[data-label]::before{content:attr(data-label);display:block;font-size:11px;font-weight:700;color:#587087;text-transform:uppercase}.vl-det td{display:block}.vl-det{display:block}}
+@media(max-width:700px){.vl-det-g{grid-template-columns:1fr}.vl-c-foto{width:auto}.vl-t thead{display:none}.vl-t tr.vl-fila{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;border-top:1px solid #eaf1f7}.vl-t td{display:block;border:0;padding:2px 4px}.vl-t td[data-label]::before{content:attr(data-label);display:block;font-size:11px;font-weight:700;color:#587087;text-transform:uppercase}.vl-det td{display:block}.vl-det{display:block}}
 </style>`;}
   function html(){
     if(!puedeVer())return `<div class="vl-msg vl-msg-e">No tienes permiso para ver las validaciones de lotes.</div>`;
     escuchar();
     const lista=ES.lista,r=resumen(lista),vis=filtrar(lista,ES);
-    return `<div class="vl">${estilos()}<div class="vl-nota" role="note">Aquí llega lo que <b>valida el bot de WhatsApp</b> de cada lote. Es solo un registro: <b>no mueve el stock ni cambia los lotes</b>. Las observadas y rechazadas esperan que una persona las marque como revisadas.</div>
+    return `<div class="vl">${estilos()}<div class="vl-nota" role="note">Aquí llega el <b>rótulo de producto terminado</b> que <b>valida el bot de WhatsApp</b> (lote, vencimiento, turno, marca y línea) con la <b>foto original</b>. Las etiquetas de proveedores se revisan en Asistente › Evidencias. Es solo un registro: <b>no mueve el stock ni cambia los lotes</b>. Las observadas y rechazadas esperan que una persona las marque como revisadas.</div>
       ${ES.error?`<div class="vl-msg vl-msg-e" role="alert">${esc(ES.error)}</div>`:''}${ES.aviso?`<div class="vl-msg ${/^No se pudo/.test(ES.aviso)?'vl-msg-e':'vl-msg-k'}" role="status">${esc(ES.aviso)}</div>`:''}
       ${ES.listo||lista.length?'':'<div class="vl-vacio">Consultando las validaciones…</div>'}${tarjetas(r)}${filtros()}${tabla(vis)}</div>`;
   }
