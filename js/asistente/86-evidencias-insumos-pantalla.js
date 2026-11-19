@@ -35,7 +35,7 @@
     const titulo=N.tituloEvidencia(d);
     return `<button type="button" class="ie-item ${d.id===S.sel?'ie-item-act':''}" onclick="ieSel('${esc(d.id)}')"><span class="ie-it-t"><b>${esc(titulo)}</b>${pill(d.estado)}</span>
       <small>${esc((c.proveedor&&c.proveedor.valor)||'Proveedor sin leer')} · ${esc(d.categoria)}</small>
-      <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}foto ${esc(hora(N.fechaFoto(d).ms))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}${d.loteId?' · <b>'+esc(d.loteId)+'</b>':''}${d.leyenda?' · '+esc(d.leyenda):''}${d.remitente?' · de '+esc(d.remitente):''}</small></button>`;
+      <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}foto ${esc(hora(N.fechaFoto(d).ms))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}${d.loteId?' · <b>'+esc(d.loteId)+'</b>':''}${d.leyenda?' · '+esc(d.leyenda):''}</small>${d.remitente?`<span style="display:block"><span style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:999px;background:#0b6b8f;color:#fff;font-weight:700;font-size:.9em">👤 ${esc(d.remitente)}</span></span>`:''}</button>`;
   }
   function listaHtml(){
     const todos=E.cache.lista,lista=N.filtrar(todos,{estado:S.estado,texto:S.texto});
@@ -189,6 +189,7 @@
     return `<div class="ii-card ie-det">
       <div class="ie-det-cab"><div><h3>${esc(N.tituloEvidencia(d))}</h3>
         <p class="ii-mut"><b>Foto enviada: ${esc(hora(N.fechaFoto(d).ms))}</b>${N.fechaFoto(d).origen!=='whatsapp'?' ('+esc(N.ORIGEN_FECHA_FOTO[N.fechaFoto(d).origen]||'')+')':''} · importada ${esc(hora(d.creadoEn))}${d.archivoOriginal&&!/^[a-f0-9]{32,}\.[a-z0-9]{2,5}$/i.test(d.archivoOriginal)?' · '+esc(d.archivoOriginal):''} · leída ${esc(d.analizadoEn?d.analizadoEn.slice(0,16).replace('T',' '):'')} ${d.modelo?'por '+esc(d.modelo):''} · importó ${esc(d.creadoPor||'—')}${d.versionProcesador?' · '+esc(d.versionProcesador):''}</p></div>${pill(d.estado)}</div>
+      ${((d.remitente||d.leyenda)?`<div role="note" style="margin:10px 0;padding:12px 14px;border-left:6px solid #0b6b8f;background:#e8f4f9;border-radius:8px;font-size:1.15em;line-height:1.35">${d.remitente?'<div>👤 <b>Enviada por: '+esc(d.remitente)+'</b></div>':''}${d.leyenda?'<div>💬 <b>Comentario: «'+esc(d.leyenda)+'»</b></div>':''}</div>`:'')}
       <div class="ii-msg ii-msg-info" role="note">Aprobar los datos <b>no registra stock</b>. Las entradas, transferencias y consumos se hacen en otra operación, con otro permiso (Fase 4).</div>
       ${sin&&edit?`<div class="ii-msg ii-msg-error" role="status"><b>${sin} dato${sin>1?'s':''} por confirmar.</b> Compáralos con la foto y pulsa «Confirmar» o corrígelos antes de aprobar.</div>`:''}
       <div class="ie-cols"><div class="ie-col-foto">${fotoHtml(d)}</div>
