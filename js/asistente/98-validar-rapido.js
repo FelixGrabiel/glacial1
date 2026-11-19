@@ -129,7 +129,7 @@
     const etiqueta={lista:'<span class="ii-pill ii-p-verde"><i></i>Lista</span>',dudas:'<span class="ii-pill ii-p-naranja"><i></i>'+x.dudosos.length+' por revisar</span>',incompleta:'<span class="ii-pill ii-p-rojo"><i></i>Incompleta</span>'}[x.tipo];
     const errores=x.errores.length?`<div class="ii-msg ii-msg-error" role="note"><b>Falta resolver:</b> ${x.errores.map(esc).join(' ')}</div>`:'';
     const bloqueo=x.diag.duplicados&&x.diag.duplicados.length;
-    return chips+msg+`<div class="vr-cab"><span>Foto <b>${pos}</b> de ${vis.length} · ${esc(n.tituloEvidencia(d))} ${etiqueta}</span><small class="ii-mut">foto ${esc(new Date((Number(n.fechaFoto(d).ms)||0)-5*3600000).toISOString().slice(0,16).replace('T',' '))}${d.leyenda?' · leyenda «'+esc(d.leyenda)+'»':''}</small></div>
+    return chips+msg+`<div class="vr-cab"><span>Foto <b>${pos}</b> de ${vis.length} · ${esc(n.tituloEvidencia(d))} ${etiqueta}</span><small class="ii-mut">foto ${esc(new Date((Number(n.fechaFoto(d).ms)||0)-5*3600000).toISOString().slice(0,16).replace('T',' '))}${d.remitente?' · enviada por <b>'+esc(d.remitente)+'</b>':''}${d.leyenda?' · leyenda «'+esc(d.leyenda)+'»':''}</small></div>
       <div class="vr-cols"><div class="vr-col-foto">${fotoHtml(d)}</div>
       <div class="vr-col-datos"><label class="vr-campo"><span>Categoría</span><select class="ie-in" id="vr-cat">${cats}</select></label>${campos}${errores}${destinoHtml(x)}</div></div>
       <div class="vr-acc"><button type="button" class="ii-btn ii-btn-o" onclick="ieVrSaltar()">Saltar →</button><button type="button" class="ii-btn ii-btn-o" onclick="ieVrCompleto()">Abrir completo</button>

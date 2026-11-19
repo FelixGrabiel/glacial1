@@ -133,5 +133,20 @@ const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
   const ui=leer('js/asistente/86-evidencias-insumos-pantalla.js');
   ok(/Buscar nuevas del bot/.test(ui)&&/ieBuscarNuevas/.test(ui)&&/typeof setInterval==='function'/.test(ui)&&/host\.activo\(\)/.test(ui),'la pantalla tiene «Buscar nuevas del bot», sondea cada minuto solo mientras está a la vista y no repinta si estás escribiendo');
   ok(/subir\(/.test(leer('js/asistente/85-evidencias-insumos-datos.js'))&&!/subir\(/.test(leer('js/asistente/85-evidencias-insumos-datos.js').split('async function importarDeEntrada')[1].split('async function sincronizarEntrada')[0]),'importar desde la entrada NO sube la foto otra vez (ya está en el bucket privado)');
+
+  /* ================= remitente (nombre de quien mandó la foto) ================= */
+  {
+    const rr=await pedir({cuerpoTexto:cuerpo({leyenda:'Para B7L',remitente:'  +51 957\n 984 823  '})});
+    ok(rr.ok&&rr.remitente==='+51 957 984 823'&&rr.leyenda==='Para B7L','la ingesta acepta el remitente opcional (limpio, sin saltos de línea)');
+    ok((await pedir({cuerpoTexto:cuerpo({remitente:'x'.repeat(200)})})).remitente.length===60,'el remitente se acorta a 60 caracteres');
+    ok((await pedir()).remitente===null,'sin remitente la solicitud queda como antes (null)');
+    ok(/\.\.\.\(v\.remitente \? \{ remitente: v\.remitente \} : \{\}\)/.test(leer('supabase/functions/evidencias-ingesta/index.ts')),'la función guarda el remitente solo si viene');
+    const mig=leer('supabase/migraciones/glacial_65_evidencias_remitente.sql');
+    ok(/add column if not exists remitente text check \(remitente is null or char_length\(remitente\) <= 60\)/.test(mig)&&/'remitente', t\.remitente/.test(mig)&&!/delete|drop table|truncate/i.test(mig),'glacial_65: columna opcional y la bandeja la devuelve (sin tocar datos)');
+    const N84=leer('js/asistente/84-evidencias-insumos-nucleo.js'),D85=leer('js/asistente/85-evidencias-insumos-datos.js');
+    ok(/remitente:recortar\(remitente\|\|registro\.remitente,60\)/.test(N84)&&/remitente:item\.remitente/.test(D85),'al importar, el remitente pasa de la bandeja a la evidencia');
+    ok(['86-evidencias-insumos-pantalla','89-trazabilidad-lotes-pantalla','98-validar-rapido'].every(f=>/d\.remitente/.test(leer('js/asistente/'+f+'.js'))),'las pantallas muestran quién mandó la foto junto al comentario');
+  }
+
   console.log(fallas?fallas+' fallas':'todo correcto');
 })();
