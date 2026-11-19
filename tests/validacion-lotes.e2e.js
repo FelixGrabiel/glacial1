@@ -18,7 +18,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
       { clave: 'wa-3333333@CCC', lote: 'E-0098', resultado: 'RECHAZADO', insumo: 'Etiqueta roll feed 625 ml', proveedor: 'Etiflex', linea: 'PET2', motivo: 'Etiqueta ilegible', validada_en: hace(300), revision_estado: 'REVISADA', revisada_por: 'ana@glacial.pe', revisada_en: hace(200), revision_nota: 'Se devolvió al proveedor' },
     ];
     window.glacialSupabaseCliente = { rpc: async (n, a) => { window.__llamadas.push(n); if (n === 'validaciones_lotes_listar') return { data: filas, error: null }; if (n === 'validaciones_lotes_revisar') { filas[0].revision_estado = 'REVISADA'; filas[0].revisada_por = 'ana@glacial.pe'; filas[0].revisada_en = new Date().toISOString(); return { data: true, error: null }; } return { data: null, error: null }; } };
-    state.currentTab = 'calidad'; renderSidebar(); renderMain();
+    state.currentTab = 'calidad'; goCalidad('validacion');
   });
   await P.waitForSelector('.cal-tabs', { timeout: 8000 });
   await P.waitForSelector('.vl-t', { timeout: 6000 });

@@ -1,4 +1,18 @@
-# Validación de lotes (bot de WhatsApp → GLACIAL)
+# Calidad · Lotes leídos y Validación de lotes
+
+El módulo **Calidad** tiene dos pantallas (menú lateral › Calidad):
+
+## Lotes leídos (pantalla inicial)
+Muestra **cada lote que lee el bot de WhatsApp** de la foto de la etiqueta, con **sus datos y la foto original**. Es la misma lectura que llega a Evidencias del Asistente (`public.evidencias_entrada`, `glacial_33`), pero visible para quien tiene **«VER Calidad»** (`calidadVer`).
+- **Datos:** lote, marca, proveedor, producto, presentación, fechas (impresa, producción, vencimiento…), pesos, cantidad, orden de compra, N.º de caja/bobina; los campos «en duda»; las advertencias de la lectura (sin las frases fijas del procesador); las correcciones sugeridas y el texto leído.
+- **Foto:** miniatura en la tarjeta y tamaño completo en el detalle, con enlace firmado del bucket privado `glacial-fotos` (se firma solo `asistente/evidencias/…`).
+- **Filtros:** período, con advertencias / sin lote legible / sin advertencias, y búsqueda por lote, proveedor, marca o producto. Se actualiza cada minuto.
+- **Solo consulta:** no mueve stock, no crea ni cambia lotes, no toca Evidencias. La lectura la hace una IA: hay que comparar con la foto.
+- **Servidor:** `public.calidad_lecturas_listar` (`glacial_64`), mismo permiso que `validaciones_lotes_listar`; la tabla sigue con RLS sin políticas. Código: `js/calidad/99b-lecturas-lotes.js`. Pruebas: `tests/calidad-lecturas.test.js` y `tests/calidad-lecturas.e2e.js`.
+- En **Validación de lotes**, si la validación trae la huella de una foto que está entre los lotes leídos, el detalle muestra la foto y el lote leído.
+- Estado: `glacial_64` aplicada en PRUEBAS (verificada por rol); PRODUCCIÓN pendiente.
+
+## Validación de lotes
 
 Pantalla **Calidad › Validación de lotes** (módulo propio del menú lateral, grupo «Calidad»; antes estaba como pestaña del Asistente). Muestra lo que el bot (`glacial-whatsapp`) **valida de cada lote** y lo sube a GLACIAL. Es solo un registro: **no mueve el stock, no crea ni cambia lotes y no toca Evidencias**.
 

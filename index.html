@@ -3199,7 +3199,7 @@
                         </section>
 
 
-                        <!-- Calidad: módulo propio (js/calidad/). Hoy: Validación de lotes (lo que valida el bot de WhatsApp). Permisos propios (Gestión de usuarios › Calidad). -->
+                        <!-- Calidad: módulo propio (js/calidad/). Pantallas: Lotes leídos (datos y foto que lee el bot de WhatsApp) y Validación de lotes. Permisos propios (Gestión de usuarios › Calidad). -->
                         <section class="sidebar-group" id="sidebar-group-calidad" data-sidebar-group="calidad" hidden style="display:none">
                             <button type="button" class="sidebar-group-toggle" data-sidebar-toggle="calidad"
                                     aria-expanded="false" aria-controls="sidebar-panel-calidad">
@@ -3208,6 +3208,10 @@
                                 <span class="sidebar-chevron" aria-hidden="true">⌃</span>
                             </button>
                             <div class="sidebar-group-panel" id="sidebar-panel-calidad" hidden>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-calidad-lecturas"
+                                        onclick="goCalidad('lecturas')" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Lotes leídos</span>
+                                </button>
                                 <button type="button" class="side-action sidebar-subaction" id="btn-calidad-validacion"
                                         onclick="goCalidad('validacion')" hidden style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Validación de lotes</span>
@@ -3686,8 +3690,9 @@
     <script src="js/asistente/96-proveedores.js?v=20261113-ev1"></script>
     <script src="js/asistente/98-validar-rapido.js?v=20261113-vr1"></script>
     <script src="js/calidad/98-calidad-permisos.js?v=20261115-cp1"></script>
-    <script src="js/calidad/99-validacion-lotes.js?v=20261115-vl3"></script>
-    <script src="js/calidad/100-calidad-pantalla.js?v=20261115-ca1"></script>
+    <script src="js/calidad/99b-lecturas-lotes.js?v=20261119-lc1"></script>
+    <script src="js/calidad/99-validacion-lotes.js?v=20261119-lc1"></script>
+    <script src="js/calidad/100-calidad-pantalla.js?v=20261119-lc1"></script>
     <script src="js/almacen/101-producto-terminado.js?v=20261118-al2"></script>
     <script src="js/almacen/102-almaceneros-pin.js?v=20261117-ad6"></script>
     <script src="js/almacen/103-almacen-compartido.js?v=20261116-al1"></script>

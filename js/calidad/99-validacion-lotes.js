@@ -111,13 +111,21 @@
       <label class="vl-busca">Buscar<input type="search" placeholder="Lote, insumo o proveedor" value="${esc(ES.texto)}" oninput="vlBuscar(this.value)" aria-label="Buscar validaciones"></label>
       <button type="button" class="vl-btn" onclick="vlActualizar()" ${ES.cargando?'disabled':''}>${ES.cargando?'Actualizando…':'Actualizar'}</button></div>`;
   }
+  /* Foto y datos leídos de la evidencia (si Calidad ya cargó los lotes leídos del bot); si no, solo la huella. */
+  function evidenciaHtml(x){
+    if(!x.evidencia)return '';
+    const L=W.apLecturasLotesUI,F=W.glacialFotos,l=L&&L.porSha?L.porSha(x.evidencia):null,ref=l&&F&&l.fotoRuta&&/^asistente\/evidencias\/[A-Za-z0-9._-]+$/.test(l.fotoRuta)?'supabase:glacial-fotos/'+l.fotoRuta:'';
+    if(!l||!ref)return `<p class="vl-mut">Evidencia: ${esc(x.evidencia.slice(0,12))}…</p>`;
+    return `<div class="vl-evid"><a ${F.atributosEnlace(ref)} title="Abrir la foto en tamaño completo"><img class="vl-foto" loading="lazy" alt="Foto del lote ${esc(x.lote)}" ${F.atributosImg(ref)}></a>
+      <p class="vl-mut">Lectura de la etiqueta: lote <b>${esc(l.lote||'sin lote legible')}</b>${l.proveedor?' · '+esc(l.proveedor):''}${l.producto?' · '+esc(l.producto):''}. <a href="#" onclick="goCalidad('lecturas');lcAbrir('${esc(l.sha)}');return false">Ver todos los datos</a></p></div>`;
+  }
   function detalle(x){
     const ctl=x.controles.length?`<ul class="vl-ctl">${x.controles.map(c=>`<li>${pill(CONTROL[c.resultado][0],CONTROL[c.resultado][1])}<span><b>${esc(c.nombre)}</b>${c.detalle?` · ${esc(c.detalle)}`:''}</span></li>`).join('')}</ul>`:'<p class="vl-mut">El bot no envió controles detallados.</p>';
     const rev=x.revisada?`<p class="vl-rev">Revisada por <b>${esc(x.revisadaPor||'—')}</b> el ${esc(fechaHora(x.revisadaMs))}${x.nota?` · ${esc(x.nota)}`:''}</p>`
       :puedeEscribir()?`<div class="vl-accion"><label>Nota de la revisión (opcional)<textarea rows="2" maxlength="300" oninput="vlNota(this.value)">${esc(ES.nota)}</textarea></label>
           <button type="button" class="vl-btn vl-btn-p" onclick="vlRevisar('${esc(x.clave)}')" ${ES.guardando?'disabled':''}>${ES.guardando?'Guardando…':'Marcar como revisada'}</button></div>`
       :'<p class="vl-mut">Una persona autorizada puede marcarla como revisada.</p>';
-    return `<tr class="vl-det"><td colspan="7">${x.motivo?`<p class="vl-motivo"><b>Motivo:</b> ${esc(x.motivo)}</p>`:''}${ctl}${x.evidencia?`<p class="vl-mut">Evidencia: ${esc(x.evidencia.slice(0,12))}… (ver en Evidencias)</p>`:''}${rev}</td></tr>`;
+    return `<tr class="vl-det"><td colspan="7">${x.motivo?`<p class="vl-motivo"><b>Motivo:</b> ${esc(x.motivo)}</p>`:''}${ctl}${evidenciaHtml(x)}${rev}</td></tr>`;
   }
   function tabla(lista){
     if(!lista.length)return `<div class="vl-vacio">${ES.lista.length?'Ninguna validación coincide con el filtro.':'Todavía no hay validaciones en este período. Cuando el bot suba una, aparecerá aquí.'}</div>`;
@@ -148,7 +156,7 @@
 .vl-pill{display:inline-block;font-size:11px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap}
 .vl-ok{background:#dff5e7;color:#157a3b}.vl-obs{background:#ffedd5;color:#b45309}.vl-mal{background:#fde8e8;color:#c62828}.vl-gris{background:#e8eef4;color:#587087}
 .vl-det td{background:#f8fbfe;padding:14px 16px}.vl-motivo{margin:0 0 8px}.vl-ctl{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:6px}.vl-ctl li{display:flex;gap:10px;align-items:baseline}
-.vl-mut{color:#587087;font-size:12.5px;margin:4px 0}.vl-rev{margin:6px 0;color:#157a3b}
+.vl-mut{color:#587087;font-size:12.5px;margin:4px 0}.vl-evid{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}.vl-foto{width:120px;height:120px;object-fit:cover;border-radius:10px;background:#eaf1f7;display:block}.vl-rev{margin:6px 0;color:#157a3b}
 .vl-vacio{background:#fafcfe;border:1px dashed #c3d8e8;border-radius:12px;padding:22px;text-align:center;color:#587087}
 .vl-msg{border-radius:12px;padding:10px 14px}.vl-msg-e{background:#fdecec;color:#991b1b;border:1px solid #f5b5b5}.vl-msg-k{background:#e7f6ec;color:#15803d;border:1px solid #b7e4c7}
 .vl-fila:focus-visible,.vl-btn:focus-visible{outline:3px solid #0ea5e9;outline-offset:2px}
@@ -157,6 +165,7 @@
   function html(){
     if(!puedeVer())return `<div class="vl-msg vl-msg-e">No tienes permiso para ver las validaciones de lotes.</div>`;
     escuchar();
+    if(W.apLecturasLotesUI)W.apLecturasLotesUI.asegurar();
     const lista=ES.lista,r=resumen(lista),vis=filtrar(lista,ES);
     return `<div class="vl">${estilos()}<div class="vl-nota" role="note">Aquí llega lo que <b>valida el bot de WhatsApp</b> de cada lote. Es solo un registro: <b>no mueve el stock ni cambia los lotes</b>. Las observadas y rechazadas esperan que una persona las marque como revisadas.</div>
       ${ES.error?`<div class="vl-msg vl-msg-e" role="alert">${esc(ES.error)}</div>`:''}${ES.aviso?`<div class="vl-msg ${/^No se pudo/.test(ES.aviso)?'vl-msg-e':'vl-msg-k'}" role="status">${esc(ES.aviso)}</div>`:''}
