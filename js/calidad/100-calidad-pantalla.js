@@ -2,21 +2,19 @@
    GLACIAL · CALIDAD (módulo propio del menú lateral)
    -------------------------------------------------------------
    Pestaña de la aplicación: state.currentTab='calidad', grupo «Calidad» del menú (#btn-calidad-validacion), goCalidad(tab).
-   Pantallas: «Lotes leídos» (datos y foto de lo que lee el bot de WhatsApp; 99b-lecturas-lotes.js) y «Validación de lotes» (lo que valida el bot; 99-validacion-lotes.js).
+   Hoy tiene una sola pantalla: «Validación de lotes» (lo que valida el bot de WhatsApp; lógica en 99-validacion-lotes.js).
    · Permisos propios (Gestión de usuarios › Calidad): «calidadVer» y «calidadRevisar» (98-calidad-permisos.js). El servidor los exige igual (glacial_55).
    · No toca stock, lotes ni evidencias.
-   Mismo patrón de navegación que 76-inventario-insumos-pantalla.js. Cargar DESPUÉS de 99-validacion-lotes.js y 99b-lecturas-lotes.js.
+   Mismo patrón de navegación que 76-inventario-insumos-pantalla.js. Cargar DESPUÉS de 99-validacion-lotes.js.
    ============================================================= */
 (function(){
   'use strict';
   const TAB='calidad';
-  const PANTALLAS=[['lecturas','Lotes leídos'],['validacion','Validación de lotes']];
-  const SUBTITULO={lecturas:'Lotes que lee el bot de WhatsApp: datos de la etiqueta y foto original.',validacion:'Validación de lotes que hace el bot de WhatsApp.'};
-  const CAL={tab:'lecturas'};
+  const PANTALLAS=[['validacion','Validación de lotes']];
+  const CAL={tab:'validacion'};
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const puede=()=>{try{return !!(typeof state!=='undefined'&&state.user&&window.glacialCalidadPermisos&&window.glacialCalidadPermisos.puedeVer());}catch(_){return false;}};
   const VL=()=>window.apValidacionLotesUI||null;
-  const LL=()=>window.apLecturasLotesUI||null;
 
   function estilos(){return `<style>
 .cal{color:#033350;font-size:15px;display:grid;gap:14px}
@@ -31,13 +29,12 @@
   function pintar(){
     if(typeof state==='undefined'||state.currentTab!==TAB)return;
     const main=document.getElementById('main');if(!main)return;
-    const UI=CAL.tab==='lecturas'?LL():VL();
+    const UI=VL();
     const tabs=PANTALLAS.map(([k,t])=>`<button type="button" role="tab" class="cal-tab" aria-selected="${CAL.tab===k}" onclick="goCalidad('${k}')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M8.5 12l2.5 2.5L16 9.5"/></svg><span>${esc(t)}</span></button>`).join('');
-    let cuerpo='<div class="vl-msg vl-msg-e">Esta pantalla no está disponible en esta versión.</div>';
-    [VL(),LL()].forEach(u=>{if(u&&u!==UI)u.usar({pintar});});               // la otra pantalla también repinta (p. ej. la foto de una validación)
+    let cuerpo='<div class="vl-msg vl-msg-e">La validación de lotes no está disponible en esta versión.</div>';
     if(UI){UI.usar({pintar});cuerpo=UI.html();}
     const y=window.scrollY;
-    main.innerHTML=`<section class="cal">${estilos()}<header class="cal-cab"><div><h1>CALIDAD</h1><p class="cal-sub">${esc(SUBTITULO[CAL.tab]||'')}</p></div></header><nav class="cal-tabs" role="tablist" aria-label="Pantallas de Calidad">${tabs}</nav>${cuerpo}</section>`;
+    main.innerHTML=`<section class="cal">${estilos()}<header class="cal-cab"><div><h1>CALIDAD</h1><p class="cal-sub">Rótulos de producto terminado que valida el bot de WhatsApp, con su foto.</p></div></header><nav class="cal-tabs" role="tablist" aria-label="Pantallas de Calidad">${tabs}</nav>${cuerpo}</section>`;
     window.scrollTo(0,y);
   }
 
@@ -57,7 +54,7 @@
     const a=renderMain;
     renderMain=function(){
       if(state.currentTab===TAB&&!state.showWelcome&&puede()){pintar();return;}
-      if(state.currentTab!==TAB){if(VL())VL().detener();if(LL())LL().detener();}   // las consultas solo corren mientras se mira Calidad
+      if(state.currentTab!==TAB&&VL())VL().detener();                    // la consulta de validaciones solo corre mientras se mira Calidad
       return a.apply(this,arguments);
     };
   }
@@ -65,11 +62,9 @@
     const a=renderSidebar;
     renderSidebar=function(){
       const r=a.apply(this,arguments);
-      [['btn-calidad-lecturas','lecturas'],['btn-calidad-validacion','validacion']].forEach(([id,pantalla])=>{
-        const b=document.getElementById(id);if(!b)return;
-        const m=puede(),act=m&&state.currentTab===TAB&&CAL.tab===pantalla;
-        b.hidden=!m;b.style.display=m?'':'none';b.classList.toggle('active',act);
-        if(act)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+      const b=document.getElementById('btn-calidad-validacion');
+      if(b){const m=puede();b.hidden=!m;b.style.display=m?'':'none';b.classList.toggle('active',m&&state.currentTab===TAB);
+        if(m&&state.currentTab===TAB)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
       if(typeof actualizarGruposSidebar==='function')actualizarGruposSidebar();      // el grupo se ve solo si alguno de sus accesos es visible
       return r;
     };

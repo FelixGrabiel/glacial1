@@ -3,10 +3,17 @@
 //
 // El bot manda un JSON con la cabecera  x-glacial-validaciones: <secreto>:
 //   { clave, lote, resultado: 'OK'|'OBSERVADO'|'RECHAZADO', insumo?, proveedor?, linea?, motivo?, controles?: [{nombre, resultado: 'OK'|'FALLA'|'NA', detalle?}],
-//     datos?: {…}, evidencia_sha256?, validada_en? (ISO 8601) }
+//     datos?: {…}, evidencia_sha256?, validada_en? (ISO 8601), foto_base64?, foto_mime?, foto_sha256? }
+// Rótulo de producto terminado (lo que valida el bot al leer la codificadora): lote = el lote validado; insumo = marca o presentación («Glacial 1.5kg»);
+//   linea = «envasadora» / «envasado manual»; datos = { producto, marca, turno, semana, dia_juliano, fecha_produccion, vence, texto_rotulo } (todos opcionales);
+//   foto_base64 + foto_mime (image/jpeg|png|webp) = la foto del rótulo, que se guarda en el bucket privado en calidad/rotulos/<sha256>.<ext>.
 // Nada de esto toca stock ni lotes: solo deja el registro en la tabla public.validaciones_lotes, que se ve en Calidad › Validación de lotes.
 
-export const MAX_CUERPO = 64_000;
+export const MAX_FOTO = 6 * 1024 * 1024;            // las fotos de WhatsApp pesan ~100-300 KB; 6 MB es un tope holgado
+export const MAX_TEXTO = 64_000;                    // el resto de los campos (sin la foto)
+export const MAX_CUERPO = Math.ceil(MAX_FOTO / 3) * 4 + MAX_TEXTO + 4_096;
+export const MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+export const rutaFoto = (sha256, ext) => `calidad/rotulos/${sha256}.${ext}`;
 export const MIN_SECRETO = 24;
 export const RESULTADOS = ['OK', 'OBSERVADO', 'RECHAZADO'];
 export const RESULTADOS_CONTROL = ['OK', 'FALLA', 'NA'];
@@ -22,6 +29,26 @@ export async function secretoValido(recibido, esperado) {
   let d = 0;
   for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
+}
+
+/** Verifica el tipo REAL del archivo (no solo lo que dice el bot). */
+export function firmaValida(bytes, mime) {
+  if (mime === 'image/jpeg') return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mime === 'image/png') return bytes.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => bytes[i] === v);
+  if (mime === 'image/webp') {
+    const t = (i, s) => [...s].every((c, k) => bytes[i + k] === c.charCodeAt(0));
+    return bytes.length >= 12 && t(0, 'RIFF') && t(8, 'WEBP');
+  }
+  return false;
+}
+function base64ABytes(b64) {
+  if (typeof b64 !== 'string' || b64.length === 0 || b64.length % 4 === 1 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) return null;
+  try {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  } catch (_) { return null; }
 }
 
 const falla = (estado, codigo, error) => ({ ok: false, estado, codigo, error });
@@ -69,6 +96,19 @@ export async function validarSolicitud({ metodo, secretoRecibido, secretoEsperad
     if (JSON.stringify(c.datos).length > 20_000) return falla(413, 'datos_tamano', '«datos» es demasiado grande.');
     datos = c.datos;
   }
+  // Foto del rótulo (opcional): tipo real, tamaño y huella se comprueban aquí; la huella la calcula el servidor.
+  let foto = null;
+  if (c.foto_base64 !== undefined && c.foto_base64 !== null && c.foto_base64 !== '') {
+    const mime = String(c.foto_mime || '').toLowerCase().trim();
+    if (!MIMES[mime]) return falla(400, 'foto_mime', 'La foto debe ser image/jpeg, image/png o image/webp (campo foto_mime).');
+    const bytes = base64ABytes(c.foto_base64);
+    if (!bytes) return falla(400, 'foto', 'La foto no es un base64 válido.');
+    if (bytes.length > MAX_FOTO) return falla(413, 'foto_tamano', 'La foto supera los 6 MB.');
+    if (!firmaValida(bytes, mime)) return falla(400, 'foto_firma', 'El archivo no es una imagen del tipo indicado.');
+    const sha = await sha256Hex(bytes);
+    if (c.foto_sha256 !== undefined && c.foto_sha256 !== null && c.foto_sha256 !== '' && String(c.foto_sha256).toLowerCase() !== sha) return falla(400, 'foto_huella', 'La huella foto_sha256 no corresponde a la foto enviada.');
+    foto = { bytes, mime, ext: MIMES[mime], sha256: sha, ruta: rutaFoto(sha, MIMES[mime]) };
+  }
   const evidencia = c.evidencia_sha256 === undefined || c.evidencia_sha256 === null || c.evidencia_sha256 === '' ? null : String(c.evidencia_sha256).toLowerCase();
   if (evidencia !== null && !/^[a-f0-9]{64}$/.test(evidencia)) return falla(400, 'evidencia', 'La huella de la evidencia debe ser un SHA-256 en hexadecimal.');
 
@@ -83,9 +123,10 @@ export async function validarSolicitud({ metodo, secretoRecibido, secretoEsperad
   }
   return {
     ok: true,
+    foto,
     fila: {
       clave, lote, resultado, insumo: limpio(c.insumo, 120), proveedor: limpio(c.proveedor, 120), linea: limpio(c.linea, 20),
-      motivo: limpio(c.motivo, 500), controles, datos, evidencia_sha256: evidencia, origen: 'bot', validada_en: validada,
+      motivo: limpio(c.motivo, 500), controles, datos, evidencia_sha256: evidencia, foto_ruta: foto ? foto.ruta : null, origen: 'bot', validada_en: validada,
     },
   };
 }
