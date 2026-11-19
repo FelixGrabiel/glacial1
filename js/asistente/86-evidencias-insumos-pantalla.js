@@ -35,7 +35,7 @@
     const titulo=N.tituloEvidencia(d);
     return `<button type="button" class="ie-item ${d.id===S.sel?'ie-item-act':''}" onclick="ieSel('${esc(d.id)}')"><span class="ie-it-t"><b>${esc(titulo)}</b>${pill(d.estado)}</span>
       <small>${esc((c.proveedor&&c.proveedor.valor)||'Proveedor sin leer')} · ${esc(d.categoria)}</small>
-      <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}foto ${esc(hora(N.fechaFoto(d).ms))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}${d.loteId?' · <b>'+esc(d.loteId)+'</b>':''}${d.leyenda?' · '+esc(d.leyenda):''}${d.remitente?' · de '+esc(d.remitente):''}</small></button>`;
+      <small>${sin?`<b class="ie-por-conf">${sin} por confirmar</b> · `:''}foto ${esc(hora(N.fechaFoto(d).ms))}${c.lote&&c.lote.valor?' · lote '+esc(c.lote.valor):''}${d.loteId?' · <b>'+esc(d.loteId)+'</b>':''}${d.leyenda?' · '+esc(d.leyenda):''}</small>${d.remitente?`<span style="display:block"><span style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:999px;background:#0b6b8f;color:#fff;font-weight:700;font-size:.9em">👤 ${esc(d.remitente)}</span></span>`:''}</button>`;
   }
   function listaHtml(){
     const todos=E.cache.lista,lista=N.filtrar(todos,{estado:S.estado,texto:S.texto});
