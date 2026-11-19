@@ -59,10 +59,8 @@ Respuestas: `200 {ok:true, estado:'recibida'|'duplicada'}`; `400` campo inválid
 El bot **no lleva ninguna llave de Supabase**: solo el secreto, que solo sirve para esta función (comparación en tiempo constante; mínimo 24 caracteres; si falta o es corto el servicio no funciona). La función se despliega sin JWT porque el bot no tiene sesión. Tope diario por si el secreto se filtra.
 
 ## Puesta en marcha (primero PRUEBAS; PRODUCCIÓN solo con aprobación)
-Estado a 19/11/2026: `glacial_54` y `glacial_55` **aplicadas en PRUEBAS y PRODUCCIÓN**; `glacial_64` (foto del rótulo) **aplicada en PRUEBAS** y verificada por rol, **pendiente en PRODUCCIÓN**.
-**En producción hoy hay 0 validaciones: la función `validaciones-lotes-ingesta` NO está desplegada y el bot todavía no envía nada a GLACIAL** (solo responde en el grupo de WhatsApp). Para que los rótulos aparezcan en Calidad faltan dos cosas:
+Estado a 19/11/2026: `glacial_54`, `glacial_55` y `glacial_64` (foto del rótulo) **aplicadas en PRUEBAS y PRODUCCIÓN** (verificadas por rol). La función `validaciones-lotes-ingesta` está **desplegada en PRUEBAS y PRODUCCIÓN** (sin JWT, misma huella de código), pero **sin su secreto se niega a funcionar** (500 «falta el secreto»).
+**En producción hoy hay 0 validaciones y el bot todavía no envía nada a GLACIAL** (solo responde en el grupo de WhatsApp). Para que los rótulos aparezcan en Calidad faltan dos cosas:
 
-1. **De GLACIAL** (aplicar `glacial_64` en producción y desplegar la función con su secreto):
-   - En *Edge Functions › Secrets*: `VALIDACIONES_SECRETO` (24 caracteres o más, distinto de `INGESTA_SECRETO`) y, si quieres, `VALIDACIONES_MAX_DIA`.
-   - Desplegar `validaciones-lotes-ingesta` sin JWT (`--no-verify-jwt`) en PRUEBAS y luego en PRODUCCIÓN.
+1. **De GLACIAL (lo hace el dueño):** en *Edge Functions › Secrets* de PRODUCCIÓN (y de PRUEBAS si se quiere probar), crear `VALIDACIONES_SECRETO` (24 caracteres o más, distinto de `INGESTA_SECRETO`) y, si quieres, `VALIDACIONES_MAX_DIA`.
 2. **Del bot (proyecto `glacial-whatsapp`, aparte):** `GLACIAL_VALIDACIONES_URL` y `GLACIAL_VALIDACIONES_SECRETO` en su `.env`, y que, después de validar un rótulo, haga el POST de arriba con la foto. Debe ser idempotente (la misma `clave` no duplica) y detenerse ante 401/403/429, como el subidor de evidencias.

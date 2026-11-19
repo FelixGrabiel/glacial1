@@ -1,4 +1,4 @@
--- GLACIAL · glacial_64 · La validación de rótulo guarda y entrega la FOTO del rótulo   *** APLICADA EN PRUEBAS el 2026-11-19 (el DROP final de la limpieza quedó sin ejecutar: pide confirmación humana) · PRODUCCION pendiente ***
+-- GLACIAL · glacial_64 · La validación de rótulo guarda y entrega la FOTO del rótulo   *** APLICADA EN PRUEBAS y en PRODUCCION el 2026-11-19 (el DROP final de la limpieza, solo PRUEBAS, quedó sin ejecutar: pide confirmación humana) ***
 --
 -- Por qué: el bot de WhatsApp valida el rótulo de producto terminado (foto de la codificadora: lote, vencimiento, turno, marca, línea, día juliano).
 -- glacial_54 solo guardaba la validación; ahora también la foto, para verla en Calidad › Validación de lotes junto a los datos.
