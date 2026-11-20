@@ -9,17 +9,17 @@ const progs=[{fecha:'2026-11-09',turno:'DÍA',items:[{marca:'Glacial',presentaci
 const base={fecha:'2026-11-09',turnoTxt:'Turno Día + Intermedio',hora:'14:05',generadoPor:'Ana'};
 
 let m=H.modeloAvanceCierre({...base,reportes:[dia],programas:progs});
-ok(m.tipo==='CIERRE'&&m.titulo==='CIERRE DE PRODUCCIÓN HIELO'&&m.bolsas===1200&&m.kg===3000&&m.programado===2000&&Math.round(m.cumplimiento*100)===60,'todos finalizados = CIERRE: 1 200 bolsas, 3 000 kg, 60 % de 2 000');
+ok(m.tipo==='CIERRE'&&m.titulo==='CIERRE DE PRODUCCIÓN HIELO'&&m.bolsas===1200&&m.kg===3300&&m.programado===2000&&Math.round(m.cumplimiento*100)===60,'todos finalizados = CIERRE: 1 200 bolsas, 3 300 kg (kg reales por bolsa), 60 % de 2 000');
 m=H.modeloAvanceCierre({...base,reportes:[dia,inter],programas:progs});
 ok(m.tipo==='AVANCE'&&m.titulo==='AVANCE DE PRODUCCIÓN HIELO'&&m.bolsas===1400,'si algún reporte sigue en registro = AVANCE');
 ok(H.modeloAvanceCierre({...base,reportes:[],programas:progs}).tipo==='AVANCE'&&H.modeloAvanceCierre({...base,reportes:[],programas:[]}).reportes===0,'sin reportes no hay cierre');
-ok(m.presentaciones.map(p=>p.presentacion+':'+p.bolsas+':'+p.kg).join()==='3 kg:1000:3000,1.5 kg:400:600'&&m.marcas.length===1&&m.marcas[0].bolsas===1400,'3 kg y 1.5 kg por separado con sus kilos, y total por marca');
+ok(m.presentaciones.map(p=>p.presentacion+':'+p.bolsas+':'+p.kg).join()==='3 kg:1000:3250,1.5 kg:400:700'&&m.marcas.length===1&&m.marcas[0].bolsas===1400,'3 kg y 1.5 kg por separado con sus kilos, y total por marca');
 const dia2=R('DÍA','FINALIZADO',[{marca:'Listo',presentacion:'1.5 kg',estacion:'Tolva manual',bolsas:1200},{marca:'Glacial',presentacion:'3 kg',estacion:'Tolva manual',bolsas:240},{marca:'Tottus',presentacion:'3 kg',estacion:'Env. automática',bolsas:660}],{caidas:true,observaciones:'M7 apagada',paradas:[{inicio:'09:10',equipo:'Compresor',motivo:'Falla de equipo',minutos:20,nota:''}],mermas:[{item:'Bolsas',cantidad:12,unidad:'UND'}]});
 const t=H.textoAvanceCierre(H.modeloAvanceCierre({...base,turnoCod:'TD',reportes:[dia2],programas:[]}));
 ok(/^Cierre de produccion HIELO TD\n09_11_26\nHora: 14:05\n/.test(t),'encabezado como el de la planta: «… HIELO TD» y fecha DD_MM_AA');
 ok(/\nTOLVA MANUAL\nGlacial 3kg: 240\nListo 1\.5kg: 1200\n/.test(t)&&/\nENV\. AUTOMÁTICA\nTottus 3kg: 660\n/.test(t),'bloques por estación con marca, presentación y bolsas');
-ok(/Producción de bolsas 3kg: 900\nProducción de 3kg: 2700kg\n/.test(t)&&/Producción de bolsas 1\.5kg: 1200\nProducción de 1\.5kg: 1800kg/.test(t.replace(/,/g,'.')),'totales por presentación en bolsas y kg');
-ok(/Producción de 1\.5kg: 1800kg\n\nTOTAL KILOS: 4500kg\n/.test(t.replace(/,/g,'.')),'el avance trae el TOTAL KILOS (3 kg + 1.5 kg = 2700 + 1800)');
+ok(/Producción de bolsas 3kg: 900\nProducción de 3kg: 2925kg\n/.test(t)&&/Producción de bolsas 1\.5kg: 1200\nProducción de 1\.5kg: 2100kg/.test(t.replace(/,/g,'.')),'totales por presentación en bolsas y kg');
+ok(/Producción de 1\.5kg: 2100kg\n\nTOTAL KILOS: 5025kg\n/.test(t.replace(/,/g,'.')),'el avance trae el TOTAL KILOS (3 kg + 1.5 kg = 2925 + 2100, con kg reales por bolsa)');
 ok(!/TOTAL KILOS/.test(H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[],programas:[]}))),'sin reportes no hay total de kilos');
 ok(/\n🚨SE VIENE TRABAJANDO POR CAÍDAS\n/.test(t),'aviso de caídas cuando la casilla está marcada');
 ok(/\nObservaciones\nM7 apagada\nCompresor – Falla de equipo \(20 min\)\nMerma Bolsas: 12 UND$/.test(t),'observaciones libres, paradas y merma al final');

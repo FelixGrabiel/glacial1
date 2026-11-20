@@ -21,7 +21,7 @@ const abrirHielo = async (P) => { await P.evaluate(() => { document.getElementBy
   e = await est();
   ok(e.visible && e.left === 0 && e.ancho <= 336 && e.exp === 'true' && e.fondo === 'block', 'al tocar ☰ se abre el menú lateral con fondo oscuro (ancho ' + e.ancho + ' px)');
   const items = await P.evaluate(() => [...document.querySelectorAll('#hl-menu button')].map(b => b.innerText.trim()));
-  ok(items.join('|') === 'Inicio|Nuevo registro|Avance y cierre|Historial|Programación|Configuración|Volver a Reporte Agua', 'el menú tiene todas las secciones y «Volver a Reporte Agua» en columna (' + items.length + ')');
+  ok(items.join('|') === 'Inicio|Nuevo registro|Avance y cierre|Reporte diario|Historial|Programación|Configuración|Volver a Reporte Agua', 'el menú tiene todas las secciones y «Volver a Reporte Agua» en columna (' + items.length + ')');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-movil-abierto.png' });
   await P.keyboard.press('Escape'); await P.waitForTimeout(350);
   ok(!(await est()).visible, 'Escape cierra el menú');
