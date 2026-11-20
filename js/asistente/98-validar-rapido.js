@@ -166,6 +166,17 @@
     if(!sig)S.saltadas=new Set();
     S.actual=sig?sig.id:'';pintar();
   };
+  /* Tecla Enter = «Coincide con la foto · crear lote» (solo con Validar rápido abierto). No actúa si el foco está en un botón, enlace, lista o área de texto (ahí Enter ya hace lo suyo), ni si se mantiene pulsada. */
+  if(typeof document!=='undefined'&&!window.__vrEnter){
+    window.__vrEnter=true;
+    document.addEventListener('keydown',e=>{
+      if(e.key!=='Enter'||e.repeat||e.isComposing||e.shiftKey||e.ctrlKey||e.altKey||e.metaKey||!S.abierto||S.ocupado||!S.actual)return;
+      const t=e.target,tag=t&&t.tagName?t.tagName.toLowerCase():'';
+      if(tag==='textarea'||tag==='button'||tag==='a'||tag==='select'||(t&&t.isContentEditable))return;
+      const b=document.getElementById('vr-ok');if(!b||b.disabled)return;
+      e.preventDefault();window.ieVrOk();
+    });
+  }
   window.ieVrCompleto=()=>{
     const id=S.actual;ieVrCerrar();
     if(id&&typeof window.ieSel==='function')window.ieSel(id);
