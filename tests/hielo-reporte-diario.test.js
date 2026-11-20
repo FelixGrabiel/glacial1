@@ -88,6 +88,17 @@ const serie=[];for(let i=0;i<10;i++){serie.push(rep(fechaN(i),'NOCHE',1000));ser
  ok(mx.mapa.diasConAmbos===0,'mapa: cuenta solo los días con los dos turnos reportados');}
 {const rs=[];for(let i=0;i<5;i++){rs.push(rep(RD.sumar('2026-11-10',i),'DÍA',1000));rs.push(rep(RD.sumar('2026-11-10',i),'NOCHE',i<3?1500:500));}
  const mm=RD.modelo({fecha:'2026-11-14',reportes:rs,cfg,catalogo:CATALOGO}).mapa;ok(mm.diasConAmbos===5&&mm.nochePorEncima===3,'mapa: la noche produjo más que el día en 3 de 5 días');}
+// Vista por turno: solo noche (fecha del propio turno) y solo día
+{const mn=RD.modelo({fecha:'2026-11-18',turno:'NOCHE',reportes:[noche,dia,otra],cfg,catalogo:CATALOGO}),md=RD.modelo({fecha:'2026-11-19',turno:'DIA',reportes:[noche,dia,otra],cfg,catalogo:CATALOGO});
+ ok(mn.vista==='NOCHE'&&mn.noche.kg===11450.25&&mn.dia.kg===0&&mn.dia.reportes===0&&mn.totalDiaKg===11450.25&&mn.fNoche==='2026-11-18'&&/miércoles, 18 de noviembre/.test(mn.fechaLarga),'solo noche: la fecha es la del propio turno (18/11) y no suma el día');
+ ok(md.vista==='DIA'&&md.dia.kg===15110&&md.noche.kg===0&&md.totalDiaKg===15110&&md.dia.eficiencia===44.44&&/ · TURNO DÍA$/.test(md.subtitulo),'solo día: 15,110 kg y 44.44 %, sin la noche');
+ ok(mn.totalSemanaKg===11450.25&&md.totalSemanaKg===15110&&mn.semana.dias.filter(d=>d.hayDatos).length===1,'la semana solo suma el turno elegido');
+ ok(md.semana.dias.find(d=>d.actual).fechaMostrar==='2026-11-19'&&mn.semana.dias.find(d=>d.actual).fechaMostrar==='2026-11-18','la columna actual de la semana muestra la fecha del turno');
+ ok(mn.paradas.length===1&&mn.paradas[0].minutos===260&&md.paradas.length===2&&md.paradasMin===40,'las paradas son solo las del turno');
+ ok(mn.marcas.every(a=>a.kg>0)&&Math.round(mn.kgPeriodo)===11450&&Math.round(md.kgPeriodo)===30220,'mezcla por marca: solo el turno elegido en el período (el 12/11 día repite 15,110)');
+ ok(mn.mapa.noche.some(v=>v>0)&&mn.mapa.dia.every(v=>v===null)&&md.mapa.noche.every(v=>v===null)&&mn.periodo.hasta==='2026-11-18','mapa de calor: solo la fila del turno y el período termina en la fecha del turno');
+ const mx=RD.modelo({fecha:'2026-11-19',turno:'XX',reportes:[noche,dia],cfg,catalogo:CATALOGO});ok(mx.vista==='AMBOS'&&mx.totalDiaKg===26560.25,'un turno inválido vuelve al día de producción completo');
+ H.__vistas={mn,md};}
 // Excel
 let ExcelJS=null;try{ExcelJS=require(require('path').join(process.env.GLX_LIBS||'','node_modules','exceljs'));}catch(_){/* sin ExcelJS: se omite */}
 (async()=>{
@@ -109,5 +120,7 @@ let ExcelJS=null;try{ExcelJS=require(require('path').join(process.env.GLX_LIBS||
     const nums=[];ws.eachRow(r=>r.eachCell(c=>{if(typeof c.value==='number')nums.push(c.value);}));
     ok(!nums.some(v=>v>0&&v<0.5&&v!==0.1),'Excel: ningún valor tipo 0.011111 (kilos y paletas normales)');
   }
+  if(ExcelJS){const wn=await new ExcelJS.Workbook().xlsx.load(await RD.construirExcel(ExcelJS,H.__vistas.mn,{}).xlsx.writeBuffer()),sn=wn.getWorksheet('Reporte diario');
+    ok(sn.getCell('B5').value===11450.25&&sn.getCell('B6').value===null&&/NO INCLUIDO/.test(String(sn.getCell('H9').value))&&sn.getCell('A2').value==='HIELO EN CUBOS · TURNO NOCHE'&&/SOLO NOCHE/.test(String(sn.getCell('A7').value)),'Excel solo noche: el día queda marcado como no incluido y la semana dice «solo noche»');}
   console.log(fallas?'\n'+fallas+' falla(s)':'\nTodo correcto');
 })();

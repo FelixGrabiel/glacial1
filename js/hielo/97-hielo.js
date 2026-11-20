@@ -636,7 +636,7 @@
   };
   /* ---------- Reporte diario (formato del Excel de la planta; js/hielo/99-hielo-reporte-diario.js) ---------- */
   const RD=()=>window.glacialHieloReporte||null;
-  const modeloReporte=f=>RD().modelo({fecha:f,dias:S.rDias||14,reportes:cache.reportes,cfg:config(),catalogo:typeof PRODUCTOS_HIELO!=='undefined'?PRODUCTOS_HIELO:[]});
+  const modeloReporte=f=>RD().modelo({fecha:f,turno:S.rTurno||'AMBOS',dias:S.rDias||14,reportes:cache.reportes,cfg:config(),catalogo:typeof PRODUCTOS_HIELO!=='undefined'?PRODUCTOS_HIELO:[]});
   function vistaReporteDiario(){
     if(!RD())return '<h1>Reporte diario</h1><div class="hl-msg e">El reporte diario no está disponible en esta versión.</div>';
     const f=S.rFecha||hoy(),m=modeloReporte(f);S._rdModelo=m;
@@ -644,21 +644,26 @@
     const n2=v=>Number(v||0).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2}),n0=v=>Number(v||0).toLocaleString('es-PE',{maximumFractionDigits:0}),est={FINALIZADO:'Finalizado',EN_REGISTRO:'En registro',SIN_REPORTE:'Sin reporte'};
     const kpi=(t,v,s,c)=>`<div class="hl-kpi"${c?` style="border-top:4px solid ${c}"`:''}><span>${t}</span><b>${v}</b><i>${s}</i></div>`;
     const celdas=c=>`<td class="n" data-label="Bolsas">${c.bolsas?n0(c.bolsas):''}</td><td class="n" data-label="Tiempo (h)">${c.horas!==null?n2(c.horas):''}</td><td class="n" data-label="N° paletas">${c.paletas!==null&&c.bolsas?n2(c.paletas):''}</td><td data-label="Lote">${esc(c.lote)}</td><td data-label="F. venc.">${esc(c.vence)}</td><td class="n" data-label="Peso (kg)">${c.bolsas?n2(c.kg):''}</td>`;
-    const filas=m.filas.map((x,i)=>`<tr><td data-label="Presentación"><b>${i+1}</b> ${esc(x.etiqueta)}</td>${celdas(x.noche)}${celdas(x.dia)}</tr>`).join('');
+    const v=m.vista,solo=v!=='AMBOS',T=v==='NOCHE'?m.noche:m.dia,bl=solo?[v==='NOCHE'?'n':'d']:['n','d'],nomT=v==='NOCHE'?'noche':'día';
+    const filas=m.filas.map((x,i)=>`<tr><td data-label="Presentación"><b>${i+1}</b> ${esc(x.etiqueta)}</td>${bl.map(b=>celdas(b==='n'?x.noche:x.dia)).join('')}</tr>`).join('');
     const pal=t=>m.filas.reduce((s,x)=>s+(((t==='n'?x.noche:x.dia).paletas)||0),0);
     const turnoFila=(t,n)=>`<tr><td data-label="Turno"><b>${n}</b> · ${esc(t.fechaTxt)} <span class="hl-pill">${est[t.estado]}</span></td><td data-label="Ingreso">${esc(t.ingreso||'—')}</td><td data-label="Salida">${esc(t.salida||'—')}</td><td data-label="Jornada">${t.jornadaH!==null?n2(t.jornadaH)+' h':'—'}</td><td data-label="Responsable">${esc(t.supervisor||'—')}</td></tr>`;
+    const tot=b=>{const t=b==='n'?m.noche:m.dia;return `<td class="n"><b>${n0(t.bolsas)}</b></td><td></td><td class="n"><b>${n2(pal(b))}</b></td><td></td><td></td><td class="n"><b>${n2(t.kg)}</b></td>`;};
+    const kpis=solo?`${kpi('Turno '+nomT+' · '+esc(T.fechaTxt),n2(T.kg)+' kg',T.eficiencia!==null?'Eficiencia '+n2(T.eficiencia)+' %':'Sin reporte',v==='NOCHE'?'#2a78d6':'#eb6834')}${kpi('Bolsas',n0(T.bolsas),n2(pal(bl[0]))+' paletas','#0a2745')}${kpi('Jornada',T.jornadaH!==null?n2(T.jornadaH)+' h':'—',esc(T.supervisor||'Sin responsable'),'#6250d6')}${kpi('Semana '+m.semanaNum,n2(m.totalSemanaKg)+' kg','Solo turno '+nomT+' · '+m.semana.dias.filter(d=>d.hayDatos).length+' de 7 días','#157a3b')}`
+      :`${kpi('Turno noche · '+esc(m.noche.fechaTxt),n2(m.noche.kg)+' kg',m.noche.eficiencia!==null?'Eficiencia '+n2(m.noche.eficiencia)+' %':'Sin reporte','#2a78d6')}${kpi('Turno día · '+esc(m.dia.fechaTxt),n2(m.dia.kg)+' kg',m.dia.eficiencia!==null?'Eficiencia '+n2(m.dia.eficiencia)+' %':'Sin reporte','#eb6834')}${kpi('Total del día',n2(m.totalDiaKg)+' kg','Noche + día','#0a2745')}${kpi('Semana '+m.semanaNum,n2(m.totalSemanaKg)+' kg',m.semana.dias.filter(d=>d.hayDatos).length+' de 7 días con datos','#157a3b')}`;
     const obs=[m.noche.observaciones&&`<p><b>Noche:</b> ${esc(m.noche.observaciones).replace(/\n/g,'<br>')}</p>`,m.dia.observaciones&&`<p><b>Día:</b> ${esc(m.dia.observaciones).replace(/\n/g,'<br>')}</p>`].filter(Boolean).join('')||'<p class="hl-sub">Sin observaciones.</p>';
-    return `<h1>Reporte diario de producción · Hielo</h1><p class="hl-sub">Igual que el Excel de la planta: la <b>noche del ${esc(fechaTxt(m.fNoche))}</b> más el <b>día del ${esc(fechaTxt(f))}</b>. Kilos reales (3 kg = ${esc(String(m.pesos['3 kg']||''))} kg · 1.5 kg = ${esc(String(m.pesos['1.5 kg']||''))} kg por bolsa).</p>
+    return `<h1>Reporte diario de producción · Hielo</h1><p class="hl-sub">${solo?`Solo el <b>turno ${nomT} del ${esc(fechaTxt(v==='NOCHE'?m.fNoche:f))}</b>.`:`Igual que el Excel de la planta: la <b>noche del ${esc(fechaTxt(m.fNoche))}</b> más el <b>día del ${esc(fechaTxt(f))}</b>.`} Kilos reales (3 kg = ${esc(String(m.pesos['3 kg']||''))} kg · 1.5 kg = ${esc(String(m.pesos['1.5 kg']||''))} kg por bolsa).</p>
       ${S.msg?`<div class="hl-msg ${S.msg.tipo==='ok'?'k':'e'}" role="status">${esc(S.msg.texto)}</div>`:''}
-      <div class="hl-card"><div class="hl-acc" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><span style="display:flex;gap:12px;flex-wrap:wrap"><label>Día de producción<input type="date" value="${esc(f)}" onchange="hlRDFecha(this.value)" aria-label="Día de producción"></label>
+      <div class="hl-card"><div class="hl-acc" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><span style="display:flex;gap:12px;flex-wrap:wrap"><label>Reporte de<select onchange="hlRDTurno(this.value)" aria-label="Turno del reporte">${[['AMBOS','Día de producción (noche + día)'],['NOCHE','Solo turno noche'],['DIA','Solo turno día']].map(([k,t])=>`<option value="${k}" ${(S.rTurno||'AMBOS')===k?'selected':''}>${t}</option>`).join('')}</select></label>
+          <label>${solo?'Fecha del turno':'Día de producción'}<input type="date" value="${esc(f)}" onchange="hlRDFecha(this.value)" aria-label="Día de producción"></label>
           <label>Período de la mezcla y el mapa<select onchange="hlRDDias(this.value)" aria-label="Período de la mezcla por marca y el mapa de calor">${[7,14,21].map(n=>`<option value="${n}" ${(S.rDias||14)===n?'selected':''}>Últimos ${n} días</option>`).join('')}</select></label></span>
         <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="hl-btn" onclick="hlRDExcel()" ${m.hayDatos?'':'disabled'}>Descargar Excel</button><button type="button" class="hl-btn o" onclick="hlRDImagen()" ${m.hayDatos?'':'disabled'}>Descargar imagen</button></span></div></div>
-      ${m.hayDatos?'':`<div class="hl-msg i">No hay reportes de la noche del ${esc(fechaTxt(m.fNoche))} ni del día del ${esc(fechaTxt(f))}.</div>`}
-      <div class="hl-kpis">${kpi('Turno noche · '+esc(m.noche.fechaTxt),n2(m.noche.kg)+' kg',m.noche.eficiencia!==null?'Eficiencia '+n2(m.noche.eficiencia)+' %':'Sin reporte','#2a78d6')}${kpi('Turno día · '+esc(m.dia.fechaTxt),n2(m.dia.kg)+' kg',m.dia.eficiencia!==null?'Eficiencia '+n2(m.dia.eficiencia)+' %':'Sin reporte','#eb6834')}${kpi('Total del día',n2(m.totalDiaKg)+' kg','Noche + día','#0a2745')}${kpi('Semana '+m.semanaNum,n2(m.totalSemanaKg)+' kg',m.semana.dias.filter(d=>d.hayDatos).length+' de 7 días con datos','#157a3b')}</div>
-      <div class="hl-card"><h3 style="margin:0 0 8px">Reporte de personal</h3><div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Turno</th><th>Ingreso</th><th>Salida</th><th>Jornada</th><th>Responsable</th></tr></thead><tbody>${turnoFila(m.noche,'NOCHE')}${turnoFila(m.dia,'DÍA')}</tbody></table></div></div>
-      <div class="hl-card"><h3 style="margin:0 0 8px">Reporte por marca</h3><div style="overflow-x:auto"><table class="hl-ed hl-rd-t"><thead><tr><th rowspan="2">Presentación</th><th colspan="6" style="background:#d9d9d9">NOCHE · ${esc(m.noche.fechaTxt)}</th><th colspan="6" style="background:#bdd7ee">DÍA · ${esc(m.dia.fechaTxt)}</th></tr>
-        <tr>${['Bolsas','Tiempo (h)','N° paletas','Lote','F. venc.','Peso (kg)'].map(t=>`<th>${t}</th>`).join('').repeat(2)}</tr></thead><tbody>${filas}
-        <tr class="tot"><td><b>TOTAL</b></td><td class="n"><b>${n0(m.noche.bolsas)}</b></td><td></td><td class="n"><b>${n2(pal('n'))}</b></td><td></td><td></td><td class="n"><b>${n2(m.noche.kg)}</b></td><td class="n"><b>${n0(m.dia.bolsas)}</b></td><td></td><td class="n"><b>${n2(pal('d'))}</b></td><td></td><td></td><td class="n"><b>${n2(m.dia.kg)}</b></td></tr></tbody></table></div>
+      ${m.hayDatos?'':`<div class="hl-msg i">${solo?`No hay reporte del turno ${nomT} del ${esc(fechaTxt(v==='NOCHE'?m.fNoche:f))}.`:`No hay reportes de la noche del ${esc(fechaTxt(m.fNoche))} ni del día del ${esc(fechaTxt(f))}.`}</div>`}
+      <div class="hl-kpis">${kpis}</div>
+      <div class="hl-card"><h3 style="margin:0 0 8px">Reporte de personal</h3><div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Turno</th><th>Ingreso</th><th>Salida</th><th>Jornada</th><th>Responsable</th></tr></thead><tbody>${v!=='DIA'?turnoFila(m.noche,'NOCHE'):''}${v!=='NOCHE'?turnoFila(m.dia,'DÍA'):''}</tbody></table></div></div>
+      <div class="hl-card"><h3 style="margin:0 0 8px">Reporte por marca</h3><div style="overflow-x:auto"><table class="hl-ed hl-rd-t"><thead><tr><th rowspan="2">Presentación</th>${v!=='DIA'?`<th colspan="6" style="background:#d9d9d9">NOCHE · ${esc(m.noche.fechaTxt)}</th>`:''}${v!=='NOCHE'?`<th colspan="6" style="background:#bdd7ee">DÍA · ${esc(m.dia.fechaTxt)}</th>`:''}</tr>
+        <tr>${['Bolsas','Tiempo (h)','N° paletas','Lote','F. venc.','Peso (kg)'].map(t=>`<th>${t}</th>`).join('').repeat(bl.length)}</tr></thead><tbody>${filas}
+        <tr class="tot"><td><b>TOTAL</b></td>${bl.map(tot).join('')}</tr></tbody></table></div>
         <p class="hl-sub" style="margin:8px 0 0">El tiempo (h) y el vencimiento por marca aún no se registran: salen vacíos hasta que se agreguen al registro del turno. Paletas = bolsas ÷ bolsas por paleta (Configuración).</p></div>
       <div class="hl-card"><div id="hl-rd-graficos" class="hl-rd-graficos"></div></div>
       <div class="hl-card"><h3 style="margin:0 0 8px">Observaciones</h3>${obs}</div>`;
@@ -668,6 +673,7 @@
     try{const g=RD().graficos(S._rdModelo);['capacidad','presentacion','semana','paradas','control','marcas','mapa'].forEach(k=>{const w=document.createElement('div');w.className='hl-rd-g'+(k==='mapa'?' hl-rd-ancho':'');w.appendChild(g[k]);c.appendChild(w);});}
     catch(e){c.innerHTML='<p class="hl-sub">No se pudieron dibujar las gráficas en este navegador.</p>';}
   }
+  window.hlRDTurno=v=>{S.rTurno=v==='NOCHE'||v==='DIA'?v:'AMBOS';S.msg=null;pintar();};
   window.hlRDDias=v=>{S.rDias=[7,14,21].includes(Number(v))?Number(v):14;pintar();};
   window.hlRDFecha=v=>{if(esFecha(v)){S.rFecha=v;S.msg=null;pintar();}};
   window.hlRDExcel=async()=>{
@@ -677,14 +683,14 @@
       if(!ExcelJS)throw new Error('No se pudo cargar la librería de Excel.');
       const g=RD().graficos(m),imgs={};g.mapa=RD().graficoMapa(m,1200);Object.keys(g).forEach(k=>{imgs[k]={data:g[k].toDataURL('image/png').split(',')[1],w:g[k].width/2,h:g[k].height/2};});
       const wb=RD().construirExcel(ExcelJS,m,imgs),buf=await wb.xlsx.writeBuffer(),a=document.createElement('a');
-      a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.download='Reporte-diario-Hielo-'+f+'.xlsx';
+      a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.download='Reporte-diario-Hielo-'+f+(S.rTurno==='NOCHE'?'-noche':S.rTurno==='DIA'?'-dia':'')+'.xlsx';
       document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);ok('Excel generado.');
     }catch(e){mal('No se pudo generar el Excel: '+((e&&e.message)||e));}
   };
   window.hlRDImagen=()=>{
     try{
       const f=S.rFecha||hoy(),c=RD().imagen(modeloReporte(f));
-      c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Reporte-diario-Hielo-'+f+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);ok('Imagen generada.');},'image/png');
+      c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Reporte-diario-Hielo-'+f+(S.rTurno==='NOCHE'?'-noche':S.rTurno==='DIA'?'-dia':'')+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);ok('Imagen generada.');},'image/png');
     }catch(e){mal('No se pudo generar la imagen: '+((e&&e.message)||e));}
   };
   function pintar(){

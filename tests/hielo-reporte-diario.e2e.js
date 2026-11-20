@@ -55,6 +55,22 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(await P.evaluate(() => S_RD() === 7 && document.querySelector('select[aria-label^="Período"]').value === '7'), 'el selector cambia el período de la mezcla y el mapa a 7 días');
   ok(await P.evaluate(() => RD_MODELO().mapa.fechas.length === 7), 'con 7 días el mapa tiene 7 columnas');
   await P.evaluate(() => hlRDDias(14));
+  // ---- vista por turno
+  await P.evaluate(() => { hlRDTurno('NOCHE'); hlRDFecha('2026-11-18'); });
+  let tt = await P.evaluate(() => document.querySelector('.hl-main').innerText.replace(/\s+/g, ' '));
+  ok(await P.evaluate(() => document.querySelector('select[aria-label="Turno del reporte"]').value === 'NOCHE' && /Fecha del turno/i.test(document.querySelector('.hl-main').innerText)), 'el selector de turno cambia a «Solo turno noche» y la fecha pasa a ser la del turno');
+  ok(/Turno noche · 18\/11\/26/i.test(tt) && /11,450\.25 kg/.test(tt) && !/Turno día · /i.test(tt) && !/DÍA · \d/.test(tt), 'solo noche del 18/11: no aparece el bloque del día');
+  ok(await P.evaluate(() => document.querySelectorAll('.hl-rd-t thead th[colspan="6"]').length) === 1 && await P.evaluate(() => document.querySelectorAll('.hl-rd-t tbody tr:first-child td').length) === 7, 'la tabla por marca muestra un solo bloque de 6 columnas');
+  ok(await P.evaluate(() => document.querySelectorAll('#hl-rd-graficos canvas').length) === 7, 'con un solo turno se siguen dibujando las 7 gráficas');
+  if (process.env.GLX_CAPTURAS) await P.locator('#hl-rd-graficos').screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-reporte-solo-noche.png' });
+  ok(await P.evaluate(() => { const c = glacialHieloReporte.imagen(glacialHieloReporte.modelo({ fecha: '2026-11-18', turno: 'NOCHE', dias: 14, reportes: glacialHieloDatos.cache.reportes, cfg: glacialHieloDatos.config(), catalogo: PRODUCTOS_HIELO })); return c.width === 2480 && c.height > 1500; }), 'la imagen de WhatsApp también sale solo con el turno noche');
+  await P.evaluate(() => { hlRDTurno('DIA'); hlRDFecha('2026-11-19'); });
+  tt = await P.evaluate(() => document.querySelector('.hl-main').innerText.replace(/\s+/g, ' '));
+  ok(/Turno día · 19\/11\/26/i.test(tt) && /15,110\.00 kg/.test(tt) && !/Turno noche · /i.test(tt), 'solo día: aparece el turno día y no la noche');
+  ok(await P.evaluate(() => document.querySelectorAll('#hl-rd-graficos canvas').length) === 7, 'solo día: también 7 gráficas');
+  if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-reporte-solo-dia.png', fullPage: false });
+  await P.evaluate(() => hlRDTurno('AMBOS'));
+  ok(await P.evaluate(() => /Total del día/i.test(document.querySelector('.hl-main').innerText) && document.querySelectorAll('.hl-rd-t thead th[colspan="6"]').length === 2), 'al volver a «Día de producción» reaparecen los dos turnos');
   // ---- Excel descargado
   await P.evaluate(() => { window.__blobs = []; const o = URL.createObjectURL.bind(URL); URL.createObjectURL = b => { window.__blobs.push(b); return o(b); }; HTMLAnchorElement.prototype.click = function () { }; window.ExcelJS = window.ExcelJS || ExcelJS; window.cargarScriptExterno = async () => window.ExcelJS; });
   await P.evaluate(() => hlRDExcel());
