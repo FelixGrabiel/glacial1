@@ -488,6 +488,19 @@
       };
       envuelta.__auditada=true;window.TareoEd.quitarPersonal=envuelta;
     }
+    // La ventana «Quitar personal» ejecuta con ejecutarQuitar (alcance este tareo / desde una fecha / todos): misma auditoría QUITAR_PERSONAL.
+    if(window.TareoEd&&window.TareoEd.ejecutarQuitar&&!window.TareoEd.ejecutarQuitar.__auditada){
+      const ejecutar=window.TareoEd.ejecutarQuitar;
+      const envuelta2=function(){
+        const t=actual();const antes=t?foto(t):null;
+        const act={id:t?t.id:undefined,antes,ahora:null,ref:t,clave:undefined,permiteCrear:false,soloCrear:false,sistema:false};
+        const previa=accionActiva;accionActiva=act;
+        let r;try{r=ejecutar.apply(this,arguments);}finally{accionActiva=previa;}
+        procesar(act);
+        return r;
+      };
+      envuelta2.__auditada=true;window.TareoEd.ejecutarQuitar=envuelta2;
+    }
     envolver('tareoGuardarSalidaMaquinista',{
       tareo:a=>obtenerTareos().find(x=>x.id===a[0])||null,clave:a=>a[1]===undefined?undefined:String(a[1]),asincrona:true});
     envolver('guardarTareoActual',{tareo:()=>typeof tareoActualId!=='undefined'&&tareoActualId?actual():null,permiteCrear:true});
