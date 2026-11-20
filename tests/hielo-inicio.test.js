@@ -9,7 +9,7 @@ const reps=[R('2026-11-09','DÍA','FINALIZADO',[{marca:'Glacial',presentacion:'3
 const progs=[{fecha:'2026-11-09',turno:'DÍA',items:[{marca:'Glacial',presentacion:'3 kg',bolsas:1500},{marca:'Glacial',presentacion:'1.5 kg',bolsas:500}]}];
 ok(I.turnosDe('DÍA').join()==='DÍA,INTERMEDIO'&&I.turnosDe('noche').join()==='NOCHE'&&I.turnosDe('').join()==='DÍA,INTERMEDIO','el turno «Día» del Inicio incluye el Intermedio; «Noche» es solo Noche');
 const d=I.resumen(reps,progs,'2026-11-09','DÍA',[]);
-ok(d.bolsas===1400&&d.kg===3600&&d.programado===2000&&Math.round(d.cumplimiento*100)===70&&d.paradasMin===20&&d.paradas===1,'Día + Intermedio del 09/11: 1 400 bolsas, 3 600 kg, 70 % de 2 000 programadas, 20 min de parada (no mezcla otros días ni la Noche)');
+ok(d.bolsas===1400&&d.kg===3950&&d.programado===2000&&Math.round(d.cumplimiento*100)===70&&d.paradasMin===20&&d.paradas===1,'Día + Intermedio del 09/11: 1 400 bolsas, 3 950 kg, 70 % de 2 000 programadas, 20 min de parada (no mezcla otros días ni la Noche)');
 ok(d.presentaciones.map(p=>p.presentacion+':'+p.bolsas).join()==='3 kg:1000,1.5 kg:400'&&d.estado==='EN_REGISTRO'&&d.reportes===2,'3 kg y 1.5 kg por separado; estado EN_REGISTRO porque el Intermedio aún no se finaliza');
 const n=I.resumen(reps,progs,'2026-11-09','NOCHE',[]);ok(n.bolsas===500&&n.estado==='FINALIZADO'&&n.cumplimiento===null,'Noche: 500 bolsas, FINALIZADO, sin programación (cumplimiento —)');
 const v=I.resumen(reps,progs,'2026-11-10','DÍA',[]);
