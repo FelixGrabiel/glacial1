@@ -34,8 +34,10 @@
   /* ------------------------------------------------------------------ modelo (puro) */
   /** o = {fecha:'YYYY-MM-DD' (el DÍA), reportes:[hieloReportes], cfg:{pesos,bolsasPorPaleta,capacidadTurnoKg,presentaciones}, catalogo:[[marca,presentación]…]} */
   function modelo(o){
-    o=o||{};const N=nucleo(),cfg=Object.assign({},N&&N.DEFECTO,o.cfg||{}),fecha=o.fecha,fNoche=sumar(fecha,-1);
-    const reps=(o.reportes||[]).filter(Boolean);
+    o=o||{};const N=nucleo(),cfg=Object.assign({},N&&N.DEFECTO,o.cfg||{});
+    // Vista: AMBOS (día de producción: noche + día), NOCHE o DIA (solo ese turno; la fecha es la del propio turno).
+    const vista=o.turno==='NOCHE'||o.turno==='DIA'?o.turno:'AMBOS',fecha=vista==='NOCHE'?sumar(o.fecha,1):o.fecha,fNoche=sumar(fecha,-1),ref=vista==='NOCHE'?fNoche:fecha;
+    const reps=(o.reportes||[]).filter(Boolean).filter(r=>vista==='AMBOS'||(vista==='NOCHE'?r.turno==='NOCHE':r.turno!=='NOCHE'));
     const peso=p=>{const v=num((cfg.pesos||{})[p]);if(v>0)return v;const d=num(((N&&N.DEFECTO)||{}).pesos&&N.DEFECTO.pesos[p]);return d>0?d:(N?N.kgNominal(p):0);};
     const porPaleta=p=>{const v=num((cfg.bolsasPorPaleta||{})[p]);return v>0?v:0;};
     const cap=num(cfg.capacidadTurnoKg)>0?num(cfg.capacidadTurnoKg):0;
@@ -84,11 +86,11 @@
       .sort((a,b)=>(N?N.kgNominal(b)-N.kgNominal(a):0)||a.localeCompare(b));
     const presentaciones=presLista.map(p=>({presentacion:p,noche:noche.porPresentacion[p]||{bolsas:0,kg:0},dia:dia.porPresentacion[p]||{bolsas:0,kg:0}}));
     // Semana de domingo a sábado: cada columna = noche del día + día siguiente.
-    const inicio=sumar(fNoche,-diaSemana(fNoche));
+    const inicio=vista==='DIA'?sumar(fecha,-diaSemana(fecha)):sumar(fNoche,-diaSemana(fNoche));
     const dias=DIAS.map((nombre,i)=>{
-      const tn=sumar(inicio,i),td=sumar(tn,1),ln=de(tn,['NOCHE']),ld=de(td,['DÍA','INTERMEDIO']);
+      const tn=sumar(inicio,vista==='DIA'?i-1:i),td=sumar(tn,1),ln=de(tn,['NOCHE']),ld=de(td,['DÍA','INTERMEDIO']);
       const kn=kgDe(ln),kd=kgDe(ld);
-      return {nombre,fechaTN:tn,fechaTD:td,kgTN:kn,kgTD:kd,total:r2(kn+kd),hayTN:ln.length>0,hayTD:ld.length>0,hayDatos:ln.length>0||ld.length>0,actual:tn===fNoche};
+      return {nombre,fechaTN:tn,fechaTD:td,kgTN:kn,kgTD:kd,total:r2(kn+kd),hayTN:ln.length>0,hayTD:ld.length>0,hayDatos:ln.length>0||ld.length>0,fechaMostrar:vista==='DIA'?td:tn,actual:vista==='DIA'?td===fecha:tn===fNoche};
     });
     const conDatos=dias.filter(d=>d.hayDatos);
     const totalSemana=r2(dias.reduce((s,d)=>s+d.total,0));
@@ -96,14 +98,14 @@
     const pm=new Map();noche.paradas.concat(dia.paradas).forEach(p=>{const a=pm.get(p.motivo)||{motivo:p.motivo,minutos:0,eventos:0};a.minutos+=p.minutos;a.eventos++;pm.set(p.motivo,a);});
     const paradas=[...pm.values()].sort((a,b)=>b.minutos-a.minutos);
     /* ---- Tendencias (gráficas 5 a 7) ---- */
-    const dias2=[7,14,21].includes(Number(o.dias))?Number(o.dias):14,desde=sumar(fecha,-(dias2-1));
+    const dias2=[7,14,21].includes(Number(o.dias))?Number(o.dias):14,desde=sumar(ref,-(dias2-1));
     // Carta de control: un punto por día de producción (noche + día siguiente) con ambos turnos reportados, últimos 30 días. Los límites salen de los días ya
     // FINALIZADOS (método de rango móvil: promedio ± 2.66 × rango móvil medio) y solo se calculan con 8 o más.
     const puntos=[];
     for(let i=29;i>=0;i--){
       const tn=sumar(fNoche,-i),td=sumar(tn,1),ln=de(tn,['NOCHE']),ld=de(td,['DÍA','INTERMEDIO']);
-      if(!ln.length||!ld.length)continue;
-      puntos.push({fechaTN:tn,fechaTD:td,kg:r2(kgDe(ln)+kgDe(ld)),provisional:![...ln,...ld].every(r=>r.estado==='FINALIZADO')});
+      if(vista==='AMBOS'?(!ln.length||!ld.length):!(ln.length||ld.length))continue;
+      puntos.push({fechaTN:tn,fechaTD:td,fechaMostrar:vista==='DIA'?td:tn,kg:r2(kgDe(ln)+kgDe(ld)),provisional:![...ln,...ld].every(r=>r.estado==='FINALIZADO')});
     }
     const base=puntos.filter(p=>!p.provisional),control={puntos,completos:base.length,suficiente:base.length>=8,mu:0,ucl:0,lcl:0,fuera:[],racha:null};
     if(base.length>=2){
@@ -117,7 +119,7 @@
       }
     }
     // Mezcla por marca: kilos reales del período (los últimos 7, 14 o 21 días hasta la fecha del reporte), 3 kg y 1.5 kg por separado.
-    const enPeriodo=reps.filter(r=>r.fecha>=desde&&r.fecha<=fecha),mm=new Map();
+    const enPeriodo=reps.filter(r=>r.fecha>=desde&&r.fecha<=ref),mm=new Map();
     enPeriodo.forEach(r=>(r.produccion||[]).forEach(p=>{
       const b=Math.max(0,Math.round(num(p.bolsas))),mk=texto(p.marca),pr=texto(p.presentacion);if(!b||!mk)return;
       const a=mm.get(mk)||{marca:mk,bolsas:0,kgPorPres:{}};a.bolsas+=b;a.kgPorPres[pr]=r2((a.kgPorPres[pr]||0)+b*peso(pr));mm.set(mk,a);}));
@@ -129,8 +131,8 @@
     const mapa={fechas:fechasMapa,dia:fechasMapa.map(f=>celdaMapa(f,['DÍA','INTERMEDIO'])),noche:fechasMapa.map(f=>celdaMapa(f,['NOCHE']))};
     const paresMapa=fechasMapa.filter((f,i)=>mapa.dia[i]>0&&mapa.noche[i]>0);
     mapa.nochePorEncima=paresMapa.filter(f=>{const i=fechasMapa.indexOf(f);return mapa.noche[i]>mapa.dia[i];}).length;mapa.diasConAmbos=paresMapa.length;
-    return {fecha,fNoche,fechaLarga:fechaLarga(fecha),semanaNum:semanaISO(fecha),titulo:'REPORTE DIARIO DE PRODUCCIÓN',subtitulo:'HIELO EN CUBOS',
-      periodo:{dias:dias2,desde,hasta:fecha},control,marcas,kgPeriodo,mapa,
+    return {fecha,fNoche,fechaLarga:fechaLarga(ref),semanaNum:semanaISO(ref),titulo:'REPORTE DIARIO DE PRODUCCIÓN',subtitulo:'HIELO EN CUBOS'+(vista==='NOCHE'?' · TURNO NOCHE':vista==='DIA'?' · TURNO DÍA':''),vista,
+      periodo:{dias:dias2,desde,hasta:ref},control,marcas,kgPeriodo,mapa,
       capacidad:cap,pesos:Object.fromEntries(presLista.map(p=>[p,peso(p)])),noche,dia,filas,presentaciones,
       totalDiaKg:r2(noche.kg+dia.kg),totalSemanaKg:totalSemana,
       semana:{inicio,fin:sumar(inicio,6),dias,promedio:conDatos.length?r2(conDatos.reduce((s,d)=>s+d.total,0)/conDatos.length):0},
@@ -154,22 +156,23 @@
     unir('A2:M2',m.subtitulo,{size:12,bold:true,borde:false});
     unir('A3:M3',m.fechaLarga.charAt(0).toUpperCase()+m.fechaLarga.slice(1),{size:10,bold:true,align:'right',borde:false});
     // Totales
-    celda('A5','TURNO NOCHE',{bold:true,align:'left',color:'FFC00000'});unir('B5:C5',m.noche.kg,{fmt:'#,##0.00',bold:true,color:'FFC00000'});celda('D5','KG',{align:'left'});
-    celda('A6','TURNO DÍA',{bold:true,align:'left',color:'FFC00000'});unir('B6:C6',m.dia.kg,{fmt:'#,##0.00',bold:true,color:'FFC00000'});celda('D6','KG',{align:'left'});
-    celda('A7','TOTAL SEMANA',{bold:true,align:'left',color:'FF2E7D32'});unir('B7:C7',m.totalSemanaKg,{fmt:'#,##0.00',bold:true,color:'FF2E7D32'});celda('D7','KG',{align:'left'});
+    celda('A5','TURNO NOCHE',{bold:true,align:'left',color:'FFC00000'});unir('B5:C5',m.vista==='DIA'?null:m.noche.kg,{fmt:'#,##0.00',bold:true,color:'FFC00000'});celda('D5','KG',{align:'left'});
+    celda('A6','TURNO DÍA',{bold:true,align:'left',color:'FFC00000'});unir('B6:C6',m.vista==='NOCHE'?null:m.dia.kg,{fmt:'#,##0.00',bold:true,color:'FFC00000'});celda('D6','KG',{align:'left'});
+    celda('A7',m.vista==='AMBOS'?'TOTAL SEMANA':'SEMANA (SOLO '+(m.vista==='NOCHE'?'NOCHE':'DÍA')+')',{bold:true,align:'left',color:'FF2E7D32'});unir('B7:C7',m.totalSemanaKg,{fmt:'#,##0.00',bold:true,color:'FF2E7D32'});celda('D7','KG',{align:'left'});
     celda('F5','SEMANA',{bold:true});celda('G5',m.semanaNum,{bold:true});
     celda('F6','CAPACIDAD / TURNO',{bold:true,size:9});unir('G6:H6',m.capacidad||null,{fmt:'#,##0',size:9});
     // Personal
     celda('A9','REPORTE DE PERSONAL',{bold:true,fill:BLANCO});
     [['NOCHE',m.noche,'B','G',GRIS],['DÍA',m.dia,'H','M',CELESTE]].forEach(([n,t,a,b,col])=>{
-      unir(a+'9:'+b+'9','TURNO '+n+' · '+(t.fechaTxt||''),{bold:true,fill:col});
-      unir(a+'10:'+b+'10','Ingreso '+(t.ingreso||'—')+' · Salida '+(t.salida||'—')+(t.jornadaH!==null?' · Jornada '+t.jornadaH.toFixed(2)+' h':''),{fill:col});
-      unir(a+'11:'+b+'11','Supervisor: '+(t.supervisor||'—'),{fill:col});});
+      const fuera=(n==='NOCHE'&&m.vista==='DIA')||(n==='DÍA'&&m.vista==='NOCHE');
+      unir(a+'9:'+b+'9',fuera?'TURNO '+n+' · NO INCLUIDO EN ESTE REPORTE':'TURNO '+n+' · '+(t.fechaTxt||''),{bold:true,fill:col});
+      unir(a+'10:'+b+'10',fuera?'':'Ingreso '+(t.ingreso||'—')+' · Salida '+(t.salida||'—')+(t.jornadaH!==null?' · Jornada '+t.jornadaH.toFixed(2)+' h':''),{fill:col});
+      unir(a+'11:'+b+'11',fuera?'':'Supervisor: '+(t.supervisor||'—'),{fill:col});});
     celda('A10','INGRESO / SALIDA',{align:'left'});celda('A11','RESPONSABLE',{align:'left'});
     // Tabla por marca
     celda('A13','REPORTE POR MARCA',{bold:true,fill:BLANCO});
-    unir('B13:G13','NOCHE · '+DIAS[diaSemana(m.fNoche)]+' '+m.noche.fechaTxt,{bold:true,fill:GRIS});
-    unir('H13:M13','DÍA · '+DIAS[diaSemana(m.fecha)]+' '+m.dia.fechaTxt,{bold:true,fill:CELESTE});
+    unir('B13:G13',m.vista==='DIA'?'NOCHE · NO INCLUIDO':'NOCHE · '+DIAS[diaSemana(m.fNoche)]+' '+m.noche.fechaTxt,{bold:true,fill:GRIS});
+    unir('H13:M13',m.vista==='NOCHE'?'DÍA · NO INCLUIDO':'DÍA · '+DIAS[diaSemana(m.fecha)]+' '+m.dia.fechaTxt,{bold:true,fill:CELESTE});
     const cab=['BOLSAS','TIEMPO (H)','N° PALETAS','LOTE','F. VENCIMIENTO','PESO (KG)'];
     celda('A14','PRESENTACIÓN',{bold:true,align:'left'});
     cab.forEach((t,i)=>{celda(String.fromCharCode(66+i)+'14',t,{bold:true,fill:GRIS,size:9,wrap:true});celda(String.fromCharCode(72+i)+'14',t,{bold:true,fill:CELESTE,size:9,wrap:true});});
@@ -254,7 +257,7 @@
   function graficoCapacidad(m){
     const L=lienzo(600,230),X=L.x;titulo(L,'Producción vs capacidad por turno','La marca vertical es la capacidad de un turno; el % es la eficiencia.');
     const izq=64,der=24,ancho=L.w-izq-der,max=Math.max(m.capacidad,m.noche.kg,m.dia.kg,1)*1.04,esc=v=>izq+ancho*v/max;
-    [['Noche',m.noche,COL.noche,92],['Día',m.dia,COL.dia,150]].forEach(([n,t,col,y])=>{
+    [['Noche',m.noche,COL.noche,92,m.vista!=='DIA'],['Día',m.dia,COL.dia,150,m.vista!=='NOCHE']].filter(x=>x[4]).forEach(([n,t,col,y0])=>{const y=m.vista==='AMBOS'?y0:112;
       txt(X,n,izq-10,y+17,{align:'right',size:13,peso:'700'});X.fillStyle=COL.pista;X.fillRect(izq,y,m.capacidad?esc(m.capacidad)-izq:ancho,26);
       X.fillStyle=col;X.fillRect(izq,y,Math.max(0,esc(t.kg)-izq),26);
       const etiqueta=formato(t.kg,2)+' kg'+(t.eficiencia!==null?'  ·  '+t.eficiencia.toFixed(2)+' %':'');
@@ -266,19 +269,19 @@
   }
   /** Kilos por presentación y turno (barras agrupadas con el valor en cada barra). */
   function graficoPresentacion(m){
-    const L=lienzo(600,230),X=L.x;titulo(L,'Kilos por presentación','Con los kg reales por bolsa.');leyenda(L,[[COL.noche,'Noche'],[COL.dia,'Día']],56);
+    const L=lienzo(600,230),X=L.x;titulo(L,'Kilos por presentación','Con los kg reales por bolsa.');leyenda(L,[[COL.noche,'Noche',m.vista!=='DIA'],[COL.dia,'Día',m.vista!=='NOCHE']].filter(x=>x[2]),56);
     const lista=m.presentaciones.filter(p=>p.noche.bolsas||p.dia.bolsas||['3 kg','1.5 kg'].includes(p.presentacion));
     const izq=52,der=14,top=74,base=196,ancho=L.w-izq-der,alto=base-top,max=nice(Math.max(1,...lista.flatMap(p=>[p.noche.kg,p.dia.kg]))*1.12);
     for(let i=0;i<=4;i++){const v=max*i/4,y=base-alto*i/4;X.strokeStyle=COL.grid;X.beginPath();X.moveTo(izq,y);X.lineTo(izq+ancho,y);X.stroke();txt(X,formato(v),izq-6,y+4,{align:'right',size:10,color:COL.mut});}
     const g=ancho/Math.max(1,lista.length),bw=Math.min(54,g/3);
-    lista.forEach((p,i)=>{const cx=izq+g*(i+.5);[[p.noche,COL.noche,-bw-2],[p.dia,COL.dia,2]].forEach(([t,col,dx])=>{
+    lista.forEach((p,i)=>{const cx=izq+g*(i+.5);[[p.noche,COL.noche,-bw-2,m.vista!=='DIA'],[p.dia,COL.dia,2,m.vista!=='NOCHE']].filter(x=>x[3]).forEach(([t,col,dx0])=>{const dx=m.vista==='AMBOS'?dx0:-bw/2;
       const h=alto*t.kg/max;if(t.kg>0){X.fillStyle=col;X.fillRect(cx+dx,base-h,bw,h);txt(X,formato(t.kg,0),cx+dx+bw/2,base-h-5,{align:'center',size:11,peso:'700'});}else txt(X,'—',cx+dx+bw/2,base-4,{align:'center',size:11,color:COL.mut});});
       txt(X,'Presentación '+p.presentacion,cx,base+18,{align:'center',size:11,color:COL.mut});});
     return L.c;
   }
   /** Producción de la semana: una columna por día (noche + día siguiente) con el promedio. */
   function graficoSemana(m){
-    const L=lienzo(600,250),X=L.x;titulo(L,'Producción de la semana (kg)','Cada columna: la noche de ese día más el día siguiente.');leyenda(L,[[COL.noche,'Noche'],[COL.dia,'Día'],[COL.cap,'Promedio']],56);
+    const L=lienzo(600,250),X=L.x;titulo(L,'Producción de la semana (kg)',m.vista==='NOCHE'?'Cada columna: el turno noche de ese día.':m.vista==='DIA'?'Cada columna: el turno día de ese día.':'Cada columna: la noche de ese día más el día siguiente.');leyenda(L,[[COL.noche,'Noche',m.vista!=='DIA'],[COL.dia,'Día',m.vista!=='NOCHE'],[COL.cap,'Promedio',true]].filter(x=>x[2]),56);
     const izq=56,der=14,top=76,base=206,ancho=L.w-izq-der,alto=base-top,max=nice(Math.max(1,...m.semana.dias.map(d=>d.total),m.semana.promedio)*1.12);
     for(let i=0;i<=4;i++){const v=max*i/4,y=base-alto*i/4;X.strokeStyle=COL.grid;X.beginPath();X.moveTo(izq,y);X.lineTo(izq+ancho,y);X.stroke();txt(X,formato(v),izq-6,y+4,{align:'right',size:10,color:COL.mut});}
     const g=ancho/7,bw=Math.min(40,g-14);
@@ -286,7 +289,7 @@
       if(d.hayDatos){const hn=alto*d.kgTN/max,hd=alto*d.kgTD/max;X.fillStyle=COL.noche;X.fillRect(x0,base-hn,bw,hn);X.fillStyle=COL.dia;X.fillRect(x0,base-hn-hd,bw,hd);
         txt(X,formato(d.total,0),cx,base-hn-hd-6,{align:'center',size:10.5,peso:'700'});}
       else{X.setLineDash([3,3]);X.strokeStyle=COL.neutro;X.strokeRect(x0,base-24,bw,24);X.setLineDash([]);txt(X,'—',cx,base-8,{align:'center',size:11,color:COL.mut});}
-      txt(X,d.nombre.slice(0,3),cx,base+16,{align:'center',size:11,peso:d.actual?'700':'400',color:d.actual?COL.ink:COL.mut});txt(X,dmy(d.fechaTN).slice(0,5),cx,base+30,{align:'center',size:9.5,color:COL.mut});});
+      txt(X,d.nombre.slice(0,3),cx,base+16,{align:'center',size:11,peso:d.actual?'700':'400',color:d.actual?COL.ink:COL.mut});txt(X,dmy(d.fechaMostrar).slice(0,5),cx,base+30,{align:'center',size:9.5,color:COL.mut});});
     if(m.semana.promedio>0){const y=base-alto*m.semana.promedio/max;X.setLineDash([6,4]);X.strokeStyle=COL.cap;X.lineWidth=1.6;X.beginPath();X.moveTo(izq,y);X.lineTo(izq+ancho,y);X.stroke();X.setLineDash([]);X.lineWidth=1;txt(X,'Prom. '+formato(m.semana.promedio),izq+ancho,y-5,{align:'right',size:10.5,peso:'700'});}
     return L.c;
   }
@@ -301,8 +304,8 @@
   }
   /** Carta de control diaria: ¿el día fue normal o pasó algo real? Un punto por día de producción; límites por rango móvil. */
   function graficoControl(m){
-    const c=m.control,L=lienzo(600,270),X=L.x;titulo(L,'Carta de control diaria (kg)','Cada punto: la noche más el día siguiente. Punto vacío: día aún no finalizado.');
-    if(!c.puntos.length){txt(X,'Todavía no hay días con noche y día reportados.',L.w/2,150,{align:'center',size:13,color:COL.mut});return L.c;}
+    const c=m.control,L=lienzo(600,270),X=L.x;titulo(L,'Carta de control diaria (kg)',m.vista==='AMBOS'?'Cada punto: la noche más el día siguiente. Punto vacío: día aún no finalizado.':'Cada punto: un turno '+(m.vista==='NOCHE'?'noche':'día')+'. Punto vacío: turno aún no finalizado.');
+    if(!c.puntos.length){txt(X,m.vista==='AMBOS'?'Todavía no hay días con noche y día reportados.':'Todavía no hay turnos reportados.',L.w/2,150,{align:'center',size:13,color:COL.mut});return L.c;}
     const izq=58,der=86,top=62,base=224,ancho=L.w-izq-der,alto=base-top;
     const mx=nice(Math.max(...c.puntos.map(p=>p.kg),c.suficiente?c.ucl:0)*1.06),n=c.puntos.length,px=i=>izq+ancho*(i+.5)/n,py=v=>base-alto*v/mx;
     for(let i=0;i<=4;i++){const v=mx*i/4,y=py(v);X.strokeStyle=COL.grid;X.beginPath();X.moveTo(izq,y);X.lineTo(izq+ancho,y);X.stroke();txt(X,formato(v/1000,0)+' t',izq-6,y+4,{align:'right',size:10,color:COL.mut});}
@@ -311,14 +314,14 @@
     if(c.suficiente){raya(c.ucl,COL.mal,'LCS',[5,4]);raya(c.lcl,COL.mal,'LCI',[5,4]);}
     X.strokeStyle=COL.noche;X.lineWidth=2;X.beginPath();c.puntos.forEach((p,i)=>{i?X.lineTo(px(i),py(p.kg)):X.moveTo(px(i),py(p.kg));});X.stroke();X.lineWidth=1;
     c.puntos.forEach((p,i)=>{const fuera=c.fuera.includes(p.fechaTN);X.beginPath();X.arc(px(i),py(p.kg),fuera?6:4.5,0,Math.PI*2);X.fillStyle=p.provisional?'#ffffff':(fuera?COL.mal:COL.noche);X.fill();X.lineWidth=2;X.strokeStyle=fuera?COL.mal:COL.noche;X.stroke();X.lineWidth=1;});
-    const paso=Math.max(1,Math.ceil(n/12));c.puntos.forEach((p,i)=>{if(i%paso===0||i===n-1)txt(X,dmy(p.fechaTN).slice(0,5),px(i),base+16,{align:'center',size:10,color:COL.mut});});
+    const paso=Math.max(1,Math.ceil(n/12));c.puntos.forEach((p,i)=>{if(i%paso===0||i===n-1)txt(X,dmy(p.fechaMostrar).slice(0,5),px(i),base+16,{align:'center',size:10,color:COL.mut});});
     let msg='';if(!c.suficiente)msg='Faltan días completos para los límites: hay '+c.completos+' y se necesitan 8.';else if(c.racha)msg='Atención: '+c.racha.n+' días seguidos por '+c.racha.lado+' del promedio.';else if(c.fuera.length)msg=c.fuera.length+' día(s) fuera de los límites.';else msg='Todos los días dentro de los límites: variación normal.';
     txt(X,msg,izq,L.h-10,{size:11.5,peso:'700',color:(c.suficiente&&(c.racha||c.fuera.length))?COL.mal:COL.mut});
     return L.c;
   }
   /** Mezcla por marca: kilos reales del período, 3 kg y 1.5 kg apilados, con el % del total. */
   function graficoMarcas(m){
-    const lista=m.marcas.slice(0,9),rh=29,L=lienzo(600,Math.max(150,78+lista.length*rh+26)),X=L.x;titulo(L,'Mezcla por marca (kg)','Últimos '+m.periodo.dias+' días hasta el '+dmy(m.periodo.hasta)+'.');leyenda(L,[[COL.p3,'Bolsas de 3 kg'],[COL.p15,'Bolsas de 1.5 kg']],56);
+    const lista=m.marcas.slice(0,9),rh=29,L=lienzo(600,Math.max(150,78+lista.length*rh+26)),X=L.x;titulo(L,'Mezcla por marca (kg)','Últimos '+m.periodo.dias+' días hasta el '+dmy(m.periodo.hasta)+'.'+(m.vista==='AMBOS'?'':' Solo turno '+(m.vista==='NOCHE'?'noche':'día')+'.'));leyenda(L,[[COL.p3,'Bolsas de 3 kg'],[COL.p15,'Bolsas de 1.5 kg']],56);
     if(!lista.length){txt(X,'Sin producción en este período.',L.w/2,L.h/2+20,{align:'center',size:13,color:COL.mut});return L.c;}
     const izq=96,der=112,top=68,ancho=L.w-izq-der,mx=nice(Math.max(...lista.map(a=>a.kg))*1.2);
     lista.forEach((a,i)=>{const y=top+i*rh;txt(X,a.marca,izq-8,y+16,{align:'right',size:11.5});let x0=izq;
@@ -329,19 +332,26 @@
   const nucleoNominal=p=>{const N=nucleo();return N?N.kgNominal(p):0;};
   /** Mapa de calor día × turno: miles de kg por turno; más oscuro = más producción; punteado = sin reporte. */
   function graficoMapa(m,ancho){
-    const w=ancho||600,k=m.mapa,n=k.fechas.length,izq=64,ch=44,top=64,L=lienzo(w,top+ch*2+46),X=L.x;titulo(L,'Mapa de calor día × turno (miles de kg)','Del '+dmy(m.periodo.desde)+' al '+dmy(m.periodo.hasta)+'. Punteado: turno sin reporte.');
+    const w=ancho||600,k=m.mapa,n=k.fechas.length,izq=64,ch=44,top=64,nf=m.vista==='AMBOS'?2:1,L=lienzo(w,top+ch*nf+46),X=L.x;titulo(L,'Mapa de calor día × turno (miles de kg)','Del '+dmy(m.periodo.desde)+' al '+dmy(m.periodo.hasta)+'. Punteado: turno sin reporte.');
     const cw=(w-izq-14)/n,max=Math.max(1,...k.dia.filter(Boolean),...k.noche.filter(Boolean));
-    [['Día',k.dia],['Noche',k.noche]].forEach(([nom,vals],j)=>{const y=top+j*ch;txt(X,nom,izq-10,y+ch/2+4,{align:'right',size:12,peso:'700'});
+    [['Día',k.dia,m.vista!=='NOCHE'],['Noche',k.noche,m.vista!=='DIA']].filter(x=>x[2]).forEach(([nom,vals],j)=>{const y=top+j*ch;txt(X,nom,izq-10,y+ch/2+4,{align:'right',size:12,peso:'700'});
       vals.forEach((v,i)=>{const x=izq+i*cw+1.5,yy=y+1.5,ww=cw-3,hh=ch-3;
         if(!v){X.setLineDash([3,3]);X.strokeStyle='#c5d3de';X.strokeRect(x,yy,ww,hh);X.setLineDash([]);return;}
         const p=v/max,r=Math.round(230-(230-10)*p),g=Math.round(241-(241-95)*p),b=Math.round(248-(248-134)*p);X.fillStyle='rgb('+r+','+g+','+b+')';X.fillRect(x,yy,ww,hh);
         if(cw>=30)txt(X,(v/1000).toFixed(1),x+ww/2,yy+hh/2+4,{align:'center',size:11,peso:'700',color:p>.5?'#ffffff':COL.ink});});});
-    const paso=Math.max(1,Math.ceil(n/14));k.fechas.forEach((f,i)=>{if(i%paso===0||i===n-1)txt(X,f.slice(8,10)+'/'+f.slice(5,7),izq+i*cw+cw/2,top+ch*2+16,{align:'center',size:10,color:COL.mut});});
-    txt(X,k.diasConAmbos?('La noche produjo más que el día en '+k.nochePorEncima+' de '+k.diasConAmbos+' días con los dos turnos reportados.'):'Aún no hay días con los dos turnos reportados.',izq,top+ch*2+36,{size:11,color:COL.mut});
+    const paso=Math.max(1,Math.ceil(n/14));k.fechas.forEach((f,i)=>{if(i%paso===0||i===n-1)txt(X,f.slice(8,10)+'/'+f.slice(5,7),izq+i*cw+cw/2,top+ch*nf+16,{align:'center',size:10,color:COL.mut});});
+    txt(X,m.vista!=='AMBOS'?('Solo se muestra el turno '+(m.vista==='NOCHE'?'noche':'día')+'.'):k.diasConAmbos?('La noche produjo más que el día en '+k.nochePorEncima+' de '+k.diasConAmbos+' días con los dos turnos reportados.'):'Aún no hay días con los dos turnos reportados.',izq,top+ch*nf+36,{size:11,color:COL.mut});
     return L.c;
   }
   const GRAFICOS={capacidad:graficoCapacidad,presentacion:graficoPresentacion,semana:graficoSemana,paradas:graficoParadas,control:graficoControl,marcas:graficoMarcas,mapa:m=>graficoMapa(m,1200)};
   function graficos(m){const o={};Object.keys(GRAFICOS).forEach(k=>{o[k]=GRAFICOS[k](m);});return o;}
+  function cajasSolo(m){
+    const n=m.vista==='NOCHE',T=n?m.noche:m.dia,pal=r2(m.filas.reduce((s,x)=>s+(((n?x.noche:x.dia).paletas)||0),0));
+    return [['TURNO '+T.nombre+' '+T.fechaTxt,formato(T.kg,2)+' kg',T.eficiencia!==null?'Eficiencia '+T.eficiencia.toFixed(2)+' %':'Sin reporte',n?COL.noche:COL.dia],
+      ['BOLSAS',formato(T.bolsas),formato(pal,2)+' paletas','#0a2745'],
+      ['JORNADA',T.jornadaH!==null?T.jornadaH.toFixed(2)+' h':'—',T.supervisor||'Sin responsable','#6250d6'],
+      ['TOTAL SEMANA '+m.semanaNum,formato(m.totalSemanaKg,2)+' kg','Solo turno '+(n?'noche':'día')+' · '+m.semana.dias.filter(d=>d.hayDatos).length+' de 7 días','#157a3b']];
+  }
   /** Imagen única para WhatsApp: cabecera, kilos y eficiencia por turno, y las 4 gráficas. */
   function imagen(m){
     const g=graficos(m),W=1240,pad=20,cw=(W-pad*3)/2,ch=cw*(230/600),h4=cw*(250/600);
@@ -352,7 +362,7 @@
     obs.split(' ').forEach(p=>{if(acum&&medidor.measureText(acum+' '+p).width>W-pad*2){lineas.push(acum);acum=p;}else acum=(acum+' '+p).trim();});lineas.push(acum);
     const alto=216+ch+pad+Math.max(ch,h4)+pad+Math.max(hh(g.control),hh(g.marcas))+pad+hMapa+pad+34+lineas.length*19+pad;const L=lienzo(W,Math.ceil(alto)),X=L.x;
     X.fillStyle='#0a2745';X.fillRect(0,0,W,96);txt(X,m.titulo,pad,40,{size:28,peso:'700',color:'#ffffff'});txt(X,m.subtitulo+' · '+m.fechaLarga.replace(/^./,s=>s.toUpperCase())+' · Semana '+m.semanaNum,pad,70,{size:15,color:'#8fc4ec'});
-    const cajas=[['NOCHE '+m.noche.fechaTxt,formato(m.noche.kg,2)+' kg',m.noche.eficiencia!==null?'Eficiencia '+m.noche.eficiencia.toFixed(2)+' %':'Sin reporte',COL.noche],
+    const cajas=m.vista!=='AMBOS'?cajasSolo(m):[['NOCHE '+m.noche.fechaTxt,formato(m.noche.kg,2)+' kg',m.noche.eficiencia!==null?'Eficiencia '+m.noche.eficiencia.toFixed(2)+' %':'Sin reporte',COL.noche],
       ['DÍA '+m.dia.fechaTxt,formato(m.dia.kg,2)+' kg',m.dia.eficiencia!==null?'Eficiencia '+m.dia.eficiencia.toFixed(2)+' %':'Sin reporte',COL.dia],
       ['TOTAL DEL DÍA',formato(m.totalDiaKg,2)+' kg','Noche + día','#0a2745'],['TOTAL SEMANA '+m.semanaNum,formato(m.totalSemanaKg,2)+' kg',m.semana.dias.filter(d=>d.hayDatos).length+' de 7 días con datos','#157a3b']];
     const bw=(W-pad*5)/4;cajas.forEach(([a,b,c,col],i)=>{const x0=pad+i*(bw+pad);X.fillStyle='#f4f8fb';X.fillRect(x0,110,bw,86);X.fillStyle=col;X.fillRect(x0,110,6,86);txt(X,a,x0+18,134,{size:12,peso:'700',color:COL.mut});txt(X,b,x0+18,166,{size:24,peso:'700'});txt(X,c,x0+18,187,{size:12,color:COL.mut});});

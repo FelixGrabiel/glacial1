@@ -44,3 +44,15 @@ Además de las 4 gráficas del Excel, el Reporte diario incluye 3 más. Aparecen
 - **Mapa de calor día × turno**: miles de kg por día (columnas) y turno Día/Noche (filas). Casilla punteada = turno sin reporte. Indica en cuántos días la noche produjo más que el día.
 
 No requiere migración de base de datos.
+
+## Reporte por turno (solo noche / solo día)
+
+Arriba del reporte hay un selector **«Reporte de»** con tres opciones:
+
+- **Día de producción (noche + día)**: el reporte de siempre, igual que el Excel de la planta.
+- **Solo turno noche**: únicamente la noche. La fecha del selector es la del propio turno (por ejemplo, el 18/11 muestra la noche del 18/11).
+- **Solo turno día**: únicamente el día de esa fecha.
+
+En la vista por turno todo se calcula solo con ese turno: tarjetas (kg, eficiencia, bolsas y paletas, jornada y responsable), tabla por marca de un solo bloque, las 7 gráficas (la semana, la carta de control, la mezcla por marca y el mapa de calor usan solo ese turno) y las paradas y observaciones. La semana suma solo ese turno.
+
+El Excel y la imagen de WhatsApp salen con el mismo filtro. En el Excel el otro turno aparece marcado como «NO INCLUIDO EN ESTE REPORTE», y el nombre del archivo termina en `-noche` o `-dia`.
