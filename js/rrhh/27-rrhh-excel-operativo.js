@@ -6,7 +6,7 @@
 
   const COLUMNAS=[
     'Fecha','Turno','Área','DNI','Nombre','Cargo','Asistencia','Ingreso','Salida',
-    'Horas trabajadas','HORAS EXTRAS','Tardanza (min)','Refrigerio (h)'
+    'Horas trabajadas','HORAS EXTRAS (min)','Tardanza (min)','Refrigerio (h)'
   ];
   const RESPONSABLES=[
     'Fecha','Turno','Área','Supervisor(es) que registraron','Tareo creado por',
@@ -88,7 +88,7 @@
       dni,String(p.nombre||ficha?.nombre||''),
       String(ficha?.cargo||p.cargo||''),tareoEtiquetaEstado(p.asistencia),
       String(p.horaIngreso||''),String(p.horaSalida||''),
-      numero(tareoHorasValidas(p)),numero(tareoSaldoNumero(tareoSaldoHoras(p,tareo.jornadaNormal))),
+      numero(tareoHorasValidas(p)),tareoSaldoMinutos(tareoSaldoHoras(p,tareo.jornadaNormal)),
       numero(p.tardanzaMinutos),numero(p.refrigerio)
     ];
   }
