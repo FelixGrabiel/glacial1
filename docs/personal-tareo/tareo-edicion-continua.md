@@ -35,7 +35,18 @@ En el navegador (app real, base simulada con latencia): 6 clics seguidos en ASIS
 ## Pendiente de probar en PRUEBAS (dispositivos reales)
 Dos supervisores con red real sobre el mismo tareo; tareo de Mantenimiento con maquinistas; noche tras medianoche; una fila con nombre repetido (se guardan los `filaId` la primera vez que se abre).
 
-## Quitar personal del tareo (personas que ya no trabajan)
+## Quitar y agregar personal con alcance (20/11/2026)
+**Quitar.** El botón «✕ Quitar» de cada fila (solo quien edita ese tareo; no en Modo visualización) abre una ventana con tres alcances y una vista previa de cuántos tareos se tocan:
+- **Solo este tareo:** se quita aquí; mañana vuelve a aparecer si sigue en la rotación.
+- **Desde una fecha en adelante** (la fecha se elige; por defecto la del tareo): ya no trabaja aquí. Deja una exclusión permanente en `tareo.personalExcluido` (`permanente`, `desde`, `alcance`) que rige para esa área desde esa fecha: la sincronización con la rotación Excel, con Mantenimiento y con maquinistas, y la creación de tareos nuevos ya no la traen. **Además se borra físicamente de los tareos ya creados de esa área desde esa fecha.**
+- **De todos los tareos:** igual pero sin límite de fecha (`desde = 0000-01-01`): pasados y futuros. Pensado para quien se registró por error.
+En «desde» y «todos», si algún tareo tiene asistencia u horas de esa persona, se avisa cuántos y hay que marcar una casilla de confirmación porque esas marcaciones se pierden. Los tareos **cerrados por el sistema** (bloqueo de 41-tareo-bloqueo.js) o sin permiso **no se modifican**: la ventana y el aviso final dicen cuántos fueron. Sin pantalla (pruebas) `quitarPersonal(clave)` conserva las dos confirmaciones de siempre; `TareoEd.ejecutarQuitar(clave, {alcance, desde})` ejecuta directo y devuelve `{quitados, conMarcas, bloqueados}`.
+
+**Agregar.** «+ Agregar personal» (ya registrado o personal nuevo) pregunta **dónde agregarla**: solo este tareo (como antes) o **desde una fecha en adelante** en los tareos ya creados de la misma área, en el mismo turno o en ambos. No duplica donde ya esté, levanta una exclusión previa en cada tareo, deja la persona como pendiente de registrar (`agregadoManual`) y respeta tareos cerrados y permisos. Los tareos que se creen después se arman con la rotación; para que entre siempre hay que agregarla a la rotación o a Trabajadores.
+
+Pruebas: `tests/tareo-edicion-continua.test.js` (flujo anterior) y `tests/tareo-quitar-agregar.e2e.js` (ventanas y alcances en navegador real).
+
+### Comportamiento base (sin cambios)
 Botón «✕ Quitar» en cada fila (solo quien edita ese tareo; no en Modo visualización). Pide confirmación (avisa si tenía asistencia u horas) y pregunta si **ya no trabaja**:
 - **Sí (permanente):** deja una exclusión en `tareo.personalExcluido` que rige para esa área desde la fecha del tareo en adelante: la sincronización con la rotación Excel, con Mantenimiento y con maquinistas, y la creación de tareos nuevos ya no la traen. Los tareos de fechas anteriores no cambian.
 - **No:** se quita solo de ese tareo.

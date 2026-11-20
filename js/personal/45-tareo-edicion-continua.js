@@ -662,7 +662,29 @@
   }
   const tieneMarcas = p => !!(p && (p.asistencia || p.horaIngreso || p.salidaRefrigerio || p.retornoRefrigerio || p.horaSalida));
 
-  function quitarPersonal(clave){
+  /* Tareos de la MISMA área a los que alcanza «quitar»: este tareo siempre; «desde» = fecha >= desde; «todos» = cualquier fecha. Solo cuenta los que
+     realmente tienen a la persona y se pueden modificar (permiso y tareo no cerrado); los demás se informan aparte. */
+  function alcanceQuitar(tareo, p, alcance, desde){
+    if(alcance === 'este') return {tareos: [tareo], conMarcas: tieneMarcas(p) ? 1 : 0, bloqueados: 0};
+    const ids = idsDe(p), area = typeof tareoAreaDe === 'function' ? tareoAreaDe(tareo) : tareo.area;
+    const piso = alcance === 'todos' ? '' : String(desde || tareo.fecha || '');
+    const lista = [tareo]; let conMarcas = tieneMarcas(p) ? 1 : 0, bloqueados = 0;
+    obtenerTareos().forEach(t => {
+      if(!t || t.id === tareo.id || tareoAreaDe(t) !== area) return;
+      if(piso && String(t.fecha || '') < piso) return;
+      const q = (t.personal || []).find(x => idsDe(x).some(i => ids.includes(i)));
+      if(!q) return;
+      if(typeof tareoAutorizadoEscribir === 'function' && !tareoAutorizadoEscribir(t)){ bloqueados++; return; }
+      lista.push(t); if(tieneMarcas(q)) conMarcas++;
+    });
+    return {tareos: lista, conMarcas, bloqueados};
+  }
+  const FECHA_VALIDA = f => /^\d{4}-\d{2}-\d{2}$/.test(String(f || '')) && !Number.isNaN(new Date(f + 'T00:00:00').getTime());
+  const hayModal = () => typeof document !== 'undefined' && !!document.getElementById('modal-root');
+
+  /* quitarPersonal(clave)            → con pantalla abre la ventana de alcance; sin pantalla (pruebas) usa las dos confirmaciones de siempre.
+     quitarPersonal(clave, {alcance}) → ejecuta ya: alcance 'este' | 'desde' (+ desde 'YYYY-MM-DD') | 'todos'. Devuelve {quitados, conMarcas, bloqueados}. */
+  function quitarPersonal(clave, opc){
     const tareo = typeof tareoObtenerActual === 'function' ? tareoObtenerActual() : null;
     if(!tareo) return;
     if(typeof tareoPuedeEditar !== 'function' || !tareoPuedeEditar(tareo) || (typeof esUsuarioSoloConsulta === 'function' && esUsuarioSoloConsulta(state.user))){
@@ -676,24 +698,112 @@
     }
     const p = r.persona;
     if(!p) return;
-    const aviso = tieneMarcas(p)
-      ? '\n\nOJO: tiene asistencia u horas registradas en este tareo; se quitarán junto con ella.' : '';
-    if(!confirm('¿Quitar a ' + (p.nombre || 'esta persona') + ' de este tareo?' + aviso + '\n\nNo se elimina de Trabajadores ni de la rotación.')) return;
-    const permanente = confirm(
-      '¿' + (p.nombre || 'Esta persona') + ' ya no trabaja aquí?\n\n' +
-      'Aceptar: no volverá a aparecer en los tareos de esta área desde el ' + tareo.fecha + ' en adelante.\n' +
-      'Cancelar: se quita solo de este tareo.');
+    if(!opc && hayModal()){ abrirModalQuitar(clave); return; }
+    let alcance, desde;
+    if(opc){
+      alcance = ['este', 'desde', 'todos'].includes(opc.alcance) ? opc.alcance : 'este';
+      desde = alcance === 'desde' ? String(opc.desde || '') : (alcance === 'todos' ? '0000-01-01' : tareo.fecha);
+      if(alcance === 'desde' && !FECHA_VALIDA(desde)){ alert('Elige una fecha válida.'); return; }
+    }else{
+      const aviso = tieneMarcas(p)
+        ? '\n\nOJO: tiene asistencia u horas registradas en este tareo; se quitarán junto con ella.' : '';
+      if(!confirm('¿Quitar a ' + (p.nombre || 'esta persona') + ' de este tareo?' + aviso + '\n\nNo se elimina de Trabajadores ni de la rotación.')) return;
+      const permanenteConfirmado = confirm(
+        '¿' + (p.nombre || 'Esta persona') + ' ya no trabaja aquí?\n\n' +
+        'Aceptar: no volverá a aparecer en los tareos de esta área desde el ' + tareo.fecha + ' en adelante.\n' +
+        'Cancelar: se quita solo de este tareo.');
+      alcance = permanenteConfirmado ? 'desde' : 'este'; desde = tareo.fecha;
+    }
+    const permanente = alcance !== 'este';
     const u = (typeof state !== 'undefined' && state.user) || {};
+    const alc = alcanceQuitar(tareo, p, alcance, desde);
     const entrada = {
       clave: claveBase(p), ids: idsDe(p), nombre: p.nombre || '', dni: p.dni || '', cargo: p.cargo || '', linea: p.linea || '',
       trabajadorId: p.trabajadorId || '', tipoDocumento: p.tipoDocumento || 'DNI', por: u.nombre || u.username || '',
-      en: nuevoTs(), activa: true, permanente, desde: tareo.fecha, teniaMarcas: tieneMarcas(p)
+      en: nuevoTs(), activa: true, permanente, desde: alcance === 'este' ? tareo.fecha : desde, alcance, teniaMarcas: tieneMarcas(p)
     };
     tareo.personalExcluido = [...entradasDe(tareo).filter(e => !(e.ids || []).some(i => entrada.ids.includes(i))), entrada];
     tareo.personal = (tareo.personal || []).filter(x => x !== p);
     descartarOps(tareo.id, claveBase(p));
     guardarTareoEnMemoria(tareo);
+    // «desde» y «todos»: también sale de los tareos ya creados de esta área (los que se puedan modificar).
+    alc.tareos.forEach(t => {
+      if(t.id === tareo.id) return;
+      const antes = (t.personal || []).length;
+      t.personal = (t.personal || []).filter(x => !idsDe(x).some(i => entrada.ids.includes(i)));
+      if(t.personal.length === antes) return;
+      descartarOps(t.id, claveBase(p));
+      guardarTareoEnMemoria(t);
+    });
     renderTareoFormulario(tareo);
+    return {quitados: alc.tareos.length, conMarcas: alc.conMarcas, bloqueados: alc.bloqueados};
+  }
+
+  /* ---------- ventana «Quitar personal» ---------- */
+  let qm = null;   // {clave, alcance, desde}
+  const fechaLinda = f => typeof formatearFecha === 'function' ? formatearFecha(f) : String(f || '');
+  function abrirModalQuitar(clave){
+    const tareo = tareoObtenerActual(); if(!tareo) return;
+    qm = {clave, alcance: 'este', desde: tareo.fecha};
+    dibujarModalQuitar();
+  }
+  function dibujarModalQuitar(){
+    const root = document.getElementById('modal-root'), tareo = tareoObtenerActual();
+    if(!root || !tareo || !qm) return;
+    const p = resolver(tareo, qm.clave).persona; if(!p) return;
+    const area = typeof tareoAreaDe === 'function' ? tareoAreaDe(tareo) : '';
+    const op = (v, titulo, ayuda, extra) => '<label class="tar2-qm-op"><input type="radio" name="tar2-qm-alcance" value="' + v + '"' + (qm.alcance === v ? ' checked' : '') +
+      ' onchange="TareoEd.qmAlcance(this.value)"><span><strong>' + titulo + '</strong>' + (extra || '') + '<small class="small-muted">' + ayuda + '</small></span></label>';
+    root.innerHTML =
+      '<div class="modal-backdrop" onclick="if(event.target===this)TareoEd.qmCerrar()"><div class="modal" style="max-width:560px;width:96%;">' +
+      '<div class="modal-head"><h3>Quitar a ' + esc(p.nombre || 'esta persona') + '</h3><button class="modal-close" onclick="TareoEd.qmCerrar()">✕</button></div>' +
+      '<div class="modal-body">' +
+        '<p class="small-muted" style="margin:0 0 10px;">' + esc(p.cargo || 'Sin cargo') + ' · ' + esc(p.tipoDocumento || 'DNI') + ' ' + esc(p.dni || '—') + ' · Tareo de ' + esc(area) + ' del ' + esc(fechaLinda(tareo.fecha)) + '</p>' +
+        (tieneMarcas(p) ? '<div class="tar2-qm-aviso">Tiene asistencia u horas registradas en este tareo; se quitarán junto con ella.</div>' : '') +
+        '<div class="tar2-qm-ops">' +
+          op('este', 'Solo este tareo', 'Mañana vuelve a aparecer si sigue en la rotación.') +
+          op('desde', 'Desde una fecha en adelante', 'Ya no trabaja aquí: sale de los tareos de ' + esc(area) + ' desde esa fecha, los que ya existen y los que se creen.',
+            ' <input type="date" id="tar2-qm-fecha" value="' + esc(qm.desde) + '"' + (qm.alcance === 'desde' ? '' : ' disabled') + ' oninput="TareoEd.qmFecha(this.value)">') +
+          op('todos', 'De todos los tareos', 'Borra a la persona de todos los tareos de ' + esc(area) + ', pasados y futuros. Úsalo solo si se registró por error.') +
+        '</div>' +
+        '<div id="tar2-qm-resumen" class="tar2-qm-resumen" role="status"></div>' +
+        '<label id="tar2-qm-confirma-fila" class="tar2-qm-confirma" hidden><input type="checkbox" id="tar2-qm-confirma"> Entiendo que se borrarán las marcaciones de esos tareos.</label>' +
+        '<p class="small-muted" style="margin:10px 0 0;">No se elimina de Trabajadores ni de la rotación. Queda registrado en la auditoría.</p>' +
+        '<div class="actions-row"><button class="btn btn-ghost" onclick="TareoEd.qmCerrar()">Cancelar</button><button class="btn btn-danger" onclick="TareoEd.qmConfirmar()">Quitar</button></div>' +
+      '</div></div></div>';
+    actualizarResumenQuitar();
+  }
+  function actualizarResumenQuitar(){
+    const tareo = tareoObtenerActual(), cont = document.getElementById('tar2-qm-resumen'); if(!tareo || !cont || !qm) return;
+    const p = resolver(tareo, qm.clave).persona; if(!p) return;
+    const desde = qm.alcance === 'todos' ? '0000-01-01' : qm.desde;
+    const f = document.getElementById('tar2-qm-fecha'); if(f) f.disabled = qm.alcance !== 'desde';
+    if(qm.alcance === 'desde' && !FECHA_VALIDA(qm.desde)){ cont.textContent = 'Elige una fecha válida.'; return; }
+    const a = alcanceQuitar(tareo, p, qm.alcance, desde), n = a.tareos.length;
+    let t = qm.alcance === 'este' ? 'Se quitará de este tareo.' : 'Se quitará de ' + n + ' tareo' + (n === 1 ? '' : 's') + ' ya creado' + (n === 1 ? '' : 's') + '.';
+    if(qm.alcance !== 'este') t += (a.conMarcas ? ' ' + a.conMarcas + ' tienen asistencia u horas que se perderán.' : ' Ninguno tiene asistencia ni horas registradas.');
+    if(a.bloqueados) t += ' ' + a.bloqueados + ' cerrado' + (a.bloqueados === 1 ? '' : 's') + ' o sin permiso no se tocan.';
+    cont.textContent = t;
+    const fila = document.getElementById('tar2-qm-confirma-fila');
+    if(fila) fila.hidden = !(qm.alcance !== 'este' && a.conMarcas > 0);
+  }
+  function qmAlcance(v){ if(!qm) return; qm.alcance = ['este', 'desde', 'todos'].includes(v) ? v : 'este'; actualizarResumenQuitar(); }
+  function qmFecha(v){ if(!qm) return; qm.desde = v; actualizarResumenQuitar(); }
+  function qmCerrar(){ qm = null; if(typeof closeModal === 'function') closeModal(); }
+  function qmConfirmar(){
+    if(!qm) return;
+    const tareo = tareoObtenerActual(); if(!tareo) return;
+    const p = resolver(tareo, qm.clave).persona; if(!p) return;
+    if(qm.alcance === 'desde' && !FECHA_VALIDA(qm.desde)){ alert('Elige una fecha válida.'); return; }
+    const a = alcanceQuitar(tareo, p, qm.alcance, qm.alcance === 'todos' ? '0000-01-01' : qm.desde);
+    if(qm.alcance !== 'este' && a.conMarcas > 0 && !(document.getElementById('tar2-qm-confirma') || {}).checked){
+      alert('Marca la casilla para confirmar que se borrarán las marcaciones.'); return;
+    }
+    const clave = qm.clave, alcance = qm.alcance, desde = qm.desde;
+    qm = null; if(typeof closeModal === 'function') closeModal();
+    const res = window.TareoEd.ejecutarQuitar(clave, {alcance, desde});
+    if(res && alcance !== 'este') alert('Se quitó a ' + (p.nombre || 'la persona') + ' de ' + res.quitados + ' tareo' + (res.quitados === 1 ? '' : 's') + '.' +
+      (res.bloqueados ? '\n' + res.bloqueados + ' tareo' + (res.bloqueados === 1 ? '' : 's') + ' cerrado' + (res.bloqueados === 1 ? '' : 's') + ' o sin permiso no se modificaron.' : ''));
   }
   function restaurarPersona(clave){
     const tareo = typeof tareoObtenerActual === 'function' ? tareoObtenerActual() : null;
@@ -722,7 +832,7 @@
     if(!lista.length) return '';
     return '<div class="panel" id="tareo-quitados"><div class="panel-head"><div><h3>Personal quitado de este tareo (' + lista.length + ')</h3>' +
       '<div class="small-muted">No aparecen en la tabla ni vuelven con la sincronización. Puedes restaurarlos.</div></div></div><div class="panel-body"><ul class="tar2-quitados">' +
-      lista.map(e => '<li><span><strong>' + esc(e.nombre) + '</strong> · ' + esc(e.cargo || '') + (e.permanente ? ' · <em>ya no trabaja</em>' : '') +
+      lista.map(e => '<li><span><strong>' + esc(e.nombre) + '</strong> · ' + esc(e.cargo || '') + (e.permanente ? ' · <em>ya no trabaja' + (e.desde === '0000-01-01' ? ' · quitada de todos los tareos' : (e.desde ? ' · desde ' + esc(typeof formatearFecha === 'function' ? formatearFecha(e.desde) : e.desde) : '')) + '</em>' : '') +
         ' <small class="small-muted">quitado por ' + esc(e.por || '—') + '</small></span>' +
         '<button type="button" class="btn btn-ghost btn-sm" onclick="TareoEd.restaurarPersona(' + (typeof tareoArg === 'function' ? tareoArg(e.clave) : JSON.stringify(e.clave)) + ')">Restaurar</button></li>').join('') +
       '</ul></div></div>';
@@ -731,13 +841,15 @@
     if(typeof document === 'undefined' || document.getElementById('tareo-quitar-css')) return;
     const s = document.createElement('style'); s.id = 'tareo-quitar-css';
     s.textContent = '.tar2-quitar{border:0;background:none;color:#9a4339;cursor:pointer;font-size:12px;padding:2px 4px;margin-left:6px}.tar2-quitar:hover{color:#b42318;text-decoration:underline}' +
+      '.tar2-qm-ops{display:grid;gap:8px}.tar2-qm-op{display:flex;gap:10px;align-items:flex-start;border:1px solid #d9e7f1;border-radius:10px;padding:10px 12px;cursor:pointer}.tar2-qm-op span{display:grid;gap:2px}.tar2-qm-op small{display:block}.tar2-qm-op input[type=date]{margin-left:8px;font:inherit;padding:2px 6px}' +
+      '.tar2-qm-aviso{background:#fff4e5;border:1px solid #f5c98b;color:#8a5200;border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:10px}.tar2-qm-resumen{margin-top:12px;padding:8px 10px;background:#eef6fb;border-radius:8px;font-size:13px}.tar2-qm-confirma{display:block;margin-top:10px;font-size:13px}' +
       '.tar2-quitados{list-style:none;margin:0;padding:0}.tar2-quitados li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed #e5edf3}';
     document.head.appendChild(s);
   }
   estilosQuitar();
 
   window.TareoEd = {
-    filtroExclusion, mezclarExcluidos, filtrarExcluidos, quitarPersonal, restaurarPersona, levantarExclusion, htmlQuitados, descartarOps,
+    filtroExclusion, mezclarExcluidos, filtrarExcluidos, quitarPersonal, ejecutarQuitar: (clave, opc) => quitarPersonal(clave, opc || {alcance: 'este'}), alcanceQuitar, qmAlcance, qmFecha, qmCerrar, qmConfirmar, restaurarPersona, levantarExclusion, htmlQuitados, descartarOps,
     CAMPOS, nuevoTs, nuevoFilaId, clavesUnicas, claveFila, asegurarFilaIds, asignarIds, faltanIds, resolver, tsDe, mezclarPersona, mezclarListas, capturaTs,
     resetVista, deduplicarPersonal, captura, diferencias, aplicarMarcas, aplicarOp, registrarOp, enviar, reintentar, reconciliar, hayOpsSinEnviar, hayPendientes,
     sinConfirmar, legacyIniciar, legacyTerminar, ordenarVista, reordenarVista, registrarRender, sincronizarVista, pintarEstados,
