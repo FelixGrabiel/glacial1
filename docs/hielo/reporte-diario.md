@@ -33,3 +33,14 @@ Estos datos salen vacíos hasta que se agreguen al registro del turno:
 - `tests/hielo-reporte-diario.test.js`: el modelo reproduce las dos hojas del Excel de la planta (kilos, paletas, eficiencia, totales por presentación, semana) y, con `GLX_LIBS`, lee el Excel generado.
 - `tests/hielo-reporte-diario.e2e.js`: pantalla, gráficas, Excel e imagen descargados, en navegador real.
 - `tests/reporte-hielo.test.js` (kilos reales, configuración) y `tests/hielo-menu-movil.e2e.js` (menú con la pestaña nueva).
+
+## Gráficas de análisis (carta de control, mezcla por marca, mapa de calor)
+
+Además de las 4 gráficas del Excel, el Reporte diario incluye 3 más. Aparecen en pantalla, en el Excel (hoja «Reporte diario») y en la imagen para WhatsApp.
+
+- **Selector de período**: 7, 14 o 21 días (por defecto 14). Aplica a mezcla por marca y mapa de calor.
+- **Carta de control diaria**: producción por día de producción (noche anterior + día). Líneas: promedio y límites ±2,66 × rango móvil medio. Usa los últimos 30 días; necesita al menos 8 días completos y finalizados, si no muestra aviso. Los días sin finalizar se dibujan como punto vacío y no cuentan para los límites. Se marca en rojo un día fuera de límites y una racha de 7 días seguidos del mismo lado del promedio.
+- **Mezcla por marca**: kg por marca del período, separados por presentación (3 kg y 1,5 kg), con el % del total.
+- **Mapa de calor día × turno**: miles de kg por día (columnas) y turno Día/Noche (filas). Casilla punteada = turno sin reporte. Indica en cuántos días la noche produjo más que el día.
+
+No requiere migración de base de datos.

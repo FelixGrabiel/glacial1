@@ -375,7 +375,7 @@
 .hl-vacio{color:#587087;padding:16px;border:1px dashed #c3d8e8;border-radius:12px;text-align:center;background:#fafcfe}
 .hl-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:0 0 14px;padding:12px 14px;background:#fff;border:1px solid #d9e7f1;border-radius:16px;box-shadow:0 1px 2px rgba(15,50,90,.04)}
 .hl-clic{cursor:pointer}.hl-clic:hover td{background:#f1f8fd}
-.hl-rd-graficos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:14px}.hl-rd-g{min-width:0;border:1px solid #e3eaf0;border-radius:10px;overflow:hidden}
+.hl-rd-graficos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:14px}.hl-rd-ancho{grid-column:1/-1}.hl-rd-g{min-width:0;border:1px solid #e3eaf0;border-radius:10px;overflow:hidden}
 .hl-rd-t td:first-child{white-space:nowrap}.hl-rd-t td.n{text-align:right;font-variant-numeric:tabular-nums}.hl-rd-t th{font-size:11px}.hl-rd-t tr.tot td{background:#f2f2f2;border-top:2px solid #9aa7b2}
 @media(max-width:700px){.hl-ed thead{display:none}.hl-ed tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid #e2ebf2}
  .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
@@ -636,7 +636,7 @@
   };
   /* ---------- Reporte diario (formato del Excel de la planta; js/hielo/99-hielo-reporte-diario.js) ---------- */
   const RD=()=>window.glacialHieloReporte||null;
-  const modeloReporte=f=>RD().modelo({fecha:f,reportes:cache.reportes,cfg:config(),catalogo:typeof PRODUCTOS_HIELO!=='undefined'?PRODUCTOS_HIELO:[]});
+  const modeloReporte=f=>RD().modelo({fecha:f,dias:S.rDias||14,reportes:cache.reportes,cfg:config(),catalogo:typeof PRODUCTOS_HIELO!=='undefined'?PRODUCTOS_HIELO:[]});
   function vistaReporteDiario(){
     if(!RD())return '<h1>Reporte diario</h1><div class="hl-msg e">El reporte diario no está disponible en esta versión.</div>';
     const f=S.rFecha||hoy(),m=modeloReporte(f);S._rdModelo=m;
@@ -650,7 +650,8 @@
     const obs=[m.noche.observaciones&&`<p><b>Noche:</b> ${esc(m.noche.observaciones).replace(/\n/g,'<br>')}</p>`,m.dia.observaciones&&`<p><b>Día:</b> ${esc(m.dia.observaciones).replace(/\n/g,'<br>')}</p>`].filter(Boolean).join('')||'<p class="hl-sub">Sin observaciones.</p>';
     return `<h1>Reporte diario de producción · Hielo</h1><p class="hl-sub">Igual que el Excel de la planta: la <b>noche del ${esc(fechaTxt(m.fNoche))}</b> más el <b>día del ${esc(fechaTxt(f))}</b>. Kilos reales (3 kg = ${esc(String(m.pesos['3 kg']||''))} kg · 1.5 kg = ${esc(String(m.pesos['1.5 kg']||''))} kg por bolsa).</p>
       ${S.msg?`<div class="hl-msg ${S.msg.tipo==='ok'?'k':'e'}" role="status">${esc(S.msg.texto)}</div>`:''}
-      <div class="hl-card"><div class="hl-acc" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><label>Día de producción<input type="date" value="${esc(f)}" onchange="hlRDFecha(this.value)" aria-label="Día de producción"></label>
+      <div class="hl-card"><div class="hl-acc" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><span style="display:flex;gap:12px;flex-wrap:wrap"><label>Día de producción<input type="date" value="${esc(f)}" onchange="hlRDFecha(this.value)" aria-label="Día de producción"></label>
+          <label>Período de la mezcla y el mapa<select onchange="hlRDDias(this.value)" aria-label="Período de la mezcla por marca y el mapa de calor">${[7,14,21].map(n=>`<option value="${n}" ${(S.rDias||14)===n?'selected':''}>Últimos ${n} días</option>`).join('')}</select></label></span>
         <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="hl-btn" onclick="hlRDExcel()" ${m.hayDatos?'':'disabled'}>Descargar Excel</button><button type="button" class="hl-btn o" onclick="hlRDImagen()" ${m.hayDatos?'':'disabled'}>Descargar imagen</button></span></div></div>
       ${m.hayDatos?'':`<div class="hl-msg i">No hay reportes de la noche del ${esc(fechaTxt(m.fNoche))} ni del día del ${esc(fechaTxt(f))}.</div>`}
       <div class="hl-kpis">${kpi('Turno noche · '+esc(m.noche.fechaTxt),n2(m.noche.kg)+' kg',m.noche.eficiencia!==null?'Eficiencia '+n2(m.noche.eficiencia)+' %':'Sin reporte','#2a78d6')}${kpi('Turno día · '+esc(m.dia.fechaTxt),n2(m.dia.kg)+' kg',m.dia.eficiencia!==null?'Eficiencia '+n2(m.dia.eficiencia)+' %':'Sin reporte','#eb6834')}${kpi('Total del día',n2(m.totalDiaKg)+' kg','Noche + día','#0a2745')}${kpi('Semana '+m.semanaNum,n2(m.totalSemanaKg)+' kg',m.semana.dias.filter(d=>d.hayDatos).length+' de 7 días con datos','#157a3b')}</div>
@@ -664,16 +665,17 @@
   }
   function pintarGraficosReporte(){
     const c=document.getElementById('hl-rd-graficos');if(!c||!RD()||!S._rdModelo)return;
-    try{const g=RD().graficos(S._rdModelo);['capacidad','presentacion','semana','paradas'].forEach(k=>{const w=document.createElement('div');w.className='hl-rd-g';w.appendChild(g[k]);c.appendChild(w);});}
+    try{const g=RD().graficos(S._rdModelo);['capacidad','presentacion','semana','paradas','control','marcas','mapa'].forEach(k=>{const w=document.createElement('div');w.className='hl-rd-g'+(k==='mapa'?' hl-rd-ancho':'');w.appendChild(g[k]);c.appendChild(w);});}
     catch(e){c.innerHTML='<p class="hl-sub">No se pudieron dibujar las gráficas en este navegador.</p>';}
   }
+  window.hlRDDias=v=>{S.rDias=[7,14,21].includes(Number(v))?Number(v):14;pintar();};
   window.hlRDFecha=v=>{if(esFecha(v)){S.rFecha=v;S.msg=null;pintar();}};
   window.hlRDExcel=async()=>{
     try{
       const f=S.rFecha||hoy(),m=modeloReporte(f);
       const ExcelJS=typeof cargarScriptExterno==='function'?await cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS'):window.ExcelJS;
       if(!ExcelJS)throw new Error('No se pudo cargar la librería de Excel.');
-      const g=RD().graficos(m),imgs={};Object.keys(g).forEach(k=>{imgs[k]=g[k].toDataURL('image/png').split(',')[1];});
+      const g=RD().graficos(m),imgs={};g.mapa=RD().graficoMapa(m,1200);Object.keys(g).forEach(k=>{imgs[k]={data:g[k].toDataURL('image/png').split(',')[1],w:g[k].width/2,h:g[k].height/2};});
       const wb=RD().construirExcel(ExcelJS,m,imgs),buf=await wb.xlsx.writeBuffer(),a=document.createElement('a');
       a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.download='Reporte-diario-Hielo-'+f+'.xlsx';
       document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);ok('Excel generado.');

@@ -53,6 +53,41 @@ ok(m.noche.observaciones.includes('ENVASADORA')&&m.dia.estado==='FINALIZADO'&&RD
  ok(mx.filas.length===15&&mx.filas[14].etiqueta==='NUEVA MARCA (3KG)'&&mx.filas[14].dia.kg===330,'una marca fuera del catálogo se agrega al final, con el peso configurado');
  ok(mx.capacidad===40000&&mx.noche.eficiencia===r2(mx.noche.kg/40000*100),'la capacidad y los pesos de Configuración mandan');}
 function r2(v){return Math.round(v*100)/100;}
+/* ---- Carta de control, mezcla por marca y mapa de calor ---- */
+const rep=(fecha,turno,bolsas,extra)=>Object.assign({id:fecha+'_'+turno,fecha,turno,estado:'FINALIZADO',produccion:[L('Glacial','3 kg',bolsas)],paradas:[]},extra||{});
+const fechaN=i=>RD.sumar('2026-11-05',i);
+// 10 días de producción: noche con 1000 bolsas y día con 1000+100·i bolsas de 3 kg → total = 6500 + 325·i kg
+const serie=[];for(let i=0;i<10;i++){serie.push(rep(fechaN(i),'NOCHE',1000));serie.push(rep(RD.sumar(fechaN(i),1),'DÍA',1000+100*i));}
+{const c=RD.modelo({fecha:RD.sumar(fechaN(9),1),reportes:serie,cfg,catalogo:CATALOGO}).control;
+ ok(c.puntos.length===10&&c.puntos[0].kg===6500&&c.puntos[9].kg===9425&&c.puntos[0].fechaTN==='2026-11-05','control: un punto por día de producción (noche + día siguiente), de más antiguo a más reciente');
+ ok(c.completos===10&&c.suficiente&&c.mu===7962.5&&c.ucl===8827&&c.lcl===7098,'control: promedio 7,962.5 y límites 7,098 a 8,827 (promedio ± 2.66 × rango móvil medio de 325)');
+ ok(c.fuera.join()==='2026-11-05,2026-11-06,2026-11-14'||c.fuera.includes('2026-11-05')&&c.fuera.includes('2026-11-14'),'control: marca los días fuera de los límites ('+c.fuera.join(', ')+')');
+ ok(c.racha===null,'control: sin racha cuando los últimos días no están todos del mismo lado');}
+{// racha: 3 días altos y 7 bajos → los últimos 7 quedan por debajo del promedio
+ const rs=[];for(let i=0;i<10;i++){rs.push(rep(fechaN(i),'NOCHE',1000));rs.push(rep(RD.sumar(fechaN(i),1),'DÍA',i<3?2000:800));}
+ const c=RD.modelo({fecha:RD.sumar(fechaN(9),1),reportes:rs,cfg,catalogo:CATALOGO}).control;
+ ok(c.racha&&c.racha.n===7&&c.racha.lado==='debajo','control: 7 días seguidos por debajo del promedio = racha');}
+{// pocos días: no hay límites
+ const rs=serie.slice(0,10),c=RD.modelo({fecha:RD.sumar(fechaN(4),1),reportes:rs,cfg,catalogo:CATALOGO}).control;
+ ok(c.completos===5&&!c.suficiente&&c.fuera.length===0&&c.racha===null&&c.mu>0,'control: con menos de 8 días completos no es suficiente: no marca días fuera ni rachas (solo se dibuja el promedio)');}
+{// un día con el turno día sin reporte no es punto; uno sin finalizar es provisional y no entra en los límites
+ const rs=serie.filter(r=>!(r.fecha===RD.sumar(fechaN(2),1)&&r.turno==='DÍA')).map(r=>r.fecha===RD.sumar(fechaN(9),1)&&r.turno==='DÍA'?Object.assign({},r,{estado:'EN_REGISTRO'}):r);
+ const c=RD.modelo({fecha:RD.sumar(fechaN(9),1),reportes:rs,cfg,catalogo:CATALOGO}).control;
+ ok(c.puntos.length===9&&!c.puntos.some(p=>p.fechaTN===fechaN(2))&&c.puntos[8].provisional===true&&c.completos===8,'control: un día sin el turno día no es punto; un turno sin finalizar es provisional y no cuenta para los límites');}
+// Mezcla por marca (últimos 14 días)
+{const rs=[rep('2026-11-19','DÍA',1000,{produccion:[L('Glacial','3 kg',1000),L('Glacial','1.5 kg',400),L('Rappi','3 kg',2000)]}),rep('2026-11-18','NOCHE',500,{produccion:[L('Rappi','3 kg',500),L('Listo','1.5 kg',800)]}),rep('2026-10-01','DÍA',9999,{produccion:[L('Vieja','3 kg',9999)]})];
+ const mx=RD.modelo({fecha:'2026-11-19',reportes:rs,cfg,catalogo:CATALOGO});
+ ok(mx.periodo.dias===14&&mx.periodo.desde==='2026-11-06'&&mx.periodo.hasta==='2026-11-19','mezcla: período de 14 días hasta la fecha del reporte');
+ ok(mx.marcas.map(a=>a.marca).join()==='Rappi,Glacial,Listo'&&mx.marcas[0].kg===8125&&mx.marcas[1].kg===3250+700&&mx.marcas[1].kgPorPres['3 kg']===3250&&mx.marcas[1].kgPorPres['1.5 kg']===700&&mx.marcas[2].kg===1400,'mezcla: kilos reales por marca (Rappi 8,125 · Glacial 3,250 + 700 · Listo 1,400), ordenado de mayor a menor');
+ ok(mx.kgPeriodo===8125+3950+1400&&Math.abs(mx.marcas.reduce((s,a)=>s+a.pct,0)-100)<0.1&&!mx.marcas.some(a=>a.marca==='Vieja'),'mezcla: el total suma 100 % y no entra lo anterior al período');
+ ok(RD.modelo({fecha:'2026-11-19',dias:7,reportes:rs,cfg,catalogo:CATALOGO}).periodo.dias===7&&RD.modelo({fecha:'2026-11-19',dias:99,reportes:rs,cfg,catalogo:CATALOGO}).periodo.dias===14,'mezcla: el período puede ser 7, 14 o 21 días; otro valor vuelve a 14');
+ // Mapa
+ ok(mx.mapa.fechas.length===14&&mx.mapa.fechas[0]==='2026-11-06'&&mx.mapa.fechas[13]==='2026-11-19','mapa: una columna por fecha del período');
+ const i18=mx.mapa.fechas.indexOf('2026-11-18'),i19=mx.mapa.fechas.indexOf('2026-11-19');
+ ok(mx.mapa.noche[i18]===r2(500*3.25+800*1.75)&&mx.mapa.dia[i19]===r2(1000*3.25+400*1.75+2000*3.25)&&mx.mapa.dia[i18]===null&&mx.mapa.noche[i19]===null,'mapa: kilos reales por turno y fecha; null = sin reporte');
+ ok(mx.mapa.diasConAmbos===0,'mapa: cuenta solo los días con los dos turnos reportados');}
+{const rs=[];for(let i=0;i<5;i++){rs.push(rep(RD.sumar('2026-11-10',i),'DÍA',1000));rs.push(rep(RD.sumar('2026-11-10',i),'NOCHE',i<3?1500:500));}
+ const mm=RD.modelo({fecha:'2026-11-14',reportes:rs,cfg,catalogo:CATALOGO}).mapa;ok(mm.diasConAmbos===5&&mm.nochePorEncima===3,'mapa: la noche produjo más que el día en 3 de 5 días');}
 // Excel
 let ExcelJS=null;try{ExcelJS=require(require('path').join(process.env.GLX_LIBS||'','node_modules','exceljs'));}catch(_){/* sin ExcelJS: se omite */}
 (async()=>{

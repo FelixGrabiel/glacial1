@@ -23,10 +23,20 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
       { id: '2026-11-17_NOCHE', fecha: '2026-11-17', turno: 'NOCHE', estado: 'FINALIZADO', produccion: [L('Glacial', '3 kg', 2500)], paradas: [], mermas: [] },
       { id: '2026-11-18_DÍA', fecha: '2026-11-18', turno: 'DÍA', estado: 'FINALIZADO', produccion: [L('Glacial', '3 kg', 2200)], paradas: [], mermas: [] }
     ];
+    // Historia de producción (8 días más, noche y día) para la carta de control, la mezcla por marca y el mapa de calor.
+    const marcas = [['Tottus CD', '3 kg'], ['Bell\'s', '3 kg'], ['Cusine & Co', '3 kg'], ['Glacial', '1.5 kg'], ['Rappi', '3 kg'], ['Listo', '1.5 kg']];
+    const nb = [2400, 3100, 2800, 3300, 2900, 2600, 3000, 3200], db = [2200, 2500, 1900, 2800, 2400, 2100, 2600, 1800];
+    for (let i = 0; i < 8; i++) {
+      const n = String(9 + i).padStart(2, '0'), d = String(10 + i).padStart(2, '0');
+      const prod = (b, k) => [L(marcas[(i + k) % 6][0], marcas[(i + k) % 6][1], Math.round(b * 0.6)), L(marcas[(i + k + 2) % 6][0], marcas[(i + k + 2) % 6][1], Math.round(b * 0.4))];
+      R.reportes.push({ id: '2026-11-' + n + '_NOCHE', fecha: '2026-11-' + n, turno: 'NOCHE', estado: 'FINALIZADO', produccion: prod(nb[i], 0), paradas: [], mermas: [] });
+      if (i < 8 && '2026-11-' + d + '_DÍA' !== '2026-11-18_DÍA') R.reportes.push({ id: '2026-11-' + d + '_DÍA', fecha: '2026-11-' + d, turno: 'DÍA', estado: 'FINALIZADO', produccion: prod(db[i], 1), paradas: [], mermas: [] });
+    }
     R.listo = { reportes: true, programacion: true, config: true };
     hlRDFecha('2026-11-19'); hlVista('reporte'); hlRDFecha('2026-11-19');
   });
   await P.waitForSelector('#hl-rd-graficos canvas', { timeout: 6000 });
+  await P.evaluate(() => { window.RD_MODELO = () => glacialHieloReporte.modelo({ fecha: '2026-11-19', dias: Number(document.querySelector('select[aria-label^="Período"]').value) || 14, reportes: glacialHieloDatos.cache.reportes, cfg: glacialHieloDatos.config(), catalogo: PRODUCTOS_HIELO }); window.S_RD = () => Number(document.querySelector('select[aria-label^="Período"]').value); });
   const txt = await P.evaluate(() => document.querySelector('.hl-main').innerText.replace(/\s+/g, ' '));
   ok(await P.evaluate(() => [...document.querySelectorAll('#hl-menu button')].some(b => /Reporte diario/.test(b.innerText) && b.classList.contains('act'))), 'el menú de Hielo tiene «Reporte diario» y queda marcado');
   ok(/11,450\.25 kg/i.test(txt) && /15,110\.00 kg/i.test(txt) && /26,560\.25 kg/i.test(txt), 'tarjetas: noche 11,450.25 kg · día 15,110.00 kg · total del día 26,560.25 kg');
@@ -34,11 +44,17 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(/Semana 47/i.test(txt), 'semana 47');
   ok(await P.evaluate(() => document.querySelectorAll('.hl-rd-t tbody tr').length) === 15, 'la tabla por marca trae las 14 filas del catálogo más el total');
   ok(/RAPPI \(3KG\)/i.test(txt) && /6,165\.25/.test(txt) && /2\.27/.test(txt) && /11147323/.test(txt), 'la tabla muestra Rappi, 6,165.25 kg de Bell\'s, 2.27 paletas y el lote');
-  ok(await P.evaluate(() => document.querySelectorAll('#hl-rd-graficos canvas').length) === 4, 'se dibujan las 4 gráficas');
+  ok(await P.evaluate(() => document.querySelectorAll('#hl-rd-graficos canvas').length) === 7, 'se dibujan las 7 gráficas (capacidad, presentación, semana, paradas, carta de control, mezcla por marca y mapa de calor)');
   ok(await P.evaluate(() => [...document.querySelectorAll('#hl-rd-graficos canvas')].every(c => { const x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height).data; let colores = 0; const vistos = new Set(); for (let i = 0; i < d.length; i += 4000) vistos.add(d[i] + ',' + d[i + 1] + ',' + d[i + 2]); return vistos.size > 2; })), 'las gráficas no están en blanco');
   ok(/Observaciones/i.test(txt) && /ENVASADORA AUTOMATICA/i.test(txt) && /Mark Murayari/i.test(txt) && /21:00/.test(txt), 'observaciones, responsable e ingreso de cada turno');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-reporte-diario.png', fullPage: false });
   if (process.env.GLX_CAPTURAS) await P.locator('#hl-rd-graficos').screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-reporte-graficos.png' });
+  // ---- tendencias nuevas
+  ok(await P.evaluate(() => { const c = RD_MODELO(); return c.control.puntos.length >= 8 && c.control.suficiente && c.control.ucl > c.control.mu && c.marcas.length >= 5 && c.mapa.fechas.length === 14; }), 'el modelo trae carta de control con límites (8 o más días), mezcla por marca y mapa del período');
+    await P.evaluate(() => hlRDDias(7));
+  ok(await P.evaluate(() => S_RD() === 7 && document.querySelector('select[aria-label^="Período"]').value === '7'), 'el selector cambia el período de la mezcla y el mapa a 7 días');
+  ok(await P.evaluate(() => RD_MODELO().mapa.fechas.length === 7), 'con 7 días el mapa tiene 7 columnas');
+  await P.evaluate(() => hlRDDias(14));
   // ---- Excel descargado
   await P.evaluate(() => { window.__blobs = []; const o = URL.createObjectURL.bind(URL); URL.createObjectURL = b => { window.__blobs.push(b); return o(b); }; HTMLAnchorElement.prototype.click = function () { }; window.ExcelJS = window.ExcelJS || ExcelJS; window.cargarScriptExterno = async () => window.ExcelJS; });
   await P.evaluate(() => hlRDExcel());
@@ -47,14 +63,14 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(Buffer.from(b64, 'base64'));
   const ws = wb.getWorksheet('Reporte diario');
   ok(ws.getCell('B5').value === 11450.25 && ws.getCell('B6').value === 15110 && ws.getCell('G5').value === 47, 'Excel descargado: kg de la noche, del día y semana 47');
-  ok(wb.model.media.length === 4 || ws.getImages().length === 4, 'Excel descargado: trae las 4 gráficas como imagen (' + ws.getImages().length + ')');
+  ok(ws.getImages().length === 7, 'Excel descargado: trae las 7 gráficas como imagen (' + ws.getImages().length + ')');
   ok(wb.getWorksheet('Resumen y semana').getCell('A1').value === 'PRODUCCIÓN – PRESENTACIÓN', 'Excel descargado: segunda hoja con el resumen y la semana');
   // ---- Imagen descargada
   await P.evaluate(() => { window.__blobs = []; hlRDImagen(); });
   await P.waitForFunction(() => window.__blobs.length > 0, null, { timeout: 10000 });
   if (process.env.GLX_CAPTURAS) { const png = await P.evaluate(async () => { const b = window.__blobs[0], u = new Uint8Array(await b.arrayBuffer()); let t = ''; u.forEach(x => t += String.fromCharCode(x)); return btoa(t); }); fs.writeFileSync(process.env.GLX_CAPTURAS + '/hielo-reporte-whatsapp.png', Buffer.from(png, 'base64')); }
   const dim = await P.evaluate(async () => { const b = window.__blobs[0], im = await createImageBitmap(b); return { tipo: b.type, w: im.width, h: im.height, bytes: b.size }; });
-  ok(dim.tipo === 'image/png' && dim.w === 2480 && dim.h > 1500 && dim.bytes > 30000, 'imagen para WhatsApp: PNG de ' + dim.w + '×' + dim.h + ' (' + Math.round(dim.bytes / 1024) + ' KB)');
+  ok(dim.tipo === 'image/png' && dim.w === 2480 && dim.h > 2300 && dim.bytes > 30000, 'imagen para WhatsApp: PNG de ' + dim.w + '×' + dim.h + ' (' + Math.round(dim.bytes / 1024) + ' KB)');
   // ---- otro día sin reportes y teléfono
   await P.evaluate(() => hlRDFecha('2026-12-30'));
   ok(await P.evaluate(() => /No hay reportes de la noche del 29\/12\/2026/.test(document.querySelector('.hl-main').innerText) && [...document.querySelectorAll('.hl-main .hl-btn')].filter(b => /Descargar/.test(b.innerText)).every(b => b.disabled)), 'un día sin reportes avisa y desactiva las descargas');
