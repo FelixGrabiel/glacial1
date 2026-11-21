@@ -231,12 +231,19 @@
   const enVista=()=>!!(window.glacialVista&&window.glacialVista.activo&&window.glacialVista.activo());
   const rol=()=>String((usr()&&usr().rol)||'');
   const esAdmin=()=>rol()==='Administrador';
-  /* Permisos propios de Hielo (glacial_50): independientes de los de Agua («paletas»/«planificacion»). Los roles de planta
-     siguen teniendo acceso por defecto (como siempre), pero ya no por tener «paletas» o «planificacion» de Agua: el
-     Administrador puede quitárselo a alguien con «-hielo» / «-programarHielo» sin tocar sus permisos de Agua, ni al revés. */
-  const puedeRegistrar=()=>!!usr()&&!enVista()&&rol()!=='mantenimiento_compartido'&&(esAdmin()||tiene(usr(),'hielo')||(['Jefe de Producción','Jefe de Operaciones','Supervisor','Supervisor de Producción'].includes(rol())&&!tiene(usr(),'-hielo')));
-  const puedeProgramar=()=>!!usr()&&!enVista()&&rol()!=='mantenimiento_compartido'&&(esAdmin()||tiene(usr(),'programarHielo')||(['Jefe de Producción','Planificación','Ventas y Planificación'].includes(rol())&&!tiene(usr(),'-programarHielo')));
-  const puedeConfigurar=()=>!!usr()&&!enVista()&&(esAdmin()||['Jefe de Producción','Jefe de Operaciones','Jefatura','Gerente General','Gerente'].includes(rol()));
+  /* Permisos de Hielo (21/11/2026): siete permisos finos que el Administrador da o quita en Gestión de usuarios (js/nucleo/02b-permisos-hielo.js).
+     El Administrador tiene todos. Los demás: el permiso dado, o el que trae su rol de siempre (nadie pierde acceso por este cambio), salvo que se les haya quitado.
+     El servidor (glacial_66) aplica las mismas reglas a lo que se escribe; ver y descargar se aplican en pantalla. */
+  const HP=()=>window.glacialPermisosHielo||null;
+  const pp=k=>!!usr()&&!!HP()&&HP().permitido(usr(),k);
+  const puedeVer=()=>pp('hieloVer');
+  const puedeRegistrar=()=>!enVista()&&pp('hielo');
+  const puedeCerrar=()=>puedeRegistrar()&&pp('hieloCerrar');
+  const puedeReabrir=()=>puedeRegistrar()&&(esAdmin()||pp('hieloReabrir'));
+  const puedeProgramar=()=>!enVista()&&pp('programarHielo');
+  const puedeConfigurar=()=>!enVista()&&pp('configurarHielo');
+  const puedeExportar=()=>puedeVer()&&pp('hieloExportar');
+  const sinExportar=()=>{if(puedeExportar())return false;S.msg={tipo:'error',texto:'No tienes permiso para descargar ni compartir reportes de Hielo.'};pintar();return true;};
 
   /* ------------------------------------------------------------------ datos */
   const C={reportes:'hieloReportes',programacion:'hieloProgramacion',parametros:'hieloParametros'};
@@ -263,7 +270,8 @@
   function detener(){cierres.splice(0).forEach(c=>{try{c();}catch(_){/* ya cerrada */}});cache.listo={reportes:false,programacion:false,config:false};}
   async function guardarReporte(r,accion,motivo){
     if(!puedeRegistrar())throw new Error('No tienes permiso para registrar producción de hielo.');
-    if(accion==='REABRIR'&&!esAdmin())throw new Error('Solo el Administrador puede reabrir un reporte finalizado.');
+    if(accion==='REABRIR'&&!puedeReabrir())throw new Error('No tienes permiso para reabrir un reporte finalizado.');
+    if(accion==='FINALIZAR'&&!puedeCerrar())throw new Error('No tienes permiso para finalizar reportes de hielo.');
     if(accion==='FINALIZAR'){const e=validarFinalizar(r,config());if(e.length)throw new Error(e.join(' · '));}
     const u=yo(),id=idReporte(r.fecha,r.turno),ref=db.collection(C.reportes).doc(id);
     let doc=null;
@@ -274,7 +282,7 @@
       const propio=previo&&String(previo.actualizadoUid||'')===String(u.uid||'')&&!!u.uid;
       if(previo&&Number(previo.rev)!==Number(r.rev||0)&&!propio)throw Object.assign(new Error('Otra persona guardó este reporte mientras lo editabas. Se cargó su versión: revisa y vuelve a guardar.'),{codigo:'CONFLICTO'});
       if(!previo&&Number(r.rev||0)>0)throw Object.assign(new Error('El reporte ya no existe.'),{codigo:'CONFLICTO'});
-      if(previo&&previo.estado==='FINALIZADO'&&accion!=='REABRIR'&&!esAdmin())throw new Error('El reporte está finalizado: solo el Administrador puede cambiarlo.');
+      if(previo&&previo.estado==='FINALIZADO'&&accion!=='REABRIR'&&!esAdmin())throw new Error('El reporte está finalizado: solo se puede reabrir (quien tenga ese permiso) o lo cambia el Administrador.');
       doc=planGuardar({previo,r,accion,usuario:u.nombre,uid:u.uid,en:ahora(),motivo});
       tx.set(ref,doc);
     });
@@ -303,7 +311,7 @@
         historial:(previo&&previo.historial||[]).concat([{por:u.nombre,en:ahora()}]).slice(-50),actualizadoPor:u.nombre,actualizadoUid:u.uid,actualizadoEn:ahora()}));
     });
   }
-  window.glacialHieloDatos={C,cache,alCambiar:f=>oyentes.push(f),escuchar,detener,guardarReporte,guardarProgramacion,guardarConfig,config,puedeRegistrar,puedeProgramar,puedeConfigurar,esAdmin};
+  window.glacialHieloDatos={C,cache,alCambiar:f=>oyentes.push(f),escuchar,detener,guardarReporte,guardarProgramacion,guardarConfig,config,puedeVer,puedeRegistrar,puedeCerrar,puedeReabrir,puedeProgramar,puedeConfigurar,puedeExportar,esAdmin};
 
   /* ------------------------------------------------------------------ pantalla */
   const esc=s=>String(s===undefined||s===null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -484,8 +492,8 @@
         ${mer?`<table class="hl-ed"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead><tbody>${mer}</tbody></table>`:'<div class="hl-vacio">Sin merma.</div>'}
         ${bloq?'':'<div class="hl-acc" style="margin-top:8px"><button type="button" class="hl-btn o" onclick="hlAgregar(\'mermas\')">+ Agregar merma</button></div>'}</div></div>
       <div class="hl-card"><h3>Observaciones</h3><label class="hl-chk"><input type="checkbox" ${dis} ${r.caidas?'checked':''} onchange="hlDato('caidas',this.checked)"> 🚨 Se viene trabajando por caídas</label><textarea ${dis} rows="3" maxlength="500" oninput="hlDato('observaciones',this.value)">${esc(r.observaciones)}</textarea></div>
-      <div class="hl-acc">${puedeRegistrar()&&!fin?'<button type="button" class="hl-btn o" onclick="hlGuardar(\'GUARDAR\')">Guardar</button><button type="button" class="hl-btn" onclick="hlGuardar(\'FINALIZAR\')">Finalizar reporte</button>':''}
-        ${fin&&esAdmin()?'<button type="button" class="hl-btn o" onclick="hlReabrir()">Reabrir (Administrador)</button>':''}</div>`;
+      <div class="hl-acc">${puedeRegistrar()&&!fin?'<button type="button" class="hl-btn o" onclick="hlGuardar(\'GUARDAR\')">Guardar</button>'+(puedeCerrar()?'<button type="button" class="hl-btn" onclick="hlGuardar(\'FINALIZAR\')">Finalizar reporte</button>':'<span class="hl-sub" style="margin:0">Tu usuario no finaliza reportes.</span>'):''}
+        ${fin&&puedeReabrir()?'<button type="button" class="hl-btn o" onclick="hlReabrir()">'+(esAdmin()?'Reabrir (Administrador)':'Reabrir reporte')+'</button>':''}</div>`;
   }
   /* ---------- Historial ---------- */
   function filtradosHistorial(){
@@ -501,7 +509,7 @@
       <div class="hl-filtros"><label>Desde<input type="date" value="${esc(d)}" onchange="hlSet('hDesde',this.value)"></label><label>Hasta<input type="date" value="${esc(h)}" onchange="hlSet('hHasta',this.value)"></label>
         <label>Turno<select onchange="hlSet('hTurno',this.value)">${opciones(TURNOS,S.hTurno,'Todos')}</select></label><label>Marca<select onchange="hlSet('hMarca',this.value)">${opciones(cfg.marcas,S.hMarca,'Todas')}</select></label></div>
       <div class="hl-card"><div class="hl-acc" style="justify-content:space-between;margin-bottom:8px"><span class="hl-sub" style="margin:0">${lista.length} reporte${lista.length===1?'':'s'} · ${pres.map(p=>fmt(tot.porPres[p]||0)+' bolsas de '+esc(p)).join(' · ')} · ${fmt(tot.kg,1)} kg</span>
-        <button type="button" class="hl-btn o" onclick="hlExcel()" ${lista.length?'':'disabled'}>Descargar Excel</button></div>
+        ${puedeExportar()?`<button type="button" class="hl-btn o" onclick="hlExcel()" ${lista.length?'':'disabled'}>Descargar Excel</button>`:''}</div>
         ${filas?`<table><thead><tr><th>Fecha</th><th>Turno</th><th>Supervisor</th>${pres.map(p=>`<th class="n">Bolsas ${esc(p)}</th>`).join('')}<th class="n">Kg</th><th class="n">Paradas (min)</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table>`:'<div class="hl-vacio">Sin reportes en ese rango.</div>'}</div>`;
   }
   /* ---------- Programación ---------- */
@@ -554,16 +562,17 @@
       <div class="hl-filtros"><label>Fecha<input type="date" value="${esc(S.aFecha)}" onchange="hlAvSet('aFecha',this.value)"></label>
         <label>Turno<select onchange="hlAvSet('aTurno',this.value)">${TURNOS_AV.map(([k,t])=>`<option value="${k}" ${k===S.aTurno?'selected':''}>${t}</option>`).join('')}</select></label></div>
       <div class="hl-card"><h3>Texto para WhatsApp</h3><textarea id="hl-av-texto" readonly rows="16" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.45">${esc(texto)}</textarea>
-        <div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlAvCopiar()">📋 Copiar texto</button><button type="button" class="hl-btn o" onclick="hlAvWsp()">📲 Abrir en WhatsApp</button><button type="button" class="hl-btn o" onclick="hlAvImagen()">🖼 Descargar imagen</button></div>
+        ${puedeExportar()?'<div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlAvCopiar()">📋 Copiar texto</button><button type="button" class="hl-btn o" onclick="hlAvWsp()">📲 Abrir en WhatsApp</button><button type="button" class="hl-btn o" onclick="hlAvImagen()">🖼 Descargar imagen</button></div>':''}
         <p class="hl-sub" style="margin:10px 0 0">Se arma al momento con lo guardado: si falta algo, regístralo en «Nuevo registro» y vuelve aquí. El cierre se marca cuando todos los reportes del turno están finalizados.</p></div>`;
   }
   window.hlAvSet=(k,v)=>{S[k]=v;pintar();};
   window.hlAvCopiar=async()=>{
+    if(sinExportar())return;
     const t=N.textoAvanceCierre(modeloAv());
     try{await navigator.clipboard.writeText(t);ok('Texto copiado. Pégalo en WhatsApp.');}
     catch(_){const a=document.getElementById('hl-av-texto');if(a){a.removeAttribute('readonly');a.select();try{document.execCommand('copy');ok('Texto copiado. Pégalo en WhatsApp.');}catch(e){mal('No se pudo copiar: selecciona el texto y cópialo a mano.');}a.setAttribute('readonly','');}}
   };
-  window.hlAvWsp=()=>{window.open('https://wa.me/?text='+encodeURIComponent(N.textoAvanceCierre(modeloAv())),'_blank','noopener');};
+  window.hlAvWsp=()=>{if(sinExportar())return;window.open('https://wa.me/?text='+encodeURIComponent(N.textoAvanceCierre(modeloAv())),'_blank','noopener');};
   /** Imagen PNG del avance o cierre: encabezado, bolsas por presentación, totales, paradas y merma. */
   /** Imagen PNG con el mismo estilo que la del Avance de Agua: cabecera oscura, tarjeta por estación, resumen y pie. */
   function dibujarImagen(m){
@@ -629,6 +638,7 @@
   /* Expuesta para el bot de WhatsApp (proyecto glacial-whatsapp › servicio-hielo.js): dibuja la MISMA imagen que «Descargar imagen», así no hay una copia que mantener. Solo lectura. */
   N.dibujarImagen=dibujarImagen;
   window.hlAvImagen=()=>{
+    if(sinExportar())return;
     try{
       const m=modeloAv(),c=dibujarImagen(m);
       c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='hielo-'+m.tipo.toLowerCase()+'-'+m.fecha+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);ok('Imagen descargada.');},'image/png');
@@ -657,7 +667,7 @@
       <div class="hl-card"><div class="hl-acc" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><span style="display:flex;gap:12px;flex-wrap:wrap"><label>Reporte de<select onchange="hlRDTurno(this.value)" aria-label="Turno del reporte">${[['AMBOS','Día de producción (noche + día)'],['NOCHE','Solo turno noche'],['DIA','Solo turno día']].map(([k,t])=>`<option value="${k}" ${(S.rTurno||'AMBOS')===k?'selected':''}>${t}</option>`).join('')}</select></label>
           <label>${solo?'Fecha del turno':'Día de producción'}<input type="date" value="${esc(f)}" onchange="hlRDFecha(this.value)" aria-label="Día de producción"></label>
           <label>Período de la mezcla y el mapa<select onchange="hlRDDias(this.value)" aria-label="Período de la mezcla por marca y el mapa de calor">${[7,14,21].map(n=>`<option value="${n}" ${(S.rDias||14)===n?'selected':''}>Últimos ${n} días</option>`).join('')}</select></label></span>
-        <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="hl-btn" onclick="hlRDExcel()" ${m.hayDatos?'':'disabled'}>Descargar Excel</button><button type="button" class="hl-btn o" onclick="hlRDImagen()" ${m.hayDatos?'':'disabled'}>Descargar imagen</button><button type="button" class="hl-btn" style="background:#1fa855;border-color:#1fa855;color:#fff" onclick="hlRDCompartir('img')" ${m.hayDatos?'':'disabled'}>Compartir imagen por WhatsApp</button><button type="button" class="hl-btn" style="background:#1fa855;border-color:#1fa855;color:#fff" onclick="hlRDCompartir('xlsx')" ${m.hayDatos?'':'disabled'}>Compartir Excel por WhatsApp</button></span></div></div>
+        ${puedeExportar()?`<span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="hl-btn" onclick="hlRDExcel()" ${m.hayDatos?'':'disabled'}>Descargar Excel</button><button type="button" class="hl-btn o" onclick="hlRDImagen()" ${m.hayDatos?'':'disabled'}>Descargar imagen</button><button type="button" class="hl-btn" style="background:#1fa855;border-color:#1fa855;color:#fff" onclick="hlRDCompartir('img')" ${m.hayDatos?'':'disabled'}>Compartir imagen por WhatsApp</button><button type="button" class="hl-btn" style="background:#1fa855;border-color:#1fa855;color:#fff" onclick="hlRDCompartir('xlsx')" ${m.hayDatos?'':'disabled'}>Compartir Excel por WhatsApp</button></span>`:''}</div></div>
       ${m.hayDatos?'':`<div class="hl-msg i">${solo?`No hay reporte del turno ${nomT} del ${esc(fechaTxt(v==='NOCHE'?m.fNoche:f))}.`:`No hay reportes de la noche del ${esc(fechaTxt(m.fNoche))} ni del día del ${esc(fechaTxt(f))}.`}</div>`}
       <div class="hl-kpis">${kpis}</div>
       <div class="hl-card"><h3 style="margin:0 0 8px">Reporte de personal</h3><div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Turno</th><th>Ingreso</th><th>Salida</th><th>Jornada</th><th>Responsable</th></tr></thead><tbody>${v!=='DIA'?turnoFila(m.noche,'NOCHE'):''}${v!=='NOCHE'?turnoFila(m.dia,'DÍA'):''}</tbody></table></div></div>
@@ -688,16 +698,19 @@
   }
   function rdBajar(blob,nombre){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
   window.hlRDExcel=async()=>{
+    if(sinExportar())return;
     try{const f=S.rFecha||hoy();rdBajar(await rdBlobExcel(f),nombreRD(f,'xlsx'));ok('Excel generado.');}
     catch(e){mal('No se pudo generar el Excel: '+((e&&e.message)||e));}
   };
   window.hlRDImagen=async()=>{
+    if(sinExportar())return;
     try{const f=S.rFecha||hoy();rdBajar(await rdBlobImagen(f),nombreRD(f,'png'));ok('Imagen generada.');}
     catch(e){mal('No se pudo generar la imagen: '+((e&&e.message)||e));}
   };
   /* Compartir por WhatsApp. En el celular abre el menú de compartir del teléfono con el archivo (se elige WhatsApp y el chat).
      En el computador (o si el menú no está disponible) descarga el archivo y abre WhatsApp con el resumen para que se adjunte. */
   window.hlRDCompartir=async tipo=>{
+    if(sinExportar())return;
     try{
       const f=S.rFecha||hoy(),img=tipo!=='xlsx',nombre=nombreRD(f,img?'png':'xlsx'),texto=RD().resumenTexto(modeloReporte(f));
       const blob=img?await rdBlobImagen(f):await rdBlobExcel(f),archivo=new File([blob],nombre,{type:blob.type||(img?'image/png':XLSX_MIME)});
@@ -802,6 +815,7 @@
       pesos:mapa('data-hl-peso'),bolsasPorPaleta:mapa('data-hl-paleta'),capacidadTurnoKg:(document.getElementById('hl-c-capacidad')||{}).value});ok('Configuración guardada.');}catch(e){mal(e);}
   };
   window.hlExcel=async()=>{
+    if(sinExportar())return;
     try{
       const lista=filtradosHistorial();
       const ExcelJS=typeof cargarScriptExterno==='function'?await cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS'):window.ExcelJS;
@@ -821,6 +835,7 @@
     }catch(e){mal('No se pudo generar el Excel: '+((e&&e.message)||e));}
   };
   function abrir(){
+    if(!puedeVer()){alert('No tienes permiso para ver Hielo. Pídelo a un Administrador.');return;}
     const sel=document.getElementById('report-select-screen'),app=document.getElementById('app-screen');
     S.desdeAgua=!!(app&&app.style.display!=='none'&&getComputedStyle(app).display!=='none');      // se abrió con el botón del Reporte Agua
     if(sel)sel.style.display='none';if(app)app.style.display='none';

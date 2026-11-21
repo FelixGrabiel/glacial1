@@ -97,6 +97,7 @@ ok(/S\.desdeAgua=/.test(js)&&/Volver a Reporte Agua/.test(js),'desde Hielo se vu
         if(Object.keys(leido).some(k=>(docs[k]?docs[k].__v:0)!==leido[k]))continue;      // otro guardó entre medio: reintento
         w.forEach(([r,d])=>{docs[r.k]=Object.assign(JSON.parse(JSON.stringify(d)),{__v:++ver});});return res;}
         throw new Error('aborted');}};
+    vm.runInContext(leer('js/nucleo/02b-permisos-hielo.js'),sb);                       // permisos de Hielo (index.html los carga antes)
     vm.runInContext(leer('js/hielo/97-hielo.js'),sb);
     return {D:sb.glacialHieloDatos,docs,sb};
   }
