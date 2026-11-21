@@ -62,8 +62,11 @@
     const origen=c.origen==='humano'?'Corregido por una persona':c.origen==='imagen'?'Leído de la foto':'Ajustado por la regla «'+c.origen.replace('regla:','')+'»';
     const acciones=edit?`${sin?`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ieConfirmar('${def.campo}')" title="El dato es correcto tal como está">Confirmar</button>`:''}
       ${c.valor_sugerido!==undefined&&sin?`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ieSugerido('${def.campo}')" title="Usar ${esc(c.valor_sugerido)}">Usar ${esc(def.tipo==='fecha'?N.fechaPantalla(c.valor_sugerido):c.valor_sugerido)}</button>`:''}`:'';
+    const AY={cantidad_valor:'Solo el número, sin la unidad.',cantidad_unidad:'Aquí va la unidad (UND, millares, kg…), no un número.'};
+    const entrada=def.campo==='cantidad_unidad'?`<select class="ie-in" data-campo="${def.campo}" onchange="ieCampo('${def.campo}',this.value)" ${dis} aria-label="${esc(def.etiqueta)}"><option value="" ${String(valor)===''?'selected':''}>— elige la unidad —</option>${N.opcionesUnidad(valor).map(u=>`<option value="${esc(u)}" ${String(valor).toUpperCase()===u?'selected':''}>${esc(u)}${N.UNIDADES_CANTIDAD.includes(u)?'':' (corrígela)'}</option>`).join('')}</select>`
+      :`<input class="ie-in" type="${tipo}" ${tipo==='number'?'step="any" min="0" inputmode="decimal"':''} value="${esc(valor)}" data-campo="${def.campo}" oninput="ieCampo('${def.campo}',this.value)" ${dis} aria-label="${esc(def.etiqueta)}">`;
     return `<tr class="ie-f ${sin?'ie-f-dudoso':''}"><th scope="row">${esc(def.etiqueta)}${c.literal!==null&&c.literal!==undefined&&String(c.literal)!==String(c.valor)?`<small>La IA leyó: «${esc(c.literal)}»</small>`:''}</th>
-      <td><input class="ie-in" type="${tipo}" ${tipo==='number'?'step="any" min="0" inputmode="decimal"':''} value="${esc(valor)}" data-campo="${def.campo}" oninput="ieCampo('${def.campo}',this.value)" ${dis} aria-label="${esc(def.etiqueta)}">
+      <td>${entrada}${AY[def.campo]?`<small class="ii-mut ie-ayuda">${AY[def.campo]}</small>`:''}
         ${def.tipo==='fecha'&&valor?`<small class="ii-mut">${esc(N.fechaPantalla(String(valor)))}</small>`:''}${acciones?`<div class="ie-ac">${acciones}</div>`:''}</td>
       <td><span class="ii-pill ${claseEstado}" title="${esc(origen)}"><i></i>${estadoTxt}</span><small class="ii-mut ie-or">${esc(origen)}</small></td></tr>
       ${c.duda?`<tr class="ie-duda"><td colspan="3"><b>Verificar contra la foto:</b> ${esc(c.duda)}</td></tr>`:''}`;
@@ -123,10 +126,18 @@
     const st=S.calc[d.id]||{},kg0=valorCampo(d,'peso_neto_kg')!==''?valorCampo(d,'peso_neto_kg'):valorCampo(d,'peso_declarado_kg');
     const kg=st.kg!==undefined?st.kg:String(kg0);
     const r=st.desde==='und'?N.convertir({gramos:o.gramos,und:st.und}):N.convertir({gramos:o.gramos,kg});
-    const cantEt=valorCampo(d,'cantidad_valor'),uEt=String(valorCampo(d,'cantidad_unidad')||'').toUpperCase();
-    const dif=r.und!==null&&/^(UND|UNIDAD|UNIDADES|U)$/.test(uEt)?N.diferenciaPct(r.und,cantEt):null;
-    const comp=dif===null?'':`La etiqueta dice <b>${esc(fmtN(cantEt,0))} UND</b> · diferencia <b class="${Math.abs(dif)>2?'ie-calc-mal':'ie-calc-ok'}">${dif>0?'+':''}${esc(fmtN(dif,1))} %</b>${Math.abs(dif)>2?' (revisa la cantidad o el peso)':''}`;
-    return {kg:st.desde==='und'?(r.kg===null?'':r.kg):kg,und:st.desde==='und'?(st.und||''):(r.und===null?'':r.und),comp};
+    const cantEt=valorCampo(d,'cantidad_valor'),uEt=String(valorCampo(d,'cantidad_unidad')||'').toUpperCase().trim();
+    // La cantidad de la etiqueta se pasa a UND para comparar: UND tal cual; MILLARES × 1000.
+    const factor=/^(UND|UNIDAD|UNIDADES|U)$/.test(uEt)?1:/^(MILLAR|MILLARES|MILL)$/.test(uEt)?1000:0,cantN=Number(String(cantEt).replace(',','.')),cantUnd=factor&&cantN>0?cantN*factor:null;
+    const dif=r.und!==null&&cantUnd!==null?N.diferenciaPct(r.und,cantUnd):null;
+    const comp=dif===null?'':Math.abs(dif)<=2?`<span class="ie-calc-ok">✔ Coincide con la etiqueta (${esc(fmtN(cantUnd,0))} UND).</span>`
+      :`<span class="ie-calc-mal">⚠ La etiqueta dice <b>${esc(fmtN(cantUnd,0))} UND</b> y el cálculo da <b>${esc(fmtN(r.und,0))} UND</b> (${dif>0?'+':''}${esc(fmtN(dif,1))} %). Revisa que el peso y la cantidad estén bien escritos.</span>`;
+    const kgV=st.desde==='und'?(r.kg===null?'':r.kg):kg,undV=st.desde==='und'?(st.und||''):(r.und===null?'':r.und);
+    const kgN=Number(String(kgV).replace(',','.')),undN=Number(String(undV).replace(',','.'));
+    const hay=kgN>0&&undN>0;
+    const res=hay?`<b>${esc(fmtN(kgN,3))} kg ≈ ${esc(fmtN(Math.round(undN),0))} UND</b>`:'<span class="ii-mut">Escribe los kilos (o las unidades) y aquí aparece el resultado.</span>';
+    const boton=hay&&editable(d)?`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ieUsarCalc()">Poner ${esc(fmtN(Math.round(undN),0))} UND en «Cantidad»</button> <small class="ii-mut">Queda como borrador: pulsa «Guardar cambios» o «Confirmar».</small>`:'';
+    return {kg:kgV,und:undV,comp,res,boton};
   }
   function calculadoraHtml(d){
     const o=opcionesCalc(d),r=resultadoCalc(d,o);
@@ -143,20 +154,29 @@
       fuente=(!o.hayGuardadas?'':o.lineas.length?`<div class="ie-top"><label class="ii-campo"><span>Línea</span><select class="ie-in" onchange="ieCalc('linea',this.value)">${o.lineas.map(l=>`<option ${l===o.linea?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
       <div class="ii-campo"><span>Conversión</span>${conv}</div></div>`:conv)+manHtml;
     }
-    const ok=!!o.gramos;
-    return `<details class="ie-calc" ${S.calc.abierta?'open':''} ontoggle="ieCalc('abierta',this.open)"><summary><b>Calculadora de conversión</b> <small class="ii-mut">kg ↔ UND</small></summary>
+    const ok=!!o.gramos,st0=S.calc[d.id]||{};
+    // Con una conversión guardada se muestra solo un resumen; las listas (línea, conversión, a mano) salen con «Cambiar».
+    if(!o.preforma&&!o.manual&&o.op&&!st0.cambiar)fuente=`<p class="ie-calc-conv">Conversión usada: <b>${esc(o.op.items.join(', '))} · 1 UND = ${esc(fmtN(o.gramos,4))} g</b> <button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ieCalc('cambiar',1)">Cambiar</button></p>`;
+    else if(!o.preforma&&st0.cambiar&&o.op)fuente+=`<p><button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ieCalc('cambiar',0)">Listo, usar esta conversión</button></p>`;
+    return `<details class="ie-calc" ${S.calc.abierta?'open':''} ontoggle="ieCalc('abierta',this.open)"><summary><b>🧮 Calculadora: kilos ↔ unidades</b></summary>
+      <p class="ie-calc-guia">Escribe los <b>kilos</b> y te dice cuántas <b>unidades (UND)</b> son, o al revés: el otro cuadro se llena solo.</p>
       ${fuente}
       <div class="ie-calc-io"><label class="ii-campo"><span>Kilos</span><input id="ie-calc-kg" class="ie-in" type="number" min="0" step="any" inputmode="decimal" value="${esc(r.kg)}" oninput="ieCalc('kg',this.value)" ${ok?'':'disabled'} aria-label="Kilos"></label>
         <span class="ie-calc-eq" aria-hidden="true">⇄</span>
         <label class="ii-campo"><span>Unidades (UND)</span><input id="ie-calc-und" class="ie-in" type="number" min="0" step="1" inputmode="numeric" value="${esc(r.und)}" oninput="ieCalc('und',this.value)" ${ok?'':'disabled'} aria-label="Unidades"></label></div>
+      <p class="ie-calc-res" id="ie-calc-res">${r.res}</p>
       <p class="ie-calc-comp" id="ie-calc-comp">${r.comp}</p>
+      <div id="ie-calc-btn">${r.boton}</div>
       <p class="ii-mut ie-calc-nota"><span id="ie-calc-eqn">${ok&&!o.manual?`1 UND = ${esc(fmtN(o.gramos,4))} g. `:''}</span>Solo calcula: no cambia los datos de la evidencia. El peso puede incluir el empaque.</p></details>`;
   }
+  /* «Poner N UND en Cantidad»: pasa el resultado de la calculadora al borrador de «Cantidad» y «Unidad» (no guarda hasta «Guardar cambios» o «Confirmar»). */
+  window.ieUsarCalc=()=>{const d=docActual();if(!d||!editable(d))return;const r=resultadoCalc(d,opcionesCalc(d)),n=Math.round(Number(String(r.und).replace(',','.')));if(!(n>0))return;const b=borrador();b.cantidad_valor=String(n);b.cantidad_unidad='UND';repintar();};
   const equivTexto=g=>'1 UND = '+fmtN(g,4)+' g · 1 kg ≈ '+fmtN(1000/g,1)+' UND';
   window.ieCalc=(k,v)=>{
     const d=docActual();if(!d)return;
     if(k==='abierta'){S.calc.abierta=!!v;return;}
     const st=S.calc[d.id]||(S.calc[d.id]={});
+    if(k==='cambiar'){st.cambiar=!!Number(v);repintar();return;}
     if(k==='linea'){st.linea=v;st.op=0;repintar();return;}
     if(k==='op'){if(v==='m'){st.modo='manual';}else{st.modo='guardada';st.op=Number(v)||0;}repintar();return;}
     if(k==='manModo'||k==='manValor'){
@@ -174,6 +194,8 @@
     if(k!=='kg'&&$('ie-calc-kg'))$('ie-calc-kg').value=r.kg;
     if(k!=='und'&&$('ie-calc-und'))$('ie-calc-und').value=r.und;
     if($('ie-calc-comp'))$('ie-calc-comp').innerHTML=r.comp;
+    if($('ie-calc-res'))$('ie-calc-res').innerHTML=r.res;
+    if($('ie-calc-btn'))$('ie-calc-btn').innerHTML=r.boton;
     ['ie-calc-kg','ie-calc-und'].forEach(id=>{if($(id))$(id).disabled=!o.gramos;});
     if($('ie-calc-eqn'))$('ie-calc-eqn').textContent=o.gramos&&!o.manual?'1 UND = '+fmtN(o.gramos,4)+' g. ':'';
     if($('ie-calc-man-eq'))$('ie-calc-man-eq').textContent=o.gramos?equivTexto(o.gramos):'Escribe la conversión que indica la ficha o la etiqueta del proveedor.';
@@ -386,7 +408,7 @@
 .ie-foto{max-width:100%;max-height:68vh;object-fit:contain;transition:transform .15s}
 .ie-calc{margin:14px 0;border:1px solid #cfe0ea;border-radius:10px;padding:10px 12px;background:#f6fafc}.ie-calc summary{cursor:pointer;color:#033350;font-size:14px}
 .ie-calc[open] summary{margin-bottom:10px}.ie-calc-io{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end;margin-top:8px}.ie-calc-eq{font-size:20px;color:#5b7a8c;padding-bottom:8px}
-.ie-calc-comp{margin:8px 0 0;font-size:13.5px}.ie-calc-ok{color:#166534}.ie-calc-mal{color:#b42318}.ie-calc-nota{font-size:12px;margin:6px 0 0}.ie-calc-sin{display:block;padding:8px 0}.ie-calc-man{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}@media(max-width:520px){.ie-calc-man{grid-template-columns:1fr}}
+.ie-calc-guia,.ie-calc-conv{margin:0 0 8px;font-size:13.5px}.ie-calc-res{margin:10px 0 0;font-size:17px}#ie-calc-btn{margin-top:6px}.ie-ayuda{display:block;margin-top:3px}.ie-calc-comp{margin:8px 0 0;font-size:13.5px}.ie-calc-ok{color:#166534}.ie-calc-mal{color:#b42318}.ie-calc-nota{font-size:12px;margin:6px 0 0}.ie-calc-sin{display:block;padding:8px 0}.ie-calc-man{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}@media(max-width:520px){.ie-calc-man{grid-template-columns:1fr}}
 .ie-top{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}.ie-g{margin:14px 0 6px;font-size:14px;color:#033350}
 .ie-t{width:100%;border-collapse:collapse;font-size:14px}.ie-t{table-layout:fixed}.ie-t th{text-align:left;text-transform:none;letter-spacing:0;font-size:14px;color:#033350;background:transparent;font-weight:600;width:30%;padding:7px 8px 7px 0;vertical-align:top}.ie-t th small{display:block;font-weight:400;color:var(--ii-mut);font-size:11.5px;overflow-wrap:anywhere}
 .ie-t td{padding:5px 6px;vertical-align:top;border-top:1px solid #edf2f7}.ie-f-dudoso td,.ie-f-dudoso th{background:#fff7f6}.ie-or{display:block;font-size:11px}.ie-ac{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
