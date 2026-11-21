@@ -117,7 +117,7 @@
       if(F.equipo==='__sin__'?!!d.equipoId:(F.equipo&&d.equipoId!==F.equipo))return false;
       if(F.tecnico&&!(d.participantes||[]).some(p=>p.nombre===F.tecnico))return false;
       if(d.abiertaMs<desde||d.abiertaMs>hasta)return false;
-      if(q&&!norm([d.problema,d.equipoNombre,d.diagnostico,d.accion,d.pendientes,(d.participantes||[]).map(p=>p.nombre).join(' ')].join(' ')).includes(q))return false;
+      if(q&&!(window.glacialBusqueda?window.glacialBusqueda.coincide([d.problema,d.equipoNombre,d.diagnostico,d.accion,d.pendientes,(d.participantes||[]).map(p=>p.nombre).join(' ')],q):norm([d.problema,d.equipoNombre,d.diagnostico,d.accion,d.pendientes,(d.participantes||[]).map(p=>p.nombre).join(' ')].join(' ')).includes(q)))return false;
       return true;
     }).sort((a,b)=>(M.estaAbierta(b.estado)-M.estaAbierta(a.estado))||(b.abiertaMs-a.abiertaMs));
   }

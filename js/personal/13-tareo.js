@@ -4361,7 +4361,8 @@ function tareoFiltrarPersonal(valor) {
 
         fila.style.display =
             !filtro ||
-            fila.getAttribute('data-tareo-buscar').includes(filtro)
+            fila.getAttribute('data-tareo-buscar').includes(filtro) ||
+            (window.glacialBusqueda && window.glacialBusqueda.coincide(fila.getAttribute('data-tareo-buscar'), filtro))
                 ? ''
                 : 'none';
     });
@@ -5604,7 +5605,7 @@ function renderFilaPersonalTareo(
         );
 
     const oculta =
-        filtro && !textoBusqueda.includes(filtro)
+        filtro && !textoBusqueda.includes(filtro) && !(window.glacialBusqueda && window.glacialBusqueda.coincide(textoBusqueda, filtro))
             ? 'display:none;'
             : '';
 
@@ -6523,12 +6524,13 @@ function tareoHistorialCoincide(tareo, f) {
     if (q) {
 
         const porPersona = (tareo.personal || []).some(p =>
-            tareoNormalizarTexto([p.nombre, p.dni, p.cargo, p.linea].join(' ')).includes(q)
+            tareoNormalizarTexto([p.nombre, p.dni, p.cargo, p.linea].join(' ')).includes(q) ||
+            !!(window.glacialBusqueda && window.glacialBusqueda.coincide([p.nombre, p.dni, p.cargo, p.linea], q))
         );
 
         const porCreador = tareoNormalizarTexto(
             [tareo.creadoPorNombre, tareo.creadoPor].join(' ')
-        ).includes(q);
+        ).includes(q) || !!(window.glacialBusqueda && window.glacialBusqueda.coincide([tareo.creadoPorNombre, tareo.creadoPor], q));
 
         if (!porPersona && !porCreador) return false;
     }
@@ -7918,7 +7920,7 @@ function tareoGeneralDatos() {
         if (asistencia && tareoEtiquetaEstado(persona.asistencia) !== asistencia) return false;
         if (linea && String(persona.linea || 'Sin línea') !== linea) return false;
         if (cargo && String(persona.cargo || 'Sin cargo') !== cargo) return false;
-        if (q && !tareoNormalizarTexto([persona.nombre, persona.dni].join(' ')).includes(q)) return false;
+        if (q && !tareoNormalizarTexto([persona.nombre, persona.dni].join(' ')).includes(q) && !(window.glacialBusqueda && window.glacialBusqueda.coincide([persona.nombre, persona.dni], q))) return false;
 
         return true;
     });
@@ -10277,7 +10279,8 @@ function tareoResumenFiltrar(resumen) {
     if (!q) return resumen;
 
     return resumen.filter(item =>
-        tareoNormalizarTexto([item.nombre, item.dni, item.cargo, item.linea].join(' ')).includes(q)
+        tareoNormalizarTexto([item.nombre, item.dni, item.cargo, item.linea].join(' ')).includes(q) ||
+        !!(window.glacialBusqueda && window.glacialBusqueda.coincide([item.nombre, item.dni, item.cargo, item.linea], q))
     );
 }
 

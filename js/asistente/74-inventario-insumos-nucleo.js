@@ -38,6 +38,7 @@
   };
   /* Mayúsculas sin tildes, espacios simples: solo para COMPARAR. */
   const norm=v=>String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  const coin=(h,q)=>{const B=(typeof window!=='undefined'&&window.glacialBusqueda)||(typeof require==='function'?require('../nucleo/04b-busqueda.js'):null);return B?B.coincide(h,q):norm(Array.isArray(h)?h.join(' '):h).includes(norm(q));};   // búsqueda común (js/nucleo/04b-busqueda.js)
   /* Redondeo sin residuos de coma flotante (SAP trae valores como 0.090909). */
   function red(v,dec){
     const n=num(v),f=Math.pow(10,dec===undefined?2:dec);
@@ -331,7 +332,7 @@
       if(f.categoria&&x.categoria!==f.categoria)return false;
       if(f.marca==='__sin'){if(x.marca)return false;}else if(f.marca&&x.marca!==f.marca)return false;
       if(f.soloBajoMinimo&&!(x.semaforo==='rojo'))return false;
-      if(t&&!(norm(x.nombre).includes(t)||norm(x.itemCode).includes(t)||norm(x.codigo).includes(t)))return false;
+      if(t&&!coin([x.nombre,x.itemCode,x.codigo],t))return false;
       return true;
     });
   }
@@ -412,7 +413,7 @@
       if(f.activos!==false&&c.activo===false)return false;
       if(f.prioritarios&&!c.prioritario)return false;
       if(f.categoria&&c.categoria!==f.categoria)return false;
-      if(t&&!(norm(c.nombre).includes(t)||norm(c.itemCode).includes(t)||norm(c.codigo).includes(t)))return false;
+      if(t&&!coin([c.nombre,c.itemCode,c.codigo],t))return false;
       return true;
     }).map(c=>{
       const x=totales.porItem.get(c.id);
@@ -596,7 +597,7 @@
   function filtrarAuditoria(eventos,f){
     f=f||{};const t=norm(f.texto||'');
     return (eventos||[]).filter(e=>(!f.grupo||grupoAuditoria(e.tipo)===f.grupo)&&(!f.tipo||e.tipo===f.tipo)&&(!f.usuario||e.usuario===f.usuario)&&(!f.conteoId||e.conteoId===f.conteoId)
-      &&(!t||norm(e.articulo).includes(t)||norm(e.itemId).includes(t)||norm(resumenAuditoria(e)).includes(t)));
+      &&(!t||coin([e.articulo,e.itemId,resumenAuditoria(e)],t)));
   }
   const ordenAuditoria=l=>(l||[]).slice().sort((a,b)=>num(b.enMs)-num(a.enMs));
 

@@ -372,7 +372,7 @@
   function filtrarHistorial(registros,maquinas,f){
     const o=f||{},orden=new Map((maquinas||[]).map(m=>[m.id,num(m.orden)])),q=sinTildes(o.texto||'').trim();
     return (registros||[]).filter(r=>(!o.maquinaId||r.maquina_id===o.maquinaId)&&(!o.semana||r.semana===Number(o.semana))&&(!o.estado||r.estado===o.estado)&&
-      (!q||sinTildes(r.tecnico_senior+' '+r.maquinista).includes(q))).sort((a,b)=>b.anio-a.anio||b.semana-a.semana||(orden.get(a.maquina_id)||0)-(orden.get(b.maquina_id)||0));
+      (!q||(()=>{const B=(typeof window!=='undefined'&&window.glacialBusqueda)||(typeof require==='function'?require('../nucleo/04b-busqueda.js'):null);return B?B.coincide([r.tecnico_senior,r.maquinista],q):sinTildes(r.tecnico_senior+' '+r.maquinista).includes(q);})())).sort((a,b)=>b.anio-a.anio||b.semana-a.semana||(orden.get(a.maquina_id)||0)-(orden.get(b.maquina_id)||0));
   }
   /** Conteo por estado, para las etiquetas del filtro. */
   function conteoEstados(registros){const c={PENDIENTE:0,EN_CURSO:0,CERRADO:0,VALIDADO:0};(registros||[]).forEach(r=>{if(c[r.estado]!==undefined)c[r.estado]++;});return c;}

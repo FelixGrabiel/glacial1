@@ -290,7 +290,7 @@
     const delDoc=!!(cache.listo&&cache.doc);
     if(!UI.sel||!G.some(g=>g.item===UI.sel))UI.sel=G.length?G[0].item:'';
     const b=UI.buscar.trim().toLowerCase();
-    const items=G.filter(g=>!b||g.item.toLowerCase().includes(b)).map(g=>{
+    const items=G.filter(g=>!b||g.item.toLowerCase().includes(b)||(window.glacialBusqueda&&window.glacialBusqueda.coincide(g.item,UI.buscar))).map(g=>{
       const cambios=L.filter(x=>x.item===g.item&&x.origen==='manual').length;
       return `<button type="button" class="cv-it ${g.item===UI.sel?'cv-act':''}" onclick="cvSel(${esc(JSON.stringify(g.item))})"><b>${esc(g.item)}</b><small>${esc(g.lineas.join(', '))}${cambios?` · ${cambios} cambio${cambios===1?'':'s'}`:''}</small></button>`;
     }).join('')||'<div class="cv-nota">Sin resultados.</div>';

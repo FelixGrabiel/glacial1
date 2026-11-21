@@ -109,7 +109,7 @@
   function filtrarAuditoria(filas,f){
     f=f||{};const q=txt(f.texto).trim().toLowerCase();
     return filas.filter(x=>(!f.modulo||f.modulo==='Todos'||x.modulo===f.modulo)&&(!f.quien||f.quien==='Todos'||x.quien===f.quien)&&
-      (!q||[x.accion,x.quien,x.modulo,x.motivo,x.antes,x.despues].join(' ').toLowerCase().includes(q)));
+      (!q||(()=>{const B=(typeof window!=='undefined'&&window.glacialBusqueda)||(typeof require==='function'?require('../nucleo/04b-busqueda.js'):null);const h=[x.accion,x.quien,x.modulo,x.motivo,x.antes,x.despues];return B?B.coincide(h,q):h.join(' ').toLowerCase().includes(q);})()));
   }
 
   /* ---------- usuarios y permisos ---------- */

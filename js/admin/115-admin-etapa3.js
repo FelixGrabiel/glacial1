@@ -53,7 +53,7 @@
   function trabajadoresHtml(){
     arrancar();
     const lista=trabajadores(),q=S.tq.trim().toLowerCase();
-    const vis=lista.filter(w=>(S.tarea==='Todas'||String(w.area||'')===S.tarea)&&(S.testado==='Todos'||(w.estado||'Activo')===S.testado)&&(!q||[w.nombre,w.dni,w.cargo].join(' ').toLowerCase().includes(q)));
+    const vis=lista.filter(w=>(S.tarea==='Todas'||String(w.area||'')===S.tarea)&&(S.testado==='Todos'||(w.estado||'Activo')===S.testado)&&(!q||(window.glacialBusqueda?window.glacialBusqueda.coincide([w.nombre,w.dni,w.cargo],q):[w.nombre,w.dni,w.cargo].join(' ').toLowerCase().includes(q))));
     const areas=['Todas',...new Set(lista.map(w=>w.area).filter(Boolean))];
     const act=lista.filter(w=>(w.estado||'Activo')!=='Inactivo').length;
     const cambios=Object.keys(S.borr).length;

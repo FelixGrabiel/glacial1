@@ -165,7 +165,8 @@
   }
   function filasVisibles(mod){
     const t=N.norm(K.texto||'');
-    return mod.conc.filas.filter(f=>(!K.estado||f.estado===K.estado)&&(!t||N.norm(f.nombre).includes(t)||N.norm(f.itemCode).includes(t)||N.norm(f.codigo).includes(t)));
+    const B=window.glacialBusqueda;
+    return mod.conc.filas.filter(f=>(!K.estado||f.estado===K.estado)&&(!t||(B?B.coincide([f.nombre,f.itemCode,f.codigo],t):(N.norm(f.nombre).includes(t)||N.norm(f.itemCode).includes(t)||N.norm(f.codigo).includes(t)))));
   }
   function tarjetas(r){
     const t=(cls,titulo,v,e)=>`<button type="button" class="ii-kpi ii-kb ${cls} ${K.estado===e?'ii-kb-act':''}" onclick="iiqEstado('${e}')"><span>${esc(titulo)}</span><b>${fmt(v,0)}</b></button>`;
