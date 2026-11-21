@@ -268,6 +268,12 @@
       <button class="modal-close" onclick="ilCerrar()" aria-label="Cerrar">✕</button></div><div class="modal-body">${cuerpo}<div class="ii-msg ii-msg-error" id="il-m-error" hidden></div></div></div></div>`;
   }
   const errorModal=t=>{const e=document.getElementById('il-m-error');if(e){e.hidden=!t;e.textContent=t||'';}};
+  /* Desde «Otras fotos del mismo lote»: cierra la ventana y abre esa foto para confirmar sus datos (después se crea su lote y se suma al mismo). */
+  window.ilRevisarFoto=id=>{
+    window.ilCerrar();const U=window.iiEvidenciasUI;
+    if(typeof window.ieSel==='function')window.ieSel(id);
+    if(U&&typeof U.aviso==='function')U.aviso('info','Confirma o corrige los datos marcados y pulsa «Confirmar y crear lote»: esta foto se suma al mismo lote.');
+  };
   window.ilCerrar=()=>{S.crear=null;S.articulo=null;if(typeof closeModal==='function')closeModal();else{const r=raiz();if(r)r.innerHTML='';}};
 
   /** Qué pasaría al crear: lote nuevo o unidad en un lote existente, duplicado, leyenda y errores. Puro sobre la caché. */
@@ -332,8 +338,8 @@
     const comp=companerasDe(d,g);S.crear.companeras=comp.filter(c=>!c.errores.length).map(c=>({id:c.doc.id,rev:c.doc.rev}));
     const uf=T.unidadFisica(g.datos.categoria);
     const compHtml=comp.length?`<fieldset class="il-art il-comp"><legend>Otras fotos del mismo lote ${esc(g.datos.loteProveedor)} (${comp.length})</legend>
-      <p class="ii-mut">Estas fotos tienen el mismo lote del proveedor. Nada se confirma solo: se aprueban <b>únicamente cuando tú pulsas «${d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote'}»</b> y cada una cuenta como una ${esc(uf.uno)} más del lote. Las marcadas ya tienen todos sus datos confirmados. Si no quieres confirmar alguna ahora, <b>desmarca</b> su casilla (sigue pendiente). Las que no se pueden marcar tienen datos por revisar.</p>
-      ${comp.map(c=>`<label class="il-op"><input type="checkbox" class="il-comp-x" value="${esc(c.doc.id)}" data-rev="${esc(c.doc.rev)}" ${c.errores.length?'disabled':'checked'}><span><b>${esc(uf.titulo)} ${esc(c.datos.numero||'—')}</b> · ${esc(c.datos.producto)} <small class="ii-mut">${esc(c.datos.proveedor)} · foto ${esc(hora(N.fechaFoto(c.doc).ms))}${c.datos.pesoNeto!=null?' · '+esc(kg(c.datos.pesoNeto)):''}</small>${c.errores.length?`<small class="il-err">${esc(c.errores[0])}</small>`:''}</span></label>`).join('')}</fieldset>`:'';
+      <p class="ii-mut">Estas fotos tienen el mismo lote del proveedor. Nada se confirma solo: se aprueban <b>únicamente cuando tú pulsas «${d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote'}»</b> y cada una cuenta como una ${esc(uf.uno)} más del lote. Las marcadas ya tienen todos sus datos confirmados. Si no quieres confirmar alguna ahora, <b>desmarca</b> su casilla (sigue pendiente). Las que no se pueden marcar tienen datos por confirmar: pulsa «Revisar esta foto», confirma sus datos y luego crea su lote; se suma a este mismo lote.</p>
+      ${comp.map(c=>`<label class="il-op"><input type="checkbox" class="il-comp-x" value="${esc(c.doc.id)}" data-rev="${esc(c.doc.rev)}" ${c.errores.length?'disabled':'checked'}><span><b>${esc(uf.titulo)} ${esc(c.datos.numero||'—')}</b> · ${esc(c.datos.producto)} <small class="ii-mut">${esc(c.datos.proveedor)} · foto ${esc(hora(N.fechaFoto(c.doc).ms))}${c.datos.pesoNeto!=null?' · '+esc(kg(c.datos.pesoNeto)):''}</small>${c.errores.length?`<small class="il-err">${esc(String(c.errores[0]).replace(/^Confirma o corrige antes de aprobar: /,'Falta confirmar: '))}</small> <button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilRevisarFoto('${esc(c.doc.id)}')">Revisar esta foto</button>`:''}</span></label>`).join('')}</fieldset>`:'';
     const ok=!g.errores.length;
     abrirModal(d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote',`<p>${que}</p>${dupHtml}${compHtml}
       ${g.errores.length?`<div class="ii-msg ii-msg-error" role="alert"><b>No se puede crear todavía:</b><ul class="ii-lista-sm">${g.errores.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
