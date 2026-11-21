@@ -71,6 +71,18 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-reporte-solo-dia.png', fullPage: false });
   await P.evaluate(() => hlRDTurno('AMBOS'));
   ok(await P.evaluate(() => /Total del día/i.test(document.querySelector('.hl-main').innerText) && document.querySelectorAll('.hl-rd-t thead th[colspan="6"]').length === 2), 'al volver a «Día de producción» reaparecen los dos turnos');
+  if (process.env.GLX_CAPTURAS) { const png = await P.evaluate(() => glacialHieloReporte.imagen(glacialHieloReporte.modelo({ fecha: '2026-11-18', turno: 'NOCHE', dias: 14, reportes: glacialHieloDatos.cache.reportes, cfg: glacialHieloDatos.config(), catalogo: PRODUCTOS_HIELO })).toDataURL('image/png').split(',')[1]); fs.writeFileSync(process.env.GLX_CAPTURAS + '/hielo-reporte-whatsapp-noche.png', Buffer.from(png, 'base64')); }
+  // ---- compartir por WhatsApp
+  ok(await P.evaluate(() => [...document.querySelectorAll('.hl-main .hl-btn')].filter(b => /por WhatsApp/.test(b.innerText) && !b.disabled).length) === 2, 'hay dos botones: compartir imagen y compartir Excel por WhatsApp');
+  await P.evaluate(() => { window.__sh = []; window.__op = []; window.__dl = []; Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile', configurable: true }); navigator.canShare = () => true; navigator.share = async d => { window.__sh.push({ n: d.files[0].name, t: d.files[0].type, tx: d.text }); }; });
+  await P.evaluate(() => hlRDCompartir('img'));
+  ok(await P.evaluate(() => window.__sh.length === 1 && /^Reporte-diario-Hielo-2026-11-19\.png$/.test(__sh[0].n) && __sh[0].t === 'image/png' && /REPORTE DIARIO DE PRODUCCIÓN/.test(__sh[0].tx) && /Total del día: 26,560\.25 kg/.test(__sh[0].tx)), 'en el celular la imagen se comparte con el menú del teléfono, con el resumen como texto');
+  await P.evaluate(() => hlRDCompartir('xlsx'));
+  ok(await P.evaluate(() => window.__sh.length === 2 && /\.xlsx$/.test(__sh[1].n) && /spreadsheetml/.test(__sh[1].t)), 'en el celular el Excel se comparte como archivo .xlsx');
+  await P.evaluate(() => { navigator.share = undefined; window.open = u => { window.__op.push(u); return {}; }; HTMLAnchorElement.prototype.click = function () { window.__dl.push(this.download); }; });
+  await P.evaluate(() => hlRDCompartir('img'));
+  ok(await P.evaluate(() => window.__op.length === 1 && /^https:\/\/wa\.me\/\?text=/.test(__op[0]) && window.__dl.length === 1 && /\.png$/.test(__dl[0])), 'sin menú de compartir (computador): descarga la imagen y abre WhatsApp con el resumen');
+  await P.evaluate(() => { delete navigator.userAgent; });
   // ---- Excel descargado
   await P.evaluate(() => { window.__blobs = []; const o = URL.createObjectURL.bind(URL); URL.createObjectURL = b => { window.__blobs.push(b); return o(b); }; HTMLAnchorElement.prototype.click = function () { }; window.ExcelJS = window.ExcelJS || ExcelJS; window.cargarScriptExterno = async () => window.ExcelJS; });
   await P.evaluate(() => hlRDExcel());

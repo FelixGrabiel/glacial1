@@ -657,7 +657,7 @@
       <div class="hl-card"><div class="hl-acc" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><span style="display:flex;gap:12px;flex-wrap:wrap"><label>Reporte de<select onchange="hlRDTurno(this.value)" aria-label="Turno del reporte">${[['AMBOS','Día de producción (noche + día)'],['NOCHE','Solo turno noche'],['DIA','Solo turno día']].map(([k,t])=>`<option value="${k}" ${(S.rTurno||'AMBOS')===k?'selected':''}>${t}</option>`).join('')}</select></label>
           <label>${solo?'Fecha del turno':'Día de producción'}<input type="date" value="${esc(f)}" onchange="hlRDFecha(this.value)" aria-label="Día de producción"></label>
           <label>Período de la mezcla y el mapa<select onchange="hlRDDias(this.value)" aria-label="Período de la mezcla por marca y el mapa de calor">${[7,14,21].map(n=>`<option value="${n}" ${(S.rDias||14)===n?'selected':''}>Últimos ${n} días</option>`).join('')}</select></label></span>
-        <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="hl-btn" onclick="hlRDExcel()" ${m.hayDatos?'':'disabled'}>Descargar Excel</button><button type="button" class="hl-btn o" onclick="hlRDImagen()" ${m.hayDatos?'':'disabled'}>Descargar imagen</button></span></div></div>
+        <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="hl-btn" onclick="hlRDExcel()" ${m.hayDatos?'':'disabled'}>Descargar Excel</button><button type="button" class="hl-btn o" onclick="hlRDImagen()" ${m.hayDatos?'':'disabled'}>Descargar imagen</button><button type="button" class="hl-btn" style="background:#1fa855;border-color:#1fa855;color:#fff" onclick="hlRDCompartir('img')" ${m.hayDatos?'':'disabled'}>Compartir imagen por WhatsApp</button><button type="button" class="hl-btn" style="background:#1fa855;border-color:#1fa855;color:#fff" onclick="hlRDCompartir('xlsx')" ${m.hayDatos?'':'disabled'}>Compartir Excel por WhatsApp</button></span></div></div>
       ${m.hayDatos?'':`<div class="hl-msg i">${solo?`No hay reporte del turno ${nomT} del ${esc(fechaTxt(v==='NOCHE'?m.fNoche:f))}.`:`No hay reportes de la noche del ${esc(fechaTxt(m.fNoche))} ni del día del ${esc(fechaTxt(f))}.`}</div>`}
       <div class="hl-kpis">${kpis}</div>
       <div class="hl-card"><h3 style="margin:0 0 8px">Reporte de personal</h3><div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Turno</th><th>Ingreso</th><th>Salida</th><th>Jornada</th><th>Responsable</th></tr></thead><tbody>${v!=='DIA'?turnoFila(m.noche,'NOCHE'):''}${v!=='NOCHE'?turnoFila(m.dia,'DÍA'):''}</tbody></table></div></div>
@@ -676,22 +676,40 @@
   window.hlRDTurno=v=>{S.rTurno=v==='NOCHE'||v==='DIA'?v:'AMBOS';S.msg=null;pintar();};
   window.hlRDDias=v=>{S.rDias=[7,14,21].includes(Number(v))?Number(v):14;pintar();};
   window.hlRDFecha=v=>{if(esFecha(v)){S.rFecha=v;S.msg=null;pintar();}};
+  const XLSX_MIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const nombreRD=(f,ext)=>'Reporte-diario-Hielo-'+f+(S.rTurno==='NOCHE'?'-noche':S.rTurno==='DIA'?'-dia':'')+'.'+ext;
+  const rdBlobImagen=f=>new Promise((res,rej)=>{RD().imagen(modeloReporte(f)).toBlob(b=>b?res(b):rej(new Error('No se pudo crear la imagen.')),'image/png');});
+  async function rdBlobExcel(f){
+    const m=modeloReporte(f);
+    const ExcelJS=typeof cargarScriptExterno==='function'?await cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS'):window.ExcelJS;
+    if(!ExcelJS)throw new Error('No se pudo cargar la librería de Excel.');
+    const g=RD().graficos(m),imgs={};g.mapa=RD().graficoMapa(m,1200);Object.keys(g).forEach(k=>{imgs[k]={data:g[k].toDataURL('image/png').split(',')[1],w:g[k].width/2,h:g[k].height/2};});
+    const buf=await RD().construirExcel(ExcelJS,m,imgs).xlsx.writeBuffer();return new Blob([buf],{type:XLSX_MIME});
+  }
+  function rdBajar(blob,nombre){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
   window.hlRDExcel=async()=>{
-    try{
-      const f=S.rFecha||hoy(),m=modeloReporte(f);
-      const ExcelJS=typeof cargarScriptExterno==='function'?await cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS'):window.ExcelJS;
-      if(!ExcelJS)throw new Error('No se pudo cargar la librería de Excel.');
-      const g=RD().graficos(m),imgs={};g.mapa=RD().graficoMapa(m,1200);Object.keys(g).forEach(k=>{imgs[k]={data:g[k].toDataURL('image/png').split(',')[1],w:g[k].width/2,h:g[k].height/2};});
-      const wb=RD().construirExcel(ExcelJS,m,imgs),buf=await wb.xlsx.writeBuffer(),a=document.createElement('a');
-      a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.download='Reporte-diario-Hielo-'+f+(S.rTurno==='NOCHE'?'-noche':S.rTurno==='DIA'?'-dia':'')+'.xlsx';
-      document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);ok('Excel generado.');
-    }catch(e){mal('No se pudo generar el Excel: '+((e&&e.message)||e));}
+    try{const f=S.rFecha||hoy();rdBajar(await rdBlobExcel(f),nombreRD(f,'xlsx'));ok('Excel generado.');}
+    catch(e){mal('No se pudo generar el Excel: '+((e&&e.message)||e));}
   };
-  window.hlRDImagen=()=>{
+  window.hlRDImagen=async()=>{
+    try{const f=S.rFecha||hoy();rdBajar(await rdBlobImagen(f),nombreRD(f,'png'));ok('Imagen generada.');}
+    catch(e){mal('No se pudo generar la imagen: '+((e&&e.message)||e));}
+  };
+  /* Compartir por WhatsApp. En el celular abre el menú de compartir del teléfono con el archivo (se elige WhatsApp y el chat).
+     En el computador (o si el menú no está disponible) descarga el archivo y abre WhatsApp con el resumen para que se adjunte. */
+  window.hlRDCompartir=async tipo=>{
     try{
-      const f=S.rFecha||hoy(),c=RD().imagen(modeloReporte(f));
-      c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Reporte-diario-Hielo-'+f+(S.rTurno==='NOCHE'?'-noche':S.rTurno==='DIA'?'-dia':'')+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);ok('Imagen generada.');},'image/png');
-    }catch(e){mal('No se pudo generar la imagen: '+((e&&e.message)||e));}
+      const f=S.rFecha||hoy(),img=tipo!=='xlsx',nombre=nombreRD(f,img?'png':'xlsx'),texto=RD().resumenTexto(modeloReporte(f));
+      const blob=img?await rdBlobImagen(f):await rdBlobExcel(f),archivo=new File([blob],nombre,{type:blob.type||(img?'image/png':XLSX_MIME)});
+      const movil=/Android|iPhone|iPad|iPod/i.test(String(navigator.userAgent||''));
+      if(movil&&typeof navigator.share==='function'&&typeof navigator.canShare==='function'&&navigator.canShare({files:[archivo]})){
+        try{await navigator.share({files:[archivo],text:texto,title:'Reporte diario de Hielo'});ok('Elige WhatsApp en el menú para enviarlo.');return;}
+        catch(e){if(e&&e.name==='AbortError')return;}   // si el menú falla, se descarga
+      }
+      rdBajar(blob,nombre);
+      const w=window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank','noopener');
+      ok(w===null?'Se descargó '+nombre+'. Abre WhatsApp y adjúntalo en el chat.':'Se descargó '+nombre+' y se abrió WhatsApp con el resumen: adjunta el archivo en el chat.');
+    }catch(e){mal('No se pudo preparar el envío por WhatsApp: '+((e&&e.message)||e));}
   };
   function pintar(){
     const r=raiz();

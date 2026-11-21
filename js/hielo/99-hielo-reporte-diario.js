@@ -239,7 +239,19 @@
 
   /** «3 kg» → «3.0 KG», «1.5 kg» → «1.5 KG» (como la hoja de la planta). */
   function etiquetaPres(p){const N=nucleo(),n=N?N.kgNominal(p):0;return n>0?n.toFixed(1)+' KG':String(p).toUpperCase();}
-  const API={modelo,construirExcel,semanaISO,sumar,diaSemana,fechaLarga,dmy,formato,DIAS};
+  /** Mensaje corto para acompañar el archivo en WhatsApp (negritas de WhatsApp con *). */
+  function resumenTexto(m){
+    const kg=v=>formato(v,2)+' kg',efi=t=>t.eficiencia!==null?' ('+t.eficiencia.toFixed(2)+' %)':'';
+    const l=['*'+m.titulo+'*',m.subtitulo,m.fechaLarga.charAt(0).toUpperCase()+m.fechaLarga.slice(1)+' · Semana '+m.semanaNum,''];
+    if(m.vista!=='DIA')l.push('Noche '+m.noche.fechaTxt+': '+(m.noche.reportes?kg(m.noche.kg)+efi(m.noche):'sin reporte'));
+    if(m.vista!=='NOCHE')l.push('Día '+m.dia.fechaTxt+': '+(m.dia.reportes?kg(m.dia.kg)+efi(m.dia):'sin reporte'));
+    if(m.vista==='AMBOS')l.push('*Total del día: '+kg(m.totalDiaKg)+'*');
+    l.push('Semana '+m.semanaNum+(m.vista==='AMBOS'?'':' (solo '+(m.vista==='NOCHE'?'noche':'día')+')')+': '+kg(m.totalSemanaKg));
+    const obs=[m.noche.observaciones,m.dia.observaciones].filter(Boolean).join(' · ').replace(/\s+/g,' ').trim();
+    if(obs)l.push('','Obs.: '+(obs.length>280?obs.slice(0,277)+'…':obs));
+    return l.join('\n');
+  }
+  const API={modelo,construirExcel,resumenTexto,semanaISO,sumar,diaSemana,fechaLarga,dmy,formato,DIAS};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   if(typeof window==='undefined'||!window.document)return;
   raiz.glacialHieloReporte=API;
@@ -352,6 +364,31 @@
       ['JORNADA',T.jornadaH!==null?T.jornadaH.toFixed(2)+' h':'—',T.supervisor||'Sin responsable','#6250d6'],
       ['TOTAL SEMANA '+m.semanaNum,formato(m.totalSemanaKg,2)+' kg','Solo turno '+(n?'noche':'día')+' · '+m.semana.dias.filter(d=>d.hayDatos).length+' de 7 días','#157a3b']];
   }
+  /** Tabla de las marcas producidas en el turno (o en cada turno): bolsas, peso, paletas y lote. Solo filas con producción. */
+  function tablaMarcas(m,W,pad){
+    const filas=m.filas.filter(f=>(m.vista!=='DIA'&&f.noche.bolsas>0)||(m.vista!=='NOCHE'&&f.dia.bolsas>0));
+    const bl=[];if(m.vista!=='DIA')bl.push(['NOCHE',m.noche,'#d9d9d9','noche']);if(m.vista!=='NOCHE')bl.push(['DÍA',m.dia,'#bdd7ee','dia']);
+    const rh=24,n=Math.max(1,filas.length),alto=84+n*rh+rh+12;
+    const dibujar=(X,y)=>{
+      txt(X,m.vista==='AMBOS'?'Marcas producidas por turno':'Marcas producidas en el turno '+(m.vista==='NOCHE'?'noche':'día'),pad,y+18,{size:15,peso:'700'});
+      const wm=250,wb=(W-pad*2-wm)/bl.length,cols=[['Bolsas',.2,'r'],['Peso (kg)',.28,'r'],['Paletas',.2,'r'],['Lote',.32,'l']];
+      const recorta=(t,w)=>{X.font='12px '+FUENTE;let r=String(t);while(r.length>1&&X.measureText(r).width>w){r=r.slice(0,-2);}return r===String(t)?r:r+'…';};
+      const colX=(i,j)=>pad+wm+i*wb+cols.slice(0,j).reduce((a,c)=>a+c[1]*wb,0);
+      X.fillStyle='#eef3f7';X.fillRect(pad,y+60,W-pad*2,24);txt(X,'Marca (presentación)',pad+8,y+77,{size:11.5,peso:'700',color:COL.mut});
+      bl.forEach(([nom,t,col],i)=>{X.fillStyle=col;X.fillRect(pad+wm+i*wb,y+32,wb-4,26);txt(X,nom+' · '+t.fechaTxt,pad+wm+i*wb+8,y+50,{size:12.5,peso:'700'});
+        cols.forEach(([c,f,al],j)=>{const x1=colX(i,j),w=f*wb;txt(X,c,al==='r'?x1+w-10:x1+8,y+77,{size:11.5,peso:'700',color:COL.mut,align:al==='r'?'right':'left'});});});
+      if(!filas.length){txt(X,'Sin producción registrada.',pad+8,y+84+rh-7,{size:13,color:COL.mut});}
+      filas.forEach((f,k)=>{const yy=y+84+k*rh;if(k%2){X.fillStyle='#f7fafc';X.fillRect(pad,yy,W-pad*2,rh);}
+        txt(X,f.etiqueta,pad+8,yy+17,{size:12.5});
+        bl.forEach(([nom,t,col,k2],i)=>{const c=k2==='noche'?f.noche:f.dia,v=[c.bolsas?formato(c.bolsas):'',c.bolsas?formato(c.kg,2):'',c.paletas!==null&&c.bolsas?formato(c.paletas,2):'',c.lote||''];
+          cols.forEach(([,fr,al],j)=>{if(!v[j])return;const x1=colX(i,j),w=fr*wb;if(j===3)txt(X,recorta(v[j],w-12),x1+8,yy+17,{size:12});else txt(X,v[j],x1+w-10,yy+17,{size:12.5,peso:j===1?'700':'400',align:'right'});});});});
+      const yt=y+84+n*rh;X.strokeStyle=COL.ink;X.lineWidth=1.2;X.beginPath();X.moveTo(pad,yt);X.lineTo(W-pad,yt);X.stroke();X.lineWidth=1;
+      txt(X,'TOTAL',pad+8,yt+17,{size:12.5,peso:'700'});
+      bl.forEach(([nom,t,col,k2],i)=>{const pal=r2(m.filas.reduce((a,f)=>a+(((k2==='noche'?f.noche:f.dia).paletas)||0),0)),v=[formato(t.bolsas),formato(t.kg,2),pal?formato(pal,2):''];
+        cols.slice(0,3).forEach(([,fr],j)=>{if(v[j])txt(X,v[j],colX(i,j)+fr*wb-10,yt+17,{size:12.5,peso:'700',align:'right'});});});
+    };
+    return {alto,dibujar};
+  }
   /** Imagen única para WhatsApp: cabecera, kilos y eficiencia por turno, y las 4 gráficas. */
   function imagen(m){
     const g=graficos(m),W=1240,pad=20,cw=(W-pad*3)/2,ch=cw*(230/600),h4=cw*(250/600);
@@ -360,13 +397,13 @@
     // Las observaciones se parten en líneas ANTES de dimensionar la imagen (así nunca se cortan).
     const medidor=lienzo(10,10).x;medidor.font='13px '+FUENTE;const lineas=[];let acum='';
     obs.split(' ').forEach(p=>{if(acum&&medidor.measureText(acum+' '+p).width>W-pad*2){lineas.push(acum);acum=p;}else acum=(acum+' '+p).trim();});lineas.push(acum);
-    const alto=216+ch+pad+Math.max(ch,h4)+pad+Math.max(hh(g.control),hh(g.marcas))+pad+hMapa+pad+34+lineas.length*19+pad;const L=lienzo(W,Math.ceil(alto)),X=L.x;
+    const tm=tablaMarcas(m,W,pad),alto=216+tm.alto+pad+ch+pad+Math.max(ch,h4)+pad+Math.max(hh(g.control),hh(g.marcas))+pad+hMapa+pad+34+lineas.length*19+pad;const L=lienzo(W,Math.ceil(alto)),X=L.x;
     X.fillStyle='#0a2745';X.fillRect(0,0,W,96);txt(X,m.titulo,pad,40,{size:28,peso:'700',color:'#ffffff'});txt(X,m.subtitulo+' · '+m.fechaLarga.replace(/^./,s=>s.toUpperCase())+' · Semana '+m.semanaNum,pad,70,{size:15,color:'#8fc4ec'});
     const cajas=m.vista!=='AMBOS'?cajasSolo(m):[['NOCHE '+m.noche.fechaTxt,formato(m.noche.kg,2)+' kg',m.noche.eficiencia!==null?'Eficiencia '+m.noche.eficiencia.toFixed(2)+' %':'Sin reporte',COL.noche],
       ['DÍA '+m.dia.fechaTxt,formato(m.dia.kg,2)+' kg',m.dia.eficiencia!==null?'Eficiencia '+m.dia.eficiencia.toFixed(2)+' %':'Sin reporte',COL.dia],
       ['TOTAL DEL DÍA',formato(m.totalDiaKg,2)+' kg','Noche + día','#0a2745'],['TOTAL SEMANA '+m.semanaNum,formato(m.totalSemanaKg,2)+' kg',m.semana.dias.filter(d=>d.hayDatos).length+' de 7 días con datos','#157a3b']];
     const bw=(W-pad*5)/4;cajas.forEach(([a,b,c,col],i)=>{const x0=pad+i*(bw+pad);X.fillStyle='#f4f8fb';X.fillRect(x0,110,bw,86);X.fillStyle=col;X.fillRect(x0,110,6,86);txt(X,a,x0+18,134,{size:12,peso:'700',color:COL.mut});txt(X,b,x0+18,166,{size:24,peso:'700'});txt(X,c,x0+18,187,{size:12,color:COL.mut});});
-    let y=216;X.drawImage(g.capacidad,pad,y,cw,ch);X.drawImage(g.presentacion,pad*2+cw,y,cw,ch);y+=ch+pad;X.drawImage(g.semana,pad,y,cw,h4);X.drawImage(g.paradas,pad*2+cw,y,cw,ch);y+=Math.max(ch,h4)+pad;
+    tm.dibujar(X,216);let y=216+tm.alto+pad;X.drawImage(g.capacidad,pad,y,cw,ch);X.drawImage(g.presentacion,pad*2+cw,y,cw,ch);y+=ch+pad;X.drawImage(g.semana,pad,y,cw,h4);X.drawImage(g.paradas,pad*2+cw,y,cw,ch);y+=Math.max(ch,h4)+pad;
     X.drawImage(g.control,pad,y,cw,hh(g.control));X.drawImage(g.marcas,pad*2+cw,y,cw,hh(g.marcas));y+=Math.max(hh(g.control),hh(g.marcas))+pad;
     X.drawImage(g.mapa,pad,y,W-pad*2,hMapa);y+=hMapa+pad;
     txt(X,'OBSERVACIONES',pad,y+14,{size:12,peso:'700',color:COL.mut});lineas.forEach((l,i)=>txt(X,l,pad,y+34+i*19,{size:13}));

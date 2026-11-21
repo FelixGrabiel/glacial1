@@ -56,3 +56,16 @@ Arriba del reporte hay un selector **«Reporte de»** con tres opciones:
 En la vista por turno todo se calcula solo con ese turno: tarjetas (kg, eficiencia, bolsas y paletas, jornada y responsable), tabla por marca de un solo bloque, las 7 gráficas (la semana, la carta de control, la mezcla por marca y el mapa de calor usan solo ese turno) y las paradas y observaciones. La semana suma solo ese turno.
 
 El Excel y la imagen de WhatsApp salen con el mismo filtro. En el Excel el otro turno aparece marcado como «NO INCLUIDO EN ESTE REPORTE», y el nombre del archivo termina en `-noche` o `-dia`.
+
+## Compartir por WhatsApp
+
+Junto a «Descargar Excel» y «Descargar imagen» hay dos botones verdes: **«Compartir imagen por WhatsApp»** y **«Compartir Excel por WhatsApp»**. Comparten lo que se está viendo (día de producción o un solo turno).
+
+- **En el celular (Android o iPhone)**: abre el menú de compartir del teléfono con el archivo y un resumen como texto. Se elige WhatsApp y el chat o grupo.
+- **En el computador**: descarga el archivo y abre WhatsApp con el resumen escrito. WhatsApp Web no permite adjuntar un archivo de forma automática, así que el archivo se adjunta a mano desde Descargas.
+
+El resumen incluye título, fecha y semana, kg y eficiencia de cada turno, total del día, total de la semana y observaciones.
+
+## Marcas producidas en la imagen
+
+La imagen para WhatsApp incluye, debajo de las tarjetas, la tabla **«Marcas producidas por turno»** (o «en el turno noche / día» si el reporte es de un solo turno). Muestra solo las marcas que sí produjeron, con bolsas, peso (kg), paletas y lote de cada turno, y una fila de total.
