@@ -10,7 +10,7 @@ ok(ctx.A.some(a=>a.clave==='hielo'&&/Hielo/.test(a.titulo)),'el catálogo tiene 
 ok(new Set(ctx.A.map(a=>a.clave)).size===ctx.A.length,'cada área aparece una sola vez');
 
 const hielo=ctx.P.filter(p=>p.area==='hielo');
-ok(hielo.length===2&&hielo.some(p=>p.key==='hielo')&&hielo.some(p=>p.key==='programarHielo'),'el área Hielo tiene los permisos «hielo» (registrar) y «programarHielo» (programar/configurar)');
+ok(hielo.length===7&&['hieloVer','hielo','hieloCerrar','hieloReabrir','programarHielo','configurarHielo','hieloExportar'].every(k=>hielo.some(p=>p.key===k)),'el área Hielo tiene los 7 permisos: ver, registrar, cerrar, reabrir, programar, configurar y descargar/compartir');
 ok(!ctx.P.some(p=>p.area==='produccion'&&/hielo/i.test(p.key)),'ningún permiso de Hielo quedó mezclado dentro del área de Producción (Agua)');
 
 const claves=ctx.P.map(p=>p.key);

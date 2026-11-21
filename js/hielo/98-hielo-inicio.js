@@ -41,7 +41,7 @@
   /* ---------- Inicio (Centro de perfil): se inserta después del título del bloque, como las demás tarjetas ---------- */
   const D=()=>window.glacialHieloDatos;
   const usr=()=>(typeof state!=='undefined'&&state.user)||null;
-  const puedeVer=()=>!!usr()&&String(usr().rol||'')!=='mantenimiento_compartido';
+  const puedeVer=()=>{const u=usr();if(!u)return false;const P=window.glacialPermisosHielo;return P?P.permitido(u,'hieloVer'):String(u.rol||'')!=='mantenimiento_compartido';};      // permiso «Ver Hielo» (02b-permisos-hielo.js)
   function estilos(){
     if(document.getElementById('hli-css'))return;
     const s=document.createElement('style');s.id='hli-css';

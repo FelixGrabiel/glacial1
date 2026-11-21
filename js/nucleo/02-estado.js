@@ -189,8 +189,14 @@ const PERMISOS_APP=[
   {key:'configuracion',area:'administracion',label:'Configuración'},
   {key:'administracion',area:'administracion',label:'Administración'},
   {key:'moduloAlmacen',area:'almacen',label:'Módulo de Almacén (entregas de insumos y recepción de producto terminado)'},
-  {key:'hielo',area:'hielo',label:'Registrar Hielo (Nuevo registro, Avance y cierre)'},
-  {key:'programarHielo',area:'hielo',label:'Programar Hielo (Programación) y configurar sus listas'},
+  /* Hielo (21/11/2026): permisos finos; el valor por defecto de cada rol y las reglas están en js/nucleo/02b-permisos-hielo.js (las etiquetas se mantienen iguales; lo comprueba tests/permisos-hielo.test.js). */
+  {key:'hieloVer',area:'hielo',label:'Ver Hielo (Inicio, Historial y Reporte diario)'},
+  {key:'hielo',area:'hielo',label:'Registrar Hielo (Nuevo registro y guardar el avance del turno)'},
+  {key:'hieloCerrar',area:'hielo',label:'Finalizar (cerrar) el reporte de un turno de Hielo'},
+  {key:'hieloReabrir',area:'hielo',label:'Reabrir un reporte de Hielo finalizado'},
+  {key:'programarHielo',area:'hielo',label:'Programar Hielo (Programación)'},
+  {key:'configurarHielo',area:'hielo',label:'Configurar Hielo (kilos por bolsa, capacidad, marcas, equipos y listas)'},
+  {key:'hieloExportar',area:'hielo',label:'Descargar y compartir reportes de Hielo (Excel, imagen, WhatsApp)'},
 ];
 
 /* Áreas del catálogo (el orden es el de la pantalla de usuarios). */

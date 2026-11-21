@@ -130,7 +130,7 @@
   }
   function fichaHtml(u){
     const b=borradorSel()||N.borradorDe(u,claves()),admin=N.esAdminPrincipal(u),dis=admin?'disabled':'';
-    const plantilla=plantillaDeRol(b.rol),difiere=!admin&&!N.igualesPermisos(b.permisos===N.TODOS?N.TODOS:b.permisos.slice().sort(),plantilla===N.TODOS?N.TODOS:plantilla.slice().sort());
+    const plantilla=N.plantillaConHielo(b.rol,plantillaDeRol(b.rol)),difiere=!admin&&!N.igualesPermisos(b.permisos===N.TODOS?N.TODOS:b.permisos.slice().sort(),plantilla===N.TODOS?N.TODOS:plantilla.slice().sort());
     const todos=b.permisos===N.TODOS,on=k=>todos||b.permisos.includes(k),total=claves().length,nOn=todos?total:b.permisos.filter(p=>claves().includes(p)).length;
     const lineas=[...new Set(['',...usuarios().map(x=>x.linea||'')])];
     return `<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><b style="font-size:16px">${esc(b.nombre||u.username)}</b><br><span class="adm-mut">${esc(u.username)}</span></div>${admin?'<span class="adm-pill">Administrador</span>':''}</div>
@@ -150,8 +150,8 @@
 
   /* ---------- Roles y permisos ---------- */
   function rolesHtml(){
-    const lista=roles(),rol=S.rolSel&&lista.includes(S.rolSel)?S.rolSel:lista[0],us=usuarios().filter(u=>String(u.rol||'').trim()===rol),pl=plantillaDeRol(rol);
-    const difieren=us.filter(u=>!N.esAdminPrincipal(u)&&!N.igualesPermisos(u.permisos===N.TODOS?N.TODOS:N.permisosDe(u,claves()).sort(),pl===N.TODOS?N.TODOS:pl.slice().sort()));
+    const lista=roles(),rol=S.rolSel&&lista.includes(S.rolSel)?S.rolSel:lista[0],us=usuarios().filter(u=>String(u.rol||'').trim()===rol),pl=N.plantillaConHielo(rol,plantillaDeRol(rol));
+    const difieren=us.filter(u=>!N.esAdminPrincipal(u)&&!N.igualesPermisos(u.permisos===N.TODOS?N.TODOS:N.permisosConHielo(u,claves()).sort(),pl===N.TODOS?N.TODOS:pl.slice().sort()));
     const on=k=>pl===N.TODOS||pl.includes(k);
     return `<div class="adm-2"><div class="adm-card"><h2>Roles</h2><p class="adm-mut">Cada rol es una plantilla. Al crear un usuario recibe los permisos de su rol.</p>
         ${lista.map(r=>{const n=usuarios().filter(u=>String(u.rol||'').trim()===r).length,p=plantillaDeRol(r);return `<button type="button" class="adm-b" style="display:flex;justify-content:space-between;width:100%;margin:0 0 6px;${r===rol?'background:#eaf5fc':''}" onclick="admRol('${esc(r)}')"><span>${esc(r)}</span><span class="adm-mut">${n} usuarios · ${p===N.TODOS?'todos':p.length} permisos</span></button>`;}).join('')}</div>
@@ -222,10 +222,10 @@
   W.admPerm=(k,on)=>{const b=asegurarBorrador();if(!b)return;const a=b.permisos===N.TODOS?claves().slice():b.permisos.slice();b.permisos=on?[...new Set([...a,k])]:a.filter(x=>x!==k);tocar();};
   W.admArea=a=>{S.abiertas[a]=S.abiertas[a]===false;pintar();};
   W.admAreaTodos=a=>{const b=asegurarBorrador();if(!b)return;const ks=PERMISOS_APP.filter(p=>p.area===a).map(p=>p.key),cur=b.permisos===N.TODOS?claves().slice():b.permisos.slice(),todos=ks.every(k=>cur.includes(k));b.permisos=todos?cur.filter(x=>!ks.includes(x)):[...new Set([...cur,...ks])];tocar();};
-  W.admIgualarRol=()=>{const b=asegurarBorrador();if(!b)return;const p=plantillaDeRol(b.rol);b.permisos=p===N.TODOS?N.TODOS:p.slice();tocar();};
+  W.admIgualarRol=()=>{const b=asegurarBorrador();if(!b)return;const p=N.plantillaConHielo(b.rol,plantillaDeRol(b.rol));b.permisos=p===N.TODOS?N.TODOS:p.slice();tocar();};
   W.admRol=r=>{S.rolSel=r;rep();};
   W.admIgualarTodos=rol=>{
-    const pl=plantillaDeRol(rol);
+    const pl=N.plantillaConHielo(rol,plantillaDeRol(rol));
     usuarios().filter(u=>String(u.rol||'').trim()===rol&&!N.esAdminPrincipal(u)).forEach(u=>{
       const b=N.borradorDe(u,claves()),n=Object.assign({},b,{permisos:pl===N.TODOS?N.TODOS:pl.slice()});
       if(N.diffUsuario(u,n,claves(),etiqueta).length)S.borr[u.username]={base:b,borrador:n,titulo:u.nombre||u.username};

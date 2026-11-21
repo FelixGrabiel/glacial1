@@ -125,9 +125,23 @@
     if(u.permisos===TODOS)return 'Todos los permisos';
     const n=permisosDe(u,claves).length;return n+(n===1?' permiso':' permisos');
   }
+  /* Permisos de Hielo (js/nucleo/02b-permisos-hielo.js): en la ficha se muestra lo que la persona PUEDE hacer (lo de su rol, lo dado y sin lo quitado) y al guardar se vuelve a convertir en «permiso» / «-permiso». */
+  const HP=(typeof window!=='undefined'&&window.glacialPermisosHielo)||(typeof require==='function'?require('../nucleo/02b-permisos-hielo.js'):null);
+  /** Permisos de un usuario para mostrar: los positivos del catálogo, con los de Hielo en su valor efectivo. */
+  function permisosConHielo(u,claves){
+    if(!u)return [];
+    if(u.permisos===TODOS)return claves.slice();
+    const base=permisosDe(u,claves);
+    return HP?[...base.filter(k=>!HP.CLAVES.includes(k)),...HP.efectivas(u).filter(k=>claves.includes(k))]:base;
+  }
+  /** Una plantilla de rol (permisos positivos) con los de Hielo en su valor efectivo para ese rol. */
+  function plantillaConHielo(rol,plantilla){
+    if(plantilla===TODOS||!HP)return plantilla;
+    return [...plantilla.filter(k=>!HP.CLAVES.includes(k)),...HP.efectivas({rol:txt(rol).trim(),permisos:plantilla.filter(k=>HP.CLAVES.includes(k))})];
+  }
   /** Borrador de una ficha: {nombre, rol, linea, permisos:[...] | 'todos'}. */
   function borradorDe(u,claves){
-    return {nombre:txt(u.nombre),rol:txt(u.rol),linea:txt(u.linea),permisos:u.permisos===TODOS?TODOS:permisosDe(u,claves)};
+    return {nombre:txt(u.nombre),rol:txt(u.rol),linea:txt(u.linea),permisos:u.permisos===TODOS?TODOS:permisosConHielo(u,claves)};
   }
   const igualesPermisos=(a,b)=>a===TODOS||b===TODOS?a===b:a.length===b.length&&a.every(x=>b.includes(x));
   /** Diferencias entre la ficha guardada y el borrador → [{campo, antes, despues}] (vacío = sin cambios). */
@@ -136,7 +150,7 @@
     if(txt(u.nombre)!==txt(b.nombre))d.push({campo:'nombre',antes:txt(u.nombre),despues:txt(b.nombre)});
     if(txt(u.rol)!==txt(b.rol))d.push({campo:'rol',antes:txt(u.rol),despues:txt(b.rol)});
     if(txt(u.linea)!==txt(b.linea))d.push({campo:'líneas a cargo',antes:txt(u.linea),despues:txt(b.linea)});
-    const antes=u.permisos===TODOS?TODOS:permisosDe(u,claves);
+    const antes=u.permisos===TODOS?TODOS:permisosConHielo(u,claves);
     if(!igualesPermisos(antes,b.permisos)){
       const a=antes===TODOS?claves:antes,n=b.permisos===TODOS?claves:b.permisos;
       d.push({campo:'permisos',antes:antes===TODOS?'Todos los permisos':a.length+' permisos',despues:b.permisos===TODOS?'Todos los permisos':n.length+' permisos',
@@ -152,6 +166,7 @@
       const marcados=b.permisos.filter(p=>p!=='-planificacion');
       const sinPlan=!marcados.includes('planificacion')&&(rolesPlanificacion||[]).includes(txt(b.rol).trim());
       n.permisos=sinPlan?[...marcados,'-planificacion']:marcados;
+      if(HP)n.permisos=HP.aplicar(txt(b.rol).trim(),n.permisos);      // Hielo: lo marcado se guarda como permiso dado; lo desmarcado que el rol traía, como «-permiso»
     }
     n.permisosGestionVersion=1;
     return n;
@@ -234,7 +249,7 @@
   }
 
   const NUCLEO={LINEAS,validarTolerancias,normalizarTolerancias,variacionPct,esCambioGrande,validarRolNuevo,limpiarPlantilla,combosSinFactor,MOTIVO_MIN,GRUPOS,SECCIONES,seccion,puedeAcceder,validarMotivo,msDe,normalizarAuditoria,consolidar,modulosDe,quienesDe,filtrarAuditoria,
-    permisosDe,resumenPermisos,borradorDe,diffUsuario,aplicarBorrador,igualesPermisos,esAdminPrincipal,kpisResumen,TODOS};
+    permisosDe,permisosConHielo,plantillaConHielo,resumenPermisos,borradorDe,diffUsuario,aplicarBorrador,igualesPermisos,esAdminPrincipal,kpisResumen,TODOS};
   if(typeof module!=='undefined'&&module.exports)module.exports=NUCLEO;
   else raiz.glacialAdminNucleo=NUCLEO;
 })(typeof window!=='undefined'?window:this);
