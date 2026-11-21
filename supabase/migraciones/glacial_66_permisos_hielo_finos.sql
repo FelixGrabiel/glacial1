@@ -1,4 +1,4 @@
--- GLACIAL · glacial_66 · HIELO: permisos finos (cerrar, reabrir y configurar) que el Administrador da o quita      *** PRUEBAS: aplicada (21/11/2026) · PRODUCCIÓN: pendiente ***
+-- GLACIAL · glacial_66 · HIELO: permisos finos (cerrar, reabrir y configurar) que el Administrador da o quita      *** PRUEBAS Y PRODUCCIÓN: aplicada (21/11/2026) ***
 --
 -- Por qué: hasta ahora Hielo tenía solo dos permisos en el servidor («hielo» = registrar y «programarHielo»); cerrar un reporte, reabrirlo (solo Administrador) y configurar
 -- Hielo (solo Administrador o jefaturas, por rol) no se podían dar ni quitar a una persona. Ahora el Administrador lo decide en Gestión de usuarios (área Hielo).
