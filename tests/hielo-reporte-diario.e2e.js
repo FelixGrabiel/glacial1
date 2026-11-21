@@ -71,6 +71,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-reporte-solo-dia.png', fullPage: false });
   await P.evaluate(() => hlRDTurno('AMBOS'));
   ok(await P.evaluate(() => /Total del día/i.test(document.querySelector('.hl-main').innerText) && document.querySelectorAll('.hl-rd-t thead th[colspan="6"]').length === 2), 'al volver a «Día de producción» reaparecen los dos turnos');
+  if (process.env.GLX_CAPTURAS) { const png = await P.evaluate(() => glacialHieloReporte.imagen(glacialHieloReporte.modelo({ fecha: '2026-11-18', turno: 'NOCHE', dias: 14, reportes: glacialHieloDatos.cache.reportes, cfg: glacialHieloDatos.config(), catalogo: PRODUCTOS_HIELO })).toDataURL('image/png').split(',')[1]); fs.writeFileSync(process.env.GLX_CAPTURAS + '/hielo-reporte-whatsapp-noche.png', Buffer.from(png, 'base64')); }
   // ---- compartir por WhatsApp
   ok(await P.evaluate(() => [...document.querySelectorAll('.hl-main .hl-btn')].filter(b => /por WhatsApp/.test(b.innerText) && !b.disabled).length) === 2, 'hay dos botones: compartir imagen y compartir Excel por WhatsApp');
   await P.evaluate(() => { window.__sh = []; window.__op = []; window.__dl = []; Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile', configurable: true }); navigator.canShare = () => true; navigator.share = async d => { window.__sh.push({ n: d.files[0].name, t: d.files[0].type, tx: d.text }); }; });

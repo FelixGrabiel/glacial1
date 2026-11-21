@@ -65,3 +65,7 @@ Junto a «Descargar Excel» y «Descargar imagen» hay dos botones verdes: **«C
 - **En el computador**: descarga el archivo y abre WhatsApp con el resumen escrito. WhatsApp Web no permite adjuntar un archivo de forma automática, así que el archivo se adjunta a mano desde Descargas.
 
 El resumen incluye título, fecha y semana, kg y eficiencia de cada turno, total del día, total de la semana y observaciones.
+
+## Marcas producidas en la imagen
+
+La imagen para WhatsApp incluye, debajo de las tarjetas, la tabla **«Marcas producidas por turno»** (o «en el turno noche / día» si el reporte es de un solo turno). Muestra solo las marcas que sí produjeron, con bolsas, peso (kg), paletas y lote de cada turno, y una fila de total.
