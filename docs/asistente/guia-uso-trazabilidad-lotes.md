@@ -57,7 +57,7 @@ Se reconoce con o sin tildes, mayúsculas o espacios («Pet 2», «b-7-l»). Si 
 | La **misma bobina** otra vez («7» = «07») | Aviso de **duplicado**; no se crea nada y la evidencia sigue pendiente | Revisa si es otra foto de la misma bobina; rechaza la repetida con motivo |
 | Falta lote, n.º de bobina, peso o cantidad | El diálogo lo lista y no deja confirmar | Corrige el dato (o «Solicitar corrección o nueva foto») |
 | Dato dudoso sin confirmar | No se puede crear | Confirma o corrige contra la foto |
-| Dos personas validan a la vez | Gana la primera; a la segunda le sale «Otra persona cambió esta evidencia» | Revisa la pantalla actualizada |
+| Dos personas validan o editan a la vez | Las dos pueden seguir: la edición o la confirmación se aplica sobre la versión más reciente, sin perder lo que la otra persona cambió (cada dato queda en la auditoría con quién y cuándo). Si la segunda intenta crear el lote de una foto que la primera ya confirmó, le sale «Esta evidencia ya creó el lote…» y no se duplica nada. Solo se frena si otra persona **rechazó** la evidencia mientras tanto | Revisa la pantalla actualizada |
 | Doble clic | No se crea dos veces | Nada |
 | «Tienes cambios sin guardar» | No se abre el diálogo | Pulsa «Guardar cambios» y vuelve a intentar |
 | Una evidencia ya con lote | No se puede reabrir ni crear otro lote | Los cambios de estado de la unidad llegan en la Etapa 2 |
