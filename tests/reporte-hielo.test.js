@@ -73,7 +73,7 @@ ok(fx.length===4&&fx[0][1]==='DÍA'&&fx[0][6]===2600&&fx[0][7]===8450&&fx[0][9]=
 const html=leer('index.html'),js=leer('js/hielo/97-hielo.js'),mg=leer('supabase/migraciones/glacial_46_reporte_hielo.sql');
 ok(/js\/hielo\/97-hielo\.js\?v=\d{8}-\w+/.test(html),'index.html carga 97-hielo.js');
 ok(/window\.goReporteHielo=abrir/.test(js)&&/onclick="goReporteHielo\(\)"/.test(html)&&!/Ver disponibilidad/.test(html),'la tarjeta «Reporte Hielo» abre la página');
-ok(/Bolsas de \$\{esc\(p\)\}/.test(js)&&/p==='3 kg'\|\|p==='1\.5 kg'/.test(js),'Inicio: una tarjeta de bolsas por presentación (3 kg y 1.5 kg siempre)');
+ok(/etqUnidad\(p\)/.test(js)&&/PR\(\)\.presentaciones\.includes\(p\)/.test(js)&&/presentaciones:\['3 kg','1\.5 kg'\]/.test(js),'Inicio: una tarjeta de bolsas por presentación (las del producto: 3 kg y 1.5 kg siempre en cubos)');
 ok(/hieloReportes','hieloProgramacion','hieloParametros/.test(mg)&&/v->>'estado' = 'FINALIZADO' and not adm/.test(mg)&&/accion = 'delete'/.test(mg)&&/position\('glacial_46' in def\) = 0/.test(mg),'glacial_46: reportes (opera), finalizado solo Administrador, sin borrar, idempotente');
 
 const mob=leer('css/mobile-glacial.css');

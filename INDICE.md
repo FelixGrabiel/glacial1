@@ -207,6 +207,7 @@ Diagnóstico, modelo de datos y permisos: `docs/asistente/asistente-produccion.m
 ### js/admin/
 
 Panel de Administración («Centro de control», solo Administrador). Diseño, reglas y etapas: `docs/00-general/panel-administracion.md`.
+Hielo Premium, Hielo en vasos y Resumen de planta: `docs/hielo/productos.md`.
 Permisos de Hielo (7 permisos finos, el Administrador los gestiona): `docs/hielo/permisos.md`.
 Búsqueda de texto común a todos los buscadores (sin tildes, en cualquier orden, «3 kg» = «3kg»): `docs/00-general/busqueda.md`.
 Auditoría de seguridad 18/11/2026 (hallazgos, medidas y orden para producción): `docs/00-general/auditoria-seguridad-20261118.md`.

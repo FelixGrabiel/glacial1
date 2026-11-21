@@ -1396,7 +1396,7 @@ async function xlgDatosHielo(records){
   const fechas = (records || []).map(r => r.fecha).filter(Boolean).sort();
   if(!fechas.length) return null;
   const desde = fechas[0], hasta = fechas[fechas.length - 1];
-  const rep = (D.cache.reportes || []).filter(r => r && r.fecha >= desde && r.fecha <= hasta);
+  const rep = (D.cache.reportes || []).filter(r => r && (!r.producto || r.producto === 'CUBOS') && r.fecha >= desde && r.fecha <= hasta);      // solo Hielo en cubos (Premium y Vasos tienen su propio reporte)
   return rep.length ? { rep, desde, hasta, N } : null;
 }
 
