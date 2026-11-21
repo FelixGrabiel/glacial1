@@ -872,6 +872,7 @@
   function pintar(){
     const r=raiz();
     const MENU=[['inicio','Inicio'],['registro','Nuevo registro'],['avance','Avance y cierre'],['reporte','Reporte diario'],['planta','Resumen de planta'],['historial','Historial'],['programacion','Programación'],['config','Configuración']];
+    const GRUPOS=[['Día a día',['inicio','registro','avance']],['Reportes',['reporte','planta','historial']],['Gestión',['programacion','config']]];
     const cuerpo={inicio:vistaInicio,registro:vistaRegistro,avance:vistaAvance,reporte:vistaReporteDiario,planta:vistaPlanta,historial:vistaHistorial,programacion:vistaProgramacion,config:vistaConfig}[S.vista]||vistaInicio;
     const y=r.scrollTop;
     const IC={producto:'<path d="M4 8l8-4 8 4-8 4-8-4Z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>',planta:'<path d="M4 20V9M10 20V4M16 20v-8M22 20H2"/><path d="M3 7l5-4 5 3 7-4"/>',reporte:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',inicio:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',registro:'<path d="M12 5v14M5 12h14"/>',avance:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',historial:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',programacion:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',config:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',volver:'<path d="M15 6l-6 6 6 6"/>'};
@@ -880,8 +881,7 @@
     r.classList.toggle('hl-menu-abierto',!!S.menu);
     r.innerHTML=`${estilos()}<div class="hl-app${S.menu?' hl-abierto':''}"><header class="hl-top"><button type="button" class="hl-hamb" aria-label="${S.menu?'Cerrar':'Abrir'} menú de Hielo" aria-controls="hl-menu" aria-expanded="${S.menu?'true':'false'}" onclick="hlMenu()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="hl-top-t"><b aria-hidden="true">❄</b><strong>GLACIAL · HIELO</strong><small>${esc(titulo)}</small></div></header>
       <button type="button" class="hl-fondo" aria-label="Cerrar menú" tabindex="-1" onclick="hlMenu(false)"></button><nav class="hl-side" id="hl-menu" aria-label="Menú de Hielo"><div class="hl-marca"><b aria-hidden="true">❄</b><div><h2>GLACIAL · HIELO</h2><small>Reporte Hielo</small></div></div>
-      <small class="hl-menu-et">Producto</small>${IDS_PRODUCTO.map(id=>`<button type="button" class="hl-menu-prod ${S.producto===id&&S.vista!=='planta'?'act':''}" ${S.producto===id&&S.vista!=='planta'?'aria-current="true"':''} onclick="hlProducto('${id}')">${ico('producto')}<span>${esc(PRODUCTOS[id].nombre)}</span></button>`).join('')}<div class="hl-sep"></div>
-      <small class="hl-menu-et">${esc(PRODUCTOS[S.producto].corto)}</small>${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${ico(k)}<span>${t}</span></button>`).join('')}
+      ${GRUPOS.map(([et,ks],g)=>`${g?'<div class="hl-sep"></div>':''}<small class="hl-menu-et">${et}</small>${ks.map(k=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${ico(k)}<span>${(MENU.find(x=>x[0]===k)||[])[1]}</span></button>`).join('')}`).join('')}
       <div class="hl-sep"></div><button type="button" onclick="hlSalir()">${ico('volver')}<span>Volver a Reporte Agua</span></button></nav>
       <main class="hl-main">${S.vista==='planta'?'':selectorProducto()}${aviso()}${cuerpo()}</main></div>`;
     r.scrollTop=y;
