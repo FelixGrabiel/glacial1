@@ -16,7 +16,8 @@
   const cfgBloques=()=>{try{const c=typeof window.glacialConfigIndicadores==='function'?window.glacialConfigIndicadores():null;return c?c.bloques:undefined;}catch(_){return undefined;}};
   const hhmm=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
   const fechaHora=ms=>ms?new Date(ms).toLocaleString('es-PE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}):'—';
-  const ETQ={PET1:'PET1',PET2:'PET2',B7L:'B7L',C20L:'CAJAS 20L',B20L:'B20L'};
+  const ETQ={PET1:'PET1',PET2:'PET2',B7L:'B7L',C20L:'CAJAS 20L',B20L:'B20L',HIELO_CUBOS:'Hielo en cubos',HIELO_PREMIUM:'Hielo premium',HIELO_VASOS:'Hielo en vasos'};
+  const TODAS=()=>D().LINEAS.concat(D().LINEAS_HIELO);
 
   const E={fecha:'',bloque:'DÍA',form:null,guardando:false,error:'',aviso:'',historial:false,escucha:null,oyente:false};
 
@@ -60,7 +61,7 @@
   function reiniciarFormulario(){
     const d=datos(),corte=corteAhora(),ev=D().vigente(d.eventos,corte);
     const lineas={};
-    D().LINEAS.forEach(l=>{const v=ev&&ev.lineas?ev.lineas[l]:null;lineas[l]=v===null||v===undefined?'':String(v);});
+    TODAS().forEach(l=>{const v=ev&&ev.lineas?ev.lineas[l]:null;lineas[l]=v===null||v===undefined?'':String(v);});
     E.form={lineas,desde:hhmm(corte),apoyo:ev&&ev.apoyoCompartido?String(ev.apoyoCompartido):'',motivo:'',obs:'',opId:nuevoOpId(),
       versionEsperada:d.parent?num(d.parent.version):0,correccion:false,dirty:false};
     E.error='';
@@ -116,6 +117,13 @@
         :'<span class="dp-pend">Pendiente de confirmar</span>'}</div>`;
     }).join('');
     const total=D().LINEAS.reduce((s,l)=>s+(D().personalAlCorte(eventos,l,corte).cantidad||0),0);
+    const filasHielo=D().LINEAS_HIELO.map(l=>{
+      const p=D().personalAlCorte(eventos,l,corte);
+      return `<div class="dp-vig"><b>${esc(ETQ[l])}</b>${p.estado==='CONFIRMADO'
+        ?`<span class="dp-ok">${p.cantidad} <small style="font-weight:400;color:#5C6E7B">desde ${hhmm(p.desdeMs)}</small></span>`
+        :'<span class="dp-pend">Pendiente de confirmar</span>'}</div>`;
+    }).join('');
+    const totalHielo=D().LINEAS_HIELO.reduce((s,l)=>s+(D().personalAlCorte(eventos,l,corte).cantidad||0),0);
     const vig=D().vigente(eventos,corte);
     const disp=disponibles(),cmp=D().compararConDisponible(total,disp);
     const apoyo=vig&&vig.apoyoCompartido?`<div class="dp-nota">Apoyo compartido (no sumado a las líneas): <b>${num(vig.apoyoCompartido)}</b></div>`:'';
@@ -127,7 +135,9 @@
              :'<div class="dp-nota"><b>Sin confirmar:</b> aún no se registró la distribución de este bloque.</div>'}
         <div class="dp-aviso ${cmp.estado==='REVISAR'?'':'dp-bien'}" style="margin-top:8px;${cmp.estado==='NO_COMPROBABLE'?'background:#EEF2F5;color:#44525C':''}">${esc(cmp.mensaje)}${disp!==null?` (disponibles según Tareo: ${disp})`:''}</div>
       </div>
-      <div class="dp-card"><h3 style="font-size:15px">Vigente ahora${h?` · bloque ${hhmm(h.inicio)}–${hhmm(h.fin)}`:''}</h3>${filas}</div>`;
+      <div class="dp-card"><h3 style="font-size:15px">Vigente ahora${h?` · bloque ${hhmm(h.inicio)}–${hhmm(h.fin)}`:''}</h3>${filas}</div>
+      <div class="dp-card"><h3 style="font-size:15px">Personal de hielo</h3>${filasHielo}<div class="dp-total"><span>Total hielo</span><span>${totalHielo}</span></div>
+        <div class="dp-nota">El personal de hielo va aparte: no suma al total de las líneas ni se compara con los asistentes del Tareo de Producción.</div></div>`;
   }
   function htmlFormulario(){
     if(!E.form)reiniciarFormulario();
@@ -140,6 +150,10 @@
     }
     const filas=D().LINEAS.map(l=>`<div class="dp-fila"><b>${esc(ETQ[l])}</b>
       <input type="number" inputmode="numeric" min="0" step="1" placeholder="—" value="${esc(f.lineas[l])}" oninput="glacialDistribucionPantalla.campo('${l}',this.value)"></div>`).join('');
+    const fila=l=>`<div class="dp-fila"><b>${esc(ETQ[l])}</b>
+      <input type="number" inputmode="numeric" min="0" step="1" placeholder="—" value="${esc(f.lineas[l])}" oninput="glacialDistribucionPantalla.campo('${l}',this.value)"></div>`;
+    const filasHielo=D().LINEAS_HIELO.map(fila).join('');
+    const totalFormHielo=D().totalHielo(D().normalizarLineas(f.lineas).lineas);
     const totalForm=D().totalDe(D().normalizarLineas(f.lineas).lineas);
     const bloqueado=E.guardando;
     return `
@@ -150,6 +164,10 @@
         ${filas}
         <div class="dp-total"><span>Total distribuido</span><span id="dp-total-form">${totalForm}</span></div>
         <div class="dp-nota">Vacío = sin confirmar. 0 = confirmado sin personal en esa línea.</div>
+        <h3 style="font-size:15px;margin:14px 0 2px">Personal de hielo</h3>
+        ${filasHielo}
+        <div class="dp-total"><span>Total hielo</span><span id="dp-total-hielo">${totalFormHielo}</span></div>
+        <div class="dp-nota">Cubos, premium y vasos. No suma al total de las líneas de arriba.</div>
         <div class="dp-campo" style="margin-top:8px"><label>Apoyo compartido (opcional, no se suma a las líneas)</label>
           <input type="number" inputmode="numeric" min="0" step="1" placeholder="0" value="${esc(f.apoyo)}" oninput="glacialDistribucionPantalla.apoyo(this.value)"></div>
         <div class="dp-campo" style="margin-top:8px"><label>${hayEventos?'Motivo del cambio (obligatorio)':'Observaciones (opcional)'}</label>
@@ -164,7 +182,7 @@
   }
   function htmlHistorial(){
     const eventos=(datos().eventos||[]).slice().sort((a,b)=>num(b.version)-num(a.version));
-    const cambios=e=>D().LINEAS.map(l=>{
+    const cambios=e=>TODAS().map(l=>{
       const a=e.anterior?e.anterior[l]:null,n=e.lineas?e.lineas[l]:null;
       if(a===n||(a===undefined&&n===null))return '';
       const t=v=>v===null||v===undefined?'—':v;
@@ -194,7 +212,7 @@
     asegurarEscucha();
     const tabs=typeof tareoRenderTabs==='function'?tareoRenderTabs('distribucion'):'';
     main.innerHTML=`${tabs}<div class="dp" id="dp-root">
-      <h3>DISTRIBUCIÓN DE PERSONAL</h3><div class="dp-sub">Cuántas personas hay en cada línea. Avance/Cierre y los reportes leen estos mismos datos.</div>
+      <h3>DISTRIBUCIÓN DE PERSONAL</h3><div class="dp-sub">Cuántas personas hay en cada línea y en hielo. Avance/Cierre y los reportes leen estos mismos datos.</div>
       <div class="dp-card"><div class="dp-ctx">
         <div class="dp-campo"><label>Fecha operativa</label><input type="date" value="${esc(E.fecha)}" onchange="glacialDistribucionPantalla.contexto(this.value,null)"></div>
         <div class="dp-campo"><label>Bloque</label><select onchange="glacialDistribucionPantalla.contexto(null,this.value)">
@@ -237,7 +255,7 @@
   }
   const api={
     pintar,guardar,
-    campo(l,v){if(!E.form)return;E.form.lineas[l]=v;E.form.dirty=true;const t=document.getElementById('dp-total-form');if(t)t.textContent=D().totalDe(D().normalizarLineas(E.form.lineas).lineas);},
+    campo(l,v){if(!E.form)return;E.form.lineas[l]=v;E.form.dirty=true;const n=D().normalizarLineas(E.form.lineas).lineas,t=document.getElementById('dp-total-form'),th=document.getElementById('dp-total-hielo');if(t)t.textContent=D().totalDe(n);if(th)th.textContent=D().totalHielo(n);},
     desde(v){if(E.form){E.form.desde=v;E.form.dirty=true;}},
     apoyo(v){if(E.form){E.form.apoyo=v;E.form.dirty=true;}},
     motivo(v){if(!E.form)return;if(datos().parent)E.form.motivo=v;else E.form.obs=v;E.form.dirty=true;},

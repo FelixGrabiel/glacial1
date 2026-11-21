@@ -20,6 +20,9 @@
 (function instalarDistribucionPersonal(){
   'use strict';
   const LINEAS=['PET1','PET2','B7L','C20L','B20L'];
+  /* Personal de HIELO (Cubos, Premium, Vasos): mismo evento y mismo historial, pero fuera de LINEAS: no suma al total de las líneas de producción,
+     no se compara con los asistentes de Producción ni entra a las horas hombre de la planta de bebidas. Si el evento no trae esas claves, queda igual que siempre. */
+  const LINEAS_HIELO=['HIELO_CUBOS','HIELO_PREMIUM','HIELO_VASOS'];
   const MS_H=3600000;
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
   const bloqueDe=t=>String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DIA';
@@ -38,9 +41,18 @@
       if(!Number.isInteger(n)||n<0){errores.push(l+': debe ser un número entero mayor o igual a 0');lineas[l]=null;return;}
       lineas[l]=n;
     });
+    LINEAS_HIELO.forEach(l=>{
+      if(!entrada||!Object.prototype.hasOwnProperty.call(entrada,l))return;       // sin la clave: el evento queda como antes
+      const v=entrada[l];
+      if(v===undefined||v===null||v===''){lineas[l]=null;return;}
+      const n=Number(v);
+      if(!Number.isInteger(n)||n<0){errores.push(l.replace('HIELO_','Hielo ').toLowerCase()+': debe ser un número entero mayor o igual a 0');lineas[l]=null;return;}
+      lineas[l]=n;
+    });
     return {lineas,errores};
   }
   const totalDe=lineas=>LINEAS.reduce((s,l)=>s+(lineas[l]===null||lineas[l]===undefined?0:lineas[l]),0);
+  const totalHielo=lineas=>LINEAS_HIELO.reduce((s,l)=>s+(!lineas||lineas[l]===null||lineas[l]===undefined?0:lineas[l]),0);
 
   /* parent: documento de versión actual (o null). entrada: {opId, versionEsperada, desdeMs, lineas, apoyoCompartido, motivo,
      observaciones, correccion}. ctx: {ahoraMs, horario:{inicio,fin}, puedeCorregir, uid, usuario}.
@@ -51,7 +63,7 @@
     if(num(entrada.versionEsperada)!==version)throw falla('CONFLICTO','La distribución cambió mientras la editabas (otra persona guardó). Vuelve a abrirla para ver los valores actuales.');
     const {lineas,errores}=normalizarLineas(entrada.lineas);
     if(errores.length)throw falla('VALIDACION',errores.join(' · '));
-    if(LINEAS.every(l=>lineas[l]===null))throw falla('VALIDACION','Indica el personal de al menos una línea (0 también es un dato válido).');
+    if(Object.keys(lineas).every(l=>lineas[l]===null))throw falla('VALIDACION','Indica el personal de al menos una línea o de hielo (0 también es un dato válido).');
     let apoyo=0;
     if(entrada.apoyoCompartido!==undefined&&entrada.apoyoCompartido!==null&&entrada.apoyoCompartido!==''){
       apoyo=Number(entrada.apoyoCompartido);
@@ -126,6 +138,13 @@
     });
     const todasSin=LINEAS.every(l=>porLinea[l].estado==='SIN_DATOS');
     return {horas:alguna?horas:null,estado:todasSin?'SIN_DATOS':(LINEAS.every(l=>porLinea[l].estado==='COMPLETO')?'COMPLETO':'PARCIAL'),porLinea};
+  }
+  /* Horas hombre de HIELO (suma de Cubos, Premium y Vasos con dato). Aparte del total de la planta de bebidas. */
+  function horasHombreHielo(eventos,inicioMs,corteMs){
+    const porLinea={};let horas=0,alguna=false;
+    LINEAS_HIELO.forEach(l=>{const r=horasHombre(eventos,l,inicioMs,corteMs);porLinea[l]=r;if(r.horas!==null){horas+=r.horas;alguna=true;}});
+    const todasSin=LINEAS_HIELO.every(l=>porLinea[l].estado==='SIN_DATOS');
+    return {horas:alguna?horas:null,estado:todasSin?'SIN_DATOS':(LINEAS_HIELO.every(l=>porLinea[l].estado==='COMPLETO')?'COMPLETO':'PARCIAL'),porLinea};
   }
   /* Comparación con el personal disponible (asistentes de Producción del Tareo): solo aviso, nunca una cifra inventada. */
   function compararConDisponible(distribuido,disponible){
@@ -234,7 +253,7 @@
   });
 
   window.glacialDistribucionPersonal={
-    LINEAS,clave,bloqueDe,normalizarLineas,totalDe,prepararEvento,vigente,personalAlCorte,horasHombre,horasHombrePlanta,compararConDisponible,disponiblesTareo,
+    LINEAS,LINEAS_HIELO,clave,bloqueDe,normalizarLineas,totalDe,totalHielo,horasHombreHielo,prepararEvento,vigente,personalAlCorte,horasHombre,horasHombrePlanta,compararConDisponible,disponiblesTareo,
     escuchar,cargar,datos,guardar,consultar,consultarHorasHombre,puedeEditar,puedeCorregir,
     alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};},
     horarioDe
