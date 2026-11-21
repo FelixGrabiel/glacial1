@@ -275,7 +275,7 @@
       .et-modal{background:#fff;border-radius:14px;max-width:420px;width:100%;padding:18px;box-shadow:0 14px 40px rgba(0,0,0,.3)}
       .et-modal h3{margin:0 0 8px;font-size:17px;color:#033350}.et-modal p{margin:0 0 10px;font-size:14px}
       .et-toast{position:fixed;left:16px;right:16px;bottom:16px;max-width:380px;z-index:10050;padding:12px 14px;border-radius:10px;background:#fff3d6;border:1px solid #f0c36a;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px}
-      @media (max-width:520px){.et-fila{grid-template-columns:1fr}.et-fila button{justify-self:end}}
+      @media (max-width:520px){.et-fila{grid-template-columns:minmax(0,1fr)}.et-fila button{justify-self:end}}
     `;
     document.head.appendChild(s);
   }

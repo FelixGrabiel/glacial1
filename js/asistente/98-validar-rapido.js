@@ -218,6 +218,6 @@
 .vr-campo .ie-in{min-height:42px;font-size:15px}.vr-duda .ie-in{border-color:#d97706;background:#fffbeb}.vr-tag{color:#b45309;font-size:11px;text-transform:uppercase;margin-left:4px}
 .vr-motivo{color:#92400e}.vr-dest{font-size:13.5px;margin:6px 0 0;padding:8px 10px;background:#f6fafc;border:1px solid #cfe0ea;border-radius:8px}
 .vr-acc{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:12px}.vr-acc .ii-btn{min-height:44px}.vr-nota{font-size:12px;margin:8px 0 0}.vr-vacio{padding:24px 0;text-align:center}
-@media(max-width:760px){.vr-cols{grid-template-columns:1fr}.vr-foto-caja{min-height:220px;max-height:46vh}.vr-foto{max-height:46vh}.vr-acc .ii-btn{flex:1 1 100%}}`;
+@media(max-width:760px){.vr-cols{grid-template-columns:minmax(0,1fr)}.vr-foto-caja{min-height:220px;max-height:46vh}.vr-foto{max-height:46vh}.vr-acc .ii-btn{flex:1 1 100%}}`;
   function estilos(){if(document.getElementById('vr-css'))return;const s=document.createElement('style');s.id='vr-css';s.textContent=css;document.head.appendChild(s);}
 })(typeof window!=='undefined'?window:globalThis);

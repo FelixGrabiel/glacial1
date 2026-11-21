@@ -2376,7 +2376,7 @@ function renderResumenIndustrial(records,rangoLabel){
       .ri-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:12px}.ri-kpi{background:#fff;border:1px solid #dce5ea;border-radius:9px;padding:12px}.ri-kpi span{font-size:11px;text-transform:uppercase;color:#71828d;font-weight:700}.ri-kpi b{display:block;font-size:22px;color:#17384d;margin-top:4px}.ri-kpi small{color:#82919a}
       .ri-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ri-box{background:#fff;border:1px solid #dce5ea;border-radius:10px;padding:14px;min-width:0}.ri-box.wide{grid-column:1/-1}.ri-canvas{height:250px;position:relative}.ri-canvas.tall{height:300px}
       .ri-read{margin-top:12px;background:#f7fafc;border:1px solid #dce5ea;border-left:4px solid #4FC4F5;border-radius:9px;padding:14px}.ri-read ul{margin:0;padding-left:19px}.ri-read li{margin:5px 0;color:#435b69;font-size:12px}
-      @media(max-width:900px){.ri-status,.ri-kpis{grid-template-columns:repeat(2,1fr)}.ri-grid{grid-template-columns:1fr}.ri-box.wide{grid-column:auto}}@media(max-width:520px){.ri-status,.ri-kpis{grid-template-columns:1fr}}
+      @media(max-width:900px){.ri-status,.ri-kpis{grid-template-columns:repeat(2,1fr)}.ri-grid{grid-template-columns:minmax(0,1fr)}.ri-box.wide{grid-column:auto}}@media(max-width:520px){.ri-status,.ri-kpis{grid-template-columns:minmax(0,1fr)}}
     </style>
     <div class="rs-section">Plan, pérdidas y paradas</div>
     <div class="ri-pulse"><h3>Estado actual de planta</h3><div class="ri-status">${estados.map(e=>`<div class="ri-state"><b>${rsLineaNombre(e.linea)}</b><span class="ri-dot ${e.nivel}"></span>${e.estado}</div>`).join('')}</div></div>
@@ -3169,7 +3169,7 @@ function renderResumen(main){
         .resumen-pro .rs-date-control{width:100%}
         .resumen-pro .kpi-prod-grid{grid-template-columns:1fr 1fr}
         .resumen-pro .rs-linea-presentacion{padding:13px}
-        .resumen-pro .rs-lp-grid{grid-template-columns:1fr}
+        .resumen-pro .rs-lp-grid{grid-template-columns:minmax(0,1fr)}
         .resumen-pro .rs-lp-titlebar h3{font-size:16px}
       }
 </style>

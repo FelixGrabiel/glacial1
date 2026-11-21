@@ -36,7 +36,7 @@ ok(/function tarjetaEmpezar\(ctx\)\{\s*if\(!puede\('asistenteProduccion'\)&&!pue
 ok(/<option value="MATERIAL">Material o insumo<\/option>/.test(p72),'el tipo de merma ya no se corta en el desplegable');
 ok(/\.ap-kpi\{gap:10px;padding:12px\}/.test(p72),'en el celular los indicadores del Resumen son más compactos');
 const p86=leer('js/asistente/86-evidencias-insumos-pantalla.js');
-ok(/@media\(max-width:1500px\)\{\.ie-cols\{grid-template-columns:1fr\}/.test(p86),'Evidencias: hasta 1500 px la foto va arriba y los campos ocupan todo el ancho (no se cortan)');
+ok(/@media\(max-width:1500px\)\{\.ie-cols\{grid-template-columns:minmax\(0,1fr\)\}/.test(p86),'Evidencias: hasta 1500 px la foto va arriba y los campos ocupan todo el ancho (no se cortan)');
 
 ok(/falt\.length>2\?pill\('Faltan '\+falt\.length\+' insumos','rojo'\)/.test(p72),'Seguimiento: con más de dos faltantes se muestra «Faltan N insumos» y los nombres debajo (antes una etiqueta por insumo en cada fila)');
 ok(/\.ap \.ap-t th\{white-space:normal;line-height:1\.25\}/.test(p72),'las tablas de muchas columnas (Previsión) caben sin cortar «Estado»');

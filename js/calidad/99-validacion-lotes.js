@@ -170,13 +170,13 @@
 .vl-mut{color:#587087;font-size:12.5px;margin:4px 0}
 .vl-foto{display:block;object-fit:cover;background:#eaf1f7;border-radius:8px}.vl-foto-m{width:56px;height:56px}.vl-foto-g{width:100%;max-height:460px;object-fit:contain}
 .vl-sinfoto{display:flex;align-items:center;justify-content:center;width:56px;height:56px;background:#f1f5f9;color:#587087;font-size:10px;border-radius:8px;text-align:center}
-.vl-c-foto{width:70px}.vl-det-g{display:grid;grid-template-columns:minmax(200px,1fr) minmax(0,1.5fr);gap:16px}.vl-det-g:has(.vl-det-foto:empty){grid-template-columns:1fr}
+.vl-c-foto{width:70px}.vl-det-g{display:grid;grid-template-columns:minmax(200px,1fr) minmax(0,1.5fr);gap:16px}.vl-det-g:has(.vl-det-foto:empty){grid-template-columns:minmax(0,1fr)}
 .vl-grande{display:grid;gap:6px;color:#0877a6;font-weight:700;font-size:13px;text-decoration:none}
 .vl-datos{width:100%;border-collapse:collapse;margin:0 0 8px}.vl-datos th{width:40%;text-align:left;font-size:12px;color:#587087;font-weight:700;padding:4px 8px 4px 0;vertical-align:top}.vl-datos td{padding:4px 0;font-weight:600;overflow-wrap:anywhere}.vl-rev{margin:6px 0;color:#157a3b}
 .vl-vacio{background:#fafcfe;border:1px dashed #c3d8e8;border-radius:12px;padding:22px;text-align:center;color:#587087}
 .vl-msg{border-radius:12px;padding:10px 14px}.vl-msg-e{background:#fdecec;color:#991b1b;border:1px solid #f5b5b5}.vl-msg-k{background:#e7f6ec;color:#15803d;border:1px solid #b7e4c7}
 .vl-fila:focus-visible,.vl-btn:focus-visible{outline:3px solid #0ea5e9;outline-offset:2px}
-@media(max-width:700px){.vl-det-g{grid-template-columns:1fr}.vl-c-foto{width:auto}.vl-t thead{display:none}.vl-t tr.vl-fila{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;border-top:1px solid #eaf1f7}.vl-t td{display:block;border:0;padding:2px 4px}.vl-t td[data-label]::before{content:attr(data-label);display:block;font-size:11px;font-weight:700;color:#587087;text-transform:uppercase}.vl-det td{display:block}.vl-det{display:block}}
+@media(max-width:700px){.vl-det-g{grid-template-columns:minmax(0,1fr)}.vl-c-foto{width:auto}.vl-t thead{display:none}.vl-t tr.vl-fila{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;border-top:1px solid #eaf1f7}.vl-t td{display:block;border:0;padding:2px 4px}.vl-t td[data-label]::before{content:attr(data-label);display:block;font-size:11px;font-weight:700;color:#587087;text-transform:uppercase}.vl-det td{display:block}.vl-det{display:block}}
 </style>`;}
   function html(){
     if(!puedeVer())return `<div class="vl-msg vl-msg-e">No tienes permiso para ver las validaciones de lotes.</div>`;

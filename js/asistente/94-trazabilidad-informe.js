@@ -260,7 +260,7 @@
 .it-card{margin-top:10px}.it-card h4{margin:0;font-size:16px}.it-card h5{margin:12px 0 4px}.it-tabla th{text-align:left;font-size:12px;color:#475467;background:#f4f8fc}.it-tabla{min-width:720px}
 .it-ins{margin:6px 0 0;padding-left:18px;display:grid;gap:6px}.it-link{border:0;background:none;color:#0877A6;font:inherit;font-weight:700;cursor:pointer;padding:4px 0;text-decoration:underline}
 @media(max-width:900px){.it-filtros{grid-template-columns:1fr 1fr}.it-q{grid-column:1/-1}}
-@media(max-width:560px){.it-filtros{grid-template-columns:1fr}.it-tabla{min-width:0}.it-tabla thead{display:none}.it-tabla,.it-tabla tbody,.it-tabla tr,.it-tabla td{display:block;width:100%}.it-tabla tr{border-top:1px solid #edf2f7;padding:6px 0}.it-tabla td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
+@media(max-width:560px){.it-filtros{grid-template-columns:minmax(0,1fr)}.it-tabla{min-width:0}.it-tabla thead{display:none}.it-tabla,.it-tabla tbody,.it-tabla tr,.it-tabla td{display:block;width:100%}.it-tabla tr{border-top:1px solid #edf2f7;padding:6px 0}.it-tabla td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
   function estilos(){if(document.getElementById('it-css'))return;const s=document.createElement('style');s.id='it-css';s.textContent=css;document.head.appendChild(s);}
   window.iiTrazabilidadInformeUI={html:()=>{estilos();return html();},usar:f=>{if(typeof f==='function')repintarHost=f;},estado:S};
 })(typeof window!=='undefined'?window:globalThis);

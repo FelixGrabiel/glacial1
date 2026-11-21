@@ -163,7 +163,7 @@
     #plan-root .plan-sem-ayuda{margin:0 0 10px}
     #plan-root .plan-sem-ayuda>summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--pl-muted);min-height:30px;display:flex;align-items:center}
     @media(max-width:640px){
-      #plan-root .plan-campos,.plan-campos{grid-template-columns:1fr}
+      #plan-root .plan-campos,.plan-campos{grid-template-columns:minmax(0,1fr)}
       #plan-root .plan-bar{padding:10px}
       #plan-root .plan-bar-sem{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
       #plan-root .plan-bar-sem>label,#plan-root .plan-bar-sem>.btn{width:100%;min-width:0;box-sizing:border-box}
@@ -176,7 +176,7 @@
       #plan-root .plan-h{display:none}
       #plan-root .plan-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
       #plan-root .plan-kpi .k-v{font-size:22px}
-      #plan-root .plan-caps{grid-template-columns:1fr}
+      #plan-root .plan-caps{grid-template-columns:minmax(0,1fr)}
       #plan-root .btn{min-height:40px}
       #plan-root table.plan-prog,#plan-root table.plan-prog tbody,#plan-root table.plan-prog tfoot,#plan-root table.plan-prog tr,#plan-root table.plan-prog td{display:block}
       #plan-root table.plan-prog thead{display:none}

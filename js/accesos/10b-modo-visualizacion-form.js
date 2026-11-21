@@ -44,7 +44,7 @@
       '.vista-pie{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#53657a;font-size:12px;margin-top:4px}' +
       '.vista-form.vista-off .vista-detalle{opacity:.55}' +
       '.vista-bloqueo{margin:8px 0 0;padding:8px 12px;border-radius:8px;background:#fff8e1;border:1px solid #f0d98c;font-size:12px}' +
-      '@media(max-width:760px){.vista-cols{grid-template-columns:1fr}}';
+      '@media(max-width:760px){.vista-cols{grid-template-columns:minmax(0,1fr)}}';
     document.head.appendChild(s);
   }
 
