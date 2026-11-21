@@ -66,6 +66,8 @@
     PESOS_ACTIVOS=nuevo;
   }
   /** Kg REALES de una bolsa de esa presentación (3 kg → 3.25, 1.5 kg → 1.75 por defecto); sin dato, el número del nombre. */
+  /** Peso NETO (el del nombre: 3 kg, 1.5 kg) que usan «Avance y cierre» y su mensaje/imagen. Los reportes (diario, Excel, planta) usan el peso real de la configuración (3.25 / 1.75). Sin kg en el nombre (Vaso) usa el peso configurado. */
+  function kgNeto(presentacion){const n=kgNominal(presentacion);return n>0?n:kgDe(presentacion);}
   function kgDe(presentacion){const v=PESOS_ACTIVOS[texto(presentacion)];return v>0?v:kgNominal(presentacion);}
   /** Id del reporte (o de la programación): «fecha_TURNO»; los productos nuevos agregan «_PREMIUM» / «_VASOS» (el de cubos no cambia). */
   const idReporte=(fecha,turno,producto)=>fecha+'_'+turno+(esProducto(producto)&&producto!=='CUBOS'?'_'+producto:'');
@@ -224,8 +226,8 @@
     const rs=(o.reportes||[]).filter(Boolean),ps=(o.programas||[]).filter(Boolean),t=totales(rs),prog=programado(ps);
     const tipo=rs.length&&rs.every(r=>r.estado==='FINALIZADO')?'CIERRE':'AVANCE';
     const marcas=[...new Set(t.porMarca.map(x=>x.marca))].sort((a,b)=>a.localeCompare(b,'es')).map(m=>{
-      const filas=t.porMarca.filter(x=>x.marca===m).sort((a,b)=>kgDe(b.presentacion)-kgDe(a.presentacion));
-      const bolsas=filas.reduce((s,x)=>s+x.bolsas,0),kg=Math.round(filas.reduce((s,x)=>s+x.bolsas*kgDe(x.presentacion),0)*100)/100;
+      const filas=t.porMarca.filter(x=>x.marca===m).sort((a,b)=>kgNeto(b.presentacion)-kgNeto(a.presentacion));
+      const bolsas=filas.reduce((s,x)=>s+x.bolsas,0),kg=Math.round(filas.reduce((s,x)=>s+x.bolsas*kgNeto(x.presentacion),0)*100)/100;
       return {marca:m,filas,bolsas,kg};
     });
     const PRd=PRODUCTOS[o.producto]||PRODUCTOS.CUBOS;
@@ -235,13 +237,13 @@
     rs.forEach(r=>(r.produccion||[]).forEach(p=>{const b=Math.max(0,Math.round(num(p.bolsas)));if(!b)return;const e=texto(p.estacion),k=texto(p.marca)+'|'+texto(p.presentacion);
       if(!est.has(e))est.set(e,new Map());est.get(e).set(k,(est.get(e).get(k)||0)+b);}));
     const estaciones=[...est.entries()].map(([estacion,mp])=>({estacion,filas:[...mp.entries()].map(([k,bolsas])=>{const [marca,presentacion]=k.split('|');return {marca,presentacion,bolsas};})
-      .sort((a,b)=>a.marca.localeCompare(b.marca,'es')||kgDe(b.presentacion)-kgDe(a.presentacion))})).sort((a,b)=>(a.estacion===''?1:0)-(b.estacion===''?1:0));
+      .sort((a,b)=>a.marca.localeCompare(b.marca,'es')||kgNeto(b.presentacion)-kgNeto(a.presentacion))})).sort((a,b)=>(a.estacion===''?1:0)-(b.estacion===''?1:0));
     const horas=rs.map(r=>r.horaInicio).filter(Boolean).sort(),fines=rs.map(r=>r.horaFin).filter(Boolean).sort();
     return {tipo,fecha:o.fecha,turnoTxt:o.turnoTxt||'',turnoCod:o.turnoCod||'',caidas:rs.some(r=>r.caidas),estaciones,hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
       producto:PRd.id,unidad:PRd.unidad,jabas:PRd.unidadesPorJaba?Math.round(t.bolsas/PRd.unidadesPorJaba*100)/100:null,
       titulo:(tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO'+(PRd.id==='CUBOS'?'':' '+PRd.corto.toUpperCase()),
-      presentaciones:pres.map(p=>({presentacion:p,bolsas:t.porPres[p]||0,kg:Math.round((t.porPres[p]||0)*kgDe(p)*100)/100})),marcas,
-      bolsas:t.bolsas,kg:t.kg,programado:prog.total,cumplimiento:prog.total>0?t.bolsas/prog.total:null,paradas,paradasMin:t.paradasMin,merma:t.merma,
+      presentaciones:pres.map(p=>({presentacion:p,bolsas:t.porPres[p]||0,kg:Math.round((t.porPres[p]||0)*kgNeto(p)*100)/100})),marcas,
+      bolsas:t.bolsas,kg:Math.round(Object.keys(t.porPres).reduce((q,k)=>q+(t.porPres[k]||0)*kgNeto(k),0)*100)/100,programado:prog.total,cumplimiento:prog.total>0?t.bolsas/prog.total:null,paradas,paradasMin:t.paradasMin,merma:t.merma,
       observaciones:rs.filter(r=>texto(r.observaciones)).map(r=>({turno:r.turno,texto:texto(r.observaciones)})),
       supervisores:[...new Set(rs.map(r=>texto(r.supervisor)).filter(Boolean))],inicio:horas[0]||'',fin:fines.length?fines[fines.length-1]:'',
       ultimoRegistro:horaUltimoRegistro(rs)};
@@ -279,7 +281,7 @@
     }
     return out.join('\n');
   }
-  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
+  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.glacialHieloNucleo=N;
@@ -624,7 +626,7 @@
       <div class="hl-card"><div class="hl-form">${area('hl-c-marcas','Marcas',c.marcas,'')}${area('hl-c-pres','Presentaciones',c.presentaciones,P.id==='VASOS'?'Por ejemplo «Vaso».':'Con sus kg, por ejemplo «'+(esCubos?'3':'2')+' kg».')}
         ${area('hl-c-estaciones','Estaciones de producción',c.estaciones,'Para agrupar el avance (ej. Tolva manual).')}${area('hl-c-equipos','Equipos de la planta',c.equipos,'Para las paradas.')}${area('hl-c-motivos','Motivos de parada',c.motivos,'«Otros» pide describir la parada.')}${area('hl-c-mermas','Ítems de merma',c.mermas,'')}</div>
         <h3 style="margin:18px 0 6px">${esCubos?'Kilos reales, paletas y capacidad':P.unidadesPorJaba?'Peso del vaso, vasos por jaba y capacidad':'Kilos reales y capacidad'}</h3>
-        <p class="hl-sub" style="margin:0 0 8px">Con esto se calculan los kilos${esCubos?', el N.º de paletas':P.unidadesPorJaba?' y el N.º de jabas':''} y la eficiencia de todos los reportes. Vacío = valor de fábrica.</p>
+        <p class="hl-sub" style="margin:0 0 8px">Con esto se calculan los kilos${esCubos?', el N.º de paletas':P.unidadesPorJaba?' y el N.º de jabas':''} y la eficiencia de los reportes (diario, Excel y resumen de planta).${esCubos?' «Avance y cierre» usa el peso neto del nombre (3 kg y 1.5 kg), no estos.':''} Vacío = valor de fábrica${esCubos?' (3.25 y 1.75 kg)':''}.</p>
         <div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Presentación</th><th>Kg reales por ${P.una}</th>${esCubos?'<th>Bolsas por paleta</th>':''}</tr></thead><tbody>${c.presentaciones.map(pr=>`<tr><td data-label="Presentación"><b>${esc(pr)}</b></td>
           <td data-label="Kg reales por ${P.una}"><input type="number" step="0.01" min="0" ${dis} data-hl-peso="${esc(pr)}" value="${esc((c.pesos&&c.pesos[pr])!==undefined?c.pesos[pr]:'')}" aria-label="Kg reales por ${P.una} de ${esc(pr)}"></td>
           ${esCubos?`<td data-label="Bolsas por paleta"><input type="number" step="1" min="1" ${dis} data-hl-paleta="${esc(pr)}" value="${esc((c.bolsasPorPaleta&&c.bolsasPorPaleta[pr])!==undefined?c.bolsasPorPaleta[pr]:'')}" aria-label="Bolsas por paleta de ${esc(pr)}"></td>`:''}</tr>`).join('')}</tbody></table></div>
