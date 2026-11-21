@@ -99,6 +99,9 @@ const serie=[];for(let i=0;i<10;i++){serie.push(rep(fechaN(i),'NOCHE',1000));ser
  ok(mn.mapa.noche.some(v=>v>0)&&mn.mapa.dia.every(v=>v===null)&&md.mapa.noche.every(v=>v===null)&&mn.periodo.hasta==='2026-11-18','mapa de calor: solo la fila del turno y el período termina en la fecha del turno');
  const mx=RD.modelo({fecha:'2026-11-19',turno:'XX',reportes:[noche,dia],cfg,catalogo:CATALOGO});ok(mx.vista==='AMBOS'&&mx.totalDiaKg===26560.25,'un turno inválido vuelve al día de producción completo');
  H.__vistas={mn,md};}
+{const t=RD.resumenTexto(m),tn=RD.resumenTexto(RD.modelo({fecha:'2026-11-18',turno:'NOCHE',reportes:[noche,dia],cfg,catalogo:CATALOGO}));
+ ok(/^\*REPORTE DIARIO DE PRODUCCIÓN\*\nHIELO EN CUBOS\nJueves, 19 de noviembre de 2026 · Semana 47/.test(t)&&/Noche 18\/11\/26: 11,450\.25 kg \(33\.68 %\)/.test(t)&&/Día 19\/11\/26: 15,110\.00 kg \(44\.44 %\)/.test(t)&&/\*Total del día: 26,560\.25 kg\*/.test(t)&&/Obs\.: ENVASADORA/.test(t),'mensaje de WhatsApp: título, turnos con eficiencia, total del día y observaciones');
+ ok(/TURNO NOCHE/.test(tn)&&/Noche 18\/11\/26: 11,450\.25 kg/.test(tn)&&!/Día 19/.test(tn)&&!/Total del día/.test(tn)&&/\(solo noche\)/.test(tn),'mensaje solo noche: sin el día ni el total del día');}
 // Excel
 let ExcelJS=null;try{ExcelJS=require(require('path').join(process.env.GLX_LIBS||'','node_modules','exceljs'));}catch(_){/* sin ExcelJS: se omite */}
 (async()=>{

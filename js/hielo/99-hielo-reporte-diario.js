@@ -239,7 +239,19 @@
 
   /** «3 kg» → «3.0 KG», «1.5 kg» → «1.5 KG» (como la hoja de la planta). */
   function etiquetaPres(p){const N=nucleo(),n=N?N.kgNominal(p):0;return n>0?n.toFixed(1)+' KG':String(p).toUpperCase();}
-  const API={modelo,construirExcel,semanaISO,sumar,diaSemana,fechaLarga,dmy,formato,DIAS};
+  /** Mensaje corto para acompañar el archivo en WhatsApp (negritas de WhatsApp con *). */
+  function resumenTexto(m){
+    const kg=v=>formato(v,2)+' kg',efi=t=>t.eficiencia!==null?' ('+t.eficiencia.toFixed(2)+' %)':'';
+    const l=['*'+m.titulo+'*',m.subtitulo,m.fechaLarga.charAt(0).toUpperCase()+m.fechaLarga.slice(1)+' · Semana '+m.semanaNum,''];
+    if(m.vista!=='DIA')l.push('Noche '+m.noche.fechaTxt+': '+(m.noche.reportes?kg(m.noche.kg)+efi(m.noche):'sin reporte'));
+    if(m.vista!=='NOCHE')l.push('Día '+m.dia.fechaTxt+': '+(m.dia.reportes?kg(m.dia.kg)+efi(m.dia):'sin reporte'));
+    if(m.vista==='AMBOS')l.push('*Total del día: '+kg(m.totalDiaKg)+'*');
+    l.push('Semana '+m.semanaNum+(m.vista==='AMBOS'?'':' (solo '+(m.vista==='NOCHE'?'noche':'día')+')')+': '+kg(m.totalSemanaKg));
+    const obs=[m.noche.observaciones,m.dia.observaciones].filter(Boolean).join(' · ').replace(/\s+/g,' ').trim();
+    if(obs)l.push('','Obs.: '+(obs.length>280?obs.slice(0,277)+'…':obs));
+    return l.join('\n');
+  }
+  const API={modelo,construirExcel,resumenTexto,semanaISO,sumar,diaSemana,fechaLarga,dmy,formato,DIAS};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   if(typeof window==='undefined'||!window.document)return;
   raiz.glacialHieloReporte=API;
