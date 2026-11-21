@@ -2371,7 +2371,7 @@ td input:focus{
     }
 
     .chart-grid{
-        grid-template-columns:1fr;
+        grid-template-columns:minmax(0,1fr);
     }
 
     .main{
@@ -2874,7 +2874,7 @@ td input:focus{
     .grid-3,
     .grid-4{
 
-        grid-template-columns:1fr;
+        grid-template-columns:minmax(0,1fr);
     }
 
     .grid{
@@ -2983,7 +2983,7 @@ td input:focus{
 
     .chart-grid{
 
-        grid-template-columns:1fr;
+        grid-template-columns:minmax(0,1fr);
 
         gap:10px;
     }
@@ -3017,7 +3017,7 @@ td input:focus{
 
         display:grid;
 
-        grid-template-columns:1fr;
+        grid-template-columns:minmax(0,1fr);
 
         gap:8px;
     }
@@ -3920,7 +3920,7 @@ textarea{
     }
 
     .tareo-filters{
-        grid-template-columns:1fr;
+        grid-template-columns:minmax(0,1fr);
     }
 
     .tareo-detail-head{
@@ -4825,7 +4825,7 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
   }
 
   .hist-report-stop-summary{
-    grid-template-columns:1fr;
+    grid-template-columns:minmax(0,1fr);
   }
 }
 
@@ -5028,7 +5028,7 @@ details[open]>.hist-report-card-head .hist-report-chevron{transform:rotate(180de
 .hist-v2-table-foot{display:flex;justify-content:space-between;gap:16px;padding:9px 14px;background:#fafbfd;color:#7a8997;font-size:11px}.hist-v2-empty{text-align:center;padding:28px;color:#718496}
 @media(max-width:1100px){.hist-v2-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.hist-v2-filter-actions{grid-column:span 3;justify-content:flex-end}}
 @media(max-width:700px){.historial-produccion-page{padding-top:0}.hist-v2-heading{margin-bottom:12px}.hist-v2-heading h2{font-size:22px}.hist-v2-heading p{font-size:12px}.hist-v2-filters{grid-template-columns:1fr 1fr;gap:10px;padding:12px}.hist-v2-filters label:nth-child(3),.hist-v2-filters label:nth-child(4),.hist-v2-filters label:nth-child(5){grid-column:span 1}.hist-v2-filter-actions{grid-column:1/-1}.hist-v2-filter-btn{flex:1}.hist-v2-table-card{border-radius:8px}.hist-v2-table-scroll{padding-bottom:4px}.hist-v2-detail-row>td{padding-left:10px!important}.hist-v2-table-foot{display:block}.hist-v2-table-foot span{display:block}.hist-v2-table-foot span+span{margin-top:3px}}
-@media(max-width:440px){.hist-v2-filters{grid-template-columns:1fr}.hist-v2-filters label,.hist-v2-filters label:nth-child(3),.hist-v2-filters label:nth-child(4),.hist-v2-filters label:nth-child(5),.hist-v2-filter-actions{grid-column:1}.hist-v2-filter-actions{justify-content:stretch}.hist-v2-clear-btn{min-width:80px}}
+@media(max-width:440px){.hist-v2-filters{grid-template-columns:minmax(0,1fr)}.hist-v2-filters label,.hist-v2-filters label:nth-child(3),.hist-v2-filters label:nth-child(4),.hist-v2-filters label:nth-child(5),.hist-v2-filter-actions{grid-column:1}.hist-v2-filter-actions{justify-content:stretch}.hist-v2-clear-btn{min-width:80px}}
 /* =========================================================
    GLACIAL — HISTORIAL / FILTROS COMPACTOS
    Agregar al FINAL de styles.css

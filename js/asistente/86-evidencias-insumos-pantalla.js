@@ -408,7 +408,7 @@
 .ie-foto{max-width:100%;max-height:68vh;object-fit:contain;transition:transform .15s}
 .ie-calc{margin:14px 0;border:1px solid #cfe0ea;border-radius:10px;padding:10px 12px;background:#f6fafc}.ie-calc summary{cursor:pointer;color:#033350;font-size:14px}
 .ie-calc[open] summary{margin-bottom:10px}.ie-calc-io{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end;margin-top:8px}.ie-calc-eq{font-size:20px;color:#5b7a8c;padding-bottom:8px}
-.ie-calc-guia,.ie-calc-conv{margin:0 0 8px;font-size:13.5px}.ie-calc-res{margin:10px 0 0;font-size:17px}#ie-calc-btn{margin-top:6px}.ie-ayuda{display:block;margin-top:3px}.ie-calc-comp{margin:8px 0 0;font-size:13.5px}.ie-calc-ok{color:#166534}.ie-calc-mal{color:#b42318}.ie-calc-nota{font-size:12px;margin:6px 0 0}.ie-calc-sin{display:block;padding:8px 0}.ie-calc-man{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}@media(max-width:520px){.ie-calc-man{grid-template-columns:1fr}}
+.ie-calc-guia,.ie-calc-conv{margin:0 0 8px;font-size:13.5px}.ie-calc-res{margin:10px 0 0;font-size:17px}#ie-calc-btn{margin-top:6px}.ie-ayuda{display:block;margin-top:3px}.ie-calc-comp{margin:8px 0 0;font-size:13.5px}.ie-calc-ok{color:#166534}.ie-calc-mal{color:#b42318}.ie-calc-nota{font-size:12px;margin:6px 0 0}.ie-calc-sin{display:block;padding:8px 0}.ie-calc-man{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}@media(max-width:520px){.ie-calc-man{grid-template-columns:minmax(0,1fr)}}
 .ie-top{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}.ie-g{margin:14px 0 6px;font-size:14px;color:#033350}
 .ie-t{width:100%;border-collapse:collapse;font-size:14px}.ie-t{table-layout:fixed}.ie-t th{text-align:left;text-transform:none;letter-spacing:0;font-size:14px;color:#033350;background:transparent;font-weight:600;width:30%;padding:7px 8px 7px 0;vertical-align:top}.ie-t th small{display:block;font-weight:400;color:var(--ii-mut);font-size:11.5px;overflow-wrap:anywhere}
 .ie-t td{padding:5px 6px;vertical-align:top;border-top:1px solid #edf2f7}.ie-f-dudoso td,.ie-f-dudoso th{background:#fff7f6}.ie-or{display:block;font-size:11px}.ie-ac{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
@@ -418,9 +418,9 @@
 .ie-acc{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--ii-linea)}
 .ie-vacio-det{text-align:center;padding:40px 16px}
 /* Orden visual (31/10/2026): en pantallas de hasta 1500 px la foto va arriba y la tabla ocupa todo el ancho (antes los campos quedaban de ~120 px y los textos se cortaban). */
-@media(max-width:1500px){.ie-cols{grid-template-columns:1fr}.ie-col-foto{position:static}.ie-foto{max-height:300px}.ie-foto-caja{min-height:180px}.ie-t th{width:34%}}
-@media(max-width:900px){.ie-grid{grid-template-columns:1fr}.ie-cols{grid-template-columns:1fr}.ie-col-foto{position:static}.ie-top{grid-template-columns:1fr}.ie-t th{width:auto}}
-@media(max-width:560px){.ie-t,.ie-t tbody,.ie-t tr,.ie-t th,.ie-t td{display:block;width:100%}.ie-t tr{border-top:1px solid #edf2f7;padding:6px 0}.ie-t td{border-top:0}.ie-duda{padding:0!important}}`;
+@media(max-width:1500px){.ie-cols{grid-template-columns:minmax(0,1fr)}.ie-col-foto{position:static}.ie-foto{max-height:300px}.ie-foto-caja{min-height:180px}.ie-t th{width:34%}}
+@media(max-width:900px){.ie-grid{grid-template-columns:minmax(0,1fr)}.ie-grid>*,.ie-cols>*{min-width:0}.ie-cols{grid-template-columns:minmax(0,1fr)}.ie-col-foto{position:static}.ie-top{grid-template-columns:minmax(0,1fr)}.ie-t th{width:auto}}
+@media(max-width:560px){.ie-t,.ie-t tbody,.ie-t tr,.ie-t th,.ie-t td{display:block;width:100%;min-width:0}.ie-t tr{border-top:1px solid #edf2f7;padding:6px 0}.ie-t td{border-top:0}.ie-duda{padding:0!important}}`;
 
   window.iiEvidenciasUI={html,css,estado:S,hayEdicion:()=>!!S.sel&&hayBorrador(),aviso,seleccionar:id=>{S.sel=id;},cambiosPendientes:d=>cambiosPendientes(d),repintar,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
   window.__inventarioInsumosEvidencias={S,cambiosPendientes};

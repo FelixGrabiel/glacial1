@@ -281,7 +281,7 @@
 .cv-lineas label{display:flex;gap:6px;align-items:center;font-weight:700;min-height:36px}
 .cv-aviso{background:#fff7e6;border:1px solid #f5c26b;color:#8a4b00;border-radius:10px;padding:10px 12px;margin:8px 0}
 .cv-nota{font-size:12px;color:#5b6b7c;margin-top:6px}
-@media(max-width:860px){.cv-lay{grid-template-columns:1fr}.cv-calc{grid-template-columns:1fr}.cv-flecha{display:none}}
+@media(max-width:860px){.cv-lay{grid-template-columns:minmax(0,1fr)}.cv-calc{grid-template-columns:minmax(0,1fr)}.cv-flecha{display:none}}
 </style>`;}
   function html(){
     escuchar();

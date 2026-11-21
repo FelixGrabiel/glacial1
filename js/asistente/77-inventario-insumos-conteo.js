@@ -324,7 +324,7 @@
 .ii-peligro{color:#b42318;border-color:#b42318}.ii-peligro-f{background:#b42318;border-color:#b42318}
 .ii-alta{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:8px;align-items:end;margin-top:8px}
 .ii-form1{display:grid;gap:10px;margin:8px 0}.ii-reab{margin:6px 0;font-size:13px}
-@media(max-width:700px){.ii-alta{grid-template-columns:1fr}.ii-alta .ii-btn{min-height:46px}.ii-art-t b{font-size:20px}}`;
+@media(max-width:700px){.ii-alta{grid-template-columns:minmax(0,1fr)}.ii-alta .ii-btn{min-height:46px}.ii-art-t b{font-size:20px}}`;
   /* Cambios de otras personas: se vuelve a dibujar y se devuelven el texto escrito y el cursor al campo que se estaba llenando. */
   const CAMPOS=['#ii-c-texto','#ii-c-obs','.ii-alta input[name=ubicacion]','.ii-alta input[name=cantidad]'];
   function conservando(dibujar){

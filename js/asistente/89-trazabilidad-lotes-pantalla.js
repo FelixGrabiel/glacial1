@@ -544,8 +544,8 @@
 .il-ent-lote{border:1px solid var(--ii-linea);border-radius:10px;padding:6px 12px;margin:6px 0}.il-ent-venc{background:#fffafa;border-color:#f5c2c0}.il-ent-us{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 10px;margin:0 0 4px 26px}
 .il-ent-u{align-items:center;flex-wrap:wrap}.il-ent-u small{display:block}.il-ent-lin .il-ent-us{margin-left:0;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}.il-ent-res{margin:6px 0 10px;padding-left:18px;font-size:13.5px}
 .il-params summary{cursor:pointer}.il-params-f{display:grid;gap:12px;margin-top:10px;max-width:520px}.il-params .ii-et input{max-width:200px}
-@media(max-width:900px){.il-cols{grid-template-columns:1fr}}
-@media(max-width:560px){.il-ent-us{margin-left:0;grid-template-columns:1fr 1fr}.il-ent-barra .ii-campo{min-width:0;flex:1 1 100%}.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
+@media(max-width:900px){.il-cols{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.il-ent-us{margin-left:0;grid-template-columns:1fr 1fr}.il-ent-barra .ii-campo{min-width:0;flex:1 1 100%}.il-filtros{grid-template-columns:minmax(0,1fr)}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
 
   window.iiLotesUI={html,css,estado:S,diagnostico,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
   window.__trazabilidadLotesPantalla={S,diagnostico,companerasDe,almacenPorCategoria};

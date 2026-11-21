@@ -346,7 +346,7 @@
       '.rg-nok{border-color:#e3b0aa;color:#9b1c1c}.rg-nok[aria-pressed="true"]{background:#c0392b;border-color:#c0392b;color:#fff}.rg-nok[aria-pressed="true"] .rg-ico{background:#fff;color:#c0392b;border-color:#fff}.rg-act.no{background:#fff5f4;border-radius:10px}.rg-act.arr{border-left:4px solid #e0a100;padding-left:12px}'+
       '.rg-origen{color:#8a6100!important;font-weight:600}.rg-motivo{margin-top:6px}.rg-motivo label{display:block;font-size:12.5px;color:#9b1c1c;font-weight:600}.rg-obs-no{border-color:#e2a6a0;background:#fff}.rg-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}'+
       '.rg-chip{border:1px solid #cfdbe3;background:#fff;border-radius:999px;padding:6px 10px;font-size:12.5px;color:#033350;cursor:pointer;min-height:34px}.rg-chip:active{background:#e8f7fe}.rg-chip.on{background:#033350;border-color:#033350;color:#fff}'+
-      '@media(max-width:520px){.rg-datos{grid-template-columns:1fr}}';
+      '@media(max-width:520px){.rg-datos{grid-template-columns:minmax(0,1fr)}}';
     document.head.appendChild(s);
   }
 
