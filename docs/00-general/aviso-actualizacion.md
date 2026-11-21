@@ -16,3 +16,6 @@ Cada vez que se publica una versión nueva (cada fusión a `main`), las páginas
 - Tarda hasta ~3 minutos en aparecer después de que termina «Publicar página».
 
 Pruebas: `tests/aviso-actualizacion.test.js`.
+
+## Regla: cada cambio de un archivo sube su `?v=` en index.html (21/11/2026)
+Si un archivo de `js/` o `css/` cambia y su `?v=` en `index.html` no cambia, los navegadores siguen usando la copia vieja que ya tenían (la página publica con caché) y **no se ve el cambio**, aunque el despliegue haya salido bien. Pasó el 21/11/2026 con Hielo Premium y Vasos: el despliegue era correcto pero el navegador seguía con `97-hielo.js?v=20261121-rd4`. Se subieron las versiones de los 55 archivos tocados desde el 20/11/2026. Al cambiar un archivo: subir el número de su `?v=` (por ejemplo `-rd5` → `-rd6`) en el mismo cambio.
