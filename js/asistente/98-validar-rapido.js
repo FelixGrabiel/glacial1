@@ -84,7 +84,7 @@
     const tipo=def.tipo==='fecha'?'date':def.tipo==='numero'?'number':'text';
     const sug=dudoso&&c.valor_sugerido!==undefined&&c.valor_sugerido!==null?`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ieVrSugerido('${esc(def.campo)}')">Usar ${esc(def.tipo==='fecha'?n.fechaPantalla(c.valor_sugerido):c.valor_sugerido)}</button>`:'';
     return `<label class="vr-campo ${dudoso?'vr-duda':''}"><span>${esc(def.etiqueta)}${dudoso?' <b class="vr-tag">revisar</b>':''}</span>
-      <input class="ie-in" id="vr-c-${esc(def.campo)}" data-campo="${esc(def.campo)}" type="${tipo}" ${tipo==='number'?'step="any" inputmode="decimal"':''} value="${esc(v)}" autocomplete="off">
+      ${def.campo==='cantidad_unidad'?`<select class="ie-in" id="vr-c-${esc(def.campo)}" data-campo="${esc(def.campo)}"><option value="" ${v===''?'selected':''}>— elige la unidad —</option>${n.opcionesUnidad(v).map(u=>`<option value="${esc(u)}" ${v.toUpperCase()===u?'selected':''}>${esc(u)}${n.UNIDADES_CANTIDAD.includes(u)?'':' (corrígela)'}</option>`).join('')}</select>`:`<input class="ie-in" id="vr-c-${esc(def.campo)}" data-campo="${esc(def.campo)}" type="${tipo}" ${tipo==='number'?'step="any" inputmode="decimal"':''} value="${esc(v)}" autocomplete="off">`}
       ${dudoso&&c.duda?`<small class="vr-motivo">IA: ${esc(c.duda)}</small>`:''}${sug}</label>`;
   }
   function fotoHtml(d){

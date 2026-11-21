@@ -55,6 +55,9 @@
     {campo:'medidas',etiqueta:'Medidas',tipo:'texto',grupo:'Cantidad y pesos',oculto:true}
   ];
   const DEF=Object.fromEntries(CAMPOS.map(c=>[c.campo,c]));
+  /* Unidades en las que se cuenta la cantidad de una etiqueta (se elige de una lista: así no se escribe un número en la unidad por error). */
+  const UNIDADES_CANTIDAD=['UND','MILLARES','KG','ROLLOS','BOBINAS','CAJAS','BOLSAS','PAQUETES','LITROS'];
+  const opcionesUnidad=v=>{const a=UNIDADES_CANTIDAD.slice(),x=String(v==null?'':v).trim().toUpperCase();if(x&&!a.includes(x))a.push(x);return a;};
   /* El validador usa nombres planos de la v2; en `campos` v3 la cantidad se llama cantidad_valor. */
   const ALIAS={cantidad_unidades:'cantidad_valor',unidad_cantidad:'cantidad_unidad'};
   const campoDe=n=>ALIAS[n]||n;
@@ -91,6 +94,7 @@
       return {valor:Math.round(n*10000)/10000};
     }
     if(def.tipo==='fecha')return esFechaIso(s)?{valor:s}:{error:def.etiqueta+': usa una fecha válida (AAAA-MM-DD).'};
+    if(campo==='cantidad_unidad'&&/^[\d.,\s]+$/.test(s))return {error:'Unidad de la cantidad: aquí va la unidad (UND, MILLARES, KG…), no un número. El número va en «Cantidad».'};
     return {valor:recortar(s,200)};
   }
 
@@ -342,7 +346,7 @@
   /** Diferencia porcentual entre lo calculado y lo que dice la etiqueta (null si no se puede comparar). */
   const diferenciaPct=(calculado,etiqueta)=>Number(etiqueta)>0&&Number.isFinite(Number(calculado))?Math.round((Number(calculado)-Number(etiqueta))/Number(etiqueta)*1000)/10:null;
 
-  const API={gramajeDeTexto,convertir,diferenciaPct,ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,CAMPOS_VISIBLES,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
+  const API={UNIDADES_CANTIDAD,opcionesUnidad,gramajeDeTexto,convertir,diferenciaPct,ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,CAMPOS_VISIBLES,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
     etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe,msDe,fechaFotoDeRegistro,fechaFoto,ORIGEN_FECHA_FOTO,tituloEvidencia};
   global.glacialEvidenciasNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

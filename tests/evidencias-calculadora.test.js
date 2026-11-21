@@ -26,4 +26,14 @@ ok(/hayGuardadas=lineas\.some\(l=>opsDe\(l\)\.length\)/.test(P)&&/fuente=\(!o\.h
 ok(/if\(b&&b\[campo\]!==undefined\)\{[^}]*guardarEdiciones\(d\.id,d\.rev,\{cambios:\{\[campo\]:b\[campo\]\}\}\)/s.test(P)&&!/Guarda primero el valor que escribiste/.test(P),'«Confirmar» con un valor escrito lo guarda y lo confirma en un solo paso (ya no pide «guarda primero»)');
 const L=fs.readFileSync(R+'/js/asistente/89-trazabilidad-lotes-pantalla.js','utf8');
 ok(/Nada se confirma solo/.test(L)&&/únicamente cuando tú pulsas/.test(L)&&/desmarca/.test(L),'«Otras fotos del mismo lote»: aclara que solo se aprueban cuando el usuario confirma y que se pueden desmarcar');
+/* 21/11/2026: más fácil de usar. */
+ok(N.valorDeEntrada('cantidad_unidad','24682').error&&/no un número/.test(N.valorDeEntrada('cantidad_unidad','24682').error)&&N.valorDeEntrada('cantidad_unidad','UND').valor==='UND','«Unidad de la cantidad» no acepta un número (va la unidad; el número va en «Cantidad»)');
+ok(N.opcionesUnidad('').join()===N.UNIDADES_CANTIDAD.join()&&N.opcionesUnidad('rollos').join()===N.UNIDADES_CANTIDAD.join()&&N.opcionesUnidad('SOBRES').slice(-1)[0]==='SOBRES'&&N.UNIDADES_CANTIDAD.includes('UND')&&N.UNIDADES_CANTIDAD.includes('MILLARES'),'la unidad se elige de una lista (UND, MILLARES, KG…); si la etiqueta trae otra se conserva para corregirla');
+ok(/<select class="ie-in" data-campo="\$\{def\.campo\}" onchange="ieCampo/.test(P)&&/Solo el número, sin la unidad/.test(P)&&/no un número/.test(P),'en la pantalla la unidad es una lista y cada campo trae su ayuda corta');
+ok(/Calculadora: kilos ↔ unidades/.test(P)&&/Escribe los <b>kilos<\/b>/.test(P)&&/id="ie-calc-res"/.test(P)&&/ie-calc-conv/.test(P)&&/ieCalc\('cambiar',1\)/.test(P),'calculadora en lenguaje simple: guía de una línea, resultado «kg ≈ UND» y conversión resumida con «Cambiar»');
+ok(/Coincide con la etiqueta/.test(P)&&/La etiqueta dice <b>/.test(P)&&/MILLAR\|MILLARES/.test(P),'compara con la etiqueta en frases claras y entiende «millares»');
+ok(/window\.ieUsarCalc=/.test(P)&&/Poner \$\{esc\(fmtN\(Math\.round\(undN\),0\)\)\} UND en «Cantidad»/.test(P)&&/b\.cantidad_unidad='UND'/.test(P),'botón «Poner N UND en Cantidad»: pasa el resultado al borrador sin guardar');
+ok(/aún no está en el banco de proveedores; se guarda igual/.test(L)&&/Estas fotos tienen el mismo lote del proveedor/.test(L)&&/el número se pone solo/.test(L),'ventana «Confirmar y crear lote»: textos más claros');
+const V=fs.readFileSync(R+'/js/asistente/98-validar-rapido.js','utf8');
+ok(/def\.campo==='cantidad_unidad'\?`<select/.test(V),'la validación rápida también usa la lista de unidades');
 process.exit(process.exitCode||0);
