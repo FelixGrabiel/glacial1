@@ -36,6 +36,16 @@ const DATOS = () => {
   await P.evaluate(() => goReporteHielo('PREMIUM')); ok(await P.evaluate(() => document.querySelector('.hl-prod button.act').innerText.trim()) === 'Hielo premium', 'abrir «Hielo Premium» entra directo a Premium');
   ok(await P.evaluate(() => [...document.querySelectorAll('#hl-menu .hl-menu-et')].map(b => b.textContent.trim()).join('|')) === 'Día a día|Reportes|Gestión' && await P.evaluate(() => document.querySelectorAll('#hl-menu .hl-menu-prod').length) === 0, 'el menú lateral va ordenado por grupos y no repite el selector de producto');
   await P.evaluate(() => { document.querySelectorAll('.hl-prod button')[0].click(); }); ok(await P.evaluate(() => document.querySelector('.hl-prod button.act').innerText.trim()) === 'Hielo en cubos', 'tocar «Hielo en cubos» arriba cambia de producto');
+  // ---- guardar: el documento se llama igual que su id (el servidor lo exige): «_PREMIUM» / «_VASOS» para los productos nuevos
+  const guardado = await P.evaluate(async () => {
+    const salidas = []; const orig = { c: db.collection, t: db.runTransaction };
+    db.collection = () => ({ doc: id => ({ __id: id }) });
+    db.runTransaction = async fn => { await fn({ get: async () => ({ exists: false, data: () => null }), set: (r, d) => salidas.push([r.__id, d.id, d.producto || '']) }); };
+    const base = f => ({ fecha: '2026-11-21', turno: 'INTERMEDIO', estado: 'EN_REGISTRO', supervisor: 'Ana', produccion: [], paradas: [], mermas: [], rev: 0, ...f });
+    try { await glacialHieloDatos.guardarReporte(base({}), 'GUARDAR'); await glacialHieloDatos.guardarReporte(base({ producto: 'PREMIUM' }), 'GUARDAR'); await glacialHieloDatos.guardarReporte(base({ producto: 'VASOS' }), 'GUARDAR'); } catch (e) { salidas.push(['ERR', e.message, '']); }
+    db.collection = orig.c; db.runTransaction = orig.t; return salidas;
+  });
+  ok(guardado.length === 3 && guardado.every(g => g[0] === g[1]) && guardado.map(g => g[0]).join() === '2026-11-21_INTERMEDIO,2026-11-21_INTERMEDIO_PREMIUM,2026-11-21_INTERMEDIO_VASOS', 'guardar Cubos, Premium y Vasos: el documento se llama igual que su id (antes Premium daba «permiso denegado»): ' + JSON.stringify(guardado));
   // ---- selector
   ok(await P.evaluate(() => [...document.querySelectorAll('.hl-prod button')].map(b => b.innerText.trim()).join('|')) === 'Hielo en cubos|Hielo premium|Hielo en vasos', 'hay un selector con Hielo en cubos, Hielo premium y Hielo en vasos');
   ok(await P.evaluate(() => document.querySelector('.hl-prod button.act').innerText.trim()) === 'Hielo en cubos', 'por defecto se ve Hielo en cubos (como siempre)');
