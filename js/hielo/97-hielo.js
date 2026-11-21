@@ -422,6 +422,7 @@
 .hl-side button:hover{background:rgba(255,255,255,.08)}
 .hl-side button.act{background:rgba(56,189,248,.18);color:#fff;box-shadow:inset 3px 0 0 #38bdf8}.hl-side button.act svg{opacity:1;stroke:#7dd3fc}
 .hl-sep{border-top:1px solid rgba(255,255,255,.12);margin:12px 6px}
+.hl-menu-et{display:block;margin:10px 12px 4px;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#7fb4dc}
 .hl-main{padding:22px 26px 64px;min-width:0;max-width:1240px}
 .hl-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px}
 .hl-main h1{font-size:25px;letter-spacing:-.01em;margin:0 0 3px;color:#0b2a4a}.hl-sub{color:#587087;margin:0 0 16px}
@@ -873,13 +874,14 @@
     const MENU=[['inicio','Inicio'],['registro','Nuevo registro'],['avance','Avance y cierre'],['reporte','Reporte diario'],['planta','Resumen de planta'],['historial','Historial'],['programacion','Programación'],['config','Configuración']];
     const cuerpo={inicio:vistaInicio,registro:vistaRegistro,avance:vistaAvance,reporte:vistaReporteDiario,planta:vistaPlanta,historial:vistaHistorial,programacion:vistaProgramacion,config:vistaConfig}[S.vista]||vistaInicio;
     const y=r.scrollTop;
-    const IC={planta:'<path d="M4 20V9M10 20V4M16 20v-8M22 20H2"/><path d="M3 7l5-4 5 3 7-4"/>',reporte:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',inicio:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',registro:'<path d="M12 5v14M5 12h14"/>',avance:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',historial:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',programacion:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',config:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',volver:'<path d="M15 6l-6 6 6 6"/>'};
+    const IC={producto:'<path d="M4 8l8-4 8 4-8 4-8-4Z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>',planta:'<path d="M4 20V9M10 20V4M16 20v-8M22 20H2"/><path d="M3 7l5-4 5 3 7-4"/>',reporte:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',inicio:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',registro:'<path d="M12 5v14M5 12h14"/>',avance:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',historial:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',programacion:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',config:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',volver:'<path d="M15 6l-6 6 6 6"/>'};
     const ico=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]||''}</svg>`;
     const titulo=(MENU.find(x=>x[0]===S.vista)||MENU[0])[1];
     r.classList.toggle('hl-menu-abierto',!!S.menu);
     r.innerHTML=`${estilos()}<div class="hl-app${S.menu?' hl-abierto':''}"><header class="hl-top"><button type="button" class="hl-hamb" aria-label="${S.menu?'Cerrar':'Abrir'} menú de Hielo" aria-controls="hl-menu" aria-expanded="${S.menu?'true':'false'}" onclick="hlMenu()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="hl-top-t"><b aria-hidden="true">❄</b><strong>GLACIAL · HIELO</strong><small>${esc(titulo)}</small></div></header>
       <button type="button" class="hl-fondo" aria-label="Cerrar menú" tabindex="-1" onclick="hlMenu(false)"></button><nav class="hl-side" id="hl-menu" aria-label="Menú de Hielo"><div class="hl-marca"><b aria-hidden="true">❄</b><div><h2>GLACIAL · HIELO</h2><small>Reporte Hielo</small></div></div>
-      ${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${ico(k)}<span>${t}</span></button>`).join('')}
+      <small class="hl-menu-et">Producto</small>${IDS_PRODUCTO.map(id=>`<button type="button" class="hl-menu-prod ${S.producto===id&&S.vista!=='planta'?'act':''}" ${S.producto===id&&S.vista!=='planta'?'aria-current="true"':''} onclick="hlProducto('${id}')">${ico('producto')}<span>${esc(PRODUCTOS[id].nombre)}</span></button>`).join('')}<div class="hl-sep"></div>
+      <small class="hl-menu-et">${esc(PRODUCTOS[S.producto].corto)}</small>${MENU.map(([k,t])=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${ico(k)}<span>${t}</span></button>`).join('')}
       <div class="hl-sep"></div><button type="button" onclick="hlSalir()">${ico('volver')}<span>Volver a Reporte Agua</span></button></nav>
       <main class="hl-main">${S.vista==='planta'?'':selectorProducto()}${aviso()}${cuerpo()}</main></div>`;
     r.scrollTop=y;
@@ -894,7 +896,9 @@
   window.hlVista=v=>{S.vista=v;S.menu=false;S.msg=null;if(v==='programacion')S.pItems=null;pintar();};
   window.hlSet=(k,v)=>{S[k]=v;S.msg=null;pintar();};
   window.hlProducto=id=>{
-    if(!esProducto(id)||id===S.producto)return;
+    if(!esProducto(id))return;
+    if(id===S.producto){if(S.vista==='planta'){S.vista='inicio';S.menu=false;pintar();}else if(S.menu){S.menu=false;pintar();}return;}
+    if(S.vista==='planta')S.vista='inicio';S.menu=false;
     if(temporizador){clearTimeout(temporizador);temporizador=null;if(S.ed&&puedeRegistrar()&&S.ed.estado!=='FINALIZADO')window.hlGuardar('GUARDAR',true);}   // lo que se estaba escribiendo se guarda antes de cambiar
     S.producto=id;S.ed=null;S.pItems=null;S.msg=null;S.hMarca='';
     try{localStorage.setItem('glacial-hielo-producto',id);}catch(_){/* sin almacenamiento: vale para esta sesión */}
@@ -986,12 +990,13 @@
       document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
     }catch(e){mal('No se pudo generar el Excel: '+((e&&e.message)||e));}
   };
-  function abrir(){
+  function abrir(prod){
     if(!puedeVer()){alert('No tienes permiso para ver Hielo. Pídelo a un Administrador.');return;}
     const sel=document.getElementById('report-select-screen'),app=document.getElementById('app-screen');
     S.desdeAgua=!!(app&&app.style.display!=='none'&&getComputedStyle(app).display!=='none');      // se abrió con el botón del Reporte Agua
     if(sel)sel.style.display='none';if(app)app.style.display='none';
-    try{const g=localStorage.getItem('glacial-hielo-producto');if(esProducto(g)&&!S.productoElegido){S.producto=g;S.productoElegido=true;}}catch(_){/* sin almacenamiento */}
+    if(esProducto(prod)){S.producto=prod;S.productoElegido=true;S.ed=null;S.pItems=null;if(S.vista==='planta')S.vista='inicio';try{localStorage.setItem('glacial-hielo-producto',prod);}catch(_){/* sin almacenamiento */}}      // «Hielo Premium» / «Hielo en vasos» de la pantalla de módulos abren directo ese producto
+    else try{const g=localStorage.getItem('glacial-hielo-producto');if(esProducto(g)&&!S.productoElegido){S.producto=g;S.productoElegido=true;}}catch(_){/* sin almacenamiento */}
     raiz().style.display='block';escuchar();if(!S.fecha)S.fecha=hoy();pintar();
   }
   window.hlSalir=()=>{
