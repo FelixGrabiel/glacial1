@@ -149,6 +149,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 42-tareo-agregar-personal.js | Agregar personal al tareo (ya registrado o personal nuevo) en Producción y Mantenimiento |
 | 43-distribucion-personal.js | Distribución de personal por línea: fuente compartida (`docs/personal-tareo/distribucion-personal.md`) |
 | 44-distribucion-personal-pantalla.js | Pestaña «Distribución de personal» del Tareo de Producción |
+| 45-supervisor-en-turno.js | Supervisor en turno: cada supervisor indica Agua o Hielo y una barra muestra solo los nombres (`docs/personal-tareo/supervisor-en-turno.md`) |
 | 45-tareo-edicion-continua.js | Tareo: edición continua de varias filas seguidas (`docs/personal-tareo/tareo-edicion-continua.md`) |
 | 46-tareo-horas-extras.js | Tareo: horas extras, gráficos y jornada laborada, solo lectura (`docs/personal-tareo/tareo-horas-extras.md`) |
 | 47a-horas-extras-nucleo.js | Tareo: reglas puras del registro de horas extras (total con medianoche, validación, choques, filtros) |
