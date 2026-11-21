@@ -895,7 +895,7 @@
       <button type="button" class="hl-fondo" aria-label="Cerrar menú" tabindex="-1" onclick="hlMenu(false)"></button><nav class="hl-side" id="hl-menu" aria-label="Menú de Hielo"><div class="hl-marca"><b aria-hidden="true">❄</b><div><h2>GLACIAL · HIELO</h2><small>Reporte Hielo</small></div></div>
       ${GRUPOS.map(([et,ks],g)=>`${g?'<div class="hl-sep"></div>':''}<small class="hl-menu-et">${et}</small>${ks.map(k=>`<button type="button" class="${S.vista===k?'act':''}" ${S.vista===k?'aria-current="page"':''} onclick="hlVista('${k}')">${ico(k)}<span>${(MENU.find(x=>x[0]===k)||[])[1]}</span></button>`).join('')}`).join('')}
       <div class="hl-sep"></div><button type="button" onclick="hlSalir()">${ico('volver')}<span>Volver a Reporte Agua</span></button></nav>
-      <main class="hl-main">${S.vista==='planta'?'':selectorProducto()}${aviso()}${cuerpo()}</main></div>`;
+      <main class="hl-main">${window.glacialSupervisorTurno?window.glacialSupervisorTurno.htmlBarraHielo():''}${S.vista==='planta'?'':selectorProducto()}${aviso()}${cuerpo()}</main></div>`;
     r.scrollTop=y;
     if(S.vista==='reporte')pintarGraficosReporte();
     if(S.vista==='planta')pintarGraficosPlanta();
