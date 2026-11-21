@@ -36,5 +36,12 @@ const mu=H.modeloAvanceCierre({...base,reportes:[ur2,ur1],programas:[]});
 ok(mu.ultimoRegistro==='23:47','último registro = el guardado más reciente, en hora de Lima (04:47 UTC = 23:47)');
 ok(/\nHora: 14:05\nÚltimo registro: 23:47\n/.test(H.textoAvanceCierre(mu)),'el texto lo trae justo debajo de «Hora:»');
 ok(H.modeloAvanceCierre({...base,reportes:[dia],programas:[]}).ultimoRegistro===''&&!/Último registro/.test(H.textoAvanceCierre(H.modeloAvanceCierre({...base,reportes:[dia],programas:[]}))),'sin marca de tiempo: no se inventa la hora');
+// Kg netos editables en Configuración: Avance y cierre los usa; el reporte (kgDe) sigue con los reales.
+H.aplicarConfigPesos({pesos:{'3 kg':3.25,'1.5 kg':1.75},pesosNeto:{'3 kg':3.1,'1.5 kg':1.6}});
+{const mn=H.modeloAvanceCierre({...base,reportes:[dia],programas:[]});
+ok(mn.kg===Math.round((800*3.1+400*1.6)*100)/100&&H.kgDe('3 kg')===3.25&&H.kgNeto('1.5 kg')===1.6,'kg netos de Configuración: Avance y cierre los usa y los reportes siguen con los reales');}
+H.aplicarConfigPesos({});
+ok(H.kgNeto('3 kg')===3&&H.kgNeto('1.5 kg')===1.5&&H.kgDe('3 kg')===3.25,'sin kg netos guardados: neto = el del nombre y real = 3.25 / 1.75');
+ok(H.validarConfig({marcas:['G'],presentaciones:['3 kg'],motivos:['x'],pesosNeto:{'3 kg':'3.1'}}).config.pesosNeto['3 kg']===3.1&&H.validarConfig({marcas:['G'],presentaciones:['3 kg'],motivos:['x'],pesosNeto:{'3 kg':'-2'}}).errores.length>0,'la configuración valida los kg netos');
 
 process.exit(fallas?1:0);

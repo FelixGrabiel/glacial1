@@ -58,16 +58,21 @@
   /* Pesos reales vigentes (los de Configuración, o los de fábrica). Se actualizan con aplicarConfigPesos() cada vez que llega la configuración. */
   const pesosDeFabrica=()=>IDS_PRODUCTO.reduce((o,id)=>Object.assign(o,PRODUCTOS[id].pesos),{});
   let PESOS_ACTIVOS=Object.assign({},DEFECTO.pesos,pesosDeFabrica());
+  let PESOS_NETOS={};                                                                               // kg netos de Configuración (Avance y cierre); vacío = el número del nombre
   function aplicarConfigPesos(cfg){
     const nuevo=Object.assign({},DEFECTO.pesos,pesosDeFabrica());
     const poner=p=>{if(p&&typeof p==='object')Object.keys(p).forEach(k=>{const v=num(p[k]);if(v>0)nuevo[k]=v;});};
     poner(cfg&&cfg.pesos);                                                                        // CUBOS: campo de primer nivel (como siempre)
     if(cfg&&cfg.productos&&typeof cfg.productos==='object')IDS_PRODUCTO.forEach(id=>poner(cfg.productos[id]&&cfg.productos[id].pesos));
     PESOS_ACTIVOS=nuevo;
+    const neto={},ponerN=p=>{if(p&&typeof p==='object')Object.keys(p).forEach(k=>{const v=num(p[k]);if(v>0)neto[k]=v;});};
+    ponerN(cfg&&cfg.pesosNeto);
+    if(cfg&&cfg.productos&&typeof cfg.productos==='object')IDS_PRODUCTO.forEach(id=>ponerN(cfg.productos[id]&&cfg.productos[id].pesosNeto));
+    PESOS_NETOS=neto;
   }
   /** Kg REALES de una bolsa de esa presentación (3 kg → 3.25, 1.5 kg → 1.75 por defecto); sin dato, el número del nombre. */
-  /** Peso NETO (el del nombre: 3 kg, 1.5 kg) que usan «Avance y cierre» y su mensaje/imagen. Los reportes (diario, Excel, planta) usan el peso real de la configuración (3.25 / 1.75). Sin kg en el nombre (Vaso) usa el peso configurado. */
-  function kgNeto(presentacion){const n=kgNominal(presentacion);return n>0?n:kgDe(presentacion);}
+  /** Peso NETO (el de Configuración «Kg netos»; sin dato, el del nombre: 3 kg, 1.5 kg) que usan «Avance y cierre» y su mensaje/imagen. Los reportes (diario, Excel, planta) usan el peso real de la configuración (3.25 / 1.75). Sin kg en el nombre (Vaso) usa el peso configurado. */
+  function kgNeto(presentacion){const c=PESOS_NETOS[texto(presentacion)];if(c>0)return c;const n=kgNominal(presentacion);return n>0?n:kgDe(presentacion);}
   function kgDe(presentacion){const v=PESOS_ACTIVOS[texto(presentacion)];return v>0?v:kgNominal(presentacion);}
   /** Id del reporte (o de la programación): «fecha_TURNO»; los productos nuevos agregan «_PREMIUM» / «_VASOS» (el de cubos no cambia). */
   const idReporte=(fecha,turno,producto)=>fecha+'_'+turno+(esProducto(producto)&&producto!=='CUBOS'?'_'+producto:'');
@@ -173,6 +178,7 @@
       return o;
     };
     out.pesos=mapa(c.pesos,DEFECTO.pesos,'Los kg reales por bolsa',true);
+    out.pesosNeto=mapa(c.pesosNeto,{},'Los kg netos por bolsa',true);
     out.bolsasPorPaleta=mapa(c.bolsasPorPaleta,DEFECTO.bolsasPorPaleta,'Las bolsas por paleta',false);
     const cap=c.capacidadTurnoKg===undefined||c.capacidadTurnoKg===''?DEFECTO.capacidadTurnoKg:num(c.capacidadTurnoKg);
     if(!(cap>0)||cap>10000000)e.push('La capacidad por turno debe ser un número de kg mayor que 0.');
@@ -199,6 +205,9 @@
       if(!(v>0)||v>100000)e.push(`Los kg reales por ${P.una} de «${pr}» deben ser un número mayor que 0.`);else pesos[pr]=Math.round(v*1000)/1000;
     });
     producto.pesos=pesos;
+    const netos={};
+    producto.presentaciones.forEach(pr=>{const crudo=c.pesosNeto&&c.pesosNeto[pr];if(crudo===undefined||crudo==='')return;const v=num(crudo);if(!(v>0)||v>100000)e.push(`Los kg netos por ${P.una} de «${pr}» deben ser un número mayor que 0.`);else netos[pr]=Math.round(v*1000)/1000;});
+    producto.pesosNeto=netos;
     const cap=c.capacidadTurnoKg===undefined||c.capacidadTurnoKg===''?P.capacidadTurnoKg:num(c.capacidadTurnoKg);
     if(!(cap>=0)||cap>10000000)e.push('La capacidad por turno debe ser un número de kg (0 si no se usa).');
     producto.capacidadTurnoKg=cap>=0?cap:0;
@@ -321,11 +330,11 @@
   const config=prod=>{
     prod=esProducto(prod)?prod:(typeof S!=='undefined'&&esProducto(S.producto)?S.producto:'CUBOS');
     const raw=cache.config||{},base=Object.assign({},DEFECTO,raw);
-    if(prod==='CUBOS')return Object.assign(base,{producto:'CUBOS',unidadesPorJaba:0});
+    if(prod==='CUBOS')return Object.assign(base,{producto:'CUBOS',unidadesPorJaba:0,pesosNeto:Object.assign({},raw.pesosNeto||{})});
     const P=PRODUCTOS[prod],ov=(raw.productos&&raw.productos[prod])||{};
     const marcasF=[...new Set(P.catalogo.map(x=>x[0]))];
     return Object.assign(base,{producto:prod,marcas:ov.marcas&&ov.marcas.length?ov.marcas:marcasF,presentaciones:ov.presentaciones&&ov.presentaciones.length?ov.presentaciones:P.presentaciones.slice(),
-      pesos:Object.assign({},P.pesos,ov.pesos||{}),capacidadTurnoKg:ov.capacidadTurnoKg!==undefined?ov.capacidadTurnoKg:P.capacidadTurnoKg,bolsasPorPaleta:Object.assign({},P.bolsasPorPaleta,ov.bolsasPorPaleta||{}),
+      pesos:Object.assign({},P.pesos,ov.pesos||{}),pesosNeto:Object.assign({},ov.pesosNeto||{}),capacidadTurnoKg:ov.capacidadTurnoKg!==undefined?ov.capacidadTurnoKg:P.capacidadTurnoKg,bolsasPorPaleta:Object.assign({},P.bolsasPorPaleta,ov.bolsasPorPaleta||{}),
       unidadesPorJaba:ov.unidadesPorJaba!==undefined?ov.unidadesPorJaba:P.unidadesPorJaba});
   };
   function escuchar(){
@@ -626,9 +635,10 @@
       <div class="hl-card"><div class="hl-form">${area('hl-c-marcas','Marcas',c.marcas,'')}${area('hl-c-pres','Presentaciones',c.presentaciones,P.id==='VASOS'?'Por ejemplo «Vaso».':'Con sus kg, por ejemplo «'+(esCubos?'3':'2')+' kg».')}
         ${area('hl-c-estaciones','Estaciones de producción',c.estaciones,'Para agrupar el avance (ej. Tolva manual).')}${area('hl-c-equipos','Equipos de la planta',c.equipos,'Para las paradas.')}${area('hl-c-motivos','Motivos de parada',c.motivos,'«Otros» pide describir la parada.')}${area('hl-c-mermas','Ítems de merma',c.mermas,'')}</div>
         <h3 style="margin:18px 0 6px">${esCubos?'Kilos reales, paletas y capacidad':P.unidadesPorJaba?'Peso del vaso, vasos por jaba y capacidad':'Kilos reales y capacidad'}</h3>
-        <p class="hl-sub" style="margin:0 0 8px">Con esto se calculan los kilos${esCubos?', el N.º de paletas':P.unidadesPorJaba?' y el N.º de jabas':''} y la eficiencia de los reportes (diario, Excel y resumen de planta).${esCubos?' «Avance y cierre» usa el peso neto del nombre (3 kg y 1.5 kg), no estos.':''} Vacío = valor de fábrica${esCubos?' (3.25 y 1.75 kg)':''}.</p>
-        <div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Presentación</th><th>Kg reales por ${P.una}</th>${esCubos?'<th>Bolsas por paleta</th>':''}</tr></thead><tbody>${c.presentaciones.map(pr=>`<tr><td data-label="Presentación"><b>${esc(pr)}</b></td>
-          <td data-label="Kg reales por ${P.una}"><input type="number" step="0.01" min="0" ${dis} data-hl-peso="${esc(pr)}" value="${esc((c.pesos&&c.pesos[pr])!==undefined?c.pesos[pr]:'')}" aria-label="Kg reales por ${P.una} de ${esc(pr)}"></td>
+        <p class="hl-sub" style="margin:0 0 8px">Con esto se calculan los kilos${esCubos?', el N.º de paletas':P.unidadesPorJaba?' y el N.º de jabas':''} y la eficiencia. <b>Kg reales</b>: los usan el reporte diario, el Excel y el resumen de planta. <b>Kg netos</b>: los usa Avance y cierre (su mensaje e imagen). Vacío = valor de fábrica${esCubos?' (reales 3.25 y 1.75; netos 3 y 1.5 kg)':' (netos: los kg del nombre)'}.</p>
+        <div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Presentación</th><th>Kg reales por ${P.una} <small>(reportes)</small></th><th>Kg netos por ${P.una} <small>(Avance y cierre)</small></th>${esCubos?'<th>Bolsas por paleta</th>':''}</tr></thead><tbody>${c.presentaciones.map(pr=>`<tr><td data-label="Presentación"><b>${esc(pr)}</b></td>
+          <td data-label="Kg reales por ${P.una}"><input type="number" step="0.01" min="0" ${dis} data-hl-peso="${esc(pr)}" value="${esc((c.pesos&&c.pesos[pr])!==undefined?c.pesos[pr]:'')}" aria-label="Kg reales por ${P.una} de ${esc(pr)}" placeholder="${esc(PRODUCTOS[S.producto].pesos[pr]!==undefined?PRODUCTOS[S.producto].pesos[pr]:(DEFECTO.pesos[pr]!==undefined?DEFECTO.pesos[pr]:kgNominal(pr)))}"></td>
+          <td data-label="Kg netos por ${P.una}"><input type="number" step="0.01" min="0" ${dis} data-hl-neto="${esc(pr)}" value="${esc((c.pesosNeto&&c.pesosNeto[pr])!==undefined?c.pesosNeto[pr]:'')}" aria-label="Kg netos por ${P.una} de ${esc(pr)}" placeholder="${esc(kgNominal(pr)>0?kgNominal(pr):kgDe(pr))}"></td>
           ${esCubos?`<td data-label="Bolsas por paleta"><input type="number" step="1" min="1" ${dis} data-hl-paleta="${esc(pr)}" value="${esc((c.bolsasPorPaleta&&c.bolsasPorPaleta[pr])!==undefined?c.bolsasPorPaleta[pr]:'')}" aria-label="Bolsas por paleta de ${esc(pr)}"></td>`:''}</tr>`).join('')}</tbody></table></div>
         <div class="hl-form" style="margin-top:10px"><label>Capacidad de un turno (kg)<input type="number" step="100" min="${esCubos?1:0}" id="hl-c-capacidad" ${dis} value="${esc(c.capacidadTurnoKg)}"><span class="hl-sub" style="font-weight:400;margin:0">La eficiencia del reporte diario es los kg del turno ÷ esta capacidad.${esCubos?'':' Con 0 no se calcula la eficiencia.'}</span></label>
           ${P.unidadesPorJaba?`<label>Vasos por jaba<input type="number" step="1" min="1" id="hl-c-jaba" ${dis} value="${esc(c.unidadesPorJaba)}"><span class="hl-sub" style="font-weight:400;margin:0">Con esto se calcula el N.º de jabas del reporte.</span></label>`:''}</div>
@@ -970,7 +980,7 @@
     const v=id=>((document.getElementById(id)||{}).value||'').split('\n');
     const mapa=atributo=>{const o={};document.querySelectorAll('['+atributo+']').forEach(i=>{o[i.getAttribute(atributo)]=i.value;});return o;};
     try{await guardarConfig({marcas:v('hl-c-marcas'),presentaciones:v('hl-c-pres'),estaciones:v('hl-c-estaciones'),equipos:v('hl-c-equipos'),motivos:v('hl-c-motivos'),mermas:v('hl-c-mermas'),
-      pesos:mapa('data-hl-peso'),bolsasPorPaleta:mapa('data-hl-paleta'),capacidadTurnoKg:(document.getElementById('hl-c-capacidad')||{}).value,unidadesPorJaba:(document.getElementById('hl-c-jaba')||{}).value},S.producto);ok('Configuración guardada.');}catch(e){mal(e);}
+      pesos:mapa('data-hl-peso'),pesosNeto:mapa('data-hl-neto'),bolsasPorPaleta:mapa('data-hl-paleta'),capacidadTurnoKg:(document.getElementById('hl-c-capacidad')||{}).value,unidadesPorJaba:(document.getElementById('hl-c-jaba')||{}).value},S.producto);ok('Configuración guardada.');}catch(e){mal(e);}
   };
   window.hlExcel=async()=>{
     if(sinExportar())return;
