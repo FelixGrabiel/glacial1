@@ -8,6 +8,7 @@
    ============================================================= */
 (function(){
   'use strict';
+  const bq=(h,q)=>{const B=window.glacialBusqueda;return B?B.coincide(h,q):String(Array.isArray(h)?h.join(' '):h).toLowerCase().includes(String(q).trim().toLowerCase());};   // búsqueda común (js/nucleo/04b-busqueda.js)
   if(typeof window==='undefined'||!window.document)return;
   const W=window,N=W.glacialAdminNucleo;
   const DA=()=>W.glacialAdminDatos;
@@ -73,9 +74,9 @@
   function resultadosBusqueda(){
     const q=S.gq.trim().toLowerCase();if(q.length<2)return '';
     const r=[];
-    usuarios().filter(u=>[u.nombre,u.username,u.rol].join(' ').toLowerCase().includes(q)).slice(0,5).forEach(u=>r.push(['Usuario',u.nombre||u.username,u.rol||'',`admBuscarIr('usuarios','${esc(u.username)}')`]));
-    trabajadores().filter(t=>[t.nombre,t.dni,t.puesto].join(' ').toLowerCase().includes(q)).slice(0,4).forEach(t=>r.push(['Trabajador',t.nombre||'',[t.area,t.puesto].filter(Boolean).join(' · '),`admBuscarIr('trabajadores','')`]));
-    N.SECCIONES.filter(s=>s.titulo.toLowerCase().includes(q)||s.sub.toLowerCase().includes(q)).slice(0,4).forEach(s=>r.push(['Sección',s.titulo,s.grupo,`admBuscarIr('${s.id}','')`]));
+    usuarios().filter(u=>bq([u.nombre,u.username,u.rol],q)).slice(0,5).forEach(u=>r.push(['Usuario',u.nombre||u.username,u.rol||'',`admBuscarIr('usuarios','${esc(u.username)}')`]));
+    trabajadores().filter(t=>bq([t.nombre,t.dni,t.puesto],q)).slice(0,4).forEach(t=>r.push(['Trabajador',t.nombre||'',[t.area,t.puesto].filter(Boolean).join(' · '),`admBuscarIr('trabajadores','')`]));
+    N.SECCIONES.filter(s=>bq([s.titulo,s.sub],q)).slice(0,4).forEach(s=>r.push(['Sección',s.titulo,s.grupo,`admBuscarIr('${s.id}','')`]));
     return `<div class="adm-res" role="listbox">${r.length?r.map(x=>`<button type="button" onclick="${x[3]}"><span><b>${esc(x[1])}</b><br><small>${esc(x[2])}</small></span><small>${esc(x[0])}</small></button>`).join(''):`<div class="adm-mut" style="padding:12px">Sin resultados para «${esc(S.gq)}».</div>`}</div>`;
   }
   function html(){
@@ -118,7 +119,7 @@
   const borradorSel=()=>S.sel&&S.borr[S.sel]?S.borr[S.sel].borrador:null;
   function usuariosHtml(){
     const lista=usuarios(),q=S.q.trim().toLowerCase();
-    const vis=lista.filter(u=>(S.rolFiltro==='Todos'||u.rol===S.rolFiltro)&&(!q||[u.nombre,u.username,u.rol].join(' ').toLowerCase().includes(q)));
+    const vis=lista.filter(u=>(S.rolFiltro==='Todos'||u.rol===S.rolFiltro)&&(!q||bq([u.nombre,u.username,u.rol],q)));
     const u=S.sel?lista.find(x=>x.username===S.sel):null;
     return `<div class="adm-2"><div class="adm-card"><div class="adm-f"><label>Buscar<input type="search" placeholder="Nombre o usuario" value="${esc(S.q)}" oninput="admQ(this.value)"></label>
         <label>Rol<select onchange="admRolFiltro(this.value)">${['Todos',...roles()].map(r=>`<option ${r===S.rolFiltro?'selected':''}>${esc(r)}</option>`).join('')}</select></label></div>

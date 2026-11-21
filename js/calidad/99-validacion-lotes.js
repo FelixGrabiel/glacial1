@@ -46,7 +46,7 @@
       if(f.resultado&&x.resultado!==f.resultado)return false;
       if(f.revision==='REVISADA'&&!x.revisada)return false;
       if(f.revision==='PIDE'&&!pideRevision(x))return false;
-      if(q&&!alnum([x.lote,x.insumo,x.proveedor,x.linea,x.motivo,x.rotulo.producto,x.rotulo.marca,x.rotulo.turno,x.rotulo.vence].join(' ')).includes(q))return false;
+      if(q&&!((typeof window!=='undefined'&&window.glacialBusqueda&&window.glacialBusqueda.coincide([x.lote,x.insumo,x.proveedor,x.linea,x.motivo,x.rotulo.producto,x.rotulo.marca,x.rotulo.turno,x.rotulo.vence],f.texto))||alnum([x.lote,x.insumo,x.proveedor,x.linea,x.motivo,x.rotulo.producto,x.rotulo.marca,x.rotulo.turno,x.rotulo.vence].join(' ')).includes(q)))return false;
       return true;
     }).sort((a,b)=>b.ms-a.ms);
   }

@@ -126,7 +126,7 @@
       if (o.motivo && r.motivo !== o.motivo) return false;
       if (o.desde && r.fecha < o.desde) return false;
       if (o.hasta && r.fecha > o.hasta) return false;
-      if (q && !norm(r.trabajadorNombre).includes(q) && !texto(r.dni).includes(q)) return false;
+      if (q && !norm(r.trabajadorNombre).includes(q) && !texto(r.dni).includes(q) && !(typeof window !== 'undefined' && window.glacialBusqueda && window.glacialBusqueda.coincide([r.trabajadorNombre, r.dni], q))) return false;
       const est = o.estado || 'vigentes';
       if (est === 'vigentes' && !vigente(r)) return false;
       if (est === 'anulados' && vigente(r)) return false;

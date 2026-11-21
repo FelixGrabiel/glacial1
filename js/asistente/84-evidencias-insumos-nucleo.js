@@ -302,10 +302,11 @@
     return r;
   }
   const norm=v=>String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  const coin=(h,q)=>{const B=(typeof window!=='undefined'&&window.glacialBusqueda)||(typeof require==='function'?require('../nucleo/04b-busqueda.js'):null);return B?B.coincide(h,q):norm(Array.isArray(h)?h.join(' '):h).includes(norm(q));};   // búsqueda común (js/nucleo/04b-busqueda.js)
   function filtrar(lista,{estado='',texto:t=''}={}){
     const q=norm(t);
-    return lista.filter(d=>(!estado||d.estado===estado)&&(!q||[d.archivoOriginal,d.campos&&d.campos.producto&&d.campos.producto.valor,d.campos&&d.campos.proveedor&&d.campos.proveedor.valor,
-      d.campos&&d.campos.lote&&d.campos.lote.valor,d.categoria].some(v=>norm(v).includes(q))));
+    return lista.filter(d=>(!estado||d.estado===estado)&&(!q||coin([d.archivoOriginal,d.campos&&d.campos.producto&&d.campos.producto.valor,d.campos&&d.campos.proveedor&&d.campos.proveedor.valor,
+      d.campos&&d.campos.lote&&d.campos.lote.valor,d.categoria],q)));
   }
   /* Evidencias que siguen «pendiente» o «requiere corrección» desde hace más de N días: {cantidad, masAntigua (días)}. */
   function pendientesAntiguas(lista,ahoraMs,dias){

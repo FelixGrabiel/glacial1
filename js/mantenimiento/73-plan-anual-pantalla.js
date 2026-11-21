@@ -100,7 +100,7 @@
   /** Filtros de la tabla: búsqueda, frecuencia y «solo esta semana». */
   function filtrar(acts,actual){
     const q=String(UI.buscar||'').trim().toLowerCase();
-    return acts.filter(a=>(!q||N.textoBusqueda(a).includes(q))&&(!UI.frec||a.frecuencia===UI.frec)&&(!UI.soloSemana||!!(actual&&actual.anio===a.anio&&(a.semanas||[]).includes(actual.semana))));
+    return acts.filter(a=>(!q||(window.glacialBusqueda?window.glacialBusqueda.coincide(N.textoBusqueda(a),q):N.textoBusqueda(a).includes(q)))&&(!UI.frec||a.frecuencia===UI.frec)&&(!UI.soloSemana||!!(actual&&actual.anio===a.anio&&(a.semanas||[]).includes(actual.semana))));
   }
   function herramientas(acts,vistas,actual){
     const cuenta={};acts.forEach(a=>{cuenta[a.frecuencia]=(cuenta[a.frecuencia]||0)+1;});

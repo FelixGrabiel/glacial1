@@ -70,6 +70,7 @@ function entorno(rol,{cargarLotes=true}={}){
   vm.runInContext('function tienePermiso(p){return false;}',sb);
   const archivos=['74-inventario-insumos-nucleo','75-inventario-insumos-datos','84-evidencias-insumos-nucleo','85-evidencias-insumos-datos','86-evidencias-insumos-pantalla'];
   if(cargarLotes)archivos.push('87-trazabilidad-lotes-nucleo','88-trazabilidad-lotes-datos','89-trazabilidad-lotes-pantalla');
+  vm.runInContext(leer('js/nucleo/04b-busqueda.js'),sb);                         // búsqueda común (index.html la carga antes que los módulos)
   archivos.forEach(n=>vm.runInContext(leer('js/asistente/'+n+'.js'),sb));
   return sb;
 }

@@ -344,7 +344,7 @@
     const A=API(),p=A.permisos();A.escucharAbiertas();
     const todos=lista(),E=window.glacialEquiposMaestro;
     const q=norm(FP.q);
-    const vis=todos.filter(pl=>(!FP.linea||pl.linea===FP.linea)&&(!FP.equipo||pl.equipoId===FP.equipo)&&(!FP.estado||estadoDe(pl)===FP.estado)&&(!q||norm(pl.titulo+' '+pl.equipoNombre).includes(q)))
+    const vis=todos.filter(pl=>(!FP.linea||pl.linea===FP.linea)&&(!FP.equipo||pl.equipoId===FP.equipo)&&(!FP.estado||estadoDe(pl)===FP.estado)&&(!q||(window.glacialBusqueda?window.glacialBusqueda.coincide([pl.titulo,pl.equipoNombre],q):norm(pl.titulo+' '+pl.equipoNombre).includes(q))))
       .sort((a,b)=>a.proximaFecha.localeCompare(b.proximaFecha));
     cont.innerHTML=(S.error?'<div class="mi-error">'+esc(S.error)+'</div>':'')+
       '<div class="mi-acc">'+(p.puedeCorregir?'<button type="button" class="btn btn-primary btn-sm" data-pv-nuevo>+ Nuevo plan</button>':'')+(p.consulta?'<span class="mi-meta">Modo consulta.</span>':'')+'</div>'+

@@ -260,7 +260,7 @@
     const lotes=(Z()&&Z().cache.lotes)||[],unidades=(Z()&&Z().cache.unidades)||[];
     if(!S.sel||!L.some(p=>p.id===S.sel))S.sel=L.length?L[0].id:'';
     const b=normProveedor(S.buscar);
-    const items=L.filter(p=>!b||nombresDe(p).some(n=>normProveedor(n).includes(b))).map(p=>{
+    const items=L.filter(p=>!b||nombresDe(p).some(n=>normProveedor(n).includes(b))||(window.glacialBusqueda&&window.glacialBusqueda.coincide(nombresDe(p),S.buscar))).map(p=>{
       const r=resumen(p,lotes,unidades,cache.lista);
       return `<button type="button" class="pv-it ${p.id===S.sel?'pv-act':''}" onclick="pvSel(${js(p.id)})"><b>${esc(p.nombreCorto||p.nombre)}</b><small>${p.tipo==='CLIENTE'?'Cliente · ':''}${r.lotes} lote${r.lotes===1?'':'s'} · ${(p.alias||[]).length+1} nombre${(p.alias||[]).length?'s':''}${p.activo===false?' · inactivo':''}</small></button>`;
     }).join('')||'<div class="pv-nota">Todavía no hay proveedores. Empieza por «Unificar nombres».</div>';

@@ -57,7 +57,7 @@
     const D=AD(),hoyF=hoy(),insumos=(D&&D.cache.insumos)||[],fs=FACTORES();
     const lineas=['Todas',...N.LINEAS];
     const q=M.fi.trim().toLowerCase();
-    const vis=fs.filter(f=>(M.fl==='Todas'||AN().codigoLinea(f.linea)===M.fl)&&(!q||(insumoPor(f.insumo).nombre+' '+f.insumo+' '+(f.marca||'')+' '+(f.presentacion||'')).toLowerCase().includes(q)))
+    const vis=fs.filter(f=>(M.fl==='Todas'||AN().codigoLinea(f.linea)===M.fl)&&(!q||(window.glacialBusqueda?window.glacialBusqueda.coincide([insumoPor(f.insumo).nombre,f.insumo,f.marca||'',f.presentacion||''],q):(insumoPor(f.insumo).nombre+' '+f.insumo+' '+(f.marca||'')+' '+(f.presentacion||'')).toLowerCase().includes(q))))
       .sort((a,b)=>String(insumoPor(a.insumo).nombre).localeCompare(insumoPor(b.insumo).nombre,'es')||String(a.linea).localeCompare(String(b.linea))||String(b.vigenteDesde).localeCompare(String(a.vigenteDesde)));
     let pend=[];
     try{pend=N.combosSinFactor((typeof loadRecords==='function'?loadRecords():[]),insumos,fs,hoyF,AN().factorVigente,(()=>{try{return GlacialFecha.sumarDias(hoyF,-30);}catch(_){return '';}})());}catch(_){pend=[];}

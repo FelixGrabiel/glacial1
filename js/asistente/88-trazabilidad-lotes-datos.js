@@ -238,6 +238,8 @@
 
   /** Busca en TODO el catálogo del Inventario (cuando el artículo correcto no está entre los sugeridos). */
   const buscarArticulos=(consulta,max)=>T.buscarArticulos(catalogo(),consulta,max);
+  /** Estado del catálogo del Inventario (de donde salen los artículos): si todavía carga, si falló y cuántos artículos hay. */
+  const estadoCatalogo=()=>({listo:!!(D.cache&&D.cache.listo&&D.cache.listo.catalogo),error:(D.cache&&D.cache.error&&D.cache.error.catalogo)||'',total:catalogo().length});
   /**
    * Asigna o cambia el artículo del catálogo de un lote ya creado (p. ej. se creó con «Ninguno / elegir después»). Los datos de la etiqueta, las unidades y los
    * movimientos no cambian. Revisión del lote, memoria del proveedor+producto y auditoría (antes → después) en una transacción. articuloId '' = quitar el artículo.
@@ -319,6 +321,6 @@
     return salida;
   }
 
-  window.glacialTrazabilidadDatos={C,cache,entregarALinea,moverUnidades,cambiarCategoria,unirLotes,buscarArticulos,asignarArticulo,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
+  window.glacialTrazabilidadDatos={C,cache,entregarALinea,moverUnidades,cambiarCategoria,unirLotes,buscarArticulos,estadoCatalogo,asignarArticulo,guardarParametros,escuchar,detener,escucharMovimientos,porId,unidadPorId,sugerencias,articuloDe,crearLoteDesdeEvidencia,puedeVer:D.puedeVer,puedeEscribir:D.puedeEscribir,esAdmin:D.esAdmin,
     mensajeError:D.mensajeError,alCambiar:f=>{oyentes.push(f);return ()=>{const i=oyentes.indexOf(f);if(i>=0)oyentes.splice(i,1);};}};
 })();

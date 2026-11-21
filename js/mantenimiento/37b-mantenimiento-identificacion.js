@@ -361,7 +361,7 @@
     if(!o)return;
     if(vista.paso==='lista'){
       const q=norm(vista.busqueda);
-      const lista=tecnicosDisponibles().filter(w=>!q||norm(w.nombre).includes(q));
+      const lista=tecnicosDisponibles().filter(w=>!q||(window.glacialBusqueda?window.glacialBusqueda.coincide(w.nombre,q):norm(w.nombre).includes(q)));
       const filas=lista.length
         ? lista.map(w=>'<button type="button" class="mid-tec" data-id="'+esc(w.id)+'"><span>'+esc(w.nombre)+'</span><small>'+esc(w.cargo||'')+'</small></button>').join('')
         : '<p class="mid-sub">No hay técnicos de Mantenimiento activos. Pide al Administrador que los registre en Trabajadores.</p>';

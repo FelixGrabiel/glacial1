@@ -144,7 +144,7 @@
   function almacenPorCategoria(){
     const hoy=hoyIso(),dias=Z.cache.parametros.diasAvisoVencimiento,q=T.norm?T.norm(S.ent.texto||''):String(S.ent.texto||'').toUpperCase();
     const grupos=agruparUnidades(Z.cache.lotes,Z.cache.unidades,u=>u.estado==='EN_ALMACEN')
-      .filter(g=>!q||[g.lote.loteProveedor,g.lote.id,g.lote.producto,g.lote.proveedor,g.lote.ordenInterna].some(v=>(T.norm?T.norm(String(v||'')):String(v||'').toUpperCase()).includes(q)))
+      .filter(g=>!q||(window.glacialBusqueda?window.glacialBusqueda.coincide([g.lote.loteProveedor,g.lote.id,g.lote.producto,g.lote.proveedor,g.lote.ordenInterna],q):[g.lote.loteProveedor,g.lote.id,g.lote.producto,g.lote.proveedor,g.lote.ordenInterna].some(v=>(T.norm?T.norm(String(v||'')):String(v||'').toUpperCase()).includes(q))))
       .map(g=>Object.assign(g,{venc:T.estadoVencimiento(g.lote.fechaVencimiento,hoy,dias)}))
       .sort((a,b)=>String(a.lote.fechaVencimiento||'9999').localeCompare(String(b.lote.fechaVencimiento||'9999'))||String(a.lote.loteProveedor).localeCompare(String(b.lote.loteProveedor)));
     return CATS_ENT.map(([c,t])=>({clave:c,titulo:t,lotes:grupos.filter(g=>String(g.lote.categoria||'').toLowerCase()===c)})).filter(x=>x.lotes.length);
@@ -361,9 +361,18 @@
     esperaArt=setTimeout(()=>{
       const caja=document.getElementById('il-art-busq');if(!caja)return;
       const ya=new Set([...document.querySelectorAll('input[name="il-art"]')].filter(x=>!x.closest('#il-art-busq')).map(x=>x.value));
+      if(!String(v||'').trim()){caja.innerHTML='';return;}
+      Z.escuchar();                                                                   // el catálogo se vuelve a pedir si no se estaba escuchando
+      const est=Z.estadoCatalogo();
+      if(!est.listo||!est.total){
+        caja.innerHTML=est.error?`<p class="il-err">No se pudo leer el catálogo del Inventario (${esc(est.error)}). Cierra esta ventana y vuelve a abrirla; si sigue igual, avisa a un Administrador.</p>`
+          :!est.listo?'<p class="ii-mut">Cargando el catálogo del Inventario… espera unos segundos y vuelve a escribir.</p>'
+          :'<p class="il-err">El catálogo del Inventario está vacío: no hay artículos para buscar. Elige «Ninguno / elegir después».</p>';
+        return;
+      }
       const res=String(v||'').trim().length<2?[]:Z.buscarArticulos(v,8).filter(a=>!ya.has(a.id));
       caja.innerHTML=!String(v||'').trim()?'':res.length?res.map(a=>`<label class="il-op"><input type="radio" name="il-art" value="${esc(a.id)}" onchange="ilArticulo(this.value)"><span><b>${esc(a.nombre)}</b>${a.itemCode?' <small class="ii-mut">('+esc(a.itemCode)+')</small>':''}<small class="ii-mut">${esc(a.categoria||'')}</small></span></label>`).join('')
-        :'<p class="ii-mut">No hay coincidencias. Elige «Ninguno / elegir después»: el lote se crea igual y el artículo se asigna luego.</p>';
+        :`<p class="ii-mut">No hay coincidencias entre los ${est.total} artículos del catálogo. Prueba con otra palabra (por ejemplo solo «preforma») o elige «Ninguno / elegir después»: el lote se crea igual y el artículo se asigna luego.</p>`;
     },200);
   };
   /* ---------- asignar o cambiar el artículo de un lote ya creado ---------- */

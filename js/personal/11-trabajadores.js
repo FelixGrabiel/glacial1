@@ -323,7 +323,8 @@ function renderWorkerList(){
         return (
           normalizarTexto(w.nombre || '').includes(term) ||
           normalizarTexto(w.cargo || '').includes(term) ||
-          normalizarTexto(w.dni || '').includes(term)
+          normalizarTexto(w.dni || '').includes(term) ||
+          !!(window.glacialBusqueda && window.glacialBusqueda.coincide([w.nombre, w.cargo, w.dni], term))
         );
 
       }
