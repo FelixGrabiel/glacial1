@@ -81,7 +81,8 @@
       const refEv=ref(C.evidencias,id),sEv=await tx.get(refEv);
       if(!sEv.exists)throw falla('VALIDACION','La evidencia ya no existe.');
       let doc=sEv.data();
-      if(Number(doc.rev)!==Number(revEsperada))throw falla('CONCURRENCIA','Otra persona cambió esta evidencia mientras la revisabas. Se actualizó la pantalla: revisa y vuelve a intentar.');
+      // Si otra persona editó la evidencia mientras se revisaba, se sigue con la versión más reciente (sus cambios no se pierden). Solo se frena si la rechazó.
+      if(Number(doc.rev)!==Number(revEsperada)&&doc.estado==='rechazado')throw falla('CONCURRENCIA','Otra persona rechazó esta evidencia mientras la revisabas. Se actualizó la pantalla: revísala.');
       if(doc.loteId)throw falla('DUPLICADO','Esta evidencia ya creó el lote '+doc.loteId+'.');
       let evento=null;
       if(doc.estado!=='aprobado_dato'){

@@ -157,16 +157,20 @@ const ejecutar=async f=>{try{return {r:await f()};}catch(e){return {e};}};
   const aud2=[...sb.docs.entries()].filter(([k])=>k.startsWith('insumosAuditoria/')).map(([,v])=>v).filter(v=>v.tipo==='EDITAR_EVIDENCIA'||v.tipo==='CONFIRMAR_CAMPO');
   ok(aud2.length===3&&aud2.some(v=>v.tipo==='EDITAR_EVIDENCIA'&&v.antes.cantidad_valor===1000&&v.despues.cantidad_valor===100),'un evento de auditoría por dato (antes → después)');
   r=await ejecutar(()=>E.guardarEdiciones(SHA,1,{cambios:{lote:'X'}}));
-  ok(r.e&&r.e.codigo==='CONCURRENCIA'&&E.porId(SHA).campos.lote.valor==='472-2026','si otra persona ya cambió la evidencia (revisión vieja) no se pisa su trabajo');
+  ok(r.r&&r.r.cambiado&&E.porId(SHA).campos.lote.valor==='X'&&E.porId(SHA).campos.cantidad_valor.valor===100,'si otra persona ya cambió la evidencia (revisión vieja) igual se puede editar: se aplica sobre la versión más reciente sin perder lo que ella cambió');
+  r=await ejecutar(()=>E.guardarEdiciones(SHA,E.porId(SHA).rev,{cambios:{lote:'472-2026'}}));
+  r=await ejecutar(()=>E.guardarEdiciones(SHA,E.porId(SHA).rev,{confirmar:['lote']}));
+  doc=E.porId(SHA);
   r=await ejecutar(()=>E.guardarEdiciones(SHA,doc.rev,{cambios:{cantidad_valor:'-3'}}));
   ok(r.e&&r.e.codigo==='VALIDACION','un valor no válido no se guarda');
 
   /* cambios de estado */
   r=await ejecutar(()=>E.cambiarEstado(SHA,doc.rev,'rechazado',{motivo:'x'}));
   ok(r.e&&r.e.codigo==='MOTIVO'&&E.porId(SHA).estado==='pendiente','rechazar sin motivo suficiente no cambia nada');
+  const revAntesAprobar=doc.rev;
   r=await ejecutar(()=>E.cambiarEstado(SHA,doc.rev,'aprobado_dato'));
   doc=E.porId(SHA);
-  ok(r.r&&doc.estado==='aprobado_dato'&&doc.rev===3,'aprobar datos (todo confirmado): estado aprobado_dato');
+  ok(r.r&&doc.estado==='aprobado_dato'&&doc.rev===revAntesAprobar+1,'aprobar datos (todo confirmado): estado aprobado_dato');
   const apr=[...sb.docs.values()].filter(v=>v&&v.tipo==='CAMBIAR_ESTADO_EVIDENCIA');
   ok(apr.length===1&&apr[0].antes.estado==='pendiente'&&apr[0].despues.estado==='aprobado_dato','el cambio de estado queda auditado (antes → después)');
   r=await ejecutar(()=>E.cambiarEstado(SHA,doc.rev,'aprobado_dato'));
@@ -178,7 +182,7 @@ const ejecutar=async f=>{try{return {r:await f()};}catch(e){return {e};}};
   /* Administrador */
   const adm=entorno('Administrador');adm.docs.set('insumosEvidencias/'+SHA,JSON.parse(JSON.stringify(E.porId(SHA))));
   adm.glacialEvidenciasDatos.escuchar();
-  r=await ejecutar(()=>adm.glacialEvidenciasDatos.cambiarEstado(SHA,3,'pendiente',{motivo:'Falta revisar el lote'}));
+  r=await ejecutar(()=>adm.glacialEvidenciasDatos.cambiarEstado(SHA,revAntesAprobar+1,'pendiente',{motivo:'Falta revisar el lote'}));
   ok(r.r&&adm.glacialEvidenciasDatos.porId(SHA).estado==='pendiente','el Administrador sí puede reabrir (con motivo)');
 
   /* permisos */

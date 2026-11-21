@@ -79,7 +79,7 @@ const auditoria=sb=>coleccion(sb,'insumosAuditoria');
 
   /* ---------- doble clic y concurrencia ---------- */
   r=await ejecutar(()=>Z.crearLoteDesdeEvidencia(e1.id,1,{}));
-  ok(r.e&&r.e.codigo==='CONCURRENCIA'&&sb.escrituras.length===antesDeDoble,'doble clic con la revisión vieja: se rechaza y no escribe nada');
+  ok(r.e&&r.e.codigo==='DUPLICADO'&&sb.escrituras.length===antesDeDoble,'doble clic con la revisión vieja: no crea otro lote y no escribe nada');
   r=await ejecutar(()=>Z.crearLoteDesdeEvidencia(e1.id,3,{}));
   ok(r.e&&r.e.codigo==='DUPLICADO'&&/LI-000001/.test(r.e.message)&&sb.escrituras.length===antesDeDoble&&sb.docs.get('insumosParametros/contador').siguiente===2,'repetir con la revisión nueva: «ya creó el lote»; no se crea otro lote ni se gasta otro correlativo');
 
