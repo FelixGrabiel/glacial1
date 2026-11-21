@@ -30,6 +30,12 @@ const DATOS = () => {
   await P.evaluate(() => { document.getElementById('login-screen').style.display = 'none'; document.getElementById('app-screen').style.display = 'block'; state.user = { rol: 'Administrador', nombre: 'Ana', username: 'ana', permisos: 'todos' }; state.showWelcome = false; goReporteHielo(); });
   await P.waitForSelector('.hl-app', { timeout: 6000 }); await P.evaluate(DATOS); await P.evaluate(() => hlVista('inicio'));
   const texto = async () => { ultimo = await P.evaluate(() => document.querySelector('.hl-main').innerText.replace(/\s+/g, ' ')); return ultimo; };
+  // ---- los tres productos viven dentro del módulo de Hielo (no hay tarjetas ni botones aparte)
+  ok(await P.evaluate(() => [...document.querySelectorAll('#report-select-screen .report-type-title')].map(x => x.textContent.trim()).join('|')) === 'Reporte Agua|Reporte Hielo' && await P.evaluate(() => document.querySelectorAll('#app-screen .topbar-hielo').length) === 1, 'afuera de Hielo solo hay «Reporte Hielo»: Premium y Vasos están dentro del módulo');
+  await P.evaluate(() => goReporteHielo('VASOS')); ok(await P.evaluate(() => document.querySelector('.hl-prod button.act').innerText.trim()) === 'Hielo en vasos', 'abrir «Hielo en vasos» desde los módulos entra directo a ese producto');
+  await P.evaluate(() => goReporteHielo('PREMIUM')); ok(await P.evaluate(() => document.querySelector('.hl-prod button.act').innerText.trim()) === 'Hielo premium', 'abrir «Hielo Premium» entra directo a Premium');
+  ok(await P.evaluate(() => [...document.querySelectorAll('#hl-menu .hl-menu-prod')].map(b => b.innerText.trim()).join('|')) === 'Hielo en cubos|Hielo premium|Hielo en vasos' && await P.evaluate(() => document.querySelector('#hl-menu .hl-menu-prod.act').innerText.trim()) === 'Hielo premium', 'el menú lateral de Hielo tiene los 3 productos y marca el elegido');
+  await P.evaluate(() => { document.querySelectorAll('#hl-menu .hl-menu-prod')[0].click(); }); ok(await P.evaluate(() => document.querySelector('.hl-prod button.act').innerText.trim()) === 'Hielo en cubos', 'tocar «Hielo en cubos» en el menú lateral cambia de producto');
   // ---- selector
   ok(await P.evaluate(() => [...document.querySelectorAll('.hl-prod button')].map(b => b.innerText.trim()).join('|')) === 'Hielo en cubos|Hielo premium|Hielo en vasos', 'hay un selector con Hielo en cubos, Hielo premium y Hielo en vasos');
   ok(await P.evaluate(() => document.querySelector('.hl-prod button.act').innerText.trim()) === 'Hielo en cubos', 'por defecto se ve Hielo en cubos (como siempre)');

@@ -29,3 +29,9 @@ En **Nuevo registro**: por cada marca, **tiempo (h)** y **fecha de vencimiento**
 - La configuración de Premium y Vasos va en `hieloParametros/config` → `productos.{PREMIUM|VASOS}` (marcas, presentaciones, pesos, capacidad, vasos por jaba). Las estaciones, equipos, motivos de parada y mermas son compartidos por los tres productos.
 - **No requiere migración**: las reglas del servidor (glacial_46, 50 y 66) no miran el formato del id ni los campos nuevos. Los permisos de Hielo (`docs/hielo/permisos.md`) valen para los tres productos.
 - Código: `js/hielo/97-hielo.js` (productos, registro, config), `js/hielo/99-hielo-reporte-diario.js` (reporte diario y resumen de planta). Pruebas: `tests/hielo-productos.test.js` y `tests/hielo-productos.e2e.js`.
+
+## Dónde están Premium y Vasos (21/11/2026)
+**Dentro del módulo de Hielo** (se entra por «Reporte Hielo», como siempre). No hay tarjetas ni botones aparte afuera.
+- Arriba de cada pantalla hay un selector **Hielo en cubos | Hielo premium | Hielo en vasos**.
+- El **menú lateral** de Hielo tiene los 3 productos arriba y, debajo, las secciones del producto elegido: Inicio, Nuevo registro, Avance y cierre, Reporte diario, Resumen de planta, Historial, Programación y Configuración.
+- En **Nuevo registro** de cada producto se anotan las cantidades (bolsas o vasos), el lote, el tiempo (h), el vencimiento, el personal y las paradas.
