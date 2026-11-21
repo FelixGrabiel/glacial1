@@ -34,6 +34,7 @@ ok(/Calculadora: kilos ↔ unidades/.test(P)&&/Escribe los <b>kilos<\/b>/.test(P
 ok(/Coincide con la etiqueta/.test(P)&&/La etiqueta dice <b>/.test(P)&&/MILLAR\|MILLARES/.test(P),'compara con la etiqueta en frases claras y entiende «millares»');
 ok(/window\.ieUsarCalc=/.test(P)&&/Poner \$\{esc\(fmtN\(Math\.round\(undN\),0\)\)\} UND en «Cantidad»/.test(P)&&/b\.cantidad_unidad='UND'/.test(P),'botón «Poner N UND en Cantidad»: pasa el resultado al borrador sin guardar');
 ok(/aún no está en el banco de proveedores; se guarda igual/.test(L)&&/Estas fotos tienen el mismo lote del proveedor/.test(L)&&/el número se pone solo/.test(L),'ventana «Confirmar y crear lote»: textos más claros');
+ok(/window\.ilRevisarFoto=/.test(L)&&/Revisar esta foto/.test(L)&&/Falta confirmar: /.test(L),'fotos del mismo lote que no se pueden marcar: botón «Revisar esta foto» y motivo en palabras simples');
 const V=fs.readFileSync(R+'/js/asistente/98-validar-rapido.js','utf8');
 ok(/def\.campo==='cantidad_unidad'\?`<select/.test(V),'la validación rápida también usa la lista de unidades');
 process.exit(process.exitCode||0);
