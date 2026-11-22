@@ -353,7 +353,7 @@
     if(accion==='REABRIR'&&!puedeReabrir())throw new Error('No tienes permiso para reabrir un reporte finalizado.');
     if(accion==='FINALIZAR'&&!puedeCerrar())throw new Error('No tienes permiso para finalizar reportes de hielo.');
     if(accion==='FINALIZAR'){const e=validarFinalizar(r,config());if(e.length)throw new Error(e.join(' · '));}
-    const u=yo(),id=idReporte(r.fecha,r.turno),ref=db.collection(C.reportes).doc(id);
+    const u=yo(),id=idReporte(r.fecha,r.turno,productoDe(r)),ref=db.collection(C.reportes).doc(id);      // el id lleva el producto (_PREMIUM, _VASOS): el servidor exige que el documento se llame igual que su id
     let doc=null;
     await db.runTransaction(async tx=>{
       const s=await tx.get(ref);const previo=s.exists?s.data():null;
