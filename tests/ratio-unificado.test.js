@@ -103,7 +103,7 @@ ok(l.ratio===null&&l.ratioDisponible===false,'inicio faltante: ratio no disponib
 /* 7) varios formatos: sin duplicar tiempo ni paradas */
 const cu=(h,hf,p)=>({horaInicio:h,horaFin:hf,estadoCuadro:'FINALIZADO',marca:'Bells',presentacion:p,paradasProgramadas:[],paradasNoProgramadas:[]});
 const cuSin=p=>({marca:'Bells',presentacion:p,paradasProgramadas:[],paradasNoProgramadas:[]});
-sb=entorno({programaciones:[prog('B7L',ms(7)),prog('B7L',ms(7),{presentacion:'10 L'})],
+sb=entorno({programaciones:[prog('B7L',ms(7)),prog('B7L',ms(10),{presentacion:'10 L'})],
   paletas:[pal('B7L','COMPLETA',2000,'12:00',null,1),pal('B7L','COMPLETA',1000,'12:30',null,2,{presentacion:'10 L'})],
   records:[{id:'r',linea:'B7L',fecha:FECHA,turno:'DÍA',grupoTurno:'DIA_INTERMEDIO',cuadros:[cu('07:00','10:00','7 L'),cu('10:00','','10 L')]}]});
 sb.setOperativas([op('g','General',30,'NO_PROGRAMADA')]);

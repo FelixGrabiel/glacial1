@@ -141,4 +141,16 @@ ok(/Inicio: 10:11/.test(snap.texto)&&!/Inicio: 07:00/.test(snap.texto),'8 · el 
 let sbC=sb;snap=sbC.avConstruirSnapshot('CIERRE','CIERRE');
 ok(/Inicio: 10:11/.test(snap.texto),'8 · el Cierre también usa la hora corregida');
 
+/* 9) hora REAL de «Iniciar» (sin corregir) manda sobre el cuadro que se llenó solo con el inicio del turno (caso real PET2 del 22/11/2026) */
+const PRN='Pack_Regular_625mlx15und/ln';
+sb=entorno({turno:'DÍA',ahora:ms(14,49),
+  programaciones:[Object.assign(prog('PET2','Scala',PRN,ms(14)),{turno:'DÍA'}),Object.assign(prog('B7L','SCALA','7 L',ms(9,10)),{turno:'DÍA'})],
+  paletas:[Object.assign(pal('PET2','Scala',PRN,4500,'14:46'),{turno:'DÍA'}),Object.assign(pal('B7L','Scala','7 L',1200,'10:00'),{turno:'DÍA'})],
+  records:[{linea:'PET2',fecha:FECHA,turno:'DÍA',cuadros:[{marca:'Scala',presentacion:PRN,horaInicio:'07:00',produccion:{efectiva:0,programada:51750},autoProgramada:{total:51750}}]},
+           {linea:'B7L',fecha:FECHA,turno:'DÍA',cuadros:[{marca:'Scala',presentacion:'7 L',horaInicio:'07:00',produccion:{efectiva:1200}}]}]});
+snap=sb.avConstruirSnapshot('14:49','AVANCE');
+const l9=snap.lineas.find(x=>x.linea==='PET2'),l9b=snap.lineas.find(x=>x.linea==='B7L');
+ok(l9&&l9.inicio==='14:00'&&l9.bloques.every(b=>b.inicio==='14:00')&&/Inicio: 14:00/.test(snap.texto),'9 · PET2: la hora real de «Iniciar» (14:00) manda sobre el 07:00 del cuadro, sin tener que corregirla');
+ok(l9b&&l9b.inicio==='09:10','9 · B7L: la marca «SCALA» en mayúsculas también se reconoce y manda su hora real (09:10)');
+
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
