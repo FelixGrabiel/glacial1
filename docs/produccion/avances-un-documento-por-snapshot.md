@@ -59,3 +59,10 @@ y muestra un aviso si alguno estima ≥ 80 % de 1 MiB (fórmula de tamaño de Fi
 - Exportar la imagen de un avance antiguo y reenviar un cierre a Sheets.
 - Migrar: verificar el respaldo descargado, que `sync/avancesTurno` ya no tiene items y que los 83 aparecen igual.
 - Inicio → Pendientes del turno muestra lo mismo.
+
+## Hora de inicio en Avance y Cierre (22/11/2026)
+- Cada formato (marca + presentación) muestra su **hora real de inicio de Producción Actual** (la que queda al tocar «Iniciar», o la de «Corregir hora inicio»), siempre que caiga dentro del turno del reporte. Manda sobre la hora del cuadro del supervisor, que suele llenarse sola con el inicio del turno (07:00).
+- Una hora **corregida a mano** manda siempre. Si el cuadro no trae hora de inicio, no se inventa una: el formato queda «Sin tiempo asignado» (como antes).
+- Marca y presentación se comparan sin importar mayúsculas, tildes ni espacios (`Scala` = `SCALA`).
+- Un Avance o Cierre **ya generado** no cambia: hay que generarlo de nuevo.
+- Pruebas: `tests/avance-lineas-en-produccion.test.js` (casos 8 y 9).

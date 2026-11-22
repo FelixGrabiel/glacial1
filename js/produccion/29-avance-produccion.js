@@ -800,11 +800,14 @@ function avEstadoOperacion(linea,marca,presentacion){
 function avOrdenarHoras(horas){
   return horas.slice().sort((a,b)=>avHoraMs(avanceEstado.fecha,a,avanceEstado.turno)-avHoraMs(avanceEstado.fecha,b,avanceEstado.turno));
 }
-/* Hora de inicio CORREGIDA en Producción Actual («Corregir hora inicio») de esa marca y presentación, si cae dentro del turno del reporte.
-   Manda sobre la hora del cuadro del supervisor: sin esto, «la más temprana» ignoraba una corrección hacia una hora más tarde. */
-function avInicioCorregido(linea,marca,presentacion){
-  const p=avProgramaciones().find(x=>x.linea===linea&&x.marca===marca&&x.presentacion===presentacion&&x.estadoOperacion?.inicioCorregido&&avNum(x.estadoOperacion.inicio)>0&&avMsEnTurno(Number(x.estadoOperacion.inicio)));
-  return p?avHoraDesdeMs(p.estadoOperacion.inicio):'';
+/* Hora REAL de inicio de esa marca y presentación en Producción Actual (la que queda al tocar «Iniciar», o la que se puso en «Corregir hora inicio»),
+   si cae dentro del turno del reporte. Manda sobre la hora del cuadro del supervisor (que suele llenarse sola con el inicio del turno): sin esto, «la más
+   temprana» dejaba el 07:00 del cuadro aunque la línea hubiera iniciado a las 14:00. Marca y presentación se comparan sin importar mayúsculas, tildes ni espacios. */
+const avNormTxt=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+function avInicioCorregido(linea,marca,presentacion,soloCorregida){
+  const m=avNormTxt(marca),pr=avNormTxt(presentacion);
+  const ms=avProgramaciones().filter(x=>(!soloCorregida||x.estadoOperacion?.inicioCorregido)&&x.linea===linea&&avNormTxt(x.marca)===m&&avNormTxt(x.presentacion)===pr&&avNum(x.estadoOperacion?.inicio)>0&&avMsEnTurno(Number(x.estadoOperacion.inicio))).map(x=>Number(x.estadoOperacion.inicio));
+  return ms.length?avHoraDesdeMs(Math.min(...ms)):'';
 }
 function avInicioLinea(linea){
   const horas=[];
@@ -1203,7 +1206,8 @@ function avCalcularBloquesPresentacion(l){
       // Un cuadro que empieza después del corte del reporte no entra en él.
       if(corteMs&&q?.horaInicio&&msHora(q.horaInicio)>corteMs)return;
       // Se comparan INSTANTES (en la noche 01:00 es posterior a 23:00), no el texto de la hora.
-      const hIni=avInicioCorregido(l.linea,q?.marca,q?.presentacion)||q?.horaInicio;      // la hora corregida en Producción Actual reemplaza a la del cuadro
+      // Hora corregida a mano: manda siempre. Hora real de «Iniciar»: manda sobre la hora del cuadro (si el cuadro no trae hora, no se la inventa: el formato queda «sin tiempo asignado»).
+      const hIni=avInicioCorregido(l.linea,q?.marca,q?.presentacion,true)||(q?.horaInicio?(avInicioCorregido(l.linea,q?.marca,q?.presentacion)||q.horaInicio):'');      // la hora corregida en Producción Actual reemplaza a la del cuadro
       if(hIni && (!b.inicio || msHora(hIni)<msHora(b.inicio)))b.inicio=hIni;
       if(q?.horaFin && (!b.fin || msHora(q.horaFin)>msHora(b.fin)))b.fin=q.horaFin;
       // Se conserva la identidad de cada fila (origenId/origen/auto) para no contar dos veces la misma parada.
