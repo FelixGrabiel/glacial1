@@ -78,6 +78,34 @@
     if(producto.fin&&producto.fin!==q.horaFin&&libre(q.horaFin,auto.fin,def.fin))res.horaFin=producto.fin;
     return res;
   }
+  /* ---------- obligatorios para finalizar y horas efectivas negativas (23/11/2026) ---------- */
+  const minutosParadas=q=>[...(q&&q.paradasProgramadas||[]),...(q&&q.paradasNoProgramadas||[])].filter(x=>x&&!x.eliminada).reduce((a,x)=>a+Math.max(0,num(x.tiempoMin)),0);
+  /** Horas efectivas SIN el tope en 0: duración − paradas (negativo = las paradas superan la duración). null sin duración. */
+  function horasEfectivasReales(q){
+    const dur=num(q&&q.horasTurno)*60;if(!(dur>0))return null;
+    return (dur-minutosParadas(q))/60;
+  }
+  const insumosDe=q=>['cajasPreformas','planchasCarton','polietilenoKg','stretchFilmKg'].reduce((a,k)=>a+num(q&&q.insumos&&q.insumos[k]),0);
+  const tieneMermas=q=>(q&&q.mermas||[]).some(m=>num(m&&m.unidades)>0||num(m&&m.peso)>0||num(m&&m.kg)>0||num(m&&m.pesoIngresadoKg)>0);
+  const cuadrosUsados=d=>(Array.isArray(d&&d.cuadros)?d.cuadros:[]).filter(q=>q&&(q.marca||q.presentacion||q.horaInicio||q.horaFin||num(q.produccion&&q.produccion.programada)>0||num(q.produccion&&q.produccion.efectiva)>0)&&!q.marcaPorDefecto);
+  /** Datos que ahora son obligatorios para finalizar (se suman a validarReporteParaFinalizar). Los reabiertos no los exigen. */
+  function obligatoriosCierre(d){
+    if(!d||d.estadoRegistro==='REABIERTO'||d.estadoRegistro==='FINALIZADO')return [];
+    const out=[],linea=d.linea;
+    cuadrosUsados(d).forEach((q,i)=>{
+      const n=num(q.numero)||(d.cuadros.indexOf(q)+1)||i+1,p=q.produccion||{};
+      if(!(num(p.efectiva)>0))out.push(`Producción ${n}: producción efectiva`);
+      else if(!(num(p.paletas)>0)&&!(q.autoPaletas&&num(q.autoPaletas.paletas)>0))out.push(`Producción ${n}: paletas`);
+      if(!String(q.lote||'').trim())out.push(`Producción ${n}: lote`);
+      if(['PET1','PET2','B7L'].includes(linea)&&!(num(p.calidad)>0))out.push(`Producción ${n}: ${linea==='B7L'?'bidones':'botellas'} de calidad`);
+      if(linea==='B20L'&&!(num(p.sopladas)>0))out.push(`Producción ${n}: bidones disponibles`);
+      if(!tieneMermas(q)&&!q.sinMermas)out.push(`Producción ${n}: mermas (o marca «Sin mermas en esta producción»)`);
+      if(!(insumosDe(q)>0))out.push(`Producción ${n}: insumos`);
+    });
+    if(!(Array.isArray(d.personal)?d.personal:[]).some(x=>x&&String(x.nombre||'').trim()))out.push('Personal del turno: al menos una persona');
+    return out;
+  }
+
   /** Lista «Para cerrar el turno»: [{etiqueta, estado:'auto'|'ok'|'falta'|'opcional', detalle}]. */
   function pendientesCierre(d){
     const cs=(Array.isArray(d&&d.cuadros)?d.cuadros:[]).filter(q=>q&&String(q.marca||'').trim()&&!q.marcaPorDefecto);
@@ -97,11 +125,13 @@
     add(`Paletas (${sum(q=>q.autoPaletas?q.autoPaletas.paletas:q.produccion&&q.produccion.paletas)})`,sum(q=>q.produccion&&q.produccion.paletas)>0||cs.some(q=>q.autoPaletas)?'auto':'falta');
     add(`Paradas (${paradas} · ${(minParadas/60).toFixed(2)} h)`,cs.some(q=>q.autoParadasSig)||paradas?(cs.some(q=>q.autoParadasSig)?'auto':'ok'):'opcional',paradas?'':'Sin paradas registradas');
     add(`Personal (${personas})`,personas?(d.autoPersonal?'auto':'ok'):'falta',personas?'':'Llena el Tareo del turno o escribe los nombres');
+    const negativos=cs.filter(q=>{const h=horasEfectivasReales(q);return h!==null&&h<0;});
+    add('Horas efectivas',negativos.length?'falta':'ok',negativos.length?'Negativas en '+negativos.map(q=>q.marca+' ('+horasEfectivasReales(q).toFixed(2)+' h)').join(', ')+': las paradas superan la duración':'');
     add('Lote y vencimiento',todos(q=>q.lote&&q.fechaVencimiento)?'auto':'falta');
-    add('Insumos (estimados, revísalos)',sum(q=>num(q.insumos&&q.insumos.planchasCarton)+num(q.insumos&&q.insumos.stretchFilmKg)+num(q.insumos&&q.insumos.cajasPreformas)+num(q.insumos&&q.insumos.polietilenoKg))>0?'auto':'falta');
+    add('Insumos (estimados, revísalos)',todos(q=>insumosDe(q)>0)?'auto':'falta');
     if(LINEAS_SEC[linea])add(LINEAS_SEC[linea],todos(q=>num(q.produccion&&q.produccion.sopladas)>0)?'ok':'falta');
     if(LINEAS_SEC[linea]&&linea!=='B20L')add('Calidad',todos(q=>num(q.produccion&&q.produccion.calidad)>0)?'ok':'falta');
-    add('Mermas',cs.some(q=>(q.mermas||[]).some(m=>num(m&&m.unidades)>0||num(m&&m.peso)>0))?'ok':'falta');
+    add('Mermas',todos(q=>tieneMermas(q)||q.sinMermas)?'ok':'falta',cs.some(q=>q.sinMermas&&!tieneMermas(q))?'Confirmado «Sin mermas» en: '+cs.filter(q=>q.sinMermas&&!tieneMermas(q)).map(q=>q.marca).join(', '):'');
     add('Observaciones',String(d&&d.observaciones||'').trim()?'ok':'opcional');
     return items;
   }
@@ -169,7 +199,7 @@
     return `<div class="reg-para-cerrar" style="margin:12px 0;border:1px solid ${faltan?'#F0C36D':'#9AD3B0'};border-radius:10px;background:#fff;overflow:hidden">
       <div style="padding:10px 12px;background:${faltan?'#FFF4D6':'#E8F6EE'};color:${faltan?'#7A5200':'#14532D'};font-weight:700">
         ${faltan?`Para cerrar el turno faltan ${faltan} dato(s). Lo demás se llenó solo.`:'Para cerrar el turno: todo listo.'}
-        <small style="display:block;font-weight:400">Solo es una guía: lo obligatorio para finalizar es lo que pide «Falta para finalizar».</small></div>
+        <small style="display:block;font-weight:400">Lo marcado «● falta» es obligatorio para finalizar el reporte.</small></div>
       <ul style="list-style:none;margin:0;padding:0 12px">${items.map(x=>`<li style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #EEF2F5;font-size:13.5px">
         <span>${esc(x.etiqueta)}${x.detalle?`<small style="display:block;color:#6B7280">${esc(x.detalle)}</small>`:''}</span>
         <b style="color:${marca[x.estado][1]};white-space:nowrap">${marca[x.estado][0]}</b></li>`).join('')}</ul></div>`;
@@ -185,7 +215,63 @@
     ancla.parentNode.insertBefore(div.firstElementChild,ancla);
   }
 
+  /* Aviso en vivo en cada pestaña: horas efectivas negativas. Casilla «Sin mermas en esta producción». */
+  function pintarCuadros(){
+    const d=draftActual();
+    const main=typeof document!=='undefined'&&document.getElementById('main');
+    if(!main||!d||!(typeof state!=='undefined'&&state&&state.currentTab==='nuevo'))return;
+    const bloqueado=typeof reporteEstaBloqueado==='function'&&reporteEstaBloqueado();
+    main.querySelectorAll('.reg-horas-negativas,.reg-sin-mermas').forEach(e=>e.remove());
+    (Array.isArray(d.cuadros)?d.cuadros:[]).forEach((q,i)=>{
+      const card=document.getElementById('reg-cuadro-'+i);if(!card||!q)return;
+      const h=horasEfectivasReales(q);
+      if(h!==null&&h<0){
+        const div=document.createElement('div');div.className='reg-horas-negativas';div.setAttribute('role','alert');
+        div.style.cssText='margin:0 0 10px;padding:10px 12px;border-radius:8px;background:#FDECEA;border:1px solid #F5B7B1;border-left:5px solid #C0392B;color:#7B241C;font-size:13.5px';
+        div.innerHTML=`<b>⚠ Horas efectivas negativas: ${esc(h.toFixed(2))} h.</b> Las paradas suman ${esc(minutosParadas(q))} min y esta producción dura ${esc(Math.round(num(q.horasTurno)*60))} min (${esc(q.horaInicio||'—')} a ${esc(q.horaFin||'—')}). Revisa la hora de inicio, la de fin o los minutos de las paradas. No se puede finalizar así.`;
+        card.insertBefore(div,card.firstChild);
+        // El resumen del cuadro muestra 0,00 h (el cálculo no baja de 0): aquí se muestra el valor real en rojo.
+        const et=[...card.querySelectorAll('small')].find(x=>/^\s*Horas efectivas\s*$/.test(x.textContent||''));
+        const val=et&&et.parentElement&&et.parentElement.querySelector('strong');
+        if(val){val.textContent=h.toFixed(2)+' h';val.style.color='#C0392B';}
+      }
+      if(bloqueado||tieneMermas(q)||q.estadoCuadro==='FINALIZADO')return;
+      const head=[...card.querySelectorAll('.panel-head')].find(x=>/^\s*Mermas\s*$/i.test((x.querySelector('h4')||{}).textContent||''));
+      if(!head)return;
+      const lab=document.createElement('label');lab.className='reg-sin-mermas';
+      lab.style.cssText='display:inline-flex;align-items:center;gap:6px;margin-left:12px;font-size:13px;font-weight:600;cursor:pointer';
+      lab.innerHTML=`<input type="checkbox" data-no-autosave ${q.sinMermas?'checked':''} onchange="registroSinMermas(${i},this.checked)"> Sin mermas en esta producción`;
+      head.appendChild(lab);
+    });
+  }
+  if(typeof window!=='undefined')window.registroSinMermas=function(i,v){
+    const d=draftActual();if(!d||!d.cuadros||!d.cuadros[i])return;
+    if(v)d.cuadros[i].sinMermas=true;else delete d.cuadros[i].sinMermas;
+    if(typeof programarGuardadoAutomaticoReporte==='function')programarGuardadoAutomaticoReporte();
+    if(typeof renderFormTab==='function')renderFormTab();
+  };
+
   /* ---------- enganches ---------- */
+  if(typeof document!=='undefined'&&typeof raiz.validarReporteParaFinalizar==='function'){
+    // Lo nuevo obligatorio se suma a lo de siempre: la barra «Revisar», «Falta para finalizar» y «Finalizar reporte» lo usan.
+    const val=raiz.validarReporteParaFinalizar;
+    raiz.validarReporteParaFinalizar=function(){
+      const base=val.apply(this,arguments)||[];
+      let extra=[];try{extra=obligatoriosCierre(draftActual());}catch(e){console.warn('Obligatorios del cierre:',e);}
+      return [...new Set(base.concat(extra))];
+    };
+  }
+  if(typeof document!=='undefined'&&typeof raiz.destinoFaltanteRegistro==='function'){
+    const dest=raiz.destinoFaltanteRegistro;
+    raiz.destinoFaltanteRegistro=function(texto){
+      const r=dest.apply(this,arguments);
+      if(r&&r.tipo==='cuadro'&&!r.campo){
+        const t=String(texto||'').toLowerCase();
+        r.campo=/de calidad/.test(t)?'produccion.calidad':/disponibles/.test(t)?'produccion.sopladas':/paletas/.test(t)?'produccion.paletas':'';
+      }
+      return r;
+    };
+  }
   if(typeof document!=='undefined'&&typeof raiz.cuadro1DesdeProgramacion==='function'){
     // preparar() y refrescar() de 35 llaman a cuadro1DesdeProgramacion en cada pintado y cada minuto: se completa ahí mismo.
     const original=raiz.cuadro1DesdeProgramacion;
@@ -198,10 +284,10 @@
   }
   if(typeof document!=='undefined'&&typeof raiz.renderFormTab==='function'){
     const rf=raiz.renderFormTab;
-    raiz.renderFormTab=function(){const r=rf.apply(this,arguments);try{pintarPanel();}catch(e){console.warn('Para cerrar el turno:',e);}return r;};
+    raiz.renderFormTab=function(){const r=rf.apply(this,arguments);try{pintarPanel();}catch(e){console.warn('Para cerrar el turno:',e);}try{pintarCuadros();}catch(e){console.warn('Avisos del registro:',e);}return r;};
   }
 
-  const API={vencimiento,vidaUtilMeses,productosDelTurno,marcasPorAgregar,horasPorPoner,pendientesCierre,completar,panelHtml,VIDA_UTIL_INICIAL};
+  const API={horasEfectivasReales,obligatoriosCierre,vencimiento,vidaUtilMeses,productosDelTurno,marcasPorAgregar,horasPorPoner,pendientesCierre,completar,panelHtml,VIDA_UTIL_INICIAL};
   raiz.glacialAutollenadoCompleto=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);

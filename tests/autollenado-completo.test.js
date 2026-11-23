@@ -81,6 +81,26 @@ const pc=sb.glacialAutollenadoCompleto.pendientesCierre({linea:'C20L',cuadros:[{
 ok(!pc.some(x=>/soplad|Calidad|disponibles/.test(x.etiqueta)),'Cajas 20L no pide sopladas ni calidad');
 ok(/Para cerrar el turno faltan/.test(sb.glacialAutollenadoCompleto.panelHtml({linea:'C20L',cuadros:[]})),'el panel dice cuántos datos faltan');
 
+/* 3b) obligatorios para finalizar y horas efectivas negativas */
+{const A2=sb.glacialAutollenadoCompleto;
+const q=o=>Object.assign({numero:1,marca:'Scala',presentacion:'7L',horaInicio:'07:00',horaFin:'09:00',horasTurno:2,lote:'CF3',
+  produccion:{efectiva:1000,paletas:10,calidad:3,sopladas:1100},paradasProgramadas:[{tiempoMin:60}],paradasNoProgramadas:[{tiempoMin:30}],
+  mermas:[{item:'Bidones',peso:1,unidades:3}],insumos:{planchasCarton:10}},o||{});
+const reg=(cs,o)=>Object.assign({linea:'B7L',estadoRegistro:'EN_REGISTRO',cuadros:cs,personal:[{nombre:'Ana'}]},o||{});
+ok(A2.horasEfectivasReales(q())===0.5&&A2.horasEfectivasReales(q({paradasNoProgramadas:[{tiempoMin:90}]}))===-0.5&&A2.horasEfectivasReales(q({horasTurno:0}))===null,'horas efectivas sin tope: 2 h − 1,5 h = 0,5 h; con 150 min de paradas = −0,5 h');
+ok(A2.obligatoriosCierre(reg([q()])).length===0,'un reporte completo no pide nada más');
+const f=A2.obligatoriosCierre(reg([q({produccion:{efectiva:1000,paletas:10,calidad:0,sopladas:1100},mermas:[],insumos:{},lote:''})],{personal:[{nombre:''}]}));
+ok(f.includes('Producción 1: bidones de calidad')&&f.includes('Producción 1: mermas (o marca «Sin mermas en esta producción»)')&&f.includes('Producción 1: insumos')&&f.includes('Producción 1: lote')&&f.includes('Personal del turno: al menos una persona'),'faltan: calidad, mermas, insumos, lote y personal');
+ok(!A2.obligatoriosCierre(reg([q({mermas:[],sinMermas:true})])).length,'«Sin mermas en esta producción» cumple el requisito de mermas');
+ok(A2.obligatoriosCierre(reg([q({produccion:{efectiva:0}})])).includes('Producción 1: producción efectiva')&&A2.obligatoriosCierre(reg([q({produccion:{efectiva:5,paletas:0,calidad:1}})])).includes('Producción 1: paletas'),'sin producción efectiva o sin paletas no se finaliza');
+ok(A2.obligatoriosCierre(reg([q({produccion:{efectiva:129,paletas:3,sopladas:0}})],{linea:'B20L'})).includes('Producción 1: bidones disponibles')&&!A2.obligatoriosCierre(reg([q({produccion:{efectiva:850,paletas:17}})],{linea:'C20L'})).some(t=>/calidad|disponibles/.test(t)),'B20L pide bidones disponibles; Cajas 20L no pide calidad');
+ok(!A2.obligatoriosCierre(reg([q({mermas:[]})],{estadoRegistro:'REABIERTO'})).length,'un reporte reabierto para corregir no exige lo nuevo');
+ok(!A2.obligatoriosCierre(reg([q(),{marca:'X',marcaPorDefecto:true,produccion:{}}])).length,'la marca puesta por defecto (sin usar) no cuenta');
+const lista2=A2.pendientesCierre(reg([q({paradasNoProgramadas:[{tiempoMin:90}]})]));
+ok(lista2.find(x=>x.etiqueta==='Horas efectivas').estado==='falta'&&/−?-0\.50 h/.test(lista2.find(x=>x.etiqueta==='Horas efectivas').detalle),'«Para cerrar» marca las horas efectivas negativas');
+const f35=leer('js/produccion/35c-autollenado-completo.js');
+ok(/raiz\.validarReporteParaFinalizar=function/.test(f35)&&/reg-horas-negativas/.test(f35)&&/registroSinMermas/.test(f35),'se suma a «Falta para finalizar», avisa en vivo las horas negativas y ofrece «Sin mermas»');}
+
 /* 4) conexión */
 const html=leer('index.html');
 ok(html.indexOf('35c-autollenado-completo.js?v=')>html.indexOf('35b-personal-desde-tareo.js?v=')&&html.indexOf('35c-autollenado-completo.js?v=')<html.indexOf('12-init.js'),'index.html carga 35c después de 35b y antes de 12-init');

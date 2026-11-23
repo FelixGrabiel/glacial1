@@ -35,6 +35,19 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const panel = await P.evaluate(() => { const e = document.querySelector('.reg-para-cerrar'); return e ? e.innerText : ''; });
   ok(/Para cerrar el turno faltan/.test(panel) && /Bidones soplados/.test(panel) && /automático/.test(panel), 'aparece la lista «Para cerrar el turno»');
   if (process.env.GLX_CAPTURAS) { await P.setViewportSize({ width: 520, height: 1000 }); await P.evaluate(() => renderFormTab()); const el = await P.$('.reg-para-cerrar'); if (el) await el.screenshot({ path: process.env.GLX_CAPTURAS + '/para-cerrar.png' }); }
+  /* obligatorios y horas negativas */
+  const v = await P.evaluate(() => { const f = validarReporteParaFinalizar(); return f; });
+  ok(v.some(t => /de calidad/.test(t)) && v.some(t => /mermas/.test(t)), '«Falta para finalizar» pide calidad y mermas: ' + v.filter(t => /calidad|mermas/.test(t)).join(' | '));
+  await P.evaluate(() => { const q = draft.cuadros[0]; q.paradasNoProgramadas = [{ id: 'x', descripcion: 'Falla', tiempoMin: 400, causa: '' }]; renderFormTab(); });
+  const neg = await P.evaluate(() => { const e = document.querySelector('#reg-cuadro-0 .reg-horas-negativas'); return e ? e.innerText : ''; });
+  ok(/Horas efectivas negativas: -2\.17 h/.test(neg), 'aviso rojo en la pestaña: ' + neg.slice(0, 90));
+  ok(await P.evaluate(() => validarReporteParaFinalizar().some(t => /las paradas suman 400 min/.test(t))), 'y no deja finalizar');
+  ok(await P.evaluate(() => { const et = [...document.querySelectorAll('#reg-cuadro-0 small')].find(x => /^\s*Horas efectivas\s*$/.test(x.textContent)); return et && et.parentElement.querySelector('strong').textContent.trim() === '-2.17 h'; }), 'el resumen de la pestaña muestra -2.17 h (antes 0.00 h)');
+  if (process.env.GLX_CAPTURAS) { const el = await P.$('#reg-cuadro-0'); if (el) await el.screenshot({ path: process.env.GLX_CAPTURAS + '/horas-negativas.png', clip: undefined }); }
+  const sm = await P.evaluate(() => !!document.querySelector('#reg-cuadro-0 .reg-sin-mermas input'));
+  ok(sm, 'la pestaña ofrece «Sin mermas en esta producción»');
+  await P.evaluate(() => { registroSinMermas(0, true); });
+  ok(await P.evaluate(() => draft.cuadros[0].sinMermas === true && !validarReporteParaFinalizar().some(t => /^Producción 1: mermas/.test(t))), 'al marcarla, la merma de esa producción deja de faltar');
   ok(D.errores.length === 0, 'sin errores en la página' + (D.errores.length ? ': ' + D.errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar();
   console.log(fallas ? fallas + ' fallas' : 'todo correcto'); process.exit(fallas ? 1 : 0);
