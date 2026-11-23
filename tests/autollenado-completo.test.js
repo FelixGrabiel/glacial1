@@ -69,17 +69,39 @@ const prop=T.proponer([{nombre:'Ana Soplado',posicion:'Sopladora',linea:''},{nom
 ok(prop.length===2&&prop[0].i===0&&prop[1].i===2,'B7L: «Sopladora 1» y «Etiquetado 1» reconocen al soplador y al etiquetador del tareo (una persona por fila)');
 
 /* 3) lista «Para cerrar el turno» */
+draft.cuadros.slice(0,2).forEach(q=>{q.mermas=[{item:'Bidones',peso:0,unidades:0}];});
 const lista=sb.glacialAutollenadoCompleto.pendientesCierre(draft);
 const est=t=>(lista.find(x=>x.etiqueta.startsWith(t))||{}).estado;
 ok(est('Marcas del turno (2)')==='auto'&&est('Personal')==='auto'&&est('Lote y vencimiento')==='auto','marcas, personal, lote y vencimiento: automático');
 ok(est('Bidones soplados')==='falta'&&est('Calidad')==='falta'&&est('Mermas')==='falta'&&est('Observaciones')==='opcional','sopladas, calidad y mermas faltan; observaciones opcional');
 ok(est('Horas de inicio y fin')==='falta'&&/Aro/.test(lista.find(x=>x.etiqueta.startsWith('Horas')).detalle),'avisa que falta la hora de fin de Aro (todavía en curso)');
-draft.cuadros.slice(0,2).forEach(q=>{q.produccion.sopladas=100;q.produccion.calidad=2;q.mermas=[{item:'Bidones',peso:1,unidades:3}];q.horaFin=q.horaFin||'19:00';});
+draft.cuadros.slice(0,2).forEach(q=>{q.produccion.sopladas=100;q.produccion.calidad=2;q.mermas=[{item:'Bidones',peso:1,unidades:3},{item:'Asa',peso:0,ingresada:true}];q.horaFin=q.horaFin||'19:00';});
 const l2=sb.glacialAutollenadoCompleto.pendientesCierre(draft);
 ok(['Bidones soplados','Calidad','Mermas'].every(t=>l2.find(x=>x.etiqueta===t).estado==='ok')&&l2.find(x=>x.etiqueta.startsWith('Horas')).estado!=='falta','al ingresarlos pasan a «ingresado»');
 const pc=sb.glacialAutollenadoCompleto.pendientesCierre({linea:'C20L',cuadros:[{marca:'San Fernando',produccion:{}}]});
 ok(!pc.some(x=>/soplad|Calidad|disponibles/.test(x.etiqueta)),'Cajas 20L no pide sopladas ni calidad');
 ok(/Para cerrar el turno faltan/.test(sb.glacialAutollenadoCompleto.panelHtml({linea:'C20L',cuadros:[]})),'el panel dice cuántos datos faltan');
+
+/* 3b) obligatorios para finalizar y horas efectivas negativas */
+{const A2=sb.glacialAutollenadoCompleto;
+const q=o=>Object.assign({numero:1,marca:'Scala',presentacion:'7L',horaInicio:'07:00',horaFin:'09:00',horasTurno:2,lote:'CF3',
+  produccion:{efectiva:1000,paletas:10,calidad:3,sopladas:1100},paradasProgramadas:[{tiempoMin:60}],paradasNoProgramadas:[{tiempoMin:30}],
+  mermas:[{item:'Bidones',peso:1,unidades:3},{item:'Tapa',peso:0,unidades:0,ingresada:true}],insumos:{planchasCarton:10}},o||{});
+const reg=(cs,o)=>Object.assign({linea:'B7L',estadoRegistro:'EN_REGISTRO',cuadros:cs,personal:[{nombre:'Ana'}]},o||{});
+ok(A2.horasEfectivasReales(q())===0.5&&A2.horasEfectivasReales(q({paradasNoProgramadas:[{tiempoMin:90}]}))===-0.5&&A2.horasEfectivasReales(q({horasTurno:0}))===null,'horas efectivas sin tope: 2 h − 1,5 h = 0,5 h; con 150 min de paradas = −0,5 h');
+ok(A2.obligatoriosCierre(reg([q()])).length===0,'un reporte completo no pide nada más');
+const f=A2.obligatoriosCierre(reg([q({produccion:{efectiva:1000,paletas:10,calidad:0,sopladas:1100},mermas:[{item:'Bidones',peso:2},{item:'Asa',peso:0,unidades:0},{item:'Tapa',peso:0}],insumos:{},lote:''})],{personal:[{nombre:''}]}));
+ok(f.includes('Producción 1: bidones de calidad')&&f.includes('Producción 1: mermas (escribe 0 donde no hubo): Asa, Tapa')&&f.includes('Producción 1: insumos')&&f.includes('Producción 1: lote')&&f.includes('Personal del turno: al menos una persona'),'faltan: calidad, las mermas sin escribir (Asa, Tapa), insumos, lote y personal');
+ok(!A2.obligatoriosCierre(reg([q({mermas:[{item:'Asa',peso:0,ingresada:true},{item:'Tapa',peso:0,ingresada:true}]})])).length,'un 0 escrito cuenta como «no hubo merma»');
+ok(!A2.obligatoriosCierre(reg([q()],{personal:[{nombre:'Ana'},{nombre:''},{nombre:''}]})).length,'el personal puede tener posiciones vacías (basta una persona)');
+ok(A2.obligatoriosCierre(reg([q({produccion:{efectiva:0}})])).includes('Producción 1: producción efectiva')&&A2.obligatoriosCierre(reg([q({produccion:{efectiva:5,paletas:0,calidad:1}})])).includes('Producción 1: paletas'),'sin producción efectiva o sin paletas no se finaliza');
+ok(A2.obligatoriosCierre(reg([q({produccion:{efectiva:129,paletas:3,sopladas:0}})],{linea:'B20L'})).includes('Producción 1: bidones disponibles')&&!A2.obligatoriosCierre(reg([q({produccion:{efectiva:850,paletas:17}})],{linea:'C20L'})).some(t=>/calidad|disponibles/.test(t)),'B20L pide bidones disponibles; Cajas 20L no pide calidad');
+ok(!A2.obligatoriosCierre(reg([q({mermas:[{item:'Asa',peso:0}]})],{estadoRegistro:'REABIERTO'})).length,'un reporte reabierto para corregir no exige lo nuevo');
+ok(!A2.obligatoriosCierre(reg([q(),{marca:'X',marcaPorDefecto:true,produccion:{}}])).length,'la marca puesta por defecto (sin usar) no cuenta');
+const lista2=A2.pendientesCierre(reg([q({paradasNoProgramadas:[{tiempoMin:90}]})]));
+ok(lista2.find(x=>x.etiqueta==='Horas efectivas').estado==='falta'&&/−?-0\.50 h/.test(lista2.find(x=>x.etiqueta==='Horas efectivas').detalle),'«Para cerrar» marca las horas efectivas negativas');
+const f35=leer('js/produccion/35c-autollenado-completo.js');
+ok(/raiz\.validarReporteParaFinalizar=function/.test(f35)&&/reg-horas-negativas/.test(f35)&&/raiz\.updateMermaCuadro=function/.test(f35),'se suma a «Falta para finalizar», avisa en vivo las horas negativas y marca el 0 escrito en las mermas');}
 
 /* 4) conexión */
 const html=leer('index.html');

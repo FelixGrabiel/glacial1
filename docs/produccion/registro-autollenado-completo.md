@@ -28,8 +28,26 @@ Código: `js/produccion/35c-autollenado-completo.js`, que se engancha al autolle
 
 ## Lista «Para cerrar el turno»
 
-Aparece encima del panel de estado del reporte y marca cada dato como «automático», «ingresado», «falta» u «opcional». Solo es una guía: no impide finalizar. Lo obligatorio lo sigue controlando «Falta para finalizar».
+Aparece encima del panel de estado del reporte y marca cada dato como «automático», «ingresado», «falta» u «opcional». Lo marcado «falta» es obligatorio: «Falta para finalizar» lo exige (ver abajo).
 
 ## Vida útil por línea
 
 Botón **👥 Personal y vida útil** en Registro › Gráficos, solo para Administrador y jefatura. Se guarda en `sync/configIndicadores.vidaUtilMeses`.
+
+## Datos obligatorios para finalizar (23/11/2026)
+
+Además de lo de siempre (marca, presentación, horas, sopladas, foto de la Hoja de Producto Terminado y datos imposibles), «Falta para finalizar» exige en cada producción usada:
+
+- producción efectiva y paletas;
+- lote;
+- calidad (PET1, PET2 y B7L) y bidones disponibles (B20L);
+- mermas: **cada fila con un valor**; donde no hubo merma se escribe **0**. El 0 escrito queda marcado en la fila (`merma.ingresada`) y se ve como 0; las filas sin escribir se ven en ámbar;
+- insumos.
+
+Para todo el reporte exige al menos una persona en el personal del turno. Las posiciones vacías no bloquean, porque muchas veces no están todas cubiertas.
+
+Un reporte **reabierto** para corregir no exige estos datos nuevos.
+
+## Horas efectivas negativas
+
+Si las paradas de una producción suman más que su duración, la pestaña muestra un aviso rojo en el momento y el resumen enseña el valor negativo en rojo (antes se veía «0.00 h»). El reporte no se puede finalizar hasta corregir la hora de inicio, la de fin o los minutos de las paradas.
