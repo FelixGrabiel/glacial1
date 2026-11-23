@@ -110,11 +110,20 @@
     tareosArea().forEach(t=>{
       if(!editable(t))return;
       let cambio=false;
-      (Array.isArray(t.personalExcluido)?t.personalExcluido:[]).forEach(e=>{if(e&&e.activa&&mismas(e.ids,baja.ids)){e.activa=false;e.en=nuevo;cambio=true;}});
+      (Array.isArray(t.personalExcluido)?t.personalExcluido:[]).forEach(e=>{if(e&&e.activa&&mismas(e.ids,baja.ids)){e.activa=false;e.en=nuevo;e.restauradoPor=nombreUsuario();cambio=true;}});
       if(cambio){guardarTareoEnMemoria(t);n++;}
     });
+    /* La baja puede estar en tareos que ya no se pueden modificar (cerrados): para que igual deje de valer, se guarda una entrada
+       «restaurada» más nueva en el tareo más reciente que sí se puede modificar (la entrada más nueva por persona decide en todos los tareos). */
+    const host=tareosArea().filter(editable).sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||''))||String(b.turno||'').localeCompare(String(a.turno||'')))[0];
+    if(host){
+      const mis=baja.ids||[];
+      const entrada=Object.assign({},baja,{activa:false,permanente:true,desde:'0000-01-01',en:ts(),restauradoPor:nombreUsuario()});
+      host.personalExcluido=[...(Array.isArray(host.personalExcluido)?host.personalExcluido:[]).filter(e=>!mismas(e.ids,mis)),entrada];
+      guardarTareoEnMemoria(host);
+    }
     redibujar();
-    alert((baja.nombre||'La persona')+' volvió al personal de Mantenimiento'+(n?'':' (no se encontró en ningún tareo modificable)')+'. Aparecerá en los tareos que se abran o se creen.');
+    alert((baja.nombre||'La persona')+' volvió al personal de Mantenimiento'+(host||n?'':' (no se encontró ningún tareo modificable donde guardarlo)')+'. Aparecerá en los tareos que se abran o se creen.');
   }
 
   /* ---------- ventana ---------- */
