@@ -88,6 +88,29 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.evaluate(() => { document.getElementById('tpa-confirma').checked = true; TareoArea.qConfirmar(); });
   ok(!(await tiene('m-1', 'Juan Torres')) && !(await tiene('m1', 'Juan Torres')), '«todos»: sale de todos los tareos del área');
 
+  /* ---------- Personal nuevo agregado a tareos: registrarlo en Trabajadores ---------- */
+  await montar();
+  await P.evaluate(() => {
+    _workersReady = true; window.__alertas = [];
+    // Armando se agregó como «personal nuevo» a dos tareos y no existe en Trabajadores (como pasó en la planta)
+    const arm = { trabajadorId: 'nuevo_abc', nombre: 'ARMANDO QUENAYA YACTAYO', dni: '48449642', cargo: 'Técnico de Mantenimiento', area: 'Mantenimiento', linea: '', nuevoIngreso: true, agregadoManual: true, asistencia: '', horaIngreso: '', horaSalida: '' };
+    ['m0', 'm0n'].forEach(id => { const t = obtenerTareos().find(x => x.id === id); t.personal.push(Object.assign({}, arm)); });
+    renderTareoPrincipal();
+  });
+  ok(await P.evaluate(() => /sin registrar en Trabajadores \(1\)/.test(document.getElementById('tareo-sin-registrar').innerText) && /ARMANDO QUENAYA YACTAYO/.test(document.getElementById('tareo-sin-registrar').innerText) && /en 2 tareos/.test(document.getElementById('tareo-sin-registrar').innerText)), 'el Inicio avisa de quién se agregó a tareos y no está en Trabajadores (con DNI y en cuántos tareos)');
+  ok((await filas()).join() === 'Juan Torres,Kevin Ruiz', 'mientras no se registre, no sale en la tabla de personal (ni en la rotación)');
+  await P.evaluate(() => document.querySelector('#tareo-sin-registrar button').click());
+  ok(await P.evaluate(() => loadWorkers().some(w => w.nombre === 'ARMANDO QUENAYA YACTAYO' && w.dni === '48449642' && w.area === 'Mantenimiento' && w.estado === 'Activo' && /Técnico de Mantenimiento/.test(w.cargo) && /^w_/.test(w.id))), '«Registrar en Trabajadores» lo crea: DNI, área Mantenimiento, cargo y estado Activo');
+  ok(await P.evaluate(() => !document.getElementById('tareo-sin-registrar')) && (await filas()).some(f => /ARMANDO QUENAYA/i.test(f)), 'después de registrarlo sale en la tabla del Inicio (y por eso en la rotación) y desaparece el aviso');
+
+  /* «Personal nuevo» con la casilla «Registrar también en Trabajadores» */
+  await P.evaluate(() => { tareoActualId = 'm0'; window.tareoAbrirAgregarPersonal(); tareoAgregarPersonalModo('nuevo'); });
+  ok(await P.evaluate(() => { const c = document.getElementById('tan-registrar'); return !!c && c.checked; }), '«Personal nuevo» trae la casilla «Registrar también en Trabajadores» marcada');
+  await P.evaluate(() => { document.getElementById('tan-nombre').value = 'Pedro Nuevo Ramos'; document.getElementById('tan-dni').value = '41111111'; tareoAgregarPersonal(); });
+  ok(await P.evaluate(() => { const w = loadWorkers().find(x => x.nombre === 'PEDRO NUEVO RAMOS'); const p = obtenerTareos().find(t => t.id === 'm0').personal.find(x => x.nombre === 'PEDRO NUEVO RAMOS'); return !!w && w.estado === 'Activo' && w.area === 'Mantenimiento' && !!p && p.trabajadorId === w.id; }), 'agrega a la persona al tareo y la registra en Trabajadores, enlazadas por el mismo id');
+  await P.evaluate(() => { tareoActualId = 'm0'; window.tareoAbrirAgregarPersonal(); tareoAgregarPersonalModo('nuevo'); document.getElementById('tan-registrar').checked = false; document.getElementById('tan-nombre').value = 'Sin Registro Perez'; document.getElementById('tan-dni').value = '42222222'; tareoAgregarPersonal(); });
+  ok(await P.evaluate(() => !loadWorkers().some(w => w.nombre === 'SIN REGISTRO PEREZ') && obtenerTareos().find(t => t.id === 'm0').personal.some(x => x.nombre === 'SIN REGISTRO PEREZ')), 'con la casilla desmarcada solo se agrega al tareo (como antes)');
+
   /* ---------- Personal por día con rango ---------- */
   await montar();
   await P.evaluate(() => TareoArea.abrirPorDia());

@@ -3358,6 +3358,8 @@ function renderTareoPrincipal() {
 
         </div>
 
+        ${window.TareoArea ? window.TareoArea.sinRegistrarHTML(area) : ''}
+
         ${window.TareoArea ? window.TareoArea.porDiaHTML(area) : ''}
 
         ${window.TareoArea ? window.TareoArea.quitadosHTML(area) : ''}
