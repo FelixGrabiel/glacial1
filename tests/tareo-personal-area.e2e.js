@@ -157,6 +157,21 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.evaluate(() => [...document.querySelectorAll('#tareo-por-dia-area .tar2-quitar')][0].click());
   await P.evaluate(() => { document.querySelector('#modal-root input[value=todos]').checked = true; TareoArea.pdTipo('todos'); TareoArea.pdConfirmar(); });
   ok(await P.evaluate(() => ['m-1', 'm-1n', 'm0', 'm0n', 'm1'].every(id => window.__pd(id).length === 0) && !document.getElementById('tareo-por-dia-area')), '«todos» lo quita de todos los tareos y desaparece del panel');
+  /* ---------- Historial: el personal por día se busca y se ve con sus horas ---------- */
+  await montar();
+  await P.evaluate(() => {
+    const mkpd = (id, nom, ing, sal) => ({ id, tipo: 'POR DÍA', nombre: nom, dni: '47000000', area: 'Soldador', horaIngreso: ing, horaSalida: sal, creadoEn: 1, actualizadoEn: 1 });
+    obtenerTareos().find(t => t.id === 'm0').personalPorDia = [mkpd('pd1', 'YEFRE LOPES', '07:00', '15:00'), mkpd('pd2', 'OTRO POR DIA', '07:00', '')];
+    obtenerTareos().find(t => t.id === 'm0n').personalPorDia = [mkpd('pd3', 'YEFRE LOPES', '', '')];
+    tareoFiltroHistorial = { desde: '', hasta: '', turno: '', estado: '', texto: 'yefre' }; tareoFiltroAreaHistorial = '';
+    renderHistorialTareo();
+  });
+  const filasHist = await P.evaluate(() => [...document.querySelectorAll('#main .tareo-table tbody tr')].map(r => r.innerText.replace(/\s+/g, ' ')));
+  ok(filasHist.length === 2 && filasHist.every(f => /YEFRE LOPES/.test(f)), 'buscar «yefre» en el Historial encuentra los tareos donde está como personal por día (antes no salía): ' + filasHist.length);
+  ok(filasHist.some(f => /YEFRE LOPES · 07:00–15:00/.test(f)) && filasHist.some(f => /YEFRE LOPES · sin horas/.test(f)), 'la columna «Por día» muestra su nombre y sus horas, o qué le falta (sin horas / sin salida)');
+  await P.evaluate(() => { tareoFiltroHistorial.texto = '47000000'; renderHistorialTareo(); });
+  ok(await P.evaluate(() => document.querySelectorAll('#main .tareo-table tbody tr').length) === 2, 'también se encuentra por DNI');
+  await P.evaluate(() => { tareoFiltroHistorial = { desde: '', hasta: '', turno: '', estado: '', texto: '' }; });
   // validaciones
   await P.evaluate(() => TareoArea.abrirPorDia());
   await P.evaluate(() => { document.getElementById('tpa-nombre').value = 'Otro'; document.getElementById('tpa-desde').value = window.__dia(3); document.getElementById('tpa-hasta').value = window.__dia(1); TareoArea.dCambia(); });

@@ -6536,9 +6536,10 @@ function tareoHistorialCoincide(tareo, f) {
 
     if (q) {
 
-        const porPersona = (tareo.personal || []).some(p =>
-            tareoNormalizarTexto([p.nombre, p.dni, p.cargo, p.linea].join(' ')).includes(q) ||
-            !!(window.glacialBusqueda && window.glacialBusqueda.coincide([p.nombre, p.dni, p.cargo, p.linea], q))
+        // También el personal POR DÍA (no planilla) del tareo: nombre, DNI y cargo / área.
+        const porPersona = [...(tareo.personal || []), ...tareoPorDiaActivos(tareo)].some(p =>
+            tareoNormalizarTexto([p.nombre, p.dni, p.cargo, p.linea, p.area].join(' ')).includes(q) ||
+            !!(window.glacialBusqueda && window.glacialBusqueda.coincide([p.nombre, p.dni, p.cargo, p.linea, p.area], q))
         );
 
         const porCreador = tareoNormalizarTexto(
@@ -6549,6 +6550,23 @@ function tareoHistorialCoincide(tareo, f) {
     }
 
     return true;
+}
+
+/* Celda «Por día» del Historial: cuántas personas por día tiene el tareo y, de cada una, su nombre y sus horas (o qué le falta). */
+function tareoPorDiaCeldaHistorial(tareo) {
+
+    const lista = tareoPorDiaActivos(tareo);
+
+    if (!lista.length) return '—';
+
+    const linea = p => {
+        const i = p.horaIngreso || '', s = p.horaSalida || '';
+        const horas = i && s ? i + '–' + s : (i ? i + ' · sin salida' : (s ? 'sin ingreso · ' + s : 'sin horas'));
+        return '<small style="display:block;white-space:nowrap">' + escaparHTML(p.nombre) + ' · ' + escaparHTML(horas) + '</small>';
+    };
+
+    return '<strong>' + lista.length + '</strong>' + lista.slice(0, 3).map(linea).join('') +
+        (lista.length > 3 ? '<small class="small-muted">y ' + (lista.length - 3) + ' más</small>' : '');
 }
 
 let _tareoHistorialTemporizador = null;
@@ -6834,7 +6852,7 @@ function renderHistorialTareo() {
                                                     </td>
 
                                                     <td>
-                                                        ${tareoPorDiaActivos(tareo).length || '—'}
+                                                        ${tareoPorDiaCeldaHistorial(tareo)}
                                                     </td>
 
                                                     <td>
