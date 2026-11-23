@@ -44,6 +44,6 @@ ok(sin.some(p=>p.nombre==='DIAZ MORA ROSA')&&!sin.some(p=>p.nombre==='LUNA RUIZ 
 }
 const s06=leer('js/produccion/06-registro.js'),html=leer('index.html');
 ok(/personalTareoHtml\(linea\)/.test(s06),'el formulario «Personal del turno» muestra la pieza del tareo');
-ok(html.indexOf('35b-personal-desde-tareo.js')>html.indexOf('35-autollenado-registro.js')&&/35b-personal-desde-tareo\.js\?v=20261030-pt2/.test(html),'index.html carga el módulo');
+ok(html.indexOf('35b-personal-desde-tareo.js')>html.indexOf('35-autollenado-registro.js')&&/35b-personal-desde-tareo\.js\?v=2026(1030|1123)-pt\d+/.test(html),'index.html carga el módulo');
 console.log(fallas?'\n'+fallas+' fallas':'\nPersonal desde el tareo correcto');
 process.exit(fallas?1:0);
