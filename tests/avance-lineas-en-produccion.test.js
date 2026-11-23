@@ -153,4 +153,20 @@ const l9=snap.lineas.find(x=>x.linea==='PET2'),l9b=snap.lineas.find(x=>x.linea==
 ok(l9&&l9.inicio==='14:00'&&l9.bloques.every(b=>b.inicio==='14:00')&&/Inicio: 14:00/.test(snap.texto),'9 · PET2: la hora real de «Iniciar» (14:00) manda sobre el 07:00 del cuadro, sin tener que corregirla');
 ok(l9b&&l9b.inicio==='09:10','9 · B7L: la marca «SCALA» en mayúsculas también se reconoce y manda su hora real (09:10)');
 
+/* 10) CIERRE: gana lo que se ingresó ÚLTIMO (caso real 22/11/2026: el cierre de las 19:26 tenía PET2 24 435, B7L 9 324 y Cajas 814; las paletas decían 28 020, 9 450 y 850) */
+const palT=(linea,marca,pres,total,hora,creadoEn,tipo)=>Object.assign(pal(linea,marca,pres,total,hora,creadoEn),{turno:'DÍA',tipoPaleta:tipo||'COMPLETA'});
+const regT=(linea,marca,pres,efectiva,actualizadoEn)=>({linea,fecha:FECHA,turno:'DÍA',actualizadoEn,cuadros:[{marca,presentacion:pres,horaInicio:'07:00',horaFin:'19:00',produccion:{efectiva}}]});
+sb=entorno({turno:'DÍA',ahora:ms(19,26),
+  paletas:[palT('B7L','SCALA','7 L',9324,'18:23',ms(18,23)),palT('B7L','SCALA','7 L',9450,'19:18',ms(19,19)),
+           palT('PET2','Scala','625',24000,'18:29',ms(18,30)),palT('PET2','Scala','625',435,'18:30',ms(18,31),'INCOMPLETA'),palT('PET2','Scala','625',27000,'19:16',ms(19,16)),palT('PET2','Scala','625',1020,'19:16',ms(19,17),'INCOMPLETA')],
+  records:[regT('B7L','SCALA','7 L',9324,ms(18,24)),regT('PET2','Scala','625',24435,ms(18,31))]});
+let cB=sb.avProduccionHasta('B7L','SCALA','7 L','19:26','CIERRE'),cP=sb.avProduccionHasta('PET2','Scala','625','19:26','CIERRE');
+ok(cB.valor===9450&&cB.fuente==='PALETAS'&&cB.alternativa&&cB.alternativa.valor===9324,'10 · B7L: hay paletas posteriores al registro del supervisor → el cierre usa 9 450 (y guarda 9 324 como alternativa)');
+ok(cP.valor===28020&&cP.fuente==='PALETAS','10 · PET2: el cierre usa 28 020 (27 000 + 1 020), no 24 435');
+sb=entorno({turno:'DÍA',ahora:ms(19,26),
+  paletas:[palT('B7L','SCALA','7 L',9450,'19:18',ms(19,19))],
+  records:[regT('B7L','SCALA','7 L',9300,ms(19,25))]});
+cB=sb.avProduccionHasta('B7L','SCALA','7 L','19:26','CIERRE');
+ok(cB.valor===9300&&cB.fuente==='PRODUCCION_EFECTIVA','10 · si el supervisor guardó su registro DESPUÉS de la última paleta, manda su registro (9 300)');
+
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
