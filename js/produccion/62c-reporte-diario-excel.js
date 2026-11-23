@@ -225,19 +225,23 @@
     return wb;
   }
 
-  /** Navegador: Blob del .xlsx del modelo (con la imagen del reporte en la hoja «Gráficos»). */
-  async function blob(m){
+  /** Navegador: el libro del modelo (carga ExcelJS si hace falta y pone la imagen del reporte en «Gráficos»). */
+  async function libro(m){
     const X=raiz.ExcelJS;
     if(!X&&typeof raiz.cargarScriptExterno==='function')await raiz.cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS');
     if(!raiz.ExcelJS)throw new Error('No se pudo cargar la librería de Excel.');
     let imagenPng=null,imagenAncho=1080,imagenAlto=2200;
     try{const cv=raiz.glacialReporteDiario.dibujar(m);imagenPng=cv.toDataURL('image/png').split(',')[1];imagenAncho=cv.width/2;imagenAlto=cv.height/2;}catch(_){imagenPng=null;}
-    const wb=construir(raiz.ExcelJS,m,{imagenPng,imagenAncho,imagenAlto});
+    return construir(raiz.ExcelJS,m,{imagenPng,imagenAncho,imagenAlto});
+  }
+  /** Navegador: Blob del .xlsx del modelo. */
+  async function blob(m){
+    const wb=await libro(m);
     const buf=await wb.xlsx.writeBuffer();
     return new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   }
 
-  const API={construir,blob};
+  const API={construir,libro,blob};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialReporteDiarioExcel=API;
 })(typeof window!=='undefined'?window:globalThis);

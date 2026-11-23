@@ -3940,6 +3940,15 @@ function renderGraficosTab(){
         📊 Exportar Excel
       </button>
 
+      ${window.glacialReporteDiarioExcel&&window.glacialVistaExcel?`<button
+        type="button"
+        class="btn btn-ghost"
+        onclick="glacialReporteDiario.vistaExcel()"
+        title="Ver el Excel tal como se descarga, sin descargarlo"
+      >
+        👁 Vista previa Excel
+      </button>`:''}
+
       ${window.glacialReporteDiarioExcel?`<button
         type="button"
         class="btn"

@@ -381,6 +381,17 @@
       raiz.descargarArchivo(await raiz.glacialReporteDiarioExcel.blob(m),nombreArchivo(m,'xlsx'));
     }catch(e){console.error(e);alert('No se pudo generar el Excel: '+((e&&e.message)||e));}
   }
+  /** «Vista previa Excel»: el mismo libro que se descarga, mostrado como en Excel (46-vista-excel.js). */
+  async function vistaExcel(){
+    try{
+      const m=modeloActual();if(!m)return;
+      if(!raiz.glacialReporteDiarioExcel||!raiz.glacialVistaExcel)throw new Error('falta el módulo del Excel');
+      const wb=await raiz.glacialReporteDiarioExcel.libro(m);
+      raiz.glacialVistaExcel.abrir(wb,{titulo:'Reporte diario · '+m.nombre+' · '+m.fechaTexto+' · turno '+m.bloque,nombre:nombreArchivo(m,'xlsx'),
+        alDescargar:async()=>raiz.descargarArchivo(await raiz.glacialReporteDiarioExcel.blob(m),nombreArchivo(m,'xlsx')),
+        acciones:[{texto:'📲 Enviar por WhatsApp',fn:()=>compartir('xlsx')}]});
+    }catch(e){console.error(e);alert('No se pudo abrir la vista previa: '+((e&&e.message)||e));}
+  }
   /** Texto corto que acompaña al archivo en WhatsApp. */
   function resumenTexto(m){
     const t=m.total,U=m.unidad,UR=m.unidadRatio;
@@ -449,7 +460,7 @@
     };
   }
 
-  const API={modelo,dibujar,exportar,exportarExcel,compartir,resumenTexto,editarRequerido,personalRequerido,puedeConfigurar,semanaDe,semanaISO,alto,REQUERIDO_INICIAL};
+  const API={modelo,dibujar,exportar,exportarExcel,vistaExcel,compartir,resumenTexto,editarRequerido,personalRequerido,puedeConfigurar,semanaDe,semanaISO,alto,REQUERIDO_INICIAL};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialReporteDiario=API;
 })(typeof window!=='undefined'?window:globalThis);
