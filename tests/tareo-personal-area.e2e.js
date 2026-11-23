@@ -94,6 +94,30 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const r4 = await P.evaluate(() => document.getElementById('tpa-resumen').innerText);
   ok(/0 tareos/.test(r4) && /5 ya lo tienen/.test(r4), 'repetir el rango no duplica: ' + r4);
   await P.evaluate(() => TareoArea.cerrar());
+  /* ---------- Quitar personal por día: desde una fecha / rango / repetidos / todos ---------- */
+  ok(await P.evaluate(() => /Personal por día \(1\)/.test(document.getElementById('tareo-por-dia-area').innerText) && /5 tareos/.test(document.getElementById('tareo-por-dia-area').innerText)), 'el Inicio lista al personal por día con cuántos tareos y entre qué fechas');
+  // un repetido en el tareo de hoy (como pasó con Yefre en el del 11/11)
+  await P.evaluate(() => { const t = obtenerTareos().find(x => x.id === 'm0'); t.personalPorDia.push(Object.assign({}, t.personalPorDia[0], { id: 'pd_rep_1', creadoEn: Date.now() + 5 })); renderTareoPrincipal(); });
+  ok(await P.evaluate(() => /repetido en 1 lugar/.test(document.getElementById('tareo-por-dia-area').innerText) && [...document.querySelectorAll('#tareo-por-dia-area button')].some(b => /Quitar repetidos/.test(b.innerText))), 'avisa cuando la persona está repetida y ofrece «Quitar repetidos»');
+  await P.evaluate(() => { [...document.querySelectorAll('#tareo-por-dia-area button')].find(b => /Quitar repetidos/.test(b.innerText)).click(); });
+  ok(await P.evaluate(() => window.__pd('m0').length === 1), '«Quitar repetidos» deja una sola vez a la persona (y no toca los demás tareos)');
+  await P.evaluate(() => [...document.querySelectorAll('#tareo-por-dia-area .tar2-quitar')][0].click());
+  ok(await P.evaluate(() => /Quitar a Yefre Lopes \(personal por día\)/.test(document.querySelector('#modal-root h3').innerText) && [...document.querySelectorAll('#modal-root input[name=tpa-pd]')].map(i => i.value).join() === 'desde,rango,todos'), 'se abre la ventana con tres opciones: desde una fecha, rango y todos');
+  const dh = await P.evaluate(() => window.__dia(0));
+  await P.evaluate(([a, b]) => { document.querySelector('#modal-root input[value=rango]').checked = true; TareoArea.pdTipo('rango'); TareoArea.pdFecha('desde', a); TareoArea.pdFecha('hasta', b); }, [dh, dh]);
+  ok(/2 tareos/.test(await P.evaluate(() => document.getElementById('tpa-resumen').innerText)), 'rango «solo hoy»: 2 tareos (Día y Noche)');
+  await P.evaluate(() => TareoArea.pdConfirmar());
+  ok(await P.evaluate(() => window.__pd('m0').length === 0 && window.__pd('m0n').length === 0 && window.__pd('m-1').length === 1 && window.__pd('m1').length === 1), 'el rango quita solo de hoy; ayer y mañana siguen');
+  ok(await P.evaluate(() => obtenerTareos().find(t => t.id === 'm0').personalPorDia.every(p => p.eliminada && p.eliminadaPor === 'Admin')), 'es una baja lógica (queda marcada como eliminada, con quién la hizo)');
+  await P.evaluate(() => [...document.querySelectorAll('#tareo-por-dia-area .tar2-quitar')][0].click());
+  const dm1 = await P.evaluate(() => window.__dia(1));
+  await P.evaluate(a => { TareoArea.pdFecha('desde', a); }, dm1);
+  ok(/1 tareo\b/.test(await P.evaluate(() => document.getElementById('tpa-resumen').innerText)), '«desde mañana»: 1 tareo');
+  await P.evaluate(() => TareoArea.pdConfirmar());
+  ok(await P.evaluate(() => window.__pd('m1').length === 0 && window.__pd('m-1').length === 1), '«desde una fecha» quita de esa fecha en adelante y no toca los anteriores');
+  await P.evaluate(() => [...document.querySelectorAll('#tareo-por-dia-area .tar2-quitar')][0].click());
+  await P.evaluate(() => { document.querySelector('#modal-root input[value=todos]').checked = true; TareoArea.pdTipo('todos'); TareoArea.pdConfirmar(); });
+  ok(await P.evaluate(() => ['m-1', 'm-1n', 'm0', 'm0n', 'm1'].every(id => window.__pd(id).length === 0) && !document.getElementById('tareo-por-dia-area')), '«todos» lo quita de todos los tareos y desaparece del panel');
   // validaciones
   await P.evaluate(() => TareoArea.abrirPorDia());
   await P.evaluate(() => { document.getElementById('tpa-nombre').value = 'Otro'; document.getElementById('tpa-desde').value = window.__dia(3); document.getElementById('tpa-hasta').value = window.__dia(1); TareoArea.dCambia(); });

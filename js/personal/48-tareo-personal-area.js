@@ -119,9 +119,9 @@
 
   /* ---------- ventana ---------- */
   const raiz=()=>document.getElementById('modal-root');
-  function cerrar(){const r=raiz();if(r)r.innerHTML='';E.q=null;E.d=null;}
+  function cerrar(){const r=raiz();if(r)r.innerHTML='';E.q=null;E.d=null;E.pd=null;}
   function redibujar(){try{if(typeof renderTareoPrincipal==='function')renderTareoPrincipal();}catch(_){/* pantalla no disponible */}}
-  const E={q:null,d:null};
+  const E={q:null,d:null,pd:null};
   function marco(titulo,cuerpo,pie){
     return '<div class="modal-backdrop" onclick="if(event.target===this)TareoArea.cerrar()"><div class="modal" style="max-width:580px;width:96%;max-height:92vh;overflow:auto;">'+
       '<div class="modal-head"><h3>'+titulo+'</h3><button class="modal-close" onclick="TareoArea.cerrar()">✕</button></div>'+
@@ -270,6 +270,109 @@
     alert(nombre+' se agregó como personal por día a '+a.lista.length+' tareo'+(a.lista.length===1?'':'s')+'.'+(a.sinTareo?'\n'+a.sinTareo+' turno'+(a.sinTareo===1?'':'s')+' del rango no tienen tareo creado.':''));
   }
 
+  /* --- quitar personal POR DÍA desde una fecha / en un rango / de todos --- */
+  const claveDia=p=>{const d=typeof tareoNormalizarDNI==='function'?tareoNormalizarDNI(p.dni):String(p.dni||'').replace(/\D/g,'');return d||('N:'+tareoNormalizarTexto(String(p.nombre||'').replace(/\s+/g,' ').trim()));};
+  const activosDia=t=>(Array.isArray(t.personalPorDia)?t.personalPorDia:[]).filter(p=>p&&!p.eliminada);
+  /* Personas por día de los tareos de Mantenimiento: una fila por persona, con cuántos tareos y entre qué fechas. */
+  function porDiaAgrupado(){
+    const mapa=new Map();
+    tareosArea().forEach(t=>{
+      const vistos=new Set();
+      activosDia(t).forEach(p=>{
+        const k=claveDia(p),g=mapa.get(k)||{clave:k,nombre:p.nombre||'',dni:p.dni||'',cargo:p.area||'',tareos:0,repetidos:0,desde:'',hasta:''};
+        if(vistos.has(k))g.repetidos++;else{vistos.add(k);g.tareos++;}
+        const f=String(t.fecha||'');if(!g.desde||f<g.desde)g.desde=f;if(!g.hasta||f>g.hasta)g.hasta=f;
+        mapa.set(k,g);
+      });
+    });
+    return [...mapa.values()].sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es',{sensitivity:'base'}));
+  }
+  /* Tareos que alcanza la baja de una persona por día: alcance 'desde' (fecha >= desde), 'rango' (desde <= fecha <= hasta) o 'todos'. */
+  function alcancePorDia(clave,alc){
+    const lista=[];let bloqueados=0;
+    tareosArea().forEach(t=>{
+      const f=String(t.fecha||'');
+      if(alc.tipo==='desde'&&f<alc.desde)return;
+      if(alc.tipo==='rango'&&(f<alc.desde||f>alc.hasta))return;
+      if(!activosDia(t).some(p=>claveDia(p)===clave))return;
+      if(!editable(t)){bloqueados++;return;}
+      lista.push(t);
+    });
+    return {lista,bloqueados};
+  }
+  function ejecutarQuitarPorDia(clave,alc){
+    if(!puede())throw new Error('No tienes permiso para modificar el personal de Mantenimiento.');
+    if(alc.tipo!=='todos'&&!FECHA_OK(alc.desde))throw new Error('Elige una fecha válida.');
+    if(alc.tipo==='rango'&&(!FECHA_OK(alc.hasta)||alc.desde>alc.hasta))throw new Error('Revisa las fechas: «Desde» no puede ser posterior a «Hasta».');
+    const a=alcancePorDia(clave,alc),ahora=ts();
+    a.lista.forEach(t=>{
+      activosDia(t).forEach(p=>{if(claveDia(p)===clave){p.eliminada=true;p.eliminadaPor=nombreUsuario();p.actualizadoEn=ahora;}});     // baja lógica (se fusiona entre equipos)
+      guardarTareoEnMemoria(t);
+    });
+    return {quitados:a.lista.length,bloqueados:a.bloqueados};
+  }
+  /* Deja una sola vez a la persona en los tareos donde quedó repetida (conserva la primera). */
+  function quitarRepetidosDia(clave){
+    if(!puede())return;
+    let n=0;const ahora=ts();
+    tareosArea().forEach(t=>{
+      if(!editable(t))return;
+      const mias=activosDia(t).filter(p=>claveDia(p)===clave);
+      if(mias.length<2)return;
+      mias.sort((a,b)=>Number(a.creadoEn||0)-Number(b.creadoEn||0)).slice(1).forEach(p=>{p.eliminada=true;p.eliminadaPor=nombreUsuario();p.actualizadoEn=ahora;});
+      guardarTareoEnMemoria(t);n++;
+    });
+    redibujar();
+    alert(n?'Se quitaron los repetidos en '+n+' tareo'+(n===1?'':'s')+'.':'No hay repetidos que quitar.');
+  }
+  function abrirQuitarPorDia(clave){
+    if(!puede())return alert('No tienes permiso para modificar el personal de Mantenimiento.');
+    const g=porDiaAgrupado().find(x=>x.clave===clave);if(!g)return;
+    E.pd={clave,tipo:'desde',desde:hoy(),hasta:hoy()};
+    dibujarQuitarPorDia();
+  }
+  function dibujarQuitarPorDia(){
+    const r=raiz(),q=E.pd;if(!r||!q)return;
+    const g=porDiaAgrupado().find(x=>x.clave===q.clave);if(!g)return cerrar();
+    const op=(v,titulo,ayuda,extra)=>'<label class="tar2-qm-op"><input type="radio" name="tpa-pd" value="'+v+'"'+(q.tipo===v?' checked':'')+' onchange="TareoArea.pdTipo(this.value)"><span><strong>'+titulo+'</strong>'+(extra||'')+'<small class="small-muted">'+ayuda+'</small></span></label>';
+    r.innerHTML=marco('Quitar a '+esc(g.nombre)+' (personal por día)',
+      '<p class="small-muted" style="margin:0 0 10px;">'+esc(g.cargo||'Personal por día')+(g.dni?' · DNI '+esc(g.dni):'')+' · en '+g.tareos+' tareo'+(g.tareos===1?'':'s')+' ('+esc(fLinda(g.desde))+' a '+esc(fLinda(g.hasta))+')</p>'+
+      '<div class="tar2-qm-ops">'+
+        op('desde','Desde una fecha en adelante','Sale de los tareos de Mantenimiento ya creados desde esa fecha.',' <input type="date" id="tpa-pd-desde" value="'+esc(q.desde)+'" oninput="TareoArea.pdFecha(\'desde\',this.value)">')+
+        op('rango','Solo un rango de fechas','Sale únicamente entre las dos fechas.',' <input type="date" id="tpa-pd-d2" value="'+esc(q.desde)+'" oninput="TareoArea.pdFecha(\'desde\',this.value)"> <input type="date" id="tpa-pd-h2" value="'+esc(q.hasta)+'" oninput="TareoArea.pdFecha(\'hasta\',this.value)">')+
+        op('todos','De todos los tareos','Se registró por error: sale de todos.')+
+      '</div><div id="tpa-resumen" class="tar2-qm-resumen" role="status"></div>',
+      '<button class="btn btn-ghost" onclick="TareoArea.cerrar()">Cancelar</button><button class="btn btn-danger" onclick="TareoArea.pdConfirmar()">Quitar</button>');
+    resumenQuitarPorDia();
+  }
+  function alcDe(q){return {tipo:q.tipo,desde:q.desde,hasta:q.hasta};}
+  function resumenQuitarPorDia(){
+    const q=E.pd,c=document.getElementById('tpa-resumen');if(!q||!c)return;
+    const a=document.getElementById('tpa-pd-desde'),b=document.getElementById('tpa-pd-d2'),h=document.getElementById('tpa-pd-h2');
+    if(a)a.disabled=q.tipo!=='desde';if(b)b.disabled=q.tipo!=='rango';if(h)h.disabled=q.tipo!=='rango';
+    if(q.tipo!=='todos'&&!FECHA_OK(q.desde)){c.textContent='Elige una fecha válida.';return;}
+    if(q.tipo==='rango'&&(!FECHA_OK(q.hasta)||q.desde>q.hasta)){c.textContent='Elige un rango válido: «Desde» no puede ser posterior a «Hasta».';return;}
+    const r=alcancePorDia(q.clave,alcDe(q)),n=r.lista.length;
+    c.textContent='Se quitará de '+n+' tareo'+(n===1?'':'s')+' ya creado'+(n===1?'':'s')+'.'+(r.bloqueados?' '+r.bloqueados+' cerrado'+(r.bloqueados===1?'':'s')+' o sin permiso no se tocan.':'');
+  }
+  function pdConfirmar(){
+    const q=E.pd;if(!q)return;
+    const g=porDiaAgrupado().find(x=>x.clave===q.clave);
+    try{
+      const r=ejecutarQuitarPorDia(q.clave,alcDe(q));
+      cerrar();redibujar();
+      alert((g?g.nombre:'La persona')+' se quitó del personal por día de '+r.quitados+' tareo'+(r.quitados===1?'':'s')+'.'+(r.bloqueados?'\n'+r.bloqueados+' cerrado'+(r.bloqueados===1?'':'s')+' o sin permiso no se tocaron.':''));
+    }catch(e){alert(e&&e.message?e.message:'No se pudo quitar.');}
+  }
+  function porDiaHTML(area){
+    if(area!==AREA)return '';
+    const l=porDiaAgrupado();if(!l.length)return '';
+    const mod=puede();
+    return '<div class="panel" id="tareo-por-dia-area"><div class="panel-head"><div><h3>Personal por día ('+l.length+')</h3><div class="small-muted">Personas que no están en planilla y figuran en los tareos de Mantenimiento.</div></div></div><div class="panel-body"><ul class="tar2-quitados">'+
+      l.map(g=>'<li><span><strong>'+esc(g.nombre)+'</strong>'+(g.dni?' · DNI '+esc(g.dni):'')+(g.cargo?' · '+esc(g.cargo):'')+' · <em>'+g.tareos+' tareo'+(g.tareos===1?'':'s')+', '+esc(fLinda(g.desde))+(g.hasta!==g.desde?' a '+esc(fLinda(g.hasta)):'')+'</em>'+(g.repetidos?' <small style="color:#b26a00">repetido en '+g.repetidos+' lugar'+(g.repetidos===1?'':'es')+'</small>':'')+'</span>'+
+        (mod?'<span>'+(g.repetidos?'<button type="button" class="btn btn-ghost btn-sm" data-k="'+esc(g.clave)+'" onclick="TareoArea.quitarRepetidos(this.dataset.k)">Quitar repetidos</button> ':'')+'<button type="button" class="tar2-quitar" data-k="'+esc(g.clave)+'" onclick="TareoArea.quitarPorDia(this.dataset.k)">✕ Quitar</button></span>':'')+'</li>').join('')+'</ul></div></div>';
+  }
+
   /* ---------- piezas para la pantalla del Inicio ---------- */
   function botonesHTML(area){
     if(area!==AREA||!puede())return '';
@@ -288,12 +391,15 @@
   }
 
   window.TareoArea={
-    visibles,botonesHTML,celdaHTML,quitadosHTML,puede,bajasVigentes,alcanceBaja,ejecutarQuitar,restaurar,alcanceRango,diasDelRango,
+    visibles,botonesHTML,celdaHTML,quitadosHTML,porDiaHTML,porDiaAgrupado,alcancePorDia,ejecutarQuitarPorDia,quitarRepetidos:quitarRepetidosDia,quitarPorDia:abrirQuitarPorDia,puede,bajasVigentes,alcanceBaja,ejecutarQuitar,restaurar,alcanceRango,diasDelRango,
     quitar:abrirQuitar,abrirPorDia,cerrar,
     qAlcance(v){if(!E.q)return;E.q.alcance=v==='todos'?'todos':'desde';resumenQuitar();},
     qFecha(v){if(!E.q)return;E.q.desde=v;resumenQuitar();},
     qConfirmar,
     dCambia(){leerForm();resumenPorDia();},
-    dConfirmar
+    dConfirmar,
+    pdTipo(v){if(!E.pd)return;E.pd.tipo=['desde','rango','todos'].includes(v)?v:'desde';resumenQuitarPorDia();},
+    pdFecha(k,v){if(!E.pd)return;E.pd[k]=v;resumenQuitarPorDia();},
+    pdConfirmar
   };
 })();
