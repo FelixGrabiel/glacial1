@@ -373,6 +373,14 @@
       raiz.descargarArchivo(await blobImagen(m),nombreArchivo(m,'png'));
     }catch(e){console.error(e);alert('No se pudo generar el reporte diario. Inténtalo nuevamente.');}
   }
+  /** «Exportar Excel»: el Reporte diario en Excel (62c-reporte-diario-excel.js). */
+  async function exportarExcel(){
+    try{
+      const m=modeloActual();if(!m)return;
+      if(!raiz.glacialReporteDiarioExcel)throw new Error('falta el módulo del Excel');
+      raiz.descargarArchivo(await raiz.glacialReporteDiarioExcel.blob(m),nombreArchivo(m,'xlsx'));
+    }catch(e){console.error(e);alert('No se pudo generar el Excel: '+((e&&e.message)||e));}
+  }
   /** Texto corto que acompaña al archivo en WhatsApp. */
   function resumenTexto(m){
     const t=m.total,U=m.unidad,UR=m.unidadRatio;
@@ -441,7 +449,7 @@
     };
   }
 
-  const API={modelo,dibujar,exportar,compartir,resumenTexto,editarRequerido,personalRequerido,puedeConfigurar,semanaDe,semanaISO,alto,REQUERIDO_INICIAL};
+  const API={modelo,dibujar,exportar,exportarExcel,compartir,resumenTexto,editarRequerido,personalRequerido,puedeConfigurar,semanaDe,semanaISO,alto,REQUERIDO_INICIAL};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialReporteDiario=API;
 })(typeof window!=='undefined'?window:globalThis);

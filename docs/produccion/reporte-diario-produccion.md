@@ -26,8 +26,21 @@ Código: `js/produccion/62b-reporte-diario.js` (modelo + dibujo en canvas). Prue
 | Semana | registros oficiales de la misma línea, de lunes a domingo |
 | Personal requerido | `sync/configIndicadores.personalRequerido`; valores iniciales PET1 7, PET2 8, B7L 11, Cajas 20L 11, B20L 5 |
 
-El **personal requerido** lo cambian el Administrador y la jefatura con el botón **👥 Personal requerido** de la misma pestaña.
+El **personal requerido** (y la vida útil de la línea) lo cambian el Administrador y la jefatura con el botón **👥 Personal y vida útil** de la misma pestaña.
 
 Lo que el registro no guarda (hora de refrigerio, jornada) no se muestra. Un dato vacío aparece como «—».
 
 La plantilla anterior (`62-reporte-registro.js`) queda de respaldo si el archivo nuevo no carga, y «📈 PNG con gráficos (detalle)» sigue igual.
+
+## WhatsApp y Excel (23/11/2026)
+
+En Registro › Gráficos:
+
+- **📲 Enviar imagen por WhatsApp** y **📲 Enviar Excel por WhatsApp**. En el celular abren el menú de compartir del teléfono con el archivo: se elige WhatsApp y el chat. En la computadora descargan el archivo y abren WhatsApp con un resumen escrito (producción, ratios, paradas, OEE y semana) para adjuntarlo. Es el mismo mecanismo que usa Hielo.
+- **📊 Exportar Excel** baja el Reporte diario en Excel (`js/produccion/62c-reporte-diario-excel.js`), con tres hojas:
+  - **Reporte diario**: el formato de la planta en A4 (una página de ancho). Usa **fórmulas** para horas de producción (cruza la medianoche), horas efectivas (en rojo si son negativas), ratio real, ratio sin paradas, diferencia, no cumplida y totales. Incluye indicadores con meta y semáforo, mermas con barras, insumos, paradas, personal, tablas de la semana con % del requerido, observaciones y firmas.
+  - **Gráficos**: la imagen del reporte.
+  - **Datos**: una fila por formato, con filtros.
+- **📑 Excel detallado**: el libro anterior de 7 hojas, sin cambios.
+
+Pruebas: `tests/reporte-diario-excel.test.js`. Con `GLX_LIBS` arma el libro con ExcelJS y revisa fórmulas, hojas e imagen; sin la librería, solo revisa la conexión con la página.
