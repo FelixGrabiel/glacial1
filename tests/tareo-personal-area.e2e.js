@@ -61,6 +61,22 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok((await filas()).join() === 'Juan Torres,Kevin Ruiz' && await P.evaluate(() => !document.getElementById('tareo-quitados-area')), 'Restaurar lo devuelve a la tabla y se vacía «Personal quitado»');
   ok(await P.evaluate(() => { const f = TareoEd.filtroExclusion({ id: '', area: 'Mantenimiento', fecha: window.__dia(5) }); return !f({ trabajadorId: 't1', nombre: 'Juan Torres', dni: '40000001' }); }), 'tras restaurar, los tareos nuevos vuelven a traerlo');
 
+  /* ---------- Restaurar cuando la baja está en un tareo cerrado (no modificable) ---------- */
+  await montar();
+  await P.evaluate(() => {
+    // La baja de Juan quedó guardada en el tareo de ayer (Día), que ahora está cerrado; Juan ya no figura en ningún tareo.
+    const cerrado = obtenerTareos().find(t => t.id === 'm-1');
+    cerrado.personalExcluido = [{ clave: 't1', ids: tareoIdentidades({ trabajadorId: 't1', nombre: 'Juan Torres', dni: '40000001' }), nombre: 'Juan Torres', dni: '40000001', cargo: 'Técnico de Mantenimiento', en: 5, activa: true, permanente: true, desde: '2026-01-01', alcance: 'desde', por: 'Cristian' }];
+    window.__cerradoId = 'm-1';
+    const orig = window.tareoAutorizadoEscribir; window.__origAut = orig;
+    window.tareoAutorizadoEscribir = x => (typeof x === 'object' && x && x.id === window.__cerradoId) ? false : orig(x);
+    renderTareoPrincipal();
+  });
+  ok((await filas()).join() === 'Kevin Ruiz' && await P.evaluate(() => /Personal quitado \(1\)/.test(document.getElementById('tareo-quitados-area').innerText)), 'con la baja en un tareo cerrado: Juan no figura y aparece en «Personal quitado»');
+  await P.evaluate(() => document.querySelector('#tareo-quitados-area button').click());
+  ok((await filas()).join() === 'Juan Torres,Kevin Ruiz' && await P.evaluate(() => !document.getElementById('tareo-quitados-area')), 'Restaurar funciona aunque la baja esté en un tareo cerrado: vuelve a la tabla y sale de «Personal quitado»');
+  await P.evaluate(() => { window.tareoAutorizadoEscribir = window.__origAut; });
+
   /* ---------- Quitar de todos ---------- */
   await montar();
   await P.evaluate(() => document.querySelector('.tareo-table .tar2-quitar').click());
