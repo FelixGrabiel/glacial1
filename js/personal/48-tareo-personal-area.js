@@ -382,6 +382,54 @@
         (mod?'<span>'+(g.repetidos?'<button type="button" class="btn btn-ghost btn-sm" data-k="'+esc(g.clave)+'" onclick="TareoArea.quitarRepetidos(this.dataset.k)">Quitar repetidos</button> ':'')+'<button type="button" class="tar2-quitar" data-k="'+esc(g.clave)+'" onclick="TareoArea.quitarPorDia(this.dataset.k)">✕ Quitar</button></span>':'')+'</li>').join('')+'</ul></div></div>';
   }
 
+  /* --- registrar en Trabajadores a quien se agregó solo a tareos («personal nuevo») --- */
+  const trabajadoresLista=()=>(typeof loadWorkers==='function'?loadWorkers():[])||[];
+  const mismoTrabajador=(w,p)=>{
+    const dni=typeof tareoNormalizarDNI==='function'?tareoNormalizarDNI(p.dni):String(p.dni||'').replace(/\D/g,'');
+    return !!w&&((dni&&(typeof tareoNormalizarDNI==='function'?tareoNormalizarDNI(w.dni):w.dni)===dni)||tareoNormalizarTexto(String(w.nombre||'').replace(/\s+/g,' ').trim())===tareoNormalizarTexto(String(p.nombre||'').replace(/\s+/g,' ').trim()));
+  };
+  /* Crea al trabajador en Trabajadores (activo, del área) si aún no existe (por DNI o nombre). Devuelve {ok, worker, existente, motivo}. */
+  function crearTrabajador(p,area){
+    try{
+      if(typeof puedeGestionarPersonal!=='function'||!puedeGestionarPersonal())return {ok:false,motivo:'No tienes permiso para registrar trabajadores.'};
+      const ws=trabajadoresLista();
+      const ya=ws.find(w=>mismoTrabajador(w,p));
+      if(ya)return {ok:true,existente:true,worker:ya};
+      const dni=typeof tareoNormalizarDNI==='function'?tareoNormalizarDNI(p.dni):String(p.dni||'').replace(/\D/g,'');
+      const w={id:'w_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),nombre:String(p.nombre||'').replace(/\s+/g,' ').trim().toLocaleUpperCase('es'),
+        tipoDocumento:p.tipoDocumento||'DNI',dni,area:area||AREA,cargo:p.cargo||'',linea:p.linea||'',puestoMaquina:'',estado:'Activo',
+        registradoDesde:'TAREO',registradoPor:nombreUsuario(),registradoEn:Date.now()};
+      saveWorkers([...ws,w]);
+      if(!trabajadoresLista().some(x=>x&&x.id===w.id))return {ok:false,motivo:'Todavía se están cargando los trabajadores: no se registró. Espera unos segundos y vuelve a intentarlo.'};
+      return {ok:true,worker:w};
+    }catch(e){return {ok:false,motivo:(e&&e.message)||'No se pudo registrar.'};}
+  }
+  /* Personas agregadas a tareos como «personal nuevo» que todavía no están en Trabajadores (no salen en la rotación). */
+  function sinRegistrar(){
+    const mapa=new Map(),ws=trabajadoresLista();
+    tareosArea().forEach(t=>(t.personal||[]).forEach(p=>{
+      if(!p||!(p.nuevoIngreso||String(p.trabajadorId||'').startsWith('nuevo_')))return;
+      if(ws.some(w=>mismoTrabajador(w,p)))return;
+      const k=claveDia(p),g=mapa.get(k)||{clave:k,nombre:p.nombre||'',dni:p.dni||'',cargo:p.cargo||'',linea:p.linea||'',tareos:0};
+      g.tareos++;mapa.set(k,g);
+    }));
+    return [...mapa.values()].sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es',{sensitivity:'base'}));
+  }
+  function registrarTrabajadorClave(k){
+    const g=sinRegistrar().find(x=>x.clave===k);if(!g)return;
+    const r=crearTrabajador(g,AREA);
+    if(!r.ok)return alert(r.motivo);
+    redibujar();
+    alert(g.nombre+' quedó registrado en Trabajadores (Mantenimiento, activo). Ya puede salir en la rotación semanal de Mantenimiento.');
+  }
+  function sinRegistrarHTML(area){
+    if(area!==AREA||typeof puedeGestionarPersonal!=='function'||!puedeGestionarPersonal())return '';
+    const l=sinRegistrar();if(!l.length)return '';
+    return '<div class="panel" id="tareo-sin-registrar"><div class="panel-head"><div><h3>Agregados a tareos y sin registrar en Trabajadores ('+l.length+')</h3><div class="small-muted">No salen en la rotación semanal ni en la tabla de personal hasta que se registren.</div></div></div><div class="panel-body"><ul class="tar2-quitados">'+
+      l.map(g=>'<li><span><strong>'+esc(g.nombre)+'</strong>'+(g.dni?' · DNI '+esc(g.dni):' · sin DNI')+(g.cargo?' · '+esc(g.cargo):'')+' · <em>en '+g.tareos+' tareo'+(g.tareos===1?'':'s')+'</em></span>'+
+        '<button type="button" class="btn btn-primary btn-sm" data-k="'+esc(g.clave)+'" onclick="TareoArea.registrarTrabajador(this.dataset.k)">Registrar en Trabajadores</button></li>').join('')+'</ul></div></div>';
+  }
+
   /* ---------- piezas para la pantalla del Inicio ---------- */
   function botonesHTML(area){
     if(area!==AREA||!puede())return '';
@@ -400,7 +448,7 @@
   }
 
   window.TareoArea={
-    visibles,botonesHTML,celdaHTML,quitadosHTML,porDiaHTML,porDiaAgrupado,alcancePorDia,ejecutarQuitarPorDia,quitarRepetidos:quitarRepetidosDia,quitarPorDia:abrirQuitarPorDia,puede,bajasVigentes,alcanceBaja,ejecutarQuitar,restaurar,alcanceRango,diasDelRango,
+    visibles,botonesHTML,celdaHTML,quitadosHTML,porDiaHTML,sinRegistrarHTML,sinRegistrar,crearTrabajador,registrarTrabajador:registrarTrabajadorClave,porDiaAgrupado,alcancePorDia,ejecutarQuitarPorDia,quitarRepetidos:quitarRepetidosDia,quitarPorDia:abrirQuitarPorDia,puede,bajasVigentes,alcanceBaja,ejecutarQuitar,restaurar,alcanceRango,diasDelRango,
     quitar:abrirQuitar,abrirPorDia,cerrar,
     qAlcance(v){if(!E.q)return;E.q.alcance=v==='todos'?'todos':'desde';resumenQuitar();},
     qFecha(v){if(!E.q)return;E.q.desde=v;resumenQuitar();},

@@ -102,7 +102,9 @@
         ? '<div class="field-sm"><label>Línea (opcional)</label><select id="tan-linea"><option value="">Sin línea</option>'+
             lineas.map(l=>'<option value="'+esc(l.name||l.key)+'">'+esc(l.name||l.key)+'</option>').join('')+'</select></div>'
         : '')+
-      '<p class="small-muted" style="margin:10px 0 0;">RRHH deberá registrarlo luego en Trabajadores (se enlaza por DNI).</p>';
+      (typeof puedeGestionarPersonal==='function'&&puedeGestionarPersonal()
+        ? '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:13px;"><input type="checkbox" id="tan-registrar" checked style="margin-top:3px;"> <span><strong>Registrar también en Trabajadores</strong><br><span class="small-muted">Así sale en la rotación semanal y en la lista de personal del área. Si no, RRHH deberá registrarlo luego (se enlaza por DNI).</span></span></label>'
+        : '<p class="small-muted" style="margin:10px 0 0;">RRHH deberá registrarlo luego en Trabajadores (se enlaza por DNI).</p>');
 
     const opAlc=(v,titulo,extra)=>'<label class="tar2-qm-op"><input type="radio" name="tan-alcance" value="'+v+'"'+(alcance.tipo===v?' checked':'')+
       ' onchange="tareoAgregarPersonalAlcance(\''+v+'\')"><span><strong>'+titulo+'</strong>'+(extra||'')+'</span></label>';
@@ -165,7 +167,7 @@
     const tareo=tareoObtenerActual();
     if(!tareo||!tareoPuedeEditar(tareo))return;
     const area=tareoAreaDe(tareo);
-    let base=null,nuevoIngreso=false;
+    let base=null,nuevoIngreso=false,registradoEnTrabajadores=false;
 
     if(modo==='registrado'){
       const id=document.getElementById('tareo-agregar-select')?.value;
@@ -187,6 +189,12 @@
       }
       base={trabajadorId:'nuevo_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6),nombre,dni,cargo,linea};
       nuevoIngreso=true;
+      // «Registrar también en Trabajadores»: se crea el trabajador (activo, del área) y la persona del tareo queda enlazada a él.
+      if(document.getElementById('tan-registrar')?.checked&&window.TareoArea&&typeof window.TareoArea.crearTrabajador==='function'){
+        const r=window.TareoArea.crearTrabajador(base,area);
+        if(r.ok&&r.worker){base.trabajadorId=r.worker.id;registradoEnTrabajadores=true;}
+        else if(!r.ok&&!confirm((r.motivo||'No se pudo registrar en Trabajadores.')+'\n\n¿Agregarlo solo a los tareos de todas formas?'))return;
+      }
     }
 
     if(alcance.tipo==='desde'&&!/^\d{4}-\d{2}-\d{2}$/.test(alcance.desde)){alert('Elige una fecha válida.');return;}
@@ -227,6 +235,7 @@
     }
     closeModal();
     renderTareoFormulario(tareo);
+    if(registradoEnTrabajadores)alert('«'+(base.nombre||'La persona')+'» también quedó registrado en Trabajadores.');
     if(alcance.tipo==='desde')alert('«'+(base.nombre||'La persona')+'» se agregó a este tareo y a '+agregadosEn+' tareo'+(agregadosEn===1?'':'s')+' más.');
   };
   window.tareoAgregarPersonal=tareoAgregarPersonal;
