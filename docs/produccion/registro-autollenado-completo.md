@@ -41,10 +41,10 @@ Además de lo de siempre (marca, presentación, horas, sopladas, foto de la Hoja
 - producción efectiva y paletas;
 - lote;
 - calidad (PET1, PET2 y B7L) y bidones disponibles (B20L);
-- mermas, o la casilla **«Sin mermas en esta producción»** cuando de verdad no hubo;
+- mermas: **cada fila con un valor**; donde no hubo merma se escribe **0**. El 0 escrito queda marcado en la fila (`merma.ingresada`) y se ve como 0; las filas sin escribir se ven en ámbar;
 - insumos.
 
-Para todo el reporte exige al menos una persona en el personal del turno.
+Para todo el reporte exige al menos una persona en el personal del turno. Las posiciones vacías no bloquean, porque muchas veces no están todas cubiertas.
 
 Un reporte **reabierto** para corregir no exige estos datos nuevos.
 

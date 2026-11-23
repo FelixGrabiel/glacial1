@@ -44,11 +44,19 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(await P.evaluate(() => validarReporteParaFinalizar().some(t => /las paradas suman 400 min/.test(t))), 'y no deja finalizar');
   ok(await P.evaluate(() => { const et = [...document.querySelectorAll('#reg-cuadro-0 small')].find(x => /^\s*Horas efectivas\s*$/.test(x.textContent)); return et && et.parentElement.querySelector('strong').textContent.trim() === '-2.17 h'; }), 'el resumen de la pestaña muestra -2.17 h (antes 0.00 h)');
   if (process.env.GLX_CAPTURAS) { const el = await P.$('#reg-cuadro-0'); if (el) await el.screenshot({ path: process.env.GLX_CAPTURAS + '/horas-negativas.png', clip: undefined }); }
-  const sm = await P.evaluate(() => !!document.querySelector('#reg-cuadro-0 .reg-sin-mermas input'));
-  ok(sm, 'la pestaña ofrece «Sin mermas en esta producción»');
-  await P.evaluate(() => { registroSinMermas(0, true); });
-  ok(await P.evaluate(() => draft.cuadros[0].sinMermas === true && !validarReporteParaFinalizar().some(t => /^Producción 1: mermas/.test(t))), 'al marcarla, la merma de esa producción deja de faltar');
-  ok(D.errores.length === 0, 'sin errores en la página' + (D.errores.length ? ': ' + D.errores.slice(0, 3).join(' | ') : ''));
+  /* mermas: cada fila con valor; el 0 escrito cuenta y se ve como 0 */
+  await P.evaluate(() => { window.__merma = (ci) => [...document.querySelectorAll('#reg-cuadro-' + ci + ' input[onchange*="updateMermaCuadro("]')].map(e => { const m = /updateMermaCuadro\(\s*(\d+)\s*,\s*(\d+)\s*,\s*'(\w+)'/.exec(e.getAttribute('onchange')); return { el: e, fila: Number(m[2]), campo: m[3] }; }); });
+  const filas = await P.evaluate(() => draft.cuadros[0].mermas.length);
+  const amb = await P.evaluate(() => [...document.querySelectorAll('#reg-cuadro-0 input[onchange*="updateMermaCuadro("]')].filter(e => e.style.borderColor).length);
+  ok(amb > 0, 'las filas de merma sin escribir se ven en ámbar (' + amb + ')');
+  await P.evaluate(n => { for (let i = 0; i < n; i++) { const x = window.__merma(0).find(y => y.fila === i); if (x) updateMermaCuadro(0, i, x.campo, i === 0 ? '2.5' : '0'); } }, filas);
+  ok(await P.evaluate(() => !validarReporteParaFinalizar().some(t => /^Producción 1: mermas/.test(t))), 'al escribir 2,5 en una y 0 en las demás, la merma de la producción 1 deja de faltar');
+  const ceros = await P.evaluate(() => window.__merma(0).filter(x => x.fila === 1).map(x => x.el.value));
+  ok(ceros.includes('0'), 'el 0 escrito se ve como 0 (no vacío): ' + JSON.stringify(ceros));
+  ok(await P.evaluate(() => draft.cuadros[0].mermas[1].ingresada === true), 'la fila queda marcada como ingresada (se guarda con el reporte)');
+  // Sin servidor en la prueba, el autoguardado avisa que no pudo guardar: no es un error del código probado.
+  const errores = D.errores.filter(e => !/Guardado de "reportes" bloqueado|Error guardando avance/.test(e));
+  ok(errores.length === 0, 'sin errores en la página' + (errores.length ? ': ' + errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar();
   console.log(fallas ? fallas + ' fallas' : 'todo correcto'); process.exit(fallas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

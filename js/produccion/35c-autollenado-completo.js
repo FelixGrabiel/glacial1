@@ -86,7 +86,10 @@
     return (dur-minutosParadas(q))/60;
   }
   const insumosDe=q=>['cajasPreformas','planchasCarton','polietilenoKg','stretchFilmKg'].reduce((a,k)=>a+num(q&&q.insumos&&q.insumos[k]),0);
-  const tieneMermas=q=>(q&&q.mermas||[]).some(m=>num(m&&m.unidades)>0||num(m&&m.peso)>0||num(m&&m.kg)>0||num(m&&m.pesoIngresadoKg)>0);
+  /* MERMAS: cada fila debe tener un valor; donde no hubo merma se escribe 0 (23/11/2026). Un 0 sin tocar y un 0 escrito se guardan
+     igual, así que el 0 escrito se marca en la fila (merma.ingresada, lo pone updateMermaCuadro). */
+  const filaMermaLlena=m=>!!m&&(m.ingresada===true||num(m.unidades)>0||num(m.peso)>0||num(m.kg)>0||num(m.pesoIngresadoKg)>0);
+  const mermasSinLlenar=q=>(q&&Array.isArray(q.mermas)?q.mermas:[]).filter(m=>m&&String(m.item||'').trim()&&!filaMermaLlena(m));
   const cuadrosUsados=d=>(Array.isArray(d&&d.cuadros)?d.cuadros:[]).filter(q=>q&&(q.marca||q.presentacion||q.horaInicio||q.horaFin||num(q.produccion&&q.produccion.programada)>0||num(q.produccion&&q.produccion.efectiva)>0)&&!q.marcaPorDefecto);
   /** Datos que ahora son obligatorios para finalizar (se suman a validarReporteParaFinalizar). Los reabiertos no los exigen. */
   function obligatoriosCierre(d){
@@ -99,7 +102,8 @@
       if(!String(q.lote||'').trim())out.push(`Producción ${n}: lote`);
       if(['PET1','PET2','B7L'].includes(linea)&&!(num(p.calidad)>0))out.push(`Producción ${n}: ${linea==='B7L'?'bidones':'botellas'} de calidad`);
       if(linea==='B20L'&&!(num(p.sopladas)>0))out.push(`Producción ${n}: bidones disponibles`);
-      if(!tieneMermas(q)&&!q.sinMermas)out.push(`Producción ${n}: mermas (o marca «Sin mermas en esta producción»)`);
+      const sinMerma=mermasSinLlenar(q);
+      if(sinMerma.length)out.push(`Producción ${n}: mermas (escribe 0 donde no hubo): ${sinMerma.map(m=>m.item).join(', ')}`);
       if(!(insumosDe(q)>0))out.push(`Producción ${n}: insumos`);
     });
     if(!(Array.isArray(d.personal)?d.personal:[]).some(x=>x&&String(x.nombre||'').trim()))out.push('Personal del turno: al menos una persona');
@@ -131,7 +135,8 @@
     add('Insumos (estimados, revísalos)',todos(q=>insumosDe(q)>0)?'auto':'falta');
     if(LINEAS_SEC[linea])add(LINEAS_SEC[linea],todos(q=>num(q.produccion&&q.produccion.sopladas)>0)?'ok':'falta');
     if(LINEAS_SEC[linea]&&linea!=='B20L')add('Calidad',todos(q=>num(q.produccion&&q.produccion.calidad)>0)?'ok':'falta');
-    add('Mermas',todos(q=>tieneMermas(q)||q.sinMermas)?'ok':'falta',cs.some(q=>q.sinMermas&&!tieneMermas(q))?'Confirmado «Sin mermas» en: '+cs.filter(q=>q.sinMermas&&!tieneMermas(q)).map(q=>q.marca).join(', '):'');
+    const faltanMermas=cs.filter(q=>mermasSinLlenar(q).length);
+    add('Mermas',faltanMermas.length?'falta':'ok',faltanMermas.length?'Escribe 0 donde no hubo merma · '+faltanMermas.map(q=>q.marca+': '+mermasSinLlenar(q).map(m=>m.item).join(', ')).join(' · '):'');
     add('Observaciones',String(d&&d.observaciones||'').trim()?'ok':'opcional');
     return items;
   }
@@ -215,13 +220,13 @@
     ancla.parentNode.insertBefore(div.firstElementChild,ancla);
   }
 
-  /* Aviso en vivo en cada pestaña: horas efectivas negativas. Casilla «Sin mermas en esta producción». */
+  /* Aviso en vivo en cada pestaña: horas efectivas negativas. Mermas: el 0 escrito se ve como 0 y las filas sin llenar en ámbar. */
   function pintarCuadros(){
     const d=draftActual();
     const main=typeof document!=='undefined'&&document.getElementById('main');
     if(!main||!d||!(typeof state!=='undefined'&&state&&state.currentTab==='nuevo'))return;
     const bloqueado=typeof reporteEstaBloqueado==='function'&&reporteEstaBloqueado();
-    main.querySelectorAll('.reg-horas-negativas,.reg-sin-mermas').forEach(e=>e.remove());
+    main.querySelectorAll('.reg-horas-negativas').forEach(e=>e.remove());
     (Array.isArray(d.cuadros)?d.cuadros:[]).forEach((q,i)=>{
       const card=document.getElementById('reg-cuadro-'+i);if(!card||!q)return;
       const h=horasEfectivasReales(q);
@@ -235,21 +240,33 @@
         const val=et&&et.parentElement&&et.parentElement.querySelector('strong');
         if(val){val.textContent=h.toFixed(2)+' h';val.style.color='#C0392B';}
       }
-      if(bloqueado||tieneMermas(q)||q.estadoCuadro==='FINALIZADO')return;
-      const head=[...card.querySelectorAll('.panel-head')].find(x=>/^\s*Mermas\s*$/i.test((x.querySelector('h4')||{}).textContent||''));
-      if(!head)return;
-      const lab=document.createElement('label');lab.className='reg-sin-mermas';
-      lab.style.cssText='display:inline-flex;align-items:center;gap:6px;margin-left:12px;font-size:13px;font-weight:600;cursor:pointer';
-      lab.innerHTML=`<input type="checkbox" data-no-autosave ${q.sinMermas?'checked':''} onchange="registroSinMermas(${i},this.checked)"> Sin mermas en esta producción`;
-      head.appendChild(lab);
+      if(bloqueado||q.estadoCuadro==='FINALIZADO'||!Array.isArray(q.mermas))return;
+      card.querySelectorAll('input[onchange*="updateMermaCuadro("]').forEach(el=>{
+        const m=/updateMermaCuadro\(\s*(\d+)\s*,\s*(\d+)\s*,\s*'(\w+)'/.exec(el.getAttribute('onchange')||'');
+        if(!m||Number(m[1])!==i)return;
+        const fila=q.mermas[Number(m[2])];if(!fila)return;
+        if(fila.ingresada===true&&el.value===''&&num(fila[m[3]])===0&&el!==document.activeElement)el.value='0';   // el 0 escrito se ve como 0
+        const falta=!filaMermaLlena(fila);
+        el.style.borderColor=falta?'#D08A12':'';el.style.background=falta?'#FFFBF0':'';
+        if(falta)el.title='Escribe el valor; 0 si no hubo merma';else el.removeAttribute('title');
+      });
     });
   }
-  if(typeof window!=='undefined')window.registroSinMermas=function(i,v){
-    const d=draftActual();if(!d||!d.cuadros||!d.cuadros[i])return;
-    if(v)d.cuadros[i].sinMermas=true;else delete d.cuadros[i].sinMermas;
-    if(typeof programarGuardadoAutomaticoReporte==='function')programarGuardadoAutomaticoReporte();
-    if(typeof renderFormTab==='function')renderFormTab();
-  };
+  /* Marca la fila de merma como ingresada cuando el supervisor escribe un valor (también 0); vacío la desmarca. */
+  if(typeof document!=='undefined'&&typeof raiz.updateMermaCuadro==='function'){
+    const upd=raiz.updateMermaCuadro;
+    raiz.updateMermaCuadro=function(ci,i,campo,val){
+      const d=draftActual();
+      const fila=d&&Array.isArray(d.cuadros)&&d.cuadros[ci]&&Array.isArray(d.cuadros[ci].mermas)?d.cuadros[ci].mermas[i]:null;
+      const antes=fila?fila.ingresada:undefined;
+      const vacio=val===''||val===null||val===undefined;
+      if(fila){if(vacio)delete fila.ingresada;else fila.ingresada=true;}
+      const r=upd.apply(this,arguments);
+      // Si el valor no se aceptó (campo no editable o inválido), la marca vuelve a como estaba.
+      if(fila&&!vacio&&!(Number.isFinite(Number(val))&&Number(val)>=0&&num(fila[campo])===Number(val))){if(antes===undefined)delete fila.ingresada;else fila.ingresada=antes;}
+      return r;
+    };
+  }
 
   /* ---------- enganches ---------- */
   if(typeof document!=='undefined'&&typeof raiz.validarReporteParaFinalizar==='function'){
@@ -287,7 +304,7 @@
     raiz.renderFormTab=function(){const r=rf.apply(this,arguments);try{pintarPanel();}catch(e){console.warn('Para cerrar el turno:',e);}try{pintarCuadros();}catch(e){console.warn('Avisos del registro:',e);}return r;};
   }
 
-  const API={horasEfectivasReales,obligatoriosCierre,vencimiento,vidaUtilMeses,productosDelTurno,marcasPorAgregar,horasPorPoner,pendientesCierre,completar,panelHtml,VIDA_UTIL_INICIAL};
+  const API={filaMermaLlena,mermasSinLlenar,horasEfectivasReales,obligatoriosCierre,vencimiento,vidaUtilMeses,productosDelTurno,marcasPorAgregar,horasPorPoner,pendientesCierre,completar,panelHtml,VIDA_UTIL_INICIAL};
   raiz.glacialAutollenadoCompleto=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);
