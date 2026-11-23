@@ -1792,11 +1792,13 @@ function avIrDetalle(id){document.getElementById(id)?.scrollIntoView({behavior:'
   MODIFICA SOLO ESTE VALOR si quieres cambiar todas las letras:
   1.00 = original | 1.20 = +20% | 1.25 = +25% | 1.30 = +30% | 1.40 = +40%
 */
-const AV_IMAGEN_ESCALA_TEXTO = 1.25;
+/* Letras de la imagen (1.4: más legibles cuando WhatsApp la reduce). La imagen se dibuja a doble resolución (AV_IMAGEN_RESOLUCION) para que se vea nítida al ampliar. */
+const AV_IMAGEN_ESCALA_TEXTO = 1.4;
+const AV_IMAGEN_RESOLUCION = 2;
 
 function avCanvasSnapshot(s){
   const W=1080, PAD=28;
-  const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#667784',MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
+  const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#44535F',MUTED='#5E6D78',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
 
   /*
      IMPORTANTE:
@@ -1857,7 +1859,7 @@ function avCanvasSnapshot(s){
 
   const ALTO_CABECERA=paso(34);
   const H=Math.max(grupos.length?1350:0,250+altoVacio+grupos.reduce((a,g)=>a+altoRealGrupo(g)+18+(g.cabecera?ALTO_CABECERA:0),0)+altoResumen+180);
-  c.height=H;
+  const K=AV_IMAGEN_RESOLUCION;c.width=W*K;c.height=H*K;x.scale(K,K);      // dibujo en 1 080 px lógicos, lienzo al doble de resolución
   const rr=(cx,cy,cw,ch,r=10)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
   const card=(cx,cy,cw,ch,fill=WHITE,stroke=LINE)=>{x.fillStyle=fill;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=stroke;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
   const fit=(txt,max,size=18,weight='400')=>{
@@ -1874,7 +1876,11 @@ function avCanvasSnapshot(s){
   x.fillStyle=WHITE;x.font=`700 ${Math.round(31*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('GLACIAL',55,56);
   x.font=`700 ${Math.round(40*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(avTituloSnapshot(s),275,62);
   x.font=`700 ${Math.round(26*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`TURNO ${s.turno}`,275,101);
-  x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);x.fillText(`Último registro: ${avTextoUltimoRegistro(s)}`,480,154);
+  x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;{ // las tres columnas se colocan una tras otra según lo que miden (con letra más grande ya no caben en posiciones fijas)
+    const tF=`Fecha: ${avFechaBonita(s.fecha)}`,tH=`Hora: ${s.horaCorte||'—'}`,tU=`Último registro: ${avTextoUltimoRegistro(s)}`,sep=36;
+    const xH=Math.max(330,55+x.measureText(tF).width+sep),xU=Math.max(480,xH+x.measureText(tH).width+sep);
+    x.fillText(tF,55,154);x.fillText(tH,xH,154);x.fillText(tU,xU,154);
+  }
   x.font=`${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}${avTextoGenerado(s)}`,55,184);
 
   let y=228;
