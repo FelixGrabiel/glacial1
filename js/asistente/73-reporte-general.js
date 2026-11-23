@@ -544,5 +544,5 @@
     return nombre;
   }
 
-  global.glacialReporteGeneral={modelo,modeloDeFecha,nombreArchivo,escribir,exportar,graficos,HOJA,FMT};
+  global.glacialReporteGeneral={modelo,modeloDeFecha,nombreArchivo,escribir,exportar,graficos,asegurarExcelJS,HOJA,FMT};
 })(typeof window!=='undefined'?window:globalThis);
