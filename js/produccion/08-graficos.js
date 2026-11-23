@@ -3955,9 +3955,9 @@ function renderGraficosTab(){
         type="button"
         class="btn btn-ghost"
         onclick="glacialReporteDiario.editarRequerido()"
-        title="Personas necesarias por turno en cada línea (asistencia del Reporte diario)"
+        title="Personas necesarias por turno y vida útil (vencimiento) de cada línea"
       >
-        👥 Personal requerido
+        👥 Personal y vida útil
       </button>`:''}
 
     </div>

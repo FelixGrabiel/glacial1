@@ -365,7 +365,8 @@
     }catch(e){console.error(e);alert('No se pudo generar el reporte diario. Inténtalo nuevamente.');}
   }
 
-  /* ---------- editor del personal requerido (Administrador y jefatura) ---------- */
+  /* ---------- editor del personal requerido y la vida útil (Administrador y jefatura) ---------- */
+  const vidaUtil=l=>raiz.glacialAutollenadoCompleto?raiz.glacialAutollenadoCompleto.vidaUtilMeses(l):12;
   const puedeConfigurar=()=>typeof raiz.glacialPuedeConfigurarIndicadores==='function'&&raiz.glacialPuedeConfigurarIndicadores();
   function editarRequerido(){
     if(!puedeConfigurar()){alert('Solo el Administrador o la jefatura pueden cambiar el personal requerido.');return;}
@@ -374,23 +375,24 @@
     const fondo=document.createElement('div');
     fondo.style.cssText='position:fixed;inset:0;background:rgba(10,30,50,.6);display:flex;align-items:center;justify-content:center;z-index:10060;padding:16px;';
     fondo.innerHTML='<div class="modal" style="max-width:420px;width:100%;background:#fff;border-radius:12px;padding:16px">'+
-      '<h3 style="margin:0 0 6px">Personal requerido por línea</h3><p class="small-muted" style="margin:0 0 10px">Personas necesarias por turno. El Reporte diario muestra la asistencia como % de este número.</p>'+
-      '<table style="width:100%;font-size:14px"><tbody>'+lineas.map(l=>'<tr><td style="padding:4px 0">'+(NOMBRE[l]||l)+'</td><td><input type="number" min="1" max="99" step="1" data-req="'+l+'" value="'+personalRequerido(l)+'" style="width:90px"></td></tr>').join('')+'</tbody></table>'+
+      '<h3 style="margin:0 0 6px">Personal requerido y vida útil por línea</h3><p class="small-muted" style="margin:0 0 10px"><b>Personal:</b> personas necesarias por turno (el Reporte diario muestra la asistencia como % de este número). <b>Vida útil:</b> meses entre la producción y el vencimiento (el registro llena el vencimiento solo).</p>'+
+      '<table style="width:100%;font-size:14px"><thead><tr><th align="left">Línea</th><th align="left">Personal</th><th align="left">Vida útil (meses)</th></tr></thead><tbody>'+lineas.map(l=>'<tr><td style="padding:4px 0">'+(NOMBRE[l]||l)+'</td><td><input type="number" min="1" max="99" step="1" data-req="'+l+'" value="'+personalRequerido(l)+'" style="width:80px"></td><td><input type="number" min="1" max="60" step="1" data-vida="'+l+'" value="'+vidaUtil(l)+'" style="width:80px"></td></tr>').join('')+'</tbody></table>'+
       '<div data-req-error style="color:#c62828;font-size:12px;min-height:16px;margin-top:6px"></div>'+
       '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" class="btn btn-ghost" data-req-x>Cancelar</button><button type="button" class="btn btn-primary" data-req-ok>Guardar</button></div></div>';
     document.body.appendChild(fondo);
     const err=t=>{const e=fondo.querySelector('[data-req-error]');if(e)e.textContent=t;};
     fondo.querySelector('[data-req-x]').onclick=()=>fondo.remove();
     fondo.querySelector('[data-req-ok]').onclick=async()=>{
-      const valores={};
-      for(const el of fondo.querySelectorAll('[data-req]')){const v=Number(el.value);if(!Number.isInteger(v)||v<1||v>99){err('Cada valor debe ser un número entero entre 1 y 99.');return;}valores[el.getAttribute('data-req')]=v;}
+      const valores={},vida={};
+      for(const el of fondo.querySelectorAll('[data-req]')){const v=Number(el.value);if(!Number.isInteger(v)||v<1||v>99){err('El personal debe ser un número entero entre 1 y 99.');return;}valores[el.getAttribute('data-req')]=v;}
+      for(const el of fondo.querySelectorAll('[data-vida]')){const v=Number(el.value);if(!Number.isInteger(v)||v<1||v>60){err('La vida útil debe ser un número entero de meses entre 1 y 60.');return;}vida[el.getAttribute('data-vida')]=v;}
       if(raiz.glacialEstadoDatos&&raiz.glacialEstadoDatos.enLinea===false){err('Sin conexión: no se guardó. Inténtalo cuando vuelva la conexión.');return;}
       err('Guardando…');
       try{
         const ref=raiz.db.collection('sync').doc('configIndicadores');
         await raiz.db.runTransaction(async tx=>{
           await tx.get(ref);
-          tx.set(ref,{personalRequerido:valores,actualizadoPor:(raiz.state&&raiz.state.user&&raiz.state.user.username)||'',actualizadoEn:Date.now()},{merge:true});
+          tx.set(ref,{personalRequerido:valores,vidaUtilMeses:vida,actualizadoPor:(raiz.state&&raiz.state.user&&raiz.state.user.username)||'',actualizadoEn:Date.now()},{merge:true});
         });
         fondo.remove();
       }catch(e){err('No se pudo guardar (¿sin conexión o sin permiso?): '+((e&&e.message)||e));}

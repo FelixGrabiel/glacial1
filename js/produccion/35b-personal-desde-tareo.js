@@ -58,7 +58,9 @@
     const res=[];
     filasOk.forEach((f,i)=>{
       if(!f||String(f.nombre||'').trim())return;
-      const p=(lista||[]).find(x=>x.posicion&&norm(x.posicion)===norm(f.posicion)&&!usados.has(norm(x.nombre))&&(!x.linea||x.linea===linea));
+      // «Sopladora 1» / «Etiquetado 2» (B7L, B20L…) son el mismo puesto que «Sopladora» / «Etiquetadora» del cargo (23/11/2026).
+      const mismoPuesto=x=>norm(x.posicion)===norm(f.posicion)||norm(x.posicion)===norm(posicionDeCargo(f.posicion));
+      const p=(lista||[]).find(x=>x.posicion&&mismoPuesto(x)&&!usados.has(norm(x.nombre))&&(!x.linea||x.linea===linea));
       if(!p)return;
       usados.add(norm(p.nombre));res.push({i,nombre:p.nombre,cargo:p.cargo});
     });
