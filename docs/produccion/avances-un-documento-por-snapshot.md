@@ -66,3 +66,10 @@ y muestra un aviso si alguno estima ≥ 80 % de 1 MiB (fórmula de tamaño de Fi
 - Marca y presentación se comparan sin importar mayúsculas, tildes ni espacios (`Scala` = `SCALA`).
 - Un Avance o Cierre **ya generado** no cambia: hay que generarlo de nuevo.
 - Pruebas: `tests/avance-lineas-en-produccion.test.js` (casos 8 y 9).
+
+## Cierre: gana lo que se ingresó último (23/11/2026)
+- El Cierre usa la **Producción Efectiva** del registro del supervisor y guarda las Paletas como alternativa (nunca se suman). Excepción nueva: si se registraron **paletas después** de la última vez que el supervisor guardó su registro, el Cierre usa las Paletas (la cifra más reciente) y guarda la efectiva como alternativa.
+- Si el supervisor guardó su registro **después** de la última paleta, manda su registro. Sin marcas de tiempo, todo sigue como antes.
+- Caso real (22/11/2026, cierre de las 19:26): PET2 salió con 24 435 (las paletas decían 28 020), B7L con 9 324 (9 450) y Cajas 20L con 814 (850), porque el registro del supervisor se guardó antes de las últimas paletas.
+- Límite: la marca de tiempo es la del registro completo de la línea; si el supervisor guarda cualquier cuadro de ese registro, cuenta como «guardado después».
+- Pruebas: `tests/avance-lineas-en-produccion.test.js` (caso 10).

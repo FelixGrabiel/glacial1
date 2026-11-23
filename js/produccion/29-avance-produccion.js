@@ -191,17 +191,22 @@ function avCorteMs(hora,tipo){
    Nunca se suman ambas fuentes.
 */
 function avProduccionEfectiva(linea,marca,presentacion){
-  let total=0,encontrada=false;
+  let total=0,encontrada=false,ts=0;
   avRegistros().filter(r=>r.linea===linea).forEach(r=>{
     const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
     cuadros.forEach(q=>{
       if(q?.marca!==marca || q?.presentacion!==presentacion)return;
       if(q?.horaInicio&&!avHoraEnTurno(q.horaInicio))return;     // cuadro de otro turno
       const efectiva=avNum(q?.produccion?.efectiva);
-      if(efectiva>0){encontrada=true;total+=efectiva;}
+      if(efectiva>0){encontrada=true;total+=efectiva;ts=Math.max(ts,avNum(r.actualizadoEn||r.creadoEn));}
     });
   });
-  return {valor:total,encontrada};
+  return {valor:total,encontrada,ts};     // ts = cuándo se guardó por última vez el registro del supervisor (0 = sin dato)
+}
+/* Cuándo se registró la última paleta de esa marca y presentación en el turno (0 = sin dato). */
+function avUltimaPaletaMs(linea,marca,presentacion){
+  const m=avNormTxt(marca),pr=avNormTxt(presentacion);
+  return avPaletas().filter(x=>x.linea===linea&&avNormTxt(x.marca)===m&&avNormTxt(x.presentacion)===pr).reduce((t,x)=>Math.max(t,avNum(x.creadoEn||x.actualizadoEn)),0);
 }
 
 function avProduccionPaletasHasta(linea,marca,presentacion,hora,tipo){
@@ -249,6 +254,10 @@ function avProduccionHasta(linea,marca,presentacion,hora,tipo){
     // Se guarda también el valor de la otra fuente (conciliación): NUNCA se suman.
   const alt=(fuente,v)=>({fuente,valor:v.valor});
   if(tipo==='CIERRE'){
+    /* Gana lo que se ingresó ÚLTIMO: si se registraron paletas DESPUÉS de que el supervisor guardó su registro, el cierre usa las paletas (si no, quedaba con una
+       cifra vieja: caso real 22/11/2026, PET2 24 435 en vez de 28 020). Si el supervisor guardó después de la última paleta, manda su registro. Sin marcas de tiempo, como antes. */
+    if(efectiva.encontrada&&paletas.encontrada&&paletas.valor!==efectiva.valor&&efectiva.ts>0&&avUltimaPaletaMs(linea,marca,presentacion)>efectiva.ts)
+      return {valor:paletas.valor,fuente:'PALETAS',alternativa:alt('PRODUCCION_EFECTIVA',efectiva)};
     if(efectiva.encontrada)return {valor:efectiva.valor,fuente:'PRODUCCION_EFECTIVA',alternativa:paletas.encontrada?alt('PALETAS',paletas):null};
     return {valor:paletas.valor,fuente:paletas.encontrada?'PALETAS':'SIN_REGISTRO',alternativa:null};
   }
