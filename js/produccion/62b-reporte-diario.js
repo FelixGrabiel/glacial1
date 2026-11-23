@@ -119,7 +119,7 @@
     const ind=[['Disponib.','disponibilidad',pctOrNull(d.disponibilidad,horasProd>0)],['Rendim.','rendimiento',pctOrNull(d.rendimiento,conVel)],
       ['Calidad','calidad',d.calidad===null||d.calidad===undefined||!LINEAS_SEC[linea]||linea==='B20L'?null:num(d.calidad)*100],['OEE','oee',pctOrNull(d.oee,conVel)],
       ['Cumplim.','cumplimiento',pctOrNull(d.cumplimiento,programada>0)],['Eficiencia','eficiencia',pctOrNull(d.eficiencia,conVel)]]
-      .map(([et,k,v])=>({etiqueta:et,clave:k,valor:v,nivel:nivel(v,M[k])}));
+      .map(([et,k,v])=>({etiqueta:et,clave:k,valor:v,nivel:nivel(v,M[k]),meta:M[k]&&M[k].verde}));
     /* mermas: todos los componentes de la línea, en % de la producción efectiva */
     const am=typeof raiz.agruparMermas==='function'?raiz.agruparMermas(rec):{filas:[]};
     const comp=t=>raiz.GlacialIndicadores&&raiz.GlacialIndicadores.componenteMerma?raiz.GlacialIndicadores.componenteMerma(t):t;
@@ -133,6 +133,14 @@
     const hor=raiz.GlacialIndicadores&&raiz.GlacialIndicadores.horarioBloque?raiz.GlacialIndicadores.horarioBloque(rec.fecha,bloque,(typeof raiz.glacialConfigIndicadores==='function'?(raiz.glacialConfigIndicadores()||{}).bloques:undefined)):null;
     const personal=Array.isArray(rec.personal)?rec.personal:[];
     const lider=personal.find(p=>/l[ií]der/i.test(String(p&&p.cargo||'')+' '+String(p&&p.posicion||''))&&String(p.nombre||'').trim());
+    /* Detalle para el Excel (23/11/2026): cada parada, mermas en kg y unidades, y el personal con nombre. */
+    const paradasDetalle=[];
+    cs.forEach(c=>{if(!activo(c))return;[['PROGRAMADA',c.paradasProgramadas],['NO PROGRAMADA',c.paradasNoProgramadas]].forEach(([tipo,l])=>(l||[]).forEach(x=>{
+      if(!x||x.eliminada||!(num(x.tiempoMin)>0))return;
+      paradasDetalle.push({marca:String(c.marca||'').trim(),tipo,descripcion:String(x.descripcion||x.motivoCat||'').trim()||'—',causa:String(x.causa||'').trim(),minutos:num(x.tiempoMin)});
+    }));});
+    const mermasDetalle=mermas.map(k=>{const f=(am.filas||[]).find(x=>x.item===comp(k.item));return {item:k.item,peso:f?num(f.peso):0,unidades:f?num(f.unidades):0,pct:k.pct};});
+    const personalLista=personal.filter(p=>p&&String(p.nombre||'').trim()).map(p=>({posicion:String(p.posicion||'').trim(),nombre:String(p.nombre).trim(),cargo:String(p.cargo||'').trim()}));
     const sw=semanaISO(rec.fecha),fd=fechaLocal(rec.fecha);
     const sem=semana(rec,todos);
     return JSON.parse(JSON.stringify({
@@ -145,7 +153,7 @@
       total:{programada,efectiva,nominal:num(d.produccionNominal),noCumplida:Math.max(0,programada-efectiva),ratioSin,ratioReal,
         diferencia:ratioSin!==null&&ratioReal!==null?Math.max(0,ratioSin-ratioReal):null,
         horasHombre:personasDe(rec)>0?personasDe(rec)*horasProd:null},
-      indicadores:ind,mermas,insumos,semana:sem,requerido:personalRequerido(linea),
+      indicadores:ind,mermas,insumos,semana:sem,paradasDetalle,mermasDetalle,personalLista,requerido:personalRequerido(linea),
       observaciones:String(rec.observaciones||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean),
       firmas:{lider:lider?String(lider.nombre).trim():'—',supervisor:rec.registradoPor||'—'}
     },(k,v)=>v===undefined?null:v));
@@ -350,19 +358,61 @@
   }
 
   /* ---------- botón «Exportar PNG» ---------- */
-  async function exportar(){
+  const seg=t=>typeof raiz.nombreArchivoSeguro==='function'?raiz.nombreArchivoSeguro(t):String(t||'').replace(/[^\w-]+/g,'_');
+  const nombreArchivo=(m,ext)=>`Reporte_Diario_${seg(m.linea)}_${seg(m.fecha)}_${seg(m.bloque)}.${ext}`;
+  function modeloActual(){
     const data=typeof raiz.obtenerRegistroExportacion==='function'?raiz.obtenerRegistroExportacion():null;
-    if(!data)return;
+    if(!data)return null;
+    const todos=typeof raiz.loadRecordsOficiales==='function'?raiz.loadRecordsOficiales():data.all;
+    return modelo(data.rec,data.d,todos);
+  }
+  const blobImagen=m=>new Promise((ok,mal)=>dibujar(m).toBlob(b=>b?ok(b):mal(new Error('No se pudo generar la imagen PNG.')),'image/png'));
+  async function exportar(){
     try{
-      const todos=typeof raiz.loadRecordsOficiales==='function'?raiz.loadRecordsOficiales():data.all;
-      const m=modelo(data.rec,data.d,todos);
-      const cv=dibujar(m);
-      cv.toBlob(blob=>{
-        if(!blob){alert('No se pudo generar la imagen PNG.');return;}
-        const seg=t=>typeof raiz.nombreArchivoSeguro==='function'?raiz.nombreArchivoSeguro(t):String(t||'').replace(/[^\w-]+/g,'_');
-        raiz.descargarArchivo(blob,`Reporte_Diario_${seg(m.linea)}_${seg(m.fecha)}_${seg(m.bloque)}.png`);
-      },'image/png');
+      const m=modeloActual();if(!m)return;
+      raiz.descargarArchivo(await blobImagen(m),nombreArchivo(m,'png'));
     }catch(e){console.error(e);alert('No se pudo generar el reporte diario. Inténtalo nuevamente.');}
+  }
+  /** «Exportar Excel»: el Reporte diario en Excel (62c-reporte-diario-excel.js). */
+  async function exportarExcel(){
+    try{
+      const m=modeloActual();if(!m)return;
+      if(!raiz.glacialReporteDiarioExcel)throw new Error('falta el módulo del Excel');
+      raiz.descargarArchivo(await raiz.glacialReporteDiarioExcel.blob(m),nombreArchivo(m,'xlsx'));
+    }catch(e){console.error(e);alert('No se pudo generar el Excel: '+((e&&e.message)||e));}
+  }
+  /** Texto corto que acompaña al archivo en WhatsApp. */
+  function resumenTexto(m){
+    const t=m.total,U=m.unidad,UR=m.unidadRatio;
+    const ind=k=>{const x=m.indicadores.find(i=>i.clave===k);return x&&x.valor!==null?fmt(x.valor,1)+'%':'—';};
+    const pct=t.programada>0?` (${fmt(t.efectiva/t.programada*100,1)}% de ${fmt(t.programada)})`:'';
+    return [`*REPORTE DIARIO DE PRODUCCIÓN · ${m.nombre}*`,`${m.fechaTexto} · ${m.diaSemana} · Turno ${m.bloque}`,'',
+      `Producción efectiva: *${fmt(t.efectiva)} ${U}*${pct}`,
+      `Ratio real (con paradas): ${fmt(t.ratioReal)} ${UR} · sin paradas: ${fmt(t.ratioSin)} ${UR}`,
+      `Paradas: ${fmtH(m.turno.pProg)} h programadas · ${fmtH(m.turno.pNoProg)} h no programadas`,
+      `Disponibilidad ${ind('disponibilidad')} · OEE ${ind('oee')} · Cumplimiento ${ind('cumplimiento')}`,
+      `Personal: ${m.turno.personas===null?'—':m.turno.personas} · Semana ${m.numeroSemana||'—'}: ${fmt(m.semana.totalSemana)} ${U}`,
+      '','GLACIAL · Control de Producción'].join('\n');
+  }
+  /* Enviar por WhatsApp: en el celular abre el menú de compartir del teléfono con el archivo (se elige WhatsApp y el chat);
+     en el computador (o si el menú no está) descarga el archivo y abre WhatsApp con el resumen para adjuntarlo. Igual que Hielo. */
+  async function compartir(tipo){
+    try{
+      const m=modeloActual();if(!m)return;
+      const esExcel=tipo==='xlsx';
+      const blob=esExcel?await raiz.glacialReporteDiarioExcel.blob(m):await blobImagen(m);
+      const nombre=nombreArchivo(m,esExcel?'xlsx':'png'),texto=resumenTexto(m);
+      const archivo=typeof File==='function'?new File([blob],nombre,{type:blob.type||(esExcel?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'image/png')}):null;
+      const movil=/Android|iPhone|iPad|iPod/i.test(String(navigator.userAgent||''));
+      if(archivo&&movil&&typeof navigator.share==='function'&&typeof navigator.canShare==='function'&&navigator.canShare({files:[archivo]})){
+        try{await navigator.share({files:[archivo],text:texto,title:'Reporte diario '+m.nombre});return;}
+        catch(e){if(e&&e.name==='AbortError')return;}            // si el menú falla, se descarga
+      }
+      raiz.descargarArchivo(blob,nombre);
+      const w=raiz.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank','noopener');
+      const aviso=w===null?`Se descargó ${nombre}. Abre WhatsApp y adjúntalo en el chat.`:`Se descargó ${nombre} y se abrió WhatsApp con el resumen: adjunta el archivo en el chat.`;
+      if(typeof raiz.mostrarToastReporte==='function')raiz.mostrarToastReporte(aviso);else alert(aviso);
+    }catch(e){console.error(e);alert('No se pudo preparar el envío por WhatsApp: '+((e&&e.message)||e));}
   }
 
   /* ---------- editor del personal requerido y la vida útil (Administrador y jefatura) ---------- */
@@ -399,7 +449,7 @@
     };
   }
 
-  const API={modelo,dibujar,exportar,editarRequerido,personalRequerido,puedeConfigurar,semanaDe,semanaISO,alto,REQUERIDO_INICIAL};
+  const API={modelo,dibujar,exportar,exportarExcel,compartir,resumenTexto,editarRequerido,personalRequerido,puedeConfigurar,semanaDe,semanaISO,alto,REQUERIDO_INICIAL};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialReporteDiario=API;
 })(typeof window!=='undefined'?window:globalThis);

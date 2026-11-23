@@ -72,9 +72,15 @@ const rb=reg('2026-07-18','DÍA',129,300,3,{linea:'B20L'});
 const m3=sb2.glacialReporteDiario.modelo(rb,sb2.calcDerived(rb),[rb]);
 ok(m.numeroSemana===48&&m3.secundaria==='Bidones disponibles'&&m3.columnas[0].secundaria===300&&m3.insumos.length===2,'B20L: «Bidones disponibles» y solo planchas y stretch');
 
+/* 4b) envío por WhatsApp: resumen que acompaña al archivo */
+{const txt=D.resumenTexto(m);
+ok(/\*REPORTE DIARIO DE PRODUCCIÓN · BIDONES 7 L\*/.test(txt)&&/29\/11\/2026 · DOMINGO · Turno DÍA/.test(txt)&&/Producción efectiva: \*9,324 bidones\* \(93\.2% de 10,000\)/.test(txt),'resumen para WhatsApp: título, fecha, turno y producción con % del programado');
+ok(/Ratio real \(con paradas\): 777 B\/H · sin paradas: 981 B\/H/.test(txt)&&/Semana 48: 39,436 bidones/.test(txt),'incluye los dos ratios y la producción de la semana');
+ok(m.paradasDetalle.length===2&&m.paradasDetalle[0].tipo==='PROGRAMADA'&&m.paradasDetalle[0].minutos===110&&m.mermasDetalle[0].unidades===111&&m.personalLista.length===14,'el modelo trae el detalle para el Excel: paradas, mermas en unidades y personal');}
+
 /* 5) conexión con la aplicación */
 const f08=leer('js/produccion/08-graficos.js'),html=leer('index.html'),f47=leer('js/produccion/47-analisis-paradas.js');
-ok(/glacialReporteDiario\.exportar\(\)/.test(f08)&&/glacialReporteDiario\.editarRequerido\(\)/.test(f08),'«Exportar PNG» usa el reporte diario y hay botón «Personal requerido»');
+ok(/glacialReporteDiario\.exportar\(\)/.test(f08)&&/glacialReporteDiario\.editarRequerido\(\)/.test(f08)&&/glacialReporteDiario\.compartir\('img'\)/.test(f08),'«Exportar PNG» usa el reporte diario; hay botones «Enviar por WhatsApp» y «Personal y vida útil»');
 ok(html.indexOf('62b-reporte-diario.js?v=')>html.indexOf('62-reporte-registro.js?v='),'index.html carga 62b después de 62');
 ok(/personalRequerido:Object\.assign\(\{\},remota\.personalRequerido/.test(f47),'la configuración expone personalRequerido');
 ok(D.alto(m)>2000,'la imagen calcula su alto según el contenido');

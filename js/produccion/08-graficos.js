@@ -3122,7 +3122,13 @@ function xlHojaDefiniciones(wb, ctx){
 }
 
 
+/* «Exportar Excel» (pestaña Gráficos): Reporte diario con el formato de la planta (62c-reporte-diario-excel.js, 23/11/2026).
+   El libro anterior de 7 hojas sigue disponible en «Excel detallado» (exportarExcelDetallado). */
 async function exportarExcel(){
+  if(window.glacialReporteDiario&&typeof window.glacialReporteDiario.exportarExcel==='function'&&window.glacialReporteDiarioExcel)return window.glacialReporteDiario.exportarExcel();
+  return exportarExcelDetallado();
+}
+async function exportarExcelDetallado(){
 
   const data = obtenerRegistroExportacion();
 
@@ -3934,6 +3940,25 @@ function renderGraficosTab(){
         📊 Exportar Excel
       </button>
 
+      ${window.glacialReporteDiarioExcel?`<button
+        type="button"
+        class="btn"
+        style="background:#1fa855;border-color:#1fa855;color:#fff"
+        onclick="glacialReporteDiario.compartir('xlsx')"
+        title="En el celular abre el menú para compartir; en el computador descarga el Excel y abre WhatsApp con el resumen"
+      >
+        📲 Enviar Excel por WhatsApp
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-ghost"
+        onclick="exportarExcelDetallado()"
+        title="El libro anterior: resumen ejecutivo, paradas, mermas, insumos, personal, portada y definiciones (7 hojas)"
+      >
+        📑 Excel detallado
+      </button>`:''}
+
             <button
         type="button"
         class="btn"
@@ -3941,6 +3966,16 @@ function renderGraficosTab(){
       >
         🖼️ Exportar PNG
       </button>
+
+      ${window.glacialReporteDiario?`<button
+        type="button"
+        class="btn"
+        style="background:#1fa855;border-color:#1fa855;color:#fff"
+        onclick="glacialReporteDiario.compartir('img')"
+        title="En el celular abre el menú para compartir; en el computador descarga la imagen y abre WhatsApp con el resumen"
+      >
+        📲 Enviar imagen por WhatsApp
+      </button>`:''}
 
       <button
         type="button"
