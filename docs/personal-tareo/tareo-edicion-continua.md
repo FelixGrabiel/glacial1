@@ -74,3 +74,6 @@ Una lista de objetos con identificador único (`tareo.personalPorDia`, `tareo.pe
 - «Buscar persona» del Historial ahora también encuentra al **personal por día** (nombre, DNI y cargo/área). Antes solo buscaba en el personal de planilla, por eso «Yefre» no salía.
 - La columna **«Por día»** muestra cuántos hay y, de cada uno, su nombre y sus horas (`07:00–15:00`), o qué falta (`sin salida`, `sin horas`). Sigue habiendo detalle completo en «Ver».
 - Pruebas: `tests/tareo-personal-area.e2e.js`.
+
+## Refrigerio del personal por día (23/11/2026)
+El personal por día ahora tiene **«Salida refrigerio» y «Retorno refrigerio»** (la tabla del tareo, el Tareo General, el Excel «Personal por día» y los formularios de agregar, incluido el rango). Las horas **descuentan el refrigerio** cuando hay salida y retorno (igual que en planilla): 07:00–15:00 con refrigerio 12:00–13:00 = 7 h. Si se borra la salida a refrigerio, se limpia también el retorno. Campos: `salidaRefrigerio`, `retornoRefrigerio` en cada elemento de `personalPorDia`.

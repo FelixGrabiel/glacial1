@@ -218,13 +218,13 @@
   }
   function abrirPorDia(){
     if(!puede())return alert('No tienes permiso para modificar el personal de Mantenimiento.');
-    E.d={nombre:'',dni:'',cargo:'',desde:hoy(),hasta:hoy(),turnos:'ambos',ingreso:'',salida:'',obs:''};
+    E.d={nombre:'',dni:'',cargo:'',desde:hoy(),hasta:hoy(),turnos:'ambos',ingreso:'',salida:'',sref:'',rref:'',obs:''};
     dibujarPorDia();
   }
   function leerForm(){
     const d=E.d;if(!d)return;
     const v=id=>{const e=document.getElementById(id);return e?e.value:null;};
-    ['nombre','dni','cargo','desde','hasta','turnos','ingreso','salida','obs'].forEach(k=>{const x=v('tpa-'+k);if(x!==null)d[k]=x;});
+    ['nombre','dni','cargo','desde','hasta','turnos','ingreso','salida','sref','rref','obs'].forEach(k=>{const x=v('tpa-'+k);if(x!==null)d[k]=x;});
   }
   function dibujarPorDia(){
     const r=raiz(),d=E.d;if(!r||!d)return;
@@ -237,6 +237,7 @@
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'+campo('desde','Desde *',inp('desde','date'))+campo('hasta','Hasta *',inp('hasta','date'))+'</div>'+
       campo('turnos','Turnos','<select id="tpa-turnos" onchange="TareoArea.dCambia()" style="width:100%;min-height:42px;"><option value="ambos"'+(d.turnos==='ambos'?' selected':'')+'>Día y Noche</option><option value="Día"'+(d.turnos==='Día'?' selected':'')+'>Solo Día</option><option value="Noche"'+(d.turnos==='Noche'?' selected':'')+'>Solo Noche</option></select>')+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'+campo('ingreso','Hora de ingreso (opcional)',inp('ingreso','time'))+campo('salida','Hora de salida (opcional)',inp('salida','time'))+'</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'+campo('sref','Salida a refrigerio (opcional)',inp('sref','time'))+campo('rref','Retorno de refrigerio (opcional)',inp('rref','time'))+'</div>'+
       campo('obs','Observación (opcional)',inp('obs','text','maxlength="120"'))+
       '<div id="tpa-resumen" class="tar2-qm-resumen" role="status"></div>',
       '<button class="btn btn-ghost" onclick="TareoArea.cerrar()">Cancelar</button><button class="btn btn-primary" onclick="TareoArea.dConfirmar()">Agregar</button>');
@@ -270,7 +271,7 @@
     const ahora=Date.now();
     a.lista.forEach((t,i)=>{
       const persona={id:'pd_'+ahora+'_'+i+'_'+Math.random().toString(36).slice(2,6),tipo:'POR DÍA',nombre,dni,area:String(d.cargo||'').trim(),
-        horaIngreso:d.ingreso||'',horaSalida:d.salida||'',observacion:String(d.obs||'').trim(),registradoPor:nombreUsuario(),creadoEn:ahora,actualizadoEn:ahora,
+        horaIngreso:d.ingreso||'',horaSalida:d.salida||'',salidaRefrigerio:d.sref||'',retornoRefrigerio:d.sref?(d.rref||''):'',observacion:String(d.obs||'').trim(),registradoPor:nombreUsuario(),creadoEn:ahora,actualizadoEn:ahora,
         rango:{desde:d.desde,hasta:d.hasta}};
       t.personalPorDia=[...(Array.isArray(t.personalPorDia)?t.personalPorDia:[]),persona];
       guardarTareoEnMemoria(t);
