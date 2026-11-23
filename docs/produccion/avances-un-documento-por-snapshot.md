@@ -88,3 +88,7 @@ Cada línea y cada formato muestran (texto de WhatsApp, pantalla e imagen):
 - **Diferencia por paradas** = sin paradas − real, en unidades/hora y en % del ratio sin paradas (en rojo en la imagen).
 
 Se calculan con los datos congelados del snapshot (`avRatiosDobles`), así que también funcionan en avances ya generados. Si no hay ratio disponible o el formato no tiene tiempo asignado, se muestra «—».
+
+**Reporte por línea (imagen de `61-reporte-linea.js`):** la tarjeta que decía «Ratio real» en realidad mostraba el ratio sin paradas; ahora se llama «Ratio sin paradas» y debajo hay una franja con «Ratio real (con paradas)» y «Diferencia por paradas». Los reportes guardados antes del 23/11/2026 no tienen `ratioReal` y muestran «—».
+
+**Bot de WhatsApp:** usa la misma página publicada (Chromium sin pantalla), así que muestra lo nuevo en cuanto esa página se recarga; el aviso de actualización (`03-actualizacion.js`) la recarga sola unos minutos después de cada publicación.

@@ -14,7 +14,7 @@ ok(/async function exportarPNGDetalle\(\)/.test(f08)&&/onclick="exportarPNGDetal
 ok(/Reporte_Diario_\$\{linea\}_\$\{fecha\}\.png/.test(leer('js/produccion/62-reporte-registro.js')),'el archivo descargado conserva el nombre Reporte_Diario_<línea>_<fecha>.png');
 const i08=html.indexOf('08-graficos.js'),i61=html.indexOf('61-reporte-linea.js'),i62=html.indexOf('62-reporte-registro.js');
 ok(i08>0&&i61>i08&&i62>i61&&(html.match(/62-reporte-registro\.js/g)||[]).length===1,'index.html carga 62 una sola vez, después de 08 y 61');
-ok(/(20261011-cal1|20261018-ord1|20261102-pal2)/.test(html.match(/61-reporte-linea\.js\?v=[^"]+/)[0])&&/(20261011-cal1|20261018-fe1|20261018-ord1|20261102-pal2)/.test(html.match(/62-reporte-registro\.js\?v=[^"]+/)[0]),'versión de los scripts nuevos actualizada (evita entregar archivos en caché)');
+ok(/(20261011-cal1|20261018-ord1|20261102-pal2|20261123-rr1)/.test(html.match(/61-reporte-linea\.js\?v=[^"]+/)[0])&&/(20261011-cal1|20261018-fe1|20261018-ord1|20261102-pal2)/.test(html.match(/62-reporte-registro\.js\?v=[^"]+/)[0]),'versión de los scripts nuevos actualizada (evita entregar archivos en caché)');
 ok(/area: 'Paradas'/.test(f08)&&/area: 'Mermas'/.test(f08)&&/area: 'Pendiente de producción'/.test(f08),'las acciones existentes traen su área (solo etiqueta; la lógica del análisis no cambió)');
 
 /* 2) adaptador con valores del flujo actual */
@@ -75,7 +75,7 @@ const rec={id:'r1',linea:'PET1',fecha:FECHA,turno:'DÍA',grupoTurno:'DIA_INTERME
   ok(textos.includes('REPORTE DE PRODUCCIÓN')&&textos.includes('RESUMEN DEL TURNO')&&textos.includes('PRODUCCIÓN POR MARCA')&&textos.includes('INDICADORES')&&textos.includes('PRODUCCIÓN POR HORA')&&textos.includes('PARADAS DEL TURNO')&&textos.includes('INSUMOS Y MERMAS')&&textos.includes('ACCIONES PARA EL SIGUIENTE TURNO'),'la imagen trae las secciones del formato aprobado, en su orden');
   const orden=['RESUMEN DEL TURNO','PRODUCCIÓN POR MARCA','INDICADORES','PRODUCCIÓN POR HORA','PARADAS DEL TURNO','INSUMOS Y MERMAS','ACCIONES PARA EL SIGUIENTE TURNO'].map(s=>textos.indexOf(s));
   ok(orden.every((v,i)=>i===0||v>orden[i-1]),'orden: resumen → marca/indicadores → hora/paradas → insumos → acciones');
-  ok(['Programado','Producido','Pendiente','Cumplimiento','Ratio real','Tiempo efectivo','Disponibilidad','Rendimiento','OEE'].every(t=>textos.includes(t))&&!textos.includes('Calidad'),'seis tarjetas del resumen y tres indicadores (sin «Calidad»)');
+  ok(['Programado','Producido','Pendiente','Cumplimiento','Ratio sin paradas','Tiempo efectivo','Disponibilidad','Rendimiento','OEE'].every(t=>textos.includes(t))&&!textos.includes('Calidad'),'seis tarjetas del resumen y tres indicadores (sin «Calidad»)');
   ok(textos.some(t=>/Tiempo transcurrido/.test(t))&&textos.some(t=>/Horas hombre/.test(t))&&textos.some(t=>/Personal/.test(t)),'franja: tiempo transcurrido, paradas, personal y horas hombre');
   /* acciones largas: la altura crece (sin recortes) */
   const largo=JSON.parse(JSON.stringify(m));largo.acciones=[{area:'Paradas',accion:'palabra '.repeat(120),responsable:'Por asignar',estado:'Por validar'}];

@@ -172,6 +172,8 @@
         corte:l.corte||ctx.horaCorte||'',fin:ctx.tipo==='CIERRE'?(l.fin||l.corte||''):'',supervisor:ctx.supervisor||'',tipo:ctx.tipo,idSnapshot:ctx.id||''},
       resumen:{programado,producido,pendiente:pend,excedente:exc,cumplimiento:programado>0?producido/programado*100:null,
         ratio:esNum(l.ratio)?l.ratio:null,unidadRatio:l.unidadRatio,unidad:unidadProd(l.linea),
+        /* ratio real (con paradas) = producción ÷ tiempo transcurrido; diferencia = sin paradas − real (23/11/2026) */
+        ratioReal:esNum(l.ratio)&&num(l.minutosTranscurridos)>0?num(l.produccionTotal)/(num(l.minutosTranscurridos)/60):null,
         minutosEfectivos:num(l.minutosEfectivos),minutosTranscurridos:num(l.minutosTranscurridos),paradasMin:par.total,
         personal:l.personalEstado==='PENDIENTE'?null:(l.personal===undefined?null:l.personal),personalEstado:l.personalEstado||'LEGADO',
         horasHombre:horas?{horas:horas.horas,estado:horas.estado,cobertura:horas.cobertura}:null},
@@ -189,7 +191,7 @@
      ========================================================= */
   const C={navy:'#033350',azul:'#0877A6',celeste:'#E4F1FA',celeste2:'#D3E7F5',borde:'#C6DAEA',texto:'#172B3A',gris:'#667784',
     verde:'#1F7A44',verdeFondo:'#1E8A4C',ambar:'#C98200',ambarFondo:'#FCE9B2',rojo:'#B3261E',blanco:'#FFFFFF'};
-  const W=1080,PAD=18,IW=W-PAD*2,RES_H=290;
+  const W=1080,PAD=18,IW=W-PAD*2,RES_H=338;
   const NIVEL={verde:C.verde,ambar:C.ambar,roja:C.rojo,gris:C.texto};
   const colorNivel=n=>/^#/.test(String(n||''))?n:(NIVEL[n]||C.navy);
 
@@ -324,7 +326,9 @@
     tarjeta(x,PAD+16+cw+12,ty,cw,84,'caja','Producido',fmt(r.producido),u);
     tarjeta(x,PAD+16+(cw+12)*2,ty,cw,84,'reloj-arena','Pendiente',fmt(r.pendiente),u,r.pendiente>0?C.ambar:C.navy,r.excedente>0?'Excedente +'+fmt(r.excedente):'');
     tarjeta(x,PAD+16,ty+96,cw,84,'meta','Cumplimiento',cum===null?'—':Math.round(cum)+'%','',colCum);
-    tarjeta(x,PAD+16+cw+12,ty+96,cw,84,'barras','Ratio real',esNum(r.ratio)?fmt(r.ratio):'—',esNum(r.ratio)?r.unidadRatio:'');
+    /* Tarjeta: ratio sin paradas (oficial) y, arriba a la derecha, el ratio real con paradas y la pérdida por paradas. */
+    const difR=esNum(r.ratio)&&esNum(r.ratioReal)?Math.max(0,r.ratio-r.ratioReal):null;
+    tarjeta(x,PAD+16+cw+12,ty+96,cw,84,'barras','Ratio sin paradas',esNum(r.ratio)?fmt(r.ratio):'—',esNum(r.ratio)?r.unidadRatio:'');
     tarjeta(x,PAD+16+(cw+12)*2,ty+96,cw,84,'reloj','Tiempo efectivo',r.minutosEfectivos>0?(Math.round(r.minutosEfectivos/6)/10).toLocaleString('es-PE')+' h':'—','');
     /* franja */
     const fy=ty+190;x.fillStyle=C.celeste2;rr(x,PAD+16,fy,IW-32,40,8);x.fill();
@@ -332,7 +336,8 @@
     const hhTxt=!hh||hh.horas===null||hh.estado==='SIN_DATOS'?'Pendiente de confirmar':(Math.round(hh.horas*10)/10).toLocaleString('es-PE')+' h-h'+(hh.estado==='PARCIAL'?' (parcial)':'');
     const persTxt=r.personalEstado==='PENDIENTE'?'Pendiente de confirmar':(r.personal===null?'—':fmt(r.personal));
     const datos=[['Tiempo transcurrido',(Math.round(r.minutosTranscurridos/6)/10).toLocaleString('es-PE')+' h'],['Paradas',(Math.round(r.paradasMin/6)/10).toLocaleString('es-PE')+' h'],['Personal',persTxt],['Horas hombre',hhTxt]];
-    const sw=(IW-32)/4;
+    const franja=(fy,datos,colores)=>{
+    const sw=(IW-32)/datos.length;
     datos.forEach(([a,b],i)=>{
       const px=PAD+16+sw*i+sw/2;
       fuente(x,16,'700');const an=x.measureText(a+': ').width;
@@ -340,9 +345,15 @@
       const tot=an+(()=>{fuente(x,16,'800');return x.measureText(b).width;})();
       const maxW=sw-14;const esc2=tot>maxW?maxW/tot:1;
       x.save();x.translate(px-(tot*esc2)/2,fy+26);x.scale(esc2,1);
-      fuente(x,16,'600');x.fillStyle=C.texto;x.fillText(a+': ',0,0);fuente(x,16,'800');x.fillStyle=C.navy;x.fillText(b,an,0);x.restore();
-      if(i<3){x.strokeStyle=C.borde;x.lineWidth=1.2;x.beginPath();x.moveTo(PAD+16+sw*(i+1),fy+8);x.lineTo(PAD+16+sw*(i+1),fy+32);x.stroke();}
+      fuente(x,16,'600');x.fillStyle=C.texto;x.fillText(a+': ',0,0);fuente(x,16,'800');x.fillStyle=(colores&&colores[i])||C.navy;x.fillText(b,an,0);x.restore();
+      if(i<datos.length-1){x.strokeStyle=C.borde;x.lineWidth=1.2;x.beginPath();x.moveTo(PAD+16+sw*(i+1),fy+8);x.lineTo(PAD+16+sw*(i+1),fy+32);x.stroke();}
     });
+    };
+    franja(fy,datos);
+    /* Segunda franja: ratio real (con paradas) y lo que se pierde por las paradas frente al ratio sin paradas (23/11/2026). */
+    const fy2=fy+48;x.fillStyle=C.celeste2;rr(x,PAD+16,fy2,IW-32,40,8);x.fill();
+    const uR=r.unidadRatio||'';
+    franja(fy2,[['Ratio real (con paradas)',esNum(r.ratioReal)?fmt(r.ratioReal)+' '+uR:'—'],['Diferencia por paradas',difR===null?'—':fmt(difR)+' '+uR+(r.ratio>0?' ('+Math.round(difR/r.ratio*100)+'%)':'')]],[C.navy,difR?C.rojo:C.navy]);
     y+=RES_H+14;
 
     /* --- 3) producción por marca | indicadores --- */
