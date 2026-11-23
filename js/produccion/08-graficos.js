@@ -3942,6 +3942,16 @@ function renderGraficosTab(){
         🖼️ Exportar PNG
       </button>
 
+      ${window.glacialReporteDiario?`<button
+        type="button"
+        class="btn"
+        style="background:#1fa855;border-color:#1fa855;color:#fff"
+        onclick="glacialReporteDiario.compartir('img')"
+        title="En el celular abre el menú para compartir; en el computador descarga la imagen y abre WhatsApp con el resumen"
+      >
+        📲 Enviar por WhatsApp
+      </button>`:''}
+
       <button
         type="button"
         class="btn btn-ghost"
