@@ -73,3 +73,8 @@ y muestra un aviso si alguno estima ≥ 80 % de 1 MiB (fórmula de tamaño de Fi
 - Caso real (22/11/2026, cierre de las 19:26): PET2 salió con 24 435 (las paletas decían 28 020), B7L con 9 324 (9 450) y Cajas 20L con 814 (850), porque el registro del supervisor se guardó antes de las últimas paletas.
 - Límite: la marca de tiempo es la del registro completo de la línea; si el supervisor guarda cualquier cuadro de ese registro, cuenta como «guardado después».
 - Pruebas: `tests/avance-lineas-en-produccion.test.js` (caso 10).
+
+## Imagen del Avance/Cierre más nítida (23/11/2026)
+- La imagen se dibuja a **doble resolución** (2 160 px de ancho; antes 1 080), con letras un 12 % más grandes (`AV_IMAGEN_ESCALA_TEXTO` 1.4) y grises de apoyo más oscuros (mejor contraste).
+- Se sigue dibujando en 1 080 px «lógicos», así que el diseño no cambia; solo el lienzo es el doble.
+- WhatsApp reduce las fotos largas (lado mayor ~1 600 px). Para conservar la calidad completa: descargar la imagen y enviarla como **documento/archivo**.
