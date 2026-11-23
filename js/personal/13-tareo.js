@@ -3083,7 +3083,7 @@ function renderTareoPrincipal() {
             ? (tareoFechaVista || hoy)
             : hoy;
 
-    const personal =
+    const personalBase =
         area === 'Producción'
             ? (() => {
                 const rotacion = obtenerRotacionVigente(hoy);
@@ -3102,6 +3102,9 @@ function renderTareoPrincipal() {
                 });
             })()
             : obtenerPersonalTareo('Mantenimiento');
+
+    // Mantenimiento: no se listan los quitados desde el Inicio («ya no trabaja aquí»; 48-tareo-personal-area.js).
+    const personal = window.TareoArea ? window.TareoArea.visibles(area, personalBase) : personalBase;
 
     const tareosArea = obtenerTareos().filter(
         tareo => tareoAreaDe(tareo) === area
@@ -3285,6 +3288,8 @@ function renderTareoPrincipal() {
                     ${personal.length} trabajadores
                 </span>
 
+                ${window.TareoArea ? window.TareoArea.botonesHTML(area) : ''}
+
             </div>
 
             <div class="panel-body">
@@ -3302,6 +3307,7 @@ function renderTareoPrincipal() {
                                         <th>DNI</th>
                                         <th>Cargo</th>
                                         <th>Línea</th>
+                                        ${window.TareoArea && window.TareoArea.puede() && area === 'Mantenimiento' ? '<th></th>' : ''}
                                     </tr>
                                 </thead>
 
@@ -3321,6 +3327,7 @@ function renderTareoPrincipal() {
                                             <td>${escaparHTML(trabajador.dni)}</td>
                                             <td>${escaparHTML(trabajador.cargo)}</td>
                                             <td>${trabajador.linea ? escaparHTML(trabajador.linea) : 'Sin línea'}</td>
+                                            ${window.TareoArea && window.TareoArea.puede() && area === 'Mantenimiento' ? `<td>${window.TareoArea.celdaHTML(trabajador, area)}</td>` : ''}
                                         </tr>
                                     `).join('')}
 
@@ -3350,6 +3357,8 @@ function renderTareoPrincipal() {
             </div>
 
         </div>
+
+        ${window.TareoArea ? window.TareoArea.quitadosHTML(area) : ''}
 
     `;
 }
