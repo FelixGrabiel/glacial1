@@ -89,11 +89,11 @@
         const k=p.marca+'|'+p.presentacion;porMarca.set(k,(porMarca.get(k)||0)+b);
       });
       (r&&r.paradas||[]).forEach(p=>{const m=num(p.minutos);if(m>0){paradasMin+=m;paradas++;}});
-      (r&&r.mermas||[]).forEach(m=>{const c=num(m.cantidad);if(c>0){const k=m.item+'|'+(m.unidad||'UND');merma.set(k,(merma.get(k)||0)+c);}});
+      (r&&r.mermas||[]).forEach(m=>{const c=num(m.cantidad);if(c>0){const k=m.item+'|'+(m.unidad||'UND')+'|'+texto(m.marca);merma.set(k,(merma.get(k)||0)+c);}});
     });
     return {porPres,bolsas,kg:Math.round(kg*100)/100,paradasMin,paradas,
       porMarca:[...porMarca.entries()].map(([k,b])=>{const [marca,presentacion]=k.split('|');return {marca,presentacion,bolsas:b};}),
-      merma:[...merma.entries()].map(([k,c])=>{const [item,unidad]=k.split('|');return {item,unidad,cantidad:Math.round(c*1000)/1000};})};
+      merma:[...merma.entries()].map(([k,c])=>{const [item,unidad,marca]=k.split('|');return {item,unidad,marca:marca||'',cantidad:Math.round(c*1000)/1000};})};
   }
   /** Programado (bolsas) de una o varias programaciones, por marca+presentación y total. */
   function programado(programas){
@@ -131,7 +131,8 @@
       if(p.inicio&&!esHora(p.inicio))e.push(`Parada ${i+1}: hora no válida (HH:MM).`);
       if(p.motivo==='Otros'&&texto(p.nota).length<5)e.push(`Parada ${i+1}: con «Otros» describe la parada (mínimo 5 caracteres).`);
     });
-    (r&&r.mermas||[]).forEach((m,i)=>{if(!(num(m.cantidad)>0))e.push(`Merma ${i+1}: indica la cantidad.`);if(!m.item)e.push(`Merma ${i+1}: elige el ítem.`);});
+    (r&&r.mermas||[]).forEach((m,i)=>{if(!(num(m.cantidad)>0))e.push(`Merma ${i+1}: indica la cantidad.`);if(!m.item)e.push(`Merma ${i+1}: elige el ítem.`);
+      if(cfg.marcas&&cfg.marcas.length&&!texto(m.marca))e.push(`Merma ${i+1}: elige la marca.`);});   // 23/11/2026: la merma dice de qué marca es
     (r&&r.produccion||[]).forEach((p,i)=>{
       if(texto(p.horas)!==''&&(!(num(p.horas)>=0)||num(p.horas)>24))e.push(`Producción ${i+1}: el tiempo (h) debe estar entre 0 y 24.`);
       if(texto(p.vence)!==''&&!esFecha(p.vence))e.push(`Producción ${i+1}: la fecha de vencimiento no es válida.`);
@@ -150,7 +151,7 @@
       produccion:limpiar(r.produccion).map(p=>Object.assign({marca:texto(p.marca),presentacion:texto(p.presentacion),estacion:texto(p.estacion).slice(0,40),lote:texto(p.lote).slice(0,40),bolsas:Math.max(0,Math.round(num(p.bolsas)))},
         texto(p.horas)!==''&&num(p.horas)>=0?{horas:Math.round(Math.min(24,num(p.horas))*100)/100}:{},esFecha(p.vence)?{vence:p.vence}:{})),
       paradas:limpiar(r.paradas).map(p=>({inicio:texto(p.inicio),equipo:texto(p.equipo),motivo:texto(p.motivo),minutos:Math.max(0,Math.round(num(p.minutos))),nota:texto(p.nota).slice(0,200)})),
-      mermas:limpiar(r.mermas).map(m=>({item:texto(m.item),cantidad:Math.max(0,num(m.cantidad)),unidad:UNIDADES_MERMA.includes(m.unidad)?m.unidad:'UND'})),
+      mermas:limpiar(r.mermas).map(m=>({item:texto(m.item),marca:texto(m.marca),cantidad:Math.max(0,num(m.cantidad)),unidad:UNIDADES_MERMA.includes(m.unidad)?m.unidad:'UND'})),
       observaciones:texto(r.observaciones).slice(0,500),caidas:!!r.caidas,
       personas:texto(r.personas)!==''&&Number.isInteger(num(r.personas))&&num(r.personas)>=0?Math.min(200,num(r.personas)):null,
       personal:(Array.isArray(r.personal)?r.personal:String(r.personal||'').split('\n')).map(x=>texto(x).slice(0,60)).filter(Boolean).slice(0,20),
@@ -285,7 +286,7 @@
       else if(m.kg>0)out.push('','TOTAL KILOS: '+pl(m.kg,1)+'kg');          // suma de todas las presentaciones (3 kg + 1.5 kg…)
       if(m.programado>0)out.push('','Programado: '+pl(m.programado)+' '+UN+' · Cumplimiento: '+pl(m.cumplimiento*100)+' %');
       if(m.caidas)out.push('','🚨SE VIENE TRABAJANDO POR CAÍDAS');
-      const obs=m.observaciones.map(x=>x.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+pl(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(x=>'Merma '+x.item+': '+pl(x.cantidad,3)+' '+x.unidad));
+      const obs=m.observaciones.map(x=>x.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+pl(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(x=>'Merma '+x.item+(x.marca?' ('+x.marca+')':'')+': '+pl(x.cantidad,3)+' '+x.unidad));
       if(obs.length){out.push('','Observaciones');obs.forEach(x=>out.push(x));}
     }
     return out.join('\n');
@@ -480,6 +481,10 @@
 @media(max-width:700px){.hl-ed thead{display:none}.hl-ed tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid #e2ebf2}
  .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
  .hl-ed td[data-label=""]{grid-column:1/-1;align-items:flex-end}}
+.hl-2>.hl-card{container-type:inline-size}
+@container (max-width:560px){.hl-ed thead{display:none}.hl-ed tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid #e2ebf2}
+ .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
+ .hl-ed td[data-label=""]{grid-column:1/-1;align-items:flex-end}.hl-ed select,.hl-ed input{width:100%}}
 .hl-top,.hl-fondo{display:none}
 @media(max-width:860px){.hl-app{grid-template-columns:minmax(0,1fr)}.hl-side{flex-direction:row;gap:4px;overflow-x:auto;padding:8px;position:sticky;top:0;z-index:2}.hl-marca,.hl-sep{display:none}
 
@@ -528,7 +533,7 @@
         <div class="hl-kpi"><span>Paradas</span><b>${fmt(tot.paradasMin)} min</b><i>${tot.paradas} evento${tot.paradas===1?'':'s'}</i></div></div>
       <div class="hl-2"><div class="hl-card"><h3>Producción por marca y presentación</h3>${filas?`<table><thead><tr><th>Marca</th><th>Presentación</th><th class="n">Programado</th><th class="n">Producido</th><th>Avance</th></tr></thead><tbody>${filas}</tbody></table>`:'<div class="hl-vacio">Sin producción ni programación.</div>'}</div>
         <div class="hl-card"><h3>Paradas</h3>${paradas.length?`<table><thead><tr><th>Hora</th><th>Turno</th><th>Equipo</th><th>Motivo</th><th class="n">Min</th></tr></thead><tbody>${paradas.map(p=>`<tr><td>${esc(p.inicio||'—')}</td><td>${esc(p.turno)}</td><td>${esc(p.equipo||'—')}</td><td>${esc(p.motivo)}${p.nota?`<br><small class="hl-sub">${esc(p.nota)}</small>`:''}</td><td class="n">${fmt(p.minutos)}</td></tr>`).join('')}</tbody></table>`:'<div class="hl-vacio">Sin paradas.</div>'}</div></div>
-      <div class="hl-card"><h3>Merma</h3>${tot.merma.length?`<table><thead><tr><th>Ítem</th><th class="n">Cantidad</th></tr></thead><tbody>${tot.merma.map(m=>`<tr><td>${esc(m.item)}</td><td class="n">${fmt(m.cantidad,3)} ${esc(m.unidad)}</td></tr>`).join('')}</tbody></table>`:'<div class="hl-vacio">Sin merma registrada.</div>'}</div>`;
+      <div class="hl-card"><h3>Merma</h3>${tot.merma.length?`<table><thead><tr><th>Ítem</th><th>Marca</th><th class="n">Cantidad</th></tr></thead><tbody>${tot.merma.map(m=>`<tr><td>${esc(m.item)}</td><td>${esc(m.marca||'—')}</td><td class="n">${fmt(m.cantidad,3)} ${esc(m.unidad)}</td></tr>`).join('')}</tbody></table>`:'<div class="hl-vacio">Sin merma registrada.</div>'}</div>`;
   }
   /* ---------- Nuevo registro ---------- */
   function abrirEdicion(fecha,turno){
@@ -562,7 +567,11 @@
       <td data-label="Minutos"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(p.minutos)}" oninput="hlCampo('paradas',${i},'minutos',this.value)" aria-label="Minutos"></td>
       <td data-label="Detalle"><input ${dis} maxlength="200" value="${esc(p.nota)}" placeholder="detalle" oninput="hlCampo('paradas',${i},'nota',this.value)" aria-label="Detalle"></td>
       <td data-label="">${bloq?'':`<button type="button" class="hl-btn o x" onclick="hlQuitar('paradas',${i})" aria-label="Quitar parada">✕</button>`}</td></tr>`).join('');
+    // Marca de la merma: primero las marcas producidas en este turno, después el resto del catálogo del producto.
+    const marcasTurno=[...new Set((r.produccion||[]).map(p=>texto(p.marca)).filter(Boolean))];
+    const marcasMerma=[...marcasTurno,...(cfg.marcas||[]).filter(x=>!marcasTurno.includes(x))];
     const mer=r.mermas.map((m,i)=>`<tr><td data-label="Ítem"><select ${dis} onchange="hlCampo('mermas',${i},'item',this.value)">${opciones(cfg.mermas,m.item,'— ítem —')}</select></td>
+      <td data-label="Marca"><select ${dis} onchange="hlCampo('mermas',${i},'marca',this.value)" aria-label="Marca de la merma">${opciones(marcasMerma,m.marca,'— marca —')}</select></td>
       <td data-label="Cantidad"><input ${dis} type="number" min="0" step="any" inputmode="decimal" value="${esc(m.cantidad)}" oninput="hlCampo('mermas',${i},'cantidad',this.value)" aria-label="Cantidad"></td>
       <td data-label="Unidad"><select ${dis} onchange="hlCampo('mermas',${i},'unidad',this.value)">${opciones(UNIDADES_MERMA,m.unidad||'UND')}</select></td>
       <td data-label="">${bloq?'':`<button type="button" class="hl-btn o x" onclick="hlQuitar('mermas',${i})" aria-label="Quitar merma">✕</button>`}</td></tr>`).join('');
@@ -586,7 +595,7 @@
         ${bloq?'':'<div class="hl-acc" style="margin-top:8px"><button type="button" class="hl-btn o" onclick="hlAgregar(\'paradas\')">+ Agregar parada</button></div>'}
         ${!cfg.equipos.length?'<p class="hl-sub" style="margin:8px 0 0">Los equipos de la planta se agregan en Configuración.</p>':''}</div>
         <div class="hl-card"><h3>Merma</h3>
-        ${mer?`<table class="hl-ed"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead><tbody>${mer}</tbody></table>`:'<div class="hl-vacio">Sin merma.</div>'}
+        ${mer?`<table class="hl-ed"><thead><tr><th>Ítem</th><th>Marca</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead><tbody>${mer}</tbody></table>`:'<div class="hl-vacio">Sin merma.</div>'}
         ${bloq?'':'<div class="hl-acc" style="margin-top:8px"><button type="button" class="hl-btn o" onclick="hlAgregar(\'mermas\')">+ Agregar merma</button></div>'}</div></div>
       <div class="hl-card"><h3>Observaciones</h3><label class="hl-chk"><input type="checkbox" ${dis} ${r.caidas?'checked':''} onchange="hlDato('caidas',this.checked)"> 🚨 Se viene trabajando por caídas</label><textarea ${dis} rows="3" maxlength="500" oninput="hlDato('observaciones',this.value)">${esc(r.observaciones)}</textarea></div>
       <div class="hl-acc">${puedeRegistrar()&&!fin?'<button type="button" class="hl-btn o" onclick="hlGuardar(\'GUARDAR\')">Guardar</button>'+(puedeCerrar()?'<button type="button" class="hl-btn" onclick="hlGuardar(\'FINALIZAR\')">Finalizar reporte</button>':'<span class="hl-sub" style="margin:0">Tu usuario no finaliza reportes.</span>'):''}
@@ -679,7 +688,7 @@
     const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#667784',MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
     const pk=v=>String(v||'').replace(/\s+/g,'');
     const grupos=(m.estaciones||[]).map(e=>({titulo:e.estacion||'PRODUCCIÓN',filas:e.filas}));
-    const obs=m.observaciones.map(o=>o.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+f0(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(z=>'Merma '+z.item+': '+f0(z.cantidad,3)+' '+z.unidad));
+    const obs=m.observaciones.map(o=>o.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+f0(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(z=>'Merma '+z.item+(z.marca?' ('+z.marca+')':'')+': '+f0(z.cantidad,3)+' '+z.unidad));
     const pres=m.presentaciones.filter(p=>p.bolsas>0);
     function pintar(c,H){
       const x=c.getContext('2d');
@@ -935,7 +944,7 @@
   window.hlDato=(k,v)=>{if(!S.ed)return;S.ed[k]=v;cambio(false);};
   window.hlCampo=(lista,i,k,v)=>{if(!S.ed||!S.ed[lista][i])return;S.ed[lista][i][k]=v;if(lista==='produccion'&&k==='presentacion'&&S.ed[lista][i].marca&&!marcasDe(config(),v).includes(S.ed[lista][i].marca))S.ed[lista][i].marca='';cambio(k==='presentacion'||k==='motivo');};
   window.hlAgregar=lista=>{if(!S.ed)return;const c=config();
-    S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',estacion:'',lote:'',bolsas:'',horas:'',vence:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',cantidad:'',unidad:'UND'});cambio(true);};
+    S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',estacion:'',lote:'',bolsas:'',horas:'',vence:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',marca:(()=>{const ms=[...new Set((S.ed.produccion||[]).map(p=>texto(p.marca)).filter(Boolean))];return ms.length===1?ms[0]:'';})(),cantidad:'',unidad:'UND'});cambio(true);};
   window.hlQuitar=(lista,i)=>{if(!S.ed)return;S.ed[lista].splice(i,1);cambio(true);};
   /* Los guardados van DE A UNO: con la base lenta, un guardado automático podía salir mientras el anterior seguía en curso, con la versión
      vieja, y chocar consigo mismo («cambió mientras se guardaba», 10 y 11/11/2026). Si hay uno en curso, el automático queda pendiente y

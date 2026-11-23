@@ -69,3 +69,16 @@ Ahora, en **Gestión de usuarios**, hay un área propia **«Hielo»** en el cat�
 La Configuración de Hielo (editar marcas, presentaciones, estaciones…) sigue siendo del Administrador o Jefatura, igual que antes.
 
 Servidor: `supabase/migraciones/glacial_50_permisos_hielo_separados.sql` (aplicada en PRUEBAS y PRODUCCIÓN; verificado 14/11/2026). Prueba repetible: `supabase/pruebas/hielo_permisos_separados.sql`.
+
+## Merma por marca (23/11/2026)
+
+Cada merma del registro lleva **ítem, marca, cantidad y unidad**:
+
+- **Lista de marcas:** primero aparecen las producidas en el turno y después el resto del catálogo del producto.
+- **Al agregar una merma:** si en el turno se produjo una sola marca, viene ya elegida.
+- **Al finalizar:** la marca es obligatoria, como el ítem y la cantidad.
+- **Totales, texto de WhatsApp e imagen del avance/cierre:** la merma se separa por ítem y marca, por ejemplo «Merma Bolsas (Glacial): 12 UND».
+
+Los reportes guardados antes del cambio no tienen marca en sus mermas y siguen mostrándose sin ella («—»).
+
+Las tablas de paradas y mermas se muestran en tarjetas cuando su recuadro es angosto, igual que en el celular.

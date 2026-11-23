@@ -23,13 +23,16 @@ ok(H.TURNOS.join()==='DÍA,INTERMEDIO,NOCHE'&&H.idReporte('2026-11-07','NOCHE')=
 ok(H.DEFECTO.equipos.length===0,'los equipos de la planta no se inventan: empiezan vacíos');
 
 const r1={fecha:'2026-11-07',turno:'DÍA',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:2600},{marca:'Tottus',presentacion:'3 kg',bolsas:'1700'},{marca:'Glacial',presentacion:'1.5 kg',bolsas:400},{marca:'Glacial',presentacion:'5 kg',bolsas:0}],
-  paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15},{motivo:'Otros',minutos:'30',nota:'Falta de agua'}],mermas:[{item:'Bolsas',cantidad:50,unidad:'UND'},{item:'Bobina',cantidad:'1.8',unidad:'KG'}]};
-const r2={fecha:'2026-11-07',turno:'NOCHE',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:1000}],paradas:[],mermas:[{item:'Bolsas',cantidad:10,unidad:'UND'}]};
+  paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15},{motivo:'Otros',minutos:'30',nota:'Falta de agua'}],mermas:[{item:'Bolsas',marca:'Glacial',cantidad:50,unidad:'UND'},{item:'Bobina',marca:'Tottus',cantidad:'1.8',unidad:'KG'}]};
+const r2={fecha:'2026-11-07',turno:'NOCHE',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:1000}],paradas:[],mermas:[{item:'Bolsas',marca:'Glacial',cantidad:10,unidad:'UND'}]};
 const t=H.totales([r1,r2]);
 ok(t.porPres['3 kg']===5300&&t.porPres['1.5 kg']===400&&!t.porPres['5 kg'],'totales: bolsas separadas por presentación (3 kg y 1.5 kg)');
 ok(t.bolsas===5700&&t.kg===5300*3.25+400*1.75,'totales: bolsas y kilos (bolsas × kg reales)');
 ok(t.paradasMin===45&&t.paradas===2,'totales: paradas en minutos y eventos');
 ok(t.merma.find(m=>m.item==='Bolsas'&&m.unidad==='UND').cantidad===60&&t.merma.find(m=>m.item==='Bobina').cantidad===1.8,'totales: merma por ítem y unidad');
+ok(t.merma.find(m=>m.item==='Bolsas').marca==='Glacial'&&t.merma.find(m=>m.item==='Bobina').marca==='Tottus','totales: la merma dice de qué marca es (23/11/2026)');
+{const t2=H.totales([{mermas:[{item:'Bolsas',marca:'Glacial',cantidad:5,unidad:'UND'},{item:'Bolsas',marca:'Tottus',cantidad:3,unidad:'UND'}]}]);
+ok(t2.merma.length===2&&t2.merma.find(m=>m.marca==='Tottus').cantidad===3,'totales: la misma merma de dos marcas se separa por marca');}
 
 const prog=[{items:[{marca:'Glacial',presentacion:'3 kg',bolsas:3000},{marca:'Tottus',presentacion:'3 kg',bolsas:2000},{marca:'Glacial',presentacion:'5 kg',bolsas:1000}]}];
 const av=H.avance([r1],prog);
@@ -41,6 +44,7 @@ ok(av.filas[0].presentacion==='5 kg'&&H.avance([],[]).cumplimiento===null,'avanc
 const cfg={equipos:['Embolsadora'],motivos:['Mantenimiento','Otros']};
 const errs=r=>H.validarFinalizar(r,cfg).join(' ');
 ok(!H.validarFinalizar(Object.assign({},r1,{paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15}]}),cfg).length,'validarFinalizar: un reporte completo se puede finalizar');
+ok(/Merma 1: elige la marca/.test(errs(Object.assign({},r1,{paradas:[],mermas:[{item:'Bolsas',cantidad:5,unidad:'UND'}]}))),'validarFinalizar: la merma pide la marca');
 ok(/al menos una producción/.test(errs(Object.assign({},r1,{produccion:[]}))),'validarFinalizar: pide producción');
 ok(/número entero/.test(errs(Object.assign({},r1,{produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:2.5}]}))),'validarFinalizar: bolsas enteras');
 ok(/elige el equipo/.test(errs(Object.assign({},r1,{paradas:[{motivo:'Mantenimiento',minutos:5}]}))),'validarFinalizar: con equipos configurados, la parada pide equipo');
@@ -51,6 +55,7 @@ ok(/turno/.test(errs(Object.assign({},r1,{turno:'TARDE'}))),'validarFinalizar: t
 const d1=H.planGuardar({previo:null,r:r1,accion:'GUARDAR',usuario:'Ana',uid:'u1',en:100});
 ok(d1.id==='2026-11-07_DÍA'&&d1.rev===1&&d1.estado==='EN_REGISTRO'&&d1.actualizadoUid==='u1'&&d1.historial.length===1,'planGuardar: crea el reporte (versión 1, autor, historial)');
 ok(d1.produccion[1].bolsas===1700&&typeof d1.produccion[1].bolsas==='number'&&d1.mermas[1].cantidad===1.8,'planGuardar: guarda números');
+ok(d1.mermas[0].marca==='Glacial'&&d1.mermas[1].marca==='Tottus','planGuardar: guarda la marca de cada merma');
 const d2=H.planGuardar({previo:d1,r:r1,accion:'GUARDAR',usuario:'Ana',uid:'u1',en:200});
 ok(d2.rev===2&&d2.historial.length===1&&d2.creadoEn===100,'planGuardar: el guardado automático sube la versión sin llenar el historial');
 const d3=H.planGuardar({previo:d2,r:r1,accion:'FINALIZAR',usuario:'Ana',uid:'u1',en:300});
