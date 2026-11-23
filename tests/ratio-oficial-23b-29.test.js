@@ -185,10 +185,10 @@ l=sb.avLineaSnapshot('PET2','17:21','AVANCE');
 const snap={id:'x',fecha:FECHA,turno:'DÍA',tipo:'AVANCE',horaCorte:'17:21',supervisor:'S',lineas:[l]};
 const texto=sb.avTextoWhatsApp(snap);
 const esperado=sb.avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible);
-ok(texto.includes('Ratio: '+esperado)&&/4[.,]097 B\/H/.test(texto),'el texto de WhatsApp muestra el mismo ratio que la pantalla: '+esperado);
+ok(texto.includes('Ratio sin paradas: '+esperado)&&/4[.,]097 B\/H/.test(texto),'el texto de WhatsApp muestra el mismo ratio que la pantalla: '+esperado);
 ok(sb.avBloquesPresentacionLinea(l)===l.bloques&&l.bloques.length===1&&l.bloques[0].ratio===l.ratio&&l.bloques[0].inicio===l.inicio,'la imagen y el texto leen el bloque guardado con el snapshot (mismo ratio e inicio que la pantalla)');
 const f29=leer('js/produccion/29-avance-produccion.js');
-ok(/avRatioBloqueTexto\(b,l\.unidadRatio\)/.test(f29)&&/ratioTxt/.test(f29),'texto, imagen y pantalla usan el mismo formateo de ratio');
+ok(/avLineasRatioTexto\(b,l\.unidadRatio\)/.test(f29)&&/avRatioSinParadasTexto\(fuenteRatio,l\.unidadRatio\)/.test(f29),'texto, imagen y pantalla usan el mismo formateo de ratio');
 /* los datos actuales no cambian un snapshot ya generado */
 const ratioGuardado=l.bloques[0].ratio;
 sb.setOperativas([...OFICIALES,op('p3','Nueva',100,'NO_PROGRAMADA')]);

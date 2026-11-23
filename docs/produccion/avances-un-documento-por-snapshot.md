@@ -78,3 +78,13 @@ y muestra un aviso si alguno estima ≥ 80 % de 1 MiB (fórmula de tamaño de Fi
 - La imagen se dibuja a **doble resolución** (2 160 px de ancho; antes 1 080), con letras un 12 % más grandes (`AV_IMAGEN_ESCALA_TEXTO` 1.4) y grises de apoyo más oscuros (mejor contraste).
 - Se sigue dibujando en 1 080 px «lógicos», así que el diseño no cambia; solo el lienzo es el doble.
 - WhatsApp reduce las fotos largas (lado mayor ~1 600 px). Para conservar la calidad completa: descargar la imagen y enviarla como **documento/archivo**.
+
+## Dos ratios en Avance y Cierre (23/11/2026)
+
+Cada línea y cada formato muestran (texto de WhatsApp, pantalla e imagen):
+
+- **Ratio real (con paradas)** = producción ÷ horas transcurridas (desde el inicio hasta el corte; las paradas cuentan como tiempo).
+- **Ratio sin paradas** = producción ÷ horas efectivas (transcurrido − paradas). Es el ratio oficial de siempre.
+- **Diferencia por paradas** = sin paradas − real, en unidades/hora y en % del ratio sin paradas (en rojo en la imagen).
+
+Se calculan con los datos congelados del snapshot (`avRatiosDobles`), así que también funcionan en avances ya generados. Si no hay ratio disponible o el formato no tiene tiempo asignado, se muestra «—».

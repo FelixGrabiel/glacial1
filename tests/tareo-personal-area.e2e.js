@@ -118,7 +118,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const [d0, d2] = await P.evaluate(() => [window.__dia(-1), window.__dia(2)]);
   await P.evaluate(([a, b]) => {
     const set = (id, v) => { const e = document.getElementById('tpa-' + id); e.value = v; };
-    set('nombre', 'Yefre Lopes'); set('desde', a); set('hasta', b); set('turnos', 'ambos'); set('ingreso', '07:00'); set('salida', '15:00'); TareoArea.dCambia();
+    set('nombre', 'Yefre Lopes'); set('desde', a); set('hasta', b); set('turnos', 'ambos'); set('ingreso', '07:00'); set('salida', '15:00'); set('sref', '12:00'); set('rref', '13:00'); TareoArea.dCambia();
   }, [d0, d2]);
   const r3 = await P.evaluate(() => document.getElementById('tpa-resumen').innerText);
   ok(/5 tareos/.test(r3) && /sin tareo/.test(r3), 'vista previa: 5 tareos existentes y avisa de los turnos del rango sin tareo creado: ' + r3);
@@ -127,6 +127,16 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(['m-1', 'm-1n', 'm0', 'm0n', 'm1'].every(id => true) && await P.evaluate(() => ['m-1', 'm-1n', 'm0', 'm0n', 'm1'].every(id => window.__pd(id).join() === 'Yefre Lopes')), 'Yefre queda como personal por día en los 5 tareos del rango');
   const pd = await P.evaluate(() => obtenerTareos().find(t => t.id === 'm0').personalPorDia[0]);
   ok(pd && pd.tipo === 'POR DÍA' && pd.horaIngreso === '07:00' && pd.horaSalida === '15:00' && pd.rango && pd.rango.desde === d0 && pd.registradoPor === 'Admin', 'cada tareo lo guarda con tipo, horas, el rango y quién lo registró');
+  ok(pd && pd.salidaRefrigerio === '12:00' && pd.retornoRefrigerio === '13:00', 'el rango también guarda el refrigerio (salida y retorno) de cada tareo');
+  ok(await P.evaluate(() => Math.abs(tareoHorasPorDia(obtenerTareos().find(t => t.id === 'm0').personalPorDia[0]) - 7) < 1e-9), 'las horas descuentan el refrigerio: 07:00–15:00 con 12:00–13:00 = 7 h');
+  // el personal por día tiene dónde poner el refrigerio dentro del tareo
+  await P.evaluate(() => { tareoActualId = 'm0'; renderTareoFormulario(obtenerTareos().find(t => t.id === 'm0')); });
+  ok(await P.evaluate(() => !!document.querySelector('#tareo-por-dia-panel input[aria-label="Salida a refrigerio"]') && !!document.querySelector('#tareo-por-dia-panel input[aria-label="Retorno de refrigerio"]') && /Salida refrigerio/i.test(document.querySelector('#tareo-por-dia-panel thead').innerText)), 'la tabla de personal por día tiene «Salida refrigerio» y «Retorno refrigerio» para poner la hora');
+  await P.evaluate(() => { const t = obtenerTareos().find(x => x.id === 'm0'); const p = t.personalPorDia[0]; tareoEditarPorDia(p.id, 'retornoRefrigerio', '12:30'); });
+  ok(await P.evaluate(() => Math.abs(tareoHorasPorDia(obtenerTareos().find(t => t.id === 'm0').personalPorDia[0]) - 7.5) < 1e-9), 'al cambiar el retorno a 12:30 las horas pasan a 7.5 h');
+  await P.evaluate(() => { const p = obtenerTareos().find(x => x.id === 'm0').personalPorDia[0]; tareoEditarPorDia(p.id, 'salidaRefrigerio', ''); });
+  ok(await P.evaluate(() => { const p = obtenerTareos().find(x => x.id === 'm0').personalPorDia[0]; return p.retornoRefrigerio === '' && Math.abs(tareoHorasPorDia(p) - 8) < 1e-9; }), 'si se borra la salida a refrigerio también se limpia el retorno (8 h)');
+  await P.evaluate(() => { renderTareoPrincipal(); });
   // repetir no duplica
   await P.evaluate(() => TareoArea.abrirPorDia());
   await P.evaluate(([a, b]) => { const set = (id, v) => { document.getElementById('tpa-' + id).value = v; }; set('nombre', 'yefre  lopes'); set('desde', a); set('hasta', b); TareoArea.dCambia(); }, [d0, d2]);
@@ -157,6 +167,21 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.evaluate(() => [...document.querySelectorAll('#tareo-por-dia-area .tar2-quitar')][0].click());
   await P.evaluate(() => { document.querySelector('#modal-root input[value=todos]').checked = true; TareoArea.pdTipo('todos'); TareoArea.pdConfirmar(); });
   ok(await P.evaluate(() => ['m-1', 'm-1n', 'm0', 'm0n', 'm1'].every(id => window.__pd(id).length === 0) && !document.getElementById('tareo-por-dia-area')), '«todos» lo quita de todos los tareos y desaparece del panel');
+  /* ---------- Historial: el personal por día se busca y se ve con sus horas ---------- */
+  await montar();
+  await P.evaluate(() => {
+    const mkpd = (id, nom, ing, sal) => ({ id, tipo: 'POR DÍA', nombre: nom, dni: '47000000', area: 'Soldador', horaIngreso: ing, horaSalida: sal, creadoEn: 1, actualizadoEn: 1 });
+    obtenerTareos().find(t => t.id === 'm0').personalPorDia = [mkpd('pd1', 'YEFRE LOPES', '07:00', '15:00'), mkpd('pd2', 'OTRO POR DIA', '07:00', '')];
+    obtenerTareos().find(t => t.id === 'm0n').personalPorDia = [mkpd('pd3', 'YEFRE LOPES', '', '')];
+    tareoFiltroHistorial = { desde: '', hasta: '', turno: '', estado: '', texto: 'yefre' }; tareoFiltroAreaHistorial = '';
+    renderHistorialTareo();
+  });
+  const filasHist = await P.evaluate(() => [...document.querySelectorAll('#main .tareo-table tbody tr')].map(r => r.innerText.replace(/\s+/g, ' ')));
+  ok(filasHist.length === 2 && filasHist.every(f => /YEFRE LOPES/.test(f)), 'buscar «yefre» en el Historial encuentra los tareos donde está como personal por día (antes no salía): ' + filasHist.length);
+  ok(filasHist.some(f => /YEFRE LOPES · 07:00–15:00/.test(f)) && filasHist.some(f => /YEFRE LOPES · sin horas/.test(f)), 'la columna «Por día» muestra su nombre y sus horas, o qué le falta (sin horas / sin salida)');
+  await P.evaluate(() => { tareoFiltroHistorial.texto = '47000000'; renderHistorialTareo(); });
+  ok(await P.evaluate(() => document.querySelectorAll('#main .tareo-table tbody tr').length) === 2, 'también se encuentra por DNI');
+  await P.evaluate(() => { tareoFiltroHistorial = { desde: '', hasta: '', turno: '', estado: '', texto: '' }; });
   // validaciones
   await P.evaluate(() => TareoArea.abrirPorDia());
   await P.evaluate(() => { document.getElementById('tpa-nombre').value = 'Otro'; document.getElementById('tpa-desde').value = window.__dia(3); document.getElementById('tpa-hasta').value = window.__dia(1); TareoArea.dCambia(); });

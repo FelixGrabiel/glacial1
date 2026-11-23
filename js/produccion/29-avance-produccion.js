@@ -1184,6 +1184,29 @@ function avRatioTexto(ratio,unidad,disponible){
   const ok=disponible===undefined?!!ratio:(disponible===true&&Number.isFinite(Number(ratio)));
   return ok?`${avFmt(ratio)} ${unidad}`:'—';
 }
+/* DOS RATIOS de una línea o de un formato (23/11/2026):
+   · sin paradas = producción ÷ tiempo EFECTIVO (transcurrido − paradas): el ratio oficial de siempre (velocidad mientras produce).
+   · real (con paradas) = producción ÷ tiempo TRANSCURRIDO (las paradas cuentan como tiempo): lo que de verdad rindió el turno.
+   · diferencia = sin paradas − real (lo que se pierde por las paradas), en unidades/hora y en % del ratio sin paradas.
+   Se calcula con los datos congelados del snapshot (produccionTotal, minutosTranscurridos y el ratio guardado): sirve también para avances anteriores. */
+function avRatiosDobles(x){
+  const vacio={sin:null,real:null,dif:null,pct:null};
+  if(!x||x.sinTiempo)return vacio;
+  const ok=x.ratioDisponible===undefined?!!x.ratio:(x.ratioDisponible===true&&Number.isFinite(Number(x.ratio)));
+  if(!ok)return vacio;
+  const sin=Number(x.ratio),trans=avNum(x.minutosTranscurridos);
+  const real=trans>0?avNum(x.produccionTotal)/(trans/60):null;
+  if(real===null)return {sin,real:null,dif:null,pct:null};
+  const dif=Math.max(0,sin-real);
+  return {sin,real,dif,pct:sin>0?dif/sin*100:null};
+}
+function avRatioRealTexto(x,unidad){const r=avRatiosDobles(x);return r.real===null?'—':`${avFmt(r.real)} ${unidad}`;}
+function avRatioSinParadasTexto(x,unidad){const r=avRatiosDobles(x);return r.sin===null?(x&&x.sinTiempo?'Sin tiempo asignado':'—'):`${avFmt(r.sin)} ${unidad}`;}
+function avDiferenciaRatioTexto(x,unidad){const r=avRatiosDobles(x);return r.dif===null?'—':`${avFmt(r.dif)} ${unidad}${r.pct!==null?` (${avFmt(r.pct)} %)`:''}`;}
+/* Las tres líneas del texto (WhatsApp) para una línea o un formato. */
+function avLineasRatioTexto(x,unidad){
+  return [`Ratio real (con paradas): ${avRatioRealTexto(x,unidad)}`,`Ratio sin paradas: ${avRatioSinParadasTexto(x,unidad)}`,`Diferencia por paradas: ${avDiferenciaRatioTexto(x,unidad)}`];
+}
 function avCalcularBloquesPresentacion(l){
   const mapa=new Map();
   const nuevo=!!l.corte;   // snapshots nuevos fijan el corte de la línea; los anteriores conservan el cálculo con el que se generaron
@@ -1332,7 +1355,7 @@ function avTextoWhatsApp(s){
     const bloques=avBloquesPresentacionLinea(l);
     if(!bloques.length){
       out.push('',`*${l.nombre}*`,'',`Inicio: ${l.inicio||'—'}`,'','Línea iniciada – Sin producción registrada.','',
-        `Ratio: ${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}`,'Consumo: —',`Personal en línea: ${avPersonalTexto(l)}`,'','*PARADAS*','',
+        ...avLineasRatioTexto(l,l.unidadRatio),'Consumo: —',`Personal en línea: ${avPersonalTexto(l)}`,'','*PARADAS*','',
         l.paradas.length?l.paradas.map(p=>`${p.descripcion} – ${avFmt(p.minutos)} min`).join('\n'):'Sin paradas registradas.','',
         `Total paradas: ${avFmt(l.totalParadas)} min`);
     }else{
@@ -1341,7 +1364,7 @@ function avTextoWhatsApp(s){
         if(s.tipo==='CIERRE')out.push(`Término: ${b.fin||l.fin||'—'}`);
         out.push('');
         b.productos.forEach(p=>out.push(`${avProductoWhatsApp(p)}: ${avFmt(p.produccion)} ${avUnidadProduccion(l.linea)}`));
-        out.push('',`Ratio: ${avRatioBloqueTexto(b,l.unidadRatio)}`,
+        out.push('',...avLineasRatioTexto(b,l.unidadRatio),
           `Consumo: ${b.consumo?avFmt(b.consumo)+' L/H':'—'}`,
                     `Personal en línea: ${avPersonalTexto(b)}`,
           '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`);
@@ -1700,7 +1723,7 @@ function avAbrirDetalle(s){
       </section>
       <section id="avd-produccion" class="av-detail-section"><h3>Producción por línea</h3>
         ${(s.lineas||[]).map(l=>`<article class="av-line-card"><div class="av-line-title"><strong>${avEsc(l.nombre||l.linea)}</strong><b>${avFmt(l.produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}</b></div>
-        <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio <b>${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avPersonalTexto(l)}</b>${l.personalDesdeMs?` <small>desde ${avEsc(avHoraHHMM(l.personalDesdeMs))}</small>`:''}</span><span>Horas-hombre <b>${avHorasHombreTexto(l)}</b></span></div>
+        <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio real (con paradas) <b>${avRatioRealTexto(l,l.unidadRatio)}</b></span><span>Ratio sin paradas <b>${avRatioSinParadasTexto(l,l.unidadRatio)}</b></span><span>Diferencia por paradas <b>${avDiferenciaRatioTexto(l,l.unidadRatio)}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avPersonalTexto(l)}</b>${l.personalDesdeMs?` <small>desde ${avEsc(avHoraHHMM(l.personalDesdeMs))}</small>`:''}</span><span>Horas-hombre <b>${avHorasHombreTexto(l)}</b></span></div>
         <div class="av-products">${(l.productos||[]).filter(p=>p.produccion>0).map(p=>`<span>${avEsc(p.marca)} · ${avEsc(p.etiqueta)} <b>${avFmt(p.produccion)}</b></span>`).join('')||'<span>Sin producción registrada</span>'}</div>${avDetalleRatioLinea(l)}${avBotonReporteLinea(s,l)}</article>`).join('')}
       </section>
       <section id="avd-paradas" class="av-detail-section"><h3>Paradas</h3>
@@ -1730,7 +1753,8 @@ function avDetalleCalculoLinea(l){
     <li>Tiempo transcurrido: <b>${fm(l.minutosTranscurridos)} min</b></li>
     <li>Paradas oficiales: programadas <b>${fm(l.minutosParadasProgramadasDesc)} min</b> · no programadas <b>${fm(l.minutosParadasNoProgramadasDesc)} min</b></li>
     <li>Tiempo efectivo: <b>${fm(l.minutosEfectivos)} min</b></li>
-    <li>Fórmula: <b>${formula}</b></li>${alt.map(a=>`<li>Conciliación — ${a}</li>`).join('')}</ul></details>`;
+    <li>Fórmula (sin paradas): <b>${formula}</b></li>
+    <li>Ratio real (con paradas): <b>${l.ratioDisponible&&avNum(l.minutosTranscurridos)>0?`${fm(l.produccionTotal)} ÷ (${fm(l.minutosTranscurridos)} ÷ 60) = ${avRatioRealTexto(l,u)}`:'No disponible'}</b> · diferencia <b>${avDiferenciaRatioTexto(l,u)}</b></li>${alt.map(a=>`<li>Conciliación — ${a}</li>`).join('')}</ul></details>`;
 }
 /* Botón del reporte por línea (PNG con la plantilla aprobada) de un snapshot. */
 function avBotonReporteLinea(s,l){
@@ -1750,7 +1774,7 @@ function avDetalleRatioLinea(l){
   if(l.paradasExcedenTiempo)out.push('<p class="small-muted" style="color:#B3261E">Inconsistencia: las paradas registradas ('+avFmt(l.totalParadas)+' min) superan el tiempo transcurrido ('+avFmt(l.minutosTranscurridos)+' min). Corrige las paradas; el ratio no se calcula.</p>');
   out.push(avDetalleCalculoLinea(l));
   const bl=avBloquesPresentacionLinea(l);
-  if(bl.length>1)out.push(`<div class="av-products">${bl.map(b=>`<span>Ratio ${avEsc(avTituloPresentacion(l.linea,b))} <b>${avRatioBloqueTexto(b,l.unidadRatio)}</b></span>`).join('')}</div>`);
+  if(bl.length>1)out.push(`<div class="av-products">${bl.map(b=>`<span>${avEsc(avTituloPresentacion(l.linea,b))}: real <b>${avRatioRealTexto(b,l.unidadRatio)}</b> · sin paradas <b>${avRatioSinParadasTexto(b,l.unidadRatio)}</b> · diferencia <b>${avDiferenciaRatioTexto(b,l.unidadRatio)}</b></span>`).join('')}</div>`);
   const desc=l.minutosParadasDescontadas;
   if(desc!==undefined&&Math.abs(avNum(desc)-avNum(l.totalParadas))>=0.5)
     out.push(`<p class="small-muted">Tiempo efectivo ${avFmt(l.minutosEfectivos)} min = ${avFmt(l.minutosTranscurridos)} transcurridos − ${avFmt(desc)} descontados. La suma de paradas listadas es ${avFmt(l.totalParadas)} min: los solapes, las duraciones estándar y el corte del reporte ajustan lo descontado.</p>`);
@@ -1842,7 +1866,7 @@ function avCanvasSnapshot(s){
   const altoParada=p=>paso(29)+(filasParada(p).length-1)*paso(20);
   const altoRealGrupo=g=>{
     const d=datosGrupo(g);
-    let h=82+55+27+paso(26)+Math.max(1,d.prods.length)*paso(30)+27+paso(26);
+    let h=82+55+55+27+paso(26)+Math.max(1,d.prods.length)*paso(30)+27+paso(26);
     h+=d.paradas.length?d.paradas.reduce((s,p)=>s+altoParada(p),0):paso(29);
     if(d.observaciones.length)h+=25+23+d.observaciones.reduce((s,o)=>s+filasObs(o).length*22,0);
     return h+8;
@@ -1898,7 +1922,8 @@ function avCanvasSnapshot(s){
     const observaciones=g.sinProduccion?(l.observaciones||[]):(b.observaciones||[]);
     const produccionTotal=g.sinProduccion?0:b.produccionTotal;
     const inicio=g.sinProduccion?(l.inicio||'—'):(b.inicio||l.inicio||'—');
-    const ratioTxt=g.sinProduccion?avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible):avRatioBloqueTexto(b,l.unidadRatio);
+    const fuenteRatio=g.sinProduccion?l:b;
+    const ratioRealTxt=avRatioRealTexto(fuenteRatio,l.unidadRatio),ratioSinTxt=avRatioSinParadasTexto(fuenteRatio,l.unidadRatio),difTxt=avDiferenciaRatioTexto(fuenteRatio,l.unidadRatio);
     const consumo=g.sinProduccion?0:b.consumo;
         const personalTxt=g.sinProduccion?avPersonalTexto(l):avPersonalTexto(b);
     const totalParadas=paradas.reduce((s,p)=>s+avNum(p.minutos),0);
@@ -1920,15 +1945,24 @@ function avCanvasSnapshot(s){
     x.textAlign='right';x.fillStyle=g.sinProduccion?WARN:GOOD;x.font=`700 ${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(g.sinProduccion?'LÍNEA INICIADA':'PRODUCCIÓN REGISTRADA',W-PAD-20,y+35);x.textAlign='left';
 
     let cy=y+82;
-    const metrics=[
+    // Dos filas: datos de la línea y, debajo, los dos ratios con su diferencia (la pérdida por paradas en rojo).
+    const fila=(lista,colorValor)=>{
+      const mw=(W-PAD*2-40)/lista.length;
+      lista.forEach((m,i)=>{const mx=PAD+20+i*mw;x.fillStyle=STEEL;x.font=`${Math.round(13*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(m[0],mx,cy);x.fillStyle=(colorValor&&colorValor[i])||INK;fit(m[1],mw-12,17,'700');x.fillText(m[1],mx,cy+24);});
+      cy+=55;
+    };
+    fila([
       ['Inicio',inicio],
       ['Producción',`${avFmt(produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}`],
-      ['Ratio',ratioTxt],
       ['Consumo',consumo?`${avFmt(consumo)} L/H`:'—'],
-            ['Personal',personalTxt]
-    ],mw=(W-PAD*2-40)/5;
-    metrics.forEach((m,i)=>{const mx=PAD+20+i*mw;x.fillStyle=STEEL;x.font=`${Math.round(13*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(m[0],mx,cy);x.fillStyle=INK;fit(m[1],mw-12,17,'700');x.fillText(m[1],mx,cy+24);});
-    cy+=55;divider(cy);cy+=27;
+      ['Personal',personalTxt]
+    ]);
+    fila([
+      ['Ratio real (con paradas)',ratioRealTxt],
+      ['Ratio sin paradas',ratioSinTxt],
+      ['Diferencia por paradas',difTxt]
+    ],[DARK,INK,difTxt==='—'?INK:BAD]);
+    divider(cy);cy+=27;
 
     x.fillStyle=BLUE;x.font=`700 ${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('MARCAS PRODUCIDAS',PAD+20,cy);cy+=Math.round(26*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));
     if(prods.length){

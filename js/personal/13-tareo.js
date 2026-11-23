@@ -2950,7 +2950,10 @@ function tareoHorasPorDia(persona) {
 
     if (min < 0) min += 24 * 60;
 
-    return min / 60;
+    // Refrigerio del personal por día: se descuenta si tiene salida y retorno (igual que en planilla).
+    min -= calcularMinutosRefrigerio(persona.salidaRefrigerio, persona.retornoRefrigerio);
+
+    return Math.max(0, min) / 60;
 }
 
 function tareoTarjetaTurnoHTML(area, fecha, turno) {
@@ -5145,6 +5148,8 @@ function tareoSeccionPorDiaHTML(tareo, editable) {
                                         <th>DNI</th>
                                         <th>Área / línea</th>
                                         <th>Ingreso</th>
+                                        <th>Salida refrigerio</th>
+                                        <th>Retorno refrigerio</th>
                                         <th>Salida</th>
                                         <th>Horas</th>
                                         <th>HORAS EXTRAS</th>
@@ -5165,6 +5170,10 @@ function tareoSeccionPorDiaHTML(tareo, editable) {
                                                     ? `
                                                     <td><input type="time" value="${escaparHTML(p.horaIngreso || '')}"
                                                         onchange="tareoEditarPorDia('${p.id}','horaIngreso',this.value)"></td>
+                                                    <td><input type="time" value="${escaparHTML(p.salidaRefrigerio || '')}" aria-label="Salida a refrigerio"
+                                                        onchange="tareoEditarPorDia('${p.id}','salidaRefrigerio',this.value)"></td>
+                                                    <td><input type="time" value="${escaparHTML(p.retornoRefrigerio || '')}" aria-label="Retorno de refrigerio"
+                                                        onchange="tareoEditarPorDia('${p.id}','retornoRefrigerio',this.value)"></td>
                                                     <td><input type="time" value="${escaparHTML(p.horaSalida || '')}"
                                                         onchange="tareoEditarPorDia('${p.id}','horaSalida',this.value)"></td>
                                                     <td id="tpd-h-${p.id}">${formatearHoras(tareoHorasPorDia(p))} h</td>
@@ -5175,6 +5184,8 @@ function tareoSeccionPorDiaHTML(tareo, editable) {
                                                     `
                                                     : `
                                                     <td>${escaparHTML(p.horaIngreso || '—')}</td>
+                                                    <td>${escaparHTML(p.salidaRefrigerio || '—')}</td>
+                                                    <td>${escaparHTML(p.retornoRefrigerio || '—')}</td>
                                                     <td>${escaparHTML(p.horaSalida || '—')}</td>
                                                     <td>${formatearHoras(tareoHorasPorDia(p))} h</td>
                                                     <td>${tareoSaldoHTML(tareoSaldoHoras(p))}</td>
@@ -5257,6 +5268,17 @@ function tareoAbrirAgregarPorDia() {
                         <div class="field-sm">
                             <label>Hora de salida</label>
                             <input type="time" id="tpd-salida">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-2">
+                        <div class="field-sm">
+                            <label>Salida a refrigerio (opcional)</label>
+                            <input type="time" id="tpd-sref">
+                        </div>
+                        <div class="field-sm">
+                            <label>Retorno de refrigerio (opcional)</label>
+                            <input type="time" id="tpd-rref">
                         </div>
                     </div>
 
@@ -5347,6 +5369,8 @@ function tareoAgregarPorDia() {
         area: (document.getElementById('tpd-area')?.value || '').trim(),
         horaIngreso: document.getElementById('tpd-ingreso')?.value || tareoHoraActual(),
         horaSalida: document.getElementById('tpd-salida')?.value || '',
+        salidaRefrigerio: document.getElementById('tpd-sref')?.value || '',
+        retornoRefrigerio: (document.getElementById('tpd-sref')?.value ? (document.getElementById('tpd-rref')?.value || '') : ''),
         observacion: (document.getElementById('tpd-obs')?.value || '').trim(),
         registradoPor: (state.user && (state.user.nombre || state.user.username)) || '',
         creadoEn: ahora,
@@ -5367,7 +5391,7 @@ function tareoAgregarPorDia() {
 
 function tareoEditarPorDia(id, campo, valor) {
 
-    if (!['horaIngreso', 'horaSalida', 'observacion', 'area'].includes(campo)) return;
+    if (!['horaIngreso', 'horaSalida', 'salidaRefrigerio', 'retornoRefrigerio', 'observacion', 'area'].includes(campo)) return;
 
     const tareo = tareoObtenerActual();
 
@@ -5378,6 +5402,7 @@ function tareoEditarPorDia(id, campo, valor) {
     if (!persona) return;
 
     persona[campo] = valor || '';
+    if (campo === 'salidaRefrigerio' && !valor) persona.retornoRefrigerio = '';
     persona.actualizadoEn = tareoAhoraMs();
 
     guardarTareoEnMemoria(tareo);
@@ -6536,9 +6561,10 @@ function tareoHistorialCoincide(tareo, f) {
 
     if (q) {
 
-        const porPersona = (tareo.personal || []).some(p =>
-            tareoNormalizarTexto([p.nombre, p.dni, p.cargo, p.linea].join(' ')).includes(q) ||
-            !!(window.glacialBusqueda && window.glacialBusqueda.coincide([p.nombre, p.dni, p.cargo, p.linea], q))
+        // También el personal POR DÍA (no planilla) del tareo: nombre, DNI y cargo / área.
+        const porPersona = [...(tareo.personal || []), ...tareoPorDiaActivos(tareo)].some(p =>
+            tareoNormalizarTexto([p.nombre, p.dni, p.cargo, p.linea, p.area].join(' ')).includes(q) ||
+            !!(window.glacialBusqueda && window.glacialBusqueda.coincide([p.nombre, p.dni, p.cargo, p.linea, p.area], q))
         );
 
         const porCreador = tareoNormalizarTexto(
@@ -6549,6 +6575,23 @@ function tareoHistorialCoincide(tareo, f) {
     }
 
     return true;
+}
+
+/* Celda «Por día» del Historial: cuántas personas por día tiene el tareo y, de cada una, su nombre y sus horas (o qué le falta). */
+function tareoPorDiaCeldaHistorial(tareo) {
+
+    const lista = tareoPorDiaActivos(tareo);
+
+    if (!lista.length) return '—';
+
+    const linea = p => {
+        const i = p.horaIngreso || '', s = p.horaSalida || '';
+        const horas = i && s ? i + '–' + s : (i ? i + ' · sin salida' : (s ? 'sin ingreso · ' + s : 'sin horas'));
+        return '<small style="display:block;white-space:nowrap">' + escaparHTML(p.nombre) + ' · ' + escaparHTML(horas) + '</small>';
+    };
+
+    return '<strong>' + lista.length + '</strong>' + lista.slice(0, 3).map(linea).join('') +
+        (lista.length > 3 ? '<small class="small-muted">y ' + (lista.length - 3) + ' más</small>' : '');
 }
 
 let _tareoHistorialTemporizador = null;
@@ -6834,7 +6877,7 @@ function renderHistorialTareo() {
                                                     </td>
 
                                                     <td>
-                                                        ${tareoPorDiaActivos(tareo).length || '—'}
+                                                        ${tareoPorDiaCeldaHistorial(tareo)}
                                                     </td>
 
                                                     <td>
@@ -8302,6 +8345,8 @@ function tareoAgregarHojaPorDia(libro, tareos, nombreHoja) {
             'DNI': persona.dni || '',
             'Área / línea': persona.area || '',
             'Hora ingreso': persona.horaIngreso || '',
+            'Salida refrigerio': persona.salidaRefrigerio || '',
+            'Retorno refrigerio': persona.retornoRefrigerio || '',
             'Hora salida': persona.horaSalida || '',
             'Horas trabajadas': Number(tareoHorasPorDia(persona).toFixed(2)),
             'Observación': persona.observacion || ''
@@ -8319,7 +8364,7 @@ function tareoAgregarHojaPorDia(libro, tareos, nombreHoja) {
     hoja['!cols'] = [
         { wch: 12 }, { wch: 15 }, { wch: 8 }, { wch: 10 },
         { wch: 32 }, { wch: 12 }, { wch: 18 }, { wch: 13 },
-        { wch: 12 }, { wch: 16 }, { wch: 30 }
+        { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 30 }
     ];
 
     XLSX.utils.book_append_sheet(libro, hoja, nombreHoja);
@@ -8358,6 +8403,8 @@ function tareoPorDiaGeneralHTML() {
                                         <th>DNI</th>
                                         <th>Área / línea</th>
                                         <th>Ingreso</th>
+                                        <th>Salida refrigerio</th>
+                                        <th>Retorno refrigerio</th>
                                         <th>Salida</th>
                                         <th>Horas</th>
                                         <th>HORAS EXTRAS</th>
@@ -8373,6 +8420,8 @@ function tareoPorDiaGeneralHTML() {
                                             <td>${escaparHTML(persona.dni || '—')}</td>
                                             <td>${escaparHTML(persona.area || '—')}</td>
                                             <td>${escaparHTML(persona.horaIngreso || '—')}</td>
+                                            <td>${escaparHTML(persona.salidaRefrigerio || '—')}</td>
+                                            <td>${escaparHTML(persona.retornoRefrigerio || '—')}</td>
                                             <td>${escaparHTML(persona.horaSalida || '—')}</td>
                                             <td>${formatearHoras(tareoHorasPorDia(persona))} h</td>
                                             <td>${tareoSaldoHTML(tareoSaldoHoras(persona))}</td>
