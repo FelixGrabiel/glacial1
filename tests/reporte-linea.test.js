@@ -106,7 +106,7 @@ sb.ahora=ms(19);
 const snap=sb.avConstruirSnapshot('19:00','CIERRE');
 const lp=snap.lineas.find(x=>x.linea==='PET1');
 ok(lp.reporte&&lp.reporte.version===1&&lp.reporte.resumen.producido===lp.produccionTotal&&lp.reporte.resumen.ratio===lp.ratio,'el snapshot trae el modelo congelado y su cifra coincide con la pantalla (producción y ratio)');
-ok(new RegExp('Ratio: '+sb.avRatioTexto(lp.ratio,lp.unidadRatio,lp.ratioDisponible).replace(/[.]/g,'\\.')).test(snap.texto)&&lp.reporte.encabezado.estado==='CERRADO','el texto de WhatsApp muestra el mismo ratio y el reporte nace CERRADO');
+ok(new RegExp('Ratio sin paradas: '+sb.avRatioTexto(lp.ratio,lp.unidadRatio,lp.ratioDisponible).replace(/[.]/g,'\\.')).test(snap.texto)&&lp.reporte.encabezado.estado==='CERRADO','el texto de WhatsApp muestra el mismo ratio y el reporte nace CERRADO');
 /* cambios posteriores no alteran el modelo guardado */
 const guardado=JSON.parse(JSON.stringify(lp.reporte));
 sb.paletas.push(pal('PET1',50000,'18:50','Scala','2.5 L',null,9));
