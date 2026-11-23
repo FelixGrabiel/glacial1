@@ -32,7 +32,7 @@ ok(!/LECTURA DEL DÍA|PRODUCCIÓN DEL TURNO'/.test(png2),'PNG de detalle: se qui
 ok(/H=Math\.max\(1400,/.test(png2)&&/filasMarcasN/.test(png2),'PNG de detalle: la altura sigue al número de marcas (no se corta)');
 
 /* ---------- lo que NO cambia ---------- */
-ok(/async function exportarPNG\(\)\{\n  if\(window\.glacialReporteRegistro&&typeof window\.glacialReporteRegistro\.exportar==='function'\)return window\.glacialReporteRegistro\.exportar\(\);/.test(f08),'«Exportar PNG» sigue usando la plantilla aprobada (glacialReporteRegistro.exportar)');
+ok(/async function exportarPNG\(\)\{[\s\S]{0,400}glacialReporteDiario\.exportar\(\);\n  if\(window\.glacialReporteRegistro&&typeof window\.glacialReporteRegistro\.exportar==='function'\)return window\.glacialReporteRegistro\.exportar\(\);/.test(f08),'«Exportar PNG» usa el Reporte diario (formato de la planta) y, si no cargó, la plantilla anterior');
 ok(/onclick="exportarExcel\(\)"/.test(f08)&&/async function exportarExcel\(\)/.test(f08)&&/onclick="exportarPNG\(\)"/.test(f08)&&/onclick="exportarPNGDetalle\(\)"/.test(f08),'los tres botones de exportación siguen en la pestaña');
 
 /* ---------- análisis y acción: las paradas programadas (refrigerio) no son una acción correctiva ---------- */

@@ -9,7 +9,7 @@ const leer=f=>fs.readFileSync(R+'/'+f,'utf8').replace(/\r\n/g,'\n');
 const f08=leer('js/produccion/08-graficos.js'),html=leer('index.html');
 ok((f08.match(/async function exportarPNG\(\)/g)||[]).length===1,'exportarPNG está definida una sola vez (sin redefiniciones por orden de carga)');
 ok(/onclick="exportarPNG\(\)"/.test(f08)&&/Exportar PNG/.test(f08),'el botón «Exportar PNG» de la pestaña Gráficos sigue llamando a exportarPNG()');
-ok(/async function exportarPNG\(\)\{[\s\S]{0,300}glacialReporteRegistro\.exportar\(\)/.test(f08),'exportarPNG() ahora delega en la plantilla aprobada (glacialReporteRegistro.exportar)');
+ok(/async function exportarPNG\(\)\{[\s\S]{0,500}glacialReporteRegistro\.exportar\(\)/.test(f08),'exportarPNG() conserva la plantilla anterior como respaldo (glacialReporteRegistro.exportar)');
 ok(/async function exportarPNGDetalle\(\)/.test(f08)&&/onclick="exportarPNGDetalle\(\)"/.test(f08)&&/PNG con gráficos \(detalle\)/.test(f08),'el diseño anterior (cascada, Pareto, análisis) queda como salida secundaria, con su propio botón');
 ok(/Reporte_Diario_\$\{linea\}_\$\{fecha\}\.png/.test(leer('js/produccion/62-reporte-registro.js')),'el archivo descargado conserva el nombre Reporte_Diario_<línea>_<fecha>.png');
 const i08=html.indexOf('08-graficos.js'),i61=html.indexOf('61-reporte-linea.js'),i62=html.indexOf('62-reporte-registro.js');

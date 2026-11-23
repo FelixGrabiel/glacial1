@@ -3509,6 +3509,8 @@ async function editarSugerenciaReporte(){
 
 /* «Exportar PNG» (pestaña Gráficos): plantilla aprobada (61-reporte-linea.js + adaptador 62-reporte-registro.js). */
 async function exportarPNG(){
+  /* Reporte diario con el formato del Excel de la planta (62b-reporte-diario.js, 23/11/2026). */
+  if(window.glacialReporteDiario&&typeof window.glacialReporteDiario.exportar==='function')return window.glacialReporteDiario.exportar();
   if(window.glacialReporteRegistro&&typeof window.glacialReporteRegistro.exportar==='function')return window.glacialReporteRegistro.exportar();
   return exportarPNGDetalle();   // sin la plantilla nueva cargada, se conserva el diseño anterior
 }
@@ -3948,6 +3950,15 @@ function renderGraficosTab(){
       >
         📈 PNG con gráficos (detalle)
       </button>
+
+      ${window.glacialReporteDiario&&window.glacialReporteDiario.puedeConfigurar()?`<button
+        type="button"
+        class="btn btn-ghost"
+        onclick="glacialReporteDiario.editarRequerido()"
+        title="Personas necesarias por turno en cada línea (asistencia del Reporte diario)"
+      >
+        👥 Personal requerido
+      </button>`:''}
 
     </div>
 
