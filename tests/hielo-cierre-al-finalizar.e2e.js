@@ -18,7 +18,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     const hoy = window.__hoy, d = glacialHieloDatos;
     // Base simulada: guarda en memoria y NUNCA avisa en tiempo real (como cuando el aviso se pierde).
     const servidor = {};
-    const viejo = { id: hoy + '_DÍA', fecha: hoy, turno: 'DÍA', estado: 'EN_REGISTRO', rev: 3, supervisor: 'Admin', horaInicio: '07:00', horaFin: '', produccion: [{ marca: 'Glacial', presentacion: '3 kg', bolsas: 100 }], paradas: [], mermas: [], observaciones: '', personas: '', personal: [], historial: [] };
+    const viejo = { id: hoy + '_DÍA', fecha: hoy, turno: 'DÍA', estado: 'EN_REGISTRO', rev: 3, supervisor: 'Admin', horaInicio: '07:00', horaFin: '19:00', produccion: [{ marca: 'Glacial', presentacion: '3 kg', bolsas: 100, estacion: 'Tolva manual', horas: 4, vence: '2027-11-24' }], paradas: [], mermas: [], observaciones: '', personas: 3, personal: ['Ana', 'Luis', 'Rosa'], historial: [] };   // completo: al finalizar son obligatorios (24/11/2026)
     servidor[viejo.id] = JSON.parse(JSON.stringify(viejo));
     window.__dbOriginal = { collection: db.collection, runTransaction: db.runTransaction };
     db.collection = c => ({ doc: id => ({ _id: id, _c: c }), where: () => ({ get: async () => ({ docs: Object.values(servidor).map(x => ({ data: () => JSON.parse(JSON.stringify(x)) })) }), onSnapshot: () => () => {} }) });
@@ -30,7 +30,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.waitForSelector('.hl-ed');
   // completar la producción y finalizar
   const r = await P.evaluate(async () => {
-    hlCampo('produccion', 0, 'bolsas', '4339'); hlCampo('produccion', 0, 'horas', '');
+    hlCampo('produccion', 0, 'bolsas', '4339'); hlCampo('produccion', 0, 'horas', '6');
     await hlGuardar('FINALIZAR');
     return { serv: window.__servidor[window.__hoy + '_DÍA'], cache: glacialHieloDatos.cache.reportes.find(x => x.id === window.__hoy + '_DÍA'), msg: (document.querySelector('.hl-msg') || {}).innerText || '' };
   });
