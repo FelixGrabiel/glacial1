@@ -219,14 +219,16 @@ console.info(
 
 const auth = (typeof firebase.auth === 'function') ? firebase.auth() : null;
 
-/* Persistencia de la sesión de Firebase: SESSION = sobrevive a la recarga de ESTA pestaña y se pierde al cerrarla (política
-   vigente; no se cambia a LOCAL). Se espera la promesa antes de iniciar sesión (36-seguridad-auth.js) y un fallo NO se silencia:
+/* Persistencia de la sesión: LOCAL desde el 16/11/2026 = la sesión queda guardada en el equipo y sigue iniciada al cerrar y volver a
+   abrir GLACIAL (página o app instalada), para todos los usuarios. Vence sola a los 7 días sin uso en ese equipo
+   (crearAlmacenSesion en 00b-puente-supabase.js; ver docs/00-general/sesion-al-recargar.md). Antes era SESSION (por pestaña).
+   Se espera la promesa antes de iniciar sesión (36-seguridad-auth.js) y un fallo NO se silencia:
    queda en consola y en window.__authPersistenciaError (el login avisa que la sesión no se recordará al recargar). */
 window.__authPersistenciaError = null;
 window.__authPersistenciaLista = auth
-  ? auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(err => {
+  ? auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
       window.__authPersistenciaError = err || new Error('persistencia no disponible');
-      console.error('GLACIAL · no se pudo fijar la persistencia de sesión (SESSION):', err && (err.code || err.message) || err);
+      console.error('GLACIAL · no se pudo fijar la persistencia de sesión (LOCAL):', err && (err.code || err.message) || err);
     })
   : Promise.resolve();
 

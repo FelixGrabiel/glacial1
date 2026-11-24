@@ -15,6 +15,7 @@ Rutas de `index.html` y de `tests/visual/*.html`: `node tests/verificar-rutas.js
 
 ```
 index.html                      Página única; carga los scripts en orden
+manifest.webmanifest · sw.js    App instalable (PWA): nombre, íconos y service worker (sin caché). Deben quedar en la raíz
 README.md · INDICE.md           Presentación e índice (este archivo)
 glacial.code-workspace          Área de trabajo de VS Code (carpetas virtuales por área)
 .vscode/                        Configuración y extensiones recomendadas
@@ -50,6 +51,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 01-config.js | Configuración de la base de datos (Supabase), banderas de seguridad, catálogos |
 | 01b-fecha-operativa.js | Fuente única de fecha operativa / turno (hora de Lima, NOCHE de madrugada = día anterior) y hora simulada para el Administrador. Ver docs/00-general/fecha-operativa.md |
 | 02-estado.js | Estado global, permisos, sincronización con Firestore |
+| 03c-app-instalable.js | App instalable (PWA): registra `sw.js` y ofrece «Instalar GLACIAL» en el inicio de sesión. Ver docs/00-general/app-instalable.md |
 | 04-sidebar.js | Menú lateral y navegación |
 | 05-utils.js | Utilidades comunes |
 | 12-init.js | Arranque de la app (siempre el último script) |

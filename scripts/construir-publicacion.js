@@ -12,7 +12,7 @@ const fs = require('fs'), path = require('path');
 const { minify } = require('terser');
 const R = path.resolve(__dirname, '..');
 const SALIDA = path.resolve(R, process.argv[2] || '_sitio');
-const COPIAR = ['index.html', 'js', 'css', 'assets'];
+const COPIAR = ['index.html', 'js', 'css', 'assets', 'manifest.webmanifest', 'sw.js'];   // sw.js y el manifiesto van en la raíz (app instalable)
 
 function copiar(origen, destino){
   const st = fs.statSync(origen);

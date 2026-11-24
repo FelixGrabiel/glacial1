@@ -17,3 +17,15 @@ No pude reproducirla con Firebase real (no hay credenciales ni acceso al sitio p
 
 ## No comprobado
 Login real + F5 contra Firebase (PRUEBAS o producción), recarga forzada real, red real caída, ni el sitio publicado.
+
+## Sesión guardada en el equipo (16/11/2026)
+Decisión: **para todos los usuarios**, la sesión queda iniciada al cerrar y volver a abrir GLACIAL (página o app instalada) y **vence a los 7 días sin uso** en ese equipo. Esto reemplaza la política anterior de «Persistencia SESSION» (por pestaña) descrita arriba.
+
+- **Dónde**: `crearAlmacenSesion` en `js/nucleo/00b-puente-supabase.js`. La sesión de Supabase pasa de `sessionStorage` a `localStorage`, con una marca de último uso (`…:ultimo-uso`). `01-config.js` pide persistencia `LOCAL`.
+- **Vencimiento**: «uso» = abrir GLACIAL o tenerla abierta (la marca se renueva como mucho una vez por hora). Pasados 7 días sin uso, la sesión se borra del equipo y se pide usuario y contraseña. Una pantalla que nunca se cierra (TV de planta) no vence. Para cambiar el plazo: `SESION_DIAS_SIN_USO`.
+- **Sin corte al publicar**: quien ya estaba dentro conserva su sesión (se pasa de la pestaña al equipo).
+- **Varias pestañas**: ahora comparten la sesión. Si otra pestaña cierra sesión o entra con otra cuenta (o el servidor la da por terminada), la página se recarga sola y resuelve la identidad de cero; así no quedan permisos de una cuenta con datos de otra. Ya no se pueden tener dos cuentas distintas abiertas en el mismo navegador (sí en navegadores o perfiles distintos, o en una ventana privada).
+- **Lo que sigue por pestaña**: el contexto auxiliar `rdp_session_v1` y la identificación del técnico en la cuenta compartida de Mantenimiento (PIN en cada apertura).
+- **Permisos**: se siguen leyendo en vivo; quitar un permiso o desactivar un usuario aplica aunque tenga la sesión guardada.
+- **Límite**: el vencimiento se controla en el equipo. Para exigirlo también en el servidor: Supabase › Authentication › Sessions (tiempo máximo e inactividad). No se cambió.
+- **Pruebas**: `tests/sesion-guardada.test.js` y el bloque 8a de `tests/puente-supabase.test.js`. No comprobado contra Supabase real ni en teléfonos.

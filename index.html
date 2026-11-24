@@ -27,6 +27,14 @@
         <link rel="icon" type="image/png" sizes="192x192" href="assets/img/icono-192.png?v=20261112-ic1">
         <link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-touch-icon.png?v=20261112-ic1">
 
+        <!-- App instalable (PWA, 16/11/2026): con el manifiesto y sw.js, GLACIAL se instala como aplicación en Android, iPhone y PC.
+             El service worker no guarda caché: todo sigue llegando de la red, en tiempo real. Ver docs/00-general/app-instalable.md. -->
+        <link rel="manifest" href="manifest.webmanifest?v=20261116-pw1">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="GLACIAL">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
 
         <!-- =====================================================
             FUENTES
@@ -2549,9 +2557,10 @@
     </div>
     <style>@keyframes sesion-giro{to{transform:rotate(360deg)}}</style>
     <script>
-    /* Si esta pestaña pudo tener una sesión (solo se miran los NOMBRES de las claves, nunca su contenido), se muestra «Recuperando
-       sesión…» desde el primer instante: el login no parpadea mientras cargan Firebase y los scripts. */
-    (function(){try{var h=false;for(var i=0;i<sessionStorage.length;i++){var k=sessionStorage.key(i);if(k&&(k==='rdp_session_v1'||k.indexOf('firebase:authUser:')===0)){h=true;break;}}
+    /* Si este equipo pudo tener una sesión (solo se miran los NOMBRES de las claves, nunca su contenido), se muestra «Recuperando
+       sesión…» desde el primer instante: el login no parpadea mientras cargan Firebase y los scripts.
+       Desde el 16/11/2026 la sesión se guarda en el equipo (localStorage); la pestaña (sessionStorage) se sigue mirando por el contexto. */
+    (function(){try{var h=false;[sessionStorage,localStorage].forEach(function(a){for(var i=0;i<a.length;i++){var k=a.key(i);if(k&&(k==='rdp_session_v1'||(k.indexOf('firebase:authUser:')===0&&k.indexOf(':ultimo-uso')<0))){h=true;break;}}});
       if(h){var ov=document.getElementById('sesion-recuperando');if(ov)ov.style.display='flex';
         setTimeout(function(){if(!window.__sesionIniciada){var t=ov&&ov.querySelector('[data-sesion-texto]');if(t)t.textContent='No se pudo cargar la aplicación. Recarga la página (Ctrl+F5).';var sp=ov&&ov.querySelector('[data-sesion-spinner]');if(sp)sp.style.display='none';}},30000);}}catch(e){}})();
     </script>
@@ -3507,8 +3516,9 @@
     <!-- Los datos viven en Supabase. El puente (00b-puente-supabase.js) ofrece a la página los mismos objetos
          «firebase», «db» y «auth» de siempre; por eso el resto de los archivos no cambia. Ya no se carga Firebase. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-    <script src="js/nucleo/00b-puente-supabase.js?v=20261112-cl1"></script>
+    <script src="js/nucleo/00b-puente-supabase.js?v=20261116-ss1"></script>
     <script src="js/nucleo/03-actualizacion.js?v=20261113-ac2"></script>
+    <script src="js/nucleo/03c-app-instalable.js?v=20261124-pw3"></script>
 
 
     <!-- ORDEN DE CARGA: los scripts siguientes se ejecutan en este orden exacto y NO debe cambiarse.
@@ -3519,7 +3529,7 @@
         MÓDULOS PRINCIPALES
     ====================================================== -->
 
-    <script src="js/nucleo/01-config.js?v=20261121-hc2"></script>
+    <script src="js/nucleo/01-config.js?v=20261124-ss2"></script>
     <script src="js/nucleo/01b-fecha-operativa.js?v=20261018-fe1"></script>
     <script src="js/nucleo/04b-busqueda.js?v=20261121-bq2"></script>
     <script src="js/nucleo/45-indicadores.js?v=20261105-rc2"></script>
