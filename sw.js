@@ -5,6 +5,8 @@
      · el código se sigue pidiendo a la red como siempre, así que el aviso «HAY UNA ACTUALIZACIÓN NUEVA»
        (js/nucleo/03-actualizacion.js) y los «?v=» funcionan exactamente igual que antes.
    Solo interviene en una cosa: si al ABRIR la página no hay red, responde con la pantalla «Sin conexión», que reintenta sola.
+   NOTIFICACIONES (24/11/2026): muestra las notificaciones de paradas de línea que manda el servidor (función avisos-push), aunque la app
+   esté cerrada, y al tocarlas abre GLACIAL (o la trae al frente si ya estaba abierta). Ver docs/00-general/notificaciones.md.
    Debe estar en la raíz del sitio (junto a index.html) para cubrir toda la página. Lo registra js/nucleo/03c-app-instalable.js. */
 'use strict';
 
@@ -59,5 +61,29 @@ self.addEventListener('fetch', (ev) => {
         headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Glacial-Sin-Conexion': '1' }
       });
     }
+  })());
+});
+
+/* ---------- Notificaciones (24/11/2026) ---------- */
+self.addEventListener('push', (ev) => {
+  let d = {};
+  try { d = (ev.data && ev.data.json()) || {}; } catch (_) { try { d = { cuerpo: ev.data ? ev.data.text() : '' }; } catch (__) { d = {}; } }
+  const titulo = String(d.titulo || 'GLACIAL').slice(0, 120);
+  ev.waitUntil(self.registration.showNotification(titulo, {
+    body: String(d.cuerpo || 'Hay un aviso nuevo en el Centro de alertas.').slice(0, 300),
+    tag: d.tag || 'glacial', renotify: true,                // una notificación por línea: la nueva reemplaza a la anterior y vuelve a sonar
+    icon: 'assets/img/icono-192.png', badge: 'assets/img/icono-maskable-192.png',
+    lang: 'es', data: { url: d.url || './' }
+  }));
+});
+
+self.addEventListener('notificationclick', (ev) => {
+  ev.notification.close();
+  const url = (ev.notification.data && ev.notification.data.url) || './';
+  ev.waitUntil((async () => {
+    const abiertas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const una = abiertas.find(c => c && typeof c.focus === 'function');
+    if (una) return una.focus();
+    return self.clients.openWindow(url);
   })());
 });
