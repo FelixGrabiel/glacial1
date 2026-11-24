@@ -270,7 +270,10 @@
     const nom=(t,k)=>(t.personal&&t.personal[k])||null;
     c2('A'+r,'PERSONAL'+((m.noche.personas||m.dia.personas)?' (N.º: '+(m.noche.personas||'—')+' noche · '+(m.dia.personas||'—')+' día)':''),{bold:true,align:'left'});
     u2('B'+r+':C'+r,'NOCHE',{bold:true,fill:GRIS,size:9});u2('D'+r+':E'+r,'DÍA',{bold:true,fill:CELESTE,size:9});r++;
-    for(let k=0;k<5;k++){c2('A'+r,(k+1)+'.-',{align:'left',size:9});u2('B'+r+':C'+r,nom(m.noche,k),{fill:GRIS,size:9,align:'left'});u2('D'+r+':E'+r,nom(m.dia,k),{fill:CELESTE,size:9,align:'left'});r++;}
+    // Todas las personas de cada turno (24/11/2026: antes solo las 5 primeras). La lista ya trae sus grupos y su numeración («Maquinas», «1. Moisés…»),
+    // así que la columna A no numera; con menos de 5, quedan 5 filas como el formato de la planta.
+    const nPers=Math.max(5,(m.noche.personal||[]).length,(m.dia.personal||[]).length);
+    for(let k=0;k<nPers;k++){c2('A'+r,null,{size:9});u2('B'+r+':C'+r,nom(m.noche,k),{fill:GRIS,size:9,align:'left'});u2('D'+r+':E'+r,nom(m.dia,k),{fill:CELESTE,size:9,align:'left'});r++;}
     r++;
     // Semana
     const base=r;c2('A'+r,'SEMANA '+m.semanaNum+' · '+dmyLargo(m.semana.inicio)+' al '+dmyLargo(m.semana.fin),{bold:true,align:'left',size:9});

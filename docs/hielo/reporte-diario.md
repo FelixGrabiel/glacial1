@@ -80,3 +80,8 @@ El reporte diario muestra la merma registrada en cada turno, sumada por **ítem 
 - **WhatsApp**: el texto lleva la línea «Merma: …».
 
 Una merma con cantidad 0 no cuenta. Pruebas: `tests/hielo-reporte-diario.test.js`.
+
+## Personal completo (24/11/2026)
+
+- **Excel**: la hoja «Resumen y semana» lista a **todas** las personas de cada turno; antes solo salían las 5 primeras. La lista aparece tal como se registró, con sus grupos y su numeración («Maquinas», «1. Moisés…»). Si hay menos de 5, se mantienen las 5 filas del formato.
+- **Guardado**: el reporte guarda hasta **40 líneas** de personal; antes eran 20, contando los grupos.

@@ -141,5 +141,18 @@ let ExcelJS=null;try{ExcelJS=require(require('path').join(process.env.GLX_LIBS||
     const s0=(await new ExcelJS.Workbook().xlsx.load(await RD.construirExcel(ExcelJS,m,{}).xlsx.writeBuffer())).getWorksheet('Reporte diario');
     ok(/Sin merma registrada/.test(vals(s0)),'Excel sin merma: «Sin merma registrada»');
   }
+  /* Personal (24/11/2026): el Excel lista a TODAS las personas de cada turno (antes solo las 5 primeras), y se guardan hasta 40 líneas. */
+  const lista=['Maquinas','1. Moisés Amansife','Env. Automática','2. Santiago Pumaylle','3. Mark Murayari','Tolva manual','4. Greisy Romero','5. Gloria Porra','6. Karina Tamani','7. Sara Pumaylle','8. Luisa Mejía','9. Ronal Tina','10. Iván Ortiz'];
+  const g=H.planGuardar({previo:null,r:{fecha:'2026-11-24',turno:'DÍA',produccion:[],paradas:[],mermas:[],personal:Array.from({length:25},(_,i)=>'Persona '+(i+1))},accion:'GUARDAR',usuario:'X',uid:'u',en:1});
+  ok(g.personal.length===25,'se guardan las 25 líneas de personal (antes se cortaba en 20)');
+  if(ExcelJS){
+    const mp=RD.modelo({fecha:'2026-11-19',reportes:[noche,Object.assign({},dia,{personal:lista})],cfg,catalogo:CATALOGO});
+    const sp=(await new ExcelJS.Workbook().xlsx.load(await RD.construirExcel(ExcelJS,mp,{}).xlsx.writeBuffer())).getWorksheet('Resumen y semana');
+    const dCol=[];sp.eachRow(r=>{const v=r.getCell(4).value;if(typeof v==='string')dCol.push(v);});
+    ok(lista.every(x=>dCol.includes(x)),'Excel «Resumen y semana»: aparecen las 13 líneas del personal del día (no solo 5)');
+    let fSem=0;sp.eachRow((r,i)=>{if(/^SEMANA /.test(String(r.getCell(1).value||'')))fSem=i;});
+    let fUlt=0;sp.eachRow((r,i)=>{if(r.getCell(4).value==='10. Iván Ortiz')fUlt=i;});
+    ok(fSem>fUlt,'la tabla de la semana empieza después de la última persona');
+  }
   console.log(fallas?'\n'+fallas+' falla(s)':'\nTodo correcto');
 })();

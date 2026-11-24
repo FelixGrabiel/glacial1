@@ -154,7 +154,7 @@
       mermas:limpiar(r.mermas).map(m=>({item:texto(m.item),marca:texto(m.marca),cantidad:Math.max(0,num(m.cantidad)),unidad:UNIDADES_MERMA.includes(m.unidad)?m.unidad:'UND'})),
       observaciones:texto(r.observaciones).slice(0,500),caidas:!!r.caidas,
       personas:texto(r.personas)!==''&&Number.isInteger(num(r.personas))&&num(r.personas)>=0?Math.min(200,num(r.personas)):null,
-      personal:(Array.isArray(r.personal)?r.personal:String(r.personal||'').split('\n')).map(x=>texto(x).slice(0,60)).filter(Boolean).slice(0,20),
+      personal:(Array.isArray(r.personal)?r.personal:String(r.personal||'').split('\n')).map(x=>texto(x).slice(0,60)).filter(Boolean).slice(0,40),   // 24/11/2026: 40 líneas (antes 20): la lista lleva también los grupos («Maquinas», «Tolva manual»)
       rev:(Number(previo&&previo.rev)||0)+1,
       historial:(previo&&Array.isArray(previo.historial)?previo.historial:[]).concat(accion==='GUARDAR'&&previo?[]:[{accion,por:texto(usuario),uid:texto(uid),en:ahora,motivo:texto(motivo).slice(0,200)}]).slice(-100),
       creadoPor:previo?previo.creadoPor:texto(usuario),creadoEn:previo?previo.creadoEn:ahora,actualizadoPor:texto(usuario),actualizadoUid:texto(uid),actualizadoEn:ahora});
