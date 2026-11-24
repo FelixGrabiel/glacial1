@@ -138,6 +138,20 @@
       if(texto(p.vence)!==''&&!esFecha(p.vence))e.push(`Producción ${i+1}: la fecha de vencimiento no es válida.`);
     });
     if(r&&texto(r.personas)!==''&&(!Number.isInteger(num(r.personas))||num(r.personas)<0||num(r.personas)>200))e.push('El número de personas debe ser un entero entre 0 y 200.');
+    /* Obligatorios para FINALIZAR (24/11/2026). Mientras el turno sigue se puede guardar a medias. */
+    if(r){
+      if(!texto(r.horaInicio))e.push('Indica la hora de inicio.');
+      if(!texto(r.horaFin))e.push('Indica la hora de fin.');
+      if(texto(r.personas)===''||!(num(r.personas)>0))e.push('Indica el N.º de personas.');
+      const pers=(Array.isArray(r.personal)?r.personal:String(r.personal||'').split('\n')).map(texto).filter(Boolean);
+      if(!pers.length)e.push('Escribe el personal del turno.');
+      (r.produccion||[]).forEach((p,i)=>{
+        if(!(num(p.bolsas)>0))return;
+        if(cfg.estaciones&&cfg.estaciones.length&&!texto(p.estacion))e.push(`Producción ${i+1}: elige la estación.`);
+        if(texto(p.horas)===''||!(num(p.horas)>0))e.push(`Producción ${i+1}: indica el tiempo (h).`);
+        if(!texto(p.vence))e.push(`Producción ${i+1}: indica la fecha de vencimiento.`);
+      });
+    }
     return e;
   }
   /** Documento a guardar (limpio): versión +1, historial y autor. accion: GUARDAR | FINALIZAR | REABRIR. */
@@ -549,6 +563,7 @@
 .hl-2>.hl-card{container-type:inline-size}
 /* Producción (24/11/2026: con «Bolsa usada» y «Nota» son 11 columnas): en tarjetas de 4 columnas cuando el recuadro mide menos de 1180 px. */
 .hl-prodtab{container-type:inline-size}
+.hl-req{color:#c62828;font-weight:700}
 @container (max-width:1180px){.hl-prodtab .hl-ed thead{display:none}.hl-prodtab .hl-ed tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 10px;padding:12px 0;border-bottom:1px solid #e2ebf2}
  .hl-prodtab .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-prodtab .hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
  .hl-prodtab .hl-ed td[data-label="Nota"]{grid-column:span 2}.hl-prodtab .hl-ed td[data-label=""]{align-items:flex-end;justify-content:flex-end}.hl-prodtab .hl-ed select,.hl-prodtab .hl-ed input{width:100%}}
@@ -624,15 +639,16 @@
     const dis=bloq?'disabled':'';
     const t=totales([r]);
     // Bolsa usada: la de la marca primero, después las demás marcas (24/11/2026).
+    const RQ=' <b class="hl-req" title="Obligatorio para finalizar">*</b>';      // 24/11/2026: campos obligatorios al finalizar
     const bolsasDe=(c,p)=>{const l=[...new Set([texto(p.marca)].concat(c.marcas||[],texto(p.bolsa)?[texto(p.bolsa)]:[]).filter(Boolean))];return l;};
-    const prod=r.produccion.map((p,i)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlCampo('produccion',${i},'marca',this.value)">${opciones(marcasDe(cfg,p.presentacion).includes(p.marca)||!p.marca?marcasDe(cfg,p.presentacion):[p.marca].concat(marcasDe(cfg,p.presentacion)),p.marca,'— marca —')}</select></td>
-      <td data-label="Presentación"><select ${dis} onchange="hlCampo('produccion',${i},'presentacion',this.value)">${opciones(cfg.presentaciones.includes(p.presentacion)||!p.presentacion?cfg.presentaciones:[p.presentacion].concat(cfg.presentaciones),p.presentacion,'—')}</select></td>
-      <td data-label="Estación"><select ${dis} onchange="hlCampo('produccion',${i},'estacion',this.value)">${opciones(cfg.estaciones.includes(p.estacion)||!p.estacion?cfg.estaciones:[p.estacion].concat(cfg.estaciones),p.estacion,'— estación —')}</select></td>
+    const prod=r.produccion.map((p,i)=>`<tr><td data-label="Marca *"><select ${dis} onchange="hlCampo('produccion',${i},'marca',this.value)">${opciones(marcasDe(cfg,p.presentacion).includes(p.marca)||!p.marca?marcasDe(cfg,p.presentacion):[p.marca].concat(marcasDe(cfg,p.presentacion)),p.marca,'— marca —')}</select></td>
+      <td data-label="Presentación *"><select ${dis} onchange="hlCampo('produccion',${i},'presentacion',this.value)">${opciones(cfg.presentaciones.includes(p.presentacion)||!p.presentacion?cfg.presentaciones:[p.presentacion].concat(cfg.presentaciones),p.presentacion,'—')}</select></td>
+      <td data-label="Estación *"><select ${dis} onchange="hlCampo('produccion',${i},'estacion',this.value)">${opciones(cfg.estaciones.includes(p.estacion)||!p.estacion?cfg.estaciones:[p.estacion].concat(cfg.estaciones),p.estacion,'— estación —')}</select></td>
       <td data-label="${PR().id==='VASOS'?'Vaso usado':'Bolsa usada'}"><select ${dis} onchange="hlCampo('produccion',${i},'bolsa',this.value)" aria-label="Bolsa usada">${opciones(bolsasDe(cfg,p),texto(p.bolsa)||texto(p.marca),PR().id==='VASOS'?'— vaso —':'— bolsa —')}</select></td>
       <td data-label="Lote"><input ${dis} maxlength="40" value="${esc(p.lote)}" placeholder="opcional" oninput="hlCampo('produccion',${i},'lote',this.value)" aria-label="Lote del producto"></td>
-      <td data-label="Tiempo (h)"><input ${dis} type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${esc(p.horas)}" placeholder="opcional" oninput="hlCampo('produccion',${i},'horas',this.value)" aria-label="Tiempo en horas"></td>
-      <td data-label="Vence"><input ${dis} type="date" value="${esc(p.vence)}" onchange="hlCampo('produccion',${i},'vence',this.value)" aria-label="Fecha de vencimiento"></td>
-      <td data-label="${cap(PR().unidad)}"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(p.bolsas)}" oninput="hlCampo('produccion',${i},'bolsas',this.value)" aria-label="${cap(PR().unidad)}"></td>
+      <td data-label="Tiempo (h) *"><input ${dis} type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${esc(p.horas)}" placeholder="horas" oninput="hlCampo('produccion',${i},'horas',this.value)" aria-label="Tiempo en horas"></td>
+      <td data-label="Vence *"><input ${dis} type="date" value="${esc(p.vence)}" onchange="hlCampo('produccion',${i},'vence',this.value)" aria-label="Fecha de vencimiento"></td>
+      <td data-label="${cap(PR().unidad)} *"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(p.bolsas)}" oninput="hlCampo('produccion',${i},'bolsas',this.value)" aria-label="${cap(PR().unidad)}"></td>
       <td data-label="Kilos"><input readonly tabindex="-1" id="hl-kg-${i}" value="${fmt(num(p.bolsas)*kgDe(p.presentacion),1)}" aria-label="Kilos"></td>
       <td data-label="Nota"><input ${dis} maxlength="120" value="${esc(p.nota||'')}" placeholder="opcional" oninput="hlCampo('produccion',${i},'nota',this.value)" aria-label="Nota de la producción"></td>
       <td data-label="">${bloq?'':`<button type="button" class="hl-btn o x" onclick="hlQuitar('produccion',${i})" aria-label="Quitar producción">✕</button>`}</td></tr>`).join('');
@@ -657,12 +673,12 @@
         <label>Fecha<input type="date" value="${esc(r.fecha)}" onchange="hlCambiarTurno(this.value,null)"></label>
         <label>Turno<select onchange="hlCambiarTurno(null,this.value)">${opciones(TURNOS,r.turno)}</select></label>
         <label>Supervisor<input ${dis} maxlength="80" value="${esc(r.supervisor)}" oninput="hlDato('supervisor',this.value)"></label>
-        <label>Hora inicio<input ${dis} type="time" value="${esc(r.horaInicio)}" onchange="hlDato('horaInicio',this.value)"></label>
-        <label>Hora fin<input ${dis} type="time" value="${esc(r.horaFin)}" onchange="hlDato('horaFin',this.value)"></label>
-        <label>N.º de personas<input ${dis} type="number" min="0" max="200" step="1" inputmode="numeric" value="${esc(r.personas)}" placeholder="opcional" oninput="hlDato('personas',this.value)"></label></div>
-        <label style="margin-top:12px">Personal del turno <small>(un nombre por línea, opcional)</small><textarea ${dis} rows="3" maxlength="900" placeholder="Nombre y apellido" oninput="hlDato('personal',this.value)">${esc(Array.isArray(r.personal)?r.personal.join('\n'):String(r.personal||''))}</textarea></label></div>
+        <label><span>Hora inicio <b class="hl-req" title="Obligatorio para finalizar">*</b></span><input ${dis} type="time" value="${esc(r.horaInicio)}" onchange="hlDato('horaInicio',this.value)"></label>
+        <label><span>Hora fin <b class="hl-req" title="Obligatorio para finalizar">*</b></span><input ${dis} type="time" value="${esc(r.horaFin)}" onchange="hlDato('horaFin',this.value)"></label>
+        <label><span>N.º de personas <b class="hl-req" title="Obligatorio para finalizar">*</b></span><input ${dis} type="number" min="0" max="200" step="1" inputmode="numeric" value="${esc(r.personas)}" placeholder="personas" oninput="hlDato('personas',this.value)"></label></div>
+        <label style="margin-top:12px"><span>Personal del turno <b class="hl-req" title="Obligatorio para finalizar">*</b> <small>(un nombre por línea)</small></span><textarea ${dis} rows="3" maxlength="900" placeholder="Nombre y apellido" oninput="hlDato('personal',this.value)">${esc(Array.isArray(r.personal)?r.personal.join('\n'):String(r.personal||''))}</textarea></label></div>
       <div class="hl-card hl-prodtab"><h3>Producción (${PR().unidad})</h3>
-        ${prod?`<table class="hl-ed"><thead><tr><th>Marca</th><th>Presentación</th><th>Estación</th><th title="Con qué bolsa (o vaso) se envasó, si no es la de la marca">${PR().id==='VASOS'?'Vaso usado':'Bolsa usada'}</th><th>Lote</th><th>Tiempo (h)</th><th>Vence</th><th>${cap(PR().unidad)}</th><th>Kilos</th><th>Nota</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
+        ${prod?`<table class="hl-ed"><thead><tr><th>Marca${RQ}</th><th>Presentación${RQ}</th><th>Estación${RQ}</th><th title="Con qué bolsa (o vaso) se envasó, si no es la de la marca">${PR().id==='VASOS'?'Vaso usado':'Bolsa usada'}</th><th>Lote</th><th>Tiempo (h)${RQ}</th><th>Vence${RQ}</th><th>${cap(PR().unidad)}${RQ}</th><th>Kilos</th><th>Nota</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
         <div class="hl-acc" style="margin-top:8px">${bloq?'':'<button type="button" class="hl-btn o" onclick="hlAgregar(\'produccion\')">+ Agregar marca</button>'}
           <span class="hl-sub" id="hl-tot" style="margin:0">${txtUnidades(t)} · <b>${fmt(t.kg,1)} kg</b>${PR().unidadesPorJaba?' · '+fmt(t.bolsas/PR().unidadesPorJaba,2)+' jabas':''}</span></div></div>
       <div class="hl-2"><div class="hl-card"><h3>Paradas</h3>

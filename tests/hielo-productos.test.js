@@ -20,7 +20,7 @@ const d1=N.planGuardar({previo:null,r:Object.assign({producto:'PREMIUM'},base),a
 ok(d1.id==='2026-11-16_DÍA_PREMIUM'&&d1.producto==='PREMIUM'&&d1.produccion[0].horas===0.5&&d1.produccion[0].vence==='2027-11-16'&&d1.personas===2&&d1.personal.join()==='Angelica,Yasmelis','guardar Premium: id, producto, tiempo, vencimiento, personas y personal');
 const d0=N.planGuardar({previo:null,r:Object.assign({},base,{personas:'',personal:[],produccion:[L('Rappi','3 kg',10)]}),accion:'GUARDAR',usuario:'Ana',uid:'u1',en:1});
 ok(d0.id==='2026-11-16_DÍA'&&!('producto' in d0)&&!('personas' in d0)&&!('personal' in d0)&&!('horas' in d0.produccion[0])&&!('vence' in d0.produccion[0]),'guardar Cubos: el documento queda igual que siempre (sin producto ni campos nuevos vacíos)');
-const e1=N.validarFinalizar(Object.assign({producto:'VASOS'},base,{produccion:[L('OXXO','Vaso',190)]}),Object.assign({},N.DEFECTO));
+const e1=N.validarFinalizar(Object.assign({producto:'VASOS'},base,{horaInicio:'07:00',horaFin:'19:00',produccion:[L('OXXO','Vaso',190,'',{estacion:'Tolva manual',horas:2,vence:'2027-11-16'})]}),Object.assign({},N.DEFECTO));
 ok(e1.length===0,'finalizar Vasos: «Vaso» no necesita kg en el nombre (tiene 0.25 kg por vaso)');
 ok(N.validarFinalizar(Object.assign({},base,{produccion:[L('Glacial','2 kg',5,'',{horas:'30'})]}),N.DEFECTO).some(x=>/tiempo/.test(x))&&N.validarFinalizar(Object.assign({},base,{produccion:[L('Glacial','2 kg',5,'',{vence:'mañana'})]}),N.DEFECTO).some(x=>/vencimiento/.test(x))&&N.validarFinalizar(Object.assign({},base,{personas:'-1'}),N.DEFECTO).some(x=>/personas/.test(x)),'validaciones: tiempo fuera de 0-24 h, vencimiento inválido y personas negativas');
 /* configuración de un producto */

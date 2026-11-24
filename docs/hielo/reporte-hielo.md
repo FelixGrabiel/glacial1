@@ -129,3 +129,16 @@ Dónde aparecen:
 Totales y kilos no cambian: cuentan para la marca del cliente. La tabla de producción del formulario pasa a tarjetas cuando no entra a lo ancho.
 
 Pruebas: `tests/hielo-bolsa-nota.test.js` y `tests/hielo-bolsa-nota.e2e.js`.
+
+## Datos obligatorios para finalizar (24/11/2026)
+
+Durante el turno el reporte se puede **guardar a medias**. Para **Finalizar** se exige:
+
+- **Datos del turno**: hora de inicio, hora de fin, N.º de personas (mayor que 0) y personal del turno (al menos un nombre).
+- **Cada fila con bolsas o vasos**: marca, presentación, estación (si hay estaciones configuradas), **tiempo (h)** mayor que 0, fecha de **vencimiento** y cantidad.
+
+La bolsa usada, la nota y el lote siguen siendo opcionales. El lote será automático cuando llegue la lista de códigos por marca.
+
+El formulario marca los obligatorios con un **asterisco rojo**. Si falta algo, Finalizar avisa qué falta («Producción 1: indica el tiempo (h)…»).
+
+Pruebas: `tests/reporte-hielo.test.js` y `tests/hielo-bolsa-nota.e2e.js`.

@@ -43,7 +43,13 @@ ok(av.filas[0].presentacion==='5 kg'&&H.avance([],[]).cumplimiento===null,'avanc
 
 const cfg={equipos:['Embolsadora'],motivos:['Mantenimiento','Otros']};
 const errs=r=>H.validarFinalizar(r,cfg).join(' ');
-ok(!H.validarFinalizar(Object.assign({},r1,{paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15}]}),cfg).length,'validarFinalizar: un reporte completo se puede finalizar');
+// 24/11/2026: al finalizar también son obligatorios horas de inicio y fin, personas, personal y, por fila, estación, tiempo (h) y vencimiento.
+const completo=r=>Object.assign({},r,{horaInicio:'07:00',horaFin:'19:00',personas:3,personal:['Ana','Luis','Rosa'],produccion:(r.produccion||[]).map(p=>Object.assign({estacion:'Tolva manual',horas:4,vence:'2027-11-16'},p))});
+ok(!H.validarFinalizar(Object.assign({},completo(r1),{paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15}]}),cfg).length,'validarFinalizar: un reporte completo se puede finalizar');
+{const e=H.validarFinalizar(Object.assign({},r1,{horaInicio:'',horaFin:'',personas:'',personal:'',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:100}]}),Object.assign({},cfg,{estaciones:['Tolva manual']})).join(' ');
+ ok(/hora de inicio/.test(e)&&/hora de fin/.test(e)&&/N\.º de personas/.test(e)&&/personal del turno/.test(e)&&/Producción 1: elige la estación/.test(e)&&/Producción 1: indica el tiempo \(h\)/.test(e)&&/Producción 1: indica la fecha de vencimiento/.test(e),'validarFinalizar: pide horas del turno, personas, personal y, por fila, estación, tiempo (h) y vencimiento');
+ const g=H.validarFinalizar(Object.assign({},completo(r1),{produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:0}].concat(completo(r1).produccion)}),cfg).join(' ');
+ ok(!/Producción 1: indica el tiempo/.test(g),'una fila sin bolsas no exige tiempo ni vencimiento');}
 ok(/Merma 1: elige la marca/.test(errs(Object.assign({},r1,{paradas:[],mermas:[{item:'Bolsas',cantidad:5,unidad:'UND'}]}))),'validarFinalizar: la merma pide la marca');
 ok(/al menos una producción/.test(errs(Object.assign({},r1,{produccion:[]}))),'validarFinalizar: pide producción');
 ok(/número entero/.test(errs(Object.assign({},r1,{produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:2.5}]}))),'validarFinalizar: bolsas enteras');
