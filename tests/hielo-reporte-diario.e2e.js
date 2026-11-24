@@ -42,7 +42,9 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(/11,450\.25 kg/i.test(txt) && /15,110\.00 kg/i.test(txt) && /26,560\.25 kg/i.test(txt), 'tarjetas: noche 11,450.25 kg · día 15,110.00 kg · total del día 26,560.25 kg');
   ok(/Eficiencia 33\.68 %/i.test(txt) && /Eficiencia 44\.44 %/i.test(txt), 'eficiencia 33.68 % (noche) y 44.44 % (día)');
   ok(/Semana 47/i.test(txt), 'semana 47');
-  ok(await P.evaluate(() => document.querySelectorAll('.hl-rd-t tbody tr').length) === 15, 'la tabla por marca trae las 14 filas del catálogo más el total');
+  /* 24/11/2026: la tabla va por estación (estos reportes no anotan estación: un solo bloque «SIN ESTACIÓN») y solo con las marcas producidas. */
+  const filasT = await P.evaluate(() => [...document.querySelectorAll('.hl-rd-t tbody tr')].map(r => r.innerText.replace(/\s+/g, ' ').trim()));
+  ok(/^SIN ESTACIÓN/.test(filasT[0]) && /^Subtotal sin estación/.test(filasT[filasT.length - 2]) && /^TOTAL/.test(filasT[filasT.length - 1]) && !filasT.some(t => /CERTIFICADO/.test(t)), 'la tabla por marca va por estación, con subtotal y total, y sin las marcas del catálogo no producidas');
   ok(/RAPPI \(3KG\)/i.test(txt) && /6,165\.25/.test(txt) && /2\.27/.test(txt) && /11147323/.test(txt), 'la tabla muestra Rappi, 6,165.25 kg de Bell\'s, 2.27 paletas y el lote');
   ok(await P.evaluate(() => document.querySelectorAll('#hl-rd-graficos canvas').length) === 7, 'se dibujan las 7 gráficas (capacidad, presentación, semana, paradas, carta de control, mezcla por marca y mapa de calor)');
   ok(await P.evaluate(() => [...document.querySelectorAll('#hl-rd-graficos canvas')].every(c => { const x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height).data; let colores = 0; const vistos = new Set(); for (let i = 0; i < d.length; i += 4000) vistos.add(d[i] + ',' + d[i + 1] + ',' + d[i + 2]); return vistos.size > 2; })), 'las gráficas no están en blanco');
@@ -60,7 +62,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   let tt = await P.evaluate(() => document.querySelector('.hl-main').innerText.replace(/\s+/g, ' '));
   ok(await P.evaluate(() => document.querySelector('select[aria-label="Turno del reporte"]').value === 'NOCHE' && /Fecha del turno/i.test(document.querySelector('.hl-main').innerText)), 'el selector de turno cambia a «Solo turno noche» y la fecha pasa a ser la del turno');
   ok(/Turno noche · 18\/11\/26/i.test(tt) && /11,450\.25 kg/.test(tt) && !/Turno día · /i.test(tt) && !/DÍA · \d/.test(tt), 'solo noche del 18/11: no aparece el bloque del día');
-  ok(await P.evaluate(() => document.querySelectorAll('.hl-rd-t thead th[colspan="6"]').length) === 1 && await P.evaluate(() => document.querySelectorAll('.hl-rd-t tbody tr:first-child td').length) === 7, 'la tabla por marca muestra un solo bloque de 6 columnas');
+  ok(await P.evaluate(() => document.querySelectorAll('.hl-rd-t thead th[colspan="6"]').length) === 1 && await P.evaluate(() => document.querySelectorAll('.hl-rd-t tbody tr:nth-child(2) td').length) === 7, 'la tabla por marca muestra un solo bloque de 6 columnas');
   ok(await P.evaluate(() => document.querySelectorAll('#hl-rd-graficos canvas').length) === 7, 'con un solo turno se siguen dibujando las 7 gráficas');
   if (process.env.GLX_CAPTURAS) await P.locator('#hl-rd-graficos').screenshot({ path: process.env.GLX_CAPTURAS + '/hielo-reporte-solo-noche.png' });
   ok(await P.evaluate(() => { const c = glacialHieloReporte.imagen(glacialHieloReporte.modelo({ fecha: '2026-11-18', turno: 'NOCHE', dias: 14, reportes: glacialHieloDatos.cache.reportes, cfg: glacialHieloDatos.config(), catalogo: PRODUCTOS_HIELO })); return c.width === 2480 && c.height > 1500; }), 'la imagen de WhatsApp también sale solo con el turno noche');

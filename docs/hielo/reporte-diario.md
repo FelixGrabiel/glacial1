@@ -85,3 +85,14 @@ Una merma con cantidad 0 no cuenta. Pruebas: `tests/hielo-reporte-diario.test.js
 
 - **Excel**: la hoja «Resumen y semana» lista a **todas** las personas de cada turno; antes solo salían las 5 primeras. La lista aparece tal como se registró, con sus grupos y su numeración («Maquinas», «1. Moisés…»). Si hay menos de 5, se mantienen las 5 filas del formato.
 - **Guardado**: el reporte guarda hasta **40 líneas** de personal; antes eran 20, contando los grupos.
+
+## Reporte por marca separado por estación (24/11/2026)
+
+La tabla «Reporte por marca» del Excel, la pantalla y la imagen va separada por **estación**:
+
+- **Bloques**: Env. automática, Tolva manual y, al final, «SIN ESTACIÓN» si algún registro no la anotó. Cada bloque lleva su encabezado, sus marcas y su **subtotal** de bolsas, tiempo, paletas o jabas y kilos, por noche y por día.
+- **Qué marcas aparecen**: solo las producidas en cada estación, en el orden del catálogo. Las marcas del catálogo sin producción ya no ocupan filas vacías.
+- **Marca en dos estaciones**: aparece en cada bloque con su cantidad.
+- **TOTAL del turno**: no cambia.
+
+El modelo expone `porEstacion`. `filas`, el catálogo completo, se mantiene para el resumen por presentación y las gráficas. Pruebas: `tests/hielo-reporte-diario.test.js` y `tests/hielo-reporte-diario.e2e.js`.

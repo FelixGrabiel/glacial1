@@ -141,6 +141,25 @@ let ExcelJS=null;try{ExcelJS=require(require('path').join(process.env.GLX_LIBS||
     const s0=(await new ExcelJS.Workbook().xlsx.load(await RD.construirExcel(ExcelJS,m,{}).xlsx.writeBuffer())).getWorksheet('Reporte diario');
     ok(/Sin merma registrada/.test(vals(s0)),'Excel sin merma: «Sin merma registrada»');
   }
+  /* Por estación (24/11/2026): un bloque por estación, solo con lo producido allí, y su subtotal. */
+  const E=(marca,presentacion,bolsas,estacion,lote)=>({marca,presentacion,bolsas,estacion,lote:lote||''});
+  const dE={id:'2026-11-24_DÍA',fecha:'2026-11-24',turno:'DÍA',estado:'EN_REGISTRO',produccion:[E("Bell's",'3 kg',1200,'Env. automática'),E('Glacial','3 kg',900,'Tolva manual'),E('Glacial','1.5 kg',960,'Tolva manual'),E('Listo','1.5 kg',600,'Tolva manual'),E('Glacial','3 kg',100,'Env. automática'),E('Rappi','3 kg',50,'')]};
+  const me=RD.modelo({fecha:'2026-11-24',turno:'DIA',reportes:[dE],cfg,catalogo:CATALOGO});
+  const es=n=>me.porEstacion.find(x=>x.nombre===n);
+  ok(me.porEstacion.map(x=>x.nombre).join('|')==='ENV. AUTOMÁTICA|TOLVA MANUAL|SIN ESTACIÓN','bloques: Env. automática, Tolva manual y al final «sin estación»');
+  ok(es('ENV. AUTOMÁTICA').filas.map(x=>x.etiqueta).join('|')==="GLACIAL (3KG)|BELL'S (3KG)"&&es('ENV. AUTOMÁTICA').dia.bolsas===1300&&es('ENV. AUTOMÁTICA').dia.paletas===4.33,'Env. automática: solo sus marcas (orden del catálogo) y subtotal 1,300 bolsas / 4.33 paletas');
+  ok(es('TOLVA MANUAL').dia.bolsas===2460&&es('TOLVA MANUAL').dia.pesoKg===Math.round((900*3.25+1560*1.75)*100)/100&&es('TOLVA MANUAL').filas.find(x=>x.etiqueta==='GLACIAL (3KG)').dia.bolsas===900,'Tolva manual: 2,460 bolsas y sus kg; Glacial 3 kg aparece en las dos estaciones con su cantidad');
+  ok(me.porEstacion.reduce((q,x)=>q+x.dia.bolsas,0)===me.dia.bolsas&&me.porEstacion.flatMap(x=>x.filas).map(x=>x.n).join()==='1,2,3,4,5,6','los subtotales suman el total del turno; numeración seguida');
+  ok(me.filas.length===14,'la lista del catálogo (m.filas) sigue igual para las demás tablas');
+  if(ExcelJS){
+    const se=(await new ExcelJS.Workbook().xlsx.load(await RD.construirExcel(ExcelJS,me,{}).xlsx.writeBuffer())).getWorksheet('Reporte diario');
+    const colA=[];se.eachRow(r=>{const v=r.getCell(1).value;if(typeof v==='string')colA.push(v);});
+    const iA=colA.indexOf('ENV. AUTOMÁTICA'),iT=colA.indexOf('TOLVA MANUAL');
+    ok(iA>0&&colA[iA+3]==='Subtotal Env. automática'&&colA[iT+4]==='Subtotal Tolva manual'&&colA.includes('SIN ESTACIÓN')&&!colA.some(x=>/CERTIFICADO/.test(x)),'Excel: bloques por estación con subtotal y sin filas vacías del catálogo');
+    let sub=null;se.eachRow(r=>{if(r.getCell(1).value==='Subtotal Tolva manual')sub=r;});
+    const vals=[];sub.eachCell(c=>{if(typeof c.value==='number')vals.push(c.value);});
+    ok(vals.includes(2460),'Excel: subtotal de Tolva manual = 2,460 bolsas');
+  }
   /* Personal (24/11/2026): el Excel lista a TODAS las personas de cada turno (antes solo las 5 primeras), y se guardan hasta 40 líneas. */
   const lista=['Maquinas','1. Moisés Amansife','Env. Automática','2. Santiago Pumaylle','3. Mark Murayari','Tolva manual','4. Greisy Romero','5. Gloria Porra','6. Karina Tamani','7. Sara Pumaylle','8. Luisa Mejía','9. Ronal Tina','10. Iván Ortiz'];
   const g=H.planGuardar({previo:null,r:{fecha:'2026-11-24',turno:'DÍA',produccion:[],paradas:[],mermas:[],personal:Array.from({length:25},(_,i)=>'Persona '+(i+1))},accion:'GUARDAR',usuario:'X',uid:'u',en:1});
