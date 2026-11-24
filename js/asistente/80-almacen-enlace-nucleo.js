@@ -84,6 +84,48 @@
     return out;
   }
 
+  /* Kardex de un insumo desde el último corte: saldo inicial (corte) y cada movimiento con su saldo corrido.
+     Entrega = salida · Devolución utilizable = entrada · Anulación = reversa de lo anulado (queda a la vista, no se borra).
+     La devolución observada/dañada se muestra sin mover el saldo. El saldo final coincide con stockAlmacen().disponible.
+     → { estado, base, fechaCorte, filas:[{en,fecha,tipo,entrada,salida,saldo,solicitudId,usuario,nota,opId}], totalEntradas, totalSalidas, saldo } */
+  function kardex({ insumo, catalogo, corte, corteMeta, movs, devs }) {
+    const st = stockAlmacen({ insumo, catalogo, corte, corteMeta, movs, devs });
+    if (st.estado !== 'OK') return { estado: st.estado, base: 0, fechaCorte: st.fechaCorte, filas: [], totalEntradas: 0, totalSalidas: 0, saldo: 0 };
+    const cod = insumo.codigo, fc = texto(st.fechaCorte);
+    const todos = [].concat((movs || []).map(m => ({ m, libro: 'A' })), (devs || []).map(m => ({ m, libro: 'D' })));
+    const porId = {}; todos.forEach(x => { if (x.m && x.m.opId) porId[x.m.opId] = x.m; });
+    const filas = [];
+    todos.forEach(({ m }) => {
+      if (!m || texto(m.fecha) < fc) return;
+      if (m.tipo === 'ENTREGA' && m.insumo === cod) filas.push({ en: num(m.en), fecha: texto(m.fecha), tipo: 'ENTREGA', entrada: 0, salida: num(m.cantidad), solicitudId: texto(m.solicitudId), usuario: texto(m.usuario), nota: m.sinStock ? 'Sin stock autorizado' : '', opId: m.opId });
+      else if (m.tipo === 'DEVOLUCION' && m.insumo === cod) {
+        const util = (m.condicion || 'UTILIZABLE') === 'UTILIZABLE';
+        filas.push({ en: num(m.en), fecha: texto(m.fecha), tipo: 'DEVOLUCION', entrada: util ? num(m.cantidad) : 0, salida: 0, solicitudId: texto(m.solicitudId), usuario: texto(m.usuario), nota: util ? '' : 'No vuelve al stock (' + texto(m.condicion).toLowerCase() + ')', opId: m.opId, informativo: !util ? num(m.cantidad) : 0 });
+      } else if (m.tipo === 'ANULACION' && m.anulaA) {
+        const o = porId[m.anulaA];
+        if (!o || o.insumo !== cod) return;
+        const util = o.tipo === 'ENTREGA' || (o.condicion || 'UTILIZABLE') === 'UTILIZABLE';
+        if (!util) return;
+        const esEntrega = o.tipo === 'ENTREGA';
+        filas.push({ en: num(m.en), fecha: texto(m.fecha) || texto(o.fecha), tipo: 'ANULACION', entrada: esEntrega ? num(o.cantidad) : 0, salida: esEntrega ? 0 : num(o.cantidad), solicitudId: texto(o.solicitudId), usuario: texto(m.usuario), nota: 'Anula ' + (esEntrega ? 'entrega' : 'devolución') + ' ' + texto(m.anulaA), opId: m.opId });
+      }
+    });
+    filas.sort((a, b) => (a.en - b.en) || (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0));
+    let saldo = st.base, te = 0, ts = 0;
+    filas.forEach(f => { saldo = red(saldo + f.entrada - f.salida); f.saldo = saldo; te = red(te + f.entrada); ts = red(ts + f.salida); });
+    return { estado: 'OK', base: st.base, fechaCorte: st.fechaCorte, filas, totalEntradas: te, totalSalidas: ts, saldo };
+  }
+
+  /* CSV del kardex (separador «;», decimales con coma, para abrir directo en Excel en español). */
+  function kardexCsv(k, nombre) {
+    const n = v => String(red(v)).replace('.', ',');
+    const q = v => '"' + texto(v).replace(/"/g, '""') + '"';
+    const L = [['Insumo', nombre || ''], ['Corte', k.fechaCorte], [], ['Fecha', 'Movimiento', 'Solicitud', 'Entrada', 'Salida', 'Saldo', 'Responsable', 'Nota']].map(r => r.map(q).join(';'));
+    L.push(['', 'Saldo inicial (corte)', '', '', '', n(k.base), '', ''].map((v, i) => i === 5 ? v : q(v)).join(';'));
+    k.filas.forEach(f => L.push([q(f.fecha), q(f.tipo), q(f.solicitudId), f.entrada ? n(f.entrada) : '', f.salida ? n(f.salida) : '', n(f.saldo), q(f.usuario), q(f.nota)].join(';')));
+    return '\ufeff' + L.join('\r\n');
+  }
+
   /* Texto corto del estado del enlace para mostrar en pantalla. */
   const TXT_ESTADO = {
     SIN_ENLACE: 'Sin enlace con el Inventario',
@@ -157,8 +199,60 @@
     });
   }
 
+  /* ---------- Bandeja «Por atender» de Almacén (prioridad por espera) ---------- */
+  const EN_ESPERA = ['SOLICITADA', 'EN_PREPARACION', 'ENTREGADA_PARCIAL'];
+  const MIN_ATENCION = 120, MIN_URGENTE = 360;
+  const ultimoEn = s => { const h = (s && s.historial) || []; const x = h.length ? h[h.length - 1] : null; return x ? num(x.en) : 0; };
+  /** Solicitud que Almacén aún tiene que atender: cuánto espera y qué tan urgente es (≥ 2 h atención, ≥ 6 h urgente). */
+  function prioridadSolicitud(s, ahoraMs) {
+    if (!s || !EN_ESPERA.includes(s.estado)) return { atender: false, nivel: 'normal', esperaMin: 0 };
+    const ult = ultimoEn(s), min = ult ? Math.max(0, Math.round((ahoraMs - ult) / 60000)) : 0;
+    return { atender: true, nivel: min >= MIN_URGENTE ? 'urgente' : min >= MIN_ATENCION ? 'atencion' : 'normal', esperaMin: min };
+  }
+  /** Primero lo que Almacén debe atender (la que más espera arriba); el resto como siempre (por estado y número). */
+  function ordenarPorAtender(lista, ahoraMs, orden) {
+    return (lista || []).slice().sort((a, b) => {
+      const pa = prioridadSolicitud(a, ahoraMs), pb = prioridadSolicitud(b, ahoraMs);
+      if (pa.atender !== pb.atender) return pa.atender ? -1 : 1;
+      if (pa.atender) return pb.esperaMin - pa.esperaMin;
+      return ((orden || {})[a.estado] ?? 9) - ((orden || {})[b.estado] ?? 9) || String(b.id).localeCompare(String(a.id));
+    });
+  }
+  function resumenPorAtender(lista, ahoraMs) {
+    const l = (lista || []).map(s => prioridadSolicitud(s, ahoraMs)).filter(p => p.atender);
+    return { total: l.length, urgentes: l.filter(p => p.nivel === 'urgente').length, atencion: l.filter(p => p.nivel === 'atencion').length, masAntiguaMin: l.reduce((m, p) => Math.max(m, p.esperaMin), 0) };
+  }
+  const txtEspera = min => min < 60 ? min + ' min' : min < 1440 ? Math.floor(min / 60) + ' h' + (min % 60 ? ' ' + (min % 60) + ' min' : '') : Math.floor(min / 1440) + ' d';
+
+  /* ---------- Vale de entrega (comprobante imprimible de una entrega a Producción) ---------- */
+  /** sol: solicitud; n: n.º de entrega (1…); insumoDe(codigo) → {nombre, unidad}. null si esa entrega no existe, no tiene detalle o está anulada. */
+  function armarVale(sol, n, insumoDe) {
+    const ent = ((sol && sol.historial) || []).filter(h => h && h.entrega), h = ent[n - 1];
+    if (!h || !h.entregas) return null;
+    if (((sol && sol.historial) || []).some(x => x && x.anulaEntrega === n)) return null;
+    const lineas = Object.keys(h.entregas).filter(k => num(h.entregas[k]) > 0).map(k => {
+      const i = (insumoDe && insumoDe(k)) || {}, it = (sol.items || []).find(x => x.insumo === k) || {};
+      return { codigo: k, nombre: i.nombre || k, cantidad: red(num(h.entregas[k])), unidad: it.unidad || i.unidad || '' };
+    });
+    return { numero: sol.id + '-E' + n, solicitud: sol.id, entrega: n, fecha: sol.fecha, bloque: sol.bloque === 'NOCHE' ? 'Noche' : 'Mañana + Intermedio', en: num(h.en), entrego: h.por || '', solicito: sol.creadoPor || '', observaciones: sol.observaciones || '', nota: h.nota || '', lineas };
+  }
+  const escH = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  /** Documento HTML autónomo del vale (para imprimir o guardar como PDF). */
+  function valeHtml(v, cuando) {
+    const f = v.en ? new Date(v.en).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'short', hour12: false }) : '';
+    const filas = v.lineas.map((l, i) => '<tr><td>' + (i + 1) + '</td><td>' + escH(l.nombre) + '<small>' + escH(l.codigo) + '</small></td><td class="n">' + escH(l.cantidad.toLocaleString('es-PE', { maximumFractionDigits: 4 })) + '</td><td>' + escH(l.unidad) + '</td></tr>').join('');
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vale de entrega ' + escH(v.numero) + '</title>'
+      + '<style>body{font:14px/1.4 system-ui,Arial,sans-serif;color:#14263a;margin:24px;max-width:760px}h1{font-size:20px;margin:0}h2{font-size:12px;letter-spacing:.08em;color:#587087;margin:0 0 14px;font-weight:700}.c{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin:12px 0}.c b{display:block;font-size:11px;letter-spacing:.06em;color:#587087;text-transform:uppercase}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #cfdbe6;padding:7px 9px;text-align:left}th{background:#f1f6fa;font-size:12px}td.n{text-align:right;font-variant-numeric:tabular-nums}td small{display:block;color:#587087;font-size:11px}.f{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px}.f div{border-top:1px solid #14263a;padding-top:6px;text-align:center;font-size:12px}.p{margin-top:24px;color:#587087;font-size:11px}@media print{body{margin:10mm}}</style></head><body>'
+      + '<h1>VALE DE ENTREGA</h1><h2>GLACIAL · Almacén → Producción</h2>'
+      + '<div class="c"><div><b>N.º de vale</b>' + escH(v.numero) + '</div><div><b>Fecha y hora</b>' + escH(f) + '</div><div><b>Solicitud</b>' + escH(v.solicitud) + ' · entrega n.º ' + v.entrega + '</div><div><b>Turno solicitado</b>' + escH(v.fecha) + ' · ' + escH(v.bloque) + '</div><div><b>Entregó (Almacén)</b>' + escH(v.entrego) + '</div><div><b>Solicitó (Producción)</b>' + escH(v.solicito) + '</div></div>'
+      + '<table><thead><tr><th>#</th><th>Insumo</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>' + filas + '</tbody></table>'
+      + (v.nota || v.observaciones ? '<p><b>Observaciones:</b> ' + escH([v.observaciones, v.nota].filter(Boolean).join(' · ')) + '</p>' : '')
+      + '<div class="f"><div>Entregó · Almacén</div><div>Recibió · Producción</div></div><p class="p">Documento generado por GLACIAL' + (cuando ? ' el ' + escH(cuando) : '') + '. La recepción se confirma en el sistema por Producción.</p></body></html>';
+  }
+
   const API = { IDX_INSUMOS, MIN_MOTIVO, TXT_ESTADO, resolverArticulo, filaDelCorte, entregasPosteriores, devolucionesPosteriores, ajustes, stockAlmacen, revisarPedido,
-    validarEntregaContraStock, movimientosEntrega, transitoYComprometido, resumenEntrega };
+    validarEntregaContraStock, movimientosEntrega, transitoYComprometido, resumenEntrega,
+    kardex, kardexCsv, prioridadSolicitud, ordenarPorAtender, resumenPorAtender, txtEspera, armarVale, valeHtml, MIN_ATENCION, MIN_URGENTE };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof window !== 'undefined') window.glacialAlmacenEnlace = API;
   else if (raiz) raiz.glacialAlmacenEnlace = API;

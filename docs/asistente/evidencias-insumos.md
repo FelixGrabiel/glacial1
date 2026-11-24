@@ -55,3 +55,11 @@ movimientos de inventario (recepción, transferencia, consumo): **Fase 4**.
 `tests/evidencias-insumos.test.js`: núcleo (construcción y saneo, ediciones, confirmaciones, aprobación, transiciones, «registrado» bloqueado, reabrir solo
 Administrador), datos con base simulada (foto privada, auditoría, concurrencia, doble clic, permisos, nada de stock), pantalla (foto al lado, dudas, solo consulta) e
 integración (index.html, pestaña, migración, índice).
+
+## Más fácil de usar (21/11/2026)
+
+- **Unidad de la cantidad**: ahora es una **lista** (UND, MILLARES, KG, ROLLOS, BOBINAS, CAJAS, BOLSAS, PAQUETES, LITROS), no un texto libre. Así no se escribe un número en la unidad por error. Si la IA leyó otra unidad, se conserva marcada «(corrígela)». Si alguien intenta guardar un número como unidad, el sistema avisa: «aquí va la unidad, no un número; el número va en Cantidad». Lo mismo en la validación rápida.
+- **Calculadora**, en pocas palabras: escribes los **kilos** y te da las **UND** (o al revés). Muestra el resultado en una línea («346.59 kg ≈ 8,117 UND») y compara con la etiqueta con frases claras («✔ Coincide…» o «⚠ La etiqueta dice X y el cálculo da Y: revisa el peso y la cantidad»). Entiende cantidades en millares. Con una conversión guardada solo muestra un resumen («Conversión usada: Etiqueta · 1 UND = 0,64 g») y un botón «Cambiar» para elegir línea o escribirla a mano.
+- **«Poner N UND en Cantidad»**: pasa el resultado de la calculadora a la cantidad y la unidad como borrador. No guarda nada hasta pulsar «Guardar cambios» o «Confirmar».
+- **Confirmar y crear lote**: textos más cortos y claros («el número se pone solo», «las fotos con el mismo lote se confirman solo si tú las dejas marcadas»).
+- **Otras fotos del mismo lote** (ventana de crear lote): las fotos que no se pueden marcar muestran el motivo en palabras simples («Falta confirmar: Fecha de producción») y un botón **«Revisar esta foto»**, que abre esa foto para confirmar sus datos. Después se pulsa «Confirmar y crear lote» en ella y se suma al mismo lote. La foto que se está validando se puede confirmar sin esperar a las demás.

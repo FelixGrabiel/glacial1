@@ -5,19 +5,34 @@ let fallas=0;const ok=(c,t)=>{console.log((c?'✔ ':'✘ FALLA ')+t);if(!c)falla
 const leer=f=>fs.readFileSync(R+'/'+f,'utf8');
 const H=require(R+'/js/hielo/97-hielo.js');
 
-ok(H.kgDe('1.5 kg')===1.5&&H.kgDe('3 kg')===3&&H.kgDe('5 kg')===5&&H.kgDe('1,5 kg')===1.5&&H.kgDe('bolsa')===0,'kgDe: lee los kg de la presentación');
+ok(H.kgDe('1.5 kg')===1.75&&H.kgDe('3 kg')===3.25&&H.kgDe('5 kg')===5&&H.kgDe('1,5 kg')===1.5&&H.kgDe('bolsa')===0,'kgDe: kg REALES por bolsa (3 kg → 3.25, 1.5 kg → 1.75); sin dato, el número del nombre');
+ok(H.kgNominal('1.5 kg')===1.5&&H.kgNominal('3 kg')===3&&H.kgNominal('bolsa')===0,'kgNominal: el número del nombre (para validar y ordenar)');
+H.aplicarConfigPesos({pesos:{'3 kg':3.3,'5 kg':5.4}});
+ok(H.kgDe('3 kg')===3.3&&H.kgDe('5 kg')===5.4&&H.kgDe('1.5 kg')===1.75,'aplicarConfigPesos: la configuración manda y lo no configurado conserva el valor de fábrica');
+H.aplicarConfigPesos(null);
+ok(H.kgDe('3 kg')===3.25&&H.kgDe('5 kg')===5,'aplicarConfigPesos(null): vuelve a los valores de fábrica');
+H.aplicarConfigPesos({pesos:{'3 kg':'abc','1.5 kg':-2}});
+ok(H.kgDe('3 kg')===3.25&&H.kgDe('1.5 kg')===1.75,'aplicarConfigPesos: un peso inválido se ignora');
+H.aplicarConfigPesos(null);
+// El reporte de la planta del 18-19/11/2026: la noche da 11,450.25 kg y el día 15,110 kg con estos pesos.
+{const noche=[{presentacion:'3 kg',bolsas:680},{presentacion:'3 kg',bolsas:1897},{presentacion:'3 kg',bolsas:300},{presentacion:'1.5 kg',bolsas:600},{presentacion:'1.5 kg',bolsas:600}].map(x=>Object.assign({marca:'X'},x));
+ const dia=[520,750,1500,310,600].map(b=>({marca:'X',presentacion:'3 kg',bolsas:b})).concat([1200,600].map(b=>({marca:'X',presentacion:'1.5 kg',bolsas:b})));
+ ok(H.totales([{produccion:noche}]).kg===11450.25&&H.totales([{produccion:dia}]).kg===15110,'kilos de la planta: noche 11,450.25 kg y día 15,110.00 kg (coincide con su Excel)');}
 ok(H.ordenPres(['1.5 kg','5 kg','3 kg','3 kg']).join()==='5 kg,3 kg,1.5 kg','ordenPres: de mayor a menor, sin repetidos');
 ok(H.TURNOS.join()==='DÍA,INTERMEDIO,NOCHE'&&H.idReporte('2026-11-07','NOCHE')==='2026-11-07_NOCHE','turnos de Agua e id por fecha y turno');
 ok(H.DEFECTO.equipos.length===0,'los equipos de la planta no se inventan: empiezan vacíos');
 
 const r1={fecha:'2026-11-07',turno:'DÍA',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:2600},{marca:'Tottus',presentacion:'3 kg',bolsas:'1700'},{marca:'Glacial',presentacion:'1.5 kg',bolsas:400},{marca:'Glacial',presentacion:'5 kg',bolsas:0}],
-  paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15},{motivo:'Otros',minutos:'30',nota:'Falta de agua'}],mermas:[{item:'Bolsas',cantidad:50,unidad:'UND'},{item:'Bobina',cantidad:'1.8',unidad:'KG'}]};
-const r2={fecha:'2026-11-07',turno:'NOCHE',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:1000}],paradas:[],mermas:[{item:'Bolsas',cantidad:10,unidad:'UND'}]};
+  paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15},{motivo:'Otros',minutos:'30',nota:'Falta de agua'}],mermas:[{item:'Bolsas',marca:'Glacial',cantidad:50,unidad:'UND'},{item:'Bobina',marca:'Tottus',cantidad:'1.8',unidad:'KG'}]};
+const r2={fecha:'2026-11-07',turno:'NOCHE',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:1000}],paradas:[],mermas:[{item:'Bolsas',marca:'Glacial',cantidad:10,unidad:'UND'}]};
 const t=H.totales([r1,r2]);
 ok(t.porPres['3 kg']===5300&&t.porPres['1.5 kg']===400&&!t.porPres['5 kg'],'totales: bolsas separadas por presentación (3 kg y 1.5 kg)');
-ok(t.bolsas===5700&&t.kg===5300*3+400*1.5,'totales: bolsas y kilos (bolsas × kg)');
+ok(t.bolsas===5700&&t.kg===5300*3.25+400*1.75,'totales: bolsas y kilos (bolsas × kg reales)');
 ok(t.paradasMin===45&&t.paradas===2,'totales: paradas en minutos y eventos');
 ok(t.merma.find(m=>m.item==='Bolsas'&&m.unidad==='UND').cantidad===60&&t.merma.find(m=>m.item==='Bobina').cantidad===1.8,'totales: merma por ítem y unidad');
+ok(t.merma.find(m=>m.item==='Bolsas').marca==='Glacial'&&t.merma.find(m=>m.item==='Bobina').marca==='Tottus','totales: la merma dice de qué marca es (23/11/2026)');
+{const t2=H.totales([{mermas:[{item:'Bolsas',marca:'Glacial',cantidad:5,unidad:'UND'},{item:'Bolsas',marca:'Tottus',cantidad:3,unidad:'UND'}]}]);
+ok(t2.merma.length===2&&t2.merma.find(m=>m.marca==='Tottus').cantidad===3,'totales: la misma merma de dos marcas se separa por marca');}
 
 const prog=[{items:[{marca:'Glacial',presentacion:'3 kg',bolsas:3000},{marca:'Tottus',presentacion:'3 kg',bolsas:2000},{marca:'Glacial',presentacion:'5 kg',bolsas:1000}]}];
 const av=H.avance([r1],prog);
@@ -29,6 +44,7 @@ ok(av.filas[0].presentacion==='5 kg'&&H.avance([],[]).cumplimiento===null,'avanc
 const cfg={equipos:['Embolsadora'],motivos:['Mantenimiento','Otros']};
 const errs=r=>H.validarFinalizar(r,cfg).join(' ');
 ok(!H.validarFinalizar(Object.assign({},r1,{paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15}]}),cfg).length,'validarFinalizar: un reporte completo se puede finalizar');
+ok(/Merma 1: elige la marca/.test(errs(Object.assign({},r1,{paradas:[],mermas:[{item:'Bolsas',cantidad:5,unidad:'UND'}]}))),'validarFinalizar: la merma pide la marca');
 ok(/al menos una producción/.test(errs(Object.assign({},r1,{produccion:[]}))),'validarFinalizar: pide producción');
 ok(/número entero/.test(errs(Object.assign({},r1,{produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:2.5}]}))),'validarFinalizar: bolsas enteras');
 ok(/elige el equipo/.test(errs(Object.assign({},r1,{paradas:[{motivo:'Mantenimiento',minutos:5}]}))),'validarFinalizar: con equipos configurados, la parada pide equipo');
@@ -39,6 +55,7 @@ ok(/turno/.test(errs(Object.assign({},r1,{turno:'TARDE'}))),'validarFinalizar: t
 const d1=H.planGuardar({previo:null,r:r1,accion:'GUARDAR',usuario:'Ana',uid:'u1',en:100});
 ok(d1.id==='2026-11-07_DÍA'&&d1.rev===1&&d1.estado==='EN_REGISTRO'&&d1.actualizadoUid==='u1'&&d1.historial.length===1,'planGuardar: crea el reporte (versión 1, autor, historial)');
 ok(d1.produccion[1].bolsas===1700&&typeof d1.produccion[1].bolsas==='number'&&d1.mermas[1].cantidad===1.8,'planGuardar: guarda números');
+ok(d1.mermas[0].marca==='Glacial'&&d1.mermas[1].marca==='Tottus','planGuardar: guarda la marca de cada merma');
 const d2=H.planGuardar({previo:d1,r:r1,accion:'GUARDAR',usuario:'Ana',uid:'u1',en:200});
 ok(d2.rev===2&&d2.historial.length===1&&d2.creadoEn===100,'planGuardar: el guardado automático sube la versión sin llenar el historial');
 const d3=H.planGuardar({previo:d2,r:r1,accion:'FINALIZAR',usuario:'Ana',uid:'u1',en:300});
@@ -48,15 +65,20 @@ ok(d3.estado==='FINALIZADO'&&d4.estado==='EN_REGISTRO'&&d4.historial.map(h=>h.ac
 const vc=H.validarConfig({marcas:['Glacial',' Glacial','Tottus'],presentaciones:['1.5 kg','3 kg'],equipos:['Embolsadora',''],motivos:['Otros'],mermas:['Bolsas']});
 ok(!vc.errores.length&&vc.config.marcas.join()==='Glacial,Tottus'&&vc.config.presentaciones.join()==='3 kg,1.5 kg'&&vc.config.equipos.join()==='Embolsadora','validarConfig: limpia y ordena');
 ok(/debe tener los kg/.test(H.validarConfig({marcas:['G'],presentaciones:['bolsa'],motivos:['x']}).errores.join(' ')),'validarConfig: una presentación sin kg no se acepta');
+{const v=H.validarConfig({marcas:['G'],presentaciones:['3 kg','1.5 kg','5 kg'],motivos:['x'],pesos:{'3 kg':'3,3','1.5 kg':''},bolsasPorPaleta:{'3 kg':'320'},capacidadTurnoKg:'36000'});
+ ok(!v.errores.length&&v.config.pesos['3 kg']===3.3&&v.config.pesos['1.5 kg']===1.75&&!('5 kg' in v.config.pesos)&&v.config.bolsasPorPaleta['3 kg']===320&&v.config.bolsasPorPaleta['1.5 kg']===600&&v.config.capacidadTurnoKg===36000,'validarConfig: kg reales, bolsas por paleta y capacidad (vacío = valor de fábrica)');
+ const d=H.validarConfig({marcas:['G'],presentaciones:['3 kg'],motivos:['x']});
+ ok(d.config.pesos['3 kg']===3.25&&d.config.bolsasPorPaleta['3 kg']===300&&d.config.capacidadTurnoKg===34000,'validarConfig: sin datos usa 3.25 kg, 300 bolsas por paleta y 34,000 kg por turno');
+ ok(/kg reales por bolsa de «3 kg» debe ser/.test(H.validarConfig({marcas:['G'],presentaciones:['3 kg'],motivos:['x'],pesos:{'3 kg':'-1'}}).errores.join(' '))&&/bolsas por paleta de «3 kg» debe ser un número entero/.test(H.validarConfig({marcas:['G'],presentaciones:['3 kg'],motivos:['x'],bolsasPorPaleta:{'3 kg':'2.5'}}).errores.join(' '))&&/capacidad por turno/.test(H.validarConfig({marcas:['G'],presentaciones:['3 kg'],motivos:['x'],capacidadTurnoKg:'0'}).errores.join(' ')),'validarConfig: rechaza pesos, paletas y capacidad inválidos');}
 
 const fx=H.filasExcel([r2,Object.assign({estado:'FINALIZADO',supervisor:'Ana'},r1)]);
-ok(fx.length===4&&fx[0][1]==='DÍA'&&fx[0][6]===2600&&fx[0][7]===7800&&fx[0][9]==='Finalizado'&&fx[3][1]==='NOCHE','filasExcel: una fila por producción, en orden de fecha y turno');
+ok(fx.length===4&&fx[0][1]==='DÍA'&&fx[0][6]===2600&&fx[0][7]===8450&&fx[0][9]==='Finalizado'&&fx[3][1]==='NOCHE','filasExcel: una fila por producción, en orden de fecha y turno');
 
 /* ---------- conexiones ---------- */
 const html=leer('index.html'),js=leer('js/hielo/97-hielo.js'),mg=leer('supabase/migraciones/glacial_46_reporte_hielo.sql');
 ok(/js\/hielo\/97-hielo\.js\?v=\d{8}-\w+/.test(html),'index.html carga 97-hielo.js');
 ok(/window\.goReporteHielo=abrir/.test(js)&&/onclick="goReporteHielo\(\)"/.test(html)&&!/Ver disponibilidad/.test(html),'la tarjeta «Reporte Hielo» abre la página');
-ok(/Bolsas de \$\{esc\(p\)\}/.test(js)&&/p==='3 kg'\|\|p==='1\.5 kg'/.test(js),'Inicio: una tarjeta de bolsas por presentación (3 kg y 1.5 kg siempre)');
+ok(/etqUnidad\(p\)/.test(js)&&/PR\(\)\.presentaciones\.includes\(p\)/.test(js)&&/presentaciones:\['3 kg','1\.5 kg'\]/.test(js),'Inicio: una tarjeta de bolsas por presentación (las del producto: 3 kg y 1.5 kg siempre en cubos)');
 ok(/hieloReportes','hieloProgramacion','hieloParametros/.test(mg)&&/v->>'estado' = 'FINALIZADO' and not adm/.test(mg)&&/accion = 'delete'/.test(mg)&&/position\('glacial_46' in def\) = 0/.test(mg),'glacial_46: reportes (opera), finalizado solo Administrador, sin borrar, idempotente');
 
 const mob=leer('css/mobile-glacial.css');
@@ -80,6 +102,7 @@ ok(/S\.desdeAgua=/.test(js)&&/Volver a Reporte Agua/.test(js),'desde Hielo se vu
         if(Object.keys(leido).some(k=>(docs[k]?docs[k].__v:0)!==leido[k]))continue;      // otro guardó entre medio: reintento
         w.forEach(([r,d])=>{docs[r.k]=Object.assign(JSON.parse(JSON.stringify(d)),{__v:++ver});});return res;}
         throw new Error('aborted');}};
+    vm.runInContext(leer('js/nucleo/02b-permisos-hielo.js'),sb);                       // permisos de Hielo (index.html los carga antes)
     vm.runInContext(leer('js/hielo/97-hielo.js'),sb);
     return {D:sb.glacialHieloDatos,docs,sb};
   }
@@ -115,7 +138,7 @@ ok(/S\.desdeAgua=/.test(js)&&/Volver a Reporte Agua/.test(js),'desde Hielo se vu
     ok(await E.xlgDatosHielo([])===null,'sin registros en el rango no se agrega la hoja');
     E.xlgHojaHielo(wb,dh);
     const tot=filas.filter(f=>f[0]===''&&f[1]===''&&f[6]);
-    ok(ws.nombre==='Hielo'&&tot.some(f=>f[6]==='3 kg'&&f[8]===5300&&f[9]===15900)&&tot.some(f=>f[6]==='1.5 kg'&&f[8]===400&&f[9]===600),'la hoja suma bolsas y kilos por presentación');
+    ok(ws.nombre==='Hielo'&&tot.some(f=>f[6]==='3 kg'&&f[8]===5300&&f[9]===17225)&&tot.some(f=>f[6]==='1.5 kg'&&f[8]===400&&f[9]===700),'la hoja suma bolsas y kilos por presentación');
   }
   console.log(fallas?`\n${fallas} falla(s)`:'\nTodo correcto');
   process.exit(fallas?1:0);

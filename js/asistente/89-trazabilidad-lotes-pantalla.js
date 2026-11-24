@@ -144,7 +144,7 @@
   function almacenPorCategoria(){
     const hoy=hoyIso(),dias=Z.cache.parametros.diasAvisoVencimiento,q=T.norm?T.norm(S.ent.texto||''):String(S.ent.texto||'').toUpperCase();
     const grupos=agruparUnidades(Z.cache.lotes,Z.cache.unidades,u=>u.estado==='EN_ALMACEN')
-      .filter(g=>!q||[g.lote.loteProveedor,g.lote.id,g.lote.producto,g.lote.proveedor,g.lote.ordenInterna].some(v=>(T.norm?T.norm(String(v||'')):String(v||'').toUpperCase()).includes(q)))
+      .filter(g=>!q||(window.glacialBusqueda?window.glacialBusqueda.coincide([g.lote.loteProveedor,g.lote.id,g.lote.producto,g.lote.proveedor,g.lote.ordenInterna],q):[g.lote.loteProveedor,g.lote.id,g.lote.producto,g.lote.proveedor,g.lote.ordenInterna].some(v=>(T.norm?T.norm(String(v||'')):String(v||'').toUpperCase()).includes(q))))
       .map(g=>Object.assign(g,{venc:T.estadoVencimiento(g.lote.fechaVencimiento,hoy,dias)}))
       .sort((a,b)=>String(a.lote.fechaVencimiento||'9999').localeCompare(String(b.lote.fechaVencimiento||'9999'))||String(a.lote.loteProveedor).localeCompare(String(b.lote.loteProveedor)));
     return CATS_ENT.map(([c,t])=>({clave:c,titulo:t,lotes:grupos.filter(g=>String(g.lote.categoria||'').toLowerCase()===c)})).filter(x=>x.lotes.length);
@@ -268,6 +268,12 @@
       <button class="modal-close" onclick="ilCerrar()" aria-label="Cerrar">✕</button></div><div class="modal-body">${cuerpo}<div class="ii-msg ii-msg-error" id="il-m-error" hidden></div></div></div></div>`;
   }
   const errorModal=t=>{const e=document.getElementById('il-m-error');if(e){e.hidden=!t;e.textContent=t||'';}};
+  /* Desde «Otras fotos del mismo lote»: cierra la ventana y abre esa foto para confirmar sus datos (después se crea su lote y se suma al mismo). */
+  window.ilRevisarFoto=id=>{
+    window.ilCerrar();const U=window.iiEvidenciasUI;
+    if(typeof window.ieSel==='function')window.ieSel(id);
+    if(U&&typeof U.aviso==='function')U.aviso('info','Confirma o corrige los datos marcados y pulsa «Confirmar y crear lote»: esta foto se suma al mismo lote.');
+  };
   window.ilCerrar=()=>{S.crear=null;S.articulo=null;if(typeof closeModal==='function')closeModal();else{const r=raiz();if(r)r.innerHTML='';}};
 
   /** Qué pasaría al crear: lote nuevo o unidad en un lote existente, duplicado, leyenda y errores. Puro sobre la caché. */
@@ -319,8 +325,9 @@
     S.crear={id:d.id,rev:d.rev,articulo:s.candidatos.length?s.candidatos[0].id:'',candidatos:s.candidatos,destino:dupLibre?dupLibre.lote.id:'',duplicados:g.duplicados};
     const l=g.leyenda,estado=l.tipo==='LINEA'?'ENTREGADA_LINEA':'EN_ALMACEN';
     const uf0=T.unidadFisica(d.categoria),sig=g.lote?T.numeroUnidad(String(Math.max(1,Math.floor(Number(g.lote.siguienteUnidad))||(Number(g.lote.unidades)||0)+1))):'01';     // n.º automático (13/11/2026)
-    const que=g.lote?`Se agregará la ${esc(uf0.uno)} <b>${esc(sig)}</b> (n.º automático) al lote existente <b>${esc(g.lote.id)}</b> (${esc(g.lote.loteProveedor)}).`:`Se creará un <b>lote nuevo</b> para el lote del proveedor <b>${esc(g.datos.loteProveedor)}</b> y su ${esc(uf0.uno)} <b>01</b> (n.º automático).`;
-    const leyenda=d.leyenda?(l.ambigua?`<div class="ii-msg ii-msg-error">La leyenda «${esc(d.leyenda)}» es ambigua (trae más de una): se ignora.</div>`:l.leyenda?`<p>Leyenda de la foto: <b>${esc(l.leyenda)}</b> → la unidad quedará <b>${esc(T.ESTADOS[estado])}</b>${l.linea?' en '+esc(l.linea):''}.</p>`:`<p class="ii-mut">Leyenda de la foto: «${esc(d.leyenda)}» (no es una leyenda válida; la unidad queda en almacén).</p>`):'<p class="ii-mut">La foto llegó sin leyenda: la unidad queda <b>En almacén</b>.</p>';
+    const que=g.lote?`Se agregará la ${esc(uf0.uno)} <b>${esc(sig)}</b> (n.º automático) al lote existente <b>${esc(g.lote.id)}</b> (${esc(g.lote.loteProveedor)}).`:`Se creará el <b>lote nuevo</b> <b>${esc(g.datos.loteProveedor)}</b> (el del proveedor) con su ${esc(uf0.uno)} <b>01</b> (el número se pone solo).`;
+    const quien=d.remitente?`<p>Foto enviada por <b style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:999px;background:#0b6b8f;color:#fff;font-weight:700;font-size:.9em">👤 ${esc(d.remitente)}</b>${d.leyenda?' · comentario: «'+esc(d.leyenda)+'»':''}.</p>`:'';
+    const leyenda=quien+(d.leyenda?(l.ambigua?`<div class="ii-msg ii-msg-error">La leyenda «${esc(d.leyenda)}» es ambigua (trae más de una): se ignora.</div>`:l.leyenda?`<p>Leyenda de la foto: <b>${esc(l.leyenda)}</b> → la unidad quedará <b>${esc(T.ESTADOS[estado])}</b>${l.linea?' en '+esc(l.linea):''}.</p>`:`<p class="ii-mut">Leyenda de la foto: «${esc(d.leyenda)}» (no es una leyenda válida; la unidad queda en almacén).</p>`):'<p class="ii-mut">La foto llegó sin leyenda: la unidad queda <b>En almacén</b>.</p>');
     const cand=s.candidatos.length?`<fieldset class="il-art"><legend>Artículo del catálogo del Inventario</legend>${s.candidatos.map((c,i)=>`<label class="il-op"><input type="radio" name="il-art" value="${esc(c.id)}" ${i===0?'checked':''} onchange="ilArticulo(this.value)"><span><b>${esc(c.nombre)}</b>${c.itemCode?' <small class="ii-mut">('+esc(c.itemCode)+')</small>':''}<small class="ii-mut">${esc(c.razones.join(' · '))}</small></span></label>`).join('')}
       ${buscadorArticulo()}<label class="il-op"><input type="radio" name="il-art" value="" onchange="ilArticulo(this.value)"><span><b>Ninguno / elegir después</b><small class="ii-mut">El lote se crea igual con todos los datos de la etiqueta (queda en el historial); el artículo se asigna después desde la ficha del lote.</small></span></label></fieldset>`:
       `<fieldset class="il-art"><legend>Artículo del catálogo del Inventario</legend><p class="ii-mut">No hay artículo sugerido que coincida.</p>${buscadorArticulo()}<label class="il-op"><input type="radio" name="il-art" value="" checked onchange="ilArticulo(this.value)"><span><b>Ninguno / elegir después</b><small class="ii-mut">El lote se crea igual (queda en el historial); el artículo se asigna después desde la ficha.</small></span></label></fieldset>`;
@@ -331,13 +338,13 @@
     const comp=companerasDe(d,g);S.crear.companeras=comp.filter(c=>!c.errores.length).map(c=>({id:c.doc.id,rev:c.doc.rev}));
     const uf=T.unidadFisica(g.datos.categoria);
     const compHtml=comp.length?`<fieldset class="il-art il-comp"><legend>Otras fotos del mismo lote ${esc(g.datos.loteProveedor)} (${comp.length})</legend>
-      <p class="ii-mut">Nada se confirma solo: estas fotos se aprueban <b>únicamente cuando tú pulsas «${d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote'}»</b>, y cada una se cuenta como una ${esc(uf.uno)} más del mismo lote. Vienen marcadas solo las que ya tienen todos sus datos confirmados; <b>desmarca</b> las que no quieras aprobar ahora (siguen pendientes) y revisa una por una las que no se pueden marcar.</p>
-      ${comp.map(c=>`<label class="il-op"><input type="checkbox" class="il-comp-x" value="${esc(c.doc.id)}" data-rev="${esc(c.doc.rev)}" ${c.errores.length?'disabled':'checked'}><span><b>${esc(uf.titulo)} ${esc(c.datos.numero||'—')}</b> · ${esc(c.datos.producto)} <small class="ii-mut">${esc(c.datos.proveedor)} · foto ${esc(hora(N.fechaFoto(c.doc).ms))}${c.datos.pesoNeto!=null?' · '+esc(kg(c.datos.pesoNeto)):''}</small>${c.errores.length?`<small class="il-err">${esc(c.errores[0])}</small>`:''}</span></label>`).join('')}</fieldset>`:'';
+      <p class="ii-mut">Estas fotos tienen el mismo lote del proveedor. Nada se confirma solo: se aprueban <b>únicamente cuando tú pulsas «${d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote'}»</b> y cada una cuenta como una ${esc(uf.uno)} más del lote. Las marcadas ya tienen todos sus datos confirmados. Si no quieres confirmar alguna ahora, <b>desmarca</b> su casilla (sigue pendiente). Las que no se pueden marcar tienen datos por confirmar: pulsa «Revisar esta foto», confirma sus datos y luego crea su lote; se suma a este mismo lote.</p>
+      ${comp.map(c=>`<label class="il-op"><input type="checkbox" class="il-comp-x" value="${esc(c.doc.id)}" data-rev="${esc(c.doc.rev)}" ${c.errores.length?'disabled':'checked'}><span><b>${esc(uf.titulo)} ${esc(c.datos.numero||'—')}</b> · ${esc(c.datos.producto)} <small class="ii-mut">${esc(c.datos.proveedor)} · foto ${esc(hora(N.fechaFoto(c.doc).ms))}${c.datos.pesoNeto!=null?' · '+esc(kg(c.datos.pesoNeto)):''}</small>${c.errores.length?`<small class="il-err">${esc(String(c.errores[0]).replace(/^Confirma o corrige antes de aprobar: /,'Falta confirmar: '))}</small> <button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ilRevisarFoto('${esc(c.doc.id)}')">Revisar esta foto</button>`:''}</span></label>`).join('')}</fieldset>`:'';
     const ok=!g.errores.length;
     abrirModal(d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote',`<p>${que}</p>${dupHtml}${compHtml}
       ${g.errores.length?`<div class="ii-msg ii-msg-error" role="alert"><b>No se puede crear todavía:</b><ul class="ii-lista-sm">${g.errores.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
       ${g.avisos.length?`<ul class="ii-lista-sm">${g.avisos.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
-      <table class="ie-t il-datos"><tbody>${fila('Proveedor',g.banco&&g.banco.tipo!=='CLIENTE'?`<b>${esc(g.banco.nombre)}</b>${g.banco.nombre!==g.datos.proveedor?` <small class="ii-mut">(leído: ${esc(g.datos.proveedor)})</small>`:''}`:`${esc(g.datos.proveedor)}${window.glacialProveedores&&!g.banco?' <small class="ii-mut">(no está en el banco de proveedores)</small>':''}`)}${fila('Producto',esc(g.datos.producto))}${fila('Lote del proveedor',esc(g.datos.loteProveedor))}${fila('N.º '+T.unidadFisica(g.datos.categoria).uno,esc(g.datos.numero))}${fila('Contenido (etiqueta)',g.datos.cantidad===null?'':esc(fmtCant(g.datos.cantidad))+' '+esc(g.datos.unidadCantidad||''))}${fila('Foto enviada',(()=>{const f=N.fechaFoto(d);return f.ms?esc(hora(f.ms))+notaOrigen(f.origen):'';})())}${fila('Peso neto',esc(kg(g.datos.pesoNeto)))}${fila('Peso bruto',esc(kg(g.datos.pesoBruto)))}${fila('OI / OC',esc([g.datos.ordenInterna,g.datos.ordenCompra].filter(Boolean).join(' · ')))}</tbody></table>
+      <table class="ie-t il-datos"><tbody>${fila('Proveedor',g.banco&&g.banco.tipo!=='CLIENTE'?`<b>${esc(g.banco.nombre)}</b>${g.banco.nombre!==g.datos.proveedor?` <small class="ii-mut">(leído: ${esc(g.datos.proveedor)})</small>`:''}`:`${esc(g.datos.proveedor)}${window.glacialProveedores&&!g.banco?' <small class="ii-mut">(aún no está en el banco de proveedores; se guarda igual)</small>':''}`)}${fila('Producto',esc(g.datos.producto))}${fila('Lote del proveedor',esc(g.datos.loteProveedor))}${fila('N.º '+T.unidadFisica(g.datos.categoria).uno,esc(g.datos.numero))}${fila('Contenido (etiqueta)',g.datos.cantidad===null?'':esc(fmtCant(g.datos.cantidad))+' '+esc(g.datos.unidadCantidad||''))}${fila('Foto enviada',(()=>{const f=N.fechaFoto(d);return f.ms?esc(hora(f.ms))+notaOrigen(f.origen):'';})())}${fila('Peso neto',esc(kg(g.datos.pesoNeto)))}${fila('Peso bruto',esc(kg(g.datos.pesoBruto)))}${fila('OI / OC',esc([g.datos.ordenInterna,g.datos.ordenCompra].filter(Boolean).join(' · ')))}</tbody></table>
       ${leyenda}${cand}
       <p class="ii-mut">${d.estado==='aprobado_dato'?'Los datos ya estaban aprobados.':'Al confirmar también se aprueban los datos de la evidencia.'} No se registra stock SAP.</p>
       <div class="ii-acc"><button type="button" class="ii-btn ii-btn-o" onclick="ilCerrar()">Cancelar</button><button type="button" class="ii-btn" id="il-m-ok" onclick="ilCrearOk()" ${ok?'':'disabled'}>${d.estado==='aprobado_dato'?'Crear lote':'Confirmar y crear lote'}</button></div>`);
@@ -354,9 +361,18 @@
     esperaArt=setTimeout(()=>{
       const caja=document.getElementById('il-art-busq');if(!caja)return;
       const ya=new Set([...document.querySelectorAll('input[name="il-art"]')].filter(x=>!x.closest('#il-art-busq')).map(x=>x.value));
+      if(!String(v||'').trim()){caja.innerHTML='';return;}
+      Z.escuchar();                                                                   // el catálogo se vuelve a pedir si no se estaba escuchando
+      const est=Z.estadoCatalogo();
+      if(!est.listo||!est.total){
+        caja.innerHTML=est.error?`<p class="il-err">No se pudo leer el catálogo del Inventario (${esc(est.error)}). Cierra esta ventana y vuelve a abrirla; si sigue igual, avisa a un Administrador.</p>`
+          :!est.listo?'<p class="ii-mut">Cargando el catálogo del Inventario… espera unos segundos y vuelve a escribir.</p>'
+          :'<p class="il-err">El catálogo del Inventario está vacío: no hay artículos para buscar. Elige «Ninguno / elegir después».</p>';
+        return;
+      }
       const res=String(v||'').trim().length<2?[]:Z.buscarArticulos(v,8).filter(a=>!ya.has(a.id));
       caja.innerHTML=!String(v||'').trim()?'':res.length?res.map(a=>`<label class="il-op"><input type="radio" name="il-art" value="${esc(a.id)}" onchange="ilArticulo(this.value)"><span><b>${esc(a.nombre)}</b>${a.itemCode?' <small class="ii-mut">('+esc(a.itemCode)+')</small>':''}<small class="ii-mut">${esc(a.categoria||'')}</small></span></label>`).join('')
-        :'<p class="ii-mut">Ningún artículo del catálogo coincide. Si el insumo no existe en el catálogo, pide que lo agreguen en Inventario de insumos y elige «Ninguno / elegir después».</p>';
+        :`<p class="ii-mut">No hay coincidencias entre los ${est.total} artículos del catálogo. Prueba con otra palabra (por ejemplo solo «preforma») o elige «Ninguno / elegir después»: el lote se crea igual y el artículo se asigna luego.</p>`;
     },200);
   };
   /* ---------- asignar o cambiar el artículo de un lote ya creado ---------- */
@@ -528,8 +544,8 @@
 .il-ent-lote{border:1px solid var(--ii-linea);border-radius:10px;padding:6px 12px;margin:6px 0}.il-ent-venc{background:#fffafa;border-color:#f5c2c0}.il-ent-us{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 10px;margin:0 0 4px 26px}
 .il-ent-u{align-items:center;flex-wrap:wrap}.il-ent-u small{display:block}.il-ent-lin .il-ent-us{margin-left:0;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}.il-ent-res{margin:6px 0 10px;padding-left:18px;font-size:13.5px}
 .il-params summary{cursor:pointer}.il-params-f{display:grid;gap:12px;margin-top:10px;max-width:520px}.il-params .ii-et input{max-width:200px}
-@media(max-width:900px){.il-cols{grid-template-columns:1fr}}
-@media(max-width:560px){.il-ent-us{margin-left:0;grid-template-columns:1fr 1fr}.il-ent-barra .ii-campo{min-width:0;flex:1 1 100%}.il-filtros{grid-template-columns:1fr}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
+@media(max-width:900px){.il-cols{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.il-ent-us{margin-left:0;grid-template-columns:1fr 1fr}.il-ent-barra .ii-campo{min-width:0;flex:1 1 100%}.il-filtros{grid-template-columns:minmax(0,1fr)}.il-unidades{min-width:0}.il-unidades thead{display:none}.il-unidades,.il-unidades tbody,.il-unidades tr,.il-unidades td{display:block;width:100%}.il-unidades tr{border-top:1px solid #edf2f7;padding:6px 0}.il-unidades td::before{content:attr(data-t) ': ';font-weight:600;color:#475467}}`;
 
   window.iiLotesUI={html,css,estado:S,diagnostico,usar:h=>{if(h&&typeof h.pintar==='function'&&typeof h.activo==='function')host=h;}};
   window.__trazabilidadLotesPantalla={S,diagnostico,companerasDe,almacenPorCategoria};

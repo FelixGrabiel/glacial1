@@ -13,7 +13,7 @@
   'use strict';
   if(typeof document==='undefined')return;
   const SELECTOR=['.ii-tw','.ap-tw','.hist-table-wrap','.hist-v2-table-scroll','.table-scroll','.tabla-responsive','.cp-table-wrap','.hist-report-personal-scroll',
-    '.rg-scroll','[data-barra-superior]'].join(',');
+    '.rg-scroll','.tw-movil','[data-barra-superior]'].join(',');
   const UMBRAL=3;                                         // px de diferencia para considerar que hay desplazamiento
   const ESTILO=`.barra-sup{overflow-x:auto;overflow-y:hidden;height:14px;margin:0 0 4px;max-width:100%;scrollbar-width:auto;overscroll-behavior-inline:contain}
 .barra-sup>div{height:1px}`;

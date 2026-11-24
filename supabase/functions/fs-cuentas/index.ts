@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
       const email = String(cuerpo.email || '').trim().toLowerCase();
       const clave = String(cuerpo.clave || '');
       if (!/^[a-z0-9._-]{1,60}@glacial\.app$/.test(email)) return responder({ error: 'Correo interno inválido (debe terminar en ' + DOMINIO + ').', codigo: 'auth/invalid-email' }, 400);
-      if (clave.length < 6) return responder({ error: 'La contraseña debe tener al menos 6 caracteres.', codigo: 'auth/weak-password' }, 400);
+      if (clave.length < 10) return responder({ error: 'La contraseña debe tener al menos 10 caracteres.', codigo: 'auth/weak-password' }, 400);
       const { data, error } = await admin.auth.admin.createUser({ email, password: clave, email_confirm: true });
       if (error) {
         const m = String(error.message || '');

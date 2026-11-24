@@ -44,7 +44,7 @@
       '.vista-pie{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#53657a;font-size:12px;margin-top:4px}' +
       '.vista-form.vista-off .vista-detalle{opacity:.55}' +
       '.vista-bloqueo{margin:8px 0 0;padding:8px 12px;border-radius:8px;background:#fff8e1;border:1px solid #f0d98c;font-size:12px}' +
-      '@media(max-width:760px){.vista-cols{grid-template-columns:1fr}}';
+      '@media(max-width:760px){.vista-cols{grid-template-columns:minmax(0,1fr)}}';
     document.head.appendChild(s);
   }
 
@@ -169,7 +169,9 @@
     if(!(modo && modo.activo)){
       const sinPlanificacion = !todos && !seleccionados.includes('planificacion') &&
         ROLES_PLANIFICACION.includes(String(users[index].rol || '').trim());
-      users[index].permisos = todos ? 'todos' : (sinPlanificacion ? [...seleccionados, '-planificacion'] : seleccionados);
+      // Hielo (21/11/2026): lo marcado se guarda como permiso dado; lo desmarcado que su rol traía por defecto, como «-permiso» (js/nucleo/02b-permisos-hielo.js).
+      const conHielo = (!todos && window.glacialPermisosHielo) ? window.glacialPermisosHielo.aplicar(String(users[index].rol || '').trim(), seleccionados) : seleccionados;
+      users[index].permisos = todos ? 'todos' : (sinPlanificacion ? [...conHielo, '-planificacion'] : conHielo);
       users[index].permisosGestionVersion = 1;
     }
     if(cambioModo){

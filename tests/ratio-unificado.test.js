@@ -44,9 +44,17 @@ ok(l.minutosParadasNoProgramadasDesc===100&&l.minutosParadasProgramadasDesc===0,
 const det=sb.avDetalleRatioLinea(l);
 ok(/Cómo se calculó el ratio/.test(det)&&/3\.486|3,486/.test(det)&&/352/.test(det)&&/252/.test(det)&&/830/.test(det),'el detalle desplegable muestra producción, transcurrido, efectivo, fórmula y resultado');
 
+/* 1b) Dos ratios: real (con paradas) = 3.486 ÷ (352/60) ≈ 594; sin paradas = 830; diferencia ≈ 236 (28 %) */
+{const r=sb.avRatiosDobles(l);
+ok(Math.abs(r.sin-830)<1e-9&&Math.abs(r.real-3486/(352/60))<1e-9&&Math.abs(r.dif-(830-3486/(352/60)))<1e-9&&Math.abs(r.pct-r.dif/830*100)<1e-9,'dos ratios: real ≈594 B/H, sin paradas 830 B/H, diferencia ≈236 B/H (28 %)');
+const t=sb.avTextoWhatsApp({id:'x',fecha:FECHA,turno:'DÍA',tipo:'AVANCE',horaCorte:'12:52',supervisor:'S',lineas:[l]});
+ok(/Ratio real \(con paradas\): 594 B\/H/.test(t)&&/Ratio sin paradas: 830 B\/H/.test(t)&&/Diferencia por paradas: 236 B\/H \(28 %\)/.test(t),'el texto de WhatsApp muestra los dos ratios y la diferencia');
+ok(sb.avRatiosDobles({ratio:0,ratioDisponible:false,minutosTranscurridos:100,produccionTotal:50}).real===null&&sb.avDiferenciaRatioTexto({sinTiempo:true},'B/H')==='—','sin ratio disponible o sin tiempo: no inventa ratio real ni diferencia');
+ok(sb.avRatiosDobles({ratio:600,ratioDisponible:true,minutosTranscurridos:60,produccionTotal:600}).dif===0,'sin paradas: ambos ratios iguales y diferencia 0');}
+
 /* 2) misma entrada → misma salida en texto, pantalla y semáforo (23b) */
 const snap={id:'x',fecha:FECHA,turno:'DÍA',tipo:'AVANCE',horaCorte:'12:52',supervisor:'S',lineas:[l]};
-ok(sb.avTextoWhatsApp(snap).includes('Ratio: 830 B/H')&&sb.avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)==='830 B/H','texto y pantalla: 830 B/H');
+ok(sb.avTextoWhatsApp(snap).includes('Ratio sin paradas: 830 B/H')&&sb.avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)==='830 B/H','texto y pantalla: 830 B/H');
 const tS=sb.calcularTiemposLinea('B7L','DÍA',FECHA,{inicioMs:ms(7),finMs:ms(12,52)});
 const rS=sb.calcularRatiosLinea(tS,{produccion:3486,programado:100000,ahora:ms(12,52)});
 ok(Math.abs(rS.ratioEfectivo-830)<1e-9,'el semáforo (23b) al mismo corte da el mismo ratio');
@@ -86,7 +94,7 @@ sb.setOperativas([op('a','Falla',60,'NO_PROGRAMADA'),op('b','Otra',200,'NO_PROGR
 vm.runInContext("avanceEstado.fecha='2026-12-31';avanceEstado.turno='NOCHE';",sb);
 const bl=sb.avBloquesPresentacionLinea(copia);
 ok(bl[0].ratio===l.ratio&&bl[0].produccionTotal===3000,'reexportar tras cambiar fecha, turno y registros: el snapshot conserva sus datos');
-ok(sb.avTextoWhatsApp({id:'x',fecha:FECHA,turno:'DÍA',tipo:'AVANCE',horaCorte:'12:52',supervisor:'S',lineas:[copia]}).includes('Ratio: '+sb.avRatioTexto(l.ratio,l.unidadRatio,true)),'el texto reexportado usa el ratio guardado');
+ok(sb.avTextoWhatsApp({id:'x',fecha:FECHA,turno:'DÍA',tipo:'AVANCE',horaCorte:'12:52',supervisor:'S',lineas:[copia]}).includes('Ratio sin paradas: '+sb.avRatioTexto(l.ratio,l.unidadRatio,true)),'el texto reexportado usa el ratio guardado');
 /* snapshot antiguo (sin versión): se conserva, sin detalle inventado */
 ok(sb.avDetalleCalculoLinea({ratio:100,ratioDisponible:true})==='','un snapshot antiguo no muestra un detalle que no puede explicar');
 
@@ -103,7 +111,7 @@ ok(l.ratio===null&&l.ratioDisponible===false,'inicio faltante: ratio no disponib
 /* 7) varios formatos: sin duplicar tiempo ni paradas */
 const cu=(h,hf,p)=>({horaInicio:h,horaFin:hf,estadoCuadro:'FINALIZADO',marca:'Bells',presentacion:p,paradasProgramadas:[],paradasNoProgramadas:[]});
 const cuSin=p=>({marca:'Bells',presentacion:p,paradasProgramadas:[],paradasNoProgramadas:[]});
-sb=entorno({programaciones:[prog('B7L',ms(7)),prog('B7L',ms(7),{presentacion:'10 L'})],
+sb=entorno({programaciones:[prog('B7L',ms(7)),prog('B7L',ms(10),{presentacion:'10 L'})],
   paletas:[pal('B7L','COMPLETA',2000,'12:00',null,1),pal('B7L','COMPLETA',1000,'12:30',null,2,{presentacion:'10 L'})],
   records:[{id:'r',linea:'B7L',fecha:FECHA,turno:'DÍA',grupoTurno:'DIA_INTERMEDIO',cuadros:[cu('07:00','10:00','7 L'),cu('10:00','','10 L')]}]});
 sb.setOperativas([op('g','General',30,'NO_PROGRAMADA')]);

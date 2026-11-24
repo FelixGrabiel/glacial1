@@ -140,4 +140,5 @@ ok(P.INICIO_PT==='2026-11-16','el producto terminado cuenta desde el 16/11/2026'
  ok(/cuenta <> 1 then raise exception/.test(s58)&&/c in \('almacenPtRecepcion', 'almaceneros', 'almacenPtSaldoEntrega'\)/.test(s58),'glacial_58: anclas verificadas y la cuenta compartida de Almacén puede leer las entregas');
  const j16c=leer('js/produccion/16c-saldo-entrega.js');
  ok(/db\.collection\('almacenPtSaldoEntrega'\)\.doc\(doc\.opId\)\.set/.test(j16c)&&!/sync'\)\.doc\('paletas'\)\.(set|update)/.test(j16c),'el panel del supervisor escribe solo en almacenPtSaldoEntrega y nunca toca sync/paletas');}
+ok(P.turnoCoincide('DÍA','DIA')&&P.turnoCoincide('INTERMEDIO','DIA')&&!P.turnoCoincide('NOCHE','DIA')&&P.turnoCoincide('NOCHE','NOCHE')&&!P.turnoCoincide('DÍA','NOCHE')&&P.turnoCoincide('NOCHE','TODOS')&&P.turnoCoincide('DÍA',undefined),'filtro de turno: Día (con Intermedio), Noche y Todos');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

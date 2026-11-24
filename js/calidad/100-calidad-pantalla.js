@@ -34,7 +34,7 @@
     let cuerpo='<div class="vl-msg vl-msg-e">La validación de lotes no está disponible en esta versión.</div>';
     if(UI){UI.usar({pintar});cuerpo=UI.html();}
     const y=window.scrollY;
-    main.innerHTML=`<section class="cal">${estilos()}<header class="cal-cab"><div><h1>CALIDAD</h1><p class="cal-sub">Validación de lotes que hace el bot de WhatsApp.</p></div></header><nav class="cal-tabs" role="tablist" aria-label="Pantallas de Calidad">${tabs}</nav>${cuerpo}</section>`;
+    main.innerHTML=`<section class="cal">${estilos()}<header class="cal-cab"><div><h1>CALIDAD</h1><p class="cal-sub">Rótulos de producto terminado que valida el bot de WhatsApp, con su foto.</p></div></header><nav class="cal-tabs" role="tablist" aria-label="Pantallas de Calidad">${tabs}</nav>${cuerpo}</section>`;
     window.scrollTo(0,y);
   }
 

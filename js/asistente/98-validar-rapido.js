@@ -84,7 +84,7 @@
     const tipo=def.tipo==='fecha'?'date':def.tipo==='numero'?'number':'text';
     const sug=dudoso&&c.valor_sugerido!==undefined&&c.valor_sugerido!==null?`<button type="button" class="ii-btn ii-btn-o ii-btn-s" onclick="ieVrSugerido('${esc(def.campo)}')">Usar ${esc(def.tipo==='fecha'?n.fechaPantalla(c.valor_sugerido):c.valor_sugerido)}</button>`:'';
     return `<label class="vr-campo ${dudoso?'vr-duda':''}"><span>${esc(def.etiqueta)}${dudoso?' <b class="vr-tag">revisar</b>':''}</span>
-      <input class="ie-in" id="vr-c-${esc(def.campo)}" data-campo="${esc(def.campo)}" type="${tipo}" ${tipo==='number'?'step="any" inputmode="decimal"':''} value="${esc(v)}" autocomplete="off">
+      ${def.campo==='cantidad_unidad'?`<select class="ie-in" id="vr-c-${esc(def.campo)}" data-campo="${esc(def.campo)}"><option value="" ${v===''?'selected':''}>— elige la unidad —</option>${n.opcionesUnidad(v).map(u=>`<option value="${esc(u)}" ${v.toUpperCase()===u?'selected':''}>${esc(u)}${n.UNIDADES_CANTIDAD.includes(u)?'':' (corrígela)'}</option>`).join('')}</select>`:`<input class="ie-in" id="vr-c-${esc(def.campo)}" data-campo="${esc(def.campo)}" type="${tipo}" ${tipo==='number'?'step="any" inputmode="decimal"':''} value="${esc(v)}" autocomplete="off">`}
       ${dudoso&&c.duda?`<small class="vr-motivo">IA: ${esc(c.duda)}</small>`:''}${sug}</label>`;
   }
   function fotoHtml(d){
@@ -129,7 +129,8 @@
     const etiqueta={lista:'<span class="ii-pill ii-p-verde"><i></i>Lista</span>',dudas:'<span class="ii-pill ii-p-naranja"><i></i>'+x.dudosos.length+' por revisar</span>',incompleta:'<span class="ii-pill ii-p-rojo"><i></i>Incompleta</span>'}[x.tipo];
     const errores=x.errores.length?`<div class="ii-msg ii-msg-error" role="note"><b>Falta resolver:</b> ${x.errores.map(esc).join(' ')}</div>`:'';
     const bloqueo=x.diag.duplicados&&x.diag.duplicados.length;
-    return chips+msg+`<div class="vr-cab"><span>Foto <b>${pos}</b> de ${vis.length} · ${esc(n.tituloEvidencia(d))} ${etiqueta}</span><small class="ii-mut">foto ${esc(new Date((Number(n.fechaFoto(d).ms)||0)-5*3600000).toISOString().slice(0,16).replace('T',' '))}${d.leyenda?' · leyenda «'+esc(d.leyenda)+'»':''}</small></div>
+    return chips+msg+`<div class="vr-cab"><span>Foto <b>${pos}</b> de ${vis.length} · ${esc(n.tituloEvidencia(d))} ${etiqueta}</span><small class="ii-mut">foto ${esc(new Date((Number(n.fechaFoto(d).ms)||0)-5*3600000).toISOString().slice(0,16).replace('T',' '))}</small></div>
+      ${(d.remitente||d.leyenda)?`<div role="note" style="margin:10px 0;padding:12px 14px;border-left:6px solid #0b6b8f;background:#e8f4f9;border-radius:8px;font-size:1.15em;line-height:1.35">${d.remitente?'<div>👤 <b>Enviada por: '+esc(d.remitente)+'</b></div>':''}${d.leyenda?'<div>💬 <b>Comentario: «'+esc(d.leyenda)+'»</b></div>':''}</div>`:''}
       <div class="vr-cols"><div class="vr-col-foto">${fotoHtml(d)}</div>
       <div class="vr-col-datos"><label class="vr-campo"><span>Categoría</span><select class="ie-in" id="vr-cat">${cats}</select></label>${campos}${errores}${destinoHtml(x)}</div></div>
       <div class="vr-acc"><button type="button" class="ii-btn ii-btn-o" onclick="ieVrSaltar()">Saltar →</button><button type="button" class="ii-btn ii-btn-o" onclick="ieVrCompleto()">Abrir completo</button>
@@ -165,6 +166,17 @@
     if(!sig)S.saltadas=new Set();
     S.actual=sig?sig.id:'';pintar();
   };
+  /* Tecla Enter = «Coincide con la foto · crear lote» (solo con Validar rápido abierto). No actúa si el foco está en un botón, enlace, lista o área de texto (ahí Enter ya hace lo suyo), ni si se mantiene pulsada. */
+  if(typeof document!=='undefined'&&!window.__vrEnter){
+    window.__vrEnter=true;
+    document.addEventListener('keydown',e=>{
+      if(e.key!=='Enter'||e.repeat||e.isComposing||e.shiftKey||e.ctrlKey||e.altKey||e.metaKey||!S.abierto||S.ocupado||!S.actual)return;
+      const t=e.target,tag=t&&t.tagName?t.tagName.toLowerCase():'';
+      if(tag==='textarea'||tag==='button'||tag==='a'||tag==='select'||(t&&t.isContentEditable))return;
+      const b=document.getElementById('vr-ok');if(!b||b.disabled)return;
+      e.preventDefault();window.ieVrOk();
+    });
+  }
   window.ieVrCompleto=()=>{
     const id=S.actual;ieVrCerrar();
     if(id&&typeof window.ieSel==='function')window.ieSel(id);
@@ -206,6 +218,6 @@
 .vr-campo .ie-in{min-height:42px;font-size:15px}.vr-duda .ie-in{border-color:#d97706;background:#fffbeb}.vr-tag{color:#b45309;font-size:11px;text-transform:uppercase;margin-left:4px}
 .vr-motivo{color:#92400e}.vr-dest{font-size:13.5px;margin:6px 0 0;padding:8px 10px;background:#f6fafc;border:1px solid #cfe0ea;border-radius:8px}
 .vr-acc{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:12px}.vr-acc .ii-btn{min-height:44px}.vr-nota{font-size:12px;margin:8px 0 0}.vr-vacio{padding:24px 0;text-align:center}
-@media(max-width:760px){.vr-cols{grid-template-columns:1fr}.vr-foto-caja{min-height:220px;max-height:46vh}.vr-foto{max-height:46vh}.vr-acc .ii-btn{flex:1 1 100%}}`;
+@media(max-width:760px){.vr-cols{grid-template-columns:minmax(0,1fr)}.vr-foto-caja{min-height:220px;max-height:46vh}.vr-foto{max-height:46vh}.vr-acc .ii-btn{flex:1 1 100%}}`;
   function estilos(){if(document.getElementById('vr-css'))return;const s=document.createElement('style');s.id='vr-css';s.textContent=css;document.head.appendChild(s);}
 })(typeof window!=='undefined'?window:globalThis);

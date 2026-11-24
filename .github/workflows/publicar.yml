@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.despliegue.outputs.page_url }}
+      url: ${{ steps.despliegue2.outputs.page_url || steps.despliegue.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,5 +43,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _sitio
+      # GitHub a veces no encuentra el archivo recién subido («Fetching artifact metadata failed») y la corrida queda con una X aunque el código esté bien.
+      # Se espera un momento y, si aun así falla, se reintenta UNA vez. Si falla las dos veces, la corrida sí queda en rojo (falla real).
+      - name: Esperar a que GitHub registre el archivo
+        run: sleep 15
       - id: despliegue
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Esperar antes de reintentar
+        if: steps.despliegue.outcome == 'failure'
+        run: sleep 45
+      - id: despliegue2
+        if: steps.despliegue.outcome == 'failure'
         uses: actions/deploy-pages@v4

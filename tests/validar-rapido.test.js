@@ -52,6 +52,6 @@ ok(/elegido antes/.test(P)&&/articuloId=art&&art\.razones/.test(P),'solo usa el 
 ok(/d\.tipoDocumento==='etiqueta_insumo'/.test(P)&&/!d\.loteId/.test(P),'la cola son etiquetas de insumo pendientes sin lote');
 ok(/Z\(\)\.escuchar\(\)/.test(P)&&/Consultando los lotes/.test(P),'espera a leer los lotes antes de decir a cuál va cada foto');
 ok(/window\.ieVrBoton\(\)/.test(P86)&&/diagnostico,/.test(P89),'Evidencias muestra el botón y Lotes comparte su diagnóstico');
-ok(/98-validar-rapido\.js\?v=20261113-/.test(H)&&H.indexOf('98-validar-rapido.js')>H.indexOf('89-trazabilidad-lotes-pantalla.js'),'index.html carga la vista después de Lotes');
+ok(/98-validar-rapido\.js\?v=2026\d{4}-/.test(H)&&H.indexOf('98-validar-rapido.js')>H.indexOf('89-trazabilidad-lotes-pantalla.js'),'index.html carga la vista después de Lotes');
 console.log(fallas?'\n'+fallas+' fallas':'\nValidar rápido correcto');
 process.exit(fallas?1:0);

@@ -31,7 +31,7 @@
     if(!exp)return u.tarjeta('Reportes en Excel',u.vacio('Tu usuario no tiene permiso para los reportes.'));
     const el=lineasElegidas();
     const chk=N().LINEAS.map(l=>`<label class="ap-chk"><input type="checkbox" ${el.includes(l.codigo)?'checked':''} onchange="apRepLinea('${l.codigo}',this.checked)"> ${u.esc(l.nombre)}</label>`).join('');
-    return u.tarjeta('Reportes en Excel',`<p class="ap-sub">Día operativo <b>${u.esc(AP.fecha)}</b>. Primero «Previsualizar» para revisar y corregir; después «Descargar Excel».</p>
+    return u.tarjeta('Reportes en Excel',`<p class="ap-sub">Día operativo <b>${u.esc(AP.fecha)}</b>. «Previsualizar» abre el Excel tal como se verá (con «✎ Revisar y corregir» para arreglar saldos y mermas); después «Descargar Excel».</p>
       <div class="ap-2 ap-2-rep">
         <div class="ap-rep"><h4>${u.ico('excel')} Resumen general</h4><p class="ap-mut">Todas las líneas en un solo archivo: resumen del día + una hoja por línea.</p>
           <div class="ap-acc"><button type="button" class="ap-btn ap-btn-o" onclick="apRepPrevia('general')">${u.ico('lista')} Previsualizar</button>
@@ -57,12 +57,38 @@
   };
 
   /* ---------- previsualización ---------- */
-  window.apRepPrevia=async modo=>{
+  /* «Previsualizar» (23/11/2026): abre la VISTA EN EXCEL (el mismo libro que se descarga, con sus hojas). Desde ahí,
+     «✎ Revisar y corregir» abre la previsualización de siempre para corregir saldos y mermas. */
+  function prepararPV(modo){
     const u=U();
-    PV.fecha=u.AP.fecha;PV.lineas=modo==='lineas'?lineasElegidas():null;PV.titulo=modo==='lineas'?'Resumen por línea':'Resumen general';
-    if(modo==='lineas'&&!PV.lineas.length){u.AP.msg={tipo:'error',texto:'Marca al menos una línea.'};u.pintar();return;}
+    PV.fecha=u.AP.fecha;PV.lineas=modo==='lineas'?lineasElegidas():null;PV.titulo=modo==='lineas'?'Resumen por línea':'Resumen general';PV.modo=modo;
+    if(modo==='lineas'&&!PV.lineas.length){u.AP.msg={tipo:'error',texto:'Marca al menos una línea.'};u.pintar();return false;}
+    return true;
+  }
+  window.apRepPrevia=async modo=>{
+    if(!prepararPV(modo))return;
+    if(!window.glacialVistaExcel)return window.apRepCorregir(modo);
+    await abrirVistaExcel();
+  };
+  async function abrirVistaExcel(){
+    const u=U();
+    u.modal(`Vista previa · ${u.esc(PV.titulo)} · ${u.esc(PV.fecha)}`,u.pie('Armando el Excel con los datos del día…'),'ap-modal-xl');
+    try{
+      const m=await RG().modeloDeFecha(PV.fecha,{lineas:PV.lineas});
+      const X=await RG().asegurarExcelJS();
+      const wb=RG().escribir(X,m,{graficos:await RG().graficos(m)});
+      if(typeof closeModal==='function')closeModal();
+      window.glacialVistaExcel.abrir(wb,{titulo:PV.titulo+' · '+PV.fecha,nombre:RG().nombreArchivo(PV.fecha,PV.lineas),
+        notas:'Es el mismo archivo que se descarga. Para corregir saldos de consumo o mermas pendientes, usa «✎ Revisar y corregir».',
+        acciones:[{texto:'✎ Revisar y corregir',fn:()=>window.apRepCorregir(PV.modo)}],
+        alDescargar:async()=>{try{const n=await RG().exportar(PV.fecha,{lineas:PV.lineas});if(typeof mostrarAviso==='function')mostrarAviso('Excel generado: '+n);}catch(e){alert(D().mensajeError(e));}}});
+    }catch(e){u.modal(`Vista previa · ${u.esc(PV.titulo)}`,`<div class="ap-msg ap-msg-error" role="alert">${u.ico('alerta')}<span>${u.esc(D().mensajeError(e))}</span></div>`,'ap-modal-xl');}
+  }
+  window.apRepCorregir=async modo=>{
+    if(modo&&!prepararPV(modo))return;
     PV.msg=null;PV.editMerma='';PV.linea='';await recargar(true);
   };
+  window.apRepVerExcel=async()=>{if(window.glacialVistaExcel)await abrirVistaExcel();};
   async function recargar(abrir){
     const id=++PV.carga;PV.cargando=true;PV.error='';
     if(abrir)dibujar();
@@ -101,6 +127,7 @@
       ${u.tabla(['Línea','Turno','#Programado','#Producido','#Cumpl.','#Paradas','Consumo','Mermas',''],filas,'ap-t-click')}
       ${sel?detalleLinea(sel,ed):u.pie('Toca una línea para ver su detalle y corregir.')}
       <div class="ap-acc ap-acc-wrap"><button type="button" class="ap-btn ap-btn-o" onclick="apRepRefrescar()">${u.ico('reloj')} Actualizar</button>
+        ${window.glacialVistaExcel?`<button type="button" class="ap-btn ap-btn-o" onclick="apRepVerExcel()">${u.ico('excel')} Ver como Excel</button>`:''}
         <button type="button" class="ap-btn ap-btn-excel" onclick="apRepDescargarPrevia()">${u.ico('excel')} Descargar Excel</button>
         <button type="button" class="ap-btn" onclick="closeModal()">Cerrar</button></div>`;
   }

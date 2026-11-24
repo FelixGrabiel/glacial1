@@ -557,7 +557,7 @@
 .ii-tj dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 6px}.ii-tj dt{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:#5b6b79}.ii-tj dd{margin:2px 0 0;font-size:15px}
 .ii-tj details{border-top:1px solid #edf2f7;padding-top:6px}.ii-tj summary{cursor:pointer;color:#0b6e99;font-weight:600;font-size:13.5px;padding:6px 0}.ii-tj ul{list-style:none;margin:4px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px}
 .ii-tj li{display:flex;justify-content:space-between;gap:6px;font-size:13.5px}.ii-tj .ii-col-act{background:#e8f6fd;border-radius:6px;padding:0 4px}
-@media(max-width:700px){.ii-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-filtros>.ii-campo:first-child{grid-column:1/-1}.ii-chips .ii-chk{flex:1 1 auto}.ii-t thead tr:nth-child(2) th{top:32px}.ii-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-cab h1{font-size:24px}.ii-form{grid-template-columns:1fr}.ii-nom{min-width:180px}}
+@media(max-width:700px){.ii-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-filtros>.ii-campo:first-child{grid-column:1/-1}.ii-chips .ii-chk{flex:1 1 auto}.ii-t thead tr:nth-child(2) th{top:32px}.ii-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ii-cab h1{font-size:24px}.ii-form{grid-template-columns:minmax(0,1fr)}.ii-nom{min-width:180px}}
 </style>`;}
 
   window.__inventarioInsumosPantalla={II,filasFiltradas,pintar,estilos};      // estilos(): el Asistente de Producción los reutiliza en su pestaña «Evidencias»

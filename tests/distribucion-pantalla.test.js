@@ -51,6 +51,7 @@ ok((html.match(/inputmode="numeric"/g)||[]).length>=6,'campos enteros por línea
 ok(/Pendiente de confirmar/.test(html)&&/Sin confirmar/.test(html),'sin datos: «Pendiente de confirmar» y «Sin confirmar»');
 ok(/Confirmar distribución/.test(html)&&/Registrar cambio/.test(html)&&/Ver historial/.test(html),'botones Confirmar distribución, Registrar cambio y Ver historial');
 ok(/Registrar cambio<\/button>/.test(html)&&/<button class="dp-primario" disabled[^>]*>Registrar cambio/.test(html.replace(/\s+/g,' ').replace(/> </g,'><'))||/disabled onclick="glacialDistribucionPantalla.guardar\(\)" title="Cambio posterior/.test(html.replace(/\s+/g,' ')),'sin confirmación previa, «Registrar cambio» está deshabilitado');
+ok(/Personal de hielo/.test(html)&&/Hielo en cubos/.test(html)&&/Hielo premium/.test(html)&&/Hielo en vasos/.test(html)&&/dp-total-hielo/.test(html),'la pantalla tiene la sección Personal de hielo (cubos, premium y vasos)');
 ok(/Fecha operativa/.test(html)&&/Bloque/.test(html)&&/Hora desde la que aplica/.test(html)&&/Total distribuido/.test(html)&&/asignaciones declaradas/.test(html),'fecha operativa, bloque, hora de vigencia, total y aclaración de que son asignaciones declaradas');
 ok(/No se puede comprobar/.test(html),'sin asistencia en el Tareo: «No se puede comprobar» (no inventa disponibilidad)');
 

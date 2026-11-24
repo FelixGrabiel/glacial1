@@ -35,8 +35,45 @@ En el navegador (app real, base simulada con latencia): 6 clics seguidos en ASIS
 ## Pendiente de probar en PRUEBAS (dispositivos reales)
 Dos supervisores con red real sobre el mismo tareo; tareo de Mantenimiento con maquinistas; noche tras medianoche; una fila con nombre repetido (se guardan los `filaId` la primera vez que se abre).
 
-## Quitar personal del tareo (personas que ya no trabajan)
+## Quitar y agregar personal con alcance (20/11/2026)
+**Quitar.** El botón «✕ Quitar» de cada fila (solo quien edita ese tareo; no en Modo visualización) abre una ventana con tres alcances y una vista previa de cuántos tareos se tocan:
+- **Solo este tareo:** se quita aquí; mañana vuelve a aparecer si sigue en la rotación.
+- **Desde una fecha en adelante** (la fecha se elige; por defecto la del tareo): ya no trabaja aquí. Deja una exclusión permanente en `tareo.personalExcluido` (`permanente`, `desde`, `alcance`) que rige para esa área desde esa fecha: la sincronización con la rotación Excel, con Mantenimiento y con maquinistas, y la creación de tareos nuevos ya no la traen. **Además se borra físicamente de los tareos ya creados de esa área desde esa fecha.**
+- **De todos los tareos:** igual pero sin límite de fecha (`desde = 0000-01-01`): pasados y futuros. Pensado para quien se registró por error.
+En «desde» y «todos», si algún tareo tiene asistencia u horas de esa persona, se avisa cuántos y hay que marcar una casilla de confirmación porque esas marcaciones se pierden. Los tareos **cerrados por el sistema** (bloqueo de 41-tareo-bloqueo.js) o sin permiso **no se modifican**: la ventana y el aviso final dicen cuántos fueron. Sin pantalla (pruebas) `quitarPersonal(clave)` conserva las dos confirmaciones de siempre; `TareoEd.ejecutarQuitar(clave, {alcance, desde})` ejecuta directo y devuelve `{quitados, conMarcas, bloqueados}`.
+
+**Agregar.** «+ Agregar personal» (ya registrado o personal nuevo) pregunta **dónde agregarla**: solo este tareo (como antes) o **desde una fecha en adelante** en los tareos ya creados de la misma área, en el mismo turno o en ambos. No duplica donde ya esté, levanta una exclusión previa en cada tareo, deja la persona como pendiente de registrar (`agregadoManual`) y respeta tareos cerrados y permisos. Los tareos que se creen después se arman con la rotación; para que entre siempre hay que agregarla a la rotación o a Trabajadores.
+
+Pruebas: `tests/tareo-edicion-continua.test.js` (flujo anterior) y `tests/tareo-quitar-agregar.e2e.js` (ventanas y alcances en navegador real).
+
+### Comportamiento base (sin cambios)
 Botón «✕ Quitar» en cada fila (solo quien edita ese tareo; no en Modo visualización). Pide confirmación (avisa si tenía asistencia u horas) y pregunta si **ya no trabaja**:
 - **Sí (permanente):** deja una exclusión en `tareo.personalExcluido` que rige para esa área desde la fecha del tareo en adelante: la sincronización con la rotación Excel, con Mantenimiento y con maquinistas, y la creación de tareos nuevos ya no la traen. Los tareos de fechas anteriores no cambian.
 - **No:** se quita solo de ese tareo.
 Las exclusiones se fusionan entre dispositivos (gana la entrada más nueva por persona), así que una copia vieja no reintroduce a la persona. Se puede **restaurar** desde el panel «Personal quitado de este tareo», o agregándola manualmente (levanta la exclusión). La acción queda en la auditoría (`QUITAR_PERSONAL`, usuario y hora del servidor). No se borra al trabajador de Trabajadores ni de la rotación (para quitarlo de todo, desactívalo allí o cambia el Excel). Una fila con identificación repetida y sin `filaId` no se quita por orden.
+
+## Personal del área desde el Inicio del Tareo de Mantenimiento (23/11/2026)
+En la tabla «Personal de mantenimiento» del Inicio (`js/personal/48-tareo-personal-area.js`, `window.TareoArea`):
+- **✕ Quitar** (cada fila): ventana con dos alcances. **Desde una fecha en adelante** (fecha de cese; por defecto hoy): sale de los tareos ya creados desde esa fecha y no vuelve en los que se creen. **De todos los tareos**: para quien se registró por error. Muestra una vista previa (cuántos tareos, cuántos con asistencia u horas, cuántos cerrados o sin permiso) y pide una casilla de confirmación si se perderían marcaciones. Es la misma baja que «✕ Quitar» dentro de un tareo (`personalExcluido` permanente); se guarda en cada tareo tocado y en el tareo más reciente desde esa fecha (para que valga en los tareos futuros). No borra al trabajador de Trabajadores. Si no hay ningún tareo desde esa fecha donde guardar la baja, avisa y no hace nada.
+- **Personal quitado** (panel debajo de la tabla): lista las bajas vigentes con **Restaurar** (la baja pasa a inactiva, más nueva, en todos los tareos que la tienen).
+- **+ Personal por día (rango)**: nombre, DNI y cargo opcionales, **Desde / Hasta** (hasta 62 días), turnos (Día, Noche o ambos) y horas opcionales. Agrega a la persona como personal por día (`personalPorDia`, con `rango {desde, hasta}`) en los tareos de Mantenimiento **ya creados** del rango; no duplica (DNI o nombre), respeta permisos y tareos cerrados. Los turnos del rango sin tareo creado no se tocan (se informan): al crearlos se puede repetir el paso.
+- **Personal por día** (panel debajo de la tabla): una fila por persona con cuántos tareos y entre qué fechas. **✕ Quitar** abre una ventana con tres opciones: **desde una fecha en adelante**, **solo un rango de fechas** o **de todos los tareos**, con vista previa y respetando permisos y tareos cerrados. Es una baja lógica (`eliminada: true` y quién la hizo), igual que «Quitar» dentro de un tareo. Si una persona quedó **repetida** en un tareo (se agregó dos veces), el panel lo avisa y ofrece **Quitar repetidos** (deja la primera).
+- Solo Mantenimiento y solo quien puede modificar ese tareo (no en Modo visualización).
+- Pruebas: `tests/tareo-personal-area.e2e.js` (navegador).
+
+## Por qué «se borra» el personal por día y vuelve el personal quitado (causa real, 23/11/2026)
+Una lista de objetos con identificador único (`tareo.personalPorDia`, `tareo.personalExcluido`) no se guarda dentro del documento sino en `fs_items` (lista partida). El Tareo recibe los tareos con una **consulta de colección** (`db.collection('tareos').onSnapshot`), y `public.fs_consulta` devolvía solo `fs_docs.datos`, **sin esas listas**: el personal por día agregado «se borraba» al llegar la actualización (en la base seguía guardado) y las bajas «ya no trabaja aquí» no se veían, así que la persona volvía a aparecer en el personal. Arreglo: migración `glacial_67_consulta_con_listas.sql` (la consulta devuelve también las listas partidas). Afecta a cualquier colección con listas partidas consultada así (también `hieloReportes.historial`, `apSolicitudes`…). Sin cambios en la página.
+
+## Registrar en Trabajadores a quien se agrega a un tareo (23/11/2026)
+«+ Agregar personal → Personal nuevo» solo dejaba a la persona dentro de los tareos: **no existía en Trabajadores**, por eso no salía en la Rotación semanal MTTO, ni en la tabla «Personal de mantenimiento», ni en los tareos nuevos (caso de Armando Quenaya, 23/11/2026).
+- **Casilla «Registrar también en Trabajadores»** (marcada por defecto para quien puede gestionar personal): crea al trabajador (activo, del área, con DNI y cargo) y la persona del tareo queda enlazada a su id. Si no se puede registrar, se pregunta si se agrega solo al tareo.
+- **Panel «Agregados a tareos y sin registrar en Trabajadores»** (Inicio de Mantenimiento): lista a quienes ya se agregaron así y no existen en Trabajadores, con **Registrar en Trabajadores** (un clic). Solo para quien puede gestionar personal.
+- Código: `TareoArea.crearTrabajador` (48-tareo-personal-area.js) y la casilla en 42-tareo-agregar-personal.js. Pruebas: `tests/tareo-personal-area.e2e.js`.
+
+## Historial de Tareo: el personal por día se busca y se ve con sus horas (23/11/2026)
+- «Buscar persona» del Historial ahora también encuentra al **personal por día** (nombre, DNI y cargo/área). Antes solo buscaba en el personal de planilla, por eso «Yefre» no salía.
+- La columna **«Por día»** muestra cuántos hay y, de cada uno, su nombre y sus horas (`07:00–15:00`), o qué falta (`sin salida`, `sin horas`). Sigue habiendo detalle completo en «Ver».
+- Pruebas: `tests/tareo-personal-area.e2e.js`.
+
+## Refrigerio del personal por día (23/11/2026)
+El personal por día ahora tiene **«Salida refrigerio» y «Retorno refrigerio»** (la tabla del tareo, el Tareo General, el Excel «Personal por día» y los formularios de agregar, incluido el rango). Las horas **descuentan el refrigerio** cuando hay salida y retorno (igual que en planilla): 07:00–15:00 con refrigerio 12:00–13:00 = 7 h. Si se borra la salida a refrigerio, se limpia también el retorno. Campos: `salidaRefrigerio`, `retornoRefrigerio` en cada elemento de `personalPorDia`.

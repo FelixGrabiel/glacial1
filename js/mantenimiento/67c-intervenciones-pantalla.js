@@ -70,7 +70,7 @@
       .mi-modal{background:#fff;border-radius:14px;max-width:640px;width:100%;padding:16px;box-shadow:0 14px 40px rgba(0,0,0,.3);margin:auto}
       .mi-modal h3{margin:0 0 8px;font-size:17px;color:#033350}.mi-modal h5{margin:12px 0 4px;font-size:13px;color:#033350}
       .mi-acc{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-      .mi-form{display:grid;grid-template-columns:1fr;gap:10px}
+      .mi-form{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
       .mi-tabla{width:100%;border-collapse:collapse;font-size:12px}.mi-tabla th{text-align:left;color:#46627a;font-size:11px;padding:4px 6px;border-bottom:1px solid #dce5ec}.mi-tabla td{padding:4px 6px;border-bottom:1px solid #edf2f6;vertical-align:top}
       .mi-crono{border-left:3px solid #cbd5e1;margin:6px 0 0 6px;padding-left:10px;font-size:12px}.mi-crono div{margin:0 0 6px}.mi-crono small{color:#64748b}
       .mi-res-op{margin:8px 0;padding:8px 10px;border-radius:10px;font-weight:700}
@@ -117,7 +117,7 @@
       if(F.equipo==='__sin__'?!!d.equipoId:(F.equipo&&d.equipoId!==F.equipo))return false;
       if(F.tecnico&&!(d.participantes||[]).some(p=>p.nombre===F.tecnico))return false;
       if(d.abiertaMs<desde||d.abiertaMs>hasta)return false;
-      if(q&&!norm([d.problema,d.equipoNombre,d.diagnostico,d.accion,d.pendientes,(d.participantes||[]).map(p=>p.nombre).join(' ')].join(' ')).includes(q))return false;
+      if(q&&!(window.glacialBusqueda?window.glacialBusqueda.coincide([d.problema,d.equipoNombre,d.diagnostico,d.accion,d.pendientes,(d.participantes||[]).map(p=>p.nombre).join(' ')],q):norm([d.problema,d.equipoNombre,d.diagnostico,d.accion,d.pendientes,(d.participantes||[]).map(p=>p.nombre).join(' ')].join(' ')).includes(q)))return false;
       return true;
     }).sort((a,b)=>(M.estaAbierta(b.estado)-M.estaAbierta(a.estado))||(b.abiertaMs-a.abiertaMs));
   }

@@ -126,7 +126,7 @@
     .id-mig{font-size:13px;margin:6px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center}
     .id-cargando{padding:22px;text-align:center;color:var(--id-mut)}
     .id-ord{display:flex;gap:6px;flex-wrap:wrap}.id-ord .id-btn{min-height:34px;padding:5px 12px;font-size:13px}
-    @media(max-width:900px){.id-grid{grid-template-columns:1fr}}
+    @media(max-width:900px){.id-grid{grid-template-columns:minmax(0,1fr)}}
     @media(max-width:640px){
       .id h2{font-size:22px}
       .id-kpis{grid-template-columns:1fr 1fr;gap:8px}.id-k{padding:11px}.id-k b{font-size:19px}.id-k:first-child{grid-column:1/-1}.id-k:first-child b{font-size:24px}

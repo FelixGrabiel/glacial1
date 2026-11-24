@@ -59,3 +59,36 @@ y muestra un aviso si alguno estima ≥ 80 % de 1 MiB (fórmula de tamaño de Fi
 - Exportar la imagen de un avance antiguo y reenviar un cierre a Sheets.
 - Migrar: verificar el respaldo descargado, que `sync/avancesTurno` ya no tiene items y que los 83 aparecen igual.
 - Inicio → Pendientes del turno muestra lo mismo.
+
+## Hora de inicio en Avance y Cierre (22/11/2026)
+- Cada formato (marca + presentación) muestra su **hora real de inicio de Producción Actual** (la que queda al tocar «Iniciar», o la de «Corregir hora inicio»), siempre que caiga dentro del turno del reporte. Manda sobre la hora del cuadro del supervisor, que suele llenarse sola con el inicio del turno (07:00).
+- Una hora **corregida a mano** manda siempre. Si el cuadro no trae hora de inicio, no se inventa una: el formato queda «Sin tiempo asignado» (como antes).
+- Marca y presentación se comparan sin importar mayúsculas, tildes ni espacios (`Scala` = `SCALA`).
+- Un Avance o Cierre **ya generado** no cambia: hay que generarlo de nuevo.
+- Pruebas: `tests/avance-lineas-en-produccion.test.js` (casos 8 y 9).
+
+## Cierre: gana lo que se ingresó último (23/11/2026)
+- El Cierre usa la **Producción Efectiva** del registro del supervisor y guarda las Paletas como alternativa (nunca se suman). Excepción nueva: si se registraron **paletas después** de la última vez que el supervisor guardó su registro, el Cierre usa las Paletas (la cifra más reciente) y guarda la efectiva como alternativa.
+- Si el supervisor guardó su registro **después** de la última paleta, manda su registro. Sin marcas de tiempo, todo sigue como antes.
+- Caso real (22/11/2026, cierre de las 19:26): PET2 salió con 24 435 (las paletas decían 28 020), B7L con 9 324 (9 450) y Cajas 20L con 814 (850), porque el registro del supervisor se guardó antes de las últimas paletas.
+- Límite: la marca de tiempo es la del registro completo de la línea; si el supervisor guarda cualquier cuadro de ese registro, cuenta como «guardado después».
+- Pruebas: `tests/avance-lineas-en-produccion.test.js` (caso 10).
+
+## Imagen del Avance/Cierre más nítida (23/11/2026)
+- La imagen se dibuja a **doble resolución** (2 160 px de ancho; antes 1 080), con letras un 12 % más grandes (`AV_IMAGEN_ESCALA_TEXTO` 1.4) y grises de apoyo más oscuros (mejor contraste).
+- Se sigue dibujando en 1 080 px «lógicos», así que el diseño no cambia; solo el lienzo es el doble.
+- WhatsApp reduce las fotos largas (lado mayor ~1 600 px). Para conservar la calidad completa: descargar la imagen y enviarla como **documento/archivo**.
+
+## Dos ratios en Avance y Cierre (23/11/2026)
+
+Cada línea y cada formato muestran (texto de WhatsApp, pantalla e imagen):
+
+- **Ratio real (con paradas)** = producción ÷ horas transcurridas (desde el inicio hasta el corte; las paradas cuentan como tiempo).
+- **Ratio sin paradas** = producción ÷ horas efectivas (transcurrido − paradas). Es el ratio oficial de siempre.
+- **Diferencia por paradas** = sin paradas − real, en unidades/hora y en % del ratio sin paradas (en rojo en la imagen).
+
+Se calculan con los datos congelados del snapshot (`avRatiosDobles`), así que también funcionan en avances ya generados. Si no hay ratio disponible o el formato no tiene tiempo asignado, se muestra «—».
+
+**Reporte por línea (imagen de `61-reporte-linea.js`):** la tarjeta que decía «Ratio real» en realidad mostraba el ratio sin paradas; ahora se llama «Ratio sin paradas» y debajo hay una franja con «Ratio real (con paradas)» y «Diferencia por paradas». Los reportes guardados antes del 23/11/2026 no tienen `ratioReal` y muestran «—».
+
+**Bot de WhatsApp:** usa la misma página publicada (Chromium sin pantalla), así que muestra lo nuevo en cuanto esa página se recarga; el aviso de actualización (`03-actualizacion.js`) la recarga sola unos minutos después de cada publicación.

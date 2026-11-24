@@ -144,6 +144,17 @@ ok(Math.abs(h.horas-(6*5+4*1))<1e-9&&h.estado==='COMPLETO','Noche cruzando media
   /* apoyo compartido */
   const prep=D().prepararEvento(null,{opId:'z',versionEsperada:0,desdeMs:ms(7),lineas:L({PET1:3,PET2:2}),apoyoCompartido:2},{ahoraMs:ms(12),horario:D().horarioDe(FECHA,'DÍA'),uid:'u',usuario:'n'});
   ok(prep.evento.total===5&&prep.evento.apoyoCompartido===2,'el apoyo compartido se guarda aparte y no se suma al total de las líneas (5, no 7)');
+  /* personal de hielo: va en el mismo evento, aparte de las líneas */
+  const ctxH={ahoraMs:ms(12),horario:D().horarioDe(FECHA,'DÍA'),uid:'u',usuario:'n'};
+  const ph=D().prepararEvento(null,{opId:'h1',versionEsperada:0,desdeMs:ms(7),lineas:L({PET1:3,HIELO_CUBOS:4,HIELO_PREMIUM:'0',HIELO_VASOS:''})},ctxH);
+  ok(ph.evento.total===3&&D().totalHielo(ph.evento.lineas)===4&&ph.evento.lineas.HIELO_PREMIUM===0&&ph.evento.lineas.HIELO_VASOS===null,'hielo: se guarda en el evento, no suma al total de líneas (3) y 0 / vacío se distinguen');
+  ok(!('HIELO_CUBOS' in D().prepararEvento(null,{opId:'h2',versionEsperada:0,desdeMs:ms(7),lineas:L({PET1:3})},ctxH).evento.lineas),'sin datos de hielo el evento queda igual que antes');
+  let errH='';try{D().prepararEvento(null,{opId:'h3',versionEsperada:0,desdeMs:ms(7),lineas:L({HIELO_CUBOS:-1})},ctxH);}catch(e){errH=e.message;}
+  ok(/hielo cubos/.test(errH),'hielo: un valor inválido se rechaza');
+  const soloH=D().prepararEvento(null,{opId:'h4',versionEsperada:0,desdeMs:ms(7),lineas:{HIELO_VASOS:2}},ctxH);
+  ok(soloH.evento.total===0&&D().personalAlCorte([soloH.evento],'HIELO_VASOS',ms(9)).cantidad===2&&D().personalAlCorte([soloH.evento],'PET1',ms(9)).estado==='PENDIENTE','hielo: una distribución solo de hielo es válida y la consulta al corte funciona');
+  const hhH=D().horasHombreHielo([ph.evento],ms(7),ms(9));
+  ok(Math.abs(hhH.horas-8)<1e-9&&D().horasHombrePlanta([ph.evento],ms(7),ms(9)).horas===6,'hielo: horas hombre aparte (4 personas × 2 h = 8) y la planta de bebidas no las incluye (3 × 2 = 6)');
   /* comparación con disponibilidad */
   ok(D().compararConDisponible(12,null).estado==='NO_COMPROBABLE'&&D().compararConDisponible(12,12).estado==='COINCIDE'&&D().compararConDisponible(14,12).estado==='REVISAR'&&D().compararConDisponible(10,12).diferencia===-2,'comparación con el personal disponible: no comprobable / coincide / revisar');
   /* reglas */

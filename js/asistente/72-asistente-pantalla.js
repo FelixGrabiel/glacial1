@@ -224,7 +224,7 @@
     const flujo=[['1','Contar','lo que hay en Producción','apIrConteo()'],['2','Ver faltantes','de este turno y los próximos',`apIr('insumos','requerimientos')`],['3','Solicitar','a Almacén',`apIr('insumos','solicitudes')`],['4','Recibir','y destinar a un cuadro',`apIr('insumos','solicitudes')`],['5','Consumo y merma','conciliar al cerrar el cuadro',`apIr('consumo')`]];
     const f=`<ol class="ap-flujo">${flujo.map(([n,t,d,a])=>`<li><button type="button" class="ap-flujo-b" onclick="${a}"><b>${n}</b><span><strong>${esc(t)}</strong><small>${esc(d)}</small></span></button></li>`).join('')}</ol>`;
     const lista=pend.length?`<ul class="ap-empezar">${pasos.map(p=>`<li class="${p.ok?'ap-em-ok':'ap-em-pend'}"><span class="ap-em-ico">${p.ok?'✔':'●'}</span><span class="ap-em-tx"><b>${esc(p.txt)}</b><small>${esc(p.det)}</small></span>${!p.ok&&p.acc?`<button type="button" class="ap-link" onclick="${p.acc}">${esc(p.btn)} ${ico('flecha')}</button>`:''}</li>`).join('')}</ul>`:'';
-    return tarjeta(pend.length?'Para empezar · '+pend.length+' pendiente'+(pend.length===1?'':'s'):'Flujo del turno',lista+f,{icono:'lista'})+`<style>.ap-empezar{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.ap-empezar li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e3e8ee;border-radius:10px;background:#fff}.ap-em-ico{width:22px;text-align:center;font-weight:700}.ap-em-ok .ap-em-ico{color:#15803d}.ap-em-pend .ap-em-ico{color:#d97706}.ap-em-tx{flex:1;display:flex;flex-direction:column}.ap-em-tx small{color:#5a6b7b;font-size:12.5px}.ap-flujo{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.ap-flujo-b{width:100%;display:flex;gap:8px;align-items:center;text-align:left;border:1px solid #d6e2ee;background:#f7fafd;border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit}.ap-flujo-b b{display:inline-flex;width:24px;height:24px;border-radius:50%;background:#0877A6;color:#fff;align-items:center;justify-content:center;font-size:13px;flex:none}.ap-flujo-b span{display:flex;flex-direction:column}.ap-flujo-b small{color:#5a6b7b;font-size:12px}@media(max-width:900px){.ap-flujo{grid-template-columns:1fr}}</style>`;
+    return tarjeta(pend.length?'Para empezar · '+pend.length+' pendiente'+(pend.length===1?'':'s'):'Flujo del turno',lista+f,{icono:'lista'})+`<style>.ap-empezar{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.ap-empezar li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e3e8ee;border-radius:10px;background:#fff}.ap-em-ico{width:22px;text-align:center;font-weight:700}.ap-em-ok .ap-em-ico{color:#15803d}.ap-em-pend .ap-em-ico{color:#d97706}.ap-em-tx{flex:1;display:flex;flex-direction:column}.ap-em-tx small{color:#5a6b7b;font-size:12.5px}.ap-flujo{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.ap-flujo-b{width:100%;display:flex;gap:8px;align-items:center;text-align:left;border:1px solid #d6e2ee;background:#f7fafd;border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit}.ap-flujo-b b{display:inline-flex;width:24px;height:24px;border-radius:50%;background:#0877A6;color:#fff;align-items:center;justify-content:center;font-size:13px;flex:none}.ap-flujo-b span{display:flex;flex-direction:column}.ap-flujo-b small{color:#5a6b7b;font-size:12px}@media(max-width:900px){.ap-flujo{grid-template-columns:minmax(0,1fr)}}</style>`;
   }
   function tabResumen(ctx){
     const lineasCon=ctx.lineas.filter(l=>ctx.cuadros.some(c=>c.linea===l&&c.producido>0));
@@ -559,11 +559,16 @@
     let lista=D.cache.solicitudes.slice();
     if(filtro==='abiertas')lista=lista.filter(s=>SOL_ABIERTAS.includes(s.estado));
     else if(filtro==='cerradas')lista=lista.filter(s=>!SOL_ABIERTAS.includes(s.estado));
-    lista.sort((a,b)=>(ORDEN_SOL[a.estado]??9)-(ORDEN_SOL[b.estado]??9)||String(b.id).localeCompare(String(a.id)));
+    const AE=window.glacialAlmacenEnlace;
+    // Vista de Almacén: primero lo que hay que atender, la que más espera arriba (con aviso por urgencia). El resto, como siempre.
+    if(alm&&AE&&filtro!=='cerradas')lista=AE.ordenarPorAtender(lista,D.ahora(),ORDEN_SOL);
+    else lista.sort((a,b)=>(ORDEN_SOL[a.estado]??9)-(ORDEN_SOL[b.estado]??9)||String(b.id).localeCompare(String(a.id)));
+    const porAtender=alm&&AE?AE.resumenPorAtender(D.cache.solicitudes,D.ahora()):null;
+    const nivelEspera=s=>{const p=alm&&AE?AE.prioridadSolicitud(s,D.ahora()):null;return p&&p.atender?p:null;};
     const ultimo=s=>((s.historial||[]).slice(-1)[0]||{}).en;
     const itemTxt=i=>`${esc(insumoDe(i.insumo).nombre)} ${num(i.entregado)>0?fmt(i.entregado)+' / ':''}${fmt(i.solicitado)} ${esc(i.unidad)}`;
     const filas=lista.map(s=>`<tr class="ap-clic" onclick="apVerSolicitud('${esc(s.id)}')"><td data-label="Solicitud"><b>${esc(s.id)}</b></td><td data-label="Fecha">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Día'}</td>
-      <td data-label="Ítems">${(s.items||[]).map(itemTxt).join(' · ')}</td><td data-label="Espera">${SOL_ABIERTAS.includes(s.estado)?hace(ultimo(s)):'—'}</td><td data-label="Estado">${pillSolicitud(s.estado)}</td></tr>`).join('');
+      <td data-label="Ítems">${(s.items||[]).map(itemTxt).join(' · ')}</td><td data-label="Espera">${(()=>{const p=nivelEspera(s);return p&&p.nivel!=='normal'?`<b style="color:${p.nivel==='urgente'?'#c62828':'#b45309'}">${SOL_ABIERTAS.includes(s.estado)?hace(ultimo(s)):'—'}${p.nivel==='urgente'?' · urgente':' · atender'}</b>`:(SOL_ABIERTAS.includes(s.estado)?hace(ultimo(s)):'—');})()}</td><td data-label="Estado">${pillSolicitud(s.estado)}</td></tr>`).join('');
     // Solicitud nueva: solo lo que falta + los insumos que la Asistente agrega a mano.
     const vals=AP.solVal||{},extra=AP.solExtra||[],quit=AP.solQuit||[];
     const mostrados=D.cache.insumos.filter(i=>i.activo!==false&&!quit.includes(i.codigo)&&(faltantes.some(x=>x.insumo.codigo===i.codigo)||extra.includes(i.codigo)));
@@ -593,10 +598,37 @@
     const panel=movs.length?tarjeta('Entregas y devoluciones de hoy · en tiempo real',tabla(['Hora','Movimiento','Insumo','#Cantidad','Responsable','Solicitud'],movs.map(m=>`<tr><td data-label="Hora">${hora(m.en)}</td>
       <td data-label="Movimiento">${m.origen==='DEVOLUCION'?pill('Devolución de Producción','azul','flecha'):m.tipo==='ANULACION'?pill('Entrega anulada','gris','cerrar'):pill('Entrega a Producción','verde','check')}${m.sinStock?' '+pill('Sin stock autorizado','ambar'):''}</td>
       <td data-label="Insumo">${esc(insumoDe(m.insumo).nombre)}</td><td data-label="Cantidad" class="ap-num">${m.tipo==='ANULACION'?'—':fmt(m.cantidad)+' '+esc(m.unidad||insumoDe(m.insumo).unidad)}</td><td data-label="Responsable">${esc(m.usuario||'—')}</td><td data-label="Solicitud">${esc(m.solicitudId||'—')}</td></tr>`).join('')),{icono:'subida'}):'';
+    const kardex=alm&&en?htmlKardex(en):'';
     const nota=pie('Solicitudes, reservas y entregas son operaciones distintas. Solo una recepción confirmada por Producción incrementa las existencias en Producción.');
-    return `${nueva}<h3 class="ap-h3">${titulo}</h3>${sel}${filas?tabla(['Solicitud','Fecha','Ítems (entregado / pedido)','Espera','Estado'],filas,'ap-t-click'):vacio(filtro==='abiertas'?'No hay solicitudes abiertas.':'Sin solicitudes en los últimos 60 días.')}
-      ${panel}${nota}`;
+    const avisoAtender=porAtender&&porAtender.total?pie(`Por atender: <b>${porAtender.total}</b> solicitud${porAtender.total===1?'':'es'}${porAtender.urgentes?` · <b>${porAtender.urgentes} urgente${porAtender.urgentes===1?'':'s'}</b> (más de 6 h)`:''}${porAtender.atencion?` · ${porAtender.atencion} con más de 2 h`:''} · la que más espera lleva ${AE.txtEspera(porAtender.masAntiguaMin)}. Van primero en la lista.`,porAtender.urgentes?'aviso':'info'):'';
+    return `${nueva}<h3 class="ap-h3">${titulo}</h3>${avisoAtender}${sel}${filas?tabla(['Solicitud','Fecha','Ítems (entregado / pedido)','Espera','Estado'],filas,'ap-t-click'):vacio(filtro==='abiertas'?'No hay solicitudes abiertas.':'Sin solicitudes en los últimos 60 días.')}
+      ${panel}${kardex}${nota}`;
   }
+  /* Kardex por insumo: entradas, salidas y saldo corrido desde el último corte de stock. */
+  const TXT_KX={ENTREGA:['Entrega a Producción','verde','check'],DEVOLUCION:['Devolución de Producción','azul','flecha'],ANULACION:['Anulación','gris','cerrar']};
+  function htmlKardex(en){
+    const lista=D.cache.insumos.filter(i=>i.activo!==false&&i.itemCode).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es'));
+    if(!lista.length)return '';
+    const sel=AP.kardexIns||'';
+    const k=sel?en.kardexDe(sel):null;
+    const ins=lista.find(i=>i.codigo===sel);
+    const cuerpo=!sel?vacio('Elige un insumo para ver su historial de entradas, salidas y saldo.')
+      :!k?vacio('No se pudo leer el stock del Inventario ahora.')
+      :k.estado!=='OK'?pie(esc(window.glacialAlmacenEnlace.TXT_ESTADO[k.estado]||'Sin datos de stock para este insumo')+'.','aviso')
+      :pie('Desde el corte del <b>'+esc(k.fechaCorte)+'</b> · saldo inicial <b>'+fmt(k.base)+'</b> · entradas <b>'+fmt(k.totalEntradas)+'</b> · salidas <b>'+fmt(k.totalSalidas)+'</b> · saldo actual <b>'+fmt(k.saldo)+'</b> '+esc(ins.unidad||''))
+        +(k.filas.length?tabla(['Fecha','Movimiento','Solicitud','#Entrada','#Salida','#Saldo','Responsable'],
+          '<tr><td data-label="Fecha">'+esc(k.fechaCorte)+'</td><td data-label="Movimiento"><b>Saldo inicial (corte)</b></td><td data-label="Solicitud">—</td><td data-label="Entrada" class="ap-num">—</td><td data-label="Salida" class="ap-num">—</td><td data-label="Saldo" class="ap-num"><b>'+fmt(k.base)+'</b></td><td data-label="Responsable">—</td></tr>'
+          +k.filas.map(f=>{const t=TXT_KX[f.tipo]||[f.tipo,'gris'];return '<tr><td data-label="Fecha">'+esc(f.fecha)+(f.en?' '+hora(f.en):'')+'</td><td data-label="Movimiento">'+pill(t[0],t[1],t[2])+(f.nota?'<div class="ap-sub-nota">'+esc(f.nota)+'</div>':'')+'</td><td data-label="Solicitud">'+esc(f.solicitudId||'—')+'</td><td data-label="Entrada" class="ap-num">'+(f.entrada?fmt(f.entrada):'—')+'</td><td data-label="Salida" class="ap-num">'+(f.salida?fmt(f.salida):'—')+'</td><td data-label="Saldo" class="ap-num"><b>'+fmt(f.saldo)+'</b></td><td data-label="Responsable">'+esc(f.usuario||'—')+'</td></tr>';}).join('')
+          ):vacio('Este insumo no tiene movimientos desde el corte.'));
+    const acc=sel&&k&&k.estado==='OK'?'<button type="button" class="ap-btn ap-btn-o" onclick="apKardexCsv()">Descargar CSV</button>':'';
+    return tarjeta('Kardex por insumo',`<div class="ap-acc"><select id="ap-kx-ins" onchange="AP_set('kardexIns',this.value)" aria-label="Insumo"><option value="">Elige un insumo…</option>${lista.map(i=>`<option value="${esc(i.codigo)}"${i.codigo===sel?' selected':''}>${esc(i.nombre)}</option>`).join('')}</select>${acc}</div>${cuerpo}`);
+  }
+  window.apKardexCsv=function(){
+    const en=EN(),AE=window.glacialAlmacenEnlace,cod=AP.kardexIns;if(!en||!AE||!cod)return;
+    const k=en.kardexDe(cod),ins=insumoDe(cod);if(!k||k.estado!=='OK')return;
+    const blob=new Blob([AE.kardexCsv(k,ins.nombre)],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='kardex-'+String(ins.nombre||cod).toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
   const pillSolicitud=e=>{const t=SOL_TXT[e]||e;return ['CERRADA','RECIBIDA'].includes(e)?pill(t,'verde','check'):e==='CANCELADA'?pill(t,'gris'):e==='OBSERVADA'?pill(t,'rojo','alerta'):pill(t,'gris','reloj_arena');};
   /* Avisa (sin impedir pedir) cuando lo solicitado supera el stock que Almacén tiene según el Inventario. */
   window.apAvisoStock=()=>{
@@ -609,6 +641,16 @@
     const items=[...document.querySelectorAll('.ap-sol-cant')].map(i=>({insumo:i.dataset.insumo,unidad:i.dataset.unidad,solicitado:i.value})).filter(i=>num(i.solicitado)>0);
     AP.solExtra=[];AP.solVal={};AP.solQuit=[];
     ejecutar(()=>D.crearSolicitud({fecha:AP.fecha,bloque:AP.bloque,items,observaciones:valor('ap-sol-obs'),enviar}),id=>'Solicitud '+id+(enviar?' enviada a Almacén.':' guardada como borrador.'));
+  };
+  /* Vale de entrega: comprobante imprimible (o PDF) de una entrega a Producción. */
+  window.apValeEntrega=function(id,n){
+    const s=D.cache.solicitudes.find(x=>x.id===id),AE=window.glacialAlmacenEnlace;if(!s||!AE)return;
+    const v=AE.armarVale(s,n,c=>insumoDe(c));
+    if(!v){alert('No hay vale para esa entrega (no tiene detalle o fue anulada).');return;}
+    const w=window.open('','_blank');
+    if(!w){alert('El navegador bloqueó la ventana del vale. Permite ventanas emergentes para GLACIAL.');return;}
+    w.document.open();w.document.write(AE.valeHtml(v,new Date().toLocaleString('es-PE',{timeZone:'America/Lima',dateStyle:'short',timeStyle:'short',hour12:false})));w.document.close();
+    try{w.focus();setTimeout(()=>{try{w.print();}catch(_){/* se imprime con el menú */}},300);}catch(_){/* sin imprimir */}
   };
   window.apVerSolicitud=function(id){
     const s=D.cache.solicitudes.find(x=>x.id===id);if(!s)return;const ctx=contexto();const cuadrosSol=cuadrosPara(s.fecha,s.bloque);AP.solSel=id;AP.solAbierta={id,version:num(s.version)};
@@ -632,7 +674,7 @@
       const n=k+1,anulada=(s.historial||[]).some(x=>x&&x.anulaEntrega===n);
       const det=h.entregas?Object.entries(h.entregas).map(([i,q])=>`${esc(insumoDe(i).nombre)} ${fmt(q)}`).join(' · '):'<span class="ap-mut">sin detalle</span>';
       return `<tr><td data-label="N.º">${n}</td><td data-label="Cuándo">${esc(fechaHora(h.en))}</td><td data-label="Responsable">${esc(h.por||'—')}</td><td data-label="Detalle">${det}</td>
-        <td data-label="Estado">${anulada?pill('Anulada','gris','cerrar'):pill('Vigente','verde','check')}</td><td data-label="">${!anulada&&h.entregas?`<button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apAnularEntrega('${esc(s.id)}',${n},${num(s.version)})">Anular</button>`:''}</td></tr>`;}).join(''))}`:'';
+        <td data-label="Estado">${anulada?pill('Anulada','gris','cerrar'):pill('Vigente','verde','check')}</td><td data-label="">${!anulada&&h.entregas?`<button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apValeEntrega('${esc(s.id)}',${n})">Vale</button> <button type="button" class="ap-btn ap-btn-o ap-btn-s" onclick="apAnularEntrega('${esc(s.id)}',${n},${num(s.version)})">Anular</button>`:''}</td></tr>`;}).join(''))}`:'';
     const hist=(s.historial||[]).map(h=>`<li>${fechaHora(h.en)} · <b>${esc(SOL_TXT[h.estado]||h.estado)}</b> · ${esc(h.por)}${h.nota?' — '+esc(h.nota):''}</li>`).join('');
     modal('Solicitud '+esc(s.id),`<p class="ap-sub">${esc(s.fecha)} · ${s.bloque==='NOCHE'?'Noche':'Mañana + Intermedio'} · ${pillSolicitud(s.estado)}${s.observaciones?' · '+esc(s.observaciones):''}</p>
       ${tabla(['Insumo','#Solicitado','#Entregado','#Recibido',...(columnaStock?['#Stock Almacén']:[]),''],it)}
@@ -1159,7 +1201,7 @@
 .ap-p-azul{background:#E8F7FE;color:#065F86}.ap-acc-agregar{display:flex;gap:8px;margin:10px 0}.ap-acc-agregar select{flex:1;padding:9px;border:1px solid var(--ap-linea);border-radius:8px}.ap-filtros-sol{display:flex;gap:6px;margin:6px 0 10px}
 .ap-modal-xl{max-width:1240px!important;width:96%!important}.ap-2-rep{display:grid;grid-template-columns:1fr 1fr;gap:14px}.ap-rep{border:1px solid var(--ap-linea);border-radius:12px;padding:14px}.ap-rep h4{margin:0 0 4px;display:flex;gap:8px;align-items:center}
 .ap-chks{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 10px}.ap-chk{display:inline-flex;gap:6px;align-items:center;font-size:14px}.ap-in-s{width:110px;padding:6px 8px;border:1px solid var(--ap-linea);border-radius:8px;text-align:right}.ap-in-s:disabled{background:#f1f4f8;color:#6b7a8a}
-.ap-obs{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.ap-obs li{font-size:14px}.ap-edit{border:2px solid #f0b429}@media(max-width:760px){.ap-2-rep{grid-template-columns:1fr}}
+.ap-obs{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.ap-obs li{font-size:14px}.ap-edit{border:2px solid #f0b429}@media(max-width:760px){.ap-2-rep{grid-template-columns:minmax(0,1fr)}}
 .ap{--ap-azul:#0877A6;--ap-azul-o:#0877A6;--ap-linea:#dde6ef;--ap-mut:#5f7382;--ap-nar:#e8710a;color:#033350;font-size:15px}
 .ap [hidden]{display:none!important}
 .ap .ap-ico{width:20px;height:20px;flex:0 0 auto;vertical-align:middle}
@@ -1263,14 +1305,14 @@ p.ap-sub{padding:0;border:0;background:none;flex:none;font-size:14px;color:var(-
 .ap button:focus-visible,.ap a:focus-visible,.ap [role=button]:focus-visible,.ap summary:focus-visible,.ap input:focus-visible,.ap select:focus-visible,.ap textarea:focus-visible,.ap .ap-clic:focus-visible{outline:3px solid #4FC4F5;outline-offset:2px}
 .ap-tw+.ap-card,.ap-tw+section{margin-top:16px}
 .ap .ap-t th{white-space:normal;line-height:1.25}.ap .ap-t th,.ap-t td{padding-left:10px;padding-right:10px}   /* tablas de muchas columnas (Previsión) caben sin cortar «Estado» */
-@media(max-width:560px){.ap-nueva .ap-acc-agregar{grid-template-columns:1fr}.ap-kpi{gap:10px;padding:12px}.ap-kpi-ico{width:42px;height:42px}.ap .ap-kpi-ico .ap-ico{width:22px;height:22px}.ap-kpi-tx>span{font-size:14px}.ap-kpi-tx b{font-size:26px}.ap-atender li{flex-wrap:wrap}.ap-at-tx{flex:1 1 calc(100% - 48px)}.ap-atender li .ap-link{margin-left:38px;padding:2px 0}.ap-kpis-4,.ap-kpis-3{grid-template-columns:1fr 1fr!important;gap:10px}.ap-flujo-b{padding:7px 9px}}
+@media(max-width:560px){.ap-nueva .ap-acc-agregar{grid-template-columns:minmax(0,1fr)}.ap-kpi{gap:10px;padding:12px}.ap-kpi-ico{width:42px;height:42px}.ap .ap-kpi-ico .ap-ico{width:22px;height:22px}.ap-kpi-tx>span{font-size:14px}.ap-kpi-tx b{font-size:26px}.ap-atender li{flex-wrap:wrap}.ap-at-tx{flex:1 1 calc(100% - 48px)}.ap-atender li .ap-link{margin-left:38px;padding:2px 0}.ap-kpis-4,.ap-kpis-3{grid-template-columns:1fr 1fr!important;gap:10px}.ap-flujo-b{padding:7px 9px}}
 @media(max-width:700px){.ap-filtros .ap-chk,.ap-filtros .ap-acc{grid-column:1/-1}.ap-filtros{grid-template-columns:1fr 1fr}.ap-nueva{padding:12px}}
 .ap-aud{display:flex;gap:16px;align-items:flex-start}.ap-aud h4{margin:0 0 4px;font-size:20px}.ap-aud p{margin:6px 0}
 .ap-hist{font-size:14px;padding-left:18px}.ap-modal{max-width:920px}
 @media(max-width:1100px){.ap-kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-filtros .ap-acc{grid-column:1/-1;justify-content:flex-start}.ap-form-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:900px){.ap-2,.ap-2-par,.ap-2-merma,.ap-2-hist{grid-template-columns:1fr}.ap-kpis-3{grid-template-columns:1fr}}
+@media(max-width:900px){.ap-2,.ap-2-par,.ap-2-merma,.ap-2-hist{grid-template-columns:minmax(0,1fr)}.ap-kpis-3{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:640px){.ap-cab h1{font-size:24px}.ap-cab-der{width:100%}.ap-cab-ctl{flex:1 1 140px}.ap-cab-sep{display:none}.ap-h2{font-size:23px}
-  .ap-kpis-4,.ap-form-2,.ap-form-3,.ap-form-4,.ap-filtros{grid-template-columns:1fr}.ap-kpi{padding:14px}.ap-kpi-ico{width:52px;height:52px}.ap-kpi-tx b{font-size:28px}
+  .ap-kpis-4,.ap-form-2,.ap-form-3,.ap-form-4,.ap-filtros{grid-template-columns:minmax(0,1fr)}.ap-kpi{padding:14px}.ap-kpi-ico{width:52px;height:52px}.ap-kpi-tx b{font-size:28px}
   .ap .ap-t{min-width:0!important}.ap-tw{overflow-x:visible;border:0}
   .ap-t thead{display:none}.ap-t,.ap-t tbody,.ap-t tr,.ap-t td{display:block;width:100%;box-sizing:border-box}.ap-t tr{border:1px solid var(--ap-linea);border-radius:10px;padding:6px 4px;margin-bottom:8px}
   .ap-t td{border:0;padding:4px 8px;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:baseline;gap:4px 8px;text-align:right}

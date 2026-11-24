@@ -6,7 +6,8 @@
        que no está en este tareo (antes solo Mantenimiento).
      · "Personal nuevo": alguien que acaba de ingresar y todavía no está
        registrado. Se pide nombre, DNI, cargo y línea (Producción).
-   La persona se agrega SOLO a este tareo (no crea ni cambia trabajadores):
+   La persona se agrega a este tareo y, si se elige «desde una fecha en adelante», también a los tareos ya creados de la misma
+   área desde esa fecha (este turno o ambos; no duplica y respeta tareos cerrados y permisos). No crea ni cambia trabajadores:
    RRHH la verá en Incidencias del Excel como "sin cargo verificado" hasta
    que la registre en Trabajadores (se enlaza luego por DNI).
 
@@ -40,6 +41,31 @@
   const trabajadores=()=>(typeof loadWorkers==='function'?loadWorkers():[])||[];
 
   let modo='registrado';   // 'registrado' | 'nuevo'
+  let alcance={tipo:'este',desde:'',turnos:'este'};   // dónde se agrega: solo este tareo | desde una fecha en los tareos ya creados (este turno o ambos)
+
+  /* Tareos ya creados de la MISMA área a los que llega «desde una fecha»: fecha >= desde, turno según la elección y que se puedan modificar
+     (permiso y tareo no cerrado). El tareo actual no cuenta (siempre se agrega ahí). */
+  function otrosTareosAlcanzados(tareo){
+    if(alcance.tipo!=='desde'||!/^\d{4}-\d{2}-\d{2}$/.test(alcance.desde))return {tareos:[],bloqueados:0};
+    const area=tareoAreaDe(tareo),turno=normalizarTurno(tareo.turno);
+    const lista=[];let bloqueados=0;
+    obtenerTareos().forEach(t=>{
+      if(!t||t.id===tareo.id||tareoAreaDe(t)!==area||String(t.fecha||'')<alcance.desde)return;
+      if(alcance.turnos==='este'&&normalizarTurno(t.turno)!==turno)return;
+      if(typeof tareoAutorizadoEscribir==='function'&&!tareoAutorizadoEscribir(t)){bloqueados++;return;}
+      lista.push(t);
+    });
+    return {tareos:lista,bloqueados};
+  }
+  function textoAlcance(tareo){
+    if(alcance.tipo!=='desde')return 'Se agrega solo a este tareo.';
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(alcance.desde))return 'Elige una fecha válida.';
+    const o=otrosTareosAlcanzados(tareo),n=o.tareos.length;
+    let t='Se agregará a este tareo y a '+n+' tareo'+(n===1?'':'s')+' más ya creado'+(n===1?'':'s')+' de '+tareoAreaDe(tareo)+' desde el '+(typeof formatearFecha==='function'?formatearFecha(alcance.desde):alcance.desde)+
+      (alcance.turnos==='este'?' (solo turno '+normalizarTurno(tareo.turno)+')':' (ambos turnos)')+'. Donde ya esté, no se duplica.';
+    if(o.bloqueados)t+=' '+o.bloqueados+' cerrado'+(o.bloqueados===1?'':'s')+' o sin permiso no se tocan.';
+    return t+' Los tareos que se creen después se arman con la rotación.';
+  }
 
   function candidatosRegistrados(tareo){
     const yaEstan=new Set((tareo.personal||[]).flatMap(tareoIdentidades));
@@ -62,7 +88,7 @@
       ? '<div class="field-sm"><label>Trabajador</label>'+
           '<select id="tareo-agregar-select">'+registrados.map(w=>
             '<option value="'+esc(w.id)+'">'+esc(w.nombre)+' — '+esc(w.cargo||'Sin cargo')+'</option>').join('')+'</select></div>'+
-        '<p class="small-muted" style="margin:10px 0 0;">Se agrega solo a este tareo, como pendiente de registrar.</p>'
+        '<p class="small-muted" style="margin:10px 0 0;">Queda como pendiente de registrar.</p>'
       : '<p class="small-muted" style="margin:0;">No hay más trabajadores registrados para agregar. Si es un ingreso nuevo, usa «Personal nuevo».</p>';
 
     const panelNuevo=
@@ -76,7 +102,22 @@
         ? '<div class="field-sm"><label>Línea (opcional)</label><select id="tan-linea"><option value="">Sin línea</option>'+
             lineas.map(l=>'<option value="'+esc(l.name||l.key)+'">'+esc(l.name||l.key)+'</option>').join('')+'</select></div>'
         : '')+
-      '<p class="small-muted" style="margin:10px 0 0;">Se agrega solo a este tareo. RRHH deberá registrarlo luego en Trabajadores (se enlaza por DNI).</p>';
+      (typeof puedeGestionarPersonal==='function'&&puedeGestionarPersonal()
+        ? '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:13px;"><input type="checkbox" id="tan-registrar" checked style="margin-top:3px;"> <span><strong>Registrar también en Trabajadores</strong><br><span class="small-muted">Así sale en la rotación semanal y en la lista de personal del área. Si no, RRHH deberá registrarlo luego (se enlaza por DNI).</span></span></label>'
+        : '<p class="small-muted" style="margin:10px 0 0;">RRHH deberá registrarlo luego en Trabajadores (se enlaza por DNI).</p>');
+
+    const opAlc=(v,titulo,extra)=>'<label class="tar2-qm-op"><input type="radio" name="tan-alcance" value="'+v+'"'+(alcance.tipo===v?' checked':'')+
+      ' onchange="tareoAgregarPersonalAlcance(\''+v+'\')"><span><strong>'+titulo+'</strong>'+(extra||'')+'</span></label>';
+    const panelAlcance=
+      '<div style="margin-top:14px;"><div class="small-muted" style="font-weight:700;margin-bottom:6px;">Dónde agregarla</div><div class="tar2-qm-ops">'+
+        opAlc('este','Solo este tareo')+
+        opAlc('desde','Desde una fecha en adelante',
+          ' <input type="date" id="tan-desde" value="'+esc(alcance.desde||tareo.fecha)+'"'+(alcance.tipo==='desde'?'':' disabled')+' oninput="tareoAgregarPersonalFecha(this.value)">'+
+          ' <select id="tan-turnos"'+(alcance.tipo==='desde'?'':' disabled')+' onchange="tareoAgregarPersonalTurnos(this.value)" style="margin-left:8px;font:inherit;padding:2px 6px;">'+
+            '<option value="este"'+(alcance.turnos==='este'?' selected':'')+'>Solo turno '+esc(normalizarTurno(tareo.turno))+'</option>'+
+            '<option value="ambos"'+(alcance.turnos==='ambos'?' selected':'')+'>Ambos turnos</option></select>')+
+        '</div><div id="tan-alcance-texto" class="tar2-qm-resumen" role="status">'+esc(textoAlcance(tareo))+'</div>'+
+      '</div>';
 
     root.innerHTML=
       '<div class="modal-backdrop" onclick="if(event.target===this)closeModal()">'+
@@ -84,13 +125,28 @@
         '<div class="modal-head"><h3>Agregar personal · '+esc(area)+'</h3><button class="modal-close" onclick="closeModal()">✕</button></div>'+
         '<div class="modal-body">'+
           '<div class="actions-row" style="margin:0 0 12px;gap:8px;">'+boton('registrado','Ya registrado')+boton('nuevo','Personal nuevo')+'</div>'+
-          (modo==='registrado'?panelRegistrado:panelNuevo)+
+          (modo==='registrado'?panelRegistrado:panelNuevo)+panelAlcance+
           '<div class="actions-row"><button class="btn btn-primary" onclick="tareoAgregarPersonal()"'+
             (modo==='registrado'&&!registrados.length?' disabled':'')+'>Agregar</button></div>'+
         '</div></div></div>';
     const n=document.getElementById('tan-nombre');
     if(n)n.focus();
   }
+
+  function refrescarAlcance(){
+    const tareo=tareoObtenerActual();if(!tareo)return;
+    const d=document.getElementById('tan-desde'),t=document.getElementById('tan-turnos'),x=document.getElementById('tan-alcance-texto');
+    if(d)d.disabled=alcance.tipo!=='desde';if(t)t.disabled=alcance.tipo!=='desde';
+    if(x)x.textContent=textoAlcance(tareo);
+  }
+  window.tareoAgregarPersonalAlcance=function(v){
+    const tareo=tareoObtenerActual();if(!tareo)return;
+    alcance.tipo=v==='desde'?'desde':'este';
+    if(alcance.tipo==='desde'&&!alcance.desde)alcance.desde=tareo.fecha;
+    refrescarAlcance();
+  };
+  window.tareoAgregarPersonalFecha=function(v){alcance.desde=v;refrescarAlcance();};
+  window.tareoAgregarPersonalTurnos=function(v){alcance.turnos=v==='ambos'?'ambos':'este';refrescarAlcance();};
 
   window.tareoAgregarPersonalModo=function(valor){
     modo=valor==='nuevo'?'nuevo':'registrado';
@@ -102,6 +158,7 @@
     const tareo=tareoObtenerActual();
     if(!tareo||!tareoPuedeEditar(tareo))return;
     modo='registrado';
+    alcance={tipo:'este',desde:tareo.fecha,turnos:'este'};
     dibujar(tareo);
   };
   window.tareoAbrirAgregarPersonal=tareoAbrirAgregarPersonal;
@@ -110,7 +167,7 @@
     const tareo=tareoObtenerActual();
     if(!tareo||!tareoPuedeEditar(tareo))return;
     const area=tareoAreaDe(tareo);
-    let base=null,nuevoIngreso=false;
+    let base=null,nuevoIngreso=false,registradoEnTrabajadores=false;
 
     if(modo==='registrado'){
       const id=document.getElementById('tareo-agregar-select')?.value;
@@ -132,7 +189,15 @@
       }
       base={trabajadorId:'nuevo_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6),nombre,dni,cargo,linea};
       nuevoIngreso=true;
+      // «Registrar también en Trabajadores»: se crea el trabajador (activo, del área) y la persona del tareo queda enlazada a él.
+      if(document.getElementById('tan-registrar')?.checked&&window.TareoArea&&typeof window.TareoArea.crearTrabajador==='function'){
+        const r=window.TareoArea.crearTrabajador(base,area);
+        if(r.ok&&r.worker){base.trabajadorId=r.worker.id;registradoEnTrabajadores=true;}
+        else if(!r.ok&&!confirm((r.motivo||'No se pudo registrar en Trabajadores.')+'\n\n¿Agregarlo solo a los tareos de todas formas?'))return;
+      }
     }
+
+    if(alcance.tipo==='desde'&&!/^\d{4}-\d{2}-\d{2}$/.test(alcance.desde)){alert('Elige una fecha válida.');return;}
 
     // No duplicar a quien ya está en este tareo (DNI / ID / nombre).
     const yaEsta=(tareo.personal||[]).some(p=>tareoMismaPersonaFlexible(p,base)||tareoIdentidades(p).some(c=>tareoIdentidades(base).includes(c)));
@@ -152,8 +217,26 @@
     tareo.personal=ordenarPersonalTareo(tareo.personal);
 
     guardarTareoEnMemoria(tareo);
+
+    // «Desde una fecha»: también en los tareos ya creados de esta área (donde aún no esté), sin duplicar.
+    let agregadosEn=0;
+    if(alcance.tipo==='desde'){
+      otrosTareosAlcanzados(tareo).tareos.forEach(t=>{
+        const ya=(t.personal||[]).some(p=>tareoMismaPersonaFlexible(p,base)||tareoIdentidades(p).some(c=>tareoIdentidades(base).includes(c)));
+        if(ya)return;
+        if(window.TareoEd)window.TareoEd.levantarExclusion(t,base);
+        const copia=tareoNuevaPersona(base,area);
+        copia.agregadoManual=true;copia.nuevoIngreso=nuevoIngreso;copia.agregadoPor=nombreUsuario();copia.agregadoEn=Date.now();
+        copia.actualizadoEn=typeof tareoAhoraMs==='function'?tareoAhoraMs():Date.now();
+        t.personal=ordenarPersonalTareo([...(t.personal||[]),copia]);
+        guardarTareoEnMemoria(t);
+        agregadosEn++;
+      });
+    }
     closeModal();
     renderTareoFormulario(tareo);
+    if(registradoEnTrabajadores)alert('«'+(base.nombre||'La persona')+'» también quedó registrado en Trabajadores.');
+    if(alcance.tipo==='desde')alert('«'+(base.nombre||'La persona')+'» se agregó a este tareo y a '+agregadosEn+' tareo'+(agregadosEn===1?'':'s')+' más.');
   };
   window.tareoAgregarPersonal=tareoAgregarPersonal;
 })();

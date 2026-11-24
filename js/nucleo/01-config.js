@@ -490,12 +490,14 @@ const PRODUCTOS_HIELO = [
   ['Tottus CD', '3 kg'],
   ['Cusine & Co', '3 kg'],
   ['Molitalia', '3 kg'],
+  ['San Fernando', '3 kg'],
   ['Hoteles', '3 kg'],
   ['Precio Uno', '1.5 kg'],
   ['Glacial', '1.5 kg'],
   ['Scala', '1.5 kg'],
   ['Listo', '1.5 kg'],
-  ['Austral', '1.5 kg']
+  ['Austral', '1.5 kg'],
+  ['San Fernando', '1.5 kg']
 ];
 
 const MARCAS_HIELO = [...new Set(PRODUCTOS_HIELO.map(p => p[0]))];

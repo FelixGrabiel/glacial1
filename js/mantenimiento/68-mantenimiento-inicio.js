@@ -75,7 +75,7 @@
       '.mi-desc{font-size:13px;color:#4a5b6b;line-height:1.35;flex:1}'+
       '.mi-go{font-size:12px;font-weight:700;color:var(--mi-color,#065F86)}'+
       '.mi-vacio{padding:18px;border:1px dashed #b8c6d2;border-radius:12px;color:#5a6b7b}'+
-      '@media (max-width:520px){.mi-grid{grid-template-columns:1fr}.mi-card{min-height:0}}';
+      '@media (max-width:520px){.mi-grid{grid-template-columns:minmax(0,1fr)}.mi-card{min-height:0}}';
     document.head.appendChild(s);
   }
 

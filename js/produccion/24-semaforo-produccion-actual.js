@@ -1481,7 +1481,7 @@
     @media(min-width:701px){
       .pa-live-grid{
         display:grid;
-        grid-template-columns:1fr;
+        grid-template-columns:minmax(0,1fr);
         gap:12px;
         overflow:visible;
         padding:2px 0 10px;
@@ -1599,18 +1599,18 @@
     .pa-proy-estado.verde{background:#d9f4e5;color:#0d6b3c}.pa-proy-estado.ambar{background:#ffeec2;color:#8a5a00}.pa-proy-estado.roja{background:#fbdcdc;color:#a02020}
     .pa-proy-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:4px 0;border-bottom:1px dashed #dde6ee}.pa-proy-row span{color:#44566a}.pa-proy-row b{color:#033350;text-align:right}.pa-proy-row small{font-weight:500;color:#5a6b7b}
     .pa-proy-an{margin-top:8px;font-size:12.5px;line-height:1.5;color:#1b2a38}.pa-proy-det{margin-top:6px;font-size:12.5px}.pa-proy-det summary{cursor:pointer;font-weight:700;color:#033350;min-height:28px}
-    @media(max-width:900px){.pa-line-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.pa-horizontal-body{grid-template-columns:1fr}.pa-hcol-programacion{grid-column:1}.pa-hcol-ratio{border-right:0;border-bottom:1px solid #d8e4ec}}
+    @media(max-width:900px){.pa-line-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.pa-horizontal-body{grid-template-columns:minmax(0,1fr)}.pa-hcol-programacion{grid-column:1}.pa-hcol-ratio{border-right:0;border-bottom:1px solid #d8e4ec}}
     @media(max-width:700px){
-      .pa-oper-kpis{grid-template-columns:1fr}
+      .pa-oper-kpis{grid-template-columns:minmax(0,1fr)}
       .pa-line-kpis{grid-template-columns:1fr 1fr}
       .pa-line-kpi{border-bottom:1px solid #e2e9ee}
       .pa-line-kpi:last-child{grid-column:1/-1}
-      .pa-live-grid{display:grid;grid-template-columns:1fr;overflow:visible}
+      .pa-live-grid{display:grid;grid-template-columns:minmax(0,1fr);overflow:visible}
       .pa-live-card{padding:14px}
       .pa-line-card-horizontal{min-width:0;padding:0}
-      .pa-horizontal-body{grid-template-columns:1fr}
+      .pa-horizontal-body{grid-template-columns:minmax(0,1fr)}
       .pa-program-summary{grid-template-columns:1fr 1fr}
-      .pa-advance-foot{display:grid;grid-template-columns:1fr}
+      .pa-advance-foot{display:grid;grid-template-columns:minmax(0,1fr)}
       .pa-hcol{border-right:0;border-bottom:1px solid #d8e4ec}
       .pa-hcol:last-child{border-bottom:0}
       .pa-line-top{padding:12px 14px}

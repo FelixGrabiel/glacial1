@@ -18,6 +18,12 @@
   const idRecepcion=(paletaId,n)=>String(paletaId)+'_R'+n;
   const idAnulacion=opId=>'ANUL_'+opId;
 
+  /** Filtro por turno: 'TODOS' · 'DIA' (Día e Intermedio, que es un solo bloque) · 'NOCHE'. */
+  const turnoCoincide=(turno,filtro)=>{
+    if(!filtro||filtro==='TODOS')return true;
+    const t=String(turno||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    return filtro==='NOCHE'?t==='NOCHE':(t==='DIA'||t==='INTERMEDIO'||t==='DIA E INTERMEDIO'||t==='DIA + INTERMEDIO');
+  };
   /** Primer día que cuenta: las paletas anotadas antes no se reciben en Almacén. */
   const INICIO_PT='2026-11-16';
 
@@ -211,14 +217,14 @@
     const e=item.entrega;
     return {opId:'ANUL_'+e.opId,tipo:'ANULACION',anulaA:e.opId,paletaId:item.id,motivo:String(motivo||'').trim().slice(0,300)};
   }
-  const NUCLEO={INICIO_PT,saldos,resumenSaldos,aUnidades,validarConteoSaldo,construirConteoSaldo,validarEntregaSaldo,construirEntregaSaldo,documentoAnulacionEntrega,claveConteo,claveGrupo,estadoActual,agrupar,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
+  const NUCLEO={turnoCoincide,INICIO_PT,saldos,resumenSaldos,aUnidades,validarConteoSaldo,construirConteoSaldo,validarEntregaSaldo,construirEntregaSaldo,documentoAnulacionEntrega,claveConteo,claveGrupo,estadoActual,agrupar,ESTADOS,idRecepcion,idAnulacion,bandeja,validarRecepcion,construirDocumento,documentoAnulacion,resumen,acumulado};
   if(typeof module!=='undefined'&&module.exports)module.exports=NUCLEO;
   if(typeof window==='undefined'||!window.document)return;
 
   /* ---------- datos ---------- */
   const W=window;
   function leerUnidad(){try{return localStorage.getItem('glacial.almacen.pt.unidad')==='und'?'und':'paletas';}catch(_){return 'paletas';}}
-  const ES={entregas:[],cantidad:'',unidad:leerUnidad(),grupo:'',inicio:INICIO_PT,recs:[],listo:false,error:'',tab:'pendientes',dias:7,abierto:'',modo:'',unidades:'',motivo:'',msg:null,guardando:false};
+  const ES={turno:'TODOS',entregas:[],cantidad:'',unidad:leerUnidad(),grupo:'',inicio:INICIO_PT,recs:[],listo:false,error:'',tab:'pendientes',dias:7,abierto:'',modo:'',unidades:'',motivo:'',msg:null,guardando:false};
   let cierre=null,cierreE=null,activo=false;
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=n=>Number(n||0).toLocaleString('es-PE',{maximumFractionDigits:0});
@@ -239,12 +245,13 @@
       e=>{ES.error=msgError(e);ES.listo=true;pintar();});
     cierreE=db.collection('almacenPtSaldoEntrega').onSnapshot(s=>{ES.entregas=s.docs.map(d=>d.data()).filter(x=>x&&x.opId);pintar();},
       e=>{ES.error=msgError(e);pintar();});
+    if(W.glacialAlmacenPTDespachos)W.glacialAlmacenPTDespachos.escuchar(pintar);       // despachos y stock (104)
   }
-  function detener(){activo=false;[cierre,cierreE].forEach(f=>{if(f){try{f();}catch(_){/* ya cerrada */}}});cierre=null;cierreE=null;}
+  function detener(){if(W.glacialAlmacenPTDespachos)W.glacialAlmacenPTDespachos.detener();activo=false;[cierre,cierreE].forEach(f=>{if(f){try{f();}catch(_){/* ya cerrada */}}});cierre=null;cierreE=null;}
   if(W.glacialCierresSesion)W.glacialCierresSesion.push(()=>{detener();ES.recs=[];ES.entregas=[];ES.listo=false;ES.abierto='';});
-  const items=()=>bandeja(paletas(),ES.recs,ES.inicio);
+  const items=()=>bandeja(paletas(),ES.recs,ES.inicio).filter(x=>turnoCoincide(x.paleta.turno,ES.turno));
   const eqSaldo=(l,m,p)=>{try{return typeof W.glacialEquivalenciaSaldo==='function'?W.glacialEquivalenciaSaldo(l,m,p):null;}catch(_){return null;}};
-  const saldosItems=()=>saldos(paletas(),ES.recs,ES.entregas,ES.inicio,eqSaldo);
+  const saldosItems=()=>saldos(paletas(),ES.recs,ES.entregas,ES.inicio,eqSaldo).filter(x=>turnoCoincide(x.paleta.turno,ES.turno));
   /** «7 paquetes (882 UND)» · sin equivalencia, solo UND. */
   const txtSaldo=(und,x)=>x.factor?`${fmt(und/x.factor)} ${und/x.factor===1?x.unidad.s:x.unidad.p} (${fmt(und)} UND)`:`${fmt(und)} UND`;
   const quien=()=>{const u=(typeof state!=='undefined'&&state.user)||{};return {uid:(function(){try{return firebase.auth().currentUser.uid;}catch(_){return '';}})(),usuario:u.nombre||u.username||'Usuario',username:u.username||''};};
@@ -378,6 +385,9 @@
     const desde=ES.dias?hace(ES.dias):'';
     const enPeriodo=x=>!desde||String(x.paleta.fecha||'')>=desde;
     if(ES.tab==='almaceneros'&&!compartida()&&W.glacialAlmaceneros)return W.glacialAlmaceneros.htmlAdmin();
+    if(ES.tab==='rendimiento'&&!compartida()&&W.glacialAlmacenPTDespachos)return W.glacialAlmacenPTDespachos.htmlRendimiento(ctx());
+    if(ES.tab==='stock'&&W.glacialAlmacenPTDespachos)return W.glacialAlmacenPTDespachos.htmlStock(ctx());
+    if(ES.tab==='despachos'&&W.glacialAlmacenPTDespachos)return W.glacialAlmacenPTDespachos.htmlDespachos(ctx());
     if(ES.tab==='saldos')return htmlSaldos(enPeriodo);
     if(ES.tab==='recibidas')return `<div class="pt-card"><h3>Recibidas</h3>${tabla(todas.filter(x=>['RECIBIDA','DIFERENCIA'].includes(x.estado)&&enPeriodo(x)),'recibidas')}</div>`;
     if(ES.tab==='diferencias')return `<div class="pt-card"><h3>Con diferencia y en observación</h3>${tabla(todas.filter(x=>['DIFERENCIA','OBSERVADA'].includes(x.estado)&&enPeriodo(x)),'diferencias')}</div>`;
@@ -397,10 +407,11 @@
     return `<section class="pt">${estilos()}<header class="pt-cab"><h1>ALMACÉN · Producto terminado</h1><p class="pt-sub">Las paletas que Producción anota llegan aquí para que Almacén las reciba (desde el 16/11/2026).${puedeEscribir()?'':' <b>Solo consulta.</b>'}</p></header>
       ${ES.error?`<div class="pt-msg pt-msg-e" role="alert">${esc(ES.error)}</div>`:''}${ES.msg?`<div class="pt-msg ${ES.msg.tipo==='error'?'pt-msg-e':'pt-msg-k'}" role="status">${esc(ES.msg.texto)}</div>`:''}
       ${compartida()&&!persona()?'<div class="pt-msg pt-msg-e" role="alert">Identifícate con tu PIN para recibir paletas.</div>':''}
+      ${W.glacialAlmacenPTDespachos?W.glacialAlmacenPTDespachos.htmlAlertas(ctx()):''}
       ${antiguas?`<div class="pt-msg pt-msg-i" role="note">Hay <b>${fmt(antiguas)}</b> paletas anotadas antes de este período que siguen por recibir. <button type="button" class="pt-b" onclick="ptDias(0)">Ver todas</button></div>`:''}
       <div class="pt-ks">${k('Por recibir',ES.unidad==='und'?fmt(r.unidadesPendientes)+' UND':fmt(r.paletasPendientes)+(r.paletasPendientes===1?' paleta':' paletas'),(ES.unidad==='und'?fmt(r.paletasPendientes)+' paletas':fmt(r.unidadesPendientes)+' UND')+' · '+fmt(r.pendientes)+(r.pendientes===1?' anotación':' anotaciones'),'pt-k-am')}${k('Recibidas hoy',ES.unidad==='und'?fmt(r.recibidasHoyUnidades)+' UND':fmt(r.recibidasHoyPaletas)+(r.recibidasHoyPaletas===1?' paleta':' paletas'),ES.unidad==='und'?fmt(r.recibidasHoyPaletas)+' paletas':fmt(r.recibidasHoyUnidades)+' UND','pt-k-vd')}${k('Saldos por contar',fmt(rs.porContar),'paletas incompletas'+(rs.diferencias||rs.sinEntrega?' · '+fmt(rs.diferencias)+' con diferencia · '+fmt(rs.sinEntrega)+' sin entrega':''),rs.diferencias?'pt-k-ro':'')}${k('Con diferencia',fmt(r.diferencias),r.faltante?'faltan '+fmt(r.faltante)+' UND':'sin faltantes',r.diferencias?'pt-k-ro':'')}${k('En observación',fmt(r.observadas),'paletas retenidas')}</div>
-      <nav class="pt-tabs" role="tablist" aria-label="Producto terminado">${tab('pendientes','Por recibir · '+fmt(r.pendientes))}${tab('saldos','Saldos · '+fmt(rs.porContar+rs.diferencias+rs.sinEntrega))}${tab('recibidas','Recibidas')}${tab('diferencias','Diferencias y observadas')}${tab('acumulado','Acumulado recibido')}${!compartida()&&puedeEscribir()?tab('almaceneros','Almaceneros'):''}</nav>
-      <div class="pt-f"><label>Mostrar en<select onchange="ptUnidad(this.value)"><option value="paletas" ${ES.unidad==='paletas'?'selected':''}>Paletas</option><option value="und" ${ES.unidad==='und'?'selected':''}>Unidades</option></select></label><label>Período<select onchange="ptDias(Number(this.value))">${op(1,'Hoy')}${op(3,'Últimos 3 días')}${op(7,'Últimos 7 días')}${op(30,'Últimos 30 días')}${op(0,'Todo')}</select></label>${ES.listo?'':'<span class="pt-mut">Consultando…</span>'}</div>
+      <nav class="pt-tabs" role="tablist" aria-label="Producto terminado">${tab('pendientes','Por recibir · '+fmt(r.pendientes))}${tab('saldos','Saldos · '+fmt(rs.porContar+rs.diferencias+rs.sinEntrega))}${tab('recibidas','Recibidas')}${tab('diferencias','Diferencias y observadas')}${tab('acumulado','Acumulado recibido')}${W.glacialAlmacenPTDespachos?tab('stock','Stock')+tab('despachos','Despachos')+(!compartida()?tab('rendimiento','Rendimiento'):''):''}${!compartida()&&puedeEscribir()?tab('almaceneros','Almaceneros'):''}</nav>
+      <div class="pt-f"><label>Turno<select onchange="ptTurno(this.value)"><option value="TODOS" ${ES.turno==='TODOS'?'selected':''}>Todos</option><option value="DIA" ${ES.turno==='DIA'?'selected':''}>Día</option><option value="NOCHE" ${ES.turno==='NOCHE'?'selected':''}>Noche</option></select></label><label>Mostrar en<select onchange="ptUnidad(this.value)"><option value="paletas" ${ES.unidad==='paletas'?'selected':''}>Paletas</option><option value="und" ${ES.unidad==='und'?'selected':''}>Unidades</option></select></label><label>Período<select onchange="ptDias(Number(this.value))">${op(1,'Hoy')}${op(3,'Últimos 3 días')}${op(7,'Últimos 7 días')}${op(30,'Últimos 30 días')}${op(0,'Todo')}</select></label>${W.glacialAlmacenPTDespachos?'<button type="button" class="pt-b" onclick="pdResumen()">Resumen del turno</button>':''}${ES.listo?'':'<span class="pt-mut">Consultando…</span>'}</div>
       ${cuerpo(todas)}</section>`;
   }
   function pintar(){
@@ -439,6 +450,7 @@
     ES.msg=fallo?{tipo:'error',texto:'Se recibieron '+hechas+' de '+g.items.length+' registros y se detuvo: '+fallo}:{tipo:'ok',texto:'Recibidas '+fmt(g.paletas)+' paletas ('+g.items.length+' registros) de '+(nombreLinea(g.linea)+' · '+g.marca+' '+g.presentacion).trim()+'.'};
     pintar();
   };
+  W.ptTurno=t=>{ES.turno=['DIA','NOCHE'].includes(t)?t:'TODOS';ES.abierto='';ES.saldoAbierto='';ES.grupo='';pintar();};
   W.ptDias=d=>{ES.dias=d;ES.abierto='';pintar();};
   W.ptAccion=(id,modo)=>{ES.abierto=id;ES.modo=modo;ES.unidades='';ES.motivo='';ES.msg=null;pintar();};
   W.ptCerrar=()=>{ES.abierto='';ES.modo='';pintar();};
@@ -479,6 +491,9 @@
   }
   // Producción anota paletas en tiempo real: la bandeja se actualiza sola (sin pisar lo que se escribe).
   ['onPaletasUpdated'].forEach(n=>{const a=W[n];if(typeof a!=='function')return;W[n]=function(){const r=a.apply(this,arguments);try{pintar();}catch(_){/* informativo */}return r;};});
+  /* Lo que necesita 104-despachos-resumen.js (stock, despachos, alertas y resumen del turno). */
+  const itemsSinFiltro=()=>bandeja(paletas(),ES.recs,ES.inicio);
+  const ctx=()=>({recs:()=>ES.recs,desde:()=>ES.dias?hace(ES.dias):'',ES,esc,fmt,nombreLinea,puedeEscribir,persona,quien,serverTs,hoy:hoyISO,turnoCoincide,itemsTodos:itemsSinFiltro,saldos:saldosItems,acumulado:()=>acumulado(itemsSinFiltro(),'')});
   W.glacialAlmacenPTNucleo=NUCLEO;
-  W.glacialAlmacenPT={html,estado:ES,detener,repintar:()=>{try{pintar();}catch(_){/* informativo */}}};
+  W.glacialAlmacenPT={ctx,html,estado:ES,detener,repintar:()=>{try{pintar();}catch(_){/* informativo */}}};
 })(typeof window!=='undefined'?window:globalThis);

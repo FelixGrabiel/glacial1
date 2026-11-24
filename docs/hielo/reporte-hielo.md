@@ -8,10 +8,11 @@ Página propia, que se abre desde la tarjeta **«Reporte Hielo»** de la pantall
   - Kilos producidos, cumplimiento contra lo programado y paradas.
   - Tablas de producción por marca y presentación (programado contra producido), paradas y merma.
 - **Nuevo registro:** un reporte por **fecha operativa y turno** (DÍA, INTERMEDIO o NOCHE, como Agua).
-  - Producción en **bolsas** por marca y presentación, con lote opcional; los kilos se calculan (bolsas × kg de la presentación).
+  - Producción en **bolsas** por marca y presentación, con lote opcional; los kilos se calculan (bolsas × **kg reales** por bolsa: 3 kg = 3.25 y 1.5 kg = 1.75, configurables; ver `reporte-diario.md`).
   - Paradas (hora, equipo, motivo, minutos y detalle), merma (ítem, cantidad y UND o KG) y observaciones.
   - Al abrir un turno nuevo se precarga lo programado.
   - Se guarda solo (borrador) y se **finaliza** con validaciones. Un reporte finalizado solo lo reabre o corrige el Administrador, con motivo.
+- **Reporte diario** (20/11/2026): el reporte de la planta con gráficas, en Excel o imagen. Ver `docs/hielo/reporte-diario.md`.
 - **Avance y cierre:** arma, con lo registrado, el **texto para WhatsApp** (mismo estilo que el Avance y Cierre de Agua: `*AVANCE DE PRODUCCIÓN HIELO – TURNO …*` / `*CIERRE DE PRODUCCIÓN HIELO – …*`) y una **imagen PNG** del turno. Se elige fecha y turno (Día + Intermedio, Día, Intermedio, Noche o todo el día). Es **CIERRE** cuando todos los reportes del turno están finalizados y **AVANCE** si alguno sigue en registro. Botones: Copiar texto, Abrir en WhatsApp (wa.me con el texto ya escrito) y Descargar imagen. No guarda nada: se arma al momento (el envío automático por el bot de WhatsApp, como en Agua, queda fuera: el bot vive en otro proyecto).
 - **Historial:** filtros por fechas, turno y marca; bolsas por presentación, kg, paradas y estado. **Descargar Excel**, con una fila por producción.
 - **Programación:** bolsas a producir por fecha, turno, marca y presentación, y los próximos turnos programados.
@@ -68,3 +69,30 @@ Ahora, en **Gestión de usuarios**, hay un área propia **«Hielo»** en el cat�
 La Configuración de Hielo (editar marcas, presentaciones, estaciones…) sigue siendo del Administrador o Jefatura, igual que antes.
 
 Servidor: `supabase/migraciones/glacial_50_permisos_hielo_separados.sql` (aplicada en PRUEBAS y PRODUCCIÓN; verificado 14/11/2026). Prueba repetible: `supabase/pruebas/hielo_permisos_separados.sql`.
+
+## Merma por marca (23/11/2026)
+
+Cada merma del registro lleva **ítem, marca, cantidad y unidad**:
+
+- **Lista de marcas:** primero aparecen las producidas en el turno y después el resto del catálogo del producto.
+- **Al agregar una merma:** si en el turno se produjo una sola marca, viene ya elegida.
+- **Al finalizar:** la marca es obligatoria, como el ítem y la cantidad.
+- **Totales, texto de WhatsApp e imagen del avance/cierre:** la merma se separa por ítem y marca, por ejemplo «Merma Bolsas (Glacial): 12 UND».
+
+Los reportes guardados antes del cambio no tienen marca en sus mermas y siguen mostrándose sin ella («—»).
+
+Las tablas de paradas y mermas se muestran en tarjetas cuando su recuadro es angosto, igual que en el celular.
+
+## «Avance y cierre» después de finalizar (24/11/2026)
+
+**Problema.** Al finalizar un reporte e ir a «Avance y cierre», a veces seguía saliendo AVANCE con lo ingresado antes, aunque en el servidor el reporte ya estaba FINALIZADO. Había dos causas:
+- La copia de reportes de la página (`cache.reportes`) solo cambiaba con el aviso en tiempo real; si ese aviso tardaba o se perdía, la pantalla mostraba lo anterior.
+- De noche, la pantalla abría el turno Noche, que todavía no tiene reporte.
+
+**Solución:**
+- Lo que el servidor confirma al guardar, finalizar o reabrir entra al momento en la copia (`ponerEnCache`).
+- Un aviso en tiempo real atrasado no vuelve a una versión anterior (`masNuevos`, compara `rev`).
+- Al entrar a «Avance y cierre» se vuelven a leer los reportes del servidor.
+- Al finalizar, «Avance y cierre» queda en la fecha y el turno de ese reporte. Si el turno en curso no tiene reporte, abre el último que sí lo tiene.
+
+Prueba: `tests/hielo-cierre-al-finalizar.e2e.js`. Sin la corrección, la prueba reproduce el problema.

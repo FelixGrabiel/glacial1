@@ -15,7 +15,8 @@
   /** Resumen de Hielo para una fecha y un turno del Inicio. */
   function resumen(reportes,programas,fecha,turnoInicio,presentaciones){
     const ts=turnosDe(turnoInicio);
-    const rs=(reportes||[]).filter(r=>r&&r.fecha===fecha&&ts.includes(r.turno)),ps=(programas||[]).filter(p=>p&&p.fecha===fecha&&ts.includes(p.turno));
+    const cubos=x=>!x||!x.producto||x.producto==='CUBOS';      // la tarjeta del Inicio es la de Hielo en cubos (Premium y Vasos se ven dentro de Hielo)
+    const rs=(reportes||[]).filter(r=>r&&cubos(r)&&r.fecha===fecha&&ts.includes(r.turno)),ps=(programas||[]).filter(p=>p&&cubos(p)&&p.fecha===fecha&&ts.includes(p.turno));
     const t=N.totales(rs),prog=N.programado(ps);
     const pres=N.ordenPres([...new Set(['3 kg','1.5 kg'].concat(presentaciones||[],Object.keys(t.porPres)))].filter(p=>['3 kg','1.5 kg'].includes(p)||t.porPres[p]>0||ps.some(x=>(x.items||[]).some(i=>i.presentacion===p&&Number(i.bolsas)>0))));
     const estado=!rs.length?'SIN_REPORTE':rs.every(r=>r.estado==='FINALIZADO')?'FINALIZADO':'EN_REGISTRO';
@@ -41,7 +42,7 @@
   /* ---------- Inicio (Centro de perfil): se inserta después del título del bloque, como las demás tarjetas ---------- */
   const D=()=>window.glacialHieloDatos;
   const usr=()=>(typeof state!=='undefined'&&state.user)||null;
-  const puedeVer=()=>!!usr()&&String(usr().rol||'')!=='mantenimiento_compartido';
+  const puedeVer=()=>{const u=usr();if(!u)return false;const P=window.glacialPermisosHielo;return P?P.permitido(u,'hieloVer'):String(u.rol||'')!=='mantenimiento_compartido';};      // permiso «Ver Hielo» (02b-permisos-hielo.js)
   function estilos(){
     if(document.getElementById('hli-css'))return;
     const s=document.createElement('style');s.id='hli-css';

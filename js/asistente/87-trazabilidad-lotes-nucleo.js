@@ -50,6 +50,7 @@
   /* ---------- utilidades ---------- */
   const texto=v=>(typeof v==='string'?v:(typeof v==='number'?String(v):''));
   const norm=v=>String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  const coin=(h,q)=>{const B=(typeof window!=='undefined'&&window.glacialBusqueda)||(typeof require==='function'?require('../nucleo/04b-busqueda.js'):null);return B?B.coincide(h,q):norm(Array.isArray(h)?h.join(' '):h).includes(norm(q));};   // búsqueda común (js/nucleo/04b-busqueda.js)
   const recortar=(v,n)=>texto(v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').slice(0,n);
   const clonar=o=>JSON.parse(JSON.stringify(o));
   const falla=(codigo,msg)=>{const e=new Error(msg);e.codigo=codigo;return e;};
@@ -157,7 +158,7 @@
     const q=todas(consulta);if(!q.length)return [];
     return (catalogo||[]).filter(a=>a&&a.activo!==false).map(a=>{
       const tn=todas(a.nombre+' '+(a.itemCode||'')),cod=norm(a.itemCode);
-      const ok=q.every(t=>tn.some(x=>x.startsWith(t))||cod===t);
+      const ok=coin([a.nombre,a.itemCode],consulta)||q.length===1&&cod===q[0];
       return ok?{id:a.id,itemCode:a.itemCode||'',nombre:a.nombre,categoria:a.categoria||'',razones:['búsqueda']}:null;
     }).filter(Boolean).sort((x,y)=>String(x.nombre).localeCompare(String(y.nombre),'es')).slice(0,max||8);
   }
@@ -370,7 +371,7 @@
       if(f.categoria&&l.categoria!==f.categoria)return false;
       if(f.estado&&!us.some(u=>u.estado===f.estado))return false;
       if(f.linea&&!us.some(u=>u.linea===f.linea))return false;
-      if(q&&![l.id,l.loteProveedor,l.producto,l.proveedor,l.ordenInterna,l.ordenCompra,l.itemNombre,l.itemCode].some(x=>norm(x).includes(q))&&!us.some(u=>norm(u.id).includes(q)))return false;
+      if(q&&!coin([l.id,l.loteProveedor,l.producto,l.proveedor,l.ordenInterna,l.ordenCompra,l.itemNombre,l.itemCode],q)&&!us.some(u=>coin(u.id,q)))return false;
       return true;
     }).sort((a,b)=>(num(b.recibidoEn)||num(b.creadoEn))-(num(a.recibidoEn)||num(a.creadoEn))||String(b.id).localeCompare(String(a.id)));
   }

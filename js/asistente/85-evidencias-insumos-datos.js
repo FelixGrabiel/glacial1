@@ -72,14 +72,15 @@
   }
 
   /* ---------- operaciones sobre una evidencia ---------- */
-  async function sobreDocumento(id,revEsperada,operacion){
+  /** tolerante: si otra persona tocó la evidencia desde que se abrió la pantalla, la operación se aplica sobre la versión más reciente (sirve para editar datos: cada dato queda en la auditoría con su antes y después). */
+  async function sobreDocumento(id,revEsperada,operacion,{tolerante=false}={}){
     if(!yoEscribo())throw falla('PERMISO','No tienes permiso para validar evidencias.');
     const ref=refDe(id);let salida=null;
     await db.runTransaction(async tx=>{
       const s=await tx.get(ref);
       if(!s.exists)throw falla('VALIDACION','La evidencia ya no existe.');
       const doc=s.data();
-      if(Number(doc.rev)!==Number(revEsperada))throw falla('CONCURRENCIA','Otra persona cambió esta evidencia mientras la revisabas. Se actualizó la pantalla: revisa y vuelve a intentar.');
+      if(!tolerante&&Number(doc.rev)!==Number(revEsperada))throw falla('CONCURRENCIA','Otra persona cambió esta evidencia mientras la revisabas. Se actualizó la pantalla: revisa y vuelve a intentar.');
       salida=operacion(doc,tx,ref);
     });
     return salida;
@@ -95,7 +96,7 @@
       tx.set(ref,r.doc);
       r.eventos.forEach(e=>auditar(tx,e.tipo,id,nombreAuditoria(r.doc),{[e.campo]:e.antes},{[e.campo]:e.despues},{evidenciaId:id}));
       return {cambiado:true,doc:r.doc,eventos:r.eventos.length};
-    });
+    },{tolerante:true});
   }
 
   /** a: 'aprobado_dato' | 'requiere_correccion' | 'rechazado' | 'pendiente' (reabrir, solo Administrador). */
@@ -134,7 +135,7 @@
     if(!/^[a-f0-9]{64}$/.test(sha)||!/^asistente\/evidencias\/[a-f0-9]{64}\.(jpg|png|webp)$/.test(String(item.foto_ruta||''))||!/^image\/(jpeg|png|webp)$/.test(String(item.mime||'')))throw falla('FORMATO','La evidencia recibida no tiene el formato esperado.');
     if(porId(sha)){await marcarEntrada(sha);return 'duplicada';}
     const u=usuario(),t=ahora();
-    const doc=N.construirDocumento(item.registro,{sha256:sha,foto:{url:PREFIJO_FOTO+item.foto_ruta,mimetype:item.mime,bytes:Number(item.bytes)||0},usuario:u.nombre,uid:u.uid,ahora:t,leyenda:item.leyenda,recibidoEn:item.recibido_en});
+    const doc=N.construirDocumento(item.registro,{sha256:sha,foto:{url:PREFIJO_FOTO+item.foto_ruta,mimetype:item.mime,bytes:Number(item.bytes)||0},usuario:u.nombre,uid:u.uid,ahora:t,leyenda:item.leyenda,remitente:item.remitente,recibidoEn:item.recibido_en});
     const ref=refDe(sha);let estado='importada';
     await db.runTransaction(async tx=>{
       const s=await tx.get(ref);

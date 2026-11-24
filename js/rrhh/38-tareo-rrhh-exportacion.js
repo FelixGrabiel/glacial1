@@ -296,7 +296,7 @@
   const fraccion=min=>min/1440;
   const fechaExcel=iso=>{const [y,m,d]=iso.split('-').map(Number);return new Date(Date.UTC(y,m-1,d));};
   const horaExcel=h=>{const m=minutosDe(h);return m===null?null:m/1440;};
-  const FMT_SALDO='+[h]:mm;-[h]:mm;0:00';
+  const FMT_SALDO='+0;-0;0';   // HORAS EXTRAS: minutos ENTEROS con signo (antes salía como fracción de día, p. ej. 0.011111 = 16 min)
 
   function columnasExcel(multi){
     const c=[{k:'n',t:'N°',w:6}];
@@ -306,7 +306,7 @@
       {k:'grupo',t:'Grupo',w:28},{k:'tipo',t:'Tipo',w:11},{k:'linea',t:'Línea',w:12},
       {k:'estado',t:'Estado',w:22},{k:'estadoTareo',t:'Estado del tareo',w:15},{k:'ingreso',t:'Ingreso',w:10},{k:'salidaRef',t:'Salida refrigerio',w:11},
       {k:'retornoRef',t:'Retorno refrigerio',w:11},{k:'salida',t:'Salida',w:10},
-      {k:'horas',t:'Horas trabajadas',w:12},{k:'saldo',t:'HORAS EXTRAS',w:13},
+      {k:'horas',t:'Horas trabajadas',w:12},{k:'saldo',t:'HORAS EXTRAS (min)',w:13},
       {k:'tardanza',t:'Tardanza (min)',w:11},{k:'registradoPor',t:'Registrado por',w:22},
       {k:'observacion',t:'Observación',w:50}
     );
@@ -333,7 +333,7 @@
       case 'retornoRef':return horaExcel(f.retornoRef);
       case 'salida':return horaExcel(f.salida);
       case 'horas':return f.horas===null?null:Math.round(f.horas*60)/1440;
-      case 'saldo':return f.saldoMin===null?null:fraccion(f.saldoMin);
+      case 'saldo':return f.saldoMin===null?null:Math.round(f.saldoMin);
       case 'tardanza':return f.tardanza>0?f.tardanza:null;
       case 'registradoPor':return f.registradoPor;
       case 'observacion':return f.observacion;
@@ -364,8 +364,8 @@
 
     // Resumen
     const r=info.resumen;
-    const etiquetas=['Programados','Presentes','Faltas','Descansos','Otros ausentes','Sin registrar','Tardanzas','Horas a favor','Horas en contra'];
-    const valores=[r.programados,r.asistieron+(r.enComision?' ('+r.enComision+' en comisión)':''),r.faltas,r.descansos,r.otros,r.sinRegistrar,r.tardanzas,fraccion(r.favorMin),fraccion(r.contraMin)];
+    const etiquetas=['Programados','Presentes','Faltas','Descansos','Otros ausentes','Sin registrar','Tardanzas','Min. a favor','Min. en contra'];
+    const valores=[r.programados,r.asistieron+(r.enComision?' ('+r.enComision+' en comisión)':''),r.faltas,r.descansos,r.otros,r.sinRegistrar,r.tardanzas,Math.round(r.favorMin),Math.round(r.contraMin)];
     const rEt=ws.addRow([]);const rVal=ws.addRow([]);
     const base=4; // desde la columna D
     etiquetas.forEach((t,i)=>{
@@ -376,7 +376,7 @@
       const cv=rVal.getCell(base+i);cv.value=valores[i];
       cv.font={bold:true,size:13,color:{argb:i===7?'FF1E7B34':(i===8?'FFC00000':'FF1B2A38')}};
       cv.alignment={horizontal:'center'};cv.border=bordes;
-      if(i>=7)cv.numFmt='[h]:mm';
+      if(i>=7)cv.numFmt='0';
     });
     ws.addRow([]);
 
@@ -499,7 +499,7 @@
   function hojaTotales(wb,filas){
     const ws=wb.addWorksheet('Totales por persona');
     const cols=[['Apellidos y nombres',38],['DNI',12],['Cargo',28],['Grupo',28],['Días programados',12],['Asistió',10],['Feriado trabajado',12],['Comisión externa',12],['Días trabajados',12],
-      ['Faltas',9],['Tardanzas',11],['Horas a favor',13],['Horas en contra',13],['Saldo neto',13]];
+      ['Faltas',9],['Tardanzas',11],['Min. a favor',13],['Min. en contra',13],['Saldo neto (min)',13]];
     cols.forEach((c,i)=>{ws.getColumn(i+1).width=c[1];});
     const hdr=ws.addRow(cols.map(c=>c[0]));
     hdr.height=30;
@@ -522,9 +522,9 @@
     [...mapa.values()].sort((a,b)=>GRUPOS[a.f.grupo].orden-GRUPOS[b.f.grupo].orden||a.f.nombre.localeCompare(b.f.nombre,'es'))
       .forEach(t=>{
         const r=ws.addRow([t.f.nombre,t.f.dni,t.f.cargo,GRUPOS[t.f.grupo].etiqueta,t.prog,t.asist,t.fer,t.com,t.trab,t.faltas,t.tard,
-          fraccion(t.fav),fraccion(t.con),fraccion(t.fav-t.con)]);
+          Math.round(t.fav),Math.round(t.con),Math.round(t.fav-t.con)]);
         r.getCell(2).numFmt='@';
-        r.getCell(12).numFmt='[h]:mm';r.getCell(13).numFmt='[h]:mm';
+        r.getCell(12).numFmt='0';r.getCell(13).numFmt='0';
         r.getCell(14).numFmt=FMT_SALDO;
         r.getCell(14).font={bold:true,color:{argb:t.fav-t.con>0?'FF1E7B34':(t.fav-t.con<0?'FFC00000':'FF7F7F7F')}};
         r.eachCell({includeEmpty:true},(c,i)=>{c.border=bordes;if(i>=5)c.alignment={horizontal:'center'};});

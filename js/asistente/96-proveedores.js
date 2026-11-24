@@ -247,7 +247,7 @@
 .pv-fila label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:#5b6b7c}
 .pv-barra{height:10px;border-radius:6px;background:#edf2f7;overflow:hidden;display:flex}.pv-barra i{display:block;height:100%}
 .pv-nota{font-size:12px;color:#5b6b7c}
-@media(max-width:860px){.pv-lay{grid-template-columns:1fr}.pv-kpis{grid-template-columns:repeat(2,1fr)}.pv-fila{grid-template-columns:1fr}}
+@media(max-width:860px){.pv-lay{grid-template-columns:minmax(0,1fr)}.pv-kpis{grid-template-columns:repeat(2,1fr)}.pv-fila{grid-template-columns:minmax(0,1fr)}}
 </style>`;}
   function nombresLeidos(){
     const m=new Map();const sumar=(t,n)=>{const x=String(t||'').trim();if(!x)return;m.set(x,(m.get(x)||0)+(n||1));};
@@ -260,7 +260,7 @@
     const lotes=(Z()&&Z().cache.lotes)||[],unidades=(Z()&&Z().cache.unidades)||[];
     if(!S.sel||!L.some(p=>p.id===S.sel))S.sel=L.length?L[0].id:'';
     const b=normProveedor(S.buscar);
-    const items=L.filter(p=>!b||nombresDe(p).some(n=>normProveedor(n).includes(b))).map(p=>{
+    const items=L.filter(p=>!b||nombresDe(p).some(n=>normProveedor(n).includes(b))||(window.glacialBusqueda&&window.glacialBusqueda.coincide(nombresDe(p),S.buscar))).map(p=>{
       const r=resumen(p,lotes,unidades,cache.lista);
       return `<button type="button" class="pv-it ${p.id===S.sel?'pv-act':''}" onclick="pvSel(${js(p.id)})"><b>${esc(p.nombreCorto||p.nombre)}</b><small>${p.tipo==='CLIENTE'?'Cliente · ':''}${r.lotes} lote${r.lotes===1?'':'s'} · ${(p.alias||[]).length+1} nombre${(p.alias||[]).length?'s':''}${p.activo===false?' · inactivo':''}</small></button>`;
     }).join('')||'<div class="pv-nota">Todavía no hay proveedores. Empieza por «Unificar nombres».</div>';

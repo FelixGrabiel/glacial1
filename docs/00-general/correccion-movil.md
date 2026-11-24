@@ -17,3 +17,17 @@ Prueba automática: `tests/boton-flotante.test.js`. Revisión visual en el naveg
 - En un teléfono o tablet reales (toque real, giro físico, barra del navegador y teclado). El emulador del navegador integrado no dispara `resize` al cambiar el tamaño: lo comprobé enviando el evento a mano.
 - La pantalla con datos reales (campana con alertas reales, cronómetro del turno, Inicio con horario).
 - En PRUEBAS, el modal de Avance queda parcialmente bajo la franja roja «BASE DE PRUEBAS» (ya ocurría antes; no se tocó).
+
+## Teléfono y tablet: nada recortado por la derecha (21/11/2026)
+
+**Problema**: la lista de Evidencias (y otras pantallas) se veía cortada en el teléfono y no se podía deslizar. Causas:
+1. En pantallas de hasta 700 px `html/body` ocultan lo que se sale por la derecha (`overflow-x:hidden`) y **toda tabla** tenía un ancho mínimo de 540 px (`css/styles.css`). Una tabla fuera de un contenedor con desplazamiento ensanchaba toda la columna y quedaba recortada.
+2. Las cuadrículas de una columna (`grid-template-columns:1fr`) crecen hasta el contenido más ancho; con `minmax(0,1fr)` se quedan del ancho de la pantalla.
+
+**Qué se hizo**
+- Las 64 cuadrículas de una columna del código pasan a `minmax(0,1fr)` (los paneles ya no ensanchan la pantalla).
+- Evidencias: las tablas de datos que se apilan en el teléfono ya no llevan el ancho mínimo de 540 px.
+- `js/nucleo/12c-tablas-movil.js`: en pantallas de hasta 900 px, toda tabla que no cabe y no está dentro de un contenedor con desplazamiento se envuelve en uno (`.tw-movil`): se desliza con el dedo, con la barra superior de `12b-barras-desplazamiento.js`. No toca tablas que caben ni las que ya se deslizan; en computador no hace nada.
+- Prueba en navegador real: `tests/movil-sin-recortes.e2e.js` (Evidencias con datos y 23 pantallas del menú, a 360, 390 y 768 px). Ayuda para revisar otras pantallas: `tests/ayuda/pantallas-movil.js` (informa los elementos que pasan del ancho).
+
+**Regla para pantallas nuevas**: usar `minmax(0,1fr)` en columnas únicas, `min-width:0` en los hijos de una cuadrícula y poner las tablas anchas dentro de un contenedor con `overflow-x:auto`.

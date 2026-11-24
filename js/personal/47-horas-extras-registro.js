@@ -334,7 +334,7 @@
     .he-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:0 0 12px}.he-bar label{font-size:12px;font-weight:600;color:#41525e;display:block}.he-bar select,.he-bar input{padding:7px 9px;border:1px solid #cfdbe3;border-radius:8px;font:inherit}
     .he-sub{display:inline-flex;background:#e5ebef;border-radius:10px;padding:3px;gap:3px;margin-bottom:12px}.he-sub button{border:0;background:transparent;padding:6px 14px;border-radius:8px;font-weight:600;color:#5a6b78;cursor:pointer}.he-sub .on{background:#fff;color:#033350}
     .he-marca{display:inline-block;margin-left:6px;background:#fde8c8;color:#8a5a1e;font-weight:700;border-radius:999px;padding:1px 8px;font-size:11px;cursor:pointer;border:0;vertical-align:middle}
-    @media(max-width:860px){.he-grid{grid-template-columns:1fr}.he-kpis{grid-template-columns:1fr}}`;
+    @media(max-width:860px){.he-grid{grid-template-columns:minmax(0,1fr)}.he-kpis{grid-template-columns:minmax(0,1fr)}}`;
   function estilos() { if (document.getElementById('he-css')) return; const s = document.createElement('style'); s.id = 'he-css'; s.textContent = CSS; document.head.appendChild(s); }
 
   function pintar() {

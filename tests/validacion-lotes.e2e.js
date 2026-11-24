@@ -18,6 +18,11 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
       { clave: 'wa-3333333@CCC', lote: 'E-0098', resultado: 'RECHAZADO', insumo: 'Etiqueta roll feed 625 ml', proveedor: 'Etiflex', linea: 'PET2', motivo: 'Etiqueta ilegible', validada_en: hace(300), revision_estado: 'REVISADA', revisada_por: 'ana@glacial.pe', revisada_en: hace(200), revision_nota: 'Se devolvió al proveedor' },
     ];
     window.glacialSupabaseCliente = { rpc: async (n, a) => { window.__llamadas.push(n); if (n === 'validaciones_lotes_listar') return { data: filas, error: null }; if (n === 'validaciones_lotes_revisar') { filas[0].revision_estado = 'REVISADA'; filas[0].revisada_por = 'ana@glacial.pe'; filas[0].revisada_en = new Date().toISOString(); return { data: true, error: null }; } return { data: null, error: null }; } };
+    const PIX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
+    window.__firmadas = [];
+    filas[0].datos = { producto: 'HIELO', marca: 'Glacial 1.5kg', turno: 'noche', semana: 47, dia_juliano: 323, fecha_produccion: '2026-11-19', vence: '19/11/2027', texto_rotulo: 'LT:11147323 FV:19-11-27' };
+    filas[0].foto_ruta = 'calidad/rotulos/' + 'a'.repeat(64) + '.jpg';
+    window.glacialSupabaseCliente.storage = { from: () => ({ createSignedUrls: async rutas => { window.__firmadas.push(...rutas); return { data: rutas.map(p => ({ path: p, signedUrl: PIX, error: null })), error: null }; } }) };
     state.currentTab = 'calidad'; renderSidebar(); renderMain();
   });
   await P.waitForSelector('.cal-tabs', { timeout: 8000 });
@@ -33,6 +38,12 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(await P.evaluate(() => document.querySelectorAll('.vl-fila').length) === 1, 'el filtro «Por revisar» deja solo la observada');
   await P.evaluate(() => vlAbrir('wa-1111111@AAA'));
   ok(/Fecha de vencimiento.*vence en 3 días/.test(await P.evaluate(() => document.querySelector('.vl-det').innerText.replace(/\s+/g, ' '))), 'el detalle muestra el motivo y los controles con su falla');
+  await P.waitForFunction(() => document.querySelectorAll('.vl-det img[data-foto-lista="1"]').length >= 1, null, { timeout: 5000 }).catch(() => {});
+  const det = await P.evaluate(() => document.querySelector('.vl-det').innerText.replace(/\s+/g, ' '));
+  ok(/Turno noche/i.test(det) && /Vencimiento 19\/11\/2027/i.test(det) && /Día juliano 323/i.test(det) && /Semana 47/i.test(det) && /LT:11147323 FV:19-11-27/.test(det), 'el detalle muestra los datos del rótulo (turno, vencimiento, semana, día juliano y texto leído)');
+  ok(await P.evaluate(() => [...document.querySelectorAll('.vl-det img')].some(i => i.src.startsWith('data:image'))) && await P.evaluate(() => !!document.querySelector('.vl-det a.vl-grande[data-foto-ref]')), 'el detalle muestra la foto del rótulo y ofrece abrirla en tamaño completo');
+  ok(await P.evaluate(() => window.__firmadas.length > 0 && window.__firmadas.every(r => /^calidad\/rotulos\/[a-f0-9]{64}\.jpg$/.test(r))), 'solo se firman rutas de calidad/rotulos/');
+  ok(await P.evaluate(() => !!document.querySelector('.vl-fila .vl-c-foto img.vl-foto-m')), 'la lista muestra la miniatura de la foto');
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/validacion-lotes.png', fullPage: false });
   await P.evaluate(() => vlRevisar('wa-1111111@AAA')); await P.waitForTimeout(500);
   ok(await P.evaluate(() => window.__llamadas.includes('validaciones_lotes_revisar')) && /Marcada como revisada/.test(await P.evaluate(() => document.querySelector('.vl').innerText)), 'marcar como revisada llama al servidor y lo avisa');

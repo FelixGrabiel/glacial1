@@ -55,6 +55,9 @@
     {campo:'medidas',etiqueta:'Medidas',tipo:'texto',grupo:'Cantidad y pesos',oculto:true}
   ];
   const DEF=Object.fromEntries(CAMPOS.map(c=>[c.campo,c]));
+  /* Unidades en las que se cuenta la cantidad de una etiqueta (se elige de una lista: así no se escribe un número en la unidad por error). */
+  const UNIDADES_CANTIDAD=['UND','MILLARES','KG','ROLLOS','BOBINAS','CAJAS','BOLSAS','PAQUETES','LITROS'];
+  const opcionesUnidad=v=>{const a=UNIDADES_CANTIDAD.slice(),x=String(v==null?'':v).trim().toUpperCase();if(x&&!a.includes(x))a.push(x);return a;};
   /* El validador usa nombres planos de la v2; en `campos` v3 la cantidad se llama cantidad_valor. */
   const ALIAS={cantidad_unidades:'cantidad_valor',unidad_cantidad:'cantidad_unidad'};
   const campoDe=n=>ALIAS[n]||n;
@@ -91,6 +94,7 @@
       return {valor:Math.round(n*10000)/10000};
     }
     if(def.tipo==='fecha')return esFechaIso(s)?{valor:s}:{error:def.etiqueta+': usa una fecha válida (AAAA-MM-DD).'};
+    if(campo==='cantidad_unidad'&&/^[\d.,\s]+$/.test(s))return {error:'Unidad de la cantidad: aquí va la unidad (UND, MILLARES, KG…), no un número. El número va en «Cantidad».'};
     return {valor:recortar(s,200)};
   }
 
@@ -160,7 +164,7 @@
    * registro: contenido de un «-revisado.json» (v2 o v3). Exige que la huella de la foto coincida con registro.sha256: una foto que no es la
    * de ese JSON no se importa (evita mezclar datos de una etiqueta con la imagen de otra).
    */
-  function construirDocumento(registro,{sha256,foto,usuario,uid,ahora,leyenda,recibidoEn}){
+  function construirDocumento(registro,{sha256,foto,usuario,uid,ahora,leyenda,remitente,recibidoEn}){
     if(!registro||typeof registro!=='object'||!registro.extraccion||typeof registro.extraccion!=='object')throw falla('FORMATO','El archivo no es un resultado de lectura de etiquetas (falta «extraccion»).');
     if(!/^[a-f0-9]{64}$/.test(texto(sha256)))throw falla('FORMATO','Falta la huella (SHA-256) de la foto.');
     if(registro.sha256&&String(registro.sha256).toLowerCase()!==sha256)throw falla('FOTO_NO_COINCIDE','La foto no corresponde a este resultado (la huella SHA-256 es distinta).');
@@ -184,7 +188,7 @@
     const en=Number(ahora)||Date.now();
     const ff=fechaFotoDeRegistro(registro,recibidoEn,en);
     return {
-      id:sha256,estado:'pendiente',rev:1,fotoEn:ff.ms,fotoEnOrigen:ff.origen,leyenda:recortar(leyenda||registro.leyenda,40),     // texto que acompañó la foto en WhatsApp (RECEPCIÓN, PET2…); lo interpreta la trazabilidad de lotes
+      id:sha256,estado:'pendiente',rev:1,fotoEn:ff.ms,fotoEnOrigen:ff.origen,leyenda:recortar(leyenda||registro.leyenda,40),remitente:recortar(remitente||registro.remitente,60),     // texto que acompañó la foto en WhatsApp (RECEPCIÓN, PET2…); lo interpreta la trazabilidad de lotes
       versionProcesador:recortar(registro.version_procesador,30),archivoOriginal:recortar(String(registro.archivo_original||'').split(/[\\/]/).pop(),120),
       analizadoEn:recortar(registro.analizado_en,40),modelo:recortar(registro.modelo,60),
       foto:{url:recortar(foto&&foto.url,300),mimetype:recortar(foto&&foto.mimetype,40),bytes:Number(foto&&foto.bytes)||0},
@@ -298,10 +302,11 @@
     return r;
   }
   const norm=v=>String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  const coin=(h,q)=>{const B=(typeof window!=='undefined'&&window.glacialBusqueda)||(typeof require==='function'?require('../nucleo/04b-busqueda.js'):null);return B?B.coincide(h,q):norm(Array.isArray(h)?h.join(' '):h).includes(norm(q));};   // búsqueda común (js/nucleo/04b-busqueda.js)
   function filtrar(lista,{estado='',texto:t=''}={}){
     const q=norm(t);
-    return lista.filter(d=>(!estado||d.estado===estado)&&(!q||[d.archivoOriginal,d.campos&&d.campos.producto&&d.campos.producto.valor,d.campos&&d.campos.proveedor&&d.campos.proveedor.valor,
-      d.campos&&d.campos.lote&&d.campos.lote.valor,d.categoria].some(v=>norm(v).includes(q))));
+    return lista.filter(d=>(!estado||d.estado===estado)&&(!q||coin([d.archivoOriginal,d.campos&&d.campos.producto&&d.campos.producto.valor,d.campos&&d.campos.proveedor&&d.campos.proveedor.valor,
+      d.campos&&d.campos.lote&&d.campos.lote.valor,d.categoria],q)));
   }
   /* Evidencias que siguen «pendiente» o «requiere corrección» desde hace más de N días: {cantidad, masAntigua (días)}. */
   function pendientesAntiguas(lista,ahoraMs,dias){
@@ -342,7 +347,7 @@
   /** Diferencia porcentual entre lo calculado y lo que dice la etiqueta (null si no se puede comparar). */
   const diferenciaPct=(calculado,etiqueta)=>Number(etiqueta)>0&&Number.isFinite(Number(calculado))?Math.round((Number(calculado)-Number(etiqueta))/Number(etiqueta)*1000)/10:null;
 
-  const API={gramajeDeTexto,convertir,diferenciaPct,ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,CAMPOS_VISIBLES,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
+  const API={UNIDADES_CANTIDAD,opcionesUnidad,gramajeDeTexto,convertir,diferenciaPct,ESTADOS,TRANSICIONES,EDITABLES,ESTADOS_CAMPO,SIN_CONFIRMAR,CATEGORIAS,TIPOS_DOCUMENTO,CAMPOS,CAMPOS_VISIBLES,DEF,MOTIVO_MIN,sha256Hex,valorDeEntrada,construirDocumento,camposSinConfirmar,
     etiquetaCampo,aplicarEdiciones,validarAprobacion,soloAdmin,exigeMotivo,cambiarEstado,contarPorEstado,filtrar,ordenar,pendientesAntiguas,elegirPorFoto,fechaPantalla,esFechaIso,campoDe,msDe,fechaFotoDeRegistro,fechaFoto,ORIGEN_FECHA_FOTO,tituloEvidencia};
   global.glacialEvidenciasNucleo=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;

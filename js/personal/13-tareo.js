@@ -74,7 +74,20 @@ let tareoFechaVista = '';
 let tareoGeneralFiltros = {
     fecha: '',
     turno: '',
-    area: ''
+    area: '',
+    texto: '',        // nombre o DNI
+    asistencia: '',   // etiqueta de asistencia (ASISTIÓ, FALTA…, PENDIENTE)
+    linea: '',
+    cargo: ''
+};
+
+/* Filtros del Historial de Tareo (además del área). */
+let tareoFiltroHistorial = {
+    desde: '',
+    hasta: '',
+    turno: '',
+    estado: '',       // '' | PENDIENTES | TARDANZAS | AUSENCIAS
+    texto: ''         // persona (nombre, DNI, cargo o línea) o quien lo creó
 };
 
 
@@ -977,7 +990,15 @@ function tareoSaldoHTML(saldo) {
     return `<strong class="${clase}">${tareoTextoSaldo(saldo)}</strong>`;
 }
 
-/* Saldo para exportar a Excel: horas decimales con signo (sumable). */
+/* HORAS EXTRAS para exportar a Excel: MINUTOS ENTEROS con signo (sumable; sin decimales ni fracciones de día). */
+function tareoSaldoMinutos(saldo) {
+
+    return saldo === null || saldo === undefined || Number.isNaN(saldo)
+        ? ''
+        : Math.round(saldo * 60);
+}
+
+/* Saldo en horas decimales con signo (uso interno; los Excel usan tareoSaldoMinutos). */
 function tareoSaldoNumero(saldo) {
 
     return saldo === null || saldo === undefined || Number.isNaN(saldo)
@@ -2929,7 +2950,10 @@ function tareoHorasPorDia(persona) {
 
     if (min < 0) min += 24 * 60;
 
-    return min / 60;
+    // Refrigerio del personal por día: se descuenta si tiene salida y retorno (igual que en planilla).
+    min -= calcularMinutosRefrigerio(persona.salidaRefrigerio, persona.retornoRefrigerio);
+
+    return Math.max(0, min) / 60;
 }
 
 function tareoTarjetaTurnoHTML(area, fecha, turno) {
@@ -3062,7 +3086,7 @@ function renderTareoPrincipal() {
             ? (tareoFechaVista || hoy)
             : hoy;
 
-    const personal =
+    const personalBase =
         area === 'Producción'
             ? (() => {
                 const rotacion = obtenerRotacionVigente(hoy);
@@ -3081,6 +3105,9 @@ function renderTareoPrincipal() {
                 });
             })()
             : obtenerPersonalTareo('Mantenimiento');
+
+    // Mantenimiento: no se listan los quitados desde el Inicio («ya no trabaja aquí»; 48-tareo-personal-area.js).
+    const personal = window.TareoArea ? window.TareoArea.visibles(area, personalBase) : personalBase;
 
     const tareosArea = obtenerTareos().filter(
         tareo => tareoAreaDe(tareo) === area
@@ -3264,6 +3291,8 @@ function renderTareoPrincipal() {
                     ${personal.length} trabajadores
                 </span>
 
+                ${window.TareoArea ? window.TareoArea.botonesHTML(area) : ''}
+
             </div>
 
             <div class="panel-body">
@@ -3281,6 +3310,7 @@ function renderTareoPrincipal() {
                                         <th>DNI</th>
                                         <th>Cargo</th>
                                         <th>Línea</th>
+                                        ${window.TareoArea && window.TareoArea.puede() && area === 'Mantenimiento' ? '<th></th>' : ''}
                                     </tr>
                                 </thead>
 
@@ -3300,6 +3330,7 @@ function renderTareoPrincipal() {
                                             <td>${escaparHTML(trabajador.dni)}</td>
                                             <td>${escaparHTML(trabajador.cargo)}</td>
                                             <td>${trabajador.linea ? escaparHTML(trabajador.linea) : 'Sin línea'}</td>
+                                            ${window.TareoArea && window.TareoArea.puede() && area === 'Mantenimiento' ? `<td>${window.TareoArea.celdaHTML(trabajador, area)}</td>` : ''}
                                         </tr>
                                     `).join('')}
 
@@ -3329,6 +3360,12 @@ function renderTareoPrincipal() {
             </div>
 
         </div>
+
+        ${window.TareoArea ? window.TareoArea.sinRegistrarHTML(area) : ''}
+
+        ${window.TareoArea ? window.TareoArea.porDiaHTML(area) : ''}
+
+        ${window.TareoArea ? window.TareoArea.quitadosHTML(area) : ''}
 
     `;
 }
@@ -4340,7 +4377,8 @@ function tareoFiltrarPersonal(valor) {
 
         fila.style.display =
             !filtro ||
-            fila.getAttribute('data-tareo-buscar').includes(filtro)
+            fila.getAttribute('data-tareo-buscar').includes(filtro) ||
+            (window.glacialBusqueda && window.glacialBusqueda.coincide(fila.getAttribute('data-tareo-buscar'), filtro))
                 ? ''
                 : 'none';
     });
@@ -5110,6 +5148,8 @@ function tareoSeccionPorDiaHTML(tareo, editable) {
                                         <th>DNI</th>
                                         <th>Área / línea</th>
                                         <th>Ingreso</th>
+                                        <th>Salida refrigerio</th>
+                                        <th>Retorno refrigerio</th>
                                         <th>Salida</th>
                                         <th>Horas</th>
                                         <th>HORAS EXTRAS</th>
@@ -5130,6 +5170,10 @@ function tareoSeccionPorDiaHTML(tareo, editable) {
                                                     ? `
                                                     <td><input type="time" value="${escaparHTML(p.horaIngreso || '')}"
                                                         onchange="tareoEditarPorDia('${p.id}','horaIngreso',this.value)"></td>
+                                                    <td><input type="time" value="${escaparHTML(p.salidaRefrigerio || '')}" aria-label="Salida a refrigerio"
+                                                        onchange="tareoEditarPorDia('${p.id}','salidaRefrigerio',this.value)"></td>
+                                                    <td><input type="time" value="${escaparHTML(p.retornoRefrigerio || '')}" aria-label="Retorno de refrigerio"
+                                                        onchange="tareoEditarPorDia('${p.id}','retornoRefrigerio',this.value)"></td>
                                                     <td><input type="time" value="${escaparHTML(p.horaSalida || '')}"
                                                         onchange="tareoEditarPorDia('${p.id}','horaSalida',this.value)"></td>
                                                     <td id="tpd-h-${p.id}">${formatearHoras(tareoHorasPorDia(p))} h</td>
@@ -5140,6 +5184,8 @@ function tareoSeccionPorDiaHTML(tareo, editable) {
                                                     `
                                                     : `
                                                     <td>${escaparHTML(p.horaIngreso || '—')}</td>
+                                                    <td>${escaparHTML(p.salidaRefrigerio || '—')}</td>
+                                                    <td>${escaparHTML(p.retornoRefrigerio || '—')}</td>
                                                     <td>${escaparHTML(p.horaSalida || '—')}</td>
                                                     <td>${formatearHoras(tareoHorasPorDia(p))} h</td>
                                                     <td>${tareoSaldoHTML(tareoSaldoHoras(p))}</td>
@@ -5222,6 +5268,17 @@ function tareoAbrirAgregarPorDia() {
                         <div class="field-sm">
                             <label>Hora de salida</label>
                             <input type="time" id="tpd-salida">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-2">
+                        <div class="field-sm">
+                            <label>Salida a refrigerio (opcional)</label>
+                            <input type="time" id="tpd-sref">
+                        </div>
+                        <div class="field-sm">
+                            <label>Retorno de refrigerio (opcional)</label>
+                            <input type="time" id="tpd-rref">
                         </div>
                     </div>
 
@@ -5312,6 +5369,8 @@ function tareoAgregarPorDia() {
         area: (document.getElementById('tpd-area')?.value || '').trim(),
         horaIngreso: document.getElementById('tpd-ingreso')?.value || tareoHoraActual(),
         horaSalida: document.getElementById('tpd-salida')?.value || '',
+        salidaRefrigerio: document.getElementById('tpd-sref')?.value || '',
+        retornoRefrigerio: (document.getElementById('tpd-sref')?.value ? (document.getElementById('tpd-rref')?.value || '') : ''),
         observacion: (document.getElementById('tpd-obs')?.value || '').trim(),
         registradoPor: (state.user && (state.user.nombre || state.user.username)) || '',
         creadoEn: ahora,
@@ -5332,7 +5391,7 @@ function tareoAgregarPorDia() {
 
 function tareoEditarPorDia(id, campo, valor) {
 
-    if (!['horaIngreso', 'horaSalida', 'observacion', 'area'].includes(campo)) return;
+    if (!['horaIngreso', 'horaSalida', 'salidaRefrigerio', 'retornoRefrigerio', 'observacion', 'area'].includes(campo)) return;
 
     const tareo = tareoObtenerActual();
 
@@ -5343,6 +5402,7 @@ function tareoEditarPorDia(id, campo, valor) {
     if (!persona) return;
 
     persona[campo] = valor || '';
+    if (campo === 'salidaRefrigerio' && !valor) persona.retornoRefrigerio = '';
     persona.actualizadoEn = tareoAhoraMs();
 
     guardarTareoEnMemoria(tareo);
@@ -5583,7 +5643,7 @@ function renderFilaPersonalTareo(
         );
 
     const oculta =
-        filtro && !textoBusqueda.includes(filtro)
+        filtro && !textoBusqueda.includes(filtro) && !(window.glacialBusqueda && window.glacialBusqueda.coincide(textoBusqueda, filtro))
             ? 'display:none;'
             : '';
 
@@ -6479,6 +6539,95 @@ function guardarTareoActual() {
    HISTORIAL
    ========================================================= */
 
+/* ¿El tareo cumple los filtros del Historial? (período, turno, estado y búsqueda por persona). */
+function tareoHistorialCoincide(tareo, f) {
+
+    const fecha = String(tareo.fecha || '');
+
+    if (f.desde && fecha < f.desde) return false;
+    if (f.hasta && fecha > f.hasta) return false;
+    if (f.turno && normalizarTurno(tareo.turno) !== f.turno) return false;
+
+    if (f.estado) {
+
+        const c = tareoContadores(tareo.personal || []);
+
+        if (f.estado === 'PENDIENTES' && !c.pendientes) return false;
+        if (f.estado === 'TARDANZAS' && !c.tardanzas) return false;
+        if (f.estado === 'AUSENCIAS' && !c.ausencias) return false;
+    }
+
+    const q = tareoNormalizarTexto(f.texto);
+
+    if (q) {
+
+        // También el personal POR DÍA (no planilla) del tareo: nombre, DNI y cargo / área.
+        const porPersona = [...(tareo.personal || []), ...tareoPorDiaActivos(tareo)].some(p =>
+            tareoNormalizarTexto([p.nombre, p.dni, p.cargo, p.linea, p.area].join(' ')).includes(q) ||
+            !!(window.glacialBusqueda && window.glacialBusqueda.coincide([p.nombre, p.dni, p.cargo, p.linea, p.area], q))
+        );
+
+        const porCreador = tareoNormalizarTexto(
+            [tareo.creadoPorNombre, tareo.creadoPor].join(' ')
+        ).includes(q) || !!(window.glacialBusqueda && window.glacialBusqueda.coincide([tareo.creadoPorNombre, tareo.creadoPor], q));
+
+        if (!porPersona && !porCreador) return false;
+    }
+
+    return true;
+}
+
+/* Celda «Por día» del Historial: cuántas personas por día tiene el tareo y, de cada una, su nombre y sus horas (o qué le falta). */
+function tareoPorDiaCeldaHistorial(tareo) {
+
+    const lista = tareoPorDiaActivos(tareo);
+
+    if (!lista.length) return '—';
+
+    const linea = p => {
+        const i = p.horaIngreso || '', s = p.horaSalida || '';
+        const horas = i && s ? i + '–' + s : (i ? i + ' · sin salida' : (s ? 'sin ingreso · ' + s : 'sin horas'));
+        return '<small style="display:block;white-space:nowrap">' + escaparHTML(p.nombre) + ' · ' + escaparHTML(horas) + '</small>';
+    };
+
+    return '<strong>' + lista.length + '</strong>' + lista.slice(0, 3).map(linea).join('') +
+        (lista.length > 3 ? '<small class="small-muted">y ' + (lista.length - 3) + ' más</small>' : '');
+}
+
+let _tareoHistorialTemporizador = null;
+
+function tareoHistorialSet(clave, valor) {
+
+    tareoFiltroHistorial[clave] = valor || '';
+    renderHistorialTareo();
+}
+
+function tareoHistorialBuscar(valor) {
+
+    tareoFiltroHistorial.texto = valor || '';
+
+    clearTimeout(_tareoHistorialTemporizador);
+
+    _tareoHistorialTemporizador = setTimeout(() => {
+
+        renderHistorialTareo();
+
+        const campo = document.getElementById('tareo-hist-texto');
+
+        if (campo) {
+            campo.focus();
+            try { campo.setSelectionRange(campo.value.length, campo.value.length); } catch (_) { /* tipo search */ }
+        }
+    }, 250);
+}
+
+function tareoHistorialLimpiar() {
+
+    tareoFiltroHistorial = { desde: '', hasta: '', turno: '', estado: '', texto: '' };
+    tareoFiltroAreaHistorial = '';
+    renderHistorialTareo();
+}
+
 function renderHistorialTareo() {
 
     const main =
@@ -6495,12 +6644,22 @@ function renderHistorialTareo() {
         tareoFiltroAreaHistorial = '';
     }
 
+    const todosLosTareos = tareoTareosVisibles();
+
+    const hayFiltros = !!(
+        tareoFiltroAreaHistorial ||
+        tareoFiltroHistorial.desde || tareoFiltroHistorial.hasta ||
+        tareoFiltroHistorial.turno || tareoFiltroHistorial.estado ||
+        tareoNormalizarTexto(tareoFiltroHistorial.texto)
+    );
+
     const tareos =
-        tareoTareosVisibles()
+        todosLosTareos
             .filter(
                 tareo =>
-                    !tareoFiltroAreaHistorial ||
-                    tareoAreaDe(tareo) === tareoFiltroAreaHistorial
+                    (!tareoFiltroAreaHistorial ||
+                    tareoAreaDe(tareo) === tareoFiltroAreaHistorial) &&
+                    tareoHistorialCoincide(tareo, tareoFiltroHistorial)
             )
             .sort(
                 (a, b) =>
@@ -6578,7 +6737,7 @@ function renderHistorialTareo() {
                     }
 
                     <span class="small-muted">
-                        ${tareos.length} tareos
+                        ${hayFiltros ? `${tareos.length} de ${todosLosTareos.length} tareos` : `${tareos.length} tareos`}
                     </span>
 
                 </div>
@@ -6586,6 +6745,47 @@ function renderHistorialTareo() {
             </div>
 
             <div class="panel-body">
+
+                <div class="tar2-toolbar" id="tareo-historial-filtros" style="margin-bottom:12px;">
+
+                    <div class="field-sm">
+                        <label>Desde</label>
+                        <input type="date" value="${escaparHTML(tareoFiltroHistorial.desde)}" onchange="tareoHistorialSet('desde', this.value)">
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Hasta</label>
+                        <input type="date" value="${escaparHTML(tareoFiltroHistorial.hasta)}" onchange="tareoHistorialSet('hasta', this.value)">
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Turno</label>
+                        <select onchange="tareoHistorialSet('turno', this.value)">
+                            <option value="">Todos</option>
+                            <option value="Día" ${tareoFiltroHistorial.turno === 'Día' ? 'selected' : ''}>Día</option>
+                            <option value="Noche" ${tareoFiltroHistorial.turno === 'Noche' ? 'selected' : ''}>Noche</option>
+                        </select>
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Mostrar</label>
+                        <select onchange="tareoHistorialSet('estado', this.value)">
+                            <option value="">Todos los tareos</option>
+                            <option value="PENDIENTES" ${tareoFiltroHistorial.estado === 'PENDIENTES' ? 'selected' : ''}>Con personal sin registrar</option>
+                            <option value="TARDANZAS" ${tareoFiltroHistorial.estado === 'TARDANZAS' ? 'selected' : ''}>Con tardanzas</option>
+                            <option value="AUSENCIAS" ${tareoFiltroHistorial.estado === 'AUSENCIAS' ? 'selected' : ''}>Con ausencias</option>
+                        </select>
+                    </div>
+
+                    <div class="field-sm" style="flex:1 1 220px;">
+                        <label>Buscar persona</label>
+                        <input type="search" id="tareo-hist-texto" placeholder="Nombre, DNI, cargo, línea o quién lo creó"
+                            value="${escaparHTML(tareoFiltroHistorial.texto)}" oninput="tareoHistorialBuscar(this.value)" aria-label="Buscar en el historial de tareo">
+                    </div>
+
+                    ${hayFiltros ? '<button type="button" class="btn btn-sm btn-ghost" onclick="tareoHistorialLimpiar()">Limpiar filtros</button>' : ''}
+
+                </div>
 
                 ${
                     tareos.length
@@ -6677,7 +6877,7 @@ function renderHistorialTareo() {
                                                     </td>
 
                                                     <td>
-                                                        ${tareoPorDiaActivos(tareo).length || '—'}
+                                                        ${tareoPorDiaCeldaHistorial(tareo)}
                                                     </td>
 
                                                     <td>
@@ -7683,6 +7883,42 @@ function tareoGeneralFiltrar() {
     tareoGeneralFiltros.area =
         document.getElementById('tareo-general-area')?.value || '';
 
+    ['asistencia', 'linea', 'cargo'].forEach(k => {
+        const el = document.getElementById('tareo-general-' + k);
+        if (el) tareoGeneralFiltros[k] = el.value || '';
+    });
+
+    renderTareoGeneral();
+}
+
+let _tareoGeneralTemporizador = null;
+
+function tareoGeneralBuscar(valor) {
+
+    tareoGeneralFiltros.texto = valor || '';
+
+    clearTimeout(_tareoGeneralTemporizador);
+
+    _tareoGeneralTemporizador = setTimeout(() => {
+
+        renderTareoGeneral();
+
+        const campo = document.getElementById('tareo-general-texto');
+
+        if (campo) {
+            campo.focus();
+            try { campo.setSelectionRange(campo.value.length, campo.value.length); } catch (_) { /* tipo search */ }
+        }
+    }, 250);
+}
+
+function tareoGeneralLimpiarPersonas() {
+
+    tareoGeneralFiltros.texto = '';
+    tareoGeneralFiltros.asistencia = '';
+    tareoGeneralFiltros.linea = '';
+    tareoGeneralFiltros.cargo = '';
+
     renderTareoGeneral();
 }
 
@@ -7731,7 +7967,21 @@ function tareoGeneralDatos() {
         )
     );
 
-    return { areas, turnos, tareos, filas };
+    // Filtros de personas (búsqueda, asistencia, línea y cargo). «todas» conserva el total para armar las opciones.
+    const { texto, asistencia, linea, cargo } = tareoGeneralFiltros;
+    const q = tareoNormalizarTexto(texto);
+
+    const filtradas = filas.filter(({ persona }) => {
+
+        if (asistencia && tareoEtiquetaEstado(persona.asistencia) !== asistencia) return false;
+        if (linea && String(persona.linea || 'Sin línea') !== linea) return false;
+        if (cargo && String(persona.cargo || 'Sin cargo') !== cargo) return false;
+        if (q && !tareoNormalizarTexto([persona.nombre, persona.dni].join(' ')).includes(q) && !(window.glacialBusqueda && window.glacialBusqueda.coincide([persona.nombre, persona.dni], q))) return false;
+
+        return true;
+    });
+
+    return { areas, turnos, tareos, filas: filtradas, todas: filas };
 }
 
 
@@ -7755,7 +8005,11 @@ function renderTareoGeneral() {
 
     const { fecha, turno, area } = tareoGeneralFiltros;
 
-    const { areas, turnos, filas } = tareoGeneralDatos();
+    const { areas, turnos, filas, todas } = tareoGeneralDatos();
+
+    const opcionesGeneral = clave => [...new Set(todas.map(({ persona }) => clave === 'asistencia' ? tareoEtiquetaEstado(persona.asistencia) : String(persona[clave] || (clave === 'linea' ? 'Sin línea' : 'Sin cargo'))))].sort((a, b) => a.localeCompare(b, 'es'));
+
+    const hayFiltroPersonas = !!(tareoNormalizarTexto(tareoGeneralFiltros.texto) || tareoGeneralFiltros.asistencia || tareoGeneralFiltros.linea || tareoGeneralFiltros.cargo);
 
     const c = tareoContadores(filas.map(item => item.persona));
 
@@ -7826,7 +8080,41 @@ function renderTareoGeneral() {
                         </select>
                     </div>
 
+                    <div class="field-sm">
+                        <label>Asistencia</label>
+                        <select id="tareo-general-asistencia" onchange="tareoGeneralFiltrar()">
+                            <option value="">Todas</option>
+                            ${opcionesGeneral('asistencia').map(item => `<option value="${escaparHTML(item)}" ${tareoGeneralFiltros.asistencia === item ? 'selected' : ''}>${escaparHTML(item)}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Línea</label>
+                        <select id="tareo-general-linea" onchange="tareoGeneralFiltrar()">
+                            <option value="">Todas</option>
+                            ${opcionesGeneral('linea').map(item => `<option value="${escaparHTML(item)}" ${tareoGeneralFiltros.linea === item ? 'selected' : ''}>${escaparHTML(item)}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <div class="field-sm">
+                        <label>Cargo</label>
+                        <select id="tareo-general-cargo" onchange="tareoGeneralFiltrar()">
+                            <option value="">Todos</option>
+                            ${opcionesGeneral('cargo').map(item => `<option value="${escaparHTML(item)}" ${tareoGeneralFiltros.cargo === item ? 'selected' : ''}>${escaparHTML(item)}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <div class="field-sm" style="flex:1 1 220px;">
+                        <label>Buscar persona</label>
+                        <input type="search" id="tareo-general-texto" placeholder="Nombre o DNI"
+                            value="${escaparHTML(tareoGeneralFiltros.texto)}" oninput="tareoGeneralBuscar(this.value)" aria-label="Buscar persona en el tareo">
+                    </div>
+
+                    ${hayFiltroPersonas ? '<button type="button" class="btn btn-sm btn-ghost" onclick="tareoGeneralLimpiarPersonas()">Limpiar filtros</button>' : ''}
+
                 </div>
+
+                ${hayFiltroPersonas ? `<div class="small-muted" style="margin-top:8px;" role="status">Mostrando ${filas.length} de ${todas.length} personas. Los filtros solo cambian lo que ves; el Excel exporta el día completo.</div>` : ''}
 
             </div>
 
@@ -8057,6 +8345,8 @@ function tareoAgregarHojaPorDia(libro, tareos, nombreHoja) {
             'DNI': persona.dni || '',
             'Área / línea': persona.area || '',
             'Hora ingreso': persona.horaIngreso || '',
+            'Salida refrigerio': persona.salidaRefrigerio || '',
+            'Retorno refrigerio': persona.retornoRefrigerio || '',
             'Hora salida': persona.horaSalida || '',
             'Horas trabajadas': Number(tareoHorasPorDia(persona).toFixed(2)),
             'Observación': persona.observacion || ''
@@ -8074,7 +8364,7 @@ function tareoAgregarHojaPorDia(libro, tareos, nombreHoja) {
     hoja['!cols'] = [
         { wch: 12 }, { wch: 15 }, { wch: 8 }, { wch: 10 },
         { wch: 32 }, { wch: 12 }, { wch: 18 }, { wch: 13 },
-        { wch: 12 }, { wch: 16 }, { wch: 30 }
+        { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 30 }
     ];
 
     XLSX.utils.book_append_sheet(libro, hoja, nombreHoja);
@@ -8113,6 +8403,8 @@ function tareoPorDiaGeneralHTML() {
                                         <th>DNI</th>
                                         <th>Área / línea</th>
                                         <th>Ingreso</th>
+                                        <th>Salida refrigerio</th>
+                                        <th>Retorno refrigerio</th>
                                         <th>Salida</th>
                                         <th>Horas</th>
                                         <th>HORAS EXTRAS</th>
@@ -8128,6 +8420,8 @@ function tareoPorDiaGeneralHTML() {
                                             <td>${escaparHTML(persona.dni || '—')}</td>
                                             <td>${escaparHTML(persona.area || '—')}</td>
                                             <td>${escaparHTML(persona.horaIngreso || '—')}</td>
+                                            <td>${escaparHTML(persona.salidaRefrigerio || '—')}</td>
+                                            <td>${escaparHTML(persona.retornoRefrigerio || '—')}</td>
                                             <td>${escaparHTML(persona.horaSalida || '—')}</td>
                                             <td>${formatearHoras(tareoHorasPorDia(persona))} h</td>
                                             <td>${tareoSaldoHTML(tareoSaldoHoras(persona))}</td>
@@ -8179,7 +8473,7 @@ function exportarTareoGeneralExcel() {
         'Tardanza (min)': Number(persona.tardanzaMinutos || 0),
         'Hora salida': persona.horaSalida || '',
         'Horas trabajadas': Number(tareoHorasValidas(persona).toFixed(2)),
-        'HORAS EXTRAS': tareoSaldoNumero(tareoSaldoHoras(persona, tareo.jornadaNormal)),
+        'HORAS EXTRAS (min)': tareoSaldoMinutos(tareoSaldoHoras(persona, tareo.jornadaNormal)),
         'Registrado por': persona.registradoPor || ''
     }));
 
@@ -10011,6 +10305,17 @@ function renderResumenMensualTareoUI() {
                             : ''
                     }
 
+                    <div class="field-sm">
+                        <label>Buscar en el resumen</label>
+                        <input
+                            type="search"
+                            id="tareo-resumen-texto"
+                            placeholder="Nombre, DNI, cargo o línea"
+                            oninput="tareoResumenBuscar()"
+                            aria-label="Buscar persona en el resumen mensual"
+                        >
+                    </div>
+
                 </div>
 
             </div>
@@ -10025,6 +10330,30 @@ function renderResumenMensualTareoUI() {
     actualizarResumenMensualTareo();
 }
 
+
+/* Filtra el resumen mensual por persona (nombre, DNI, cargo o línea) según el cuadro «Buscar persona». Lo usan la tabla, los totales y el Excel. */
+function tareoResumenFiltrar(resumen) {
+
+    const q = tareoNormalizarTexto(
+        document.getElementById('tareo-resumen-texto')?.value || ''
+    );
+
+    if (!q) return resumen;
+
+    return resumen.filter(item =>
+        tareoNormalizarTexto([item.nombre, item.dni, item.cargo, item.linea].join(' ')).includes(q) ||
+        !!(window.glacialBusqueda && window.glacialBusqueda.coincide([item.nombre, item.dni, item.cargo, item.linea], q))
+    );
+}
+
+let _tareoResumenTemporizador = null;
+
+function tareoResumenBuscar() {
+
+    clearTimeout(_tareoResumenTemporizador);
+
+    _tareoResumenTemporizador = setTimeout(actualizarResumenMensualTareo, 200);
+}
 
 function actualizarResumenMensualTareo() {
 
@@ -10055,10 +10384,12 @@ function actualizarResumenMensualTareo() {
     if (!contenedor) return;
 
     const resumen =
-        obtenerResumenMensualTareo(
-            año,
-            mes,
-            area
+        tareoResumenFiltrar(
+            obtenerResumenMensualTareo(
+                año,
+                mes,
+                area
+            )
         );
 
     const totales =
@@ -11255,10 +11586,12 @@ function exportarResumenMensualTareo() {
         )?.value || '';
 
     const resumen =
-        obtenerResumenMensualTareo(
-            año,
-            mes,
-            area
+        tareoResumenFiltrar(
+            obtenerResumenMensualTareo(
+                año,
+                mes,
+                area
+            )
         );
 
     if (
@@ -11293,9 +11626,9 @@ function exportarResumenMensualTareo() {
                 'Tardanzas': item.tardanzas,
                 'Minutos tardanza': item.minutosTardanza,
                 'Horas trabajadas': Number(item.horasTrabajadas.toFixed(2)),
-                'HORAS EXTRAS a favor': Number(item.saldoFavor.toFixed(2)),
-                'HORAS EXTRAS en contra': Number(item.saldoContra.toFixed(2)),
-                'Total HE (registradas y autorizadas)': Number((item.totalHE || 0).toFixed(2))
+                'HORAS EXTRAS a favor (min)': Math.round(item.saldoFavor * 60),
+                'HORAS EXTRAS en contra (min)': Math.round(item.saldoContra * 60),
+                'Total HE en minutos (registradas y autorizadas)': Math.round((item.totalHE || 0) * 60)
             })
         );
 

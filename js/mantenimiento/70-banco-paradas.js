@@ -52,7 +52,7 @@
   function visibles(d){
     const q=norm(UI.texto).trim();
     return d.filas.filter(f=>(UI.estado==='todas'||(UI.estado==='pendientes'?f.estado==='PENDIENTE':f.estado==='RECLASIFICADA'))&&
-      (!q||norm([f.descripcion,f.origen,f.actual,f.equipo,f.por].join(' ')).includes(q)));
+      (!q||(window.glacialBusqueda?window.glacialBusqueda.coincide([f.descripcion,f.origen,f.actual,f.equipo,f.por],q):norm([f.descripcion,f.origen,f.actual,f.equipo,f.por].join(' ')).includes(q))));
   }
 
   const lineasOpc=()=>(typeof LINES!=='undefined'?LINES:[]).map(l=>'<option value="'+esc(l.key)+'"'+(UI.linea===l.key?' selected':'')+'>'+esc(l.name)+'</option>').join('');

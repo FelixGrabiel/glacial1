@@ -3122,7 +3122,13 @@ function xlHojaDefiniciones(wb, ctx){
 }
 
 
+/* «Exportar Excel» (pestaña Gráficos): Reporte diario con el formato de la planta (62c-reporte-diario-excel.js, 23/11/2026).
+   El libro anterior de 7 hojas sigue disponible en «Excel detallado» (exportarExcelDetallado). */
 async function exportarExcel(){
+  if(window.glacialReporteDiario&&typeof window.glacialReporteDiario.exportarExcel==='function'&&window.glacialReporteDiarioExcel)return window.glacialReporteDiario.exportarExcel();
+  return exportarExcelDetallado();
+}
+async function exportarExcelDetallado(){
 
   const data = obtenerRegistroExportacion();
 
@@ -3509,6 +3515,8 @@ async function editarSugerenciaReporte(){
 
 /* «Exportar PNG» (pestaña Gráficos): plantilla aprobada (61-reporte-linea.js + adaptador 62-reporte-registro.js). */
 async function exportarPNG(){
+  /* Reporte diario con el formato del Excel de la planta (62b-reporte-diario.js, 23/11/2026). */
+  if(window.glacialReporteDiario&&typeof window.glacialReporteDiario.exportar==='function')return window.glacialReporteDiario.exportar();
   if(window.glacialReporteRegistro&&typeof window.glacialReporteRegistro.exportar==='function')return window.glacialReporteRegistro.exportar();
   return exportarPNGDetalle();   // sin la plantilla nueva cargada, se conserva el diseño anterior
 }
@@ -3932,6 +3940,34 @@ function renderGraficosTab(){
         📊 Exportar Excel
       </button>
 
+      ${window.glacialReporteDiarioExcel&&window.glacialVistaExcel?`<button
+        type="button"
+        class="btn btn-ghost"
+        onclick="glacialReporteDiario.vistaExcel()"
+        title="Ver el Excel tal como se descarga, sin descargarlo"
+      >
+        👁 Vista previa Excel
+      </button>`:''}
+
+      ${window.glacialReporteDiarioExcel?`<button
+        type="button"
+        class="btn"
+        style="background:#1fa855;border-color:#1fa855;color:#fff"
+        onclick="glacialReporteDiario.compartir('xlsx')"
+        title="En el celular abre el menú para compartir; en el computador descarga el Excel y abre WhatsApp con el resumen"
+      >
+        📲 Enviar Excel por WhatsApp
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-ghost"
+        onclick="exportarExcelDetallado()"
+        title="El libro anterior: resumen ejecutivo, paradas, mermas, insumos, personal, portada y definiciones (7 hojas)"
+      >
+        📑 Excel detallado
+      </button>`:''}
+
             <button
         type="button"
         class="btn"
@@ -3939,6 +3975,16 @@ function renderGraficosTab(){
       >
         🖼️ Exportar PNG
       </button>
+
+      ${window.glacialReporteDiario?`<button
+        type="button"
+        class="btn"
+        style="background:#1fa855;border-color:#1fa855;color:#fff"
+        onclick="glacialReporteDiario.compartir('img')"
+        title="En el celular abre el menú para compartir; en el computador descarga la imagen y abre WhatsApp con el resumen"
+      >
+        📲 Enviar imagen por WhatsApp
+      </button>`:''}
 
       <button
         type="button"
@@ -3948,6 +3994,15 @@ function renderGraficosTab(){
       >
         📈 PNG con gráficos (detalle)
       </button>
+
+      ${window.glacialReporteDiario&&window.glacialReporteDiario.puedeConfigurar()?`<button
+        type="button"
+        class="btn btn-ghost"
+        onclick="glacialReporteDiario.editarRequerido()"
+        title="Personas necesarias por turno y vida útil (vencimiento) de cada línea"
+      >
+        👥 Personal y vida útil
+      </button>`:''}
 
     </div>
 

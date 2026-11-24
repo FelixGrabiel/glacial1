@@ -151,6 +151,8 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 42-tareo-agregar-personal.js | Agregar personal al tareo (ya registrado o personal nuevo) en Producción y Mantenimiento |
 | 43-distribucion-personal.js | Distribución de personal por línea: fuente compartida (`docs/personal-tareo/distribucion-personal.md`) |
 | 44-distribucion-personal-pantalla.js | Pestaña «Distribución de personal» del Tareo de Producción |
+| 45-supervisor-en-turno.js | Supervisor en turno: cada supervisor indica Agua o Hielo y una barra muestra solo los nombres (`docs/personal-tareo/supervisor-en-turno.md`) |
+| 48-tareo-personal-area.js | Inicio del Tareo de Mantenimiento: quitar personal (desde una fecha / todos), restaurar y agregar personal por día con rango de fechas (`docs/personal-tareo/tareo-edicion-continua.md`) |
 | 45-tareo-edicion-continua.js | Tareo: edición continua de varias filas seguidas (`docs/personal-tareo/tareo-edicion-continua.md`) |
 | 46-tareo-horas-extras.js | Tareo: horas extras, gráficos y jornada laborada, solo lectura (`docs/personal-tareo/tareo-horas-extras.md`) |
 | 47a-horas-extras-nucleo.js | Tareo: reglas puras del registro de horas extras (total con medianoche, validación, choques, filtros) |
@@ -209,6 +211,11 @@ Diagnóstico, modelo de datos y permisos: `docs/asistente/asistente-produccion.m
 ### js/admin/
 
 Panel de Administración («Centro de control», solo Administrador). Diseño, reglas y etapas: `docs/00-general/panel-administracion.md`.
+Hielo Premium, Hielo en vasos y Resumen de planta: `docs/hielo/productos.md`.
+Permisos de Hielo (7 permisos finos, el Administrador los gestiona): `docs/hielo/permisos.md`.
+Búsqueda de texto común a todos los buscadores (sin tildes, en cualquier orden, «3 kg» = «3kg»): `docs/00-general/busqueda.md`.
+Auditoría de seguridad 18/11/2026 (hallazgos, medidas y orden para producción): `docs/00-general/auditoria-seguridad-20261118.md`.
+Reporte Hielo y Reporte diario de producción (kg reales por bolsa, eficiencia, gráficas, Excel e imagen): `docs/hielo/reporte-hielo.md` y `docs/hielo/reporte-diario.md`.
 
 | Archivo | Función |
 |---|---|

@@ -191,17 +191,22 @@ function avCorteMs(hora,tipo){
    Nunca se suman ambas fuentes.
 */
 function avProduccionEfectiva(linea,marca,presentacion){
-  let total=0,encontrada=false;
+  let total=0,encontrada=false,ts=0;
   avRegistros().filter(r=>r.linea===linea).forEach(r=>{
     const cuadros=typeof normalizarCuadros==='function'?normalizarCuadros(r):(r.cuadros||[]);
     cuadros.forEach(q=>{
       if(q?.marca!==marca || q?.presentacion!==presentacion)return;
       if(q?.horaInicio&&!avHoraEnTurno(q.horaInicio))return;     // cuadro de otro turno
       const efectiva=avNum(q?.produccion?.efectiva);
-      if(efectiva>0){encontrada=true;total+=efectiva;}
+      if(efectiva>0){encontrada=true;total+=efectiva;ts=Math.max(ts,avNum(r.actualizadoEn||r.creadoEn));}
     });
   });
-  return {valor:total,encontrada};
+  return {valor:total,encontrada,ts};     // ts = cuándo se guardó por última vez el registro del supervisor (0 = sin dato)
+}
+/* Cuándo se registró la última paleta de esa marca y presentación en el turno (0 = sin dato). */
+function avUltimaPaletaMs(linea,marca,presentacion){
+  const m=avNormTxt(marca),pr=avNormTxt(presentacion);
+  return avPaletas().filter(x=>x.linea===linea&&avNormTxt(x.marca)===m&&avNormTxt(x.presentacion)===pr).reduce((t,x)=>Math.max(t,avNum(x.creadoEn||x.actualizadoEn)),0);
 }
 
 function avProduccionPaletasHasta(linea,marca,presentacion,hora,tipo){
@@ -249,6 +254,10 @@ function avProduccionHasta(linea,marca,presentacion,hora,tipo){
     // Se guarda también el valor de la otra fuente (conciliación): NUNCA se suman.
   const alt=(fuente,v)=>({fuente,valor:v.valor});
   if(tipo==='CIERRE'){
+    /* Gana lo que se ingresó ÚLTIMO: si se registraron paletas DESPUÉS de que el supervisor guardó su registro, el cierre usa las paletas (si no, quedaba con una
+       cifra vieja: caso real 22/11/2026, PET2 24 435 en vez de 28 020). Si el supervisor guardó después de la última paleta, manda su registro. Sin marcas de tiempo, como antes. */
+    if(efectiva.encontrada&&paletas.encontrada&&paletas.valor!==efectiva.valor&&efectiva.ts>0&&avUltimaPaletaMs(linea,marca,presentacion)>efectiva.ts)
+      return {valor:paletas.valor,fuente:'PALETAS',alternativa:alt('PRODUCCION_EFECTIVA',efectiva)};
     if(efectiva.encontrada)return {valor:efectiva.valor,fuente:'PRODUCCION_EFECTIVA',alternativa:paletas.encontrada?alt('PALETAS',paletas):null};
     return {valor:paletas.valor,fuente:paletas.encontrada?'PALETAS':'SIN_REGISTRO',alternativa:null};
   }
@@ -800,11 +809,14 @@ function avEstadoOperacion(linea,marca,presentacion){
 function avOrdenarHoras(horas){
   return horas.slice().sort((a,b)=>avHoraMs(avanceEstado.fecha,a,avanceEstado.turno)-avHoraMs(avanceEstado.fecha,b,avanceEstado.turno));
 }
-/* Hora de inicio CORREGIDA en Producción Actual («Corregir hora inicio») de esa marca y presentación, si cae dentro del turno del reporte.
-   Manda sobre la hora del cuadro del supervisor: sin esto, «la más temprana» ignoraba una corrección hacia una hora más tarde. */
-function avInicioCorregido(linea,marca,presentacion){
-  const p=avProgramaciones().find(x=>x.linea===linea&&x.marca===marca&&x.presentacion===presentacion&&x.estadoOperacion?.inicioCorregido&&avNum(x.estadoOperacion.inicio)>0&&avMsEnTurno(Number(x.estadoOperacion.inicio)));
-  return p?avHoraDesdeMs(p.estadoOperacion.inicio):'';
+/* Hora REAL de inicio de esa marca y presentación en Producción Actual (la que queda al tocar «Iniciar», o la que se puso en «Corregir hora inicio»),
+   si cae dentro del turno del reporte. Manda sobre la hora del cuadro del supervisor (que suele llenarse sola con el inicio del turno): sin esto, «la más
+   temprana» dejaba el 07:00 del cuadro aunque la línea hubiera iniciado a las 14:00. Marca y presentación se comparan sin importar mayúsculas, tildes ni espacios. */
+const avNormTxt=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+function avInicioCorregido(linea,marca,presentacion,soloCorregida){
+  const m=avNormTxt(marca),pr=avNormTxt(presentacion);
+  const ms=avProgramaciones().filter(x=>(!soloCorregida||x.estadoOperacion?.inicioCorregido)&&x.linea===linea&&avNormTxt(x.marca)===m&&avNormTxt(x.presentacion)===pr&&avNum(x.estadoOperacion?.inicio)>0&&avMsEnTurno(Number(x.estadoOperacion.inicio))).map(x=>Number(x.estadoOperacion.inicio));
+  return ms.length?avHoraDesdeMs(Math.min(...ms)):'';
 }
 function avInicioLinea(linea){
   const horas=[];
@@ -1172,6 +1184,29 @@ function avRatioTexto(ratio,unidad,disponible){
   const ok=disponible===undefined?!!ratio:(disponible===true&&Number.isFinite(Number(ratio)));
   return ok?`${avFmt(ratio)} ${unidad}`:'—';
 }
+/* DOS RATIOS de una línea o de un formato (23/11/2026):
+   · sin paradas = producción ÷ tiempo EFECTIVO (transcurrido − paradas): el ratio oficial de siempre (velocidad mientras produce).
+   · real (con paradas) = producción ÷ tiempo TRANSCURRIDO (las paradas cuentan como tiempo): lo que de verdad rindió el turno.
+   · diferencia = sin paradas − real (lo que se pierde por las paradas), en unidades/hora y en % del ratio sin paradas.
+   Se calcula con los datos congelados del snapshot (produccionTotal, minutosTranscurridos y el ratio guardado): sirve también para avances anteriores. */
+function avRatiosDobles(x){
+  const vacio={sin:null,real:null,dif:null,pct:null};
+  if(!x||x.sinTiempo)return vacio;
+  const ok=x.ratioDisponible===undefined?!!x.ratio:(x.ratioDisponible===true&&Number.isFinite(Number(x.ratio)));
+  if(!ok)return vacio;
+  const sin=Number(x.ratio),trans=avNum(x.minutosTranscurridos);
+  const real=trans>0?avNum(x.produccionTotal)/(trans/60):null;
+  if(real===null)return {sin,real:null,dif:null,pct:null};
+  const dif=Math.max(0,sin-real);
+  return {sin,real,dif,pct:sin>0?dif/sin*100:null};
+}
+function avRatioRealTexto(x,unidad){const r=avRatiosDobles(x);return r.real===null?'—':`${avFmt(r.real)} ${unidad}`;}
+function avRatioSinParadasTexto(x,unidad){const r=avRatiosDobles(x);return r.sin===null?(x&&x.sinTiempo?'Sin tiempo asignado':'—'):`${avFmt(r.sin)} ${unidad}`;}
+function avDiferenciaRatioTexto(x,unidad){const r=avRatiosDobles(x);return r.dif===null?'—':`${avFmt(r.dif)} ${unidad}${r.pct!==null?` (${avFmt(r.pct)} %)`:''}`;}
+/* Las tres líneas del texto (WhatsApp) para una línea o un formato. */
+function avLineasRatioTexto(x,unidad){
+  return [`Ratio real (con paradas): ${avRatioRealTexto(x,unidad)}`,`Ratio sin paradas: ${avRatioSinParadasTexto(x,unidad)}`,`Diferencia por paradas: ${avDiferenciaRatioTexto(x,unidad)}`];
+}
 function avCalcularBloquesPresentacion(l){
   const mapa=new Map();
   const nuevo=!!l.corte;   // snapshots nuevos fijan el corte de la línea; los anteriores conservan el cálculo con el que se generaron
@@ -1203,7 +1238,8 @@ function avCalcularBloquesPresentacion(l){
       // Un cuadro que empieza después del corte del reporte no entra en él.
       if(corteMs&&q?.horaInicio&&msHora(q.horaInicio)>corteMs)return;
       // Se comparan INSTANTES (en la noche 01:00 es posterior a 23:00), no el texto de la hora.
-      const hIni=avInicioCorregido(l.linea,q?.marca,q?.presentacion)||q?.horaInicio;      // la hora corregida en Producción Actual reemplaza a la del cuadro
+      // Hora corregida a mano: manda siempre. Hora real de «Iniciar»: manda sobre la hora del cuadro (si el cuadro no trae hora, no se la inventa: el formato queda «sin tiempo asignado»).
+      const hIni=avInicioCorregido(l.linea,q?.marca,q?.presentacion,true)||(q?.horaInicio?(avInicioCorregido(l.linea,q?.marca,q?.presentacion)||q.horaInicio):'');      // la hora corregida en Producción Actual reemplaza a la del cuadro
       if(hIni && (!b.inicio || msHora(hIni)<msHora(b.inicio)))b.inicio=hIni;
       if(q?.horaFin && (!b.fin || msHora(q.horaFin)>msHora(b.fin)))b.fin=q.horaFin;
       // Se conserva la identidad de cada fila (origenId/origen/auto) para no contar dos veces la misma parada.
@@ -1319,7 +1355,7 @@ function avTextoWhatsApp(s){
     const bloques=avBloquesPresentacionLinea(l);
     if(!bloques.length){
       out.push('',`*${l.nombre}*`,'',`Inicio: ${l.inicio||'—'}`,'','Línea iniciada – Sin producción registrada.','',
-        `Ratio: ${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}`,'Consumo: —',`Personal en línea: ${avPersonalTexto(l)}`,'','*PARADAS*','',
+        ...avLineasRatioTexto(l,l.unidadRatio),'Consumo: —',`Personal en línea: ${avPersonalTexto(l)}`,'','*PARADAS*','',
         l.paradas.length?l.paradas.map(p=>`${p.descripcion} – ${avFmt(p.minutos)} min`).join('\n'):'Sin paradas registradas.','',
         `Total paradas: ${avFmt(l.totalParadas)} min`);
     }else{
@@ -1328,7 +1364,7 @@ function avTextoWhatsApp(s){
         if(s.tipo==='CIERRE')out.push(`Término: ${b.fin||l.fin||'—'}`);
         out.push('');
         b.productos.forEach(p=>out.push(`${avProductoWhatsApp(p)}: ${avFmt(p.produccion)} ${avUnidadProduccion(l.linea)}`));
-        out.push('',`Ratio: ${avRatioBloqueTexto(b,l.unidadRatio)}`,
+        out.push('',...avLineasRatioTexto(b,l.unidadRatio),
           `Consumo: ${b.consumo?avFmt(b.consumo)+' L/H':'—'}`,
                     `Personal en línea: ${avPersonalTexto(b)}`,
           '',`Producción total: ${avFmt(b.produccionTotal)} ${avUnidadProduccion(l.linea)}`);
@@ -1687,7 +1723,7 @@ function avAbrirDetalle(s){
       </section>
       <section id="avd-produccion" class="av-detail-section"><h3>Producción por línea</h3>
         ${(s.lineas||[]).map(l=>`<article class="av-line-card"><div class="av-line-title"><strong>${avEsc(l.nombre||l.linea)}</strong><b>${avFmt(l.produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}</b></div>
-        <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio <b>${avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible)}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avPersonalTexto(l)}</b>${l.personalDesdeMs?` <small>desde ${avEsc(avHoraHHMM(l.personalDesdeMs))}</small>`:''}</span><span>Horas-hombre <b>${avHorasHombreTexto(l)}</b></span></div>
+        <div class="av-line-metrics"><span>Inicio <b>${avEsc(l.inicio||'—')}</b></span><span>Ratio real (con paradas) <b>${avRatioRealTexto(l,l.unidadRatio)}</b></span><span>Ratio sin paradas <b>${avRatioSinParadasTexto(l,l.unidadRatio)}</b></span><span>Diferencia por paradas <b>${avDiferenciaRatioTexto(l,l.unidadRatio)}</b></span><span>Consumo <b>${l.consumo?avFmt(l.consumo)+' L/H':'—'}</b></span><span>Personal <b>${avPersonalTexto(l)}</b>${l.personalDesdeMs?` <small>desde ${avEsc(avHoraHHMM(l.personalDesdeMs))}</small>`:''}</span><span>Horas-hombre <b>${avHorasHombreTexto(l)}</b></span></div>
         <div class="av-products">${(l.productos||[]).filter(p=>p.produccion>0).map(p=>`<span>${avEsc(p.marca)} · ${avEsc(p.etiqueta)} <b>${avFmt(p.produccion)}</b></span>`).join('')||'<span>Sin producción registrada</span>'}</div>${avDetalleRatioLinea(l)}${avBotonReporteLinea(s,l)}</article>`).join('')}
       </section>
       <section id="avd-paradas" class="av-detail-section"><h3>Paradas</h3>
@@ -1717,7 +1753,8 @@ function avDetalleCalculoLinea(l){
     <li>Tiempo transcurrido: <b>${fm(l.minutosTranscurridos)} min</b></li>
     <li>Paradas oficiales: programadas <b>${fm(l.minutosParadasProgramadasDesc)} min</b> · no programadas <b>${fm(l.minutosParadasNoProgramadasDesc)} min</b></li>
     <li>Tiempo efectivo: <b>${fm(l.minutosEfectivos)} min</b></li>
-    <li>Fórmula: <b>${formula}</b></li>${alt.map(a=>`<li>Conciliación — ${a}</li>`).join('')}</ul></details>`;
+    <li>Fórmula (sin paradas): <b>${formula}</b></li>
+    <li>Ratio real (con paradas): <b>${l.ratioDisponible&&avNum(l.minutosTranscurridos)>0?`${fm(l.produccionTotal)} ÷ (${fm(l.minutosTranscurridos)} ÷ 60) = ${avRatioRealTexto(l,u)}`:'No disponible'}</b> · diferencia <b>${avDiferenciaRatioTexto(l,u)}</b></li>${alt.map(a=>`<li>Conciliación — ${a}</li>`).join('')}</ul></details>`;
 }
 /* Botón del reporte por línea (PNG con la plantilla aprobada) de un snapshot. */
 function avBotonReporteLinea(s,l){
@@ -1737,7 +1774,7 @@ function avDetalleRatioLinea(l){
   if(l.paradasExcedenTiempo)out.push('<p class="small-muted" style="color:#B3261E">Inconsistencia: las paradas registradas ('+avFmt(l.totalParadas)+' min) superan el tiempo transcurrido ('+avFmt(l.minutosTranscurridos)+' min). Corrige las paradas; el ratio no se calcula.</p>');
   out.push(avDetalleCalculoLinea(l));
   const bl=avBloquesPresentacionLinea(l);
-  if(bl.length>1)out.push(`<div class="av-products">${bl.map(b=>`<span>Ratio ${avEsc(avTituloPresentacion(l.linea,b))} <b>${avRatioBloqueTexto(b,l.unidadRatio)}</b></span>`).join('')}</div>`);
+  if(bl.length>1)out.push(`<div class="av-products">${bl.map(b=>`<span>${avEsc(avTituloPresentacion(l.linea,b))}: real <b>${avRatioRealTexto(b,l.unidadRatio)}</b> · sin paradas <b>${avRatioSinParadasTexto(b,l.unidadRatio)}</b> · diferencia <b>${avDiferenciaRatioTexto(b,l.unidadRatio)}</b></span>`).join('')}</div>`);
   const desc=l.minutosParadasDescontadas;
   if(desc!==undefined&&Math.abs(avNum(desc)-avNum(l.totalParadas))>=0.5)
     out.push(`<p class="small-muted">Tiempo efectivo ${avFmt(l.minutosEfectivos)} min = ${avFmt(l.minutosTranscurridos)} transcurridos − ${avFmt(desc)} descontados. La suma de paradas listadas es ${avFmt(l.totalParadas)} min: los solapes, las duraciones estándar y el corte del reporte ajustan lo descontado.</p>`);
@@ -1779,11 +1816,13 @@ function avIrDetalle(id){document.getElementById(id)?.scrollIntoView({behavior:'
   MODIFICA SOLO ESTE VALOR si quieres cambiar todas las letras:
   1.00 = original | 1.20 = +20% | 1.25 = +25% | 1.30 = +30% | 1.40 = +40%
 */
-const AV_IMAGEN_ESCALA_TEXTO = 1.25;
+/* Letras de la imagen (1.4: más legibles cuando WhatsApp la reduce). La imagen se dibuja a doble resolución (AV_IMAGEN_RESOLUCION) para que se vea nítida al ampliar. */
+const AV_IMAGEN_ESCALA_TEXTO = 1.4;
+const AV_IMAGEN_RESOLUCION = 2;
 
 function avCanvasSnapshot(s){
   const W=1080, PAD=28;
-  const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#667784',MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
+  const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#44535F',MUTED='#5E6D78',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
 
   /*
      IMPORTANTE:
@@ -1827,7 +1866,7 @@ function avCanvasSnapshot(s){
   const altoParada=p=>paso(29)+(filasParada(p).length-1)*paso(20);
   const altoRealGrupo=g=>{
     const d=datosGrupo(g);
-    let h=82+55+27+paso(26)+Math.max(1,d.prods.length)*paso(30)+27+paso(26);
+    let h=82+55+55+27+paso(26)+Math.max(1,d.prods.length)*paso(30)+27+paso(26);
     h+=d.paradas.length?d.paradas.reduce((s,p)=>s+altoParada(p),0):paso(29);
     if(d.observaciones.length)h+=25+23+d.observaciones.reduce((s,o)=>s+filasObs(o).length*22,0);
     return h+8;
@@ -1844,7 +1883,7 @@ function avCanvasSnapshot(s){
 
   const ALTO_CABECERA=paso(34);
   const H=Math.max(grupos.length?1350:0,250+altoVacio+grupos.reduce((a,g)=>a+altoRealGrupo(g)+18+(g.cabecera?ALTO_CABECERA:0),0)+altoResumen+180);
-  c.height=H;
+  const K=AV_IMAGEN_RESOLUCION;c.width=W*K;c.height=H*K;x.scale(K,K);      // dibujo en 1 080 px lógicos, lienzo al doble de resolución
   const rr=(cx,cy,cw,ch,r=10)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
   const card=(cx,cy,cw,ch,fill=WHITE,stroke=LINE)=>{x.fillStyle=fill;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=stroke;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
   const fit=(txt,max,size=18,weight='400')=>{
@@ -1861,7 +1900,11 @@ function avCanvasSnapshot(s){
   x.fillStyle=WHITE;x.font=`700 ${Math.round(31*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('GLACIAL',55,56);
   x.font=`700 ${Math.round(40*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(avTituloSnapshot(s),275,62);
   x.font=`700 ${Math.round(26*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`TURNO ${s.turno}`,275,101);
-  x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(`Fecha: ${avFechaBonita(s.fecha)}`,55,154);x.fillText(`Hora: ${s.horaCorte||'—'}`,330,154);x.fillText(`Último registro: ${avTextoUltimoRegistro(s)}`,480,154);
+  x.font=`${Math.round(19*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;{ // las tres columnas se colocan una tras otra según lo que miden (con letra más grande ya no caben en posiciones fijas)
+    const tF=`Fecha: ${avFechaBonita(s.fecha)}`,tH=`Hora: ${s.horaCorte||'—'}`,tU=`Último registro: ${avTextoUltimoRegistro(s)}`,sep=36;
+    const xH=Math.max(330,55+x.measureText(tF).width+sep),xU=Math.max(480,xH+x.measureText(tH).width+sep);
+    x.fillText(tF,55,154);x.fillText(tH,xH,154);x.fillText(tU,xU,154);
+  }
   x.font=`${Math.round(16*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillStyle='#D9EAF3';x.fillText(`Horario del turno: ${avTurnoHorario(s.turno,s)}${avTextoGenerado(s)}`,55,184);
 
   let y=228;
@@ -1879,7 +1922,8 @@ function avCanvasSnapshot(s){
     const observaciones=g.sinProduccion?(l.observaciones||[]):(b.observaciones||[]);
     const produccionTotal=g.sinProduccion?0:b.produccionTotal;
     const inicio=g.sinProduccion?(l.inicio||'—'):(b.inicio||l.inicio||'—');
-    const ratioTxt=g.sinProduccion?avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible):avRatioBloqueTexto(b,l.unidadRatio);
+    const fuenteRatio=g.sinProduccion?l:b;
+    const ratioRealTxt=avRatioRealTexto(fuenteRatio,l.unidadRatio),ratioSinTxt=avRatioSinParadasTexto(fuenteRatio,l.unidadRatio),difTxt=avDiferenciaRatioTexto(fuenteRatio,l.unidadRatio);
     const consumo=g.sinProduccion?0:b.consumo;
         const personalTxt=g.sinProduccion?avPersonalTexto(l):avPersonalTexto(b);
     const totalParadas=paradas.reduce((s,p)=>s+avNum(p.minutos),0);
@@ -1901,15 +1945,24 @@ function avCanvasSnapshot(s){
     x.textAlign='right';x.fillStyle=g.sinProduccion?WARN:GOOD;x.font=`700 ${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(g.sinProduccion?'LÍNEA INICIADA':'PRODUCCIÓN REGISTRADA',W-PAD-20,y+35);x.textAlign='left';
 
     let cy=y+82;
-    const metrics=[
+    // Dos filas: datos de la línea y, debajo, los dos ratios con su diferencia (la pérdida por paradas en rojo).
+    const fila=(lista,colorValor)=>{
+      const mw=(W-PAD*2-40)/lista.length;
+      lista.forEach((m,i)=>{const mx=PAD+20+i*mw;x.fillStyle=STEEL;x.font=`${Math.round(13*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(m[0],mx,cy);x.fillStyle=(colorValor&&colorValor[i])||INK;fit(m[1],mw-12,17,'700');x.fillText(m[1],mx,cy+24);});
+      cy+=55;
+    };
+    fila([
       ['Inicio',inicio],
       ['Producción',`${avFmt(produccionTotal)} ${avUnidadProduccion(l.linea).toUpperCase()}`],
-      ['Ratio',ratioTxt],
       ['Consumo',consumo?`${avFmt(consumo)} L/H`:'—'],
-            ['Personal',personalTxt]
-    ],mw=(W-PAD*2-40)/5;
-    metrics.forEach((m,i)=>{const mx=PAD+20+i*mw;x.fillStyle=STEEL;x.font=`${Math.round(13*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText(m[0],mx,cy);x.fillStyle=INK;fit(m[1],mw-12,17,'700');x.fillText(m[1],mx,cy+24);});
-    cy+=55;divider(cy);cy+=27;
+      ['Personal',personalTxt]
+    ]);
+    fila([
+      ['Ratio real (con paradas)',ratioRealTxt],
+      ['Ratio sin paradas',ratioSinTxt],
+      ['Diferencia por paradas',difTxt]
+    ],[DARK,INK,difTxt==='—'?INK:BAD]);
+    divider(cy);cy+=27;
 
     x.fillStyle=BLUE;x.font=`700 ${Math.round(15*AV_IMAGEN_ESCALA_TEXTO)}px Arial`;x.fillText('MARCAS PRODUCIDAS',PAD+20,cy);cy+=Math.round(26*Math.max(1,AV_IMAGEN_ESCALA_TEXTO));
     if(prods.length){
@@ -2210,8 +2263,8 @@ body.av-modal-open #av-floating-trigger{visibility:hidden;pointer-events:none}
 
 .av-parada-equipo{grid-column:1/-1}.av-parada-equipo input{margin-top:6px}
 .av-paradas-modal{display:none;position:fixed;inset:0;z-index:2600;background:rgba(0,31,50,.62);padding:18px;align-items:center;justify-content:center}.av-paradas-modal.open{display:flex}.av-paradas-dialog{width:min(760px,98vw);max-height:92vh;display:flex;flex-direction:column;background:#f5f8fa;border-radius:12px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.28)}.av-paradas-dialog>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:15px 18px;background:#033350;color:#fff}.av-paradas-dialog>header h2{margin:2px 0;font-size:18px}.av-paradas-dialog>header p{margin:2px 0;font-size:11px}.av-paradas-dialog>header>button{width:36px;height:36px;border:0;border-radius:6px;background:rgba(255,255,255,.12);color:#fff}.av-paradas-linea{margin-top:7px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:#fff;color:#033350;font-weight:800}.av-paradas-body{padding:14px;overflow-y:auto}.av-paradas-note{padding:9px 10px;background:#E8F7FE;border:1px solid #c8deeb;border-radius:7px;color:#35586b;font-size:11px;margin-bottom:10px}.av-paradas-error{padding:9px 10px;background:#fff0ee;border:1px solid #efc0b9;color:#a22d22;border-radius:7px;margin-bottom:10px;font-size:11px}.av-paradas-list{display:grid;gap:8px}.av-parada-row{display:grid;grid-template-columns:150px minmax(180px,1fr) 180px 95px 38px;gap:8px;align-items:end;padding:10px;background:#fff;border:1px solid #d7e3eb;border-radius:8px}.av-parada-row label{display:block;font-size:11px;font-weight:800;color:#5C6E7B;margin-bottom:4px}.av-parada-row input,.av-parada-row select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cfdbe3;border-radius:6px;background:#fff}.av-parada-row.is-p{border-left:4px solid #2e9d62}.av-parada-row.is-np{border-left:4px solid #d16b2f}.av-parada-row:not(.is-np) .av-parada-causa{display:none}.av-parada-row small{grid-column:1/-1;color:#5F7280;font-size:11px}.av-parada-remove{height:36px;border:1px solid #efc0b9;background:#fff;color:#c0392b;border-radius:6px}.av-parada-add{margin-top:10px}.av-paradas-dialog>footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:#fff;border-top:1px solid #d7e3eb}.av-paradas-dialog>footer>div:last-child{display:flex;gap:7px}.av-paradas-dialog>footer strong{color:#033350;margin-left:6px}
-@media(max-width:900px){.av-module-grid{grid-template-columns:1fr}.av-detail-kpis{grid-template-columns:repeat(2,1fr)}.av-slot-strip{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:700px){.av-paradas-modal{padding:0}.av-paradas-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-parada-row{grid-template-columns:1fr 95px 38px}.av-parada-tipo,.av-parada-motivo,.av-parada-causa{grid-column:1/-1}.av-parada-min{grid-column:1/3}.av-paradas-dialog>footer{align-items:stretch;flex-direction:column}.av-paradas-dialog>footer>div:last-child{display:grid;grid-template-columns:1fr 1fr}.av-paradas-dialog>footer .btn{min-height:44px}.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:1fr}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:1fr}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:max(12px,env(safe-area-inset-bottom));touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+@media(max-width:900px){.av-module-grid{grid-template-columns:minmax(0,1fr)}.av-detail-kpis{grid-template-columns:repeat(2,1fr)}.av-slot-strip{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.av-paradas-modal{padding:0}.av-paradas-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-parada-row{grid-template-columns:1fr 95px 38px}.av-parada-tipo,.av-parada-motivo,.av-parada-causa{grid-column:1/-1}.av-parada-min{grid-column:1/3}.av-paradas-dialog>footer{align-items:stretch;flex-direction:column}.av-paradas-dialog>footer>div:last-child{display:grid;grid-template-columns:1fr 1fr}.av-paradas-dialog>footer .btn{min-height:44px}.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:minmax(0,1fr)}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:minmax(0,1fr)}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:max(12px,env(safe-area-inset-bottom));touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 #av-floating-trigger.av-floating-trigger{position:fixed!important;left:auto!important;top:auto!important;right:max(14px,env(safe-area-inset-right))!important;bottom:calc(14px + env(safe-area-inset-bottom))!important;height:48px;min-height:48px;min-width:44px;padding:0 16px;gap:8px;font-size:14px;line-height:1;white-space:nowrap;touch-action:manipulation}
 #av-floating-trigger .av-drag-handle{display:none}
 body.av-con-flotante #app-screen .shell>.main{padding-bottom:calc(84px + env(safe-area-inset-bottom))!important}

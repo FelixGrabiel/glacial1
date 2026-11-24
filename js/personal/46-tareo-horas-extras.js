@@ -184,8 +184,8 @@
       '.he-aviso{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:12px 0;padding:12px 16px;border:1px solid #f0d98c;background:#fff8e1;border-radius:10px;color:#6b4a00;flex-wrap:wrap}' +
       '.he-tabla td,.he-tabla th{white-space:nowrap}.he-pend{color:#8a5a00;font-weight:700}.he-neg{color:#c62828;font-weight:700}.he-link{background:none;border:0;padding:0;color:#0877A6;cursor:pointer;font:inherit;text-decoration:underline;text-decoration-color:rgba(8,119,166,.35)}' +
       '.he-cab{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}.he-cab .field-sm{min-width:150px}' +
-      '@media(max-width:1000px){.he-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.he-kpis3{grid-template-columns:repeat(2,minmax(0,1fr))}.he-graf{grid-template-columns:1fr}.he-ind{grid-template-columns:1fr}.he-estado{margin-left:0}}' +
-      '@media(max-width:560px){.he-kpis,.he-kpis3{grid-template-columns:1fr}.he-periodo button{padding:9px 10px}}';
+      '@media(max-width:1000px){.he-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.he-kpis3{grid-template-columns:repeat(2,minmax(0,1fr))}.he-graf{grid-template-columns:minmax(0,1fr)}.he-ind{grid-template-columns:minmax(0,1fr)}.he-estado{margin-left:0}}' +
+      '@media(max-width:560px){.he-kpis,.he-kpis3{grid-template-columns:minmax(0,1fr)}.he-periodo button{padding:9px 10px}}';
     document.head.appendChild(s);
   }
 

@@ -95,7 +95,7 @@
   const velocidadDe=(linea,pres)=>velocidades()[normVel(claveVel(linea,pres))]||
     (typeof window.glacialVelocidadEstandar==='function'?window.glacialVelocidadEstandar(linea,pres,''):0)||0;
   // bloques: horarios de los bloques productivos y pausas previstas (la proyección de cierre los lee con GlacialIndicadores.normalizarBloques).
-  window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{}),velocidadesVigencia:JSON.parse(JSON.stringify(remota.velocidadesVigencia||{})),velocidadesHistorial:JSON.parse(JSON.stringify(remota.velocidadesHistorial||{})),metasReporte:Object.assign({},remota.metasReporte||{}),bloques:remota.bloques&&typeof remota.bloques==='object'?JSON.parse(JSON.stringify(remota.bloques)):undefined});
+  window.glacialConfigIndicadores=()=>({metas:metas(),velocidades:Object.assign({},remota.velocidades||{}),velocidadesVigencia:JSON.parse(JSON.stringify(remota.velocidadesVigencia||{})),velocidadesHistorial:JSON.parse(JSON.stringify(remota.velocidadesHistorial||{})),metasReporte:Object.assign({},remota.metasReporte||{}),personalRequerido:Object.assign({},remota.personalRequerido||{}),vidaUtilMeses:Object.assign({},remota.vidaUtilMeses||{}),bloques:remota.bloques&&typeof remota.bloques==='object'?JSON.parse(JSON.stringify(remota.bloques)):undefined});
   window.glacialConfigIndicadoresOyentes=window.glacialConfigIndicadoresOyentes||[];
   const nivelDisp=p=>{
     const m=metas();

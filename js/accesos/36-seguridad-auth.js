@@ -124,17 +124,21 @@
     }
     return typeof _usersReady!=='undefined'&&_usersReady;
   };
-  /* Antes de poder leer usuarios hay que autenticarse: el correo de cada
-     usuario se busca en sync/accesos (documento público con solo usuario → correo). */
-  try{if(typeof db!=='undefined'&&db&&(typeof auth==='undefined'||!auth||!auth.currentUser))window.__accesosPrevio=db.collection('sync').doc('accesos').get();window.__accesosPrevio&&window.__accesosPrevio.catch(()=>{});}catch(_){window.__accesosPrevio=null;}
+  /* Antes de poder leer usuarios hay que autenticarse: el correo del usuario se pide al servidor de a uno (fs_acceso_correo, glacial_62);
+     el listado completo de usuarios → correo ya no es público. Si el servidor aún no tiene esa función, se usa el método anterior (documento sync/accesos). */
+  async function correoDeAcceso(clave){
+    const c=window.glacialSupabaseCliente;
+    if(c&&typeof c.rpc==='function'){
+      try{const r=await c.rpc('fs_acceso_correo',{p_usuario:clave});if(!r.error)return r.data||'';}catch(_){/* se prueba el método anterior */}
+    }
+    const doc=await db.collection('sync').doc('accesos').get();
+    const mapa=doc.exists?(doc.data().map||{}):{};
+    return mapa[clave]||'';
+  }
   window.loginEstricto=async function(username,pass){
     try{
       const clave=String(username||'').trim().toLowerCase();
-      /* El mapa usuario → correo se pide al abrir la página (mientras la persona escribe); si no sirve o no trae al usuario, se vuelve a pedir. */
-      let mapa={};
-      try{const previo=window.__accesosPrevio;window.__accesosPrevio=null;if(previo){const d0=await previo;mapa=d0&&d0.exists?(d0.data().map||{}):{};}}catch(_){mapa={};}
-      if(!mapa[clave]){const doc=await db.collection('sync').doc('accesos').get();mapa=doc.exists?(doc.data().map||{}):{};}
-      const email=mapa[clave];
+      const email=await correoDeAcceso(clave);
       if(!email)return {ok:false};
       await (window.__authPersistenciaLista||Promise.resolve());   // la persistencia debe quedar fijada antes de crear la sesión
       await auth.signInWithEmailAndPassword(email,pass);
@@ -157,7 +161,7 @@
       fondo.innerHTML=`<div class="modal" style="max-width:420px;width:100%;">
         <div class="modal-head"><h3>Crea tu contraseña</h3></div>
         <div class="modal-body">
-          <p class="small-muted" style="margin:0 0 12px;">Estás usando una contraseña temporal. Crea una nueva para continuar (mínimo 8 caracteres, con letras y números).</p>
+          <p class="small-muted" style="margin:0 0 12px;">Estás usando una contraseña temporal. Crea una nueva para continuar (mínimo 10 caracteres, con letras y números).</p>
           <div class="field-sm"><label>Nueva contraseña</label><input type="password" id="sec-nueva" autocomplete="new-password"></div>
           <div class="field-sm"><label>Repetir contraseña</label><input type="password" id="sec-repetir" autocomplete="new-password"></div>
           <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer;">
@@ -179,7 +183,7 @@
       fondo.querySelector('#sec-cancelar').onclick=()=>{fondo.remove();resolve(false);};
       fondo.querySelector('#sec-guardar').onclick=async()=>{
         const n=fondo.querySelector('#sec-nueva').value,r=fondo.querySelector('#sec-repetir').value;
-        if(n.length<8||!/[A-Za-z]/.test(n)||!/\d/.test(n)){err('Mínimo 8 caracteres, con letras y números.');return;}
+        if(n.length<10||!/[A-Za-z]/.test(n)||!/\d/.test(n)){err('Mínimo 10 caracteres, con letras y números.');return;}
         if(n!==r){err('Las contraseñas no coinciden.');return;}
         try{
           await auth.currentUser.updatePassword(n);

@@ -1,8 +1,9 @@
 // GLACIAL · validaciones-lotes-ingesta
 // Recibe del bot de la planta (WhatsApp) el resultado de la validación de un lote y lo deja en public.validaciones_lotes.
-// NO modifica stock, lotes ni evidencias: se ve en Calidad › Validación de lotes y una persona autorizada puede marcarlo como revisado.
+// Si el bot manda la foto del rótulo (foto_base64) se guarda en el bucket privado glacial-fotos (calidad/rotulos/). NO modifica stock, lotes ni evidencias:
+// se ve en Calidad › Validación de lotes y una persona autorizada puede marcarlo como revisado.
 //
-//   POST   cabecera  x-glacial-validaciones: <secreto>      cuerpo  { clave, lote, resultado, insumo?, proveedor?, linea?, motivo?, controles?, datos?, evidencia_sha256?, validada_en? }
+//   POST   cabecera  x-glacial-validaciones: <secreto>      cuerpo  { clave, lote, resultado, insumo?, proveedor?, linea?, motivo?, controles?, datos?, evidencia_sha256?, validada_en?, foto_base64?, foto_mime? }
 //   200 → { ok: true, estado: 'recibida' | 'duplicada' }      4xx/5xx → { ok: false, codigo, error }
 //
 // El bot NO lleva ninguna llave de Supabase: solo este secreto (que solo sirve para esta función). La función usa su propia llave de servicio.
@@ -11,6 +12,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { validarSolicitud } from './nucleo.mjs';
 
+const BUCKET = 'glacial-fotos';
 const responder = (cuerpo: unknown, estado = 200) =>
   new Response(JSON.stringify(cuerpo), { status: estado, headers: { 'Content-Type': 'application/json' } });
 
@@ -37,6 +39,11 @@ Deno.serve(async (req: Request) => {
     if (hoy.error) return responder({ ok: false, codigo: 'base', error: 'No se pudo consultar las validaciones.' }, 500);
     if ((hoy.count ?? 0) >= maxDia) return responder({ ok: false, codigo: 'tope_diario', error: `Se alcanzó el tope de ${maxDia} validaciones por día.` }, 429);
 
+    // La foto primero (si ya existía con la misma huella es la misma foto); la fila después, para que nunca apunte a una foto que falta.
+    if (v.foto) {
+      const subida = await admin.storage.from(BUCKET).upload(v.foto.ruta, v.foto.bytes, { contentType: v.foto.mime, upsert: false });
+      if (subida.error && !/exist|duplicate|409/i.test(String(subida.error.message))) return responder({ ok: false, codigo: 'foto', error: 'No se pudo guardar la foto.' }, 502);
+    }
     const fila = await admin.from('validaciones_lotes').upsert(v.fila, { onConflict: 'clave', ignoreDuplicates: true });
     if (fila.error) return responder({ ok: false, codigo: 'base', error: 'No se pudo guardar la validación.' }, 502);
     return responder({ ok: true, estado: 'recibida' });

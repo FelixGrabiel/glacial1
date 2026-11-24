@@ -1314,6 +1314,7 @@ function editarPermisosUsuario(username){
     permisos==='todos';
 
 
+  const HP=window.glacialPermisosHielo;
   const seleccionados=
     todos
       ? PERMISOS_APP.map(
@@ -1322,6 +1323,12 @@ function editarPermisosUsuario(username){
       : (planificacionPermitida(usuario) && !permisos.includes('planificacion')
           ? [...permisos,'planificacion']   // lo trae por defecto su rol
           : permisos);
+  // Hielo (21/11/2026): las casillas muestran lo que la persona PUEDE hacer hoy (lo que trae su rol, lo que se le dio y sin lo que se le quitó).
+  if(HP&&!todos){
+    const sinHielo=seleccionados.filter(k=>!HP.CLAVES.includes(k));
+    seleccionados.length=0;
+    seleccionados.push(...sinHielo,...HP.efectivas(usuario));
+  }
 
 
   const root=
@@ -1676,8 +1683,13 @@ function guardarPermisosUsuario(username){
   const sinPlanificacion =
     !todos && !seleccionados.includes('planificacion') &&
     ROLES_PLANIFICACION.includes(String(users[index].rol||'').trim());
+  // Hielo: lo marcado se guarda como permiso dado; lo desmarcado que su rol traía por defecto se guarda como «-permiso» (quitado a propósito).
+  const conHielo=
+    (!todos&&window.glacialPermisosHielo)
+      ? window.glacialPermisosHielo.aplicar(String(users[index].rol||'').trim(),seleccionados)
+      : seleccionados;
   users[index].permisos=
-    todos ? 'todos' : (sinPlanificacion ? [...seleccionados,'-planificacion'] : seleccionados);
+    todos ? 'todos' : (sinPlanificacion ? [...conHielo,'-planificacion'] : conHielo);
   users[index].permisosGestionVersion=1;
 
 
