@@ -814,6 +814,7 @@
         <tr>${[UN,'Tiempo (h)'].concat(exNom?[exNom]:[],['Lote','F. venc.','Peso (kg)']).map(t=>`<th>${t}</th>`).join('').repeat(bl.length)}</tr></thead><tbody>${filas}
         <tr class="tot"><td><b>TOTAL</b></td>${bl.map(tot).join('')}</tr></tbody></table></div>
         <p class="hl-sub" style="margin:8px 0 0">El tiempo (h) y el vencimiento se anotan en «Nuevo registro» (opcionales: salen vacíos si no se anotan).${m.extra==='paletas'?' Paletas = bolsas ÷ bolsas por paleta (Configuración).':m.extra==='jabas'?' Jabas = vasos ÷ vasos por jaba (Configuración).':''}</p></div>
+      <div class="hl-card"><h3 style="margin:0 0 8px">Merma</h3>${(m.mermas||[]).length?`<div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Ítem</th><th>Marca</th><th>Unidad</th>${v!=='DIA'?'<th class="n">Noche</th>':''}${v!=='NOCHE'?'<th class="n">Día</th>':''}<th class="n">Total</th></tr></thead><tbody>${m.mermas.map(x=>`<tr><td>${esc(x.item)}</td><td>${esc(x.marca||'—')}</td><td>${esc(x.unidad)}</td>${v!=='DIA'?`<td class="n">${x.noche?fmt(x.noche,3):'—'}</td>`:''}${v!=='NOCHE'?`<td class="n">${x.dia?fmt(x.dia,3):'—'}</td>`:''}<td class="n"><b>${fmt(x.total,3)}</b></td></tr>`).join('')}</tbody></table></div>`:'<p class="hl-sub">Sin merma registrada.</p>'}</div>
       <div class="hl-card"><div id="hl-rd-graficos" class="hl-rd-graficos"></div></div>
       <div class="hl-card"><h3 style="margin:0 0 8px">Observaciones</h3>${obs}</div>`;
   }

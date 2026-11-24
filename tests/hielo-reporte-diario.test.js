@@ -125,5 +125,21 @@ let ExcelJS=null;try{ExcelJS=require(require('path').join(process.env.GLX_LIBS||
   }
   if(ExcelJS){const wn=await new ExcelJS.Workbook().xlsx.load(await RD.construirExcel(ExcelJS,H.__vistas.mn,{}).xlsx.writeBuffer()),sn=wn.getWorksheet('Reporte diario');
     ok(sn.getCell('B5').value===11450.25&&sn.getCell('B6').value===null&&/NO INCLUIDO/.test(String(sn.getCell('H9').value))&&sn.getCell('A2').value==='HIELO EN CUBOS · TURNO NOCHE'&&/SOLO NOCHE/.test(String(sn.getCell('A7').value)),'Excel solo noche: el día queda marcado como no incluido y la semana dice «solo noche»');}
+  /* Merma (24/11/2026): el Excel, el texto de WhatsApp y la imagen llevan la merma por ítem, marca y unidad, por turno. */
+  const nM=Object.assign({},noche,{mermas:[{item:'Bolsas',marca:'Rappi',cantidad:12,unidad:'UND'},{item:'Bolsas',marca:'Rappi',cantidad:3,unidad:'UND'},{item:'Hielo (producto)',marca:"Bell's",cantidad:4.5,unidad:'KG'},{item:'Bobina',marca:'',cantidad:0,unidad:'KG'}]});
+  const dM=Object.assign({},dia,{mermas:[{item:'Bolsas',marca:'Rappi',cantidad:5,unidad:'UND'},{item:'Bobina',marca:'Glacial',cantidad:1.25,unidad:'KG'}]});
+  const mm=RD.modelo({fecha:'2026-11-19',reportes:[nM,dM],cfg,catalogo:CATALOGO});
+  const mr=(i,mk)=>mm.mermas.find(x=>x.item===i&&x.marca===mk);
+  ok(mm.mermas.length===3&&mr('Bolsas','Rappi').noche===15&&mr('Bolsas','Rappi').dia===5&&mr('Bolsas','Rappi').total===20&&mr('Hielo (producto)',"Bell's").unidad==='KG'&&mr('Bobina','Glacial').total===1.25,'merma del día: suma por ítem + marca + unidad, noche y día (las cantidades en 0 no cuentan)');
+  ok(RD.modelo({fecha:'2026-11-19',turno:'DIA',reportes:[nM,dM],cfg,catalogo:CATALOGO}).mermas.every(x=>x.noche===0),'solo turno día: la merma de la noche no entra');
+  ok(/Merma: Bobina \(Glacial\) 1\.250 KG · Bolsas \(Rappi\) 20 UND · Hielo \(producto\) \(Bell's\) 4\.500 KG/.test(RD.resumenTexto(mm)),'el texto de WhatsApp lleva la merma');
+  ok(m.mermas.length===0,'sin merma: lista vacía');
+  if(ExcelJS){
+    const vals=ws=>{const t=[];ws.eachRow(r=>r.eachCell(c=>{const v=c.value;t.push(v&&typeof v==='object'?(v.formula?'='+v.formula+'→'+v.result:''):String(v));}));return t.join('|');};
+    const sm=(await new ExcelJS.Workbook().xlsx.load(await RD.construirExcel(ExcelJS,mm,{}).xlsx.writeBuffer())).getWorksheet('Reporte diario'),tx=vals(sm);
+    ok(/\|MERMA\|/.test(tx)&&/ÍTEM\|MARCA\|UNIDAD\|NOCHE\|DÍA\|TOTAL/.test(tx.replace(/\|(ÍTEM|MARCA)\|\1/g,'|$1'))&&/Bolsas\|.*Rappi\|.*UND\|15\|5\|=SUM\(\w+\d+:\w+\d+\)→20/.test(tx),'Excel: tabla MERMA con ítem, marca, unidad, noche, día y total (fórmula SUM)');
+    const s0=(await new ExcelJS.Workbook().xlsx.load(await RD.construirExcel(ExcelJS,m,{}).xlsx.writeBuffer())).getWorksheet('Reporte diario');
+    ok(/Sin merma registrada/.test(vals(s0)),'Excel sin merma: «Sin merma registrada»');
+  }
   console.log(fallas?'\n'+fallas+' falla(s)':'\nTodo correcto');
 })();

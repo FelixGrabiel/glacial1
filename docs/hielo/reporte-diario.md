@@ -69,3 +69,14 @@ El resumen incluye título, fecha y semana, kg y eficiencia de cada turno, total
 ## Marcas producidas en la imagen
 
 La imagen para WhatsApp incluye, debajo de las tarjetas, la tabla **«Marcas producidas por turno»** (o «en el turno noche / día» si el reporte es de un solo turno). Muestra solo las marcas que sí produjeron, con bolsas, peso (kg), paletas y lote de cada turno, y una fila de total.
+
+## Merma (24/11/2026)
+
+El reporte diario muestra la merma registrada en cada turno, sumada por **ítem + marca + unidad** (UND o KG):
+
+- **Pantalla**: tarjeta «Merma» con las columnas Noche, Día y Total (solo los turnos de la vista elegida).
+- **Excel**: tabla **MERMA** debajo del total de la tabla por marca. El total usa una fórmula `SUM` y, si no hay merma, aparece «Sin merma registrada».
+- **Imagen**: la merma va junto a las observaciones («OBSERVACIONES Y MERMA»).
+- **WhatsApp**: el texto lleva la línea «Merma: …».
+
+Una merma con cantidad 0 no cuenta. Pruebas: `tests/hielo-reporte-diario.test.js`.

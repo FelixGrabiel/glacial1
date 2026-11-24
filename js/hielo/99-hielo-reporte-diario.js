@@ -58,6 +58,13 @@
     const pares=catalogo.concat(extras);
     const etiqueta=(m,p)=>prodId==='VASOS'?m.toUpperCase():m.toUpperCase()+' ('+p.replace(/\s+/g,'').toUpperCase()+')';
 
+    // Merma del turno (24/11/2026): suma por ítem, marca y unidad (UND o KG); solo cantidades mayores que 0.
+    function mermasDe(lista){
+      const mp=new Map();
+      lista.forEach(r=>(r.mermas||[]).forEach(x=>{const c=num(x.cantidad);if(!(c>0))return;const u=texto(x.unidad)||'UND',k=texto(x.item)+'|'+texto(x.marca)+'|'+u;
+        const a=mp.get(k)||{item:texto(x.item)||'Sin ítem',marca:texto(x.marca),unidad:u,cantidad:0};a.cantidad=Math.round((a.cantidad+c)*1000)/1000;mp.set(k,a);}));
+      return [...mp.values()];
+    }
     function turno(clave,nombre,lista,f){
       const mapa=new Map();
       lista.forEach(r=>(r.produccion||[]).forEach(p=>{
@@ -81,11 +88,16 @@
       return {clave,nombre,fecha:f,fechaTxt:dmy(f),estado,reportes:lista.length,bolsas,kg,pesoKg,jabas:porJaba>0?r2(bolsas/porJaba):null,personas:lista.reduce((s,r)=>Math.max(s,num(r.personas)),0)||null,personal:[...new Set(lista.flatMap(r=>Array.isArray(r.personal)?r.personal:[]))],eficiencia:cap>0&&lista.length?r2(kg/cap*100):null,
         porPresentacion:Object.fromEntries(porPres),supervisor:sup.join(', '),ingreso:i0,salida:f0,jornadaH:jornada,
         observaciones:lista.filter(r=>texto(r.observaciones)).map(r=>texto(r.observaciones)).join('\n'),
-        paradas:lista.flatMap(r=>(r.paradas||[]).map(p=>({turno:r.turno,motivo:texto(p.motivo)||'Sin motivo',equipo:texto(p.equipo),minutos:Math.max(0,num(p.minutos)),nota:texto(p.nota)}))).filter(p=>p.minutos>0),celda};
+        paradas:lista.flatMap(r=>(r.paradas||[]).map(p=>({turno:r.turno,motivo:texto(p.motivo)||'Sin motivo',equipo:texto(p.equipo),minutos:Math.max(0,num(p.minutos)),nota:texto(p.nota)}))).filter(p=>p.minutos>0),
+        mermas:mermasDe(lista),celda};
     }
     const noche=turno('NOCHE','NOCHE',de(fNoche,['NOCHE']),fNoche);
     const dia=turno('DIA','DÍA',de(fecha,['DÍA','INTERMEDIO']),fecha);
     const filas=pares.map(([m,p])=>({marca:m,presentacion:p,etiqueta:etiqueta(m,p),noche:noche.celda(m,p),dia:dia.celda(m,p)}));
+    // Merma del día: una fila por ítem + marca + unidad, con la cantidad de la noche, del día y el total (solo los turnos de la vista).
+    const mermas=(()=>{const mp=new Map(),poner=(lista,k)=>lista.forEach(x=>{const c=x.item+'|'+x.marca+'|'+x.unidad;const a=mp.get(c)||{item:x.item,marca:x.marca,unidad:x.unidad,noche:0,dia:0,total:0};a[k]=x.cantidad;a.total=Math.round((a.noche+a.dia)*1000)/1000;mp.set(c,a);});
+      if(vista!=='DIA')poner(noche.mermas,'noche');if(vista!=='NOCHE')poner(dia.mermas,'dia');
+      return [...mp.values()].sort((a,b)=>a.item.localeCompare(b.item)||a.marca.localeCompare(b.marca)||a.unidad.localeCompare(b.unidad));})();
     // Presentaciones del resumen: las configuradas más las producidas, de mayor a menor.
     const presLista=[...new Set((cfg.presentaciones||[]).concat(Object.keys(noche.porPresentacion),Object.keys(dia.porPresentacion)))]
       .sort((a,b)=>(N?N.kgNominal(b)-N.kgNominal(a):0)||a.localeCompare(b));
@@ -139,6 +151,7 @@
     mapa.nochePorEncima=paresMapa.filter(f=>{const i=fechasMapa.indexOf(f);return mapa.noche[i]>mapa.dia[i];}).length;mapa.diasConAmbos=paresMapa.length;
     return {fecha,fNoche,fechaLarga:fechaLarga(ref),semanaNum:semanaISO(ref),titulo:'REPORTE DIARIO DE PRODUCCIÓN',subtitulo:PROD.titulo+(vista==='NOCHE'?' · TURNO NOCHE':vista==='DIA'?' · TURNO DÍA':''),vista,
       periodo:{dias:dias2,desde,hasta:ref},control,marcas,presPeriodo,kgPeriodo,mapa,
+      mermas,
       producto:prodId,unidad:PROD.unidad,una:PROD.una,unidadMetrica:enUnidades?PROD.unidad:'kg',enUnidades,extra:prodId==='CUBOS'?'paletas':(porJaba>0?'jabas':null),porJaba,
       capacidad:cap,pesos:Object.fromEntries(presLista.map(p=>[p,pesoReal(p)])),noche,dia,filas,presentaciones,
       totalDiaKg:r2(noche.kg+dia.kg),totalSemanaKg:totalSemana,
@@ -204,6 +217,17 @@
       v.forEach((x,i)=>celda(Lc(ini+i)+f,x,{fmt:fmtCol[i]||undefined,bold:x!==null,fill:'FFF2F2F2'}));
     });
     const filaTotal=f;f+=2;
+    // Merma (24/11/2026): ítem, marca, unidad y cantidad por turno, con el total.
+    celda('A'+f,'MERMA',{bold:true,fill:BLANCO});
+    const mNo=Lc(cNo)+f+':'+Lc(cNo+1)+f,mMa=Lc(cNo+2)+f+':'+Lc(cNo+3)+f,mUn=Lc(cNo+4)+f,mN=Lc(cNo+5)+f,mD=Lc(cNo+6)+f,mT=Lc(cNo+7)+f;
+    [[mNo,'ÍTEM'],[mMa,'MARCA'],[mUn,'UNIDAD'],[mN,'NOCHE'],[mD,'DÍA'],[mT,'TOTAL']].forEach(([rg,t])=>{const o={bold:true,size:9,fill:t==='NOCHE'?GRIS:t==='DÍA'?CELESTE:'FFF2F2F2'};rg.includes(':')?unir(rg,t,o):celda(rg,t,o);});
+    f++;
+    if(!m.mermas.length){unir(Lc(cNo)+f+':'+Lc(cNo+7)+f,'Sin merma registrada',{italic:true,color:'FF6B7A88'});f++;}
+    m.mermas.forEach(x=>{const fmtM=x.unidad==='KG'?'#,##0.000':'#,##0.###';
+      unir(Lc(cNo)+f+':'+Lc(cNo+1)+f,x.item,{align:'left'});unir(Lc(cNo+2)+f+':'+Lc(cNo+3)+f,x.marca||'—',{align:'left'});celda(Lc(cNo+4)+f,x.unidad);
+      celda(Lc(cNo+5)+f,m.vista==='DIA'?null:(x.noche||null),{fmt:fmtM,fill:GRIS});celda(Lc(cNo+6)+f,m.vista==='NOCHE'?null:(x.dia||null),{fmt:fmtM,fill:CELESTE});
+      celda(Lc(cNo+7)+f,{formula:'SUM('+Lc(cNo+5)+f+':'+Lc(cNo+6)+f+')',result:x.total},{fmt:fmtM,bold:true});f++;});
+    f++;
     // Gráficas (imágenes) en 2 × 2
     const colDer=nb===6?6.15:5.2;
     const pos=[['capacidad',0,0],['presentacion',colDer,0],['semana',0,1],['paradas',colDer,1],['control',0,2],['marcas',colDer,2],['mapa',0,3]];
@@ -270,6 +294,7 @@
     if(m.vista!=='NOCHE')l.push('Día '+m.dia.fechaTxt+': '+(m.dia.reportes?kg(m.dia.kg)+efi(m.dia):'sin reporte'));
     if(m.vista==='AMBOS')l.push('*Total del día: '+kg(m.totalDiaKg)+'*');
     l.push('Semana '+m.semanaNum+(m.vista==='AMBOS'?'':' (solo '+(m.vista==='NOCHE'?'noche':'día')+')')+': '+kg(m.totalSemanaKg));
+    if(m.mermas&&m.mermas.length)l.push('Merma: '+m.mermas.map(x=>x.item+(x.marca?' ('+x.marca+')':'')+' '+formato(x.total,x.unidad==='KG'?3:0)+' '+x.unidad).join(' · '));
     const obs=[m.noche.observaciones,m.dia.observaciones].filter(Boolean).join(' · ').replace(/\s+/g,' ').trim();
     if(obs)l.push('','Obs.: '+(obs.length>280?obs.slice(0,277)+'…':obs));
     return l.join('\n');
@@ -466,7 +491,8 @@
   function imagen(m){
     const g=graficos(m),W=1240,pad=20,cw=(W-pad*3)/2,ch=cw*(230/600),h4=cw*(250/600);
     g.mapa=graficoMapa(m,1200);const hh=c=>cw*(c.height/c.width),hMapa=(W-pad*2)*(g.mapa.height/g.mapa.width);
-    const obs=[m.noche.observaciones&&('NOCHE: '+m.noche.observaciones.replace(/\n/g,' · ')),m.dia.observaciones&&('DÍA: '+m.dia.observaciones.replace(/\n/g,' · '))].filter(Boolean).join('   ')||'Sin observaciones.';
+    const obs=[m.noche.observaciones&&('NOCHE: '+m.noche.observaciones.replace(/\n/g,' · ')),m.dia.observaciones&&('DÍA: '+m.dia.observaciones.replace(/\n/g,' · ')),
+      m.mermas&&m.mermas.length&&('MERMA: '+m.mermas.map(x=>x.item+(x.marca?' ('+x.marca+')':'')+' '+formato(x.total,x.unidad==='KG'?3:0)+' '+x.unidad).join(' · '))].filter(Boolean).join('   ')||'Sin observaciones.';
     // Las observaciones se parten en líneas ANTES de dimensionar la imagen (así nunca se cortan).
     const medidor=lienzo(10,10).x;medidor.font='13px '+FUENTE;const lineas=[];let acum='';
     obs.split(' ').forEach(p=>{if(acum&&medidor.measureText(acum+' '+p).width>W-pad*2){lineas.push(acum);acum=p;}else acum=(acum+' '+p).trim();});lineas.push(acum);
@@ -479,7 +505,7 @@
     tm.dibujar(X,216);let y=216+tm.alto+pad;X.drawImage(g.capacidad,pad,y,cw,ch);X.drawImage(g.presentacion,pad*2+cw,y,cw,ch);y+=ch+pad;X.drawImage(g.semana,pad,y,cw,h4);X.drawImage(g.paradas,pad*2+cw,y,cw,ch);y+=Math.max(ch,h4)+pad;
     X.drawImage(g.control,pad,y,cw,hh(g.control));X.drawImage(g.marcas,pad*2+cw,y,cw,hh(g.marcas));y+=Math.max(hh(g.control),hh(g.marcas))+pad;
     X.drawImage(g.mapa,pad,y,W-pad*2,hMapa);y+=hMapa+pad;
-    txt(X,'OBSERVACIONES',pad,y+14,{size:12,peso:'700',color:COL.mut});lineas.forEach((l,i)=>txt(X,l,pad,y+34+i*19,{size:13}));
+    txt(X,m.mermas&&m.mermas.length?'OBSERVACIONES Y MERMA':'OBSERVACIONES',pad,y+14,{size:12,peso:'700',color:COL.mut});lineas.forEach((l,i)=>txt(X,l,pad,y+34+i*19,{size:13}));
     return L.c;
   }
   /* ------------------------------------------------------------------ Resumen de planta: gráficas e imagen */
