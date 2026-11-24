@@ -25,6 +25,13 @@ Por eso `sw.js` no intercepta scripts, estilos, imágenes ni datos (Supabase): t
 - **iPhone / iPad (Safari):** *Compartir* → **«Agregar a pantalla de inicio»** (ahí no existe instalación automática; la página lo indica).
 - «Ahora no» oculta la oferta 14 días. No aparece si ya está instalada, en modo TV ni dentro de la aplicación.
 
+## Sin zoom dentro de la app (24/11/2026)
+Solo cuando GLACIAL corre como **app instalada** (en el navegador el zoom sigue, por accesibilidad), `03c-app-instalable.js`:
+- cambia el viewport a `maximum-scale=1.0, user-scalable=no`: sin zoom con dos dedos en Android y sin el zoom automático del iPhone
+  al tocar un campo de texto;
+- pone `html.app-instalada { touch-action: manipulation }`: sin zoom con doble toque;
+- en iPhone (que ignora `user-scalable=no`) cancela el gesto de pellizco (`gesturestart` / `gesturechange`).
+
 ## Actualizaciones sin reinstalar (17/11/2026)
 Quien ya instaló GLACIAL **no tiene que volver a instalarla** cuando se publica una versión nueva:
 - **El código** lo trae el aviso «HAY UNA ACTUALIZACIÓN NUEVA» (`aviso-actualizacion.md`), igual que en el navegador: revisa cada 3 minutos

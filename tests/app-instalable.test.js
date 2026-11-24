@@ -55,5 +55,10 @@ const pedir=async(pedido)=>{let r;oyentes.fetch({request:pedido,respondWith:p=>{
   ok(/self\.skipWaiting\(\)/.test(swCodigo)&&/clients\.claim\(\)/.test(swCodigo),'un sw.js nuevo toma el control solo, sin reinstalar ni cerrar la app');
   ok(m.id==='./'&&m.start_url==='./','id y start_url fijos: la app instalada se reconoce como la misma en cada versión');
   ok(/03-actualizacion\.js\?v=/.test(idx),'el aviso «HAY UNA ACTUALIZACIÓN NUEVA» también corre dentro de la app instalada');
+
+  /* Sin zoom dentro de la app instalada (24/11/2026) */
+  ok(P.viewportSinZoom('width=device-width, initial-scale=1.0')==='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no','viewport de la app: sin zoom, conserva ancho y escala inicial');
+  ok(P.viewportSinZoom('width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=yes')==='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no','reemplaza ajustes de zoom previos en vez de duplicarlos');
+  ok(/name="viewport"[\s\S]{0,40}content="width=device-width, initial-scale=1.0"/.test(idx),'en el navegador el viewport sigue permitiendo zoom (accesibilidad)');
   console.log(fallas?('\n'+fallas+' FALLA(S)'):'\nTodo correcto');process.exit(fallas?1:0);
 })();

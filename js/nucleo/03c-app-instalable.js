@@ -13,6 +13,12 @@
         · nombre e íconos (manifest): Android los renueva solo en la app instalada (puede tardar hasta un día); iPhone conserva el ícono
           anterior hasta reinstalar, pero eso es solo apariencia: el contenido sí se actualiza. Por eso «id» y «start_url» del manifiesto no se cambian.
       Lo único que obliga a reinstalar es cambiar de DIRECCIÓN (dominio): la app instalada queda atada a la dirección donde se instaló.
+   4) SIN ZOOM DENTRO DE LA APP (24/11/2026). Solo cuando GLACIAL corre como app instalada (en el navegador el zoom sigue, por accesibilidad):
+        · viewport con maximum-scale=1 y user-scalable=no: sin zoom con dos dedos (Android) y sin el zoom automático del iPhone al tocar
+          un campo de texto con letra chica;
+        · html.app-instalada { touch-action: manipulation }: sin zoom con doble toque;
+        · iPhone ignora user-scalable=no, así que ahí se cancela el gesto de pellizco (gesturestart/gesturechange).
+      No toca nada del diseño: el contenido ya se adapta al ancho de la pantalla.
    No depende de ningún otro archivo ni redefine funciones: puede cargarse en cualquier punto. */
 (function(raiz){
   'use strict';
@@ -31,11 +37,38 @@
   const REVISAR_SW_MS=30*60*1000;
   /** ¿Toca pedirle al navegador que revise si hay un sw.js nuevo? (al volver a primer plano, como mucho cada 30 min) */
   function tocaRevisarSW(ultima,ahora){ return !ultima||ahora-ultima>=REVISAR_SW_MS; }
-  const API={yaInstalada,esIOS,debeOfrecer,tocaRevisarSW,OCULTAR_MS,REVISAR_SW_MS};
+  /** Viewport sin zoom a partir del de la página: quita los ajustes de zoom que tuviera y agrega los de la app. */
+  function viewportSinZoom(base){
+    const partes=String(base||'width=device-width, initial-scale=1.0').split(',').map(x=>x.trim()).filter(x=>x&&!/^(maximum-scale|minimum-scale|user-scalable)\s*=/i.test(x));
+    return partes.concat(['maximum-scale=1.0','user-scalable=no']).join(', ');
+  }
+  const API={yaInstalada,esIOS,debeOfrecer,tocaRevisarSW,viewportSinZoom,OCULTAR_MS,REVISAR_SW_MS};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   if(typeof document==='undefined'||!raiz.navigator||!raiz.location)return;
 
   const nav=raiz.navigator, local=/^(localhost|127\.0\.0\.1)$/.test(raiz.location.hostname);
+
+  /* Sin zoom dentro de la app instalada (punto 4 de la cabecera). */
+  const consulta=(()=>{try{return raiz.matchMedia('(display-mode: standalone)');}catch(_){return null;}})();
+  const enApp=()=>yaInstalada({standalone:nav.standalone===true,displayStandalone:!!(consulta&&consulta.matches)});
+  const meta=document.querySelector('meta[name="viewport"]'), viewportOriginal=meta?meta.getAttribute('content'):'';
+  const cancelarGesto=ev=>{ev.preventDefault();};
+  let zoomBloqueado=false;
+  function aplicarZoom(){
+    const bloquear=enApp();
+    if(bloquear===zoomBloqueado)return;
+    zoomBloqueado=bloquear;
+    if(meta)meta.setAttribute('content',bloquear?viewportSinZoom(viewportOriginal):viewportOriginal);
+    document.documentElement.classList.toggle('app-instalada',bloquear);
+    ['gesturestart','gesturechange'].forEach(t=>{ if(bloquear)document.addEventListener(t,cancelarGesto,{passive:false}); else document.removeEventListener(t,cancelarGesto); });
+    if(bloquear&&!document.getElementById('gl-app-estilos')){
+      const s=document.createElement('style');s.id='gl-app-estilos';
+      s.textContent='html.app-instalada{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}';
+      document.head.appendChild(s);
+    }
+  }
+  aplicarZoom();
+  if(consulta){ if(consulta.addEventListener)consulta.addEventListener('change',aplicarZoom); else if(consulta.addListener)consulta.addListener(aplicarZoom); }
   if('serviceWorker' in nav&&(raiz.location.protocol==='https:'||local)){
     let registro=null,ultimaRevision=Date.now();
     raiz.addEventListener('load',()=>{
