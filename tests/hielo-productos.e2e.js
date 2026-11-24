@@ -54,7 +54,7 @@ const DATOS = () => {
   await P.evaluate(() => { hlProducto('PREMIUM'); hlVista('reporte'); hlRDFecha('2026-11-16'); });
   await P.waitForSelector('#hl-rd-graficos canvas', { timeout: 6000 });
   t = await texto();
-  ok(/Reporte diario de producción · Hielo premium/.test(t) && /56[.,]00 kg/.test(t) && /530[.,]00 kg/.test(t) && /GLACIAL \(2KG\)/.test(t) && /BELL'S \(1\.8KG\)/i.test(t) && /CUISINE & CO \(2KG\)/i.test(t), 'Premium: reporte diario con 56,00 kg el día, 530,00 la noche y las filas del Excel');
+  ok(/Reporte diario de producción · Hielo premium/.test(t) && /56[.,]00 kg/.test(t) && /530[.,]00 kg/.test(t) && /GLACIAL \(2KG\)/.test(t) && !/CUISINE & CO \(2KG\)/i.test(t), 'Premium: reporte diario con 56,00 kg el día, 530,00 la noche y solo las marcas producidas (24/11/2026)');
   ok(!/N° paletas/i.test(t) && !/N° jabas/i.test(t) && /Tiempo \(h\)/i.test(t) && /2 kg = 2 kg/.test(t), 'Premium: sin columna de paletas ni jabas, con tiempo y los kg por bolsa');
   ok(/Angelica, Yasmelis, Gresy, Marck, Santiago/.test(t) && /Leandro Lopez/.test(t) && /HIELO REEFERS 3/.test(t), 'Premium: personal, responsable y observaciones del turno');
   ok(await P.evaluate(() => document.querySelectorAll('#hl-rd-graficos canvas').length) === 7, 'Premium: se dibujan las 7 gráficas');
@@ -81,7 +81,9 @@ const DATOS = () => {
   if (process.env.GLX_CAPTURAS) { const png = await P.evaluate(async () => { const b = window.__blobs[window.__blobs.length - 1], u = new Uint8Array(await b.arrayBuffer()); let s = ''; u.forEach(x => s += String.fromCharCode(x)); return btoa(s); }); fs.writeFileSync(process.env.GLX_CAPTURAS + '/hielo-vasos-whatsapp.png', Buffer.from(png, 'base64')); }
   // ---- registro de Vasos
   await P.evaluate(() => hlVista('registro')); t = await texto();
-  ok(/Nuevo registro · Hielo en vasos|Reporte · Hielo en vasos/.test(t) && /Producción \(vasos\)/i.test(t) && /Tiempo \(h\)/i.test(t) && /Vence/i.test(t) && /N\.º de personas/i.test(t) && /Personal del turno/i.test(t), 'Registro de Vasos: producción en vasos, tiempo, vencimiento, personas y personal');
+  // 24/11/2026: la producción puede verse en tarjetas (los nombres de los campos van en data-label, no en el texto)
+  const etiquetas = await P.evaluate(() => [...document.querySelectorAll('.hl-prodtab .hl-ed td[data-label]')].map(td => td.getAttribute('data-label')).join('|'));
+  ok(/Nuevo registro · Hielo en vasos|Reporte · Hielo en vasos/.test(t) && /Producción \(vasos\)/i.test(t) && /Tiempo \(h\)/i.test(etiquetas) && /Vence/i.test(etiquetas) && /Vaso usado/.test(etiquetas) && /Nota/.test(etiquetas) && /N\.º de personas/i.test(t) && /Personal del turno/i.test(t), 'Registro de Vasos: producción en vasos, tiempo, vencimiento, vaso usado, nota, personas y personal');
   ok(await P.evaluate(() => glacialHieloUI.S.ed && glacialHieloUI.S.ed.producto === 'VASOS'), 'el reporte nuevo de Vasos lleva producto VASOS');
   // ---- programación y configuración de Vasos
   await P.evaluate(() => hlVista('programacion')); t = await texto(); ok(/Programación · Hielo en vasos/.test(t) && /Vasos a producir por turno/i.test(t), 'Programación de Vasos: en vasos');
