@@ -232,9 +232,31 @@
   const f0=(n,d)=>Number(n||0).toLocaleString('es-PE',{maximumFractionDigits:d===undefined?0:d});
   const fechaDmy=f=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(f||'');return m?m[3]+'/'+m[2]+'/'+m[1]:String(f||'');};
   /** Datos del avance o cierre de un conjunto de reportes (un turno, varios o todo el día). tipo = CIERRE si todos están finalizados; si no, AVANCE. */
+  /* Vasos aparte (24/11/2026): el avance de Hielo en cubos lleva los vasos en su propio bloque (m.vasos), nunca dentro de las bolsas ni de los kilos.
+     Toma los reportes y programas de VASOS que lleguen (en o.reportes/o.programas o en o.vasos) y las filas «Vaso» cargadas por error en un reporte de cubos.
+     Así el bot de WhatsApp, que pasa todos los reportes del turno, también los separa. */
+  const esVaso=p=>/vaso/i.test(texto(p&&p.presentacion));
   function modeloAvanceCierre(o){
-    const rs=(o.reportes||[]).filter(Boolean),ps=(o.programas||[]).filter(Boolean),t=totales(rs),prog=programado(ps);
-    const tipo=rs.length&&rs.every(r=>r.estado==='FINALIZADO')?'CIERRE':'AVANCE';
+    o=o||{};
+    const prodSel=PRODUCTOS[o.producto]?o.producto:'CUBOS';
+    const todos=(o.reportes||[]).filter(Boolean),todosP=(o.programas||[]).filter(Boolean);
+    let rs=todos.filter(r=>productoDe(r)===prodSel),ps=todosP.filter(p=>productoDe(p)===prodSel);
+    let vasos=null;
+    if(prodSel==='CUBOS'){
+      const unico=l=>{const v=new Set();return l.filter(x=>{const k=x.id||JSON.stringify(x);if(v.has(k))return false;v.add(k);return true;});};
+      const vr=unico(todos.filter(r=>productoDe(r)==='VASOS').concat(((o.vasos&&o.vasos.reportes)||[]).filter(r=>r&&productoDe(r)==='VASOS')));
+      const vp=unico(todosP.filter(p=>productoDe(p)==='VASOS').concat(((o.vasos&&o.vasos.programas)||[]).filter(p=>p&&productoDe(p)==='VASOS')));
+      // Filas «Vaso» dentro de un reporte de cubos: pasan al bloque de vasos (sin observaciones, paradas ni merma, que son del reporte de cubos).
+      const sueltas=rs.filter(r=>(r.produccion||[]).some(esVaso)).map(r=>({id:r.id+'#vasos',fecha:r.fecha,turno:r.turno,estado:r.estado,producto:'VASOS',horaInicio:r.horaInicio,horaFin:r.horaFin,produccion:(r.produccion||[]).filter(esVaso)}));
+      rs=rs.map(r=>(r.produccion||[]).some(esVaso)?Object.assign({},r,{produccion:(r.produccion||[]).filter(p=>!esVaso(p))}):r);
+      ps=ps.map(p=>(p.items||[]).some(esVaso)?Object.assign({},p,{items:p.items.filter(i=>!esVaso(i))}):p);
+      const progSueltos=todosP.filter(p=>productoDe(p)==='CUBOS'&&(p.items||[]).some(esVaso)).map(p=>({producto:'VASOS',items:p.items.filter(esVaso)}));
+      const mv=vr.length||sueltas.length?modeloAvanceCierre(Object.assign({},o,{producto:'VASOS',reportes:vr.concat(sueltas),programas:vp.concat(progSueltos),vasos:null})):null;
+      if(mv&&mv.bolsas>0)vasos=mv;
+    }
+    const t=totales(rs),prog=programado(ps);
+    const todosRs=rs.concat(vasos?((o.reportes||[]).concat((o.vasos&&o.vasos.reportes)||[])).filter(r=>r&&productoDe(r)==='VASOS'):[]);
+    const tipo=todosRs.length&&todosRs.every(r=>r.estado==='FINALIZADO')?'CIERRE':'AVANCE';
     const marcas=[...new Set(t.porMarca.map(x=>x.marca))].sort((a,b)=>a.localeCompare(b,'es')).map(m=>{
       const filas=t.porMarca.filter(x=>x.marca===m).sort((a,b)=>kgNeto(b.presentacion)-kgNeto(a.presentacion));
       const bolsas=filas.reduce((s,x)=>s+x.bolsas,0),kg=Math.round(filas.reduce((s,x)=>s+x.bolsas*kgNeto(x.presentacion),0)*100)/100;
@@ -249,7 +271,7 @@
     const estaciones=[...est.entries()].map(([estacion,mp])=>({estacion,filas:[...mp.entries()].map(([k,bolsas])=>{const [marca,presentacion]=k.split('|');return {marca,presentacion,bolsas};})
       .sort((a,b)=>a.marca.localeCompare(b.marca,'es')||kgNeto(b.presentacion)-kgNeto(a.presentacion))})).sort((a,b)=>(a.estacion===''?1:0)-(b.estacion===''?1:0));
     const horas=rs.map(r=>r.horaInicio).filter(Boolean).sort(),fines=rs.map(r=>r.horaFin).filter(Boolean).sort();
-    return {tipo,fecha:o.fecha,turnoTxt:o.turnoTxt||'',turnoCod:o.turnoCod||'',caidas:rs.some(r=>r.caidas),estaciones,hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
+    return {tipo,vasos,fecha:o.fecha,turnoTxt:o.turnoTxt||'',turnoCod:o.turnoCod||'',caidas:rs.some(r=>r.caidas),estaciones,hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
       producto:PRd.id,unidad:PRd.unidad,jabas:PRd.unidadesPorJaba?Math.round(t.bolsas/PRd.unidadesPorJaba*100)/100:null,
       titulo:(tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO'+(PRd.id==='CUBOS'?'':' '+PRd.corto.toUpperCase()),
       presentaciones:pres.map(p=>({presentacion:p,bolsas:t.porPres[p]||0,kg:Math.round((t.porPres[p]||0)*kgNeto(p)*100)/100})),marcas,
@@ -264,6 +286,12 @@
     if(!(ms>0))return '';
     try{return new Date(ms).toLocaleTimeString('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit',hour12:false});}catch(_){return '';}
   }
+  /** Observaciones, paradas y merma del avance; las de los vasos van marcadas «Vasos:». */
+  function observacionesAv(m,n0,n3){
+    const de=(x,pre)=>x.observaciones.map(o=>pre+o.texto).concat(x.paradas.map(p=>pre+[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+n0(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),
+      x.merma.map(z=>pre+'Merma '+z.item+(z.marca?' ('+z.marca+')':'')+': '+n3(z.cantidad)+' '+z.unidad));
+    return de(m,'').concat(m.vasos?de(m.vasos,'Vasos: '):[]);
+  }
   /** Texto para WhatsApp en el formato que usa la planta: «Avance de produccion HIELO TD», fecha DD_MM_AA, bloques por estación, totales por presentación. */
   function textoAvanceCierre(m){
     const pl=(n,d)=>String(Math.round(Number(n||0)*Math.pow(10,d===undefined?0:d))/Math.pow(10,d===undefined?0:d)).replace('.',',');
@@ -273,7 +301,8 @@
     const out=[(m.tipo==='CIERRE'?'Cierre':'Avance')+' de produccion HIELO'+(m.producto&&m.producto!=='CUBOS'?' '+String(m.producto).charAt(0)+String(m.producto).slice(1).toLowerCase():'')+(m.turnoCod?' '+m.turnoCod:''),fecha[1]?fecha[3]+'_'+fecha[2]+'_'+fecha[1].slice(2):String(m.fecha||'')];
     if(m.hora)out.push('Hora: '+m.hora);
     if(m.ultimoRegistro)out.push('Último registro: '+m.ultimoRegistro);
-    if(!m.reportes){out.push('','Todavía no hay reporte de hielo en este turno.');}
+    if(m.vasos)out.push('','*HIELO EN CUBOS*');
+    if(!m.reportes){if(m.vasos)out.push('Todavía no hay reporte de hielo en cubos en este turno.');else out.push('','Todavía no hay reporte de hielo en este turno.');}
     else{
       m.estaciones.forEach(e=>{
         out.push('');
@@ -285,8 +314,18 @@
       if(sinPres&&m.bolsas>0)out.push('','TOTAL VASOS: '+pl(m.bolsas));
       else if(m.kg>0)out.push('','TOTAL KILOS: '+pl(m.kg,1)+'kg');          // suma de todas las presentaciones (3 kg + 1.5 kg…)
       if(m.programado>0)out.push('','Programado: '+pl(m.programado)+' '+UN+' · Cumplimiento: '+pl(m.cumplimiento*100)+' %');
-      if(m.caidas)out.push('','🚨SE VIENE TRABAJANDO POR CAÍDAS');
-      const obs=m.observaciones.map(x=>x.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+pl(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(x=>'Merma '+x.item+(x.marca?' ('+x.marca+')':'')+': '+pl(x.cantidad,3)+' '+x.unidad));
+    }
+    if(m.vasos){       // Vasos aparte (24/11/2026)
+      const v=m.vasos;out.push('','*VASOS DE HIELO*');
+      v.estaciones.forEach(e=>{out.push('');if(e.estacion)out.push(e.estacion.toUpperCase());e.filas.forEach(f=>out.push(f.marca+': '+pl(f.bolsas)));});
+      out.push('','Producción de vasos: '+pl(v.bolsas),'Peso aproximado: '+pl(v.kg,1)+'kg');
+      if(v.jabas)out.push('Jabas: '+pl(v.jabas,2));
+      out.push('','TOTAL VASOS: '+pl(v.bolsas));
+      if(v.programado>0)out.push('','Programado: '+pl(v.programado)+' vasos · Cumplimiento: '+pl(v.cumplimiento*100)+' %');
+    }
+    if(m.reportes||m.vasos){
+      if(m.caidas||(m.vasos&&m.vasos.caidas))out.push('','🚨SE VIENE TRABAJANDO POR CAÍDAS');
+      const obs=observacionesAv(m,x=>pl(x),x=>pl(x,3));
       if(obs.length){out.push('','Observaciones');obs.forEach(x=>out.push(x));}
     }
     return out.join('\n');
@@ -689,7 +728,9 @@
   function modeloAv(){
     avPorDefecto();const ts=turnosDeAv(S.aTurno),etq=(TURNOS_AV.find(x=>x[0]===S.aTurno)||[])[1]||S.aTurno;
     const hora=F()?F().ahoraLima(ahora()).texto.slice(-5):'';
-    return N.modeloAvanceCierre({fecha:S.aFecha,turnoTxt:'Turno '+etq,turnoCod:({TODOS:'TD',DI:'D+I',DÍA:'DÍA',INTERMEDIO:'INT',NOCHE:'NOCHE'})[S.aTurno]||'',producto:S.producto,reportes:cache.reportes.filter(r=>productoDe(r)===S.producto&&r.fecha===S.aFecha&&ts.includes(r.turno)),programas:cache.programacion.filter(p=>productoDe(p)===S.producto&&p.fecha===S.aFecha&&ts.includes(p.turno)),hora,generadoPor:yo().nombre});
+    return N.modeloAvanceCierre({fecha:S.aFecha,turnoTxt:'Turno '+etq,turnoCod:({TODOS:'TD',DI:'D+I',DÍA:'DÍA',INTERMEDIO:'INT',NOCHE:'NOCHE'})[S.aTurno]||'',producto:S.producto,reportes:cache.reportes.filter(r=>productoDe(r)===S.producto&&r.fecha===S.aFecha&&ts.includes(r.turno)),programas:cache.programacion.filter(p=>productoDe(p)===S.producto&&p.fecha===S.aFecha&&ts.includes(p.turno)),hora,generadoPor:yo().nombre,
+      // Cubos: los vasos del mismo turno van en su propio bloque del avance (24/11/2026).
+      vasos:S.producto==='CUBOS'?{reportes:cache.reportes.filter(r=>productoDe(r)==='VASOS'&&r.fecha===S.aFecha&&ts.includes(r.turno)),programas:cache.programacion.filter(p=>productoDe(p)==='VASOS'&&p.fecha===S.aFecha&&ts.includes(p.turno))}:null});
   }
   function vistaAvance(){
     const m=modeloAv(),texto=N.textoAvanceCierre(m);
@@ -716,8 +757,8 @@
     const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#667784',MUTED='#87949D',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
     const pk=v=>String(v||'').replace(/\s+/g,'');
     const grupos=(m.estaciones||[]).map(e=>({titulo:e.estacion||'PRODUCCIÓN',filas:e.filas}));
-    const obs=m.observaciones.map(o=>o.texto).concat(m.paradas.map(p=>[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+f0(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),m.merma.map(z=>'Merma '+z.item+(z.marca?' ('+z.marca+')':'')+': '+f0(z.cantidad,3)+' '+z.unidad));
-    const pres=m.presentaciones.filter(p=>p.bolsas>0);
+    const obs=observacionesAv(m,v=>f0(v),v=>f0(v,3));
+    const pres=m.presentaciones.filter(p=>p.bolsas>0),V=m.vasos;      // V: bloque de vasos aparte (solo en el avance de cubos)
     function pintar(c,H){
       const x=c.getContext('2d');
       const rr=(cx,cy,cw,ch,r)=>{x.beginPath();x.moveTo(cx+r,cy);x.arcTo(cx+cw,cy,cx+cw,cy+ch,r);x.arcTo(cx+cw,cy+ch,cx,cy+ch,r);x.arcTo(cx,cy+ch,cx,cy,r);x.arcTo(cx,cy,cx+cw,cy,r);x.closePath();};
@@ -732,8 +773,8 @@
       if(m.inicio||m.fin){x.font=fz(16)+'px Arial';x.fillStyle='#D9EAF3';x.fillText('Inicio: '+(m.inicio||'—')+(m.tipo==='CIERRE'&&m.fin?' · Término: '+m.fin:''),55,184);}
       if(m.ultimoRegistro){x.font=fz(16)+'px Arial';x.fillStyle='#D9EAF3';x.fillText('Último registro: '+m.ultimoRegistro,330,184);}
       let y=228;
-      x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 '+fz(22)+'px Arial';x.fillText('DETALLE DE PRODUCCIÓN POR ESTACIÓN',48,y+31);y+=64;
-      if(!m.reportes){card(PAD,y,W-PAD*2,72,'#F8FBFD');x.fillStyle=STEEL;x.font='700 '+fz(17)+'px Arial';x.fillText('Todavía no hay reporte de hielo en este turno.',PAD+20,y+44);y+=90;}
+      x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 '+fz(22)+'px Arial';x.fillText(V?'HIELO EN CUBOS · PRODUCCIÓN POR ESTACIÓN':'DETALLE DE PRODUCCIÓN POR ESTACIÓN',48,y+31);y+=64;
+      if(!m.reportes){card(PAD,y,W-PAD*2,72,'#F8FBFD');x.fillStyle=STEEL;x.font='700 '+fz(17)+'px Arial';x.fillText(V?'Todavía no hay reporte de hielo en cubos en este turno.':'Todavía no hay reporte de hielo en este turno.',PAD+20,y+44);y+=90;}
       grupos.forEach(g=>{
         const h=58+16+g.filas.length*fz(34);
         card(PAD,y,W-PAD*2,h);x.fillStyle='#E8F7FE';rr(PAD,y,W-PAD*2,58,9);x.fill();
@@ -743,18 +784,43 @@
         g.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca+(m.producto==='VASOS'?'':' '+pk(f.presentacion)),PAD+28,cy);x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' '+(m.unidad||'bolsas'),W-PAD-22,cy);x.textAlign='left';cy+=fz(34);});
         y+=h+18;
       });
+      if(!V||m.reportes){
       const filasR=Math.max(1,pres.length),hR=48+filasR*fz(62)+(m.kg>0?fz(56):0)+(m.programado>0?fz(34):0);
-      card(PAD,y,W-PAD*2,hR,'#F8FBFD');x.fillStyle=BLUE;x.font='700 '+fz(17)+'px Arial';x.fillText('RESUMEN DEL AVANCE',PAD+20,y+30);
+      card(PAD,y,W-PAD*2,hR,'#F8FBFD');x.fillStyle=BLUE;x.font='700 '+fz(17)+'px Arial';x.fillText(V?'RESUMEN · HIELO EN CUBOS':'RESUMEN DEL AVANCE',PAD+20,y+30);
       let ry=y+30+fz(36);
       pres.forEach(p=>{x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Producción de '+(m.unidad||'bolsas')+(m.producto==='VASOS'?'':' '+pk(p.presentacion))+': '+f0(p.bolsas),PAD+20,ry);x.fillStyle=STEEL;x.font=fz(16)+'px Arial';x.fillText('Producción de '+pk(p.presentacion)+': '+f0(p.kg,1)+' kg',PAD+20,ry+fz(26));ry+=fz(62);});
       if(m.kg>0){      // total de kilos de todas las presentaciones, destacado
         x.strokeStyle=LINE;x.lineWidth=1;x.beginPath();x.moveTo(PAD+20,ry-fz(16));x.lineTo(W-PAD-20,ry-fz(16));x.stroke();
-        x.fillStyle=BLUE;x.font='700 '+fz(19)+'px Arial';x.fillText('TOTAL KILOS',PAD+20,ry+fz(14));
+        x.fillStyle=BLUE;x.font='700 '+fz(19)+'px Arial';x.fillText(V?'TOTAL KILOS (CUBOS)':'TOTAL KILOS',PAD+20,ry+fz(14));
         x.textAlign='right';x.fillStyle=DARK;x.font='700 '+fz(24)+'px Arial';x.fillText(f0(m.kg,1)+' kg',W-PAD-22,ry+fz(14));x.textAlign='left';ry+=fz(56);
       }
       if(m.programado>0){x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Programado: '+f0(m.programado)+' '+(m.unidad||'bolsas')+' · Cumplimiento: '+f0(m.cumplimiento*100)+' %',PAD+20,ry-fz(8));}
       y+=hR+18;
-      if(m.caidas){const h=fz(46);x.fillStyle='#FDECEA';rr(PAD,y,W-PAD*2,h,9);x.fill();x.strokeStyle=BAD;rr(PAD,y,W-PAD*2,h,9);x.stroke();x.fillStyle=BAD;x.font='700 '+fz(17)+'px Arial';x.fillText('🚨 SE VIENE TRABAJANDO POR CAÍDAS',PAD+20,y+fz(30));y+=h+18;}
+      }
+      if(V){      // Vasos de hielo: su propio bloque (vasos, jabas, peso aproximado y su total)
+        const TEAL='#1FA3A3',TEALD='#168787';
+        x.fillStyle=TEAL;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 '+fz(22)+'px Arial';x.fillText('VASOS DE HIELO',48,y+31);y+=64;
+        V.estaciones.forEach(e=>{
+          const h=58+16+e.filas.length*fz(34);
+          card(PAD,y,W-PAD*2,h);x.fillStyle='#E3F6F5';rr(PAD,y,W-PAD*2,58,9);x.fill();
+          x.fillStyle=DARK;x.font='700 '+fz(22)+'px Arial';x.fillText((e.estacion||'PRODUCCIÓN').toUpperCase(),PAD+20,y+38);
+          x.textAlign='right';x.fillStyle=GOOD;x.font='700 '+fz(15)+'px Arial';x.fillText(f0(e.filas.reduce((q,f)=>q+f.bolsas,0))+' VASOS',W-PAD-20,y+36);x.textAlign='left';
+          let cy=y+58+30;
+          e.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca,PAD+28,cy);x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' vasos',W-PAD-22,cy);x.textAlign='left';cy+=fz(34);});
+          y+=h+18;
+        });
+        const hV=48+fz(62)+fz(56)+(V.programado>0?fz(34):0);
+        card(PAD,y,W-PAD*2,hV,'#F8FBFD');x.fillStyle=TEALD;x.font='700 '+fz(17)+'px Arial';x.fillText('RESUMEN · VASOS',PAD+20,y+30);
+        let vy=y+30+fz(36);
+        x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Producción de vasos: '+f0(V.bolsas),PAD+20,vy);
+        x.fillStyle=STEEL;x.font=fz(16)+'px Arial';x.fillText((V.jabas?'Jabas: '+f0(V.jabas,2)+' · ':'')+'Peso aproximado: '+f0(V.kg,1)+' kg',PAD+20,vy+fz(26));vy+=fz(62);
+        x.strokeStyle=LINE;x.lineWidth=1;x.beginPath();x.moveTo(PAD+20,vy-fz(16));x.lineTo(W-PAD-20,vy-fz(16));x.stroke();
+        x.fillStyle=TEALD;x.font='700 '+fz(19)+'px Arial';x.fillText('TOTAL VASOS',PAD+20,vy+fz(14));
+        x.textAlign='right';x.fillStyle=DARK;x.font='700 '+fz(24)+'px Arial';x.fillText(f0(V.bolsas)+' vasos',W-PAD-22,vy+fz(14));x.textAlign='left';vy+=fz(56);
+        if(V.programado>0){x.fillStyle=DARK;x.font='700 '+fz(17)+'px Arial';x.fillText('Programado: '+f0(V.programado)+' vasos · Cumplimiento: '+f0(V.cumplimiento*100)+' %',PAD+20,vy-fz(8));}
+        y+=hV+18;
+      }
+      if(m.caidas||(V&&V.caidas)){const h=fz(46);x.fillStyle='#FDECEA';rr(PAD,y,W-PAD*2,h,9);x.fill();x.strokeStyle=BAD;rr(PAD,y,W-PAD*2,h,9);x.stroke();x.fillStyle=BAD;x.font='700 '+fz(17)+'px Arial';x.fillText('🚨 SE VIENE TRABAJANDO POR CAÍDAS',PAD+20,y+fz(30));y+=h+18;}
       if(obs.length){
         x.font=fz(15)+'px Arial';const filas=obs.slice(0,12).map(o=>wrap('• '+o,W-PAD*2-60).slice(0,2));
         const h=fz(40)+filas.reduce((q,f)=>q+f.length*fz(24),0)+16;

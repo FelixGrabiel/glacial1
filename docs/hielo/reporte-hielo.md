@@ -96,3 +96,19 @@ Las tablas de paradas y mermas se muestran en tarjetas cuando su recuadro es ang
 - Al finalizar, «Avance y cierre» queda en la fecha y el turno de ese reporte. Si el turno en curso no tiene reporte, abre el último que sí lo tiene.
 
 Prueba: `tests/hielo-cierre-al-finalizar.e2e.js`. Sin la corrección, la prueba reproduce el problema.
+
+## Vasos aparte en el avance de cubos (24/11/2026)
+
+El **Avance y cierre** de *Hielo en cubos* (texto de WhatsApp e imagen) lleva los vasos en su propio bloque **VASOS DE HIELO**:
+
+- **Cubos**: solo bolsas (3 kg, 1.5 kg…). El total de kilos y el cumplimiento no cuentan los vasos.
+- **Vasos**: estaciones con marcas en vasos, producción de vasos, jabas, peso aproximado, «TOTAL VASOS» y su programado, si lo hay.
+- **Fuentes de los vasos**:
+  - los reportes de *Vasos* del mismo turno;
+  - una fila «Vaso» cargada por error en un reporte de cubos, que también pasa a este bloque.
+- **Bot de WhatsApp**: pasa todos los reportes del turno juntos y aun así salen separados, porque la separación la hace `modeloAvanceCierre`.
+- **Observaciones**: las de los vasos van marcadas «Vasos:».
+- **AVANCE o CIERRE**: es CIERRE solo cuando cubos y vasos están finalizados.
+- **Sin vasos**: no aparece el bloque.
+
+El avance de *Vasos* (producto aparte) no cambia. Pruebas: `tests/hielo-avance-vasos.test.js`.
