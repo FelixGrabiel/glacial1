@@ -343,7 +343,7 @@
     const desde=sumarDias(hoy(),-DIAS);cache.error='';
     const fallo=e=>{cache.error=String((e&&e.message)||e);repintar();};
     try{
-      cierres.push(db.collection(C.reportes).where('fecha','>=',desde).onSnapshot(s=>{cache.reportes=s.docs.map(d=>d.data()).filter(x=>x&&x.id);cache.listo.reportes=true;repintar();},fallo));
+      cierres.push(db.collection(C.reportes).where('fecha','>=',desde).onSnapshot(s=>{cache.reportes=masNuevos(cache.reportes,s.docs.map(d=>d.data()).filter(x=>x&&x.id));cache.listo.reportes=true;repintar();},fallo));
       cierres.push(db.collection(C.programacion).where('fecha','>=',desde).onSnapshot(s=>{cache.programacion=s.docs.map(d=>d.data()).filter(x=>x&&x.id);cache.listo.programacion=true;repintar();},fallo));
       cierres.push(db.collection(C.parametros).doc('config').onSnapshot(s=>{cache.config=s.exists?s.data():null;aplicarConfigPesos(cache.config);cache.listo.config=true;repintar();},fallo));
     }catch(e){fallo(e);}
@@ -367,7 +367,27 @@
       doc=planGuardar({previo,r,accion,usuario:u.nombre,uid:u.uid,en:ahora(),motivo});
       tx.set(ref,doc);
     });
+    ponerEnCache(doc);
     return doc;
+  }
+  /** Lista del aviso en tiempo real, pero sin volver atrás: si la copia tiene una versión más nueva del mismo reporte (recién guardada aquí), se queda esa. */
+  function masNuevos(actual,llegan){
+    const porId=new Map((actual||[]).filter(x=>x&&x.id).map(x=>[x.id,x]));
+    return (llegan||[]).map(x=>{const a=porId.get(x.id);return a&&Number(a.rev||0)>Number(x.rev||0)?a:x;});
+  }
+  /* 24/11/2026: la copia de la página (cache.reportes) solo cambiaba con el aviso en tiempo real; si tardaba o se perdía, «Avance y
+     cierre» seguía con lo de antes y decía AVANCE aunque el reporte ya estuviera FINALIZADO. Lo confirmado por el servidor entra al momento. */
+  function ponerEnCache(doc){
+    if(!doc||!doc.id)return;
+    const i=cache.reportes.findIndex(x=>x&&x.id===doc.id);
+    if(i>=0){if(Number(cache.reportes[i].rev||0)<=Number(doc.rev||0))cache.reportes[i]=doc;}else cache.reportes.push(doc);
+  }
+  /** Vuelve a leer los reportes del servidor (al entrar a «Avance y cierre»): lo que otro equipo cambió también se ve. */
+  async function releerReportes(){
+    if(typeof db==='undefined')return false;
+    try{const s=await db.collection(C.reportes).where('fecha','>=',sumarDias(hoy(),-DIAS)).get();
+      const docs=s.docs.map(d=>d.data()).filter(x=>x&&x.id);
+      docs.forEach(ponerEnCache);return true;}catch(_){return false;}
   }
   async function guardarProgramacion(fecha,turno,items,revEsperada,producto){
     if(!puedeProgramar())throw new Error('No tienes permiso para programar la producción de hielo.');
@@ -657,7 +677,15 @@
   /* ---------- Avance y cierre (texto para WhatsApp e imagen del turno) ---------- */
   const TURNOS_AV=[['DI','Día + Intermedio'],['DÍA','Día'],['INTERMEDIO','Intermedio'],['NOCHE','Noche'],['TODOS','Todo el día']];
   const turnosDeAv=t=>t==='TODOS'?TURNOS:t==='DI'?['DÍA','INTERMEDIO']:[t];
-  function avPorDefecto(){if(!S.aFecha)S.aFecha=hoy();if(!S.aTurno)S.aTurno=turnoAhora()==='NOCHE'?'NOCHE':'DI';}
+  function avPorDefecto(){
+    if(S.aFecha&&S.aTurno)return;
+    S.aFecha=hoy();S.aTurno=turnoAhora()==='NOCHE'?'NOCHE':'DI';
+    const hay=(f,t)=>cache.reportes.some(r=>productoDe(r)===S.producto&&r.fecha===f&&turnosDeAv(t).includes(r.turno));
+    if(hay(S.aFecha,S.aTurno))return;
+    // El turno en curso aún no tiene reporte: se muestra el último que sí tiene (p. ej. a las 20:30, el Día recién cerrado).
+    const ult=cache.reportes.filter(r=>productoDe(r)===S.producto&&r.fecha<=S.aFecha).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))||TURNOS.indexOf(b.turno)-TURNOS.indexOf(a.turno))[0];
+    if(ult){S.aFecha=ult.fecha;S.aTurno=ult.turno==='NOCHE'?'NOCHE':'DI';}
+  }
   function modeloAv(){
     avPorDefecto();const ts=turnosDeAv(S.aTurno),etq=(TURNOS_AV.find(x=>x[0]===S.aTurno)||[])[1]||S.aTurno;
     const hora=F()?F().ahoraLima(ahora()).texto.slice(-5):'';
@@ -914,7 +942,8 @@
   const mal=e=>{S.msg={tipo:'error',texto:String(e&&e.message||e)};pintar();};
   window.hlMenu=abrir=>{S.menu=abrir===undefined?!S.menu:!!abrir;pintar();if(S.menu)setTimeout(()=>{const b=document.querySelector('#hl-menu button');if(b)b.focus();},30);else{const h=document.querySelector('.hl-hamb');if(h)h.focus();}};
   if(typeof document.addEventListener==='function')document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.menu&&visible())window.hlMenu(false);});
-  window.hlVista=v=>{S.vista=v;S.menu=false;S.msg=null;if(v==='programacion')S.pItems=null;pintar();};
+  window.hlVista=v=>{S.vista=v;S.menu=false;S.msg=null;if(v==='programacion')S.pItems=null;pintar();
+    if(v==='avance')releerReportes().then(ok=>{if(ok&&S.vista==='avance')pintar();});};
   window.hlSet=(k,v)=>{S[k]=v;S.msg=null;pintar();};
   window.hlProducto=id=>{
     if(!esProducto(id))return;
@@ -964,7 +993,8 @@
       if(enPantalla&&enPantalla.fecha===doc.fecha&&enPantalla.turno===doc.turno){enPantalla.rev=doc.rev;enPantalla.estado=doc.estado;enPantalla.historial=doc.historial;}
       const h=new Date(doc.actualizadoEn);S.guardado='Guardado '+String(h.getHours()).padStart(2,'0')+':'+String(h.getMinutes()).padStart(2,'0');
       if(auto){const g=document.getElementById('hl-guardado');if(g)g.textContent=S.guardado;return;}
-      ok(accion==='FINALIZAR'?'Reporte finalizado.':'Reporte guardado.');
+      if(accion==='FINALIZAR'){S.aFecha=doc.fecha;S.aTurno=doc.turno==='NOCHE'?'NOCHE':'DI';}
+      ok(accion==='FINALIZAR'?'Reporte finalizado. En «Avance y cierre» ya sale como CIERRE.':'Reporte guardado.');
     }catch(e){
       if(e&&e.codigo==='CONFLICTO'&&S.ed){abrirEdicion(S.ed.fecha,S.ed.turno);}
       if(auto){S.guardado='No se guardó: '+String(e&&e.message||e);const g=document.getElementById('hl-guardado');if(g)g.textContent=S.guardado;if(e&&e.codigo==='CONFLICTO')mal(e);return;}

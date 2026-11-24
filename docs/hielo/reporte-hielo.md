@@ -82,3 +82,17 @@ Cada merma del registro lleva **ítem, marca, cantidad y unidad**:
 Los reportes guardados antes del cambio no tienen marca en sus mermas y siguen mostrándose sin ella («—»).
 
 Las tablas de paradas y mermas se muestran en tarjetas cuando su recuadro es angosto, igual que en el celular.
+
+## «Avance y cierre» después de finalizar (24/11/2026)
+
+**Problema.** Al finalizar un reporte e ir a «Avance y cierre», a veces seguía saliendo AVANCE con lo ingresado antes, aunque en el servidor el reporte ya estaba FINALIZADO. Había dos causas:
+- La copia de reportes de la página (`cache.reportes`) solo cambiaba con el aviso en tiempo real; si ese aviso tardaba o se perdía, la pantalla mostraba lo anterior.
+- De noche, la pantalla abría el turno Noche, que todavía no tiene reporte.
+
+**Solución:**
+- Lo que el servidor confirma al guardar, finalizar o reabrir entra al momento en la copia (`ponerEnCache`).
+- Un aviso en tiempo real atrasado no vuelve a una versión anterior (`masNuevos`, compara `rev`).
+- Al entrar a «Avance y cierre» se vuelven a leer los reportes del servidor.
+- Al finalizar, «Avance y cierre» queda en la fecha y el turno de ese reporte. Si el turno en curso no tiene reporte, abre el último que sí lo tiene.
+
+Prueba: `tests/hielo-cierre-al-finalizar.e2e.js`. Sin la corrección, la prueba reproduce el problema.
