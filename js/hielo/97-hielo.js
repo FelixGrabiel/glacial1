@@ -149,7 +149,9 @@
     const doc=Object.assign({id:idReporte(r.fecha,r.turno,prod),fecha:r.fecha,turno:r.turno},prod==='CUBOS'?{}:{producto:prod},{estado,
       supervisor:texto(r.supervisor||usuario).slice(0,80),horaInicio:texto(r.horaInicio),horaFin:texto(r.horaFin),
       produccion:limpiar(r.produccion).map(p=>Object.assign({marca:texto(p.marca),presentacion:texto(p.presentacion),estacion:texto(p.estacion).slice(0,40),lote:texto(p.lote).slice(0,40),bolsas:Math.max(0,Math.round(num(p.bolsas)))},
-        texto(p.horas)!==''&&num(p.horas)>=0?{horas:Math.round(Math.min(24,num(p.horas))*100)/100}:{},esFecha(p.vence)?{vence:p.vence}:{})),
+        texto(p.horas)!==''&&num(p.horas)>=0?{horas:Math.round(Math.min(24,num(p.horas))*100)/100}:{},esFecha(p.vence)?{vence:p.vence}:{},
+        // 24/11/2026: bolsa usada (solo si es otra que la de la marca, p. ej. Tottus CD envasado en bolsa Glacial) y nota corta de la fila
+        texto(p.bolsa)&&texto(p.bolsa).toLowerCase()!==texto(p.marca).toLowerCase()?{bolsa:texto(p.bolsa).slice(0,40)}:{},texto(p.nota)?{nota:texto(p.nota).slice(0,120)}:{})),
       paradas:limpiar(r.paradas).map(p=>({inicio:texto(p.inicio),equipo:texto(p.equipo),motivo:texto(p.motivo),minutos:Math.max(0,Math.round(num(p.minutos))),nota:texto(p.nota).slice(0,200)})),
       mermas:limpiar(r.mermas).map(m=>({item:texto(m.item),marca:texto(m.marca),cantidad:Math.max(0,num(m.cantidad)),unidad:UNIDADES_MERMA.includes(m.unidad)?m.unidad:'UND'})),
       observaciones:texto(r.observaciones).slice(0,500),caidas:!!r.caidas,
@@ -224,7 +226,7 @@
     (reportes||[]).slice().sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:TURNOS.indexOf(a.turno)-TURNOS.indexOf(b.turno)).forEach(r=>{
       const t=totales([r]);
       const prods=(r.produccion||[]).filter(p=>num(p.bolsas)>0);
-      (prods.length?prods:[{marca:'',presentacion:'',lote:'',bolsas:0}]).forEach(p=>filas.push([r.fecha,r.turno,r.supervisor||'',p.marca,p.presentacion,p.lote||'',Math.round(num(p.bolsas)),Math.round(num(p.bolsas)*kgDe(p.presentacion)*100)/100,t.paradasMin,r.estado==='FINALIZADO'?'Finalizado':'En registro']));
+      (prods.length?prods:[{marca:'',presentacion:'',lote:'',bolsas:0}]).forEach(p=>filas.push([r.fecha,r.turno,r.supervisor||'',p.marca,p.presentacion,p.lote||'',Math.round(num(p.bolsas)),Math.round(num(p.bolsas)*kgDe(p.presentacion)*100)/100,t.paradasMin,r.estado==='FINALIZADO'?'Finalizado':'En registro',p.bolsa||'',p.nota||'']));
     });
     return filas;
   }
@@ -266,12 +268,15 @@
     const pres=ordenPres([...new Set(PRd.presentaciones.concat(Object.keys(t.porPres)))].filter(p=>PRd.presentaciones.includes(p)||t.porPres[p]>0));
     const paradas=rs.flatMap(r=>(r.paradas||[]).map(p=>Object.assign({turno:r.turno},p))).filter(p=>num(p.minutos)>0).sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
     const est=new Map();
-    rs.forEach(r=>(r.produccion||[]).forEach(p=>{const b=Math.max(0,Math.round(num(p.bolsas)));if(!b)return;const e=texto(p.estacion),k=texto(p.marca)+'|'+texto(p.presentacion);
-      if(!est.has(e))est.set(e,new Map());est.get(e).set(k,(est.get(e).get(k)||0)+b);}));
-    const estaciones=[...est.entries()].map(([estacion,mp])=>({estacion,filas:[...mp.entries()].map(([k,bolsas])=>{const [marca,presentacion]=k.split('|');return {marca,presentacion,bolsas};})
+    // 24/11/2026: la fila se separa también por la bolsa usada (Tottus CD en bolsa Glacial) y junta sus notas.
+    rs.forEach(r=>(r.produccion||[]).forEach(p=>{const b=Math.max(0,Math.round(num(p.bolsas)));if(!b)return;const e=texto(p.estacion),k=texto(p.marca)+'|'+texto(p.presentacion)+'|'+texto(p.bolsa);
+      if(!est.has(e))est.set(e,new Map());const a=est.get(e).get(k)||{bolsas:0,notas:[]};a.bolsas+=b;if(texto(p.nota)&&!a.notas.includes(texto(p.nota)))a.notas.push(texto(p.nota));est.get(e).set(k,a);}));
+    const estaciones=[...est.entries()].map(([estacion,mp])=>({estacion,filas:[...mp.entries()].map(([k,a])=>{const [marca,presentacion,bolsa]=k.split('|');return {marca,presentacion,bolsa:bolsa||'',notas:a.notas,bolsas:a.bolsas};})
       .sort((a,b)=>a.marca.localeCompare(b.marca,'es')||kgNeto(b.presentacion)-kgNeto(a.presentacion))})).sort((a,b)=>(a.estacion===''?1:0)-(b.estacion===''?1:0));
     const horas=rs.map(r=>r.horaInicio).filter(Boolean).sort(),fines=rs.map(r=>r.horaFin).filter(Boolean).sort();
-    return {tipo,vasos,fecha:o.fecha,turnoTxt:o.turnoTxt||'',turnoCod:o.turnoCod||'',caidas:rs.some(r=>r.caidas),estaciones,hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
+    // Detalle de envasado: filas envasadas en otra bolsa (las notas van debajo de su fila).
+    const envasado=estaciones.flatMap(e=>e.filas.filter(f=>f.bolsa).map(f=>({estacion:e.estacion,marca:f.marca,presentacion:f.presentacion,bolsa:f.bolsa,bolsas:f.bolsas})));
+    return {tipo,vasos,envasado,fecha:o.fecha,turnoTxt:o.turnoTxt||'',turnoCod:o.turnoCod||'',caidas:rs.some(r=>r.caidas),estaciones,hora:o.hora||'',generadoPor:o.generadoPor||'',reportes:rs.length,
       producto:PRd.id,unidad:PRd.unidad,jabas:PRd.unidadesPorJaba?Math.round(t.bolsas/PRd.unidadesPorJaba*100)/100:null,
       titulo:(tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO'+(PRd.id==='CUBOS'?'':' '+PRd.corto.toUpperCase()),
       presentaciones:pres.map(p=>({presentacion:p,bolsas:t.porPres[p]||0,kg:Math.round((t.porPres[p]||0)*kgNeto(p)*100)/100})),marcas,
@@ -289,7 +294,8 @@
   /** Observaciones, paradas y merma del avance; las de los vasos van marcadas «Vasos:». */
   function observacionesAv(m,n0,n3){
     const de=(x,pre)=>x.observaciones.map(o=>pre+o.texto).concat(x.paradas.map(p=>pre+[p.equipo,p.motivo].filter(Boolean).join(' – ')+' ('+n0(p.minutos)+' min'+(p.nota?', '+p.nota:'')+')'),
-      x.merma.map(z=>pre+'Merma '+z.item+(z.marca?' ('+z.marca+')':'')+': '+n3(z.cantidad)+' '+z.unidad));
+      x.merma.map(z=>pre+'Merma '+z.item+(z.marca?' ('+z.marca+')':'')+': '+n3(z.cantidad)+' '+z.unidad),
+      (x.envasado||[]).map(z=>pre+z.marca+(z.presentacion&&x.producto!=='VASOS'?' '+z.presentacion:'')+': '+n0(z.bolsas)+' '+(x.unidad||'bolsas')+' envasadas en '+(x.producto==='VASOS'?'vaso ':'bolsa ')+z.bolsa+(z.estacion?' ('+z.estacion+')':'')));
     return de(m,'').concat(m.vasos?de(m.vasos,'Vasos: '):[]);
   }
   /** Texto para WhatsApp en el formato que usa la planta: «Avance de produccion HIELO TD», fecha DD_MM_AA, bloques por estación, totales por presentación. */
@@ -307,7 +313,7 @@
       m.estaciones.forEach(e=>{
         out.push('');
         if(e.estacion)out.push(e.estacion.toUpperCase());
-        e.filas.forEach(f=>out.push(f.marca+(sinPres?'':' '+pk(f.presentacion))+': '+pl(f.bolsas)));
+        e.filas.forEach(f=>{out.push(f.marca+(sinPres?'':' '+pk(f.presentacion))+(f.bolsa?' (bolsa '+f.bolsa+')':'')+': '+pl(f.bolsas));(f.notas||[]).forEach(n=>out.push('  ↳ '+n));});
       });
       m.presentaciones.filter(p=>p.bolsas>0).forEach(p=>{if(sinPres)out.push('','Producción de '+UN+': '+pl(p.bolsas),'Peso aproximado: '+pl(p.kg,1)+'kg');else out.push('','Producción de '+UN+' '+pk(p.presentacion)+': '+pl(p.bolsas),'Producción de '+pk(p.presentacion)+': '+pl(p.kg,1)+'kg');});
       if(m.jabas)out.push('','Jabas: '+pl(m.jabas,2));
@@ -317,7 +323,7 @@
     }
     if(m.vasos){       // Vasos aparte (24/11/2026)
       const v=m.vasos;out.push('','*VASOS DE HIELO*');
-      v.estaciones.forEach(e=>{out.push('');if(e.estacion)out.push(e.estacion.toUpperCase());e.filas.forEach(f=>out.push(f.marca+': '+pl(f.bolsas)));});
+      v.estaciones.forEach(e=>{out.push('');if(e.estacion)out.push(e.estacion.toUpperCase());e.filas.forEach(f=>{out.push(f.marca+(f.bolsa?' (vaso '+f.bolsa+')':'')+': '+pl(f.bolsas));(f.notas||[]).forEach(n=>out.push('  ↳ '+n));});});
       out.push('','Producción de vasos: '+pl(v.bolsas),'Peso aproximado: '+pl(v.kg,1)+'kg');
       if(v.jabas)out.push('Jabas: '+pl(v.jabas,2));
       out.push('','TOTAL VASOS: '+pl(v.bolsas));
@@ -541,6 +547,12 @@
  .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
  .hl-ed td[data-label=""]{grid-column:1/-1;align-items:flex-end}}
 .hl-2>.hl-card{container-type:inline-size}
+/* Producción (24/11/2026: con «Bolsa usada» y «Nota» son 11 columnas): en tarjetas de 4 columnas cuando el recuadro mide menos de 1180 px. */
+.hl-prodtab{container-type:inline-size}
+@container (max-width:1180px){.hl-prodtab .hl-ed thead{display:none}.hl-prodtab .hl-ed tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 10px;padding:12px 0;border-bottom:1px solid #e2ebf2}
+ .hl-prodtab .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-prodtab .hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
+ .hl-prodtab .hl-ed td[data-label="Nota"]{grid-column:span 2}.hl-prodtab .hl-ed td[data-label=""]{align-items:flex-end;justify-content:flex-end}.hl-prodtab .hl-ed select,.hl-prodtab .hl-ed input{width:100%}}
+@container (max-width:560px){.hl-prodtab .hl-ed tr{grid-template-columns:1fr 1fr}.hl-prodtab .hl-ed td[data-label="Nota"]{grid-column:1/-1}.hl-prodtab .hl-ed td[data-label=""]{grid-column:1/-1}}
 @container (max-width:560px){.hl-ed thead{display:none}.hl-ed tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid #e2ebf2}
  .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
  .hl-ed td[data-label=""]{grid-column:1/-1;align-items:flex-end}.hl-ed select,.hl-ed input{width:100%}}
@@ -611,14 +623,18 @@
     const bloq=fin&&!esAdmin()||!puedeRegistrar();
     const dis=bloq?'disabled':'';
     const t=totales([r]);
+    // Bolsa usada: la de la marca primero, después las demás marcas (24/11/2026).
+    const bolsasDe=(c,p)=>{const l=[...new Set([texto(p.marca)].concat(c.marcas||[],texto(p.bolsa)?[texto(p.bolsa)]:[]).filter(Boolean))];return l;};
     const prod=r.produccion.map((p,i)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlCampo('produccion',${i},'marca',this.value)">${opciones(marcasDe(cfg,p.presentacion).includes(p.marca)||!p.marca?marcasDe(cfg,p.presentacion):[p.marca].concat(marcasDe(cfg,p.presentacion)),p.marca,'— marca —')}</select></td>
       <td data-label="Presentación"><select ${dis} onchange="hlCampo('produccion',${i},'presentacion',this.value)">${opciones(cfg.presentaciones.includes(p.presentacion)||!p.presentacion?cfg.presentaciones:[p.presentacion].concat(cfg.presentaciones),p.presentacion,'—')}</select></td>
       <td data-label="Estación"><select ${dis} onchange="hlCampo('produccion',${i},'estacion',this.value)">${opciones(cfg.estaciones.includes(p.estacion)||!p.estacion?cfg.estaciones:[p.estacion].concat(cfg.estaciones),p.estacion,'— estación —')}</select></td>
+      <td data-label="${PR().id==='VASOS'?'Vaso usado':'Bolsa usada'}"><select ${dis} onchange="hlCampo('produccion',${i},'bolsa',this.value)" aria-label="Bolsa usada">${opciones(bolsasDe(cfg,p),texto(p.bolsa)||texto(p.marca),PR().id==='VASOS'?'— vaso —':'— bolsa —')}</select></td>
       <td data-label="Lote"><input ${dis} maxlength="40" value="${esc(p.lote)}" placeholder="opcional" oninput="hlCampo('produccion',${i},'lote',this.value)" aria-label="Lote del producto"></td>
       <td data-label="Tiempo (h)"><input ${dis} type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${esc(p.horas)}" placeholder="opcional" oninput="hlCampo('produccion',${i},'horas',this.value)" aria-label="Tiempo en horas"></td>
       <td data-label="Vence"><input ${dis} type="date" value="${esc(p.vence)}" onchange="hlCampo('produccion',${i},'vence',this.value)" aria-label="Fecha de vencimiento"></td>
       <td data-label="${cap(PR().unidad)}"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(p.bolsas)}" oninput="hlCampo('produccion',${i},'bolsas',this.value)" aria-label="${cap(PR().unidad)}"></td>
       <td data-label="Kilos"><input readonly tabindex="-1" id="hl-kg-${i}" value="${fmt(num(p.bolsas)*kgDe(p.presentacion),1)}" aria-label="Kilos"></td>
+      <td data-label="Nota"><input ${dis} maxlength="120" value="${esc(p.nota||'')}" placeholder="opcional" oninput="hlCampo('produccion',${i},'nota',this.value)" aria-label="Nota de la producción"></td>
       <td data-label="">${bloq?'':`<button type="button" class="hl-btn o x" onclick="hlQuitar('produccion',${i})" aria-label="Quitar producción">✕</button>`}</td></tr>`).join('');
     const par=r.paradas.map((p,i)=>`<tr><td data-label="Hora"><input ${dis} type="time" value="${esc(p.inicio)}" onchange="hlCampo('paradas',${i},'inicio',this.value)" aria-label="Hora"></td>
       <td data-label="Equipo">${cfg.equipos.length?`<select ${dis} onchange="hlCampo('paradas',${i},'equipo',this.value)">${opciones(cfg.equipos,p.equipo,'— equipo —')}</select>`:'<small class="hl-sub">Sin equipos en Configuración</small>'}</td>
@@ -645,8 +661,8 @@
         <label>Hora fin<input ${dis} type="time" value="${esc(r.horaFin)}" onchange="hlDato('horaFin',this.value)"></label>
         <label>N.º de personas<input ${dis} type="number" min="0" max="200" step="1" inputmode="numeric" value="${esc(r.personas)}" placeholder="opcional" oninput="hlDato('personas',this.value)"></label></div>
         <label style="margin-top:12px">Personal del turno <small>(un nombre por línea, opcional)</small><textarea ${dis} rows="3" maxlength="900" placeholder="Nombre y apellido" oninput="hlDato('personal',this.value)">${esc(Array.isArray(r.personal)?r.personal.join('\n'):String(r.personal||''))}</textarea></label></div>
-      <div class="hl-card"><h3>Producción (${PR().unidad})</h3>
-        ${prod?`<table class="hl-ed"><thead><tr><th>Marca</th><th>Presentación</th><th>Estación</th><th>Lote</th><th>Tiempo (h)</th><th>Vence</th><th>${cap(PR().unidad)}</th><th>Kilos</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
+      <div class="hl-card hl-prodtab"><h3>Producción (${PR().unidad})</h3>
+        ${prod?`<table class="hl-ed"><thead><tr><th>Marca</th><th>Presentación</th><th>Estación</th><th title="Con qué bolsa (o vaso) se envasó, si no es la de la marca">${PR().id==='VASOS'?'Vaso usado':'Bolsa usada'}</th><th>Lote</th><th>Tiempo (h)</th><th>Vence</th><th>${cap(PR().unidad)}</th><th>Kilos</th><th>Nota</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
         <div class="hl-acc" style="margin-top:8px">${bloq?'':'<button type="button" class="hl-btn o" onclick="hlAgregar(\'produccion\')">+ Agregar marca</button>'}
           <span class="hl-sub" id="hl-tot" style="margin:0">${txtUnidades(t)} · <b>${fmt(t.kg,1)} kg</b>${PR().unidadesPorJaba?' · '+fmt(t.bolsas/PR().unidadesPorJaba,2)+' jabas':''}</span></div></div>
       <div class="hl-2"><div class="hl-card"><h3>Paradas</h3>
@@ -765,6 +781,9 @@
       const card=(cx,cy,cw,ch,fill)=>{x.fillStyle=fill||WHITE;rr(cx,cy,cw,ch,9);x.fill();x.strokeStyle=LINE;x.lineWidth=1;rr(cx,cy,cw,ch,9);x.stroke();};
       const wrap=(t,max)=>{const out=[];let row='';String(t||'').split(/\s+/).forEach(w=>{const q=row?row+' '+w:w;if(x.measureText(q).width>max&&row){out.push(row);row=w;}else row=q;});if(row)out.push(row);return out.length?out:[''];};
       x.fillStyle=BG;x.fillRect(0,0,W,H);
+      // Notas de una fila de producción (24/11/2026): debajo de la fila, en gris e itálica.
+      const notasFila=(f,cy)=>{(f.notas||[]).forEach(n=>{x.fillStyle=STEEL;x.font='italic '+fz(14)+'px Arial';x.fillText('↳ '+(n.length>90?n.slice(0,88)+'…':n),PAD+44,cy-fz(8));cy+=fz(26);});return cy;};
+      const altoFilas=l=>l.reduce((q,f)=>q+fz(34)+(f.notas||[]).length*fz(26),0);
       x.fillStyle=DARK;x.fillRect(0,0,W,205);x.fillStyle=WHITE;
       x.font='700 '+fz(31)+'px Arial';x.fillText('GLACIAL',55,56);
       x.font='700 '+fz(34)+'px Arial';x.fillText(m.titulo||((m.tipo==='CIERRE'?'CIERRE':'AVANCE')+' DE PRODUCCIÓN HIELO'),275,62);
@@ -776,12 +795,14 @@
       x.fillStyle=BLUE;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 '+fz(22)+'px Arial';x.fillText(V?'HIELO EN CUBOS · PRODUCCIÓN POR ESTACIÓN':'DETALLE DE PRODUCCIÓN POR ESTACIÓN',48,y+31);y+=64;
       if(!m.reportes){card(PAD,y,W-PAD*2,72,'#F8FBFD');x.fillStyle=STEEL;x.font='700 '+fz(17)+'px Arial';x.fillText(V?'Todavía no hay reporte de hielo en cubos en este turno.':'Todavía no hay reporte de hielo en este turno.',PAD+20,y+44);y+=90;}
       grupos.forEach(g=>{
-        const h=58+16+g.filas.length*fz(34);
+        const h=58+16+altoFilas(g.filas);
         card(PAD,y,W-PAD*2,h);x.fillStyle='#E8F7FE';rr(PAD,y,W-PAD*2,58,9);x.fill();
         x.fillStyle=DARK;x.font='700 '+fz(22)+'px Arial';x.fillText(g.titulo.toUpperCase(),PAD+20,y+38);
         const tot=g.filas.reduce((q,f)=>q+f.bolsas,0);x.textAlign='right';x.fillStyle=GOOD;x.font='700 '+fz(15)+'px Arial';x.fillText(f0(tot)+' '+String(m.unidad||'bolsas').toUpperCase(),W-PAD-20,y+36);x.textAlign='left';
         let cy=y+58+30;
-        g.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca+(m.producto==='VASOS'?'':' '+pk(f.presentacion)),PAD+28,cy);x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' '+(m.unidad||'bolsas'),W-PAD-22,cy);x.textAlign='left';cy+=fz(34);});
+        g.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca+(m.producto==='VASOS'?'':' '+pk(f.presentacion)),PAD+28,cy);
+          if(f.bolsa){const w=x.measureText(f.marca+(m.producto==='VASOS'?'':' '+pk(f.presentacion))+' ').width;x.fillStyle=WARN;x.fillText('('+(m.producto==='VASOS'?'vaso ':'bolsa ')+f.bolsa+')',PAD+28+w,cy);}
+          x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' '+(m.unidad||'bolsas'),W-PAD-22,cy);x.textAlign='left';cy+=fz(34);cy=notasFila(f,cy);});
         y+=h+18;
       });
       if(!V||m.reportes){
@@ -801,12 +822,14 @@
         const TEAL='#1FA3A3',TEALD='#168787';
         x.fillStyle=TEAL;rr(PAD,y,W-PAD*2,48,8);x.fill();x.fillStyle=WHITE;x.font='700 '+fz(22)+'px Arial';x.fillText('VASOS DE HIELO',48,y+31);y+=64;
         V.estaciones.forEach(e=>{
-          const h=58+16+e.filas.length*fz(34);
+          const h=58+16+altoFilas(e.filas);
           card(PAD,y,W-PAD*2,h);x.fillStyle='#E3F6F5';rr(PAD,y,W-PAD*2,58,9);x.fill();
           x.fillStyle=DARK;x.font='700 '+fz(22)+'px Arial';x.fillText((e.estacion||'PRODUCCIÓN').toUpperCase(),PAD+20,y+38);
           x.textAlign='right';x.fillStyle=GOOD;x.font='700 '+fz(15)+'px Arial';x.fillText(f0(e.filas.reduce((q,f)=>q+f.bolsas,0))+' VASOS',W-PAD-20,y+36);x.textAlign='left';
           let cy=y+58+30;
-          e.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca,PAD+28,cy);x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' vasos',W-PAD-22,cy);x.textAlign='left';cy+=fz(34);});
+          e.filas.forEach(f=>{x.fillStyle=INK;x.font='700 '+fz(16)+'px Arial';x.fillText(f.marca,PAD+28,cy);
+            if(f.bolsa){const w=x.measureText(f.marca+' ').width;x.fillStyle=WARN;x.fillText('(vaso '+f.bolsa+')',PAD+28+w,cy);}
+            x.textAlign='right';x.fillStyle=DARK;x.fillText(f0(f.bolsas)+' vasos',W-PAD-22,cy);x.textAlign='left';cy+=fz(34);cy=notasFila(f,cy);});
           y+=h+18;
         });
         const hV=48+fz(62)+fz(56)+(V.programado>0?fz(34):0);
@@ -886,7 +909,7 @@
         <p class="hl-sub" style="margin:8px 0 0">El tiempo (h) y el vencimiento se anotan en «Nuevo registro» (opcionales: salen vacíos si no se anotan).${m.extra==='paletas'?' Paletas = bolsas ÷ bolsas por paleta (Configuración).':m.extra==='jabas'?' Jabas = vasos ÷ vasos por jaba (Configuración).':''}</p></div>
       <div class="hl-card"><h3 style="margin:0 0 8px">Merma</h3>${(m.mermas||[]).length?`<div style="overflow-x:auto"><table class="hl-ed"><thead><tr><th>Ítem</th><th>Marca</th><th>Unidad</th>${v!=='DIA'?'<th class="n">Noche</th>':''}${v!=='NOCHE'?'<th class="n">Día</th>':''}<th class="n">Total</th></tr></thead><tbody>${m.mermas.map(x=>`<tr><td>${esc(x.item)}</td><td>${esc(x.marca||'—')}</td><td>${esc(x.unidad)}</td>${v!=='DIA'?`<td class="n">${x.noche?fmt(x.noche,3):'—'}</td>`:''}${v!=='NOCHE'?`<td class="n">${x.dia?fmt(x.dia,3):'—'}</td>`:''}<td class="n"><b>${fmt(x.total,3)}</b></td></tr>`).join('')}</tbody></table></div>`:'<p class="hl-sub">Sin merma registrada.</p>'}</div>
       <div class="hl-card"><div id="hl-rd-graficos" class="hl-rd-graficos"></div></div>
-      <div class="hl-card"><h3 style="margin:0 0 8px">Observaciones</h3>${obs}</div>`;
+      <div class="hl-card"><h3 style="margin:0 0 8px">Observaciones</h3>${obs}${(m.detalleEnvasado||[]).length?`<p><b>Detalle de envasado:</b><br>${m.detalleEnvasado.map(esc).join('<br>')}</p>`:''}</div>`;
   }
   /* ---------- Resumen de planta (Cubos + Premium + Vasos) ---------- */
   const modeloPl=()=>RD().modeloPlanta({fecha:S.plFecha||hoy(),reportes:cache.reportes,dias:S.rDias||14});
@@ -1042,7 +1065,10 @@
     const e=document.getElementById('hl-tot');if(e)e.innerHTML=txtUnidades(t)+` · <b>${fmt(t.kg,1)} kg</b>`+(PR().unidadesPorJaba?' · '+fmt(t.bolsas/PR().unidadesPorJaba,2)+' jabas':'');
   }
   window.hlDato=(k,v)=>{if(!S.ed)return;S.ed[k]=v;cambio(false);};
-  window.hlCampo=(lista,i,k,v)=>{if(!S.ed||!S.ed[lista][i])return;S.ed[lista][i][k]=v;if(lista==='produccion'&&k==='presentacion'&&S.ed[lista][i].marca&&!marcasDe(config(),v).includes(S.ed[lista][i].marca))S.ed[lista][i].marca='';cambio(k==='presentacion'||k==='motivo');};
+  window.hlCampo=(lista,i,k,v)=>{if(!S.ed||!S.ed[lista][i])return;
+    if(lista==='produccion'&&k==='bolsa'&&texto(v).toLowerCase()===texto(S.ed[lista][i].marca).toLowerCase())v='';      // la bolsa de la propia marca no se anota
+    S.ed[lista][i][k]=v;
+    if(lista==='produccion'&&k==='marca'&&texto(S.ed[lista][i].bolsa).toLowerCase()===texto(v).toLowerCase())S.ed[lista][i].bolsa='';if(lista==='produccion'&&k==='presentacion'&&S.ed[lista][i].marca&&!marcasDe(config(),v).includes(S.ed[lista][i].marca))S.ed[lista][i].marca='';cambio(k==='presentacion'||k==='motivo'||(lista==='produccion'&&k==='marca'));};
   window.hlAgregar=lista=>{if(!S.ed)return;const c=config();
     S.ed[lista].push(lista==='produccion'?{marca:'',presentacion:c.presentaciones[0]||'',estacion:'',lote:'',bolsas:'',horas:'',vence:''}:lista==='paradas'?{inicio:'',equipo:'',motivo:'',minutos:'',nota:''}:{item:c.mermas[0]||'',marca:(()=>{const ms=[...new Set((S.ed.produccion||[]).map(p=>texto(p.marca)).filter(Boolean))];return ms.length===1?ms[0]:'';})(),cantidad:'',unidad:'UND'});cambio(true);};
   window.hlQuitar=(lista,i)=>{if(!S.ed)return;S.ed[lista].splice(i,1);cambio(true);};
@@ -1099,13 +1125,13 @@
       const ExcelJS=typeof cargarScriptExterno==='function'?await cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS'):window.ExcelJS;
       if(!ExcelJS)throw new Error('No se pudo cargar la librería de Excel.');
       const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Hielo',{views:[{state:'frozen',ySplit:3}]});
-      const COL=['Fecha','Turno','Supervisor','Marca','Presentación','Lote','Bolsas','Kg','Paradas del turno (min)','Estado'];
+      const COL=['Fecha','Turno','Supervisor','Marca','Presentación','Lote','Bolsas','Kg','Paradas del turno (min)','Estado','Bolsa usada','Nota'];
       ws.addRow(['GLACIAL · Historial de producción de hielo']).font={bold:true,size:14};
       ws.addRow([`${lista.length} reportes · generado ${new Date().toLocaleString('es-PE')}`]);
       const cab=ws.addRow(COL);cab.font={bold:true,color:{argb:'FFFFFFFF'}};cab.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0B2A4A'}};});
       const filas=filasExcel(lista);filas.forEach(f=>ws.addRow(f));
       ws.addRow(['Total','','','','','',filas.reduce((s,f)=>s+f[6],0),Math.round(filas.reduce((s,f)=>s+f[7],0)*100)/100]).font={bold:true};
-      [12,12,22,16,14,14,10,10,12,12].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+      [12,12,22,16,14,14,10,10,12,12,14,30].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
       ws.autoFilter={from:{row:3,column:1},to:{row:3,column:COL.length}};
       const buf=await wb.xlsx.writeBuffer();const a=document.createElement('a');
       a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.download='Historial-Hielo.xlsx';

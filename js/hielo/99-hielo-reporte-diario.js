@@ -68,19 +68,19 @@
     function turno(clave,nombre,lista,f){
       // mapa: por marca|presentación (todo el turno) · mapaE: por estación|marca|presentación (tabla separada por estación, 24/11/2026)
       const mapa=new Map(),mapaE=new Map();
-      const sumar1=(mp,k,p,b)=>{const x=mp.get(k)||{bolsas:0,lotes:[],horas:0,vence:[]};
+      const sumar1=(mp,k,p,b)=>{const x=mp.get(k)||{bolsas:0,lotes:[],horas:0,vence:[],notas:[]};if(texto(p.nota)&&!x.notas.includes(texto(p.nota)))x.notas.push(texto(p.nota));
         x.bolsas+=b;if(texto(p.lote)&&!x.lotes.includes(texto(p.lote)))x.lotes.push(texto(p.lote));
         if(num(p.horas)>0)x.horas+=num(p.horas);if(texto(p.vence)&&!x.vence.includes(texto(p.vence)))x.vence.push(texto(p.vence));
         mp.set(k,x);};
       lista.forEach(r=>(r.produccion||[]).forEach(p=>{
         const b=Math.max(0,Math.round(num(p.bolsas)));if(!b)return;
         const k=texto(p.marca)+'|'+texto(p.presentacion);
-        sumar1(mapa,k,p,b);sumar1(mapaE,texto(p.estacion)+'|'+k,p,b);
+        sumar1(mapa,k,p,b);sumar1(mapaE,texto(p.estacion)+'|'+k+'|'+texto(p.bolsa),p,b);      // por estación también por bolsa usada (24/11/2026)
       }));
-      const armar=(x,p)=>{if(!x)return {bolsas:0,horas:null,paletas:null,jabas:null,lote:'',vence:'',kg:0,pesoKg:0};
-        const pal=porPaleta(p);return {bolsas:x.bolsas,horas:x.horas>0?r2(x.horas):null,paletas:pal>0?r2(x.bolsas/pal):null,jabas:porJaba>0?r2(x.bolsas/porJaba):null,lote:x.lotes.join(' / '),vence:x.vence.join(' / '),kg:r2(x.bolsas*peso(p)),pesoKg:r2(x.bolsas*pesoReal(p))};};
+      const armar=(x,p)=>{if(!x)return {bolsas:0,horas:null,paletas:null,jabas:null,lote:'',vence:'',kg:0,pesoKg:0,notas:[]};
+        const pal=porPaleta(p);return {notas:x.notas,bolsas:x.bolsas,horas:x.horas>0?r2(x.horas):null,paletas:pal>0?r2(x.bolsas/pal):null,jabas:porJaba>0?r2(x.bolsas/porJaba):null,lote:x.lotes.join(' / '),vence:x.vence.join(' / '),kg:r2(x.bolsas*peso(p)),pesoKg:r2(x.bolsas*pesoReal(p))};};
       const celda=(m,p)=>armar(mapa.get(m+'|'+p),p);
-      const celdaE=(e,m,p)=>armar(mapaE.get(e+'|'+m+'|'+p),p);
+      const celdaE=(e,m,p,b)=>armar(mapaE.get(e+'|'+m+'|'+p+'|'+(b||'')),p);
       const clavesE=[...mapaE.keys()];
       const porPres=new Map();
       mapa.forEach((x,k)=>{const p=k.split('|')[1];const a=porPres.get(p)||{bolsas:0,kg:0,pesoKg:0};a.bolsas+=x.bolsas;a.kg=r2(a.kg+x.bolsas*peso(p));a.pesoKg=r2(a.pesoKg+x.bolsas*pesoReal(p));porPres.set(p,a);});
@@ -105,13 +105,20 @@
     const nombresE=[...new Set(clavesVista.map(k=>k.split('|')[0]))].sort((a,b)=>(a===''?1:0)-(b===''?1:0)||a.localeCompare(b,'es'));
     let nFila=0;
     const porEstacion=nombresE.map(e=>{
-      const hay=new Set(clavesVista.filter(k=>k.split('|')[0]===e).map(k=>k.split('|').slice(1).join('|')));
-      const filasE=pares.concat([...hay].map(k=>k.split('|')).filter(([m,p])=>!pares.some(x=>x[0]===m&&x[1]===p))).filter(([m,p])=>hay.has(m+'|'+p))
-        .map(([m,p])=>({n:++nFila,marca:m,presentacion:p,etiqueta:etiqueta(m,p),noche:noche.celdaE(e,m,p),dia:dia.celdaE(e,m,p)}));      // en «solo día» la noche no trae reportes (y al revés)
+      // claves marca|presentación|bolsa de esta estación; orden: catálogo, luego lo que no está; la bolsa de la marca antes que otra bolsa
+      const hay=[...new Set(clavesVista.filter(k=>k.split('|')[0]===e).map(k=>k.split('|').slice(1).join('|')))].map(k=>k.split('|'));
+      const pos=([m,p])=>{const i=pares.findIndex(x=>x[0]===m&&x[1]===p);return i<0?1e6:i;};
+      const filasE=hay.sort((a,b)=>pos(a)-pos(b)||(a[2]?1:0)-(b[2]?1:0)||String(a[2]).localeCompare(String(b[2]),'es'))
+        .map(([m,p,bo])=>{const cn=noche.celdaE(e,m,p,bo),cd=dia.celdaE(e,m,p,bo);      // en «solo día» la noche no trae reportes (y al revés)
+          return {n:++nFila,marca:m,presentacion:p,bolsa:bo||'',etiqueta:etiqueta(m,p)+(bo?' · '+(prodId==='VASOS'?'vaso ':'bolsa ')+bo:''),notas:[...new Set((cn.notas||[]).concat(cd.notas||[]))],noche:cn,dia:cd};});
       const sub=k=>{const l=filasE.map(x=>x[k]);
         return {bolsas:l.reduce((q,c)=>q+c.bolsas,0),paletas:r2(l.reduce((q,c)=>q+(c.paletas||0),0)),jabas:r2(l.reduce((q,c)=>q+(c.jabas||0),0)),kg:r2(l.reduce((q,c)=>q+c.kg,0)),pesoKg:r2(l.reduce((q,c)=>q+c.pesoKg,0)),horas:r2(l.reduce((q,c)=>q+(c.horas||0),0))||null};};
       return {estacion:e,nombre:e?e.toUpperCase():'SIN ESTACIÓN',filas:filasE,noche:sub('noche'),dia:sub('dia')};
     });
+    // Detalle de envasado (24/11/2026): filas en otra bolsa y notas de las filas, para las observaciones del Excel, la pantalla y la imagen.
+    const detalleEnvasado=porEstacion.flatMap(es=>es.filas.filter(f=>f.bolsa||f.notas.length).map(f=>{
+      const b=f.noche.bolsas+f.dia.bolsas,nom=f.marca+(prodId==='VASOS'?'':' '+f.presentacion);
+      return nom+(f.bolsa?' → '+formato(b)+' '+PROD.unidad+' en '+(prodId==='VASOS'?'vaso ':'bolsa ')+f.bolsa+(es.estacion?' ('+es.estacion+')':''):(es.estacion?' ('+es.estacion+')':''))+(f.notas.length?'. Nota: '+f.notas.join(' · '):'')+'.';}));
     // Merma del día: una fila por ítem + marca + unidad, con la cantidad de la noche, del día y el total (solo los turnos de la vista).
     const mermas=(()=>{const mp=new Map(),poner=(lista,k)=>lista.forEach(x=>{const c=x.item+'|'+x.marca+'|'+x.unidad;const a=mp.get(c)||{item:x.item,marca:x.marca,unidad:x.unidad,noche:0,dia:0,total:0};a[k]=x.cantidad;a.total=Math.round((a.noche+a.dia)*1000)/1000;mp.set(c,a);});
       if(vista!=='DIA')poner(noche.mermas,'noche');if(vista!=='NOCHE')poner(dia.mermas,'dia');
@@ -169,7 +176,7 @@
     mapa.nochePorEncima=paresMapa.filter(f=>{const i=fechasMapa.indexOf(f);return mapa.noche[i]>mapa.dia[i];}).length;mapa.diasConAmbos=paresMapa.length;
     return {fecha,fNoche,fechaLarga:fechaLarga(ref),semanaNum:semanaISO(ref),titulo:'REPORTE DIARIO DE PRODUCCIÓN',subtitulo:PROD.titulo+(vista==='NOCHE'?' · TURNO NOCHE':vista==='DIA'?' · TURNO DÍA':''),vista,
       periodo:{dias:dias2,desde,hasta:ref},control,marcas,presPeriodo,kgPeriodo,mapa,
-      mermas,porEstacion,
+      mermas,porEstacion,detalleEnvasado,
       producto:prodId,unidad:PROD.unidad,una:PROD.una,unidadMetrica:enUnidades?PROD.unidad:'kg',enUnidades,extra:prodId==='CUBOS'?'paletas':(porJaba>0?'jabas':null),porJaba,
       capacidad:cap,pesos:Object.fromEntries(presLista.map(p=>[p,pesoReal(p)])),noche,dia,filas,presentaciones,
       totalDiaKg:r2(noche.kg+dia.kg),totalSemanaKg:totalSemana,
@@ -273,6 +280,11 @@
     celda('A'+f,'OBSERVACIONES:',{bold:true,align:'left',borde:false});
     unir('B'+f+':'+Lc(ult)+f,[m.noche.observaciones&&('NOCHE: '+m.noche.observaciones.replace(/\n/g,' · ')),m.dia.observaciones&&('DÍA: '+m.dia.observaciones.replace(/\n/g,' · '))].filter(Boolean).join('\n')||'—',{align:'left',wrap:true,borde:false});
     ws.getRow(f).height=Math.max(30,15*Math.ceil(((m.noche.observaciones+m.dia.observaciones).length||1)/120));
+    if(m.detalleEnvasado&&m.detalleEnvasado.length){      // 24/11/2026: bolsa usada y notas de las filas de producción
+      f++;celda('A'+f,'DETALLE DE ENVASADO:',{bold:true,align:'left',borde:false});
+      unir('B'+f+':'+Lc(ult)+f,m.detalleEnvasado.join('\n'),{align:'left',wrap:true,borde:false});
+      ws.getRow(f).height=Math.max(18,16*m.detalleEnvasado.length);
+    }
     f+=3;
     ['Líder de línea','Encargados de máquinas de HIELO',m.noche.supervisor||m.dia.supervisor?('Supervisor(a) de Producción · '+[m.noche.supervisor,m.dia.supervisor].filter(Boolean).join(' / ')):'Supervisor(a) de Producción'].forEach((t,i)=>{
       const rango=['A'+f+':C'+f,'E'+f+':H'+f,Lc(nb===6?ult-3:ult-2)+f+':'+Lc(ult)+f][i];ws.mergeCells(rango);const c=ws.getCell(rango.split(':')[0]);c.value=t;c.font={name:'Arial',size:9,italic:true};c.alignment={horizontal:'center'};c.border={top:{style:'thin'}};});
@@ -327,6 +339,7 @@
     if(m.vista!=='NOCHE')l.push('Día '+m.dia.fechaTxt+': '+(m.dia.reportes?kg(m.dia.kg)+efi(m.dia):'sin reporte'));
     if(m.vista==='AMBOS')l.push('*Total del día: '+kg(m.totalDiaKg)+'*');
     l.push('Semana '+m.semanaNum+(m.vista==='AMBOS'?'':' (solo '+(m.vista==='NOCHE'?'noche':'día')+')')+': '+kg(m.totalSemanaKg));
+    if(m.detalleEnvasado&&m.detalleEnvasado.length)l.push('Envasado: '+m.detalleEnvasado.join(' '));
     if(m.mermas&&m.mermas.length)l.push('Merma: '+m.mermas.map(x=>x.item+(x.marca?' ('+x.marca+')':'')+' '+formato(x.total,x.unidad==='KG'?3:0)+' '+x.unidad).join(' · '));
     const obs=[m.noche.observaciones,m.dia.observaciones].filter(Boolean).join(' · ').replace(/\s+/g,' ').trim();
     if(obs)l.push('','Obs.: '+(obs.length>280?obs.slice(0,277)+'…':obs));
@@ -528,6 +541,7 @@
     const g=graficos(m),W=1240,pad=20,cw=(W-pad*3)/2,ch=cw*(230/600),h4=cw*(250/600);
     g.mapa=graficoMapa(m,1200);const hh=c=>cw*(c.height/c.width),hMapa=(W-pad*2)*(g.mapa.height/g.mapa.width);
     const obs=[m.noche.observaciones&&('NOCHE: '+m.noche.observaciones.replace(/\n/g,' · ')),m.dia.observaciones&&('DÍA: '+m.dia.observaciones.replace(/\n/g,' · ')),
+      m.detalleEnvasado&&m.detalleEnvasado.length&&('ENVASADO: '+m.detalleEnvasado.join(' · ')),
       m.mermas&&m.mermas.length&&('MERMA: '+m.mermas.map(x=>x.item+(x.marca?' ('+x.marca+')':'')+' '+formato(x.total,x.unidad==='KG'?3:0)+' '+x.unidad).join(' · '))].filter(Boolean).join('   ')||'Sin observaciones.';
     // Las observaciones se parten en líneas ANTES de dimensionar la imagen (así nunca se cortan).
     const medidor=lienzo(10,10).x;medidor.font='13px '+FUENTE;const lineas=[];let acum='';
@@ -541,7 +555,7 @@
     tm.dibujar(X,216);let y=216+tm.alto+pad;X.drawImage(g.capacidad,pad,y,cw,ch);X.drawImage(g.presentacion,pad*2+cw,y,cw,ch);y+=ch+pad;X.drawImage(g.semana,pad,y,cw,h4);X.drawImage(g.paradas,pad*2+cw,y,cw,ch);y+=Math.max(ch,h4)+pad;
     X.drawImage(g.control,pad,y,cw,hh(g.control));X.drawImage(g.marcas,pad*2+cw,y,cw,hh(g.marcas));y+=Math.max(hh(g.control),hh(g.marcas))+pad;
     X.drawImage(g.mapa,pad,y,W-pad*2,hMapa);y+=hMapa+pad;
-    txt(X,m.mermas&&m.mermas.length?'OBSERVACIONES Y MERMA':'OBSERVACIONES',pad,y+14,{size:12,peso:'700',color:COL.mut});lineas.forEach((l,i)=>txt(X,l,pad,y+34+i*19,{size:13}));
+    txt(X,'OBSERVACIONES'+(m.detalleEnvasado&&m.detalleEnvasado.length?', ENVASADO':'')+(m.mermas&&m.mermas.length?' Y MERMA':''),pad,y+14,{size:12,peso:'700',color:COL.mut});lineas.forEach((l,i)=>txt(X,l,pad,y+34+i*19,{size:13}));
     return L.c;
   }
   /* ------------------------------------------------------------------ Resumen de planta: gráficas e imagen */

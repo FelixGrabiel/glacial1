@@ -112,3 +112,20 @@ El **Avance y cierre** de *Hielo en cubos* (texto de WhatsApp e imagen) lleva lo
 - **Sin vasos**: no aparece el bloque.
 
 El avance de *Vasos* (producto aparte) no cambia. Pruebas: `tests/hielo-avance-vasos.test.js`.
+
+## Bolsa usada y nota por fila de producción (24/11/2026)
+
+Cada fila de producción del **Nuevo registro** tiene dos campos más:
+
+- **Bolsa usada** («Vaso usado» en Vasos): con qué bolsa se envasó. Viene igual que la marca. Solo se guarda (`bolsa`) cuando es otra, por ejemplo Tottus CD envasado en bolsa **Glacial**.
+- **Nota**: detalle corto y opcional de la fila (`nota`, hasta 120 caracteres).
+
+Dónde aparecen:
+
+- **Avance y cierre** (texto, imagen y bot de WhatsApp): la fila sale como «Tottus CD 3kg (bolsa Glacial): 400», con la nota debajo («↳ …»). En Observaciones se agrega «Tottus CD 3 kg: 400 bolsas envasadas en bolsa Glacial (Tolva manual)».
+- **Reporte diario** (pantalla, Excel e imagen): la fila dice «TOTTUS CD (3KG) · bolsa Glacial» dentro de su estación, y se agrega el apartado **«Detalle de envasado»** junto a las observaciones. También va en el texto de WhatsApp.
+- **Excel del Historial**: columnas «Bolsa usada» y «Nota» al final.
+
+Totales y kilos no cambian: cuentan para la marca del cliente. La tabla de producción del formulario pasa a tarjetas cuando no entra a lo ancho.
+
+Pruebas: `tests/hielo-bolsa-nota.test.js` y `tests/hielo-bolsa-nota.e2e.js`.
