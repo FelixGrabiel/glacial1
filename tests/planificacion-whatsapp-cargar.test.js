@@ -24,7 +24,8 @@ function entorno(prog,usuario){
   sb.glacialVelocidadEstandar=(l,p,m)=>({PET1:1920,PET2:4500,B7L:600,C20L:100,B20L:80})[l]||0;
   sb.puedeEntrarPlanificacion=()=>true;
   sb.loadRecords=()=>[];sb.normalizarCuadros=r=>r.cuadros||[];sb.PROD={};sb.glacialProducidoVigente=()=>null;
-  sb.loadUsers=()=>[{username:'ana',nombre:'Ana Planificación',whatsapp:'51987654321',rol:'Planificación'},{username:'luis',nombre:'Luis',whatsapp:'51911222333',rol:'Supervisor'}];
+  // Solo quien tiene «programacionWhatsapp» (lo marca el Administrador) puede enviar; tener Planificación no basta (Luis).
+  sb.loadUsers=()=>[{username:'ana',nombre:'Ana Planificación',whatsapp:'51987654321',rol:'Supervisor',programacionWhatsapp:true},{username:'luis',nombre:'Luis',whatsapp:'51911222333',rol:'Planificación'}];
   sb.planificacionPermitida=u=>u.rol==='Planificación';
   vm.runInContext(fs.readFileSync(R+'/js/produccion/66w-planificacion-whatsapp.js','utf8'),sb);
   sb.escuchar();
@@ -35,12 +36,12 @@ function entorno(prog,usuario){
   const previo={id:'x1',clave:'B7L|2026-11-24|NOCHE|GLACIAL|7 Litros',linea:'B7L',fecha:'2026-11-24',turno:'NOCHE',marca:'GLACIAL',presentacion:'7 Litros',cantidadProgramada:1000,unidadesPorPaleta:200,paletasProgramadas:5,version:1};
   const {N,sb,W}=entorno([previo]);
   ok(W&&sb.NS.whatsapp===W,'el módulo se conecta a Planificación');
-  ok(W.remitente('+51 987 654 321').ok&&W.remitente('+51 987 654 321').usuario==='Ana Planificación','remitente: el número de Ana es de un usuario con permiso de Planificación');
-  ok(!W.remitente('911222333').ok&&/no tiene permiso/.test(W.remitente('911222333').motivo)&&!W.remitente('900000000').ok&&/no está registrado/.test(W.remitente('900000000').motivo),'remitente: Luis (sin permiso) y un número desconocido no pueden cargar');
+  ok(W.remitente('+51 987 654 321').ok&&W.remitente('+51 987 654 321').usuario==='Ana Planificación','remitente: Ana está autorizada a enviar la programación (aunque su rol sea Supervisor)');
+  ok(!W.remitente('911222333').ok&&/no está autorizado/.test(W.remitente('911222333').motivo)&&!W.remitente('900000000').ok&&/no está registrado/.test(W.remitente('900000000').motivo),'remitente: Luis (con Planificación pero sin autorización) y un número desconocido no pueden cargar');
   const lect=W.leer(msg,{hoy:'2026-11-24'});
   ok(lect.errores.length===0,'el mensaje se lee con los catálogos de la página'+(lect.errores.length?': '+lect.errores.join(' | '):''));
   let rechazo='';try{await W.cargar(lect,{numero:'911222333'});}catch(e){rechazo=e.message;}
-  ok(/no tiene permiso/.test(rechazo)&&items(N).length===1,'si quien envía no tiene permiso, no se carga nada');
+  ok(/no está autorizado/.test(rechazo)&&items(N).length===1,'si quien envía no está autorizado, no se carga nada');
   const r=await W.cargar(lect,{numero:'+51987654321',enviadoEn:T('2026-11-24','18:42')});
   ok(r.ok&&r.resultados.length===10&&r.resultados.every(x=>x.ok),'se cargan 10 líneas-turno (5 el 24/11 Noche y 5 el 25/11 Día)'+(r.ok?'':': '+JSON.stringify(r.resultados.filter(x=>!x.ok))));
   const its=items(N);

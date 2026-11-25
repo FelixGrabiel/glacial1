@@ -36,12 +36,12 @@ const msg = fs.readFileSync(__dirname + '/datos/programacion-whatsapp-24-25-11.t
     try { renderUserList(); } catch (e) { }
     const hay = !!document.querySelector('[onclick^="editarWhatsappUsuario"]');
     editarWhatsappUsuario('ana');
-    document.querySelector('[data-wsp]').value = '987 654 321';
+    document.querySelector('[data-wsp]').value = '987 654 321'; document.querySelector('[data-wsp-prog]').checked = true;
     document.querySelector('[data-wsp-ok]').click();
     await new Promise(r => setTimeout(r, 100));
-    return { hay, num: guardado && guardado.find(x => x.username === 'ana').whatsapp };
+    const a = guardado && guardado.find(x => x.username === 'ana'); return { hay, num: a && a.whatsapp, prog: a && a.programacionWhatsapp };
   });
-  ok(u.num === '51987654321', 'Gestión de usuarios: el Administrador guarda el WhatsApp (987 654 321 → 51987654321)' + (u.hay ? ' y la fila tiene el botón «📱 WhatsApp»' : ''));
+  ok(u.num === '51987654321' && u.prog === true, 'Gestión de usuarios: el Administrador guarda el WhatsApp (987 654 321 → 51987654321) y «Puede enviar la programación»' + (u.hay ? ' y la fila tiene el botón «📱 WhatsApp»' : ''));
   const errores = D.errores.filter(e => !/Guardado de|Error guardando/.test(e));
   ok(errores.length === 0, 'sin errores en la página' + (errores.length ? ': ' + errores.slice(0, 3).join(' | ') : ''));
   await H.cerrar();

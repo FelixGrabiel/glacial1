@@ -17,10 +17,12 @@ También existe el botón **«📲 Importar de WhatsApp…»** en Planificación
 
 ## Quién puede enviar
 
-Solo se carga si el número de WhatsApp de quien envía pertenece a un usuario con permiso de **Planificación**. El Administrador registra ese número en **Gestión de usuarios › 📱 WhatsApp**:
+Solo las personas que el Administrador autoriza en **Gestión de usuarios › 📱 WhatsApp**, con dos datos:
 
-- se guarda como `whatsapp` en el usuario, solo dígitos; a un número de 9 dígitos se le antepone 51;
-- la comparación usa los últimos 9 dígitos.
+- **Número de WhatsApp:** se guarda en el usuario como `whatsapp`, solo dígitos; a 9 dígitos se le antepone 51. Se compara por los últimos 9 dígitos.
+- **Casilla «Puede enviar la programación por WhatsApp»** (`programacionWhatsapp: true`).
+
+El permiso de Planificación no basta: sin la casilla no se carga. Al 25/11/2026 están autorizados tres usuarios: la supervisora de producción, la jefa de producción y el administrador del sistema. Sus números se guardan solo en la base de datos de usuarios, no en este repositorio.
 
 ## Cómo se lee el mensaje
 
@@ -72,7 +74,7 @@ No está en este repositorio. Prompt para la sesión que trabaje en el bot:
 >    - guarda el texto, el número del remitente y la hora del mensaje;
 >    - en la página ejecuta `const lect = await page.evaluate(t => window.glacialProgramacionWhatsApp.leer(t), texto)`;
 >    - ejecuta también `const quien = await page.evaluate(n => window.glacialProgramacionWhatsApp.remitente(n), numero)`.
-> 2. **Remitente no autorizado.** Si `quien.ok` es falso, escribe por privado `quien.motivo` y no hagas nada más.
+> 2. **Remitente no autorizado.** Si `quien.ok` es falso, escribe por privado `quien.motivo` y no hagas nada más. Solo están autorizados los usuarios con el número registrado y la casilla «Puede enviar la programación».
 > 3. **Mensaje con errores.** Si `lect.errores.length` es mayor que 0, escribe por privado `resumen(lect)`, que explica qué corregir, y termina.
 > 4. **Pedir confirmación.** Si no hay errores, escribe por privado `resumen(lect)` y guarda la confirmación pendiente por remitente: texto, lectura, hora y vencimiento de 2 horas.
 > 5. **Respuesta en el privado.** Cuando esa persona responda en el privado:

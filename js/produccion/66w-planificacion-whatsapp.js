@@ -8,7 +8,7 @@
 
    · leer(texto, {hoy, marcas, presentaciones}) → {programaciones, errores, avisos}: PURO (se prueba con node).
    · resumen(lectura) → texto del mensaje privado que el bot manda a quien envió la programación.
-   · remitente(numero) → usuario del sistema con ese WhatsApp y si tiene permiso de planificación.
+   · remitente(numero) → usuario del sistema con ese WhatsApp y si está autorizado a enviar la programación (u.programacionWhatsapp).
    · cargar(lectura, {remitente, numero, enviadoEn}) → guarda cada línea y bloque. Lo llama el bot cuando la persona responde OK
      (también el botón «Importar de WhatsApp» de Planificación).
 
@@ -244,8 +244,8 @@
     const us=typeof loadUsers==='function'?(loadUsers()||[]):[];
     const u=us.find(x=>x&&x.whatsapp&&mismoNumero(x.whatsapp,numero));
     if(!u)return {ok:false,motivo:'Tu número no está registrado en el sistema (Gestión de usuarios › WhatsApp).'};
-    const puede=typeof planificacionPermitida==='function'?planificacionPermitida(u):false;
-    if(!puede)return {ok:false,usuario:u.nombre||u.username,motivo:'Tu usuario no tiene permiso de Planificación.'};
+    // 25/11/2026: SOLO las personas autorizadas expresamente por el Administrador (Gestión de usuarios › 📱 WhatsApp › «Puede enviar la programación»)
+    if(u.programacionWhatsapp!==true)return {ok:false,usuario:u.nombre||u.username,motivo:'Tu usuario no está autorizado para enviar la programación por WhatsApp.'};
     return {ok:true,usuario:u.nombre||u.username,username:u.username};
   }
 

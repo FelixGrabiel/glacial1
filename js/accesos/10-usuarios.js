@@ -676,7 +676,7 @@ function renderUserList(){
 
               ${
                 u.whatsapp
-                  ? ' · 📱 '+escaparHtml(u.whatsapp)
+                  ? ' · 📱 '+escaparHtml(u.whatsapp)+(u.programacionWhatsapp===true?' (envía programación)':'')
                   : ''
               }
 
