@@ -674,6 +674,12 @@ function renderUserList(){
 
               · ${ptxt}
 
+              ${
+                u.whatsapp
+                  ? ' · 📱 '+escaparHtml(u.whatsapp)
+                  : ''
+              }
+
             </div>
 
 
@@ -701,6 +707,27 @@ function renderUserList(){
                     onclick="editarPermisosUsuario('${escaparHtml(u.username)}')">
 
                     🔐 Editar permisos
+
+                  </button>
+
+                `
+                : ''
+            }
+
+
+            <!-- =============================================
+                 WHATSAPP (25/11/2026: el bot reconoce quién envía la programación)
+                 ============================================= -->
+
+            ${
+              typeof puedeEditarWhatsappUsuario==='function' && puedeEditarWhatsappUsuario()
+                ? `
+
+                  <button
+                    class="btn btn-ghost btn-sm"
+                    onclick="editarWhatsappUsuario('${escaparHtml(u.username)}')">
+
+                    📱 WhatsApp
 
                   </button>
 

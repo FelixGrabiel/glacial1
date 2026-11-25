@@ -176,7 +176,8 @@
             extra.modo='FIJA';extra.estimado=null;extra.alcance=null;
           }
           if(cantidad>0&&!(upp>0))throw new Error('Falta las unidades por paleta de '+f0.marca+' '+NS.etiquetaPresentacion(linea,f0.marca,f0.presentacion)+' en el catálogo.');
-          const campos=Object.assign({cantidadProgramada:cantidad,unidadesPorPaleta:upp,paletasProgramadas:upp?cantidad/upp:0,actualizadoPor:quienN,actualizadoEn:t0,tramosSecuencia:tramos},esCompletar?{}:extra);
+          const campos=Object.assign({cantidadProgramada:cantidad,unidadesPorPaleta:upp,paletasProgramadas:upp?cantidad/upp:0,actualizadoPor:quienN,actualizadoEn:t0,tramosSecuencia:tramos},esCompletar?{}:extra,
+            opc.camposExtra&&typeof opc.camposExtra==='object'?opc.camposExtra:{origen:null});      // 25/11/2026: origen (p. ej. programación por WhatsApp); una edición a mano lo limpia
           const turnoItem=existente?existente.turno:bloque;
           const r=programacionAplicarEnLista(actuales,{linea,fecha,turno:turnoItem,marca:f0.marca,presentacion:f0.presentacion,cantidadNum:cantidad,uppNum:upp,campos,motivo:opc.motivo,conservarCero},{versionEsperada:existente?esperada:null});
           actuales=r.items;tocadas.add(r.nuevo?r.nuevo.clave:'');
