@@ -1,0 +1,50 @@
+*Programación 24/11 Turno Noche
+
+ **Pet 2.5 L (De 09:00 PM a 07:00 AM)* 
+. Cuisine Co + sticker: 972
+. Cuisine Co: 9000
+. Scala: Hasta el fin de turno 
+
+ **Pet 2 1L (De 09:00 PM a 07:00 AM) con tapa plana celeste.
+. Cuisine: 8000
+. Bells: 6000
+. Scala: Resto del turno 
+
+*Bidones 7L*( De 07:00 PM a 07:00 AM)
+* Scala: Hasta las 2 AM
+* Cuisine Co: 2600
+* Aro: 600
+* Scala: Resto del turno.
+**Bidones 7L NO PARA* 
+
+*Cajas 20L*
+* Cuisine Co
+
+*Bidones 20L*
+* Glacial
+
+*Hielo
+Todas las máquinas formadoras operativas.
+
+
+*Programación 25/11 Turno Dia
+
+ *Pet 1 2.5L*(De 07:00 AM a 06:30 PM)*
+. Bells: 6000
+. Scala: Resto del turno
+
+ **PET2 1L:
+. Fontlife: 42000 tapa plana azul
+
+ **Bidones 7L*(De 07:00 AM a 07:00 PM)
+. Scala: Todo el turno.
+**Bidones 7L NO PARA* 
+
+*Cajas 20L*
+* Aro
+
+*Bidones 20L*
+* Glacial
+
+*Hielo
+Todas las máquinas formadoras operativas.
