@@ -56,7 +56,7 @@
   };
   const ico=(n,cls)=>`<svg class="ap-ico ${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||P.info}</svg>`;
 
-  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['lotes','Lotes','cajas'],['proveedores','Proveedores','doc'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['conversiones','Conversiones','lista'],['historial','Historial','reloj']];
+  const PESTANAS=[['resumen','Resumen','resumen'],['seguimiento','Seguimiento del turno','barras'],['insumos','Insumos','cajas'],['evidencias','Evidencias','doc'],['lotes','Lotes','cajas'],['proveedores','Proveedores','doc'],['consumo','Consumo','lista'],['merma','Merma','alerta'],['conversiones','Conversiones','lista'],['hielo','Hielo','cajas'],['historial','Historial','reloj']];      // Hielo: 99-asistente-hielo.js (25/11/2026)
   const SUBINSUMOS=[['existencias','Existencias en Producción'],['factores','Factores'],['requerimientos','Requerimientos'],['solicitudes','Solicitudes'],['prevision','Previsión'],['desviacion','Desviación de consumo']];
   const ESTADO_TXT={EN_PRODUCCION:['En curso','curso'],PAUSA:['En pausa','pausa'],DETENIDA:['Detenida','rojo'],LISTA:['Programada','prog'],PENDIENTE:['Programada','prog'],
     FINALIZADA:['Finalizada','verde'],CANCELADA:['Cancelada','gris']};
@@ -1068,7 +1068,7 @@
     // Banco de proveedores (96): abierto mientras se miran evidencias, lotes o proveedores (la creación de lotes usa sus nombres).
     if(window.glacialProveedores){if(TZ_TABS.includes(AP.tab)&&evVisible)window.glacialProveedores.escuchar();else window.glacialProveedores.detener();}
     const tabs=PESTANAS.filter(([k])=>!TZ_TABS.includes(k)||evVisible).map(([k,t,i])=>`<button type="button" role="tab" class="ap-tab ${AP.tab===k?'ap-tab-act':''}" aria-selected="${AP.tab===k}" onclick="AP_set('tab','${k}')">${ico(i)}<span>${t}</span></button>`).join('');
-    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,lotes:tabLotes,proveedores:tabProveedores,consumo:tabConsumo,merma:tabMerma,conversiones:tabConversiones,historial:tabHistorial}[AP.tab]||tabResumen;
+    const cuerpo={resumen:tabResumen,seguimiento:tabSeguimiento,insumos:tabInsumos,evidencias:tabEvidencias,lotes:tabLotes,proveedores:tabProveedores,consumo:tabConsumo,merma:tabMerma,conversiones:tabConversiones,historial:tabHistorial,hielo:()=>window.glacialAsistenteHielo?window.glacialAsistenteHielo.html():vacio('El módulo de Hielo no está disponible.')}[AP.tab]||tabResumen;
     const modoVista=!!(window.glacialVista&&window.glacialVista.activo&&window.glacialVista.activo());
     const noche=AP.bloque==='NOCHE';
     const scroll=window.scrollY;
@@ -1157,7 +1157,7 @@
   ['onPaletasUpdated','onProgramacionesUpdated'].forEach(n=>{const a=globalThis[n];if(typeof a!=='function')return;globalThis[n]=function(){const r=a.apply(this,arguments);if(state.currentTab==='asistente'&&!document.querySelector('.ap input:focus,.ap select:focus,.ap textarea:focus'))pintar();return r;};});
 
   /* Ayudantes para 83-asistente-reportes-pantalla.js (se carga después). */
-  window.glacialAsistenteUI={esc,fmt,ico,pill,pie,vacio,tabla,tarjeta,campo,modal,nombreLinea,puede,AP,pintar,ejecutar};
+  window.glacialAsistenteUI={esc,fmt,ico,pill,pie,vacio,tabla,tarjeta,campo,modal,nombreLinea,puede,AP,pintar,ejecutar,kpi};
 
   /* ---------- navegación (patrón de 43-bitacora-mantenimiento.js) ---------- */
   window.goAsistente=function(tab,sub){
