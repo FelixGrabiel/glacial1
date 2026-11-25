@@ -39,4 +39,7 @@ ok(v('*Bidones 7L*\n* Scala: hasta las 3 pm\n* Aro: resto').programaciones[0].li
 ok(W.leer('hola equipo',cat).errores.some(e=>/No encontré «Programación/.test(e)),'un mensaje sin «Programación dd/mm Turno …» no se toma como programación');
 ok(W.leer('*Programación 31/12 Turno Noche\n*Bidones 20L*\n* Glacial',{...cat,hoy:'2027-01-02'}).programaciones[0].fecha==='2026-12-31','año: el 31/12 leído el 2 de enero es del año anterior');
 ok(W.mismoNumero('+51 987 654 321','987654321')&&!W.mismoNumero('987654321','987654322'),'número de WhatsApp: se compara por los últimos 9 dígitos');
+// 25/11/2026: WhatsApp usa «・» como viñeta (mensaje real del grupo)
+{const w=W.leer('*Programación 24/11 Turno Noche\n*Bidones 7L*( De 07:00 PM a 07:00 AM)\n  ・Scala: Hasta las 2 AM\n  ・Cuisine Co: 2600\n  ・Aro: 600\n  ・Scala: Resto del turno.\n*Bidones 7L NO PARA*\n*Cajas 20L*\n  ・Cuisine Co',cat);
+ ok(!w.errores.length&&!w.avisos.length&&pasos(w.programaciones[0].lineas[0])==='SCALA|7 Litros|≤02:00 ; CUISINE|7 Litros|2600 ; ARO|7 Litros|600 ; SCALA|7 Litros|CIERRE'&&w.programaciones[0].lineas[1].filas[0].marca==='Cuisine','viñetas «・» de WhatsApp: se leen igual');}
 console.log(fallas?fallas+' falla(s)':'todo correcto');process.exit(fallas?1:0);

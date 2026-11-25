@@ -138,10 +138,25 @@
       const ext=im.range&&im.range.ext||{};let w=ext.width,hh=ext.height;
       if(!w&&im.range&&im.range.br){const br=im.range.br;let x2=42,y2=22;const bc=br.nativeCol!==undefined?br.nativeCol:Math.floor(br.col||0),brr=br.nativeRow!==undefined?br.nativeRow:Math.floor(br.row||0);
         for(let c=1;c<=bc;c++)x2+=anchos[c]||66;for(let r=1;r<=brr;r++)y2+=altos[r]||20;w=x2-x;hh=y2-y;}
-      return `<img class="vxl-img" alt="Imagen de la hoja" src="${src}" style="left:${x}px;top:${y}px;width:${Math.round(w||480)}px;height:${Math.round(hh||300)}px">`;
+      return `<img class="vxl-img" alt="Imagen de la hoja" src="${src}" data-vxl-r="${r0}" data-vxl-c="${c0}" style="left:${x}px;top:${y}px;width:${Math.round(w||480)}px;height:${Math.round(hh||300)}px">`;
     }).join('');
     const aviso=(ws.rowCount||0)>MAX_FILAS?`<div class="vxl-aviso">La vista muestra las primeras ${MAX_FILAS} filas; el Excel tiene ${ws.rowCount}.</div>`:'';
     return `<div class="vxl-hoja">${h}${imgs}</div>${aviso}`;
+  }
+
+  /* 25/11/2026: las filas de la vista pueden quedar más altas que en Excel (el texto ajustado las agranda), así que cada imagen se
+     ubica en la posición REAL de su fila y columna ya dibujadas (antes se sumaban los altos teóricos y la imagen tapaba la tabla). */
+  function ubicarImagenes(hoja,intento){
+    const tabla=hoja.querySelector('table');if(!tabla)return;
+    // aún no está en pantalla (la ventana se arma antes de agregarse): se espera al siguiente cuadro; mientras, queda la posición estimada
+    if(!hoja.isConnected||!tabla.offsetHeight){if((intento||0)<20)requestAnimationFrame(()=>ubicarImagenes(hoja,(intento||0)+1));return;}
+    const filas=tabla.querySelectorAll('tbody > tr'),cols=tabla.querySelectorAll('thead th');
+    hoja.querySelectorAll('img.vxl-img[data-vxl-r]').forEach(img=>{
+      const r=Number(img.getAttribute('data-vxl-r')),c=Number(img.getAttribute('data-vxl-c'));
+      const tr=filas[r],th=cols[c+1];
+      if(tr)img.style.top=(tabla.offsetTop+tr.offsetTop)+'px';
+      if(th)img.style.left=(tabla.offsetLeft+th.offsetLeft)+'px';
+    });
   }
 
   /* ---------- ventana ---------- */
@@ -192,6 +207,7 @@
         <div class="vxl-area">${ws?html(ws,wb):'<p style="padding:16px">El libro no tiene hojas.</p>'}</div>
         <div class="vxl-pest" role="tablist">${hojas.map((h,i)=>{const tc=color(h.properties&&h.properties.tabColor);return `<button type="button" role="tab" aria-selected="${i===E.i}" class="${i===E.i?'act':''}" data-vxl-h="${i}" style="${tc?'border-bottom-color:'+tc:''}">${esc(h.name)}</button>`;}).join('')}</div>`;
       const hoja=div.querySelector('.vxl-hoja');if(hoja&&E.zoom!==1)hoja.style.zoom=String(E.zoom);   // zoom (no transform): el área de desplazamiento se ajusta
+      if(hoja)ubicarImagenes(hoja);
     };
     div.addEventListener('click',async e=>{
       const t=e.target.closest('button');if(!t)return;

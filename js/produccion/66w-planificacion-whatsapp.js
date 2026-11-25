@@ -48,8 +48,11 @@
     if(/\bb\s*20\s*l\b|bidon(?:es)?\s*(?:de\s*)?20\s*(?:l|lt|lts|litros)\b/.test(n))return 'B20L';
     return null;
   }
-  const esItem=t=>/^\s*(?:[.\-•·–]|\*\s+|\d+[.)]\s+)\s*\S/.test(t)&&!/^\s*\*\*/.test(t);
-  const limpiarItem=t=>String(t).replace(/^\s*(?:[.\-•·–]|\*|\d+[.)])\s*/,'').replace(/[*_~]/g,'').trim();
+  // Viñetas: «.», «-», «•», «·», «・» (la de WhatsApp), «–», «—», «▪», «◦», «➤», «*» con espacio, «1.» / «1)»
+  const VIN='.\\-•·・–—▪◦➤►';
+  const RE_ITEM=new RegExp('^\\s*(?:['+VIN+']|\\*\\s+|\\d+[.)]\\s+)\\s*\\S'),RE_VIN=new RegExp('^\\s*(?:['+VIN+']|\\*|\\d+[.)])\\s*');
+  const esItem=t=>RE_ITEM.test(t)&&!/^\s*\*\*/.test(t);
+  const limpiarItem=t=>String(t).replace(RE_VIN,'').replace(/[*_~]/g,'').trim();
 
   /* ---------- horario «De 09:00 PM a 07:00 AM» ---------- */
   function hora24(h,m,ap){
