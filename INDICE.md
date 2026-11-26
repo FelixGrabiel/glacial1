@@ -96,6 +96,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 | 09-resumen.js | Resumen de producción |
 | 14-exportar-general.js | Exportación general de planta |
 | 16-paletas.js | Paletas en tiempo real. Rendimiento de Producción actual (sin cambiar resultados): `normalizarClavePaletas` con caché (`._memo`, se vacía a las 20.000 entradas), índice de Paletas por combinación (`paletasDeCombinacionPaletas`, mismo resultado y orden que el filtro completo) usado por `resumenProgramacionCombinacionTurnos` (base y envoltorio de saldo) y `glacialProduccionPaletasAlCorte`, e índice de programaciones en `obtenerProgramacionPaleta` (`._idx`); se rearman al cambiar la lista (arreglo nuevo, tamaño o elemento distinto). Prueba: tests/produccion-actual-rendimiento.test.js |
+| 16d-paletas-cola.js · 16e-paletas-rapido.js | Paletas al minuto (26/11/2026): cola sin conexión con `clientEventId`/`capturadoEn` (16d, `window.glacialPaletasCola`) y pantalla «+1 Paleta (Ahora)», autoselección por Secuencia del turno, Hora al minuto y estado de sincronización (16e). Envuelven `renderPaletasTab`, `guardarPaleta`… (se cargan después de 16c). SQL: `supabase/migraciones/glacial_68_paletas_integridad.sql`. Ver `docs/produccion/paletas-rapido.md` |
 | 21-programacion-turno.js | Programación del turno |
 | 23b-tiempos-linea.js | Cálculo central de tiempos y ratios por línea |
 | 24-semaforo-produccion-actual.js | Producción actual y semáforo de líneas |

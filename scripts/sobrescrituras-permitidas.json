@@ -11,10 +11,19 @@
    "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
   },
   {
+   "nombre": "_guardandoPaleta",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Variable global de Paletas que 16e-paletas-rapido reasigna al guardar (nuevo borrador tras guardar, candado de guardado, caché tras subir la cola): estado compartido, sin redeclararlo."
+  },
+  {
    "nombre": "_paletasCache",
    "archivos": [
     "js/nucleo/02-estado.js",
-    "js/produccion/16-paletas.js"
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
    ],
    "motivo": "Variable global compartida: se declara en el primer archivo y los posteriores la reasignan directamente (estado de pantalla o caché), sin redeclararla."
   },
@@ -23,7 +32,8 @@
    "archivos": [
     "js/nucleo/02-estado.js",
     "js/produccion/16-paletas.js",
-    "js/produccion/24-semaforo-produccion-actual.js"
+    "js/produccion/24-semaforo-produccion-actual.js",
+    "js/produccion/16e-paletas-rapido.js"
    ],
    "motivo": "Variable global compartida: se declara en el primer archivo y los posteriores la reasignan directamente (estado de pantalla o caché), sin redeclararla."
   },
@@ -61,6 +71,22 @@
    "motivo": "DUPLICADO REAL: la misma función está declarada en 02-estado y en 10-usuarios; gana la de 10-usuarios (carga después). Pendiente unificar en una sola."
   },
   {
+   "nombre": "actualizarPaletaCampoYRerenderizar",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "16e-paletas-rapido envuelve el cambio de campos del formulario solo para anotar que el operario eligió marca/presentación a mano (la secuencia deja de cambiarlas en esa fecha/turno/línea)."
+  },
+  {
+   "nombre": "actualizarVistaPaletas",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "16e-paletas-rapido envuelve el refresco en vivo de Paletas para repintar también la barra (acumulado, último registro, estado de sincronización)."
+  },
+  {
    "nombre": "admIr",
    "archivos": [
     "js/admin/112-admin-pantalla.js",
@@ -69,6 +95,14 @@
     "js/admin/116-admin-etapa4.js"
    ],
    "motivo": "Cada etapa del Panel de administración (114, 115, 116) reasigna admIr para añadir sus pestañas y delega en la anterior."
+  },
+  {
+   "nombre": "agregarTramoSecuenciaDesdeFormulario",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "16e-paletas-rapido envuelve el alta de tramos: tras agregar uno, si el tramo anterior no tenía hora de corte ofrece cortarlo a la hora actual (corteAutomatico)."
   },
   {
    "nombre": "ajustarVistaSegunPermisos",
@@ -164,6 +198,14 @@
     "js/accesos/23b-modo-visualizacion.js"
    ],
    "motivo": "Variable global compartida: se declara en el primer archivo y los posteriores la reasignan directamente (estado de pantalla o caché), sin redeclararla."
+  },
+  {
+   "nombre": "draftPaleta",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Variable global de Paletas que 16e-paletas-rapido reasigna al guardar (nuevo borrador tras guardar, candado de guardado, caché tras subir la cola): estado compartido, sin redeclararlo."
   },
   {
    "nombre": "editarPermisosUsuario",
@@ -264,6 +306,14 @@
     "js/mantenimiento/67c-intervenciones-pantalla.js"
    ],
    "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "guardarPaleta",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "16e-paletas-rapido envuelve guardarPaleta: un registro NUEVO se guarda por la cola sin conexión (clientEventId + capturadoEn, reenvío sin duplicar); editar un registro existente delega en la versión anterior, directa y en línea."
   },
   {
    "nombre": "guardarPermisosUsuario",
@@ -419,6 +469,14 @@
    "motivo": "Cadena de ganchos de actualización en vivo (02-estado los llama al llegar datos): cada módulo conserva el anterior, ejecuta el suyo después y refresca su pantalla."
   },
   {
+   "nombre": "paletaEditId",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Variable global de Paletas que 16e-paletas-rapido reasigna al guardar (nuevo borrador tras guardar, candado de guardado, caché tras subir la cola): estado compartido, sin redeclararlo."
+  },
+  {
    "nombre": "permisoNavegacion",
    "archivos": [
     "js/nucleo/04-sidebar.js",
@@ -564,7 +622,8 @@
    "archivos": [
     "js/produccion/16-paletas.js",
     "js/produccion/21-programacion-turno.js",
-    "js/produccion/16c-saldo-entrega.js"
+    "js/produccion/16c-saldo-entrega.js",
+    "js/produccion/16e-paletas-rapido.js"
    ],
    "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
   },
@@ -574,6 +633,14 @@
     "js/produccion/16-paletas.js",
     "js/produccion/24-semaforo-produccion-actual.js",
     "js/nucleo/44-estado-datos.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderRRHHModulo",
+   "archivos": [
+    "js/rrhh/19-rrhh.js",
+    "js/rrhh/26-rrhh-panel.js"
    ],
    "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
   },
@@ -591,14 +658,6 @@
    "archivos": [
     "js/personal/31-rotacion-supervisores.js",
     "js/accesos/17c-ampliaciones-turno.js"
-   ],
-   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
-  },
-  {
-   "nombre": "renderRRHHModulo",
-   "archivos": [
-    "js/rrhh/19-rrhh.js",
-    "js/rrhh/26-rrhh-panel.js"
    ],
    "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
   },
@@ -737,6 +796,14 @@
    "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
   },
   {
+   "nombre": "saveRotacionMaquinistas",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
    "nombre": "saveRotaciones",
    "archivos": [
     "js/nucleo/02-estado.js",
@@ -747,14 +814,6 @@
   },
   {
    "nombre": "saveRotacionesMantenimiento",
-   "archivos": [
-    "js/nucleo/02-estado.js",
-    "js/accesos/23b-modo-visualizacion.js"
-   ],
-   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
-  },
-  {
-   "nombre": "saveRotacionMaquinistas",
    "archivos": [
     "js/nucleo/02-estado.js",
     "js/accesos/23b-modo-visualizacion.js"
