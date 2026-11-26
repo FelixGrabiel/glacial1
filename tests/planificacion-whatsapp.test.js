@@ -42,4 +42,14 @@ ok(W.mismoNumero('+51 987 654 321','987654321')&&!W.mismoNumero('987654321','987
 // 25/11/2026: WhatsApp usa «・» como viñeta (mensaje real del grupo)
 {const w=W.leer('*Programación 24/11 Turno Noche\n*Bidones 7L*( De 07:00 PM a 07:00 AM)\n  ・Scala: Hasta las 2 AM\n  ・Cuisine Co: 2600\n  ・Aro: 600\n  ・Scala: Resto del turno.\n*Bidones 7L NO PARA*\n*Cajas 20L*\n  ・Cuisine Co',cat);
  ok(!w.errores.length&&!w.avisos.length&&pasos(w.programaciones[0].lineas[0])==='SCALA|7 Litros|≤02:00 ; CUISINE|7 Litros|2600 ; ARO|7 Litros|600 ; SCALA|7 Litros|CIERRE'&&w.programaciones[0].lineas[1].filas[0].marca==='Cuisine','viñetas «・» de WhatsApp: se leen igual');}
+// 25/11/2026: PET2 625 ml (x6 o x15 se indica), «Scala con gas» = Scala_Gas y «Cambio a CON GAS»
+{const base='*Programación 26/11 Turno Dia\n*PET2 625 mL x15 S/G (tapa plana azul):\n';
+ const a=W.leer(base+'. Scala: 55000\n. Scala con gas: 60000',cat);
+ ok(!a.errores.length&&pasos(a.programaciones[0].lineas[0])==='Scala|Pack_Regular_625mlx15und/ln|55000 ; Scala_Gas|Pack_Regular_625mlx15und/ln|60000','PET2 625 x15: «Scala con gas» → Scala_Gas (la tapa plana de 625 es solo nota)'+(a.errores.length?': '+a.errores.join(' | '):''));
+ const b=W.leer(base+'. Scala: 55000\n. Cambio a CON GAS\n. Scala: 60000',cat);
+ ok(!b.errores.length&&pasos(b.programaciones[0].lineas[0])==='Scala|Pack_Regular_625mlx15und/ln|55000 ; Scala_Gas|Pack_Regular_625mlx15und/ln|60000','«Cambio a CON GAS»: las marcas siguientes pasan a su variante con gas');
+ const c2=W.leer('*Programación 26/11 Turno Dia\n*PET2 625 mL x6 S/G:\n. Bells gas: 100\n. Bells piña kion: 200\n. Scala manzana: 300',cat);
+ ok(!c2.errores.length&&pasos(c2.programaciones[0].lineas[0])==='Bells_Gas|Pack_Regular_625mlx6und/ln|100 ; Bells_Piña_Kion|Pack_Regular_625mlx6und/ln|200 ; scala_Manzana|Pack_Regular_625mlx6und/ln|300','PET2 625 x6: «Bells gas», «Bells piña kion», «Scala manzana» → sus variantes');
+ ok(W.leer(base+'. Scala: 55000',cat).errores.length===0&&W.leer('*Programación 26/11 Turno Dia\n*PET2 625 mL S/G:\n. Scala: 55000',cat).errores.some(e=>/625ml: indica cuál/.test(e)),'PET2 625 sin x6/x15: sigue pidiendo indicar cuál');
+ ok(W.leer('*Programación 26/11 Turno Dia\n*Bidones 7L*\n* Scala con gas: 300',cat).errores.some(e=>/no conozco la marca «Scala con gas»/.test(e)),'una marca sin variante con gas en esa línea: error claro (no cambia de marca en silencio)');}
 console.log(fallas?fallas+' falla(s)':'todo correcto');process.exit(fallas?1:0);
