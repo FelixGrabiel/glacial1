@@ -178,7 +178,9 @@
   function html(){
     const c = ctxActual(); if(!c) return '';
     const e = S.porTurno.get(clave(c));
-    if(!e || !e.listo){ cargar(c).then(pintar); }
+    // Solo la PRIMERA vez se pide al servidor. Mientras la respuesta tarda, cargar() devuelve enseguida y volver a pintar aquí
+    // formaba un ciclo sin fin que congelaba la pestaña Paletas (27/11/2026). cargar() registra el turno antes de esperar la red.
+    if(!e){ cargar(c).then(pintar); }
     const L = lista(c), cola = colaEstado(), ok = puede(), enviado = !!(e && e.cierre);
     const cab = cabecera({ tramos: L, pendientes: cola.pendientes, rechazados: cola.rechazados, enviado, enLinea: navigator.onLine });
     const k = clave(c), ultimo = L[L.length - 1];
