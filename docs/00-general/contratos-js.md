@@ -27,7 +27,7 @@ node scripts/validar-carga.js --sin-git         # sin la revisión de ?v= (exist
 
 ## Resumen
 
-- **197** scripts locales en `index.html` (más los de CDN) · **2186** nombres globales · **108** sobrescrituras permitidas entre archivos.
+- **198** scripts locales en `index.html` (más los de CDN) · **2188** nombres globales · **109** sobrescrituras permitidas entre archivos.
 - Los números de orden de abajo son la **posición real de carga** (no el prefijo numérico del nombre: `15-` puede cargar antes que `14-`).
 - Escrituras con nombre calculado que no se pueden resolver solas (revisar a mano si se tocan): `nucleo/00c-espacios-nombres.js`, `accesos/23b-modo-visualizacion.js`, `personal/40-tareo-auditoria.js`.
 
@@ -276,6 +276,14 @@ Cada etapa del Panel de administración (114, 115, 116) reasigna admIr para aña
 |---|---|
 | `guardarPaleta` | `16-paletas` → `16e-paletas-rapido` |
 
+### 20. Enganche: 16f-cierre-marcas añade el panel «Cierre de turno» (cierre progresivo de marc… (1)
+
+Enganche: 16f-cierre-marcas añade el panel «Cierre de turno» (cierre progresivo de marcas) debajo de la Secuencia del turno y llama a la versión anterior.
+
+| Nombre | Cadena de carga (primero define, el resto sobrescribe) |
+|---|---|
+| `htmlSecuenciaTurnoPaletas` | `16-paletas` → `16f-cierre-marcas` |
+
 ## Hallazgos de la revisión (26/11/2026)
 
 1. **Declaración duplicada real**: `actualizarEstadoTodosLosPermisos` y `cambiarTodosLosPermisos` están declaradas con `function` en `02-estado.js` y otra vez en `10-usuarios.js`. Gana `10-usuarios.js` (carga después); la de `02-estado.js` nunca se ejecuta. Pendiente unificar.
@@ -327,9 +335,9 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 | 15 | `05-utils` <sub>20261015-fc1</sub> | UTILIDADES (fechas, turnos, lotes, códigos, cajas) | `num`ƒ `pct`ƒ `obtenerDiaDelA`ƒ `normalizarTexto`ƒ `obtenerCodigoTurno`ƒ `calcularHorasTurno`ƒ `obtenerSemana`ƒ … +46 | `02-estado`(1), `71-asistente-datos`(1) ⚠ | — |
 | 70 | `34-integraciones` <sub>20261011-av1</sub> | GLACIAL · INTEGRACIONES: GOOGLE SHEETS Y WHATSAPP — Sin servidor y sin tocar Firebase. | `sheetsPendiente`w `sheetsCantidadPendientes`w `enviarASheets`w `sheetsEnviarTareo`w `sheetsReenviarTareo`w `sheetsEnviarCierre`w `sheetsReenviarCierre`w … +4 | `01-config`(2), `13-tareo`(17), `29a-avances-items`(1), `29-avance-produccion`(1), `37f-tareo-por-tecnico`(1) ⚠, `41-tareo-bloqueo`(2) ⚠ | `guardarTareoActual` |
 | 88 | `44-estado-datos` <sub>20261004-b1</sub> | «ACTUALIZADO A LAS HH:MM» · estado de los datos en vivo | `glacialEstadoDatos`w `tareoRenderTabs`w `renderProduccionActualTab`w `renderCentroPerfil`w | `01-config`(1), `02-estado`(1), `16-paletas`(1), `13-tareo`(1), `20-tareo-control`(1), `30-rotacion-mantenimiento`(1), `33-rotacion-maquinistas`(1), `32-dashboard-perfiles`(1) … +10 | `renderCentroPerfil` `renderProduccionActualTab` `tareoRenderTabs` |
-| 194 | `12b-barras-desplazamiento` <sub>20261121-bs3</sub> | GLACIAL · BARRAS DE DESPLAZAMIENTO HORIZONTAL VISIBLES EN TODA LA APP |  · 1 _priv | — | — |
-| 195 | `12c-tablas-movil` <sub>20261121-tm2</sub> | GLACIAL · TABLAS ANCHAS EN TELÉFONO Y TABLET — En pantallas angostas la página recorta lo que se sale por la derecha (html/body con overflow-x:hidd… | `glacialTablasMovil`w | — | — |
-| 196 | `12-init` <sub>20261003-seguridad</sub> | CERRAR MODAL E INICIALIZACIÓN DE LA APP | `closeModal`ƒ | `01-config`(1), `02-estado`(1), `03-auth`(1) | — |
+| 195 | `12b-barras-desplazamiento` <sub>20261121-bs3</sub> | GLACIAL · BARRAS DE DESPLAZAMIENTO HORIZONTAL VISIBLES EN TODA LA APP |  · 1 _priv | — | — |
+| 196 | `12c-tablas-movil` <sub>20261121-tm2</sub> | GLACIAL · TABLAS ANCHAS EN TELÉFONO Y TABLET — En pantallas angostas la página recorta lo que se sale por la derecha (html/body con overflow-x:hidd… | `glacialTablasMovil`w | — | — |
+| 197 | `12-init` <sub>20261003-seguridad</sub> | CERRAR MODAL E INICIALIZACIÓN DE LA APP | `closeModal`ƒ | `01-config`(1), `02-estado`(1), `03-auth`(1) | — |
 
 ### Accesos · `js/accesos/`
 
@@ -349,7 +357,7 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 | 65 | `32b-inicio-resultado` <sub>20261114-in1</sub> | INICIO EJECUTIVO · «RESULTADO DE LA PLANTA» | `glacialInicioResultado`w | `49-resumen-indicadores`(1) ⚠, `79-paradas-mantenimiento`(1) ⚠, `68-mantenimiento-inicio`(1) ⚠ | — |
 | 71 | `36-seguridad-auth` <sub>20261023-lg2</sub> | GLACIAL · SEGURIDAD: FIREBASE AUTHENTICATION (ETAPA 1) — Qué hace: | `esAdministradorSeguridad`w `crearCuentaSegura`w `crearCuentaSeguraLibre`w `autenticarConFirebase`w `iniciarSincronizacionSegura`w `glacialTurnoCarga`w `glacialLiberarTurnoCarga`w … +14 · 1 _priv | `00b-puente-supabase`(2), `01-config`(6), `02-estado`(6), `10-usuarios`(1), `23b-modo-visualizacion`(1), `55-valores-economicos`(1) ⚠ | `saveUsers` |
 | 98 | `10c-impacto-economico-permisos` <sub>20261102-pal2</sub> | GLACIAL · PERMISOS DE IMPACTO ECONÓMICO POR USUARIO — El rol dice quién PUEDE tener acceso; el permiso explícito dice quién LO TIENE: | `editarPermisosUsuario`w `glacialEcoUsuarios`w | `02-estado`(4), `10-usuarios`(2), `10b-modo-visualizacion-form`(1), `36-seguridad-auth`(1), `55-valores-economicos`(1) | `editarPermisosUsuario` |
-| 193 | `39-vista-como` <sub>20261003-vista-1</sub> | GLACIAL · VISTA COMO (solo Administrador) — Permite al Administrador ver la aplicación tal como la ve otro | `fetch`w `salirVistaComo`w `abrirVistaComo`w `renderSidebar`w `handleLogout`w · 1 _priv | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(3), `03-auth`(3), `04-sidebar`(1), `13-tareo`(1), `23b-modo-visualizacion`(1), `37-mantenimiento-tecnicos`(1) … +4 | `handleLogout` `renderSidebar` |
+| 194 | `39-vista-como` <sub>20261003-vista-1</sub> | GLACIAL · VISTA COMO (solo Administrador) — Permite al Administrador ver la aplicación tal como la ve otro | `fetch`w `salirVistaComo`w `abrirVistaComo`w `renderSidebar`w `handleLogout`w · 1 _priv | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(3), `03-auth`(3), `04-sidebar`(1), `13-tareo`(1), `23b-modo-visualizacion`(1), `37-mantenimiento-tecnicos`(1) … +4 | `handleLogout` `renderSidebar` |
 
 ### Producción · `js/produccion/`
 
@@ -417,6 +425,7 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 | 175 | `16c-saldo-entrega` <sub>20261117-sl1</sub> | GLACIAL · PRODUCCIÓN › PALETAS › «SALDOS POR ENTREGAR A ALMACÉN» | `slEntregar`w `slAnularAbrir`w `slCerrar`w `slCantidad`w `slMotivo`w `slConfirmar`w `slAnular`w … +1 | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(4), `16-paletas`(3), `23b-modo-visualizacion`(3), `71-asistente-datos`(1), `75-inventario-insumos-datos`(1), `98-calidad-permisos`(1) … +1 | `renderPaletasTab` |
 | 176 | `16d-paletas-cola` <sub>20261126-pc1</sub> | GLACIAL · PRODUCCIÓN › PALETAS › COLA SIN CONEXIÓN CON IDEMPOTENCIA | `glacialPaletasCola`w | — | — |
 | 177 | `16e-paletas-rapido` <sub>20261126-pc1</sub> | GLACIAL · PRODUCCIÓN › PALETAS › CAPTURA AL MINUTO | `paletaMasUnoAhora`w `paletaColaReintentar`w `paletaColaDescartar`w `glacialPaletasRapido`w | `01-config`(1), `01b-fecha-operativa`(1), `02-estado`(7), `04-sidebar`(1), `06-registro`(1), `16-paletas`(20), `23b-modo-visualizacion`(1), `71-asistente-datos`(1) … +3 | `_guardandoPaleta` `_paletasCache` `_programacionesCache` `actualizarPaletaCampoYRerenderizar` `actualizarVistaPaletas` `agregarTramoSecuenciaDesdeFormulario` … +4 |
+| 178 | `16f-cierre-marcas` <sub>20261127-ct1</sub> | GLACIAL · PRODUCCIÓN › PALETAS › CIERRE PROGRESIVO DE MARCAS Y CIERRE DE TURNO | — | `02-estado`(4), `16-paletas`(8), `23b-modo-visualizacion`(2), `71-asistente-datos`(1), `75-inventario-insumos-datos`(1), `98-calidad-permisos`(1) | `htmlSecuenciaTurnoPaletas` |
 
 ### Personal / Tareo · `js/personal/`
 
@@ -516,17 +525,17 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 | 165 | `96-proveedores` <sub>20261121-ev2</sub> | GLACIAL · BANCO DE PROVEEDORES (Asistente de Producción › Proveedores) | `glacialProveedoresNucleo`w `glacialProveedores`w `pvVista`w `pvSel`w `pvBuscar`w `pvCrearGrupo`w `pvAgregarGrupo`w … +4 | `01-config`(1), `04b-busqueda`(1), `02-estado`(1), `06-registro`(1), `23b-modo-visualizacion`(1), `41-tareo-bloqueo`(1), `75-inventario-insumos-datos`(1), `85-evidencias-insumos-datos`(1) … +2 | — |
 | 166 | `98-validar-rapido` <sub>20261121-vr2</sub> | GLACIAL · EVIDENCIAS › VALIDAR RÁPIDO (auditoría de trazabilidad 13/11/2026, punto 3) | `glacialValidarRapido`w `ieVrBoton`w `ieVrAbrir`w `ieVrCerrar`w `ieVrFiltro`w `ieVrRotar`w `ieVrSugerido`w … +3 · 1 _priv | `02-estado`(1), `06b-fotos-supabase`(1), `84-evidencias-insumos-nucleo`(1), `85-evidencias-insumos-datos`(1), `86-evidencias-insumos-pantalla`(2), `87-trazabilidad-lotes-nucleo`(1), `88-trazabilidad-lotes-datos`(1), `89-trazabilidad-lotes-pantalla`(1) … +1 | — |
 | 167 | `99-asistente-hielo` <sub>20261125-ah1</sub> | ASISTENTE DE PRODUCCIÓN · PESTAÑA HIELO | `apHieloVista`w `apHieloExcel`w `apHieloIr`w `glacialAsistenteHielo`w | `01-config`(1), `46-vista-excel`(1), `02-estado`(1), `03-auth`(1), `08-graficos`(2), `72-asistente-pantalla`(1), `97-hielo`(3) ⚠, `99-hielo-reporte-diario`(1) ⚠ | — |
-| 189 | `80-almacen-enlace-nucleo` <sub>20261118-kx1</sub> | GLACIAL · ASISTENTE ↔ INVENTARIO DE INSUMOS — ENLACE CON ALMACÉN: NÚCLEO PURO | `glacialAlmacenEnlace`w | — | — |
-| 190 | `81-almacen-enlace-datos` <sub>20261118-kx1</sub> | GLACIAL · ASISTENTE ↔ INVENTARIO DE INSUMOS — ENLACE CON ALMACÉN: DATOS | `glacialAlmacenEnlaceDatos`w | `01-config`(1), `02-estado`(1), `71-asistente-datos`(1), `80-almacen-enlace-nucleo`(1) | — |
-| 191 | `82-asistente-prevision-nucleo` <sub>20261112-dv1</sub> | GLACIAL · ASISTENTE DE PRODUCCIÓN — PREVISIÓN, ALERTAS Y DESVIACIÓN DE CONSUMO: NÚCLEO PURO | `glacialAsistentePrevision`w | `70-asistente-nucleo`(1) | — |
-| 192 | `83-asistente-reportes-pantalla` <sub>20261123-pt13</sub> | GLACIAL · ASISTENTE DE PRODUCCIÓN — REPORTES EN EXCEL CON PREVISUALIZACIÓN Y CORRECCIÓN (Historial › Reportes) | `apRepLinea`w `apRepDescargar`w `apRepDescargarPrevia`w `apRepPrevia`w `apRepCorregir`w `apRepVerExcel`w `apRepLineaSel`w … +7 | `46-vista-excel`(1), `70-asistente-nucleo`(1), `71-asistente-datos`(1), `72-asistente-pantalla`(1), `73-reporte-general`(1), `12-init`(1) ⚠ | — |
+| 190 | `80-almacen-enlace-nucleo` <sub>20261118-kx1</sub> | GLACIAL · ASISTENTE ↔ INVENTARIO DE INSUMOS — ENLACE CON ALMACÉN: NÚCLEO PURO | `glacialAlmacenEnlace`w | — | — |
+| 191 | `81-almacen-enlace-datos` <sub>20261118-kx1</sub> | GLACIAL · ASISTENTE ↔ INVENTARIO DE INSUMOS — ENLACE CON ALMACÉN: DATOS | `glacialAlmacenEnlaceDatos`w | `01-config`(1), `02-estado`(1), `71-asistente-datos`(1), `80-almacen-enlace-nucleo`(1) | — |
+| 192 | `82-asistente-prevision-nucleo` <sub>20261112-dv1</sub> | GLACIAL · ASISTENTE DE PRODUCCIÓN — PREVISIÓN, ALERTAS Y DESVIACIÓN DE CONSUMO: NÚCLEO PURO | `glacialAsistentePrevision`w | `70-asistente-nucleo`(1) | — |
+| 193 | `83-asistente-reportes-pantalla` <sub>20261123-pt13</sub> | GLACIAL · ASISTENTE DE PRODUCCIÓN — REPORTES EN EXCEL CON PREVISUALIZACIÓN Y CORRECCIÓN (Historial › Reportes) | `apRepLinea`w `apRepDescargar`w `apRepDescargarPrevia`w `apRepPrevia`w `apRepCorregir`w `apRepVerExcel`w `apRepLineaSel`w … +7 | `46-vista-excel`(1), `70-asistente-nucleo`(1), `71-asistente-datos`(1), `72-asistente-pantalla`(1), `73-reporte-general`(1), `12-init`(1) ⚠ | — |
 
 ### Calidad · `js/calidad/`
 
 | # | Archivo (`?v=`) | Propósito | Expone | Depende de | Sobrescribe |
 |---|---|---|---|---|---|
 | 168 | `98-calidad-permisos` <sub>20261115-cp1</sub> | GLACIAL · CALIDAD · PERMISOS (Gestión de usuarios › área «Calidad») | `tienePermiso`w `glacialCalidadPermisos`w | `02-estado`(4), `23b-modo-visualizacion`(2), `71-asistente-datos`(1), `75-inventario-insumos-datos`(1) | `tienePermiso` |
-| 169 | `99-validacion-lotes` <sub>20261121-rt2</sub> | GLACIAL · CALIDAD › VALIDACIÓN DE LOTES — Muestra lo que valida el bot de WhatsApp (glacial-whatsapp): una fila por validación con su resultado (OK… | `vlSet`w `vlBuscar`w `vlActualizar`w `vlAbrir`w `vlNota`w `vlRevisar`w `apValidacionLotesUI`w | `00b-puente-supabase`(1), `04b-busqueda`(1), `06b-fotos-supabase`(1), `98-calidad-permisos`(1) | — |
+| 169 | `99-validacion-lotes` <sub>20261126-rt3</sub> | GLACIAL · CALIDAD › VALIDACIÓN DE LOTES — Muestra lo que valida el bot de WhatsApp (glacial-whatsapp): una fila por validación con su resultado (OK… | `vlSet`w `vlDia`w `vlMes`w `vlBuscar`w `vlActualizar`w `vlAbrir`w `vlNota`w … +2 | `00b-puente-supabase`(1), `04b-busqueda`(1), `06b-fotos-supabase`(1), `98-calidad-permisos`(1) | — |
 | 170 | `100-calidad-pantalla` <sub>20261119-rt1</sub> | GLACIAL · CALIDAD (módulo propio del menú lateral) — Pestaña de la aplicación: state.currentTab='calidad', grupo «Calidad» del menú (#btn-calidad-v… | `goCalidad`w `glacialCalidadUI`w | `02-estado`(1), `04-sidebar`(3), `06-registro`(1), `13-tareo`(1), `23b-modo-visualizacion`(2), `37-mantenimiento-tecnicos`(1), `37b-mantenimiento-identificacion`(1), `98-calidad-permisos`(1) … +2 | `ajustarVistaSegunPermisos` `renderMain` `renderSidebar` |
 
 ### Almacén · `js/almacen/`
@@ -542,28 +551,28 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 
 | # | Archivo (`?v=`) | Propósito | Expone | Depende de | Sobrescribe |
 |---|---|---|---|---|---|
-| 178 | `110-admin-nucleo` <sub>20261121-ad8</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN (Centro de control) · NÚCLEO PURO (sin pantalla ni base de datos) | `glacialAdminNucleo`w | `04b-busqueda`(1), `02b-permisos-hielo`(1) | — |
-| 179 | `111-admin-acceso-datos` <sub>20261117-ad1</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · ACCESO, NAVEGACIÓN Y DATOS | `goAdminPanel`w `glacialAdminDatos`w | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(6), `04-sidebar`(4), `06-registro`(1), `13-tareo`(1), `23b-modo-visualizacion`(4), `36-seguridad-auth`(2) … +6 | `ajustarVistaSegunPermisos` `onUsersUpdated` `renderMain` `renderSidebar` |
-| 180 | `113-admin-config` <sub>20261117-ad6</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · CONFIGURACIÓN (adminConfig, glacial_60) · LECTURA PARA TODOS, ESCRITURA SOLO DEL ADMINISTRADOR | `glacialAdminConfig`w | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(2), `03-auth`(1), `37b-mantenimiento-identificacion`(1), `41-tareo-bloqueo`(1), `103-almacen-compartido`(1), `110-admin-nucleo`(1) … +1 | `enterApp` |
-| 181 | `112-admin-pantalla` <sub>20261121-ad8</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN (Centro de control) · PANTALLA — etapa 1 | `glacialAdminUI`w `admIr`w `admBuscar`w `admBuscarIr`w `admQ`w `admRolFiltro`w `admSel`w … +17 | `01b-fecha-operativa`(1), `04b-busqueda`(1), `02-estado`(7), `06-registro`(1), `110-admin-nucleo`(1), `111-admin-acceso-datos`(1), `114-admin-etapa2`(1) ⚠, `115-admin-etapa3`(1) ⚠ … +1 | — |
-| 182 | `114-admin-etapa2` <sub>20261121-ad5</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · ETAPA 2 — Mermas y consumos · Metas y umbrales · Datos maestros · plantillas de Roles | `adm2Cerrar`w `adm2Tab`w `adm2Motivo`w `adm2Fi`w `adm2Fl`w `adm2HistFactor`w `adm2CambiarFactor`w … +27 | `01-config`(1), `01b-fecha-operativa`(1), `04b-busqueda`(1), `02-estado`(3), `46-proyeccion-avisos`(1), `70-asistente-nucleo`(1), `71-asistente-datos`(1), `95-conversiones`(2) … +6 | `admIr` |
-| 183 | `115-admin-etapa3` <sub>20261121-ad7</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · ETAPA 3 — Trabajadores · Cuentas compartidas · Turnos y horarios · Tareo y cierres · Corrección de registros · … | `adm3Motivo`w `adm3Cerrar`w `adm3Tq`w `adm3Tf`w `adm3Tw`w `adm3TDescartar`w `adm3TPedir`w … +10 | `01-config`(1), `04b-busqueda`(1), `02-estado`(5), `06-registro`(2), `07-historial`(1), `13-tareo`(1), `37f-tareo-por-tecnico`(1), `41-tareo-bloqueo`(2) … +6 | `admIr` |
-| 184 | `116-admin-etapa4` <sub>20261117-ad6</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · ETAPA 4 — Alertas y anuncios · Salud y sesiones · Seguridad · Respaldos e integraciones | `adm4Motivo`w `adm4Cerrar`w `adm4Anun`w `adm4Mant`w `adm4Descartar`w `adm4Pedir`w `adm4GuardarCfg`w … +5 | `01-config`(2), `02-estado`(4), `13-tareo`(1), `36-seguridad-auth`(1), `37f-tareo-por-tecnico`(1), `110-admin-nucleo`(1), `111-admin-acceso-datos`(1), `113-admin-config`(1) … +3 | `admIr` |
+| 179 | `110-admin-nucleo` <sub>20261121-ad8</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN (Centro de control) · NÚCLEO PURO (sin pantalla ni base de datos) | `glacialAdminNucleo`w | `04b-busqueda`(1), `02b-permisos-hielo`(1) | — |
+| 180 | `111-admin-acceso-datos` <sub>20261117-ad1</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · ACCESO, NAVEGACIÓN Y DATOS | `goAdminPanel`w `glacialAdminDatos`w | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(6), `04-sidebar`(4), `06-registro`(1), `13-tareo`(1), `23b-modo-visualizacion`(4), `36-seguridad-auth`(2) … +6 | `ajustarVistaSegunPermisos` `onUsersUpdated` `renderMain` `renderSidebar` |
+| 181 | `113-admin-config` <sub>20261117-ad6</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · CONFIGURACIÓN (adminConfig, glacial_60) · LECTURA PARA TODOS, ESCRITURA SOLO DEL ADMINISTRADOR | `glacialAdminConfig`w | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(2), `03-auth`(1), `37b-mantenimiento-identificacion`(1), `41-tareo-bloqueo`(1), `103-almacen-compartido`(1), `110-admin-nucleo`(1) … +1 | `enterApp` |
+| 182 | `112-admin-pantalla` <sub>20261121-ad8</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN (Centro de control) · PANTALLA — etapa 1 | `glacialAdminUI`w `admIr`w `admBuscar`w `admBuscarIr`w `admQ`w `admRolFiltro`w `admSel`w … +17 | `01b-fecha-operativa`(1), `04b-busqueda`(1), `02-estado`(7), `06-registro`(1), `110-admin-nucleo`(1), `111-admin-acceso-datos`(1), `114-admin-etapa2`(1) ⚠, `115-admin-etapa3`(1) ⚠ … +1 | — |
+| 183 | `114-admin-etapa2` <sub>20261121-ad5</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · ETAPA 2 — Mermas y consumos · Metas y umbrales · Datos maestros · plantillas de Roles | `adm2Cerrar`w `adm2Tab`w `adm2Motivo`w `adm2Fi`w `adm2Fl`w `adm2HistFactor`w `adm2CambiarFactor`w … +27 | `01-config`(1), `01b-fecha-operativa`(1), `04b-busqueda`(1), `02-estado`(3), `46-proyeccion-avisos`(1), `70-asistente-nucleo`(1), `71-asistente-datos`(1), `95-conversiones`(2) … +6 | `admIr` |
+| 184 | `115-admin-etapa3` <sub>20261121-ad7</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · ETAPA 3 — Trabajadores · Cuentas compartidas · Turnos y horarios · Tareo y cierres · Corrección de registros · … | `adm3Motivo`w `adm3Cerrar`w `adm3Tq`w `adm3Tf`w `adm3Tw`w `adm3TDescartar`w `adm3TPedir`w … +10 | `01-config`(1), `04b-busqueda`(1), `02-estado`(5), `06-registro`(2), `07-historial`(1), `13-tareo`(1), `37f-tareo-por-tecnico`(1), `41-tareo-bloqueo`(2) … +6 | `admIr` |
+| 185 | `116-admin-etapa4` <sub>20261117-ad6</sub> | GLACIAL · PANEL DE ADMINISTRACIÓN · ETAPA 4 — Alertas y anuncios · Salud y sesiones · Seguridad · Respaldos e integraciones | `adm4Motivo`w `adm4Cerrar`w `adm4Anun`w `adm4Mant`w `adm4Descartar`w `adm4Pedir`w `adm4GuardarCfg`w … +5 | `01-config`(2), `02-estado`(4), `13-tareo`(1), `36-seguridad-auth`(1), `37f-tareo-por-tecnico`(1), `110-admin-nucleo`(1), `111-admin-acceso-datos`(1), `113-admin-config`(1) … +3 | `admIr` |
 
 ### Hielo · `js/hielo/`
 
 | # | Archivo (`?v=`) | Propósito | Expone | Depende de | Sobrescribe |
 |---|---|---|---|---|---|
-| 185 | `97-hielo` <sub>20261126-rd21</sub> | GLACIAL · REPORTE HIELO — Página propia (se abre desde la tarjeta «Reporte Hielo» de la pantalla de selección), con Inicio, Nuevo registro, Historial, | `glacialHieloNucleo`w `glacialHieloDatos`w `hlAvSet`w `hlAvCopiar`w `hlAvWsp`w `hlAvImagen`w `hlPlFecha`w … +32 | `00b-puente-supabase`(1), `01-config`(4), `01b-fecha-operativa`(1), `02b-permisos-hielo`(1), `02-estado`(1), `03-auth`(1), `05-utils`(1), `06-registro`(1) … +5 | `goReporteHielo` |
-| 186 | `97w-hielo-programacion-whatsapp` <sub>20261126-hw1</sub> | HIELO · PROGRAMACIÓN DESDE WHATSAPP — | `glacialHieloProgramacionWhatsApp`w | `01-config`(2), `02-estado`(1), `66w-planificacion-whatsapp`(1), `97-hielo`(1) | — |
-| 187 | `99-hielo-reporte-diario` <sub>20261124-rd9</sub> | GLACIAL · REPORTE HIELO · REPORTE DIARIO DE PRODUCCIÓN (mismo formato que el Excel de la planta) | `glacialHieloReporte`w | `97-hielo`(1) | — |
-| 188 | `98-hielo-inicio` <sub>20261121-hi3</sub> | REPORTE HIELO · tarjeta «HIELO» en el Inicio (Centro de perfil) | `renderCentroPerfil`w `glacialHieloInicio`w | `02b-permisos-hielo`(1), `02-estado`(1), `03-auth`(1), `32-dashboard-perfiles`(3), `43-bitacora-mantenimiento`(1), `44-estado-datos`(1), `46-proyeccion-avisos`(1), `47-analisis-paradas`(1) … +2 | `renderCentroPerfil` |
+| 186 | `97-hielo` <sub>20261126-rd21</sub> | GLACIAL · REPORTE HIELO — Página propia (se abre desde la tarjeta «Reporte Hielo» de la pantalla de selección), con Inicio, Nuevo registro, Historial, | `glacialHieloNucleo`w `glacialHieloDatos`w `hlAvSet`w `hlAvCopiar`w `hlAvWsp`w `hlAvImagen`w `hlPlFecha`w … +32 | `00b-puente-supabase`(1), `01-config`(4), `01b-fecha-operativa`(1), `02b-permisos-hielo`(1), `02-estado`(1), `03-auth`(1), `05-utils`(1), `06-registro`(1) … +5 | `goReporteHielo` |
+| 187 | `97w-hielo-programacion-whatsapp` <sub>20261126-hw1</sub> | HIELO · PROGRAMACIÓN DESDE WHATSAPP — | `glacialHieloProgramacionWhatsApp`w | `01-config`(2), `02-estado`(1), `66w-planificacion-whatsapp`(1), `97-hielo`(1) | — |
+| 188 | `99-hielo-reporte-diario` <sub>20261124-rd9</sub> | GLACIAL · REPORTE HIELO · REPORTE DIARIO DE PRODUCCIÓN (mismo formato que el Excel de la planta) | `glacialHieloReporte`w | `97-hielo`(1) | — |
+| 189 | `98-hielo-inicio` <sub>20261121-hi3</sub> | REPORTE HIELO · tarjeta «HIELO» en el Inicio (Centro de perfil) | `renderCentroPerfil`w `glacialHieloInicio`w | `02b-permisos-hielo`(1), `02-estado`(1), `03-auth`(1), `32-dashboard-perfiles`(3), `43-bitacora-mantenimiento`(1), `44-estado-datos`(1), `46-proyeccion-avisos`(1), `47-analisis-paradas`(1) … +2 | `renderCentroPerfil` |
 
 ### Modo TV · `js/tv/`
 
 | # | Archivo (`?v=`) | Propósito | Expone | Depende de | Sobrescribe |
 |---|---|---|---|---|---|
-| 197 | `glacial-tv` <sub>20261107-cf3</sub> | GLACIAL TV · MODO TELEVISIÓN (solo lectura)  ·  fase 1: INICIO y PRODUCCIÓN POR LÍNEA | `glacialTV`w | `02-estado`(1), `32-dashboard-perfiles`(11), `41-tareo-bloqueo`(1), `44-estado-datos`(1) | — |
+| 198 | `glacial-tv` <sub>20261107-cf3</sub> | GLACIAL TV · MODO TELEVISIÓN (solo lectura)  ·  fase 1: INICIO y PRODUCCIÓN POR LÍNEA | `glacialTV`w | `02-estado`(1), `32-dashboard-perfiles`(11), `41-tareo-bloqueo`(1), `44-estado-datos`(1) | — |
 
 ## Fuera de `index.html`
 
