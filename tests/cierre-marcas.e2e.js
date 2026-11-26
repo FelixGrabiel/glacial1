@@ -54,7 +54,7 @@ const ok = (c, m) => { console.log((c ? '✔ ' : '✘ FALLA ') + m); if (!c) fal
     const err = (code, message) => ({ data: null, error: { code, message } });
     window.glacialSupabaseCliente = { rpc: async (n, a) => {
       BD.llamadas.push([n, JSON.parse(JSON.stringify(a))]);
-      if (n === 'cierre_turno_listar') return { data: { tramos: BD.tramos, cierre: BD.cierre }, error: null };
+      if (n === 'cierre_turno_listar') { await new Promise(r => setTimeout(r, 300)); return { data: { tramos: BD.tramos, cierre: BD.cierre }, error: null }; }   // la red real tarda: antes congelaba la página
       const cerrar = (p, quien) => {
         if (BD.cierre) return 'cierre: el turno ya se envió';
         const idx = p.secuencia.findIndex(x => x.tramo_id === p.tramo_id);
