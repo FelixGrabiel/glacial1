@@ -64,3 +64,17 @@ Estado a 19/11/2026: `glacial_54`, `glacial_55` y `glacial_64` (foto del rótulo
 
 1. **De GLACIAL (lo hace el dueño):** en *Edge Functions › Secrets* de PRODUCCIÓN (y de PRUEBAS si se quiere probar), crear `VALIDACIONES_SECRETO` (24 caracteres o más, distinto de `INGESTA_SECRETO`) y, si quieres, `VALIDACIONES_MAX_DIA`.
 2. **Del bot (proyecto `glacial-whatsapp`, aparte):** `GLACIAL_VALIDACIONES_URL` y `GLACIAL_VALIDACIONES_SECRETO` en su `.env`, y que, después de validar un rótulo, haga el POST de arriba con la foto. Debe ser idempotente (la misma `clave` no duplica) y detenerse ante 401/403/429, como el subidor de evidencias.
+
+
+## Calendario y separación por línea (26/11/2026)
+
+- **Calendario del mes:**
+  - cada día muestra cuántas validaciones tiene, con un punto de color según el peor resultado: verde (validadas), ámbar (con observación) o rojo (alguna rechazada);
+  - al elegir un día se ve **lo validado ese día**; por defecto se ve hoy;
+  - botones «Hoy», «Todo el mes» y ◀ ▶ para cambiar de mes;
+  - el día es el de **Lima**: una validación de las 22:00 del 25 cuenta para el 25;
+  - reemplaza al filtro «Período». La página trae lo validado desde el 1.º del mes mostrado.
+- **Las tarjetas** (validaciones, validadas, con observación, rechazadas y por revisar) son del día o del mes elegido.
+- **Separado por línea:** un bloque por línea, tal como la manda el bot (B7L, PET1, Envasadora…), con su resumen y su tabla. «Sin línea» va al final.
+
+Pruebas: `tests/validacion-lotes.test.js` (día de Lima, calendario, líneas) y `tests/validacion-lotes.e2e.js`.

@@ -10,13 +10,17 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
     document.getElementById('login-screen').style.display = 'none'; document.getElementById('report-select-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
     state.user = { rol: 'Administrador', nombre: 'Ana', username: 'admin', permisos: 'todos' }; state.showWelcome = false;
-    const hace = m => new Date(Date.now() - m * 60000).toISOString();
+    // 26/11/2026: la pantalla muestra el DÍA elegido (hoy por defecto, en hora de Lima): las validaciones de hoy van a las 12:00 de Lima menos m minutos
+    const hoyL = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date()), base = Date.parse(hoyL + 'T12:00:00-05:00');
+    const hace = m => new Date(base - m * 60000).toISOString();
+    window.__otroDia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date(base - 3 * 86400000));
     window.__llamadas = [];
     const filas = [
       { clave: 'wa-1111111@AAA', lote: 'L2411-07', resultado: 'OBSERVADO', insumo: 'Cajas de preformas 15.7 g', proveedor: 'Plastipak', linea: 'PET1', motivo: 'La fecha de vencimiento es dentro de 3 días', controles: [{ nombre: 'Lote legible', resultado: 'OK' }, { nombre: 'Fecha de vencimiento', resultado: 'FALLA', detalle: 'vence en 3 días' }], validada_en: hace(25), revision_estado: 'PENDIENTE' },
       { clave: 'wa-2222222@BBB', lote: 'P-5521', resultado: 'OK', insumo: 'Polietileno 56 cm', proveedor: 'Propack', linea: 'B7L', controles: [{ nombre: 'Lote legible', resultado: 'OK' }, { nombre: 'Proveedor registrado', resultado: 'OK' }], validada_en: hace(90), revision_estado: 'PENDIENTE' },
       { clave: 'wa-3333333@CCC', lote: 'E-0098', resultado: 'RECHAZADO', insumo: 'Etiqueta roll feed 625 ml', proveedor: 'Etiflex', linea: 'PET2', motivo: 'Etiqueta ilegible', validada_en: hace(300), revision_estado: 'REVISADA', revisada_por: 'ana@glacial.pe', revisada_en: hace(200), revision_nota: 'Se devolvió al proveedor' },
     ];
+    filas.push({ clave: 'wa-4444444@DDD', lote: '24148328', resultado: 'OK', insumo: 'Tottus CD 3kg', linea: 'envasadora', controles: [], validada_en: new Date(base - 3 * 86400000).toISOString() });   // otro día
     window.glacialSupabaseCliente = { rpc: async (n, a) => { window.__llamadas.push(n); if (n === 'validaciones_lotes_listar') return { data: filas, error: null }; if (n === 'validaciones_lotes_revisar') { filas[0].revision_estado = 'REVISADA'; filas[0].revisada_por = 'ana@glacial.pe'; filas[0].revisada_en = new Date().toISOString(); return { data: true, error: null }; } return { data: null, error: null }; } };
     const PIX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
     window.__firmadas = [];
@@ -44,7 +48,16 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(await P.evaluate(() => [...document.querySelectorAll('.vl-det img')].some(i => i.src.startsWith('data:image'))) && await P.evaluate(() => !!document.querySelector('.vl-det a.vl-grande[data-foto-ref]')), 'el detalle muestra la foto del rótulo y ofrece abrirla en tamaño completo');
   ok(await P.evaluate(() => window.__firmadas.length > 0 && window.__firmadas.every(r => /^calidad\/rotulos\/[a-f0-9]{64}\.jpg$/.test(r))), 'solo se firman rutas de calidad/rotulos/');
   ok(await P.evaluate(() => !!document.querySelector('.vl-fila .vl-c-foto img.vl-foto-m')), 'la lista muestra la miniatura de la foto');
-  if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/validacion-lotes.png', fullPage: false });
+  // calendario y líneas (26/11/2026)
+  await P.evaluate(() => { vlSet('revision', ''); vlSet('resultado', ''); vlAbrir(''); });
+  ok(await P.evaluate(() => [...document.querySelectorAll('.vl-linea-cab h3')].map(h => h.innerText).join('|')) === 'B7L|PET1|PET2', 'hoy: separadas por línea (B7L, PET1, PET2), cada una con su resumen');
+  ok(!/24148328/.test(t), 'la validación de otro día no aparece en el día de hoy');
+  ok(await P.evaluate(() => { const b = document.querySelector('.vl-cal-d.sel'); return !!b && b.querySelector('.vl-cal-n').innerText === '3' && b.querySelector('.vl-cal-n').classList.contains('vl-cal-mal'); }), 'calendario: hoy marcado con 3 validaciones y punto rojo (hay una rechazada)');
+  if (process.env.GLX_CAPTURAS) await P.screenshot({ path: process.env.GLX_CAPTURAS + '/validacion-lotes.png', fullPage: true });
+  await P.evaluate(() => vlDia(window.__otroDia));
+  const otro = await P.evaluate(() => ({ t: document.querySelector('.vl').innerText, k: [...document.querySelectorAll('.vl-k')].map(k => k.querySelector('b').innerText)[0], l: [...document.querySelectorAll('.vl-linea-cab h3')].map(h => h.innerText).join('|') }));
+  ok(/24148328/.test(otro.t) && !/L2411-07/.test(otro.t) && otro.k === '1' && otro.l === 'Envasadora', 'al elegir otro día en el calendario: solo lo validado ese día (Envasadora: 1)');
+  await P.evaluate(() => vlDia(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())));
   await P.evaluate(() => vlRevisar('wa-1111111@AAA')); await P.waitForTimeout(500);
   ok(await P.evaluate(() => window.__llamadas.includes('validaciones_lotes_revisar')) && /Marcada como revisada/.test(await P.evaluate(() => document.querySelector('.vl').innerText)), 'marcar como revisada llama al servidor y lo avisa');
   await P.evaluate(() => vlSet('revision', ''));
