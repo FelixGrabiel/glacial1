@@ -87,10 +87,21 @@
   }
 
   /* ---------- marca ---------- */
-  function marca(linea,texto,o){
-    const k=clave(texto);
+  // «Scala con gas», «Bells gas», «Scala manzana», «Bells piña kion» → la variante de la lista (Scala_Gas, Scala_Manzana, Bells_Piña_Kion…).
+  // «gasDefecto» = el «Cambio a CON GAS» que dijo la línea antes: vale para las marcas que no dicen su sabor.
+  const SABORES=[[/\b(?:con\s+)?gas(?:ificad[oa])?\b/,'gas'],[/\bmanzana\b/,'manzana'],[/\bmaracuya\b/,'maracuya'],[/\bpina(?:\s+y)?\s+kion\b/,'pina kion']];
+  function marca(linea,texto,o,gasDefecto){
+    let k=clave(texto);
     if(!k)return null;
     const lista=marcasDe(linea,o);
+    let sabor='';
+    for(const [re,nombre] of SABORES){if(re.test(k)){sabor=nombre;k=k.replace(re,' ').replace(/\s+/g,' ').trim();break;}}
+    if(!sabor&&gasDefecto&&k)sabor='gas';
+    if(sabor){
+      if(!k)return null;
+      const conSabor=lista.find(m=>clave(m)===k+' '+sabor);
+      return conSabor||null;                                        // sin esa variante en el catálogo: se avisa (no se cambia de marca en silencio)
+    }
     const exacta=lista.find(m=>clave(m)===k);
     if(exacta)return exacta;
     // «Bells» = «Bell's»; la marca «simple» (sin _Gas, _Manzana…) cuando el texto no dice el sabor
@@ -183,6 +194,9 @@
         out.errores.push('«'+t+'» no está debajo de una línea (Pet 1, Pet 2, Bidones 7L, Cajas 20L, Bidones 20L).');return;
       }
       const it=limpiarItem(t);
+      // «Cambio a CON GAS» / «Cambio a SIN GAS»: las marcas siguientes de esa línea (sin sabor escrito) pasan a la variante con gas / normal
+      const cg=/^cambio\s+a\s+(con|sin)\s+gas\b/i.exec(sinTildes(it));
+      if(cg){sec.gas=cg[1].toLowerCase()==='con';return;}
       const dos=it.indexOf(':');
       let mTxt=dos>=0?it.slice(0,dos):it,vTxt=dos>=0?it.slice(dos+1):'';
       const sticker=/\+?\s*(c\/|con\s+)?sticker/i.test(mTxt);
@@ -191,7 +205,7 @@
       if(dos<0){const m2=/^(.*?)\s+(\d[\d.,\s]*\d|\d)\s*(.*)$/.exec(mTxt);if(m2&&!/\b\d+\s*l\b/i.test(m2[1]+' '+m2[2])){mTxt=m2[1];vTxt=m2[2]+' '+m2[3];}}
       const v=valor(vTxt);
       const linea=sec.linea,nom='«'+it+'»';
-      const mk=marca(linea,mTxt,o);
+      const mk=marca(linea,mTxt,o,sec.gas===true);
       if(!mk){out.errores.push(NOMBRE[linea]+': no conozco la marca «'+mTxt.trim()+'» ('+nom+').');return;}
       if(!v){out.errores.push(NOMBRE[linea]+': no entendí la cantidad de '+nom+'. Usa un número, «hasta las 2 AM» o «resto del turno».');return;}
       const pr=presentacion(linea,sec.pista+' '+(sticker?'sticker ':'')+vTxt,o);
