@@ -1,0 +1,1077 @@
+{
+ "_descripcion": "Lista blanca de sobrescrituras permitidas entre scripts globales de GLACIAL. Cada entrada: nombre global y la lista ORDENADA de archivos que lo definen/reasignan (gana el último en cargar). scripts/validar-carga.js falla si aparece una sobrescritura que no está aquí o si cambia su orden. Al añadir una a propósito, agrégala con su motivo (ver docs/00-general/contratos-js.md).",
+ "version": 1,
+ "sobrescrituras": [
+  {
+   "nombre": "_avisarErrorGuardado",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "_guardandoPaleta",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Variable global de Paletas que 16e-paletas-rapido reasigna al guardar (nuevo borrador tras guardar, candado de guardado, caché tras subir la cola): estado compartido, sin redeclararlo."
+  },
+  {
+   "nombre": "_paletasCache",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Variable global compartida: se declara en el primer archivo y los posteriores la reasignan directamente (estado de pantalla o caché), sin redeclararla."
+  },
+  {
+   "nombre": "_programacionesCache",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/produccion/16-paletas.js",
+    "js/produccion/24-semaforo-produccion-actual.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Variable global compartida: se declara en el primer archivo y los posteriores la reasignan directamente (estado de pantalla o caché), sin redeclararla."
+  },
+  {
+   "nombre": "_tareoColaGuardado",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/45-tareo-edicion-continua.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "_tareoEscriturasPendientes",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/45-tareo-edicion-continua.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "abrirCentroPerfil",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/mantenimiento/37-mantenimiento-tecnicos.js",
+    "js/almacen/103-almacen-compartido.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "actualizarEstadoTodosLosPermisos",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/10-usuarios.js"
+   ],
+   "motivo": "DUPLICADO REAL: la misma función está declarada en 02-estado y en 10-usuarios; gana la de 10-usuarios (carga después). Pendiente unificar en una sola."
+  },
+  {
+   "nombre": "actualizarPaletaCampoYRerenderizar",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "16e-paletas-rapido envuelve el cambio de campos del formulario solo para anotar que el operario eligió marca/presentación a mano (la secuencia deja de cambiarlas en esa fecha/turno/línea)."
+  },
+  {
+   "nombre": "actualizarVistaPaletas",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "16e-paletas-rapido envuelve el refresco en vivo de Paletas para repintar también la barra (acumulado, último registro, estado de sincronización)."
+  },
+  {
+   "nombre": "admIr",
+   "archivos": [
+    "js/admin/112-admin-pantalla.js",
+    "js/admin/114-admin-etapa2.js",
+    "js/admin/115-admin-etapa3.js",
+    "js/admin/116-admin-etapa4.js"
+   ],
+   "motivo": "Cada etapa del Panel de administración (114, 115, 116) reasigna admIr para añadir sus pestañas y delega en la anterior."
+  },
+  {
+   "nombre": "agregarTramoSecuenciaDesdeFormulario",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "16e-paletas-rapido envuelve el alta de tramos: tras agregar uno, si el tramo anterior no tenía hora de corte ofrece cortarlo a la hora actual (corteAutomatico)."
+  },
+  {
+   "nombre": "ajustarVistaSegunPermisos",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/accesos/23b-modo-visualizacion.js",
+    "js/mantenimiento/43-bitacora-mantenimiento.js",
+    "js/produccion/47-analisis-paradas.js",
+    "js/produccion/48-resumen-turno.js",
+    "js/produccion/52b-planificacion-vistas.js",
+    "js/produccion/66-entrega-turno.js",
+    "js/mantenimiento/67c-intervenciones-pantalla.js",
+    "js/mantenimiento/69-velocidades-estandar.js",
+    "js/mantenimiento/75-programa-semanal-pantalla.js",
+    "js/mantenimiento/76-registro-pantalla.js",
+    "js/mantenimiento/78-historial-pantalla.js",
+    "js/mantenimiento/73-plan-anual-pantalla.js",
+    "js/mantenimiento/68-mantenimiento-inicio.js",
+    "js/produccion/67-produccion-inicio.js",
+    "js/asistente/72-asistente-pantalla.js",
+    "js/asistente/76-inventario-insumos-pantalla.js",
+    "js/calidad/100-calidad-pantalla.js",
+    "js/almacen/101-producto-terminado.js",
+    "js/almacen/103-almacen-compartido.js",
+    "js/admin/111-admin-acceso-datos.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "avGenerar",
+   "archivos": [
+    "js/produccion/29-avance-produccion.js",
+    "js/produccion/48-resumen-turno.js"
+   ],
+   "motivo": "Módulos posteriores (48-resumen-turno, 43-bitacora-mantenimiento) envuelven la generación del cierre de turno de 29-avance-produccion para registrar el resumen/bitácora al cerrar."
+  },
+  {
+   "nombre": "avGenerarCierreAhora",
+   "archivos": [
+    "js/produccion/29-avance-produccion.js",
+    "js/mantenimiento/43-bitacora-mantenimiento.js"
+   ],
+   "motivo": "Módulos posteriores (48-resumen-turno, 43-bitacora-mantenimiento) envuelven la generación del cierre de turno de 29-avance-produccion para registrar el resumen/bitácora al cerrar."
+  },
+  {
+   "nombre": "calcularKPIsPlanta",
+   "archivos": [
+    "js/produccion/09-resumen.js",
+    "js/produccion/49-resumen-indicadores.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "cambiarRolNuevoUsuario",
+   "archivos": [
+    "js/accesos/10-usuarios.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/mantenimiento/37-mantenimiento-tecnicos.js",
+    "js/almacen/103-almacen-compartido.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "cambiarTodosLosPermisos",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/10-usuarios.js"
+   ],
+   "motivo": "DUPLICADO REAL: la misma función está declarada en 02-estado y en 10-usuarios; gana la de 10-usuarios (carga después). Pendiente unificar en una sola."
+  },
+  {
+   "nombre": "cuadro1DesdeProgramacion",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/produccion/35c-autollenado-completo.js"
+   ],
+   "motivo": "35c-autollenado-completo reemplaza esta función de 06-registro (autollenado completo del Nuevo registro); la versión de 06 queda como respaldo."
+  },
+  {
+   "nombre": "destinoFaltanteRegistro",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/produccion/35c-autollenado-completo.js"
+   ],
+   "motivo": "35c-autollenado-completo reemplaza esta función de 06-registro (autollenado completo del Nuevo registro); la versión de 06 queda como respaldo."
+  },
+  {
+   "nombre": "draft",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/nucleo/04-sidebar.js",
+    "js/accesos/17-modo-trabajo.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Variable global compartida: se declara en el primer archivo y los posteriores la reasignan directamente (estado de pantalla o caché), sin redeclararla."
+  },
+  {
+   "nombre": "draftPaleta",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Variable global de Paletas que 16e-paletas-rapido reasigna al guardar (nuevo borrador tras guardar, candado de guardado, caché tras subir la cola): estado compartido, sin redeclararlo."
+  },
+  {
+   "nombre": "editarPermisosUsuario",
+   "archivos": [
+    "js/accesos/10-usuarios.js",
+    "js/accesos/10b-modo-visualizacion-form.js",
+    "js/accesos/10c-impacto-economico-permisos.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "eliminarTareo",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/40-tareo-auditoria.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "enterApp",
+   "archivos": [
+    "js/accesos/03-auth.js",
+    "js/accesos/17-modo-trabajo.js",
+    "js/produccion/25-alertas-lineas.js",
+    "js/mantenimiento/37b-mantenimiento-identificacion.js",
+    "js/personal/41-tareo-bloqueo.js",
+    "js/almacen/103-almacen-compartido.js",
+    "js/admin/113-admin-config.js"
+   ],
+   "motivo": "Enganche de ciclo de sesión: varios módulos se suman al inicio/cierre de sesión (alertas, identificación de técnico, bloqueo de tareo, vista como…) guardando la función anterior y llamándola."
+  },
+  {
+   "nombre": "esUsuarioSoloConsulta",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "exportarTareoExcel",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/rrhh/27-rrhh-excel-operativo.js",
+    "js/rrhh/38-tareo-rrhh-exportacion.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "exportarTareoGeneralExcel",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/rrhh/27-rrhh-excel-operativo.js",
+    "js/rrhh/38-tareo-rrhh-exportacion.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "exportarTareoPNG",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/rrhh/38-tareo-rrhh-exportacion.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "fechaHoyResumen",
+   "archivos": [
+    "js/produccion/09-resumen.js",
+    "js/produccion/49-resumen-indicadores.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "filtrarPorRangoResumen",
+   "archivos": [
+    "js/produccion/09-resumen.js",
+    "js/produccion/49-resumen-indicadores.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "goReporteHielo",
+   "archivos": [
+    "js/accesos/03-auth.js",
+    "js/hielo/97-hielo.js"
+   ],
+   "motivo": "97-hielo reemplaza el acceso al Reporte Hielo que 03-auth declaró como marcador (el módulo Hielo carga después)."
+  },
+  {
+   "nombre": "grupoSidebarActivo",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/mantenimiento/43-bitacora-mantenimiento.js",
+    "js/produccion/47-analisis-paradas.js",
+    "js/produccion/48-resumen-turno.js",
+    "js/produccion/66-entrega-turno.js",
+    "js/mantenimiento/67c-intervenciones-pantalla.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "guardarPaleta",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "16e-paletas-rapido envuelve guardarPaleta: un registro NUEVO se guarda por la cola sin conexión (clientEventId + capturadoEn, reenvío sin duplicar); editar un registro existente delega en la versión anterior, directa y en línea."
+  },
+  {
+   "nombre": "guardarPermisosUsuario",
+   "archivos": [
+    "js/accesos/10-usuarios.js",
+    "js/accesos/10b-modo-visualizacion-form.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "guardarTareoActual",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/nucleo/34-integraciones.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "guardarTareoEnMemoria",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/mantenimiento/37f-tareo-por-tecnico.js",
+    "js/personal/40-tareo-auditoria.js",
+    "js/personal/41-tareo-bloqueo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "guardarTareos",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/mantenimiento/37f-tareo-por-tecnico.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "handleLogout",
+   "archivos": [
+    "js/accesos/03-auth.js",
+    "js/produccion/25-alertas-lineas.js",
+    "js/mantenimiento/37b-mantenimiento-identificacion.js",
+    "js/personal/41-tareo-bloqueo.js",
+    "js/produccion/46-proyeccion-avisos.js",
+    "js/produccion/47-analisis-paradas.js",
+    "js/produccion/48-resumen-turno.js",
+    "js/produccion/66-entrega-turno.js",
+    "js/accesos/39-vista-como.js"
+   ],
+   "motivo": "Enganche de ciclo de sesión: varios módulos se suman al inicio/cierre de sesión (alertas, identificación de técnico, bloqueo de tareo, vista como…) guardando la función anterior y llamándola."
+  },
+  {
+   "nombre": "normalizarPermisosUsuario",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/accesos/23b-modo-visualizacion.js",
+    "js/mantenimiento/37-mantenimiento-tecnicos.js",
+    "js/almacen/103-almacen-compartido.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "obtenerRatioNominal",
+   "archivos": [
+    "js/nucleo/01-config.js",
+    "js/produccion/49-resumen-indicadores.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "obtenerResumenMensualTareo",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/mantenimiento/37f-tareo-por-tecnico.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "obtenerTareos",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/mantenimiento/37f-tareo-por-tecnico.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "onPaletasUpdated",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/32-dashboard-perfiles.js",
+    "js/produccion/35-autollenado-registro.js",
+    "js/produccion/46-proyeccion-avisos.js",
+    "js/produccion/48-resumen-turno.js",
+    "js/produccion/49-resumen-indicadores.js",
+    "js/asistente/72-asistente-pantalla.js",
+    "js/almacen/101-producto-terminado.js"
+   ],
+   "motivo": "Cadena de ganchos de actualización en vivo (02-estado los llama al llegar datos): cada módulo conserva el anterior, ejecuta el suyo después y refresca su pantalla."
+  },
+  {
+   "nombre": "onProgramacionesUpdated",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/produccion/21-programacion-turno.js",
+    "js/produccion/25-alertas-lineas.js",
+    "js/accesos/32-dashboard-perfiles.js",
+    "js/produccion/35-autollenado-registro.js",
+    "js/produccion/46-proyeccion-avisos.js",
+    "js/produccion/47-analisis-paradas.js",
+    "js/produccion/48-resumen-turno.js",
+    "js/produccion/49-resumen-indicadores.js",
+    "js/produccion/66p-planificacion-modos.js",
+    "js/mantenimiento/67h-reclasificacion-pantalla.js",
+    "js/mantenimiento/70-banco-paradas.js",
+    "js/asistente/72-asistente-pantalla.js"
+   ],
+   "motivo": "Cadena de ganchos de actualización en vivo (02-estado los llama al llegar datos): cada módulo conserva el anterior, ejecuta el suyo después y refresca su pantalla."
+  },
+  {
+   "nombre": "onRecordsUpdated",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/produccion/06-registro.js",
+    "js/produccion/47-analisis-paradas.js",
+    "js/produccion/48-resumen-turno.js",
+    "js/produccion/49-resumen-indicadores.js",
+    "js/produccion/66p-planificacion-modos.js",
+    "js/mantenimiento/67h-reclasificacion-pantalla.js",
+    "js/mantenimiento/70-banco-paradas.js"
+   ],
+   "motivo": "Cadena de ganchos de actualización en vivo (02-estado los llama al llegar datos): cada módulo conserva el anterior, ejecuta el suyo después y refresca su pantalla."
+  },
+  {
+   "nombre": "onTareosUpdated",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/personal/46-tareo-horas-extras.js",
+    "js/rrhh/26-rrhh-panel.js",
+    "js/personal/40-tareo-auditoria.js",
+    "js/produccion/46-proyeccion-avisos.js",
+    "js/produccion/48-resumen-turno.js"
+   ],
+   "motivo": "Cadena de ganchos de actualización en vivo (02-estado los llama al llegar datos): cada módulo conserva el anterior, ejecuta el suyo después y refresca su pantalla."
+  },
+  {
+   "nombre": "onUsersUpdated",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js",
+    "js/produccion/25-alertas-lineas.js",
+    "js/admin/111-admin-acceso-datos.js"
+   ],
+   "motivo": "Cadena de ganchos de actualización en vivo (02-estado los llama al llegar datos): cada módulo conserva el anterior, ejecuta el suyo después y refresca su pantalla."
+  },
+  {
+   "nombre": "paletaEditId",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Variable global de Paletas que 16e-paletas-rapido reasigna al guardar (nuevo borrador tras guardar, candado de guardado, caché tras subir la cola): estado compartido, sin redeclararlo."
+  },
+  {
+   "nombre": "permisoNavegacion",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "permisoPestanaLinea",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "primeraVistaAutorizada",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "produccionActualFecha",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/24-semaforo-produccion-actual.js"
+   ],
+   "motivo": "Variable global compartida: se declara en el primer archivo y los posteriores la reasignan directamente (estado de pantalla o caché), sin redeclararla."
+  },
+  {
+   "nombre": "produccionActualTurno",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/24-semaforo-produccion-actual.js"
+   ],
+   "motivo": "Variable global compartida: se declara en el primer archivo y los posteriores la reasignan directamente (estado de pantalla o caché), sin redeclararla."
+  },
+  {
+   "nombre": "puedeAccederPaletas",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "puedeEntrarMantenimiento",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "puedeEntrarPlanificacion",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "puedeEntrarTareoProduccion",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "puedeProgramarPaletas",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/accesos/23-gerente-solo-lectura.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "renderCentroPerfil",
+   "archivos": [
+    "js/accesos/32-dashboard-perfiles.js",
+    "js/mantenimiento/43-bitacora-mantenimiento.js",
+    "js/nucleo/44-estado-datos.js",
+    "js/produccion/46-proyeccion-avisos.js",
+    "js/produccion/47-analisis-paradas.js",
+    "js/produccion/66-entrega-turno.js",
+    "js/hielo/98-hielo-inicio.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderFormTab",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/accesos/17-modo-trabajo.js",
+    "js/produccion/21-programacion-turno.js",
+    "js/produccion/35-autollenado-registro.js",
+    "js/produccion/35c-autollenado-completo.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderMain",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/accesos/17-modo-trabajo.js",
+    "js/produccion/21-programacion-turno.js",
+    "js/accesos/23b-modo-visualizacion.js",
+    "js/mantenimiento/43-bitacora-mantenimiento.js",
+    "js/produccion/47-analisis-paradas.js",
+    "js/produccion/48-resumen-turno.js",
+    "js/produccion/52b-planificacion-vistas.js",
+    "js/produccion/66-entrega-turno.js",
+    "js/mantenimiento/67c-intervenciones-pantalla.js",
+    "js/mantenimiento/69-velocidades-estandar.js",
+    "js/mantenimiento/75-programa-semanal-pantalla.js",
+    "js/mantenimiento/76-registro-pantalla.js",
+    "js/mantenimiento/78-historial-pantalla.js",
+    "js/mantenimiento/73-plan-anual-pantalla.js",
+    "js/mantenimiento/68-mantenimiento-inicio.js",
+    "js/produccion/67-produccion-inicio.js",
+    "js/asistente/72-asistente-pantalla.js",
+    "js/asistente/76-inventario-insumos-pantalla.js",
+    "js/calidad/100-calidad-pantalla.js",
+    "js/almacen/101-producto-terminado.js",
+    "js/almacen/103-almacen-compartido.js",
+    "js/admin/111-admin-acceso-datos.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderMantenimientoModulo",
+   "archivos": [
+    "js/mantenimiento/18-mantenimiento.js",
+    "js/mantenimiento/30-rotacion-mantenimiento.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderPaletasTab",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/21-programacion-turno.js",
+    "js/produccion/16c-saldo-entrega.js",
+    "js/produccion/16e-paletas-rapido.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderProduccionActualTab",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/24-semaforo-produccion-actual.js",
+    "js/nucleo/44-estado-datos.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderRRHHModulo",
+   "archivos": [
+    "js/rrhh/19-rrhh.js",
+    "js/rrhh/26-rrhh-panel.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderResumen",
+   "archivos": [
+    "js/produccion/09-resumen.js",
+    "js/produccion/49-resumen-indicadores.js",
+    "js/produccion/49b-resumen-graficos-diferidos.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "renderRotacionSupervisores",
+   "archivos": [
+    "js/personal/31-rotacion-supervisores.js",
+    "js/accesos/17c-ampliaciones-turno.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderSidebar",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/accesos/23b-modo-visualizacion.js",
+    "js/mantenimiento/37-mantenimiento-tecnicos.js",
+    "js/mantenimiento/37b-mantenimiento-identificacion.js",
+    "js/mantenimiento/43-bitacora-mantenimiento.js",
+    "js/produccion/47-analisis-paradas.js",
+    "js/produccion/48-resumen-turno.js",
+    "js/produccion/52b-planificacion-vistas.js",
+    "js/produccion/66-entrega-turno.js",
+    "js/mantenimiento/67c-intervenciones-pantalla.js",
+    "js/mantenimiento/69-velocidades-estandar.js",
+    "js/mantenimiento/75-programa-semanal-pantalla.js",
+    "js/mantenimiento/78-historial-pantalla.js",
+    "js/mantenimiento/73-plan-anual-pantalla.js",
+    "js/mantenimiento/68-mantenimiento-inicio.js",
+    "js/produccion/67-produccion-inicio.js",
+    "js/asistente/72-asistente-pantalla.js",
+    "js/asistente/76-inventario-insumos-pantalla.js",
+    "js/calidad/100-calidad-pantalla.js",
+    "js/almacen/101-producto-terminado.js",
+    "js/almacen/103-almacen-compartido.js",
+    "js/admin/111-admin-acceso-datos.js",
+    "js/accesos/39-vista-como.js"
+   ],
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+  },
+  {
+   "nombre": "renderTareoFormulario",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/28-tareo-maquinistas.js",
+    "js/mantenimiento/37f-tareo-por-tecnico.js",
+    "js/personal/28b-maquinistas-mantenimiento.js",
+    "js/personal/41-tareo-bloqueo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "renderTareoGeneral",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/rrhh/38-tareo-rrhh-exportacion.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "renderTareoLectura",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/28-tareo-maquinistas.js",
+    "js/mantenimiento/37f-tareo-por-tecnico.js",
+    "js/personal/28b-maquinistas-mantenimiento.js",
+    "js/personal/41-tareo-bloqueo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "resumenFiltroLinea",
+   "archivos": [
+    "js/produccion/09-resumen.js",
+    "js/produccion/49-resumen-indicadores.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "resumenProgramacionCombinacionTurnos",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/24-semaforo-produccion-actual.js"
+   ],
+   "motivo": "24-semaforo-produccion-actual reemplaza esta función de 16-paletas con la versión que entiende combinaciones de turnos y producción actual."
+  },
+  {
+   "nombre": "resumenRangoDias",
+   "archivos": [
+    "js/produccion/09-resumen.js",
+    "js/produccion/49-resumen-indicadores.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "rolTieneTodosLosPermisos",
+   "archivos": [
+    "js/accesos/10-usuarios.js",
+    "js/accesos/23-gerente-solo-lectura.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "rsFechaEnRango",
+   "archivos": [
+    "js/produccion/09-resumen.js",
+    "js/produccion/49-resumen-indicadores.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "saveDraft",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/accesos/17-modo-trabajo.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "savePaletas",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "saveProgramaciones",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "saveRecords",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "saveRotacionMaquinistas",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "saveRotaciones",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "saveRotacionesMantenimiento",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "saveTareos",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/personal/13-tareo.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "saveUsers",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/accesos/23b-modo-visualizacion.js",
+    "js/accesos/36-seguridad-auth.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "saveWorkers",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23-gerente-solo-lectura.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Bloqueo de escritura: 23-gerente-solo-lectura (rol de consulta) y 23b-modo-visualizacion (modo visualización) envuelven los save* para impedir guardados; la original de 02-estado sigue siendo la que escribe cuando está permitido."
+  },
+  {
+   "nombre": "selectLine",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "sheetsReenviarTareo",
+   "archivos": [
+    "js/nucleo/34-integraciones.js",
+    "js/rrhh/38-tareo-rrhh-exportacion.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoAbrirAgregarPersonal",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/42-tareo-agregar-personal.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoAgregarPersonal",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/42-tareo-agregar-personal.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoAreaVista",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/mantenimiento/18-mantenimiento.js",
+    "js/personal/13-tareo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoAutorizadoEscribir",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/41-tareo-bloqueo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoCargoPermitido",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/28-tareo-maquinistas.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoEditarPersona",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/28-tareo-maquinistas.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoEditarSalidaMaquinista",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/41-tareo-bloqueo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoGuardarEnNube",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/mantenimiento/37f-tareo-por-tecnico.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoGuardarSalidaMaquinista",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/41-tareo-bloqueo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoPuedeEditar",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/41-tareo-bloqueo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoPuedeExportar",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/41-tareo-bloqueo.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tareoRenderTabs",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/20-tareo-control.js",
+    "js/rrhh/26-rrhh-panel.js",
+    "js/mantenimiento/30-rotacion-mantenimiento.js",
+    "js/mantenimiento/33-rotacion-maquinistas.js",
+    "js/mantenimiento/37b-mantenimiento-identificacion.js",
+    "js/mantenimiento/37c-equipos-catalogo.js",
+    "js/mantenimiento/37e-motivos-parada.js",
+    "js/rrhh/38-tareo-rrhh-exportacion.js",
+    "js/personal/41-tareo-bloqueo.js",
+    "js/nucleo/44-estado-datos.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "tienePermiso",
+   "archivos": [
+    "js/nucleo/02-estado.js",
+    "js/accesos/23b-modo-visualizacion.js",
+    "js/produccion/24-semaforo-produccion-actual.js",
+    "js/asistente/71-asistente-datos.js",
+    "js/asistente/75-inventario-insumos-datos.js",
+    "js/calidad/98-calidad-permisos.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "unidadesPorPaletaActiva",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/24-semaforo-produccion-actual.js"
+   ],
+   "motivo": "24-semaforo-produccion-actual reemplaza esta función de 16-paletas con la versión que entiende combinaciones de turnos y producción actual."
+  },
+  {
+   "nombre": "updateMermaCuadro",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/produccion/35c-autollenado-completo.js"
+   ],
+   "motivo": "35c-autollenado-completo reemplaza esta función de 06-registro (autollenado completo del Nuevo registro); la versión de 06 queda como respaldo."
+  },
+  {
+   "nombre": "validarReporteParaFinalizar",
+   "archivos": [
+    "js/produccion/06-registro.js",
+    "js/produccion/35c-autollenado-completo.js"
+   ],
+   "motivo": "35c-autollenado-completo reemplaza esta función de 06-registro (autollenado completo del Nuevo registro); la versión de 06 queda como respaldo."
+  },
+  {
+   "nombre": "visibleLines",
+   "archivos": [
+    "js/nucleo/04-sidebar.js",
+    "js/accesos/23b-modo-visualizacion.js"
+   ],
+   "motivo": "Capa de permisos: 23b-modo-visualizacion (y, según el caso, 23-gerente-solo-lectura, 37-mantenimiento-tecnicos, 103-almacen-compartido o el archivo de permisos de su módulo) guarda la función anterior, la reasigna y delega en ella; el módulo que carga después añade su regla sin reescribir la original."
+  },
+  {
+   "nombre": "wspEnviarTareo",
+   "archivos": [
+    "js/nucleo/34-integraciones.js",
+    "js/rrhh/38-tareo-rrhh-exportacion.js"
+   ],
+   "motivo": "Capas del Tareo: 13-tareo define la función base; los archivos posteriores la envuelven (permisos, bloqueo por plazo, Mantenimiento por técnico, maquinistas, exportaciones) y delegan en la anterior."
+  },
+  {
+   "nombre": "xlgHojaDatos",
+   "archivos": [
+    "js/produccion/14-exportar-general.js",
+    "js/produccion/49-resumen-indicadores.js"
+   ],
+   "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  }
+ ],
+ "nativos": [
+  {
+   "nombre": "Date",
+   "archivo": "js/nucleo/01b-fecha-operativa.js",
+   "motivo": "Simulación de hora para el Administrador: window.Date = DateSim hace que toda la página vea la hora simulada (turno/fecha operativa). Sin simulación activa se comporta como el Date real (ver docs/00-general/fecha-operativa.md)."
+  },
+  {
+   "nombre": "print",
+   "archivo": "js/accesos/23b-modo-visualizacion.js",
+   "motivo": "Modo visualización: window.print envuelto para no imprimir/exportar donde el rol solo puede ver."
+  },
+  {
+   "nombre": "open",
+   "archivo": "js/accesos/23b-modo-visualizacion.js",
+   "motivo": "Modo visualización: window.open envuelto para bloquear aperturas de exportación donde el rol solo puede ver."
+  },
+  {
+   "nombre": "fetch",
+   "archivo": "js/accesos/39-vista-como.js",
+   "motivo": "«Ver como» del Administrador: window.fetch envuelto para impedir escrituras mientras se mira como otro usuario (solo lectura)."
+  }
+ ],
+ "dinamicasSinLista": [
+  {
+   "archivo": "js/accesos/23b-modo-visualizacion.js",
+   "motivo": "Escritura con nombre calculado (globalThis[nombre] = …) cuya lista de nombres no es un literal visible; revisar a mano al tocar este archivo."
+  },
+  {
+   "archivo": "js/personal/40-tareo-auditoria.js",
+   "motivo": "Escritura con nombre calculado (globalThis[nombre] = …) cuya lista de nombres no es un literal visible; revisar a mano al tocar este archivo."
+  },
+  {
+   "archivo": "js/nucleo/00c-espacios-nombres.js",
+   "motivo": "Es el propio ayudante de espacios de nombres: crea el alias global (root[nombreGlobal]) solo si el nombre está libre y anota los conflictos en Glacial.conflictos(); nunca pisa un global existente."
+  }
+ ],
+ "sinVersion": [
+  {
+   "archivo": "js/rrhh/19-rrhh.js",
+   "motivo": "Hoy se carga sin ?v=; se mantiene así hasta decidir (ver contratos-js.md)."
+  }
+ ]
+}

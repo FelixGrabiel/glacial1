@@ -155,4 +155,6 @@
   window.GlacialFecha={ahoraMs,ahoraLima,fechaISOLocal,turnoActual,bloqueActual,fechaOperativa,diaJuliano,semanaISO,sumarDias,hhmmAMs,
     simulacion:()=>({activa:sim.activa,ms:sim.ms,texto:sim.txt||''}),
     HORA_FIN_NOCHE,HORA_INICIO_NOCHE};
+  /* Piloto de espacios de nombres (js/nucleo/00c-espacios-nombres.js): Glacial.Fecha es el mismo objeto que GlacialFecha, que se conserva. */
+  if(window.Glacial&&window.Glacial.exponer)window.Glacial.exponer('Fecha',window.GlacialFecha);
 })();

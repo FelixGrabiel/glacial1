@@ -33,6 +33,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Carga de scripts: archivos de index.html que existan, sobrescrituras dentro de la lista blanca y ?v= subido en todo js/css modificado.
+      # Compara contra el estado anterior al push (github.event.before); si no existe (primer push, ejecución manual) usa el commit anterior.
+      - name: Validar carga de scripts (orden, colisiones y ?v=)
+        run: node scripts/validar-carga.js --base "${{ github.event.before }}"
       - name: Pruebas rápidas
         run: node tests/correr-todo.js
       - name: Instalar el compresor
