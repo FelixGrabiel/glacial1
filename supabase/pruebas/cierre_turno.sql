@@ -1,5 +1,6 @@
 -- Prueba de glacial_69 (cierre progresivo de marcas y cierre de turno consolidado). Se ejecuta en PRUEBAS con la migración aplicada.
 -- Todo ocurre dentro de una transacción que termina en ROLLBACK: no deja datos. Debe terminar con «OK glacial_69: N comprobaciones».
+-- Desde glacial_70 cerrar una marca exige paradas_revisadas = true (aquí se envía siempre; con solo glacial_69 se ignora).
 -- Usa como sesión el primer perfil «Administrador» de sync/perfiles (no hay uids escritos aquí).
 begin;
 do $t$
@@ -23,30 +24,30 @@ begin
 
   -- 2) cerrar en orden: el 2.º sin cerrar el 1.º → error
   begin
-    perform public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_b', 'hora_corte', '02:00', 'paletas_acumuladas', 4, 'saldo_paquetes', 0, 'client_event_id', gen_random_uuid()));
+    perform public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_b', 'hora_corte', '02:00', 'paletas_acumuladas', 4, 'saldo_paquetes', 0, 'paradas_revisadas', true, 'client_event_id', gen_random_uuid()));
     raise exception '6 debía exigir el orden';
   exception when sqlstate '23514' then ok := ok + 1; end;
 
   -- 3) cerrar el 1.º (Scala hasta las 02:00 del día siguiente: turno noche)
-  r := public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_a', 'hora_corte', '02:00', 'paletas_acumuladas', 7, 'paletas_tramo', 7, 'saldo_paquetes', 12,
+  r := public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_a', 'hora_corte', '02:00', 'paletas_acumuladas', 7, 'paletas_tramo', 7, 'saldo_paquetes', 12, 'paradas_revisadas', true,
         'client_event_id', 'aaaaaaaa-0000-4000-8000-000000000001'));
   if r->>'estado' = 'cerrado' and (r->>'orden')::int = 1 and (r->>'saldo_paquetes')::int = 12 and (r->>'cerrado_en')::timestamptz = '2099-01-16 02:00:00-05'::timestamptz then ok := ok + 1; else raise exception '7 cierre del 1.º: %', r; end if;
   -- reintento del MISMO evento: devuelve la misma fila
-  r := public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_a', 'hora_corte', '02:00', 'paletas_acumuladas', 7, 'saldo_paquetes', 12,
+  r := public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_a', 'hora_corte', '02:00', 'paletas_acumuladas', 7, 'saldo_paquetes', 12, 'paradas_revisadas', true,
         'client_event_id', 'aaaaaaaa-0000-4000-8000-000000000001'));
   if (select count(*) from public.cierre_tramos where linea = 'B7L' and fecha = '2099-01-15') = 1 then ok := ok + 1; else raise exception '8 idempotencia'; end if;
   -- otro evento sobre el tramo ya cerrado → 23505
   begin
-    perform public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_a', 'hora_corte', '02:10', 'paletas_acumuladas', 7, 'saldo_paquetes', 0, 'client_event_id', gen_random_uuid()));
+    perform public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_a', 'hora_corte', '02:10', 'paletas_acumuladas', 7, 'saldo_paquetes', 0, 'paradas_revisadas', true, 'client_event_id', gen_random_uuid()));
     raise exception '9 debía rechazar el doble cierre';
   exception when sqlstate '23505' then ok := ok + 1; end;
 
   -- 4) hora de corte anterior a la del tramo previo → error
   begin
-    perform public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_b', 'hora_corte', '23:30', 'paletas_acumuladas', 4, 'saldo_paquetes', 0, 'client_event_id', gen_random_uuid()));
+    perform public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_b', 'hora_corte', '23:30', 'paletas_acumuladas', 4, 'saldo_paquetes', 0, 'paradas_revisadas', true, 'client_event_id', gen_random_uuid()));
     raise exception '10 debía rechazar la hora anterior';
   exception when sqlstate '23514' then ok := ok + 1; end;
-  r := public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_b', 'hora_corte', '04:30', 'paletas_acumuladas', 4, 'paletas_tramo', 4, 'saldo_paquetes', 0, 'client_event_id', gen_random_uuid()));
+  r := public.cierre_tramo_cerrar(base || jsonb_build_object('secuencia', sec, 'tramo_id', 'tr_b', 'hora_corte', '04:30', 'paletas_acumuladas', 4, 'paletas_tramo', 4, 'saldo_paquetes', 0, 'paradas_revisadas', true, 'client_event_id', gen_random_uuid()));
   if r->>'estado' = 'cerrado' and (r->>'orden')::int = 2 then ok := ok + 1; else raise exception '11 cierre del 2.º'; end if;
 
   -- 5) envío: con registros pendientes en el equipo → error; sin «ultimo» → error
@@ -61,7 +62,7 @@ begin
 
   -- 6) envío correcto: cierra la última (Scala retoma: acumulado 10 = 3 en este tramo) y consolida
   r := public.cierre_turno_enviar(base || jsonb_build_object('secuencia', sec, 'client_event_id', 'bbbbbbbb-0000-4000-8000-000000000002', 'pendientes', 0, 'observaciones', 'Bidones 7L no para',
-        'ultimo', jsonb_build_object('hora_corte', '07:00', 'paletas_acumuladas', 10, 'paletas_tramo', 3, 'saldo_paquetes', 5)));
+        'ultimo', jsonb_build_object('hora_corte', '07:00', 'paletas_acumuladas', 10, 'paletas_tramo', 3, 'saldo_paquetes', 5, 'paradas_revisadas', true)));
   if (r->>'total_paletas')::int = 14 and (r->>'total_saldo')::int = 17 and (r->>'tramos')::int = 3 and jsonb_array_length(r->'resumen') = 3 and r->>'observaciones' = 'Bidones 7L no para' and r->>'sync_estado' = 'sincronizado'
     then ok := ok + 1; else raise exception '14 envío: %', r; end if;
   -- reintento del mismo envío → mismo cierre; otro evento → 23505
@@ -73,7 +74,7 @@ begin
   exception when sqlstate '23505' then ok := ok + 1; end;
   -- con el turno enviado no se cierran más marcas
   begin
-    perform glacial_fs.cierre_tramo_aplicar(base || jsonb_build_object('secuencia', sec || '[{"tramo_id":"tr_d","marca":"Aro","presentacion":"7 Litros"}]'::jsonb, 'tramo_id', 'tr_d', 'hora_corte', '07:00', 'paletas_acumuladas', 1, 'saldo_paquetes', 0, 'client_event_id', gen_random_uuid()), 'x', null);
+    perform glacial_fs.cierre_tramo_aplicar(base || jsonb_build_object('secuencia', sec || '[{"tramo_id":"tr_d","marca":"Aro","presentacion":"7 Litros"}]'::jsonb, 'tramo_id', 'tr_d', 'hora_corte', '07:00', 'paletas_acumuladas', 1, 'saldo_paquetes', 0, 'paradas_revisadas', true, 'client_event_id', gen_random_uuid()), 'x', null);
     raise exception '17 debía bloquear tras el envío';
   exception when sqlstate '23514' then ok := ok + 1; end;
 
