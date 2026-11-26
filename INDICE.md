@@ -4,6 +4,11 @@ Aplicación web (HTML + JS sin módulos ni empaquetador). Los datos viven en **S
 quedó cerrado como respaldo de solo lectura (`_archivo/firebase/`). Las funciones son **globales** y varios archivos redefinen funciones de otros, por eso
 **el orden de carga en `index.html` es parte del código y no debe cambiarse**.
 
+**Contratos de los scripts (qué expone cada archivo, de cuáles depende y qué sobrescribe a propósito): [`docs/00-general/contratos-js.md`](docs/00-general/contratos-js.md)**
+(generado con `node scripts/generar-contratos.js`). **Antes de cada `push`:** `node tests/correr-todo.js` (incluye `tests/carga-scripts.test.js`) o, solo la carga,
+`node scripts/validar-carga.js`: comprueba que los archivos de `index.html` existan, que no haya sobrescrituras fuera de la lista blanca
+`scripts/sobrescrituras-permitidas.json` y que todo `js/`/`css/` modificado tenga su `?v=` nuevo.
+
 ## Cómo abrir en VS Code
 
 Archivo → *Abrir área de trabajo desde archivo…* → `glacial.code-workspace`. Muestra el proyecto agrupado por área (Núcleo, Accesos, Producción,
@@ -34,6 +39,7 @@ supabase/
 docs/
   00-general/ produccion/ planificacion/ personal-tareo/ mantenimiento/ economico/ asistente/   documentación por tema (indice-docs.md)
   bpmn/ capturas/ migracion/
+scripts/          construir-publicacion.js (publicación) · analizar-globales.js · validar-carga.js · generar-contratos.js · sobrescrituras-permitidas.json (control de globales y ?v=)
 tests/            pruebas automáticas (*.test.js) y páginas de validación visual (visual/)
 _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LEEME). No se llama «functions/» porque Cloudflare Pages
                     intentaría publicar esa carpeta como funciones de servidor
@@ -47,6 +53,7 @@ _archivo/firebase/  Firebase cerrado: reglas, función de ejemplo y CORS (con LE
 |---|---|
 | 00-logo.js | Logo en base64 para portadas de Excel. **No se carga** en `index.html` (pendiente de decidir) |
 | 00b-puente-supabase.js | **Rama `supabase`:** puente que ofrece `firebase`, `db` y `auth` sobre Supabase (ver `docs/00-general/puente-supabase.md`). Se carga antes de 01-config.js |
+| 00c-espacios-nombres.js | Base `window.Glacial.<Area>` (espacios de nombres ligeros con alias globales retrocompatibles; piloto: `Glacial.Fecha`). Se carga antes de 01-config.js. Ver contratos-js.md |
 | 01-config.js | Configuración de la base de datos (Supabase), banderas de seguridad, catálogos |
 | 01b-fecha-operativa.js | Fuente única de fecha operativa / turno (hora de Lima, NOCHE de madrugada = día anterior) y hora simulada para el Administrador. Ver docs/00-general/fecha-operativa.md |
 | 02-estado.js | Estado global, permisos, sincronización con Firestore |
