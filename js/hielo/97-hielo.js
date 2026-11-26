@@ -448,7 +448,7 @@
       const docs=s.docs.map(d=>d.data()).filter(x=>x&&x.id);
       docs.forEach(ponerEnCache);return true;}catch(_){return false;}
   }
-  async function guardarProgramacion(fecha,turno,items,revEsperada,producto){
+  async function guardarProgramacion(fecha,turno,items,revEsperada,producto,origen){
     if(!puedeProgramar())throw new Error('No tienes permiso para programar la producción de hielo.');
     const u=yo(),prod=esProducto(producto)?producto:'CUBOS',id=idReporte(fecha,turno,prod),ref=db.collection(C.programacion).doc(id);
     const limpios=(items||[]).map(i=>({marca:texto(i.marca),presentacion:texto(i.presentacion),bolsas:Math.max(0,Math.round(num(i.bolsas)))})).filter(i=>i.marca&&i.presentacion&&i.bolsas>0);
@@ -456,7 +456,7 @@
       const s=await tx.get(ref);const previo=s.exists?s.data():null;
       if(Number(previo&&previo.rev||0)!==Number(revEsperada||0))throw new Error('Otra persona cambió esta programación. Se actualizó la pantalla: vuelve a guardar.');
       tx.set(ref,Object.assign({id,fecha,turno},prod==='CUBOS'?{}:{producto:prod},{items:limpios,rev:(Number(previo&&previo.rev)||0)+1,
-        historial:(previo&&previo.historial||[]).concat([{por:u.nombre,en:ahora(),bolsas:limpios.reduce((s,i)=>s+i.bolsas,0)}]).slice(-50),
+        historial:(previo&&previo.historial||[]).concat([Object.assign({por:u.nombre,en:ahora(),bolsas:limpios.reduce((s,i)=>s+i.bolsas,0)},origen&&origen.tipo?{origen:origen.tipo,enviadoPor:texto(origen.enviadoPor)}:{})]).slice(-50),
         actualizadoPor:u.nombre,actualizadoUid:u.uid,actualizadoEn:ahora()}));
     });
   }
