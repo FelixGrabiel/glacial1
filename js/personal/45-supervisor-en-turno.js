@@ -9,6 +9,13 @@
    «distribucionPersonal» (id «supervisores_AAAA-MM-DD_DIA|NOCHE»); no hay colección nueva ni cambios en el servidor: usa las mismas
    reglas (versión +1, hora del servidor, permiso «distribuirPersonal», que el Supervisor tiene por defecto). Lo leen todos con sesión.
    Cada supervisor escribe solo su propia entrada (clave = su uid); una persona que cambia de área reemplaza la suya.
+   SOLO QUIEN ESTÁ EN PLANTA (26/11/2026): antes la barra acumulaba a todos los que eligieron área en el bloque (Día + Intermedio, 07:00–19:00)
+   aunque ya se hubieran ido. Ahora:
+     · cada entrada vence sola al terminar SU turno (hastaMs = cierre de su ventana de 17b; sin rotación, 8 h desde que entró) y guarda su
+       turno real (Día / Intermedio / Noche);
+     · solo se pregunta el área (y solo se suma a la barra) a quien está en «Trabajar» y DENTRO de su horario; fuera de horario o en «Visualizar», no;
+     · «Salir del turno» quita el nombre al momento en todas las pantallas;
+     · se lee también el bloque anterior, para que el Intermedio (15–23) siga visible después de las 19:00 hasta su hora de salida.
    ============================================================= */
 (function instalarSupervisorEnTurno(){
   'use strict';
@@ -20,6 +27,7 @@
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
   const bloqueDe=t=>String(t||'').toUpperCase().includes('NOCHE')?'NOCHE':'DIA';
   const clave=(fecha,bloque)=>'supervisores_'+String(fecha)+'_'+bloqueDe(bloque);
+  const DURACION_SIN_HORARIO_MS=8*3600000;      // sin rotación (o entradas anteriores sin hastaMs): vence 8 h después de entrar
 
   /* ---------- núcleo puro ---------- */
   /* Entrada de un supervisor sobre el documento anterior (o null) → mapa nuevo de supervisores. Una entrada por uid. */
@@ -29,19 +37,49 @@
     const nombre=String(e.nombre||'').trim();
     if(!nombre)throw new Error('Falta el nombre del supervisor.');
     const sup=Object.assign({},prev&&prev.supervisores&&typeof prev.supervisores==='object'?prev.supervisores:{});
-    sup[e.uid]={uid:String(e.uid),nombre:nombre.slice(0,80),area:e.area,turno:String(e.turno||''),desdeMs:num(e.desdeMs)};
+    const desdeMs=num(e.desdeMs),hastaMs=num(e.hastaMs)>desdeMs?num(e.hastaMs):desdeMs+DURACION_SIN_HORARIO_MS;
+    sup[e.uid]={uid:String(e.uid),nombre:nombre.slice(0,80),area:e.area,turno:String(e.turno||''),desdeMs,hastaMs};
     return {supervisores:sup};
   }
+  /* «Salir del turno»: la entrada queda con salioMs (deja de mostrarse al momento). */
+  function salir(prev,uid,ms){
+    const sup=Object.assign({},prev&&prev.supervisores&&typeof prev.supervisores==='object'?prev.supervisores:{});
+    if(!sup[uid])return {supervisores:sup};
+    sup[uid]=Object.assign({},sup[uid],{salioMs:num(ms)});
+    return {supervisores:sup};
+  }
+  /* ¿Sigue en planta a esta hora? Sin hora (ahoraMs) no se filtra (compatibilidad). */
+  function vigente(x,ahoraMs){
+    if(!x)return false;
+    if(ahoraMs===undefined||ahoraMs===null)return true;
+    if(num(x.salioMs)&&num(x.salioMs)<=ahoraMs)return false;
+    const hasta=num(x.hastaMs)||(num(x.desdeMs)+DURACION_SIN_HORARIO_MS);
+    return ahoraMs<hasta&&ahoraMs>=num(x.desdeMs)-60000;      // (con 1 min de margen por diferencias de reloj)
+  }
   /* Nombres por área (sin repetir, por hora de ingreso). Área sin nadie = lista vacía. */
-  function porArea(doc){
+  function porArea(doc,ahoraMs,docAnterior){
     const r={AGUA:[],HIELO:[]};
-    const lista=Object.values((doc&&doc.supervisores)||{}).filter(x=>x&&AREAS[x.area]).sort((a,b)=>num(a.desdeMs)-num(b.desdeMs));
+    // Bloque anterior + actual (el actual manda si la misma persona está en los dos).
+    const todas=Object.assign({},(docAnterior&&docAnterior.supervisores)||{},(doc&&doc.supervisores)||{});
+    const lista=Object.values(todas).filter(x=>x&&AREAS[x.area]&&vigente(x,ahoraMs)).sort((a,b)=>num(a.desdeMs)-num(b.desdeMs));
     lista.forEach(x=>{if(!r[x.area].includes(x.nombre))r[x.area].push(x.nombre);});
     return r;
   }
-  const propia=(doc,uid)=>((doc&&doc.supervisores)||{})[uid]||null;
+  const propia=(doc,uid,ahoraMs)=>{const x=((doc&&doc.supervisores)||{})[uid]||null;return x&&vigente(x,ahoraMs)?x:null;};
+  /* Bloque anterior al de (fecha, bloque): el anterior a la Noche es el Día de la misma fecha; el anterior al Día es la Noche del día previo. */
+  function anterior(fecha,bloque){
+    if(bloqueDe(bloque)==='NOCHE')return {fecha,bloque:'DIA'};
+    const [y,m,d]=String(fecha).split('-').map(Number),x=new Date(Date.UTC(y,m-1,d-1));      // día calendario previo (sin zona horaria)
+    return {fecha:x.getUTCFullYear()+'-'+String(x.getUTCMonth()+1).padStart(2,'0')+'-'+String(x.getUTCDate()).padStart(2,'0'),bloque:'NOCHE'};
+  }
+  /* Estado de la ventana del supervisor (17b) → ¿está en planta y hasta cuándo? Sin rotación: sí, sin hora de salida conocida. */
+  function enHorario(st){
+    if(!st||st.aplica===false||st.estado==='NO_APLICA'||st.estado==='SIN_HORARIO'||st.estado==='CARGANDO')return {dentro:true,turno:'',hastaMs:0};
+    if(st.ventana&&['ABIERTA','ANTICIPADA','TOLERANCIA','AMPLIADA'].includes(st.estado))return {dentro:true,turno:st.ventana.turno||'',hastaMs:num(st.ventana.cierreMs)||num(st.ventana.finMs)};
+    return {dentro:false,turno:'',hastaMs:0};      // ANTES, CERRADA, SIN_TURNO (aunque el cierre automático esté desactivado)
+  }
 
-  const N={AREAS,ORDEN,clave,bloqueDe,aplicar,porArea,propia};
+  const N={AREAS,ORDEN,clave,bloqueDe,aplicar,salir,vigente,porArea,propia,anterior,enHorario,DURACION_SIN_HORARIO_MS};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined'||typeof document==='undefined')return;
 
@@ -61,11 +99,14 @@
   const esSupervisor=()=>{const u=usuario();return !!u&&u.rol==='Supervisor';};
   const soloVista=()=>!!(window.glacialVista&&typeof window.glacialVista.activo==='function'&&window.glacialVista.activo());
   const puedeDeclarar=()=>esSupervisor()&&!soloVista()&&typeof tienePermiso==='function'&&tienePermiso('distribuirPersonal');
+  const horario=()=>{try{return enHorario(window.glacialVentanaSupervisor&&typeof window.glacialVentanaSupervisor.estado==='function'?window.glacialVentanaSupervisor.estado(usuario()):null);}catch(_){return enHorario(null);}};
+  /* Se pregunta el área (y se suma a la barra) solo a quien trabaja y está dentro de su horario. */
+  const debeDeclarar=()=>puedeDeclarar()&&horario().dentro;
   const uidActual=()=>{const f=(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)||null;return (f&&f.uid)||'';};
   const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   /* ---------- Firestore ---------- */
-  const E={clave:'',doc:null,cerrar:null,listo:false,error:false,decidido:{}};
+  const E={clave:'',doc:null,cerrar:null,listo:false,error:false,decidido:{},claveAnt:'',docAnt:null,cerrarAnt:null};
   const ref=(fecha,bloque)=>db.collection('distribucionPersonal').doc(clave(fecha,bloque));
   function escuchar(){
     if(typeof db==='undefined'||!usuario())return;
@@ -73,10 +114,13 @@
     const k=clave(c.fecha,c.bloque);
     if(E.clave===k&&E.cerrar)return;
     if(E.cerrar){try{E.cerrar();}catch(_){/* ya cerrada */}}
-    E.clave=k;E.doc=null;E.listo=false;E.error=false;
+    if(E.cerrarAnt){try{E.cerrarAnt();}catch(_){/* ya cerrada */}}
+    E.clave=k;E.doc=null;E.listo=false;E.error=false;E.docAnt=null;
     try{
       E.cerrar=ref(c.fecha,c.bloque).onSnapshot(s=>{E.doc=s.exists?s.data():null;E.listo=true;E.error=false;pintar();avisarSiFalta();},()=>{E.error=true;E.listo=true;pintar();});
     }catch(_){E.cerrar=null;E.error=true;}
+    // Bloque anterior: el Intermedio (15–23) sigue visible después de las 19:00 hasta su salida.
+    try{const a=anterior(c.fecha,c.bloque);E.claveAnt=clave(a.fecha,a.bloque);E.cerrarAnt=ref(a.fecha,a.bloque).onSnapshot(s=>{E.docAnt=s.exists?s.data():null;pintar();},()=>{E.docAnt=null;});}catch(_){E.cerrarAnt=null;}
   }
   async function declarar(area){
     if(!puedeDeclarar())throw new Error('No tienes permiso para indicar tu área.');
@@ -86,9 +130,29 @@
     await db.runTransaction(async tx=>{
       const s=await tx.get(r),prev=s.exists?s.data():null;
       const v=prev?num(prev.version):0;
-      const nuevo=aplicar(prev,{uid,nombre:u.nombre||u.username,area,turno:c.turno,desdeMs:ahora()});
+      const h=horario();
+      const nuevo=aplicar(prev,{uid,nombre:u.nombre||u.username,area,turno:h.turno||c.turno,desdeMs:ahora(),hastaMs:h.hastaMs});
       tx.set(r,Object.assign({},nuevo,{version:v+1,fecha:c.fecha,bloque:bloqueDe(c.bloque),tipo:'SUPERVISORES',actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),actualizadoUid:uid}));
     });
+  }
+
+  /* «Salir del turno»: deja de figurar en el documento actual y en el anterior. */
+  async function salirDelTurno(){
+    try{await salirDelTurnoGuardar();}catch(e){if(typeof alert==='function')alert((e&&e.message)||'No se pudo guardar. Intenta de nuevo.');}
+    pintar();
+  }
+  async function salirDelTurnoGuardar(){
+    const uid=uidActual();if(!uid||!puedeDeclarar())return;
+    const c=contexto(),a=anterior(c.fecha,c.bloque),ms=ahora();
+    for(const x of [[c.fecha,c.bloque],[a.fecha,a.bloque]]){
+      const r=ref(x[0],x[1]);
+      await db.runTransaction(async tx=>{
+        const s=await tx.get(r),prev=s.exists?s.data():null;
+        if(!prev||!prev.supervisores||!prev.supervisores[uid])return;
+        tx.set(r,Object.assign({},salir(prev,uid,ms),{version:num(prev.version)+1,actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),actualizadoUid:uid}),{merge:true});
+      });
+    }
+    E.decidido[E.clave]=true;
   }
 
   /* ---------- barra con los nombres ---------- */
@@ -112,13 +176,14 @@
     document.head.appendChild(s);
   }
   function htmlBarra(){
-    const p=porArea(E.doc),u=usuario(),propiaEnt=propia(E.doc,uidActual());
+    const ms=ahora(),p=porArea(E.doc,ms,E.docAnt),uid=uidActual(),propiaEnt=propia(E.doc,uid,ms)||propia(E.docAnt,uid,ms);
     const celdas=ORDEN.map(a=>{
       const n=p[a];
       return `<span><span class="sup-t">${esc(AREAS[a].nombre)}</span> <b class="sup-n">${n.length?esc(n.join(', ')):''}</b>${n.length?'':'<span class="sup-v">sin indicar</span>'}</span>`;
     }).join('');
     const accion=puedeDeclarar()&&E.listo&&!E.error
-      ?(propiaEnt?'<button type="button" class="sup-sec" onclick="glacialSupervisorTurno.preguntar()">Cambiar mi área</button>':'<button type="button" onclick="glacialSupervisorTurno.preguntar()">Indicar mi área</button>')
+      ?(propiaEnt?'<button type="button" class="sup-sec" onclick="glacialSupervisorTurno.preguntar()">Cambiar mi área</button><button type="button" class="sup-sec" onclick="glacialSupervisorTurno.salirDelTurno()">Salir del turno</button>'
+        :(horario().dentro?'<button type="button" onclick="glacialSupervisorTurno.preguntar()">Indicar mi área</button>':''))
       :'';
     return `<span class="sup-t">Supervisor en turno</span>${celdas}${accion}`;
   }
@@ -134,6 +199,7 @@
   function cerrarModal(){const m=document.getElementById('sup-modal');if(m)m.remove();}
   function preguntar(){
     if(!puedeDeclarar())return;
+    if(!horario().dentro){if(typeof alert==='function')alert('Estás fuera de tu horario: solo quien está en planta aparece en «Supervisor en turno».');return;}
     estilos();cerrarModal();
     const c=contexto(),t=c.turno==='NOCHE'?'Noche':(c.turno==='INTERMEDIO'?'Intermedio':'Día');
     const m=document.createElement('div');m.id='sup-modal';m.className='sup-modal';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-label','¿En qué área estás?');
@@ -150,8 +216,8 @@
   function ahoraNo(){E.decidido[E.clave]=true;cerrarModal();}
   /* Al llegar los datos: si es supervisor, está en turno y aún no indicó su área (ni dijo «ahora no» en este turno), se le pregunta una vez. */
   function avisarSiFalta(){
-    if(!puedeDeclarar()||!E.listo||E.error||E.decidido[E.clave]||document.getElementById('sup-modal'))return;
-    if(propia(E.doc,uidActual())){E.decidido[E.clave]=true;return;}
+    if(!debeDeclarar()||!E.listo||E.error||E.decidido[E.clave]||document.getElementById('sup-modal'))return;
+    if(propia(E.doc,uidActual(),ahora())||propia(E.docAnt,uidActual(),ahora())){E.decidido[E.clave]=true;return;}
     const app=document.getElementById('app-screen'),hl=document.getElementById('hielo-screen'),sel=document.getElementById('report-select-screen');
     const hay=el=>!!el&&el.style.display!=='none'&&getComputedStyle(el).display!=='none';
     if(!(hay(app)||hay(hl)||hay(sel)))return;      // aún en la pantalla de acceso
@@ -159,7 +225,7 @@
   }
   setInterval(()=>{try{escuchar();pintar();avisarSiFalta();}catch(_){/* una falla aquí no debe romper la página */}},15000);
   setTimeout(()=>{try{escuchar();}catch(_){/* ídem */}},2500);
-  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{if(E.cerrar){try{E.cerrar();}catch(_){/* ya cerrada */}}E.cerrar=null;E.clave='';E.doc=null;E.listo=false;E.decidido={};cerrarModal();pintar();});
+  if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{if(E.cerrar){try{E.cerrar();}catch(_){/* ya cerrada */}}if(E.cerrarAnt){try{E.cerrarAnt();}catch(_){/* ya cerrada */}}E.cerrar=null;E.cerrarAnt=null;E.docAnt=null;E.clave='';E.doc=null;E.listo=false;E.decidido={};cerrarModal();pintar();});
 
-  window.glacialSupervisorTurno={preguntar,elegir,ahoraNo,pintar,htmlBarraHielo,declarar,estado:()=>E};
+  window.glacialSupervisorTurno={preguntar,elegir,ahoraNo,pintar,htmlBarraHielo,declarar,salirDelTurno,estado:()=>E};
 })();
