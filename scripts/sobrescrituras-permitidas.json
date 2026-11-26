@@ -618,6 +618,14 @@
    "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
   },
   {
+   "nombre": "htmlSecuenciaTurnoPaletas",
+   "archivos": [
+    "js/produccion/16-paletas.js",
+    "js/produccion/16f-cierre-marcas.js"
+   ],
+   "motivo": "Enganche: 16f-cierre-marcas añade el panel «Cierre de turno» (cierre progresivo de marcas) debajo de la Secuencia del turno y llama a la versión anterior."
+  },
+  {
    "nombre": "renderPaletasTab",
    "archivos": [
     "js/produccion/16-paletas.js",
