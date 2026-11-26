@@ -544,6 +544,26 @@
 .hl-btn:hover{box-shadow:0 4px 12px rgba(8,119,166,.35)}.hl-btn:active{transform:translateY(1px)}
 .hl-btn.o{background:#fff;color:#0877A6;border:1px solid #9fd0e6;box-shadow:none}.hl-btn.o:hover{background:#f1f9fd}.hl-btn.x{min-width:44px;padding:8px}
 .hl-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.hl-pg-barra{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}.hl-pg-dia{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hl-pg-fecha{display:flex;flex-direction:column;gap:2px;margin:0}.hl-pg-fecha span{font-size:11px;font-weight:800;color:#587087;text-transform:uppercase;letter-spacing:.04em}
+.hl-pg-turnos{display:flex;gap:4px;padding:4px;background:#eef4f9;border-radius:12px;flex-wrap:wrap}.hl-pg-turnos button{border:0;background:none;padding:9px 18px;min-height:40px;border-radius:9px;font:inherit;font-weight:700;color:#3c5a75;cursor:pointer}
+.hl-pg-turnos button.act{background:#0877A6;color:#fff;box-shadow:0 2px 6px rgba(8,119,166,.28)}
+.hl-pg-cab{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.hl-pg-tot{display:grid;grid-template-columns:auto auto;gap:0 6px;align-items:baseline;background:#f4f8fb;border:1px solid #d9e7f1;border-radius:12px;padding:8px 14px}.hl-pg-tot b{font-size:20px;color:#0a2745;text-align:right}.hl-pg-tot span{font-size:12px;color:#587087}
+@media(min-width:700px){.hl-pg-tot{grid-template-columns:repeat(6,auto)}}
+.hl-pg-tw{overflow-x:auto}.hl-pg-t td.n,.hl-pg-t th.n{text-align:right;white-space:nowrap}.hl-pg-t tfoot th{background:#0a2745;color:#fff;padding:9px 10px;text-align:left}.hl-pg-t tfoot th.n{text-align:right}
+.hl-pg-grupo th{background:#eaf4fb;text-align:left;padding:7px 10px;text-transform:none;letter-spacing:0}.hl-pg-grupo th div{display:flex;gap:6px 12px;align-items:center;flex-wrap:wrap}
+.hl-pg-grupo th span{font-weight:800;color:#0a2745;font-size:14px}.hl-pg-grupo th b{font-weight:600;color:#3c5a75;font-size:13px}.hl-pg-grupo th .hl-btn{margin-left:auto;min-height:32px;padding:4px 12px;font-size:13px}
+.hl-pg-t td{vertical-align:middle}.hl-pg-t td[data-label="Marca"] select{max-width:280px}.hl-pg-t input[type=number]{max-width:140px}
+@media(max-width:700px){.hl-pg-grupo th .hl-btn{margin-left:0}}
+.hl-pg-pres{margin-top:4px;font-size:12px}.hl-pg-ok{color:#157a3b;font-weight:800}.hl-pg-falta{color:#b45309;font-weight:800}
+.hl-pg-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}.hl-pg-esp{flex:1}
+.hl-pg-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:10px}
+.hl-pg-card{display:flex;flex-direction:column;gap:3px;text-align:left;border:1px solid #d9e7f1;border-radius:12px;background:#fff;padding:10px 12px;cursor:pointer;font:inherit;color:#0a2745}
+.hl-pg-card:hover{border-color:#0877A6}.hl-pg-card.sel{border:2px solid #0877A6;background:#f2f9fd}
+.hl-pg-c1{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}.hl-pg-c1 small{color:#587087}.hl-pg-c2{font-size:22px;font-weight:800}.hl-pg-c2 small{font-size:12px;font-weight:600;color:#587087}
+.hl-pg-c3{font-size:12px;color:#587087}.hl-pg-c4{font-size:12px;color:#3c5a75}
+.hl-pg-tn{margin-left:auto;font-size:11px;font-weight:800;border-radius:999px;padding:2px 9px}.hl-pg-d{background:#fff4e0;color:#8a4b00}.hl-pg-i{background:#e8f1fb;color:#0b4f8a}.hl-pg-n{background:#ede7fb;color:#4c2fb8}
 .hl-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap;letter-spacing:.02em}
 .hl-ok{background:#dff5e7;color:#157a3b}.hl-av{background:#ffedd5;color:#b45309}.hl-gr{background:#e8eef4;color:#587087}
 .hl-bar{height:10px;border-radius:999px;background:#e2edf5;overflow:hidden;min-width:90px}.hl-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#38bdf8,#0ea5e9)}
@@ -710,20 +730,75 @@
         ${filas?`<table><thead><tr><th>Fecha</th><th>Turno</th><th>Supervisor</th>${pres.map(p=>`<th class="n">${esc(etqUnidad(p))}</th>`).join('')}<th class="n">Kg</th><th class="n">Paradas (min)</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table>`:'<div class="hl-vacio">Sin reportes en ese rango.</div>'}</div>`;
   }
   /* ---------- Programación ---------- */
+  /* Programación (26/11/2026: rediseño). Día anterior/siguiente y turno en botones; la tabla del turno agrupada por presentación con kg, paletas y
+     lo producido; total del turno; origen WhatsApp; próximos turnos en tarjetas. La tabla se vuelve a leer sola cuando la programación cambia
+     (otra persona o la carga por WhatsApp) y no la estás editando: antes se quedaba con lo que había al abrir y decía «Sin programación». */
+  const DIA_SEM=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const diaSemana=f=>{const [y,m,d]=String(f).split('-').map(Number);return DIA_SEM[new Date(y,m-1,d).getDay()]||'';};
+  const TURNO_ETQ={'DÍA':'Día','INTERMEDIO':'Intermedio','NOCHE':'Noche'};
+  const origenDe=doc=>{const h=doc&&Array.isArray(doc.historial)?doc.historial[doc.historial.length-1]:null;return h&&h.origen?h:null;};
   function vistaProgramacion(){
-    const f=S.pFecha||hoy(),t=S.pTurno||'DÍA',cfg=config();
+    if(!S.pTurno)S.pTurno=turnoAhora()==='NOCHE'?'NOCHE':'DÍA';
+    const f=S.pFecha||hoy(),t=S.pTurno,cfg=config(),P=PR(),UN=cap(P.unidad),esCubos=P.id==='CUBOS';
     const doc=cache.programacion.find(p=>p.id===idReporte(f,t,S.producto));
-    if(S.pItems===null){S.pItems=doc?JSON.parse(JSON.stringify(doc.items||[])):[];S.pRev=doc?Number(doc.rev)||0:0;}
+    const revDoc=doc?Number(doc.rev)||0:0;
+    // sin cambios propios: siempre lo último guardado
+    if(S.pItems===null||(!S.pSucio&&revDoc!==S.pRev)){S.pItems=doc?JSON.parse(JSON.stringify(doc.items||[])):[];S.pRev=revDoc;S.pSucio=false;}
+    const cambioAjeno=S.pSucio&&revDoc!==S.pRev;
     const ed=puedeProgramar(),dis=ed?'':'disabled';
-    const filas=S.pItems.map((i,k)=>`<tr><td data-label="Marca"><select ${dis} onchange="hlPItem(${k},'marca',this.value)">${opciones(marcasDe(cfg,i.presentacion),i.marca,'— marca —')}</select></td><td data-label="Presentación"><select ${dis} onchange="hlPItem(${k},'presentacion',this.value)">${opciones(cfg.presentaciones,i.presentacion,'—')}</select></td>
-      <td data-label="${cap(PR().unidad)}"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(i.bolsas)}" oninput="hlPItem(${k},'bolsas',this.value,true)" aria-label="${cap(PR().unidad)}"></td><td data-label="">${ed?`<button type="button" class="hl-btn o x" onclick="hlPQuitar(${k})" aria-label="Quitar">✕</button>`:''}</td></tr>`).join('');
-    const prox=cache.programacion.filter(p=>productoDe(p)===S.producto&&p.fecha>=hoy()).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:TURNOS.indexOf(a.turno)-TURNOS.indexOf(b.turno)).slice(0,20);
-    return `<h1>Programación · ${esc(PR().nombre)}</h1><p class="hl-sub">${cap(PR().unidad)} a producir por turno, por marca y presentación.</p>
+    const kgReal=pr=>kgDe(pr),porPal=pr=>{const v=num((cfg.bolsasPorPaleta||{})[pr]);return v>0?v:0;};
+    // producido del turno (para comparar)
+    const rs=cache.reportes.filter(r=>productoDe(r)===S.producto&&r.fecha===f&&r.turno===t);
+    const prodDe=(m,p)=>rs.reduce((s,r)=>s+(r.produccion||[]).filter(x=>texto(x.marca)===texto(m)&&texto(x.presentacion)===texto(p)).reduce((q,x)=>q+Math.max(0,Math.round(num(x.bolsas))),0),0);
+    const hayRep=rs.length>0;
+    // filas agrupadas por presentación (índice original k para editar)
+    const pres=ordenPres([...new Set(cfg.presentaciones.concat(S.pItems.map(i=>texto(i.presentacion)).filter(Boolean)))]);
+    const grupos=pres.map(pr=>({pr,filas:S.pItems.map((i,k)=>({i,k})).filter(x=>texto(x.i.presentacion)===pr)})).filter(g=>g.filas.length);
+    const sinPres=S.pItems.map((i,k)=>({i,k})).filter(x=>!texto(x.i.presentacion));
+    if(sinPres.length)grupos.push({pr:'',filas:sinPres});
+    const cols=3+(esCubos?1:0)+(hayRep?1:0)+(ed?1:0);
+    const fila=({i,k})=>{const b=Math.max(0,Math.round(num(i.bolsas))),pr=texto(i.presentacion),kg=b*kgReal(pr),pal=porPal(pr),hecho=hayRep&&i.marca?prodDe(i.marca,pr):0;
+      return `<tr><td data-label="Marca"><select ${dis} onchange="hlPItem(${k},'marca',this.value)" aria-label="Marca">${opciones(marcasDe(cfg,pr),i.marca,'— marca —')}</select>
+</td>
+        <td data-label="${UN}"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(i.bolsas)}" oninput="hlPItem(${k},'bolsas',this.value,true)" onchange="hlPItem(${k},'bolsas',this.value)" aria-label="${UN}"></td>
+        <td class="n" data-label="Kg">${b?fmt(kg,0):'—'}</td>${esCubos?`<td class="n" data-label="Paletas">${b&&pal?fmt(b/pal,2):'—'}</td>`:''}
+        ${hayRep?`<td class="n" data-label="Producido">${hecho?fmt(hecho)+(b?` <small class="${hecho>=b?'hl-pg-ok':'hl-pg-falta'}">${Math.round(hecho/b*100)}%</small>`:''):'—'}</td>`:''}
+        ${ed?`<td data-label=""><button type="button" class="hl-btn o x" onclick="hlPQuitar(${k})" aria-label="Quitar">✕</button></td>`:''}</tr>`;};
+    const sub=g=>{const b=g.filas.reduce((s,x)=>s+Math.max(0,Math.round(num(x.i.bolsas))),0),pal=porPal(g.pr);
+      return `<tr class="hl-pg-grupo"><th colspan="${cols}"><div><span>${g.pr?'Presentación '+esc(g.pr):'Sin presentación'}</span><b>${fmt(b)} ${esc(P.unidad)} · ${fmt(b*kgReal(g.pr),0)} kg${esCubos&&pal?' · '+fmt(b/pal,2)+' paletas':''}</b>${ed&&g.pr?`<button type="button" class="hl-btn o" onclick="hlPAgregar('${esc(g.pr)}')">+ Agregar ${esc(g.pr)}</button>`:''}</div></th></tr>`;};
+    const totB=S.pItems.reduce((s,i)=>s+Math.max(0,Math.round(num(i.bolsas))),0),totKg=S.pItems.reduce((s,i)=>s+Math.max(0,Math.round(num(i.bolsas)))*kgReal(texto(i.presentacion)),0);
+    const totPal=S.pItems.reduce((s,i)=>{const p=porPal(texto(i.presentacion));return s+(p?Math.max(0,Math.round(num(i.bolsas)))/p:0);},0);
+    const totHecho=hayRep?rs.reduce((s,r)=>s+(r.produccion||[]).reduce((q,x)=>q+Math.max(0,Math.round(num(x.bolsas))),0),0):0;
+    const og=origenDe(doc);
+    const tabla=S.pItems.length?`<div class="hl-pg-tw"><table class="hl-ed hl-pg-t"><thead><tr><th>Marca</th><th>${UN}</th><th class="n">Kg</th>${esCubos?'<th class="n">Paletas</th>':''}${hayRep?'<th class="n">Producido</th>':''}${ed?'<th></th>':''}</tr></thead>
+      <tbody>${grupos.map(g=>sub(g)+g.filas.map(fila).join('')).join('')}</tbody>
+      <tfoot><tr><th>Total del turno</th><th style="padding-left:24px">${fmt(totB)}</th><th class="n">${fmt(totKg,0)}</th>${esCubos?`<th class="n">${fmt(totPal,2)}</th>`:''}${hayRep?`<th class="n">${fmt(totHecho)}${totB?` <small>${Math.round(totHecho/totB*100)}%</small>`:''}</th>`:''}${ed?'<th></th>':''}</tr></tfoot></table></div>`
+      :`<div class="hl-vacio">Sin programación para este turno.${ed?' Agrega las marcas o copia la del día anterior.':''}</div>`;
+    const turnosBtn=TURNOS.map(x=>`<button type="button" class="${x===t?'act':''}" aria-pressed="${x===t}" onclick="hlPSel(null,'${x}')">${TURNO_ETQ[x]||x}</button>`).join('');
+    const prox=cache.programacion.filter(p=>productoDe(p)===S.producto&&p.fecha>=hoy()&&(p.items||[]).length).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:TURNOS.indexOf(a.turno)-TURNOS.indexOf(b.turno)).slice(0,12);
+    const tarjeta=p=>{const items=p.items||[],b=items.reduce((s,i)=>s+num(i.bolsas),0),kg=items.reduce((s,i)=>s+num(i.bolsas)*kgReal(i.presentacion),0);
+      const porP=ordenPres([...new Set(items.map(i=>i.presentacion))]).map(pr=>esc(pr)+': <b>'+fmt(items.filter(i=>i.presentacion===pr).reduce((s,i)=>s+num(i.bolsas),0))+'</b>').join(' · ');
+      const o=origenDe(p),sel=p.fecha===f&&p.turno===t;
+      return `<button type="button" class="hl-pg-card${sel?' sel':''}" onclick="hlPSel('${esc(p.fecha)}','${esc(p.turno)}')" aria-pressed="${sel}">
+        <span class="hl-pg-c1"><b>${fechaTxt(p.fecha).slice(0,5)}</b> <small>${esc(diaSemana(p.fecha))}</small><span class="hl-pg-tn hl-pg-${esc(p.turno==='NOCHE'?'n':p.turno==='INTERMEDIO'?'i':'d')}">${esc(TURNO_ETQ[p.turno]||p.turno)}</span></span>
+        <span class="hl-pg-c2">${fmt(b)} <small>${esc(P.unidad)}</small></span><span class="hl-pg-c3">${fmt(kg,0)} kg · ${items.length} marca${items.length===1?'':'s'}${o?' · 📲 WhatsApp':''}</span><span class="hl-pg-c4">${porP}</span></button>`;};
+    return `<h1>Programación · ${esc(P.nombre)}</h1><p class="hl-sub">${UN} a producir por turno, por marca y presentación.</p>
       ${!ed?'<div class="hl-msg i">Solo consulta: programan Planificación, el Jefe de Producción y el Administrador.</div>':''}
-      <div class="hl-filtros"><label>Fecha<input type="date" value="${esc(f)}" onchange="hlPSel(this.value,null)"></label><label>Turno<select onchange="hlPSel(null,this.value)">${opciones(TURNOS,t)}</select></label></div>
-      <div class="hl-card"><h3>${fechaTxt(f)} · ${esc(t)}</h3>${filas?`<table class="hl-ed"><thead><tr><th>Marca</th><th>Presentación</th><th>${cap(PR().unidad)}</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<div class="hl-vacio">Sin programación.</div>'}
-        ${ed?`<div class="hl-acc" style="margin-top:8px"><button type="button" class="hl-btn o" onclick="hlPAgregar()">+ Agregar</button><button type="button" class="hl-btn" onclick="hlPGuardar()">Guardar programación</button></div>`:''}</div>
-      <div class="hl-card"><h3>Próximos turnos programados</h3>${prox.length?`<table><thead><tr><th>Fecha</th><th>Turno</th><th>Detalle</th><th class="n">${cap(PR().unidad)}</th></tr></thead><tbody>${prox.map(p=>`<tr class="hl-clic" onclick="hlPSel('${esc(p.fecha)}','${esc(p.turno)}')"><td>${fechaTxt(p.fecha)}</td><td>${esc(p.turno)}</td><td>${esc((p.items||[]).map(i=>i.marca+' '+i.presentacion+': '+fmt(i.bolsas)).join(' · '))}</td><td class="n">${fmt((p.items||[]).reduce((s,i)=>s+num(i.bolsas),0))}</td></tr>`).join('')}</tbody></table>`:'<div class="hl-vacio">No hay turnos programados desde hoy.</div>'}</div>`;
+      <div class="hl-card hl-pg-barra">
+        <div class="hl-pg-dia"><button type="button" class="hl-btn o" onclick="hlPDia(-1)" aria-label="Día anterior">◀</button>
+          <label class="hl-pg-fecha"><span>${esc(diaSemana(f))}</span><input type="date" value="${esc(f)}" onchange="hlPSel(this.value,null)" aria-label="Fecha"></label>
+          <button type="button" class="hl-btn o" onclick="hlPDia(1)" aria-label="Día siguiente">▶</button>${f!==hoy()?'<button type="button" class="hl-btn o" onclick="hlPSel(\''+hoy()+'\',null)">Hoy</button>':''}</div>
+        <div class="hl-pg-turnos" role="group" aria-label="Turno">${turnosBtn}</div></div>
+      <div class="hl-card">
+        <div class="hl-pg-cab"><div><h3 style="margin:0">${esc(cap(diaSemana(f)))} ${fechaTxt(f)} · Turno ${esc(TURNO_ETQ[t]||t)}</h3>
+          ${og?`<span class="hl-pill hl-ok" title="Cargada desde WhatsApp">📲 WhatsApp · ${esc(og.enviadoPor||og.por||'')}</span> `:''}${doc&&doc.actualizadoPor?`<small class="hl-sub" style="margin:0">Última modificación: ${esc(doc.actualizadoPor)} · versión ${esc(doc.rev)}</small>`:''}</div>
+          <div class="hl-pg-tot"><b>${fmt(totB)}</b><span>${esc(P.unidad)}</span><b>${fmt(totKg,0)}</b><span>kg</span>${esCubos?`<b>${fmt(totPal,1)}</b><span>paletas</span>`:''}</div></div>
+        ${cambioAjeno?`<div class="hl-msg i" role="status">Esta programación cambió mientras la editabas (otra persona o WhatsApp). <button type="button" class="hl-btn o" onclick="hlPSel(null,null)">Ver la nueva</button></div>`:''}
+        ${S.pSucio?'<div class="hl-msg i" role="status">Tienes cambios sin guardar.</div>':''}
+        ${tabla}
+        ${ed?`<div class="hl-acc hl-pg-acc">${cfg.presentaciones.filter(pr=>!grupos.some(g=>g.pr===pr)).map(pr=>`<button type="button" class="hl-btn o" onclick="hlPAgregar('${esc(pr)}')">+ Agregar ${esc(pr)}</button>`).join('')}${!S.pItems.length?'<button type="button" class="hl-btn o" onclick="hlPCopiar()">Copiar del día anterior</button>':''}
+          <span class="hl-pg-esp"></span>${S.pSucio?'<button type="button" class="hl-btn o" onclick="hlPSel(null,null)">Descartar cambios</button>':''}<button type="button" class="hl-btn" onclick="hlPGuardar()" ${S.pSucio?'':'disabled'}>Guardar programación</button></div>`:''}</div>
+      <div class="hl-card"><h3>Próximos turnos programados</h3>${prox.length?`<div class="hl-pg-cards">${prox.map(tarjeta).join('')}</div>`:'<div class="hl-vacio">No hay turnos programados desde hoy.</div>'}</div>`;
   }
   /* ---------- Configuración ---------- */
   function vistaConfig(){
@@ -1123,11 +1198,16 @@
     if(m===null)return;if(String(m||'').trim().length<5)return mal('Escribe el motivo (mínimo 5 caracteres).');
     try{const doc=await guardarReporte(S.ed,'REABRIR',m);S.ed.rev=doc.rev;S.ed.estado=doc.estado;ok('Reporte reabierto.');}catch(e){mal(e);}
   };
-  window.hlPSel=(f,t)=>{S.pFecha=f||S.pFecha||hoy();S.pTurno=t||S.pTurno||'DÍA';S.pItems=null;S.vista='programacion';S.msg=null;pintar();};
-  window.hlPItem=(k,campo,v,sinPintar)=>{if(!S.pItems||!S.pItems[k])return;S.pItems[k][campo]=v;if(campo==='presentacion'&&S.pItems[k].marca&&!marcasDe(config(),v).includes(S.pItems[k].marca))S.pItems[k].marca='';if(!sinPintar)pintar();};
-  window.hlPAgregar=()=>{const c=config();S.pItems.push({marca:'',presentacion:c.presentaciones[0]||'',bolsas:''});pintar();};
-  window.hlPQuitar=k=>{S.pItems.splice(k,1);pintar();};
-  window.hlPGuardar=async()=>{try{await guardarProgramacion(S.pFecha||hoy(),S.pTurno||'DÍA',S.pItems,S.pRev,S.producto);S.pItems=null;ok('Programación guardada.');}catch(e){S.pItems=null;mal(e);}};
+  window.hlPSel=(f,t)=>{S.pFecha=f||S.pFecha||hoy();S.pTurno=t||S.pTurno||(turnoAhora()==='NOCHE'?'NOCHE':'DÍA');S.pItems=null;S.pSucio=false;S.vista='programacion';S.msg=null;pintar();};
+  window.hlPDia=n=>hlPSel(sumarDias(S.pFecha||hoy(),n),null);
+  window.hlPItem=(k,campo,v,sinPintar)=>{if(!S.pItems||!S.pItems[k])return;S.pItems[k][campo]=v;S.pSucio=true;if(campo==='presentacion'&&S.pItems[k].marca&&!marcasDe(config(),v).includes(S.pItems[k].marca))S.pItems[k].marca='';if(!sinPintar)pintar();};
+  window.hlPAgregar=pr=>{const c=config();S.pItems.push({marca:'',presentacion:pr||c.presentaciones[0]||'',bolsas:''});S.pSucio=true;pintar();};
+  window.hlPQuitar=k=>{S.pItems.splice(k,1);S.pSucio=true;pintar();};
+  /* Copia la programación del mismo turno del día anterior (se revisa y se guarda). */
+  window.hlPCopiar=()=>{const f=S.pFecha||hoy(),t=S.pTurno||'DÍA',ant=cache.programacion.find(p=>p.id===idReporte(sumarDias(f,-1),t,S.producto));
+    if(!ant||!(ant.items||[]).length){mal('No hay programación del turno '+(TURNO_ETQ[t]||t).toLowerCase()+' del '+fechaTxt(sumarDias(f,-1))+'.');return;}
+    S.pItems=JSON.parse(JSON.stringify(ant.items));S.pSucio=true;S.msg=null;pintar();};
+  window.hlPGuardar=async()=>{try{await guardarProgramacion(S.pFecha||hoy(),S.pTurno||'DÍA',S.pItems,S.pRev,S.producto);S.pItems=null;S.pSucio=false;ok('Programación guardada.');}catch(e){S.pItems=null;S.pSucio=false;mal(e);}};
   window.hlGuardarConfig=async()=>{
     const v=id=>((document.getElementById(id)||{}).value||'').split('\n');
     const mapa=atributo=>{const o={};document.querySelectorAll('['+atributo+']').forEach(i=>{o[i.getAttribute(atributo)]=i.value;});return o;};

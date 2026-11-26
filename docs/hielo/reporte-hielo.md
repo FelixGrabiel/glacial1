@@ -142,3 +142,19 @@ La bolsa usada, la nota y el lote siguen siendo opcionales. El lote será autom�
 El formulario marca los obligatorios con un **asterisco rojo**. Si falta algo, Finalizar avisa qué falta («Producción 1: indica el tiempo (h)…»).
 
 Pruebas: `tests/reporte-hielo.test.js` y `tests/hielo-bolsa-nota.e2e.js`.
+
+## Programación: rediseño (26/11/2026)
+
+- **Arriba:** día anterior y siguiente (◀ ▶), la fecha con el día de la semana, «Hoy» y los turnos como botones (Día · Intermedio · Noche). Al entrar abre el turno en curso.
+- **Turno elegido:**
+  - título con el día, el total del turno (bolsas, kg reales y paletas) y quién lo modificó por última vez; muestra «📲 WhatsApp» si llegó por WhatsApp;
+  - tabla **agrupada por presentación** (3 kg y luego 1.5 kg), cada grupo con su subtotal y su botón «+ Agregar»;
+  - por marca: bolsas, kg, paletas y, si ya hay reporte del turno, lo **producido** con su %;
+  - pie con el total del turno.
+- **Botones:**
+  - «Guardar programación» solo se activa cuando hay cambios;
+  - «Descartar cambios» y «Copiar del día anterior» (cuando el turno está vacío).
+- **Próximos turnos:** en tarjetas, con fecha, día, turno, total de bolsas y kg, número de marcas, detalle por presentación y origen WhatsApp. La tarjeta del turno elegido se resalta.
+- **Corrección:** la tabla se armaba una sola vez y no volvía a leer los datos. Si la programación llegaba después (por ejemplo, la carga por WhatsApp), decía «Sin programación» aunque estuviera guardada. Ahora se actualiza sola mientras no la estés editando. Si cambió mientras la editabas, avisa y conserva tus cambios hasta que elijas «Ver la nueva».
+
+Prueba: `tests/hielo-programacion-vista.e2e.js`.
