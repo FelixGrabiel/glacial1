@@ -115,5 +115,16 @@ const base={clave:'wa-120363@3EB0ABC123',lote:' L2411-07 ',resultado:'ok',insumo
   ok(/cuenta <> 1 then raise exception/.test(sql55)&&/position\('cal_ver' in def\) = 0/.test(sql55),'glacial_55: ancla de texto verificada (se detiene si no aparece una sola vez) y repetible');
   const lis=sql55.split('validaciones_lotes_listar(p_desde')[1].split('$f$')[1],rev=sql55.split('validaciones_lotes_revisar(p_clave')[1].split('$f$')[1];
   ok(/'cal_ver'/.test(lis)&&!/ii_ver/.test(lis)&&/'cal_esc'/.test(rev)&&!/ii_esc/.test(rev),'glacial_55: listar exige cal_ver y revisar exige cal_esc (ya no los del Inventario)');
+  // 26/11/2026: calendario (día de Lima) y separación por línea
+  {const V=require(R+'/js/calidad/99-validacion-lotes.js');
+   ok(V.diaLima(Date.parse('2026-11-26T03:00:00Z'))==='2026-11-25'&&V.diaLima(Date.parse('2026-11-26T05:00:00Z'))==='2026-11-26','el día es el de Lima: 22:00 del 25 en Lima sigue siendo el 25 (aunque en UTC ya sea el 26)');
+   const L=[{ms:Date.parse('2026-11-26T15:00:00Z'),resultado:'OK',linea:'PET1'},{ms:Date.parse('2026-11-26T16:00:00Z'),resultado:'RECHAZADO',linea:''},{ms:Date.parse('2026-11-26T17:00:00Z'),resultado:'OBSERVADO',linea:'envasadora'},{ms:Date.parse('2026-11-24T15:00:00Z'),resultado:'OK',linea:'B7L'}];
+   ok(V.delPeriodo(L,{dia:'2026-11-26'}).length===3&&V.delPeriodo(L,{mes:'2026-11'}).length===4&&V.delPeriodo(L,{dia:'2026-11-24'})[0].linea==='B7L','filtra por día elegido o por mes');
+   ok(V.porLinea(V.delPeriodo(L,{dia:'2026-11-26'})).map(g=>g.nombre).join('|')==='Envasadora|PET1|Sin línea','por línea: ordenadas y «Sin línea» al final');
+   const cal=V.calendario('2026-11',L),celdas=cal.flat();
+   ok(cal[0].slice(0,6).every(c=>c===null)&&cal[0][6].dia===1&&celdas.filter(Boolean).length===30,'noviembre 2026 empieza en domingo (columna 7) y tiene 30 días');
+   const d26=celdas.find(c=>c&&c.dia===26),d24=celdas.find(c=>c&&c.dia===24);
+   ok(d26.total===3&&d26.peor==='RECHAZADO'&&d24.total===1&&d24.peor==='OK','cada día con su total y el peor resultado (para el color)');
+   ok(V.mesMas('2026-01',-1)==='2025-12'&&V.mesMas('2026-12',1)==='2027-01','cambio de mes y de año');}
   console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
