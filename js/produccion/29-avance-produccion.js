@@ -354,7 +354,8 @@ function avParadasRegistroLinea(linea,hora,tipo,corteMs){
           out.push({
             id:avIdParadaRegistro(r.id,qi,key,pi,p),descripcion:p.descripcion,minutos:avNum(p.tiempoMin),estadoRegistro:r.estadoRegistro||'',
             tipo:tipoParada,causa:p.causa||'',motivoCat:p.motivoCat||'',detalle:p.detalle||'',equipo:p.equipo||'',maquina:p.maquina||p.equipo||'',observacion:p.observacion||p.observaciones||'',
-            origen:'REGISTRO',recordId:r.id||'',cuadroIndex:qi,key,index:pi,paradaId:p.id||''
+            origen:'REGISTRO',recordId:r.id||'',cuadroIndex:qi,key,index:pi,paradaId:p.id||'',
+            marca:q.marca||'',presentacion:q.presentacion||'',cuadroHoraInicio:q.horaInicio||''      // la parada es de la marca de su cuadro (paradas por marca, 16g)
           });
         });
       });
@@ -406,18 +407,23 @@ function avTipoMotivo(descripcion,tipoActual){
   if(avCatalogoMotivos().includes(String(descripcion||'').trim()))return 'PROGRAMADA';
   return tipoActual==='PROGRAMADA'?'NO_PROGRAMADA':(tipoActual||'NO_PROGRAMADA');
 }
-async function avAbrirParadas(linea,fecha,turno){
+async function avAbrirParadas(linea,fecha,turno,opc){
+  opc=opc||{};
   try{const [ad,rd]=await Promise.all([avRef().get(),db.collection('sync').doc('records').get()]);avanceEstado.avancesUpdatedAt=avNum(ad.exists?ad.data().updatedAt:0);avanceEstado.recordsUpdatedAt=avNum(rd.exists?rd.data().updatedAt:0);if(ad.exists&&Array.isArray(ad.data().paradasOperativas))avanceEstado.paradasOperativas=ad.data().paradasOperativas;}catch(e){console.error('Leyendo versión de paradas:',e);}
   if(fecha)avanceEstado.fecha=fecha;
   if(turno)avanceEstado.turno=avTurnoCanon(turno);
   linea=linea||AVANCE_LINEAS[0];
   const existentes=avParadasLinea(linea,avHoraActual(),'AVANCE').map(p=>({...p,tipoOriginal:p.tipo||''}));
+  // Paradas por marca: el cierre de las marcas del turno (glacial_69) define los tramos a los que se asigna cada parada.
+  if(window.glacialCierreMarcas){try{await window.glacialCierreMarcas.cargar({linea,fecha:avanceEstado.fecha,turno:avanceEstado.turno});}catch(_){}}
   avanceEstado.paradasModal={
     linea,fecha:avanceEstado.fecha,turno:avanceEstado.turno,filas:existentes,
     baseAvancesUpdatedAt:avanceEstado.avancesUpdatedAt||0,
     baseRecordsUpdatedAt:avanceEstado.recordsUpdatedAt||0,
-    guardando:false,error:''
+    guardando:false,error:'',soloPendientes:!!opc.pendientes
   };
+  // «+ Parada a MARCA» (panel Cierre de turno): fila nueva con la marca ya elegida.
+  if(opc.tramoId)avanceEstado.paradasModal.filas.push({id:avIdParadaNueva(),descripcion:'',minutos:0,tipo:'',tipoOriginal:'',causa:'',origen:'AVANCE',nueva:true,tramoId:String(opc.tramoId),asignacion:'MANUAL'});
   avRenderParadasModal();
 }
 function avCambiarLineaParadas(linea){if(!avanceEstado.paradasModal)return;avanceEstado.paradasModal.linea=linea;avanceEstado.paradasModal.filas=avParadasLinea(linea,avHoraActual(),'AVANCE').map(p=>({...p,tipoOriginal:p.tipo||''}));avRenderParadasModal();}
@@ -601,6 +607,63 @@ function avParadasBotonHtml(m){
 /* Avisa los motivos que ya existen por botón en el turno (no se suman dos veces). */
 /* Los botones del semáforo ya no son paradas oficiales: no existe duplicado con ellos (se cuenta solo lo registrado aquí). */
 function avDuplicadosConBoton(m,filas){return [];}
+/* ---------- PARADAS POR MARCA (tramo) · 16g-paradas-tramo.js + 16f-cierre-marcas.js ----------
+   Cada parada pertenece a una marca de la «Secuencia del turno»: por su hora de inicio (AUTO) o elegida a mano (MANUAL). Sin hora y sin marca queda
+   PENDIENTE (aviso amarillo; bloquea «Enviar cierre de turno»). Si cruza la hora de corte se parte en dos (aviso azul). */
+function avTramosModal(m){
+  const PT=window.glacialParadasTramo,CM=window.glacialCierreMarcas;
+  if(!PT||!CM||!m)return null;
+  try{const x=CM.tramosTurno({linea:m.linea,fecha:m.fecha,turno:m.turno});return x.V&&x.V.length?{PT,V:x.V,c:{linea:m.linea,fecha:m.fecha,turno:m.turno}}:null;}catch(_){return null;}
+}
+function avTramoFilaHtml(i,p,m,puedeEditar){
+  const T=avTramosModal(m);if(!T)return '';
+  const {PT,V,c}=T;
+  if(p.origen==='REGISTRO'){const r=PT.tramoDeParada(p,V,c);return `<div class="av-parada-tramo"><label>Marca (tramo)</label><small>${r.i>=0?avEsc(V[r.i].marca+' '+avPresentacion(m.linea,V[r.i].marca,V[r.i].presentacion)):avEsc((p.marca||'—')+' '+avPresentacion(m.linea,p.marca,p.presentacion))} · de su cuadro en Nuevo registro</small></div>`;}
+  const r=PT.tramoDeParada(p,V,c),dis=m.guardando||!puedeEditar?'disabled':'';
+  const botones=V.filter(t=>t.estado!=='espera').map(t=>{
+    const sel=r.i===t.i,rango=`${PT.hhmm(t.inicioMs)||'—'}–${t.abierto?'ahora':PT.hhmm(t.finMs)}`;
+    return `<button type="button" class="av-tramo-btn ${sel?'sel':''}" onclick="avParadaTramo(${i},'${avEsc(String(t.id))}')" ${dis} aria-pressed="${sel}"><b>${sel?'✓ ':''}${avEsc(t.marca)} ${avEsc(avPresentacion(m.linea,t.marca,t.presentacion))}</b><small>${rango} · ${t.estado==='cerrado'?'cerrada':'en curso'}</small></button>`;
+  }).join('');
+  let nota='';
+  if(r.asignacion==='AUTO')nota=`<small class="av-tramo-nota">🕘 Elegida sola por la hora de inicio ${avEsc(p.horaInicio)}</small>`;
+  else if(r.asignacion==='MANUAL')nota='<small class="av-tramo-nota">✋ Elegida a mano</small>';
+  else nota=`<div class="av-tramo-aviso">Sin hora: elige la marca a mano. ${avEsc(p.descripcion||'Parada')}${avNum(p.minutos)?' · '+avFmt(p.minutos)+' min':''} → <b>[ Elegir marca ▾ ]</b></div>`;
+  let corte='';
+  if(r.porHora){const partes=PT.partirEnCorte({...p,id:p.id||'x'},V,r.i,c);if(partes.length>1)corte=`<div class="av-tramo-corte">✂ Cruza el corte (${avEsc(partes[1].horaInicio)}): ${avEsc(p.descripcion||'Parada')} · ${avEsc(p.horaInicio)} – ${avEsc(PT.hhmm(PT.hms(c.fecha,p.horaInicio,c.turno)+avNum(p.minutos)*60000))} · ${avFmt(p.minutos)} min<br>→ <b>${partes.map(x=>avEsc(V[x.i].marca)+' '+avFmt(x.minutos)+' min').join(' + ')}</b> (enlazadas, total igual)</div>`;}
+  return `<div class="av-parada-tramo"><label>Marca (tramo) *</label><div class="av-tramo-btns">${botones}</div>${nota}${corte}</div>`;
+}
+function avParadaTramo(i,id){
+  const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
+  const T=avTramosModal(m);
+  // Si la hora ya lleva a esa marca, queda automática (sigue a la hora); si no, a mano (queda constancia).
+  const auto=T&&p.horaInicio?T.PT.tramoDeParada({...p,asignacion:'',tramoId:''},T.V,T.c):null;
+  if(auto&&auto.asignacion==='AUTO'&&auto.i>=0&&String(T.V[auto.i].id)===String(id)){p.tramoId='';p.asignacion='AUTO';}
+  else{p.tramoId=String(id);p.asignacion='MANUAL';}
+  avRenderParadasModal();
+}
+function avTotalesPorMarcaHtml(m){
+  const T=avTramosModal(m);if(!T)return '';
+  const A=T.PT.asignar(m.filas.filter(p=>!p.eliminarSolicitado).map((p,k)=>({...p,id:p.id||('f'+k)})),T.V,T.c);
+  const partes=T.V.map((t,k)=>({t,min:A.porTramo[k].reduce((s,x)=>s+avNum(x.minutos),0)})).filter(x=>x.min>0).map(x=>`${avEsc(x.t.marca)}: <b>${avFmt(x.min)} min</b>`);
+  const pend=A.pendientes.reduce((s,x)=>s+avNum(x.minutos),0);
+  return partes.length||pend?`<small style="display:block">${partes.join(' · ')}${pend?` · <span style="color:#8a5a00">Sin marca: <b>${avFmt(pend)} min</b></span>`:''}</small>`:'';
+}
+/* Constancia en glacial_70 (asignación, partición y paradas olvidadas en marcas cerradas). Va por la cola de 16g: sin conexión se reintenta y no duplica. */
+function avRegistrarTramosParadas(m,operativas,previas){
+  const PT=window.glacialParadasTramo,CM=window.glacialCierreMarcas;if(!PT||!CM)return;
+  const c={linea:m.linea,fecha:m.fecha,turno:m.turno};
+  try{PT.estado.operativas=operativas;}catch(_){}
+  const M=CM.modelo(c);if(!M.V||!M.V.length)return;
+  const delTurno=operativas.filter(p=>p&&!p.eliminada&&p.fecha===m.fecha&&avTurnoCanon(p.turno)===m.turno&&p.linea===m.linea);
+  const ids=new Set(delTurno.map(p=>p.id));
+  delTurno.forEach(p=>{
+    const r=PT.tramoDeParada(p,M.V,c);
+    if(r.porHora){const partes=PT.partirEnCorte(p,M.V,r.i,c);if(partes.length>1){PT.encolar('parada_tramo_partir',PT.payloadPartir(c,p,partes,M.V,{evento:PT.uuid()}));return;}}
+    const t=r.i>=0?M.V[r.i]:null;
+    PT.encolar('parada_tramo_asignar',PT.payloadAsignar(c,{...p,asignacion:r.asignacion},t,{evento:PT.uuid(),resumen:t&&t.estado==='cerrado'?CM.resumenPayload(M.R[r.i]):undefined}));
+  });
+  (previas||[]).filter(p=>p&&!ids.has(p.id)).forEach(p=>PT.encolar('parada_tramo_asignar',{...PT.payloadAsignar(c,p,null,{evento:PT.uuid()}),eliminada:true}));
+}
 function avParadaQuitar(i){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   if(p.origen==='REGISTRO')p.eliminarSolicitado=true;
@@ -643,14 +706,15 @@ function avRenderParadasModal(){
     </select></div>
     ${avBloqueMotivoHtml(i,p,m,puedeEditar,causas)}
     ${avEsFalla(p)?(()=>{const e=avEquipoEstado(p),dis=m.guardando||!puedeEditar?'disabled':'';return `<div class="av-parada-equipo"><label>Equipo que falló (obligatorio)</label><select onchange="avParadaEquipo(${i},'sel',this.value)" ${dis}>${window.glacialEquipos.opciones(m.linea,p.equipo)}</select>${e.sel==='__otro__'?`<input type="text" maxlength="80" value="${avEsc(e.detalle)}" placeholder="Detalle del equipo (mínimo 5 caracteres)" oninput="avParadaEquipo(${i},'detalle',this.value)" ${dis}>`:''}</div>`;})():''}
-    <div class="av-parada-min"><label>Minutos</label><input type="number" min="1" step="1" value="${avNum(p.minutos)||''}" oninput="avParadaCampo(${i},'minutos',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
+    ${avTramoFilaHtml(i,p,m,puedeEditar)}
+    <div class="av-parada-min"><label>Minutos</label><input type="number" min="1" step="1" value="${avNum(p.minutos)||''}" oninput="avParadaCampo(${i},'minutos',this.value)" onchange="avRenderParadasModal()" ${m.guardando||!puedeEditar?'disabled':''}></div>
     ${p.origen==='REGISTRO'?'':`<div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hora de inicio (opc.)':'Desde (opc.)'}</label><input type="time" value="${avEsc(p.horaInicio||'')}" onchange="avParadaHora(${i},'horaInicio',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>
     <div class="av-parada-min"><label>${avUsaCatalogo(p)?'Hasta (opc.; se calcula)':'Hasta (opc.)'}</label><input type="time" id="av-hfin-${i}" value="${avEsc(p.horaFin||'')}" onchange="avParadaHora(${i},'horaFin',this.value)" ${m.guardando||!puedeEditar?'disabled':''}></div>`}
     <button class="av-parada-remove" title="Quitar fila" onclick="avParadaQuitar(${i})" ${m.guardando||!puedeEditar?'disabled':''}>✕</button>
     <small>${p.origen==='REGISTRO'?'Origen: Nuevo registro':'Origen: Avance/Cierre'}${p.tipo?` · ${p.tipo==='PROGRAMADA'?'Programada':'No programada'}`:''}</small>
   </div>`).join('')||'<p class="small-muted">Sin paradas. Usa “+ Agregar otra”.</p>'}</div>
   <button class="btn btn-ghost av-parada-add" onclick="avParadaAgregarFila()" ${m.guardando||!puedeEditar?'disabled':''}>+ Agregar otra</button></div>
-  <footer><div>Total de minutos <strong id="av-paradas-total">${avFmt(total)} min</strong><small id="av-paradas-aviso-total" style="display:block;color:#8a5a00">${avEsc(avAvisoTotalParadas(m,total))}</small></div><div><button class="btn btn-ghost" onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>Cancelar</button><button class="btn btn-primary" onclick="avGuardarParadasModal()" ${m.guardando||!puedeEditar?'disabled':''}>${m.guardando?'Guardando…':'Guardar paradas'}</button></div></footer></div>`;
+  <footer><div>Total de minutos <strong id="av-paradas-total">${avFmt(total)} min</strong>${avTotalesPorMarcaHtml(m)}<small id="av-paradas-aviso-total" style="display:block;color:#8a5a00">${avEsc(avAvisoTotalParadas(m,total))}</small></div><div><button class="btn btn-ghost" onclick="avCerrarParadas()" ${m.guardando?'disabled':''}>Cancelar</button><button class="btn btn-primary" onclick="avGuardarParadasModal()" ${m.guardando||!puedeEditar?'disabled':''}>${m.guardando?'Guardando…':'Guardar paradas'}</button></div></footer></div>`;
   modal.classList.add('open');document.body.classList.add('av-modal-open');
 }
 function avBuscarParadaRegistro(records,p){
@@ -766,6 +830,13 @@ async function avGuardarParadasModal(){
         delete obj.nueva;delete obj.eliminarSolicitado;delete obj.tipoOriginal;delete obj.equipoSel;delete obj.equipoDetalle;delete obj.catTocada;
         if(p.tipo!=='NO_PROGRAMADA'||!p.motivoCat){delete obj.motivoCat;delete obj.detalle;}
         if(!avEsFalla(p)||!p.equipo)delete obj.equipo;
+        // Paradas por marca: se guarda la marca elegida a mano (la automática se recalcula siempre por la hora) y si es cambio de formato.
+        const Tm=avTramosModal(m);
+        if(Tm){const r=Tm.PT.tramoDeParada(obj,Tm.V,Tm.c);obj.asignacion=r.asignacion==='SIN_SECUENCIA'?'':r.asignacion;
+          if(r.i>=0){obj.marca=Tm.V[r.i].marca;obj.presentacion=Tm.V[r.i].presentacion;}else{delete obj.marca;delete obj.presentacion;}
+          if(r.asignacion!=='MANUAL')delete obj.tramoId;}
+        else if(obj.asignacion!=='MANUAL'){delete obj.tramoId;}
+        obj.esCambio=window.glacialParadasTramo?window.glacialParadasTramo.esCambio(obj):/cambio/i.test(obj.descripcion);
         const i=operativas.findIndex(x=>x.id===obj.id);
         if(i>=0){
           obj.creadoEn=operativas[i].creadoEn||ahora;obj.creadoPor=operativas[i].creadoPor||usuario;operativas[i]=obj;
@@ -779,7 +850,9 @@ async function avGuardarParadasModal(){
       return {operativas,updatedAt:ahora};
     });
 
+    const previasTurno=(avanceEstado.paradasOperativas||[]).filter(p=>p&&!p.eliminada&&p.fecha===m.fecha&&avTurnoCanon(p.turno)===m.turno&&p.linea===m.linea);
     resultado=await avConTimeout(operacion,15000);
+    try{avRegistrarTramosParadas(m,resultado.operativas,previasTurno);}catch(e){console.warn('Paradas por marca:',e&&e.message||e);}
 
     // Reflejo inmediato local. onSnapshot confirmará después el mismo estado
     // en este y en los demás dispositivos.
@@ -1344,7 +1417,35 @@ function avTextoGenerado(s){
   if(!ms||!window.GlacialFecha)return '';
   return ' · Generado: '+window.GlacialFecha.ahoraLima(ms).texto;
 }
+/* AVANCE Y CIERRE · TEXTO E IMAGEN GENERALES POR LÍNEA (paradas por marca, 26/11/2026 · regla 11):
+   un solo bloque por línea con la producción de cada marca, producción total, horas efectivas, RATIO DEL TURNO, personal y UNA sola lista de
+   PARADAS ordenada por hora (las sin hora al final con «—»), con el pie Programadas / No programadas / Total. Ya no se pegan las paradas de
+   Avance en el primer formato. Lee los datos congelados del snapshot (no recalcula). Texto: glacialParadasTramo.textoGeneral; imagen: canvasGeneral. */
+function avModeloGeneral(s){
+  const PT=window.glacialParadasTramo;
+  const ordenar=(l,ps)=>PT?PT.ordenarParadas(ps,s.fecha,s.turno):ps;
+  return {
+    titulo:avTituloSnapshot(s),turno:s.turno,fecha:String(s.fecha||'').split('-').reverse().join('/'),hora:s.horaCorte,
+    ultimoRegistro:avTextoUltimoRegistro(s),generado:avTextoGenerado(s)?avTextoGenerado(s).replace(' · ',''):'',
+    generadoPor:s.supervisor||s.generadoPor||'—',sinLineas:AV_SIN_LINEAS,
+    lineas:(s.lineas||[]).map(l=>{
+      const unidad=avUnidadProduccion(l.linea);
+      const paradas=ordenar(l,(l.paradas||[]).filter(p=>p&&avNum(p.minutos)>0).map(p=>({horaInicio:p.horaInicio||'',descripcion:String(p.descripcion||'Parada'),minutos:avNum(p.minutos),tipo:p.tipo,esCambio:p.esCambio})));
+      const prog=avNum(l.paradasProgramadas),noprog=avNum(l.paradasNoProgramadas);
+      return {nombre:l.nombre||AVANCE_NOMBRES[l.linea]||l.linea,inicio:l.inicio,fin:l.fin,esCierre:s.tipo==='CIERRE',unidad,
+        productos:(l.productos||[]).filter(p=>avNum(p.produccion)>0).map(p=>({nombre:avProductoWhatsApp(p),produccion:avNum(p.produccion)})),
+        produccionTotal:avNum(l.produccionTotal),horasEf:l.inicio&&l.minutosEfectivos!==undefined?avNum(l.minutosEfectivos)/60:null,
+        ratioTexto:avRatioTexto(l.ratio,l.unidadRatio,l.ratioDisponible),personalTexto:avPersonalTexto(l),
+        paradas,prog,noprog,total:avNum(l.totalParadas)||prog+noprog,observaciones:l.observaciones||[]};
+    })
+  };
+}
 function avTextoWhatsApp(s){
+  if(window.glacialParadasTramo)return window.glacialParadasTramo.textoGeneral(avModeloGeneral(s));
+  return avTextoWhatsAppFormatos(s);
+}
+/* Texto anterior por formato (solo si 16g no cargó). */
+function avTextoWhatsAppFormatos(s){
   const fecha=s.fecha.split('-').reverse().join('/');
   const out=[
     `*${avTituloSnapshot(s)} – TURNO ${s.turno}*`,
@@ -1821,6 +1922,11 @@ const AV_IMAGEN_ESCALA_TEXTO = 1.4;
 const AV_IMAGEN_RESOLUCION = 2;
 
 function avCanvasSnapshot(s){
+  // Imagen GENERAL por línea (regla 11). La imagen por formato queda solo como respaldo si 16g no cargó.
+  if(window.glacialParadasTramo)return window.glacialParadasTramo.canvasGeneral(avModeloGeneral(s));
+  return avCanvasSnapshotFormatos(s);
+}
+function avCanvasSnapshotFormatos(s){
   const W=1080, PAD=28;
   const BLUE='#0877A6',DARK='#033350',INK='#172B3A',STEEL='#44535F',MUTED='#5E6D78',BG='#F3F6F8',LINE='#DCE3E8',WHITE='#FFFFFF',GOOD='#2E8B57',WARN='#D89216',BAD='#C0392B';
 
@@ -2263,6 +2369,7 @@ body.av-modal-open #av-floating-trigger{visibility:hidden;pointer-events:none}
 
 .av-parada-equipo{grid-column:1/-1}.av-parada-equipo input{margin-top:6px}
 .av-paradas-modal{display:none;position:fixed;inset:0;z-index:2600;background:rgba(0,31,50,.62);padding:18px;align-items:center;justify-content:center}.av-paradas-modal.open{display:flex}.av-paradas-dialog{width:min(760px,98vw);max-height:92vh;display:flex;flex-direction:column;background:#f5f8fa;border-radius:12px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.28)}.av-paradas-dialog>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:15px 18px;background:#033350;color:#fff}.av-paradas-dialog>header h2{margin:2px 0;font-size:18px}.av-paradas-dialog>header p{margin:2px 0;font-size:11px}.av-paradas-dialog>header>button{width:36px;height:36px;border:0;border-radius:6px;background:rgba(255,255,255,.12);color:#fff}.av-paradas-linea{margin-top:7px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:#fff;color:#033350;font-weight:800}.av-paradas-body{padding:14px;overflow-y:auto}.av-paradas-note{padding:9px 10px;background:#E8F7FE;border:1px solid #c8deeb;border-radius:7px;color:#35586b;font-size:11px;margin-bottom:10px}.av-paradas-error{padding:9px 10px;background:#fff0ee;border:1px solid #efc0b9;color:#a22d22;border-radius:7px;margin-bottom:10px;font-size:11px}.av-paradas-list{display:grid;gap:8px}.av-parada-row{display:grid;grid-template-columns:150px minmax(180px,1fr) 180px 95px 38px;gap:8px;align-items:end;padding:10px;background:#fff;border:1px solid #d7e3eb;border-radius:8px}.av-parada-row label{display:block;font-size:11px;font-weight:800;color:#5C6E7B;margin-bottom:4px}.av-parada-row input,.av-parada-row select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cfdbe3;border-radius:6px;background:#fff}.av-parada-row.is-p{border-left:4px solid #2e9d62}.av-parada-row.is-np{border-left:4px solid #d16b2f}.av-parada-row:not(.is-np) .av-parada-causa{display:none}.av-parada-row small{grid-column:1/-1;color:#5F7280;font-size:11px}.av-parada-remove{height:36px;border:1px solid #efc0b9;background:#fff;color:#c0392b;border-radius:6px}.av-parada-add{margin-top:10px}.av-paradas-dialog>footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:#fff;border-top:1px solid #d7e3eb}.av-paradas-dialog>footer>div:last-child{display:flex;gap:7px}.av-paradas-dialog>footer strong{color:#033350;margin-left:6px}
+.av-parada-tramo{grid-column:1/-1;display:grid;gap:6px}.av-tramo-btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.av-tramo-btn{min-height:48px;text-align:left;padding:8px 12px;border:1px solid #cfdbe3;border-radius:10px;background:#fff;color:#172B3A;cursor:pointer;display:grid;gap:2px}.av-tramo-btn small{font-size:11.5px;color:#5F7280}.av-tramo-btn.sel{border:2px solid #2563eb;background:#eef4ff;color:#1d4ed8}.av-tramo-nota{color:#5F7280;font-size:12px}.av-tramo-aviso{background:#fff8db;border:1px solid #f2cf63;color:#7a4a00;border-radius:8px;padding:8px 10px;font-size:12.5px}.av-tramo-corte{background:#eef4ff;border:1px solid #bcd3f6;color:#1e3a8a;border-radius:8px;padding:8px 10px;font-size:12.5px}
 @media(max-width:900px){.av-module-grid{grid-template-columns:minmax(0,1fr)}.av-detail-kpis{grid-template-columns:repeat(2,1fr)}.av-slot-strip{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.av-paradas-modal{padding:0}.av-paradas-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-parada-row{grid-template-columns:1fr 95px 38px}.av-parada-tipo,.av-parada-motivo,.av-parada-causa{grid-column:1/-1}.av-parada-min{grid-column:1/3}.av-paradas-dialog>footer{align-items:stretch;flex-direction:column}.av-paradas-dialog>footer>div:last-child{display:grid;grid-template-columns:1fr 1fr}.av-paradas-dialog>footer .btn{min-height:44px}.av2-head{display:block}.av2-context{text-align:left;margin-top:10px}.av-module-actions{display:grid}.av-float-modal,.av-detail-modal,.av-image-modal{padding:0}.av-float-dialog,.av-detail-dialog,.av-image-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.av-float-actions{grid-template-columns:minmax(0,1fr)}.av-shift-status{grid-template-columns:1fr 1fr}.av-detail-kpis{grid-template-columns:1fr 1fr}.av-line-metrics{grid-template-columns:1fr 1fr}.av-personal-grid{grid-template-columns:minmax(0,1fr)}.av-detail-footer,.av-image-dialog>footer{flex-wrap:wrap}.av-floating-trigger{right:12px;bottom:max(12px,env(safe-area-inset-bottom));touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 #av-floating-trigger.av-floating-trigger{position:fixed!important;left:auto!important;top:auto!important;right:max(14px,env(safe-area-inset-right))!important;bottom:calc(14px + env(safe-area-inset-bottom))!important;height:48px;min-height:48px;min-width:44px;padding:0 16px;gap:8px;font-size:14px;line-height:1;white-space:nowrap;touch-action:manipulation}

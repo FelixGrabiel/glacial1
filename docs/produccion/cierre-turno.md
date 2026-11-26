@@ -26,3 +26,26 @@ Paletas por tramo = acumulado de la marca/presentación − lo ya congelado en t
 
 ## Estado
 - glacial_69 aplicada en **PRUEBAS**; **no** en producción (se aplica con «Aplica en producción»). Sin ella el panel muestra «Falta aplicar glacial_69».
+
+## Paradas por marca (glacial_70 · 16g-paradas-tramo.js)
+**Archivos:** `js/produccion/16g-paradas-tramo.js` (lógica y tiempo real) · `16f-cierre-marcas.js` (panel) · `29-avance-produccion.js` (modal «Agregar paradas», texto e imagen) · `supabase/migraciones/glacial_70_paradas_tramo.sql` · pruebas `tests/paradas-tramo.test.js`, `tests/paradas-tramo.e2e.js` (dos equipos a la vez) y `supabase/pruebas/paradas_tramo.sql`.
+
+### Reglas
+1. Toda parada pertenece a un **tramo** (marca + presentación de la Secuencia del turno), venga de Nuevo registro o de Avance/Cierre.
+2. **Automática por hora de inicio:** el tramo cuyo intervalo `[inicio, hora de corte)` la contiene; el tramo en curso va hasta «ahora». Las de Nuevo registro van al tramo de su cuadro (si la marca se repite, decide la hora del cuadro). El supervisor puede elegir otra a mano (queda «elegida a mano» y constancia en el servidor).
+3. **Sin hora:** el supervisor elige la marca; mientras no la tenga queda **pendiente** (franja amarilla con «Asignar»).
+4. **Cruza la hora de corte:** se parte en partes enlazadas (`paradaPadreId`); el total no cambia. Vale para el refrigerio.
+5. **Cambio de formato:** se carga a la marca que **entra** (programada, etiqueta CAMB) y se muestra como tarjeta «Cambio X → Y».
+6. **Ratio de la marca** = producción del tramo (paletas × unidades por paleta) ÷ horas efectivas (duración del tramo − programadas − no programadas).
+7. **Total turno** = suma de marcas; las pendientes también suman minutos de parada.
+8. **Cerrar marca** abre una confirmación con el resumen y la lista de paradas; exige «Revisé las paradas de esta marca». La última marca pide la misma casilla antes de «Enviar cierre de turno».
+9. **Enviar cierre de turno** se bloquea con paradas pendientes (pantalla y servidor). En turnos anteriores al 26/11/2026 las pendientes no bloquean.
+10. **Marca cerrada:** se le pueden agregar paradas olvidadas («+ Parada olvidada a X») sin reabrirla; se recalcula su resumen y queda quién y cuándo.
+11. **Avance y Cierre (texto de WhatsApp e imagen):** un bloque general por línea con la producción de cada marca, producción total, horas efectivas, ratio del turno, personal y una sola lista de PARADAS ordenada por hora (las sin hora al final con «—»), con el pie Programadas / No programadas / Total.
+
+### Tiempo real y sin conexión
+- Las paradas de `sync/avancesTurno` se escuchan desde el panel aunque no esté abierta la pestaña Avance. `cierre_tramos`, `cierres_turno` y `paradas_tramo` están en Supabase Realtime (solo lectura para quien ve el resumen): si un supervisor agrega una parada o cierra una marca, las demás pantallas se actualizan solas. El panel no quita el foco a quien está escribiendo.
+- Las constancias a glacial_70 pasan por una cola local que se reintenta al volver la conexión; son idempotentes (`client_event_id`) y hay una fila por parada (dos equipos = una parada).
+
+### Estado
+- glacial_70 aplicada en **PRUEBAS** (prueba SQL 17/17; la de glacial_69 sigue 21/21). **No** en producción.

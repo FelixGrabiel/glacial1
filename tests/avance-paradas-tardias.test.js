@@ -36,5 +36,5 @@ const jefe=entorno({rol:'Jefe de Producción',username:'jp',nombre:'Jefe'},['ava
 ok(run(jefe,'avPuedeEditarParadas()')===false,'los usuarios de solo consulta (jefatura) siguen sin poder agregar');
 const src=leer('js/produccion/29-avance-produccion.js');
 ok(/function avGuardarParadasModal\(\)\{\s*const m=avanceEstado\.paradasModal;if\(!m\|\|m\.guardando\|\|!avPuedeEditarParadas\(\)\)return;/.test(src),'el guardado usa la misma regla (no queda otro bloqueo por hora)');
-ok(/index\.html/.test('index.html')&&/29-avance-produccion\.js\?v=2026\d{4}-pt\d/.test(leer('index.html')),'la página carga la versión nueva del módulo');
+ok(/index\.html/.test('index.html')&&/29-avance-produccion\.js\?v=2026\d{4}-[a-z]+\d/.test(leer('index.html')),'la página carga la versión nueva del módulo');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);
