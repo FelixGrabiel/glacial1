@@ -3151,6 +3151,11 @@
                                         onclick="goAvanceProduccion()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Avance y cierre</span>
                                 </button>
+                                <!-- Paradas del turno (27/11/2026): abre Avance y cierre en su tarjeta «Paradas del turno» (35p). Se ve igual que «Avance y cierre» (67). -->
+                                <button type="button" class="side-action sidebar-subaction" id="btn-paradas-turno"
+                                        onclick="goParadasTurno()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Paradas del turno</span>
+                                </button>
                                 <button type="button" class="side-action sidebar-subaction" id="btn-entrega-turno"
                                         onclick="goEntregaTurno()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Entrega de turno</span>
@@ -3676,7 +3681,7 @@
     <script src="js/mantenimiento/79-paradas-mantenimiento.js?v=20261113-pr1"></script>
     <script src="js/mantenimiento/73-plan-anual-pantalla.js?v=20261121-hs6"></script>
     <script src="js/mantenimiento/68-mantenimiento-inicio.js?v=20261121-hs5"></script>
-    <script src="js/produccion/67-produccion-inicio.js?v=20261107-av1"></script>
+    <script src="js/produccion/67-produccion-inicio.js?v=20261127-pi1"></script>
     <!-- Asistente de Producción (docs/asistente/asistente-produccion.md): núcleo puro, datos/permisos, pantalla y Reporte General. -->
     <script src="js/asistente/70-asistente-nucleo.js?v=20261117-ad4"></script>
     <script src="js/asistente/71-asistente-datos.js?v=20261116-pm2"></script>

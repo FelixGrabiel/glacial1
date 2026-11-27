@@ -145,6 +145,7 @@ function rpc(n, a){
   await A.page.evaluate(() => { const m = avanceEstado.paradasModal, i = m.filas.length - 1; m.filas[i].tramoId = ''; m.filas[i].asignacion = ''; m.filas[i].minutos = 20; avParadaHora(i, 'horaInicio', '10:30'); });
   ok(await A.page.evaluate(() => /SCALA 10 min \+ BELLS 10 min/.test([...document.querySelectorAll('.av-parada-row')].pop().innerText)), 'aviso azul: la parada 10:30 de 20 min cruza el corte → SCALA 10 min + BELLS 10 min');
   ok(await A.page.evaluate(() => /Elegida sola por la hora de inicio 10:30/.test([...document.querySelectorAll('.av-parada-row')].pop().innerText)), 'la marca se elige sola por la hora de inicio');
+  if (process.env.GLX_CAPTURAS) { const dlg = await A.page.$('#av-paradas-modal .av-paradas-dialog'); if (dlg) await dlg.screenshot({ path: path.join(process.env.GLX_CAPTURAS, 'paradas-modal.png') }); }
   ok(await A.page.evaluate(() => [...document.querySelectorAll('.av-parada-row')].some(f => /Sin hora: elige la marca a mano/.test(f.innerText) && /Falta de preformas/.test(f.innerText))), 'aviso amarillo en la parada sin hora');
   await A.page.evaluate(() => { avanceEstado.paradasModal.filas.pop(); avCerrarParadas(); });
 

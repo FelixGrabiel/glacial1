@@ -13,27 +13,92 @@
   const TAB='prod-inicio',BOTON='btn-prod-inicio';
   const esc=t=>typeof escaparHtml==='function'?escaparHtml(t):String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  /* 27/11/2026 · ordenado como se trabaja el turno (docs/produccion/inicio-de-produccion.md): «Tu turno, paso a paso» arriba y, debajo, Paradas,
+     Cierre del turno y Personal y configuración. Una tarjeta se ve si existe su botón del menú para el usuario (boton) o si su permiso lo deja (puede). */
   const GRUPOS=[
-    {titulo:'Cada turno',subtitulo:'Lo que se usa todos los días en planta.',color:'#065F86',tarjetas:[
-      {boton:'btn-avance-produccion',icono:'📈',titulo:'Avance y cierre',desc:'Avance del turno por línea y cierre al terminar.',abrir:()=>window.goAvanceProduccion&&window.goAvanceProduccion()},
-      {boton:'btn-entrega-turno',icono:'🤝',titulo:'Entrega de turno',desc:'Entregar pendientes al siguiente supervisor y confirmar lo recibido.',abrir:()=>window.goEntregaTurno&&window.goEntregaTurno()},
-      {boton:'btn-resumenes-turno',icono:'🧾',titulo:'Resúmenes de turno',desc:'Cómo cerró cada turno: producción, paradas y pendientes.',abrir:()=>window.goResumenesTurno&&window.goResumenesTurno()}
-    ]},
-    {titulo:'Personal',subtitulo:'Quién trabaja y en qué turno.',color:'#1a7f4b',tarjetas:[
-      {boton:'btn-tareo',icono:'🗒',titulo:'Tareo de producción',desc:'Asistencia, horas y horas extras del personal de Producción.',abrir:()=>typeof goTareo==='function'&&goTareo()},
-      {boton:'btn-rotacion-supervisores',icono:'🔄',titulo:'Rotación de supervisores',desc:'Qué supervisor cubre cada turno de la semana.',abrir:()=>typeof goRotacionSupervisores==='function'&&goRotacionSupervisores()}
-    ]},
-    {titulo:'Seguimiento y configuración',subtitulo:'Para revisar lo que pasó y ajustar los horarios.',color:'#7a3fb0',tarjetas:[
+    {titulo:'Paradas',subtitulo:'Registrar, revisar y analizar las paradas.',color:'#c2410c',tarjetas:[
+      {boton:'btn-paradas-turno',icono:'⏱',titulo:'Paradas del turno',nuevo:true,desc:'Todas las paradas del turno juntas, por hora y marca, con «+ Parada».',abrir:()=>irParadasTurno()},
+      {puede:()=>puedeLinea('paletas'),icono:'🏷',titulo:'Cierre por marca',nuevo:true,desc:'Paradas, minutos y ratio de cada marca (en Paletas de la línea elegida arriba).',abrir:()=>abrirLinea(lineaElegida(),'paletas','#ct-panel')},
       {boton:'btn-bitacora-prod',icono:'📒',titulo:'Bitácora de producción',desc:'Paradas por día y línea con su motivo.',abrir:()=>typeof goBitacoraProduccion==='function'&&goBitacoraProduccion()},
+      {boton:'btn-analisis-paradas',icono:'📊',titulo:'Análisis de paradas',desc:'Qué causas y equipos paran más las líneas, con minutos y unidades perdidas.',abrir:()=>window.goAnalisisParadas&&window.goAnalisisParadas()}
+    ]},
+    {titulo:'Cierre del turno',subtitulo:'Lo que se hace al terminar el turno.',color:'#065F86',tarjetas:[
+      {boton:'btn-avance-produccion',icono:'📈',titulo:'Avance y cierre',desc:'Avance del turno por línea y «Enviar cierre de turno».',abrir:()=>window.goAvanceProduccion&&window.goAvanceProduccion()},
+      {boton:'btn-entrega-turno',icono:'🤝',titulo:'Entrega de turno',desc:'Entregar pendientes al siguiente supervisor y confirmar lo recibido.',abrir:()=>window.goEntregaTurno&&window.goEntregaTurno()},
+      {boton:'btn-resumenes-turno',icono:'🧾',titulo:'Resúmenes de turno',desc:'Cómo cerró cada turno: producción, paradas y pendientes.',abrir:()=>window.goResumenesTurno&&window.goResumenesTurno()},
+      {puede:()=>puedeLinea('historial'),icono:'🗂',titulo:'Historial de registros',desc:'Reportes anteriores de la línea elegida arriba y sus correcciones.',abrir:()=>abrirLinea(lineaElegida(),'historial')}
+    ]},
+    {titulo:'Personal y configuración',subtitulo:'Quién trabaja, en qué turno y con qué horario.',color:'#1a7f4b',tarjetas:[
+      {boton:'btn-tareo',icono:'🗒',titulo:'Tareo de producción',desc:'Asistencia, horas y horas extras del personal de Producción.',abrir:()=>typeof goTareo==='function'&&goTareo()},
+      {boton:'btn-rotacion-supervisores',icono:'🔄',titulo:'Rotación de supervisores',desc:'Qué supervisor cubre cada turno de la semana.',abrir:()=>typeof goRotacionSupervisores==='function'&&goRotacionSupervisores()},
       {boton:'btn-horario-produccion',icono:'⏰',titulo:'Horario de producción',desc:'Horarios de turno y de cada línea.',abrir:()=>typeof goHorarioProduccion==='function'&&goHorarioProduccion()}
     ]}
   ];
-  const ABRIR=[];
-  const OTROS=['btn-tareo','btn-rotacion-supervisores','btn-bitacora-prod','btn-resumenes-turno','btn-entrega-turno','btn-horario-produccion'];
-  const visible=id=>{const b=document.getElementById(id);return !!b&&!b.hidden&&b.style.display!=='none';};
-  const hayAcceso=()=>['btn-avance-produccion'].concat(OTROS).some(visible);
 
-  /* Menú lateral de Producción: Inicio, Registro de producción (líneas) y Avance y cierre. Los demás botones siguen existiendo (ocultos por CSS) porque su visibilidad decide qué tarjetas se ven. */
+  /* ---------- Líneas y pasos del turno ---------- */
+  const lineas=()=>{try{return typeof visibleLines==='function'?visibleLines():[];}catch(_){return [];}};
+  const permiso=p=>{try{return typeof tienePermiso==='function'&&tienePermiso(p);}catch(_){return false;}};
+  const puedeLinea=tab=>lineas().length>0&&permiso(tab);
+  let elegida=null;
+  function lineaElegida(){
+    const ls=lineas();if(!ls.length)return null;
+    if(elegida&&ls.some(l=>l.key===elegida))return elegida;
+    const u=typeof state!=='undefined'&&state.user&&state.user.linea;
+    if(u&&ls.some(l=>l.key===u))return u;
+    if(typeof state!=='undefined'&&state.currentLine&&ls.some(l=>l.key===state.currentLine))return state.currentLine;
+    return ls[0].key;
+  }
+  /* Espera (hasta ~4 s) a que la pantalla pinte un elemento y lo muestra; o corre una función cuando la condición se cumple. */
+  function cuando(cond,hacer,ms){
+    const fin=Date.now()+(ms||4000);
+    (function paso(){let v=null;try{v=cond();}catch(_){v=null;}if(v){try{hacer(v);}catch(_){}return;}if(Date.now()<fin)setTimeout(paso,120);})();
+  }
+  const mostrar=sel=>cuando(()=>document.querySelector(sel),el=>{el.scrollIntoView({behavior:'smooth',block:'start'});el.classList.add('pi-resalta');setTimeout(()=>el.classList.remove('pi-resalta'),2200);});
+  /* Abre una pestaña de la línea (Nuevo registro, Paletas, Historial), como el menú, y opcionalmente baja hasta una parte de la pantalla. */
+  function abrirLinea(key,tab,sel){
+    if(!key||!lineas().some(l=>l.key===key)||!permiso(tab))return false;
+    if(typeof confirmarAbandonoRotacionPendiente==='function'&&!confirmarAbandonoRotacionPendiente())return false;
+    if(tab==='nuevo'&&typeof selectLine==='function'&&permiso('nuevo')){selectLine(key);if(state.currentTab!=='nuevo'){state.currentTab='nuevo';if(typeof renderSidebar==='function')renderSidebar();renderMain();}}
+    else{state.currentLine=key;state.currentTab=tab;state.viewingRecordId=null;if(typeof renderSidebar==='function')renderSidebar();if(typeof renderMain==='function')renderMain();}
+    if(sel)mostrar(sel);
+    return true;
+  }
+  const puedeParadas=()=>typeof window.avAbrirParadas==='function'&&typeof window.avPuedeEditarParadas==='function'&&(()=>{try{return window.avPuedeEditarParadas();}catch(_){return false;}})();
+  /* «+ Parada»: abre Paletas de la línea (que conoce la fecha y el turno operativos) y, en cuanto los tiene, el formulario único de paradas. */
+  function nuevaParada(key){
+    if(!abrirLinea(key,'paletas'))return;
+    cuando(()=>typeof draftPaleta!=='undefined'&&draftPaleta&&draftPaleta.linea===key&&draftPaleta.fecha&&draftPaleta.turno&&draftPaleta,d=>window.avAbrirParadas(key,d.fecha,d.turno));
+  }
+  function irParadasTurno(){
+    if(typeof window.goAvanceProduccion!=='function')return;
+    window.goAvanceProduccion();
+    mostrar('#pu-avance');
+  }
+  window.goParadasTurno=irParadasTurno;
+  const PASOS=[
+    {n:1,titulo:'Nuevo registro',desc:'Abrir el turno de la línea',puede:()=>puedeLinea('nuevo'),abrir:k=>abrirLinea(k,'nuevo')},
+    {n:2,titulo:'Paletas',desc:'+1 paleta al minuto',puede:()=>puedeLinea('paletas'),abrir:k=>abrirLinea(k,'paletas')},
+    {n:3,titulo:'+ Parada',desc:'Un solo formulario, por marca',nuevo:true,puede:()=>puedeLinea('paletas')&&puedeParadas(),abrir:k=>nuevaParada(k)},
+    {n:4,titulo:'Cerrar marca',desc:'Al terminar cada marca',nuevo:true,puede:()=>puedeLinea('paletas'),abrir:k=>abrirLinea(k,'paletas','#ct-panel')},
+    {n:5,titulo:'Avance y cierre',desc:'«Enviar cierre de turno»',puede:()=>visible('btn-avance-produccion'),abrir:()=>window.goAvanceProduccion&&window.goAvanceProduccion()},
+    {n:6,titulo:'Entrega de turno',desc:'Pendientes al siguiente',puede:()=>visible('btn-entrega-turno'),abrir:()=>window.goEntregaTurno&&window.goEntregaTurno()}
+  ];
+  function htmlPasos(){
+    const ps=PASOS.filter(p=>p.puede());
+    if(!ps.length)return '';
+    const ls=lineas(),k=lineaElegida();
+    const nombre=l=>typeof nombreLineaCorto==='function'?nombreLineaCorto(l.key):(l.name||l.key);
+    const chips=ls.length>1?'<div class="pi-lineas" role="group" aria-label="Línea"><span>Línea:</span>'+ls.map(l=>'<button type="button" class="pi-chip'+(l.key===k?' on':'')+'" data-pi-linea="'+esc(l.key)+'" aria-pressed="'+(l.key===k)+'">'+esc(nombre(l))+'</button>').join('')+'</div>'
+      :(ls.length===1?'<div class="pi-lineas"><span>Línea: <b>'+esc(nombre(ls[0]))+'</b></span></div>':'');
+    return '<div class="pi-pasos" id="pi-pasos"><h3>Tu turno, paso a paso</h3>'+chips+'<div class="pi-fila">'+
+      ps.map(p=>'<button type="button" class="pi-paso'+(p.nuevo?' nuevo':'')+'" data-pi-paso="'+p.n+'">'+(p.nuevo?'<span class="pi-badge">NUEVO</span>':'')+'<span class="pi-n">'+p.n+'</span><b>'+esc(p.titulo)+'</b><span class="pi-d">'+esc(p.desc)+'</span></button>').join('')+'</div></div>';
+  }
+  const ABRIR=[];
+  const OTROS=['btn-tareo','btn-rotacion-supervisores','btn-bitacora-prod','btn-resumenes-turno','btn-horario-produccion'];
+  const visible=id=>{const b=document.getElementById(id);return !!b&&!b.hidden&&b.style.display!=='none';};
+  const hayAcceso=()=>['btn-avance-produccion','btn-entrega-turno','btn-paradas-turno'].concat(OTROS).some(visible);
+
+  /* Menú lateral de Producción: Inicio, Registro de producción (líneas), Avance y cierre, Paradas del turno y Entrega de turno. Los demás botones siguen existiendo (ocultos por CSS) porque su visibilidad decide qué tarjetas se ven. */
   if(!document.getElementById('pi-menu-css')){
     const m=document.createElement('style');m.id='pi-menu-css';
     m.textContent=OTROS.map(id=>'#sidebar-panel-produccion #'+id).join(',')+'{display:none!important}';
@@ -92,7 +157,18 @@
   function estilosPendientes(){
     if(document.getElementById('pi-pend-css'))return;
     const s=document.createElement('style');s.id='pi-pend-css';
-    s.textContent='.pi-fin{list-style:none;margin:8px 0 0;padding:0}.pi-fin-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid rgba(0,0,0,.06);flex-wrap:wrap}.pi-fin-item .btn{min-height:40px}';
+    s.textContent='.pi-fin{list-style:none;margin:8px 0 0;padding:0}.pi-fin-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid rgba(0,0,0,.06);flex-wrap:wrap}.pi-fin-item .btn{min-height:40px}'+
+      '.pi-pasos{background:#fff;border:1px solid #dce5eb;border-radius:14px;padding:14px 16px;margin:12px 0}.pi-pasos h3{margin:0 0 6px;font-size:16px}'+
+      '.pi-lineas{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;font-size:13px;color:#4b6475}'+
+      '.pi-chip{border:1.5px solid #c9d6e2;border-radius:999px;padding:6px 14px;font-weight:700;color:#0b3a5c;background:#fff;min-height:36px;cursor:pointer}.pi-chip.on{background:#065F86;color:#fff;border-color:#065F86}'+
+      '.pi-fila{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}'+
+      '.pi-paso{position:relative;display:grid;gap:3px;justify-items:start;text-align:left;border:1.5px solid #d6e2ec;border-radius:12px;padding:10px 12px;background:#f9fbfd;cursor:pointer;font:inherit;color:inherit;min-height:92px}'+
+      '.pi-paso:hover{border-color:#065F86}.pi-paso.nuevo{border-color:#e0a100;background:#fff9e8}.pi-paso b{font-size:14px}.pi-d{font-size:12px;color:#4b6475}'+
+      '.pi-n{width:24px;height:24px;border-radius:50%;background:#065F86;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}'+
+      '.pi-badge{position:absolute;top:8px;right:8px;background:#b45309;color:#fff;font-size:10px;font-weight:800;border-radius:6px;padding:2px 6px;letter-spacing:.04em}'+
+      '.mi-card .pi-badge{position:static;display:inline-block;margin-left:6px;vertical-align:middle}'+
+      '.pi-resalta{outline:3px solid #e0a100;outline-offset:3px;border-radius:12px;transition:outline-color .6s}'+
+      '@media (prefers-color-scheme:dark){.pi-pasos,.pi-chip,.pi-paso{background:#13222d;border-color:#2b3f4d;color:#e6eef3}.pi-paso.nuevo{background:#2a2312}.pi-d,.pi-lineas{color:#9fb3c2}.pi-chip.on{background:#0b7fb0;color:#fff}}';
     document.head.appendChild(s);
   }
 
@@ -100,18 +176,22 @@
     if(window.glacialMantInicio&&window.glacialMantInicio.estilos)window.glacialMantInicio.estilos();
     ABRIR.length=0;
     const grupos=GRUPOS.map(g=>{
-      const t=g.tarjetas.filter(c=>visible(c.boton));
+      const t=g.tarjetas.filter(c=>c.puede?c.puede():visible(c.boton));
       if(!t.length)return '';
       return '<h3 class="mi-sec">'+esc(g.titulo)+'</h3><p class="mi-sub">'+esc(g.subtitulo)+'</p><div class="mi-grid" style="--mi-color:'+g.color+'">'+
-        t.map(c=>{ABRIR.push(c.abrir);return '<button type="button" class="mi-card" data-pi-ir="'+(ABRIR.length-1)+'"><span class="mi-ico" aria-hidden="true">'+c.icono+'</span><span class="mi-tit">'+esc(c.titulo)+'</span><span class="mi-desc">'+esc(c.desc)+'</span><span class="mi-go">Abrir →</span></button>';}).join('')+'</div>';
+        t.map(c=>{ABRIR.push(c.abrir);return '<button type="button" class="mi-card" data-pi-ir="'+(ABRIR.length-1)+'"><span class="mi-ico" aria-hidden="true">'+c.icono+'</span><span class="mi-tit">'+esc(c.titulo)+(c.nuevo?'<span class="pi-badge">NUEVO</span>':'')+'</span><span class="mi-desc">'+esc(c.desc)+'</span><span class="mi-go">Abrir →</span></button>';}).join('')+'</div>';
     }).join('');
-    main.innerHTML='<div class="mi-wrap" id="pi-inicio"><div class="main-head"><div><h2>Producción</h2><div class="sub">Lo de cada turno, el personal y el seguimiento. El registro de cada línea está en el menú de la izquierda.</div></div>'+
+    main.innerHTML='<div class="mi-wrap" id="pi-inicio"><div class="main-head"><div><h2>Producción</h2><div class="sub">Ordenado como se trabaja el turno. Todo lo de paradas, en un solo grupo.</div></div>'+
       (window.glacialEstadoDatos?'<div>'+window.glacialEstadoDatos.chip()+'</div>':'')+'</div>'+
-      (estilosPendientes(),htmlRotacion())+htmlSinFinalizar()+
+      (estilosPendientes(),htmlPasos())+htmlRotacion()+htmlSinFinalizar()+
       (grupos?htmlHoy()+grupos:'<div class="mi-vacio">Tu usuario no tiene más pantallas de Producción disponibles. Usa el registro de tu línea en el menú.</div>')+'</div>';
   }
 
   document.addEventListener('click',e=>{
+    const ch=e.target.closest&&e.target.closest('[data-pi-linea]');
+    if(ch&&ch.closest('#pi-inicio')){elegida=ch.getAttribute('data-pi-linea');const caja=document.getElementById('pi-pasos'),t=document.createElement('div');t.innerHTML=htmlPasos();if(caja&&t.firstChild)caja.replaceWith(t.firstChild);return;}
+    const pa=e.target.closest&&e.target.closest('[data-pi-paso]');
+    if(pa&&pa.closest('#pi-inicio')){const p=PASOS.find(x=>String(x.n)===pa.getAttribute('data-pi-paso'));try{if(p&&p.puede())p.abrir(lineaElegida());}catch(err){console.warn('Producción · inicio:',err&&err.message||err);}return;}
     const rep=e.target.closest&&e.target.closest('[data-pi-reporte]');
     if(rep&&rep.closest('#pi-inicio')){try{if(typeof cargarReporteParaCorreccion==='function')cargarReporteParaCorreccion(rep.getAttribute('data-pi-reporte'));else if(typeof goHistorial==='function')goHistorial();}catch(err){console.warn('Producción · inicio:',err&&err.message||err);}return;}
     const rot=e.target.closest&&e.target.closest('[data-pi-rotacion]');
@@ -130,7 +210,7 @@
     if(typeof renderMain==='function')renderMain();
   }
   window.goProduccionInicio=ir;
-  window.glacialProdInicio={GRUPOS,pintar,hayAcceso,pendientesFinalizar,avisoRotacion};
+  window.glacialProdInicio={GRUPOS,PASOS,pintar,hayAcceso,pendientesFinalizar,avisoRotacion,abrirLinea,lineaElegida};
 
   if(typeof ajustarVistaSegunPermisos==='function'){
     const a=ajustarVistaSegunPermisos;
@@ -147,6 +227,8 @@
     const a=renderSidebar;
     renderSidebar=function(){
       const r=a.apply(this,arguments);
+      const pt=document.getElementById('btn-paradas-turno'),av=document.getElementById('btn-avance-produccion');
+      if(pt&&av){const v=visible('btn-avance-produccion');pt.hidden=!v;pt.style.display=v?'':'none';}
       const b=document.getElementById(BOTON);
       if(b){
         const m=hayAcceso();b.hidden=!m;b.style.display=m?'':'none';

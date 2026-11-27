@@ -30,7 +30,7 @@ ok(entorno({rol:'Jefe de Producción',hoy:'2026-11-06',rotaciones:[pub,{desde:'2
 ok(entorno({rol:'Supervisor',rotaciones:[]}).avisoRotacion()===null,'B: el supervisor sin acceso a la rotación no recibe el aviso');
 ok(entorno({rol:'Supervisor',rotaciones:[],botones:['btn-avance-produccion','btn-rotacion-supervisores']}).avisoRotacion().nivel==='roja','B: quien gestiona la rotación sí lo recibe');
 const i67=leer('js/produccion/67-produccion-inicio.js');
-ok(/htmlRotacion\(\)\)\+htmlSinFinalizar\(\)/.test(i67)&&/data-pi-reporte/.test(i67)&&/cargarReporteParaCorreccion/.test(i67),'Inicio: muestra los dos bloques y «Abrir» abre el reporte');
+ok(/htmlRotacion\(\)\)?\+htmlSinFinalizar\(\)/.test(i67)&&/data-pi-reporte/.test(i67)&&/cargarReporteParaCorreccion/.test(i67),'Inicio: muestra los dos bloques y «Abrir» abre el reporte');
 
 /* ---------- E · merma del Registro en la conciliación ---------- */
 const sn={console,Math,Number,Array,Object,String,Date,JSON,Set,Map,RegExp};vm.createContext(sn);sn.window=sn;
