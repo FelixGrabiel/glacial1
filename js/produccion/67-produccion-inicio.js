@@ -29,6 +29,7 @@
       {puede:()=>puedeLinea('historial'),icono:'🗂',titulo:'Historial de registros',desc:'Reportes anteriores de la línea elegida arriba y sus correcciones.',abrir:()=>abrirLinea(lineaElegida(),'historial')}
     ]},
     {titulo:'Personal y configuración',subtitulo:'Quién trabaja, en qué turno y con qué horario.',color:'#1a7f4b',tarjetas:[
+      {boton:'btn-convocatoria',icono:'📋',titulo:'Convocatoria semanal',nuevo:true,desc:'Quién va a cada equipo esta semana; la imagen de WhatsApp sale sola y prellena el Tareo.',abrir:()=>typeof goConvocatoria==='function'&&goConvocatoria()},
       {boton:'btn-tareo',icono:'🗒',titulo:'Tareo de producción',desc:'Asistencia, horas y horas extras del personal de Producción.',abrir:()=>typeof goTareo==='function'&&goTareo()},
       {boton:'btn-rotacion-supervisores',icono:'🔄',titulo:'Rotación de supervisores',desc:'Qué supervisor cubre cada turno de la semana.',abrir:()=>typeof goRotacionSupervisores==='function'&&goRotacionSupervisores()},
       {boton:'btn-horario-produccion',icono:'⏰',titulo:'Horario de producción',desc:'Horarios de turno y de cada línea.',abrir:()=>typeof goHorarioProduccion==='function'&&goHorarioProduccion()}

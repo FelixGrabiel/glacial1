@@ -30,7 +30,7 @@ const entrar = (P, usuario) => P.evaluate(u => {
   ok(v.chips >= 2 && v.on, 'se elige la línea con botones (marcada: ' + v.on + ')');
   ok(v.secs.join('|') === 'Paradas|Cierre del turno|Personal y configuración', 'grupos en el orden del turno: ' + v.secs.join(', '));
   ok(/Paradas del turnoNUEVO/.test(v.paradas.join('|')) && /Cierre por marcaNUEVO/.test(v.paradas.join('|')) && v.paradas.some(t => /Bitácora/.test(t)) && v.paradas.some(t => /Análisis de paradas/.test(t)), 'grupo Paradas: ' + v.paradas.join(' · '));
-  ok(v.menu.join('|') === 'Inicio de Producción|Avance y cierre|Paradas del turno|Entrega de turno', 'menú: ' + v.menu.join(' · '));
+  ok(v.menu.join('|') === 'Inicio de Producción|Avance y cierre|Paradas del turno|Entrega de turno|Convocatoria semanal', 'menú: ' + v.menu.join(' · '));
   if (process.env.GLX_CAPTURAS) await P.screenshot({ path: path.join(process.env.GLX_CAPTURAS, 'inicio-produccion-pc.png'), fullPage: true });
 
   // elegir otra línea y abrir «Cerrar marca» → Paletas de esa línea, en el panel de cierre

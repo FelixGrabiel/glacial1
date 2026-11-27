@@ -6,7 +6,7 @@ const leer=f=>fs.readFileSync(R+'/'+f,'utf8').replace(/\r\n/g,'\n');
 const html=leer('index.html'),src=leer('js/produccion/67-produccion-inicio.js'),side=leer('js/nucleo/04-sidebar.js');
 
 const botones=[...src.matchAll(/boton:'(btn-[a-z-]+)'/g)].map(m=>m[1]);
-ok(botones.length===9&&new Set(botones).size===9,'nueve tarjetas con botón del menú, sin repetir (más Cierre por marca e Historial, que dependen del permiso de la línea)');
+ok(botones.length===10&&new Set(botones).size===10,'diez tarjetas con botón del menú, sin repetir (más Cierre por marca e Historial, que dependen del permiso de la línea)');
 const titulos=[...src.matchAll(/titulo:'([^']+)',subtitulo/g)].map(m=>m[1]);
 ok(titulos.join('|')==='Paradas|Cierre del turno|Personal y configuración','grupos en el orden del turno: Paradas, Cierre del turno, Personal y configuración');
 ok(/titulo:'Paradas del turno',nuevo:true/.test(src)&&/titulo:'Cierre por marca',nuevo:true/.test(src)&&/boton:'btn-analisis-paradas'/.test(src)&&/boton:'btn-bitacora-prod'/.test(src),'el grupo Paradas junta Paradas del turno y Cierre por marca (NUEVO), Bitácora y Análisis de paradas');

@@ -240,6 +240,11 @@ function openWorkersModal(){
 
             </div>
 
+            <div class="field-sm">
+              <label title="Para el «NUEVO» automático de la convocatoria semanal">Fecha de ingreso</label>
+              <input type="date" id="tw-ingreso">
+            </div>
+
 
           </div>
 
@@ -451,6 +456,10 @@ function saveWorkerForm(){
   const estado =
     document.getElementById('tw-estado').value;
 
+  // 27/11/2026: fecha de ingreso (la convocatoria semanal marca «NUEVO» sola con ella)
+  const fechaIngreso =
+    (document.getElementById('tw-ingreso') || {}).value || '';
+
 
   if(!nombre){
 
@@ -483,7 +492,8 @@ function saveWorkerForm(){
         cargo,
         linea,
         puestoMaquina,
-        estado
+        estado,
+        fechaIngreso: fechaIngreso || workers[idx].fechaIngreso || ''
       };
 
     }
@@ -521,7 +531,9 @@ function saveWorkerForm(){
       cargo,
       linea,
       puestoMaquina,
-      estado: estado || 'Activo'
+      estado: estado || 'Activo',
+      fechaIngreso,
+      creadoEn: Date.now()
 
     });
 
@@ -564,6 +576,7 @@ function startEditWorker(id){
   document.getElementById('tw-linea').value = worker.linea || '';
   if(document.getElementById('tw-puesto-maquina'))document.getElementById('tw-puesto-maquina').value = worker.puestoMaquina || '';
   document.getElementById('tw-estado').value = worker.estado || 'Activo';
+  if(document.getElementById('tw-ingreso'))document.getElementById('tw-ingreso').value = worker.fechaIngreso || '';
 
 
   document.getElementById('worker-form-title').textContent =
@@ -598,6 +611,7 @@ function cancelWorkerEdit(){
   document.getElementById('tw-linea').value = '';
   if(document.getElementById('tw-puesto-maquina'))document.getElementById('tw-puesto-maquina').value = '';
   document.getElementById('tw-estado').value = 'Activo';
+  if(document.getElementById('tw-ingreso'))document.getElementById('tw-ingreso').value = '';
 
 
   document.getElementById('worker-form-title').textContent =

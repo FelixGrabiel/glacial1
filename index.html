@@ -3160,6 +3160,11 @@
                                         onclick="goEntregaTurno()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Entrega de turno</span>
                                 </button>
+                                <!-- Convocatoria semanal (27/11/2026): la arma el supervisor; de ahí salen la imagen de WhatsApp y el Tareo prellenado (49b). -->
+                                <button type="button" class="side-action sidebar-subaction" id="btn-convocatoria"
+                                        onclick="goConvocatoria()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Convocatoria semanal</span>
+                                </button>
                                 <button type="button" class="side-action sidebar-subaction" id="btn-resumenes-turno"
                                         onclick="goResumenesTurno()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Resúmenes de turno</span>
@@ -3287,6 +3292,10 @@
                                 <button type="button" class="side-action sidebar-subaction" id="btn-rrhh"
                                         onclick="goRRHH()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Panel de RRHH</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-convocatoria-rrhh"
+                                        onclick="goConvocatoria()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Convocatoria semanal</span>
                                 </button>
                             </div>
                         </section>
@@ -3533,12 +3542,12 @@
     <script src="js/nucleo/45b-velocidades-vigencia.js?v=20261030-ve1"></script>
 
     <script src="js/nucleo/02b-permisos-hielo.js?v=20261121-ph2"></script>
-    <script src="js/nucleo/02-estado.js?v=20261121-ad2"></script>
+    <script src="js/nucleo/02-estado.js?v=20261127-cv1"></script>
 
     <script src="js/accesos/03-auth.js?v=20261112-gr1"></script>
     <script src="js/accesos/03b-login-carrusel.js?v=20261114-lg1"></script>
 
-    <script src="js/nucleo/04-sidebar.js?v=20261117-ad1"></script>
+    <script src="js/nucleo/04-sidebar.js?v=20261127-cv1"></script>
 
     <script src="js/nucleo/05-utils.js?v=20261015-fc1"></script>
 
@@ -3558,7 +3567,7 @@
     <script src="js/accesos/10d-whatsapp-usuario.js?v=20261125-pw1"></script>
     <script src="js/accesos/10b-modo-visualizacion-form.js?v=20261121-pal3"></script>
 
-    <script src="js/personal/11-trabajadores.js?v=20261121-pu2"></script>
+    <script src="js/personal/11-trabajadores.js?v=20261127-cv1"></script>
     <script src="js/produccion/16-paletas.js?v=20261117-sl1"></script>
     <script src="js/accesos/17b-ventana-supervisor.js?v=20261021-vs2"></script>
     <script src="js/accesos/17-modo-trabajo.js?v=20261112-op1"></script>
@@ -3624,6 +3633,10 @@
     <script src="js/personal/43-distribucion-personal.js?v=20261121-dp2"></script>
     <script src="js/personal/44-distribucion-personal-pantalla.js?v=20261121-leg4"></script>
     <script src="js/personal/45-supervisor-en-turno.js?v=20261127-sp1"></script>
+    <!-- Convocatoria semanal (glacial_72): núcleo puro, pantalla (Personal › Convocatoria semanal) y Tareo prellenado. docs/personal-tareo/convocatoria-semanal.md -->
+    <script src="js/personal/49-convocatoria-nucleo.js?v=20261127-cv1"></script>
+    <script src="js/personal/49b-convocatoria-pantalla.js?v=20261127-cv1"></script>
+    <script src="js/personal/49c-convocatoria-tareo.js?v=20261127-cv1"></script>
     <script src="js/personal/40-tareo-auditoria.js?v=20261120-qa1"></script>
     <script src="js/personal/41-tareo-bloqueo.js?v=20261102-pal2"></script>
     <script src="js/mantenimiento/43-bitacora-mantenimiento.js?v=20261103-fx6"></script>
@@ -3681,7 +3694,7 @@
     <script src="js/mantenimiento/79-paradas-mantenimiento.js?v=20261113-pr1"></script>
     <script src="js/mantenimiento/73-plan-anual-pantalla.js?v=20261121-hs6"></script>
     <script src="js/mantenimiento/68-mantenimiento-inicio.js?v=20261121-hs5"></script>
-    <script src="js/produccion/67-produccion-inicio.js?v=20261127-pi1"></script>
+    <script src="js/produccion/67-produccion-inicio.js?v=20261127-pi2"></script>
     <!-- Asistente de Producción (docs/asistente/asistente-produccion.md): núcleo puro, datos/permisos, pantalla y Reporte General. -->
     <script src="js/asistente/70-asistente-nucleo.js?v=20261117-ad4"></script>
     <script src="js/asistente/71-asistente-datos.js?v=20261116-pm2"></script>
