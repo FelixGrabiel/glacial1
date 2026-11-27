@@ -34,6 +34,17 @@ rep.produccion[1].lote = 'MOL-2611';
 ok(!H.validarFinalizar(rep, {}).some(x => /lote/i.test(x)), 'con el lote de Molitalia escrito, no hay error de lote');
 const fin = JSON.parse(JSON.stringify(rep)); fin.estado = 'FINALIZADO'; fin.produccion[0].lote = 'X'; H.aplicarLotes(fin);
 ok(fin.produccion[0].lote === 'X', 'un reporte finalizado no cambia su lote');
+
+// Vencimiento automático: fecha + 12 meses; Noche desde el día siguiente; Molitalia/Hoteles/Certificado a mano
+const V = (marca, fecha, turno, meses) => L.vencimientoHielo({ marca, fecha, turno, meses });
+ok(V('Glacial', F, 'DÍA').vence === '2027-11-26' && V('Glacial', F, 'INTERMEDIO').vence === '2027-11-26', 'Día e Intermedio: fecha de producción + 12 meses (26/11/2026 → 26/11/2027)');
+ok(V('Glacial', F, 'NOCHE').vence === '2027-11-27', 'turno Noche: cuenta desde el día siguiente (→ 27/11/2027)');
+ok(V('Glacial', '2028-02-29', 'DÍA').vence === '2029-02-28' && V('Glacial', '2027-01-30', 'NOCHE', 1).vence === '2027-02-28', 'fin de mes: si el día no existe, el último del mes');
+ok(['Molitalia', 'Hoteles', 'Certificado'].every(m => V(m, F, 'DÍA').manual && !V(m, F, 'DÍA').vence) && !V('San Fernando', F, 'DÍA').manual, 'Molitalia, Hoteles y Certificado: vencimiento a mano; el resto (también San Fernando) automático');
+const rv = JSON.parse(JSON.stringify(rep)); rv.estado = 'EN_REGISTRO'; rv.turno = 'NOCHE'; rv.produccion[0].vence = ''; rv.produccion[1].vence = '';
+H.aplicarLotes(rv);
+ok(rv.produccion[0].vence === '2027-11-27' && rv.produccion[1].vence === '', 'en el reporte: Glacial vence solo (Noche → 27/11/2027) y Molitalia queda para escribir');
+ok(H.validarFinalizar(rv, {}).some(x => /Producción 2: indica la fecha de vencimiento/.test(x)), 'finalizar pide el vencimiento a mano de Molitalia');
 const html = fs.readFileSync(R + '/index.html', 'utf8');
 ok(html.indexOf('97l-hielo-lote.js?v=') > 0 && html.indexOf('97l-hielo-lote.js?v=') < html.indexOf('97-hielo.js?v='), 'index.html carga 97l antes de 97-hielo');
 console.log(fallas ? fallas + ' fallas' : 'todo correcto'); process.exit(fallas ? 1 : 0);

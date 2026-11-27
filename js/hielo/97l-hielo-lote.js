@@ -13,7 +13,8 @@
      Ej.: Glacial 3 kg · Tolva manual · Día · 26/11/2026 (semana 48, día 330) → 21148330.
    El lote sale solo cuando la fila tiene producción. Molitalia, Certificado y Hoteles (y las marcas sin código, p. ej. San Fernando) llevan
    el lote A MANO y es obligatorio para finalizar si se produjo.
-   Lógica pura (node): loteHielo, codigoMarca, codigoMaquina, codigoTurno, semana, juliano.
+   VENCIMIENTO automático: fecha + vida útil (12 meses, editable); el turno Noche cuenta desde el día siguiente. Molitalia, Hoteles y Certificado: a mano.
+   Lógica pura (node): loteHielo, vencimientoHielo, codigoMarca, codigoMaquina, codigoTurno, semana, juliano.
    ============================================================= */
 (function(raiz){
   'use strict';
@@ -75,7 +76,23 @@
     if(!t || !s || !j) return { lote: '', manual: false, motivo: 'Falta la fecha o el turno' };
     return { lote: t + cm + mq + s + j, manual: false, motivo: '' };
   }
-  const API = { loteHielo, codigoMarca, codigoMaquina, codigoTurno, semana, juliano, esManual };
+  /** VENCIMIENTO (27/11/2026): fecha de producción + vida útil (12 meses por defecto, en Configuración de Hielo). El turno NOCHE (desde las 19:00)
+   *  cuenta desde el día SIGUIENTE. Molitalia, Hoteles y Certificado: a mano (manual = true). Si el día no existe en el mes final (31 → 30), el último día. */
+  function vencimientoHielo(o){
+    o = o || {};
+    if(esManual(o.marca)) return { vence: '', manual: true };
+    const p = partes(o.fecha); if(!p) return { vence: '', manual: false };
+    const meses = Math.max(1, Math.round(Number(o.meses) || 12));
+    let base = Date.UTC(p[0], p[1] - 1, p[2]);
+    if(codigoTurno(o.turno) === '1') base += 86400000;          // Noche → día siguiente
+    const b = new Date(base), dia = b.getUTCDate();
+    const fin = new Date(Date.UTC(b.getUTCFullYear(), b.getUTCMonth() + meses, 1));
+    const ultimo = new Date(Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth() + 1, 0)).getUTCDate();
+    fin.setUTCDate(Math.min(dia, ultimo));
+    const z = n => String(n).padStart(2, '0');
+    return { vence: fin.getUTCFullYear() + '-' + z(fin.getUTCMonth() + 1) + '-' + z(fin.getUTCDate()), manual: false };
+  }
+  const API = { loteHielo, vencimientoHielo, codigoMarca, codigoMaquina, codigoTurno, semana, juliano, esManual };
   if(typeof module !== 'undefined' && module.exports) module.exports = API;
   raiz.glacialLoteHielo = API;
 })(typeof window !== 'undefined' ? window : globalThis);
