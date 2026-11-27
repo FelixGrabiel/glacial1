@@ -4,7 +4,10 @@
    Muestra un libro de ExcelJS tal como se verá en Excel, sin descargarlo: pestañas de hojas abajo (con su color), letras de
    columna y números de fila, anchos y altos, celdas combinadas, rellenos, fuentes, bordes, alineación, formatos de número
    (miles, decimales, %, hh:mm, fechas), el resultado de las fórmulas, formato condicional (barras de datos y «menor que») e
-   imágenes. Es solo lectura: lo que se ve es el MISMO libro que se descarga.
+   imágenes. Lo que se ve es el MISMO libro que se descarga.
+   EDITAR (27/11/2026): «✎ Editar» permite cambiar el valor de las celdas (no las que tienen fórmula: esas se recalculan al abrir el Excel).
+   Los cambios quedan en el libro que se descarga desde esta ventana; NO cambian los datos del sistema (registros, paletas, paradas).
+   Números: se aceptan «1,234.5», «1234,5» y «85%».
    Uso: glacialVistaExcel.abrir(wb, {titulo, nombre, alDescargar, notas, acciones:[{texto, fn}]})  · glacialVistaExcel.html(ws, wb) (para pruebas).
    ============================================================= */
 (function instalarVistaExcel(raiz){
@@ -68,7 +71,21 @@
     });
     return out;
   }
-  function html(ws,wb){
+  /* Texto escrito en una celda → valor para el libro: número si la celda era número (o el texto parece número), si no texto. */
+  function valorEditado(txt,anterior){
+    const t=String(txt==null?'':txt).replace(/\u00a0/g,' ').trim();
+    if(t==='')return null;
+    const eraNum=typeof valorCrudo(anterior)==='number';
+    let n=t.replace(/\s/g,''),pct=false;
+    if(/%$/.test(n)){pct=true;n=n.slice(0,-1);}
+    if(/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(n))n=n.replace(/,/g,'');            // 1,234.5
+    else if(/^-?\d+,\d+$/.test(n))n=n.replace(',','.');                         // 1234,5
+    if(/^-?\d+(\.\d+)?$/.test(n)&&(eraNum||pct||/^-?\d/.test(t))){const x=Number(n);return pct?x/100:x;}
+    return t;
+  }
+  const esFormula=v=>!!(v&&typeof v==='object'&&('formula' in v||'sharedFormula' in v));
+  function html(ws,wb,opc){
+    const editar=!!(opc&&opc.editar);
     const filas=Math.min(Math.max(ws.rowCount||0,ws.actualRowCount||0,1),MAX_FILAS);
     let cols=Math.max(ws.columnCount||0,1);
     (ws.getImages?ws.getImages():[]).forEach(im=>{const c=Math.ceil((im.range&&im.range.tl&&(im.range.tl.nativeCol!==undefined?im.range.tl.nativeCol:im.range.tl.col))||0)+8;if(c>cols)cols=c;});
@@ -123,7 +140,8 @@
         });
         const span=m?` colspan="${Math.min(m.right,cols)-m.left+1}" rowspan="${Math.min(m.bottom,filas)-m.top+1}"`:'';
         const titulo=cel.value&&typeof cel.value==='object'&&cel.value.formula?` title="=${esc(cel.value.formula)}"`:'';
-        h+=`<td${span}${titulo} class="${cuadricula?'vxl-g':''}${barra?' vxl-cb':''}" style="${css.join(';')}">${barra}<span class="vxl-v">${esc(fo.txt)}</span></td>`;
+        const ed=editar&&!esFormula(cel.value)?` contenteditable="true" spellcheck="false" data-vxl-r="${r}" data-vxl-c="${c}"`:'';
+        h+=`<td${span}${titulo} class="${cuadricula?'vxl-g':''}${barra?' vxl-cb':''}${ed?' vxl-ed':''}${editar&&esFormula(cel.value)?' vxl-fx':''}" style="${css.join(';')}">${barra}<span class="vxl-v"${ed}>${esc(fo.txt)}</span></td>`;
       }
       h+='</tr>';
     }
@@ -185,6 +203,9 @@
 #vxl .vxl-pest button{border:0;border-bottom:3px solid transparent;background:transparent;padding:9px 16px;font-size:13px;cursor:pointer;white-space:nowrap;color:#333;min-height:40px}
 #vxl .vxl-pest button.act{background:#fff;font-weight:700;color:#1D6F42}
 #vxl .vxl-aviso{padding:8px 12px;color:#6B4E00;background:#FFF8E1;font-size:12px}
+#vxl .vxl-ed{cursor:text}#vxl .vxl-ed:hover{outline:1px dashed #1D6F42;outline-offset:-1px}#vxl .vxl-ed .vxl-v{display:block;min-height:1em;outline:none}
+#vxl .vxl-ed:focus-within{outline:2px solid #1D6F42;outline-offset:-2px;background:#F2FBF5}#vxl .vxl-fx{cursor:not-allowed}
+#vxl .vxl-cambiado{background:#FFF4C2!important}#vxl .vxl-btn.act{background:#FFD866;border-color:#FFD866;color:#3A2E00}
 @media print{#vxl{display:none!important}}`;
     document.head.appendChild(s);
   }
@@ -194,18 +215,20 @@
     estilos();
     cerrar();
     const hojas=(wb.worksheets||[]).filter(Boolean);
-    const E={i:0,zoom:1};
+    const E={i:0,zoom:1,editar:false,cambios:new Map()};      // cambios: 'hoja|fila|col' → valor nuevo
     const div=document.createElement('div');div.id='vxl';div.setAttribute('role','dialog');div.setAttribute('aria-modal','true');div.setAttribute('aria-label','Vista previa en Excel');
     const pintar=()=>{
       const ws=hojas[E.i];
       div.innerHTML=`<div class="vxl-barra-sup"><div><b>${esc(opc.titulo||'Vista previa')}</b><small>${esc(opc.nombre||'')} · vista previa: así se verá en Excel</small></div><span class="vxl-esp"></span>
         <span class="vxl-zoom" aria-label="Zoom"><button type="button" data-vxl-z="-1" aria-label="Alejar">−</button><span>${Math.round(E.zoom*100)}%</span><button type="button" data-vxl-z="1" aria-label="Acercar">+</button></span>
         ${(opc.acciones||[]).map((a,i)=>`<button type="button" class="vxl-btn o" data-vxl-acc="${i}">${esc(a.texto)}</button>`).join('')}
-        ${typeof opc.alDescargar==='function'?'<button type="button" class="vxl-btn" data-vxl-desc>⬇ Descargar Excel</button>':''}
+        <button type="button" class="vxl-btn o${E.editar?' act':''}" data-vxl-ed aria-pressed="${E.editar}">${E.editar?'✓ Editando':'✎ Editar'}</button>
+        ${typeof opc.alDescargar==='function'||E.editar||E.cambios.size?`<button type="button" class="vxl-btn" data-vxl-desc>⬇ Descargar Excel${E.cambios.size?' (con '+E.cambios.size+' cambio'+(E.cambios.size===1?'':'s')+')':''}</button>`:''}
         <button type="button" class="vxl-btn o" data-vxl-x>Cerrar</button></div>
-        ${opc.notas?`<div class="vxl-notas">${esc(opc.notas)}</div>`:''}
-        <div class="vxl-area">${ws?html(ws,wb):'<p style="padding:16px">El libro no tiene hojas.</p>'}</div>
+        ${E.editar?`<div class="vxl-notas">Toca una celda y escribe. Las celdas con fórmula no se editan (se recalculan al abrir el Excel). Los cambios van en el Excel que descargues desde aquí; no cambian los datos del sistema.${E.cambios.size?' · <b>'+E.cambios.size+' cambio'+(E.cambios.size===1?'':'s')+'</b>':''}</div>`:(opc.notas?`<div class="vxl-notas">${esc(opc.notas)}</div>`:'')}
+        <div class="vxl-area">${ws?html(ws,wb,{editar:E.editar}):'<p style="padding:16px">El libro no tiene hojas.</p>'}</div>
         <div class="vxl-pest" role="tablist">${hojas.map((h,i)=>{const tc=color(h.properties&&h.properties.tabColor);return `<button type="button" role="tab" aria-selected="${i===E.i}" class="${i===E.i?'act':''}" data-vxl-h="${i}" style="${tc?'border-bottom-color:'+tc:''}">${esc(h.name)}</button>`;}).join('')}</div>`;
+      div.querySelectorAll('.vxl-v[data-vxl-r]').forEach(el=>{if(E.cambios.has(E.i+'|'+el.getAttribute('data-vxl-r')+'|'+el.getAttribute('data-vxl-c')))el.parentElement.classList.add('vxl-cambiado');});
       const hoja=div.querySelector('.vxl-hoja');if(hoja&&E.zoom!==1)hoja.style.zoom=String(E.zoom);   // zoom (no transform): el área de desplazamiento se ajusta
       if(hoja)ubicarImagenes(hoja);
     };
@@ -215,9 +238,40 @@
       if(t.hasAttribute('data-vxl-acc')){const a=(opc.acciones||[])[Number(t.getAttribute('data-vxl-acc'))];if(a&&typeof a.fn==='function'){cerrar();a.fn();}return;}
       if(t.hasAttribute('data-vxl-h')){E.i=Number(t.getAttribute('data-vxl-h'));pintar();return;}
       if(t.hasAttribute('data-vxl-z')){E.zoom=Math.max(0.4,Math.min(1.6,Math.round((E.zoom+Number(t.getAttribute('data-vxl-z'))*0.1)*10)/10));pintar();return;}
-      if(t.hasAttribute('data-vxl-desc')){t.disabled=true;t.textContent='Generando…';try{await opc.alDescargar();}finally{t.disabled=false;t.textContent='⬇ Descargar Excel';}}
+      if(t.hasAttribute('data-vxl-ed')){E.editar=!E.editar;pintar();return;}
+      if(t.hasAttribute('data-vxl-desc')){
+        const txt=t.textContent;t.disabled=true;t.textContent='Generando…';
+        // Con cambios se descarga ESTE libro (el de alDescargar se volvería a armar con los datos y perdería lo editado).
+        try{if(E.cambios.size)await descargarLibro(wb,opc.nombre);else await opc.alDescargar();}
+        catch(err){alert('No se pudo descargar: '+((err&&err.message)||err));}
+        finally{t.disabled=false;t.textContent=txt;}
+      }
     });
-    div.addEventListener('keydown',e=>{if(e.key==='Escape')cerrar();});
+    /* Edición: al salir de la celda se guarda el valor en el libro. Enter = confirmar; Esc = deshacer lo escrito. */
+    const confirmar=el=>{
+      const r=Number(el.getAttribute('data-vxl-r')),c=Number(el.getAttribute('data-vxl-c')),ws=hojas[E.i];if(!ws||!r||!c)return;
+      const cel=ws.getCell(r,c),antes=cel.value,nuevo=valorEditado(el.textContent,antes);
+      const fo=formatear(valorCrudo(antes),cel.numFmt||(cel.style&&cel.style.numFmt));
+      if(String(el.textContent).trim()===String(fo.txt).trim())return;      // sin cambios reales
+      cel.value=nuevo;E.cambios.set(E.i+'|'+r+'|'+c,nuevo);
+      try{wb.calcProperties=Object.assign({},wb.calcProperties,{fullCalcOnLoad:true});}catch(_){/* versión sin calcProperties */}
+      // Sin redibujar la hoja (el foco pasa a la celda siguiente): se marca la celda y se actualizan el contador y el botón.
+      el.parentElement.classList.add('vxl-cambiado');
+      el.textContent=formatear(valorCrudo(nuevo),cel.numFmt||(cel.style&&cel.style.numFmt)).txt;
+      const n=E.cambios.size,tx=n+' cambio'+(n===1?'':'s');
+      const d=div.querySelector('[data-vxl-desc]');if(d)d.textContent='⬇ Descargar Excel (con '+tx+')';
+      const no=div.querySelector('.vxl-notas');if(no){const b2=no.querySelector('b');if(b2)b2.textContent=tx;else no.insertAdjacentHTML('beforeend',' · <b>'+tx+'</b>');}
+    };
+    div.addEventListener('focusout',e=>{const el=e.target;if(el&&el.matches&&el.matches('.vxl-v[data-vxl-r]'))confirmar(el);});
+    div.addEventListener('keydown',e=>{
+      const el=e.target;
+      if(el&&el.matches&&el.matches('.vxl-v[data-vxl-r]')){
+        if(e.key==='Enter'){e.preventDefault();el.blur();return;}
+        if(e.key==='Escape'){e.preventDefault();pintar();return;}      // deshace lo escrito en la celda
+        return;
+      }
+      if(e.key==='Escape')cerrar();
+    });
     // en el celular empieza más pequeño para ver más columnas
     if(typeof window!=='undefined'&&window.innerWidth<700)E.zoom=0.6;
     pintar();
@@ -225,8 +279,15 @@
     const x=div.querySelector('[data-vxl-x]');if(x)x.focus();
   }
   function cerrar(){const d=typeof document!=='undefined'&&document.getElementById('vxl');if(d)d.remove();}
+  async function descargarLibro(wb,nombre){
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const n=String(nombre||'libro.xlsx').replace(/\.xlsx$/i,'')+' (editado).xlsx';
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=n;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
+  }
 
-  const API={abrir,cerrar,html,formatear,valorCrudo,letra};
+  const API={abrir,cerrar,html,formatear,valorCrudo,letra,valorEditado,descargarLibro};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialVistaExcel=API;
 })(typeof window!=='undefined'?window:globalThis);
