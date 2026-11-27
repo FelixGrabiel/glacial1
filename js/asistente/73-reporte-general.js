@@ -536,8 +536,9 @@
     const m=await modeloDeFecha(fecha,opc);
     const ExcelJS=await asegurarExcelJS();
     const wb=escribir(ExcelJS,m,{graficos:await graficos(m)});
-    const buf=await wb.xlsx.writeBuffer();
     const nombre=nombreArchivo(fecha,opc&&opc.lineas);
+    if(global.glacialVistaExcel&&global.glacialVistaExcel.conCorrecciones)await global.glacialVistaExcel.conCorrecciones(wb,nombre);      // correcciones guardadas (glacial_71)
+    const buf=await wb.xlsx.writeBuffer();
     const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     if(typeof descargarArchivo==='function')descargarArchivo(blob,nombre);
     else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}

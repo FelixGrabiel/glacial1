@@ -378,7 +378,7 @@
     try{
       const m=modeloActual();if(!m)return;
       if(!raiz.glacialReporteDiarioExcel)throw new Error('falta el módulo del Excel');
-      raiz.descargarArchivo(await raiz.glacialReporteDiarioExcel.blob(m),nombreArchivo(m,'xlsx'));
+      raiz.descargarArchivo(await raiz.glacialReporteDiarioExcel.blob(m,nombreArchivo(m,'xlsx')),nombreArchivo(m,'xlsx'));
     }catch(e){console.error(e);alert('No se pudo generar el Excel: '+((e&&e.message)||e));}
   }
   /** «Vista previa Excel»: el mismo libro que se descarga, mostrado como en Excel (46-vista-excel.js). */
@@ -388,7 +388,7 @@
       if(!raiz.glacialReporteDiarioExcel||!raiz.glacialVistaExcel)throw new Error('falta el módulo del Excel');
       const wb=await raiz.glacialReporteDiarioExcel.libro(m);
       raiz.glacialVistaExcel.abrir(wb,{titulo:'Reporte diario · '+m.nombre+' · '+m.fechaTexto+' · turno '+m.bloque,nombre:nombreArchivo(m,'xlsx'),
-        alDescargar:async()=>raiz.descargarArchivo(await raiz.glacialReporteDiarioExcel.blob(m),nombreArchivo(m,'xlsx')),
+        alDescargar:async()=>raiz.descargarArchivo(await raiz.glacialReporteDiarioExcel.blob(m,nombreArchivo(m,'xlsx')),nombreArchivo(m,'xlsx')),
         acciones:[{texto:'📲 Enviar por WhatsApp',fn:()=>compartir('xlsx')}]});
     }catch(e){console.error(e);alert('No se pudo abrir la vista previa: '+((e&&e.message)||e));}
   }
@@ -411,7 +411,7 @@
     try{
       const m=modeloActual();if(!m)return;
       const esExcel=tipo==='xlsx';
-      const blob=esExcel?await raiz.glacialReporteDiarioExcel.blob(m):await blobImagen(m);
+      const blob=esExcel?await raiz.glacialReporteDiarioExcel.blob(m,nombreArchivo(m,'xlsx')):await blobImagen(m);
       const nombre=nombreArchivo(m,esExcel?'xlsx':'png'),texto=resumenTexto(m);
       const archivo=typeof File==='function'?new File([blob],nombre,{type:blob.type||(esExcel?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'image/png')}):null;
       const movil=/Android|iPhone|iPad|iPod/i.test(String(navigator.userAgent||''));

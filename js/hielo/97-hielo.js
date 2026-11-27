@@ -1069,7 +1069,9 @@
     const ExcelJS=typeof cargarScriptExterno==='function'?await cargarScriptExterno('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS'):window.ExcelJS;
     if(!ExcelJS)throw new Error('No se pudo cargar la librería de Excel.');
     const g=RD().graficos(m),imgs={};g.mapa=RD().graficoMapa(m,1200);Object.keys(g).forEach(k=>{imgs[k]={data:g[k].toDataURL('image/png').split(',')[1],w:g[k].width/2,h:g[k].height/2};});
-    const buf=await RD().construirExcel(ExcelJS,m,imgs).xlsx.writeBuffer();return new Blob([buf],{type:XLSX_MIME});
+    const wb=RD().construirExcel(ExcelJS,m,imgs);
+    if(window.glacialVistaExcel&&window.glacialVistaExcel.conCorrecciones)await window.glacialVistaExcel.conCorrecciones(wb,nombreRD(f,'xlsx'));      // correcciones guardadas (glacial_71)
+    const buf=await wb.xlsx.writeBuffer();return new Blob([buf],{type:XLSX_MIME});
   }
   function rdBajar(blob,nombre){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
   window.hlRDExcel=async()=>{

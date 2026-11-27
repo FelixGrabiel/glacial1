@@ -6,7 +6,10 @@
    (miles, decimales, %, hh:mm, fechas), el resultado de las fórmulas, formato condicional (barras de datos y «menor que») e
    imágenes. Lo que se ve es el MISMO libro que se descarga.
    EDITAR (27/11/2026): «✎ Editar» permite cambiar el valor de las celdas (no las que tienen fórmula: esas se recalculan al abrir el Excel).
-   Los cambios quedan en el libro que se descarga desde esta ventana; NO cambian los datos del sistema (registros, paletas, paradas).
+   GUARDADO EN EL SISTEMA (glacial_71): cada celda corregida se guarda sola en el servidor (reporte = nombre del archivo, hoja, celda, valor,
+   valor original, quién y cuándo). Al abrir ESE reporte (o descargarlo con conCorrecciones) en cualquier equipo, las correcciones se aplican y se
+   marcan. Si el dato del sistema cambió después, la corrección no se aplica y se avisa. Escribir el valor original quita la corrección.
+   No cambia los registros de origen (registros, paletas, paradas, reportes de Hielo).
    Números: se aceptan «1,234.5», «1234,5» y «85%».
    Uso: glacialVistaExcel.abrir(wb, {titulo, nombre, alDescargar, notas, acciones:[{texto, fn}]})  · glacialVistaExcel.html(ws, wb) (para pruebas).
    ============================================================= */
@@ -141,7 +144,7 @@
         const span=m?` colspan="${Math.min(m.right,cols)-m.left+1}" rowspan="${Math.min(m.bottom,filas)-m.top+1}"`:'';
         const titulo=cel.value&&typeof cel.value==='object'&&cel.value.formula?` title="=${esc(cel.value.formula)}"`:'';
         const ed=editar&&!esFormula(cel.value)?` contenteditable="true" spellcheck="false" data-vxl-r="${r}" data-vxl-c="${c}"`:'';
-        h+=`<td${span}${titulo} class="${cuadricula?'vxl-g':''}${barra?' vxl-cb':''}${ed?' vxl-ed':''}${editar&&esFormula(cel.value)?' vxl-fx':''}" style="${css.join(';')}">${barra}<span class="vxl-v"${ed}>${esc(fo.txt)}</span></td>`;
+        h+=`<td data-vxl-rc="${r}:${c}"${span}${titulo} class="${cuadricula?'vxl-g':''}${barra?' vxl-cb':''}${ed?' vxl-ed':''}${editar&&esFormula(cel.value)?' vxl-fx':''}" style="${css.join(';')}">${barra}<span class="vxl-v"${ed}>${esc(fo.txt)}</span></td>`;
       }
       h+='</tr>';
     }
@@ -209,28 +212,96 @@
 @media print{#vxl{display:none!important}}`;
     document.head.appendChild(s);
   }
+  /* ---------- correcciones guardadas en el servidor (glacial_71) ---------- */
+  const idReporte=opc=>String((opc&&(opc.id||opc.nombre))||'').replace(/\.xlsx$/i,'').slice(0,200);
+  const clienteSb=()=>(typeof window!=='undefined'&&window.glacialSupabaseCliente&&typeof window.glacialSupabaseCliente.rpc==='function')?window.glacialSupabaseCliente:null;
+  const uuid=()=>{try{if(typeof crypto!=='undefined'&&crypto.randomUUID)return crypto.randomUUID();}catch(_){/* sin crypto */}return 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g,()=>(Math.random()*16|0).toString(16));};
+  const mismoValor=(a,b)=>{
+    const va=a===undefined||a===''?null:a,vb=b===undefined||b===''?null:b;
+    if(va===null||vb===null)return va===vb;
+    if(typeof va==='number'&&typeof vb==='number')return Math.abs(va-vb)<1e-9;
+    return String(va).trim()===String(vb).trim();
+  };
+  /** Aplica las correcciones (filas de excel_correcciones_listar) al libro. Una corrección cuyo ORIGINAL ya no coincide con lo que generó el sistema
+   *  (el dato cambió después) NO se aplica: queda en «conflictos». Devuelve {aplicadas:[{hoja, celda, r, c, fila}], conflictos:[…], originales: Map}. */
+  function aplicarCorrecciones(wb,filas){
+    const aplicadas=[],conflictos=[],originales=new Map();
+    (filas||[]).forEach(f=>{
+      const ws=wb&&wb.getWorksheet?wb.getWorksheet(f.hoja):null;if(!ws)return;
+      const ref=refA(f.celda);if(!ref)return;
+      const cel=ws.getCell(ref.r,ref.c),actual=valorCrudo(cel.value);
+      if(esFormula(cel.value)){conflictos.push(Object.assign({},f,{actual,motivo:'formula'}));return;}
+      originales.set(f.hoja+'|'+f.celda,actual);
+      if(f.original===null||f.original===undefined||mismoValor(actual,f.original)||mismoValor(actual,f.valor)){
+        cel.value=f.valor;aplicadas.push({hoja:f.hoja,celda:f.celda,r:ref.r,c:ref.c,fila:f});
+      }else conflictos.push(Object.assign({},f,{actual}));
+    });
+    if(aplicadas.length){try{wb.calcProperties=Object.assign({},wb.calcProperties,{fullCalcOnLoad:true});}catch(_){/* versión sin calcProperties */}}
+    return {aplicadas,conflictos,originales};
+  }
+  async function leerCorrecciones(id){
+    const sb=clienteSb();if(!sb||!id)return null;
+    const r=await sb.rpc('excel_correcciones_listar',{p_reporte:id});
+    if(r&&r.error){const c=String(r.error.code||'');if(c==='PGRST202'||c==='42883'||/could not find the function|does not exist|schema cache/i.test(String(r.error.message||'')))return null;throw new Error(r.error.message||'No se pudieron leer las correcciones.');}
+    return (r&&r.data)||[];
+  }
+  /** Para las descargas directas (sin abrir la vista): aplica al libro las correcciones guardadas de ese reporte. Nunca falla: sin servidor, sale como siempre. */
+  async function conCorrecciones(wb,nombreOId){
+    try{const filas=await leerCorrecciones(idReporte({id:nombreOId}));return filas?aplicarCorrecciones(wb,filas):{aplicadas:[],conflictos:[]};}
+    catch(_){return {aplicadas:[],conflictos:[],error:true};}
+  }
+  const fechaCorta=t=>{try{return new Date(t).toLocaleString('es-PE',{timeZone:'America/Lima',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});}catch(_){return '';}};
+
   function abrir(wb,opc){
     opc=opc||{};
     if(typeof document==='undefined')return;
     estilos();
     cerrar();
     const hojas=(wb.worksheets||[]).filter(Boolean);
-    const E={i:0,zoom:1,editar:false,cambios:new Map()};      // cambios: 'hoja|fila|col' → valor nuevo
+    const id=opc.guardar===false?'':idReporte(opc);
+    // cambios: 'i|fila|col' → valor (local o guardado) · guardadas: 'i|fila|col' → fila del servidor · originales: 'hoja|celda' → valor que generó el sistema
+    const E={i:0,zoom:1,editar:false,cambios:new Map(),guardadas:new Map(),originales:new Map(),conflictos:[],estado:id?'cargando':'',msg:'',pendientes:new Map()};
     const div=document.createElement('div');div.id='vxl';div.setAttribute('role','dialog');div.setAttribute('aria-modal','true');div.setAttribute('aria-label','Vista previa en Excel');
+    const cuenta=()=>{const n=E.cambios.size;return n+(n===1?' corrección':' correcciones');};
+    const textoEstado=()=>{
+      if(!id)return '';
+      if(E.estado==='cargando')return 'Buscando correcciones guardadas…';
+      if(E.estado==='guardando')return 'Guardando…';
+      if(E.estado==='error')return '⚠ '+E.msg;
+      if(E.estado==='sinservidor')return 'Las correcciones no se guardan en el sistema todavía (falta glacial_71): solo van en la descarga.';
+      return E.cambios.size?'✓ '+cuenta()+' guardada'+(E.cambios.size===1?'':'s')+' en el sistema':'';
+    };
     const pintar=()=>{
       const ws=hojas[E.i];
+      const conf=E.conflictos.length?` · <b style="color:#8A1C13">${E.conflictos.length} ${E.conflictos.length===1?'corrección':'correcciones'} no se aplic${E.conflictos.length===1?'ó':'aron'}: el dato del sistema cambió después (${E.conflictos.slice(0,3).map(x=>esc(x.hoja+'!'+x.celda)).join(', ')})</b>`:'';
       div.innerHTML=`<div class="vxl-barra-sup"><div><b>${esc(opc.titulo||'Vista previa')}</b><small>${esc(opc.nombre||'')} · vista previa: así se verá en Excel</small></div><span class="vxl-esp"></span>
         <span class="vxl-zoom" aria-label="Zoom"><button type="button" data-vxl-z="-1" aria-label="Alejar">−</button><span>${Math.round(E.zoom*100)}%</span><button type="button" data-vxl-z="1" aria-label="Acercar">+</button></span>
         ${(opc.acciones||[]).map((a,i)=>`<button type="button" class="vxl-btn o" data-vxl-acc="${i}">${esc(a.texto)}</button>`).join('')}
         <button type="button" class="vxl-btn o${E.editar?' act':''}" data-vxl-ed aria-pressed="${E.editar}">${E.editar?'✓ Editando':'✎ Editar'}</button>
-        ${typeof opc.alDescargar==='function'||E.editar||E.cambios.size?`<button type="button" class="vxl-btn" data-vxl-desc>⬇ Descargar Excel${E.cambios.size?' (con '+E.cambios.size+' cambio'+(E.cambios.size===1?'':'s')+')':''}</button>`:''}
+        ${typeof opc.alDescargar==='function'||E.editar||E.cambios.size?`<button type="button" class="vxl-btn" data-vxl-desc>⬇ Descargar Excel${E.cambios.size?' (con '+cuenta()+')':''}</button>`:''}
         <button type="button" class="vxl-btn o" data-vxl-x>Cerrar</button></div>
-        ${E.editar?`<div class="vxl-notas">Toca una celda y escribe. Las celdas con fórmula no se editan (se recalculan al abrir el Excel). Los cambios van en el Excel que descargues desde aquí; no cambian los datos del sistema.${E.cambios.size?' · <b>'+E.cambios.size+' cambio'+(E.cambios.size===1?'':'s')+'</b>':''}</div>`:(opc.notas?`<div class="vxl-notas">${esc(opc.notas)}</div>`:'')}
+        ${E.editar?`<div class="vxl-notas">Toca una celda y escribe: cada corrección se <b>guarda sola en el sistema</b> y se verá al abrir o descargar este reporte en cualquier equipo. Si escribes el valor original, la corrección se quita. Las celdas con fórmula no se editan (se recalculan al abrir el Excel). No cambia los registros de origen.${conf} <span class="vxl-estado">${esc(textoEstado())}</span></div>`
+          :((opc.notas||textoEstado()||conf)?`<div class="vxl-notas">${esc(opc.notas||'')}${opc.notas&&textoEstado()?' · ':''}<span class="vxl-estado">${esc(textoEstado())}</span>${conf}</div>`:'')}
         <div class="vxl-area">${ws?html(ws,wb,{editar:E.editar}):'<p style="padding:16px">El libro no tiene hojas.</p>'}</div>
         <div class="vxl-pest" role="tablist">${hojas.map((h,i)=>{const tc=color(h.properties&&h.properties.tabColor);return `<button type="button" role="tab" aria-selected="${i===E.i}" class="${i===E.i?'act':''}" data-vxl-h="${i}" style="${tc?'border-bottom-color:'+tc:''}">${esc(h.name)}</button>`;}).join('')}</div>`;
-      div.querySelectorAll('.vxl-v[data-vxl-r]').forEach(el=>{if(E.cambios.has(E.i+'|'+el.getAttribute('data-vxl-r')+'|'+el.getAttribute('data-vxl-c')))el.parentElement.classList.add('vxl-cambiado');});
+      marcar();
       const hoja=div.querySelector('.vxl-hoja');if(hoja&&E.zoom!==1)hoja.style.zoom=String(E.zoom);   // zoom (no transform): el área de desplazamiento se ajusta
       if(hoja)ubicarImagenes(hoja);
+    };
+    /* Celdas corregidas: fondo amarillo y, al pasar el dedo/ratón, quién y cuándo, y el valor original. */
+    const marcar=()=>{
+      const ws=hojas[E.i];if(!ws)return;
+      E.cambios.forEach((_,k)=>{
+        const [i,r,c]=k.split('|').map(Number);if(i!==E.i)return;
+        const td=div.querySelector(`td[data-vxl-rc="${r}:${c}"]`);if(!td)return;
+        td.classList.add('vxl-cambiado');
+        const g=E.guardadas.get(k),org=E.originales.get(ws.name+'|'+letra(c)+r);
+        td.title=(g?'Corregido por '+(g.actualizado_por||'—')+(g.actualizado_en?' el '+fechaCorta(g.actualizado_en):''):'Corregido')+(org!==undefined&&org!==null?' · valor del sistema: '+org:'');
+      });
+    };
+    const actualizarBarra=()=>{
+      const d=div.querySelector('[data-vxl-desc]');if(d&&!d.disabled)d.textContent='⬇ Descargar Excel'+(E.cambios.size?' (con '+cuenta()+')':'');
+      const st=div.querySelector('.vxl-estado');if(st)st.textContent=textoEstado();
     };
     div.addEventListener('click',async e=>{
       const t=e.target.closest('button');if(!t)return;
@@ -241,26 +312,52 @@
       if(t.hasAttribute('data-vxl-ed')){E.editar=!E.editar;pintar();return;}
       if(t.hasAttribute('data-vxl-desc')){
         const txt=t.textContent;t.disabled=true;t.textContent='Generando…';
-        // Con cambios se descarga ESTE libro (el de alDescargar se volvería a armar con los datos y perdería lo editado).
-        try{if(E.cambios.size)await descargarLibro(wb,opc.nombre);else await opc.alDescargar();}
+        // Con correcciones se descarga ESTE libro (el de alDescargar se volvería a armar con los datos y perdería lo corregido).
+        try{if(E.cambios.size||typeof opc.alDescargar!=='function')await descargarLibro(wb,opc.nombre,!!id&&E.estado!=='sinservidor'&&!E.pendientes.size);else await opc.alDescargar();}
         catch(err){alert('No se pudo descargar: '+((err&&err.message)||err));}
         finally{t.disabled=false;t.textContent=txt;}
       }
     });
-    /* Edición: al salir de la celda se guarda el valor en el libro. Enter = confirmar; Esc = deshacer lo escrito. */
+    /* Guardar una corrección en el servidor (valor null = quitarla). Sin conexión: queda pendiente y se reintenta al volver la red. */
+    async function guardar(k,hoja,celda,valor,original){
+      const sb=clienteSb();if(!id||!sb||E.estado==='sinservidor')return;
+      const p={reporte:id,hoja,celda,valor:valor===undefined?null:valor,original:original===undefined?null:original,client_event_id:uuid()};
+      E.pendientes.set(k,p);E.estado='guardando';actualizarBarra();
+      try{
+        const r=await sb.rpc('excel_correccion_guardar',{p});
+        if(r&&r.error)throw Object.assign(new Error(r.error.message||'Error'),{code:r.error.code});
+        E.pendientes.delete(k);
+        if(valor===null)E.guardadas.delete(k);else if(r&&r.data)E.guardadas.set(k,r.data);
+        E.estado=E.pendientes.size?'guardando':'ok';E.msg='';
+      }catch(err){
+        const code=String(err&&err.code||''),m=String(err&&err.message||'');
+        if(code==='PGRST202'||code==='42883'||/could not find the function|schema cache/i.test(m)){E.estado='sinservidor';E.pendientes.clear();}
+        else if(code==='42501'){E.estado='error';E.msg='Tu usuario no puede guardar correcciones en el sistema (solo quedan en la descarga).';E.pendientes.delete(k);}
+        else if(code){E.estado='error';E.msg='No se guardó '+hoja+'!'+celda+': '+m.replace(/^excel:\s*/,'');E.pendientes.delete(k);}
+        else{E.estado='error';E.msg='Sin conexión: '+E.pendientes.size+' corrección(es) se guardará(n) al volver la red.';}
+      }
+      actualizarBarra();
+    }
+    const reintentar=()=>{if(!document.getElementById('vxl')){window.removeEventListener('online',reintentar);return;}
+      [...E.pendientes].forEach(([k,p])=>{E.pendientes.delete(k);guardar(k,p.hoja,p.celda,p.valor,p.original);});};
+    if(typeof window!=='undefined')window.addEventListener('online',reintentar);
+    /* Edición: al salir de la celda se guarda el valor en el libro y en el sistema. Enter = confirmar; Esc = deshacer lo escrito. */
     const confirmar=el=>{
       const r=Number(el.getAttribute('data-vxl-r')),c=Number(el.getAttribute('data-vxl-c')),ws=hojas[E.i];if(!ws||!r||!c)return;
       const cel=ws.getCell(r,c),antes=cel.value,nuevo=valorEditado(el.textContent,antes);
       const fo=formatear(valorCrudo(antes),cel.numFmt||(cel.style&&cel.style.numFmt));
       if(String(el.textContent).trim()===String(fo.txt).trim())return;      // sin cambios reales
-      cel.value=nuevo;E.cambios.set(E.i+'|'+r+'|'+c,nuevo);
+      const k=E.i+'|'+r+'|'+c,celda=letra(c)+r,ko=ws.name+'|'+celda;
+      if(!E.originales.has(ko))E.originales.set(ko,valorCrudo(antes));        // lo que generó el sistema (antes de la primera corrección)
+      const original=E.originales.get(ko),quitar=mismoValor(nuevo,original);
+      cel.value=nuevo;
+      if(quitar)E.cambios.delete(k);else E.cambios.set(k,nuevo);
       try{wb.calcProperties=Object.assign({},wb.calcProperties,{fullCalcOnLoad:true});}catch(_){/* versión sin calcProperties */}
       // Sin redibujar la hoja (el foco pasa a la celda siguiente): se marca la celda y se actualizan el contador y el botón.
-      el.parentElement.classList.add('vxl-cambiado');
+      el.parentElement.classList.toggle('vxl-cambiado',!quitar);
       el.textContent=formatear(valorCrudo(nuevo),cel.numFmt||(cel.style&&cel.style.numFmt)).txt;
-      const n=E.cambios.size,tx=n+' cambio'+(n===1?'':'s');
-      const d=div.querySelector('[data-vxl-desc]');if(d)d.textContent='⬇ Descargar Excel (con '+tx+')';
-      const no=div.querySelector('.vxl-notas');if(no){const b2=no.querySelector('b');if(b2)b2.textContent=tx;else no.insertAdjacentHTML('beforeend',' · <b>'+tx+'</b>');}
+      guardar(k,ws.name,celda,quitar?null:nuevo,original);
+      actualizarBarra();
     };
     div.addEventListener('focusout',e=>{const el=e.target;if(el&&el.matches&&el.matches('.vxl-v[data-vxl-r]'))confirmar(el);});
     div.addEventListener('keydown',e=>{
@@ -277,17 +374,29 @@
     pintar();
     document.body.appendChild(div);
     const x=div.querySelector('[data-vxl-x]');if(x)x.focus();
+    // Correcciones guardadas de este reporte: se aplican al libro y se marcan.
+    if(id){
+      leerCorrecciones(id).then(filas=>{
+        if(filas===null){E.estado=clienteSb()?'sinservidor':'';pintar();return;}
+        const res=aplicarCorrecciones(wb,filas);
+        res.originales.forEach((v,k)=>E.originales.set(k,v));
+        res.aplicadas.forEach(a=>{const i=hojas.findIndex(h=>h.name===a.hoja);if(i<0)return;const k=i+'|'+a.r+'|'+a.c;E.cambios.set(k,a.fila.valor);E.guardadas.set(k,a.fila);});
+        E.conflictos=res.conflictos;E.estado='ok';
+        if(document.getElementById('vxl')===div)pintar();
+      }).catch(err=>{E.estado='error';E.msg='No se pudieron leer las correcciones guardadas: '+((err&&err.message)||err);if(document.getElementById('vxl')===div)pintar();});
+    }
   }
   function cerrar(){const d=typeof document!=='undefined'&&document.getElementById('vxl');if(d)d.remove();}
-  async function descargarLibro(wb,nombre){
+  async function descargarLibro(wb,nombre,guardado){
     const buf=await wb.xlsx.writeBuffer();
     const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    const n=String(nombre||'libro.xlsx').replace(/\.xlsx$/i,'')+' (editado).xlsx';
+    // Corregido y guardado en el sistema: es el reporte oficial (mismo nombre). Sin guardar: «(editado)».
+    const n=String(nombre||'libro.xlsx').replace(/\.xlsx$/i,'')+(guardado?'':' (editado)')+'.xlsx';
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=n;document.body.appendChild(a);a.click();
     setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
   }
 
-  const API={abrir,cerrar,html,formatear,valorCrudo,letra,valorEditado,descargarLibro};
+  const API={abrir,cerrar,html,formatear,valorCrudo,letra,valorEditado,descargarLibro,aplicarCorrecciones,conCorrecciones,idReporte,mismoValor};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   raiz.glacialVistaExcel=API;
 })(typeof window!=='undefined'?window:globalThis);

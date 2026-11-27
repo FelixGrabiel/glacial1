@@ -235,8 +235,10 @@
     return construir(raiz.ExcelJS,m,{imagenPng,imagenAncho,imagenAlto});
   }
   /** Navegador: Blob del .xlsx del modelo. */
-  async function blob(m){
+  async function blob(m,nombre){
     const wb=await libro(m);
+    // correcciones guardadas de este reporte (glacial_71; nombre = el del archivo)
+    if(nombre&&raiz.glacialVistaExcel&&raiz.glacialVistaExcel.conCorrecciones)await raiz.glacialVistaExcel.conCorrecciones(wb,nombre);
     const buf=await wb.xlsx.writeBuffer();
     return new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   }
