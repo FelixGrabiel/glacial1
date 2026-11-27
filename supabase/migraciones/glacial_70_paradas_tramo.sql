@@ -1,4 +1,4 @@
--- GLACIAL · glacial_70 · PARADAS POR MARCA (TRAMO) + TIEMPO REAL DEL CIERRE DE TURNO (26/11/2026)      *** APLICADA en PRUEBAS (26/11/2026) · NO en PRODUCCIÓN ***
+-- GLACIAL · glacial_70 · PARADAS POR MARCA (TRAMO) + TIEMPO REAL DEL CIERRE DE TURNO (26/11/2026)      *** APLICADA en PRUEBAS (26/11/2026) · PRODUCCIÓN (27/11/2026) ***
 --
 -- Qué hace (docs/produccion/cierre-turno.md › «Paradas por marca»)
 --  1) public.paradas_tramo: constancia de a qué TRAMO (marca de la Secuencia del turno) pertenece cada parada del turno. Las paradas siguen viviendo
