@@ -48,4 +48,4 @@ Paletas por tramo = acumulado de la marca/presentación − lo ya congelado en t
 - Las constancias a glacial_70 pasan por una cola local que se reintenta al volver la conexión; son idempotentes (`client_event_id`) y hay una fila por parada (dos equipos = una parada).
 
 ### Estado
-- glacial_70 aplicada en **PRUEBAS** (prueba SQL 17/17; la de glacial_69 sigue 21/21). **No** en producción.
+- glacial_70 aplicada en **PRUEBAS** (prueba SQL 17/17; la de glacial_69 sigue 21/21) y en **PRODUCCIÓN** (27/11/2026, comprobación 7/7 revertida).
