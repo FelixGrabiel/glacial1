@@ -110,6 +110,17 @@
       .sort((a,b)=>kgDe(b.presentacion)-kgDe(a.presentacion)||a.marca.localeCompare(b.marca,'es'));
     return {filas,programado:p.total,producido:t.bolsas,cumplimiento:p.total>0?t.bolsas/p.total:null};
   }
+  /* ---------- LOTE AUTOMÁTICO (27/11/2026 · 97l-hielo-lote.js) ----------
+     El lote sale solo (turno + marca + máquina + semana + día juliano) en cada fila con producción. Molitalia, Certificado, Hoteles y las marcas sin
+     código llevan el lote a mano (obligatorio para finalizar si se produjo). */
+  const LH=()=>{if(typeof glacialLoteHielo!=='undefined')return glacialLoteHielo;try{return typeof require==='function'?require('./97l-hielo-lote.js'):null;}catch(_){return null;}};
+  function loteDeFila(r,p){const L=LH();return L?L.loteHielo({producto:productoDe(r),marca:p.marca,presentacion:p.presentacion,estacion:p.estacion,turno:r.turno,fecha:r.fecha,bolsas:p.bolsas}):{lote:'',manual:true,motivo:''};}
+  /** Pone el lote automático en las filas que no son «a mano» (no toca un reporte finalizado). */
+  function aplicarLotes(r){
+    if(!r||r.estado==='FINALIZADO'||!Array.isArray(r.produccion))return r;
+    r.produccion.forEach(p=>{const L=loteDeFila(r,p);if(!L.manual)p.lote=L.lote;});
+    return r;
+  }
   /** Errores que impiden FINALIZAR (guardar el borrador siempre se puede). */
   function validarFinalizar(r,config){
     const e=[];const cfg=Object.assign({},DEFECTO,config||{});
@@ -123,6 +134,9 @@
       if(num(p.bolsas)<0||!Number.isInteger(num(p.bolsas)))e.push(`Producción ${i+1}: las bolsas deben ser un número entero.`);
       if(num(p.bolsas)>0&&(!p.marca||!p.presentacion))e.push(`Producción ${i+1}: elige marca y presentación.`);
       if(num(p.bolsas)>0&&!(kgDe(p.presentacion)>0))e.push(`Producción ${i+1}: la presentación «${p.presentacion}» no tiene kg.`);
+      if(num(p.bolsas)>0&&p.marca){const L=loteDeFila(r,p);
+        if(L.manual&&!texto(p.lote))e.push(`Producción ${i+1}: escribe el lote de ${p.marca} (obligatorio).`);
+        else if(!L.manual&&!texto(p.lote)&&!L.lote)e.push(`Producción ${i+1}: no se pudo armar el lote: ${L.motivo.toLowerCase()}.`);}
     });
     (r&&r.paradas||[]).forEach((p,i)=>{
       if(!(num(p.minutos)>0))e.push(`Parada ${i+1}: indica los minutos.`);
@@ -350,7 +364,7 @@
     }
     return out.join('\n');
   }
-  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel};
+  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel,aplicarLotes,loteDeFila};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.glacialHieloNucleo=N;
@@ -583,10 +597,10 @@
 .hl-2>.hl-card{container-type:inline-size}
 /* Producción (24/11/2026: con «Bolsa usada» y «Nota» son 11 columnas): en tarjetas de 4 columnas cuando el recuadro mide menos de 1180 px. */
 .hl-prodtab{container-type:inline-size}
-.hl-req{color:#c62828;font-weight:700}
+.hl-req{color:#c62828;font-weight:700}.hl-lote-auto{background:#EEF4F8!important;color:#0B3A5C;font-weight:700;letter-spacing:.03em}.hl-lote-man{border-color:#E0A800!important;background:#FFFBEA}
 @container (max-width:1180px){.hl-prodtab .hl-ed thead{display:none}.hl-prodtab .hl-ed tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 10px;padding:12px 0;border-bottom:1px solid #e2ebf2}
  .hl-prodtab .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-prodtab .hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
- .hl-prodtab .hl-ed td[data-label="Nota"]{grid-column:span 2}.hl-prodtab .hl-ed td[data-label=""]{align-items:flex-end;justify-content:flex-end}.hl-prodtab .hl-ed select,.hl-prodtab .hl-ed input{width:100%}}
+.hl-prodtab .hl-ed td[data-label="Nota"]{grid-column:span 2}.hl-prodtab .hl-ed td[data-label=""]{align-items:flex-end;justify-content:flex-end}.hl-prodtab .hl-ed select,.hl-prodtab .hl-ed input{width:100%}}
 @container (max-width:560px){.hl-prodtab .hl-ed tr{grid-template-columns:1fr 1fr}.hl-prodtab .hl-ed td[data-label="Nota"]{grid-column:1/-1}.hl-prodtab .hl-ed td[data-label=""]{grid-column:1/-1}}
 @container (max-width:560px){.hl-ed thead{display:none}.hl-ed tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid #e2ebf2}
  .hl-ed td{display:flex;flex-direction:column;gap:4px;border:0!important;padding:0!important}.hl-ed td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:12px;font-weight:700;color:#587087}
@@ -655,6 +669,7 @@
   function vistaRegistro(){
     if(!S.ed)abrirEdicion(hoy(),turnoAhora());
     const r=S.ed,cfg=config(),fin=r.estado==='FINALIZADO';
+    aplicarLotes(r);      // lote automático (97l)
     const bloq=fin&&!esAdmin()||!puedeRegistrar();
     const dis=bloq?'disabled':'';
     const t=totales([r]);
@@ -665,7 +680,9 @@
       <td data-label="Presentación *"><select ${dis} onchange="hlCampo('produccion',${i},'presentacion',this.value)">${opciones(cfg.presentaciones.includes(p.presentacion)||!p.presentacion?cfg.presentaciones:[p.presentacion].concat(cfg.presentaciones),p.presentacion,'—')}</select></td>
       <td data-label="Estación *"><select ${dis} onchange="hlCampo('produccion',${i},'estacion',this.value)">${opciones(cfg.estaciones.includes(p.estacion)||!p.estacion?cfg.estaciones:[p.estacion].concat(cfg.estaciones),p.estacion,'— estación —')}</select></td>
       <td data-label="${PR().id==='VASOS'?'Vaso usado':'Bolsa usada'}"><select ${dis} onchange="hlCampo('produccion',${i},'bolsa',this.value)" aria-label="Bolsa usada">${opciones(bolsasDe(cfg,p),texto(p.bolsa)||texto(p.marca),PR().id==='VASOS'?'— vaso —':'— bolsa —')}</select></td>
-      <td data-label="Lote"><input ${dis} maxlength="40" value="${esc(p.lote)}" placeholder="opcional" oninput="hlCampo('produccion',${i},'lote',this.value)" aria-label="Lote del producto"></td>
+      <td data-label="Lote${loteDeFila(r,p).manual&&num(p.bolsas)>0?' *':''}">${(()=>{const L=loteDeFila(r,p);
+        if(L.manual||fin)return `<input ${dis} maxlength="40" value="${esc(p.lote)}" placeholder="${L.manual?'a mano (obligatorio)':''}" oninput="hlCampo('produccion',${i},'lote',this.value)" aria-label="Lote del producto"${L.manual?' class="hl-lote-man"':''}>`;
+        return `<input readonly tabindex="-1" id="hl-lote-${i}" class="hl-lote-auto" value="${esc(L.lote)}" placeholder="automático" title="${esc(L.lote?'Lote automático: turno + marca + máquina + semana + día juliano':L.motivo)}" aria-label="Lote automático">`;})()}</td>
       <td data-label="Tiempo (h) *"><input ${dis} type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${esc(p.horas)}" placeholder="horas" oninput="hlCampo('produccion',${i},'horas',this.value)" aria-label="Tiempo en horas"></td>
       <td data-label="Vence *"><input ${dis} type="date" value="${esc(p.vence)}" onchange="hlCampo('produccion',${i},'vence',this.value)" aria-label="Fecha de vencimiento"></td>
       <td data-label="${cap(PR().unidad)} *"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(p.bolsas)}" oninput="hlCampo('produccion',${i},'bolsas',this.value)" aria-label="${cap(PR().unidad)}"></td>
@@ -1155,6 +1172,7 @@
   function actualizarTotales(){
     const r=S.ed;if(!r)return;const t=totales([r]);
     r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-kg-'+i);if(e)e.value=fmt(num(p.bolsas)*kgDe(p.presentacion),1);});
+    aplicarLotes(r);r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-lote-'+i);if(e){const L=loteDeFila(r,p);e.value=L.manual?e.value:L.lote;e.title=L.lote?'Lote automático: turno + marca + máquina + semana + día juliano':L.motivo;}});
     const e=document.getElementById('hl-tot');if(e)e.innerHTML=txtUnidades(t)+` · <b>${fmt(t.kg,1)} kg</b>`+(PR().unidadesPorJaba?' · '+fmt(t.bolsas/PR().unidadesPorJaba,2)+' jabas':'');
   }
   window.hlDato=(k,v)=>{if(!S.ed)return;S.ed[k]=v;cambio(false);};
@@ -1178,6 +1196,7 @@
     }
     let fin;guardandoAhora=new Promise(res=>{fin=res;});
     try{
+      aplicarLotes(S.ed);      // lote automático al día con marca, estación, turno y fecha
       const doc=await guardarReporte(S.ed,accion);
       const enPantalla=S.ed;
       if(enPantalla&&enPantalla.fecha===doc.fecha&&enPantalla.turno===doc.turno){enPantalla.rev=doc.rev;enPantalla.estado=doc.estado;enPantalla.historial=doc.historial;}

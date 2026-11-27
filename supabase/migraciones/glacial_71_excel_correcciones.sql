@@ -1,4 +1,4 @@
--- GLACIAL · glacial_71 · CORRECCIONES GUARDADAS EN LOS EXCEL DE REPORTES (27/11/2026)      *** APLICADA en PRUEBAS (27/11/2026) · NO en PRODUCCIÓN ***
+-- GLACIAL · glacial_71 · CORRECCIONES GUARDADAS EN LOS EXCEL DE REPORTES (27/11/2026)      *** APLICADA en PRUEBAS (27/11/2026) · PRODUCCIÓN (27/11/2026) ***
 --
 -- Qué hace (docs/00-general/vista-excel.md)
 --   En la vista previa de un Excel (46-vista-excel.js) «✎ Editar» guarda cada celda corregida en el servidor. Al volver a abrir ESE reporte
