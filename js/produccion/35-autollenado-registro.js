@@ -122,6 +122,8 @@
     if(asign[p.id]===SIN_ASIGNAR)return null;
     if(asign[p.id]!==undefined&&asign[p.id]!==null)return Number(asign[p.id]);
     const cand=cuadrosConProducto();
+    // Una sola parada (27/11/2026): la marca elegida en «Agregar paradas» (o la de su tramo) manda: va al cuadro de esa marca y presentación.
+    if(p.marca&&p.presentacion){const c=cand.find(({q})=>norm(q.marca)===norm(p.marca)&&norm(q.presentacion)===norm(p.presentacion));if(c)return c.i;}
     if(cand.length===1)return cand[0].i;
     // Con hora "Desde": la marca que estaba corriendo a esa hora.
     if(p.horaInicio&&typeof calcularTiemposLinea==='function'){

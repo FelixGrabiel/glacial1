@@ -49,3 +49,10 @@ Paletas por tramo = acumulado de la marca/presentación − lo ya congelado en t
 
 ### Estado
 - glacial_70 aplicada en **PRUEBAS** (prueba SQL 17/17; la de glacial_69 sigue 21/21) y en **PRODUCCIÓN** (27/11/2026, comprobación 7/7 revertida).
+
+## Una sola parada, vista por marca (27/11/2026 · 35p-paradas-unicas.js)
+- Las paradas se registran en **un solo formulario**: «Agregar paradas» (con su Marca (tramo)).
+- **Nuevo registro:** cada cuadro ya no tiene tablas propias de paradas; muestra las de **su marca** (solo lectura) con «+ Parada» (abre el formulario con esa marca elegida) y «Editar». Las paradas que ya estaban escritas en los cuadros siguen en la lista única (el formulario las muestra como «Nuevo registro» y se editan ahí). Lo guardado aparece en el cuadro al momento y sigue contando en sus horas efectivas (35-autollenado: la marca de la parada decide su cuadro).
+- **Paletas › Cierre de turno:** igual que antes (paradas y ratio por marca).
+- **Avance y Cierre:** tarjeta «Paradas del turno» con todas las paradas de cada línea, por hora y con su marca, el total y el aviso de las que no tienen marca.
+- Prueba en navegador: `tests/paradas-unicas.e2e.js`.
