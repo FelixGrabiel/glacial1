@@ -140,6 +140,8 @@
     return cacheOperativas||(typeof avanceEstado!=='undefined'?avanceEstado.paradasOperativas:[])||[];
   }
   window.paradasOperativasActuales=()=>paradasOperativas();
+  /* Una sola parada (27/11/2026): quien acaba de guardar paradas deja la lista al día al momento (sin esperar el aviso en tiempo real). */
+  window.paradasOperativasGuardadas=lista=>{if(Array.isArray(lista))cacheOperativas=lista;};
   // Al cerrar sesión se cierra la escucha y se vacía la copia (la próxima sesión la abre de nuevo).
   if(window.glacialCierresSesion)window.glacialCierresSesion.push(()=>{
     if(typeof desubOperativas==='function'){try{desubOperativas();}catch(_){/* ya cerrada */}}

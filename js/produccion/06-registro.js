@@ -4926,94 +4926,14 @@ function renderFormTab(){
             </div>
 
 
-            <div
-              class="panel accent-amber"
-              style="margin:10px 0 0;"
-            >
-
-              <div class="panel-head">
-
-                <h4 style="margin:0;">
-                  Paradas programadas
-                </h4>
-
-                <button
-                  class="
-                    btn
-                    btn-ghost
-                    btn-sm
-                  "
-                  onclick="
-                    addParadaCuadro(
-                      ${i},
-                      'paradasProgramadas'
-                    )
-                  "
-                >
-                  + Agregar
-                </button>
-
-              </div>
-
-
-              <div class="panel-body">
-
-                ${
-                  paradasTableCuadro(
-                    'paradasProgramadas',
-                    q.paradasProgramadas,
-                    i
-                  )
-                }
-
-              </div>
-
-            </div>
-
-
-            <div
-              class="panel accent-bad"
-              style="margin:10px 0 0;"
-            >
-
-              <div class="panel-head">
-
-                <h4 style="margin:0;">
-                  Paradas no programadas
-                </h4>
-
-                <button
-                  class="
-                    btn
-                    btn-ghost
-                    btn-sm
-                  "
-                  onclick="
-                    addParadaCuadro(
-                      ${i},
-                      'paradasNoProgramadas'
-                    )
-                  "
-                >
-                  + Agregar
-                </button>
-
-              </div>
-
-
-              <div class="panel-body">
-
-                ${
-                  paradasTableCuadro(
-                    'paradasNoProgramadas',
-                    q.paradasNoProgramadas,
-                    i
-                  )
-                }
-
-              </div>
-
-            </div>
+            ${
+              /* UNA SOLA PARADA (27/11/2026 · 35p-paradas-unicas.js): el cuadro ya no tiene sus propias tablas de paradas.
+                 Muestra las paradas de SU marca (las del formulario único «Agregar paradas», copiadas solas por 35-autollenado, y las que
+                 ya estaban escritas aquí) y abre ese formulario con «+ Parada» / «Editar». Las tablas anteriores quedan solo si falta 35p. */
+              typeof registroParadasUnicasHtml==='function'
+                ? registroParadasUnicasHtml(i,q)
+                : `<div class="panel" style="margin:10px 0 0;"><div class="panel-body">${paradasTableCuadro('paradasProgramadas',q.paradasProgramadas,i)}${paradasTableCuadro('paradasNoProgramadas',q.paradasNoProgramadas,i)}</div></div>`
+            }
 
 
             <div

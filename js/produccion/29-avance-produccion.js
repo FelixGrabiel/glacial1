@@ -424,6 +424,8 @@ async function avAbrirParadas(linea,fecha,turno,opc){
   };
   // «+ Parada a MARCA» (panel Cierre de turno): fila nueva con la marca ya elegida.
   if(opc.tramoId)avanceEstado.paradasModal.filas.push({id:avIdParadaNueva(),descripcion:'',minutos:0,tipo:'',tipoOriginal:'',causa:'',origen:'AVANCE',nueva:true,tramoId:String(opc.tramoId),asignacion:'MANUAL'});
+  // «+ Parada» desde un cuadro de Nuevo registro sin Secuencia del turno: la parada lleva la marca del cuadro (35-autollenado la copia a ese cuadro).
+  else if(opc.marca)avanceEstado.paradasModal.filas.push({id:avIdParadaNueva(),descripcion:'',minutos:0,tipo:'',tipoOriginal:'',causa:'',origen:'AVANCE',nueva:true,marca:String(opc.marca),presentacion:String(opc.presentacion||'')});
   avRenderParadasModal();
 }
 function avCambiarLineaParadas(linea){if(!avanceEstado.paradasModal)return;avanceEstado.paradasModal.linea=linea;avanceEstado.paradasModal.filas=avParadasLinea(linea,avHoraActual(),'AVANCE').map(p=>({...p,tipoOriginal:p.tipo||''}));avRenderParadasModal();}
@@ -664,6 +666,19 @@ function avRegistrarTramosParadas(m,operativas,previas){
   });
   (previas||[]).filter(p=>p&&!ids.has(p.id)).forEach(p=>PT.encolar('parada_tramo_asignar',{...PT.payloadAsignar(c,p,null,{evento:PT.uuid()}),eliminada:true}));
 }
+/* Una sola parada (27/11/2026): si el supervisor guardó paradas desde «Nuevo registro», el registro abierto toma lo guardado sin esperar:
+   · las paradas de Nuevo registro editadas en el formulario se copian al borrador (si no, el guardado del borrador las pisaría);
+   · las de Avance se copian solas a su cuadro (35-autollenado) y se vuelve a dibujar. */
+function avParadasAlRegistroAbierto(resultado){
+  if(typeof draft==='undefined'||!draft||typeof state==='undefined'||state.currentTab!=='nuevo')return;
+  if(resultado&&Array.isArray(resultado.records)&&draft.id){
+    const g=resultado.records.find(r=>r&&r.id===draft.id);
+    if(g&&Array.isArray(g.cuadros)&&Array.isArray(draft.cuadros))g.cuadros.forEach((q,i)=>{const d=draft.cuadros[i];if(d&&q){d.paradasProgramadas=JSON.parse(JSON.stringify(q.paradasProgramadas||[]));d.paradasNoProgramadas=JSON.parse(JSON.stringify(q.paradasNoProgramadas||[]));}});
+  }
+  if(typeof autollenarRegistro==='function')autollenarRegistro();
+  if(typeof renderFormTab==='function')renderFormTab();
+  if(typeof programarGuardadoAutomaticoReporte==='function')programarGuardadoAutomaticoReporte();
+}
 function avParadaQuitar(i){
   const m=avanceEstado.paradasModal,p=m?.filas?.[i];if(!p||m.guardando)return;
   if(p.origen==='REGISTRO')p.eliminarSolicitado=true;
@@ -847,7 +862,7 @@ async function avGuardarParadasModal(){
 
       tx.set(avancesRef,{paradasOperativas:operativas,updatedAt:ahora},{merge:true});
       if(requiereRecords)tx.set(recordsRef,{items:records,updatedAt:ahora},{merge:true});
-      return {operativas,updatedAt:ahora};
+      return {operativas,updatedAt:ahora,records:requiereRecords?records:null};
     });
 
     const previasTurno=(avanceEstado.paradasOperativas||[]).filter(p=>p&&!p.eliminada&&p.fecha===m.fecha&&avTurnoCanon(p.turno)===m.turno&&p.linea===m.linea);
@@ -858,6 +873,8 @@ async function avGuardarParadasModal(){
     // en este y en los demás dispositivos.
     avanceEstado.paradasOperativas=resultado.operativas;
     avanceEstado.avancesUpdatedAt=resultado.updatedAt;
+    if(typeof window.paradasOperativasGuardadas==='function')window.paradasOperativasGuardadas(resultado.operativas);
+    try{avParadasAlRegistroAbierto(resultado);}catch(e){console.warn('Paradas en el registro abierto:',e&&e.message||e);}
     m.baseAvancesUpdatedAt=resultado.updatedAt;
 
     // Firestore ya confirmó la escritura: liberar el estado antes de cerrar.
@@ -2312,6 +2329,7 @@ function avDibujar(){
     ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
     ${!actual&&avPuedeGenerar()?avAccionesHistoricoHtml():''}
     ${!avPuedeGenerar()?avParadasTardiasHtml():''}
+    ${window.glacialParadasUnicas?window.glacialParadasUnicas.avanceParadasTurnoHtml():''}
     ${avHorariosLineasHtml()}
     ${avAdminMigracionHtml()}
     <div id="av-estado" class="av-inline-status"></div>
