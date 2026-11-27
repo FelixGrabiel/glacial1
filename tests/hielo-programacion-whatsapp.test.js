@@ -46,4 +46,22 @@ ok(W.interpretar({esProgramacion:false,tablas:[]},cat).errores.length===1&&W.int
 ok(W.interpretar({esProgramacion:true,tablas:[lectura.tablas[1],lectura.tablas[1]]},cat).errores.some(x=>/ya hay otra tabla/.test(x)),'dos tablas del mismo turno: error');
 ok(W.fechaDe('25-nov-26')==='2026-11-25'&&W.fechaDe('26/11/2026')==='2026-11-26'&&W.fechaDe('31-feb-26')==='','fechas: «25-nov-26», «26/11/2026», imposible');
 ok(W.mismoNumero('+51 945 538 638','945538638'),'número de WhatsApp: últimos 9 dígitos');
+// 26/11/2026: la programación también puede venir como TEXTO («PROGRAMACIÓN TN»)
+const TXT='PROGRAMACIÓN TN\nGlacial 1.5kg - 600 bolsas \nCuisine 3kg - 900 bolsas \nBells 3kg - 900 bolsas \nTottus 3kg - 1100 bolsas \n\nEnvasadora Automática\nMolitalia diferido - 300 bolsas\nGlacial 3kg - 600 bolsas\nRappi 3kg - 900 bolsas\n\nVasos Glacial - 70 unidades\nVasos Oxxo - 350 unidades';
+const rt=W.interpretarTexto(TXT,Object.assign({},cat,{hoy:'2026-11-26',hora:15}));
+ok(rt.errores.length===0,'el texto «PROGRAMACIÓN TN» se lee sin errores'+(rt.errores.length?': '+rt.errores.join(' | '):''));
+const gt=(prod)=>rt.programaciones.find(p=>p.producto===prod);
+ok(rt.programaciones.length===2&&gt('CUBOS').fecha==='2026-11-26'&&gt('CUBOS').turno==='NOCHE','TN sin fecha: turno NOCHE del día de hoy (26/11), hielo y vasos');
+ok(it(gt('CUBOS'))==="Glacial|1.5 kg|600 ; Cusine & Co|3 kg|900 ; Bell's|3 kg|900 ; Tottus CD|3 kg|1100 ; Molitalia|3 kg|300 ; Glacial|3 kg|600 ; Rappi|3 kg|900",'marcas, kg y bolsas (Cuisine = Cusine & Co, Bells = Bell\'s, Tottus = Tottus CD)');
+const molt=gt('CUBOS').items.find(i=>i.marca==='Molitalia');
+ok(molt.presentacion==='3 kg'&&molt.notas.includes('diferido')&&molt.notas.includes('envasadora automática'),'Molitalia sin kg toma su única presentación (3 kg); queda «diferido» y «envasadora automática»');
+ok(gt('CUBOS').items.find(i=>i.marca==='Glacial'&&i.presentacion==='3 kg').notas.includes('envasadora automática')&&!gt('CUBOS').items[0].notas.includes('envasadora automática'),'«Envasadora Automática» solo vale para las líneas que siguen hasta la línea en blanco');
+ok(it(gt('VASOS'))==='Glacial|Vaso|70 ; OXXO|Vaso|350','vasos: Glacial 70 y Oxxo 350');
+const f1=(t,hoy,hora)=>W.leerTexto(t,{hoy,hora}).lectura.tablas[0].fecha;
+ok(f1('PROGRAMACIÓN TN\nGlacial 3kg - 100 bolsas','2026-11-26',3)==='25/11/2026'&&f1('PROGRAMACIÓN TN\nGlacial 3kg - 100 bolsas','2026-11-26',19)==='26/11/2026'&&f1('PROGRAMACIÓN TD\nGlacial 3kg - 100 bolsas','2026-11-26',8)==='26/11/2026','sin fecha: TN de madrugada (antes de las 07:00) es del día anterior; TD, de hoy');
+ok(f1('PROGRAMACIÓN TN 27/11\nGlacial 3kg - 100 bolsas','2026-11-26',15)==='27/11/2026'&&W.interpretarTexto('PROGRAMACIÓN TD 27/11/26\nGlacial 3kg - 100 bolsas',Object.assign({},cat,{hoy:'2026-11-26'})).programaciones[0].turno==='DÍA','fecha escrita en el encabezado (27/11 o 27/11/26) y TD = día');
+ok(W.interpretarTexto('PROGRAMACIÓN TN\nMarcaXyz 3kg - 100 bolsas',Object.assign({},cat,{hoy:'2026-11-26'})).errores.some(x=>/no conozco la marca «MarcaXyz»/.test(x)),'marca desconocida en el texto: error');
+ok(W.interpretarTexto('PROGRAMACIÓN TN\nGlacial 3kg - muchas',Object.assign({},cat,{hoy:'2026-11-26'})).errores.some(x=>/No entendí la línea/.test(x)),'línea sin cantidad: error');
+ok(W.interpretarTexto('PROGRAMACIÓN TN\nGlacial - 100 bolsas',Object.assign({},cat,{hoy:'2026-11-26'})).errores.some(x=>/peso/.test(x)),'Glacial sin kg (tiene 3 kg y 1.5 kg): error, no adivina');
+ok(W.esTextoProgramacion(TXT)&&W.esTextoProgramacion('programación td\nBells 3kg - 5')&&W.esTextoProgramacion('PROGRAMACIÓN TURNO NOCHE\nBells 3kg - 5')&&!W.esTextoProgramacion('*Programación 24/11 Turno Noche (Agua)')&&!W.esTextoProgramacion('buenas tardes'),'se reconoce el encabezado (TN, TD, TI, TURNO NOCHE)');
 console.log(fallas?fallas+' falla(s)':'todo correcto');process.exit(fallas?1:0);
