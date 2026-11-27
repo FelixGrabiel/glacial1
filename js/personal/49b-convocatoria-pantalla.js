@@ -206,13 +206,52 @@
   function modal(html){ cerrarModal(); const m = document.createElement('div'); m.className = 'cv-modal'; m.id = 'cv-modal'; m.innerHTML = '<div role="dialog" aria-modal="true">' + html + '</div>'; m.addEventListener('click', e => { if(e.target === m) cerrarModal(); }); document.body.appendChild(m); return m; }
   function cerrarModal(){ const m = document.getElementById('cv-modal'); if(m) m.remove(); }
   function dondeEsta(id){ const conv = convDe(S.datos); const eqs = equiposDe(S.datos); const a = (conv && conv.asignaciones || []).find(x => x.trabajadorId === id); if(!a) return ''; if(a.bloque) return C().BLOQUES[a.bloque]; const e = eqs.find(x => x.id === a.equipoId); return e ? e.nombre + ' · ' + (e.columna === 'NOCHE' ? 'noche' : 'día') : ''; }
+  /* 27/11/2026: personas que no están (o no salen) en el maestro → «Agregar persona nueva».
+     Se registra en el maestro de trabajadores (sync/workers), así el Tareo y la imagen la reconocen. */
+  function fechaHoyLima(){ try{ return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }); }catch(_){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); } }
+  function crearTrabajador(nombre, dni, ingreso){
+    nombre = String(nombre || '').replace(/\s+/g, ' ').trim().toUpperCase(); dni = String(dni || '').replace(/\D/g, '');
+    if(nombre.length < 3) return { error: 'Escribe el nombre y apellido.' };
+    if(dni && !/^\d{8}$/.test(dni)) return { error: 'El DNI debe tener 8 dígitos (o déjalo vacío).' };
+    const ts = trabajadores(), n = C().norm(nombre);
+    const igual = ts.find(t => C().norm(t.nombre) === n || (dni && C().dniDe(t) === dni));
+    if(igual) return { existe: igual };
+    if(typeof saveWorkers !== 'function') return { error: 'No se pudo abrir el maestro de trabajadores. Recarga la página.' };
+    if(typeof _workersReady !== 'undefined' && !_workersReady) return { error: 'Todavía se está cargando la lista de trabajadores. Espera unos segundos.' };
+    const t = { id: 'w_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), nombre, tipoDocumento: 'DNI', dni, area: 'Producción', cargo: 'Operario', linea: '', puestoMaquina: '', estado: 'Activo', fechaIngreso: ingreso || '', creadoEn: Date.now(), origen: 'convocatoria' };
+    saveWorkers(ts.concat([t]));
+    return { creado: t };
+  }
   function selector(titulo, alElegir, conHasta){
-    const m = modal(`<h3 style="margin:0">${esc(titulo)}</h3><input type="search" id="cv-q" placeholder="Nombre o DNI" autocomplete="off">${conHasta ? '<label>Hasta (fecha de fin)<input type="date" id="cv-hasta"></label>' : ''}<div class="cv-lista" id="cv-res"></div><button type="button" class="cv-b" data-cv-cerrar="1">Cerrar</button>`);
-    const q = m.querySelector('#cv-q'), res = m.querySelector('#cv-res');
-    const pinta = () => { const n = C().norm(q.value); const l = trabajadores().filter(t => !C().estaDeBaja(t) && (!n || C().norm(t.nombre).includes(n) || C().dniDe(t).includes(q.value.trim()))).slice(0, 60);
-      res.innerHTML = l.map(t => `<button type="button" data-cv-elige="${esc(t.id)}"><b>${esc(t.nombre)}</b> <small>${esc(C().dniDe(t) || 'sin DNI')}${dondeEsta(t.id) ? ' · ya en ' + esc(dondeEsta(t.id)) : ''}</small></button>`).join('') || '<p class="cv-pie">Sin resultados.</p>'; };
+    const m = modal(`<h3 style="margin:0">${esc(titulo)}</h3><input type="search" id="cv-q" placeholder="Nombre o DNI" autocomplete="off">${conHasta ? '<label>Hasta (fecha de fin)<input type="date" id="cv-hasta"></label>' : ''}<div class="cv-lista" id="cv-res"></div>
+      <button type="button" class="cv-b" data-cv-nuevo="1" style="border-style:dashed;font-weight:700">＋ No está en la lista: agregar persona nueva</button>
+      <form id="cv-nuevo" hidden style="gap:8px;border:1px dashed #94a3b8;border-radius:12px;padding:10px">
+        <b>Persona nueva</b>
+        <label>Nombre y apellido<input id="cv-n-nom" autocomplete="off" required></label>
+        <label>DNI (opcional)<input id="cv-n-dni" inputmode="numeric" maxlength="8" autocomplete="off"></label>
+        <label>Fecha de ingreso<input type="date" id="cv-n-ing"></label>
+        <small class="cv-pie">Queda registrada en el maestro de trabajadores (Recursos Humanos puede completar sus datos después). Si ingresó hace poco, sale como «NUEVO».</small>
+        <p id="cv-n-err" style="color:#b91c1c;margin:0" hidden></p>
+        <button type="submit" class="cv-b" style="background:#0e7490;color:#fff;border-color:#0e7490">Agregar y convocar</button>
+      </form>
+      <button type="button" class="cv-b" data-cv-cerrar="1">Cerrar</button>`);
+    const q = m.querySelector('#cv-q'), res = m.querySelector('#cv-res'), f = m.querySelector('#cv-nuevo');
+    const fila = t => `<button type="button" data-cv-elige="${esc(t.id)}"><b>${esc(t.nombre)}</b> <small>${esc(C().dniDe(t) || 'sin DNI')}${C().estaDeBaja(t) ? ' · dado de baja' : ''}${dondeEsta(t.id) ? ' · ya en ' + esc(dondeEsta(t.id)) : ''}</small></button>`;
+    const pinta = () => { const n = C().norm(q.value), d = q.value.trim();
+      // Sin buscar: solo activos. Buscando: también los dados de baja (marcados), para que nadie «desaparezca».
+      const l = trabajadores().filter(t => n ? (C().norm(t.nombre).includes(n) || (d && C().dniDe(t).includes(d))) : !C().estaDeBaja(t)).slice(0, n ? 80 : 60);
+      res.innerHTML = l.map(fila).join('') || `<p class="cv-pie">Nadie con «${esc(q.value)}» en el maestro. Usa «Agregar persona nueva».</p>`; };
+    const abrirNuevo = () => { f.hidden = false; f.style.display = 'grid'; const v = q.value.trim(); const nom = m.querySelector('#cv-n-nom'); if(/^\d+$/.test(v)) m.querySelector('#cv-n-dni').value = v; else if(!nom.value) nom.value = v.toUpperCase(); m.querySelector('#cv-n-ing').value = m.querySelector('#cv-n-ing').value || fechaHoyLima(); setTimeout(() => nom.focus(), 30); };
     q.addEventListener('input', pinta); pinta(); setTimeout(() => q.focus(), 50);
-    m.addEventListener('click', e => { const b = e.target.closest('[data-cv-elige]'); if(b){ const h = m.querySelector('#cv-hasta'); alElegir(b.getAttribute('data-cv-elige'), h ? h.value : ''); cerrarModal(); } if(e.target.closest('[data-cv-cerrar]')) cerrarModal(); });
+    const elegir = id => { const h = m.querySelector('#cv-hasta'); const hasta = h ? h.value : ''; cerrarModal(); alElegir(id, hasta); };
+    f.addEventListener('submit', e => { e.preventDefault(); const err = m.querySelector('#cv-n-err');
+      const r = crearTrabajador(m.querySelector('#cv-n-nom').value, m.querySelector('#cv-n-dni').value, m.querySelector('#cv-n-ing').value);
+      if(r.error){ err.textContent = r.error; err.hidden = false; return; }
+      if(r.existe){ err.innerHTML = 'Ya está en el maestro: <b>' + esc(r.existe.nombre) + '</b>' + (C().estaDeBaja(r.existe) ? ' (dado de baja)' : '') + '. <button type="button" class="cv-b" data-cv-elige="' + esc(r.existe.id) + '">Convocar a esa persona</button>'; err.hidden = false; return; }
+      elegir(r.creado.id); });
+    m.addEventListener('click', e => { const b = e.target.closest('[data-cv-elige]'); if(b){ elegir(b.getAttribute('data-cv-elige')); return; }
+      if(e.target.closest('[data-cv-nuevo]')){ abrirNuevo(); return; }
+      if(e.target.closest('[data-cv-cerrar]')) cerrarModal(); });
   }
   function buscar(){
     const m = modal(`<h3 style="margin:0">Buscar persona</h3><input type="search" id="cv-q" placeholder="Nombre o DNI"><div class="cv-lista" id="cv-res"></div><button type="button" class="cv-b" data-cv-cerrar="1">Cerrar</button>`);
