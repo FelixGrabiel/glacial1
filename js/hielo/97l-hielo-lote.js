@@ -11,6 +11,7 @@
      · MÁQUINA: Cubos → Tolva manual = 1 · Env. automática = 3 · Vasos = 2 · Premium = 0.
      · SEMANA: 2 dígitos (la misma semana que el lote de Agua, 05-utils obtenerSemana) · DÍA JULIANO: 3 dígitos (día del año).
      Ej.: Glacial 3 kg · Tolva manual · Día · 26/11/2026 (semana 48, día 330) → 21148330.
+     TURNO NOCHE: semana y día juliano del día SIGUIENTE (Noche del 26/11/2026 → 11148331), como el vencimiento.
    El lote sale solo cuando la fila tiene producción. Molitalia, Certificado y Hoteles (y las marcas sin código, p. ej. San Fernando) llevan
    el lote A MANO y es obligatorio para finalizar si se produjo.
    VENCIMIENTO automático: fecha + vida útil (12 meses, editable); el turno Noche cuenta desde el día siguiente. Molitalia, Hoteles y Certificado: a mano.
@@ -60,6 +61,14 @@
     const ini = new Date(Date.UTC(p[0], 0, 1)).getUTCDay();
     return String(Math.floor((dia + ini - 1) / 7) + 1).padStart(2, '0');
   }
+  /** Fecha que va en el lote (27/11/2026): el turno NOCHE (desde las 19:00) cuenta desde el día SIGUIENTE, igual que el vencimiento.
+   *  Ej.: Noche del 26/11/2026 → día juliano 331 (27/11), no 330. Día e Intermedio: la misma fecha. */
+  function fechaLote(fecha, turno){
+    const p = partes(fecha); if(!p) return '';
+    if(codigoTurno(turno) !== '1') return fecha;
+    const d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + 1)), z = n => String(n).padStart(2, '0');
+    return d.getUTCFullYear() + '-' + z(d.getUTCMonth() + 1) + '-' + z(d.getUTCDate());
+  }
   /** Lote de una fila de producción → { lote, manual, motivo }.
    *  manual = true: la marca lleva lote a mano (obligatorio si hay producción). lote = '' con motivo si falta un dato (estación, fecha, turno). */
   function loteHielo(o){
@@ -72,7 +81,7 @@
     if(!hay) return { lote: '', manual: false, motivo: 'Sale solo al registrar producción' };
     const mq = codigoMaquina(producto, o.estacion);
     if(!mq) return { lote: '', manual: false, motivo: 'Elige la estación (tolva manual o envasadora automática)' };
-    const t = codigoTurno(o.turno), s = semana(o.fecha), j = juliano(o.fecha);
+    const t = codigoTurno(o.turno), f = fechaLote(o.fecha, o.turno), s = semana(f), j = juliano(f);
     if(!t || !s || !j) return { lote: '', manual: false, motivo: 'Falta la fecha o el turno' };
     return { lote: t + cm + mq + s + j, manual: false, motivo: '' };
   }
@@ -92,7 +101,7 @@
     const z = n => String(n).padStart(2, '0');
     return { vence: fin.getUTCFullYear() + '-' + z(fin.getUTCMonth() + 1) + '-' + z(fin.getUTCDate()), manual: false };
   }
-  const API = { loteHielo, vencimientoHielo, codigoMarca, codigoMaquina, codigoTurno, semana, juliano, esManual };
+  const API = { loteHielo, vencimientoHielo, fechaLote, codigoMarca, codigoMaquina, codigoTurno, semana, juliano, esManual };
   if(typeof module !== 'undefined' && module.exports) module.exports = API;
   raiz.glacialLoteHielo = API;
 })(typeof window !== 'undefined' ? window : globalThis);

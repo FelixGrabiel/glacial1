@@ -15,7 +15,9 @@
 | Semana | 2 dígitos (la misma semana del lote de Agua) |
 | Día juliano | 3 dígitos (día del año) |
 
-Ejemplos (26/11/2026: semana 48, día 330): Glacial 3 kg · tolva manual · Día → **21148330** · Precio Uno 1.5 kg · envasadora · Noche → **113348330**.
+**Turno Noche (27/11/2026):** la semana y el día juliano son los del **día siguiente**, igual que el vencimiento (la Noche del 26/11/2026 → día 331). Día e Intermedio: la fecha del turno.
+
+Ejemplos (26/11/2026: semana 48, día 330): Glacial 3 kg · tolva manual · Día → **21148330** · Glacial 1.5 kg · tolva manual · Noche → **11148331** (día 331, el siguiente) · Precio Uno 1.5 kg · envasadora · Noche → **113348331**.
 
 ## Reglas
 - El lote sale solo (no se edita) cuando la fila tiene producción, y se actualiza al cambiar marca, estación, turno o fecha.

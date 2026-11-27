@@ -10,13 +10,14 @@ const F = '2026-11-26';      // semana 48, día juliano 330
 const lote = (producto, marca, estacion, turno, fecha, bolsas) => L.loteHielo({ producto, marca, estacion, turno, fecha: fecha || F, bolsas: bolsas === undefined ? 100 : bolsas });
 ok(L.semana(F) === '48' && L.juliano(F) === '330' && L.semana('2026-01-05') === '02' && L.juliano('2026-01-05') === '005', 'semana con 2 dígitos y día juliano con 3 (26/11/2026 → 48 y 330; 05/01 → 02 y 005)');
 ok(lote('CUBOS', 'Glacial', 'Tolva manual', 'DÍA').lote === '21148330', 'Glacial 3 kg · tolva manual · Día → 21148330');
-ok(lote('CUBOS', 'Glacial', 'Tolva manual', 'INTERMEDIO').lote === '21148330' && lote('CUBOS', 'Glacial', 'Tolva manual', 'NOCHE').lote === '11148330', 'Intermedio = 2 (como Día) · Noche = 1');
-ok(lote('CUBOS', 'Precio Uno', 'Env. automática', 'NOCHE').lote === '113348330', 'Precio Uno (13) · envasadora automática (3) · Noche → 113348330');
+ok(lote('CUBOS', 'Glacial', 'Tolva manual', 'INTERMEDIO').lote === '21148330' && lote('CUBOS', 'Glacial', 'Tolva manual', 'NOCHE').lote === '11148331', 'Intermedio = 2 (como Día) · Noche = 1 (y su día juliano es el del día siguiente: 331)');
+ok(lote('CUBOS', 'Precio Uno', 'Env. automática', 'NOCHE').lote === '113348331', 'Precio Uno (13) · envasadora automática (3) · Noche → 113348331');
+ok(L.loteHielo({ producto: 'CUBOS', marca: 'Glacial', estacion: 'Tolva manual', turno: 'NOCHE', fecha: '2026-11-28', bolsas: 10 }).lote === '11149333' && L.loteHielo({ producto: 'CUBOS', marca: 'Glacial', estacion: 'Tolva manual', turno: 'NOCHE', fecha: '2026-12-31', bolsas: 10 }).lote === '11101001', 'Noche: semana y día del día siguiente (sábado 28/11 → domingo 29/11, semana 49, día 333; 31/12 → 01/01, semana 01, día 001)');
 const cod = m => L.codigoMarca('CUBOS', m);
 ok(cod('Glacial') === '1' && cod('Rappi') === '1' && cod('Nutra') === '1' && cod('Cusine & Co') === '2' && cod('Cuisine & Co') === '2' && cod('Scala') === '3' && cod('Tottus CD') === '4' && cod("Bell's") === '6' && cod('Aro') === '6' && cod('Listo') === '7' && cod('Austral') === '9' && cod('Precio Uno') === '13',
   'códigos de cubos con los nombres del sistema (Cusine & Co, Tottus CD, Bell’s…)');
-ok(lote('VASOS', 'OXXO', '', 'DÍA').lote === '2102' + '48330' && lote('VASOS', 'Glacial', '', 'NOCHE').lote === '11248330', 'vasos: Oxxo 10 / Glacial 1, máquina 2');
-ok(lote('PREMIUM', 'Glacial', '', 'DÍA').lote === '21048330' && lote('PREMIUM', 'Cuisine & Co', '', 'DÍA').lote === '22048330' && lote('PREMIUM', "Bell's", '', 'NOCHE').lote === '16048330', 'premium: Glacial 1 / Cuisine 2 / Bell’s 6, máquina 0');
+ok(lote('VASOS', 'OXXO', '', 'DÍA').lote === '2102' + '48330' && lote('VASOS', 'Glacial', '', 'NOCHE').lote === '11248331', 'vasos: Oxxo 10 / Glacial 1, máquina 2');
+ok(lote('PREMIUM', 'Glacial', '', 'DÍA').lote === '21048330' && lote('PREMIUM', 'Cuisine & Co', '', 'DÍA').lote === '22048330' && lote('PREMIUM', "Bell's", '', 'NOCHE').lote === '16048331', 'premium: Glacial 1 / Cuisine 2 / Bell’s 6, máquina 0');
 ok(['Molitalia', 'Certificado', 'Hoteles'].every(m => lote('CUBOS', m, 'Tolva manual', 'DÍA').manual && !lote('CUBOS', m, 'Tolva manual', 'DÍA').lote), 'Molitalia, Certificado y Hoteles: lote a mano');
 ok(lote('CUBOS', 'San Fernando', 'Tolva manual', 'DÍA').manual && /sin código/.test(lote('CUBOS', 'San Fernando', 'Tolva manual', 'DÍA').motivo), 'marca sin código (San Fernando): a mano');
 ok(lote('CUBOS', 'Glacial', 'Tolva manual', 'DÍA', F, 0).lote === '' && /producción/.test(lote('CUBOS', 'Glacial', 'Tolva manual', 'DÍA', F, 0).motivo), 'sin producción no hay lote');
