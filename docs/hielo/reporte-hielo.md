@@ -168,3 +168,10 @@ Prueba: `tests/hielo-programacion-vista.e2e.js`.
 - Si no cuadra, **no se puede finalizar** (el borrador sí se guarda). El mensaje dice cuánto suma y cuánto es la jornada.
 - El refrigerio se cambia en **Configuración de Hielo › Refrigerio (h)** (0 a 4 h; por defecto 1 h).
 - Código: `jornadaHoras`, `horasRegistradas`, `controlHoras` y `validarFinalizar` en `js/hielo/97-hielo.js`. Prueba: `tests/hielo-jornada.test.js`.
+
+## Personal = N.º de personas (27/11/2026)
+
+- Para finalizar, el «Personal del turno» debe tener exactamente el **N.º de personas** (si son 10, se escriben los 10).
+- Si la lista va **numerada** («1. Nombre», «2. Nombre»…), solo cuentan las líneas numeradas: los títulos de grupo («Máquinas», «Tolva manual») no son personas. Sin números, cuenta cada línea. Un nombre repetido cuenta una vez.
+- Debajo de la lista sale en vivo «Personal escrito: 8 de 10 · faltan 2» (rojo) o «✓ Personal escrito: 10 de 10» (verde).
+- Código: `personasEscritas`, `controlPersonal` y `validarFinalizar` en `js/hielo/97-hielo.js`. Prueba: `tests/hielo-personal.test.js`.

@@ -146,6 +146,21 @@
     const ok=Math.abs(t-j)<0.01;
     return {jornada:j,registradas:t,ok,clase:ok?'k':'e',texto:(ok?'✓ ':'⚠ ')+'Tiempo registrado: '+f(t)+' h de '+f(j)+' h de jornada ('+r.horaInicio+'–'+r.horaFin+' menos '+f(num(ref)>0?num(ref):0)+' h de refrigerio)'+(ok?'':t<j?' · faltan '+f(j-t)+' h':' · sobran '+f(t-j)+' h')};
   }
+  /** Personas escritas en «Personal del turno» (27/11/2026). Si la lista está numerada («1. Nombre»), solo cuentan las líneas numeradas: los títulos
+   *  de grupo («Máquinas», «Tolva manual») no son personas. Sin números, cuenta cada línea. Los nombres repetidos cuentan una vez. */
+  function personasEscritas(r){
+    const ls=(Array.isArray(r&&r.personal)?r.personal:String(r&&r.personal||'').split('\n')).map(texto).filter(Boolean);
+    const num_=/^\d{1,3}\s*[.)\-:]\s*\S/,numeradas=ls.filter(x=>num_.test(x));
+    const usar=numeradas.length?numeradas.map(x=>x.replace(/^\d{1,3}\s*[.)\-:]\s*/,'')):ls;
+    return new Set(usar.map(x=>x.toLowerCase().replace(/\s+/g,' '))).size;
+  }
+  /** Control del personal para la pantalla: { personas, escritas, ok, clase, texto }. */
+  function controlPersonal(r){
+    const n=texto(r&&r.personas)===''?null:num(r.personas),w=personasEscritas(r);
+    if(!(n>0))return {personas:n,escritas:w,ok:false,clase:'i',texto:'Personal escrito: '+w+' · indica el N.º de personas.'};
+    const ok=w===n;
+    return {personas:n,escritas:w,ok,clase:ok?'k':'e',texto:(ok?'✓ ':'⚠ ')+'Personal escrito: '+w+' de '+n+(ok?'':w<n?' · faltan '+(n-w):' · sobran '+(w-n))};
+  }
   /** Errores que impiden FINALIZAR (guardar el borrador siempre se puede). */
   function validarFinalizar(r,config){
     const e=[];const cfg=Object.assign({},DEFECTO,config||{});
@@ -184,6 +199,8 @@
       if(texto(r.personas)===''||!(num(r.personas)>0))e.push('Indica el N.º de personas.');
       const pers=(Array.isArray(r.personal)?r.personal:String(r.personal||'').split('\n')).map(texto).filter(Boolean);
       if(!pers.length)e.push('Escribe el personal del turno.');
+      /* 27/11/2026: el personal escrito debe ser igual al N.º de personas (si son 10, se escriben los 10). */
+      else if(num(r.personas)>0){const w=personasEscritas(r);if(w!==num(r.personas))e.push(`Personal del turno: escribiste ${w} ${w===1?'persona':'personas'} y el N.º de personas es ${num(r.personas)}: deben ser iguales (si la lista va numerada, solo cuentan las líneas «1. Nombre»).`);}
       (r.produccion||[]).forEach((p,i)=>{
         if(!(num(p.bolsas)>0))return;
         if(cfg.estaciones&&cfg.estaciones.length&&!texto(p.estacion))e.push(`Producción ${i+1}: elige la estación.`);
@@ -403,7 +420,7 @@
     }
     return out.join('\n');
   }
-  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel,aplicarLotes,loteDeFila,venceDeFila,jornadaHoras,horasRegistradas,controlHoras};
+  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel,aplicarLotes,loteDeFila,venceDeFila,jornadaHoras,horasRegistradas,controlHoras,personasEscritas,controlPersonal};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.glacialHieloNucleo=N;
@@ -755,7 +772,8 @@
         <label><span>Hora inicio <b class="hl-req" title="Obligatorio para finalizar">*</b></span><input ${dis} type="time" value="${esc(r.horaInicio)}" onchange="hlDato('horaInicio',this.value)"></label>
         <label><span>Hora fin <b class="hl-req" title="Obligatorio para finalizar">*</b></span><input ${dis} type="time" value="${esc(r.horaFin)}" onchange="hlDato('horaFin',this.value)"></label>
         <label><span>N.º de personas <b class="hl-req" title="Obligatorio para finalizar">*</b></span><input ${dis} type="number" min="0" max="200" step="1" inputmode="numeric" value="${esc(r.personas)}" placeholder="personas" oninput="hlDato('personas',this.value)"></label></div>
-        <label style="margin-top:12px"><span>Personal del turno <b class="hl-req" title="Obligatorio para finalizar">*</b> <small>(un nombre por línea)</small></span><textarea ${dis} rows="3" maxlength="900" placeholder="Nombre y apellido" oninput="hlDato('personal',this.value)">${esc(Array.isArray(r.personal)?r.personal.join('\n'):String(r.personal||''))}</textarea></label></div>
+        <label style="margin-top:12px"><span>Personal del turno <b class="hl-req" title="Obligatorio para finalizar">*</b> <small>(un nombre por línea)</small></span><textarea ${dis} rows="3" maxlength="900" placeholder="Nombre y apellido" oninput="hlDato('personal',this.value)">${esc(Array.isArray(r.personal)?r.personal.join('\n'):String(r.personal||''))}</textarea></label>
+        ${(()=>{const K=controlPersonal(r);return `<div id="hl-pers" class="hl-msg ${K.clase}" role="status" style="margin:8px 0 0">${esc(K.texto)}</div>`;})()}</div>
       <div class="hl-card hl-prodtab"><h3>Producción (${PR().unidad})</h3>
         ${prod?`<table class="hl-ed"><thead><tr><th>Marca${RQ}</th><th>Presentación${RQ}</th><th>Estación${RQ}</th><th title="Con qué bolsa (o vaso) se envasó, si no es la de la marca">${PR().id==='VASOS'?'Vaso usado':'Bolsa usada'}</th><th>Lote</th><th>Tiempo (h)${RQ}</th><th>Vence${RQ}</th><th>${cap(PR().unidad)}${RQ}</th><th>Kilos</th><th>Nota</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
         <div class="hl-acc" style="margin-top:8px">${bloq?'':'<button type="button" class="hl-btn o" onclick="hlAgregar(\'produccion\')">+ Agregar marca</button>'}
@@ -1219,6 +1237,7 @@
     r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-kg-'+i);if(e)e.value=fmt(num(p.bolsas)*kgDe(p.presentacion),1);});
     aplicarLotes(r);r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-lote-'+i);if(e){const L=loteDeFila(r,p);e.value=L.manual?e.value:L.lote;e.title=L.lote?'Lote automático: turno + marca + máquina + semana + día juliano':L.motivo;}
       const v=document.getElementById('hl-vence-'+i);if(v){const V=venceDeFila(r,p);if(!V.manual)v.value=V.vence;}});
+    const hp=document.getElementById('hl-pers');if(hp){const K=controlPersonal(r);hp.className='hl-msg '+K.clase;hp.textContent=K.texto;}
     const hh=document.getElementById('hl-horas');if(hh){const H=controlHoras(r,config()),hay=(r.produccion||[]).some(p=>num(p.bolsas)>0);hh.className=hay?'hl-msg '+H.clase:'';hh.setAttribute('role','status');hh.style.marginTop=hay?'8px':'';hh.textContent=hay?H.texto:'';}
     const e=document.getElementById('hl-tot');if(e)e.innerHTML=txtUnidades(t)+` · <b>${fmt(t.kg,1)} kg</b>`+(PR().unidadesPorJaba?' · '+fmt(t.bolsas/PR().unidadesPorJaba,2)+' jabas':'');
   }
