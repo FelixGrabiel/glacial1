@@ -175,7 +175,10 @@
      Sin fecha: la del turno en curso (noche: hasta las 07:00 se toma el día anterior). El resumen que se le manda al dueño la muestra: él confirma. */
   const RE_ENC=/programaci[oó]n\s*(?:de\s*hielo\s*)?(?:(t[ndi])\b|turno\s*(noche|d[ií]a|intermedio))\s*(?:del?\s*)?(\d{1,2}\s*[\/\-.]\s*\d{1,2}(?:\s*[\/\-.]\s*\d{2,4})?)?/i;
   const esTextoProgramacion=t=>RE_ENC.test(sinTildes(String(t||'')).slice(0,200));
-  function sumarDia(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+  /* Fecha de hoy en Lima (no en UTC: después de las 19:00 de Lima, UTC ya es el día siguiente). */
+  function hoyLima(){try{if(typeof GlacialFecha!=='undefined'&&GlacialFecha.fechaISOLocal)return GlacialFecha.fechaISOLocal();}catch(_){/* sin núcleo de fechas */}
+    const d=new Date(Date.now()-5*3600000);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
+  function sumarDia(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}      // fecha calendario (sin zona horaria)
   function leerTexto(texto,o){
     o=o||{};
     const out={lectura:null,errores:[]};
@@ -185,7 +188,7 @@
     const m=RE_ENC.exec(sinTildes(lineas[ini]));
     const cod=(m[1]||'').toLowerCase(),nom=(m[2]||'').toLowerCase();
     const turno=cod==='tn'||nom==='noche'?'NOCHE':cod==='ti'||nom==='intermedio'?'INTERMEDIO':'DÍA';
-    const hoy=/^\d{4}-\d{2}-\d{2}$/.test(String(o.hoy||''))?o.hoy:new Date().toISOString().slice(0,10);
+    const hoy=/^\d{4}-\d{2}-\d{2}$/.test(String(o.hoy||''))?o.hoy:hoyLima();
     let fecha;
     if(m[3]){
       const p=m[3].split(/\s*[\/\-.]\s*/);
