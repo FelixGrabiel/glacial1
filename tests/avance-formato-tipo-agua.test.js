@@ -29,7 +29,7 @@ const bloques=extraer(s29,'avCalcularBloquesPresentacion');
 ok(/claveBloque=\(presentacion,marca\)=>avClaveFormatoPresentacion\(presentacion\)\+'\|'\+avTipoAgua\(marca\)/.test(bloques)&&/claveBloque\(p\.presentacion,p\.marca\)/.test(bloques)&&/claveBloque\(q\?\.presentacion,q\?\.marca\)/.test(bloques),
   'cada bloque es tamaño + tipo, y los cuadros del registro van al bloque de su tipo');
 ok(sb.avClaveFormatoPresentacion('Pack_Regular_625mlx6und/la')===sb.avClaveFormatoPresentacion('Pack_Regular_625mlx15und/ln'),'el mismo tamaño en distinto pack sigue en un bloque (sin cambiar)');
-const img=extraer(s29,'avCanvasSnapshot');
+const img=extraer(s29,'avCanvasSnapshotFormatos');   // la imagen por formato quedó como respaldo de la imagen general (16g)
 ok(/FORMATOS`/.test(img)&&/g\.cabecera/.test(img)&&/ALTO_CABECERA/.test(img),'imagen: encabezado «PET2 · 3 FORMATOS» cuando la línea tiene más de un formato (y se suma a la altura)');
 ok((m=>!!m&&m[1]>='20261104')(/29-avance-produccion\.js\?v=(\d{8})-/.exec(leer('index.html'))),'index.html sube la versión de 29-avance-produccion.js');
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

@@ -20,3 +20,11 @@ Cada **supervisor**, al entrar a su turno, indica en qué área está. Todos los
 ## Límites
 - Quien no tenga el permiso «Distribuir personal» (o esté en modo visualización) solo ve la barra, no puede indicar su área.
 - El Jefe de Producción y el Administrador no se preguntan: la pregunta es solo para el rol Supervisor.
+
+## Solo quien está en planta (26/11/2026)
+Antes la barra acumulaba a todos los que eligieron área en el bloque (Día + Intermedio, 07:00–19:00), aunque ya se hubieran ido (el 26/11 a las 17:15 mostraba 6 nombres; 5 habían salido a las 15:00).
+- **Vence sola:** cada entrada guarda su turno real y su hora de salida (`hastaMs` = cierre de su ventana en la rotación, 17b). Sin rotación —y las entradas anteriores sin ese dato— vence 8 h después de entrar.
+- **Solo quien trabaja:** el área se pregunta (y el nombre se suma) solo a quien está en «Trabajar» y dentro de su horario. Fuera de horario —aunque el cierre automático esté desactivado— o en «Visualizar», no.
+- **«Salir del turno»:** botón junto a «Cambiar mi área»; el nombre desaparece al momento en todas las pantallas (`salioMs`).
+- **Intermedio después de las 19:00:** la barra lee también el bloque anterior, así el Intermedio sigue visible hasta su salida (23:00).
+- Solo página: sin cambios en el servidor. Pruebas: `tests/supervisor-en-turno.test.js` (con los datos del 26/11) y `tests/supervisor-en-turno.e2e.js`.

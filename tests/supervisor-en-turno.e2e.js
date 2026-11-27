@@ -27,7 +27,7 @@ let fallas = 0; const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') +
   await P.evaluate(() => { glacialSupervisorTurno.estado().doc = Object.values(window.__docs)[0]; glacialSupervisorTurno.estado().listo = true; glacialSupervisorTurno.pintar(); });
   let t = await barra(); ok(/Hielo Ana Pérez/i.test(t) && /Agua sin indicar/i.test(t) && !/@|rol|Supervisor Ana/.test(t.replace('Supervisor en turno', '')), 'la barra de Agua muestra solo el nombre en Hielo y «sin indicar» en Agua: ' + t);
   // otro supervisor en Agua
-  await P.evaluate(() => { const d = Object.values(window.__docs)[0]; d.supervisores.u2 = { uid: 'u2', nombre: 'Luis Rojas', area: 'AGUA', turno: 'DÍA', desdeMs: 1 }; glacialSupervisorTurno.estado().doc = d; glacialSupervisorTurno.pintar(); });
+  await P.evaluate(() => { const d = Object.values(window.__docs)[0]; d.supervisores.u2 = { uid: 'u2', nombre: 'Luis Rojas', area: 'AGUA', turno: 'DÍA', desdeMs: Date.now() - 60000 }; glacialSupervisorTurno.estado().doc = d; glacialSupervisorTurno.pintar(); });
   t = await barra(); ok(/Agua Luis Rojas/i.test(t) && /Hielo Ana Pérez/i.test(t), 'se ven los dos: Agua → Luis Rojas, Hielo → Ana Pérez');
   // cambiar de área reemplaza la entrada propia (no duplica)
   await P.evaluate(() => glacialSupervisorTurno.elegir('AGUA')); await P.waitForTimeout(300);

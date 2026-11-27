@@ -94,20 +94,30 @@ const ok = (c, m) => { console.log((c ? '✔ ' : '✘ FALLA ') + m); if (!c) fal
   await cap('cierre-1-inicio');
   // Cerrar Scala con saldo 12
   await P.fill('#ct-panel input[aria-label="Saldo en paquetes de Scala"]', '12');
-  await P.click('#ct-panel .ct-t.activo .ct-btn');
+  await P.click('#ct-panel .ct-t.activo button:has-text("Cerrar marca")');
+  await P.waitForSelector('#ct-panel .ct-conf');
+  ok(await P.evaluate(() => document.querySelector('.ct-conf button.ct-btn:not(.ct-btn-o)').disabled), 'confirmación: «Cerrar marca» deshabilitado hasta marcar «Revisé las paradas»');
+  await P.check('#ct-panel .ct-conf input[type=checkbox]');
+  await P.click('#ct-panel .ct-conf button:has-text("Cerrar marca")');
   await P.waitForFunction(() => document.querySelectorAll('#ct-panel .ct-t.cerrado').length === 1, null, { timeout: 5000 });
   t = await panel();
   const ped = await P.evaluate(() => __bd.llamadas.find(x => x[0] === 'cierre_tramo_cerrar')[1].p);
-  ok(ped.tramo_id === 't1' && ped.paletas_acumuladas === 7 && ped.paletas_tramo === 7 && ped.saldo_paquetes === 12 && /^\d{2}:\d{2}$/.test(ped.hora_corte) && /^[0-9a-f-]{36}$/.test(ped.client_event_id), 'Cerrar marca envía: hora de corte real, 7 paletas congeladas, saldo 12 y el evento del equipo');
-  ok(/Cerrado ✓/.test(t) && /Saldo 12 paq/.test(t) && /1 de 3 marcas cerrada/.test(t) && /Scala cerrada ✓ · sigue Bells/.test(t), 'Scala queda «Cerrado ✓» con su saldo; la franja dice 1 de 3');
+  ok(ped.paradas_revisadas === true && ped.resumen && ped.resumen.minutos >= 0 && ped.tramo_id === 't1' && ped.paletas_acumuladas === 7 && ped.paletas_tramo === 7 && ped.saldo_paquetes === 12 && /^\d{2}:\d{2}$/.test(ped.hora_corte) && /^[0-9a-f-]{36}$/.test(ped.client_event_id), 'Cerrar marca envía: hora de corte real, 7 paletas congeladas, saldo 12 y el evento del equipo');
+  ok(/✓ Cerrado \d\d:\d\d/.test(t) && /saldo 12 paq/.test(t) && /1 de 3 marcas cerrada/.test(t) && /Scala cerrada ✓ · sigue Bells/.test(t), 'Scala queda «Cerrado ✓» con su saldo; la franja dice 1 de 3');
   ok(await P.evaluate(() => [...document.querySelectorAll('.ct-t')].map(x => x.classList.contains('activo') ? 'A' : x.classList.contains('cerrado') ? 'C' : 'E').join('')) === 'CAE' && await P.evaluate(() => draftPaleta.marca) === 'Bells', 'Bells pasa a activa y la captura de paletas cambia sola a Bells');
   // Cerrar Bells (saldo vacío = 0)
   await P.fill('#ct-panel input[aria-label="Saldo en paquetes de Bells"]', '');
-  await P.click('#ct-panel .ct-t.activo .ct-btn');
+  await P.click('#ct-panel .ct-t.activo button:has-text("Cerrar marca")');
+  await P.waitForSelector('#ct-panel .ct-conf');
+  ok(await P.evaluate(() => document.querySelector('.ct-conf button.ct-btn:not(.ct-btn-o)').disabled), 'confirmación: «Cerrar marca» deshabilitado hasta marcar «Revisé las paradas»');
+  await P.check('#ct-panel .ct-conf input[type=checkbox]');
+  await P.click('#ct-panel .ct-conf button:has-text("Cerrar marca")');
   await P.waitForFunction(() => document.querySelectorAll('#ct-panel .ct-t.cerrado').length === 2, null, { timeout: 5000 });
   t = await panel();
   ok(/Todo listo para envío rápido/.test(t) && /2 de 3 marcas cerradas/.test(t) && await P.evaluate(() => !!document.querySelector('.ct-franja.ct-ok')), 'franja verde «Todo listo para envío rápido» con 2 de 3');
-  ok(/se cierra con «Enviar cierre de turno»/.test(t) && /este tramo: 0/.test(t) && !(await P.evaluate(() => document.querySelector('.ct-enviar').disabled)), 'la última (Scala retoma) se cierra con el envío; «Enviar» habilitado');
+  ok(/se cierra con «Enviar cierre de turno»/.test(t) && /este tramo: 0/.test(t) && await P.evaluate(() => document.querySelector('.ct-enviar').disabled) && /Revisé las paradas de Scala/.test(t), 'la última (Scala retoma) se cierra con el envío; pide «Revisé las paradas de Scala»');
+  await P.check('#ct-panel .ct-check input[type=checkbox]');
+  ok(!(await P.evaluate(() => document.querySelector('.ct-enviar').disabled)), 'con la revisión marcada, «Enviar» habilitado');
   // con un registro sin subir: se bloquea
   await P.evaluate(() => { window.__pend = glacialPaletasCola.pendientes; glacialPaletasCola.pendientes = () => [{}]; glacialCierreMarcas.pintar(); });
   t = await panel();
@@ -122,7 +132,7 @@ const ok = (c, m) => { console.log((c ? '✔ ' : '✘ FALLA ') + m); if (!c) fal
   await P.waitForFunction(() => /Cierre de turno enviado/.test(document.getElementById('ct-panel').innerText), null, { timeout: 5000 });
   t = await panel();
   const env = await P.evaluate(() => __bd.llamadas.find(x => x[0] === 'cierre_turno_enviar')[1].p);
-  ok(env.ultimo && env.ultimo.paletas_tramo === 3 && env.ultimo.saldo_paquetes === 5 && env.pendientes === 0 && env.observaciones === 'Etiquetadora con calibración' && env.secuencia.map(x => x.tramo_id).join() === 't1,t2,t3', 'el envío cierra la última (3 paletas, saldo 5) y manda observaciones y secuencia');
+  ok(env.ultimo && env.ultimo.paradas_revisadas === true && env.paradas_pendientes === 0 && env.ultimo.paletas_tramo === 3 && env.ultimo.saldo_paquetes === 5 && env.pendientes === 0 && env.observaciones === 'Etiquetadora con calibración' && env.secuencia.map(x => x.tramo_id).join() === 't1,t2,t3', 'el envío cierra la última (3 paletas, saldo 5) y manda observaciones y secuencia');
   ok(/Cierre enviado por leandro/.test(t) && /14 paletas · saldo 17 paq/.test(t) && /3 de 3 marcas cerradas/.test(t) && !(await P.evaluate(() => !!document.querySelector('#ct-panel .ct-enviar'))), 'consolidado: 14 paletas (7+4+3) y saldo 17 (12+0+5); ya no hay botones de envío');
   await cap('cierre-3-enviado');
   // celular

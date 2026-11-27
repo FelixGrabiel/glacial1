@@ -278,20 +278,21 @@
   let vaciando = false;
   async function vaciarCola(){
     if(vaciando) return; const sb = W.glacialSupabaseCliente; if(!sb || typeof sb.rpc !== 'function') return;
-    vaciando = true;
+    vaciando = true; let detenido = false;
     try{
       let l = leerCola();
       for(const x of l.slice()){
         let r; try{ r = await sb.rpc(x.fn, { p: x.p }); }catch(e){ r = { error: { message: String(e && e.message || e), red: true } }; }
         if(r && r.error){
           const red = r.error.red || /fetch|network|failed|timeout/i.test(String(r.error.message || '')) || !navigator.onLine;
-          if(red) break;                                        // sin conexión: se reintenta luego
+          if(red){ detenido = true; break; }                    // sin conexión: se reintenta luego
           const codigo = String(r.error.code || '');
-          if(codigo === 'PGRST202' || codigo === '42883') break;     // falta glacial_70: se conserva
+          if(codigo === 'PGRST202' || codigo === '42883'){ detenido = true; break; }     // falta glacial_70: se conserva
         }
         l = leerCola().filter(y => y.p.client_event_id !== x.p.client_event_id); guardarCola(l);
       }
     }finally{ vaciando = false; }
+    if(!detenido && leerCola().length) setTimeout(vaciarCola, 0);      // lo que se encoló mientras se vaciaba
   }
   function encolar(fn, p){
     if(!p || !p.client_event_id) return;
