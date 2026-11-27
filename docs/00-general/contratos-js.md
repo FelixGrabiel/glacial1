@@ -27,7 +27,7 @@ node scripts/validar-carga.js --sin-git         # sin la revisión de ?v= (exist
 
 ## Resumen
 
-- **199** scripts locales en `index.html` (más los de CDN) · **2196** nombres globales · **109** sobrescrituras permitidas entre archivos.
+- **200** scripts locales en `index.html` (más los de CDN) · **2197** nombres globales · **109** sobrescrituras permitidas entre archivos.
 - Los números de orden de abajo son la **posición real de carga** (no el prefijo numérico del nombre: `15-` puede cargar antes que `14-`).
 - Escrituras con nombre calculado que no se pueden resolver solas (revisar a mano si se tocan): `nucleo/00c-espacios-nombres.js`, `accesos/23b-modo-visualizacion.js`, `personal/40-tareo-auditoria.js`.
 
@@ -335,9 +335,9 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 | 15 | `05-utils` <sub>20261015-fc1</sub> | UTILIDADES (fechas, turnos, lotes, códigos, cajas) | `num`ƒ `pct`ƒ `obtenerDiaDelA`ƒ `normalizarTexto`ƒ `obtenerCodigoTurno`ƒ `calcularHorasTurno`ƒ `obtenerSemana`ƒ … +46 | `02-estado`(1), `71-asistente-datos`(1) ⚠ | — |
 | 70 | `34-integraciones` <sub>20261011-av1</sub> | GLACIAL · INTEGRACIONES: GOOGLE SHEETS Y WHATSAPP — Sin servidor y sin tocar Firebase. | `sheetsPendiente`w `sheetsCantidadPendientes`w `enviarASheets`w `sheetsEnviarTareo`w `sheetsReenviarTareo`w `sheetsEnviarCierre`w `sheetsReenviarCierre`w … +4 | `01-config`(2), `13-tareo`(17), `29a-avances-items`(1), `29-avance-produccion`(1), `37f-tareo-por-tecnico`(1) ⚠, `41-tareo-bloqueo`(2) ⚠ | `guardarTareoActual` |
 | 88 | `44-estado-datos` <sub>20261004-b1</sub> | «ACTUALIZADO A LAS HH:MM» · estado de los datos en vivo | `glacialEstadoDatos`w `tareoRenderTabs`w `renderProduccionActualTab`w `renderCentroPerfil`w | `01-config`(1), `02-estado`(1), `16-paletas`(1), `13-tareo`(1), `20-tareo-control`(1), `30-rotacion-mantenimiento`(1), `33-rotacion-maquinistas`(1), `32-dashboard-perfiles`(1) … +10 | `renderCentroPerfil` `renderProduccionActualTab` `tareoRenderTabs` |
-| 196 | `12b-barras-desplazamiento` <sub>20261121-bs3</sub> | GLACIAL · BARRAS DE DESPLAZAMIENTO HORIZONTAL VISIBLES EN TODA LA APP |  · 1 _priv | — | — |
-| 197 | `12c-tablas-movil` <sub>20261121-tm2</sub> | GLACIAL · TABLAS ANCHAS EN TELÉFONO Y TABLET — En pantallas angostas la página recorta lo que se sale por la derecha (html/body con overflow-x:hidd… | `glacialTablasMovil`w | — | — |
-| 198 | `12-init` <sub>20261003-seguridad</sub> | CERRAR MODAL E INICIALIZACIÓN DE LA APP | `closeModal`ƒ | `01-config`(1), `02-estado`(1), `03-auth`(1) | — |
+| 197 | `12b-barras-desplazamiento` <sub>20261121-bs3</sub> | GLACIAL · BARRAS DE DESPLAZAMIENTO HORIZONTAL VISIBLES EN TODA LA APP |  · 1 _priv | — | — |
+| 198 | `12c-tablas-movil` <sub>20261121-tm2</sub> | GLACIAL · TABLAS ANCHAS EN TELÉFONO Y TABLET — En pantallas angostas la página recorta lo que se sale por la derecha (html/body con overflow-x:hidd… | `glacialTablasMovil`w | — | — |
+| 199 | `12-init` <sub>20261003-seguridad</sub> | CERRAR MODAL E INICIALIZACIÓN DE LA APP | `closeModal`ƒ | `01-config`(1), `02-estado`(1), `03-auth`(1) | — |
 
 ### Accesos · `js/accesos/`
 
@@ -357,7 +357,7 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 | 65 | `32b-inicio-resultado` <sub>20261114-in1</sub> | INICIO EJECUTIVO · «RESULTADO DE LA PLANTA» | `glacialInicioResultado`w | `49-resumen-indicadores`(1) ⚠, `79-paradas-mantenimiento`(1) ⚠, `68-mantenimiento-inicio`(1) ⚠ | — |
 | 71 | `36-seguridad-auth` <sub>20261023-lg2</sub> | GLACIAL · SEGURIDAD: FIREBASE AUTHENTICATION (ETAPA 1) — Qué hace: | `esAdministradorSeguridad`w `crearCuentaSegura`w `crearCuentaSeguraLibre`w `autenticarConFirebase`w `iniciarSincronizacionSegura`w `glacialTurnoCarga`w `glacialLiberarTurnoCarga`w … +14 · 1 _priv | `00b-puente-supabase`(2), `01-config`(6), `02-estado`(6), `10-usuarios`(1), `23b-modo-visualizacion`(1), `55-valores-economicos`(1) ⚠ | `saveUsers` |
 | 98 | `10c-impacto-economico-permisos` <sub>20261102-pal2</sub> | GLACIAL · PERMISOS DE IMPACTO ECONÓMICO POR USUARIO — El rol dice quién PUEDE tener acceso; el permiso explícito dice quién LO TIENE: | `editarPermisosUsuario`w `glacialEcoUsuarios`w | `02-estado`(4), `10-usuarios`(2), `10b-modo-visualizacion-form`(1), `36-seguridad-auth`(1), `55-valores-economicos`(1) | `editarPermisosUsuario` |
-| 195 | `39-vista-como` <sub>20261003-vista-1</sub> | GLACIAL · VISTA COMO (solo Administrador) — Permite al Administrador ver la aplicación tal como la ve otro | `fetch`w `salirVistaComo`w `abrirVistaComo`w `renderSidebar`w `handleLogout`w · 1 _priv | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(3), `03-auth`(3), `04-sidebar`(1), `13-tareo`(1), `23b-modo-visualizacion`(1), `37-mantenimiento-tecnicos`(1) … +4 | `handleLogout` `renderSidebar` |
+| 196 | `39-vista-como` <sub>20261003-vista-1</sub> | GLACIAL · VISTA COMO (solo Administrador) — Permite al Administrador ver la aplicación tal como la ve otro | `fetch`w `salirVistaComo`w `abrirVistaComo`w `renderSidebar`w `handleLogout`w · 1 _priv | `00b-puente-supabase`(1), `01-config`(1), `02-estado`(3), `03-auth`(3), `04-sidebar`(1), `13-tareo`(1), `23b-modo-visualizacion`(1), `37-mantenimiento-tecnicos`(1) … +4 | `handleLogout` `renderSidebar` |
 
 ### Producción · `js/produccion/`
 
@@ -526,10 +526,10 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 | 165 | `96-proveedores` <sub>20261121-ev2</sub> | GLACIAL · BANCO DE PROVEEDORES (Asistente de Producción › Proveedores) | `glacialProveedoresNucleo`w `glacialProveedores`w `pvVista`w `pvSel`w `pvBuscar`w `pvCrearGrupo`w `pvAgregarGrupo`w … +4 | `01-config`(1), `04b-busqueda`(1), `02-estado`(1), `06-registro`(1), `23b-modo-visualizacion`(1), `41-tareo-bloqueo`(1), `75-inventario-insumos-datos`(1), `85-evidencias-insumos-datos`(1) … +2 | — |
 | 166 | `98-validar-rapido` <sub>20261121-vr2</sub> | GLACIAL · EVIDENCIAS › VALIDAR RÁPIDO (auditoría de trazabilidad 13/11/2026, punto 3) | `glacialValidarRapido`w `ieVrBoton`w `ieVrAbrir`w `ieVrCerrar`w `ieVrFiltro`w `ieVrRotar`w `ieVrSugerido`w … +3 · 1 _priv | `02-estado`(1), `06b-fotos-supabase`(1), `84-evidencias-insumos-nucleo`(1), `85-evidencias-insumos-datos`(1), `86-evidencias-insumos-pantalla`(2), `87-trazabilidad-lotes-nucleo`(1), `88-trazabilidad-lotes-datos`(1), `89-trazabilidad-lotes-pantalla`(1) … +1 | — |
 | 167 | `99-asistente-hielo` <sub>20261127-xc1</sub> | ASISTENTE DE PRODUCCIÓN · PESTAÑA HIELO | `apHieloVista`w `apHieloExcel`w `apHieloIr`w `glacialAsistenteHielo`w | `01-config`(1), `46-vista-excel`(1), `02-estado`(1), `03-auth`(1), `08-graficos`(2), `72-asistente-pantalla`(1), `97-hielo`(3) ⚠, `99-hielo-reporte-diario`(1) ⚠ | — |
-| 191 | `80-almacen-enlace-nucleo` <sub>20261118-kx1</sub> | GLACIAL · ASISTENTE ↔ INVENTARIO DE INSUMOS — ENLACE CON ALMACÉN: NÚCLEO PURO | `glacialAlmacenEnlace`w | — | — |
-| 192 | `81-almacen-enlace-datos` <sub>20261118-kx1</sub> | GLACIAL · ASISTENTE ↔ INVENTARIO DE INSUMOS — ENLACE CON ALMACÉN: DATOS | `glacialAlmacenEnlaceDatos`w | `01-config`(1), `02-estado`(1), `71-asistente-datos`(1), `80-almacen-enlace-nucleo`(1) | — |
-| 193 | `82-asistente-prevision-nucleo` <sub>20261112-dv1</sub> | GLACIAL · ASISTENTE DE PRODUCCIÓN — PREVISIÓN, ALERTAS Y DESVIACIÓN DE CONSUMO: NÚCLEO PURO | `glacialAsistentePrevision`w | `70-asistente-nucleo`(1) | — |
-| 194 | `83-asistente-reportes-pantalla` <sub>20261123-pt13</sub> | GLACIAL · ASISTENTE DE PRODUCCIÓN — REPORTES EN EXCEL CON PREVISUALIZACIÓN Y CORRECCIÓN (Historial › Reportes) | `apRepLinea`w `apRepDescargar`w `apRepDescargarPrevia`w `apRepPrevia`w `apRepCorregir`w `apRepVerExcel`w `apRepLineaSel`w … +7 | `46-vista-excel`(1), `70-asistente-nucleo`(1), `71-asistente-datos`(1), `72-asistente-pantalla`(1), `73-reporte-general`(1), `12-init`(1) ⚠ | — |
+| 192 | `80-almacen-enlace-nucleo` <sub>20261118-kx1</sub> | GLACIAL · ASISTENTE ↔ INVENTARIO DE INSUMOS — ENLACE CON ALMACÉN: NÚCLEO PURO | `glacialAlmacenEnlace`w | — | — |
+| 193 | `81-almacen-enlace-datos` <sub>20261118-kx1</sub> | GLACIAL · ASISTENTE ↔ INVENTARIO DE INSUMOS — ENLACE CON ALMACÉN: DATOS | `glacialAlmacenEnlaceDatos`w | `01-config`(1), `02-estado`(1), `71-asistente-datos`(1), `80-almacen-enlace-nucleo`(1) | — |
+| 194 | `82-asistente-prevision-nucleo` <sub>20261112-dv1</sub> | GLACIAL · ASISTENTE DE PRODUCCIÓN — PREVISIÓN, ALERTAS Y DESVIACIÓN DE CONSUMO: NÚCLEO PURO | `glacialAsistentePrevision`w | `70-asistente-nucleo`(1) | — |
+| 195 | `83-asistente-reportes-pantalla` <sub>20261123-pt13</sub> | GLACIAL · ASISTENTE DE PRODUCCIÓN — REPORTES EN EXCEL CON PREVISUALIZACIÓN Y CORRECCIÓN (Historial › Reportes) | `apRepLinea`w `apRepDescargar`w `apRepDescargarPrevia`w `apRepPrevia`w `apRepCorregir`w `apRepVerExcel`w `apRepLineaSel`w … +7 | `46-vista-excel`(1), `70-asistente-nucleo`(1), `71-asistente-datos`(1), `72-asistente-pantalla`(1), `73-reporte-general`(1), `12-init`(1) ⚠ | — |
 
 ### Calidad · `js/calidad/`
 
@@ -564,16 +564,17 @@ Leyenda: **Expone** = nombres globales que define el archivo (`ƒ` función, `v`
 
 | # | Archivo (`?v=`) | Propósito | Expone | Depende de | Sobrescribe |
 |---|---|---|---|---|---|
-| 187 | `97-hielo` <sub>20261127-xc1</sub> | GLACIAL · REPORTE HIELO — Página propia (se abre desde la tarjeta «Reporte Hielo» de la pantalla de selección), con Inicio, Nuevo registro, Historial, | `glacialHieloNucleo`w `glacialHieloDatos`w `hlAvSet`w `hlAvCopiar`w `hlAvWsp`w `hlAvImagen`w `hlPlFecha`w … +32 | `00b-puente-supabase`(1), `01-config`(4), `01b-fecha-operativa`(1), `46-vista-excel`(1), `02b-permisos-hielo`(1), `02-estado`(1), `03-auth`(1), `05-utils`(1) … +6 | `goReporteHielo` |
-| 188 | `97w-hielo-programacion-whatsapp` <sub>20261126-hw1</sub> | HIELO · PROGRAMACIÓN DESDE WHATSAPP — | `glacialHieloProgramacionWhatsApp`w | `01-config`(2), `02-estado`(1), `66w-planificacion-whatsapp`(1), `97-hielo`(1) | — |
-| 189 | `99-hielo-reporte-diario` <sub>20261124-rd9</sub> | GLACIAL · REPORTE HIELO · REPORTE DIARIO DE PRODUCCIÓN (mismo formato que el Excel de la planta) | `glacialHieloReporte`w | `97-hielo`(1) | — |
-| 190 | `98-hielo-inicio` <sub>20261121-hi3</sub> | REPORTE HIELO · tarjeta «HIELO» en el Inicio (Centro de perfil) | `renderCentroPerfil`w `glacialHieloInicio`w | `02b-permisos-hielo`(1), `02-estado`(1), `03-auth`(1), `32-dashboard-perfiles`(3), `43-bitacora-mantenimiento`(1), `44-estado-datos`(1), `46-proyeccion-avisos`(1), `47-analisis-paradas`(1) … +2 | `renderCentroPerfil` |
+| 187 | `97l-hielo-lote` <sub>20261127-lt1</sub> | GLACIAL · HIELO · LOTE AUTOMÁTICO — LOTE = TURNO + MARCA + MÁQUINA + SEMANA + DÍA JULIANO, todo junto (sin separadores). | `glacialLoteHielo`w | `05-utils`(1) | — |
+| 188 | `97-hielo` <sub>20261127-lt1</sub> | GLACIAL · REPORTE HIELO — Página propia (se abre desde la tarjeta «Reporte Hielo» de la pantalla de selección), con Inicio, Nuevo registro, Historial, | `glacialHieloNucleo`w `glacialHieloDatos`w `hlAvSet`w `hlAvCopiar`w `hlAvWsp`w `hlAvImagen`w `hlPlFecha`w … +32 | `00b-puente-supabase`(1), `01-config`(4), `01b-fecha-operativa`(1), `46-vista-excel`(1), `02b-permisos-hielo`(1), `02-estado`(1), `03-auth`(1), `05-utils`(1) … +7 | `goReporteHielo` |
+| 189 | `97w-hielo-programacion-whatsapp` <sub>20261126-hw1</sub> | HIELO · PROGRAMACIÓN DESDE WHATSAPP — | `glacialHieloProgramacionWhatsApp`w | `01-config`(2), `02-estado`(1), `66w-planificacion-whatsapp`(1), `97-hielo`(1) | — |
+| 190 | `99-hielo-reporte-diario` <sub>20261124-rd9</sub> | GLACIAL · REPORTE HIELO · REPORTE DIARIO DE PRODUCCIÓN (mismo formato que el Excel de la planta) | `glacialHieloReporte`w | `97-hielo`(1) | — |
+| 191 | `98-hielo-inicio` <sub>20261121-hi3</sub> | REPORTE HIELO · tarjeta «HIELO» en el Inicio (Centro de perfil) | `renderCentroPerfil`w `glacialHieloInicio`w | `02b-permisos-hielo`(1), `02-estado`(1), `03-auth`(1), `32-dashboard-perfiles`(3), `43-bitacora-mantenimiento`(1), `44-estado-datos`(1), `46-proyeccion-avisos`(1), `47-analisis-paradas`(1) … +2 | `renderCentroPerfil` |
 
 ### Modo TV · `js/tv/`
 
 | # | Archivo (`?v=`) | Propósito | Expone | Depende de | Sobrescribe |
 |---|---|---|---|---|---|
-| 199 | `glacial-tv` <sub>20261107-cf3</sub> | GLACIAL TV · MODO TELEVISIÓN (solo lectura)  ·  fase 1: INICIO y PRODUCCIÓN POR LÍNEA | `glacialTV`w | `02-estado`(1), `32-dashboard-perfiles`(11), `41-tareo-bloqueo`(1), `44-estado-datos`(1) | — |
+| 200 | `glacial-tv` <sub>20261107-cf3</sub> | GLACIAL TV · MODO TELEVISIÓN (solo lectura)  ·  fase 1: INICIO y PRODUCCIÓN POR LÍNEA | `glacialTV`w | `02-estado`(1), `32-dashboard-perfiles`(11), `41-tareo-bloqueo`(1), `44-estado-datos`(1) | — |
 
 ## Fuera de `index.html`
 
