@@ -154,6 +154,7 @@ const PERMISOS_APP=[
   {key:'planificacion',area:'planificacion',label:'Planificación (crear y editar la programación y el catálogo, aprobar solicitudes)'},
     {key:'distribuirPersonal',area:'tareo',label:'Distribución de personal por línea (confirmar y cambiar en Tareo de Producción)'},
   {key:'gestionar_rotacion_supervisores',area:'tareo',label:'Gestionar rotación de supervisores'},
+  {key:'convocatoria',area:'tareo',label:'Armar la convocatoria semanal de operarios (su turno; Jefatura y Administrador ambos turnos)'},
   {key:'gestionar_rotacion_mantenimiento',area:'mantenimiento',label:'Gestionar rotación de Mantenimiento y de maquinistas (Rotación semanal MTTO / Rotación maquinista)'},
   {key:'produccionActual',area:'produccion',label:'Producción Actual (ver paletas de TODAS las líneas — Ventas)'},
   {key:'inicioOperativo',area:'inicio',label:'Ver Inicio Operativo / Mi turno'},

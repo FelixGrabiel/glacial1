@@ -587,6 +587,7 @@
     "js/accesos/17-modo-trabajo.js",
     "js/produccion/21-programacion-turno.js",
     "js/accesos/23b-modo-visualizacion.js",
+    "js/personal/49b-convocatoria-pantalla.js",
     "js/mantenimiento/43-bitacora-mantenimiento.js",
     "js/produccion/47-analisis-paradas.js",
     "js/produccion/48-resumen-turno.js",
@@ -607,7 +608,7 @@
     "js/almacen/103-almacen-compartido.js",
     "js/admin/111-admin-acceso-datos.js"
    ],
-   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena. · 49b-convocatoria-pantalla pinta la pestaña «convocatoria» (Personal › Convocatoria semanal) y muestra u oculta sus botones del menú."
   },
   {
    "nombre": "renderMantenimientoModulo",
@@ -676,6 +677,7 @@
     "js/accesos/23b-modo-visualizacion.js",
     "js/mantenimiento/37-mantenimiento-tecnicos.js",
     "js/mantenimiento/37b-mantenimiento-identificacion.js",
+    "js/personal/49b-convocatoria-pantalla.js",
     "js/mantenimiento/43-bitacora-mantenimiento.js",
     "js/produccion/47-analisis-paradas.js",
     "js/produccion/48-resumen-turno.js",
@@ -696,7 +698,7 @@
     "js/admin/111-admin-acceso-datos.js",
     "js/accesos/39-vista-como.js"
    ],
-   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena."
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena. · 49b-convocatoria-pantalla pinta la pestaña «convocatoria» (Personal › Convocatoria semanal) y muestra u oculta sus botones del menú."
   },
   {
    "nombre": "renderTareoFormulario",
@@ -1038,6 +1040,22 @@
     "js/produccion/49-resumen-indicadores.js"
    ],
    "motivo": "49-resumen-indicadores reemplaza/envuelve funciones del Resumen de 09-resumen para usar el módulo único de indicadores (45-indicadores)."
+  },
+  {
+   "nombre": "obtenerPersonalPorRotacion",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/49c-convocatoria-tareo.js"
+   ],
+   "motivo": "Convocatoria semanal (glacial_72): con una convocatoria PUBLICADA para la semana, 49c devuelve su personal (equipo y horario del equipo) en lugar de la rotación del Excel; sin ella delega en la original (transición)."
+  },
+  {
+   "nombre": "tareoNuevaPersona",
+   "archivos": [
+    "js/personal/13-tareo.js",
+    "js/personal/49c-convocatoria-tareo.js"
+   ],
+   "motivo": "Convocatoria semanal (glacial_72): 49c delega en la original y añade el equipo, la salida programada del equipo y el estado de descanso médico / vacaciones / licencia de la convocatoria."
   }
  ],
  "nativos": [
