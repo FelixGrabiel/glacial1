@@ -51,7 +51,7 @@ function rpc(n, a) {
     await P.evaluate(([nombre, turno]) => {
       document.getElementById('login-screen').style.display = 'none'; document.getElementById('app-screen').style.display = 'block';
       state.user = { rol: 'Supervisor', nombre, username: nombre.toLowerCase().replace(/ /g, '.'), permisos: 'todos' }; state.showWelcome = false; window.alert = () => {};
-      _workersCache = Array.from({ length: 12 }, (_, i) => ({ id: 'w' + (i + 1), nombre: 'Operario ' + (i + 1), dni: i === 4 ? '' : String(41000000 + i), estado: 'Activo', fechaIngreso: i === 2 ? '2026-11-20' : '2024-03-01', area: 'Producción' }));
+      _workersReady = true; window.__guardados = 0; window.saveWorkers = w => { _workersCache = w; window.__guardados++; }; _workersCache = Array.from({ length: 12 }, (_, i) => ({ id: 'w' + (i + 1), nombre: 'Operario ' + (i + 1), dni: i === 4 ? '' : String(41000000 + i), estado: 'Activo', fechaIngreso: i === 2 ? '2026-11-20' : '2024-03-01', area: 'Producción' }));
       const oyentes = [];
       window.__notificar = () => oyentes.forEach(f => f());
       window.glacialSupabaseCliente = { rpc: (n, a) => window.__rpc(n, a), channel: () => { const ch = { on: (_t, _f, cb) => { oyentes.push(cb); return ch; }, subscribe: () => ch }; return ch; }, removeChannel: () => {} };
@@ -91,6 +91,20 @@ function rpc(n, a) {
   SRV.red = false; await D.evaluate(() => glacialConvocatoriaPantalla.vaciar()); await espera(500);
   ok(await D.evaluate(() => JSON.parse(localStorage.getItem('glacial:convocatoria:cola') || '[]').length === 0) && (await tabs(N))[0] === 'Turno día · 3', 'al volver la conexión se envía una sola vez y el otro equipo lo ve (sin duplicar)');
   ok(await D.evaluate(() => /no tiene DNI/.test(document.querySelector('#cv .cv-avisos').innerText)), 'aviso: persona sin DNI');
+  // persona que no está en el maestro → «Agregar persona nueva» (queda en el maestro y convocada)
+  await N.click('#cv [data-cv-agregar="pet-noche"]'); await N.waitForSelector('#cv-modal #cv-q'); await N.fill('#cv-modal #cv-q', 'Persona Ficticia Nueva'); await espera(150);
+  const sinRes = await N.evaluate(() => /Agregar persona nueva/.test(document.getElementById('cv-res').innerText) && document.getElementById('cv-nuevo').hidden);
+  await N.click('#cv-modal [data-cv-nuevo]');
+  const pre = await N.evaluate(() => ({ nom: document.getElementById('cv-n-nom').value, ing: document.getElementById('cv-n-ing').value, vis: getComputedStyle(document.getElementById('cv-nuevo')).display !== 'none' }));
+  if (process.env.GLX_CAPTURAS) { await N.setViewportSize({ width: 390, height: 844 }); await N.screenshot({ path: path.join(process.env.GLX_CAPTURAS, 'convocatoria-persona-nueva.png') }); await N.setViewportSize({ width: 1280, height: 900 }); }
+  await N.fill('#cv-n-dni', '123'); await N.click('#cv-nuevo [type="submit"]');
+  const errDni = await N.evaluate(() => document.getElementById('cv-n-err').innerText);
+  await N.fill('#cv-n-dni', ''); await N.click('#cv-nuevo [type="submit"]'); await espera(500);
+  const alta = await N.evaluate(() => { const t = loadWorkers().find(w => w.nombre === 'PERSONA FICTICIA NUEVA'); const a = t && glacialConvocatoriaPantalla.estado.datos.asignaciones.find(x => x.trabajador_id === t.id); return { t: !!t && window.__guardados === 1, eq: a && a.equipo_id, ing: t && t.fechaIngreso, modal: !!document.getElementById('cv-modal'), txt: document.querySelector('#cv [data-cv-equipo="pet-noche"]').innerText }; });
+  ok(sinRes && pre.vis && pre.nom === 'PERSONA FICTICIA NUEVA' && /^\d{4}-\d{2}-\d{2}$/.test(pre.ing) && /8 dígitos/.test(errDni) && alta.t && alta.eq === 'pet-noche' && !alta.modal && /PERSONA FICTICIA NUEVA\s*NUEVO/.test(alta.txt), '«＋ Agregar persona nueva»: quien no sale en la lista se registra en el maestro (nombre del buscador, ingreso hoy → NUEVO) y queda convocada en su equipo');
+  await N.click('#cv [data-cv-agregar="pet-noche"]'); await N.waitForSelector('#cv-modal #cv-q'); await N.click('#cv-modal [data-cv-nuevo]'); await N.fill('#cv-n-nom', 'persona  ficticia nueva'); await N.click('#cv-nuevo [type="submit"]');
+  ok(await N.evaluate(() => /Ya está en el maestro/.test(document.getElementById('cv-n-err').innerText) && loadWorkers().filter(w => w.nombre === 'PERSONA FICTICIA NUEVA').length === 1), 'no duplica: si el nombre ya está en el maestro ofrece convocar a esa persona');
+  await N.click('#cv-modal [data-cv-cerrar]');
   // publicar → imagen
   await D.click('#cv [data-cv-estado="PUBLICADA"]'); await D.waitForSelector('#cv-modal img', { timeout: 6000 });
   const img = await D.evaluate(() => { const c = glacialConvocatoriaPantalla.estado.imagen; return { w: c.width, h: c.height, url: c.toDataURL('image/png') }; });
@@ -102,7 +116,7 @@ function rpc(n, a) {
   // Tareo prellenado desde la convocatoria publicada
   const tareo = await N.evaluate(() => { const r = obtenerPersonalPorRotacion('2026-11-27', 'Día'); const p = tareoNuevaPersona(r.personal.find(x => x.equipoId === 'b20l-int'), 'Producción');
     return { desde: r.desdeConvocatoria, n: r.personal.length, hora: p.horaProgramadaIngreso, horario: p.horarioRotacion, equipo: p.equipo, linea: p.linea, salida: p.horaProgramadaSalida, noche: obtenerPersonalPorRotacion('2026-11-27', 'Noche').personal.length }; });
-  ok(tareo.desde && tareo.n === 3 && tareo.noche === 1 && tareo.hora === '13:00' && tareo.horario === 'Intermedio' && tareo.equipo === 'Bidones 20L' && tareo.salida === '22:00', 'Tareo prellenado: el turno Día trae a los 3 con su equipo; Bidones 20L con hora 13:00–22:00 (tardanza por el horario del equipo)');
+  ok(tareo.desde && tareo.n === 3 && tareo.noche === 2 && tareo.hora === '13:00' && tareo.horario === 'Intermedio' && tareo.equipo === 'Bidones 20L' && tareo.salida === '22:00', 'Tareo prellenado: el turno Día trae a los 3 con su equipo; Bidones 20L con hora 13:00–22:00 (tardanza por el horario del equipo)');
   ok(await D.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'celular (390 px): sin desborde lateral');
   ok(!CEL.errores.length && !PC.errores.length, 'sin errores en las páginas' + (CEL.errores.concat(PC.errores).length ? ': ' + CEL.errores.concat(PC.errores).slice(0, 3).join(' | ') : ''));
   await H.cerrar();

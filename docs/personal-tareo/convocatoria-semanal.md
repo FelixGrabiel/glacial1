@@ -29,6 +29,7 @@
 - **NUEVO (automático):** fecha de ingreso del maestro (o, sin ella, la de alta en el sistema) dentro de las últimas N semanas (por defecto 2, `convocatorias.nuevo_semanas`).
 - **Descanso médico / vacaciones / licencia:** con fecha de fin. Si la persona también está en un equipo → aviso.
 - **Estados:** BORRADOR → PUBLICADA → CERRADA. Publicada se puede seguir corrigiendo (queda en `convocatoria_historial`: quién, cuándo, antes → después). Reabrir una CERRADA: Administrador o Jefatura.
+- **Persona que no sale en la lista:** en «+ Agregar persona» (o el descanso médico), el botón **«＋ No está en la lista: agregar persona nueva»** pide nombre y apellido, DNI (opcional, 8 dígitos) y fecha de ingreso (hoy por defecto). La persona queda registrada en el maestro de trabajadores (`origen: 'convocatoria'`, área Producción, cargo Operario; RRHH completa el resto) y convocada en ese equipo. Si el nombre o el DNI ya existen, no la duplica y ofrece convocar a esa persona. Al buscar también salen los dados de baja (marcados), para que nadie «desaparezca».
 - **Atajos:** «Copiar semana anterior» (solo en una semana vacía; los descansos ya terminados no pasan), «Buscar persona», ⋮ → «Mover a…» / descanso / quitar, y arrastrar entre equipos en PC.
 - **Avisos amarillos:** día y noche a la vez, persona en dos equipos, sin DNI, equipo bajo el mínimo, en descanso/vacaciones y convocado, dado de baja, persona que no está en el maestro.
 
