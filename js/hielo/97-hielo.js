@@ -16,7 +16,7 @@
     equipos:[],
     estaciones:['Tolva manual','Env. automática'],
     motivos:['Mantenimiento','Falla de equipo','Falta de insumo','Otros'],
-    mermas:['Bolsas','Bobina','Hielo (producto)'],
+    mermas:['Bolsas','Bobinas','Precintos','Bolsones'],     // CUBOS (27/11/2026); Premium y Vasos tienen su propia lista (PRODUCTOS.*.mermas)
     /* Kg REALES por bolsa (la bolsa «3 kg» pesa 3.25 kg y la «1.5 kg», 1.75 kg, según el reporte de la planta, 20/11/2026): con esto se calculan
        los kilos de todos los reportes. Configurable por presentación; sin dato se usa el número del nombre («3 kg» → 3). */
     pesos:{'3 kg':3.25,'1.5 kg':1.75},
@@ -41,10 +41,10 @@
      PREMIUM y VASOS comparten las mismas colecciones: su reporte lleva «producto» y su id termina en «_PREMIUM» / «_VASOS»; su configuración va en config.productos.{PRODUCTO}.
      Datos de la planta (Excel del 16 y 20/11/2026): Premium = bolsas de 2 kg y de 1.8 kg; Vasos = 0.25 kg por vaso y 35 vasos por jaba. Todo es editable en Configuración. */
   const PRODUCTOS={
-    CUBOS:{id:'CUBOS',nombre:'Hielo en cubos',corto:'Cubos',titulo:'HIELO EN CUBOS',unidad:'bolsas',una:'bolsa',presentaciones:['3 kg','1.5 kg'],pesos:{'3 kg':3.25,'1.5 kg':1.75},capacidadTurnoKg:34000,bolsasPorPaleta:{'3 kg':300,'1.5 kg':600},unidadesPorJaba:0,catalogo:null,metrica:'kg'},
-    PREMIUM:{id:'PREMIUM',nombre:'Hielo premium',corto:'Premium',titulo:'HIELO PREMIUM',unidad:'bolsas',una:'bolsa',presentaciones:['2 kg','1.8 kg'],pesos:{'2 kg':2,'1.8 kg':1.8},capacidadTurnoKg:0,bolsasPorPaleta:{},unidadesPorJaba:0,
+    CUBOS:{id:'CUBOS',nombre:'Hielo en cubos',corto:'Cubos',titulo:'HIELO EN CUBOS',unidad:'bolsas',una:'bolsa',presentaciones:['3 kg','1.5 kg'],mermas:['Bolsas','Bobinas','Precintos','Bolsones'],pesos:{'3 kg':3.25,'1.5 kg':1.75},capacidadTurnoKg:34000,bolsasPorPaleta:{'3 kg':300,'1.5 kg':600},unidadesPorJaba:0,catalogo:null,metrica:'kg'},
+    PREMIUM:{id:'PREMIUM',nombre:'Hielo premium',corto:'Premium',titulo:'HIELO PREMIUM',unidad:'bolsas',una:'bolsa',presentaciones:['2 kg','1.8 kg'],mermas:['Bolsas','Bolsones'],pesos:{'2 kg':2,'1.8 kg':1.8},capacidadTurnoKg:0,bolsasPorPaleta:{},unidadesPorJaba:0,
       catalogo:[['Glacial','2 kg'],["Bell's",'1.8 kg'],['Cuisine & Co','2 kg']],metrica:'kg'},
-    VASOS:{id:'VASOS',nombre:'Hielo en vasos',corto:'Vasos',titulo:'HIELO VASOS',unidad:'vasos',una:'vaso',presentaciones:['Vaso'],pesos:{'Vaso':0.25},capacidadTurnoKg:0,bolsasPorPaleta:{},unidadesPorJaba:35,
+    VASOS:{id:'VASOS',nombre:'Hielo en vasos',corto:'Vasos',titulo:'HIELO VASOS',unidad:'vasos',una:'vaso',presentaciones:['Vaso'],mermas:['Vasos','Tapas','Stickers'],pesos:{'Vaso':0.25},capacidadTurnoKg:0,bolsasPorPaleta:{},unidadesPorJaba:35,
       catalogo:[['Glacial','Vaso'],['OXXO','Vaso']],metrica:'unidades'}
   };
   const IDS_PRODUCTO=Object.keys(PRODUCTOS);
@@ -226,7 +226,7 @@
   function validarConfig(c,prod){
     if(esProducto(prod)&&prod!=='CUBOS')return validarConfigProducto(c,prod);
     const e=[];const lista=v=>[...new Set((v||[]).map(texto).filter(Boolean))];
-    const out={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones)),equipos:lista(c.equipos),estaciones:lista(c.estaciones),motivos:lista(c.motivos),mermas:lista(c.mermas)};
+    const out={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones)),equipos:lista(c.equipos),estaciones:lista(c.estaciones),motivos:lista(c.motivos),mermasCubos:lista(c.mermas)};
     // Kg reales por bolsa y bolsas por paleta: uno por presentación; vacío = valor de fábrica (o el número del nombre).
     const mapa=(origen,defecto,nombre,permitirDecimal)=>{
       const o={};
@@ -249,6 +249,7 @@
     if(!Number.isInteger(vu)||vu<1||vu>120)e.push('La vida útil debe ser un número entero de meses entre 1 y 120.');else out.vidaUtilMeses=vu;
     const rf=refrigerioDe(c);if(rf===null)e.push('El refrigerio debe ser de 0 a 4 horas.');else out.refrigerioHoras=rf;
     if(!out.marcas.length)e.push('Agrega al menos una marca.');
+    if(!out.mermasCubos.length)out.mermasCubos=PRODUCTOS.CUBOS.mermas.slice();                 // vacío = ítems de merma de fábrica
     if(!out.presentaciones.length)e.push('Agrega al menos una presentación.');
     out.presentaciones.forEach(p=>{if(!kgNominal(p))e.push(`La presentación «${p}» debe tener los kg (por ejemplo «3 kg»).`);});
     if(!out.motivos.length)e.push('Agrega al menos un motivo de parada.');
@@ -257,10 +258,11 @@
   /** Configuración de un producto nuevo (Premium, Vasos): listas compartidas (estaciones, equipos, motivos, mermas) + la parte del producto (marcas, presentaciones, pesos, capacidad, vasos por jaba). */
   function validarConfigProducto(c,prod){
     const P=PRODUCTOS[prod],e=[];const lista=v=>[...new Set((v||[]).map(texto).filter(Boolean))];
-    const compartidas={estaciones:lista(c.estaciones),equipos:lista(c.equipos),motivos:lista(c.motivos),mermas:lista(c.mermas)};
+    const compartidas={estaciones:lista(c.estaciones),equipos:lista(c.equipos),motivos:lista(c.motivos)};
     const rf=refrigerioDe(c);if(rf===null)e.push('El refrigerio debe ser de 0 a 4 horas.');else compartidas.refrigerioHoras=rf;
     if(!compartidas.motivos.length)e.push('Agrega al menos un motivo de parada.');
-    const producto={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones))};
+    const producto={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones)),mermas:lista(c.mermas)};
+    if(!producto.mermas.length)producto.mermas=P.mermas.slice();                                  // vacío = ítems de merma de fábrica del producto
     if(!producto.marcas.length)e.push('Agrega al menos una marca.');
     if(!producto.presentaciones.length)e.push('Agrega al menos una presentación.');
     const pesos={};
@@ -441,12 +443,13 @@
   const config=prod=>{
     prod=esProducto(prod)?prod:(typeof S!=='undefined'&&esProducto(S.producto)?S.producto:'CUBOS');
     const raw=cache.config||{},base=Object.assign({},DEFECTO,raw);
-    if(prod==='CUBOS')return Object.assign(base,{producto:'CUBOS',unidadesPorJaba:0,pesosNeto:Object.assign({},raw.pesosNeto||{})});
+    /* Mermas por producto (27/11/2026): Cubos en «mermasCubos» (la lista vieja «mermas» era común a los tres y ya no se usa); Premium y Vasos en productos.{PRODUCTO}.mermas. */
+    if(prod==='CUBOS')return Object.assign(base,{producto:'CUBOS',unidadesPorJaba:0,pesosNeto:Object.assign({},raw.pesosNeto||{}),mermas:Array.isArray(raw.mermasCubos)&&raw.mermasCubos.length?raw.mermasCubos.slice():PRODUCTOS.CUBOS.mermas.slice()});
     const P=PRODUCTOS[prod],ov=(raw.productos&&raw.productos[prod])||{};
     const marcasF=[...new Set(P.catalogo.map(x=>x[0]))];
     return Object.assign(base,{producto:prod,marcas:ov.marcas&&ov.marcas.length?ov.marcas:marcasF,presentaciones:ov.presentaciones&&ov.presentaciones.length?ov.presentaciones:P.presentaciones.slice(),
       pesos:Object.assign({},P.pesos,ov.pesos||{}),pesosNeto:Object.assign({},ov.pesosNeto||{}),capacidadTurnoKg:ov.capacidadTurnoKg!==undefined?ov.capacidadTurnoKg:P.capacidadTurnoKg,bolsasPorPaleta:Object.assign({},P.bolsasPorPaleta,ov.bolsasPorPaleta||{}),
-      unidadesPorJaba:ov.unidadesPorJaba!==undefined?ov.unidadesPorJaba:P.unidadesPorJaba,vidaUtilMeses:ov.vidaUtilMeses!==undefined?ov.vidaUtilMeses:DEFECTO.vidaUtilMeses});
+      mermas:Array.isArray(ov.mermas)&&ov.mermas.length?ov.mermas.slice():P.mermas.slice(),unidadesPorJaba:ov.unidadesPorJaba!==undefined?ov.unidadesPorJaba:P.unidadesPorJaba,vidaUtilMeses:ov.vidaUtilMeses!==undefined?ov.vidaUtilMeses:DEFECTO.vidaUtilMeses});
   };
   function escuchar(){
     if(cierres.length||typeof db==='undefined')return;
@@ -737,7 +740,7 @@
     // Marca de la merma: primero las marcas producidas en este turno, después el resto del catálogo del producto.
     const marcasTurno=[...new Set((r.produccion||[]).map(p=>texto(p.marca)).filter(Boolean))];
     const marcasMerma=[...marcasTurno,...(cfg.marcas||[]).filter(x=>!marcasTurno.includes(x))];
-    const mer=r.mermas.map((m,i)=>`<tr><td data-label="Ítem"><select ${dis} onchange="hlCampo('mermas',${i},'item',this.value)">${opciones(cfg.mermas,m.item,'— ítem —')}</select></td>
+    const mer=r.mermas.map((m,i)=>`<tr><td data-label="Ítem"><select ${dis} onchange="hlCampo('mermas',${i},'item',this.value)">${opciones(m.item&&!cfg.mermas.includes(m.item)?cfg.mermas.concat([m.item]):cfg.mermas,m.item,'— ítem —')}</select></td>
       <td data-label="Marca"><select ${dis} onchange="hlCampo('mermas',${i},'marca',this.value)" aria-label="Marca de la merma">${opciones(marcasMerma,m.marca,'— marca —')}</select></td>
       <td data-label="Cantidad"><input ${dis} type="number" min="0" step="any" inputmode="decimal" value="${esc(m.cantidad)}" oninput="hlCampo('mermas',${i},'cantidad',this.value)" aria-label="Cantidad"></td>
       <td data-label="Unidad"><select ${dis} onchange="hlCampo('mermas',${i},'unidad',this.value)">${opciones(UNIDADES_MERMA,m.unidad||'UND')}</select></td>
@@ -861,7 +864,7 @@
   function vistaConfig(){
     const P=PR(),esCubos=P.id==='CUBOS',c=config(),ed=puedeConfigurar(),dis=ed?'':'disabled';
     const area=(id,t,v,ayuda)=>`<label>${t}<textarea id="${id}" ${dis} rows="7">${esc(v.join('\n'))}</textarea><span class="hl-sub" style="font-weight:400;margin:0">${ayuda}</span></label>`;
-    return `<h1>Configuración · ${esc(P.nombre)}</h1><p class="hl-sub">Una por línea. Quitar una opción no cambia los reportes ya guardados. Marcas, presentaciones y kilos son de este producto; estaciones, equipos, motivos de parada y mermas son los mismos para todos los productos de hielo.</p>
+    return `<h1>Configuración · ${esc(P.nombre)}</h1><p class="hl-sub">Una por línea. Quitar una opción no cambia los reportes ya guardados. Marcas, presentaciones y kilos son de este producto; los ítems de merma también son de este producto; estaciones, equipos y motivos de parada son los mismos para todos los productos de hielo.</p>
       ${!ed?'<div class="hl-msg i">Solo consulta: la cambian el Administrador y los jefes.</div>':''}
       ${!cache.config?'<div class="hl-msg i">Todavía no se guardó la configuración: se muestran las marcas y presentaciones del programa.</div>':''}
       <div class="hl-card"><div class="hl-form">${area('hl-c-marcas','Marcas',c.marcas,'')}${area('hl-c-pres','Presentaciones',c.presentaciones,P.id==='VASOS'?'Por ejemplo «Vaso».':'Con sus kg, por ejemplo «'+(esCubos?'3':'2')+' kg».')}

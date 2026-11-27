@@ -35,3 +35,16 @@ En **Nuevo registro**: por cada marca, **tiempo (h)** y **fecha de vencimiento**
 - Arriba de cada pantalla hay un selector **Hielo en cubos | Hielo premium | Hielo en vasos**.
 - El **menú lateral** de Hielo tiene los 3 productos arriba y, debajo, las secciones del producto elegido: Inicio, Nuevo registro, Avance y cierre, Reporte diario, Resumen de planta, Historial, Programación y Configuración.
 - En **Nuevo registro** de cada producto se anotan las cantidades (bolsas o vasos), el lote, el tiempo (h), el vencimiento, el personal y las paradas.
+
+## Ítems de merma por producto (27/11/2026)
+
+| Producto | Ítems de merma |
+|---|---|
+| Cubos | Bolsas, Bobinas, Precintos, Bolsones |
+| Premium | Bolsas, Bolsones |
+| Vasos | Vasos, Tapas, Stickers |
+
+- Cada producto tiene su propia lista (antes era una sola común: «Bolsas, Bobina, Hielo (producto)»). Se cambia en Configuración de cada producto.
+- Dónde se guarda: Cubos en `hieloParametros/config.mermasCubos`; Premium y Vasos en `config.productos.{PRODUCTO}.mermas`. La lista vieja común (`mermas`) ya no se usa. Vacío = lista de fábrica.
+- Los reportes ya guardados con un ítem viejo (p. ej. «Bobina» o «Hielo (producto)») lo conservan y se sigue viendo al abrirlos.
+- Pruebas: `tests/hielo-mermas.test.js` y `tests/hielo-mermas.e2e.js`.
