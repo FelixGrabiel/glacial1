@@ -12,4 +12,4 @@
 - Permisos: ver correcciones = quien ve reportes (`ctx.resumen`); guardar = quien opera (`ctx.opera`). Sin glacial_71 aplicada, la edición solo va en la descarga y la vista lo dice.
 
 ## Estado
-- glacial_71 aplicada en **PRUEBAS** (27/11/2026, prueba SQL 9/9). **No** en producción.
+- glacial_71 aplicada en **PRUEBAS** y en **PRODUCCIÓN** (27/11/2026; prueba SQL 9/9 en ambas, en producción con todo revertido).
