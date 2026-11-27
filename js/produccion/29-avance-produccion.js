@@ -1909,6 +1909,7 @@ function avDetalleRatioLinea(l){
    turno y la fecha operativos (salvo que se haya elegido otro a mano) y activa la escucha para los cambios siguientes.
    Si la lectura falla LANZA el error: no se debe generar un reporte con «0 paradas» por no haber podido leer. Devuelve cuántas paradas hay. */
 window.glacialAvancePreparar=async function(){
+  window.__glxBotUltimoUso=Date.now(); // 12d-version-nueva.js no recarga la página del bot mientras arma un Avance/Cierre
   const ctx=avCtx();
   if(!avanceEstado.manual||!avanceEstado.fecha||!avanceEstado.turno){avanceEstado.fecha=ctx.fecha;avanceEstado.turno=ctx.turno;}
   const doc=await avRef().get();
