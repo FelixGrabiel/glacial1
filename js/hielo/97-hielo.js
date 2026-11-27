@@ -24,6 +24,9 @@
     capacidadTurnoKg:34000,
     /* Vida útil (meses) para el vencimiento automático (27/11/2026). */
     vidaUtilMeses:12,
+    /* Refrigerio (horas) que se descuenta de la jornada (27/11/2026): Noche 21:00–07:00 = 10 h − 1 = 9 h · Día 07:00–19:00 = 12 h − 1 = 11 h.
+       La suma del «Tiempo (h)» de todas las filas con producción debe ser igual a esa jornada para finalizar. */
+    refrigerioHoras:1,
     /* Bolsas por paleta, por presentación (3 kg → 300, 1.5 kg → 600): el N° de paletas del reporte es bolsas ÷ esto. */
     bolsasPorPaleta:{'3 kg':300,'1.5 kg':600}
   };
@@ -125,6 +128,24 @@
     r.produccion.forEach(p=>{const L=loteDeFila(r,p);if(!L.manual)p.lote=L.lote;const V=venceDeFila(r,p);if(!V.manual&&p.marca&&V.vence)p.vence=V.vence;});
     return r;
   }
+  /** Jornada del turno en horas (27/11/2026): de la hora de inicio a la de fin (cruza la medianoche) menos el refrigerio. null si faltan las horas. */
+  function jornadaHoras(r,refrigerio){
+    if(!r||!esHora(r.horaInicio)||!esHora(r.horaFin))return null;
+    const m=h=>{const [a,b]=String(h).split(':').map(Number);return a*60+b;};
+    let min=(m(r.horaFin)-m(r.horaInicio)+1440)%1440;if(min===0)min=1440;
+    const ref=refrigerio===undefined||refrigerio===null||refrigerio===''?DEFECTO.refrigerioHoras:num(refrigerio);
+    return Math.max(0,Math.round((min/60-(ref>0?ref:0))*100)/100);
+  }
+  /** Suma del «Tiempo (h)» de las filas con producción (todas juntas, sin importar la estación). */
+  const horasRegistradas=r=>Math.round((r&&r.produccion||[]).filter(p=>num(p.bolsas)>0).reduce((a,p)=>a+(num(p.horas)>0?num(p.horas):0),0)*100)/100;
+  /** Control de horas para la pantalla: { jornada, registradas, ok, texto }. */
+  function controlHoras(r,cfg){
+    const ref=cfg&&cfg.refrigerioHoras!==undefined?cfg.refrigerioHoras:DEFECTO.refrigerioHoras;
+    const j=jornadaHoras(r,ref),t=horasRegistradas(r),f=x=>String(Math.round(x*100)/100).replace('.',',');
+    if(j===null)return {jornada:null,registradas:t,ok:false,clase:'i',texto:'Tiempo registrado: '+f(t)+' h · indica la hora de inicio y de fin para comparar con la jornada.'};
+    const ok=Math.abs(t-j)<0.01;
+    return {jornada:j,registradas:t,ok,clase:ok?'k':'e',texto:(ok?'✓ ':'⚠ ')+'Tiempo registrado: '+f(t)+' h de '+f(j)+' h de jornada ('+r.horaInicio+'–'+r.horaFin+' menos '+f(num(ref)>0?num(ref):0)+' h de refrigerio)'+(ok?'':t<j?' · faltan '+f(j-t)+' h':' · sobran '+f(t-j)+' h')};
+  }
   /** Errores que impiden FINALIZAR (guardar el borrador siempre se puede). */
   function validarFinalizar(r,config){
     const e=[];const cfg=Object.assign({},DEFECTO,config||{});
@@ -169,6 +190,10 @@
         if(texto(p.horas)===''||!(num(p.horas)>0))e.push(`Producción ${i+1}: indica el tiempo (h).`);
         if(!texto(p.vence))e.push(`Producción ${i+1}: indica la fecha de vencimiento.`);
       });
+      /* 27/11/2026: el tiempo (h) de todas las filas con producción suma la jornada sin refrigerio (Noche 9 h, Día 11 h). */
+      const j=jornadaHoras(r,cfg.refrigerioHoras);
+      if(j!==null&&prod.length){const t=horasRegistradas(r);
+        if(Math.abs(t-j)>=0.01)e.push(`El tiempo (h) de la producción suma ${String(t).replace('.',',')} h y la jornada es ${String(j).replace('.',',')} h (${r.horaInicio}–${r.horaFin} menos ${String(num(cfg.refrigerioHoras)>0?num(cfg.refrigerioHoras):0).replace('.',',')} h de refrigerio): deben ser iguales.`);}
     }
     return e;
   }
@@ -196,6 +221,8 @@
     return doc;
   }
   /** Listas de Configuración: limpias, sin repetidos; las presentaciones deben tener kg. */
+  /** Refrigerio de la configuración (0 a 4 h, en cuartos de hora); vacío = 1 h. null si no es válido. */
+  function refrigerioDe(c){const v=c.refrigerioHoras===undefined||c.refrigerioHoras===''?DEFECTO.refrigerioHoras:num(c.refrigerioHoras);return v>=0&&v<=4?Math.round(v*4)/4:null;}
   function validarConfig(c,prod){
     if(esProducto(prod)&&prod!=='CUBOS')return validarConfigProducto(c,prod);
     const e=[];const lista=v=>[...new Set((v||[]).map(texto).filter(Boolean))];
@@ -220,6 +247,7 @@
     out.capacidadTurnoKg=cap;
     const vu=c.vidaUtilMeses===undefined||c.vidaUtilMeses===''?DEFECTO.vidaUtilMeses:num(c.vidaUtilMeses);
     if(!Number.isInteger(vu)||vu<1||vu>120)e.push('La vida útil debe ser un número entero de meses entre 1 y 120.');else out.vidaUtilMeses=vu;
+    const rf=refrigerioDe(c);if(rf===null)e.push('El refrigerio debe ser de 0 a 4 horas.');else out.refrigerioHoras=rf;
     if(!out.marcas.length)e.push('Agrega al menos una marca.');
     if(!out.presentaciones.length)e.push('Agrega al menos una presentación.');
     out.presentaciones.forEach(p=>{if(!kgNominal(p))e.push(`La presentación «${p}» debe tener los kg (por ejemplo «3 kg»).`);});
@@ -230,6 +258,7 @@
   function validarConfigProducto(c,prod){
     const P=PRODUCTOS[prod],e=[];const lista=v=>[...new Set((v||[]).map(texto).filter(Boolean))];
     const compartidas={estaciones:lista(c.estaciones),equipos:lista(c.equipos),motivos:lista(c.motivos),mermas:lista(c.mermas)};
+    const rf=refrigerioDe(c);if(rf===null)e.push('El refrigerio debe ser de 0 a 4 horas.');else compartidas.refrigerioHoras=rf;
     if(!compartidas.motivos.length)e.push('Agrega al menos un motivo de parada.');
     const producto={marcas:lista(c.marcas),presentaciones:ordenPres(lista(c.presentaciones))};
     if(!producto.marcas.length)e.push('Agrega al menos una marca.');
@@ -372,7 +401,7 @@
     }
     return out.join('\n');
   }
-  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel,aplicarLotes,loteDeFila,venceDeFila};
+  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel,aplicarLotes,loteDeFila,venceDeFila,jornadaHoras,horasRegistradas,controlHoras};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.glacialHieloNucleo=N;
@@ -728,6 +757,7 @@
         ${prod?`<table class="hl-ed"><thead><tr><th>Marca${RQ}</th><th>Presentación${RQ}</th><th>Estación${RQ}</th><th title="Con qué bolsa (o vaso) se envasó, si no es la de la marca">${PR().id==='VASOS'?'Vaso usado':'Bolsa usada'}</th><th>Lote</th><th>Tiempo (h)${RQ}</th><th>Vence${RQ}</th><th>${cap(PR().unidad)}${RQ}</th><th>Kilos</th><th>Nota</th><th></th></tr></thead><tbody>${prod}</tbody></table>`:'<div class="hl-vacio">Sin producción.</div>'}
         <div class="hl-acc" style="margin-top:8px">${bloq?'':'<button type="button" class="hl-btn o" onclick="hlAgregar(\'produccion\')">+ Agregar marca</button>'}
           <span class="hl-sub" id="hl-tot" style="margin:0">${txtUnidades(t)} · <b>${fmt(t.kg,1)} kg</b>${PR().unidadesPorJaba?' · '+fmt(t.bolsas/PR().unidadesPorJaba,2)+' jabas':''}</span></div></div>
+        ${(()=>{const H=controlHoras(r,config());return (r.produccion||[]).some(p=>num(p.bolsas)>0)?`<div id="hl-horas" class="hl-msg ${H.clase}" role="status" style="margin-top:8px">${esc(H.texto)}</div>`:'<div id="hl-horas"></div>';})()}
       <div class="hl-2"><div class="hl-card"><h3>Paradas</h3>
         ${par?`<table class="hl-ed"><thead><tr><th>Hora</th><th>Equipo</th><th>Motivo</th><th>Min</th><th>Detalle</th><th></th></tr></thead><tbody>${par}</tbody></table>`:'<div class="hl-vacio">Sin paradas.</div>'}
         ${bloq?'':'<div class="hl-acc" style="margin-top:8px"><button type="button" class="hl-btn o" onclick="hlAgregar(\'paradas\')">+ Agregar parada</button></div>'}
@@ -844,6 +874,7 @@
           ${esCubos?`<td data-label="Bolsas por paleta"><input type="number" step="1" min="1" ${dis} data-hl-paleta="${esc(pr)}" value="${esc((c.bolsasPorPaleta&&c.bolsasPorPaleta[pr])!==undefined?c.bolsasPorPaleta[pr]:'')}" aria-label="Bolsas por paleta de ${esc(pr)}"></td>`:''}</tr>`).join('')}</tbody></table></div>
         <div class="hl-form" style="margin-top:10px"><label>Capacidad de un turno (kg)<input type="number" step="100" min="${esCubos?1:0}" id="hl-c-capacidad" ${dis} value="${esc(c.capacidadTurnoKg)}"><span class="hl-sub" style="font-weight:400;margin:0">La eficiencia del reporte diario es los kg del turno ÷ esta capacidad.${esCubos?'':' Con 0 no se calcula la eficiencia.'}</span></label>
           <label>Vida útil (meses)<input type="number" step="1" min="1" max="120" id="hl-c-vida" ${dis} value="${esc(c.vidaUtilMeses||12)}"><span class="hl-sub" style="font-weight:400;margin:0">El vencimiento sale solo: fecha de producción + vida útil (el turno Noche cuenta desde el día siguiente).</span></label>
+          <label>Refrigerio (h)<input type="number" step="0.25" min="0" max="4" id="hl-c-refri" ${dis} value="${esc(c.refrigerioHoras!==undefined?c.refrigerioHoras:1)}"><span class="hl-sub" style="font-weight:400;margin:0">Se descuenta de la jornada: el tiempo (h) de la producción debe sumar hora fin − hora inicio − refrigerio (Noche 9 h, Día 11 h) para finalizar.</span></label>
           ${P.unidadesPorJaba?`<label>Vasos por jaba<input type="number" step="1" min="1" id="hl-c-jaba" ${dis} value="${esc(c.unidadesPorJaba)}"><span class="hl-sub" style="font-weight:400;margin:0">Con esto se calcula el N.º de jabas del reporte.</span></label>`:''}</div>
         ${ed?'<div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlGuardarConfig()">Guardar configuración</button></div>':''}
         ${cache.config&&cache.config.actualizadoPor?`<p class="hl-sub" style="margin:8px 0 0">Última modificación: ${esc(cache.config.actualizadoPor)} · versión ${esc(cache.config.rev)}</p>`:''}</div>`;
@@ -1185,6 +1216,7 @@
     r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-kg-'+i);if(e)e.value=fmt(num(p.bolsas)*kgDe(p.presentacion),1);});
     aplicarLotes(r);r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-lote-'+i);if(e){const L=loteDeFila(r,p);e.value=L.manual?e.value:L.lote;e.title=L.lote?'Lote automático: turno + marca + máquina + semana + día juliano':L.motivo;}
       const v=document.getElementById('hl-vence-'+i);if(v){const V=venceDeFila(r,p);if(!V.manual)v.value=V.vence;}});
+    const hh=document.getElementById('hl-horas');if(hh){const H=controlHoras(r,config()),hay=(r.produccion||[]).some(p=>num(p.bolsas)>0);hh.className=hay?'hl-msg '+H.clase:'';hh.setAttribute('role','status');hh.style.marginTop=hay?'8px':'';hh.textContent=hay?H.texto:'';}
     const e=document.getElementById('hl-tot');if(e)e.innerHTML=txtUnidades(t)+` · <b>${fmt(t.kg,1)} kg</b>`+(PR().unidadesPorJaba?' · '+fmt(t.bolsas/PR().unidadesPorJaba,2)+' jabas':'');
   }
   window.hlDato=(k,v)=>{if(!S.ed)return;S.ed[k]=v;cambio(false);};
@@ -1245,7 +1277,7 @@
     const v=id=>((document.getElementById(id)||{}).value||'').split('\n');
     const mapa=atributo=>{const o={};document.querySelectorAll('['+atributo+']').forEach(i=>{o[i.getAttribute(atributo)]=i.value;});return o;};
     try{await guardarConfig({marcas:v('hl-c-marcas'),presentaciones:v('hl-c-pres'),estaciones:v('hl-c-estaciones'),equipos:v('hl-c-equipos'),motivos:v('hl-c-motivos'),mermas:v('hl-c-mermas'),
-      pesos:mapa('data-hl-peso'),pesosNeto:mapa('data-hl-neto'),bolsasPorPaleta:mapa('data-hl-paleta'),capacidadTurnoKg:(document.getElementById('hl-c-capacidad')||{}).value,unidadesPorJaba:(document.getElementById('hl-c-jaba')||{}).value,vidaUtilMeses:(document.getElementById('hl-c-vida')||{}).value},S.producto);ok('Configuración guardada.');}catch(e){mal(e);}
+      pesos:mapa('data-hl-peso'),pesosNeto:mapa('data-hl-neto'),bolsasPorPaleta:mapa('data-hl-paleta'),capacidadTurnoKg:(document.getElementById('hl-c-capacidad')||{}).value,unidadesPorJaba:(document.getElementById('hl-c-jaba')||{}).value,vidaUtilMeses:(document.getElementById('hl-c-vida')||{}).value,refrigerioHoras:(document.getElementById('hl-c-refri')||{}).value},S.producto);ok('Configuración guardada.');}catch(e){mal(e);}
   };
   window.hlExcel=async()=>{
     if(sinExportar())return;

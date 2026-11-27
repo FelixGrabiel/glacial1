@@ -158,3 +158,13 @@ Pruebas: `tests/reporte-hielo.test.js` y `tests/hielo-bolsa-nota.e2e.js`.
 - **Corrección:** la tabla se armaba una sola vez y no volvía a leer los datos. Si la programación llegaba después (por ejemplo, la carga por WhatsApp), decía «Sin programación» aunque estuviera guardada. Ahora se actualiza sola mientras no la estés editando. Si cambió mientras la editabas, avisa y conserva tus cambios hasta que elijas «Ver la nueva».
 
 Prueba: `tests/hielo-programacion-vista.e2e.js`.
+
+## Tiempo (h) = jornada sin refrigerio (27/11/2026)
+
+- La suma del **Tiempo (h)** de todas las filas con producción (todas las estaciones juntas) debe ser igual a la **jornada**: hora fin − hora inicio (cruza la medianoche) − **refrigerio**.
+  - Noche 21:00–07:00 → 10 h − 1 h = **9 h**
+  - Día 07:00–19:00 → 12 h − 1 h = **11 h**
+- Debajo de la producción sale en vivo «Tiempo registrado: X h de Y h de jornada …» (rojo si falta o sobra, verde ✓ si cuadra).
+- Si no cuadra, **no se puede finalizar** (el borrador sí se guarda). El mensaje dice cuánto suma y cuánto es la jornada.
+- El refrigerio se cambia en **Configuración de Hielo › Refrigerio (h)** (0 a 4 h; por defecto 1 h).
+- Código: `jornadaHoras`, `horasRegistradas`, `controlHoras` y `validarFinalizar` en `js/hielo/97-hielo.js`. Prueba: `tests/hielo-jornada.test.js`.

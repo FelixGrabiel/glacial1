@@ -44,7 +44,8 @@ ok(av.filas[0].presentacion==='5 kg'&&H.avance([],[]).cumplimiento===null,'avanc
 const cfg={equipos:['Embolsadora'],motivos:['Mantenimiento','Otros']};
 const errs=r=>H.validarFinalizar(r,cfg).join(' ');
 // 24/11/2026: al finalizar también son obligatorios horas de inicio y fin, personas, personal y, por fila, estación, tiempo (h) y vencimiento.
-const completo=r=>Object.assign({},r,{horaInicio:'07:00',horaFin:'19:00',personas:3,personal:['Ana','Luis','Rosa'],produccion:(r.produccion||[]).map(p=>Object.assign({estacion:'Tolva manual',horas:4,vence:'2027-11-16'},p))});
+// 27/11/2026: el tiempo (h) de las filas con producción suma la jornada (07:00–19:00 − 1 h de refrigerio = 11 h).
+const completo=r=>{const n=(r.produccion||[]).filter(p=>Number(p.bolsas)>0).length||1;return Object.assign({},r,{horaInicio:'07:00',horaFin:'19:00',personas:3,personal:['Ana','Luis','Rosa'],produccion:(r.produccion||[]).map(p=>Object.assign({estacion:'Tolva manual',horas:11/n,vence:'2027-11-16'},p))});};
 ok(!H.validarFinalizar(Object.assign({},completo(r1),{paradas:[{inicio:'09:10',equipo:'Embolsadora',motivo:'Mantenimiento',minutos:15}]}),cfg).length,'validarFinalizar: un reporte completo se puede finalizar');
 {const e=H.validarFinalizar(Object.assign({},r1,{horaInicio:'',horaFin:'',personas:'',personal:'',produccion:[{marca:'Glacial',presentacion:'3 kg',bolsas:100}]}),Object.assign({},cfg,{estaciones:['Tolva manual']})).join(' ');
  ok(/hora de inicio/.test(e)&&/hora de fin/.test(e)&&/N\.º de personas/.test(e)&&/personal del turno/.test(e)&&/Producción 1: elige la estación/.test(e)&&/Producción 1: indica el tiempo \(h\)/.test(e)&&/Producción 1: indica la fecha de vencimiento/.test(e),'validarFinalizar: pide horas del turno, personas, personal y, por fila, estación, tiempo (h) y vencimiento');

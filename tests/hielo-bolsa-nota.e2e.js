@@ -36,7 +36,8 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   ok(r && r.produccion[0].bolsa === 'Glacial' && r.produccion[0].nota === 'Se acabó la bolsa Tottus 10:30' && r.produccion[0].marca === 'Tottus CD', 'se guarda la bolsa Glacial y la nota en la fila de Tottus CD');
   // 24/11/2026: al finalizar son obligatorios tiempo (h), vencimiento, estación, horas del turno, personas y personal
   const fin = await P.evaluate(async () => { await hlGuardar('FINALIZAR'); return { msg: (document.querySelector('.hl-msg') || {}).innerText || '', estado: window.__servidor[window.__hoy + '_DÍA'].estado }; });
-  ok(fin.estado !== 'FINALIZADO' && /indica el tiempo \(h\)/.test(fin.msg) && /vencimiento/.test(fin.msg) && /personal del turno/.test(fin.msg), 'finalizar sin tiempo, vencimiento ni personal: no se finaliza y lo avisa');
+  // 27/11/2026: el vencimiento sale solo (fecha + vida útil), ya no falta; el tiempo (h) y el personal sí
+  ok(fin.estado !== 'FINALIZADO' && /indica el tiempo \(h\)/.test(fin.msg) && !/vencimiento/.test(fin.msg) && /personal del turno/.test(fin.msg), 'finalizar sin tiempo ni personal: no se finaliza y lo avisa (el vencimiento ya sale solo)' + (process.env.GLX_DEPURAR ? ' :: ' + fin.msg : ''));
   ok(await P.evaluate(() => document.querySelectorAll('.hl-req').length >= 4), 'el formulario marca con * los campos obligatorios');
   if (process.env.GLX_CAPTURA) await P.screenshot({ path: process.env.GLX_CAPTURA.replace(/\.png$/, '-finalizar.png'), fullPage: false });
   await P.evaluate(() => hlVista('avance'));
