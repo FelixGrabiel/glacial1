@@ -926,7 +926,7 @@
       <div class="hl-filtros"><label>Fecha<input type="date" value="${esc(S.aFecha)}" onchange="hlAvSet('aFecha',this.value)"></label>
         <label>Turno<select onchange="hlAvSet('aTurno',this.value)">${TURNOS_AV.map(([k,t])=>`<option value="${k}" ${k===S.aTurno?'selected':''}>${t}</option>`).join('')}</select></label></div>
       <div class="hl-card"><h3>Texto para WhatsApp</h3><textarea id="hl-av-texto" readonly rows="16" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.45">${esc(texto)}</textarea>
-        ${puedeExportar()?'<div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlAvCopiar()">📋 Copiar texto</button><button type="button" class="hl-btn o" onclick="hlAvWsp()">📲 Abrir en WhatsApp</button><button type="button" class="hl-btn o" onclick="hlAvImagen()">🖼 Descargar imagen</button></div>':''}
+        ${puedeExportar()?'<div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlAvCopiar()">📋 Copiar texto</button><button type="button" class="hl-btn o" onclick="hlAvWsp()">📲 Abrir en WhatsApp</button><button type="button" class="hl-btn" style="background:#1fa855;border-color:#1fa855;color:#fff" onclick="hlAvCompartir()">📲 Compartir imagen por WhatsApp</button><button type="button" class="hl-btn o" onclick="hlAvImagen()">🖼 Descargar imagen</button></div>':''}
         <p class="hl-sub" style="margin:10px 0 0">Se arma al momento con lo guardado: si falta algo, regístralo en «Nuevo registro» y vuelve aquí. El cierre se marca cuando todos los reportes del turno están finalizados.</p></div>`;
   }
   window.hlAvSet=(k,v)=>{S[k]=v;pintar();};
@@ -1039,6 +1039,27 @@
       const m=modeloAv(),c=dibujarImagen(m);
       c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='hielo-'+m.tipo.toLowerCase()+'-'+m.fecha+'.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);ok('Imagen descargada.');},'image/png');
     }catch(e){mal('No se pudo generar la imagen: '+((e&&e.message)||e));}
+  };
+  /* 27/11/2026 · Compartir la imagen del Avance / Cierre directo a WhatsApp, como el de Agua (29-avance-produccion › avCompartirImagen):
+     en el celular abre el menú de compartir del teléfono con la IMAGEN (se elige WhatsApp y el chat); en PC o si el navegador no comparte archivos,
+     la descarga y abre WhatsApp con el texto del avance para adjuntarla. */
+  window.hlAvCompartir=()=>{
+    if(sinExportar())return;
+    try{
+      const m=modeloAv(),nombre='GLACIAL_HIELO_'+m.tipo+'_'+m.fecha+'.png';
+      dibujarImagen(m).toBlob(async b=>{
+        try{
+          if(!b)throw new Error('No se pudo crear la imagen.');
+          const archivo=new File([b],nombre,{type:'image/png'});
+          if(typeof navigator.share==='function'&&typeof navigator.canShare==='function'&&navigator.canShare({files:[archivo]})){
+            try{await navigator.share({files:[archivo],title:'GLACIAL Hielo · '+m.tipo});ok('Elige WhatsApp en el menú para enviarla.');return;}catch(e){if(e&&e.name==='AbortError')return;}
+          }
+          const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+          const w=window.open('https://wa.me/?text='+encodeURIComponent(N.textoAvanceCierre(m)),'_blank','noopener');
+          ok(w===null?'Se descargó '+nombre+'. Abre WhatsApp y adjúntala en el chat.':'Se descargó '+nombre+' y se abrió WhatsApp con el texto: adjunta la imagen en el chat.');
+        }catch(e){mal('No se pudo compartir la imagen: '+((e&&e.message)||e));}
+      },'image/png');
+    }catch(e){mal('No se pudo compartir la imagen: '+((e&&e.message)||e));}
   };
   /* ---------- Reporte diario (formato del Excel de la planta; js/hielo/99-hielo-reporte-diario.js) ---------- */
   const RD=()=>window.glacialHieloReporte||null;

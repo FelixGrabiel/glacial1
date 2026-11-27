@@ -47,6 +47,14 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   const [descarga] = await Promise.all([P.waitForEvent('download', { timeout: 8000 }), P.click('text=Descargar imagen')]);
   const ruta = (process.env.GLX_CAPTURAS || '/tmp') + '/hielo-avance-imagen.png'; await descarga.saveAs(ruta);
   ok(/^hielo-avance-\d{4}-\d{2}-\d{2}\.png$/.test(descarga.suggestedFilename()) && fs.statSync(ruta).size > 5000, 'Descargar imagen baja un PNG (' + descarga.suggestedFilename() + ')');
+  // 27/11/2026: «Compartir imagen por WhatsApp» como el de Agua: con menú de compartir (celular) manda la IMAGEN; sin él, la descarga y abre WhatsApp con el texto
+  await P.evaluate(() => { const m = document.getElementById('sup-modal'); if (m) m.remove(); window.__comp = null; navigator.canShare = d => !!(d && d.files && d.files.length); navigator.share = async d => { window.__comp = { n: d.files.length, nombre: d.files[0].name, tipo: d.files[0].type, tam: d.files[0].size, titulo: d.title }; }; });
+  await P.click('text=Compartir imagen por WhatsApp'); await P.waitForFunction(() => window.__comp, null, { timeout: 6000 }).catch(() => {});
+  const comp = await P.evaluate(() => window.__comp);
+  ok(comp && comp.n === 1 && /^GLACIAL_HIELO_(AVANCE|CIERRE)_\d{4}-\d{2}-\d{2}\.png$/.test(comp.nombre) && comp.tipo === 'image/png' && comp.tam > 5000, 'celular: «Compartir imagen por WhatsApp» abre el menú de compartir con la IMAGEN del avance (' + (comp && comp.nombre) + ')');
+  await P.evaluate(() => { const m = document.getElementById('sup-modal'); if (m) m.remove(); navigator.canShare = () => false; window.__wsp = ''; });
+  const [d2] = await Promise.all([P.waitForEvent('download', { timeout: 8000 }), P.click('text=Compartir imagen por WhatsApp')]);
+  ok(/^GLACIAL_HIELO_/.test(d2.suggestedFilename()) && await P.evaluate(() => /^https:\/\/wa\.me\/\?text=/.test(window.__wsp)), 'PC (sin menú de compartir): descarga la imagen y abre WhatsApp con el texto para adjuntarla');
   await P.setViewportSize({ width: 390, height: 844 }); await P.waitForTimeout(200);
   ok(await P.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1, 'celular: sin desborde lateral');
   ok(D.errores.length === 0, 'sin errores de consola' + (D.errores.length ? ' → ' + D.errores.slice(0, 3).join(' | ') : ''));
