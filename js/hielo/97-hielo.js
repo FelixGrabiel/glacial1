@@ -22,6 +22,8 @@
     pesos:{'3 kg':3.25,'1.5 kg':1.75},
     /* Capacidad de producción de un turno (kg): la eficiencia es kg del turno ÷ capacidad (33.68 % y 44.44 % en el reporte de la planta). */
     capacidadTurnoKg:34000,
+    /* Vida útil (meses) para el vencimiento automático (27/11/2026). */
+    vidaUtilMeses:12,
     /* Bolsas por paleta, por presentación (3 kg → 300, 1.5 kg → 600): el N° de paletas del reporte es bolsas ÷ esto. */
     bolsasPorPaleta:{'3 kg':300,'1.5 kg':600}
   };
@@ -115,10 +117,12 @@
      código llevan el lote a mano (obligatorio para finalizar si se produjo). */
   const LH=()=>{if(typeof glacialLoteHielo!=='undefined')return glacialLoteHielo;try{return typeof require==='function'?require('./97l-hielo-lote.js'):null;}catch(_){return null;}};
   function loteDeFila(r,p){const L=LH();return L?L.loteHielo({producto:productoDe(r),marca:p.marca,presentacion:p.presentacion,estacion:p.estacion,turno:r.turno,fecha:r.fecha,bolsas:p.bolsas}):{lote:'',manual:true,motivo:''};}
+  /** Vencimiento de la fila: fecha + vida útil (Noche desde el día siguiente); Molitalia, Hoteles y Certificado a mano. */
+  function venceDeFila(r,p,meses){const L=LH();if(!L)return {vence:'',manual:true};let m=meses;if(!m){try{m=config(productoDe(r)).vidaUtilMeses;}catch(_){m=12;}}return L.vencimientoHielo({marca:p.marca,fecha:r.fecha,turno:r.turno,meses:m||12});}
   /** Pone el lote automático en las filas que no son «a mano» (no toca un reporte finalizado). */
   function aplicarLotes(r){
     if(!r||r.estado==='FINALIZADO'||!Array.isArray(r.produccion))return r;
-    r.produccion.forEach(p=>{const L=loteDeFila(r,p);if(!L.manual)p.lote=L.lote;});
+    r.produccion.forEach(p=>{const L=loteDeFila(r,p);if(!L.manual)p.lote=L.lote;const V=venceDeFila(r,p);if(!V.manual&&p.marca&&V.vence)p.vence=V.vence;});
     return r;
   }
   /** Errores que impiden FINALIZAR (guardar el borrador siempre se puede). */
@@ -214,6 +218,8 @@
     const cap=c.capacidadTurnoKg===undefined||c.capacidadTurnoKg===''?DEFECTO.capacidadTurnoKg:num(c.capacidadTurnoKg);
     if(!(cap>0)||cap>10000000)e.push('La capacidad por turno debe ser un número de kg mayor que 0.');
     out.capacidadTurnoKg=cap;
+    const vu=c.vidaUtilMeses===undefined||c.vidaUtilMeses===''?DEFECTO.vidaUtilMeses:num(c.vidaUtilMeses);
+    if(!Number.isInteger(vu)||vu<1||vu>120)e.push('La vida útil debe ser un número entero de meses entre 1 y 120.');else out.vidaUtilMeses=vu;
     if(!out.marcas.length)e.push('Agrega al menos una marca.');
     if(!out.presentaciones.length)e.push('Agrega al menos una presentación.');
     out.presentaciones.forEach(p=>{if(!kgNominal(p))e.push(`La presentación «${p}» debe tener los kg (por ejemplo «3 kg»).`);});
@@ -242,6 +248,8 @@
     const cap=c.capacidadTurnoKg===undefined||c.capacidadTurnoKg===''?P.capacidadTurnoKg:num(c.capacidadTurnoKg);
     if(!(cap>=0)||cap>10000000)e.push('La capacidad por turno debe ser un número de kg (0 si no se usa).');
     producto.capacidadTurnoKg=cap>=0?cap:0;
+    const vu=c.vidaUtilMeses===undefined||c.vidaUtilMeses===''?DEFECTO.vidaUtilMeses:num(c.vidaUtilMeses);
+    if(!Number.isInteger(vu)||vu<1||vu>120)e.push('La vida útil debe ser un número entero de meses entre 1 y 120.');else producto.vidaUtilMeses=vu;
     if(P.unidadesPorJaba){
       const j=c.unidadesPorJaba===undefined||c.unidadesPorJaba===''?P.unidadesPorJaba:num(c.unidadesPorJaba);
       if(!(j>0)||!Number.isInteger(j)||j>100000)e.push('Los vasos por jaba deben ser un número entero mayor que 0.');else producto.unidadesPorJaba=j;
@@ -364,7 +372,7 @@
     }
     return out.join('\n');
   }
-  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel,aplicarLotes,loteDeFila};
+  const N={TURNOS,DEFECTO,PRODUCTOS,productoDe,esProducto,marcasDe,modeloAvanceCierre,textoAvanceCierre,kgDe,kgNeto,kgNominal,aplicarConfigPesos,idReporte,ordenPres,totales,programado,avance,validarFinalizar,planGuardar,validarConfig,filasExcel,aplicarLotes,loteDeFila,venceDeFila};
   if(typeof module!=='undefined'&&module.exports)module.exports=N;
   if(typeof window==='undefined')return;
   window.glacialHieloNucleo=N;
@@ -409,7 +417,7 @@
     const marcasF=[...new Set(P.catalogo.map(x=>x[0]))];
     return Object.assign(base,{producto:prod,marcas:ov.marcas&&ov.marcas.length?ov.marcas:marcasF,presentaciones:ov.presentaciones&&ov.presentaciones.length?ov.presentaciones:P.presentaciones.slice(),
       pesos:Object.assign({},P.pesos,ov.pesos||{}),pesosNeto:Object.assign({},ov.pesosNeto||{}),capacidadTurnoKg:ov.capacidadTurnoKg!==undefined?ov.capacidadTurnoKg:P.capacidadTurnoKg,bolsasPorPaleta:Object.assign({},P.bolsasPorPaleta,ov.bolsasPorPaleta||{}),
-      unidadesPorJaba:ov.unidadesPorJaba!==undefined?ov.unidadesPorJaba:P.unidadesPorJaba});
+      unidadesPorJaba:ov.unidadesPorJaba!==undefined?ov.unidadesPorJaba:P.unidadesPorJaba,vidaUtilMeses:ov.vidaUtilMeses!==undefined?ov.vidaUtilMeses:DEFECTO.vidaUtilMeses});
   };
   function escuchar(){
     if(cierres.length||typeof db==='undefined')return;
@@ -684,7 +692,9 @@
         if(L.manual||fin)return `<input ${dis} maxlength="40" value="${esc(p.lote)}" placeholder="${L.manual?'a mano (obligatorio)':''}" oninput="hlCampo('produccion',${i},'lote',this.value)" aria-label="Lote del producto"${L.manual?' class="hl-lote-man"':''}>`;
         return `<input readonly tabindex="-1" id="hl-lote-${i}" class="hl-lote-auto" value="${esc(L.lote)}" placeholder="automático" title="${esc(L.lote?'Lote automático: turno + marca + máquina + semana + día juliano':L.motivo)}" aria-label="Lote automático">`;})()}</td>
       <td data-label="Tiempo (h) *"><input ${dis} type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${esc(p.horas)}" placeholder="horas" oninput="hlCampo('produccion',${i},'horas',this.value)" aria-label="Tiempo en horas"></td>
-      <td data-label="Vence *"><input ${dis} type="date" value="${esc(p.vence)}" onchange="hlCampo('produccion',${i},'vence',this.value)" aria-label="Fecha de vencimiento"></td>
+      <td data-label="Vence *">${(()=>{const V=venceDeFila(r,p);
+        if(V.manual||fin||!p.marca)return `<input ${dis} type="date" value="${esc(p.vence)}" onchange="hlCampo('produccion',${i},'vence',this.value)" aria-label="Fecha de vencimiento"${V.manual?' class="hl-lote-man" title="Vencimiento a mano (obligatorio)"':''}>`;
+        return `<input readonly tabindex="-1" type="date" id="hl-vence-${i}" class="hl-lote-auto" value="${esc(V.vence)}" title="Vencimiento automático: fecha de producción + vida útil${r.turno==='NOCHE'?' (turno Noche: desde el día siguiente)':''}" aria-label="Fecha de vencimiento automática">`;})()}</td>
       <td data-label="${cap(PR().unidad)} *"><input ${dis} type="number" min="0" step="1" inputmode="numeric" value="${esc(p.bolsas)}" oninput="hlCampo('produccion',${i},'bolsas',this.value)" aria-label="${cap(PR().unidad)}"></td>
       <td data-label="Kilos"><input readonly tabindex="-1" id="hl-kg-${i}" value="${fmt(num(p.bolsas)*kgDe(p.presentacion),1)}" aria-label="Kilos"></td>
       <td data-label="Nota"><input ${dis} maxlength="120" value="${esc(p.nota||'')}" placeholder="opcional" oninput="hlCampo('produccion',${i},'nota',this.value)" aria-label="Nota de la producción"></td>
@@ -833,6 +843,7 @@
           <td data-label="Kg netos por ${P.una}"><input type="number" step="0.01" min="0" ${dis} data-hl-neto="${esc(pr)}" value="${esc((c.pesosNeto&&c.pesosNeto[pr])!==undefined?c.pesosNeto[pr]:'')}" aria-label="Kg netos por ${P.una} de ${esc(pr)}" placeholder="${esc(kgNominal(pr)>0?kgNominal(pr):kgDe(pr))}"></td>
           ${esCubos?`<td data-label="Bolsas por paleta"><input type="number" step="1" min="1" ${dis} data-hl-paleta="${esc(pr)}" value="${esc((c.bolsasPorPaleta&&c.bolsasPorPaleta[pr])!==undefined?c.bolsasPorPaleta[pr]:'')}" aria-label="Bolsas por paleta de ${esc(pr)}"></td>`:''}</tr>`).join('')}</tbody></table></div>
         <div class="hl-form" style="margin-top:10px"><label>Capacidad de un turno (kg)<input type="number" step="100" min="${esCubos?1:0}" id="hl-c-capacidad" ${dis} value="${esc(c.capacidadTurnoKg)}"><span class="hl-sub" style="font-weight:400;margin:0">La eficiencia del reporte diario es los kg del turno ÷ esta capacidad.${esCubos?'':' Con 0 no se calcula la eficiencia.'}</span></label>
+          <label>Vida útil (meses)<input type="number" step="1" min="1" max="120" id="hl-c-vida" ${dis} value="${esc(c.vidaUtilMeses||12)}"><span class="hl-sub" style="font-weight:400;margin:0">El vencimiento sale solo: fecha de producción + vida útil (el turno Noche cuenta desde el día siguiente).</span></label>
           ${P.unidadesPorJaba?`<label>Vasos por jaba<input type="number" step="1" min="1" id="hl-c-jaba" ${dis} value="${esc(c.unidadesPorJaba)}"><span class="hl-sub" style="font-weight:400;margin:0">Con esto se calcula el N.º de jabas del reporte.</span></label>`:''}</div>
         ${ed?'<div class="hl-acc" style="margin-top:10px"><button type="button" class="hl-btn" onclick="hlGuardarConfig()">Guardar configuración</button></div>':''}
         ${cache.config&&cache.config.actualizadoPor?`<p class="hl-sub" style="margin:8px 0 0">Última modificación: ${esc(cache.config.actualizadoPor)} · versión ${esc(cache.config.rev)}</p>`:''}</div>`;
@@ -1172,7 +1183,8 @@
   function actualizarTotales(){
     const r=S.ed;if(!r)return;const t=totales([r]);
     r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-kg-'+i);if(e)e.value=fmt(num(p.bolsas)*kgDe(p.presentacion),1);});
-    aplicarLotes(r);r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-lote-'+i);if(e){const L=loteDeFila(r,p);e.value=L.manual?e.value:L.lote;e.title=L.lote?'Lote automático: turno + marca + máquina + semana + día juliano':L.motivo;}});
+    aplicarLotes(r);r.produccion.forEach((p,i)=>{const e=document.getElementById('hl-lote-'+i);if(e){const L=loteDeFila(r,p);e.value=L.manual?e.value:L.lote;e.title=L.lote?'Lote automático: turno + marca + máquina + semana + día juliano':L.motivo;}
+      const v=document.getElementById('hl-vence-'+i);if(v){const V=venceDeFila(r,p);if(!V.manual)v.value=V.vence;}});
     const e=document.getElementById('hl-tot');if(e)e.innerHTML=txtUnidades(t)+` · <b>${fmt(t.kg,1)} kg</b>`+(PR().unidadesPorJaba?' · '+fmt(t.bolsas/PR().unidadesPorJaba,2)+' jabas':'');
   }
   window.hlDato=(k,v)=>{if(!S.ed)return;S.ed[k]=v;cambio(false);};
@@ -1233,7 +1245,7 @@
     const v=id=>((document.getElementById(id)||{}).value||'').split('\n');
     const mapa=atributo=>{const o={};document.querySelectorAll('['+atributo+']').forEach(i=>{o[i.getAttribute(atributo)]=i.value;});return o;};
     try{await guardarConfig({marcas:v('hl-c-marcas'),presentaciones:v('hl-c-pres'),estaciones:v('hl-c-estaciones'),equipos:v('hl-c-equipos'),motivos:v('hl-c-motivos'),mermas:v('hl-c-mermas'),
-      pesos:mapa('data-hl-peso'),pesosNeto:mapa('data-hl-neto'),bolsasPorPaleta:mapa('data-hl-paleta'),capacidadTurnoKg:(document.getElementById('hl-c-capacidad')||{}).value,unidadesPorJaba:(document.getElementById('hl-c-jaba')||{}).value},S.producto);ok('Configuración guardada.');}catch(e){mal(e);}
+      pesos:mapa('data-hl-peso'),pesosNeto:mapa('data-hl-neto'),bolsasPorPaleta:mapa('data-hl-paleta'),capacidadTurnoKg:(document.getElementById('hl-c-capacidad')||{}).value,unidadesPorJaba:(document.getElementById('hl-c-jaba')||{}).value,vidaUtilMeses:(document.getElementById('hl-c-vida')||{}).value},S.producto);ok('Configuración guardada.');}catch(e){mal(e);}
   };
   window.hlExcel=async()=>{
     if(sinExportar())return;

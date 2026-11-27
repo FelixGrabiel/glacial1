@@ -22,3 +22,10 @@ Ejemplos (26/11/2026: semana 48, día 330): Glacial 3 kg · tolva manual · Día
 - **Molitalia, Certificado y Hoteles**: casilla para escribir el lote a mano; es **obligatorio para finalizar** si se produjo.
 - Marcas sin código en la tabla (p. ej. **San Fernando**): también a mano y obligatorio.
 - Un reporte finalizado conserva su lote.
+
+## Vencimiento automático (27/11/2026)
+- **Fecha de producción + vida útil** (12 meses por defecto; editable por producto en Configuración de Hielo › «Vida útil (meses)»).
+- **Turno Noche** (desde las 19:00): cuenta desde el **día siguiente**. Día e Intermedio: desde la fecha del turno.
+- Si el día no existe en el mes final (p. ej. 29/02), queda el último día del mes.
+- **Molitalia, Hoteles y Certificado**: vencimiento a mano (obligatorio para finalizar, como ya lo era).
+- Ejemplos: 26/11/2026 Día → 26/11/2027 · 26/11/2026 Noche → 27/11/2027.

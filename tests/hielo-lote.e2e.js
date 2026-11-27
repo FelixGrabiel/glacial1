@@ -31,6 +31,8 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.fill('input[aria-label="Bolsas"]', '300');
   await P.waitForTimeout(100);
   ok(await P.evaluate(() => document.getElementById('hl-lote-0').value) === esperado && await P.evaluate(() => document.getElementById('hl-lote-0').readOnly), 'al poner las bolsas, el lote sale solo y no se edita: ' + esperado);
+  const venceEsperado = await P.evaluate(() => glacialLoteHielo.vencimientoHielo({ marca: 'Glacial', fecha: window.__hoy, turno: 'DÍA', meses: 12 }).vence);
+  ok(await P.evaluate(() => { const v = document.getElementById('hl-vence-0'); return v && v.readOnly ? v.value : ''; }) === venceEsperado, 'el vencimiento sale solo (fecha + 12 meses) y no se edita: ' + venceEsperado);
   await P.evaluate(() => { hlCampo('produccion', 0, 'estacion', 'Env. automática'); });
   ok(await P.evaluate(() => document.getElementById('hl-lote-0').value) === esperado.slice(0, 2) + '3' + esperado.slice(3), 'al cambiar a envasadora automática, la máquina pasa a 3');
   // Molitalia: lote a mano obligatorio
@@ -43,6 +45,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.fill('.hl-ed input[aria-label="Lote del producto"]', 'MOL2611');
   const r = await P.evaluate(async () => { await hlGuardar('GUARDAR'); return window.__servidor[window.__hoy + '_DÍA']; });
   ok(r && r.produccion[0].lote === esperado.slice(0, 2) + '3' + esperado.slice(3) && r.produccion[1].lote === 'MOL2611', 'se guardan el lote automático y el escrito a mano');
+  ok(r.produccion[0].vence === venceEsperado && await P.evaluate(() => { const i = [...document.querySelectorAll('.hl-ed input[aria-label="Fecha de vencimiento"]')]; return i.length === 1 && !i[0].readOnly; }), 'se guarda el vencimiento automático; Molitalia tiene su fecha de vencimiento a mano');
   await P.setViewportSize({ width: 390, height: 800 });
   await P.waitForTimeout(300);
   ok(await P.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'celular: sin desborde lateral');
