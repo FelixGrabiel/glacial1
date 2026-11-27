@@ -32,4 +32,14 @@ if(ExcelJS){
   ok((h.match(/vxl-barra/g)||[]).length===2&&/width:50%/.test(h)&&/width:100%/.test(h),'barras de datos proporcionales');
   ok(/<img class="vxl-img"[^>]*src="data:image\/png;base64,/.test(h),'imágenes de la hoja');
 }else console.log('(sin ExcelJS: se omite la vista de una hoja real)');
+
+/* Correcciones guardadas (glacial_71): se aplican si el original coincide; si el dato del sistema cambió, no. */
+{
+  const celdas={B2:{value:1200},A2:{value:'Scala'},B3:{value:{formula:'B2*2',result:2400}}};
+  const ws={name:'Reporte',getCell:(r,c)=>celdas[V.letra(c)+r]||(celdas[V.letra(c)+r]={value:null})};
+  const wb={getWorksheet:n=>n==='Reporte'?ws:null};
+  const res=V.aplicarCorrecciones(wb,[{hoja:'Reporte',celda:'B2',valor:1350,original:1200},{hoja:'Reporte',celda:'A2',valor:'Scala Premium',original:'Otra'},{hoja:'Reporte',celda:'B3',valor:9,original:2400},{hoja:'Nada',celda:'A1',valor:1}]);
+  ok(celdas.B2.value===1350&&celdas.A2.value==='Scala'&&res.aplicadas.length===1&&res.conflictos.length===2,'correcciones: se aplica la que coincide con el original; la del dato cambiado y la de la fórmula no');
+  ok(V.idReporte({nombre:'Reporte-diario-Hielo-2026-11-26-dia.xlsx'})==='Reporte-diario-Hielo-2026-11-26-dia'&&V.mismoValor(1350,1350.0000000001)&&V.mismoValor('',null)&&!V.mismoValor('1','2'),'el reporte se identifica por el nombre del archivo; comparación de valores');
+}
 console.log(fallas?fallas+' fallas':'todo correcto');process.exit(fallas?1:0);

@@ -93,7 +93,7 @@
         notas:'El mismo Excel que descarga el módulo Hielo (Reporte diario).',alDescargar:()=>bajar(wb,nombre)});
     }catch(e){alert('No se pudo abrir la vista previa: '+((e&&e.message)||e));}
   };
-  window.apHieloExcel=async prod=>{try{const {wb,nombre}=await libro(prod);await bajar(wb,nombre);}catch(e){alert('No se pudo generar el Excel: '+((e&&e.message)||e));}};
+  window.apHieloExcel=async prod=>{try{const {wb,nombre}=await libro(prod);if(window.glacialVistaExcel&&window.glacialVistaExcel.conCorrecciones)await window.glacialVistaExcel.conCorrecciones(wb,nombre);await bajar(wb,nombre);}catch(e){alert('No se pudo generar el Excel: '+((e&&e.message)||e));}};
   window.apHieloIr=()=>{if(typeof window.goReporteHielo==='function')window.goReporteHielo('CUBOS');};
 
   /* ---------- pantalla ---------- */
