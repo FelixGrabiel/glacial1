@@ -1457,11 +1457,17 @@ function avModeloGeneral(s){
     })
   };
 }
+/* 27/11/2026 · a pedido de la planta, el Avance y Cierre (texto e imagen) vuelven a salir POR FORMATO como antes (detalle por formato, marcas,
+   paradas de cada formato, ratio real con paradas / sin paradas / diferencia y resumen). El formato general por línea queda disponible
+   (avTextoWhatsAppGeneral / avCanvasSnapshotGeneral) pero no se usa. */
 function avTextoWhatsApp(s){
+  return avTextoWhatsAppFormatos(s);
+}
+function avTextoWhatsAppGeneral(s){
   if(window.glacialParadasTramo)return window.glacialParadasTramo.textoGeneral(avModeloGeneral(s));
   return avTextoWhatsAppFormatos(s);
 }
-/* Texto anterior por formato (solo si 16g no cargó). */
+/* Texto por formato (el que se envía). */
 function avTextoWhatsAppFormatos(s){
   const fecha=s.fecha.split('-').reverse().join('/');
   const out=[
@@ -1939,7 +1945,10 @@ const AV_IMAGEN_ESCALA_TEXTO = 1.4;
 const AV_IMAGEN_RESOLUCION = 2;
 
 function avCanvasSnapshot(s){
-  // Imagen GENERAL por línea (regla 11). La imagen por formato queda solo como respaldo si 16g no cargó.
+  // Imagen POR FORMATO (27/11/2026: la planta pidió seguir con esta). La general por línea: avCanvasSnapshotGeneral.
+  return avCanvasSnapshotFormatos(s);
+}
+function avCanvasSnapshotGeneral(s){
   if(window.glacialParadasTramo)return window.glacialParadasTramo.canvasGeneral(avModeloGeneral(s));
   return avCanvasSnapshotFormatos(s);
 }
