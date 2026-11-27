@@ -1,4 +1,4 @@
--- GLACIAL · glacial_72 · CONVOCATORIA SEMANAL ARMADA POR EL SUPERVISOR (27/11/2026)      *** APLICADA en PRUEBAS (27/11/2026) · PRODUCCIÓN: pendiente de aprobación ***
+-- GLACIAL · glacial_72 · CONVOCATORIA SEMANAL ARMADA POR EL SUPERVISOR (27/11/2026)      *** APLICADA en PRUEBAS (27/11/2026) · PRODUCCIÓN (27/11/2026) ***
 --
 -- Qué hace (docs/personal-tareo/convocatoria-semanal.md)
 --   La convocatoria de la semana (quién va a cada equipo, con su horario) se arma DENTRO de GLACIAL. De ahí salen la imagen para WhatsApp y el Tareo diario.

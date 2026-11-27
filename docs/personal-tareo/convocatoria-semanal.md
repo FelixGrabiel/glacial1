@@ -13,7 +13,7 @@
 | `js/personal/49-convocatoria-nucleo.js` | Lógica pura (node): `cambioDeTurno`, `esNuevo`, `validarConvocatoria`, `totales`, `copiarSemana`, `prellenarTareo`, `tardanzaPorHorarioEquipo`, `leerConvocatoriaTexto`, `cruzarNombres`, `modeloImagen`. |
 | `js/personal/49b-convocatoria-pantalla.js` | Pantalla mobile-first, Tiempo real, cola sin conexión, imagen de WhatsApp, importador de transición, equipos y horarios. |
 | `js/personal/49c-convocatoria-tareo.js` | Tareo prellenado: envuelve `obtenerPersonalPorRotacion` y `tareoNuevaPersona` (13-tareo.js). |
-| `supabase/migraciones/glacial_72_convocatoria.sql` | Tablas, funciones y Tiempo real. **Aplicada en PRUEBAS (27/11/2026). Producción: pendiente de aprobación.** |
+| `supabase/migraciones/glacial_72_convocatoria.sql` | Tablas, funciones y Tiempo real. **Aplicada en PRUEBAS y PRODUCCIÓN (27/11/2026).** |
 | `js/personal/11-trabajadores.js` | Nuevo campo **Fecha de ingreso** del maestro (para el NUEVO automático). |
 
 ## Reglas
