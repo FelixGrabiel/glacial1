@@ -30,7 +30,7 @@ const ok = (c, t) => { console.log((c ? '✔ ' : '✘ FALLA ') + t); if (!c) fal
   await P.waitForSelector('.hl-ed');
   // completar la producción y finalizar
   const r = await P.evaluate(async () => {
-    hlCampo('produccion', 0, 'bolsas', '4339'); hlCampo('produccion', 0, 'horas', '6');
+    hlCampo('produccion', 0, 'bolsas', '4339'); hlCampo('produccion', 0, 'horas', '11');   // 27/11/2026: el tiempo suma la jornada (07:00–19:00 − 1 h = 11 h)
     await hlGuardar('FINALIZAR');
     return { serv: window.__servidor[window.__hoy + '_DÍA'], cache: glacialHieloDatos.cache.reportes.find(x => x.id === window.__hoy + '_DÍA'), msg: (document.querySelector('.hl-msg') || {}).innerText || '' };
   });
