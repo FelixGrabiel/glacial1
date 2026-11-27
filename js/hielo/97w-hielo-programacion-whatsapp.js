@@ -83,7 +83,9 @@
         if(producto==='PREMIUM'){out.errores.push(nom+': «'+txt+'» es de Hielo Premium; esa programación todavía no se carga por WhatsApp.');return;}
         let marca,pres;
         if(producto==='VASOS'){marca=buscar(marcasV,mTxt);pres='Vaso';}
-        else{marca=buscar(marcasC,mTxt);pres=kgTxt(f.kg);}
+        else{marca=buscar(marcasC,mTxt);pres=kgTxt(f.kg);
+          // sin kg («Molitalia diferido - 300 bolsas»): vale si esa marca tiene UNA sola presentación en el catálogo
+          if(!pres&&marca&&Array.isArray(o.pares)){const ps=[...new Set(o.pares.filter(p=>canon(p[0])===canon(marca)).map(p=>p[1]))];if(ps.length===1)pres=ps[0];}}
         if(!marca){out.errores.push(nom+': no conozco la marca «'+mTxt+'» de Hielo'+(vasos?' en vasos':'')+' («'+txt+'»).');return;}
         if(!pres||(producto==='CUBOS'&&!presC.includes(pres))){out.errores.push(nom+': «'+txt+'» trae un peso que no es una presentación de Hielo ('+(f.kg||'sin kg')+'; válidas: '+presC.join(', ')+').');return;}
         if(producto==='CUBOS'&&Array.isArray(o.pares)&&o.pares.length&&!o.pares.some(p=>canon(p[0])===canon(marca)&&p[1]===pres)){out.errores.push(nom+': '+marca+' '+pres+' no está en el catálogo de Hielo («'+txt+'»).');return;}
@@ -167,7 +169,67 @@
     return {ok:!mal.length,resultados:res,texto};
   }
 
-  const API={interpretar,interpretarEnPagina,resumen,remitente,cargar,mismoNumero,fechaDe,turnoDe};
+  /* ================== LECTURA DE TEXTO (26/11/2026) ==================
+     «PROGRAMACIÓN TN» (TN noche, TD día, TI intermedio; o «TURNO NOCHE»; fecha opcional «TN 27/11»), una marca por línea «Glacial 1.5kg - 600 bolsas»,
+     «Envasadora Automática» (o «Tolva manual») como título que vale para las líneas que siguen hasta una línea en blanco, y «Vasos Glacial - 70 unidades».
+     Sin fecha: la del turno en curso (noche: hasta las 07:00 se toma el día anterior). El resumen que se le manda al dueño la muestra: él confirma. */
+  const RE_ENC=/programaci[oó]n\s*(?:de\s*hielo\s*)?(?:(t[ndi])\b|turno\s*(noche|d[ií]a|intermedio))\s*(?:del?\s*)?(\d{1,2}\s*[\/\-.]\s*\d{1,2}(?:\s*[\/\-.]\s*\d{2,4})?)?/i;
+  const esTextoProgramacion=t=>RE_ENC.test(sinTildes(String(t||'')).slice(0,200));
+  function sumarDia(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+  function leerTexto(texto,o){
+    o=o||{};
+    const out={lectura:null,errores:[]};
+    const lineas=String(texto||'').replace(/\r/g,'').split('\n');
+    const ini=lineas.findIndex(l=>RE_ENC.test(sinTildes(l)));
+    if(ini<0){out.errores.push('No encontré «PROGRAMACIÓN TN» (o TD / TI) al inicio del mensaje.');return out;}
+    const m=RE_ENC.exec(sinTildes(lineas[ini]));
+    const cod=(m[1]||'').toLowerCase(),nom=(m[2]||'').toLowerCase();
+    const turno=cod==='tn'||nom==='noche'?'NOCHE':cod==='ti'||nom==='intermedio'?'INTERMEDIO':'DÍA';
+    const hoy=/^\d{4}-\d{2}-\d{2}$/.test(String(o.hoy||''))?o.hoy:new Date().toISOString().slice(0,10);
+    let fecha;
+    if(m[3]){
+      const p=m[3].split(/\s*[\/\-.]\s*/);
+      fecha=pad(+p[0])+'/'+pad(+p[1])+'/'+(p[2]?(p[2].length===2?'20'+p[2]:p[2]):hoy.slice(0,4));
+    }else{
+      const hora=Number.isFinite(Number(o.hora))?Number(o.hora):12;
+      const iso=turno==='NOCHE'&&hora<7?sumarDia(hoy,-1):hoy;
+      fecha=iso.slice(8,10)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4);
+    }
+    const filas=[];let nota='';
+    lineas.slice(ini+1).forEach(crudo=>{
+      const t=sinTildes(crudo).replace(/[*_~]/g,' ').replace(/^\s*[-•·.]\s*/,'').replace(/\s+/g,' ').trim();
+      if(!t){nota='';return;}
+      const it=/^(.*?)\s*[-–—:]\s*(\d[\d.,]*)\s*([a-z]*)\s*$/.exec(t);
+      if(!it){
+        if(/envasadora/i.test(t))nota='envasadora automática';
+        else if(/tolva/i.test(t))nota='tolva manual';
+        else if(/^(hielo\b|todas las maquinas)/i.test(t)){/* nota del plan: se ignora, como en Agua */}
+        else out.errores.push('No entendí la línea «'+crudo.trim()+'» (use «Marca 3kg - 600 bolsas»).');
+        return;
+      }
+      let izq=it[1].trim();
+      const kg=(/(\d+(?:[.,]\d+)?)\s*kg\b/i.exec(izq)||[])[1]||'';
+      izq=izq.replace(/(\d+(?:[.,]\d+)?)\s*kg\b/i,' ').replace(/\s+/g,' ').trim();
+      const vasos=/\bvasos?\b/i.test(izq);
+      filas.push({maquina:'',texto:vasos?izq:'HIELO '+izq,kg:vasos?'':kg.replace('.',','),cantidad:it[2],detalle:vasos?'':nota});
+    });
+    if(!filas.length&&!out.errores.length)out.errores.push('No encontré líneas de hielo con cantidad («Marca 3kg - 600 bolsas»).');
+    out.lectura={esProgramacion:true,tablas:[{titulo:'TURNO '+turno,fecha,filas}]};
+    return out;
+  }
+  function interpretarTexto(texto,o){
+    const l=leerTexto(texto,o);
+    if(!l.lectura)return {programaciones:[],errores:l.errores,avisos:[]};
+    const r=interpretar(l.lectura,o);
+    r.errores=l.errores.concat(r.errores);
+    return r;
+  }
+  function interpretarTextoEnPagina(texto,hoy,hora){
+    const cat=catalogo();if(!cat)throw new Error('Reporte Hielo no está cargado en la página.');
+    return interpretarTexto(texto,Object.assign({hoy,hora},cat));
+  }
+
+  const API={interpretar,interpretarEnPagina,interpretarTexto,interpretarTextoEnPagina,leerTexto,esTextoProgramacion,resumen,remitente,cargar,mismoNumero,fechaDe,turnoDe};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
   if(typeof window!=='undefined')window.glacialHieloProgramacionWhatsApp=API;
 })(typeof window!=='undefined'?window:globalThis);
