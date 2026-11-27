@@ -181,15 +181,17 @@ function rpc(n, a){
   await A.page.waitForFunction(() => document.querySelectorAll('#ct-panel .ct-t.cerrado').length === 2, null, { timeout: 8000 }).catch(() => {});
   ok(await A.page.evaluate(() => document.querySelectorAll('#ct-panel .ct-t.cerrado').length === 2 && /3 · SCALA[\s\S]*En curso/.test(document.getElementById('ct-panel').innerText)), 'tiempo real: el celular ve BELLS cerrada y SCALA 3 en curso sin recargar');
 
-  // 5) Texto e imagen GENERALES del Avance/Cierre (regla 11)
+  // 5) Texto e imagen del Avance/Cierre: se envían POR FORMATO (27/11/2026, pedido de la planta); el formato general queda en avTextoWhatsAppGeneral / avCanvasSnapshotGeneral
   const snap = { id: 'x', fecha: F, turno: 'DÍA', tipo: 'CIERRE', horaCorte: '15:00', supervisor: 'J. Pérez', lineas: [{ linea: 'PET1', nombre: 'PET1', inicio: '07:00', fin: '15:00',
     productos: [{ marca: 'SCALA', presentacion: S625, produccion: 19200 }, { marca: 'BELLS', presentacion: B25, produccion: 4320 }], produccionTotal: 23520, minutosEfectivos: 342, ratio: 4126.3, ratioDisponible: true, unidadRatio: 'B/H',
     personal: 4, personalEstado: 'CONFIRMADO', paradas: SRV.av.paradasOperativas.map(p => Object.assign({}, p)).concat([par('a7', '13:55', 25, 'PROGRAMADA', 'Cambio de formato')]),
     paradasProgramadas: 100, paradasNoProgramadas: 38, totalParadas: 138, observaciones: [] }] };
-  const txt = await A.page.evaluate(s => avTextoWhatsApp(s), snap);
+  const env = await A.page.evaluate(s => ({ t: avTextoWhatsApp(s), f: avTextoWhatsAppFormatos(s), cw: avCanvasSnapshot(s).height === avCanvasSnapshotFormatos(s).height }), snap);
+  ok(env.t === env.f && env.cw && /Ratio real \(con paradas\)/.test(env.t) && /Ratio sin paradas/.test(env.t), 'el Avance/Cierre se envía por formato (texto e imagen como antes, con ratio real, sin paradas y diferencia)');
+  const txt = await A.page.evaluate(s => avTextoWhatsAppGeneral(s), snap);
   ok(/\*PET1\*\nInicio: 07:00 · Término: 15:00/.test(txt) && /Producción total: 23,520/.test(txt) && /Horas efectivas: 5\.70 h/.test(txt) && /Ratio turno: 4,126 B\/H|Ratio turno: 4\s?126 B\/H/.test(txt) && /Personal en línea: 4/.test(txt), 'texto WhatsApp general: producción total, horas efectivas, ratio del turno y personal');
   ok((txt.match(/\*PARADAS\*/g) || []).length === 1 && txt.indexOf('08:15 Falla sopladora – 18 min') < txt.indexOf('13:55 Cambio de formato – 25 min') && /— Falta de preformas – 8 min\n\nProgramadas: 100 min\nNo programadas: 38 min\n\*Total paradas: 138 min\*/.test(txt), 'una sola lista de PARADAS por hora (sin hora al final con «—») y el pie Programadas / No programadas / Total');
-  const img = await A.page.evaluate(s => { const c = avCanvasSnapshot(s); return { w: c.width, h: c.height, url: c.toDataURL('image/png') }; }, snap);
+  const img = await A.page.evaluate(s => { const c = avCanvasSnapshotGeneral(s); return { w: c.width, h: c.height, url: c.toDataURL('image/png') }; }, snap);
   ok(img.w === 1080 && img.h > 1000, 'imagen general del cierre (1080 px de ancho)');
   if (process.env.GLX_CAPTURAS) fs.writeFileSync(path.join(process.env.GLX_CAPTURAS, 'paradas-3-imagen.png'), Buffer.from(img.url.split(',')[1], 'base64'));
 
