@@ -1646,7 +1646,7 @@ function tareoBotonNombre(persona, tareoId) {
             data-tareo-id="${escaparHTML(tareoId || '')}"
         >
             ${escaparHTML(persona.nombre)}
-        </button>${window.glacialHorasExtras ? window.glacialHorasExtras.marca(persona, tareoId) : ''}
+        </button>${window.glacialHorasExtras ? window.glacialHorasExtras.marca(persona, tareoId) : ''}${window.glacialDescansosDatos ? window.glacialDescansosDatos.marca(persona) : ''}
     `;
 }
 

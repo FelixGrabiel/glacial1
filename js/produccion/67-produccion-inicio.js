@@ -38,6 +38,7 @@
     ]},
     {titulo:'Personal y configuración',subtitulo:'Quién trabaja, en qué turno y con qué horario.',color:'#1a7f4b',tarjetas:[
       {boton:'btn-convocatoria',icono:'📋',titulo:'Convocatoria semanal',nuevo:true,desc:'Quién va a cada equipo esta semana; la imagen de WhatsApp sale sola y prellena el Tareo.',abrir:()=>typeof goConvocatoria==='function'&&goConvocatoria()},
+      {boton:'btn-descansos',icono:'🎲',titulo:'Descansos',nuevo:true,desc:'GLACIAL sortea el cuadro de descansos con las reglas; revisas, mueves a mano y publicas (pasa a la convocatoria y al Tareo).',abrir:()=>typeof goDescansos==='function'&&goDescansos()},
       {boton:'btn-tareo',icono:'🗒',titulo:'Tareo de producción',desc:'Asistencia, horas y horas extras del personal de Producción.',abrir:()=>typeof goTareo==='function'&&goTareo()},
       {boton:'btn-rotacion-supervisores',icono:'🔄',titulo:'Rotación de supervisores',desc:'Qué supervisor cubre cada turno de la semana.',abrir:()=>typeof goRotacionSupervisores==='function'&&goRotacionSupervisores()},
       {boton:'btn-horario-produccion',icono:'⏰',titulo:'Horario de producción',desc:'Horarios de turno y de cada línea.',abrir:()=>typeof goHorarioProduccion==='function'&&goHorarioProduccion()}
@@ -103,7 +104,7 @@
       ps.map(p=>'<button type="button" class="pi-paso'+(p.nuevo?' nuevo':'')+'" data-pi-paso="'+p.n+'">'+(p.nuevo?'<span class="pi-badge">NUEVO</span>':'')+'<span class="pi-n">'+p.n+'</span><b>'+esc(p.titulo)+'</b><span class="pi-d">'+esc(p.desc)+'</span></button>').join('')+'</div></div>';
   }
   const ABRIR=[];
-  const PANTALLAS=['avance-produccion','tareo','rotacion-supervisores','resumenes-turno','entrega-turno','horario-produccion','convocatoria'];
+  const PANTALLAS=['avance-produccion','tareo','rotacion-supervisores','resumenes-turno','entrega-turno','horario-produccion','convocatoria','descansos'];
   const PESTANAS_LINEA_PI=['nuevo','paletas','historial'];
   const OTROS=['btn-tareo','btn-rotacion-supervisores','btn-bitacora-prod','btn-resumenes-turno','btn-horario-produccion'];
   const visible=id=>{const b=document.getElementById(id);return !!b&&!b.hidden&&b.style.display!=='none';};

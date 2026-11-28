@@ -588,6 +588,7 @@
     "js/produccion/21-programacion-turno.js",
     "js/accesos/23b-modo-visualizacion.js",
     "js/personal/49b-convocatoria-pantalla.js",
+    "js/personal/49e-descansos-pantalla.js",
     "js/mantenimiento/43-bitacora-mantenimiento.js",
     "js/produccion/47-analisis-paradas.js",
     "js/produccion/48-resumen-turno.js",
@@ -608,7 +609,7 @@
     "js/almacen/103-almacen-compartido.js",
     "js/admin/111-admin-acceso-datos.js"
    ],
-   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena. · 49b-convocatoria-pantalla pinta la pestaña «convocatoria» (Personal › Convocatoria semanal) y muestra u oculta sus botones del menú."
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena. · 49b-convocatoria-pantalla pinta la pestaña «convocatoria» (Personal › Convocatoria semanal) y muestra u oculta sus botones del menú. · 49e-descansos-pantalla pinta la pestaña «descansos» (Personal › Descansos automáticos) y muestra u oculta sus botones del menú."
   },
   {
    "nombre": "renderMantenimientoModulo",
@@ -678,6 +679,7 @@
     "js/mantenimiento/37-mantenimiento-tecnicos.js",
     "js/mantenimiento/37b-mantenimiento-identificacion.js",
     "js/personal/49b-convocatoria-pantalla.js",
+    "js/personal/49e-descansos-pantalla.js",
     "js/mantenimiento/43-bitacora-mantenimiento.js",
     "js/produccion/47-analisis-paradas.js",
     "js/produccion/48-resumen-turno.js",
@@ -698,7 +700,7 @@
     "js/admin/111-admin-acceso-datos.js",
     "js/accesos/39-vista-como.js"
    ],
-   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena. · 49b-convocatoria-pantalla pinta la pestaña «convocatoria» (Personal › Convocatoria semanal) y muestra u oculta sus botones del menú."
+   "motivo": "Enganche en cadena: cada módulo guarda la versión anterior, la reasigna para añadir su pantalla/comportamiento y llama a la anterior. El orden de carga en index.html define el orden de la cadena. · 49b-convocatoria-pantalla pinta la pestaña «convocatoria» (Personal › Convocatoria semanal) y muestra u oculta sus botones del menú. · 49e-descansos-pantalla pinta la pestaña «descansos» (Personal › Descansos automáticos) y muestra u oculta sus botones del menú."
   },
   {
    "nombre": "renderTareoFormulario",

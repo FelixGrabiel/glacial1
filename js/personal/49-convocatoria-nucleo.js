@@ -239,16 +239,20 @@
 
   /* ---------- modelo para la imagen de WhatsApp ---------- */
   /** Bloques de cada columna en el orden de la imagen: equipos con su gente (NUEVO y ⇄ calculados) y, al final del día, los bloques de descanso. */
-  function modeloImagen(conv, equipos, trabajadores, anterior, equiposAnterior, nSemanas){
+  /* 28/11/2026 · descansos: mapa trabajadorId → día (0 = lunes … 6 = domingo) de los descansos PUBLICADOS → columna «DESC.» de la imagen. */
+  const DIAS_CORTOS = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
+  function modeloImagen(conv, equipos, trabajadores, anterior, equiposAnterior, nSemanas, descansos){
     const T = new Map((trabajadores || []).map(t => [t.id, t])), nom = id => (T.get(id) && T.get(id).nombre) || id;
     const { equipos: eqs, porEquipo: m, bloques } = porEquipo(conv, equipos), tot = totales(conv, equipos);
     const col = c => {
       const out = eqs.filter(e => e.columna === c).map(e => ({ titulo: (e.nombre + ' ' + e.inicio + '–' + e.fin).toUpperCase() + ' (' + (m.get(e.id) || []).length + ')', equipoId: e.id,
-        filas: (m.get(e.id) || []).map((a, i) => ({ n: i + 1, nombre: nom(a.trabajadorId).toUpperCase(), nuevo: esNuevo(T.get(a.trabajadorId), conv.semana, nSemanas), cambio: cambioDeTurno(a.trabajadorId, conv, anterior, equipos, equiposAnterior) })) }));
-      bloques.forEach((l, k) => { const de = l.filter(a => (a.columna || 'DÍA') === c); if(de.length) out.push({ titulo: BLOQUES[k].toUpperCase(), bloque: k, filas: de.map(a => ({ n: '', nombre: nom(a.trabajadorId).toUpperCase() + (a.hasta ? ' (HASTA ' + ddmm(a.hasta) + ')' : ''), nuevo: false, cambio: false })) }); });
+        filas: (m.get(e.id) || []).map((a, i) => ({ n: i + 1, nombre: nom(a.trabajadorId).toUpperCase(), nuevo: esNuevo(T.get(a.trabajadorId), conv.semana, nSemanas), cambio: cambioDeTurno(a.trabajadorId, conv, anterior, equipos, equiposAnterior),
+          desc: descansos && descansos.has(a.trabajadorId) && descansos.get(a.trabajadorId) !== null ? DIAS_CORTOS[descansos.get(a.trabajadorId)] : '' })) }));
+      bloques.forEach((l, k) => { const de = l.filter(a => (a.columna || 'DÍA') === c); if(de.length) out.push({ titulo: BLOQUES[k].toUpperCase(), bloque: k, filas: de.map(a => ({ n: '', nombre: nom(a.trabajadorId).toUpperCase() + (a.hasta ? ' (HASTA ' + ddmm(a.hasta) + ')' : ''), nuevo: false, cambio: false, desc: descansos && descansos.size ? '—' : '' })) }); });
       return out;
     };
-    return { titulo: 'CONVOCATORIA DE LA SEMANA ' + ddmm(conv.semana) + ' AL ' + ddmm(sumarDias(conv.semana, 6)) + ' · GLACIAL', dia: col('DÍA'), noche: col('NOCHE'), totales: tot };
+    const conDesc = !!(descansos && descansos.size);
+    return { titulo: 'CONVOCATORIA DE LA SEMANA ' + ddmm(conv.semana) + ' AL ' + ddmm(sumarDias(conv.semana, 6)) + (conDesc ? ' · CON DESCANSOS' : ' · GLACIAL'), dia: col('DÍA'), noche: col('NOCHE'), totales: tot, conDescansos: conDesc };
   }
 
   const API = { COLUMNAS, BLOQUES, NUEVO_SEMANAS, EQUIPOS_FABRICA, norm, sumarDias, lunesDe, ddmm, limpiarEquipo, equiposDe, etiquetaEquipo, horasEquipo, porEquipo, columnaDe,

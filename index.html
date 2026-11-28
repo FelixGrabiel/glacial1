@@ -3165,6 +3165,11 @@
                                         onclick="goConvocatoria()" hidden style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Convocatoria semanal</span>
                                 </button>
+                                <!-- Descansos automáticos (28/11/2026): sorteo con reglas del cuadro «DESCANSOS TURNO DÍA / NOCHE» (49e). -->
+                                <button type="button" class="side-action sidebar-subaction" id="btn-descansos"
+                                        onclick="goDescansos()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Descansos</span>
+                                </button>
                                 <button type="button" class="side-action sidebar-subaction" id="btn-resumenes-turno"
                                         onclick="goResumenesTurno()" style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Resúmenes de turno</span>
@@ -3296,6 +3301,10 @@
                                 <button type="button" class="side-action sidebar-subaction" id="btn-convocatoria-rrhh"
                                         onclick="goConvocatoria()" hidden style="display:none">
                                     <span class="sidebar-dot" aria-hidden="true"></span><span>Convocatoria semanal</span>
+                                </button>
+                                <button type="button" class="side-action sidebar-subaction" id="btn-descansos-rrhh"
+                                        onclick="goDescansos()" hidden style="display:none">
+                                    <span class="sidebar-dot" aria-hidden="true"></span><span>Descansos</span>
                                 </button>
                             </div>
                         </section>
@@ -3547,7 +3556,7 @@
     <script src="js/accesos/03-auth.js?v=20261112-gr1"></script>
     <script src="js/accesos/03b-login-carrusel.js?v=20261114-lg1"></script>
 
-    <script src="js/nucleo/04-sidebar.js?v=20261127-cv1"></script>
+    <script src="js/nucleo/04-sidebar.js?v=20261128-ds1"></script>
 
     <script src="js/nucleo/05-utils.js?v=20261015-fc1"></script>
 
@@ -3582,7 +3591,7 @@
     ====================================================== -->
 
     <script src="js/personal/13n-tareo-nube.js?v=20261014-tc1"></script>
-    <script src="js/personal/13-tareo.js?v=20261123-pa6"></script>
+    <script src="js/personal/13-tareo.js?v=20261128-ds1"></script>
     <script src="js/personal/20-tareo-control.js?v=20261004-pestanas"></script>
     <script src="js/personal/45-tareo-edicion-continua.js?v=20261120-qa1"></script>
     <script src="js/personal/46-tareo-horas-extras.js?v=20261121-gr2"></script>
@@ -3634,9 +3643,11 @@
     <script src="js/personal/44-distribucion-personal-pantalla.js?v=20261121-leg4"></script>
     <script src="js/personal/45-supervisor-en-turno.js?v=20261127-sp1"></script>
     <!-- Convocatoria semanal (glacial_72): núcleo puro, pantalla (Personal › Convocatoria semanal) y Tareo prellenado. docs/personal-tareo/convocatoria-semanal.md -->
-    <script src="js/personal/49-convocatoria-nucleo.js?v=20261127-cv1"></script>
-    <script src="js/personal/49b-convocatoria-pantalla.js?v=20261127-cv2"></script>
-    <script src="js/personal/49c-convocatoria-tareo.js?v=20261127-cv1"></script>
+    <script src="js/personal/49-convocatoria-nucleo.js?v=20261128-cv2"></script>
+    <script src="js/personal/49b-convocatoria-pantalla.js?v=20261128-cv3"></script>
+    <script src="js/personal/49c-convocatoria-tareo.js?v=20261127-cv2"></script>
+    <script src="js/personal/49d-descansos-nucleo.js?v=20261128-ds1"></script>
+    <script src="js/personal/49e-descansos-pantalla.js?v=20261128-ds1"></script>
     <script src="js/personal/40-tareo-auditoria.js?v=20261120-qa1"></script>
     <script src="js/personal/41-tareo-bloqueo.js?v=20261102-pal2"></script>
     <script src="js/mantenimiento/43-bitacora-mantenimiento.js?v=20261103-fx6"></script>
@@ -3694,7 +3705,7 @@
     <script src="js/mantenimiento/79-paradas-mantenimiento.js?v=20261113-pr1"></script>
     <script src="js/mantenimiento/73-plan-anual-pantalla.js?v=20261121-hs6"></script>
     <script src="js/mantenimiento/68-mantenimiento-inicio.js?v=20261121-hs5"></script>
-    <script src="js/produccion/67-produccion-inicio.js?v=20261128-pi3"></script>
+    <script src="js/produccion/67-produccion-inicio.js?v=20261128-pi4"></script>
     <!-- Asistente de Producción (docs/asistente/asistente-produccion.md): núcleo puro, datos/permisos, pantalla y Reporte General. -->
     <script src="js/asistente/70-asistente-nucleo.js?v=20261117-ad4"></script>
     <script src="js/asistente/71-asistente-datos.js?v=20261116-pm2"></script>
