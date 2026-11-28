@@ -9,7 +9,8 @@
    Reglas del Tareo que NO cambian: hora automática al marcar ASISTIÓ, horas extras, bloqueo a los 2 días, maquinistas desde Mantenimiento, personal por día.
    Cómo: envuelve obtenerPersonalPorRotacion (13-tareo.js) y tareoNuevaPersona. La convocatoria se lee del servidor (glacial_72) al abrir el Tareo
    y queda en memoria y en este equipo (localStorage) para trabajar sin conexión.
-   28/11/2026: con los descansos PUBLICADOS (49e-descansos-pantalla.js, glacial_73) quien descansa ese día entra con «Descanso» y se marca si trabaja en su descanso.
+   28/11/2026: con los descansos PUBLICADOS (49e-descansos-pantalla.js, glacial_73) quien descansa ese día entra con «Descanso» y se marca si trabaja en su descanso;
+   quien apoya a otro equipo ese día (glacial_74) entra en ese equipo con la marca «Apoyo · de …».
    Cargar DESPUÉS de 13-tareo.js y de 49-convocatoria-nucleo.js.
    ============================================================= */
 (function(W){
@@ -63,7 +64,13 @@
     // 28/11/2026 · descansos publicados (49e, glacial_73): quien descansa ese día entra con «Descanso» (el supervisor ya no lo marca)
     const DD = W.glacialDescansosDatos;
     if(DD && W.glacialDescansos) DD.traer(W.glacialDescansos.lunesDe(fecha));
-    const personal = C().prellenarTareo(x.conv, x.equipos, trab, fecha, turno).map(p => DD && !p.estadoBloque && DD.descansa(p.trabajadorId, fecha) ? Object.assign({}, p, { descansoProgramado: true }) : p);
+    // y quien ese día APOYA a otro equipo (glacial_74) entra en el equipo que apoya, con su horario (mismo turno y horario)
+    const personal = C().prellenarTareo(x.conv, x.equipos, trab, fecha, turno).map(p => {
+      if(!DD || p.estadoBloque) return p;
+      if(DD.descansa(p.trabajadorId, fecha)) return Object.assign({}, p, { descansoProgramado: true });
+      const ap = DD.apoyo ? DD.apoyo(p.trabajadorId, fecha) : null, e = ap && (x.equipos || []).find(q => q.id === ap.a);
+      return e ? Object.assign({}, p, { equipoId: e.id, equipo: e.nombre, linea: e.nombre, horaProgramadaIngreso: e.inicio, horaProgramadaSalida: e.fin, apoyoDesde: p.equipo }) : p;
+    });
     return { conv: x.conv, personal };
   }
 
@@ -85,6 +92,7 @@
         p.origenConvocatoria = true;
         if(trabajador.estadoBloque && BLOQUE_ESTADO[trabajador.estadoBloque]) p.asistencia = BLOQUE_ESTADO[trabajador.estadoBloque];
         else if(trabajador.descansoProgramado){ p.asistencia = 'Descanso'; p.descansoProgramado = true; }
+        if(trabajador.apoyoDesde) p.apoyoDesde = trabajador.apoyoDesde;
       }
       return p;
     };

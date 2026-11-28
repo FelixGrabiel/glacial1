@@ -25,6 +25,7 @@ Depende de la convocatoria semanal (`docs/personal-tareo/convocatoria-semanal.md
 | `js/personal/49c-convocatoria-tareo.js` | El Tareo prellenado: quien descansa ese día entra con «Descanso». |
 | `js/personal/13-tareo.js` | Marca junto al nombre: «Su descanso», o en rojo «Trabaja en su descanso» si se le marcó asistencia en su día de descanso. |
 | `js/personal/49-convocatoria-nucleo.js` y `49b-convocatoria-pantalla.js` | Columna **DESC.** en la imagen de la convocatoria (DOM resaltado) y título «… · CON DESCANSOS». |
+| `supabase/migraciones/glacial_74_descansos_apoyos.sql` | Apoyo entre equipos: tabla `descansos_apoyo`, `descansos_apoyo_cambiar`, y `descansos_obtener`, `guardar` y `mover` con apoyos. **Aplicada en PRUEBAS (28/11/2026). PRODUCCIÓN: pendiente de aprobación.** |
 | `supabase/migraciones/glacial_73_descansos.sql` | Tablas, funciones, Tiempo real y RLS. **Aplicada en PRUEBAS y PRODUCCIÓN (28/11/2026).** |
 
 ## Reglas del sorteo
@@ -58,6 +59,37 @@ Días: 0 = lunes … 6 = domingo.
 4. Al final, de lunes a sábado, el día con menos descansos del equipo que todavía tenga cupo.
 
 Con esto, el intercambio de días que proponía el pedido no hace falta. Si no hay cupo, es porque el total de días libres no alcanza; ningún intercambio lo resuelve, y la persona queda en «Programar».
+
+## Apoyo entre equipos (28/11/2026 · glacial_74)
+
+Si a un equipo le falta gente un día por los descansos, alguien de **otro equipo del mismo turno y del mismo horario** que ese día tiene gente de sobra pasa a **apoyarlo**. Por ejemplo, Cajas 20L apoya a Bidones 20L (los dos de 13:00 a 22:00).
+
+- **Automático y editable.** El sorteo propone los apoyos y el supervisor los cambia:
+  - **✕** quita un apoyo;
+  - **Cambiar** elige a otra persona;
+  - **Elegir apoyo** aparece en cada día que queda bajo el mínimo y solo ofrece gente de equipos compatibles que ese día trabaja.
+  - Lo elegido a mano queda «(a mano)».
+- **Antes de «Programar».** Si un equipo no tiene días libres (por ejemplo, Bidones 20L con 3 personas y mínimo 3), igual descansan y otro equipo cubre ese día.
+  - «Programar» solo queda si tampoco hay equipo compatible con gente de sobra. El motivo dice entonces «…no hay días libres ni apoyo de otro equipo».
+- **Quién va.** Del equipo compatible que más sobra tiene ese día, la persona que menos apoyos lleva en la semana. Su equipo nunca queda bajo su mínimo.
+- **Cambios a mano:**
+  - si mover una X deja a un equipo bajo el mínimo, se propone al momento un apoyo («Tu cambio: Se propone apoyo: …»);
+  - los apoyos automáticos que dejan de hacer falta se quitan solos;
+  - si la persona pasa a descansar el día en que apoyaba, ese apoyo se borra (también en el servidor).
+- **En el cuadro:**
+  - ese día sale **«→B20L»** (azul) en la fila de quien apoya;
+  - el Status dice «… · apoya a Bidones 20L el MAR»;
+  - la fila «Trabajando» ya cuenta los apoyos;
+  - el PNG y el Excel muestran lo mismo.
+- **En el Tareo:**
+  - con los descansos publicados, ese día la persona entra en el **equipo que apoya**, con su horario;
+  - junto al nombre aparece la marca «Apoyo · de Cajas 20L».
+- **Reglas que valida el servidor** (`descansos_apoyo_cambiar`, `descansos_guardar`):
+  - los dos equipos son del mismo turno y horario;
+  - la persona pertenece al equipo de origen;
+  - ese día la persona no descansa.
+  Cada cambio queda auditado en `descansos_historial`.
+- **Tiempo real:** tabla `descansos_apoyo`.
 
 ## Mínimos y días (solo Administrador y Jefatura)
 
@@ -130,7 +162,7 @@ El mínimo de la convocatoria (el aviso «3 / 4» de cuántos se convocan) es ot
 
 ## Pruebas
 
-- `tests/descansos.test.js` (node, 26 comprobaciones). Usa una semana con la forma de la del 30/11: 49 de día + 37 de noche + 1 descanso médico, con los mínimos de prueba. Nombres **ficticios**. Comprueba:
+- `tests/descansos.test.js` (node, 35 comprobaciones; 9 son del apoyo entre equipos). Usa una semana con la forma de la del 30/11: 49 de día + 37 de noche + 1 descanso médico, con los mínimos de prueba. Nombres **ficticios**. Comprueba:
   - un descanso cada uno, nadie bajo el mínimo y domingo exacto (23 descansan);
   - quienes pasan a noche, el lunes; quienes pasan a día, nunca domingo; el descanso médico, sin X;
   - misma semilla da el mismo resultado y otra semilla da otra solución válida;
@@ -139,14 +171,16 @@ El mínimo de la convocatoria (el aviso «3 / 4» de cuántos se convocan) es ot
   - cambio a mano con aviso;
   - equidad en 8 semanas: cada uno descansa 2 o 3 domingos, nadie 0;
   - formato del cuadro y Tareo.
-- `tests/descansos.e2e.js` (Chromium, 18 comprobaciones): dos supervisores (día en celular, noche en PC):
+- `tests/descansos.e2e.js` (Chromium, 25 comprobaciones; incluye apoyo automático, quitar, «Elegir apoyo», Tiempo real y Tareo con «Apoyo · de …»): dos supervisores (día en celular, noche en PC):
   - sorteo y Tiempo real; cada uno edita solo su turno;
   - cambio a mano visto en vivo; sin conexión;
   - publicar; Tareo con «Descanso» y «Trabaja en su descanso»; imagen de la convocatoria con DESC.;
   - PNG; celular sin desborde.
-- `supabase/pruebas/descansos.sql`: 14 comprobaciones de glacial_73 (termina en ROLLBACK). Pasó en PRUEBAS el 28/11/2026.
+- `supabase/pruebas/descansos.sql`: 14 comprobaciones de glacial_73 (termina en ROLLBACK). Pasó en PRUEBAS el 28/11/2026, también después de glacial_74.
+- `supabase/pruebas/descansos_apoyos.sql`: 9 comprobaciones de glacial_74. Pasó en PRUEBAS el 28/11/2026.
 
 ## Pendiente
 
+- Aplicar **glacial_74** (apoyo entre equipos) en PRODUCCIÓN, con tu aprobación.
 - Cargar los **mínimos reales** en «Mínimos y días».
 - Confirmar cómo funciona un equipo que no opera el domingo.

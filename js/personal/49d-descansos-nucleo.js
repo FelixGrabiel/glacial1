@@ -13,7 +13,9 @@
      5. quien pasa de NOCHE a DÍA no descansa domingo
      6. descanso médico / vacaciones / licencia en la semana: sin descanso sorteado (config.medicoParcial: puede recibirlo después del fin)
    Equidad: domingo primero a quien lleva más semanas sin descansarlo · días parejos · evitar el mismo día de la semana anterior · desempate con semilla.
-   Sin solución (no alcanzan los días libres): «Programar» con el motivo, nunca se inventa.
+   Apoyo entre equipos (28/11/2026): si a un equipo le falta gente un día, alguien de otro equipo del mismo turno y horario que ese día tiene de sobra
+   pasa a apoyarlo (automático y editable). También permite descansar cuando el equipo no tiene días libres.
+   Sin solución (no alcanzan los días libres ni hay apoyo posible): «Programar» con el motivo, nunca se inventa.
    ============================================================= */
 (function(raiz){
   'use strict';
@@ -112,6 +114,55 @@
     if(!p.hasta) return [0, 1, 2, 3, 4, 5, 6];
     return fechasSemana(semana).map((f, d) => f <= p.hasta ? d : -1).filter(d => d >= 0);
   }
+  /* ---------- apoyo entre equipos (28/11/2026) ----------
+     Si a un equipo le falta gente un día (por los descansos, un descanso médico o un cambio a mano), alguien de otro equipo del MISMO turno y MISMO
+     horario que ese día tiene gente de sobra pasa a apoyarlo. También sirve para dar descanso cuando el equipo no tiene días libres (antes de «Programar»).
+     apoyos: [{ trabajadorId, desde (su equipo), a (equipo que apoya), dia, origen: AUTO | MANUAL }] */
+  const compatibles = (a, b) => !!a && !!b && a.id !== b.id && a.columna === b.columna && a.activo !== false && b.activo !== false && String(a.inicio) === String(b.inicio) && String(a.fin) === String(b.fin);
+  const trabajaEseDia = (a, d, P, semana) => a.dia !== d && a.status !== 'MEDICO' && !diasEnBloque(P.get(a.trabajadorId) || a, semana).includes(d);
+  /** Personas trabajando en el equipo ese día: las suyas que no descansan ni están en su bloque − las que salen a apoyar + las que llegan de apoyo. */
+  function contar(e, d, L, apoyos, P, semana){
+    if(!opera(e, d)) return 0;
+    const propias = (L || []).filter(a => a.equipoId === e.id && (a.dia !== d) && !diasEnBloque(P.get(a.trabajadorId) || a, semana).includes(d)).length;
+    const ap = apoyos || [];
+    return propias - ap.filter(x => x.desde === e.id && x.dia === d).length + ap.filter(x => x.a === e.id && x.dia === d).length;
+  }
+  /** Propone apoyos para cada equipo y día bajo su mínimo, con gente de equipos compatibles que ese día tienen de sobra. → lista nueva de apoyos. */
+  function cubrirFaltas(L, apoyos, equipos, columna, semana, personas, rnd){
+    rnd = rnd || azar(1);
+    const P = new Map((personas || []).map(p => [p.trabajadorId, p])), out = (apoyos || []).slice();
+    const eqs = (equipos || []).filter(e => e.activo !== false && e.columna === columna);
+    eqs.forEach(e => [0, 1, 2, 3, 4, 5, 6].forEach(d => {
+      const min = minimoDia(e, d); if(min === null) return;
+      let falta = min - contar(e, d, L, out, P, semana);
+      while(falta > 0){
+        const donantes = eqs.filter(b => compatibles(e, b) && opera(b, d)).map(b => ({ b, sobra: contar(b, d, L, out, P, semana) - minimoDia(b, d) })).filter(x => x.sobra > 0).sort((x, y) => y.sobra - x.sobra);
+        let puesto = false;
+        for(const { b } of donantes){
+          const usados = new Map(); out.forEach(x => usados.set(x.trabajadorId, (usados.get(x.trabajadorId) || 0) + 1));
+          const cand = (L || []).filter(a => a.equipoId === b.id && trabajaEseDia(a, d, P, semana) && !out.some(x => x.trabajadorId === a.trabajadorId && x.dia === d))
+            .map(a => ({ a, k: (usados.get(a.trabajadorId) || 0) * 10 + rnd() })).sort((x, y) => x.k - y.k);
+          if(!cand.length) continue;
+          out.push({ trabajadorId: cand[0].a.trabajadorId, nombre: cand[0].a.nombre || '', desde: b.id, a: e.id, dia: d, origen: 'AUTO' }); puesto = true; break;
+        }
+        if(!puesto) break;
+        falta--;
+      }
+    }));
+    return out;
+  }
+  /** Quita los apoyos automáticos que ya no hacen falta (el equipo llega a su mínimo sin ellos) y los que chocan con el descanso de la persona. */
+  function podarApoyos(L, apoyos, equipos, columna, semana, personas){
+    const P = new Map((personas || []).map(p => [p.trabajadorId, p])), E = new Map((equipos || []).map(e => [e.id, e]));
+    let out = (apoyos || []).filter(x => { const a = (L || []).find(y => y.trabajadorId === x.trabajadorId); return a && trabajaEseDia(a, x.dia, P, semana); });
+    out.slice().filter(x => x.origen !== 'MANUAL').forEach(x => {
+      const e = E.get(x.a); if(!e) return;
+      const sin = out.filter(y => y !== x);
+      if(contar(e, x.dia, L, sin, P, semana) >= minimoDia(e, x.dia)) out = sin;
+    });
+    return out;
+  }
+
   /**
    * generarDescansos({ semana, columna, equipos, conv, anterior, historial (Map | objeto), config, semilla })
    * → { semana, columna, semilla, asignaciones: [{ trabajadorId, equipoId, dia, status, origen, motivo, bloque, hasta }], ...evaluar() }
@@ -124,7 +175,7 @@
     const hist = o.historial instanceof Map ? o.historial : new Map(Object.entries(o.historial || {}));
     const H = id => hist.get(id) || { semanasSinDomingo: cfg.semanasHistorial, diaAnterior: null };
     const personas = personasDe(o.conv, o.anterior, o.equipos || [], columna, semana);
-    const asig = new Map(), global = [0, 0, 0, 0, 0, 0, 0];
+    const asig = new Map(), global = [0, 0, 0, 0, 0, 0, 0], sinLugar = [], PP = new Map(personas.map(p => [p.trabajadorId, p]));
     const poner = (p, dia, status, origen, motivo) => { asig.set(p.trabajadorId, { trabajadorId: p.trabajadorId, nombre: p.nombre, equipoId: p.equipoId, dia, status, origen, motivo: motivo || '', bloque: p.bloque || '', hasta: p.hasta || '' }); if(dia !== null && dia >= 0) global[dia]++; };
 
     // fuera del sorteo: descanso médico / vacaciones / licencia (y los que solo están en un bloque)
@@ -159,30 +210,46 @@
       for(let i = resto.length - 1; i > 0; i--){ const j = Math.floor(rnd() * (i + 1)); [resto[i], resto[j]] = [resto[j], resto[i]]; }
       resto.forEach(p => {
         const opciones = [0, 1, 2, 3, 4, 5].filter(d => opera(e, d) && permitido(p, d) && desc[d] < cupo(d));
-        if(!opciones.length){
-          const min = minimoDia(e, 0);
-          poner(p, null, 'PROGRAMAR', 'AUTO', e.nombre + ': ' + mi.length + ' personas y mínimo ' + min + ', no hay días libres');
-          return;
-        }
+        if(!opciones.length){ sinLugar.push({ p, e, n: mi.length }); return; }     // se intenta con apoyo de otro equipo (abajo)
         const ant = H(p.trabajadorId).diaAnterior, puntos = d => (d === ant ? 1000 : 0) + desc[d] * 20 + global[d] + rnd();
         const d = opciones.reduce((m, x) => puntos(x) < puntos(m) ? x : m, opciones[0]);
         tomar(p, d, p.cambio === 'A_DIA' ? 'VIENE_NOCHE' : 'ASIGNADO', 'AUTO', '');
       });
     });
+    // 5) sin días libres en su equipo: descansa con apoyo de un equipo compatible (mismo turno y horario) que ese día tiene gente de sobra
+    // quien aún no tiene día cuenta como que trabaja todos los días
+    const L0 = () => personas.map(p => asig.get(p.trabajadorId) || { trabajadorId: p.trabajadorId, nombre: p.nombre, equipoId: p.equipoId, dia: null, status: 'PENDIENTE', bloque: p.bloque || '', hasta: p.hasta || '' });
+    let apoyos = [];
+    sinLugar.forEach(({ p, e, n }) => {
+      const L = L0(), comp = equipos.filter(b => compatibles(e, b));
+      let mejor = null;
+      [0, 1, 2, 3, 4, 5].filter(d => opera(e, d) && !diasEnBloque(p, semana).includes(d)).forEach(d => {
+        const falta = minimoDia(e, d) - (contar(e, d, L, apoyos, PP, semana) - 1);
+        const sobra = comp.filter(b => opera(b, d)).reduce((t, b) => t + Math.max(0, contar(b, d, L, apoyos, PP, semana) - minimoDia(b, d)), 0);
+        if(falta > 0 && sobra < falta) return;
+        const pts = (d === H(p.trabajadorId).diaAnterior ? 1000 : 0) - sobra * 10 + global[d] + rnd();
+        if(!mejor || pts < mejor.pts) mejor = { d, pts };
+      });
+      if(!mejor){ poner(p, null, 'PROGRAMAR', 'AUTO', e.nombre + ': ' + n + ' personas y mínimo ' + minimoDia(e, 0) + ', no hay días libres ni apoyo de otro equipo'); return; }
+      poner(p, mejor.d, p.cambio === 'A_DIA' ? 'VIENE_NOCHE' : 'ASIGNADO', 'AUTO', 'Descansa con apoyo de otro equipo');
+      apoyos = cubrirFaltas(L0(), apoyos, equipos, columna, semana, personas, rnd);
+    });
+    // 6) cualquier otra falta (por ejemplo, un descanso médico): apoyo si hay de dónde
     const asignaciones = personas.map(p => asig.get(p.trabajadorId) || { trabajadorId: p.trabajadorId, nombre: p.nombre, equipoId: p.equipoId, dia: null, status: 'PROGRAMAR', origen: 'AUTO', motivo: 'Sin equipo de esta columna', bloque: p.bloque, hasta: p.hasta });
-    return Object.assign({ semana, columna, semilla, asignaciones }, evaluar(asignaciones, o.equipos || [], columna, semana, personas));
+    apoyos = cubrirFaltas(asignaciones, apoyos, equipos, columna, semana, personas, rnd);
+    return Object.assign({ semana, columna, semilla, asignaciones, apoyos }, evaluar(asignaciones, o.equipos || [], columna, semana, personas, apoyos));
   }
 
   /* ---------- evaluar (después del sorteo o de un cambio a mano) ---------- */
   /** → { totalesPorDia[7], trabajando: { equipoId: [7] }, minimos: { equipoId: [7|null] }, reglas: [{ ok, texto }], avisos: [{ texto, equipoId?, dia?, trabajadorId? }], asignados, porProgramar, conDescanso } */
-  function evaluar(asignaciones, equipos, columna, semana, personas){
+  function evaluar(asignaciones, equipos, columna, semana, personas, apoyos){
     const eqs = (equipos || []).filter(e => e.activo !== false && e.columna === columna).sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0));
-    const L = asignaciones || [], P = new Map((personas || []).map(p => [p.trabajadorId, p]));
+    const L = asignaciones || [], P = new Map((personas || []).map(p => [p.trabajadorId, p])), AP = apoyos || [], E = new Map((equipos || []).map(e => [e.id, e]));
     const totalesPorDia = [0, 0, 0, 0, 0, 0, 0], trabajando = {}, minimos = {}, avisos = [];
     L.forEach(a => { if(a.dia !== null && a.dia !== undefined && a.dia >= 0) totalesPorDia[a.dia]++; });
     eqs.forEach(e => {
       const mi = L.filter(a => a.equipoId === e.id);
-      trabajando[e.id] = [0, 1, 2, 3, 4, 5, 6].map(d => opera(e, d) ? mi.filter(a => a.dia !== d && !diasEnBloque(P.get(a.trabajadorId) || a, semana).includes(d)).length : 0);
+      trabajando[e.id] = [0, 1, 2, 3, 4, 5, 6].map(d => contar(e, d, L, AP, P, semana)); void mi;
       minimos[e.id] = [0, 1, 2, 3, 4, 5, 6].map(d => minimoDia(e, d));
     });
     const bajo = [], domNoExacto = [];
@@ -199,6 +266,10 @@
     const vieneNoche = L.filter(a => (P.get(a.trabajadorId) || {}).cambio === 'A_DIA' || a.status === 'VIENE_NOCHE');
     pasaNoche.filter(a => a.dia !== LUN && a.status !== 'MEDICO').forEach(a => avisos.push({ tipo: 'regla', trabajadorId: a.trabajadorId, texto: (a.nombre || a.trabajadorId) + ' pasa a noche y no descansa el lunes' }));
     vieneNoche.filter(a => a.dia === DOM).forEach(a => avisos.push({ tipo: 'regla', trabajadorId: a.trabajadorId, texto: (a.nombre || a.trabajadorId) + ' viene de noche y descansa domingo' }));
+    // apoyos que no valen: la persona descansa ese día o los equipos no son del mismo turno y horario
+    AP.forEach(x => { const a = L.find(y => y.trabajadorId === x.trabajadorId), de = E.get(x.desde), aa = E.get(x.a);
+      if(!a || !trabajaEseDia(a, x.dia, P, semana)) avisos.push({ tipo: 'regla', trabajadorId: x.trabajadorId, texto: (x.nombre || (a && a.nombre) || x.trabajadorId) + ' apoya a ' + ((aa || {}).nombre || x.a) + ' el ' + DIAS[x.dia] + ' pero ese día no trabaja' });
+      else if(!compatibles(de, aa)) avisos.push({ tipo: 'regla', trabajadorId: x.trabajadorId, texto: 'Apoyo de ' + ((de || {}).nombre || x.desde) + ' a ' + ((aa || {}).nombre || x.a) + ': no son del mismo turno y horario' }); });
     const domingo = totalesPorDia[DOM];
     const reglas = [
       { ok: !sinDia.length, texto: '1 descanso por semana para los ' + conDia.length + (sinDia.length ? ' (' + sinDia.length + ' por programar)' : '') },
@@ -207,17 +278,25 @@
       { ok: true, texto: 'Domingo: prioridad a quien lleva más semanas sin descansarlo' },
       { ok: pasaNoche.every(a => a.dia === LUN || a.status === 'MEDICO'), texto: 'Pasan a noche (' + pasaNoche.length + ') → descansan lunes' },
       { ok: vieneNoche.every(a => a.dia !== DOM), texto: 'Pasan a día (' + vieneNoche.length + ') → cualquier día menos domingo' }
-    ];
+    ].concat(AP.length ? [{ ok: true, texto: 'Apoyos entre equipos del mismo turno y horario: ' + AP.length }] : []);
     return { totalesPorDia, trabajando, minimos, reglas, avisos, asignados: conDia.length - sinDia.length, porProgramar: sinDia.length, conDescanso: conDia.length };
   }
 
   /* ---------- cambio a mano ---------- */
   /** Mueve la X de una persona a otro día (o la quita con dia = null). No bloquea: devuelve los avisos de reglas que rompe ese cambio. */
-  function mover(asignaciones, trabajadorId, dia, usuario, equipos, columna, semana, personas){
-    const antes = evaluar(asignaciones, equipos, columna, semana, personas);
+  /*  Con apoyos: quita los que chocan con el nuevo descanso o ya no hacen falta y propone los que faltan (automático; el supervisor los puede quitar). */
+  function mover(asignaciones, trabajadorId, dia, usuario, equipos, columna, semana, personas, apoyos){
+    const AP0 = apoyos || [];
+    const antes = evaluar(asignaciones, equipos, columna, semana, personas, AP0);
     const L = (asignaciones || []).map(a => a.trabajadorId === trabajadorId ? Object.assign({}, a, { dia: dia === null || dia === undefined || dia === '' ? null : Number(dia), status: 'MANUAL', origen: 'MANUAL', actualizadoPor: usuario || '', motivo: 'Cambiado a mano' }) : a);
-    const despues = evaluar(L, equipos, columna, semana, personas), viejos = new Set(antes.avisos.map(x => x.texto));
-    return { asignaciones: L, avisos: despues.avisos.filter(x => !viejos.has(x.texto) && x.tipo !== 'info'), evaluacion: despues };
+    const AP = cubrirFaltas(L, podarApoyos(L, AP0, equipos, columna, semana, personas), equipos, columna, semana, personas);
+    const clave = x => x.trabajadorId + '|' + x.dia + '|' + x.a;
+    const k0 = new Set(AP0.map(clave)), k1 = new Set(AP.map(clave));
+    const nuevos = AP.filter(x => !k0.has(clave(x))), quitados = AP0.filter(x => !k1.has(clave(x)));
+    const despues = evaluar(L, equipos, columna, semana, personas, AP), viejos = new Set(antes.avisos.map(x => x.texto));
+    const E = new Map((equipos || []).map(e => [e.id, e])), nom = x => x.nombre || ((L.find(a => a.trabajadorId === x.trabajadorId) || {}).nombre) || x.trabajadorId;
+    const avApoyo = nuevos.map(x => ({ tipo: 'apoyo', trabajadorId: x.trabajadorId, texto: 'Se propone apoyo: ' + nom(x) + ' (' + ((E.get(x.desde) || {}).nombre || x.desde) + ') → ' + ((E.get(x.a) || {}).nombre || x.a) + ' el ' + DIAS[x.dia] }));
+    return { asignaciones: L, apoyos: AP, nuevos, quitados, avisos: avApoyo.concat(despues.avisos.filter(x => !viejos.has(x.texto) && x.tipo !== 'info')), evaluacion: despues };
   }
 
   /* ---------- textos y cuadro ---------- */
@@ -233,16 +312,19 @@
     const T = new Map((trabajadores || []).map(t => [t.id, t])), E = new Map((equipos || []).map(e => [e.id, e]));
     const eqs = (equipos || []).filter(e => e.activo !== false && e.columna === r.columna).sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0));
     const nombre = a => (T.get(a.trabajadorId) && T.get(a.trabajadorId).nombre) || a.nombre || a.trabajadorId;
-    const filas = (r.asignaciones || []).map((a, i) => ({ n: i + 1, trabajadorId: a.trabajadorId, nombre: nombre(a), equipo: a.equipoId ? ((E.get(a.equipoId) || {}).nombre || a.equipoId) : '—', equipoId: a.equipoId,
-      dia: a.dia, status: a.status, statusTexto: statusTexto(a), motivo: a.motivo || '' }));
     const corto = n => String(n || '').replace(/^Equipo (de )?/i, '').replace(/Bidones /i, 'B').replace(/Cajas /i, 'C');
+    const AP = r.apoyos || [];
+    const filas = (r.asignaciones || []).map((a, i) => { const ap = AP.filter(x => x.trabajadorId === a.trabajadorId).map(x => ({ dia: x.dia, a: x.a, corto: corto((E.get(x.a) || {}).nombre || x.a), nombre: (E.get(x.a) || {}).nombre || x.a, origen: x.origen }));
+      return { n: i + 1, trabajadorId: a.trabajadorId, nombre: nombre(a), equipo: a.equipoId ? ((E.get(a.equipoId) || {}).nombre || a.equipoId) : '—', equipoId: a.equipoId,
+        dia: a.dia, status: a.status, statusTexto: statusTexto(a) + ap.map(x => ' · apoya a ' + x.nombre + ' el ' + DIAS[x.dia]).join(''), motivo: a.motivo || '', apoyos: ap }; });
     return {
       titulo: 'DESCANSOS TURNO ' + (r.columna === 'NOCHE' ? 'NOCHE' : 'DÍA') + ' · SEMANA ' + ddmm(r.semana) + ' AL ' + ddmm(sumarDias(r.semana, 6)) + ' · GENERADO POR GLACIAL',
       columna: r.columna, dias: fechasSemana(r.semana).map((f, d) => ({ letra: LETRAS[d], corto: DIAS[d], num: f.slice(8, 10), fecha: f })),
       filas, totalesPorDia: r.totalesPorDia, resumen: r.asignados + ' de ' + r.conDescanso + ' · ' + r.porProgramar + ' por programar',
       trabajando: { etiqueta: 'Trabajando ' + eqs.map(e => corto(e.nombre)).join(' / '), equipos: eqs.map(e => ({ id: e.id, nombre: e.nombre, corto: corto(e.nombre), dias: r.trabajando[e.id] || [], minimos: r.minimos[e.id] || [] })),
         minimos: 'mínimos ' + eqs.map(e => { const m = (r.minimos[e.id] || []).filter(x => x !== null); return m.length && m.every(x => x === m[0]) ? m[0] : m.join('-'); }).join(' / '), ok: r.reglas ? r.reglas[1].ok : true },
-      pie: 'Sorteo n.º ' + r.semilla + ' · X = descansa' + (extra.horario ? ' · horario ' + extra.horario : '') + (r.columna === 'NOCHE' ? ' · quienes pasan de día a noche descansan lunes' : ' · Status «Programar» solo aparece si el sistema no encontró un día válido')
+      apoyos: AP.map(x => ({ nombre: nombre(x), desde: (E.get(x.desde) || {}).nombre || x.desde, a: (E.get(x.a) || {}).nombre || x.a, dia: DIAS[x.dia] })),
+      pie: 'Sorteo n.º ' + r.semilla + ' · X = descansa' + (AP.length ? ' · →EQ = apoya a ese equipo ese día' : '') + (extra.horario ? ' · horario ' + extra.horario : '') + (r.columna === 'NOCHE' ? ' · quienes pasan de día a noche descansan lunes' : ' · Status «Programar» solo aparece si el sistema no encontró un día válido')
     };
   }
 
@@ -252,11 +334,18 @@
     const sem = lunesDe(fecha), d = diaSemana(fecha);
     return (descansos || []).some(x => x && x.semana === sem && (x.asignaciones || []).some(a => a.trabajadorId === trabajadorId && a.dia === d));
   }
+  /** Apoyo publicado de la persona en esa fecha ({ a, desde, dia }) o null. descansos: [{ semana, apoyos }] */
+  function apoyoEn(descansos, trabajadorId, fecha){
+    const sem = lunesDe(fecha), d = diaSemana(fecha);
+    for(const x of (descansos || [])){ if(!x || x.semana !== sem) continue; const ap = (x.apoyos || []).find(a => a.trabajadorId === trabajadorId && a.dia === d); if(ap) return ap; }
+    return null;
+  }
   /** Mapa trabajadorId → día de descanso (0–6) para la columna DESC. de la imagen de la convocatoria. */
   const mapaDias = descansos => { const m = new Map(); (descansos || []).forEach(x => (x && x.asignaciones || []).forEach(a => { if(a.dia !== null && a.dia !== undefined) m.set(a.trabajadorId, a.dia); })); return m; };
 
   const API = { DIAS, LETRAS, DOM, LUN, CONFIG_FABRICA, STATUS, MINIMOS_PRUEBA, azar, nuevaSemilla, lunesDe, sumarDias, ddmm, diaSemana, fechasSemana, opera, minimoDia, diasSinOperar,
-    bloqueEnSemana, personasDe, equidad, diasEnBloque, generarDescansos, evaluar, mover, statusTexto, modeloCuadro, descansaEn, mapaDias };
+    bloqueEnSemana, personasDe, equidad, diasEnBloque, generarDescansos, evaluar, mover, statusTexto, modeloCuadro, descansaEn, mapaDias,
+    compatibles, contar, cubrirFaltas, podarApoyos, apoyoEn };
   if(typeof module !== 'undefined' && module.exports) module.exports = API;
   raiz.glacialDescansos = API;
 })(typeof window !== 'undefined' ? window : globalThis);
