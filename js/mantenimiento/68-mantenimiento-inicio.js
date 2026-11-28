@@ -39,7 +39,7 @@
 
   const visible=id=>{const b=document.getElementById(id);return !!b&&!b.hidden&&b.style.display!=='none';};
   const botonesDelGrupo=()=>['btn-intervenciones','btn-bitacora-mtto','btn-analisis-paradas','btn-velocidades','btn-productos-parametros','btn-mantenimiento','btn-plan-anual-mtto','btn-programa-semanal-mtto','btn-historial-mtto'];
-  const hayAcceso=()=>botonesDelGrupo().some(visible);
+  const hayAcceso=()=>(typeof grupoDelArea!=='function'||grupoDelArea('mantenimiento'))&&botonesDelGrupo().some(visible);
 
   /* El menú lateral de Mantenimiento muestra solo «Inicio»: lo demás se abre desde las tarjetas. Los botones siguen existiendo (ocultos por CSS) porque su visibilidad decide qué tarjetas se ven. */
   if(!document.getElementById('mi-menu-css')){
