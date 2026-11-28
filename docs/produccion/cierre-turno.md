@@ -73,3 +73,14 @@ En Avance y cierre, junto a «+ AGREGAR PARADAS», está **«+ OBSERVACIONES»**
 - **Quién puede escribirlas:** los mismos que pueden agregar paradas (`avPuedeEditarParadas`).
 
 Prueba: `tests/avance-observaciones.e2e.js`.
+
+## «Agregar paradas»: marcas producidas en el selector (28/11/2026)
+
+Caso PET2 · 27/11 · Noche: se produjo Scala, luego Scala Gas (paletas desde 04:23) y algo de Bells sin programar, pero en «Marca (tramo)» solo salía Scala. Scala Gas seguía «en espera» porque nadie usó «Cerrar marca» al cambiar, y Bells no tiene tramo por no estar programada.
+
+Ahora (`29-avance-produccion.js`, `avTramoFilaHtml`):
+- También se ofrece toda marca de la secuencia que ya tiene paletas en el turno, aunque esté en espera («con paletas registradas · falta cerrar la marca anterior»). La parada queda asignada a mano a esa marca.
+- Si hay paletas de una marca sin programación, se avisa: «fuera de programación… agrégala en la Programación de este turno» para poder asignarle paradas.
+- Lo correcto sigue siendo usar «Cerrar marca» en Paletas al cambiar de marca; así cada marca tiene su hora de corte.
+
+Prueba: `tests/paradas-marcas-producidas.e2e.js`. Solo página; nada que aplicar en la base.
