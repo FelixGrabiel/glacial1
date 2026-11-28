@@ -421,11 +421,14 @@
     const a = renderMain;
     renderMain = function(){ if(state.currentTab === TAB && !state.showWelcome && puedeVer()){ pintar(document.getElementById('main')); return; } return a.apply(this, arguments); };
   }
+  /* 28/11/2026 · el botón del grupo Recursos Humanos solo para quien es de RRHH (Producción lo abre desde su Inicio). */
+  const esDeRRHH = () => { const u = usr(); if(!u) return false; const rol = String(u.rol || '').trim();
+    return ['Administrador', 'Gerente General', 'Gerente', 'Jefe de Operaciones', 'Jefatura', 'RRHH'].includes(rol) || ['moduloRRHH', 'tareoGeneral'].some(k => { try{ return typeof tienePermiso === 'function' && tienePermiso(k); }catch(_){ return false; } }); };
   if(typeof renderSidebar === 'function'){
     const a = renderSidebar;
     renderSidebar = function(){
       const r = a.apply(this, arguments), v = puedeVer();
-      ['btn-convocatoria', 'btn-convocatoria-rrhh'].forEach(id => { const b = document.getElementById(id); if(b){ b.hidden = !v; b.style.display = v ? '' : 'none'; b.classList.toggle('active', v && state.currentTab === TAB); } });
+      ['btn-convocatoria', 'btn-convocatoria-rrhh'].forEach(id => { const b = document.getElementById(id); if(b){ const vv = v && (!/-rrhh$/.test(id) || esDeRRHH()); b.hidden = !vv; b.style.display = vv ? '' : 'none'; b.classList.toggle('active', v && state.currentTab === TAB); } });
       if(typeof actualizarGruposSidebar === 'function') actualizarGruposSidebar();
       return r;
     };

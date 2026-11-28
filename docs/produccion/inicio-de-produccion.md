@@ -34,3 +34,21 @@ No cambia ninguna pantalla ni permiso: una tarjeta o un paso solo aparece si el 
 Fuera del grupo siguen igual los accesos raíz: Producción actual, Planificación y Asistente de Producción.
 
 Pruebas: `tests/produccion-inicio.test.js` y `tests/produccion-inicio.e2e.js` (navegador real, `GLX_LIBS`).
+
+## Menú por áreas (28/11/2026)
+
+Cada usuario ve en el menú lateral **solo los grupos de su área**. Lo decide `grupoDelArea` en `js/nucleo/04-sidebar.js`.
+
+Antes, Mantenimiento, RRHH y Ventas veían el grupo **Producción**, y todos veían **Mantenimiento**. Pasaba porque algunas pantallas de solo lectura se muestran a todos: Entrega de turno, Horario de producción, Resúmenes, Velocidades y Productos y parámetros.
+
+- **Producción:**
+  - **Lo ven:** Supervisor, Jefe de Producción, Asistente de Producción, Planificación y operarios. También quien tenga un permiso propio de Producción, como Avance, ver líneas, Tareo de producción, convocatoria o programar.
+  - **No lo ven:** Mantenimiento, RRHH y Ventas, salvo que Administración les dé uno de esos permisos.
+  - **Personalizado:** lo ve si tiene «nuevo» o «paletas».
+- **Mantenimiento:** lo ve el rol Mantenimiento o quien tenga un permiso de Mantenimiento (módulo, bitácora, banco de paradas, tareo o rotación de Mantenimiento, control operativo de líneas, etc.).
+- **Recursos Humanos:** los botones Convocatoria y Descansos de ese grupo los ve solo quien es de RRHH (rol RRHH, «moduloRRHH» o «tareoGeneral»). Producción los abre desde su Inicio.
+- **Lo ven todo:** Administrador, Gerente General, Gerente, Jefe de Operaciones y Jefatura.
+
+Las pantallas y los permisos no cambian; solo deja de aparecer el grupo de otra área. Por ejemplo, el supervisor sigue abriendo «Análisis de paradas» y la Bitácora desde su Inicio de Producción.
+
+Prueba: `tests/menu-areas.e2e.js`.

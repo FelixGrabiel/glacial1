@@ -108,7 +108,7 @@
   const PESTANAS_LINEA_PI=['nuevo','paletas','historial'];
   const OTROS=['btn-tareo','btn-rotacion-supervisores','btn-bitacora-prod','btn-resumenes-turno','btn-horario-produccion'];
   const visible=id=>{const b=document.getElementById(id);return !!b&&!b.hidden&&b.style.display!=='none';};
-  const hayAcceso=()=>['btn-avance-produccion','btn-entrega-turno','btn-paradas-turno'].concat(OTROS).some(visible);
+  const hayAcceso=()=>(typeof grupoDelArea!=='function'||grupoDelArea('produccion'))&&['btn-avance-produccion','btn-entrega-turno','btn-paradas-turno'].concat(OTROS).some(visible);
 
   /* Menú lateral de Producción: Inicio, Registro de producción (líneas), Avance y cierre, Paradas del turno y Entrega de turno. Los demás botones siguen existiendo (ocultos por CSS) porque su visibilidad decide qué tarjetas se ven. */
   if(!document.getElementById('pi-menu-css')){

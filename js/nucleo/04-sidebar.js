@@ -274,8 +274,44 @@ function grupoSidebarActivo(){
   return '';
 }
 
+/* 28/11/2026 · cada área ve SOLO sus grupos del menú (Producción y Mantenimiento).
+   Antes cualquier usuario veía los dos grupos porque algunas pantallas de solo lectura (Entrega de turno, Horario de producción, Resúmenes, Velocidades,
+   Productos y parámetros) se muestran a todos. Ahora el grupo se ve si el usuario es de esa área por su ROL o porque Administración le dio un permiso
+   propio de esa área. Administrador y la gerencia ven todo. Las pantallas no cambian: solo deja de aparecer el grupo de otra área.
+   Los permisos que vienen por defecto a todos («nuevo», «historial», «paletas») no cuentan: no hacen a nadie de Producción. */
+const AREA_TODAS_ROLES=['Administrador','Gerente General','Gerente','Jefe de Operaciones','Jefatura'];
+/* Roles de otra área: no ven Producción salvo que Administración les dé un permiso propio de Producción. */
+const AREA_OTRAS_PRODUCCION=['Mantenimiento','mantenimiento_compartido','RRHH','Ventas'];
+const AREA_MENU={
+  produccion:{
+    roles:['Supervisor','Supervisor de Producción','Jefe de Producción','Asistente de Producción','Planificación','Ventas y Planificación'],
+    permisos:['avanceProduccion','verLineasProduccion','todasLasLineas','tareoProduccion','ver_tareo_produccion','convocatoria','programarPaletas','planificacion','corregir_paradas','reabrirProduccion','reabrirReporteProduccion','gestionar_rotacion_supervisores','distribuirPersonal']
+  },
+  mantenimiento:{
+    roles:['Mantenimiento','mantenimiento_compartido'],
+    permisos:['moduloMantenimiento','ver_bitacora_mantenimiento','ver_banco_paradas','gestionar_rotacion_mantenimiento','gestionar_tareo_mantenimiento','ver_tareo_mantenimiento','control_operativo_lineas','completar_motivo_parada','editar_salida_maquinistas']
+  }
+};
+function grupoDelArea(nombre,u){
+  const regla=AREA_MENU[nombre];
+  if(!regla)return true;                                                  // los demás grupos siguen como estaban
+  u=u||(typeof state!=='undefined'&&state.user)||null;
+  if(!u)return false;
+  const rol=String(u.rol||'').trim();
+  if(AREA_TODAS_ROLES.includes(rol)||regla.roles.includes(rol))return true;
+  const tiene=p=>{try{return typeof tienePermiso==='function'&&!!tienePermiso(p);}catch(_){return false;}};
+  if(regla.permisos.some(tiene))return true;
+  if(nombre==='produccion'){
+    if(rol==='Personalizado')return ['nuevo','paletas'].some(tiene);       // perfil a medida: por sus permisos de registro
+    return !AREA_OTRAS_PRODUCCION.includes(rol);                           // operarios y roles nuevos: como antes
+  }
+  return false;
+}
+window.grupoDelArea=grupoDelArea;
+
 function grupoTieneAccesosVisibles(grupo){
   if(!grupo)return false;
+  if(!grupoDelArea(grupo.dataset.sidebarGroup))return false;
   if(grupo.dataset.sidebarGroup==='produccion'){
     const lineas=document.getElementById('sidebar-lines');
     if(lineas && !lineas.hidden && lineas.style.display!=='none')return true;
