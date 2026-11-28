@@ -56,3 +56,20 @@ Paletas por tramo = acumulado de la marca/presentación − lo ya congelado en t
 - **Paletas › Cierre de turno:** igual que antes (paradas y ratio por marca).
 - **Avance y Cierre:** tarjeta «Paradas del turno» con todas las paradas de cada línea, por hora y con su marca, el total y el aviso de las que no tienen marca.
 - Prueba en navegador: `tests/paradas-unicas.e2e.js`.
+
+## Observaciones por línea (28/11/2026)
+
+En Avance y cierre, junto a «+ AGREGAR PARADAS», está **«+ OBSERVACIONES»**. Se abre una caja por línea (PET1, PET2, B7L, Cajas 20L, B20L, Hielo) para la fecha y el turno que se están viendo.
+
+- **Dónde se guardan:** en `sync/avancesTurno › observacionesOperativas`, una por línea, fecha y turno, con quién y cuándo. Se guardan en una sola transacción.
+  - No cambia la versión de las paradas, así que no interrumpe a quien está agregando paradas al mismo tiempo.
+  - Las observaciones de otros turnos no se tocan y se conservan unos 60 días.
+- **Qué sale en el Avance y el Cierre que se generan después:**
+  - el texto de WhatsApp (*OBSERVACIONES*);
+  - la imagen por formato, una sola vez, en el primer formato de la línea;
+  - el detalle.
+  Se suman a las observaciones escritas en el Nuevo registro. Quedan congeladas en ese avance.
+- **Quitar una observación:** dejar la caja vacía.
+- **Quién puede escribirlas:** los mismos que pueden agregar paradas (`avPuedeEditarParadas`).
+
+Prueba: `tests/avance-observaciones.e2e.js`.

@@ -14,7 +14,7 @@ const avanceEstado={
   snapshots:[],todosSnapshots:[],preview:'',previewId:'',
   unsubscribe:null,mesCalendario:null,filtroTipo:'TODOS',pagina:1,
   imagenActual:null,
-  paradasOperativas:[],paradasModal:null
+  paradasOperativas:[],paradasModal:null,observacionesOperativas:[]
 };
 
 function avNum(v){const n=Number(v);return Number.isFinite(n)?n:0;}
@@ -396,7 +396,7 @@ function avCierreGenerado(){return !!avanceEstado.snapshots?.some(s=>s.tipo==='C
 /* Botón «+ AGREGAR PARADAS» para quien no puede generar avances (fuera de su ventana) o ve un turno pasado. */
 function avParadasTardiasHtml(){
   if(!avPuedeEditarParadas())return '';
-  return `<div class="av-module-actions"><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><small class="small-muted" style="align-self:center">Se pueden agregar paradas de ${avEsc(avFechaBonita(avanceEstado.fecha))} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))} aunque el turno ya haya terminado.</small></div>`;
+  return `<div class="av-module-actions"><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><button class="btn btn-ghost" onclick="avAbrirObservaciones()">+ OBSERVACIONES</button><small class="small-muted" style="align-self:center">Se pueden agregar paradas de ${avEsc(avFechaBonita(avanceEstado.fecha))} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))} aunque el turno ya haya terminado.</small></div>`;
 }
 function avIdParadaNueva(){return `avp_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;}
 function avCatalogoMotivos(){
@@ -741,6 +741,54 @@ function avBuscarParadaRegistro(records,p){
   if(pi<0||!q[p.key][pi])return null;
   return {r,q,pi,item:q[p.key][pi]};
 }
+/* ---------- Observaciones por línea (28/11/2026) ---------- */
+async function avAbrirObservaciones(lineaFoco){
+  try{const ad=await avRef().get();const d=ad.exists?ad.data():{};avanceEstado.observacionesOperativas=Array.isArray(d.observacionesOperativas)?d.observacionesOperativas:[];}catch(e){console.warn('Leyendo observaciones:',e&&e.message||e);}
+  document.getElementById('av-obs-modal')?.remove();
+  const m=document.createElement('div');m.id='av-obs-modal';m.className='av-paradas-modal open';
+  const actual=l=>{const o=(avanceEstado.observacionesOperativas||[]).find(x=>x&&x.linea===l&&x.fecha===avanceEstado.fecha&&avTurnoCanon(x.turno)===avTurnoCanon(avanceEstado.turno));return o?{texto:o.texto||'',por:o.actualizadoPor||'',en:o.actualizadoEn||0}:{texto:'',por:'',en:0};};
+  const fila=l=>{const a=actual(l);return `<label class="av-obs-fila" style="display:grid;gap:4px;padding:10px;background:#fff;border:1px solid #d7e3eb;border-radius:8px"><b style="color:#033350">${avEsc(AVANCE_NOMBRES[l]||l)}</b>
+    <textarea data-av-obs="${avEsc(l)}" rows="2" maxlength="500" placeholder="Ej.: se esperó insumos de Almacén 20 min; cambio de bobina más lento" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #cfdbe3;border-radius:6px;font:inherit;min-height:56px">${avEsc(a.texto)}</textarea>
+    ${a.por?`<small style="color:#5F7280">Última edición: ${avEsc(a.por)}${a.en?' · '+avEsc(new Date(a.en).toLocaleTimeString('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit'})):''}</small>`:''}</label>`;};
+  m.innerHTML=`<div class="av-paradas-dialog" role="dialog" aria-modal="true" aria-label="Observaciones por línea"><header><div><small>AVANCE Y CIERRE</small><h2>Observaciones por línea</h2><p>${avEsc(avFechaBonita(avanceEstado.fecha))} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</p></div><button type="button" data-av-obs-cerrar aria-label="Cerrar">✕</button></header>
+    <div class="av-paradas-body"><div class="av-paradas-note">Lo que escribas aquí sale en el Avance y el Cierre de esa línea (texto de WhatsApp e imagen). Deja vacío para quitarla.</div><div id="av-obs-error"></div><div class="av-paradas-list">${AVANCE_LINEAS.map(fila).join('')}</div></div>
+    <footer><span class="small-muted">Se guardan para ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))} del ${avEsc(avFechaBonita(avanceEstado.fecha))}.</span><div><button type="button" class="btn btn-ghost" data-av-obs-cerrar>Cancelar</button><button type="button" class="btn btn-primary" data-av-obs-guardar>Guardar</button></div></footer></div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',async e=>{
+    if(e.target===m||e.target.closest('[data-av-obs-cerrar]')){m.remove();return;}
+    const g=e.target.closest('[data-av-obs-guardar]');if(!g)return;
+    const textos={};m.querySelectorAll('[data-av-obs]').forEach(t=>{textos[t.getAttribute('data-av-obs')]=String(t.value||'').trim().slice(0,500);});
+    g.disabled=true;g.textContent='Guardando…';
+    try{await avGuardarObservaciones(textos);m.remove();if(state.currentTab==='avance-produccion'&&typeof renderMain==='function')renderMain();}
+    catch(err){g.disabled=false;g.textContent='Guardar';const box=m.querySelector('#av-obs-error');if(box)box.innerHTML=`<div class="av-paradas-error">${avEsc(err&&err.message||err)}</div>`;}
+  });
+  const foco=m.querySelector(`[data-av-obs="${lineaFoco||''}"]`)||m.querySelector('[data-av-obs]');if(foco)setTimeout(()=>foco.focus(),50);
+}
+/** Guarda las observaciones del turno (una por línea) en una transacción: solo toca las de esta fecha y turno; las demás se conservan. */
+async function avGuardarObservaciones(textos){
+  if(!avPuedeEditarParadas())throw Error('Tu usuario no puede editar el Avance y cierre.');
+  const fecha=avanceEstado.fecha,turno=avTurnoCanon(avanceEstado.turno),usuario=state.user?.nombre||state.user?.username||'',ahora=Date.now();
+  const operacion=db.runTransaction(async tx=>{
+    const ref=avRef(),doc=await tx.get(ref),d=doc.exists?doc.data():{};
+    const lista=Array.isArray(d.observacionesOperativas)?d.observacionesOperativas.slice():[];
+    Object.keys(textos).forEach(linea=>{
+      const i=lista.findIndex(o=>o&&o.linea===linea&&o.fecha===fecha&&avTurnoCanon(o.turno)===turno);
+      const texto=textos[linea];
+      if(i>=0&&String(lista[i].texto||'')===texto)return;
+      if(!texto){if(i>=0)lista.splice(i,1);return;}
+      const obj={id:i>=0?lista[i].id:`obs_${ahora}_${Math.random().toString(36).slice(2,7)}`,fecha,turno,linea,texto,creadoPor:i>=0?lista[i].creadoPor:usuario,creadoEn:i>=0?lista[i].creadoEn:ahora,actualizadoPor:usuario,actualizadoEn:ahora};
+      if(i>=0)lista[i]=obj;else lista.push(obj);
+    });
+    // Se conservan ~60 días de observaciones en el documento (las más viejas se descartan).
+    const limite=ahora-60*86400000;
+    const final=lista.filter(o=>o&&(avNum(o.actualizadoEn)||ahora)>=limite);
+    tx.set(ref,{observacionesOperativas:final,observacionesActualizadoEn:ahora},{merge:true});
+    return final;
+  });
+  avanceEstado.observacionesOperativas=await avConTimeout(operacion,15000);
+  return avanceEstado.observacionesOperativas;
+}
+window.avAbrirObservaciones=avAbrirObservaciones;window.avGuardarObservaciones=avGuardarObservaciones;window.avObservacionesOperativas=avObservacionesOperativas;
 function avConTimeout(promesa,ms=15000){
   return Promise.race([
     promesa,
@@ -991,6 +1039,13 @@ function avProgramadoLinea(linea){
       return s+cantidad;
     },0);
 }
+/* 28/11/2026 · Observaciones escritas en Avance y cierre por el supervisor, una por LÍNEA, fecha y turno (sync/avancesTurno › observacionesOperativas).
+   Entran en el Avance/Cierre (texto de WhatsApp, imagen por formato —en el primer formato de la línea— y detalle) junto con las del Nuevo registro. */
+function avObservacionesOperativas(linea,fecha,turno){
+  fecha=fecha||avanceEstado.fecha;turno=avTurnoCanon(turno||avanceEstado.turno);
+  return (avanceEstado.observacionesOperativas||[]).filter(o=>o&&o.linea===linea&&o.fecha===fecha&&avTurnoCanon(o.turno)===turno&&String(o.texto||'').trim())
+    .map(o=>String(o.texto).trim());
+}
 function avObservacionesLinea(linea){
   const out=[];
   avRegistros().filter(r=>r.linea===linea).forEach(r=>{
@@ -1112,7 +1167,8 @@ function avLineaSnapshot(linea,hora,tipo,ahoraMs){
     paradas,totalParadas,
     paradasProgramadas:paradas.filter(p=>p.tipo==='PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
     paradasNoProgramadas:paradas.filter(p=>p.tipo==='NO_PROGRAMADA').reduce((s,p)=>s+p.minutos,0),
-    observaciones:avObservacionesLinea(linea),
+    observaciones:[...new Set([...avObservacionesLinea(linea),...avObservacionesOperativas(linea)])],
+    observacionesAvance:avObservacionesOperativas(linea),
         minutosTranscurridos,minutosEfectivos,minutosParadasDescontadas:minutosDescontados,paradasExcedenTiempo,
     minutosParadasProgramadasDesc:minProgDesc,minutosParadasNoProgramadasDesc:minNoProgDesc,
     paradasOperacion:{noProgramadas:opNoProg,programadas:opProg},
@@ -1341,6 +1397,8 @@ function avCalcularBloquesPresentacion(l){
 
   const lista=[...mapa.values()].sort((a,b)=>(a.inicio?msHora(a.inicio):Infinity)-(b.inicio?msHora(b.inicio):Infinity));
   lista.forEach(b=>{b.observaciones=[...new Set(b.observaciones)];b.paradas=avDepurarParadasBloque(b.paradas);});
+  // Observaciones de la LÍNEA escritas en Avance y cierre: una vez, en el primer formato (congeladas en el snapshot).
+  if(lista[0]&&(l.observacionesAvance||[]).length)lista[0].observaciones=[...new Set([...lista[0].observaciones,...l.observacionesAvance])];
   // Las paradas de Avance/Cierre que aún no están en un cuadro se muestran UNA vez, en el primer bloque de la línea.
   // Una parada de Avance copiada al cuadro de CUALQUIER formato ya está mostrada ahí.
   const copiadasEnBloques=lista.flatMap(b=>b.paradas);
@@ -1583,7 +1641,7 @@ async function avGenerarSeleccion(opc){
 }
 function avAccionesHistoricoHtml(){
   const c=avUltimoSnapshot('CIERRE');
-  return `<div class="av-module-actions">${avPuedeEditarParadas()?'<button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>':''}${c?`<button class="btn btn-ghost" onclick="avVer('${avEsc(c.id)}')">VER CIERRE${c.version>1?' (v'+c.version+')':''}</button><button class="btn btn-ghost" onclick="avAbrirCierreHistorico(true)">REGENERAR CIERRE</button>`
+  return `<div class="av-module-actions">${avPuedeEditarParadas()?'<button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><button class="btn btn-ghost" onclick="avAbrirObservaciones()">+ OBSERVACIONES</button>':''}${c?`<button class="btn btn-ghost" onclick="avVer('${avEsc(c.id)}')">VER CIERRE${c.version>1?' (v'+c.version+')':''}</button><button class="btn btn-ghost" onclick="avAbrirCierreHistorico(true)">REGENERAR CIERRE</button>`
     :'<button class="btn btn-primary" onclick="avAbrirCierreHistorico(false)">GENERAR CIERRE</button>'}<small class="small-muted" style="align-self:center">Opera sobre ${avEsc(avanceEstado.fecha)} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}; no reabre ni finaliza registros de producción.</small></div>`;
 }
 function avAbrirCierreHistorico(regenerar){
@@ -1688,6 +1746,7 @@ function avEscuchar(){
     const data=doc.exists?doc.data():{};
     // sync/avancesTurno: paradas operativas y updatedAt (y, hasta migrar, los items antiguos, que se UNEN con la colección sin duplicar).
     avanceEstado.paradasOperativas=Array.isArray(data.paradasOperativas)?data.paradasOperativas:[];
+    avanceEstado.observacionesOperativas=Array.isArray(data.observacionesOperativas)?data.observacionesOperativas:[];
     avanceEstado.avancesUpdatedAt=avNum(data.updatedAt);
     if(S){S.fijarLegado(data);avanceEstado.todosSnapshots=S.todos();}
     else avanceEstado.todosSnapshots=Array.isArray(data.items)?data.items:[];
@@ -1781,10 +1840,10 @@ function avDibujarFlotante(){
         </div>
         ${avPuedeGenerar()?`<div class="av-float-actions">
           <button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button>
-          <button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>
+          <button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><button class="btn btn-ghost" onclick="avAbrirObservaciones()">+ OBSERVACIONES</button>
           ${avBotonAjustarPersonal()}
           <button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button>
-        </div>`:`<div class="av-readonly">Modo consulta: puedes ver, copiar y generar imagen de los registros existentes.</div>${avPuedeEditarParadas()?'<div class="av-float-actions"><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button></div>':''}`}
+        </div>`:`<div class="av-readonly">Modo consulta: puedes ver, copiar y generar imagen de los registros existentes.</div>${avPuedeEditarParadas()?'<div class="av-float-actions"><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><button class="btn btn-ghost" onclick="avAbrirObservaciones()">+ OBSERVACIONES</button></div>':''}`}
         <section class="av-float-last">
           <div class="av-float-last-head"><div><small>ÚLTIMO AVANCE</small><strong>${ultimo?`${ultimo.horaReferencia||ultimo.horaCorte} · GENERADO`:'Todavía no generado'}</strong></div></div>
           ${ultimo?avAccionesSnapshot(ultimo,true):''}
@@ -1915,6 +1974,7 @@ window.glacialAvancePreparar=async function(){
   const doc=await avRef().get();
   const data=doc.exists?doc.data():{};
   avanceEstado.paradasOperativas=Array.isArray(data.paradasOperativas)?data.paradasOperativas:[];
+  avanceEstado.observacionesOperativas=Array.isArray(data.observacionesOperativas)?data.observacionesOperativas:[];
   avanceEstado.avancesUpdatedAt=avNum(data.updatedAt);
   if(!avanceEstado.unsubscribe)avEscuchar();
   const delTurno=avanceEstado.paradasOperativas.filter(p=>p&&!p.eliminada&&p.fecha===avanceEstado.fecha&&avTurnoCanon(p.turno)===avanceEstado.turno);
@@ -2336,7 +2396,7 @@ function avDibujar(){
   const ctx=avCtx(),actual=avanceEstado.fecha===ctx.fecha&&avanceEstado.turno===ctx.turno;
   root.innerHTML=`
     <header class="av2-head"><div><span class="av-eyebrow">GESTIÓN OPERATIVA</span><h2>AVANCE Y CIERRE DE TURNO</h2><p>Gestión y consulta de avances/cierres con información de Producción, Paletas, Paradas y Personal.</p></div><div class="av2-context"><b>${actual?'TURNO ACTUAL':'CONSULTA HISTÓRICA'}${avChipTolerancia()} · ${avEsc(avNombreTurnoPantalla(avanceEstado.turno))}</b><span>${avFechaBonita(avanceEstado.fecha)}</span><span>Supervisor actual: ${avEsc(avNombreUsuario()||'—')}</span></div></header>
-    ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
+    ${actual&&avPuedeGenerar()?`<div class="av-module-actions"><button class="btn btn-primary" onclick="avGenerarAhora()">GENERAR AVANCE AHORA</button><button class="btn btn-ghost" onclick="avAbrirParadas()">+ AGREGAR PARADAS</button><button class="btn btn-ghost" onclick="avAbrirObservaciones()">+ OBSERVACIONES</button>${avBotonAjustarPersonal()}<button class="btn btn-ghost" onclick="avGenerarCierreAhora()">GENERAR CIERRE DE TURNO</button></div>`:''}
     ${!actual&&avPuedeGenerar()?avAccionesHistoricoHtml():''}
     ${!avPuedeGenerar()?avParadasTardiasHtml():''}
     ${window.glacialParadasUnicas?window.glacialParadasUnicas.avanceParadasTurnoHtml():''}
