@@ -75,7 +75,7 @@ Con una convocatoria **PUBLICADA** (o CERRADA) para la semana de la fecha, el Ta
 - **Tareo agrupado por equipo** (mockup 3): tarjetas por equipo, KPIs Asistió / Tardanza / Falta / Por marcar y botones rápidos. Hoy el equipo y el horario ya llegan a cada persona (columna «línea» y hora programada), pero la pantalla del Tareo se ve como antes.
 - **«Hoy pasa a PET»:** cambio de equipo solo por un día desde el Tareo, sin tocar la convocatoria.
 - **Exportación RRHH (38) e imagen del tareo con el equipo:** hoy muestran la «línea», que ya es el equipo.
-- **Fase 2:** rotación automática de descansos con cobertura mínima por línea y turno (PET1 4, PET2 4, B7L 6, Hielo 2) y un domingo de descanso al mes por operario. El núcleo deja `validarConvocatoria` y `copiarSemana` listos para que el generador proponga la convocatoria.
+- ~~**Fase 2:** rotación automática de descansos~~ → **hecho el 28/11/2026:** `docs/personal-tareo/descansos-automaticos.md` (sorteo con reglas, glacial_73). Con descansos publicados la imagen lleva la columna DESC. y el Tareo entra con «Descanso».
 
 ## Pruebas
 

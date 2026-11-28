@@ -61,6 +61,7 @@
         S.datos = r.data; S.error = '';
         // guarda la convocatoria publicada de la semana para el Tareo prellenado (49c)
         try{ if(W.glacialConvocatoriaTareo) W.glacialConvocatoriaTareo.recordar(S.semana, convDe(S.datos), equiposDe(S.datos)); }catch(_){ }
+        try{ if(W.glacialDescansosDatos) W.glacialDescansosDatos.traer(S.semana); }catch(_){ }
       }catch(e){
         const m = String(e && (e.message || e.code) || e);
         S.error = /PGRST202|42883|does not exist|convocatoria_obtener/.test(m) ? 'Falta aplicar glacial_72 en este servidor.' : /42501|permiso/i.test(m) ? 'Tu usuario no tiene permiso para ver la convocatoria.' : 'No se pudo leer la convocatoria: ' + m;
@@ -264,7 +265,10 @@
 
   /* ---------- imagen para WhatsApp ---------- */
   function canvasImagen(){
-    const d = S.datos, conv = convDe(d), eqs = equiposDe(d), mod = C().modeloImagen(conv, eqs, trabajadores(), anteriorDe(d), eqs, d && d.convocatoria && d.convocatoria.nuevo_semanas);
+    // 28/11/2026: con los descansos PUBLICADOS de la semana (49e) sale la columna «DESC.» (LUN…DOM; DOM resaltado)
+    const DD = W.glacialDescansosDatos, desc = DD && W.glacialDescansos ? W.glacialDescansos.mapaDias(DD.publicados(S.semana)) : new Map();
+    const d = S.datos, conv = convDe(d), eqs = equiposDe(d), mod = C().modeloImagen(conv, eqs, trabajadores(), anteriorDe(d), eqs, d && d.convocatoria && d.convocatoria.nuevo_semanas, desc);
+    const DW = mod.conDescansos ? 104 : 0;
     const plano = col => { const out = []; col.forEach(b => { out.push({ cab: b.titulo }); b.filas.forEach(f => out.push(f)); }); return out; };
     const izq = plano(mod.dia), der = plano(mod.noche), filas = Math.max(izq.length, der.length);
     const ESC = 2, W0 = 1440, RH = 44, PAD = 20, N = 74, CW = (W0 - PAD * 2) / 2, top = PAD + 50 + 42;
@@ -274,13 +278,15 @@
     const caja = (x, y, w, h, fondo) => { if(fondo){ g.fillStyle = fondo; g.fillRect(x, y, w, h); } g.strokeRect(x, y, w, h); };
     const txt = (s, x, y, o) => { o = o || {}; g.fillStyle = o.color || '#111'; g.font = (o.bold ? '700 ' : '400 ') + (o.size || 22) + 'px Arial, Helvetica, sans-serif'; g.textAlign = o.align || 'left'; g.fillText(s, x, y); return g.measureText(s).width; };
     caja(PAD, PAD, W0 - PAD * 2, 50, '#9fd3ee'); txt(mod.titulo, W0 / 2, PAD + 25, { bold: true, size: 28, align: 'center' });
-    [0, 1].forEach(i => { const x = PAD + i * CW; caja(x, PAD + 50, N, 42, '#cfe7f5'); txt('N°', x + N / 2, PAD + 71, { bold: true, align: 'center' }); caja(x + N, PAD + 50, CW - N, 42, '#cfe7f5'); txt(i ? 'TURNO NOCHE' : 'TURNO DÍA', x + N + (CW - N) / 2, PAD + 71, { bold: true, align: 'center' }); });
+    [0, 1].forEach(i => { const x = PAD + i * CW; caja(x, PAD + 50, N, 42, '#cfe7f5'); txt('N°', x + N / 2, PAD + 71, { bold: true, align: 'center' }); caja(x + N, PAD + 50, CW - N - DW, 42, '#cfe7f5'); txt(i ? 'TURNO NOCHE' : 'TURNO DÍA', x + N + (CW - N - DW) / 2, PAD + 71, { bold: true, align: 'center' });
+      if(DW){ caja(x + CW - DW, PAD + 50, DW, 42, '#cfe7f5'); txt('DESC.', x + CW - DW / 2, PAD + 71, { bold: true, align: 'center' }); } });
     for(let r = 0; r < filas; r++){
       [izq[r], der[r]].forEach((f, i) => {
         const x = PAD + i * CW, y = top + r * RH;
-        if(!f){ caja(x, y, N, RH); caja(x + N, y, CW - N, RH); return; }
+        if(!f){ caja(x, y, N, RH); caja(x + N, y, CW - N - DW, RH); if(DW) caja(x + CW - DW, y, DW, RH); return; }
         if(f.cab){ caja(x, y, N, RH); caja(x + N, y, CW - N, RH, '#bdbdbd'); txt(f.cab, x + N + (CW - N) / 2, y + RH / 2, { bold: true, align: 'center', size: 21 }); return; }
-        caja(x, y, N, RH); caja(x + N, y, CW - N, RH); if(f.n !== '') txt(String(f.n), x + N - 10, y + RH / 2, { align: 'right' });
+        caja(x, y, N, RH); caja(x + N, y, CW - N - DW, RH); if(f.n !== '') txt(String(f.n), x + N - 10, y + RH / 2, { align: 'right' });
+        if(DW){ caja(x + CW - DW, y, DW, RH, f.desc === 'DOM' ? '#ffe58f' : null); if(f.desc) txt(f.desc, x + CW - DW / 2, y + RH / 2, { bold: true, align: 'center', color: '#0b4a6b' }); }
         let w = txt(f.nombre, x + N + 12, y + RH / 2);
         if(f.nuevo) w += txt(' NUEVO', x + N + 12 + w, y + RH / 2, { bold: true, color: '#e00000' });
         if(f.cambio) txt(' ⇄', x + N + 12 + w, y + RH / 2, { bold: true, color: '#6d28d9' });
@@ -291,8 +297,9 @@
     caja(PAD + CW, yt, CW, 42, '#9fd3ee'); txt(mod.totales['NOCHE'] + ' OPERARIOS', PAD + CW * 1.5, yt + 21, { bold: true, align: 'center' });
     caja(PAD, yt + 42, W0 - PAD * 2, 42, '#9fd3ee');
     const ley = 'TOTAL ' + mod.totales.total + ' OP · ', l1 = ' = ingreso reciente · ', l2 = ' = cambió de turno';
-    g.font = '700 22px Arial'; const anchos = [ley, 'NUEVO', l1, '⇄', l2].map(s => g.measureText(s).width); let x = W0 / 2 - anchos.reduce((a, b) => a + b, 0) / 2;
-    [[ley, '#111'], ['NUEVO', '#e00000'], [l1, '#111'], ['⇄', '#6d28d9'], [l2, '#111']].forEach(([s, c], i) => { txt(s, x, yt + 63, { bold: true, color: c }); x += anchos[i]; });
+    const partes = [[ley, '#111'], ['NUEVO', '#e00000'], [l1, '#111'], ['⇄', '#6d28d9'], [l2, '#111']].concat(DW ? [[' · ', '#111'], ['DOM', '#0b4a6b'], [' = descansa domingo', '#111']] : []);
+    g.font = '700 22px Arial'; const anchos = partes.map(([s]) => g.measureText(s).width); let x = W0 / 2 - anchos.reduce((a, b) => a + b, 0) / 2;
+    partes.forEach(([s, c], i) => { if(s === 'DOM'){ g.fillStyle = '#ffe58f'; g.fillRect(x - 4, yt + 50, anchos[i] + 8, 26); } txt(s, x, yt + 63, { bold: true, color: c }); x += anchos[i]; });
     const u = usr(); const ahora = new Date().toLocaleString('es-PE', { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     txt('Generado por GLACIAL · ' + ((u && (u.nombre || u.username)) || '') + ' · ' + ahora, PAD, yt + 84 + 22, { size: 18, color: '#555' });
     return cv;

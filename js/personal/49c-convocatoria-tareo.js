@@ -9,6 +9,7 @@
    Reglas del Tareo que NO cambian: hora automática al marcar ASISTIÓ, horas extras, bloqueo a los 2 días, maquinistas desde Mantenimiento, personal por día.
    Cómo: envuelve obtenerPersonalPorRotacion (13-tareo.js) y tareoNuevaPersona. La convocatoria se lee del servidor (glacial_72) al abrir el Tareo
    y queda en memoria y en este equipo (localStorage) para trabajar sin conexión.
+   28/11/2026: con los descansos PUBLICADOS (49e-descansos-pantalla.js, glacial_73) quien descansa ese día entra con «Descanso» y se marca si trabaja en su descanso.
    Cargar DESPUÉS de 13-tareo.js y de 49-convocatoria-nucleo.js.
    ============================================================= */
 (function(W){
@@ -59,7 +60,11 @@
     const x = leer(C().lunesDe(fecha));
     if(!x || !x.conv || !['PUBLICADA', 'CERRADA'].includes(x.conv.estado)) return null;
     const trab = (() => { try{ return typeof loadWorkers === 'function' ? (loadWorkers() || []) : []; }catch(_){ return []; } })();
-    return { conv: x.conv, personal: C().prellenarTareo(x.conv, x.equipos, trab, fecha, turno) };
+    // 28/11/2026 · descansos publicados (49e, glacial_73): quien descansa ese día entra con «Descanso» (el supervisor ya no lo marca)
+    const DD = W.glacialDescansosDatos;
+    if(DD && W.glacialDescansos) DD.traer(W.glacialDescansos.lunesDe(fecha));
+    const personal = C().prellenarTareo(x.conv, x.equipos, trab, fecha, turno).map(p => DD && !p.estadoBloque && DD.descansa(p.trabajadorId, fecha) ? Object.assign({}, p, { descansoProgramado: true }) : p);
+    return { conv: x.conv, personal };
   }
 
   /* ---------- envolver el Tareo ---------- */
@@ -79,6 +84,7 @@
         p.equipoId = trabajador.equipoId || ''; p.equipo = trabajador.equipo || ''; p.horaProgramadaSalida = trabajador.horaProgramadaSalida || '';
         p.origenConvocatoria = true;
         if(trabajador.estadoBloque && BLOQUE_ESTADO[trabajador.estadoBloque]) p.asistencia = BLOQUE_ESTADO[trabajador.estadoBloque];
+        else if(trabajador.descansoProgramado){ p.asistencia = 'Descanso'; p.descansoProgramado = true; }
       }
       return p;
     };
