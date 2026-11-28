@@ -1,4 +1,4 @@
--- GLACIAL · glacial_73 · DESCANSOS AUTOMÁTICOS (SORTEO CON REGLAS) (28/11/2026)      *** APLICADA en PRUEBAS (28/11/2026) · PRODUCCIÓN: pendiente de aprobación ***
+-- GLACIAL · glacial_73 · DESCANSOS AUTOMÁTICOS (SORTEO CON REGLAS) (28/11/2026)      *** APLICADA en PRUEBAS (28/11/2026) · PRODUCCIÓN (28/11/2026) ***
 --
 -- Qué hace (docs/personal-tareo/descansos-automaticos.md)
 --   El cuadro «DESCANSOS TURNO DÍA / NOCHE» (antes Excel con «X» a mano) lo propone GLACIAL con un sorteo con reglas (js/personal/49d-descansos-nucleo.js)

@@ -25,7 +25,7 @@ Depende de la convocatoria semanal (`docs/personal-tareo/convocatoria-semanal.md
 | `js/personal/49c-convocatoria-tareo.js` | El Tareo prellenado: quien descansa ese día entra con «Descanso». |
 | `js/personal/13-tareo.js` | Marca junto al nombre: «Su descanso», o en rojo «Trabaja en su descanso» si se le marcó asistencia en su día de descanso. |
 | `js/personal/49-convocatoria-nucleo.js` y `49b-convocatoria-pantalla.js` | Columna **DESC.** en la imagen de la convocatoria (DOM resaltado) y título «… · CON DESCANSOS». |
-| `supabase/migraciones/glacial_73_descansos.sql` | Tablas, funciones, Tiempo real y RLS. **Aplicada en PRUEBAS (28/11/2026). PRODUCCIÓN: pendiente de aprobación.** |
+| `supabase/migraciones/glacial_73_descansos.sql` | Tablas, funciones, Tiempo real y RLS. **Aplicada en PRUEBAS y PRODUCCIÓN (28/11/2026).** |
 
 ## Reglas del sorteo
 
@@ -148,6 +148,5 @@ El mínimo de la convocatoria (el aviso «3 / 4» de cuántos se convocan) es ot
 
 ## Pendiente
 
-- Aplicar glacial_73 en **PRODUCCIÓN** (con tu aprobación).
 - Cargar los **mínimos reales** en «Mínimos y días».
 - Confirmar cómo funciona un equipo que no opera el domingo.
