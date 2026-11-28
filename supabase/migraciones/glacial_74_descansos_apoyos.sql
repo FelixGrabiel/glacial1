@@ -1,4 +1,4 @@
--- GLACIAL · glacial_74 · DESCANSOS: APOYO ENTRE EQUIPOS (28/11/2026)      *** APLICADA en PRUEBAS (28/11/2026) · PRODUCCIÓN: pendiente de aprobación ***
+-- GLACIAL · glacial_74 · DESCANSOS: APOYO ENTRE EQUIPOS (28/11/2026)      *** APLICADA en PRUEBAS (28/11/2026) · PRODUCCIÓN (28/11/2026) ***
 --
 -- Qué hace (docs/personal-tareo/descansos-automaticos.md › Apoyo entre equipos)
 --   Si a un equipo le falta gente un día por los descansos, alguien de otro equipo del MISMO turno y MISMO horario que ese día tiene gente de sobra pasa
