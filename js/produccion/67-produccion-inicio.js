@@ -15,7 +15,15 @@
 
   /* 27/11/2026 · ordenado como se trabaja el turno (docs/produccion/inicio-de-produccion.md): «Tu turno, paso a paso» arriba y, debajo, Paradas,
      Cierre del turno y Personal y configuración. Una tarjeta se ve si existe su botón del menú para el usuario (boton) o si su permiso lo deja (puede). */
+  /* 28/11/2026 · «todo dentro de Inicio de Producción»: el menú lateral solo muestra Inicio (para quien lo tiene) y las líneas pasan a ser tarjetas. */
+  const tabLinea=()=>permiso('nuevo')?'nuevo':permiso('paletas')?'paletas':permiso('historial')?'historial':null;
+  function tarjetasLineas(){
+    const t=tabLinea();if(!t)return [];
+    const nombre=l=>typeof nombreLineaCorto==='function'?nombreLineaCorto(l.key):(l.name||l.key);
+    return lineas().map(l=>({icono:'🏭',titulo:nombre(l),desc:t==='nuevo'?'Nuevo registro, Paletas e Historial de la línea.':t==='paletas'?'Paletas e Historial de la línea.':'Historial de la línea.',abrir:()=>abrirLinea(l.key,t)}));
+  }
   const GRUPOS=[
+    {titulo:'Registro de producción',subtitulo:'Entra a tu línea: Nuevo registro, Paletas e Historial.',color:'#0e7490',dinamico:tarjetasLineas,tarjetas:[]},
     {titulo:'Paradas',subtitulo:'Registrar, revisar y analizar las paradas.',color:'#c2410c',tarjetas:[
       {boton:'btn-paradas-turno',icono:'⏱',titulo:'Paradas del turno',nuevo:true,desc:'Todas las paradas del turno juntas, por hora y marca, con «+ Parada».',abrir:()=>irParadasTurno()},
       {puede:()=>puedeLinea('paletas'),icono:'🏷',titulo:'Cierre por marca',nuevo:true,desc:'Paradas, minutos y ratio de cada marca (en Paletas de la línea elegida arriba).',abrir:()=>abrirLinea(lineaElegida(),'paletas','#ct-panel')},
@@ -95,6 +103,8 @@
       ps.map(p=>'<button type="button" class="pi-paso'+(p.nuevo?' nuevo':'')+'" data-pi-paso="'+p.n+'">'+(p.nuevo?'<span class="pi-badge">NUEVO</span>':'')+'<span class="pi-n">'+p.n+'</span><b>'+esc(p.titulo)+'</b><span class="pi-d">'+esc(p.desc)+'</span></button>').join('')+'</div></div>';
   }
   const ABRIR=[];
+  const PANTALLAS=['avance-produccion','tareo','rotacion-supervisores','resumenes-turno','entrega-turno','horario-produccion','convocatoria'];
+  const PESTANAS_LINEA_PI=['nuevo','paletas','historial'];
   const OTROS=['btn-tareo','btn-rotacion-supervisores','btn-bitacora-prod','btn-resumenes-turno','btn-horario-produccion'];
   const visible=id=>{const b=document.getElementById(id);return !!b&&!b.hidden&&b.style.display!=='none';};
   const hayAcceso=()=>['btn-avance-produccion','btn-entrega-turno','btn-paradas-turno'].concat(OTROS).some(visible);
@@ -102,7 +112,8 @@
   /* Menú lateral de Producción: Inicio, Registro de producción (líneas), Avance y cierre, Paradas del turno y Entrega de turno. Los demás botones siguen existiendo (ocultos por CSS) porque su visibilidad decide qué tarjetas se ven. */
   if(!document.getElementById('pi-menu-css')){
     const m=document.createElement('style');m.id='pi-menu-css';
-    m.textContent=OTROS.map(id=>'#sidebar-panel-produccion #'+id).join(',')+'{display:none!important}';
+    m.textContent=OTROS.map(id=>'#sidebar-panel-produccion #'+id).join(',')+'{display:none!important}'+
+      '#sidebar-panel-produccion.pi-solo-inicio>:not(#btn-prod-inicio){display:none!important}';
     document.head.appendChild(m);
   }
 
@@ -177,7 +188,7 @@
     if(window.glacialMantInicio&&window.glacialMantInicio.estilos)window.glacialMantInicio.estilos();
     ABRIR.length=0;
     const grupos=GRUPOS.map(g=>{
-      const t=g.tarjetas.filter(c=>c.puede?c.puede():visible(c.boton));
+      const t=(g.dinamico?g.dinamico():[]).concat(g.tarjetas.filter(c=>c.puede?c.puede():visible(c.boton)));
       if(!t.length)return '';
       return '<h3 class="mi-sec">'+esc(g.titulo)+'</h3><p class="mi-sub">'+esc(g.subtitulo)+'</p><div class="mi-grid" style="--mi-color:'+g.color+'">'+
         t.map(c=>{ABRIR.push(c.abrir);return '<button type="button" class="mi-card" data-pi-ir="'+(ABRIR.length-1)+'"><span class="mi-ico" aria-hidden="true">'+c.icono+'</span><span class="mi-tit">'+esc(c.titulo)+(c.nuevo?'<span class="pi-badge">NUEVO</span>':'')+'</span><span class="mi-desc">'+esc(c.desc)+'</span><span class="mi-go">Abrir →</span></button>';}).join('')+'</div>';
@@ -233,8 +244,11 @@
       const b=document.getElementById(BOTON);
       if(b){
         const m=hayAcceso();b.hidden=!m;b.style.display=m?'':'none';
-        b.classList.toggle('active',m&&state.currentTab===TAB);
-        if(m&&state.currentTab===TAB)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+        // Todo lo de Producción se abre desde Inicio: el botón queda marcado mientras se trabaja en cualquier pantalla del módulo.
+        const dentro=m&&(state.currentTab===TAB||PANTALLAS.includes(state.currentTab)||PESTANAS_LINEA_PI.includes(state.currentTab));
+        b.classList.toggle('active',dentro);
+        if(dentro)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+        const panel=document.getElementById('sidebar-panel-produccion');if(panel)panel.classList.toggle('pi-solo-inicio',m);
       }
       if(typeof actualizarGruposSidebar==='function')actualizarGruposSidebar();
       botonVolver();
@@ -242,7 +256,6 @@
     };
   }
   /* «← Inicio de Producción» arriba de las pantallas del módulo (dentro de #main; un observador lo vuelve a poner cuando la pantalla repinta). La bitácora y el registro de línea no lo llevan: comparten pantalla con Mantenimiento o son el trabajo diario. */
-  const PANTALLAS=['avance-produccion','tareo','rotacion-supervisores','resumenes-turno','entrega-turno','horario-produccion'];
   function botonVolver(){
     const main=document.getElementById('main');
     if(!main)return;

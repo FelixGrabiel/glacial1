@@ -8,7 +8,8 @@ const html=leer('index.html'),src=leer('js/produccion/67-produccion-inicio.js'),
 const botones=[...src.matchAll(/boton:'(btn-[a-z-]+)'/g)].map(m=>m[1]);
 ok(botones.length===10&&new Set(botones).size===10,'diez tarjetas con botón del menú, sin repetir (más Cierre por marca e Historial, que dependen del permiso de la línea)');
 const titulos=[...src.matchAll(/titulo:'([^']+)',subtitulo/g)].map(m=>m[1]);
-ok(titulos.join('|')==='Paradas|Cierre del turno|Personal y configuración','grupos en el orden del turno: Paradas, Cierre del turno, Personal y configuración');
+ok(titulos.join('|')==='Registro de producción|Paradas|Cierre del turno|Personal y configuración','grupos en el orden del turno: Registro de producción (las líneas), Paradas, Cierre del turno, Personal y configuración');
+ok(/#sidebar-panel-produccion\.pi-solo-inicio>:not\(#btn-prod-inicio\)\{display:none!important\}/.test(src)&&/classList\.toggle\('pi-solo-inicio',m\)/.test(src),'con Inicio, el menú lateral de Producción solo muestra «Inicio de Producción» (28/11/2026)');
 ok(/titulo:'Paradas del turno',nuevo:true/.test(src)&&/titulo:'Cierre por marca',nuevo:true/.test(src)&&/boton:'btn-analisis-paradas'/.test(src)&&/boton:'btn-bitacora-prod'/.test(src),'el grupo Paradas junta Paradas del turno y Cierre por marca (NUEVO), Bitácora y Análisis de paradas');
 const pasos=[...src.matchAll(/\{n:(\d),titulo:'([^']+)'/g)].map(m=>m[2]);
 ok(pasos.join('|')==='Nuevo registro|Paletas|+ Parada|Cerrar marca|Avance y cierre|Entrega de turno','«Tu turno, paso a paso»: los 6 pasos en orden');
@@ -19,7 +20,7 @@ ok(/id="btn-prod-inicio"[\s\S]*?goProduccionInicio\(\)/.test(panel)&&panel.index
 const otros=(src.match(/const OTROS=\[([^\]]*)\]/)||[])[1]||'';
 ok(/pi-menu-css/.test(src)&&['btn-tareo','btn-rotacion-supervisores','btn-bitacora-prod','btn-resumenes-turno','btn-horario-produccion'].every(b=>otros.includes("'"+b+"'"))&&!otros.includes('btn-entrega-turno')&&!otros.includes('btn-paradas-turno'),'el menú oculta tareo, rotación, bitácora, resúmenes y horario (siguen en las tarjetas); Avance y cierre, Paradas del turno, Entrega de turno y las líneas se quedan');
 ok(/id="btn-paradas-turno"[\s\S]*?goParadasTurno\(\)/.test(panel)&&panel.indexOf('btn-avance-produccion')<panel.indexOf('btn-paradas-turno')&&panel.indexOf('btn-paradas-turno')<panel.indexOf('btn-entrega-turno'),'menú: Avance y cierre → Paradas del turno → Entrega de turno');
-ok(/PANTALLAS=\['avance-produccion','tareo','rotacion-supervisores','resumenes-turno','entrega-turno','horario-produccion'\]/.test(src)&&/← Inicio de Producción/.test(src),'las pantallas del módulo llevan el botón «← Inicio de Producción»');
+ok(/PANTALLAS=\['avance-produccion','tareo','rotacion-supervisores','resumenes-turno','entrega-turno','horario-produccion','convocatoria'\]/.test(src)&&/← Inicio de Producción/.test(src),'las pantallas del módulo llevan el botón «← Inicio de Producción»');
 ok(!/'bitacora-mtto'/.test(src.slice(src.indexOf('const PANTALLAS'),src.indexOf('function botonVolver'))),'la bitácora (compartida con Mantenimiento) no lleva el botón de Producción');
 ok(/'prod-inicio'/.test(side)&&/'entrega-turno'/.test(side)&&/'resumenes-turno'/.test(side),'el menú marca el grupo Producción como activo en el inicio, la entrega y los resúmenes');
 ok(html.indexOf('67-produccion-inicio.js')>html.indexOf('68-mantenimiento-inicio.js')&&html.indexOf('67-produccion-inicio.js')>html.indexOf('66-entrega-turno.js'),'index.html carga el inicio después de 66 y de 68');
