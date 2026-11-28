@@ -43,12 +43,16 @@
   const config = () => { const c = (S.datos && S.datos.config) || {}; return { semanasHistorial: c.semanas_historial || 8, medicoParcial: !!c.medico_parcial }; };
   const personas = col => D().personasDe(conv(), anterior(), equipos(), col, S.semana);
   const semanaDe = col => ((S.datos && S.datos.semanas) || []).find(s => s.turno === col) || null;
+  /** Apoyos entre equipos de una columna (glacial_74): { trabajadorId, nombre, desde, a, dia, origen } */
+  const apoyosDe = col => ((S.datos && S.datos.apoyos) || []).filter(x => x.turno === col).map(x => ({ trabajadorId: x.trabajador_id, nombre: x.nombre || '', desde: x.desde_equipo, a: x.a_equipo, dia: Number(x.dia), origen: x.origen || 'AUTO' }));
+  const apoyoServidor = (col, x) => ({ trabajador_id: x.trabajadorId, nombre: x.nombre || '', desde_equipo: x.desde, a_equipo: x.a, dia: x.dia, origen: x.origen || 'AUTO', turno: col });
   /** Resultado de una columna desde el servidor (o null si aún no se sorteó). */
   function resultado(col){
     const s = semanaDe(col); if(!s) return null;
     const asig = ((S.datos && S.datos.asignaciones) || []).filter(a => a.turno === col).map(a => ({ trabajadorId: a.trabajador_id, nombre: a.nombre, equipoId: a.equipo_id || '', dia: a.dia === null || a.dia === undefined ? null : Number(a.dia),
       status: a.status, origen: a.origen, motivo: a.motivo || '', bloque: a.bloque || '', hasta: a.hasta_fecha || '', actualizadoPor: a.status === 'MANUAL' ? (a.actualizado_por || '') : '' }));
-    return Object.assign({ semana: S.semana, columna: col, semilla: s.semilla, estado: s.estado, version: s.version, generadoEn: s.generado_en, publicadoPor: s.publicado_por, asignaciones: asig }, D().evaluar(asig, equipos(), col, S.semana, personas(col)));
+    const ap = apoyosDe(col);
+    return Object.assign({ semana: S.semana, columna: col, semilla: s.semilla, estado: s.estado, version: s.version, generadoEn: s.generado_en, publicadoPor: s.publicado_por, asignaciones: asig, apoyos: ap }, D().evaluar(asig, equipos(), col, S.semana, personas(col), ap));
   }
 
   let pidiendo = null;
@@ -74,7 +78,7 @@
     const c = sb(); if(!c || typeof c.channel !== 'function' || S.canal) return;
     try{
       let ch = c.channel('descansos');
-      ['descansos_semana', 'descansos_asignacion', 'descansos_config', 'equipos_trabajo', 'convocatoria_asignaciones'].forEach(t => { ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => { clearTimeout(tCambio); tCambio = setTimeout(() => { if(typeof state !== 'undefined' && state.currentTab === TAB && !leerCola().length) cargar(); }, 250); }); });
+      ['descansos_semana', 'descansos_asignacion', 'descansos_apoyo', 'descansos_config', 'equipos_trabajo', 'convocatoria_asignaciones'].forEach(t => { ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => { clearTimeout(tCambio); tCambio = setTimeout(() => { if(typeof state !== 'undefined' && state.currentTab === TAB && !leerCola().length) cargar(); }, 250); }); });
       ch.subscribe(); S.canal = ch;
     }catch(_){ S.canal = null; }
   }
@@ -111,10 +115,11 @@
     const r = D().generarDescansos({ semana: S.semana, columna: col, equipos: equipos(), conv: cv, anterior: anterior(), historial: hist, config: config(), semilla: D().nuevaSemilla() });
     const T = new Map(trabajadores().map(t => [t.id, t]));
     const p = { semana: S.semana, turno: col, semilla: r.semilla, client_event_id: uuid(),
-      asignaciones: r.asignaciones.map((a, i) => ({ trabajador_id: a.trabajadorId, nombre: (T.get(a.trabajadorId) || {}).nombre || a.nombre || '', equipo_id: a.equipoId || '', dia: a.dia, status: a.status, origen: a.origen, motivo: a.motivo, bloque: a.bloque, hasta_fecha: a.hasta || '', orden: i + 1 })) };
+      asignaciones: r.asignaciones.map((a, i) => ({ trabajador_id: a.trabajadorId, nombre: (T.get(a.trabajadorId) || {}).nombre || a.nombre || '', equipo_id: a.equipoId || '', dia: a.dia, status: a.status, origen: a.origen, motivo: a.motivo, bloque: a.bloque, hasta_fecha: a.hasta || '', orden: i + 1 })),
+      apoyos: (r.apoyos || []).map(x => ({ trabajador_id: x.trabajadorId, nombre: (T.get(x.trabajadorId) || {}).nombre || x.nombre || '', desde_equipo: x.desde, a_equipo: x.a, dia: x.dia, origen: 'AUTO' })) };
     const s = semanaDe(col); if(s) p.version = s.version;
     const res = await sb().rpc('descansos_guardar', { p });
-    S.msg = res && res.error ? String(res.error.message || res.error).replace(/^descansos:\s*/i, '') : 'Sorteo n.º ' + r.semilla + ': ' + r.asignados + ' de ' + r.conDescanso + ' con descanso' + (r.porProgramar ? ' · ' + r.porProgramar + ' por programar' : '') + '. Revisa y publica.';
+    S.msg = res && res.error ? String(res.error.message || res.error).replace(/^descansos:\s*/i, '') : 'Sorteo n.º ' + r.semilla + ': ' + r.asignados + ' de ' + r.conDescanso + ' con descanso' + ((r.apoyos || []).length ? ' · ' + r.apoyos.length + ' apoyo(s) entre equipos' : '') + (r.porProgramar ? ' · ' + r.porProgramar + ' por programar' : '') + '. Revisa y publica.';
     S.avisos = [];
     await cargar();
   }
@@ -122,17 +127,49 @@
     const r = resultado(col); if(!r || !edita(col)) return;
     const a = r.asignaciones.find(x => x.trabajadorId === trabajadorId); if(!a || a.status === 'MEDICO') return;
     const nuevoDia = a.dia === dia ? null : dia;                           // tocar su X la quita (queda «por programar»)
-    const m = D().mover(r.asignaciones, trabajadorId, nuevoDia, quien(), equipos(), col, S.semana, personas(col));
+    const m = D().mover(r.asignaciones, trabajadorId, nuevoDia, quien(), equipos(), col, S.semana, personas(col), r.apoyos);
     S.avisos = m.avisos;
-    // aplica al momento en esta pantalla y lo manda (cola idempotente)
+    // aplica al momento en esta pantalla y lo manda (cola idempotente): el descanso y los apoyos que se quitan o se proponen
     (S.datos.asignaciones || []).forEach(x => { if(x.turno === col && x.trabajador_id === trabajadorId){ x.dia = nuevoDia; x.status = 'MANUAL'; x.origen = 'MANUAL'; x.actualizado_por = quien(); } });
-    const motivo = m.avisos.length ? 'Cambiado a mano · ' + m.avisos.map(x => x.texto).join(' · ') : 'Cambiado a mano';
-    guardarCola(leerCola().concat([{ fn: 'descansos_mover', p: { semana: S.semana, turno: col, trabajador_id: trabajadorId, dia: nuevoDia, motivo: motivo.slice(0, 200), client_event_id: uuid() } }]));
+    const fuera = new Set(m.quitados.map(x => x.trabajadorId + '|' + x.dia));
+    S.datos.apoyos = (S.datos.apoyos || []).filter(x => !(x.turno === col && fuera.has(x.trabajador_id + '|' + x.dia))).concat(m.nuevos.map(x => apoyoServidor(col, x)));
+    const motivo = m.avisos.filter(x => x.tipo !== 'apoyo').length ? 'Cambiado a mano · ' + m.avisos.filter(x => x.tipo !== 'apoyo').map(x => x.texto).join(' · ') : 'Cambiado a mano';
+    guardarCola(leerCola().concat([{ fn: 'descansos_mover', p: { semana: S.semana, turno: col, trabajador_id: trabajadorId, dia: nuevoDia, motivo: motivo.slice(0, 200), client_event_id: uuid() } }])
+      .concat(m.quitados.map(x => ({ fn: 'descansos_apoyo_cambiar', p: { semana: S.semana, turno: col, accion: 'quitar', trabajador_id: x.trabajadorId, dia: x.dia, client_event_id: uuid() } })))
+      .concat(m.nuevos.map(x => ({ fn: 'descansos_apoyo_cambiar', p: { semana: S.semana, turno: col, accion: 'poner', trabajador_id: x.trabajadorId, nombre: x.nombre || '', dia: x.dia, desde_equipo: x.desde, a_equipo: x.a, origen: 'AUTO', client_event_id: uuid() } }))));
     S.msg = ''; repintar(); vaciar();
+  }
+  /** Apoyo a mano: quitar o poner (elegido por el supervisor). */
+  function apoyoCambiar(col, accion, x){
+    if(!edita(col)) return;
+    if(accion === 'quitar') S.datos.apoyos = (S.datos.apoyos || []).filter(y => !(y.turno === col && y.trabajador_id === x.trabajadorId && Number(y.dia) === x.dia));
+    else S.datos.apoyos = (S.datos.apoyos || []).filter(y => !(y.turno === col && y.trabajador_id === x.trabajadorId && Number(y.dia) === x.dia)).concat([apoyoServidor(col, Object.assign({}, x, { origen: 'MANUAL' }))]);
+    guardarCola(leerCola().concat([{ fn: 'descansos_apoyo_cambiar', p: { semana: S.semana, turno: col, accion, trabajador_id: x.trabajadorId, nombre: x.nombre || '', dia: x.dia, desde_equipo: x.desde, a_equipo: x.a, origen: 'MANUAL', client_event_id: uuid() } }]));
+    S.avisos = []; S.msg = ''; cerrarModal(); repintar(); vaciar();
+  }
+  /** Quién puede ir de apoyo a un equipo un día: de equipos del mismo turno y horario, que trabaja ese día, no apoya ya y su equipo queda en su mínimo. */
+  function candidatosApoyo(col, equipoId, dia){
+    const r = resultado(col), eqs = equipos(), e = eqs.find(x => x.id === equipoId); if(!r || !e) return [];
+    const P = new Map(personas(col).map(p => [p.trabajadorId, p]));
+    return eqs.filter(b => D().compatibles(e, b) && D().opera(b, dia)).flatMap(b => {
+      const sobra = D().contar(b, dia, r.asignaciones, r.apoyos, P, S.semana) - D().minimoDia(b, dia);
+      return r.asignaciones.filter(a => a.equipoId === b.id && a.dia !== dia && a.status !== 'MEDICO' && !D().diasEnBloque(P.get(a.trabajadorId) || a, S.semana).includes(dia) && !r.apoyos.some(x => x.trabajadorId === a.trabajadorId && x.dia === dia))
+        .map(a => ({ trabajadorId: a.trabajadorId, nombre: nombreDe(a), desde: b.id, desdeNombre: b.nombre, a: equipoId, dia, sobra }));
+    }).sort((x, y) => y.sobra - x.sobra);
+  }
+  const nombreDe = a => ((trabajadores().find(t => t.id === a.trabajadorId) || {}).nombre) || a.nombre || a.trabajadorId;
+  function elegirApoyo(col, equipoId, dia, reemplaza){
+    const e = equipos().find(x => x.id === equipoId), lista = candidatosApoyo(col, equipoId, dia);
+    const m = modal(`<h3 style="margin:0">Apoyo para ${esc(e ? e.nombre : '')} · ${D().DIAS[dia]}</h3><p class="ds-pie" style="margin:0">Personas de equipos del mismo turno y horario que ese día trabajan. «sobra» = cuántos tiene su equipo por encima de su mínimo (con 0 o menos, su equipo quedaría corto).</p>
+      <div style="display:grid;gap:6px;max-height:55vh;overflow:auto">${lista.map((c, i) => `<button type="button" data-ds-elige="${i}" style="min-height:44px;text-align:left;border:1px solid #cfdbe5;border-radius:10px;background:#fff;padding:6px 10px;cursor:pointer"><b>${esc(c.nombre)}</b> <small>${esc(c.desdeNombre)} · sobra ${c.sobra}</small></button>`).join('') || '<p class="ds-pie">No hay equipos del mismo turno y horario con gente ese día.</p>'}</div>
+      <button type="button" data-ds-cerrar="1" style="min-height:44px;border-radius:12px;border:1.5px solid #cfdbe5;background:#fff;font-weight:700">Cerrar</button>`);
+    m.addEventListener('click', ev => { const b = ev.target.closest('[data-ds-elige]'); if(!b) return; const c = lista[Number(b.getAttribute('data-ds-elige'))];
+      if(reemplaza) apoyoCambiar(col, 'quitar', reemplaza);
+      apoyoCambiar(col, 'poner', c); });
   }
   async function publicar(col){
     const r = await sb().rpc('descansos_estado', { p: { semana: S.semana, turno: col, estado: 'PUBLICADA' } });
-    S.msg = r && r.error ? String(r.error.message || r.error).replace(/^descansos:\s*/i, '') : 'Descansos del turno ' + (col === 'NOCHE' ? 'noche' : 'día') + ' publicados: pasan a la convocatoria (columna DESC.) y al Tareo como «Descanso».';
+    S.msg = r && r.error ? String(r.error.message || r.error).replace(/^descansos:\s*/i, '') : 'Descansos del turno ' + (col === 'NOCHE' ? 'noche' : 'día') + ' publicados: pasan a la convocatoria (columna DESC.) y al Tareo como «Descanso»; quien apoya entra ese día en el equipo que apoya.';
     await cargar();
   }
 
@@ -140,7 +177,8 @@
   const memoria = new Map();
   function recordarPublicados(semana, datos){
     if(!semana || !datos) return;
-    const pub = (datos.semanas || []).filter(s => s.estado === 'PUBLICADA').map(s => ({ semana, turno: s.turno, asignaciones: (datos.asignaciones || []).filter(a => a.turno === s.turno).map(a => ({ trabajadorId: a.trabajador_id, dia: a.dia === null || a.dia === undefined ? null : Number(a.dia) })) }));
+    const pub = (datos.semanas || []).filter(s => s.estado === 'PUBLICADA').map(s => ({ semana, turno: s.turno, asignaciones: (datos.asignaciones || []).filter(a => a.turno === s.turno).map(a => ({ trabajadorId: a.trabajador_id, dia: a.dia === null || a.dia === undefined ? null : Number(a.dia) })),
+      apoyos: (datos.apoyos || []).filter(x => x.turno === s.turno).map(x => ({ trabajadorId: x.trabajador_id, desde: x.desde_equipo, a: x.a_equipo, dia: Number(x.dia) })) }));
     memoria.set(semana, pub);
     try{ localStorage.setItem(CACHE + semana, JSON.stringify(pub)); }catch(_){ }
   }
@@ -159,8 +197,11 @@
   }
   /** Para el Tareo: ¿la persona tiene su descanso publicado ese día? */
   const descansa = (trabajadorId, fecha) => D() ? D().descansaEn(publicados(D().lunesDe(fecha)), trabajadorId, fecha) : false;
-  /** Marca en el Tareo: trabaja en su día de descanso (diferencia visible). */
+  /** Para el Tareo: apoyo publicado de la persona ese día ({ a, desde }) o null. */
+  const apoyo = (trabajadorId, fecha) => D() ? D().apoyoEn(publicados(D().lunesDe(fecha)), trabajadorId, fecha) : null;
+  /** Marca en el Tareo: trabaja en su día de descanso (diferencia visible) · apoya a otro equipo ese día. */
   function marca(persona){
+    if(persona && persona.apoyoDesde) return ' <span class="tar2-area-badge" title="Ese día apoya a otro equipo (descansos publicados)" style="background:#e0ecff;color:#1e46a0">Apoyo · de ' + esc(persona.apoyoDesde) + '</span>';
     if(!persona || !persona.descansoProgramado) return '';
     const a = String(persona.asistencia || '');
     if(!a || /descanso/i.test(a)) return ' <span class="tar2-area-badge" title="Día de descanso publicado" style="background:#fff8dc;color:#7a4a00">Su descanso</span>';
@@ -190,7 +231,9 @@
 #ds .ds-x td.d button:not(:disabled):hover{background:#e8f3fb}#ds .ds-x td.gris{background:#e5e7eb}#ds .ds-x td.st{min-width:240px;font-size:15px}
 #ds .ds-x td.st.ASIGNADO,#ds .ds-x td.st.VIENE_NOCHE{background:#c6efce;color:#1f6f2b}#ds .ds-x td.st.PASA_NOCHE{background:#e4dcf3;color:#5b3aa0}#ds .ds-x td.st.MANUAL{background:#dbe8f7;color:#1e4f91}#ds .ds-x td.st.MEDICO{background:#eceff1;color:#555}#ds .ds-x td.st.PROGRAMAR{background:#f4b5b5;color:#9b0000;font-weight:800}
 #ds .ds-x tr.tot td{background:#e60000;color:#fff;font-weight:800;text-align:center}#ds .ds-x tr.trab td{background:#f1f1f1;font-size:13px;text-align:center;vertical-align:middle;line-height:1.35;padding:4px}
-#ds .ds-x td.dmin{color:#b91c1c;font-weight:800}.ds-pie{font-size:12.5px;color:#64748b;margin:6px 0 0}
+#ds .ds-x td.dmin{color:#b91c1c;font-weight:800}#ds .ds-x td.d button small.ap{font:800 11px Arial,sans-serif;color:#1e46a0}
+.ds-ap{list-style:none;margin:0;padding:0;display:grid;gap:4px}.ds-ap li{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px dashed #e2e8f0;min-height:40px}.ds-ap li.falta{color:#7a4a00}
+#ds .ds-mini{min-height:36px;min-width:36px;border-radius:9px;border:1px solid #cfdbe5;background:#fff;color:#0b3a5c;font-weight:700;cursor:pointer;margin-left:4px;padding:0 10px}.ds-pie{font-size:12.5px;color:#64748b;margin:6px 0 0}
 .ds-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:900;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto}.ds-modal>div{background:#fff;border-radius:16px;padding:14px;max-width:980px;width:100%;display:grid;gap:10px;color:#0f2a3d}
 .ds-modal img{max-width:100%;border:1px solid #e2e8f0;border-radius:8px}.ds-modal input{min-height:40px;border:1px solid #cfdbe5;border-radius:8px;padding:4px 6px;font:inherit;box-sizing:border-box}
 .ds-cfg{border-collapse:collapse;font-size:13.5px}.ds-cfg th,.ds-cfg td{padding:4px;border-bottom:1px solid #eef2f5;text-align:center}.ds-cfg td:first-child{text-align:left;font-weight:700;min-width:130px}.ds-cfg input[type=number]{width:54px}
@@ -216,6 +259,15 @@
     return `<div class="ds-card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline"><h3>Personas trabajando por día</h3><small style="color:#64748b">amarillo = domingo</small></div>
       <div class="ds-scroll"><table class="ds-tt"><thead><tr><th></th>${D().DIAS.map((x, d) => `<th class="${d === 6 ? 'dom' : ''}">${x}</th>`).join('')}</tr></thead><tbody>${bloque('DÍA')}${bloque('NOCHE')}</tbody></table></div></div>`;
   }
+  /** Apoyos entre equipos del turno (editable) y días en que a un equipo le falta gente. */
+  function htmlApoyos(r, ed){
+    const E = new Map(equipos().map(e => [e.id, e])), ap = (r.apoyos || []).slice().sort((x, y) => x.dia - y.dia);
+    const faltas = r.avisos.filter(a => a.tipo === 'minimo');
+    if(!ap.length && !faltas.length) return '';
+    return `<div class="ds-card"><h3>Apoyos entre equipos</h3><p class="ds-pie" style="margin:0 0 6px">Si a un equipo le falta gente un día, alguien de otro equipo del mismo turno y horario que ese día tiene de sobra pasa a apoyarlo. En el cuadro sale «→EQUIPO» ese día y en el Tareo entra en el equipo que apoya.</p>
+      <ul class="ds-ap">${ap.map(x => `<li><span><b>${esc(nombreDe(x))}</b> (${esc((E.get(x.desde) || {}).nombre || x.desde)}) → <b>${esc((E.get(x.a) || {}).nombre || x.a)}</b> · ${D().DIAS[x.dia]}${x.origen === 'MANUAL' ? ' <small>(a mano)</small>' : ''}</span>${ed ? `<span><button type="button" class="ds-mini" data-ds-apc="${esc(x.trabajadorId)}|${x.dia}">Cambiar</button><button type="button" class="ds-mini" data-ds-apq="${esc(x.trabajadorId)}|${x.dia}" aria-label="Quitar apoyo">✕</button></span>` : ''}</li>`).join('')}
+      ${faltas.map(a => `<li class="falta"><span>⚠ ${esc(a.texto)}</span>${ed ? `<button type="button" class="ds-mini" data-ds-apf="${esc(a.equipoId)}|${a.dia}">Elegir apoyo</button>` : ''}</li>`).join('')}</ul></div>`;
+  }
   function htmlCuadro(r){
     const mod = D().modeloCuadro(r, equipos(), trabajadores(), { horario: (equipos().find(e => e.columna === r.columna) || {}).inicio ? (equipos().find(e => e.columna === r.columna).inicio + '–' + equipos().find(e => e.columna === r.columna).fin) : '' });
     const ed = edita(r.columna), filas = mod.filas.filter(f => !S.filtro || f.equipoId === S.filtro);
@@ -226,7 +278,7 @@
       <tr>${mod.dias.map(x => `<th>${x.num}</th>`).join('')}</tr></thead>
       <tbody>${filas.map(f => `<tr><td class="n">${f.n}</td><td class="nom">${esc(f.nombre)}</td><td class="eq">${esc(f.equipo)}</td>${[0, 1, 2, 3, 4, 5, 6].map(d => {
           if(f.status === 'MEDICO') return `<td class="d gris"></td>`;
-          return `<td class="d ${d === 6 ? 'dom' : ''}"><button type="button" ${ed ? '' : 'disabled'} data-ds-cel="${esc(f.trabajadorId)}" data-ds-dia="${d}" aria-label="${esc(f.nombre)} ${D().DIAS[d]}${f.dia === d ? ' (descansa)' : ''}">${f.dia === d ? 'X' : ''}</button></td>`; }).join('')}
+          return `<td class="d ${d === 6 ? 'dom' : ''}"><button type="button" ${ed ? '' : 'disabled'} data-ds-cel="${esc(f.trabajadorId)}" data-ds-dia="${d}" aria-label="${esc(f.nombre)} ${D().DIAS[d]}${f.dia === d ? ' (descansa)' : ''}${(f.apoyos || []).some(x => x.dia === d) ? ' (apoya a otro equipo)' : ''}">${f.dia === d ? 'X' : (f.apoyos || []).filter(x => x.dia === d).map(x => '<small class="ap">→' + esc(x.corto) + '</small>').join('')}</button></td>`; }).join('')}
         <td class="st ${esc(f.status)}" title="${esc(f.motivo)}">${esc(f.statusTexto)}${f.status === 'PROGRAMAR' && f.motivo ? ' · ' + esc(f.motivo) : ''}</td></tr>`).join('')}
       <tr class="tot"><td colspan="3">Total de descansos por día</td>${r.totalesPorDia.map(t => `<td>${t}</td>`).join('')}<td>${esc(mod.resumen)}</td></tr>
       <tr class="trab"><td colspan="3" style="text-align:right">${esc(mod.trabajando.etiqueta)}</td>${[0, 1, 2, 3, 4, 5, 6].map(d => `<td>${mod.trabajando.equipos.map(e => `<div class="${e.minimos[d] !== null && e.dias[d] < e.minimos[d] ? 'dmin' : ''}">${e.minimos[d] === null ? '—' : e.dias[d]}</div>`).join('')}</td>`).join('')}<td style="text-align:left">${esc(mod.trabajando.minimos)} ${mod.trabajando.ok ? '✓' : '⚠'}</td></tr>
@@ -250,6 +302,7 @@
       <div class="ds-tabs" role="tablist">${['DÍA', 'NOCHE'].map(c => { const x = resultado(c); return `<button type="button" class="ds-tab ${S.col === c ? 'on' : ''}" data-ds-col="${c}" role="tab" aria-selected="${S.col === c}">Turno ${c === 'NOCHE' ? 'noche' : 'día'}${x ? ' · ' + x.asignados + '/' + x.conDescanso : ''}</button>`; }).join('')}</div>
       ${r ? `<div class="ds-card"><h3>Reglas</h3><ul class="ds-reglas">${r.reglas.map(x => `<li>${x.ok ? '✅' : '⚠️'} ${esc(x.texto)}</li>`).join('')}${r.avisos.filter(a => a.tipo === 'info').map(a => `<li>⚠ ${esc(a.texto)}</li>`).join('')}</ul></div>` : ''}
       ${avisos.length ? `<div class="ds-av"><b>Avisos (no bloquean)</b><ul>${avisos.slice(0, 30).map(a => `<li>${a.nuevo ? '<b>Tu cambio:</b> ' : ''}${esc(a.texto)}</li>`).join('')}</ul></div>` : ''}
+      ${r ? htmlApoyos(r, ed) : ''}
       <div class="ds-fila">
         ${ed ? `<button type="button" class="ds-b ${r ? '' : 'p'}" data-ds-sortear="1">🎲 ${r ? 'Volver a sortear' : 'Sortear descansos'} (${S.col === 'NOCHE' ? 'noche' : 'día'})</button>` : ''}
         ${ed && r && s.estado !== 'PUBLICADA' ? '<button type="button" class="ds-b p" data-ds-publicar="1">Publicar y aplicar a convocatoria</button>' : ''}
@@ -293,7 +346,8 @@
       let b = caja(0, 1, y, RH); txt(f.n, b.x + b.w / 2, y + RH / 2, { bold: true, align: 'center' });
       b = caja(1, 2, y, RH); txt(f.nombre, b.x + 8, y + RH / 2, { bold: true });
       b = caja(2, 3, y, RH); txt(f.equipo, b.x + 8, y + RH / 2, { color: '#555', size: 15 });
-      for(let d = 0; d < 7; d++){ b = caja(3 + d, 4 + d, y, RH, f.status === 'MEDICO' ? '#e5e7eb' : d === 6 ? '#fff8dc' : null); if(f.dia === d){ g.font = '700 22px "Times New Roman", serif'; g.fillStyle = '#d00000'; g.textAlign = 'center'; g.fillText('X', b.x + b.w / 2, y + RH / 2 + 1); } }
+      for(let d = 0; d < 7; d++){ b = caja(3 + d, 4 + d, y, RH, f.status === 'MEDICO' ? '#e5e7eb' : d === 6 ? '#fff8dc' : null); if(f.dia === d){ g.font = '700 22px "Times New Roman", serif'; g.fillStyle = '#d00000'; g.textAlign = 'center'; g.fillText('X', b.x + b.w / 2, y + RH / 2 + 1); }
+        else { const ap = (f.apoyos || []).find(x => x.dia === d); if(ap){ g.font = '700 11px Arial, sans-serif'; g.fillStyle = '#1e46a0'; g.textAlign = 'center'; g.fillText('→' + ap.corto, b.x + b.w / 2, y + RH / 2 + 1); } } }
       const c = COL[f.status] || ['#fff', '#111']; b = caja(10, 11, y, RH, c[0]); txt(f.statusTexto, b.x + 8, y + RH / 2, { color: c[1], bold: f.status === 'PROGRAMAR' });
       y += RH;
     });
@@ -340,8 +394,8 @@
     [2, 3].forEach(n => ws.getRow(n).eachCell({ includeEmpty: true }, c => { c.fill = relleno(cab); c.font = { bold: true }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = borde; }));
     const COL = { ASIGNADO: ['FFC6EFCE', 'FF1F6F2B'], VIENE_NOCHE: ['FFC6EFCE', 'FF1F6F2B'], PASA_NOCHE: ['FFE4DCF3', 'FF5B3AA0'], MANUAL: ['FFDBE8F7', 'FF1E4F91'], MEDICO: ['FFECEFF1', 'FF555555'], PROGRAMAR: ['FFF4B5B5', 'FF9B0000'] };
     mod.filas.forEach((f, i) => {
-      const row = ws.getRow(4 + i); row.values = [f.n, f.nombre, f.equipo].concat([0, 1, 2, 3, 4, 5, 6].map(d => f.dia === d ? 'X' : '')).concat([f.statusTexto]);
-      row.eachCell({ includeEmpty: true }, (c, k) => { c.border = borde; if(k >= 4 && k <= 10){ c.alignment = { horizontal: 'center' }; c.font = { bold: true, color: { argb: 'FFD00000' } }; if(f.status === 'MEDICO') c.fill = relleno('FFE5E7EB'); else if(k === 10) c.fill = relleno('FFFFF8DC'); } });
+      const row = ws.getRow(4 + i); row.values = [f.n, f.nombre, f.equipo].concat([0, 1, 2, 3, 4, 5, 6].map(d => f.dia === d ? 'X' : ((f.apoyos || []).find(x => x.dia === d) ? '→' + (f.apoyos || []).find(x => x.dia === d).corto : ''))).concat([f.statusTexto]);
+      row.eachCell({ includeEmpty: true }, (c, k) => { c.border = borde; if(k >= 4 && k <= 10){ c.alignment = { horizontal: 'center' }; c.font = String(c.value || '').startsWith('→') ? { bold: true, size: 9, color: { argb: 'FF1E46A0' } } : { bold: true, color: { argb: 'FFD00000' } }; if(f.status === 'MEDICO') c.fill = relleno('FFE5E7EB'); else if(k === 10) c.fill = relleno('FFFFF8DC'); } });
       row.getCell(2).font = { bold: true };
       const col = COL[f.status]; if(col){ row.getCell(11).fill = relleno(col[0]); row.getCell(11).font = { color: { argb: col[1] }, bold: f.status === 'PROGRAMAR' }; }
     });
@@ -402,6 +456,9 @@
       }
       sortear(S.col); return;
     }
+    if((b = g('data-ds-apq'))){ const [t, d] = at(b, 'data-ds-apq').split('|'); const x = resultado(S.col).apoyos.find(y => y.trabajadorId === t && y.dia === Number(d)); if(x) apoyoCambiar(S.col, 'quitar', x); return; }
+    if((b = g('data-ds-apc'))){ const [t, d] = at(b, 'data-ds-apc').split('|'); const x = resultado(S.col).apoyos.find(y => y.trabajadorId === t && y.dia === Number(d)); if(x) elegirApoyo(S.col, x.a, x.dia, x); return; }
+    if((b = g('data-ds-apf'))){ const [eq, d] = at(b, 'data-ds-apf').split('|'); elegirApoyo(S.col, eq, Number(d)); return; }
     if(g('data-ds-publicar')){ publicar(S.col); return; }
     if(g('data-ds-png')){ verImagen(resultado(S.col)); return; }
     if(g('data-ds-xlsx')){ excel(resultado(S.col)); return; }
@@ -420,8 +477,8 @@
     cargar(); vaciar();
   }
   W.goDescansos = ir;
-  W.glacialDescansosPantalla = { estado: S, cargar, vaciar, resultado, canvasCuadro, sortear, mover, publicar, columnaSupervisor };
-  W.glacialDescansosDatos = { recordar: recordarPublicados, publicados, traer, descansa, marca };
+  W.glacialDescansosPantalla = { estado: S, cargar, vaciar, resultado, canvasCuadro, sortear, mover, publicar, columnaSupervisor, apoyoCambiar, candidatosApoyo };
+  W.glacialDescansosDatos = { recordar: recordarPublicados, publicados, traer, descansa, apoyo, marca };
   if(typeof renderMain === 'function'){
     const a = renderMain;
     renderMain = function(){ if(state.currentTab === TAB && !state.showWelcome && puedeVer()){ pintar(document.getElementById('main')); return; } return a.apply(this, arguments); };
