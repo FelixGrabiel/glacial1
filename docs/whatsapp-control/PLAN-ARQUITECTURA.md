@@ -136,3 +136,13 @@ Todas en `public`, **RLS activada sin políticas**, sin permisos para `anon`/`au
 3. Migración `glacial_34` + función de servidor + identidades y permisos (PRUEBAS).
 4. Solicitud → confirmación → pausa informativa + overlay del semáforo + Realtime.
 5. Endurecimiento, las 24 pruebas, revisión de dependencias, guía y paso a PRODUCCIÓN.
+
+## Versión nueva publicada (27/11/2026)
+
+El bot abre GLACIAL en su Chromium y lo deja abierto horas: seguía con el código con que abrió. Por eso, después del PR #183 (Avance/Cierre de vuelta **por formato**), el bot mandó el Avance en el formato general por línea.
+
+`js/nucleo/12d-version-nueva.js` relee `index.html` sin caché cada 5 minutos y compara las versiones `?v=` de los scripts:
+- **Bot** (`navigator.webdriver`): si hay versión nueva, la página se recarga sola, pero no si en los últimos 3 minutos llamó a `glacialAvancePreparar()` (marca `window.__glxBotUltimoUso`), para no cortar un AVANCE/CIERRE a la mitad.
+- **Personas:** aviso «Hay una versión nueva de GLACIAL · Recargar», sin recarga automática.
+
+Pruebas: `tests/version-nueva.test.js` y `tests/version-nueva.e2e.js`.
