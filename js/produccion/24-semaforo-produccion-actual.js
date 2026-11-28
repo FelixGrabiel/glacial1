@@ -385,7 +385,8 @@
     // Al llegar al objetivo, la marca está completada aunque el último
     // estado operativo guardado siga diciendo EN_PRODUCCION.
     if(operativo==='FINALIZADA' || (programado>0 && producido>=programado))
-      return {key:'COMPLETADA',label:'COMPLETADA',rank:3,cls:'completada'};
+      // 28/11/2026: «COMPLETADA» solo si alguien la finalizó; si solo llegó a lo programado y sigue abierta, «META CUMPLIDA» (falta finalizarla).
+      return {key:'COMPLETADA',label:(operativo==='FINALIZADA' || opEstado==='FINALIZADA')?'COMPLETADA':'META CUMPLIDA',rank:3,cls:'completada',sinFinalizar:!(operativo==='FINALIZADA' || opEstado==='FINALIZADA')};
     // La clave interna sigue siendo PAUSA (prioridades, contadores y controles no cambian); solo se distingue lo que ve el usuario.
     if(operativo==='DETENIDA')
       return {key:'PAUSA',label:'DETENIDA',rank:1,cls:'detenida'};
@@ -832,7 +833,10 @@
         // El color del encabezado es el del ESTADO operativo de la línea (mapa único: 24a-estados-visuales.js): En curso naranja, pausa amarilla,
         // detenida roja, finalizada verde, pendiente gris. NO depende del ratio ni de la proyección (esas alertas van en su propio panel).
         const nivel=window.glacialEstadosVisuales.nivelDeEstadoLinea(estadoLineaGrupo);
-        const texto=({DETENIDA:'Línea detenida',EN_CURSO:'En curso',PAUSA:'Pausa programada',CANCELADA:'CANCELADA',COMPLETADA:'FINALIZADA'})[estadoLineaGrupo]||
+        // 28/11/2026: «FINALIZADA» solo si alguien finalizó de verdad todas sus presentaciones (queda quién y cuándo en la bitácora; desde ahí se puede
+        // reabrir). Si solo llegaron a lo programado, «Meta cumplida · falta finalizar»: la línea sigue abierta y conserva el botón «Finalizar presentación».
+        const cerradasDeVerdad=items.length>0&&items.every(x=>['FINALIZADA','CANCELADA'].includes(x.op?.estado));
+        const texto=({DETENIDA:'Línea detenida',EN_CURSO:'En curso',PAUSA:'Pausa programada',CANCELADA:'CANCELADA',COMPLETADA:cerradasDeVerdad?'FINALIZADA':'Meta cumplida · falta finalizar'})[estadoLineaGrupo]||
           (estadoLineaGrupo==='PENDIENTE'&&hayCompletada?'Pendiente':'Sin iniciar');
         const turnosLinea=[...new Set([...items,...vacios,...fueraPlan].map(x=>x.turno))];
         // totalProd = producción del PLAN (numerador del cumplimiento); totalFisico = lo que realmente salió de la línea (plan + fuera del plan).
@@ -1294,8 +1298,8 @@
               <div class="pa-hcol-title">▥ SECUENCIA DEL TURNO</div>
               ${(()=>{
                 const ordenados=itemsOrdenadosGrupo(g);
-                const counts={curso:0,proximo:0,pausa:0,detenida:0,pendiente:0,completada:0,cancelada:0};
-                ordenados.forEach(o=>counts[o.estado.cls]++);
+                const counts={curso:0,proximo:0,pausa:0,detenida:0,pendiente:0,completada:0,cancelada:0,meta:0};
+                ordenados.forEach(o=>{ if(o.estado.sinFinalizar)counts.meta++; else counts[o.estado.cls]++; });
                 const ct=(n,cls,txt)=>n>0 ? `<span class="${cls}">● ${n} ${txt}</span>` : '';
                 return `<div class="pa-state-counts">
                   ${ct(counts.curso,'curso','En curso')}
@@ -1303,6 +1307,7 @@
                   ${ct(counts.pausa,'pausa','En pausa')}
                   ${ct(counts.detenida,'detenida','Detenidas')}
                   ${ct(counts.completada,'completada','Finalizadas')}
+                  ${ct(counts.meta,'completada','Meta cumplida, falta finalizar')}
                   ${ct(counts.pendiente,'pendiente','Pendientes')}
                   ${counts.cancelada ? `<span class="cancelada">● ${counts.cancelada} Canceladas</span>` : ''}
                 </div>
@@ -1356,7 +1361,9 @@
               const actualActivo=g.items.find(x=>{
                 const e=estadoOrdenItem(x).key;
                 return e==='EN_CURSO' || e==='PAUSA' || x.op?.estado==='DETENIDA' || x.op?.estado==='LISTA';
-              });
+              }) ||
+              // 28/11/2026: llegó a lo programado pero nadie la finalizó: sigue abierta y conserva «Finalizar presentación» (así queda quién la cerró).
+              g.items.find(x=>['EN_PRODUCCION','PAUSA'].includes(x.op?.estado));
               const actual=actualActivo || g.items.find(x=>estadoOrdenItem(x).key==='PENDIENTE');
               if(!actual)return '';
               const idx=filasActuales.indexOf(actual);
