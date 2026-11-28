@@ -23,3 +23,14 @@ Producción, cantidades, secuencia, paradas, ratio, cumplimiento, proyección y 
 - El resolver recibe una fila por marca/presentación; si un mismo producto tiene un tramo en curso y otro posterior, se muestra una sola tarjeta.
 - Inicio operativo/Inicio ejecutivo siguen con sus propios estilos (no se tocaron).
 - Probado con el resolver real en pruebas (`tests/estados-visuales.test.js`) y colores calculados en `tests/visual/semaforo-estados.html`; no con datos reales ni la versión publicada.
+
+## «Meta cumplida · falta finalizar» (28/11/2026)
+
+Antes, una línea que llegaba a lo programado se mostraba como **FINALIZADA** aunque nadie la hubiera cerrado (caso PET 2 noche del 27/11: 47,265 de 44,625; Scala seguía en producción y Scala Gas pendiente). Por eso no aparecía «Reabrir» y en Auditoría no había quién la finalizó: no había ocurrido.
+
+Ahora (`24-semaforo-produccion-actual.js`):
+- La cabecera dice **FINALIZADA** solo si todas sus presentaciones fueron finalizadas (o canceladas) de verdad. Si solo llegó a la meta: **Meta cumplida · falta finalizar**.
+- La presentación dice **META CUMPLIDA** (no «COMPLETADA») y la secuencia la cuenta aparte: «Meta cumplida, falta finalizar».
+- Se mantiene el botón **Finalizar presentación**; al usarlo queda registrado quién y cuándo, y aparece **Reabrir** para quien tiene el permiso.
+
+Prueba: `tests/produccion-actual-meta-cumplida.e2e.js`. Solo página; no hay nada que aplicar en la base.
