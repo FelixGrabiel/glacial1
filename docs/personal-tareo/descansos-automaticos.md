@@ -181,6 +181,5 @@ El mínimo de la convocatoria (el aviso «3 / 4» de cuántos se convocan) es ot
 
 ## Pendiente
 
-- Aplicar **glacial_74** (apoyo entre equipos) en PRODUCCIÓN, con tu aprobación.
 - Cargar los **mínimos reales** en «Mínimos y días».
 - Confirmar cómo funciona un equipo que no opera el domingo.
